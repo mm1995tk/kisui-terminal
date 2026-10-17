@@ -61,7 +61,7 @@ Kitty graphics protocol に対応した端末（Kitty / Ghostty / WezTerm）で�
 
 - **画像の配置:** Unicode placeholder（U+10EEEE + 行・列の結合文字、前景色が画像 ID）。画像データは端末へ直接送り、bubbletea が描くのはセルの文字だけにする。差分描画や、パレットなどの重ね描きと衝突しない。
 - **書き込みの直列化:** bubbletea の出力（`tea.WithOutput`）と画像の送信は同じ `kitty.Writer` を通し、エスケープシーケンスが混ざらないようにする。応答が stdin に返らないよう `q=2` を付ける。
-- **Chromium:** `internal/cdp` が chromedp で常駐させ、`Page.startScreencast`（PNG）でフレームを受け取る。フレームは最新の 1 枚だけ保持し、最大 15 fps で端末へ送る。端末が遅いときは映像がコマ落ちするだけで、遅延は溜まらない。
+- **Chromium:** `internal/cdp` が chromedp で常駐させ、`Page.startScreencast`（JPEG、quality 70）でフレームを受け取り、Go 側でデコードして zlib 圧縮の RGB（Kitty の `f=24,o=z`）で端末へ送る。PNG は動画で 1 枚数 MB になり SSH 越しで詰まるため使わない。フレームは最新の 1 枚だけ保持し、最大 15 fps で端末へ送る。端末が遅いときは映像がコマ落ちするだけで、遅延は溜まらない。
 - **表示中だけ送る:** 別のタブが前にあるときは screencast を止める。再表示で最新のフレームを送り直す。
 - **入力:** マウスは、画像内の相対位置からページの座標へ変換して `Input.dispatchMouseEvent` で送る（セルのピクセルサイズに依存しない）。キーは入力モードのときだけ送る。
 - **viewport:** セル数 × セルのピクセルサイズ（`TIOCGWINSZ`。取れなければ 10×20）。幅 1600 px・高さ 1000 px を上限に、比率を保って縮める。
