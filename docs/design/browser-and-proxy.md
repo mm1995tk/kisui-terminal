@@ -57,7 +57,7 @@ Kitty graphics protocol による高解像度表示と動画の再生は、Chrom
 
 ## ライブ表示（Issue #57）
 
-Kitty graphics protocol に対応した端末（Kitty / Ghostty / WezTerm）では、静止画の代わりに常駐 Chromium の画面を流す。
+Kitty graphics protocol に対応した端末（Kitty / Ghostty / WezTerm / Herdr）では、静止画の代わりに常駐 Chromium の画面を流す。
 
 - **画像の配置:** Unicode placeholder（U+10EEEE + 行・列の結合文字、前景色が画像 ID）。画像データは端末へ直接送り、bubbletea が描くのはセルの文字だけにする。差分描画や、パレットなどの重ね描きと衝突しない。
 - **書き込みの直列化:** bubbletea の出力（`tea.WithOutput`）と画像の送信は同じ `kitty.Writer` を通し、エスケープシーケンスが混ざらないようにする。応答が stdin に返らないよう `q=2` を付ける。
