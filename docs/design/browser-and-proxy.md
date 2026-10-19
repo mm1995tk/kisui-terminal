@@ -8,7 +8,7 @@ Issue #15 の検討結果。方式を決め、実装は個別の Issue に分け
 
 - Web ページは **ヘッドレス Chromium でスクリーンショットを撮り、既存の画像ビュー（`internal/ui/image.go`）で表示する**。
 - 同じ仕組みを #14（mermaid プレビュー）と共有する。
-- リモート環境（VM）向けに、**gh-editor に組み込みの HTTP リバースプロキシ**を持つ。手元のブラウザからは SSH のポート転送（`ssh -L`）で見る。
+- リモート環境（VM）向けに、**dageki に組み込みの HTTP リバースプロキシ**を持つ。手元のブラウザからは SSH のポート転送（`ssh -L`）で見る。
 - 外部ブラウザ連携（`xdg-open` / `open`）を、最初に作る最小の手段とする。
 
 ## 検討した方式
@@ -26,9 +26,9 @@ Kitty graphics protocol による高解像度表示と動画の再生は、Chrom
 
 ### プロキシの形
 
-- gh-editor が `127.0.0.1:<ポート>` で待ち受け、`localhost:<対象ポート>` へ転送する。
+- dageki が `127.0.0.1:<ポート>` で待ち受け、`localhost:<対象ポート>` へ転送する。
 - 転送先は `:browser forward <対象ポート> [待ち受けポート]` で追加する。
-- リモートの VM で gh-editor を動かしている場合、手元で `ssh -L <手元ポート>:127.0.0.1:<待ち受けポート> vm` を実行すると、手元のブラウザで見られる。
+- リモートの VM で dageki を動かしている場合、手元で `ssh -L <手元ポート>:127.0.0.1:<待ち受けポート> vm` を実行すると、手元のブラウザで見られる。
 - 公開インターフェース（`0.0.0.0`）には既定でバインドしない。
 
 #### 直接の `ssh -L` に対してプロキシが足すもの
@@ -46,7 +46,7 @@ Kitty graphics protocol による高解像度表示と動画の再生は、Chrom
 - ブラウザの実行ファイルのパスは設定（`config.toml` の `[browser]` の `chromium`）で上書きできるようにする。
 - 描画バックエンドは `Renderer` インターフェースの裏に置く。Chromium 以外に差し替えられる。
 - プロキシの待ち受けアドレスは設定で変えられるようにする。
-- **設定の置き場所:** `[browser]` セクションは `~/.config/gh-editor/config.toml` か `.gh-editor/config.toml` にのみ書く。`.helix/config.toml` に書くと、Helix が未知のセクションを拒否する（`[search]` と同じ扱い）。README に明記する。
+- **設定の置き場所:** `[browser]` セクションは `~/.config/dageki/config.toml` か `.dageki/config.toml` にのみ書く。`.helix/config.toml` に書くと、Helix が未知のセクションを拒否する（`[search]` と同じ扱い）。README に明記する。
 
 ## Issue の分割
 
@@ -72,7 +72,7 @@ Kitty graphics protocol に対応した端末（Kitty / Ghostty / WezTerm）で�
 
 ## 内蔵ブラウザを外した理由（#116）
 
-Chromium を gh-editor と同じマシン（多くは SSH 先の VM）で動かし、画面を端末へ送る形には、次の問題があった。
+Chromium を dageki と同じマシン（多くは SSH 先の VM）で動かし、画面を端末へ送る形には、次の問題があった。
 
 - Herdr の中では、ペインの描き直しで Kitty graphics の画像が消える（#102）。半ブロックの静止画にしても、JS の読み込み前に撮れてしまう。
 - SSH 越しでは動画のコマが多すぎる。実測で毎秒約 8 MB を送り、Kitty が受け取りの処理に追われて画面を描けなくなった（#103）。
