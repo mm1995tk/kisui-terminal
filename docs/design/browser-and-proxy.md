@@ -46,7 +46,7 @@ Kitty graphics protocol による高解像度表示と動画の再生は、Chrom
 - ブラウザの実行ファイルのパスは設定（`config.toml` の `[browser]` の `chromium`）で上書きできるようにする。
 - 描画バックエンドは `Renderer` インターフェースの裏に置く。Chromium 以外に差し替えられる。
 - プロキシの待ち受けアドレスは設定で変えられるようにする。
-- **設定の置き場所:** `[browser]` セクションは `~/.config/shijimi/config.toml` か `.shijimi/config.toml` にのみ書く。`.helix/config.toml` に書くと、Helix が未知のセクションを拒否する（`[search]` と同じ扱い）。README に明記する。
+- **設定の置き場所:** `[browser]` セクションは `~/.config/shijimi/config.toml` か `.shijimi/config.toml` にのみ書く。README に明記する。
 
 ## Issue の分割
 
