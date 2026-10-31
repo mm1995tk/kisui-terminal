@@ -302,11 +302,11 @@ type Line struct {
 | `term.input` | → shj | `{termId, data (base64)}` → `{}`。xterm.js が作ったバイト列をそのまま PTY に書く |
 | `term.output` | ← GUI | 通知 `{termId, seq, data (base64)}`。PTY の出力。`seq` はバイト数の累計 |
 | `term.ack` | → shj | 通知 `{termId, seq}`。GUI が処理したバイト数。shj は `seq` から 256 KiB より先までは送らない。このとき PTY は読み続けてリングバッファに溜め、溢れた分は捨てる（GUI が止まってもシェルは止めない。捨てた分は `term.attach` で取り直す）（`yes` のような大量の出力で回線と WebView が詰まらないように） |
-| `term.exit` | ← GUI | 通知 `{termId, code, signal?}`。シェルが終わった |
+| `term.exit` | ← GUI | 通知 `{termId, code, signal?}`。シェルが終わった。送り残した `term.output` より先に届くことがある（GUI は `term.exit` のあとも `term.attach` で残りを取る）。溢れて捨てられた分は `term.output` の `seq` が飛んで届くので、欠けは `seq` の連続性で分かる |
 | `term.title` | ← GUI | 通知 `{termId, title}` |
 
 - JSON では base64 にするので出力が約 1.33 倍になる。MessagePack に変えれば生のバイト列で送れる。「速さが足りなければ MessagePack に」が一番効くのはここ。
-- ターミナルの中身を読む `internal/vt` は TUI だけで使う。GUI ではサーバーは PTY のバイト列を中継するだけで、エミュレートしない。コマンドの終了を知らせる印（`command-end`、`shellint`）は、サーバーが出力を読んで印だけ取り出す必要があるかを B6 で確かめる。
+- ターミナルの中身を読む `internal/vt` は TUI だけで使う。GUI ではサーバーは PTY のバイト列を中継するだけで、エミュレートしない。コマンドの終了を知らせる印（`command-end`、`shellint`）は、サーバーでは取り出さない（B6 で確かめた）。バイト列は xterm.js にそのまま届くので、印が要る機能は GUI の側（xterm.js の OSC ハンドラ）で拾う。サーバーが出力から読むのはタイトル（OSC 0 / 2）だけ。
 
 ### ワークスペース
 
