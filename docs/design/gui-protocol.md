@@ -144,7 +144,8 @@ type Line struct {
 | `findOpen`, `findInput`, `findOrigin` | 中身 | 検索バー。`textinput.Model` は同じく外す |
 | `comp`, `sig`, `sigSeq`, `snip` | 中身 | 補完、シグネチャ、スニペット。`Overlay` に出す。`sigSeq` は古い返事を捨てるための番号 |
 | `hoverText`, `hoverScroll`, `hoverWord`, `hoverSeq` | 中身 | ホバー |
-| `hoverAt`, `hoverCell` | 中身 | 今は画面の座標（`screenPt`）。「ペインの中の行と桁」に直す |
+| `hoverAt` | 中身 | ペインの中の行と桁（`buffer.Pos`）。P10b で直した |
+| `hoverCell` | 中身 | 今は画面の座標（`screenPt`）。ポインタが止まったマスで、重複を省くだけ |
 | `ctx` | 中身 | 文脈のプレビュー（`ctxPreview`） |
 | `ide`, `props`, `lastSel`, `sentSel` | 中身 + どちらでもない | `ide.Server` はサーバー側に 1 つ。提案（`props`）と選択範囲の通知は中身 |
 | `ag`, `sg` | 中身 | ACP のエージェントと提案パネル。`Screen.Agent` に出す |
