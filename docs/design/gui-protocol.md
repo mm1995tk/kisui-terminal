@@ -370,6 +370,7 @@ GUI はシステムの `ssh` を子プロセスとして起動する（`~/.ssh/c
 ### サーバーモード（`shj serve`）の中身
 
 - `core` をワークスペースごとに持つ（P14 以降）。制御用ソケット（`ctl`）と Claude Code 連携（`ide`）は今と同じようにサーバーに 1 つ持つ。`shj diff` などの CLI は、フォーカスしているワークスペースの `core` に届ける。
+- 実装（B11）：`server.Workspace`（`Control` と `IDE`）を実装した `core` を `SetFocus` するとそこへ届く。フォーカスが無いうちは `ctl` も `ide` もエラーを返す。制御用ソケットは TUI と同じ `<pid>.sock` で、`shj serve` が開くターミナルには `SHIJIMI_SOCKET` などの環境変数を渡す。Claude Code のロックファイルのワークスペースはホームディレクトリ。`clipboard.write` と `url.open` は `Server.WriteClipboard` / `OpenURL`（`ui.Host`）が今の GUI に通知する。
 - ログは `$XDG_STATE_HOME/shijimi-editor/serve.log`（無ければ `~/.local/state/…`）。サイズが 10 MiB を超えたら先頭を捨てる。
 
 ## 4. あとから足せる余地
