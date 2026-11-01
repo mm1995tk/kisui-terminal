@@ -179,7 +179,7 @@ P13-08（#384）では、マウスの当たり判定（`handleMouse`・`termMous
 
 色は `theme.go`（`Theme` の値だけ。`app.go` に依存しない）と `theme_apply.go`・`styles.go`（lipgloss のスタイルを作る）に割った。`Core` が選ぶのは `Theme` で、スタイルへの反映は前面の `setPalette` が行う（`TestThemeApplyIsFrontEnd` が見張る）。
 
-`styles.go` は lipgloss のスタイル（`bgfg`・`st*`）だけにし、色の値（`c*`）は `colors.go`、セルに合わせる関数（`fit`・`overlay`・`clamp`）は `cells.go` に分けた。tui のファイルが `Core` のフィールドを読まず `coreq.go`・`ptrq.go`・`fitq.go` のメソッドで尋ねる形は `TestFrontEndAsksCore` が、core 行きのファイルが `styles.go` のスタイルで描くのは `TestStylesStayInTui`（`styleCoreTodo` に残りを並べた）が見張る。
+`styles.go` は lipgloss のスタイル（`bgfg`・`st*`）だけにし、色の値（`c*`）は `colors.go`、セルに合わせる関数（`fit`・`overlay`・`clamp`）は `cells.go` に分けた。tui のファイルが `Core` のフィールドを読まず `coreq.go`・`ptrq.go`・`fitq.go` のメソッドで尋ねる形は `TestFrontEndAsksCore` が、core 行きのファイルが `styles.go` のスタイルで描くのは `TestStylesStayInTui`が見張る。core 行きの 13 ファイルに残っていた描画（`drawAgent`・`drawPalette`・`drawSearch`・`drawHover` ほか）は `*_draw.go` に出し、データ（`Overlay`・`Pane` ほか）だけを渡す形にした。
 
 ## 2. 分けていく順番
 
