@@ -181,6 +181,8 @@ P13-08（#384）では、マウスの当たり判定（`handleMouse`・`termMous
 
 `styles.go` は lipgloss のスタイル（`bgfg`・`st*`）だけにし、色の値（`c*`）は `colors.go`、セルに合わせる関数（`fit`・`overlay`・`clamp`）は `cells.go` に分けた。tui のファイルが `Core` のフィールドを読まず `coreq.go`・`ptrq.go`・`fitq.go` のメソッドで尋ねる形は `TestFrontEndAsksCore` が、core 行きのファイルが `styles.go` のスタイルで描くのは `TestStylesStayInTui`が見張る。core 行きの 13 ファイルに残っていた描画（`drawAgent`・`drawPalette`・`drawSearch`・`drawHover` ほか）は `*_draw.go` に出し、データ（`Overlay`・`Pane` ほか）だけを渡す形にした。
 
+P13-09（#385）で `Core` を `internal/core` に移し、分割を終えた。`internal/tui` の `App` は `*core.Core` を埋め込み、`tea.Model`（`Init`・`Update`・`View`。`model.go`）を持つ。`Core` は前面を `core.FrontEnd`（`internal/core/frontend.go`）として持ち、`App` がそれを満たす（`internal/tui/frontend.go`）。tui が `Core` の公開したフィールドとメソッドを使うので、上に挙げた tui の中の見張り（`TestCoreFields`・`TestCoreMethods`・`TestThemeApplyIsFrontEnd`・`TestFrontEndAsksCore`・`TestStylesStayInTui`・`TestRenderFrameReadsQueries`）はやめた。境界はパッケージで、`internal/core/deps_test.go`（`TestNoTerminalDeps`）が、`internal/core` が bubbletea・lipgloss・`internal/tui` に依存しないことを見張る。`github.com/charmbracelet/x/ansi` は、Markdown プレビューなどで端末のセルの幅を測る所が残るので、まだ例外にしている。tui の中には、lipgloss を import するファイルと `layout` を使うファイルを限る見張り（`internal/tui/split_test.go`）だけが残る。テストは、振る舞い（`Input` を渡して状態を見る）を `internal/core` に、描画・レイアウト・マウスの座標・端末とマルチプレクサを `internal/tui` に置いた。
+
 ## 2. 分けていく順番
 
 どの手順も 1 つが 1 つの PR になる大きさにする。手順の最後で `go test ./...` が通り、TUI の見た目と操作が変わらないこと。
