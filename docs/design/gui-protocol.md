@@ -127,7 +127,7 @@ type Line struct {
 | `w`, `h` | TUI | GUI は領域ごとの大きさを `view.resize` で送る。`core` は領域ごとの行数と桁数だけ知る |
 | `focus` | 中身 | 「キーを受ける領域」は `core` が持つ（`Screen.Focus`）。GUI で押した領域は入力に付けて送る |
 | `explorer`, `treeTicks` | 中身 | TUI のツリーの選択・開閉は中身（`Screen.Explorer`）。GUI のツリーは `tree.*` で別に取り、開閉は GUI が持つ |
-| `term`, `hd` | どちらでもない | ターミナルはサーバーのターミナル管理（PTY）が持つ。`hd`（herdr のペイン）は TUI だけで使う |
+| `term`, `hd` | どちらでもない | ターミナルはサーバーのターミナル管理（PTY）が持つ。PTY の起動・読み書き・サイズ変更は `internal/term`（`tea`・lipgloss・`vt` を使わない）に出し、TUI は `term.Session` の出力を `vt` に流して描くだけ（`tui.terminal`）。`shj serve` のターミナル管理（`server.termManager`）も起動は `term.Start` を使い、リングバッファと `term.ack` の流量制御は `server` に残す。`hd`（herdr のペイン）と tmux・zellij・cmux のペイン（`mux*.go`）は TUI だけで使う（`core` は知らない） |
 | `proxy` | どちらでもない | ポート転送の管理はサーバー側に 1 つ |
 | `pal` | 中身 | コマンドパレットの状態（`Overlay` に出す） |
 | `wsSyms`, `wsClient` | 中身 | プロジェクトのシンボル選択 |
@@ -147,7 +147,7 @@ type Line struct {
 | `hoverAt` | 中身 | ペインの中の行と桁（`buffer.Pos`）。P10b で直した |
 | `hoverCell` | 中身 | 今は画面の座標（`screenPt`）。ポインタが止まったマスで、重複を省くだけ |
 | `ctx` | 中身 | 文脈のプレビュー（`ctxPreview`） |
-| `ide`, `props`, `lastSel`, `sentSel` | 中身 + どちらでもない | `ide.Server` はサーバー側に 1 つ。提案（`props`）と選択範囲の通知は中身 |
+| `ide`, `props`, `lastSel`, `sentSel` | 中身 + どちらでもない | `ide.Server` はサーバー側に 1 つ（`core` の外。`cli` が作って渡す）。提案（`props` = `core.Proposals`）と選択範囲の通知（`lastSel`, `sentSel` = `core.SelectionTracker`）、ツール一覧（`core.IDETools`）は `core`。提案のスクロールは TUI |
 | `ag`, `sg` | 中身 | ACP のエージェントと提案パネル。`Screen.Agent` に出す |
 | `clipboard` | 中身 | 内部のレジスタ。OS のクリップボードは GUI 側（`clipboard.write` 通知と `input.paste`） |
 | `msg`, `msgErr` | 中身 | 状態行のメッセージ。`Screen.Status` に出す |
