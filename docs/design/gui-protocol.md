@@ -342,15 +342,16 @@ GUI は複数のワークスペースのツリーを（開閉の状態を持っ�
 | --- | --- | --- |
 | `tree.list` | → shj | `{workspaceId, path ("" = ルート)}` → `{entries: [{name, kind: "file"\|"dir"\|"symlink", target?, size?, git?: "M"\|"A"\|"D"\|"R"\|"?"\|"!"\|"U", gitChildren?: bool}], truncated?, rev}`（`rev` はツリー専用の版。`Screen.Rev` とは別で、`tree.changed` のあとの取り直しで古い返事を捨てるのに使う）。1 階層だけ（フォルダを開いたときに取る）。`.gitignore` で無視されているものは `git: "!"`。順番は TUI のツリーと同じ（フォルダが先）。5000 件で切る |
 | `tree.watch` | → shj | `{workspaceId, paths: [...]}` → `{}`。GUI が開いているフォルダを教える。サーバーはそこだけ監視する（`watch.go` と同じ仕組み） |
-| `tree.changed` | ← GUI | 通知 `{workspaceId, paths: [...]}`。そのフォルダの中身が変わった。GUI は `tree.list` を取り直す |
+| `tree.changed` | ← GUI | 通知 `{workspaceId, paths: [...], rev}`（`rev` は `tree.list` と同じ版。これより古い `tree.list` の返事は捨てる）。そのフォルダの中身が変わった。GUI は `tree.list` を取り直す |
 | `git.status` | → shj | `{workspaceId}` → `{branch, ahead?, behind?, marks: {"path": "M"}, rev}`（`rev` は git 専用の版。`Screen.Rev` とは別で、`git.changed` との前後の判定に使う）。全体の印。フォルダの印は `gitChildren` を使って GUI が求める |
-| `git.changed` | ← GUI | 通知 `{workspaceId, branch?, marks?: {"path": "M"\|null}}`。変わった分だけ（`null` は印が消えた） |
+| `git.changed` | ← GUI | 通知 `{workspaceId, branch?, marks?: {"path": "M"\|null}, rev}`（`rev` は `git.status` と同じ版）。変わった分だけ（`null` は印が消えた） |
 | `tree.create` | → shj | `{workspaceId, path, kind: "file"\|"dir"}` → `{}` |
 | `tree.rename` | → shj | `{workspaceId, from, to}` → `{}` |
 | `tree.delete` | → shj | `{workspaceId, path}` → `{}`。GUI が確認してから送る（TUI の `yesNo` と同じ流れ） |
 
 - パスはワークスペースのルートからの相対パス（`/` 区切り）。ルートの外へ出る（`..`、ルートの外を指すシンボリックリンクの先）パスは `denied`。
 - ファイル名が UTF-8 でないときは、`name` の不正な部分を `�` に置き換え、元のバイト列を `nameRaw`（base64）で足す。
+- 印の文字：`M` 変更、`A` 追加、`D` 削除、`R` 名前変更、`?` 追跡していない、`U` 衝突（マージ中）、`!` `.gitignore` で無視。`.git` は一覧に出さず、`tree.create` / `tree.rename` / `tree.delete` でも触れない（`denied`）。
 
 ### ssh 越しに shj を起動する
 
