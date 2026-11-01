@@ -183,6 +183,8 @@ P13-08（#384）では、マウスの当たり判定（`handleMouse`・`termMous
 
 P13-09（#385）で `Core` を `internal/core` に移し、分割を終えた。`internal/tui` の `App` は `*core.Core` を埋め込み、`tea.Model`（`Init`・`Update`・`View`。`model.go`）を持つ。`Core` は前面を `core.FrontEnd`（`internal/core/frontend.go`）として持ち、`App` がそれを満たす（`internal/tui/frontend.go`）。tui が `Core` の公開したフィールドとメソッドを使うので、上に挙げた tui の中の見張り（`TestCoreFields`・`TestCoreMethods`・`TestThemeApplyIsFrontEnd`・`TestFrontEndAsksCore`・`TestStylesStayInTui`・`TestRenderFrameReadsQueries`）はやめた。境界はパッケージで、`internal/core/deps_test.go`（`TestNoTerminalDeps`）が、`internal/core` が bubbletea・lipgloss・`internal/tui` に依存しないことを見張る。`github.com/charmbracelet/x/ansi` は、Markdown プレビューなどで端末のセルの幅を測る所が残るので、まだ例外にしている。tui の中には、lipgloss を import するファイルと `layout` を使うファイルを限る見張り（`internal/tui/split_test.go`）だけが残る。テストは、振る舞い（`Input` を渡して状態を見る）を `internal/core` に、描画・レイアウト・マウスの座標・端末とマルチプレクサを `internal/tui` に置いた。
 
+P14（#306）で、1 つのプロセスが `core` を複数持てるようにした。プロセス全体で 1 つのもの（ポート転送とシェル連携のファイル）は `core.Shared`（`internal/core/shared.go`）にまとめ、`core.NewIn(shared, …)` で作った `core` はそれを共有する。TUI は今までどおり `core.New` で 1 つだけ作り、`Shared` もその `core` が持つ（`Close` で閉じる）。テーマと表示の言語はもともとプロセス全体の値（`ActivateTheme`・`i18n.SetLang`）。言語は、TUI では `core.New` がそのルートの設定で決め、`shj serve` ではホームの設定で起動時に一度だけ決める（`NewIn` は `SetLang` しない）。`shj serve` は `core.Workspaces`（`internal/core/workspaces.go`）でルートごとに `core` を 1 つ持ち、前面は描く画面がまだ無いので `headless`（`internal/core/headless.go`）。`core` を作るのは `workspace.focus` のときで、ファイルを開いている間はシェルがいなくてもワークスペースは残り、どちらも無くなったら `core` を止める。サーバーは `core` を import せず、`server.Cores`（`internal/server/cores.go`）を通して `files`・`workspace.close_files` を `core` に尋ねる。`workspace.close_files` は未保存の変更があるファイルを閉じずに残す。止まる前（idle と `server.shutdown`）には `AddBeforeStop` で全部の `core` の未保存の変更を `server.WriteBackup`（`<名前>.bk`）に書く。`core` の `Event` を回す仕組みと、`core` が `server.Workspace`（`ctl`・`ide` の届け先）になるのは、画面の配信（B9）と一緒に入れる。それまでは `Workspace.Do` が 1 つずつ `core` に触らせる。
+
 ## 2. 分けていく順番
 
 どの手順も 1 つが 1 つの PR になる大きさにする。手順の最後で `go test ./...` が通り、TUI の見た目と操作が変わらないこと。
@@ -343,7 +345,7 @@ P13-09（#385）で `Core` を `internal/core` に移し、分割を終えた。
 | `workspace.changed` | ← GUI | 通知 `{added?: [Workspace], removed?: [id], updated?: [Workspace]}`。ワークスペースが増えた / 減った / 中身（ターミナルの所属、ブランチ、開いているファイル）が変わった |
 | `term.cwd` | ← GUI | 通知 `{termId, cwd, workspaceId\|null}`。ターミナルの今いるフォルダが変わった |
 | `workspace.focus` | → shj | `{id}` → `{rev, termId?}`。フォーカスを移す。画面（`Screen`）はそのワークスペースの `core` のものに切り替わる。`termId` はそのワークスペースで最後に使ったターミナル |
-| `workspace.close_files` | → shj | `{id}` → `{}`。そのワークスペースの開いているファイルを全部閉じる（帯だけ残す） |
+| `workspace.close_files` | → shj | `{id}` → `{}`。そのワークスペースの開いているファイルを閉じる（帯だけ残す）。未保存の変更があるファイルは閉じずに残す。残ったファイルは `workspace.changed` の `files` で分かる |
 
 - `workspace.focus` を境に、`input.*` と `screen.update` の宛先が変わる。`rev` はサーバー全体で 1 つの数にする（ワークスペースを移しても増え続ける）。
 - ファイルは、ワークスペースごとに `core` が覚える。フォーカスを外しても `core` は残る（外したワークスペースの LSP を止めるかは、P14 のあとで測って決める）。
