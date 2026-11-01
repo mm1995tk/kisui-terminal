@@ -313,6 +313,14 @@ P14（#306）で、1 つのプロセスが `core` を複数持てるようにし
   - `command.run`：制御用ソケットの `exec` と同じく、`:q` のように終わらせるものや、人が選ぶ必要があるものは `ok: false` で断る。
   - `file.open`：`path` はワークスペースのルートからの相対パス（`tree.*` と同じ）。外へ出るもの・リンクの先が外のものは `denied`、無いものは `not_found`、フォルダは `invalid_params`。`line` と `col` は 0 始まりで、`col` は rune の位置（`Pos` と同じ）。どちらも省くと、開いていたファイルのカーソルは動かない。`pane` が 2 つ並べた相手のペインなら、そちらで開く。ワークスペースに `core` が無ければ作る。
   - `shj serve` の `core` は TUI と同じく、頼んだ仕事（`Effect`：言語サーバー、タイマー、検索 …）をそれぞれの goroutine で回し、戻ってきた事象を反映したら画面を作り直す（`core.Workspace.Update` / `Apply`、`Workspaces.SetOnChange`）。作ったときに言語サーバーの待ちとファイルの監視を始める。`Quit` は捨てる。
+- GUI の実装（E2）で決めた細部（`gui/src/files/input.ts`・`filesInput.ts`・`FilesView.tsx`・`clipboard.ts`）：
+  - キーは見えない `textarea` で受ける（IME の変換と貼り付けを OS に任せるため）。IME の候補の窓がカーソルの近くに出るよう、変換を始めたときにカーソルのマス目へ動かす。
+  - `input.key` は `keydown` だけを送る（`release` は `core` が使わないので送らない）。修飾キーだけ・dead key・変換中のキー（`isComposing`、`keyCode` 229）も送らない。 macOS の Option で打つ文字（ドイツ語配列の Option+L = `@` など）は `alt` を付けずに送る（macOS のターミナルの既定と同じ）。
+  - IME：変換中は `input` のイベントごとに `input.composition`（`cursor` は UTF-16 の位置を rune の位置にしたもの）、確定したら `cursor: null` を送ってから、確定した文字を `{key: "Process", text}` の `input.key` で送る。
+  - GUI が受けて送らないキー：OS のクリップボードからの貼り付け（macOS は Cmd+V、ほかはターミナルと同じ Ctrl+Shift+V。Ctrl+V は shj のレジスタから貼る Helix のキーなので送る）、`Ctrl+Shift+T`・``Ctrl+Shift+` ``（F3・F4 で使う）。
+  - マウス：押したペインの中で、押したまま動かしたときだけ、マス目が変わったら `move` を送る（ペインの外へ出ても押したペインのマス目で数え、はみ出しは丸めない。上は負の行になり、`core` がスクロールする）。離したのを取りこぼしたら（`buttons` が離れている、ウィンドウがフォーカスを失った）、そこで `up` を送る。`clicks` は同じボタン・同じマス目を 400 ms 以内に押したら増やす（3 まで）。ホイールの px は行（`dy`）と桁（`dx`）にし、端数は次に持ち越す。
+  - `clipboard.write` は `navigator.clipboard.writeText` で入れる。WebKit がユーザーの操作の外だとして断ったら覚えておき、次にキーかマウスを押したときに書き直す。覚えている間の貼り付けは、その文字を使う。 ウィンドウがフォーカスを失ったら覚えた文字は捨てる（ほかのアプリでコピーした内容を上書きしないため）。
+  - 送る順番：Ctrl+Shift+V でクリップボードを読む間に来た入力は、読み終えて `input.paste` を送るまで待たせる（ブラケットペーストと同じく、貼り付けの後のキーが先に届かないように）。
 
 ### shj から GUI への通知（その他）
 
