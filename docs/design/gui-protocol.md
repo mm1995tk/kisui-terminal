@@ -175,7 +175,7 @@ P13-08（#384）では、マウスの当たり判定（`handleMouse`・`termMous
 
 次に `App` を `Core`（中身。`internal/tui/app.go` の `type Core struct`）と `App`（`*Core` を埋め込み、端末だけのフィールドを持つ）に分けた。`App` に残すのは上の表で「TUI」の行のフィールド（画面の大きさ、出す領域、ペインの大きさ、端末、キーを離した報告）。`core` に行くファイルはそのフィールドを読まず、`internal/tui/frontend.go` の問い合わせ（`screenW`・`sideShown`・`setSide`・`termShown`・`termRun` …。`App` を割ったあとは `core` が前面に尋ねる呼び出しになる）を通す。`TestCoreFields` が `Core` にそのフィールドが入らないことと、`frontend.go` などの tui に残るファイル以外が読まないことを見張る。
 
-中身のファイルのメソッドは `*Core` に付け替えた。`Core` は前面（`App`）を `frontEnd`（`frontend.go`）として持ち、端末に尋ねることはそれを通す。残りの `*App` のメソッド（`Init`・`Update`・`handleKey` ほか）は `split_test.go` の `appMethodTodo` に並べてあり、`TestCoreMethods` が増えないことを見張る。
+中身のファイルのメソッドは `*Core` に付け替えた。`Core` は前面（`App`）を `frontEnd`（`frontend.go`）として持ち、端末に尋ねることはそれを通す。中身のファイルに `*App` のメソッドは残っていない（`Init`・`Update` は `model.go`、描くものは `*_draw.go`）。`TestCoreMethods` が増えないことを見張る。`Core` を `internal/core` に移すのが残り。
 
 ## 2. 分けていく順番
 
