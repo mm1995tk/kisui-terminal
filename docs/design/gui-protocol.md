@@ -278,6 +278,13 @@ P14（#306）で、1 つのプロセスが `core` を複数持てるようにし
 | `blob.get` | → shj | `{id, offset?, length?}` → `{mime, size, data (base64), eof}`。画像・プレビュー用の画像は `Screen` に埋め込まず `ImageRef{id, mime, w, h}` で持たせ、これで取る。大きい画像は分けて取る |
 
 - 画面の更新は、入力やその他のイベント（LSP の返事、タイマー）を処理したあとに作る。作るのはフォーカスしているワークスペースの分だけ。
+- 実装（B9）で決めた細部：
+  - `view.resize` の `files.rows` はペインの本文の行数で、タイトル行を含めない。`view.resize` の前は 80 桁 × 22 行とみなす。
+  - `screen.update` の `files.panes` には今のペインを全部並べる（並びで消えたペインが分かる）。前からあるペインは `id` と変わった項目だけ、新しいペインは全部の項目を持つ。表に無い `Pane` の項目（`curLine`・`image`・`caption`・`diff`・`preview`）も、変わったときに付ける。
+  - 購読して最初の更新（`baseRev` は 0）と、ワークスペースを移したあとの更新は、購読している領域を全部持つ。
+  - `theme.get` の `tokens` は色を `fg` だけに入れる。`Screen` は同じ名前を文字にも背景（`Span.Bg`）にも使うため。
+  - `blob.get` の `id` は `ImageRef.Blob` そのもの（`file:<絶対パス>` か `mermaid:<図の鍵>`）。今の画面に出ている画像だけを返し、ほかは `not_found`。1 回で返すのは 4 MiB まで。
+  - 画面を作り直すきっかけは `server.Server.ScreenChanged`。入力（B10）やイベントを処理した側が呼ぶ。
 
 ### キー・マウス・貼り付けの入力
 
