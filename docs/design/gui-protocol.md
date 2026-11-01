@@ -418,14 +418,14 @@ GUI は複数のワークスペースのツリーを（開閉の状態を持っ�
 
 GUI はシステムの `ssh` を子プロセスとして起動する（`~/.ssh/config` と ssh-agent をそのまま使うため）。ssh がパスワードや 2 段階認証を求めるときは `SSH_ASKPASS` で GUI の窓に出す。
 
-1. **shj の場所**：`~/.cache/shijimi-editor/<GUI の版>/shj`。無ければ、ユーザーに聞いてから GUI が転送する。PATH の `shj` には触らない。リモートの OS とアーキテクチャは `uname -sm` で調べ、合う実行ファイルを GitHub Releases から GUI が取って送る。取ったら送る前に、GitHub Releases の checksums（Release に上げる `SHA256SUMS`。`sha256sum` の形式）にある SHA-256 と、取得した実行ファイルを比べる（取得の段階の確認。合わなければ ssh を起動する前に捨てる）。リモートに置いたファイルも同じ値かを確かめる（転送の壊れの確認。リモートで一時ファイルの SHA-256 を計り、合ったときだけ `shj` の名前にする）。shj が無いことは、2 のコマンドの終了コード 97 で知る（`ssh` 自身の失敗は 255）。nightly 版の GUI は、動くタグ `nightly` の `shj-nightly-<os>-<cpu>` を取る。
-2. **つなぐ**：`ssh -T host -- command -v <shj> >/dev/null 2>&1 || exit 97; <shj> attach`（`<shj>` は `~/.cache/shijimi-editor/<版>/shj`）（`-T` は端末を割り当てない）。ユーザーの `ssh_config`（`ControlMaster` など）はそのまま効く。
+1. **shj の場所**：`~/.cache/shijimi-editor/<GUI の版>/shj`。無ければ、PATH、次によく使う場所（`~/.nix-profile/bin`・`/etc/profiles/per-user/$USER/bin`・`/run/current-system/sw/bin`・`/opt/homebrew/bin`・`/usr/local/bin`・`~/.local/bin` など。ssh が動かす非対話・非ログインのシェルの PATH には Nix のプロファイルが入っていないことがあるため）の `shj`（nightly 版の GUI は `shj-nightly` を先に）のうち、`--version` が GUI と同じ版（nightly はコミットまで同じ）のものを使う。版の違う shj や `attach` を持たない古い shj は使わない。同じ版がどこにも無ければ、ユーザーに聞いてから GUI が転送する。PATH の `shj` には触らない。リモートの OS とアーキテクチャは `uname -sm` で調べ、合う実行ファイルを GitHub Releases から GUI が取って送る。取ったら送る前に、GitHub Releases の checksums（Release に上げる `SHA256SUMS`。`sha256sum` の形式）にある SHA-256 と、取得した実行ファイルを比べる（取得の段階の確認。合わなければ ssh を起動する前に捨てる）。リモートに置いたファイルも同じ値かを確かめる（転送の壊れの確認。リモートで一時ファイルの SHA-256 を計り、合ったときだけ `shj` の名前にする）。shj が無いことは、2 のコマンドの終了コード 97 で知る（`ssh` 自身の失敗は 255）。nightly 版の GUI は、動くタグ `nightly` の `shj-nightly-<os>-<cpu>` を取る。
+2. **つなぐ**：`ssh -T host -- sh -c '<1 の順に探し、無ければ exit 97。あれば exec <shj> attach>'`（ログインシェルが fish などでも動くよう `sh -c` で包む。環境変数 `SHIJIMI_REMOTE_SHJ` で場所を指定したときは、その場所だけを見て `command -v <shj> >/dev/null 2>&1 || exit 97; <shj> attach`）（`-T` は端末を割り当てない）。ユーザーの `ssh_config`（`ControlMaster` など）はそのまま効く。
 3. **`shj attach` がすること**（リモートで動く橋渡し）：
    1. 標準出力に `@@shj-rpc 1@@` を出す。
    2. ソケットのフォルダを見て、`shj serve` が動いていれば、その Unix ソケットにつなぐ。**すでに動いている shj につなぎ直す方法はこれ。** ssh のたびに新しい shj は起動しない。
    3. 動いていなければ、`shj serve` を切り離して起動する（`setsid`。標準入出力は閉じ、ログはファイルへ）。ソケットができるまで（最大 5 秒）待ってつなぐ。2 台の GUI が同時に起動しても 1 つになるよう、ソケットのフォルダの中のロックファイル（`flock`）を使う。
    4. 標準入出力とソケットの間を、バイトのままコピーする（プロトコルは解釈しない）。どちらかが閉じたら終わる。
-4. **「このマシン」**：`ssh` を挟まず、GUI が同じ `shj attach` を直接起動する。
+4. **「このマシン」**：`ssh` を挟まず、GUI が同じ `shj attach` を直接起動する。Finder や Dock から起動した macOS のアプリはログインシェルの PATH を引き継がないので、起動のときにログインシェル（`$SHELL -l -i -c`、5 秒で諦める）に PATH を聞き、GUI の PATH と 1 のよく使う場所を足した PATH で `shj` を探す（環境変数 `SHIJIMI_SHJ` があればそれを使う。nightly 版の GUI は `shj-nightly` を先に。入れる手段が無いので版は確かめない）。待つのはメインスレッドの外（`connect` は async のコマンド）。`shj attach` にもこの PATH を渡す（`shj serve` の中のターミナルが引き継ぐ）。
 5. **版が違う shj が動いていたら**：`session.hello` の結果で GUI が気づく（前の節）。`attach` は版が違っても動いているサーバーにつなぐ（勝手に入れ替えない）。
 
 セキュリティ：Unix ソケットは 0700 のフォルダの中（自分のユーザーだけ）。`shj serve` はネットワークに待ち受けない。リモートの認証は ssh に任せる。`shj attach` の段階で追加の認証はしない（同じユーザーなら元々シェルを開ける）。
