@@ -1,0 +1,220 @@
+name: GUI を配る
+
+# GUI（gui/）の AppImage と署名なしの .dmg を作り、自動更新（Tauri の updater）の latest.json と一緒に
+# GitHub Release に上げる（C8。#325）。release.yml（版のリリース）と nightly.yml（nightly）から呼ぶ。
+#
+# - 版のリリース：タグ v<版> の Release に shijimi-editor-*。updater は releases/latest の latest.json を見る。
+# - nightly：pre-release nightly に shijimi-editor-nightly-*（tauri.nightly.conf.json を重ねる）。
+#   updater は nightly の latest.json を見る。名前と identifier が違うので、普通の版と並べて入れられる。
+# - 自動更新を持つのは、ここで作る AppImage と .dmg だけ（cargo の feature updater）。Nix で作る版は持たない。
+#
+# 上げるもの（<名前> は shijimi-editor か shijimi-editor-nightly）:
+#   <名前>-linux-x86_64.AppImage(.sig)、<名前>-linux-aarch64.AppImage(.sig)、
+#   <名前>-macos-universal.dmg、<名前>-macos-universal.app.tar.gz(.sig)、latest.json
+#
+# 署名鍵（minisign、パスワードなし）は 1Password の vault shijimi-editor-release の item
+# shijimi-editor-tauri-updater-key にあり、サービスアカウント（トークンは item shijimi-editor-release-op-token。
+# GitHub の Secret OP_SERVICE_ACCOUNT_TOKEN_RELEASE）で、ビルドの直前に読む。公開鍵は tauri.conf.json の
+# plugins.updater.pubkey。鍵を替えたら pubkey も替える（古い版は新しい鍵の更新を受けつけない）。
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: "GUI の版（X.Y.Z か X.Y.Z-nightly.<yyyymmdd>.<sha>）"
+        type: string
+        required: true
+      tag:
+        description: "上げる先の Release のタグ（v<版> か nightly）。Release はもうあること"
+        type: string
+        required: true
+      ref:
+        description: "ビルドするコミット"
+        type: string
+        required: true
+      channel:
+        description: "空なら普通の版、nightly なら nightly 版"
+        type: string
+        default: ""
+    secrets:
+      OP_SERVICE_ACCOUNT_TOKEN_RELEASE:
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  bundle:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            platform: linux-x86_64
+          - os: ubuntu-24.04-arm
+            platform: linux-aarch64
+          # Intel と Apple シリコンの両方で動く 1 つの .app にする
+          - os: macos-latest
+            platform: macos-universal
+            target: universal-apple-darwin
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: gui/package-lock.json
+
+      - name: Rust を用意する
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          if ! command -v rustup >/dev/null; then
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+            echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+            export PATH="$HOME/.cargo/bin:$PATH"
+          fi
+          rustup toolchain install stable --profile minimal
+          if [ "$TARGET" = universal-apple-darwin ]; then
+            rustup target add aarch64-apple-darwin x86_64-apple-darwin
+          fi
+
+      - name: Linux の WebView と AppImage の道具を入れる
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev \
+            libssl-dev libayatana-appindicator3-dev librsvg2-dev patchelf
+
+      - name: npm ci
+        working-directory: gui
+        run: npm ci
+
+      # 版と（nightly なら）名前・取り先を、tauri build --config で重ねる設定にまとめる
+      - name: 設定を作る
+        env:
+          VERSION: ${{ inputs.version }}
+          CHANNEL: ${{ inputs.channel }}
+        run: |
+          base='{}'
+          if [ "$CHANNEL" = nightly ]; then
+            base=$(cat gui/src-tauri/tauri.nightly.conf.json)
+          fi
+          printf '%s' "$base" | jq --arg v "$VERSION" '. + {version: $v}' > "$RUNNER_TEMP/tauri.json"
+          cat "$RUNNER_TEMP/tauri.json"
+
+      # 署名鍵はこの step から後でだけ環境変数にある（npm ci などの依存のスクリプトには渡さない）
+      - name: 署名鍵を 1Password から読む
+        uses: 1password/load-secrets-action@70062d7a876d3eb6334754fa26efd2fbd90c32f2 # v5.0.1
+        with:
+          export-env: true
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN_RELEASE }}
+          TAURI_SIGNING_PRIVATE_KEY: op://shijimi-editor-release/shijimi-editor-tauri-updater-key/credential
+
+      - name: tauri build
+        working-directory: gui
+        env:
+          # 鍵にパスワードは付けていない（秘密鍵は 1Password にしか置かないので、足しても守りは強くならない）
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+          TARGET: ${{ matrix.target }}
+        run: |
+          args=(--features updater --config "$RUNNER_TEMP/tauri.json")
+          if [ -n "$TARGET" ]; then
+            args+=(--target "$TARGET" --bundles "app,dmg")
+          else
+            args+=(--bundles appimage)
+          fi
+          npx tauri build "${args[@]}"
+
+      - name: 決まった名前に並べる
+        env:
+          CHANNEL: ${{ inputs.channel }}
+          PLATFORM: ${{ matrix.platform }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          name=shijimi-editor
+          if [ "$CHANNEL" = nightly ]; then
+            name=shijimi-editor-nightly
+          fi
+          bundle="gui/src-tauri/target/${TARGET:+$TARGET/}release/bundle"
+          out="$RUNNER_TEMP/out"
+          mkdir -p "$out"
+          one() {
+            # glob が 1 つだけに当たることを確かめる（版の付いた名前は Tauri が決める）
+            # shellcheck disable=SC2206 # わざと glob を展開する
+            local files=($1)
+            if [ "${#files[@]}" != 1 ] || [ ! -e "${files[0]}" ]; then
+              echo "::error::$1 に当たるファイルが 1 つではありません: ${files[*]}"
+              exit 1
+            fi
+            printf '%s' "${files[0]}"
+          }
+          if [ "$RUNNER_OS" = Linux ]; then
+            cp "$(one "$bundle/appimage/*.AppImage")" "$out/$name-$PLATFORM.AppImage"
+            cp "$(one "$bundle/appimage/*.AppImage.sig")" "$out/$name-$PLATFORM.AppImage.sig"
+          else
+            cp "$(one "$bundle/dmg/*.dmg")" "$out/$name-$PLATFORM.dmg"
+            cp "$(one "$bundle/macos/*.app.tar.gz")" "$out/$name-$PLATFORM.app.tar.gz"
+            cp "$(one "$bundle/macos/*.app.tar.gz.sig")" "$out/$name-$PLATFORM.app.tar.gz.sig"
+          fi
+          ls -l "$out"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: gui-${{ matrix.platform }}
+          path: ${{ runner.temp }}/out/*
+          if-no-files-found: error
+          retention-days: 1
+
+  # 3 つのビルドがそろってから上げる（latest.json が、まだ無いファイルを指さないように）
+  publish:
+    needs: bundle
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: gui-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/assets
+      - name: latest.json を作って Release に上げる
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+          TAG: ${{ inputs.tag }}
+          CHANNEL: ${{ inputs.channel }}
+        run: |
+          cd "$RUNNER_TEMP/assets"
+          name=shijimi-editor
+          if [ "$CHANNEL" = nightly ]; then
+            name=shijimi-editor-nightly
+          fi
+          base="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG"
+          entry() { # <ファイル>
+            jq -n --arg url "$base/$1" --rawfile sig "$1.sig" '{url: $url, signature: ($sig | rtrimstr("\n"))}'
+          }
+          mac=$(entry "$name-macos-universal.app.tar.gz")
+          # Tauri の updater の静的な JSON の形（https://v2.tauri.app/plugin/updater/）
+          jq -n \
+            --arg version "$VERSION" \
+            --arg pub_date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --arg notes "https://github.com/$GITHUB_REPOSITORY/releases/tag/$TAG" \
+            --argjson linux_x64 "$(entry "$name-linux-x86_64.AppImage")" \
+            --argjson linux_arm "$(entry "$name-linux-aarch64.AppImage")" \
+            --argjson mac "$mac" \
+            '{version: $version, notes: $notes, pub_date: $pub_date, platforms: {
+              "linux-x86_64": $linux_x64,
+              "linux-aarch64": $linux_arm,
+              "darwin-aarch64": $mac,
+              "darwin-x86_64": $mac
+            }}' > latest.json
+          cat latest.json
+          # 再実行で上げ直せるよう、同じ名前のアセットは置き換える
+          gh release upload "$TAG" ./* --clobber --repo "$GITHUB_REPOSITORY"
