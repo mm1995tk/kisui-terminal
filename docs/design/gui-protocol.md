@@ -177,6 +177,8 @@ P13-08（#384）では、マウスの当たり判定（`handleMouse`・`termMous
 
 中身のファイルのメソッドは `*Core` に付け替えた。`Core` は前面（`App`）を `frontEnd`（`frontend.go`）として持ち、端末に尋ねることはそれを通す。中身のファイルに `*App` のメソッドは残っていない（`Init`・`Update` は `model.go`、描くものは `*_draw.go`）。`TestCoreMethods` が増えないことを見張る。`Core` を `internal/core` に移すのが残りで、`mdparse.go`（Markdown の字句）から移し始めた（#384 の (3)）。
 
+色は `theme.go`（`Theme` の値だけ。`app.go` に依存しない）と `theme_apply.go`・`styles.go`（lipgloss のスタイルを作る）に割った。`Core` が選ぶのは `Theme` で、スタイルへの反映は前面の `setPalette` が行う（`TestThemeApplyIsFrontEnd` が見張る）。
+
 ## 2. 分けていく順番
 
 どの手順も 1 つが 1 つの PR になる大きさにする。手順の最後で `go test ./...` が通り、TUI の見た目と操作が変わらないこと。
