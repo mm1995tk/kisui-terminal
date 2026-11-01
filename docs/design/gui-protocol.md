@@ -303,6 +303,16 @@ P14（#306）で、1 つのプロセスが `core` を複数持てるようにし
 - Helix のキーは GUI で解釈しない。`key` は押されたキーと修飾キーをそのまま送る。`Ctrl+Shift+T` のような GUI 自身が受けるキー（ターミナルを新しく作る、IDE モードとターミナルモードの切り替え）は GUI が処理して送らない。
 - `region` は `"files"`、`"cmdline"` など。GUI は押された場所の領域名を付ける。
 - 受け取ったあとの動作は TUI と同じ（`core` の `Input` を処理する）。
+- 実装（B10）で決めた細部：
+  - 入力のメソッド（`input.*`・`command.run`・`file.open`）は、受け取った順に 1 件ずつ処理する（`rpc.Options.Ordered`）。ほかの要求とは並んで動く。
+  - 反映したら、その `seq` を `ackSeq` として覚えて画面を作り直す。応答の `rev` は、そのあとの最新の版。返事を待っている更新があると、入力が入った画面は `screen.ack` のあとに届くので、GUI は `ackSeq` で確かめる。見た目の変わらない入力（`release` など）でも、`ackSeq` を進めた `screen.update`（ほかの項目は無い）を送る。
+  - `input.key`：`key` と `text` は `core` が TUI と同じ `Key` にする（Shift 付きの文字は小文字の `Code`、Ctrl / Alt / Super / Meta を押しているときは文字を打たない）。修飾キーだけ・dead key は捨てる。`key` が 1 文字でも知っている名前でもない（`"Process"` など）ときは `text` を打つ（IME の確定）。`phase: "release"` は `core` に渡さない。`mods` は `"meta"` も受ける。
+  - `input.composition`：変換中の文字は、キーを受けるペインのカーソルの位置に `underline: true` の `Span` として入れる（バッファは変えない）。コマンド行で変換している間は出さない。`cursor: null` で消える。確定した文字は `input.key` の `text` で来る。
+  - `input.mouse`：`pane` は `Pane.id`。`row` は `lines.rows` のキーと同じ数え方（本文の上から何行目か）、`col` は行番号の右からの桁（横スクロールの前の、見えている桁）。`button` は W3C の `MouseEvent.button`（0 が左、1 が中、2 が右）。左を押すとカーソルが動き、押したまま動かすと選択になる。`wheel` は `dy` 行・`dx` 桁（Shift を押していると縦が横になる）。2 つ並べた相手のペインを押すと、先にそちらへフォーカスを移す。差分・画像・プレビューのペインでは、押してもフォーカスが移るだけ。
+  - `input.focus`：`core` に効くのは `files` だけ（キーをエディタに移す）。ほかの領域は GUI が自分で持つ。知らない `region` は `invalid_params`。
+  - `command.run`：制御用ソケットの `exec` と同じく、`:q` のように終わらせるものや、人が選ぶ必要があるものは `ok: false` で断る。
+  - `file.open`：`path` はワークスペースのルートからの相対パス（`tree.*` と同じ）。外へ出るもの・リンクの先が外のものは `denied`、無いものは `not_found`、フォルダは `invalid_params`。`line` と `col` は 0 始まりで、`col` は rune の位置（`Pos` と同じ）。どちらも省くと、開いていたファイルのカーソルは動かない。`pane` が 2 つ並べた相手のペインなら、そちらで開く。ワークスペースに `core` が無ければ作る。
+  - `shj serve` の `core` は TUI と同じく、頼んだ仕事（`Effect`：言語サーバー、タイマー、検索 …）をそれぞれの goroutine で回し、戻ってきた事象を反映したら画面を作り直す（`core.Workspace.Update` / `Apply`、`Workspaces.SetOnChange`）。作ったときに言語サーバーの待ちとファイルの監視を始める。`Quit` は捨てる。
 
 ### shj から GUI への通知（その他）
 
