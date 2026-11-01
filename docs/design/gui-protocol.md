@@ -245,7 +245,7 @@ type Line struct {
 - **引き継ぎ**：サーバーが受けつける GUI は常に 1 台。2 台目の `session.hello` が来たら、1 台目に `session.superseded` を送って閉じ、2 台目に引き継ぐ。1 台目が出した返事前の要求は捨てる。閉じ損ねた 1 台目からの要求は `not_owner`。
 - **切れる**：標準入出力が閉じたら、GUI がいなくなったとみなす。状態（ファイル、`core`、ターミナル）は残り、`lastClientAt` を覚える。
 - **つなぎ直す**：新しい `session.hello` で `resume: {serverId, rev}` を送る。同じ `serverId` なら状態が残っているので、`screen.get` で全部取り直して続けられる。`serverId` が違えば shj が作り直されたので、GUI はワークスペースの一覧から取り直す。
-- **止まる**：`lastClientAt` から 7 日（`config.toml` の `[server] idle_stop_days`、0 で止まらない）つながらなければ、`shj serve` は終わる。つながっている間は止まらない。ターミナルでシェルが動いていても止まる（そのシェルは SIGHUP で終わる）。止まる前の未保存バッファの扱いは、B4 で TUI の現在の挙動に合わせて決める。
+- **止まる**：`lastClientAt` から 7 日（`config.toml` の `[server] idle_stop_days`、0 で止まらない）つながらなければ、`shj serve` は終わる。つながっている間は止まらない。ターミナルでシェルが動いていても止まる（そのシェルは SIGHUP で終わる）。止まる前（7 日で止まるとき・`server.shutdown` のとき）の未保存の変更は、元のファイルの隣の `<ファイル名>.bk` に書いてから止まる（同じ名前があれば上書きせず `.bk.1` のように番号を付ける。元のファイルは書き換えない）。実装（B4）は `server.WriteBackup` と、止まる直前に一度だけ走る `Server.AddBeforeStop`。次に開いたときに `.bk` を知らせる仕組みは作らない。`[server] idle_stop_days` は `~/.config/shijimi-editor/config.toml` だけで有効。
 
 ### 画面（`Screen`）の送り方
 
