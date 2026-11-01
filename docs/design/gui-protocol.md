@@ -171,6 +171,8 @@ type Line struct {
 
 P13-07（#383）では、ファイルを「描く」「中身」に仕分けた。lipgloss を import するのは `split_test.go` の名簿のファイル（`*_draw.go` ほか）だけ、`layout`（ペインのマス目）を使うのは `layout.go` ほかの描く・画面のマス目を扱うファイルだけで、`core` に行くファイルは `editRows`・`textCols`（`layout.go`）のように領域の行数・桁数で尋ねる。どちらも `internal/tui/split_test.go` が見張る。
 
+P13-08（#384）では、マウスの当たり判定（`handleMouse`・`termMouse`・ホバーと検索パネルの画面のマス目の判定。`internal/tui/mouse.go`）と枠の大きさの調整（`resize.go`）を `layout` を使う tui のファイルに寄せ、`core` に行くファイルは `layout` を一切使わない。`renderFrame` は `App` のフィールドを名前で読まず、`internal/tui/frameq.go` の問い合わせ（`focusIn`・`diffMode`・`completing` …。`App` を割ったあとの `core.Screen()` と `core` の問い合わせのメソッドになる）だけを読む。見張るのは `split_test.go`（`TestRenderFrameReadsQueries`）。
+
 ## 2. 分けていく順番
 
 どの手順も 1 つが 1 つの PR になる大きさにする。手順の最後で `go test ./...` が通り、TUI の見た目と操作が変わらないこと。
