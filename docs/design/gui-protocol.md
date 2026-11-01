@@ -369,8 +369,8 @@ GUI は複数のワークスペースのツリーを（開閉の状態を持っ�
 
 GUI はシステムの `ssh` を子プロセスとして起動する（`~/.ssh/config` と ssh-agent をそのまま使うため）。ssh がパスワードや 2 段階認証を求めるときは `SSH_ASKPASS` で GUI の窓に出す。
 
-1. **shj の場所**：`~/.cache/shijimi-editor/<GUI の版>/shj`。無ければ、ユーザーに聞いてから GUI が転送する。PATH の `shj` には触らない。リモートの OS とアーキテクチャは `uname -sm` で調べ、合う実行ファイルを GitHub Releases から GUI が取って送る。送ったあと、GitHub Releases の checksums にある SHA-256 と、取得した実行ファイルを比べる（取得の段階の確認）。リモートに置いたファイルも同じ値かを確かめる（転送の壊れの確認）。
-2. **つなぐ**：`ssh -T host -- ~/.cache/shijimi-editor/<版>/shj attach`（`-T` は端末を割り当てない）。ユーザーの `ssh_config`（`ControlMaster` など）はそのまま効く。
+1. **shj の場所**：`~/.cache/shijimi-editor/<GUI の版>/shj`。無ければ、ユーザーに聞いてから GUI が転送する。PATH の `shj` には触らない。リモートの OS とアーキテクチャは `uname -sm` で調べ、合う実行ファイルを GitHub Releases から GUI が取って送る。取ったら送る前に、GitHub Releases の checksums（Release に上げる `SHA256SUMS`。`sha256sum` の形式）にある SHA-256 と、取得した実行ファイルを比べる（取得の段階の確認。合わなければ ssh を起動する前に捨てる）。リモートに置いたファイルも同じ値かを確かめる（転送の壊れの確認。リモートで一時ファイルの SHA-256 を計り、合ったときだけ `shj` の名前にする）。shj が無いことは、2 のコマンドの終了コード 97 で知る（`ssh` 自身の失敗は 255）。nightly 版の GUI は、動くタグ `nightly` の `shj-nightly-<os>-<cpu>` を取る。
+2. **つなぐ**：`ssh -T host -- command -v <shj> >/dev/null 2>&1 || exit 97; <shj> attach`（`<shj>` は `~/.cache/shijimi-editor/<版>/shj`）（`-T` は端末を割り当てない）。ユーザーの `ssh_config`（`ControlMaster` など）はそのまま効く。
 3. **`shj attach` がすること**（リモートで動く橋渡し）：
    1. 標準出力に `@@shj-rpc 1@@` を出す。
    2. ソケットのフォルダを見て、`shj serve` が動いていれば、その Unix ソケットにつなぐ。**すでに動いている shj につなぎ直す方法はこれ。** ssh のたびに新しい shj は起動しない。
