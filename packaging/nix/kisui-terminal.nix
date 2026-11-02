@@ -2,6 +2,7 @@
 #   web … buildNpmPackage で vite build した dist
 #   殻  … buildRustPackage。dist を gui/dist に置いてから cargo build する
 #          （tauri が generate_context! で dist を実行ファイルに埋め込む）
+# package.json と Cargo.toml（workspace）はリポジトリの根にあるので、src は根から GUI に要るものだけを取る
 #
 # 自動更新（feature `updater`）は付けない。Nix で入れた GUI の更新は nix flake update と home-manager switch で行う。
 # 版は Tauri の設定の `version` として TAURI_CONFIG で渡す（GUI はこれを自分の版として、リモートに入れる shj の版に使う）。
@@ -14,6 +15,28 @@
 }:
 let
   inherit (pkgs) lib stdenv;
+  fs = lib.fileset;
+  root = ../..;
+  # Go などほかの部分が変わっても GUI を作り直さないよう、要るファイルだけにする
+  webSrc = fs.toSource {
+    inherit root;
+    fileset = fs.unions [
+      ../../package.json
+      ../../package-lock.json
+      ../../tsconfig.json
+      ../../vite.config.ts
+      ../../gui/index.html
+      ../../gui/src
+    ];
+  };
+  shellSrc = fs.toSource {
+    inherit root;
+    fileset = fs.unions [
+      ../../Cargo.toml
+      ../../Cargo.lock
+      ../../gui/src-tauri
+    ];
+  };
   nightly = channel == "nightly";
   bin = "shijimi-editor-gui" + lib.optionalString nightly "-nightly";
   tauriConfig =
@@ -27,14 +50,14 @@ let
   web = pkgs.buildNpmPackage {
     pname = "shijimi-editor-gui-web";
     inherit version;
-    src = ../../gui;
+    src = webSrc;
     # package-lock.json を変えたら、ここを lib.fakeHash にして nix build .#gui を回し、出た値に直す
     npmDepsHash = "sha256-o88Hy2e9d3WIWPG9gwVwMWWlCUm2q7eTdcv+k2pkBs4=";
     # tauri の CLI は殻のビルドには使わない（cargo を直接回す）。バイナリの取得を避ける
     npmFlags = [ "--ignore-scripts" ];
     installPhase = ''
       runHook preInstall
-      cp -r dist $out
+      cp -r gui/dist $out
       runHook postInstall
     '';
   };
@@ -42,9 +65,10 @@ in
 pkgs.rustPlatform.buildRustPackage {
   pname = bin;
   inherit version;
-  src = ../../gui;
-  sourceRoot = "gui/src-tauri";
-  cargoLock.lockFile = ../../gui/src-tauri/Cargo.lock;
+  src = shellSrc;
+  cargoLock.lockFile = ../../Cargo.lock;
+  # workspace の根で cargo を回し、殻（gui/src-tauri）だけを作ってテストする
+  buildAndTestSubdir = "gui/src-tauri";
 
   # release の画面は埋め込んだ Web を使う（cargo tauri build が自動で付ける feature）
   buildFeatures = [ "custom-protocol" ];
@@ -52,9 +76,8 @@ pkgs.rustPlatform.buildRustPackage {
   env.TAURI_CONFIG = builtins.toJSON tauriConfig;
 
   postPatch = ''
-    chmod u+w ..
-    mkdir -p ../dist
-    cp -r ${web}/. ../dist/
+    mkdir -p gui/dist
+    cp -r ${web}/. gui/dist/
   '';
 
   nativeBuildInputs = [
@@ -76,6 +99,9 @@ pkgs.rustPlatform.buildRustPackage {
   postInstall = lib.optionalString nightly ''
     mv $out/bin/shijimi-editor-gui $out/bin/${bin}
   '';
+
+  # Web 画面だけのビルド。flake の checks が npm test を足して使う（入れるときのビルドではテストを回さない）
+  passthru = { inherit web; };
 
   meta = {
     description = "GUI for shijimi-editor (Tauri)";

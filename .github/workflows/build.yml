@@ -16,6 +16,10 @@ name: GUI を配る
 # shijimi-editor-tauri-updater-key にあり、サービスアカウント（トークンは item shijimi-editor-release-op-token。
 # GitHub の Secret OP_SERVICE_ACCOUNT_TOKEN_RELEASE）で、ビルドの直前に読む。公開鍵は tauri.conf.json の
 # plugins.updater.pubkey。鍵を替えたら pubkey も替える（古い版は新しい鍵の更新を受けつけない）。
+#
+# ここだけは Nix（devShell）を使わず、各 OS の Node・rustup・システムの WebView でビルドする。
+# 配る AppImage と .dmg は Nix の無いマシンで動く必要があり、Nix で作ると /nix/store のライブラリを指してしまうため。
+# macOS の universal（2 つの CPU 向けを 1 つにする）にも、rustup で足すターゲットが要る。
 
 on:
   workflow_call:
@@ -68,7 +72,7 @@ jobs:
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: gui/package-lock.json
+          cache-dependency-path: package-lock.json
 
       - name: Rust を用意する
         env:
@@ -92,7 +96,6 @@ jobs:
             libssl-dev libayatana-appindicator3-dev librsvg2-dev patchelf
 
       - name: npm ci
-        working-directory: gui
         run: npm ci
 
       # 版と（nightly なら）名前・取り先を、tauri build --config で重ねる設定にまとめる
@@ -118,7 +121,6 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: op://shijimi-editor-release/shijimi-editor-tauri-updater-key/credential
 
       - name: tauri build
-        working-directory: gui
         env:
           # 鍵にパスワードは付けていない（秘密鍵は 1Password にしか置かないので、足しても守りは強くならない）
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
@@ -142,7 +144,7 @@ jobs:
           if [ "$CHANNEL" = nightly ]; then
             name=shijimi-editor-nightly
           fi
-          bundle="gui/src-tauri/target/${TARGET:+$TARGET/}release/bundle"
+          bundle="target/${TARGET:+$TARGET/}release/bundle"
           out="$RUNNER_TEMP/out"
           mkdir -p "$out"
           one() {
