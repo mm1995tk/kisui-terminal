@@ -1,0 +1,279 @@
+/* 窓のカード（Card.tsx）。モック Connect.dc.html の寸法と色:
+   幅 560px・背景 #1a1d24・枠線 #2f3540・角丸 12px、見出し 16px 太さ 600、
+   入力欄 高さ 40px・背景 #121418・枠線 #3a414e・角丸 8px、行 padding 10px 8px・角丸 8px、
+   ボタン 高さ 44px（主ボタンは #7cc4b0 の地に #0f1114 の文字）。 */
+
+.card {
+  --card-bg: #1a1d24;
+  --card-border: #2f3540;
+  --card-divider: #2a2f39;
+  --card-text: #e6e8ec;
+  --card-muted: #9aa3b2;
+  --card-field-bg: #121418;
+  --card-field-border: #3a414e;
+  --card-row-active: #262b35;
+  --card-accent: #7cc4b0;
+  --card-on-accent: #0f1114;
+  --card-warn: #e5b567;
+
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  color: var(--card-text);
+  font-family: "IBM Plex Sans JP", system-ui, sans-serif;
+  font-size: 13px;
+}
+:where(.card) :where(button, input) {
+  font: inherit;
+}
+
+/* 真ん中に出すもの。上から 120px（モック）、狭い画面では左右 16px あける */
+.card-modal {
+  width: 560px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 160px);
+  margin: 120px auto auto;
+}
+.card-modal:focus {
+  outline: none;
+}
+.card-modal:not([open]) {
+  display: none;
+}
+.card-modal::backdrop {
+  background: rgba(11, 12, 15, 0.6);
+}
+
+/* 右下に積むもの（Notices.tsx） */
+.card-notices {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 400px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+}
+.card-notice {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
+.card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px 20px 12px;
+}
+.card-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+.card-text {
+  margin: 0;
+  line-height: 1.6;
+}
+.card-text code,
+.card-mono {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 12px;
+}
+.card-error {
+  margin: 0;
+  padding: 8px 10px;
+  max-height: 160px;
+  overflow: auto;
+  border-radius: 8px;
+  background: var(--card-field-bg);
+  color: var(--card-warn);
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.card-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--card-muted);
+  font-size: 12px;
+}
+.card-input {
+  box-sizing: border-box;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--card-field-border);
+  border-radius: 8px;
+  background: var(--card-field-bg);
+  color: var(--card-text);
+  font-size: 14px;
+}
+.card-input:focus {
+  outline: 1px solid var(--card-accent);
+  outline-offset: -1px;
+}
+.card-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--card-muted);
+  font-size: 12px;
+}
+.card-check input {
+  accent-color: var(--card-accent);
+}
+
+/* 一覧の見出し（「このマシンと ~/.ssh/config から」）と行 */
+.card-section {
+  padding: 4px 20px;
+  color: var(--card-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+.card-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 0;
+  margin: 0;
+  padding: 4px 12px 12px;
+  overflow-y: auto;
+  list-style: none;
+}
+.card-row {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--card-text);
+  text-align: left;
+  cursor: pointer;
+}
+.card-row:hover {
+  background: var(--card-row-active);
+}
+.card-row[aria-selected="true"] {
+  background: var(--card-row-active);
+  outline: 1px solid var(--card-accent);
+  font-weight: 600;
+}
+.card-row-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.card-row-state {
+  flex: none;
+  color: var(--card-muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+.card-empty {
+  margin: 0;
+  padding: 10px 8px;
+  color: var(--card-muted);
+}
+
+/* 状態の丸（左の一覧の見出しと同じ）。接続中・再接続中は塗り、未接続は枠だけ */
+.state-dot {
+  flex: none;
+  box-sizing: border-box;
+  width: 8px;
+  height: 8px;
+  border-radius: 4px;
+  border: 1px solid #7d8696;
+}
+.state-dot[data-health="up"] {
+  border: 0;
+  background: #7cc4b0;
+}
+.state-dot[data-health="pending"] {
+  border: 0;
+  background: #e5b567;
+}
+
+/* 下のボタンの並び（右寄せ） */
+.card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 12px 20px 20px;
+  border-top: 1px solid var(--card-divider);
+}
+.card-body + .card-actions {
+  border-top: 0;
+  padding-top: 0;
+}
+.card-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--card-field-border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--card-text);
+  cursor: pointer;
+}
+.card-button:hover:not(:disabled) {
+  background: var(--card-row-active);
+}
+.card-button.primary {
+  border-color: var(--card-accent);
+  background: var(--card-accent);
+  color: var(--card-on-accent);
+  font-weight: 600;
+}
+.card-button.primary:hover:not(:disabled) {
+  background: #a6dccd;
+}
+.card-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.card-button:focus-visible,
+.card-row:focus-visible {
+  outline: 2px solid var(--card-accent);
+  outline-offset: 2px;
+}
+
+/* 入力欄の上の長い問い（ssh の質問）は、ラベルの小さい字ではなく本文の字で出す */
+.card-field > .card-text {
+  color: var(--card-text);
+  font-size: 13px;
+}
+
+/* 設定ファイルの間違いの画面（ConfigError.tsx）。窓いっぱいに 1 枚のカードだけを出す */
+.config-error {
+  box-sizing: border-box;
+  display: flex;
+  min-height: 100vh;
+  padding: 120px 16px 16px;
+  justify-content: center;
+  align-items: flex-start;
+  background: #0f1114;
+}
+.config-error-card {
+  width: 560px;
+  max-width: 100%;
+}

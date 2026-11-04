@@ -1,0 +1,81 @@
+/* 画面全体の割り付け。左に一覧（sidebar.css）、右に残り。
+   右は上がファイルの欄（files/files.css）、右下がターミナル（F1。terminal/terminal.css）。
+   ファイルを開いていなければ、右は全部ターミナル。
+   つなぐ先を選ぶ窓と接続の知らせは connect/（カードの決まりは connect/card.css）。 */
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+/* ページ全体の土台。字と色はモックに合わせる（字は fonts.ts で同梱したもの） */
+:root {
+  color-scheme: dark;
+}
+
+body {
+  font:
+    13px "IBM Plex Sans JP",
+    system-ui,
+    sans-serif;
+  color: #e6e8ec;
+  background: #121418;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+a {
+  color: #7cc4b0;
+}
+
+.app {
+  display: flex;
+  height: 100%;
+}
+
+.main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 右下のターミナル（F1。terminal/terminal.css）。高さはモックの 300px */
+.main > .terminal {
+  flex: none;
+  height: 300px;
+}
+
+/* ターミナルモード（F3。mode.ts）：ファイルの欄とターミナルのカードを入れ替える。
+   上が大きなターミナル、下がモックの 300px のファイルの欄。どちらも隠さない */
+.main[data-mode="terminal"] > .terminal {
+  order: -1;
+  flex: 1;
+  height: auto;
+  border-top: none;
+}
+
+.main[data-mode="terminal"] > .files {
+  order: 1;
+  flex: none;
+  height: 300px;
+  border-top: 1px solid #2a2f39;
+}
+
+/* IDE モードでファイルを開いていない（ワークスペースが無いときも）あいだは、ファイルの欄を出さず、
+   右の列を全部ターミナルにする（親 #271 のモック U2。mode.ts）。ターミナルモードは変えない */
+.main[data-mode="ide"][data-no-file] > .files {
+  display: none;
+}
+
+.main[data-mode="ide"][data-no-file] > .terminal {
+  flex: 1;
+  height: auto;
+  border-top: none;
+}

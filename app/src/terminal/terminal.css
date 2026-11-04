@@ -1,0 +1,53 @@
+/* ターミナルのカード（F1・F4）。親 #271 のモック（案：フラットな一覧）の色と余白に合わせる。
+   カードは CSS grid で、ターミナルモードでは数に応じて並べる（列と行の数と欄の位置は TerminalGrid が決める）。
+   欄の間は 1px の線（カードの地の色を gap から見せる）。並べたときは、今使っている欄の上端に、モックの
+   今のターミナルの印と同じくマシンの色（D4）の 2px の線を引く。タブ（見出しの帯）は作らない。
+   置き場所（右下か上か）と高さは app.css が決める。 */
+.terminal {
+  position: relative;
+  box-sizing: border-box;
+  display: grid;
+  gap: 1px;
+  min-height: 0;
+  background: #2a2f39;
+  border-top: 1px solid #2a2f39;
+}
+
+/* 欄が無いとき（つないだマシンが無い・term.list の返事を待つ間）は、F1 と同じく空のターミナルの色にする */
+.terminal[data-empty] {
+  background: #0f1114;
+}
+
+/* IDE モードで隠しているターミナルの数。今の欄の右上に小さく出す */
+.terminal-others {
+  position: absolute;
+  top: 4px;
+  right: 10px;
+  margin: 0;
+  font-size: 11px;
+  color: #9aa3b2;
+  pointer-events: none;
+}
+
+.terminal-cell {
+  box-sizing: border-box;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  padding: 12px 18px;
+  background: #0f1114;
+}
+
+.terminal-cell[hidden] {
+  display: none;
+}
+
+.terminal[data-split] > .terminal-cell[data-active] {
+  box-shadow: inset 0 2px 0 var(--term-accent, #7cc4b0);
+}
+
+.terminal-host {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}

@@ -1,6 +1,6 @@
-# GUI（gui/）のパッケージ。Tauri の殻（Rust）と、Solid の Web 画面（npm）を 1 つにする。
+# GUI（ui/gui/app/）のパッケージ。Tauri の殻（Rust）と、Solid の Web 画面（npm）を 1 つにする。
 #   web … buildNpmPackage で vite build した dist
-#   殻  … buildRustPackage。dist を gui/dist に置いてから cargo build する
+#   殻  … buildRustPackage。dist を ui/gui/app/dist に置いてから cargo build する
 #          （tauri が generate_context! で dist を実行ファイルに埋め込む）
 # package.json と Cargo.toml（workspace）はリポジトリの根にあるので、src は根から GUI に要るものだけを取る
 #
@@ -25,8 +25,8 @@ let
       ../../package-lock.json
       ../../tsconfig.json
       ../../vite.config.ts
-      ../../gui/index.html
-      ../../gui/src
+      ../../ui/gui/app/index.html
+      ../../ui/gui/app/src
     ];
   };
   shellSrc = fs.toSource {
@@ -34,14 +34,14 @@ let
     fileset = fs.unions [
       ../../Cargo.toml
       ../../Cargo.lock
-      ../../gui/src-tauri
+      ../../ui/gui/app/src-tauri
     ];
   };
   nightly = channel == "nightly";
   bin = "shijimi-editor-gui" + lib.optionalString nightly "-nightly";
   tauriConfig =
     lib.optionalAttrs nightly (
-      builtins.fromJSON (builtins.readFile ../../gui/src-tauri/tauri.nightly.conf.json)
+      builtins.fromJSON (builtins.readFile ../../ui/gui/app/src-tauri/tauri.nightly.conf.json)
     )
     // {
       inherit version;
@@ -57,7 +57,7 @@ let
     npmFlags = [ "--ignore-scripts" ];
     installPhase = ''
       runHook preInstall
-      cp -r gui/dist $out
+      cp -r ui/gui/app/dist $out
       runHook postInstall
     '';
   };
@@ -67,8 +67,8 @@ pkgs.rustPlatform.buildRustPackage {
   inherit version;
   src = shellSrc;
   cargoLock.lockFile = ../../Cargo.lock;
-  # workspace の根で cargo を回し、殻（gui/src-tauri）だけを作ってテストする
-  buildAndTestSubdir = "gui/src-tauri";
+  # workspace の根で cargo を回し、殻（ui/gui/app/src-tauri）だけを作ってテストする
+  buildAndTestSubdir = "ui/gui/app/src-tauri";
 
   # release の画面は埋め込んだ Web を使う（cargo tauri build が自動で付ける feature）
   buildFeatures = [ "custom-protocol" ];
@@ -76,8 +76,8 @@ pkgs.rustPlatform.buildRustPackage {
   env.TAURI_CONFIG = builtins.toJSON tauriConfig;
 
   postPatch = ''
-    mkdir -p gui/dist
-    cp -r ${web}/. gui/dist/
+    mkdir -p ui/gui/app/dist
+    cp -r ${web}/. ui/gui/app/dist/
   '';
 
   nativeBuildInputs = [

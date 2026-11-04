@@ -1,7 +1,7 @@
-# GUI の殻（gui/src-tauri）を、リポジトリの根から cargo で動かすための workspace。
+# GUI の殻（ui/gui/app/src-tauri）を、リポジトリの根から cargo で動かすための workspace。
 # Cargo.lock と target/ は根に置く。
 [workspace]
-members = ["gui/src-tauri"]
+members = ["ui/gui/app/src-tauri"]
 resolver = "2"
 
 # workspace では profile は根にしか書けない

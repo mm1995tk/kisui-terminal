@@ -1,0 +1,434 @@
+/* ファイルの欄（E1）。親 #271 のモック「案：フラットな一覧」の寸法に合わせる。
+   色はテーマ（theme.get）から FilesView.tsx が --files-* に入れる。
+   行の高さと上下の余白は layout.ts の LINE_HEIGHT・PAD_Y と同じにする（行数の計算に使う）。 */
+
+.files {
+  --files-line-height: 22px;
+  --files-pad-y: 10px;
+
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--files-bg);
+  color: var(--files-fg);
+}
+
+.files-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: flex-start;
+  overflow: hidden;
+  padding: var(--files-pad-y) 0;
+  box-sizing: border-box;
+  font-family: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo,
+    Consolas, monospace;
+  font-size: 13px;
+  line-height: var(--files-line-height);
+  /* 等幅のマス目を崩さない（合字で文字の数が変わらないように） */
+  font-variant-ligatures: none;
+  white-space: pre;
+  /* 選択は shj が描く（ブラウザの文字の選択は使わない） */
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: text;
+}
+
+/* マス目の幅を測るための文字（見せない） */
+.files-measure {
+  position: absolute;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.files-pane {
+  position: relative;
+  flex: none;
+  overflow: hidden;
+}
+
+/* 左右に並べたペインの間の 1 桁（E7）。真ん中に縦の線を引く（TUI の "│" と同じく枠の色）。
+   左右 2 つのファイルの間も、差分・プレビューの左右の間も同じ線にする（TUI と同じ）。
+   本文では上下の余白まで線を伸ばし、タイトル行の線とつなげる。 */
+.files-split {
+  position: relative;
+  flex: none;
+  width: 1ch;
+  align-self: stretch;
+}
+
+.files-split::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  border-left: 1px solid var(--files-border);
+}
+
+.files-body > .files-split {
+  margin: calc(-1 * var(--files-pad-y)) 0;
+}
+
+.files-line {
+  height: var(--files-line-height);
+  overflow: hidden;
+}
+
+.files-gutter {
+  color: var(--files-lineno);
+}
+
+.files-gutter[data-current] {
+  color: var(--files-lineno-current);
+}
+
+/* 行番号の横の印（E5）。「●」はフォントによって幅が違うので、1 桁に収める */
+.files-gutter-mark {
+  display: inline-block;
+  width: 1ch;
+  height: var(--files-line-height);
+  vertical-align: top;
+  overflow: hidden;
+  text-align: center;
+}
+
+/* 区間の幅はマス目（ch）で style に入れる。全角の文字も 2ch に収める */
+.files-run {
+  display: inline-block;
+  height: var(--files-line-height);
+  vertical-align: top;
+  overflow: hidden;
+}
+
+/* 画像のペイン（E6）。1 行目は画像の説明（TUI と同じく 2 桁空けて薄く）、その下の全部に画像を真ん中に置く */
+.files-caption {
+  height: var(--files-line-height);
+  padding: 0 2ch;
+  overflow: hidden;
+  color: var(--files-bar-fg);
+}
+
+.files-image {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+/* 画像は縦横比を保って枠に収め、元より大きくしない */
+.files-image img,
+.files-preview-image img {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+
+/* プレビューとレビューカードの画像（E6）。shj が空けた表示行の上に重ね、左上に寄せる */
+.files-preview-image {
+  position: absolute;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* 差分の変更のバー（E6）。変更の後の側のペインの右端に重ねる（shj はバーの桁を空けない） */
+.files-diff-bar {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 6px;
+  pointer-events: none;
+}
+
+.files-diff-bar-cell {
+  position: relative;
+  height: var(--files-line-height);
+}
+
+.files-diff-bar-mark {
+  position: absolute;
+  inset: 0 0 0 2px;
+}
+
+/* キーと IME を受ける textarea（E2）。見せないが、IME の候補の窓がカーソルの近くに出るよう、
+   FilesView がカーソルのマス目に置く。変換中の文字は shj が画面に下線付きで入れる */
+.files-ime {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1ch;
+  height: var(--files-line-height);
+  padding: 0;
+  border: 0;
+  margin: 0;
+  outline: none;
+  resize: none;
+  overflow: hidden;
+  opacity: 0;
+  color: transparent;
+  background: transparent;
+  caret-color: transparent;
+  font: inherit;
+  white-space: pre;
+  pointer-events: none;
+}
+
+/* ---- タイトル行・状態行・コマンド行（E3）。モックの寸法（タイトル行 36px、状態行 24px）に合わせる ---- */
+
+/* ペインごとのタイトルを、本文と同じマス目（ch）の幅で横に並べる */
+.files-titles {
+  flex: none;
+  height: 36px;
+  display: flex;
+  align-items: stretch;
+  overflow: hidden;
+  background: var(--files-bar-bg);
+  border-bottom: 1px solid var(--files-border);
+  box-sizing: border-box;
+  /* 幅の ch を本文と同じにするため、フォントは本文と同じ。中の文字は UI のフォントにする */
+  font-family: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo,
+    Consolas, monospace;
+  font-size: 13px;
+}
+
+.files-title {
+  flex: none;
+  min-width: 0;
+  display: flex;
+  align-items: stretch;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.files-title-name {
+  flex: none;
+  max-width: 70%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  border-top: 2px solid transparent;
+  box-sizing: border-box;
+  color: var(--files-inactive-fg);
+  font-family: "IBM Plex Sans JP", system-ui, sans-serif;
+}
+
+.files-title[data-active] .files-title-name {
+  background: var(--files-bg);
+  border-top-color: var(--files-accent);
+  color: var(--files-fg);
+}
+
+.files-title-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.files-title-lock {
+  flex: none;
+}
+
+.files-title-path {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 14px;
+  padding: 0 14px;
+  overflow: hidden;
+  font-size: 12px;
+  color: var(--files-bar-fg);
+}
+
+.files-title-path > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.files-status,
+.files-cmdline {
+  flex: none;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  white-space: nowrap;
+  background: var(--files-bar-bg);
+  border-top: 1px solid var(--files-border);
+  box-sizing: border-box;
+}
+
+.files-status {
+  gap: 14px;
+  padding: 0 12px;
+  font-family: "IBM Plex Sans JP", system-ui, sans-serif;
+  font-size: 12px;
+  color: var(--files-bar-fg);
+}
+
+.files-status-mode {
+  flex: none;
+  font-weight: 600;
+  padding: 0 8px;
+  border-radius: 3px;
+}
+
+/* 入らないときは、右の項目より先に左の項目（長いメッセージなど）を削る */
+.files-status-item {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.files-status-right > .files-status-item {
+  flex: none;
+}
+
+.files-status-right {
+  margin-left: auto;
+  flex: none;
+  display: flex;
+  gap: 14px;
+}
+
+/* コマンド行は入力をマス目で切るので、本文と同じ等幅のフォントにする */
+.files-cmdline {
+  padding: 0 1ch;
+  font-family: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo,
+    Consolas, monospace;
+  font-size: 13px;
+  white-space: pre;
+  color: var(--files-fg);
+}
+
+.files-cmdline-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.files-cmdline-hint {
+  flex: none;
+  padding-left: 1ch;
+  color: var(--files-bar-fg);
+}
+
+/* ---- ポップアップ（E4）。モックの窓（背景 #181b21、細い枠、角丸）に寄せる。
+   箱の位置と大きさは OverlayView.tsx がマス目（ch と行の高さ）で style に入れる。
+   枠と影は外側に描き、中のマス目をずらさない ---- */
+
+.files-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.files-pop {
+  position: absolute;
+  box-sizing: border-box;
+  overflow: hidden;
+  pointer-events: auto;
+  cursor: default;
+  background: var(--files-pop-bg);
+  color: var(--files-fg);
+  border-radius: 6px;
+  box-shadow:
+    0 0 0 1px var(--files-border),
+    0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+.files-pop-row {
+  height: var(--files-line-height);
+  display: flex;
+  overflow: hidden;
+}
+
+/* 左右に 1 桁ずつ空ける */
+.files-pop-pad {
+  padding: 0 1ch;
+}
+
+.files-pop-item[data-active] {
+  background: var(--files-pop-sel);
+  color: var(--files-pop-sel-fg);
+}
+
+.files-pop-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.files-pop-dim {
+  color: var(--files-lineno);
+}
+
+.files-pop-hi {
+  color: var(--files-pop-hi);
+  font-weight: bold;
+}
+
+.files-pop-accent {
+  color: var(--files-accent);
+}
+
+.files-pop-head {
+  justify-content: flex-end;
+}
+
+.files-pop-foot {
+  justify-content: space-between;
+  gap: 1ch;
+}
+
+.files-pop-rule {
+  flex: 1;
+  align-self: center;
+  border-top: 1px solid var(--files-pop-rule);
+}
+
+.files-pop-input {
+  border-bottom: 1px solid var(--files-border);
+  box-sizing: border-box;
+}
+
+.files-pop-field {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.files-pop-cursor {
+  background: var(--files-fg);
+  color: var(--files-pop-bg);
+}
+
+.files-pop-menu-row {
+  gap: 2ch;
+}
+
+.files-pop-menu-item {
+  flex: none;
+  overflow: hidden;
+}
+
+.files-pop-compose {
+  background: var(--files-bg);
+}
+
+/* レビューカードの行。画像（E6）を行の上に重ねる土台 */
+.files-pop-lines {
+  position: relative;
+  /* 見える範囲から一部はみ出した画像を、見出しや案内の行に重ねない */
+  overflow: hidden;
+}

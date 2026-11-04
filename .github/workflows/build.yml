@@ -1,6 +1,6 @@
 name: GUI を配る
 
-# GUI（gui/）の AppImage と署名なしの .dmg を作り、自動更新（Tauri の updater）の latest.json と一緒に
+# GUI（ui/gui/app/）の AppImage と署名なしの .dmg を作り、自動更新（Tauri の updater）の latest.json と一緒に
 # GitHub Release に上げる（C8。#325）。release.yml（版のリリース）と nightly.yml（nightly）から呼ぶ。
 #
 # - 版のリリース：タグ v<版> の Release に shijimi-editor-*。updater は releases/latest の latest.json を見る。
@@ -106,7 +106,7 @@ jobs:
         run: |
           base='{}'
           if [ "$CHANNEL" = nightly ]; then
-            base=$(cat gui/src-tauri/tauri.nightly.conf.json)
+            base=$(cat ui/gui/app/src-tauri/tauri.nightly.conf.json)
           fi
           printf '%s' "$base" | jq --arg v "$VERSION" '. + {version: $v}' > "$RUNNER_TEMP/tauri.json"
           cat "$RUNNER_TEMP/tauri.json"

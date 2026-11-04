@@ -1,0 +1,27 @@
+[package]
+name = "shijimi-editor-gui"
+version = "0.0.0"
+edition = "2021"
+license = "MIT"
+description = "GUI for shijimi-editor (Tauri shell)"
+
+[build-dependencies]
+tauri-build = { version = "=2.7.3", features = [] }
+
+[dependencies]
+tauri = { version = "=2.12.4", features = [] }
+# 版は Cargo.lock にすでにある（tauri が使っている）ものに合わせる
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = "=1.0.154"
+# 設定ファイルの [[gui.machines]]（config.rs）。版は Cargo.lock にすでにある（tauri が使っている）ものに合わせる
+toml = "=1.1.8"
+# SHA-256。版は Cargo.lock にすでにある（tauri が使っている）ものに合わせる
+sha2 = "=0.10.9"
+# 自動更新（C8）。AppImage と .dmg の版だけが feature `updater` で入れる。Nix で作る版は入れない（更新は nix flake update で行う）
+tauri-plugin-updater = { version = "=2.14.0", optional = true }
+
+[features]
+# release の画面は埋め込んだ Web を使う（これが無いと devUrl を見に行く）。cargo tauri build は自動で付ける
+custom-protocol = ["tauri/custom-protocol"]
+# 自動更新。リリースの workflow（.github/workflows/gui-release.yml）だけが付ける
+updater = ["dep:tauri-plugin-updater"]

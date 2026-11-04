@@ -1,0 +1,363 @@
+/* 左の一覧（D1）。親 #271 のモック「案：フラットな一覧」の寸法と色に合わせる。
+   マシンごとの色（D4）は --machine-color。Sidebar.tsx が .machine の style に入れる（決め方は colors.ts）。
+   上下の固定（D3）は Sidebar.tsx の説明のとおり、sticky と要素の組み方で決める。
+   一覧（.sidebar）はスクロールし、その下に「+ マシンを足す」（.sidebar-foot）を固定する。
+   接続の状態の丸と 1 行は親 #271 のモック Main.dc.html に合わせる
+   （接続中 #7cc4b0・再接続中 #e5b567 は塗り、未接続は #7d8696 の枠だけ。1 行は 11px の #e5b567）。 */
+
+.sidebar-column {
+  --sidebar-bg: #181b21;
+  --sidebar-border: #2a2f39;
+  --sidebar-text: #c9ced6;
+  --sidebar-muted: #9aa3b2;
+  --band-bg: #1f232b;
+  --band-hover: #262b34;
+  --health-up: #7cc4b0;
+  --health-pending: #e5b567;
+  --health-down: #7d8696;
+  --status-text: #e5b567;
+  --add-machine-border: #3a414e;
+  /* 上に固定するものの高さ（D3）。ツリーのフォルダの行は、見出しと帯の下から積む */
+  --heading-height: 32px;
+  --band-height: 30px;
+  --sticky-shadow: rgba(0, 0, 0, 0.6);
+
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  width: 300px;
+  min-width: 240px;
+  height: 100%;
+  background: var(--sidebar-bg);
+  border-right: 1px solid var(--sidebar-border);
+  color: var(--sidebar-text);
+  font-size: 13px;
+}
+
+.sidebar {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* 一覧の一番下の「+ マシンを足す」（モック Main.dc.html の点線の枠） */
+.sidebar-foot {
+  flex: none;
+  padding: 8px;
+}
+.add-machine {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 8px;
+  border: 1px dashed var(--add-machine-border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--sidebar-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.add-machine:hover {
+  background: var(--band-hover);
+}
+.add-machine:focus-visible {
+  outline: 1px solid var(--health-up);
+  outline-offset: -1px;
+}
+
+/* マシンの区切り。下に固定する要素（.sidebar-after）の中の最初のマシンも、上のものと区切る。
+   ただし、フォーカスしているマシンの残りの帯（.machine-rest）は同じマシンなので区切らない */
+.machine + .machine,
+.machine + .sidebar-after > .machine:first-child:not(.machine-rest) {
+  margin-top: 6px;
+  border-top: 1px solid var(--sidebar-border);
+}
+
+/* 見出し・帯・（D2 の）ルート直下の行は同じ左端にそろえる。左の 3px は machine の色の線 */
+.machine-heading,
+.band,
+.no-workspace {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px 0 9px;
+  border-left: 3px solid var(--machine-color);
+}
+
+.machine-heading {
+  height: var(--heading-height);
+  margin: 0;
+  background: var(--sidebar-bg);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.machine-name {
+  margin: 0;
+  font-size: inherit;
+  font-weight: inherit;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.health {
+  flex: none;
+  box-sizing: border-box;
+  width: 8px;
+  height: 8px;
+  border-radius: 4px;
+  border: 1px solid var(--health-down);
+}
+.health[data-health="up"] {
+  border: 0;
+  background: var(--health-up);
+}
+.health[data-health="pending"] {
+  border: 0;
+  background: var(--health-pending);
+}
+
+/* 見出しのそばのボタン（今すぐつなぐ・つなぎ直す・切る）。字の邪魔をしないよう小さく、薄く出す */
+.machine-action {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--sidebar-muted);
+  cursor: pointer;
+}
+.machine-action svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+.machine-action:hover {
+  background: var(--band-hover);
+  color: var(--sidebar-text);
+}
+.machine-action:focus-visible {
+  outline: 1px solid var(--machine-color);
+}
+
+/* 見出しの下の接続の状態（「再接続中（2 回目）」）。左端は見出しと同じ machine の色の線 */
+.machine-status {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0 12px 6px 9px;
+  border-left: 3px solid var(--machine-color);
+  color: var(--status-text);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.no-workspace {
+  height: 30px;
+  margin: 0;
+  color: var(--sidebar-muted);
+  font-size: 12px;
+}
+
+.bands {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.bands li + li {
+  margin-top: 2px;
+}
+
+.band {
+  width: 100%;
+  height: var(--band-height);
+  border-top: 0;
+  border-right: 0;
+  border-bottom: 0;
+  background: var(--band-bg);
+  color: var(--sidebar-text);
+  font: inherit;
+  text-align: left;
+}
+.band:hover {
+  background: var(--band-hover);
+}
+/* 帯の中のフォーカスを移すボタン。帯の幅いっぱいに広げる */
+.band-main {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.band-main:focus-visible,
+.band-close:focus-visible {
+  outline: 1px solid var(--machine-color);
+  outline-offset: -1px;
+}
+/* 帯の右の [×]。押す前に目に入りすぎないよう、帯に乗せたとき・キーが向いたとき・フォーカス中の帯だけ出す */
+.band-close {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--sidebar-muted);
+  cursor: pointer;
+  opacity: 0;
+}
+.band-close svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+.band:hover .band-close,
+.band:focus-within .band-close,
+.band[aria-current="true"] .band-close {
+  opacity: 1;
+}
+.band-close:hover {
+  background: var(--band-hover);
+  color: var(--sidebar-text);
+}
+/* フォーカス中の帯は、マシンの色を薄く敷いて太字にする */
+.band[aria-current="true"] {
+  background: color-mix(in srgb, var(--machine-color) 22%, var(--sidebar-bg));
+  font-weight: 600;
+}
+
+/* 上下の固定（D3）。見出し → 帯 → ツリーのフォルダの行（tree.css）の順に積み、下の要素はその上に重ねる。
+   z-index はフォルダの行（100 - 深さ）より上にする */
+.machine-heading[data-sticky] {
+  position: sticky;
+  top: 0;
+  z-index: 102;
+}
+.band[data-sticky] {
+  position: sticky;
+  top: var(--heading-height);
+  z-index: 101;
+}
+.sidebar .tree {
+  --tree-sticky-top: calc(var(--heading-height) + var(--band-height));
+}
+.sidebar-after {
+  position: sticky;
+  bottom: 0;
+  z-index: 103;
+  background: var(--sidebar-bg);
+}
+/* フォーカスしている帯の続きの帯は、上の帯と同じだけ空ける */
+.sidebar-after > .machine-rest {
+  padding-top: 2px;
+}
+/* 固定されたものの境目に影を落とす（モックと同じ）。上は一番下に固定されたものの下、下は要素の上 */
+.sidebar [data-shadow] {
+  box-shadow: 0 6px 8px -4px var(--sticky-shadow);
+}
+.sidebar-after[data-shadow] {
+  box-shadow: 0 -6px 8px -4px var(--sticky-shadow);
+}
+
+.band-icon {
+  flex: none;
+  fill: none;
+  stroke: var(--machine-color);
+  stroke-width: 1.4;
+}
+
+.band-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.band-title.unset {
+  color: var(--sidebar-muted);
+  font-style: italic;
+}
+.band-title.path {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 12px;
+}
+
+.band-detail {
+  flex: none;
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--sidebar-muted);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+/* 足したマシンの見出しを右クリックしたメニュー */
+.machine-menu {
+  position: fixed;
+  z-index: 20;
+  min-width: 140px;
+  padding: 4px;
+  border: 1px solid var(--add-machine-border);
+  border-radius: 6px;
+  background: #1f232b;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+}
+.machine-menu-item {
+  display: block;
+  width: 100%;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--sidebar-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.machine-menu-item:hover,
+.machine-menu-item:focus-visible {
+  background: var(--band-hover);
+  outline: none;
+}
+.machine-menu-item:disabled {
+  color: var(--sidebar-muted);
+  cursor: default;
+}
+.machine-menu-item:disabled:hover {
+  background: transparent;
+}
+.machine-menu-note {
+  max-width: 240px;
+  margin: 4px 0 2px;
+  padding: 6px 10px 2px;
+  border-top: 1px solid var(--sidebar-border);
+  color: var(--sidebar-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
