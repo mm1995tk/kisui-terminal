@@ -68,9 +68,9 @@ Port のメソッドの条件は 2 つ。
 
 TUI 専用のものは core に置かず、`internal/tui` に出す。`internal/vt` のターミナルのパネル、マルチプレクサのペイン、OSC 52、境目のドラッグ、レイアウトの状態がそうである。P12 のエクスプローラ・変更一覧・エージェントのパネルも、TUI はツリーと git のデータから自分で描く（GUI がツリーの API から描くのと同じ）。
 
-単体編集モード（`single`）は core のモードのままにする。1 ファイルを閉じたときの終了は、core から UI への呼び出し（例 `Quit()`）にし、TUI はプロセスを終え、GUI のアダプターは通知に直す。
+単体編集モード（`single`）は core のモードのままにする。1 ファイルを閉じたときの終了は、core から UI への呼び出し（例 `Exit()`）にし、TUI はプロセスを終え、GUI のアダプターは通知に直す。
 
-今の境目は `internal/core/frontend.go` の `FrontEnd`（46 メソッド）と `internal/core/host.go` の `Host` で、TUI 専用のものまで含み、`internal/core/headless.go` が空の実装で埋めている。これは Port に向かう途中の形で、上の条件に合わせて直すのは別の Issue で行う（直したらこの段落は消す）。この節は、その Issue が従う向きを決める。
+Port は `internal/core/port.go` の `core.Port` で、`WriteClipboard`・`OpenURL`・`Exit` を持つ。TUI（`tui.App`）と `shj serve` の `server.Server` が満たし、`core.Host` は無い。`OpenURL` の結果は `core.OpenURLResult` の Event で返る。残りは `internal/core/frontend.go` の `FrontEnd`（TUI の都合まで含む）で、`internal/core/headless.go` が空の実装で埋めている。これは Port に向かう途中の形で、上の条件に合わせて直すのは別の Issue で行う（直したらこの段落は消す）。この節は、その Issue が従う向きを決める。
 
 ### 「画面に何を出すか」（`Screen`）のデータの形
 
@@ -177,7 +177,7 @@ type Line struct {
 | `dragging` | 中身 | マウスのドラッグ（選択）の状態 |
 | `lastClick` | 中身 | ダブルクリックの判定。GUI は `clicks` を付けて送る。TUI は今の判定を残す |
 | `keyReleases`, `askReleases` | TUI | 端末が「キーを離した」を報告するか。GUI は最初から押す / 離すを送れる |
-| `quitting` | TUI | `tea.Quit` を返した印。`core` は「終了してよい」という効果（`Quit`）を返す |
+| `quitting` | TUI | `tea.Quit` を返した印。`core` は「終了してよい」を Port の `Exit` で伝える |
 | `hold`, `holdSeq` | 中身 | 押しっぱなしのスクロール。タイマーは `core` のイベントにする |
 | `lineFlip` | 中身 | 行番号の反転表示 |
 | `single` | 中身 | 単体編集モード（1 ファイルだけ開き、閉じたら終了） |
@@ -344,7 +344,7 @@ P13-09（#385）で `Core` を `internal/core` に移し、分割を終えた。
   - `input.focus`：`core` に効くのは `files` だけ（キーをエディタに移す）。ほかの領域は GUI が自分で持つ。知らない `region` は `invalid_params`。
   - `command.run`：制御用ソケットの `exec` と同じく、`:q` のように終わらせるものや、人が選ぶ必要があるものは `ok: false` で断る。
   - `file.open`：`path` はワークスペースのルートからの相対パス（`tree.*` と同じ）。外へ出るもの・リンクの先が外のものは `denied`、無いものは `not_found`、フォルダは `invalid_params`。`line` と `col` は 0 始まりで、`col` は rune の位置（`Pos` と同じ）。どちらも省くと、開いていたファイルのカーソルは動かない。`pane` が 2 つ並べた相手のペインなら、そちらで開く。ワークスペースに `core` が無ければ作る。
-  - `shj serve` の `core` は TUI と同じく、頼んだ仕事（`Effect`：言語サーバー、タイマー、検索 …）をそれぞれの goroutine で回し、戻ってきた事象を反映したら画面を作り直す（`core.Workspace.Update` / `Apply`、`Workspaces.SetOnChange`）。作ったときに言語サーバーの待ちとファイルの監視を始める。`Quit` は捨てる。
+  - `shj serve` の `core` は TUI と同じく、頼んだ仕事（`Effect`：言語サーバー、タイマー、検索 …）をそれぞれの goroutine で回し、戻ってきた事象を反映したら画面を作り直す（`core.Workspace.Update` / `Apply`、`Workspaces.SetOnChange`）。作ったときに言語サーバーの待ちとファイルの監視を始める。Port の `Exit` は捨てる。
 - GUI の実装（E2）で決めた細部（`gui/src/files/input.ts`・`filesInput.ts`・`FilesView.tsx`・`clipboard.ts`）：
   - キーは見えない `textarea` で受ける（IME の変換と貼り付けを OS に任せるため）。IME の候補の窓がカーソルの近くに出るよう、変換を始めたときにカーソルのマス目へ動かす。
   - `input.key` は `keydown` だけを送る（`release` は `core` が使わないので送らない）。修飾キーだけ・dead key・変換中のキー（`isComposing`、`keyCode` 229）も送らない。 macOS の Option で打つ文字（ドイツ語配列の Option+L = `@` など）は `alt` を付けずに送る（macOS のターミナルの既定と同じ）。
@@ -502,7 +502,7 @@ GUI はシステムの `ssh` を子プロセスとして起動する（`~/.ssh/c
 ### サーバーモード（`shj serve`）の中身
 
 - `core` をワークスペースごとに持つ（P14 以降）。制御用ソケット（`ctl`）と Claude Code 連携（`ide`）は今と同じようにサーバーに 1 つ持つ。`shj diff` などの CLI は、フォーカスしているワークスペースの `core` に届ける。
-- 実装（B11）：`server.Workspace`（`Control` と `IDE`）を実装した `core` を `SetFocus` するとそこへ届く。フォーカスが無いうちは `ctl` も `ide` もエラーを返す。制御用ソケットは TUI と同じ `<pid>.sock` で、`shj serve` が開くターミナルには `SHIJIMI_SOCKET` などの環境変数を渡す。Claude Code のロックファイルのワークスペースはホームディレクトリ。`clipboard.write` と `url.open` は `Server.WriteClipboard` / `OpenURL`（`ui.Host`）が今の GUI に通知する。
+- 実装（B11）：`server.Workspace`（`Control` と `IDE`）を実装した `core` を `SetFocus` するとそこへ届く。フォーカスが無いうちは `ctl` も `ide` もエラーを返す。制御用ソケットは TUI と同じ `<pid>.sock` で、`shj serve` が開くターミナルには `SHIJIMI_SOCKET` などの環境変数を渡す。Claude Code のロックファイルのワークスペースはホームディレクトリ。`clipboard.write` と `url.open` は `Server.WriteClipboard` / `OpenURL`（`core.Port`）が今の GUI に通知する。
 - ログは `$XDG_STATE_HOME/shijimi-editor/serve.log`（無ければ `~/.local/state/…`）。サイズが 10 MiB を超えたら先頭を捨てる。
 
 ### GUI の配り方と自動更新（C8）
