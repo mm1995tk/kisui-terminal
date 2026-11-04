@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/mm1995tk/shijimi-editor/core"
 	"github.com/mm1995tk/shijimi-editor/core/ctl"
-	"github.com/mm1995tk/shijimi-editor/core/ide"
 	"github.com/mm1995tk/shijimi-editor/ui/cli/ctlclient"
 	"github.com/mm1995tk/shijimi-editor/ui/gui/rpc"
 )
@@ -28,8 +28,8 @@ func (w *fakeWS) Control(r ctl.Request) ctl.Response {
 	return ctl.Response{OK: true, Message: w.name}
 }
 
-func (w *fakeWS) IDE(_ context.Context, tool string, _ json.RawMessage) ([]ide.Content, error) {
-	return []ide.Content{ide.Text(w.name + ":" + tool)}, nil
+func (w *fakeWS) IDE(_ context.Context, tool string, _ json.RawMessage) ([]core.IDEContent, error) {
+	return []core.IDEContent{core.IDEText(w.name + ":" + tool)}, nil
 }
 
 func TestControlReachesFocusedWorkspace(t *testing.T) {
@@ -76,12 +76,12 @@ func TestControlReachesFocusedWorkspace(t *testing.T) {
 func TestIDEReachesFocusedWorkspace(t *testing.T) {
 	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
 	srv, _ := start(t)
-	is, err := srv.StartIDE(t.TempDir(), nil)
+	is, err := srv.StartIDE(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
 	d := websocket.Dialer{Subprotocols: []string{"mcp"}}
-	c, _, err := d.Dial(fmt.Sprintf("ws://127.0.0.1:%d", is.Port()), http.Header{ide.AuthHeader: {is.Token()}})
+	c, _, err := d.Dial(fmt.Sprintf("ws://127.0.0.1:%d", is.Port()), http.Header{core.IDEAuthHeader: {is.Token()}})
 	if err != nil {
 		t.Fatal(err)
 	}

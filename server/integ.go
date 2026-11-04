@@ -7,8 +7,6 @@ import (
 
 	"github.com/mm1995tk/shijimi-editor/core"
 	"github.com/mm1995tk/shijimi-editor/core/ctl"
-	"github.com/mm1995tk/shijimi-editor/core/ctlserver"
-	"github.com/mm1995tk/shijimi-editor/core/ide"
 )
 
 // Workspace is what the control socket and the Claude Code connection reach:
@@ -22,7 +20,7 @@ type Workspace interface {
 	Control(req ctl.Request) ctl.Response
 	// IDE runs a tool call from Claude Code. It may block until the user
 	// decides (openDiff); ctx ends when the connection closes.
-	IDE(ctx context.Context, tool string, args json.RawMessage) ([]ide.Content, error)
+	IDE(ctx context.Context, tool string, args json.RawMessage) ([]core.IDEContent, error)
 }
 
 // errNoWorkspace is what CLIs and Claude Code get while no workspace has the focus.
@@ -44,7 +42,7 @@ func (s *Server) focused() Workspace {
 // StartControl opens the control socket at path (see ctl.SocketPath). Requests
 // go to the focused workspace.
 func (s *Server) StartControl(path string) error {
-	cs, err := ctlserver.Listen(path, func(req ctl.Request) ctl.Response {
+	cs, err := core.ListenCtl(path, func(req ctl.Request) ctl.Response {
 		w := s.focused()
 		if w == nil {
 			return ctl.Response{Error: errNoWorkspace.Error()}
@@ -62,8 +60,8 @@ func (s *Server) StartControl(path string) error {
 
 // StartIDE starts the Claude Code connection and writes its lock file for root.
 // Tool calls go to the focused workspace.
-func (s *Server) StartIDE(root string, tools []ide.Tool) (*ide.Server, error) {
-	is, err := ide.Start(root, tools, func(ctx context.Context, tool string, args json.RawMessage) ([]ide.Content, error) {
+func (s *Server) StartIDE(root string) (*core.IDEServer, error) {
+	is, err := core.StartIDE(root, func(ctx context.Context, tool string, args json.RawMessage) ([]core.IDEContent, error) {
 		w := s.focused()
 		if w == nil {
 			return nil, errNoWorkspace

@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
-	"strconv"
 	"syscall"
 	"time"
 
@@ -17,7 +16,6 @@ import (
 	"github.com/mm1995tk/shijimi-editor/core/config"
 	"github.com/mm1995tk/shijimi-editor/core/ctl"
 	"github.com/mm1995tk/shijimi-editor/core/i18n"
-	"github.com/mm1995tk/shijimi-editor/core/ide"
 	uicfg "github.com/mm1995tk/shijimi-editor/core/uicfg"
 	guicfg "github.com/mm1995tk/shijimi-editor/ui/gui/config"
 	"github.com/mm1995tk/shijimi-editor/ui/gui/server"
@@ -122,10 +120,8 @@ func runServe(args []string) int {
 	// Code connects when its directory is inside one, and the server does not
 	// know the workspaces' roots when it starts.
 	if home, err := os.UserHomeDir(); err == nil {
-		if is, err := srv.StartIDE(home, core.IDETools()); err == nil {
-			os.Setenv(ide.EnvPort, strconv.Itoa(is.Port()))
-			os.Setenv(ide.EnvEnable, "true")
-			os.Setenv(ide.EnvForceTerminal, "true")
+		if is, err := srv.StartIDE(home); err == nil {
+			core.SetIDEEnv(is.Port())
 		} else {
 			logger.Warn("ide", "err", err)
 		}

@@ -19,8 +19,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mm1995tk/shijimi-editor/core/ctlserver"
-	"github.com/mm1995tk/shijimi-editor/core/ide"
+	"github.com/mm1995tk/shijimi-editor/core"
 	"github.com/mm1995tk/shijimi-editor/ui/gui/rpc"
 )
 
@@ -77,17 +76,17 @@ type Server struct {
 	terms      *termManager
 	ws         *wsManager
 	tree       *treeManager
-	rev        int64             // サーバー全体の版（mu で守る）
-	stopping   bool              // stop が始まった
-	beforeStop []func()          // 止まる前に走らせる（AddBeforeStop）
-	focus      Workspace         // ctl と ide の届け先。無ければ nil
-	cores      Cores             // ワークスペースごとの core（SetCores）。無ければ nil
-	screens    Screens           // 画面の作り手（SetScreens）。無ければ nil
-	inputs     Inputs            // 入力の届け先（SetInputs）。無ければ nil
-	screenKick chan struct{}     // ScreenChanged の知らせ（1 つまで溜める）
-	screenMu   sync.Mutex        // 画面の配信（session.view と送る順）を守る
-	ctlSrv     *ctlserver.Server // StartControl で開く
-	ideSrv     *ide.Server       // StartIDE で開く
+	rev        int64           // サーバー全体の版（mu で守る）
+	stopping   bool            // stop が始まった
+	beforeStop []func()        // 止まる前に走らせる（AddBeforeStop）
+	focus      Workspace       // ctl と ide の届け先。無ければ nil
+	cores      Cores           // ワークスペースごとの core（SetCores）。無ければ nil
+	screens    Screens         // 画面の作り手（SetScreens）。無ければ nil
+	inputs     Inputs          // 入力の届け先（SetInputs）。無ければ nil
+	screenKick chan struct{}   // ScreenChanged の知らせ（1 つまで溜める）
+	screenMu   sync.Mutex      // 画面の配信（session.view と送る順）を守る
+	ctlSrv     *core.CtlServer // StartControl で開く
+	ideSrv     *core.IDEServer // StartIDE で開く
 }
 
 // ErrRunning はすでに別の shj serve が動いているときのエラー。
