@@ -63,12 +63,12 @@ jobs:
             target: universal-apple-darwin
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
         with:
           ref: ${{ inputs.ref }}
           persist-credentials: false
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@v7.1.0
         with:
           node-version: 24
           cache: npm
@@ -113,7 +113,7 @@ jobs:
 
       # 署名鍵はこの step から後でだけ環境変数にある（npm ci などの依存のスクリプトには渡さない）
       - name: 署名鍵を 1Password から読む
-        uses: 1password/load-secrets-action@70062d7a876d3eb6334754fa26efd2fbd90c32f2 # v5.0.1
+        uses: 1password/load-secrets-action@v5.0.1
         with:
           export-env: true
         env:
@@ -167,7 +167,7 @@ jobs:
           fi
           ls -l "$out"
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@v7.0.2
         with:
           name: gui-${{ matrix.platform }}
           path: ${{ runner.temp }}/out/*
@@ -181,7 +181,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@v8.0.2
         with:
           pattern: gui-*
           merge-multiple: true
