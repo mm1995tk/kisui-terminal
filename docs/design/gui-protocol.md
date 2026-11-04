@@ -48,7 +48,7 @@ TUI:  shj  =  core + TUI の描画  （同じプロセス、関数を直接呼�
 | TUI の描画 | `Screen` を文字のマス目にして描く。端末の大きさ、ペインの幅、端末の機能（キーを離した通知、カーソルの位置）を持つ | `core`、bubbletea |
 | GUI の描画 | プロトコルで受け取った `Screen` を描く | プロトコルだけ（このリポジトリの外：Tauri の Web 画面） |
 
-`internal/screen`（`Screen` のデータ型だけ。外に依存しない）を作る。`core` が作り、TUI の描画とプロトコルが読む。
+`core/screen`（`Screen` のデータ型だけ。外に依存しない）を作る。`core` が作り、TUI の描画とプロトコルが読む。
 
 ### core が知る相手は Port だけ
 
@@ -66,11 +66,11 @@ Port のメソッドの条件は 2 つ。
 | TUI | core の関数を直接呼ぶ（同じプロセス） | Port を満たす TUI が直接受ける |
 | GUI | アダプターが JSON-RPC（`input.*` など）を受けて core の関数を呼ぶ | アダプターが Port を満たし、呼び出しを JSON-RPC の通知に直して GUI へ送る |
 
-TUI 専用のものは core に置かず、`internal/tui` に出す。`internal/vt` のターミナルのパネル、マルチプレクサのペイン、OSC 52、境目のドラッグ、レイアウトの状態がそうである。P12 のエクスプローラ・変更一覧・エージェントのパネルも、TUI はツリーと git のデータから自分で描く（GUI がツリーの API から描くのと同じ）。端末の画像（Kitty のグラフィックス）も TUI の都合で、core は `internal/kitty` を知らない（画像の大きさの上限は TUI が `core.MaxImageCells` に入れ、画像を端末へ送る・消すのは TUI が Port の `ImageClosed` を受けて行う）。
+TUI 専用のものは core に置かず、`ui/tui` に出す。`ui/tui/vt` のターミナルのパネル、マルチプレクサのペイン、OSC 52、境目のドラッグ、レイアウトの状態がそうである。P12 のエクスプローラ・変更一覧・エージェントのパネルも、TUI はツリーと git のデータから自分で描く（GUI がツリーの API から描くのと同じ）。端末の画像（Kitty のグラフィックス）も TUI の都合で、core は `ui/tui/kitty` を知らない（画像の大きさの上限は TUI が `core.MaxImageCells` に入れ、画像を端末へ送る・消すのは TUI が Port の `ImageClosed` を受けて行う）。
 
 単体編集モード（`single`）は core のモードのままにする。1 ファイルを閉じたときの終了は、core から UI への呼び出し（例 `Exit()`）にし、TUI はプロセスを終え、GUI のアダプターは通知に直す。
 
-Port は `internal/core/port.go` の `core.Port` で、`WriteClipboard`・`OpenURL`・`Exit` と、レイアウトの `ShowSide`・`ShowTerm`・`ShowAgent`・`DragBorder`・`StartResize`・`ResizeKey`・`ResetPanes`、ターミナルのパネルの `TermFocus`・`TermToggle`・`TermKey`・`TermRun`・`TermPaste`・`TermClose`、マルチプレクサのペインで終わったコマンドの `CommandEnded`、画像を見せなくなったことの `ImageClosed`、テーマの色の反映の `SetPalette`、文言を訳してもらう `Text` と表示言語を伝える `SetLanguage` を持つ。ターミナルのパネル（`internal/vt`）とマルチプレクサ（herdr・tmux・zellij・cmux）のペインは tui だけが持ち、core は意味（走らせたい行、貼り付けたい文字）だけを Port で伝える（ペインのときは `core.Layout` の `TermInPane` が立ち、core はパネルの表示とフォーカスを持たずに `TermToggle`・`ShowTerm`・`TermRun`・`TermPaste` だけを呼ぶ）。tui はシェルが見せた失敗を `core.AddFailureTab`・`ClearFailure`・`KeepFailuresOf` で core へ返す。表示中かどうかは UI が `core.Layout` の入力で返す。TUI（`tui.App`）と `shj serve` の `server.Server` が満たし、`core.Host` は無い。`OpenURL` の結果は `core.OpenURLResult` の Event で返る。マウスは `Input`（`core.Mouse`）として core が受ける（`Core.HandleMouse`。GUI のアダプターが運ぶペインの中の行と桁）。TUI は画面のマス目の当たり判定（ポップアップ・境目・ターミナル）を先に済ませて、残りを core に渡す（`tui.App.HandleMouse`）。ホバーの下の単語は core が決め（`Core.HoverCellWord`）、ホバーのスクロール（`Core.ScrollHover`）の上限だけは、ポップアップの大きさを知る UI が合わせる。レビューのコメントの入力欄は core の `core.TextArea` で、編集と折り返しは core が行い、UI は `Rows`・`CursorCell` を描く。キーの離しの通知は `core.ReleasesReported` の Input で core が受けて覚え、テーマの色の反映は Port の `SetPalette` で UI に頼む（GUI のアダプターは何もしない。GUI は `theme.get` で自分の色を決める）。`core.New`・`NewIn`・`NewSingle` は Port を受け取る。core が UI を知るのは Port だけで、`core.FrontEnd` と `headless` は無い。
+Port は `core/port.go` の `core.Port` で、`WriteClipboard`・`OpenURL`・`Exit` と、レイアウトの `ShowSide`・`ShowTerm`・`ShowAgent`・`DragBorder`・`StartResize`・`ResizeKey`・`ResetPanes`、ターミナルのパネルの `TermFocus`・`TermToggle`・`TermKey`・`TermRun`・`TermPaste`・`TermClose`、マルチプレクサのペインで終わったコマンドの `CommandEnded`、画像を見せなくなったことの `ImageClosed`、テーマの色の反映の `SetPalette`、文言を訳してもらう `Text` と表示言語を伝える `SetLanguage` を持つ。ターミナルのパネル（`ui/tui/vt`）とマルチプレクサ（herdr・tmux・zellij・cmux）のペインは tui だけが持ち、core は意味（走らせたい行、貼り付けたい文字）だけを Port で伝える（ペインのときは `core.Layout` の `TermInPane` が立ち、core はパネルの表示とフォーカスを持たずに `TermToggle`・`ShowTerm`・`TermRun`・`TermPaste` だけを呼ぶ）。tui はシェルが見せた失敗を `core.AddFailureTab`・`ClearFailure`・`KeepFailuresOf` で core へ返す。表示中かどうかは UI が `core.Layout` の入力で返す。TUI（`tui.App`）と `shj serve` の `server.Server` が満たし、`core.Host` は無い。`OpenURL` の結果は `core.OpenURLResult` の Event で返る。マウスは `Input`（`core.Mouse`）として core が受ける（`Core.HandleMouse`。GUI のアダプターが運ぶペインの中の行と桁）。TUI は画面のマス目の当たり判定（ポップアップ・境目・ターミナル）を先に済ませて、残りを core に渡す（`tui.App.HandleMouse`）。ホバーの下の単語は core が決め（`Core.HoverCellWord`）、ホバーのスクロール（`Core.ScrollHover`）の上限だけは、ポップアップの大きさを知る UI が合わせる。レビューのコメントの入力欄は core の `core.TextArea` で、編集と折り返しは core が行い、UI は `Rows`・`CursorCell` を描く。キーの離しの通知は `core.ReleasesReported` の Input で core が受けて覚え、テーマの色の反映は Port の `SetPalette` で UI に頼む（GUI のアダプターは何もしない。GUI は `theme.get` で自分の色を決める）。`core.New`・`NewIn`・`NewSingle` は Port を受け取る。core が UI を知るのは Port だけで、`core.FrontEnd` と `headless` は無い。
 
 ### 「画面に何を出すか」（`Screen`）のデータの形
 
@@ -80,10 +80,10 @@ Port は `internal/core/port.go` の `core.Port` で、`WriteClipboard`・`OpenU
 2. **マス目に変換しない。** 行は「文字列 + スタイルの区間」で表す。文字の幅の計算と、字下げの線の引き方は描く側の仕事（ただしマウスの位置のマス目 → rune の位置の変換だけは `core` が行う。「入力」の節）。ただし見える行数と桁数は GUI が送り（`view.resize`）、スクロールや折り返しは shj が決める。等幅フォントで描く前提。
 3. **領域（region）ごとに分ける。** TUI は全部を並べて描き、GUI は必要な領域だけ受け取る（左の一覧と右下のターミナルは GUI が自前で作るので、`Screen` の購読に入れない）。
 4. **位置は「ペインの中の行と桁」。** 画面全体の座標を持たない。マウスの位置も同じ形で送る。
-5. **文言はキーと値（`msg.Msg`）。** `core` と `screen.Screen` は文言を訳さず、i18n のキーと埋める値（`internal/msg`）で持つ。訳すのは UI で、TUI は描くとき、GUI は受け取ったあとに訳す。`shj serve` は `Msg` を訳さずに送り、翻訳の表は `i18n.get` で渡す（「画面の送り方」の表）。`Msg` の JSON は、キーの無い文字だけのもの（ファイル名、他のプログラムの文言）は文字列のまま、それ以外は `{key?, args}`（`args` の要素は文字列・数・真偽、または入れ子の `Msg`。エラーは `Msg` か文字列）。表の `%s`・`%d`・`%q`・`%v`・`%c` は GUI が埋める。`core` が言葉そのものを要るのは、検索の一致・折り返し・エージェントや git に渡す文だけで、そこは Port の `Text` で UI に訳を借りる。
+5. **文言はキーと値（`msg.Msg`）。** `core` と `screen.Screen` は文言を訳さず、i18n のキーと埋める値（`core/msg`）で持つ。訳すのは UI で、TUI は描くとき、GUI は受け取ったあとに訳す。`shj serve` は `Msg` を訳さずに送り、翻訳の表は `i18n.get` で渡す（「画面の送り方」の表）。`Msg` の JSON は、キーの無い文字だけのもの（ファイル名、他のプログラムの文言）は文字列のまま、それ以外は `{key?, args}`（`args` の要素は文字列・数・真偽、または入れ子の `Msg`。エラーは `Msg` か文字列）。表の `%s`・`%d`・`%q`・`%v`・`%c` は GUI が埋める。`core` が言葉そのものを要るのは、検索の一致・折り返し・エージェントや git に渡す文だけで、そこは Port の `Text` で UI に訳を借りる。
 
 ```go
-// internal/screen（イメージ。名前と細部は実装の PR で決める）
+// core/screen（イメージ。名前と細部は実装の PR で決める）
 type Screen struct {
     Rev     uint64      // 作るたびに増える。GUI はこれで抜けを見つける
     AckSeq  uint64      // どの入力（Input.Seq）までがこの画面に入っているか
@@ -145,7 +145,7 @@ type Line struct {
 | `w`, `h` | TUI | GUI は領域ごとの大きさを `view.resize` で送る。`core` は領域ごとの行数と桁数だけ知る |
 | `focus` | 中身 | 「キーを受ける領域」は `core` が持つ（`Screen.Focus`）。GUI で押した領域は入力に付けて送る |
 | `explorer`, `treeTicks` | 中身 | TUI のツリーの選択・開閉は中身（`core.Explorer`。TUI がそこから自分で描く）。GUI のツリーは `tree.*` で別に取り、開閉は GUI が持つ |
-| `term`, `hd` | どちらでもない | ターミナルはサーバーのターミナル管理（PTY）が持つ。PTY の起動・読み書き・サイズ変更は `internal/term`（`tea`・lipgloss・`vt` を使わない）に出し、TUI は `term.Session` の出力を `vt` に流して描くだけ（`tui.terminal`）。`shj serve` のターミナル管理（`server.termManager`）も起動は `term.Start` を使い、リングバッファと `term.ack` の流量制御は `server` に残す。`hd`（herdr のペイン）と tmux・zellij・cmux のペイン（`mux*.go`）は TUI だけで使う（`core` は知らない） |
+| `term`, `hd` | どちらでもない | ターミナルはサーバーのターミナル管理（PTY）が持つ。PTY の起動・読み書き・サイズ変更は `ui/internal/term`（`tea`・lipgloss・`vt` を使わない）に出し、TUI は `term.Session` の出力を `vt` に流して描くだけ（`tui.terminal`）。`shj serve` のターミナル管理（`server.termManager`）も起動は `term.Start` を使い、リングバッファと `term.ack` の流量制御は `server` に残す。`hd`（herdr のペイン）と tmux・zellij・cmux のペイン（`mux*.go`）は TUI だけで使う（`core` は知らない） |
 | `proxy` | どちらでもない | ポート転送の管理はサーバー側に 1 つ |
 | `pal` | 中身 | コマンドパレットの状態（`Overlay` に出す） |
 | `wsSyms`, `wsClient` | 中身 | プロジェクトのシンボル選択 |
@@ -188,21 +188,21 @@ type Line struct {
 
 `render` / `renderTabs` / `renderStatus` は描きながら状態を書き戻している（`tabSpans`、`tabOffset`、`caretAt`）。`Screen` を作るのは状態を変えない関数（`core.Screen()`）にして、描く側が必要な計算（タブの位置、カーソルの端末上の座標）を自分で持つ。これを最初のほうの手順にする。
 
-P13-07（#383）では、ファイルを「描く」「中身」に仕分けた。lipgloss を import するのは `split_test.go` の名簿のファイル（`*_draw.go` ほか）だけ、`layout`（ペインのマス目）を使うのは `layout.go` ほかの描く・画面のマス目を扱うファイルだけで、`core` に行くファイルは `editRows`・`textCols`（`layout.go`）のように領域の行数・桁数で尋ねる。どちらも `internal/tui/split_test.go` が見張る。
+P13-07（#383）では、ファイルを「描く」「中身」に仕分けた。lipgloss を import するのは `split_test.go` の名簿のファイル（`*_draw.go` ほか）だけ、`layout`（ペインのマス目）を使うのは `layout.go` ほかの描く・画面のマス目を扱うファイルだけで、`core` に行くファイルは `editRows`・`textCols`（`layout.go`）のように領域の行数・桁数で尋ねる。どちらも `ui/tui/split_test.go` が見張る。
 
-P13-08（#384）では、マウスの当たり判定（`handleMouse`・`termMouse`・ホバーと検索パネルの画面のマス目の判定。`internal/tui/mouse.go`）と枠の大きさの調整（`resize.go`）を `layout` を使う tui のファイルに寄せ、`core` に行くファイルは `layout` を一切使わない。`renderFrame` は `App` のフィールドを名前で読まず、`internal/tui/frameq.go` の問い合わせ（`focusIn`・`diffMode`・`completing` …。`App` を割ったあとの `core.Screen()` と `core` の問い合わせのメソッドになる）だけを読む。見張るのは `split_test.go`（`TestRenderFrameReadsQueries`）。
+P13-08（#384）では、マウスの当たり判定（`handleMouse`・`termMouse`・ホバーと検索パネルの画面のマス目の判定。`ui/tui/mouse.go`）と枠の大きさの調整（`resize.go`）を `layout` を使う tui のファイルに寄せ、`core` に行くファイルは `layout` を一切使わない。`renderFrame` は `App` のフィールドを名前で読まず、`ui/tui/frameq.go` の問い合わせ（`focusIn`・`diffMode`・`completing` …。`App` を割ったあとの `core.Screen()` と `core` の問い合わせのメソッドになる）だけを読む。見張るのは `split_test.go`（`TestRenderFrameReadsQueries`）。
 
-次に `App` を `Core`（中身。`internal/tui/app.go` の `type Core struct`）と `App`（`*Core` を埋め込み、端末だけのフィールドを持つ）に分けた。`App` に残すのは上の表で「TUI」の行のフィールド（画面の大きさ、出す領域、ペインの大きさ、端末、キーを離した報告）。`core` に行くファイルはそのフィールドを読まず、`internal/tui/frontend.go` の問い合わせ（`screenW`・`sideShown`・`setSide`・`termShown`・`termRun` …。`App` を割ったあとは `core` が前面に尋ねる呼び出しになる）を通す。`TestCoreFields` が `Core` にそのフィールドが入らないことと、`frontend.go` などの tui に残るファイル以外が読まないことを見張る。
+次に `App` を `Core`（中身。`ui/tui/app.go` の `type Core struct`）と `App`（`*Core` を埋め込み、端末だけのフィールドを持つ）に分けた。`App` に残すのは上の表で「TUI」の行のフィールド（画面の大きさ、出す領域、ペインの大きさ、端末、キーを離した報告）。`core` に行くファイルはそのフィールドを読まず、`ui/tui/frontend.go` の問い合わせ（`screenW`・`sideShown`・`setSide`・`termShown`・`termRun` …。`App` を割ったあとは `core` が前面に尋ねる呼び出しになる）を通す。`TestCoreFields` が `Core` にそのフィールドが入らないことと、`frontend.go` などの tui に残るファイル以外が読まないことを見張る。
 
-中身のファイルのメソッドは `*Core` に付け替えた。`Core` は前面（`App`）を `frontEnd`（`frontend.go`）として持ち、端末に尋ねることはそれを通す。中身のファイルに `*App` のメソッドは残っていない（`Init`・`Update` は `model.go`、描くものは `*_draw.go`）。`TestCoreMethods` が増えないことを見張る。`Core` を `internal/core` に移すのが残りで、`mdparse.go`（Markdown の字句）から移し始めた（#384 の (3)）。
+中身のファイルのメソッドは `*Core` に付け替えた。`Core` は前面（`App`）を `frontEnd`（`frontend.go`）として持ち、端末に尋ねることはそれを通す。中身のファイルに `*App` のメソッドは残っていない（`Init`・`Update` は `model.go`、描くものは `*_draw.go`）。`TestCoreMethods` が増えないことを見張る。`Core` を `core` に移すのが残りで、`mdparse.go`（Markdown の字句）から移し始めた（#384 の (3)）。
 
 色は `theme.go`（`Theme` の値だけ。`app.go` に依存しない）と `theme_apply.go`・`styles.go`（lipgloss のスタイルを作る）に割った。`Core` が選ぶのは `Theme` で、スタイルへの反映は前面の `setPalette` が行う（`TestThemeApplyIsFrontEnd` が見張る）。
 
 `styles.go` は lipgloss のスタイル（`bgfg`・`st*`）だけにし、色の値（`c*`）は `colors.go`、セルに合わせる関数（`fit`・`overlay`・`clamp`）は `cells.go` に分けた。tui のファイルが `Core` のフィールドを読まず `coreq.go`・`ptrq.go`・`fitq.go` のメソッドで尋ねる形は `TestFrontEndAsksCore` が、core 行きのファイルが `styles.go` のスタイルで描くのは `TestStylesStayInTui`が見張る。core 行きの 13 ファイルに残っていた描画（`drawAgent`・`drawPalette`・`drawSearch`・`drawHover` ほか）は `*_draw.go` に出し、データ（`Overlay`・`Pane` ほか）だけを渡す形にした。
 
-P13-09（#385）で `Core` を `internal/core` に移し、分割を終えた。`internal/tui` の `App` は `*core.Core` を埋め込み、`tea.Model`（`Init`・`Update`・`View`。`model.go`）を持つ。`Core` は UI を `core.Port` として持ち、`App` がそれを満たす（`internal/tui/port.go`）。tui が `Core` の公開したフィールドとメソッドを使うので、上に挙げた tui の中の見張り（`TestCoreFields`・`TestCoreMethods`・`TestThemeApplyIsFrontEnd`・`TestFrontEndAsksCore`・`TestStylesStayInTui`・`TestRenderFrameReadsQueries`）はやめた。境界はパッケージで、`internal/core/deps_test.go`（`TestNoTerminalDeps`）が、`internal/core` が bubbletea・lipgloss・`internal/tui` に依存しないことを見張る。`github.com/charmbracelet/x/ansi` は、Markdown プレビューなどで端末のセルの幅を測る所が残るので、まだ例外にしている。tui の中には、lipgloss を import するファイルと `layout` を使うファイルを限る見張り（`internal/tui/split_test.go`）だけが残る。テストは、振る舞い（`Input` を渡して状態を見る）を `internal/core` に、描画・レイアウト・マウスの座標・端末とマルチプレクサを `internal/tui` に置いた。
+P13-09（#385）で `Core` を `core` に移し、分割を終えた。`ui/tui` の `App` は `*core.Core` を埋め込み、`tea.Model`（`Init`・`Update`・`View`。`model.go`）を持つ。`Core` は UI を `core.Port` として持ち、`App` がそれを満たす（`ui/tui/port.go`）。tui が `Core` の公開したフィールドとメソッドを使うので、上に挙げた tui の中の見張り（`TestCoreFields`・`TestCoreMethods`・`TestThemeApplyIsFrontEnd`・`TestFrontEndAsksCore`・`TestStylesStayInTui`・`TestRenderFrameReadsQueries`）はやめた。境界はパッケージで、`core/deps_test.go`（`TestNoTerminalDeps`）が、`core` が bubbletea・lipgloss・`ui/tui` に依存しないことを見張る。`github.com/charmbracelet/x/ansi` は、Markdown プレビューなどで端末のセルの幅を測る所が残るので、まだ例外にしている。tui の中には、lipgloss を import するファイルと `layout` を使うファイルを限る見張り（`ui/tui/split_test.go`）だけが残る。テストは、振る舞い（`Input` を渡して状態を見る）を `core` に、描画・レイアウト・マウスの座標・端末とマルチプレクサを `ui/tui` に置いた。
 
-（この段落は #448 より前の形の説明。ワークスペースの決まり方と消え方の新しい形は「ワークスペース」の節。）P14（#306）で、1 つのプロセスが `core` を複数持てるようにした。プロセス全体で 1 つのもの（ポート転送とシェル連携のファイル）は `core.Shared`（`internal/core/shared.go`）にまとめ、`core.NewIn(shared, …)` で作った `core` はそれを共有する。TUI は今までどおり `core.New` で 1 つだけ作り、`Shared` もその `core` が持つ（`Close` で閉じる）。テーマと表示の言語はもともとプロセス全体の値（`ActivateTheme`・`i18n.SetLang`）。言語は、TUI では `core.New` がそのルートの設定で決め、`shj serve` ではホームの設定で起動時に一度だけ決める（`NewIn` は `SetLang` しない）。`shj serve` は `core.Workspaces`（`internal/core/workspaces.go`）でルートごとに `core` を 1 つ持ち、前面は描く画面がまだ無いので Port は `shj serve` のサーバー（`Workspaces.SetPort`）で、大きさは GUI が送るまで 80 x 24 とする（`newHeadlessCore`）。`core` を作るのは `workspace.focus` のときで、ファイルを開いている間はシェルがいなくてもワークスペースは残り、どちらも無くなったら `core` を止める。サーバーは `core` を import せず、`server.Cores`（`internal/server/cores.go`）を通して `files`・`workspace.close_files` を `core` に尋ねる。`workspace.close_files` は未保存の変更があるファイルを閉じずに残す。止まる前（idle と `server.shutdown`）には `AddBeforeStop` で全部の `core` の未保存の変更を `server.WriteBackup`（`<名前>.bk`）に書く。`core` の `Event` を回す仕組みと、`core` が `server.Workspace`（`ctl`・`ide` の届け先）になるのは、画面の配信（B9）と一緒に入れる。それまでは `Workspace.Do` が 1 つずつ `core` に触らせる。
+（この段落は #448 より前の形の説明。ワークスペースの決まり方と消え方の新しい形は「ワークスペース」の節。）P14（#306）で、1 つのプロセスが `core` を複数持てるようにした。プロセス全体で 1 つのもの（ポート転送とシェル連携のファイル）は `core.Shared`（`core/shared.go`）にまとめ、`core.NewIn(shared, …)` で作った `core` はそれを共有する。TUI は今までどおり `core.New` で 1 つだけ作り、`Shared` もその `core` が持つ（`Close` で閉じる）。テーマと表示の言語はもともとプロセス全体の値（`ActivateTheme`・`i18n.SetLang`）。言語は、TUI では `core.New` がそのルートの設定で決め、`shj serve` ではホームの設定で起動時に一度だけ決める（`NewIn` は `SetLang` しない）。`shj serve` は `core.Workspaces`（`core/workspaces.go`）でルートごとに `core` を 1 つ持ち、前面は描く画面がまだ無いので Port は `shj serve` のサーバー（`Workspaces.SetPort`）で、大きさは GUI が送るまで 80 x 24 とする（`newHeadlessCore`）。`core` を作るのは `workspace.focus` のときで、ファイルを開いている間はシェルがいなくてもワークスペースは残り、どちらも無くなったら `core` を止める。サーバーは `core` を import せず、`server.Cores`（`ui/gui/server/cores.go`）を通して `files`・`workspace.close_files` を `core` に尋ねる。`workspace.close_files` は未保存の変更があるファイルを閉じずに残す。止まる前（idle と `server.shutdown`）には `AddBeforeStop` で全部の `core` の未保存の変更を `server.WriteBackup`（`<名前>.bk`）に書く。`core` の `Event` を回す仕組みと、`core` が `server.Workspace`（`ctl`・`ide` の届け先）になるのは、画面の配信（B9）と一緒に入れる。それまでは `Workspace.Do` が 1 つずつ `core` に触らせる。
 
 ## 2. 分けていく順番
 
@@ -213,7 +213,7 @@ P13-09（#385）で `Core` を `internal/core` に移し、分割を終えた。
 | # | 手順 | 依存 |
 | --- | --- | --- |
 | P1 | TUI の描画を固定するテストを足す。代表的な状態（ファイルを開いた、補完、差分モード、確認の窓、ホバー、検索）で `render()` の出力を保存して比べる。テストだけ | なし |
-| P2 | `internal/screen` を作る。`Screen`・`Pane`・`Line`・`Span`・`Style`（意味の名前）・`Overlay` を定義し、テーマの名前 → 色の対応を決める。使うコードはまだ無い | なし |
+| P2 | `core/screen` を作る。`Screen`・`Pane`・`Line`・`Span`・`Style`（意味の名前）・`Overlay` を定義し、テーマの名前 → 色の対応を決める。使うコードはまだ無い | なし |
 | P3 | 描画中の書き戻し（`tabSpans`・`tabOffset`・`caretAt`）をやめる。描画関数が結果を返す形にする | P1、#262 |
 | P4 | `textinput.Model`（bubbles）を自前の入力行の型に置き換える（`cmdInput`・`findInput`・パレット・検索パネル） | P1 |
 | P5 | 入力の型を作る：`Input`（Key / Mouse / Paste / Composition）。`tea.KeyPressMsg` などを `Input` に変えるアダプタを作り、キー処理を `Input` で書く。マウスは「領域 + ペインの中の行と桁」で扱い、画面全体の座標での当たり判定は TUI のアダプタに寄せる | P1 |
@@ -237,7 +237,7 @@ P13-09（#385）で `Core` を `internal/core` に移し、分割を終えた。
 | P11b | Markdown プレビューを `Pane.Kind=="preview"` として `Screen` で作る | P8 |
 | P11c | 画像を `Pane.Kind=="image"` として `Screen` で作る（`imageView` を中身と TUI の描画に分ける） | P8 |
 | P12 | エクスプローラ・変更一覧・エージェントのパネルを TUI が自分で描く（`Screen` に入れない。core は `core.Explorer`・`Core.ChangesOf`・`Core.AgentPanelOf` でデータだけを渡す） | P8 |
-| P13 | `core` パッケージへ移す。`App` は `core` を持って、`Input` ↔ `tea` と `Screen` ↔ 描画をつなぐだけの薄い bubbletea の Model になる。`internal/ui` を `internal/tui` に改名する | P7a〜P7e、P9、P10a〜P10h、P11a〜P11c、P12 |
+| P13 | `core` パッケージへ移す。`App` は `core` を持って、`Input` ↔ `tea` と `Screen` ↔ 描画をつなぐだけの薄い bubbletea の Model になる。`internal/ui` を `ui/tui` に改名する | P7a〜P7e、P9、P10a〜P10h、P11a〜P11c、P12 |
 | P14 | `core` が複数のワークスペースを持てるようにする（ワークスペースごとに `core` を 1 つ。TUI は今までどおり 1 つだけ作る） | P13 |
 
 - P8〜P12（P10a〜h、P11a〜c を含む）は、`Screen` を作る関数と TUI の描画関数を同じ PR で対にして変える。`Screen` を作るだけで使われない状態にしない。
@@ -294,7 +294,7 @@ P13-09（#385）で `Core` を `internal/core` に移し、分割を終えた。
 | `screen.update` | ← GUI | 通知 `{rev, baseRev, ackSeq, focus?, files?: {panes: [{id, kind?, title?, viewport?, lines?: {rows: {"0": Line, "5": Line}, count}, cursors?, selections?}], active?}, status?, cmdline?, overlay?}`。付いている項目だけが変わった。`lines.rows` のキーは「ビューポートの中で上から何行目か」（0 始まり。バッファの行番号は `Line.No`）で、`count` は見えている行数。スクロールするとキーの意味する行が全部変わるので、全行を送る。`baseRev` が GUI の持つ版と合わなければ GUI は `screen.get` する |
 | `screen.ack` | → shj | 通知 `{rev}`。GUI が描き終えた版。shj は返事の来ていない更新を 1 つまでしか溜めず、間の変化は 1 つにまとめて送る（遅い回線で更新が積み上がらないように） |
 | `theme.get` | → shj | `{}` → `{name, tokens: {"syntax.keyword": {fg, bg?, bold?, italic?, underline?}}}`。テーマが変わると `theme.changed` 通知（同じ形） |
-| `i18n.get` | → shj | `{}` → `{lang, messages: {"key": "text with %s"}}`。`shj serve` の表示言語（`config.toml` の `ui-language`）の文言の表で、その言語に無い文言は英語で埋めてある。表は en と ja の 1 組（`internal/i18n`）のままで、GUI 用の別の表は無い。GUI は `Msg`（`{key, args}`）を表の `key` の文に `args` を埋めて訳す。言語が変わると `i18n.changed` 通知（同じ形）を `screen.update` の前に送り、GUI は画面を `screen.get` で取り直す |
+| `i18n.get` | → shj | `{}` → `{lang, messages: {"key": "text with %s"}}`。`shj serve` の表示言語（`config.toml` の `ui-language`）の文言の表で、その言語に無い文言は英語で埋めてある。表は en と ja の 1 組（`core/i18n`）のままで、GUI 用の別の表は無い。GUI は `Msg`（`{key, args}`）を表の `key` の文に `args` を埋めて訳す。言語が変わると `i18n.changed` 通知（同じ形）を `screen.update` の前に送り、GUI は画面を `screen.get` で取り直す |
 | `blob.get` | → shj | `{id, offset?, length?}` → `{mime, size, data (base64), eof}`。画像・プレビュー用の画像は `Screen` に埋め込まず `ImageRef{id, mime, w, h}` で持たせ、これで取る。大きい画像は分けて取る |
 
 - 画面の更新は、入力やその他のイベント（LSP の返事、タイマー）を処理したあとに作る。作るのはフォーカスしているワークスペースの分だけ。
@@ -313,7 +313,7 @@ P13-09（#385）で `Core` を `internal/core` に移し、分割を終えた。
 - GUI の実装（E6）で決めた細部（`gui/src/files/blob.ts`・`diff.ts`・`MediaView.tsx`・`layout.ts`）：
   - `blob.get` は `eof` まで `offset` をずらして分けて取り、つないで `Blob` の URL にする。つなぎ先ごとに覚え（鍵は `ImageRef` の `blob`・`width`・`height`・`size`）、新しく使った順に 64 個まで残す。取れなかったもの（`not_found`）は覚えず、次に出たときに取り直す。
   - 画像は縦横比を保って枠に縮めて入れ、元より大きくしない（TUI の `core.FitImage` と同じ）。画像のペインは説明の行の下の全部の真ん中に、プレビューとレビューカードの画像は shj が空けた表示行（`row`・`rows`・`col`）の左上に置く。
-  - 差分のペインはテキストと同じく行番号の欄を持つ（幅は `viewport.total` から）。色分けは TUI（`internal/tui/gitdiff_draw.go`）に合わせる：消した行は `diff.del.bg` で印の桁に「-」、足した・書き換えた行は `diff.add.bg`、`words` は消した側が `diff.del.word.bg`・足した側が `diff.add.word.bg`、`blank` は `side.bg`。カーソル・選択・行の強調は、変更の後の側の消した行でも空きでもない行にだけ描く（1 列の差分で消した行の `no` は変更前の行番号で、バッファの行番号と重なるため）。
+  - 差分のペインはテキストと同じく行番号の欄を持つ（幅は `viewport.total` から）。色分けは TUI（`ui/tui/gitdiff_draw.go`）に合わせる：消した行は `diff.del.bg` で印の桁に「-」、足した・書き換えた行は `diff.add.bg`、`words` は消した側が `diff.del.word.bg`・足した側が `diff.add.word.bg`、`blank` は `side.bg`。カーソル・選択・行の強調は、変更の後の側の消した行でも空きでもない行にだけ描く（1 列の差分で消した行の `no` は変更前の行番号で、バッファの行番号と重なるため）。
   - 変更のバーは変更の後の側（`diff.side` が `new` か `unified`）のペインの右端に 6px で重ねる（shj は桁を空けない）。マス目の決め方は `core.BarRange`・`core.BarKinds` と同じ。
 
 ### キー・マウス・貼り付けの入力
@@ -384,7 +384,7 @@ P13-09（#385）で `Core` を `internal/core` に移し、分割を終えた。
 
 - 終わったプライマリターミナルは `alive: false` のまま残り、ワークスペースを消さない（「ワークスペース」の節の 11）。
 - JSON では base64 にするので出力が約 1.33 倍になる。MessagePack に変えれば生のバイト列で送れる。「速さが足りなければ MessagePack に」が一番効くのはここ。
-- ターミナルの中身を読む `internal/vt` は TUI だけで使う。GUI ではサーバーは PTY のバイト列を中継するだけで、エミュレートしない。コマンドの終了を知らせる印（`command-end`、`shellint`）は、サーバーでは取り出さない（B6 で確かめた）。バイト列は xterm.js にそのまま届くので、印が要る機能は GUI の側（xterm.js の OSC ハンドラ）で拾う。サーバーが出力から読むのはタイトル（OSC 0 / 2）だけ。
+- ターミナルの中身を読む `ui/tui/vt` は TUI だけで使う。GUI ではサーバーは PTY のバイト列を中継するだけで、エミュレートしない。コマンドの終了を知らせる印（`command-end`、`shellint`）は、サーバーでは取り出さない（B6 で確かめた）。バイト列は xterm.js にそのまま届くので、印が要る機能は GUI の側（xterm.js の OSC ハンドラ）で拾う。サーバーが出力から読むのはタイトル（OSC 0 / 2）だけ。
 - GUI の側（F1）で決めた細部（`gui/src/terminal/link.ts`）：
   - `term.output` の `seq` は、そのかたまりの終わりのバイト数の累計。GUI は書いた分の `seq` を覚え、かたまりの始め（`seq` − 長さ）がそれより先なら欠けとみなして `term.attach`（`fromSeq` は覚えた `seq`）で取り直す。重なる分は捨てる。
   - `term.ack` は xterm.js が書き終えた（`write` のコールバックが来た）ときに返す。画面が遅れると shj が送るのを待つので、大量の出力でも WebView が詰まらない。
@@ -523,7 +523,7 @@ GUI はシステムの `ssh` を子プロセスとして起動する（`~/.ssh/c
 
 - **変わった分だけ送る**（領域ごとの版 + 行単位の差分 + `screen.get`）：回線が遅くても使えるため。全部送る形にも、`lines.rows` に全部の行を入れれば同じ形のまま退化できる。逆（全部送る形から差分への移行）は形が変わる。
 - **`Screen` は意味の名前でスタイルを伝える**：テーマの変更に GUI が追従でき、TUI と GUI の見た目の差を描く側に閉じ込められる。
-- **ターミナルは `Screen` に入れない**：`internal/vt` を GUI に持ち込まず、xterm.js の機能をそのまま使える。
+- **ターミナルは `Screen` に入れない**：`ui/tui/vt` を GUI に持ち込まず、xterm.js の機能をそのまま使える。
 - **ワークスペースごとに `core` を持つ**：「開いたファイルはワークスペースごとに覚える」を、状態の切り替えではなくインスタンスを分けることで満たす。メモリは増えるが、ワークスペース数は少ない。
 - **ツリーは `Screen` と別の API**：GUI は複数のワークスペースのツリーを同時に持ち、開閉は GUI の状態だから。
 - **`shj attach` と `shj serve` を分ける**：ssh が切れても状態を残し、つなぎ直しを同じ流れ（`attach` を再実行）にするため。
@@ -569,7 +569,7 @@ GUI はシステムの `ssh` を子プロセスとして起動する（`~/.ssh/c
 
 | ID | タイトル | 依存 | 中身 |
 | --- | --- | --- | --- |
-| B1 | `internal/rpc`：JSON-RPC の型とメッセージの読み書き | なし | 改行区切りの JSON、要求・通知・応答・エラー、`encoding` の差し替え口、テスト用のパイプ |
+| B1 | `ui/gui/rpc`：JSON-RPC の型とメッセージの読み書き | なし | 改行区切りの JSON、要求・通知・応答・エラー、`encoding` の差し替え口、テスト用のパイプ |
 | B2 | `shj serve`：`session.hello` / `bye` / `ping` / `server.info` | B1 | 画面を持たないプロセス、Unix ソケット、版の確認、`serverId` |
 | B3 | `shj attach`：切り離して起動する・つなぎ直す・橋渡し | B2 | `@@shj-rpc 1@@`、`setsid`、`flock`、ソケットへのコピー |
 | B4 | 7 日で止まる + `config.toml` の `[server]` | B2 | `lastClientAt`、`idle_stop_days`、`server.shutdown`、未保存の扱い |
