@@ -8,7 +8,7 @@ import (
 	"syscall"
 
 	"github.com/mm1995tk/shijimi-editor/core/ctl"
-	"github.com/mm1995tk/shijimi-editor/core/i18n"
+	"github.com/mm1995tk/shijimi-editor/ui/cli"
 	"github.com/mm1995tk/shijimi-editor/ui/gui/attach"
 )
 
@@ -17,15 +17,15 @@ import (
 // the process exit code.
 func runAttach(args []string) int {
 	if len(args) != 0 {
-		fmt.Fprintln(os.Stderr, i18n.T("attach.usage"))
+		fmt.Fprintln(os.Stderr, cli.T("attach.usage"))
 		return 2
 	}
-	sock, err := ctl.ServeSocketPath()
+	sock, err := ctl.ServeSocketPath(cli.Suffix())
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
-	lock, err := ctl.ServeLockPath()
+	lock, err := ctl.ServeLockPath(cli.Suffix())
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
@@ -102,7 +102,7 @@ func (p *serveProc) exited() (string, bool) {
 		if msg := strings.TrimSpace(string(b)); msg != "" {
 			return msg, true
 		}
-		return i18n.T("serve.failed"), true
+		return cli.T("serve.failed"), true
 	default:
 		return "", false
 	}

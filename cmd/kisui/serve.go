@@ -12,11 +12,9 @@ import (
 	"time"
 
 	"github.com/mm1995tk/shijimi-editor/core"
-	"github.com/mm1995tk/shijimi-editor/core/buildinfo"
 	"github.com/mm1995tk/shijimi-editor/core/config"
 	"github.com/mm1995tk/shijimi-editor/core/ctl"
-	"github.com/mm1995tk/shijimi-editor/core/i18n"
-	uicfg "github.com/mm1995tk/shijimi-editor/core/uicfg"
+	"github.com/mm1995tk/shijimi-editor/ui/cli"
 	guicfg "github.com/mm1995tk/shijimi-editor/ui/gui/config"
 	"github.com/mm1995tk/shijimi-editor/ui/gui/server"
 )
@@ -25,10 +23,10 @@ import (
 // a Unix socket. It returns the process exit code.
 func runServe(args []string) int {
 	if len(args) != 0 {
-		fmt.Fprintln(os.Stderr, i18n.T("serve.usage"))
+		fmt.Fprintln(os.Stderr, cli.T("serve.usage"))
 		return 2
 	}
-	sock, err := ctl.ServeSocketPath()
+	sock, err := ctl.ServeSocketPath(cli.Suffix())
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
@@ -46,10 +44,10 @@ func runServe(args []string) int {
 	} else {
 		fmt.Fprintln(os.Stderr, err)
 	}
-	ver, commit := buildinfo.Resolve()
+	ver, commit := cli.Resolve()
 	chName := "stable"
-	if buildinfo.IsNightly() {
-		chName = buildinfo.Nightly
+	if cli.IsNightly() {
+		chName = cli.Nightly
 	}
 	logger := slog.New(slog.NewTextHandler(logw, nil))
 	var idle time.Duration
@@ -59,11 +57,11 @@ func runServe(args []string) int {
 		// The language is the process's: the home config sets it once, and
 		// the workspaces' cores leave it alone (core.NewIn). It is set before the
 		// mistakes are reported so that they are in the user's language.
-		i18n.SetLang(uicfg.Of(cfg).UILanguage)
+		cli.SetLangFrom(cfg)
 		if err != nil {
 			// serve does not start with settings it cannot read as written. attach
 			// passes this on to the GUI.
-			logger.Error("config", "err", err)
+			logger.Error("config", "err", cli.ErrText(err))
 			fmt.Fprintln(os.Stderr, configErrorText(err))
 			return 1
 		}
@@ -84,7 +82,7 @@ func runServe(args []string) int {
 	})
 	if err != nil {
 		if errors.Is(err, server.ErrRunning) {
-			fmt.Fprintf(os.Stderr, i18n.T("serve.running")+"\n", sock)
+			fmt.Fprintf(os.Stderr, cli.T("serve.running")+"\n", sock)
 		} else {
 			fmt.Fprintln(os.Stderr, err)
 		}
@@ -109,7 +107,7 @@ func runServe(args []string) int {
 	// focused workspace. The socket is <pid>.sock as in the TUI, so shj finds it
 	// by the same rules; the environment is set before any terminal is created,
 	// so shells in the server's terminals reach this server directly.
-	if path, err := ctl.SocketPath(); err == nil {
+	if path, err := ctl.SocketPath(cli.Suffix()); err == nil {
 		if err := srv.StartControl(path); err == nil {
 			os.Setenv(ctl.EnvSocket, path)
 		} else {

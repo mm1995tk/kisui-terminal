@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mm1995tk/shijimi-editor/core/i18n"
 	"github.com/mm1995tk/shijimi-editor/core/msg"
 	"github.com/mm1995tk/shijimi-editor/core/screen"
 	"github.com/mm1995tk/shijimi-editor/ui/gui/rpc"
+	"github.com/mm1995tk/shijimi-editor/ui/internal/i18n"
 )
 
 // fakeScreens is a Screens whose screen the test sets.

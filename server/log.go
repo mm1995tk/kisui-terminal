@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/mm1995tk/shijimi-editor/core/buildinfo"
+	"github.com/mm1995tk/shijimi-editor/ui/internal/buildinfo"
 )
 
 // DefaultMaxLog はログファイルの大きさの上限（10 MiB）。

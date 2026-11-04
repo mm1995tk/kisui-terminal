@@ -1,5 +1,5 @@
 // shj が送る文言（Msg）を、i18n.get で受け取った表で訳す。
-// 形は設計書 docs/design/gui-protocol.md の「データの形」5 番と `i18n.get`、Go の core/msg と core/i18n。
+// 形は設計書 docs/design/gui-protocol.md の「データの形」5 番と `i18n.get`、Go の core/msg と ui/internal/i18n。
 //
 // 文言は、キーの無い文字だけのもの（ファイル名など）が文字列のまま、それ以外が `{key?, args}` で来る。
 // 訳したあとの画面は文字列だけなので、描く側は文言の形を知らなくてよい。

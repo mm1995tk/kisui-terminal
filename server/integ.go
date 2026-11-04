@@ -7,6 +7,7 @@ import (
 
 	"github.com/mm1995tk/shijimi-editor/core"
 	"github.com/mm1995tk/shijimi-editor/core/ctl"
+	"github.com/mm1995tk/shijimi-editor/ui/internal/i18n"
 )
 
 // Workspace is what the control socket and the Claude Code connection reach:
@@ -48,7 +49,7 @@ func (s *Server) StartControl(path string) error {
 			return ctl.Response{Error: errNoWorkspace.Error()}
 		}
 		return w.Control(req)
-	})
+	}, i18n.Text)
 	if err != nil {
 		return err
 	}

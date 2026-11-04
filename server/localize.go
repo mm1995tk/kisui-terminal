@@ -3,8 +3,10 @@ package server
 import (
 	"reflect"
 
-	"github.com/mm1995tk/shijimi-editor/core/i18n"
+	"github.com/mm1995tk/shijimi-editor/core/config"
 	"github.com/mm1995tk/shijimi-editor/core/msg"
+	uicfg "github.com/mm1995tk/shijimi-editor/ui/internal/config"
+	"github.com/mm1995tk/shijimi-editor/ui/internal/i18n"
 )
 
 // The core and screen.Screen hold every message as a msg.Msg (an i18n key and
@@ -15,8 +17,12 @@ import (
 // Text is core.Port's: m in the language of this process.
 func (s *Server) Text(m msg.Msg) string { return i18n.Text(m) }
 
-// SetLanguage is core.Port's: the config of a core picked a language, and the
-// process translates with it. A GUI that has the table is sent the new one.
+// ConfigRead is core.Port's: the config of a core picked a language, and the
+// process translates with it.
+func (s *Server) ConfigRead(cfg *config.Config) { s.SetLanguage(uicfg.Of(cfg).UILanguage) }
+
+// SetLanguage selects the language the process translates with. A GUI that has
+// the table is sent the new one.
 func (s *Server) SetLanguage(code string) {
 	i18n.SetLang(code)
 	s.ScreenChanged()
