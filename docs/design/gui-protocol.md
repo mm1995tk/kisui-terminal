@@ -80,7 +80,7 @@ Port は `internal/core/port.go` の `core.Port` で、`WriteClipboard`・`OpenU
 2. **マス目に変換しない。** 行は「文字列 + スタイルの区間」で表す。文字の幅の計算と、字下げの線の引き方は描く側の仕事（ただしマウスの位置のマス目 → rune の位置の変換だけは `core` が行う。「入力」の節）。ただし見える行数と桁数は GUI が送り（`view.resize`）、スクロールや折り返しは shj が決める。等幅フォントで描く前提。
 3. **領域（region）ごとに分ける。** TUI は全部を並べて描き、GUI は必要な領域だけ受け取る（左の一覧と右下のターミナルは GUI が自前で作るので、`Screen` の購読に入れない）。
 4. **位置は「ペインの中の行と桁」。** 画面全体の座標を持たない。マウスの位置も同じ形で送る。
-5. **文言はキーと値（`msg.Msg`）。** `core` と `screen.Screen` は文言を訳さず、i18n のキーと埋める値（`internal/msg`）で持つ。訳すのは UI で、TUI は描くとき、`shj serve` は GUI に送る直前に訳す（`screen.update` の JSON は今のまま、`shj serve` の言語に訳した文字列）。GUI に翻訳の表を渡し、`Msg` のまま送る形にするのは次の Issue で、この項はそのとき書き換える。`core` が言葉そのものを要るのは、検索の一致・折り返し・エージェントや git に渡す文だけで、そこは Port の `Text` で UI に訳を借りる。
+5. **文言はキーと値（`msg.Msg`）。** `core` と `screen.Screen` は文言を訳さず、i18n のキーと埋める値（`internal/msg`）で持つ。訳すのは UI で、TUI は描くとき、GUI は受け取ったあとに訳す。`shj serve` は `Msg` を訳さずに送り、翻訳の表は `i18n.get` で渡す（「画面の送り方」の表）。`Msg` の JSON は、キーの無い文字だけのもの（ファイル名、他のプログラムの文言）は文字列のまま、それ以外は `{key?, args}`（`args` の要素は文字列・数・真偽、または入れ子の `Msg`。エラーは `Msg` か文字列）。表の `%s`・`%d`・`%q`・`%v`・`%c` は GUI が埋める。`core` が言葉そのものを要るのは、検索の一致・折り返し・エージェントや git に渡す文だけで、そこは Port の `Text` で UI に訳を借りる。
 
 ```go
 // internal/screen（イメージ。名前と細部は実装の PR で決める）
@@ -294,6 +294,7 @@ P13-09（#385）で `Core` を `internal/core` に移し、分割を終えた。
 | `screen.update` | ← GUI | 通知 `{rev, baseRev, ackSeq, focus?, files?: {panes: [{id, kind?, title?, viewport?, lines?: {rows: {"0": Line, "5": Line}, count}, cursors?, selections?}], active?}, status?, cmdline?, overlay?}`。付いている項目だけが変わった。`lines.rows` のキーは「ビューポートの中で上から何行目か」（0 始まり。バッファの行番号は `Line.No`）で、`count` は見えている行数。スクロールするとキーの意味する行が全部変わるので、全行を送る。`baseRev` が GUI の持つ版と合わなければ GUI は `screen.get` する |
 | `screen.ack` | → shj | 通知 `{rev}`。GUI が描き終えた版。shj は返事の来ていない更新を 1 つまでしか溜めず、間の変化は 1 つにまとめて送る（遅い回線で更新が積み上がらないように） |
 | `theme.get` | → shj | `{}` → `{name, tokens: {"syntax.keyword": {fg, bg?, bold?, italic?, underline?}}}`。テーマが変わると `theme.changed` 通知（同じ形） |
+| `i18n.get` | → shj | `{}` → `{lang, messages: {"key": "text with %s"}}`。`shj serve` の表示言語（`config.toml` の `ui-language`）の文言の表で、その言語に無い文言は英語で埋めてある。表は en と ja の 1 組（`internal/i18n`）のままで、GUI 用の別の表は無い。GUI は `Msg`（`{key, args}`）を表の `key` の文に `args` を埋めて訳す。言語が変わると `i18n.changed` 通知（同じ形）を `screen.update` の前に送り、GUI は画面を `screen.get` で取り直す |
 | `blob.get` | → shj | `{id, offset?, length?}` → `{mime, size, data (base64), eof}`。画像・プレビュー用の画像は `Screen` に埋め込まず `ImageRef{id, mime, w, h}` で持たせ、これで取る。大きい画像は分けて取る |
 
 - 画面の更新は、入力やその他のイベント（LSP の返事、タイマー）を処理したあとに作る。作るのはフォーカスしているワークスペースの分だけ。
@@ -516,7 +517,7 @@ GUI はシステムの `ssh` を子プロセスとして起動する（`~/.ssh/c
 - **打った文字だけ先に手元で出す**：`input.*` の `seq` と `Screen.AckSeq` があるので、GUI が「文字を入れた行」を手元で先に描き、`AckSeq` が追いついたら shj の画面に置き換える形にできる。必要になったら `Line` に版を足す。今は作らない。
 - **速さが足りないとき**：`encoding` を `msgpack` にする。効くのは `term.output`（base64 が無くなる）、次に `screen.update`。
 - **ネイティブの画面**：プロトコルは領域と等幅のマス目の単位で話すので、Rust の画面も同じ `Screen` を描ける。`Style` は意味の名前なので、色はテーマで決まる。
-- **新しいメソッド**は `capabilities` で見分ける。メソッドの意味を変えるときは `protocol.major` を上げる。ワークスペースをフォルダから切り離す変更（「ワークスペース」の節）は `workspace.*`・`term.*` の意味と形を変えるので、`protocol.major` を 1 つ上げる（実装は #448）。
+- **新しいメソッド**は `capabilities` で見分ける。メソッドの意味を変えるときは `protocol.major` を上げる。ワークスペースをフォルダから切り離す変更（「ワークスペース」の節）は `workspace.*`・`term.*` の意味と形を変えるので、`protocol.major` を 1 つ上げる（実装は #448）。文言を `Msg` で送る変更（`screen.update` の文言が文字列から `{key, args}` になる）も形が変わるので、`protocol.major` を 3 に上げた（実装は #466）。
 
 ## 5. 決めたことと理由
 
@@ -576,7 +577,7 @@ GUI はシステムの `ssh` を子プロセスとして起動する（`~/.ssh/c
 | B6 | ターミナル管理と `term.*` | B2 | PTY、リングバッファ、`term.ack` の流量制御、`term.attach` |
 | B7 | ワークスペースの決定と `workspace.*` | B6 | cwd の取得（Linux / macOS）、フォルダ探し、`workspace.changed`（フォルダの切り離しは #448 で作り直す） |
 | B8 | ツリーと git の印：`tree.*`・`git.*` | B7 | 1 階層の一覧、監視、`git.changed`、作成 / 名前変更 / 削除 |
-| B9 | 画面の配信：`view.*`・`screen.*`・`theme.get`・`blob.get` | P9、P14、B7 | 購読、差分、`ack`、まとめて送る |
+| B9 | 画面の配信：`view.*`・`screen.*`・`theme.get`・`i18n.get`・`blob.get` | P9、P14、B7 | 購読、差分、`ack`、まとめて送る |
 | B10 | 入力：`input.*`・`command.run`・`file.open` | P5、B9 | `seq`、IME、マウス（ペイン内の座標） |
 | B11 | 制御用ソケットと Claude Code 連携をサーバーモードに載せる | P7d、P7e、B2 | `shj diff` などが動く。`clipboard.write` と `url.open` の通知 |
 
