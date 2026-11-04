@@ -70,7 +70,7 @@ TUI 専用のものは core に置かず、`internal/tui` に出す。`internal/
 
 単体編集モード（`single`）は core のモードのままにする。1 ファイルを閉じたときの終了は、core から UI への呼び出し（例 `Exit()`）にし、TUI はプロセスを終え、GUI のアダプターは通知に直す。
 
-Port は `internal/core/port.go` の `core.Port` で、`WriteClipboard`・`OpenURL`・`Exit` と、レイアウトの `ShowSide`・`ShowTerm`・`ShowAgent`・`DragBorder`・`StartResize`・`ResizeKey`・`ResetPanes` を持つ。表示中かどうかは UI が `core.Layout` の入力で返す。TUI（`tui.App`）と `shj serve` の `server.Server` が満たし、`core.Host` は無い。`OpenURL` の結果は `core.OpenURLResult` の Event で返る。残りは `internal/core/frontend.go` の `FrontEnd`（TUI の都合まで含む）で、`internal/core/headless.go` が空の実装で埋めている。これは Port に向かう途中の形で、上の条件に合わせて直すのは別の Issue で行う（直したらこの段落は消す）。この節は、その Issue が従う向きを決める。
+Port は `internal/core/port.go` の `core.Port` で、`WriteClipboard`・`OpenURL`・`Exit` と、レイアウトの `ShowSide`・`ShowTerm`・`ShowAgent`・`DragBorder`・`StartResize`・`ResizeKey`・`ResetPanes`、ターミナルのパネルの `TermFocus`・`TermKey`・`TermRun`・`TermPaste`・`TermClose`、マルチプレクサのペインで終わったコマンドの `CommandEnded` を持つ。ターミナルのパネル（`internal/vt`）は tui だけが持ち、core は意味（走らせたい行、貼り付けたい文字）だけを Port で伝える。tui はシェルが見せた失敗を `core.AddFailureTab`・`ClearFailure`・`KeepFailuresOf` で core へ返す。表示中かどうかは UI が `core.Layout` の入力で返す。TUI（`tui.App`）と `shj serve` の `server.Server` が満たし、`core.Host` は無い。`OpenURL` の結果は `core.OpenURLResult` の Event で返る。残りは `internal/core/frontend.go` の `FrontEnd`（TUI の都合まで含む）で、`internal/core/headless.go` が空の実装で埋めている。これは Port に向かう途中の形で、上の条件に合わせて直すのは別の Issue で行う（直したらこの段落は消す）。この節は、その Issue が従う向きを決める。
 
 ### 「画面に何を出すか」（`Screen`）のデータの形
 
