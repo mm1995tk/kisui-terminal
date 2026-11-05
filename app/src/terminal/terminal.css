@@ -46,6 +46,18 @@
   box-shadow: inset 0 2px 0 var(--term-accent, #7cc4b0);
 }
 
+/* 並べたとき（2 つ以上）、プライマリターミナルの欄の 4 辺にマシンの色の細い枠（1px）を引く。
+   今の欄の上端の太い線とは別で、プライマリを使っているときは両方が出る */
+.terminal[data-split] > .terminal-cell[data-primary] {
+  box-shadow: inset 0 0 0 1px var(--term-accent, #7cc4b0);
+}
+
+.terminal[data-split] > .terminal-cell[data-primary][data-active] {
+  box-shadow:
+    inset 0 2px 0 var(--term-accent, #7cc4b0),
+    inset 0 0 0 1px var(--term-accent, #7cc4b0);
+}
+
 .terminal-host {
   flex: 1;
   min-width: 0;

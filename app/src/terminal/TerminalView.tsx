@@ -304,6 +304,7 @@ export function TerminalView(props: {
     <div
       class="terminal-cell"
       data-active={props.active ? "" : undefined}
+      data-primary={props.link?.primary ? "" : undefined}
       hidden={props.hidden}
       style={props.area ? { "grid-area": props.area } : undefined}
       onFocusIn={() => props.onFocus?.()}
