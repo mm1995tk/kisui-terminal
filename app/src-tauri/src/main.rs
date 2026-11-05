@@ -7,6 +7,7 @@ mod connection;
 mod install;
 mod locate;
 mod ssh_config;
+mod transfer;
 mod update;
 mod version;
 
@@ -114,6 +115,7 @@ fn main() {
     let builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
     builder
         .manage(update::Updates::default())
+        .manage(transfer::Transfers::default())
         .setup(|app| {
             version::init(app.package_info().version.to_string());
             // 「このマシン」の shj を探す PATH を、先にログインシェルに聞いておく（locate.rs）
@@ -135,6 +137,17 @@ fn main() {
             install_plan,
             install_remote,
             install_cancel,
+            transfer::transfer_dest,
+            transfer::transfer_write_begin,
+            transfer::transfer_write_open,
+            transfer::transfer_write_chunk,
+            transfer::transfer_write_end,
+            transfer::transfer_write_close,
+            transfer::transfer_read_list,
+            transfer::transfer_read_approve,
+            transfer::transfer_read_open,
+            transfer::transfer_read_next,
+            transfer::transfer_read_close,
             update::update_check,
             update::update_install
         ])

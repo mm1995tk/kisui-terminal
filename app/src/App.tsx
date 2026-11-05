@@ -34,6 +34,7 @@ import {
 
 import { AskpassDialog } from "./AskpassDialog.tsx";
 import { ClipboardDialog } from "./ClipboardDialog.tsx";
+import { TransferDialog } from "./TransferDialog.tsx";
 import { AddMachine } from "./connect/AddMachine.tsx";
 import { ConfigError } from "./connect/ConfigError.tsx";
 import { CloseWorkspaceCard } from "./connect/CloseWorkspaceCard.tsx";
@@ -910,6 +911,7 @@ function Workbench(props: {
       </Show>
       <AskpassDialog ask={asks()[0]} onReply={reply} />
       <ClipboardDialog />
+      <TransferDialog />
       <Notices notices={notices()}>
         <UpdateBar />
       </Notices>

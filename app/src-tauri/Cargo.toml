@@ -23,6 +23,8 @@ tauri-plugin-updater = { version = "=2.14.0", optional = true }
 tauri-plugin-notification = "=2.3.3"
 # OS のクリップボード（ターミナルの OSC 5522）。版は npm の @tauri-apps/plugin-clipboard-manager に合わせる
 tauri-plugin-clipboard-manager = "=2.5.0"
+# ファイル転送（transfer.rs）の openat・O_NOFOLLOW。版は Cargo.lock にすでにある（tauri などが使っている）ものに合わせる
+libc = "=0.2.191"
 
 [features]
 # release の画面は埋め込んだ Web を使う（これが無いと devUrl を見に行く）。cargo tauri build は自動で付ける

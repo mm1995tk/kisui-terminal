@@ -18,6 +18,9 @@ import type { TermLink, TermSink } from "./link.ts";
 import { planWrite, readableMimes, supportsLocation } from "./clipboard.ts";
 import { availableOs, readFirstOs, writeOs } from "./clipboardOs.ts";
 import { askClipboardRead } from "./clipboardPrompt.ts";
+import { createTransfer } from "./transfer.ts";
+import { tauriTransferOs } from "./transferOs.ts";
+import { askTransfer } from "./transferPrompt.ts";
 import {
   collectDrop,
   locate,
@@ -140,6 +143,16 @@ export function TerminalView(props: {
     })();
   });
   onCleanup(() => pendingReads.forEach((cancel) => cancel()));
+
+  // ターミナルのファイル転送（kitty の OSC 5113）を OS につなぐ。聞いてから、許された範囲だけ読み書きする（transfer.ts）
+  const transfer = createTransfer(
+    term,
+    tauriTransferOs,
+    askTransfer,
+    `v${++viewSeq}`,
+  );
+  term.onFileTransfer((e) => transfer.handle(e));
+  onCleanup(() => transfer.dispose());
 
   // ターミナルのドロップ（kitty の drag and drop protocol）を、WebView の HTML5 DnD につなぐ。
   // プログラムが受け付けると言っていない間は何もしない（今の動きを変えない）。
@@ -281,6 +294,9 @@ export function TerminalView(props: {
     </div>
   );
 }
+
+// 欄ごとの印。ファイル転送のセッションの鍵が、欄どうしで混ざらないようにする
+let viewSeq = 0;
 
 // 通知の許可。全部の欄で 1 つの Promise にまとめ、許可のダイアログを同時に複数出さない。
 // 拒否されたら、このセッションでは求め直さない
