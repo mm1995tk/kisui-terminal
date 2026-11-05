@@ -7,8 +7,19 @@ import {
   type JSX,
 } from "solid-js";
 
+import {
+  isPermissionGranted,
+  requestPermission,
+  sendNotification,
+} from "@tauri-apps/plugin-notification";
+
 import { monoFontsReady } from "../fonts.ts";
 import type { TermLink, TermSink } from "./link.ts";
+import {
+  notificationSupport,
+  shouldNotify,
+  toOsNotification,
+} from "./notify.ts";
 import "./terminal.css";
 
 /**
@@ -57,6 +68,28 @@ export function TerminalView(props: {
   let current: TermLink | undefined;
   // キー・貼り付け・マウスの報告・問い合わせへの返事は、どれもバイト列で出てくる
   term.onData((b) => current?.input(b));
+
+  // ターミナルの通知（kitty の OSC 99）を OS の通知につなぐ。何に対応すると答えるかは notify.ts
+  term.onNotificationQuery((id) =>
+    term.replyNotificationQuery(id, notificationSupport),
+  );
+  term.onNotification((n) => {
+    if (
+      !shouldNotify(n.when, {
+        windowFocused: document.hasFocus(),
+        cellVisible: !props.hidden,
+        pageVisible: document.visibilityState === "visible",
+      })
+    )
+      return;
+    void (async () => {
+      try {
+        if (await notifyPermission()) sendNotification(toOsNotification(n));
+      } catch {
+        // 通知を出せなくても、ターミナルの動きには関わらない
+      }
+    })();
+  });
 
   function refit() {
     if (!host.isConnected || host.clientWidth === 0) return;
@@ -119,4 +152,15 @@ export function TerminalView(props: {
       <div class="terminal-host" ref={host} />
     </div>
   );
+}
+
+// 通知の許可。全部の欄で 1 つの Promise にまとめ、許可のダイアログを同時に複数出さない。
+// 拒否されたら、このセッションでは求め直さない
+let permission: Promise<boolean> | undefined;
+function notifyPermission(): Promise<boolean> {
+  permission ??= (async () => {
+    if (await isPermissionGranted()) return true;
+    return (await requestPermission()) === "granted";
+  })();
+  return permission;
 }
