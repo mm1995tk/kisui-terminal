@@ -220,6 +220,10 @@ func (m *termManager) start(a termStart) (*terminal, error) {
 		// 起動する shj が自分で名乗れるように、プライマリにだけ渡す。ターミナルの id はこの下で振る番号。
 		env = append(slices.Clone(env), ctl.EnvGUIPrimary+"="+fmt.Sprintf("t%d", m.next+1))
 	}
+	if a.wsID != "" {
+		// 同じワークスペースのどのターミナルからも、プライマリの shj に届くように（ctl.GUILinkPath）。
+		env = append(slices.Clone(env), ctl.EnvGUIWorkspace+"="+a.wsID)
+	}
 	// PTY の起動は ui/internal/term と同じ（TUI のターミナルも使う）。読み出しと流量制御はここで持つ。
 	sess, err := term.Start(term.Options{Shell: sh, Dir: a.dir, Env: env, Cols: a.cols, Rows: a.rows})
 	if err != nil {
@@ -332,7 +336,7 @@ func (m *termManager) restart(t *terminal) (any, error) {
 		m.mu.Unlock()
 		return nil, rpc.Errorf(rpc.CodeNotFound, "no such terminal: %s", t.id)
 	}
-	sess, err := term.Start(term.Options{Shell: term.DefaultShell(), Dir: dir, Env: []string{ctl.EnvGUIPrimary + "=" + t.id}, Cols: cols, Rows: rows})
+	sess, err := term.Start(term.Options{Shell: term.DefaultShell(), Dir: dir, Env: []string{ctl.EnvGUIPrimary + "=" + t.id, ctl.EnvGUIWorkspace + "=" + wsID}, Cols: cols, Rows: rows})
 	if err != nil {
 		m.mu.Unlock()
 		return nil, rpc.Errorf(rpc.CodeInternalError, "start shell: %v", err)

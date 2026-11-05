@@ -26,6 +26,7 @@ type primaryShj struct {
 	// Socket はその shj の制御用ソケット（core/ctl）の場所。
 	Socket string `json:"socket"`
 	PID    int    `json:"pid"`
+	wsID   string // 名乗ったときのワークスペース（リンクを消すため。ワークスペースが先に消えても分かる）
 }
 
 type primaryServer struct {
@@ -142,7 +143,7 @@ func (w *wsManager) claimShj(h ctl.PrimaryHello) (*primaryShj, error) {
 	if !primary {
 		return nil, errors.New("not a primary terminal")
 	}
-	claim := &primaryShj{Socket: h.Socket, PID: h.PID}
+	claim := &primaryShj{Socket: h.Socket, PID: h.PID, wsID: wsID}
 	w.mu.Lock()
 	st := w.reg[wsID]
 	if st == nil {
@@ -155,11 +156,13 @@ func (w *wsManager) claimShj(h ctl.PrimaryHello) (*primaryShj, error) {
 	}
 	st.shj = claim
 	w.mu.Unlock()
+	w.linkShj(wsID, claim)
 	w.recompute()
 	return claim, nil
 }
 
 // releaseShj は claim の shj が終わったことを覚える。別の shj に替わっていれば何もしない。
+// ワークスペースが先に消えていても、リンクは claim の wsID から消す。
 func (w *wsManager) releaseShj(claim *primaryShj) {
 	w.mu.Lock()
 	for _, st := range w.reg {
@@ -168,5 +171,45 @@ func (w *wsManager) releaseShj(claim *primaryShj) {
 		}
 	}
 	w.mu.Unlock()
+	w.unlinkShj(claim)
 	w.recompute()
+}
+
+// linkShj は同じワークスペースのほかのターミナルが引く先（ctl.GUILinkPath）に、claim の shj のソケットへのリンクを置く。
+// リンクの先は、ソケット自身が ctl.SocketPath の規則どおり shj serve と同じディレクトリにあるものだけ。
+// 置く場所も同じ 0700 のディレクトリの中で、同じユーザーだけ。置けなくても名乗りは通す（届かないだけ）。
+func (w *wsManager) linkShj(wsID string, claim *primaryShj) {
+	dir := filepath.Dir(w.srv.opts.SocketPath)
+	if !filepath.IsAbs(claim.Socket) || filepath.Dir(claim.Socket) != dir {
+		w.srv.log.Warn("primary link: socket outside the socket directory", "socket", claim.Socket)
+		return
+	}
+	link := ctl.GUILinkPath(dir, wsID)
+	w.linkMu.Lock()
+	defer w.linkMu.Unlock()
+	if err := os.MkdirAll(filepath.Dir(link), 0o700); err != nil {
+		w.srv.log.Warn("primary link", "err", err)
+		return
+	}
+	tmp := link + ".tmp"
+	_ = os.Remove(tmp)
+	if err := os.Symlink(claim.Socket, tmp); err != nil {
+		w.srv.log.Warn("primary link", "err", err)
+		return
+	}
+	if err := os.Rename(tmp, link); err != nil { // 前のリンク（落ちた shj の残り）は置き換える
+		_ = os.Remove(tmp)
+		w.srv.log.Warn("primary link", "err", err)
+	}
+}
+
+// unlinkShj は linkShj のリンクを消す。別の shj に替わったあとのリンクは消さない。
+func (w *wsManager) unlinkShj(claim *primaryShj) {
+	link := ctl.GUILinkPath(filepath.Dir(w.srv.opts.SocketPath), claim.wsID)
+	w.linkMu.Lock()
+	defer w.linkMu.Unlock()
+	if to, err := os.Readlink(link); err == nil && to == claim.Socket {
+		_ = os.Remove(link)
+		_ = os.Remove(filepath.Dir(link)) // 空になったときだけ消える
+	}
 }

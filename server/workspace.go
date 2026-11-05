@@ -57,6 +57,8 @@ type wsManager struct {
 	srv *Server
 	// recomputeMu は recompute 全体と、フォルダの切り替え・閉じる・フォーカスを 1 つずつにする（通知の順序を保つ）。
 	recomputeMu sync.Mutex
+	// linkMu は GUI のリンク（ctl.GUILinkPath）の置き換えと消去を 1 つずつにする。
+	linkMu sync.Mutex
 
 	mu        sync.Mutex
 	home      string
