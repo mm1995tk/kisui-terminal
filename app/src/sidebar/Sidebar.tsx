@@ -1,5 +1,5 @@
 // 左の一覧（D1）：つないだマシンごとに見出しとワークスペースの帯を出す。帯を押すとフォーカスを移す。
-// フォーカスしているワークスペースの帯の下にはツリーを出す（D2、描くのは tree/TreeView.tsx）。
+// フォーカスしているワークスペースの帯の下にはツリーを出す（プライマリで shj が動いているときだけ。動いていなければ帯だけ）（D2、描くのは tree/TreeView.tsx）。
 // スクロールしても、上にフォーカスしているマシンの見出し → 帯 → 親フォルダを、下にそれより後ろの帯を固定する（D3）。
 // マシンごとの色（D4）は section の --machine-color に入れ、見出しと帯の左端の線とアイコンに使う。
 // 見出しには接続の状態（丸と、その下の短い 1 行。言葉は connect/status.ts）と、今すぐつなぐ・つなぎ直す・切るボタンを出す（切るボタンはローカルには出さない。ローカルは切る理由が無い）。
@@ -505,7 +505,11 @@ function BandItem(
           </button>
         </Show>
       </div>
-      <Show when={b().focused && props.treeOf?.(props.target, b().id)}>
+      <Show
+        when={
+          b().focused && b().showTree && props.treeOf?.(props.target, b().id)
+        }
+      >
         {(rows) => (
           <TreeView
             rows={rows()}
