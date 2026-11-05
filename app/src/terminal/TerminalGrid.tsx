@@ -1,5 +1,6 @@
 import { createEffect, For, on, Show, type JSX } from "solid-js";
 
+import { IS_MAC } from "../guiKeys.ts";
 import { cellOf, gridSize } from "./grid.ts";
 import type { TermLink } from "./link.ts";
 import { TerminalView } from "./TerminalView.tsx";
@@ -16,6 +17,8 @@ export function TerminalGrid(props: {
   active: TermLink | undefined;
   /** 全部並べるか（ターミナルモード）。false なら active だけを見せる（IDE モード） */
   showAll: boolean;
+  /** プライマリ以外の欄を隠しているか（隠した欄のターミナルは動かし続ける） */
+  zoomed?: boolean;
   /** マシンの色（D4）。並べたときの今の欄の印に使う */
   accent?: string;
   /** 欄を押した・欄にキーを向けた */
@@ -34,7 +37,9 @@ export function TerminalGrid(props: {
   };
   props.focusRef?.(focusActive);
 
-  const shown = () => (props.showAll ? props.links.length : 1);
+  const shown = () => (props.showAll && !props.zoomed ? props.links.length : 1);
+  const visible = (link: TermLink, i: number) =>
+    props.zoomed ? i === 0 : props.showAll || link === props.active;
   const template = () => {
     const { cols, rows } = gridSize(shown());
     return {
@@ -44,7 +49,7 @@ export function TerminalGrid(props: {
     };
   };
   const area = (i: number) => {
-    if (!props.showAll) return "1 / 1";
+    if (!props.showAll || props.zoomed) return "1 / 1";
     const c = cellOf(i, props.links.length);
     return `${c.row + 1} / ${c.col + 1} / ${c.row + 2} / ${c.col + 1 + c.span}`;
   };
@@ -79,7 +84,7 @@ export function TerminalGrid(props: {
           <TerminalView
             link={link}
             active={link === props.active}
-            hidden={!props.showAll && link !== props.active}
+            hidden={!visible(link, i())}
             area={area(i())}
             onFocus={() => props.onActivate(i())}
             focusRef={(f) =>
@@ -88,7 +93,13 @@ export function TerminalGrid(props: {
           />
         )}
       </For>
-      <Show when={!props.showAll && props.links.length > 1}>
+      <Show when={props.zoomed && props.links.length > 1}>
+        <p class="terminal-others" role="status">
+          ほかに {props.links.length - 1} つを隠している（
+          {IS_MAC ? "Cmd+Shift+Enter" : "Ctrl+Shift+M"} で戻す）
+        </p>
+      </Show>
+      <Show when={!props.zoomed && !props.showAll && props.links.length > 1}>
         <p class="terminal-others" role="status">
           ほかに {props.links.length - 1} つ（Ctrl+Shift+` で並べる）
         </p>

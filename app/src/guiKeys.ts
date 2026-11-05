@@ -33,7 +33,19 @@ export function isCloseTermKey(e: KeyLike, mac = false): boolean {
   return mac && isCmdKey(e, "w");
 }
 
-/** どこでも GUI が受ける Cmd のキー（ターミナルを足す・モードの切り替え・ワークスペースの切り替え）か。shj に送らない。 */
+/** Cmd+Shift+Enter（プライマリ以外の欄を隠す・戻す。iTerm2 の欄の拡大と同じ）か。 */
+export function isCmdZoomKey(e: KeyLike): boolean {
+  return (
+    e.metaKey && e.shiftKey && !e.ctrlKey && !e.altKey && e.key === "Enter"
+  );
+}
+
+/** どこでも GUI が受ける Cmd のキー（ターミナルを足す・モードの切り替え・欄を隠す・ワークスペースの切り替え）か。shj に送らない。 */
 export function isCmdGuiKey(e: KeyLike): boolean {
-  return isCmdKey(e, "t") || isCmdKey(e, "j") || cmdDigit(e) !== null;
+  return (
+    isCmdKey(e, "t") ||
+    isCmdKey(e, "j") ||
+    isCmdZoomKey(e) ||
+    cmdDigit(e) !== null
+  );
 }

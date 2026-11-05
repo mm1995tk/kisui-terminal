@@ -6,6 +6,7 @@ import {
   directionKey,
   gridSize,
   isNewTermKey,
+  isZoomKey,
   neighbor,
 } from "./grid.ts";
 
@@ -80,5 +81,15 @@ describe("keys", () => {
       false,
     );
     assert.equal(isNewTermKey(key("Y", "KeyY")), false);
+  });
+
+  it("Ctrl+Shift+M をプライマリ以外の欄を隠すキーにする", () => {
+    assert.equal(isZoomKey(key("M", "KeyM")), true);
+    assert.equal(isZoomKey(key("m")), true);
+    assert.equal(
+      isZoomKey(key("m", "KeyM", { ctrl: true, shift: false })),
+      false,
+    );
+    assert.equal(isZoomKey(key("T", "KeyT")), false);
   });
 });

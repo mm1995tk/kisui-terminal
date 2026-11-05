@@ -7,7 +7,7 @@
 // DOM を使わないので node --test で確かめられる。
 
 import type { KeyLike } from "../files/input.ts";
-import { isCmdKey, isCmdOptionKey } from "../guiKeys.ts";
+import { isCmdKey, isCmdOptionKey, isCmdZoomKey } from "../guiKeys.ts";
 import { isCtrlShift } from "../mode.ts";
 
 /** 並べられるターミナルの数の上限。 */
@@ -85,4 +85,11 @@ export function isNewTermKey(e: KeyLike, mac = false): boolean {
   if (mac && isCmdKey(e, "t")) return true;
   if (!isCtrlShift(e)) return false;
   return e.code === "KeyT" || e.key === "T" || e.key === "t";
+}
+
+/** プライマリ以外の欄を隠す・戻すキー（Ctrl+Shift+M。Mac は Cmd+Shift+Enter も）か。 */
+export function isZoomKey(e: KeyLike, mac = false): boolean {
+  if (mac && isCmdZoomKey(e)) return true;
+  if (!isCtrlShift(e)) return false;
+  return e.code === "KeyM" || e.key === "M" || e.key === "m";
 }
