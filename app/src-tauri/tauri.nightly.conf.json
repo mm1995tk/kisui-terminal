@@ -4,7 +4,12 @@
   "identifier": "dev.mm1995tk.shijimi-editor-nightly",
   "app": {
     "windows": [
-      { "title": "shijimi-editor-nightly", "width": 1200, "height": 800 }
+      {
+        "title": "shijimi-editor-nightly",
+        "width": 1200,
+        "height": 800,
+        "dragDropEnabled": false
+      }
     ]
   },
   "plugins": {

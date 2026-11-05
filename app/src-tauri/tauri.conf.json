@@ -9,7 +9,14 @@
     "frontendDist": "../dist"
   },
   "app": {
-    "windows": [{ "title": "shijimi-editor", "width": 1200, "height": 800 }],
+    "windows": [
+      {
+        "title": "shijimi-editor",
+        "width": 1200,
+        "height": 800,
+        "dragDropEnabled": false
+      }
+    ],
     "security": { "csp": null }
   },
   "bundle": {

@@ -19,6 +19,13 @@ import { planWrite, readableMimes, supportsLocation } from "./clipboard.ts";
 import { availableOs, readFirstOs, writeOs } from "./clipboardOs.ts";
 import { askClipboardRead } from "./clipboardPrompt.ts";
 import {
+  collectDrop,
+  locate,
+  offeredMimes,
+  resolveRequest,
+  type DropItem,
+} from "./dnd.ts";
+import {
   notificationSupport,
   shouldNotify,
   toOsNotification,
@@ -134,6 +141,76 @@ export function TerminalView(props: {
   });
   onCleanup(() => pendingReads.forEach((cancel) => cancel()));
 
+  // ターミナルのドロップ（kitty の drag and drop protocol）を、WebView の HTML5 DnD につなぐ。
+  // プログラムが受け付けると言っていない間は何もしない（今の動きを変えない）。
+  // 受けるのは OS から落とされたテキストとファイルの中身だけ。ファイルは頼まれたときに読む（落としたものだけ）。
+  // プログラムが始めるドラッグを OS に出すのはここではしない（Tauri に始める口が無い）
+  let dropped: DropItem[] = [];
+  // プログラムが、今の位置では受けないと答えたか（dropResponse の operation が null）
+  let dropRefused = false;
+  const dropPoint = (e: DragEvent) => {
+    const cell = term.cellSize;
+    if (!cell) return undefined;
+    return locate(
+      host.getBoundingClientRect(),
+      cell,
+      { cols: term.cols, rows: term.rows },
+      { x: e.clientX, y: e.clientY },
+    );
+  };
+  term.onDnd((e) => {
+    if (e.type === "dropDisabled" || e.type === "dropFinished") dropped = [];
+    if (e.type === "dropResponse") dropRefused = e.operation === null;
+    if (e.type !== "dropRequest") return;
+    const req = e.request;
+    const r = resolveRequest(req, dropped);
+    if (r.kind === "error") return term.replyDropError(req, r.error);
+    if (r.kind === "data") {
+      void r.item.read().then(
+        (data) => term.replyDropData(req, { kind: "mime" }, data),
+        () => term.replyDropError(req, "EIO"),
+      );
+    }
+  });
+  const onDragOver = (e: DragEvent) => {
+    const dt = e.dataTransfer;
+    if (!dt || !term.dropAccepting) return;
+    const at = dropPoint(e);
+    if (!at) return;
+    e.preventDefault();
+    dt.dropEffect = dropRefused ? "none" : "copy";
+    term.dropMove(at, offeredMimes(dt.types, Array.from(dt.items)), {
+      copy: true,
+    });
+  };
+  const onDragLeave = (e: DragEvent) => {
+    if (e.relatedTarget instanceof Node && host.contains(e.relatedTarget)) {
+      return;
+    }
+    dropRefused = false;
+    term.dropLeave();
+  };
+  const onDrop = (e: DragEvent) => {
+    const dt = e.dataTransfer;
+    if (!dt || !term.dropAccepting) return;
+    e.preventDefault();
+    const at = dropPoint(e);
+    const refused = dropRefused;
+    dropRefused = false;
+    const items = refused ? [] : collectDrop(dt);
+    if (!at || items.length === 0) {
+      term.dropLeave();
+      return;
+    }
+    const sent = term.dropDrop(
+      at,
+      items.map((i) => i.mime),
+      { copy: true },
+    );
+    // 送れなかった（受け付けをやめた直後など）ときは、ファイルを持ち越さない
+    dropped = sent ? items : [];
+  };
+
   function refit() {
     if (!host.isConnected || host.clientWidth === 0) return;
     term.fit();
@@ -149,9 +226,17 @@ export function TerminalView(props: {
     // （先に開くと代わりの字で測ってしまい、字の間が合わない）
     let disposed = false;
     props.focusRef?.(() => term.focus());
+    host.addEventListener("dragenter", onDragOver);
+    host.addEventListener("dragover", onDragOver);
+    host.addEventListener("dragleave", onDragLeave);
+    host.addEventListener("drop", onDrop);
     onCleanup(() => props.focusRef?.(undefined));
     const ro = new ResizeObserver(() => refit());
     onCleanup(() => {
+      host.removeEventListener("dragenter", onDragOver);
+      host.removeEventListener("dragover", onDragOver);
+      host.removeEventListener("dragleave", onDragLeave);
+      host.removeEventListener("drop", onDrop);
       disposed = true;
       ro.disconnect();
     });
