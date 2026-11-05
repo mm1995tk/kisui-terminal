@@ -541,3 +541,23 @@
   flex: none;
   white-space: pre;
 }
+
+/* ドラッグで動かせる左右の境界（#526：差分の分割・プレビューの分割）。当たりを左右に広げ、リサイズモードやドラッグ中は
+   マシンの色（--machine-color。App.tsx が .app に入れる）で光らせる */
+.files-split[data-draggable] {
+  cursor: col-resize;
+}
+
+.files-split[data-draggable]::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -4px;
+  right: -4px;
+}
+
+.files-split[data-lit]::before {
+  left: calc(50% - 1px);
+  border-left: 3px solid var(--machine-color, #7cc4b0);
+}

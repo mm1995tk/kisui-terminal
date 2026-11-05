@@ -35,21 +35,27 @@ a {
 }
 
 .app {
+  position: relative;
   display: flex;
   height: 100%;
+  /* サイドバーの幅。ドラッグ・リサイズモード（panes.ts）で変えた値は --sidebar-w に入る */
+  --sidebar-w-eff: clamp(200px, var(--sidebar-w, 300px), min(640px, 50vw));
 }
 
 .main {
+  position: relative;
   flex: 1;
   min-width: 0;
+  /* 下のブロック（IDE モードはターミナル、ターミナルモードはファイルの欄）の高さ。変えた値は --term-h に入る */
+  --term-h-eff: clamp(120px, var(--term-h, 300px), calc(100% - 160px));
   display: flex;
   flex-direction: column;
 }
 
-/* 右下のターミナル（F1。terminal/terminal.css）。高さはモックの 300px */
+/* 右下のターミナル（F1。terminal/terminal.css）。高さは初めモックの 300px（境界を動かせる） */
 .main > .terminal {
   flex: none;
-  height: 300px;
+  height: var(--term-h-eff);
 }
 
 /* ターミナルモード（F3。mode.ts）：ファイルの欄とターミナルのカードを入れ替える。
@@ -64,7 +70,7 @@ a {
 .main[data-mode="terminal"] > .files {
   order: 1;
   flex: none;
-  height: 300px;
+  height: var(--term-h-eff);
   border-top: 1px solid #2a2f39;
 }
 
@@ -78,4 +84,38 @@ a {
   flex: 1;
   height: auto;
   border-top: none;
+}
+
+/* ブロックの境界（#526。panes.ts）。当たりは 6px で、見える線は引かない（ブロックの縁の線のまま）。
+   ドラッグ中とリサイズモードで動かす境界は、マシンの色（--machine-color。App.tsx が .app に入れる）で光らせる。
+   サイドバーとの境界は .app の左から、ファイルの欄とターミナルの境界は .main の下から数えて置く */
+.resizer {
+  position: absolute;
+  z-index: 5;
+  background: transparent;
+  touch-action: none;
+}
+
+.resizer[data-axis="x"] {
+  top: 0;
+  bottom: 0;
+  left: calc(var(--sidebar-w-eff) - 3px);
+  width: 6px;
+  cursor: col-resize;
+}
+
+.resizer[data-axis="y"] {
+  left: 0;
+  right: 0;
+  bottom: calc(var(--term-h-eff) - 3px);
+  height: 6px;
+  cursor: row-resize;
+}
+
+.resizer[data-lit] {
+  background: var(--machine-color, #7cc4b0);
+}
+
+.main[data-mode="ide"][data-no-file] > .resizer {
+  display: none;
 }

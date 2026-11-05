@@ -287,6 +287,17 @@ func TestScreenScrollAndResize(t *testing.T) {
 		defer fs.mu.Unlock()
 		return fs.view.Files == screen.Size{Cols: 100, Rows: 30} && fs.view.Status.Cols == 100
 	})
+	if err := c.Call(ctx, "view.resize", map[string]any{"splits": map[string]int{"diff": 30, "preview": 70}}, nil); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "splits", func() bool {
+		fs.mu.Lock()
+		defer fs.mu.Unlock()
+		return fs.view.DiffPct == 30 && fs.view.PreviewPct == 70 && fs.view.Files.Cols == 100
+	})
+	if err := c.Call(ctx, "view.resize", map[string]any{"splits": map[string]int{"diff": 101}}, nil); !isCode(err, rpc.CodeInvalidParams) {
+		t.Errorf("share 101 accepted: %v", err)
+	}
 	if err := c.Call(ctx, "view.subscribe", map[string]any{"regions": []string{"explorer"}}, nil); !isCode(err, rpc.CodeInvalidParams) {
 		t.Errorf("explorer subscribed: %v", err)
 	}

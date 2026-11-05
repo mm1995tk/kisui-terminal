@@ -567,6 +567,35 @@ describe("画面の購読（E1）", () => {
     await s.close();
   });
 
+  it("ファイルの欄の左右の境界を splits で送り、リサイズの知らせを渡す", async () => {
+    const f = fakeShell({ serverIds: ["A"] });
+    const s = new Session(f.api, "h", fast);
+    const got: unknown[] = [];
+    s.onResizeEvent((e) => got.push(e));
+    s.start();
+    await waitFor(s, (st) => st.kind === "connected");
+    await settle();
+    s.setSplits({ diff: 30, preview: 0 });
+    s.setSplits({ diff: 30, preview: 0 });
+    await settle();
+    assert.deepEqual(
+      sentOf(f, "view.resize").map((m) => m.msg.params),
+      [{ regions: {}, splits: { diff: 30, preview: 0 } }],
+    );
+
+    const id = connectedId(f);
+    f.emit(id, { jsonrpc: "2.0", method: "resize.start", params: {} });
+    f.emit(id, { jsonrpc: "2.0", method: "resize.key", params: { key: "h" } });
+    f.emit(id, { jsonrpc: "2.0", method: "resize.reset", params: {} });
+    await settle();
+    assert.deepEqual(got, [
+      { kind: "start" },
+      { kind: "key", key: "h" },
+      { kind: "reset" },
+    ]);
+    await s.close();
+  });
+
   it("つなぎ直したら、購読と大きさを送り直す", async () => {
     const f = fakeShell({ serverIds: ["A"] });
     const s = new Session(f.api, "h", fast);

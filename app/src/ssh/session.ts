@@ -105,6 +105,16 @@ export type TermEvent =
   | { method: "term.exit"; params: Notifications["term.exit"] }
   | { method: "term.title"; params: Notifications["term.title"] };
 
+/** ファイルの欄の左右の境界（左側の %。0 は半分）。 */
+export interface Splits {
+  diff: number;
+  preview: number;
+}
+
+/** shj からの境界のリサイズの知らせ。 */
+export type ResizeEvent =
+  { kind: "start" } | { kind: "key"; key: string } | { kind: "reset" };
+
 /** Session.input で送れる入力。file.open も shj は入力と同じ並びで処理するので、同じ seq の数え方で送る。 */
 export type InputMethod =
   | "input.key"
@@ -176,9 +186,12 @@ export class Session {
   private readonly themeHandlers = new Set<(t: Theme) => void>();
   /** ファイルの欄の大きさ（マス目）。つなぎ直したら送り直す */
   private filesSize?: { cols: number; rows: number };
+  /** ファイルの欄の左右の境界（左側の %。0 は半分）。つなぎ直したら送り直す */
+  private splits?: Splits;
   /** 最後に送った入力の seq（つなぎ直しても増え続ける） */
   private inputSeq = 0;
   private readonly clipboardHandlers = new Set<(text: string) => void>();
+  private readonly resizeHandlers = new Set<(e: ResizeEvent) => void>();
 
   constructor(api: ShellApi, target: string, opts: SessionOptions = {}) {
     this.api = api;
@@ -224,17 +237,31 @@ export class Session {
     if (conn) this.sendResize(conn);
   }
 
+  /** ファイルの欄の左右の境界（差分とプレビューの、左側の %。0 は半分）を shj に送る。 */
+  setSplits(splits: Splits): void {
+    const old = this.splits;
+    if (old && old.diff === splits.diff && old.preview === splits.preview)
+      return;
+    this.splits = { ...splits };
+    const conn = this.conn;
+    if (conn) this.sendResize(conn);
+  }
+
   private sendResize(conn: Connection): void {
     const size = this.filesSize;
-    if (!size) return;
+    const splits = this.splits;
+    if (!size && !splits) return;
     conn.client
       .request("view.resize", {
-        regions: {
-          files: size,
-          status: { cols: size.cols },
-          cmdline: { cols: size.cols },
-          overlay: size,
-        },
+        regions: size
+          ? {
+              files: size,
+              status: { cols: size.cols },
+              cmdline: { cols: size.cols },
+              overlay: size,
+            }
+          : {},
+        ...(splits ? { splits } : {}),
       })
       .catch((e) => this.discard("view.resize", e));
   }
@@ -347,6 +374,12 @@ export class Session {
   onClipboard(h: (text: string) => void): () => void {
     this.clipboardHandlers.add(h);
     return () => this.clipboardHandlers.delete(h);
+  }
+
+  /** resize.start・resize.key・resize.reset（shj が境界のリサイズを始める・キーを受けた・初期値に戻す）。つなぎ直しても外れない。 */
+  onResizeEvent(h: (e: ResizeEvent) => void): () => void {
+    this.resizeHandlers.add(h);
+    return () => this.resizeHandlers.delete(h);
   }
 
   /** tree.changed（開いているフォルダの中身が変わった）。つなぎ直しても外れない。 */
@@ -594,6 +627,20 @@ export class Session {
         if (gen !== this.generation || this.conn !== conn) return;
         if (typeof n?.text !== "string") return;
         for (const h of [...this.clipboardHandlers]) h(n.text);
+      }),
+      conn.client.on("resize.start", () => {
+        if (gen !== this.generation || this.conn !== conn) return;
+        for (const h of [...this.resizeHandlers]) h({ kind: "start" });
+      }),
+      conn.client.on("resize.key", (n) => {
+        if (gen !== this.generation || this.conn !== conn) return;
+        if (typeof n?.key !== "string") return;
+        for (const h of [...this.resizeHandlers])
+          h({ kind: "key", key: n.key });
+      }),
+      conn.client.on("resize.reset", () => {
+        if (gen !== this.generation || this.conn !== conn) return;
+        for (const h of [...this.resizeHandlers]) h({ kind: "reset" });
       }),
       ...(["term.output", "term.exit", "term.title"] as const).map((method) =>
         conn.client.on(method, (params) => {

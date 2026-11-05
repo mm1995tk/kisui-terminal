@@ -54,6 +54,8 @@ import {
 } from "./layout.ts";
 import { ChangeBar, ImageBody, PreviewImages } from "./MediaView.tsx";
 import { colorOf, filesVars, runStyle } from "./theme.ts";
+import { splitPct } from "../panes.ts";
+import { splitKindAt, type SplitKind } from "./split.ts";
 import "./files.css";
 
 export type { BlobSource, FilesSize, SendInput };
@@ -71,6 +73,12 @@ export function FilesView(props: {
   onInput?: SendInput;
   /** OS のクリップボード（貼り付けのキーで読む）。省くと貼り付けない */
   clipboard?: OsClipboard;
+  /** 左右の境界をドラッグして動かした（左側の %）。省くと動かせない */
+  onSplit?: (kind: SplitKind, pct: number) => void;
+  /** 左右の境界をダブルクリックした（元の大きさに戻す） */
+  onSplitReset?: (kind: SplitKind) => void;
+  /** リサイズモードで光らせる左右の境界 */
+  litSplit?: SplitKind | null;
   /** 画像の取り先（blob.get）。省くと画像を出さない */
   blobs?: BlobSource;
 }): JSX.Element {
@@ -185,7 +193,16 @@ export function FilesView(props: {
                 <>
                   {/* 左右に並べたペインの間の線（E7）。割り方は shj が決め、ペインの幅は viewport で来る */}
                   <Show when={i > 0}>
-                    <div class="files-split" aria-hidden="true" />
+                    <SplitDivider
+                      kind={props.onSplit ? splitKindAt(f().panes, i) : null}
+                      lit={
+                        props.litSplit != null &&
+                        props.litSplit === splitKindAt(f().panes, i)
+                      }
+                      cellWidth={cellWidth}
+                      onSplit={props.onSplit}
+                      onReset={props.onSplitReset}
+                    />
                   </Show>
                   <PaneView
                     pane={p()}
@@ -336,5 +353,70 @@ function LineView(props: {
         )}
       </For>
     </div>
+  );
+}
+
+/**
+ * 左右に並べたペインの間の線。差分の分割とプレビューの分割（kind がある）は、ドラッグで動かし、ダブルクリックで
+ * 元に戻せる。割り方は shj が決める（view.resize の splits）ので、ここでは左右のペインの位置から % を求めて知らせるだけ。
+ */
+function SplitDivider(props: {
+  kind: SplitKind | null;
+  lit: boolean;
+  cellWidth: () => number;
+  onSplit?: (kind: SplitKind, pct: number) => void;
+  onReset?: (kind: SplitKind) => void;
+}): JSX.Element {
+  const [dragging, setDragging] = createSignal(false);
+  function start(e: PointerEvent) {
+    const kind = props.kind;
+    const el = e.currentTarget as HTMLElement;
+    const left = el.previousElementSibling;
+    const right = el.nextElementSibling;
+    if (!kind || e.button !== 0 || !left || !right) return;
+    e.preventDefault();
+    e.stopPropagation();
+    el.setPointerCapture(e.pointerId);
+    setDragging(true);
+    const move = (ev: PointerEvent) => {
+      const l = left.getBoundingClientRect();
+      const r = right.getBoundingClientRect();
+      props.onSplit?.(
+        kind,
+        splitPct(
+          kind,
+          ev.clientX - l.left,
+          r.right - l.left,
+          props.cellWidth(),
+        ),
+      );
+    };
+    const end = () => {
+      setDragging(false);
+      el.removeEventListener("pointermove", move);
+      el.removeEventListener("pointerup", end);
+      el.removeEventListener("pointercancel", end);
+    };
+    el.addEventListener("pointermove", move);
+    el.addEventListener("pointerup", end);
+    el.addEventListener("pointercancel", end);
+  }
+  return (
+    <div
+      class="files-split"
+      aria-hidden="true"
+      data-draggable={props.kind ? "" : undefined}
+      data-lit={props.lit || dragging() ? "" : undefined}
+      onPointerDown={start}
+      // 本文のマウス（選択・カーソルの移動）に渡さない
+      onMouseDown={(e) => {
+        if (props.kind) e.stopPropagation();
+      }}
+      onDblClick={(e) => {
+        if (!props.kind) return;
+        e.stopPropagation();
+        props.onReset?.(props.kind);
+      }}
+    />
   );
 }

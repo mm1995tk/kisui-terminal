@@ -25,8 +25,9 @@
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  width: 300px;
-  min-width: 240px;
+  flex: none;
+  width: var(--sidebar-w-eff, 300px);
+  min-width: 0;
   height: 100%;
   background: var(--sidebar-bg);
   border-right: 1px solid var(--sidebar-border);

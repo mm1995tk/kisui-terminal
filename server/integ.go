@@ -103,9 +103,6 @@ func (s *Server) ShowSide(bool)                {}
 func (s *Server) ShowTerm(bool)                {}
 func (s *Server) ShowAgent(bool)               {}
 func (s *Server) DragBorder(core.ResizeTarget) {}
-func (s *Server) StartResize()                 {}
-func (s *Server) ResizeKey(string)             {}
-func (s *Server) ResetPanes()                  {}
 
 // The GUI shows its terminals with coneko-term on the PTYs of `shj serve` (term.go), so
 // the core has no terminal panel to drive here.
@@ -121,3 +118,17 @@ func (s *Server) ImageClosed(uint32) {}
 // SetPalette is core.Port's: the GUI draws with its own colors and asks for the
 // theme with theme.get, so there is nothing to apply. It does nothing.
 func (s *Server) SetPalette(*core.Theme) {}
+
+// The GUI keeps its borders (sizes the user picked) itself. These Port calls only tell it about the
+// keys: resize.start (Alt+R or the palette), resize.key (a key the core took while the mode was on;
+// the GUI takes the keys itself, so this is the fallback) and resize.reset (the palette's reset).
+// StartResize tells the GUI the resize mode started.
+func (s *Server) StartResize() { s.notifyOwner("resize.start", struct{}{}) }
+
+// ResizeKey hands the GUI a key the core took in the resize mode.
+func (s *Server) ResizeKey(key string) {
+	s.notifyOwner("resize.key", map[string]any{"key": key})
+}
+
+// ResetPanes tells the GUI to put every border back.
+func (s *Server) ResetPanes() { s.notifyOwner("resize.reset", struct{}{}) }

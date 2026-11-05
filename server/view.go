@@ -298,6 +298,10 @@ func (ss *session) subscribeReq(req *rpc.Message) (any, error, bool) {
 func (ss *session) resizeReq(req *rpc.Message) (any, error, bool) {
 	var p struct {
 		Regions map[screen.Region]screen.Size `json:"regions"`
+		Splits  *struct {
+			Diff    int `json:"diff"`
+			Preview int `json:"preview"`
+		} `json:"splits"`
 	}
 	if err := json.Unmarshal(req.Params, &p); err != nil {
 		return nil, invalidParams(err), true
@@ -324,6 +328,13 @@ func (ss *session) resizeReq(req *rpc.Message) (any, error, bool) {
 			s.screenMu.Unlock()
 			return nil, rpc.Errorf(rpc.CodeInvalidParams, "region not served: %s", r), true
 		}
+	}
+	if p.Splits != nil {
+		if p.Splits.Diff < 0 || p.Splits.Diff > 100 || p.Splits.Preview < 0 || p.Splits.Preview > 100 {
+			s.screenMu.Unlock()
+			return nil, rpc.Errorf(rpc.CodeInvalidParams, "split share out of range"), true
+		}
+		v.DiffPct, v.PreviewPct = p.Splits.Diff, p.Splits.Preview
 	}
 	vs.view = v
 	s.screenMu.Unlock()

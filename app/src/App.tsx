@@ -45,6 +45,20 @@ import { describeClient, statusLine } from "./connect/status.ts";
 import { UpdateBar } from "./update/UpdateBar.tsx";
 import { BlobStore } from "./files/blob.ts";
 import { OsClipboard } from "./files/clipboard.ts";
+import { activeSplit, type SplitKind } from "./files/split.ts";
+import {
+  applyMove,
+  litBorders,
+  loadSizes,
+  resizeAction,
+  resizeKeyName,
+  saveSizes,
+  sizeOf,
+  withoutSize,
+  withSize,
+  type Border,
+  type PaneSizes,
+} from "./panes.ts";
 import {
   FilesView,
   type FilesSize,
@@ -201,6 +215,23 @@ function Workbench(props: {
   // IDE モード（上がファイルの欄）かターミナルモード（上がターミナル）か（F3）
   const [mode, setMode] = createSignal<Mode>("ide");
   let mainEl: HTMLDivElement | undefined;
+  let appEl: HTMLElement | undefined;
+  // ブロックの境界の大きさ（panes.ts）。変えたら覚えておき、GUI を起動し直しても残す
+  const [sizes, setSizes] = createSignal<PaneSizes>(loadSizes(store));
+  function changeSizes(next: PaneSizes) {
+    setSizes(next);
+    saveSizes(store, next);
+  }
+  // リサイズモード（Alt+R・パレットの「リサイズ」）か。境界を動かすキーは GUI が受ける
+  const [resizeMode, setResizeMode] = createSignal(false);
+  // キーがターミナルに向いているか（←→ が動かす境界を決める）
+  const [keysInTerm, setKeysInTerm] = createSignal(false);
+  const onFocusIn = (e: FocusEvent) =>
+    setKeysInTerm(
+      !!(e.target as Element | null)?.closest?.(".main > .terminal"),
+    );
+  document.addEventListener("focusin", onFocusIn);
+  onCleanup(() => document.removeEventListener("focusin", onFocusIn));
   let focusActiveTerminal: (() => void) | undefined;
   // ファイルの欄に描く画面（フォーカスしているマシンのもの。フォーカスが無ければ null）
   // フォルダ未定のワークスペースには、ファイルの欄に出すものが無い（shj の画面は前のワークスペースのままかもしれない）
@@ -211,6 +242,26 @@ function Workbench(props: {
   };
   // ファイルを開いているか。開いていなければ、IDE モードでもファイルの欄を出さず右の列を全部ターミナルにする（mode.ts）
   const fileOpen = createMemo(() => hasOpenFile(filesScreen()?.files));
+  // ファイルの欄の今のファイルの左右の境界（差分の分割・プレビューの分割）。無ければ null
+  const split = createMemo(() => activeSplit(filesScreen()?.files));
+  const resizeCtx = () => ({ inTerm: keysInTerm(), split: split() });
+  // リサイズモードで動かす境界（光らせる）。ドラッグ中の境界も光る
+  const [dragging, setDragging] = createSignal<Border | null>(null);
+  const lit = (b: Border) =>
+    dragging() === b || (resizeMode() && litBorders(resizeCtx()).includes(b));
+  const litSplit = (): SplitKind | null => {
+    const k = split();
+    return k && lit(k) ? k : null;
+  };
+  /** ファイルの欄の左右の境界（shj に送る。0 は半分） */
+  const splitsOf = () => ({
+    diff: sizeOf(sizes(), "diff"),
+    preview: sizeOf(sizes(), "preview"),
+  });
+  createEffect(() => {
+    const sp = splitsOf();
+    for (const s of Object.values(sessions())) s.setSplits(sp);
+  });
   // ツリーから開いたとき、ファイルの欄が出たらキーを向ける（出す前の欄にはフォーカスできない）
   let focusFilesWhenShown = false;
   createEffect(() => {
@@ -259,6 +310,25 @@ function Workbench(props: {
       e.preventDefault();
       e.stopPropagation();
       if (!e.repeat) newTerminal();
+      return;
+    }
+    // リサイズモード（#526）：キーは境界を動かすのに使い、ファイルの欄にもターミナルにも送らない。Alt+R で入る
+    const rname = e.isComposing ? null : resizeKeyName(e);
+    if (rname && (resizeMode() || rname === "alt+r")) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (resizeMode()) {
+        if (!e.repeat || resizeAction(rname, resizeCtx()).kind !== "exit")
+          resizeKey(rname, false);
+      } else if (!e.repeat) {
+        // 入るのは shj（core）。入ったら resize.start が届く
+        sendInput("input.key", {
+          region: "files",
+          key: "r",
+          mods: ["alt"],
+          phase: "press",
+        });
+      }
       return;
     }
     // 隣へ移るのは、ターミナルを並べていて、キーがターミナルに向いているときだけ（ファイルの欄の Ctrl+Shift+矢印は shj に送る）
@@ -362,6 +432,15 @@ function Workbench(props: {
       setThemes((m) => ({ ...m, [target]: th })),
     );
     const offClipboard = s.onClipboard((text) => void clipboard.write(text));
+    const offResize = s.onResizeEvent((ev) => {
+      if (ev.kind === "start") setResizeMode(true);
+      else if (ev.kind === "reset") changeSizes({});
+      else {
+        // core だけがリサイズモードに残っていたときも、GUI をモードに入れてから当てる
+        setResizeMode(true);
+        resizeKey(ev.key, true);
+      }
+    });
     offStates.set(target, () => {
       offTerm();
       off();
@@ -373,7 +452,9 @@ function Workbench(props: {
       offUpdate();
       offTheme();
       offClipboard();
+      offResize();
     });
+    s.setSplits(splitsOf());
     if (filesSize) s.resize(filesSize);
     setSessions((m) => ({ ...m, [target]: s }));
     setStates((m) => ({ ...m, [target]: s.state }));
@@ -397,6 +478,65 @@ function Workbench(props: {
     setThemes(({ [target]: _, ...rest }) => rest);
     setFocus((f) => keepFocus(f, workspaces(), shjFocuses()));
     await s.close();
+  }
+
+  /** 今の窓で効く境界の上限（app.css の clamp と同じ。無ければ undefined）。 */
+  function maxOf(border: Border): number | undefined {
+    if (border === "sidebar") return Math.min(640, window.innerWidth / 2);
+    if (border === "term" && mainEl)
+      return mainEl.getBoundingClientRect().height - 160;
+    return undefined;
+  }
+
+  /**
+   * リサイズモードで key（TUI と同じ名前。panes.ts）を押した。fromShj は shj が教えてきたとき（出るのは shj が決めている）。
+   * GUI で押したときの出るキーは、shj のリサイズモードも終わらせるため Esc を送る。
+   */
+  function resizeKey(key: string, fromShj: boolean) {
+    const a = resizeAction(key, resizeCtx());
+    switch (a.kind) {
+      case "move":
+        changeSizes(applyMove(sizes(), a.border, a.step, maxOf(a.border)));
+        break;
+      case "reset":
+        changeSizes({});
+        break;
+      case "exit":
+        setResizeMode(false);
+        if (!fromShj)
+          sendInput("input.key", {
+            region: "files",
+            key: "Escape",
+            mods: [],
+            phase: "press",
+          });
+        break;
+    }
+  }
+
+  /** サイドバー・ターミナルの境界のドラッグ。ポインタの位置が境界。 */
+  function dragBorder(border: "sidebar" | "term", e: PointerEvent) {
+    const box = border === "sidebar" ? appEl : mainEl;
+    if (e.button !== 0 || !box) return;
+    const el = e.currentTarget as HTMLElement;
+    e.preventDefault();
+    el.setPointerCapture(e.pointerId);
+    setDragging(border);
+    const move = (ev: PointerEvent) => {
+      const r = box.getBoundingClientRect();
+      const v =
+        border === "sidebar" ? ev.clientX - r.left : r.bottom - ev.clientY;
+      changeSizes(withSize(sizes(), border, v, maxOf(border)));
+    };
+    const end = () => {
+      setDragging(null);
+      el.removeEventListener("pointermove", move);
+      el.removeEventListener("pointerup", end);
+      el.removeEventListener("pointercancel", end);
+    };
+    el.addEventListener("pointermove", move);
+    el.addEventListener("pointerup", end);
+    el.addEventListener("pointercancel", end);
   }
 
   /** ファイルの欄の大きさが変わった。つないでいるどのマシンにも送る。 */
@@ -806,7 +946,19 @@ function Workbench(props: {
   }
 
   return (
-    <main aria-label="shijimi-editor" class="app">
+    <main
+      aria-label="shijimi-editor"
+      class="app"
+      ref={appEl}
+      data-resizing={resizeMode() ? "" : undefined}
+      style={{
+        "--sidebar-w": `${sizeOf(sizes(), "sidebar")}px`,
+        "--term-h": `${sizeOf(sizes(), "term")}px`,
+        ...(colors()[focus()?.target ?? ""]
+          ? { "--machine-color": colors()[focus()!.target] }
+          : {}),
+      }}
+    >
       <Sidebar
         groups={groups()}
         onFocus={(t, id) => void focusWorkspace(t, id)}
@@ -838,6 +990,15 @@ function Workbench(props: {
         }}
       />
       <div
+        class="resizer"
+        data-axis="x"
+        data-border="sidebar"
+        data-lit={lit("sidebar") ? "" : undefined}
+        aria-hidden="true"
+        onPointerDown={(e) => dragBorder("sidebar", e)}
+        onDblClick={() => changeSizes(withoutSize(sizes(), "sidebar"))}
+      />
+      <div
         class="main"
         data-mode={mode()}
         data-no-file={fileOpen() ? undefined : ""}
@@ -848,6 +1009,9 @@ function Workbench(props: {
           theme={focus() ? (themes()[focus()!.target] ?? null) : null}
           onResize={resizeFiles}
           onInput={sendInput}
+          onSplit={(k, pct) => changeSizes(withSize(sizes(), k, pct))}
+          onSplitReset={(k) => changeSizes(withoutSize(sizes(), k))}
+          litSplit={litSplit()}
           clipboard={clipboard}
           blobs={
             focus() && sessions()[focus()!.target]
@@ -862,6 +1026,15 @@ function Workbench(props: {
           accent={colors()[termTarget() ?? ""]}
           onActivate={(i) => termGroup()?.setActive(i)}
           focusRef={(f) => (focusActiveTerminal = f)}
+        />
+        <div
+          class="resizer"
+          data-axis="y"
+          data-border="term"
+          data-lit={lit("term") ? "" : undefined}
+          aria-hidden="true"
+          onPointerDown={(e) => dragBorder("term", e)}
+          onDblClick={() => changeSizes(withoutSize(sizes(), "term"))}
         />
       </div>
       <Show when={installing()}>

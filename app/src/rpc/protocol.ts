@@ -552,6 +552,8 @@ export interface Requests {
         cmdline?: { cols: number };
         overlay?: { cols: number; rows: number };
       };
+      /** ファイルの欄の左右の境界（左側の %。0 は半分） */
+      splits?: { diff: number; preview: number };
     };
     result: Record<string, never>;
   };
@@ -678,6 +680,9 @@ export interface Notifications {
   "theme.changed": Theme;
   "i18n.changed": I18nTable;
   "clipboard.write": { text: string };
+  "resize.start": Record<string, never>;
+  "resize.key": { key: string };
+  "resize.reset": Record<string, never>;
   "url.open": { url: string };
   notify: { level: string; text: string };
   "term.output": { termId: TermId; seq: number; data: string };

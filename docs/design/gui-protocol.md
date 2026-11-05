@@ -289,7 +289,7 @@ P13-09（#385）で `Core` を `core` に移し、分割を終えた。`ui/tui` 
 | メソッド | 向き | パラメータ → 結果 |
 | --- | --- | --- |
 | `view.subscribe` | → shj | `{regions: ["files", "status", "cmdline", "overlay"]}` → `{}`。受け取る領域を選ぶ（GUI は `explorer` などを選ばない） |
-| `view.resize` | → shj | `{regions: {"files": {cols, rows}, "status": {cols}, "cmdline": {cols}, "overlay": {cols, rows}}}` → `{}`。領域ごとの桁数と行数（等幅のマス目で数える）。ペインの大きさ（2 つ並べるときの割り方）は shj が `files` の中で決める。ペインができる前でも送れる。変えると画面が送り直される |
+| `view.resize` | → shj | `{regions: {"files": {cols, rows}, "status": {cols}, "cmdline": {cols}, "overlay": {cols, rows}}}` → `{}`。領域ごとの桁数と行数（等幅のマス目で数える）。ペインの大きさ（2 つ並べるときの割り方）は shj が `files` の中で決める。ペインができる前でも送れる。変えると画面が送り直される。`{splits: {diff, preview}}` も送れる（0〜100。ファイルの欄を左右に分けた境界で、差分の分割とプレビューの分割の、左側の幅の %。0 は半分。GUI がドラッグで決めた値を覚えて送る） |
 | `screen.get` | → shj | `{}` → `Screen`（全部）。つなぎ直し、抜けの回復用 |
 | `screen.update` | ← GUI | 通知 `{rev, baseRev, ackSeq, focus?, files?: {panes: [{id, kind?, title?, viewport?, lines?: {rows: {"0": Line, "5": Line}, count}, cursors?, selections?}], active?}, status?, cmdline?, overlay?}`。付いている項目だけが変わった。`lines.rows` のキーは「ビューポートの中で上から何行目か」（0 始まり。バッファの行番号は `Line.No`）で、`count` は見えている行数。スクロールするとキーの意味する行が全部変わるので、全行を送る。`baseRev` が GUI の持つ版と合わなければ GUI は `screen.get` する |
 | `screen.ack` | → shj | 通知 `{rev}`。GUI が描き終えた版。shj は返事の来ていない更新を 1 つまでしか溜めず、間の変化は 1 つにまとめて送る（遅い回線で更新が積み上がらないように） |
@@ -358,6 +358,9 @@ P13-09（#385）で `Core` を `core` に移し、分割を終えた。`ui/tui` 
 | メソッド | 向き | パラメータ |
 | --- | --- | --- |
 | `clipboard.write` | ← GUI | `{text}`。コピーしたとき、GUI 側の OS のクリップボードに入れる（TUI では OSC 52） |
+| `resize.start` | ← GUI | `{}`。`Alt+R` かパレットの「リサイズ」で、core がリサイズモードに入った。境界の値は GUI が持ち、動かすキーも GUI が受ける（終わるときは Esc を `input.key` で送る） |
+| `resize.key` | ← GUI | `{key}`。core がリサイズモード中に受けたキー（GUI が受けるので、ふだんは来ない）。`esc`・`enter`・`q`・`alt+r` で core はモードを終える |
+| `resize.reset` | ← GUI | `{}`。パレットの「ペインの大きさを初期値に戻す」。GUI は境界を全部元の大きさに戻す |
 | `url.open` | ← GUI | `{url}`。`:open-url` など。GUI 側のブラウザで開く |
 | `notify` | ← GUI | `{level, text}`。画面に出さない通知（接続のログなど） |
 
