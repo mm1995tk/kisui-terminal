@@ -20,10 +20,19 @@ export function TerminalGrid(props: {
   accent?: string;
   /** 欄を押した・欄にキーを向けた */
   onActivate: (i: number) => void;
+  /** 今使っている欄にキーを向ける関数を受け取る */
+  focusRef?: (focusActive: () => void) => void;
 }): JSX.Element {
   let el!: HTMLElement;
   // カードの中にキーが向いていたか。終わったシェルの欄が消えるとフォーカスが外れるので、隣の欄に移すため
   let hadFocus = false;
+  // 欄ごとの「キーを向ける」関数（coneko-term の focus()）
+  const focusers = new Map<TermLink, () => void>();
+  const focusActive = () => {
+    const a = props.active;
+    if (a) focusers.get(a)?.();
+  };
+  props.focusRef?.(focusActive);
 
   const shown = () => (props.showAll ? props.links.length : 1);
   const template = () => {
@@ -46,11 +55,7 @@ export function TerminalGrid(props: {
       (n, prev) => {
         if (prev === undefined || n >= prev || !hadFocus) return;
         if (el.contains(document.activeElement)) return;
-        queueMicrotask(() =>
-          el
-            .querySelector<HTMLElement>(".terminal-cell[data-active] textarea")
-            ?.focus({ preventScroll: true }),
-        );
+        queueMicrotask(focusActive);
       },
     ),
   );
@@ -77,6 +82,9 @@ export function TerminalGrid(props: {
             hidden={!props.showAll && link !== props.active}
             area={area(i())}
             onFocus={() => props.onActivate(i())}
+            focusRef={(f) =>
+              f ? focusers.set(link, f) : focusers.delete(link)
+            }
           />
         )}
       </For>

@@ -42,7 +42,7 @@ function fakePort(opts: { terms?: TermInfo[] } = {}) {
   return { port, calls, acks, handlers };
 }
 
-/** 書いたものを溜める偽の画面。done は手で呼ぶ（xterm.js の書き終わり）。 */
+/** 書いたものを溜める偽の画面。done は手で呼ぶ（coneko-term の書き終わり）。 */
 function fakeSink() {
   const out: string[] = [];
   const pending: (() => void)[] = [];

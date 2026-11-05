@@ -1,6 +1,4 @@
-import { FitAddon } from "@xterm/addon-fit";
-import { Terminal } from "@xterm/xterm";
-import "@xterm/xterm/css/xterm.css";
+import { Terminal } from "coneko-term";
 import {
   createEffect,
   createSignal,
@@ -13,11 +11,9 @@ import { monoFontsReady } from "../fonts.ts";
 import type { TermLink, TermSink } from "./link.ts";
 import "./terminal.css";
 
-const encoder = new TextEncoder();
-
 /**
- * ターミナル 1 つの欄（F1）。xterm.js で描き、shj とのやりとりは TermLink に任せる。
- * 大きさは欄に合わせ（FitAddon）、変わったら term.resize を送る。並べ方は TerminalGrid（F4）が決める。
+ * ターミナル 1 つの欄（F1）。coneko-term で描き、shj とのやりとりは TermLink に任せる。
+ * 大きさは欄に合わせ（term.fit）、変わったら term.resize を送る。並べ方は TerminalGrid（F4）が決める。
  */
 export function TerminalView(props: {
   /** 描くターミナル */
@@ -30,6 +26,8 @@ export function TerminalView(props: {
   area?: string;
   /** 欄がフォーカスを受けた（押した・キーを向けた） */
   onFocus?: () => void;
+  /** この欄にキーを向ける関数を受け取る（欄が無くなるとき undefined で呼ぶ） */
+  focusRef?: (focus: (() => void) | undefined) => void;
 }): JSX.Element {
   let host!: HTMLDivElement;
   // 親 #271 のモック（案：フラットな一覧）の右下の文字と色に合わせる
@@ -37,7 +35,7 @@ export function TerminalView(props: {
     fontFamily:
       "'JetBrains Mono', ui-monospace, Menlo, Consolas, 'DejaVu Sans Mono', monospace",
     fontSize: 13,
-    // 行の高さはモックの 21px に近づける（xterm.js は文字の高さ（約 1.2 倍）に掛ける）
+    // 行の高さはモックの 21px に近づける（coneko-term は文字の高さ（約 1.2 倍）に掛ける）
     lineHeight: 21 / 13 / 1.2,
     cursorBlink: true,
     scrollback: 5000,
@@ -48,8 +46,6 @@ export function TerminalView(props: {
       selectionBackground: "#2c3442",
     },
   });
-  const fit = new FitAddon();
-  term.loadAddon(fit);
 
   const sink: TermSink = {
     write: (data, done) => term.write(data, done),
@@ -59,26 +55,25 @@ export function TerminalView(props: {
 
   // 入力は今つないでいる link に送る
   let current: TermLink | undefined;
-  term.onData((s) => current?.input(encoder.encode(s)));
-  // マウスの報告など、UTF-8 でない 1 バイトずつの列
-  term.onBinary((s) =>
-    current?.input(Uint8Array.from(s, (c) => c.charCodeAt(0) & 0xff)),
-  );
+  // キー・貼り付け・マウスの報告・問い合わせへの返事は、どれもバイト列で出てくる
+  term.onData((b) => current?.input(b));
 
   function refit() {
     if (!host.isConnected || host.clientWidth === 0) return;
-    fit.fit();
+    term.fit();
     current?.resize(term.cols, term.rows);
   }
 
   // 開いて欄に合わせ終えたか。それまでは link に大きさを送らず、bind もしない
-  // （xterm.js の既定の 80×24 を送ると、動いているシェルが一度縮んでしまう）
+  // （coneko-term の既定の 80×24 を送ると、動いているシェルが一度縮んでしまう）
   const [opened, setOpened] = createSignal(false);
 
   onMount(() => {
-    // xterm.js は open のときに字の幅を測るので、JetBrains Mono を読み終えてから開く
+    // coneko-term は open のときに字の幅を測るので、JetBrains Mono を読み終えてから開く
     // （先に開くと代わりの字で測ってしまい、字の間が合わない）
     let disposed = false;
+    props.focusRef?.(() => term.focus());
+    onCleanup(() => props.focusRef?.(undefined));
     const ro = new ResizeObserver(() => refit());
     onCleanup(() => {
       disposed = true;

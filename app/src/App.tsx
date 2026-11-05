@@ -199,6 +199,7 @@ function Workbench(props: {
   // IDE モード（上がファイルの欄）かターミナルモード（上がターミナル）か（F3）
   const [mode, setMode] = createSignal<Mode>("ide");
   let mainEl: HTMLDivElement | undefined;
+  let focusActiveTerminal: (() => void) | undefined;
   // ファイルの欄に描く画面（フォーカスしているマシンのもの。フォーカスが無ければ null）
   // フォルダ未定のワークスペースには、ファイルの欄に出すものが無い（shj の画面は前のワークスペースのままかもしれない）
   const filesScreen = () => {
@@ -618,7 +619,7 @@ function Workbench(props: {
     const files = mainEl?.querySelector<HTMLElement>(":scope > .files");
     const term = mainEl?.querySelector<HTMLElement>(":scope > .terminal");
     swapWithMotion([files, term], () => setMode(next));
-    // ファイルの欄は入力用の textarea、ターミナルは今使っている欄の xterm.js の textarea がキーを受ける。
+    // ファイルの欄は入力用の textarea、ターミナルは今使っている欄（coneko-term）がキーを受ける。
     // ファイルを開いていなければ IDE モードでもファイルの欄を出さないので、ターミナルに向ける
     focusFilesWhenShown = false;
     if (next === "terminal" || !fileOpen()) focusTerminal();
@@ -627,13 +628,8 @@ function Workbench(props: {
 
   /** 今使っているターミナルの欄にキーを向ける。 */
   function focusTerminal() {
-    // 足した欄の xterm.js が開くのを待つ（作ったばかりのワークスペースは、欄が描かれるまでもう少しかかる）
-    const focus = () =>
-      mainEl
-        ?.querySelector<HTMLElement>(
-          ":scope > .terminal .terminal-cell[data-active] textarea",
-        )
-        ?.focus({ preventScroll: true });
+    // 足した欄のターミナルが開くのを待つ（作ったばかりのワークスペースは、欄が描かれるまでもう少しかかる）
+    const focus = () => focusActiveTerminal?.();
     queueMicrotask(() => {
       focus();
       if (!mainEl?.contains(document.activeElement))
@@ -863,6 +859,7 @@ function Workbench(props: {
           showAll={mode() === "terminal"}
           accent={colors()[termTarget() ?? ""]}
           onActivate={(i) => termGroup()?.setActive(i)}
+          focusRef={(f) => (focusActiveTerminal = f)}
         />
       </div>
       <Show when={installing()}>

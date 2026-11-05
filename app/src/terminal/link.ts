@@ -1,4 +1,4 @@
-// 1 つのワークスペースのターミナル 1 つと、それを描く画面（xterm.js）をつなぐ（F1）。
+// 1 つのワークスペースのターミナル 1 つと、それを描く画面（coneko-term）をつなぐ（F1）。
 // 設計は docs/design/gui-protocol.md の 3 章「ターミナル」。
 //
 // - ターミナルは shj が作る（ワークスペースを作るとプライマリターミナルが、term.create で分割したターミナルができる）。
@@ -27,9 +27,9 @@ export interface TermPort {
   ackTerm(termId: TermId, seq: number): void;
 }
 
-/** 描く先（xterm.js）。 */
+/** 描く先（coneko-term）。 */
 export interface TermSink {
-  /** バイト列を書く。書き終えたら done を呼ぶ（xterm.js の write のコールバック）。 */
+  /** バイト列を書く。書き終えたら done を呼ぶ（coneko-term の write のコールバック）。 */
   write(data: Uint8Array, done: () => void): void;
   /** 知らせ（シェルの出力ではない文字）を書く。 */
   notice(text: string): void;
@@ -128,7 +128,7 @@ export class TermLink {
       .catch((e) => this.failed("term.resize", id, e));
   }
 
-  /** キー入力（xterm.js が作ったバイト列）。シェルが終わったあとの Enter で新しいシェルを開く。 */
+  /** キー入力（coneko-term が作ったバイト列）。シェルが終わったあとの Enter で新しいシェルを開く。 */
   input(data: Uint8Array): void {
     const id = this.termId;
     if (this.exited) {
