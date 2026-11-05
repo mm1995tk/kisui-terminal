@@ -106,7 +106,9 @@ fn main() {
         std::process::exit(askpass::run_helper(&prompt));
     }
 
-    let builder = tauri::Builder::default().plugin(tauri_plugin_notification::init());
+    let builder = tauri::Builder::default()
+        .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_clipboard_manager::init());
     // 自動更新（AppImage と .dmg の版だけ。update.rs）
     #[cfg(feature = "updater")]
     let builder = builder.plugin(tauri_plugin_updater::Builder::new().build());

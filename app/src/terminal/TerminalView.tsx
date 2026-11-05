@@ -15,6 +15,9 @@ import {
 
 import { monoFontsReady } from "../fonts.ts";
 import type { TermLink, TermSink } from "./link.ts";
+import { planWrite, readableMimes, supportsLocation } from "./clipboard.ts";
+import { availableOs, readFirstOs, writeOs } from "./clipboardOs.ts";
+import { askClipboardRead } from "./clipboardPrompt.ts";
 import {
   notificationSupport,
   shouldNotify,
@@ -90,6 +93,46 @@ export function TerminalView(props: {
       }
     })();
   });
+
+  // ターミナルのクリップボード（kitty の OSC 5522）を OS につなぐ。primary selection は扱えないので対応しないと答える
+  const pendingReads = new Set<() => void>();
+  term.onClipboardWrite((r) => {
+    const plan = supportsLocation(r.location) ? planWrite(r.items) : undefined;
+    if (!plan) return term.replyClipboardWrite(r.id, "ENOSYS");
+    void writeOs(plan).then(
+      () => term.replyClipboardWrite(r.id),
+      () => term.replyClipboardWrite(r.id, "EIO"),
+    );
+  });
+  term.onClipboardRead((r) => {
+    if (!supportsLocation(r.location)) {
+      return term.replyClipboardReadError(r.id, "ENOSYS");
+    }
+    // 種類の一覧は中身を渡さないので、許可は求めない（仕様）
+    if (r.list) {
+      void availableOs().then(
+        (mimes) => term.replyClipboardReadTypes(r.id, mimes),
+        () => term.replyClipboardReadError(r.id, "EBUSY"),
+      );
+      return;
+    }
+    const ask = askClipboardRead(r.mimes);
+    pendingReads.add(ask.cancel);
+    void (async () => {
+      try {
+        if (!(await ask.allowed)) {
+          return term.replyClipboardReadError(r.id, "EPERM");
+        }
+        const item = await readFirstOs(readableMimes(r.mimes));
+        term.replyClipboardReadData(r.id, item ? [item] : []);
+      } catch {
+        term.replyClipboardReadError(r.id, "EBUSY");
+      } finally {
+        pendingReads.delete(ask.cancel);
+      }
+    })();
+  });
+  onCleanup(() => pendingReads.forEach((cancel) => cancel()));
 
   function refit() {
     if (!host.isConnected || host.clientWidth === 0) return;
