@@ -504,6 +504,8 @@ export interface PrimaryShj {
   /** その shj の制御用ソケット（core/ctl）の場所 */
   socket: string;
   pid: number;
+  /** その shj が出しているテキストか画像の絶対パス。何も出していなければ省く */
+  file?: string;
 }
 
 // ---- ファイルのツリー ----
@@ -673,6 +675,10 @@ export interface Requests {
     result: Record<string, never>;
   };
   "tree.delete": {
+    params: { workspaceId: WorkspaceId; path: string };
+    result: Record<string, never>;
+  };
+  "shj.open": {
     params: { workspaceId: WorkspaceId; path: string };
     result: Record<string, never>;
   };

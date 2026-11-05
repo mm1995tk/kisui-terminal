@@ -181,3 +181,80 @@ func TestPrimaryShjLinkOnlyInsideSocketDir(t *testing.T) {
 		t.Fatal("no link for a socket outside the socket directory")
 	}
 }
+
+// shj が出しているファイルは primaryShj.file で届き、shj.open はプライマリの shj の制御用ソケットに open を頼む。
+func TestPrimaryShjFileAndOpen(t *testing.T) {
+	needCwd(t)
+	t.Setenv("HOME", normalizePath(t.TempDir()))
+	_, sock := startFast(t)
+	c, _ := termClient(t, sock)
+	id, primary := createWS(t, c)
+	repo, _ := project(t)
+	cd(t, c, primary, repo)
+	waitFor(t, "folder", func() bool { return folderOfWS(t, c, id) == repo })
+	if err := os.WriteFile(filepath.Join(repo, "a.go"), []byte("x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// shj の制御用ソケットのふり
+	dir, err := os.MkdirTemp("", "shjo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(dir) })
+	shjSock := filepath.Join(dir, "1.sock")
+	ln, err := net.Listen("unix", shjSock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	asked := make(chan ctl.Request, 1)
+	go func() {
+		for {
+			cn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			var r ctl.Request
+			json.NewDecoder(cn).Decode(&r)
+			asked <- r
+			json.NewEncoder(cn).Encode(ctl.Response{OK: true})
+			cn.Close()
+		}
+	}()
+
+	open := func(path string) error {
+		return c.Call(context.Background(), "shj.open", map[string]any{"workspaceId": id, "path": path}, nil)
+	}
+	if err := open("a.go"); err == nil {
+		t.Fatal("without a shj in the primary there is nobody to ask")
+	}
+	r, conn := announceShj(t, sock, ctl.PrimaryHello{TermID: primary, Socket: shjSock, PID: 11})
+	if !r.OK {
+		t.Fatalf("reply: %+v", r)
+	}
+	file := filepath.Join(repo, "a.go")
+	b, _ := json.Marshal(ctl.PrimaryFile{File: file})
+	conn.Write(append(b, '\n'))
+	waitFor(t, "file", func() bool { p := primaryShjOf(t, c, id); return p != nil && p.File == file })
+	b, _ = json.Marshal(ctl.PrimaryFile{File: ""})
+	conn.Write(append(b, '\n'))
+	waitFor(t, "file cleared", func() bool { p := primaryShjOf(t, c, id); return p != nil && p.File == "" })
+
+	if err := open("a.go"); err != nil {
+		t.Fatal(err)
+	}
+	if got := <-asked; got.Cmd != "open" || got.Path != file {
+		t.Errorf("asked: %+v", got)
+	}
+	for _, bad := range []string{"../x", "/etc/passwd", "none.go", "pkg", ""} {
+		if err := open(bad); err == nil {
+			t.Errorf("open(%q) must be refused", bad)
+		}
+	}
+	select {
+	case got := <-asked:
+		t.Errorf("a refused path reached the shj: %+v", got)
+	default:
+	}
+}

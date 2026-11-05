@@ -10,6 +10,7 @@ import {
   applyList,
   applyTreeChanged,
   currentFile,
+  relativeIn,
   openErrorText,
   dropDir,
   emptyTree,
@@ -338,5 +339,20 @@ describe("openErrorText", () => {
       openErrorText("x", new Error("connection closed")),
       "x を開けませんでした（connection closed）",
     );
+  });
+});
+
+describe("relativeIn", () => {
+  it("makes a path in the root relative", () => {
+    assert.equal(relativeIn("/w/core/app.go", "/w"), "core/app.go");
+    assert.equal(relativeIn("/w/a.go", "/w/"), "a.go");
+  });
+  it("is undefined outside the root, for the root itself and for nothing", () => {
+    assert.equal(relativeIn("/x/a.go", "/w"), undefined);
+    assert.equal(relativeIn("/wx/a.go", "/w"), undefined);
+    assert.equal(relativeIn("/w/", "/w"), undefined);
+    assert.equal(relativeIn("", "/w"), undefined);
+    assert.equal(relativeIn(undefined, "/w"), undefined);
+    assert.equal(relativeIn("/w/a.go", undefined), undefined);
   });
 });

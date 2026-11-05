@@ -199,6 +199,10 @@ func (w *wsManager) recomputeLocked() {
 	states := make([]*wsState, 0, len(w.reg))
 	for _, st := range w.reg {
 		c := *st
+		if c.shj != nil {
+			cp := *c.shj // File は後から変わるので、写しを渡す
+			c.shj = &cp
+		}
 		states = append(states, &c)
 	}
 	w.mu.Unlock()
@@ -292,7 +296,7 @@ func changedParams(added, updated []*wsInfo, removed []string) map[string]any {
 func sortWS(l []*wsInfo) { sort.Slice(l, func(i, j int) bool { return l[i].seq < l[j].seq }) }
 
 func wsEqual(a, b *wsInfo) bool {
-	return a.root == b.root && ptrEq(a.Kind, b.Kind) && a.Branch == b.Branch && a.Primary == b.Primary && a.PrimaryShj == b.PrimaryShj &&
+	return a.root == b.root && ptrEq(a.Kind, b.Kind) && a.Branch == b.Branch && a.Primary == b.Primary && shjEq(a.PrimaryShj, b.PrimaryShj) &&
 		slices.Equal(a.Terms, b.Terms) && slices.Equal(a.Files, b.Files)
 }
 
@@ -508,4 +512,11 @@ func (ss *session) workspaceRequest(req *rpc.Message) (res any, err error, handl
 	// 画面（Screen）はこのワークスペースの core のものに切り替わる。
 	ss.srv.ScreenChanged()
 	return map[string]any{"rev": rev, "termId": primary}, nil, true
+}
+
+func shjEq(a, b *primaryShj) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return *a == *b
 }

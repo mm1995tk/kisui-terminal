@@ -106,6 +106,8 @@ export type TermMethod =
   | "term.cd";
 /** Session.request で送れる要求（画像の実体。E6）。 */
 export type BlobMethod = "blob.get";
+/** Session.request で送れる要求（プライマリの shj にファイルを開かせる）。 */
+export type ShjMethod = "shj.open";
 /** ターミナルの通知（F1）。method で見分ける。 */
 export type TermEvent =
   | { method: "term.output"; params: Notifications["term.output"] }
@@ -349,7 +351,7 @@ export class Session {
    * ツリーと git（D2）・ターミナル（F1）・画像（E6）の要求を今の接続で送る。つながっていないときは投げる。
    * つなぎ直したら、呼ぶ側が取り直す（onState の connected で知る）。
    */
-  async request<M extends TreeMethod | TermMethod | BlobMethod>(
+  async request<M extends TreeMethod | TermMethod | BlobMethod | ShjMethod>(
     method: M,
     params: Requests[M]["params"],
   ): Promise<Requests[M]["result"]> {

@@ -347,11 +347,18 @@ export function currentFile(
   if (!pane || (pane.kind !== "text" && pane.kind !== "image")) {
     return undefined;
   }
+  return relativeIn(pane.id, root);
+}
+
+/** 絶対パスの file を、root からの相対パス（ツリーの行の path と同じ）にする。root の外・root そのものは undefined。 */
+export function relativeIn(
+  file: string | undefined,
+  root: string | undefined,
+): string | undefined {
+  if (!file || !root) return undefined;
   const base = root.endsWith("/") ? root : `${root}/`;
-  if (!pane.id.startsWith(base) || pane.id.length === base.length) {
-    return undefined;
-  }
-  return pane.id.slice(base.length);
+  if (!file.startsWith(base) || file.length === base.length) return undefined;
+  return file.slice(base.length);
 }
 
 /** file.open が断られたときに出す文。 */

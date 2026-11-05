@@ -11,7 +11,6 @@ import (
 	"bufio"
 	"encoding/json"
 	"errors"
-	"io"
 	"net"
 	"os"
 	"path/filepath"
@@ -19,6 +18,7 @@ import (
 	"time"
 
 	"github.com/mm1995tk/shijimi-editor/core/ctl"
+	"github.com/mm1995tk/shijimi-editor/ui/gui/rpc"
 )
 
 // primaryShj はプライマリターミナルで動いている shj。GUI へは workspace の primaryShj で届く。
@@ -26,7 +26,9 @@ type primaryShj struct {
 	// Socket はその shj の制御用ソケット（core/ctl）の場所。
 	Socket string `json:"socket"`
 	PID    int    `json:"pid"`
-	wsID   string // 名乗ったときのワークスペース（リンクを消すため。ワークスペースが先に消えても分かる）
+	// File はその shj が今出しているファイル（絶対パス）。テキストか画像を出していなければ空。
+	File string `json:"file,omitempty"`
+	wsID string // 名乗ったときのワークスペース（リンクを消すため。ワークスペースが先に消えても分かる）
 }
 
 type primaryServer struct {
@@ -98,12 +100,18 @@ func (s *Server) stopPrimary() {
 	p.wg.Wait()
 }
 
-// primaryConn は 1 本の接続。名乗りを受けて、切れるまで待つ。
+// primaryConn は 1 本の接続。名乗りを受けて、切れるまで読む。名乗りのあとに来る 1 行ずつの
+// ctl.PrimaryFile は、その shj が出しているファイル。読めない行は捨てる。
 func (s *Server) primaryConn(c net.Conn) {
 	_ = c.SetReadDeadline(time.Now().Add(5 * time.Second))
-	br := bufio.NewReader(io.LimitReader(c, 64<<10))
+	sc := bufio.NewScanner(c)
+	sc.Buffer(make([]byte, 0, 4<<10), 64<<10)
+	if !sc.Scan() {
+		reply(c, errors.New("no hello"))
+		return
+	}
 	var h ctl.PrimaryHello
-	if err := json.NewDecoder(br).Decode(&h); err != nil {
+	if err := json.Unmarshal(sc.Bytes(), &h); err != nil {
 		reply(c, err)
 		return
 	}
@@ -114,7 +122,12 @@ func (s *Server) primaryConn(c net.Conn) {
 	}
 	reply(c, nil)
 	_ = c.SetReadDeadline(time.Time{})
-	_, _ = io.Copy(io.Discard, c) // 何も読まない。切れたら戻る
+	for sc.Scan() { // 切れたら終わる
+		var f ctl.PrimaryFile
+		if json.Unmarshal(sc.Bytes(), &f) == nil && (f.File == "" || filepath.IsAbs(f.File)) {
+			s.ws.setShjFile(claim, f.File)
+		}
+	}
 	s.ws.releaseShj(claim)
 }
 
@@ -173,6 +186,94 @@ func (w *wsManager) releaseShj(claim *primaryShj) {
 	w.mu.Unlock()
 	w.unlinkShj(claim)
 	w.recompute()
+}
+
+// setShjFile は claim の shj が出しているファイルを覚え、変わっていれば GUI に知らせる。
+// 別の shj に替わっていれば何もしない。
+func (w *wsManager) setShjFile(claim *primaryShj, file string) {
+	w.mu.Lock()
+	changed := false
+	for _, st := range w.reg {
+		if st.shj == claim && claim.File != file {
+			claim.File = file
+			changed = true
+		}
+	}
+	w.mu.Unlock()
+	if changed {
+		w.recompute()
+	}
+}
+
+// shjOpenTimeout は shj の制御用ソケットに頼むときの待ち時間。
+const shjOpenTimeout = 5 * time.Second
+
+// primaryRequest は shj.open。ツリーで押したファイルを、ワークスペースのプライマリの shj で開かせる。
+// path はワークスペースのルートからの相対パス（file.open と同じ検査）。プライマリに shj がいなければ not_found。
+func (ss *session) primaryRequest(req *rpc.Message) (res any, err error, handled bool) {
+	if req.Method != "shj.open" {
+		return nil, nil, false
+	}
+	if err := ss.needHello(); err != nil {
+		return nil, err, true
+	}
+	var p struct {
+		WorkspaceID string `json:"workspaceId"`
+		Path        string `json:"path"`
+	}
+	if err := json.Unmarshal(req.Params, &p); err != nil {
+		return nil, invalidParams(err), true
+	}
+	rel, err := cleanRel(p.Path)
+	if err != nil {
+		return nil, err, true
+	}
+	if rel == "" {
+		return nil, rpc.Errorf(rpc.CodeInvalidParams, "the workspace root is not a file"), true
+	}
+	w := ss.srv.ws
+	root, ok := w.rootOf(p.WorkspaceID)
+	if !ok {
+		return nil, rpc.Errorf(rpc.CodeNotFound, "no such workspace: %s", p.WorkspaceID), true
+	}
+	full := filepath.Join(root, filepath.FromSlash(rel))
+	if err := checkFile(root, full, rel); err != nil {
+		return nil, err, true
+	}
+	w.mu.Lock()
+	var sock string
+	if st := w.reg[p.WorkspaceID]; st != nil && st.shj != nil {
+		sock = st.shj.Socket
+	}
+	w.mu.Unlock()
+	if sock == "" {
+		return nil, rpc.Errorf(rpc.CodeNotFound, "no shj in the primary terminal of %s", p.WorkspaceID), true
+	}
+	if err := askShjToOpen(sock, full); err != nil {
+		return nil, rpc.Errorf(rpc.CodeInternalError, "%v", err), true
+	}
+	return struct{}{}, nil, true
+}
+
+// askShjToOpen は shj の制御用ソケット（core/ctl）に open を頼む。
+func askShjToOpen(sock, full string) error {
+	c, err := net.DialTimeout("unix", sock, shjOpenTimeout)
+	if err != nil {
+		return err
+	}
+	defer c.Close()
+	_ = c.SetDeadline(time.Now().Add(shjOpenTimeout))
+	if err := json.NewEncoder(c).Encode(ctl.Request{Cmd: "open", Path: full}); err != nil {
+		return err
+	}
+	var r ctl.Response
+	if err := json.NewDecoder(c).Decode(&r); err != nil {
+		return err
+	}
+	if !r.OK {
+		return errors.New(r.Error)
+	}
+	return nil
 }
 
 // linkShj は同じワークスペースのほかのターミナルが引く先（ctl.GUILinkPath）に、claim の shj のソケットへのリンクを置く。
