@@ -17,6 +17,7 @@ type fakeCores struct {
 	saved    []string
 	released []string
 	closed   []string
+	renamed  []string // "from>to"
 	openErr  error    // what Open returns
 	failSave []string // what SaveAll cannot save
 }
@@ -46,6 +47,12 @@ func (f *fakeCores) Release(id string) {
 	defer f.mu.Unlock()
 	f.released = append(f.released, id)
 	delete(f.files, id)
+}
+
+func (f *fakeCores) Renamed(from, to string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.renamed = append(f.renamed, from+">"+to)
 }
 
 func (f *fakeCores) Close(id string) {

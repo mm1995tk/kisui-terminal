@@ -38,6 +38,8 @@ interface RowHandlers {
   onOpen?: (path: string) => void;
   /** ファイルの欄で開いているファイル（強調する行の path） */
   current?: string;
+  /** 行を右クリックした（画面上の位置つき）。省くとメニューを出さない */
+  onMenu?: (row: TreeRow, x: number, y: number) => void;
 }
 
 /**
@@ -49,12 +51,29 @@ export function TreeView(
   props: RowHandlers & {
     rows: TreeRow[];
     label: string;
+    /** 「親のフォルダへ」のボタン。省くと出さない */
+    onUp?: () => void;
   },
 ): JSX.Element {
   return (
-    <div class="tree" role="tree" aria-label={props.label}>
-      <Nodes nodes={nest(props.rows)} handlers={props} />
-    </div>
+    <>
+      <Show when={props.onUp}>
+        <button
+          type="button"
+          class="tree-up"
+          title="プライマリターミナルで cd .. を実行します"
+          onClick={() => props.onUp?.()}
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M8 13V3M4 7l4-4 4 4" />
+          </svg>
+          親のフォルダへ
+        </button>
+      </Show>
+      <div class="tree" role="tree" aria-label={props.label}>
+        <Nodes nodes={nest(props.rows)} handlers={props} />
+      </div>
+    </>
   );
 }
 
@@ -120,6 +139,11 @@ function Row(props: { row: TreeRow; handlers: RowHandlers }): JSX.Element {
         title={r().path}
         tabIndex={0}
         onClick={() => act()}
+        onContextMenu={(e) => {
+          if (!props.handlers.onMenu) return;
+          e.preventDefault();
+          props.handlers.onMenu(r(), e.clientX, e.clientY);
+        }}
         onKeyDown={(e) => {
           if (act(e.key)) e.preventDefault();
         }}

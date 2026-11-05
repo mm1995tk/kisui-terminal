@@ -92,7 +92,21 @@ import {
 } from "./ssh/machines.ts";
 import { Session, type SessionState } from "./ssh/session.ts";
 import { tauriShell } from "./ssh/tauri.ts";
-import { currentFile, openErrorText, rows as treeRows } from "./tree/model.ts";
+import {
+  currentFile,
+  openErrorText,
+  rows as treeRows,
+  type TreeRow,
+} from "./tree/model.ts";
+import {
+  absolutePath,
+  newEntryDefault,
+  newEntryPath,
+  parentPath,
+  renamedPath,
+  type TreeMenuAction,
+} from "./tree/menu.ts";
+import { DeleteDialog, NameDialog } from "./tree/TreeDialogs.tsx";
 import { WorkspaceTrees } from "./tree/trees.ts";
 import { directionKey, isNewTermKey } from "./terminal/grid.ts";
 import { TermGroup, TermGroups } from "./terminal/group.ts";
@@ -741,6 +755,129 @@ function Workbench(props: {
     else focusFilesWhenShown = true;
   }
 
+  // ツリーの右クリックのメニューから開いた窓（名前を入れる・削除の確認）
+  const [treeDialog, setTreeDialog] = createSignal<{
+    kind: "new-file" | "new-dir" | "rename" | "delete";
+    target: string;
+    id: WorkspaceId;
+    /** 新規は入れるフォルダ、名前の変更と削除は対象（ルートからの相対パス。ルートは ""） */
+    path: string;
+    dir: boolean;
+  } | null>(null);
+
+  /** ツリーの行のメニューで項目を選んだ。コピーと cd はすぐ、新規・名前の変更・削除は窓を出す。 */
+  function treeAction(
+    target: string,
+    id: WorkspaceId,
+    row: TreeRow,
+    action: TreeMenuAction,
+  ) {
+    const root = rootOf(target, id);
+    if (root === undefined) return;
+    switch (action) {
+      case "copy-name":
+        void clipboard.write(row.name);
+        break;
+      case "copy-relative":
+        void clipboard.write(row.path);
+        break;
+      case "copy-absolute":
+        void clipboard.write(absolutePath(root, row.path));
+        break;
+      case "cd":
+        void sendCd(target, id, absolutePath(root, row.path));
+        break;
+      case "new-file":
+      case "new-dir":
+        setTreeDialog({
+          kind: action,
+          target,
+          id,
+          path: row.path,
+          dir: true,
+        });
+        break;
+      case "rename":
+      case "delete":
+        setTreeDialog({
+          kind: action,
+          target,
+          id,
+          path: row.path,
+          dir: row.dir,
+        });
+        break;
+    }
+  }
+
+  /**
+   * ワークスペースのプライマリターミナルに cd を送る（path が無ければ cd ..）。フォルダ（ワークスペースの root）は
+   * そのシェルの cwd で決まるので、シェルが cd すればツリーも切り替わる。
+   */
+  async function sendCd(target: string, id: WorkspaceId, path?: string) {
+    const s = sessions()[target];
+    const term = workspaces()[target]?.find((w) => w.id === id)?.primary;
+    if (!s || !term) return;
+    setFocusError(null);
+    try {
+      await s.request("term.cd", { termId: term, path });
+    } catch (e) {
+      const running =
+        e instanceof RpcError &&
+        e.code === ErrorCode.Busy &&
+        (e.data as { reason?: string } | undefined)?.reason === "running";
+      setFocusError({
+        title: "プライマリターミナルに cd を送れませんでした",
+        error: running
+          ? "プライマリターミナルでプログラムが動いています。終わらせてからもう一度試してください。"
+          : e instanceof Error
+            ? e.message
+            : String(e),
+      });
+    }
+  }
+
+  /** 名前を入れる窓で決めた。断られたら例外を投げる（窓が理由を出す）。 */
+  async function submitTreeName(value: string) {
+    const d = treeDialog();
+    const s = d && sessions()[d.target];
+    if (!d || !s) return;
+    if (d.kind === "rename") {
+      const to = renamedPath(d.path, value);
+      if (to !== null) {
+        await s.request("tree.rename", {
+          workspaceId: d.id,
+          from: d.path,
+          to,
+        });
+      }
+    } else {
+      const path = newEntryPath(value, d.kind === "new-file" ? "file" : "dir");
+      if (path !== null) {
+        const kind = d.kind === "new-file" ? "file" : "dir";
+        await s.request("tree.create", { workspaceId: d.id, path, kind });
+        // 閉じているフォルダに作ったら開いて、できたものが見えるようにする
+        const t = trees.get(d.target);
+        const ws = t?.get(d.id);
+        const parent = parentPath(path);
+        if (parent !== "" && ws && !ws.expanded[parent])
+          t?.toggle(d.id, parent);
+        // TUI のツリーの a と同じく、作ったファイルはそのまま開く
+        if (kind === "file") openFile(d.target, d.id, path);
+      }
+    }
+    setTreeDialog(null);
+  }
+
+  /** 削除の確認で「削除する」を押した。断られたら例外を投げる。 */
+  async function submitTreeDelete() {
+    const d = treeDialog();
+    const s = d && sessions()[d.target];
+    if (!d || !s) return;
+    await s.request("tree.delete", { workspaceId: d.id, path: d.path });
+    setTreeDialog(null);
+  }
+
   /** ファイルの欄の入力用の textarea にキーを向ける。 */
   function focusFiles() {
     mainEl
@@ -983,6 +1120,8 @@ function Workbench(props: {
         }}
         onRemove={removeFromSidebar}
         onOpen={openFile}
+        onUp={(t, id) => void sendCd(t, id)}
+        onTreeAction={treeAction}
         currentOf={currentOf}
         ref={(el) => {
           nav = el;
@@ -1080,6 +1219,43 @@ function Workbench(props: {
             onSubmit={(name) => submitRename(t(), name)}
             onCancel={() => setRenaming(null)}
           />
+        )}
+      </Show>
+      <Show when={treeDialog()}>
+        {(d) => (
+          <Show
+            when={d().kind === "delete"}
+            fallback={
+              <NameDialog
+                title={
+                  d().kind === "new-file"
+                    ? "新しいファイル"
+                    : d().kind === "new-dir"
+                      ? "新しいフォルダ"
+                      : "名前の変更"
+                }
+                field={
+                  d().kind === "rename"
+                    ? "新しいパス（ワークスペースのフォルダから）"
+                    : "パス（ワークスペースのフォルダから）"
+                }
+                initial={
+                  d().kind === "rename" ? d().path : newEntryDefault(d().path)
+                }
+                submit={d().kind === "rename" ? "変更する" : "作る"}
+                selectName={d().kind === "rename"}
+                onSubmit={submitTreeName}
+                onCancel={() => setTreeDialog(null)}
+              />
+            }
+          >
+            <DeleteDialog
+              path={d().path}
+              dir={d().dir}
+              onYes={submitTreeDelete}
+              onCancel={() => setTreeDialog(null)}
+            />
+          </Show>
         )}
       </Show>
       <AskpassDialog ask={asks()[0]} onReply={reply} />

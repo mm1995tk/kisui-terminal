@@ -630,6 +630,10 @@ export interface Requests {
     params: { termId: TermId; cols: number; rows: number };
     result: Record<string, never>;
   };
+  "term.cd": {
+    params: { termId: TermId; path?: string };
+    result: Record<string, never>;
+  };
   "term.input": {
     params: { termId: TermId; data: string };
     result: Record<string, never>;

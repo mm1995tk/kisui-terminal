@@ -26,6 +26,9 @@ type Cores interface {
 	// ([editor.auto-save] on-switch while auto-save is off), closes them and
 	// stops the core. Open makes a core on the new folder.
 	Release(id string)
+	// Renamed moves the open files of every core that were on from (or under it,
+	// when from is a folder) to to, after tree.rename renamed it on disk.
+	Renamed(from, to string)
 	// Close stops id's core, with whatever is open in it, when the workspace is
 	// closed (its files were saved by then).
 	Close(id string)

@@ -382,6 +382,7 @@ P13-09（#385）で `Core` を `core` に移し、分割を終えた。`ui/tui` 
 | `term.restart` | → shj | `{termId}` → `{pid, cwd}`。終わったプライマリターミナルに新しいシェルを始める（`termId` はそのまま）。プライマリターミナルだけ（分割したターミナルに送ると `denied`）。ワークスペースのフォルダ（フォルダ未定なら `start_dir`）で始める。シェルがまだ動いていれば `busy` |
 | `term.resize` | → shj | `{termId, cols, rows}` → `{}` |
 | `term.input` | → shj | `{termId, data (base64)}` → `{}`。coneko-term が作ったバイト列をそのまま PTY に書く |
+| `term.cd` | → shj | `{termId, path?}` → `{}`。シェルに `cd -- '<path>'` を打つ（`path` が無ければ `cd ..`）。ツリーの「ここへ移動」「親のフォルダへ」が使う。制御文字（C0・DEL・C1）を含むパスは何も打たず `invalid_params` で断る。入力の途中の行に続けて実行されないよう、先に Ctrl+E・Ctrl+U で行を消す。シェルのほかにプログラムが前面で動いていれば（`workspace.close` の `running` と同じ判定）何も打たず `busy`（`data.reason` は `running`）で断る |
 | `term.output` | ← GUI | 通知 `{termId, seq, data (base64)}`。PTY の出力。`seq` はバイト数の累計 |
 | `term.ack` | → shj | 通知 `{termId, seq}`。GUI が処理したバイト数。shj は `seq` から 256 KiB より先までは送らない。このとき PTY は読み続けてリングバッファに溜め、溢れた分は捨てる（GUI が止まってもシェルは止めない。捨てた分は `term.attach` で取り直す）（`yes` のような大量の出力で回線と WebView が詰まらないように） |
 | `term.exit` | ← GUI | 通知 `{termId, code, signal?}`。シェルが終わった。送り残した `term.output` より先に届くことがある（GUI は `term.exit` のあとも `term.attach` で残りを取る）。溢れて捨てられた分は `term.output` の `seq` が飛んで届くので、欠けは `seq` の連続性で分かる |
@@ -490,13 +491,15 @@ GUI は複数のワークスペースのツリーを（開閉の状態を持っ�
 | `git.status` | → shj | `{workspaceId}` → `{branch, ahead?, behind?, marks: {"path": "M"}, rev}`（`rev` は git 専用の版。`Screen.Rev` とは別で、`git.changed` との前後の判定に使う）。全体の印。フォルダの印は `gitChildren` を使って GUI が求める |
 | `git.changed` | ← GUI | 通知 `{workspaceId, branch?, marks?: {"path": "M"\|null}, rev}`（`rev` は `git.status` と同じ版）。変わった分だけ（`null` は印が消えた） |
 | `tree.create` | → shj | `{workspaceId, path, kind: "file"\|"dir"}` → `{}` |
-| `tree.rename` | → shj | `{workspaceId, from, to}` → `{}` |
+| `tree.rename` | → shj | `{workspaceId, from, to}` → `{}`。開いているファイル（フォルダなら中のファイルも）のパスは、全ワークスペースの core で新しいパスに移る（TUI の `r` と同じ） |
 | `tree.delete` | → shj | `{workspaceId, path}` → `{}`。GUI が確認してから送る（TUI の `yesNo` と同じ流れ） |
 
 - パスはワークスペースのルートからの相対パス（`/` 区切り）。ルートの外へ出る（`..`、ルートの外を指すシンボリックリンクの先）パスは `denied`。
 - ファイル名が UTF-8 でないときは、`name` の不正な部分を `�` に置き換え、元のバイト列を `nameRaw`（base64）で足す。
 - 印の文字：`M` 変更、`A` 追加、`D` 削除、`R` 名前変更、`?` 追跡していない、`U` 衝突（マージ中）、`!` `.gitignore` で無視。`.git` は一覧に出さず、`tree.create` / `tree.rename` / `tree.delete` でも触れない（`denied`）。
 - GUI でファイルの行を押す（Enter・Space でも）と、`file.open` を `pane` を省いて送る（ファイルの欄でフォーカスしているペインで開く）。`seq` は `input.*` と同じ数え方。送れたら、IDE モードならキーをファイルの欄に向ける（つながっていなくて送れなかったときは移さない。初めて開くときは、画面が来てファイルの欄が出てから向ける）。断られたら（`denied`・`not_found` など）、帯を押して移れなかったときと同じ所に「<path> を開けませんでした（理由）」を `role="alert"` で出す。ワークスペースを移している途中（`workspace.focus` の返事待ち）は送らない（shj は `file.open` でフォーカスを動かさないので、開いても移った先では見えない）。ファイルの欄でフォーカスしているペイン（テキストか画像）の `id`（ファイルの絶対パス）がルートの中なら、その行を強調する（`ui/gui/app/src/tree/model.ts` の `rowAction`・`currentFile`）。
+- GUI でツリーの行を右クリックすると、メニューを出す（`ui/gui/app/src/tree/menu.ts`・`TreeMenu.tsx`）。ファイルは「名前をコピー」「相対パスをコピー」「絶対パスをコピー」「名前の変更」「削除」、フォルダはそれに「新しいファイル」「新しいフォルダ」「ここへ移動」を足す。新規・名前の変更は、ワークスペースのフォルダからのパスを入れる窓（`tree.create`・`tree.rename`。新しいファイルは作ったら `file.open` で開く＝TUI の `a` `A` `r` と同じ）、削除は確認の窓（`tree.delete`。TUI の `d` と同じ）。断られたら窓を開いたまま理由を出す。
+- 「ここへ移動」と、ツリーの上の「親のフォルダへ」は、そのワークスペースのプライマリターミナルに `term.cd` で `cd -- '<絶対パス>'` と `cd ..` を送る（フォルダはプライマリターミナルの cwd で決まるので、シェルが `cd` すればツリーも切り替わる）。パスの引用と、入力の途中の行を消す処理は shj がする。シェルのほかにプログラムが動いているときは `busy` で断られ、GUI は理由を出して何もしない。
 
 ### ssh 越しに shj を起動する
 

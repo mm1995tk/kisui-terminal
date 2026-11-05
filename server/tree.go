@@ -352,6 +352,11 @@ func (m *treeManager) rename(id, root, from, to string) (any, error) {
 	if err := os.Rename(fa, ta); err != nil {
 		return nil, fsError(err)
 	}
+	// 開いているファイル（フォルダなら中のファイル）のパスを、TUI の r と同じく新しいパスに移す。
+	if c := m.srv.coresOf(); c != nil {
+		c.Renamed(fa, ta)
+		m.srv.ScreenChanged()
+	}
 	m.changedDirs(id, root, path.Dir(fr), path.Dir(tr), fr, tr)
 	return struct{}{}, nil
 }

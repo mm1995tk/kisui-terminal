@@ -480,7 +480,7 @@ func (s *Server) notifyOwner(method string, params any) bool {
 func (ss *session) termRequest(req *rpc.Message) (res any, err error, handled bool) {
 	m := ss.srv.terms
 	switch req.Method {
-	case "term.create", "term.list", "term.attach", "term.close", "term.restart", "term.resize", "term.input":
+	case "term.create", "term.list", "term.attach", "term.close", "term.restart", "term.resize", "term.input", "term.cd":
 	default:
 		return nil, nil, false
 	}
@@ -510,11 +510,12 @@ func (ss *session) termRequest(req *rpc.Message) (res any, err error, handled bo
 		return map[string]any{"terms": list}, nil, true
 	}
 	var p struct {
-		TermID  string `json:"termId"`
-		FromSeq *int64 `json:"fromSeq"`
-		Cols    int    `json:"cols"`
-		Rows    int    `json:"rows"`
-		Data    string `json:"data"`
+		TermID  string  `json:"termId"`
+		FromSeq *int64  `json:"fromSeq"`
+		Cols    int     `json:"cols"`
+		Rows    int     `json:"rows"`
+		Data    string  `json:"data"`
+		Path    *string `json:"path"`
 	}
 	if err := json.Unmarshal(req.Params, &p); err != nil {
 		return nil, rpc.Errorf(rpc.CodeInvalidParams, "invalid params: %v", err), true
@@ -557,6 +558,23 @@ func (ss *session) termRequest(req *rpc.Message) (res any, err error, handled bo
 		t.mu.Lock()
 		t.cols, t.rows = p.Cols, p.Rows
 		t.mu.Unlock()
+		return struct{}{}, nil, true
+	case "term.cd":
+		// 制御文字（行の編集や端末の行の規律が解釈する）を含むパスは、引用しても守れないので何も打たない。
+		if p.Path != nil && hasControlChar(*p.Path) {
+			return nil, rpc.Errorf(rpc.CodeInvalidParams, "path contains control characters"), true
+		}
+		// ツリーの「ここへ移動」「親のフォルダへ」。シェルでないプログラム（vim・REPL・確認待ちなど）が
+		// 前面にいるときは、打った文字がそのプログラムへの入力になってしまうので送らず、busy で断る。
+		if t.busy() {
+			e := rpc.Errorf(rpc.CodeBusy, "a program is running in the terminal: %s", t.id)
+			e.Data, _ = json.Marshal(map[string]any{"reason": "running"})
+			return nil, e, true
+		}
+		ptmx, _ := t.proc()
+		if _, err := ptmx.Write(cdInput(p.Path)); err != nil {
+			return nil, rpc.Errorf(rpc.CodeNotFound, "terminal has exited: %s", t.id), true
+		}
 		return struct{}{}, nil, true
 	default: // term.input
 		b, err := base64.StdEncoding.DecodeString(p.Data)
@@ -668,4 +686,29 @@ func (o *oscScan) end(title string, changed bool) (string, bool) {
 		s = s[:len(s)-size]
 	}
 	return s, true
+}
+
+// shellQuote は、シェルに渡す 1 語にする（単引用符で囲み、中の ' は '\” にする。bash・zsh・fish で同じ意味）。
+func shellQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+}
+
+// hasControlChar は、s に制御文字（C0・DEL・C1）が入っているか。
+func hasControlChar(s string) bool {
+	for _, r := range s {
+		if r < 0x20 || r == 0x7f || (r >= 0x80 && r <= 0x9f) {
+			return true
+		}
+	}
+	return false
+}
+
+// cdInput は term.cd がシェルに打つ文字。入力の途中の行に続けて実行されないよう、行末へ行って
+// 行頭まで消してから打つ（Ctrl+E・Ctrl+U）。path が nil なら cd ..。
+func cdInput(path *string) []byte {
+	cmd := "cd .."
+	if path != nil {
+		cmd = "cd -- " + shellQuote(*path)
+	}
+	return []byte("\x05\x15" + cmd + "\r")
 }

@@ -21,6 +21,8 @@ import {
 import type { MachineStatus } from "../connect/status.ts";
 import type { WorkspaceId } from "../rpc/protocol.ts";
 import type { TreeRow } from "../tree/model.ts";
+import { menuItems, type TreeMenuAction } from "../tree/menu.ts";
+import { TreeMenu } from "../tree/TreeMenu.tsx";
 import { TreeView } from "../tree/TreeView.tsx";
 import {
   splitAtFocus,
@@ -55,6 +57,16 @@ interface Handlers {
   onOpen?: (target: string, id: WorkspaceId, path: string) => void;
   /** ファイルの欄で開いているファイル（ツリーで強調する行の path）。無ければ undefined */
   currentOf?: (target: string, id: WorkspaceId) => string | undefined;
+  /** ツリーの「親のフォルダへ」。省くとボタンを出さない */
+  onUp?: (target: string, id: WorkspaceId) => void;
+  /** ツリーの行を右クリックした（Sidebar が内側に渡す。App は onTreeAction を使う） */
+  onTreeMenu?: (
+    target: string,
+    id: WorkspaceId,
+    row: TreeRow,
+    x: number,
+    y: number,
+  ) => void;
 }
 
 /**
@@ -77,8 +89,27 @@ export function Sidebar(
     onRename?: (target: string) => void;
     /** 見出しのメニューの「外す」 */
     onRemove?: (target: string) => void;
+    /** ツリーの行のメニューで項目を選んだ。省くとメニューを出さない */
+    onTreeAction?: (
+      target: string,
+      id: WorkspaceId,
+      row: TreeRow,
+      action: TreeMenuAction,
+    ) => void;
   },
 ): JSX.Element {
+  // ツリーの行の右クリックのメニュー。閉じ方は見出しのメニューと同じ
+  const [treeMenu, setTreeMenu] = createSignal<{
+    target: string;
+    id: WorkspaceId;
+    row: TreeRow;
+    x: number;
+    y: number;
+  } | null>(null);
+  const openTreeMenu = props.onTreeAction
+    ? (target: string, id: WorkspaceId, row: TreeRow, x: number, y: number) =>
+        setTreeMenu({ target, id, row, x, y })
+    : undefined;
   // 見出しの右クリックのメニュー（足したマシンだけ）。出している間は、押す・Esc・スクロール・窓の切り替えで閉じる
   const [menu, setMenu] = createSignal<{
     target: string;
@@ -155,7 +186,13 @@ export function Sidebar(
         }}
       >
         <For each={split().before}>
-          {(g) => <Machine group={g} onMenu={openMenu} {...handlers(props)} />}
+          {(g) => (
+            <Machine
+              group={g}
+              onMenu={openMenu}
+              {...handlers(props, openTreeMenu)}
+            />
+          )}
         </For>
         <Show when={split().focused}>
           {(g) => (
@@ -163,7 +200,7 @@ export function Sidebar(
               group={g()}
               sticky
               onMenu={openMenu}
-              {...handlers(props)}
+              {...handlers(props, openTreeMenu)}
             />
           )}
         </Show>
@@ -183,7 +220,7 @@ export function Sidebar(
                       <BandItem
                         target={split().after.target}
                         band={b}
-                        {...handlers(props)}
+                        {...handlers(props, openTreeMenu)}
                       />
                     )}
                   </For>
@@ -192,7 +229,11 @@ export function Sidebar(
             </Show>
             <For each={split().after.groups}>
               {(g) => (
-                <Machine group={g} onMenu={openMenu} {...handlers(props)} />
+                <Machine
+                  group={g}
+                  onMenu={openMenu}
+                  {...handlers(props, openTreeMenu)}
+                />
               )}
             </For>
           </div>
@@ -207,6 +248,20 @@ export function Sidebar(
             onRename={() => props.onRename?.(m().target)}
             onRemove={() => props.onRemove?.(m().target)}
             onClose={() => setMenu(null)}
+          />
+        )}
+      </Show>
+      <Show when={treeMenu()}>
+        {(m) => (
+          <TreeMenu
+            x={m().x}
+            y={m().y}
+            label={m().row.name}
+            items={menuItems(m().row)}
+            onChoose={(a) =>
+              props.onTreeAction?.(m().target, m().id, m().row, a)
+            }
+            onClose={() => setTreeMenu(null)}
           />
         )}
       </Show>
@@ -235,8 +290,15 @@ export function Sidebar(
 }
 
 /** 子に渡す処理だけを取り出す（getter にして、props の追跡を保つ）。 */
-function handlers(props: Handlers): Handlers {
+function handlers(
+  props: Handlers,
+  onTreeMenu: Handlers["onTreeMenu"] = props.onTreeMenu,
+): Handlers {
   return {
+    onTreeMenu,
+    get onUp() {
+      return props.onUp;
+    },
     get onFocus() {
       return props.onFocus;
     },
@@ -451,6 +513,15 @@ function BandItem(
             onToggle={(p) => props.onToggle?.(props.target, b().id, p)}
             onOpen={(p) => props.onOpen?.(props.target, b().id, p)}
             current={props.currentOf?.(props.target, b().id)}
+            onMenu={
+              props.onTreeMenu
+                ? (row, x, y) =>
+                    props.onTreeMenu?.(props.target, b().id, row, x, y)
+                : undefined
+            }
+            onUp={
+              props.onUp ? () => props.onUp?.(props.target, b().id) : undefined
+            }
           />
         )}
       </Show>
@@ -512,8 +583,8 @@ function MachineMenu(props: {
     });
   });
   const choose = (run: () => void) => () => {
+    run(); // 親の <Show> の値は onClose で消えるので、先に run
     props.onClose();
-    run();
   };
   return (
     <div
