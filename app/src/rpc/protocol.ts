@@ -496,6 +496,14 @@ export interface Workspace {
   /** 分割したターミナル（0〜5 個） */
   terms: TermId[];
   files: string[];
+  /** プライマリターミナルの中で動いている TUI の shj。無ければ null（shj serve は常に送る） */
+  primaryShj?: PrimaryShj | null;
+}
+
+export interface PrimaryShj {
+  /** その shj の制御用ソケット（core/ctl）の場所 */
+  socket: string;
+  pid: number;
 }
 
 // ---- ファイルのツリー ----

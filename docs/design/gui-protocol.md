@@ -455,7 +455,7 @@ P13-09（#385）で `Core` を `core` に移し、分割を終えた。`ui/tui` 
 
 | メソッド | 向き | パラメータ → 結果 |
 | --- | --- | --- |
-| `workspace.list` | → shj | `{}` → `{workspaces: [Workspace], focus}`。`Workspace` は `{id, folder: path\|null, kind: "git"\|"shijimi"\|"cwd"\|null, name: string\|null, branch?, primary: termId, terms: [termId], files: [path]}`。`folder` が `null`（`kind` も `null`）なのはフォルダ未定のあいだ。`name` はフォルダ未定なら `null`（GUI は「（フォルダ未定）」と出す）。`primary` はプライマリターミナル、`terms` は分割したターミナル（並べる順） |
+| `workspace.list` | → shj | `{}` → `{workspaces: [Workspace], focus}`。`Workspace` は `{id, folder: path\|null, kind: "git"\|"shijimi"\|"cwd"\|null, name: string\|null, branch?, primary: termId, terms: [termId], files: [path]}`。`folder` が `null`（`kind` も `null`）なのはフォルダ未定のあいだ。`name` はフォルダ未定なら `null`（GUI は「（フォルダ未定）」と出す）。`primary` はプライマリターミナル、`terms` は分割したターミナル（並べる順）。`primaryShj` は下の「プライマリの shj」で、無ければ `null` |
 | `workspace.create` | → shj | `{}` → `{id, termId}`。フォルダ未定のワークスペースを作り、プライマリターミナルを `start_dir` で始める。`termId` はそのプライマリターミナル。作ったワークスペースにはフォーカスしない（GUI が `workspace.focus` を送る） |
 | `workspace.close` | → shj | `{id, force?: bool}` → `{}`。開いているファイルを保存して閉じ、ターミナル（プライマリと分割）を全部終わらせてワークスペースを消す。プログラムが動いているターミナルがあれば、`force` が無い限り `busy` で断る（何も閉じない。GUI は確認を出してから `force: true` で送り直す）。保存できなかったファイルがあれば、`force` に関わらず何も閉じずに `busy` で断る。`busy` の `data` に `{reason: "running" \| "unsaved", paths?: [...]}` を付け、GUI は文言を分ける（`running` は「動いているプログラムを終わらせますか」の確認、`unsaved` は保存できなかったファイルの一覧を出すだけで、確認しても送り直さない）。`force: true` が終わらせるのは動いているプログラムだけで、保存できなかったファイルは捨てずに残す（黙ってデータを失わない） |
 | `workspace.changed` | ← GUI | 通知 `{added?: [Workspace], removed?: [id], updated?: [Workspace]}`。ワークスペースが増えた / 減った / 中身（`folder`、ターミナルの増減、ブランチ、開いているファイル）が変わった。`workspace.create`・`workspace.close` を送った GUI にも届く（返事より先に来ることがある） |
@@ -465,6 +465,18 @@ P13-09（#385）で `Core` を `core` に移し、分割を終えた。`ui/tui` 
 - ファイルは、ワークスペースごとに `core` が覚える（同じファイルを複数のワークスペースで開いたときの共有は 8）。フォーカスを外しても `core` は残る（外したワークスペースの LSP を止めるかは、P14 のあとで測って決める）。
 - **前の設計から消すもの**：`term.cwd`（フォルダが変わったことは `workspace.changed` の `folder` で分かる。分割したターミナルの cwd は GUI は要らない）と `workspace.close_files`（ワークスペースは [×] でしか消えず、ファイルだけ閉じる操作は作らない。ファイルの欄から 1 つずつ閉じる）。`workspaceId` を `null` にして「ワークスペースに属さない」を表すこともしない（どのターミナルもどれかのワークスペースに属する）。
 - 空きの扱い：ワークスペースが 1 つも無いとき、GUI は何も出さずに [+] を待つ。ワークスペースを自動では作らない。
+
+#### プライマリの shj
+
+GUI はターミナルのマルチプレクサで、編集はプライマリターミナルの中で TUI の `shj` を動かして行う。`shj serve` はワークスペースごとに「プライマリで動いている shj」を 1 つ覚え、`Workspace.primaryShj`（`{socket, pid}`。無ければ `null`）で GUI に知らせる。変わると `workspace.changed` の `updated` で届く。`socket` はその shj の制御用ソケット（`core/ctl`、`<pid>.sock`）の場所。
+
+- **伝え方**：`shj serve` は、プライマリターミナルのシェルにだけ環境変数 `SHIJIMI_GUI_PRIMARY`（値はそのターミナルの `termId`）を渡す。`workspace.create` のときも `term.restart` のときも。分割したターミナル（`term.create`）には渡さない。
+- **知らせ方**：TUI の `shj` は起動して制御用ソケットを開いたあと、`SHIJIMI_GUI_PRIMARY` があれば `serve-primary.rpc`（`serve.rpc` と同じディレクトリ・ソケットは 0600、ディレクトリは 0700 で同じユーザーだけ。名前が `.sock` で終わらないのは `serve.rpc` と同じ理由）につなぎ、1 行の JSON `{termId, socket, pid}` を送る。返事は 1 行 `{ok: true}` か `{ok: false, error}`。`ok` のあいだ、つなぎっぱなしにする。
+- **終わったことの見分け方**：その接続が切れたら（`shj` が終わった、落ちた、`kill` された）、`shj serve` は `primaryShj` を `null` にする。プロセスの生存は調べない（接続が切れるのは OS がプロセスの終わりに閉じるから）。
+- **最初の 1 つだけ**：`termId` がプライマリターミナルで、そのワークスペースにまだ `primaryShj` が無いときだけ `ok`。すでにあれば（入れ子の `shj` など）、プライマリでないターミナルなら、`ok: false`。さらに `shj` は名乗ったあと（名乗れなかったときも）自分の環境から `SHIJIMI_GUI_PRIMARY` を消すので、その `shj` が起動するものは名乗りに行かない。最初の `shj` が終わったあとは、次に起動した `shj` が名乗れる。
+- **プライマリでない欄の `shj`**：変数が無いので何も送らず、普通のターミナルで起動したときと同じに動く。単一ファイルのモード（`shj <file>`）の `shj` も制御用ソケットを持たないので名乗らない。
+- **この仕組みの範囲**：TUI の見た目や動きは変えない。ツリーやショートカットの出し分けは `primaryShj` を見る後続の Issue（#550〜）で行う。
+
 
 ### ファイルのツリー
 

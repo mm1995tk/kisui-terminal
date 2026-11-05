@@ -87,6 +87,7 @@ type Server struct {
 	screenMu   sync.Mutex      // 画面の配信（session.view と送る順）を守る
 	ctlSrv     *core.CtlServer // StartControl で開く
 	ideSrv     *core.IDEServer // StartIDE で開く
+	primary    *primaryServer  // プライマリの shj の知らせを受ける口（Serve で開く）
 }
 
 // ErrRunning はすでに別の shj serve が動いているときのエラー。
@@ -147,6 +148,7 @@ func (s *Server) Serve(ctx context.Context) error {
 	go s.ws.watch(idleDone)
 	go s.tree.watch(idleDone)
 	go s.screenLoop(idleDone)
+	s.startPrimary()
 	for {
 		c, err := s.ln.Accept()
 		if err != nil {
@@ -186,6 +188,7 @@ func (s *Server) shutdown() {
 	if is != nil {
 		is.Close()
 	}
+	s.stopPrimary()
 	s.terms.shutdown()
 	s.wg.Wait()
 }

@@ -36,6 +36,8 @@ type wsInfo struct {
 	Primary string   `json:"primary"` // プライマリターミナル
 	Terms   []string `json:"terms"`   // 分割したターミナル
 	Files   []string `json:"files"`
+	// PrimaryShj は GUI のプライマリターミナルの中で動いている TUI の shj。無ければ null。
+	PrimaryShj *primaryShj `json:"primaryShj"`
 
 	root string // Folder の値。未定なら ""
 	seq  int    // 作った順
@@ -48,6 +50,7 @@ type wsState struct {
 	root    string // 正規化済み。未定なら ""
 	kind    string
 	primary string // プライマリターミナルの id
+	shj     *primaryShj
 }
 
 type wsManager struct {
@@ -217,7 +220,7 @@ func (w *wsManager) recomputeLocked() {
 func buildWorkspaces(states []*wsState, terms []*terminal, cores Cores) map[string]*wsInfo {
 	next := map[string]*wsInfo{}
 	for _, st := range states {
-		x := &wsInfo{ID: st.id, Primary: st.primary, Terms: []string{}, Files: []string{}, root: st.root, seq: st.seq}
+		x := &wsInfo{ID: st.id, Primary: st.primary, Terms: []string{}, Files: []string{}, root: st.root, seq: st.seq, PrimaryShj: st.shj}
 		if st.root != "" {
 			folder, kind, name := st.root, st.kind, filepath.Base(st.root)
 			x.Folder, x.Kind, x.Name = &folder, &kind, &name
@@ -287,7 +290,7 @@ func changedParams(added, updated []*wsInfo, removed []string) map[string]any {
 func sortWS(l []*wsInfo) { sort.Slice(l, func(i, j int) bool { return l[i].seq < l[j].seq }) }
 
 func wsEqual(a, b *wsInfo) bool {
-	return a.root == b.root && ptrEq(a.Kind, b.Kind) && a.Branch == b.Branch && a.Primary == b.Primary &&
+	return a.root == b.root && ptrEq(a.Kind, b.Kind) && a.Branch == b.Branch && a.Primary == b.Primary && a.PrimaryShj == b.PrimaryShj &&
 		slices.Equal(a.Terms, b.Terms) && slices.Equal(a.Files, b.Files)
 }
 

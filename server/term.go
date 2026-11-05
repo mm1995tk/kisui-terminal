@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 	"sync"
 	"syscall"
@@ -24,6 +25,7 @@ import (
 
 	"github.com/creack/pty"
 
+	"github.com/mm1995tk/shijimi-editor/core/ctl"
 	"github.com/mm1995tk/shijimi-editor/ui/gui/rpc"
 	"github.com/mm1995tk/shijimi-editor/ui/internal/term"
 )
@@ -213,8 +215,13 @@ func (m *termManager) start(a termStart) (*terminal, error) {
 		m.mu.Unlock()
 		return nil, rpc.Errorf(rpc.CodeBusy, "server is shutting down")
 	}
+	env := a.env
+	if a.primary {
+		// 起動する shj が自分で名乗れるように、プライマリにだけ渡す。ターミナルの id はこの下で振る番号。
+		env = append(slices.Clone(env), ctl.EnvGUIPrimary+"="+fmt.Sprintf("t%d", m.next+1))
+	}
 	// PTY の起動は ui/internal/term と同じ（TUI のターミナルも使う）。読み出しと流量制御はここで持つ。
-	sess, err := term.Start(term.Options{Shell: sh, Dir: a.dir, Env: a.env, Cols: a.cols, Rows: a.rows})
+	sess, err := term.Start(term.Options{Shell: sh, Dir: a.dir, Env: env, Cols: a.cols, Rows: a.rows})
 	if err != nil {
 		m.mu.Unlock()
 		return nil, rpc.Errorf(rpc.CodeInternalError, "start shell: %v", err)
@@ -325,7 +332,7 @@ func (m *termManager) restart(t *terminal) (any, error) {
 		m.mu.Unlock()
 		return nil, rpc.Errorf(rpc.CodeNotFound, "no such terminal: %s", t.id)
 	}
-	sess, err := term.Start(term.Options{Shell: term.DefaultShell(), Dir: dir, Cols: cols, Rows: rows})
+	sess, err := term.Start(term.Options{Shell: term.DefaultShell(), Dir: dir, Env: []string{ctl.EnvGUIPrimary + "=" + t.id}, Cols: cols, Rows: rows})
 	if err != nil {
 		m.mu.Unlock()
 		return nil, rpc.Errorf(rpc.CodeInternalError, "start shell: %v", err)
