@@ -91,7 +91,7 @@ type Screen struct {
     Files   *Files      // ファイルの欄
     Status  Status      // 状態行（モード、メッセージ、ブランチ、診断の数 …）
     Cmdline *Cmdline    // ":" と "/" の入力行。無ければ nil
-    Overlay []Overlay   // 補完・ホバー・シグネチャ・確認・パレット・メニュー・レビューカード・検索の窓
+    Overlay []Overlay   // 補完・ホバー・シグネチャ・確認・パレット・メニュー・レビューカード・検索の窓・エージェントの変更の承認の窓
 }
 
 type Files struct {
@@ -165,7 +165,7 @@ type Line struct {
 | `hoverAt` | 中身 | ペインの中の行と桁（`buffer.Pos`）。P10b で直した |
 | `hoverCell` | 中身 | 今は画面の座標（`screenPt`）。ポインタが止まったマスで、重複を省くだけ |
 | `ctx` | 中身 | 文脈のプレビュー（`ctxPreview`） |
-| `ide`, `props`, `lastSel`, `sentSel` | 中身 + どちらでもない | `ide.Server` はサーバー側に 1 つ（`core` の外。`cli` が作って渡す）。提案（`props` = `core.Proposals`）と選択範囲の通知（`lastSel`, `sentSel` = `core.SelectionTracker`）、ツール一覧（`core.IDETools`）は `core`。提案のスクロールは TUI |
+| `ide`, `props`, `lastSel`, `sentSel` | 中身 + どちらでもない | `ide.Server` はサーバー側に 1 つ（`core` の外。`cli` が作って渡す）。提案（`props` = `core.Proposals`）と選択範囲の通知（`lastSel`, `sentSel` = `core.SelectionTracker`）、ツール一覧（`core.IDETools`）は `core`。提案のスクロールは TUI（先頭の提案は `Overlay` に出す。スクロールは core が持つ） |
 | `ag`, `sg` | 中身 | ACP のエージェントと提案パネル。`Screen.Agent` に出す |
 | `clipboard` | 中身 | 内部のレジスタ。OS のクリップボードは GUI 側（`clipboard.write` 通知と `input.paste`） |
 | `msg`, `msgErr` | 中身 | 状態行のメッセージ。`Screen.Status` に出す |
@@ -310,6 +310,7 @@ P13-09（#385）で `Core` を `core` に移し、分割を終えた。`ui/tui` 
   - 置き方は TUI に合わせる。補完・ホバー・カードは `at` の下（入らなければ上）、シグネチャは上（1 行目なら下）、パレットは上の真ん中、メニューは右下、コメントの入力欄は下の真ん中。`at` のマス目は、ペインの見えている行（`Line.No` が `at.line` のもの）の文字の幅で数え、行番号の欄と左のペインの幅を足す。
   - 確認（`confirm`）は箱にせず、TUI と同じく状態行のメッセージの代わりに出す（y/n のときは右の項目を出さない）。
   - 検索の窓（`search`）は欄いっぱい（周りに 1 マス）の箱にする。入力欄・オプション・状態の行・一覧・プレビューの割り付けは TUI の `drawSearch` と同じで、一覧は見えている分（`scroll` から `bodyRows` 行）、プレビューは行を中心に shj が選んだ範囲だけが来る。窓のマウス操作はしない（キーだけ）。
+  - エージェントの変更の承認の窓（`proposal`）は、幅が画面の 8 割（30〜140 桁）で、上から 1 行空けて真ん中に置く。`title` は見出し（キーの案内と待っている数を含む）、`lines` は見えている差分の行（追加・削除は `band` で行いっぱいに背景を付ける）、`view` が位置と幅。差分に行が無いときは `lines` の代わりに `empty`。キーは今まで通り `Enter`（承認）と `Esc`（却下）で、core が全部のキーを受ける。
   - ポップアップを押しても shj には送らない（キーを受ける `textarea` からフォーカスを外さないだけ）。レビューカードの画像（`images`）は E6 で描く。
 - GUI の実装（E6）で決めた細部（`ui/gui/app/src/files/blob.ts`・`diff.ts`・`MediaView.tsx`・`layout.ts`）：
   - `blob.get` は `eof` まで `offset` をずらして分けて取り、つないで `Blob` の URL にする。つなぎ先ごとに覚え（鍵は `ImageRef` の `blob`・`width`・`height`・`size`）、新しく使った順に 64 個まで残す。取れなかったもの（`not_found`）は覚えず、次に出たときに取り直す。

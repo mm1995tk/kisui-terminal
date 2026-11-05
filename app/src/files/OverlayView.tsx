@@ -76,6 +76,7 @@ const KIND_LABEL: Record<string, string> = {
   menu: "メニュー",
   reviewCard: "レビュー",
   search: "検索",
+  proposal: "エージェントの変更",
 };
 
 function OverlayBox(props: {
@@ -164,6 +165,10 @@ function OverlayBody(props: {
       );
     case "menu":
       return <MenuBody overlay={ov()} box={props.box} theme={props.theme} />;
+    case "proposal":
+      return (
+        <ProposalBody overlay={ov()} box={props.box} theme={props.theme} />
+      );
     case "search":
       return <SearchBody overlay={ov()} box={props.box} theme={props.theme} />;
     case "palette":
@@ -278,6 +283,45 @@ function ScrollBody(props: {
         <span class="files-pop-dim files-pop-label">{ov().hint ?? ""}</span>
         <span class="files-pop-dim">{indicator()}</span>
       </div>
+    </>
+  );
+}
+
+/**
+ * エージェントの変更の承認の窓。見出し（キーの案内を含む）、差分の見えている行、
+ * 全部見えていなければ位置の行。追加・削除の行は行いっぱいに背景を付ける。
+ */
+function ProposalBody(props: {
+  overlay: Overlay;
+  box: Box;
+  theme: Theme | null;
+}): JSX.Element {
+  const ov = () => props.overlay;
+  const cols = () => Math.max(1, props.box.w - 2);
+  const indicator = createMemo(() => scrollIndicator(ov()));
+  return (
+    <>
+      <div class="files-pop-row files-pop-pad files-pop-accent">
+        {ov().title ?? ""}
+      </div>
+      <Show when={ov().empty}>
+        <div class="files-pop-row files-pop-pad">{ov().empty}</div>
+      </Show>
+      <For each={ov().lines ?? []}>
+        {(l) => (
+          <div
+            class="files-pop-row files-pop-pad"
+            style={{ background: colorOf(props.theme, l.band) }}
+          >
+            <LineRuns line={l} cols={cols()} theme={props.theme} />
+          </div>
+        )}
+      </For>
+      <Show when={indicator()}>
+        <div class="files-pop-row files-pop-pad files-pop-foot">
+          <span class="files-pop-dim">{indicator()}</span>
+        </div>
+      </Show>
     </>
   );
 }

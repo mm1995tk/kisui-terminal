@@ -272,6 +272,18 @@ export function overlayBox(
         h,
       };
     }
+    case "proposal": {
+      // 見出し、差分の行、（全部見えていなければ）位置の行。上から 1 行空けて真ん中（TUI の renderProposal）
+      const w = viewBoxWidth(ov, area);
+      const rows = Math.max(1, ov.lines?.length ?? (ov.empty ? 1 : 0));
+      const h = Math.min(area.rows, 1 + rows + (scrollIndicator(ov) ? 1 : 0));
+      return {
+        x: Math.max(0, Math.floor((area.cols - w) / 2)),
+        y: Math.min(1, Math.max(0, area.rows - h)),
+        w,
+        h,
+      };
+    }
     case "palette": {
       const w = paletteWidth(area);
       const h = 1 + (ov.items?.length ?? 0) + (ov.hint ? 1 : 0);

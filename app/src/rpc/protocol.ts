@@ -266,7 +266,8 @@ export type OverlayKind =
   | "palette"
   | "menu"
   | "reviewCard"
-  | "search";
+  | "search"
+  | "proposal";
 
 /** 一覧の 1 行（補完の候補、パレットの項目、メニュー）。Go の screen.Item。 */
 export interface Item {
@@ -320,6 +321,8 @@ export interface Overlay {
   /** レビューカードの中の画像。row は lines の no と同じ表示行の番号 */
   images?: PreviewImage[] | null;
   compose?: Compose;
+  /** エージェントの変更の承認の窓で、差分に行が無いときの文言（lines の代わり） */
+  empty?: string;
   /** 検索の窓。title は見出し、hint は状態の行の右に出すキーの一覧 */
   search?: Search;
 }

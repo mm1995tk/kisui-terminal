@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import type { Files, Overlay, Pane } from "../rpc/protocol.ts";
+import type { Files, Line, Overlay, Pane } from "../rpc/protocol.ts";
 import { statusLeft, statusRight } from "./bars.ts";
 import {
   anchorCell,
@@ -371,5 +371,42 @@ describe("検索の窓", () => {
     assert.equal(searchMarker(true, true), "x ");
     assert.equal(searchMarker(false, true), "> ");
     assert.equal(searchMarker(false, false), "  ");
+  });
+});
+
+describe("エージェントの変更の承認の窓", () => {
+  const line = (no: number): Line => ({ no, spans: [{ text: `  ${no}` }] });
+  const proposal = (total: number, shown: number, top = 0): Overlay => ({
+    kind: "proposal",
+    active: 0,
+    title: "t",
+    lines: Array.from({ length: shown }, (_, i) => line(top + i)),
+    view: { top, rows: shown, cols: 50, left: 0, total },
+  });
+
+  it("上から 1 行空けて真ん中に置き、全部見えていれば見出しと行だけ", () => {
+    assert.deepEqual(
+      overlayBox(proposal(3, 3), undefined, { cols: 100, rows: 30 }),
+      { x: 24, y: 1, w: 52, h: 4 },
+    );
+  });
+
+  it("全部見えていなければ位置の行を足す", () => {
+    assert.deepEqual(
+      overlayBox(proposal(10, 3), undefined, { cols: 100, rows: 30 }),
+      { x: 24, y: 1, w: 52, h: 5 },
+    );
+  });
+
+  it("差分に行が無いときは文言の 1 行", () => {
+    const ov: Overlay = { kind: "proposal", active: 0, empty: "x" };
+    assert.equal(
+      overlayBox(
+        { ...ov, view: { top: 0, rows: 4, cols: 40, left: 0, total: 1 } },
+        undefined,
+        { cols: 100, rows: 30 },
+      )?.h,
+      2,
+    );
   });
 });
