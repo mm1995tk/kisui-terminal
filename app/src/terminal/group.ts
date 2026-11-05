@@ -140,6 +140,14 @@ export class TermGroup {
     return true;
   }
 
+  /** 今使っている分割したターミナルを閉じる（Cmd+W）。プライマリターミナルは閉じず false。閉じたら true。 */
+  closeActive(): boolean {
+    const l = this.current;
+    if (!l || l.primary || !this.links.includes(l)) return false;
+    this.exited(l);
+    return true;
+  }
+
   private newLink(id: TermId, primary: boolean): TermLink {
     const l = new TermLink(this.port, id, this.onError, { primary });
     if (!primary) l.onExit = () => this.exited(l);

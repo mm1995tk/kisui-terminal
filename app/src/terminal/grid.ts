@@ -7,6 +7,7 @@
 // DOM を使わないので node --test で確かめられる。
 
 import type { KeyLike } from "../files/input.ts";
+import { isCmdKey, isCmdOptionKey } from "../guiKeys.ts";
 import { isCtrlShift } from "../mode.ts";
 
 /** 並べられるターミナルの数の上限。 */
@@ -62,9 +63,9 @@ export function neighbor(i: number, n: number, dir: Direction): number {
   }
 }
 
-/** Ctrl+Shift+矢印なら向き、そうでなければ null。 */
-export function directionKey(e: KeyLike): Direction | null {
-  if (!isCtrlShift(e)) return null;
+/** Ctrl+Shift+矢印（Mac は Cmd+Option+矢印も）なら向き、そうでなければ null。 */
+export function directionKey(e: KeyLike, mac = false): Direction | null {
+  if (!(isCtrlShift(e) || (mac && isCmdOptionKey(e)))) return null;
   switch (e.key) {
     case "ArrowLeft":
       return "left";
@@ -79,8 +80,9 @@ export function directionKey(e: KeyLike): Direction | null {
   }
 }
 
-/** 新しいターミナルを作るキー（Ctrl+Shift+T）か。 */
-export function isNewTermKey(e: KeyLike): boolean {
+/** 新しいターミナルを作るキー（Ctrl+Shift+T。Mac は Cmd+T も）か。 */
+export function isNewTermKey(e: KeyLike, mac = false): boolean {
+  if (mac && isCmdKey(e, "t")) return true;
   if (!isCtrlShift(e)) return false;
   return e.code === "KeyT" || e.key === "T" || e.key === "t";
 }

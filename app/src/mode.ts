@@ -2,7 +2,7 @@
 //
 // - IDE モードは、上が大きなファイルの欄、右下が小さなターミナル。ターミナルモードはその 2 枚のカードを
 //   入れ替え、上が大きなターミナル、下が小さなファイルの欄になる。どちらのカードも隠さない（タブにしない）。
-// - Ctrl+Shift+` で入れ替える。GUI が受けるキーなので shj にもシェルにも送らない。
+// - Ctrl+Shift+`（Mac は Cmd+J も）で入れ替える。GUI が受けるキーなので shj にもシェルにも送らない。
 // - 入れ替えは約 0.3 秒の動きにする（FLIP：先に割り付けを変え、前の位置と大きさから今のものへ動かす）。
 //   割り付けはすぐ変わるので、ファイルの欄とターミナルの大きさ（view.resize・term.resize）もすぐ変わる。
 //   カードは作り直さないので、中身は動き続ける。
@@ -11,6 +11,7 @@
 //   上がファイルの欄・下がターミナルに戻る。ターミナルモードは、開いていなくても今のまま変えない。
 
 import type { KeyLike } from "./files/input.ts";
+import { isCmdKey } from "./guiKeys.ts";
 import type { Files } from "./rpc/protocol.ts";
 
 export type Mode = "ide" | "terminal";
@@ -22,7 +23,8 @@ export const SWAP_MS = 300;
  * IDE モードとターミナルモードを入れ替えるキー（Ctrl+Shift+`）か。
  * Shift を押すと key は "~" になる配列があり、JIS では ` が Shift+@ なので、code と key のどれかで見る。
  */
-export function isModeKey(e: KeyLike): boolean {
+export function isModeKey(e: KeyLike, mac = false): boolean {
+  if (mac && isCmdKey(e, "j")) return true;
   if (!isCtrlShift(e)) return false;
   return e.code === "Backquote" || e.key === "`" || e.key === "~";
 }

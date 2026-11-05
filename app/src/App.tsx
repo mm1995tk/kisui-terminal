@@ -108,6 +108,7 @@ import {
 } from "./tree/menu.ts";
 import { DeleteDialog, NameDialog } from "./tree/TreeDialogs.tsx";
 import { WorkspaceTrees } from "./tree/trees.ts";
+import { cmdDigit, IS_MAC, isCloseTermKey } from "./guiKeys.ts";
 import { directionKey, isNewTermKey } from "./terminal/grid.ts";
 import { TermGroup, TermGroups } from "./terminal/group.ts";
 import { TerminalGrid } from "./terminal/TerminalGrid.tsx";
@@ -314,16 +315,27 @@ function Workbench(props: {
   const offs: (() => void)[] = [];
   // GUI が受けるキーなので、欄やターミナルに届く前（capture）に取って、shj にもシェルにも送らない
   const onGuiKey = (e: KeyboardEvent) => {
-    if (isModeKey(e)) {
+    if (isModeKey(e, IS_MAC)) {
       e.preventDefault();
       e.stopPropagation();
       if (!e.repeat) toggleMode();
       return;
     }
-    if (isNewTermKey(e)) {
+    if (isNewTermKey(e, IS_MAC)) {
       e.preventDefault();
       e.stopPropagation();
       if (!e.repeat) newTerminal();
+      return;
+    }
+    // Cmd+1〜9（Mac）：サイドバーの上から順にワークスペースを選ぶ。足りなければ何もしない
+    const nth = IS_MAC ? cmdDigit(e) : null;
+    if (nth !== null) {
+      e.preventDefault();
+      e.stopPropagation();
+      const b = groups().flatMap((g) =>
+        g.bands.map((x) => [g.target, x.id] as const),
+      )[nth];
+      if (b && !e.repeat) void focusWorkspace(b[0], b[1]);
       return;
     }
     // リサイズモード（#526）：キーは境界を動かすのに使い、ファイルの欄にもターミナルにも送らない。Alt+R で入る
@@ -346,9 +358,17 @@ function Workbench(props: {
       return;
     }
     // 隣へ移るのは、ターミナルを並べていて、キーがターミナルに向いているときだけ（ファイルの欄の Ctrl+Shift+矢印は shj に送る）
-    const dir = directionKey(e);
+    const dir = directionKey(e, IS_MAC);
     const card = mainEl?.querySelector(":scope > .terminal");
-    if (dir && mode() === "terminal" && card?.contains(e.target as Node)) {
+    const inTerm = !!card?.contains(e.target as Node);
+    // Cmd+W（Mac）：キーがターミナルに向いているときだけ、分割したターミナルを閉じる。プライマリは閉じず、何もしない
+    if (isCloseTermKey(e, IS_MAC) && inTerm) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!e.repeat) termGroup()?.closeActive();
+      return;
+    }
+    if (dir && mode() === "terminal" && inTerm) {
       e.preventDefault();
       e.stopPropagation();
       if (termGroup()?.move(dir)) focusTerminal();

@@ -197,6 +197,41 @@ describe("TermGroup", () => {
     assert.deepEqual(ids(g), ["t1", "t3"]);
   });
 
+  it("closeActive：分割したターミナルを閉じて term.close を送り、隣が active になる。同じ id の term.exit が来ても二重に閉じない", async () => {
+    const f = fakePort();
+    const g = new TermGroup(f.port, layout(["t2", "t3"]), () => {});
+    bindAll(g);
+    await tick();
+    g.setActive(1);
+    f.calls.length = 0;
+    assert.equal(g.closeActive(), true);
+    await tick();
+    assert.deepEqual(ids(g), ["t1", "t3"]);
+    assert.equal(g.active?.id, "t3");
+    g.handle({ method: "term.exit", params: { termId: "t2", code: 0 } });
+    await tick();
+    assert.deepEqual(ids(g), ["t1", "t3"]);
+    assert.equal(
+      f.calls.filter((c) => c.method === "term.close").length,
+      1,
+      "term.close は 1 回だけ",
+    );
+  });
+
+  it("closeActive：プライマリターミナルが active なら何も閉じず、term.close も送らない", async () => {
+    const f = fakePort();
+    const g = new TermGroup(f.port, layout(["t2"]), () => {});
+    bindAll(g);
+    await tick();
+    f.calls.length = 0;
+    assert.equal(g.active?.id, "t1");
+    assert.equal(g.closeActive(), false);
+    await tick();
+    assert.deepEqual(ids(g), ["t1", "t2"]);
+    assert.equal(g.active?.id, "t1");
+    assert.ok(!f.calls.some((c) => c.method === "term.close"));
+  });
+
   it("プライマリターミナルのシェルが終わっても欄を閉じず、Enter で作り直せる", async () => {
     const f = fakePort();
     const g = new TermGroup(f.port, layout(["t2"]), () => {});

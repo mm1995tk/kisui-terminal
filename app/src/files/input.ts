@@ -7,6 +7,7 @@
 // - ダブルクリックなどの回数（clicks）は ClickCounter が数える。
 // - ホイールの px は WheelAccumulator が行と桁にする（端数は次に持ち越す）。
 
+import { isCmdGuiKey } from "../guiKeys.ts";
 import type { InputKeyParams, Mod } from "../rpc/protocol.ts";
 
 /** KeyboardEvent のうち、ここで使う項目。 */
@@ -78,9 +79,11 @@ export function isPasteKey(e: KeyLike, mac: boolean): boolean {
 /**
  * GUI 自身が受けるキー（shj に送らない）。貼り付けのキーと、ターミナルの Ctrl+Shift+T・Ctrl+Shift+`
  * （ターミナルを新しく作る、IDE モードとターミナルモードの切り替え。設計書 3 章と 6 章の F3・F4）。
+ * macOS は、どこでも効く Cmd+T・Cmd+J・Cmd+1〜9 も（guiKeys.ts。Cmd+W と Cmd+Option+矢印は、ファイルの欄では shj に送る）。
  */
 export function isGuiKey(e: KeyLike, mac: boolean): boolean {
   if (isPasteKey(e, mac)) return true;
+  if (mac && isCmdGuiKey(e)) return true;
   if (!e.ctrlKey || !e.shiftKey || e.altKey || e.metaKey) return false;
   const k = e.key.toLowerCase();
   return k === "t" || e.code === "Backquote" || k === "`" || k === "~";
