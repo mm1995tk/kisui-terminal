@@ -122,7 +122,7 @@ describe("buildSidebar", () => {
     assert.deepEqual(
       groups.map((g) => [g.label, g.health]),
       [
-        ["このマシン", "down"],
+        ["ローカル", "down"],
         ["dev-vm", "up"],
       ],
     );
@@ -271,14 +271,14 @@ describe("splitAtFocus", () => {
 });
 
 describe("buildSidebar の見出し", () => {
-  it("labelOf で名前を差し替え、「このマシン」だけ外せない", () => {
+  it("labelOf で名前を差し替え、「ローカル」だけ外せない", () => {
     const groups = buildSidebar([LOCAL, "dev"], {}, {}, null, {}, (t) =>
-      t === "dev" ? "開発" : "このマシン",
+      t === "dev" ? "開発" : "ローカル",
     );
     assert.deepEqual(
       groups.map((g) => [g.label, g.removable]),
       [
-        ["このマシン", false],
+        ["ローカル", false],
         ["開発", true],
       ],
     );

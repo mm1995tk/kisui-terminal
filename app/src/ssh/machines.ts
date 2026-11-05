@@ -1,4 +1,4 @@
-// 足したマシンの記録。サイドバーに出るのは「このマシン」と、ここに記録したマシンだけ。
+// 足したマシンの記録。サイドバーに出るのは「ローカル」と、ここに記録したマシンだけ。
 // 記録の形は、{ target, name? } の配列を JSON にしたもの（target は ssh の行き先。name は付けた名前）。
 // 置き場所は webview の localStorage（Tauri のアプリごとに残る。消えたらマシンを足し直す）。
 //
@@ -17,8 +17,8 @@ export interface KeyValueStore {
 export const FIXED_REASON =
   "設定ファイル（config.toml の [[gui.machines]]）で決めたマシンです。変えるには設定ファイルを直してください";
 
-/** 「このマシン」の表示名。 */
-export const LOCAL_LABEL = "このマシン";
+/** 「ローカル」の表示名。 */
+export const LOCAL_LABEL = "ローカル";
 
 /** 足したマシン 1 台。 */
 export interface Machine {
@@ -164,13 +164,13 @@ export function removeMachine(list: Machine[], target: string): Machine[] {
   return list.filter((m) => m.target !== target || m.fixed);
 }
 
-/** サイドバーに出す名前。付けた名前、無ければ ssh の行き先。「このマシン」はそのまま。 */
+/** サイドバーに出す名前。付けた名前、無ければ ssh の行き先。「ローカル」はそのまま。 */
 export function labelOf(list: Machine[], target: string): string {
   if (target === LOCAL) return LOCAL_LABEL;
   return list.find((m) => m.target === target)?.name ?? target;
 }
 
-/** name の名前（付けた名前か行き先）が、target 以外のマシン（と「このマシン」）と重なるか。 */
+/** name の名前（付けた名前か行き先）が、target 以外のマシン（と「ローカル」）と重なるか。 */
 function nameTaken(list: Machine[], name: string, target: string): boolean {
   if (name === LOCAL_LABEL) return true;
   return list.some((m) => m.target !== target && (m.name ?? m.target) === name);

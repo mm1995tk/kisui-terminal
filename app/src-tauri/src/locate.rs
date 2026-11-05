@@ -1,6 +1,6 @@
 //! shj の探し方。
 //!
-//! - **このマシン**：Finder や Dock から起動した macOS のアプリは、ログインシェルの PATH を引き継がない
+//! - **ローカル**：Finder や Dock から起動した macOS のアプリは、ログインシェルの PATH を引き継がない
 //!   （`/usr/bin:/bin:/usr/sbin:/sbin` だけ）。そこで、ログインシェルに PATH を聞き（時間切れ付き）、
 //!   GUI の PATH とよく使う場所（[`COMMON_DIRS`]）を足した PATH で shj を探す。`shj attach` が起動する
 //!   `shj serve` の中のターミナルも同じ PATH を引き継ぐよう、子プロセスの PATH もこれにする。
@@ -45,7 +45,7 @@ fn login_shell_path() -> Option<&'static OsString> {
         .as_ref()
 }
 
-/// 起動のときに、別スレッドでログインシェルに PATH を聞き始めておく（「このマシン」につなぐときの待ちを短くする）。
+/// 起動のときに、別スレッドでログインシェルに PATH を聞き始めておく（「ローカル」につなぐときの待ちを短くする）。
 pub fn warm_up() {
     std::thread::spawn(|| {
         let _ = login_shell_path();
@@ -208,10 +208,10 @@ fn version_case_pattern(gui_version: &str) -> Option<String> {
     })
 }
 
-/// 「このマシン」の shj を起動するコマンド（引数はまだ付けない）。
+/// 「ローカル」の shj を起動するコマンド（引数はまだ付けない）。
 /// `SHIJIMI_SHJ` があればそれを使う。無ければ、ログインシェルの PATH・GUI の PATH・よく使う場所の順に探す。
 /// 見つからなければ `shj` のまま（起動に失敗し、画面は「つなげませんでした」を出す）。
-/// 「このマシン」には入れる手段が無いので、版は確かめない（違えば `session.hello` で分かる）。
+/// 「ローカル」には入れる手段が無いので、版は確かめない（違えば `session.hello` で分かる）。
 pub fn local_shj_command(gui_version: &str) -> Command {
     let home = std::env::var("HOME").ok();
     let user = std::env::var("USER").ok();

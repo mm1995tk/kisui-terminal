@@ -1,4 +1,4 @@
-// マシンを足す窓（左の一覧の一番下の「+ マシンを足す」で出す）。
+// リモートを足す窓（左の一覧の一番下の「+ リモートを足す」で出す）。
 // ssh の行き先は、~/.ssh/config のホストの候補から選ぶか、打って入れる（打った文字で候補を絞る）。
 // 名前は空なら ssh の行き先を使う。「足す」で ssh につなぎ、つながったら呼んだ側がマシンを保存して窓を閉じる。
 // つないでいる最中は入力を止めて状態を出し、つなげなければ理由を出して、直して足し直せるようにする。
@@ -13,7 +13,7 @@ import { stateLabel } from "./status.ts";
 const optionId = (i: number) => `add-machine-option-${i}`;
 
 /**
- * マシンを足す窓。candidates は ~/.ssh/config のホストのうち、まだ足していないもの。
+ * リモートを足す窓。candidates は ~/.ssh/config のホストのうち、まだ足していないもの。
  * onSubmit は「足す」で呼ぶ（入れた行き先と名前をそのまま渡す。確かめるのは呼んだ側）。
  * busy の間（つないでいる最中）は入力と「足す」を止める。state はそのときの接続の状態。
  * error は直前に足せなかった理由。onCancel は「キャンセル」と Esc で呼ぶ。
@@ -49,9 +49,9 @@ export function AddMachine(props: {
   }
 
   return (
-    <ModalCard label="マシンを足す" onCancel={props.onCancel}>
+    <ModalCard label="リモートを足す" onCancel={props.onCancel}>
       <div class="card-body">
-        <h1 class="card-title">マシンを足す</h1>
+        <h1 class="card-title">リモートを足す</h1>
         <label class="card-field">
           ssh の行き先
           <input

@@ -118,7 +118,7 @@ describe("connectShj", () => {
     assert.equal(f.h.closed.length, 0);
   });
 
-  it("このマシンも同じ流れ", async () => {
+  it("ローカルも同じ流れ", async () => {
     const f = fakeApi((h, id) =>
       h.line.forEach((fn) => fn({ id, line: "@@shj-rpc 1@@" })),
     );
@@ -139,7 +139,7 @@ describe("connectShj", () => {
     );
   });
 
-  it("このマシンの 97 は ShjMissingError にしない（入れる先がない）", async () => {
+  it("ローカルの 97 は ShjMissingError にしない（入れる先がない）", async () => {
     const f = fakeApi((h, id) => {
       queueMicrotask(() =>
         h.closed.forEach((fn) => fn({ id, code: 97, stderr: "" })),

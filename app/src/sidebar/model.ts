@@ -42,9 +42,9 @@ export interface Band {
 /** マシン 1 台分（見出しと、その下の帯）に出すもの。 */
 export interface MachineGroup {
   target: string;
-  /** 見出しの文字（このマシン / 付けた名前 / ssh の行き先） */
+  /** 見出しの文字（ローカル / 付けた名前 / ssh の行き先） */
   label: string;
-  /** 名前を変えたり外したりできるか（「このマシン」はできない） */
+  /** 名前を変えたり外したり切ったりできるか（「ローカル」はできない） */
   removable: boolean;
   /** 設定ファイル（config.toml の [[gui.machines]]）で決めたマシンか。外せず、名前も変えられない */
   fixed: boolean;

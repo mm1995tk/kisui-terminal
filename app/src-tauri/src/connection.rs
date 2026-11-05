@@ -1,4 +1,4 @@
-//! shj への接続。`ssh -T host -- <shj> attach`（リモート）か、`shj attach` の直接起動（このマシン）を
+//! shj への接続。`ssh -T host -- <shj> attach`（リモート）か、`shj attach` の直接起動（ローカル）を
 //! 子プロセスとして持ち、その標準入出力を Web 画面（Client の Transport）に中継する。
 //! プロトコルは解釈しない（1 行ずつ運ぶだけ）。
 
@@ -13,7 +13,7 @@ use tauri::{AppHandle, Emitter};
 use crate::askpass::{self, AskpassServer};
 use crate::locate;
 
-/// 「このマシン」を表す接続先の名前。ssh のホスト名と取り違えないよう、`@` で始める（ホスト名には使えない）。
+/// 「ローカル」を表す接続先の名前。ssh のホスト名と取り違えないよう、`@` で始める（ホスト名には使えない）。
 pub const LOCAL: &str = "@local";
 
 #[derive(Serialize, Clone)]

@@ -25,7 +25,7 @@ struct AppState {
     askpass: Arc<AskpassServer>,
 }
 
-/// `~/.ssh/config` のホスト一覧（「このマシン」は含まない。画面側で足す）。
+/// `~/.ssh/config` のホスト一覧（「ローカル」は含まない。画面側で足す）。
 #[tauri::command]
 fn list_ssh_hosts() -> Vec<String> {
     std::env::var_os("HOME")
@@ -41,7 +41,7 @@ fn config_machines() -> Result<Vec<config::ConfigMachine>, String> {
 }
 
 /// shj につなぐ。`target` は ssh のホスト名か `@local`。`id` は画面側が決める（イベントの宛先）。
-/// メインスレッドの外で動かす。「このマシン」は、ログインシェルが PATH を答えるのを待つことがある（locate.rs）
+/// メインスレッドの外で動かす。「ローカル」は、ログインシェルが PATH を答えるのを待つことがある（locate.rs）
 #[tauri::command(async)]
 fn connect(
     app: tauri::AppHandle,
@@ -117,7 +117,7 @@ fn main() {
         .manage(transfer::Transfers::default())
         .setup(|app| {
             version::init(app.package_info().version.to_string());
-            // 「このマシン」の shj を探す PATH を、先にログインシェルに聞いておく（locate.rs）
+            // 「ローカル」の shj を探す PATH を、先にログインシェルに聞いておく（locate.rs）
             locate::warm_up();
             let askpass = AskpassServer::start(app.handle().clone())?;
             app.manage(AppState {

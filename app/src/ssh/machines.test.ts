@@ -93,7 +93,7 @@ test("足す：同じ行き先・使えない行き先・名前の重なりは�
   assert.ok("error" in addMachine(list, ""));
   assert.ok("error" in addMachine(list, "-x"));
   assert.ok("error" in addMachine(list, "db", "開発"));
-  assert.ok("error" in addMachine(list, "db", "このマシン"));
+  assert.ok("error" in addMachine(list, "db", "ローカル"));
   assert.ok("machines" in addMachine(list, "db", "dev"));
 });
 
@@ -124,7 +124,7 @@ test("候補を入力で絞る（大文字小文字は区別しない）", () =>
 test("外す・表示名", () => {
   const list: Machine[] = [{ target: "dev", name: "開発" }, { target: "db" }];
   assert.deepEqual(removeMachine(list, "dev"), [{ target: "db" }]);
-  assert.equal(labelOf(list, LOCAL), "このマシン");
+  assert.equal(labelOf(list, LOCAL), "ローカル");
   assert.equal(labelOf(list, "dev"), "開発");
   assert.equal(labelOf(list, "db"), "db");
   assert.equal(labelOf(list, "unknown"), "unknown");

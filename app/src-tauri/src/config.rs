@@ -45,8 +45,8 @@ struct Entry {
     name: Option<Spanned<String>>,
 }
 
-/// 「このマシン」の名前（GUI の LOCAL_LABEL と同じ。この名前のマシンは出せない）。
-const LOCAL_LABEL: &str = "このマシン";
+/// 「ローカル」の名前（GUI の LOCAL_LABEL と同じ。この名前のマシンは出せない）。
+const LOCAL_LABEL: &str = "ローカル";
 
 /// 設定ファイルの置き場所。`config_home` は `$XDG_CONFIG_HOME`（絶対パスのときだけ使う）、`home` は `$HOME`。
 pub fn config_path(
@@ -232,7 +232,7 @@ mod tests {
         assert_eq!(line, Some(4));
         let (line, _) = err("[[gui.machines]]\nssh = \"a\"\nname = \"x\"\n[[gui.machines]]\nssh = \"b\"\nname = \"x\"\n");
         assert_eq!(line, Some(6));
-        let (line, _) = err("[[gui.machines]]\nssh = \"a\"\nname = \"このマシン\"\n");
+        let (line, _) = err("[[gui.machines]]\nssh = \"a\"\nname = \"ローカル\"\n");
         assert_eq!(line, Some(3));
         let (line, _) = err("[[gui.machines]]\nssh = \"a\"\nname = \"  \"\n");
         assert_eq!(line, Some(3));

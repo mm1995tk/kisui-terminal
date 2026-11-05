@@ -68,5 +68,5 @@ export interface ShellApi {
   onAskpassDone(h: (requestId: number) => void): Promise<Unlisten>;
 }
 
-/** 「このマシン」。ssh を挟まず shj attach を直接起動する。ssh のホスト名とは取り違えない形にしてある。 */
+/** 「ローカル」。ssh を挟まず shj attach を直接起動する。ssh のホスト名とは取り違えない形にしてある。 */
 export const LOCAL = "@local";

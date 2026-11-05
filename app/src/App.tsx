@@ -1,5 +1,5 @@
-// 接続の画面（C3〜C7）。サイドバーに出るのは「このマシン」と、足したマシンだけ。起動時は、そのどれにも自動でつなぐ（C5）。
-// 左の一覧の一番下の「+ マシンを足す」で窓を出し、ssh の行き先（~/.ssh/config のホストの候補か、打ったもの）を入れて
+// 接続の画面（C3〜C7）。サイドバーに出るのは「ローカル」と、足したマシンだけ。起動時は、そのどれにも自動でつなぐ（C5）。
+// 左の一覧の一番下の「+ リモートを足す」で窓を出し、ssh の行き先（~/.ssh/config のホストの候補か、打ったもの）を入れて
 // shj につなぎ、つながったらマシンを保存して見出しを出す（connect/AddMachine.tsx。保存は ssh/machines.ts）。
 // 足したマシンの見出しを右クリックすると、名前を変える・外す（外しても、そのマシンの shj serve は止めない）。ssh の質問（パスワードなど）と shj を入れるかの確認は窓に出す。
 // 切れたら Session が自動でつなぎ直し、左の一覧の見出しに接続の状態を出す（丸・1 行・ボタン）。
@@ -148,7 +148,7 @@ function Workbench(props: {
   const store = props.store ?? browserStore();
   // ~/.ssh/config のホスト（マシンを足すときの候補）
   const [hosts, setHosts] = createSignal<string[]>([]);
-  // 足したマシン（サイドバーには、これと「このマシン」だけを出す）
+  // 足したマシン（サイドバーには、これと「ローカル」だけを出す）
   // GUI で足したマシンの記録（設定ファイルと重なって出ていないものも含む）
   let saved = loadMachines(store);
   // 設定ファイルのマシン（fixed）が先、そのあとに足したマシン
@@ -281,7 +281,7 @@ function Workbench(props: {
     return open;
   }, false);
   const [asks, setAsks] = createSignal<AskpassRequest[]>([]);
-  // マシンを足す窓を出しているか。足すためにつないでいる最中のマシン、足せなかった理由
+  // リモートを足す窓を出しているか。足すためにつないでいる最中のマシン、足せなかった理由
   const [adding, setAdding] = createSignal(false);
   const [addPending, setAddPending] = createSignal<Machine | null>(null);
   const [addError, setAddError] = createSignal<string | undefined>();
@@ -356,7 +356,7 @@ function Workbench(props: {
         setAsks((a) => a.filter((x) => x.requestId !== id)),
       ),
     );
-    // 質問の窓口を用意してから、「このマシン」と足したマシンにつなぐ
+    // 質問の窓口を用意してから、「ローカル」と足したマシンにつなぐ
     for (const t of targets()) connect(t);
   });
 

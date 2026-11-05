@@ -59,12 +59,12 @@ export class WorkspaceTrees {
     return this.states.get(id);
   }
 
-  /** 今のワークスペース（このマシンにフォーカスが無ければ null）。 */
+  /** 今のワークスペース（ローカルにフォーカスが無ければ null）。 */
   get activeId(): WorkspaceId | null {
     return this.active;
   }
 
-  /** フォーカスしているワークスペースを変える（このマシンのものでなければ null）。 */
+  /** フォーカスしているワークスペースを変える（ローカルのものでなければ null）。 */
   activate(id: WorkspaceId | null): void {
     if (id === this.active) return;
     const prev = this.active;

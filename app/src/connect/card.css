@@ -133,7 +133,7 @@
   accent-color: var(--card-accent);
 }
 
-/* 一覧の見出し（「このマシンと ~/.ssh/config から」）と行 */
+/* 一覧の見出し（「ローカルと ~/.ssh/config から」）と行 */
 .card-section {
   padding: 4px 20px;
   color: var(--card-muted);

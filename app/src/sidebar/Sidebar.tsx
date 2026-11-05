@@ -2,10 +2,10 @@
 // フォーカスしているワークスペースの帯の下にはツリーを出す（D2、描くのは tree/TreeView.tsx）。
 // スクロールしても、上にフォーカスしているマシンの見出し → 帯 → 親フォルダを、下にそれより後ろの帯を固定する（D3）。
 // マシンごとの色（D4）は section の --machine-color に入れ、見出しと帯の左端の線とアイコンに使う。
-// 見出しには接続の状態（丸と、その下の短い 1 行。言葉は connect/status.ts）と、今すぐつなぐ・つなぎ直す・切るボタンを出す。
+// 見出しには接続の状態（丸と、その下の短い 1 行。言葉は connect/status.ts）と、今すぐつなぐ・つなぎ直す・切るボタンを出す（切るボタンはローカルには出さない。ローカルは切る理由が無い）。
 // つながっているマシンの見出しの右には [+] を置き、押すと onCreate を呼ぶ（フォルダ未定のワークスペースができる）。
 // 帯の右の [×] は、押すと onClose を呼ぶ（ワークスペースを閉じる。確認は App が窓で出す）。
-// 一覧の一番下には「+ マシンを足す」を置き、押すと onAddMachine を呼ぶ（窓は connect/AddMachine.tsx）。
+// 一覧の一番下には「+ リモートを足す」を置き、押すと onAddMachine を呼ぶ（窓は connect/AddMachine.tsx）。
 // 足したマシンの見出しを右クリックすると「名前を変える」「外す」のメニューを出す（onRename・onRemove）。
 // 組み立ては model.ts、色の決め方は colors.ts、見た目は sidebar.css。
 import {
@@ -71,7 +71,7 @@ export function Sidebar(
     groups: MachineGroup[];
     /** 一覧の要素（スクロールの位置を覚えて戻すのに使う） */
     ref?: (el: HTMLElement) => void;
-    /** 一番下の「+ マシンを足す」 */
+    /** 一番下の「+ リモートを足す」 */
     onAddMachine?: () => void;
     /** 見出しのメニューの「名前を変える」 */
     onRename?: (target: string) => void;
@@ -227,7 +227,7 @@ export function Sidebar(
           >
             <path d="M12 5v14M5 12h14" />
           </svg>
-          マシンを足す
+          リモートを足す
         </button>
       </div>
     </div>
@@ -341,7 +341,7 @@ function Machine(
             </svg>
           </button>
         </Show>
-        <Show when={props.onDisconnect}>
+        <Show when={props.onDisconnect && g().removable}>
           <button
             type="button"
             class="machine-action"
