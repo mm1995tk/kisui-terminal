@@ -16,6 +16,9 @@ import {
   placeAbove,
   placeBelow,
   scrollIndicator,
+  searchColumns,
+  searchGutterCells,
+  searchMarker,
 } from "./overlay.ts";
 
 function pane(over: Partial<Pane>): Pane {
@@ -321,5 +324,52 @@ describe("中身", () => {
       rows: ["0", "1", "2", "3", "4", "5"],
     });
     assert.deepEqual(composeRows(text, 8).first, 3);
+  });
+});
+
+describe("検索の窓", () => {
+  const search: Overlay = {
+    kind: "search",
+    active: 0,
+    search: {
+      fields: [],
+      field: 0,
+      options: [],
+      status: "",
+      bodyRows: 10,
+      scroll: 0,
+      cursor: 0,
+      total: 0,
+    },
+  };
+
+  it("欄いっぱい（周りに 1 マス）に広げ、高さは固定の行と一覧の高さ", () => {
+    assert.deepEqual(overlayBox(search, undefined, { cols: 100, rows: 30 }), {
+      x: 1,
+      y: 1,
+      w: 98,
+      h: 21,
+    });
+  });
+
+  it("狭いときは幅 30 を下限にし、欄より大きくしない", () => {
+    assert.deepEqual(overlayBox(search, undefined, { cols: 20, rows: 8 }), {
+      x: 0,
+      y: 0,
+      w: 20,
+      h: 8,
+    });
+  });
+
+  it("一覧とプレビューの幅は、仕切りの 1 桁を除いて半分に分ける", () => {
+    assert.deepEqual(searchColumns(98), { left: 47, right: 48 });
+  });
+
+  it("行番号の桁数は 3 以上、印は外した行が x・選んだ行が >", () => {
+    assert.equal(searchGutterCells(5), 3);
+    assert.equal(searchGutterCells(12345), 5);
+    assert.equal(searchMarker(true, true), "x ");
+    assert.equal(searchMarker(false, true), "> ");
+    assert.equal(searchMarker(false, false), "  ");
   });
 });

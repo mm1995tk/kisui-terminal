@@ -91,7 +91,7 @@ type Screen struct {
     Files   *Files      // ファイルの欄
     Status  Status      // 状態行（モード、メッセージ、ブランチ、診断の数 …）
     Cmdline *Cmdline    // ":" と "/" の入力行。無ければ nil
-    Overlay []Overlay   // 補完・ホバー・シグネチャ・確認・パレット・メニュー・レビューカード
+    Overlay []Overlay   // 補完・ホバー・シグネチャ・確認・パレット・メニュー・レビューカード・検索の窓
 }
 
 type Files struct {
@@ -149,7 +149,7 @@ type Line struct {
 | `proxy` | どちらでもない | ポート転送の管理はサーバー側に 1 つ |
 | `pal` | 中身 | コマンドパレットの状態（`Overlay` に出す） |
 | `wsSyms`, `wsClient` | 中身 | プロジェクトのシンボル選択 |
-| `search` | 中身 | 検索パネルの状態 |
+| `search` | 中身 | 検索パネルの状態（`Overlay` に出す。`Overlay.Search`：4 つの入力欄、オプション、状態の行、一致した行の一覧と選んだ行、そのプレビュー。TUI の `drawSearch` と同じ割り付け） |
 | `tabs`, `active` | 中身 | 開いているファイルとその順番。#262 でタブバーを無くすので、`Files.Panes` と「次のファイルへ」の操作に置き換わる |
 | `jumps`, `jumpIdx` | 中身 | ジャンプリスト |
 | `branch` | 中身 | `Screen.Status` に出す |
@@ -309,6 +309,7 @@ P13-09（#385）で `Core` を `core` に移し、分割を終えた。`ui/tui` 
   - `overlay` を購読し、`view.resize` の `overlay` には欄（`files`）と同じ桁数と行数を送る（ポップアップは本文の上に重ねるため）。
   - 置き方は TUI に合わせる。補完・ホバー・カードは `at` の下（入らなければ上）、シグネチャは上（1 行目なら下）、パレットは上の真ん中、メニューは右下、コメントの入力欄は下の真ん中。`at` のマス目は、ペインの見えている行（`Line.No` が `at.line` のもの）の文字の幅で数え、行番号の欄と左のペインの幅を足す。
   - 確認（`confirm`）は箱にせず、TUI と同じく状態行のメッセージの代わりに出す（y/n のときは右の項目を出さない）。
+  - 検索の窓（`search`）は欄いっぱい（周りに 1 マス）の箱にする。入力欄・オプション・状態の行・一覧・プレビューの割り付けは TUI の `drawSearch` と同じで、一覧は見えている分（`scroll` から `bodyRows` 行）、プレビューは行を中心に shj が選んだ範囲だけが来る。窓のマウス操作はしない（キーだけ）。
   - ポップアップを押しても shj には送らない（キーを受ける `textarea` からフォーカスを外さないだけ）。レビューカードの画像（`images`）は E6 で描く。
 - GUI の実装（E6）で決めた細部（`ui/gui/app/src/files/blob.ts`・`diff.ts`・`MediaView.tsx`・`layout.ts`）：
   - `blob.get` は `eof` まで `offset` をずらして分けて取り、つないで `Blob` の URL にする。つなぎ先ごとに覚え（鍵は `ImageRef` の `blob`・`width`・`height`・`size`）、新しく使った順に 64 個まで残す。取れなかったもの（`not_found`）は覚えず、次に出たときに取り直す。

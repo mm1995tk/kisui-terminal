@@ -8,7 +8,15 @@
 // - 押しても shj には送らず、キーを受ける textarea からフォーカスを外さない。
 import { createMemo, For, Index, Show, type JSX } from "solid-js";
 
-import type { Files, Item, Line, Overlay, Theme } from "../rpc/protocol.ts";
+import type {
+  Files,
+  Item,
+  Line,
+  Overlay,
+  Search,
+  SearchField,
+  Theme,
+} from "../rpc/protocol.ts";
 import { cmdlineText, textCells } from "./bars.ts";
 import type { BlobSource } from "./blob.ts";
 import { LINE_HEIGHT, PAD_Y } from "./layout.ts";
@@ -22,6 +30,9 @@ import {
   overlayBox,
   overlayRuns,
   paletteLabel,
+  searchColumns,
+  searchGutterCells,
+  searchMarker,
   scrollIndicator,
   textLine,
   type Area,
@@ -64,6 +75,7 @@ const KIND_LABEL: Record<string, string> = {
   palette: "パレット",
   menu: "メニュー",
   reviewCard: "レビュー",
+  search: "検索",
 };
 
 function OverlayBox(props: {
@@ -152,6 +164,8 @@ function OverlayBody(props: {
       );
     case "menu":
       return <MenuBody overlay={ov()} box={props.box} theme={props.theme} />;
+    case "search":
+      return <SearchBody overlay={ov()} box={props.box} theme={props.theme} />;
     case "palette":
       return <PaletteBody overlay={ov()} box={props.box} theme={props.theme} />;
     default:
@@ -274,6 +288,8 @@ function FieldText(props: {
   cursor: number;
   cells: number;
   placeholder?: string;
+  /** カーソルを出さない（今の欄でない入力欄） */
+  plain?: boolean;
 }): JSX.Element {
   const parts = createMemo(() =>
     cmdlineText(
@@ -284,23 +300,34 @@ function FieldText(props: {
   const big = 1 << 16;
   return (
     <span class="files-pop-field">
-      <LineRuns
-        line={textLine([{ text: parts().before }])}
-        cols={big}
-        theme={null}
-      />
-      <span
-        class="files-run files-pop-cursor"
-        data-cursor=""
-        style={{ width: `${textCells(parts().at)}ch` }}
+      <Show
+        when={!props.plain}
+        fallback={
+          <LineRuns
+            line={textLine([{ text: props.text }])}
+            cols={big}
+            theme={null}
+          />
+        }
       >
-        {parts().at}
-      </span>
-      <LineRuns
-        line={textLine([{ text: parts().after }])}
-        cols={big}
-        theme={null}
-      />
+        <LineRuns
+          line={textLine([{ text: parts().before }])}
+          cols={big}
+          theme={null}
+        />
+        <span
+          class="files-run files-pop-cursor"
+          data-cursor=""
+          style={{ width: `${textCells(parts().at)}ch` }}
+        >
+          {parts().at}
+        </span>
+        <LineRuns
+          line={textLine([{ text: parts().after }])}
+          cols={big}
+          theme={null}
+        />
+      </Show>
       <Show when={!props.text && props.placeholder}>
         <span class="files-pop-dim">{props.placeholder}</span>
       </Show>
@@ -473,5 +500,213 @@ function ComposerBody(props: {
         </div>
       </Show>
     </>
+  );
+}
+
+/** 検索の窓の 1 つの入力欄（枠の上の辺にラベル。今の欄は枠を強く）。 */
+function SearchFieldBox(props: {
+  field: SearchField;
+  current: boolean;
+  cells: number;
+}): JSX.Element {
+  return (
+    <div
+      class="files-search-field"
+      data-current={props.current ? "" : undefined}
+    >
+      <span class="files-search-label">{` ${props.field.label} `}</span>
+      <div class="files-pop-row">
+        <FieldText
+          text={props.field.text}
+          cursor={props.field.cursor}
+          plain={!props.current}
+          cells={props.cells}
+          placeholder={props.field.placeholder}
+        />
+      </div>
+    </div>
+  );
+}
+
+/** 行番号と「│」を前に付けた、プレビューの 1 行。 */
+function SearchPreviewRow(props: {
+  gutter: string;
+  line: Line | undefined;
+  cols: number;
+  theme: Theme | null;
+}): JSX.Element {
+  return (
+    <div class="files-pop-row">
+      <span class="files-pop-dim files-search-gutter">{props.gutter}</span>
+      <LineRuns line={props.line} cols={props.cols} theme={props.theme} />
+    </div>
+  );
+}
+
+/**
+ * 検索の窓（プロジェクトの検索・置換）。上に入力欄 2 段とオプションと状態、下の左に一致した行、右に選んだ行のプレビュー。
+ * キーは shj が受ける（窓の中は押しても何も送らない）。
+ */
+function SearchBody(props: {
+  overlay: Overlay;
+  box: Box;
+  theme: Theme | null;
+}): JSX.Element {
+  const s = () => props.overlay.search;
+  const columns = createMemo(() => searchColumns(props.box.w));
+  const fieldCells = () => Math.max(1, Math.floor((props.box.w - 6) / 2) - 4);
+  const fields = () => s()?.fields ?? [];
+  return (
+    <Show when={s()}>
+      {(sr) => (
+        <>
+          <div class="files-pop-row files-pop-pad files-pop-accent">
+            {props.overlay.title ?? ""}
+          </div>
+          <div class="files-search-fields">
+            <For each={fields()}>
+              {(f, k) => (
+                <SearchFieldBox
+                  field={f}
+                  current={sr().field === k()}
+                  cells={fieldCells()}
+                />
+              )}
+            </For>
+          </div>
+          <div class="files-pop-row files-pop-pad files-search-options">
+            <For each={sr().options}>
+              {(o) => (
+                <span
+                  class={o.on ? "files-search-on" : "files-pop-dim"}
+                  data-on={o.on ? "" : undefined}
+                >
+                  {o.label}
+                </span>
+              )}
+            </For>
+          </div>
+          <div class="files-pop-row files-pop-pad files-search-status">
+            <span
+              class={sr().err ? "files-search-err" : "files-search-status-text"}
+            >
+              {sr().status}
+            </span>
+            <span class="files-pop-dim files-pop-label files-search-keys">
+              {props.overlay.hint ?? ""}
+            </span>
+          </div>
+          <div class="files-search-rule" />
+          <div
+            class="files-search-body"
+            style={{
+              "grid-template-columns": `${columns().left}ch 1px ${columns().right}ch`,
+              height: `${sr().bodyRows * LINE_HEIGHT}px`,
+            }}
+          >
+            <SearchHits
+              search={sr()}
+              cols={columns().left}
+              theme={props.theme}
+            />
+            <div class="files-search-divider" />
+            <SearchPreviewPane
+              search={sr()}
+              cols={columns().right}
+              theme={props.theme}
+            />
+          </div>
+        </>
+      )}
+    </Show>
+  );
+}
+
+/** 検索の窓の、一致した行の一覧（印、相対パス:行番号、行）。ラベルは shj が長ければ左を切って送る。 */
+function SearchHits(props: {
+  search: Search;
+  cols: number;
+  theme: Theme | null;
+}): JSX.Element {
+  const s = () => props.search;
+  return (
+    <div class="files-search-hits" role="listbox">
+      <For each={s().hits ?? []}>
+        {(h, i) => {
+          const selected = () => s().scroll + i() === s().cursor;
+          return (
+            <div
+              class="files-pop-row files-pop-item"
+              role="option"
+              aria-selected={selected()}
+              data-active={selected() ? "" : undefined}
+              data-skip={h.skip ? "" : undefined}
+            >
+              <span class="files-pop-dim files-search-hit-label">
+                {`${searchMarker(!!h.skip, selected())}${h.label}  `}
+              </span>
+              <span class="files-pop-label">
+                <LineRuns line={h.line} cols={props.cols} theme={props.theme} />
+              </span>
+            </div>
+          );
+        }}
+      </For>
+      <Show when={!(s().hits?.length ?? 0) && s().empty}>
+        <div class="files-pop-row files-pop-dim">{s().empty}</div>
+      </Show>
+    </div>
+  );
+}
+
+/** 検索の窓の、選んだ行のプレビュー（見出し、行番号付きの行、置換の前後の行）。 */
+function SearchPreviewPane(props: {
+  search: Search;
+  cols: number;
+  theme: Theme | null;
+}): JSX.Element {
+  return (
+    <div class="files-search-preview">
+      <Show when={props.search.preview}>
+        {(p) => {
+          const gutterW = () => searchGutterCells(p().total);
+          const cols = () => props.cols - gutterW() - 3;
+          return (
+            <>
+              <div class="files-pop-row files-pop-pad files-search-title">
+                {p().title}
+              </div>
+              <div class="files-pop-row" />
+              <For each={p().lines}>
+                {(l) => (
+                  <>
+                    <SearchPreviewRow
+                      gutter={`${String(l.no + 1).padStart(gutterW())} │ `}
+                      line={l}
+                      cols={cols()}
+                      theme={props.theme}
+                    />
+                    <Show when={l.no === p().hit && p().del && p().add}>
+                      <SearchPreviewRow
+                        gutter={`${" ".repeat(gutterW())} - `}
+                        line={p().del}
+                        cols={cols()}
+                        theme={props.theme}
+                      />
+                      <SearchPreviewRow
+                        gutter={`${" ".repeat(gutterW())} + `}
+                        line={p().add}
+                        cols={cols()}
+                        theme={props.theme}
+                      />
+                    </Show>
+                  </>
+                )}
+              </For>
+            </>
+          );
+        }}
+      </Show>
+    </div>
   );
 }

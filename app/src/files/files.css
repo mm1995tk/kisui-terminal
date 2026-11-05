@@ -432,3 +432,112 @@
   /* 見える範囲から一部はみ出した画像を、見出しや案内の行に重ねない */
   overflow: hidden;
 }
+
+/* 検索の窓（プロジェクトの検索・置換）。入力欄は 3 行の枠で、ラベルが上の辺に乗る */
+.files-search-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 1ch;
+  padding: 0 1ch;
+}
+
+.files-search-field {
+  position: relative;
+  height: calc(var(--files-line-height) * 3);
+  box-sizing: border-box;
+  padding: var(--files-line-height) 1ch 0;
+}
+
+.files-search-field::before {
+  content: "";
+  position: absolute;
+  inset: calc(var(--files-line-height) / 2) 0;
+  border: 1px solid var(--files-border);
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+.files-search-field[data-current]::before {
+  border: 2px solid var(--files-accent);
+}
+
+.files-search-label {
+  position: absolute;
+  top: 0;
+  left: 1ch;
+  height: var(--files-line-height);
+  background: var(--files-pop-bg);
+  color: var(--files-lineno);
+  white-space: pre;
+}
+
+.files-search-field[data-current] .files-search-label {
+  color: var(--files-accent);
+}
+
+.files-search-options {
+  gap: 2ch;
+}
+
+.files-search-on {
+  color: var(--files-pop-sel-fg);
+  background: var(--files-pop-sel);
+}
+
+.files-search-status {
+  gap: 2ch;
+  white-space: pre;
+}
+
+.files-search-status-text {
+  flex: none;
+}
+
+.files-search-err {
+  color: var(--files-pop-hi);
+}
+
+.files-search-keys {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.files-search-rule {
+  height: var(--files-line-height);
+  box-sizing: border-box;
+  border-bottom: 1px solid var(--files-border);
+}
+
+.files-search-body {
+  display: grid;
+  overflow: hidden;
+}
+
+.files-search-hits,
+.files-search-preview {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.files-search-divider {
+  background: var(--files-border);
+}
+
+.files-search-hit-label {
+  flex: none;
+  white-space: pre;
+}
+
+.files-pop-item[data-skip] .files-search-hit-label {
+  text-decoration: line-through;
+}
+
+.files-search-title {
+  color: var(--files-accent);
+  font-weight: bold;
+}
+
+.files-search-gutter {
+  flex: none;
+  white-space: pre;
+}

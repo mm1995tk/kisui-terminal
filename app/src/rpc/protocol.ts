@@ -265,7 +265,8 @@ export type OverlayKind =
   | "confirm"
   | "palette"
   | "menu"
-  | "reviewCard";
+  | "reviewCard"
+  | "search";
 
 /** 一覧の 1 行（補完の候補、パレットの項目、メニュー）。Go の screen.Item。 */
 export interface Item {
@@ -319,6 +320,71 @@ export interface Overlay {
   /** レビューカードの中の画像。row は lines の no と同じ表示行の番号 */
   images?: PreviewImage[] | null;
   compose?: Compose;
+  /** 検索の窓。title は見出し、hint は状態の行の右に出すキーの一覧 */
+  search?: Search;
+}
+
+/** 検索の窓の入力欄。Go の screen.SearchField。 */
+export interface SearchField {
+  label: string;
+  text: string;
+  /** rune の位置 */
+  cursor: number;
+  placeholder?: string;
+}
+
+/** 検索のオプション（切り替え）。Go の screen.SearchOption。 */
+export interface SearchOption {
+  label: string;
+  on: boolean;
+}
+
+/** 一致した行の一覧の 1 行。line は一致した部分に背景（match）を付けた、見せる最初の桁からの行。Go の screen.SearchHit。 */
+export interface SearchHit {
+  /** 「相対パス:行番号」 */
+  label: string;
+  line: Line;
+  /** 置換から外した行 */
+  skip?: boolean;
+}
+
+/** 選んだ行のプレビュー。Go の screen.SearchPreview。 */
+export interface SearchPreview {
+  title: string;
+  /** ファイルの中の見える行（no は 0 始まりの行番号） */
+  lines: Line[];
+  /** 選んだ行の no */
+  hit: number;
+  /** ファイルの全行数（行番号の桁数に使う） */
+  total: number;
+  /** 置換の前と後の行（違うときだけ。hit の行の下に出す） */
+  del?: Line;
+  add?: Line;
+}
+
+/** 検索の窓（プロジェクトの検索・置換）の状態。Go の screen.Search。 */
+export interface Search {
+  /** 検索・置換・含める・除くの順（Tab の順） */
+  fields: SearchField[];
+  /** 今の欄（fields の番号） */
+  field: number;
+  /** 大文字小文字・単語・正規表現・大文字小文字を保つの順 */
+  options: SearchOption[];
+  status: string;
+  err?: boolean;
+  busy?: boolean;
+  /** 一覧とプレビューの高さ（行） */
+  bodyRows: number;
+  /** scroll から見えている分だけ */
+  hits?: SearchHit[];
+  scroll: number;
+  /** 全体の中の選択位置 */
+  cursor: number;
+  /** 一致した行の全部の数 */
+  total: number;
+  /** 一致した行が無いときの文言 */
+  empty?: string;
+  preview?: SearchPreview;
 }
 
 /** 全部の画面。`screen.get` の結果。 */

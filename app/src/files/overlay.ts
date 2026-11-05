@@ -169,6 +169,29 @@ export function paletteWidth(area: Area): number {
   return Math.min(area.cols, clamp(Math.floor((area.cols * 3) / 5), 30, 100));
 }
 
+/** 検索の窓の、一覧とプレビュー以外の行数（見出し、入力欄 2 段、オプション、状態、仕切り、下の余白）。 */
+export const SEARCH_FIXED_ROWS = 11;
+
+/** 検索の窓の一覧とプレビューの幅（枠の内側の桁から仕切りの 1 桁を引いて半分）。TUI の SearchGeom の Lw・Rw。 */
+export function searchColumns(boxCols: number): {
+  left: number;
+  right: number;
+} {
+  const inner = Math.max(0, boxCols - 2);
+  const left = Math.floor((inner - 1) / 2);
+  return { left, right: inner - 1 - left };
+}
+
+/** 検索の窓の行番号の桁数（TUI の viewRows と同じく 3 桁以上）。 */
+export function searchGutterCells(total: number): number {
+  return Math.max(3, String(total).length);
+}
+
+/** 一覧の行の頭の印（置換から外した行は x、選んだ行は >）。 */
+export function searchMarker(skip: boolean, selected: boolean): string {
+  return skip ? "x " : selected ? "> " : "  ";
+}
+
 /** ホバー・レビューカードの枠の下に出す、見えている行の位置（「↑ 12/40 ↓」）。全部見えていれば空。 */
 export function scrollIndicator(ov: Overlay): string {
   const v = ov.view;
@@ -234,6 +257,18 @@ export function overlayBox(
         x: Math.max(0, area.cols - m.w),
         y: Math.max(0, area.rows - h),
         w: m.w,
+        h,
+      };
+    }
+    case "search": {
+      // 欄いっぱい（周りに 1 マスの余白）。高さは固定の行と一覧の高さ（TUI の SearchGeom）
+      if (!ov.search) return undefined;
+      const w = Math.min(area.cols, Math.max(30, area.cols - 2));
+      const h = Math.min(area.rows, ov.search.bodyRows + SEARCH_FIXED_ROWS);
+      return {
+        x: Math.floor((area.cols - w) / 2),
+        y: Math.min(1, Math.max(0, area.rows - h)),
+        w,
         h,
       };
     }
