@@ -113,7 +113,7 @@ jobs:
 
       # 署名鍵はこの step から後でだけ環境変数にある（npm ci などの依存のスクリプトには渡さない）
       - name: 署名鍵を 1Password から読む
-        uses: 1password/load-secrets-action@v5.0.1
+        uses: 1password/load-secrets-action@5.0.1
         with:
           export-env: true
         env:
