@@ -1,17 +1,21 @@
 import type { NotificationSupport, TerminalNotification } from "coneko-term";
 
 /**
- * `p=?` への返事。公式の通知プラグインはデスクトップで押された・閉じられたを返さないので、
- * 押されたとき欄を前に出す（a=focus）は OS の既定に任せ、a=report と c=1 は対応しないと答える。
- * p=alive と p=close も、通知を後から調べる・閉じる口が無いので対応しないと答え、緊急度（u）も渡せないので対応しないと答える。
+ * `p=?` への返事。押されたとき欄を前に出す（a=focus）と、押されたの返事（a=report）は 3 つの OS とも対応する。
+ * 閉じられたの返事（c=1）は macOS だけ対応しない（NSUserNotification は閉じられたと期限切れを区別できず取れない）。
+ * p=alive と p=close は、通知を後から調べる・閉じる口が無いので対応しないと答え、緊急度（u）も渡せないので対応しないと答える。
  * ここで省いた項目は coneko-term の既定（対応する）になる。
+ * `userAgent` は navigator.userAgent。
  */
-export const notificationSupport: NotificationSupport = {
-  actions: ["focus"],
-  payloads: ["title", "body", "?"],
-  urgencies: [],
-  closeReport: false,
-};
+export function notificationSupportFor(userAgent: string): NotificationSupport {
+  const mac = /Mac/i.test(userAgent);
+  return {
+    actions: ["focus", "report"],
+    payloads: ["title", "body", "?"],
+    urgencies: [],
+    closeReport: !mac,
+  };
+}
 
 /** 通知を出すかどうか（`o`）。always は常に、unfocused は窓が前に無いとき、invisible は欄が見えていないとき。 */
 export function shouldNotify(

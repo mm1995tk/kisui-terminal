@@ -3,7 +3,11 @@ import { describe, it } from "node:test";
 
 import type { TerminalNotification } from "coneko-term";
 
-import { shouldNotify, toOsNotification } from "./notify.ts";
+import {
+  notificationSupportFor,
+  shouldNotify,
+  toOsNotification,
+} from "./notify.ts";
 
 const base = { windowFocused: true, cellVisible: true, pageVisible: true };
 
@@ -42,5 +46,23 @@ describe("toOsNotification", () => {
       title: "Hello",
       body: undefined,
     });
+  });
+});
+
+describe("notificationSupportFor", () => {
+  it("Linux と Windows は押された・閉じられたを返せる", () => {
+    for (const ua of [
+      "Mozilla/5.0 (X11; Linux x86_64)",
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+    ]) {
+      const s = notificationSupportFor(ua);
+      assert.deepEqual(s.actions, ["focus", "report"]);
+      assert.equal(s.closeReport, true);
+    }
+  });
+  it("macOS は閉じられたを返せない", () => {
+    const s = notificationSupportFor("Mozilla/5.0 (Macintosh; Intel Mac OS X)");
+    assert.deepEqual(s.actions, ["focus", "report"]);
+    assert.equal(s.closeReport, false);
   });
 });

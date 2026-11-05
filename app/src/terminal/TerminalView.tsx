@@ -7,12 +7,6 @@ import {
   type JSX,
 } from "solid-js";
 
-import {
-  isPermissionGranted,
-  requestPermission,
-  sendNotification,
-} from "@tauri-apps/plugin-notification";
-
 import { monoFontsReady } from "../fonts.ts";
 import type { TermLink, TermSink } from "./link.ts";
 import { planWrite, readableMimes, supportsLocation } from "./clipboard.ts";
@@ -29,10 +23,11 @@ import {
   type DropItem,
 } from "./dnd.ts";
 import {
-  notificationSupport,
+  notificationSupportFor,
   shouldNotify,
   toOsNotification,
 } from "./notify.ts";
+import { showOsNotification } from "./notifyOs.ts";
 import "./terminal.css";
 
 /**
@@ -84,8 +79,14 @@ export function TerminalView(props: {
 
   // ターミナルの通知（kitty の OSC 99）を OS の通知につなぐ。何に対応すると答えるかは notify.ts
   term.onNotificationQuery((id) =>
-    term.replyNotificationQuery(id, notificationSupport),
+    term.replyNotificationQuery(
+      id,
+      notificationSupportFor(navigator.userAgent),
+    ),
   );
+  // 出した通知の取り消し関数。欄が無くなったら、あとで返ってきても欄を触らない
+  const notifyCancels = new Set<() => void>();
+  onCleanup(() => notifyCancels.forEach((c) => c()));
   term.onNotification((n) => {
     if (
       !shouldNotify(n.when, {
@@ -97,7 +98,24 @@ export function TerminalView(props: {
       return;
     void (async () => {
       try {
-        if (await notifyPermission()) sendNotification(toOsNotification(n));
+        const cancel = await showOsNotification(
+          toOsNotification(n),
+          n.actions.focus,
+          (kind) => {
+            notifyCancels.delete(cancel);
+            if (kind === "activated") {
+              // 欄を前に出す（窓は Rust 側が前に出す）。a=focus が無い通知は、欄を動かさない
+              if (n.actions.focus) {
+                props.onFocus?.();
+                term.focus();
+              }
+              if (n.actions.report) term.notificationActivated(n.id);
+            } else if (n.reportClose) {
+              term.notificationClosed(n.id);
+            }
+          },
+        );
+        notifyCancels.add(cancel);
       } catch {
         // 通知を出せなくても、ターミナルの動きには関わらない
       }
@@ -297,14 +315,3 @@ export function TerminalView(props: {
 
 // 欄ごとの印。ファイル転送のセッションの鍵が、欄どうしで混ざらないようにする
 let viewSeq = 0;
-
-// 通知の許可。全部の欄で 1 つの Promise にまとめ、許可のダイアログを同時に複数出さない。
-// 拒否されたら、このセッションでは求め直さない
-let permission: Promise<boolean> | undefined;
-function notifyPermission(): Promise<boolean> {
-  permission ??= (async () => {
-    if (await isPermissionGranted()) return true;
-    return (await requestPermission()) === "granted";
-  })();
-  return permission;
-}

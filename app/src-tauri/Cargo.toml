@@ -19,8 +19,8 @@ toml = "=1.1.8"
 sha2 = "=0.10.9"
 # 自動更新（C8）。AppImage と .dmg の版だけが feature `updater` で入れる。Nix で作る版は入れない（更新は nix flake update で行う）
 tauri-plugin-updater = { version = "=2.14.0", optional = true }
-# OS の通知（ターミナルの OSC 99）。版は npm の @tauri-apps/plugin-notification に合わせる
-tauri-plugin-notification = "=2.3.3"
+# OS の通知（notify.rs。ターミナルの OSC 99）。押された・閉じられたを取るため、公式の通知プラグインでなく直接使う。版は Cargo.lock にすでにあるものに合わせる
+notify-rust = "=4.18.2"
 # OS のクリップボード（ターミナルの OSC 5522）。版は npm の @tauri-apps/plugin-clipboard-manager に合わせる
 tauri-plugin-clipboard-manager = "=2.5.0"
 # ファイル転送（transfer.rs）の openat・O_NOFOLLOW。版は Cargo.lock にすでにある（tauri などが使っている）ものに合わせる

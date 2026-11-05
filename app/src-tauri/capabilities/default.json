@@ -1,11 +1,10 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "メイン窓の権限。イベントの受け取りなど core の既定と通知（notification:default）、クリップボードの読み書き（テキストと画像だけ。HTML・消去・秘密の書き込みは許可しない）だけ許可する（listen が plugin:event|listen を呼ぶため要る）。自前のコマンドは app の ACL で許可される",
+  "description": "メイン窓の権限。イベントの受け取りなど core の既定、クリップボードの読み書き（テキストと画像だけ。HTML・消去・秘密の書き込みは許可しない）だけ許可する（listen が plugin:event|listen を呼ぶため要る）。自前のコマンドは app の ACL で許可される",
   "windows": ["main"],
   "permissions": [
     "core:default",
-    "notification:default",
     "clipboard-manager:allow-read-text",
     "clipboard-manager:allow-write-text",
     "clipboard-manager:allow-read-image",

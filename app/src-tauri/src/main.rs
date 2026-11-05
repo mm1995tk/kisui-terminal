@@ -6,6 +6,7 @@ mod config;
 mod connection;
 mod install;
 mod locate;
+mod notify;
 mod ssh_config;
 mod transfer;
 mod update;
@@ -107,9 +108,7 @@ fn main() {
         std::process::exit(askpass::run_helper(&prompt));
     }
 
-    let builder = tauri::Builder::default()
-        .plugin(tauri_plugin_notification::init())
-        .plugin(tauri_plugin_clipboard_manager::init());
+    let builder = tauri::Builder::default().plugin(tauri_plugin_clipboard_manager::init());
     // 自動更新（AppImage と .dmg の版だけ。update.rs）
     #[cfg(feature = "updater")]
     let builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
@@ -137,6 +136,7 @@ fn main() {
             install_plan,
             install_remote,
             install_cancel,
+            notify::notify_show,
             transfer::transfer_dest,
             transfer::transfer_write_begin,
             transfer::transfer_write_open,
