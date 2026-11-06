@@ -16,7 +16,7 @@ export function VideoView(props: {
   read: MediaFetch;
   /** 今キーを向けている欄か（並べたときに印を付ける） */
   active?: boolean;
-  /** 隠すか（IDE モードで別の欄を見せているとき・ほかの欄を隠しているとき） */
+  /** 隠すか（ほかの欄を隠しているとき） */
   hidden?: boolean;
   /** 欄の位置（CSS grid の grid-area） */
   area?: string;

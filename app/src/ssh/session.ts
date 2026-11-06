@@ -1,29 +1,20 @@
 // 切れたら自動でつなぎ直す接続（C4）。connectShj の上に、次の 3 つを足す。
 //  - session.ping を一定間隔で送り、ssh が黙って切れたことに気づく
-//  - 切れたら間隔を空けて何度かつなぎ直す。session.hello で resume を送り、同じ serverId なら
-//    screen.get で全部取り直す。違えばワークスペースの一覧（hello.workspaces）から取り直す
+//  - 切れたら間隔を空けて何度かつなぎ直す。session.hello で resume を送り、つなぎ直したらワークスペースの一覧を取り直す
 //  - 状態（State）を外に出す。一覧の表示はこれを読む
 //  - ワークスペースの一覧と shj のフォーカスを持ち、workspace.focus でフォーカスを移す（D1）
 //  - ツリーと git の要求（tree.list / tree.watch / git.status）を今の接続に流し、
 //    その通知（tree.changed / git.changed）をつなぎ直しをまたいで渡す（D2）
-//  - 画面を購読し（view.subscribe）、欄の大きさ（view.resize）とテーマ（theme.get）を送り受けする。
-//    screen.update を手元の画面に当て、当てたら screen.ack を返す（E1）。購読するのはファイルの欄・状態行・コマンド行（E3）
-//  - キー・IME・マウス・貼り付け（input.*）を順に送り、clipboard.write を渡す（E2）
+//  - プライマリの shj が出した・隠した欄の知らせ（pane.show・pane.hide）を渡す（#553）
 // Solid などの画面の仕組みには依存しない。
 
-import { applyUpdate } from "../files/screen.ts";
 import type { Client } from "../rpc/client.ts";
-import { translate } from "../rpc/i18n.ts";
 import { ErrorCode, RpcError } from "../rpc/message.ts";
 import type {
   HelloResult,
   Notifications,
-  Region,
   Requests,
-  Screen,
-  ScreenUpdate,
   TermId,
-  Theme,
   WorkspaceId,
 } from "../rpc/protocol.ts";
 import type { InstallPlan, ShellApi } from "./api.ts";
@@ -105,8 +96,8 @@ export type TermMethod =
   | "term.input"
   | "term.cd"
   | "extra.close";
-/** Session.request で送れる要求（画像の実体。E6）。 */
-export type BlobMethod = "blob.get" | "media.read";
+/** Session.request で送れる要求（動画の欄の中身。#555）。 */
+export type BlobMethod = "media.read";
 /** Session.request で送れる要求（プライマリの shj にファイルを開かせる）。 */
 export type ShjMethod = "shj.open";
 /** ターミナルの通知（F1）。method で見分ける。 */
@@ -115,38 +106,11 @@ export type TermEvent =
   | { method: "term.exit"; params: Notifications["term.exit"] }
   | { method: "term.title"; params: Notifications["term.title"] };
 
-/** ファイルの欄の左右の境界（左側の %。0 は半分）。 */
-export interface Splits {
-  diff: number;
-  preview: number;
-}
-
-/** shj からの境界のリサイズの知らせ。 */
-export type ResizeEvent =
-  { kind: "start" } | { kind: "key"; key: string } | { kind: "reset" };
-
 /** shj が出した・隠した欄の知らせ（プライマリの shj の端末のコマンド。#553）。 */
 export type PaneEvent =
   | { kind: "show"; workspaceId: WorkspaceId; termId: TermId }
   | { kind: "show-extra"; workspaceId: WorkspaceId; extraId: string }
   | { kind: "hide"; workspaceId: WorkspaceId };
-
-/** Session.input で送れる入力。file.open も shj は入力と同じ並びで処理するので、同じ seq の数え方で送る。 */
-export type InputMethod =
-  | "input.key"
-  | "input.composition"
-  | "input.mouse"
-  | "input.paste"
-  | "input.focus"
-  | "file.open";
-
-/** 購読する領域。ファイルの欄と状態行とコマンド行と、その上に重ねるポップアップ（E4）を描く。 */
-export const SUBSCRIBED_REGIONS: Region[] = [
-  "files",
-  "status",
-  "cmdline",
-  "overlay",
-];
 
 /** 1, 2, 4, 8, 16, 30 秒…（最後の値を繰り返す）。10 回で待ちは合わせて 151 秒ほど（ssh の接続待ちは別）。 */
 export const DEFAULT_DELAYS = [1000, 2000, 4000, 8000, 16000, 30000];
@@ -168,12 +132,9 @@ export class Session {
     Pick<SessionOptions, "onDiscard">;
   private _state: SessionState = { kind: "connecting", attempt: 0, max: 0 };
   private conn?: Connection;
-  /** 最後につながった shj の serverId と、GUI が持つ画面の版 */
+  /** 最後につながった shj の serverId と、その hello の版 */
   private serverId?: string;
   private rev = 0;
-  /** screen.get の返事待ち。この間の screen.update は捨てる */
-  private fetching = false;
-  private _screen: Screen | null = null;
   private _workspaces: HelloResult["workspaces"] = [];
   /** shj がフォーカスしているワークスペース（workspace.list と workspace.focus で知る） */
   private _focus: WorkspaceId | null = null;
@@ -182,8 +143,6 @@ export class Session {
   private installId?: string;
   private generation = 0;
   private readonly stateHandlers = new Set<(s: SessionState) => void>();
-  private readonly screenHandlers = new Set<(s: Screen) => void>();
-  private readonly updateHandlers = new Set<(u: ScreenUpdate) => void>();
   private readonly workspaceHandlers = new Set<
     (w: HelloResult["workspaces"]) => void
   >();
@@ -195,19 +154,7 @@ export class Session {
     (n: Notifications["git.changed"]) => void
   >();
   private readonly termHandlers = new Set<(e: TermEvent) => void>();
-  /** 翻訳の表（i18n.get と i18n.changed で知る）。画面の文言はこれで訳してから持つ */
-  private messages: Record<string, string> = {};
-  /** テーマ（theme.get と theme.changed で知る） */
-  private _theme: Theme | null = null;
-  private readonly themeHandlers = new Set<(t: Theme) => void>();
-  /** ファイルの欄の大きさ（マス目）。つなぎ直したら送り直す */
-  private filesSize?: { cols: number; rows: number };
-  /** ファイルの欄の左右の境界（左側の %。0 は半分）。つなぎ直したら送り直す */
-  private splits?: Splits;
-  /** 最後に送った入力の seq（つなぎ直しても増え続ける） */
-  private inputSeq = 0;
-  private readonly clipboardHandlers = new Set<(text: string) => void>();
-  private readonly resizeHandlers = new Set<(e: ResizeEvent) => void>();
+
   private readonly paneHandlers = new Set<(e: PaneEvent) => void>();
 
   constructor(api: ShellApi, target: string, opts: SessionOptions = {}) {
@@ -225,70 +172,7 @@ export class Session {
   get state(): SessionState {
     return this._state;
   }
-  /** 今の画面（screen.get で取り、screen.update を当てたもの。つなぎ直しのたびに取り直す）。 */
-  get screen(): Screen | null {
-    return this._screen;
-  }
-  /** shj のテーマ。まだ知らなければ null。 */
-  get theme(): Theme | null {
-    return this._theme;
-  }
 
-  /** テーマが分かったとき・変わったとき。 */
-  onTheme(h: (t: Theme) => void): () => void {
-    this.themeHandlers.add(h);
-    return () => this.themeHandlers.delete(h);
-  }
-
-  /**
-   * ファイルの欄の大きさ（等幅のマス目の桁数と行数。タイトル行を含めない）を shj に送る（view.resize）。
-   * 状態行とコマンド行は欄と同じ幅なので、同じ桁数を送る。ポップアップ（overlay）は欄の本文の上に
-   * 重ねるので、欄と同じ桁数と行数を送る。
-   * つながっていなければ覚えておき、つないだときに送る。
-   */
-  resize(size: { cols: number; rows: number }): void {
-    const old = this.filesSize;
-    if (old && old.cols === size.cols && old.rows === size.rows) return;
-    this.filesSize = { ...size };
-    const conn = this.conn;
-    if (conn) this.sendResize(conn);
-  }
-
-  /** ファイルの欄の左右の境界（差分とプレビューの、左側の %。0 は半分）を shj に送る。 */
-  setSplits(splits: Splits): void {
-    const old = this.splits;
-    if (old && old.diff === splits.diff && old.preview === splits.preview)
-      return;
-    this.splits = { ...splits };
-    const conn = this.conn;
-    if (conn) this.sendResize(conn);
-  }
-
-  private sendResize(conn: Connection): void {
-    const size = this.filesSize;
-    const splits = this.splits;
-    if (!size && !splits) return;
-    conn.client
-      .request("view.resize", {
-        regions: size
-          ? {
-              files: size,
-              status: { cols: size.cols },
-              cmdline: { cols: size.cols },
-              overlay: size,
-            }
-          : {},
-        ...(splits ? { splits } : {}),
-      })
-      .catch((e) => this.discard("view.resize", e));
-  }
-
-  private discard(what: string, e: unknown): void {
-    this.opts.onDiscard?.(
-      `${what} failed: ${e instanceof Error ? e.message : String(e)}`,
-      "",
-    );
-  }
   get workspaces(): HelloResult["workspaces"] {
     return this._workspaces;
   }
@@ -316,7 +200,7 @@ export class Session {
   }
 
   /**
-   * workspace.focus を送ってフォーカスを移す。画面はそのワークスペースのものに切り替わるので、取り直す。
+   * workspace.focus を送ってフォーカスを移す。
    * つながっていないとき・shj が断ったときは投げる（フォーカスは変えない）。
    * 返すのは、そのワークスペースで最後に使ったターミナル（無ければ undefined）（F2）。
    */
@@ -327,7 +211,6 @@ export class Session {
     const r = await conn.client.request("workspace.focus", { id });
     if (gen !== this.generation || this.conn !== conn) return r.termId;
     this.setFocus(id);
-    void this.fetchScreen(conn, gen, true);
     return r.termId;
   }
 
@@ -342,9 +225,8 @@ export class Session {
   }
 
   /**
-   * workspace.close を送る。開いているファイルは shj が保存して閉じ、ターミナルを全部終わらせる。
+   * workspace.close を送る。ターミナルを全部終わらせる。
    * プログラムが動いていれば busy（data.reason が "running"）で断られるので、force で送り直せる。
-   * 保存できないファイルがあれば busy（data.reason が "unsaved"、data.paths がそのファイル）で、force でも閉じない。
    */
   async closeWorkspace(id: WorkspaceId, force = false): Promise<void> {
     const conn = this.conn;
@@ -356,7 +238,7 @@ export class Session {
   }
 
   /**
-   * ツリーと git（D2）・ターミナル（F1）・画像（E6）の要求を今の接続で送る。つながっていないときは投げる。
+   * ツリーと git（D2）・ターミナル（F1）・プライマリの shj（#551）の要求を今の接続で送る。つながっていないときは投げる。
    * つなぎ直したら、呼ぶ側が取り直す（onState の connected で知る）。
    */
   async request<M extends TreeMethod | TermMethod | BlobMethod | ShjMethod>(
@@ -366,37 +248,6 @@ export class Session {
     const conn = this.conn;
     if (!conn) throw new Error(`${this.target} につながっていません`);
     return conn.client.request(method, params);
-  }
-
-  /**
-   * 入力（input.* と file.open）を今の接続で送る。seq はここで付ける（送るたびに 1 つ増やす）。返事は待たない。
-   * shj は受け取った順に処理する。つながっていないときは捨てる（切れている間の入力は送り直さない）。
-   * 送った seq を返す（送らなければ undefined）。shj が断ったら onError を呼ぶ（無ければ onDiscard に渡すだけ）。
-   */
-  input<M extends InputMethod>(
-    method: M,
-    params: Omit<Requests[M]["params"], "seq">,
-    onError?: (e: unknown) => void,
-  ): number | undefined {
-    const conn = this.conn;
-    if (!conn) return undefined;
-    const seq = ++this.inputSeq;
-    conn.client
-      .request(method, { ...params, seq } as Requests[M]["params"])
-      .catch((e) => (onError ? onError(e) : this.discard(method, e)));
-    return seq;
-  }
-
-  /** clipboard.write（shj でコピーした。OS のクリップボードに入れる）。つなぎ直しても外れない。 */
-  onClipboard(h: (text: string) => void): () => void {
-    this.clipboardHandlers.add(h);
-    return () => this.clipboardHandlers.delete(h);
-  }
-
-  /** resize.start・resize.key・resize.reset（shj が境界のリサイズを始める・キーを受けた・初期値に戻す）。つなぎ直しても外れない。 */
-  onResizeEvent(h: (e: ResizeEvent) => void): () => void {
-    this.resizeHandlers.add(h);
-    return () => this.resizeHandlers.delete(h);
   }
 
   /** pane.show・pane.hide（プライマリの shj が端末のコマンドで欄を出した・隠した）。つなぎ直しても外れない。 */
@@ -424,17 +275,6 @@ export class Session {
   /** term.ack を今の接続で送る（F1）。つながっていなければ何もしない（つなぎ直したら term.attach で取り直す）。 */
   ackTerm(termId: string, seq: number): void {
     this.conn?.client.notify("term.ack", { termId, seq });
-  }
-
-  /** 全部の画面を取り直したとき（つなぎ直し、版の食い違い）。 */
-  onScreen(h: (s: Screen) => void): () => void {
-    this.screenHandlers.add(h);
-    return () => this.screenHandlers.delete(h);
-  }
-  /** 差分の更新（版が続いているものだけ）。 */
-  onUpdate(h: (u: ScreenUpdate) => void): () => void {
-    this.updateHandlers.add(h);
-    return () => this.updateHandlers.delete(h);
   }
 
   /** つなぎ始める。最初の接続で失敗したときも、つなぎ直しと同じ回数まで試す。 */
@@ -602,17 +442,12 @@ export class Session {
     }
   }
 
-  /** つながった接続を受け取る。同じ serverId なら screen.get、違えば一覧から取り直す。 */
+  /** つながった接続を受け取る。ワークスペースの一覧は hello と workspace.list から取り直す。 */
   private async adopt(conn: Connection, gen: number): Promise<void> {
-    const replaced =
-      this.serverId !== undefined && this.serverId !== conn.hello.serverId;
     this.conn = conn;
     this._workspaces = conn.hello.workspaces;
     this.serverId = conn.hello.serverId;
     this.rev = conn.hello.rev;
-    this.fetching = false;
-    this.queued = [];
-    this.refetch = false;
     // 引き継がれた。session.superseded か、閉じ損ねた接続への not_owner で気づく
     let superseded: SessionState | undefined;
     const offs = [
@@ -620,17 +455,6 @@ export class Session {
         superseded = { kind: "superseded", by: p?.by };
         // shj は送ったあと閉じるが、閉じ損ねても待たずにこちらから閉じる
         conn.client.close("superseded by another GUI");
-      }),
-      conn.client.on("screen.update", (u) => this.handleUpdate(conn, gen, u)),
-      conn.client.on("i18n.changed", (t) => {
-        if (gen !== this.generation || this.conn !== conn) return;
-        // 言語が変わった。持っている画面は前の言語で訳してあるので、取り直す
-        this.messages = t.messages;
-        void this.fetchScreen(conn, gen, true);
-      }),
-      conn.client.on("theme.changed", (t) => {
-        if (gen !== this.generation || this.conn !== conn) return;
-        this.setTheme(t);
       }),
       conn.client.on("workspace.changed", (c) => {
         this._workspaces = applyWorkspaceChange(this._workspaces, c);
@@ -645,25 +469,6 @@ export class Session {
       conn.client.on("git.changed", (n) => {
         if (gen !== this.generation || this.conn !== conn) return;
         for (const h of [...this.gitHandlers]) h(n);
-      }),
-      conn.client.on("clipboard.write", (n) => {
-        if (gen !== this.generation || this.conn !== conn) return;
-        if (typeof n?.text !== "string") return;
-        for (const h of [...this.clipboardHandlers]) h(n.text);
-      }),
-      conn.client.on("resize.start", () => {
-        if (gen !== this.generation || this.conn !== conn) return;
-        for (const h of [...this.resizeHandlers]) h({ kind: "start" });
-      }),
-      conn.client.on("resize.key", (n) => {
-        if (gen !== this.generation || this.conn !== conn) return;
-        if (typeof n?.key !== "string") return;
-        for (const h of [...this.resizeHandlers])
-          h({ kind: "key", key: n.key });
-      }),
-      conn.client.on("resize.reset", () => {
-        if (gen !== this.generation || this.conn !== conn) return;
-        for (const h of [...this.resizeHandlers]) h({ kind: "reset" });
       }),
       conn.client.on("pane.show", (n) => {
         if (gen !== this.generation || this.conn !== conn) return;
@@ -716,44 +521,8 @@ export class Session {
 
     this.setState({ kind: "connected", hello: conn.hello });
     this.emitWorkspaces();
-    // hello にはフォーカスが無いので、workspace.list で尋ねる（画面の取り直しは待たせない）
+    // hello にはフォーカスが無いので、workspace.list で尋ねる
     void this.fetchFocus(conn, gen);
-    // 購読と大きさは接続ごと（shj は GUI ごとに覚える）なので、つなぐたびに送る。翻訳の表の返事だけ待つ
-    // （購読すると shj が全部を screen.update で送ってくる。版が合わなければ screen.get で取り直す）
-    await this.subscribe(conn, gen);
-
-    if (replaced) {
-      // shj が作り直された。古い画面は捨て、ワークスペースの一覧から取り直す
-      this._screen = null;
-    } else {
-      await this.fetchScreen(conn, gen);
-    }
-  }
-
-  /** 翻訳の表を先に受け取る（購読すると届く画面の文言を訳すのに要る）。ほかの返事は待たない。 */
-  private async subscribe(conn: Connection, gen: number): Promise<void> {
-    try {
-      const t = await conn.client.request("i18n.get", {});
-      if (gen !== this.generation || this.conn !== conn) return;
-      this.messages = t.messages;
-    } catch (e) {
-      this.discard("i18n.get", e);
-    }
-    conn.client
-      .request("view.subscribe", { regions: SUBSCRIBED_REGIONS })
-      .catch((e) => this.discard("view.subscribe", e));
-    this.sendResize(conn);
-    conn.client
-      .request("theme.get", {})
-      .then((t) => {
-        if (gen === this.generation && this.conn === conn) this.setTheme(t);
-      })
-      .catch((e) => this.discard("theme.get", e));
-  }
-
-  private setTheme(t: Theme): void {
-    this._theme = t;
-    for (const h of [...this.themeHandlers]) h(t);
   }
 
   private setFocus(id: WorkspaceId | null): void {
@@ -780,84 +549,6 @@ export class Session {
 
   private emitWorkspaces(): void {
     for (const h of [...this.workspaceHandlers]) h(this._workspaces);
-  }
-
-  private handleUpdate(conn: Connection, gen: number, raw: ScreenUpdate): void {
-    if (gen !== this.generation || this.conn !== conn) return;
-    const u = translate(raw, this.messages);
-    if (this.fetching) {
-      // 取り直した画面に入っているかもしれない。返事が来てから決める（fetchScreen）
-      this.queued.push(u);
-      return;
-    }
-    if (u.baseRev !== this.rev) {
-      void this.fetchScreen(conn, gen);
-      return;
-    }
-    this.apply(conn, u);
-  }
-
-  /** 版の続いた更新を手元の画面に当て、描く側に渡してから screen.ack を返す。 */
-  private apply(conn: Connection, u: ScreenUpdate): void {
-    this.rev = u.rev;
-    this._screen = applyUpdate(this._screen, u);
-    // 描く側（Solid）は、渡されたその場で DOM を書き換える。だから渡し終えたら「描き終えた」として返す
-    for (const h of [...this.updateHandlers]) h(u);
-    conn.client.notify("screen.ack", { rev: u.rev });
-  }
-
-  /** screen.get の返事待ちの間に来た更新 */
-  private queued: ScreenUpdate[] = [];
-  /** 今の screen.get が終わったら、もう一度取り直す */
-  private refetch = false;
-
-  private async fetchScreen(
-    conn: Connection,
-    gen: number,
-    force = false,
-  ): Promise<void> {
-    if (this.fetching) {
-      // 取り直しは重ねない。ただし前の取り直しより後の画面が要るとき（フォーカスを移した）は、終わってからもう一度
-      if (force) this.refetch = true;
-      return;
-    }
-    this.fetching = true;
-    this.refetch = false;
-    this.queued = [];
-    let ok = false;
-    try {
-      const raw = await conn.client.request("screen.get", {});
-      if (gen !== this.generation || this.conn !== conn) return;
-      const screen = translate(raw, this.messages);
-      this._screen = screen;
-      this.rev = screen.rev;
-      ok = true;
-      for (const h of [...this.screenHandlers]) h(screen);
-    } catch (e) {
-      // 切れたなら onClose が見る。shj が答えなかったときも ping が見る
-      this.discard("screen.get", e);
-    } finally {
-      // つなぎ直したあとなら、新しい接続の取り直しの印を消さない
-      if (this.conn === conn) this.fetching = false;
-    }
-    if (!ok) return;
-    if (this.refetch) {
-      void this.fetchScreen(conn, gen);
-      return;
-    }
-    // 返事を待つ間に来た更新：取り直した画面より古いものは捨て、その画面から続くものは当てる。
-    // shj は ack の来ない更新を 1 つまでしか送らないので、続くものを捨てると画面が止まる。
-    const queued = this.queued;
-    this.queued = [];
-    for (const u of queued) {
-      if (gen !== this.generation || this.conn !== conn) return;
-      if (u.rev <= this.rev) continue;
-      if (u.baseRev !== this.rev) {
-        void this.fetchScreen(conn, gen);
-        return;
-      }
-      this.apply(conn, u);
-    }
   }
 }
 

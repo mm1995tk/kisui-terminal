@@ -47,7 +47,7 @@
 .tree-row:hover {
   background: var(--tree-hover);
 }
-/* ファイルの欄でフォーカスしているペインが出しているファイルの行（モックの色） */
+/* プライマリの shj が出しているファイルの行（モックの色） */
 .tree-row[aria-selected="true"] {
   background: var(--tree-current);
 }

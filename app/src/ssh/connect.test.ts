@@ -50,7 +50,7 @@ function fakeApi(onConnect: (h: Handlers, id: string, target: string) => void) {
                 jsonrpc: "2.0",
                 id: msg.id,
                 result: {
-                  protocol: { major: 3, minor: 0 },
+                  protocol: { major: 4, minor: 0 },
                   encoding: "json",
                   shj: { version: "1", commit: "x", channel: "stable" },
                   serverId: "s",

@@ -1,15 +1,13 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { isGuiKey, keyParams, type KeyLike } from "./files/input.ts";
 import {
   cmdDigit,
   isCloseTermKey,
-  isCmdGuiKey,
   isCmdKey,
   isCmdZoomKey,
+  type KeyLike,
 } from "./guiKeys.ts";
-import { isModeKey } from "./mode.ts";
 import { directionKey, isNewTermKey, isZoomKey } from "./terminal/grid.ts";
 
 function key(p: Partial<KeyLike>): KeyLike {
@@ -31,22 +29,6 @@ describe("Mac の Cmd のキー", () => {
     const csT = key({ key: "T", code: "KeyT", ctrlKey: true, shiftKey: true });
     assert.equal(isNewTermKey(csT, true), true);
     assert.equal(isNewTermKey(csT, false), true);
-  });
-
-  it("Cmd+J でモードを切り替える。Cmd+` は使わない", () => {
-    assert.equal(isModeKey(key({ key: "j", metaKey: true }), true), true);
-    assert.equal(isModeKey(key({ key: "j", metaKey: true }), false), false);
-    assert.equal(
-      isModeKey(key({ key: "`", code: "Backquote", metaKey: true }), true),
-      false,
-    );
-    assert.equal(
-      isModeKey(
-        key({ key: "~", code: "Backquote", ctrlKey: true, shiftKey: true }),
-        true,
-      ),
-      true,
-    );
   });
 
   it("Cmd+Option+矢印で隣へ移る。Option だけ・Cmd だけでは移らない", () => {
@@ -90,20 +72,13 @@ describe("Mac の Cmd のキー", () => {
     assert.equal(cmdDigit(key({ key: "1", code: "Digit1" })), null);
   });
 
-  it("GUI が受ける Cmd のキーは shj に送らない。Cmd+W・Cmd+Option+矢印はファイルの欄では送る", () => {
-    for (const k of ["t", "j", "1", "9"]) {
-      const e = key({ key: k, metaKey: true });
-      assert.equal(isCmdGuiKey(e), true);
-      assert.equal(isGuiKey(e, true), true);
-      assert.equal(keyParams(e, true), null);
-    }
-    assert.equal(isGuiKey(key({ key: "t", metaKey: true }), false), false);
-    assert.notEqual(keyParams(key({ key: "w", metaKey: true }), true), null);
-    assert.notEqual(
-      keyParams(key({ key: "ArrowLeft", metaKey: true, altKey: true }), true),
-      null,
-    );
+  it("Cmd+T・Cmd+1〜9 は Cmd だけのキー。Shift など別のキーを足したら違う", () => {
+    assert.equal(isCmdKey(key({ key: "t", metaKey: true }), "t"), true);
     assert.equal(isCmdKey(key({ key: "s", metaKey: true }), "t"), false);
+    assert.equal(
+      isCmdKey(key({ key: "t", metaKey: true, shiftKey: true }), "t"),
+      false,
+    );
   });
 });
 
@@ -114,19 +89,16 @@ describe("Cmd+Shift+Enter（プライマリ以外の欄を隠す）", () => {
     metaKey: true,
     shiftKey: true,
   });
-  it("Mac では Cmd+Shift+Enter で隠す。GUI が受けるキーで、shj に送らない", () => {
+  it("Mac では Cmd+Shift+Enter で隠す。GUI が受けるキー", () => {
     assert.equal(isCmdZoomKey(cse), true);
     assert.equal(isZoomKey(cse, true), true);
-    assert.equal(isCmdGuiKey(cse), true);
-    assert.equal(isGuiKey(cse, true), true);
   });
   it("Shift が無い・Option も押している・Ctrl も押しているときは受けない", () => {
     assert.equal(isCmdZoomKey({ ...cse, shiftKey: false }), false);
     assert.equal(isCmdZoomKey({ ...cse, altKey: true }), false);
     assert.equal(isCmdZoomKey({ ...cse, ctrlKey: true }), false);
   });
-  it("Mac 以外では受けない（shj に送る）", () => {
+  it("Mac 以外では受けない（ターミナルに送る）", () => {
     assert.equal(isZoomKey(cse, false), false);
-    assert.equal(isGuiKey(cse, false), false);
   });
 });

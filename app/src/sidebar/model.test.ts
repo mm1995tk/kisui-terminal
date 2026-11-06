@@ -26,7 +26,6 @@ const ws = (
     name: folder === null ? null : (folder.split("/").at(-1) ?? ""),
     primary: `p-${w.id}`,
     terms: [],
-    files: [],
     ...rest,
   };
 };

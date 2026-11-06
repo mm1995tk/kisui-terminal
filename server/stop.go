@@ -2,8 +2,6 @@ package server
 
 import (
 	"encoding/json"
-	"fmt"
-	"os"
 	"time"
 
 	"github.com/mm1995tk/shijimi-editor/ui/gui/rpc"
@@ -23,16 +21,7 @@ func (s *Server) now() time.Time {
 	return time.Now()
 }
 
-// AddBeforeStop registers fn to run once just before the server stops for
-// being idle or for server.shutdown (not for a signal or Close). Workspaces use
-// it to write their unsaved edits with WriteBackup.
-func (s *Server) AddBeforeStop(fn func()) {
-	s.mu.Lock()
-	s.beforeStop = append(s.beforeStop, fn)
-	s.mu.Unlock()
-}
-
-// stop runs the before-stop hooks once and then makes Serve return.
+// stop makes Serve return, once.
 func (s *Server) stop(reason string) {
 	s.mu.Lock()
 	if s.stopping {
@@ -40,12 +29,8 @@ func (s *Server) stop(reason string) {
 		return
 	}
 	s.stopping = true
-	hooks := s.beforeStop
 	s.mu.Unlock()
 	s.log.Info("stopping", "reason", reason)
-	for _, fn := range hooks {
-		fn()
-	}
 	s.ln.Close()
 }
 
@@ -114,32 +99,4 @@ func (s *Server) shutdownReq(req *rpc.Message) (any, error) {
 	}
 	time.AfterFunc(shutdownGrace, func() { s.stop("server.shutdown") })
 	return map[string]int{"terminals": n}, nil
-}
-
-// WriteBackup writes data next to path as <path>.bk, or <path>.bk.1, .bk.2, ...
-// if the name is taken. It never overwrites a file, and never touches path. It
-// returns the path it wrote.
-func WriteBackup(path string, data []byte) (string, error) {
-	perm := os.FileMode(0o600)
-	if st, err := os.Stat(path); err == nil {
-		perm = st.Mode().Perm()
-	}
-	for i := 0; ; i++ {
-		name := path + ".bk"
-		if i > 0 {
-			name = fmt.Sprintf("%s.bk.%d", path, i)
-		}
-		f, err := os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_EXCL, perm)
-		if os.IsExist(err) {
-			continue
-		}
-		if err != nil {
-			return "", err
-		}
-		if _, err := f.Write(data); err != nil {
-			f.Close()
-			return "", err
-		}
-		return name, f.Close()
-	}
 }

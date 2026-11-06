@@ -1,6 +1,6 @@
 // 画面の字（親 #271 のモック「案：フラットな一覧」）。オフラインでも出るよう、Google Fonts ではなく同梱する。
 // 使う太さだけを読む。IBM Plex Sans JP はモックの 400・600・700（1 つの太さで woff2 が約 1.4MB）、
-// JetBrains Mono は 400 と、太字（ターミナルの bold・ファイルの欄の強調）の 700。
+// JetBrains Mono は 400 と、太字（ターミナルの bold）の 700。
 // どの太さも字の範囲ごとのファイルに分かれていて、WebView は画面に出た字の分だけを読む。
 // Nerd Font のアイコン（Symbols Nerd Font Mono）は JetBrains Mono の次に使う字（symbols-nerd-font.css）。
 // woff（woff2 の代わり）は vite.config.ts で落としている。

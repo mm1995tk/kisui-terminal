@@ -7,16 +7,10 @@
 // 左にはつないだマシンごとの見出しとワークスペースの帯を出し、帯を押すとフォーカスを移す（D1）。
 // フォーカスしているワークスペースの帯の下にはツリーを出す。開閉とスクロールの位置はワークスペースごとに覚え、
 // フォーカスを外して戻しても残す（D2）。マシンごとに色を決めて覚え、見出しと帯の左端の線に使う（D4）。
-// 右上にはフォーカスしているマシンの shj が送る画面のファイルの欄を描く（E1）。欄の大きさは、つないだ
-// どのマシンにも送る（どのマシンにフォーカスを移しても、同じ大きさの欄に描くため）。
-// 欄で受けたキー・IME・マウス・貼り付けは、フォーカスしているマシンの shj に送る。shj でコピーしたら
-// OS のクリップボードに入れる（E2）。
 // マシンの見出しの [+] でフォルダ未定のワークスペースを作り（フォルダはプライマリターミナルで cd すると決まる）、帯の [×] で閉じる
 // （プログラムが動いていれば、先に確認の窓を出す）。ターミナルはワークスペースごとにあり、帯を押してフォーカスを移すと、
-// 右下のターミナルもそのワークスペースのものに切り替わる（F2）。
-// Ctrl+Shift+` でファイルの欄とターミナルのカードを入れ替える（IDE モードとターミナルモード。F3。mode.ts）。
-// IDE モードでファイルを開いていない（ワークスペースが無いときも）あいだは、右の列を全部ターミナルにする（mode.ts）。
-// ターミナルモードでは、フォーカスしているワークスペースのターミナル（先頭がプライマリ）を数に応じて自動で並べる。
+// 右の欄のターミナルもそのワークスペースのものに切り替わる（F2）。
+// 右の欄には、フォーカスしているワークスペースのターミナル（先頭がプライマリ）を数に応じて自動で並べる。編集はプライマリの欄の中の shj が受け持つ。
 // Ctrl+Shift+T で増やし、分割したターミナルの `exit` で閉じて並び直し、Ctrl+Shift+矢印で隣へ移る（F4。terminal/group.ts・
 // terminal/grid.ts）。プライマリターミナルは `exit` しても閉じず、Enter で作り直す。
 // 新しい版があれば右下に知らせ、押されたら入れ替えて起動し直す（C8。update/UpdateBar.tsx）。
@@ -43,9 +37,7 @@ import { Notices, type Notice } from "./connect/Notices.tsx";
 import { RenameMachine } from "./connect/RenameMachine.tsx";
 import { describeClient, statusLine } from "./connect/status.ts";
 import { UpdateBar } from "./update/UpdateBar.tsx";
-import { BlobStore } from "./files/blob.ts";
-import { OsClipboard } from "./files/clipboard.ts";
-import { activeSplit, type SplitKind } from "./files/split.ts";
+import { OsClipboard } from "./clipboard.ts";
 import {
   applyMove,
   litBorders,
@@ -59,19 +51,8 @@ import {
   type Border,
   type PaneSizes,
 } from "./panes.ts";
-import {
-  FilesView,
-  type FilesSize,
-  type SendInput,
-} from "./files/FilesView.tsx";
 import { ErrorCode, RpcError } from "./rpc/message.ts";
-import type {
-  ExtraPane,
-  Screen,
-  Theme,
-  Workspace,
-  WorkspaceId,
-} from "./rpc/protocol.ts";
+import type { ExtraPane, Workspace, WorkspaceId } from "./rpc/protocol.ts";
 import {
   adoptFocus,
   buildSidebar,
@@ -99,7 +80,6 @@ import {
 import { Session, type SessionState } from "./ssh/session.ts";
 import { tauriShell } from "./ssh/tauri.ts";
 import {
-  currentFile,
   relativeIn,
   openErrorText,
   rows as treeRows,
@@ -120,13 +100,6 @@ import { directionKey, isNewTermKey, isZoomKey } from "./terminal/grid.ts";
 import { TermGroup, TermGroups } from "./terminal/group.ts";
 import type { MediaFetch } from "./terminal/media.ts";
 import { TerminalGrid } from "./terminal/TerminalGrid.tsx";
-import {
-  hasOpenFile,
-  isModeKey,
-  otherMode,
-  swapWithMotion,
-  type Mode,
-} from "./mode.ts";
 
 /**
  * 起動したら、先に手元の設定ファイルの [[gui.machines]] を読む。間違いがあれば、場所・行・理由だけを出して、ほかは何もしない
@@ -284,34 +257,23 @@ function Workbench(props: {
   const termActiveExtra = () => termGroup()?.activeExtra;
   // shj が動画などの欄を出した回数（ツリーで押したファイルの返事で、動画の欄から奪い返さないため）
   let extraShown = 0;
-  /** shj が動画の欄を出した（#555）。隠していれば戻し、IDE モードならターミナルモードにして、その欄にキーを向ける。 */
+  /** shj が動画の欄を出した（#555）。隠していれば戻し、その欄にキーを向ける。 */
   function paneShowExtra(target: string, id: WorkspaceId, extraId: string) {
     extraShown++;
     zoomWs(target, id, false);
     termGroups.get(target)?.get(id)?.activateExtra(extraId);
     const f = untrack(focus);
     if (!f || f.target !== target || f.id !== id) return;
-    // 並べて見せるので、ターミナルモードにする（toggleMode がキーも向ける）
-    if (untrack(mode) === "ide") toggleMode();
-    else focusTerminal();
+    focusTerminal();
   }
   // マシンごとのツリー（D2）。中身は WorkspaceTrees が持ち、変わったら treeVersion を進めて描き直す
   const trees = new Map<string, WorkspaceTrees>();
   const [treeVersion, setTreeVersion] = createSignal(0);
-  // マシンごとの画像の実体（E6）。blob.get で取ったものを覚えておく
-  const blobStores = new Map<string, BlobStore>();
-  // マシンごとの画面とテーマ（E1）。Session が持つものを写す
-  const [screens, setScreens] = createSignal<Record<string, Screen | null>>({});
-  const [themes, setThemes] = createSignal<Record<string, Theme | null>>({});
-  // ファイルの欄の大きさ。新しくつなぐマシンにも送る
-  let filesSize: FilesSize | undefined;
   const clipboard = new OsClipboard(
     () => navigator.clipboard,
     (e) => console.warn("clipboard:", e),
   );
   let nav: HTMLElement | undefined;
-  // IDE モード（上がファイルの欄）かターミナルモード（上がターミナル）か（F3）
-  const [mode, setMode] = createSignal<Mode>("ide");
   let mainEl: HTMLDivElement | undefined;
   let appEl: HTMLElement | undefined;
   // ブロックの境界の大きさ（panes.ts）。変えたら覚えておき、GUI を起動し直しても残す
@@ -322,62 +284,11 @@ function Workbench(props: {
   }
   // リサイズモード（Alt+R・パレットの「リサイズ」）か。境界を動かすキーは GUI が受ける
   const [resizeMode, setResizeMode] = createSignal(false);
-  // キーがターミナルに向いているか（←→ が動かす境界を決める）
-  const [keysInTerm, setKeysInTerm] = createSignal(false);
-  const onFocusIn = (e: FocusEvent) =>
-    setKeysInTerm(
-      !!(e.target as Element | null)?.closest?.(".main > .terminal"),
-    );
-  document.addEventListener("focusin", onFocusIn);
-  onCleanup(() => document.removeEventListener("focusin", onFocusIn));
   let focusActiveTerminal: (() => void) | undefined;
-  // ファイルの欄に描く画面（フォーカスしているマシンのもの。フォーカスが無ければ null）
-  // フォルダ未定のワークスペースには、ファイルの欄に出すものが無い（shj の画面は前のワークスペースのままかもしれない）
-  const filesScreen = () => {
-    const f = focus();
-    if (!f || folderOf(f.target, f.id) === null) return null;
-    return screens()[f.target] ?? null;
-  };
-  // ファイルを開いているか。開いていなければ、IDE モードでもファイルの欄を出さず右の列を全部ターミナルにする（mode.ts）
-  const fileOpen = createMemo(() => hasOpenFile(filesScreen()?.files));
-  // ファイルの欄の今のファイルの左右の境界（差分の分割・プレビューの分割）。無ければ null
-  const split = createMemo(() => activeSplit(filesScreen()?.files));
-  const resizeCtx = () => ({ inTerm: keysInTerm(), split: split() });
   // リサイズモードで動かす境界（光らせる）。ドラッグ中の境界も光る
   const [dragging, setDragging] = createSignal<Border | null>(null);
   const lit = (b: Border) =>
-    dragging() === b || (resizeMode() && litBorders(resizeCtx()).includes(b));
-  const litSplit = (): SplitKind | null => {
-    const k = split();
-    return k && lit(k) ? k : null;
-  };
-  /** ファイルの欄の左右の境界（shj に送る。0 は半分） */
-  const splitsOf = () => ({
-    diff: sizeOf(sizes(), "diff"),
-    preview: sizeOf(sizes(), "preview"),
-  });
-  createEffect(() => {
-    const sp = splitsOf();
-    for (const s of Object.values(sessions())) s.setSplits(sp);
-  });
-  // ツリーから開いたとき、ファイルの欄が出たらキーを向ける（出す前の欄にはフォーカスできない）
-  let focusFilesWhenShown = false;
-  createEffect(() => {
-    if (!fileOpen() || !focusFilesWhenShown) return;
-    focusFilesWhenShown = false;
-    if (untrack(mode) === "ide") focusFiles();
-  });
-  // 逆に、最後のファイルを閉じた・ワークスペースが消えたなどで欄を隠したとき、キーが欄（か、隠れて外れた先の body）に
-  // あれば、ターミナルに向ける（どこにもキーが届かなくなるため）
-  createEffect<boolean>((was) => {
-    const open = fileOpen();
-    if (was && !open && untrack(mode) === "ide") {
-      const a = document.activeElement;
-      const inFiles = !!a?.closest(".main > .files");
-      if (!a || a === document.body || inFiles) focusTerminal();
-    }
-    return open;
-  }, false);
+    dragging() === b || (resizeMode() && litBorders().includes(b));
   const [asks, setAsks] = createSignal<AskpassRequest[]>([]);
   // リモートを足す窓を出しているか。足すためにつないでいる最中のマシン、足せなかった理由
   const [adding, setAdding] = createSignal(false);
@@ -398,12 +309,6 @@ function Workbench(props: {
   const offs: (() => void)[] = [];
   // GUI が受けるキーなので、欄やターミナルに届く前（capture）に取って、shj にもシェルにも送らない
   const onGuiKey = (e: KeyboardEvent) => {
-    if (isModeKey(e, IS_MAC)) {
-      e.preventDefault();
-      e.stopPropagation();
-      if (!e.repeat) toggleMode();
-      return;
-    }
     if (isZoomKey(e, IS_MAC)) {
       e.preventDefault();
       e.stopPropagation();
@@ -427,26 +332,19 @@ function Workbench(props: {
       if (b && !e.repeat) void focusWorkspace(b[0], b[1]);
       return;
     }
-    // リサイズモード（#526）：キーは境界を動かすのに使い、ファイルの欄にもターミナルにも送らない。Alt+R で入る
+    // リサイズモード（#526）：キーは境界を動かすのに使い、ターミナルには送らない。Alt+R で入る
     const rname = e.isComposing ? null : resizeKeyName(e);
     if (rname && (resizeMode() || rname === "alt+r")) {
       e.preventDefault();
       e.stopPropagation();
       if (resizeMode()) {
-        if (!e.repeat || resizeAction(rname, resizeCtx()).kind !== "exit")
-          resizeKey(rname, false);
+        if (!e.repeat || resizeAction(rname).kind !== "exit") resizeKey(rname);
       } else if (!e.repeat) {
-        // 入るのは shj（core）。入ったら resize.start が届く
-        sendInput("input.key", {
-          region: "files",
-          key: "r",
-          mods: ["alt"],
-          phase: "press",
-        });
+        setResizeMode(true);
       }
       return;
     }
-    // 隣へ移るのは、ターミナルを並べていて、キーがターミナルに向いているときだけ（ファイルの欄の Ctrl+Shift+矢印は shj に送る）
+    // 隣へ移るのは、ターミナルを並べていて、キーがターミナルに向いているときだけ
     const dir = directionKey(e, IS_MAC);
     const card = mainEl?.querySelector(":scope > .terminal");
     const inTerm = !!card?.contains(e.target as Node);
@@ -457,7 +355,7 @@ function Workbench(props: {
       if (!e.repeat) termGroup()?.closeActive();
       return;
     }
-    if (dir && mode() === "terminal" && !zoomed() && inTerm) {
+    if (dir && !zoomed() && inTerm) {
       e.preventDefault();
       e.stopPropagation();
       if (termGroup()?.move(dir)) focusTerminal();
@@ -512,10 +410,6 @@ function Workbench(props: {
       (m) => console.warn(`[${target}] ${m}`),
     );
     termGroups.set(target, group);
-    blobStores.set(
-      target,
-      new BlobStore((params) => s.request("blob.get", params)),
-    );
     const offTerm = s.onTerm((e) => group.handle(e));
     const off = s.onState((st) => {
       // つなぎ直したら、ターミナルの溜めた出力を続きから取り直す（右下に出す前なら何もしない）
@@ -548,27 +442,11 @@ function Workbench(props: {
         keepFocus(adoptFocus(f, target, id), workspaces(), shjFocuses()),
       ),
     );
-    const showScreen = () => setScreens((m) => ({ ...m, [target]: s.screen }));
-    const offScreen = s.onScreen(showScreen);
-    const offUpdate = s.onUpdate(showScreen);
-    const offTheme = s.onTheme((th) =>
-      setThemes((m) => ({ ...m, [target]: th })),
-    );
-    const offClipboard = s.onClipboard((text) => void clipboard.write(text));
     const offPane = s.onPane((ev) => {
       if (ev.kind === "show") paneShow(target, ev.workspaceId, ev.termId);
       else if (ev.kind === "show-extra")
         paneShowExtra(target, ev.workspaceId, ev.extraId);
       else zoomWs(target, ev.workspaceId, true);
-    });
-    const offResize = s.onResizeEvent((ev) => {
-      if (ev.kind === "start") setResizeMode(true);
-      else if (ev.kind === "reset") changeSizes({});
-      else {
-        // core だけがリサイズモードに残っていたときも、GUI をモードに入れてから当てる
-        setResizeMode(true);
-        resizeKey(ev.key, true);
-      }
     });
     offStates.set(target, () => {
       offTerm();
@@ -577,15 +455,8 @@ function Workbench(props: {
       offGit();
       offWs();
       offFocus();
-      offScreen();
-      offUpdate();
-      offTheme();
-      offClipboard();
-      offResize();
       offPane();
     });
-    s.setSplits(splitsOf());
-    if (filesSize) s.resize(filesSize);
     setSessions((m) => ({ ...m, [target]: s }));
     setStates((m) => ({ ...m, [target]: s.state }));
     s.start();
@@ -599,54 +470,37 @@ function Workbench(props: {
     trees.delete(target);
     termGroups.delete(target); // シェルは止めない（ワークスペースは shj に残る）
     started.delete(target);
-    blobStores.get(target)?.clear();
-    blobStores.delete(target);
     setSessions(({ [target]: _, ...rest }) => rest);
     setStates(({ [target]: _, ...rest }) => rest);
     setWorkspaces(({ [target]: _, ...rest }) => rest);
-    setScreens(({ [target]: _, ...rest }) => rest);
-    setThemes(({ [target]: _, ...rest }) => rest);
     setFocus((f) => keepFocus(f, workspaces(), shjFocuses()));
     await s.close();
   }
 
-  /** 今の窓で効く境界の上限（app.css の clamp と同じ。無ければ undefined）。 */
-  function maxOf(border: Border): number | undefined {
-    if (border === "sidebar") return Math.min(640, window.innerWidth / 2);
-    if (border === "term" && mainEl)
-      return mainEl.getBoundingClientRect().height - 160;
-    return undefined;
+  /** 今の窓で効く境界の上限（app.css の clamp と同じ）。 */
+  function maxOf(): number {
+    return Math.min(640, window.innerWidth / 2);
   }
 
-  /**
-   * リサイズモードで key（TUI と同じ名前。panes.ts）を押した。fromShj は shj が教えてきたとき（出るのは shj が決めている）。
-   * GUI で押したときの出るキーは、shj のリサイズモードも終わらせるため Esc を送る。
-   */
-  function resizeKey(key: string, fromShj: boolean) {
-    const a = resizeAction(key, resizeCtx());
+  /** リサイズモードで key（TUI と同じ名前。panes.ts）を押した。 */
+  function resizeKey(key: string) {
+    const a = resizeAction(key);
     switch (a.kind) {
       case "move":
-        changeSizes(applyMove(sizes(), a.border, a.step, maxOf(a.border)));
+        changeSizes(applyMove(sizes(), a.border, a.step, maxOf()));
         break;
       case "reset":
         changeSizes({});
         break;
       case "exit":
         setResizeMode(false);
-        if (!fromShj)
-          sendInput("input.key", {
-            region: "files",
-            key: "Escape",
-            mods: [],
-            phase: "press",
-          });
         break;
     }
   }
 
-  /** サイドバー・ターミナルの境界のドラッグ。ポインタの位置が境界。 */
-  function dragBorder(border: "sidebar" | "term", e: PointerEvent) {
-    const box = border === "sidebar" ? appEl : mainEl;
+  /** サイドバーの境界のドラッグ。ポインタの位置が境界。 */
+  function dragBorder(border: "sidebar", e: PointerEvent) {
+    const box = appEl;
     if (e.button !== 0 || !box) return;
     const el = e.currentTarget as HTMLElement;
     e.preventDefault();
@@ -654,9 +508,7 @@ function Workbench(props: {
     setDragging(border);
     const move = (ev: PointerEvent) => {
       const r = box.getBoundingClientRect();
-      const v =
-        border === "sidebar" ? ev.clientX - r.left : r.bottom - ev.clientY;
-      changeSizes(withSize(sizes(), border, v, maxOf(border)));
+      changeSizes(withSize(sizes(), border, ev.clientX - r.left, maxOf()));
     };
     const end = () => {
       setDragging(null);
@@ -668,18 +520,6 @@ function Workbench(props: {
     el.addEventListener("pointerup", end);
     el.addEventListener("pointercancel", end);
   }
-
-  /** ファイルの欄の大きさが変わった。つないでいるどのマシンにも送る。 */
-  function resizeFiles(size: FilesSize) {
-    filesSize = size;
-    for (const s of Object.values(sessions())) s.resize(size);
-  }
-
-  /** ファイルの欄で受けた入力を、フォーカスしているマシンの shj に送る。 */
-  const sendInput: SendInput = (method, params) => {
-    const f = focus();
-    if (f) sessions()[f.target]?.input(method, params);
-  };
 
   /** ワークスペースのフォルダ。フォルダ未定なら null、ワークスペースが分からなければ undefined。 */
   function folderOf(
@@ -745,9 +585,8 @@ function Workbench(props: {
   } | null>(null);
 
   /**
-   * 帯の [×]。shj が開いているファイルを保存して閉じ、ターミナルを全部終わらせる。プログラムが動いていれば
-   * 断られるので、確認の窓を出す（force は窓で「終わらせて閉じる」を押したとき）。保存できないファイルがあれば
-   * 何も閉じずに、そのファイルを知らせる。フォーカスしているワークスペースを閉じたら、隣のワークスペースに移る。
+   * 帯の [×]。ターミナルを全部終わらせる。プログラムが動いていれば断られるので、確認の窓を出す
+   * （force は窓で「終わらせて閉じる」を押したとき）。フォーカスしているワークスペースを閉じたら、隣のワークスペースに移る。
    */
   async function closeWorkspace(
     target: string,
@@ -770,7 +609,7 @@ function Workbench(props: {
     } catch (e) {
       const d =
         e instanceof RpcError && e.code === ErrorCode.Busy
-          ? (e.data as { reason?: string; paths?: string[] } | undefined)
+          ? (e.data as { reason?: string } | undefined)
           : undefined;
       if (d?.reason === "running" && !force) {
         setConfirmClose({ target, id, name });
@@ -778,12 +617,7 @@ function Workbench(props: {
       }
       setFocusError({
         title: `${name || "ワークスペース"} を閉じられませんでした`,
-        error:
-          d?.reason === "unsaved" && d.paths?.length
-            ? `保存できないファイルがあります。\n${d.paths.join("\n")}`
-            : e instanceof Error
-              ? e.message
-              : String(e),
+        error: e instanceof Error ? e.message : String(e),
       });
       return;
     }
@@ -847,51 +681,34 @@ function Workbench(props: {
   }
 
   /**
-   * ツリーのファイルの行を押した。プライマリの shj があれば shj.open を送り、通ったらプライマリのターミナルにキーを向ける。
-   * なければ file.open を送り、ファイルの欄の
-   * フォーカスしているペインで開く（pane を省くと shj はフォーカスしているペインで開く）。
-   * 送れたら、IDE モードなら続けて打てるようにキーもファイルの欄に向ける。断られたら、帯を押して移れなかったときと同じ所に出す。
-   * ワークスペースを移している途中は送らない（shj は file.open でフォーカスを動かさないので、開いても移った先では見えない）。
+   * ツリーのファイルの行を押した。プライマリの shj に shj.open を送り、通ったらプライマリのターミナルにキーを向ける。
+   * ツリーはプライマリで shj が動いているときだけ出すので、動いていなければ何もしない。断られたら、帯を押して移れなかったときと同じ所に出す。
+   * ワークスペースを移している途中は送らない（フォーカスを移した先のワークスペースのプライマリで開くため）。
    */
   function openFile(target: string, id: WorkspaceId, path: string) {
     const s = sessions()[target];
     if (!s || switching || s.focus !== id) return;
+    if (!workspaces()[target]?.find((w) => w.id === id)?.primaryShj) return;
     const seq = ++openSeq; // 続けて押したら、最後に押したものの失敗だけを出す
     setFocusError(null);
-    // プライマリで shj が動いているなら、そこで開いてもらい、キーもそのターミナルに向ける
-    if (workspaces()[target]?.find((w) => w.id === id)?.primaryShj) {
-      const shown = extraShown;
-      s.request("shj.open", { workspaceId: id, path }).then(
-        () => {
-          // 返事を待つあいだに別のワークスペースへ移っていたら、そちらのターミナルは動かさない
-          if (seq !== openSeq || s.focus !== id) return;
-          // 動画だった（shj が動画の欄を出して、そこにキーを向けた）なら、プライマリに奪い返さない
-          if (extraShown !== shown) return;
-          termGroup()?.setActive(0); // 0 番目がプライマリ
-          focusTerminal();
-        },
-        (e) => {
-          if (seq !== openSeq) return;
-          setFocusError({
-            title: "ファイルを開けませんでした",
-            error: openErrorText(path, e),
-          });
-        },
-      );
-      return;
-    }
-    const sent = s.input("file.open", { workspaceId: id, path }, (e) => {
-      if (seq !== openSeq) return;
-      focusFilesWhenShown = false;
-      setFocusError({
-        title: "ファイルを開けませんでした",
-        error: openErrorText(path, e),
-      });
-    });
-    if (sent === undefined || mode() !== "ide") return;
-    // 初めて開くときは、まだファイルの欄を出していない。画面が来て欄が出てからキーを向ける
-    if (fileOpen()) focusFiles();
-    else focusFilesWhenShown = true;
+    const shown = extraShown;
+    s.request("shj.open", { workspaceId: id, path }).then(
+      () => {
+        // 返事を待つあいだに別のワークスペースへ移っていたら、そちらのターミナルは動かさない
+        if (seq !== openSeq || s.focus !== id) return;
+        // 動画だった（shj が動画の欄を出して、そこにキーを向けた）なら、プライマリに奪い返さない
+        if (extraShown !== shown) return;
+        termGroup()?.setActive(0); // 0 番目がプライマリ
+        focusTerminal();
+      },
+      (e) => {
+        if (seq !== openSeq) return;
+        setFocusError({
+          title: "ファイルを開けませんでした",
+          error: openErrorText(path, e),
+        });
+      },
+    );
   }
 
   // ツリーの右クリックのメニューから開いた窓（名前を入れる・削除の確認）
@@ -1017,21 +834,12 @@ function Workbench(props: {
     setTreeDialog(null);
   }
 
-  /** ファイルの欄の入力用の textarea にキーを向ける。 */
-  function focusFiles() {
-    mainEl
-      ?.querySelector<HTMLElement>(":scope > .files .files-ime")
-      ?.focus({ preventScroll: true });
-  }
-
-  /** ファイルの欄でフォーカスしているペインが出しているファイル（ツリーで強調する行）。 */
+  /** プライマリの shj が出しているファイル（ツリーで強調する行）。 */
   function currentOf(target: string, id: WorkspaceId) {
     const f = focus();
     if (f?.target !== target || f.id !== id) return undefined;
-    // プライマリの shj があれば、その shj が出しているファイル。なければ GUI 自身のファイルの欄のもの
     const w = workspaces()[target]?.find((x) => x.id === id);
-    if (w?.primaryShj) return relativeIn(w.primaryShj.file, rootOf(target, id));
-    return currentFile(screens()[target]?.files, rootOf(target, id));
+    return relativeIn(w?.primaryShj?.file, rootOf(target, id));
   }
 
   /** フォーカスしているワークスペースの、ターミナルでない欄（動画）の中身を取る関数。 */
@@ -1044,19 +852,6 @@ function Workbench(props: {
         throw new Error("つながっていません");
       return s.request("media.read", { workspaceId, id: pane.id, ...p });
     };
-  }
-
-  /** IDE モードとターミナルモードを入れ替え、上に来た大きいカードにキーを向ける（F3）。 */
-  function toggleMode() {
-    const next = otherMode(mode());
-    const files = mainEl?.querySelector<HTMLElement>(":scope > .files");
-    const term = mainEl?.querySelector<HTMLElement>(":scope > .terminal");
-    swapWithMotion([files, term], () => setMode(next));
-    // ファイルの欄は入力用の textarea、ターミナルは今使っている欄（coneko-term）がキーを受ける。
-    // ファイルを開いていなければ IDE モードでもファイルの欄を出さないので、ターミナルに向ける
-    focusFilesWhenShown = false;
-    if (next === "terminal" || !fileOpen()) focusTerminal();
-    else focusFiles();
   }
 
   /** 今使っているターミナルの欄にキーを向ける。 */
@@ -1246,7 +1041,6 @@ function Workbench(props: {
       data-resizing={resizeMode() ? "" : undefined}
       style={{
         "--sidebar-w": `${sizeOf(sizes(), "sidebar")}px`,
-        "--term-h": `${sizeOf(sizes(), "term")}px`,
         ...(colors()[focus()?.target ?? ""]
           ? { "--machine-color": colors()[focus()!.target] }
           : {}),
@@ -1293,27 +1087,7 @@ function Workbench(props: {
         onPointerDown={(e) => dragBorder("sidebar", e)}
         onDblClick={() => changeSizes(withoutSize(sizes(), "sidebar"))}
       />
-      <div
-        class="main"
-        data-mode={mode()}
-        data-no-file={fileOpen() ? undefined : ""}
-        ref={mainEl}
-      >
-        <FilesView
-          screen={filesScreen()}
-          theme={focus() ? (themes()[focus()!.target] ?? null) : null}
-          onResize={resizeFiles}
-          onInput={sendInput}
-          onSplit={(k, pct) => changeSizes(withSize(sizes(), k, pct))}
-          onSplitReset={(k) => changeSizes(withoutSize(sizes(), k))}
-          litSplit={litSplit()}
-          clipboard={clipboard}
-          blobs={
-            focus() && sessions()[focus()!.target]
-              ? blobStores.get(focus()!.target)
-              : undefined
-          }
-        />
+      <div class="main" ref={mainEl}>
         <TerminalGrid
           links={termList()}
           active={termActive()}
@@ -1322,20 +1096,10 @@ function Workbench(props: {
           readExtra={readExtra}
           onActivateExtra={(x) => termGroup()?.activateExtra(x)}
           onCloseExtra={(x) => termGroup()?.closeExtra(x)}
-          showAll={mode() === "terminal"}
           zoomed={zoomed()}
           accent={colors()[termTarget() ?? ""]}
           onActivate={(i) => termGroup()?.setActive(i)}
           focusRef={(f) => (focusActiveTerminal = f)}
-        />
-        <div
-          class="resizer"
-          data-axis="y"
-          data-border="term"
-          data-lit={lit("term") ? "" : undefined}
-          aria-hidden="true"
-          onPointerDown={(e) => dragBorder("term", e)}
-          onDblClick={() => changeSizes(withoutSize(sizes(), "term"))}
         />
       </div>
       <Show when={installing()}>

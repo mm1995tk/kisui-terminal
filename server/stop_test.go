@@ -59,8 +59,6 @@ func waitDone(t *testing.T, done chan struct{}, want bool) {
 func TestIdleStop(t *testing.T) {
 	clk := &fakeClock{t: time.Unix(1_000_000, 0)}
 	srv, sock, done := startIdle(t, 7*24*time.Hour, clk)
-	var hooks int
-	srv.AddBeforeStop(func() { hooks++ })
 
 	c := dial(t, sock)
 	if err := c.Call(context.Background(), "session.hello", hello(Protocol.Major), nil); err != nil {
@@ -90,9 +88,6 @@ func TestIdleStop(t *testing.T) {
 	waitDone(t, done, false)
 	clk.add(time.Second)
 	waitDone(t, done, true)
-	if hooks != 1 {
-		t.Fatalf("before-stop hooks: %d", hooks)
-	}
 }
 
 func TestIdleStopZeroNeverStops(t *testing.T) {
@@ -145,41 +140,4 @@ func TestShutdownWithoutTerminals(t *testing.T) {
 		t.Fatal(err)
 	}
 	waitDone(t, done, true)
-}
-
-func TestWriteBackup(t *testing.T) {
-	dir := t.TempDir()
-	p := filepath.Join(dir, "a.txt")
-	if err := os.WriteFile(p, []byte("orig"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	for i, want := range []string{"a.txt.bk", "a.txt.bk.1", "a.txt.bk.2"} {
-		got, err := WriteBackup(p, []byte{byte('0' + i)})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if filepath.Base(got) != want {
-			t.Fatalf("got %s want %s", got, want)
-		}
-		if b, _ := os.ReadFile(got); string(b) != string([]byte{byte('0' + i)}) {
-			t.Fatalf("content of %s: %q", got, b)
-		}
-	}
-	if b, _ := os.ReadFile(p); string(b) != "orig" {
-		t.Fatalf("original changed: %q", b)
-	}
-}
-
-func TestWriteBackupKeepsMode(t *testing.T) {
-	p := filepath.Join(t.TempDir(), "s.txt")
-	if err := os.WriteFile(p, []byte("x"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	got, err := WriteBackup(p, []byte("y"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if st, _ := os.Stat(got); st.Mode().Perm() != 0o600 {
-		t.Fatalf("mode: %v", st.Mode().Perm())
-	}
 }

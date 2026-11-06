@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import type { Files, Pane, TreeEntry } from "../rpc/protocol.ts";
+import type { TreeEntry } from "../rpc/protocol.ts";
 import { RpcError } from "../rpc/message.ts";
 import { iconFor } from "./icons.ts";
 import {
@@ -9,7 +9,6 @@ import {
   applyGitStatus,
   applyList,
   applyTreeChanged,
-  currentFile,
   relativeIn,
   openErrorText,
   dropDir,
@@ -269,54 +268,6 @@ describe("rowAction", () => {
   it("5000 件より先の印の行は何もしない", () => {
     assert.equal(rowAction({ ...fileRow, truncated: true }), null);
     assert.equal(rowAction({ ...fileRow, truncated: true }, "Enter"), null);
-  });
-});
-
-describe("currentFile", () => {
-  const pane = (id: string, kind = "text"): Pane => ({
-    id,
-    kind,
-    title: { text: id },
-    viewport: { top: 0, rows: 1, cols: 1, left: 0, total: 1 },
-    curLine: 0,
-  });
-  const files = (active: number, ...panes: Pane[]): Files => ({
-    panes,
-    active,
-  });
-
-  it("フォーカスしているペインのファイルを、ルートからの相対パスにする", () => {
-    const f = files(
-      1,
-      pane("/w/README.md"),
-      pane("/w/internal/ui/explorer.go"),
-    );
-    assert.equal(currentFile(f, "/w"), "internal/ui/explorer.go");
-    assert.equal(currentFile(f, "/w/"), "internal/ui/explorer.go");
-    assert.equal(
-      currentFile(files(0, pane("/w/a.png", "image")), "/w"),
-      "a.png",
-    );
-  });
-
-  it("ルートの外・名前が前だけ同じフォルダ・差分やプレビューは無し", () => {
-    assert.equal(currentFile(files(0, pane("/x/a.go")), "/w"), undefined);
-    assert.equal(currentFile(files(0, pane("/wx/a.go")), "/w"), undefined);
-    assert.equal(
-      currentFile(files(0, pane("/w/a.md#preview", "preview")), "/w"),
-      undefined,
-    );
-    assert.equal(
-      currentFile(files(0, pane("/w/a.go:base", "diff")), "/w"),
-      undefined,
-    );
-    assert.equal(currentFile(files(0, pane("", "welcome")), "/w"), undefined);
-  });
-
-  it("画面やルートがまだ無ければ無し", () => {
-    assert.equal(currentFile(undefined, "/w"), undefined);
-    assert.equal(currentFile(files(0, pane("/w/a.go")), undefined), undefined);
-    assert.equal(currentFile(files(3, pane("/w/a.go")), "/w"), undefined);
   });
 });
 

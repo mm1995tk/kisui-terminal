@@ -5,9 +5,16 @@
 // 取る前に大きさを見て、MAX_VIDEO_BYTES を超えるものは取らない（WebView のメモリを使い切らないため）。
 
 import type { Requests } from "../rpc/protocol.ts";
-import { decodeBase64 } from "../files/blob.ts";
 
 type MediaRead = Requests["media.read"];
+
+/** base64 をバイト列にする。 */
+function decodeBase64(s: string): Uint8Array {
+  const bin = atob(s);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
 
 /** media.read を送る関数（欄の id はもう束ねてある）。 */
 export type MediaFetch = (

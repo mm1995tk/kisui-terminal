@@ -101,12 +101,12 @@ describe("要求と応答の対応", () => {
 
   it("要求の形は JSON-RPC 2.0", () => {
     const { c, t } = setup();
-    void c.request("view.subscribe", { regions: ["files", "status"] });
+    void c.request("tree.watch", { workspaceId: "w1", paths: ["", "src"] });
     assert.deepEqual(t.sent[0], {
       jsonrpc: "2.0",
       id: t.sent[0].id,
-      method: "view.subscribe",
-      params: { regions: ["files", "status"] },
+      method: "tree.watch",
+      params: { workspaceId: "w1", paths: ["", "src"] },
     });
   });
 });
@@ -115,23 +115,23 @@ describe("通知", () => {
   it("通知を種類ごとに受け取り、外すと届かない", () => {
     const { c } = setup();
     const got: unknown[] = [];
-    const off = c.on("clipboard.write", (p) => got.push(p));
+    const off = c.on("pane.hide", (p) => got.push(p));
     c.feed(
       line({
         jsonrpc: "2.0",
-        method: "clipboard.write",
-        params: { text: "hi" },
+        method: "pane.hide",
+        params: { workspaceId: "hi" },
       }),
     );
     off();
     c.feed(
       line({
         jsonrpc: "2.0",
-        method: "clipboard.write",
-        params: { text: "later" },
+        method: "pane.hide",
+        params: { workspaceId: "later" },
       }),
     );
-    assert.deepEqual(got, [{ text: "hi" }]);
+    assert.deepEqual(got, [{ workspaceId: "hi" }]);
   });
 
   it("知らない通知は無視する（onAny には見える）", () => {
@@ -146,15 +146,15 @@ describe("通知", () => {
   it("受け取る側が例外を投げても、続きの通知を処理する", () => {
     const { c, discards } = setup();
     const got: string[] = [];
-    c.on("url.open", () => {
+    c.on("pane.hide", () => {
       throw new Error("boom");
     });
     c.on("notify", (p) => got.push(p.text));
     c.feed(
       line({
         jsonrpc: "2.0",
-        method: "url.open",
-        params: { url: "https://example.com" },
+        method: "pane.hide",
+        params: { workspaceId: "w1" },
       }),
     );
     c.feed(
@@ -170,11 +170,11 @@ describe("通知", () => {
 
   it("GUI からの通知は id を付けずに送る", () => {
     const { c, t } = setup();
-    c.notify("screen.ack", { rev: 5 });
+    c.notify("term.ack", { termId: "t1", seq: 5 });
     assert.deepEqual(t.sent[0], {
       jsonrpc: "2.0",
-      method: "screen.ack",
-      params: { rev: 5 },
+      method: "term.ack",
+      params: { termId: "t1", seq: 5 },
     });
   });
 
@@ -299,7 +299,7 @@ describe("始まりの目印", () => {
   it("目印が来ないまま閉じたら、要求は失敗する", async () => {
     const { c } = setup({ waitForMarker: true });
     const p = c.request("session.hello", {
-      protocol: { major: 3, minor: 0 },
+      protocol: { major: 4, minor: 0 },
       client: { name: "t", version: "0", kind: "web" },
       encoding: ["json"],
     });

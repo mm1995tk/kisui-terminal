@@ -39,7 +39,7 @@ export function TerminalView(props: {
   link: TermLink | undefined;
   /** 今使っているターミナルか（F4。並べたときに印を付ける） */
   active?: boolean;
-  /** 隠すか。IDE モードでは active の 1 つだけを見せる（隠しても中身は動き続ける） */
+  /** 隠すか。プライマリ以外の欄を隠しているとき（隠しても中身は動き続ける） */
   hidden?: boolean;
   /** 欄の位置（CSS grid の grid-area） */
   area?: string;

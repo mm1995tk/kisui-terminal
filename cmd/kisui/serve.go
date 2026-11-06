@@ -11,7 +11,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/mm1995tk/shijimi-editor/core"
 	"github.com/mm1995tk/shijimi-editor/core/config"
 	"github.com/mm1995tk/shijimi-editor/core/ctl"
 	"github.com/mm1995tk/shijimi-editor/ui/cli"
@@ -54,9 +53,8 @@ func runServe(args []string) int {
 	var startDir string
 	if home, err := os.UserHomeDir(); err == nil {
 		cfg, err := config.Load(home, configOptions())
-		// The language is the process's: the home config sets it once, and
-		// the workspaces' cores leave it alone (core.NewIn). It is set before the
-		// mistakes are reported so that they are in the user's language.
+		// The language is the process's, set from the home config. It is set
+		// before the mistakes are reported so that they are in the user's language.
 		cli.SetLangFrom(cfg)
 		if err != nil {
 			// serve does not start with settings it cannot read as written. attach
@@ -87,42 +85,6 @@ func runServe(args []string) int {
 			fmt.Fprintln(os.Stderr, err)
 		}
 		return 1
-	}
-	// A core per workspace, on one set of process-wide parts. A core is made
-	// when its workspace takes the focus and kept while it has files open.
-	shared := core.NewShared(coreBuild())
-	defer shared.Close()
-	cores := core.NewWorkspaces(shared)
-	cores.SetPort(srv)
-	defer cores.CloseAll()
-	// What a core does on its own (a language server replied, a timer fired) is
-	// sent to the GUI like what it did for an input.
-	cores.SetOnChange(srv.ScreenChanged)
-	srv.SetCores(serveCores{cores, logger})
-	srv.SetScreens(serveCores{cores, logger})
-	srv.SetInputs(serveCores{cores, logger})
-	srv.AddBeforeStop(func() { writeBackups(cores, logger) })
-	// Like the TUI, the control socket and the Claude Code connection are best
-	// effort. The server has one of each for all workspaces; requests go to the
-	// focused workspace. The socket is <pid>.sock as in the TUI, so shj finds it
-	// by the same rules; the environment is set before any terminal is created,
-	// so shells in the server's terminals reach this server directly.
-	if path, err := ctl.SocketPath(cli.Suffix()); err == nil {
-		if err := srv.StartControl(path); err == nil {
-			os.Setenv(ctl.EnvSocket, path)
-		} else {
-			logger.Warn("control socket", "err", err)
-		}
-	}
-	// The lock file names the home directory as the workspace folder: Claude
-	// Code connects when its directory is inside one, and the server does not
-	// know the workspaces' roots when it starts.
-	if home, err := os.UserHomeDir(); err == nil {
-		if is, err := srv.StartIDE(home); err == nil {
-			core.SetIDEEnv(is.Port())
-		} else {
-			logger.Warn("ide", "err", err)
-		}
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

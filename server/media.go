@@ -186,7 +186,7 @@ func (ss *session) closeExtraReq(req *rpc.Message) (any, error) {
 	return struct{}{}, nil
 }
 
-// MediaResult は media.read の結果。blob.get と同じ形。
+// MediaResult は media.read の結果。`{mime, size, data (base64), eof}`。1 回に返すのは 4 MiB まで。
 type MediaResult struct {
 	Mime string `json:"mime"`
 	Size int64  `json:"size"`

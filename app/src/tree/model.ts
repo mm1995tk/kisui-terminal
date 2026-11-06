@@ -6,7 +6,6 @@
 // git.changed、フォルダの印は gitChildren から GUI が求める。
 
 import type {
-  Files,
   GitMark,
   Notifications,
   Requests,
@@ -314,7 +313,7 @@ export type RowAction = "toggle" | "open";
 
 /**
  * 行でキーを押したときの操作。key が undefined なら押した（クリック）とみなす。
- * フォルダは開閉（Enter・Space・閉じていれば →・開いていれば ←）、ファイルは file.open で開く（押す・Enter・Space）。
+ * フォルダは開閉（Enter・Space・閉じていれば →・開いていれば ←）、ファイルは shj.open で開く（押す・Enter・Space）。
  * 5000 件より先の印の行は何もしない。
  */
 export function rowAction(
@@ -334,22 +333,6 @@ export function rowAction(
   return null;
 }
 
-/**
- * ファイルの欄でフォーカスしているペインが出しているファイルの、ルートからの相対パス（ツリーの行の path と同じ）。
- * テキストと画像のペインの id はファイルの絶対パス。ルートの外のファイル・差分・プレビュー・ようこそは undefined。
- */
-export function currentFile(
-  files: Files | null | undefined,
-  root: string | undefined,
-): string | undefined {
-  if (!files || !root) return undefined;
-  const pane = files.panes[files.active];
-  if (!pane || (pane.kind !== "text" && pane.kind !== "image")) {
-    return undefined;
-  }
-  return relativeIn(pane.id, root);
-}
-
 /** 絶対パスの file を、root からの相対パス（ツリーの行の path と同じ）にする。root の外・root そのものは undefined。 */
 export function relativeIn(
   file: string | undefined,
@@ -361,7 +344,7 @@ export function relativeIn(
   return file.slice(base.length);
 }
 
-/** file.open が断られたときに出す文。 */
+/** shj.open が断られたときに出す文。 */
 export function openErrorText(path: string, e: unknown): string {
   const why =
     e instanceof RpcError

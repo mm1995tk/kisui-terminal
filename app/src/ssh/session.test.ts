@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { RpcError } from "../rpc/message.ts";
 import type { ClosedEvent, ShellApi } from "./api.ts";
 import { applyWorkspaceChange, Session, type SessionState } from "./session.ts";
 
@@ -17,10 +16,7 @@ function fakeShell(opts: {
   pingError?: () => { code: number; message: string } | undefined;
   /** workspace.list で返すフォーカス */
   focus?: string | null;
-  /** screen.get の返事を held に積んで待たせる（呼ぶと返す） */
-  holdScreenGet?: boolean;
 }) {
-  const held: (() => void)[] = [];
   const lines: Line[] = [];
   const closeds: ((e: ClosedEvent) => void)[] = [];
   const sent: { id: string; msg: any }[] = [];
@@ -57,7 +53,7 @@ function fakeShell(opts: {
       switch (msg.method) {
         case "session.hello":
           reply({
-            protocol: { major: 3, minor: 0 },
+            protocol: { major: 4, minor: 0 },
             encoding: "json",
             shj: { version: "1", commit: "x", channel: "stable" },
             serverId: serverOf.get(id),
@@ -66,22 +62,6 @@ function fakeShell(opts: {
             workspaces: [{ id: `w-${serverOf.get(id)}` }],
             rev: 3,
           });
-          break;
-        case "screen.get": {
-          const sc = { rev: 7, ackSeq: 0, focus: "w", status: null };
-          if (opts.holdScreenGet) held.push(() => reply(sc));
-          else reply(sc);
-          break;
-        }
-        case "view.subscribe":
-        case "view.resize":
-          reply({});
-          break;
-        case "i18n.get":
-          reply({ lang: "en", messages: { "a.b": "B %s" } });
-          break;
-        case "theme.get":
-          reply({ name: "dark", tokens: { "editor.bg": { fg: "#000000" } } });
           break;
         case "workspace.list":
           reply({
@@ -117,26 +97,6 @@ function fakeShell(opts: {
         }
         case "tree.watch":
           reply({});
-          break;
-        case "input.key":
-        case "input.mouse":
-        case "input.composition":
-        case "input.paste":
-        case "input.focus":
-          reply({ rev: 8 });
-          break;
-        case "file.open":
-          if (msg.params.path === "gone.go") {
-            queueMicrotask(() =>
-              emit(id, {
-                jsonrpc: "2.0",
-                id: msg.id,
-                error: { code: -32003, message: "not found: gone.go" },
-              }),
-            );
-            break;
-          }
-          reply({ rev: 8 });
           break;
         case "session.bye":
           reply({});
@@ -181,7 +141,6 @@ function fakeShell(opts: {
   return {
     api,
     sent,
-    held,
     installs,
     cancels,
     installIds,
@@ -223,15 +182,11 @@ const connectedId = (f: ReturnType<typeof fakeShell>) =>
   f.sent.filter((x) => x.msg.method === "session.hello").at(-1)!.id;
 
 describe("Session", () => {
-  it("切れたら resume を付けてつなぎ直し、同じ serverId なら screen.get で取り直す", async () => {
+  it("切れたら resume を付けてつなぎ直す", async () => {
     const f = fakeShell({ serverIds: ["A", "A"] });
     const s = new Session(f.api, "h", fast);
-    const screens: number[] = [];
-    s.onScreen((sc) => screens.push(sc.rev));
     s.start();
     await waitFor(s, (st) => st.kind === "connected");
-    await new Promise((r) => setTimeout(r, 10));
-    assert.deepEqual(screens, [7]);
 
     const states: string[] = [];
     s.onState((st) => states.push(st.kind));
@@ -242,27 +197,21 @@ describe("Session", () => {
 
     const hellos = f.sent.filter((x) => x.msg.method === "session.hello");
     assert.equal(hellos[0].msg.params.resume, undefined);
-    assert.deepEqual(hellos[1].msg.params.resume, { serverId: "A", rev: 7 });
-    assert.deepEqual(screens, [7, 7], "つなぎ直しで screen.get を取り直した");
+    assert.deepEqual(hellos[1].msg.params.resume, { serverId: "A", rev: 3 });
     assert.ok(states.includes("reconnecting"));
     await s.close();
   });
 
-  it("serverId が違えば screen.get せず、ワークスペースの一覧から取り直す", async () => {
+  it("serverId が違えば、ワークスペースの一覧から取り直す", async () => {
     const f = fakeShell({ serverIds: ["A", "B"] });
     const s = new Session(f.api, "h", fast);
     s.start();
     await waitFor(s, (st) => st.kind === "connected");
-    // 翻訳の表を受け取ってから screen.get が出る。最初の screen.get が出るのを待つ
-    await new Promise((r) => setTimeout(r, 10));
     f.drop(connectedId(f));
     await waitFor(s, (st) => st.kind === "reconnecting");
     await waitFor(s, (st) => st.kind === "connected");
     await new Promise((r) => setTimeout(r, 10));
     assert.deepEqual(s.workspaces, [{ id: "w-B" }]);
-    assert.equal(s.screen, null);
-    const gets = f.sent.filter((x) => x.msg.method === "screen.get");
-    assert.equal(gets.length, 1, "最初の 1 回だけ");
     await s.close();
   });
 
@@ -352,7 +301,7 @@ describe("Session", () => {
     await waitFor(s, (st) => st.kind === "connected");
     assert.equal(f.connects, 2);
     const hellos = f.sent.filter((x) => x.msg.method === "session.hello");
-    assert.deepEqual(hellos[1].msg.params.resume, { serverId: "A", rev: 7 });
+    assert.deepEqual(hellos[1].msg.params.resume, { serverId: "A", rev: 3 });
     await s.close();
   });
 
@@ -371,31 +320,6 @@ describe("Session", () => {
     assert.deepEqual(st, { kind: "superseded" });
     await new Promise((r) => setTimeout(r, 60));
     assert.equal(f.connects, 1);
-  });
-
-  it("screen.update の版が続かなければ screen.get する", async () => {
-    const f = fakeShell({ serverIds: ["A"] });
-    const s = new Session(f.api, "h", fast);
-    s.start();
-    await waitFor(s, (st) => st.kind === "connected");
-    await new Promise((r) => setTimeout(r, 10));
-    const id = connectedId(f);
-    const updates: number[] = [];
-    s.onUpdate((u) => updates.push(u.rev));
-    f.emit(id, {
-      jsonrpc: "2.0",
-      method: "screen.update",
-      params: { rev: 8, baseRev: 7, ackSeq: 0 },
-    });
-    f.emit(id, {
-      jsonrpc: "2.0",
-      method: "screen.update",
-      params: { rev: 20, baseRev: 15, ackSeq: 0 },
-    });
-    await new Promise((r) => setTimeout(r, 10));
-    assert.deepEqual(updates, [8]);
-    assert.equal(f.sent.filter((x) => x.msg.method === "screen.get").length, 2);
-    await s.close();
   });
 
   it("onWorkspaces は、つながったときと workspace.changed のあとに一覧を渡す", async () => {
@@ -437,16 +361,13 @@ describe("Session", () => {
     await s.close();
   });
 
-  it("focusWorkspace は workspace.focus を送り、受け付けられたらフォーカスを移して画面を取り直す", async () => {
+  it("focusWorkspace は workspace.focus を送り、受け付けられたらフォーカスを移す", async () => {
     const f = fakeShell({ serverIds: ["A"] });
     const s = new Session(f.api, "h", fast);
     s.start();
     await waitFor(s, (st) => st.kind === "connected");
     await new Promise((r) => setTimeout(r, 10));
     assert.equal(s.focus, null);
-    const gets = () =>
-      f.sent.filter((x) => x.msg.method === "screen.get").length;
-    const before = gets();
     assert.equal(
       await s.focusWorkspace("w-A"),
       "t-A",
@@ -456,7 +377,6 @@ describe("Session", () => {
     const sentFocus = f.sent.filter((x) => x.msg.method === "workspace.focus");
     assert.deepEqual(sentFocus.at(-1)!.msg.params, { id: "w-A" });
     assert.equal(s.focus, "w-A");
-    assert.equal(gets(), before + 1);
 
     await assert.rejects(s.focusWorkspace("nope"), /no such workspace/);
     assert.equal(s.focus, "w-A", "断られたらフォーカスは変えない");
@@ -497,104 +417,10 @@ describe("待ち時間と閉じる", () => {
     assert.equal(f.connects, n);
     assert.equal(s.state.kind, "closed");
   });
-
-  it("取り直し中に版の合わない更新が続いても screen.get は重ねない", async () => {
-    const f = fakeShell({ serverIds: ["A"] });
-    const s = new Session(f.api, "h", fast);
-    s.start();
-    await waitFor(s, (st) => st.kind === "connected");
-    await new Promise((r) => setTimeout(r, 10));
-    const id = connectedId(f);
-    // 20 で取り直しが始まり、返事（rev 7）を待つ間に来た 6 と 7 は、取り直した画面に入っている
-    for (const [rev, baseRev] of [
-      [20, 15],
-      [6, 5],
-      [7, 6],
-    ])
-      f.emit(id, {
-        jsonrpc: "2.0",
-        method: "screen.update",
-        params: { rev, baseRev, ackSeq: 0 },
-      });
-    await new Promise((r) => setTimeout(r, 10));
-    assert.equal(f.sent.filter((x) => x.msg.method === "screen.get").length, 2);
-    await s.close();
-  });
 });
 
-describe("画面の購読（E1）", () => {
+describe("プライマリの shj の欄（#553）", () => {
   const settle = () => new Promise((r) => setTimeout(r, 10));
-  const sentOf = (f: ReturnType<typeof fakeShell>, method: string) =>
-    f.sent.filter((x) => x.msg.method === method);
-
-  it("つなぐと files・status・cmdline を購読し、覚えている大きさを送り、テーマを取る", async () => {
-    const f = fakeShell({ serverIds: ["A"] });
-    const s = new Session(f.api, "h", fast);
-    const themes: string[] = [];
-    s.onTheme((t) => themes.push(t.name));
-    s.resize({ cols: 100, rows: 30 });
-    s.start();
-    await waitFor(s, (st) => st.kind === "connected");
-    await settle();
-    assert.deepEqual(sentOf(f, "view.subscribe")[0]!.msg.params, {
-      regions: ["files", "status", "cmdline", "overlay"],
-    });
-    assert.deepEqual(sentOf(f, "view.resize")[0]!.msg.params, {
-      regions: {
-        files: { cols: 100, rows: 30 },
-        status: { cols: 100 },
-        cmdline: { cols: 100 },
-        overlay: { cols: 100, rows: 30 },
-      },
-    });
-    assert.deepEqual(themes, ["dark"]);
-    assert.equal(s.theme?.tokens["editor.bg"]?.fg, "#000000");
-
-    // 大きさが変わったら送る。同じなら送らない
-    s.resize({ cols: 100, rows: 30 });
-    s.resize({ cols: 90, rows: 30 });
-    await settle();
-    assert.equal(sentOf(f, "view.resize").length, 2);
-
-    // theme.changed で入れ替わる
-    f.emit(connectedId(f), {
-      jsonrpc: "2.0",
-      method: "theme.changed",
-      params: { name: "light", tokens: {} },
-    });
-    await settle();
-    assert.deepEqual(themes, ["dark", "light"]);
-    await s.close();
-  });
-
-  it("ファイルの欄の左右の境界を splits で送り、リサイズの知らせを渡す", async () => {
-    const f = fakeShell({ serverIds: ["A"] });
-    const s = new Session(f.api, "h", fast);
-    const got: unknown[] = [];
-    s.onResizeEvent((e) => got.push(e));
-    s.start();
-    await waitFor(s, (st) => st.kind === "connected");
-    await settle();
-    s.setSplits({ diff: 30, preview: 0 });
-    s.setSplits({ diff: 30, preview: 0 });
-    await settle();
-    assert.deepEqual(
-      sentOf(f, "view.resize").map((m) => m.msg.params),
-      [{ regions: {}, splits: { diff: 30, preview: 0 } }],
-    );
-
-    const id = connectedId(f);
-    f.emit(id, { jsonrpc: "2.0", method: "resize.start", params: {} });
-    f.emit(id, { jsonrpc: "2.0", method: "resize.key", params: { key: "h" } });
-    f.emit(id, { jsonrpc: "2.0", method: "resize.reset", params: {} });
-    await settle();
-    assert.deepEqual(got, [
-      { kind: "start" },
-      { kind: "key", key: "h" },
-      { kind: "reset" },
-    ]);
-    await s.close();
-  });
 
   it("プライマリの shj が欄を出した・隠した知らせを渡す（pane.show・pane.hide）", async () => {
     const f = fakeShell({ serverIds: ["A"] });
@@ -640,100 +466,6 @@ describe("画面の購読（E1）", () => {
     assert.deepEqual(got, [
       { kind: "show-extra", workspaceId: "w1", extraId: "x3" },
     ]);
-    await s.close();
-  });
-
-  it("つなぎ直したら、購読と大きさを送り直す", async () => {
-    const f = fakeShell({ serverIds: ["A"] });
-    const s = new Session(f.api, "h", fast);
-    s.start();
-    await waitFor(s, (st) => st.kind === "connected");
-    await settle();
-    assert.equal(
-      sentOf(f, "view.resize").length,
-      0,
-      "大きさを知らなければ送らない",
-    );
-    s.resize({ cols: 80, rows: 20 });
-    await settle();
-    f.drop(connectedId(f));
-    await waitFor(s, (st) => st.kind === "reconnecting");
-    await waitFor(s, (st) => st.kind === "connected");
-    await settle();
-    assert.equal(sentOf(f, "view.subscribe").length, 2);
-    assert.deepEqual(sentOf(f, "view.resize").at(-1)!.msg.params, {
-      regions: {
-        files: { cols: 80, rows: 20 },
-        status: { cols: 80 },
-        cmdline: { cols: 80 },
-        overlay: { cols: 80, rows: 20 },
-      },
-    });
-    await s.close();
-  });
-
-  it("続いた更新を画面に当て、当てたら screen.ack を返す", async () => {
-    const f = fakeShell({ serverIds: ["A"] });
-    const s = new Session(f.api, "h", fast);
-    s.start();
-    await waitFor(s, (st) => st.kind === "connected");
-    await settle();
-    let seen: unknown;
-    s.onUpdate(() => (seen = s.screen?.focus));
-    f.emit(connectedId(f), {
-      jsonrpc: "2.0",
-      method: "screen.update",
-      params: { rev: 8, baseRev: 7, ackSeq: 0, focus: "cmdline" },
-    });
-    await settle();
-    assert.equal(seen, "cmdline", "描く側に渡すときには、もう当ててある");
-    assert.deepEqual(
-      sentOf(f, "screen.ack").map((x) => x.msg.params),
-      [{ rev: 8 }],
-    );
-    await s.close();
-  });
-
-  it("取り直しの返事を待つ間に来た、取り直した画面から続く更新は捨てずに当てる", async () => {
-    const f = fakeShell({ serverIds: ["A"], holdScreenGet: true });
-    const s = new Session(f.api, "h", fast);
-    s.start();
-    await waitFor(s, (st) => st.kind === "connected");
-    await settle();
-    // shj は screen.get（rev 7）を返す前に、その画面からの更新を送ることがある
-    f.emit(connectedId(f), {
-      jsonrpc: "2.0",
-      method: "screen.update",
-      params: { rev: 8, baseRev: 7, ackSeq: 0, focus: "overlay" },
-    });
-    await settle();
-    assert.equal(sentOf(f, "screen.ack").length, 0);
-    f.held.shift()!();
-    await settle();
-    assert.equal(s.screen?.rev, 8);
-    assert.equal(s.screen?.focus, "overlay");
-    assert.deepEqual(
-      sentOf(f, "screen.ack").map((x) => x.msg.params),
-      [{ rev: 8 }],
-    );
-    assert.equal(sentOf(f, "screen.get").length, 1);
-    await s.close();
-  });
-
-  it("取り直しの最中にフォーカスを移したら、終わってからもう一度取り直す", async () => {
-    const f = fakeShell({ serverIds: ["A"], holdScreenGet: true });
-    const s = new Session(f.api, "h", fast);
-    s.start();
-    await waitFor(s, (st) => st.kind === "connected");
-    await settle();
-    await s.focusWorkspace("w-A");
-    await settle();
-    assert.equal(sentOf(f, "screen.get").length, 1, "重ねない");
-    f.held.shift()!();
-    await settle();
-    assert.equal(sentOf(f, "screen.get").length, 2);
-    f.held.shift()!();
-    await settle();
     await s.close();
   });
 });
@@ -868,96 +600,6 @@ describe("Session のツリー", () => {
     await new Promise((r) => setTimeout(r, 10));
     assert.deepEqual(trees, [[""]]);
     assert.deepEqual(gits, [5]);
-    await s.close();
-  });
-});
-
-describe("Session の入力", () => {
-  it("input は seq を付けて順に送り、つながっていなければ捨てる。clipboard.write はつなぎ直しても届く", async () => {
-    const f = fakeShell({ serverIds: ["A"] });
-    const s = new Session(f.api, "h", fast);
-    assert.equal(
-      s.input("input.key", {
-        region: "files",
-        key: "a",
-        mods: [],
-        phase: "press",
-      }),
-      undefined,
-    );
-    const copied: string[] = [];
-    s.onClipboard((t) => copied.push(t));
-    s.start();
-    await waitFor(s, (st) => st.kind === "connected");
-    assert.equal(
-      s.input("input.key", {
-        region: "files",
-        key: "a",
-        mods: [],
-        text: "a",
-        phase: "press",
-      }),
-      1,
-    );
-    s.input("input.paste", { region: "files", text: "x" });
-    s.input("file.open", { workspaceId: "w-A", path: "src/a.go" });
-    await new Promise((r) => setTimeout(r, 10));
-    const inputs = f.sent.filter(
-      (x) => x.msg.method.startsWith("input.") || x.msg.method === "file.open",
-    );
-    assert.deepEqual(
-      inputs.map((x) => [x.msg.method, x.msg.params.seq]),
-      [
-        ["input.key", 1],
-        ["input.paste", 2],
-        ["file.open", 3],
-      ],
-    );
-    assert.deepEqual(inputs[2]!.msg.params, {
-      workspaceId: "w-A",
-      path: "src/a.go",
-      seq: 3,
-    });
-    assert.deepEqual(inputs[0]!.msg.params, {
-      region: "files",
-      key: "a",
-      mods: [],
-      text: "a",
-      phase: "press",
-      seq: 1,
-    });
-
-    f.drop(connectedId(f));
-    await waitFor(s, (st) => st.kind === "reconnecting");
-    await waitFor(s, (st) => st.kind === "connected");
-    // つなぎ直しても seq は増え続ける
-    assert.equal(s.input("input.focus", { region: "files" }), 4);
-    f.emit(connectedId(f), {
-      jsonrpc: "2.0",
-      method: "clipboard.write",
-      params: { text: "copied" },
-    });
-    await new Promise((r) => setTimeout(r, 10));
-    assert.deepEqual(copied, ["copied"]);
-    await s.close();
-  });
-
-  it("input に onError を渡すと、shj が断ったときに呼ぶ（file.open）", async () => {
-    const f = fakeShell({ serverIds: ["A"] });
-    const s = new Session(f.api, "h", fast);
-    s.start();
-    await waitFor(s, (st) => st.kind === "connected");
-    const errors: unknown[] = [];
-    s.input("file.open", { workspaceId: "w-A", path: "a.go" }, (e) =>
-      errors.push(e),
-    );
-    s.input("file.open", { workspaceId: "w-A", path: "gone.go" }, (e) =>
-      errors.push(e),
-    );
-    await new Promise((r) => setTimeout(r, 10));
-    assert.equal(errors.length, 1);
-    assert.ok(errors[0] instanceof RpcError);
-    assert.equal((errors[0] as RpcError).codeName, "not_found");
     await s.close();
   });
 });

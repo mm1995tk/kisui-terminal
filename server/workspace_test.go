@@ -119,7 +119,7 @@ func TestWorkspaceCreateIsUndecided(t *testing.T) {
 
 	l := listWS(t, c)
 	x := l.find(id)
-	if x == nil || x.Folder != nil || x.Kind != nil || x.Name != nil || x.Primary != primary || len(x.Terms) != 0 || len(x.Files) != 0 {
+	if x == nil || x.Folder != nil || x.Kind != nil || x.Name != nil || x.Primary != primary || len(x.Terms) != 0 {
 		t.Fatalf("workspace: %+v", x)
 	}
 	if l.Focus != nil {
@@ -176,7 +176,7 @@ func TestWorkspaceStartDirInProjectAndSameFolder(t *testing.T) {
 }
 
 // プライマリターミナルが別のフォルダへ cd したら、ワークスペースのフォルダが切り替わる（新しいワークスペースは
-// 増えず、id も変わらない）。core は閉じて作り直す。~ と / へ移っても、同じフォルダの中で移っても、
+// 増えず、id も変わらない）。~ と / へ移っても、同じフォルダの中で移っても、
 // 切り替えない。分割したターミナルの cd は何も起こさない。
 func TestWorkspaceFollowsPrimaryCd(t *testing.T) {
 	needCwd(t)
@@ -185,8 +185,6 @@ func TestWorkspaceFollowsPrimaryCd(t *testing.T) {
 	repo, sub := project(t)
 	repo2, _ := project(t)
 	srv, sock := startFast(t)
-	fc := &fakeCores{}
-	srv.SetCores(fc)
 	c, nt := termClient(t, sock)
 	ctx := context.Background()
 	id, primary := createWS(t, c)
@@ -211,10 +209,9 @@ func TestWorkspaceFollowsPrimaryCd(t *testing.T) {
 	changed := len(nt.all("workspace.changed"))
 
 	// 同じフォルダの中の cd では何も起きない。
-	rel := fc.count(&fc.released, id)
 	cd(t, c, primary, repo)
 	time.Sleep(200 * time.Millisecond)
-	if fc.count(&fc.released, id) != rel || len(nt.all("workspace.changed")) != changed {
+	if len(nt.all("workspace.changed")) != changed {
 		t.Errorf("cd inside the folder switched it")
 	}
 
@@ -232,19 +229,10 @@ func TestWorkspaceFollowsPrimaryCd(t *testing.T) {
 			t.Fatalf("cd %s: folder = %q", d, f)
 		}
 	}
-	if fc.count(&fc.released, id) != rel {
-		t.Errorf("cd ~ and / released the files")
-	}
 
-	// 別のプロジェクトへ cd すると切り替わる。ファイルは閉じ（Release）、フォーカスしているので core は新しいフォルダで開き直す。
+	// 別のプロジェクトへ cd すると切り替わる。
 	cd(t, c, primary, repo2)
 	waitFor(t, "switch", func() bool { return folderOfWS(t, c, id) == repo2 })
-	if fc.count(&fc.released, id) != rel+1 {
-		t.Errorf("released %v", fc.released)
-	}
-	if fc.count(&fc.opened, id+"="+repo2) != 1 {
-		t.Errorf("opened %v", fc.opened)
-	}
 	x := listWS(t, c).find(id)
 	if x == nil || len(x.Terms) != 1 || x.Terms[0] != split || x.Primary != primary {
 		t.Errorf("after switch: %+v", x)
@@ -286,8 +274,6 @@ func TestWorkspaceCdDoesNotMerge(t *testing.T) {
 func TestWorkspaceClose(t *testing.T) {
 	root, _ := project(t)
 	srv, sock := startFastWith(t, func(o *Options) { o.StartDir = root })
-	fc := &fakeCores{}
-	srv.SetCores(fc)
 	c, nt := termClient(t, sock)
 	ctx := context.Background()
 	id, primary := createWS(t, c)
@@ -299,9 +285,6 @@ func TestWorkspaceClose(t *testing.T) {
 	}
 	if err := c.Call(ctx, "workspace.close", map[string]any{"id": id}, nil); err != nil {
 		t.Fatal(err)
-	}
-	if fc.count(&fc.saved, id) != 1 || fc.count(&fc.closed, id) != 1 {
-		t.Errorf("saved %v closed %v", fc.saved, fc.closed)
 	}
 	l := listWS(t, c)
 	if l.find(id) != nil || l.find(other) == nil {
@@ -347,38 +330,6 @@ func TestWorkspaceCloseBusyWhenProgramRuns(t *testing.T) {
 	}
 	if listWS(t, c).find(id) != nil {
 		t.Error("force did not close")
-	}
-}
-
-// 保存できなかったファイルがあれば、force でも何も閉じずに busy（unsaved）で断る。
-func TestWorkspaceCloseKeepsUnsavedFiles(t *testing.T) {
-	root, _ := project(t)
-	srv, sock := startFastWith(t, func(o *Options) { o.StartDir = root })
-	fc := &fakeCores{failSave: []string{root + "/a.txt"}}
-	srv.SetCores(fc)
-	c, _ := termClient(t, sock)
-	ctx := context.Background()
-	id, primary := createWS(t, c)
-	err := c.Call(ctx, "workspace.close", map[string]any{"id": id, "force": true}, nil)
-	if !isCode(err, rpc.CodeBusy) {
-		t.Fatalf("err = %v", err)
-	}
-	var d struct {
-		Reason string
-		Paths  []string
-	}
-	json.Unmarshal(err.(*rpc.Error).Data, &d)
-	if d.Reason != "unsaved" || len(d.Paths) != 1 || d.Paths[0] != root+"/a.txt" {
-		t.Errorf("data %s", err.(*rpc.Error).Data)
-	}
-	if listWS(t, c).find(id) == nil {
-		t.Error("the workspace was closed")
-	}
-	if tm, err := srv.terms.get(primary); err != nil || !tm.aliveNow() {
-		t.Error("the terminal was ended")
-	}
-	if fc.count(&fc.closed, id) != 0 {
-		t.Error("the core was closed")
 	}
 }
 

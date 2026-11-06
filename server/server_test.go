@@ -306,3 +306,8 @@ func TestNotOwnerAfterSupersede(t *testing.T) {
 		}
 	}
 }
+
+func isCode(err error, code int) bool {
+	e, ok := err.(*rpc.Error)
+	return ok && e.Code == code
+}

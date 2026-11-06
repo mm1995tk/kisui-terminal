@@ -11,32 +11,6 @@ import (
 	"github.com/mm1995tk/shijimi-editor/ui/gui/rpc"
 )
 
-// tree.rename は、開いているファイルのパスを移すよう Cores に伝える（絶対パスで）。
-func TestTreeRenameTellsCores(t *testing.T) {
-	root := normalizePath(t.TempDir())
-	srv, sock := startFastWith(t, func(o *Options) { o.StartDir = root })
-	fc := &fakeCores{}
-	srv.SetCores(fc)
-	c, _ := termClient(t, sock)
-	id, _ := createWS(t, c)
-	write(t, filepath.Join(root, "d", "a.txt"), "x")
-	err := call(t, c, "tree.rename", map[string]any{"workspaceId": id, "from": "d", "to": "e"}, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	want := filepath.Join(root, "d") + ">" + filepath.Join(root, "e")
-	if len(fc.renamed) != 1 || fc.renamed[0] != want {
-		t.Errorf("renamed = %v, want [%s]", fc.renamed, want)
-	}
-	// 断られた名前の変更は伝えない
-	if err := call(t, c, "tree.rename", map[string]any{"workspaceId": id, "from": "nope", "to": "x"}, nil); err == nil {
-		t.Fatal("renaming a missing path must fail")
-	}
-	if len(fc.renamed) != 1 {
-		t.Errorf("failed rename was told to cores: %v", fc.renamed)
-	}
-}
-
 func TestShellQuote(t *testing.T) {
 	if got := shellQuote("/a b/it's"); got != `'/a b/it'\''s'` {
 		t.Errorf("got %s", got)

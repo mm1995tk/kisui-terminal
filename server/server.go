@@ -2,7 +2,7 @@
 // Unix ソケットで JSON-RPC を話す。設計は docs/design/gui-protocol.md の 3 章。
 //
 // 今あるメソッドは session.* / server.info / term.*（term.go）/ workspace.*（workspace.go）/ tree.*・git.status（tree.go、treewatch.go、gitstat.go）/
-// view.*・screen.*・theme.get・i18n.get・blob.get（view.go、view_diff.go）/ input.*・command.run・file.open（input.go）。
+// shj.*・pane.*（primary.go、pane.go）。編集は GUI のターミナルの欄の中の shj が受け持つので、画面や入力のメソッドは無い。
 package server
 
 import (
@@ -19,12 +19,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mm1995tk/shijimi-editor/core"
 	"github.com/mm1995tk/shijimi-editor/ui/gui/rpc"
 )
 
 // Protocol はこのサーバーが話すプロトコルの版。major が違うとつながらない。minor は互換。
-var Protocol = ProtocolVersion{Major: 3, Minor: 0}
+var Protocol = ProtocolVersion{Major: 4, Minor: 0}
 
 // ProtocolVersion はプロトコルの版。
 type ProtocolVersion struct {
@@ -76,18 +75,9 @@ type Server struct {
 	terms      *termManager
 	ws         *wsManager
 	tree       *treeManager
-	rev        int64           // サーバー全体の版（mu で守る）
-	stopping   bool            // stop が始まった
-	beforeStop []func()        // 止まる前に走らせる（AddBeforeStop）
-	focus      Workspace       // ctl と ide の届け先。無ければ nil
-	cores      Cores           // ワークスペースごとの core（SetCores）。無ければ nil
-	screens    Screens         // 画面の作り手（SetScreens）。無ければ nil
-	inputs     Inputs          // 入力の届け先（SetInputs）。無ければ nil
-	screenKick chan struct{}   // ScreenChanged の知らせ（1 つまで溜める）
-	screenMu   sync.Mutex      // 画面の配信（session.view と送る順）を守る
-	ctlSrv     *core.CtlServer // StartControl で開く
-	ideSrv     *core.IDEServer // StartIDE で開く
-	primary    *primaryServer  // プライマリの shj の知らせを受ける口（Serve で開く）
+	rev        int64          // サーバー全体の版（mu で守る）
+	stopping   bool           // stop が始まった
+	primary    *primaryServer // プライマリの shj の知らせを受ける口（Serve で開く）
 }
 
 // ErrRunning はすでに別の shj serve が動いているときのエラー。
@@ -119,12 +109,11 @@ func Listen(opts Options) (*Server, error) {
 		log = slog.New(slog.DiscardHandler)
 	}
 	srv := &Server{
-		opts:       opts,
-		log:        log,
-		ln:         ln,
-		serverID:   hex.EncodeToString(id),
-		sessions:   map[*session]struct{}{},
-		screenKick: make(chan struct{}, 1),
+		opts:     opts,
+		log:      log,
+		ln:       ln,
+		serverID: hex.EncodeToString(id),
+		sessions: map[*session]struct{}{},
 	}
 	srv.startedAt = srv.now()
 	srv.terms = newTermManager(srv)
@@ -147,7 +136,6 @@ func (s *Server) Serve(ctx context.Context) error {
 	go s.watchIdle(idleDone)
 	go s.ws.watch(idleDone)
 	go s.tree.watch(idleDone)
-	go s.screenLoop(idleDone)
 	s.startPrimary()
 	for {
 		c, err := s.ln.Accept()
@@ -172,8 +160,6 @@ func (s *Server) shutdown() {
 	_ = os.Remove(s.opts.SocketPath)
 	s.mu.Lock()
 	s.closed = true
-	cs, is := s.ctlSrv, s.ideSrv
-	s.ctlSrv, s.ideSrv = nil, nil
 	var open []*session
 	for ss := range s.sessions {
 		open = append(open, ss)
@@ -182,12 +168,6 @@ func (s *Server) shutdown() {
 	for _, ss := range open {
 		ss.conn.Close()
 	}
-	if cs != nil {
-		cs.Close()
-	}
-	if is != nil {
-		is.Close()
-	}
 	s.stopPrimary()
 	s.terms.shutdown()
 	s.wg.Wait()
@@ -195,13 +175,15 @@ func (s *Server) shutdown() {
 
 func (s *Server) accept(c net.Conn) {
 	ss := &session{srv: s}
-	ss.conn = rpc.NewConnWith(c, rpc.JSON{}, ss.handle, rpc.Options{Ordered: isInputMethod})
 	s.mu.Lock()
 	if s.closed {
 		s.mu.Unlock()
-		ss.conn.Close()
+		c.Close()
 		return
 	}
+	// 接続はロックを持ったまま作る。作った直後に来た要求（server.info など）が、一覧に載る前の
+	// セッションを見ないように。
+	ss.conn = rpc.NewConnWith(c, rpc.JSON{}, ss.handle, rpc.Options{})
 	s.sessions[ss] = struct{}{}
 	// Add と Wait の順はこのロックで決まる。
 	s.wg.Go(func() {
@@ -213,7 +195,7 @@ func (s *Server) accept(c net.Conn) {
 		}
 		s.lastClient = s.now()
 		s.mu.Unlock()
-		// 状態（ファイル・core・ターミナル）はそのまま残す。
+		// 状態（ワークスペース・ターミナル）はそのまま残す。
 		s.log.Info("client gone", "reason", fmt.Sprint(ss.conn.Err()))
 		ss.conn.Close() // fd と Handler の終わりを待つ。Done のあとなので詰まらない
 	})
@@ -247,8 +229,6 @@ type session struct {
 	client      ClientInfo // session.hello で名乗ったもの
 	connectedAt time.Time  // session.hello が通った時刻
 	superseded  bool       // 後からつないだ GUI に引き継がれた。以後の要求は not_owner
-
-	view *viewState // 画面の配信の状態（srv.screenMu で守る）。view.subscribe などで作る
 }
 
 // ClientInfo は GUI が session.hello で名乗る内容。
@@ -303,7 +283,6 @@ type InfoResult struct {
 func (ss *session) handle(_ context.Context, req *rpc.Message) (any, error) {
 	if req.IsNotification() {
 		ss.termNotify(req)
-		ss.viewNotify(req)
 		return nil, nil // 知らない通知は無視する
 	}
 	if ss.isSuperseded() {
@@ -313,12 +292,6 @@ func (ss *session) handle(_ context.Context, req *rpc.Message) (any, error) {
 		return res, err
 	}
 	if res, err, ok := ss.workspaceRequest(req); ok {
-		return res, err
-	}
-	if res, err, ok := ss.viewRequest(req); ok {
-		return res, err
-	}
-	if res, err, ok := ss.inputRequest(req); ok {
 		return res, err
 	}
 	if res, err, ok := ss.treeRequest(req); ok {

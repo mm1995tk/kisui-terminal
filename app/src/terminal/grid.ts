@@ -1,4 +1,4 @@
-// ターミナルモードでターミナルを並べる割り付け（F4）。設計書 docs/design/gui-protocol.md の 6 章 F の表の F4。
+// ターミナルを並べる割り付け（F4）。設計書 docs/design/gui-protocol.md の 6 章 F の表の F4。
 //
 // - 数に応じて自動で並べる：1 個は全体、2 個は左右、3〜4 個は 2×2、5〜6 個は 3×2。上限は 6 個。
 // - 升目が 1 つ余るとき（3 個・5 個）は、最後のターミナルを 2 升ぶんの幅にして空きを作らない。
@@ -6,9 +6,13 @@
 //
 // DOM を使わないので node --test で確かめられる。
 
-import type { KeyLike } from "../files/input.ts";
-import { isCmdKey, isCmdOptionKey, isCmdZoomKey } from "../guiKeys.ts";
-import { isCtrlShift } from "../mode.ts";
+import {
+  isCmdKey,
+  isCmdOptionKey,
+  isCmdZoomKey,
+  isCtrlShift,
+  type KeyLike,
+} from "../guiKeys.ts";
 
 /** 並べられるターミナルの数の上限。 */
 export const MAX_TERMS = 6;

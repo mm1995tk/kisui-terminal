@@ -109,7 +109,7 @@ export async function connectShj(
   try {
     await api.connect(id, target);
     const hello = await client.request("session.hello", {
-      protocol: { major: 3, minor: 0 },
+      protocol: { major: 4, minor: 0 },
       client: { name: GUI_NAME, version: GUI_VERSION, kind: "web" },
       encoding: ["json"],
       ...(opts.resume ? { resume: opts.resume } : {}),

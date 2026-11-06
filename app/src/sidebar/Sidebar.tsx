@@ -55,7 +55,7 @@ interface Handlers {
   onClose?: (target: string, id: WorkspaceId) => void;
   /** ツリーのファイルの行を押した */
   onOpen?: (target: string, id: WorkspaceId, path: string) => void;
-  /** ファイルの欄で開いているファイル（ツリーで強調する行の path）。無ければ undefined */
+  /** プライマリの shj が出しているファイル（ツリーで強調する行の path）。無ければ undefined */
   currentOf?: (target: string, id: WorkspaceId) => string | undefined;
   /** ツリーの「親のフォルダへ」。省くとボタンを出さない */
   onUp?: (target: string, id: WorkspaceId) => void;

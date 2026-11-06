@@ -1,6 +1,6 @@
 // ツリー（D2）を描く。行は model.ts の rows、見た目は tree.css（モック「案：フラットな一覧」に合わせる）。
-// フォルダの行は押すと開閉し、ファイルの行は押すと（Enter でも）ファイルの欄で開く（file.open。何をするかは model.ts の rowAction）。
-// ファイルの欄でフォーカスしているペインが出しているファイルの行は強調する（モックと同じ背景）。
+// フォルダの行は押すと開閉し、ファイルの行は押すと（Enter でも）プライマリの shj で開く（shj.open。何をするかは model.ts の rowAction）。
+// プライマリの shj が出しているファイルの行は強調する（モックと同じ背景）。
 // 開いたフォルダの行は、中身をスクロールしている間だけ上に固定する（D3）。そのために行を親子の要素に組む。
 import { Index, Match, Show, Switch, type JSX } from "solid-js";
 
@@ -36,7 +36,7 @@ interface RowHandlers {
   onToggle: (path: string) => void;
   /** ファイルの行を押した（path はルートからの相対パス） */
   onOpen?: (path: string) => void;
-  /** ファイルの欄で開いているファイル（強調する行の path） */
+  /** プライマリの shj が出しているファイル（強調する行の path） */
   current?: string;
   /** 行を右クリックした（画面上の位置つき）。省くとメニューを出さない */
   onMenu?: (row: TreeRow, x: number, y: number) => void;

@@ -2,8 +2,8 @@
 //
 // - ワークスペースには、プライマリターミナル 1 つ（先頭。ワークスペースを閉じるまで残る）と、分割したターミナル
 //   0〜5 個がある。何があるかは shj の Workspace（primary と terms）が決め、GUI は update() で合わせる。
-// - ターミナルモードでは、フォーカスしているワークスペースのターミナルを全部（6 個まで）並べる。IDE モードの
-//   右下に出すのは、そのうちの 1 つ（今使っているもの = active）。並べ方は grid.ts。最初の active はプライマリ。
+// - フォーカスしているワークスペースのターミナルを全部（6 個まで）並べる。並べ方は grid.ts。今使っているもの（active）に
+//   キーを向ける。最初の active はプライマリ。
 // - Ctrl+Shift+T で分割したターミナルを増やす（add。term.create）。分割したターミナルのシェルが終わったら
 //   （`exit`）その欄を閉じて並び直す。プライマリターミナルは、終わっても欄を閉じず、Enter で作り直す
 //   （ターミナル 1 つの流量制御・取り直し・作り直しは TermLink（link.ts）がする）。
@@ -78,7 +78,7 @@ export class TermGroup {
     return this.extraList.find((x) => x.id === this.extraCurrent);
   }
 
-  /** 今使っているターミナル（IDE モードの右下に出すもの・キーを向けるもの）。 */
+  /** 今使っているターミナル（キーを向けるもの）。 */
   get active(): TermLink | undefined {
     return this.current;
   }

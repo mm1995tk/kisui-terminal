@@ -25,7 +25,7 @@ import (
 // maxSplitTerms は 1 つのワークスペースの分割したターミナルの上限（プライマリと合わせて 6 個）。
 const maxSplitTerms = 5
 
-// Workspace の名前は ctl / ide 用のインターフェースが使っているので、ここでは wsInfo。
+// wsInfo は workspace.list などで GUI に渡すワークスペース。
 // folder・kind・name は、フォルダ未定のあいだ null。
 type wsInfo struct {
 	ID      string   `json:"id"`
@@ -35,7 +35,6 @@ type wsInfo struct {
 	Branch  string   `json:"branch,omitempty"`
 	Primary string   `json:"primary"` // プライマリターミナル
 	Terms   []string `json:"terms"`   // 分割したターミナル
-	Files   []string `json:"files"`
 	// PrimaryShj は GUI のプライマリターミナルの中で動いている TUI の shj。無ければ null。
 	PrimaryShj *primaryShj `json:"primaryShj"`
 	// Extras はターミナルでない欄（プライマリの shj が開かせた動画。docs/design/gui-protocol.md）。
@@ -119,16 +118,6 @@ func (w *wsManager) count() int {
 	return len(w.reg)
 }
 
-// focusID は画面と入力の宛先になるワークスペースの id。フォーカスが無いか、フォルダ未定なら ""。
-func (w *wsManager) focusID() string {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	if st := w.reg[w.focus]; st != nil && st.root != "" {
-		return st.id
-	}
-	return ""
-}
-
 // rootOf は id のワークスペースのフォルダ（正規化済み）。無いか、フォルダ未定なら ok == false。
 func (w *wsManager) rootOf(id string) (string, bool) {
 	w.mu.Lock()
@@ -196,7 +185,6 @@ func (w *wsManager) recompute() {
 
 // recomputeLocked は recomputeMu を持って呼ぶ。
 func (w *wsManager) recomputeLocked() {
-	cores := w.srv.coresOf()
 	terms := w.srv.terms.all()
 	w.mu.Lock()
 	states := make([]*wsState, 0, len(w.reg))
@@ -210,7 +198,7 @@ func (w *wsManager) recomputeLocked() {
 		states = append(states, &c)
 	}
 	w.mu.Unlock()
-	next := buildWorkspaces(states, terms, cores)
+	next := buildWorkspaces(states, terms)
 	w.mu.Lock()
 	prev := w.list
 	w.list = next
@@ -227,18 +215,15 @@ func (w *wsManager) recomputeLocked() {
 }
 
 // buildWorkspaces はワークスペースの一覧を作る。分割したターミナルは属するワークスペースごとにまとめる。
-func buildWorkspaces(states []*wsState, terms []*terminal, cores Cores) map[string]*wsInfo {
+func buildWorkspaces(states []*wsState, terms []*terminal) map[string]*wsInfo {
 	next := map[string]*wsInfo{}
 	for _, st := range states {
-		x := &wsInfo{ID: st.id, Primary: st.primary, Terms: []string{}, Files: []string{}, Extras: []extraPane{}, root: st.root, seq: st.seq, PrimaryShj: st.shj}
+		x := &wsInfo{ID: st.id, Primary: st.primary, Terms: []string{}, Extras: []extraPane{}, root: st.root, seq: st.seq, PrimaryShj: st.shj}
 		if st.root != "" {
 			folder, kind, name := st.root, st.kind, filepath.Base(st.root)
 			x.Folder, x.Kind, x.Name = &folder, &kind, &name
 			if st.kind == "git" {
 				x.Branch = gitBranch(st.root)
-			}
-			if cores != nil {
-				x.Files = relFiles(st.root, cores.Files(st.id))
 			}
 		}
 		if st.shj != nil {
@@ -304,7 +289,7 @@ func sortWS(l []*wsInfo) { sort.Slice(l, func(i, j int) bool { return l[i].seq <
 
 func wsEqual(a, b *wsInfo) bool {
 	return a.root == b.root && ptrEq(a.Kind, b.Kind) && a.Branch == b.Branch && a.Primary == b.Primary && shjEq(a.PrimaryShj, b.PrimaryShj) &&
-		slices.Equal(a.Terms, b.Terms) && slices.Equal(a.Files, b.Files) && slices.Equal(a.Extras, b.Extras)
+		slices.Equal(a.Terms, b.Terms) && slices.Equal(a.Extras, b.Extras)
 }
 
 func ptrEq(a, b *string) bool {
@@ -361,7 +346,6 @@ func (w *wsManager) poll() {
 }
 
 // switchFolder は id のワークスペースのフォルダを root に切り替える。同じフォルダなら何もしない。
-// 開いているファイルは、自動保存の 1 秒を待たずに保存（または設定どおり捨てて）して閉じ、core は作り直す。
 // 分割したターミナルはそのまま残す。
 func (w *wsManager) switchFolder(id, root, kind string) {
 	w.recomputeMu.Lock()
@@ -372,26 +356,10 @@ func (w *wsManager) switchFolder(id, root, kind string) {
 		w.mu.Unlock()
 		return
 	}
-	focused := w.focus == id
-	w.mu.Unlock()
-	cores := w.srv.coresOf()
-	if cores != nil {
-		cores.Release(id)
-	}
-	w.mu.Lock()
 	st.root, st.kind = root, kind
 	w.mu.Unlock()
 	w.srv.log.Info("workspace folder switched", "workspace", id, "folder", root)
-	if focused && cores != nil {
-		if err := cores.Open(id, root); err != nil {
-			w.srv.log.Warn("open core", "workspace", id, "err", err)
-		}
-	}
 	w.recomputeLocked()
-	if focused {
-		w.srv.bumpRev()
-		w.srv.ScreenChanged()
-	}
 }
 
 // running はワークスペースのターミナルのうち、シェルのほかにプログラムが動いているもの。
@@ -419,34 +387,19 @@ func (w *wsManager) closeWorkspace(id string, force bool) error {
 		return rpc.Errorf(rpc.CodeNotFound, "no such workspace: %s", id)
 	}
 	if !force && len(w.running(id)) > 0 {
-		return busyError("running", nil)
-	}
-	cores := w.srv.coresOf()
-	if cores != nil {
-		// 保存できなかったファイルがあれば、force でも何も閉じない（黙ってデータを失わない）。
-		if failed := cores.SaveAll(id); len(failed) > 0 {
-			return busyError("unsaved", failed)
-		}
+		return busyError("running")
 	}
 	w.srv.terms.closeWorkspace(id)
-	if cores != nil {
-		cores.Close(id)
-	}
 	w.mu.Lock()
 	delete(w.reg, id)
 	w.mu.Unlock()
 	w.recomputeLocked()
-	w.srv.ScreenChanged()
 	return nil
 }
 
-func busyError(reason string, paths []string) *rpc.Error {
+func busyError(reason string) *rpc.Error {
 	e := rpc.Errorf(rpc.CodeBusy, "the workspace cannot be closed: %s", reason)
-	d := map[string]any{"reason": reason}
-	if len(paths) > 0 {
-		d["paths"] = paths
-	}
-	e.Data, _ = json.Marshal(d)
+	e.Data, _ = json.Marshal(map[string]any{"reason": reason})
 	return e
 }
 
@@ -489,35 +442,24 @@ func (ss *session) workspaceRequest(req *rpc.Message) (res any, err error, handl
 		}
 		return struct{}{}, nil, true
 	}
-	// workspace.focus。フォーカスを移したワークスペースの core を用意する。core は外しても残る。
-	// recompute と同じロックの中で、まだワークスペースがあるのを確かめてから作る
-	// （消えたあとに作った core は、誰も止めなくなる）。
+	// workspace.focus。recompute と同じロックの中で、まだワークスペースがあるのを確かめてから移す。
 	w.recomputeMu.Lock()
 	w.mu.Lock()
 	st := w.reg[p.ID]
-	var root, primary string
+	var primary string
 	if st != nil {
-		root, primary = st.root, st.primary
+		primary = st.primary
 	}
 	w.mu.Unlock()
 	if st == nil {
 		w.recomputeMu.Unlock()
 		return nil, rpc.Errorf(rpc.CodeNotFound, "no such workspace: %s", p.ID), true
 	}
-	if cores := ss.srv.coresOf(); cores != nil && root != "" {
-		if err := cores.Open(p.ID, root); err != nil {
-			// The workspace does not take the focus: it has no core to show.
-			w.recomputeMu.Unlock()
-			return nil, rpc.Errorf(rpc.CodeInternalError, "%s", err), true
-		}
-	}
 	w.mu.Lock()
 	w.focus = p.ID
 	w.mu.Unlock()
 	w.recomputeMu.Unlock()
 	rev := ss.srv.bumpRev()
-	// 画面（Screen）はこのワークスペースの core のものに切り替わる。
-	ss.srv.ScreenChanged()
 	return map[string]any{"rev": rev, "termId": primary}, nil, true
 }
 

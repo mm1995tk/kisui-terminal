@@ -1,6 +1,5 @@
 /* 画面全体の割り付け。左に一覧（sidebar.css）、右に残り。
-   右は上がファイルの欄（files/files.css）、右下がターミナル（F1。terminal/terminal.css）。
-   ファイルを開いていなければ、右は全部ターミナル。
+   右は全部ターミナル（F1。terminal/terminal.css）。編集はプライマリの欄の中の shj が受け持つ。
    つなぐ先を選ぶ窓と接続の知らせは connect/（カードの決まりは connect/card.css）。 */
 html,
 body,
@@ -46,49 +45,20 @@ a {
   position: relative;
   flex: 1;
   min-width: 0;
-  /* 下のブロック（IDE モードはターミナル、ターミナルモードはファイルの欄）の高さ。変えた値は --term-h に入る */
-  --term-h-eff: clamp(120px, var(--term-h, 300px), calc(100% - 160px));
   display: flex;
   flex-direction: column;
 }
 
-/* 右下のターミナル（F1。terminal/terminal.css）。高さは初めモックの 300px（境界を動かせる） */
+/* ターミナル（F1。terminal/terminal.css）は右の欄いっぱいに広げる */
 .main > .terminal {
-  flex: none;
-  height: var(--term-h-eff);
-}
-
-/* ターミナルモード（F3。mode.ts）：ファイルの欄とターミナルのカードを入れ替える。
-   上が大きなターミナル、下がモックの 300px のファイルの欄。どちらも隠さない */
-.main[data-mode="terminal"] > .terminal {
-  order: -1;
   flex: 1;
-  height: auto;
-  border-top: none;
-}
-
-.main[data-mode="terminal"] > .files {
-  order: 1;
-  flex: none;
-  height: var(--term-h-eff);
-  border-top: 1px solid #2a2f39;
-}
-
-/* IDE モードでファイルを開いていない（ワークスペースが無いときも）あいだは、ファイルの欄を出さず、
-   右の列を全部ターミナルにする（親 #271 のモック U2。mode.ts）。ターミナルモードは変えない */
-.main[data-mode="ide"][data-no-file] > .files {
-  display: none;
-}
-
-.main[data-mode="ide"][data-no-file] > .terminal {
-  flex: 1;
-  height: auto;
+  min-height: 0;
   border-top: none;
 }
 
 /* ブロックの境界（#526。panes.ts）。当たりは 6px で、見える線は引かない（ブロックの縁の線のまま）。
    ドラッグ中とリサイズモードで動かす境界は、マシンの色（--machine-color。App.tsx が .app に入れる）で光らせる。
-   サイドバーとの境界は .app の左から、ファイルの欄とターミナルの境界は .main の下から数えて置く */
+   サイドバーとの境界は .app の左から数えて置く */
 .resizer {
   position: absolute;
   z-index: 5;
@@ -104,18 +74,6 @@ a {
   cursor: col-resize;
 }
 
-.resizer[data-axis="y"] {
-  left: 0;
-  right: 0;
-  bottom: calc(var(--term-h-eff) - 3px);
-  height: 6px;
-  cursor: row-resize;
-}
-
 .resizer[data-lit] {
   background: var(--machine-color, #7cc4b0);
-}
-
-.main[data-mode="ide"][data-no-file] > .resizer {
-  display: none;
 }

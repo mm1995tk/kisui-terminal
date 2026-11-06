@@ -1,51 +1,33 @@
-// ブロックの境界の大きさ（#526）。マウスのドラッグとリサイズモード（Alt+R）が動かす 4 つの境界の値と、その決まり。
+// サイドバーとターミナルの境界の大きさ（#526）。マウスのドラッグとリサイズモード（Alt+R）が動かす境界の値と、その決まり。
 // DOM には触らない（テストできるように）。キーは TUI の ui/tui/resize.go と同じ。
 //
 // - sidebar：サイドバーとその右の境界（サイドバーの幅 px）。
-// - term：ファイルの欄とターミナルの境界（下のブロックの高さ px。IDE モードはターミナル、ターミナルモードはファイルの欄）。
-// - diff・preview：ファイルの欄を左右に分けた境界（差分の分割表示・Markdown プレビューの分割。左側の %）。
-//   割り方は shj が決める（view.resize の splits）。
-// 値は覚えておき、GUI を起動し直しても残す。
+// 値は覚えておき、GUI を起動し直しても残す。右の欄はターミナルを自動で並べる（terminal/grid.ts）ので、
+// ほかに動かせる境界は無い。
 
 import type { KeyValueStore } from "./ssh/machines.ts";
-import type { KeyLike } from "./files/input.ts";
-import type { SplitKind } from "./files/split.ts";
+import type { KeyLike } from "./guiKeys.ts";
 
-/** 動かせる境界。サイドバーの右・ファイルの欄とターミナルの間・差分の左右・プレビューの左右。 */
-export type Border = "sidebar" | "term" | "diff" | "preview";
+/** 動かせる境界。サイドバーの右。 */
+export type Border = "sidebar";
 
-/** 4 つの境界の、決めた値。無いものは元の大きさ。 */
+/** 境界の、決めた値。無いものは元の大きさ。 */
 export type PaneSizes = Partial<Record<Border, number>>;
 
-/** 元の大きさ。diff・preview の 0 は「半分」（shj が割る）。 */
+/** 元の大きさ。 */
 export const DEFAULT_SIZES: Readonly<Record<Border, number>> = {
   sidebar: 300,
-  term: 300,
-  diff: 0,
-  preview: 0,
 };
 
 /** 境界ごとの下限と上限。 */
 export const LIMITS: Readonly<Record<Border, readonly [number, number]>> = {
   sidebar: [200, 640],
-  term: [120, 4000],
-  diff: [1, 99],
-  preview: [10, 90],
 };
 
-/** 半分のとき（値が 0）の、キーで動かし始める % */
-const HALF = 50;
-
-/** キーを 1 回押したときに境界が動く量（px・%）。 */
+/** キーを 1 回押したときに境界が動く量（px）。 */
 export const KEY_STEP: Readonly<Record<Border, number>> = {
   sidebar: 20,
-  term: 20,
-  diff: 2,
-  preview: 2,
 };
-
-/** `<` `>` を 1 回押したときにプレビューの境界が動く % */
-export const PREVIEW_STEP = 5;
 
 const STORAGE_KEY = "shijimi.paneSizes";
 
@@ -58,7 +40,7 @@ export function clampBorder(b: Border, v: number, max?: number): number {
   return Math.min(top, Math.max(lo, Math.round(v)));
 }
 
-/** 覚えておいた大きさを読む。壊れていたり範囲外のものは捨てる。 */
+/** 覚えておいた大きさを読む。壊れていたり範囲外のものは捨てる（前の版が覚えた term・diff・preview も捨てる）。 */
 export function loadSizes(store: KeyValueStore | undefined): PaneSizes {
   let raw: unknown;
   try {
@@ -112,27 +94,14 @@ export function withoutSize(sizes: PaneSizes, b?: Border): PaneSizes {
   return rest;
 }
 
-/** リサイズモードの手がかり。 */
-export interface ResizeContext {
-  /** キーがターミナルに向いている（ファイルの欄ではない） */
-  inTerm: boolean;
-  /** ファイルの欄で今のファイルに左右の境界があれば、その種類 */
-  split: SplitKind | null;
-}
-
-/** ←→（h l）が動かす縦の境界：フォーカスのあるブロックの境界。ファイルの欄に分割の境界があればそれ、無ければサイドバー。 */
-export function acrossBorder(c: ResizeContext): Border {
-  return !c.inTerm && c.split ? c.split : "sidebar";
-}
-
-/** 光らせる境界（←→ の境界と、↑↓ の境界）。 */
-export function litBorders(c: ResizeContext): Border[] {
-  return [acrossBorder(c), "term"];
+/** 光らせる境界（リサイズモードで動かすもの）。 */
+export function litBorders(): Border[] {
+  return ["sidebar"];
 }
 
 /** リサイズモードのキーの動き。 */
 export type ResizeAction =
-  | { kind: "move"; border: Border; step: number } // step は右・下へ動かす向きが正（term は上へ動かすと高さが増える）
+  | { kind: "move"; border: Border; step: number } // step は右へ動かす向きが正
   | { kind: "reset" }
   | { kind: "exit" }
   | { kind: "none" };
@@ -161,27 +130,14 @@ export function resizeKeyName(e: KeyLike): string | null {
 }
 
 /** リサイズモードで key（resizeKeyName の名前）を押したときの動き。 */
-export function resizeAction(key: string, c: ResizeContext): ResizeAction {
-  const across = acrossBorder(c);
+export function resizeAction(key: string): ResizeAction {
   switch (key) {
     case "left":
     case "h":
-      return { kind: "move", border: across, step: -KEY_STEP[across] };
+      return { kind: "move", border: "sidebar", step: -KEY_STEP.sidebar };
     case "right":
     case "l":
-      return { kind: "move", border: across, step: KEY_STEP[across] };
-    case "up":
-    case "k":
-      return { kind: "move", border: "term", step: -KEY_STEP.term };
-    case "down":
-    case "j":
-      return { kind: "move", border: "term", step: KEY_STEP.term };
-    case "<":
-    case ",":
-      return preview(c, -PREVIEW_STEP);
-    case ">":
-    case ".":
-      return preview(c, PREVIEW_STEP);
+      return { kind: "move", border: "sidebar", step: KEY_STEP.sidebar };
     case "=":
       return { kind: "reset" };
     case "esc":
@@ -193,13 +149,8 @@ export function resizeAction(key: string, c: ResizeContext): ResizeAction {
   return { kind: "none" };
 }
 
-/** `<` `>` はプレビューの境界。無ければ（差分の分割なら）その境界を動かす。どちらも無ければ何もしない。 */
-function preview(c: ResizeContext, step: number): ResizeAction {
-  return c.split ? { kind: "move", border: c.split, step } : { kind: "none" };
-}
-
 /**
- * sizes の動きを当てる。term は上へ動かす（step が負）と高さが増える。max は今の画面で効く上限。
+ * sizes の動きを当てる。max は今の画面で効く上限。
  * 値が上限を超えていたら（窓を狭めたあとなど）上限から動かす（見えない分を動かして反応が無くならないように）。
  */
 export function applyMove(
@@ -208,28 +159,7 @@ export function applyMove(
   step: number,
   max?: number,
 ): PaneSizes {
-  let cur = sizeOf(sizes, border) || HALF;
+  let cur = sizeOf(sizes, border);
   if (max !== undefined) cur = Math.min(cur, max);
-  return withSize(
-    sizes,
-    border,
-    border === "term" ? cur - step : cur + step,
-    max,
-  );
-}
-
-/**
- * ファイルの欄の左右の境界を、ポインタの位置から % にする。
- * leftPx は左のペインの左端から境界の左端までの px、totalPx は左右のペインの幅の合計、cellPx は 1 マスの幅。
- * 間の 1 マス（境界）を除いた幅に対する左側の割合。
- */
-export function splitPct(
-  kind: SplitKind,
-  pointerPx: number,
-  totalPx: number,
-  cellPx: number,
-): number {
-  const avail = totalPx - cellPx;
-  if (avail <= 0) return DEFAULT_SIZES[kind];
-  return clampBorder(kind, (pointerPx * 100) / avail);
+  return withSize(sizes, border, cur + step, max);
 }

@@ -1,8 +1,29 @@
-// Mac で GUI が受ける Cmd のキー（#529）。Linux と Windows は今までどおり Ctrl+Shift（mode.ts・terminal/grid.ts）。
+// Mac で GUI が受ける Cmd のキー（#529）。Linux と Windows は今までどおり Ctrl+Shift（terminal/grid.ts）。
 // Option は字を打つキーのまま使うので、Cmd+Option+矢印以外では使わない。Cmd+` は macOS が使うので使わない。
 // DOM には触らない（node --test で確かめられる）。
 
-import { isMac, type KeyLike } from "./files/input.ts";
+/** KeyboardEvent のうち、ここで使う項目。 */
+export interface KeyLike {
+  key: string;
+  code?: string;
+  ctrlKey: boolean;
+  shiftKey: boolean;
+  altKey: boolean;
+  metaKey: boolean;
+  repeat?: boolean;
+  isComposing?: boolean;
+  keyCode?: number;
+}
+
+/** 動いている OS が macOS か。 */
+export function isMac(platform: string): boolean {
+  return /mac|iphone|ipad/i.test(platform);
+}
+
+/** Ctrl と Shift だけを押しているか（Alt・Meta は押していない）。GUI が受けるキーはどれもこの形。 */
+export function isCtrlShift(e: KeyLike): boolean {
+  return e.ctrlKey && e.shiftKey && !e.altKey && !e.metaKey;
+}
 
 /** 動いている OS が macOS か。 */
 export const IS_MAC =
@@ -37,15 +58,5 @@ export function isCloseTermKey(e: KeyLike, mac = false): boolean {
 export function isCmdZoomKey(e: KeyLike): boolean {
   return (
     e.metaKey && e.shiftKey && !e.ctrlKey && !e.altKey && e.key === "Enter"
-  );
-}
-
-/** どこでも GUI が受ける Cmd のキー（ターミナルを足す・モードの切り替え・欄を隠す・ワークスペースの切り替え）か。shj に送らない。 */
-export function isCmdGuiKey(e: KeyLike): boolean {
-  return (
-    isCmdKey(e, "t") ||
-    isCmdKey(e, "j") ||
-    isCmdZoomKey(e) ||
-    cmdDigit(e) !== null
   );
 }

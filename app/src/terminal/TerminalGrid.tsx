@@ -9,9 +9,9 @@ import { TerminalView } from "./TerminalView.tsx";
 import { VideoView } from "./VideoView.tsx";
 
 /**
- * ターミナルのカード（F1・F4）。ターミナルモードでは、マシンのターミナルを数に応じて自動で並べる
- * （grid.ts）。IDE モードでは、今使っている 1 つだけを見せる（ほかも作り直さずに動かし続ける）。
- * 隠したものを忘れないよう、IDE モードでほかにもあれば、その数を右上に出す。タブは作らない。
+ * ターミナルのカード（F1・F4）。右の欄を全部使い、マシンのターミナルを数に応じて自動で並べる（grid.ts）。
+ * プライマリ以外の欄を隠しているときは、プライマリだけを見せる（ほかも作り直さずに動かし続ける）。
+ * タブは作らない。
  */
 export function TerminalGrid(props: {
   /** 並べるターミナル（TermGroup の list） */
@@ -26,8 +26,6 @@ export function TerminalGrid(props: {
   readExtra?: (pane: ExtraPane) => MediaFetch;
   onActivateExtra?: (id: string) => void;
   onCloseExtra?: (id: string) => void;
-  /** 全部並べるか（ターミナルモード）。false なら active だけを見せる（IDE モード） */
-  showAll: boolean;
   /** プライマリ以外の欄を隠しているか（隠した欄のターミナルは動かし続ける） */
   zoomed?: boolean;
   /** マシンの色（D4）。並べたときの今の欄の印に使う */
@@ -56,13 +54,9 @@ export function TerminalGrid(props: {
   };
   props.focusRef?.(focusActive);
 
-  const shown = () => (props.showAll && !props.zoomed ? total() : 1);
-  const visible = (link: TermLink, i: number) =>
-    props.zoomed
-      ? i === 0
-      : props.showAll || (link === props.active && !props.activeExtra);
-  const extraVisible = (x: ExtraPane) =>
-    !props.zoomed && (props.showAll || x.id === props.activeExtra?.id);
+  const shown = () => (props.zoomed ? 1 : total());
+  const visible = (i: number) => !props.zoomed || i === 0;
+  const extraVisible = (_x: ExtraPane) => !props.zoomed;
   const template = () => {
     const { cols, rows } = gridSize(shown());
     return {
@@ -72,7 +66,7 @@ export function TerminalGrid(props: {
     };
   };
   const area = (i: number) => {
-    if (!props.showAll || props.zoomed) return "1 / 1";
+    if (props.zoomed) return "1 / 1";
     const c = cellOf(i, total());
     return `${c.row + 1} / ${c.col + 1} / ${c.row + 2} / ${c.col + 1 + c.span}`;
   };
@@ -104,7 +98,7 @@ export function TerminalGrid(props: {
           <TerminalView
             link={link}
             active={link === props.active}
-            hidden={!visible(link, i())}
+            hidden={!visible(i())}
             area={area(i())}
             onFocus={() => props.onActivate(i())}
             focusRef={(f) =>
@@ -133,11 +127,6 @@ export function TerminalGrid(props: {
         <p class="terminal-others" role="status">
           ほかに {total() - 1} つを隠している（
           {IS_MAC ? "Cmd+Shift+Enter" : "Ctrl+Shift+M"} で戻す）
-        </p>
-      </Show>
-      <Show when={!props.zoomed && !props.showAll && total() > 1}>
-        <p class="terminal-others" role="status">
-          ほかに {total() - 1} つ（Ctrl+Shift+` で並べる）
         </p>
       </Show>
     </section>

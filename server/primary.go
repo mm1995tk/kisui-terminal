@@ -11,6 +11,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"errors"
+	"io/fs"
 	"net"
 	"os"
 	"path/filepath"
@@ -224,7 +225,7 @@ func (w *wsManager) setShjFile(claim *primaryShj, file string) {
 const shjOpenTimeout = 5 * time.Second
 
 // primaryRequest は shj.open。ツリーで押したファイルを、ワークスペースのプライマリの shj で開かせる。
-// path はワークスペースのルートからの相対パス（file.open と同じ検査）。プライマリに shj がいなければ not_found。
+// path はワークスペースのルートからの相対パス（checkFile の検査：ルートの中にあるファイルか）。プライマリに shj がいなければ not_found。
 func (ss *session) primaryRequest(req *rpc.Message) (res any, err error, handled bool) {
 	if req.Method != "shj.open" {
 		return nil, nil, false
@@ -328,4 +329,30 @@ func (w *wsManager) unlinkShj(claim *primaryShj) {
 		_ = os.Remove(link)
 		_ = os.Remove(filepath.Dir(link)) // 空になったときだけ消える
 	}
+}
+
+func invalidParams(err error) *rpc.Error {
+	return rpc.Errorf(rpc.CodeInvalidParams, "invalid params: %v", err)
+}
+
+// checkFile は full（root の中の rel）が、root の中にあるファイルなのを確かめる。
+func checkFile(root, full, rel string) error {
+	real, err := filepath.EvalSymlinks(full)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return rpc.Errorf(rpc.CodeNotFound, "no such file: %s", rel)
+		}
+		return rpc.Errorf(rpc.CodeInternalError, "%v", err)
+	}
+	if !within(root, real) {
+		return errDenied(rel)
+	}
+	fi, err := os.Stat(real)
+	if err != nil {
+		return fsError(err)
+	}
+	if fi.IsDir() {
+		return rpc.Errorf(rpc.CodeInvalidParams, "not a file: %s", rel)
+	}
+	return nil
 }

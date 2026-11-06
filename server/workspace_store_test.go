@@ -105,8 +105,8 @@ func TestWorkspacesRestoredAfterShutdown(t *testing.T) {
 		t.Errorf("b folder: %v", xb.Folder)
 	}
 	for _, x := range l.Workspaces {
-		if len(x.Terms) != 0 || len(x.Files) != 0 {
-			t.Errorf("split terminals and files must not come back: %+v", x)
+		if len(x.Terms) != 0 {
+			t.Errorf("split terminals must not come back: %+v", x)
 		}
 		if !primaryAlive(t, c2, x.Primary) {
 			t.Errorf("primary %s of %s is not running", x.Primary, x.ID)

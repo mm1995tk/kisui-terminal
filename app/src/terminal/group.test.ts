@@ -369,7 +369,6 @@ describe("TermGroups", () => {
     name: null,
     primary,
     terms,
-    files: [],
   });
 
   it("ワークスペースごとに持ち、増えたら作り、消えたら忘れる。残るものは同じまま", () => {
