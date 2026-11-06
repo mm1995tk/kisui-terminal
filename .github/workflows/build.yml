@@ -107,7 +107,13 @@ jobs:
       - name: npm ci
         run: npm ci
 
-      # GUI と一緒に配る kisui と shj（Tauri の externalBin）。GUI と同じ版・コミットで作る。Go は runner のもの（go.mod の版は GOTOOLCHAIN=auto で取る）
+      # kisui と shj を作る Go。macOS の runner には Go が入っていないので、go.mod の版をここで入れる
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      # GUI と一緒に配る kisui と shj（Tauri の externalBin）。GUI と同じ版・コミットで作る
       - name: kisui と shj を作る
         env:
           VERSION: ${{ inputs.version }}
