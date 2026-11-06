@@ -27,8 +27,9 @@ type primaryShj struct {
 	Socket string `json:"socket"`
 	PID    int    `json:"pid"`
 	// File はその shj が今出しているファイル（絶対パス）。テキストか画像を出していなければ空。
-	File string `json:"file,omitempty"`
-	wsID string // 名乗ったときのワークスペース（リンクを消すため。ワークスペースが先に消えても分かる）
+	File  string   `json:"file,omitempty"`
+	wsID  string   // 名乗ったときのワークスペース（リンクを消すため。ワークスペースが先に消えても分かる）
+	panes []string // この shj が作った欄（ターミナルの id）。w.mu で守る。shj が終わると閉じる
 }
 
 type primaryServer struct {
@@ -110,6 +111,13 @@ func (s *Server) primaryConn(c net.Conn) {
 		reply(c, errors.New("no hello"))
 		return
 	}
+	var op struct {
+		Op string `json:"op"`
+	}
+	if json.Unmarshal(sc.Bytes(), &op) == nil && op.Op != "" {
+		s.paneConn(c, sc.Bytes())
+		return
+	}
 	var h ctl.PrimaryHello
 	if err := json.Unmarshal(sc.Bytes(), &h); err != nil {
 		reply(c, err)
@@ -174,10 +182,12 @@ func (w *wsManager) claimShj(h ctl.PrimaryHello) (*primaryShj, error) {
 	return claim, nil
 }
 
-// releaseShj は claim の shj が終わったことを覚える。別の shj に替わっていれば何もしない。
+// releaseShj は claim の shj が終わったことを覚え、その shj が開いた欄を閉じる。別の shj に替わっていれば何もしない。
 // ワークスペースが先に消えていても、リンクは claim の wsID から消す。
 func (w *wsManager) releaseShj(claim *primaryShj) {
 	w.mu.Lock()
+	panes := claim.panes
+	claim.panes = nil
 	for _, st := range w.reg {
 		if st.shj == claim {
 			st.shj = nil
@@ -185,6 +195,9 @@ func (w *wsManager) releaseShj(claim *primaryShj) {
 	}
 	w.mu.Unlock()
 	w.unlinkShj(claim)
+	for _, id := range panes { // この shj が開いた欄は、shj と一緒に閉じる
+		w.closePane(claim, id)
+	}
 	w.recompute()
 }
 

@@ -542,13 +542,7 @@ func (ss *session) termRequest(req *rpc.Message) (res any, err error, handled bo
 		if primary {
 			return nil, rpc.Errorf(rpc.CodeDenied, "a primary terminal is closed with its workspace (workspace.close): %s", t.id), true
 		}
-		m.mu.Lock()
-		delete(m.terms, t.id)
-		m.mu.Unlock()
-		t.hangup()
-		t.mu.Lock()
-		t.alive = false
-		t.mu.Unlock()
+		m.closeTerm(t.id)
 		ss.srv.ws.recompute()
 		return struct{}{}, nil, true
 	case "term.resize":
@@ -715,4 +709,19 @@ func cdInput(path *string) []byte {
 		cmd = "cd -- " + shellQuote(*path)
 	}
 	return []byte("\x05\x15" + cmd + "\r")
+}
+
+// closeTerm は分割したターミナルを終わらせて忘れる（term.close と欄を閉じるときで同じ）。呼ぶ側が一覧を作り直す。
+func (m *termManager) closeTerm(id string) {
+	t, err := m.get(id)
+	if err != nil {
+		return
+	}
+	m.mu.Lock()
+	delete(m.terms, id)
+	m.mu.Unlock()
+	t.hangup()
+	t.mu.Lock()
+	t.alive = false
+	t.mu.Unlock()
 }

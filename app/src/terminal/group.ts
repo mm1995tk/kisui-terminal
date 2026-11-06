@@ -129,6 +129,14 @@ export class TermGroup {
     this.onChange();
   }
 
+  /** termId の欄を active にする（shj が欄を出した。#553）。無ければ false。 */
+  activate(termId: TermId): boolean {
+    const i = this.links.findIndex((l) => l.id === termId);
+    if (i < 0) return false;
+    this.setActive(i);
+    return true;
+  }
+
   /** active を dir の向きの隣へ移す（Ctrl+Shift+矢印）。動いたら true。 */
   move(dir: Direction): boolean {
     const i = this.current ? this.links.indexOf(this.current) : -1;

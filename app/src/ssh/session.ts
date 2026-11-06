@@ -124,6 +124,11 @@ export interface Splits {
 export type ResizeEvent =
   { kind: "start" } | { kind: "key"; key: string } | { kind: "reset" };
 
+/** shj が出した・隠した欄の知らせ（プライマリの shj の端末のコマンド。#553）。 */
+export type PaneEvent =
+  | { kind: "show"; workspaceId: WorkspaceId; termId: TermId }
+  | { kind: "hide"; workspaceId: WorkspaceId };
+
 /** Session.input で送れる入力。file.open も shj は入力と同じ並びで処理するので、同じ seq の数え方で送る。 */
 export type InputMethod =
   | "input.key"
@@ -201,6 +206,7 @@ export class Session {
   private inputSeq = 0;
   private readonly clipboardHandlers = new Set<(text: string) => void>();
   private readonly resizeHandlers = new Set<(e: ResizeEvent) => void>();
+  private readonly paneHandlers = new Set<(e: PaneEvent) => void>();
 
   constructor(api: ShellApi, target: string, opts: SessionOptions = {}) {
     this.api = api;
@@ -389,6 +395,12 @@ export class Session {
   onResizeEvent(h: (e: ResizeEvent) => void): () => void {
     this.resizeHandlers.add(h);
     return () => this.resizeHandlers.delete(h);
+  }
+
+  /** pane.show・pane.hide（プライマリの shj が端末のコマンドで欄を出した・隠した）。つなぎ直しても外れない。 */
+  onPane(h: (e: PaneEvent) => void): () => void {
+    this.paneHandlers.add(h);
+    return () => this.paneHandlers.delete(h);
   }
 
   /** tree.changed（開いているフォルダの中身が変わった）。つなぎ直しても外れない。 */
@@ -650,6 +662,19 @@ export class Session {
       conn.client.on("resize.reset", () => {
         if (gen !== this.generation || this.conn !== conn) return;
         for (const h of [...this.resizeHandlers]) h({ kind: "reset" });
+      }),
+      conn.client.on("pane.show", (n) => {
+        if (gen !== this.generation || this.conn !== conn) return;
+        if (typeof n?.workspaceId !== "string" || typeof n?.termId !== "string")
+          return;
+        for (const h of [...this.paneHandlers])
+          h({ kind: "show", workspaceId: n.workspaceId, termId: n.termId });
+      }),
+      conn.client.on("pane.hide", (n) => {
+        if (gen !== this.generation || this.conn !== conn) return;
+        if (typeof n?.workspaceId !== "string") return;
+        for (const h of [...this.paneHandlers])
+          h({ kind: "hide", workspaceId: n.workspaceId });
       }),
       ...(["term.output", "term.exit", "term.title"] as const).map((method) =>
         conn.client.on(method, (params) => {

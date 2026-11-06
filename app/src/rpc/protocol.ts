@@ -705,6 +705,9 @@ export interface Notifications {
   "resize.key": { key: string };
   "resize.reset": Record<string, never>;
   "url.open": { url: string };
+  /** プライマリの shj の欄（#553）。shj が端末のコマンドで欄を出した・隠した */
+  "pane.show": { workspaceId: WorkspaceId; termId: TermId };
+  "pane.hide": { workspaceId: WorkspaceId };
   notify: { level: string; text: string };
   "term.output": { termId: TermId; seq: number; data: string };
   "term.exit": { termId: TermId; code: number; signal?: string };

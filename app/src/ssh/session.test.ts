@@ -596,6 +596,33 @@ describe("画面の購読（E1）", () => {
     await s.close();
   });
 
+  it("プライマリの shj が欄を出した・隠した知らせを渡す（pane.show・pane.hide）", async () => {
+    const f = fakeShell({ serverIds: ["A"] });
+    const s = new Session(f.api, "h", fast);
+    const got: unknown[] = [];
+    s.onPane((e) => got.push(e));
+    s.start();
+    await waitFor(s, (st) => st.kind === "connected");
+    const id = connectedId(f);
+    f.emit(id, {
+      jsonrpc: "2.0",
+      method: "pane.show",
+      params: { workspaceId: "w1", termId: "t2" },
+    });
+    f.emit(id, {
+      jsonrpc: "2.0",
+      method: "pane.hide",
+      params: { workspaceId: "w1" },
+    });
+    f.emit(id, { jsonrpc: "2.0", method: "pane.show", params: {} });
+    await settle();
+    assert.deepEqual(got, [
+      { kind: "show", workspaceId: "w1", termId: "t2" },
+      { kind: "hide", workspaceId: "w1" },
+    ]);
+    await s.close();
+  });
+
   it("つなぎ直したら、購読と大きさを送り直す", async () => {
     const f = fakeShell({ serverIds: ["A"] });
     const s = new Session(f.api, "h", fast);

@@ -518,5 +518,5 @@ func shjEq(a, b *primaryShj) bool {
 	if a == nil || b == nil {
 		return a == b
 	}
-	return *a == *b
+	return a.Socket == b.Socket && a.PID == b.PID && a.File == b.File && a.wsID == b.wsID
 }

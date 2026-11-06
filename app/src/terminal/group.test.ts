@@ -117,6 +117,15 @@ describe("TermGroup", () => {
     assert.equal(g.active?.id, "t2");
   });
 
+  it("shj が出した欄（termId）を active にする。無ければ false", () => {
+    const f = fakePort();
+    const g = new TermGroup(f.port, layout(["t2", "t3"]), () => {});
+    assert.equal(g.activate("t3"), true);
+    assert.equal(g.active?.id, "t3");
+    assert.equal(g.activate("t9"), false);
+    assert.equal(g.active?.id, "t3");
+  });
+
   it("足すと term.create（ワークスペースを指して）で作って active にする。6 個までしか足せない", async () => {
     const f = fakePort();
     const g = new TermGroup(f.port, layout(), () => {});
