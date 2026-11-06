@@ -1,0 +1,9 @@
+# kisui-terminal が書き出した、ユーザーの .zlogout を読むための包み。ユーザーのファイルは書き換えない。
+# ZDOTDIR は読んでいる間だけユーザーの値に戻す。
+_kisui_zdotdir=$ZDOTDIR
+ZDOTDIR=${KISUI_ORIG_ZDOTDIR:-$HOME}
+[[ -r $ZDOTDIR/.zlogout ]] && source $ZDOTDIR/.zlogout
+# ユーザーのファイルが ZDOTDIR を変えたら、以降はその値のフォルダから読む
+[[ $ZDOTDIR != ${KISUI_ORIG_ZDOTDIR:-$HOME} ]] && KISUI_ORIG_ZDOTDIR=$ZDOTDIR
+ZDOTDIR=$_kisui_zdotdir
+unset _kisui_zdotdir

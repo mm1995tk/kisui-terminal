@@ -23,14 +23,14 @@ func TestWithBundledShj(t *testing.T) {
 
 	// 同梱が無ければ変えない
 	t.Setenv(EnvShjDir, dir)
-	if got := withBundledShj([]string{"A=1"}); len(got) != 1 {
+	if _, got := bundledShell("/bin/sh", []string{"A=1"}); len(got) != 1 {
 		t.Fatalf("no shj: env changed: %v", got)
 	}
 	// 実行できない shj は使わない
 	if err := os.WriteFile(filepath.Join(dir, "shj"), nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if got := withBundledShj(nil); got != nil {
+	if _, got := bundledShell("/bin/sh", nil); got != nil {
 		t.Fatalf("non-executable shj used: %v", got)
 	}
 	if err := os.Chmod(filepath.Join(dir, "shj"), 0o755); err != nil {
@@ -39,7 +39,7 @@ func TestWithBundledShj(t *testing.T) {
 
 	// kisui の PATH の先頭に足す
 	env := []string{"A=1"}
-	got := withBundledShj(env)
+	_, got := bundledShell("/bin/sh", env)
 	if p := pathOf(got); p != dir+":/usr/bin:/bin" {
 		t.Fatalf("PATH = %q", p)
 	}
@@ -47,7 +47,8 @@ func TestWithBundledShj(t *testing.T) {
 		t.Fatal("input env was modified")
 	}
 	// 呼ぶ側が PATH を指していれば、それの先頭に足す
-	if p := pathOf(withBundledShj([]string{"PATH=/x"})); p != dir+":/x" {
+	_, e2 := bundledShell("/bin/sh", []string{"PATH=/x"})
+	if p := pathOf(e2); p != dir+":/x" {
 		t.Fatalf("PATH = %q", p)
 	}
 }

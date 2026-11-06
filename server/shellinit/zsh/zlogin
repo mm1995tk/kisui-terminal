@@ -1,0 +1,14 @@
+# kisui-terminal が書き出した、ユーザーの .zlogin を読むための包み。ユーザーのファイルは書き換えない。
+_kisui_zdotdir=$ZDOTDIR
+ZDOTDIR=${KISUI_ORIG_ZDOTDIR:-$HOME}
+[[ -r $ZDOTDIR/.zlogin ]] && source $ZDOTDIR/.zlogin
+# ユーザーのファイルが ZDOTDIR を変えたら、以降はその値のフォルダから読む
+[[ $ZDOTDIR != ${KISUI_ORIG_ZDOTDIR:-$HOME} ]] && KISUI_ORIG_ZDOTDIR=$ZDOTDIR
+ZDOTDIR=$_kisui_zdotdir
+unset _kisui_zdotdir
+# 同梱の shj のフォルダを PATH の先頭に入れ直す（ユーザーの起動ファイルが入れた別の shj より先にする）
+if [[ -n $KISUI_SHJ_PATH_DIR ]]; then
+  path=("$KISUI_SHJ_PATH_DIR" ${path:#"$KISUI_SHJ_PATH_DIR"})
+fi
+# ZDOTDIR をユーザーの値に戻す
+if [[ -n $KISUI_ORIG_ZDOTDIR ]]; then ZDOTDIR=$KISUI_ORIG_ZDOTDIR; else unset ZDOTDIR; fi

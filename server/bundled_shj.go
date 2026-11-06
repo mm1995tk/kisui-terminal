@@ -40,16 +40,6 @@ func hasShj(dir string) bool {
 	return err == nil && fi.Mode().IsRegular() && fi.Mode().Perm()&0o111 != 0
 }
 
-// withBundledShj は、ターミナルに渡す環境変数 env の PATH の先頭に、同梱の shj のフォルダを足す。
-// 同梱の shj が無ければ env のまま。env に PATH があればそれ、無ければ kisui の PATH に足す。
-func withBundledShj(env []string) []string {
-	dir := bundledShjDir()
-	if dir == "" {
-		return env
-	}
-	return prependPath(env, dir)
-}
-
 func prependPath(env []string, dir string) []string {
 	path := os.Getenv("PATH")
 	for _, e := range env {
