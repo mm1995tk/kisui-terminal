@@ -208,7 +208,7 @@ P13-08（#384）では、マウスの当たり判定（`handleMouse`・`termMous
 
 P13-09（#385）で `Core` を `core` に移し、分割を終えた。`ui/tui` の `App` は `*core.Core` を埋め込み、`tea.Model`（`Init`・`Update`・`View`。`model.go`）を持つ。`Core` は UI を `core.Port` として持ち、`App` がそれを満たす（`ui/tui/port.go`）。tui が `Core` の公開したフィールドとメソッドを使うので、上に挙げた tui の中の見張り（`TestCoreFields`・`TestCoreMethods`・`TestThemeApplyIsFrontEnd`・`TestFrontEndAsksCore`・`TestStylesStayInTui`・`TestRenderFrameReadsQueries`）はやめた。境界はパッケージで、`core/deps_test.go`（`TestNoTerminalDeps`）が、`core` が bubbletea・lipgloss・`ui/tui` に依存しないことを見張る。`github.com/charmbracelet/x/ansi` は、Markdown プレビューなどで端末のセルの幅を測る所が残るので、まだ例外にしている。tui の中には、lipgloss を import するファイルと `layout` を使うファイルを限る見張り（`ui/tui/split_test.go`）だけが残る。テストは、振る舞い（`Input` を渡して状態を見る）を `core` に、描画・レイアウト・マウスの座標・端末とマルチプレクサを `ui/tui` に置いた。
 
-（この段落は #448 より前の形の説明で、`core.Workspaces`・`core.NewIn` は #557 で外した。ワークスペースの決まり方と消え方の新しい形は「ワークスペース」の節。）P14（#306）で、1 つのプロセスが `core` を複数持てるようにした。プロセス全体で 1 つのもの（ポート転送とシェル連携のファイル）は `core.Shared`（`core/shared.go`）にまとめ、`core.NewIn(shared, …)` で作った `core` はそれを共有する。TUI は今までどおり `core.New` で 1 つだけ作り、`Shared` もその `core` が持つ（`Close` で閉じる）。テーマと表示の言語はもともとプロセス全体の値（`ActivateTheme`・`i18n.SetLang`）。言語は、TUI では `core.New` がそのルートの設定で決め、`kisui serve` ではホームの設定で起動時に一度だけ決める（`NewIn` は `SetLang` しない）。`kisui serve` は `core.Workspaces`（`core/workspaces.go`）でルートごとに `core` を 1 つ持ち、前面は描く画面がまだ無いので Port は `kisui serve` のサーバー（`Workspaces.SetPort`）で、大きさは GUI が送るまで 80 x 24 とする（`newHeadlessCore`）。`core` を作るのは `workspace.focus` のときで、ファイルを開いている間はシェルがいなくてもワークスペースは残り、どちらも無くなったら `core` を止める。サーバーは `core` を import せず、`server.Cores`（`ui/gui/server/cores.go`）を通して `files`・`workspace.close_files` を `core` に尋ねる。`workspace.close_files` は未保存の変更があるファイルを閉じずに残す。止まる前（idle と `server.shutdown`）には `AddBeforeStop` で全部の `core` の未保存の変更を `server.WriteBackup`（`<名前>.bk`）に書く。`core` の `Event` を回す仕組みと、`core` が `server.Workspace`（`ctl`・`ide` の届け先）になるのは、画面の配信（B9）と一緒に入れる。それまでは `Workspace.Do` が 1 つずつ `core` に触らせる。
+（この段落は #448 より前の形の説明で、`core.Workspaces`・`core.NewIn` は #557 で外した。ワークスペースの決まり方と消え方の新しい形は「ワークスペース」の節。）P14（#306）で、1 つのプロセスが `core` を複数持てるようにした。プロセス全体で 1 つのもの（ポート転送とシェル連携のファイル）は `core.Shared`（`core/shared.go`）にまとめ、`core.NewIn(shared, …)` で作った `core` はそれを共有する。TUI は今までどおり `core.New` で 1 つだけ作り、`Shared` もその `core` が持つ（`Close` で閉じる）。テーマと表示の言語はもともとプロセス全体の値（`ActivateTheme`・`i18n.SetLang`）。言語は、TUI では `core.New` がそのルートの設定で決め、`kisui serve` ではホームの設定で起動時に一度だけ決める（`NewIn` は `SetLang` しない）。`kisui serve` は `core.Workspaces`（`core/workspaces.go`）でルートごとに `core` を 1 つ持ち、前面は描く画面がまだ無いので Port は `kisui serve` のサーバー（`Workspaces.SetPort`）で、大きさは GUI が送るまで 80 x 24 とする（`newHeadlessCore`）。`core` を作るのは `workspace.focus` のときで、ファイルを開いている間はシェルがいなくてもワークスペースは残り、どちらも無くなったら `core` を止める。サーバーは `core` を import せず、`server.Cores`（`server/cores.go`）を通して `files`・`workspace.close_files` を `core` に尋ねる。`workspace.close_files` は未保存の変更があるファイルを閉じずに残す。止まる前（idle と `server.shutdown`）には `AddBeforeStop` で全部の `core` の未保存の変更を `server.WriteBackup`（`<名前>.bk`）に書く。`core` の `Event` を回す仕組みと、`core` が `server.Workspace`（`ctl`・`ide` の届け先）になるのは、画面の配信（B9）と一緒に入れる。それまでは `Workspace.Do` が 1 つずつ `core` に触らせる。
 
 ## 2. 分けていく順番
 
@@ -333,14 +333,14 @@ P13-09（#385）で `Core` を `core` に移し、分割を終えた。`ui/tui` 
 - 終わったプライマリターミナルは `alive: false` のまま残り、ワークスペースを消さない（「ワークスペース」の節の 11）。
 - JSON では base64 にするので出力が約 1.33 倍になる。MessagePack に変えれば生のバイト列で送れる。「速さが足りなければ MessagePack に」が一番効くのはここ。
 - ターミナルの中身を読む `ui/tui/vt` は TUI だけで使う。GUI ではサーバーは PTY のバイト列を中継するだけで、エミュレートしない。コマンドの終了を知らせる印（`command-end`、`shellint`）は、サーバーでは取り出さない（B6 で確かめた）。バイト列は coneko-term にそのまま届くので、印が要る機能は GUI の側（coneko-term の `registerOscHandler`）で拾う。サーバーが出力から読むのはタイトル（OSC 0 / 2）だけ。
-- GUI の側（F1）で決めた細部（`ui/gui/app/src/terminal/link.ts`）：
+- GUI の側（F1）で決めた細部（`app/src/terminal/link.ts`）：
   - `term.output` の `seq` は、そのかたまりの終わりのバイト数の累計。GUI は書いた分の `seq` を覚え、かたまりの始め（`seq` − 長さ）がそれより先なら欠けとみなして `term.attach`（`fromSeq` は覚えた `seq`）で取り直す。重なる分は捨てる。
   - `term.ack` は coneko-term が書き終えた（`write` のコールバックが来た）ときに返す。画面が遅れると shj が送るのを待つので、大量の出力でも WebView が詰まらない。
   - 取り直した分（最大 1 MiB）は ack の窓の外なので、coneko-term が書き終えるまでは次の `term.attach` を送らず、その間の欠けは書き終えてから 1 回だけ取り直す（coneko-term に積まれる量を「取り直し 1 回分 + ack の窓」までにする）。
   - `term.attach` の返事を待つ間に届いた `term.output` は捨てる（取り直す分に入っている）。キー入力はその間も送る（`yes` を止める Ctrl+C を落とさない）。`term.create` の返事より先に `term.output` が届くことがあるので、作ったら `term.attach`（0 から）で取り直す。
   - 右の欄に出すのは、フォーカスしているワークスペース（無ければ最初につながったマシンの最初のワークスペース）のターミナル。プライマリのシェルが終わったら知らせを出し、Enter で `term.restart` する。画面を外している間や切れている間に終わると `term.exit` が届かないので、付け直し・つなぎ直しのあとに `term.list` で生きているかを確かめ、`term.input`・`term.resize` の `not_found` も終わったものとして扱う。
 - GUI の側（F2）：帯を押して `workspace.focus` が受け付けられたら、そのワークスペースのプライマリターミナル（返事の `termId`）に切り替え、溜めた出力を全部取り直して描く（前のシェルは止めない）。どのワークスペースにも必ずプライマリターミナルがあるので、ターミナルを探して作る処理は要らない。切り替えたターミナルの大きさが画面と違えば `term.resize` で合わせる。
-- GUI の側（F4。`ui/gui/app/src/terminal/group.ts`・`grid.ts`）：右の欄には、フォーカスしているワークスペースのターミナル（プライマリ 1 つと分割したもの。6 個まで）を並べる。プライマリターミナルが 1 つ目の欄。1 個は全体、2 個は左右、3〜4 個は 2×2、5〜6 個は 3×2 で、升目が 1 つ余るとき（3 個・5 個）は最後のターミナルを 2 升ぶんの幅にする。`Ctrl+Shift+T` で `term.create` して足し（6 個なら足さない）キーを向ける。分割したターミナルのシェルが終わったら（`exit`）`term.close` してその欄を閉じ、並び直して隣にキーを向ける。プライマリターミナルのシェルが終わったら、欄を閉じず「Enter で作り直す」を出し、Enter で `term.restart` する。`Ctrl+Shift+矢印` は、キーがターミナルに向いているとき（プライマリ以外の欄を隠していないとき）だけ GUI が受けて隣へ移る。上下は今の欄の左端の列にかかる欄へ移る。今使っている欄は、上端にマシンの色の線を引く（タブの見出しは作らない）。並べたとき（2 つ以上）は、プライマリターミナルの欄の 4 辺にマシンの色の細い枠（1px）も引く（プライマリを使っているときは上端の線と両方）。1 つだけのときは枠を引かない。F2 でワークスペースを移したときは、並べるターミナルがそのワークスペースのものに替わり、今使うのはそのプライマリターミナルになる。
+- GUI の側（F4。`app/src/terminal/group.ts`・`grid.ts`）：右の欄には、フォーカスしているワークスペースのターミナル（プライマリ 1 つと分割したもの。6 個まで）を並べる。プライマリターミナルが 1 つ目の欄。1 個は全体、2 個は左右、3〜4 個は 2×2、5〜6 個は 3×2 で、升目が 1 つ余るとき（3 個・5 個）は最後のターミナルを 2 升ぶんの幅にする。`Ctrl+Shift+T` で `term.create` して足し（6 個なら足さない）キーを向ける。分割したターミナルのシェルが終わったら（`exit`）`term.close` してその欄を閉じ、並び直して隣にキーを向ける。プライマリターミナルのシェルが終わったら、欄を閉じず「Enter で作り直す」を出し、Enter で `term.restart` する。`Ctrl+Shift+矢印` は、キーがターミナルに向いているとき（プライマリ以外の欄を隠していないとき）だけ GUI が受けて隣へ移る。上下は今の欄の左端の列にかかる欄へ移る。今使っている欄は、上端にマシンの色の線を引く（タブの見出しは作らない）。並べたとき（2 つ以上）は、プライマリターミナルの欄の 4 辺にマシンの色の細い枠（1px）も引く（プライマリを使っているときは上端の線と両方）。1 つだけのときは枠を引かない。F2 でワークスペースを移したときは、並べるターミナルがそのワークスペースのものに替わり、今使うのはそのプライマリターミナルになる。
 - GUI の側（プライマリ以外の欄を隠す。`Ctrl+Shift+M`）：そのワークスペースのプライマリで shj が動いている（`primaryShj` が `null` でない）ときだけ、プライマリ以外の欄を隠してプライマリにキーを向け、もう一度押すと戻す。動いていなければ何もしない。隠した欄のターミナルは止めず（欄を作り直さず）、戻せば元の状態で出る。隠している間は右上に隠している数を出す（タブにしない）。状態は GUI だけが持ち（ワークスペースごと。`kisui serve` には持たせない）、プライマリの shj が終わった（`primaryShj` が `null` になった）ら隠した欄を出す。`Ctrl+Shift+T` で欄を足すときも先に戻す。`muxBackend` の `hide`・`show`（#553）は `pane.hide`・`pane.show` の通知で同じ状態（App.tsx の `zoomedWs`）を動かす。
 
 ### ワークスペース
@@ -408,7 +408,7 @@ P13-09（#385）で `Core` を `core` に移し、分割を終えた。`ui/tui` 
 
 #### プライマリの shj
 
-通信の版と、版を上げる決まりは [kisui-shj-protocol.md](kisui-shj-protocol.md)。名乗りの `{termId, socket, pid}` には `protocol`（版。無ければ 0）が付き、`kisui serve` が受けない版なら `{ok: false, code: "version", min, max}` で断る。
+通信の版と、版を上げる決まりは [protocol.md](protocol.md)。名乗りの `{termId, socket, pid}` には `protocol`（版。無ければ 0）が付き、`kisui serve` が受けない版なら `{ok: false, code: "version", min, max}` で断る。
 
 GUI はターミナルのマルチプレクサで、編集はプライマリターミナルの中で TUI の `shj` を動かして行う。`kisui serve` はワークスペースごとに「プライマリで動いている shj」を 1 つ覚え、`Workspace.primaryShj`（`{socket, pid, file?}`。無ければ `null`）で GUI に知らせる。変わると `workspace.changed` の `updated` で届く。`socket` はその shj の制御用ソケット（`core/ctl`、`<pid>.sock`）の場所。
 
@@ -457,8 +457,8 @@ GUI は複数のワークスペースのツリーを（開閉の状態を持っ�
 - パスはワークスペースのルートからの相対パス（`/` 区切り）。ルートの外へ出る（`..`、ルートの外を指すシンボリックリンクの先）パスは `denied`。
 - ファイル名が UTF-8 でないときは、`name` の不正な部分を `�` に置き換え、元のバイト列を `nameRaw`（base64）で足す。
 - 印の文字：`M` 変更、`A` 追加、`D` 削除、`R` 名前変更、`?` 追跡していない、`U` 衝突（マージ中）、`!` `.gitignore` で無視。`.git` は一覧に出さず、`tree.create` / `tree.rename` / `tree.delete` でも触れない（`denied`）。
-- GUI でファイルの行を押す（Enter・Space でも）と、プライマリの shj があれば `shj.open`（「プライマリの shj」の節）を送る。ツリーはプライマリで shj が動いているときだけ出すので、`shj.open` が通ったら、プライマリのターミナルを active にしてキーをそこに向ける。断られたら（`denied`・`not_found` など）、帯を押して移れなかったときと同じ所に「<path> を開けませんでした（理由）」を `role="alert"` で出す。ワークスペースを移している途中（`workspace.focus` の返事待ち）は送らない（移った先のプライマリで開くため）。プライマリの shj が出しているファイル（`primaryShj.file`）がルートの中なら、その行を強調する（`ui/gui/app/src/tree/model.ts` の `rowAction`・`relativeIn`）。
-- GUI でツリーの行を右クリックすると、メニューを出す（`ui/gui/app/src/tree/menu.ts`・`TreeMenu.tsx`）。ファイルは「名前をコピー」「相対パスをコピー」「絶対パスをコピー」「名前の変更」「削除」、フォルダはそれに「新しいファイル」「新しいフォルダ」「ここへ移動」を足す。新規・名前の変更は、ワークスペースのフォルダからのパスを入れる窓（`tree.create`・`tree.rename`。新しいファイルは作ったら `shj.open` で開く＝TUI の `a` `A` `r` と同じ）、削除は確認の窓（`tree.delete`。TUI の `d` と同じ）。断られたら窓を開いたまま理由を出す。
+- GUI でファイルの行を押す（Enter・Space でも）と、プライマリの shj があれば `shj.open`（「プライマリの shj」の節）を送る。ツリーはプライマリで shj が動いているときだけ出すので、`shj.open` が通ったら、プライマリのターミナルを active にしてキーをそこに向ける。断られたら（`denied`・`not_found` など）、帯を押して移れなかったときと同じ所に「<path> を開けませんでした（理由）」を `role="alert"` で出す。ワークスペースを移している途中（`workspace.focus` の返事待ち）は送らない（移った先のプライマリで開くため）。プライマリの shj が出しているファイル（`primaryShj.file`）がルートの中なら、その行を強調する（`app/src/tree/model.ts` の `rowAction`・`relativeIn`）。
+- GUI でツリーの行を右クリックすると、メニューを出す（`app/src/tree/menu.ts`・`TreeMenu.tsx`）。ファイルは「名前をコピー」「相対パスをコピー」「絶対パスをコピー」「名前の変更」「削除」、フォルダはそれに「新しいファイル」「新しいフォルダ」「ここへ移動」を足す。新規・名前の変更は、ワークスペースのフォルダからのパスを入れる窓（`tree.create`・`tree.rename`。新しいファイルは作ったら `shj.open` で開く＝TUI の `a` `A` `r` と同じ）、削除は確認の窓（`tree.delete`。TUI の `d` と同じ）。断られたら窓を開いたまま理由を出す。
 - 「ここへ移動」と、ツリーの上の「親のフォルダへ」は、そのワークスペースのプライマリターミナルに `term.cd` で `cd -- '<絶対パス>'` と `cd ..` を送る（フォルダはプライマリターミナルの cwd で決まるので、シェルが `cd` すればツリーも切り替わる）。パスの引用と、入力の途中の行を消す処理は shj がする。シェルのほかにプログラムが動いているときは `busy` で断られ、GUI は理由を出して何もしない。
 
 ### ssh 越しに kisui を起動する
@@ -487,11 +487,11 @@ GUI はシステムの `ssh` を子プロセスとして起動する（`~/.ssh/c
 
 ### GUI の配り方と自動更新（C8）
 
-- リリースの workflow（`.github/workflows/gui-release.yml`。`release.yml` と `nightly.yml` から呼ぶ）が、Linux の AppImage（x86_64・aarch64）と macOS の署名なしの `.dmg`（universal）を作り、Tauri の updater の `latest.json` と一緒に Release に上げる。
+- リリースの workflow（`.github/workflows/build.yml`。`release.yml` と `nightly.yml` から呼ぶ）が、Linux の AppImage（x86_64・aarch64）と macOS の署名なしの `.dmg`（universal）を作り、Tauri の updater の `latest.json` と一緒に Release に上げる。
 - 自動更新は AppImage と `.dmg` だけ（cargo の feature `updater`。workflow だけが付ける）。Nix で作る版（`nix build .#kisui-terminal`・home-manager の `programs.shijimi-editor.kisui-terminal`）は付けないので、更新は `nix flake update` と `home-manager switch` で行う。
 - 更新は、起動のときに 1 度だけ調べ、新しい版があれば右下に出し、ユーザーが「更新して再起動」を押したときだけ入れ替える（編集中に勝手に起動し直さない）。調べられなかったときは何も出さない。
 - 普通の版は `releases/download/kisui-terminal-latest/latest.json`（GUI のリリースのたびに置き換える pre-release `kisui-terminal-latest` のもの。shj のリリースは指さない）、nightly 版は pre-release `kisui-terminal-nightly` の `latest.json` を見る。nightly 版は `tauri.nightly.conf.json` を重ね、名前 `kisui-terminal-nightly` と identifier を変えて普通の版と並べて入れられるようにする。nightly は版の前後を問わず、`latest.json` の版が今と違えば更新とする（`allowDowngrades`）。
-- GUI の版は shj の版とは別で、`ui/gui/app/src-tauri/Cargo.toml` の `version`（workflow は `tauri build --config`、Nix は `TAURI_CONFIG` で入れる）。リモートに入れる shj の版（上の「ssh 越しに shj を起動する」の 1）もこれを使う。
+- GUI の版は shj の版とは別で、`app/src-tauri/Cargo.toml` の `version`（workflow は `tauri build --config`、Nix は `TAURI_CONFIG` で入れる）。リモートに入れる shj の版（上の「ssh 越しに shj を起動する」の 1）もこれを使う。
 - 署名鍵は minisign で、パスワードは付けない（秘密鍵は 1Password にしか置かないので、足しても守りは強くならない）。workflow は 1Password のサービスアカウントで、ビルドの直前に読む。公開鍵は `tauri.conf.json` の `plugins.updater.pubkey`。
 
 ## 4. あとから足せる余地
@@ -550,7 +550,7 @@ GUI はシステムの `ssh` を子プロセスとして起動する（`~/.ssh/c
 
 | ID | タイトル | 依存 | 中身 |
 | --- | --- | --- | --- |
-| B1 | `ui/gui/rpc`：JSON-RPC の型とメッセージの読み書き | なし | 改行区切りの JSON、要求・通知・応答・エラー、`encoding` の差し替え口、テスト用のパイプ |
+| B1 | `rpc`：JSON-RPC の型とメッセージの読み書き | なし | 改行区切りの JSON、要求・通知・応答・エラー、`encoding` の差し替え口、テスト用のパイプ |
 | B2 | `kisui serve`：`session.hello` / `bye` / `ping` / `server.info` | B1 | 画面を持たないプロセス、Unix ソケット、版の確認、`serverId` |
 | B3 | `kisui attach`：切り離して起動する・つなぎ直す・橋渡し | B2 | `@@shj-rpc 1@@`、`setsid`、`flock`、ソケットへのコピー |
 | B4 | 7 日で止まる + `config.toml` の `[server]` | B2 | `lastClientAt`、`idle_stop_days`、`server.shutdown`、未保存の扱い |

@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mm1995tk/shijimi-editor/core/ctl"
+	"github.com/mm1995tk/kisui-terminal/internal/ctl"
 )
 
 // paneDo は shj が欄を頼むところ（名乗りとは別の接続で 1 回）。

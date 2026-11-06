@@ -19,8 +19,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mm1995tk/shijimi-editor/core/ctl"
-	"github.com/mm1995tk/shijimi-editor/ui/gui/rpc"
+	"github.com/mm1995tk/kisui-terminal/internal/ctl"
+	"github.com/mm1995tk/kisui-terminal/rpc"
 )
 
 // primaryShj はプライマリターミナルで動いている shj。GUI へは workspace の primaryShj で届く。
@@ -105,7 +105,7 @@ func (s *Server) stopPrimary() {
 }
 
 // MinPrimaryProtocol と MaxPrimaryProtocol は、kisui が受ける shj → kisui の通信の版の範囲
-// （docs/design/kisui-shj-protocol.md）。版のない今までの shj は 0。範囲の外の名乗りは断る。
+// （docs/protocol.md）。版のない今までの shj は 0。範囲の外の名乗りは断る。
 const (
 	MinPrimaryProtocol = 0
 	MaxPrimaryProtocol = ctl.PrimaryProtocol

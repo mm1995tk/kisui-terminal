@@ -1,21 +1,30 @@
-// Package config holds the settings only the GUI side (`kisui serve`) reads:
-// [server]. A UI registers Section with core/config's Options.Sections and
-// reads the values with Of.
+// Package config reads the settings of kisui from the configuration files it
+// shares with shj: `~/.config/shijimi-editor/config.toml` (and config.nix),
+// or `shijimi-editor-nightly/` for a nightly kisui. kisui reads only its own
+// keys, [server] and ui-language; the rest is shj's, which checks them
+// itself when it starts in a pane. shj knows kisui's keys too, so that it
+// does not warn about them (see "Machines in kisui-terminal" and [server] in
+// the manual of shijimi-editor).
 package config
 
 import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
-	"github.com/mm1995tk/shijimi-editor/core/config"
+	"github.com/BurntSushi/toml"
+
+	"github.com/mm1995tk/kisui-terminal/internal/i18n"
 )
 
-// Name is the name of Section in config.Config.Value.
-const Name = "gui"
-
-// Settings are the GUI's settings of config.toml. They are read only from the
-// user's own directory.
+// Settings are kisui's settings.
 type Settings struct {
 	// IdleStopDays is how many days `kisui serve` waits with no GUI connected
 	// before it stops. 0 means it never stops.
@@ -23,66 +32,161 @@ type Settings struct {
 	// StartDir is the folder a new workspace's shell starts in, as an absolute
 	// path (a leading ~ is expanded). "" means the home directory.
 	StartDir string
+	// UILanguage is the language of kisui's own messages: "en" or "ja".
+	UILanguage string
 }
 
 // Default is the settings of a config that says nothing.
-func Default() *Settings { return &Settings{IdleStopDays: 7} }
+func Default() *Settings { return &Settings{IdleStopDays: 7, UILanguage: i18n.Default} }
 
-// Section is what the GUI registers in config.Options.Sections.
-var Section = config.Section{
-	Name: Name,
-	Schema: map[string]config.Field{
-		"server": config.Table(map[string]config.Field{
-			"idle_stop_days": config.Int.Check(config.NonNegative),
-			"start_dir":      config.String.Check(checkStartDir),
-		}).UserOnly(),
-		// [[gui.machines]] is read by the GUI itself, not by shj. It is listed so
-		// shj starts with a config.toml that has it; the GUI reports its own
-		// mistakes.
-		"gui": config.Table(map[string]config.Field{
-			"machines": config.Tables([]string{"ssh"}, map[string]config.Field{"ssh": config.String, "name": config.String}),
-		}).UserOnly(),
-	},
-	New: func() config.Value { return Default() },
+// Problem is one mistake in a file.
+type Problem struct {
+	File string // path of the file
+	Line int    // line in File; 0 when unknown (Nix has no lines)
+	Key  string // the setting, such as "server.start_dir"; empty for the file as a whole
+	Code string // i18n key of the reason
+	Args []any  // its format arguments
 }
 
-// Of is the GUI's settings of c: the defaults when c did not read them (a nil
-// Config, or one made by hand).
-func Of(c *config.Config) *Settings {
-	if s, ok := c.Value(Name).(*Settings); ok {
-		return s
+// Text is "file:line: key: reason" (the line and the key are left out when
+// unknown), in the selected language.
+func (p Problem) Text() string {
+	var sb strings.Builder
+	sb.WriteString(p.File)
+	if p.Line > 0 {
+		fmt.Fprintf(&sb, ":%d", p.Line)
 	}
+	sb.WriteString(": ")
+	if p.Key != "" {
+		sb.WriteString(p.Key + ": ")
+	}
+	sb.WriteString(fmt.Sprintf(i18n.T(p.Code), p.Args...))
+	return sb.String()
+}
+
+// Error is every mistake Load found.
+type Error struct{ Problems []Problem }
+
+// Error is the problems, one per line, in the selected language.
+func (e *Error) Error() string {
+	lines := make([]string, len(e.Problems))
+	for i, p := range e.Problems {
+		lines[i] = p.Text()
+	}
+	return strings.Join(lines, "\n")
+}
+
+// UserDir is the user's configuration directory under $XDG_CONFIG_HOME (or
+// ~/.config): `shijimi-editor`, or `shijimi-editor<suffix>` for a channel
+// (see buildinfo.Suffix). A channel that has no directory of its own reads
+// `shijimi-editor`, so that trying the nightly needs no copying of the
+// settings. ok is false when there is no home directory.
+func UserDir(suffix string) (dir string, ok bool) {
+	base := os.Getenv("XDG_CONFIG_HOME")
+	if !filepath.IsAbs(base) {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", false
+		}
+		base = filepath.Join(home, ".config")
+	}
+	d := filepath.Join(base, "shijimi-editor"+suffix)
+	if suffix != "" {
+		if st, err := os.Stat(d); err != nil || !st.IsDir() {
+			return filepath.Join(base, "shijimi-editor"), true
+		}
+	}
+	return d, true
+}
+
+// Load reads kisui's settings from the user's configuration directory
+// (UserDir): config.toml, then config.nix on top of it. The Settings are
+// returned even with an error, with what did read, so that the language of
+// the messages is the user's.
+func Load(suffix string) (*Settings, error) {
 	s := Default()
-	if c != nil {
-		c.SetValue(Name, s)
+	dir, ok := UserDir(suffix)
+	if !ok {
+		return s, nil
 	}
-	return s
+	var probs []Problem
+	for _, f := range []struct {
+		name string
+		read func(path string) (map[string]any, []Problem, bool)
+	}{{"config.toml", readTOML}, {"config.nix", readNix}} {
+		path := filepath.Join(dir, f.name)
+		raw, ps, found := f.read(path)
+		probs = append(probs, ps...)
+		if found {
+			probs = append(probs, s.merge(raw, path)...)
+		}
+	}
+	if len(probs) > 0 {
+		return s, &Error{Problems: probs}
+	}
+	return s, nil
 }
 
-// Merge reads the GUI's keys of a decoded config.toml / config.nix.
-func (s *Settings) Merge(raw map[string]any, user bool) {
-	if !user {
-		return
+// merge applies a decoded file and reports the mistakes in kisui's keys.
+func (s *Settings) merge(raw map[string]any, path string) []Problem {
+	var probs []Problem
+	bad := func(key, code string, args ...any) {
+		probs = append(probs, Problem{File: path, Key: key, Code: code, Args: args})
 	}
-	t, ok := raw["server"].(map[string]any)
+	if v, ok := raw["ui-language"]; ok {
+		if lang, ok := v.(string); !ok {
+			bad("ui-language", "config.err.string")
+		} else if !i18n.Valid(lang) {
+			bad("ui-language", "config.err.oneof", i18n.English+", "+i18n.Japanese)
+		} else {
+			s.UILanguage = lang
+		}
+	}
+	srv, ok := raw["server"]
 	if !ok {
-		return
+		return probs
 	}
-	if v, ok := t["start_dir"].(string); ok {
-		if dir, ok := ExpandStartDir(v); ok {
+	t, ok := srv.(map[string]any)
+	if !ok {
+		bad("server", "config.err.table")
+		return probs
+	}
+	if v, ok := t["idle_stop_days"]; ok {
+		if n, ok := integer(v); !ok {
+			bad("server.idle_stop_days", "config.err.int")
+		} else if n < 0 {
+			bad("server.idle_stop_days", "config.err.nonneg")
+		} else {
+			s.IdleStopDays = int(n)
+		}
+	}
+	if v, ok := t["start_dir"]; ok {
+		str, ok := v.(string)
+		if !ok {
+			bad("server.start_dir", "config.err.string")
+		} else if dir, ok := ExpandStartDir(str); !ok {
+			bad("server.start_dir", "config.err.abspath")
+		} else if fi, err := os.Stat(dir); err != nil || !fi.IsDir() {
+			bad("server.start_dir", "config.err.notdir", dir)
+		} else {
 			s.StartDir = dir
 		}
 	}
-	switch v := t["idle_stop_days"].(type) {
+	return probs
+}
+
+// integer is v as an integer: TOML decodes one as int64, Nix (through JSON)
+// as a float64 with nothing after the point.
+func integer(v any) (int64, bool) {
+	switch n := v.(type) {
 	case int64:
-		if v >= 0 {
-			s.IdleStopDays = int(v)
-		}
+		return n, true
 	case float64:
-		if v >= 0 && v == float64(int(v)) {
-			s.IdleStopDays = int(v)
+		if n == float64(int64(n)) {
+			return int64(n), true
 		}
 	}
+	return 0, false
 }
 
 // ExpandStartDir turns a [server] start_dir into an absolute path: ~ and ~/x
@@ -102,14 +206,62 @@ func ExpandStartDir(v string) (dir string, ok bool) {
 	return "", false
 }
 
-func checkStartDir(v any) (string, []any) {
-	s, _ := v.(string)
-	dir, ok := ExpandStartDir(s)
-	if !ok {
-		return "config.err.abspath", nil
+// readTOML decodes a TOML file. found is false when the file does not exist
+// or cannot be decoded; the problems are returned either way.
+func readTOML(path string) (raw map[string]any, probs []Problem, found bool) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, nil, false
+		}
+		return nil, []Problem{{File: path, Code: "config.err.read", Args: []any{err.Error()}}}, false
 	}
-	if fi, err := os.Stat(dir); err != nil || !fi.IsDir() {
-		return "config.err.notdir", []any{dir}
+	if _, err := toml.Decode(string(data), &raw); err != nil {
+		p := Problem{File: path, Code: "config.err.syntax", Args: []any{err.Error()}}
+		if pe, ok := errors.AsType[toml.ParseError](err); ok {
+			p.Line = pe.Position.Line
+			if pe.Message != "" {
+				p.Args = []any{pe.Message}
+			}
+		}
+		return nil, []Problem{p}, false
 	}
-	return "", nil
+	return raw, nil, true
+}
+
+// nixEvalTimeout bounds `nix eval` of a config.nix.
+const nixEvalTimeout = 20 * time.Second
+
+// readNix evaluates a Nix file with `nix eval --json --file`, the way shj
+// does. found is false when the file does not exist or does not evaluate.
+func readNix(path string) (raw map[string]any, probs []Problem, found bool) {
+	if _, err := os.Stat(path); err != nil {
+		return nil, nil, false
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), nixEvalTimeout)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "nix", "--extra-experimental-features", "nix-command",
+		"eval", "--json", "--file", path).Output()
+	if err != nil {
+		reason := err.Error()
+		if ee, ok := errors.AsType[*exec.ExitError](err); ok {
+			reason = lastLines(string(ee.Stderr))
+		} else if ctx.Err() != nil {
+			reason = fmt.Sprintf("nix eval did not finish in %s", nixEvalTimeout)
+		}
+		return nil, []Problem{{File: path, Code: "config.err.nix", Args: []any{reason}}}, false
+	}
+	if err := json.Unmarshal(out, &raw); err != nil || raw == nil {
+		return nil, []Problem{{File: path, Code: "config.err.nixtop"}}, false
+	}
+	return raw, nil, true
+}
+
+// lastLines is the end of a nix error message, where the reason is.
+func lastLines(s string) string {
+	lines := strings.Split(strings.TrimSpace(s), "\n")
+	if len(lines) > 3 {
+		lines = lines[len(lines)-3:]
+	}
+	return strings.TrimSpace(strings.Join(lines, " "))
 }

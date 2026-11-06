@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mm1995tk/shijimi-editor/core/ctl"
+	"github.com/mm1995tk/kisui-terminal/internal/ctl"
 )
 
 // announceShj は TUI の shj が名乗るところ。返事と、つないだままの接続を返す。

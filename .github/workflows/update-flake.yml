@@ -1,0 +1,56 @@
+name: flake.lock を更新する
+
+# 依存を前に進める。日次だけで、push では走らせない。
+#
+# 上げるのは nixpkgs と、同梱する shj（入力 shijimi-editor は release ブランチの最新のリリース、
+# shijimi-editor-nightly はタグ nightly の最新）。ほかの input は Dependabot が 7 日待ってから上げる（.github/dependabot.yml）。
+# 更新後に整形も行う。nixpkgs が動くと treefmt / nixfmt の出力が変わりうるため。
+on:
+  workflow_dispatch:
+  schedule:
+    # 21:00 UTC（日本時間 6:00）。shijimi-editor の nightly（15:00 UTC）とリリース（19:23 UTC の判定）のあと
+    - cron: "0 21 * * *"
+
+permissions:
+  contents: write
+
+# main への push を奪い合わないよう直列化する。
+concurrency:
+  group: update-flake
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - uses: DeterminateSystems/nix-installer-action@v23
+
+      - name: flake.lock の nixpkgs と shijimi-editor を更新する
+        run: nix flake update nixpkgs shijimi-editor shijimi-editor-nightly
+
+      - name: nix fmt で整形する
+        run: nix fmt
+
+      # 更新した依存でビルドと整形のチェックが通らなければ、commit せずに落とす。
+      # main を壊さないため。落ちた日は Actions の失敗通知で気づける。
+      - name: ビルドとチェックが通ることを確かめる
+        run: |
+          nix build --print-build-logs
+          nix flake check --print-build-logs
+
+      - name: commit して push する
+        env:
+          GIT_AUTHOR_NAME: github-actions[bot]
+          GIT_AUTHOR_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+          GIT_COMMITTER_NAME: github-actions[bot]
+          GIT_COMMITTER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+        run: |
+          git add -A
+          if git diff --cached --quiet; then
+            echo "no changes"
+            exit 0
+          fi
+          git commit -m "Update flake.lock"
+          git push

@@ -25,9 +25,9 @@ import (
 
 	"github.com/creack/pty"
 
-	"github.com/mm1995tk/shijimi-editor/core/ctl"
-	"github.com/mm1995tk/shijimi-editor/ui/gui/rpc"
-	"github.com/mm1995tk/shijimi-editor/ui/internal/term"
+	"github.com/mm1995tk/kisui-terminal/internal/ctl"
+	"github.com/mm1995tk/kisui-terminal/internal/term"
+	"github.com/mm1995tk/kisui-terminal/rpc"
 )
 
 const (

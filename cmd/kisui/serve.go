@@ -1,4 +1,4 @@
-package cmd
+package main
 
 import (
 	"context"
@@ -11,21 +11,21 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/mm1995tk/shijimi-editor/core/config"
-	"github.com/mm1995tk/shijimi-editor/core/ctl"
-	"github.com/mm1995tk/shijimi-editor/ui/cli"
-	guicfg "github.com/mm1995tk/shijimi-editor/ui/gui/config"
-	"github.com/mm1995tk/shijimi-editor/ui/gui/server"
+	"github.com/mm1995tk/kisui-terminal/config"
+	"github.com/mm1995tk/kisui-terminal/internal/buildinfo"
+	"github.com/mm1995tk/kisui-terminal/internal/ctl"
+	"github.com/mm1995tk/kisui-terminal/internal/i18n"
+	"github.com/mm1995tk/kisui-terminal/server"
 )
 
 // runServe is "kisui serve": the headless server that GUI clients talk to over
 // a Unix socket. It returns the process exit code.
 func runServe(args []string) int {
 	if len(args) != 0 {
-		fmt.Fprintln(os.Stderr, cli.T("serve.usage"))
+		fmt.Fprintln(os.Stderr, i18n.T("serve.usage"))
 		return 2
 	}
-	sock, err := ctl.ServeSocketPath(cli.Suffix())
+	sock, err := ctl.ServeSocketPath(buildinfo.Suffix())
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
@@ -43,34 +43,25 @@ func runServe(args []string) int {
 	} else {
 		fmt.Fprintln(os.Stderr, err)
 	}
-	ver, commit := cli.Resolve()
+	ver, commit := buildinfo.Resolve()
 	chName := "stable"
-	if cli.IsNightly() {
-		chName = cli.Nightly
+	if buildinfo.IsNightly() {
+		chName = buildinfo.Nightly
 	}
 	logger := slog.New(slog.NewTextHandler(logw, nil))
-	var idle time.Duration
-	var startDir string
-	if home, err := os.UserHomeDir(); err == nil {
-		cfg, err := config.Load(home, configOptions())
-		// The language is the process's, set from the home config. It is set
-		// before the mistakes are reported so that they are in the user's language.
-		cli.SetLangFrom(cfg)
-		if err != nil {
-			// serve does not start with settings it cannot read as written. attach
-			// passes this on to the GUI.
-			logger.Error("config", "err", cli.ErrText(err))
-			fmt.Fprintln(os.Stderr, configErrorText(err))
-			return 1
-		}
-		// keys this version does not read do not stop serve: say so and go on
-		for _, w := range cfg.Warnings {
-			logger.Warn("config", "ignored", cli.Text(w.Msg()))
-			fmt.Fprintln(os.Stderr, cli.T("config.warn.prefix")+cli.Text(w.Msg()))
-		}
-		idle = time.Duration(guicfg.Of(cfg).IdleStopDays) * 24 * time.Hour
-		startDir = guicfg.Of(cfg).StartDir
+	cfg, err := config.Load(buildinfo.Suffix())
+	// The language is the process's, set from the settings. It is set before
+	// the mistakes are reported so that they are in the user's language.
+	i18n.SetLang(cfg.UILanguage)
+	if err != nil {
+		// serve does not start with its settings written wrongly. attach
+		// passes this on to the GUI. The keys of shj are not checked here:
+		// shj checks them itself when it starts in a pane.
+		logger.Error("config", "err", err)
+		fmt.Fprintln(os.Stderr, configErrorText(err))
+		return 1
 	}
+	idle := time.Duration(cfg.IdleStopDays) * 24 * time.Hour
 	statePath, err := server.StatePath()
 	if err != nil {
 		logger.Warn("workspaces file", "err", err) // 一覧を保存も復元もしない
@@ -81,11 +72,11 @@ func runServe(args []string) int {
 		Shj:        server.Shj{Version: ver, Commit: commit, Channel: chName},
 		Logger:     logger,
 		IdleStop:   idle,
-		StartDir:   startDir,
+		StartDir:   cfg.StartDir,
 	})
 	if err != nil {
 		if errors.Is(err, server.ErrRunning) {
-			fmt.Fprintf(os.Stderr, cli.T("serve.running")+"\n", sock)
+			fmt.Fprintf(os.Stderr, i18n.T("serve.running")+"\n", sock)
 		} else {
 			fmt.Fprintln(os.Stderr, err)
 		}

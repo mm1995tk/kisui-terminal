@@ -1,0 +1,100 @@
+name: nightly 版を配る
+
+# main の最新を nightly 版として毎日配る。pre-release nightly に、kisui-terminal-nightly の AppImage と .dmg、
+# 自動更新の latest.json、リモートに入れる kisui-nightly-<os>-<cpu> と shj-nightly-<os>-<cpu>、SHA256SUMS を置く（build.yml）。
+#
+# - 版は <Cargo.toml の version>-nightly.<yyyymmdd>.<sha>。Cargo.toml は書き換えず、v<版> のタグも打たない
+#   （pre-release が持つタグ nightly だけを、そのコミットに付け直す）。
+# - 同梱する shj は、shijimi-editor の pre-release nightly の shj（その時点の版）。
+# - 前の nightly から main にコミットが無く、shijimi-editor の nightly も進んでいなければ何もしない
+#   （workflow_dispatch の force で作り直せる）。
+
+on:
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "前の nightly から何も進んでいなくても作り直す"
+        type: boolean
+        default: false
+  schedule:
+    # 16:00 UTC（日本時間 1:00）。shijimi-editor の nightly（15:00 UTC）が終わったあと
+    - cron: "0 16 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly
+
+jobs:
+  # 版を決め、前の nightly から進んでいなければ後のジョブを飛ばす
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+      shj_version: ${{ steps.ver.outputs.shj_version }}
+      skip: ${{ steps.ver.outputs.skip }}
+    steps:
+      - name: main 以外では実行しない
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::main ブランチで実行してください（現在: $GITHUB_REF）"
+          exit 1
+
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: 版を決める
+        id: ver
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FORCE: ${{ inputs.force }}
+        run: |
+          base=$(sed -n 's/^version = "\([0-9]*\.[0-9]*\.[0-9]*\)"$/\1/p' app/src-tauri/Cargo.toml | head -1)
+          if [ -z "$base" ]; then
+            echo "::error::app/src-tauri/Cargo.toml から X.Y.Z 形式の version を読めませんでした"
+            exit 1
+          fi
+          # 日付はコミットの日付（UTC）。flake.nix の nightly の版（lastModifiedDate）と同じ付け方
+          date=$(TZ=UTC git log -1 --format=%cd --date=format-local:%Y%m%d)
+          sha=$(git rev-parse --short HEAD)
+          version="$base-nightly.$date.$sha"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+          # 同梱する shj は shijimi-editor の pre-release nightly のもの。版はその本文の「- Version: `…`」
+          shj_version=$(gh release view nightly --repo mm1995tk/shijimi-editor --json body -q .body \
+            | sed -n 's/^- Version: `\(.*\)`$/\1/p')
+          if [[ ! "$shj_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+-nightly\.[0-9]{8}\.[0-9a-f]+$ ]]; then
+            echo "::error::shijimi-editor の nightly の版を読めませんでした: $shj_version"
+            exit 1
+          fi
+          echo "shj_version=$shj_version" >> "$GITHUB_OUTPUT"
+
+          # 前の nightly のコミットと shj の版は pre-release の本文の「Commit:」「Shj:」から読む。
+          # pre-release が無い（最初の実行・手で消した）ときは作る
+          body=$(gh release view nightly --repo "$GITHUB_REPOSITORY" --json body -q .body 2>/dev/null || true)
+          prev=$(printf '%s\n' "$body" | sed -n 's/^Commit: \([0-9a-f]\{40\}\)$/\1/p')
+          prev_shj=$(printf '%s\n' "$body" | sed -n 's/^Shj: \(.*\)$/\1/p')
+          if [ "$prev" = "$GITHUB_SHA" ] && [ "$prev_shj" = "$shj_version" ] && [ "$FORCE" != "true" ]; then
+            echo "前の nightly（$prev、shj $prev_shj）から何も進んでいないので何もしない"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "nightly $version（shj $shj_version を同梱）を作る（前の nightly: ${prev:-なし}、shj ${prev_shj:-なし}）"
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    needs: check
+    if: needs.check.outputs.skip != 'true'
+    permissions:
+      contents: write
+    uses: ./.github/workflows/build.yml
+    with:
+      version: ${{ needs.check.outputs.version }}
+      shj_version: ${{ needs.check.outputs.shj_version }}
+      tag: nightly
+      ref: ${{ github.sha }}
+      channel: nightly
+    secrets:
+      OP_SERVICE_ACCOUNT_TOKEN_RELEASE: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN_RELEASE }}

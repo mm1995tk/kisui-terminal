@@ -1,4 +1,4 @@
-// JSON-RPC 2.0 の線の上の形。Go 側の ui/gui/rpc に合わせてある。
+// JSON-RPC 2.0 の線の上の形。Go 側の rpc に合わせてある。
 // 設計は docs/design/gui-protocol.md の 3 章「土台」。
 
 /** JSON-RPC のバージョン文字列。 */

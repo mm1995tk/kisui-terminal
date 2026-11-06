@@ -30,5 +30,5 @@ libc = "=0.2.191"
 [features]
 # release の画面は埋め込んだ Web を使う（これが無いと devUrl を見に行く）。cargo tauri build は自動で付ける
 custom-protocol = ["tauri/custom-protocol"]
-# 自動更新。リリースの workflow（.github/workflows/gui-release.yml）だけが付ける
+# 自動更新。リリースの workflow（.github/workflows/build.yml）だけが付ける
 updater = ["dep:tauri-plugin-updater"]

@@ -25,10 +25,10 @@ function dropWoffFallback(): Plugin {
   };
 }
 
-// 画面のソース（index.html と src/）は ui/gui/app/ に置く。dist も ui/gui/app/dist（tauri.conf.json の frontendDist）。
+// 画面のソース（index.html と src/）は app/ に置く。dist も app/dist（tauri.conf.json の frontendDist）。
 // Tauri は dev のとき devUrl（tauri.conf.json）の固定ポートに繋ぎに来るので、strictPort にする。
 export default defineConfig({
-  root: "ui/gui/app",
+  root: "app",
   plugins: [dropWoffFallback(), solid()],
   clearScreen: false,
   server: { port: 1420, strictPort: true },

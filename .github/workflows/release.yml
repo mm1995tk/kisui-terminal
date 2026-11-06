@@ -1,14 +1,15 @@
-name: GUI（kisui-terminal）のリリース
+name: リリース
 
-# GUI のリリース。shj のリリース（release.yml）とは別に、自分で起動する（#581）。
+# kisui-terminal のリリース。人が起動する（shijimi-editor の「毎日のリリース判定」は kisui-terminal を扱わない）。
 #
-#   gh workflow run kisui-terminal-release.yml --ref main [-f ref=<コミット>]
+#   gh workflow run release.yml --ref main [-f ref=<コミット>]
 #
-# - GUI の版は ui/gui/app/src-tauri/Cargo.toml の version（shj の版は flake.nix の version で、別）。
-#   版を上げるには、その version を直す PR をマージしてから、このワークフローを起動する。このワークフローは版を書き換えない。
-# - タグは kisui-terminal-v<版>。Release の「Latest」の印は shj のリリースのままにする。
-# - そのコミットの shj（flake.nix の version）を同梱する。どの版を同梱したかは Release の説明に書く。
-# - AppImage・.dmg・kisui・shj・latest.json を上げるのは gui-release.yml。
+# - 版は app/src-tauri/Cargo.toml の version。版を上げるには、その version（と Cargo.lock の同じ行）を直す
+#   PR をマージしてから、このワークフローを起動する。このワークフローは版を書き換えない。
+# - タグは v<版>。GitHub の「Latest」の印が付く（自動更新が releases/latest/download/latest.json を見る）。
+# - 同梱する shj は、そのコミットの flake.lock が指す shijimi-editor の版（nix eval --raw .#shj.version）。
+#   どの版を同梱したかは Release の説明に書く。
+# - AppImage・.dmg・kisui・shj・latest.json を上げるのは build.yml。
 
 on:
   workflow_dispatch:
@@ -22,7 +23,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: kisui-terminal-release
+  group: release
 
 jobs:
   prepare:
@@ -43,6 +44,8 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - uses: cachix/install-nix-action@v31.11.3
+
       - name: 版を決める
         id: ver
         env:
@@ -57,23 +60,27 @@ jobs:
             exit 1
           fi
           # 後のジョブは、main のワークフローのまま、このコミットのファイルでビルドする。無ければ止める
-          for f in packaging/gui/build-kisui.sh packaging/gui/build-remote.sh package-lock.json ui/gui/app/src-tauri/tauri.conf.json; do
+          for f in packaging/fetch-shj.sh packaging/build-kisui.sh packaging/build-remote.sh package-lock.json app/src-tauri/tauri.conf.json; do
             if ! git cat-file -e "$sha:$f" 2>/dev/null; then
               echo "::error::$sha に $f がありません。このワークフローではリリースできない古いコミットです"
               exit 1
             fi
           done
-          # GUI の版は Cargo.toml の version、同梱する shj の版は flake.nix の version（どちらもそのコミットのもの）
-          version=$(git show "$sha:ui/gui/app/src-tauri/Cargo.toml" | sed -n 's/^version = "\([0-9]*\.[0-9]*\.[0-9]*\)"$/\1/p' | head -1)
-          shj_version=$(git show "$sha:flake.nix" | sed -n 's/^ *version = "\([0-9]*\.[0-9]*\.[0-9]*\)";$/\1/p')
-          if [ -z "$version" ] || [ "$(printf '%s\n' "$shj_version" | wc -l)" != 1 ] || [ -z "$shj_version" ]; then
-            echo "::error::GUI の版（Cargo.toml）か shj の版（flake.nix）を X.Y.Z 形式で読めませんでした"
+          version=$(git show "$sha:app/src-tauri/Cargo.toml" | sed -n 's/^version = "\([0-9]*\.[0-9]*\.[0-9]*\)"$/\1/p' | head -1)
+          if [ -z "$version" ]; then
+            echo "::error::app/src-tauri/Cargo.toml から X.Y.Z 形式の version を読めませんでした"
+            exit 1
+          fi
+          # 同梱する shj の版は、そのコミットの flake.lock が指す shijimi-editor のもの
+          shj_version=$(nix eval --raw "git+file://$PWD?rev=$sha#shj.version")
+          if [[ ! "$shj_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::同梱する shj の版を X.Y.Z 形式で読めませんでした: $shj_version"
             exit 1
           fi
           # 同じ版を別のコミットで出し直さない（同じコミットの再実行は、アセットを上げ直すだけなので許す）
-          tag="kisui-terminal-v$version"
+          tag="v$version"
           if remote=$(git ls-remote --tags origin "refs/tags/$tag^{}" "refs/tags/$tag" | tail -1 | cut -f1) && [ -n "$remote" ] && [ "$remote" != "$sha" ]; then
-            echo "::error::タグ $tag はもう別のコミット（$remote）にあります。ui/gui/app/src-tauri/Cargo.toml の version を上げてください"
+            echo "::error::タグ $tag はもう別のコミット（$remote）にあります。app/src-tauri/Cargo.toml の version を上げてください"
             exit 1
           fi
           {
@@ -81,17 +88,17 @@ jobs:
             echo "version=$version"
             echo "shj_version=$shj_version"
           } >> "$GITHUB_OUTPUT"
-          echo "GUI $version（shj $shj_version を同梱）を $sha からリリースする"
+          echo "kisui-terminal $version（shj $shj_version を同梱）を $sha からリリースする"
 
-  gui:
+  build:
     needs: prepare
     permissions:
       contents: write
-    uses: ./.github/workflows/gui-release.yml
+    uses: ./.github/workflows/build.yml
     with:
       version: ${{ needs.prepare.outputs.version }}
       shj_version: ${{ needs.prepare.outputs.shj_version }}
-      tag: kisui-terminal-v${{ needs.prepare.outputs.version }}
+      tag: v${{ needs.prepare.outputs.version }}
       ref: ${{ needs.prepare.outputs.sha }}
     secrets:
       OP_SERVICE_ACCOUNT_TOKEN_RELEASE: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN_RELEASE }}

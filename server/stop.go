@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/mm1995tk/shijimi-editor/ui/gui/rpc"
+	"github.com/mm1995tk/kisui-terminal/rpc"
 )
 
 // shutdownGrace is how long server.shutdown waits before it stops the server,

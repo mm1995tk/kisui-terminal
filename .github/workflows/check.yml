@@ -1,0 +1,70 @@
+name: 検査
+
+# flake の checks（nix flake check）を回す。手元の nix flake check と同じもの:
+#   formatting     … nix fmt で差分が出ない
+#   go-test        … kisui の go test ./...（Linux だけ）
+#   kisui-terminal … nix build .#kisui-terminal（殻の cargo test も回る。同梱する shj は flake の入力 shijimi-editor のもの）
+#   web-test       … Web 画面の npm test
+# 自動更新（feature updater）を付けた殻は Nix の版に無いので、build.yml（Nix を使わない）が作る。
+#
+# Nix store は GitHub Actions のキャッシュに残し、依存を毎回ビルドし直さないようにする。キーは依存を決める
+# ファイル（*.nix・flake.lock・各ロックファイル）のハッシュ。保存するのは main の push だけで、PR は main の
+# キャッシュを読むだけにする（PR ごとのキャッシュで容量の上限 10 GB を埋めないため）。main で保存するときは
+# 同じ job の古いキャッシュを消す（そのために actions: write が要る）。
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  nix:
+    strategy:
+      fail-fast: false
+      matrix:
+        # macOS の runner が割り当てられず 15 分で cancelled になる状態が続くので、一旦外す。
+        # 直ったら macos-latest を戻す。
+        # os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: cachix/install-nix-action@v31.11.3
+      - uses: nix-community/cache-nix-action@v7.0.2
+        with:
+          primary-key: nix-check-${{ runner.os }}-${{ hashFiles('flake.lock', '**/*.nix', 'gomod2nix.toml', 'package-lock.json', 'Cargo.lock') }}
+          restore-prefixes-first-match: nix-check-${{ runner.os }}-
+          save: ${{ github.event_name == 'push' }}
+          purge: ${{ github.event_name == 'push' }}
+          purge-prefixes: nix-check-${{ runner.os }}-
+          purge-created: 0
+          purge-primary-key: never
+      - name: nix flake check
+        run: nix flake check --print-build-logs
+  # 自動更新を付けた殻。配る版（build.yml）はこれを tauri build で作る
+  updater:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: cachix/install-nix-action@v31.11.3
+      - uses: nix-community/cache-nix-action@v7.0.2
+        with:
+          primary-key: nix-updater-${{ runner.os }}-${{ hashFiles('flake.lock', '**/*.nix', 'gomod2nix.toml', 'package-lock.json', 'Cargo.lock') }}
+          restore-prefixes-first-match: nix-updater-${{ runner.os }}-
+          save: ${{ github.event_name == 'push' }}
+          purge: ${{ github.event_name == 'push' }}
+          purge-prefixes: nix-updater-${{ runner.os }}-
+          purge-created: 0
+          purge-primary-key: never
+      - name: Web 画面を作る（殻が埋め込む）
+        run: nix develop --command bash -c 'npm ci && npm run build'
+      - name: cargo build --features updater
+        run: nix develop --command cargo build --locked -p kisui-terminal --features custom-protocol,updater

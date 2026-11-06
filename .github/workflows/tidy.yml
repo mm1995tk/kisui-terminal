@@ -1,0 +1,50 @@
+name: リポジトリが整っているか確かめる
+
+# scripts/tidy.sh（go mod tidy / gomod2nix / go fix / nix fmt）を動かして、差分が出ないことを確かめる。
+# CI は直さない。差分が出たら、手元で同じスクリプトを動かして、結果をコミットする。
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tidy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tidy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: cachix/install-nix-action@v31.11.3
+      - name: scripts/tidy.sh を動かす
+        run: nix run .#tidy
+      - name: 差分が無いことを確かめる
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            git --no-pager diff
+            git status --porcelain
+            echo "::error::scripts/tidy.sh を動かすと差分が出ます。手元で nix run .#tidy を実行して、結果をコミットしてください"
+            exit 1
+          fi
+
+  # .github/workflows/actions.lock がワークフローの uses: と合っていて、固定した commit が今も上流にあるか
+  actions-lock:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - run: gh extension install github/gh-actions-lock --pin v0.4.1
+      - name: gh actions-lock --verify
+        run: |
+          if ! gh actions-lock --verify; then
+            echo "::error::actions.lock がワークフローと合っていません。手元で gh actions-lock を実行して、結果をコミットしてください"
+            exit 1
+          fi

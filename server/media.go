@@ -19,9 +19,8 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/mm1995tk/shijimi-editor/core"
-	"github.com/mm1995tk/shijimi-editor/core/ctl"
-	"github.com/mm1995tk/shijimi-editor/ui/gui/rpc"
+	"github.com/mm1995tk/kisui-terminal/internal/ctl"
+	"github.com/mm1995tk/kisui-terminal/rpc"
 )
 
 // mediaChunk は media.read が 1 回で返す最大のバイト数。
@@ -48,7 +47,7 @@ const maxBrowserURL = 4096
 func newExtra(rq ctl.PaneRequest) (extraPane, error) {
 	switch rq.Kind {
 	case "video":
-		if !filepath.IsAbs(rq.Path) || !core.IsVideo(rq.Path) {
+		if !filepath.IsAbs(rq.Path) || !isVideo(rq.Path) {
 			return extraPane{}, fmt.Errorf("not a video: %s", rq.Path)
 		}
 		fi, err := os.Stat(rq.Path)
@@ -58,7 +57,7 @@ func newExtra(rq ctl.PaneRequest) (extraPane, error) {
 		if !fi.Mode().IsRegular() {
 			return extraPane{}, fmt.Errorf("not a file: %s", rq.Path)
 		}
-		return extraPane{Kind: "video", Path: rq.Path, MIME: core.VideoMIME(rq.Path), Size: fi.Size()}, nil
+		return extraPane{Kind: "video", Path: rq.Path, MIME: VideoMIME(rq.Path), Size: fi.Size()}, nil
 	case "browser":
 		u, err := parseBrowserURL(rq.URL)
 		if err != nil {

@@ -19,7 +19,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mm1995tk/shijimi-editor/ui/gui/rpc"
+	"github.com/mm1995tk/kisui-terminal/rpc"
 )
 
 // maxSplitTerms は 1 つのワークスペースの分割したターミナルの上限（プライマリと合わせて 6 個）。

@@ -17,7 +17,7 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/mm1995tk/shijimi-editor/core/ctl"
+	"github.com/mm1995tk/kisui-terminal/internal/ctl"
 )
 
 // paneTailMax は tail で返す行数の上限。

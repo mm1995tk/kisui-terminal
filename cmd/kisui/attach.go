@@ -1,4 +1,4 @@
-package cmd
+package main
 
 import (
 	"fmt"
@@ -7,9 +7,10 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/mm1995tk/shijimi-editor/core/ctl"
-	"github.com/mm1995tk/shijimi-editor/ui/cli"
-	"github.com/mm1995tk/shijimi-editor/ui/gui/attach"
+	"github.com/mm1995tk/kisui-terminal/attach"
+	"github.com/mm1995tk/kisui-terminal/internal/buildinfo"
+	"github.com/mm1995tk/kisui-terminal/internal/ctl"
+	"github.com/mm1995tk/kisui-terminal/internal/i18n"
 )
 
 // runAttach is "kisui attach": the bridge between stdin/stdout and the socket of
@@ -17,15 +18,15 @@ import (
 // the process exit code.
 func runAttach(args []string) int {
 	if len(args) != 0 {
-		fmt.Fprintln(os.Stderr, cli.T("attach.usage"))
+		fmt.Fprintln(os.Stderr, i18n.T("attach.usage"))
 		return 2
 	}
-	sock, err := ctl.ServeSocketPath(cli.Suffix())
+	sock, err := ctl.ServeSocketPath(buildinfo.Suffix())
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
-	lock, err := ctl.ServeLockPath(cli.Suffix())
+	lock, err := ctl.ServeLockPath(buildinfo.Suffix())
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
@@ -102,7 +103,7 @@ func (p *serveProc) exited() (string, bool) {
 		if msg := strings.TrimSpace(string(b)); msg != "" {
 			return msg, true
 		}
-		return cli.T("serve.failed"), true
+		return i18n.T("serve.failed"), true
 	default:
 		return "", false
 	}

@@ -19,7 +19,7 @@ import (
 	"sync/atomic"
 	"unicode/utf8"
 
-	"github.com/mm1995tk/shijimi-editor/ui/gui/rpc"
+	"github.com/mm1995tk/kisui-terminal/rpc"
 )
 
 // treeLimit は tree.list が 1 回で返す件数の上限。

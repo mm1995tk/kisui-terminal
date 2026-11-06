@@ -3,117 +3,121 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
-
-	"github.com/mm1995tk/shijimi-editor/core/config"
 )
 
-func opts() config.Options { return config.Options{Sections: []config.Section{Section}} }
+// userDir makes a fresh configuration directory and returns it.
+func userDir(t *testing.T) string {
+	t.Helper()
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("HOME", t.TempDir())
+	dir, _ := UserDir("")
+	os.MkdirAll(dir, 0o755)
+	return dir
+}
 
-func TestServeStartDir(t *testing.T) {
-	home := t.TempDir()
-	cfgHome := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", cfgHome)
-	t.Setenv("HOME", home)
-	dir := filepath.Join(home, "work")
-	os.Mkdir(dir, 0o755)
-	userDir, _ := config.UserDir(opts())
-	os.MkdirAll(userDir, 0o755)
+func TestDefaults(t *testing.T) {
+	userDir(t)
+	s, err := Load("")
+	if err != nil || s.IdleStopDays != 7 || s.StartDir != "" || s.UILanguage != "en" {
+		t.Fatalf("defaults: %+v, %v", s, err)
+	}
+}
+
+func TestStartDir(t *testing.T) {
+	dir := userDir(t)
+	work := filepath.Join(os.Getenv("HOME"), "work")
+	os.Mkdir(work, 0o755)
 	write := func(v string) {
-		os.WriteFile(filepath.Join(userDir, "config.toml"), []byte("[server]\nstart_dir = "+v+"\n"), 0o644)
+		os.WriteFile(filepath.Join(dir, "config.toml"), []byte("[server]\nstart_dir = "+v+"\n"), 0o644)
 	}
 	write(`"~/work"`)
-	c, err := config.Load(t.TempDir(), opts())
-	if err != nil || Of(c).StartDir != dir {
-		t.Fatalf("start_dir = %q, %v", Of(c).StartDir, err)
-	}
-	if c, err := config.Load(t.TempDir(), opts()); err != nil || Of(c).StartDir == "" {
-		t.Fatal(err)
+	if s, err := Load(""); err != nil || s.StartDir != work {
+		t.Fatalf("start_dir = %q, %v", s.StartDir, err)
 	}
 	// A folder that is not there is a mistake in the file.
 	write(`"~/missing"`)
-	if _, err := config.Load(t.TempDir(), opts()); err == nil {
-		t.Error("a start_dir that does not exist was accepted")
+	if _, err := Load(""); err == nil || !strings.Contains(err.Error(), "server.start_dir") {
+		t.Errorf("a start_dir that does not exist was accepted: %v", err)
 	}
 	write(`"relative/dir"`)
-	if _, err := config.Load(t.TempDir(), opts()); err == nil {
+	if _, err := Load(""); err == nil {
 		t.Error("a relative start_dir was accepted")
 	}
-	os.Remove(filepath.Join(userDir, "config.toml"))
-	if c, err := config.Load(t.TempDir(), opts()); err != nil || Of(c).StartDir != "" {
-		t.Errorf("default start_dir = %q, %v", Of(c).StartDir, err)
+	write(`1`)
+	if _, err := Load(""); err == nil {
+		t.Error("a number was accepted")
 	}
 }
 
-func TestServeIdleStopDays(t *testing.T) {
-	root := t.TempDir()
-	cfg := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", cfg)
-	t.Setenv("HOME", t.TempDir())
-	dir := filepath.Join(cfg, "shijimi-editor")
-	os.MkdirAll(dir, 0o755)
-	write := func(s string) (*config.Config, error) {
+func TestIdleStopDays(t *testing.T) {
+	dir := userDir(t)
+	write := func(s string) (*Settings, error) {
 		os.WriteFile(filepath.Join(dir, "config.toml"), []byte(s), 0o644)
-		return config.Load(root, opts())
+		return Load("")
 	}
-	if c, err := write(""); err != nil || Of(c).IdleStopDays != 7 {
-		t.Fatalf("default: %d, %v", Of(c).IdleStopDays, err)
+	if s, err := write("[server]\nidle_stop_days = 0\n"); err != nil || s.IdleStopDays != 0 {
+		t.Fatalf("0: %d, %v", s.IdleStopDays, err)
 	}
-	if c, err := write("[server]\nidle_stop_days = 0\n"); err != nil || Of(c).IdleStopDays != 0 {
-		t.Fatalf("0: %d, %v", Of(c).IdleStopDays, err)
-	}
-	if c, err := write("[server]\nidle_stop_days = 3\n"); err != nil || Of(c).IdleStopDays != 3 {
-		t.Fatalf("3: %d, %v", Of(c).IdleStopDays, err)
-	}
-	if _, err := write("[server]\nidle_stop_days = -1\n"); err == nil {
-		t.Fatal("negative must be an error")
-	}
-	if _, err := write("[server]\nidle_stop_days = \"x\"\n"); err == nil {
-		t.Fatal("string must be an error")
-	}
-}
-
-// The GUI reads [[gui.machines]]; shj must start with a file that has it, and
-// still reports a mistake in it.
-func TestGUIMachines(t *testing.T) {
-	root := t.TempDir()
-	cfg := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", cfg)
-	t.Setenv("HOME", t.TempDir())
-	dir := filepath.Join(cfg, "shijimi-editor")
-	os.MkdirAll(dir, 0o755)
-	write := func(s string) {
-		os.WriteFile(filepath.Join(dir, "config.toml"), []byte(s), 0o644)
-	}
-	write("[[gui.machines]]\nssh = \"dev-vm\"\nname = \"dev\"\n\n[[gui.machines]]\nssh = \"build\"\n")
-	if _, err := config.Load(root, opts()); err != nil {
-		t.Fatal(err)
+	if s, err := write("[server]\nidle_stop_days = 3\n"); err != nil || s.IdleStopDays != 3 {
+		t.Fatalf("3: %d, %v", s.IdleStopDays, err)
 	}
 	for name, c := range map[string]string{
-		"missing ssh":   "[[gui.machines]]\nname = \"dev\"\n",
-		"wrong type":    "[[gui.machines]]\nssh = 1\n",
-		"negative days": "[server]\nidle_stop_days = -1\n",
-		"float days":    "[server]\nidle_stop_days = 1.5\n",
+		"negative":    "[server]\nidle_stop_days = -1\n",
+		"string":      "[server]\nidle_stop_days = \"x\"\n",
+		"float":       "[server]\nidle_stop_days = 1.5\n",
+		"not a table": "server = 1\n",
 	} {
-		write(c)
-		if _, err := config.Load(root, opts()); err == nil {
+		if _, err := write(c); err == nil {
 			t.Errorf("%s: no error", name)
 		}
 	}
 }
 
-// A key of [gui] this version does not read is a warning, not a stop.
-func TestGUIUnknownKeyIsWarning(t *testing.T) {
-	root := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+// The other keys of the file are shj's: kisui does not check them.
+func TestOtherKeysAreIgnored(t *testing.T) {
+	dir := userDir(t)
+	os.WriteFile(filepath.Join(dir, "config.toml"), []byte("theme = 1\n[editor]\nx = \"y\"\n[[gui.machines]]\nssh = \"a\"\n[server]\nunknown = true\n"), 0o644)
+	if _, err := Load(""); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestUILanguage(t *testing.T) {
+	dir := userDir(t)
+	os.WriteFile(filepath.Join(dir, "config.toml"), []byte("ui-language = \"ja\"\n"), 0o644)
+	if s, err := Load(""); err != nil || s.UILanguage != "ja" {
+		t.Fatalf("ui-language = %q, %v", s.UILanguage, err)
+	}
+	os.WriteFile(filepath.Join(dir, "config.toml"), []byte("ui-language = \"fr\"\n"), 0o644)
+	if s, err := Load(""); err == nil || s.UILanguage != "en" {
+		t.Fatalf("an unsupported language is an error: %q, %v", s.UILanguage, err)
+	}
+}
+
+// A TOML mistake names the file and the line.
+func TestSyntaxError(t *testing.T) {
+	dir := userDir(t)
+	path := filepath.Join(dir, "config.toml")
+	os.WriteFile(path, []byte("[server]\nidle_stop_days = \n"), 0o644)
+	_, err := Load("")
+	if err == nil || !strings.HasPrefix(err.Error(), path+":2: ") {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+// A nightly kisui reads shijimi-editor-nightly/ when it exists, and
+// shijimi-editor/ otherwise.
+func TestNightlyDir(t *testing.T) {
+	cfg := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", cfg)
 	t.Setenv("HOME", t.TempDir())
-	dir, _ := config.UserDir(opts())
-	os.MkdirAll(dir, 0o755)
-	for _, c := range []string{"[[gui.machines]]\nssh = \"a\"\nhost = \"b\"\n", "[gui]\ncolor = 1\n"} {
-		os.WriteFile(filepath.Join(dir, "config.toml"), []byte(c), 0o644)
-		cfg, err := config.Load(root, opts())
-		if err != nil || len(cfg.Warnings) != 1 {
-			t.Errorf("%q: err = %v, warnings = %v", c, err, cfg.Warnings)
-		}
+	if d, _ := UserDir("-nightly"); d != filepath.Join(cfg, "shijimi-editor") {
+		t.Fatalf("without the directory: %q", d)
+	}
+	os.MkdirAll(filepath.Join(cfg, "shijimi-editor-nightly"), 0o755)
+	if d, _ := UserDir("-nightly"); d != filepath.Join(cfg, "shijimi-editor-nightly") {
+		t.Fatalf("with the directory: %q", d)
 	}
 }

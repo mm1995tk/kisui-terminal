@@ -17,7 +17,7 @@ use sha2::{Digest, Sha256};
 use crate::askpass::AskpassServer;
 use crate::connection::{cache_dir_rel, default_remote_kisui, ssh_command};
 
-const REPO_URL: &str = "https://github.com/mm1995tk/shijimi-editor";
+const REPO_URL: &str = "https://github.com/mm1995tk/kisui-terminal";
 /// checksums のファイル名（リリースと nightly の両方に上げる）。
 pub const CHECKSUMS_NAME: &str = "SHA256SUMS";
 /// リモートの SHA-256 が合わなかったときの終了コード。
@@ -63,13 +63,13 @@ fn is_nightly(version: &str) -> bool {
     version.contains("-nightly")
 }
 
-/// GUI の Release のタグ。安定版は `kisui-terminal-v<版>`、nightly 版は動くタグ `kisui-terminal-nightly`。
-/// shj のリリース（`v<版>`、`nightly`）とは別で、kisui と shj は GUI の Release から取る（#581）。
+/// GUI の Release のタグ。安定版は `v<版>`、nightly 版は動くタグ `nightly`（どちらも kisui-terminal のリポジトリ。
+/// kisui と、同梱した shj はそこから取る。shj のリポジトリの Release は見ない）。
 fn release_tag(version: &str) -> String {
     if is_nightly(version) {
-        "kisui-terminal-nightly".to_string()
+        "nightly".to_string()
     } else {
-        format!("kisui-terminal-v{version}")
+        format!("v{version}")
     }
 }
 
@@ -426,11 +426,11 @@ mod tests {
     fn urls_are_fixed_to_the_repo() {
         assert_eq!(
             asset_url("0.7.0", "kisui-linux-x64"),
-            "https://github.com/mm1995tk/shijimi-editor/releases/download/kisui-terminal-v0.7.0/kisui-linux-x64"
+            "https://github.com/mm1995tk/kisui-terminal/releases/download/v0.7.0/kisui-linux-x64"
         );
         assert_eq!(
             asset_url("0.7.0-nightly.1.a", CHECKSUMS_NAME),
-            "https://github.com/mm1995tk/shijimi-editor/releases/download/kisui-terminal-nightly/SHA256SUMS"
+            "https://github.com/mm1995tk/kisui-terminal/releases/download/nightly/SHA256SUMS"
         );
     }
 

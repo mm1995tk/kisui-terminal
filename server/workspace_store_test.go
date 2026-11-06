@@ -10,7 +10,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/mm1995tk/shijimi-editor/ui/gui/rpc"
+	"github.com/mm1995tk/kisui-terminal/rpc"
 )
 
 // lockedBuf はログを溜める（ログは別の goroutine から書かれる）。

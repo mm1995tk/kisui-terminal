@@ -2,7 +2,7 @@
 
 kisui-terminal（`kisui`）と、欄の中で動く shj は、版がずれることがある。この文書は、2 つのアプリのあいだの通信の取り決めと、その版の決まりを定める。2 つのアプリ専用の取り決めで、一般的な API ではない。機能は遠慮なく足してよい。
 
-プロトコル専用のリポジトリは作らない。取り決めは持ち主の側に文書として置く（この文書は、取り決めが 1 つのリポジトリにある間の置き場）。Go の型を共有するための別のパッケージも作らない。型は両方が自分の側に持ち、取り決めだけでつながる。
+プロトコル専用のリポジトリは作らない。取り決めは持ち主の側に文書として置く（shj → kisui の持ち主は kisui-terminal なので、この文書はここにある。kisui → shj の側は shijimi-editor の `docs/design/kisui-shj-protocol.md`）。Go の型を共有するための別のパッケージも作らない。型は両方が自分の側に持ち、取り決めだけでつながる。
 
 ## 2 本の取り決めと持ち主
 
@@ -11,7 +11,7 @@ kisui-terminal（`kisui`）と、欄の中で動く shj は、版がずれるこ
 | shj → kisui | プライマリの欄で名乗る `PrimaryHello` / `PrimaryReply`、開いているファイルを知らせる `PrimaryFile`、欄を開く `PaneRequest` / `PaneReply`、環境変数 `SHIJIMI_GUI_PRIMARY` / `SHIJIMI_GUI_WORKSPACE`、ソケット `serve-primary.rpc` | kisui-terminal | あり（下） |
 | kisui → shj | shj の操作用のソケット（`GUILinkPath` のリンク先）に送る命令 | shijimi-editor | なし |
 
-型と定数は `core/ctl/ctl.go`。詳しい動きは [gui-protocol.md](gui-protocol.md) の「プライマリの shj」。
+型と定数は、kisui の側が `internal/ctl/ctl.go`、shj の側が shijimi-editor の `core/ctl/ctl.go`（同じ内容の写し）。詳しい動きは [design/gui-protocol.md](design/gui-protocol.md) の「プライマリの shj」。
 
 ## shj → kisui の版
 

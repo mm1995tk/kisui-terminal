@@ -1,7 +1,7 @@
 # Sourced by build-kisui.sh and build-remote.sh. Not run on its own.
 #
-# ldflags VERSION: the go build -ldflags for a binary of VERSION, which is X.Y.Z, or
-# X.Y.Z-nightly.<yyyymmdd>.<sha> for a nightly (the same as packaging/npm/pack.sh gives it).
+# ldflags VERSION: the go build -ldflags for a kisui of VERSION, which is X.Y.Z, or
+# X.Y.Z-nightly.<yyyymmdd>.<sha> for a nightly (the version of the GUI; kisui is its server).
 # $root is the root of the repository.
 ldflags() {
   local version="$1" channel="" base_version commit
@@ -18,5 +18,25 @@ ldflags() {
   if [ -n "$(git -C "$root" status --porcelain)" ]; then
     commit="$commit-dirty"
   fi
-  printf '%s' "-s -w -X github.com/mm1995tk/shijimi-editor/ui/internal/buildinfo.Version=$base_version -X github.com/mm1995tk/shijimi-editor/ui/internal/buildinfo.Commit=$commit -X github.com/mm1995tk/shijimi-editor/ui/internal/buildinfo.Channel=$channel"
+  printf '%s' "-s -w -X github.com/mm1995tk/kisui-terminal/internal/buildinfo.Version=$base_version -X github.com/mm1995tk/kisui-terminal/internal/buildinfo.Commit=$commit -X github.com/mm1995tk/kisui-terminal/internal/buildinfo.Channel=$channel"
+}
+
+# shj_tag SHJ_VERSION: the tag of the Release of shijimi-editor that has the shj of that
+# version: vX.Y.Z, or the moving pre-release nightly for X.Y.Z-nightly.<yyyymmdd>.<sha>.
+shj_tag() {
+  if [[ "$1" == *-nightly.* ]]; then
+    printf 'nightly'
+  else
+    printf 'v%s' "$1"
+  fi
+}
+
+# shj_name SHJ_VERSION OS CPU: the name of the shj in that Release (and of the one
+# install.rs puts on a remote machine): shj-<os>-<cpu>, or shj-nightly-<os>-<cpu>.
+shj_name() {
+  if [[ "$1" == *-nightly.* ]]; then
+    printf 'shj-nightly-%s-%s' "$2" "$3"
+  else
+    printf 'shj-%s-%s' "$2" "$3"
+  fi
 }

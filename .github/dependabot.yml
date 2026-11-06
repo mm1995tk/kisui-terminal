@@ -1,0 +1,34 @@
+# 依存を上げる PR を週に 1 度出す。人が確かめてマージする（自動マージはしない）。
+#   github-actions … ワークフローの action。実際に動く commit は .github/workflows/actions.lock にあり、
+#                    Dependabot は同じ PR でそれも作り直す
+#   nix            … flake.lock の input のうち、nixpkgs と shijimi-editor（同梱する shj）以外。その 3 つは
+#                    update-flake.yml が毎日上げる（nixpkgs は Hydra が通した channel を追うので待たなくてよく、
+#                    shj は shijimi-editor のリリースをそのまま同梱するため）
+#
+# cooldown: 出てから 7 日たった版だけを取る。乗っ取られた版は、数日のうちに見つかって取り下げられることが多い。
+# どちらも 1 本の PR にまとめる。
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: nix
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    ignore:
+      - dependency-name: nixpkgs
+      - dependency-name: shijimi-editor
+      - dependency-name: shijimi-editor-nightly
+    groups:
+      inputs:
+        patterns: ["*"]

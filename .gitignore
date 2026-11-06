@@ -1,0 +1,7 @@
+result
+.direnv
+/node_modules
+/target
+/app/dist
+/app/src-tauri/gen
+/app/src-tauri/binaries

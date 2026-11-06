@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mm1995tk/shijimi-editor/ui/gui/rpc"
+	"github.com/mm1995tk/kisui-terminal/rpc"
 )
 
 // notes は届いた通知を溜める。

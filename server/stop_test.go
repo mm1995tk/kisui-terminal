@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mm1995tk/shijimi-editor/ui/gui/rpc"
+	"github.com/mm1995tk/kisui-terminal/rpc"
 )
 
 // fakeClock は差し替えられる時計。
