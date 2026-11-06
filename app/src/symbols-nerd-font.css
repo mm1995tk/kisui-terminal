@@ -1,0 +1,15 @@
+/*
+ * Nerd Font のアイコンだけの字（#539）。JetBrains Mono に無い U+E000-F8FF（Powerline・Nerd Font）を補う。
+ * 英数字や日本語の見た目は変えない。unicode-range で私用領域（U+F0000 以降の Material Design も）と IEC の電源の記号だけをこの字にする。
+ * ライセンスは assets/SymbolsNerdFontMono-LICENSE.txt。
+ */
+@font-face {
+  font-family: "Symbols Nerd Font Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  /* この字の送り幅は 1em で JetBrains Mono の 1 マス（0.6em）より広い。字形ごと 0.6em に縮めて 1 マスに収める */
+  size-adjust: 60%;
+  src: url("./assets/SymbolsNerdFontMono-Regular.woff2") format("woff2");
+  unicode-range: U+E000-F8FF, U+F0000-FFFFD, U+23FB-23FE, U+2B58;
+}

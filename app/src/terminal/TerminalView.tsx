@@ -52,7 +52,7 @@ export function TerminalView(props: {
   // 親 #271 のモック（案：フラットな一覧）の右下の文字と色に合わせる
   const term = new Terminal({
     fontFamily:
-      "'JetBrains Mono', ui-monospace, Menlo, Consolas, 'DejaVu Sans Mono', monospace",
+      "'JetBrains Mono', 'Symbols Nerd Font Mono', ui-monospace, Menlo, Consolas, 'DejaVu Sans Mono', monospace",
     fontSize: 13,
     // 行の高さはモックの 21px に近づける（coneko-term は文字の高さ（約 1.2 倍）に掛ける）
     lineHeight: 21 / 13 / 1.2,
