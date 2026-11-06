@@ -225,6 +225,8 @@ func (m *termManager) start(a termStart) (*terminal, error) {
 		env = append(slices.Clone(env), ctl.EnvGUIWorkspace+"="+a.wsID)
 	}
 	// PTY の起動は ui/internal/term と同じ（TUI のターミナルも使う）。読み出しと流量制御はここで持つ。
+	// 欄の中の shj は、kisui と一緒に配った shj を先に使う（PATH の先頭に足す）
+	env = withBundledShj(env)
 	sess, err := term.Start(term.Options{Shell: sh, Dir: a.dir, Env: env, Cols: a.cols, Rows: a.rows})
 	if err != nil {
 		m.mu.Unlock()
@@ -336,7 +338,7 @@ func (m *termManager) restart(t *terminal) (any, error) {
 		m.mu.Unlock()
 		return nil, rpc.Errorf(rpc.CodeNotFound, "no such terminal: %s", t.id)
 	}
-	sess, err := term.Start(term.Options{Shell: term.DefaultShell(), Dir: dir, Env: []string{ctl.EnvGUIPrimary + "=" + t.id, ctl.EnvGUIWorkspace + "=" + wsID}, Cols: cols, Rows: rows})
+	sess, err := term.Start(term.Options{Shell: term.DefaultShell(), Dir: dir, Env: withBundledShj([]string{ctl.EnvGUIPrimary + "=" + t.id, ctl.EnvGUIWorkspace + "=" + wsID}), Cols: cols, Rows: rows})
 	if err != nil {
 		m.mu.Unlock()
 		return nil, rpc.Errorf(rpc.CodeInternalError, "start shell: %v", err)

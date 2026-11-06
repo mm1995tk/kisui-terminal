@@ -98,14 +98,14 @@ jobs:
       - name: npm ci
         run: npm ci
 
-      # GUI と一緒に配る kisui（Tauri の externalBin）。GUI と同じ版・コミットで作る。Go は runner のもの（go.mod の版は GOTOOLCHAIN=auto で取る）
-      - name: kisui を作る
+      # GUI と一緒に配る kisui と shj（Tauri の externalBin）。GUI と同じ版・コミットで作る。Go は runner のもの（go.mod の版は GOTOOLCHAIN=auto で取る）
+      - name: kisui と shj を作る
         env:
           VERSION: ${{ inputs.version }}
           TARGET: ${{ matrix.target }}
         run: packaging/gui/build-kisui.sh "$VERSION" ${TARGET:+macos}
 
-      # 版と（nightly なら）名前・取り先と、同梱する kisui（externalBin）を、tauri build --config で重ねる設定にまとめる
+      # 版と（nightly なら）名前・取り先と、同梱する kisui と shj（externalBin）を、tauri build --config で重ねる設定にまとめる
       - name: 設定を作る
         env:
           VERSION: ${{ inputs.version }}
@@ -115,7 +115,7 @@ jobs:
           if [ "$CHANNEL" = nightly ]; then
             base=$(cat ui/gui/app/src-tauri/tauri.nightly.conf.json)
           fi
-          printf '%s' "$base" | jq --arg v "$VERSION" '. * {version: $v, bundle: {externalBin: ["binaries/kisui"]}}' > "$RUNNER_TEMP/tauri.json"
+          printf '%s' "$base" | jq --arg v "$VERSION" '. * {version: $v, bundle: {externalBin: ["binaries/kisui", "binaries/shj"]}}' > "$RUNNER_TEMP/tauri.json"
           cat "$RUNNER_TEMP/tauri.json"
 
       # 署名鍵はこの step から後でだけ環境変数にある（npm ci などの依存のスクリプトには渡さない）

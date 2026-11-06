@@ -14,6 +14,8 @@
   channel ? "",
   # 同じ版の kisui（GUI が「ローカル」でつなぐサーバー）の実行ファイル。GUI から見つけられるよう libexec に入れる
   kisui,
+  # 同じ版の shj。欄の中で先に使われる。GUI は libexec/shj-bin に置いて kisui に渡す（bin/ に出さない）
+  shj,
 }:
 let
   inherit (pkgs) lib stdenv;
@@ -102,6 +104,10 @@ pkgs.rustPlatform.buildRustPackage {
   postInstall = ''
     mkdir -p $out/libexec
     ln -s ${kisui} $out/libexec/kisui
+    # shj も PATH の bin/ には出さない（home-manager などで別に入れた shj の bin/shj とぶつからないよう）。
+    # GUI は ../libexec/shj-bin を KISUI_SHJ_DIR として kisui に渡し、kisui が欄の中の PATH の先頭に足す（locate.rs）
+    mkdir -p $out/libexec/shj-bin
+    ln -s ${shj} $out/libexec/shj-bin/shj
   ''
   + lib.optionalString nightly ''
     mv $out/bin/shijimi-editor-gui $out/bin/${bin}

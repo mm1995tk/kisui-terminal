@@ -1,8 +1,8 @@
-//! リモートに kisui を入れる（C6）。設計書 3 章「ssh 越しに kisui を起動する」の 1。
+//! リモートに kisui と shj を入れる（C6）。設計書 3 章「ssh 越しに kisui を起動する」の 1。
 //!
 //! 信頼の境目（ここを変えるときは設計書と PR の説明を読み直す）:
 //!  - 呼ぶ前に、画面がユーザーに聞く。ここは聞かない（聞かずに呼ばれないことは画面側が守る）。
-//!  - 入れる先は `~/.cache/shijimi-editor/<GUI の版>/kisui` だけ。PATH の `kisui` には触らない。
+//!  - 入れる先は `~/.cache/shijimi-editor/<GUI の版>/` の `kisui` と、同じ版の `shj`（欄の中で先に使う。kisui が隣の shj を PATH の先頭に足す）だけ。PATH の `kisui` には触らない。
 //!  - 取ってくるのは GitHub Releases の固定の URL（`https` のみ、リダイレクトも `https` のみ）。
 //!  - 取った実行ファイルは、同じ Release の `SHA256SUMS` の値と合わなければ、ssh を起動する前に捨てる。
 //!  - 送ったあと、リモートで SHA-256 を計り直し、同じ値のときだけ実行できる名前にする（合わなければ消す）。
@@ -72,8 +72,9 @@ fn release_tag(version: &str) -> String {
     }
 }
 
-/// `uname -sm` の結果から、Release の実行ファイル名（`kisui-<os>-<cpu>`、nightly は `kisui-nightly-<os>-<cpu>`）を決める。
-fn asset_name(version: &str, uname: &str) -> Result<String, String> {
+/// `uname -sm` の結果から、Release の実行ファイル名（`<tool>-<os>-<cpu>`、nightly は `<tool>-nightly-<os>-<cpu>`）を決める。
+/// tool は `kisui` か `shj`。
+fn asset_name(tool: &str, version: &str, uname: &str) -> Result<String, String> {
     let mut it = uname.split_whitespace();
     let (os, machine) = match (it.next(), it.next(), it.next()) {
         (Some(o), Some(m), None) => (o, m),
@@ -90,9 +91,9 @@ fn asset_name(version: &str, uname: &str) -> Result<String, String> {
         _ => return Err(format!("unsupported CPU: {machine}")),
     };
     Ok(if is_nightly(version) {
-        format!("kisui-nightly-{os}-{cpu}")
+        format!("{tool}-nightly-{os}-{cpu}")
     } else {
-        format!("kisui-{os}-{cpu}")
+        format!("{tool}-{os}-{cpu}")
     })
 }
 
@@ -209,27 +210,28 @@ fn verify(bin: &[u8], expected: &str, asset: &str) -> Result<(), String> {
 /// リモートで動かすスクリプト（`sh -c` に 1 引数で渡す）。標準入力の実行ファイルを一時ファイルに受け、
 /// SHA-256 を計り直して、expected と同じときだけ実行できる名前にする。シングルクォートを含めない
 /// （外側のログインシェルが何であっても、そのまま囲めるように）。version と expected は検査済みの文字だけ。
-fn remote_script(version: &str, expected: &str) -> String {
+fn remote_script(version: &str, tool: &str, expected: &str) -> String {
     format!(
         concat!(
             "set -eu; ",
             "d=\"$HOME/{dir}\"; ",
             "mkdir -p \"$d\"; ",
-            "t=\"$d/.kisui.$$\"; ",
+            "t=\"$d/.{tool}.$$\"; ",
             "cat > \"$t\" || {{ rm -f \"$t\"; exit 1; }}; ",
             "h=$( (sha256sum \"$t\" 2>/dev/null || shasum -a 256 \"$t\") | cut -d \" \" -f1 ); ",
             "if [ \"$h\" != \"{expected}\" ]; then rm -f \"$t\"; echo \"SHA-256 mismatch on the remote: $h\" >&2; exit {mismatch}; fi; ",
             "chmod 755 \"$t\"; ",
-            "mv -f \"$t\" \"$d/kisui\""
+            "mv -f \"$t\" \"$d/{tool}\""
         ),
         dir = cache_dir_rel(version),
+        tool = tool,
         expected = expected,
         mismatch = EXIT_CHECKSUM_MISMATCH
     )
 }
 
-fn remote_install_command(version: &str, expected: &str) -> String {
-    format!("sh -c '{}'", remote_script(version, expected))
+fn remote_install_command(version: &str, tool: &str, expected: &str) -> String {
+    format!("sh -c '{}'", remote_script(version, tool, expected))
 }
 
 /// `uname -sm` の出力から、目印の行の後ろを取る（ログインシェルが motd などを出しても混ざらないように）。
@@ -276,15 +278,39 @@ fn install_inner(target: &str, ask: &AskpassServer, id: &str) -> Result<InstallR
     check_not_aborted(ask, id)?;
     let uname = remote_uname(target, ask, id)?;
     check_not_aborted(ask, id)?;
-    let asset = asset_name(&plan.version, &uname)?;
+    // 2 つとも取って確かめてから、リモートに送る（どちらかが合わなければ、何も置かない）
+    let shj_asset = asset_name("shj", &plan.version, &uname)?;
+    let (shj_bin, shj_sum) = download_verified(&plan.version, &shj_asset)?;
+    let asset = asset_name("kisui", &plan.version, &uname)?;
     let (bin, expected) = download_verified(&plan.version, &asset)?;
     check_not_aborted(ask, id)?;
 
+    // kisui があることが「入っている」の印なので、shj を先に置く（途中で止まっても、kisui だけ残ることはない）
+    send_one(target, ask, id, &plan.version, "shj", shj_bin, &shj_sum)?;
+    check_not_aborted(ask, id)?;
+    send_one(target, ask, id, &plan.version, "kisui", bin, &expected)?;
+    Ok(InstallResult {
+        path: plan.path,
+        asset,
+        sha256: expected,
+    })
+}
+
+/// 実行ファイル 1 つ（tool は `kisui` か `shj`）をリモートのキャッシュに送り、リモートで SHA-256 を計り直して置く。
+fn send_one(
+    target: &str,
+    ask: &AskpassServer,
+    id: &str,
+    version: &str,
+    tool: &str,
+    bin: Vec<u8>,
+    expected: &str,
+) -> Result<(), String> {
     let mut child = ssh_command(
         target,
         ask,
         id,
-        &remote_install_command(&plan.version, &expected),
+        &remote_install_command(version, tool, expected),
     )?
     .stdin(Stdio::piped())
     .stdout(Stdio::null())
@@ -300,7 +326,7 @@ fn install_inner(target: &str, ask: &AskpassServer, id: &str) -> Result<InstallR
         let _ = stderr.read_to_end(&mut s);
         String::from_utf8_lossy(&s).trim().to_string()
     });
-    // 「切る」が押されたら ssh を殺す（途中のファイルはリモートの一時ファイルに残りうるが、kisui の名前にはならない）
+    // 「切る」が押されたら ssh を殺す（途中のファイルはリモートの一時ファイルに残りうるが、実行できる名前にはならない）
     let status = loop {
         match child.try_wait() {
             Ok(Some(s)) => break s,
@@ -323,13 +349,9 @@ fn install_inner(target: &str, ask: &AskpassServer, id: &str) -> Result<InstallR
         } else {
             "installing failed"
         };
-        return Err(format!("{why} ({status}): {stderr}"));
+        return Err(format!("{why} ({tool}, {status}): {stderr}"));
     }
-    Ok(InstallResult {
-        path: plan.path,
-        asset,
-        sha256: expected,
-    })
+    Ok(())
 }
 
 /// 「切る」で取り消されていたら Err。
@@ -362,29 +384,38 @@ mod tests {
     #[test]
     fn asset_names() {
         assert_eq!(
-            asset_name("0.7.0", "Linux x86_64").unwrap(),
+            asset_name("kisui", "0.7.0", "Linux x86_64").unwrap(),
             "kisui-linux-x64"
         );
         assert_eq!(
-            asset_name("0.7.0", "Linux aarch64").unwrap(),
+            asset_name("kisui", "0.7.0", "Linux aarch64").unwrap(),
             "kisui-linux-arm64"
         );
         assert_eq!(
-            asset_name("0.7.0", "Darwin arm64").unwrap(),
+            asset_name("kisui", "0.7.0", "Darwin arm64").unwrap(),
             "kisui-darwin-arm64"
         );
         assert_eq!(
-            asset_name("0.7.0", "Darwin x86_64").unwrap(),
+            asset_name("kisui", "0.7.0", "Darwin x86_64").unwrap(),
             "kisui-darwin-x64"
         );
         assert_eq!(
-            asset_name("0.7.0-nightly.1.a", "Linux x86_64").unwrap(),
+            asset_name("kisui", "0.7.0-nightly.1.a", "Linux x86_64").unwrap(),
             "kisui-nightly-linux-x64"
         );
-        assert!(asset_name("0.7.0", "FreeBSD amd64").is_err());
-        assert!(asset_name("0.7.0", "Linux riscv64").is_err());
-        assert!(asset_name("0.7.0", "Linux").is_err());
-        assert!(asset_name("0.7.0", "Linux x86_64 extra").is_err());
+        assert!(asset_name("kisui", "0.7.0", "FreeBSD amd64").is_err());
+        assert!(asset_name("kisui", "0.7.0", "Linux riscv64").is_err());
+        assert!(asset_name("kisui", "0.7.0", "Linux").is_err());
+        assert!(asset_name("kisui", "0.7.0", "Linux x86_64 extra").is_err());
+        // shj も同じ決まり
+        assert_eq!(
+            asset_name("shj", "0.7.0", "Linux x86_64").unwrap(),
+            "shj-linux-x64"
+        );
+        assert_eq!(
+            asset_name("shj", "0.7.0-nightly.1.a", "Darwin arm64").unwrap(),
+            "shj-nightly-darwin-arm64"
+        );
     }
 
     #[test]
@@ -442,7 +473,7 @@ mod tests {
 
     #[test]
     fn remote_script_has_no_single_quote_and_checks_the_hash() {
-        let s = remote_script("0.7.0", H);
+        let s = remote_script("0.7.0", "kisui", H);
         assert!(!s.contains('\''));
         assert!(s.contains(&format!("\"$h\" != \"{H}\"")));
         assert!(s.contains("$HOME/.cache/shijimi-editor/0.7.0"));
@@ -450,7 +481,12 @@ mod tests {
         assert!(s.find("exit 98").unwrap() < s.find("mv -f").unwrap());
         // PATH の kisui には触らない
         assert!(!s.contains("/usr") && !s.contains("/bin/kisui") && !s.contains(".local"));
-        assert!(remote_install_command("0.7.0", H).starts_with("sh -c '"));
+        assert!(remote_install_command("0.7.0", "kisui", H).starts_with("sh -c '"));
+        // shj は同じキャッシュに、別の一時ファイルと名前で置く
+        let s = remote_script("0.7.0", "shj", H);
+        assert!(!s.contains('\''));
+        assert!(s.contains("$d/.shj.$$") && s.contains("\"$d/shj\""));
+        assert!(!s.contains("kisui"));
     }
 
     #[test]

@@ -185,6 +185,13 @@ fn bundled_kisui(exe: &Path) -> Option<PathBuf> {
         .find(|p| is_executable(p))
 }
 
+/// GUI と一緒に配った shj のあるフォルダ（`../libexec/shj-bin/shj`。Nix のパッケージ。shj を PATH の `bin/` に出さないため、
+/// kisui の隣には無い）。AppImage と .app は kisui の隣に shj があり、kisui が自分で見つけるので、ここでは None。
+fn libexec_shj_dir(exe: &Path) -> Option<PathBuf> {
+    let dir = exe.parent()?.join("../libexec/shj-bin");
+    is_executable(&dir.join("shj")).then_some(dir)
+}
+
 /// 配った kisui の名前。nightly でも同じ（Tauri が `externalBin` の名前から作る）。
 const KISUI: &str = if cfg!(windows) { "kisui.exe" } else { "kisui" };
 
@@ -217,6 +224,10 @@ pub fn local_kisui_command() -> Command {
         });
     let mut c = Command::new(kisui);
     c.env("PATH", path);
+    // kisui は欄の中の PATH の先頭に、この shj を足す（server.EnvShjDir）
+    if let Some(d) = exe.as_deref().and_then(libexec_shj_dir) {
+        c.env("KISUI_SHJ_DIR", d);
+    }
     c
 }
 
@@ -366,6 +377,21 @@ mod tests {
         // 隣が先
         write_exe(&root.join("app/bin/kisui"), "");
         assert_eq!(bundled_kisui(&exe), Some(root.join("app/bin/kisui")));
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn finds_the_libexec_shj_only_when_executable() {
+        let root = temp_root("shjdir");
+        let exe = root.join("app/bin/gui");
+        assert_eq!(libexec_shj_dir(&exe), None);
+        std::fs::create_dir_all(root.join("app/bin")).unwrap();
+        write_exe(&root.join("app/libexec/shj-bin/shj"), "");
+        assert_eq!(
+            libexec_shj_dir(&exe),
+            Some(root.join("app/bin/../libexec/shj-bin"))
+        );
         std::fs::remove_dir_all(&root).unwrap();
     }
 
