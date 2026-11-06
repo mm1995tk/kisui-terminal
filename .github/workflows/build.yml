@@ -131,6 +131,10 @@ jobs:
         env:
           # 鍵にパスワードは付けていない（秘密鍵は 1Password にしか置かないので、足しても守りは強くならない）
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+          # Tauri の CLI は tauri.conf.json を 3 段の深さまでしか探さない（TAURI_CLI_CONFIG_DEPTH）。
+          # ui/gui/app/src-tauri/ はそれより深いので、殻と画面（package.json）の場所を直に渡す
+          TAURI_APP_PATH: ui/gui/app/src-tauri
+          TAURI_FRONTEND_PATH: .
           TARGET: ${{ matrix.target }}
         run: |
           args=(--features updater --config "$RUNNER_TEMP/tauri.json")
