@@ -39,6 +39,8 @@ let
       ../../Cargo.toml
       ../../Cargo.lock
       ../../app/src-tauri
+      # workspace の member。殻の build には使わないが、cargo は member の Cargo.toml を読む
+      ../../emulator
     ];
   };
   nightly = channel == "nightly";

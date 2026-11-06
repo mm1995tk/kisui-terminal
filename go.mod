@@ -6,6 +6,7 @@ require (
 	github.com/BurntSushi/toml v1.6.0
 	github.com/charmbracelet/x/ansi v0.11.9
 	github.com/creack/pty v1.1.24
+	github.com/tetratelabs/wazero v1.12.0
 	golang.org/x/sys v0.49.0
 )
 

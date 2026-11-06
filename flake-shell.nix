@@ -24,6 +24,8 @@ in
       # 殻（app/src-tauri。Cargo.toml の workspace はリポジトリの根）
       pkgs.cargo
       pkgs.rustc
+      # emulator（wasm）のリンク
+      pkgs.lld
     ]
     # Linux で殻をビルドし tauri dev で動かすための WebView 周りのライブラリ（nix build .#kisui-terminal と同じもの）
     ++ lib.optionals stdenv.hostPlatform.isLinux [
