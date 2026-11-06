@@ -1,5 +1,5 @@
 //! GUI の版。Tauri の設定の `version`（リリースの workflow と Nix がビルドのときに入れる。設定に無ければ
-//! Cargo.toml の版）を、起動のときに 1 度だけ覚える。リモートに入れる shj の版（install.rs）・置き場
+//! Cargo.toml の版）を、起動のときに 1 度だけ覚える。リモートに入れる kisui の版（install.rs）・置き場
 //! （connection.rs）と、自動更新（update.rs）が比べる版を、ここ 1 か所にそろえる。
 
 use std::sync::OnceLock;

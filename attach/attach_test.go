@@ -128,7 +128,7 @@ func TestStartTimeout(t *testing.T) {
 	_ = os.Remove
 }
 
-// shj serve が起動できずに終わったら、待ちきる前にその理由を返す。
+// kisui serve が起動できずに終わったら、待ちきる前にその理由を返す。
 func TestRunReportsWhyServeExited(t *testing.T) {
 	dir := t.TempDir()
 	var out bytes.Buffer

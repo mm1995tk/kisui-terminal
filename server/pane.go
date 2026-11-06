@@ -2,7 +2,7 @@ package server
 
 // プライマリの shj が端末のコマンド（Ctrl+`・:sh・:run など）に使う欄。設計は docs/design/gui-protocol.md の「プライマリの shj の欄」。
 //
-// 欄は同じワークスペースの分割したターミナルで、shj serve が term.create と同じように始める。頼むのは
+// 欄は同じワークスペースの分割したターミナルで、kisui serve が term.create と同じように始める。頼むのは
 // プライマリとして名乗った shj（ctl.PaneRequest。名乗りとは別の接続で 1 回ごと）。見せる・隠すは GUI の状態なので、
 // pane.show・pane.hide を GUI に通知するだけにする。shj が終わったら（名乗りの接続が切れたら）その shj の欄を閉じる。
 

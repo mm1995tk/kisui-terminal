@@ -1,7 +1,7 @@
 // 接続の画面（C3〜C7）。サイドバーに出るのは「ローカル」と、足したマシンだけ。起動時は、そのどれにも自動でつなぐ（C5）。
 // 左の一覧の一番下の「+ リモートを足す」で窓を出し、ssh の行き先（~/.ssh/config のホストの候補か、打ったもの）を入れて
 // shj につなぎ、つながったらマシンを保存して見出しを出す（connect/AddMachine.tsx。保存は ssh/machines.ts）。
-// 足したマシンの見出しを右クリックすると、名前を変える・外す（外しても、そのマシンの shj serve は止めない）。ssh の質問（パスワードなど）と shj を入れるかの確認は窓に出す。
+// 足したマシンの見出しを右クリックすると、名前を変える・外す（外しても、そのマシンの kisui serve は止めない）。ssh の質問（パスワードなど）と kisui を入れるかの確認は窓に出す。
 // 切れたら Session が自動でつなぎ直し、左の一覧の見出しに接続の状態を出す（丸・1 行・ボタン）。
 // つながらない・別の GUI に引き継がれた（C7）ときは右下に知らせ、ボタンでつなぎ直せるようにする（connect/Notices.tsx）。
 // 左にはつないだマシンごとの見出しとワークスペースの帯を出し、帯を押すとフォーカスを移す（D1）。
@@ -877,7 +877,7 @@ function Workbench(props: {
       });
   }
 
-  /** 「足す」を押した。ssh でつなぎ（shj が無ければ確認して送り）、つながったら保存する（下の effect）。 */
+  /** 「足す」を押した。ssh でつなぎ（kisui が無ければ確認して送り）、つながったら保存する（下の effect）。 */
   function submitAdd(target: string, name: string) {
     const r = addMachine(machines(), target, name);
     if ("error" in r) {
@@ -932,7 +932,7 @@ function Workbench(props: {
     setRenaming(null);
   }
 
-  /** 見出しのメニューの「外す」。記録から外し、GUI の接続を切る（そのマシンの shj serve は止めない）。 */
+  /** 見出しのメニューの「外す」。記録から外し、GUI の接続を切る（そのマシンの kisui serve は止めない）。 */
   function removeFromSidebar(target: string) {
     updateMachines(removeMachine(machines(), target));
     void disconnect(target);
@@ -954,7 +954,7 @@ function Workbench(props: {
       s.retryNow();
   }
 
-  // shj を入れるかを聞くマシン（一度に 1 台。答えたら次のマシン）
+  // kisui を入れるかを聞くマシン（一度に 1 台。答えたら次のマシン）
   const installing = createMemo(() =>
     [...targets(), ...Object.keys(states())].find(
       (t) => states()[t]?.kind === "needs-install",

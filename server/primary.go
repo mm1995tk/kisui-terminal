@@ -2,7 +2,7 @@ package server
 
 // プライマリターミナルの中で動く TUI の shj を知る。設計は docs/design/gui-protocol.md の「プライマリの shj」。
 //
-// shj serve は、プライマリターミナルのシェルにだけ環境変数 SHIJIMI_GUI_PRIMARY（値はそのターミナルの id）を渡す。
+// kisui serve は、プライマリターミナルのシェルにだけ環境変数 SHIJIMI_GUI_PRIMARY（値はそのターミナルの id）を渡す。
 // TUI の shj はそれを見つけたら、serve-primary.rpc（serve.rpc と同じ場所・同じ権限）に 1 行の JSON
 // （ctl.PrimaryHello）を送って名乗り、つなぎっぱなしにする。つながっている間がその shj の生きている間で、
 // 切れたら（shj が終わったら）ワークスペースの primaryShj が消える。1 つのプライマリで名乗れるのは最初の 1 つだけ。
@@ -293,7 +293,7 @@ func askShjToOpen(sock, full string) error {
 }
 
 // linkShj は同じワークスペースのほかのターミナルが引く先（ctl.GUILinkPath）に、claim の shj のソケットへのリンクを置く。
-// リンクの先は、ソケット自身が ctl.SocketPath の規則どおり shj serve と同じディレクトリにあるものだけ。
+// リンクの先は、ソケット自身が ctl.SocketPath の規則どおり kisui serve と同じディレクトリにあるものだけ。
 // 置く場所も同じ 0700 のディレクトリの中で、同じユーザーだけ。置けなくても名乗りは通す（届かないだけ）。
 func (w *wsManager) linkShj(wsID string, claim *primaryShj) {
 	dir := filepath.Dir(w.srv.opts.SocketPath)

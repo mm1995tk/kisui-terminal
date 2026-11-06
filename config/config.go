@@ -1,4 +1,4 @@
-// Package config holds the settings only the GUI side (`shj serve`) reads:
+// Package config holds the settings only the GUI side (`kisui serve`) reads:
 // [server]. A UI registers Section with core/config's Options.Sections and
 // reads the values with Of.
 package config
@@ -17,7 +17,7 @@ const Name = "gui"
 // Settings are the GUI's settings of config.toml. They are read only from the
 // user's own directory.
 type Settings struct {
-	// IdleStopDays is how many days `shj serve` waits with no GUI connected
+	// IdleStopDays is how many days `kisui serve` waits with no GUI connected
 	// before it stops. 0 means it never stops.
 	IdleStopDays int
 	// StartDir is the folder a new workspace's shell starts in, as an absolute

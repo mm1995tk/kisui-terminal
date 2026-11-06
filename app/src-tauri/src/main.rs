@@ -41,7 +41,7 @@ fn config_machines() -> Result<Vec<config::ConfigMachine>, String> {
     config::load_default()
 }
 
-/// shj につなぐ。`target` は ssh のホスト名か `@local`。`id` は画面側が決める（イベントの宛先）。
+/// kisui につなぐ。`target` は ssh のホスト名か `@local`。`id` は画面側が決める（イベントの宛先）。
 /// メインスレッドの外で動かす。「ローカル」は、ログインシェルが PATH を答えるのを待つことがある（locate.rs）
 #[tauri::command(async)]
 fn connect(
@@ -59,7 +59,7 @@ fn send(state: State<AppState>, id: String, text: String) -> Result<(), String> 
     state.conns.send(&id, &text)
 }
 
-/// 接続を閉じる（待っている ssh の質問も取り消す）。リモートの shj serve は止まらない。
+/// 接続を閉じる（待っている ssh の質問も取り消す）。リモートの kisui serve は止まらない。
 #[tauri::command]
 fn disconnect(state: State<AppState>, id: String) {
     state.askpass.cancel_conn(&id);
@@ -72,7 +72,7 @@ fn install_plan() -> Result<install::InstallPlan, String> {
     install::plan()
 }
 
-/// リモートに shj を入れる。画面がユーザーに聞いたあとにだけ呼ぶ（ここでは聞かない）。
+/// リモートに kisui を入れる。画面がユーザーに聞いたあとにだけ呼ぶ（ここでは聞かない）。
 /// `id` は askpass の質問の宛先（接続の id と同じ形）。
 #[tauri::command]
 async fn install_remote(
@@ -119,7 +119,7 @@ fn main() {
         .manage(browser::Browsers::default())
         .setup(|app| {
             version::init(app.package_info().version.to_string());
-            // 「ローカル」の shj を探す PATH を、先にログインシェルに聞いておく（locate.rs）
+            // 「ローカル」の kisui のターミナルに渡す PATH を、先にログインシェルに聞いておく（locate.rs）
             locate::warm_up();
             let askpass = AskpassServer::start(app.handle().clone())?;
             app.manage(AppState {

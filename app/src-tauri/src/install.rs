@@ -1,8 +1,8 @@
-//! リモートに shj を入れる（C6）。設計書 3 章「ssh 越しに shj を起動する」の 1。
+//! リモートに kisui を入れる（C6）。設計書 3 章「ssh 越しに kisui を起動する」の 1。
 //!
 //! 信頼の境目（ここを変えるときは設計書と PR の説明を読み直す）:
 //!  - 呼ぶ前に、画面がユーザーに聞く。ここは聞かない（聞かずに呼ばれないことは画面側が守る）。
-//!  - 入れる先は `~/.cache/shijimi-editor/<GUI の版>/shj` だけ。PATH の `shj` には触らない。
+//!  - 入れる先は `~/.cache/shijimi-editor/<GUI の版>/kisui` だけ。PATH の `kisui` には触らない。
 //!  - 取ってくるのは GitHub Releases の固定の URL（`https` のみ、リダイレクトも `https` のみ）。
 //!  - 取った実行ファイルは、同じ Release の `SHA256SUMS` の値と合わなければ、ssh を起動する前に捨てる。
 //!  - 送ったあと、リモートで SHA-256 を計り直し、同じ値のときだけ実行できる名前にする（合わなければ消す）。
@@ -15,14 +15,14 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 
 use crate::askpass::AskpassServer;
-use crate::connection::{cache_dir_rel, default_remote_shj, ssh_command};
+use crate::connection::{cache_dir_rel, default_remote_kisui, ssh_command};
 
 const REPO_URL: &str = "https://github.com/mm1995tk/shijimi-editor";
 /// checksums のファイル名（リリースと nightly の両方に上げる）。
 pub const CHECKSUMS_NAME: &str = "SHA256SUMS";
 /// リモートの SHA-256 が合わなかったときの終了コード。
 const EXIT_CHECKSUM_MISMATCH: i32 = 98;
-/// shj（Go の静的な実行ファイル）の上限。これを超えるものは受けつけない。
+/// kisui（Go の静的な実行ファイル）の上限。これを超えるものは受けつけない。
 const MAX_BINARY: u64 = 200 * 1024 * 1024;
 const MAX_CHECKSUMS: u64 = 1024 * 1024;
 const MARKER: &str = "@@shj-uname@@";
@@ -43,7 +43,7 @@ pub struct InstallPlan {
 pub struct InstallResult {
     /// 入れた場所（`~` はリモートのシェルが展開する）
     pub path: String,
-    /// 取った Release のアセット名（`shj-linux-x64` など）
+    /// 取った Release のアセット名（`kisui-linux-x64` など）
     pub asset: String,
     /// 確かめた SHA-256（16 進、小文字）。取得の段階とリモートの両方でこの値と合った
     pub sha256: String,
@@ -72,7 +72,7 @@ fn release_tag(version: &str) -> String {
     }
 }
 
-/// `uname -sm` の結果から、Release の実行ファイル名（`shj-<os>-<cpu>`、nightly は `shj-nightly-<os>-<cpu>`）を決める。
+/// `uname -sm` の結果から、Release の実行ファイル名（`kisui-<os>-<cpu>`、nightly は `kisui-nightly-<os>-<cpu>`）を決める。
 fn asset_name(version: &str, uname: &str) -> Result<String, String> {
     let mut it = uname.split_whitespace();
     let (os, machine) = match (it.next(), it.next(), it.next()) {
@@ -90,9 +90,9 @@ fn asset_name(version: &str, uname: &str) -> Result<String, String> {
         _ => return Err(format!("unsupported CPU: {machine}")),
     };
     Ok(if is_nightly(version) {
-        format!("shj-nightly-{os}-{cpu}")
+        format!("kisui-nightly-{os}-{cpu}")
     } else {
-        format!("shj-{os}-{cpu}")
+        format!("kisui-{os}-{cpu}")
     })
 }
 
@@ -112,7 +112,7 @@ pub fn plan() -> Result<InstallPlan, String> {
     }
     Ok(InstallPlan {
         version: version.to_string(),
-        path: default_remote_shj(),
+        path: default_remote_kisui(),
         release_url: format!("{REPO_URL}/releases/tag/{}", release_tag(version)),
     })
 }
@@ -215,12 +215,12 @@ fn remote_script(version: &str, expected: &str) -> String {
             "set -eu; ",
             "d=\"$HOME/{dir}\"; ",
             "mkdir -p \"$d\"; ",
-            "t=\"$d/.shj.$$\"; ",
+            "t=\"$d/.kisui.$$\"; ",
             "cat > \"$t\" || {{ rm -f \"$t\"; exit 1; }}; ",
             "h=$( (sha256sum \"$t\" 2>/dev/null || shasum -a 256 \"$t\") | cut -d \" \" -f1 ); ",
             "if [ \"$h\" != \"{expected}\" ]; then rm -f \"$t\"; echo \"SHA-256 mismatch on the remote: $h\" >&2; exit {mismatch}; fi; ",
             "chmod 755 \"$t\"; ",
-            "mv -f \"$t\" \"$d/shj\""
+            "mv -f \"$t\" \"$d/kisui\""
         ),
         dir = cache_dir_rel(version),
         expected = expected,
@@ -258,7 +258,7 @@ fn remote_uname(target: &str, ask: &AskpassServer, id: &str) -> Result<String, S
         .ok_or_else(|| "could not read uname -sm from the remote".to_string())
 }
 
-/// リモートに shj を入れる。ユーザーに聞いたあとにだけ呼ぶ。時間がかかるので別スレッドで呼ぶこと。
+/// リモートに kisui を入れる。ユーザーに聞いたあとにだけ呼ぶ。時間がかかるので別スレッドで呼ぶこと。
 pub fn install(target: &str, ask: &AskpassServer, id: &str) -> Result<InstallResult, String> {
     let r = install_inner(target, ask, id);
     // 終わったあとに残った質問（ssh が先に終わったときなど）を片付ける
@@ -268,9 +268,9 @@ pub fn install(target: &str, ask: &AskpassServer, id: &str) -> Result<InstallRes
 }
 
 fn install_inner(target: &str, ask: &AskpassServer, id: &str) -> Result<InstallResult, String> {
-    if std::env::var_os("SHIJIMI_REMOTE_SHJ").is_some() {
+    if std::env::var_os("SHIJIMI_REMOTE_KISUI").is_some() {
         // 場所を手で指定しているときは、その場所に何があるか分からない。入れない。
-        return Err("SHIJIMI_REMOTE_SHJ is set; refusing to install".into());
+        return Err("SHIJIMI_REMOTE_KISUI is set; refusing to install".into());
     }
     let plan = plan()?;
     check_not_aborted(ask, id)?;
@@ -300,7 +300,7 @@ fn install_inner(target: &str, ask: &AskpassServer, id: &str) -> Result<InstallR
         let _ = stderr.read_to_end(&mut s);
         String::from_utf8_lossy(&s).trim().to_string()
     });
-    // 「切る」が押されたら ssh を殺す（途中のファイルはリモートの一時ファイルに残りうるが、shj の名前にはならない）
+    // 「切る」が押されたら ssh を殺す（途中のファイルはリモートの一時ファイルに残りうるが、kisui の名前にはならない）
     let status = loop {
         match child.try_wait() {
             Ok(Some(s)) => break s,
@@ -363,23 +363,23 @@ mod tests {
     fn asset_names() {
         assert_eq!(
             asset_name("0.7.0", "Linux x86_64").unwrap(),
-            "shj-linux-x64"
+            "kisui-linux-x64"
         );
         assert_eq!(
             asset_name("0.7.0", "Linux aarch64").unwrap(),
-            "shj-linux-arm64"
+            "kisui-linux-arm64"
         );
         assert_eq!(
             asset_name("0.7.0", "Darwin arm64").unwrap(),
-            "shj-darwin-arm64"
+            "kisui-darwin-arm64"
         );
         assert_eq!(
             asset_name("0.7.0", "Darwin x86_64").unwrap(),
-            "shj-darwin-x64"
+            "kisui-darwin-x64"
         );
         assert_eq!(
             asset_name("0.7.0-nightly.1.a", "Linux x86_64").unwrap(),
-            "shj-nightly-linux-x64"
+            "kisui-nightly-linux-x64"
         );
         assert!(asset_name("0.7.0", "FreeBSD amd64").is_err());
         assert!(asset_name("0.7.0", "Linux riscv64").is_err());
@@ -390,8 +390,8 @@ mod tests {
     #[test]
     fn urls_are_fixed_to_the_repo() {
         assert_eq!(
-            asset_url("0.7.0", "shj-linux-x64"),
-            "https://github.com/mm1995tk/shijimi-editor/releases/download/v0.7.0/shj-linux-x64"
+            asset_url("0.7.0", "kisui-linux-x64"),
+            "https://github.com/mm1995tk/shijimi-editor/releases/download/v0.7.0/kisui-linux-x64"
         );
         assert_eq!(
             asset_url("0.7.0-nightly.1.a", CHECKSUMS_NAME),
@@ -401,23 +401,26 @@ mod tests {
 
     #[test]
     fn checksums_parse() {
-        let sums = format!("{H}  shj-linux-x64\n{}  shj-darwin-arm64\n", "f".repeat(64));
-        assert_eq!(checksum_for(&sums, "shj-linux-x64").unwrap(), H);
+        let sums = format!(
+            "{H}  kisui-linux-x64\n{}  kisui-darwin-arm64\n",
+            "f".repeat(64)
+        );
+        assert_eq!(checksum_for(&sums, "kisui-linux-x64").unwrap(), H);
         assert_eq!(
-            checksum_for(&sums, "shj-darwin-arm64").unwrap(),
+            checksum_for(&sums, "kisui-darwin-arm64").unwrap(),
             "f".repeat(64)
         );
         // バイナリモード（*）と大文字
-        let upper = format!("{} *shj-linux-x64\n", H.to_ascii_uppercase());
-        assert_eq!(checksum_for(&upper, "shj-linux-x64").unwrap(), H);
+        let upper = format!("{} *kisui-linux-x64\n", H.to_ascii_uppercase());
+        assert_eq!(checksum_for(&upper, "kisui-linux-x64").unwrap(), H);
         // 名前は完全一致（前方一致で別の物を拾わない）
-        assert!(checksum_for(&sums, "shj-linux").is_err());
-        assert!(checksum_for(&sums, "shj-linux-arm64").is_err());
+        assert!(checksum_for(&sums, "kisui-linux").is_err());
+        assert!(checksum_for(&sums, "kisui-linux-arm64").is_err());
         // 壊れた値
-        assert!(checksum_for("abc  shj-linux-x64\n", "shj-linux-x64").is_err());
+        assert!(checksum_for("abc  kisui-linux-x64\n", "kisui-linux-x64").is_err());
         assert!(checksum_for(
-            &format!("{}  shj-linux-x64\n", "g".repeat(64)),
-            "shj-linux-x64"
+            &format!("{}  kisui-linux-x64\n", "g".repeat(64)),
+            "kisui-linux-x64"
         )
         .is_err());
         // 同じ名前で値が食い違う
@@ -445,8 +448,8 @@ mod tests {
         assert!(s.contains("$HOME/.cache/shijimi-editor/0.7.0"));
         // 実行できる名前に変えるのは、比べたあと
         assert!(s.find("exit 98").unwrap() < s.find("mv -f").unwrap());
-        // PATH の shj には触らない
-        assert!(!s.contains("/usr") && !s.contains("/bin/shj") && !s.contains(".local"));
+        // PATH の kisui には触らない
+        assert!(!s.contains("/usr") && !s.contains("/bin/kisui") && !s.contains(".local"));
         assert!(remote_install_command("0.7.0", H).starts_with("sh -c '"));
     }
 

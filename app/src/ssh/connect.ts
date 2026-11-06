@@ -1,10 +1,10 @@
-// shj につなぐ。殻に子プロセス（ssh か shj attach）を起動させ、その標準入出力を Client に載せ、
+// kisui につなぐ。殻に子プロセス（ssh か kisui attach）を起動させ、その標準入出力を Client に載せ、
 // session.hello を通す。
 
 import { Client, type Transport } from "../rpc/client.ts";
 import type { HelloResult } from "../rpc/protocol.ts";
 import {
-  EXIT_SHJ_MISSING,
+  EXIT_KISUI_MISSING,
   LOCAL,
   type ShellApi,
   type Unlisten,
@@ -32,12 +32,12 @@ export class ConnectError extends Error {
 }
 
 /**
- * リモートに shj が無い（ssh は通ったが、入れる場所に実行ファイルが無い）。
+ * リモートに kisui が無い（ssh は通ったが、入れる場所に実行ファイルが無い）。
  * ユーザーに聞いてから入れる（設計書 3 章）。つなぎ直しを繰り返さず、聞く段階に進むための印。
  */
 export class ShjMissingError extends ConnectError {
   constructor(stderr = "") {
-    super("shj is not installed on the remote", stderr);
+    super("kisui is not installed on the remote", stderr);
     this.name = "ShjMissingError";
   }
 }
@@ -136,9 +136,9 @@ export async function connectShj(
     await new Promise((r) => setTimeout(r, 0));
     const msg = e instanceof Error ? e.message : String(e);
     cleanup();
-    // 終了コード 97 は、リモートのシェルが「shj が無い」と返したとき。ssh 自身の失敗（255 など）とは別。
+    // 終了コード 97 は、リモートのシェルが「kisui が無い」と返したとき。ssh 自身の失敗（255 など）とは別。
     // LOCAL は ssh を挟まないので対象外
-    if (target !== LOCAL && exitCode === EXIT_SHJ_MISSING) {
+    if (target !== LOCAL && exitCode === EXIT_KISUI_MISSING) {
       throw new ShjMissingError(stderr);
     }
     throw new ConnectError(msg, stderr);

@@ -47,11 +47,11 @@ export type SessionState =
       reason: string;
     }
   /**
-   * リモートに shj が無い。ユーザーに聞くまで何も入れない。install() で入れ、declineInstall() で断る。
+   * リモートに kisui が無い。ユーザーに聞くまで何も入れない。install() で入れ、declineInstall() で断る。
    * error は直前の入れ方が失敗した理由。
    */
   | { kind: "needs-install"; plan: InstallPlan; error?: string }
-  /** shj を取って、確かめて、リモートに送っている */
+  /** kisui を取って、確かめて、リモートに送っている */
   | { kind: "installing"; plan: InstallPlan }
   /** 回数を使い切った。ボタンで retry() できる */
   | { kind: "failed"; message: string }
@@ -295,7 +295,7 @@ export class Session {
   }
 
   /**
-   * shj が無いリモートに、ユーザーが「入れる」と答えたあとで呼ぶ。GUI と同じ版の shj を取り、
+   * kisui が無いリモートに、ユーザーが「入れる」と答えたあとで呼ぶ。GUI と同じ版の kisui を取り、
    * SHA-256 を確かめて入れ、つなぎ直す。失敗したら needs-install（error 付き）に戻る。
    */
   async install(): Promise<void> {
@@ -329,7 +329,7 @@ export class Session {
     this.generation++;
     this.setState({
       kind: "failed",
-      message: `shj が ${this.target} にありません（入れませんでした）`,
+      message: `kisui が ${this.target} にありません（入れませんでした）`,
     });
   }
 

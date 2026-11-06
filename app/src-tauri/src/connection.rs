@@ -1,4 +1,4 @@
-//! shj への接続。`ssh -T host -- <shj> attach`（リモート）か、`shj attach` の直接起動（ローカル）を
+//! kisui への接続。`ssh -T host -- <kisui> attach`（リモート）か、`kisui attach` の直接起動（ローカル）を
 //! 子プロセスとして持ち、その標準入出力を Web 画面（Client の Transport）に中継する。
 //! プロトコルは解釈しない（1 行ずつ運ぶだけ）。
 
@@ -47,9 +47,9 @@ pub fn cache_dir_rel(version: &str) -> String {
     format!(".cache/shijimi-editor/{version}")
 }
 
-/// 入れる先（`~/.cache/shijimi-editor/<GUI の版>/shj`）。PATH の `shj` ではない。
-pub fn default_remote_shj() -> String {
-    format!("~/{}/shj", cache_dir_rel(crate::version::get()))
+/// 入れる先（`~/.cache/shijimi-editor/<GUI の版>/kisui`）。PATH の `kisui` ではない。
+pub fn default_remote_kisui() -> String {
+    format!("~/{}/kisui", cache_dir_rel(crate::version::get()))
 }
 
 /// ssh の引数に渡してよいホスト名か。`-` で始まるとオプションになり、空白や制御文字は別の引数に化ける。
@@ -61,9 +61,9 @@ pub fn valid_host(h: &str) -> bool {
         && !h.chars().any(|c| c.is_whitespace() || c.is_control())
 }
 
-/// shj が無かったとき、リモートのシェルがこの終了コードで終わる。ssh は遠隔コマンドの終了コードをそのまま返すので、
-/// 画面側は「ssh が失敗した」と「shj が入っていない」を見分けられる（入れる前にユーザーに聞く。設計書 3 章）。
-pub const EXIT_SHJ_MISSING: i32 = 97;
+/// kisui が無かったとき、リモートのシェルがこの終了コードで終わる。ssh は遠隔コマンドの終了コードをそのまま返すので、
+/// 画面側は「ssh が失敗した」と「kisui が入っていない」を見分けられる（入れる前にユーザーに聞く。設計書 3 章）。
+pub const EXIT_KISUI_MISSING: i32 = 97;
 
 /// `ssh -T <host> -- <remote_command>` の土台。askpass の環境変数もここで付ける。
 pub fn ssh_command(
@@ -121,36 +121,30 @@ pub fn ssh_forward_command(
     Ok(c)
 }
 
-/// `SHIJIMI_REMOTE_SHJ` で場所を手で指定したときの `shj attach`。その場所だけを見る。
-/// shj が無ければ（実行できなければ）EXIT_SHJ_MISSING で終わる。
-fn custom_attach_command(shj: &str) -> String {
-    // command -v は、パス（~ も展開される）と PATH 上の名前（SHIJIMI_REMOTE_SHJ=shj など）の両方を調べる
-    format!("command -v {shj} >/dev/null 2>&1 || exit {EXIT_SHJ_MISSING}; {shj} attach")
+/// `SHIJIMI_REMOTE_KISUI` で場所を手で指定したときの `kisui attach`。その場所だけを見る。
+/// kisui が無ければ（実行できなければ）EXIT_KISUI_MISSING で終わる。
+fn custom_attach_command(kisui: &str) -> String {
+    // command -v は、パス（~ も展開される）と PATH 上の名前（SHIJIMI_REMOTE_KISUI=kisui など）の両方を調べる
+    format!("command -v {kisui} >/dev/null 2>&1 || exit {EXIT_KISUI_MISSING}; {kisui} attach")
 }
 
-/// 普段の `shj attach`。GUI の版のキャッシュ、PATH、よく使う場所（Nix のプロファイルなど）の順に、GUI と同じ版の shj を探す
-/// （locate.rs）。ログインシェルが fish などでも動くよう、`sh -c '…'` で包む。
+/// 普段の `kisui attach`。GUI の版のキャッシュにある kisui だけを使う（locate.rs）。ログインシェルが fish などでも動くよう、`sh -c '…'` で包む。
 fn default_attach_command(version: &str) -> String {
-    let script = locate::remote_attach_script(
-        &cache_dir_rel(version),
-        version,
-        locate::COMMON_DIRS,
-        EXIT_SHJ_MISSING,
-    );
+    let script = locate::remote_attach_script(&cache_dir_rel(version), EXIT_KISUI_MISSING);
     format!("sh -c '{script}'")
 }
 
-/// リモートで実行する `shj attach`。
+/// リモートで実行する `kisui attach`。
 fn remote_attach_command() -> String {
-    match std::env::var("SHIJIMI_REMOTE_SHJ") {
-        Ok(shj) => custom_attach_command(&shj),
+    match std::env::var("SHIJIMI_REMOTE_KISUI") {
+        Ok(kisui) => custom_attach_command(&kisui),
         Err(_) => default_attach_command(crate::version::get()),
     }
 }
 
 fn build_command(target: &str, ask: &AskpassServer, id: &str) -> Result<Command, String> {
     if target == LOCAL {
-        let mut c = locate::local_shj_command(crate::version::get());
+        let mut c = locate::local_kisui_command();
         c.arg("attach");
         return Ok(c);
     }
@@ -238,7 +232,7 @@ impl Connections {
             .map_err(|e| e.to_string())
     }
 
-    /// 接続を終わらせる（ssh / attach を殺す。リモートの shj serve は止まらない）。
+    /// 接続を終わらせる（ssh / attach を殺す。リモートの kisui serve は止まらない）。
     pub fn close(&self, id: &str) {
         if let Some(conn) = self.map.lock().unwrap().remove(id) {
             let _ = conn.child.lock().unwrap().kill();
@@ -278,10 +272,10 @@ mod tests {
     }
 
     #[test]
-    fn attach_exits_97_without_shj() {
+    fn attach_exits_97_without_kisui() {
         assert_eq!(
-            custom_attach_command("~/.cache/shijimi-editor/1.2.3/shj"),
-            "command -v ~/.cache/shijimi-editor/1.2.3/shj >/dev/null 2>&1 || exit 97; ~/.cache/shijimi-editor/1.2.3/shj attach"
+            custom_attach_command("~/.cache/shijimi-editor/1.2.3/kisui"),
+            "command -v ~/.cache/shijimi-editor/1.2.3/kisui >/dev/null 2>&1 || exit 97; ~/.cache/shijimi-editor/1.2.3/kisui attach"
         );
     }
 
@@ -291,7 +285,7 @@ mod tests {
         assert!(c.starts_with("sh -c '") && c.ends_with("exit 97'"));
         // 包んだ中に単一引用符が無い（あれば引用が崩れる）
         assert_eq!(c.matches('\'').count(), 2);
-        assert!(c.contains("$HOME/.cache/shijimi-editor/1.2.3/shj"));
+        assert!(c.contains("$HOME/.cache/shijimi-editor/1.2.3/kisui"));
         assert!(c.contains("exit 97"));
     }
 }

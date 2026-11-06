@@ -1,13 +1,12 @@
-//! shj の探し方。
+//! kisui の探し方。
 //!
-//! - **ローカル**：Finder や Dock から起動した macOS のアプリは、ログインシェルの PATH を引き継がない
-//!   （`/usr/bin:/bin:/usr/sbin:/sbin` だけ）。そこで、ログインシェルに PATH を聞き（時間切れ付き）、
-//!   GUI の PATH とよく使う場所（[`COMMON_DIRS`]）を足した PATH で shj を探す。`shj attach` が起動する
-//!   `shj serve` の中のターミナルも同じ PATH を引き継ぐよう、子プロセスの PATH もこれにする。
-//! - **ssh 先**：ssh が動かすコマンドのシェル（非対話・非ログイン）の PATH には、Nix のプロファイルなどが
-//!   入っていないことがある。GUI の版のキャッシュが無ければ、PATH とよく使う場所の shj のうち、
-//!   **GUI と同じ版のもの**だけを使う（[`remote_attach_script`]）。版が違うものしか無ければ、今までどおり
-//!   入れるかを聞く（C6。入れる先はキャッシュだけで、PATH の shj には触らない）。
+//! - **ローカル**：GUI と一緒に配った `kisui`（[`bundled_kisui`]）で `kisui attach` を起動する。PATH の `kisui` は
+//!   探さない（GUI と同じ版しか使わないため）。ただし、Finder や Dock から起動した macOS のアプリは
+//!   ログインシェルの PATH を引き継がない（`/usr/bin:/bin:/usr/sbin:/sbin` だけ）。`kisui attach` が起動する
+//!   `kisui serve` の中のターミナルが `shj` などを見つけられるよう、ログインシェルに PATH を聞き（時間切れ付き）、
+//!   GUI の PATH とよく使う場所（[`COMMON_DIRS`]）を足した PATH を子プロセスの PATH にする。
+//! - **ssh 先**：GUI の版のキャッシュ（`~/.cache/shijimi-editor/<版>/kisui`）だけを見る（[`remote_attach_script`]）。
+//!   無ければ、入れるかを聞く（C6。入れる先はキャッシュだけ）。リモートの PATH の `kisui` は使わない。
 
 use std::ffi::{OsStr, OsString};
 use std::io::Read;
@@ -145,13 +144,6 @@ fn merge_paths<'a>(parts: impl IntoIterator<Item = &'a OsStr>, extra: &[PathBuf]
     std::env::join_paths(dirs).unwrap_or_default()
 }
 
-/// PATH の中から、実行できる name を探す。
-fn find_in_path(path: &OsStr, name: &str) -> Option<PathBuf> {
-    std::env::split_paths(path)
-        .map(|d| d.join(name))
-        .find(|p| is_executable(p))
-}
-
 #[cfg(unix)]
 fn is_executable(p: &Path) -> bool {
     use std::os::unix::fs::PermissionsExt;
@@ -183,36 +175,24 @@ pub(crate) fn split_version(v: &str) -> Option<(&str, Option<&str>)> {
     is_xyz(v).then_some((v, None))
 }
 
-/// PATH などで探す shj の名前。nightly の shj は `shj-nightly` の名前で入る（flake.nix・packaging/npm/pack.sh）。
-fn shj_names(gui_version: &str) -> &'static [&'static str] {
-    match split_version(gui_version) {
-        Some((_, Some(_))) => &["shj-nightly", "shj"],
-        _ => &["shj"],
-    }
+/// GUI と一緒に配った `kisui` を、GUI の実行ファイル（`exe`）の場所から探す。
+/// 1. 隣の `kisui`（AppImage の `usr/bin/kisui`、.app の `Contents/MacOS/kisui`。Tauri の `externalBin`）。
+/// 2. `../libexec/kisui`（Nix のパッケージ。PATH に `kisui` を置かないよう、libexec に入れる）。
+fn bundled_kisui(exe: &Path) -> Option<PathBuf> {
+    let dir = exe.parent()?;
+    [dir.join(KISUI), dir.join("../libexec").join(KISUI)]
+        .into_iter()
+        .find(|p| is_executable(p))
 }
 
-/// GUI と同じ版の shj が `shj --version` で出す文字列に合う、sh の `case` のパターン。
-/// 安定版 `0.7.0` は `shijimi v0.7.0`（後ろにコミット ` (abc1234)` が付いてもよい）、
-/// nightly `0.7.0-nightly.20261101.abc1234` は `shijimi v0.7.0-nightly (abc1234…)`（コミットまで同じ）。
-/// 版の形が分からなければ None（キャッシュ以外は使わない）。
-fn version_case_pattern(gui_version: &str) -> Option<String> {
-    let (base, sha) = split_version(gui_version)?;
-    Some(match sha {
-        None => format!("\"shijimi v{base}\"|\"shijimi v{base} (\"*"),
-        Some("") => format!("\"shijimi v{base}-nightly\"|\"shijimi v{base}-nightly (\"*"),
-        Some(sha) => {
-            // shj はコミットを 7 文字に切って出す
-            let short: String = sha.chars().take(7).collect();
-            format!("\"shijimi v{base}-nightly ({short}\"*")
-        }
-    })
-}
+/// 配った kisui の名前。nightly でも同じ（Tauri が `externalBin` の名前から作る）。
+const KISUI: &str = if cfg!(windows) { "kisui.exe" } else { "kisui" };
 
-/// 「ローカル」の shj を起動するコマンド（引数はまだ付けない）。
-/// `SHIJIMI_SHJ` があればそれを使う。無ければ、ログインシェルの PATH・GUI の PATH・よく使う場所の順に探す。
-/// 見つからなければ `shj` のまま（起動に失敗し、画面は「つなげませんでした」を出す）。
-/// 「ローカル」には入れる手段が無いので、版は確かめない（違えば `session.hello` で分かる）。
-pub fn local_shj_command(gui_version: &str) -> Command {
+/// 「ローカル」の kisui を起動するコマンド（引数はまだ付けない）。
+/// `SHIJIMI_KISUI` があればそれを使う（開発用）。無ければ GUI と一緒に配った kisui。
+/// 見つからなければ、あるはずの場所のまま（起動に失敗し、画面は「つなげませんでした」にその場所を出す）。
+/// GUI と kisui の版が違えば `session.hello` で分かる。
+pub fn local_kisui_command() -> Command {
     let home = std::env::var("HOME").ok();
     let user = std::env::var("USER").ok();
     let gui_path = std::env::var_os("PATH");
@@ -223,53 +203,30 @@ pub fn local_shj_command(gui_version: &str) -> Command {
             .chain(gui_path.as_deref()),
         &expand_common_dirs(home.as_deref(), user.as_deref()),
     );
-    let shj = std::env::var_os("SHIJIMI_SHJ")
+    let exe = std::env::current_exe().ok();
+    let kisui = std::env::var_os("SHIJIMI_KISUI")
         .or_else(|| {
-            shj_names(gui_version)
-                .iter()
-                .find_map(|n| find_in_path(&path, n))
+            exe.as_deref()
+                .and_then(bundled_kisui)
                 .map(PathBuf::into_os_string)
         })
-        .unwrap_or_else(|| "shj".into());
-    let mut c = Command::new(shj);
+        .unwrap_or_else(|| {
+            exe.as_deref()
+                .and_then(Path::parent)
+                .map_or_else(|| KISUI.into(), |d| d.join(KISUI).into_os_string())
+        });
+    let mut c = Command::new(kisui);
     c.env("PATH", path);
     c
 }
 
-/// ssh 先で動かす `shj attach`（POSIX sh のスクリプト。単一引用符と `\` は含まない）。
-/// 1. GUI の版のキャッシュ（`cache_rel`、`$HOME` からの相対）があれば、それを使う。
-/// 2. 無ければ、PATH、次に `dirs`（`$HOME`・`$USER` を使える。普段は [`COMMON_DIRS`]）の shj のうち、
-///    `--version` が GUI の版と同じものを使う（版の違う shj や、`attach` を持たない古い shj は使わない）。
-/// 3. どれも無ければ `exit_missing` で終わる（画面は GUI と同じ版を入れるかを聞く。C6・設計書 3 章）。
-pub fn remote_attach_script(
-    cache_rel: &str,
-    gui_version: &str,
-    dirs: &[&str],
-    exit_missing: i32,
-) -> String {
-    let mut s =
-        format!("c=\"$HOME/{cache_rel}/shj\"; if [ -x \"$c\" ]; then exec \"$c\" attach; fi; ");
-    if let Some(pat) = version_case_pattern(gui_version) {
-        let names = shj_names(gui_version);
-        let mut cands: Vec<String> = names
-            .iter()
-            .map(|n| format!("\"$(command -v {n} 2>/dev/null)\""))
-            .collect();
-        for d in dirs {
-            let d = d.replace("$USER", "$u");
-            cands.extend(names.iter().map(|n| format!("\"{d}/{n}\"")));
-        }
-        s.push_str(&format!(
-            "u=${{USER:-$(id -un)}}; \
-             for s in {cands}; do \
-             if [ -x \"$s\" ]; then \
-             case \"$(\"$s\" --version 2>/dev/null </dev/null)\" in {pat}) exec \"$s\" attach;; esac; \
-             fi; done; ",
-            cands = cands.join(" "),
-        ));
-    }
-    s.push_str(&format!("exit {exit_missing}"));
-    s
+/// ssh 先で動かす `kisui attach`（POSIX sh のスクリプト。単一引用符と `\` は含まない）。
+/// GUI の版のキャッシュ（`cache_rel`、`$HOME` からの相対）に kisui があればそれを使う。
+/// 無ければ `exit_missing` で終わる（画面は GUI と同じ版を入れるかを聞く。C6・設計書 3 章）。
+pub fn remote_attach_script(cache_rel: &str, exit_missing: i32) -> String {
+    format!(
+        "c=\"$HOME/{cache_rel}/kisui\"; if [ -x \"$c\" ]; then exec \"$c\" attach; fi; exit {exit_missing}"
+    )
 }
 
 #[cfg(test)]
@@ -389,18 +346,27 @@ mod tests {
     }
 
     #[cfg(unix)]
+    #[cfg(unix)]
     #[test]
-    fn finds_only_executables() {
-        let dir = temp_root("locate");
-        let a = dir.join("a");
-        let b = dir.join("b");
-        std::fs::create_dir_all(&a).unwrap();
-        std::fs::write(a.join("shj"), "").unwrap(); // 実行できない
-        write_exe(&b.join("shj"), "");
-        let path = std::env::join_paths([&a, &b]).unwrap();
-        assert_eq!(find_in_path(&path, "shj"), Some(b.join("shj")));
-        assert_eq!(find_in_path(&path, "nope"), None);
-        std::fs::remove_dir_all(&dir).unwrap();
+    fn finds_the_bundled_kisui_only_when_executable() {
+        let root = temp_root("bundled");
+        let exe = root.join("app/bin/gui");
+        // 無い
+        assert_eq!(bundled_kisui(&exe), None);
+        // 実行できないものは使わない
+        std::fs::create_dir_all(root.join("app/bin")).unwrap();
+        std::fs::write(root.join("app/bin/kisui"), "").unwrap();
+        assert_eq!(bundled_kisui(&exe), None);
+        // Nix の libexec
+        write_exe(&root.join("app/libexec/kisui"), "");
+        assert_eq!(
+            bundled_kisui(&exe),
+            Some(root.join("app/bin/../libexec/kisui"))
+        );
+        // 隣が先
+        write_exe(&root.join("app/bin/kisui"), "");
+        assert_eq!(bundled_kisui(&exe), Some(root.join("app/bin/kisui")));
+        std::fs::remove_dir_all(&root).unwrap();
     }
 
     #[test]
@@ -412,117 +378,50 @@ mod tests {
         );
         assert_eq!(split_version("0.7"), None);
         assert_eq!(split_version("0.7.0-rc1"), None);
-        assert_eq!(shj_names("0.7.0"), &["shj"]);
-        assert_eq!(
-            shj_names("0.7.0-nightly.20261101.abc1234"),
-            &["shj-nightly", "shj"]
-        );
-        assert_eq!(
-            version_case_pattern("0.7.0").unwrap(),
-            "\"shijimi v0.7.0\"|\"shijimi v0.7.0 (\"*"
-        );
-        assert_eq!(
-            version_case_pattern("0.7.0-nightly.20261101.abc1234def").unwrap(),
-            "\"shijimi v0.7.0-nightly (abc1234\"*"
-        );
-        assert_eq!(version_case_pattern("weird"), None);
     }
 
     #[test]
-    fn remote_script_has_no_quotes_and_prefers_the_cache() {
-        for v in ["1.2.3", "1.2.3-nightly.20261101.abc1234"] {
-            let s = remote_attach_script(".cache/shijimi-editor/1.2.3", v, COMMON_DIRS, 97);
-            // sh -c '…' で包むので単一引用符は使えない。fish の単一引用符の中で意味を持つ \ も避ける
-            assert!(!s.contains('\'') && !s.contains('\\'), "{s}");
-            let cache = s.find("$HOME/.cache/shijimi-editor/1.2.3/shj").unwrap();
-            let path = s.find("command -v shj").unwrap();
-            let nix = s.find("\"$HOME/.nix-profile/bin/shj").unwrap();
-            assert!(cache < path && path < nix);
-            assert!(s.contains("\"/etc/profiles/per-user/$u/bin/shj\""));
-            assert!(s.contains("--version"));
-            assert!(s.ends_with("exit 97"));
-        }
-        // 版の形が分からなければ、キャッシュだけを見る
-        let s = remote_attach_script(".cache/x", "weird", COMMON_DIRS, 97);
-        assert!(!s.contains("command -v") && s.ends_with("exit 97"));
+    fn remote_script_has_no_quotes_and_only_looks_at_the_cache() {
+        let s = remote_attach_script(".cache/shijimi-editor/1.2.3", 97);
+        // sh -c '…' で包むので単一引用符は使えない。fish の単一引用符の中で意味を持つ \ も避ける
+        assert!(!s.contains('\'') && !s.contains('\\'), "{s}");
+        assert!(s.contains("$HOME/.cache/shijimi-editor/1.2.3/kisui"));
+        // PATH の kisui は探さない
+        assert!(!s.contains("command -v") && !s.contains("--version"));
+        assert!(s.ends_with("exit 97"));
     }
 
-    /// 書いたスクリプトを本物の sh で動かす。探す場所は一時フォルダだけにする（開発機の shj に左右されない）。
+    /// 書いたスクリプトを本物の sh で動かす（開発機の kisui に左右されないよう、HOME は一時フォルダ）。
     #[cfg(unix)]
     #[test]
     fn remote_script_runs_in_sh() {
         let root = temp_root("remote");
         let home = root.join("home");
-        let dirs_owned = [
-            format!("{}/nixprof/bin", root.display()),
-            format!("{}/peruser/$USER/bin", root.display()),
-        ];
-        let dirs: Vec<&str> = dirs_owned.iter().map(String::as_str).collect();
-        // --version には ver を返し、それ以外の引数には「tag 引数」を出す偽の shj
-        let fake = |p: &Path, tag: &str, ver: &str| {
-            write_exe(
-                p,
-                &format!(
-                    "#!/bin/sh\nif [ \"$1\" = --version ]; then echo \"{ver}\"; exit 0; fi\necho {tag} \"$1\"\n"
-                ),
-            );
-        };
-        let run = |gui: &str, path: &str| {
-            let script = remote_attach_script(".cache/shijimi-editor/1.2.3", gui, &dirs, 97);
+        let run = |path: &str| {
+            let script = remote_attach_script(".cache/shijimi-editor/1.2.3", 97);
             Command::new("/bin/sh")
                 .arg("-c")
                 .arg(&script)
                 .env_clear()
                 .env("HOME", &home)
-                .env("USER", "me")
                 .env("PATH", path)
                 .output()
                 .unwrap()
         };
-        let stdout = |o: std::process::Output| String::from_utf8_lossy(&o.stdout).into_owned();
-        let sys = "/usr/bin:/bin";
         let onpath = root.join("onpath");
-        let with_path = format!("{}:{sys}", onpath.display());
+        let with_path = format!("{}:/usr/bin:/bin", onpath.display());
 
-        // どこにも無い
-        assert_eq!(run("1.2.3", sys).status.code(), Some(97));
+        // キャッシュに無ければ、PATH に kisui があっても 97（入れるかを聞く）
+        write_exe(&onpath.join("kisui"), "#!/bin/sh\necho path \"$1\"\n");
+        assert_eq!(run(&with_path).status.code(), Some(97));
 
-        // 版の違う shj（attach を持たない古い shj も同じ）しか無ければ 97（入れるかを聞く）
-        fake(&onpath.join("shj"), "old", "shijimi v1.2.2 (aaaaaaa)");
-        fake(&root.join("nixprof/bin/shj"), "old", "shijimi v1.2.2");
-        assert_eq!(run("1.2.3", &with_path).status.code(), Some(97));
-
-        // よく使う場所（$USER 入り）に同じ版があれば、PATH の違う版を飛ばしてそれを使う
-        fake(
-            &root.join("peruser/me/bin/shj"),
-            "hm",
-            "shijimi v1.2.3 (bbbbbbb)",
+        // キャッシュにあれば、それを attach つきで動かす
+        write_exe(
+            &home.join(".cache/shijimi-editor/1.2.3/kisui"),
+            "#!/bin/sh\necho cache \"$1\"\n",
         );
-        assert_eq!(stdout(run("1.2.3", &with_path)), "hm attach\n");
-
-        // PATH に同じ版があれば、よく使う場所より先
-        fake(&onpath.join("shj"), "path", "shijimi v1.2.3");
-        assert_eq!(stdout(run("1.2.3", &with_path)), "path attach\n");
-
-        // nightly の GUI は、同じコミットの shj-nightly だけを使う（安定版の shj や別の日の nightly は使わない）
-        let nightly = "1.2.3-nightly.20261101.ccccccc";
-        assert_eq!(run(nightly, &with_path).status.code(), Some(97));
-        fake(
-            &onpath.join("shj-nightly"),
-            "other-day",
-            "shijimi v1.2.3-nightly (ddddddd)",
-        );
-        assert_eq!(run(nightly, &with_path).status.code(), Some(97));
-        fake(
-            &root.join("nixprof/bin/shj-nightly"),
-            "nightly",
-            "shijimi v1.2.3-nightly (ccccccc)",
-        );
-        assert_eq!(stdout(run(nightly, &with_path)), "nightly attach\n");
-
-        // GUI の版のキャッシュが一番先（版は確かめない。入れたときに SHA-256 で確かめている）
-        fake(&home.join(".cache/shijimi-editor/1.2.3/shj"), "cache", "x");
-        assert_eq!(stdout(run("1.2.3", &with_path)), "cache attach\n");
+        let out = run(&with_path);
+        assert_eq!(String::from_utf8_lossy(&out.stdout), "cache attach\n");
 
         std::fs::remove_dir_all(&root).unwrap();
     }

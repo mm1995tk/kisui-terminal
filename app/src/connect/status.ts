@@ -42,7 +42,7 @@ export function statusLine(
     case "connected":
       return {
         text: "",
-        title: `つながっています（shj ${s.hello.shj.version}）`,
+        title: `つながっています（kisui ${s.hello.shj.version}）`,
       };
     case "reconnecting": {
       const text = `再接続中（${s.attempt} 回目）`;
@@ -57,9 +57,9 @@ export function statusLine(
       return { text, title: s.reason };
     }
     case "needs-install":
-      return { text: "shj がありません", title: "" };
+      return { text: "kisui がありません", title: "" };
     case "installing":
-      return { text: "shj を入れています…", title: "" };
+      return { text: "kisui を入れています…", title: "" };
     case "failed":
       return { text: "つながりません", title: s.message, retry: "again" };
     case "superseded": {
@@ -88,9 +88,9 @@ export function stateLabel(s: SessionState | undefined): string {
     case "reconnecting":
       return "再接続中";
     case "needs-install":
-      return "shj がありません";
+      return "kisui がありません";
     case "installing":
-      return "shj を入れています";
+      return "kisui を入れています";
     case "failed":
       return "つながりません";
     case "superseded":

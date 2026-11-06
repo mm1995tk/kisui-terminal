@@ -8,7 +8,7 @@ type Line = (e: { id: string; line: string }) => void;
 
 /** 接続ごとに挙動を決められる偽の殻。 */
 function fakeShell(opts: {
-  serverIds: string[]; // n 回目の接続の serverId。"fail" なら ssh が終わる、"missing" なら shj が無い（97）
+  serverIds: string[]; // n 回目の接続の serverId。"fail" なら ssh が終わる、"missing" なら kisui が無い（97）
   installFails?: string; // 入れるのがこの理由で失敗する
   installHangs?: boolean; // 入れる処理が終わらない（取り消されるまで）
   pingReply?: () => boolean;
@@ -116,7 +116,7 @@ function fakeShell(opts: {
     onAskpass: async () => () => {},
     installPlan: async () => ({
       version: "0.0.0",
-      path: "~/.cache/shijimi-editor/0.0.0/shj",
+      path: "~/.cache/shijimi-editor/0.0.0/kisui",
       release_url: "https://example.invalid/r",
     }),
     installCancel: async (id) => {
@@ -131,7 +131,7 @@ function fakeShell(opts: {
       }
       installs.push(target);
       if (opts.installFails) throw new Error(opts.installFails);
-      // 入れたので、次からは shj がある
+      // 入れたので、次からは kisui がある
       opts.serverIds.splice(0, opts.serverIds.length, "A");
       n = 0;
       return { path: "p", asset: "a", sha256: "h" };
@@ -482,7 +482,7 @@ describe("applyWorkspaceChange", () => {
   });
 });
 
-describe("shj が無いリモート", () => {
+describe("kisui が無いリモート", () => {
   it("つなぎ直さず、聞く段階で止まる。ユーザーが答えるまで何も入れない", async () => {
     const f = fakeShell({ serverIds: ["missing"] });
     const s = new Session(f.api, "h", fast);

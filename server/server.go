@@ -1,4 +1,4 @@
-// Package server は画面を持たない常駐プロセス「shj serve」の中身。
+// Package server は画面を持たない常駐プロセス「kisui serve」の中身。
 // Unix ソケットで JSON-RPC を話す。設計は docs/design/gui-protocol.md の 3 章。
 //
 // 今あるメソッドは session.* / server.info / term.*（term.go）/ workspace.*（workspace.go）/ tree.*・git.status（tree.go、treewatch.go、gitstat.go）/
@@ -80,8 +80,8 @@ type Server struct {
 	primary    *primaryServer // プライマリの shj の知らせを受ける口（Serve で開く）
 }
 
-// ErrRunning はすでに別の shj serve が動いているときのエラー。
-var ErrRunning = errors.New("shj serve is already running")
+// ErrRunning はすでに別の kisui serve が動いているときのエラー。
+var ErrRunning = errors.New("kisui serve is already running")
 
 // Listen はソケットを作って待ち受ける（0600）。同じ場所で別のサーバーが動いていれば ErrRunning。
 // 残っているだけの古いソケットは作り直す。

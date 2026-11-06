@@ -15,7 +15,7 @@ describe("statusLine", () => {
   it("つながっていれば行を出さず、版はツールチップに出す", () => {
     assert.deepEqual(statusLine({ kind: "connected", hello }), {
       text: "",
-      title: "つながっています（shj 0.7.0）",
+      title: "つながっています（kisui 0.7.0）",
     });
   });
 

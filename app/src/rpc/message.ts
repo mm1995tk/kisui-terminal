@@ -4,7 +4,7 @@
 /** JSON-RPC のバージョン文字列。 */
 export const VERSION = "2.0";
 
-/** 始まりの目印。ssh のログインシェルが出す motd などを読み捨てるために、shj attach が最初に 1 行出す。 */
+/** 始まりの目印。ssh のログインシェルが出す motd などを読み捨てるために、kisui attach が最初に 1 行出す。 */
 export const MARKER = "@@shj-rpc 1@@";
 
 /** 標準のエラーコードと、このプロトコル独自のエラーコード（設計書 3 章の表）。 */

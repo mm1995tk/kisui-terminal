@@ -18,7 +18,7 @@ export interface ClosedEvent {
 export interface InstallPlan {
   /** GUI の版 */
   version: string;
-  /** リモートに置く場所（`~/.cache/shijimi-editor/<版>/shj`。PATH の shj ではない） */
+  /** リモートに置く場所（`~/.cache/shijimi-editor/<版>/kisui`。PATH の kisui ではない） */
   path: string;
   /** 取ってくる GitHub Release のページ */
   release_url: string;
@@ -34,8 +34,8 @@ export interface InstallResult {
   sha256: string;
 }
 
-/** shj が無いとき、`ssh host -- <shj> attach` がこの終了コードで終わる（殻の EXIT_SHJ_MISSING と同じ値）。 */
-export const EXIT_SHJ_MISSING = 97;
+/** kisui が無いとき、`ssh host -- <kisui> attach` がこの終了コードで終わる（殻の EXIT_KISUI_MISSING と同じ値）。 */
+export const EXIT_KISUI_MISSING = 97;
 
 export type Unlisten = () => void;
 
@@ -54,7 +54,7 @@ export interface ShellApi {
   /** 入れるものの説明（ユーザーに聞く前に見せる） */
   installPlan(): Promise<InstallPlan>;
   /**
-   * リモートに shj を入れる。ユーザーが「入れる」と答えたあとにだけ呼ぶこと（ここでは聞かない）。
+   * リモートに kisui を入れる。ユーザーが「入れる」と答えたあとにだけ呼ぶこと（ここでは聞かない）。
    * id は askpass の質問の宛先。取得した実行ファイルの SHA-256 と、リモートに置いた後の SHA-256 が
    * checksums と合わなければ、入れずに失敗する。
    */
@@ -68,5 +68,5 @@ export interface ShellApi {
   onAskpassDone(h: (requestId: number) => void): Promise<Unlisten>;
 }
 
-/** 「ローカル」。ssh を挟まず shj attach を直接起動する。ssh のホスト名とは取り違えない形にしてある。 */
+/** 「ローカル」。ssh を挟まず kisui attach を直接起動する。ssh のホスト名とは取り違えない形にしてある。 */
 export const LOCAL = "@local";

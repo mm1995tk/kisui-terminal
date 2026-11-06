@@ -8,9 +8,8 @@ import (
 )
 
 // KisuiMain runs the kisui command with the arguments in os.Args. kisui is
-// the server of the GUI: "kisui serve" and "kisui attach" do what "shj serve"
-// and "shj attach" do, and share their socket, lock and log, so the two
-// servers never run at the same time.
+// the server of the GUI: "kisui serve" is the headless server and "kisui attach"
+// the bridge to it (shj has neither).
 func KisuiMain() {
 	if len(os.Args) < 2 {
 		kisuiUsage()

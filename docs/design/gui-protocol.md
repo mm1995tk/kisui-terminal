@@ -7,16 +7,16 @@ Issue #270 の設計書（親は #271）。決めるのは次の 2 つ。
 
 この文書は設計だけで、コードは変えない。実装は末尾の一覧を Issue にして進める。画面のデザインは扱わない（ユーザーと決めたモックを使う）。
 
-**2026-11-06 の方針変更（#549〜#557）**：GUI はターミナルマルチプレクサ（マシン・ワークスペース・ターミナルの欄・ファイルツリー）を受け持ち、編集は GUI のターミナルの欄の中で TUI の `shj` を動かして行う。TUI と GUI の機能を揃える方式はやめた。#557 で、GUI のファイルの欄（編集画面）と、それを支えた `shj serve` の中の編集の部品（ワークスペースごとの `core`、画面と入力のプロトコル、制御用ソケットと Claude Code 連携、言語サーバーと整形の起動）を外した。プロトコルの `major` は 4。この文書の画面（`Screen`）を GUI へ送る話は、外したものを「（#557 で外した）」と書いて残し、今もある部分と区別する。
+**2026-11-06 の方針変更（#549〜#557）**：GUI はターミナルマルチプレクサ（マシン・ワークスペース・ターミナルの欄・ファイルツリー）を受け持ち、編集は GUI のターミナルの欄の中で TUI の `shj` を動かして行う。TUI と GUI の機能を揃える方式はやめた。#557 で、GUI のファイルの欄（編集画面）と、それを支えた `kisui serve` の中の編集の部品（ワークスペースごとの `core`、画面と入力のプロトコル、制御用ソケットと Claude Code 連携、言語サーバーと整形の起動）を外した。プロトコルの `major` は 4。この文書の画面（`Screen`）を GUI へ送る話は、外したものを「（#557 で外した）」と書いて残し、今もある部分と区別する。
 
 ## 方針（決まっていること）
 
 - GUI の殻は Tauri。画面は Web（WebView）。対応 OS は Linux と macOS。
 - 中身の shj は Go のまま。将来 GPU で描くネイティブの画面にするときは、画面を描く部分だけを Rust で作り、shj とはこのプロトコルでつなぐ。だからプロトコルは Web にもネイティブにも使える形にする（ブラウザの API や DOM を前提にしない）。
-- 編集は GUI のターミナルの欄（プライマリ）の中で動く TUI の `shj` がする。GUI は編集画面を持たず、キーやマウスを `shj serve` に送って編集させることもしない。Helix 風のキー操作を GUI で作り直さない（#557）。
+- 編集は GUI のターミナルの欄（プライマリ）の中で動く TUI の `shj` がする。GUI は編集画面を持たず、キーやマウスを `kisui serve` に送って編集させることもしない。Helix 風のキー操作を GUI で作り直さない（#557）。
 - GUI にしかできないもの（動画・ブラウザ）だけを、あとから GUI の欄として足す。
 - 「ローカル」の shj も、リモートと同じプロトコルで話す。
-- TUI は中身（`core`）と同じプロセスで動く。TUI は core の関数を直接呼び、core からの呼び出し（Port）も直接受ける。`shj serve` は `core` を持たない（以前は、同じ境目を JSON-RPC に直すアダプターとして `core` をワークスペースごとに持っていた。#557 で外した）。
+- TUI は中身（`core`）と同じプロセスで動く。TUI は core の関数を直接呼び、core からの呼び出し（Port）も直接受ける。`kisui serve` は `core` を持たない（以前は、同じ境目を JSON-RPC に直すアダプターとして `core` をワークスペースごとに持っていた。#557 で外した）。
 - ターミナルは「画面に何を出すか」に変換しない。PTY の出力をそのまま GUI（coneko-term）に流し、入力もそのまま PTY に流す。
 - GUI を閉じても、リモートの shj とシェルは動き続ける。7 日間（`config.toml` で変更可）どの GUI からもつながらなければ、shj は自分で止まる。
 - 2 台の GUI が同じ shj につないだら、あとからつないだほうに引き継ぐ。
@@ -26,9 +26,9 @@ Issue #270 の設計書（親は #271）。決めるのは次の 2 つ。
 ```
 手元                                      各マシン（「ローカル」も同じ）
 ┌────────────────────┐                   ┌───────────────────────────────────────┐
-│ GUI (Tauri + Web)  │  ssh の標準入出力    │ shj attach ──┐ （ssh が切れたら終わる） │
+│ GUI (Tauri + Web)  │  ssh の標準入出力    │ kisui attach ──┐ （ssh が切れたら終わる） │
 │  ・サイドバー        │ ◀─── JSON-RPC ───▶ │              ▼ Unix ソケット          │
-│  ・ターミナルの欄    │                   │ shj serve （ssh から切り離して動く）   │
+│  ・ターミナルの欄    │                   │ kisui serve （ssh から切り離して動く）   │
 │  ・coneko-term    │                   │  ├ ワークスペース（フォルダ・ターミナル）│
 └────────────────────┘                   │  ├ ターミナル管理（PTY・cwd の監視）    │
                                           │  ├ ツリー・git                        │
@@ -38,13 +38,13 @@ Issue #270 の設計書（親は #271）。決めるのは次の 2 つ。
 プライマリのターミナルの中:  shj  =  core + TUI の描画  （同じプロセス、関数を直接呼ぶ）
 ```
 
-- `shj serve`：画面を持たない（headless）常駐プロセス。編集はせず、ワークスペース・ターミナル・ファイルツリー・プライマリの `shj` との連携だけを持つ。ユーザーごと・チャンネルごと（nightly は別）に 1 つ。
-- `shj attach`：ssh の先で動く小さな橋渡し。標準入出力と `shj serve` の Unix ソケットをつなぐ。ssh が切れると終わるが、`shj serve` は残る。
+- `kisui serve`：画面を持たない（headless）常駐プロセス。編集はせず、ワークスペース・ターミナル・ファイルツリー・プライマリの `shj` との連携だけを持つ。ユーザーごと・チャンネルごと（nightly は別）に 1 つ。
+- `kisui attach`：ssh の先で動く小さな橋渡し。標準入出力と `kisui serve` の Unix ソケットをつなぐ。ssh が切れると終わるが、`kisui serve` は残る。
 - ソケットの置き場所は今の制御用ソケットと同じ作り（`$XDG_RUNTIME_DIR/shijimi-<uid>/`、0700。nightly は `shijimi-nightly-<uid>`）。
 
 ## 1. 中身と TUI の描画の境目
 
-この章は `core` を TUI の描画から切り出したときの設計で、今も TUI の構造として生きている。GUI が `Screen` を受け取る部分（`shj serve` の中のアダプター、GUI の描画）は #557 で外したので、GUI に触れた文は当時の設計の記録として読む。`core/screen` は TUI が描くためのデータとして残る。
+この章は `core` を TUI の描画から切り出したときの設計で、今も TUI の構造として生きている。GUI が `Screen` を受け取る部分（`kisui serve` の中のアダプター、GUI の描画）は #557 で外したので、GUI に触れた文は当時の設計の記録として読む。`core/screen` は TUI が描くためのデータとして残る。
 
 ### 3 つに分ける
 
@@ -58,7 +58,7 @@ Issue #270 の設計書（親は #271）。決めるのは次の 2 つ。
 
 ### core が知る相手は Port だけ
 
-境目は UI の種類によらない形にする。core は 1 つのインターフェース（以下 Port）だけを知り、TUI がそれを満たす（GUI 用のアダプターが `shj serve` の中にあったが、#557 で外した）。UI から core へは `Input` と `core.Screen()`、core から UI へは Port の呼び出しで、どちらも相手が TUI か GUI かで形が変わらない。
+境目は UI の種類によらない形にする。core は 1 つのインターフェース（以下 Port）だけを知り、TUI がそれを満たす（GUI 用のアダプターが `kisui serve` の中にあったが、#557 で外した）。UI から core へは `Input` と `core.Screen()`、core から UI へは Port の呼び出しで、どちらも相手が TUI か GUI かで形が変わらない。
 
 Port のメソッドの条件は 2 つ。
 
@@ -86,7 +86,7 @@ Port は `core/port.go` の `core.Port` で、`WriteClipboard`・`OpenURL`・`Ex
 2. **マス目に変換しない。** 行は「文字列 + スタイルの区間」で表す。文字の幅の計算と、字下げの線の引き方は描く側の仕事（ただしマウスの位置のマス目 → rune の位置の変換だけは `core` が行う。「入力」の節）。ただし見える行数と桁数は GUI が送り（`view.resize`）、スクロールや折り返しは shj が決める。等幅フォントで描く前提。
 3. **領域（region）ごとに分ける。** TUI は全部を並べて描き、GUI は必要な領域だけ受け取る（左の一覧と右下のターミナルは GUI が自前で作るので、`Screen` の購読に入れない）。
 4. **位置は「ペインの中の行と桁」。** 画面全体の座標を持たない。マウスの位置も同じ形で送る。
-5. **文言はキーと値（`msg.Msg`）。** `core` と `screen.Screen` は文言を訳さず、i18n のキーと埋める値（`core/msg`）で持つ。訳すのは UI で、TUI は描くとき、GUI は受け取ったあとに訳す。`shj serve` は `Msg` を訳さずに送り、翻訳の表は `i18n.get` で渡す（「画面の送り方」の表）。`Msg` の JSON は、キーの無い文字だけのもの（ファイル名、他のプログラムの文言）は文字列のまま、それ以外は `{key?, args}`（`args` の要素は文字列・数・真偽、または入れ子の `Msg`。エラーは `Msg` か文字列）。表の `%s`・`%d`・`%q`・`%v`・`%c` は GUI が埋める。`core` が言葉そのものを要るのは、検索の一致・折り返し・エージェントや git に渡す文だけで、そこは Port の `Text` で UI に訳を借りる。
+5. **文言はキーと値（`msg.Msg`）。** `core` と `screen.Screen` は文言を訳さず、i18n のキーと埋める値（`core/msg`）で持つ。訳すのは UI で、TUI は描くとき、GUI は受け取ったあとに訳す。`kisui serve` は `Msg` を訳さずに送り、翻訳の表は `i18n.get` で渡す（「画面の送り方」の表）。`Msg` の JSON は、キーの無い文字だけのもの（ファイル名、他のプログラムの文言）は文字列のまま、それ以外は `{key?, args}`（`args` の要素は文字列・数・真偽、または入れ子の `Msg`。エラーは `Msg` か文字列）。表の `%s`・`%d`・`%q`・`%v`・`%c` は GUI が埋める。`core` が言葉そのものを要るのは、検索の一致・折り返し・エージェントや git に渡す文だけで、そこは Port の `Text` で UI に訳を借りる。
 
 ```go
 // core/screen（イメージ。名前と細部は実装の PR で決める）
@@ -151,7 +151,7 @@ type Line struct {
 | `w`, `h` | TUI | GUI は領域ごとの大きさを `view.resize` で送る。`core` は領域ごとの行数と桁数だけ知る |
 | `focus` | 中身 | 「キーを受ける領域」は `core` が持つ（`Screen.Focus`）。GUI で押した領域は入力に付けて送る |
 | `explorer`, `treeTicks` | 中身 | TUI のツリーの選択・開閉は中身（`core.Explorer`。TUI がそこから自分で描く）。GUI のツリーは `tree.*` で別に取り、開閉は GUI が持つ |
-| `term`, `hd` | どちらでもない | ターミナルはサーバーのターミナル管理（PTY）が持つ。PTY の起動・読み書き・サイズ変更は `ui/internal/term`（`tea`・lipgloss・`vt` を使わない）に出し、TUI は `term.Session` の出力を `vt` に流して描くだけ（`tui.terminal`）。`shj serve` のターミナル管理（`server.termManager`）も起動は `term.Start` を使い、リングバッファと `term.ack` の流量制御は `server` に残す。`hd`（herdr のペイン）と tmux・zellij・cmux のペイン（`mux*.go`）は TUI だけで使う（`core` は知らない） |
+| `term`, `hd` | どちらでもない | ターミナルはサーバーのターミナル管理（PTY）が持つ。PTY の起動・読み書き・サイズ変更は `ui/internal/term`（`tea`・lipgloss・`vt` を使わない）に出し、TUI は `term.Session` の出力を `vt` に流して描くだけ（`tui.terminal`）。`kisui serve` のターミナル管理（`server.termManager`）も起動は `term.Start` を使い、リングバッファと `term.ack` の流量制御は `server` に残す。`hd`（herdr のペイン）と tmux・zellij・cmux のペイン（`mux*.go`）は TUI だけで使う（`core` は知らない） |
 | `proxy` | どちらでもない | ポート転送の管理はサーバー側に 1 つ |
 | `pal` | 中身 | コマンドパレットの状態（`Overlay` に出す） |
 | `wsSyms`, `wsClient` | 中身 | プロジェクトのシンボル選択 |
@@ -208,7 +208,7 @@ P13-08（#384）では、マウスの当たり判定（`handleMouse`・`termMous
 
 P13-09（#385）で `Core` を `core` に移し、分割を終えた。`ui/tui` の `App` は `*core.Core` を埋め込み、`tea.Model`（`Init`・`Update`・`View`。`model.go`）を持つ。`Core` は UI を `core.Port` として持ち、`App` がそれを満たす（`ui/tui/port.go`）。tui が `Core` の公開したフィールドとメソッドを使うので、上に挙げた tui の中の見張り（`TestCoreFields`・`TestCoreMethods`・`TestThemeApplyIsFrontEnd`・`TestFrontEndAsksCore`・`TestStylesStayInTui`・`TestRenderFrameReadsQueries`）はやめた。境界はパッケージで、`core/deps_test.go`（`TestNoTerminalDeps`）が、`core` が bubbletea・lipgloss・`ui/tui` に依存しないことを見張る。`github.com/charmbracelet/x/ansi` は、Markdown プレビューなどで端末のセルの幅を測る所が残るので、まだ例外にしている。tui の中には、lipgloss を import するファイルと `layout` を使うファイルを限る見張り（`ui/tui/split_test.go`）だけが残る。テストは、振る舞い（`Input` を渡して状態を見る）を `core` に、描画・レイアウト・マウスの座標・端末とマルチプレクサを `ui/tui` に置いた。
 
-（この段落は #448 より前の形の説明で、`core.Workspaces`・`core.NewIn` は #557 で外した。ワークスペースの決まり方と消え方の新しい形は「ワークスペース」の節。）P14（#306）で、1 つのプロセスが `core` を複数持てるようにした。プロセス全体で 1 つのもの（ポート転送とシェル連携のファイル）は `core.Shared`（`core/shared.go`）にまとめ、`core.NewIn(shared, …)` で作った `core` はそれを共有する。TUI は今までどおり `core.New` で 1 つだけ作り、`Shared` もその `core` が持つ（`Close` で閉じる）。テーマと表示の言語はもともとプロセス全体の値（`ActivateTheme`・`i18n.SetLang`）。言語は、TUI では `core.New` がそのルートの設定で決め、`shj serve` ではホームの設定で起動時に一度だけ決める（`NewIn` は `SetLang` しない）。`shj serve` は `core.Workspaces`（`core/workspaces.go`）でルートごとに `core` を 1 つ持ち、前面は描く画面がまだ無いので Port は `shj serve` のサーバー（`Workspaces.SetPort`）で、大きさは GUI が送るまで 80 x 24 とする（`newHeadlessCore`）。`core` を作るのは `workspace.focus` のときで、ファイルを開いている間はシェルがいなくてもワークスペースは残り、どちらも無くなったら `core` を止める。サーバーは `core` を import せず、`server.Cores`（`ui/gui/server/cores.go`）を通して `files`・`workspace.close_files` を `core` に尋ねる。`workspace.close_files` は未保存の変更があるファイルを閉じずに残す。止まる前（idle と `server.shutdown`）には `AddBeforeStop` で全部の `core` の未保存の変更を `server.WriteBackup`（`<名前>.bk`）に書く。`core` の `Event` を回す仕組みと、`core` が `server.Workspace`（`ctl`・`ide` の届け先）になるのは、画面の配信（B9）と一緒に入れる。それまでは `Workspace.Do` が 1 つずつ `core` に触らせる。
+（この段落は #448 より前の形の説明で、`core.Workspaces`・`core.NewIn` は #557 で外した。ワークスペースの決まり方と消え方の新しい形は「ワークスペース」の節。）P14（#306）で、1 つのプロセスが `core` を複数持てるようにした。プロセス全体で 1 つのもの（ポート転送とシェル連携のファイル）は `core.Shared`（`core/shared.go`）にまとめ、`core.NewIn(shared, …)` で作った `core` はそれを共有する。TUI は今までどおり `core.New` で 1 つだけ作り、`Shared` もその `core` が持つ（`Close` で閉じる）。テーマと表示の言語はもともとプロセス全体の値（`ActivateTheme`・`i18n.SetLang`）。言語は、TUI では `core.New` がそのルートの設定で決め、`kisui serve` ではホームの設定で起動時に一度だけ決める（`NewIn` は `SetLang` しない）。`kisui serve` は `core.Workspaces`（`core/workspaces.go`）でルートごとに `core` を 1 つ持ち、前面は描く画面がまだ無いので Port は `kisui serve` のサーバー（`Workspaces.SetPort`）で、大きさは GUI が送るまで 80 x 24 とする（`newHeadlessCore`）。`core` を作るのは `workspace.focus` のときで、ファイルを開いている間はシェルがいなくてもワークスペースは残り、どちらも無くなったら `core` を止める。サーバーは `core` を import せず、`server.Cores`（`ui/gui/server/cores.go`）を通して `files`・`workspace.close_files` を `core` に尋ねる。`workspace.close_files` は未保存の変更があるファイルを閉じずに残す。止まる前（idle と `server.shutdown`）には `AddBeforeStop` で全部の `core` の未保存の変更を `server.WriteBackup`（`<名前>.bk`）に書く。`core` の `Event` を回す仕組みと、`core` が `server.Workspace`（`ctl`・`ide` の届け先）になるのは、画面の配信（B9）と一緒に入れる。それまでは `Workspace.Do` が 1 つずつ `core` に触らせる。
 
 ## 2. 分けていく順番
 
@@ -257,7 +257,7 @@ P13-09（#385）で `Core` を `core` に移し、分割を終えた。`ui/tui` 
 - **JSON-RPC 2.0**。要求（`id` あり）・通知（`id` なし）・応答・エラーの形は標準どおり。
 - **ssh の標準入出力の上**で送る。標準入力が GUI → shj、標準出力が shj → GUI。標準エラー出力はログ用で、プロトコルに混ぜない。
 - **分け方（framing）**：最初は「1 行 1 メッセージ」の JSON（改行区切り。JSON の文字列の中の改行は `\n` にエスケープされるので衝突しない。ACP と制御用ソケットと同じ作り）。`session.hello` で `encoding` を決めるので、あとで MessagePack（長さ付き）に変えられる。メソッドとパラメータの形は変えない。
-- **始まりの目印**：ssh で入ると、ログインシェルが標準出力に何か出すことがある（motd など）。`shj attach` は最初に 1 行 `@@shj-rpc 1@@` を出す。GUI はこの行より前を捨てる。
+- **始まりの目印**：ssh で入ると、ログインシェルが標準出力に何か出すことがある（motd など）。`kisui attach` は最初に 1 行 `@@shj-rpc 1@@` を出す。GUI はこの行より前を捨てる。
 - **名前**：`領域.動作`（`session.hello`、`term.input`）。**向き**は「→ shj」（GUI から）と「← GUI」（shj から）で書く。
 - **エラー**：標準のコードに加えて次を使う。
 
@@ -285,11 +285,11 @@ P13-09（#385）で `Core` を `core` に移し、分割を終えた。`ui/tui` 
 - **引き継ぎ**：サーバーが受けつける GUI は常に 1 台。2 台目の `session.hello` が来たら、1 台目に `session.superseded` を送って閉じ、2 台目に引き継ぐ。1 台目が出した返事前の要求は捨てる。閉じ損ねた 1 台目からの要求は `not_owner`。
 - **切れる**：標準入出力が閉じたら、GUI がいなくなったとみなす。状態（ワークスペース、ターミナル）は残り、`lastClientAt` を覚える。
 - **つなぎ直す**：新しい `session.hello` で `resume: {serverId, rev}` を送る。同じ `serverId` なら状態（ワークスペース、ターミナル）が残っているので、ターミナルは `term.attach` で取り直して続けられる。`serverId` が違えば shj が作り直されたので、GUI はワークスペースの一覧から取り直す。
-- **止まる**：`lastClientAt` から 7 日（`config.toml` の `[server] idle_stop_days`、0 で止まらない）つながらなければ、`shj serve` は終わる。つながっている間は止まらない。ターミナルでシェルが動いていても止まる（そのシェルは SIGHUP で終わる）。ワークスペースの一覧は、止まる前に保存して次の起動で作り直す（「ワークスペース」の節の「`shj serve` が止まったあと」）。`[server] idle_stop_days` は `~/.config/shijimi-editor/config.toml` だけで有効。
+- **止まる**：`lastClientAt` から 7 日（`config.toml` の `[server] idle_stop_days`、0 で止まらない）つながらなければ、`kisui serve` は終わる。つながっている間は止まらない。ターミナルでシェルが動いていても止まる（そのシェルは SIGHUP で終わる）。ワークスペースの一覧は、止まる前に保存して次の起動で作り直す（「ワークスペース」の節の「`kisui serve` が止まったあと」）。`[server] idle_stop_days` は `~/.config/shijimi-editor/config.toml` だけで有効。
 
 ### 外したメソッド（#557）
 
-次のメソッドは、GUI のファイルの欄と一緒に外した。`shj serve` は知らないメソッドとして `-32601` を返す。以前の GUI がつなぐと `protocol.major` の食い違い（`incompatible_protocol`）になる。
+次のメソッドは、GUI のファイルの欄と一緒に外した。`kisui serve` は知らないメソッドとして `-32601` を返す。以前の GUI がつなぐと `protocol.major` の食い違い（`incompatible_protocol`）になる。
 
 - 画面：`view.subscribe`・`view.resize`・`screen.get`・`screen.update`・`screen.ack`・`theme.get`・`theme.changed`・`i18n.get`・`i18n.changed`・`blob.get`
 - 入力：`input.key`・`input.composition`・`input.mouse`・`input.paste`・`input.focus`・`command.run`・`file.open`
@@ -341,7 +341,7 @@ P13-09（#385）で `Core` を `core` に移し、分割を終えた。`ui/tui` 
   - 右の欄に出すのは、フォーカスしているワークスペース（無ければ最初につながったマシンの最初のワークスペース）のターミナル。プライマリのシェルが終わったら知らせを出し、Enter で `term.restart` する。画面を外している間や切れている間に終わると `term.exit` が届かないので、付け直し・つなぎ直しのあとに `term.list` で生きているかを確かめ、`term.input`・`term.resize` の `not_found` も終わったものとして扱う。
 - GUI の側（F2）：帯を押して `workspace.focus` が受け付けられたら、そのワークスペースのプライマリターミナル（返事の `termId`）に切り替え、溜めた出力を全部取り直して描く（前のシェルは止めない）。どのワークスペースにも必ずプライマリターミナルがあるので、ターミナルを探して作る処理は要らない。切り替えたターミナルの大きさが画面と違えば `term.resize` で合わせる。
 - GUI の側（F4。`ui/gui/app/src/terminal/group.ts`・`grid.ts`）：右の欄には、フォーカスしているワークスペースのターミナル（プライマリ 1 つと分割したもの。6 個まで）を並べる。プライマリターミナルが 1 つ目の欄。1 個は全体、2 個は左右、3〜4 個は 2×2、5〜6 個は 3×2 で、升目が 1 つ余るとき（3 個・5 個）は最後のターミナルを 2 升ぶんの幅にする。`Ctrl+Shift+T` で `term.create` して足し（6 個なら足さない）キーを向ける。分割したターミナルのシェルが終わったら（`exit`）`term.close` してその欄を閉じ、並び直して隣にキーを向ける。プライマリターミナルのシェルが終わったら、欄を閉じず「Enter で作り直す」を出し、Enter で `term.restart` する。`Ctrl+Shift+矢印` は、キーがターミナルに向いているとき（プライマリ以外の欄を隠していないとき）だけ GUI が受けて隣へ移る。上下は今の欄の左端の列にかかる欄へ移る。今使っている欄は、上端にマシンの色の線を引く（タブの見出しは作らない）。並べたとき（2 つ以上）は、プライマリターミナルの欄の 4 辺にマシンの色の細い枠（1px）も引く（プライマリを使っているときは上端の線と両方）。1 つだけのときは枠を引かない。F2 でワークスペースを移したときは、並べるターミナルがそのワークスペースのものに替わり、今使うのはそのプライマリターミナルになる。
-- GUI の側（プライマリ以外の欄を隠す。`Ctrl+Shift+M`）：そのワークスペースのプライマリで shj が動いている（`primaryShj` が `null` でない）ときだけ、プライマリ以外の欄を隠してプライマリにキーを向け、もう一度押すと戻す。動いていなければ何もしない。隠した欄のターミナルは止めず（欄を作り直さず）、戻せば元の状態で出る。隠している間は右上に隠している数を出す（タブにしない）。状態は GUI だけが持ち（ワークスペースごと。`shj serve` には持たせない）、プライマリの shj が終わった（`primaryShj` が `null` になった）ら隠した欄を出す。`Ctrl+Shift+T` で欄を足すときも先に戻す。`muxBackend` の `hide`・`show`（#553）は `pane.hide`・`pane.show` の通知で同じ状態（App.tsx の `zoomedWs`）を動かす。
+- GUI の側（プライマリ以外の欄を隠す。`Ctrl+Shift+M`）：そのワークスペースのプライマリで shj が動いている（`primaryShj` が `null` でない）ときだけ、プライマリ以外の欄を隠してプライマリにキーを向け、もう一度押すと戻す。動いていなければ何もしない。隠した欄のターミナルは止めず（欄を作り直さず）、戻せば元の状態で出る。隠している間は右上に隠している数を出す（タブにしない）。状態は GUI だけが持ち（ワークスペースごと。`kisui serve` には持たせない）、プライマリの shj が終わった（`primaryShj` が `null` になった）ら隠した欄を出す。`Ctrl+Shift+T` で欄を足すときも先に戻す。`muxBackend` の `hide`・`show`（#553）は `pane.hide`・`pane.show` の通知で同じ状態（App.tsx の `zoomedWs`）を動かす。
 
 ### ワークスペース
 
@@ -365,13 +365,13 @@ P13-09（#385）で `Core` を `core` に移し、分割を終えた。`ui/tui` 
 5. **`cd ~` と `cd /`（ホームと `/` そのもの）では切り替えない**。開いているファイルも閉じない。次にプロジェクトのフォルダへ移ったときに切り替わる。
 6. **分割したターミナルの `cd` は、ワークスペースに何も影響しない**。
 7. **[×] で閉じる**（`workspace.close`）：そのワークスペースのターミナル（プライマリと分割）を全部終わらせる。プログラムが動いているターミナルがあれば `busy` で断り、GUI は「動いているプログラムを終わらせますか」と確認を出してから `force: true` で送り直す。ワークスペースは [×] でしか消えない（シェルがいなくなっても消えない）。
-8. （#557 で要らなくなった）同じファイルを複数のワークスペースで開いたときのバッファの共有は、`shj serve` が `core` を持たなくなったので無い。別々の `shj` が同じファイルを開いたときは、ファイルの変更を検知して読み直す TUI の仕組みに任せる。
-9. **`shj serve` が止まったあと**（7 日の idle 停止・`server.shutdown`）：ワークスペースの一覧（`workspaceId` とそれぞれのフォルダ。フォルダ未定も）をそのマシンのファイルに保存しておき、次に起動したときに作り直す。プライマリターミナルはそのフォルダ（フォルダ未定なら `start_dir`）で自動で作り直す。保存していたフォルダがもう無ければ、フォルダ未定として作り直し、プライマリターミナルは `start_dir` で始める（ワークスペースは消さない）。分割したターミナルは戻さない。保存先は `$XDG_STATE_HOME/shijimi-editor/workspaces.json`（`serve.log` と同じ場所。nightly は別。実装は #450）。
+8. （#557 で要らなくなった）同じファイルを複数のワークスペースで開いたときのバッファの共有は、`kisui serve` が `core` を持たなくなったので無い。別々の `shj` が同じファイルを開いたときは、ファイルの変更を検知して読み直す TUI の仕組みに任せる。
+9. **`kisui serve` が止まったあと**（7 日の idle 停止・`server.shutdown`）：ワークスペースの一覧（`workspaceId` とそれぞれのフォルダ。フォルダ未定も）をそのマシンのファイルに保存しておき、次に起動したときに作り直す。プライマリターミナルはそのフォルダ（フォルダ未定なら `start_dir`）で自動で作り直す。保存していたフォルダがもう無ければ、フォルダ未定として作り直し、プライマリターミナルは `start_dir` で始める（ワークスペースは消さない）。分割したターミナルは戻さない。保存先は `$XDG_STATE_HOME/shijimi-editor/workspaces.json`（`serve.log` と同じ場所。nightly は別。実装は #450）。
 10. **ターミナルの形**（「ターミナル」の節）：ワークスペースごとに、プライマリターミナル 1 つと分割したターミナル 0〜5 個。右の欄に並べるのは、フォーカスしているワークスペースのターミナル。
 11. **プライマリターミナルで `exit` しても、欄を閉じない**。「Enter で作り直す」を出し、Enter でワークスペースのフォルダ（フォルダ未定なら `start_dir`）で新しいシェルを始める（`term.restart`）。分割したターミナルの `exit` は、欄を閉じて並び直す。
-12. **リモートを足す**：サイドバーの一番下は「+ リモートを足す」（herdr の `machine add` のような形）。カードの窓で ssh の行き先（`~/.ssh/config` の候補）と名前（空なら ssh の行き先）を入れる。足すときに ssh でつなぎ（「ssh 越しに shj を起動する」）、`shj` が無ければ確認してから送り、`shj serve` を起動できたらマシンを保存して見出しを出す。つなげなければ理由を出して保存しない（実装は #451）。マシンの一覧は GUI の側（手元）が持つ。shj のプロトコルには出ない。
+12. **リモートを足す**：サイドバーの一番下は「+ リモートを足す」（herdr の `machine add` のような形）。カードの窓で ssh の行き先（`~/.ssh/config` の候補）と名前（空なら ssh の行き先）を入れる。足すときに ssh でつなぎ（「ssh 越しに shj を起動する」）、`shj` が無ければ確認してから送り、`kisui serve` を起動できたらマシンを保存して見出しを出す。つなげなければ理由を出して保存しない（実装は #451）。マシンの一覧は GUI の側（手元）が持つ。shj のプロトコルには出ない。
 13. **サイドバーに出るマシン**は「ローカル」と足したマシンだけ。`~/.ssh/config` のホストを全部並べない（候補に出すだけ）。
-14. **マシンの見出しを右クリック**して「名前を変える」「外す」。外しても、そのマシンの `shj serve` は止めない。
+14. **マシンの見出しを右クリック**して「名前を変える」「外す」。外しても、そのマシンの `kisui serve` は止めない。
 15. **既定のマシン**：手元（GUI を動かしているマシン）の `~/.config/shijimi-editor/config.toml` に書ける。設定ファイルに書いたマシンは、GUI の「外す」「名前を変える」では変えられない（設定ファイルを直す。実装は #453）。
 
     ```toml
@@ -392,7 +392,7 @@ P13-09（#385）で `Core` を `core` に移し、分割を終えた。`ui/tui` 
 4. ただし cwd が `~` か `/` そのものなら、切り替えない（5）。たどる途中で `~` や `/` に着いても、そこはフォルダにしない。
 5. 読むのは 1 秒に 1 回。フォルダが変わったときだけ通知する。（OSC 7 などシェルからの通知を足すのは、1 秒の遅れが気になってからにする）
 
-`shj serve` は `core` を持たない。フォルダが切り替わっても、`shj serve` は一覧のフォルダを書き換えるだけで、編集中のファイルには触らない（編集はプライマリの欄の中の `shj` が行う）。
+`kisui serve` は `core` を持たない。フォルダが切り替わっても、`kisui serve` は一覧のフォルダを書き換えるだけで、編集中のファイルには触らない（編集はプライマリの欄の中の `shj` が行う）。
 
 | メソッド | 向き | パラメータ → 結果 |
 | --- | --- | --- |
@@ -408,33 +408,33 @@ P13-09（#385）で `Core` を `core` に移し、分割を終えた。`ui/tui` 
 
 #### プライマリの shj
 
-GUI はターミナルのマルチプレクサで、編集はプライマリターミナルの中で TUI の `shj` を動かして行う。`shj serve` はワークスペースごとに「プライマリで動いている shj」を 1 つ覚え、`Workspace.primaryShj`（`{socket, pid, file?}`。無ければ `null`）で GUI に知らせる。変わると `workspace.changed` の `updated` で届く。`socket` はその shj の制御用ソケット（`core/ctl`、`<pid>.sock`）の場所。
+GUI はターミナルのマルチプレクサで、編集はプライマリターミナルの中で TUI の `shj` を動かして行う。`kisui serve` はワークスペースごとに「プライマリで動いている shj」を 1 つ覚え、`Workspace.primaryShj`（`{socket, pid, file?}`。無ければ `null`）で GUI に知らせる。変わると `workspace.changed` の `updated` で届く。`socket` はその shj の制御用ソケット（`core/ctl`、`<pid>.sock`）の場所。
 
-- **伝え方**：`shj serve` は、プライマリターミナルのシェルにだけ環境変数 `SHIJIMI_GUI_PRIMARY`（値はそのターミナルの `termId`）を渡す。`workspace.create` のときも `term.restart` のときも。分割したターミナル（`term.create`）には渡さない。
+- **伝え方**：`kisui serve` は、プライマリターミナルのシェルにだけ環境変数 `SHIJIMI_GUI_PRIMARY`（値はそのターミナルの `termId`）を渡す。`workspace.create` のときも `term.restart` のときも。分割したターミナル（`term.create`）には渡さない。
 - **知らせ方**：TUI の `shj` は起動して制御用ソケットを開いたあと、`SHIJIMI_GUI_PRIMARY` があれば `serve-primary.rpc`（`serve.rpc` と同じディレクトリ・ソケットは 0600、ディレクトリは 0700 で同じユーザーだけ。名前が `.sock` で終わらないのは `serve.rpc` と同じ理由）につなぎ、1 行の JSON `{termId, socket, pid}` を送る。返事は 1 行 `{ok: true}` か `{ok: false, error}`。`ok` のあいだ、つなぎっぱなしにする。
-- **終わったことの見分け方**：その接続が切れたら（`shj` が終わった、落ちた、`kill` された）、`shj serve` は `primaryShj` を `null` にする。プロセスの生存は調べない（接続が切れるのは OS がプロセスの終わりに閉じるから）。
+- **終わったことの見分け方**：その接続が切れたら（`shj` が終わった、落ちた、`kill` された）、`kisui serve` は `primaryShj` を `null` にする。プロセスの生存は調べない（接続が切れるのは OS がプロセスの終わりに閉じるから）。
 - **最初の 1 つだけ**：`termId` がプライマリターミナルで、そのワークスペースにまだ `primaryShj` が無いときだけ `ok`。すでにあれば（入れ子の `shj` など）、プライマリでないターミナルなら、`ok: false`。さらに `shj` は名乗ったあと（名乗れなかったときも）自分の環境から `SHIJIMI_GUI_PRIMARY` を消すので、その `shj` が起動するものは名乗りに行かない。最初の `shj` が終わったあとは、次に起動した `shj` が名乗れる。
 - **プライマリでない欄の `shj`**：変数が無いので何も送らず、普通のターミナルで起動したときと同じに動く。単一ファイルのモード（`shj <file>`）の `shj` も制御用ソケットを持たないので名乗らない。
-- **ツリーの出し分け（#550）**：名乗りが `ok` だった `shj` は、自分のエクスプローラー（左の欄のファイルツリー）を出さない。エディタが幅を全部使い、`ツリーへ行くはずのフォーカス（`Ctrl+E`・`Space e`・`:tree`）は、差分モードなら CHANGES に、そうでなければエディタに行き、ツリーは出ない。`Ctrl+B` は差分モードの間だけ CHANGES の欄を出し入れする。左の欄は差分モードの間だけ、CHANGES の一覧だけで出す（`ExplorerShare` は使わず、一覧が欄の高さを全部使う）。差分モードを閉じると欄ごと消える。名乗れなかった `shj`（プライマリでない欄・名乗りを断られた・`shj serve` が無い）は今まで通りツリーを出す。GUI のサイドバーは `primaryShj` が `null` でない間だけ、フォーカスしているワークスペースの帯の下にツリーを出す。`null` なら（`shj` を終えた、まだ起動していない）帯だけを出す。ツリーでファイルを押したときの動きはここでは変えない。
-- **開いているファイルの知らせ方（#551）**：`ok` のあと、`shj` は同じ接続に 1 行ずつ JSON `{file}` を送る（名乗った直後に 1 回と、そのあと出しているファイルが変わるたびに。`file` はフォーカスしているタブのファイル（テキストか画像）の絶対パスで、差分やプレビューで出しているときもそのファイル。タブが無ければ `""`）。`shj serve` は `primaryShj.file` に入れ（`""` なら省く）、変わると `workspace.changed` の `updated` で届く。読めない行や絶対パスでない `file` は捨てる。
+- **ツリーの出し分け（#550）**：名乗りが `ok` だった `shj` は、自分のエクスプローラー（左の欄のファイルツリー）を出さない。エディタが幅を全部使い、`ツリーへ行くはずのフォーカス（`Ctrl+E`・`Space e`・`:tree`）は、差分モードなら CHANGES に、そうでなければエディタに行き、ツリーは出ない。`Ctrl+B` は差分モードの間だけ CHANGES の欄を出し入れする。左の欄は差分モードの間だけ、CHANGES の一覧だけで出す（`ExplorerShare` は使わず、一覧が欄の高さを全部使う）。差分モードを閉じると欄ごと消える。名乗れなかった `shj`（プライマリでない欄・名乗りを断られた・`kisui serve` が無い）は今まで通りツリーを出す。GUI のサイドバーは `primaryShj` が `null` でない間だけ、フォーカスしているワークスペースの帯の下にツリーを出す。`null` なら（`shj` を終えた、まだ起動していない）帯だけを出す。ツリーでファイルを押したときの動きはここでは変えない。
+- **開いているファイルの知らせ方（#551）**：`ok` のあと、`shj` は同じ接続に 1 行ずつ JSON `{file}` を送る（名乗った直後に 1 回と、そのあと出しているファイルが変わるたびに。`file` はフォーカスしているタブのファイル（テキストか画像）の絶対パスで、差分やプレビューで出しているときもそのファイル。タブが無ければ `""`）。`kisui serve` は `primaryShj.file` に入れ（`""` なら省く）、変わると `workspace.changed` の `updated` で届く。読めない行や絶対パスでない `file` は捨てる。
 - **ツリーで押したファイルを開く（#551）**：`shj.open` `{workspaceId, path}` → `{}`（→ shj）。`path` はワークスペースのルートからの相対パスで、`file.open` と同じ検査（`denied`・`not_found`・フォルダは `invalid_params`）をしてから、`primaryShj.socket` の制御用ソケットに `{cmd: "open", path: <絶対パス>}` を送る。`open` は `shj diff <path>` と違って差分モードに入らず、`:open` と同じにジャンプ位置を覚えてファイルを開き、キーをエディタに向ける（`path` は絶対パス。相対パスは断る）。ワークスペースに `primaryShj` が無ければ `not_found`。GUI はツリーのファイルの行を押すと `shj.open` を送り、返事が来たらプライマリターミナルを active にしてキーを向ける（断られたら、帯を押して移れなかったときと同じ所に理由を出す）。`primaryShj` が無いときはツリーを出さないので、何もしない（以前は `file.open` で GUI のファイルの欄に開いていた。#557 で外した）。ツリーの強調する行は `primaryShj.file`。動画のファイルを押したときの動きは「ターミナルでない欄（動画。#555）」。
-- **同じワークスペースのほかのターミナルから届く（#554）**：`shj serve` は、そのワークスペースのどのターミナルにも環境変数 `SHIJIMI_GUI_WORKSPACE`（値は `workspaceId`）を渡す。名乗りが `ok` だった `shj` のソケットへのシンボリックリンクを `<ソケットのディレクトリ>/gui-<workspaceId>/primary.sock`（`ctl.GUILinkPath`。ディレクトリは 0700）に置き、`shj` が終わったら（接続が切れたら）消す。`shj diff`・`shj exec` などは、`SHIJIMI_GUI_WORKSPACE` があってそのリンクが生きていれば、`SHIJIMI_SOCKET` より先にそこへ送る。リンクが無い・切れているとき（プライマリで `shj` が動いていない）は、ふつうの探し方（`SHIJIMI_SOCKET`、herdr のリンク、生きたソケットが 1 つだけならそれ）に任せる。`shj serve` は制御用ソケットも Claude Code 連携も持たず、`SHIJIMI_SOCKET` も IDE の環境変数も渡さないので、見つからなければエラーになる（#557。以前は `shj serve` が受けて、フォーカスしているワークスペースの `core` に回した）。ターミナルの環境変数は起動のあとに変えられないので、ワークスペースの名前だけを環境に入れ、届く先はリンクで引く（herdr の `herdr-<ws>/` と同じ考え方）。Claude Code の IDE 連携は、プライマリの `shj` が書くロックファイルを `/ide` で選ぶ。
+- **同じワークスペースのほかのターミナルから届く（#554）**：`kisui serve` は、そのワークスペースのどのターミナルにも環境変数 `SHIJIMI_GUI_WORKSPACE`（値は `workspaceId`）を渡す。名乗りが `ok` だった `shj` のソケットへのシンボリックリンクを `<ソケットのディレクトリ>/gui-<workspaceId>/primary.sock`（`ctl.GUILinkPath`。ディレクトリは 0700）に置き、`shj` が終わったら（接続が切れたら）消す。`shj diff`・`shj exec` などは、`SHIJIMI_GUI_WORKSPACE` があってそのリンクが生きていれば、`SHIJIMI_SOCKET` より先にそこへ送る。リンクが無い・切れているとき（プライマリで `shj` が動いていない）は、ふつうの探し方（`SHIJIMI_SOCKET`、herdr のリンク、生きたソケットが 1 つだけならそれ）に任せる。`kisui serve` は制御用ソケットも Claude Code 連携も持たず、`SHIJIMI_SOCKET` も IDE の環境変数も渡さないので、見つからなければエラーになる（#557。以前は `kisui serve` が受けて、フォーカスしているワークスペースの `core` に回した）。ターミナルの環境変数は起動のあとに変えられないので、ワークスペースの名前だけを環境に入れ、届く先はリンクで引く（herdr の `herdr-<ws>/` と同じ考え方）。Claude Code の IDE 連携は、プライマリの `shj` が書くロックファイルを `/ide` で選ぶ。
 - **この仕組みの範囲**：ショートカットの出し分けなどは `primaryShj` を見る後続の Issue で行う。
 - **プライマリの shj の欄（#553）**：プライマリの shj は、ターミナルのコマンド（``Ctrl+` ``・`:sh`・`:run`・`:!`・`Space t`・`Space a`）を、herdr の中で動くときと同じように「欄」に出す。`muxBackend` の GUI 版（`ui/tui/gui.go`）で、欄は同じワークスペースの分割したターミナル（`term.create` と同じ上限の 6 個、フォルダは頼んだ cwd、無いかフォルダでなければワークスペースのフォルダ）。置き場所は、`term.create` で足した分割したターミナルと同じ（並びの最後。並べ方は F4 の `grid.ts`）。
   - **頼み方**：名乗りとは別の接続で `serve-primary.rpc` につなぎ、1 行の JSON `ctl.PaneRequest`（`{op, termId, pid, ...}`）を送り、返事 1 行 `ctl.PaneReply`（`{ok, error?, id?, alive?, lines?}`）を受けて切る（herdr が毎回 CLI を呼ぶのと同じ形）。`termId` と `pid` は名乗ったときのもので、そのワークスペースの今の `primaryShj` と合わなければ断る。`op` は `split`（`cwd`・`env` で欄を足し、`id` を返す）・`alive`・`show`（`id`）・`hide`・`send`（`id`・`text`・`enter`。`enter` なら Enter を打つ）・`tail`（`id`・`n`。出力から制御列を取った最後の `n` 行。画面は持たないので近似）・`close`（`id`）。`alive` 以外は、その shj が `split` で作った欄にだけ効く（ほかの欄・プライマリには `ok: false`）。
-  - **見せる・隠す**：GUI の状態なので `shj serve` は持たず、`pane.show`・`pane.hide` を GUI に通知するだけ。`split` も `workspace.changed` のあとに `pane.show` を送る（作ったらその欄に移る）。
+  - **見せる・隠す**：GUI の状態なので `kisui serve` は持たず、`pane.show`・`pane.hide` を GUI に通知するだけ。`split` も `workspace.changed` のあとに `pane.show` を送る（作ったらその欄に移る）。
   - **終わるとき**：名乗りの接続が切れたら（shj が終わった・落ちた）、その shj が作った欄を全部閉じる（`term.close` と同じ）。欄の中のシェルが終わったら、GUI が分割したターミナルとして閉じる（`alive` が偽になり、次の ``Ctrl+` `` で作り直す）。
-  - **選び方**：`[terminal] multiplexer` に `"gui"` を足した。`"auto"` は、`shj serve` がプライマリとして認めた shj なら GUI を使う（親プロセスの tmux などより先。`shj serve` を tmux の中で動かしていても、その shj は GUI の中にいるため）。`"gui"` を明に選んでも、プライマリでなければ内蔵のターミナルを使う（メッセージを出す）。プライマリでない欄の shj は名乗れないので、GUI の欄を使わず内蔵のターミナルのまま。`"none"`・`[experimental] multiplexer` の決まりは変えない。
+  - **選び方**：`[terminal] multiplexer` に `"gui"` を足した。`"auto"` は、`kisui serve` がプライマリとして認めた shj なら GUI を使う（親プロセスの tmux などより先。`kisui serve` を tmux の中で動かしていても、その shj は GUI の中にいるため）。`"gui"` を明に選んでも、プライマリでなければ内蔵のターミナルを使う（メッセージを出す）。プライマリでない欄の shj は名乗れないので、GUI の欄を使わず内蔵のターミナルのまま。`"none"`・`[experimental] multiplexer` の決まりは変えない。
 
 - **ターミナルでない欄（動画 #555・ブラウザ #556）**：ターミナルでは動画を見られないので、プライマリの shj は動画のファイルを開くとき、読まずに GUI に欄を頼む。画像は今まで通り TUI の中に出す（GUI の欄では開かない）。欄の種類を足せる作りにしてあり、ブラウザの欄は同じ作りで足した（下の「ブラウザの欄」）。
-  - **欄の持ち方**：欄はプライマリの shj の持ち物で、`Workspace.extras`（`{id, kind, path, mime, size}`）で届く。`id` は `x1`・`x2` … で、ターミナルの `t…` と混ざらない。`kind` は `"video"` か `"browser"`（ブラウザでは `path`・`mime` が空、`size` が 0 で、`url` に最初に開く URL が入る）。`path` は `shj serve` があるマシンの絶対パス、`mime` は拡張子（`.mp4`・`.m4v`・`.mov`・`.webm`・`.ogv`・`.mkv`）から決めた型、`size` は開いたときの大きさ。変わると `workspace.changed` の `updated` で届く。名乗りの接続が切れたら（shj が終わった）、その shj の欄は全部消える（ターミナルの欄と同じ）。
-  - **開く**：shj の `core` の `OpenFile` が、動画の拡張子で、かつ GUI のプライマリの shj（`core.VideoOpener`。TUI の `App.OpenVideo`）なら、ファイルを読まずに `ctl.PaneRequest` の `{op: "open", kind: "video", path}` を送る（`:open`・ツリー・パレットなど、ファイルを開く道は全部ここを通る）。返事は `id`。`shj serve` は `path` が絶対パスで、動画の拡張子の通常ファイルのときだけ受ける。欄は種類ごとにワークスペースに 1 つで、同じ種類が開いてあれば新しい欄（新しい `id`）と入れ替える（開くたびに升目が増えないように。同じ動画なら欄を作り直して頭から再生する）。升目はターミナルと同じ 6 個までで、プライマリと分割したターミナルと動画の欄を合わせて数える（`term.create` も同じ数え方）。足りなければ `ok: false`（shj は状態行に出す）。`workspace.changed` のあとに `pane.show` `{workspaceId, extraId}` を送る。`op: "show"`・`"close"` は欄の `id` にも効く（`send`・`tail` はターミナルだけ）。
-  - **中身**：`media.read` `{workspaceId, id, offset?, length?}` → `{mime, size, data (base64), eof}`（→ shj）。`blob.get` と同じ形で、1 回に返すのは 4 MiB まで、大きさは読むたびに調べる。`shj serve` が読めるのは今 `extras` にある欄のファイルだけで、ほかの `id` は `not_found`。ssh の向こうの動画も、shj との同じ接続の上で GUI に届く（別のポートは要らない）。
+  - **欄の持ち方**：欄はプライマリの shj の持ち物で、`Workspace.extras`（`{id, kind, path, mime, size}`）で届く。`id` は `x1`・`x2` … で、ターミナルの `t…` と混ざらない。`kind` は `"video"` か `"browser"`（ブラウザでは `path`・`mime` が空、`size` が 0 で、`url` に最初に開く URL が入る）。`path` は `kisui serve` があるマシンの絶対パス、`mime` は拡張子（`.mp4`・`.m4v`・`.mov`・`.webm`・`.ogv`・`.mkv`）から決めた型、`size` は開いたときの大きさ。変わると `workspace.changed` の `updated` で届く。名乗りの接続が切れたら（shj が終わった）、その shj の欄は全部消える（ターミナルの欄と同じ）。
+  - **開く**：shj の `core` の `OpenFile` が、動画の拡張子で、かつ GUI のプライマリの shj（`core.VideoOpener`。TUI の `App.OpenVideo`）なら、ファイルを読まずに `ctl.PaneRequest` の `{op: "open", kind: "video", path}` を送る（`:open`・ツリー・パレットなど、ファイルを開く道は全部ここを通る）。返事は `id`。`kisui serve` は `path` が絶対パスで、動画の拡張子の通常ファイルのときだけ受ける。欄は種類ごとにワークスペースに 1 つで、同じ種類が開いてあれば新しい欄（新しい `id`）と入れ替える（開くたびに升目が増えないように。同じ動画なら欄を作り直して頭から再生する）。升目はターミナルと同じ 6 個までで、プライマリと分割したターミナルと動画の欄を合わせて数える（`term.create` も同じ数え方）。足りなければ `ok: false`（shj は状態行に出す）。`workspace.changed` のあとに `pane.show` `{workspaceId, extraId}` を送る。`op: "show"`・`"close"` は欄の `id` にも効く（`send`・`tail` はターミナルだけ）。
+  - **中身**：`media.read` `{workspaceId, id, offset?, length?}` → `{mime, size, data (base64), eof}`（→ shj）。`blob.get` と同じ形で、1 回に返すのは 4 MiB まで、大きさは読むたびに調べる。`kisui serve` が読めるのは今 `extras` にある欄のファイルだけで、ほかの `id` は `not_found`。ssh の向こうの動画も、shj との同じ接続の上で GUI に届く（別のポートは要らない）。
   - **閉じる**：GUI の欄の × と `Cmd+W` は `extra.close` `{workspaceId, id}` → `{}`（→ shj）。shj からも `op: "close"` で閉じられる。GUI は送ったあと、`shj` の一覧から消えるまでその欄を並べ直さない。
   - **GUI の側**：欄はターミナルと同じ升目に、ターミナルの後ろに並ぶ（`terminal/group.ts`・`TerminalGrid.tsx`。タブにはしない）。`pane.show` の `extraId` が来たら、隠していれば戻し、その欄にキーを向ける。ツリーで押したファイルの `shj.open` の返事は、その間に動画の欄が出ていたら、プライマリにキーを奪い返さない。`Ctrl+Shift+M`（隠す）と `Ctrl+Shift+矢印`（隣へ）はターミナルの欄と同じに動画の欄にも効く。
   - **再生**（`terminal/media.ts`・`VideoView.tsx`）：WebView の `<video>` に範囲を指して渡す道（独自のスキームや Service Worker）が使えないので、`media.read` を `eof` まで繰り返して 1 つの `Blob` にして渡す。取る前に `size` を見て、512 MiB を超える動画は取らず、欄にその理由を出す。キーは欄にキーが向いているときだけ受け（空白・`k` は再生と停止、`←`・`→` は 5 秒、`j`・`l` は 10 秒、`m` は消音）、Ctrl・Alt・Meta を押したキー（GUI のショートカット）は止めない。WebView が対応していない形式（WebKit の `.mkv` など）は「再生できません」と出す。
   - **プライマリでない欄の shj**：`VideoOpener` を持たないので、今まで通り（動画の欄は使わない）。
-  - **ブラウザの欄（#556）**：GUI のプライマリの shj の `App.OpenURL`（`:open-url`・`Space o`・`Space v o` が通る）が、外部ブラウザの代わりに `ctl.PaneRequest` の `{op: "open", kind: "browser", url}` を送る。`shj serve` は `url` が http か https で、host があり、ユーザー名・パスワードを含まず、制御文字を含まず、4096 バイト以下のときだけ受け、`extras` に `{id, kind: "browser", url}` を足す（返事・`pane.show`・升目の数え方・閉じ方は動画と同じ）。`media.read` はブラウザの欄には `invalid_params`。ページは `shj serve` を通らない：GUI が手元の webview で開く（殻の命令は `browser_open`・`browser_bounds`・`browser_visible`・`browser_go`・`browser_nav`・`browser_close` と、`browser-url` イベント。設計は browser-and-proxy.md の「GUI のブラウザの欄」）。
+  - **ブラウザの欄（#556）**：GUI のプライマリの shj の `App.OpenURL`（`:open-url`・`Space o`・`Space v o` が通る）が、外部ブラウザの代わりに `ctl.PaneRequest` の `{op: "open", kind: "browser", url}` を送る。`kisui serve` は `url` が http か https で、host があり、ユーザー名・パスワードを含まず、制御文字を含まず、4096 バイト以下のときだけ受け、`extras` に `{id, kind: "browser", url}` を足す（返事・`pane.show`・升目の数え方・閉じ方は動画と同じ）。`media.read` はブラウザの欄には `invalid_params`。ページは `kisui serve` を通らない：GUI が手元の webview で開く（殻の命令は `browser_open`・`browser_bounds`・`browser_visible`・`browser_go`・`browser_nav`・`browser_close` と、`browser-url` イベント。設計は browser-and-proxy.md の「GUI のブラウザの欄」）。
 
 
 ### ファイルのツリー
@@ -459,27 +459,27 @@ GUI は複数のワークスペースのツリーを（開閉の状態を持っ�
 - GUI でツリーの行を右クリックすると、メニューを出す（`ui/gui/app/src/tree/menu.ts`・`TreeMenu.tsx`）。ファイルは「名前をコピー」「相対パスをコピー」「絶対パスをコピー」「名前の変更」「削除」、フォルダはそれに「新しいファイル」「新しいフォルダ」「ここへ移動」を足す。新規・名前の変更は、ワークスペースのフォルダからのパスを入れる窓（`tree.create`・`tree.rename`。新しいファイルは作ったら `shj.open` で開く＝TUI の `a` `A` `r` と同じ）、削除は確認の窓（`tree.delete`。TUI の `d` と同じ）。断られたら窓を開いたまま理由を出す。
 - 「ここへ移動」と、ツリーの上の「親のフォルダへ」は、そのワークスペースのプライマリターミナルに `term.cd` で `cd -- '<絶対パス>'` と `cd ..` を送る（フォルダはプライマリターミナルの cwd で決まるので、シェルが `cd` すればツリーも切り替わる）。パスの引用と、入力の途中の行を消す処理は shj がする。シェルのほかにプログラムが動いているときは `busy` で断られ、GUI は理由を出して何もしない。
 
-### ssh 越しに shj を起動する
+### ssh 越しに kisui を起動する
 
 GUI はシステムの `ssh` を子プロセスとして起動する（`~/.ssh/config` と ssh-agent をそのまま使うため）。ssh がパスワードや 2 段階認証を求めるときは `SSH_ASKPASS` で GUI の窓に出す。
 
-1. **shj の場所**：`~/.cache/shijimi-editor/<GUI の版>/shj`。無ければ、PATH、次によく使う場所（`~/.nix-profile/bin`・`/etc/profiles/per-user/$USER/bin`・`/run/current-system/sw/bin`・`/opt/homebrew/bin`・`/usr/local/bin`・`~/.local/bin` など。ssh が動かす非対話・非ログインのシェルの PATH には Nix のプロファイルが入っていないことがあるため）の `shj`（nightly 版の GUI は `shj-nightly` を先に）のうち、`--version` が GUI と同じ版（nightly はコミットまで同じ）のものを使う。版の違う shj や `attach` を持たない古い shj は使わない。同じ版がどこにも無ければ、ユーザーに聞いてから GUI が転送する。PATH の `shj` には触らない。リモートの OS とアーキテクチャは `uname -sm` で調べ、合う実行ファイルを GitHub Releases から GUI が取って送る。取ったら送る前に、GitHub Releases の checksums（Release に上げる `SHA256SUMS`。`sha256sum` の形式）にある SHA-256 と、取得した実行ファイルを比べる（取得の段階の確認。合わなければ ssh を起動する前に捨てる）。リモートに置いたファイルも同じ値かを確かめる（転送の壊れの確認。リモートで一時ファイルの SHA-256 を計り、合ったときだけ `shj` の名前にする）。shj が無いことは、2 のコマンドの終了コード 97 で知る（`ssh` 自身の失敗は 255）。nightly 版の GUI は、動くタグ `nightly` の `shj-nightly-<os>-<cpu>` を取る。
-2. **つなぐ**：`ssh -T host -- sh -c '<1 の順に探し、無ければ exit 97。あれば exec <shj> attach>'`（ログインシェルが fish などでも動くよう `sh -c` で包む。環境変数 `SHIJIMI_REMOTE_SHJ` で場所を指定したときは、その場所だけを見て `command -v <shj> >/dev/null 2>&1 || exit 97; <shj> attach`）（`-T` は端末を割り当てない）。ユーザーの `ssh_config`（`ControlMaster` など）はそのまま効く。
-3. **`shj attach` がすること**（リモートで動く橋渡し）：
+1. **kisui の場所**：`~/.cache/shijimi-editor/<GUI の版>/kisui` だけ。リモートの PATH の `kisui` は使わない（GUI と同じ版しか使わないため。`SHIJIMI_REMOTE_KISUI` で場所を手で指定したときを除く）。無ければ、ユーザーに聞いてから GUI が転送する。PATH の `kisui` には触らない。リモートの OS とアーキテクチャは `uname -sm` で調べ、合う実行ファイルを GitHub Releases から GUI が取って送る。取ったら送る前に、GitHub Releases の checksums（Release に上げる `SHA256SUMS`。`sha256sum` の形式）にある SHA-256 と、取得した実行ファイルを比べる（取得の段階の確認。合わなければ ssh を起動する前に捨てる）。リモートに置いたファイルも同じ値かを確かめる（転送の壊れの確認。リモートで一時ファイルの SHA-256 を計り、合ったときだけ `kisui` の名前にする）。kisui が無いことは、2 のコマンドの終了コード 97 で知る（`ssh` 自身の失敗は 255）。nightly 版の GUI は、動くタグ `nightly` の `kisui-nightly-<os>-<cpu>` を取る。
+2. **つなぐ**：`ssh -T host -- sh -c '<1 の場所に kisui があれば exec <kisui> attach、無ければ exit 97>'`（ログインシェルが fish などでも動くよう `sh -c` で包む。環境変数 `SHIJIMI_REMOTE_KISUI` で場所を指定したときは、その場所だけを見て `command -v <kisui> >/dev/null 2>&1 || exit 97; <kisui> attach`）（`-T` は端末を割り当てない）。ユーザーの `ssh_config`（`ControlMaster` など）はそのまま効く。
+3. **`kisui attach` がすること**（リモートで動く橋渡し）：
    1. 標準出力に `@@shj-rpc 1@@` を出す。
-   2. ソケットのフォルダを見て、`shj serve` が動いていれば、その Unix ソケットにつなぐ。**すでに動いている shj につなぎ直す方法はこれ。** ssh のたびに新しい shj は起動しない。
-   3. 動いていなければ、`shj serve` を切り離して起動する（`setsid`。標準入出力は閉じ、ログはファイルへ）。ソケットができるまで（最大 5 秒）待ってつなぐ。2 台の GUI が同時に起動しても 1 つになるよう、ソケットのフォルダの中のロックファイル（`flock`）を使う。
+   2. ソケットのフォルダを見て、`kisui serve` が動いていれば、その Unix ソケットにつなぐ。**すでに動いている shj につなぎ直す方法はこれ。** ssh のたびに新しい shj は起動しない。
+   3. 動いていなければ、`kisui serve` を切り離して起動する（`setsid`。標準入出力は閉じ、ログはファイルへ）。ソケットができるまで（最大 5 秒）待ってつなぐ。2 台の GUI が同時に起動しても 1 つになるよう、ソケットのフォルダの中のロックファイル（`flock`）を使う。
    4. 標準入出力とソケットの間を、バイトのままコピーする（プロトコルは解釈しない）。どちらかが閉じたら終わる。
-4. **「ローカル」**：`ssh` を挟まず、GUI が同じ `shj attach` を直接起動する。Finder や Dock から起動した macOS のアプリはログインシェルの PATH を引き継がないので、起動のときにログインシェル（`$SHELL -l -i -c`、5 秒で諦める）に PATH を聞き、GUI の PATH と 1 のよく使う場所を足した PATH で `shj` を探す（環境変数 `SHIJIMI_SHJ` があればそれを使う。nightly 版の GUI は `shj-nightly` を先に。入れる手段が無いので版は確かめない）。待つのはメインスレッドの外（`connect` は async のコマンド）。`shj attach` にもこの PATH を渡す（`shj serve` の中のターミナルが引き継ぐ）。
+4. **「ローカル」**：`ssh` を挟まず、GUI が、自分と一緒に配った `kisui`（AppImage の `usr/bin/kisui`、.app の `Contents/MacOS/kisui`、Nix のパッケージの `../libexec/kisui`。環境変数 `SHIJIMI_KISUI` があればそれを使う）の `kisui attach` を直接起動する。PATH の `kisui` や `shj` は探さない（GUI と同じ版しか使わない）。Finder や Dock から起動した macOS のアプリはログインシェルの PATH を引き継がないので、起動のときにログインシェル（`$SHELL -l -i -c`、5 秒で諦める）に PATH を聞き、GUI の PATH とよく使う場所（`~/.nix-profile/bin`・`/opt/homebrew/bin`・`/usr/local/bin`・`~/.local/bin` など）を足して、`kisui attach` に渡す（`kisui serve` の中のターミナルが `shj` などを見つけるため）。待つのはメインスレッドの外（`connect` は async のコマンド）。`kisui attach` にもこの PATH を渡す（`kisui serve` の中のターミナルが引き継ぐ）。
 5. **版が違う shj が動いていたら**：`session.hello` の結果で GUI が気づく（前の節）。`attach` は版が違っても動いているサーバーにつなぐ（勝手に入れ替えない）。
 
-セキュリティ：Unix ソケットは 0700 のフォルダの中（自分のユーザーだけ）。`shj serve` はネットワークに待ち受けない。リモートの認証は ssh に任せる。`shj attach` の段階で追加の認証はしない（同じユーザーなら元々シェルを開ける）。
+セキュリティ：Unix ソケットは 0700 のフォルダの中（自分のユーザーだけ）。`kisui serve` はネットワークに待ち受けない。リモートの認証は ssh に任せる。`kisui attach` の段階で追加の認証はしない（同じユーザーなら元々シェルを開ける）。
 
-### サーバーモード（`shj serve`）の中身
+### サーバーモード（`kisui serve`）の中身
 
-- `shj serve` は `core` を持たない（P14 の `core.Workspaces` は #557 で外した）。持つのは、ワークスペース・ターミナル・ファイルツリー（`tree.*`・`git.*`）・プライマリの `shj` との連携（`serve-primary.rpc`）だけ。
-- 制御用ソケット（`ctl`）と Claude Code 連携（`ide`）は持たない。`shj diff`・`shj exec` は、プライマリの `shj` のソケットへ届く（「プライマリの shj」の節）。言語サーバーと整形も `shj serve` では起動しない（direnv の環境を読む処理は、編集が `shj serve` の外に出たので要らなくなり、外した）。
-- `core.Port` は `shj serve` が満たさない。クリップボードへの書き込み（OSC 52）と URL を開く操作は、プライマリの `shj` の端末が GUI の coneko-term に送る。
+- `kisui serve` は `core` を持たない（P14 の `core.Workspaces` は #557 で外した）。持つのは、ワークスペース・ターミナル・ファイルツリー（`tree.*`・`git.*`）・プライマリの `shj` との連携（`serve-primary.rpc`）だけ。
+- 制御用ソケット（`ctl`）と Claude Code 連携（`ide`）は持たない。`shj diff`・`shj exec` は、プライマリの `shj` のソケットへ届く（「プライマリの shj」の節）。言語サーバーと整形も `kisui serve` では起動しない（direnv の環境を読む処理は、編集が `kisui serve` の外に出たので要らなくなり、外した）。
+- `core.Port` は `kisui serve` が満たさない。クリップボードへの書き込み（OSC 52）と URL を開く操作は、プライマリの `shj` の端末が GUI の coneko-term に送る。
 - ログは `$XDG_STATE_HOME/shijimi-editor/serve.log`（無ければ `~/.local/state/…`）。サイズが 10 MiB を超えたら先頭を捨てる。
 
 ### GUI の配り方と自動更新（C8）
@@ -498,13 +498,13 @@ GUI はシステムの `ssh` を子プロセスとして起動する（`~/.ssh/c
 ## 5. 決めたことと理由
 
 - **ターミナルは `Screen` に入れない**：`ui/tui/vt` を GUI に持ち込まず、coneko-term の機能をそのまま使える。
-- **GUI の編集画面を外し、編集はプライマリの欄の中の `shj` に任せる（#557）**：TUI と GUI で同じ画面を 2 回作り続けないため。GUI がファイルの欄で `Screen` を描き、キー・IME・マウス・貼り付けを作り直す方式は、TUI に機能が増えるたびに GUI も直す必要があり、揃え続けられなかった。GUI はマシン・ワークスペース・ターミナルの欄・ファイルツリー（マルチプレクサ）に絞り、GUI にしかできないもの（動画・ブラウザ）だけを欄として足す。外すと、`shj serve` が持っていた編集の部品（ワークスペースごとの `core`、画面と入力のメソッド、制御用ソケット、Claude Code 連携、言語サーバーと整形の起動、未保存の編集の `.bk`）も要らなくなる。
+- **GUI の編集画面を外し、編集はプライマリの欄の中の `shj` に任せる（#557）**：TUI と GUI で同じ画面を 2 回作り続けないため。GUI がファイルの欄で `Screen` を描き、キー・IME・マウス・貼り付けを作り直す方式は、TUI に機能が増えるたびに GUI も直す必要があり、揃え続けられなかった。GUI はマシン・ワークスペース・ターミナルの欄・ファイルツリー（マルチプレクサ）に絞り、GUI にしかできないもの（動画・ブラウザ）だけを欄として足す。外すと、`kisui serve` が持っていた編集の部品（ワークスペースごとの `core`、画面と入力のメソッド、制御用ソケット、Claude Code 連携、言語サーバーと整形の起動、未保存の編集の `.bk`）も要らなくなる。
 - **`protocol.major` を 4 に上げる（#557）**：`view.*`・`screen.*`・`input.*` などを外し、`Workspace.files` を消すため。古い GUI は `incompatible_protocol` になり、GUI が新しい `shj` を入れる流れに乗る（動かない画面を出さない）。
 - **`Cmd+J`・``Ctrl+Shift+` `` を外す（#557）**：IDE モードとターミナルモードの切り替えが無くなったので、押すものが無い。右の欄は全部ターミナル（自動で並べる）で、隠す・出すは `Ctrl+Shift+M`（Mac は `Cmd+Shift+Enter`）。
 - **`Alt+R` は GUI が受けてサイドバーの境界だけを動かす（#557）**：以前は `core` がリサイズモードに入り、GUI に `resize.start` を送っていた。`core` が無いので GUI が直接入る。動かせる境界は、サイドバーとその右のターミナルの間だけになった（ファイルの欄とターミナルの境界、差分とプレビューの分割は無くなった）。
-- **`[editor.auto-save] on-switch` を必須にしない（#557）**：`shj serve` が開いているファイルをどうするかを決めるためだけの設定だった。自動保存を切っても書かなくてよくなり、書いてある設定ファイルが読めなくなるのは避けたいので、値の検査はそのまま残して使わない。
+- **`[editor.auto-save] on-switch` を必須にしない（#557）**：`kisui serve` が開いているファイルをどうするかを決めるためだけの設定だった。自動保存を切っても書かなくてよくなり、書いてある設定ファイルが読めなくなるのは避けたいので、値の検査はそのまま残して使わない。
 - **ツリーは GUI が持つ状態なので、`Screen` と別の API**：GUI は複数のワークスペースのツリーを同時に持ち、開閉は GUI の状態だから。
-- **`shj attach` と `shj serve` を分ける**：ssh が切れても状態を残し、つなぎ直しを同じ流れ（`attach` を再実行）にするため。
+- **`kisui attach` と `kisui serve` を分ける**：ssh が切れても状態を残し、つなぎ直しを同じ流れ（`attach` を再実行）にするため。
 - **framing は改行区切りの JSON**：ssh の標準入出力に載せやすく、ACP・制御用ソケットと同じ。MessagePack にするときは長さ付きにする。
 - **版が違う shj を勝手に入れ替えない**：動いているシェルが消えるため。
 - **ワークスペースの消え方**：[×]（`workspace.close`）でしか消えない。シェルがいなくなっても、ファイルが無くなっても消えない。理由：`cd` はプロジェクトの切り替えで、フォルダが変わるのはワークスペースが替わるのではなく同じ作業の場所が移るだけ。前の設計（シェルもファイルも無くなったら消える）は、`cd ~` や `exit` で、並べたワークスペースが勝手に消えてサイドバーの並びが動いた。ユーザーが作ったものは、ユーザーが閉じるまで残す。
@@ -515,7 +515,7 @@ GUI はシステムの `ssh` を子プロセスとして起動する（`~/.ssh/c
 - **プライマリターミナルと分割したターミナル**：どのワークスペースにも、フォルダを決める 1 つのシェルが必ずある（フォルダ未定でも）。プライマリターミナルの `exit` で欄を閉じないのは、閉じるとフォルダを決めるシェルがいなくなり、右の欄の 1 つ目が空になるため。
 - **`protocol.major` を上げる**：`workspaceId` の作り方、`term.create` の形、`workspace.list` の形が変わり、古い GUI は正しく動かないため。
 - **`workspace.close_files`・`term.cwd` は消す**：前者は「帯だけ残してファイルを閉じる」ためのもので、ワークスペースが勝手に消えなくなったので要らない。後者は、どのターミナルの cwd でもワークスペースが決まった前の設計のためのもの。
-- **マシンの一覧は GUI が持つ**：`shj serve` はマシンの一覧を知らない（自分のマシンのことしか知らない）。「ローカル」の shj も、足した ssh の先の shj も、同じプロトコルで同じように話す。
+- **マシンの一覧は GUI が持つ**：`kisui serve` はマシンの一覧を知らない（自分のマシンのことしか知らない）。「ローカル」の shj も、足した ssh の先の shj も、同じプロトコルで同じように話す。
 - **設定ファイルの間違いで起動しない**：知らない項目を黙って捨てると、`start_dir` のつづりを間違えたときに `~` で始まり、原因が分からない。
 - **名前の無いファイルを作らない**：ワークスペースがフォルダ未定にもなるので、名前の無いファイルの保存先が決まらない。
 - **core と UI の境目は UI の違いを知らない形にする**：core が TUI 専用の機能（ターミナルのパネル、マルチプレクサ、境目のドラッグ、OSC 52、レイアウトの状態）を持つと、別の UI がそれを空の実装で埋めることになり、core が UI の違いを知ってしまう。UI が増えたり変わったりするたびに core を直すことにもなる。そのため core は Port（「1. 中身と TUI の描画の境目」の「core が知る相手は Port だけ」）だけを知り、TUI 専用のものは tui に出す。Port のメソッドは、どの UI でも同じ意味で、戻り値を待たない形に限る。
@@ -534,7 +534,7 @@ GUI はシステムの `ssh` を子プロセスとして起動する（`~/.ssh/c
 | #447 | 名前の無いファイルを作れなくする（`:new` に名前を必須にする） | 18 |
 | #448 | shj：ワークスペースをフォルダから切り離し、プライマリターミナルの `cd` でフォルダを切り替える（`workspace.create`・`workspace.close`・`term.restart`、`protocol.major` を上げる） | 1〜7、10、11 |
 | #449 | 同じファイルを複数のワークスペースで開いたら、メモリの写しを 1 つにして共有する（#557 で不要になった） | 8 |
-| #450 | shj serve：ワークスペースの一覧を保存し、次に起動したときに戻す | 9 |
+| #450 | kisui serve：ワークスペースの一覧を保存し、次に起動したときに戻す | 9 |
 | #451 | GUI：「ホストを開く」を「+ マシンを足す」にし、足したマシンだけをサイドバーに出す | 12〜14、16 |
 | #452 | GUI：マシンの見出しの [+] でワークスペースを作り、[×] で閉じ、ターミナルをワークスペースごとに出す | 2、7、10、11 |
 | #453 | GUI：手元の `config.toml` の `[[gui.machines]]` で既定のマシンを出す | 15 |
@@ -548,8 +548,8 @@ GUI はシステムの `ssh` を子プロセスとして起動する（`~/.ssh/c
 | ID | タイトル | 依存 | 中身 |
 | --- | --- | --- | --- |
 | B1 | `ui/gui/rpc`：JSON-RPC の型とメッセージの読み書き | なし | 改行区切りの JSON、要求・通知・応答・エラー、`encoding` の差し替え口、テスト用のパイプ |
-| B2 | `shj serve`：`session.hello` / `bye` / `ping` / `server.info` | B1 | 画面を持たないプロセス、Unix ソケット、版の確認、`serverId` |
-| B3 | `shj attach`：切り離して起動する・つなぎ直す・橋渡し | B2 | `@@shj-rpc 1@@`、`setsid`、`flock`、ソケットへのコピー |
+| B2 | `kisui serve`：`session.hello` / `bye` / `ping` / `server.info` | B1 | 画面を持たないプロセス、Unix ソケット、版の確認、`serverId` |
+| B3 | `kisui attach`：切り離して起動する・つなぎ直す・橋渡し | B2 | `@@shj-rpc 1@@`、`setsid`、`flock`、ソケットへのコピー |
 | B4 | 7 日で止まる + `config.toml` の `[server]` | B2 | `lastClientAt`、`idle_stop_days`、`server.shutdown`、未保存の扱い |
 | B5 | 引き継ぎ（後からつないだ GUI が勝つ） | B2 | `session.superseded`、`not_owner` |
 | B6 | ターミナル管理と `term.*` | B2 | PTY、リングバッファ、`term.ack` の流量制御、`term.attach` |

@@ -12,8 +12,8 @@ import (
 	"github.com/mm1995tk/shijimi-editor/ui/gui/attach"
 )
 
-// runAttach is "shj attach": the bridge between stdin/stdout and the socket of
-// "shj serve", which it starts (detached) when it is not running. It returns
+// runAttach is "kisui attach": the bridge between stdin/stdout and the socket of
+// "kisui serve", which it starts (detached) when it is not running. It returns
 // the process exit code.
 func runAttach(args []string) int {
 	if len(args) != 0 {
@@ -50,13 +50,13 @@ func runAttach(args []string) int {
 	return 0
 }
 
-// serveProc is the "shj serve" that attach started.
+// serveProc is the "kisui serve" that attach started.
 type serveProc struct {
 	done chan struct{} // closed when the process ended
 	errf string        // the file its standard error goes to
 }
 
-// start runs "shj serve" from this same executable, in its own session,
+// start runs "kisui serve" from this same executable, in its own session,
 // with stdin/stdout closed (/dev/null). serve writes its own log file; its
 // standard error goes to a temporary file that exited reads.
 func (p *serveProc) start() error {
@@ -71,7 +71,7 @@ func (p *serveProc) start() error {
 	defer null.Close()
 	// A file, not a pipe: serve outlives attach, and a write to a pipe nobody
 	// reads any more would kill it.
-	errf, err := os.CreateTemp("", "shj-serve-*.err")
+	errf, err := os.CreateTemp("", "kisui-serve-*.err")
 	if err != nil {
 		return err
 	}

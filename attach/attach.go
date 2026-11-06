@@ -1,5 +1,5 @@
-// Package attach は「shj attach」の中身。ssh の先で動く小さな橋渡しで、
-// 標準入出力と shj serve の Unix ソケットをバイトのままつなぐ。
+// Package attach は「kisui attach」の中身。ssh の先で動く小さな橋渡しで、
+// 標準入出力と kisui serve の Unix ソケットをバイトのままつなぐ。
 // 設計は docs/design/gui-protocol.md の「ssh 越しに shj を起動する」。
 package attach
 
@@ -21,9 +21,9 @@ const Marker = "@@shj-rpc 1@@\n"
 type Options struct {
 	SocketPath string
 	LockPath   string
-	// Start は shj serve を切り離して起動する。待たずに返ってよい。
+	// Start は kisui serve を切り離して起動する。待たずに返ってよい。
 	Start func() error
-	// Exited は、Start で起こした shj serve が待つ間に終わったかを返す。終わっていたら
+	// Exited は、Start で起こした kisui serve が待つ間に終わったかを返す。終わっていたら
 	// その理由（標準エラー出力の中身など）を返す。無ければ nil でよい。設定の間違いなどで
 	// serve が起動できないとき、待ちきる前にその理由を attach の標準エラー出力へ届けるために使う。
 	Exited func() (reason string, exited bool)
@@ -44,7 +44,7 @@ func (o *Options) defaults() {
 	}
 }
 
-// Run は目印を出し、動いている shj serve につなぎ（無ければ起動し）、
+// Run は目印を出し、動いている kisui serve につなぎ（無ければ起動し）、
 // どちらかが閉じるまで In/Out とソケットの間をコピーする。
 func Run(o Options) error {
 	o.defaults()
@@ -92,13 +92,13 @@ func connect(o Options) (net.Conn, error) {
 			}
 		}
 		if time.Now().After(deadline) {
-			return nil, fmt.Errorf("shj serve did not start within %s: %w", o.WaitTimeout, err)
+			return nil, fmt.Errorf("kisui serve did not start within %s: %w", o.WaitTimeout, err)
 		}
 		time.Sleep(o.Poll)
 	}
 }
 
-// StartError は shj serve が起動できずに終わったときのエラー。Reason はその標準エラー出力。
+// StartError は kisui serve が起動できずに終わったときのエラー。Reason はその標準エラー出力。
 type StartError struct{ Reason string }
 
 func (e *StartError) Error() string { return e.Reason }

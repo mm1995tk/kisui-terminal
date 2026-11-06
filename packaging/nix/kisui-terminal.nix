@@ -12,6 +12,8 @@
   pkgs,
   version,
   channel ? "",
+  # 同じ版の kisui（GUI が「ローカル」でつなぐサーバー）の実行ファイル。GUI から見つけられるよう libexec に入れる
+  kisui,
 }:
 let
   inherit (pkgs) lib stdenv;
@@ -96,7 +98,12 @@ pkgs.rustPlatform.buildRustPackage {
   # ssh_config のパース・ホスト名の検査などの単体テスト（cargo test）
   doCheck = true;
 
-  postInstall = lib.optionalString nightly ''
+  # kisui は PATH に出さない（shijimi-editor のパッケージの kisui とぶつからないよう）。GUI は実行ファイルの ../libexec/kisui を見る（locate.rs）
+  postInstall = ''
+    mkdir -p $out/libexec
+    ln -s ${kisui} $out/libexec/kisui
+  ''
+  + lib.optionalString nightly ''
     mv $out/bin/shijimi-editor-gui $out/bin/${bin}
   '';
 

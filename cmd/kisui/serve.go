@@ -18,7 +18,7 @@ import (
 	"github.com/mm1995tk/shijimi-editor/ui/gui/server"
 )
 
-// runServe is "shj serve": the headless server that GUI clients talk to over
+// runServe is "kisui serve": the headless server that GUI clients talk to over
 // a Unix socket. It returns the process exit code.
 func runServe(args []string) int {
 	if len(args) != 0 {
