@@ -378,11 +378,8 @@ mod tests {
         assert!(!valid_version("-x"));
         assert!(!valid_version("1.0\"; rm -rf ~; \""));
         assert!(!valid_version("a/b"));
-        assert_eq!(release_tag("0.7.0"), "kisui-terminal-v0.7.0");
-        assert_eq!(
-            release_tag("0.7.0-nightly.20261101.abc1234"),
-            "kisui-terminal-nightly"
-        );
+        assert_eq!(release_tag("0.7.0"), "v0.7.0");
+        assert_eq!(release_tag("0.7.0-nightly.20261101.abc1234"), "nightly");
     }
 
     #[test]
