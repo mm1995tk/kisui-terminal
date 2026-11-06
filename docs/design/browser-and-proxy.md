@@ -2,7 +2,7 @@
 
 Issue #15 の検討結果。方式を決め、実装は個別の Issue に分ける。
 
-> **内蔵ブラウザ（ブラウザタブ）は #116 で外した。** 残っているのはポート転送（`:browser forward`）と外部ブラウザ連携（`:open-url`）だけ。理由は末尾の「内蔵ブラウザを外した理由」。この文書の他の部分は、当時の検討の記録として残す。
+> **内蔵ブラウザ（ブラウザタブ）は #116 で外した。** GUI にはブラウザの欄を足した（#556。末尾の「GUI のブラウザの欄」）。TUI に残っているのはポート転送（`:browser forward`）と外部ブラウザ連携（`:open-url`）だけ。理由は末尾の「内蔵ブラウザを外した理由」。この文書の他の部分は、当時の検討の記録として残す。
 
 ## 結論
 
@@ -79,3 +79,17 @@ Chromium を shijimi と同じマシン（多くは SSH 先の VM）で動かし
 - 音声は VM で鳴るので、手元まで運ぶ仕組みが別に要る（#104）。
 
 根本から直すには、ブラウザを手元のマシンで動かし、手元に中継プログラムを置いて端末への出力に画像を混ぜる必要がある（terminal-browser の `--ssh` と同じ形）。費用に見合わないため、ブラウザ機能を外し、ポート転送と手元のブラウザで見る形に戻した。
+
+## GUI のブラウザの欄（#556）
+
+GUI は手元のマシンで動くので、手元でページを開ける。#116 で外した理由（リモートの Chromium の画面を送る重さ）は当てはまらない。GUI の欄の種類として足し、ターミナルの隣でページを見られるようにした。欄の持ち方と通信は gui-protocol.md の「ターミナルでない欄」。
+
+- **開く**：GUI のプライマリの shj で `:open-url <URL>`（`Space o` も同じ）を実行すると、`App.OpenURL` が既定のブラウザを呼ばず、`ctl.PaneRequest` の `{op: "open", kind: "browser", url}` を送る。新しいコマンドは作らない（`:open-url` の宛先が変わるだけ）。GUI のプライマリでない shj は今まで通り外部ブラウザ。
+- **ページは別の webview**：外のサイトの多くは `X-Frame-Options`・`frame-ancestors` で `iframe` に出せない。欄の本文は空の箱にして、その位置と大きさに Tauri の子の webview（`Window::add_child`。tauri の `unstable` feature）を重ねる（`ui/gui/app/src-tauri/src/browser.rs`）。位置は画面（`BrowserView.tsx`）がフレームごとに見て、変わったときだけ `browser_bounds` で知らせる。webview は HTML より上に出るので、欄を出していないとき・窓のカード（`dialog[open]`）が出ているときは隠す。
+- **外のページに Tauri の API を渡さない**：子の webview は `WebviewUrl::External` で作る。tauri は、`remote` を持つ capability が無い限り、外の URL からの IPC を（プラグインも自前の命令も）断る（`webview/mod.rs` の `!is_local`）。`capabilities/default.json` に `remote` を書かない（`browser.rs` のテストが確かめる）。そのうえで、欄の命令は呼んだ webview が `main` かを確かめる。子の webview の遷移は http・https・about だけを許し、新しい窓（`target=_blank`）は開かずに同じ欄で開く。開く URL は http・https だけで、ユーザー名とパスワードを含むものは断る（shj serve と殻の両方で確かめる）。`tauri.conf.json` の `csp: null` は変えない（この CSP はアプリ自身のページのもので、外のページには掛からない）。
+- **リモートのマシンの `localhost`**：ワークスペースのマシンが ssh の先のとき、host が `localhost`・`127.0.0.1`・`[::1]`・`0.0.0.0` の URL は、GUI がその欄のために `ssh -N -L 127.0.0.1:<空きポート>:localhost:<ポート> <ホスト>` を張り（`ExitOnForwardFailure=yes`。質問は GUI の窓に出る askpass）、`http://127.0.0.1:<空きポート>/…` で開く。URL 欄には遷移のたびに `localhost:<ポート>` に戻した形を出す。転送は欄ごとに 1 本で、欄を閉じるか、GUI が終わるときに止める。ほかの host は、手元から直接開く。shj serve のポートや HTTP を中継しない（ページを取るのは手元の webview）。
+- **欄**：ターミナルと同じ升目の 1 つで、タブにはしない。ブラウザの欄はワークスペースに 1 つ（開き直すと入れ替わる）。見出しに戻る・進む・再読み込み（`history.back()`・`history.forward()`・`location.reload()` を殻が実行する）・アドレス欄・閉じる。アドレス欄はスキームの無い入力を補う（自分のマシンなら http、ほかは https）。
+- **キー**：欄を前に出したとき、キーは子の webview ではなく欄の枠に向ける。子の webview にキーがあると GUI のショートカットが効かず、戻れなくなるため。ページを押すとページにキーが移る。
+- **パスキー（WebAuthn）は欄では使えない**：Linux の WebKitGTK は WebAuthn を持たず、macOS の WKWebView は任意のサイトに使わせるのにブラウザ用の entitlement が要る。Issue のオーナーのコメント「1Password のパスキーを使えること」は、ユーザーが「パスキーは諦めて外部ブラウザにしよう」と決めた（2026-11-06）ので、欄に「外部ブラウザで開き直す」ボタン（↗。殻の `browser_external`）を置いて逃がす。開くのは子の webview のいまの URL を `xdg-open`（macOS は `open`）に渡すだけで、リモートの localhost 系は転送越しの URL のまま手元から開く。
+- **絶対 URL の localhost**：リモートの欄で、ページの中のリンクやリダイレクトが絶対 URL の `http://localhost:…` を指すと転送を通らない（対処は別の Issue）。
+- **しないこと**：ターミナルの中のリンクを押したときにこの欄で開く（今のターミナルは URL のリンクを開く道を持たない。別の Issue）。ワークスペースを切り替えても開いたままにする（欄は表示中のワークスペースのものだけを描く。戻ると最初の URL から開き直す）。履歴・ブックマーク・複数のタブ。

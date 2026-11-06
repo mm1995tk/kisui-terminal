@@ -2,6 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod askpass;
+mod browser;
 mod config;
 mod connection;
 mod install;
@@ -115,6 +116,7 @@ fn main() {
     builder
         .manage(update::Updates::default())
         .manage(transfer::Transfers::default())
+        .manage(browser::Browsers::default())
         .setup(|app| {
             version::init(app.package_info().version.to_string());
             // 「ローカル」の shj を探す PATH を、先にログインシェルに聞いておく（locate.rs）
@@ -136,6 +138,13 @@ fn main() {
             install_plan,
             install_remote,
             install_cancel,
+            browser::browser_open,
+            browser::browser_bounds,
+            browser::browser_visible,
+            browser::browser_go,
+            browser::browser_nav,
+            browser::browser_external,
+            browser::browser_close,
             notify::notify_show,
             transfer::transfer_dest,
             transfer::transfer_write_begin,
@@ -157,6 +166,9 @@ fn main() {
             if let RunEvent::Exit = event {
                 if let Some(s) = app.try_state::<AppState>() {
                     s.conns.close_all();
+                    if let Some(b) = app.try_state::<browser::Browsers>() {
+                        b.close_all();
+                    }
                     s.askpass.cleanup();
                 }
             }

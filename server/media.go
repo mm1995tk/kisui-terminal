@@ -1,10 +1,10 @@
 package server
 
-// プライマリの shj が開かせる、ターミナルでない欄（動画）。設計は docs/design/gui-protocol.md の「ターミナルでない欄」。
+// プライマリの shj が開かせる、ターミナルでない欄（動画とブラウザ）。設計は docs/design/gui-protocol.md の「ターミナルでない欄」。
 //
 // 欄はプライマリの shj（primaryShj）が持つ extras で、shj が終わると一緒に消える。ctl.PaneRequest の "open" で足し、
 // "close" か GUI の extra.close で閉じる。中身は GUI が media.read で範囲を指して取る（ssh の向こうにある動画も、
-// 同じ接続で GUI に届く）。取れるのは、いま extras にあるファイルだけ。
+// 同じ接続で GUI に届く）。取れるのは、いま extras にある動画のファイルだけ。ブラウザの欄は URL だけを持ち、ページは GUI が手元で開く。
 
 import (
 	"encoding/base64"
@@ -12,9 +12,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
+	"unicode"
 
 	"github.com/mm1995tk/shijimi-editor/core"
 	"github.com/mm1995tk/shijimi-editor/core/ctl"
@@ -27,13 +30,55 @@ const mediaChunk = 4 << 20
 // extraPane はターミナルでない欄。GUI へは Workspace.extras で届く。
 type extraPane struct {
 	ID string `json:"id"`
-	// Kind は欄の種類。今は "video" だけ。
+	// Kind は欄の種類："video" か "browser"。
 	Kind string `json:"kind"`
-	// Path はファイルの絶対パス。
+	// Path は動画のファイルの絶対パス（ブラウザでは空）。
 	Path string `json:"path"`
-	// MIME と Size は、GUI が再生できるかと、取る量を決めるため。
+	// MIME と Size は、GUI が再生できるかと、取る量を決めるため（ブラウザでは空と 0）。
 	MIME string `json:"mime"`
 	Size int64  `json:"size"`
+	// URL はブラウザの欄が最初に開く http か https の URL（動画では空）。
+	URL string `json:"url,omitempty"`
+}
+
+// maxBrowserURL はブラウザの欄の URL の長さの上限（バイト）。
+const maxBrowserURL = 4096
+
+// newExtra は "open" の rq から欄を作る（ID は付けない）。動画は絶対パスの動画のファイル、ブラウザは http か https の URL だけ。
+func newExtra(rq ctl.PaneRequest) (extraPane, error) {
+	switch rq.Kind {
+	case "video":
+		if !filepath.IsAbs(rq.Path) || !core.IsVideo(rq.Path) {
+			return extraPane{}, fmt.Errorf("not a video: %s", rq.Path)
+		}
+		fi, err := os.Stat(rq.Path)
+		if err != nil {
+			return extraPane{}, err
+		}
+		if !fi.Mode().IsRegular() {
+			return extraPane{}, fmt.Errorf("not a file: %s", rq.Path)
+		}
+		return extraPane{Kind: "video", Path: rq.Path, MIME: core.VideoMIME(rq.Path), Size: fi.Size()}, nil
+	case "browser":
+		u, err := parseBrowserURL(rq.URL)
+		if err != nil {
+			return extraPane{}, err
+		}
+		return extraPane{Kind: "browser", URL: u}, nil
+	}
+	return extraPane{}, fmt.Errorf("unknown pane kind: %q", rq.Kind)
+}
+
+// parseBrowserURL は s が欄で開いてよい URL（ホストのある http か https。ユーザー名とパスワードを含まない）か確かめ、整えた形を返す。
+func parseBrowserURL(s string) (string, error) {
+	if s == "" || len(s) > maxBrowserURL || strings.ContainsFunc(s, unicode.IsControl) {
+		return "", fmt.Errorf("invalid URL: %q", s)
+	}
+	u, err := url.Parse(s)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" || u.User != nil {
+		return "", fmt.Errorf("not an http or https URL: %q", s)
+	}
+	return u.String(), nil
 }
 
 // extraCount は claim の shj の extras の数。
@@ -58,21 +103,12 @@ func (w *wsManager) ownExtra(claim *primaryShj, id string) bool {
 	return slices.ContainsFunc(claim.extras, func(e extraPane) bool { return e.ID == id })
 }
 
-// openExtra は ctl.PaneRequest の "open"。動画の欄を 1 つ足して GUI に出させる。動画の欄はワークスペースに 1 つで、
+// openExtra は ctl.PaneRequest の "open"。動画かブラウザの欄を 1 つ足して GUI に出させる。欄は種類ごとにワークスペースに 1 つで、
 // 開いてあれば新しいものと入れ替える（開くたびに増えて、升目を使い切らないように）。
 func (w *wsManager) openExtra(claim *primaryShj, wsID string, rq ctl.PaneRequest) (string, error) {
-	if rq.Kind != "video" {
-		return "", fmt.Errorf("unknown pane kind: %q", rq.Kind)
-	}
-	if !filepath.IsAbs(rq.Path) || !core.IsVideo(rq.Path) {
-		return "", fmt.Errorf("not a video: %s", rq.Path)
-	}
-	fi, err := os.Stat(rq.Path)
+	e, err := newExtra(rq)
 	if err != nil {
 		return "", err
-	}
-	if !fi.Mode().IsRegular() {
-		return "", fmt.Errorf("not a file: %s", rq.Path)
 	}
 	w.recomputeMu.Lock()
 	defer w.recomputeMu.Unlock()
@@ -83,13 +119,13 @@ func (w *wsManager) openExtra(claim *primaryShj, wsID string, rq ctl.PaneRequest
 		w.mu.Unlock()
 		return "", errors.New("the shj of the primary has ended")
 	}
-	old := slices.IndexFunc(claim.extras, func(e extraPane) bool { return e.Kind == "video" })
+	old := slices.IndexFunc(claim.extras, func(x extraPane) bool { return x.Kind == e.Kind })
 	if old < 0 && free <= 0 {
 		w.mu.Unlock()
 		return "", fmt.Errorf("the workspace already has %d panes", maxSplitTerms+1)
 	}
 	w.nextExtra++
-	e := extraPane{ID: fmt.Sprintf("x%d", w.nextExtra), Kind: "video", Path: rq.Path, MIME: core.VideoMIME(rq.Path), Size: fi.Size()}
+	e.ID = fmt.Sprintf("x%d", w.nextExtra)
 	if old >= 0 {
 		claim.extras[old] = e
 	} else {
@@ -158,6 +194,9 @@ func (ss *session) readMediaReq(req *rpc.Message) (any, error) {
 	e, _, ok := ss.srv.ws.extraOf(p.WorkspaceID, p.ID)
 	if !ok {
 		return nil, rpc.Errorf(rpc.CodeNotFound, "no such pane: %s", p.ID)
+	}
+	if e.Kind != "video" {
+		return nil, rpc.Errorf(rpc.CodeInvalidParams, "pane %s has no media", p.ID)
 	}
 	if p.Offset < 0 || p.Length < 0 {
 		return nil, rpc.Errorf(rpc.CodeInvalidParams, "negative offset or length")

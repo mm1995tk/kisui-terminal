@@ -6,6 +6,7 @@ import { cellOf, gridSize } from "./grid.ts";
 import type { TermLink } from "./link.ts";
 import type { MediaFetch } from "./media.ts";
 import { TerminalView } from "./TerminalView.tsx";
+import { BrowserView } from "./BrowserView.tsx";
 import { VideoView } from "./VideoView.tsx";
 
 /**
@@ -24,6 +25,8 @@ export function TerminalGrid(props: {
   activeExtra?: ExtraPane;
   /** ターミナルでない欄の中身を取る関数を作る */
   readExtra?: (pane: ExtraPane) => MediaFetch;
+  /** ブラウザの欄を開いたマシン（ssh のホスト名か @local） */
+  target?: string;
   onActivateExtra?: (id: string) => void;
   onCloseExtra?: (id: string) => void;
   /** プライマリ以外の欄を隠しているか（隠した欄のターミナルは動かし続ける） */
@@ -109,18 +112,36 @@ export function TerminalGrid(props: {
       </For>
       <For each={extras()}>
         {(x, k) => (
-          <VideoView
-            pane={x}
-            read={props.readExtra!(x)}
-            active={x.id === props.activeExtra?.id}
-            hidden={!extraVisible(x)}
-            area={area(props.links.length + k())}
-            onFocus={() => props.onActivateExtra?.(x.id)}
-            onClose={() => props.onCloseExtra?.(x.id)}
-            focusRef={(f) =>
-              f ? extraFocusers.set(x.id, f) : extraFocusers.delete(x.id)
+          <Show
+            when={x.kind === "browser"}
+            fallback={
+              <VideoView
+                pane={x}
+                read={props.readExtra!(x)}
+                active={x.id === props.activeExtra?.id}
+                hidden={!extraVisible(x)}
+                area={area(props.links.length + k())}
+                onFocus={() => props.onActivateExtra?.(x.id)}
+                onClose={() => props.onCloseExtra?.(x.id)}
+                focusRef={(f) =>
+                  f ? extraFocusers.set(x.id, f) : extraFocusers.delete(x.id)
+                }
+              />
             }
-          />
+          >
+            <BrowserView
+              pane={x}
+              target={props.target ?? ""}
+              active={x.id === props.activeExtra?.id}
+              hidden={!extraVisible(x)}
+              area={area(props.links.length + k())}
+              onFocus={() => props.onActivateExtra?.(x.id)}
+              onClose={() => props.onCloseExtra?.(x.id)}
+              focusRef={(f) =>
+                f ? extraFocusers.set(x.id, f) : extraFocusers.delete(x.id)
+              }
+            />
+          </Show>
         )}
       </For>
       <Show when={props.zoomed && total() > 1}>

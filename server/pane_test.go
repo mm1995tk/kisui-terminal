@@ -222,3 +222,65 @@ func TestPrimaryShjVideoPane(t *testing.T) {
 	waitFor(t, "the video pane closes with its shj", func() bool { return len(extras()) == 0 })
 	_ = srv
 }
+
+func TestPrimaryShjBrowserPane(t *testing.T) {
+	t.Setenv("HOME", normalizePath(t.TempDir()))
+	_, sock := startFast(t)
+	c, nt := termClient(t, sock)
+	id, primary := createWS(t, c)
+	if r0, _ := announceShj(t, sock, ctl.PrimaryHello{TermID: primary, Socket: "/run/a.sock", PID: 11}); !r0.OK {
+		t.Fatalf("hello: %+v", r0)
+	}
+	open := func(url string) ctl.PaneReply {
+		return paneDo(t, sock, ctl.PaneRequest{Op: "open", Kind: "browser", URL: url, TermID: primary, PID: 11})
+	}
+	extras := func() []extraPane {
+		var l struct {
+			Workspaces []wsInfo `json:"workspaces"`
+		}
+		if err := c.Call(context.Background(), "workspace.list", map[string]any{}, &l); err != nil || len(l.Workspaces) != 1 {
+			t.Fatalf("workspace.list: %v %+v", err, l)
+		}
+		return l.Workspaces[0].Extras
+	}
+
+	for _, bad := range []string{"", "localhost:3000", "file:///etc/passwd", "javascript:alert(1)", "ftp://x.example/", "https://", "https://u:p@example.com/", "http://a.example/\n", "tauri://localhost/"} {
+		if r := open(bad); r.OK {
+			t.Fatalf("%q must be refused", bad)
+		}
+	}
+	r := open("http://localhost:3000/a?b=1")
+	if !r.OK || r.ID == "" {
+		t.Fatalf("open: %+v", r)
+	}
+	waitFor(t, "pane.show of the browser", func() bool {
+		for _, m := range nt.all("pane.show") {
+			if strings.Contains(string(*m), `"extraId":"`+r.ID+`"`) {
+				return true
+			}
+		}
+		return false
+	})
+	if e := extras(); len(e) != 1 || e[0].ID != r.ID || e[0].Kind != "browser" || e[0].URL != "http://localhost:3000/a?b=1" || e[0].Path != "" {
+		t.Fatalf("extras: %+v", e)
+	}
+	// ブラウザの欄には、取れる中身が無い。
+	var m MediaResult
+	if err := c.Call(context.Background(), "media.read", map[string]any{"workspaceId": id, "id": r.ID}, &m); err == nil {
+		t.Fatal("a browser pane has no media")
+	}
+	// 開き直すと入れ替わる（ブラウザの欄は 1 つ）。
+	r2 := open("https://example.com/")
+	if !r2.OK || r2.ID == r.ID {
+		t.Fatalf("open again: %+v", r2)
+	}
+	if e := extras(); len(e) != 1 || e[0].ID != r2.ID || e[0].URL != "https://example.com/" {
+		t.Fatalf("extras after replacing: %+v", e)
+	}
+	if err := c.Call(context.Background(), "extra.close", map[string]any{"workspaceId": id, "id": r2.ID}, &struct{}{}); err != nil {
+		t.Fatal(err)
+	}
+	if e := extras(); len(e) != 0 {
+		t.Fatalf("extras after close: %+v", e)
+	}
+}

@@ -75,16 +75,49 @@ pub fn ssh_command(
     if !valid_host(target) {
         return Err(format!("invalid host name: {target:?}"));
     }
-    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
     let mut c = Command::new("ssh");
-    c.args(["-T", target, "--"])
-        .arg(remote_command)
-        .env("SSH_ASKPASS", exe)
+    c.args(["-T", target, "--"]).arg(remote_command);
+    with_askpass(&mut c, ask, id)?;
+    Ok(c)
+}
+
+/// ssh に askpass の環境変数を付ける（質問を GUI の窓に出させる）。
+fn with_askpass(c: &mut Command, ask: &AskpassServer, id: &str) -> Result<(), String> {
+    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    c.env("SSH_ASKPASS", exe)
         // DISPLAY が無くても、端末が無くても askpass を使わせる（OpenSSH 8.4 以降）
         .env("SSH_ASKPASS_REQUIRE", "force")
         .env(askpass::ENV_SOCK, &ask.sock)
         .env(askpass::ENV_TOKEN, &ask.token)
         .env(askpass::ENV_CONN, id);
+    Ok(())
+}
+
+/// ポート転送だけの `ssh -N -L 127.0.0.1:<local>:localhost:<remote> <host>`（ブラウザの欄。browser.rs）。
+/// 転送を張れなければ ssh が終わる（ExitOnForwardFailure）。
+pub fn ssh_forward_command(
+    target: &str,
+    ask: &AskpassServer,
+    id: &str,
+    local: u16,
+    remote: u16,
+) -> Result<Command, String> {
+    if !valid_host(target) {
+        return Err(format!("invalid host name: {target:?}"));
+    }
+    let mut c = Command::new("ssh");
+    c.args([
+        "-N",
+        "-T",
+        "-o",
+        "ExitOnForwardFailure=yes",
+        "-o",
+        "ServerAliveInterval=30",
+        "-L",
+    ])
+    .arg(format!("127.0.0.1:{local}:localhost:{remote}"))
+    .args(["--", target]);
+    with_askpass(&mut c, ask, id)?;
     Ok(c)
 }
 

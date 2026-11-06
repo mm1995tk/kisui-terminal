@@ -7,7 +7,7 @@
 // - Ctrl+Shift+T で分割したターミナルを増やす（add。term.create）。分割したターミナルのシェルが終わったら
 //   （`exit`）その欄を閉じて並び直す。プライマリターミナルは、終わっても欄を閉じず、Enter で作り直す
 //   （ターミナル 1 つの流量制御・取り直し・作り直しは TermLink（link.ts）がする）。
-// - ターミナルでない欄（動画。#555）も同じ升目に、ターミナルの後ろに並べる。プライマリの shj が開かせたもので、
+// - ターミナルでない欄（動画 #555・ブラウザ #556）も同じ升目に、ターミナルの後ろに並べる。プライマリの shj が開かせたもので、
 //   Workspace.extras が決める。キーを向けているのが欄かターミナルかを extraCurrent で持つ（欄を閉じるのは closeExtra）。
 // - マシンの全ワークスペースの組は TermGroups が持つ。
 //
@@ -28,7 +28,9 @@ export type TermLayout = Pick<Workspace, "id" | "primary" | "terms"> &
   Partial<Pick<Workspace, "extras">>;
 
 function sameExtra(a: ExtraPane, b: ExtraPane): boolean {
-  return a.id === b.id && a.kind === b.kind && a.path === b.path;
+  return (
+    a.id === b.id && a.kind === b.kind && a.path === b.path && a.url === b.url
+  );
 }
 
 /** 1 つのワークスペースのターミナルの並びと、今使っている 1 つ（active）を持つ。並びか active が変わったら onChange を呼ぶ。 */

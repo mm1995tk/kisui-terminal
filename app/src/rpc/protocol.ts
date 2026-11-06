@@ -73,14 +73,17 @@ export interface Workspace {
   extras?: ExtraPane[];
 }
 
-/** ターミナルでない欄。今は動画だけ（ブラウザも同じ作りで足す） */
+/** ターミナルでない欄：動画（#555）かブラウザ（#556） */
 export interface ExtraPane {
   id: string;
-  kind: "video";
-  /** ファイルの絶対パス（その欄を開いたマシンのもの） */
+  kind: "video" | "browser";
+  /** 動画のファイルの絶対パス（その欄を開いたマシンのもの）。ブラウザでは空 */
   path: string;
+  /** 動画の種類と大きさ。ブラウザでは空と 0 */
   mime: string;
   size: number;
+  /** ブラウザが最初に開く http か https の URL（動画では無い） */
+  url?: string;
 }
 
 export interface PrimaryShj {
