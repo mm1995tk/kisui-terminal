@@ -63,6 +63,11 @@ func runServe(args []string) int {
 			fmt.Fprintln(os.Stderr, configErrorText(err))
 			return 1
 		}
+		// keys this version does not read do not stop serve: say so and go on
+		for _, w := range cfg.Warnings {
+			logger.Warn("config", "ignored", cli.Text(w.Msg()))
+			fmt.Fprintln(os.Stderr, cli.T("config.warn.prefix")+cli.Text(w.Msg()))
+		}
 		idle = time.Duration(guicfg.Of(cfg).IdleStopDays) * 24 * time.Hour
 		startDir = guicfg.Of(cfg).StartDir
 	}

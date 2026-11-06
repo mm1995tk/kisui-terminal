@@ -90,16 +90,30 @@ func TestGUIMachines(t *testing.T) {
 		t.Fatal(err)
 	}
 	for name, c := range map[string]string{
-		"missing ssh":    "[[gui.machines]]\nname = \"dev\"\n",
-		"unknown key":    "[[gui.machines]]\nssh = \"a\"\nhost = \"b\"\n",
-		"wrong type":     "[[gui.machines]]\nssh = 1\n",
-		"unknown in gui": "[gui]\ncolor = 1\n",
-		"negative days":  "[server]\nidle_stop_days = -1\n",
-		"float days":     "[server]\nidle_stop_days = 1.5\n",
+		"missing ssh":   "[[gui.machines]]\nname = \"dev\"\n",
+		"wrong type":    "[[gui.machines]]\nssh = 1\n",
+		"negative days": "[server]\nidle_stop_days = -1\n",
+		"float days":    "[server]\nidle_stop_days = 1.5\n",
 	} {
 		write(c)
 		if _, err := config.Load(root, opts()); err == nil {
 			t.Errorf("%s: no error", name)
+		}
+	}
+}
+
+// A key of [gui] this version does not read is a warning, not a stop.
+func TestGUIUnknownKeyIsWarning(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("HOME", t.TempDir())
+	dir, _ := config.UserDir(opts())
+	os.MkdirAll(dir, 0o755)
+	for _, c := range []string{"[[gui.machines]]\nssh = \"a\"\nhost = \"b\"\n", "[gui]\ncolor = 1\n"} {
+		os.WriteFile(filepath.Join(dir, "config.toml"), []byte(c), 0o644)
+		cfg, err := config.Load(root, opts())
+		if err != nil || len(cfg.Warnings) != 1 {
+			t.Errorf("%q: err = %v, warnings = %v", c, err, cfg.Warnings)
 		}
 	}
 }

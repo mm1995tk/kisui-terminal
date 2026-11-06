@@ -1,7 +1,8 @@
 //! 手元の設定ファイル（`~/.config/shijimi-editor/config.toml`）の `[[gui.machines]]`。
 //!
 //! GUI が読むのはこの節だけ。ほかの節（shj の設定）は shj が確かめるので、ここでは見ない。
-//! 間違い（TOML の書き方・知らない項目・型の違い・使えない ssh の行き先・重なり）は、
+//! 間違い（TOML の書き方・型の違い・使えない ssh の行き先・重なり）は、
+//! 知らない項目は間違いにしない（新しい版の shj 用に書いた項目があっても起動する）。読み飛ばす。
 //! 「ファイル:行: 理由」の 1 行の文字列にして返す。画面側はそれを出して、ほかは何もしない（起動しない）。
 //! 置き場は shj と同じ決まり（`$XDG_CONFIG_HOME` が絶対パスならそれ、なければ `~/.config`。
 //! nightly の GUI は `shijimi-editor-nightly/`、そのフォルダが無ければ `shijimi-editor/`）。
@@ -32,14 +33,12 @@ struct File {
 }
 
 #[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
 struct Gui {
     #[serde(default)]
     machines: Vec<Entry>,
 }
 
 #[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
 struct Entry {
     ssh: Spanned<String>,
     name: Option<Spanned<String>>,
@@ -209,13 +208,15 @@ mod tests {
     }
 
     #[test]
-    fn unknown_key_and_wrong_type_have_lines() {
-        let (line, why) = err("[[gui.machines]]\nssh = \"a\"\nhost = \"b\"\n");
-        assert_eq!(line, Some(3), "{why}");
+    fn wrong_type_has_a_line() {
         let (line, _) = err("[[gui.machines]]\nssh = 1\n");
         assert_eq!(line, Some(2));
-        let (line, _) = err("[gui]\ncolor = 1\n");
-        assert_eq!(line, Some(2));
+    }
+
+    #[test]
+    fn unknown_keys_are_skipped() {
+        let got = parse("[[gui.machines]]\nssh = \"a\"\nhost = \"b\"\n[gui]\ncolor = 1\n").unwrap();
+        assert_eq!(got.len(), 1);
     }
 
     #[test]
