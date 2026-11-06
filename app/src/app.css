@@ -77,3 +77,18 @@ a {
 .resizer[data-lit] {
   background: var(--machine-color, #7cc4b0);
 }
+
+/* 「コピーしました」。画面の下に少し出て、自分で消える（押せない） */
+.copied-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  padding: 6px 14px;
+  border-radius: 6px;
+  background: #2a2f38;
+  border: 1px solid #3a414d;
+  color: #e6e8ec;
+  pointer-events: none;
+  z-index: 1000;
+}

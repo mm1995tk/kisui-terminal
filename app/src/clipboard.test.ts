@@ -74,3 +74,13 @@ describe("OsClipboard", () => {
     assert.equal(await c.read(), "");
   });
 });
+
+describe("OsClipboard.write の戻り値", () => {
+  it("書けたら true、断られたら false", async () => {
+    const f = fakeClipboard();
+    const c = new OsClipboard(() => f.cb);
+    assert.equal(await c.write("a"), true);
+    f.allow = false;
+    assert.equal(await c.write("b"), false);
+  });
+});
