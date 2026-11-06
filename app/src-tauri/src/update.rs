@@ -1,4 +1,4 @@
-//! 自動更新（C8）。GitHub Releases の `latest.json`（nightly 版は pre-release `nightly` の）を見て、
+//! 自動更新（C8）。GitHub Releases の `latest.json`（安定版は Release `kisui-terminal-latest` の、nightly 版は pre-release `kisui-terminal-nightly` の）を見て、
 //! 新しい版があれば画面に知らせ、ユーザーが押したら取って入れ替え、起動し直す。
 //!
 //! 自動更新は feature `updater` を付けて作った版（リリースの workflow が作る AppImage と `.dmg`）だけが持つ。

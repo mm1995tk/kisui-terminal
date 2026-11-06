@@ -1,11 +1,16 @@
 name: GUI を配る
 
 # GUI（ui/gui/app/）の AppImage と署名なしの .dmg を作り、自動更新（Tauri の updater）の latest.json と一緒に
-# GitHub Release に上げる（C8。#325）。release.yml（版のリリース）と nightly.yml（nightly）から呼ぶ。
+# GitHub Release に上げる（C8。#325）。kisui-terminal-release.yml（GUI の版のリリース）と nightly.yml（nightly）から呼ぶ。
+# shj のリリース（release.yml）からは呼ばない。GUI の版は shj の版とは別（#581）。
 #
-# - 版のリリース：タグ v<版> の Release に shijimi-editor-*。updater は releases/latest の latest.json を見る。
-# - nightly：pre-release nightly に shijimi-editor-nightly-*（tauri.nightly.conf.json を重ねる）。
-#   updater は nightly の latest.json を見る。名前と identifier が違うので、普通の版と並べて入れられる。
+# - GUI の版のリリース：タグ kisui-terminal-v<版> の Release に shijimi-editor-*。
+#   Release の「Latest」の印は shj のリリースのまま（--latest=false）。updater は、決まったタグ kisui-terminal-latest の
+#   pre-release に置いた latest.json を見る（GUI のリリースだけを指す。リリースのたびに置き換える）。
+# - nightly：pre-release kisui-terminal-nightly に shijimi-editor-nightly-*（tauri.nightly.conf.json を重ねる）。
+#   updater は同じ pre-release の latest.json を見る。名前と identifier が違うので、普通の版と並べて入れられる。
+# - どちらの Release にも、リモートに入れる kisui-<os>-<cpu> と shj-<os>-<cpu>（nightly は kisui-nightly-…）と SHA256SUMS を
+#   上げる（install.rs が取る）。shj は GUI の版に対応する版（shj_version）で、Release の説明にその版を書く。
 # - 自動更新を持つのは、ここで作る AppImage と .dmg だけ（cargo の feature updater）。Nix で作る版は持たない。
 #
 # 上げるもの（<名前> は shijimi-editor か shijimi-editor-nightly）:
@@ -28,8 +33,12 @@ on:
         description: "GUI の版（X.Y.Z か X.Y.Z-nightly.<yyyymmdd>.<sha>）"
         type: string
         required: true
+      shj_version:
+        description: "同梱する shj の版（X.Y.Z か X.Y.Z-nightly.<yyyymmdd>.<sha>）。GUI の版とは別"
+        type: string
+        required: true
       tag:
-        description: "上げる先の Release のタグ（v<版> か nightly）。Release はもうあること"
+        description: "上げる先の Release のタグ（kisui-terminal-v<版> か kisui-terminal-nightly）。無ければ publish ジョブが作る"
         type: string
         required: true
       ref:
@@ -102,8 +111,9 @@ jobs:
       - name: kisui と shj を作る
         env:
           VERSION: ${{ inputs.version }}
+          SHJ_VERSION: ${{ inputs.shj_version }}
           TARGET: ${{ matrix.target }}
-        run: packaging/gui/build-kisui.sh "$VERSION" ${TARGET:+macos}
+        run: packaging/gui/build-kisui.sh "$VERSION" "$SHJ_VERSION" ${TARGET:+macos}
 
       # 版と（nightly なら）名前・取り先と、同梱する kisui と shj（externalBin）を、tauri build --config で重ねる設定にまとめる
       - name: 設定を作る
@@ -185,9 +195,30 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+  # リモートに入れる kisui と shj（install.rs が取る）と SHA256SUMS。ssh 先は Linux と macOS の x64 と arm64
+  remote:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+      # Go は runner のもの（go.mod の版は GOTOOLCHAIN=auto で取る）
+      - name: kisui と shj を作る
+        env:
+          VERSION: ${{ inputs.version }}
+          SHJ_VERSION: ${{ inputs.shj_version }}
+        run: packaging/gui/build-remote.sh "$VERSION" "$SHJ_VERSION" "$RUNNER_TEMP/remote"
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: gui-remote
+          path: ${{ runner.temp }}/remote/*
+          if-no-files-found: error
+          retention-days: 1
+
   # 3 つのビルドがそろってから上げる（latest.json が、まだ無いファイルを指さないように）
   publish:
-    needs: bundle
+    needs: [bundle, remote]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -202,6 +233,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ inputs.version }}
           TAG: ${{ inputs.tag }}
+          SHJ_VERSION: ${{ inputs.shj_version }}
+          REF: ${{ inputs.ref }}
           CHANNEL: ${{ inputs.channel }}
         run: |
           cd "$RUNNER_TEMP/assets"
@@ -229,5 +262,34 @@ jobs:
               "darwin-x86_64": $mac
             }}' > latest.json
           cat latest.json
+          # Release を用意する。説明には同梱した shj の版を書く
+          {
+            echo "- GUI の版: \`$VERSION\`"
+            echo "- 同梱した shj の版: \`$SHJ_VERSION\`"
+            echo "- コミット: https://github.com/$GITHUB_REPOSITORY/commit/$REF"
+          } > "$RUNNER_TEMP/notes.md"
+          if [ "$CHANNEL" = nightly ]; then
+            # nightly の pre-release は作り直す（古い assets を残さず、タグはそのコミットに付け直す）
+            if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+              gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes
+            fi
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$REF" --prerelease \
+              --title "kisui-terminal nightly ($VERSION)" --notes-file "$RUNNER_TEMP/notes.md"
+          elif ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            # shj の「Latest」を奪わないよう、--latest=false で作る
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$REF" --latest=false \
+              --title "kisui-terminal v$VERSION" --notes-file "$RUNNER_TEMP/notes.md"
+          fi
           # 再実行で上げ直せるよう、同じ名前のアセットは置き換える
           gh release upload "$TAG" ./* --clobber --repo "$GITHUB_REPOSITORY"
+          # 普通の版は、自動更新の取り先 kisui-terminal-latest にも latest.json を置く（Latest の印は付けない pre-release）。
+          # GUI のリリースだけを指すので、shj のリリースが混ざっても壊れない
+          if [ "$CHANNEL" != nightly ]; then
+            pointer=kisui-terminal-latest
+            if ! gh release view "$pointer" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+              gh release create "$pointer" --repo "$GITHUB_REPOSITORY" --target "$REF" --prerelease --latest=false \
+                --title "kisui-terminal の自動更新の取り先" \
+                --notes "kisui-terminal の自動更新（Tauri の updater）が見る latest.json を置く場所です。GUI のリリースのたびに latest.json を置き換えます。ダウンロードするものはありません。"
+            fi
+            gh release upload "$pointer" latest.json --clobber --repo "$GITHUB_REPOSITORY"
+          fi

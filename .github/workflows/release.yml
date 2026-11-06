@@ -1,0 +1,97 @@
+name: GUI（kisui-terminal）のリリース
+
+# GUI のリリース。shj のリリース（release.yml）とは別に、自分で起動する（#581）。
+#
+#   gh workflow run kisui-terminal-release.yml --ref main [-f ref=<コミット>]
+#
+# - GUI の版は ui/gui/app/src-tauri/Cargo.toml の version（shj の版は flake.nix の version で、別）。
+#   版を上げるには、その version を直す PR をマージしてから、このワークフローを起動する。このワークフローは版を書き換えない。
+# - タグは kisui-terminal-v<版>。Release の「Latest」の印は shj のリリースのままにする。
+# - そのコミットの shj（flake.nix の version）を同梱する。どの版を同梱したかは Release の説明に書く。
+# - AppImage・.dmg・kisui・shj・latest.json を上げるのは gui-release.yml。
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "リリースするコミット（main の上のもの）。空なら main の最新"
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kisui-terminal-release
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.ver.outputs.sha }}
+      version: ${{ steps.ver.outputs.version }}
+      shj_version: ${{ steps.ver.outputs.shj_version }}
+    steps:
+      - name: main 以外では実行しない
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::main ブランチで実行してください（現在: $GITHUB_REF）"
+          exit 1
+
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: 版を決める
+        id: ver
+        env:
+          REF: ${{ inputs.ref }}
+        run: |
+          if ! sha=$(git rev-parse --verify --quiet "${REF:-HEAD}^{commit}"); then
+            echo "::error::コミット $REF が見つかりません"
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$sha" origin/main; then
+            echo "::error::$sha は main の上のコミットではありません"
+            exit 1
+          fi
+          # 後のジョブは、main のワークフローのまま、このコミットのファイルでビルドする。無ければ止める
+          for f in packaging/gui/build-kisui.sh packaging/gui/build-remote.sh package-lock.json ui/gui/app/src-tauri/tauri.conf.json; do
+            if ! git cat-file -e "$sha:$f" 2>/dev/null; then
+              echo "::error::$sha に $f がありません。このワークフローではリリースできない古いコミットです"
+              exit 1
+            fi
+          done
+          # GUI の版は Cargo.toml の version、同梱する shj の版は flake.nix の version（どちらもそのコミットのもの）
+          version=$(git show "$sha:ui/gui/app/src-tauri/Cargo.toml" | sed -n 's/^version = "\([0-9]*\.[0-9]*\.[0-9]*\)"$/\1/p' | head -1)
+          shj_version=$(git show "$sha:flake.nix" | sed -n 's/^ *version = "\([0-9]*\.[0-9]*\.[0-9]*\)";$/\1/p')
+          if [ -z "$version" ] || [ "$(printf '%s\n' "$shj_version" | wc -l)" != 1 ] || [ -z "$shj_version" ]; then
+            echo "::error::GUI の版（Cargo.toml）か shj の版（flake.nix）を X.Y.Z 形式で読めませんでした"
+            exit 1
+          fi
+          # 同じ版を別のコミットで出し直さない（同じコミットの再実行は、アセットを上げ直すだけなので許す）
+          tag="kisui-terminal-v$version"
+          if remote=$(git ls-remote --tags origin "refs/tags/$tag^{}" "refs/tags/$tag" | tail -1 | cut -f1) && [ -n "$remote" ] && [ "$remote" != "$sha" ]; then
+            echo "::error::タグ $tag はもう別のコミット（$remote）にあります。ui/gui/app/src-tauri/Cargo.toml の version を上げてください"
+            exit 1
+          fi
+          {
+            echo "sha=$sha"
+            echo "version=$version"
+            echo "shj_version=$shj_version"
+          } >> "$GITHUB_OUTPUT"
+          echo "GUI $version（shj $shj_version を同梱）を $sha からリリースする"
+
+  gui:
+    needs: prepare
+    permissions:
+      contents: write
+    uses: ./.github/workflows/gui-release.yml
+    with:
+      version: ${{ needs.prepare.outputs.version }}
+      shj_version: ${{ needs.prepare.outputs.shj_version }}
+      tag: kisui-terminal-v${{ needs.prepare.outputs.version }}
+      ref: ${{ needs.prepare.outputs.sha }}
+    secrets:
+      OP_SERVICE_ACCOUNT_TOKEN_RELEASE: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN_RELEASE }}

@@ -3,47 +3,38 @@
 # ui/gui/app/src-tauri/binaries/{kisui,shj}-<target triple>. kisui puts the shj next
 # to it first on the PATH of the terminals in its panes.
 #
-#   packaging/gui/build-kisui.sh VERSION [macos]
+#   packaging/gui/build-kisui.sh GUI_VERSION SHJ_VERSION [macos]
 #
-# VERSION is the GUI's version: X.Y.Z, or X.Y.Z-nightly.<yyyymmdd>.<sha> for a
-# nightly. They get the same version, commit and channel as packaging/npm/pack.sh
-# gives it, so the GUI, its kisui and its shj always match. Without "macos" it builds for
-# the CPU this machine runs on (Linux). With "macos" it builds both macOS CPUs
-# and joins them with lipo (the universal build Tauri asks for needs all three).
+# GUI_VERSION is the GUI's version and SHJ_VERSION is the version of the shj that
+# ships with it. They are separate (#581): the GUI has its own version in
+# ui/gui/app/src-tauri/Cargo.toml and shj has the version in flake.nix. Each is
+# X.Y.Z, or X.Y.Z-nightly.<yyyymmdd>.<sha> for a nightly. kisui gets the GUI's version
+# (it is the GUI's server); shj gets SHJ_VERSION, with the same commit and channel as
+# packaging/npm/pack.sh gives it. Without "macos" it builds for the CPU this machine
+# runs on (Linux). With "macos" it builds both macOS CPUs and joins them with lipo
+# (the universal build Tauri asks for needs all three).
 # Needs go (and lipo for macos).
 set -euo pipefail
 
-version="${1:?usage: packaging/gui/build-kisui.sh VERSION [macos]}"
-mode="${2:-}"
-channel=""
-if [[ "$version" =~ ^([0-9]+\.[0-9]+\.[0-9]+)-nightly\.[0-9]{8}\.[0-9a-f]+$ ]]; then
-  channel="nightly"
-  base_version="${BASH_REMATCH[1]}"
-elif [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-  base_version="$version"
-else
-  echo "error: VERSION must be X.Y.Z or X.Y.Z-nightly.<yyyymmdd>.<sha>, got $version" >&2
-  exit 1
-fi
+usage="usage: packaging/gui/build-kisui.sh GUI_VERSION SHJ_VERSION [macos]"
+gui_version="${1:?$usage}"
+shj_version="${2:?$usage}"
+mode="${3:-}"
 
 root="$(cd "$(dirname "$0")/../.." && pwd)"
+# shellcheck source=packaging/gui/ldflags.sh
+source "$root/packaging/gui/ldflags.sh"
+kisui_ldflags="$(ldflags "$gui_version")"
+shj_ldflags="$(ldflags "$shj_version")"
+
 out="$root/ui/gui/app/src-tauri/binaries"
 mkdir -p "$out"
 
-commit="$(git -C "$root" rev-parse --short HEAD)"
-if [ -n "$(git -C "$root" status --porcelain)" ]; then
-  commit="$commit-dirty"
-fi
-ldflags="-s -w"
-ldflags+=" -X github.com/mm1995tk/shijimi-editor/ui/internal/buildinfo.Version=$base_version"
-ldflags+=" -X github.com/mm1995tk/shijimi-editor/ui/internal/buildinfo.Commit=$commit"
-ldflags+=" -X github.com/mm1995tk/shijimi-editor/ui/internal/buildinfo.Channel=$channel"
-
 build() { # <GOOS> <GOARCH> <target triple>
-  for tool in kisui shj; do
-    (cd "$root" && GOOS="$1" GOARCH="$2" CGO_ENABLED=0 \
-      go build -trimpath -ldflags "$ldflags" -o "$out/$tool-$3" "./cmd/$tool")
-  done
+  (cd "$root" && GOOS="$1" GOARCH="$2" CGO_ENABLED=0 \
+    go build -trimpath -ldflags "$kisui_ldflags" -o "$out/kisui-$3" ./cmd/kisui)
+  (cd "$root" && GOOS="$1" GOARCH="$2" CGO_ENABLED=0 \
+    go build -trimpath -ldflags "$shj_ldflags" -o "$out/shj-$3" ./cmd/shj)
 }
 
 if [ "$mode" = macos ]; then

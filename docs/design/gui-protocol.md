@@ -463,7 +463,7 @@ GUI は複数のワークスペースのツリーを（開閉の状態を持っ�
 
 GUI はシステムの `ssh` を子プロセスとして起動する（`~/.ssh/config` と ssh-agent をそのまま使うため）。ssh がパスワードや 2 段階認証を求めるときは `SSH_ASKPASS` で GUI の窓に出す。
 
-1. **kisui の場所**：`~/.cache/shijimi-editor/<GUI の版>/kisui` だけ。リモートの PATH の `kisui` は使わない（GUI と同じ版しか使わないため。`SHIJIMI_REMOTE_KISUI` で場所を手で指定したときを除く）。無ければ、ユーザーに聞いてから GUI が転送する。PATH の `kisui` には触らない。リモートの OS とアーキテクチャは `uname -sm` で調べ、合う実行ファイルを GitHub Releases から GUI が取って送る。取ったら送る前に、GitHub Releases の checksums（Release に上げる `SHA256SUMS`。`sha256sum` の形式）にある SHA-256 と、取得した実行ファイルを比べる（取得の段階の確認。合わなければ ssh を起動する前に捨てる）。リモートに置いたファイルも同じ値かを確かめる（転送の壊れの確認。リモートで一時ファイルの SHA-256 を計り、合ったときだけ `kisui` の名前にする）。kisui が無いことは、2 のコマンドの終了コード 97 で知る（`ssh` 自身の失敗は 255）。nightly 版の GUI は、動くタグ `nightly` の `kisui-nightly-<os>-<cpu>` を取る。
+1. **kisui の場所**：`~/.cache/shijimi-editor/<GUI の版>/kisui` だけ。リモートの PATH の `kisui` は使わない（GUI と同じ版しか使わないため。`SHIJIMI_REMOTE_KISUI` で場所を手で指定したときを除く）。無ければ、ユーザーに聞いてから GUI が転送する。PATH の `kisui` には触らない。リモートの OS とアーキテクチャは `uname -sm` で調べ、合う実行ファイルを GitHub Releases から GUI が取って送る。取ったら送る前に、GitHub Releases の checksums（GUI の Release に上げる `SHA256SUMS`。`sha256sum` の形式）にある SHA-256 と、取得した実行ファイルを比べる（取得の段階の確認。合わなければ ssh を起動する前に捨てる）。リモートに置いたファイルも同じ値かを確かめる（転送の壊れの確認。リモートで一時ファイルの SHA-256 を計り、合ったときだけ `kisui` の名前にする）。kisui が無いことは、2 のコマンドの終了コード 97 で知る（`ssh` 自身の失敗は 255）。取り先は shj のリリースではなく GUI の Release（#581）で、普通の版はタグ `kisui-terminal-v<GUI の版>` の `kisui-<os>-<cpu>`、nightly 版の GUI は動くタグ `kisui-terminal-nightly` の `kisui-nightly-<os>-<cpu>` を取る。
 2. **つなぐ**：`ssh -T host -- sh -c '<1 の場所に kisui があれば exec <kisui> attach、無ければ exit 97>'`（ログインシェルが fish などでも動くよう `sh -c` で包む。環境変数 `SHIJIMI_REMOTE_KISUI` で場所を指定したときは、その場所だけを見て `command -v <kisui> >/dev/null 2>&1 || exit 97; <kisui> attach`）（`-T` は端末を割り当てない）。ユーザーの `ssh_config`（`ControlMaster` など）はそのまま効く。
 3. **`kisui attach` がすること**（リモートで動く橋渡し）：
    1. 標準出力に `@@shj-rpc 1@@` を出す。
@@ -488,8 +488,8 @@ GUI はシステムの `ssh` を子プロセスとして起動する（`~/.ssh/c
 - リリースの workflow（`.github/workflows/gui-release.yml`。`release.yml` と `nightly.yml` から呼ぶ）が、Linux の AppImage（x86_64・aarch64）と macOS の署名なしの `.dmg`（universal）を作り、Tauri の updater の `latest.json` と一緒に Release に上げる。
 - 自動更新は AppImage と `.dmg` だけ（cargo の feature `updater`。workflow だけが付ける）。Nix で作る版（`nix build .#gui`・home-manager の `programs.shijimi-editor.gui`）は付けないので、更新は `nix flake update` と `home-manager switch` で行う。
 - 更新は、起動のときに 1 度だけ調べ、新しい版があれば右下に出し、ユーザーが「更新して再起動」を押したときだけ入れ替える（編集中に勝手に起動し直さない）。調べられなかったときは何も出さない。
-- 普通の版は `releases/latest/download/latest.json`（pre-release の nightly は入らない）、nightly 版は pre-release `nightly` の `latest.json` を見る。nightly 版は `tauri.nightly.conf.json` を重ね、名前 `shijimi-editor-nightly` と identifier を変えて普通の版と並べて入れられるようにする。nightly は版の前後を問わず、`latest.json` の版が今と違えば更新とする（`allowDowngrades`）。
-- GUI の版は Tauri の設定の `version`（workflow は `tauri build --config`、Nix は `TAURI_CONFIG` で入れる）。リモートに入れる shj の版（上の「ssh 越しに shj を起動する」の 1）もこれを使う。
+- 普通の版は `releases/download/kisui-terminal-latest/latest.json`（GUI のリリースのたびに置き換える pre-release `kisui-terminal-latest` のもの。shj のリリースは指さない）、nightly 版は pre-release `kisui-terminal-nightly` の `latest.json` を見る。nightly 版は `tauri.nightly.conf.json` を重ね、名前 `shijimi-editor-nightly` と identifier を変えて普通の版と並べて入れられるようにする。nightly は版の前後を問わず、`latest.json` の版が今と違えば更新とする（`allowDowngrades`）。
+- GUI の版は shj の版とは別で、`ui/gui/app/src-tauri/Cargo.toml` の `version`（workflow は `tauri build --config`、Nix は `TAURI_CONFIG` で入れる）。リモートに入れる shj の版（上の「ssh 越しに shj を起動する」の 1）もこれを使う。
 - 署名鍵は minisign で、パスワードは付けない（秘密鍵は 1Password にしか置かないので、足しても守りは強くならない）。workflow は 1Password のサービスアカウントで、ビルドの直前に読む。公開鍵は `tauri.conf.json` の `plugins.updater.pubkey`。
 
 ## 4. あとから足せる余地

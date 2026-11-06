@@ -16,7 +16,7 @@
     "updater": {
       "allowDowngrades": true,
       "endpoints": [
-        "https://github.com/mm1995tk/shijimi-editor/releases/download/nightly/latest.json"
+        "https://github.com/mm1995tk/shijimi-editor/releases/download/kisui-terminal-nightly/latest.json"
       ]
     }
   }

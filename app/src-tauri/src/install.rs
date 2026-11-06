@@ -63,12 +63,13 @@ fn is_nightly(version: &str) -> bool {
     version.contains("-nightly")
 }
 
-/// Release のタグ。安定版は `v<版>`、nightly 版は動くタグ `nightly`。
+/// GUI の Release のタグ。安定版は `kisui-terminal-v<版>`、nightly 版は動くタグ `kisui-terminal-nightly`。
+/// shj のリリース（`v<版>`、`nightly`）とは別で、kisui と shj は GUI の Release から取る（#581）。
 fn release_tag(version: &str) -> String {
     if is_nightly(version) {
-        "nightly".to_string()
+        "kisui-terminal-nightly".to_string()
     } else {
-        format!("v{version}")
+        format!("kisui-terminal-v{version}")
     }
 }
 
@@ -377,8 +378,11 @@ mod tests {
         assert!(!valid_version("-x"));
         assert!(!valid_version("1.0\"; rm -rf ~; \""));
         assert!(!valid_version("a/b"));
-        assert_eq!(release_tag("0.7.0"), "v0.7.0");
-        assert_eq!(release_tag("0.7.0-nightly.20261101.abc1234"), "nightly");
+        assert_eq!(release_tag("0.7.0"), "kisui-terminal-v0.7.0");
+        assert_eq!(
+            release_tag("0.7.0-nightly.20261101.abc1234"),
+            "kisui-terminal-nightly"
+        );
     }
 
     #[test]
@@ -422,11 +426,11 @@ mod tests {
     fn urls_are_fixed_to_the_repo() {
         assert_eq!(
             asset_url("0.7.0", "kisui-linux-x64"),
-            "https://github.com/mm1995tk/shijimi-editor/releases/download/v0.7.0/kisui-linux-x64"
+            "https://github.com/mm1995tk/shijimi-editor/releases/download/kisui-terminal-v0.7.0/kisui-linux-x64"
         );
         assert_eq!(
             asset_url("0.7.0-nightly.1.a", CHECKSUMS_NAME),
-            "https://github.com/mm1995tk/shijimi-editor/releases/download/nightly/SHA256SUMS"
+            "https://github.com/mm1995tk/shijimi-editor/releases/download/kisui-terminal-nightly/SHA256SUMS"
         );
     }
 
