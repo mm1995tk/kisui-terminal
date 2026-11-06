@@ -258,3 +258,20 @@ func TestPrimaryShjFileAndOpen(t *testing.T) {
 	default:
 	}
 }
+
+// 版のない名乗り（今までの shj）は版 0 として受け、範囲の外の版は理由を付けて断る。
+func TestPrimaryProtocolRange(t *testing.T) {
+	t.Setenv("HOME", normalizePath(t.TempDir()))
+	_, sock := startFast(t)
+	c, _ := termClient(t, sock)
+	_, primary := createWS(t, c)
+
+	r, _ := announceShj(t, sock, ctl.PrimaryHello{TermID: primary, Socket: "/run/a.sock", PID: 11, Protocol: MaxPrimaryProtocol + 1})
+	if r.OK || r.Code != ctl.ReplyCodeVersion || r.Min != MinPrimaryProtocol || r.Max != MaxPrimaryProtocol {
+		t.Fatalf("a newer version must be refused with the range: %+v", r)
+	}
+	// 断られたあとも、版のない shj は名乗れる（断った名乗りは席を取らない）。
+	if r, _ := announceShj(t, sock, ctl.PrimaryHello{TermID: primary, Socket: "/run/b.sock", PID: 22}); !r.OK {
+		t.Fatalf("version 0 (no protocol) must be accepted: %+v", r)
+	}
+}

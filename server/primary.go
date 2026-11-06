@@ -11,6 +11,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/fs"
 	"net"
 	"os"
@@ -103,6 +104,13 @@ func (s *Server) stopPrimary() {
 	p.wg.Wait()
 }
 
+// MinPrimaryProtocol と MaxPrimaryProtocol は、kisui が受ける shj → kisui の通信の版の範囲
+// （docs/design/kisui-shj-protocol.md）。版のない今までの shj は 0。範囲の外の名乗りは断る。
+const (
+	MinPrimaryProtocol = 0
+	MaxPrimaryProtocol = ctl.PrimaryProtocol
+)
+
 // primaryConn は 1 本の接続。名乗りを受けて、切れるまで読む。名乗りのあとに来る 1 行ずつの
 // ctl.PrimaryFile は、その shj が出しているファイル。読めない行は捨てる。
 func (s *Server) primaryConn(c net.Conn) {
@@ -123,6 +131,15 @@ func (s *Server) primaryConn(c net.Conn) {
 	var h ctl.PrimaryHello
 	if err := json.Unmarshal(sc.Bytes(), &h); err != nil {
 		reply(c, err)
+		return
+	}
+	if h.Protocol < MinPrimaryProtocol || h.Protocol > MaxPrimaryProtocol {
+		r := ctl.PrimaryReply{
+			Error: fmt.Sprintf("unsupported protocol version %d (supported: %d to %d)", h.Protocol, MinPrimaryProtocol, MaxPrimaryProtocol),
+			Code:  ctl.ReplyCodeVersion, Min: MinPrimaryProtocol, Max: MaxPrimaryProtocol,
+		}
+		b, _ := json.Marshal(r)
+		_, _ = c.Write(append(b, '\n'))
 		return
 	}
 	claim, err := s.ws.claimShj(h)

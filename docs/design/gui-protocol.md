@@ -408,6 +408,8 @@ P13-09（#385）で `Core` を `core` に移し、分割を終えた。`ui/tui` 
 
 #### プライマリの shj
 
+通信の版と、版を上げる決まりは [kisui-shj-protocol.md](kisui-shj-protocol.md)。名乗りの `{termId, socket, pid}` には `protocol`（版。無ければ 0）が付き、`kisui serve` が受けない版なら `{ok: false, code: "version", min, max}` で断る。
+
 GUI はターミナルのマルチプレクサで、編集はプライマリターミナルの中で TUI の `shj` を動かして行う。`kisui serve` はワークスペースごとに「プライマリで動いている shj」を 1 つ覚え、`Workspace.primaryShj`（`{socket, pid, file?}`。無ければ `null`）で GUI に知らせる。変わると `workspace.changed` の `updated` で届く。`socket` はその shj の制御用ソケット（`core/ctl`、`<pid>.sock`）の場所。
 
 - **伝え方**：`kisui serve` は、プライマリターミナルのシェルにだけ環境変数 `SHIJIMI_GUI_PRIMARY`（値はそのターミナルの `termId`）を渡す。`workspace.create` のときも `term.restart` のときも。分割したターミナル（`term.create`）には渡さない。
