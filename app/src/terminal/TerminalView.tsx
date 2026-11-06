@@ -54,8 +54,6 @@ export function TerminalView(props: {
     fontFamily:
       "'JetBrains Mono', 'Symbols Nerd Font Mono', ui-monospace, Menlo, Consolas, 'DejaVu Sans Mono', monospace",
     fontSize: 13,
-    // 行の高さはモックの 21px に近づける（coneko-term は文字の高さ（約 1.2 倍）に掛ける）
-    lineHeight: 21 / 13 / 1.2,
     cursorBlink: true,
     scrollback: 5000,
     theme: {

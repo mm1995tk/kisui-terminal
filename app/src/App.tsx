@@ -96,6 +96,8 @@ import {
 import { DeleteDialog, NameDialog } from "./tree/TreeDialogs.tsx";
 import { WorkspaceTrees } from "./tree/trees.ts";
 import { cmdDigit, IS_MAC, isCloseTermKey } from "./guiKeys.ts";
+import { loadScale, nextScale, saveScale, scaleKey } from "./scale.ts";
+import { applyScale } from "./scaleOs.ts";
 import { directionKey, isNewTermKey, isZoomKey } from "./terminal/grid.ts";
 import { TermGroup, TermGroups } from "./terminal/group.ts";
 import type { MediaFetch } from "./terminal/media.ts";
@@ -307,8 +309,21 @@ function Workbench(props: {
 
   // await の後は Owner が無いので、onCleanup は先に登録する
   const offs: (() => void)[] = [];
+  // 表示の大きさ（#594）。覚えておいた大きさで始める
+  let scale = loadScale(store);
+  if (scale !== 1) void applyScale(scale);
   // GUI が受けるキーなので、欄やターミナルに届く前（capture）に取って、shj にもシェルにも送らない
   const onGuiKey = (e: KeyboardEvent) => {
+    // 表示の大きさ（#594）。窓全体の zoom を変える。ターミナルは欄の変化で合わせ直す
+    const sc = scaleKey(e, IS_MAC);
+    if (sc) {
+      e.preventDefault();
+      e.stopPropagation();
+      scale = nextScale(scale, sc);
+      saveScale(store, scale);
+      void applyScale(scale);
+      return;
+    }
     if (isZoomKey(e, IS_MAC)) {
       e.preventDefault();
       e.stopPropagation();
