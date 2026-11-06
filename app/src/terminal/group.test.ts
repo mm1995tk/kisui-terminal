@@ -86,6 +86,8 @@ const layout = (terms: string[] = [], primary = "t1"): TermLayout => ({
   terms,
 });
 const ids = (g: TermGroup) => g.list.map((l) => l.id);
+const extraId = (g: TermGroup): string | undefined => g.activeExtra?.id;
+const extraIds = (g: TermGroup): string[] => g.extras.map((x) => x.id);
 
 describe("TermGroup", () => {
   it("プライマリを先頭に、分割したターミナルを続けて並べる。最初の active はプライマリ", () => {
@@ -124,6 +126,103 @@ describe("TermGroup", () => {
     assert.equal(g.active?.id, "t3");
     assert.equal(g.activate("t9"), false);
     assert.equal(g.active?.id, "t3");
+  });
+
+  it("ターミナルでない欄（動画）を、ターミナルの後ろに並べる。変わらなければ同じ物のまま残す", () => {
+    const f = fakePort();
+    let changed = 0;
+    const x1 = {
+      id: "x1",
+      kind: "video",
+      path: "/v/a.mp4",
+      mime: "video/mp4",
+      size: 5,
+    } as const;
+    const g = new TermGroup(
+      f.port,
+      { ...layout(["t2"]), extras: [x1] },
+      () => changed++,
+    );
+    assert.deepEqual(
+      g.extras.map((x) => x.id),
+      ["x1"],
+    );
+    assert.equal(extraId(g), undefined);
+    // workspace.changed が同じ欄を届け直しても、作り直さない（動画を取り直さない）
+    const kept = g.extras[0];
+    g.update({ ...layout(["t2"]), extras: [{ ...x1 }] });
+    assert.equal(g.extras[0], kept);
+    assert.equal(changed, 0);
+    assert.equal(g.activateExtra("x1"), true);
+    assert.equal(extraId(g), "x1");
+    assert.equal(g.activateExtra("x9"), false);
+    // ターミナルを押すと、欄からキーが戻る。今のターミナルを押し直しても戻る
+    g.setActive(1);
+    assert.equal(extraId(g), undefined);
+    // 欄が一覧から消えたら外す
+    g.activateExtra("x1");
+    g.update(layout(["t2"]));
+    assert.deepEqual(extraIds(g), []);
+    assert.equal(extraId(g), undefined);
+  });
+
+  it("欄を閉じると extra.close を送り、一覧から消えるまで並べ直さない。Cmd+W も欄を閉じる", () => {
+    const f = fakePort();
+    f.handlers["extra.close"] = () => ({});
+    const x1 = {
+      id: "x1",
+      kind: "video",
+      path: "/v/a.mp4",
+      mime: "video/mp4",
+      size: 5,
+    } as const;
+    const g = new TermGroup(
+      f.port,
+      { ...layout(["t2"]), extras: [x1] },
+      () => {},
+    );
+    g.activateExtra("x1");
+    assert.equal(g.closeActive(), true);
+    assert.deepEqual(f.calls.at(-1), {
+      method: "extra.close",
+      params: { workspaceId: "w1", id: "x1" },
+    });
+    assert.deepEqual(extraIds(g), []);
+    g.update({ ...layout(["t2"]), extras: [x1] }); // 返事の前に届いた古い一覧
+    assert.deepEqual(extraIds(g), []);
+    g.update(layout(["t2"]));
+    g.update({ ...layout(["t2"]), extras: [{ ...x1, id: "x2" }] }); // 次の動画は並ぶ
+    assert.deepEqual(
+      g.extras.map((x) => x.id),
+      ["x2"],
+    );
+  });
+
+  it("隣へ移るとき、ターミナルでない欄も升目に数える。足せる数も欄ぶん減る", async () => {
+    const f = fakePort();
+    const x1 = {
+      id: "x1",
+      kind: "video",
+      path: "/v/a.mp4",
+      mime: "video/mp4",
+      size: 5,
+    } as const;
+    const g = new TermGroup(
+      f.port,
+      { ...layout(["t2"]), extras: [x1] },
+      () => {},
+    );
+    g.setActive(1);
+    // 3 つは 2×2 で、最後の欄が下の段の幅いっぱいになる
+    assert.equal(g.move("down"), true);
+    assert.equal(extraId(g), "x1");
+    assert.equal(g.move("down"), false);
+    assert.equal(g.move("up"), true);
+    assert.equal(g.active?.id, "t1");
+    assert.equal(extraId(g), undefined);
+    for (let i = 0; i < 3; i++) assert.equal(await g.add(), true);
+    assert.equal(g.list.length + g.extras.length, 6);
+    assert.equal(await g.add(), false);
   });
 
   it("足すと term.create（ワークスペースを指して）で作って active にする。6 個までしか足せない", async () => {

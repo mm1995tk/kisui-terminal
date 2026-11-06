@@ -498,6 +498,18 @@ export interface Workspace {
   files: string[];
   /** プライマリターミナルの中で動いている TUI の shj。無ければ null（shj serve は常に送る） */
   primaryShj?: PrimaryShj | null;
+  /** プライマリの shj が開かせた、ターミナルでない欄（動画。#555）。並びはターミナルの後ろ。無ければ []（古い shj serve は送らない） */
+  extras?: ExtraPane[];
+}
+
+/** ターミナルでない欄。今は動画だけ（ブラウザも同じ作りで足す） */
+export interface ExtraPane {
+  id: string;
+  kind: "video";
+  /** ファイルの絶対パス（その欄を開いたマシンのもの） */
+  path: string;
+  mime: string;
+  size: number;
 }
 
 export interface PrimaryShj {
@@ -576,6 +588,20 @@ export interface Requests {
   "blob.get": {
     params: { id: string; offset?: number; length?: number };
     result: { mime: string; size: number; data: string; eof: boolean };
+  };
+  /** ターミナルでない欄（動画）の中身を範囲で取る。1 回で返るのは 4 MiB まで（#555） */
+  "media.read": {
+    params: {
+      workspaceId: WorkspaceId;
+      id: string;
+      offset?: number;
+      length?: number;
+    };
+    result: { mime: string; size: number; data: string; eof: boolean };
+  };
+  "extra.close": {
+    params: { workspaceId: WorkspaceId; id: string };
+    result: Record<string, never>;
   };
 
   "input.key": { params: InputKeyParams; result: { rev: number } };
@@ -706,7 +732,13 @@ export interface Notifications {
   "resize.reset": Record<string, never>;
   "url.open": { url: string };
   /** プライマリの shj の欄（#553）。shj が端末のコマンドで欄を出した・隠した */
-  "pane.show": { workspaceId: WorkspaceId; termId: TermId };
+  "pane.show": {
+    workspaceId: WorkspaceId;
+    /** 出した欄がターミナルのとき */
+    termId?: TermId;
+    /** 出した欄がターミナルでないとき（Workspace.extras の id） */
+    extraId?: string;
+  };
   "pane.hide": { workspaceId: WorkspaceId };
   notify: { level: string; text: string };
   "term.output": { termId: TermId; seq: number; data: string };

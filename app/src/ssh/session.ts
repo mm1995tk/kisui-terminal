@@ -103,9 +103,10 @@ export type TermMethod =
   | "term.restart"
   | "term.resize"
   | "term.input"
-  | "term.cd";
+  | "term.cd"
+  | "extra.close";
 /** Session.request で送れる要求（画像の実体。E6）。 */
-export type BlobMethod = "blob.get";
+export type BlobMethod = "blob.get" | "media.read";
 /** Session.request で送れる要求（プライマリの shj にファイルを開かせる）。 */
 export type ShjMethod = "shj.open";
 /** ターミナルの通知（F1）。method で見分ける。 */
@@ -127,6 +128,7 @@ export type ResizeEvent =
 /** shj が出した・隠した欄の知らせ（プライマリの shj の端末のコマンド。#553）。 */
 export type PaneEvent =
   | { kind: "show"; workspaceId: WorkspaceId; termId: TermId }
+  | { kind: "show-extra"; workspaceId: WorkspaceId; extraId: string }
   | { kind: "hide"; workspaceId: WorkspaceId };
 
 /** Session.input で送れる入力。file.open も shj は入力と同じ並びで処理するので、同じ seq の数え方で送る。 */
@@ -665,10 +667,19 @@ export class Session {
       }),
       conn.client.on("pane.show", (n) => {
         if (gen !== this.generation || this.conn !== conn) return;
-        if (typeof n?.workspaceId !== "string" || typeof n?.termId !== "string")
-          return;
-        for (const h of [...this.paneHandlers])
-          h({ kind: "show", workspaceId: n.workspaceId, termId: n.termId });
+        if (typeof n?.workspaceId !== "string") return;
+        const ev: PaneEvent | undefined =
+          typeof n.termId === "string"
+            ? { kind: "show", workspaceId: n.workspaceId, termId: n.termId }
+            : typeof n.extraId === "string"
+              ? {
+                  kind: "show-extra",
+                  workspaceId: n.workspaceId,
+                  extraId: n.extraId,
+                }
+              : undefined;
+        if (!ev) return;
+        for (const h of [...this.paneHandlers]) h(ev);
       }),
       conn.client.on("pane.hide", (n) => {
         if (gen !== this.generation || this.conn !== conn) return;

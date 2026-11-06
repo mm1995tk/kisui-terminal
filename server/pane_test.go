@@ -3,8 +3,10 @@ package server
 import (
 	"bufio"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"net"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -117,4 +119,106 @@ func TestPrimaryShjPanes(t *testing.T) {
 	}
 	hello.Close()
 	waitFor(t, "the pane closes with its shj", func() bool { _, err := srv.terms.get(split2.ID); return err != nil })
+}
+
+// 動画の欄を開き、範囲を指して読み、閉じる。動画の欄は 1 つで、新しいものと入れ替わる。shj が終わると消える。
+func TestPrimaryShjVideoPane(t *testing.T) {
+	t.Setenv("HOME", normalizePath(t.TempDir()))
+	srv, sock := startFast(t)
+	c, nt := termClient(t, sock)
+	id, primary := createWS(t, c)
+	r0, hello := announceShj(t, sock, ctl.PrimaryHello{TermID: primary, Socket: "/run/a.sock", PID: 11})
+	if !r0.OK {
+		t.Fatalf("hello: %+v", r0)
+	}
+	dir := t.TempDir()
+	mp4 := filepath.Join(dir, "a.mp4")
+	data := []byte("0123456789abcdef")
+	if err := os.WriteFile(mp4, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	txt := filepath.Join(dir, "a.txt")
+	_ = os.WriteFile(txt, data, 0o644)
+	open := func(path string) ctl.PaneReply {
+		return paneDo(t, sock, ctl.PaneRequest{Op: "open", Kind: "video", Path: path, TermID: primary, PID: 11})
+	}
+	extras := func() []extraPane {
+		var l struct {
+			Workspaces []wsInfo `json:"workspaces"`
+		}
+		if err := c.Call(context.Background(), "workspace.list", map[string]any{}, &l); err != nil || len(l.Workspaces) != 1 {
+			t.Fatalf("workspace.list: %v %+v", err, l)
+		}
+		return l.Workspaces[0].Extras
+	}
+
+	for _, bad := range []string{txt, "a.mp4", filepath.Join(dir, "none.mp4"), dir} {
+		if r := open(bad); r.OK {
+			t.Fatalf("%q must be refused", bad)
+		}
+	}
+	r := open(mp4)
+	if !r.OK || r.ID == "" {
+		t.Fatalf("open: %+v", r)
+	}
+	waitFor(t, "pane.show of the video", func() bool {
+		for _, m := range nt.all("pane.show") {
+			if strings.Contains(string(*m), `"extraId":"`+r.ID+`"`) {
+				return true
+			}
+		}
+		return false
+	})
+	if e := extras(); len(e) != 1 || e[0].ID != r.ID || e[0].Path != mp4 || e[0].MIME != "video/mp4" || e[0].Size != int64(len(data)) {
+		t.Fatalf("extras: %+v", e)
+	}
+
+	var m MediaResult
+	if err := c.Call(context.Background(), "media.read", map[string]any{"workspaceId": id, "id": r.ID, "offset": 4, "length": 6}, &m); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := base64.StdEncoding.DecodeString(m.Data); string(got) != "456789" || m.EOF || m.Size != 16 || m.Mime != "video/mp4" {
+		t.Fatalf("media.read: %+v %q", m, got)
+	}
+	if err := c.Call(context.Background(), "media.read", map[string]any{"workspaceId": id, "id": r.ID, "offset": 10}, &m); err != nil || !m.EOF {
+		t.Fatalf("media.read to the end: %v %+v", err, m)
+	}
+	if err := c.Call(context.Background(), "media.read", map[string]any{"workspaceId": id, "id": "x99"}, &m); err == nil {
+		t.Fatal("a pane that is not open cannot be read")
+	}
+
+	// 開き直すと入れ替わる。
+	r2 := open(mp4)
+	if !r2.OK || r2.ID == r.ID {
+		t.Fatalf("open again: %+v", r2)
+	}
+	if e := extras(); len(e) != 1 || e[0].ID != r2.ID {
+		t.Fatalf("extras after replacing: %+v", e)
+	}
+
+	// GUI が閉じる。
+	if err := c.Call(context.Background(), "extra.close", map[string]any{"workspaceId": id, "id": r2.ID}, &struct{}{}); err != nil {
+		t.Fatal(err)
+	}
+	if e := extras(); len(e) != 0 {
+		t.Fatalf("extras after close: %+v", e)
+	}
+
+	// shj が閉じる。ほかの shj の欄は閉じられない。
+	r3 := open(mp4)
+	cl := ctl.PaneRequest{Op: "close", TermID: primary, PID: 11, ID: r3.ID}
+	if r := paneDo(t, sock, cl); !r.OK {
+		t.Fatalf("close: %+v", r)
+	}
+	if e := extras(); len(e) != 0 {
+		t.Fatalf("extras after close by the shj: %+v", e)
+	}
+
+	// shj が終わると、動画の欄は消える。
+	if r := open(mp4); !r.OK {
+		t.Fatalf("open: %+v", r)
+	}
+	hello.Close()
+	waitFor(t, "the video pane closes with its shj", func() bool { return len(extras()) == 0 })
+	_ = srv
 }

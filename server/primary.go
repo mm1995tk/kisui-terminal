@@ -27,9 +27,10 @@ type primaryShj struct {
 	Socket string `json:"socket"`
 	PID    int    `json:"pid"`
 	// File はその shj が今出しているファイル（絶対パス）。テキストか画像を出していなければ空。
-	File  string   `json:"file,omitempty"`
-	wsID  string   // 名乗ったときのワークスペース（リンクを消すため。ワークスペースが先に消えても分かる）
-	panes []string // この shj が作った欄（ターミナルの id）。w.mu で守る。shj が終わると閉じる
+	File   string      `json:"file,omitempty"`
+	wsID   string      // 名乗ったときのワークスペース（リンクを消すため。ワークスペースが先に消えても分かる）
+	panes  []string    // この shj が作った欄（ターミナルの id）。w.mu で守る。shj が終わると閉じる
+	extras []extraPane // この shj が開かせた、ターミナルでない欄（動画）。w.mu で守る。shj が終わると消える
 }
 
 type primaryServer struct {
@@ -188,6 +189,7 @@ func (w *wsManager) releaseShj(claim *primaryShj) {
 	w.mu.Lock()
 	panes := claim.panes
 	claim.panes = nil
+	claim.extras = nil
 	for _, st := range w.reg {
 		if st.shj == claim {
 			st.shj = nil

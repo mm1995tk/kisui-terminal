@@ -75,7 +75,7 @@ func (w *wsManager) ownPane(claim *primaryShj, id string) bool {
 }
 
 // pane は rq を行う。頼んだ shj が、そのワークスペースのプライマリの shj でなければ断る。
-// split と hide のほかは、その shj が作った欄にだけ効く。
+// split・open・hide のほかは、その shj が作った欄にだけ効く。
 func (w *wsManager) pane(rq ctl.PaneRequest) (ctl.PaneReply, error) {
 	claim, wsID, err := w.claimOf(rq)
 	if err != nil {
@@ -85,12 +85,25 @@ func (w *wsManager) pane(rq ctl.PaneRequest) (ctl.PaneReply, error) {
 	case "split":
 		id, err := w.splitPane(claim, wsID, rq)
 		return ctl.PaneReply{ID: id}, err
+	case "open":
+		id, err := w.openExtra(claim, wsID, rq)
+		return ctl.PaneReply{ID: id}, err
 	case "hide":
 		w.srv.notifyOwner("pane.hide", map[string]any{"workspaceId": wsID})
 		return ctl.PaneReply{}, nil
 	case "show", "send", "tail", "alive", "close":
 	default:
 		return ctl.PaneReply{}, fmt.Errorf("unknown op: %q", rq.Op)
+	}
+	if w.ownExtra(claim, rq.ID) { // ターミナルでない欄に効くのは、見せると閉じるだけ
+		switch rq.Op {
+		case "show":
+			w.srv.notifyOwner("pane.show", map[string]any{"workspaceId": wsID, "extraId": rq.ID})
+			return ctl.PaneReply{}, nil
+		case "close":
+			w.closeExtra(claim, rq.ID)
+			return ctl.PaneReply{}, nil
+		}
 	}
 	if !w.ownPane(claim, rq.ID) {
 		if rq.Op == "alive" { // 閉じたあとに聞かれても、いないだけ
@@ -146,7 +159,7 @@ func (w *wsManager) splitPane(claim *primaryShj, wsID string, rq ctl.PaneRequest
 	}
 	w.recomputeMu.Lock()
 	defer w.recomputeMu.Unlock()
-	if w.srv.terms.countSplit(wsID) >= maxSplitTerms {
+	if w.cellsFree(wsID) <= 0 {
 		return "", fmt.Errorf("the workspace already has %d terminals", maxSplitTerms+1)
 	}
 	t, err := w.srv.terms.start(termStart{cols: 80, rows: 24, dir: dir, env: env, wsID: wsID})

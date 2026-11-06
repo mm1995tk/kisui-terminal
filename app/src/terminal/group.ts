@@ -7,17 +7,29 @@
 // - Ctrl+Shift+T で分割したターミナルを増やす（add。term.create）。分割したターミナルのシェルが終わったら
 //   （`exit`）その欄を閉じて並び直す。プライマリターミナルは、終わっても欄を閉じず、Enter で作り直す
 //   （ターミナル 1 つの流量制御・取り直し・作り直しは TermLink（link.ts）がする）。
+// - ターミナルでない欄（動画。#555）も同じ升目に、ターミナルの後ろに並べる。プライマリの shj が開かせたもので、
+//   Workspace.extras が決める。キーを向けているのが欄かターミナルかを extraCurrent で持つ（欄を閉じるのは closeExtra）。
 // - マシンの全ワークスペースの組は TermGroups が持つ。
 //
 // DOM を使わないので node --test で確かめられる。
 
-import type { TermId, Workspace, WorkspaceId } from "../rpc/protocol.ts";
+import type {
+  ExtraPane,
+  TermId,
+  Workspace,
+  WorkspaceId,
+} from "../rpc/protocol.ts";
 import type { TermEvent } from "../ssh/session.ts";
 import { MAX_TERMS, neighbor, type Direction } from "./grid.ts";
 import { DEFAULT_SIZE, TermLink, type TermPort } from "./link.ts";
 
 /** ワークスペースのうち、ターミナルの並びを決める部分。 */
-export type TermLayout = Pick<Workspace, "id" | "primary" | "terms">;
+export type TermLayout = Pick<Workspace, "id" | "primary" | "terms"> &
+  Partial<Pick<Workspace, "extras">>;
+
+function sameExtra(a: ExtraPane, b: ExtraPane): boolean {
+  return a.id === b.id && a.kind === b.kind && a.path === b.path;
+}
 
 /** 1 つのワークスペースのターミナルの並びと、今使っている 1 つ（active）を持つ。並びか active が変わったら onChange を呼ぶ。 */
 export class TermGroup {
@@ -31,6 +43,12 @@ export class TermGroup {
   private readonly closing = new Set<TermId>();
   /** term.create の返事待ちの数（上限の数え方に入れる） */
   private creating = 0;
+  /** ターミナルでない欄（動画。#555）。並べるのはターミナルの後ろ */
+  private extraList: ExtraPane[] = [];
+  /** キーを向けているターミナルでない欄の id。ターミナルを使っているときは undefined */
+  private extraCurrent?: string;
+  /** こちらから extra.close を送った欄。shj の一覧から消えるまで、並べ直さない */
+  private readonly closingExtras = new Set<string>();
 
   constructor(
     port: TermPort,
@@ -48,6 +66,16 @@ export class TermGroup {
   /** 並べるターミナル（並べる順。先頭がプライマリ）。変えるたびに新しい配列にする。 */
   get list(): readonly TermLink[] {
     return this.links;
+  }
+
+  /** ターミナルでない欄（並べる順。ターミナルの後ろに並ぶ）。変えるたびに新しい配列にする。 */
+  get extras(): readonly ExtraPane[] {
+    return this.extraList;
+  }
+
+  /** キーを向けているターミナルでない欄。ターミナルを使っているときは undefined。 */
+  get activeExtra(): ExtraPane | undefined {
+    return this.extraList.find((x) => x.id === this.extraCurrent);
   }
 
   /** 今使っているターミナル（IDE モードの右下に出すもの・キーを向けるもの）。 */
@@ -69,15 +97,28 @@ export class TermGroup {
       const old = this.links.find((l) => l.id === id);
       next.push(old ?? this.newLink(id, id === layout.primary));
     }
+    const wantX = layout.extras ?? [];
+    for (const id of this.closingExtras)
+      if (!wantX.some((x) => x.id === id)) this.closingExtras.delete(id);
+    // 変わっていない欄は同じ物のまま残す（動画の欄を作り直して、取り直さないため）
+    const nextX = wantX
+      .filter((x) => !this.closingExtras.has(x.id))
+      .map((x) => this.extraList.find((o) => sameExtra(o, x)) ?? x);
+    const sameX =
+      nextX.length === this.extraList.length &&
+      nextX.every((x, i) => x === this.extraList[i]);
     const same =
       next.length === this.links.length &&
       next.every((l, i) => l === this.links[i]);
-    if (same) return;
+    if (same && sameX) return;
     const was = this.current ? this.links.indexOf(this.current) : -1;
     this.links = next;
     if (!this.current || !next.includes(this.current)) {
       this.current = next[Math.min(Math.max(was, 0), next.length - 1)];
     }
+    this.extraList = nextX;
+    if (!nextX.some((x) => x.id === this.extraCurrent))
+      this.extraCurrent = undefined;
     if (notify) this.onChange();
   }
 
@@ -96,7 +137,8 @@ export class TermGroup {
    * （ワークスペースのフォルダ。未定なら start_dir）。上限なら足さずに false。足したら true。
    */
   async add(): Promise<boolean> {
-    if (this.links.length + this.creating >= MAX_TERMS) return false;
+    if (this.links.length + this.extraList.length + this.creating >= MAX_TERMS)
+      return false;
     this.creating++;
     try {
       const r = await this.port.request("term.create", {
@@ -111,6 +153,7 @@ export class TermGroup {
         this.links = [...this.links, l];
       }
       this.current = l;
+      this.extraCurrent = undefined;
       this.onChange();
       return true;
     } catch (e) {
@@ -124,8 +167,32 @@ export class TermGroup {
   /** i 番目を active にする（押した欄）。 */
   setActive(i: number): void {
     const l = this.links[i];
-    if (!l || l === this.current) return;
+    if (!l || (l === this.current && this.extraCurrent === undefined)) return;
     this.current = l;
+    this.extraCurrent = undefined;
+    this.onChange();
+  }
+
+  /** id の、ターミナルでない欄にキーを向ける（shj が欄を出した・欄を押した。#555）。無ければ false。 */
+  activateExtra(id: string): boolean {
+    if (!this.extraList.some((x) => x.id === id)) return false;
+    if (this.extraCurrent !== id) {
+      this.extraCurrent = id;
+      this.onChange();
+    }
+    return true;
+  }
+
+  /** ターミナルでない欄を閉じる（欄の閉じるボタン・Cmd+W）。shj には extra.close を送る。 */
+  closeExtra(id: string): void {
+    const i = this.extraList.findIndex((x) => x.id === id);
+    if (i < 0) return;
+    this.extraList = this.extraList.filter((x) => x.id !== id);
+    this.closingExtras.add(id);
+    this.port
+      .request("extra.close", { workspaceId: this.wsId, id })
+      .catch(() => {});
+    if (this.extraCurrent === id) this.extraCurrent = undefined;
     this.onChange();
   }
 
@@ -139,17 +206,28 @@ export class TermGroup {
 
   /** active を dir の向きの隣へ移す（Ctrl+Shift+矢印）。動いたら true。 */
   move(dir: Direction): boolean {
-    const i = this.current ? this.links.indexOf(this.current) : -1;
+    const nl = this.links.length;
+    const xi = this.extraList.findIndex((x) => x.id === this.extraCurrent);
+    const i =
+      xi >= 0 ? nl + xi : this.current ? this.links.indexOf(this.current) : -1;
     if (i < 0) return false;
-    const j = neighbor(i, this.links.length, dir);
+    const j = neighbor(i, nl + this.extraList.length, dir);
     if (j === i) return false;
-    this.current = this.links[j];
+    if (j < nl) {
+      this.current = this.links[j];
+      this.extraCurrent = undefined;
+    } else this.extraCurrent = this.extraList[j - nl]!.id;
     this.onChange();
     return true;
   }
 
-  /** 今使っている分割したターミナルを閉じる（Cmd+W）。プライマリターミナルは閉じず false。閉じたら true。 */
+  /** 今使っている分割したターミナル（か、ターミナルでない欄）を閉じる（Cmd+W）。プライマリターミナルは閉じず false。閉じたら true。 */
   closeActive(): boolean {
+    const x = this.activeExtra;
+    if (x) {
+      this.closeExtra(x.id);
+      return true;
+    }
     const l = this.current;
     if (!l || l.primary || !this.links.includes(l)) return false;
     this.exited(l);

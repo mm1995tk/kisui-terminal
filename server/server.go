@@ -327,6 +327,9 @@ func (ss *session) handle(_ context.Context, req *rpc.Message) (any, error) {
 	if res, err, ok := ss.primaryRequest(req); ok {
 		return res, err
 	}
+	if res, err, ok := ss.mediaRequest(req); ok {
+		return res, err
+	}
 	switch req.Method {
 	case "session.hello":
 		return ss.helloReq(req)

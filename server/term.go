@@ -264,7 +264,7 @@ func (m *termManager) create(p termCreateParams) (any, error) {
 	// 上限の数え方と作るのを、recompute と同じロックで 1 つずつにする（同時に作って 6 個を超えない）。
 	m.srv.ws.recomputeMu.Lock()
 	defer m.srv.ws.recomputeMu.Unlock()
-	if m.countSplit(p.WorkspaceID) >= maxSplitTerms {
+	if m.srv.ws.cellsFree(p.WorkspaceID) <= 0 {
 		return nil, rpc.Errorf(rpc.CodeBusy, "the workspace already has %d terminals", maxSplitTerms+1)
 	}
 	t, err := m.start(termStart{cols: p.Cols, rows: p.Rows, dir: dir, shell: p.Shell, env: env, wsID: p.WorkspaceID})
