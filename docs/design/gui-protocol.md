@@ -463,7 +463,7 @@ GUI は複数のワークスペースのツリーを（開閉の状態を持っ�
 
 GUI はシステムの `ssh` を子プロセスとして起動する（`~/.ssh/config` と ssh-agent をそのまま使うため）。ssh がパスワードや 2 段階認証を求めるときは `SSH_ASKPASS` で GUI の窓に出す。
 
-1. **kisui の場所**：`~/.cache/shijimi-editor/<GUI の版>/kisui` だけ。リモートの PATH の `kisui` は使わない（GUI と同じ版しか使わないため。`SHIJIMI_REMOTE_KISUI` で場所を手で指定したときを除く）。無ければ、ユーザーに聞いてから GUI が転送する。PATH の `kisui` には触らない。リモートの OS とアーキテクチャは `uname -sm` で調べ、合う実行ファイルを GitHub Releases から GUI が取って送る。取ったら送る前に、GitHub Releases の checksums（GUI の Release に上げる `SHA256SUMS`。`sha256sum` の形式）にある SHA-256 と、取得した実行ファイルを比べる（取得の段階の確認。合わなければ ssh を起動する前に捨てる）。リモートに置いたファイルも同じ値かを確かめる（転送の壊れの確認。リモートで一時ファイルの SHA-256 を計り、合ったときだけ `kisui` の名前にする）。kisui が無いことは、2 のコマンドの終了コード 97 で知る（`ssh` 自身の失敗は 255）。取り先は shj のリリースではなく GUI の Release（#581）で、普通の版はタグ `kisui-terminal-v<GUI の版>` の `kisui-<os>-<cpu>`、nightly 版の GUI は動くタグ `kisui-terminal-nightly` の `kisui-nightly-<os>-<cpu>` を取る。
+1. **kisui の場所**：`~/.cache/kisui-terminal/<GUI の版>/kisui` だけ。リモートの PATH の `kisui` は使わない（GUI と同じ版しか使わないため。`SHIJIMI_REMOTE_KISUI` で場所を手で指定したときを除く）。無ければ、ユーザーに聞いてから GUI が転送する。PATH の `kisui` には触らない。リモートの OS とアーキテクチャは `uname -sm` で調べ、合う実行ファイルを GitHub Releases から GUI が取って送る。取ったら送る前に、GitHub Releases の checksums（GUI の Release に上げる `SHA256SUMS`。`sha256sum` の形式）にある SHA-256 と、取得した実行ファイルを比べる（取得の段階の確認。合わなければ ssh を起動する前に捨てる）。リモートに置いたファイルも同じ値かを確かめる（転送の壊れの確認。リモートで一時ファイルの SHA-256 を計り、合ったときだけ `kisui` の名前にする）。kisui が無いことは、2 のコマンドの終了コード 97 で知る（`ssh` 自身の失敗は 255）。取り先は shj のリリースではなく GUI の Release（#581）で、普通の版はタグ `kisui-terminal-v<GUI の版>` の `kisui-<os>-<cpu>`、nightly 版の GUI は動くタグ `kisui-terminal-nightly` の `kisui-nightly-<os>-<cpu>` を取る。
 2. **つなぐ**：`ssh -T host -- sh -c '<1 の場所に kisui があれば exec <kisui> attach、無ければ exit 97>'`（ログインシェルが fish などでも動くよう `sh -c` で包む。環境変数 `SHIJIMI_REMOTE_KISUI` で場所を指定したときは、その場所だけを見て `command -v <kisui> >/dev/null 2>&1 || exit 97; <kisui> attach`）（`-T` は端末を割り当てない）。ユーザーの `ssh_config`（`ControlMaster` など）はそのまま効く。
 3. **`kisui attach` がすること**（リモートで動く橋渡し）：
    1. 標準出力に `@@shj-rpc 1@@` を出す。
@@ -471,7 +471,7 @@ GUI はシステムの `ssh` を子プロセスとして起動する（`~/.ssh/c
    3. 動いていなければ、`kisui serve` を切り離して起動する（`setsid`。標準入出力は閉じ、ログはファイルへ）。ソケットができるまで（最大 5 秒）待ってつなぐ。2 台の GUI が同時に起動しても 1 つになるよう、ソケットのフォルダの中のロックファイル（`flock`）を使う。
    4. 標準入出力とソケットの間を、バイトのままコピーする（プロトコルは解釈しない）。どちらかが閉じたら終わる。
 4. **「ローカル」**：`ssh` を挟まず、GUI が、自分と一緒に配った `kisui`（AppImage の `usr/bin/kisui`、.app の `Contents/MacOS/kisui`、Nix のパッケージの `../libexec/kisui`。環境変数 `SHIJIMI_KISUI` があればそれを使う）の `kisui attach` を直接起動する。PATH の `kisui` や `shj` は探さない（GUI と同じ版しか使わない）。Finder や Dock から起動した macOS のアプリはログインシェルの PATH を引き継がないので、起動のときにログインシェル（`$SHELL -l -i -c`、5 秒で諦める）に PATH を聞き、GUI の PATH とよく使う場所（`~/.nix-profile/bin`・`/opt/homebrew/bin`・`/usr/local/bin`・`~/.local/bin` など）を足して、`kisui attach` に渡す（`kisui serve` の中のターミナルが `shj` などを見つけるため）。待つのはメインスレッドの外（`connect` は async のコマンド）。`kisui attach` にもこの PATH を渡す（`kisui serve` の中のターミナルが引き継ぐ）。
-4b. **欄の中の `shj`**：kisui は、欄のターミナル（`term.create`・プライマリの再起動を含む）を始めるとき、同梱の shj のあるフォルダを `PATH` の先頭に足す。フォルダは、環境変数 `KISUI_SHJ_DIR`（Nix のパッケージで GUI が渡す。`../libexec/shj-bin`）、無ければ kisui の実行ファイルと同じフォルダ（AppImage の `usr/bin`、.app の `Contents/MacOS`、リモートのキャッシュ `~/.cache/shijimi-editor/<GUI の版>/`）の `shj`。リモートでは、1 の転送で kisui の前に同じ Release の `shj-<os>-<cpu>`（nightly は `shj-nightly-<os>-<cpu>`）も同じ確かめ方で入れる。Nix の GUI は shj を `bin/` に出さない。
+4b. **欄の中の `shj`**：kisui は、欄のターミナル（`term.create`・プライマリの再起動を含む）を始めるとき、同梱の shj のあるフォルダを `PATH` の先頭に足す。フォルダは、環境変数 `KISUI_SHJ_DIR`（Nix のパッケージで GUI が渡す。`../libexec/shj-bin`）、無ければ kisui の実行ファイルと同じフォルダ（AppImage の `usr/bin`、.app の `Contents/MacOS`、リモートのキャッシュ `~/.cache/kisui-terminal/<GUI の版>/`）の `shj`。リモートでは、1 の転送で kisui の前に同じ Release の `shj-<os>-<cpu>`（nightly は `shj-nightly-<os>-<cpu>`）も同じ確かめ方で入れる。Nix の GUI は shj を `bin/` に出さない。
 5. **版が違う shj が動いていたら**：`session.hello` の結果で GUI が気づく（前の節）。`attach` は版が違っても動いているサーバーにつなぐ（勝手に入れ替えない）。
 
 セキュリティ：Unix ソケットは 0700 のフォルダの中（自分のユーザーだけ）。`kisui serve` はネットワークに待ち受けない。リモートの認証は ssh に任せる。`kisui attach` の段階で追加の認証はしない（同じユーザーなら元々シェルを開ける）。
@@ -486,9 +486,9 @@ GUI はシステムの `ssh` を子プロセスとして起動する（`~/.ssh/c
 ### GUI の配り方と自動更新（C8）
 
 - リリースの workflow（`.github/workflows/gui-release.yml`。`release.yml` と `nightly.yml` から呼ぶ）が、Linux の AppImage（x86_64・aarch64）と macOS の署名なしの `.dmg`（universal）を作り、Tauri の updater の `latest.json` と一緒に Release に上げる。
-- 自動更新は AppImage と `.dmg` だけ（cargo の feature `updater`。workflow だけが付ける）。Nix で作る版（`nix build .#gui`・home-manager の `programs.shijimi-editor.gui`）は付けないので、更新は `nix flake update` と `home-manager switch` で行う。
+- 自動更新は AppImage と `.dmg` だけ（cargo の feature `updater`。workflow だけが付ける）。Nix で作る版（`nix build .#kisui-terminal`・home-manager の `programs.shijimi-editor.kisui-terminal`）は付けないので、更新は `nix flake update` と `home-manager switch` で行う。
 - 更新は、起動のときに 1 度だけ調べ、新しい版があれば右下に出し、ユーザーが「更新して再起動」を押したときだけ入れ替える（編集中に勝手に起動し直さない）。調べられなかったときは何も出さない。
-- 普通の版は `releases/download/kisui-terminal-latest/latest.json`（GUI のリリースのたびに置き換える pre-release `kisui-terminal-latest` のもの。shj のリリースは指さない）、nightly 版は pre-release `kisui-terminal-nightly` の `latest.json` を見る。nightly 版は `tauri.nightly.conf.json` を重ね、名前 `shijimi-editor-nightly` と identifier を変えて普通の版と並べて入れられるようにする。nightly は版の前後を問わず、`latest.json` の版が今と違えば更新とする（`allowDowngrades`）。
+- 普通の版は `releases/download/kisui-terminal-latest/latest.json`（GUI のリリースのたびに置き換える pre-release `kisui-terminal-latest` のもの。shj のリリースは指さない）、nightly 版は pre-release `kisui-terminal-nightly` の `latest.json` を見る。nightly 版は `tauri.nightly.conf.json` を重ね、名前 `kisui-terminal-nightly` と identifier を変えて普通の版と並べて入れられるようにする。nightly は版の前後を問わず、`latest.json` の版が今と違えば更新とする（`allowDowngrades`）。
 - GUI の版は shj の版とは別で、`ui/gui/app/src-tauri/Cargo.toml` の `version`（workflow は `tauri build --config`、Nix は `TAURI_CONFIG` で入れる）。リモートに入れる shj の版（上の「ssh 越しに shj を起動する」の 1）もこれを使う。
 - 署名鍵は minisign で、パスワードは付けない（秘密鍵は 1Password にしか置かないので、足しても守りは強くならない）。workflow は 1Password のサービスアカウントで、ビルドの直前に読む。公開鍵は `tauri.conf.json` の `plugins.updater.pubkey`。
 
@@ -569,7 +569,7 @@ GUI はシステムの `ssh` を子プロセスとして起動する（`~/.ssh/c
 | C3 | ssh で shj につなぐ | B3、C2 | `ssh` の起動、`~/.ssh/config` のホスト一覧、askpass を GUI で受ける |
 | C4 | 自動で再接続、状態の表示 | C3 | 切れたときの再接続、`screen.get`、一覧の状態 |
 | C5 | 前回ワークスペースがあったマシンへの自動接続 | C3 | 前回の記録の保存、起動時の接続（足したマシンの一覧は #451。ワークスペースの一覧の保存は shj の側で #450） |
-| C6 | リモートに shj を入れる | C3 | 聞く、`uname`、転送、SHA-256、`~/.cache/shijimi-editor/` |
+| C6 | リモートに shj を入れる | C3 | 聞く、`uname`、転送、SHA-256、`~/.cache/kisui-terminal/` |
 | C7 | 引き継がれたときの表示 | B5、C3 | 「別の GUI に移りました」と、つなぎ直しのボタン |
 | C8 | Tauri の updater と配布 | C1 | AppImage、`.dmg`（署名なし）、Nix、nightly の別名、README |
 

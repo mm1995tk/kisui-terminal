@@ -2,7 +2,7 @@
 //!
 //! 信頼の境目（ここを変えるときは設計書と PR の説明を読み直す）:
 //!  - 呼ぶ前に、画面がユーザーに聞く。ここは聞かない（聞かずに呼ばれないことは画面側が守る）。
-//!  - 入れる先は `~/.cache/shijimi-editor/<GUI の版>/` の `kisui` と、同じ版の `shj`（欄の中で先に使う。kisui が隣の shj を PATH の先頭に足す）だけ。PATH の `kisui` には触らない。
+//!  - 入れる先は `~/.cache/kisui-terminal/<GUI の版>/` の `kisui` と、同じ版の `shj`（欄の中で先に使う。kisui が隣の shj を PATH の先頭に足す）だけ。PATH の `kisui` には触らない。
 //!  - 取ってくるのは GitHub Releases の固定の URL（`https` のみ、リダイレクトも `https` のみ）。
 //!  - 取った実行ファイルは、同じ Release の `SHA256SUMS` の値と合わなければ、ssh を起動する前に捨てる。
 //!  - 送ったあと、リモートで SHA-256 を計り直し、同じ値のときだけ実行できる名前にする（合わなければ消す）。
@@ -480,7 +480,7 @@ mod tests {
         let s = remote_script("0.7.0", "kisui", H);
         assert!(!s.contains('\''));
         assert!(s.contains(&format!("\"$h\" != \"{H}\"")));
-        assert!(s.contains("$HOME/.cache/shijimi-editor/0.7.0"));
+        assert!(s.contains("$HOME/.cache/kisui-terminal/0.7.0"));
         // 実行できる名前に変えるのは、比べたあと
         assert!(s.find("exit 98").unwrap() < s.find("mv -f").unwrap());
         // PATH の kisui には触らない
@@ -490,7 +490,7 @@ mod tests {
         let s = remote_script("0.7.0", "shj", H);
         assert!(!s.contains('\''));
         assert!(s.contains("$d/.shj.$$") && s.contains("\"$d/shj\""));
-        assert!(!s.contains("kisui"));
+        assert!(!s.contains("\"$d/kisui\"") && !s.contains(".kisui."));
     }
 
     #[test]

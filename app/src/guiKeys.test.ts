@@ -89,7 +89,7 @@ describe("Cmd+Shift+Enter（プライマリ以外の欄を隠す）", () => {
     metaKey: true,
     shiftKey: true,
   });
-  it("Mac では Cmd+Shift+Enter で隠す。GUI が受けるキー", () => {
+  it("Mac では Cmd+Shift+Enter で隠す。kisui-terminal が受けるキー", () => {
     assert.equal(isCmdZoomKey(cse), true);
     assert.equal(isZoomKey(cse, true), true);
   });

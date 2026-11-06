@@ -11,7 +11,9 @@ export function ConfigError(props: { message: string }): JSX.Element {
         <div class="card-body">
           <h1 class="card-title">設定ファイルに間違いがあります</h1>
           <pre class="card-error">{props.message}</pre>
-          <p class="card-hint">直してから、GUI を起動し直してください。</p>
+          <p class="card-hint">
+            直してから、kisui-terminal を起動し直してください。
+          </p>
         </div>
       </div>
     </main>

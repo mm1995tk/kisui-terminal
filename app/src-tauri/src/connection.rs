@@ -44,10 +44,10 @@ pub struct Connections {
 /// 版ごとのキャッシュのフォルダ（`$HOME` からの相対）。つなぐ先（default_attach_command）と入れる先（install.rs）が
 /// ずれないよう、ここ 1 か所で決める。
 pub fn cache_dir_rel(version: &str) -> String {
-    format!(".cache/shijimi-editor/{version}")
+    format!(".cache/kisui-terminal/{version}")
 }
 
-/// 入れる先（`~/.cache/shijimi-editor/<GUI の版>/kisui`）。PATH の `kisui` ではない。
+/// 入れる先（`~/.cache/kisui-terminal/<GUI の版>/kisui`）。PATH の `kisui` ではない。
 pub fn default_remote_kisui() -> String {
     format!("~/{}/kisui", cache_dir_rel(crate::version::get()))
 }
@@ -274,8 +274,8 @@ mod tests {
     #[test]
     fn attach_exits_97_without_kisui() {
         assert_eq!(
-            custom_attach_command("~/.cache/shijimi-editor/1.2.3/kisui"),
-            "command -v ~/.cache/shijimi-editor/1.2.3/kisui >/dev/null 2>&1 || exit 97; ~/.cache/shijimi-editor/1.2.3/kisui attach"
+            custom_attach_command("~/.cache/kisui-terminal/1.2.3/kisui"),
+            "command -v ~/.cache/kisui-terminal/1.2.3/kisui >/dev/null 2>&1 || exit 97; ~/.cache/kisui-terminal/1.2.3/kisui attach"
         );
     }
 
@@ -285,7 +285,7 @@ mod tests {
         assert!(c.starts_with("sh -c '") && c.ends_with("exit 97'"));
         // 包んだ中に単一引用符が無い（あれば引用が崩れる）
         assert_eq!(c.matches('\'').count(), 2);
-        assert!(c.contains("$HOME/.cache/shijimi-editor/1.2.3/kisui"));
+        assert!(c.contains("$HOME/.cache/kisui-terminal/1.2.3/kisui"));
         assert!(c.contains("exit 97"));
     }
 }

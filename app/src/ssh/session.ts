@@ -454,7 +454,7 @@ export class Session {
       conn.client.on("session.superseded", (p) => {
         superseded = { kind: "superseded", by: p?.by };
         // shj は送ったあと閉じるが、閉じ損ねても待たずにこちらから閉じる
-        conn.client.close("superseded by another GUI");
+        conn.client.close("superseded by another kisui-terminal");
       }),
       conn.client.on("workspace.changed", (c) => {
         this._workspaces = applyWorkspaceChange(this._workspaces, c);

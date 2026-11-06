@@ -69,7 +69,7 @@ mod imp {
         let update = match app.updater().map_err(|e| e.to_string())?.check().await {
             Ok(u) => u,
             Err(e) => {
-                eprintln!("shijimi-editor: update check failed: {e}");
+                eprintln!("kisui-terminal: update check failed: {e}");
                 return Ok(None);
             }
         };

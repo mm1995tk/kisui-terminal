@@ -4,16 +4,16 @@ name: GUI を配る
 # GitHub Release に上げる（C8。#325）。kisui-terminal-release.yml（GUI の版のリリース）と nightly.yml（nightly）から呼ぶ。
 # shj のリリース（release.yml）からは呼ばない。GUI の版は shj の版とは別（#581）。
 #
-# - GUI の版のリリース：タグ kisui-terminal-v<版> の Release に shijimi-editor-*。
+# - GUI の版のリリース：タグ kisui-terminal-v<版> の Release に kisui-terminal-*。
 #   Release の「Latest」の印は shj のリリースのまま（--latest=false）。updater は、決まったタグ kisui-terminal-latest の
 #   pre-release に置いた latest.json を見る（GUI のリリースだけを指す。リリースのたびに置き換える）。
-# - nightly：pre-release kisui-terminal-nightly に shijimi-editor-nightly-*（tauri.nightly.conf.json を重ねる）。
+# - nightly：pre-release kisui-terminal-nightly に kisui-terminal-nightly-*（tauri.nightly.conf.json を重ねる）。
 #   updater は同じ pre-release の latest.json を見る。名前と identifier が違うので、普通の版と並べて入れられる。
 # - どちらの Release にも、リモートに入れる kisui-<os>-<cpu> と shj-<os>-<cpu>（nightly は kisui-nightly-…）と SHA256SUMS を
 #   上げる（install.rs が取る）。shj は GUI の版に対応する版（shj_version）で、Release の説明にその版を書く。
 # - 自動更新を持つのは、ここで作る AppImage と .dmg だけ（cargo の feature updater）。Nix で作る版は持たない。
 #
-# 上げるもの（<名前> は shijimi-editor か shijimi-editor-nightly）:
+# 上げるもの（<名前> は kisui-terminal か kisui-terminal-nightly）:
 #   <名前>-linux-x86_64.AppImage(.sig)、<名前>-linux-aarch64.AppImage(.sig)、
 #   <名前>-macos-universal.dmg、<名前>-macos-universal.app.tar.gz(.sig)、latest.json
 #
@@ -161,9 +161,9 @@ jobs:
           PLATFORM: ${{ matrix.platform }}
           TARGET: ${{ matrix.target }}
         run: |
-          name=shijimi-editor
+          name=kisui-terminal
           if [ "$CHANNEL" = nightly ]; then
-            name=shijimi-editor-nightly
+            name=kisui-terminal-nightly
           fi
           bundle="target/${TARGET:+$TARGET/}release/bundle"
           out="$RUNNER_TEMP/out"
@@ -238,9 +238,9 @@ jobs:
           CHANNEL: ${{ inputs.channel }}
         run: |
           cd "$RUNNER_TEMP/assets"
-          name=shijimi-editor
+          name=kisui-terminal
           if [ "$CHANNEL" = nightly ]; then
-            name=shijimi-editor-nightly
+            name=kisui-terminal-nightly
           fi
           base="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG"
           entry() { # <ファイル>

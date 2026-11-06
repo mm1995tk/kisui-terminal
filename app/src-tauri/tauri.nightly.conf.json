@@ -1,11 +1,11 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "shijimi-editor-nightly",
-  "identifier": "dev.mm1995tk.shijimi-editor-nightly",
+  "productName": "kisui-terminal-nightly",
+  "identifier": "dev.mm1995tk.kisui-terminal-nightly",
   "app": {
     "windows": [
       {
-        "title": "shijimi-editor-nightly",
+        "title": "kisui-terminal-nightly",
         "width": 1200,
         "height": 800,
         "dragDropEnabled": false

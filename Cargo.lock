@@ -2090,6 +2090,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "kisui-terminal"
+version = "0.1.0"
+dependencies = [
+ "libc",
+ "notify-rust",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-clipboard-manager",
+ "tauri-plugin-updater",
+ "toml 1.1.8+spec-1.1.0",
+]
+
+[[package]]
 name = "libappindicator"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3524,22 +3540,6 @@ dependencies = [
  "cfg-if",
  "cpufeatures",
  "digest",
-]
-
-[[package]]
-name = "shijimi-editor-gui"
-version = "0.1.0"
-dependencies = [
- "libc",
- "notify-rust",
- "serde",
- "serde_json",
- "sha2",
- "tauri",
- "tauri-build",
- "tauri-plugin-clipboard-manager",
- "tauri-plugin-updater",
- "toml 1.1.8+spec-1.1.0",
 ]
 
 [[package]]

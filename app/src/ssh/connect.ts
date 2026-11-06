@@ -10,7 +10,7 @@ import {
   type Unlisten,
 } from "./api.ts";
 
-export const GUI_NAME = "shijimi-editor-gui";
+export const GUI_NAME = "kisui-terminal";
 export const GUI_VERSION = "0.0.0";
 
 export interface Connection {

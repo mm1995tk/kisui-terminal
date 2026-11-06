@@ -72,7 +72,7 @@ fn private_dir() -> std::io::Result<PathBuf> {
         .map(PathBuf::from)
         .filter(|p| p.is_dir())
         .unwrap_or_else(std::env::temp_dir);
-    let dir = base.join(format!("shijimi-editor-gui-{}", std::process::id()));
+    let dir = base.join(format!("kisui-terminal-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir); // 同じ pid の前の残り
     std::fs::DirBuilder::new().mode(0o700).create(&dir)?;
     Ok(dir)

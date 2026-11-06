@@ -161,7 +161,7 @@ fn main() {
             update::update_install
         ])
         .build(tauri::generate_context!())
-        .expect("failed to build the shijimi-editor GUI")
+        .expect("failed to build kisui-terminal")
         .run(|app, event| {
             if let RunEvent::Exit = event {
                 if let Some(s) = app.try_state::<AppState>() {

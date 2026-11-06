@@ -65,8 +65,8 @@ export function statusLine(
     case "superseded": {
       const who = s.by ? describeClient(s.by) : "";
       return {
-        text: "別の GUI に移りました",
-        title: who ? `別の GUI に移りました（${who}）` : "",
+        text: "別の kisui-terminal に移りました",
+        title: who ? `別の kisui-terminal に移りました（${who}）` : "",
         retry: "again",
       };
     }
@@ -94,7 +94,7 @@ export function stateLabel(s: SessionState | undefined): string {
     case "failed":
       return "つながりません";
     case "superseded":
-      return "別の GUI に移りました";
+      return "別の kisui-terminal に移りました";
   }
 }
 

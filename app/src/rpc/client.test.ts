@@ -168,7 +168,7 @@ describe("通知", () => {
     assert.equal(discards.length, 1);
   });
 
-  it("GUI からの通知は id を付けずに送る", () => {
+  it("kisui-terminal からの通知は id を付けずに送る", () => {
     const { c, t } = setup();
     c.notify("term.ack", { termId: "t1", seq: 5 });
     assert.deepEqual(t.sent[0], {

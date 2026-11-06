@@ -6,8 +6,8 @@
 #
 # 自動更新（feature `updater`）は付けない。Nix で入れた GUI の更新は nix flake update と home-manager switch で行う。
 # 版は Tauri の設定の `version` として TAURI_CONFIG で渡す（GUI はこれを自分の版として、リモートに入れる shj の版に使う）。
-# channel = "nightly" は tauri.nightly.conf.json を重ね（名前 shijimi-editor-nightly）、実行ファイルを
-# shijimi-editor-gui-nightly にして、普通の版と並べて入れられるようにする。
+# channel = "nightly" は tauri.nightly.conf.json を重ね（名前 kisui-terminal-nightly）、実行ファイルを
+# kisui-terminal-nightly にして、普通の版と並べて入れられるようにする。
 {
   pkgs,
   version,
@@ -42,7 +42,7 @@ let
     ];
   };
   nightly = channel == "nightly";
-  bin = "shijimi-editor-gui" + lib.optionalString nightly "-nightly";
+  bin = "kisui-terminal" + lib.optionalString nightly "-nightly";
   tauriConfig =
     lib.optionalAttrs nightly (
       builtins.fromJSON (builtins.readFile ../../ui/gui/app/src-tauri/tauri.nightly.conf.json)
@@ -52,11 +52,11 @@ let
     };
 
   web = pkgs.buildNpmPackage {
-    pname = "shijimi-editor-gui-web";
+    pname = "kisui-terminal-web";
     inherit version;
     src = webSrc;
-    # package-lock.json を変えたら、ここを lib.fakeHash にして nix build .#gui を回し、出た値に直す
-    npmDepsHash = "sha256-xQcrBNY9zBTmS2Z+pCmrP9tfwdS6kfpnrCvdNRuS848=";
+    # package-lock.json を変えたら、ここを lib.fakeHash にして nix build .#kisui-terminal を回し、出た値に直す
+    npmDepsHash = "sha256-3Puk0/mPsUoSRFK66SdneWYZA5feWeSPLyz5ChuCH18=";
     # tauri の CLI は殻のビルドには使わない（cargo を直接回す）。バイナリの取得を避ける
     npmFlags = [ "--ignore-scripts" ];
     installPhase = ''
@@ -110,14 +110,14 @@ pkgs.rustPlatform.buildRustPackage {
     ln -s ${shj} $out/libexec/shj-bin/shj
   ''
   + lib.optionalString nightly ''
-    mv $out/bin/shijimi-editor-gui $out/bin/${bin}
+    mv $out/bin/kisui-terminal $out/bin/${bin}
   '';
 
   # Web 画面だけのビルド。flake の checks が npm test を足して使う（入れるときのビルドではテストを回さない）
   passthru = { inherit web; };
 
   meta = {
-    description = "GUI for shijimi-editor (Tauri)";
+    description = "kisui-terminal (Tauri), the terminal-centered workspace that works closely with shijimi-editor";
     license = lib.licenses.mit;
     mainProgram = bin;
     platforms = lib.platforms.linux ++ lib.platforms.darwin;

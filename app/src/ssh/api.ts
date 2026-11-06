@@ -18,7 +18,7 @@ export interface ClosedEvent {
 export interface InstallPlan {
   /** GUI の版 */
   version: string;
-  /** リモートに置く場所（`~/.cache/shijimi-editor/<版>/kisui`。PATH の kisui ではない） */
+  /** リモートに置く場所（`~/.cache/kisui-terminal/<版>/kisui`。PATH の kisui ではない） */
   path: string;
   /** 取ってくる GitHub Release のページ */
   release_url: string;

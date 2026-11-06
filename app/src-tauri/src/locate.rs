@@ -5,7 +5,7 @@
 //!   ログインシェルの PATH を引き継がない（`/usr/bin:/bin:/usr/sbin:/sbin` だけ）。`kisui attach` が起動する
 //!   `kisui serve` の中のターミナルが `shj` などを見つけられるよう、ログインシェルに PATH を聞き（時間切れ付き）、
 //!   GUI の PATH とよく使う場所（[`COMMON_DIRS`]）を足した PATH を子プロセスの PATH にする。
-//! - **ssh 先**：GUI の版のキャッシュ（`~/.cache/shijimi-editor/<版>/kisui`）だけを見る（[`remote_attach_script`]）。
+//! - **ssh 先**：GUI の版のキャッシュ（`~/.cache/kisui-terminal/<版>/kisui`）だけを見る（[`remote_attach_script`]）。
 //!   無ければ、入れるかを聞く（C6。入れる先はキャッシュだけ）。リモートの PATH の `kisui` は使わない。
 
 use std::ffi::{OsStr, OsString};
@@ -408,10 +408,10 @@ mod tests {
 
     #[test]
     fn remote_script_has_no_quotes_and_only_looks_at_the_cache() {
-        let s = remote_attach_script(".cache/shijimi-editor/1.2.3", 97);
+        let s = remote_attach_script(".cache/kisui-terminal/1.2.3", 97);
         // sh -c '…' で包むので単一引用符は使えない。fish の単一引用符の中で意味を持つ \ も避ける
         assert!(!s.contains('\'') && !s.contains('\\'), "{s}");
-        assert!(s.contains("$HOME/.cache/shijimi-editor/1.2.3/kisui"));
+        assert!(s.contains("$HOME/.cache/kisui-terminal/1.2.3/kisui"));
         // PATH の kisui は探さない
         assert!(!s.contains("command -v") && !s.contains("--version"));
         assert!(s.ends_with("exit 97"));
@@ -424,7 +424,7 @@ mod tests {
         let root = temp_root("remote");
         let home = root.join("home");
         let run = |path: &str| {
-            let script = remote_attach_script(".cache/shijimi-editor/1.2.3", 97);
+            let script = remote_attach_script(".cache/kisui-terminal/1.2.3", 97);
             Command::new("/bin/sh")
                 .arg("-c")
                 .arg(&script)
@@ -443,7 +443,7 @@ mod tests {
 
         // キャッシュにあれば、それを attach つきで動かす
         write_exe(
-            &home.join(".cache/shijimi-editor/1.2.3/kisui"),
+            &home.join(".cache/kisui-terminal/1.2.3/kisui"),
             "#!/bin/sh\necho cache \"$1\"\n",
         );
         let out = run(&with_path);

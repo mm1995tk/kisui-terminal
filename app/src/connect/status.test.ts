@@ -99,13 +99,13 @@ describe("describeClient", () => {
     assert.equal(
       describeClient({
         client: {
-          name: "shijimi-editor-gui",
+          name: "kisui-terminal",
           version: "0.7.0",
           kind: "native",
         },
         connectedAt: "nope",
       }),
-      "shijimi-editor-gui 0.7.0",
+      "kisui-terminal 0.7.0",
     );
   });
 });

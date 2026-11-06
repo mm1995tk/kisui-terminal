@@ -906,7 +906,7 @@ function Workbench(props: {
         setAddError(
           st.kind === "failed"
             ? `${labelOf(p.target)} につなげませんでした\n${st.message}`
-            : `${labelOf(p.target)} は別の GUI が使っています`,
+            : `${labelOf(p.target)} は別の kisui-terminal が使っています`,
         );
         setAddPending(null);
         void disconnect(p.target);
@@ -1015,12 +1015,12 @@ function Workbench(props: {
       const who = st.by ? describeClient(st.by) : "";
       return {
         title: who
-          ? `${label} は別の GUI に移りました（${who}）`
-          : `${label} は別の GUI に移りました`,
+          ? `${label} は別の kisui-terminal に移りました（${who}）`
+          : `${label} は別の kisui-terminal に移りました`,
         text:
-          `${label} の作業は、あとからつないだ別の GUI に移りました。` +
+          `${label} の作業は、あとからつないだ別の kisui-terminal に移りました。` +
           "取り合いにならないよう、自動ではつなぎ直しません。" +
-          "「つなぎ直す」を押すとこちらに戻し、あちらの GUI が切れます。",
+          "「つなぎ直す」を押すとこちらに戻し、あちらの kisui-terminal が切れます。",
         secondary: [close, cut],
         primary: { label: "つなぎ直す", run: () => connect(t) },
       };

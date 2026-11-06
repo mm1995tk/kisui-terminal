@@ -1,9 +1,9 @@
 [package]
-name = "shijimi-editor-gui"
+name = "kisui-terminal"
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
-description = "GUI for shijimi-editor (Tauri shell)"
+description = "kisui-terminal (Tauri shell), the terminal-centered workspace that works closely with shijimi-editor"
 
 [build-dependencies]
 tauri-build = { version = "=2.7.3", features = [] }

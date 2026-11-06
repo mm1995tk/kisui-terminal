@@ -116,7 +116,7 @@ function fakeShell(opts: {
     onAskpass: async () => () => {},
     installPlan: async () => ({
       version: "0.0.0",
-      path: "~/.cache/shijimi-editor/0.0.0/kisui",
+      path: "~/.cache/kisui-terminal/0.0.0/kisui",
       release_url: "https://example.invalid/r",
     }),
     installCancel: async (id) => {
@@ -247,7 +247,7 @@ describe("Session", () => {
     await s.close();
   });
 
-  it("別の GUI に引き継がれたら、つなぎ直さない", async () => {
+  it("別の kisui-terminal に引き継がれたら、つなぎ直さない", async () => {
     const f = fakeShell({ serverIds: ["A", "A"] });
     const s = new Session(f.api, "h", fast);
     s.start();
@@ -264,13 +264,13 @@ describe("Session", () => {
     assert.equal(f.connects, 1);
   });
 
-  it("session.superseded を受けたら、shj が閉じ損ねても閉じて、引き継いだ GUI を状態に載せる", async () => {
+  it("session.superseded を受けたら、shj が閉じ損ねても閉じて、引き継いだ kisui-terminal を状態に載せる", async () => {
     const f = fakeShell({ serverIds: ["A", "A"] });
     const s = new Session(f.api, "h", fast);
     s.start();
     await waitFor(s, (st) => st.kind === "connected");
     const by = {
-      client: { name: "shijimi-editor-gui", version: "2", kind: "web" },
+      client: { name: "kisui-terminal", version: "2", kind: "web" },
       connectedAt: "2026-11-01T10:00:00Z",
     };
     f.emit(connectedId(f), {

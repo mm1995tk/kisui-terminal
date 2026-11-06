@@ -23,7 +23,7 @@ export function InstallCard(props: {
       <div class="card-body">
         <h1 class="card-title">{props.target} に kisui を入れますか？</h1>
         <p class="card-text">
-          {props.target} に kisui がありません。GUI と同じ版（
+          {props.target} に kisui がありません。kisui-terminal と同じ版（
           {props.state.plan.version}）の kisui を GitHub Releases（
           {props.state.plan.release_url}）から取り、{props.target} の{" "}
           <code>{props.state.plan.path}</code> に入れます。
