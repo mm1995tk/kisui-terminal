@@ -91,6 +91,13 @@ func TestPrimaryShjPanes(t *testing.T) {
 		t.Fatalf("hide: %+v", r)
 	}
 	waitFor(t, "pane.hide", func() bool { return nt.find("pane.hide") != nil })
+	if r := paneDo(t, sock, rq("explorer")); !r.OK {
+		t.Fatalf("explorer: %+v", r)
+	}
+	waitFor(t, "explorer.focus", func() bool {
+		ms := nt.all("explorer.focus")
+		return len(ms) == 1 && strings.Contains(string(*ms[0]), `"workspaceId":"`+id+`"`)
+	})
 	show := rq("show")
 	show.ID = pane
 	if r := paneDo(t, sock, show); !r.OK {
