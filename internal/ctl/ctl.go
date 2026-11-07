@@ -42,7 +42,7 @@ const (
 // Request is sent by the CLI to the editor.
 type Request struct {
 	Cmd  string `json:"cmd"`            // diff | exec | command-end | open
-	Path string `json:"path,omitempty"` // diff, open: an absolute path
+	Path string `json:"path,omitempty"` // diff, open: an absolute path (diff: also the Path of a DiffFile, which may be deleted)
 	Line string `json:"line,omitempty"` // exec: the ":" command to run; command-end: the exit code
 }
 
@@ -174,12 +174,39 @@ type PrimaryHello struct {
 }
 
 // PrimaryFile is a line the shj sends on the primary socket after the reply
-// said OK, each time the file it shows changes (and once at the start):
-// File is the absolute path of the file of the focused tab (a text or an image,
-// also while a diff or a preview of it is shown), or "" when there is no tab
-// (the welcome page).
+// said OK, each time the file it shows or its diff mode changes (and once at
+// the start): File is the absolute path of the file of the focused tab (a text
+// or an image, also while a diff or a preview of it is shown), or "" when there
+// is no tab (the welcome page). Every line is the whole state, not a change.
+//
+// Diff is present while the shj is in diff mode (Ctrl+G) and absent otherwise:
+// its presence is the beginning of the diff mode and its absence the end. An
+// older kisui ignores it.
 type PrimaryFile struct {
-	File string `json:"file"`
+	File string       `json:"file"`
+	Diff *PrimaryDiff `json:"diff,omitempty"`
+}
+
+// PrimaryDiff is the list of changes (CHANGES) of the diff mode of a shj that
+// runs in the primary terminal of a GUI workspace. kisui shows it in the
+// sidebar under the file explorer, and the shj shows no list of its own.
+// Files are in the order the shj shows them. Selected is the absolute path of
+// the file whose diff the shj shows now, or "" when none is shown.
+type PrimaryDiff struct {
+	Files    []DiffFile `json:"files"`
+	Selected string     `json:"selected,omitempty"`
+}
+
+// DiffFile is a changed file of PrimaryDiff. Path is absolute (a deleted file
+// has no file on disk but a path all the same). Status is one of "modified",
+// "added", "deleted", "renamed" and "binary"; kisui takes any other value (or
+// none) as "modified". Added and Deleted are numbers of lines (0 for a binary
+// file).
+type DiffFile struct {
+	Path    string `json:"path"`
+	Status  string `json:"status,omitempty"`
+	Added   int    `json:"added,omitempty"`
+	Deleted int    `json:"deleted,omitempty"`
 }
 
 // PrimaryReply answers a PrimaryHello with one line. When OK, the connection
@@ -187,13 +214,17 @@ type PrimaryFile struct {
 // the end of the shj. When not OK (the primary already has a shj, the terminal
 // is not a primary one) the server closes the connection. Code is
 // ReplyCodeVersion when the version is the reason; Min and Max are then the
-// versions "kisui serve" accepts.
+// versions "kisui serve" accepts. Changes is true when OK and this kisui shows
+// the CHANGES of the shj's diff mode in its sidebar (PrimaryFile.Diff); a
+// reply without it is from a kisui that does not, and the shj then shows its
+// own list.
 type PrimaryReply struct {
-	OK    bool   `json:"ok"`
-	Error string `json:"error,omitempty"`
-	Code  string `json:"code,omitempty"`
-	Min   int    `json:"min,omitempty"`
-	Max   int    `json:"max,omitempty"`
+	OK      bool   `json:"ok"`
+	Changes bool   `json:"changes,omitempty"`
+	Error   string `json:"error,omitempty"`
+	Code    string `json:"code,omitempty"`
+	Min     int    `json:"min,omitempty"`
+	Max     int    `json:"max,omitempty"`
 }
 
 // PaneRequest is the one line a shj that runs in the primary terminal of a GUI

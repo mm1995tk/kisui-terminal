@@ -113,7 +113,7 @@ export type TermMethod =
 /** Session.request で送れる要求（動画の欄の中身。#555）。 */
 export type BlobMethod = "media.read";
 /** Session.request で送れる要求（プライマリの shj にファイルを開かせる）。 */
-export type ShjMethod = "shj.open";
+export type ShjMethod = "shj.open" | "shj.diff";
 /** ターミナルの通知（F1）。method で見分ける。 */
 export type TermEvent =
   | { method: "term.output"; params: Notifications["term.output"] }

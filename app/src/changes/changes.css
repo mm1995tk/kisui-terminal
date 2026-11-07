@@ -1,0 +1,102 @@
+/* 差分モードの CHANGES の一覧。ファイルエクスプローラ（tree.css）の下に、細い線で区切って出す。
+   行の高さと左右の余白、色はツリーと同じ（GitHub Dark）。一覧が長いときはサイドバーごとスクロールする。 */
+
+.changes {
+  border-top: 1px solid var(--gh-border, var(--gh-indent-guide));
+  padding: 4px 0 6px;
+}
+
+.changes-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  height: 22px;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--sidebar-muted, var(--gh-text-muted));
+}
+.changes-count {
+  font-weight: 400;
+  color: var(--gh-text-dim);
+}
+
+.changes-empty {
+  margin: 0;
+  padding: 2px 8px;
+  font-size: 12px;
+  color: var(--sidebar-muted, var(--gh-text-muted));
+}
+
+.changes-row {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 8px;
+  color: var(--sidebar-text, var(--gh-text));
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+.changes-row:hover {
+  background: var(--gh-bg-raised);
+}
+.changes-row[aria-selected="true"] {
+  background: var(--gh-bg-selected);
+}
+.changes-row:focus-visible {
+  outline: 1px solid var(--machine-color, #8fb4ff);
+  outline-offset: -1px;
+}
+
+.changes-name {
+  flex: none;
+  max-width: 70%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.changes-dir {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 11px;
+  color: var(--gh-text-dim);
+}
+.changes-added {
+  flex: none;
+  font-size: 11px;
+  color: var(--gh-green);
+}
+.changes-deleted {
+  flex: none;
+  font-size: 11px;
+  color: var(--gh-red);
+}
+.changes-mark {
+  flex: none;
+  width: 14px;
+  margin-left: auto;
+  text-align: center;
+}
+
+/* 印の色はツリーと同じ：変更は黄、追加と名前変更は緑、削除は赤 */
+.changes-row[data-letter="M"] .changes-mark,
+.changes-row[data-letter="B"] .changes-mark {
+  color: var(--gh-yellow);
+}
+.changes-row[data-letter="A"] .changes-mark,
+.changes-row[data-letter="R"] .changes-mark {
+  color: var(--gh-green);
+}
+.changes-row[data-letter="D"] .changes-mark {
+  color: var(--gh-red);
+}
+.changes-row[data-letter="D"] .changes-name {
+  color: var(--gh-red);
+  text-decoration: line-through;
+}

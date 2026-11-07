@@ -23,6 +23,8 @@ import type { WorkspaceId } from "../rpc/protocol.ts";
 import type { TreeRow } from "../tree/model.ts";
 import { menuItems, type TreeMenuAction } from "../tree/menu.ts";
 import { TreeMenu } from "../tree/TreeMenu.tsx";
+import { ChangesView } from "../changes/ChangesView.tsx";
+import type { ChangeRow } from "../changes/model.ts";
 import { TreeView } from "../tree/TreeView.tsx";
 import {
   splitAtFocus,
@@ -57,6 +59,10 @@ interface Handlers {
   onOpen?: (target: string, id: WorkspaceId, path: string) => void;
   /** プライマリの shj が出しているファイル（ツリーで強調する行の path）。無ければ undefined */
   currentOf?: (target: string, id: WorkspaceId) => string | undefined;
+  /** 差分モードの CHANGES の一覧の行。差分モードでなければ undefined */
+  changesOf?: (target: string, id: WorkspaceId) => ChangeRow[] | undefined;
+  /** CHANGES の行を押した（path は shj が知らせた絶対パス） */
+  onChange?: (target: string, id: WorkspaceId, path: string) => void;
   /** ツリーの行を右クリックした（Sidebar が内側に渡す。App は onTreeAction を使う） */
   onTreeMenu?: (
     target: string,
@@ -324,6 +330,12 @@ function handlers(
     get currentOf() {
       return props.currentOf;
     },
+    get changesOf() {
+      return props.changesOf;
+    },
+    get onChange() {
+      return props.onChange;
+    },
   };
 }
 
@@ -518,6 +530,19 @@ function BandItem(
                     props.onTreeMenu?.(props.target, b().id, row, x, y)
                 : undefined
             }
+          />
+        )}
+      </Show>
+      <Show
+        when={
+          b().focused && b().showTree && props.changesOf?.(props.target, b().id)
+        }
+      >
+        {(rows) => (
+          <ChangesView
+            rows={rows()}
+            label={`${b().title} の変更`}
+            onSelect={(p) => props.onChange?.(props.target, b().id, p)}
           />
         )}
       </Show>

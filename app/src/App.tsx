@@ -86,6 +86,7 @@ import {
 } from "./ssh/machines.ts";
 import { Session, type SessionState } from "./ssh/session.ts";
 import { tauriShell } from "./ssh/tauri.ts";
+import { changeRows, changeErrorText } from "./changes/model.ts";
 import {
   relativeIn,
   openErrorText,
@@ -759,6 +760,35 @@ function Workbench(props: {
     );
   }
 
+  /**
+   * CHANGES の行を押した。プライマリの shj に shj.diff を送ってそのファイルの差分を出させ、通ったらプライマリのターミナルにキーを向ける
+   * （openFile と同じ。動画などの欄が出たときは奪い返さない）。断られたら、ファイルを開けなかったときと同じ所に出す。
+   */
+  function openChange(target: string, id: WorkspaceId, path: string) {
+    const s = sessions()[target];
+    if (!s || switching || s.focus !== id) return;
+    if (!workspaces()[target]?.find((w) => w.id === id)?.primaryShj?.diff)
+      return;
+    const seq = ++openSeq;
+    setFocusError(null);
+    const shown = extraShown;
+    s.request("shj.diff", { workspaceId: id, path }).then(
+      () => {
+        if (seq !== openSeq || s.focus !== id) return;
+        if (extraShown !== shown) return;
+        termGroup()?.setActive(0);
+        focusTerminal();
+      },
+      (e) => {
+        if (seq !== openSeq) return;
+        setFocusError({
+          title: "差分を出せませんでした",
+          error: changeErrorText(path, e),
+        });
+      },
+    );
+  }
+
   // ツリーの右クリックのメニューから開いた窓（名前を入れる・削除の確認）
   const [treeDialog, setTreeDialog] = createSignal<{
     kind: "new-file" | "new-dir" | "rename" | "delete";
@@ -888,6 +918,15 @@ function Workbench(props: {
     if (!d || !s) return;
     await s.request("tree.delete", { workspaceId: d.id, path: d.path });
     setTreeDialog(null);
+  }
+
+  /** 差分モードの CHANGES の一覧。フォーカスしているワークスペースの、差分モードのプライマリの shj のものだけ。 */
+  function changesOf(target: string, id: WorkspaceId) {
+    const f = focus();
+    if (f?.target !== target || f.id !== id) return undefined;
+    const diff = workspaces()[target]?.find((x) => x.id === id)?.primaryShj
+      ?.diff;
+    return diff ? changeRows(diff, rootOf(target, id)) : undefined;
   }
 
   /** プライマリの shj が出しているファイル（ツリーで強調する行）。 */
@@ -1128,6 +1167,8 @@ function Workbench(props: {
         }}
         onRemove={removeFromSidebar}
         onOpen={openFile}
+        changesOf={changesOf}
+        onChange={openChange}
         onTreeAction={treeAction}
         currentOf={currentOf}
         ref={(el) => {

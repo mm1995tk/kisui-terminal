@@ -32,10 +32,13 @@ type primaryShj struct {
 	Socket string `json:"socket"`
 	PID    int    `json:"pid"`
 	// File はその shj が今出しているファイル（絶対パス）。テキストか画像を出していなければ空。
-	File   string      `json:"file,omitempty"`
-	wsID   string      // 名乗ったときのワークスペース（リンクを消すため。ワークスペースが先に消えても分かる）
-	panes  []string    // この shj が作った欄（ターミナルの id）。w.mu で守る。shj が終わると閉じる
-	extras []extraPane // この shj が開かせた、ターミナルでない欄（動画）。w.mu で守る。shj が終わると消える
+	File string `json:"file,omitempty"`
+	// Diff は shj が差分モードのときの変更の一覧（CHANGES）。差分モードでなければ nil。
+	// 入れ替えるだけで中身は書き換えない（recompute が写しを渡すため）。
+	Diff   *ctl.PrimaryDiff `json:"diff,omitempty"`
+	wsID   string           //名乗ったときのワークスペース（リンクを消すため。ワークスペースが先に消えても分かる）
+	panes  []string         // この shj が作った欄（ターミナルの id）。w.mu で守る。shj が終わると閉じる
+	extras []extraPane      // この shj が開かせた、ターミナルでない欄（動画）。w.mu で守る。shj が終わると消える
 }
 
 type primaryServer struct {
@@ -61,7 +64,10 @@ type primaryLink struct {
 }
 
 // maxPrimaryLine は serve-primary.rpc の 1 行の上限。
-const maxPrimaryLine = 64 << 10
+const maxPrimaryLine = 4 << 20
+
+// maxDiffFiles は差分モードの一覧で受けるファイルの数の上限。これより先は捨てる。
+const maxDiffFiles = 5000
 
 var errPrimaryLineTooLong = errors.New("line too long")
 
@@ -254,7 +260,7 @@ func (s *Server) followShj(l *primaryLink) {
 		if err == nil {
 			var f ctl.PrimaryFile
 			if json.Unmarshal(line, &f) == nil && (f.File == "" || filepath.IsAbs(f.File)) {
-				s.ws.setShjFile(l.claim, f.File)
+				s.ws.setShjState(l.claim, f.File, cleanDiff(f.Diff))
 			}
 			continue
 		}
@@ -276,7 +282,7 @@ func (s *Server) followShj(l *primaryLink) {
 }
 
 func reply(c net.Conn, err error) {
-	r := ctl.PrimaryReply{OK: err == nil}
+	r := ctl.PrimaryReply{OK: err == nil, Changes: err == nil}
 	if err != nil {
 		r.Error = err.Error()
 	}
@@ -338,14 +344,42 @@ func (w *wsManager) releaseShj(claim *primaryShj) {
 	w.recompute()
 }
 
-// setShjFile は claim の shj が出しているファイルを覚え、変わっていれば GUI に知らせる。
-// 別の shj に替わっていれば何もしない。
-func (w *wsManager) setShjFile(claim *primaryShj, file string) {
+// cleanDiff は shj が送った一覧から、絶対パスでないファイルを捨てて上限に収める。nil（差分モードでない）はそのまま。
+func cleanDiff(d *ctl.PrimaryDiff) *ctl.PrimaryDiff {
+	if d == nil {
+		return nil
+	}
+	out := &ctl.PrimaryDiff{Files: make([]ctl.DiffFile, 0, len(d.Files))}
+	for _, f := range d.Files {
+		if !filepath.IsAbs(f.Path) {
+			continue
+		}
+		if len(out.Files) == maxDiffFiles {
+			break
+		}
+		out.Files = append(out.Files, f)
+	}
+	if filepath.IsAbs(d.Selected) {
+		out.Selected = d.Selected
+	}
+	return out
+}
+
+func diffEq(a, b *ctl.PrimaryDiff) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return a.Selected == b.Selected && slices.Equal(a.Files, b.Files)
+}
+
+// setShjState は claim の shj が出しているファイルと、差分モードの一覧（diff。差分モードでなければ nil）を覚え、
+// 変わっていれば GUI に知らせる。別の shj に替わっていれば何もしない。
+func (w *wsManager) setShjState(claim *primaryShj, file string, diff *ctl.PrimaryDiff) {
 	w.mu.Lock()
 	changed := false
 	for _, st := range w.reg {
-		if st.shj == claim && claim.File != file {
-			claim.File = file
+		if st.shj == claim && (claim.File != file || !diffEq(claim.Diff, diff)) {
+			claim.File, claim.Diff = file, diff
 			changed = true
 		}
 	}
@@ -361,6 +395,10 @@ const shjOpenTimeout = 5 * time.Second
 // primaryRequest は shj.open。ツリーで押したファイルを、ワークスペースのプライマリの shj で開かせる。
 // path はワークスペースのルートからの相対パス（checkFile の検査：ルートの中にあるファイルか）。プライマリに shj がいなければ not_found。
 func (ss *session) primaryRequest(req *rpc.Message) (res any, err error, handled bool) {
+	if req.Method == "shj.diff" {
+		res, err := ss.shjDiff(req)
+		return res, err, true
+	}
 	if req.Method != "shj.open" {
 		return nil, nil, false
 	}
@@ -399,21 +437,58 @@ func (ss *session) primaryRequest(req *rpc.Message) (res any, err error, handled
 	if sock == "" {
 		return nil, rpc.Errorf(rpc.CodeNotFound, "no shj in the primary terminal of %s", p.WorkspaceID), true
 	}
-	if err := askShjToOpen(sock, full); err != nil {
+	if err := askShj(sock, ctl.Request{Cmd: "open", Path: full}); err != nil {
 		return nil, rpc.Errorf(rpc.CodeInternalError, "%v", err), true
 	}
 	return struct{}{}, nil, true
 }
 
-// askShjToOpen は shj の制御用ソケット（core/ctl）に open を頼む。
-func askShjToOpen(sock, full string) error {
+// shjDiff は shj.diff。サイドバーの CHANGES で選んだファイルの差分を、プライマリの shj に出させる。
+// path は primaryShj.diff.files の path（絶対パス）で、その shj が今の一覧に載せているものだけを通す。
+// 削除されたファイルもあるので、ファイルの有無は調べない。差分モードでなければ not_found。
+func (ss *session) shjDiff(req *rpc.Message) (any, error) {
+	if err := ss.needHello(); err != nil {
+		return nil, err
+	}
+	var p struct {
+		WorkspaceID string `json:"workspaceId"`
+		Path        string `json:"path"`
+	}
+	if err := json.Unmarshal(req.Params, &p); err != nil {
+		return nil, invalidParams(err)
+	}
+	w := ss.srv.ws
+	w.mu.Lock()
+	var sock string
+	listed := false
+	if st := w.reg[p.WorkspaceID]; st != nil && st.shj != nil {
+		sock = st.shj.Socket
+		if d := st.shj.Diff; d != nil {
+			listed = slices.ContainsFunc(d.Files, func(f ctl.DiffFile) bool { return f.Path == p.Path })
+		}
+	}
+	w.mu.Unlock()
+	if sock == "" {
+		return nil, rpc.Errorf(rpc.CodeNotFound, "no shj in the primary terminal of %s", p.WorkspaceID)
+	}
+	if !listed {
+		return nil, rpc.Errorf(rpc.CodeNotFound, "not in the list of changes: %s", p.Path)
+	}
+	if err := askShj(sock, ctl.Request{Cmd: "diff", Path: p.Path}); err != nil {
+		return nil, rpc.Errorf(rpc.CodeInternalError, "%v", err)
+	}
+	return struct{}{}, nil
+}
+
+// askShj は shj の制御用ソケット（core/ctl）に req を頼む。
+func askShj(sock string, req ctl.Request) error {
 	c, err := net.DialTimeout("unix", sock, shjOpenTimeout)
 	if err != nil {
 		return err
 	}
 	defer c.Close()
 	_ = c.SetDeadline(time.Now().Add(shjOpenTimeout))
-	if err := json.NewEncoder(c).Encode(ctl.Request{Cmd: "open", Path: full}); err != nil {
+	if err := json.NewEncoder(c).Encode(req); err != nil {
 		return err
 	}
 	var r ctl.Response
