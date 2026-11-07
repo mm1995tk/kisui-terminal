@@ -451,3 +451,19 @@ func TestTermPrimaryCloseAndRestart(t *testing.T) {
 		t.Errorf("output after restart: %q", out)
 	}
 }
+
+// term.create の split の誤りは、小さすぎるときだけ busy。ほかは not_found と invalid_params。
+func TestTermSplitErrorCodes(t *testing.T) {
+	_, sock := start(t)
+	c, _ := termClient(t, sock)
+	id, primary := createWS(t, c)
+	call := func(split map[string]any) error {
+		return c.Call(context.Background(), "term.create", map[string]any{"workspaceId": id, "cols": 80, "rows": 24, "shell": "/bin/sh", "split": split}, nil)
+	}
+	if err := call(map[string]any{"target": "t999", "dir": "right"}); !isCode(err, rpc.CodeNotFound) {
+		t.Errorf("missing target: %v", err)
+	}
+	if err := call(map[string]any{"target": primary, "dir": "left"}); !isCode(err, rpc.CodeInvalidParams) {
+		t.Errorf("bad dir: %v", err)
+	}
+}

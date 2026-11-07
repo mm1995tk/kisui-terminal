@@ -290,7 +290,14 @@ func (m *termManager) create(p termCreateParams) (any, error) {
 	}
 	target, sdir, perr := m.srv.ws.planSplit(p.WorkspaceID, want.Target, want.Dir)
 	if perr != nil {
-		return nil, rpc.Errorf(rpc.CodeBusy, "%v", perr)
+		code := rpc.CodeBusy
+		switch {
+		case errors.Is(perr, errNoWorkspace), errors.Is(perr, errNoPane):
+			code = rpc.CodeNotFound
+		case errors.Is(perr, errBadDir):
+			code = rpc.CodeInvalidParams
+		}
+		return nil, rpc.Errorf(code, "%v", perr)
 	}
 	t, err := m.start(termStart{cols: p.Cols, rows: p.Rows, dir: dir, shell: p.Shell, env: env, wsID: p.WorkspaceID})
 	if err != nil {

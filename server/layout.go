@@ -11,6 +11,7 @@ package server
 // 木のノードは作ったあとに書き換えない（変えるときは新しい木を返す）ので、写しを渡さずに共有してよい。
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 )
@@ -19,6 +20,14 @@ import (
 const (
 	minSplitCols = 20
 	minSplitRows = 5
+)
+
+// planSplit の失敗の種類。term.create は、小さすぎるときだけ busy にし、呼ぶ側の誤りは not_found・invalid_params にする。
+var (
+	errTooSmall    = errors.New("too small")
+	errNoWorkspace = errors.New("no such workspace")
+	errNoPane      = errors.New("no such pane")
+	errBadDir      = errors.New("invalid split direction")
 )
 
 const (
@@ -180,11 +189,11 @@ func (w *wsManager) checkSplit(target, dir string) error {
 	switch dir {
 	case dirRight:
 		if c := cols / 2; c < minSplitCols {
-			return fmt.Errorf("the pane is too narrow to split right: %d columns would be left (at least %d)", c, minSplitCols)
+			return fmt.Errorf("%w: the pane is too narrow to split right: %d columns would be left (at least %d)", errTooSmall, c, minSplitCols)
 		}
 	case dirDown:
 		if r := rows / 2; r < minSplitRows {
-			return fmt.Errorf("the pane is too short to split down: %d rows would be left (at least %d)", r, minSplitRows)
+			return fmt.Errorf("%w: the pane is too short to split down: %d rows would be left (at least %d)", errTooSmall, r, minSplitRows)
 		}
 	}
 	return nil
@@ -201,16 +210,16 @@ func (w *wsManager) planSplit(wsID, target, dir string) (string, string, error) 
 	}
 	w.mu.Unlock()
 	if st == nil {
-		return "", "", fmt.Errorf("no such workspace: %s", wsID)
+		return "", "", fmt.Errorf("%w: %s", errNoWorkspace, wsID)
 	}
 	if target == "" {
 		t, d := autoTarget(n)
 		target, dir = t, d
 	} else if !layoutHas(n, target) {
-		return "", "", fmt.Errorf("no such pane: %s", target)
+		return "", "", fmt.Errorf("%w: %s", errNoPane, target)
 	}
 	if dir != dirRight && dir != dirDown {
-		return "", "", fmt.Errorf("invalid split direction: %q", dir)
+		return "", "", fmt.Errorf("%w: %q", errBadDir, dir)
 	}
 	if err := w.checkSplit(target, dir); err != nil {
 		return "", "", err
