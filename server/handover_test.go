@@ -260,14 +260,14 @@ func TestHandoverKeepsPrimaryShj(t *testing.T) {
 	if !r.OK {
 		t.Fatalf("reply: %+v", r)
 	}
-	conn.Write([]byte(`{"file":"/x/a.txt"}` + "\n"))
-	waitFor(t, "file a", func() bool { p := primaryShjOf(t, c, wsID); return p != nil && p.File == "/x/a.txt" })
+	conn.Write([]byte(`{"file":"/x/a.txt","diff":{"files":[{"path":"/x/a.txt","status":"added","added":3}],"selected":"/x/a.txt"}}` + "\n"))
+	waitFor(t, "file a", func() bool { p := primaryShjOf(t, c, wsID); return p != nil && p.File == "/x/a.txt" && p.Diff != nil })
 	conn.Write([]byte(`{"file":"/x/b`)) // 行の途中で引き継ぐ
 	time.Sleep(50 * time.Millisecond)
 
 	handOver(t, c, sock)
 	c2, _ := termClient(t, sock)
-	if p := primaryShjOf(t, c2, wsID); p == nil || p.PID != 11 || p.File != "/x/a.txt" {
+	if p := primaryShjOf(t, c2, wsID); p == nil || p.PID != 11 || p.File != "/x/a.txt" || p.Diff == nil || p.Diff.Selected != "/x/a.txt" || len(p.Diff.Files) != 1 || p.Diff.Files[0].Added != 3 {
 		t.Fatalf("primaryShj after handover: %+v", p)
 	}
 	conn.Write([]byte(`.txt"}` + "\n"))
