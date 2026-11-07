@@ -129,11 +129,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1793979466,
-        "narHash": "sha256-5yPJn030lFixrvDketGkGE+tQ2zAX3JLcRny7iPGh7o=",
+        "lastModified": 1793989933,
+        "narHash": "sha256-UxFCPzzgVIVsaRfc1CbITYM0FuyhZpQGTgP6kPjGA4g=",
         "owner": "mm1995tk",
         "repo": "shijimi-editor",
-        "rev": "b4d0526e660b6ab3ba7a8cc3c9e22f63a2a1ab07",
+        "rev": "9e112747ca20c4b6cfed3a6ad21e33124b810156",
         "type": "github"
       },
       "original": {
