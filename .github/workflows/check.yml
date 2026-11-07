@@ -50,7 +50,7 @@ jobs:
       - name: nix flake check
         run: nix flake check --print-build-logs
       # internal/emulator/emulator.wasm は x86_64-linux で作ったものをコミットする。macOS など手元で作れない人は、
-      # この成果物（検査が落ちたときも出る）を取ってコミットする（docs は CONTRIBUTING.md の「emulator.wasm の作り直し」）
+      # この成果物（検査が落ちたときも出る）を取ってコミットする（docs は CONTRIBUTING.md の「Rebuilding `internal/emulator/emulator.wasm`」）
       - name: emulator.wasm を作る
         if: ${{ !cancelled() && matrix.os == 'ubuntu-latest' }}
         run: |

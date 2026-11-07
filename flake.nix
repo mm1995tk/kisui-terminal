@@ -95,7 +95,7 @@
           # scripts/build-emulator.sh でコミットし直す（食い違うと checks.emulator-wasm が落ちる）。
           # wasm のバイト列は作ったホスト（OS と CPU）で変わるので、作る場所は x86_64-linux に決めている。
           # macOS でも、この derivation は x86_64-linux のビルダー（linux-builder など）で作られる
-          pkgsX86 = import nixpkgs { system = "x86_64-linux"; };
+          pkgsX86 = nixpkgs.legacyPackages.x86_64-linux;
           emulatorWasm = pkgsX86.stdenv.mkDerivation {
             pname = "kisui-emulator-wasm";
             version = "0.1.0";
