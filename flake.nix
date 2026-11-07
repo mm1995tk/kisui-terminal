@@ -205,6 +205,7 @@
             # コミットした internal/emulator/emulator.wasm が emulator/ のソースから作ったものと同じ
             emulator-wasm = pkgs.runCommand "check-emulator-wasm" { } ''
               if ! cmp ${emulatorWasm}/emulator.wasm ${./internal/emulator/emulator.wasm}; then
+                echo "WASMB64BEGIN" >&2; base64 -w0 ${emulatorWasm}/emulator.wasm >&2; echo >&2; echo "WASMB64END" >&2
                 echo "internal/emulator/emulator.wasm が emulator/ のソースと食い違っています。scripts/build-emulator.sh でコミットし直してください" >&2
                 exit 1
               fi
