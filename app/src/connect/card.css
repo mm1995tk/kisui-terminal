@@ -4,17 +4,17 @@
    ボタン 高さ 44px（主ボタンは #7cc4b0 の地に #0f1114 の文字）。 */
 
 .card {
-  --card-bg: #1a1d24;
-  --card-border: #2f3540;
-  --card-divider: #2a2f39;
-  --card-text: #e6e8ec;
-  --card-muted: #9aa3b2;
-  --card-field-bg: #121418;
-  --card-field-border: #3a414e;
-  --card-row-active: #262b35;
-  --card-accent: #7cc4b0;
-  --card-on-accent: #0f1114;
-  --card-warn: #e5b567;
+  --card-bg: var(--gh-bg-raised);
+  --card-border: var(--gh-border);
+  --card-divider: var(--gh-border);
+  --card-text: var(--gh-text-strong);
+  --card-muted: var(--gh-text-muted);
+  --card-field-bg: var(--gh-bg-field);
+  --card-field-border: var(--gh-border-strong);
+  --card-row-active: var(--gh-bg-hover);
+  --card-accent: var(--gh-accent);
+  --card-on-accent: var(--gh-on-accent);
+  --card-warn: var(--gh-yellow);
 
   box-sizing: border-box;
   display: flex;
@@ -199,15 +199,15 @@
   width: 8px;
   height: 8px;
   border-radius: 4px;
-  border: 1px solid #7d8696;
+  border: 1px solid var(--gh-text-dim);
 }
 .state-dot[data-health="up"] {
   border: 0;
-  background: #7cc4b0;
+  background: var(--gh-green);
 }
 .state-dot[data-health="pending"] {
   border: 0;
-  background: #e5b567;
+  background: var(--gh-yellow);
 }
 
 /* 下のボタンの並び（右寄せ） */
@@ -245,7 +245,7 @@
   font-weight: 600;
 }
 .card-button.primary:hover:not(:disabled) {
-  background: #a6dccd;
+  background: #388bfd;
 }
 .card-button:disabled {
   opacity: 0.5;
@@ -271,7 +271,7 @@
   padding: 120px 16px 16px;
   justify-content: center;
   align-items: flex-start;
-  background: #0f1114;
+  background: var(--gh-bg);
 }
 .config-error-card {
   width: 560px;
