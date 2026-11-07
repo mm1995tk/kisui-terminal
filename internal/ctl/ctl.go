@@ -179,9 +179,11 @@ type PrimaryHello struct {
 // or an image, also while a diff or a preview of it is shown), or "" when there
 // is no tab (the welcome page). Every line is the whole state, not a change.
 //
-// Diff is present while the shj is in diff mode (Ctrl+G) and absent otherwise:
-// its presence is the beginning of the diff mode and its absence the end. An
-// older kisui ignores it.
+// Diff is present while the shj is in diff mode against HEAD (Ctrl+G) and
+// absent otherwise: its presence is the beginning of the diff mode and its
+// absence the end. The diff mode against a pull request (Space g) is not
+// reported: the shj shows its own list there, because the "diff" request
+// would switch it to HEAD. An older kisui ignores Diff.
 type PrimaryFile struct {
 	File string       `json:"file"`
 	Diff *PrimaryDiff `json:"diff,omitempty"`
