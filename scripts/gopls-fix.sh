@@ -16,14 +16,33 @@ set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 export CGO_ENABLED=0
 
-# gopls が出す quickfix の題。gopls の版を上げて題が変わったら、ここも直す
-TITLES='^(Split into separate WriteString calls' # gopls writestring: WriteString(a + b) → 2 回の WriteString
-TITLES+='|Replace \[\]byte\(fmt\.Sprint'         # fmtappendf: []byte(fmt.Sprintf(...)) → fmt.Appendf
-TITLES+='|Replace with tagged switch'             # staticcheck: switch { case x == 1: } や if/else の連なり → switch x { case 1: }
-TITLES+='|Simplify .* using strings\.Cut'         # strings.Index などを strings.Cut に
-TITLES+='|Replace with slices\.Clip'              # s[:len(s):len(s)] → slices.Clip(s)
-TITLES+='|Add field names to struct literal'      # vet composites: 別パッケージの構造体の値にフィールド名を付ける
-TITLES+=')'
+# gopls が出す quickfix の題（正規表現）。1 つずつ、scripts/testdata/gopls-fix/sample.go に当たる見本を置く
+TITLE_LIST=(
+	'Split into separate WriteString calls'     # gopls writestring: WriteString(a + b) → 2 回の WriteString
+	'Replace \[\]byte\(fmt\.Sprint'             # fmtappendf: []byte(fmt.Sprintf(...)) → fmt.Appendf
+	'Replace with tagged switch'                # staticcheck: switch { case x == 1: } や if/else の連なり → switch x { case 1: }
+	'Simplify .* using strings\.Cut'            # strings.Index などを strings.Cut に
+	'Replace with slices\.Clip'                 # s[:len(s):len(s)] → slices.Clip(s)
+	'Add field names to struct literal'         # vet composites: 別パッケージの構造体の値にフィールド名を付ける
+)
+
+# gopls の版を上げて題が変わると、合う修正が無くなり、何も当てずに静かに終わってしまう。
+# 先に見本で、どの題もまだ出ることを確かめる。見本は自分の go.mod を持つ（testdata の中は gopls が型検査しないため）
+SAMPLE=scripts/testdata/gopls-fix
+offered=$(cd "$SAMPLE" && gopls codeaction -kind=quickfix sample.go)
+for t in "${TITLE_LIST[@]}"; do
+	if ! grep -qE "\"$t" <<<"$offered"; then
+		echo "gopls-fix: gopls が「$t」の修正を出しません。gopls の版で題が変わったら、scripts/gopls-fix.sh の TITLE_LIST を直してください" >&2
+		echo "gopls が $SAMPLE/sample.go に出した修正:" >&2
+		echo "$offered" >&2
+		exit 1
+	fi
+done
+
+TITLES="^($(
+	IFS='|'
+	echo "${TITLE_LIST[*]}"
+))"
 export TITLES
 
 fix_file() {
@@ -47,5 +66,5 @@ fix_file() {
 }
 export -f fix_file
 
-# ファイルの中だけを書き換える修正なので、ファイルごとに並べて動かせる
-git ls-files -z '*.go' | xargs -0 -P "$(getconf _NPROCESSORS_ONLN)" -I{} bash -c 'fix_file "$1"' _ {}
+# ファイルの中だけを書き換える修正なので、ファイルごとに並べて動かせる。見本は書き換えない
+git ls-files -z '*.go' ":!:$SAMPLE" | xargs -0 -P "$(getconf _NPROCESSORS_ONLN)" -I{} bash -c 'fix_file "$1"' _ {}
