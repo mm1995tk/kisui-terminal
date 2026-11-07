@@ -44,7 +44,7 @@ func TestDispatchAndUsage(t *testing.T) {
 func TestUsageListsCommands(t *testing.T) {
 	var out strings.Builder
 	usage(&out, commands, "kisui")
-	for _, want := range []string{"kisui serve", "kisui attach", "kisui open <file|url>"} {
+	for _, want := range []string{"kisui serve", "kisui attach", "kisui open <file|url>", "kisui notify <text>", "kisui clipboard copy", "kisui clipboard paste"} {
 		if !strings.Contains(out.String(), want) {
 			t.Errorf("the help has no %q:\n%s", want, out.String())
 		}

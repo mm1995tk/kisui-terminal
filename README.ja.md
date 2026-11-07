@@ -36,6 +36,14 @@ kisui open ./paper.pdf
 kisui open https://example.com/
 ```
 
+`kisui notify <文>` は、窓の動いているコンピュータ（手元）にデスクトップ通知を出します。長いコマンドの終わりを知るのに使えます。`kisui clipboard copy` は標準入力の文を手元のクリップボードに入れ、`kisui clipboard paste` は手元のクリップボードの文を標準出力に出します。手元のクリップボードを読まれるのは危ないので、`paste` のたびに kisui-terminal が許すかを聞き、許したときだけ出します。3 つとも ssh 先のマシンの欄でも同じように使えます。
+
+```sh
+make build; kisui notify "build: $?"
+echo hello | kisui clipboard copy
+kisui clipboard paste > note.txt
+```
+
 `kisui pane split --right` / `--down` は、打った欄を右か下に分け、新しい欄にフォーカスを移します。後ろにコマンドを付けると、新しい欄ではシェルの代わりにそのコマンドを動かします（`kisui pane split --down htop`）。コマンドが終わると欄も閉じるので、短いコマンドの出力を残したいときは、シェルに動かさせて最後にシェルを残します（`kisui pane split --down sh -c "ls; exec sh"`）。分けた後の欄が 20 列・5 行より小さくなるときは、キーで分けるときと同じく断ります。`kisui pane title <名前>` は、欄の上の細い帯に名前を出します（空の名前なら外します）。名前は serve が持つので、ウィンドウを開き直しても残ります。
 
 ```sh

@@ -1,7 +1,8 @@
 // Command kisui is the server of kisui-terminal: "kisui serve" is the headless
 // server the GUI talks to and "kisui attach" the bridge to it. The other
-// commands ("kisui open") run in a pane and ask the "kisui serve" of the pane
-// for something (internal/panecmd).
+// commands run in a pane: "kisui open" asks the "kisui serve" of the pane for
+// something (internal/panecmd), and "kisui notify" and "kisui clipboard" talk
+// to the terminal of the pane (internal/kittyterm).
 package main
 
 import (
@@ -32,6 +33,11 @@ var commands = []command{
 	{name: "serve", help: "help.serve", run: runServe},
 	{name: "attach", help: "help.attach", run: runAttach},
 	{name: "open", args: "<file|url>", help: "help.open", run: runOpen},
+	{name: "notify", args: "<text>", help: "help.notify", run: runNotify},
+	{name: "clipboard", sub: []command{
+		{name: "copy", help: "help.clipboard.copy", run: runClipboardCopy},
+		{name: "paste", help: "help.clipboard.paste", run: runClipboardPaste},
+	}},
 	{name: "pane", sub: []command{
 		{name: "split", args: "--right|--down [command ...]", help: "help.pane.split", run: runPaneSplit},
 		{name: "title", args: "<name>", help: "help.pane.title", run: runPaneTitle},
