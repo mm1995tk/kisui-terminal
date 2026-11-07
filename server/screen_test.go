@@ -56,7 +56,10 @@ func TestScreenFeedOverflowDropsInsteadOfBlocking(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		for range 4 * maxScreenPending / len(chunk) {
+		for i := range 4 * maxScreenPending / len(chunk) {
+			if i == 2 {
+				f.resize(30, 100) // 溢れる前に溜まっている大きさの変更が、出力と一緒に捨てられない
+			}
 			f.write(chunk)
 		}
 	}()
@@ -66,7 +69,10 @@ func TestScreenFeedOverflowDropsInsteadOfBlocking(t *testing.T) {
 		t.Skip("the emulator kept up with the writer; nothing was dropped on this machine")
 	}
 	f.write([]byte("\x1b[2J\x1b[Hok"))
-	row, col, _, _ := f.emulator(t)
+	row, col, rows, cols := f.emulator(t)
+	if rows != 30 || cols != 100 {
+		t.Errorf("size after overflow = %dx%d, want 30x100", rows, cols)
+	}
 	if row != 0 || col != 2 {
 		t.Errorf("after overflow the emulator did not recover: cursor %d,%d", row, col)
 	}

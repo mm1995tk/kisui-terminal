@@ -121,8 +121,7 @@ func (e *Emulator) Resize(rows, cols int) error {
 
 // Size は端末の今の大きさ。
 func (e *Emulator) Size() (rows, cols int, err error) {
-	hi, lo, err := e.pair(e.fSize)
-	return hi, lo, err
+	return e.pair(e.fSize)
 }
 
 // Cursor はカーソルの位置（0 始まりの行と列）。

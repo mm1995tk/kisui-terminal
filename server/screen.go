@@ -2,6 +2,7 @@ package server
 
 import (
 	"log/slog"
+	"slices"
 	"sync"
 	"sync/atomic"
 
@@ -58,7 +59,8 @@ func (f *screenFeed) write(p []byte) {
 	}
 	if f.pending+len(p) > maxScreenPending {
 		f.lost.Add(int64(f.pending + len(p)))
-		f.ops = f.ops[:0]
+		// 出力だけを捨てる。大きさの変更は残さないと、エミュレーターの大きさが欄とずれる
+		f.ops = slices.DeleteFunc(f.ops, func(op screenOp) bool { return len(op.data) > 0 })
 		f.pending = 0
 		f.reset = true
 		f.signal()
