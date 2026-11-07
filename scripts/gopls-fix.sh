@@ -8,6 +8,10 @@
 # 宣言を足す修正は当てない。gopls は動いている OS の build tag でしか見ないので、
 # 例えば macOS でだけ使う関数を「使われていない」と言って消してしまう。
 #
+# 動かしている OS のものではないファイル（Linux で動かしたときの *_darwin.go など）には、何も当たらない。
+# gopls 0.24 は、そのファイルに診断は出すが、gopls codeaction は修正を返さない（GOOS を変えても同じ）。
+# CI は Linux で動くので、macOS だけのファイルは CI で止まらない。
+#
 # staticcheck の QF1012（WriteString(fmt.Sprintf(...)) → fmt.Fprintf）も当てない。gopls 0.24 の修正は
 # fmt.Sprintf(f, args...) の ... を落とし、出力を変えてしまう。
 #
