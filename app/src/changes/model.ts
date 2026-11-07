@@ -1,4 +1,4 @@
-(status ? letters.get(status) : undefined) ?? ["M", "変更"]// 差分モードの CHANGES の一覧（サイドバーのファイルエクスプローラの下）の行を組み立てる。
+(status ? letters.get(status) : undefined) ?? ["M", "変更"]; // 差分モードの CHANGES の一覧（サイドバーのファイルエクスプローラの下）の行を組み立てる。
 // 元は shj が知らせる primaryShj.diff（docs/protocol.md の PrimaryDiff）。
 
 import { RpcError } from "../rpc/message.ts";

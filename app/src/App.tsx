@@ -59,7 +59,12 @@ import {
   type PaneSizes,
 } from "./panes.ts";
 import { ErrorCode, RpcError } from "./rpc/message.ts";
-import type { ExtraPane, Workspace, WorkspaceId } from "./rpc/protocol.ts";
+import type {
+  ExtraPane,
+  PrimaryShj,
+  Workspace,
+  WorkspaceId,
+} from "./rpc/protocol.ts";
 import {
   adoptFocus,
   buildSidebar,
@@ -730,18 +735,28 @@ function Workbench(props: {
   }
 
   /**
-   * ツリーのファイルの行を押した。プライマリの shj に shj.open を送り、通ったらプライマリのターミナルにキーを向ける。
-   * ツリーはプライマリで shj が動いているときだけ出すので、動いていなければ何もしない。断られたら、帯を押して移れなかったときと同じ所に出す。
+   * ツリー・CHANGES の行を押した。プライマリの shj に method（shj.open か shj.diff）を送り、通ったらプライマリのターミナルにキーを向ける。
+   * ready は、その shj が受けられる状態か（ツリーはプライマリで shj が動いているときだけ、CHANGES は差分モードのときだけ出すので、そうでなければ何もしない）。
+   * 断られたら、帯を押して移れなかったときと同じ所に title と errorText の文を出す。
    * ワークスペースを移している途中は送らない（フォーカスを移した先のワークスペースのプライマリで開くため）。
    */
-  function openFile(target: string, id: WorkspaceId, path: string) {
+  function askPrimaryShj(
+    method: "shj.open" | "shj.diff",
+    target: string,
+    id: WorkspaceId,
+    path: string,
+    ready: (shj: PrimaryShj | null | undefined) => boolean,
+    title: string,
+    errorText: (path: string, e: unknown) => string,
+  ) {
     const s = sessions()[target];
     if (!s || switching || s.focus !== id) return;
-    if (!workspaces()[target]?.find((w) => w.id === id)?.primaryShj) return;
+    if (!ready(workspaces()[target]?.find((w) => w.id === id)?.primaryShj))
+      return;
     const seq = ++openSeq; // 続けて押したら、最後に押したものの失敗だけを出す
     setFocusError(null);
     const shown = extraShown;
-    s.request("shj.open", { workspaceId: id, path }).then(
+    s.request(method, { workspaceId: id, path }).then(
       () => {
         // 返事を待つあいだに別のワークスペースへ移っていたら、そちらのターミナルは動かさない
         if (seq !== openSeq || s.focus !== id) return;
@@ -752,42 +767,34 @@ function Workbench(props: {
       },
       (e) => {
         if (seq !== openSeq) return;
-        setFocusError({
-          title: "ファイルを開けませんでした",
-          error: openErrorText(path, e),
-        });
+        setFocusError({ title, error: errorText(path, e) });
       },
     );
   }
 
-  /**
-   * CHANGES の行を押した。プライマリの shj に shj.diff を送ってそのファイルの差分を出させ、通ったらプライマリのターミナルにキーを向ける
-   * （openFile と同じ。動画などの欄が出たときは奪い返さない）。断られたら、ファイルを開けなかったときと同じ所に出す。
-   */
-  function openChange(target: string, id: WorkspaceId, path: string) {
-    const s = sessions()[target];
-    if (!s || switching || s.focus !== id) return;
-    if (!workspaces()[target]?.find((w) => w.id === id)?.primaryShj?.diff)
-      return;
-    const seq = ++openSeq;
-    setFocusError(null);
-    const shown = extraShown;
-    s.request("shj.diff", { workspaceId: id, path }).then(
-      () => {
-        if (seq !== openSeq || s.focus !== id) return;
-        if (extraShown !== shown) return;
-        termGroup()?.setActive(0);
-        focusTerminal();
-      },
-      (e) => {
-        if (seq !== openSeq) return;
-        setFocusError({
-          title: "差分を出せませんでした",
-          error: changeErrorText(path, e),
-        });
-      },
+  /** ツリーのファイルの行を押した（shj.open）。 */
+  const openFile = (target: string, id: WorkspaceId, path: string) =>
+    askPrimaryShj(
+      "shj.open",
+      target,
+      id,
+      path,
+      (shj) => !!shj,
+      "ファイルを開けませんでした",
+      openErrorText,
     );
-  }
+
+  /** CHANGES の行を押した（shj.diff。path は shj が知らせた絶対パス）。 */
+  const openChange = (target: string, id: WorkspaceId, path: string) =>
+    askPrimaryShj(
+      "shj.diff",
+      target,
+      id,
+      path,
+      (shj) => !!shj?.diff,
+      "差分を出せませんでした",
+      changeErrorText,
+    );
 
   // ツリーの右クリックのメニューから開いた窓（名前を入れる・削除の確認）
   const [treeDialog, setTreeDialog] = createSignal<{
