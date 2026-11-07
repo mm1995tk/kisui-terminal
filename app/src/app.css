@@ -39,12 +39,17 @@ a {
   height: 100%;
   /* サイドバーの幅。ドラッグ・リサイズモード（panes.ts）で変えた値は --sidebar-w に入る */
   --sidebar-w-eff: clamp(200px, var(--sidebar-w, 300px), min(640px, 50vw));
+  /* サイドバーと右の欄の間の隙間。つまみ（.resizer）はここにだけ置く */
+  --resizer-w: 6px;
 }
 
 .main {
   position: relative;
   flex: 1;
   min-width: 0;
+  /* サイドバーとの間の隙間（つまみの場所。.resizer）。端末の字の上にはつまみを重ねない */
+  margin-left: var(--resizer-w);
+  overflow: hidden;
   display: flex;
   flex-direction: column;
 }
@@ -69,8 +74,8 @@ a {
 .resizer[data-axis="x"] {
   top: 0;
   bottom: 0;
-  left: calc(var(--sidebar-w-eff) - 3px);
-  width: 6px;
+  left: var(--sidebar-w-eff);
+  width: var(--resizer-w);
   cursor: col-resize;
 }
 
