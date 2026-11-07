@@ -1,7 +1,12 @@
 package server
 
 import (
+	"io"
+	"maps"
+	"net/http"
+	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -47,4 +52,35 @@ var fileKinds = map[string]fileKind{
 // extension is not one of the kind's).
 func fileMIME(kind, path string) string {
 	return fileKinds[kind].mime[strings.ToLower(filepath.Ext(path))]
+}
+
+// sniffLen is how much of a file detectFileKind reads when the extension does
+// not say the kind (as much as http.DetectContentType looks at).
+const sniffLen = 512
+
+// detectFileKind is the kind (a key of fileKinds) and the media type of the file
+// at path: by its extension, or else by its first bytes (http.DetectContentType)
+// when they are one of the media types of a kind. It returns "" when the file is
+// none of them.
+func detectFileKind(path string) (kind, mime string) {
+	ext := strings.ToLower(filepath.Ext(path))
+	for k, fk := range fileKinds {
+		if m := fk.mime[ext]; m != "" {
+			return k, m
+		}
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return "", ""
+	}
+	defer f.Close()
+	buf := make([]byte, sniffLen)
+	n, _ := io.ReadFull(f, buf)
+	m, _, _ := strings.Cut(http.DetectContentType(buf[:n]), ";")
+	for k, fk := range fileKinds {
+		if slices.Contains(slices.Collect(maps.Values(fk.mime)), m) {
+			return k, m
+		}
+	}
+	return "", ""
 }

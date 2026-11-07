@@ -1,7 +1,16 @@
 package i18n
 
 var en = map[string]string{
-	"kisui.usage":        "usage: kisui serve | kisui attach | kisui --version",
+	"kisui.usage":        "usage: %s <command>",
+	"help.serve":         "Run the server the GUI talks to (the GUI starts it)",
+	"help.attach":        "Connect the GUI to kisui serve (the GUI runs it)",
+	"help.open":          "Show a video, an image, a PDF or a web page in a pane (in a pane of kisui-terminal)",
+	"help.version":       "Print the version",
+	"help.help":          "Print this list",
+	"open.usage":         "usage: kisui open <file|url>  (a video, an image, a PDF, or an http or https URL)",
+	"open.failed":        "kisui open: %s",
+	"pane.outside":       "This command works only in a pane of kisui-terminal. This shell is not in one.",
+	"pane.noserve":       "kisui-terminal (kisui serve) is not running: %s",
 	"serve.usage":        "usage: kisui serve",
 	"serve.running":      "kisui serve is already running (%s)",
 	"serve.failed":       "kisui serve exited without a message. See its log file.",

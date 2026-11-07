@@ -27,6 +27,15 @@ nix profile install github:mm1995tk/kisui-terminal#kisui-terminal-nightly
 
 The manual of shijimi-editor explains how `shj` behaves inside kisui-terminal: the panes it opens, videos, the browser pane and the file tree. See its pages [Terminal](https://mm1995tk.github.io/shijimi-editor/manual/terminal/), [Browser](https://mm1995tk.github.io/shijimi-editor/manual/browser/) and [Configuration files](https://mm1995tk.github.io/shijimi-editor/manual/config/) ("Machines in kisui-terminal" and `[server]`).
 
+In a pane, `kisui open <file|url>` shows a file or a page in a pane of the same workspace, by its kind: a video, an image, a PDF (by the extension, or by the first bytes when the extension does not tell), or an `http`/`https` URL in a browser pane. A pane of each kind replaces the one already open. It works in the panes of a remote machine too, and only in the panes of kisui-terminal: from any other shell it refuses. `kisui --help` lists the commands.
+
+```sh
+kisui open ./diagram.png
+kisui open ./talk.mp4
+kisui open ./paper.pdf
+kisui open https://example.com/
+```
+
 kisui-terminal reads its settings from the same `config.toml` as `shj` (`~/.config/shijimi-editor/config.toml`, or `shijimi-editor-nightly/` for the nightly):
 
 - `[[gui.machines]]`: the machines shown in the sidebar (`ssh = "dev-vm"`, `name = "dev"`).

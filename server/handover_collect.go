@@ -103,7 +103,7 @@ func (s *Server) collectWorkspaces(st *handoverState) {
 	w.mu.Lock()
 	st.NextWorkspace, st.NextExtra, st.Focus = w.next, w.nextExtra, w.focus
 	for _, x := range w.reg {
-		hw := handoverWS{ID: x.id, Seq: x.seq, Root: x.root, Kind: x.kind, Primary: x.primary, Layout: x.layout}
+		hw := handoverWS{ID: x.id, Seq: x.seq, Root: x.root, Kind: x.kind, Primary: x.primary, Layout: x.layout, Extras: slices.Clone(x.extras)}
 		if x.shj != nil {
 			hw.Shj = &handoverShj{Socket: x.shj.Socket, PID: x.shj.PID, File: x.shj.File,
 				Panes: slices.Clone(x.shj.panes), Extras: slices.Clone(x.shj.extras)}
@@ -121,7 +121,7 @@ func (s *Server) collectTerms(st *handoverState, fds *fdList) error {
 	s.terms.mu.Unlock()
 	for _, t := range s.terms.all() {
 		t.mu.Lock()
-		ht := handoverTerm{ID: t.id, PID: t.pid, FD: -1, Cwd: t.cwd, Workspace: t.wsID, Primary: t.primary,
+		ht := handoverTerm{ID: t.id, PID: t.pid, FD: -1, Cwd: t.cwd, Workspace: t.wsID, Primary: t.primary, Token: t.token,
 			Cols: t.cols, Rows: t.rows, Title: t.title, Alive: t.alive, Sent: t.sent, Acked: t.acked}
 		ht.RingStart, ht.Ring = t.ringBytes(t.oldest(), t.total)
 		ptmx := t.ptmx

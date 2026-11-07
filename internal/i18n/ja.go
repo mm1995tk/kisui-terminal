@@ -1,7 +1,16 @@
 package i18n
 
 var ja = map[string]string{
-	"kisui.usage":        "usage: kisui serve | kisui attach | kisui --version",
+	"kisui.usage":        "usage: %s <コマンド>",
+	"help.serve":         "GUI が話しかけるサーバーを動かす（GUI が始める）",
+	"help.attach":        "GUI を kisui serve につなぐ（GUI が動かす）",
+	"help.open":          "動画・画像・PDF・Web のページを欄に出す（kisui-terminal の欄の中で）",
+	"help.version":       "版を出す",
+	"help.help":          "この一覧を出す",
+	"open.usage":         "usage: kisui open <file|url>（動画・画像・PDF か、http・https の URL）",
+	"open.failed":        "kisui open: %s",
+	"pane.outside":       "このコマンドは kisui-terminal の欄の中でだけ使えます。このシェルは欄の中ではありません。",
+	"pane.noserve":       "kisui-terminal（kisui serve）が動いていません: %s",
 	"serve.usage":        "usage: kisui serve",
 	"serve.running":      "kisui serve はすでに動いています（%s）",
 	"serve.failed":       "kisui serve はメッセージを出さずに終了しました。ログファイルを見てください。",

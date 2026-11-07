@@ -109,6 +109,7 @@ type handoverTerm struct {
 	Cwd       string `json:"cwd"`
 	Workspace string `json:"workspace"`
 	Primary   bool   `json:"primary"`
+	Token     string `json:"token,omitempty"` // 欄の中のコマンドの秘密（panecmd）。無ければその欄から kisui open は使えない
 	Cols      int    `json:"cols"`
 	Rows      int    `json:"rows"`
 	Title     string `json:"title"`
@@ -127,6 +128,7 @@ type handoverWS struct {
 	Kind    string       `json:"kind,omitempty"`
 	Primary string       `json:"primary"`
 	Shj     *handoverShj `json:"shj,omitempty"`
+	Extras  []extraPane  `json:"extras,omitempty"` // 欄の中から開いた、ターミナルでない欄（wsState.extras）
 	// Layout は欄の配置（分割の木）。古い serve は送らない（recompute が欄から作る）
 	Layout *layoutNode `json:"layout,omitempty"`
 }

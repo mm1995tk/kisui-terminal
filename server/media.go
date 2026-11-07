@@ -45,22 +45,8 @@ const maxBrowserURL = 4096
 
 // newExtra は "open" の rq から欄を作る（ID は付けない）。動画・画像・PDF は絶対パスのそのファイル（種類ごとの拡張子と大きさは fileKinds）、ブラウザは http か https の URL だけ。
 func newExtra(rq ctl.PaneRequest) (extraPane, error) {
-	if fk, ok := fileKinds[rq.Kind]; ok {
-		mime := fileMIME(rq.Kind, rq.Path)
-		if !filepath.IsAbs(rq.Path) || mime == "" {
-			return extraPane{}, fmt.Errorf("not a %s: %s", rq.Kind, rq.Path)
-		}
-		fi, err := os.Stat(rq.Path)
-		if err != nil {
-			return extraPane{}, err
-		}
-		if !fi.Mode().IsRegular() {
-			return extraPane{}, fmt.Errorf("not a file: %s", rq.Path)
-		}
-		if fk.maxSize > 0 && fi.Size() > fk.maxSize {
-			return extraPane{}, fmt.Errorf("the %s is too large (%d bytes, at most %d): %s", rq.Kind, fi.Size(), fk.maxSize, rq.Path)
-		}
-		return extraPane{Kind: rq.Kind, Path: rq.Path, MIME: mime, Size: fi.Size()}, nil
+	if _, ok := fileKinds[rq.Kind]; ok {
+		return newFileExtra(rq.Kind, rq.Path, fileMIME(rq.Kind, rq.Path))
 	}
 	switch rq.Kind {
 	case "browser":
@@ -71,6 +57,38 @@ func newExtra(rq ctl.PaneRequest) (extraPane, error) {
 		return extraPane{Kind: "browser", URL: u}, nil
 	}
 	return extraPane{}, fmt.Errorf("unknown pane kind: %q", rq.Kind)
+}
+
+// newFileExtra は種類 kind（fileKinds）の欄を、絶対パス path のファイルで作る。mime はそのファイルの形式で、空なら断る。
+func newFileExtra(kind, path, mime string) (extraPane, error) {
+	if !filepath.IsAbs(path) || mime == "" {
+		return extraPane{}, fmt.Errorf("not a %s: %s", kind, path)
+	}
+	fi, err := statRegular(path)
+	if err != nil {
+		return extraPane{}, err
+	}
+	return fileExtra(kind, path, mime, fi)
+}
+
+// statRegular は path を調べ、通常のファイルでなければ断る。
+func statRegular(path string) (os.FileInfo, error) {
+	fi, err := os.Stat(path)
+	if err != nil {
+		return nil, err
+	}
+	if !fi.Mode().IsRegular() {
+		return nil, fmt.Errorf("not a file: %s", path)
+	}
+	return fi, nil
+}
+
+// fileExtra は、調べた（statRegular）ファイル fi で種類 kind の欄を作る。種類の大きさの上限を超えれば断る。
+func fileExtra(kind, path, mime string, fi os.FileInfo) (extraPane, error) {
+	if fk := fileKinds[kind]; fk.maxSize > 0 && fi.Size() > fk.maxSize {
+		return extraPane{}, fmt.Errorf("the %s is too large (%d bytes, at most %d): %s", kind, fi.Size(), fk.maxSize, path)
+	}
+	return extraPane{Kind: kind, Path: path, MIME: mime, Size: fi.Size()}, nil
 }
 
 // parseBrowserURL は s が欄で開いてよい URL（ホストのある http か https。ユーザー名とパスワードを含まない）か確かめ、整えた形を返す。
@@ -92,43 +110,77 @@ func (w *wsManager) ownExtra(claim *primaryShj, id string) bool {
 	return slices.ContainsFunc(claim.extras, func(e extraPane) bool { return e.ID == id })
 }
 
-// openExtra は ctl.PaneRequest の "open"。動画・画像・PDF かブラウザの欄を 1 つ足して GUI に出させる。欄は種類ごとにワークスペースに 1 つで、
-// 開いてあれば新しいものと入れ替える（開くたびに増えないように）。
+// openExtra は ctl.PaneRequest の "open"。動画・画像・PDF かブラウザの欄を 1 つ足して GUI に出させる（addExtra）。
 func (w *wsManager) openExtra(claim *primaryShj, wsID string, rq ctl.PaneRequest) (string, error) {
 	e, err := newExtra(rq)
 	if err != nil {
 		return "", err
 	}
+	return w.addExtra(wsID, claim, e)
+}
+
+// sameKindExtra は st で kind の欄（欄の中から開いたものか、shj が開かせたもの）の id。無ければ ""。w.mu を持って呼ぶ。
+func sameKindExtra(st *wsState, kind string) string {
+	all := st.extras
+	if st.shj != nil {
+		all = append(slices.Clone(all), st.shj.extras...)
+	}
+	for _, x := range all {
+		if x.Kind == kind {
+			return x.ID
+		}
+	}
+	return ""
+}
+
+// addExtra は e をワークスペースの欄に足し、GUI に出させる。claim が nil なら欄の中から開いたもの（閉じるまで残る）、
+// そうでなければその shj が開かせたもの（shj が終わると消える）。欄は種類ごとにワークスペースに 1 つで、
+// 開いてあれば（どちらが開いたものでも）その場所で新しいものと入れ替える（開くたびに増えないように）。
+func (w *wsManager) addExtra(wsID string, claim *primaryShj, e extraPane) (string, error) {
 	w.recomputeMu.Lock()
 	defer w.recomputeMu.Unlock()
 	w.mu.Lock()
 	st := w.reg[wsID]
-	if st == nil || st.shj != claim {
+	if st == nil {
+		w.mu.Unlock()
+		return "", fmt.Errorf("no such workspace: %s", wsID)
+	}
+	if claim != nil && st.shj != claim {
 		w.mu.Unlock()
 		return "", errors.New("the shj of the primary has ended")
 	}
-	old := slices.IndexFunc(claim.extras, func(x extraPane) bool { return x.Kind == e.Kind })
+	old := sameKindExtra(st, e.Kind)
 	w.mu.Unlock()
 	// 入れ替えでなければ、新しい欄を足す場所を決める（小さすぎれば断る）
 	var target, dir string
-	if old < 0 {
+	if old == "" {
+		var err error
 		if target, dir, err = w.planSplit(wsID, "", ""); err != nil {
 			return "", err
 		}
 	}
 	w.mu.Lock()
-	if st.shj != claim || (slices.IndexFunc(claim.extras, func(x extraPane) bool { return x.Kind == e.Kind }) < 0) != (old < 0) {
+	if w.reg[wsID] != st || (claim != nil && st.shj != claim) || sameKindExtra(st, e.Kind) != old {
 		w.mu.Unlock()
 		return "", errors.New("the panes changed; try again")
 	}
 	w.nextExtra++
 	e.ID = fmt.Sprintf("x%d", w.nextExtra)
-	if old >= 0 {
-		st.layout = layoutReplace(st.layout, claim.extras[old].ID, e.ID)
-		claim.extras[old] = e
+	// 写しを置き換える（recompute が渡した写しと、配列を分け合わないように）
+	sameKind := func(x extraPane) bool { return x.Kind == e.Kind }
+	st.extras = slices.DeleteFunc(slices.Clone(st.extras), sameKind)
+	if st.shj != nil {
+		st.shj.extras = slices.DeleteFunc(slices.Clone(st.shj.extras), sameKind)
+	}
+	if claim != nil {
+		claim.extras = append(claim.extras, e)
+	} else {
+		st.extras = append(st.extras, e)
+	}
+	if old != "" {
+		st.layout = layoutReplace(st.layout, old, e.ID)
 		w.mu.Unlock()
 	} else {
-		claim.extras = append(claim.extras, e)
 		w.mu.Unlock()
 		w.placePane(wsID, target, dir, e.ID)
 	}
@@ -137,26 +189,45 @@ func (w *wsManager) openExtra(claim *primaryShj, wsID string, rq ctl.PaneRequest
 	return e.ID, nil
 }
 
-// closeExtra は claim の shj の、ターミナルでない欄を忘れる。
-func (w *wsManager) closeExtra(claim *primaryShj, id string) {
+// closeExtra はワークスペースの、ターミナルでない欄 id を忘れる。
+func (w *wsManager) closeExtra(wsID, id string) {
 	w.mu.Lock()
-	claim.extras = slices.DeleteFunc(slices.Clone(claim.extras), func(e extraPane) bool { return e.ID == id })
+	if st := w.reg[wsID]; st != nil {
+		is := func(e extraPane) bool { return e.ID == id }
+		st.extras = slices.DeleteFunc(slices.Clone(st.extras), is)
+		if st.shj != nil {
+			st.shj.extras = slices.DeleteFunc(slices.Clone(st.shj.extras), is)
+		}
+	}
 	w.mu.Unlock()
 	w.recompute()
 }
 
-// extraOf は id の欄と、その持ち主の shj。無ければ ok == false。
-func (w *wsManager) extraOf(wsID, id string) (extraPane, *primaryShj, bool) {
+// extraOf はワークスペースの id の欄。無ければ ok == false。
+func (w *wsManager) extraOf(wsID, id string) (extraPane, bool) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	if st := w.reg[wsID]; st != nil && st.shj != nil {
-		for _, e := range st.shj.extras {
-			if e.ID == id {
-				return e, st.shj, true
-			}
+	st := w.reg[wsID]
+	if st == nil {
+		return extraPane{}, false
+	}
+	all := st.extras
+	if st.shj != nil {
+		all = append(slices.Clone(all), st.shj.extras...)
+	}
+	for _, e := range all {
+		if e.ID == id {
+			return e, true
 		}
 	}
-	return extraPane{}, nil, false
+	return extraPane{}, false
+}
+
+// extraIDNum は欄の id（"x<番号>"）の番号。
+func extraIDNum(id string) int {
+	var n int
+	fmt.Sscanf(id, "x%d", &n)
+	return n
 }
 
 // mediaRequest は media.read と extra.close を振り分ける。
@@ -191,7 +262,7 @@ func (ss *session) readMediaReq(req *rpc.Message) (any, error) {
 	if err := json.Unmarshal(req.Params, &p); err != nil {
 		return nil, invalidParams(err)
 	}
-	e, _, ok := ss.srv.ws.extraOf(p.WorkspaceID, p.ID)
+	e, ok := ss.srv.ws.extraOf(p.WorkspaceID, p.ID)
 	if !ok {
 		return nil, rpc.Errorf(rpc.CodeNotFound, "no such pane: %s", p.ID)
 	}
@@ -217,11 +288,11 @@ func (ss *session) closeExtraReq(req *rpc.Message) (any, error) {
 	if err := json.Unmarshal(req.Params, &p); err != nil {
 		return nil, invalidParams(err)
 	}
-	_, claim, ok := ss.srv.ws.extraOf(p.WorkspaceID, p.ID)
+	_, ok := ss.srv.ws.extraOf(p.WorkspaceID, p.ID)
 	if !ok {
 		return nil, rpc.Errorf(rpc.CodeNotFound, "no such pane: %s", p.ID)
 	}
-	ss.srv.ws.closeExtra(claim, p.ID)
+	ss.srv.ws.closeExtra(p.WorkspaceID, p.ID)
 	return struct{}{}, nil
 }
 
