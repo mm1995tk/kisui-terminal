@@ -259,6 +259,8 @@ export interface Notifications {
     extraId?: string;
   };
   "pane.hide": { workspaceId: WorkspaceId };
+  /** プライマリの shj が、そのワークスペースのファイルエクスプローラにキーを向けるよう頼んだ（Space e）。Esc で端末に戻る */
+  "explorer.focus": { workspaceId: WorkspaceId };
   notify: { level: string; text: string };
   "term.output": { termId: TermId; seq: number; data: string };
   /** `code` は、`kisui serve` が引き継いだシェル（その子でない）では分からないので無い。 */

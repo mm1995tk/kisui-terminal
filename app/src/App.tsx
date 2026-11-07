@@ -27,6 +27,7 @@ import {
 } from "solid-js";
 
 import { AskpassDialog } from "./AskpassDialog.tsx";
+import { explorerRow, isLeaveExplorerKey } from "./explorerFocus.ts";
 import { ClipboardDialog } from "./ClipboardDialog.tsx";
 import { TransferDialog } from "./TransferDialog.tsx";
 import { AddMachine } from "./connect/AddMachine.tsx";
@@ -260,6 +261,14 @@ function Workbench(props: {
     const f = untrack(focus);
     if (f && f.target === target && f.id === id) focusTerminal();
   }
+  /** shj の Space e：フォーカスしているワークスペースなら、サイドバーのファイルツリーにキーを向ける。 */
+  function focusExplorer(target: string, id: WorkspaceId) {
+    const f = untrack(focus);
+    if (!f || f.target !== target || f.id !== id) return;
+    const row = explorerRow(nav);
+    row?.focus();
+    row?.scrollIntoView({ block: "nearest" });
+  }
   const termActive = () => termGroup()?.active;
   const termExtras = () => termGroup()?.extras ?? [];
   const termActiveExtra = () => termGroup()?.activeExtra;
@@ -365,6 +374,18 @@ function Workbench(props: {
       }
       return;
     }
+    // ファイルツリーから端末へ戻る（Esc）。メニューや窓の中の Esc には触らない
+    if (
+      isLeaveExplorerKey(e) &&
+      e.target instanceof Element &&
+      nav?.contains(e.target) &&
+      e.target.closest(".tree-row")
+    ) {
+      e.preventDefault();
+      e.stopPropagation();
+      focusTerminal();
+      return;
+    }
     // 隣へ移るのは、ターミナルを並べていて、キーがターミナルに向いているときだけ
     const dir = directionKey(e, IS_MAC);
     const card = mainEl?.querySelector(":scope > .terminal");
@@ -467,6 +488,7 @@ function Workbench(props: {
       if (ev.kind === "show") paneShow(target, ev.workspaceId, ev.termId);
       else if (ev.kind === "show-extra")
         paneShowExtra(target, ev.workspaceId, ev.extraId);
+      else if (ev.kind === "explorer") focusExplorer(target, ev.workspaceId);
       else zoomWs(target, ev.workspaceId, true);
     });
     offStates.set(target, () => {

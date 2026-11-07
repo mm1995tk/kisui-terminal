@@ -8,7 +8,7 @@ kisui-terminal（`kisui`）と、欄の中で動く shj は、版がずれるこ
 
 | 向き | 内容 | 持ち主 | 版 |
 | --- | --- | --- | --- |
-| shj → kisui | プライマリの欄で名乗る `PrimaryHello` / `PrimaryReply`、開いているファイルを知らせる `PrimaryFile`、欄を開く `PaneRequest` / `PaneReply`、環境変数 `SHIJIMI_GUI_PRIMARY` / `SHIJIMI_GUI_WORKSPACE`、ソケット `serve-primary.rpc` | kisui-terminal | あり（下） |
+| shj → kisui | プライマリの欄で名乗る `PrimaryHello` / `PrimaryReply`、開いているファイルを知らせる `PrimaryFile`、欄を開く `PaneRequest` / `PaneReply`（`op: "explorer"` で GUI のファイルエクスプローラにフォーカスを頼む。#14）、環境変数 `SHIJIMI_GUI_PRIMARY` / `SHIJIMI_GUI_WORKSPACE`、ソケット `serve-primary.rpc` | kisui-terminal | あり（下） |
 | kisui → shj | shj の操作用のソケット（`GUILinkPath` のリンク先）に送る命令 | shijimi-editor | なし |
 
 型と定数は、kisui の側が `internal/ctl/ctl.go`、shj の側が shijimi-editor の `core/ctl/ctl.go`（同じ内容の写し）。詳しい動きは [design/gui-protocol.md](design/gui-protocol.md) の「プライマリの shj」。
