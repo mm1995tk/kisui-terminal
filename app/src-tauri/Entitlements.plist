@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  macOS の .app の中の実行ファイル（kisui-terminal・kisui・shj）に付ける entitlement。
+  Tauri は ad-hoc 署名でも hardened runtime（codesign -o runtime）で署名する。hardened runtime では、
+  書き込める領域を後から実行できるようにする（mprotect で RX にする）と、そのページを実行した時点で
+  カーネルがプロセスを SIGKILL（Code Signature Invalid）で止める。kisui の端末のエミュレータは wazero
+  で wasm を機械語にして動かし、まさにそれをするので、これが無いと kisui serve は端末を作った直後に落ちる。
+-->
+<plist version="1.0">
+<dict>
+	<key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+	<true/>
+</dict>
+</plist>
