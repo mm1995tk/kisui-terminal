@@ -1,4 +1,5 @@
 import { createEffect, For, on, Show, type JSX } from "solid-js";
+import { Dynamic } from "solid-js/web";
 
 import { IS_MAC } from "../guiKeys.ts";
 import type { ExtraPane } from "../rpc/protocol.ts";
@@ -7,6 +8,7 @@ import type { TermLink } from "./link.ts";
 import type { MediaFetch } from "./media.ts";
 import { TerminalView } from "./TerminalView.tsx";
 import { BrowserView } from "./BrowserView.tsx";
+import { FileView } from "./FileView.tsx";
 import { VideoView } from "./VideoView.tsx";
 
 /**
@@ -115,7 +117,8 @@ export function TerminalGrid(props: {
           <Show
             when={x.kind === "browser"}
             fallback={
-              <VideoView
+              <Dynamic
+                component={x.kind === "video" ? VideoView : FileView}
                 pane={x}
                 read={props.readExtra!(x)}
                 active={x.id === props.activeExtra?.id}

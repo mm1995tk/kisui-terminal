@@ -73,13 +73,13 @@ export interface Workspace {
   extras?: ExtraPane[];
 }
 
-/** ターミナルでない欄：動画（#555）かブラウザ（#556） */
+/** ターミナルでない欄：動画（#555）・画像・PDF（どれもファイルを media.read で取る）かブラウザ（#556） */
 export interface ExtraPane {
   id: string;
-  kind: "video" | "browser";
-  /** 動画のファイルの絶対パス（その欄を開いたマシンのもの）。ブラウザでは空 */
+  kind: "video" | "image" | "pdf" | "browser";
+  /** 動画・画像・PDF のファイルの絶対パス（その欄を開いたマシンのもの）。ブラウザでは空 */
   path: string;
-  /** 動画の種類と大きさ。ブラウザでは空と 0 */
+  /** ファイルの種類と大きさ。ブラウザでは空と 0 */
   mime: string;
   size: number;
   /** ブラウザが最初に開く http か https の URL（動画では無い） */
