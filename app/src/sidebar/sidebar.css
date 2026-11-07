@@ -41,14 +41,14 @@
   overflow-y: auto;
 }
 
-/* 細いスクロールバー（#17） */
+/* 端末のスクロールバー（TerminalView の scrollbarWidth: 4）と同じ細さ（#17） */
 .sidebar::-webkit-scrollbar {
-  width: 8px;
+  width: 4px;
 }
 
 .sidebar::-webkit-scrollbar-thumb {
   background: var(--gh-border-strong);
-  border-radius: 4px;
+  border-radius: 2px;
 }
 
 .sidebar::-webkit-scrollbar-track {
