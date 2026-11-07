@@ -14,6 +14,7 @@ import type { Client } from "../rpc/client.ts";
 import { ErrorCode, RpcError } from "../rpc/message.ts";
 import {
   hasCapability,
+  type AttachInfo,
   type HelloResult,
   type Notifications,
   type Requests,
@@ -447,31 +448,16 @@ export class Session {
           void conn.close();
           return;
         }
-        if (!this.handoverTried && needsHandover(conn)) {
-          this.handoverTried = true;
-          this.switching = true;
-          this.setState(this.waiting(first, attempt, lastError));
-          const failed = await this.handover(conn);
-          if (gen !== this.generation) {
-            void conn.close();
-            return;
-          }
-          if (failed === undefined) {
-            // 古い serve は返事のあと接続を閉じる。新しい serve は同じソケットで、同じ serverId の状態を持って
-            // いるので、待たずに resume でつなぎ直す（欄は term.attach で引き継ぐ前の画面のまま続く）
-            this.serverId = conn.hello.serverId;
-            this.rev = conn.hello.rev;
-            conn.client.close("handed over to the new kisui serve");
-            attempt = 0; // つなぎ直しの回数は数え直す（次の周で 1 回目）
-            continue;
-          }
-          // 断られた。古い serve は動き続けているので、そのまま使う
-          this.switching = false;
-          await this.adopt(conn, gen, failed);
-          return;
+        const sw = await this.switchOver(conn, gen, () =>
+          this.waiting(first, attempt, lastError),
+        );
+        if (sw === "resume") {
+          attempt = 0; // つなぎ直しの回数は数え直す（次の周で 1 回目）
+          continue;
         }
+        if (sw === "stale") return;
         this.switching = false;
-        await this.adopt(conn, gen);
+        await this.adopt(conn, gen, sw?.handoverError);
         return;
       } catch (e) {
         if (gen !== this.generation) return;
@@ -494,11 +480,46 @@ export class Session {
   }
 
   /**
-   * server.handover を頼む。切り替わったら undefined、kisui serve が断ったら（古い serve は動き続ける）その理由。
-   * 返事の前に接続が切れた・時間切れのときは投げる（切り替わったかは分からないので、普通のつなぎ直しに任せる）。
+   * つないだ kisui serve の版が違えば、新しい版への切り替え（server.handover）を頼み、その後始末をする。
+   *  - undefined：切り替えない（版が同じ・頼めない・この Session ですでに頼んだ）。呼ぶ側はそのまま受け取る
+   *  - "resume"：切り替わった。古い serve の接続は閉じた。呼ぶ側は同じ serverId の resume でつなぎ直す
+   *  - { handoverError }：断られた。古い serve は動き続けているので、呼ぶ側はそのまま受け取る
+   *  - "stale"：待つ間に別の run・close に替わった。接続は閉じた
+   * 返事の前に切れた・時間切れのときは投げる（handover を見る）。
    */
-  private async handover(conn: Connection): Promise<string | undefined> {
-    const attach = conn.attach!;
+  private async switchOver(
+    conn: Connection,
+    gen: number,
+    waiting: () => SessionState,
+  ): Promise<undefined | "resume" | "stale" | { handoverError: string }> {
+    const attach = conn.attach;
+    if (this.handoverTried || !attach || !needsHandover(conn)) return;
+    this.handoverTried = true;
+    this.switching = true;
+    this.setState(waiting());
+    const failed = await this.handover(conn, attach);
+    if (gen !== this.generation) {
+      void conn.close();
+      return "stale";
+    }
+    if (failed !== undefined) return { handoverError: failed };
+    // 古い serve は返事のあと接続を閉じる。新しい serve は同じソケットで、同じ serverId の状態を持って
+    // いるので、待たずに resume でつなぎ直す（欄は term.attach で引き継ぐ前の画面のまま続く）
+    this.serverId = conn.hello.serverId;
+    this.rev = conn.hello.rev;
+    conn.client.close("handed over to the new kisui serve");
+    return "resume";
+  }
+
+  /**
+   * server.handover を頼む。切り替わったら undefined、kisui serve が断ったら（古い serve は動き続ける）その理由。
+   * 返事の前に接続が切れた・時間切れのときは、切り替わったかは分からないので、switching を外して投げる
+   * （普通のつなぎ直しに任せる）。
+   */
+  private async handover(
+    conn: Connection,
+    attach: AttachInfo,
+  ): Promise<string | undefined> {
     let to: ReturnType<typeof setTimeout> | undefined;
     const timeout = new Promise<never>((_, rej) => {
       to = setTimeout(
@@ -517,6 +538,7 @@ export class Session {
       return undefined;
     } catch (e) {
       if (e instanceof RpcError) return e.message;
+      this.switching = false;
       conn.client.close(e instanceof Error ? e.message : String(e));
       throw e;
     } finally {

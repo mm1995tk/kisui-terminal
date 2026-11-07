@@ -30,9 +30,9 @@ function fakeShell(opts: {
   capabilities?: string[];
   /**
    * server.handover への答え。"ok" なら返事をして接続を閉じ、serve の版を attach の版にする。
-   * エラーなら断る（serve の版は変わらない）。"drop" なら返事をせずに接続を閉じる
+   * エラーなら断る（serve の版は変わらない）。"drop" なら返事をせずに接続を閉じる、"silent" なら何も返さない
    */
-  handover?: "ok" | "drop" | { code: number; message: string };
+  handover?: "ok" | "drop" | "silent" | { code: number; message: string };
 }) {
   const lines: Line[] = [];
   const closeds: ((e: ClosedEvent) => void)[] = [];
@@ -121,7 +121,9 @@ function fakeShell(opts: {
         }
         case "server.handover": {
           const h = opts.handover ?? "ok";
-          if (h === "drop") {
+          if (h === "silent") {
+            // 返事をしない（GUI の時間切れ）
+          } else if (h === "drop") {
             queueMicrotask(() =>
               closeds.forEach((f) => f({ id, code: 0, stderr: "" })),
             );
@@ -734,6 +736,39 @@ describe("新しい版の kisui serve への切り替え（#8）", () => {
     assert.equal(st.kind === "connected" && st.handoverError, undefined);
     assert.equal(handovers(f).length, 1);
     assert.equal(f.connects, 2);
+    await s.close();
+  });
+
+  it("返事が来ないまま時間切れになったら、切り替え中の表示を外して普通のつなぎ直しになる", async () => {
+    const f = fakeShell({
+      serverIds: ["A"],
+      attach,
+      capabilities: ["server.handover"],
+      handover: "silent",
+    });
+    const s = new Session(f.api, "h", { ...fast, handoverTimeoutMs: 20 });
+    const states: SessionState[] = [];
+    s.onState((st) => states.push(st));
+    s.start();
+    const st = await waitFor(s, (x) => x.kind === "connected");
+    assert.equal(st.kind === "connected" && st.hello.shj.version, "1");
+    assert.equal(st.kind === "connected" && st.handoverError, undefined);
+    assert.equal(handovers(f).length, 1);
+    assert.equal(f.connects, 2);
+    // 時間切れのあとのつなぎ直しには switching が付かない
+    const after = states.filter(
+      (x) =>
+        (x.kind === "connecting" || x.kind === "reconnecting") &&
+        /timed out/.test(x.reason ?? ""),
+    );
+    assert.ok(after.length > 0);
+    assert.ok(
+      after.every(
+        (x) =>
+          (x.kind === "connecting" || x.kind === "reconnecting") &&
+          x.switching === undefined,
+      ),
+    );
     await s.close();
   });
 
