@@ -116,16 +116,13 @@ func paneTarget(target string) (extraPane, error) {
 	if !filepath.IsAbs(target) {
 		return extraPane{}, fmt.Errorf("not an absolute path: %s", target)
 	}
-	fi, err := os.Stat(target)
+	fi, err := statRegular(target)
 	if err != nil {
 		return extraPane{}, err
-	}
-	if !fi.Mode().IsRegular() {
-		return extraPane{}, fmt.Errorf("not a file: %s", target)
 	}
 	kind, mime := detectFileKind(target)
 	if kind == "" {
 		return extraPane{}, fmt.Errorf("kisui cannot show this kind of file (it shows videos, images and PDFs): %s", target)
 	}
-	return newFileExtra(kind, target, mime)
+	return fileExtra(kind, target, mime, fi)
 }

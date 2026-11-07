@@ -61,18 +61,31 @@ func newExtra(rq ctl.PaneRequest) (extraPane, error) {
 
 // newFileExtra は種類 kind（fileKinds）の欄を、絶対パス path のファイルで作る。mime はそのファイルの形式で、空なら断る。
 func newFileExtra(kind, path, mime string) (extraPane, error) {
-	fk := fileKinds[kind]
 	if !filepath.IsAbs(path) || mime == "" {
 		return extraPane{}, fmt.Errorf("not a %s: %s", kind, path)
 	}
-	fi, err := os.Stat(path)
+	fi, err := statRegular(path)
 	if err != nil {
 		return extraPane{}, err
 	}
-	if !fi.Mode().IsRegular() {
-		return extraPane{}, fmt.Errorf("not a file: %s", path)
+	return fileExtra(kind, path, mime, fi)
+}
+
+// statRegular は path を調べ、通常のファイルでなければ断る。
+func statRegular(path string) (os.FileInfo, error) {
+	fi, err := os.Stat(path)
+	if err != nil {
+		return nil, err
 	}
-	if fk.maxSize > 0 && fi.Size() > fk.maxSize {
+	if !fi.Mode().IsRegular() {
+		return nil, fmt.Errorf("not a file: %s", path)
+	}
+	return fi, nil
+}
+
+// fileExtra は、調べた（statRegular）ファイル fi で種類 kind の欄を作る。種類の大きさの上限を超えれば断る。
+func fileExtra(kind, path, mime string, fi os.FileInfo) (extraPane, error) {
+	if fk := fileKinds[kind]; fk.maxSize > 0 && fi.Size() > fk.maxSize {
 		return extraPane{}, fmt.Errorf("the %s is too large (%d bytes, at most %d): %s", kind, fi.Size(), fk.maxSize, path)
 	}
 	return extraPane{Kind: kind, Path: path, MIME: mime, Size: fi.Size()}, nil
