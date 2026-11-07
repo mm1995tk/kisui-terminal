@@ -6,7 +6,7 @@
 // ほかに動かせる境界は無い。
 
 import type { KeyValueStore } from "./ssh/machines.ts";
-import { isCmdKey, isCtrlShift, type KeyLike } from "./guiKeys.ts";
+import { isCmdKey, isCtrlShiftKey, type KeyLike } from "./guiKeys.ts";
 
 /** 動かせる境界。サイドバーの右。 */
 export type Border = "sidebar";
@@ -106,14 +106,10 @@ export type ResizeAction =
   | { kind: "exit" }
   | { kind: "none" };
 
-function isRKey(e: KeyLike): boolean {
-  return e.code === "KeyR" || e.key.toLowerCase() === "r";
-}
-
 /** KeyboardEvent を TUI のキーの名前にする（ui/tui の ResizeKey が受ける形）。リサイズモードで使わない組み合わせは null。 */
 export function resizeKeyName(e: KeyLike, mac = false): string | null {
   // 入る・出るキー：Mac は Cmd+R、それ以外は Ctrl+Shift+R。Alt+R は端末（shj）に渡すので取らない
-  if (mac ? isCmdKey(e, "r") : isCtrlShift(e) && isRKey(e)) return "mod+r";
+  if (mac ? isCmdKey(e, "r") : isCtrlShiftKey(e, "r")) return "mod+r";
   if (e.ctrlKey || e.metaKey || e.altKey) return null;
   switch (e.key) {
     case "ArrowLeft":
