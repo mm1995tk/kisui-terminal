@@ -89,7 +89,8 @@
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-  padding: 12px 18px;
+  /* kitty × herdr に近い狭さ（#17） */
+  padding: 4px 6px;
   background: var(--gh-bg);
 }
 

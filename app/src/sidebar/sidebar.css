@@ -41,6 +41,20 @@
   overflow-y: auto;
 }
 
+/* 端末のスクロールバー（TerminalView の scrollbarWidth: 8）と同じ細さ（#17） */
+.sidebar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.sidebar::-webkit-scrollbar-thumb {
+  background: var(--gh-border-strong);
+  border-radius: 4px;
+}
+
+.sidebar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
 /* 一覧の一番下の「+ リモートを足す」（モック Main.dc.html の点線の枠） */
 .sidebar-foot {
   flex: none;
