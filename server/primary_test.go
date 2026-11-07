@@ -2,6 +2,7 @@ package server
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"net"
@@ -349,4 +350,23 @@ func TestPrimaryShjDiffList(t *testing.T) {
 	waitFor(t, "empty list", func() bool { p := primaryShjOf(t, c, id); return p != nil && p.Diff != nil && len(p.Diff.Files) == 0 })
 	send(`{"file":"/x/a.go"}`)
 	waitFor(t, "diff off", func() bool { p := primaryShjOf(t, c, id); return p != nil && p.Diff == nil })
+}
+
+// 上限を超える行は、その行だけ捨てる。接続は切らないので、shj は忘れられず、次の行は読まれる。
+func TestPrimaryShjLongLineIsDropped(t *testing.T) {
+	t.Setenv("HOME", normalizePath(t.TempDir()))
+	_, sock := startFast(t)
+	c, _ := termClient(t, sock)
+	id, primary := createWS(t, c)
+	r, conn := announceShj(t, sock, ctl.PrimaryHello{TermID: primary, Socket: "/run/a.sock", PID: 11})
+	if !r.OK {
+		t.Fatalf("reply: %+v", r)
+	}
+	conn.Write([]byte(`{"file":"/x/a.txt"}` + "\n"))
+	waitFor(t, "file a", func() bool { p := primaryShjOf(t, c, id); return p != nil && p.File == "/x/a.txt" })
+	long := append([]byte(`{"file":"/x/long.txt","pad":"`), bytes.Repeat([]byte("a"), maxPrimaryLine+(1<<16))...)
+	long = append(long, []byte("\"}\n")...)
+	conn.Write(long)
+	conn.Write([]byte(`{"file":"/x/b.txt"}` + "\n"))
+	waitFor(t, "file b after the long line", func() bool { p := primaryShjOf(t, c, id); return p != nil && p.File == "/x/b.txt" })
 }

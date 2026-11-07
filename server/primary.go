@@ -36,7 +36,7 @@ type primaryShj struct {
 	// Diff は shj が差分モードのときの変更の一覧（CHANGES）。差分モードでなければ nil。
 	// 入れ替えるだけで中身は書き換えない（recompute が写しを渡すため）。
 	Diff   *ctl.PrimaryDiff `json:"diff,omitempty"`
-	wsID   string           //名乗ったときのワークスペース（リンクを消すため。ワークスペースが先に消えても分かる）
+	wsID   string           // 名乗ったときのワークスペース（リンクを消すため。ワークスペースが先に消えても分かる）
 	panes  []string         // この shj が作った欄（ターミナルの id）。w.mu で守る。shj が終わると閉じる
 	extras []extraPane      // この shj が開かせた、ターミナルでない欄（動画）。w.mu で守る。shj が終わると消える
 }
@@ -53,9 +53,10 @@ type primaryServer struct {
 // primaryLink は serve-primary.rpc の 1 本の接続。名乗った shj の接続は、引き継ぎ（handover.go）で
 // 次の serve に渡すため、行の途中で読みを止められるようにしてある。
 type primaryLink struct {
-	conn    net.Conn
-	r       *bufio.Reader
-	partial []byte // 読みかけの行
+	conn     net.Conn
+	r        *bufio.Reader
+	partial  []byte // 読みかけの行
+	skipping bool   // 上限を超えた行の残りを読み捨てている
 
 	mu    sync.Mutex
 	claim *primaryShj // 名乗りが通った shj。名乗る前は nil
@@ -80,12 +81,31 @@ func newPrimaryLink(c net.Conn, pending []byte) *primaryLink {
 }
 
 // readLine は次の 1 行（改行を除く）を返す。読みが止められても、読みかけの分は失わない。
+// 上限（maxPrimaryLine）を超える行は、改行まで読み捨てて errPrimaryLineTooLong を返す（接続は読み続けられる）。
 func (l *primaryLink) readLine() ([]byte, error) {
 	for {
 		chunk, err := l.r.ReadSlice('\n')
+		if l.skipping {
+			switch {
+			case err == nil:
+				l.skipping = false
+				return nil, errPrimaryLineTooLong
+			case errors.Is(err, bufio.ErrBufferFull):
+				continue
+			}
+			return nil, err
+		}
 		l.partial = append(l.partial, chunk...)
 		if len(l.partial) > maxPrimaryLine+1 {
-			return nil, errPrimaryLineTooLong
+			l.partial = nil
+			switch {
+			case err == nil:
+				return nil, errPrimaryLineTooLong
+			case errors.Is(err, bufio.ErrBufferFull):
+				l.skipping = true
+				continue
+			}
+			return nil, err
 		}
 		switch {
 		case err == nil:
@@ -257,6 +277,9 @@ func (s *Server) primaryConn(l *primaryLink) {
 func (s *Server) followShj(l *primaryLink) {
 	for {
 		line, err := l.readLine()
+		if errors.Is(err, errPrimaryLineTooLong) {
+			continue // 長すぎる行はその行だけ捨てる（接続は切らない。切ると shj を忘れてしまう）
+		}
 		if err == nil {
 			var f ctl.PrimaryFile
 			if json.Unmarshal(line, &f) == nil && (f.File == "" || filepath.IsAbs(f.File)) {
