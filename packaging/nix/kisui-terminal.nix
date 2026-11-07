@@ -58,7 +58,7 @@ let
     inherit version;
     src = webSrc;
     # package-lock.json を変えたら、ここを lib.fakeHash にして nix build .#kisui-terminal を回し、出た値に直す
-    npmDepsHash = "sha256-lsuGWHprgnXbLY2S0pQkQPvBqPp3fVoydKWgda9EIKY=";
+    npmDepsHash = "sha256-bUlbCeTmn/m6g4CYVmKqY7XcrRXsey9u6ehEdi3FRno=";
     # tauri の CLI は殻のビルドには使わない（cargo を直接回す）。バイナリの取得を避ける
     npmFlags = [ "--ignore-scripts" ];
     installPhase = ''

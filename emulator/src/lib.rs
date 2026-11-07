@@ -81,3 +81,34 @@ pub extern "C" fn em_cursor() -> u32 {
 pub extern "C" fn em_reset() {
     term().reset();
 }
+/// 書き出した画面の状態（`em_serialize` が作り、`em_snapshot_release` まで持つ）。
+static mut SNAPSHOT: Vec<u8> = Vec::new();
+
+/// 画面の状態を、新しい端末に書けば同じ画面になるバイト列に書き出して、その長さを返す。
+/// 主画面の scrollback は新しいほうから `max_scrollback` 行まで。バイト列は `em_snapshot_ptr` から読み、
+/// 読み終えたら `em_snapshot_release` で手放す。
+#[no_mangle]
+#[allow(static_mut_refs)]
+pub extern "C" fn em_serialize(max_scrollback: u32) -> u32 {
+    let bytes = term().serialize(max_scrollback as usize);
+    // SAFETY: term() と同じ
+    unsafe {
+        SNAPSHOT = bytes;
+        SNAPSHOT.len() as u32
+    }
+}
+
+/// `em_serialize` が作ったバイト列の場所。
+#[no_mangle]
+#[allow(static_mut_refs)]
+pub extern "C" fn em_snapshot_ptr() -> *const u8 {
+    // SAFETY: term() と同じ
+    unsafe { SNAPSHOT.as_ptr() }
+}
+
+/// `em_serialize` が作ったバイト列を手放す。
+#[no_mangle]
+pub extern "C" fn em_snapshot_release() {
+    // SAFETY: term() と同じ
+    unsafe { SNAPSHOT = Vec::new() };
+}

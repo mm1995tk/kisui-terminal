@@ -22,7 +22,7 @@ function fakePort(opts: { terms?: TermInfo[] } = {}) {
   const acks: { termId: string; seq: number }[] = [];
   const handlers: Record<string, (params: any) => unknown> = {
     "term.list": () => ({ terms: opts.terms ?? [alive("t1")] }),
-    "term.attach": () => ({ seq: 0, replay: "", cols: 80, rows: 24 }),
+    "term.attach": () => ({ seq: 0, snapshot: "", cols: 80, rows: 24 }),
     "term.input": () => ({}),
     "term.resize": () => ({}),
     "term.close": () => ({}),
@@ -102,11 +102,11 @@ const exitOf = (termId: string) => ({
 });
 
 describe("TermLink", () => {
-  it("つないだら 0 から取り直し、出力を書いて、書き終えた分を ack する", async () => {
+  it("つないだら画面の状態を取り直し、出力を書いて、書き終えた分を ack する", async () => {
     const f = fakePort();
     f.handlers["term.attach"] = () => ({
       seq: 2,
-      replay: b64("$ "),
+      snapshot: b64("$ "),
       cols: 80,
       rows: 24,
     });
@@ -118,7 +118,7 @@ describe("TermLink", () => {
       f.calls.map((c) => c.method),
       ["term.attach", "term.list"],
     );
-    assert.deepEqual(f.calls[0]!.params, { termId: "t1", fromSeq: 0 });
+    assert.deepEqual(f.calls[0]!.params, { termId: "t1" });
     assert.equal(s.text(), "$ ");
 
     link.handle(output("t1", 7, "hello"));
@@ -132,7 +132,7 @@ describe("TermLink", () => {
     const f = fakePort();
     f.handlers["term.attach"] = () => ({
       seq: 4,
-      replay: b64("abcd"),
+      snapshot: b64("abcd"),
       cols: 80,
       rows: 24,
     });
@@ -146,7 +146,7 @@ describe("TermLink", () => {
     assert.equal(s.text(), "abcdef");
   });
 
-  it("seq が飛んだら、続きから term.attach で取り直す。その返事を待つ間の出力は捨てる", async () => {
+  it("seq が飛んだら、term.attach で画面の状態を取り直し、reset してから書く。返事を待つ間の出力は、書き出しのあとの分だけをつなぐ", async () => {
     const f = fakePort();
     const s = fakeSink();
     const link = new TermLink(f.port, "t1");
@@ -155,20 +155,23 @@ describe("TermLink", () => {
     link.handle(output("t1", 3, "abc"));
     f.handlers["term.attach"] = () => ({
       seq: 20,
-      replay: b64("[rest]"),
+      snapshot: b64("[rest]"),
       cols: 80,
       rows: 24,
     });
+    const resets = s.resets();
     link.handle(output("t1", 15, "xyz")); // 3..12 が捨てられた
-    link.handle(output("t1", 20, "late!")); // attach の返事待ちの間
+    link.handle(output("t1", 20, "late!")); // attach の返事待ちの間。書き出し（seq 20）に入っている
+    link.handle(output("t1", 25, "next!")); // 書き出しのあとの分
     await tick();
     assert.deepEqual(f.calls.at(-1), {
       method: "term.attach",
-      params: { termId: "t1", fromSeq: 3 },
+      params: { termId: "t1" },
     });
-    assert.equal(s.text(), "abc[rest]");
-    link.handle(output("t1", 22, "ok"));
-    assert.equal(s.text(), "abc[rest]ok");
+    assert.equal(s.resets(), resets + 1);
+    assert.equal(s.text(), "[rest]next!");
+    link.handle(output("t1", 27, "ok"));
+    assert.equal(s.text(), "[rest]next!ok");
   });
 
   it("つないだターミナルの大きさが画面と違えば合わせる", async () => {
@@ -200,7 +203,7 @@ describe("TermLink", () => {
     ]);
   });
 
-  it("つなぎ直したら続きから取り直す", async () => {
+  it("つなぎ直したら画面の状態を取り直す", async () => {
     const f = fakePort();
     const s = fakeSink();
     const link = new TermLink(f.port, "t1");
@@ -211,7 +214,7 @@ describe("TermLink", () => {
     link.reconnected();
     await tick();
     assert.deepEqual(f.calls, [
-      { method: "term.attach", params: { termId: "t1", fromSeq: 2 } },
+      { method: "term.attach", params: { termId: "t1" } },
       { method: "term.list", params: {} },
     ]);
   });
@@ -226,7 +229,7 @@ describe("TermLink", () => {
     await tick();
     f.handlers["term.attach"] = () => ({
       seq: 5,
-      replay: b64("exit\n"),
+      snapshot: b64("exit\n"),
       cols: 80,
       rows: 24,
     });
@@ -251,7 +254,7 @@ describe("TermLink", () => {
     await tick();
     f.handlers["term.attach"] = () => ({
       seq: 5,
-      replay: b64("exit\n"),
+      snapshot: b64("exit\n"),
       cols: 80,
       rows: 24,
     });
@@ -267,7 +270,7 @@ describe("TermLink", () => {
 
     f.handlers["term.attach"] = () => ({
       seq: 8,
-      replay: b64("new\n"),
+      snapshot: b64("new\n"),
       cols: 80,
       rows: 24,
     });
@@ -276,11 +279,11 @@ describe("TermLink", () => {
     await tick();
     assert.deepEqual(f.calls, [
       { method: "term.restart", params: { termId: "t1" } },
-      { method: "term.attach", params: { termId: "t1", fromSeq: 5 } },
+      { method: "term.attach", params: { termId: "t1" } },
     ]);
     assert.equal(link.id, "t1");
     assert.equal(link.hasExited, false);
-    assert.equal(s.text(), "exit\n" + EXITED_NOTICE + "new\n");
+    assert.equal(s.text(), "new\n"); // 取り直した画面に置き換わる（終わった知らせは消える）
 
     // 作り直したシェルの入力は、また送る
     link.input(enc.encode("ls"));
@@ -315,7 +318,7 @@ describe("TermLink", () => {
     assert.equal(f.calls[0]!.method, "term.restart");
   });
 
-  it("外したら出力を書かず ack もしない。また付けたら全部取り直す", async () => {
+  it("外したら出力を書かず ack もしない。また付けたら画面の状態を取り直す", async () => {
     const f = fakePort();
     const s = fakeSink();
     const link = new TermLink(f.port, "t1");
@@ -332,7 +335,7 @@ describe("TermLink", () => {
     link.bind(s2.sink);
     await tick();
     assert.deepEqual(f.calls, [
-      { method: "term.attach", params: { termId: "t1", fromSeq: 0 } },
+      { method: "term.attach", params: { termId: "t1" } },
       { method: "term.list", params: {} },
     ]);
   });
@@ -347,7 +350,7 @@ describe("TermLink", () => {
     let attaches = 0;
     f.handlers["term.attach"] = () => {
       attaches++;
-      return { seq: attaches * 100, replay: b64("R"), cols: 80, rows: 24 };
+      return { seq: attaches * 100, snapshot: b64("R"), cols: 80, rows: 24 };
     };
     link.handle(output("t1", 10, "x")); // 0..9 が欠けた
     await tick();
@@ -360,7 +363,7 @@ describe("TermLink", () => {
     s.flush(); // 取り直した分を書き終えた
     await tick();
     assert.equal(attaches, 2);
-    assert.deepEqual(f.calls.at(-1)!.params, { termId: "t1", fromSeq: 100 });
+    assert.deepEqual(f.calls.at(-1)!.params, { termId: "t1" });
     s.flush();
     await tick();
     assert.equal(attaches, 2); // 欠けが無ければもう取り直さない
@@ -374,7 +377,7 @@ describe("TermLink", () => {
     let answer!: () => void;
     f.handlers["term.attach"] = () =>
       new Promise((r) => {
-        answer = () => r({ seq: 20, replay: "", cols: 80, rows: 24 });
+        answer = () => r({ seq: 20, snapshot: "", cols: 80, rows: 24 });
       });
     link.handle(output("t1", 20, "x")); // 欠けたので取り直す
     link.input(enc.encode("\x03"));
@@ -433,6 +436,45 @@ describe("TermLink", () => {
     link.reconnected();
     await tick();
     assert.equal(exits, 1);
+  });
+
+  it("終わったプライマリをつなぎ直すと、画面は書き出しに置き換わるので、終わった知らせをもう一度出す", async () => {
+    const f = fakePort();
+    const s = fakeSink();
+    const link = new TermLink(f.port, "t1", undefined, { primary: true });
+    link.bind(s.sink);
+    await tick();
+    f.handlers["term.attach"] = () => ({
+      seq: 5,
+      snapshot: b64("exit\n"),
+      cols: 80,
+      rows: 24,
+    });
+    link.handle(exitOf("t1"));
+    await tick();
+    f.handlers["term.list"] = () => ({ terms: [alive("t1", false)] });
+    link.reconnected();
+    await tick();
+    assert.equal(s.text(), "exit\n" + EXITED_NOTICE);
+  });
+
+  it("書き出しの返事を待つ間に届いた出力が、書き出しより前の分だけなら書かない", async () => {
+    const f = fakePort();
+    const s = fakeSink();
+    const link = new TermLink(f.port, "t1");
+    link.bind(s.sink);
+    await tick();
+    let answer!: () => void;
+    f.handlers["term.attach"] = () =>
+      new Promise((r) => {
+        answer = () => r({ seq: 10, snapshot: b64("S"), cols: 80, rows: 24 });
+      });
+    link.reconnected();
+    link.handle(output("t1", 4, "old")); // 書き出しに入っている
+    link.handle(output("t1", 10, "olde")); // これも
+    answer();
+    await tick();
+    assert.equal(s.text(), "S");
   });
 });
 
