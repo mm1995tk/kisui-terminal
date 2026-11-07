@@ -4,7 +4,7 @@
 //   何個でもある。何があるかは shj の Workspace（primary と terms）が決め、GUI は update() で合わせる。
 // - フォーカスしているワークスペースのターミナルを全部並べる。並べ方は serve が持つ分割の木（Workspace.layout。grid.ts）。今使っているもの（active）に
 //   キーを向ける。最初の active はプライマリ。
-// - Ctrl+Shift+T で分割したターミナルを増やす（add。term.create）。分割したターミナルのシェルが終わったら
+// - Cmd+D・Cmd+Shift+D（Mac）か Ctrl+Shift+D・Ctrl+Shift+E で、今の欄を右か下に分けて増やす（add。term.create）。分割したターミナルのシェルが終わったら
 //   （`exit`）その欄を閉じて並び直す。プライマリターミナルは、終わっても欄を閉じず、Enter で作り直す
 //   （ターミナル 1 つの流量制御・取り直し・作り直しは TermLink（link.ts）がする）。
 // - ターミナルでない欄（動画 #555・ブラウザ #556）も同じ木に入る。プライマリの shj が開かせたもので、
