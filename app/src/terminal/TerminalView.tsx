@@ -33,6 +33,10 @@ import {
 import { showOsNotification } from "./notifyOs.ts";
 import "./terminal.css";
 import { terminalTheme } from "./theme.ts";
+import { throttle } from "./throttle.ts";
+
+/** 欄の大きさが変わり続けるとき、列の数を測り直す間隔（ms）。 */
+const REFIT_INTERVAL_MS = 80;
 
 /**
  * ターミナル 1 つの欄（F1）。coneko-term で描き、shj とのやりとりは TermLink に任せる。
@@ -284,7 +288,10 @@ export function TerminalView(props: {
     host.addEventListener("dragleave", onDragLeave);
     host.addEventListener("drop", onDrop);
     onCleanup(() => props.focusRef?.(undefined));
-    const ro = new ResizeObserver(() => refit());
+    // ドラッグでサイドバーの幅を変えている間は毎フレーム大きさが変わる。そのたびに列の数を測り直して
+    // shj に送ると、shj の描き直しが追いつかず、中身が空になる。間引いて、最後の大きさは必ず測る
+    const refitThrottled = throttle(refit, REFIT_INTERVAL_MS);
+    const ro = new ResizeObserver(() => refitThrottled());
     onCleanup(() => {
       host.removeEventListener("mousedown", onPress, true);
       document.removeEventListener("mouseup", onRelease);
@@ -294,6 +301,7 @@ export function TerminalView(props: {
       host.removeEventListener("drop", onDrop);
       disposed = true;
       ro.disconnect();
+      refitThrottled.cancel();
     });
     void monoFontsReady.then(() => {
       if (disposed) return;
