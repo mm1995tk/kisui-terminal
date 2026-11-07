@@ -687,7 +687,10 @@ func (ss *session) termRequest(req *rpc.Message) (res any, err error, handled bo
 		return struct{}{}, nil, true
 	case "term.cd":
 		// 制御文字（行の編集や端末の行の規律が解釈する）を含むパスは、引用しても守れないので何も打たない。
-		if p.Path != nil && hasControlChar(*p.Path) {
+		if p.Path == nil {
+			return nil, rpc.Errorf(rpc.CodeInvalidParams, "path is required"), true
+		}
+		if hasControlChar(*p.Path) {
 			return nil, rpc.Errorf(rpc.CodeInvalidParams, "path contains control characters"), true
 		}
 		// ツリーの「ここへ移動」。シェルでないプログラム（vim・REPL・確認待ちなど）が
@@ -698,7 +701,7 @@ func (ss *session) termRequest(req *rpc.Message) (res any, err error, handled bo
 			return nil, e, true
 		}
 		ptmx, _ := t.proc()
-		if _, err := ptmx.Write(cdInput(p.Path)); err != nil {
+		if _, err := ptmx.Write(cdInput(*p.Path)); err != nil {
 			return nil, rpc.Errorf(rpc.CodeNotFound, "terminal has exited: %s", t.id), true
 		}
 		return struct{}{}, nil, true
@@ -830,13 +833,9 @@ func hasControlChar(s string) bool {
 }
 
 // cdInput は term.cd がシェルに打つ文字。入力の途中の行に続けて実行されないよう、行末へ行って
-// 行頭まで消してから打つ（Ctrl+E・Ctrl+U）。path が nil なら cd ..。
-func cdInput(path *string) []byte {
-	cmd := "cd .."
-	if path != nil {
-		cmd = "cd -- " + shellQuote(*path)
-	}
-	return []byte("\x05\x15" + cmd + "\r")
+// 行頭まで消してから打つ（Ctrl+E・Ctrl+U）。
+func cdInput(path string) []byte {
+	return []byte("\x05\x15cd -- " + shellQuote(path) + "\r")
 }
 
 // closeTerm は分割したターミナルを終わらせて忘れる（term.close と欄を閉じるときで同じ）。呼ぶ側が一覧を作り直す。

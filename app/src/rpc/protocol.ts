@@ -179,7 +179,7 @@ export interface Requests {
     result: Record<string, never>;
   };
   "term.cd": {
-    params: { termId: TermId; path?: string };
+    params: { termId: TermId; path: string };
     result: Record<string, never>;
   };
   "term.input": {

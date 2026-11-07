@@ -325,7 +325,7 @@ P13-09（#385）で `Core` を `core` に移し、分割を終えた。`ui/tui` 
 | `term.restart` | → shj | `{termId}` → `{pid, cwd}`。終わったプライマリターミナルに新しいシェルを始める（`termId` はそのまま）。プライマリターミナルだけ（分割したターミナルに送ると `denied`）。ワークスペースのフォルダ（フォルダ未定なら `start_dir`）で始める。シェルがまだ動いていれば `busy` |
 | `term.resize` | → shj | `{termId, cols, rows}` → `{}` |
 | `term.input` | → shj | `{termId, data (base64)}` → `{}`。coneko-term が作ったバイト列をそのまま PTY に書く |
-| `term.cd` | → shj | `{termId, path?}` → `{}`。シェルに `cd -- '<path>'` を打つ（`path` が無ければ `cd ..`）。ツリーの「ここへ移動」が使う。制御文字（C0・DEL・C1）を含むパスは何も打たず `invalid_params` で断る。入力の途中の行に続けて実行されないよう、先に Ctrl+E・Ctrl+U で行を消す。シェルのほかにプログラムが前面で動いていれば（`workspace.close` の `running` と同じ判定）何も打たず `busy`（`data.reason` は `running`）で断る |
+| `term.cd` | → shj | `{termId, path}` → `{}`。シェルに `cd -- '<path>'` を打つ。`path` が無ければ `invalid_params` で断る。ツリーの「ここへ移動」が使う。制御文字（C0・DEL・C1）を含むパスは何も打たず `invalid_params` で断る。入力の途中の行に続けて実行されないよう、先に Ctrl+E・Ctrl+U で行を消す。シェルのほかにプログラムが前面で動いていれば（`workspace.close` の `running` と同じ判定）何も打たず `busy`（`data.reason` は `running`）で断る |
 | `term.output` | ← GUI | 通知 `{termId, seq, data (base64)}`。PTY の出力。`seq` はバイト数の累計 |
 | `term.ack` | → shj | 通知 `{termId, seq}`。GUI が処理したバイト数。shj は `seq` から 256 KiB より先までは送らない。このとき PTY は読み続けてリングバッファに溜め、溢れた分は捨てる（GUI が止まってもシェルは止めない。捨てた分は `term.attach` の書き出しで取り直す。リングバッファは、この送り出しのためだけに持つ）（`yes` のような大量の出力で回線と WebView が詰まらないように） |
 | `term.exit` | ← GUI | 通知 `{termId, code?, signal?}`。シェルが終わった。`code` は、`kisui serve` が引き継いだシェル（前の `kisui serve` が始めたもの。子ではないので終了コードが分からない）では無い。送り残した `term.output` より先に届くことがある（GUI は `term.exit` のあとも `term.attach` で画面を取り直して残りを受ける）。溢れて捨てられた分は `term.output` の `seq` が飛んで届くので、欠けは `seq` の連続性で分かる |
