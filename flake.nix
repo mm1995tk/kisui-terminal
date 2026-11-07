@@ -183,6 +183,8 @@
             drv = pkgs.writeShellApplication {
               name = "dev";
               runtimeInputs = [ pkgs.git ];
+              # bash -c '…' の中の $PWD などは、devShell の中で展開させるためにわざと単一引用符にしている
+              excludeShellChecks = [ "SC2016" ];
               text = ''
                 root="$(git rev-parse --show-toplevel)"
                 cd "$root"
