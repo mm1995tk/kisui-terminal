@@ -127,6 +127,8 @@ type handoverWS struct {
 	Kind    string       `json:"kind,omitempty"`
 	Primary string       `json:"primary"`
 	Shj     *handoverShj `json:"shj,omitempty"`
+	// Layout は欄の配置（分割の木）。古い serve は送らない（recompute が欄から作る）
+	Layout *layoutNode `json:"layout,omitempty"`
 }
 
 type handoverShj struct {

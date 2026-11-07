@@ -10,8 +10,8 @@
 // マシンの見出しの [+] でフォルダ未定のワークスペースを作り（フォルダはプライマリターミナルで cd すると決まる）、帯の [×] で閉じる
 // （プログラムが動いていれば、先に確認の窓を出す）。ターミナルはワークスペースごとにあり、帯を押してフォーカスを移すと、
 // 右の欄のターミナルもそのワークスペースのものに切り替わる（F2）。
-// 右の欄には、フォーカスしているワークスペースのターミナル（先頭がプライマリ）を数に応じて自動で並べる。編集はプライマリの欄の中の shj が受け持つ。
-// Ctrl+Shift+T で増やし、分割したターミナルの `exit` で閉じて並び直し、Ctrl+Shift+矢印で隣へ移る（F4。terminal/group.ts・
+// 右の欄には、フォーカスしているワークスペースのターミナル（先頭がプライマリ）を、kisui serve が持つ分割の木の通りに並べる。編集はプライマリの欄の中の shj が受け持つ。
+// Cmd+D・Ctrl+Shift+D（右）と Cmd+Shift+D・Ctrl+Shift+E（下）で今の欄を分けて増やし、分割したターミナルの `exit` で閉じて並び直し、Ctrl+Shift+矢印で隣へ移る（F4。terminal/group.ts・
 // terminal/grid.ts）。プライマリターミナルは `exit` しても閉じず、Enter で作り直す。
 // 新しい版があれば右下に知らせ、押されたら入れ替えて起動し直す（C8。update/UpdateBar.tsx）。
 // 窓と知らせは、どれもモック Connect.dc.html のカードの決まりで描く（connect/card.css）。
@@ -59,7 +59,12 @@ import {
   type PaneSizes,
 } from "./panes.ts";
 import { ErrorCode, RpcError } from "./rpc/message.ts";
-import type { ExtraPane, Workspace, WorkspaceId } from "./rpc/protocol.ts";
+import type {
+  ExtraPane,
+  SplitDir,
+  Workspace,
+  WorkspaceId,
+} from "./rpc/protocol.ts";
 import {
   adoptFocus,
   buildSidebar,
@@ -105,7 +110,7 @@ import { WorkspaceTrees } from "./tree/trees.ts";
 import { cmdDigit, IS_MAC, isCloseTermKey } from "./guiKeys.ts";
 import { loadScale, nextScale, saveScale, scaleKey } from "./scale.ts";
 import { applyScale } from "./scaleOs.ts";
-import { directionKey, isNewTermKey, isZoomKey } from "./terminal/grid.ts";
+import { directionKey, isZoomKey, splitKey } from "./terminal/grid.ts";
 import { TermGroup, TermGroups } from "./terminal/group.ts";
 import type { MediaFetch } from "./terminal/media.ts";
 import { TerminalGrid } from "./terminal/TerminalGrid.tsx";
@@ -271,6 +276,7 @@ function Workbench(props: {
   }
   const termActive = () => termGroup()?.active;
   const termExtras = () => termGroup()?.extras ?? [];
+  const termLayout = () => termGroup()?.layout;
   const termActiveExtra = () => termGroup()?.activeExtra;
   // shj が動画などの欄を出した回数（ツリーで押したファイルの返事で、動画の欄から奪い返さないため）
   let extraShown = 0;
@@ -345,10 +351,11 @@ function Workbench(props: {
       if (!e.repeat) setZoom();
       return;
     }
-    if (isNewTermKey(e, IS_MAC)) {
+    const sd = splitKey(e, IS_MAC);
+    if (sd) {
       e.preventDefault();
       e.stopPropagation();
-      if (!e.repeat) newTerminal();
+      if (!e.repeat) newTerminal(sd);
       return;
     }
     // Cmd+1〜9（Mac）：サイドバーの上から順にワークスペースを選ぶ。足りなければ何もしない
@@ -921,13 +928,13 @@ function Workbench(props: {
     });
   }
 
-  /** 分割したターミナルを足して並べ、キーを向ける（Ctrl+Shift+T。F4）。フォーカスしているワークスペースに属する。 */
-  function newTerminal() {
+  /** 今の欄を右か下に分けてターミナルを足し、キーを向ける（Cmd+D・Ctrl+Shift+D など。F4）。フォーカスしているワークスペースに属する。 */
+  function newTerminal(dir: SplitDir) {
     // 隠している欄があれば先に戻す（足した欄が見えないままになるため）
     setZoom(false);
     // フォルダは shj が決める（ワークスペースのフォルダ。未定なら start_dir）
     void termGroup()
-      ?.add()
+      ?.add(dir)
       .then((added) => {
         if (added) focusTerminal();
       });
@@ -1147,6 +1154,7 @@ function Workbench(props: {
       <div class="main" ref={mainEl}>
         <TerminalGrid
           links={termList()}
+          layout={termLayout()}
           active={termActive()}
           extras={termExtras()}
           activeExtra={termActiveExtra()}

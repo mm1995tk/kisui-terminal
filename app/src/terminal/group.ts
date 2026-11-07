@@ -1,13 +1,13 @@
 // 1 つのワークスペースのターミナルを並べて持つ（F4）。設計書 docs/design/gui-protocol.md の 6 章 F の表の F4。
 //
 // - ワークスペースには、プライマリターミナル 1 つ（先頭。ワークスペースを閉じるまで残る）と、分割したターミナル
-//   0〜5 個がある。何があるかは shj の Workspace（primary と terms）が決め、GUI は update() で合わせる。
-// - フォーカスしているワークスペースのターミナルを全部（6 個まで）並べる。並べ方は grid.ts。今使っているもの（active）に
+//   何個でもある。何があるかは shj の Workspace（primary と terms）が決め、GUI は update() で合わせる。
+// - フォーカスしているワークスペースのターミナルを全部並べる。並べ方は serve が持つ分割の木（Workspace.layout。grid.ts）。今使っているもの（active）に
 //   キーを向ける。最初の active はプライマリ。
-// - Ctrl+Shift+T で分割したターミナルを増やす（add。term.create）。分割したターミナルのシェルが終わったら
+// - Cmd+D・Cmd+Shift+D（Mac）か Ctrl+Shift+D・Ctrl+Shift+E で、今の欄を右か下に分けて増やす（add。term.create）。分割したターミナルのシェルが終わったら
 //   （`exit`）その欄を閉じて並び直す。プライマリターミナルは、終わっても欄を閉じず、Enter で作り直す
 //   （ターミナル 1 つの流量制御・取り直し・作り直しは TermLink（link.ts）がする）。
-// - ターミナルでない欄（動画 #555・ブラウザ #556）も同じ升目に、ターミナルの後ろに並べる。プライマリの shj が開かせたもので、
+// - ターミナルでない欄（動画 #555・ブラウザ #556）も同じ木に入る。プライマリの shj が開かせたもので、
 //   Workspace.extras が決める。キーを向けているのが欄かターミナルかを extraCurrent で持つ（欄を閉じるのは closeExtra）。
 // - マシンの全ワークスペースの組は TermGroups が持つ。
 //
@@ -15,17 +15,24 @@
 
 import type {
   ExtraPane,
+  PaneLayout,
+  SplitDir,
   TermId,
   Workspace,
   WorkspaceId,
 } from "../rpc/protocol.ts";
 import type { TermEvent } from "../ssh/session.ts";
-import { MAX_TERMS, neighbor, type Direction } from "./grid.ts";
+import {
+  layoutRects,
+  neighbor,
+  reconcileLayout,
+  type Direction,
+} from "./grid.ts";
 import { DEFAULT_SIZE, TermLink, type TermPort } from "./link.ts";
 
 /** ワークスペースのうち、ターミナルの並びを決める部分。 */
 export type TermLayout = Pick<Workspace, "id" | "primary" | "terms"> &
-  Partial<Pick<Workspace, "extras">>;
+  Partial<Pick<Workspace, "extras" | "layout">>;
 
 function sameExtra(a: ExtraPane, b: ExtraPane): boolean {
   return (
@@ -43,8 +50,10 @@ export class TermGroup {
   private current?: TermLink;
   /** こちらから term.close を送った分割ターミナル。shj の一覧から消えるまで、並べ直さない */
   private readonly closing = new Set<TermId>();
-  /** term.create の返事待ちの数（上限の数え方に入れる） */
-  private creating = 0;
+  /** serve が持つ欄の配置（Workspace.layout）。古い serve では undefined */
+  private serverLayout?: PaneLayout;
+  private layoutKey = "";
+  private cache?: { ids: string; src?: PaneLayout; tree?: PaneLayout };
   /** ターミナルでない欄（動画。#555）。並べるのはターミナルの後ろ */
   private extraList: ExtraPane[] = [];
   /** キーを向けているターミナルでない欄の id。ターミナルを使っているときは undefined */
@@ -80,6 +89,33 @@ export class TermGroup {
     return this.extraList.find((x) => x.id === this.extraCurrent);
   }
 
+  /** 欄の id（ターミナル、ターミナルでない欄の順）。 */
+  get paneIds(): string[] {
+    return [...this.links.map((l) => l.id), ...this.extraList.map((x) => x.id)];
+  }
+
+  /** 欄の配置（分割の木）。serve の木を、いまある欄に合わせたもの。 */
+  get layout(): PaneLayout | undefined {
+    const ids = this.paneIds;
+    const key = ids.join(",");
+    if (
+      !this.cache ||
+      this.cache.ids !== key ||
+      this.cache.src !== this.serverLayout
+    )
+      this.cache = {
+        ids: key,
+        src: this.serverLayout,
+        tree: reconcileLayout(this.serverLayout, ids),
+      };
+    return this.cache.tree;
+  }
+
+  /** キーを向けている欄の id（ターミナルでも、ターミナルでない欄でも）。 */
+  get activeId(): string | undefined {
+    return this.extraCurrent ?? this.current?.id;
+  }
+
   /** 今使っているターミナル（キーを向けるもの）。 */
   get active(): TermLink | undefined {
     return this.current;
@@ -99,6 +135,12 @@ export class TermGroup {
       const old = this.links.find((l) => l.id === id);
       next.push(old ?? this.newLink(id, id === layout.primary));
     }
+    const lk = JSON.stringify(layout.layout ?? null);
+    const layoutChanged = lk !== this.layoutKey;
+    if (layoutChanged) {
+      this.layoutKey = lk;
+      this.serverLayout = layout.layout;
+    }
     const wantX = layout.extras ?? [];
     for (const id of this.closingExtras)
       if (!wantX.some((x) => x.id === id)) this.closingExtras.delete(id);
@@ -112,7 +154,10 @@ export class TermGroup {
     const same =
       next.length === this.links.length &&
       next.every((l, i) => l === this.links[i]);
-    if (same && sameX) return;
+    if (same && sameX) {
+      if (layoutChanged && notify) this.onChange();
+      return;
+    }
     const was = this.current ? this.links.indexOf(this.current) : -1;
     this.links = next;
     if (!this.current || !next.includes(this.current)) {
@@ -135,18 +180,18 @@ export class TermGroup {
   }
 
   /**
-   * 分割したターミナルを足して active にする（Ctrl+Shift+T）。フォルダは shj が決める
-   * （ワークスペースのフォルダ。未定なら start_dir）。上限なら足さずに false。足したら true。
+   * 今使っている欄を dir（右か下）に分けて、新しいターミナルを足して active にする（Cmd+D・Cmd+Shift+D
+   * ・Ctrl+Shift+D・Ctrl+Shift+E）。フォルダは shj が決める（ワークスペースのフォルダ。未定なら start_dir）。
+   * 小さすぎて分けられなければ、serve が断った理由を onError に出して false。足したら true。
    */
-  async add(): Promise<boolean> {
-    if (this.links.length + this.extraList.length + this.creating >= MAX_TERMS)
-      return false;
-    this.creating++;
+  async add(dir: SplitDir = "right"): Promise<boolean> {
+    const target = this.activeId;
     try {
       const r = await this.port.request("term.create", {
         workspaceId: this.wsId,
         cols: DEFAULT_SIZE.cols,
         rows: DEFAULT_SIZE.rows,
+        ...(target ? { split: { target, dir } } : {}),
       });
       // workspace.changed が先に届いていれば、もう並んでいる
       let l = this.links.find((x) => x.id === r.termId);
@@ -161,8 +206,6 @@ export class TermGroup {
     } catch (e) {
       this.onError(`term.create: ${e instanceof Error ? e.message : e}`);
       return false;
-    } finally {
-      this.creating--;
     }
   }
 
@@ -208,17 +251,15 @@ export class TermGroup {
 
   /** active を dir の向きの隣へ移す（Ctrl+Shift+矢印）。動いたら true。 */
   move(dir: Direction): boolean {
-    const nl = this.links.length;
-    const xi = this.extraList.findIndex((x) => x.id === this.extraCurrent);
-    const i =
-      xi >= 0 ? nl + xi : this.current ? this.links.indexOf(this.current) : -1;
-    if (i < 0) return false;
-    const j = neighbor(i, nl + this.extraList.length, dir);
-    if (j === i) return false;
-    if (j < nl) {
-      this.current = this.links[j];
+    const from = this.activeId;
+    if (!from) return false;
+    const to = neighbor(layoutRects(this.layout), from, dir);
+    if (!to) return false;
+    const l = this.links.find((x) => x.id === to);
+    if (l) {
+      this.current = l;
       this.extraCurrent = undefined;
-    } else this.extraCurrent = this.extraList[j - nl]!.id;
+    } else this.extraCurrent = to;
     this.onChange();
     return true;
   }

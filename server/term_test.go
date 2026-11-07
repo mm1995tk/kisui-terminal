@@ -356,20 +356,50 @@ func TestTermResumesAfterOverflow(t *testing.T) {
 	})
 }
 
-// 分割したターミナルは 5 個まで（プライマリと合わせて 6 個）。
-func TestTermSplitLimit(t *testing.T) {
+// 欄の数に上限は無い。足した欄は分割の木に入り、split で場所を選べる。小さすぎる欄は分けられない。
+func TestTermSplitTree(t *testing.T) {
 	_, sock := start(t)
 	c, _ := termClient(t, sock)
-	id, _ := createWS(t, c)
-	for range maxSplitTerms {
+	id, primary := createWS(t, c)
+	layout := func() *layoutNode { return listWS(t, c).Workspaces[0].Layout }
+	if l := layout(); !l.isLeaf() || l.Pane != primary {
+		t.Fatalf("initial layout: %+v", l)
+	}
+	// 右に分ける
+	t1 := createTerm(t, c, map[string]any{"workspaceId": id, "split": map[string]any{"target": primary, "dir": "right"}})
+	l := layout()
+	if l.Dir != "right" || l.A.Pane != primary || l.B.Pane != t1 || l.Ratio != 0.5 {
+		t.Fatalf("after right split: %+v", l)
+	}
+	// 入れ子に下へ分ける
+	t2 := createTerm(t, c, map[string]any{"workspaceId": id, "split": map[string]any{"target": t1, "dir": "down"}})
+	l = layout()
+	if l.B.Dir != "down" || l.B.A.Pane != t1 || l.B.B.Pane != t2 {
+		t.Fatalf("after down split: %+v", l)
+	}
+	// 7 個以上開ける（split 無しは自動で足す）
+	for range 6 {
 		createTerm(t, c, map[string]any{"workspaceId": id})
 	}
-	err := c.Call(context.Background(), "term.create", map[string]any{"workspaceId": id, "cols": 80, "rows": 24, "shell": "/bin/sh"}, nil)
-	if e, ok := err.(*rpc.Error); !ok || e.Code != rpc.CodeBusy {
-		t.Errorf("6th split terminal: %v", err)
+	if n := len(layoutPanes(layout())); n != 9 {
+		t.Errorf("panes in layout: %d", n)
 	}
-	// ほかのワークスペースの数には入らない。
-	createTerm(t, c, nil)
+	// 小さい欄は分けられない
+	small := createTerm(t, c, map[string]any{"workspaceId": id, "cols": 30, "rows": 8, "split": map[string]any{"target": primary, "dir": "down"}})
+	for _, dir := range []string{"right", "down"} {
+		err := c.Call(context.Background(), "term.create", map[string]any{"workspaceId": id, "cols": 80, "rows": 24, "shell": "/bin/sh", "split": map[string]any{"target": small, "dir": dir}}, nil)
+		if e, ok := err.(*rpc.Error); !ok || e.Code != rpc.CodeBusy {
+			t.Errorf("split %s of a small pane: %v", dir, err)
+		}
+	}
+	// 閉じた欄は木から消え、隣が埋める
+	if err := c.Call(context.Background(), "term.close", map[string]any{"termId": t1}, nil); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "closed pane leaves the layout", func() bool { return !layoutHas(layout(), t1) })
+	if !layoutHas(layout(), t2) {
+		t.Errorf("sibling lost: %+v", layout())
+	}
 }
 
 // プライマリターミナルは term.close で閉じられない。終わったら term.restart で新しいシェルが始まり、
@@ -419,5 +449,21 @@ func TestTermPrimaryCloseAndRestart(t *testing.T) {
 	})
 	if out, _ := nt.output(t, primary); !bytes.Contains(out, []byte("again-ok")) {
 		t.Errorf("output after restart: %q", out)
+	}
+}
+
+// term.create の split の誤りは、小さすぎるときだけ busy。ほかは not_found と invalid_params。
+func TestTermSplitErrorCodes(t *testing.T) {
+	_, sock := start(t)
+	c, _ := termClient(t, sock)
+	id, primary := createWS(t, c)
+	call := func(split map[string]any) error {
+		return c.Call(context.Background(), "term.create", map[string]any{"workspaceId": id, "cols": 80, "rows": 24, "shell": "/bin/sh", "split": split}, nil)
+	}
+	if err := call(map[string]any{"target": "t999", "dir": "right"}); !isCode(err, rpc.CodeNotFound) {
+		t.Errorf("missing target: %v", err)
+	}
+	if err := call(map[string]any{"target": primary, "dir": "left"}); !isCode(err, rpc.CodeInvalidParams) {
+		t.Errorf("bad dir: %v", err)
 	}
 }
