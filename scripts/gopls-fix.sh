@@ -66,5 +66,6 @@ fix_file() {
 }
 export -f fix_file
 
-# ファイルの中だけを書き換える修正なので、ファイルごとに並べて動かせる。見本は書き換えない
-git ls-files -z '*.go' ":!:$SAMPLE" | xargs -0 -P "$(getconf _NPROCESSORS_ONLN)" -I{} bash -c 'fix_file "$1"' _ {}
+# ファイルの中だけを書き換える修正なので、ファイルごとに並べて動かせる。見本は書き換えない。
+# まだ git add していないファイルも含める（go fix ./... と同じ範囲にする）
+git ls-files -z --cached --others --exclude-standard '*.go' ":!:$SAMPLE" | xargs -0 -P "$(getconf _NPROCESSORS_ONLN)" -I{} bash -c 'fix_file "$1"' _ {}
