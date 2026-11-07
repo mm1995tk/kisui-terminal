@@ -29,6 +29,7 @@ Run every command from the root of the repository. `go.mod`, `package.json` and 
   After changing `package-lock.json`, update `npmDepsHash` in `packaging/nix/kisui-terminal.nix` (set it to `lib.fakeHash`, run `nix build .#kisui-terminal`, and copy the hash it prints).
   After adding or changing a `uses:` in `.github/workflows/`, run `gh actions-lock` (install it with `gh extension install github/gh-actions-lock`) and commit the updated `.github/workflows/actions.lock`.
 - **UI strings of kisui**: add a key to both `internal/i18n/en.go` and `internal/i18n/ja.go`. A test fails when the two tables differ.
+- **`internal/emulator/emulator.wasm`**: after changing `emulator/` or `Cargo.lock`, rebuild it on x86_64-linux and commit it (`scripts/build-emulator.sh`, or the `emulator-wasm` artifact of the CI `check` run; see CONTRIBUTING.md). A wasm built on macOS or aarch64-linux does not match.
 - **No import of shijimi-editor** (`cmd/kisui/deps_test.go`).
 
 ## Conventions
