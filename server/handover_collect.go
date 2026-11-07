@@ -105,7 +105,7 @@ func (s *Server) collectWorkspaces(st *handoverState) {
 	for _, x := range w.reg {
 		hw := handoverWS{ID: x.id, Seq: x.seq, Root: x.root, Kind: x.kind, Primary: x.primary, Layout: x.layout, Extras: slices.Clone(x.extras)}
 		if x.shj != nil {
-			hw.Shj = &handoverShj{Socket: x.shj.Socket, PID: x.shj.PID, File: x.shj.File,
+			hw.Shj = &handoverShj{Socket: x.shj.Socket, PID: x.shj.PID, File: x.shj.File, Diff: x.shj.Diff,
 				Panes: slices.Clone(x.shj.panes), Extras: slices.Clone(x.shj.extras)}
 		}
 		st.Workspaces = append(st.Workspaces, hw)

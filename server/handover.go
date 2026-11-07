@@ -31,6 +31,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/mm1995tk/kisui-terminal/internal/ctl"
 	"github.com/mm1995tk/kisui-terminal/rpc"
 )
 
@@ -135,11 +136,12 @@ type handoverWS struct {
 }
 
 type handoverShj struct {
-	Socket string      `json:"socket"`
-	PID    int         `json:"pid"`
-	File   string      `json:"file,omitempty"`
-	Panes  []string    `json:"panes"`
-	Extras []extraPane `json:"extras"`
+	Socket string           `json:"socket"`
+	PID    int              `json:"pid"`
+	File   string           `json:"file,omitempty"`
+	Diff   *ctl.PrimaryDiff `json:"diff,omitempty"`
+	Panes  []string         `json:"panes"`
+	Extras []extraPane      `json:"extras"`
 }
 
 // handoverLink は名乗った shj の接続。Pending は古い serve が読んだが、まだ行として扱っていない分。

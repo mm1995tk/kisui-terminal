@@ -104,6 +104,25 @@ export interface PrimaryShj {
   pid: number;
   /** その shj が出しているテキストか画像の絶対パス。何も出していなければ省く */
   file?: string;
+  /** shj が差分モード（Ctrl+G）のときの変更の一覧（CHANGES）。差分モードでなければ無い。サイドバーのツリーの下に出す */
+  diff?: PrimaryDiff;
+}
+
+/** shj が差分モードのときの変更の一覧（Go の ctl.PrimaryDiff）。files は shj が見せる順 */
+export interface PrimaryDiff {
+  files: DiffFile[];
+  /** shj が今差分を出しているファイルの絶対パス。無ければ省く */
+  selected?: string;
+}
+
+/** 変更したファイル 1 つ（Go の ctl.DiffFile）。added と deleted は増えた行・減った行の数（バイナリは 0 か省く） */
+export interface DiffFile {
+  /** 絶対パス（削除されたファイルも） */
+  path: string;
+  /** "modified" | "added" | "deleted" | "renamed" | "binary"。知らない値・無い値は変更として扱う */
+  status?: string;
+  added?: number;
+  deleted?: number;
 }
 
 // ---- ファイルのツリー ----
@@ -249,6 +268,11 @@ export interface Requests {
     result: Record<string, never>;
   };
   "shj.open": {
+    params: { workspaceId: WorkspaceId; path: string };
+    result: Record<string, never>;
+  };
+  "shj.diff": {
+    /** path は primaryShj.diff.files の path（絶対パス） */
     params: { workspaceId: WorkspaceId; path: string };
     result: Record<string, never>;
   };

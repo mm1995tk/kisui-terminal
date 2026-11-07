@@ -222,7 +222,7 @@ func (s *Server) adoptWorkspaces(st *handoverState) {
 			x.layout = hw.Layout
 		}
 		if hw.Shj != nil {
-			x.shj = &primaryShj{Socket: hw.Shj.Socket, PID: hw.Shj.PID, File: hw.Shj.File, wsID: hw.ID,
+			x.shj = &primaryShj{Socket: hw.Shj.Socket, PID: hw.Shj.PID, File: hw.Shj.File, Diff: hw.Shj.Diff, wsID: hw.ID,
 				panes: slices.Clone(hw.Shj.Panes), extras: slices.Clone(hw.Shj.Extras)}
 		}
 		w.reg[x.id] = x

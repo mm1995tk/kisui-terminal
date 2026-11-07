@@ -2,6 +2,7 @@ package server
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"net"
@@ -274,4 +275,98 @@ func TestPrimaryProtocolRange(t *testing.T) {
 	if r, _ := announceShj(t, sock, ctl.PrimaryHello{TermID: primary, Socket: "/run/b.sock", PID: 22}); !r.OK {
 		t.Fatalf("version 0 (no protocol) must be accepted: %+v", r)
 	}
+}
+
+// 差分モードの一覧は primaryShj.diff に出て、終わると消える。shj.diff は一覧にあるファイルだけを shj に頼む。
+func TestPrimaryShjDiffList(t *testing.T) {
+	t.Setenv("HOME", normalizePath(t.TempDir()))
+	_, sock := startFast(t)
+	c, _ := termClient(t, sock)
+	id, primary := createWS(t, c)
+
+	dir, err := os.MkdirTemp("", "shjd")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(dir) })
+	shjSock := filepath.Join(dir, "1.sock")
+	ln, err := net.Listen("unix", shjSock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	asked := make(chan ctl.Request, 4)
+	go func() {
+		for {
+			cn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			var r ctl.Request
+			json.NewDecoder(cn).Decode(&r)
+			asked <- r
+			json.NewEncoder(cn).Encode(ctl.Response{OK: true})
+			cn.Close()
+		}
+	}()
+
+	r, conn := announceShj(t, sock, ctl.PrimaryHello{TermID: primary, Socket: shjSock, PID: 11})
+	if !r.OK || !r.Changes {
+		t.Fatalf("reply: %+v", r)
+	}
+	diff := func(path string) error {
+		return c.Call(context.Background(), "shj.diff", map[string]any{"workspaceId": id, "path": path}, nil)
+	}
+	if err := diff("/x/a.go"); err == nil {
+		t.Fatal("not in diff mode: nothing to select")
+	}
+
+	send := func(line string) { conn.Write([]byte(line + "\n")) }
+	send(`{"file":"/x/a.go","diff":{"files":[{"path":"/x/a.go","status":"modified","added":2,"deleted":1},{"path":"/x/gone.go","status":"deleted","deleted":4},{"path":"rel.go"}],"selected":"/x/a.go"}}`)
+	waitFor(t, "diff on", func() bool { p := primaryShjOf(t, c, id); return p != nil && p.Diff != nil })
+	p := primaryShjOf(t, c, id)
+	if len(p.Diff.Files) != 2 || p.Diff.Selected != "/x/a.go" || p.Diff.Files[0].Added != 2 || p.Diff.Files[1].Status != "deleted" {
+		t.Fatalf("diff: %+v", p.Diff)
+	}
+
+	if err := diff("/x/gone.go"); err != nil { // 削除されたファイルも頼める
+		t.Fatal(err)
+	}
+	if got := <-asked; got.Cmd != "diff" || got.Path != "/x/gone.go" {
+		t.Errorf("asked: %+v", got)
+	}
+	for _, bad := range []string{"/x/other.go", "/etc/passwd", "rel.go", "a.go", ""} {
+		if err := diff(bad); err == nil {
+			t.Errorf("diff(%q) must be refused", bad)
+		}
+	}
+	select {
+	case got := <-asked:
+		t.Errorf("a refused path reached the shj: %+v", got)
+	default:
+	}
+
+	send(`{"file":"/x/a.go","diff":{"files":[]}}`) // 変更が無くなっても、差分モードのあいだは一覧（空）を出す
+	waitFor(t, "empty list", func() bool { p := primaryShjOf(t, c, id); return p != nil && p.Diff != nil && len(p.Diff.Files) == 0 })
+	send(`{"file":"/x/a.go"}`)
+	waitFor(t, "diff off", func() bool { p := primaryShjOf(t, c, id); return p != nil && p.Diff == nil })
+}
+
+// 上限を超える行は、その行だけ捨てる。接続は切らないので、shj は忘れられず、次の行は読まれる。
+func TestPrimaryShjLongLineIsDropped(t *testing.T) {
+	t.Setenv("HOME", normalizePath(t.TempDir()))
+	_, sock := startFast(t)
+	c, _ := termClient(t, sock)
+	id, primary := createWS(t, c)
+	r, conn := announceShj(t, sock, ctl.PrimaryHello{TermID: primary, Socket: "/run/a.sock", PID: 11})
+	if !r.OK {
+		t.Fatalf("reply: %+v", r)
+	}
+	conn.Write([]byte(`{"file":"/x/a.txt"}` + "\n"))
+	waitFor(t, "file a", func() bool { p := primaryShjOf(t, c, id); return p != nil && p.File == "/x/a.txt" })
+	long := append([]byte(`{"file":"/x/long.txt","pad":"`), bytes.Repeat([]byte("a"), maxPrimaryLine+(1<<16))...)
+	long = append(long, []byte("\"}\n")...)
+	conn.Write(long)
+	conn.Write([]byte(`{"file":"/x/b.txt"}` + "\n"))
+	waitFor(t, "file b after the long line", func() bool { p := primaryShjOf(t, c, id); return p != nil && p.File == "/x/b.txt" })
 }

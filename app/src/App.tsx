@@ -63,6 +63,7 @@ import {
 import { ErrorCode, RpcError } from "./rpc/message.ts";
 import type {
   ExtraPane,
+  PrimaryShj,
   SplitDir,
   Workspace,
   WorkspaceId,
@@ -93,6 +94,7 @@ import {
 } from "./ssh/machines.ts";
 import { Session, type SessionState } from "./ssh/session.ts";
 import { tauriShell } from "./ssh/tauri.ts";
+import { changeRows, changeErrorText } from "./changes/model.ts";
 import {
   relativeIn,
   openErrorText,
@@ -780,18 +782,28 @@ function Workbench(props: {
   }
 
   /**
-   * ツリーのファイルの行を押した。プライマリの shj に shj.open を送り、通ったらプライマリのターミナルにキーを向ける。
-   * ツリーはプライマリで shj が動いているときだけ出すので、動いていなければ何もしない。断られたら、帯を押して移れなかったときと同じ所に出す。
+   * ツリー・CHANGES の行を押した。プライマリの shj に method（shj.open か shj.diff）を送り、通ったらプライマリのターミナルにキーを向ける。
+   * ready は、その shj が受けられる状態か（ツリーはプライマリで shj が動いているときだけ、CHANGES は差分モードのときだけ出すので、そうでなければ何もしない）。
+   * 断られたら、帯を押して移れなかったときと同じ所に title と errorText の文を出す。
    * ワークスペースを移している途中は送らない（フォーカスを移した先のワークスペースのプライマリで開くため）。
    */
-  function openFile(target: string, id: WorkspaceId, path: string) {
+  function askPrimaryShj(
+    method: "shj.open" | "shj.diff",
+    target: string,
+    id: WorkspaceId,
+    path: string,
+    ready: (shj: PrimaryShj | null | undefined) => boolean,
+    title: string,
+    errorText: (path: string, e: unknown) => string,
+  ) {
     const s = sessions()[target];
     if (!s || switching || s.focus !== id) return;
-    if (!workspaces()[target]?.find((w) => w.id === id)?.primaryShj) return;
+    if (!ready(workspaces()[target]?.find((w) => w.id === id)?.primaryShj))
+      return;
     const seq = ++openSeq; // 続けて押したら、最後に押したものの失敗だけを出す
     setFocusError(null);
     const shown = extraShown;
-    s.request("shj.open", { workspaceId: id, path }).then(
+    s.request(method, { workspaceId: id, path }).then(
       () => {
         // 返事を待つあいだに別のワークスペースへ移っていたら、そちらのターミナルは動かさない
         if (seq !== openSeq || s.focus !== id) return;
@@ -802,13 +814,34 @@ function Workbench(props: {
       },
       (e) => {
         if (seq !== openSeq) return;
-        setFocusError({
-          title: "ファイルを開けませんでした",
-          error: openErrorText(path, e),
-        });
+        setFocusError({ title, error: errorText(path, e) });
       },
     );
   }
+
+  /** ツリーのファイルの行を押した（shj.open）。 */
+  const openFile = (target: string, id: WorkspaceId, path: string) =>
+    askPrimaryShj(
+      "shj.open",
+      target,
+      id,
+      path,
+      (shj) => !!shj,
+      "ファイルを開けませんでした",
+      openErrorText,
+    );
+
+  /** CHANGES の行を押した（shj.diff。path は shj が知らせた絶対パス）。 */
+  const openChange = (target: string, id: WorkspaceId, path: string) =>
+    askPrimaryShj(
+      "shj.diff",
+      target,
+      id,
+      path,
+      (shj) => !!shj?.diff,
+      "差分を出せませんでした",
+      changeErrorText,
+    );
 
   // ツリーの右クリックのメニューから開いた窓（名前を入れる・削除の確認）
   const [treeDialog, setTreeDialog] = createSignal<{
@@ -940,6 +973,15 @@ function Workbench(props: {
     if (!d || !s) return;
     await s.request("tree.delete", { workspaceId: d.id, path: d.path });
     setTreeDialog(null);
+  }
+
+  /** 差分モードの CHANGES の一覧。フォーカスしているワークスペースの、差分モードのプライマリの shj のものだけ。 */
+  function changesOf(target: string, id: WorkspaceId) {
+    const f = focus();
+    if (f?.target !== target || f.id !== id) return undefined;
+    const diff = workspaces()[target]?.find((x) => x.id === id)?.primaryShj
+      ?.diff;
+    return diff ? changeRows(diff, rootOf(target, id)) : undefined;
   }
 
   /** プライマリの shj が出しているファイル（ツリーで強調する行）。 */
@@ -1180,6 +1222,8 @@ function Workbench(props: {
         }}
         onRemove={removeFromSidebar}
         onOpen={openFile}
+        changesOf={changesOf}
+        onChange={openChange}
         onTreeAction={treeAction}
         currentOf={currentOf}
         ref={(el) => {
