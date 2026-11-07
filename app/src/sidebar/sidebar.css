@@ -1,22 +1,22 @@
-/* 左の一覧（D1）。親 #271 のモック「案：フラットな一覧」の寸法と色に合わせる。
+/* 左の一覧（D1）。親 #271 のモック「案：フラットな一覧」の寸法に合わせる（色は theme.css の GitHub Dark）。
    マシンごとの色（D4）は --machine-color。Sidebar.tsx が .machine の style に入れる（決め方は colors.ts）。
    上下の固定（D3）は Sidebar.tsx の説明のとおり、sticky と要素の組み方で決める。
    一覧（.sidebar）はスクロールし、その下に「+ リモートを足す」（.sidebar-foot）を固定する。
    接続の状態の丸と 1 行は親 #271 のモック Main.dc.html に合わせる
-   （接続中 #7cc4b0・再接続中 #e5b567 は塗り、未接続は #7d8696 の枠だけ。1 行は 11px の #e5b567）。 */
+   （接続中・再接続中は塗り、未接続は枠だけ。色は theme.css）。 */
 
 .sidebar-column {
-  --sidebar-bg: #181b21;
-  --sidebar-border: #2a2f39;
-  --sidebar-text: #c9ced6;
-  --sidebar-muted: #9aa3b2;
-  --band-bg: #1f232b;
-  --band-hover: #262b34;
-  --health-up: #7cc4b0;
-  --health-pending: #e5b567;
-  --health-down: #7d8696;
-  --status-text: #e5b567;
-  --add-machine-border: #3a414e;
+  --sidebar-bg: var(--gh-bg-side);
+  --sidebar-border: var(--gh-border);
+  --sidebar-text: var(--gh-text);
+  --sidebar-muted: var(--gh-text-muted);
+  --band-bg: var(--gh-bg-raised);
+  --band-hover: var(--gh-bg-hover);
+  --health-up: var(--gh-green);
+  --health-pending: var(--gh-yellow);
+  --health-down: var(--gh-text-dim);
+  --status-text: var(--gh-yellow);
+  --add-machine-border: var(--gh-border-strong);
   /* 上に固定するものの高さ（D3）。ツリーのフォルダの行は、見出しと帯の下から積む */
   --heading-height: 32px;
   --band-height: 30px;
@@ -326,7 +326,7 @@
   padding: 4px;
   border: 1px solid var(--add-machine-border);
   border-radius: 6px;
-  background: #1f232b;
+  background: var(--gh-bg-raised);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
 }
 .machine-menu-item {

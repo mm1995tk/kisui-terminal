@@ -18,8 +18,8 @@ body {
     13px "IBM Plex Sans JP",
     system-ui,
     sans-serif;
-  color: #e6e8ec;
-  background: #121418;
+  color: var(--gh-text);
+  background: var(--gh-bg);
 }
 
 button,
@@ -30,7 +30,7 @@ textarea {
 }
 
 a {
-  color: #7cc4b0;
+  color: var(--gh-accent-text);
 }
 
 .app {
@@ -75,7 +75,7 @@ a {
 }
 
 .resizer[data-lit] {
-  background: var(--machine-color, #7cc4b0);
+  background: var(--machine-color, var(--gh-accent-text));
 }
 
 /* 「コピーしました」。画面の下に少し出て、自分で消える（押せない） */
@@ -86,9 +86,9 @@ a {
   transform: translateX(-50%);
   padding: 6px 14px;
   border-radius: 6px;
-  background: #2a2f38;
-  border: 1px solid #3a414d;
-  color: #e6e8ec;
+  background: var(--gh-bg-hover);
+  border: 1px solid var(--gh-border);
+  color: var(--gh-text-strong);
   pointer-events: none;
   z-index: 1000;
 }

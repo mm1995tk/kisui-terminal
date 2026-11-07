@@ -1,0 +1,27 @@
+/* 配色（GitHub Dark で固定。テーマを選ぶ設定は無い）。GUI の色はここで決め、各 CSS は変数で使う。
+   元は shijimi-editor の core/theme.go の GithubDark。shj と kisui で同じ色に見えるようにそろえる。
+   端末の背景・文字・16 色は terminal/theme.ts（xterm 風の canvas は CSS の変数を読めないため別に持つ）。 */
+:root {
+  --gh-bg: #0d1117; /* エディタ・端末の地 */
+  --gh-bg-side: #010409; /* サイドバー */
+  --gh-bg-raised: #161b22; /* 帯・カード・パレット */
+  --gh-bg-hover: #21262d;
+  --gh-bg-field: #0d1117;
+  --gh-bg-selected: #1f3a5f;
+  --gh-border: #30363d;
+  --gh-border-strong: #484f58;
+  --gh-text: #c9d1d9;
+  --gh-text-strong: #f0f6fc;
+  --gh-text-muted: #8b949e;
+  --gh-text-dim: #6e7681;
+  --gh-accent: #1f6feb;
+  --gh-accent-text: #58a6ff;
+  --gh-accent-hover: #388bfd;
+  --gh-on-accent: #ffffff;
+  --gh-green: #3fb950;
+  --gh-yellow: #e3b341;
+  --gh-red: #f85149;
+  --gh-red-soft: #ff7b72;
+  /* ファイルエクスプローラのインデントの縦線。境界より明るくして見えるようにする */
+  --gh-indent-guide: #484f58;
+}

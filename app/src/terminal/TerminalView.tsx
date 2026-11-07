@@ -32,6 +32,7 @@ import {
 } from "./notify.ts";
 import { showOsNotification } from "./notifyOs.ts";
 import "./terminal.css";
+import { terminalTheme } from "./theme.ts";
 
 /**
  * ターミナル 1 つの欄（F1）。coneko-term で描き、shj とのやりとりは TermLink に任せる。
@@ -52,19 +53,13 @@ export function TerminalView(props: {
   focusRef?: (focus: (() => void) | undefined) => void;
 }): JSX.Element {
   let host!: HTMLDivElement;
-  // 親 #271 のモック（案：フラットな一覧）の右下の文字と色に合わせる
   const term = new Terminal({
     fontFamily:
       "'JetBrains Mono', 'Symbols Nerd Font Mono', ui-monospace, Menlo, Consolas, 'DejaVu Sans Mono', monospace",
     fontSize: 13,
     cursorBlink: true,
     scrollback: 5000,
-    theme: {
-      background: "#0f1114",
-      foreground: "#c9ced6",
-      cursor: "#c9ced6",
-      selectionBackground: "#2c3442",
-    },
+    theme: terminalTheme,
   });
 
   const sink: TermSink = {
