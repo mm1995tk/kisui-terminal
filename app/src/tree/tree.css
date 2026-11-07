@@ -1,6 +1,6 @@
-/* ツリー（D2）。親 #271 のモック「案：フラットな一覧」の寸法と色に合わせる：
+/* ツリー（D2）。親 #271 のモック「案：フラットな一覧」の寸法に合わせる：
    行の高さ 22px、左右 8px、深さごとに 16px の縦線、矢印とアイコンは 16px。
-   印の色は TUI のテーマ（dark-plus）と同じ：変更・追跡していないは Dirty、追加・名前変更・衝突は GitAdded、
+   色は theme.css の GitHub Dark（shijimi-editor の GithubDark と同じ）。印の色は、変更・追跡していないは Dirty、追加・名前変更・衝突は GitAdded、
    削除は GitDeleted、無視は Dim。 */
 
 .tree {

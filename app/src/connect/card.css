@@ -1,7 +1,7 @@
-/* 窓のカード（Card.tsx）。モック Connect.dc.html の寸法と色:
-   幅 560px・背景 #1a1d24・枠線 #2f3540・角丸 12px、見出し 16px 太さ 600、
-   入力欄 高さ 40px・背景 #121418・枠線 #3a414e・角丸 8px、行 padding 10px 8px・角丸 8px、
-   ボタン 高さ 44px（主ボタンは #7cc4b0 の地に #0f1114 の文字）。 */
+/* 窓のカード（Card.tsx）。モック Connect.dc.html の寸法（色は theme.css の GitHub Dark）:
+   幅 560px・角丸 12px、見出し 16px 太さ 600、
+   入力欄 高さ 40px・角丸 8px、行 padding 10px 8px・角丸 8px、
+   ボタン 高さ 44px。 */
 
 .card {
   --card-bg: var(--gh-bg-raised);
@@ -245,7 +245,7 @@
   font-weight: 600;
 }
 .card-button.primary:hover:not(:disabled) {
-  background: #388bfd;
+  background: var(--gh-accent-hover);
 }
 .card-button:disabled {
   opacity: 0.5;

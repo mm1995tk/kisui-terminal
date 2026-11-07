@@ -1,9 +1,9 @@
-/* 左の一覧（D1）。親 #271 のモック「案：フラットな一覧」の寸法と色に合わせる。
+/* 左の一覧（D1）。親 #271 のモック「案：フラットな一覧」の寸法に合わせる（色は theme.css の GitHub Dark）。
    マシンごとの色（D4）は --machine-color。Sidebar.tsx が .machine の style に入れる（決め方は colors.ts）。
    上下の固定（D3）は Sidebar.tsx の説明のとおり、sticky と要素の組み方で決める。
    一覧（.sidebar）はスクロールし、その下に「+ リモートを足す」（.sidebar-foot）を固定する。
    接続の状態の丸と 1 行は親 #271 のモック Main.dc.html に合わせる
-   （接続中 #7cc4b0・再接続中 #e5b567 は塗り、未接続は #7d8696 の枠だけ。1 行は 11px の #e5b567）。 */
+   （接続中・再接続中は塗り、未接続は枠だけ。色は theme.css）。 */
 
 .sidebar-column {
   --sidebar-bg: var(--gh-bg-side);

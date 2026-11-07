@@ -53,7 +53,6 @@ export function TerminalView(props: {
   focusRef?: (focus: (() => void) | undefined) => void;
 }): JSX.Element {
   let host!: HTMLDivElement;
-  // 色は GitHub Dark（theme.ts）
   const term = new Terminal({
     fontFamily:
       "'JetBrains Mono', 'Symbols Nerd Font Mono', ui-monospace, Menlo, Consolas, 'DejaVu Sans Mono', monospace",

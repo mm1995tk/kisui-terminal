@@ -1,11 +1,14 @@
-// 端末の配色（GitHub Dark で固定。選ぶ設定は無い）。GUI の色は theme.css。
-// 背景・文字は shijimi-editor の core/theme.go の GithubDark（EditorBg・EditorFg）と同じ。
-// 16 色は GitHub Dark の端末の配色として広く使われている値（primer/github-vscode-theme の dark）。
+import type { Terminal } from "coneko-term";
+
+/**
+ * 端末の配色（GitHub Dark で固定。選ぶ設定は無い）。GUI の色は theme.css。
+ * 背景・文字は shijimi-editor の core/theme.go の GithubDark（EditorBg・EditorFg）と同じ。
+ * 16 色は GitHub Dark の端末の配色として広く使われている値（primer/github-vscode-theme の dark）。
+ */
 export const terminalTheme = {
   background: "#0d1117",
   foreground: "#c9d1d9",
   cursor: "#58a6ff",
-  cursorAccent: "#0d1117",
   selectionBackground: "#264466",
   black: "#484f58",
   red: "#ff7b72",
@@ -23,4 +26,4 @@ export const terminalTheme = {
   brightMagenta: "#d2a8ff",
   brightCyan: "#56d4dd",
   brightWhite: "#f0f6fc",
-};
+} satisfies NonNullable<ConstructorParameters<typeof Terminal>[0]>["theme"];
