@@ -52,13 +52,13 @@ jobs:
       # internal/emulator/emulator.wasm は x86_64-linux で作ったものをコミットする。macOS など手元で作れない人は、
       # この成果物（検査が落ちたときも出る）を取ってコミットする（docs は CONTRIBUTING.md の「emulator.wasm の作り直し」）
       - name: emulator.wasm を作る
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && matrix.os == 'ubuntu-latest' }}
         run: |
           mkdir -p "$RUNNER_TEMP/emulator-wasm"
           nix build .#packages.x86_64-linux.emulator-wasm --print-build-logs --no-link --print-out-paths > "$RUNNER_TEMP/emulator-wasm.path"
           cp "$(cat "$RUNNER_TEMP/emulator-wasm.path")/emulator.wasm" "$RUNNER_TEMP/emulator-wasm/emulator.wasm"
       - uses: actions/upload-artifact@v7.0.2
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && matrix.os == 'ubuntu-latest' }}
         with:
           name: emulator-wasm
           path: ${{ runner.temp }}/emulator-wasm/emulator.wasm
