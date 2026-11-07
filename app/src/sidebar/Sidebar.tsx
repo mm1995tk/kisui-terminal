@@ -131,6 +131,12 @@ export function Sidebar(
     let frame = 0;
     const update = () => {
       frame = 0;
+      // 下に固定する要素の高さ（ツリーの行の scroll-margin-bottom。キーで動かした行が隠れないように）
+      const after = nav.querySelector<HTMLElement>(":scope > .sidebar-after");
+      nav.style.setProperty(
+        "--sidebar-after-height",
+        `${after?.offsetHeight ?? 0}px`,
+      );
       let last: HTMLElement | null = null;
       for (const el of nav.querySelectorAll<HTMLElement>("[data-sticky]")) {
         const bottom = el.dataset.sticky === "bottom";

@@ -3,7 +3,7 @@
 // プライマリの shj が出しているファイルの行は強調する（モックと同じ背景）。
 // 開いたフォルダの行は、中身をスクロールしている間だけ上に固定する（D3）。そのために行を親子の要素に組む。
 // 行にフォーカスがあるときは shj のファイルツリーと同じキーで動かせる（#13。割り当ては keys.ts）。
-import { Index, Match, Show, Switch, type JSX } from "solid-js";
+import { Index, Match, onCleanup, Show, Switch, type JSX } from "solid-js";
 
 import type { TreeIcon } from "./icons.ts";
 import { treeKey, type TreeMove } from "./keys.ts";
@@ -113,6 +113,21 @@ function Nodes(props: {
 function Row(props: { row: TreeRow; handlers: RowHandlers }): JSX.Element {
   const r = () => props.row;
   const mark = () => r().mark;
+  let el: HTMLDivElement | undefined;
+  // フォーカスしていた行が消える（d で消した・親を閉じた）なら、前の行にフォーカスを移し、続けてキーで動かせるようにする
+  // （行は位置で使い回すので、消えるのは並びの末尾の要素。前の行は残る）。Solid は DOM から外す前に onCleanup を呼ぶ
+  onCleanup(() => {
+    if (!el || document.activeElement !== el) return;
+    const tree = el.closest(".tree");
+    const all = tree
+      ? [...tree.querySelectorAll<HTMLElement>(".tree-row[tabindex]")]
+      : [];
+    const prev = all[all.indexOf(el) - 1];
+    queueMicrotask(() => {
+      if (prev?.isConnected && !el?.isConnected)
+        prev.focus({ preventScroll: true });
+    });
+  });
   /** 行を押した・Enter などを押した。何かしたら true。 */
   const run = (a: RowAction | null): boolean => {
     if (a === "toggle") props.handlers.onToggle(r().path);
@@ -151,6 +166,7 @@ function Row(props: { row: TreeRow; handlers: RowHandlers }): JSX.Element {
       }
     >
       <div
+        ref={el}
         class="tree-row"
         role="treeitem"
         aria-level={r().depth + 1}
