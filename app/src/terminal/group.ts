@@ -23,16 +23,20 @@ import type {
 } from "../rpc/protocol.ts";
 import type { TermEvent } from "../ssh/session.ts";
 import {
+  layoutBars,
   layoutRects,
+  limitedRatio,
   neighbor,
   reconcileLayout,
+  withRatio,
+  type Bar,
   type Direction,
 } from "./grid.ts";
 import { DEFAULT_SIZE, TermLink, type TermPort } from "./link.ts";
 
 /** ワークスペースのうち、ターミナルの並びを決める部分。 */
 export type TermLayout = Pick<Workspace, "id" | "primary" | "terms"> &
-  Partial<Pick<Workspace, "extras" | "layout">>;
+  Partial<Pick<Workspace, "extras" | "layout" | "titles">>;
 
 function sameExtra(a: ExtraPane, b: ExtraPane): boolean {
   return (
@@ -53,7 +57,21 @@ export class TermGroup {
   /** serve が持つ欄の配置（Workspace.layout）。古い serve では undefined */
   private serverLayout?: PaneLayout;
   private layoutKey = "";
-  private cache?: { ids: string; src?: PaneLayout; tree?: PaneLayout };
+  /** 欄の名前（Workspace.titles） */
+  private titleMap: Readonly<Record<string, string>> = {};
+  private titleKey = "";
+  private cache?: {
+    ids: string;
+    src?: PaneLayout;
+    rev: number;
+    tree?: PaneLayout;
+  };
+  private ratioRev = 0;
+  /** 動かしている境界の、serve にまだ反映されていない割合（key は境界の B 側の左上の欄 id。grid.ts）。描くときは木に重ねる */
+  private readonly ratios = new Map<string, number>();
+  /** layout.resize を送っている境界、送る順番を待っている最新の割合 */
+  private readonly resizing = new Set<string>();
+  private readonly resizeQueued = new Map<string, number>();
   /** ターミナルでない欄（動画。#555）。並べるのはターミナルの後ろ */
   private extraList: ExtraPane[] = [];
   /** キーを向けているターミナルでない欄の id。ターミナルを使っているときは undefined */
@@ -94,6 +112,11 @@ export class TermGroup {
     return [...this.links.map((l) => l.id), ...this.extraList.map((x) => x.id)];
   }
 
+  /** 欄の名前（kisui pane title。欄の id -> 名前）。名前のある欄だけ入る。 */
+  get titles(): Readonly<Record<string, string>> {
+    return this.titleMap;
+  }
+
   /** 欄の配置（分割の木）。serve の木を、いまある欄に合わせたもの。 */
   get layout(): PaneLayout | undefined {
     const ids = this.paneIds;
@@ -101,13 +124,19 @@ export class TermGroup {
     if (
       !this.cache ||
       this.cache.ids !== key ||
-      this.cache.src !== this.serverLayout
-    )
+      this.cache.src !== this.serverLayout ||
+      this.cache.rev !== this.ratioRev
+    ) {
+      // 動かしている境界の割合を重ねる
+      let tree = reconcileLayout(this.serverLayout, ids);
+      for (const [k, r] of this.ratios) tree = withRatio(tree, k, r);
       this.cache = {
         ids: key,
         src: this.serverLayout,
-        tree: reconcileLayout(this.serverLayout, ids),
+        rev: this.ratioRev,
+        tree,
       };
+    }
     return this.cache.tree;
   }
 
@@ -141,6 +170,12 @@ export class TermGroup {
       this.layoutKey = lk;
       this.serverLayout = layout.layout;
     }
+    const tk = JSON.stringify(layout.titles ?? null);
+    const titlesChanged = tk !== this.titleKey;
+    if (titlesChanged) {
+      this.titleKey = tk;
+      this.titleMap = layout.titles ?? {};
+    }
     const wantX = layout.extras ?? [];
     for (const id of this.closingExtras)
       if (!wantX.some((x) => x.id === id)) this.closingExtras.delete(id);
@@ -155,7 +190,7 @@ export class TermGroup {
       next.length === this.links.length &&
       next.every((l, i) => l === this.links[i]);
     if (same && sameX) {
-      if (layoutChanged && notify) this.onChange();
+      if ((layoutChanged || titlesChanged) && notify) this.onChange();
       return;
     }
     const was = this.current ? this.links.indexOf(this.current) : -1;
@@ -262,6 +297,57 @@ export class TermGroup {
     } else this.extraCurrent = to;
     this.onChange();
     return true;
+  }
+
+  /** 動かせる欄どうしの境界（#18）。 */
+  get bars(): Bar[] {
+    return layoutBars(this.layout);
+  }
+
+  /**
+   * key の境界（grid.ts。B 側の左上の欄 id）を割合 ratio に動かす（ドラッグ・リサイズモードのキー）。
+   * 両側が最小の大きさを下回らないように収め、すぐ画面に出して、serve に layout.resize を送る
+   * （送るのは 1 境界につき 1 つずつで、待つ間に動かした分は最新の 1 つだけ送る）。serve の木が追いつくまでの間は、
+   * 動かした割合を木に重ねて描く。動かせなければ（境界が無い・すでに小さすぎる）false。
+   */
+  setBorder(key: string, ratio: number): boolean {
+    const r = limitedRatio(this.layout, key, ratio, (id) => this.sizeOf(id));
+    if (r === undefined) return false;
+    const cur = this.bars.find((b) => b.key === key)?.ratio;
+    if (cur === r) return true;
+    this.ratios.set(key, r);
+    this.ratioRev++;
+    this.onChange();
+    this.resizeQueued.set(key, r);
+    this.sendBorder(key);
+    return true;
+  }
+
+  private sizeOf(id: string): { cols: number; rows: number } | undefined {
+    return this.links.find((l) => l.id === id)?.size;
+  }
+
+  private sendBorder(key: string): void {
+    const r = this.resizeQueued.get(key);
+    if (r === undefined || this.resizing.has(key)) return;
+    this.resizeQueued.delete(key);
+    this.resizing.add(key);
+    this.port
+      .request("layout.resize", { workspaceId: this.wsId, pane: key, ratio: r })
+      .catch((e) =>
+        this.onError(`layout.resize: ${e instanceof Error ? e.message : e}`),
+      )
+      .finally(() => {
+        this.resizing.delete(key);
+        if (this.resizeQueued.has(key)) {
+          this.sendBorder(key);
+          return;
+        }
+        // 返事の前に workspace.changed が届くので、serve の木にはもう反映されている。重ねていた割合を外す
+        this.ratios.delete(key);
+        this.ratioRev++;
+        this.onChange();
+      });
   }
 
   /** 今使っている分割したターミナル（か、ターミナルでない欄）を閉じる（Cmd+W）。プライマリターミナルは閉じず false。閉じたら true。 */

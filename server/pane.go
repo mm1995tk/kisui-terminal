@@ -151,13 +151,9 @@ func (w *wsManager) pane(rq ctl.PaneRequest) (ctl.PaneReply, error) {
 
 // splitPane は claim の shj の欄を 1 つ足して GUI に出させる。フォルダは cwd（無いか、フォルダでなければワークスペースのフォルダ）。
 func (w *wsManager) splitPane(claim *primaryShj, wsID string, rq ctl.PaneRequest) (string, error) {
-	var env []string
-	for _, kv := range rq.Env {
-		k, _, ok := strings.Cut(kv, "=")
-		if !ok || k == "" || strings.ContainsRune(kv, 0) {
-			return "", fmt.Errorf("invalid env: %q", kv)
-		}
-		env = append(env, kv)
+	env, err := validEnv(rq.Env)
+	if err != nil {
+		return "", err
 	}
 	dir, ok := w.folderOf(wsID)
 	if !ok {
@@ -219,4 +215,17 @@ func (t *terminal) tailLines(n int) []string {
 		lines = lines[len(lines)-n:]
 	}
 	return lines
+}
+
+// validEnv は欄に渡す環境変数（"NAME=value"）を確かめる。名前が空・"=" が無い・NUL を含むものがあれば断る。
+func validEnv(kvs []string) ([]string, error) {
+	var env []string
+	for _, kv := range kvs {
+		k, _, ok := strings.Cut(kv, "=")
+		if !ok || k == "" || strings.ContainsRune(kv, 0) {
+			return nil, fmt.Errorf("invalid env: %q", kv)
+		}
+		env = append(env, kv)
+	}
+	return env, nil
 }

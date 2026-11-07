@@ -38,6 +38,10 @@ var commands = []command{
 		{name: "copy", help: "help.clipboard.copy", run: runClipboardCopy},
 		{name: "paste", help: "help.clipboard.paste", run: runClipboardPaste},
 	}},
+	{name: "pane", sub: []command{
+		{name: "split", args: "--right|--down [command ...]", help: "help.pane.split", run: runPaneSplit},
+		{name: "title", args: "<name>", help: "help.pane.title", run: runPaneTitle},
+	}},
 }
 
 func main() {

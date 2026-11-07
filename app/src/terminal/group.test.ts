@@ -35,6 +35,7 @@ function fakePort() {
     "term.resize": () => ({}),
     "term.close": () => ({}),
     "term.restart": () => ({ pid: 2, cwd: "/w" }),
+    "layout.resize": (p) => ({ ratio: p.ratio }),
   };
   const port: TermPort = {
     async request(method, params) {
@@ -409,5 +410,108 @@ describe("TermGroups", () => {
     });
     assert.equal(sa.text, "");
     assert.equal(sb.text, "hi");
+  });
+});
+
+describe("欄どうしの境界を動かす（#18）", () => {
+  const split = (terms: string[]): TermLayout => ({
+    ...layout(terms),
+    layout: {
+      dir: "right",
+      ratio: 0.5,
+      a: { pane: "t1" },
+      b: { pane: "t2" },
+    },
+  });
+
+  it("すぐ画面に出して layout.resize を送り、返事のあとは serve の木に任せる", async () => {
+    const f = fakePort();
+    f.handlers["layout.resize"] = (p) => ({ ratio: p.ratio });
+    let changes = 0;
+    const g = new TermGroup(f.port, split(["t2"]), () => changes++);
+    assert.equal(g.setBorder("t2", 0.3), true);
+    assert.equal((g.layout as { ratio: number }).ratio, 0.3, "送る前から出る");
+    assert.equal(changes, 1);
+    await tick();
+    assert.deepEqual(f.calls.at(-1), {
+      method: "layout.resize",
+      params: { workspaceId: "w1", pane: "t2", ratio: 0.3 },
+    });
+    // serve の木が届く。重ねていた割合は外れ、serve の値が出る
+    g.update({
+      ...split(["t2"]),
+      layout: { ...split(["t2"]).layout!, ratio: 0.3 } as never,
+    });
+    assert.equal((g.layout as { ratio: number }).ratio, 0.3);
+  });
+
+  it("送っている間に動かした分は、最新の 1 つだけを次に送る", async () => {
+    const f = fakePort();
+    const waits: (() => void)[] = [];
+    f.port.request = async (method, params: any) => {
+      f.calls.push({ method, params });
+      if (method === "layout.resize")
+        await new Promise<void>((r) => waits.push(r));
+      return { ratio: params.ratio } as never;
+    };
+    const g = new TermGroup(f.port, split(["t2"]), () => {});
+    g.setBorder("t2", 0.3);
+    g.setBorder("t2", 0.4);
+    g.setBorder("t2", 0.45);
+    await tick();
+    const sent = () => f.calls.filter((c) => c.method === "layout.resize");
+    assert.equal(sent().length, 1, "返事が来るまで次は送らない");
+    waits.shift()!();
+    await tick();
+    assert.deepEqual(
+      sent().map((c) => c.params.ratio),
+      [0.3, 0.45],
+    );
+    waits.shift()!();
+    await tick();
+  });
+
+  it("最小の大きさを下回る位置には動かさない。境界が無ければ false", async () => {
+    const f = fakePort();
+    f.handlers["layout.resize"] = (p) => ({ ratio: p.ratio });
+    const g = new TermGroup(f.port, split(["t2"]), () => {});
+    g.setBorder("t2", 0.01); // 80 列の 2 枚：20 / 160 = 0.125
+    assert.equal((g.layout as { ratio: number }).ratio, 0.125);
+    assert.equal(g.setBorder("t9", 0.5), false);
+    await tick();
+  });
+
+  it("serve が断ったら理由を出し、重ねていた割合を外す", async () => {
+    const f = fakePort();
+    f.handlers["layout.resize"] = () =>
+      new RpcError({ code: ErrorCode.Busy, message: "too small" });
+    const errors: string[] = [];
+    const g = new TermGroup(
+      f.port,
+      split(["t2"]),
+      () => {},
+      (m) => errors.push(m),
+    );
+    g.setBorder("t2", 0.3);
+    await tick();
+    assert.equal(errors.length, 1);
+    assert.equal((g.layout as { ratio: number }).ratio, 0.5);
+  });
+});
+
+describe("欄の名前", () => {
+  it("titles を持ち、変わったら onChange を呼ぶ", () => {
+    const f = fakePort();
+    let changes = 0;
+    const g = new TermGroup(f.port, layout(["t2"]), () => changes++);
+    assert.deepEqual(g.titles, {});
+    g.update({ ...layout(["t2"]), titles: { t1: "build" } });
+    assert.deepEqual(g.titles, { t1: "build" });
+    assert.equal(changes, 1);
+    g.update({ ...layout(["t2"]), titles: { t1: "build" } });
+    assert.equal(changes, 1);
+    g.update(layout(["t2"]));
+    assert.deepEqual(g.titles, {});
+    assert.equal(changes, 2);
   });
 });

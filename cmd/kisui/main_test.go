@@ -1,6 +1,7 @@
 package main
 
 import (
+	"slices"
 	"strings"
 	"testing"
 )
@@ -46,6 +47,31 @@ func TestUsageListsCommands(t *testing.T) {
 	for _, want := range []string{"kisui serve", "kisui attach", "kisui open <file|url>", "kisui notify <text>", "kisui clipboard copy", "kisui clipboard paste"} {
 		if !strings.Contains(out.String(), want) {
 			t.Errorf("the help has no %q:\n%s", want, out.String())
+		}
+	}
+}
+
+func TestParseSplit(t *testing.T) {
+	for _, tc := range []struct {
+		args []string
+		dir  string
+		argv []string
+		ok   bool
+	}{
+		{[]string{"--right"}, "right", nil, true},
+		{[]string{"--down", "htop"}, "down", []string{"htop"}, true},
+		{[]string{"--right", "--", "ls", "--down"}, "right", []string{"ls", "--down"}, true},
+		{[]string{"--down", "go", "test", "--right"}, "down", []string{"go", "test", "--right"}, true},
+		{[]string{"--", "--right"}, "", nil, false},
+		{nil, "", nil, false},
+		{[]string{"htop"}, "", nil, false},
+		{[]string{"--right", "--down"}, "", nil, false},
+		{[]string{"--left"}, "", nil, false},
+		{[]string{"--right", "-x"}, "", nil, false},
+	} {
+		dir, argv, ok := parseSplit(tc.args)
+		if ok != tc.ok || (ok && (dir != tc.dir || !slices.Equal(argv, tc.argv))) {
+			t.Errorf("parseSplit(%q) = %q %q %v, want %q %q %v", tc.args, dir, argv, ok, tc.dir, tc.argv, tc.ok)
 		}
 	}
 }

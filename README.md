@@ -44,6 +44,14 @@ echo hello | kisui clipboard copy
 kisui clipboard paste > note.txt
 ```
 
+`kisui pane split --right` / `--down` splits the pane you type it in, to the right or down, and gives the new pane the focus. A command after it runs in the new pane instead of a shell (`kisui pane split --down htop`). The pane closes when the command ends, so to keep the output of a short command, run a shell that runs it, such as `kisui pane split --down sh -c "ls; exec sh"`. It refuses when the pane would be left smaller than 20 columns or 5 rows, the same as splitting with the keys. `kisui pane title <name>` puts a name on a thin band above the pane (an empty name takes it away). The server keeps the name, so it stays when you reopen the window.
+
+```sh
+kisui pane split --right
+kisui pane split --down npm run dev
+kisui pane title build
+```
+
 kisui-terminal reads its settings from the same `config.toml` as `shj` (`~/.config/shijimi-editor/config.toml`, or `shijimi-editor-nightly/` for the nightly):
 
 - `[[gui.machines]]`: the machines shown in the sidebar (`ssh = "dev-vm"`, `name = "dev"`).
