@@ -305,7 +305,7 @@ function Workbench(props: {
     setSizes(next);
     saveSizes(store, next);
   }
-  // リサイズモード（Alt+R・パレットの「リサイズ」）か。境界を動かすキーは GUI が受ける
+  // リサイズモード（Cmd+R / Ctrl+Shift+R・パレットの「リサイズ」）か。境界を動かすキーは GUI が受ける
   const [resizeMode, setResizeMode] = createSignal(false);
   let focusActiveTerminal: (() => void) | undefined;
   // リサイズモードで動かす境界（光らせる）。ドラッグ中の境界も光る
@@ -369,9 +369,9 @@ function Workbench(props: {
       if (b && !e.repeat) void focusWorkspace(b[0], b[1]);
       return;
     }
-    // リサイズモード（#526）：キーは境界を動かすのに使い、ターミナルには送らない。Alt+R で入る
-    const rname = e.isComposing ? null : resizeKeyName(e);
-    if (rname && (resizeMode() || rname === "alt+r")) {
+    // リサイズモード（#526）：キーは境界を動かすのに使い、ターミナルには送らない。Mac は Cmd+R、Linux は Ctrl+Shift+R で入る（Alt+R は端末に渡す）
+    const rname = e.isComposing ? null : resizeKeyName(e, IS_MAC);
+    if (rname && (resizeMode() || rname === "mod+r")) {
       e.preventDefault();
       e.stopPropagation();
       if (resizeMode()) {

@@ -1,4 +1,4 @@
-// サイドバーとターミナルの境界の大きさ（#526）。マウスのドラッグとリサイズモード（Alt+R）が動かす境界の値と、その決まり。
+// サイドバーとターミナルの境界の大きさ（#526）。マウスのドラッグとリサイズモード（Cmd+R / Ctrl+Shift+R）が動かす境界の値と、その決まり。
 // DOM には触らない（テストできるように）。キーは TUI の ui/tui/resize.go と同じ。
 //
 // - sidebar：サイドバーとその右の境界（サイドバーの幅 px）。
@@ -6,7 +6,7 @@
 // ほかに動かせる境界は無い。
 
 import type { KeyValueStore } from "./ssh/machines.ts";
-import type { KeyLike } from "./guiKeys.ts";
+import { isCmdKey, isCtrlShiftKey, type KeyLike } from "./guiKeys.ts";
 
 /** 動かせる境界。サイドバーの右。 */
 export type Border = "sidebar";
@@ -107,11 +107,10 @@ export type ResizeAction =
   | { kind: "none" };
 
 /** KeyboardEvent を TUI のキーの名前にする（ui/tui の ResizeKey が受ける形）。リサイズモードで使わない組み合わせは null。 */
-export function resizeKeyName(e: KeyLike): string | null {
-  if (e.ctrlKey || e.metaKey) return null;
-  if (e.altKey) {
-    return e.code === "KeyR" || e.key.toLowerCase() === "r" ? "alt+r" : null;
-  }
+export function resizeKeyName(e: KeyLike, mac = false): string | null {
+  // 入る・出るキー：Mac は Cmd+R、それ以外は Ctrl+Shift+R。Alt+R は端末（shj）に渡すので取らない
+  if (mac ? isCmdKey(e, "r") : isCtrlShiftKey(e, "r")) return "mod+r";
+  if (e.ctrlKey || e.metaKey || e.altKey) return null;
   switch (e.key) {
     case "ArrowLeft":
       return "left";
@@ -143,7 +142,7 @@ export function resizeAction(key: string): ResizeAction {
     case "esc":
     case "enter":
     case "q":
-    case "alt+r":
+    case "mod+r":
       return { kind: "exit" };
   }
   return { kind: "none" };
