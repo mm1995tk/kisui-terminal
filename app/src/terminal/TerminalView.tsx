@@ -4,6 +4,7 @@ import {
   createSignal,
   onCleanup,
   onMount,
+  Show,
   type JSX,
 } from "solid-js";
 
@@ -49,6 +50,8 @@ export function TerminalView(props: {
   active?: boolean;
   /** 隠すか。プライマリ以外の欄を隠しているとき（隠しても中身は動き続ける） */
   hidden?: boolean;
+  /** 欄の名前（kisui pane title）。あれば欄の上に細い帯で出す */
+  name?: string;
   /** 欄の位置（分割の木から決めた、親の中の left・top・width・height） */
   place?: Record<string, string>;
   /** 欄がフォーカスを受けた（押した・キーを向けた） */
@@ -341,6 +344,11 @@ export function TerminalView(props: {
       style={props.place}
       onFocusIn={() => props.onFocus?.()}
     >
+      <Show when={props.name}>
+        <div class="terminal-name" title={props.name}>
+          {props.name}
+        </div>
+      </Show>
       <div class="terminal-host" ref={host} />
     </div>
   );

@@ -17,6 +17,9 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/mm1995tk/kisui-terminal/internal/panecmd"
 )
@@ -99,6 +102,19 @@ func (s *Server) paneCmd(rq panecmd.Request) (panecmd.Reply, error) {
 		}
 		id, err := s.ws.addExtra(wsID, nil, e)
 		return panecmd.Reply{ID: id}, err
+	case "split":
+		id, err := s.ws.splitFrom(wsID, rq)
+		return panecmd.Reply{ID: id}, err
+	case "title":
+		name, err := cleanPaneName(rq.Title)
+		if err != nil {
+			return panecmd.Reply{}, err
+		}
+		t.mu.Lock()
+		t.name = name
+		t.mu.Unlock()
+		s.ws.recompute() // workspace.changed で GUI に届く
+		return panecmd.Reply{ID: t.id}, nil
 	}
 	return panecmd.Reply{}, fmt.Errorf("unknown command: %q", rq.Cmd)
 }
@@ -125,4 +141,72 @@ func paneTarget(target string) (extraPane, error) {
 		return extraPane{}, fmt.Errorf("kisui cannot show this kind of file (it shows videos, images and PDFs): %s", target)
 	}
 	return fileExtra(kind, target, mime, fi)
+}
+
+// maxPaneName は欄の名前の長さの上限（文字数）。
+const maxPaneName = 100
+
+// cleanPaneName は kisui pane title の名前を確かめる。前後の空白は落とす。空なら名前を外す。
+// 改行などの制御文字と、長すぎる名前は断る。
+func cleanPaneName(s string) (string, error) {
+	s = strings.TrimSpace(s)
+	if utf8.RuneCountInString(s) > maxPaneName {
+		return "", fmt.Errorf("the name is too long (at most %d characters)", maxPaneName)
+	}
+	if strings.ContainsFunc(s, unicode.IsControl) {
+		return "", errors.New("the name has a control character")
+	}
+	return s, nil
+}
+
+// splitFrom は kisui pane split。rq.Pane の欄を rq.Dir に分け、新しい欄でシェルか rq.Argv を動かす。
+// 分け方と最小の大きさの決まりは GUI で分けるときと同じ（planSplit）。フォルダは rq.Cwd（フォルダでなければ、打った欄の cwd）。
+func (w *wsManager) splitFrom(wsID string, rq panecmd.Request) (string, error) {
+	if rq.Dir != dirRight && rq.Dir != dirDown {
+		return "", fmt.Errorf("%w: %q", errBadDir, rq.Dir)
+	}
+	var env []string
+	for _, kv := range rq.Env {
+		k, _, ok := strings.Cut(kv, "=")
+		if !ok || k == "" || strings.ContainsRune(kv, 0) {
+			return "", fmt.Errorf("invalid env: %q", kv)
+		}
+		env = append(env, kv)
+	}
+	if len(rq.Argv) > 0 && !filepath.IsAbs(rq.Argv[0]) {
+		return "", fmt.Errorf("not an absolute path: %s", rq.Argv[0])
+	}
+	for _, a := range rq.Argv {
+		if strings.ContainsRune(a, 0) {
+			return "", errors.New("the command has a NUL character")
+		}
+	}
+	dir := ""
+	if fi, err := os.Stat(rq.Cwd); rq.Cwd != "" && err == nil && fi.IsDir() {
+		dir = rq.Cwd
+	} else if t, err := w.srv.terms.get(rq.Pane); err == nil {
+		t.mu.Lock()
+		dir = t.cwd
+		t.mu.Unlock()
+	}
+	if dir == "" {
+		var ok bool
+		if dir, ok = w.folderOf(wsID); !ok {
+			return "", fmt.Errorf("%w: %s", errNoWorkspace, wsID)
+		}
+	}
+	w.recomputeMu.Lock()
+	defer w.recomputeMu.Unlock()
+	target, sdir, err := w.planSplit(wsID, rq.Pane, rq.Dir)
+	if err != nil {
+		return "", err
+	}
+	t, err := w.srv.terms.start(termStart{cols: 80, rows: 24, dir: dir, env: env, wsID: wsID, argv: rq.Argv})
+	if err != nil {
+		return "", err
+	}
+	w.placePane(wsID, target, sdir, t.id)
+	w.recomputeLocked() // workspace.changed が先に届くので、GUI は欄を知っている
+	w.srv.notifyOwner("pane.show", map[string]any{"workspaceId": wsID, "termId": t.id})
+	return t.id, nil
 }

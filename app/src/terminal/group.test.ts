@@ -498,3 +498,20 @@ describe("欄どうしの境界を動かす（#18）", () => {
     assert.equal((g.layout as { ratio: number }).ratio, 0.5);
   });
 });
+
+describe("欄の名前", () => {
+  it("titles を持ち、変わったら onChange を呼ぶ", () => {
+    const f = fakePort();
+    let changes = 0;
+    const g = new TermGroup(f.port, layout(["t2"]), () => changes++);
+    assert.deepEqual(g.titles, {});
+    g.update({ ...layout(["t2"]), titles: { t1: "build" } });
+    assert.deepEqual(g.titles, { t1: "build" });
+    assert.equal(changes, 1);
+    g.update({ ...layout(["t2"]), titles: { t1: "build" } });
+    assert.equal(changes, 1);
+    g.update(layout(["t2"]));
+    assert.deepEqual(g.titles, {});
+    assert.equal(changes, 2);
+  });
+});

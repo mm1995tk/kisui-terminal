@@ -13,6 +13,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -37,6 +38,8 @@ type wsInfo struct {
 	PrimaryShj *primaryShj `json:"primaryShj"`
 	// Extras はターミナルでない欄（プライマリの shj か、欄の中の kisui open が開かせた動画など。docs/design/gui-protocol.md）。
 	Extras []extraPane `json:"extras"`
+	// Titles は欄の名前（kisui pane title。欄の id -> 名前）。名前のある欄だけ入る
+	Titles map[string]string `json:"titles,omitempty"`
 	// Layout は欄の配置（分割の木。layout.go）。葉は primary・terms・extras の id。
 	Layout *layoutNode `json:"layout"`
 
@@ -244,10 +247,20 @@ func buildWorkspaces(states []*wsState, terms []*terminal) map[string]*wsInfo {
 	}
 	for _, t := range terms {
 		t.mu.Lock()
-		id, primary, tid := t.wsID, t.primary, t.id
+		id, primary, tid, name := t.wsID, t.primary, t.id, t.name
 		t.mu.Unlock()
-		if x := next[id]; x != nil && !primary {
+		x := next[id]
+		if x == nil {
+			continue
+		}
+		if !primary {
 			x.Terms = append(x.Terms, tid)
+		}
+		if name != "" {
+			if x.Titles == nil {
+				x.Titles = map[string]string{}
+			}
+			x.Titles[tid] = name
 		}
 	}
 	layouts := map[string]*layoutNode{}
@@ -309,7 +322,7 @@ func sortWS(l []*wsInfo) { sort.Slice(l, func(i, j int) bool { return l[i].seq <
 
 func wsEqual(a, b *wsInfo) bool {
 	return a.root == b.root && ptrEq(a.Kind, b.Kind) && a.Branch == b.Branch && a.Primary == b.Primary && shjEq(a.PrimaryShj, b.PrimaryShj) &&
-		slices.Equal(a.Terms, b.Terms) && slices.Equal(a.Extras, b.Extras) && layoutEqual(a.Layout, b.Layout)
+		slices.Equal(a.Terms, b.Terms) && slices.Equal(a.Extras, b.Extras) && maps.Equal(a.Titles, b.Titles) && layoutEqual(a.Layout, b.Layout)
 }
 
 func ptrEq(a, b *string) bool {

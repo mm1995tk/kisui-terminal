@@ -35,17 +35,27 @@ const (
 //   - "open": show Target in a pane of the workspace of the terminal. Target is
 //     an http or https URL (a browser pane), or the absolute path of a file
 //     (a video, image or PDF pane, by its kind).
+//   - "split": split the terminal Pane in the direction Dir ("right" or "down") and
+//     start a new terminal in it: its shell, or the command Argv (its first word is
+//     an absolute path; the new terminal ends with the command) in Cwd. Env is
+//     "NAME=value" entries for the new terminal.
+//   - "title": give the terminal Pane the name Title (empty takes the name away).
 //
 // The server tells a Request from the other lines on the socket (the ones of
 // shj, docs/protocol.md) by Cmd.
 type Request struct {
-	Cmd    string `json:"cmd"`
-	Pane   string `json:"pane"`
-	Token  string `json:"token"`
-	Target string `json:"target,omitempty"`
+	Cmd    string   `json:"cmd"`
+	Pane   string   `json:"pane"`
+	Token  string   `json:"token"`
+	Target string   `json:"target,omitempty"`
+	Dir    string   `json:"dir,omitempty"`
+	Argv   []string `json:"argv,omitempty"`
+	Cwd    string   `json:"cwd,omitempty"`
+	Env    []string `json:"env,omitempty"`
+	Title  string   `json:"title,omitempty"`
 }
 
-// Reply answers a Request. ID is the pane that "open" showed. Code is
+// Reply answers a Request. ID is the pane that "open" or "split" made. Code is
 // CodeNotInPane when the id and the secret are not the ones of a terminal of
 // that "kisui serve".
 type Reply struct {

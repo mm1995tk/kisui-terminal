@@ -35,6 +35,8 @@ export function TerminalGrid(props: {
   links: readonly TermLink[];
   /** 欄の配置（分割の木）。無ければ（古い serve）欄の数から自動で決める */
   layout?: PaneLayout;
+  /** 欄の名前（kisui pane title。欄の id -> 名前）。欄の上の細い帯に出す */
+  titles?: Readonly<Record<string, string>>;
   /** 欄どうしの境界を key の割合 ratio に動かす（ドラッグ。#18）。割合の範囲は呼ぶ側が収める */
   onBorder?: (key: string, ratio: number) => void;
   /** リサイズモードで選んでいる境界（key）。光らせる */
@@ -171,6 +173,7 @@ export function TerminalGrid(props: {
             active={link === props.active}
             hidden={!visible(i())}
             place={place(link.id)}
+            name={props.titles?.[link.id]}
             onFocus={() => props.onActivate(i())}
             focusRef={(f) =>
               f ? focusers.set(link, f) : focusers.delete(link)

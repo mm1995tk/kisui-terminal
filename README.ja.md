@@ -36,6 +36,14 @@ kisui open ./paper.pdf
 kisui open https://example.com/
 ```
 
+`kisui pane split --right` / `--down` は、打った欄を右か下に分け、新しい欄にフォーカスを移します。後ろにコマンドを付けると、新しい欄ではシェルの代わりにそのコマンドを動かします（`kisui pane split --down htop`。コマンドが終わると欄も閉じます）。分けた後の欄が 20 列・5 行より小さくなるときは、キーで分けるときと同じく断ります。`kisui pane title <名前>` は、欄の上の細い帯に名前を出します（空の名前なら外します）。名前は serve が持つので、ウィンドウを開き直しても残ります。
+
+```sh
+kisui pane split --right
+kisui pane split --down npm run dev
+kisui pane title build
+```
+
 kisui-terminal の設定は `shj` と同じ `config.toml`（`~/.config/shijimi-editor/config.toml`。nightly 版は `shijimi-editor-nightly/`）に書きます。
 
 - `[[gui.machines]]`：サイドバーに出すマシン（`ssh = "dev-vm"`、`name = "dev"`）。

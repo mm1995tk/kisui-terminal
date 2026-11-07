@@ -230,6 +230,9 @@ func TestHandoverKeepsPaneCmd(t *testing.T) {
 	if !r.OK {
 		t.Fatalf("open: %+v", r)
 	}
+	if r := paneCmdDo(t, sock, panecmd.Request{Cmd: "title", Pane: primary, Token: token, Title: "build"}); !r.OK {
+		t.Fatalf("title: %+v", r)
+	}
 
 	handOver(t, c, sock)
 	c2, _ := termClient(t, sock)
@@ -237,7 +240,7 @@ func TestHandoverKeepsPaneCmd(t *testing.T) {
 		Workspaces []wsInfo `json:"workspaces"`
 	}
 	if err := c2.Call(context.Background(), "workspace.list", map[string]any{}, &l); err != nil || len(l.Workspaces) != 1 || l.Workspaces[0].ID != wsID ||
-		len(l.Workspaces[0].Extras) != 1 || l.Workspaces[0].Extras[0].ID != r.ID {
+		len(l.Workspaces[0].Extras) != 1 || l.Workspaces[0].Extras[0].ID != r.ID || l.Workspaces[0].Titles[primary] != "build" {
 		t.Fatalf("workspace.list after handover: %v %+v", err, l)
 	}
 	if r := open("https://example.com/"); !r.OK {
@@ -245,5 +248,84 @@ func TestHandoverKeepsPaneCmd(t *testing.T) {
 	}
 	if r := paneCmdDo(t, sock, panecmd.Request{Cmd: "open", Pane: primary, Token: "wrong", Target: png}); r.OK {
 		t.Fatal("a wrong secret must be refused after handover")
+	}
+}
+
+// kisui pane split は打った欄を分け、コマンドがあれば新しい欄で動かす。小さすぎる欄は断る。
+// kisui pane title は欄に名前を付け、GUI（workspace.list）に出る。
+func TestPaneCmdSplitAndTitle(t *testing.T) {
+	t.Setenv("HOME", normalizePath(t.TempDir()))
+	srv, sock := startFast(t)
+	c, nt := termClient(t, sock)
+	id, primary := createWS(t, c)
+	token := termToken(t, srv, primary)
+	do := func(rq panecmd.Request) panecmd.Reply {
+		rq.Pane, rq.Token = primary, token
+		return paneCmdDo(t, sock, rq)
+	}
+	ws := func() wsInfo { return listWS(t, c).Workspaces[0] }
+
+	for _, bad := range []panecmd.Request{
+		{Cmd: "split"},
+		{Cmd: "split", Dir: "left"},
+		{Cmd: "split", Dir: "right", Argv: []string{"sh"}},
+		{Cmd: "split", Dir: "right", Env: []string{"NOEQUALS"}},
+		{Cmd: "title", Title: "a\nb"},
+		{Cmd: "title", Title: strings.Repeat("あ", maxPaneName+1)},
+	} {
+		if r := do(bad); r.OK || r.Code != "" {
+			t.Fatalf("%+v must be refused: %+v", bad, r)
+		}
+	}
+	if r := paneCmdDo(t, sock, panecmd.Request{Cmd: "split", Dir: "right", Pane: primary, Token: "wrong"}); r.OK || r.Code != panecmd.CodeNotInPane {
+		t.Fatalf("a wrong secret: %+v", r)
+	}
+
+	// 右に分ける（シェル）。新しい欄が右に入る
+	r := do(panecmd.Request{Cmd: "split", Dir: "right"})
+	if !r.OK || r.ID == "" {
+		t.Fatalf("split right: %+v", r)
+	}
+	if l := ws().Layout; l.Dir != "right" || l.A.Pane != primary || l.B.Pane != r.ID {
+		t.Fatalf("layout after split right: %+v", l)
+	}
+	waitFor(t, "pane.show of the new pane", func() bool {
+		for _, m := range nt.all("pane.show") {
+			if strings.Contains(string(*m), `"termId":"`+r.ID+`"`) {
+				return true
+			}
+		}
+		return false
+	})
+
+	// 下に分ける（コマンド）。打った欄の下に入り、コマンドの出力が出る
+	r2 := do(panecmd.Request{Cmd: "split", Dir: "down", Argv: []string{"/bin/sh", "-c", "echo from-$X; sleep 30"}, Env: []string{"X=cmd"}, Cwd: t.TempDir()})
+	if !r2.OK {
+		t.Fatalf("split down: %+v", r2)
+	}
+	if l := ws().Layout; l.A.Dir != "down" || l.A.A.Pane != primary || l.A.B.Pane != r2.ID {
+		t.Fatalf("layout after split down: %+v", l)
+	}
+	waitFor(t, "output of the command", func() bool { d, _ := nt.output(t, r2.ID); return strings.Contains(string(d), "from-cmd") })
+
+	// 小さい欄は分けない
+	small := createTerm(t, c, map[string]any{"workspaceId": id, "cols": 30, "rows": 8})
+	smallToken := termToken(t, srv, small)
+	if r := paneCmdDo(t, sock, panecmd.Request{Cmd: "split", Dir: "right", Pane: small, Token: smallToken}); r.OK || !strings.Contains(r.Error, "too narrow") {
+		t.Fatalf("a small pane must not split: %+v", r)
+	}
+
+	// 名前
+	if r := do(panecmd.Request{Cmd: "title", Title: "  build "}); !r.OK {
+		t.Fatalf("title: %+v", r)
+	}
+	if got := ws().Titles; len(got) != 1 || got[primary] != "build" {
+		t.Fatalf("titles: %+v", got)
+	}
+	if r := do(panecmd.Request{Cmd: "title", Title: ""}); !r.OK {
+		t.Fatalf("clear the title: %+v", r)
+	}
+	if got := ws().Titles; len(got) != 0 {
+		t.Fatalf("titles after clearing: %+v", got)
 	}
 }

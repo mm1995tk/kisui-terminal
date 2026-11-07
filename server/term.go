@@ -114,6 +114,7 @@ type terminal struct {
 	token      string // 欄の中のコマンド（kisui open など）が名乗る秘密（panecmd.EnvToken）。古い版から引き継いだターミナルでは空
 	cols, rows int
 	title      string
+	name       string // 欄の名前（kisui pane title。空なら無い）。OSC のタイトル（title）とは別
 	alive      bool
 	ring       []byte // 循環バッファ。直近 ringSize バイトが入っている
 	total      int64  // これまでに読んだバイト数（seq）
@@ -160,7 +161,7 @@ func (t *terminal) info() map[string]any {
 	defer t.mu.Unlock()
 	return map[string]any{
 		"termId": t.id, "pid": t.pid, "cwd": t.cwd, "workspaceId": t.wsID, "primary": t.primary,
-		"title": t.title, "cols": t.cols, "rows": t.rows, "alive": t.alive,
+		"title": t.title, "name": t.name, "cols": t.cols, "rows": t.rows, "alive": t.alive,
 	}
 }
 
@@ -215,6 +216,7 @@ type termStart struct {
 	env        []string
 	wsID       string
 	primary    bool
+	argv       []string // 空でなければ、シェルの代わりに動かすコマンド（kisui pane split のコマンド）。終わると欄も閉じる
 }
 
 // start はシェルを始めてターミナルを足す。ワークスペースの一覧は作り直さない（呼ぶ側がする）。
@@ -254,7 +256,12 @@ func (m *termManager) start(a termStart) (*terminal, error) {
 	env = withKisuiPath(env)
 	// PTY の起動は ui/internal/term と同じ（TUI のターミナルも使う）。読み出しと流量制御はここで持つ。
 	// 欄の中の shj は、kisui と一緒に配った shj を先に使う（PATH の先頭に足し、起動ファイルのあとにも入れ直す）
-	args, env := bundledShell(sh, env)
+	var args []string
+	if len(a.argv) > 0 {
+		sh, args = a.argv[0], a.argv[1:]
+	} else {
+		args, env = bundledShell(sh, env)
+	}
 	sess, err := term.Start(term.Options{Shell: sh, Args: args, Dir: a.dir, Env: env, Cols: a.cols, Rows: a.rows})
 	if err != nil {
 		m.mu.Unlock()
