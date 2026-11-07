@@ -58,9 +58,10 @@ func (p Problem) Text() string {
 	}
 	sb.WriteString(": ")
 	if p.Key != "" {
-		sb.WriteString(p.Key + ": ")
+		sb.WriteString(p.Key)
+		sb.WriteString(": ")
 	}
-	sb.WriteString(fmt.Sprintf(i18n.T(p.Code), p.Args...))
+	fmt.Fprintf(&sb, i18n.T(p.Code), p.Args...)
 	return sb.String()
 }
 
