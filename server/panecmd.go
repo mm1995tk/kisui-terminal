@@ -165,13 +165,9 @@ func (w *wsManager) splitFrom(wsID string, rq panecmd.Request) (string, error) {
 	if rq.Dir != dirRight && rq.Dir != dirDown {
 		return "", fmt.Errorf("%w: %q", errBadDir, rq.Dir)
 	}
-	var env []string
-	for _, kv := range rq.Env {
-		k, _, ok := strings.Cut(kv, "=")
-		if !ok || k == "" || strings.ContainsRune(kv, 0) {
-			return "", fmt.Errorf("invalid env: %q", kv)
-		}
-		env = append(env, kv)
+	env, err := validEnv(rq.Env)
+	if err != nil {
+		return "", err
 	}
 	if len(rq.Argv) > 0 && !filepath.IsAbs(rq.Argv[0]) {
 		return "", fmt.Errorf("not an absolute path: %s", rq.Argv[0])
