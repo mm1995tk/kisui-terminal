@@ -27,6 +27,31 @@ nix profile install github:mm1995tk/kisui-terminal#kisui-terminal-nightly
 
 The manual of shijimi-editor explains how `shj` behaves inside kisui-terminal: the panes it opens, videos, the browser pane and the file tree. See its pages [Terminal](https://mm1995tk.github.io/shijimi-editor/manual/terminal/), [Browser](https://mm1995tk.github.io/shijimi-editor/manual/browser/) and [Configuration files](https://mm1995tk.github.io/shijimi-editor/manual/config/) ("Machines in kisui-terminal" and `[server]`).
 
+In a pane, `kisui open <file|url>` shows a file or a page in a pane of the same workspace, by its kind: a video, an image, a PDF (by the extension, or by the first bytes when the extension does not tell), or an `http`/`https` URL in a browser pane. A pane of each kind replaces the one already open. It works in the panes of a remote machine too, and only in the panes of kisui-terminal: from any other shell it refuses. `kisui --help` lists the commands.
+
+```sh
+kisui open ./diagram.png
+kisui open ./talk.mp4
+kisui open ./paper.pdf
+kisui open https://example.com/
+```
+
+`kisui notify <text>` shows a desktop notification on the computer the window runs on, to tell you that a long command has ended. `kisui clipboard copy` puts the text of stdin on that computer's clipboard, and `kisui clipboard paste` prints the text on it. Since reading your clipboard is risky, kisui-terminal asks you every time `paste` reads it, and prints it only when you allow it. All three work the same in the panes of a remote machine.
+
+```sh
+make build; kisui notify "build: $?"
+echo hello | kisui clipboard copy
+kisui clipboard paste > note.txt
+```
+
+`kisui pane split --right` / `--down` splits the pane you type it in, to the right or down, and gives the new pane the focus. A command after it runs in the new pane instead of a shell (`kisui pane split --down htop`). The pane closes when the command ends, so to keep the output of a short command, run a shell that runs it, such as `kisui pane split --down sh -c "ls; exec sh"`. It refuses when the pane would be left smaller than 20 columns or 5 rows, the same as splitting with the keys. `kisui pane title <name>` puts a name on a thin band above the pane (an empty name takes it away). The server keeps the name, so it stays when you reopen the window.
+
+```sh
+kisui pane split --right
+kisui pane split --down npm run dev
+kisui pane title build
+```
+
 kisui-terminal reads its settings from the same `config.toml` as `shj` (`~/.config/shijimi-editor/config.toml`, or `shijimi-editor-nightly/` for the nightly):
 
 - `[[gui.machines]]`: the machines shown in the sidebar (`ssh = "dev-vm"`, `name = "dev"`).

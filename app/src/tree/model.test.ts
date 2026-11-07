@@ -251,18 +251,15 @@ describe("rowAction", () => {
     assert.equal(rowAction(fileRow), "open");
     assert.equal(rowAction(fileRow, "Enter"), "open");
     assert.equal(rowAction(fileRow, " "), "open");
-    assert.equal(rowAction(fileRow, "ArrowRight"), null);
     assert.equal(rowAction(fileRow, "a"), null);
   });
 
-  it("フォルダは押す・Enter・Space で開閉し、→ は閉じているとき、← は開いているときだけ", () => {
+  it("フォルダは押す・Enter・Space で開閉する。← → は keys.ts が決めるのでここでは何もしない", () => {
     assert.equal(rowAction(closed), "toggle");
     assert.equal(rowAction(open, "Enter"), "toggle");
     assert.equal(rowAction(open, " "), "toggle");
-    assert.equal(rowAction(closed, "ArrowRight"), "toggle");
-    assert.equal(rowAction(open, "ArrowRight"), null);
-    assert.equal(rowAction(open, "ArrowLeft"), "toggle");
-    assert.equal(rowAction(closed, "ArrowLeft"), null);
+    assert.equal(rowAction(closed, "ArrowRight"), null);
+    assert.equal(rowAction(open, "ArrowLeft"), null);
   });
 
   it("5000 件より先の印の行は何もしない", () => {

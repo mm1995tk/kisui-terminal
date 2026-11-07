@@ -183,8 +183,8 @@ func (s *Server) adoptTerms(st *handoverState, ft *fdTable) error {
 			return fmt.Errorf("terminal %s: bad state", ht.ID)
 		}
 		t := &terminal{
-			mgr: m, id: ht.ID, pid: ht.PID, cwd: ht.Cwd, wsID: ht.Workspace, primary: ht.Primary,
-			cols: ht.Cols, rows: ht.Rows, title: ht.Title, alive: ht.Alive,
+			mgr: m, id: ht.ID, pid: ht.PID, cwd: ht.Cwd, wsID: ht.Workspace, primary: ht.Primary, token: ht.Token,
+			cols: ht.Cols, rows: ht.Rows, title: ht.Title, name: ht.Name, alive: ht.Alive,
 			ring: make([]byte, ringSize), base: ht.RingStart, total: ht.RingStart,
 			feed: newScreenFeed(s.log, ht.Rows, ht.Cols),
 		}
@@ -217,7 +217,7 @@ func (s *Server) adoptWorkspaces(st *handoverState) {
 	w := s.ws
 	w.next, w.nextExtra, w.focus = st.NextWorkspace, st.NextExtra, st.Focus
 	for _, hw := range st.Workspaces {
-		x := &wsState{id: hw.ID, seq: hw.Seq, root: hw.Root, kind: hw.Kind, primary: hw.Primary}
+		x := &wsState{id: hw.ID, seq: hw.Seq, root: hw.Root, kind: hw.Kind, primary: hw.Primary, extras: slices.Clone(hw.Extras)}
 		if validLayout(hw.Layout) {
 			x.layout = hw.Layout
 		}

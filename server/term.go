@@ -32,6 +32,7 @@ import (
 	"github.com/creack/pty"
 
 	"github.com/mm1995tk/kisui-terminal/internal/ctl"
+	"github.com/mm1995tk/kisui-terminal/internal/panecmd"
 	"github.com/mm1995tk/kisui-terminal/internal/term"
 	"github.com/mm1995tk/kisui-terminal/rpc"
 )
@@ -110,8 +111,10 @@ type terminal struct {
 	cwd        string // シェルの今の cwd（workspace.go が更新）
 	wsID       string // 属するワークスペース（作るときに決まり、cwd が変わっても変わらない）
 	primary    bool   // ワークスペースのプライマリターミナル
+	token      string // 欄の中のコマンド（kisui open など）が名乗る秘密（panecmd.EnvToken）。古い版から引き継いだターミナルでは空
 	cols, rows int
 	title      string
+	name       string // 欄の名前（kisui pane title。空なら無い）。OSC のタイトル（title）とは別
 	alive      bool
 	ring       []byte // 循環バッファ。直近 ringSize バイトが入っている
 	total      int64  // これまでに読んだバイト数（seq）
@@ -213,6 +216,7 @@ type termStart struct {
 	env        []string
 	wsID       string
 	primary    bool
+	argv       []string // 空でなければ、シェルの代わりに動かすコマンド（kisui pane split のコマンド）。終わると欄も閉じる
 }
 
 // start はシェルを始めてターミナルを足す。ワークスペースの一覧は作り直さない（呼ぶ側がする）。
@@ -238,9 +242,26 @@ func (m *termManager) start(a termStart) (*terminal, error) {
 		// 同じワークスペースのどのターミナルからも、プライマリの shj に届くように（ctl.GUILinkPath）。
 		env = append(slices.Clone(env), ctl.EnvGUIWorkspace+"="+a.wsID)
 	}
+	// 欄の中のコマンド（kisui open など。panecmd）が serve に話しかけるための、ソケット・ターミナルの id・秘密。
+	// id は下で振る番号。kisui 自身のフォルダも PATH に足す（Nix のように kisui が PATH に無い配り方でも打てるように）
+	token, err := newPaneToken()
+	if err != nil {
+		m.mu.Unlock()
+		return nil, rpc.Errorf(rpc.CodeInternalError, "pane token: %v", err)
+	}
+	env = append(slices.Clone(env),
+		panecmd.EnvSocket+"="+m.srv.primarySocketPath(),
+		panecmd.EnvPane+"="+fmt.Sprintf("t%d", m.next+1),
+		panecmd.EnvToken+"="+token)
+	env = withKisuiPath(env)
 	// PTY の起動は ui/internal/term と同じ（TUI のターミナルも使う）。読み出しと流量制御はここで持つ。
 	// 欄の中の shj は、kisui と一緒に配った shj を先に使う（PATH の先頭に足し、起動ファイルのあとにも入れ直す）
-	args, env := bundledShell(sh, env)
+	var args []string
+	if len(a.argv) > 0 {
+		sh, args = a.argv[0], a.argv[1:]
+	} else {
+		args, env = bundledShell(sh, env)
+	}
 	sess, err := term.Start(term.Options{Shell: sh, Args: args, Dir: a.dir, Env: env, Cols: a.cols, Rows: a.rows})
 	if err != nil {
 		m.mu.Unlock()
@@ -251,7 +272,7 @@ func (m *termManager) start(a termStart) (*terminal, error) {
 	t := &terminal{
 		mgr: m, id: fmt.Sprintf("t%d", m.next), pid: sess.Pid(),
 		ptmx: ptmx, cmd: cmd, process: cmd.Process, cols: a.cols, rows: a.rows, alive: true,
-		ring: make([]byte, ringSize), wsID: a.wsID, primary: a.primary,
+		ring: make([]byte, ringSize), wsID: a.wsID, primary: a.primary, token: token,
 		feed: newScreenFeed(m.srv.log, a.rows, a.cols),
 	}
 	t.cwd = normalizePath(a.dir) // 以後 cwd の変化を見るので、読み取った値（実パス）に合わせる

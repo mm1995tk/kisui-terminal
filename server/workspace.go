@@ -12,6 +12,8 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -34,8 +36,10 @@ type wsInfo struct {
 	Terms   []string `json:"terms"`   // 分割したターミナル
 	// PrimaryShj は GUI のプライマリターミナルの中で動いている TUI の shj。無ければ null。
 	PrimaryShj *primaryShj `json:"primaryShj"`
-	// Extras はターミナルでない欄（プライマリの shj が開かせた動画。docs/design/gui-protocol.md）。
+	// Extras はターミナルでない欄（プライマリの shj か、欄の中の kisui open が開かせた動画など。docs/design/gui-protocol.md）。
 	Extras []extraPane `json:"extras"`
+	// Titles は欄の名前（kisui pane title。欄の id -> 名前）。名前のある欄だけ入る
+	Titles map[string]string `json:"titles,omitempty"`
 	// Layout は欄の配置（分割の木。layout.go）。葉は primary・terms・extras の id。
 	Layout *layoutNode `json:"layout"`
 
@@ -51,6 +55,7 @@ type wsState struct {
 	kind    string
 	primary string // プライマリターミナルの id
 	shj     *primaryShj
+	extras  []extraPane // 欄の中から（kisui open で）開いた、ターミナルでない欄。w.mu で守る。閉じるまで残る（shj が終わっても消えない）
 	layout  *layoutNode // 欄の配置。recompute のたびに、いまある欄に合わせる
 }
 
@@ -190,6 +195,7 @@ func (w *wsManager) recomputeLocked() {
 	states := make([]*wsState, 0, len(w.reg))
 	for _, st := range w.reg {
 		c := *st
+		c.extras = slices.Clone(c.extras)
 		if c.shj != nil {
 			cp := *c.shj // File は後から変わるので、写しを渡す
 			cp.extras = slices.Clone(cp.extras)
@@ -231,17 +237,30 @@ func buildWorkspaces(states []*wsState, terms []*terminal) map[string]*wsInfo {
 				x.Branch = gitBranch(st.root)
 			}
 		}
+		x.Extras = append(x.Extras, st.extras...)
 		if st.shj != nil {
 			x.Extras = append(x.Extras, st.shj.extras...)
 		}
+		// 欄の中から開いたものと shj が開かせたものを、開いた順（id の番号の順）に並べる
+		slices.SortStableFunc(x.Extras, func(a, b extraPane) int { return extraIDNum(a.ID) - extraIDNum(b.ID) })
 		next[st.id] = x
 	}
 	for _, t := range terms {
 		t.mu.Lock()
-		id, primary, tid := t.wsID, t.primary, t.id
+		id, primary, tid, name := t.wsID, t.primary, t.id, t.name
 		t.mu.Unlock()
-		if x := next[id]; x != nil && !primary {
+		x := next[id]
+		if x == nil {
+			continue
+		}
+		if !primary {
 			x.Terms = append(x.Terms, tid)
+		}
+		if name != "" {
+			if x.Titles == nil {
+				x.Titles = map[string]string{}
+			}
+			x.Titles[tid] = name
 		}
 	}
 	layouts := map[string]*layoutNode{}
@@ -303,7 +322,7 @@ func sortWS(l []*wsInfo) { sort.Slice(l, func(i, j int) bool { return l[i].seq <
 
 func wsEqual(a, b *wsInfo) bool {
 	return a.root == b.root && ptrEq(a.Kind, b.Kind) && a.Branch == b.Branch && a.Primary == b.Primary && shjEq(a.PrimaryShj, b.PrimaryShj) &&
-		slices.Equal(a.Terms, b.Terms) && slices.Equal(a.Extras, b.Extras) && layoutEqual(a.Layout, b.Layout)
+		slices.Equal(a.Terms, b.Terms) && slices.Equal(a.Extras, b.Extras) && maps.Equal(a.Titles, b.Titles) && layoutEqual(a.Layout, b.Layout)
 }
 
 func ptrEq(a, b *string) bool {
@@ -420,7 +439,7 @@ func busyError(reason string) *rpc.Error {
 // workspaceRequest は workspace.* のうち返事のあるもの。
 func (ss *session) workspaceRequest(req *rpc.Message) (res any, err error, handled bool) {
 	switch req.Method {
-	case "workspace.list", "workspace.create", "workspace.close", "workspace.focus":
+	case "workspace.list", "workspace.create", "workspace.close", "workspace.focus", "layout.resize":
 	default:
 		return nil, nil, false
 	}
@@ -442,6 +461,26 @@ func (ss *session) workspaceRequest(req *rpc.Message) (res any, err error, handl
 			return nil, err, true
 		}
 		return map[string]any{"id": id, "termId": termID}, nil, true
+	}
+	if req.Method == "layout.resize" {
+		var lp struct {
+			WorkspaceID string   `json:"workspaceId"`
+			Pane        string   `json:"pane"`
+			Ratio       *float64 `json:"ratio"`
+		}
+		if err := json.Unmarshal(req.Params, &lp); err != nil || lp.Ratio == nil || lp.Pane == "" {
+			return nil, rpc.Errorf(rpc.CodeInvalidParams, "workspaceId, pane and ratio are required"), true
+		}
+		r, err := w.resizeBorder(lp.WorkspaceID, lp.Pane, *lp.Ratio)
+		switch {
+		case err == nil:
+			return map[string]any{"ratio": r}, nil, true
+		case errors.Is(err, errNoWorkspace), errors.Is(err, errNoBorder):
+			return nil, rpc.Errorf(rpc.CodeNotFound, "%v", err), true
+		case errors.Is(err, errTooSmall):
+			return nil, rpc.Errorf(rpc.CodeBusy, "%v", err), true
+		}
+		return nil, rpc.Errorf(rpc.CodeInvalidParams, "%v", err), true
 	}
 	var p struct {
 		ID    string `json:"id"`

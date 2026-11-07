@@ -5,7 +5,6 @@ import {
   applyMove,
   clampBorder,
   loadSizes,
-  litBorders,
   resizeAction,
   resizeKeyName,
   saveSizes,
@@ -87,43 +86,65 @@ describe("覚えておく大きさ", () => {
 });
 
 describe("リサイズモードのキー", () => {
-  it("←→（h l）はサイドバーの境界を動かす", () => {
+  it("←→↑↓（h l k j）は選んでいる境界を動かす", () => {
     assert.deepEqual(resizeAction("right"), {
-      kind: "move",
-      border: "sidebar",
-      step: 20,
+      kind: "nudge",
+      axis: "x",
+      sign: 1,
     });
-    assert.deepEqual(resizeAction("h"), {
-      kind: "move",
-      border: "sidebar",
-      step: -20,
+    assert.deepEqual(resizeAction("h"), { kind: "nudge", axis: "x", sign: -1 });
+    assert.deepEqual(resizeAction("up"), {
+      kind: "nudge",
+      axis: "y",
+      sign: -1,
     });
-    assert.deepEqual(resizeAction("up"), { kind: "none" });
+    assert.deepEqual(resizeAction("j"), { kind: "nudge", axis: "y", sign: 1 });
     assert.deepEqual(resizeAction(">"), { kind: "none" });
   });
 
-  it("= は全部戻し、Esc Enter q Alt+R は出る", () => {
+  it("Tab・Shift+Tab は動かす境界を替える", () => {
+    assert.deepEqual(resizeAction("tab"), { kind: "select", step: 1 });
+    assert.deepEqual(resizeAction("shift+tab"), { kind: "select", step: -1 });
+  });
+
+  it("= は選んでいる境界を戻し、Esc Enter q Cmd+R は出る", () => {
     assert.deepEqual(resizeAction("="), { kind: "reset" });
-    for (const k of ["esc", "enter", "q", "alt+r"])
+    for (const k of ["esc", "enter", "q", "mod+r"])
       assert.deepEqual(resizeAction(k), { kind: "exit" });
     assert.deepEqual(resizeAction("x"), { kind: "none" });
   });
 
-  it("光らせるのはサイドバーの境界", () => {
-    assert.deepEqual(litBorders(), ["sidebar"]);
+  it("Tab をキーの名前にする", () => {
+    assert.equal(resizeKeyName(key("Tab")), "tab");
+    assert.equal(resizeKeyName(key("Tab", { shiftKey: true })), "shift+tab");
+    assert.equal(resizeKeyName(key("Tab", { ctrlKey: true })), null);
   });
 
   it("KeyboardEvent をキーの名前にする", () => {
     assert.equal(resizeKeyName(key("ArrowLeft")), "left");
     assert.equal(resizeKeyName(key("Escape")), "esc");
     assert.equal(resizeKeyName(key("<", { shiftKey: true })), "<");
+    // Mac は Cmd+R、Linux は Ctrl+Shift+R で入る。Alt+R は端末に渡すので名前にしない
     assert.equal(
-      resizeKeyName(key("r", { altKey: true, code: "KeyR" })),
-      "alt+r",
+      resizeKeyName(key("r", { metaKey: true, code: "KeyR" }), true),
+      "mod+r",
     );
     assert.equal(
-      resizeKeyName(key("®", { altKey: true, code: "KeyR" })),
-      "alt+r",
+      resizeKeyName(key("R", { ctrlKey: true, shiftKey: true, code: "KeyR" })),
+      "mod+r",
+    );
+    assert.equal(
+      resizeKeyName(key("r", { metaKey: true, code: "KeyR" })),
+      null,
+    );
+    assert.equal(
+      resizeKeyName(key("r", { ctrlKey: true, shiftKey: true }), true),
+      null,
+    );
+    assert.equal(resizeKeyName(key("r", { altKey: true, code: "KeyR" })), null);
+    assert.equal(
+      resizeKeyName(key("®", { altKey: true, code: "KeyR" }), true),
+      null,
     );
     assert.equal(resizeKeyName(key("c", { ctrlKey: true })), null);
     assert.equal(resizeKeyName(key("Shift")), null);

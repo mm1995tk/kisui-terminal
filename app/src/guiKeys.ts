@@ -42,6 +42,12 @@ export function isCmdShiftKey(e: KeyLike, k: string): boolean {
   return e.key.toLowerCase() === k || e.code === `Key${k.toUpperCase()}`;
 }
 
+/** Ctrl と Shift だけを押して、文字 k（小文字）を打ったか（Linux の GUI キー）。 */
+export function isCtrlShiftKey(e: KeyLike, k: string): boolean {
+  if (!isCtrlShift(e)) return false;
+  return e.key.toLowerCase() === k || e.code === `Key${k.toUpperCase()}`;
+}
+
 /** Cmd と Option だけを押しているか（Cmd+Option+矢印の形）。 */
 export function isCmdOptionKey(e: KeyLike): boolean {
   return e.metaKey && e.altKey && !e.ctrlKey && !e.shiftKey;

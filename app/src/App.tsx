@@ -17,6 +17,7 @@
 // 窓と知らせは、どれもモック Connect.dc.html のカードの決まりで描く（connect/card.css）。
 import {
   createEffect,
+  on,
   createMemo,
   createSignal,
   onCleanup,
@@ -47,11 +48,12 @@ import { CopiedToast, copiedNotice } from "./CopiedToast.tsx";
 import { copyAndNotify } from "./copiedNotice.ts";
 import {
   applyMove,
-  litBorders,
+  KEY_STEP,
   loadSizes,
   resizeAction,
   resizeKeyName,
   saveSizes,
+  SPLIT_KEY_STEP,
   sizeOf,
   withoutSize,
   withSize,
@@ -307,13 +309,29 @@ function Workbench(props: {
     setSizes(next);
     saveSizes(store, next);
   }
-  // リサイズモード（Alt+R・パレットの「リサイズ」）か。境界を動かすキーは GUI が受ける
+  // リサイズモード（Cmd+R / Ctrl+Shift+R・パレットの「リサイズ」）か。境界を動かすキーは GUI が受ける
   const [resizeMode, setResizeMode] = createSignal(false);
   let focusActiveTerminal: (() => void) | undefined;
   // リサイズモードで動かす境界（光らせる）。ドラッグ中の境界も光る
   const [dragging, setDragging] = createSignal<Border | null>(null);
+  // リサイズモードで動かしている境界：サイドバー（null）か、欄どうしの境界（grid.ts の key）。入るたびにサイドバーから始める
+  const [resizeSel, setResizeSel] = createSignal<string | null>(null);
+  createEffect(
+    on(resizeMode, (m) => {
+      if (!m) setResizeSel(null);
+    }),
+  );
+  // 隠している間（zoomed）はつまみが出ないので、境界も無いものとする
+  const termBars = () => (zoomed() ? [] : (termGroup()?.bars ?? []));
+  // リサイズモードで選んでいる境界が無くなったら（欄を閉じた）サイドバーに戻す
+  const litSplit = () => {
+    const k = resizeSel();
+    return resizeMode() && k !== null && termBars().some((b) => b.key === k)
+      ? k
+      : undefined;
+  };
   const lit = (b: Border) =>
-    dragging() === b || (resizeMode() && litBorders().includes(b));
+    dragging() === b || (resizeMode() && litSplit() === undefined);
   const [asks, setAsks] = createSignal<AskpassRequest[]>([]);
   // リモートを足す窓を出しているか。足すためにつないでいる最中のマシン、足せなかった理由
   const [adding, setAdding] = createSignal(false);
@@ -371,9 +389,9 @@ function Workbench(props: {
       if (b && !e.repeat) void focusWorkspace(b[0], b[1]);
       return;
     }
-    // リサイズモード（#526）：キーは境界を動かすのに使い、ターミナルには送らない。Alt+R で入る
-    const rname = e.isComposing ? null : resizeKeyName(e);
-    if (rname && (resizeMode() || rname === "alt+r")) {
+    // リサイズモード（#526）：キーは境界を動かすのに使い、ターミナルには送らない。Mac は Cmd+R、Linux は Ctrl+Shift+R で入る（Alt+R は端末に渡す）
+    const rname = e.isComposing ? null : resizeKeyName(e, IS_MAC);
+    if (rname && (resizeMode() || rname === "mod+r")) {
       e.preventDefault();
       e.stopPropagation();
       if (resizeMode()) {
@@ -538,12 +556,38 @@ function Workbench(props: {
   function resizeKey(key: string) {
     const a = resizeAction(key);
     switch (a.kind) {
-      case "move":
-        changeSizes(applyMove(sizes(), a.border, a.step, maxOf()));
+      case "nudge": {
+        const k = litSplit();
+        if (k === undefined) {
+          if (a.axis === "x")
+            changeSizes(
+              applyMove(sizes(), "sidebar", a.sign * KEY_STEP.sidebar, maxOf()),
+            );
+          break;
+        }
+        // 縦の境界（右に分けた欄の間）は左右、横の境界は上下だけ動かす
+        const bar = termBars().find((b) => b.key === k);
+        if (bar && (bar.dir === "right") === (a.axis === "x"))
+          termGroup()?.setBorder(k, bar.ratio + a.sign * SPLIT_KEY_STEP);
         break;
-      case "reset":
-        changeSizes({});
+      }
+      case "select": {
+        // サイドバー、欄どうしの境界（木の順）の順に回す
+        const order: (string | null)[] = [
+          null,
+          ...termBars().map((b) => b.key),
+        ];
+        const cur = litSplit() ?? null;
+        const i = order.indexOf(cur);
+        setResizeSel(order[(i + a.step + order.length) % order.length]);
         break;
+      }
+      case "reset": {
+        const k = litSplit();
+        if (k === undefined) changeSizes(withoutSize(sizes(), "sidebar"));
+        else termGroup()?.setBorder(k, 0.5);
+        break;
+      }
       case "exit":
         setResizeMode(false);
         break;
@@ -841,11 +885,12 @@ function Workbench(props: {
         break;
       case "new-file":
       case "new-dir":
+        // メニューはフォルダの行にだけ出す。キー（a・A）はファイルの行でも使え、そのファイルのフォルダに作る（shj のツリーと同じ）
         setTreeDialog({
           kind: action,
           target,
           id,
-          path: row.path,
+          path: row.dir ? row.path : parentPath(row.path),
           dir: true,
         });
         break;
@@ -1199,6 +1244,7 @@ function Workbench(props: {
         <TerminalGrid
           links={termList()}
           layout={termLayout()}
+          titles={termGroup()?.titles}
           active={termActive()}
           extras={termExtras()}
           activeExtra={termActiveExtra()}
@@ -1207,6 +1253,8 @@ function Workbench(props: {
           onActivateExtra={(x) => termGroup()?.activateExtra(x)}
           onCloseExtra={(x) => termGroup()?.closeExtra(x)}
           zoomed={zoomed()}
+          onBorder={(k, r) => termGroup()?.setBorder(k, r)}
+          litBorder={litSplit()}
           accent={colors()[termTarget() ?? ""]}
           onActivate={(i) => termGroup()?.setActive(i)}
           focusRef={(f) => (focusActiveTerminal = f)}

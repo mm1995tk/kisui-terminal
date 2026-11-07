@@ -71,6 +71,13 @@ interface Handlers {
     x: number,
     y: number,
   ) => void;
+  /** ツリーの行のメニューで項目を選んだ・行でそのキー（a・d など）を押した。省くとメニューを出さず、そのキーも使わない */
+  onTreeAction?: (
+    target: string,
+    id: WorkspaceId,
+    row: TreeRow,
+    action: TreeMenuAction,
+  ) => void;
 }
 
 /**
@@ -93,13 +100,6 @@ export function Sidebar(
     onRename?: (target: string) => void;
     /** 見出しのメニューの「外す」 */
     onRemove?: (target: string) => void;
-    /** ツリーの行のメニューで項目を選んだ。省くとメニューを出さない */
-    onTreeAction?: (
-      target: string,
-      id: WorkspaceId,
-      row: TreeRow,
-      action: TreeMenuAction,
-    ) => void;
   },
 ): JSX.Element {
   // ツリーの行の右クリックのメニュー。閉じ方は見出しのメニューと同じ
@@ -137,6 +137,12 @@ export function Sidebar(
     let frame = 0;
     const update = () => {
       frame = 0;
+      // 下に固定する要素の高さ（ツリーの行の scroll-margin-bottom。キーで動かした行が隠れないように）
+      const after = nav.querySelector<HTMLElement>(":scope > .sidebar-after");
+      nav.style.setProperty(
+        "--sidebar-after-height",
+        `${after?.offsetHeight ?? 0}px`,
+      );
       let last: HTMLElement | null = null;
       for (const el of nav.querySelectorAll<HTMLElement>("[data-sticky]")) {
         const bottom = el.dataset.sticky === "bottom";
@@ -336,6 +342,9 @@ function handlers(
     get onChange() {
       return props.onChange;
     },
+    get onTreeAction() {
+      return props.onTreeAction;
+    },
   };
 }
 
@@ -528,6 +537,11 @@ function BandItem(
               props.onTreeMenu
                 ? (row, x, y) =>
                     props.onTreeMenu?.(props.target, b().id, row, x, y)
+                : undefined
+            }
+            onAction={
+              props.onTreeAction
+                ? (row, a) => props.onTreeAction?.(props.target, b().id, row, a)
                 : undefined
             }
           />
