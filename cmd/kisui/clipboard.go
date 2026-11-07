@@ -32,17 +32,9 @@ func runNotify(args []string) int {
 		fmt.Fprintln(os.Stderr, i18n.T("notify.usage"))
 		return 2
 	}
-	t, err := kittyterm.OpenTTY()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, i18n.T("tty.none")+"\n", "kisui notify", err)
-		return 1
-	}
-	defer t.Close()
-	if err := t.Write(kittyterm.Notification(text)); err != nil {
-		fmt.Fprintf(os.Stderr, i18n.T("tty.failed")+"\n", "kisui notify", err)
-		return 1
-	}
-	return 0
+	return withTTY("kisui notify", func(t *kittyterm.TTY) error {
+		return t.Write(kittyterm.Notification(text))
+	})
 }
 
 // runClipboardCopy is "kisui clipboard copy": the text of stdin on the
@@ -57,40 +49,41 @@ func runClipboardCopy(args []string) int {
 		fmt.Fprintf(os.Stderr, i18n.T("tty.failed")+"\n", name, err)
 		return 1
 	}
-	t, err := kittyterm.OpenTTY()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, i18n.T("tty.none")+"\n", name, err)
-		return 1
-	}
-	defer t.Close()
-	id := kittyterm.NewID()
-	if err := t.Ask(kittyterm.ClipboardWrite(id, data), copyTimeout, kittyterm.WriteReply(id)); err != nil {
-		return clipboardError(name, err)
-	}
-	return 0
+	return withTTY(name, func(t *kittyterm.TTY) error {
+		id := kittyterm.NewID()
+		return t.Ask(kittyterm.ClipboardWrite(id, data), copyTimeout, kittyterm.WriteReply(id))
+	})
 }
 
 // runClipboardPaste is "kisui clipboard paste": the text on the clipboard of
 // the computer the GUI runs on, to stdout. The GUI asks the user every time
 // whether to let it read the clipboard.
 func runClipboardPaste(args []string) int {
-	const name = "kisui clipboard paste"
 	if code, done := noArgs(args, "clipboard.paste.usage"); done {
 		return code
 	}
+	return withTTY("kisui clipboard paste", func(t *kittyterm.TTY) error {
+		r := &kittyterm.TextReply{ID: kittyterm.NewID()}
+		if err := t.Ask(kittyterm.ClipboardRead(r.ID), pasteTimeout, r.Handle); err != nil {
+			return err
+		}
+		_, err := os.Stdout.Write(r.Text)
+		return err
+	})
+}
+
+// withTTY runs f on the terminal of the command name and returns the exit
+// code: 1 when there is no terminal or f fails (with why on stderr), 130 when
+// the user stopped it, as a shell does.
+func withTTY(name string, f func(*kittyterm.TTY) error) int {
 	t, err := kittyterm.OpenTTY()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, i18n.T("tty.none")+"\n", name, err)
 		return 1
 	}
 	defer t.Close()
-	r := &kittyterm.TextReply{ID: kittyterm.NewID()}
-	if err := t.Ask(kittyterm.ClipboardRead(r.ID), pasteTimeout, r.Handle); err != nil {
-		return clipboardError(name, err)
-	}
-	if _, err := os.Stdout.Write(r.Text); err != nil {
-		fmt.Fprintf(os.Stderr, i18n.T("tty.failed")+"\n", name, err)
-		return 1
+	if err := f(t); err != nil {
+		return ttyError(name, err)
 	}
 	return 0
 }
@@ -109,9 +102,9 @@ func noArgs(args []string, key string) (code int, done bool) {
 	return 2, true
 }
 
-// clipboardError writes why the clipboard command name failed and returns its
+// ttyError writes why the command name failed on the terminal and returns its
 // exit code (130 when the user stopped it, as a shell does).
-func clipboardError(name string, err error) int {
+func ttyError(name string, err error) int {
 	var se *kittyterm.StatusError
 	switch {
 	case errors.Is(err, kittyterm.ErrInterrupted):
