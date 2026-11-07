@@ -2,7 +2,7 @@
 // session.hello を通す。
 
 import { Client, type Transport } from "../rpc/client.ts";
-import type { HelloResult } from "../rpc/protocol.ts";
+import type { AttachInfo, HelloResult } from "../rpc/protocol.ts";
 import {
   EXIT_KISUI_MISSING,
   LOCAL,
@@ -17,6 +17,11 @@ export interface Connection {
   id: string;
   client: Client;
   hello: HelloResult;
+  /**
+   * kisui attach が名乗った自分の kisui（attach.info）。GUI と同じ版の kisui なので、serve の版と違えば
+   * これで引き継ぎを頼む。名乗らなかった（SHIJIMI_REMOTE_KISUI で指した古い kisui など）ときは無い。
+   */
+  attach?: AttachInfo;
   /** session.bye を送って閉じる（shj とシェルは止まらない）。 */
   close(): Promise<void>;
 }
@@ -105,6 +110,11 @@ export async function connectShj(
     }),
   );
   client.onClose(cleanup);
+  // attach は目印のすぐあと（hello の返事より前）に名乗る
+  let attach: AttachInfo | undefined;
+  const offAttach = client.on("attach.info", (p) => {
+    if (typeof p?.executable === "string" && p.executable !== "") attach = p;
+  });
 
   try {
     await api.connect(id, target);
@@ -114,10 +124,12 @@ export async function connectShj(
       encoding: ["json"],
       ...(opts.resume ? { resume: opts.resume } : {}),
     });
+    offAttach();
     return {
       id,
       client,
       hello,
+      ...(attach ? { attach } : {}),
       async close() {
         try {
           await Promise.race([

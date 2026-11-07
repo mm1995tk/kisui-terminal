@@ -35,7 +35,11 @@ import { CloseWorkspaceCard } from "./connect/CloseWorkspaceCard.tsx";
 import { InstallCard } from "./connect/InstallCard.tsx";
 import { Notices, type Notice } from "./connect/Notices.tsx";
 import { RenameMachine } from "./connect/RenameMachine.tsx";
-import { describeClient, statusLine } from "./connect/status.ts";
+import {
+  describeClient,
+  handoverFailure,
+  statusLine,
+} from "./connect/status.ts";
 import { UpdateBar } from "./update/UpdateBar.tsx";
 import { OsClipboard } from "./clipboard.ts";
 import { CopiedToast, copiedNotice } from "./CopiedToast.tsx";
@@ -1036,6 +1040,8 @@ function Workbench(props: {
         primary: { label: "つなぎ直す", run: () => connect(t) },
       };
     }
+    const failed = handoverFailure(label, st);
+    if (failed) return { ...failed, primary: close };
     if (st.kind === "superseded") {
       const who = st.by ? describeClient(st.by) : "";
       return {

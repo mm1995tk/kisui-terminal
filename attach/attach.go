@@ -4,6 +4,7 @@
 package attach
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -17,10 +18,26 @@ import (
 // Marker は始まりの目印。ログインシェルが motd などを出しても、GUI はこの行より前を捨てる。
 const Marker = "@@shj-rpc 1@@\n"
 
+// Info は attach.info 通知の中身。目印のすぐあとに 1 行で出し、GUI に、この attach がどの kisui かを伝える。
+// GUI は serve の版（session.hello の shj）とこれを比べ、違えば Executable と Env で server.handover を頼む
+// （docs/design/gui-protocol.md の「ssh 越しに kisui を起動する」の 5）。
+type Info struct {
+	// Executable はこの kisui の実行ファイルの絶対パス（引き継ぎで新しい serve に使う）。
+	Executable string `json:"executable"`
+	// Version・Commit・Channel は、session.hello の shj と同じ形の、この kisui の版。
+	Version string `json:"version"`
+	Commit  string `json:"commit"`
+	Channel string `json:"channel"`
+	// Env は新しい serve に渡す環境変数（server.handover の env）。無ければ省く。
+	Env map[string]string `json:"env,omitempty"`
+}
+
 // Options は Run に渡すもの。
 type Options struct {
 	SocketPath string
 	LockPath   string
+	// Info があれば、目印のすぐあと（serve の出力より前）に attach.info 通知として出す。
+	Info *Info
 	// Start は kisui serve を切り離して起動する。待たずに返ってよい。
 	Start func() error
 	// Exited は、Start で起こした kisui serve が待つ間に終わったかを返す。終わっていたら
@@ -48,7 +65,15 @@ func (o *Options) defaults() {
 // どちらかが閉じるまで In/Out とソケットの間をコピーする。
 func Run(o Options) error {
 	o.defaults()
-	if _, err := io.WriteString(o.Out, Marker); err != nil {
+	head := []byte(Marker)
+	if o.Info != nil {
+		line, err := infoLine(*o.Info)
+		if err != nil {
+			return err
+		}
+		head = append(head, line...)
+	}
+	if _, err := o.Out.Write(head); err != nil {
 		return err
 	}
 	conn, err := connect(o)
@@ -57,6 +82,15 @@ func Run(o Options) error {
 	}
 	defer conn.Close()
 	return bridge(conn, o.In, o.Out)
+}
+
+// infoLine は attach.info 通知の 1 行（末尾の改行付き）。
+func infoLine(info Info) ([]byte, error) {
+	b, err := json.Marshal(map[string]any{"jsonrpc": "2.0", "method": "attach.info", "params": info})
+	if err != nil {
+		return nil, err
+	}
+	return append(b, '\n'), nil
 }
 
 func connect(o Options) (net.Conn, error) {

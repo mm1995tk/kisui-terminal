@@ -1,8 +1,14 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
+import type { AttachInfo, HelloResult } from "../rpc/protocol.ts";
 import type { ClosedEvent, ShellApi } from "./api.ts";
-import { applyWorkspaceChange, Session, type SessionState } from "./session.ts";
+import {
+  applyWorkspaceChange,
+  needsHandover,
+  Session,
+  type SessionState,
+} from "./session.ts";
 
 type Line = (e: { id: string; line: string }) => void;
 
@@ -16,6 +22,17 @@ function fakeShell(opts: {
   pingError?: () => { code: number; message: string } | undefined;
   /** workspace.list で返すフォーカス */
   focus?: string | null;
+  /** kisui attach が目印のあとに名乗る自分の kisui（attach.info） */
+  attach?: AttachInfo;
+  /** serve の版。既定は version "1"・commit "x" */
+  shj?: { version: string; commit: string };
+  /** hello の capabilities */
+  capabilities?: string[];
+  /**
+   * server.handover への答え。"ok" なら返事をして接続を閉じ、serve の版を attach の版にする。
+   * エラーなら断る（serve の版は変わらない）。"drop" なら返事をせずに接続を閉じる
+   */
+  handover?: "ok" | "drop" | { code: number; message: string };
 }) {
   const lines: Line[] = [];
   const closeds: ((e: ClosedEvent) => void)[] = [];
@@ -26,6 +43,7 @@ function fakeShell(opts: {
   const installIds: string[] = [];
   const hang: (() => void)[] = [];
   const serverOf = new Map<string, string>();
+  let shj = opts.shj ?? { version: "1", commit: "x" };
   const emit = (id: string, obj: unknown) =>
     lines.forEach((f) => f({ id, line: JSON.stringify(obj) }));
   const api: ShellApi = {
@@ -44,6 +62,12 @@ function fakeShell(opts: {
       }
       serverOf.set(id, sid);
       lines.forEach((f) => f({ id, line: "@@shj-rpc 1@@" }));
+      if (opts.attach)
+        emit(id, {
+          jsonrpc: "2.0",
+          method: "attach.info",
+          params: opts.attach,
+        });
     },
     send: async (id, text) => {
       const msg = JSON.parse(text);
@@ -55,10 +79,10 @@ function fakeShell(opts: {
           reply({
             protocol: { major: 4, minor: 0 },
             encoding: "json",
-            shj: { version: "1", commit: "x", channel: "stable" },
+            shj: { ...shj, channel: "stable" },
             serverId: serverOf.get(id),
             startedAt: "now",
-            capabilities: [],
+            capabilities: opts.capabilities ?? [],
             workspaces: [{ id: `w-${serverOf.get(id)}` }],
             rev: 3,
           });
@@ -93,6 +117,30 @@ function fakeShell(opts: {
             break;
           }
           if (opts.pingReply?.() ?? true) reply({});
+          break;
+        }
+        case "server.handover": {
+          const h = opts.handover ?? "ok";
+          if (h === "drop") {
+            queueMicrotask(() =>
+              closeds.forEach((f) => f({ id, code: 0, stderr: "" })),
+            );
+          } else if (h === "ok") {
+            reply({ pid: 42 });
+            // 古い serve は返事のあと接続を閉じる。新しい serve は attach と同じ版
+            if (opts.attach)
+              shj = {
+                version: opts.attach.version,
+                commit: opts.attach.commit,
+              };
+            setTimeout(() =>
+              closeds.forEach((f) => f({ id, code: 0, stderr: "" })),
+            );
+          } else {
+            queueMicrotask(() =>
+              emit(id, { jsonrpc: "2.0", id: msg.id, error: h }),
+            );
+          }
           break;
         }
         case "tree.watch":
@@ -601,5 +649,155 @@ describe("Session のツリー", () => {
     assert.deepEqual(trees, [[""]]);
     assert.deepEqual(gits, [5]);
     await s.close();
+  });
+});
+
+describe("新しい版の kisui serve への切り替え（#8）", () => {
+  const attach: AttachInfo = {
+    executable: "/opt/kisui-2/kisui",
+    version: "2",
+    commit: "y",
+    channel: "stable",
+    env: { KISUI_SHJ_DIR: "/opt/kisui-2/shj" },
+  };
+  const handovers = (f: ReturnType<typeof fakeShell>) =>
+    f.sent.filter((x) => x.msg.method === "server.handover");
+
+  it("serve の版が attach と違えば、聞かずに server.handover を頼み、resume でつなぎ直す", async () => {
+    const f = fakeShell({
+      serverIds: ["A"],
+      attach,
+      capabilities: ["server.handover"],
+    });
+    const s = new Session(f.api, "h", fast);
+    const states: SessionState[] = [];
+    s.onState((st) => states.push(st));
+    s.start();
+    const st = await waitFor(
+      s,
+      (x) => x.kind === "connected" && x.hello.shj.version === "2",
+    );
+    assert.equal((st as { handoverError?: string }).handoverError, undefined);
+    assert.deepEqual(
+      handovers(f).map((x) => x.msg.params),
+      [{ executable: attach.executable, env: attach.env }],
+    );
+    // 切り替えている間は switching が付き、古い serve では connected にならない
+    assert.ok(
+      states.some((x) => x.kind === "connecting" && x.switching === true),
+    );
+    assert.equal(states.filter((x) => x.kind === "connected").length, 1);
+    const hellos = f.sent.filter((x) => x.msg.method === "session.hello");
+    assert.equal(hellos.length, 2);
+    assert.deepEqual(hellos[1].msg.params.resume, { serverId: "A", rev: 3 });
+    await s.close();
+  });
+
+  it("切り替えが断られたら、古い serve のまま connected になり、理由を持つ", async () => {
+    const f = fakeShell({
+      serverIds: ["A"],
+      attach,
+      capabilities: ["server.handover"],
+      handover: { code: -32603, message: "new serve: exec format error" },
+    });
+    const s = new Session(f.api, "h", fast);
+    s.start();
+    const st = await waitFor(s, (x) => x.kind === "connected");
+    assert.equal(st.kind, "connected");
+    if (st.kind !== "connected") return;
+    assert.equal(st.hello.shj.version, "1");
+    assert.match(st.handoverError ?? "", /exec format error/);
+    // 古い serve のまま使える
+    assert.deepEqual(
+      await s.request("tree.watch", { workspaceId: "w-A", paths: [""] }),
+      {},
+    );
+    // 切れてつなぎ直しても、もう一度は頼まない
+    f.drop(connectedId(f));
+    await waitFor(s, (x) => x.kind === "reconnecting");
+    await waitFor(s, (x) => x.kind === "connected");
+    assert.equal(handovers(f).length, 1);
+    assert.equal(f.connects, 2);
+    await s.close();
+  });
+
+  it("返事の前に切れたら、普通のつなぎ直しになり、もう一度は頼まない", async () => {
+    const f = fakeShell({
+      serverIds: ["A"],
+      attach,
+      capabilities: ["server.handover"],
+      handover: "drop",
+    });
+    const s = new Session(f.api, "h", fast);
+    s.start();
+    const st = await waitFor(s, (x) => x.kind === "connected");
+    assert.equal(st.kind === "connected" && st.handoverError, undefined);
+    assert.equal(handovers(f).length, 1);
+    assert.equal(f.connects, 2);
+    await s.close();
+  });
+
+  it("版が同じ・serve が server.handover を持たない・attach が名乗らないときは頼まない", async () => {
+    for (const o of [
+      {
+        attach: { ...attach, version: "1", commit: "x" },
+        capabilities: ["server.handover"],
+      },
+      { attach, capabilities: [] },
+      { capabilities: ["server.handover"] },
+    ]) {
+      const f = fakeShell({ serverIds: ["A"], ...o });
+      const s = new Session(f.api, "h", fast);
+      s.start();
+      await waitFor(s, (x) => x.kind === "connected");
+      assert.equal(handovers(f).length, 0);
+      await s.close();
+    }
+  });
+});
+
+describe("needsHandover", () => {
+  const hello = (version: string, commit: string, caps = ["server.handover"]) =>
+    ({
+      shj: { version, commit, channel: "nightly" },
+      capabilities: caps,
+    }) as unknown as HelloResult;
+  const a = (version: string, commit: string): AttachInfo => ({
+    executable: "/k",
+    version,
+    commit,
+    channel: "nightly",
+  });
+
+  it("version か commit が違えば切り替える（nightly どうしは commit で見分ける）", () => {
+    assert.equal(
+      needsHandover({
+        hello: hello("0.2.0", "abc"),
+        attach: a("0.2.0", "abc"),
+      }),
+      false,
+    );
+    assert.equal(
+      needsHandover({
+        hello: hello("0.2.0", "abc"),
+        attach: a("0.2.0", "def"),
+      }),
+      true,
+    );
+    assert.equal(
+      needsHandover({
+        hello: hello("0.1.0", "abc"),
+        attach: a("0.2.0", "abc"),
+      }),
+      true,
+    );
+    assert.equal(
+      needsHandover({
+        hello: hello("0.1.0", "abc", []),
+        attach: a("0.2.0", "abc"),
+      }),
+      false,
+    );
+    assert.equal(needsHandover({ hello: hello("0.1.0", "abc") }), false);
   });
 });

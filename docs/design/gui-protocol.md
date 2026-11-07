@@ -257,7 +257,7 @@ P13-09（#385）で `Core` を `core` に移し、分割を終えた。`ui/tui` 
 - **JSON-RPC 2.0**。要求（`id` あり）・通知（`id` なし）・応答・エラーの形は標準どおり。
 - **ssh の標準入出力の上**で送る。標準入力が GUI → shj、標準出力が shj → GUI。標準エラー出力はログ用で、プロトコルに混ぜない。
 - **分け方（framing）**：最初は「1 行 1 メッセージ」の JSON（改行区切り。JSON の文字列の中の改行は `\n` にエスケープされるので衝突しない。ACP と制御用ソケットと同じ作り）。`session.hello` で `encoding` を決めるので、あとで MessagePack（長さ付き）に変えられる。メソッドとパラメータの形は変えない。
-- **始まりの目印**：ssh で入ると、ログインシェルが標準出力に何か出すことがある（motd など）。`kisui attach` は最初に 1 行 `@@shj-rpc 1@@` を出す。GUI はこの行より前を捨てる。
+- **始まりの目印**：ssh で入ると、ログインシェルが標準出力に何か出すことがある（motd など）。`kisui attach` は最初に 1 行 `@@shj-rpc 1@@` を出す。GUI はこの行より前を捨てる。目印のすぐあと（`kisui serve` の出力より前）に、`kisui attach` は自分の `attach.info` を 1 行出す（下の表）。
 - **名前**：`領域.動作`（`session.hello`、`term.input`）。**向き**は「→ shj」（GUI から）と「← GUI」（shj から）で書く。
 - **エラー**：標準のコードに加えて次を使う。
 
@@ -273,6 +273,7 @@ P13-09（#385）で `Core` を `core` に移し、分割を終えた。`ui/tui` 
 
 | メソッド | 向き | パラメータ → 結果 |
 | --- | --- | --- |
+| `attach.info` | ← GUI | 通知 `{executable, version, commit, channel, env?}`。`kisui serve` ではなく `kisui attach` が、目印のすぐあとに 1 回だけ出す。その `kisui attach` 自身の kisui の実行ファイル（絶対パス）と版（`version`・`commit`・`channel` は `session.hello` の `shj` と同じ形）と、新しい `kisui serve` に渡す環境変数（`server.handover` の `env`。今は `kisui attach` が受けた `KISUI_SHJ_DIR` だけ）。GUI は版が違うときの切り替えに使う（下の「版が違うとき」）。知らない GUI は無視する |
 | `session.hello` | → shj | `{protocol: {major, minor}, client: {name, version, kind: "web"\|"native"}, encoding: ["json", "msgpack"], resume?: {serverId, rev}}` → `{protocol, encoding, shj: {version, commit, channel}, serverId, startedAt, supersedes?: {client, connectedAt}, capabilities: [...], workspaces: [...], rev}` |
 | `session.bye` | → shj | `{}` → `{}`。GUI を閉じるとき。shj とシェルは止めない |
 | `session.superseded` | ← GUI | 通知 `{by: {client, connectedAt}}`。後からつないだ GUI に引き継がれたとき、前の GUI に送ったあと接続を閉じる。GUI は「別の GUI に移りました」と出す |
@@ -282,7 +283,13 @@ P13-09（#385）で `Core` を `core` に移し、分割を終えた。`ui/tui` 
 | `server.handover` | → shj | `{executable, env?}` → `{pid}`。`executable`（絶対パス）の `kisui serve` に、欄のシェルと画面を消さずに入れ替わる。`env`（`{名前: 値}`）は新しい `kisui serve` に渡す環境変数（下の「環境変数」）。`pid` は新しい `kisui serve` の pid。返事のあと、古い `kisui serve` は GUI の接続を閉じて終わる。失敗したら `internal_error`（古い `kisui serve` はそのまま動き続ける）、`executable` が実行ファイルの絶対パスでなければ `invalid_params`、止まる途中・別の引き継ぎの途中なら `busy`。`capabilities` に `server.handover` があるときだけ使える。手順は「`kisui serve` の引き継ぎ」の節 |
 
 - **バージョンの確認**：`protocol.major` が合わないと `incompatible_protocol`。`protocol.minor` は上がっても互換（足されるだけ）。知らない通知は無視し、知らないメソッドは `-32601`。新しい機能は `capabilities` の文字列で見分ける。
-- **shj と GUI の版が違うとき**：GUI は `shj.version` を自分の版と比べる。違えば「古い shj が動いています」と出し、ユーザーが決めたときだけ `server.shutdown` で入れ替える（動いているシェルが消えるため、自動ではやらない）。`capabilities` に `server.handover` がある `kisui serve` は、シェルを消さずに `server.handover` で入れ替えられる（GUI から頼む部分は後の Issue）。
+- **`kisui serve` と GUI の版が違うとき**（#8）：GUI は、`session.hello` の `shj`（動いている `kisui serve` の版）と、`attach.info`（GUI と同じ版の kisui。ローカルは同梱のもの、リモートは「ssh 越しに kisui を起動する」の 1 の場所）の `version`・`commit` を比べる。どちらかが違い、`capabilities` に `server.handover` があれば、ユーザーに聞かずに `server.handover`（`executable` と `env` は `attach.info` のもの）を頼む。シェルも画面も消えないので聞かない。ローカルとリモートで同じ動き。
+  - 比べるのは GUI の版の文字列ではなく kisui どうし（同じ作り方の `buildinfo`）。同じリリースの GUI と kisui は同じになり、nightly どうし（`version` は `X.Y.Z` だけ）は `commit` で見分けられる。
+  - 頼んでから、新しい `kisui serve` につなぎ直し終わるまで、GUI は「新しい版に切り替えています」と出す。古い `kisui serve` には `connected` にならない（欄は古い serve に `term.attach` しない）。
+  - 返事が来たら、古い serve が接続を閉じるのを待たずに、同じ `serverId` の `resume` でつなぎ直す（つなぎ直しの回数は数え直す）。新しい serve は同じ状態を持つので、欄は `term.attach` で引き継ぐ前の画面のまま続く。
+  - 断られたら（`internal_error` など）、古い `kisui serve` のまま使い続け、「<マシン> の kisui を新しい版に切り替えられませんでした」と理由を右下に出す。返事の前に接続が切れた・120 秒たっても返事が無いときは、普通のつなぎ直しに任せる。
+  - 頼むのは、マシンにつなぐ（`Session`）ごとに 1 回だけ。切り替えた先の版がまだ違っても、断られても、つなぎ直すたびに繰り返さない。
+  - `capabilities` に `server.handover` が無い `kisui serve`（#7 より前）は、何もせずにそのまま使う（ユーザーが 1 回だけ手で終わらせる）。`attach.info` が無い（`SHIJIMI_REMOTE_KISUI` で古い kisui を指したなど）ときも頼まない。
 - **引き継ぎ**：サーバーが受けつける GUI は常に 1 台。2 台目の `session.hello` が来たら、1 台目に `session.superseded` を送って閉じ、2 台目に引き継ぐ。1 台目が出した返事前の要求は捨てる。閉じ損ねた 1 台目からの要求は `not_owner`。
 - **切れる**：標準入出力が閉じたら、GUI がいなくなったとみなす。状態（ワークスペース、ターミナル）は残り、`lastClientAt` を覚える。
 - **つなぎ直す**：新しい `session.hello` で `resume: {serverId, rev}` を送る。同じ `serverId` なら状態（ワークスペース、ターミナル）が残っているので、ターミナルは `term.attach` で取り直して続けられる。`serverId` が違えば shj が作り直されたので、GUI はワークスペースの一覧から取り直す。
@@ -469,13 +476,13 @@ GUI はシステムの `ssh` を子プロセスとして起動する（`~/.ssh/c
 1. **kisui の場所**：`~/.cache/kisui-terminal/<GUI の版>/kisui` だけ。リモートの PATH の `kisui` は使わない（GUI と同じ版しか使わないため。`SHIJIMI_REMOTE_KISUI` で場所を手で指定したときを除く）。無ければ、ユーザーに聞いてから GUI が転送する。PATH の `kisui` には触らない。リモートの OS とアーキテクチャは `uname -sm` で調べ、合う実行ファイルを GitHub Releases から GUI が取って送る。取ったら送る前に、GitHub Releases の checksums（GUI の Release に上げる `SHA256SUMS`。`sha256sum` の形式）にある SHA-256 と、取得した実行ファイルを比べる（取得の段階の確認。合わなければ ssh を起動する前に捨てる）。リモートに置いたファイルも同じ値かを確かめる（転送の壊れの確認。リモートで一時ファイルの SHA-256 を計り、合ったときだけ `kisui` の名前にする）。kisui が無いことは、2 のコマンドの終了コード 97 で知る（`ssh` 自身の失敗は 255）。取り先は shj のリリースではなく GUI の Release（#581）で、普通の版はタグ `kisui-terminal-v<GUI の版>` の `kisui-<os>-<cpu>`、nightly 版の GUI は動くタグ `kisui-terminal-nightly` の `kisui-nightly-<os>-<cpu>` を取る。
 2. **つなぐ**：`ssh -T host -- sh -c '<1 の場所に kisui があれば exec <kisui> attach、無ければ exit 97>'`（ログインシェルが fish などでも動くよう `sh -c` で包む。環境変数 `SHIJIMI_REMOTE_KISUI` で場所を指定したときは、その場所だけを見て `command -v <kisui> >/dev/null 2>&1 || exit 97; <kisui> attach`）（`-T` は端末を割り当てない）。ユーザーの `ssh_config`（`ControlMaster` など）はそのまま効く。
 3. **`kisui attach` がすること**（リモートで動く橋渡し）：
-   1. 標準出力に `@@shj-rpc 1@@` を出す。
+   1. 標準出力に `@@shj-rpc 1@@` を出し、すぐあとに `attach.info`（自分の実行ファイル `os.Executable`・版・`KISUI_SHJ_DIR`）を 1 行出す。
    2. ソケットのフォルダを見て、`kisui serve` が動いていれば、その Unix ソケットにつなぐ。**すでに動いている shj につなぎ直す方法はこれ。** ssh のたびに新しい shj は起動しない。
    3. 動いていなければ、`kisui serve` を切り離して起動する（`setsid`。標準入出力は閉じ、ログはファイルへ）。ソケットができるまで（最大 5 秒）待ってつなぐ。2 台の GUI が同時に起動しても 1 つになるよう、ソケットのフォルダの中のロックファイル（`flock`）を使う。
    4. 標準入出力とソケットの間を、バイトのままコピーする（プロトコルは解釈しない）。どちらかが閉じたら終わる。
 4. **「ローカル」**：`ssh` を挟まず、GUI が、自分と一緒に配った `kisui`（AppImage の `usr/bin/kisui`、.app の `Contents/MacOS/kisui`、Nix のパッケージの `../libexec/kisui`。環境変数 `SHIJIMI_KISUI` があればそれを使う）の `kisui attach` を直接起動する。PATH の `kisui` や `shj` は探さない（GUI と同じ版しか使わない）。Finder や Dock から起動した macOS のアプリはログインシェルの PATH を引き継がないので、起動のときにログインシェル（`$SHELL -l -i -c`、5 秒で諦める）に PATH を聞き、GUI の PATH とよく使う場所（`~/.nix-profile/bin`・`/opt/homebrew/bin`・`/usr/local/bin`・`~/.local/bin` など）を足して、`kisui attach` に渡す（`kisui serve` の中のターミナルが `shj` などを見つけるため）。待つのはメインスレッドの外（`connect` は async のコマンド）。`kisui attach` にもこの PATH を渡す（`kisui serve` の中のターミナルが引き継ぐ）。
 4b. **欄の中の `shj`**：kisui は、欄のターミナル（`term.create`・プライマリの再起動を含む）を始めるとき、同梱の shj のあるフォルダを `PATH` の先頭に足す。フォルダは、環境変数 `KISUI_SHJ_DIR`（Nix のパッケージで GUI が渡す。`../libexec/shj-bin`）、無ければ kisui の実行ファイルと同じフォルダ（AppImage の `usr/bin`、.app の `Contents/MacOS`、リモートのキャッシュ `~/.cache/kisui-terminal/<GUI の版>/`）の `shj`。リモートでは、1 の転送で kisui の前に同じ Release の `shj-<os>-<cpu>`（nightly は `shj-nightly-<os>-<cpu>`）も同じ確かめ方で入れる。Nix の GUI は shj を `bin/` に出さない。
-5. **版が違う shj が動いていたら**：`session.hello` の結果で GUI が気づく（前の節）。`attach` は版が違っても動いているサーバーにつなぐ（勝手に入れ替えない）。入れ替えるときは、GUI が `server.handover` に `kisui attach` 自身の実行ファイル（ローカルならアプリに同梱した kisui、リモートなら 1 の場所）を渡す（「`kisui serve` の引き継ぎ」の節）。
+5. **版が違う `kisui serve` が動いていたら**：`attach` は版が違っても動いているサーバーにつなぐ（`attach` は入れ替えない）。GUI が `session.hello` の結果と `attach.info` を比べて気づき、ユーザーに聞かずに、`server.handover` に `kisui attach` 自身の実行ファイル（ローカルならアプリに同梱した kisui、リモートなら 1 の場所。`attach.info` の `executable`）を渡して入れ替えさせる（前の節の「版が違うとき」、「`kisui serve` の引き継ぎ」の節）。リモートに GUI の版の kisui が無ければ、今までどおり 1 で入れるかを聞いてから入れ、入れた kisui の `attach` が名乗ったところで入れ替える。
 
 セキュリティ：Unix ソケットは 0700 のフォルダの中（自分のユーザーだけ）。`kisui serve` はネットワークに待ち受けない。リモートの認証は ssh に任せる。`kisui attach` の段階で追加の認証はしない（同じユーザーなら元々シェルを開ける）。
 
@@ -533,7 +540,7 @@ GUI はシステムの `ssh` を子プロセスとして起動する（`~/.ssh/c
 - **ツリーは GUI が持つ状態なので、`Screen` と別の API**：GUI は複数のワークスペースのツリーを同時に持ち、開閉は GUI の状態だから。
 - **`kisui attach` と `kisui serve` を分ける**：ssh が切れても状態を残し、つなぎ直しを同じ流れ（`attach` を再実行）にするため。
 - **framing は改行区切りの JSON**：ssh の標準入出力に載せやすく、ACP・制御用ソケットと同じ。MessagePack にするときは長さ付きにする。
-- **版が違う shj を勝手に入れ替えない**：動いているシェルが消えるため。
+- **版が違う `kisui serve` は、聞かずに新しい版に引き継がせる（#8）**：以前は、入れ替えると動いているシェルが消えるので、ユーザーが決めたときだけ `server.shutdown` で入れ替えることにしていた（GUI にはその表示も無く、古い serve が動き続けて直した動きが届かなかった）。`server.handover`（#7）でシェルも画面も消えなくなったので、聞く理由が無い。比べる相手を GUI の版の文字列でなく `kisui attach` が名乗る版にしたのは、`kisui serve` の版と同じ作り方（`buildinfo`）で比べられ、nightly の `version` が `X.Y.Z` だけでも `commit` で見分けられるため。`kisui attach` 自身の実行ファイルの絶対パスは、リモートでは GUI から分からない（`~` の先）ので、`attach` に名乗らせる。
 - **ワークスペースの消え方**：[×]（`workspace.close`）でしか消えない。シェルがいなくなっても、ファイルが無くなっても消えない。理由：`cd` はプロジェクトの切り替えで、フォルダが変わるのはワークスペースが替わるのではなく同じ作業の場所が移るだけ。前の設計（シェルもファイルも無くなったら消える）は、`cd ~` や `exit` で、並べたワークスペースが勝手に消えてサイドバーの並びが動いた。ユーザーが作ったものは、ユーザーが閉じるまで残す。
 - **ワークスペースをフォルダから切り離す**（`workspaceId` をパスから作らない）：同じプロジェクトにワークスペースを 2 つ並べたい（別のブランチの作業、別のターミナルの使い方）。フォルダが ID だと 1 つにしかできず、`cd` のたびに ID が変わって帯が消えて増える。
 - **フォルダはプライマリターミナルの cwd だけから決める**：どのターミナルの cwd からでも決めると、分割したターミナルで `cd` するたびにワークスペースが動き、`git log` を見に別のフォルダへ寄っただけで開いているファイルが閉じる。プライマリの欄のシェルを指すので、ユーザーに分かりやすい。

@@ -6,16 +6,19 @@
 //  - ツリーと git の要求（tree.list / tree.watch / git.status）を今の接続に流し、
 //    その通知（tree.changed / git.changed）をつなぎ直しをまたいで渡す（D2）
 //  - プライマリの shj が出した・隠した欄の知らせ（pane.show・pane.hide）を渡す（#553）
+//  - kisui serve の版が kisui attach（GUI と同じ版）と違えば、聞かずに server.handover で新しい版に切り替えさせ、
+//    つなぎ直す（#8。needsHandover）
 // Solid などの画面の仕組みには依存しない。
 
 import type { Client } from "../rpc/client.ts";
 import { ErrorCode, RpcError } from "../rpc/message.ts";
-import type {
-  HelloResult,
-  Notifications,
-  Requests,
-  TermId,
-  WorkspaceId,
+import {
+  hasCapability,
+  type HelloResult,
+  type Notifications,
+  type Requests,
+  type TermId,
+  type WorkspaceId,
 } from "../rpc/protocol.ts";
 import type { InstallPlan, ShellApi } from "./api.ts";
 import {
@@ -34,8 +37,14 @@ export type SessionState =
       max: number;
       retryAt?: number;
       reason?: string;
+      /** 新しい版の kisui serve に切り替えている（server.handover を頼んだ・その後つなぎ直している） */
+      switching?: true;
     }
-  | { kind: "connected"; hello: HelloResult }
+  /**
+   * つながっている。handoverError は、新しい版への切り替え（server.handover）が失敗して、
+   * 古い版の kisui serve のまま使っているときの理由。
+   */
+  | { kind: "connected"; hello: HelloResult; handoverError?: string }
   /** 切れて、つなぎ直す順番を待っている（または試している） */
   | {
       kind: "reconnecting";
@@ -45,6 +54,8 @@ export type SessionState =
       /** 次の試みの時刻（ms）。試している最中は undefined */
       retryAt?: number;
       reason: string;
+      /** 新しい版の kisui serve に切り替えている */
+      switching?: true;
     }
   /**
    * リモートに kisui が無い。ユーザーに聞くまで何も入れない。install() で入れ、declineInstall() で断る。
@@ -73,6 +84,8 @@ export interface SessionOptions {
   pingIntervalMs?: number;
   /** ping の返事を待つ時間。これを過ぎたら切れたとみなす */
   pingTimeoutMs?: number;
+  /** server.handover の返事を待つ時間。kisui serve の側の待ち（合わせて 95 秒）より長くする */
+  handoverTimeoutMs?: number;
   /** 読めなかった行などの報告先（ログ用） */
   onDiscard?: (reason: string, line: string) => void;
 }
@@ -120,6 +133,8 @@ export const DEFAULT_MAX_ATTEMPTS = 10;
 export const PING_INTERVAL_MS = 15000;
 /** ping の返事を待つ時間（ms） */
 export const PING_TIMEOUT_MS = 10000;
+/** server.handover の返事を待つ時間（ms） */
+export const HANDOVER_TIMEOUT_MS = 120000;
 
 /**
  * 1 つのつなぎ先への接続。切れたら自動でつなぎ直し、state で今の様子を伝える。
@@ -141,6 +156,13 @@ export class Session {
   private wake?: () => void;
   /** 入れている最中の id（「切る」で askpass の質問を取り消すのに使う） */
   private installId?: string;
+  /**
+   * 新しい版への切り替えを、この Session ですでに頼んだか。1 回だけ頼む（切り替えた先の版がまだ違っても、
+   * 失敗しても、繰り返さない）。
+   */
+  private handoverTried = false;
+  /** 切り替えを頼んでから、つなぎ直し終わるまで（connecting・reconnecting に switching を付ける） */
+  private switching = false;
   private generation = 0;
   private readonly stateHandlers = new Set<(s: SessionState) => void>();
   private readonly workspaceHandlers = new Set<
@@ -165,6 +187,7 @@ export class Session {
       maxAttempts: opts.maxAttempts ?? DEFAULT_MAX_ATTEMPTS,
       pingIntervalMs: opts.pingIntervalMs ?? PING_INTERVAL_MS,
       pingTimeoutMs: opts.pingTimeoutMs ?? PING_TIMEOUT_MS,
+      handoverTimeoutMs: opts.handoverTimeoutMs ?? HANDOVER_TIMEOUT_MS,
       onDiscard: opts.onDiscard,
     };
   }
@@ -350,6 +373,7 @@ export class Session {
   /** 閉じる（session.bye。shj とシェルは止まらない）。 */
   async close(): Promise<void> {
     this.generation++;
+    this.switching = false;
     this.wake?.();
     const c = this.conn;
     this.conn = undefined;
@@ -386,12 +410,13 @@ export class Session {
     retryAt?: number,
   ): SessionState {
     const max = this.opts.maxAttempts;
+    const sw = this.switching ? { switching: true as const } : {};
     if (first) {
       return attempt === 1
-        ? { kind: "connecting", attempt, max }
-        : { kind: "connecting", attempt, max, retryAt, reason };
+        ? { kind: "connecting", attempt, max, ...sw }
+        : { kind: "connecting", attempt, max, retryAt, reason, ...sw };
     }
-    return { kind: "reconnecting", attempt, max, retryAt, reason };
+    return { kind: "reconnecting", attempt, max, retryAt, reason, ...sw };
   }
 
   /**
@@ -401,9 +426,11 @@ export class Session {
   private async run(startAttempt: number, reason: string): Promise<void> {
     const gen = ++this.generation;
     const first = this.serverId === undefined;
+    this.switching = false;
     let lastError = reason;
     for (let attempt = startAttempt + 1; ; attempt++) {
       if (attempt > this.opts.maxAttempts) {
+        this.switching = false;
         this.setState({ kind: "failed", message: lastError });
         return;
       }
@@ -420,6 +447,30 @@ export class Session {
           void conn.close();
           return;
         }
+        if (!this.handoverTried && needsHandover(conn)) {
+          this.handoverTried = true;
+          this.switching = true;
+          this.setState(this.waiting(first, attempt, lastError));
+          const failed = await this.handover(conn);
+          if (gen !== this.generation) {
+            void conn.close();
+            return;
+          }
+          if (failed === undefined) {
+            // 古い serve は返事のあと接続を閉じる。新しい serve は同じソケットで、同じ serverId の状態を持って
+            // いるので、待たずに resume でつなぎ直す（欄は term.attach で引き継ぐ前の画面のまま続く）
+            this.serverId = conn.hello.serverId;
+            this.rev = conn.hello.rev;
+            conn.client.close("handed over to the new kisui serve");
+            attempt = 0; // つなぎ直しの回数は数え直す（次の周で 1 回目）
+            continue;
+          }
+          // 断られた。古い serve は動き続けているので、そのまま使う
+          this.switching = false;
+          await this.adopt(conn, gen, failed);
+          return;
+        }
+        this.switching = false;
         await this.adopt(conn, gen);
         return;
       } catch (e) {
@@ -442,8 +493,46 @@ export class Session {
     }
   }
 
-  /** つながった接続を受け取る。ワークスペースの一覧は hello と workspace.list から取り直す。 */
-  private async adopt(conn: Connection, gen: number): Promise<void> {
+  /**
+   * server.handover を頼む。切り替わったら undefined、kisui serve が断ったら（古い serve は動き続ける）その理由。
+   * 返事の前に接続が切れた・時間切れのときは投げる（切り替わったかは分からないので、普通のつなぎ直しに任せる）。
+   */
+  private async handover(conn: Connection): Promise<string | undefined> {
+    const attach = conn.attach!;
+    let to: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<never>((_, rej) => {
+      to = setTimeout(
+        () => rej(new Error("server.handover timed out")),
+        this.opts.handoverTimeoutMs,
+      );
+    });
+    try {
+      await Promise.race([
+        conn.client.request("server.handover", {
+          executable: attach.executable,
+          ...(attach.env ? { env: attach.env } : {}),
+        }),
+        timeout,
+      ]);
+      return undefined;
+    } catch (e) {
+      if (e instanceof RpcError) return e.message;
+      conn.client.close(e instanceof Error ? e.message : String(e));
+      throw e;
+    } finally {
+      clearTimeout(to);
+    }
+  }
+
+  /**
+   * つながった接続を受け取る。ワークスペースの一覧は hello と workspace.list から取り直す。
+   * handoverError は、新しい版への切り替えが断られて古い serve のまま使うときの理由。
+   */
+  private async adopt(
+    conn: Connection,
+    gen: number,
+    handoverError?: string,
+  ): Promise<void> {
     this.conn = conn;
     this._workspaces = conn.hello.workspaces;
     this.serverId = conn.hello.serverId;
@@ -519,7 +608,11 @@ export class Session {
       void this.run(0, why ?? "connection ended");
     });
 
-    this.setState({ kind: "connected", hello: conn.hello });
+    this.setState(
+      handoverError === undefined
+        ? { kind: "connected", hello: conn.hello }
+        : { kind: "connected", hello: conn.hello, handoverError },
+    );
     this.emitWorkspaces();
     // hello にはフォーカスが無いので、workspace.list で尋ねる
     void this.fetchFocus(conn, gen);
@@ -562,6 +655,22 @@ export function applyWorkspaceChange(
   for (const w of change.updated ?? []) ws.set(w.id, w);
   for (const id of change.removed ?? []) ws.delete(id);
   return [...ws.values()];
+}
+
+/**
+ * 動いている kisui serve を、新しい版に切り替えさせるか。kisui attach は GUI と同じ版の kisui（ローカルは
+ * 同梱のもの、リモートは GUI の版のキャッシュ）なので、attach が名乗った版（attach.info）と serve の版
+ * （hello の shj）を比べる。同じ形（version・commit）どうしなので、同じリリースの GUI と kisui は「同じ」に、
+ * nightly どうし（version は X.Y.Z だけ）は commit で見分けられる。serve が server.handover を持たない
+ * （#7 より前）か、attach が名乗らなかったときは切り替えない。
+ */
+export function needsHandover(
+  conn: Pick<Connection, "hello" | "attach">,
+): boolean {
+  const a = conn.attach;
+  if (!a || !hasCapability(conn.hello, "server.handover")) return false;
+  const s = conn.hello.shj;
+  return a.version !== s.version || a.commit !== s.commit;
 }
 
 /** 引き継がれたあとの古い接続が要求したときのエラー（not_owner）か。 */

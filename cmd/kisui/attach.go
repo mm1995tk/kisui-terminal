@@ -11,6 +11,7 @@ import (
 	"github.com/mm1995tk/kisui-terminal/internal/buildinfo"
 	"github.com/mm1995tk/kisui-terminal/internal/ctl"
 	"github.com/mm1995tk/kisui-terminal/internal/i18n"
+	"github.com/mm1995tk/kisui-terminal/server"
 )
 
 // runAttach is "kisui attach": the bridge between stdin/stdout and the socket of
@@ -39,6 +40,7 @@ func runAttach(args []string) int {
 	err = attach.Run(attach.Options{
 		SocketPath: sock,
 		LockPath:   lock,
+		Info:       attachInfo(),
 		Start:      proc.start,
 		Exited:     proc.exited,
 		In:         os.Stdin,
@@ -49,6 +51,33 @@ func runAttach(args []string) int {
 		return 1
 	}
 	return 0
+}
+
+// attachInfo is what attach tells the GUI about itself (attach.info): the
+// executable and version of this kisui, which the GUI compares with the running
+// serve's and passes to server.handover when they differ. It is nil when the
+// executable cannot be found; the GUI then does not ask for a handover.
+func attachInfo() *attach.Info {
+	exe, err := os.Executable()
+	if err != nil {
+		return nil
+	}
+	ver, commit := buildinfo.Resolve()
+	info := &attach.Info{Executable: exe, Version: ver, Commit: commit, Channel: channelName()}
+	// The new serve drops the old serve's KISUI_SHJ_DIR (it points at the old
+	// shj); the one this attach was given points at the shj of its own version.
+	if dir := os.Getenv(server.EnvShjDir); dir != "" {
+		info.Env = map[string]string{server.EnvShjDir: dir}
+	}
+	return info
+}
+
+// channelName is the channel as session.hello and attach.info name it.
+func channelName() string {
+	if buildinfo.IsNightly() {
+		return buildinfo.Nightly
+	}
+	return "stable"
 }
 
 // serveProc is the "kisui serve" that attach started.
