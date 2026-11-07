@@ -11,5 +11,16 @@
   /* この字の送り幅は 1em で JetBrains Mono の 1 マス（0.6em）より広い。0.6em（60%）まで縮めると小さすぎる（#17）ので 80% にし、右の 0.2em ははみ出して描く（端末は字を欄で切らない。次の欄は普通空白）。kitty も Nerd Font のアイコンを 1 マスより広く描く */
   size-adjust: 80%;
   src: url("./assets/SymbolsNerdFontMono-Regular.woff2") format("woff2");
-  unicode-range: U+E000-F8FF, U+F0000-FFFFD, U+23FB-23FE, U+2B58;
+  unicode-range: U+E000-E09F, U+E0D8-F8FF, U+F0000-FFFFD, U+23FB-23FE, U+2B58;
+}
+
+/* Powerline の区切り（U+E0A0-E0D7）は 1 マスを埋める前提の字なので、はみ出さないよう 60% のままにする */
+@font-face {
+  font-family: "Symbols Nerd Font Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  size-adjust: 60%;
+  src: url("./assets/SymbolsNerdFontMono-Regular.woff2") format("woff2");
+  unicode-range: U+E0A0-E0D7;
 }
