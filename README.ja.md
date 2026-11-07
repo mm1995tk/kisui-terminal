@@ -2,7 +2,7 @@
 
 [English](README.md)
 
-kisui-terminal は、[shijimi-editor](https://github.com/mm1995tk/shijimi-editor) と強く連携する、ターミナル中心の作業環境です。窓を欄に分け、欄にターミナル（その中で `shj`）・動画・ブラウザ・ファイルツリーを置きます。名前の汽水は、しじみがすむ場所です。
+kisui-terminal は、[shijimi-editor](https://github.com/mm1995tk/shijimi-editor) と強く連携する、ターミナル中心の作業環境です。窓を欄に分け、欄にターミナル（その中で `shj`）・動画・画像・PDF・ブラウザ・ファイルツリーを置きます。名前の汽水は、しじみがすむ場所です。
 
 shijimi-editor とは別のアプリで、版もリリースも別です。組み合わせを確かめた版の `shj` を同梱し、欄の中のターミナルでは同梱の `shj` を先に使います（自分で入れた `shj` は、kisui-terminal の外では今まで通り使われます）。kisui-terminal と `shj` のやりとりの取り決めは [docs/protocol.md](docs/protocol.md) にあり、コードは共有しません。
 

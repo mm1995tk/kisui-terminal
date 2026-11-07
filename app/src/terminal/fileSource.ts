@@ -3,23 +3,24 @@ import { createEffect, createSignal, on, onCleanup } from "solid-js";
 import type { ExtraPane } from "../rpc/protocol.ts";
 import { formatBytes } from "./transfer.ts";
 import {
-  loadVideo,
-  MAX_VIDEO_BYTES,
+  FILE_LABEL,
+  loadFile,
+  maxBytes,
   tooLarge,
   type MediaFetch,
 } from "./media.ts";
 
-/** 動画の取れ具合。 */
+/** ファイル（動画・画像・PDF）の取れ具合。 */
 export type Load =
   | { kind: "loading"; ratio: number }
   | { kind: "ready"; url: string }
   | { kind: "error"; text: string };
 
 /**
- * 欄の動画を取って object URL にする（#555）。欄の id が替わったら取り直し、替わる・欄が無くなるときは
+ * 欄のファイル（動画・画像・PDF）を取って object URL にする（#555）。欄の id が替わったら取り直し、替わる・欄が無くなるときは
  * 中止して URL を手放す。fail は再生に失敗したときに、欄に理由を出すために呼ぶ。
  */
-export function createVideoSource(
+export function createFileSource(
   pane: () => ExtraPane,
   read: () => MediaFetch,
 ): { load: () => Load; fail: (text: string) => void } {
@@ -36,15 +37,19 @@ export function createVideoSource(
           ac.abort();
           if (url) URL.revokeObjectURL(url);
         });
-        if (tooLarge(p.size)) {
+        const what = FILE_LABEL[p.kind] ?? "ファイル";
+        if (tooLarge(p.kind, p.size)) {
           setLoad({
             kind: "error",
-            text: `動画が大きすぎて開けません（${formatBytes(p.size)}。上限は ${formatBytes(MAX_VIDEO_BYTES)}）`,
+            text: `${what}が大きすぎて開けません（${formatBytes(p.size)}。上限は ${formatBytes(maxBytes(p.kind))}）`,
           });
           return;
         }
-        loadVideo(read(), ac.signal, (ratio) =>
-          setLoad({ kind: "loading", ratio }),
+        loadFile(
+          read(),
+          ac.signal,
+          (ratio) => setLoad({ kind: "loading", ratio }),
+          maxBytes(p.kind),
         ).then(
           (blob) => {
             if (ac.signal.aborted) return;
@@ -55,7 +60,7 @@ export function createVideoSource(
             if (ac.signal.aborted) return;
             setLoad({
               kind: "error",
-              text: `動画を取れませんでした：${e instanceof Error ? e.message : e}`,
+              text: `${what}を取れませんでした：${e instanceof Error ? e.message : e}`,
             });
           },
         );
