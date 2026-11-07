@@ -36,6 +36,14 @@ kisui open ./paper.pdf
 kisui open https://example.com/
 ```
 
+`kisui notify <text>` shows a desktop notification on the computer the window runs on, to tell you that a long command has ended. `kisui clipboard copy` puts the text of stdin on that computer's clipboard, and `kisui clipboard paste` prints the text on it. Since reading your clipboard is risky, kisui-terminal asks you every time `paste` reads it, and prints it only when you allow it. All three work the same in the panes of a remote machine.
+
+```sh
+make build; kisui notify "build: $?"
+echo hello | kisui clipboard copy
+kisui clipboard paste > note.txt
+```
+
 kisui-terminal reads its settings from the same `config.toml` as `shj` (`~/.config/shijimi-editor/config.toml`, or `shijimi-editor-nightly/` for the nightly):
 
 - `[[gui.machines]]`: the machines shown in the sidebar (`ssh = "dev-vm"`, `name = "dev"`).

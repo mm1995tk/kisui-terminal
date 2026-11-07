@@ -36,6 +36,14 @@ kisui open ./paper.pdf
 kisui open https://example.com/
 ```
 
+`kisui notify <文>` は、窓の動いているコンピュータ（手元）にデスクトップ通知を出します。長いコマンドの終わりを知るのに使えます。`kisui clipboard copy` は標準入力の文を手元のクリップボードに入れ、`kisui clipboard paste` は手元のクリップボードの文を標準出力に出します。手元のクリップボードを読まれるのは危ないので、`paste` のたびに kisui-terminal が許すかを聞き、許したときだけ出します。3 つとも ssh 先のマシンの欄でも同じように使えます。
+
+```sh
+make build; kisui notify "build: $?"
+echo hello | kisui clipboard copy
+kisui clipboard paste > note.txt
+```
+
 kisui-terminal の設定は `shj` と同じ `config.toml`（`~/.config/shijimi-editor/config.toml`。nightly 版は `shijimi-editor-nightly/`）に書きます。
 
 - `[[gui.machines]]`：サイドバーに出すマシン（`ssh = "dev-vm"`、`name = "dev"`）。
