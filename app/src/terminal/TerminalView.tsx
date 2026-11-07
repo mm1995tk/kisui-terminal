@@ -63,7 +63,9 @@ export function TerminalView(props: {
   const term = new Terminal({
     fontFamily:
       "'JetBrains Mono', 'Symbols Nerd Font Mono', ui-monospace, Menlo, Consolas, 'DejaVu Sans Mono', monospace",
-    fontSize: 13,
+    // macOS の kitty の既定（font_size 11pt）に合わせる。kitty は macOS で 1pt を 1 論理ピクセル（72dpi × 拡大率）として描くので、11pt は 11px。
+    // Linux の kitty は 96dpi を基準にするので 11pt はおよそ 14.7px になる。Linux の kitty にはそろえていない
+    fontSize: 11,
     cursorBlink: true,
     scrollback: 5000,
     // ファイルエクスプローラ（sidebar.css の .sidebar::-webkit-scrollbar）と同じ細さ
