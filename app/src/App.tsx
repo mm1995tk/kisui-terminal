@@ -792,10 +792,10 @@ function Workbench(props: {
   }
 
   /**
-   * ワークスペースのプライマリターミナルに cd を送る（path が無ければ cd ..）。フォルダ（ワークスペースの root）は
+   * ワークスペースのプライマリターミナルに cd を送る。フォルダ（ワークスペースの root）は
    * そのシェルの cwd で決まるので、シェルが cd すればツリーも切り替わる。
    */
-  async function sendCd(target: string, id: WorkspaceId, path?: string) {
+  async function sendCd(target: string, id: WorkspaceId, path: string) {
     const s = sessions()[target];
     const term = workspaces()[target]?.find((w) => w.id === id)?.primary;
     if (!s || !term) return;
@@ -1095,7 +1095,6 @@ function Workbench(props: {
         }}
         onRemove={removeFromSidebar}
         onOpen={openFile}
-        onUp={(t, id) => void sendCd(t, id)}
         onTreeAction={treeAction}
         currentOf={currentOf}
         ref={(el) => {

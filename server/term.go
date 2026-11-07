@@ -690,7 +690,7 @@ func (ss *session) termRequest(req *rpc.Message) (res any, err error, handled bo
 		if p.Path != nil && hasControlChar(*p.Path) {
 			return nil, rpc.Errorf(rpc.CodeInvalidParams, "path contains control characters"), true
 		}
-		// ツリーの「ここへ移動」「親のフォルダへ」。シェルでないプログラム（vim・REPL・確認待ちなど）が
+		// ツリーの「ここへ移動」。シェルでないプログラム（vim・REPL・確認待ちなど）が
 		// 前面にいるときは、打った文字がそのプログラムへの入力になってしまうので送らず、busy で断る。
 		if t.busy() {
 			e := rpc.Errorf(rpc.CodeBusy, "a program is running in the terminal: %s", t.id)

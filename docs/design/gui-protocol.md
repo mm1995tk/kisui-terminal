@@ -325,7 +325,7 @@ P13-09（#385）で `Core` を `core` に移し、分割を終えた。`ui/tui` 
 | `term.restart` | → shj | `{termId}` → `{pid, cwd}`。終わったプライマリターミナルに新しいシェルを始める（`termId` はそのまま）。プライマリターミナルだけ（分割したターミナルに送ると `denied`）。ワークスペースのフォルダ（フォルダ未定なら `start_dir`）で始める。シェルがまだ動いていれば `busy` |
 | `term.resize` | → shj | `{termId, cols, rows}` → `{}` |
 | `term.input` | → shj | `{termId, data (base64)}` → `{}`。coneko-term が作ったバイト列をそのまま PTY に書く |
-| `term.cd` | → shj | `{termId, path?}` → `{}`。シェルに `cd -- '<path>'` を打つ（`path` が無ければ `cd ..`）。ツリーの「ここへ移動」「親のフォルダへ」が使う。制御文字（C0・DEL・C1）を含むパスは何も打たず `invalid_params` で断る。入力の途中の行に続けて実行されないよう、先に Ctrl+E・Ctrl+U で行を消す。シェルのほかにプログラムが前面で動いていれば（`workspace.close` の `running` と同じ判定）何も打たず `busy`（`data.reason` は `running`）で断る |
+| `term.cd` | → shj | `{termId, path?}` → `{}`。シェルに `cd -- '<path>'` を打つ（`path` が無ければ `cd ..`）。ツリーの「ここへ移動」が使う。制御文字（C0・DEL・C1）を含むパスは何も打たず `invalid_params` で断る。入力の途中の行に続けて実行されないよう、先に Ctrl+E・Ctrl+U で行を消す。シェルのほかにプログラムが前面で動いていれば（`workspace.close` の `running` と同じ判定）何も打たず `busy`（`data.reason` は `running`）で断る |
 | `term.output` | ← GUI | 通知 `{termId, seq, data (base64)}`。PTY の出力。`seq` はバイト数の累計 |
 | `term.ack` | → shj | 通知 `{termId, seq}`。GUI が処理したバイト数。shj は `seq` から 256 KiB より先までは送らない。このとき PTY は読み続けてリングバッファに溜め、溢れた分は捨てる（GUI が止まってもシェルは止めない。捨てた分は `term.attach` の書き出しで取り直す。リングバッファは、この送り出しのためだけに持つ）（`yes` のような大量の出力で回線と WebView が詰まらないように） |
 | `term.exit` | ← GUI | 通知 `{termId, code?, signal?}`。シェルが終わった。`code` は、`kisui serve` が引き継いだシェル（前の `kisui serve` が始めたもの。子ではないので終了コードが分からない）では無い。送り残した `term.output` より先に届くことがある（GUI は `term.exit` のあとも `term.attach` で画面を取り直して残りを受ける）。溢れて捨てられた分は `term.output` の `seq` が飛んで届くので、欠けは `seq` の連続性で分かる |
@@ -460,7 +460,7 @@ GUI は複数のワークスペースのツリーを（開閉の状態を持っ�
 - 印の文字：`M` 変更、`A` 追加、`D` 削除、`R` 名前変更、`?` 追跡していない、`U` 衝突（マージ中）、`!` `.gitignore` で無視。`.git` は一覧に出さず、`tree.create` / `tree.rename` / `tree.delete` でも触れない（`denied`）。
 - GUI でファイルの行を押す（Enter・Space でも）と、プライマリの shj があれば `shj.open`（「プライマリの shj」の節）を送る。ツリーはプライマリで shj が動いているときだけ出すので、`shj.open` が通ったら、プライマリのターミナルを active にしてキーをそこに向ける。断られたら（`denied`・`not_found` など）、帯を押して移れなかったときと同じ所に「<path> を開けませんでした（理由）」を `role="alert"` で出す。ワークスペースを移している途中（`workspace.focus` の返事待ち）は送らない（移った先のプライマリで開くため）。プライマリの shj が出しているファイル（`primaryShj.file`）がルートの中なら、その行を強調する（`app/src/tree/model.ts` の `rowAction`・`relativeIn`）。
 - GUI でツリーの行を右クリックすると、メニューを出す（`app/src/tree/menu.ts`・`TreeMenu.tsx`）。ファイルは「名前をコピー」「相対パスをコピー」「絶対パスをコピー」「名前の変更」「削除」、フォルダはそれに「新しいファイル」「新しいフォルダ」「ここへ移動」を足す。新規・名前の変更は、ワークスペースのフォルダからのパスを入れる窓（`tree.create`・`tree.rename`。新しいファイルは作ったら `shj.open` で開く＝TUI の `a` `A` `r` と同じ）、削除は確認の窓（`tree.delete`。TUI の `d` と同じ）。断られたら窓を開いたまま理由を出す。
-- 「ここへ移動」と、ツリーの上の「親のフォルダへ」は、そのワークスペースのプライマリターミナルに `term.cd` で `cd -- '<絶対パス>'` と `cd ..` を送る（フォルダはプライマリターミナルの cwd で決まるので、シェルが `cd` すればツリーも切り替わる）。パスの引用と、入力の途中の行を消す処理は shj がする。シェルのほかにプログラムが動いているときは `busy` で断られ、GUI は理由を出して何もしない。
+- 「ここへ移動」は、そのワークスペースのプライマリターミナルに `term.cd` で `cd -- '<絶対パス>'` を送る（フォルダはプライマリターミナルの cwd で決まるので、シェルが `cd` すればツリーも切り替わる）。パスの引用と、入力の途中の行を消す処理は shj がする。シェルのほかにプログラムが動いているときは `busy` で断られ、GUI は理由を出して何もしない。
 
 ### ssh 越しに kisui を起動する
 
