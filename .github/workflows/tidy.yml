@@ -1,6 +1,6 @@
 name: リポジトリが整っているか確かめる
 
-# scripts/tidy.sh（go mod tidy / gomod2nix / go fix / nix fmt）を動かして、差分が出ないことを確かめる。
+# scripts/tidy.sh（go mod tidy / gomod2nix / go fix / scripts/gopls-fix.sh / nix fmt）を動かして、差分が出ないことを確かめる。
 # CI は直さない。差分が出たら、手元で同じスクリプトを動かして、結果をコミットする。
 
 on:
