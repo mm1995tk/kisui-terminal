@@ -57,6 +57,36 @@ func TestRunBridgesToRunningServer(t *testing.T) {
 	<-done
 }
 
+// Info があれば、目印のすぐあと、serve の出力より前に attach.info を 1 行で出す。
+func TestRunWritesInfoAfterMarker(t *testing.T) {
+	dir := t.TempDir()
+	sock := filepath.Join(dir, "s")
+	ln := echoServer(t, sock)
+	defer ln.Close()
+	pr, pw := io.Pipe()
+	var out bytes.Buffer
+	done := make(chan error, 1)
+	info := &Info{Executable: "/opt/kisui", Version: "1.2.3", Commit: "abc", Channel: "stable",
+		Env: map[string]string{"KISUI_SHJ_DIR": "/opt/shj"}}
+	go func() {
+		done <- Run(Options{SocketPath: sock, LockPath: filepath.Join(dir, "l"), Info: info,
+			Start: func() error { t.Error("started"); return nil }, In: pr, Out: &syncWriter{w: &out}})
+	}()
+	pw.Write([]byte("hello"))
+	deadline := time.Now().Add(2 * time.Second)
+	for !strings.HasSuffix(out.String(), "hello") && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	want := Marker +
+		`{"jsonrpc":"2.0","method":"attach.info","params":{"executable":"/opt/kisui","version":"1.2.3","commit":"abc","channel":"stable","env":{"KISUI_SHJ_DIR":"/opt/shj"}}}` +
+		"\n" + "hello"
+	if got := out.String(); got != want {
+		t.Fatalf("out = %q\nwant  %q", got, want)
+	}
+	pw.Close()
+	<-done
+}
+
 type syncWriter struct {
 	mu sync.Mutex
 	w  *bytes.Buffer

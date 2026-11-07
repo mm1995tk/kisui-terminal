@@ -138,6 +138,11 @@ export interface Requests {
     params: { force?: boolean };
     result: { terminals: number };
   };
+  /** 欄のシェルと画面を消さずに、executable の kisui serve に入れ替わる。返事のあと古い serve は接続を閉じる（#7） */
+  "server.handover": {
+    params: { executable: string; env?: Record<string, string> };
+    result: { pid: number };
+  };
 
   /** ターミナルでない欄（動画）の中身を範囲で取る。1 回で返るのは 4 MiB まで（#555） */
   "media.read": {
@@ -242,6 +247,8 @@ export interface Requests {
 
 /** shj から GUI への通知（← GUI）。メソッド名 → パラメータ。 */
 export interface Notifications {
+  /** kisui attach が目印のすぐあとに出す、その attach 自身の kisui の説明。serve の版と違えば引き継ぎに使う（#8） */
+  "attach.info": AttachInfo;
   "session.superseded": { by: { client: ClientInfo; connectedAt: string } };
   /** プライマリの shj の欄（#553）。shj が端末のコマンドで欄を出した・隠した */
   "pane.show": {
@@ -269,6 +276,17 @@ export interface Notifications {
     marks?: Record<string, GitMark | null>;
     rev: number;
   };
+}
+
+/** attach.info の中身。version・commit・channel は session.hello の shj と同じ形。 */
+export interface AttachInfo {
+  /** その kisui の実行ファイルの絶対パス */
+  executable: string;
+  version: string;
+  commit: string;
+  channel: string;
+  /** 新しい serve に渡す環境変数（server.handover の env） */
+  env?: Record<string, string>;
 }
 
 /** `capabilities` に入っているか。新しい機能は、これで見分けてから使う。 */

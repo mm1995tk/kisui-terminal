@@ -5,6 +5,7 @@ import type { HelloResult } from "../rpc/protocol.ts";
 import {
   canConnect,
   describeClient,
+  handoverFailure,
   stateLabel,
   statusLine,
 } from "./status.ts";
@@ -106,6 +107,59 @@ describe("describeClient", () => {
         connectedAt: "nope",
       }),
       "kisui-terminal 0.7.0",
+    );
+  });
+});
+
+describe("新しい版への切り替え（#8）", () => {
+  it("切り替えている間は「新しい版に切り替えています」を出す", () => {
+    assert.deepEqual(
+      statusLine({ kind: "connecting", attempt: 1, max: 5, switching: true }),
+      { text: "新しい版に切り替えています…", title: "" },
+    );
+    assert.deepEqual(
+      statusLine(
+        {
+          kind: "reconnecting",
+          attempt: 2,
+          max: 5,
+          retryAt: 10_500,
+          reason: "EOF",
+          switching: true,
+        },
+        8_000,
+      ),
+      {
+        text: "新しい版に切り替えています…",
+        title: "EOF",
+        retry: "now",
+        countdown: "3 秒後",
+      },
+    );
+    assert.equal(
+      stateLabel({ kind: "connecting", attempt: 1, max: 5, switching: true }),
+      "新しい版に切り替えています",
+    );
+  });
+
+  it("切り替えが断られたら、古い版のまま使っていることと理由を知らせる", () => {
+    const st = {
+      kind: "connected",
+      hello,
+      handoverError: "rpc error -32603: exec format error",
+    } as const;
+    assert.deepEqual(handoverFailure("dev", st), {
+      title: "dev の kisui を新しい版に切り替えられませんでした",
+      text: "古い版の kisui（0.7.0）のまま使い続けます。欄のシェルと画面はそのままです。",
+      error: "rpc error -32603: exec format error",
+    });
+    assert.equal(
+      statusLine(st).title,
+      "つながっています（古い版の kisui 0.7.0 のまま）",
+    );
+    assert.equal(
+      handoverFailure("dev", { kind: "connected", hello }),
+      undefined,
     );
   });
 });

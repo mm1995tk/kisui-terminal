@@ -58,10 +58,7 @@ func runServe(args []string) int {
 		fmt.Fprintln(os.Stderr, err)
 	}
 	ver, commit := buildinfo.Resolve()
-	chName := "stable"
-	if buildinfo.IsNightly() {
-		chName = buildinfo.Nightly
-	}
+	chName := channelName()
 	logger := slog.New(slog.NewTextHandler(logw, nil))
 	cfg, err := config.Load(buildinfo.Suffix())
 	// The language is the process's, set from the settings. It is set before

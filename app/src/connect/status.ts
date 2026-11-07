@@ -1,4 +1,4 @@
-// 接続の状態を言葉にする。左の一覧の見出しの下の 1 行（statusLine）と、
+// 接続の状態を言葉にする。左の一覧の見出しの下の 1 行（statusLine）と、新しい版への切り替えの失敗（handoverFailure）と、
 // リモートを足す窓に出す状態（stateLabel）と、引き継いだ GUI の説明（describeClient）。
 // 画面の仕組み（Solid）には依存しない。
 
@@ -28,6 +28,7 @@ export function statusLine(
   if (!s) return { text: "", title: "" };
   switch (s.kind) {
     case "connecting": {
+      if (s.switching) return switchingLine(s, now);
       const n = s.attempt > 1 ? `（${s.attempt} 回目）` : "";
       if (s.retryAt !== undefined) {
         return {
@@ -42,9 +43,12 @@ export function statusLine(
     case "connected":
       return {
         text: "",
-        title: `つながっています（kisui ${s.hello.shj.version}）`,
+        title: s.handoverError
+          ? `つながっています（古い版の kisui ${s.hello.shj.version} のまま）`
+          : `つながっています（kisui ${s.hello.shj.version}）`,
       };
     case "reconnecting": {
+      if (s.switching) return switchingLine(s, now);
       const text = `再接続中（${s.attempt} 回目）`;
       if (s.retryAt !== undefined) {
         return {
@@ -75,6 +79,23 @@ export function statusLine(
   }
 }
 
+/** 新しい版の kisui serve に切り替えている間の言葉（#8） */
+export const SWITCHING = "新しい版に切り替えています";
+
+/** 切り替えている間の 1 行。つなぎ直しに手間取っていれば、理由をツールチップに、待ち時間とボタンを出す。 */
+function switchingLine(
+  s: Extract<SessionState, { kind: "connecting" | "reconnecting" }>,
+  now: number,
+): MachineStatus {
+  const line = { text: `${SWITCHING}…`, title: s.reason ?? "" };
+  if (s.retryAt === undefined) return line;
+  return {
+    ...line,
+    retry: "now",
+    countdown: `${secondsLeft(s.retryAt, now)} 秒後`,
+  };
+}
+
 /** リモートを足す窓で、つないでいる最中に出す短い状態。まだつないでいなければ ""。 */
 export function stateLabel(s: SessionState | undefined): string {
   switch (s?.kind) {
@@ -84,9 +105,9 @@ export function stateLabel(s: SessionState | undefined): string {
     case "connected":
       return "接続中";
     case "connecting":
-      return "つないでいます";
+      return s.switching ? SWITCHING : "つないでいます";
     case "reconnecting":
-      return "再接続中";
+      return s.switching ? SWITCHING : "再接続中";
     case "needs-install":
       return "kisui がありません";
     case "installing":
@@ -120,4 +141,22 @@ export function describeClient(
     ? ""
     : `${at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} から`;
   return [name, time].filter((x) => x !== "").join("、");
+}
+
+/**
+ * 新しい版への切り替え（server.handover）が断られ、古い版の kisui serve のまま使っているときの知らせの中身。
+ * そうでなければ undefined。label はマシンの名前。
+ */
+export function handoverFailure(
+  label: string,
+  s: SessionState | undefined,
+): { title: string; text: string; error: string } | undefined {
+  if (s?.kind !== "connected" || s.handoverError === undefined) return;
+  return {
+    title: `${label} の kisui を新しい版に切り替えられませんでした`,
+    text:
+      `古い版の kisui（${s.hello.shj.version}）のまま使い続けます。` +
+      "欄のシェルと画面はそのままです。",
+    error: s.handoverError,
+  };
 }
