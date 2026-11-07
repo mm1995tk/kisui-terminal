@@ -30,7 +30,7 @@ function fakePort() {
       terms: ["t1", "t2", "t3", "t10", "t11"].map(alive),
     }),
     "term.create": () => ({ termId: `t${++next}`, pid: 1, cwd: "/w" }),
-    "term.attach": () => ({ seq: 0, replay: "", cols: 80, rows: 24 }),
+    "term.attach": () => ({ seq: 0, snapshot: "", cols: 80, rows: 24 }),
     "term.input": () => ({}),
     "term.resize": () => ({}),
     "term.close": () => ({}),

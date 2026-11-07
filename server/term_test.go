@@ -227,7 +227,7 @@ func TestTermResize(t *testing.T) {
 	}
 }
 
-// ack が無いと 256 KiB で送るのが止まり、その間も溜まり、attach で取り直せる。
+// ack が無いと 256 KiB で送るのが止まり、その間も溜まる。attach は、溜まった出力ではなく画面の状態の書き出しを返す。
 func TestTermFlowControlAndAttach(t *testing.T) {
 	_, sock := start(t)
 	c, nt := termClient(t, sock)
@@ -244,31 +244,23 @@ func TestTermFlowControlAndAttach(t *testing.T) {
 		t.Fatalf("sent %d before ack, want %d", last, ackWindow)
 	}
 
-	// attach で、溜めた分（最大 1 MiB）が取り直せる。残っている分だけ返る。
-	var a struct {
-		Seq    int64
-		Replay string
-	}
+	// attach は、溜めた出力の長さによらず、画面の状態（見えている画面 + scrollback）の書き出しを返す。
+	var a attachResult
 	waitFor(t, "buffer full", func() bool {
 		if err := c.Call(ctx, "term.attach", map[string]any{"termId": id}, &a); err != nil {
 			t.Fatal(err)
 		}
 		return a.Seq >= 614400
 	})
-	rep, _ := base64.StdEncoding.DecodeString(a.Replay)
-	if len(rep) != 614400+3 && len(rep) < 614400 {
-		t.Fatalf("replay %d bytes", len(rep))
+	snap := a.snapshot(t)
+	if !bytes.HasPrefix(snap, []byte("\x1bc")) || !bytes.Contains(snap, []byte("END")) {
+		t.Errorf("snapshot does not start from a reset or lost the last line: %d bytes", len(snap))
 	}
-	if !bytes.HasSuffix(rep, []byte("END")) && !bytes.Contains(rep[len(rep)-64:], []byte("END")) {
-		t.Errorf("replay tail: %q", rep[len(rep)-32:])
+	if len(snap) >= 614400 { // scrollback 5000 行 × 80 桁までに収まる
+		t.Errorf("snapshot is %d bytes; it should be the screen and 5000 lines of scrollback, not the output", len(snap))
 	}
-	// fromSeq 以降だけも取れる。
-	var b struct{ Replay string }
-	if err := c.Call(ctx, "term.attach", map[string]any{"termId": id, "fromSeq": a.Seq - 10}, &b); err != nil {
-		t.Fatal(err)
-	}
-	if r, _ := base64.StdEncoding.DecodeString(b.Replay); len(r) != 10 {
-		t.Errorf("fromSeq replay %d bytes", len(r))
+	if a.Cols != 80 || a.Rows != 24 {
+		t.Errorf("size = %dx%d", a.Cols, a.Rows)
 	}
 
 	// attach したあとは、そこから先が流れる。ack すると続きが来る。
@@ -342,16 +334,10 @@ func TestTermResumesAfterOverflow(t *testing.T) {
 	id := createTerm(t, c, nil)
 	c.Call(ctx, "term.input", map[string]any{"termId": id, "data": b64("head -c 2097152 /dev/zero | tr '\\0' 'a'; printf END\n")}, nil)
 	waitFor(t, "first window", func() bool { _, last := nt.output(t, id); return last >= ackWindow })
-	var a struct{ Seq int64 }
+	var a attachResult
 	waitFor(t, "overflow", func() bool {
-		var r struct {
-			Seq    int64
-			Replay string
-		}
-		c.Call(ctx, "term.attach", map[string]any{"termId": id, "fromSeq": 0}, &r)
-		a.Seq = r.Seq
-		if rep, _ := base64.StdEncoding.DecodeString(r.Replay); a.Seq >= 2<<20 && len(rep) != ringSize {
-			t.Fatalf("replay %d bytes, want %d", len(rep), ringSize)
+		if err := c.Call(ctx, "term.attach", map[string]any{"termId": id}, &a); err != nil {
+			t.Fatal(err)
 		}
 		return a.Seq >= 2<<20
 	})

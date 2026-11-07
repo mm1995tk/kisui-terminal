@@ -166,8 +166,8 @@ export interface Requests {
   };
   "term.list": { params: Record<string, never>; result: { terms: TermInfo[] } };
   "term.attach": {
-    params: { termId: TermId; fromSeq?: number };
-    result: { seq: number; replay: string; cols: number; rows: number };
+    params: { termId: TermId };
+    result: { seq: number; snapshot: string; cols: number; rows: number };
   };
   "term.close": { params: { termId: TermId }; result: Record<string, never> };
   "term.restart": {

@@ -5,7 +5,11 @@ package server
 // PTY の出力は Screen に変換せず、そのまま term.output で流す（ui/tui/vt は使わない）。
 // 出力は 1 ターミナルにつき最大 1 MiB のリングバッファに溜め、seq はそのバイト数の累計。
 // GUI が term.ack で返した seq から 256 KiB より先は送らない。止まっても PTY は読み続け、
-// 溢れた分は捨てる。捨てた分は term.attach で（残っている分だけ）取り直す。
+// 溢れた分は捨てる。リングバッファは、この送り出し（ack の窓）のためだけに持つ。
+//
+// GUI が取り直す（つなぎ直し・溢れて欠けた）ときは、過去のバイト列は流さず、欄ごとの画面の状態
+// （screen.go の coneko-term）の書き出しを term.attach で返す。過去の出力に入っている端末への問い合わせ
+// （DECRQM など）を GUI の coneko-term がもう一度受けて、シェルへ返事を打ち込むことが無いように。
 //
 // command-end（OSC 133;D）の印はサーバーでは取り出さない。理由は docs/design/gui-protocol.md の「ターミナル」を見る。
 
@@ -36,6 +40,9 @@ const (
 	chunkSize  = 32 << 10  // term.output 1 通の最大
 	maxTermDim = 1 << 12
 	maxTitle   = 256
+
+	// snapshotScrollback は term.attach の書き出しに入れる scrollback の行数（GUI の coneko-term の scrollback と同じ）。
+	snapshotScrollback = 5000
 )
 
 // termManager はサーバー全体のターミナル。
@@ -107,7 +114,7 @@ type terminal struct {
 	sent       int64  // ここまで送った
 	acked      int64  // GUI が処理したと言ったところ
 	osc        oscScan
-	feed       *screenFeed // 画面の状態を持つ coneko-term（screen.go）。term.attach はまだ使わない
+	feed       *screenFeed // 画面の状態を持つ coneko-term（screen.go）。term.attach はこの書き出しを返す
 }
 
 // ringBytes は seq が [from, to) の範囲のバイト列を返す。from が捨てられた分なら残っている先頭から。
@@ -379,12 +386,12 @@ func (t *terminal) pump(ptmx *os.File, cmd *exec.Cmd) {
 		if n > 0 {
 			t.mu.Lock()
 			t.ringAppend(buf[:n])
+			t.feed.write(buf[:n]) // ring の seq と画面の状態の位置を合わせるため、同じロックの中で渡す（待たない）
 			title, changed := t.osc.feed(buf[:n])
 			if changed {
 				t.title = title
 			}
 			t.mu.Unlock()
-			t.feed.write(buf[:n])
 			if changed {
 				t.mgr.srv.notifyOwner("term.title", map[string]any{"termId": t.id, "title": title})
 			}
@@ -452,20 +459,27 @@ func (t *terminal) ack(seq int64) {
 	t.flush()
 }
 
-func (t *terminal) attach(from *int64) (any, error) {
+// attach は term.attach。画面の状態の書き出しと、その時点の seq を返す。書き出しは、seq までの出力を全部
+// 反映した画面で、GUI は reset してから書き、seq より先の term.output を続ける。
+//
+// seq の位置は、pump が ring と画面の状態へ同じロックの中で出力を渡すので、ここで t.total を読んで書き出しを頼めば
+// 一致する。書き出しができるのを待つ間は、ロックを持たない（PTY の読みと term.output を止めない）。
+// seq より先の term.output は、返事より先に GUI に届くことがある（GUI が取っておく）。
+func (t *terminal) attach() (any, error) {
 	t.sendMu.Lock()
-	defer t.sendMu.Unlock()
 	t.mu.Lock()
-	defer t.mu.Unlock()
-	f := int64(0)
-	if from != nil {
-		f = max(0, *from)
+	res := t.feed.snapshot(snapshotScrollback)
+	seq, cols, rows := t.total, t.cols, t.rows
+	// seq までは書き出しに入っているので、GUI が受け取ったことになる。ここから先を流す。
+	t.sent, t.acked = seq, seq
+	t.mu.Unlock()
+	t.sendMu.Unlock()
+	r := <-res
+	if r.err != nil {
+		return nil, rpc.Errorf(rpc.CodeInternalError, "screen snapshot: %v", r.err)
 	}
-	_, data := t.ringBytes(f, t.total)
-	// 取り直した分は GUI が受け取ったことになる。ここから先を流す。
-	t.sent, t.acked = t.total, t.total
 	return map[string]any{
-		"seq": t.total, "replay": base64.StdEncoding.EncodeToString(data), "cols": t.cols, "rows": t.rows,
+		"seq": seq, "snapshot": base64.StdEncoding.EncodeToString(r.data), "cols": cols, "rows": rows,
 	}, nil
 }
 
@@ -522,12 +536,11 @@ func (ss *session) termRequest(req *rpc.Message) (res any, err error, handled bo
 		return map[string]any{"terms": list}, nil, true
 	}
 	var p struct {
-		TermID  string  `json:"termId"`
-		FromSeq *int64  `json:"fromSeq"`
-		Cols    int     `json:"cols"`
-		Rows    int     `json:"rows"`
-		Data    string  `json:"data"`
-		Path    *string `json:"path"`
+		TermID string  `json:"termId"`
+		Cols   int     `json:"cols"`
+		Rows   int     `json:"rows"`
+		Data   string  `json:"data"`
+		Path   *string `json:"path"`
 	}
 	if err := json.Unmarshal(req.Params, &p); err != nil {
 		return nil, rpc.Errorf(rpc.CodeInvalidParams, "invalid params: %v", err), true
@@ -538,7 +551,7 @@ func (ss *session) termRequest(req *rpc.Message) (res any, err error, handled bo
 	}
 	switch req.Method {
 	case "term.attach":
-		res, err = t.attach(p.FromSeq)
+		res, err = t.attach()
 		return res, err, true
 	case "term.restart":
 		res, err = m.restart(t)
@@ -563,8 +576,8 @@ func (ss *session) termRequest(req *rpc.Message) (res any, err error, handled bo
 		}
 		t.mu.Lock()
 		t.cols, t.rows = p.Cols, p.Rows
+		t.feed.resize(p.Rows, p.Cols) // attach が返す cols・rows と書き出しの大きさをそろえるため、同じロックの中で渡す
 		t.mu.Unlock()
-		t.feed.resize(p.Rows, p.Cols)
 		return struct{}{}, nil, true
 	case "term.cd":
 		// 制御文字（行の編集や端末の行の規律が解釈する）を含むパスは、引用しても守れないので何も打たない。
