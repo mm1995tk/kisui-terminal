@@ -204,10 +204,15 @@ func (s *Server) primaryConn(l *primaryLink) {
 		return
 	}
 	var op struct {
-		Op string `json:"op"`
+		Op  string `json:"op"`
+		Cmd string `json:"cmd"`
 	}
 	if json.Unmarshal(first, &op) == nil && op.Op != "" {
 		s.paneConn(c, first)
+		return
+	}
+	if op.Cmd != "" { // 欄の中のコマンド（kisui open など。panecmd.go）
+		s.paneCmdConn(c, first)
 		return
 	}
 	var h ctl.PrimaryHello

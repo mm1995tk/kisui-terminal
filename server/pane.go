@@ -110,7 +110,7 @@ func (w *wsManager) pane(rq ctl.PaneRequest) (ctl.PaneReply, error) {
 			w.srv.notifyOwner("pane.show", map[string]any{"workspaceId": wsID, "extraId": rq.ID})
 			return ctl.PaneReply{}, nil
 		case "close":
-			w.closeExtra(claim, rq.ID)
+			w.closeExtra(wsID, rq.ID)
 			return ctl.PaneReply{}, nil
 		}
 	}

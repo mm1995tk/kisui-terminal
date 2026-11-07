@@ -448,6 +448,14 @@ GUI はターミナルのマルチプレクサで、編集はプライマリタ�
   - **プライマリでない欄の shj**：`VideoOpener` を持たないので、今まで通り（動画の欄は使わない）。
   - **ブラウザの欄（#556）**：GUI のプライマリの shj の `App.OpenURL`（`:open-url`・`Space o`・`Space v o` が通る）が、外部ブラウザの代わりに `ctl.PaneRequest` の `{op: "open", kind: "browser", url}` を送る。`kisui serve` は `url` が http か https で、host があり、ユーザー名・パスワードを含まず、制御文字を含まず、4096 バイト以下のときだけ受け、`extras` に `{id, kind: "browser", url}` を足す（返事・`pane.show`・升目の数え方・閉じ方は動画と同じ）。`media.read` はブラウザの欄には `invalid_params`。ページは `kisui serve` を通らない：GUI が手元の webview で開く（殻の命令は `browser_open`・`browser_bounds`・`browser_visible`・`browser_go`・`browser_nav`・`browser_close` と、`browser-url` イベント。設計は browser-and-proxy.md の「GUI のブラウザの欄」）。
 
+- **欄の中のコマンド（`kisui open`。#20）**：欄の中のシェルからも、ターミナルでない欄を開ける（`kisui open <ファイル|URL>`）。shj は要らない。kisui-terminal 自身のもので、shj との取り決め（[protocol.md](../protocol.md)）には入らない（`internal/panecmd`）。
+  - **見つけ方と名乗り方**：`kisui serve` は、始めるどのターミナル（プライマリも分割も）にも、`KISUI_SOCKET`（`serve-primary.rpc` の絶対パス）・`KISUI_PANE`（そのターミナルの `termId`）・`KISUI_PANE_TOKEN`（そのターミナルだけの 128 ビットの乱数）を渡す。コマンドは `serve-primary.rpc` につなぎ、1 行の JSON `{cmd, pane, token, target?}` を送り、返事 1 行 `{ok, error?, code?, id?}` を受けて切る。`kisui serve` は `cmd` があるかで shj の行（名乗り・`ctl.PaneRequest`）と分ける。`pane` が生きているこの serve のターミナルで、`token` がそのターミナルのものと合うときだけ受け、合わなければ `{ok: false, code: "not-in-pane"}`。秘密は `server.handover` で次の serve に渡す（古い serve から引き継いだターミナルには無いので、その欄では使えない）。
+  - **断れる相手**：ソケットは 0700 のディレクトリの中の 0600 なので、ほかのユーザーはつなげない。同じユーザーの、欄の外で始まったプロセスは秘密を知らない（`KISUI_*` が無ければ `kisui open` はつなぐ前に断る）。同じユーザーはプロセスの環境を読めるので、これは鍵ではなく「欄の中から使う」ための区切り。ssh の先の欄では、そのマシンの `kisui serve` に同じ形で話す（GUI と同じ接続で欄が出る）。
+  - **`open`**：`target` は http か https の URL（ブラウザの欄。受ける URL はブラウザの欄と同じ）か、絶対パスのファイル（`kisui open` が相対パスを今の cwd から絶対パスにする）。`<scheme>://` の形でほかのスキームなら断る。ファイルの種類は拡張子（`fileKinds`）で決め、合わなければ頭の 512 バイト（`http.DetectContentType`）がどれかの種類の `mime` のときその種類にする。大きさの上限・欄が種類ごとに 1 つで入れ替わること・升目の数え方・`pane.show` は shj の `open` と同じ（同じ種類なら、shj が開かせた欄とも入れ替わる）。
+  - **欄の持ち方**：欄の中から開いた欄はワークスペースの持ち物で、shj が終わっても消えない。GUI の `extra.close` かワークスペースを閉じるまで残る（shj は自分が開かせていない欄を `close` できない）。`Workspace.extras` には、shj の欄と合わせて開いた順（`id` の番号の順）に並ぶ。
+  - **コマンドの形**：欄の中で使うコマンドは `kisui <コマンド>` か、種類ごとに `kisui <種類> <コマンド>`（`kisui pane split` など）の 2 段に置く。`cmd/kisui/main.go` の `commands` に足すと `kisui --help` の一覧にも出る。serve との話し方は `panecmd.Request` の `cmd` を足す。
+  - **PATH**：`kisui serve` は自分の実行ファイルのフォルダを欄の PATH の先頭に足す（Nix のパッケージは `kisui` を PATH に出さないため。AppImage・.app・ssh 先のキャッシュは同梱の shj と同じフォルダ）。
+
 
 ### ファイルのツリー
 

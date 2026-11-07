@@ -21,6 +21,7 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -32,6 +33,7 @@ import (
 	"github.com/creack/pty"
 
 	"github.com/mm1995tk/kisui-terminal/internal/ctl"
+	"github.com/mm1995tk/kisui-terminal/internal/panecmd"
 	"github.com/mm1995tk/kisui-terminal/internal/term"
 	"github.com/mm1995tk/kisui-terminal/rpc"
 )
@@ -110,6 +112,7 @@ type terminal struct {
 	cwd        string // シェルの今の cwd（workspace.go が更新）
 	wsID       string // 属するワークスペース（作るときに決まり、cwd が変わっても変わらない）
 	primary    bool   // ワークスペースのプライマリターミナル
+	token      string // 欄の中のコマンド（kisui open など）が名乗る秘密（panecmd.EnvToken）。古い版から引き継いだターミナルでは空
 	cols, rows int
 	title      string
 	alive      bool
@@ -238,6 +241,18 @@ func (m *termManager) start(a termStart) (*terminal, error) {
 		// 同じワークスペースのどのターミナルからも、プライマリの shj に届くように（ctl.GUILinkPath）。
 		env = append(slices.Clone(env), ctl.EnvGUIWorkspace+"="+a.wsID)
 	}
+	// 欄の中のコマンド（kisui open など。panecmd）が serve に話しかけるための、ソケット・ターミナルの id・秘密。
+	// id は下で振る番号。kisui 自身のフォルダも PATH に足す（Nix のように kisui が PATH に無い配り方でも打てるように）
+	token, err := newPaneToken()
+	if err != nil {
+		m.mu.Unlock()
+		return nil, rpc.Errorf(rpc.CodeInternalError, "pane token: %v", err)
+	}
+	env = append(slices.Clone(env),
+		panecmd.EnvSocket+"="+filepath.Join(filepath.Dir(m.srv.opts.SocketPath), ctl.ServePrimaryName),
+		panecmd.EnvPane+"="+fmt.Sprintf("t%d", m.next+1),
+		panecmd.EnvToken+"="+token)
+	env = withKisuiPath(env)
 	// PTY の起動は ui/internal/term と同じ（TUI のターミナルも使う）。読み出しと流量制御はここで持つ。
 	// 欄の中の shj は、kisui と一緒に配った shj を先に使う（PATH の先頭に足し、起動ファイルのあとにも入れ直す）
 	args, env := bundledShell(sh, env)
@@ -251,7 +266,7 @@ func (m *termManager) start(a termStart) (*terminal, error) {
 	t := &terminal{
 		mgr: m, id: fmt.Sprintf("t%d", m.next), pid: sess.Pid(),
 		ptmx: ptmx, cmd: cmd, process: cmd.Process, cols: a.cols, rows: a.rows, alive: true,
-		ring: make([]byte, ringSize), wsID: a.wsID, primary: a.primary,
+		ring: make([]byte, ringSize), wsID: a.wsID, primary: a.primary, token: token,
 		feed: newScreenFeed(m.srv.log, a.rows, a.cols),
 	}
 	t.cwd = normalizePath(a.dir) // 以後 cwd の変化を見るので、読み取った値（実パス）に合わせる

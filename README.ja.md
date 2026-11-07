@@ -27,6 +27,15 @@ nix profile install github:mm1995tk/kisui-terminal#kisui-terminal-nightly
 
 kisui-terminal の中での `shj` の動き（開く欄、動画、ブラウザの欄、ファイルツリー）は shijimi-editor のマニュアルにあります。[ターミナル](https://mm1995tk.github.io/shijimi-editor/manual/ja/terminal/)・[ブラウザ](https://mm1995tk.github.io/shijimi-editor/manual/ja/browser/)・[設定ファイル](https://mm1995tk.github.io/shijimi-editor/manual/ja/config/)（「kisui-terminal のマシン」と `[server]`）を見てください。
 
+欄の中で `kisui open <ファイル|URL>` を打つと、種類に合う欄に、同じワークスペースの中で開きます。動画・画像・PDF（拡張子で見分け、拡張子で分からなければファイルの頭の中身で見分ける）か、`http`・`https` の URL ならブラウザの欄です。同じ種類の欄が開いていれば入れ替えます。ssh 先のマシンの欄でも使えます。使えるのは kisui-terminal の欄の中だけで、ほかのシェルから打つと断ります。コマンドの一覧は `kisui --help` で出ます。
+
+```sh
+kisui open ./diagram.png
+kisui open ./talk.mp4
+kisui open ./paper.pdf
+kisui open https://example.com/
+```
+
 kisui-terminal の設定は `shj` と同じ `config.toml`（`~/.config/shijimi-editor/config.toml`。nightly 版は `shijimi-editor-nightly/`）に書きます。
 
 - `[[gui.machines]]`：サイドバーに出すマシン（`ssh = "dev-vm"`、`name = "dev"`）。

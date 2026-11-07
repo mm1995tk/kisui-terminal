@@ -37,7 +37,7 @@ type wsInfo struct {
 	Terms   []string `json:"terms"`   // 分割したターミナル
 	// PrimaryShj は GUI のプライマリターミナルの中で動いている TUI の shj。無ければ null。
 	PrimaryShj *primaryShj `json:"primaryShj"`
-	// Extras はターミナルでない欄（プライマリの shj が開かせた動画。docs/design/gui-protocol.md）。
+	// Extras はターミナルでない欄（プライマリの shj か、欄の中の kisui open が開かせた動画など。docs/design/gui-protocol.md）。
 	Extras []extraPane `json:"extras"`
 
 	root string // Folder の値。未定なら ""
@@ -52,6 +52,7 @@ type wsState struct {
 	kind    string
 	primary string // プライマリターミナルの id
 	shj     *primaryShj
+	extras  []extraPane // 欄の中から（kisui open で）開いた、ターミナルでない欄。w.mu で守る。閉じるまで残る（shj が終わっても消えない）
 }
 
 type wsManager struct {
@@ -190,6 +191,7 @@ func (w *wsManager) recomputeLocked() {
 	states := make([]*wsState, 0, len(w.reg))
 	for _, st := range w.reg {
 		c := *st
+		c.extras = slices.Clone(c.extras)
 		if c.shj != nil {
 			cp := *c.shj // File は後から変わるので、写しを渡す
 			cp.extras = slices.Clone(cp.extras)
@@ -226,9 +228,12 @@ func buildWorkspaces(states []*wsState, terms []*terminal) map[string]*wsInfo {
 				x.Branch = gitBranch(st.root)
 			}
 		}
+		x.Extras = append(x.Extras, st.extras...)
 		if st.shj != nil {
 			x.Extras = append(x.Extras, st.shj.extras...)
 		}
+		// 欄の中から開いたものと shj が開かせたものを、開いた順（id の番号の順）に並べる
+		slices.SortStableFunc(x.Extras, func(a, b extraPane) int { return extraIDNum(a.ID) - extraIDNum(b.ID) })
 		next[st.id] = x
 	}
 	for _, t := range terms {
