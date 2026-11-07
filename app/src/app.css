@@ -47,8 +47,8 @@ a {
   position: relative;
   flex: 1;
   min-width: 0;
-  /* サイドバーとの間の隙間（つまみの場所。.resizer）。端末の字の上にはつまみを重ねない */
-  margin-left: var(--resizer-w);
+  /* サイドバーとの間に隙間は空けない（端末の内側の余白だけにする。#17） */
+  margin-left: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;

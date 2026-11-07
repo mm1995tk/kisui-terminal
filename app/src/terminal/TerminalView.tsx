@@ -68,8 +68,8 @@ export function TerminalView(props: {
     fontSize: 11,
     cursorBlink: true,
     scrollback: 5000,
-    // ファイルエクスプローラ（sidebar.css の .sidebar::-webkit-scrollbar）と同じ細さ
-    scrollbarWidth: 8,
+    // 右に空ける幅。字を描かない帯なので細くする（kitty × herdr に寄せる）
+    scrollbarWidth: 2,
     theme: terminalTheme,
   });
 

@@ -41,7 +41,7 @@
   overflow-y: auto;
 }
 
-/* 端末のスクロールバー（TerminalView の scrollbarWidth: 8）と同じ細さ（#17） */
+/* 細いスクロールバー（#17） */
 .sidebar::-webkit-scrollbar {
   width: 8px;
 }
