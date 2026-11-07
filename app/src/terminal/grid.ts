@@ -217,8 +217,8 @@ export function isZoomKey(e: KeyLike, mac = false): boolean {
 // 木のどの葉も、ちょうど 1 つの節の「B 側の左上」になるので一意で、ほかの欄を分けても変わらない）。
 
 /** 欄を分けるときの、分けた後の欄の最小の大きさ（端末の列と行）。server/layout.go の minSplitCols・minSplitRows と同じ。 */
-export const MIN_COLS = 20;
-export const MIN_ROWS = 5;
+const MIN_COLS = 20;
+const MIN_ROWS = 5;
 /** 欄の大きさが分からないときの、割合の下限と上限（serve の fallbackRatioMin・fallbackRatioMax と同じ）。 */
 const FALLBACK: readonly [number, number] = [0.05, 0.95];
 
