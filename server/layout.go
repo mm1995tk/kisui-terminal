@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"slices"
 )
 
 // 欄を分けるときの、分けた後の欄の最小の大きさ（端末の列と行）。
@@ -60,12 +61,7 @@ func layoutPanes(n *layoutNode) []string {
 }
 
 func layoutHas(n *layoutNode, id string) bool {
-	for _, p := range layoutPanes(n) {
-		if p == id {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(layoutPanes(n), id)
 }
 
 func layoutEqual(a, b *layoutNode) bool { return reflect.DeepEqual(a, b) }
