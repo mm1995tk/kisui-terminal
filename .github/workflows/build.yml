@@ -276,6 +276,15 @@ jobs:
             '{version: $version, notes: $notes, pub_date: $pub_date, platforms: {
               "darwin-aarch64": $mac
             }}' > latest.json
+          # 安定版を同じ版で出し直すときは、linux-appimage.yml が足した linux-* の項目を引き継ぐ
+          # （AppImage はここでは上げ直さないので、Release にある .sig と食い違わない）
+          if [ "$CHANNEL" != nightly ] && gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern latest.json --dir "$RUNNER_TEMP/old" 2>/dev/null; then
+            jq --slurpfile old "$RUNNER_TEMP/old/latest.json" \
+              'if $old[0].version == .version
+               then .platforms += ($old[0].platforms | with_entries(select(.key | startswith("linux-"))))
+               else . end' latest.json > "$RUNNER_TEMP/latest.json"
+            mv "$RUNNER_TEMP/latest.json" latest.json
+          fi
           cat latest.json
           # Release を用意する。説明には同梱した shj の版を書く。
           # nightly.yml は最後の「Commit:」と「Shj:」の行で前の nightly を見分けるので、形を変えない
