@@ -16,7 +16,9 @@ package server
 import (
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"slices"
@@ -97,7 +99,9 @@ type terminal struct {
 	id   string
 	pid  int
 	ptmx *os.File
-	cmd  *exec.Cmd
+	cmd  *exec.Cmd // このサーバーが始めたシェル。引き継いだシェル（子ではない）は nil
+	// process はシェルに合図を送る先。始めたシェルは cmd.Process、引き継いだシェルは pid から引いたもの。
+	process *os.Process
 
 	// sendMu は term.output の送り出しと term.attach を 1 つずつにする（順序と二重送りを防ぐ）。
 	sendMu sync.Mutex
@@ -115,6 +119,10 @@ type terminal struct {
 	acked      int64  // GUI が処理したと言ったところ
 	osc        oscScan
 	feed       *screenFeed // 画面の状態を持つ coneko-term（screen.go）。term.attach はこの書き出しを返す
+	base       int64       // リングに入っている一番古い seq の下限（引き継いだときは、受け取ったリングの先頭）
+
+	pumpDone chan struct{} // 今の pump が終わると閉じる。pump が無ければ nil（mu で守る）
+	pause    pauser        // 引き継ぎ（handover.go）のために pump を止める
 }
 
 // ringBytes は seq が [from, to) の範囲のバイト列を返す。from が捨てられた分なら残っている先頭から。
@@ -134,7 +142,7 @@ func (t *terminal) ringBytes(from, to int64) (int64, []byte) {
 }
 
 // oldest はリングに残っている一番古い seq。mu を持って呼ぶ。
-func (t *terminal) oldest() int64 { return max(0, t.total-ringSize) }
+func (t *terminal) oldest() int64 { return max(t.base, t.total-ringSize) }
 
 // ringAppend は mu を持って呼ぶ。ring は常に ringSize バイトの循環バッファで、seq s は ring[s%ringSize] に入る。
 func (t *terminal) ringAppend(b []byte) {
@@ -155,22 +163,19 @@ func (t *terminal) info() map[string]any {
 }
 
 // proc は今のシェルの PTY とプロセス。term.restart で入れ替わる。
-func (t *terminal) proc() (*os.File, *exec.Cmd) {
+func (t *terminal) proc() (*os.File, *os.Process) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	return t.ptmx, t.cmd
+	return t.ptmx, t.process
 }
 
 func (t *terminal) hangup() {
 	t.feed.close() // ターミナルを忘れるときに呼ばれる。以後の出力は画面の状態に入れない
-	ptmx, cmd := t.proc()
+	ptmx, p := t.proc()
 	// SIGHUP を無視するシェルで shutdown が止まらないように、少し待って SIGKILL。
-	if cmd.Process != nil {
-		p := cmd.Process
+	if p != nil {
 		time.AfterFunc(3*time.Second, func() { _ = p.Kill() })
-	}
-	if cmd.Process != nil {
-		_ = cmd.Process.Signal(syscall.SIGHUP)
+		_ = p.Signal(syscall.SIGHUP)
 	}
 	// ptmx を閉じても SIGHUP が届く。シェルが SIGHUP を無視しても pump は read の失敗で終わる。
 	ptmx.Close()
@@ -241,17 +246,17 @@ func (m *termManager) start(a termStart) (*terminal, error) {
 		m.mu.Unlock()
 		return nil, rpc.Errorf(rpc.CodeInternalError, "start shell: %v", err)
 	}
-	ptmx, cmd := sess.File(), sess.Cmd()
+	ptmx, cmd := pollable(sess.File(), m.srv.log), sess.Cmd()
 	m.next++
 	t := &terminal{
 		mgr: m, id: fmt.Sprintf("t%d", m.next), pid: sess.Pid(),
-		ptmx: ptmx, cmd: cmd, cols: a.cols, rows: a.rows, alive: true,
+		ptmx: ptmx, cmd: cmd, process: cmd.Process, cols: a.cols, rows: a.rows, alive: true,
 		ring: make([]byte, ringSize), wsID: a.wsID, primary: a.primary,
 		feed: newScreenFeed(m.srv.log, a.rows, a.cols),
 	}
 	t.cwd = normalizePath(a.dir) // 以後 cwd の変化を見るので、読み取った値（実パス）に合わせる
 	m.terms[t.id] = t
-	m.wg.Go(func() { t.pump(ptmx, cmd) })
+	t.startPump()
 	m.mu.Unlock()
 	m.srv.log.Info("term created", "termId", t.id, "pid", t.pid, "shell", sh, "cwd", a.dir, "workspace", a.wsID, "primary", a.primary)
 	return t, nil
@@ -355,14 +360,14 @@ func (m *termManager) restart(t *terminal) (any, error) {
 		m.mu.Unlock()
 		return nil, rpc.Errorf(rpc.CodeInternalError, "start shell: %v", err)
 	}
-	ptmx, cmd := sess.File(), sess.Cmd()
+	ptmx, cmd := pollable(sess.File(), m.srv.log), sess.Cmd()
 	t.mu.Lock()
-	t.ptmx, t.cmd, t.pid, t.alive = ptmx, cmd, sess.Pid(), true
+	t.ptmx, t.cmd, t.process, t.pid, t.alive = ptmx, cmd, cmd.Process, sess.Pid(), true
 	t.cwd = normalizePath(dir)
 	t.osc = oscScan{}
 	cwd, pid := t.cwd, t.pid
 	t.mu.Unlock()
-	m.wg.Go(func() { t.pump(ptmx, cmd) })
+	t.startPump()
 	m.mu.Unlock()
 	m.srv.log.Info("term restarted", "termId", t.id, "pid", pid, "cwd", dir)
 	return map[string]any{"pid": pid, "cwd": cwd}, nil
@@ -378,8 +383,22 @@ func (m *termManager) get(id string) (*terminal, error) {
 	return t, nil
 }
 
+// startPump は今の PTY を読む pump を始める。m.mu を持って呼ぶ（shutdown の Wait より前に Add するため）。
+func (t *terminal) startPump() {
+	t.mu.Lock()
+	ptmx, cmd, p := t.ptmx, t.cmd, t.process
+	done := make(chan struct{})
+	t.pumpDone = done
+	t.mu.Unlock()
+	t.mgr.wg.Go(func() {
+		defer close(done)
+		t.pump(ptmx, cmd, p)
+	})
+}
+
 // pump は PTY を読み続けてリングバッファに溜め、送れるなら送る。止まった GUI には送らないが読むのはやめない。
-func (t *terminal) pump(ptmx *os.File, cmd *exec.Cmd) {
+// 引き継ぎ（handover.go）のときは、読みの期限を過去にされて止まり（park）、止めるのをやめたら読み直す。
+func (t *terminal) pump(ptmx *os.File, cmd *exec.Cmd, p *os.Process) {
 	buf := make([]byte, chunkSize)
 	for {
 		n, err := ptmx.Read(buf)
@@ -398,25 +417,112 @@ func (t *terminal) pump(ptmx *os.File, cmd *exec.Cmd) {
 			t.flush()
 		}
 		if err != nil {
+			if errors.Is(err, os.ErrDeadlineExceeded) {
+				t.pause.park()
+				continue
+			}
 			break
 		}
 	}
-	_ = cmd.Wait()
-	ptmx.Close()
 	exit := map[string]any{"termId": t.id}
-	if ws, ok := cmd.ProcessState.Sys().(syscall.WaitStatus); ok && ws.Signaled() {
-		exit["code"] = 128 + int(ws.Signal())
-		exit["signal"] = ws.Signal().String()
+	if cmd != nil {
+		_ = cmd.Wait()
+		if ws, ok := cmd.ProcessState.Sys().(syscall.WaitStatus); ok && ws.Signaled() {
+			exit["code"] = 128 + int(ws.Signal())
+			exit["signal"] = ws.Signal().String()
+		} else {
+			exit["code"] = cmd.ProcessState.ExitCode()
+		}
 	} else {
-		exit["code"] = cmd.ProcessState.ExitCode()
+		// 引き継いだシェルはこのサーバーの子ではないので、終了コードは分からない（code を省く）。
+		// PTY が閉じた（シェルとその子が端末を手放した）あと、プロセスが無くなるのを待つ。
+		waitGone(p)
 	}
+	ptmx.Close()
 	t.mu.Lock()
 	t.alive = false
+	if t.process == p {
+		// 終わったシェルには、もう合図を送らない（hangup）。引き継いだシェルの os.Process は、pidfd の無い
+		// macOS では終わったことを覚えないので、残すと使い回された pid の別のプロセスに SIGHUP・SIGKILL が届く。
+		t.process = nil
+	}
 	t.mu.Unlock()
 	t.flush() // 最後の出力が先に届くように
 	t.mgr.srv.notifyOwner("term.exit", exit)
 	t.mgr.srv.ws.recompute()
 	t.mgr.srv.log.Info("term exited", "termId", t.id, "code", exit["code"])
+}
+
+// setWinsize は PTY の大きさを変える。pty.Setsize は Fd() で master を blocking にするので使わない。
+func setWinsize(f *os.File, cols, rows int) error {
+	if f == nil {
+		return os.ErrInvalid
+	}
+	rc, err := f.SyscallConn()
+	if err != nil {
+		return err
+	}
+	ws := pty.Winsize{Rows: uint16(rows), Cols: uint16(cols)}
+	var errno syscall.Errno
+	if err := rc.Control(func(fd uintptr) {
+		_, _, errno = syscall.Syscall(syscall.SYS_IOCTL, fd, uintptr(syscall.TIOCSWINSZ), uintptr(unsafe.Pointer(&ws)))
+	}); err != nil {
+		return err
+	}
+	if errno != 0 {
+		return errno
+	}
+	return nil
+}
+
+// waitGone は p が無くなる（終わって刈り取られる）まで待つ。p が nil なら待たない。
+func waitGone(p *os.Process) {
+	if p == nil {
+		return
+	}
+	for d := 10 * time.Millisecond; ; d = min(d*2, time.Second) {
+		if err := p.Signal(syscall.Signal(0)); err != nil {
+			return
+		}
+		time.Sleep(d)
+	}
+}
+
+// pollable は PTY の master を、読みの期限（SetReadDeadline）で読みを止められるものにして返す。引き継ぎで pump を
+// 止めるのに使う。creack/pty は ioctl のたびに Fd() を呼んで master を blocking にする（macOS では初めから blocking の
+// fd を包む）ので、dup して O_NONBLOCK にしたものを包み直す。以後この master には Fd() を呼ばない（setWinsize を使う）。
+// 包み直せなければ元のまま返す（読みは止められないので、そのターミナルがあると引き継ぎは断る）。
+func pollable(f *os.File, log *slog.Logger) *os.File {
+	rc, err := f.SyscallConn()
+	if err != nil {
+		return f
+	}
+	nfd := -1
+	_ = rc.Control(func(fd uintptr) {
+		syscall.ForkLock.RLock()
+		defer syscall.ForkLock.RUnlock()
+		if d, err := syscall.Dup(int(fd)); err == nil {
+			syscall.CloseOnExec(d)
+			nfd = d
+		}
+	})
+	if nfd < 0 {
+		return f
+	}
+	if err := syscall.SetNonblock(nfd, true); err != nil {
+		syscall.Close(nfd)
+		return f
+	}
+	nf := os.NewFile(uintptr(nfd), f.Name())
+	if err := nf.SetReadDeadline(time.Time{}); err != nil {
+		log.Warn("pty does not take deadlines; handover is not possible", "err", err)
+		// O_NONBLOCK は f と共有なので、blocking に戻してから閉じる（f の読みが EAGAIN で終わらないように）
+		_ = syscall.SetNonblock(nfd, false)
+		nf.Close()
+		return f
+	}
+	f.Close()
+	return nf
 }
 
 // flush は送ってよい分（ack から 256 KiB まで）を term.output にして owner に送る。
@@ -571,7 +677,7 @@ func (ss *session) termRequest(req *rpc.Message) (res any, err error, handled bo
 			return nil, rpc.Errorf(rpc.CodeInvalidParams, "cols and rows must be 1..%d", maxTermDim), true
 		}
 		ptmx, _ := t.proc()
-		if err := pty.Setsize(ptmx, &pty.Winsize{Rows: uint16(p.Rows), Cols: uint16(p.Cols)}); err != nil {
+		if err := setWinsize(ptmx, p.Cols, p.Rows); err != nil {
 			return nil, rpc.Errorf(rpc.CodeNotFound, "terminal has exited: %s", t.id), true
 		}
 		t.mu.Lock()

@@ -9,13 +9,16 @@ package server
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 	"time"
 
@@ -36,11 +39,72 @@ type primaryShj struct {
 }
 
 type primaryServer struct {
-	ln net.Listener
+	ln   *net.UnixListener
+	path string
 
 	mu    sync.Mutex
-	conns map[net.Conn]struct{}
+	links map[net.Conn]*primaryLink
 	wg    sync.WaitGroup
+}
+
+// primaryLink は serve-primary.rpc の 1 本の接続。名乗った shj の接続は、引き継ぎ（handover.go）で
+// 次の serve に渡すため、行の途中で読みを止められるようにしてある。
+type primaryLink struct {
+	conn    net.Conn
+	r       *bufio.Reader
+	partial []byte // 読みかけの行
+
+	mu    sync.Mutex
+	claim *primaryShj // 名乗りが通った shj。名乗る前は nil
+	ended bool        // 読みが終わった（shj が切った）。mu の中で pause.end を呼ぶ
+	pause pauser      // 引き継ぎで読みを止める
+}
+
+// maxPrimaryLine は serve-primary.rpc の 1 行の上限。
+const maxPrimaryLine = 64 << 10
+
+var errPrimaryLineTooLong = errors.New("line too long")
+
+func newPrimaryLink(c net.Conn, pending []byte) *primaryLink {
+	var r io.Reader = c
+	if len(pending) > 0 {
+		r = io.MultiReader(bytes.NewReader(pending), c)
+	}
+	return &primaryLink{conn: c, r: bufio.NewReaderSize(r, 4<<10)}
+}
+
+// readLine は次の 1 行（改行を除く）を返す。読みが止められても、読みかけの分は失わない。
+func (l *primaryLink) readLine() ([]byte, error) {
+	for {
+		chunk, err := l.r.ReadSlice('\n')
+		l.partial = append(l.partial, chunk...)
+		if len(l.partial) > maxPrimaryLine+1 {
+			return nil, errPrimaryLineTooLong
+		}
+		switch {
+		case err == nil:
+			line := bytes.TrimRight(l.partial, "\r\n")
+			l.partial = nil
+			return line, nil
+		case errors.Is(err, bufio.ErrBufferFull):
+			continue
+		}
+		return nil, err
+	}
+}
+
+// pending は、読んだがまだ行として扱っていない分（読みかけの行と、bufio に溜まっている分）。止まっているときに呼ぶ。
+func (l *primaryLink) pending() []byte {
+	b, _ := l.r.Peek(l.r.Buffered())
+	return append(slices.Clone(l.partial), b...)
+}
+
+// end は読みが終わったことを覚える。止めるよう頼まれていれば、待っている側を起こす。
+func (l *primaryLink) end() {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.ended = true
+	l.pause.end()
 }
 
 // startPrimary は serve-primary.rpc を開く。開けなくても serve は動く（プライマリの shj を知れないだけ）。
@@ -58,31 +122,50 @@ func (s *Server) startPrimary() {
 		s.log.Warn("primary socket", "err", err)
 		return
 	}
-	p := &primaryServer{ln: ln, conns: map[net.Conn]struct{}{}}
+	s.servePrimary(ln.(*net.UnixListener), path, nil)
+}
+
+// servePrimary は ln で名乗りと欄の頼みを受ける。links は引き継いだ、名乗り済みの shj の接続。
+func (s *Server) servePrimary(ln *net.UnixListener, path string, links []*primaryLink) {
+	p := &primaryServer{ln: ln, path: path, links: map[net.Conn]*primaryLink{}}
 	s.mu.Lock()
 	if s.closed {
 		s.mu.Unlock()
 		ln.Close()
+		for _, l := range links {
+			l.conn.Close()
+		}
 		return
 	}
 	s.primary = p
 	s.mu.Unlock()
+	run := func(l *primaryLink, f func(*primaryLink)) {
+		p.mu.Lock()
+		p.links[l.conn] = l
+		p.mu.Unlock()
+		p.wg.Go(func() {
+			f(l)
+			p.mu.Lock()
+			delete(p.links, l.conn)
+			p.mu.Unlock()
+			if !s.isHandedOver() { // 渡した接続は、次の serve が持っている。こちらの fd はプロセスと一緒に閉じる
+				l.conn.Close()
+			}
+		})
+	}
+	for _, l := range links {
+		run(l, s.followShj)
+	}
 	p.wg.Go(func() {
 		for {
 			c, err := ln.Accept()
 			if err != nil {
+				if errors.Is(err, os.ErrDeadlineExceeded) && !s.waitHandover() {
+					continue // 引き継ぎが失敗した。受け直す
+				}
 				return
 			}
-			p.mu.Lock()
-			p.conns[c] = struct{}{}
-			p.mu.Unlock()
-			p.wg.Go(func() {
-				s.primaryConn(c)
-				p.mu.Lock()
-				delete(p.conns, c)
-				p.mu.Unlock()
-				c.Close()
-			})
+			run(newPrimaryLink(c, nil), s.primaryConn)
 		}
 	})
 }
@@ -97,7 +180,7 @@ func (s *Server) stopPrimary() {
 	}
 	p.ln.Close()
 	p.mu.Lock()
-	for c := range p.conns {
+	for c := range p.links {
 		c.Close()
 	}
 	p.mu.Unlock()
@@ -111,25 +194,24 @@ const (
 	MaxPrimaryProtocol = ctl.PrimaryProtocol
 )
 
-// primaryConn は 1 本の接続。名乗りを受けて、切れるまで読む。名乗りのあとに来る 1 行ずつの
-// ctl.PrimaryFile は、その shj が出しているファイル。読めない行は捨てる。
-func (s *Server) primaryConn(c net.Conn) {
+// primaryConn は 1 本の接続。名乗りを受けて、切れるまで読む（followShj）。
+func (s *Server) primaryConn(l *primaryLink) {
+	c := l.conn
 	_ = c.SetReadDeadline(time.Now().Add(5 * time.Second))
-	sc := bufio.NewScanner(c)
-	sc.Buffer(make([]byte, 0, 4<<10), 64<<10)
-	if !sc.Scan() {
+	first, err := l.readLine()
+	if err != nil {
 		reply(c, errors.New("no hello"))
 		return
 	}
 	var op struct {
 		Op string `json:"op"`
 	}
-	if json.Unmarshal(sc.Bytes(), &op) == nil && op.Op != "" {
-		s.paneConn(c, sc.Bytes())
+	if json.Unmarshal(first, &op) == nil && op.Op != "" {
+		s.paneConn(c, first)
 		return
 	}
 	var h ctl.PrimaryHello
-	if err := json.Unmarshal(sc.Bytes(), &h); err != nil {
+	if err := json.Unmarshal(first, &h); err != nil {
 		reply(c, err)
 		return
 	}
@@ -142,20 +224,55 @@ func (s *Server) primaryConn(c net.Conn) {
 		_, _ = c.Write(append(b, '\n'))
 		return
 	}
+	// 名乗りを受けるのと、引き継ぎで渡す接続を決めるのを 1 つずつにする。
+	s.opMu.RLock()
+	if s.isHandedOver() {
+		s.opMu.RUnlock()
+		reply(c, errHandedOver)
+		return
+	}
 	claim, err := s.ws.claimShj(h)
 	if err != nil {
+		s.opMu.RUnlock()
 		reply(c, err)
 		return
 	}
 	reply(c, nil)
 	_ = c.SetReadDeadline(time.Time{})
-	for sc.Scan() { // 切れたら終わる
-		var f ctl.PrimaryFile
-		if json.Unmarshal(sc.Bytes(), &f) == nil && (f.File == "" || filepath.IsAbs(f.File)) {
-			s.ws.setShjFile(claim, f.File)
+	l.mu.Lock()
+	l.claim = claim
+	l.mu.Unlock()
+	s.opMu.RUnlock()
+	s.followShj(l)
+}
+
+// followShj は名乗った shj の接続を、切れるまで読む。名乗りのあとに来る 1 行ずつの ctl.PrimaryFile は、
+// その shj が出しているファイル。読めない行は捨てる。切れたら（shj が終わったら）その shj を忘れる。
+func (s *Server) followShj(l *primaryLink) {
+	for {
+		line, err := l.readLine()
+		if err == nil {
+			var f ctl.PrimaryFile
+			if json.Unmarshal(line, &f) == nil && (f.File == "" || filepath.IsAbs(f.File)) {
+				s.ws.setShjFile(l.claim, f.File)
+			}
+			continue
 		}
+		if errors.Is(err, os.ErrDeadlineExceeded) {
+			if !l.pause.park() {
+				_ = l.conn.SetReadDeadline(time.Time{}) // 止めるのをやめたあとに残った期限
+			}
+			continue
+		}
+		break
 	}
-	s.ws.releaseShj(claim)
+	l.end()
+	// 引き継ぎの最中に切れたら、結果を待つ。渡したあとは次の serve が忘れる。
+	s.opMu.RLock()
+	defer s.opMu.RUnlock()
+	if !s.isHandedOver() {
+		s.ws.releaseShj(l.claim)
+	}
 }
 
 func reply(c net.Conn, err error) {

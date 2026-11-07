@@ -64,7 +64,7 @@ func TestTermAttachSnapshotHasNoQueriesAndKeepsModes(t *testing.T) {
 	ctx := context.Background()
 	id := createTerm(t, c, nil)
 	c.Call(ctx, "term.input", map[string]any{"termId": id, "data": b64(
-		`printf '` + queries + `\033[?1049h\033[?1000h\033[?1006h\033[?2004h\033[?1h\033[>1u\033[2J\033[HTUI-TOP\033[3;1HTUI-ROW3'; echo; echo MARK` + "\n")}, nil)
+		`printf '` + queries + `\033[?1049h\033[?1000h\033[?1006h\033[?2004h\033[?1h\033[>1u\033[2J\033[HTUI-TOP\033[3;1HTUI-ROW3'; echo; echo MA""RK` + "\n")}, nil)
 	waitFor(t, "output", func() bool { out, _ := nt.output(t, id); return bytes.Contains(out, []byte("MARK\r\n")) })
 
 	var a attachResult
@@ -141,14 +141,15 @@ func TestTermAttachSeqJoinsOutput(t *testing.T) {
 			continue
 		}
 		var p struct {
-			Seq  int64  `json:"seq"`
-			Data string `json:"data"`
+			TermID string `json:"termId"`
+			Seq    int64  `json:"seq"`
+			Data   string `json:"data"`
 		}
 		if err := json.Unmarshal(m.Params, &p); err != nil {
 			t.Fatal(err)
 		}
 		data, _ := base64.StdEncoding.DecodeString(p.Data)
-		if p.Seq <= a.Seq {
+		if p.TermID != id || p.Seq <= a.Seq { // ワークスペースのプライマリターミナルの出力も届く
 			continue
 		}
 		if start := p.Seq - int64(len(data)); start != next {

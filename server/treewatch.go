@@ -172,9 +172,9 @@ func (m *treeManager) watch(done <-chan struct{}) {
 		case <-done:
 			return
 		case <-tt.C:
-			m.w.scan()
+			m.srv.whileServing(m.w.scan)
 		case <-gt.C:
-			m.g.scan()
+			m.srv.whileServing(m.g.scan)
 		}
 	}
 }

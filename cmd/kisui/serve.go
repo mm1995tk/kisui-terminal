@@ -20,13 +20,27 @@ import (
 
 // runServe is "kisui serve": the headless server that GUI clients talk to over
 // a Unix socket. It returns the process exit code.
+//
+// "kisui serve --handover" is not for people: a running serve starts it to hand
+// its terminals over (server.handover), with fd 3 connected to itself.
 func runServe(args []string) int {
-	if len(args) != 0 {
+	var handover *os.File
+	switch {
+	case len(args) == 1 && args[0] == "--handover":
+		handover = os.NewFile(3, "handover")
+	case len(args) != 0:
 		fmt.Fprintln(os.Stderr, i18n.T("serve.usage"))
 		return 2
 	}
+	// refuse tells the old serve why this one cannot take over; it keeps serving.
+	refuse := func(err error) {
+		if handover != nil {
+			server.RefuseHandover(handover, err)
+		}
+	}
 	sock, err := ctl.ServeSocketPath(buildinfo.Suffix())
 	if err != nil {
+		refuse(err)
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
@@ -58,6 +72,7 @@ func runServe(args []string) int {
 		// passes this on to the GUI. The keys of shj are not checked here:
 		// shj checks them itself when it starts in a pane.
 		logger.Error("config", "err", err)
+		refuse(fmt.Errorf("%s", configErrorText(err)))
 		fmt.Fprintln(os.Stderr, configErrorText(err))
 		return 1
 	}
@@ -66,15 +81,22 @@ func runServe(args []string) int {
 	if err != nil {
 		logger.Warn("workspaces file", "err", err) // 一覧を保存も復元もしない
 	}
-	srv, err := server.Listen(server.Options{
+	opts := server.Options{
 		StatePath:  statePath,
 		SocketPath: sock,
 		Shj:        server.Shj{Version: ver, Commit: commit, Channel: chName},
 		Logger:     logger,
 		IdleStop:   idle,
 		StartDir:   cfg.StartDir,
-	})
+	}
+	var srv *server.Server
+	if handover != nil {
+		srv, err = server.Adopt(opts, handover)
+	} else {
+		srv, err = server.Listen(opts)
+	}
 	if err != nil {
+		logger.Error("start", "err", err)
 		if errors.Is(err, server.ErrRunning) {
 			fmt.Fprintf(os.Stderr, i18n.T("serve.running")+"\n", sock)
 		} else {

@@ -312,7 +312,7 @@ func (w *wsManager) watch(done <-chan struct{}) {
 		case <-done:
 			return
 		case <-tk.C:
-			w.poll()
+			w.srv.whileServing(w.poll)
 		}
 	}
 }

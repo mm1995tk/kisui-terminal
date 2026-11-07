@@ -75,7 +75,12 @@ func (s *Server) watchIdle(done <-chan struct{}) {
 		case <-done:
 			return
 		case <-t.C:
-			if at := s.idleStopAt(); at != nil && !s.now().Before(*at) {
+			stop := false
+			s.whileServing(func() {
+				at := s.idleStopAt()
+				stop = at != nil && !s.now().Before(*at)
+			})
+			if stop {
 				s.stop("idle")
 				return
 			}

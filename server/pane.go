@@ -30,6 +30,12 @@ func (s *Server) paneConn(c net.Conn, line []byte) {
 		replyPane(c, ctl.PaneReply{Error: err.Error()})
 		return
 	}
+	s.opMu.RLock() // 引き継ぎ（handover.go）の間は待つ
+	defer s.opMu.RUnlock()
+	if s.isHandedOver() {
+		replyPane(c, ctl.PaneReply{Error: errHandedOver.Error()})
+		return
+	}
 	r, err := s.ws.pane(rq)
 	if err != nil {
 		r = ctl.PaneReply{Error: err.Error()}

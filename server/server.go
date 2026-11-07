@@ -1,7 +1,7 @@
 // Package server は画面を持たない常駐プロセス「kisui serve」の中身。
 // Unix ソケットで JSON-RPC を話す。設計は docs/design/gui-protocol.md の 3 章。
 //
-// 今あるメソッドは session.* / server.info / term.*（term.go）/ workspace.*（workspace.go）/ tree.*・git.status（tree.go、treewatch.go、gitstat.go）/
+// 今あるメソッドは session.* / server.info / server.handover（handover.go）/ term.*（term.go）/ workspace.*（workspace.go）/ tree.*・git.status（tree.go、treewatch.go、gitstat.go）/
 // shj.*・pane.*（primary.go、pane.go）。編集は GUI のターミナルの欄の中の shj が受け持つので、画面や入力のメソッドは無い。
 package server
 
@@ -23,7 +23,7 @@ import (
 )
 
 // Protocol はこのサーバーが話すプロトコルの版。major が違うとつながらない。minor は互換。
-var Protocol = ProtocolVersion{Major: 4, Minor: 0}
+var Protocol = ProtocolVersion{Major: 4, Minor: 1}
 
 // ProtocolVersion はプロトコルの版。
 type ProtocolVersion struct {
@@ -62,7 +62,7 @@ type Options struct {
 type Server struct {
 	opts      Options
 	log       *slog.Logger
-	ln        net.Listener
+	ln        *net.UnixListener
 	serverID  string
 	startedAt time.Time
 
@@ -78,6 +78,15 @@ type Server struct {
 	rev        int64          // サーバー全体の版（mu で守る）
 	stopping   bool           // stop が始まった
 	primary    *primaryServer // プライマリの shj の知らせを受ける口（Serve で開く）
+
+	// opMu は、状態を変える仕事（GUI の要求・shj の名乗りと欄の頼み・定期の見回り）を読みロックで、
+	// 引き継ぎ（handover.go）を書きロックで持つ。引き継ぐ間は、仕事を止めて状態を固める。
+	opMu sync.RWMutex
+	// 以下は mu で守る。
+	ho         *handoverRun // 進んでいる引き継ぎ。無ければ nil
+	handedOver bool         // 次の serve に引き継いだ。以後は何もしない
+	adopted    *adoption    // 前の serve から引き継いだもの（adopt.go）。Serve で動かし始める
+	leaveOnce  sync.Once
 }
 
 // ErrRunning はすでに別の kisui serve が動いているときのエラー。
@@ -104,6 +113,13 @@ func Listen(opts Options) (*Server, error) {
 		ln.Close()
 		return nil, err
 	}
+	srv := newServer(opts, ln.(*net.UnixListener))
+	srv.serverID = hex.EncodeToString(id)
+	srv.startedAt = srv.now()
+	return srv, nil
+}
+
+func newServer(opts Options, ln *net.UnixListener) *Server {
 	log := opts.Logger
 	if log == nil {
 		log = slog.New(slog.DiscardHandler)
@@ -112,34 +128,50 @@ func Listen(opts Options) (*Server, error) {
 		opts:     opts,
 		log:      log,
 		ln:       ln,
-		serverID: hex.EncodeToString(id),
 		sessions: map[*session]struct{}{},
 	}
-	srv.startedAt = srv.now()
 	srv.terms = newTermManager(srv)
 	srv.ws = newWSManager(srv)
 	srv.tree = newTreeManager(srv)
-	return srv, nil
+	return srv
 }
 
-// ServerID はこのサーバーの 1 回の起動ごとの番号。
+// ServerID はこのサーバーの 1 回の起動ごとの番号。引き継いだ serve は、前の serve の番号を受け継ぐ（状態が同じなので）。
 func (s *Server) ServerID() string { return s.serverID }
 
 // Serve は ctx が終わるか Close されるまで接続を受ける。終わるとソケットを消す。
+// 次の serve に引き継いだら、ソケットもシェルもそのままにして戻る。
 func (s *Server) Serve(ctx context.Context) error {
 	stop := context.AfterFunc(ctx, func() { s.ln.Close() })
 	defer stop()
 	s.log.Info("serving", "socket", s.opts.SocketPath, "serverId", s.serverID, "pid", os.Getpid())
 	idleDone := make(chan struct{})
 	defer close(idleDone)
-	s.ws.restore()
+	s.mu.Lock()
+	ad := s.adopted
+	s.adopted = nil
+	s.mu.Unlock()
+	if ad != nil {
+		s.startAdopted(ad)
+	} else {
+		s.ws.restore()
+	}
 	go s.watchIdle(idleDone)
 	go s.ws.watch(idleDone)
 	go s.tree.watch(idleDone)
-	s.startPrimary()
+	if ad == nil {
+		s.startPrimary()
+	}
 	for {
 		c, err := s.ln.Accept()
 		if err != nil {
+			if errors.Is(err, os.ErrDeadlineExceeded) && ctx.Err() == nil {
+				if !s.waitHandover() {
+					continue // 引き継ぎが失敗した。受け直す
+				}
+				s.leave()
+				return nil
+			}
 			s.shutdown()
 			if ctx.Err() != nil || errors.Is(err, net.ErrClosed) {
 				return nil
@@ -157,6 +189,11 @@ func (s *Server) Close() {
 }
 
 func (s *Server) shutdown() {
+	// 引き継ぎの最中に止められたら、結果を待つ。引き継いだなら、シェルは次の serve のものなので触らない。
+	if s.waitHandover() {
+		s.leave()
+		return
+	}
 	_ = os.Remove(s.opts.SocketPath)
 	s.mu.Lock()
 	s.closed = true
@@ -281,6 +318,25 @@ type InfoResult struct {
 }
 
 func (ss *session) handle(_ context.Context, req *rpc.Message) (any, error) {
+	if req.Method == "server.handover" && !req.IsNotification() {
+		// 引き継ぎは自分で書きロックを取るので、読みロックの外で受ける。
+		if ss.isSuperseded() {
+			return nil, errNotOwner()
+		}
+		if err := ss.needHello(); err != nil {
+			return nil, err
+		}
+		return ss.srv.handoverReq(req)
+	}
+	// 引き継ぎの間は待つ。引き継いだあとは何もしていないので、GUI は次の serve に送り直せる。
+	ss.srv.opMu.RLock()
+	defer ss.srv.opMu.RUnlock()
+	if ss.srv.isHandedOver() {
+		if req.IsNotification() {
+			return nil, nil
+		}
+		return nil, errHandedOverRPC()
+	}
 	if req.IsNotification() {
 		ss.termNotify(req)
 		return nil, nil // 知らない通知は無視する
@@ -408,7 +464,7 @@ func (ss *session) helloReq(req *rpc.Message) (any, error) {
 		ServerID:     s.serverID,
 		StartedAt:    s.startedAt,
 		Supersedes:   sup,
-		Capabilities: []string{},
+		Capabilities: []string{CapHandover},
 		Workspaces:   wsl,
 		Rev:          s.currentRev(),
 	}, nil
