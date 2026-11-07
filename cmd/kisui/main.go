@@ -32,6 +32,10 @@ var commands = []command{
 	{name: "serve", help: "help.serve", run: runServe},
 	{name: "attach", help: "help.attach", run: runAttach},
 	{name: "open", args: "<file|url>", help: "help.open", run: runOpen},
+	{name: "pane", sub: []command{
+		{name: "split", args: "--right|--down [command ...]", help: "help.pane.split", run: runPaneSplit},
+		{name: "title", args: "<name>", help: "help.pane.title", run: runPaneTitle},
+	}},
 }
 
 func main() {

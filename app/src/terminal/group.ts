@@ -36,7 +36,7 @@ import { DEFAULT_SIZE, TermLink, type TermPort } from "./link.ts";
 
 /** ワークスペースのうち、ターミナルの並びを決める部分。 */
 export type TermLayout = Pick<Workspace, "id" | "primary" | "terms"> &
-  Partial<Pick<Workspace, "extras" | "layout">>;
+  Partial<Pick<Workspace, "extras" | "layout" | "titles">>;
 
 function sameExtra(a: ExtraPane, b: ExtraPane): boolean {
   return (
@@ -57,6 +57,9 @@ export class TermGroup {
   /** serve が持つ欄の配置（Workspace.layout）。古い serve では undefined */
   private serverLayout?: PaneLayout;
   private layoutKey = "";
+  /** 欄の名前（Workspace.titles） */
+  private titleMap: Readonly<Record<string, string>> = {};
+  private titleKey = "";
   private cache?: {
     ids: string;
     src?: PaneLayout;
@@ -107,6 +110,11 @@ export class TermGroup {
   /** 欄の id（ターミナル、ターミナルでない欄の順）。 */
   get paneIds(): string[] {
     return [...this.links.map((l) => l.id), ...this.extraList.map((x) => x.id)];
+  }
+
+  /** 欄の名前（kisui pane title。欄の id -> 名前）。名前のある欄だけ入る。 */
+  get titles(): Readonly<Record<string, string>> {
+    return this.titleMap;
   }
 
   /** 欄の配置（分割の木）。serve の木を、いまある欄に合わせたもの。 */
@@ -162,6 +170,12 @@ export class TermGroup {
       this.layoutKey = lk;
       this.serverLayout = layout.layout;
     }
+    const tk = JSON.stringify(layout.titles ?? null);
+    const titlesChanged = tk !== this.titleKey;
+    if (titlesChanged) {
+      this.titleKey = tk;
+      this.titleMap = layout.titles ?? {};
+    }
     const wantX = layout.extras ?? [];
     for (const id of this.closingExtras)
       if (!wantX.some((x) => x.id === id)) this.closingExtras.delete(id);
@@ -176,7 +190,7 @@ export class TermGroup {
       next.length === this.links.length &&
       next.every((l, i) => l === this.links[i]);
     if (same && sameX) {
-      if (layoutChanged && notify) this.onChange();
+      if ((layoutChanged || titlesChanged) && notify) this.onChange();
       return;
     }
     const was = this.current ? this.links.indexOf(this.current) : -1;

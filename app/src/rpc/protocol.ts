@@ -73,6 +73,8 @@ export interface Workspace {
   extras?: ExtraPane[];
   /** 欄の配置（分割の木）。葉は primary・terms・extras の id。古い kisui serve は送らない */
   layout?: PaneLayout;
+  /** 欄の名前（kisui pane title。欄の id -> 名前）。名前のある欄だけ入る。無ければ省く */
+  titles?: Record<string, string>;
 }
 
 /** 欄を分ける向き：右（縦の境界。a が左、b が右）か下（横の境界。a が上、b が下） */

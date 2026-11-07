@@ -1200,6 +1200,7 @@ function Workbench(props: {
         <TerminalGrid
           links={termList()}
           layout={termLayout()}
+          titles={termGroup()?.titles}
           active={termActive()}
           extras={termExtras()}
           activeExtra={termActiveExtra()}

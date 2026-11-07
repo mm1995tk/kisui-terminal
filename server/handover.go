@@ -113,6 +113,7 @@ type handoverTerm struct {
 	Cols      int    `json:"cols"`
 	Rows      int    `json:"rows"`
 	Title     string `json:"title"`
+	Name      string `json:"name,omitempty"` // 欄の名前（kisui pane title）
 	Alive     bool   `json:"alive"`
 	RingStart int64  `json:"ringStart"` // Ring の先頭の seq
 	Ring      []byte `json:"ring"`      // リングに残っている出力（seq は RingStart から）
