@@ -59,8 +59,9 @@ function focusableRows(from: HTMLElement): HTMLElement[] {
 }
 
 /**
- * フォーカスしている行 el が DOM から外れる（d で消した・親を閉じた）なら、残った一番近い前の行にフォーカスを移し、
+ * フォーカスしている行 el が DOM から外れる（グループの最後の行を消した・親を閉じた）なら、残った一番近い前の行にフォーカスを移し、
  * 続けてキーで動かせるようにする。Solid は DOM から外す前に onCleanup を呼ぶので、そこから呼ぶ。
+ * （Index は位置で要素を使い回すので、途中の行を消しても、フォーカスしている要素はふつう消えない）
  */
 function keepFocusWhenRemoved(el: HTMLElement) {
   if (document.activeElement !== el) return;
@@ -90,8 +91,40 @@ function moveFocus(from: HTMLElement, path: string, to: TreeMove) {
   next.scrollIntoView({ block: "nearest" });
 }
 
+/** 行を押した・Enter などを押したときの操作をする。何かしたら true。 */
+function runRowAction(
+  row: TreeRow,
+  handlers: RowHandlers,
+  a: RowAction | null,
+): boolean {
+  if (a === "toggle") handlers.onToggle(row.path);
+  else if (a === "open" && handlers.onOpen) handlers.onOpen(row.path);
+  else return false;
+  return true;
+}
+
+/** 行でキーを押した。何かしたら true（ブラウザの既定の動き・スクロールを止める）。 */
+function rowKeyDown(
+  row: TreeRow,
+  handlers: RowHandlers,
+  e: KeyboardEvent & { currentTarget: HTMLElement },
+): boolean {
+  const a = treeKey(row, e);
+  if (!a) return false;
+  if (a.kind === "row") return runRowAction(row, handlers, a.action);
+  if (a.kind === "move") {
+    // 端にいて動けなくても、↑ ↓ で一覧がスクロールしないように止める
+    moveFocus(e.currentTarget, row.path, a.to);
+    return true;
+  }
+  if (!handlers.onAction) return false;
+  handlers.onAction(row, a.action);
+  return true;
+}
+
 /**
- * ツリー。rows が空でも枠は出す（取っている最中）。
+ * ツリー。
+rows が空でも枠は出す（取っている最中）。
  * 開いたフォルダの行は data-sticky を付け、中身をスクロールしている間は上に固定する
  * （固定する位置は --tree-sticky-top から深さ × 行の高さ下）。
  */
@@ -135,28 +168,6 @@ function Row(props: { row: TreeRow; handlers: RowHandlers }): JSX.Element {
   const mark = () => r().mark;
   let el: HTMLDivElement | undefined;
   onCleanup(() => el && keepFocusWhenRemoved(el));
-  /** 行を押した・Enter などを押した。何かしたら true。 */
-  const run = (a: RowAction | null): boolean => {
-    if (a === "toggle") props.handlers.onToggle(r().path);
-    else if (a === "open" && props.handlers.onOpen)
-      props.handlers.onOpen(r().path);
-    else return false;
-    return true;
-  };
-  /** キーを押した。何かしたら true（ブラウザの既定の動き・スクロールを止める）。 */
-  const key = (e: KeyboardEvent & { currentTarget: HTMLElement }): boolean => {
-    const a = treeKey(r(), e);
-    if (!a) return false;
-    if (a.kind === "row") return run(a.action);
-    if (a.kind === "move") {
-      // 端にいて動けなくても、↑ ↓ で一覧がスクロールしないように止める
-      moveFocus(e.currentTarget, r().path, a.to);
-      return true;
-    }
-    if (!props.handlers.onAction) return false;
-    props.handlers.onAction(r(), a.action);
-    return true;
-  };
   return (
     <Show
       when={!r().truncated}
@@ -188,14 +199,14 @@ function Row(props: { row: TreeRow; handlers: RowHandlers }): JSX.Element {
         title={r().path}
         data-path={r().path}
         tabIndex={0}
-        onClick={() => run(rowAction(r()))}
+        onClick={() => runRowAction(r(), props.handlers, rowAction(r()))}
         onContextMenu={(e) => {
           if (!props.handlers.onMenu) return;
           e.preventDefault();
           props.handlers.onMenu(r(), e.clientX, e.clientY);
         }}
         onKeyDown={(e) => {
-          if (key(e)) e.preventDefault();
+          if (rowKeyDown(r(), props.handlers, e)) e.preventDefault();
         }}
       >
         <Guides depth={r().depth} />
