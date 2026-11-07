@@ -168,8 +168,9 @@ func (w *wsManager) splitPane(claim *primaryShj, wsID string, rq ctl.PaneRequest
 	}
 	w.recomputeMu.Lock()
 	defer w.recomputeMu.Unlock()
-	if w.cellsFree(wsID) <= 0 {
-		return "", fmt.Errorf("the workspace already has %d terminals", maxSplitTerms+1)
+	target, sdir, err := w.planSplit(wsID, "", "")
+	if err != nil {
+		return "", err
 	}
 	t, err := w.srv.terms.start(termStart{cols: 80, rows: 24, dir: dir, env: env, wsID: wsID})
 	if err != nil {
@@ -185,6 +186,7 @@ func (w *wsManager) splitPane(claim *primaryShj, wsID string, rq ctl.PaneRequest
 	}
 	claim.panes = append(claim.panes, t.id)
 	w.mu.Unlock()
+	w.placePane(wsID, target, sdir, t.id)
 	w.recomputeLocked() // workspace.changed が先に届くので、GUI は欄を知っている
 	w.srv.notifyOwner("pane.show", map[string]any{"workspaceId": wsID, "termId": t.id})
 	return t.id, nil

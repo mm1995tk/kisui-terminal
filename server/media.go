@@ -90,26 +90,6 @@ func parseBrowserURL(s string) (string, error) {
 	return u.String(), nil
 }
 
-// extraCount はワークスペースの、ターミナルでない欄の数（欄の中から開いたものと、プライマリの shj が開かせたもの）。
-func (w *wsManager) extraCount(wsID string) int {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	st := w.reg[wsID]
-	if st == nil {
-		return 0
-	}
-	n := len(st.extras)
-	if st.shj != nil {
-		n += len(st.shj.extras)
-	}
-	return n
-}
-
-// cellsFree はワークスペースに、あと何個の欄を足せるか（プライマリを含めて 6 個まで。ターミナルも動画も同じ升目に並ぶ）。
-func (w *wsManager) cellsFree(wsID string) int {
-	return maxSplitTerms - w.srv.terms.countSplit(wsID) - w.extraCount(wsID)
-}
-
 // ownExtra は id が claim の shj の作った、ターミナルでない欄か。
 func (w *wsManager) ownExtra(claim *primaryShj, id string) bool {
 	w.mu.Lock()
@@ -126,13 +106,26 @@ func (w *wsManager) openExtra(claim *primaryShj, wsID string, rq ctl.PaneRequest
 	return w.addExtra(wsID, claim, e)
 }
 
+// sameKindExtra は st で kind の欄（欄の中から開いたものか、shj が開かせたもの）の id。無ければ ""。w.mu を持って呼ぶ。
+func sameKindExtra(st *wsState, kind string) string {
+	all := st.extras
+	if st.shj != nil {
+		all = append(slices.Clone(all), st.shj.extras...)
+	}
+	for _, x := range all {
+		if x.Kind == kind {
+			return x.ID
+		}
+	}
+	return ""
+}
+
 // addExtra は e をワークスペースの欄に足し、GUI に出させる。claim が nil なら欄の中から開いたもの（閉じるまで残る）、
 // そうでなければその shj が開かせたもの（shj が終わると消える）。欄は種類ごとにワークスペースに 1 つで、
-// 開いてあれば（どちらが開いたものでも）新しいものと入れ替える（開くたびに増えて、升目を使い切らないように）。
+// 開いてあれば（どちらが開いたものでも）その場所で新しいものと入れ替える（開くたびに増えないように）。
 func (w *wsManager) addExtra(wsID string, claim *primaryShj, e extraPane) (string, error) {
 	w.recomputeMu.Lock()
 	defer w.recomputeMu.Unlock()
-	free := w.cellsFree(wsID)
 	w.mu.Lock()
 	st := w.reg[wsID]
 	if st == nil {
@@ -143,15 +136,25 @@ func (w *wsManager) addExtra(wsID string, claim *primaryShj, e extraPane) (strin
 		w.mu.Unlock()
 		return "", errors.New("the shj of the primary has ended")
 	}
-	sameKind := func(x extraPane) bool { return x.Kind == e.Kind }
-	had := slices.ContainsFunc(st.extras, sameKind) || (st.shj != nil && slices.ContainsFunc(st.shj.extras, sameKind))
-	if !had && free <= 0 {
+	old := sameKindExtra(st, e.Kind)
+	w.mu.Unlock()
+	// 入れ替えでなければ、新しい欄を足す場所を決める（小さすぎれば断る）
+	var target, dir string
+	if old == "" {
+		var err error
+		if target, dir, err = w.planSplit(wsID, "", ""); err != nil {
+			return "", err
+		}
+	}
+	w.mu.Lock()
+	if w.reg[wsID] != st || (claim != nil && st.shj != claim) || sameKindExtra(st, e.Kind) != old {
 		w.mu.Unlock()
-		return "", fmt.Errorf("the workspace already has %d panes", maxSplitTerms+1)
+		return "", errors.New("the panes changed; try again")
 	}
 	w.nextExtra++
 	e.ID = fmt.Sprintf("x%d", w.nextExtra)
 	// 写しを置き換える（recompute が渡した写しと、配列を分け合わないように）
+	sameKind := func(x extraPane) bool { return x.Kind == e.Kind }
 	st.extras = slices.DeleteFunc(slices.Clone(st.extras), sameKind)
 	if st.shj != nil {
 		st.shj.extras = slices.DeleteFunc(slices.Clone(st.shj.extras), sameKind)
@@ -161,7 +164,13 @@ func (w *wsManager) addExtra(wsID string, claim *primaryShj, e extraPane) (strin
 	} else {
 		st.extras = append(st.extras, e)
 	}
-	w.mu.Unlock()
+	if old != "" {
+		st.layout = layoutReplace(st.layout, old, e.ID)
+		w.mu.Unlock()
+	} else {
+		w.mu.Unlock()
+		w.placePane(wsID, target, dir, e.ID)
+	}
 	w.recomputeLocked() // workspace.changed が先に届くので、GUI は欄を知っている
 	w.srv.notifyOwner("pane.show", map[string]any{"workspaceId": wsID, "extraId": e.ID})
 	return e.ID, nil

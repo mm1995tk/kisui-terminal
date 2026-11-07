@@ -8,7 +8,7 @@ import {
   isCmdZoomKey,
   type KeyLike,
 } from "./guiKeys.ts";
-import { directionKey, isNewTermKey, isZoomKey } from "./terminal/grid.ts";
+import { directionKey, isZoomKey, splitKey } from "./terminal/grid.ts";
 
 function key(p: Partial<KeyLike>): KeyLike {
   return {
@@ -22,13 +22,25 @@ function key(p: Partial<KeyLike>): KeyLike {
 }
 
 describe("Mac の Cmd のキー", () => {
-  it("Cmd+T はターミナルを足す。Mac 以外では効かず、Ctrl+Shift+T は両方で効く", () => {
-    const cmdT = key({ key: "t", code: "KeyT", metaKey: true });
-    assert.equal(isNewTermKey(cmdT, true), true);
-    assert.equal(isNewTermKey(cmdT, false), false);
-    const csT = key({ key: "T", code: "KeyT", ctrlKey: true, shiftKey: true });
-    assert.equal(isNewTermKey(csT, true), true);
-    assert.equal(isNewTermKey(csT, false), true);
+  it("Mac は Cmd+D で右、Cmd+Shift+D で下に分ける。Ctrl+Shift+D/E と Cmd+T は効かない", () => {
+    const cmdD = key({ key: "d", code: "KeyD", metaKey: true });
+    assert.equal(splitKey(cmdD, true), "right");
+    assert.equal(splitKey(cmdD, false), null);
+    const cmdShiftD = key({
+      key: "D",
+      code: "KeyD",
+      metaKey: true,
+      shiftKey: true,
+    });
+    assert.equal(splitKey(cmdShiftD, true), "down");
+    assert.equal(splitKey(cmdShiftD, false), null);
+    const csD = key({ key: "D", code: "KeyD", ctrlKey: true, shiftKey: true });
+    assert.equal(splitKey(csD, true), null);
+    assert.equal(splitKey(csD, false), "right");
+    assert.equal(
+      splitKey(key({ key: "t", code: "KeyT", metaKey: true }), true),
+      null,
+    );
   });
 
   it("Cmd+Option+矢印で隣へ移る。Option だけ・Cmd だけでは移らない", () => {

@@ -218,6 +218,9 @@ func (s *Server) adoptWorkspaces(st *handoverState) {
 	w.next, w.nextExtra, w.focus = st.NextWorkspace, st.NextExtra, st.Focus
 	for _, hw := range st.Workspaces {
 		x := &wsState{id: hw.ID, seq: hw.Seq, root: hw.Root, kind: hw.Kind, primary: hw.Primary, extras: slices.Clone(hw.Extras)}
+		if validLayout(hw.Layout) {
+			x.layout = hw.Layout
+		}
 		if hw.Shj != nil {
 			x.shj = &primaryShj{Socket: hw.Shj.Socket, PID: hw.Shj.PID, File: hw.Shj.File, wsID: hw.ID,
 				panes: slices.Clone(hw.Shj.Panes), extras: slices.Clone(hw.Shj.Extras)}

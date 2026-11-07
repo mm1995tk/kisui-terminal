@@ -1,13 +1,15 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
+import type { PaneLayout } from "../rpc/protocol.ts";
 import {
-  cellOf,
   directionKey,
-  gridSize,
-  isNewTermKey,
   isZoomKey,
+  layoutPanes,
+  layoutRects,
   neighbor,
+  reconcileLayout,
+  splitKey,
 } from "./grid.ts";
 
 const key = (k: string, code = "", mods = { ctrl: true, shift: true }) => ({
@@ -19,46 +21,98 @@ const key = (k: string, code = "", mods = { ctrl: true, shift: true }) => ({
   metaKey: false,
 });
 
-describe("gridSize", () => {
-  it("1 個は全体、2 個は左右、3〜4 個は 2×2、5〜6 個は 3×2", () => {
-    assert.deepEqual(gridSize(1), { cols: 1, rows: 1 });
-    assert.deepEqual(gridSize(2), { cols: 2, rows: 1 });
-    assert.deepEqual(gridSize(3), { cols: 2, rows: 2 });
-    assert.deepEqual(gridSize(4), { cols: 2, rows: 2 });
-    assert.deepEqual(gridSize(5), { cols: 3, rows: 2 });
-    assert.deepEqual(gridSize(6), { cols: 3, rows: 2 });
+const leaf = (pane: string): PaneLayout => ({ pane });
+const right = (a: PaneLayout, b: PaneLayout): PaneLayout => ({
+  dir: "right",
+  ratio: 0.5,
+  a,
+  b,
+});
+const down = (a: PaneLayout, b: PaneLayout): PaneLayout => ({
+  dir: "down",
+  ratio: 0.5,
+  a,
+  b,
+});
+
+describe("layoutRects", () => {
+  it("右は左右、下は上下に分け、入れ子にできる", () => {
+    const r = layoutRects(right(leaf("a"), down(leaf("b"), leaf("c"))));
+    assert.deepEqual(r.get("a"), { x: 0, y: 0, w: 0.5, h: 1 });
+    assert.deepEqual(r.get("b"), { x: 0.5, y: 0, w: 0.5, h: 0.5 });
+    assert.deepEqual(r.get("c"), { x: 0.5, y: 0.5, w: 0.5, h: 0.5 });
+  });
+
+  it("割合で分ける", () => {
+    const r = layoutRects({
+      dir: "right",
+      ratio: 0.25,
+      a: leaf("a"),
+      b: leaf("b"),
+    });
+    assert.deepEqual(r.get("a"), { x: 0, y: 0, w: 0.25, h: 1 });
+    assert.deepEqual(r.get("b"), { x: 0.25, y: 0, w: 0.75, h: 1 });
   });
 });
 
-describe("cellOf", () => {
-  it("升目が余るときは、最後のターミナルが残りの幅を使う", () => {
-    assert.deepEqual(cellOf(2, 3), { row: 1, col: 0, span: 2 });
-    assert.deepEqual(cellOf(4, 5), { row: 1, col: 1, span: 2 });
-    assert.deepEqual(cellOf(3, 4), { row: 1, col: 1, span: 1 });
-    assert.deepEqual(cellOf(5, 6), { row: 1, col: 2, span: 1 });
+describe("reconcileLayout", () => {
+  it("木が無ければ、欄を右・下・右…と交互に分けて並べる。数に上限は無い", () => {
+    const ids = ["p", "t1", "t2", "t3", "t4", "t5", "t6", "t7"];
+    const n = reconcileLayout(undefined, ids)!;
+    assert.deepEqual(layoutPanes(n), ids);
+    assert.equal("dir" in n && n.dir, "right");
+    assert.equal(layoutRects(n).size, 8);
+  });
+
+  it("合っている木は同じ物のまま返す", () => {
+    const n = right(leaf("a"), leaf("b"));
+    assert.equal(reconcileLayout(n, ["a", "b"]), n);
+  });
+
+  it("閉じた欄は外し、隣がその場所を埋める", () => {
+    const n = right(leaf("a"), down(leaf("b"), leaf("c")));
+    assert.deepEqual(
+      reconcileLayout(n, ["a", "c"]),
+      right(leaf("a"), leaf("c")),
+    );
+    assert.deepEqual(
+      reconcileLayout(n, ["a", "b"]),
+      right(leaf("a"), leaf("b")),
+    );
+    assert.deepEqual(
+      reconcileLayout(n, ["b", "c"]),
+      down(leaf("b"), leaf("c")),
+    );
+  });
+
+  it("木に無い欄は最後の欄を分けて足す", () => {
+    const n = reconcileLayout(right(leaf("a"), leaf("b")), ["a", "b", "c"]);
+    assert.deepEqual(n, right(leaf("a"), down(leaf("b"), leaf("c"))));
   });
 });
 
 describe("neighbor", () => {
-  it("左右は同じ行の隣、端では動かない", () => {
-    assert.equal(neighbor(0, 2, "right"), 1);
-    assert.equal(neighbor(1, 2, "right"), 1);
-    assert.equal(neighbor(1, 2, "left"), 0);
-    assert.equal(neighbor(0, 2, "left"), 0);
-    // 2×2 の右上から右へは、次の行に回らない
-    assert.equal(neighbor(1, 4, "right"), 1);
-    assert.equal(neighbor(2, 4, "left"), 2);
+  const tree = right(leaf("a"), down(leaf("b"), leaf("c")));
+  const rects = layoutRects(tree);
+
+  it("辺が接している欄へ移り、端では動かない", () => {
+    assert.equal(neighbor(rects, "a", "right"), "b"); // 上端にかかる欄
+    assert.equal(neighbor(rects, "b", "left"), "a");
+    assert.equal(neighbor(rects, "c", "left"), "a");
+    assert.equal(neighbor(rects, "b", "down"), "c");
+    assert.equal(neighbor(rects, "c", "up"), "b");
+    assert.equal(neighbor(rects, "a", "left"), undefined);
+    assert.equal(neighbor(rects, "a", "up"), undefined);
+    assert.equal(neighbor(rects, "c", "down"), undefined);
+    assert.equal(neighbor(rects, "c", "right"), undefined);
   });
 
-  it("上下は同じ列にかかる升へ。広い升からは左端の列で決める", () => {
-    assert.equal(neighbor(0, 4, "down"), 2);
-    assert.equal(neighbor(3, 4, "up"), 1);
-    assert.equal(neighbor(1, 3, "down"), 2); // 下は 2 升ぶんの幅
-    assert.equal(neighbor(2, 3, "up"), 0);
-    assert.equal(neighbor(2, 5, "down"), 4);
-    assert.equal(neighbor(4, 5, "up"), 1);
-    assert.equal(neighbor(0, 2, "down"), 0);
-    assert.equal(neighbor(0, 1, "up"), 0);
+  it("上下は、今の欄の左端にかかる欄へ", () => {
+    // a b / c c
+    const t = down(right(leaf("a"), leaf("b")), leaf("c"));
+    const r = layoutRects(t);
+    assert.equal(neighbor(r, "c", "up"), "a");
+    assert.equal(neighbor(r, "b", "down"), "c");
   });
 });
 
@@ -73,14 +127,16 @@ describe("keys", () => {
     assert.equal(directionKey(key("a")), null);
   });
 
-  it("Ctrl+Shift+T を新しいターミナルのキーにする", () => {
-    assert.equal(isNewTermKey(key("T", "KeyT")), true);
-    assert.equal(isNewTermKey(key("t")), true);
+  it("Linux は Ctrl+Shift+D で右、Ctrl+Shift+E で下に分ける", () => {
+    assert.equal(splitKey(key("D", "KeyD")), "right");
+    assert.equal(splitKey(key("d")), "right");
+    assert.equal(splitKey(key("E", "KeyE")), "down");
     assert.equal(
-      isNewTermKey(key("t", "KeyT", { ctrl: true, shift: false })),
-      false,
+      splitKey(key("d", "KeyD", { ctrl: true, shift: false })),
+      null,
     );
-    assert.equal(isNewTermKey(key("Y", "KeyY")), false);
+    // 前の Ctrl+Shift+T は欄を足さない
+    assert.equal(splitKey(key("T", "KeyT")), null);
   });
 
   it("Ctrl+Shift+M をプライマリ以外の欄を隠すキーにする", () => {

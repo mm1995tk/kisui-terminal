@@ -129,6 +129,8 @@ type handoverWS struct {
 	Primary string       `json:"primary"`
 	Shj     *handoverShj `json:"shj,omitempty"`
 	Extras  []extraPane  `json:"extras,omitempty"` // 欄の中から開いた、ターミナルでない欄（wsState.extras）
+	// Layout は欄の配置（分割の木）。古い serve は送らない（recompute が欄から作る）
+	Layout *layoutNode `json:"layout,omitempty"`
 }
 
 type handoverShj struct {

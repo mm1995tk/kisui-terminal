@@ -131,6 +131,11 @@ func TestPaneCmdOpen(t *testing.T) {
 		if err := c.Call(context.Background(), "workspace.list", map[string]any{}, &l); err != nil || len(l.Workspaces) != 1 {
 			t.Fatalf("workspace.list: %v %+v", err, l)
 		}
+		for _, e := range l.Workspaces[0].Extras {
+			if !layoutHas(l.Workspaces[0].Layout, e.ID) {
+				t.Fatalf("pane %s is not in the layout: %+v", e.ID, l.Workspaces[0].Layout)
+			}
+		}
 		return l.Workspaces[0].Extras
 	}
 	got := list()

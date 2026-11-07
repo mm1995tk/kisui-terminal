@@ -65,13 +65,23 @@ export interface Workspace {
   branch?: string;
   /** プライマリターミナル（ワークスペースを閉じるまで残る） */
   primary: TermId;
-  /** 分割したターミナル（0〜5 個） */
+  /** 分割したターミナル（個数に上限は無い） */
   terms: TermId[];
   /** プライマリターミナルの中で動いている TUI の shj。無ければ null（kisui serve は常に送る） */
   primaryShj?: PrimaryShj | null;
   /** プライマリの shj が開かせた、ターミナルでない欄（動画。#555）。並びはターミナルの後ろ。無ければ []（古い kisui serve は送らない） */
   extras?: ExtraPane[];
+  /** 欄の配置（分割の木）。葉は primary・terms・extras の id。古い kisui serve は送らない */
+  layout?: PaneLayout;
 }
+
+/** 欄を分ける向き：右（縦の境界。a が左、b が右）か下（横の境界。a が上、b が下） */
+export type SplitDir = "right" | "down";
+
+/** 欄の配置：葉が欄（pane は primary・terms・extras の id）、節が分割。ratio は a の割合（0〜1） */
+export type PaneLayout =
+  | { pane: string }
+  | { dir: SplitDir; ratio: number; a: PaneLayout; b: PaneLayout };
 
 /** ターミナルでない欄：動画（#555）・画像・PDF（どれもファイルを media.read で取る）かブラウザ（#556） */
 export interface ExtraPane {
@@ -166,6 +176,8 @@ export interface Requests {
       rows: number;
       shell?: string;
       env?: Record<string, string>;
+      /** 足す場所：欄 target（Workspace.layout の葉）を dir に分ける。無ければ自動。小さすぎる欄は busy で断られる */
+      split?: { target: string; dir: SplitDir };
     };
     result: { termId: TermId; pid: number; cwd: string };
   };
