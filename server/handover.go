@@ -18,16 +18,16 @@ package server
 // （古い serve が先に死んだときも、受け取った状態で動き始める）。
 
 import (
-	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
+	"maps"
 	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strings"
 	"syscall"
 	"time"
 
@@ -206,11 +206,16 @@ func (s *Server) leave() {
 	})
 }
 
+// handoverParams は server.handover のパラメータ。
+type handoverParams struct {
+	Executable string `json:"executable"`
+	// Env は新しい serve に渡す環境変数。古い serve の環境変数に上書きする（KISUI_SHJ_DIR は、ここに無ければ外す）。
+	Env map[string]string `json:"env"`
+}
+
 // handoverReq は server.handover。
 func (s *Server) handoverReq(req *rpc.Message) (any, error) {
-	var p struct {
-		Executable string `json:"executable"`
-	}
+	var p handoverParams
 	if err := json.Unmarshal(req.Params, &p); err != nil {
 		return nil, invalidParams(err)
 	}
@@ -221,105 +226,145 @@ func (s *Server) handoverReq(req *rpc.Message) (any, error) {
 	if err != nil || !fi.Mode().IsRegular() || fi.Mode()&0o111 == 0 {
 		return nil, rpc.Errorf(rpc.CodeInvalidParams, "not an executable file: %s", p.Executable)
 	}
-	pid, err := s.handover(p.Executable)
+	for k, v := range p.Env {
+		if k == "" || strings.ContainsAny(k, "=\x00") || strings.ContainsRune(v, 0) {
+			return nil, rpc.Errorf(rpc.CodeInvalidParams, "invalid env: %q", k)
+		}
+	}
+	pid, err := s.handover(p.Executable, successorEnv(os.Environ(), p.Env))
 	if err != nil {
 		return nil, err
 	}
 	return map[string]any{"pid": pid}, nil
 }
 
+// successorEnv は新しい serve の環境変数。古い serve のもの（古い GUI が kisui attach に渡したもの）から、
+// 古い版を指す KISUI_SHJ_DIR を外し、頼んだ側が渡した env を上書きする。KISUI_SHJ_DIR が無ければ、新しい serve は
+// 自分の実行ファイルの隣の shj を使う。
+func successorEnv(base []string, env map[string]string) []string {
+	out := slices.DeleteFunc(slices.Clone(base), func(e string) bool {
+		k, _, _ := strings.Cut(e, "=")
+		_, override := env[k]
+		return k == EnvShjDir || override
+	})
+	for _, k := range slices.Sorted(maps.Keys(env)) {
+		out = append(out, k+"="+env[k])
+	}
+	return out
+}
+
 // handover は exe の kisui serve に引き継ぐ。引き継いだら新しい serve の pid を返す。
 // 失敗したら、新しい serve を止めてから元に戻し、動き続ける。
-func (s *Server) handover(exe string) (int, error) {
-	s.mu.Lock()
-	if s.ho != nil || s.handedOver || s.closed || s.stopping {
-		s.mu.Unlock()
-		return 0, rpc.Errorf(rpc.CodeBusy, "kisui serve is stopping or handing over")
+func (s *Server) handover(exe string, env []string) (int, error) {
+	ho, err := s.beginHandover()
+	if err != nil {
+		return 0, err
 	}
-	ho := &handoverRun{done: make(chan struct{})}
-	s.ho = ho
-	s.mu.Unlock()
 	committed := false
 	defer func() {
 		if !committed {
-			s.mu.Lock()
-			s.ho = nil
-			s.mu.Unlock()
-			close(ho.done)
+			s.endHandover(ho)
 		}
 	}()
 	s.log.Info("handover: starting", "executable", exe)
-	cmd, conn, err := startSuccessor(exe)
+	succ, err := startSuccessor(exe, env)
 	if err != nil {
 		return 0, handoverError(s, "start the new kisui serve", err)
 	}
-	// abort は新しい serve を止める（受け取った fd で読み始めないうちに）。止めてから元に戻す。
-	abort := func() {
-		_ = cmd.Process.Kill()
-		_ = cmd.Wait()
-		conn.Close()
+	ver, err := succ.negotiate()
+	if err != nil {
+		succ.abort()
+		return 0, handoverError(s, "negotiate", err)
 	}
+	pid, err := s.transfer(succ, ver)
+	if err != nil {
+		return 0, err
+	}
+	committed = true
+	s.commit(ho, succ)
+	s.log.Info("handover: done", "pid", pid)
+	return pid, nil
+}
 
-	_ = conn.SetDeadline(time.Now().Add(handoverHelloTimeout))
-	var hello handoverMsg
-	if err := readFrame(conn, &hello); err != nil {
-		abort()
-		return 0, handoverError(s, "the new kisui serve did not answer", err)
+// beginHandover は引き継ぎを始めたことを覚える。止まる途中・別の引き継ぎの途中なら busy。
+func (s *Server) beginHandover() (*handoverRun, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.ho != nil || s.handedOver || s.closed || s.stopping {
+		return nil, rpc.Errorf(rpc.CodeBusy, "kisui serve is stopping or handing over")
 	}
-	if hello.Type == "error" {
-		abort()
-		return 0, handoverError(s, "the new kisui serve refused", errors.New(hello.Error))
-	}
-	ver := pickVersion(hello.Versions)
-	if hello.Type != "hello" || ver == 0 {
-		_ = writeFrame(conn, handoverMsg{Type: "error", Error: fmt.Sprintf("no common handover version (old %v, new %v)", handoverVersions, hello.Versions)})
-		abort()
-		return 0, handoverError(s, "no common handover version", fmt.Errorf("old %v, new %v", handoverVersions, hello.Versions))
-	}
+	s.ho = &handoverRun{done: make(chan struct{})}
+	return s.ho, nil
+}
 
+// endHandover は、引き継げずに終わったことを、待っている accept の goroutine に知らせる。
+func (s *Server) endHandover(ho *handoverRun) {
+	s.mu.Lock()
+	s.ho = nil
+	s.mu.Unlock()
+	close(ho.done)
+}
+
+// transfer は仕事を止めて、状態と fd を送り、ready を待つ。返るとき opMu の書きロックを持ったまま
+// （commit が離す）。失敗したら、新しい serve を止めてから元に戻し、ロックを離す。
+func (s *Server) transfer(succ *successor, ver int) (int, error) {
 	s.opMu.Lock()
 	unfreeze, err := s.freeze()
 	if err != nil {
-		abort()
+		succ.abort()
 		s.opMu.Unlock()
 		return 0, handoverError(s, "pause", err)
 	}
-	rollback := func(what string, err error) (int, error) {
-		abort()
+	pid, err := s.sendState(succ, ver)
+	if err != nil {
+		succ.abort() // 新しい serve が受け取った fd で読み始めないうちに止めてから、戻す
 		unfreeze()
 		s.opMu.Unlock()
-		return 0, handoverError(s, what, err)
+		return 0, err
 	}
+	return pid, nil
+}
+
+// sendState は止めた状態と fd を送り、新しい serve の ready を待って、その pid を返す。
+func (s *Server) sendState(succ *successor, ver int) (int, error) {
 	st, fds, err := s.collect(ver)
 	if err != nil {
-		return rollback("collect the state", err)
+		return 0, handoverError(s, "collect the state", err)
 	}
-	_ = conn.SetDeadline(time.Now().Add(handoverReadyTimeout))
-	if err := writeFrame(conn, handoverMsg{Type: "state", State: st}); err != nil {
-		return rollback("send the state", err)
+	_ = succ.conn.SetDeadline(time.Now().Add(handoverReadyTimeout))
+	if err := writeFrame(succ.conn, handoverMsg{Type: "state", State: st}); err != nil {
+		return 0, handoverError(s, "send the state", err)
 	}
-	if err := sendFDs(conn, fds); err != nil {
-		return rollback("send the file descriptors", err)
+	if err := sendFDs(succ.conn, fds); err != nil {
+		return 0, handoverError(s, "send the file descriptors", err)
 	}
 	var ready handoverMsg
-	if err := readFrame(conn, &ready); err != nil {
-		return rollback("the new kisui serve did not take over", err)
+	if err := readFrame(succ.conn, &ready); err != nil {
+		return 0, handoverError(s, "the new kisui serve did not take over", err)
 	}
 	if ready.Type != "ready" {
-		return rollback("the new kisui serve did not take over", errors.New(ready.Error))
+		return 0, handoverError(s, "the new kisui serve did not take over", errors.New(ready.Error))
 	}
+	return ready.PID, nil
+}
 
-	// ここで引き継いだことになる。以後、古い serve は PTY も shj の接続も読まない。
+// commit は引き継いだことにする。以後、古い serve は PTY も shj の接続も読まない。opMu の書きロックを離す。
+func (s *Server) commit(ho *handoverRun, succ *successor) {
 	s.mu.Lock()
 	s.handedOver = true
 	ho.committed = true
 	s.mu.Unlock()
-	committed = true
-	_ = writeFrame(conn, handoverMsg{Type: "go"})
-	conn.Close()
-	go func() { _ = cmd.Wait() }() // 新しい serve は setsid してある。終わったら刈り取るだけ
+	_ = writeFrame(succ.conn, handoverMsg{Type: "go"})
+	succ.conn.Close()
+	go func() { _ = succ.cmd.Wait() }() // 新しい serve は setsid してある。終わったら刈り取るだけ
+	s.reapShells()
+	close(ho.done)
+	s.opMu.Unlock()
+}
+
+// reapShells は、渡した自分の子のシェルが終わったら刈り取る（このプロセスが残っている間、ゾンビにしないため）。
+func (s *Server) reapShells() {
 	for _, t := range s.terms.all() {
-		// 渡したシェルが終わったら刈り取る（このプロセスが残っている間、ゾンビにしないため）
 		t.mu.Lock()
 		c, alive := t.cmd, t.alive
 		t.mu.Unlock()
@@ -327,10 +372,6 @@ func (s *Server) handover(exe string) (int, error) {
 			go func() { _ = c.Wait() }()
 		}
 	}
-	close(ho.done)
-	s.opMu.Unlock()
-	s.log.Info("handover: done", "pid", ready.PID)
-	return ready.PID, nil
 }
 
 func handoverError(s *Server, what string, err error) error {
@@ -349,10 +390,16 @@ func pickVersion(theirs []int) int {
 	return best
 }
 
+// successor は起動した新しい serve と、その socketpair。
+type successor struct {
+	cmd  *exec.Cmd
+	conn *net.UnixConn
+}
+
 // startSuccessor は exe を `serve --handover` で起動し、socketpair の片方を fd 3 で渡す。
 // 新しい serve は GUI から切り離す（setsid。標準入出力は /dev/null。ログは自分のファイルへ）。
 // 標準エラー出力をパイプにしないのは、古い serve が終わったあとに書かれて新しい serve が死なないように。
-func startSuccessor(exe string) (*exec.Cmd, *net.UnixConn, error) {
+func startSuccessor(exe string, env []string) (*successor, error) {
 	syscall.ForkLock.RLock()
 	pair, err := syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_STREAM, 0)
 	if err == nil {
@@ -361,30 +408,57 @@ func startSuccessor(exe string) (*exec.Cmd, *net.UnixConn, error) {
 	}
 	syscall.ForkLock.RUnlock()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	mine, theirs := os.NewFile(uintptr(pair[0]), "handover"), os.NewFile(uintptr(pair[1]), "handover")
 	defer theirs.Close()
 	c, err := net.FileConn(mine)
 	mine.Close()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	null, err := os.OpenFile(os.DevNull, os.O_RDWR, 0)
 	if err != nil {
 		c.Close()
-		return nil, nil, err
+		return nil, err
 	}
 	defer null.Close()
 	cmd := exec.Command(exe, "serve", "--handover")
+	cmd.Env = env
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = null, null, null
 	cmd.ExtraFiles = []*os.File{theirs} // fd 3
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 	if err := cmd.Start(); err != nil {
 		c.Close()
-		return nil, nil, err
+		return nil, err
 	}
-	return cmd, c.(*net.UnixConn), nil
+	return &successor{cmd: cmd, conn: c.(*net.UnixConn)}, nil
+}
+
+// negotiate は新しい serve の hello を待ち、使う版を決める。
+func (succ *successor) negotiate() (int, error) {
+	_ = succ.conn.SetDeadline(time.Now().Add(handoverHelloTimeout))
+	var hello handoverMsg
+	if err := readFrame(succ.conn, &hello); err != nil {
+		return 0, fmt.Errorf("the new kisui serve did not answer: %w", err)
+	}
+	if hello.Type == "error" {
+		return 0, fmt.Errorf("the new kisui serve refused: %s", hello.Error)
+	}
+	ver := pickVersion(hello.Versions)
+	if hello.Type != "hello" || ver == 0 {
+		err := fmt.Errorf("no common handover version (old %v, new %v)", handoverVersions, hello.Versions)
+		_ = writeFrame(succ.conn, handoverMsg{Type: "error", Error: err.Error()})
+		return 0, err
+	}
+	return ver, nil
+}
+
+// abort は新しい serve を止める（受け取った fd で読み始めないうちに）。
+func (succ *successor) abort() {
+	_ = succ.cmd.Process.Kill()
+	_ = succ.cmd.Wait()
+	succ.conn.Close()
 }
 
 // RefuseHandover は、`kisui serve --handover` が引き継ぐ前に失敗したとき（設定の間違いなど）、
@@ -398,305 +472,4 @@ func RefuseHandover(f *os.File, err error) {
 	defer c.Close()
 	_ = c.SetDeadline(time.Now().Add(5 * time.Second))
 	_ = writeFrame(c, handoverMsg{Type: "error", Error: err.Error()})
-}
-
-// freeze は、状態を変えるものを止める。s.opMu の書きロックを持って呼ぶ（GUI の要求などはもう止まっている）。
-// 待ち受け・名乗った shj の接続・PTY の読みを、読みの期限で止める。戻すときは unfreeze を呼ぶ。
-func (s *Server) freeze() (unfreeze func(), err error) {
-	var undo []func()
-	unfreeze = func() {
-		for i := len(undo) - 1; i >= 0; i-- {
-			undo[i]()
-		}
-	}
-	past := time.Unix(1, 0)
-	s.ln.SetUnlinkOnClose(false)
-	undo = append(undo, func() { s.ln.SetUnlinkOnClose(true) })
-	if err := s.ln.SetDeadline(past); err != nil {
-		unfreeze()
-		return nil, err
-	}
-	undo = append(undo, func() { _ = s.ln.SetDeadline(time.Time{}) })
-	s.mu.Lock()
-	p := s.primary
-	s.mu.Unlock()
-	if p != nil {
-		p.ln.SetUnlinkOnClose(false)
-		undo = append(undo, func() { p.ln.SetUnlinkOnClose(true) })
-		if err := p.ln.SetDeadline(past); err != nil {
-			unfreeze()
-			return nil, err
-		}
-		undo = append(undo, func() { _ = p.ln.SetDeadline(time.Time{}) })
-		p.mu.Lock()
-		var links []*primaryLink
-		for _, l := range p.links {
-			links = append(links, l)
-		}
-		p.mu.Unlock()
-		for _, l := range links {
-			l.mu.Lock()
-			if l.claim == nil || l.ended {
-				l.mu.Unlock()
-				continue // 名乗る前の接続は渡さない
-			}
-			l.pausing, l.parked, l.resume = true, make(chan struct{}), make(chan struct{})
-			parked, resume := l.parked, l.resume
-			l.mu.Unlock()
-			undo = append(undo, func() {
-				_ = l.conn.SetReadDeadline(time.Time{})
-				l.mu.Lock()
-				l.pausing = false
-				l.mu.Unlock()
-				close(resume)
-			})
-			if err := l.conn.SetReadDeadline(past); err != nil {
-				unfreeze()
-				return nil, err
-			}
-			select {
-			case <-parked:
-			case <-time.After(handoverPauseTimeout):
-				unfreeze()
-				return nil, errors.New("a shj connection did not pause")
-			}
-		}
-	}
-	for _, t := range s.terms.all() {
-		t.mu.Lock()
-		done := t.pumpDone
-		if done == nil {
-			t.mu.Unlock()
-			continue
-		}
-		select {
-		case <-done:
-			t.mu.Unlock()
-			continue
-		default:
-		}
-		t.pausing, t.parked, t.resume = true, make(chan struct{}), make(chan struct{})
-		ptmx, parked, resume := t.ptmx, t.parked, t.resume
-		t.mu.Unlock()
-		undo = append(undo, func() {
-			_ = ptmx.SetReadDeadline(time.Time{})
-			t.mu.Lock()
-			t.pausing = false
-			t.mu.Unlock()
-			close(resume)
-		})
-		if err := ptmx.SetReadDeadline(past); err != nil {
-			unfreeze()
-			return nil, fmt.Errorf("terminal %s: %w", t.id, err)
-		}
-		select {
-		case <-parked:
-		case <-done:
-		case <-time.After(handoverPauseTimeout):
-			unfreeze()
-			return nil, fmt.Errorf("terminal %s did not pause", t.id)
-		}
-	}
-	return unfreeze, nil
-}
-
-// collect は、止めた状態を handoverState と、送る fd の並びにする。fd は持っているものの番号をそのまま使う
-// （止めている間は閉じないので、送り終えるまで有効）。
-func (s *Server) collect(ver int) (*handoverState, []int, error) {
-	var fds []int
-	add := func(sc syscall.Conn) (int, error) {
-		rc, err := sc.SyscallConn()
-		if err != nil {
-			return -1, err
-		}
-		var fd int
-		if err := rc.Control(func(f uintptr) { fd = int(f) }); err != nil {
-			return -1, err
-		}
-		fds = append(fds, fd)
-		return len(fds) - 1, nil
-	}
-	st := &handoverState{Version: ver, SocketPath: s.opts.SocketPath, PrimaryLn: -1, ServerID: s.serverID, StartedAt: s.startedAt}
-	var err error
-	if st.Listener, err = add(s.ln); err != nil {
-		return nil, nil, err
-	}
-	s.mu.Lock()
-	p := s.primary
-	st.Rev = s.rev
-	st.LastClient = s.lastClient
-	if len(s.sessions) > 0 {
-		st.LastClient = s.now() // つながっている GUI は引き継ぎのあとに切れる
-	}
-	s.mu.Unlock()
-
-	// 名乗った shj の接続（止まっているもの）
-	if p != nil {
-		st.PrimaryPath = p.path
-		if st.PrimaryLn, err = add(p.ln); err != nil {
-			return nil, nil, err
-		}
-		p.mu.Lock()
-		var links []*primaryLink
-		for _, l := range p.links {
-			links = append(links, l)
-		}
-		p.mu.Unlock()
-		for _, l := range links {
-			l.mu.Lock()
-			claim, ended := l.claim, l.ended
-			l.mu.Unlock()
-			if claim == nil || ended {
-				continue
-			}
-			uc, ok := l.conn.(*net.UnixConn)
-			if !ok {
-				continue
-			}
-			fd, err := add(uc)
-			if err != nil {
-				return nil, nil, err
-			}
-			st.Links = append(st.Links, handoverLink{Workspace: claim.wsID, FD: fd, Pending: l.pending()})
-		}
-	}
-
-	// ワークスペース
-	w := s.ws
-	w.mu.Lock()
-	st.NextWorkspace, st.NextExtra, st.Focus = w.next, w.nextExtra, w.focus
-	for _, x := range w.reg {
-		hw := handoverWS{ID: x.id, Seq: x.seq, Root: x.root, Kind: x.kind, Primary: x.primary}
-		if x.shj != nil {
-			hw.Shj = &handoverShj{Socket: x.shj.Socket, PID: x.shj.PID, File: x.shj.File,
-				Panes: slices.Clone(x.shj.panes), Extras: slices.Clone(x.shj.extras)}
-		}
-		st.Workspaces = append(st.Workspaces, hw)
-	}
-	w.mu.Unlock()
-	slices.SortFunc(st.Workspaces, func(a, b handoverWS) int { return a.Seq - b.Seq })
-
-	// ターミナル
-	s.terms.mu.Lock()
-	st.NextTerm = s.terms.next
-	s.terms.mu.Unlock()
-	for _, t := range s.terms.all() {
-		t.mu.Lock()
-		ht := handoverTerm{ID: t.id, PID: t.pid, FD: -1, Cwd: t.cwd, Workspace: t.wsID, Primary: t.primary,
-			Cols: t.cols, Rows: t.rows, Title: t.title, Alive: t.alive, Sent: t.sent, Acked: t.acked}
-		ht.RingStart, ht.Ring = t.ringBytes(t.oldest(), t.total)
-		ptmx := t.ptmx
-		res := t.feed.snapshot(snapshotScrollback)
-		t.mu.Unlock()
-		if ht.Alive {
-			if ht.FD, err = add(ptmx); err != nil {
-				return nil, nil, fmt.Errorf("terminal %s: %w", t.id, err)
-			}
-		}
-		if r := <-res; r.err == nil {
-			ht.Screen = r.data
-		} else {
-			s.log.Warn("handover: no screen state", "termId", t.id, "err", r.err)
-		}
-		st.Terms = append(st.Terms, ht)
-	}
-	slices.SortFunc(st.Terms, func(a, b handoverTerm) int { return termIDNum(a.ID) - termIDNum(b.ID) })
-
-	// ツリーの監視
-	tw := s.tree.w
-	tw.mu.Lock()
-	if len(tw.ws) > 0 {
-		st.Tree = map[string]map[string]string{}
-		for id, m := range tw.ws {
-			cp := map[string]string{}
-			for k, v := range m {
-				cp[k] = v
-			}
-			st.Tree[id] = cp
-		}
-	}
-	tw.mu.Unlock()
-	st.TreeRev, st.GitRev = s.tree.rev.Load(), s.tree.gitRev.Load()
-	st.FDs = len(fds)
-	return st, fds, nil
-}
-
-func writeFrame(c net.Conn, m handoverMsg) error {
-	b, err := json.Marshal(m)
-	if err != nil {
-		return err
-	}
-	var n [4]byte
-	binary.BigEndian.PutUint32(n[:], uint32(len(b)))
-	if _, err := c.Write(n[:]); err != nil {
-		return err
-	}
-	_, err = c.Write(b)
-	return err
-}
-
-func readFrame(c net.Conn, m *handoverMsg) error {
-	var n [4]byte
-	if _, err := io.ReadFull(c, n[:]); err != nil {
-		return err
-	}
-	size := binary.BigEndian.Uint32(n[:])
-	if size > maxHandoverFrame {
-		return fmt.Errorf("handover message too large: %d", size)
-	}
-	b := make([]byte, size)
-	if _, err := io.ReadFull(c, b); err != nil {
-		return err
-	}
-	return json.Unmarshal(b, m)
-}
-
-// sendFDs は fds を fdBatch ずつ送る。1 回は 1 バイト（その回の数）に SCM_RIGHTS を付けたもの。
-func sendFDs(c *net.UnixConn, fds []int) error {
-	for len(fds) > 0 {
-		n := min(len(fds), fdBatch)
-		if _, _, err := c.WriteMsgUnix([]byte{byte(n)}, syscall.UnixRights(fds[:n]...), nil); err != nil {
-			return err
-		}
-		fds = fds[n:]
-	}
-	return nil
-}
-
-// recvFDs は sendFDs が送った n 個の fd を受ける。受けた fd は close-on-exec（net が付ける）。
-func recvFDs(c *net.UnixConn, n int) ([]int, error) {
-	var out []int
-	buf := make([]byte, 1)
-	oob := make([]byte, syscall.CmsgSpace(fdBatch*4))
-	for len(out) < n {
-		_, oobn, flags, _, err := c.ReadMsgUnix(buf, oob)
-		if err != nil {
-			closeFDs(out)
-			return nil, err
-		}
-		msgs, err := syscall.ParseSocketControlMessage(oob[:oobn])
-		if err != nil {
-			closeFDs(out)
-			return nil, err
-		}
-		var got []int
-		for i := range msgs {
-			fds, err := syscall.ParseUnixRights(&msgs[i])
-			if err == nil {
-				got = append(got, fds...)
-			}
-		}
-		out = append(out, got...)
-		if flags&syscall.MSG_CTRUNC != 0 || len(got) != int(buf[0]) {
-			closeFDs(out)
-			return nil, errors.New("file descriptors were cut off")
-		}
-	}
-	return out, nil
-}
-
-func closeFDs(fds []int) {
-	for _, fd := range fds {
-		syscall.Close(fd)
-	}
 }

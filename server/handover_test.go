@@ -9,12 +9,14 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"slices"
 	"strings"
 	"syscall"
 	"testing"
 	"time"
 
 	"github.com/mm1995tk/kisui-terminal/internal/ctl"
+	"github.com/mm1995tk/kisui-terminal/internal/term"
 	"github.com/mm1995tk/kisui-terminal/rpc"
 )
 
@@ -66,7 +68,7 @@ func handOver(t *testing.T, c *rpc.Conn, sock string) int {
 	var r struct {
 		PID int `json:"pid"`
 	}
-	if err := c.Call(context.Background(), "server.handover", map[string]any{"executable": exe}, &r); err != nil {
+	if err := c.Call(context.Background(), "server.handover", map[string]any{"executable": exe, "env": map[string]string{"KISUI_TEST_MARK": "from-gui"}}, &r); err != nil {
 		t.Fatal(err)
 	}
 	if r.PID <= 0 || r.PID == os.Getpid() {
@@ -114,6 +116,7 @@ func attachTerm(t *testing.T, c *rpc.Conn, id string) attachResult {
 // 引き継ぐ間に出た出力も落ちない。GUI は同じ serverId でつなぎ直せる。
 func TestHandoverKeepsShellsRunning(t *testing.T) {
 	t.Setenv("HOME", normalizePath(t.TempDir()))
+	t.Setenv(EnvShjDir, t.TempDir()) // 古い GUI が渡した、古い版の shj のフォルダ
 	srv, sock := startFast(t)
 	c, nt := termClient(t, sock)
 	ctx := context.Background()
@@ -163,6 +166,12 @@ func TestHandoverKeepsShellsRunning(t *testing.T) {
 	if _, ok := before[nid]; ok || termIDNum(nid) <= termIDNum(id) {
 		t.Errorf("new terminal id %s after %s", nid, id)
 	}
+	// 新しい serve の環境変数：古い版を指す KISUI_SHJ_DIR は外れ、頼んだ側の env が入る
+	c2.Call(ctx, "term.input", map[string]any{"termId": nid, "data": b64("echo \"env:[$KISUI_TEST_MARK][$KISUI_SHJ_DIR]\"\n")}, nil)
+	waitFor(t, "env of the new serve", func() bool {
+		out, _ := nt2.output(t, nid)
+		return bytes.Contains(out, []byte("env:[from-gui][]"))
+	})
 	// 新しい serve でも、もう一度引き継げる
 	pid2 := handOver(t, c2, sock)
 	c3, nt3 := termClient(t, sock)
@@ -376,4 +385,44 @@ func TestHelloAdvertisesHandover(t *testing.T) {
 	if !found {
 		t.Errorf("capabilities: %v", h.Capabilities)
 	}
+}
+
+// 新しい serve の環境変数は、古い serve のものから KISUI_SHJ_DIR を外し、頼んだ側の env を上書きしたもの。
+func TestSuccessorEnv(t *testing.T) {
+	base := []string{"HOME=/h", "PATH=/old/bin", EnvShjDir + "=/old/shj", "LANG=C"}
+	got := successorEnv(base, map[string]string{"PATH": "/new/bin", "X": "1"})
+	want := []string{"HOME=/h", "LANG=C", "PATH=/new/bin", "X=1"}
+	if !slices.Equal(got, want) {
+		t.Errorf("got %v, want %v", got, want)
+	}
+	got = successorEnv(base, map[string]string{EnvShjDir: "/new/shj"})
+	if !slices.Contains(got, EnvShjDir+"=/new/shj") || slices.Contains(got, EnvShjDir+"=/old/shj") {
+		t.Errorf("KISUI_SHJ_DIR: %v", got)
+	}
+}
+
+// 引き継いだシェル（子でない）が終わったら、もう合図を送らない（pid が使い回されても別のプロセスに届かない）。
+func TestAdoptedShellExitForgetsProcess(t *testing.T) {
+	srv, _ := start(t)
+	sess, err := term.Start(term.Options{Shell: "/bin/sh", Args: []string{"-c", "exit 0"}, Cols: 80, Rows: 24})
+	if err != nil {
+		t.Fatal(err)
+	}
+	go sess.Cmd().Wait() // 刈り取るのは前の serve（ここではテスト）
+	p, err := os.FindProcess(sess.Pid())
+	if err != nil {
+		t.Fatal(err)
+	}
+	tm := &terminal{
+		mgr: srv.terms, id: "t99", pid: sess.Pid(), ptmx: pollable(sess.File(), srv.log), process: p,
+		alive: true, cols: 80, rows: 24, ring: make([]byte, ringSize), feed: newScreenFeed(srv.log, 24, 80),
+	}
+	srv.terms.mu.Lock()
+	srv.terms.terms[tm.id] = tm
+	tm.startPump()
+	srv.terms.mu.Unlock()
+	waitFor(t, "exit", func() bool {
+		_, proc := tm.proc()
+		return !tm.isAlive() && proc == nil
+	})
 }

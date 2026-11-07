@@ -54,12 +54,10 @@ type primaryLink struct {
 	r       *bufio.Reader
 	partial []byte // 読みかけの行
 
-	mu      sync.Mutex
-	claim   *primaryShj   // 名乗りが通った shj。名乗る前は nil
-	ended   bool          // 読みが終わった（shj が切った）
-	pausing bool          // 引き継ぎで止めるよう頼まれている
-	parked  chan struct{} // 止まったか、読みが終わったら閉じる
-	resume  chan struct{} // 閉じると読み直す
+	mu    sync.Mutex
+	claim *primaryShj // 名乗りが通った shj。名乗る前は nil
+	ended bool        // 読みが終わった（shj が切った）。mu の中で pause.end を呼ぶ
+	pause pauser      // 引き継ぎで読みを止める
 }
 
 // maxPrimaryLine は serve-primary.rpc の 1 行の上限。
@@ -101,29 +99,12 @@ func (l *primaryLink) pending() []byte {
 	return append(slices.Clone(l.partial), b...)
 }
 
-// park は、止めるよう頼まれていれば止まったことを知らせて resume まで待ち、true を返す。
-func (l *primaryLink) park() bool {
-	l.mu.Lock()
-	if !l.pausing {
-		l.mu.Unlock()
-		return false
-	}
-	parked, resume := l.parked, l.resume
-	l.mu.Unlock()
-	close(parked)
-	<-resume
-	return true
-}
-
 // end は読みが終わったことを覚える。止めるよう頼まれていれば、待っている側を起こす。
 func (l *primaryLink) end() {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.ended = true
-	if l.pausing {
-		l.pausing = false
-		close(l.parked)
-	}
+	l.pause.end()
 }
 
 // startPrimary は serve-primary.rpc を開く。開けなくても serve は動く（プライマリの shj を知れないだけ）。
@@ -278,7 +259,7 @@ func (s *Server) followShj(l *primaryLink) {
 			continue
 		}
 		if errors.Is(err, os.ErrDeadlineExceeded) {
-			if !l.park() {
+			if !l.pause.park() {
 				_ = l.conn.SetReadDeadline(time.Time{}) // 止めるのをやめたあとに残った期限
 			}
 			continue

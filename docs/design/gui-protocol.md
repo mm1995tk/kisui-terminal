@@ -279,7 +279,7 @@ P13-09（#385）で `Core` を `core` に移し、分割を終えた。`ui/tui` 
 | `session.ping` | → shj | `{}` → `{}`。生きているかの確認（GUI が 15 秒ごと。ssh が黙って切れたときに気づく） |
 | `server.info` | → shj | `{}` → `{shj, serverId, pid, uptime, lastClientAt, idleStopAt, workspaces: n, terminals: n}` |
 | `server.shutdown` | → shj | `{force?: bool}` → `{terminals: n}`。ターミナルが動いていると `force` が無い限り `busy` で断る。GUI は確認を出してから送る |
-| `server.handover` | → shj | `{executable}` → `{pid}`。`executable`（絶対パス）の `kisui serve` に、欄のシェルと画面を消さずに入れ替わる。`pid` は新しい `kisui serve` の pid。返事のあと、古い `kisui serve` は GUI の接続を閉じて終わる。失敗したら `internal_error`（古い `kisui serve` はそのまま動き続ける）、`executable` が実行ファイルの絶対パスでなければ `invalid_params`、止まる途中・別の引き継ぎの途中なら `busy`。`capabilities` に `server.handover` があるときだけ使える。手順は「`kisui serve` の引き継ぎ」の節 |
+| `server.handover` | → shj | `{executable, env?}` → `{pid}`。`executable`（絶対パス）の `kisui serve` に、欄のシェルと画面を消さずに入れ替わる。`env`（`{名前: 値}`）は新しい `kisui serve` に渡す環境変数（下の「環境変数」）。`pid` は新しい `kisui serve` の pid。返事のあと、古い `kisui serve` は GUI の接続を閉じて終わる。失敗したら `internal_error`（古い `kisui serve` はそのまま動き続ける）、`executable` が実行ファイルの絶対パスでなければ `invalid_params`、止まる途中・別の引き継ぎの途中なら `busy`。`capabilities` に `server.handover` があるときだけ使える。手順は「`kisui serve` の引き継ぎ」の節 |
 
 - **バージョンの確認**：`protocol.major` が合わないと `incompatible_protocol`。`protocol.minor` は上がっても互換（足されるだけ）。知らない通知は無視し、知らないメソッドは `-32601`。新しい機能は `capabilities` の文字列で見分ける。
 - **shj と GUI の版が違うとき**：GUI は `shj.version` を自分の版と比べる。違えば「古い shj が動いています」と出し、ユーザーが決めたときだけ `server.shutdown` で入れ替える（動いているシェルが消えるため、自動ではやらない）。`capabilities` に `server.handover` がある `kisui serve` は、シェルを消さずに `server.handover` で入れ替えられる（GUI から頼む部分は後の Issue）。
@@ -490,7 +490,7 @@ GUI はシステムの `ssh` を子プロセスとして起動する（`~/.ssh/c
 
 `kisui serve` は GUI から切り離して動くので、GUI を更新しても前の版の serve が動き続ける。`server.handover` で、動いている serve（古い serve）が、欄のシェルと画面を消さずに別の実行ファイルの serve（新しい serve）に入れ替わる。protocol 4.1 で足した（`capabilities` に `server.handover`）。これより前の serve は引き継げないので、ユーザーが 1 回だけ手で終わらせる。実装は `server/handover.go`（古い serve）と `server/adopt.go`（新しい serve）。
 
-1. **起動**：古い serve は、頼まれた実行ファイルを `kisui serve --handover` で起動する（自分で実行ファイルを探さない）。`setsid` で GUI から切り離し、標準入出力は `/dev/null`。socketpair の片方を fd 3 で渡し、その上で話す（1 通は 4 バイトの長さ + JSON。fd は SCM_RIGHTS で 64 個ずつ）。
+1. **起動**：古い serve は、頼まれた実行ファイルを `kisui serve --handover` で起動する（自分で実行ファイルを探さない）。環境変数は「環境変数」の項のとおり。`setsid` で GUI から切り離し、標準入出力は `/dev/null`。socketpair の片方を fd 3 で渡し、その上で話す（1 通は 4 バイトの長さ + JSON。fd は SCM_RIGHTS で 64 個ずつ）。
 2. **hello**（新 → 古）：新しい serve が話せる引き継ぎの版の一覧。古い serve は両方にある一番新しい版を使う（今は 1）。設定の間違いなどで起動できなければ、新しい serve は理由を `error` で返す。版は、手順とデータの形を変えるときに足し、前の版もしばらく話せるようにする（前後の版どうしで引き継げるように）。
 3. **止める**（古い serve）：状態を変える仕事（GUI の要求・shj の名乗りと欄の頼み・cwd とツリーの見回り・idle の停止）を止め、進んでいるものが終わるのを待つ。待ち受け（`serve.rpc`・`serve-primary.rpc`）の `accept`、名乗った shj の接続の読み、PTY の読みを、読みの期限で止める（閉じない）。止めている間に届いた PTY の出力は PTY に、新しい接続は待ち受けのキューに残る。
 4. **state**（古 → 新）と fd：渡すのは次のもの。
@@ -505,7 +505,8 @@ GUI はシステムの `ssh` を子プロセスとして起動する（`~/.ssh/c
 - **失敗したとき**：5 より前に失敗したら（新しい serve が `error` を返した・終わった・時間切れ）、古い serve は新しい serve を SIGKILL で止めてから、止めていたものを戻して動き続ける。シェルも画面も GUI の接続も失わない。新しい serve は `go` か接続が閉じるのを待つまで何も読まないので、止められれば何も取らない。
 - **GUI の接続と要求**：GUI の接続は渡さない（古い serve が閉じ、GUI は `kisui attach` でつなぎ直す。新しい serve は同じソケットにいる）。引き継ぐ間に届いた要求は待たされ、引き継いだあとは何もせずに `busy`（`data.reason` は `handover`）で断るので、GUI はつなぎ直してから送り直せる。引き継いだあとに届いた通知（`term.ack`）は捨てる（つなぎ直したら `term.attach` で取り直すので要らない）。
 - **渡さないもの**：名乗る前の shj の接続と、`serve-primary.rpc` で処理を待っていた欄の頼みは、引き継いだあとに断る（その一瞬に名乗った shj は、プライマリの shj にならない）。git の状態のキャッシュは新しい serve が取り直す。出力の途中で切れたタイトル（OSC 0 / 2）は捨てる。ターミナルでない欄（動画・ブラウザ）は、プライマリの shj の状態としてそのまま渡す（中身は GUI が `media.read` で取るので、serve は持っていない）。
-- **シェルの終わりを知る**：引き継いだシェルは新しい serve の子ではないので `wait` できない。PTY の master の読みが終わった（シェルとその子が端末を手放した）あと、プロセスが無くなるまで待ってから `term.exit` を送る（Linux では pidfd を使うので、pid が使い回されても取り違えない）。終了コードは分からないので `code` は無い。古い serve は、引き継いだあと終わるまでの間、自分の子のシェルを刈り取る。
+- **シェルの終わりを知る**：引き継いだシェルは新しい serve の子ではないので `wait` できない。PTY の master の読みが終わった（シェルとその子が端末を手放した）あと、プロセスが無くなるまで待ってから `term.exit` を送る（Linux では pidfd を使うので、pid が使い回されても取り違えない）。終了コードは分からないので `code` は無い。終わったシェルにはもう合図を送らない（閉じるときの SIGHUP を、使い回された pid に送らないため）。pidfd の無い macOS では `kill(pid, 0)` で確かめるので、シェルが終わってから確かめるまでの間に pid が使い回されると、終わりに気づかず `term.exit` が届かないことがある（まれ）。古い serve は、引き継いだあと終わるまでの間、自分の子のシェルを刈り取る。
+- **環境変数**：新しい serve の環境変数は、古い serve のもの（古い GUI が `kisui attach` に渡したもの）から `KISUI_SHJ_DIR` を外し、`server.handover` の `env` を上書きしたもの。`KISUI_SHJ_DIR` は古い版の shj を指しているので外す（無ければ新しい serve は自分の実行ファイルの隣の shj を使う。Nix のパッケージのように隣に無い配り方では、GUI が `env` で新しい版のフォルダを渡す）。`PATH` なども、変えたければ GUI が `env` で渡す。
 - **Linux と macOS**：PTY の読みを止めるのに、読みの期限（`SetReadDeadline`）を使う。creack/pty は ioctl のたびに master を blocking にする（macOS では初めから blocking）ので、`kisui serve` は master を dup して O_NONBLOCK にしたものを使い、大きさの変更も自分で ioctl する。期限が効かない master があると、引き継ぎは止める前に断る（古い serve は動き続ける）。
 
 ### GUI の配り方と自動更新（C8）

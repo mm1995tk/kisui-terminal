@@ -79,17 +79,69 @@ func Adopt(opts Options, f *os.File) (*Server, error) {
 	return srv, nil
 }
 
-// adoptState は受け取った状態から Server を作る。まだ何も読まない。失敗したら受け取った fd を全部閉じる。
+// fdTable は受け取った fd。take で 1 つずつ使い、失敗したら closeUnused で使っていないものを閉じる。
+type fdTable struct {
+	fds  []int
+	used []bool
+}
+
+func newFDTable(fds []int) *fdTable { return &fdTable{fds: fds, used: make([]bool, len(fds))} }
+
+// take は i 番目の fd を *os.File にする（以後の持ち主は呼んだ側）。
+func (ft *fdTable) take(i int, name string) (*os.File, error) {
+	if i < 0 || i >= len(ft.fds) || ft.used[i] {
+		return nil, fmt.Errorf("bad file descriptor index %d", i)
+	}
+	ft.used[i] = true
+	return os.NewFile(uintptr(ft.fds[i]), name), nil
+}
+
+// listener は i 番目の fd を待ち受けにする。自分で作ったときと同じく、閉じたら消すようにする。
+func (ft *fdTable) listener(i int, name string) (*net.UnixListener, error) {
+	f, err := ft.take(i, name)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	ln, err := net.FileListener(f)
+	if err != nil {
+		return nil, err
+	}
+	ul, ok := ln.(*net.UnixListener)
+	if !ok {
+		ln.Close()
+		return nil, fmt.Errorf("%s is not a Unix socket", name)
+	}
+	ul.SetUnlinkOnClose(true)
+	return ul, nil
+}
+
+// conn は i 番目の fd を接続にする。
+func (ft *fdTable) conn(i int, name string) (net.Conn, error) {
+	f, err := ft.take(i, name)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	return net.FileConn(f)
+}
+
+func (ft *fdTable) closeUnused() {
+	for i, fd := range ft.fds {
+		if !ft.used[i] {
+			closeFD(fd)
+		}
+	}
+}
+
+// adoptState は受け取った状態から Server を作る。まだ何も読まない。失敗したら受け取ったものを全部閉じる
+// （シェルに合図は送らない。古い serve が動き続ける）。
 func adoptState(opts Options, st *handoverState, fds []int) (_ *Server, err error) {
+	ft := newFDTable(fds)
 	var srv *Server
-	used := make([]bool, len(fds))
 	defer func() {
 		if err != nil {
-			for i, fd := range fds {
-				if !used[i] {
-					closeFD(fd)
-				}
-			}
+			ft.closeUnused()
 			if srv != nil {
 				srv.dropAdopted()
 			}
@@ -104,53 +156,37 @@ func adoptState(opts Options, st *handoverState, fds []int) (_ *Server, err erro
 	if len(fds) != st.FDs {
 		return nil, fmt.Errorf("got %d file descriptors, want %d", len(fds), st.FDs)
 	}
-	file := func(i int, name string) (*os.File, error) {
-		if i < 0 || i >= len(fds) || used[i] {
-			return nil, fmt.Errorf("bad file descriptor index %d", i)
-		}
-		used[i] = true
-		return os.NewFile(uintptr(fds[i]), name), nil
-	}
-	listener := func(i int, name string) (*net.UnixListener, error) {
-		f, err := file(i, name)
-		if err != nil {
-			return nil, err
-		}
-		defer f.Close()
-		ln, err := net.FileListener(f)
-		if err != nil {
-			return nil, err
-		}
-		ul, ok := ln.(*net.UnixListener)
-		if !ok {
-			ln.Close()
-			return nil, fmt.Errorf("%s is not a Unix socket", name)
-		}
-		ul.SetUnlinkOnClose(true) // 自分で作ったときと同じく、閉じたら消す
-		return ul, nil
-	}
-
-	ln, err := listener(st.Listener, "serve.rpc")
+	ln, err := ft.listener(st.Listener, "serve.rpc")
 	if err != nil {
 		return nil, err
 	}
 	srv = newServer(opts, ln)
 	srv.serverID, srv.startedAt, srv.lastClient, srv.rev = st.ServerID, st.StartedAt, st.LastClient, st.Rev
-	ad := &adoption{}
-	srv.adopted = ad
+	srv.adopted = &adoption{}
+	if err := srv.adoptTerms(st, ft); err != nil {
+		return nil, err
+	}
+	srv.adoptWorkspaces(st)
+	if err := srv.adoptLinks(st, ft); err != nil {
+		return nil, err
+	}
+	srv.adoptTree(st)
+	return srv, nil
+}
 
-	// ターミナル
-	m := srv.terms
+// adoptTerms はターミナルを作り直す。画面の状態は書き出しを新しいエミュレーターに書いて戻す。
+func (s *Server) adoptTerms(st *handoverState, ft *fdTable) error {
+	m := s.terms
 	m.next = st.NextTerm
 	for _, ht := range st.Terms {
 		if ht.Cols <= 0 || ht.Rows <= 0 || ht.RingStart < 0 || ht.RingStart+int64(len(ht.Ring)) < ht.RingStart {
-			return nil, fmt.Errorf("terminal %s: bad state", ht.ID)
+			return fmt.Errorf("terminal %s: bad state", ht.ID)
 		}
 		t := &terminal{
 			mgr: m, id: ht.ID, pid: ht.PID, cwd: ht.Cwd, wsID: ht.Workspace, primary: ht.Primary,
 			cols: ht.Cols, rows: ht.Rows, title: ht.Title, alive: ht.Alive,
 			ring: make([]byte, ringSize), base: ht.RingStart, total: ht.RingStart,
-			feed: newScreenFeed(srv.log, ht.Rows, ht.Cols),
+			feed: newScreenFeed(s.log, ht.Rows, ht.Cols),
 		}
 		t.ringAppend(ht.Ring)
 		t.sent = min(max(ht.Sent, t.base), t.total)
@@ -159,22 +195,26 @@ func adoptState(opts Options, st *handoverState, fds []int) (_ *Server, err erro
 			t.feed.write(ht.Screen)
 		}
 		m.terms[t.id] = t // 失敗したときに dropAdopted が閉じられるよう、先に入れる
-		if ht.Alive {
-			f, err := file(ht.FD, "/dev/ptmx")
-			if err != nil {
-				return nil, fmt.Errorf("terminal %s: %w", ht.ID, err)
-			}
-			t.ptmx = pollable(f, srv.log)
-			// このサーバーの子ではないので、合図は pid に送り、終わりは PTY の EOF のあとプロセスが無くなるので知る。
-			// Linux の os.FindProcess は pidfd を使うので、pid が使い回されても別のプロセスに合図しない。
-			if p, err := os.FindProcess(ht.PID); err == nil {
-				t.process = p
-			}
+		if !ht.Alive {
+			continue
+		}
+		f, err := ft.take(ht.FD, "/dev/ptmx")
+		if err != nil {
+			return fmt.Errorf("terminal %s: %w", ht.ID, err)
+		}
+		t.ptmx = pollable(f, s.log)
+		// このサーバーの子ではないので、合図は pid に送り、終わりは PTY の EOF のあとプロセスが無くなるので知る。
+		// Linux の os.FindProcess は pidfd を使うので、pid が使い回されても別のプロセスに合図しない。
+		if p, err := os.FindProcess(ht.PID); err == nil {
+			t.process = p
 		}
 	}
+	return nil
+}
 
-	// ワークスペース
-	w := srv.ws
+// adoptWorkspaces はワークスペースとプライマリの shj を作り直す。
+func (s *Server) adoptWorkspaces(st *handoverState) {
+	w := s.ws
 	w.next, w.nextExtra, w.focus = st.NextWorkspace, st.NextExtra, st.Focus
 	for _, hw := range st.Workspaces {
 		x := &wsState{id: hw.ID, seq: hw.Seq, root: hw.Root, kind: hw.Kind, primary: hw.Primary}
@@ -184,24 +224,25 @@ func adoptState(opts Options, st *handoverState, fds []int) (_ *Server, err erro
 		}
 		w.reg[x.id] = x
 	}
+}
 
-	// serve-primary.rpc と、名乗った shj の接続
+// adoptLinks は serve-primary.rpc の待ち受けと、名乗った shj の接続を受け取る。接続を受け取らなかった shj
+// （古い serve の中で切れた）は、Serve で終わったものとして扱う。adoptWorkspaces のあとに呼ぶ。
+func (s *Server) adoptLinks(st *handoverState, ft *fdTable) error {
+	ad := s.adopted
 	if st.PrimaryLn >= 0 {
-		if ad.primaryLn, err = listener(st.PrimaryLn, "serve-primary.rpc"); err != nil {
-			return nil, err
+		var err error
+		if ad.primaryLn, err = ft.listener(st.PrimaryLn, "serve-primary.rpc"); err != nil {
+			return err
 		}
 		ad.primaryPath = st.PrimaryPath
 	}
+	w := s.ws
 	linked := map[string]bool{}
 	for _, hl := range st.Links {
-		f, err := file(hl.FD, "shj")
+		c, err := ft.conn(hl.FD, "shj")
 		if err != nil {
-			return nil, err
-		}
-		c, err := net.FileConn(f)
-		f.Close()
-		if err != nil {
-			return nil, err
+			return err
 		}
 		x := w.reg[hl.Workspace]
 		if x == nil || x.shj == nil || linked[hl.Workspace] {
@@ -218,14 +259,16 @@ func adoptState(opts Options, st *handoverState, fds []int) (_ *Server, err erro
 			ad.gone = append(ad.gone, x.shj)
 		}
 	}
+	return nil
+}
 
-	// ツリーの監視
+// adoptTree はツリーの監視を受け取る。
+func (s *Server) adoptTree(st *handoverState) {
 	if st.Tree != nil {
-		srv.tree.w.ws = st.Tree
+		s.tree.w.ws = st.Tree
 	}
-	srv.tree.rev.Store(st.TreeRev)
-	srv.tree.gitRev.Store(st.GitRev)
-	return srv, nil
+	s.tree.rev.Store(st.TreeRev)
+	s.tree.gitRev.Store(st.GitRev)
 }
 
 // startAdopted は引き継いだものを動かし始める（Serve から、接続を受ける前に呼ぶ）。

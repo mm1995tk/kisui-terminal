@@ -121,11 +121,8 @@ type terminal struct {
 	feed       *screenFeed // 画面の状態を持つ coneko-term（screen.go）。term.attach はこの書き出しを返す
 	base       int64       // リングに入っている一番古い seq の下限（引き継いだときは、受け取ったリングの先頭）
 
-	// 以下は引き継ぎ（handover.go）のために pump を止める仕組み。mu で守る。
-	pumpDone chan struct{} // 今の pump が終わると閉じる。pump が無ければ nil
-	pausing  bool          // pump に止まるよう頼んでいる
-	parked   chan struct{} // pump が止まったら閉じる
-	resume   chan struct{} // 閉じると pump が読み直す
+	pumpDone chan struct{} // 今の pump が終わると閉じる。pump が無ければ nil（mu で守る）
+	pause    pauser        // 引き継ぎ（handover.go）のために pump を止める
 }
 
 // ringBytes は seq が [from, to) の範囲のバイト列を返す。from が捨てられた分なら残っている先頭から。
@@ -421,7 +418,7 @@ func (t *terminal) pump(ptmx *os.File, cmd *exec.Cmd, p *os.Process) {
 		}
 		if err != nil {
 			if errors.Is(err, os.ErrDeadlineExceeded) {
-				t.park()
+				t.pause.park()
 				continue
 			}
 			break
@@ -444,25 +441,16 @@ func (t *terminal) pump(ptmx *os.File, cmd *exec.Cmd, p *os.Process) {
 	ptmx.Close()
 	t.mu.Lock()
 	t.alive = false
+	if t.process == p {
+		// 終わったシェルには、もう合図を送らない（hangup）。引き継いだシェルの os.Process は、pidfd の無い
+		// macOS では終わったことを覚えないので、残すと使い回された pid の別のプロセスに SIGHUP・SIGKILL が届く。
+		t.process = nil
+	}
 	t.mu.Unlock()
 	t.flush() // 最後の出力が先に届くように
 	t.mgr.srv.notifyOwner("term.exit", exit)
 	t.mgr.srv.ws.recompute()
 	t.mgr.srv.log.Info("term exited", "termId", t.id, "code", exit["code"])
-}
-
-// park は、引き継ぎで止めるよう頼まれていれば、止まったことを知らせて resume まで待つ。
-// 頼まれていなければ（止めるのをやめたあとに残った期限切れ）すぐ戻る。
-func (t *terminal) park() {
-	t.mu.Lock()
-	if !t.pausing {
-		t.mu.Unlock()
-		return
-	}
-	parked, resume := t.parked, t.resume
-	t.mu.Unlock()
-	close(parked)
-	<-resume
 }
 
 // setWinsize は PTY の大きさを変える。pty.Setsize は Fd() で master を blocking にするので使わない。
