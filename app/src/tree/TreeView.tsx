@@ -51,25 +51,10 @@ export function TreeView(
   props: RowHandlers & {
     rows: TreeRow[];
     label: string;
-    /** 「親のフォルダへ」のボタン。省くと出さない */
-    onUp?: () => void;
   },
 ): JSX.Element {
   return (
     <>
-      <Show when={props.onUp}>
-        <button
-          type="button"
-          class="tree-up"
-          title="プライマリターミナルで cd .. を実行します"
-          onClick={() => props.onUp?.()}
-        >
-          <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
-            <path d="M8 13V3M4 7l4-4 4 4" />
-          </svg>
-          親のフォルダへ
-        </button>
-      </Show>
       <div class="tree" role="tree" aria-label={props.label}>
         <Nodes nodes={nest(props.rows)} handlers={props} />
       </div>

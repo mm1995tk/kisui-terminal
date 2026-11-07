@@ -16,10 +16,7 @@ func TestShellQuote(t *testing.T) {
 		t.Errorf("got %s", got)
 	}
 	p := "/a b"
-	if got := string(cdInput(&p)); got != "\x05\x15cd -- '/a b'\r" {
-		t.Errorf("got %q", got)
-	}
-	if got := string(cdInput(nil)); got != "\x05\x15cd ..\r" {
+	if got := string(cdInput(p)); got != "\x05\x15cd -- '/a b'\r" {
 		t.Errorf("got %q", got)
 	}
 }

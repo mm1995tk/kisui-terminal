@@ -57,8 +57,6 @@ interface Handlers {
   onOpen?: (target: string, id: WorkspaceId, path: string) => void;
   /** プライマリの shj が出しているファイル（ツリーで強調する行の path）。無ければ undefined */
   currentOf?: (target: string, id: WorkspaceId) => string | undefined;
-  /** ツリーの「親のフォルダへ」。省くとボタンを出さない */
-  onUp?: (target: string, id: WorkspaceId) => void;
   /** ツリーの行を右クリックした（Sidebar が内側に渡す。App は onTreeAction を使う） */
   onTreeMenu?: (
     target: string,
@@ -296,9 +294,6 @@ function handlers(
 ): Handlers {
   return {
     onTreeMenu,
-    get onUp() {
-      return props.onUp;
-    },
     get onFocus() {
       return props.onFocus;
     },
@@ -522,9 +517,6 @@ function BandItem(
                 ? (row, x, y) =>
                     props.onTreeMenu?.(props.target, b().id, row, x, y)
                 : undefined
-            }
-            onUp={
-              props.onUp ? () => props.onUp?.(props.target, b().id) : undefined
             }
           />
         )}
