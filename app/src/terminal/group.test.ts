@@ -198,7 +198,7 @@ describe("TermGroup", () => {
     );
   });
 
-  it("隣へ移るとき、ターミナルでない欄も升目に数える。足せる数も欄ぶん減る", async () => {
+  it("隣へ移るとき、ターミナルでない欄も木に入る。欄の数に上限は無い", async () => {
     const f = fakePort();
     const x1 = {
       id: "x1",
@@ -213,35 +213,41 @@ describe("TermGroup", () => {
       () => {},
     );
     g.setActive(1);
-    // 3 つは 2×2 で、最後の欄が下の段の幅いっぱいになる
+    // 木が無い（古い serve）ので自動：t1 の右に t2 と x1 が上下に並ぶ
     assert.equal(g.move("down"), true);
     assert.equal(extraId(g), "x1");
     assert.equal(g.move("down"), false);
     assert.equal(g.move("up"), true);
-    assert.equal(g.active?.id, "t1");
+    assert.equal(g.active?.id, "t2");
     assert.equal(extraId(g), undefined);
-    for (let i = 0; i < 3; i++) assert.equal(await g.add(), true);
-    assert.equal(g.list.length + g.extras.length, 6);
-    assert.equal(await g.add(), false);
+    assert.equal(g.move("left"), true);
+    assert.equal(g.active?.id, "t1");
+    for (let i = 0; i < 8; i++) assert.equal(await g.add(), true);
+    assert.equal(g.list.length + g.extras.length, 11);
   });
 
-  it("足すと term.create（ワークスペースを指して）で作って active にする。6 個までしか足せない", async () => {
+  it("足すと term.create（ワークスペースと分ける欄と向きを指して）で作って active にする。数に上限は無い", async () => {
     const f = fakePort();
     const g = new TermGroup(f.port, layout(), () => {});
-    assert.equal(await g.add(), true);
+    assert.equal(await g.add("down"), true);
     assert.deepEqual(f.calls[0], {
       method: "term.create",
-      params: { workspaceId: "w1", cols: 80, rows: 24 },
+      params: {
+        workspaceId: "w1",
+        cols: 80,
+        rows: 24,
+        split: { target: "t1", dir: "down" },
+      },
     });
     assert.deepEqual(ids(g), ["t1", "t10"]);
     assert.equal(g.active?.id, "t10");
     // workspace.changed が後から届いても、重ねて並べない
     g.update(layout(["t10"]));
     assert.deepEqual(ids(g), ["t1", "t10"]);
-    for (let i = 0; i < 4; i++) assert.equal(await g.add(), true);
-    assert.equal(g.list.length, 6);
-    assert.equal(await g.add(), false);
-    assert.equal(f.calls.filter((c) => c.method === "term.create").length, 5);
+    for (let i = 0; i < 6; i++) assert.equal(await g.add(), true);
+    assert.equal(g.list.length, 8);
+    // 二度目からは、今の欄（直前に足した欄）を分ける
+    assert.deepEqual(f.calls[1]!.params.split, { target: "t10", dir: "right" });
   });
 
   it("workspace.changed が term.create の返事より先に届いても、重ねて並べない", async () => {

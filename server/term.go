@@ -278,33 +278,29 @@ func (m *termManager) create(p termCreateParams) (any, error) {
 	if !ok {
 		return nil, rpc.Errorf(rpc.CodeNotFound, "no such workspace: %s", p.WorkspaceID)
 	}
-	// 上限の数え方と作るのを、recompute と同じロックで 1 つずつにする（同時に作って 6 個を超えない）。
+	// 足す場所を決めるのと作るのを、recompute と同じロックで 1 つずつにする
 	m.srv.ws.recomputeMu.Lock()
 	defer m.srv.ws.recomputeMu.Unlock()
-	if m.srv.ws.cellsFree(p.WorkspaceID) <= 0 {
-		return nil, rpc.Errorf(rpc.CodeBusy, "the workspace already has %d terminals", maxSplitTerms+1)
+	var want splitParams
+	if p.Split != nil {
+		want = *p.Split
+		if want.Target == "" {
+			return nil, rpc.Errorf(rpc.CodeInvalidParams, "split.target is required")
+		}
+	}
+	target, sdir, perr := m.srv.ws.planSplit(p.WorkspaceID, want.Target, want.Dir)
+	if perr != nil {
+		return nil, rpc.Errorf(rpc.CodeBusy, "%v", perr)
 	}
 	t, err := m.start(termStart{cols: p.Cols, rows: p.Rows, dir: dir, shell: p.Shell, env: env, wsID: p.WorkspaceID})
 	if err != nil {
 		return nil, err
 	}
+	m.srv.ws.placePane(p.WorkspaceID, target, sdir, t.id)
 	m.srv.ws.recomputeLocked()
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	return map[string]any{"termId": t.id, "pid": t.pid, "cwd": t.cwd}, nil
-}
-
-// countSplit はワークスペースの分割したターミナルの数。
-func (m *termManager) countSplit(wsID string) int {
-	n := 0
-	for _, t := range m.all() {
-		t.mu.Lock()
-		if t.wsID == wsID && !t.primary {
-			n++
-		}
-		t.mu.Unlock()
-	}
-	return n
 }
 
 // closeWorkspace はワークスペースのターミナル（プライマリと分割）を全部終わらせて忘れる。
@@ -595,6 +591,14 @@ type termCreateParams struct {
 	Rows        int               `json:"rows"`
 	Shell       string            `json:"shell"`
 	Env         map[string]string `json:"env"`
+	// Split は足す場所。無ければ自動（layout.go の autoTarget）
+	Split *splitParams `json:"split,omitempty"`
+}
+
+// splitParams は term.create の split：欄 Target を Dir（"right" か "down"）に分けて、新しい欄を足す。
+type splitParams struct {
+	Target string `json:"target"`
+	Dir    string `json:"dir"`
 }
 
 // notifyOwner は今の GUI に通知を送る。送れたら true。

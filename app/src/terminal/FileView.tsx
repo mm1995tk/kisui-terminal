@@ -57,8 +57,8 @@ export function FileView(props: {
   read: MediaFetch;
   active?: boolean;
   hidden?: boolean;
-  /** 欄の位置（CSS grid の grid-area） */
-  area?: string;
+  /** 欄の位置（分割の木から決めた、親の中の left・top・width・height） */
+  place?: Record<string, string>;
   onFocus?: () => void;
   onClose: () => void;
   /** この欄にキーを向ける関数を受け取る（欄が無くなるとき undefined で呼ぶ） */
@@ -82,7 +82,7 @@ export function FileView(props: {
       class="terminal-cell video-cell"
       data-active={props.active ? "" : undefined}
       hidden={props.hidden}
-      style={props.area ? { "grid-area": props.area } : undefined}
+      style={props.place}
       tabindex="-1"
       ref={cell}
       onFocusIn={() => props.onFocus?.()}

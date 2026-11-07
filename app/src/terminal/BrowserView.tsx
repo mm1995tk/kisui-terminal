@@ -52,8 +52,8 @@ export function BrowserView(props: {
   active?: boolean;
   /** 隠すか（ほかの欄を隠しているとき） */
   hidden?: boolean;
-  /** 欄の位置（CSS grid の grid-area） */
-  area?: string;
+  /** 欄の位置（分割の木から決めた、親の中の left・top・width・height） */
+  place?: Record<string, string>;
   /** 欄がフォーカスを受けた */
   onFocus?: () => void;
   onClose: () => void;
@@ -163,7 +163,7 @@ export function BrowserView(props: {
       class="terminal-cell browser-cell"
       data-active={props.active ? "" : undefined}
       hidden={props.hidden}
-      style={props.area ? { "grid-area": props.area } : undefined}
+      style={props.place}
       tabindex="-1"
       ref={cell}
       onFocusIn={() => props.onFocus?.()}

@@ -2,8 +2,8 @@ import { createEffect, For, on, Show, type JSX } from "solid-js";
 import { Dynamic } from "solid-js/web";
 
 import { IS_MAC } from "../guiKeys.ts";
-import type { ExtraPane } from "../rpc/protocol.ts";
-import { cellOf, gridSize } from "./grid.ts";
+import type { ExtraPane, PaneLayout } from "../rpc/protocol.ts";
+import { layoutRects, reconcileLayout } from "./grid.ts";
 import type { TermLink } from "./link.ts";
 import type { MediaFetch } from "./media.ts";
 import { TerminalView } from "./TerminalView.tsx";
@@ -12,13 +12,15 @@ import { FileView } from "./FileView.tsx";
 import { VideoView } from "./VideoView.tsx";
 
 /**
- * ターミナルのカード（F1・F4）。右の欄を全部使い、マシンのターミナルを数に応じて自動で並べる（grid.ts）。
+ * ターミナルのカード（F1・F4）。右の欄を全部使い、欄を serve が持つ分割の木（layout。grid.ts）の通りに並べる。
  * プライマリ以外の欄を隠しているときは、プライマリだけを見せる（ほかも作り直さずに動かし続ける）。
  * タブは作らない。
  */
 export function TerminalGrid(props: {
   /** 並べるターミナル（TermGroup の list） */
   links: readonly TermLink[];
+  /** 欄の配置（分割の木）。無ければ（古い serve）欄の数から自動で決める */
+  layout?: PaneLayout;
   /** 今使っているターミナル */
   active: TermLink | undefined;
   /** ターミナルでない欄（動画。#555）。ターミナルの後ろに、同じ升目に並べる */
@@ -62,18 +64,26 @@ export function TerminalGrid(props: {
   const shown = () => (props.zoomed ? 1 : total());
   const visible = (i: number) => !props.zoomed || i === 0;
   const extraVisible = (_x: ExtraPane) => !props.zoomed;
-  const template = () => {
-    const { cols, rows } = gridSize(shown());
+  const tree = () =>
+    reconcileLayout(props.layout, [
+      ...props.links.map((l) => l.id),
+      ...extras().map((x) => x.id),
+    ]);
+  const rects = () => layoutRects(tree());
+  const template = () =>
+    props.accent ? { "--term-accent": props.accent } : {};
+  // 欄は親の中に絶対位置で置く（木が変わっても、欄の要素は作り直さない）。欄の間は 1px の線を見せる
+  const place = (id: string): Record<string, string> => {
+    if (props.zoomed || rects().size <= 1) return { inset: "0" };
+    const r = rects().get(id);
+    if (!r) return { display: "none" };
+    const pct = (v: number) => `${v * 100}%`;
     return {
-      ...(props.accent ? { "--term-accent": props.accent } : {}),
-      "grid-template-columns": `repeat(${cols}, minmax(0, 1fr))`,
-      "grid-template-rows": `repeat(${rows}, minmax(0, 1fr))`,
+      left: `calc(${pct(r.x)} + 0.5px)`,
+      top: `calc(${pct(r.y)} + 0.5px)`,
+      width: `calc(${pct(r.w)} - 1px)`,
+      height: `calc(${pct(r.h)} - 1px)`,
     };
-  };
-  const area = (i: number) => {
-    if (props.zoomed) return "1 / 1";
-    const c = cellOf(i, total());
-    return `${c.row + 1} / ${c.col + 1} / ${c.row + 2} / ${c.col + 1 + c.span}`;
   };
 
   createEffect(
@@ -104,7 +114,7 @@ export function TerminalGrid(props: {
             link={link}
             active={link === props.active}
             hidden={!visible(i())}
-            area={area(i())}
+            place={place(link.id)}
             onFocus={() => props.onActivate(i())}
             focusRef={(f) =>
               f ? focusers.set(link, f) : focusers.delete(link)
@@ -113,7 +123,7 @@ export function TerminalGrid(props: {
         )}
       </For>
       <For each={extras()}>
-        {(x, k) => (
+        {(x) => (
           <Show
             when={x.kind === "browser"}
             fallback={
@@ -123,7 +133,7 @@ export function TerminalGrid(props: {
                 read={props.readExtra!(x)}
                 active={x.id === props.activeExtra?.id}
                 hidden={!extraVisible(x)}
-                area={area(props.links.length + k())}
+                place={place(x.id)}
                 onFocus={() => props.onActivateExtra?.(x.id)}
                 onClose={() => props.onCloseExtra?.(x.id)}
                 focusRef={(f) =>
@@ -137,7 +147,7 @@ export function TerminalGrid(props: {
               target={props.target ?? ""}
               active={x.id === props.activeExtra?.id}
               hidden={!extraVisible(x)}
-              area={area(props.links.length + k())}
+              place={place(x.id)}
               onFocus={() => props.onActivateExtra?.(x.id)}
               onClose={() => props.onCloseExtra?.(x.id)}
               focusRef={(f) =>

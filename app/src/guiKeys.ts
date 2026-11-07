@@ -36,6 +36,12 @@ export function isCmdKey(e: KeyLike, k: string): boolean {
   return e.key.toLowerCase() === k || e.code === `Key${k.toUpperCase()}`;
 }
 
+/** Cmd と Shift だけを押して、文字 k（小文字）を打ったか。 */
+export function isCmdShiftKey(e: KeyLike, k: string): boolean {
+  if (!e.metaKey || !e.shiftKey || e.ctrlKey || e.altKey) return false;
+  return e.key.toLowerCase() === k || e.code === `Key${k.toUpperCase()}`;
+}
+
 /** Cmd と Option だけを押しているか（Cmd+Option+矢印の形）。 */
 export function isCmdOptionKey(e: KeyLike): boolean {
   return e.metaKey && e.altKey && !e.ctrlKey && !e.shiftKey;

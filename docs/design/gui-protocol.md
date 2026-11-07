@@ -321,12 +321,12 @@ P13-09（#385）で `Core` を `core` に移し、分割を終えた。`ui/tui` 
 `Screen` には変換しない。PTY の出力をそのまま流す。ターミナルは**サーバー全体で持ち**、**ワークスペースごとに、プライマリターミナル 1 つと分割したターミナル 0〜5 個**を持つ。どのワークスペースに属するかは作るときに決まり、cwd からは決まらない（次の節）。
 
 - **プライマリターミナル**：ワークスペースを作ると同時にできる。右の欄の 1 つ目の欄。編集する `shj` はここで動かす。そのシェルの cwd がワークスペースのフォルダを決める。プライマリターミナルは `term.close` で閉じられず、ワークスペースが消えるとき（`workspace.close`）にだけ終わる。
-- **分割したターミナル**：足した 2 つ目以降（0〜5 個。合計で 6 個まで）。`term.create` で作り、`term.close` で閉じる。cwd が変わってもワークスペースには何も影響しない。
+- **分割したターミナル**：足した 2 つ目以降（個数に上限は無い）。`term.create` で作り、`term.close` で閉じる。cwd が変わってもワークスペースには何も影響しない。
 - 始めるフォルダ：プライマリターミナルは、フォルダ未定のワークスペースならそのマシンの `[server] start_dir`、決まっていればそのフォルダ。分割したターミナルは、ワークスペースのフォルダ（フォルダ未定なら `start_dir`）。
 
 | メソッド | 向き | パラメータ → 結果 |
 | --- | --- | --- |
-| `term.create` | → shj | `{workspaceId, cols, rows, shell?, env?}` → `{termId, pid, cwd}`。分割したターミナルを足す。ワークスペースのフォルダ（フォルダ未定なら `start_dir`）で始める。そのワークスペースにすでに 6 個あれば `busy`。`shell` が無ければ今の設定どおり。プライマリターミナルは `workspace.create` が作るので、ここでは作らない |
+| `term.create` | → shj | `{workspaceId, cols, rows, shell?, env?, split?: {target, dir}}` → `{termId, pid, cwd}`。分割したターミナルを足す。ワークスペースのフォルダ（フォルダ未定なら `start_dir`）で始める。`split` は足す場所で、欄 `target`（`Workspace.layout` の葉）を `dir`（`"right"` か `"down"`）に分ける。無ければ自動（下の「欄の配置」）。分けた後の欄が最小の大きさ（列 20・行 5）を下回る分割は `busy`（理由は `message`）。欄の数に上限は無い。`shell` が無ければ今の設定どおり。プライマリターミナルは `workspace.create` が作るので、ここでは作らない |
 | `term.list` | → shj | `{}` → `{terms: [{termId, pid, cwd, workspaceId, primary: bool, title, cols, rows, alive}]}` |
 | `term.attach` | → shj | `{termId}` → `{seq, snapshot (base64), cols, rows}`。つなぎ直したとき・溢れて欠けたときに、画面の状態を取り直す。`snapshot` は、`kisui serve` が欄ごとに持つ coneko-term（`Terminal::serialize`）の書き出しで、`seq` までの出力を全部反映した画面・scrollback（5000 行）・モード（代替画面、カーソル、kitty キーボードのフラグ、マウス報告、bracketed paste ほか）。先頭の RIS で始まり、問い合わせは入っていない。`seq` は書き出した時点のバイト数の累計で、これより先の `term.output` が抜けも重なりもなくつながる。過去の出力のバイト列は返さない（そこに入っている端末への問い合わせに GUI の coneko-term がもう一度返事をして、シェルに文字が届くのを防ぐ）。`kisui serve` が画面の状態を作れないときは `internal_error` |
 | `term.close` | → shj | `{termId}` → `{}`。シェルに SIGHUP を送る。分割したターミナルだけ（プライマリターミナルに送ると `denied`。ワークスペースごと閉じるときは `workspace.close`） |
@@ -349,8 +349,13 @@ P13-09（#385）で `Core` を `core` に移し、分割を終えた。`ui/tui` 
   - `term.attach` の返事を待つ間に届いた `term.output` は取っておき、返事のあとに `seq` でつなぐ（`seq` までの分は書き出しに入っているので捨て、それより先の分を書く。欠けがあれば取り直す）。`kisui serve` は、`term.attach` を受けた時点で `seq` までを送った・ack したものとして続きを流すので、返事より先に `seq` より先の `term.output` が届くことがある。キー入力はその間も送る（`yes` を止める Ctrl+C を落とさない）。`term.create` の返事より先に `term.output` が届くことがあるので、作ったら `term.attach` で取り直す。
   - 右の欄に出すのは、フォーカスしているワークスペース（無ければ最初につながったマシンの最初のワークスペース）のターミナル。プライマリのシェルが終わったら知らせを出し、Enter で `term.restart` する。画面を外している間や切れている間に終わると `term.exit` が届かないので、付け直し・つなぎ直しのあとに `term.list` で生きているかを確かめ、`term.input`・`term.resize` の `not_found` も終わったものとして扱う。
 - GUI の側（F2）：帯を押して `workspace.focus` が受け付けられたら、そのワークスペースのプライマリターミナル（返事の `termId`）に切り替え、画面の状態を取り直して描く（前のシェルは止めない）。どのワークスペースにも必ずプライマリターミナルがあるので、ターミナルを探して作る処理は要らない。切り替えたターミナルの大きさが画面と違えば `term.resize` で合わせる。
-- GUI の側（F4。`app/src/terminal/group.ts`・`grid.ts`）：右の欄には、フォーカスしているワークスペースのターミナル（プライマリ 1 つと分割したもの。6 個まで）を並べる。プライマリターミナルが 1 つ目の欄。1 個は全体、2 個は左右、3〜4 個は 2×2、5〜6 個は 3×2 で、升目が 1 つ余るとき（3 個・5 個）は最後のターミナルを 2 升ぶんの幅にする。`Ctrl+Shift+T` で `term.create` して足し（6 個なら足さない）キーを向ける。分割したターミナルのシェルが終わったら（`exit`）`term.close` してその欄を閉じ、並び直して隣にキーを向ける。プライマリターミナルのシェルが終わったら、欄を閉じず「Enter で作り直す」を出し、Enter で `term.restart` する。`Ctrl+Shift+矢印` は、キーがターミナルに向いているとき（プライマリ以外の欄を隠していないとき）だけ GUI が受けて隣へ移る。上下は今の欄の左端の列にかかる欄へ移る。今使っている欄は、上端にマシンの色の線を引く（タブの見出しは作らない）。並べたとき（2 つ以上）は、プライマリターミナルの欄の 4 辺にマシンの色の細い枠（1px）も引く（プライマリを使っているときは上端の線と両方）。1 つだけのときは枠を引かない。F2 でワークスペースを移したときは、並べるターミナルがそのワークスペースのものに替わり、今使うのはそのプライマリターミナルになる。
-- GUI の側（プライマリ以外の欄を隠す。`Ctrl+Shift+M`）：そのワークスペースのプライマリで shj が動いている（`primaryShj` が `null` でない）ときだけ、プライマリ以外の欄を隠してプライマリにキーを向け、もう一度押すと戻す。動いていなければ何もしない。隠した欄のターミナルは止めず（欄を作り直さず）、戻せば元の状態で出る。隠している間は右上に隠している数を出す（タブにしない）。状態は GUI だけが持ち（ワークスペースごと。`kisui serve` には持たせない）、プライマリの shj が終わった（`primaryShj` が `null` になった）ら隠した欄を出す。`Ctrl+Shift+T` で欄を足すときも先に戻す。`muxBackend` の `hide`・`show`（#553）は `pane.hide`・`pane.show` の通知で同じ状態（App.tsx の `zoomedWs`）を動かす。
+- GUI の側（F4。`app/src/terminal/group.ts`・`grid.ts`）：右の欄には、フォーカスしているワークスペースのターミナル（プライマリ 1 つと分割したもの）を、`Workspace.layout`（下の「欄の配置」）の通りに並べる。プライマリターミナルが 1 つ目の欄。Mac は `Cmd+D` で今の欄を右に、`Cmd+Shift+D` で下に分け（iTerm2 と同じ）、ほかは `Ctrl+Shift+D` で右、`Ctrl+Shift+E` で下に分ける。分けるときは `term.create` に `split` を付け、新しい欄にキーを向ける。以前の `Ctrl+Shift+T`・`Cmd+T` は無くした（分ける向きを選べないため）。分割したターミナルのシェルが終わったら（`exit`）`term.close` してその欄を閉じ、並び直して隣にキーを向ける。プライマリターミナルのシェルが終わったら、欄を閉じず「Enter で作り直す」を出し、Enter で `term.restart` する。`Ctrl+Shift+矢印` は、キーがターミナルに向いているとき（プライマリ以外の欄を隠していないとき）だけ GUI が受けて隣へ移る。移る先は、描かれる位置で辺が接している欄で、今の欄の上端（左右）か左端（上下）にかかるものを選ぶ。今使っている欄は、上端にマシンの色の線を引く（タブの見出しは作らない）。並べたとき（2 つ以上）は、プライマリターミナルの欄の 4 辺にマシンの色の細い枠（1px）も引く（プライマリを使っているときは上端の線と両方）。1 つだけのときは枠を引かない。F2 でワークスペースを移したときは、並べるターミナルがそのワークスペースのものに替わり、今使うのはそのプライマリターミナルになる。
+- GUI の側（プライマリ以外の欄を隠す。`Ctrl+Shift+M`）：そのワークスペースのプライマリで shj が動いている（`primaryShj` が `null` でない）ときだけ、プライマリ以外の欄を隠してプライマリにキーを向け、もう一度押すと戻す。動いていなければ何もしない。隠した欄のターミナルは止めず（欄を作り直さず）、戻せば元の状態で出る。隠している間は右上に隠している数を出す（タブにしない）。状態は GUI だけが持ち（ワークスペースごと。`kisui serve` には持たせない）、プライマリの shj が終わった（`primaryShj` が `null` になった）ら隠した欄を出す。欄を分けるときも先に戻す。`muxBackend` の `hide`・`show`（#553）は `pane.hide`・`pane.show` の通知で同じ状態（App.tsx の `zoomedWs`）を動かす。
+- **欄の配置（分割の木）**：配置は `kisui serve` が持ち、`Workspace.layout` で届く（GUI を開き直しても、別の GUI からつないでも同じ配置になる）。葉は欄の id（`primary`・`terms`・`extras` の id）で `{pane}`、節は分割で `{dir, ratio, a, b}`。`dir: "right"` は右に分ける（`a` が左、`b` が右。境界は縦）、`"down"` は下に分ける（`a` が上、`b` が下。境界は横）。`ratio` は `a` の割合（0〜1。今は 0.5 のまま。境界をドラッグで動かすのは別の Issue）。欄は何個でも開ける。ターミナルでない欄（`extras`）も同じ木に入る。
+  - **決め方**：`term.create` の `split` は `target` を `dir` に分けて新しい欄を `b` に入れる。`split` が無いとき（古い GUI・プライマリの shj が開く欄）は、木の最後の欄を、深さが偶数なら右、奇数なら下に分ける。動画などの欄を同じ種類で開き直すときは、木の同じ場所で入れ替える。
+  - **断る**：分けた後の欄が最小の大きさ（`minSplitCols` = 20 列、`minSplitRows` = 5 行。`server/layout.go`）を下回る分割は `busy` で断る。欄の大きさは serve が持つターミナルの `cols`・`rows` で見る（`term.resize` で GUI が知らせたもの）。ターミナルでない欄は大きさを持たないので、断らない。
+  - **閉じる**：欄が無くなったら（`term.close`・`extra.close`・シェルの終了・shj の終了）、木からその葉を外し、きょうだいが親の場所を埋める。`serve` は `recompute` のたびに木を欄に合わせ、変われば `workspace.changed` で知らせる。GUI は、木が欄と食い違うとき（古い serve が `layout` を送らない・閉じたばかり）、同じ規則（`app/src/terminal/grid.ts` の `reconcileLayout`）で合わせて描く。
+  - **引き継ぎ**：serve の入れ替え（handover）は木も渡す（`handoverWS.layout`。足した欄なので版は上げない。無ければ欄から作る）。ワークスペースの保存（`workspaces.json`）は、分割したターミナルを保存しないので、木も保存しない。
 
 ### ワークスペース
 
@@ -405,7 +410,7 @@ P13-09（#385）で `Core` を `core` に移し、分割を終えた。`ui/tui` 
 
 | メソッド | 向き | パラメータ → 結果 |
 | --- | --- | --- |
-| `workspace.list` | → shj | `{}` → `{workspaces: [Workspace], focus}`。`Workspace` は `{id, folder: path\|null, kind: "git"\|"shijimi"\|"cwd"\|null, name: string\|null, branch?, primary: termId, terms: [termId], primaryShj}`。`folder` が `null`（`kind` も `null`）なのはフォルダ未定のあいだ。`name` はフォルダ未定なら `null`（GUI は「（フォルダ未定）」と出す）。`primary` はプライマリターミナル、`terms` は分割したターミナル（並べる順）。`primaryShj` は下の「プライマリの shj」で、無ければ `null`。`extras` は下の「ターミナルでない欄」の `[{id, kind, path, mime, size, url?}]`（無ければ `[]`。並びは開いた順で、GUI はターミナルの後ろに並べる）。以前あった `files`（開いているファイル）は #557 で外した |
+| `workspace.list` | → shj | `{}` → `{workspaces: [Workspace], focus}`。`Workspace` は `{id, folder: path\|null, kind: "git"\|"shijimi"\|"cwd"\|null, name: string\|null, branch?, primary: termId, terms: [termId], primaryShj}`。`folder` が `null`（`kind` も `null`）なのはフォルダ未定のあいだ。`name` はフォルダ未定なら `null`（GUI は「（フォルダ未定）」と出す）。`primary` はプライマリターミナル、`terms` は分割したターミナル（並べる順）。`primaryShj` は下の「プライマリの shj」で、無ければ `null`。`layout` は下の「欄の配置」（分割の木。古い serve は送らない）。`extras` は下の「ターミナルでない欄」の `[{id, kind, path, mime, size, url?}]`（無ければ `[]`。並びは開いた順で、GUI はターミナルの後ろに並べる）。以前あった `files`（開いているファイル）は #557 で外した |
 | `workspace.create` | → shj | `{}` → `{id, termId}`。フォルダ未定のワークスペースを作り、プライマリターミナルを `start_dir` で始める。`termId` はそのプライマリターミナル。作ったワークスペースにはフォーカスしない（GUI が `workspace.focus` を送る） |
 | `workspace.close` | → shj | `{id, force?: bool}` → `{}`。ターミナル（プライマリと分割）を全部終わらせてワークスペースを消す。プログラムが動いているターミナルがあれば、`force` が無い限り `busy` で断る（何も閉じない。GUI は確認を出してから `force: true` で送り直す）。`busy` の `data` は `{reason: "running"}` |
 | `workspace.changed` | ← GUI | 通知 `{added?: [Workspace], removed?: [id], updated?: [Workspace]}`。ワークスペースが増えた / 減った / 中身（`folder`、ターミナルの増減、ブランチ、`primaryShj`）が変わった。`workspace.create`・`workspace.close` を送った GUI にも届く（返事より先に来ることがある） |
@@ -628,7 +633,7 @@ E1〜E7（画面の状態を描く、キー・IME・マウス・貼り付けを�
 | F1 | coneko-term で 1 つ出す | B6、C2 | `term.*`、流量制御、大きさ |
 | F2 | ワークスペースの切り替えでターミナルも切り替える | B7、D1、F1 | プライマリターミナルに切り替える（#452 で作り直す） |
 | F3 | （#557 で外した）ターミナルモード：カードの入れ替え | F1 | ``Ctrl+Shift+` ``、約 0.3 秒の動き |
-| F4 | ターミナルの自動分割と操作 | F1 | 2 個は左右、3〜4 個は 2×2、5〜6 個は 3×2。`Ctrl+Shift+T`・矢印、分割したターミナルの `exit` で閉じる（プライマリは閉じない。#452） |
+| F4 | 欄の分割の木と操作 | F1 | 右・下に分けて入れ子にできる（上限なし）。`Cmd+D`・`Cmd+Shift+D`（Linux は `Ctrl+Shift+D`・`Ctrl+Shift+E`）・矢印、分割したターミナルの `exit` で閉じる（プライマリは閉じない。#452） |
 
 ### 進める順番
 
