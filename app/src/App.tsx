@@ -319,9 +319,8 @@ function Workbench(props: {
       if (!m) setResizeSel(null);
     }),
   );
-  const lit = (b: Border) =>
-    dragging() === b || (resizeMode() && resizeSel() === null);
-  const termBars = () => termGroup()?.bars ?? [];
+  // 隠している間（zoomed）はつまみが出ないので、境界も無いものとする
+  const termBars = () => (zoomed() ? [] : (termGroup()?.bars ?? []));
   // リサイズモードで選んでいる境界が無くなったら（欄を閉じた）サイドバーに戻す
   const litSplit = () => {
     const k = resizeSel();
@@ -329,6 +328,8 @@ function Workbench(props: {
       ? k
       : undefined;
   };
+  const lit = (b: Border) =>
+    dragging() === b || (resizeMode() && litSplit() === undefined);
   const [asks, setAsks] = createSignal<AskpassRequest[]>([]);
   // リモートを足す窓を出しているか。足すためにつないでいる最中のマシン、足せなかった理由
   const [adding, setAdding] = createSignal(false);
