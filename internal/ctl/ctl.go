@@ -210,8 +210,8 @@ type PrimaryReply struct {
 // "send" (Text to pane ID; Enter runs it), "tail" (Lines: the last N lines of
 // the pane), "close" (pane ID) and "explorer" (the GUI moves the focus to the
 // file explorer of the workspace; Esc there takes it back to the terminal. A
-// kisui from before it answers "unknown op", and the shj then goes to its own
-// tree).
+// kisui from before it answers "unknown op"; the keys then stay where Space e
+// takes them without a tree).
 //
 // "open" adds a pane that is not a terminal: Kind says which. "video": Path is
 // the absolute path of the file it plays. "browser": URL is the http or https
