@@ -39,16 +39,15 @@ a {
   height: 100%;
   /* サイドバーの幅。ドラッグ・リサイズモード（panes.ts）で変えた値は --sidebar-w に入る */
   --sidebar-w-eff: clamp(200px, var(--sidebar-w, 300px), min(640px, 50vw));
-  /* サイドバーと右の欄の間の隙間。つまみ（.resizer）はここにだけ置く */
-  --resizer-w: 6px;
+  /* サイドバーとの境目のつまみ（.resizer）の幅。サイドバーと右の欄の間に隙間は空けず、つまみは境目の真ん中に置く。
+     右の欄にかかる半分（2px）は端末の内側の余白（terminal.css の 4px）の上だけで、字にはかからない */
+  --resizer-w: 4px;
 }
 
 .main {
   position: relative;
   flex: 1;
   min-width: 0;
-  /* サイドバーとの間の隙間（つまみの場所。.resizer）。端末の字の上にはつまみを重ねない */
-  margin-left: var(--resizer-w);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -61,7 +60,7 @@ a {
   border-top: none;
 }
 
-/* ブロックの境界（#526。panes.ts）。当たりは 6px で、見える線は引かない（ブロックの縁の線のまま）。
+/* ブロックの境界（#526。panes.ts）。当たりは --resizer-w で、見える線は引かない（ブロックの縁の線のまま）。
    ドラッグ中とリサイズモードで動かす境界は、マシンの色（--machine-color。App.tsx が .app に入れる）で光らせる。
    サイドバーとの境界は .app の左から数えて置く */
 .resizer {
@@ -74,7 +73,7 @@ a {
 .resizer[data-axis="x"] {
   top: 0;
   bottom: 0;
-  left: var(--sidebar-w-eff);
+  left: calc(var(--sidebar-w-eff) - var(--resizer-w) / 2);
   width: var(--resizer-w);
   cursor: col-resize;
 }
