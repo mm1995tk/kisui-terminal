@@ -50,11 +50,31 @@ interface RowHandlers {
   onAction?: (row: TreeRow, action: TreeMenuAction) => void;
 }
 
+/** 行 from のあるツリーの、フォーカスできる行（上から順）。 */
+function focusableRows(from: HTMLElement): HTMLElement[] {
+  const tree = from.closest(".tree");
+  return tree
+    ? [...tree.querySelectorAll<HTMLElement>(".tree-row[tabindex]")]
+    : [];
+}
+
+/**
+ * フォーカスしている行 el が DOM から外れる（d で消した・親を閉じた）なら、残った一番近い前の行にフォーカスを移し、
+ * 続けてキーで動かせるようにする。Solid は DOM から外す前に onCleanup を呼ぶので、そこから呼ぶ。
+ */
+function keepFocusWhenRemoved(el: HTMLElement) {
+  if (document.activeElement !== el) return;
+  const all = focusableRows(el);
+  const before = all.slice(0, all.indexOf(el)).reverse();
+  queueMicrotask(() => {
+    if (el.isConnected) return;
+    before.find((x) => x.isConnected)?.focus({ preventScroll: true });
+  });
+}
+
 /** ツリーの中で、行 from から to へフォーカスを移す。 */
 function moveFocus(from: HTMLElement, path: string, to: TreeMove) {
-  const tree = from.closest(".tree");
-  if (!tree) return;
-  const all = [...tree.querySelectorAll<HTMLElement>(".tree-row[tabindex]")];
+  const all = focusableRows(from);
   const i = all.indexOf(from);
   let next: HTMLElement | undefined;
   if (to === "next") next = all[i + 1];
@@ -114,20 +134,7 @@ function Row(props: { row: TreeRow; handlers: RowHandlers }): JSX.Element {
   const r = () => props.row;
   const mark = () => r().mark;
   let el: HTMLDivElement | undefined;
-  // フォーカスしていた行が消える（d で消した・親を閉じた）なら、前の行にフォーカスを移し、続けてキーで動かせるようにする
-  // （行は位置で使い回すので、消えるのは並びの末尾の要素。前の行は残る）。Solid は DOM から外す前に onCleanup を呼ぶ
-  onCleanup(() => {
-    if (!el || document.activeElement !== el) return;
-    const tree = el.closest(".tree");
-    const all = tree
-      ? [...tree.querySelectorAll<HTMLElement>(".tree-row[tabindex]")]
-      : [];
-    const prev = all[all.indexOf(el) - 1];
-    queueMicrotask(() => {
-      if (prev?.isConnected && !el?.isConnected)
-        prev.focus({ preventScroll: true });
-    });
-  });
+  onCleanup(() => el && keepFocusWhenRemoved(el));
   /** 行を押した・Enter などを押した。何かしたら true。 */
   const run = (a: RowAction | null): boolean => {
     if (a === "toggle") props.handlers.onToggle(r().path);
