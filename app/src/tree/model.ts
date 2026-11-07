@@ -312,25 +312,18 @@ export function nest(rs: TreeRow[]): TreeNode[] {
 export type RowAction = "toggle" | "open";
 
 /**
- * 行でキーを押したときの操作。key が undefined なら押した（クリック）とみなす。
- * フォルダは開閉（Enter・Space・閉じていれば →・開いていれば ←）、ファイルは shj.open で開く（押す・Enter・Space）。
+ * 行を押した・Enter・Space を押したときの操作。key が undefined なら押した（クリック）とみなす。
+ * フォルダは開閉、ファイルは shj.open で開く。ほかのキー（← → や h j k l）は keys.ts の treeKey が決める。
  * 5000 件より先の印の行は何もしない。
  */
 export function rowAction(
-  row: Pick<TreeRow, "dir" | "expanded" | "truncated">,
+  row: Pick<TreeRow, "dir" | "truncated">,
   key?: string,
 ): RowAction | null {
   if (row.truncated) return null;
   const press = key === undefined || key === "Enter" || key === " ";
-  if (!row.dir) return press ? "open" : null;
-  if (
-    press ||
-    (key === "ArrowRight" && !row.expanded) ||
-    (key === "ArrowLeft" && row.expanded)
-  ) {
-    return "toggle";
-  }
-  return null;
+  if (!press) return null;
+  return row.dir ? "toggle" : "open";
 }
 
 /** 絶対パスの file を、root からの相対パス（ツリーの行の path と同じ）にする。root の外・root そのものは undefined。 */

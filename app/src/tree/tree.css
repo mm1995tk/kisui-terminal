@@ -27,6 +27,10 @@
   white-space: nowrap;
   cursor: default;
   user-select: none;
+  /* キーで動かしてフォーカスした行が、上に固定された見出し・帯・親のフォルダの行（top と同じ式）と、
+     下に固定された続きの帯（--sidebar-after-height、Sidebar.tsx が入れる）に隠れないようにする */
+  scroll-margin-top: calc(var(--tree-sticky-top, 0px) + var(--tree-depth, 0) * 22px);
+  scroll-margin-bottom: var(--sidebar-after-height, 0px);
 }
 .tree-row:not(.tree-truncated) {
   cursor: pointer;
