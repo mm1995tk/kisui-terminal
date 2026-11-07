@@ -61,3 +61,35 @@ func TestNoTerminalDeps(t *testing.T) {
 		}
 	}
 }
+
+func TestWithLocale(t *testing.T) {
+	ja := func() string { return "ja_JP\n" }
+	yes := func(string) bool { return true }
+	no := func(string) bool { return false }
+	cases := []struct {
+		name string
+		env  []string
+		goos string
+		ex   func(string) bool
+		want string // "" for unchanged
+	}{
+		{"unset", []string{"A=b"}, "darwin", yes, "LANG=ja_JP.UTF-8"},
+		{"missing locale", nil, "darwin", no, "LANG=en_US.UTF-8"},
+		{"LANG set", []string{"LANG=C"}, "darwin", yes, ""},
+		{"LC_ALL set", []string{"LC_ALL=en_US.UTF-8"}, "darwin", yes, ""},
+		{"LC_CTYPE set", []string{"LC_CTYPE=UTF-8"}, "darwin", yes, ""},
+		{"linux", nil, "linux", yes, ""},
+	}
+	for _, c := range cases {
+		got := withLocale(c.env, c.goos, ja, c.ex)
+		if c.want == "" {
+			if len(got) != len(c.env) {
+				t.Errorf("%s: changed: %v", c.name, got)
+			}
+			continue
+		}
+		if got[len(got)-1] != c.want {
+			t.Errorf("%s: got %v, want %s", c.name, got, c.want)
+		}
+	}
+}

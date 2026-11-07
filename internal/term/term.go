@@ -9,6 +9,8 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"runtime"
+	"strings"
 
 	"github.com/creack/pty"
 )
@@ -48,11 +50,55 @@ func Start(o Options) (*Session, error) {
 	cmd.Dir = o.Dir
 	cmd.Env = append(os.Environ(), "TERM=xterm-256color", "COLORTERM=truecolor")
 	cmd.Env = append(cmd.Env, o.Env...)
+	cmd.Env = withLocale(cmd.Env, runtime.GOOS, appleLocale, localeExists)
 	ptmx, err := pty.StartWithSize(cmd, winsize(o.Cols, o.Rows))
 	if err != nil {
 		return nil, err
 	}
 	return &Session{ptmx: ptmx, cmd: cmd}, nil
+}
+
+// withLocale adds a UTF-8 LANG to env when none of LANG, LC_ALL and LC_CTYPE is
+// set (an app started from Finder has none on macOS). Without a locale the
+// shell does not read UTF-8, and zsh miscounts the width of the prompt. A
+// locale that is already set is left alone.
+func withLocale(env []string, goos string, apple func() string, exists func(string) bool) []string {
+	if goos != "darwin" {
+		return env
+	}
+	for _, e := range env {
+		for _, k := range []string{"LANG=", "LC_ALL=", "LC_CTYPE="} {
+			if strings.HasPrefix(e, k) && len(e) > len(k) {
+				return env
+			}
+		}
+	}
+	lang := "en_US.UTF-8"
+	if l := strings.TrimSpace(apple()); l != "" {
+		if i := strings.IndexAny(l, "@."); i >= 0 {
+			l = l[:i]
+		}
+		if c := l + ".UTF-8"; l != "" && exists(c) {
+			lang = c
+		}
+	}
+	return append(env, "LANG="+lang)
+}
+
+// appleLocale is the system language, such as "ja_JP".
+func appleLocale() string {
+	out, err := exec.Command("defaults", "read", "-g", "AppleLocale").Output()
+	if err != nil {
+		return ""
+	}
+	return string(out)
+}
+
+// localeExists reports whether the system has the locale (macOS keeps them in
+// /usr/share/locale).
+func localeExists(name string) bool {
+	st, err := os.Stat("/usr/share/locale/" + name)
+	return err == nil && st.IsDir()
 }
 
 func winsize(cols, rows int) *pty.Winsize {
