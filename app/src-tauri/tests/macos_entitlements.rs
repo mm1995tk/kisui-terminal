@@ -1,9 +1,5 @@
-//! macOS の .app に付ける entitlement の確認。
-//!
-//! Tauri は ad-hoc 署名でも hardened runtime で署名する。hardened runtime では、kisui の端末の
-//! エミュレータ（wazero が wasm を機械語にして、その領域を mprotect で実行できるようにする）を動かした
-//! 時点で、カーネルが kisui serve を SIGKILL（Code Signature Invalid）で止める。それを許す entitlement
-//! が tauri.conf.json から外れないようにする。
+//! macOS の .app に付ける entitlement が tauri.conf.json から外れないようにする。
+//! 要る理由は Entitlements.plist のコメントにある。
 
 use std::path::Path;
 
