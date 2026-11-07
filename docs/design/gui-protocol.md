@@ -279,9 +279,10 @@ P13-09（#385）で `Core` を `core` に移し、分割を終えた。`ui/tui` 
 | `session.ping` | → shj | `{}` → `{}`。生きているかの確認（GUI が 15 秒ごと。ssh が黙って切れたときに気づく） |
 | `server.info` | → shj | `{}` → `{shj, serverId, pid, uptime, lastClientAt, idleStopAt, workspaces: n, terminals: n}` |
 | `server.shutdown` | → shj | `{force?: bool}` → `{terminals: n}`。ターミナルが動いていると `force` が無い限り `busy` で断る。GUI は確認を出してから送る |
+| `server.handover` | → shj | `{executable}` → `{pid}`。`executable`（絶対パス）の `kisui serve` に、欄のシェルと画面を消さずに入れ替わる。`pid` は新しい `kisui serve` の pid。返事のあと、古い `kisui serve` は GUI の接続を閉じて終わる。失敗したら `internal_error`（古い `kisui serve` はそのまま動き続ける）、`executable` が実行ファイルの絶対パスでなければ `invalid_params`、止まる途中・別の引き継ぎの途中なら `busy`。`capabilities` に `server.handover` があるときだけ使える。手順は「`kisui serve` の引き継ぎ」の節 |
 
 - **バージョンの確認**：`protocol.major` が合わないと `incompatible_protocol`。`protocol.minor` は上がっても互換（足されるだけ）。知らない通知は無視し、知らないメソッドは `-32601`。新しい機能は `capabilities` の文字列で見分ける。
-- **shj と GUI の版が違うとき**：GUI は `shj.version` を自分の版と比べる。違えば「古い shj が動いています」と出し、ユーザーが決めたときだけ `server.shutdown` で入れ替える（動いているシェルが消えるため、自動ではやらない）。
+- **shj と GUI の版が違うとき**：GUI は `shj.version` を自分の版と比べる。違えば「古い shj が動いています」と出し、ユーザーが決めたときだけ `server.shutdown` で入れ替える（動いているシェルが消えるため、自動ではやらない）。`capabilities` に `server.handover` がある `kisui serve` は、シェルを消さずに `server.handover` で入れ替えられる（GUI から頼む部分は後の Issue）。
 - **引き継ぎ**：サーバーが受けつける GUI は常に 1 台。2 台目の `session.hello` が来たら、1 台目に `session.superseded` を送って閉じ、2 台目に引き継ぐ。1 台目が出した返事前の要求は捨てる。閉じ損ねた 1 台目からの要求は `not_owner`。
 - **切れる**：標準入出力が閉じたら、GUI がいなくなったとみなす。状態（ワークスペース、ターミナル）は残り、`lastClientAt` を覚える。
 - **つなぎ直す**：新しい `session.hello` で `resume: {serverId, rev}` を送る。同じ `serverId` なら状態（ワークスペース、ターミナル）が残っているので、ターミナルは `term.attach` で取り直して続けられる。`serverId` が違えば shj が作り直されたので、GUI はワークスペースの一覧から取り直す。
@@ -327,7 +328,7 @@ P13-09（#385）で `Core` を `core` に移し、分割を終えた。`ui/tui` 
 | `term.cd` | → shj | `{termId, path?}` → `{}`。シェルに `cd -- '<path>'` を打つ（`path` が無ければ `cd ..`）。ツリーの「ここへ移動」「親のフォルダへ」が使う。制御文字（C0・DEL・C1）を含むパスは何も打たず `invalid_params` で断る。入力の途中の行に続けて実行されないよう、先に Ctrl+E・Ctrl+U で行を消す。シェルのほかにプログラムが前面で動いていれば（`workspace.close` の `running` と同じ判定）何も打たず `busy`（`data.reason` は `running`）で断る |
 | `term.output` | ← GUI | 通知 `{termId, seq, data (base64)}`。PTY の出力。`seq` はバイト数の累計 |
 | `term.ack` | → shj | 通知 `{termId, seq}`。GUI が処理したバイト数。shj は `seq` から 256 KiB より先までは送らない。このとき PTY は読み続けてリングバッファに溜め、溢れた分は捨てる（GUI が止まってもシェルは止めない。捨てた分は `term.attach` の書き出しで取り直す。リングバッファは、この送り出しのためだけに持つ）（`yes` のような大量の出力で回線と WebView が詰まらないように） |
-| `term.exit` | ← GUI | 通知 `{termId, code, signal?}`。シェルが終わった。送り残した `term.output` より先に届くことがある（GUI は `term.exit` のあとも `term.attach` で画面を取り直して残りを受ける）。溢れて捨てられた分は `term.output` の `seq` が飛んで届くので、欠けは `seq` の連続性で分かる |
+| `term.exit` | ← GUI | 通知 `{termId, code?, signal?}`。シェルが終わった。`code` は、`kisui serve` が引き継いだシェル（前の `kisui serve` が始めたもの。子ではないので終了コードが分からない）では無い。送り残した `term.output` より先に届くことがある（GUI は `term.exit` のあとも `term.attach` で画面を取り直して残りを受ける）。溢れて捨てられた分は `term.output` の `seq` が飛んで届くので、欠けは `seq` の連続性で分かる |
 | `term.title` | ← GUI | 通知 `{termId, title}` |
 
 - 終わったプライマリターミナルは `alive: false` のまま残り、ワークスペースを消さない（「ワークスペース」の節の 11）。
@@ -474,7 +475,7 @@ GUI はシステムの `ssh` を子プロセスとして起動する（`~/.ssh/c
    4. 標準入出力とソケットの間を、バイトのままコピーする（プロトコルは解釈しない）。どちらかが閉じたら終わる。
 4. **「ローカル」**：`ssh` を挟まず、GUI が、自分と一緒に配った `kisui`（AppImage の `usr/bin/kisui`、.app の `Contents/MacOS/kisui`、Nix のパッケージの `../libexec/kisui`。環境変数 `SHIJIMI_KISUI` があればそれを使う）の `kisui attach` を直接起動する。PATH の `kisui` や `shj` は探さない（GUI と同じ版しか使わない）。Finder や Dock から起動した macOS のアプリはログインシェルの PATH を引き継がないので、起動のときにログインシェル（`$SHELL -l -i -c`、5 秒で諦める）に PATH を聞き、GUI の PATH とよく使う場所（`~/.nix-profile/bin`・`/opt/homebrew/bin`・`/usr/local/bin`・`~/.local/bin` など）を足して、`kisui attach` に渡す（`kisui serve` の中のターミナルが `shj` などを見つけるため）。待つのはメインスレッドの外（`connect` は async のコマンド）。`kisui attach` にもこの PATH を渡す（`kisui serve` の中のターミナルが引き継ぐ）。
 4b. **欄の中の `shj`**：kisui は、欄のターミナル（`term.create`・プライマリの再起動を含む）を始めるとき、同梱の shj のあるフォルダを `PATH` の先頭に足す。フォルダは、環境変数 `KISUI_SHJ_DIR`（Nix のパッケージで GUI が渡す。`../libexec/shj-bin`）、無ければ kisui の実行ファイルと同じフォルダ（AppImage の `usr/bin`、.app の `Contents/MacOS`、リモートのキャッシュ `~/.cache/kisui-terminal/<GUI の版>/`）の `shj`。リモートでは、1 の転送で kisui の前に同じ Release の `shj-<os>-<cpu>`（nightly は `shj-nightly-<os>-<cpu>`）も同じ確かめ方で入れる。Nix の GUI は shj を `bin/` に出さない。
-5. **版が違う shj が動いていたら**：`session.hello` の結果で GUI が気づく（前の節）。`attach` は版が違っても動いているサーバーにつなぐ（勝手に入れ替えない）。
+5. **版が違う shj が動いていたら**：`session.hello` の結果で GUI が気づく（前の節）。`attach` は版が違っても動いているサーバーにつなぐ（勝手に入れ替えない）。入れ替えるときは、GUI が `server.handover` に `kisui attach` 自身の実行ファイル（ローカルならアプリに同梱した kisui、リモートなら 1 の場所）を渡す（「`kisui serve` の引き継ぎ」の節）。
 
 セキュリティ：Unix ソケットは 0700 のフォルダの中（自分のユーザーだけ）。`kisui serve` はネットワークに待ち受けない。リモートの認証は ssh に任せる。`kisui attach` の段階で追加の認証はしない（同じユーザーなら元々シェルを開ける）。
 
@@ -484,6 +485,28 @@ GUI はシステムの `ssh` を子プロセスとして起動する（`~/.ssh/c
 - 制御用ソケット（`ctl`）と Claude Code 連携（`ide`）は持たない。`shj diff`・`shj exec` は、プライマリの `shj` のソケットへ届く（「プライマリの shj」の節）。言語サーバーと整形も `kisui serve` では起動しない（direnv の環境を読む処理は、編集が `kisui serve` の外に出たので要らなくなり、外した）。
 - `core.Port` は `kisui serve` が満たさない。クリップボードへの書き込み（OSC 52）と URL を開く操作は、プライマリの `shj` の端末が GUI の coneko-term に送る。
 - ログは `$XDG_STATE_HOME/shijimi-editor/serve.log`（無ければ `~/.local/state/…`）。サイズが 10 MiB を超えたら先頭を捨てる。
+
+### `kisui serve` の引き継ぎ（`server.handover`）
+
+`kisui serve` は GUI から切り離して動くので、GUI を更新しても前の版の serve が動き続ける。`server.handover` で、動いている serve（古い serve）が、欄のシェルと画面を消さずに別の実行ファイルの serve（新しい serve）に入れ替わる。protocol 4.1 で足した（`capabilities` に `server.handover`）。これより前の serve は引き継げないので、ユーザーが 1 回だけ手で終わらせる。実装は `server/handover.go`（古い serve）と `server/adopt.go`（新しい serve）。
+
+1. **起動**：古い serve は、頼まれた実行ファイルを `kisui serve --handover` で起動する（自分で実行ファイルを探さない）。`setsid` で GUI から切り離し、標準入出力は `/dev/null`。socketpair の片方を fd 3 で渡し、その上で話す（1 通は 4 バイトの長さ + JSON。fd は SCM_RIGHTS で 64 個ずつ）。
+2. **hello**（新 → 古）：新しい serve が話せる引き継ぎの版の一覧。古い serve は両方にある一番新しい版を使う（今は 1）。設定の間違いなどで起動できなければ、新しい serve は理由を `error` で返す。版は、手順とデータの形を変えるときに足し、前の版もしばらく話せるようにする（前後の版どうしで引き継げるように）。
+3. **止める**（古い serve）：状態を変える仕事（GUI の要求・shj の名乗りと欄の頼み・cwd とツリーの見回り・idle の停止）を止め、進んでいるものが終わるのを待つ。待ち受け（`serve.rpc`・`serve-primary.rpc`）の `accept`、名乗った shj の接続の読み、PTY の読みを、読みの期限で止める（閉じない）。止めている間に届いた PTY の出力は PTY に、新しい接続は待ち受けのキューに残る。
+4. **state**（古 → 新）と fd：渡すのは次のもの。
+   - fd：`serve.rpc` と `serve-primary.rpc` の待ち受け、名乗った shj の接続、生きているシェルの PTY の master。
+   - ワークスペース：id・並び・フォルダ・プライマリターミナル・プライマリの shj（ソケット・pid・出しているファイル・その shj の欄とターミナルでない欄）・フォーカス・id の連番。
+   - ターミナル：id・pid・cwd・ワークスペース・プライマリか・大きさ・タイトル・生きているか・リングバッファの中身と `seq`・送ったところと ack・画面の状態の書き出し（`term.attach` と同じ coneko-term の `Terminal::serialize`）。新しい serve は、書き出しを新しいエミュレーターに書いて画面の状態を作り直すので、`term.attach` は引き継ぐ前と同じ画面と `seq` を返す。
+   - 名乗った shj の接続で、読んだがまだ行として扱っていない分（行の途中で止めても落とさない）。
+   - `serverId`・`startedAt`・`rev`・最後に GUI がつながっていた時刻・ツリーの監視。状態が続くので `serverId` は変えない（GUI は `resume` でつなぎ直して `term.attach` で続けられる）。
+5. **ready**（新 → 古）：新しい serve は受け取ったもので状態を作り、自分の pid を返す。作れなければ（ソケットの場所が違うなど）`error` を返す。
+6. **go**（古 → 新）：古い serve はここで引き継いだことにする。`server.handover` に返事をしてから GUI の接続を閉じて終わる。シェルに合図は送らず、ソケットも消さない。新しい serve は `go` を受けるか、古い serve との接続が閉じたら、PTY と shj の接続を読み、待ち受けを始める。
+
+- **失敗したとき**：5 より前に失敗したら（新しい serve が `error` を返した・終わった・時間切れ）、古い serve は新しい serve を SIGKILL で止めてから、止めていたものを戻して動き続ける。シェルも画面も GUI の接続も失わない。新しい serve は `go` か接続が閉じるのを待つまで何も読まないので、止められれば何も取らない。
+- **GUI の接続と要求**：GUI の接続は渡さない（古い serve が閉じ、GUI は `kisui attach` でつなぎ直す。新しい serve は同じソケットにいる）。引き継ぐ間に届いた要求は待たされ、引き継いだあとは何もせずに `busy`（`data.reason` は `handover`）で断るので、GUI はつなぎ直してから送り直せる。引き継いだあとに届いた通知（`term.ack`）は捨てる（つなぎ直したら `term.attach` で取り直すので要らない）。
+- **渡さないもの**：名乗る前の shj の接続と、`serve-primary.rpc` で処理を待っていた欄の頼みは、引き継いだあとに断る（その一瞬に名乗った shj は、プライマリの shj にならない）。git の状態のキャッシュは新しい serve が取り直す。出力の途中で切れたタイトル（OSC 0 / 2）は捨てる。ターミナルでない欄（動画・ブラウザ）は、プライマリの shj の状態としてそのまま渡す（中身は GUI が `media.read` で取るので、serve は持っていない）。
+- **シェルの終わりを知る**：引き継いだシェルは新しい serve の子ではないので `wait` できない。PTY の master の読みが終わった（シェルとその子が端末を手放した）あと、プロセスが無くなるまで待ってから `term.exit` を送る（Linux では pidfd を使うので、pid が使い回されても取り違えない）。終了コードは分からないので `code` は無い。古い serve は、引き継いだあと終わるまでの間、自分の子のシェルを刈り取る。
+- **Linux と macOS**：PTY の読みを止めるのに、読みの期限（`SetReadDeadline`）を使う。creack/pty は ioctl のたびに master を blocking にする（macOS では初めから blocking）ので、`kisui serve` は master を dup して O_NONBLOCK にしたものを使い、大きさの変更も自分で ioctl する。期限が効かない master があると、引き継ぎは止める前に断る（古い serve は動き続ける）。
 
 ### GUI の配り方と自動更新（C8）
 

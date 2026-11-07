@@ -254,7 +254,8 @@ export interface Notifications {
   "pane.hide": { workspaceId: WorkspaceId };
   notify: { level: string; text: string };
   "term.output": { termId: TermId; seq: number; data: string };
-  "term.exit": { termId: TermId; code: number; signal?: string };
+  /** `code` は、`kisui serve` が引き継いだシェル（その子でない）では分からないので無い。 */
+  "term.exit": { termId: TermId; code?: number; signal?: string };
   "term.title": { termId: TermId; title: string };
   "workspace.changed": {
     added?: Workspace[];
