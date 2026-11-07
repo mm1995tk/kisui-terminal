@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"slices"
 	"time"
 )
 
@@ -18,8 +19,8 @@ type undoList []func()
 func (u *undoList) add(f func()) { *u = append(*u, f) }
 
 func (u undoList) run() {
-	for i := len(u) - 1; i >= 0; i-- {
-		u[i]()
+	for _, v := range slices.Backward(u) {
+		v()
 	}
 }
 
