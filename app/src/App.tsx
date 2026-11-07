@@ -527,9 +527,14 @@ function Workbench(props: {
     e.preventDefault();
     el.setPointerCapture(e.pointerId);
     setDragging(border);
+    // つまみは境界の右の隙間にあるので、つかんだ位置と境界の差を覚えて、動かし始めに境界が跳ねないようにする
+    const grab =
+      e.clientX - box.getBoundingClientRect().left - sizeOf(sizes(), border);
     const move = (ev: PointerEvent) => {
       const r = box.getBoundingClientRect();
-      changeSizes(withSize(sizes(), border, ev.clientX - r.left, maxOf()));
+      changeSizes(
+        withSize(sizes(), border, ev.clientX - r.left - grab, maxOf()),
+      );
     };
     const end = () => {
       setDragging(null);
