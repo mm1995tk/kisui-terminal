@@ -8,9 +8,8 @@
 # VERSION is the GUI's version (X.Y.Z, or X.Y.Z-nightly.<yyyymmdd>.<sha> for a
 # nightly); kisui gets it, since it is the GUI's server. SHJ_DIR holds the shj of
 # every OS and CPU as fetch-shj.sh leaves them. Without "macos" it builds for the CPU
-# this machine runs on (Linux). With "macos" it builds both macOS CPUs and joins them
-# with lipo (the universal build Tauri asks for needs all three), for shj too.
-# Needs go (and lipo for macos).
+# this machine runs on (Linux). With "macos" it builds for macOS on Apple silicon
+# (aarch64-apple-darwin); macOS on Intel is not supported. Needs go.
 set -euo pipefail
 
 usage="usage: packaging/build-kisui.sh VERSION SHJ_DIR [macos]"
@@ -39,13 +38,7 @@ shj() { # <os> <cpu> <target triple>
 
 if [ "$mode" = macos ]; then
   build darwin arm64 aarch64-apple-darwin
-  build darwin amd64 x86_64-apple-darwin
   shj darwin arm64 aarch64-apple-darwin
-  shj darwin x64 x86_64-apple-darwin
-  for tool in kisui shj; do
-    lipo -create -output "$out/$tool-universal-apple-darwin" \
-      "$out/$tool-aarch64-apple-darwin" "$out/$tool-x86_64-apple-darwin"
-  done
 else
   case "$(uname -m)" in
     x86_64)

@@ -1,7 +1,7 @@
 name: nightly 版を配る
 
-# main の最新を nightly 版として毎日配る。pre-release nightly に、kisui-terminal-nightly の AppImage と .dmg、
-# 自動更新の latest.json、リモートに入れる kisui-nightly-<os>-<cpu> と shj-nightly-<os>-<cpu>、SHA256SUMS を置く（build.yml）。
+# main の最新を nightly 版として毎日配る。pre-release nightly に、kisui-terminal-nightly の .dmg（macOS の Apple シリコン
+# だけ。Linux の AppImage と macOS の Intel は作らない）、自動更新の latest.json、リモートに入れる kisui-nightly-<os>-<cpu> と shj-nightly-<os>-<cpu>、SHA256SUMS を置く（build.yml）。
 #
 # - 版は <Cargo.toml の version>-nightly.<yyyymmdd>.<sha>。Cargo.toml は書き換えず、v<版> のタグも打たない
 #   （pre-release が持つタグ nightly だけを、そのコミットに付け直す）。

@@ -8,12 +8,12 @@ It is a separate app from shijimi-editor, with its own version and releases. It 
 
 ## Install
 
-Linux and macOS. Every release is at [Releases](https://github.com/mm1995tk/kisui-terminal/releases); the AppImage and the `.dmg` update themselves.
+Linux (x86_64 and aarch64) and macOS on Apple silicon (arm64); macOS on Intel is not supported, neither as the app nor as a remote machine. Every release is at [Releases](https://github.com/mm1995tk/kisui-terminal/releases); the AppImage and the `.dmg` update themselves.
 
-- **AppImage**: `chmod +x kisui-terminal-linux-*.AppImage` and run it.
+- **AppImage**: `chmod +x kisui-terminal-linux-*.AppImage` and run it. The AppImages are added to the latest release once every two weeks, so a new release may have only the `.dmg` for a while.
 - **`.dmg`**: the app is not signed by Apple, so macOS refuses to open it the first time. Drag `kisui-terminal.app` to Applications, open it once (macOS says it cannot be verified; close that dialog), then go to **System Settings → Privacy & Security** and press **Open Anyway** next to the line about `kisui-terminal`. From then on it opens normally. Or run `xattr -dr com.apple.quarantine /Applications/kisui-terminal.app` once. The app is only ad-hoc signed, so after each update you need to grant again the permissions you gave it under Privacy & Security (such as **App Management**).
 
-The nightly build of main is `kisui-terminal-nightly` in the [`nightly` pre-release](https://github.com/mm1995tk/kisui-terminal/releases/tag/nightly). It has its own name and identifier, so it can be installed next to the stable one.
+The nightly build of main is `kisui-terminal-nightly` in the [`nightly` pre-release](https://github.com/mm1995tk/kisui-terminal/releases/tag/nightly) (a `.dmg` only; on Linux, use Nix for the nightly). It has its own name and identifier, so it can be installed next to the stable one.
 
 With Nix, kisui-terminal is the `kisui-terminal` package (`kisui-terminal-nightly` for the nightly, installed under that name), or `programs.kisui-terminal.enable = true;` in home-manager with the flake's `homeManagerModules.default`. Built with Nix it has no auto update: update it with `nix flake update`.
 

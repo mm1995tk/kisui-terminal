@@ -1,7 +1,13 @@
 name: kisui-terminal を作って Release に上げる
 
 # AppImage と .dmg（Apple の署名は無く、ad-hoc 署名だけ。tauri.conf.json の bundle.macOS.signingIdentity）を作り、自動更新（Tauri の updater）の latest.json と一緒に GitHub Release に上げる。
-# release.yml（版のリリース）と nightly.yml（nightly）から呼ぶ。
+# release.yml（版のリリース）と nightly.yml（nightly）から platforms: macos で、linux-appimage.yml（2 週間に 1 回）から
+# platforms: linux で呼ぶ。
+#
+# - platforms: macos：macOS（Apple シリコン、aarch64-apple-darwin）のアプリと、リモートに入れる kisui と shj を作り、
+#   Release に上げ、latest.json を作る（platforms は darwin-aarch64 だけ）。macOS の Intel は作らない。
+# - platforms: linux：Linux の AppImage（x86_64 と aarch64）を作り、もうある Release に足し、その latest.json に
+#   linux-x86_64 と linux-aarch64 を足す（ほかの platforms は消さない）。Release は作らない。
 #
 # - 版のリリース：タグ v<版> の Release に kisui-terminal-*。GitHub の「Latest」の印が付くので、
 #   updater は releases/latest/download/latest.json を見る（tauri.conf.json）。
@@ -13,8 +19,8 @@ name: kisui-terminal を作って Release に上げる
 # - 自動更新を持つのは、ここで作る AppImage と .dmg だけ（cargo の feature updater）。Nix で作る版は持たない。
 #
 # 上げるもの（<名前> は kisui-terminal か kisui-terminal-nightly）:
-#   <名前>-linux-x86_64.AppImage(.sig)、<名前>-linux-aarch64.AppImage(.sig)、
-#   <名前>-macos-universal.dmg、<名前>-macos-universal.app.tar.gz(.sig)、latest.json
+#   macos：<名前>-macos-aarch64.dmg、<名前>-macos-aarch64.app.tar.gz(.sig)、latest.json、kisui-*・shj-*・SHA256SUMS
+#   linux：<名前>-linux-x86_64.AppImage(.sig)、<名前>-linux-aarch64.AppImage(.sig)、latest.json（足したもの）
 #
 # 署名鍵（minisign、パスワードなし）は 1Password の vault shijimi-editor-release の item
 # shijimi-editor-tauri-updater-key にあり、サービスアカウント（トークンは item shijimi-editor-release-op-token。
@@ -23,7 +29,6 @@ name: kisui-terminal を作って Release に上げる
 #
 # ここだけは Nix（devShell）を使わず、各 OS の Node・rustup・システムの WebView でビルドする。
 # 配る AppImage と .dmg は Nix の無いマシンで動く必要があり、Nix で作ると /nix/store のライブラリを指してしまうため。
-# macOS の universal（2 つの CPU 向けを 1 つにする）にも、rustup で足すターゲットが要る。
 
 on:
   workflow_call:
@@ -48,6 +53,10 @@ on:
         description: "空なら普通の版、nightly なら nightly 版"
         type: string
         default: ""
+      platforms:
+        description: "macos（アプリは macOS の Apple シリコン。リモート用の kisui と shj も作る）か linux（AppImage を、もうある Release に足す）"
+        type: string
+        default: macos
     secrets:
       OP_SERVICE_ACCOUNT_TOKEN_RELEASE:
         required: true
@@ -60,15 +69,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: ubuntu-24.04
-            platform: linux-x86_64
-          - os: ubuntu-24.04-arm
-            platform: linux-aarch64
-          # Intel と Apple シリコンの両方で動く 1 つの .app にする
-          - os: macos-latest
-            platform: macos-universal
-            target: universal-apple-darwin
+        # macOS は Apple シリコン（aarch64-apple-darwin）だけ。Intel は作らない
+        include: >-
+          ${{ fromJSON(inputs.platforms == 'linux'
+          && '[{"os":"ubuntu-24.04","platform":"linux-x86_64"},{"os":"ubuntu-24.04-arm","platform":"linux-aarch64"}]'
+          || '[{"os":"macos-latest","platform":"macos-aarch64","target":"aarch64-apple-darwin"}]') }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7.0.1
@@ -92,8 +97,8 @@ jobs:
             export PATH="$HOME/.cargo/bin:$PATH"
           fi
           rustup toolchain install stable --profile minimal
-          if [ "$TARGET" = universal-apple-darwin ]; then
-            rustup target add aarch64-apple-darwin x86_64-apple-darwin
+          if [ -n "$TARGET" ]; then
+            rustup target add "$TARGET"
           fi
 
       - name: Linux の WebView と AppImage の道具を入れる
@@ -204,8 +209,10 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-  # リモートに入れる kisui と shj（install.rs が取る）と SHA256SUMS。ssh 先は Linux と macOS の x64 と arm64
+  # リモートに入れる kisui と shj（install.rs が取る）と SHA256SUMS。ssh 先は Linux の x64 と arm64、macOS の arm64。
+  # platforms: linux では作らない（Release にもうある）
   remote:
+    if: inputs.platforms != 'linux'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7.0.1
@@ -228,9 +235,10 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-  # 3 つのビルドがそろってから上げる（latest.json が、まだ無いファイルを指さないように）
+  # ビルドがそろってから上げる（latest.json が、まだ無いファイルを指さないように）
   publish:
     needs: [bundle, remote]
+    if: inputs.platforms != 'linux'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -258,20 +266,15 @@ jobs:
           entry() { # <ファイル>
             jq -n --arg url "$base/$1" --rawfile sig "$1.sig" '{url: $url, signature: ($sig | rtrimstr("\n"))}'
           }
-          mac=$(entry "$name-macos-universal.app.tar.gz")
-          # Tauri の updater の静的な JSON の形（https://v2.tauri.app/plugin/updater/）
+          # Tauri の updater の静的な JSON の形（https://v2.tauri.app/plugin/updater/）。
+          # Linux の AppImage は、安定版では linux-appimage.yml が後から足す（nightly では作らない）
           jq -n \
             --arg version "$VERSION" \
             --arg pub_date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             --arg notes "https://github.com/$GITHUB_REPOSITORY/releases/tag/$TAG" \
-            --argjson linux_x64 "$(entry "$name-linux-x86_64.AppImage")" \
-            --argjson linux_arm "$(entry "$name-linux-aarch64.AppImage")" \
-            --argjson mac "$mac" \
+            --argjson mac "$(entry "$name-macos-aarch64.app.tar.gz")" \
             '{version: $version, notes: $notes, pub_date: $pub_date, platforms: {
-              "linux-x86_64": $linux_x64,
-              "linux-aarch64": $linux_arm,
-              "darwin-aarch64": $mac,
-              "darwin-x86_64": $mac
+              "darwin-aarch64": $mac
             }}' > latest.json
           cat latest.json
           # Release を用意する。説明には同梱した shj の版を書く。
@@ -297,3 +300,43 @@ jobs:
           fi
           # 再実行で上げ直せるよう、同じ名前のアセットは置き換える
           gh release upload "$TAG" ./* --clobber --repo "$GITHUB_REPOSITORY"
+
+  # platforms: linux：AppImage を、もうある Release に足し、その latest.json に Linux の 2 つを足す
+  publish-linux:
+    needs: bundle
+    if: inputs.platforms == 'linux'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8.0.2
+        with:
+          pattern: gui-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/assets
+      - name: AppImage を Release に足し、latest.json に足す
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+          CHANNEL: ${{ inputs.channel }}
+        run: |
+          cd "$RUNNER_TEMP/assets"
+          name=kisui-terminal
+          if [ "$CHANNEL" = nightly ]; then
+            name=kisui-terminal-nightly
+          fi
+          base="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG"
+          entry() { # <ファイル>
+            jq -n --arg url "$base/$1" --rawfile sig "$1.sig" '{url: $url, signature: ($sig | rtrimstr("\n"))}'
+          }
+          # 今の latest.json（publish が作ったもの）に足す。ほかの platforms と version・pub_date はそのまま
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern latest.json --dir "$RUNNER_TEMP/old"
+          jq \
+            --argjson linux_x64 "$(entry "$name-linux-x86_64.AppImage")" \
+            --argjson linux_arm "$(entry "$name-linux-aarch64.AppImage")" \
+            '.platforms += {"linux-x86_64": $linux_x64, "linux-aarch64": $linux_arm}' \
+            "$RUNNER_TEMP/old/latest.json" > "$RUNNER_TEMP/latest.json"
+          cat "$RUNNER_TEMP/latest.json"
+          # AppImage を先に上げ、latest.json は最後に置き換える（まだ無いファイルを指さないように）
+          gh release upload "$TAG" ./* --clobber --repo "$GITHUB_REPOSITORY"
+          gh release upload "$TAG" "$RUNNER_TEMP/latest.json" --clobber --repo "$GITHUB_REPOSITORY"

@@ -7,7 +7,8 @@
 #
 # VERSION and SHJ_DIR are the same as for build-kisui.sh. The files are kisui-<os>-<cpu>
 # and shj-<os>-<cpu> (kisui-nightly-<os>-<cpu> and shj-nightly-<os>-<cpu> for a nightly)
-# for linux and darwin on x64 and arm64. Needs go and sha256sum.
+# for linux on x64 and arm64 and for darwin on arm64 (macOS on Intel is not supported).
+# Needs go and sha256sum.
 set -euo pipefail
 
 usage="usage: packaging/build-remote.sh VERSION SHJ_DIR OUT_DIR"
@@ -26,15 +27,15 @@ if [[ "$version" == *-nightly.* ]]; then
 fi
 
 mkdir -p "$out"
-for goos in linux darwin; do
-  for goarch in amd64 arm64; do
-    cpu="x64"
-    if [ "$goarch" = arm64 ]; then cpu="arm64"; fi
-    (cd "$root" && GOOS="$goos" GOARCH="$goarch" CGO_ENABLED=0 \
-      go build -trimpath -ldflags "$kisui_ldflags" -o "$out/kisui-$prefix$goos-$cpu" ./cmd/kisui)
-    name="$(shj_name "$version" "$goos" "$cpu")"
-    cp "$shj_dir/$name" "$out/$name"
-  done
+for target in linux/amd64 linux/arm64 darwin/arm64; do
+  goos="${target%/*}"
+  goarch="${target#*/}"
+  cpu="x64"
+  if [ "$goarch" = arm64 ]; then cpu="arm64"; fi
+  (cd "$root" && GOOS="$goos" GOARCH="$goarch" CGO_ENABLED=0 \
+    go build -trimpath -ldflags "$kisui_ldflags" -o "$out/kisui-$prefix$goos-$cpu" ./cmd/kisui)
+  name="$(shj_name "$version" "$goos" "$cpu")"
+  cp "$shj_dir/$name" "$out/$name"
 done
 # install.rs reads this to check a downloaded file (sha256sum's format)
 (cd "$out" && sha256sum kisui-* shj-* > SHA256SUMS)

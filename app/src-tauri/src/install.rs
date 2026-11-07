@@ -74,7 +74,7 @@ fn release_tag(version: &str) -> String {
 }
 
 /// `uname -sm` の結果から、Release の実行ファイル名（`<tool>-<os>-<cpu>`、nightly は `<tool>-nightly-<os>-<cpu>`）を決める。
-/// tool は `kisui` か `shj`。
+/// tool は `kisui` か `shj`。macOS の Intel（Darwin x86_64）は作っていないので Err。
 fn asset_name(tool: &str, version: &str, uname: &str) -> Result<String, String> {
     let mut it = uname.split_whitespace();
     let (os, machine) = match (it.next(), it.next(), it.next()) {
@@ -91,6 +91,9 @@ fn asset_name(tool: &str, version: &str, uname: &str) -> Result<String, String> 
         "aarch64" | "arm64" => "arm64",
         _ => return Err(format!("unsupported CPU: {machine}")),
     };
+    if os == "darwin" && cpu == "x64" {
+        return Err("unsupported: kisui-terminal does not support macOS on Intel (x86_64); only Apple silicon (arm64)".to_string());
+    }
     Ok(if is_nightly(version) {
         format!("{tool}-nightly-{os}-{cpu}")
     } else {
@@ -396,10 +399,10 @@ mod tests {
             asset_name("kisui", "0.7.0", "Darwin arm64").unwrap(),
             "kisui-darwin-arm64"
         );
-        assert_eq!(
-            asset_name("kisui", "0.7.0", "Darwin x86_64").unwrap(),
-            "kisui-darwin-x64"
-        );
+        // macOS の Intel はサポートしない
+        let err = asset_name("kisui", "0.7.0", "Darwin x86_64").unwrap_err();
+        assert!(err.contains("macOS on Intel"), "{err}");
+        assert!(asset_name("shj", "0.7.0-nightly.1.a", "Darwin x86_64").is_err());
         assert_eq!(
             asset_name("kisui", "0.7.0-nightly.1.a", "Linux x86_64").unwrap(),
             "kisui-nightly-linux-x64"
