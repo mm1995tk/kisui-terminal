@@ -1,7 +1,7 @@
-# GUI の殻（app/src-tauri）を、リポジトリの根から cargo で動かすための workspace。
+# GUI の殻（app/src-tauri）と、kisui serve が欄ごとに動かす coneko-term の wasm 殻（emulator）を、リポジトリの根から cargo で動かすための workspace。
 # Cargo.lock と target/ は根に置く。
 [workspace]
-members = ["app/src-tauri"]
+members = ["app/src-tauri", "emulator"]
 resolver = "2"
 
 # workspace では profile は根にしか書けない

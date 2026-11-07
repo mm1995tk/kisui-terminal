@@ -1,0 +1,15 @@
+[package]
+name = "kisui-emulator"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "kisui serve が欄ごとに画面の状態を持つための coneko-term の wasm 殻（Go から wazero で動かす）"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# GUI（npm の coneko-term）と同じ版にして、画面がずれないようにする。
+# 上げるときは package.json の coneko-term も同じ版にそろえる
+coneko-term = "=0.1.2"

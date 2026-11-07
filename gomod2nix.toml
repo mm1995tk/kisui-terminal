@@ -29,6 +29,10 @@ schema = 3
     version = 'v0.0.27'
     hash = 'sha256-TQd0ek+jjvxgN9YA6N/ctOyrADIAg9bBcClJCDltIWc='
 
+  [mod.'github.com/tetratelabs/wazero']
+    version = 'v1.12.0'
+    hash = 'sha256-KXFBskHF9Esld7gn77BOyQpeeIDa/0OXuJFwrpNDRFc='
+
   [mod.'golang.org/x/sys']
     version = 'v0.49.0'
     hash = 'sha256-/1S3yy3in72ygZT1CKymvOzJZqCMYiGSqZDfvSyB3LI='

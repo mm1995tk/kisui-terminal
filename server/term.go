@@ -107,6 +107,7 @@ type terminal struct {
 	sent       int64  // ここまで送った
 	acked      int64  // GUI が処理したと言ったところ
 	osc        oscScan
+	feed       *screenFeed // 画面の状態を持つ coneko-term（screen.go）。term.attach はまだ使わない
 }
 
 // ringBytes は seq が [from, to) の範囲のバイト列を返す。from が捨てられた分なら残っている先頭から。
@@ -154,6 +155,7 @@ func (t *terminal) proc() (*os.File, *exec.Cmd) {
 }
 
 func (t *terminal) hangup() {
+	t.feed.close() // ターミナルを忘れるときに呼ばれる。以後の出力は画面の状態に入れない
 	ptmx, cmd := t.proc()
 	// SIGHUP を無視するシェルで shutdown が止まらないように、少し待って SIGKILL。
 	if cmd.Process != nil {
@@ -238,6 +240,7 @@ func (m *termManager) start(a termStart) (*terminal, error) {
 		mgr: m, id: fmt.Sprintf("t%d", m.next), pid: sess.Pid(),
 		ptmx: ptmx, cmd: cmd, cols: a.cols, rows: a.rows, alive: true,
 		ring: make([]byte, ringSize), wsID: a.wsID, primary: a.primary,
+		feed: newScreenFeed(m.srv.log, a.rows, a.cols),
 	}
 	t.cwd = normalizePath(a.dir) // 以後 cwd の変化を見るので、読み取った値（実パス）に合わせる
 	m.terms[t.id] = t
@@ -381,6 +384,7 @@ func (t *terminal) pump(ptmx *os.File, cmd *exec.Cmd) {
 				t.title = title
 			}
 			t.mu.Unlock()
+			t.feed.write(buf[:n])
 			if changed {
 				t.mgr.srv.notifyOwner("term.title", map[string]any{"termId": t.id, "title": title})
 			}
@@ -560,6 +564,7 @@ func (ss *session) termRequest(req *rpc.Message) (res any, err error, handled bo
 		t.mu.Lock()
 		t.cols, t.rows = p.Cols, p.Rows
 		t.mu.Unlock()
+		t.feed.resize(p.Rows, p.Cols)
 		return struct{}{}, nil, true
 	case "term.cd":
 		// 制御文字（行の編集や端末の行の規律が解釈する）を含むパスは、引用しても守れないので何も打たない。
