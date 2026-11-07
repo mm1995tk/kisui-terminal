@@ -65,6 +65,13 @@ interface Handlers {
     x: number,
     y: number,
   ) => void;
+  /** ツリーの行のメニューで項目を選んだ・行でそのキー（a・d など）を押した。省くとメニューを出さず、そのキーも使わない */
+  onTreeAction?: (
+    target: string,
+    id: WorkspaceId,
+    row: TreeRow,
+    action: TreeMenuAction,
+  ) => void;
 }
 
 /**
@@ -87,13 +94,6 @@ export function Sidebar(
     onRename?: (target: string) => void;
     /** 見出しのメニューの「外す」 */
     onRemove?: (target: string) => void;
-    /** ツリーの行のメニューで項目を選んだ。省くとメニューを出さない */
-    onTreeAction?: (
-      target: string,
-      id: WorkspaceId,
-      row: TreeRow,
-      action: TreeMenuAction,
-    ) => void;
   },
 ): JSX.Element {
   // ツリーの行の右クリックのメニュー。閉じ方は見出しのメニューと同じ
@@ -324,6 +324,9 @@ function handlers(
     get currentOf() {
       return props.currentOf;
     },
+    get onTreeAction() {
+      return props.onTreeAction;
+    },
   };
 }
 
@@ -516,6 +519,11 @@ function BandItem(
               props.onTreeMenu
                 ? (row, x, y) =>
                     props.onTreeMenu?.(props.target, b().id, row, x, y)
+                : undefined
+            }
+            onAction={
+              props.onTreeAction
+                ? (row, a) => props.onTreeAction?.(props.target, b().id, row, a)
                 : undefined
             }
           />

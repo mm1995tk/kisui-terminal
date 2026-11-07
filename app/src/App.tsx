@@ -774,11 +774,12 @@ function Workbench(props: {
         break;
       case "new-file":
       case "new-dir":
+        // メニューはフォルダの行にだけ出す。キー（a・A）はファイルの行でも使え、そのファイルのフォルダに作る（shj のツリーと同じ）
         setTreeDialog({
           kind: action,
           target,
           id,
-          path: row.path,
+          path: row.dir ? row.path : parentPath(row.path),
           dir: true,
         });
         break;
