@@ -105,6 +105,7 @@ func (l *primaryLink) readLine() ([]byte, error) {
 				l.skipping = true
 				continue
 			}
+			l.skipping = true // 読みが止められても、再開したあと残りを新しい行として読まない
 			return nil, err
 		}
 		switch {
