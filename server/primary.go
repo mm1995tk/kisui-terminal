@@ -107,9 +107,14 @@ func (l *primaryLink) end() {
 	l.pause.end()
 }
 
+// primarySocketPath は serve-primary.rpc の場所（serve.rpc と同じディレクトリ）。shj の名乗りと欄の中のコマンドが使う。
+func (s *Server) primarySocketPath() string {
+	return filepath.Join(filepath.Dir(s.opts.SocketPath), ctl.ServePrimaryName)
+}
+
 // startPrimary は serve-primary.rpc を開く。開けなくても serve は動く（プライマリの shj を知れないだけ）。
 func (s *Server) startPrimary() {
-	path := filepath.Join(filepath.Dir(s.opts.SocketPath), ctl.ServePrimaryName)
+	path := s.primarySocketPath()
 	_ = os.Remove(path)
 	ln, err := net.Listen("unix", path)
 	if err == nil {

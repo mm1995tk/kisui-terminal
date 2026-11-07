@@ -21,7 +21,6 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -249,7 +248,7 @@ func (m *termManager) start(a termStart) (*terminal, error) {
 		return nil, rpc.Errorf(rpc.CodeInternalError, "pane token: %v", err)
 	}
 	env = append(slices.Clone(env),
-		panecmd.EnvSocket+"="+filepath.Join(filepath.Dir(m.srv.opts.SocketPath), ctl.ServePrimaryName),
+		panecmd.EnvSocket+"="+m.srv.primarySocketPath(),
 		panecmd.EnvPane+"="+fmt.Sprintf("t%d", m.next+1),
 		panecmd.EnvToken+"="+token)
 	env = withKisuiPath(env)
