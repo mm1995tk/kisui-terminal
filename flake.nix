@@ -92,28 +92,34 @@
             };
           # kisui serve が欄ごとに動かす coneko-term の wasm（emulator/ の Rust）。Go は internal/emulator/emulator.wasm
           # にコミットしたものを埋め込むので、Rust が無くても kisui は作れる。ソースを変えたら
-          # scripts/build-emulator.sh でコミットし直す（食い違うと checks.emulator-wasm が落ちる）
-          emulatorWasm = pkgs.stdenv.mkDerivation {
+          # scripts/build-emulator.sh でコミットし直す（食い違うと checks.emulator-wasm が落ちる）。
+          # wasm のバイト列は作ったホスト（OS と CPU）で変わるので、作る場所は x86_64-linux に決めている。
+          # macOS でも、この derivation は x86_64-linux のビルダー（linux-builder など）で作られる
+          pkgsX86 = nixpkgs.legacyPackages.x86_64-linux;
+          emulatorWasm = pkgsX86.stdenv.mkDerivation {
             pname = "kisui-emulator-wasm";
             version = "0.1.0";
-            src = pkgs.lib.fileset.toSource {
+            src = pkgsX86.lib.fileset.toSource {
               root = ./.;
-              fileset = pkgs.lib.fileset.unions [
+              fileset = pkgsX86.lib.fileset.unions [
                 ./Cargo.toml
                 ./Cargo.lock
                 ./app/src-tauri
                 ./emulator
               ];
             };
-            cargoDeps = pkgs.rustPlatform.importCargoLock { lockFile = ./Cargo.lock; };
+            cargoDeps = pkgsX86.rustPlatform.importCargoLock { lockFile = ./Cargo.lock; };
             nativeBuildInputs = [
-              pkgs.rustPlatform.cargoSetupHook
-              pkgs.cargo
-              pkgs.rustc
-              pkgs.lld
+              pkgsX86.rustPlatform.cargoSetupHook
+              pkgsX86.cargo
+              pkgsX86.rustc
+              pkgsX86.lld
             ];
             buildPhase = ''
               runHook preBuild
+              # panic の位置などにソースのパスが入る。Nix の作業ディレクトリ（macOS は作るたびに名前が変わる）を
+              # 固定の文字列にして、どこで作っても同じバイト列にする
+              export RUSTFLAGS="--remap-path-prefix=$NIX_BUILD_TOP=/build"
               cargo build -p kisui-emulator --release --target wasm32-unknown-unknown --offline
               runHook postBuild
             '';
@@ -202,15 +208,6 @@
           checks = {
             formatting = treefmtEval.config.build.check self;
 
-            # コミットした internal/emulator/emulator.wasm が emulator/ のソースから作ったものと同じ
-            emulator-wasm = pkgs.runCommand "check-emulator-wasm" { } ''
-              if ! cmp ${emulatorWasm}/emulator.wasm ${./internal/emulator/emulator.wasm}; then
-                echo "internal/emulator/emulator.wasm が emulator/ のソースと食い違っています。scripts/build-emulator.sh でコミットし直してください" >&2
-                exit 1
-              fi
-              touch $out
-            '';
-
             # GUI の殻（cargo test も回る）と Web 画面のテスト（npm test）
             kisui-terminal = guiDrv;
             web-test = guiDrv.web.overrideAttrs (_: {
@@ -222,6 +219,17 @@
                 runHook postCheck
               '';
             });
+          }
+          // pkgs.lib.optionalAttrs (system == "x86_64-linux") {
+            # コミットした internal/emulator/emulator.wasm が emulator/ のソースから作ったものと同じ
+            # （作る場所が x86_64-linux だけなので、検査もそこでだけ回す）
+            emulator-wasm = pkgs.runCommand "check-emulator-wasm" { } ''
+              if ! cmp ${emulatorWasm}/emulator.wasm ${./internal/emulator/emulator.wasm}; then
+                echo "internal/emulator/emulator.wasm が emulator/ のソースと食い違っています。scripts/build-emulator.sh でコミットし直してください" >&2
+                exit 1
+              fi
+              touch $out
+            '';
           }
           # Go のテスト（go test ./...）。Linux だけ。macOS の Nix のビルド環境には PATH に ps が無く、
           # ソケットのパスが長すぎ、PTY のシェルも動かないので、テストが前提にする環境にならない

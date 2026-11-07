@@ -12,6 +12,7 @@ workflows:
         - 'actions/upload-artifact@v7.0.2'
     '.github/workflows/check.yml':
         - 'actions/checkout@v7.0.1'
+        - 'actions/upload-artifact@v7.0.2'
         - 'cachix/install-nix-action@v31.11.3'
         - 'nix-community/cache-nix-action@v7.0.2'
     '.github/workflows/nightly.yml':

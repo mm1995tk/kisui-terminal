@@ -49,6 +49,21 @@ jobs:
           purge-primary-key: never
       - name: nix flake check
         run: nix flake check --print-build-logs
+      # internal/emulator/emulator.wasm は x86_64-linux で作ったものをコミットする。macOS など手元で作れない人は、
+      # この成果物（検査が落ちたときも出る）を取ってコミットする（docs は CONTRIBUTING.md の「Rebuilding `internal/emulator/emulator.wasm`」）
+      - name: emulator.wasm を作る
+        if: ${{ !cancelled() && matrix.os == 'ubuntu-latest' }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/emulator-wasm"
+          nix build .#packages.x86_64-linux.emulator-wasm --print-build-logs --no-link --print-out-paths > "$RUNNER_TEMP/emulator-wasm.path"
+          cp "$(cat "$RUNNER_TEMP/emulator-wasm.path")/emulator.wasm" "$RUNNER_TEMP/emulator-wasm/emulator.wasm"
+      - uses: actions/upload-artifact@v7.0.2
+        if: ${{ !cancelled() && matrix.os == 'ubuntu-latest' }}
+        with:
+          name: emulator-wasm
+          path: ${{ runner.temp }}/emulator-wasm/emulator.wasm
+          if-no-files-found: error
+          retention-days: 7
   # 自動更新を付けた殻。配る版（build.yml）はこれを tauri build で作る
   updater:
     runs-on: ubuntu-latest
