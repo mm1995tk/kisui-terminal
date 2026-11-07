@@ -1,14 +1,15 @@
-import { Match, onCleanup, Switch, type JSX } from "solid-js";
+import { Match, onCleanup, Show, Switch, type JSX } from "solid-js";
 
 import type { ExtraPane } from "../rpc/protocol.ts";
 import { baseName, FILE_LABEL, type MediaFetch } from "./media.ts";
 import { createFileSource } from "./fileSource.ts";
 
-/**
- * 画像と PDF の欄。動画の欄（VideoView）と同じ升目・同じ見出しで、中身は media.read で取って
- * （fileSource.ts）、画像は <img>、PDF は WebView の PDF 表示（<iframe>）で出す。種類を足すときは、
- * ここの本文（Body）に 1 つ足す。WebView が PDF を表示できないとき（WebKitGTK など）は、欄にその理由を出す。
- */
+/** WebView が PDF を表示できるか（WebKitGTK は偽。古い WebView で値が無いときは表示を試す）。 */
+function pdfViewable(): boolean {
+  return navigator.pdfViewerEnabled !== false;
+}
+
+/** 種類ごとの本文（画像は <img>、PDF は <iframe>）。 */
 function Body(props: {
   pane: ExtraPane;
   url: string;
@@ -17,11 +18,20 @@ function Body(props: {
   return (
     <Switch>
       <Match when={props.pane.kind === "pdf"}>
-        <iframe
-          src={props.url}
-          title={baseName(props.pane.path)}
-          class="file-pdf"
-        />
+        <Show
+          when={pdfViewable()}
+          fallback={
+            <p class="video-note" role="status">
+              この環境の WebView は PDF を表示できません（{props.pane.path}）
+            </p>
+          }
+        >
+          <iframe
+            src={props.url}
+            title={baseName(props.pane.path)}
+            class="file-pdf"
+          />
+        </Show>
       </Match>
       <Match when={true}>
         <img
@@ -36,6 +46,11 @@ function Body(props: {
   );
 }
 
+/**
+ * 画像と PDF の欄。動画の欄（VideoView）と同じ升目・同じ見出しで、中身は media.read で取って（fileSource.ts）、
+ * 画像は <img>、PDF は WebView の PDF 表示（<iframe>）で出す。種類を足すときは、Body に 1 つ足す。
+ * WebView が PDF を表示できない環境（WebKitGTK など）では、iframe に渡さず、欄にその理由を出す。
+ */
 export function FileView(props: {
   pane: ExtraPane;
   /** 中身を取る関数（欄の id は束ねてある） */
@@ -56,6 +71,10 @@ export function FileView(props: {
   );
   props.focusRef?.(() => cell.focus());
   onCleanup(() => props.focusRef?.(undefined));
+  const ready = () => {
+    const l = source.load();
+    return l.kind === "ready" ? l : undefined;
+  };
   const label = () => FILE_LABEL[props.pane.kind] ?? "ファイル";
 
   return (
@@ -85,14 +104,8 @@ export function FileView(props: {
       </div>
       <div class="video-body">
         <Switch>
-          <Match when={source.load().kind === "ready" && source.load()}>
-            {(l) => (
-              <Body
-                pane={props.pane}
-                url={(l() as { url: string }).url}
-                fail={source.fail}
-              />
-            )}
+          <Match when={ready()}>
+            {(l) => <Body pane={props.pane} url={l().url} fail={source.fail} />}
           </Match>
           <Match when={source.load()}>
             {(l) => (

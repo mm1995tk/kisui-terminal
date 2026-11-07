@@ -21,6 +21,7 @@ export type MediaFetch = (
   params: Pick<MediaRead["params"], "offset">,
 ) => Promise<MediaRead["result"]>;
 
+/** server/filekind.go の fileKinds の maxSize と同じ値にする（片方だけ変えない）。 */
 /** 取って開くファイルの大きさの上限（バイト）。種類（ExtraPane.kind）ごと。種類を足すときはここにも足す。 */
 export const MAX_BYTES: Record<string, number> = {
   video: 512 * 1024 * 1024,

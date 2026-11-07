@@ -12,7 +12,7 @@ type fileKind struct {
 	// mime maps a lower-case extension (with the dot) to the media type.
 	mime map[string]string
 	// maxSize is the largest file the pane opens, in bytes (0: no limit here;
-	// the GUI has its own limit).
+	// the GUI has its own limit, MAX_BYTES in app/src/terminal/media.ts: keep them equal).
 	maxSize int64
 }
 
@@ -48,6 +48,3 @@ var fileKinds = map[string]fileKind{
 func fileMIME(kind, path string) string {
 	return fileKinds[kind].mime[strings.ToLower(filepath.Ext(path))]
 }
-
-// VideoMIME is the media type of the video at path ("" when it is not a video).
-func VideoMIME(path string) string { return fileMIME("video", path) }
