@@ -81,7 +81,7 @@ func (w *wsManager) ownPane(claim *primaryShj, id string) bool {
 }
 
 // pane は rq を行う。頼んだ shj が、そのワークスペースのプライマリの shj でなければ断る。
-// split・open・hide のほかは、その shj が作った欄にだけ効く。
+// split・open・hide・explorer のほかは、その shj が作った欄にだけ効く。
 func (w *wsManager) pane(rq ctl.PaneRequest) (ctl.PaneReply, error) {
 	claim, wsID, err := w.claimOf(rq)
 	if err != nil {

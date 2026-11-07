@@ -15,7 +15,6 @@
 // terminal/grid.ts）。プライマリターミナルは `exit` しても閉じず、Enter で作り直す。
 // 新しい版があれば右下に知らせ、押されたら入れ替えて起動し直す（C8。update/UpdateBar.tsx）。
 // 窓と知らせは、どれもモック Connect.dc.html のカードの決まりで描く（connect/card.css）。
-import { explorerRow, isLeaveExplorerKey } from "./explorerFocus.ts";
 import {
   createEffect,
   createMemo,
@@ -28,6 +27,7 @@ import {
 } from "solid-js";
 
 import { AskpassDialog } from "./AskpassDialog.tsx";
+import { explorerRow, isLeaveExplorerKey } from "./explorerFocus.ts";
 import { ClipboardDialog } from "./ClipboardDialog.tsx";
 import { TransferDialog } from "./TransferDialog.tsx";
 import { AddMachine } from "./connect/AddMachine.tsx";
