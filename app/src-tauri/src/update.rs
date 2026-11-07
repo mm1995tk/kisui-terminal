@@ -42,9 +42,27 @@ pub async fn update_install(
     imp::install(&app, &state).await
 }
 
+/// nightly の版（`X.Y.Z-nightly.<日付>.<sha>`）どうしで、`X.Y.Z` と日付が同じで sha だけが違うか。
+///
+/// semver は sha を文字の順で比べるので、同じ日の後のコミットの nightly が、前のものより古く見えることがある
+/// （`…20261107.022b809` は `…20261107.2367a9a` より前になる）。nightly は main を前に進めたときだけ作り直すので、
+/// 同じ日で sha が違えば新しい版とみなす。
+#[cfg_attr(not(feature = "updater"), allow(dead_code))]
+fn same_day_nightly_moved(current: &str, remote: &str) -> bool {
+    fn split(v: &str) -> Option<(&str, &str, &str)> {
+        let (base, rest) = v.split_once("-nightly.")?;
+        let (date, sha) = rest.split_once('.')?;
+        Some((base, date, sha))
+    }
+    match (split(current), split(remote)) {
+        (Some((cb, cd, cs)), Some((rb, rd, rs))) => cb == rb && cd == rd && cs != rs,
+        _ => false,
+    }
+}
+
 #[cfg(feature = "updater")]
 mod imp {
-    use super::{UpdateInfo, Updates};
+    use super::{same_day_nightly_moved, UpdateInfo, Updates};
     use tauri_plugin_updater::UpdaterExt;
 
     /// 自動で入れ替えられる形で動いているか。Linux は AppImage のときだけ（ほかの形は入れ替える先が無い）。
@@ -66,7 +84,15 @@ mod imp {
         if !replaceable(app) {
             return Ok(None);
         }
-        let update = match app.updater().map_err(|e| e.to_string())?.check().await {
+        let updater = app
+            .updater_builder()
+            .version_comparator(|current, remote| {
+                remote.version > current
+                    || same_day_nightly_moved(&current.to_string(), &remote.version.to_string())
+            })
+            .build()
+            .map_err(|e| e.to_string())?;
+        let update = match updater.check().await {
             Ok(u) => u,
             Err(e) => {
                 eprintln!("kisui-terminal: update check failed: {e}");
@@ -107,5 +133,47 @@ mod imp {
 
     pub async fn install(_: &tauri::AppHandle, _: &Updates) -> Result<(), String> {
         Err("this build has no auto update (update it with nix flake update)".into())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::same_day_nightly_moved;
+
+    #[test]
+    fn same_day_nightly_with_other_sha_is_newer() {
+        assert!(same_day_nightly_moved(
+            "0.1.0-nightly.20261107.2367a9a",
+            "0.1.0-nightly.20261107.022b809"
+        ));
+    }
+
+    #[test]
+    fn same_nightly_is_not_newer() {
+        assert!(!same_day_nightly_moved(
+            "0.1.0-nightly.20261107.2367a9a",
+            "0.1.0-nightly.20261107.2367a9a"
+        ));
+    }
+
+    #[test]
+    fn other_day_or_base_is_left_to_semver() {
+        assert!(!same_day_nightly_moved(
+            "0.1.0-nightly.20261107.2367a9a",
+            "0.1.0-nightly.20261106.022b809"
+        ));
+        assert!(!same_day_nightly_moved(
+            "0.1.0-nightly.20261107.2367a9a",
+            "0.2.0-nightly.20261107.022b809"
+        ));
+    }
+
+    #[test]
+    fn stable_is_left_to_semver() {
+        assert!(!same_day_nightly_moved("0.1.0", "0.1.1"));
+        assert!(!same_day_nightly_moved(
+            "0.1.0-nightly.20261107.2367a9a",
+            "0.1.0"
+        ));
     }
 }
