@@ -11,7 +11,7 @@ It is a separate app from shijimi-editor, with its own version and releases. It 
 Linux and macOS. Every release is at [Releases](https://github.com/mm1995tk/kisui-terminal/releases); the AppImage and the `.dmg` update themselves.
 
 - **AppImage**: `chmod +x kisui-terminal-linux-*.AppImage` and run it.
-- **`.dmg`**: the app is not signed by Apple, so macOS refuses to open it the first time. Drag `kisui-terminal.app` to Applications, open it once (macOS says it cannot be verified; close that dialog), then go to **System Settings → Privacy & Security** and press **Open Anyway** next to the line about `kisui-terminal`. From then on it opens normally. Or run `xattr -dr com.apple.quarantine /Applications/kisui-terminal.app` once.
+- **`.dmg`**: the app is not signed by Apple, so macOS refuses to open it the first time. Drag `kisui-terminal.app` to Applications, open it once (macOS says it cannot be verified; close that dialog), then go to **System Settings → Privacy & Security** and press **Open Anyway** next to the line about `kisui-terminal`. From then on it opens normally. Or run `xattr -dr com.apple.quarantine /Applications/kisui-terminal.app` once. The app is only ad-hoc signed, so after each update you need to grant again the permissions you gave it under Privacy & Security (such as **App Management**).
 
 The nightly build of main is `kisui-terminal-nightly` in the [`nightly` pre-release](https://github.com/mm1995tk/kisui-terminal/releases/tag/nightly). It has its own name and identifier, so it can be installed next to the stable one.
 

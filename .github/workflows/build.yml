@@ -1,6 +1,6 @@
 name: kisui-terminal を作って Release に上げる
 
-# AppImage と署名なしの .dmg を作り、自動更新（Tauri の updater）の latest.json と一緒に GitHub Release に上げる。
+# AppImage と .dmg（Apple の署名は無く、ad-hoc 署名だけ。tauri.conf.json の bundle.macOS.signingIdentity）を作り、自動更新（Tauri の updater）の latest.json と一緒に GitHub Release に上げる。
 # release.yml（版のリリース）と nightly.yml（nightly）から呼ぶ。
 #
 # - 版のリリース：タグ v<版> の Release に kisui-terminal-*。GitHub の「Latest」の印が付くので、

@@ -17,7 +17,7 @@ kisui-terminal は shijimi-editor（shj）とは別の版・別のタイミン�
 
 ## 上がるもの（`build.yml`）
 
-AppImage（Linux の x86_64 と aarch64）、署名なしの `.dmg`、`.app.tar.gz` とその `.sig`、リモートに入れる `kisui-<os>-<cpu>` と `shj-<os>-<cpu>`、`SHA256SUMS`、`latest.json`。ビルドと Release への upload は `build.yml`（`release.yml` と `nightly.yml` から呼ぶ）です。ssh 先への kisui と shj の取得（`app/src-tauri/src/install.rs`）は、この Release から取ります。
+AppImage（Linux の x86_64 と aarch64）、Apple の署名の無い（ad-hoc 署名だけの）`.dmg`、`.app.tar.gz` とその `.sig`、リモートに入れる `kisui-<os>-<cpu>` と `shj-<os>-<cpu>`、`SHA256SUMS`、`latest.json`。ビルドと Release への upload は `build.yml`（`release.yml` と `nightly.yml` から呼ぶ）です。ssh 先への kisui と shj の取得（`app/src-tauri/src/install.rs`）は、この Release から取ります。
 
 - 自動更新の確認先（Tauri の updater の `endpoints`）は `https://github.com/mm1995tk/kisui-terminal/releases/latest/download/latest.json` です。このリポジトリの Release は kisui-terminal のものだけなので、`releases/latest` で足ります（pre-release の nightly は Latest になりません）。
 - 署名鍵と 1Password のサービスアカウントは `build.yml` の冒頭に書いてあります。Secret `OP_SERVICE_ACCOUNT_TOKEN_RELEASE` がこのリポジトリに要ります。

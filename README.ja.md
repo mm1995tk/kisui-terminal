@@ -11,7 +11,7 @@ shijimi-editor とは別のアプリで、版もリリースも別です。組�
 Linux と macOS で動きます。版は [Releases](https://github.com/mm1995tk/kisui-terminal/releases) にあります。AppImage と `.dmg` は自動で更新されます。
 
 - **AppImage**：`chmod +x kisui-terminal-linux-*.AppImage` してから起動します。
-- **`.dmg`**：Apple の署名が無いので、macOS は初回に開くのを断ります。`kisui-terminal.app` をアプリケーションに入れて 1 度開き（「確認できません」と出たら閉じます）、**システム設定 → プライバシーとセキュリティ** で `kisui-terminal` についての表示の横にある **このまま開く** を押します。次からは普通に開けます。代わりに `xattr -dr com.apple.quarantine /Applications/kisui-terminal.app` を 1 度だけ実行してもかまいません。
+- **`.dmg`**：Apple の署名が無いので、macOS は初回に開くのを断ります。`kisui-terminal.app` をアプリケーションに入れて 1 度開き（「確認できません」と出たら閉じます）、**システム設定 → プライバシーとセキュリティ** で `kisui-terminal` についての表示の横にある **このまま開く** を押します。次からは普通に開けます。代わりに `xattr -dr com.apple.quarantine /Applications/kisui-terminal.app` を 1 度だけ実行してもかまいません。アプリは ad-hoc 署名だけなので、更新するたびに、プライバシーとセキュリティで入れた許可（**アプリ管理** など）を入れ直す必要があります。
 
 main の nightly 版は `kisui-terminal-nightly` で、[`nightly` の pre-release](https://github.com/mm1995tk/kisui-terminal/releases/tag/nightly) に置いています。名前と identifier が違うので、普通の版と並べて入れられます。
 
