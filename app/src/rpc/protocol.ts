@@ -168,6 +168,11 @@ export interface Requests {
     params: { workspaceId: WorkspaceId; id: string };
     result: Record<string, never>;
   };
+  /** 欄どうしの境界の割合を変える。pane は境界の B 側の左上の欄（grid.ts の firstPane）。serve が範囲に収めた割合を返す */
+  "layout.resize": {
+    params: { workspaceId: WorkspaceId; pane: string; ratio: number };
+    result: { ratio: number };
+  };
 
   "term.create": {
     params: {

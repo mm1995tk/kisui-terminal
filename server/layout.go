@@ -13,6 +13,7 @@ package server
 import (
 	"errors"
 	"fmt"
+	"math"
 	"reflect"
 	"slices"
 )
@@ -232,4 +233,189 @@ func (w *wsManager) placePane(wsID, target, dir, id string) {
 			st.layout = n
 		}
 	}
+}
+
+// ---- 境界を動かす（layout.resize）----
+//
+// 境界（割合を持つ節）は、B 側の左上の葉の欄 id（layoutFirstPane(n.B)）で指す。木のどの葉も、ちょうど 1 つの節の
+// 「B 側の左上」になる（根の左上の葉は除く）ので、節の指し方として一意で、ほかの欄を分けても変わらない。
+
+const (
+	// 欄の大きさが分からないとき（ターミナルでない欄だけの境界など）の、割合の下限と上限
+	fallbackRatioMin = 0.05
+	fallbackRatioMax = 0.95
+	// 割合を保存する細かさ（0.1%）
+	ratioStep = 1000
+)
+
+var (
+	errBadRatio = errors.New("invalid ratio")
+	errNoBorder = errors.New("no such border")
+)
+
+// layoutFirstPane は n の左上の葉の欄 id。
+func layoutFirstPane(n *layoutNode) string {
+	for n != nil && !n.isLeaf() {
+		n = n.A
+	}
+	if n == nil {
+		return ""
+	}
+	return n.Pane
+}
+
+// layoutFindBorder は B 側の左上の葉が key である節。無ければ nil。
+func layoutFindBorder(n *layoutNode, key string) *layoutNode {
+	if n == nil || n.isLeaf() {
+		return nil
+	}
+	if layoutFirstPane(n.B) == key {
+		return n
+	}
+	if f := layoutFindBorder(n.A, key); f != nil {
+		return f
+	}
+	return layoutFindBorder(n.B, key)
+}
+
+// layoutSetRatio は key の節の割合を ratio にした木（変えるところだけ新しく作る）。節が無ければ ok == false。
+func layoutSetRatio(n *layoutNode, key string, ratio float64) (*layoutNode, bool) {
+	if n == nil || n.isLeaf() {
+		return n, false
+	}
+	if layoutFirstPane(n.B) == key {
+		return &layoutNode{Dir: n.Dir, Ratio: ratio, A: n.A, B: n.B}, true
+	}
+	if a, ok := layoutSetRatio(n.A, key, ratio); ok {
+		return &layoutNode{Dir: n.Dir, Ratio: n.Ratio, A: a, B: n.B}, true
+	}
+	if b, ok := layoutSetRatio(n.B, key, ratio); ok {
+		return &layoutNode{Dir: n.Dir, Ratio: n.Ratio, A: n.A, B: b}, true
+	}
+	return n, false
+}
+
+// layoutExtent は n が向き（horiz: 列、そうでなければ行）に占める大きさ（端末のセル）。size は欄の列と行（分からなければ ok == false）。
+// 同じ向きの分割は A と B の和、直交する向きの分割は A の大きさ。
+func layoutExtent(n *layoutNode, horiz bool, size func(id string) (cols, rows int, ok bool)) (int, bool) {
+	if n == nil {
+		return 0, false
+	}
+	if n.isLeaf() {
+		c, r, ok := size(n.Pane)
+		if !ok {
+			return 0, false
+		}
+		if horiz {
+			return c, true
+		}
+		return r, true
+	}
+	a, ok := layoutExtent(n.A, horiz, size)
+	if !ok {
+		return 0, false
+	}
+	if (n.Dir == dirRight) != horiz {
+		return a, true
+	}
+	b, ok := layoutExtent(n.B, horiz, size)
+	if !ok {
+		return 0, false
+	}
+	return a + b, true
+}
+
+// layoutMinExtent は n が向きに対して最低限ほしい大きさ（端末のセル）。同じ向きの分割は和、直交する向きは大きいほう。
+func layoutMinExtent(n *layoutNode, horiz bool) int {
+	if n == nil {
+		return 0
+	}
+	if n.isLeaf() {
+		if horiz {
+			return minSplitCols
+		}
+		return minSplitRows
+	}
+	a, b := layoutMinExtent(n.A, horiz), layoutMinExtent(n.B, horiz)
+	if (n.Dir == dirRight) == horiz {
+		return a + b
+	}
+	return max(a, b)
+}
+
+// ratioBounds は節 n の割合の下限と上限。両側が最小の大きさ以上に残る範囲（大きさが分からなければ fallback）。
+// すでに両側を満たせないほど小さければ ok == false。
+func ratioBounds(n *layoutNode, size func(id string) (cols, rows int, ok bool)) (lo, hi float64, ok bool) {
+	horiz := n.Dir == dirRight
+	a, okA := layoutExtent(n.A, horiz, size)
+	b, okB := layoutExtent(n.B, horiz, size)
+	if !okA || !okB || a+b <= 0 {
+		return fallbackRatioMin, fallbackRatioMax, true
+	}
+	s := float64(a + b)
+	lo = float64(layoutMinExtent(n.A, horiz)) / s
+	hi = 1 - float64(layoutMinExtent(n.B, horiz))/s
+	return lo, hi, lo <= hi
+}
+
+// clampRatio は ratio を [lo, hi] に収め、0.1% の細かさに丸める（丸めても範囲の中に残す）。
+func clampRatio(ratio, lo, hi float64) float64 {
+	r := min(max(ratio, lo), hi)
+	q := math.Round(r*ratioStep) / ratioStep
+	if q < lo {
+		q = math.Ceil(lo*ratioStep) / ratioStep
+	}
+	if q > hi {
+		q = math.Floor(hi*ratioStep) / ratioStep
+	}
+	return q
+}
+
+// paneSize は欄 id のターミナルの列と行。ターミナルでない欄は ok == false。
+func (w *wsManager) paneSize(id string) (cols, rows int, ok bool) {
+	t, err := w.srv.terms.get(id)
+	if err != nil {
+		return 0, 0, false
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.cols, t.rows, true
+}
+
+// resizeBorder は layout.resize：wsID のワークスペースで、B 側の左上の欄が key の境界の割合を ratio にする。
+// 両側が最小の大きさ（minSplitCols 列・minSplitRows 行）を下回る分は収める。実際に使った割合を返す。
+func (w *wsManager) resizeBorder(wsID, key string, ratio float64) (float64, error) {
+	if math.IsNaN(ratio) || ratio <= 0 || ratio >= 1 {
+		return 0, fmt.Errorf("%w: %v", errBadRatio, ratio)
+	}
+	w.recomputeMu.Lock()
+	defer w.recomputeMu.Unlock()
+	w.mu.Lock()
+	st := w.reg[wsID]
+	var n *layoutNode
+	if st != nil {
+		n = st.layout
+	}
+	w.mu.Unlock()
+	if st == nil {
+		return 0, fmt.Errorf("%w: %s", errNoWorkspace, wsID)
+	}
+	node := layoutFindBorder(n, key)
+	if node == nil {
+		return 0, fmt.Errorf("%w: %s", errNoBorder, key)
+	}
+	lo, hi, ok := ratioBounds(node, w.paneSize)
+	if !ok {
+		return 0, fmt.Errorf("%w: the panes are too small to move the border", errTooSmall)
+	}
+	ratio = clampRatio(ratio, lo, hi)
+	w.mu.Lock()
+	if cur := w.reg[wsID]; cur != nil {
+		if next, ok := layoutSetRatio(cur.layout, key, ratio); ok {
+			cur.layout = next
+		}
+	}
+	w.mu.Unlock()
+	w.recomputeLocked()
+	return ratio, nil
 }

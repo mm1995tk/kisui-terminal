@@ -3,13 +3,19 @@ import { describe, it } from "node:test";
 
 import type { PaneLayout } from "../rpc/protocol.ts";
 import {
+  clampRatio,
   directionKey,
+  firstPane,
   isZoomKey,
+  layoutBars,
   layoutPanes,
   layoutRects,
+  limitedRatio,
   neighbor,
+  ratioLimits,
   reconcileLayout,
   splitKey,
+  withRatio,
 } from "./grid.ts";
 
 const key = (k: string, code = "", mods = { ctrl: true, shift: true }) => ({
@@ -147,5 +153,75 @@ describe("keys", () => {
       false,
     );
     assert.equal(isZoomKey(key("T", "KeyT")), false);
+  });
+});
+
+describe("欄どうしの境界（#18）", () => {
+  // a | (b / c)
+  const tree = right(leaf("a"), down(leaf("b"), leaf("c")));
+
+  it("境界は B 側の左上の欄で指し、根から順に並ぶ", () => {
+    assert.equal(firstPane(tree), "a");
+    const bars = layoutBars(tree);
+    assert.deepEqual(
+      bars.map((b) => [b.key, b.dir]),
+      [
+        ["b", "right"],
+        ["c", "down"],
+      ],
+    );
+    // 内側の境界の範囲は、右半分
+    assert.deepEqual(bars[1]!.node, { x: 0.5, y: 0, w: 0.5, h: 1 });
+    assert.deepEqual(layoutBars(leaf("a")), []);
+  });
+
+  it("割合を変えた木を返し、元の木は変えない。無い境界は同じ木", () => {
+    const t = withRatio(tree, "c", 0.25) as Extract<
+      PaneLayout,
+      { dir: string }
+    >;
+    assert.equal((t.b as { ratio: number }).ratio, 0.25);
+    assert.equal(t.ratio, 0.5);
+    assert.equal((tree as { b: { ratio: number } }).b.ratio, 0.5);
+    assert.equal(withRatio(tree, "a", 0.1), tree);
+    // 割合を変えると、欄の位置も変わる
+    assert.equal(layoutRects(withRatio(tree, "b", 0.25)).get("a")!.w, 0.25);
+  });
+
+  const size = (cols: number, rows: number) => () => ({ cols, rows });
+
+  it("両側が最小の大きさ（20 列・5 行）を下回らない範囲に収める", () => {
+    const t = right(leaf("a"), leaf("b"));
+    const [lo, hi] = ratioLimits(t, "b", size(80, 24))!;
+    assert.equal(lo, 20 / 160);
+    assert.equal(hi, 1 - 20 / 160);
+    assert.equal(limitedRatio(t, "b", 0.01, size(80, 24)), 0.125);
+    assert.equal(limitedRatio(t, "b", 0.99, size(80, 24)), 0.875);
+    assert.equal(limitedRatio(t, "b", 0.3333, size(80, 24)), 0.333);
+    // 下に分ける境界は行で見る
+    const d = down(leaf("a"), leaf("b"));
+    assert.equal(limitedRatio(d, "b", 0.01, size(80, 24)), 0.105); // 5 / 48 = 0.1041…。切り上げて範囲の中に残す
+  });
+
+  it("入れ子の側は、中の欄の最小の大きさの分だけ残す", () => {
+    // (a | b) | c の外側の境界：A 側は 2 枚が横に並ぶので 40 列は要る
+    const t = right(right(leaf("a"), leaf("b")), leaf("c"));
+    const [lo] = ratioLimits(t, "c", size(80, 24))!;
+    assert.equal(lo, 40 / 240);
+  });
+
+  it("大きさが分からない欄は固定の範囲。すでに小さすぎれば動かせない", () => {
+    const t = right(leaf("a"), leaf("x"));
+    const some = (id: string) =>
+      id === "a" ? { cols: 80, rows: 24 } : undefined;
+    assert.deepEqual(ratioLimits(t, "x", some), [0.05, 0.95]);
+    assert.equal(limitedRatio(t, "x", 0.5, size(15, 24)), undefined);
+    assert.equal(limitedRatio(t, "zz", 0.5, size(80, 24)), undefined);
+  });
+
+  it("丸めても範囲の中に残す", () => {
+    assert.equal(clampRatio(0.12345, 0.1, 0.9), 0.123);
+    assert.equal(clampRatio(0, 0.1234, 0.9), 0.124);
+    assert.equal(clampRatio(1, 0.1, 0.8765), 0.876);
   });
 });

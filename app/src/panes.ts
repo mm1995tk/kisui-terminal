@@ -1,9 +1,9 @@
 // サイドバーとターミナルの境界の大きさ（#526）。マウスのドラッグとリサイズモード（Cmd+R / Ctrl+Shift+R）が動かす境界の値と、その決まり。
 // DOM には触らない（テストできるように）。キーは TUI の ui/tui/resize.go と同じ。
 //
-// - sidebar：サイドバーとその右の境界（サイドバーの幅 px）。
-// 値は覚えておき、GUI を起動し直しても残す。右の欄はターミナルを自動で並べる（terminal/grid.ts）ので、
-// ほかに動かせる境界は無い。
+// - sidebar：サイドバーとその右の境界（サイドバーの幅 px）。値は覚えておき、GUI を起動し直しても残す。
+// - 右の欄の中の、欄どうしの境界（#18）：割合は kisui serve が分割の木に持つ（terminal/grid.ts）。ここは動かすキーだけを決める。
+// キー：Tab / Shift+Tab で動かす境界を替え、←→（h l）か↑↓（k j）で動かす。縦の境界は左右、横の境界は上下だけ効く。
 
 import type { KeyValueStore } from "./ssh/machines.ts";
 import { isCmdKey, isCtrlShiftKey, type KeyLike } from "./guiKeys.ts";
@@ -94,14 +94,10 @@ export function withoutSize(sizes: PaneSizes, b?: Border): PaneSizes {
   return rest;
 }
 
-/** 光らせる境界（リサイズモードで動かすもの）。 */
-export function litBorders(): Border[] {
-  return ["sidebar"];
-}
-
 /** リサイズモードのキーの動き。 */
 export type ResizeAction =
-  | { kind: "move"; border: Border; step: number } // step は右へ動かす向きが正
+  | { kind: "nudge"; axis: "x" | "y"; sign: 1 | -1 } // 選んでいる境界を動かす。x は右・y は下が正
+  | { kind: "select"; step: 1 | -1 } // 動かす境界を次・前へ替える（Tab・Shift+Tab）
   | { kind: "reset" }
   | { kind: "exit" }
   | { kind: "none" };
@@ -124,6 +120,8 @@ export function resizeKeyName(e: KeyLike, mac = false): string | null {
       return "esc";
     case "Enter":
       return "enter";
+    case "Tab":
+      return e.shiftKey ? "shift+tab" : "tab";
   }
   return e.key.length === 1 ? e.key : null;
 }
@@ -133,10 +131,20 @@ export function resizeAction(key: string): ResizeAction {
   switch (key) {
     case "left":
     case "h":
-      return { kind: "move", border: "sidebar", step: -KEY_STEP.sidebar };
+      return { kind: "nudge", axis: "x", sign: -1 };
     case "right":
     case "l":
-      return { kind: "move", border: "sidebar", step: KEY_STEP.sidebar };
+      return { kind: "nudge", axis: "x", sign: 1 };
+    case "up":
+    case "k":
+      return { kind: "nudge", axis: "y", sign: -1 };
+    case "down":
+    case "j":
+      return { kind: "nudge", axis: "y", sign: 1 };
+    case "tab":
+      return { kind: "select", step: 1 };
+    case "shift+tab":
+      return { kind: "select", step: -1 };
     case "=":
       return { kind: "reset" };
     case "esc":
@@ -162,3 +170,6 @@ export function applyMove(
   if (max !== undefined) cur = Math.min(cur, max);
   return withSize(sizes, border, cur + step, max);
 }
+
+/** リサイズモードで、欄どうしの境界を 1 回のキーで動かす割合（動かす節の幅か高さに対する割合）。 */
+export const SPLIT_KEY_STEP = 0.02;
