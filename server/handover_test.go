@@ -121,7 +121,11 @@ func TestHandoverKeepsShellsRunning(t *testing.T) {
 	c, nt := termClient(t, sock)
 	ctx := context.Background()
 	wsID, primary := createWS(t, c)
-	id := createTerm(t, c, map[string]any{"workspaceId": wsID})
+	id := createTerm(t, c, map[string]any{"workspaceId": wsID, "split": map[string]any{"target": primary, "dir": "down"}})
+	wantLayout := listWS(t, c).Workspaces[0].Layout
+	if wantLayout.Dir != "down" {
+		t.Fatalf("layout before handover: %+v", wantLayout)
+	}
 	c.Call(ctx, "term.input", map[string]any{"termId": id, "data": b64("while read l; do echo \"got:$l\"; done\n")}, nil)
 	c.Call(ctx, "term.input", map[string]any{"termId": id, "data": b64("one\n")}, nil)
 	waitFor(t, "got:one", func() bool { out, _ := nt.output(t, id); return bytes.Contains(out, []byte("got:one")) })
@@ -144,6 +148,9 @@ func TestHandoverKeepsShellsRunning(t *testing.T) {
 	}
 	if info.PID != pid || info.ServerID != srv.ServerID() || info.Shj.Version != "v2" {
 		t.Fatalf("server.info after handover: %+v", info)
+	}
+	if got := listWS(t, c2).Workspaces[0].Layout; !layoutEqual(got, wantLayout) {
+		t.Errorf("layout after handover: %+v, want %+v", got, wantLayout)
 	}
 	after := listTerms(t, c2)
 	for tid, x := range before {

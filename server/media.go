@@ -85,21 +85,6 @@ func parseBrowserURL(s string) (string, error) {
 	return u.String(), nil
 }
 
-// extraCount は claim の shj の extras の数。
-func (w *wsManager) extraCount(wsID string) int {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	if st := w.reg[wsID]; st != nil && st.shj != nil {
-		return len(st.shj.extras)
-	}
-	return 0
-}
-
-// cellsFree はワークスペースに、あと何個の欄を足せるか（プライマリを含めて 6 個まで。ターミナルも動画も同じ升目に並ぶ）。
-func (w *wsManager) cellsFree(wsID string) int {
-	return maxSplitTerms - w.srv.terms.countSplit(wsID) - w.extraCount(wsID)
-}
-
 // ownExtra は id が claim の shj の作った、ターミナルでない欄か。
 func (w *wsManager) ownExtra(claim *primaryShj, id string) bool {
 	w.mu.Lock()
@@ -108,7 +93,7 @@ func (w *wsManager) ownExtra(claim *primaryShj, id string) bool {
 }
 
 // openExtra は ctl.PaneRequest の "open"。動画・画像・PDF かブラウザの欄を 1 つ足して GUI に出させる。欄は種類ごとにワークスペースに 1 つで、
-// 開いてあれば新しいものと入れ替える（開くたびに増えて、升目を使い切らないように）。
+// 開いてあれば新しいものと入れ替える（開くたびに増えないように）。
 func (w *wsManager) openExtra(claim *primaryShj, wsID string, rq ctl.PaneRequest) (string, error) {
 	e, err := newExtra(rq)
 	if err != nil {
@@ -116,7 +101,6 @@ func (w *wsManager) openExtra(claim *primaryShj, wsID string, rq ctl.PaneRequest
 	}
 	w.recomputeMu.Lock()
 	defer w.recomputeMu.Unlock()
-	free := w.cellsFree(wsID)
 	w.mu.Lock()
 	st := w.reg[wsID]
 	if st == nil || st.shj != claim {
@@ -124,18 +108,30 @@ func (w *wsManager) openExtra(claim *primaryShj, wsID string, rq ctl.PaneRequest
 		return "", errors.New("the shj of the primary has ended")
 	}
 	old := slices.IndexFunc(claim.extras, func(x extraPane) bool { return x.Kind == e.Kind })
-	if old < 0 && free <= 0 {
+	w.mu.Unlock()
+	// 入れ替えでなければ、新しい欄を足す場所を決める（小さすぎれば断る）
+	var target, dir string
+	if old < 0 {
+		if target, dir, err = w.planSplit(wsID, "", ""); err != nil {
+			return "", err
+		}
+	}
+	w.mu.Lock()
+	if st.shj != claim || (slices.IndexFunc(claim.extras, func(x extraPane) bool { return x.Kind == e.Kind }) < 0) != (old < 0) {
 		w.mu.Unlock()
-		return "", fmt.Errorf("the workspace already has %d panes", maxSplitTerms+1)
+		return "", errors.New("the panes changed; try again")
 	}
 	w.nextExtra++
 	e.ID = fmt.Sprintf("x%d", w.nextExtra)
 	if old >= 0 {
+		st.layout = layoutReplace(st.layout, claim.extras[old].ID, e.ID)
 		claim.extras[old] = e
+		w.mu.Unlock()
 	} else {
 		claim.extras = append(claim.extras, e)
+		w.mu.Unlock()
+		w.placePane(wsID, target, dir, e.ID)
 	}
-	w.mu.Unlock()
 	w.recomputeLocked() // workspace.changed が先に届くので、GUI は欄を知っている
 	w.srv.notifyOwner("pane.show", map[string]any{"workspaceId": wsID, "extraId": e.ID})
 	return e.ID, nil

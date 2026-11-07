@@ -22,9 +22,6 @@ import (
 	"github.com/mm1995tk/kisui-terminal/rpc"
 )
 
-// maxSplitTerms は 1 つのワークスペースの分割したターミナルの上限（プライマリと合わせて 6 個）。
-const maxSplitTerms = 5
-
 // wsInfo は workspace.list などで GUI に渡すワークスペース。
 // folder・kind・name は、フォルダ未定のあいだ null。
 type wsInfo struct {
@@ -39,6 +36,8 @@ type wsInfo struct {
 	PrimaryShj *primaryShj `json:"primaryShj"`
 	// Extras はターミナルでない欄（プライマリの shj が開かせた動画。docs/design/gui-protocol.md）。
 	Extras []extraPane `json:"extras"`
+	// Layout は欄の配置（分割の木。layout.go）。葉は primary・terms・extras の id。
+	Layout *layoutNode `json:"layout"`
 
 	root string // Folder の値。未定なら ""
 	seq  int    // 作った順
@@ -52,6 +51,7 @@ type wsState struct {
 	kind    string
 	primary string // プライマリターミナルの id
 	shj     *primaryShj
+	layout  *layoutNode // 欄の配置。recompute のたびに、いまある欄に合わせる
 }
 
 type wsManager struct {
@@ -200,6 +200,11 @@ func (w *wsManager) recomputeLocked() {
 	w.mu.Unlock()
 	next := buildWorkspaces(states, terms)
 	w.mu.Lock()
+	for id, x := range next {
+		if st := w.reg[id]; st != nil {
+			st.layout = x.Layout
+		}
+	}
 	prev := w.list
 	w.list = next
 	if _, ok := w.reg[w.focus]; !ok {
@@ -239,8 +244,17 @@ func buildWorkspaces(states []*wsState, terms []*terminal) map[string]*wsInfo {
 			x.Terms = append(x.Terms, tid)
 		}
 	}
-	for _, x := range next {
+	layouts := map[string]*layoutNode{}
+	for _, st := range states {
+		layouts[st.id] = st.layout
+	}
+	for id, x := range next {
 		slices.SortFunc(x.Terms, func(a, b string) int { return termIDNum(a) - termIDNum(b) })
+		live := append([]string{x.Primary}, x.Terms...)
+		for _, e := range x.Extras {
+			live = append(live, e.ID)
+		}
+		x.Layout = layoutReconcile(layouts[id], live)
 	}
 	return next
 }
@@ -289,7 +303,7 @@ func sortWS(l []*wsInfo) { sort.Slice(l, func(i, j int) bool { return l[i].seq <
 
 func wsEqual(a, b *wsInfo) bool {
 	return a.root == b.root && ptrEq(a.Kind, b.Kind) && a.Branch == b.Branch && a.Primary == b.Primary && shjEq(a.PrimaryShj, b.PrimaryShj) &&
-		slices.Equal(a.Terms, b.Terms) && slices.Equal(a.Extras, b.Extras)
+		slices.Equal(a.Terms, b.Terms) && slices.Equal(a.Extras, b.Extras) && layoutEqual(a.Layout, b.Layout)
 }
 
 func ptrEq(a, b *string) bool {

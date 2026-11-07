@@ -49,8 +49,8 @@ export function TerminalView(props: {
   active?: boolean;
   /** 隠すか。プライマリ以外の欄を隠しているとき（隠しても中身は動き続ける） */
   hidden?: boolean;
-  /** 欄の位置（CSS grid の grid-area） */
-  area?: string;
+  /** 欄の位置（分割の木から決めた、親の中の left・top・width・height） */
+  place?: Record<string, string>;
   /** 欄がフォーカスを受けた（押した・キーを向けた） */
   onFocus?: () => void;
   /** この欄にキーを向ける関数を受け取る（欄が無くなるとき undefined で呼ぶ） */
@@ -338,7 +338,7 @@ export function TerminalView(props: {
       data-active={props.active ? "" : undefined}
       data-primary={props.link?.primary ? "" : undefined}
       hidden={props.hidden}
-      style={props.area ? { "grid-area": props.area } : undefined}
+      style={props.place}
       onFocusIn={() => props.onFocus?.()}
     >
       <div class="terminal-host" ref={host} />

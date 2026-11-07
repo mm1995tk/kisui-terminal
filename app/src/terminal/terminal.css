@@ -1,13 +1,11 @@
 /* ターミナルのカード（F1・F4）。親 #271 のモック（案：フラットな一覧）の余白に合わせる（色は theme.css の GitHub Dark）。
-   カードは CSS grid で、数に応じて並べる（列と行の数と欄の位置は TerminalGrid が決める）。
-   欄の間は 1px の線（カードの地の色を gap から見せる）。並べたときは、今使っている欄（フォーカス）だけに
+   欄は分割の木（grid.ts）の通りに、カードの中に絶対位置で置く（位置は TerminalGrid が決める）。
+   欄の間は 1px の線（カードの地の色を欄の隙間から見せる）。並べたときは、今使っている欄（フォーカス）だけに
    マシンの色（D4）の枠の線を引き、プライマリの欄は角の印で示す。タブ（見出しの帯）は作らない。
    置き場所は app.css が決める（右の欄いっぱい）。 */
 .terminal {
   position: relative;
   box-sizing: border-box;
-  display: grid;
-  gap: 1px;
   min-height: 0;
   background: var(--gh-border);
   border-top: 1px solid var(--gh-border);
@@ -30,7 +28,7 @@
 }
 
 .terminal-cell {
-  position: relative;
+  position: absolute;
   box-sizing: border-box;
   display: flex;
   min-width: 0;
