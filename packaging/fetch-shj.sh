@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Downloads the shj that kisui-terminal ships with from the Release of shijimi-editor
-# (https://github.com/mm1995tk/shijimi-editor/releases) into OUT_DIR, for linux and
-# darwin on x64 and arm64, and checks each against the SHA256SUMS of that Release.
+# (https://github.com/mm1995tk/shijimi-editor/releases) into OUT_DIR, for linux on x64
+# and arm64 and for darwin on arm64 (macOS on Intel is not supported), and checks each
+# against the SHA256SUMS of that Release.
 # kisui-terminal does not build shj: the shj it ships is the one shijimi-editor released.
 #
 #   packaging/fetch-shj.sh SHJ_VERSION OUT_DIR
@@ -32,15 +33,14 @@ fetch() { # <name>
 }
 fetch SHA256SUMS
 names=()
-for os in linux darwin; do
-  for cpu in x64 arm64; do
-    name="$(shj_name "$shj_version" "$os" "$cpu")"
-    fetch "$name"
-    names+=("$name")
-  done
+for target in linux/x64 linux/arm64 darwin/arm64; do
+  name="$(shj_name "$shj_version" "${target%/*}" "${target#*/}")"
+  fetch "$name"
+  names+=("$name")
 done
-# Only the lines of the files taken (the Release lists kisui too, in older ones)
-(cd "$out" && grep -E " (${names[0]}|${names[1]}|${names[2]}|${names[3]})\$" SHA256SUMS | sha256sum -c -)
+# Only the lines of the files taken (the Release lists kisui too, in older ones, and the
+# CPUs kisui-terminal does not ship)
+(cd "$out" && grep -E " (${names[0]}|${names[1]}|${names[2]})\$" SHA256SUMS | sha256sum -c -)
 rm "$out/SHA256SUMS"
 chmod +x "$out"/shj-*
 ls -l "$out"

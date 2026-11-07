@@ -1,0 +1,114 @@
+name: 安定版に Linux の AppImage を足す
+
+# 最新の安定版（GitHub の「Latest」の Release）に、Linux の AppImage（x86_64 と aarch64）を足す。
+# ふだんのリリース（release.yml）は macOS（Apple シリコン）のアプリだけを作るので、Linux はここで 2 週間に 1 回足す。
+#
+# - その Release と同じタグ・同じコミットで作る。同梱する shj の版は、その Release の本文の「Shj:」の行。
+# - 自動更新の latest.json に linux-x86_64 と linux-aarch64 を足す（darwin-aarch64 などはそのまま）。ビルドと upload は build.yml（platforms: linux）。
+# - その Release にもう足してあれば（AppImage があり、latest.json に 2 つの platform があれば）何もしない。
+#   安定版がまだ 1 つも無ければ何もしない。
+#
+#   gh workflow run linux-appimage.yml --ref main
+
+on:
+  workflow_dispatch:
+  schedule:
+    # cron では「2 週間ごと」を書けないので、毎月 1 日と 15 日にする。17:00 UTC（日本時間 2:00）。nightly（16:00 UTC）のあと
+    - cron: "0 17 1,15 * *"
+
+permissions:
+  contents: read
+
+# release.yml と同じ group にして、同じ Release の latest.json を同時に書き換えないようにする
+concurrency:
+  group: release
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      skip: ${{ steps.latest.outputs.skip }}
+      tag: ${{ steps.latest.outputs.tag }}
+      version: ${{ steps.latest.outputs.version }}
+      shj_version: ${{ steps.latest.outputs.shj_version }}
+      sha: ${{ steps.latest.outputs.sha }}
+    steps:
+      - name: main 以外では実行しない
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::main ブランチで実行してください（現在: $GITHUB_REF）"
+          exit 1
+
+      - name: 最新の安定版を調べる
+        id: latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! release=$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" 2>"$RUNNER_TEMP/err"); then
+            if grep -q "HTTP 404" "$RUNNER_TEMP/err"; then
+              echo "安定版がまだ無いので何もしない"
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            cat "$RUNNER_TEMP/err" >&2
+            exit 1
+          fi
+          tag=$(jq -r .tag_name <<<"$release")
+          version=${tag#v}
+          if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Latest の Release のタグが v<X.Y.Z> ではありません: $tag"
+            exit 1
+          fi
+          # 同梱する shj の版は、build.yml が Release の本文に書いた「Shj:」の行
+          shj_version=$(jq -r .body <<<"$release" | tr -d '\r' | sed -n 's/^Shj: \(.*\)$/\1/p')
+          if [[ ! "$shj_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::$tag の本文から同梱した shj の版を読めませんでした: $shj_version"
+            exit 1
+          fi
+          # タグが指すコミット
+          sha=$(gh api "repos/$GITHUB_REPOSITORY/commits/$tag" --jq .sha)
+          {
+            echo "tag=$tag"
+            echo "version=$version"
+            echo "shj_version=$shj_version"
+            echo "sha=$sha"
+          } >> "$GITHUB_OUTPUT"
+
+          # もう足してあるか。AppImage（と .sig）があり、latest.json に Linux の 2 つがあれば足してある
+          assets=$(jq -r '.assets[].name' <<<"$release")
+          added=true
+          for f in kisui-terminal-linux-x86_64.AppImage kisui-terminal-linux-aarch64.AppImage; do
+            for g in "$f" "$f.sig"; do
+              if ! grep -qxF "$g" <<<"$assets"; then
+                added=false
+              fi
+            done
+          done
+          if [ "$added" = true ]; then
+            gh release download "$tag" --repo "$GITHUB_REPOSITORY" --pattern latest.json --dir "$RUNNER_TEMP/latest"
+            if ! jq -e '.platforms | has("linux-x86_64") and has("linux-aarch64")' "$RUNNER_TEMP/latest/latest.json" >/dev/null; then
+              added=false
+            fi
+          fi
+          if [ "$added" = true ]; then
+            echo "$tag にはもう Linux の AppImage を足してあるので何もしない"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "$tag（$sha、shj $shj_version を同梱）に Linux の AppImage を足す"
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    needs: check
+    if: needs.check.outputs.skip != 'true'
+    permissions:
+      contents: write
+    uses: ./.github/workflows/build.yml
+    with:
+      version: ${{ needs.check.outputs.version }}
+      shj_version: ${{ needs.check.outputs.shj_version }}
+      tag: ${{ needs.check.outputs.tag }}
+      ref: ${{ needs.check.outputs.sha }}
+      platforms: linux
+    secrets:
+      OP_SERVICE_ACCOUNT_TOKEN_RELEASE: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN_RELEASE }}

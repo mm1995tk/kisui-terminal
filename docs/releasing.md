@@ -17,7 +17,9 @@ kisui-terminal は shijimi-editor（shj）とは別の版・別のタイミン�
 
 ## 上がるもの（`build.yml`）
 
-AppImage（Linux の x86_64 と aarch64）、Apple の署名の無い（ad-hoc 署名だけの）`.dmg`、`.app.tar.gz` とその `.sig`、リモートに入れる `kisui-<os>-<cpu>` と `shj-<os>-<cpu>`、`SHA256SUMS`、`latest.json`。ビルドと Release への upload は `build.yml`（`release.yml` と `nightly.yml` から呼ぶ）です。ssh 先への kisui と shj の取得（`app/src-tauri/src/install.rs`）は、この Release から取ります。
+macOS（Apple シリコン、aarch64-apple-darwin）の Apple の署名の無い（ad-hoc 署名だけの）`.dmg`、`.app.tar.gz` とその `.sig`、リモートに入れる `kisui-<os>-<cpu>` と `shj-<os>-<cpu>`（Linux の x64・arm64 と macOS の arm64）、`SHA256SUMS`、`latest.json`。ビルドと Release への upload は `build.yml`（`release.yml` と `nightly.yml` から呼ぶ）です。ssh 先への kisui と shj の取得（`app/src-tauri/src/install.rs`）は、この Release から取ります。macOS の Intel（x86_64）はサポートしないので、アプリもリモート用の `kisui-darwin-x64`・`shj-darwin-x64` も作りません。
+
+- Linux の AppImage（x86_64 と aarch64）は、ふだんのリリースでは作りません。`linux-appimage.yml` が毎月 1 日と 15 日（17:00 UTC）に、最新の安定版（Latest の Release）と同じタグ・同じコミットで作って、その Release に足し、`latest.json` に `linux-x86_64` と `linux-aarch64` を足します。もう足してあれば何もしません。すぐ足すには `gh workflow run linux-appimage.yml --ref main` で起動します。足すまでの間、Linux の AppImage の自動更新は新しい版を見つけません。
 
 - 自動更新の確認先（Tauri の updater の `endpoints`）は `https://github.com/mm1995tk/kisui-terminal/releases/latest/download/latest.json` です。このリポジトリの Release は kisui-terminal のものだけなので、`releases/latest` で足ります（pre-release の nightly は Latest になりません）。
 - 署名鍵と 1Password のサービスアカウントは `build.yml` の冒頭に書いてあります。Secret `OP_SERVICE_ACCOUNT_TOKEN_RELEASE` がこのリポジトリに要ります。
@@ -25,7 +27,7 @@ AppImage（Linux の x86_64 と aarch64）、Apple の署名の無い（ad-hoc �
 
 ## nightly 版
 
-- `nightly.yml` が毎日 16:00 UTC（日本時間 1:00。shijimi-editor の nightly の 1 時間後）に main で動き、pre-release `nightly`（毎回作り直します）に、`kisui-terminal-nightly` の AppImage・`.dmg`・`latest.json`、`kisui-nightly-<os>-<cpu>` と `shj-nightly-<os>-<cpu>`、`SHA256SUMS` を置きます。
+- `nightly.yml` が毎日 16:00 UTC（日本時間 1:00。shijimi-editor の nightly の 1 時間後）に main で動き、pre-release `nightly`（毎回作り直します）に、`kisui-terminal-nightly` の `.dmg`（macOS の Apple シリコンだけ。nightly の AppImage は作りません）・`latest.json`、`kisui-nightly-<os>-<cpu>` と `shj-nightly-<os>-<cpu>`、`SHA256SUMS` を置きます。
 - 版は `<Cargo.toml の version>-nightly.<yyyymmdd>.<sha>` です。同梱する shj は、その時点の shijimi-editor の pre-release `nightly` の shj です。
 - 前の nightly から main にコミットが無く、shijimi-editor の nightly も進んでいなければ何もしません（`gh workflow run nightly.yml -f force=true` で作り直せます）。
 - nightly 版の自動更新の確認先は `https://github.com/mm1995tk/kisui-terminal/releases/download/nightly/latest.json` です（`app/src-tauri/tauri.nightly.conf.json`）。

@@ -8,12 +8,12 @@ shijimi-editor とは別のアプリで、版もリリースも別です。組�
 
 ## 入れ方
 
-Linux と macOS で動きます。版は [Releases](https://github.com/mm1995tk/kisui-terminal/releases) にあります。AppImage と `.dmg` は自動で更新されます。
+Linux（x86_64 と aarch64）と、Apple シリコン（arm64）の macOS で動きます。Intel の macOS には、アプリとしても ssh 先としても対応しません。版は [Releases](https://github.com/mm1995tk/kisui-terminal/releases) にあります。AppImage と `.dmg` は自動で更新されます。
 
-- **AppImage**：`chmod +x kisui-terminal-linux-*.AppImage` してから起動します。
+- **AppImage**：`chmod +x kisui-terminal-linux-*.AppImage` してから起動します。AppImage は 2 週間に 1 回、最新の版に足すので、新しい版にはしばらく `.dmg` だけのことがあります。
 - **`.dmg`**：Apple の署名が無いので、macOS は初回に開くのを断ります。`kisui-terminal.app` をアプリケーションに入れて 1 度開き（「確認できません」と出たら閉じます）、**システム設定 → プライバシーとセキュリティ** で `kisui-terminal` についての表示の横にある **このまま開く** を押します。次からは普通に開けます。代わりに `xattr -dr com.apple.quarantine /Applications/kisui-terminal.app` を 1 度だけ実行してもかまいません。アプリは ad-hoc 署名だけなので、更新するたびに、プライバシーとセキュリティで入れた許可（**アプリ管理** など）を入れ直す必要があります。
 
-main の nightly 版は `kisui-terminal-nightly` で、[`nightly` の pre-release](https://github.com/mm1995tk/kisui-terminal/releases/tag/nightly) に置いています。名前と identifier が違うので、普通の版と並べて入れられます。
+main の nightly 版は `kisui-terminal-nightly` で、[`nightly` の pre-release](https://github.com/mm1995tk/kisui-terminal/releases/tag/nightly) に置いています（`.dmg` だけです。Linux で nightly 版を使うなら Nix で入れます）。名前と identifier が違うので、普通の版と並べて入れられます。
 
 Nix では、パッケージ `kisui-terminal`（nightly 版は `kisui-terminal-nightly`。同じ名前で入ります）か、home-manager で flake の `homeManagerModules.default` を import して `programs.kisui-terminal.enable = true;` で入れます。Nix で入れた版に自動更新はありません。`nix flake update` で進めます。
 

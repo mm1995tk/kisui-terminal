@@ -9,7 +9,8 @@ name: リリース
 # - タグは v<版>。GitHub の「Latest」の印が付く（自動更新が releases/latest/download/latest.json を見る）。
 # - 同梱する shj は、そのコミットの flake.lock が指す shijimi-editor の版（nix eval --raw .#shj.version）。
 #   どの版を同梱したかは Release の説明に書く。
-# - AppImage・.dmg・kisui・shj・latest.json を上げるのは build.yml。
+# - .dmg（macOS の Apple シリコンだけ）・kisui・shj・latest.json を上げるのは build.yml。
+#   Linux の AppImage は linux-appimage.yml が 2 週間に 1 回、最新の安定版に足す。macOS の Intel は作らない。
 
 on:
   workflow_dispatch:

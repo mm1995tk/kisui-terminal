@@ -542,7 +542,7 @@ GUI はシステムの `ssh` を子プロセスとして起動する（`~/.ssh/c
 
 ### GUI の配り方と自動更新（C8）
 
-- リリースの workflow（`.github/workflows/build.yml`。`release.yml` と `nightly.yml` から呼ぶ）が、Linux の AppImage（x86_64・aarch64）と macOS の署名なしの `.dmg`（universal）を作り、Tauri の updater の `latest.json` と一緒に Release に上げる。
+- リリースの workflow（`.github/workflows/build.yml`。`release.yml` と `nightly.yml` から呼ぶ）が、macOS（Apple シリコン）の署名なしの `.dmg` を作り、Tauri の updater の `latest.json` と一緒に Release に上げる。Linux の AppImage（x86_64・aarch64）は `linux-appimage.yml` が 2 週間に 1 回、最新の安定版に足す。macOS の Intel は作らない。
 - 自動更新は AppImage と `.dmg` だけ（cargo の feature `updater`。workflow だけが付ける）。Nix で作る版（`nix build .#kisui-terminal`・home-manager の `programs.shijimi-editor.kisui-terminal`）は付けないので、更新は `nix flake update` と `home-manager switch` で行う。
 - 更新は、起動のときに 1 度だけ調べ、新しい版があれば右下に出し、ユーザーが「更新して再起動」を押したときだけ入れ替える（編集中に勝手に起動し直さない）。調べられなかったときは何も出さない。
 - 普通の版は `releases/download/kisui-terminal-latest/latest.json`（GUI のリリースのたびに置き換える pre-release `kisui-terminal-latest` のもの。shj のリリースは指さない）、nightly 版は pre-release `kisui-terminal-nightly` の `latest.json` を見る。nightly 版は `tauri.nightly.conf.json` を重ね、名前 `kisui-terminal-nightly` と identifier を変えて普通の版と並べて入れられるようにする。nightly は版の前後を問わず、`latest.json` の版が今と違えば更新とする（`allowDowngrades`）。
