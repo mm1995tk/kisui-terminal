@@ -121,6 +121,11 @@ export class TermLink {
     if (this.sink) void this.open();
   }
 
+  /** 今の列と行（serve に知らせた最後の大きさ）。 */
+  get size(): { cols: number; rows: number } {
+    return { cols: this.cols, rows: this.rows };
+  }
+
   /** 画面の大きさが変わった。 */
   resize(cols: number, rows: number): void {
     if (cols <= 0 || rows <= 0) return;

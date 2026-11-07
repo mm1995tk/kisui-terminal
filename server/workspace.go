@@ -12,6 +12,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
@@ -425,7 +426,7 @@ func busyError(reason string) *rpc.Error {
 // workspaceRequest は workspace.* のうち返事のあるもの。
 func (ss *session) workspaceRequest(req *rpc.Message) (res any, err error, handled bool) {
 	switch req.Method {
-	case "workspace.list", "workspace.create", "workspace.close", "workspace.focus":
+	case "workspace.list", "workspace.create", "workspace.close", "workspace.focus", "layout.resize":
 	default:
 		return nil, nil, false
 	}
@@ -447,6 +448,26 @@ func (ss *session) workspaceRequest(req *rpc.Message) (res any, err error, handl
 			return nil, err, true
 		}
 		return map[string]any{"id": id, "termId": termID}, nil, true
+	}
+	if req.Method == "layout.resize" {
+		var lp struct {
+			WorkspaceID string   `json:"workspaceId"`
+			Pane        string   `json:"pane"`
+			Ratio       *float64 `json:"ratio"`
+		}
+		if err := json.Unmarshal(req.Params, &lp); err != nil || lp.Ratio == nil || lp.Pane == "" {
+			return nil, rpc.Errorf(rpc.CodeInvalidParams, "workspaceId, pane and ratio are required"), true
+		}
+		r, err := w.resizeBorder(lp.WorkspaceID, lp.Pane, *lp.Ratio)
+		switch {
+		case err == nil:
+			return map[string]any{"ratio": r}, nil, true
+		case errors.Is(err, errNoWorkspace), errors.Is(err, errNoBorder):
+			return nil, rpc.Errorf(rpc.CodeNotFound, "%v", err), true
+		case errors.Is(err, errTooSmall):
+			return nil, rpc.Errorf(rpc.CodeBusy, "%v", err), true
+		}
+		return nil, rpc.Errorf(rpc.CodeInvalidParams, "%v", err), true
 	}
 	var p struct {
 		ID    string `json:"id"`

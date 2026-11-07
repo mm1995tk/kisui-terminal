@@ -210,3 +210,145 @@ export function isZoomKey(e: KeyLike, mac = false): boolean {
   if (!isCtrlShift(e)) return false;
   return e.code === "KeyM" || e.key === "M" || e.key === "m";
 }
+
+// ---- 欄どうしの境界（#18）----
+//
+// 境界は、割合を持つ節（server/layout.go の layoutNode）。B 側の左上の葉の欄 id で指す（serve と同じ。
+// 木のどの葉も、ちょうど 1 つの節の「B 側の左上」になるので一意で、ほかの欄を分けても変わらない）。
+
+/** 欄を分けるときの、分けた後の欄の最小の大きさ（端末の列と行）。server/layout.go の minSplitCols・minSplitRows と同じ。 */
+const MIN_COLS = 20;
+const MIN_ROWS = 5;
+/** 欄の大きさが分からないときの、割合の下限と上限（serve の fallbackRatioMin・fallbackRatioMax と同じ）。 */
+const FALLBACK: readonly [number, number] = [0.05, 0.95];
+
+/** 欄の間の隙間の幅（px）。境界のつまみはここにだけ置き、端末の字の上には重ねない。 */
+export const GAP = 6;
+
+/** 動かせる境界 1 つ。 */
+export interface Bar {
+  /** B 側の左上の葉の欄 id */
+  key: string;
+  dir: SplitDir;
+  /** A の割合 */
+  ratio: number;
+  /** この節が占める範囲（カードに対する割合） */
+  node: Rect;
+}
+
+/** 左上の葉の欄 id。 */
+export function firstPane(n: PaneLayout): string {
+  while (!("pane" in n)) n = n.a;
+  return n.pane;
+}
+
+/** 木の境界（節）を、根から順に（節、A の中、B の中の順）。 */
+export function layoutBars(
+  n: PaneLayout | undefined,
+  at: Rect = { x: 0, y: 0, w: 1, h: 1 },
+  out: Bar[] = [],
+): Bar[] {
+  if (!n || "pane" in n) return out;
+  const r = Math.min(Math.max(n.ratio, 0), 1);
+  out.push({ key: firstPane(n.b), dir: n.dir, ratio: r, node: at });
+  if (n.dir === "right") {
+    layoutBars(n.a, { ...at, w: at.w * r }, out);
+    layoutBars(n.b, { ...at, x: at.x + at.w * r, w: at.w * (1 - r) }, out);
+  } else {
+    layoutBars(n.a, { ...at, h: at.h * r }, out);
+    layoutBars(n.b, { ...at, y: at.y + at.h * r, h: at.h * (1 - r) }, out);
+  }
+  return out;
+}
+
+/** key の境界の割合を ratio にした木（無ければ同じ木）。 */
+export function withRatio(
+  n: PaneLayout | undefined,
+  key: string,
+  ratio: number,
+): PaneLayout | undefined {
+  if (!n || "pane" in n) return n;
+  if (firstPane(n.b) === key) return { ...n, ratio };
+  const a = withRatio(n.a, key, ratio) as PaneLayout;
+  const b = withRatio(n.b, key, ratio) as PaneLayout;
+  return a === n.a && b === n.b ? n : { ...n, a, b };
+}
+
+/** 欄の列と行。分からなければ undefined（ターミナルでない欄）。 */
+export type PaneSize = (
+  id: string,
+) => { cols: number; rows: number } | undefined;
+
+function extent(
+  n: PaneLayout,
+  horiz: boolean,
+  size: PaneSize,
+): number | undefined {
+  if ("pane" in n) {
+    const s = size(n.pane);
+    return s && (horiz ? s.cols : s.rows);
+  }
+  const a = extent(n.a, horiz, size);
+  if (a === undefined) return undefined;
+  if ((n.dir === "right") !== horiz) return a;
+  const b = extent(n.b, horiz, size);
+  return b === undefined ? undefined : a + b;
+}
+
+function minExtent(n: PaneLayout, horiz: boolean): number {
+  if ("pane" in n) return horiz ? MIN_COLS : MIN_ROWS;
+  const a = minExtent(n.a, horiz);
+  const b = minExtent(n.b, horiz);
+  return (n.dir === "right") === horiz ? a + b : Math.max(a, b);
+}
+
+/**
+ * key の境界の割合の下限と上限。両側が最小の大きさ（MIN_COLS 列・MIN_ROWS 行）以上に残る範囲
+ * （serve の ratioBounds と同じ計算）。大きさが分からなければ固定の範囲、すでに両側を満たせないほど小さければ undefined。
+ */
+export function ratioLimits(
+  tree: PaneLayout | undefined,
+  key: string,
+  size: PaneSize,
+): readonly [number, number] | undefined {
+  const node = findNode(tree, key);
+  if (!node) return undefined;
+  const horiz = node.dir === "right";
+  const a = extent(node.a, horiz, size);
+  const b = extent(node.b, horiz, size);
+  if (a === undefined || b === undefined || a + b <= 0) return FALLBACK;
+  const lo = minExtent(node.a, horiz) / (a + b);
+  const hi = 1 - minExtent(node.b, horiz) / (a + b);
+  return lo <= hi ? [lo, hi] : undefined;
+}
+
+function findNode(
+  n: PaneLayout | undefined,
+  key: string,
+): Extract<PaneLayout, { dir: SplitDir }> | undefined {
+  if (!n || "pane" in n) return undefined;
+  if (firstPane(n.b) === key) return n;
+  return findNode(n.a, key) ?? findNode(n.b, key);
+}
+
+/** ratio を [lo, hi] に収め、0.1% の細かさに丸める（serve の clampRatio と同じ。丸めても範囲の中に残す）。 */
+export function clampRatio(ratio: number, lo: number, hi: number): number {
+  const r = Math.min(Math.max(ratio, lo), hi);
+  let q = Math.round(r * 1000) / 1000;
+  if (q < lo) q = Math.ceil(lo * 1000) / 1000;
+  if (q > hi) q = Math.floor(hi * 1000) / 1000;
+  return q;
+}
+
+/**
+ * key の境界を ratio にしたときの割合（範囲に収めたもの）。動かせない（境界が無い・すでに小さすぎる）なら undefined。
+ */
+export function limitedRatio(
+  tree: PaneLayout | undefined,
+  key: string,
+  ratio: number,
+  size: PaneSize,
+): number | undefined {
+  const lim = ratioLimits(tree, key, size);
+  return lim ? clampRatio(ratio, lim[0], lim[1]) : undefined;
+}

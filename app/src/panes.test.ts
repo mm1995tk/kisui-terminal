@@ -5,7 +5,6 @@ import {
   applyMove,
   clampBorder,
   loadSizes,
-  litBorders,
   resizeAction,
   resizeKeyName,
   saveSizes,
@@ -87,30 +86,38 @@ describe("覚えておく大きさ", () => {
 });
 
 describe("リサイズモードのキー", () => {
-  it("←→（h l）はサイドバーの境界を動かす", () => {
+  it("←→↑↓（h l k j）は選んでいる境界を動かす", () => {
     assert.deepEqual(resizeAction("right"), {
-      kind: "move",
-      border: "sidebar",
-      step: 20,
+      kind: "nudge",
+      axis: "x",
+      sign: 1,
     });
-    assert.deepEqual(resizeAction("h"), {
-      kind: "move",
-      border: "sidebar",
-      step: -20,
+    assert.deepEqual(resizeAction("h"), { kind: "nudge", axis: "x", sign: -1 });
+    assert.deepEqual(resizeAction("up"), {
+      kind: "nudge",
+      axis: "y",
+      sign: -1,
     });
-    assert.deepEqual(resizeAction("up"), { kind: "none" });
+    assert.deepEqual(resizeAction("j"), { kind: "nudge", axis: "y", sign: 1 });
     assert.deepEqual(resizeAction(">"), { kind: "none" });
   });
 
-  it("= は全部戻し、Esc Enter q Cmd+R は出る", () => {
+  it("Tab・Shift+Tab は動かす境界を替える", () => {
+    assert.deepEqual(resizeAction("tab"), { kind: "select", step: 1 });
+    assert.deepEqual(resizeAction("shift+tab"), { kind: "select", step: -1 });
+  });
+
+  it("= は選んでいる境界を戻し、Esc Enter q Cmd+R は出る", () => {
     assert.deepEqual(resizeAction("="), { kind: "reset" });
     for (const k of ["esc", "enter", "q", "mod+r"])
       assert.deepEqual(resizeAction(k), { kind: "exit" });
     assert.deepEqual(resizeAction("x"), { kind: "none" });
   });
 
-  it("光らせるのはサイドバーの境界", () => {
-    assert.deepEqual(litBorders(), ["sidebar"]);
+  it("Tab をキーの名前にする", () => {
+    assert.equal(resizeKeyName(key("Tab")), "tab");
+    assert.equal(resizeKeyName(key("Tab", { shiftKey: true })), "shift+tab");
+    assert.equal(resizeKeyName(key("Tab", { ctrlKey: true })), null);
   });
 
   it("KeyboardEvent をキーの名前にする", () => {
