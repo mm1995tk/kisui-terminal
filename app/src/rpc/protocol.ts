@@ -129,8 +129,6 @@ export interface TermInfo {
   workspaceId: WorkspaceId;
   primary: boolean;
   title: string;
-  /** 欄の名前（kisui pane title）。無ければ空か省く */
-  name?: string;
   cols: number;
   rows: number;
   alive: boolean;

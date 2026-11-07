@@ -161,7 +161,7 @@ func (t *terminal) info() map[string]any {
 	defer t.mu.Unlock()
 	return map[string]any{
 		"termId": t.id, "pid": t.pid, "cwd": t.cwd, "workspaceId": t.wsID, "primary": t.primary,
-		"title": t.title, "name": t.name, "cols": t.cols, "rows": t.rows, "alive": t.alive,
+		"title": t.title, "cols": t.cols, "rows": t.rows, "alive": t.alive,
 	}
 }
 
