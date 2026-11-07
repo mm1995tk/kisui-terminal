@@ -291,3 +291,71 @@ func TestPrimaryShjBrowserPane(t *testing.T) {
 		t.Fatalf("extras after close: %+v", e)
 	}
 }
+
+// 画像と PDF の欄は動画と同じ道（fileKinds）で開き、media.read で取れる。種類ごとに欄は 1 つで、拡張子の違うファイルは断る。
+func TestPrimaryShjImageAndPdfPane(t *testing.T) {
+	t.Setenv("HOME", normalizePath(t.TempDir()))
+	_, sock := startFast(t)
+	c, _ := termClient(t, sock)
+	id, primary := createWS(t, c)
+	if r0, _ := announceShj(t, sock, ctl.PrimaryHello{TermID: primary, Socket: "/run/a.sock", PID: 11}); !r0.OK {
+		t.Fatalf("hello: %+v", r0)
+	}
+	dir := t.TempDir()
+	write := func(name, body string) string {
+		p := filepath.Join(dir, name)
+		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	png, pdf, txt := write("a.PNG", "pngdata"), write("a.pdf", "%PDF-1.4"), write("a.txt", "x")
+	open := func(kind, path string) ctl.PaneReply {
+		return paneDo(t, sock, ctl.PaneRequest{Op: "open", Kind: kind, Path: path, TermID: primary, PID: 11})
+	}
+	for _, bad := range []struct{ kind, path string }{{"image", pdf}, {"pdf", png}, {"image", txt}, {"image", "a.png"}, {"pdf", dir}} {
+		if r := open(bad.kind, bad.path); r.OK {
+			t.Fatalf("%+v must be refused", bad)
+		}
+	}
+	ri, rp := open("image", png), open("pdf", pdf)
+	if !ri.OK || !rp.OK || ri.ID == rp.ID {
+		t.Fatalf("open: %+v %+v", ri, rp)
+	}
+	for _, c2 := range []struct {
+		id, mime, body string
+	}{{ri.ID, "image/png", "pngdata"}, {rp.ID, "application/pdf", "%PDF-1.4"}} {
+		var m MediaResult
+		if err := c.Call(context.Background(), "media.read", map[string]any{"workspaceId": id, "id": c2.id}, &m); err != nil {
+			t.Fatal(err)
+		}
+		if got, _ := base64.StdEncoding.DecodeString(m.Data); string(got) != c2.body || m.Mime != c2.mime || !m.EOF {
+			t.Fatalf("media.read: %+v %q", m, got)
+		}
+	}
+	// 同じ種類は入れ替わり、違う種類は並ぶ。
+	if r := open("image", png); !r.OK || r.ID == ri.ID {
+		t.Fatalf("open again: %+v", r)
+	}
+	var l struct {
+		Workspaces []wsInfo `json:"workspaces"`
+	}
+	if err := c.Call(context.Background(), "workspace.list", map[string]any{}, &l); err != nil || len(l.Workspaces) != 1 || len(l.Workspaces[0].Extras) != 2 {
+		t.Fatalf("workspace.list: %v %+v", err, l)
+	}
+}
+
+func TestFileKindLimits(t *testing.T) {
+	big := filepath.Join(t.TempDir(), "big.png")
+	f, err := os.Create(big)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Truncate(fileKinds["image"].maxSize + 1); err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+	if _, err := newExtra(ctl.PaneRequest{Op: "open", Kind: "image", Path: big}); err == nil || !strings.Contains(err.Error(), "too large") {
+		t.Fatalf("a too large image must be refused: %v", err)
+	}
+}

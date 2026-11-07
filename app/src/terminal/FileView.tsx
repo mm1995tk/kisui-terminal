@@ -1,0 +1,113 @@
+import { Match, onCleanup, Switch, type JSX } from "solid-js";
+
+import type { ExtraPane } from "../rpc/protocol.ts";
+import { baseName, FILE_LABEL, type MediaFetch } from "./media.ts";
+import { createFileSource } from "./fileSource.ts";
+
+/**
+ * 画像と PDF の欄。動画の欄（VideoView）と同じ升目・同じ見出しで、中身は media.read で取って
+ * （fileSource.ts）、画像は <img>、PDF は WebView の PDF 表示（<iframe>）で出す。種類を足すときは、
+ * ここの本文（Body）に 1 つ足す。WebView が PDF を表示できないとき（WebKitGTK など）は、欄にその理由を出す。
+ */
+function Body(props: {
+  pane: ExtraPane;
+  url: string;
+  fail: (text: string) => void;
+}): JSX.Element {
+  return (
+    <Switch>
+      <Match when={props.pane.kind === "pdf"}>
+        <iframe
+          src={props.url}
+          title={baseName(props.pane.path)}
+          class="file-pdf"
+        />
+      </Match>
+      <Match when={true}>
+        <img
+          src={props.url}
+          alt={baseName(props.pane.path)}
+          onError={() =>
+            props.fail("この画像は表示できません（形式に対応していません）")
+          }
+        />
+      </Match>
+    </Switch>
+  );
+}
+
+export function FileView(props: {
+  pane: ExtraPane;
+  /** 中身を取る関数（欄の id は束ねてある） */
+  read: MediaFetch;
+  active?: boolean;
+  hidden?: boolean;
+  /** 欄の位置（CSS grid の grid-area） */
+  area?: string;
+  onFocus?: () => void;
+  onClose: () => void;
+  /** この欄にキーを向ける関数を受け取る（欄が無くなるとき undefined で呼ぶ） */
+  focusRef?: (focus: (() => void) | undefined) => void;
+}): JSX.Element {
+  let cell!: HTMLDivElement;
+  const source = createFileSource(
+    () => props.pane,
+    () => props.read,
+  );
+  props.focusRef?.(() => cell.focus());
+  onCleanup(() => props.focusRef?.(undefined));
+  const label = () => FILE_LABEL[props.pane.kind] ?? "ファイル";
+
+  return (
+    <div
+      class="terminal-cell video-cell"
+      data-active={props.active ? "" : undefined}
+      hidden={props.hidden}
+      style={props.area ? { "grid-area": props.area } : undefined}
+      tabindex="-1"
+      ref={cell}
+      onFocusIn={() => props.onFocus?.()}
+      onPointerDown={() => props.onFocus?.()}
+    >
+      <div class="video-head">
+        <span class="video-name" title={props.pane.path}>
+          {baseName(props.pane.path)}
+        </span>
+        <button
+          type="button"
+          class="video-close"
+          aria-label={`${label()}の欄を閉じる`}
+          title="閉じる"
+          onClick={() => props.onClose()}
+        >
+          ×
+        </button>
+      </div>
+      <div class="video-body">
+        <Switch>
+          <Match when={source.load().kind === "ready" && source.load()}>
+            {(l) => (
+              <Body
+                pane={props.pane}
+                url={(l() as { url: string }).url}
+                fail={source.fail}
+              />
+            )}
+          </Match>
+          <Match when={source.load()}>
+            {(l) => (
+              <p class="video-note" role="status">
+                {(() => {
+                  const v = l();
+                  return v.kind === "error"
+                    ? v.text
+                    : `${label()}を取っています… ${Math.round((v.kind === "loading" ? v.ratio : 1) * 100)}%`;
+                })()}
+              </p>
+            )}
+          </Match>
+        </Switch>
+      </div>
+    </div>
+  );
+}

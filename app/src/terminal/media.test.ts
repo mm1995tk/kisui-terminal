@@ -3,20 +3,22 @@ import { describe, it } from "node:test";
 
 import {
   baseName,
-  loadVideo,
+  loadFile,
+  MAX_BYTES,
   MAX_VIDEO_BYTES,
+  tooLarge,
   seekTo,
   videoKey,
 } from "./media.ts";
 
 const b64 = (s: string) => Buffer.from(s).toString("base64");
 
-describe("loadVideo", () => {
+describe("loadFile", () => {
   it("eof まで offset をずらして取り、1 つの Blob にする", async () => {
     const body = "0123456789";
     const calls: (number | undefined)[] = [];
     const seen: number[] = [];
-    const blob = await loadVideo(
+    const blob = await loadFile(
       async ({ offset }) => {
         calls.push(offset);
         const at = offset ?? 0;
@@ -39,7 +41,7 @@ describe("loadVideo", () => {
 
   it("大きすぎる動画は取らない", async () => {
     await assert.rejects(
-      loadVideo(
+      loadFile(
         async () => ({
           mime: "video/mp4",
           size: MAX_VIDEO_BYTES + 1,
@@ -52,9 +54,26 @@ describe("loadVideo", () => {
     );
   });
 
+  it("種類ごとの上限で断る", async () => {
+    const r = async () => ({
+      mime: "image/png",
+      size: 11,
+      data: "",
+      eof: false,
+    });
+    await assert.rejects(
+      loadFile(r, new AbortController().signal, () => {}, 10),
+      /too large/,
+    );
+    assert.equal(tooLarge("image", MAX_BYTES.image! + 1), true);
+    assert.equal(tooLarge("image", MAX_BYTES.image!), false);
+    assert.equal(tooLarge("video", MAX_BYTES.image! + 1), false);
+    assert.equal(tooLarge("pdf", MAX_BYTES.pdf! + 1), true);
+  });
+
   it("進まなければ打ち切る", async () => {
     await assert.rejects(
-      loadVideo(
+      loadFile(
         async () => ({ mime: "video/mp4", size: 10, data: "", eof: false }),
         new AbortController().signal,
       ),
@@ -66,7 +85,7 @@ describe("loadVideo", () => {
     const ac = new AbortController();
     let n = 0;
     await assert.rejects(
-      loadVideo(async () => {
+      loadFile(async () => {
         n++;
         ac.abort();
         return { mime: "video/mp4", size: 10, data: b64("ab"), eof: false };

@@ -11,7 +11,7 @@ kisui-terminal（`kisui`）と、欄の中で動く shj は、版がずれるこ
 | shj → kisui | プライマリの欄で名乗る `PrimaryHello` / `PrimaryReply`、開いているファイルを知らせる `PrimaryFile`、欄を開く `PaneRequest` / `PaneReply`（`op: "explorer"` で GUI のファイルエクスプローラにフォーカスを頼む。#14）、環境変数 `SHIJIMI_GUI_PRIMARY` / `SHIJIMI_GUI_WORKSPACE`、ソケット `serve-primary.rpc` | kisui-terminal | あり（下） |
 | kisui → shj | shj の操作用のソケット（`GUILinkPath` のリンク先）に送る命令 | shijimi-editor | なし |
 
-型と定数は、kisui の側が `internal/ctl/ctl.go`、shj の側が shijimi-editor の `core/ctl/ctl.go`（同じ内容の写し）。詳しい動きは [design/gui-protocol.md](design/gui-protocol.md) の「プライマリの shj」。
+型と定数は、kisui の側が `internal/ctl/ctl.go`、shj の側が shijimi-editor の `core/ctl/ctl.go`（同じ内容の写し）。欄を開く `op: "open"` の `kind` は `"video"`・`"image"`・`"pdf"`（`path` は絶対パスのファイル。拡張子と大きさの上限は kisui が決める）と `"browser"`（`url`）。`image` と `pdf` は #15 で足した（項目の値の追加なので版は上げない。知らない `kind` を断る古い kisui には、shj が「開けない」と状態行に出す）。詳しい動きは [design/gui-protocol.md](design/gui-protocol.md) の「プライマリの shj」。
 
 ## shj → kisui の版
 

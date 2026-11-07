@@ -2,7 +2,7 @@
 
 [日本語](README.ja.md)
 
-kisui-terminal is a terminal-centered workspace that works closely with [shijimi-editor](https://github.com/mm1995tk/shijimi-editor): it splits a window into panes and runs terminals (with `shj` inside), videos, browser pages and a file tree in them. The name is 汽水 (kisui, brackish water), where the shijimi clam lives.
+kisui-terminal is a terminal-centered workspace that works closely with [shijimi-editor](https://github.com/mm1995tk/shijimi-editor): it splits a window into panes and runs terminals (with `shj` inside), videos, images, PDFs, browser pages and a file tree in them. The name is 汽水 (kisui, brackish water), where the shijimi clam lives.
 
 It is a separate app from shijimi-editor, with its own version and releases. It ships with the `shj` it was tested with, and the terminals in its panes use that `shj` first (the `shj` you install yourself is still used outside kisui-terminal). How kisui-terminal and `shj` talk to each other is written in [docs/protocol.md](docs/protocol.md); the two share no code.
 
