@@ -1,0 +1,38 @@
+/*
+ * 端末の字（JetBrains Mono 2.304）。kitty で使う JetBrainsMono Nerd Font Mono と同じ版にそろえる。
+ * @fontsource/jetbrains-mono 5.3.0 の中身は 2.211 で、字の形が少し違った。
+ * ファイルは JetBrains/JetBrainsMono の Release v2.304 の fonts/webfonts から、使う 4 つだけを取った。
+ * 斜体も同梱するのは、kitty が斜体を本物の斜体の字で描くため（無いと WebView が字を傾けて代わりにする）。
+ * ライセンスは assets/JetBrainsMono-LICENSE.txt。
+ */
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url("./assets/JetBrainsMono-Regular.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 700;
+  font-display: block;
+  src: url("./assets/JetBrainsMono-Bold.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: italic;
+  font-weight: 400;
+  font-display: block;
+  src: url("./assets/JetBrainsMono-Italic.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: italic;
+  font-weight: 700;
+  font-display: block;
+  src: url("./assets/JetBrainsMono-BoldItalic.woff2") format("woff2");
+}
