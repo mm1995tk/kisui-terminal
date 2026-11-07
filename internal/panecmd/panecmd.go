@@ -14,7 +14,6 @@ package panecmd
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net"
 	"os"
 	"strings"
@@ -64,9 +63,16 @@ const CodeNotInPane = "not-in-pane"
 // pane of kisui-terminal.
 var ErrNotInPane = errors.New("not in a pane of kisui-terminal")
 
-// ErrNoServer is returned by Do (wrapped) when the socket does not answer:
-// "kisui serve" has ended.
+// ErrNoServer is what the error of Do is (errors.Is) when the socket does not
+// answer: "kisui serve" has ended. The text of that error is the one of the
+// dial, so that a message that says "not running" does not say it twice.
 var ErrNoServer = errors.New("kisui serve is not running")
+
+type noServerError struct{ err error }
+
+func (e noServerError) Error() string        { return e.err.Error() }
+func (e noServerError) Unwrap() error        { return e.err }
+func (e noServerError) Is(target error) bool { return target == ErrNoServer }
 
 // Pane is where a command runs: the socket, the terminal and its secret.
 type Pane struct {
@@ -92,7 +98,7 @@ func (p Pane) Do(rq Request) (Reply, error) {
 	rq.Pane, rq.Token = p.ID, p.Token
 	c, err := net.DialTimeout("unix", p.Socket, Timeout)
 	if err != nil {
-		return Reply{}, fmt.Errorf("%w: %v", ErrNoServer, err)
+		return Reply{}, noServerError{err}
 	}
 	defer c.Close()
 	_ = c.SetDeadline(time.Now().Add(Timeout))
