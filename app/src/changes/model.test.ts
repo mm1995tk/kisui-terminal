@@ -52,6 +52,8 @@ describe("letterOf", () => {
     assert.deepEqual(letterOf("binary"), ["B", "バイナリ"]);
     assert.deepEqual(letterOf("whatever"), ["M", "変更"]);
     assert.deepEqual(letterOf(undefined), ["M", "変更"]);
+    assert.deepEqual(letterOf("toString"), ["M", "変更"]);
+    assert.deepEqual(letterOf("constructor"), ["M", "変更"]);
   });
 });
 

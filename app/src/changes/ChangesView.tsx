@@ -5,6 +5,10 @@ import { For, Show, type JSX } from "solid-js";
 import type { ChangeRow } from "./model.ts";
 import "./changes.css";
 
+/**
+ * CHANGES の一覧。行を押す（Enter・Space でも）と onSelect を呼ぶ。
+ * label は一覧の読み上げの名前、onSelect に渡す path は行の ChangeRow.path（shj が知らせた絶対パス）。
+ */
 export function ChangesView(props: {
   rows: ChangeRow[];
   label: string;

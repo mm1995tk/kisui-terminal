@@ -96,12 +96,14 @@ export interface PrimaryShj {
   diff?: PrimaryDiff;
 }
 
+/** shj が差分モードのときの変更の一覧（Go の ctl.PrimaryDiff）。files は shj が見せる順 */
 export interface PrimaryDiff {
   files: DiffFile[];
   /** shj が今差分を出しているファイルの絶対パス。無ければ省く */
   selected?: string;
 }
 
+/** 変更したファイル 1 つ（Go の ctl.DiffFile）。added と deleted は増えた行・減った行の数（バイナリは 0 か省く） */
 export interface DiffFile {
   /** 絶対パス（削除されたファイルも） */
   path: string;

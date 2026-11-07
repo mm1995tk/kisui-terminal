@@ -1,11 +1,13 @@
-// 差分モードの CHANGES の一覧（サイドバーのファイルエクスプローラの下）の行を組み立てる。
+(status ? letters.get(status) : undefined) ?? ["M", "変更"]// 差分モードの CHANGES の一覧（サイドバーのファイルエクスプローラの下）の行を組み立てる。
 // 元は shj が知らせる primaryShj.diff（docs/protocol.md の PrimaryDiff）。
 
 import { RpcError } from "../rpc/message.ts";
 import type { DiffFile, PrimaryDiff } from "../rpc/protocol.ts";
 
+/** 一覧の行の印：変更 M・追加 A・削除 D・名前変更 R・バイナリ B */
 export type ChangeLetter = "M" | "A" | "D" | "R" | "B";
 
+/** CHANGES の一覧の 1 行（1 ファイル） */
 export interface ChangeRow {
   /** shj.diff に送る path（shj が知らせた絶対パス） */
   path: string;
@@ -22,16 +24,16 @@ export interface ChangeRow {
   selected: boolean;
 }
 
-const letters: Record<string, [ChangeLetter, string]> = {
-  added: ["A", "追加"],
-  deleted: ["D", "削除"],
-  renamed: ["R", "名前変更"],
-  binary: ["B", "バイナリ"],
-};
+const letters = new Map<string, [ChangeLetter, string]>([
+  ["added", ["A", "追加"]],
+  ["deleted", ["D", "削除"]],
+  ["renamed", ["R", "名前変更"]],
+  ["binary", ["B", "バイナリ"]],
+]);
 
 /** 状態の言葉を印にする。知らない言葉・無い言葉は「変更」。 */
 export function letterOf(status: string | undefined): [ChangeLetter, string] {
-  return (status && letters[status]) || ["M", "変更"];
+  return (status ? letters.get(status) : undefined) ?? ["M", "変更"];
 }
 
 /** 一覧の行。root は ワークスペースのルート（その中のファイルは相対パスで出す）。 */
