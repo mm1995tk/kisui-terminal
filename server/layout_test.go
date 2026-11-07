@@ -80,7 +80,7 @@ func TestRatioBounds(t *testing.T) {
 	if !ok || lo != 20.0/160 || hi != 1-20.0/160 {
 		t.Errorf("bounds: %v %v %v", lo, hi, ok)
 	}
-	// 下に分けた欄が B にあると、右の境界の B の最小の大きさは変わらない（直交する向きは大きいほう）
+	// 下に分ける境界は行（minSplitRows）で見る
 	n = &layoutNode{Dir: dirDown, Ratio: 0.5, A: leaf("a"), B: leaf("b")}
 	lo, hi, _ = ratioBounds(n, size)
 	if lo != 5.0/48 || hi != 1-5.0/48 {
@@ -148,5 +148,16 @@ func TestLayoutResizeRPC(t *testing.T) {
 		if err := c.Call(ctx, "layout.resize", map[string]any{"workspaceId": wsID, "pane": id, "ratio": r}, nil); !isCode(err, rpc.CodeInvalidParams) {
 			t.Errorf("ratio %v: %v", r, err)
 		}
+	}
+}
+
+// 入れ子：B が下に分けた節なら、右の境界の B の最小は 20 列のまま（直交する向きは大きいほう）。
+func TestLayoutMinExtentNested(t *testing.T) {
+	n := &layoutNode{Dir: dirRight, Ratio: 0.5, A: leaf("a"), B: &layoutNode{Dir: dirDown, Ratio: 0.5, A: leaf("b"), B: leaf("c")}}
+	if got := layoutMinExtent(n.B, true); got != minSplitCols {
+		t.Errorf("cols of a down split: %d", got)
+	}
+	if got := layoutMinExtent(n.B, false); got != 2*minSplitRows {
+		t.Errorf("rows of a down split: %d", got)
 	}
 }

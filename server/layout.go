@@ -4,7 +4,7 @@ package server
 //
 // ワークスペースの欄（プライマリ・分割したターミナル・ターミナルでない欄）は 1 本の木に入る。葉が欄で、
 // 内側の節は「右に分ける（Dir == "right"。A が左、B が右。境界は縦）」か「下に分ける（Dir == "down"。
-// A が上、B が下。境界は横）」。Ratio は A の割合（0〜1。今は 0.5 のまま。境界を動かすのは別の Issue）。
+// A が上、B が下。境界は横）」。Ratio は A の割合（0〜1。分けた直後は 0.5。layout.resize で変わる）。
 // 木は serve が持ち（wsState.layout）、workspace.list・workspace.changed の Workspace.layout で GUI に渡す。
 // GUI を開き直しても別の GUI からつないでも同じ配置になり、serve の入れ替え（handover）でも引き継ぐ。
 //
