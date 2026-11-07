@@ -1,16 +1,16 @@
-/* ツリー（D2）。親 #271 のモック「案：フラットな一覧」の寸法と色に合わせる：
+/* ツリー（D2）。親 #271 のモック「案：フラットな一覧」の寸法に合わせる：
    行の高さ 22px、左右 8px、深さごとに 16px の縦線、矢印とアイコンは 16px。
-   印の色は TUI のテーマ（dark-plus）と同じ：変更・追跡していないは Dirty、追加・名前変更・衝突は GitAdded、
+   色は theme.css の GitHub Dark（shijimi-editor の GithubDark と同じ）。印の色は、変更・追跡していないは Dirty、追加・名前変更・衝突は GitAdded、
    削除は GitDeleted、無視は Dim。 */
 
 .tree {
-  --tree-guide: #3a414e;
-  --tree-dirty: #e2c08d;
-  --tree-added: #73c991;
-  --tree-deleted: #c74e39;
-  --tree-dim: #6e6e6e;
-  --tree-hover: #1d2129;
-  --tree-current: #2c3442;
+  --tree-guide: var(--gh-indent-guide);
+  --tree-dirty: var(--gh-yellow);
+  --tree-added: var(--gh-green);
+  --tree-deleted: var(--gh-red);
+  --tree-dim: var(--gh-text-dim);
+  --tree-hover: var(--gh-bg-raised);
+  --tree-current: var(--gh-bg-selected);
 
   display: flex;
   flex-direction: column;
@@ -23,7 +23,7 @@
   align-items: center;
   height: 22px;
   padding: 0 8px;
-  color: var(--sidebar-text, #c9ced6);
+  color: var(--sidebar-text, var(--gh-text));
   white-space: nowrap;
   cursor: default;
   user-select: none;
@@ -39,7 +39,7 @@
   position: sticky;
   top: calc(var(--tree-sticky-top, 0px) + var(--tree-depth, 0) * 22px);
   z-index: calc(100 - var(--tree-depth, 0));
-  background: var(--sidebar-bg, #181b21);
+  background: var(--sidebar-bg, var(--gh-bg-side));
 }
 .tree-row[data-stuck] {
   background: var(--tree-hover);
@@ -69,7 +69,7 @@
   width: 16px;
   height: 16px;
   fill: none;
-  stroke: var(--sidebar-text, #c9ced6);
+  stroke: var(--sidebar-text, var(--gh-text));
   stroke-width: 1.5;
 }
 
@@ -88,7 +88,7 @@
 .tree-link {
   flex: none;
   margin-left: 4px;
-  color: var(--sidebar-muted, #9aa3b2);
+  color: var(--sidebar-muted, var(--gh-text-muted));
   font-size: 11px;
 }
 
@@ -120,6 +120,6 @@
 }
 
 .tree-truncated {
-  color: var(--sidebar-muted, #9aa3b2);
+  color: var(--sidebar-muted, var(--gh-text-muted));
   font-size: 12px;
 }

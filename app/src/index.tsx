@@ -1,5 +1,6 @@
 import { init } from "coneko-term";
 import { render } from "solid-js/web";
+import "./theme.css";
 import "./fonts.ts";
 import { App } from "./App";
 

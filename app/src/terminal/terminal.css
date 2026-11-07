@@ -1,7 +1,7 @@
-/* ターミナルのカード（F1・F4）。親 #271 のモック（案：フラットな一覧）の色と余白に合わせる。
+/* ターミナルのカード（F1・F4）。親 #271 のモック（案：フラットな一覧）の余白に合わせる（色は theme.css の GitHub Dark）。
    カードは CSS grid で、数に応じて並べる（列と行の数と欄の位置は TerminalGrid が決める）。
-   欄の間は 1px の線（カードの地の色を gap から見せる）。並べたときは、今使っている欄の上端に、モックの
-   今のターミナルの印と同じくマシンの色（D4）の 2px の線を引く。タブ（見出しの帯）は作らない。
+   欄の間は 1px の線（カードの地の色を gap から見せる）。並べたときは、今使っている欄（フォーカス）だけに
+   マシンの色（D4）の枠の線を引き、プライマリの欄は角の印で示す。タブ（見出しの帯）は作らない。
    置き場所は app.css が決める（右の欄いっぱい）。 */
 .terminal {
   position: relative;
@@ -9,13 +9,13 @@
   display: grid;
   gap: 1px;
   min-height: 0;
-  background: #2a2f39;
-  border-top: 1px solid #2a2f39;
+  background: var(--gh-border);
+  border-top: 1px solid var(--gh-border);
 }
 
 /* 欄が無いとき（つないだマシンが無い・term.list の返事を待つ間）は、F1 と同じく空のターミナルの色にする */
 .terminal[data-empty] {
-  background: #0f1114;
+  background: var(--gh-bg);
 }
 
 /* プライマリ以外の欄を隠しているとき、隠している数を右上に小さく出す */
@@ -25,37 +25,40 @@
   right: 10px;
   margin: 0;
   font-size: 11px;
-  color: #9aa3b2;
+  color: var(--gh-text-muted);
   pointer-events: none;
 }
 
 .terminal-cell {
+  position: relative;
   box-sizing: border-box;
   display: flex;
   min-width: 0;
   min-height: 0;
   padding: 12px 18px;
-  background: #0f1114;
+  background: var(--gh-bg);
 }
 
 .terminal-cell[hidden] {
   display: none;
 }
 
+/* 並べたとき（2 つ以上）、枠の線は今使っている欄（フォーカス）だけに引く。マシンの色の 1px で 4 辺。 */
 .terminal[data-split] > .terminal-cell[data-active] {
-  box-shadow: inset 0 2px 0 var(--term-accent, #7cc4b0);
+  box-shadow: inset 0 0 0 1px var(--term-accent, var(--gh-accent-text));
 }
 
-/* 並べたとき（2 つ以上）、プライマリターミナルの欄の 4 辺にマシンの色の細い枠（1px）を引く。
-   今の欄の上端の太い線とは別で、プライマリを使っているときは両方が出る */
-.terminal[data-split] > .terminal-cell[data-primary] {
-  box-shadow: inset 0 0 0 1px var(--term-accent, #7cc4b0);
-}
-
-.terminal[data-split] > .terminal-cell[data-primary][data-active] {
-  box-shadow:
-    inset 0 2px 0 var(--term-accent, #7cc4b0),
-    inset 0 0 0 1px var(--term-accent, #7cc4b0);
+/* プライマリの欄は、枠の線ではなく左上の角の小さな三角で示す（マシンの色）。フォーカスと重なっても枠の線とは別に出る */
+.terminal[data-split] > .terminal-cell[data-primary]::after {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  content: "";
+  border-top: 10px solid var(--term-accent, var(--gh-accent-text));
+  border-right: 10px solid transparent;
+  pointer-events: none;
 }
 
 .terminal-host {
@@ -77,7 +80,7 @@
   gap: 8px;
   min-width: 0;
   font-size: 12px;
-  color: #9aa3b2;
+  color: var(--gh-text-muted);
 }
 
 .video-name {
@@ -96,14 +99,14 @@
   color: inherit;
   cursor: pointer;
   background: none;
-  border: 1px solid #2a2f39;
+  border: 1px solid var(--gh-border);
   border-radius: 4px;
 }
 
 .video-close:hover,
 .video-close:focus-visible {
-  color: #c9ced6;
-  border-color: #9aa3b2;
+  color: var(--gh-text);
+  border-color: var(--gh-text-muted);
 }
 
 .video-body {
@@ -127,7 +130,7 @@
 .video-note {
   margin: 0;
   font-size: 12px;
-  color: #9aa3b2;
+  color: var(--gh-text-muted);
 }
 
 /* ブラウザの欄（#556）。見出し（戻る・進む・再読み込み・アドレス・閉じる）の下の本文は、別の webview を重ねる場所 */
@@ -144,7 +147,7 @@
   min-width: 0;
   margin: 0;
   font-size: 12px;
-  color: #9aa3b2;
+  color: var(--gh-text-muted);
 }
 
 .browser-button {
@@ -155,14 +158,14 @@
   color: inherit;
   cursor: pointer;
   background: none;
-  border: 1px solid #2a2f39;
+  border: 1px solid var(--gh-border);
   border-radius: 4px;
 }
 
 .browser-button:hover:not(:disabled),
 .browser-button:focus-visible {
-  color: #c9ced6;
-  border-color: #9aa3b2;
+  color: var(--gh-text);
+  border-color: var(--gh-text-muted);
 }
 
 .browser-button:disabled {
@@ -175,14 +178,14 @@
   min-width: 0;
   padding: 2px 6px;
   font: inherit;
-  color: #c9ced6;
-  background: #11141a;
-  border: 1px solid #2a2f39;
+  color: var(--gh-text);
+  background: var(--gh-bg-field);
+  border: 1px solid var(--gh-border);
   border-radius: 4px;
 }
 
 .browser-error {
-  color: #e0a4a4;
+  color: var(--gh-red-soft);
 }
 
 .browser-body {
