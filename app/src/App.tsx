@@ -30,6 +30,10 @@ import {
 import { AskpassDialog } from "./AskpassDialog.tsx";
 import { explorerRow, isLeaveExplorerKey } from "./explorerFocus.ts";
 import { ClipboardDialog } from "./ClipboardDialog.tsx";
+import {
+  ClipboardHistoryDialog,
+  handleClipboardHistoryKey,
+} from "./ClipboardHistoryDialog.tsx";
 import { TransferDialog } from "./TransferDialog.tsx";
 import { AddMachine } from "./connect/AddMachine.tsx";
 import { ConfigError } from "./connect/ConfigError.tsx";
@@ -369,6 +373,12 @@ function Workbench(props: {
       e.preventDefault();
       e.stopPropagation();
       if (!e.repeat) setZoom();
+      return;
+    }
+    // クリップボードの履歴の一覧（#54）
+    if (handleClipboardHistoryKey(e)) {
+      e.preventDefault();
+      e.stopPropagation();
       return;
     }
     const sd = splitKey(e, IS_MAC);
@@ -1344,6 +1354,7 @@ function Workbench(props: {
       </Show>
       <AskpassDialog ask={asks()[0]} onReply={reply} />
       <ClipboardDialog />
+      <ClipboardHistoryDialog />
       <TransferDialog />
       <CopiedToast />
       <Notices notices={notices()}>

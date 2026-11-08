@@ -15,6 +15,7 @@ import type { TermLink, TermSink } from "./link.ts";
 import { planWrite, readableMimes, supportsLocation } from "./clipboard.ts";
 import { availableOs, readFirstOs, writeOs } from "./clipboardOs.ts";
 import { askClipboardRead } from "./clipboardPrompt.ts";
+import { registerPasteTarget } from "./pasteTarget.ts";
 import { SelectionCopy } from "./selectionCopy.ts";
 import { createTransfer } from "./transfer.ts";
 import { tauriTransferOs } from "./transferOs.ts";
@@ -288,6 +289,7 @@ export function TerminalView(props: {
     // （先に開くと代わりの字で測ってしまい、字の間が合わない）
     let disposed = false;
     props.focusRef?.(() => term.focus());
+    onCleanup(registerPasteTarget(host, (text) => term.paste(text)));
     host.addEventListener("mousedown", onPress, true);
     document.addEventListener("mouseup", onRelease);
     host.addEventListener("dragenter", onDragOver);

@@ -48,6 +48,8 @@ kisui clipboard paste > note.txt
 
 kisui-terminal は、手元のクリップボードにコピーした文の履歴を持ちます。kisui-terminal の中のコピーも、ほかのアプリ（ブラウザなど）でのコピーも入ります。新しい 20 件を 12 時間残し、データのディレクトリ（macOS は `~/Library/Application Support/dev.mm1995tk.kisui-terminal`、Linux は `~/.local/share/dev.mm1995tk.kisui-terminal`）の `clipboard-history.json`（自分だけが読めるファイル）に保存するので、閉じても消えません。パスワード管理アプリが「秘密」の印を付けたコピーと、画像は入れません。
 
+`Cmd+Shift+H`（macOS）か `Ctrl+Shift+H`（Linux）で、履歴を新しい順の一覧で開きます。文字を打つと絞り込め、上下キーで選び、`Enter` で打っていた欄に貼り、`Shift+Enter` でクリップボードに戻します。`Esc` は何もせずに閉じます。
+
 `kisui pane split --right` / `--down` は、打った欄を右か下に分け、新しい欄にフォーカスを移します。後ろにコマンドを付けると、新しい欄ではシェルの代わりにそのコマンドを動かします（`kisui pane split --down htop`）。コマンドが終わると欄も閉じるので、短いコマンドの出力を残したいときは、シェルに動かさせて最後にシェルを残します（`kisui pane split --down sh -c "ls; exec sh"`）。分けた後の欄が 20 列・5 行より小さくなるときは、キーで分けるときと同じく断ります。`kisui pane title <名前>` は、欄の上の細い帯に名前を出します（空の名前なら外します）。名前は serve が持つので、ウィンドウを開き直しても残ります。
 
 ```sh
