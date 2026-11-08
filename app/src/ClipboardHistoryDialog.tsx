@@ -64,12 +64,12 @@ function History(props: { opened: Opened }): JSX.Element {
 
   let list: HTMLUListElement | undefined;
   const shown = createMemo(() => filterEntries(entries() ?? [], query()));
-  const selected = () => shown()[Math.min(sel(), shown().length - 1)];
+  const selectedIndex = () => Math.min(sel(), shown().length - 1);
+  const selected = () => shown()[selectedIndex()];
 
   // 選んだ行が見える所へ
   createEffect(() => {
-    const i = sel();
-    shown();
+    const i = selectedIndex();
     queueMicrotask(() =>
       list?.children[i]?.scrollIntoView?.({ block: "nearest" }),
     );
@@ -162,7 +162,7 @@ function History(props: { opened: Opened }): JSX.Element {
                   class="card-row"
                   role="option"
                   tabIndex={-1}
-                  aria-selected={i() === Math.min(sel(), shown().length - 1)}
+                  aria-selected={i() === selectedIndex()}
                   title={preview(e.text, 400)}
                   onClick={() => setSel(i())}
                   onDblClick={() => (props.opened.paste ? paste() : putBack())}
