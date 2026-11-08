@@ -143,6 +143,12 @@ export function Sidebar(
         "--sidebar-after-height",
         `${after?.offsetHeight ?? 0}px`,
       );
+      // 下に固定する CHANGES の高さ（同じ理由。行の増減は MutationObserver が拾う）
+      const changes = nav.querySelector<HTMLElement>(".changes");
+      nav.style.setProperty(
+        "--sidebar-changes-height",
+        `${changes?.offsetHeight ?? 0}px`,
+      );
       let last: HTMLElement | null = null;
       for (const el of nav.querySelectorAll<HTMLElement>("[data-sticky]")) {
         const bottom = el.dataset.sticky === "bottom";
