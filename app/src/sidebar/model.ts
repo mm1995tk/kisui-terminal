@@ -92,13 +92,14 @@ export function band(w: Workspace, focused: boolean, nth = 1): Band {
       showTree: w.primaryShj != null,
     };
   }
+  const shown = w.display || w.folder;
   const detail = (w.kind === "cwd" ? ["git なし"] : [w.branch ?? ""])
     .concat(num)
     .filter(Boolean)
     .join(" ");
   return {
     id: w.id,
-    title: w.kind === "cwd" ? w.folder : w.name || w.folder,
+    title: w.kind === "cwd" ? shown : w.name || shown,
     path: w.kind === "cwd" || !w.name,
     unset: false,
     detail,

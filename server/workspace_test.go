@@ -351,3 +351,18 @@ func (t *terminal) aliveNow() bool {
 	defer t.mu.Unlock()
 	return t.alive
 }
+
+func TestTildePath(t *testing.T) {
+	for _, c := range []struct{ p, home, want string }{
+		{"/home/me/workspaces/x", "/home/me", "~/workspaces/x"},
+		{"/home/me", "/home/me", "~"},
+		{"/home/mex/y", "/home/me", "/home/mex/y"},
+		{"/etc/nginx", "/home/me", "/etc/nginx"},
+		{"/etc/nginx", "", "/etc/nginx"},
+		{"/etc/nginx", "/", "/etc/nginx"},
+	} {
+		if got := tildePath(c.p, c.home); got != c.want {
+			t.Errorf("tildePath(%q, %q) = %q, want %q", c.p, c.home, got, c.want)
+		}
+	}
+}
