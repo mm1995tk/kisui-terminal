@@ -170,6 +170,7 @@ function History(props: { opened: Opened }): JSX.Element {
                   tabIndex={-1}
                   aria-selected={i() === selectedIndex()}
                   title={preview(e.text, 400)}
+                  onMouseDown={(ev) => ev.preventDefault()}
                   onClick={() => setSel(i())}
                   onDblClick={choose}
                 >
