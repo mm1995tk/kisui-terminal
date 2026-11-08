@@ -96,6 +96,12 @@ function History(props: { opened: Opened }): JSX.Element {
     );
   }
 
+  // 貼る欄があれば貼り、無ければクリップボードに戻す
+  function choose() {
+    if (props.opened.paste) paste();
+    else putBack();
+  }
+
   function onKeyDown(e: KeyboardEvent) {
     if (e.isComposing) return;
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
@@ -106,8 +112,8 @@ function History(props: { opened: Opened }): JSX.Element {
     } else if (e.key === "Enter") {
       e.preventDefault();
       // Shift+Enter は OS のクリップボードに戻す。Enter は貼る（貼る欄が無ければ戻す）
-      if (e.shiftKey || !props.opened.paste) putBack();
-      else paste();
+      if (e.shiftKey) putBack();
+      else choose();
     }
   }
 
@@ -165,7 +171,7 @@ function History(props: { opened: Opened }): JSX.Element {
                   aria-selected={i() === selectedIndex()}
                   title={preview(e.text, 400)}
                   onClick={() => setSel(i())}
-                  onDblClick={() => (props.opened.paste ? paste() : putBack())}
+                  onDblClick={choose}
                 >
                   <span class="card-row-name">{preview(e.text)}</span>
                   <span class="card-row-state">{ago(e.copiedAt, now())}</span>
