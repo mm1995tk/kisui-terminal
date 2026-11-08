@@ -1,10 +1,10 @@
 import { createSignal, Show } from "solid-js";
 
-import { CopiedNotice } from "./copiedNotice.ts";
+import { TimedNotice } from "./timedNotice.ts";
 
 const [visible, setVisible] = createSignal(false);
 const [percent, setPercent] = createSignal(100);
-const notice = new CopiedNotice(setVisible);
+const notice = new TimedNotice(setVisible);
 
 /** 表示の大きさ（#594）を変えたときに呼ぶ。少しの間だけ「90%」のように出す。 */
 export function showScale(v: number): void {
