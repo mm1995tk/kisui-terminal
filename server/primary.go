@@ -433,6 +433,10 @@ func (ss *session) primaryRequest(req *rpc.Message) (res any, err error, handled
 		res, err := ss.shjDiff(req)
 		return res, err, true
 	}
+	if req.Method == "shj.changesKey" {
+		res, err := ss.shjChangesKey(req)
+		return res, err, true
+	}
 	if req.Method != "shj.open" {
 		return nil, nil, false
 	}
@@ -509,6 +513,45 @@ func (ss *session) shjDiff(req *rpc.Message) (any, error) {
 		return nil, rpc.Errorf(rpc.CodeNotFound, "not in the list of changes: %s", p.Path)
 	}
 	if err := askShj(sock, ctl.Request{Cmd: "diff", Path: p.Path}); err != nil {
+		return nil, rpc.Errorf(rpc.CodeInternalError, "%v", err)
+	}
+	return struct{}{}, nil
+}
+
+// changesKeys は shj.changesKey で shj に渡せるキー：TUI の CHANGES の s（split / unified）と r・R（読み直す）。
+// 動き・開閉・メニューなどのキーは GUI が受け持つので、ここには無い。
+var changesKeys = []string{"s", "r", "R"}
+
+// shjChangesKey は shj.changesKey。サイドバーの CHANGES で押した s・r・R を、プライマリの shj に
+// 「CHANGES にフォーカスがあるときに押した」ものとして受けさせる（ctl の changes-key。動きは shj の handleChangesKey が決める）。
+// 差分モードでなければ not_found。
+func (ss *session) shjChangesKey(req *rpc.Message) (any, error) {
+	if err := ss.needHello(); err != nil {
+		return nil, err
+	}
+	var p struct {
+		WorkspaceID string `json:"workspaceId"`
+		Key         string `json:"key"`
+	}
+	if err := json.Unmarshal(req.Params, &p); err != nil {
+		return nil, invalidParams(err)
+	}
+	if !slices.Contains(changesKeys, p.Key) {
+		return nil, rpc.Errorf(rpc.CodeInvalidParams, "not a key of the changes list: %q", p.Key)
+	}
+	w := ss.srv.ws
+	w.mu.Lock()
+	var sock string
+	diffMode := false
+	if st := w.reg[p.WorkspaceID]; st != nil && st.shj != nil {
+		sock = st.shj.Socket
+		diffMode = st.shj.Diff != nil
+	}
+	w.mu.Unlock()
+	if sock == "" || !diffMode {
+		return nil, rpc.Errorf(rpc.CodeNotFound, "no shj in diff mode in the primary terminal of %s", p.WorkspaceID)
+	}
+	if err := askShj(sock, ctl.Request{Cmd: "changes-key", Line: p.Key}); err != nil {
 		return nil, rpc.Errorf(rpc.CodeInternalError, "%v", err)
 	}
 	return struct{}{}, nil

@@ -276,6 +276,11 @@ export interface Requests {
     params: { workspaceId: WorkspaceId; path: string };
     result: Record<string, never>;
   };
+  "shj.changesKey": {
+    /** TUI の CHANGES の s（split / unified）・r・R（読み直す）。差分モードのプライマリの shj に、CHANGES でそのキーを押したものとして渡す */
+    params: { workspaceId: WorkspaceId; key: "s" | "r" | "R" };
+    result: Record<string, never>;
+  };
   "git.status": {
     params: { workspaceId: WorkspaceId };
     result: {
@@ -304,6 +309,8 @@ export interface Notifications {
   "pane.hide": { workspaceId: WorkspaceId };
   /** プライマリの shj が、そのワークスペースのファイルエクスプローラにキーを向けるよう頼んだ（Space e）。Esc で端末に戻る */
   "explorer.focus": { workspaceId: WorkspaceId };
+  /** プライマリの shj が、サイドバーの CHANGES にキーを向けるよう頼んだ（Space E・cmd.diffchanges）。Esc・q で端末に戻る */
+  "changes.focus": { workspaceId: WorkspaceId };
   notify: { level: string; text: string };
   "term.output": { termId: TermId; seq: number; data: string };
   /** `code` は、`kisui serve` が引き継いだシェル（その子でない）では分からないので無い。 */

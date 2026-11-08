@@ -41,9 +41,9 @@ const (
 
 // Request is sent by the CLI to the editor.
 type Request struct {
-	Cmd  string `json:"cmd"`            // diff | exec | command-end | open
+	Cmd  string `json:"cmd"`            // diff | exec | command-end | open | changes-key
 	Path string `json:"path,omitempty"` // diff, open: an absolute path (diff: also the Path of a DiffFile, which may be deleted)
-	Line string `json:"line,omitempty"` // exec: the ":" command to run; command-end: the exit code
+	Line string `json:"line,omitempty"` // exec: the ":" command to run; command-end: the exit code; changes-key: the key ("s", "r" or "R")
 }
 
 // Response is the editor's reply.
@@ -244,7 +244,10 @@ type PrimaryReply struct {
 // the pane), "close" (pane ID) and "explorer" (the GUI moves the focus to the
 // file explorer of the workspace; Esc there takes it back to the terminal. A
 // kisui from before it answers "unknown op"; the keys then stay where Space e
-// takes them without a tree).
+// takes them without a tree) and "changes" (the same for the CHANGES list in
+// the sidebar, which kisui shows when PrimaryReply.Changes is true: Space E
+// and the "Diff: Go to the changes list" command; an older kisui answers
+// "unknown op" the same way).
 //
 // "open" adds a pane that is not a terminal: Kind says which. "video", "image"
 // and "pdf": Path is the absolute path of the file it shows. "browser": URL is the http or https

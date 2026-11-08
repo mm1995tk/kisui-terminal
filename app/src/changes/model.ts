@@ -72,3 +72,83 @@ export function changeErrorText(path: string, e: unknown): string {
         : String(e);
   return `${path} の差分を出せませんでした（${why}）`;
 }
+
+/** CHANGES の木の 1 行：フォルダか、変更のあるファイル。 */
+export interface ChangeEntry {
+  /** フォルダは dir の途中までのパス（閉じた印の鍵）、ファイルは ChangeRow.path */
+  key: string;
+  kind: "dir" | "file";
+  /** 出す名前（フォルダは 1 階層ぶん） */
+  name: string;
+  /** 一番上が 0 */
+  depth: number;
+  /** フォルダが開いているか（ファイルは false） */
+  expanded: boolean;
+  /** フォルダの中にある変更のあるファイルの数（ファイルは 0） */
+  count: number;
+  /** ファイルの行（フォルダは無い） */
+  row?: ChangeRow;
+  /** 親のフォルダの key（一番上なら undefined） */
+  parent?: string;
+}
+
+/** フォルダ名の列。dir の "" は []、絶対パスは先頭の "/" を落とす（鍵は先頭に "/" を戻す）。 */
+function dirChain(dir: string): { key: string; name: string }[] {
+  if (dir === "") return [];
+  const abs = dir.startsWith("/");
+  const parts = dir.split("/").filter((p) => p !== "");
+  return parts.map((name, i) => ({
+    key: (abs ? "/" : "") + parts.slice(0, i + 1).join("/"),
+    name,
+  }));
+}
+
+/**
+ * 変更のあるファイルの行を、TUI の CHANGES と同じフォルダの木にして、見えている行を上から順に返す。
+ * 順番は shj が知らせたファイルの順（フォルダはそのフォルダのファイルが最初に出た所に置く）。
+ * closed は閉じているフォルダの鍵。閉じたフォルダの行は出し、中身は出さない。
+ */
+export function changeTree(
+  rows: readonly ChangeRow[],
+  closed: ReadonlySet<string>,
+): ChangeEntry[] {
+  const counts = new Map<string, number>();
+  for (const r of rows) {
+    for (const d of dirChain(r.dir))
+      counts.set(d.key, (counts.get(d.key) ?? 0) + 1);
+  }
+  const out: ChangeEntry[] = [];
+  const seen = new Set<string>();
+  for (const r of rows) {
+    const chain = dirChain(r.dir);
+    let hidden = false;
+    chain.forEach((d, depth) => {
+      if (hidden) return;
+      if (!seen.has(d.key)) {
+        seen.add(d.key);
+        out.push({
+          key: d.key,
+          kind: "dir",
+          name: d.name,
+          depth,
+          expanded: !closed.has(d.key),
+          count: counts.get(d.key) ?? 0,
+          parent: depth > 0 ? chain[depth - 1].key : undefined,
+        });
+      }
+      if (closed.has(d.key)) hidden = true;
+    });
+    if (hidden) continue;
+    out.push({
+      key: r.path,
+      kind: "file",
+      name: r.name,
+      depth: chain.length,
+      expanded: false,
+      count: 0,
+      row: r,
+      parent: chain.length > 0 ? chain[chain.length - 1].key : undefined,
+    });
+  }
+  return out;
+}

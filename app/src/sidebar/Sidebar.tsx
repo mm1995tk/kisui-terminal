@@ -63,6 +63,18 @@ interface Handlers {
   changesOf?: (target: string, id: WorkspaceId) => ChangeRow[] | undefined;
   /** CHANGES の行を押した（path は shj が知らせた絶対パス） */
   onChange?: (target: string, id: WorkspaceId, path: string) => void;
+  /** CHANGES で s・r・R を押した（shj に渡す） */
+  onChangesKey?: (
+    target: string,
+    id: WorkspaceId,
+    key: "s" | "r" | "R",
+  ) => void;
+  /** CHANGES で Space・: を押した（端末に戻して、その文字を打つ） */
+  onChangesTerminal?: (target: string, id: WorkspaceId, text: string) => void;
+  /** CHANGES で Tab を押した（エクスプローラに移る） */
+  onChangesExplorer?: (target: string, id: WorkspaceId) => void;
+  /** CHANGES で Esc・q を押した（端末に戻る） */
+  onChangesLeave?: (target: string, id: WorkspaceId) => void;
   /** ツリーの行を右クリックした（Sidebar が内側に渡す。App は onTreeAction を使う） */
   onTreeMenu?: (
     target: string,
@@ -348,6 +360,18 @@ function handlers(
     get onChange() {
       return props.onChange;
     },
+    get onChangesKey() {
+      return props.onChangesKey;
+    },
+    get onChangesTerminal() {
+      return props.onChangesTerminal;
+    },
+    get onChangesExplorer() {
+      return props.onChangesExplorer;
+    },
+    get onChangesLeave() {
+      return props.onChangesLeave;
+    },
     get onTreeAction() {
       return props.onTreeAction;
     },
@@ -563,6 +587,12 @@ function BandItem(
             rows={rows()}
             label={`${b().title} の変更`}
             onSelect={(p) => props.onChange?.(props.target, b().id, p)}
+            onShjKey={(k) => props.onChangesKey?.(props.target, b().id, k)}
+            onTerminal={(t) =>
+              props.onChangesTerminal?.(props.target, b().id, t)
+            }
+            onExplorer={() => props.onChangesExplorer?.(props.target, b().id)}
+            onLeave={() => props.onChangesLeave?.(props.target, b().id)}
           />
         )}
       </Show>
