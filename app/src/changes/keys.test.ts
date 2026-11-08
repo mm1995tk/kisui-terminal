@@ -134,7 +134,10 @@ describe("changesKey: TUI の CHANGES と同じキー（Issue #45 の表）", ()
 });
 
 describe("PR モードの CHANGES のキー（Issue #46）", () => {
-  it("r・R・Space は shj に渡す（PR を読み直す・Space メニュー）", () => {
+  it("PR モードでも HEAD のときと同じ判定で、r・R・Space を shj に渡す（PR_CHANGES_KEYS は TUI_CHANGES_KEYS に含まれる）", () => {
+    for (const tui of PR_CHANGES_KEYS) {
+      assert.ok(TUI_CHANGES_KEYS.includes(tui), tui);
+    }
     for (const tui of PR_CHANGES_KEYS) {
       for (const row of [file, open, closed]) {
         const a = changesKey(row, k(domKey(tui)));
