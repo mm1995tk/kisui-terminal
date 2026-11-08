@@ -72,7 +72,7 @@ fn label(key: &str) -> String {
 }
 
 /// 命令を呼んだのがメイン窓の画面か（子の webview ではないか）。
-fn from_main(w: &Webview) -> Result<(), String> {
+pub(crate) fn from_main(w: &Webview) -> Result<(), String> {
     if w.label() == "main" {
         Ok(())
     } else {

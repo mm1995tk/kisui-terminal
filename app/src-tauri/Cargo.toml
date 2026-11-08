@@ -27,6 +27,27 @@ tauri-plugin-clipboard-manager = "=2.5.0"
 # ファイル転送（transfer.rs）の openat・O_NOFOLLOW。版は Cargo.lock にすでにある（tauri などが使っている）ものに合わせる
 libc = "=0.2.191"
 
+# クリップボードの履歴（clipboard_history.rs）。macOS は NSPasteboard の changeCount と型の一覧を見る。
+# 版は Cargo.lock にすでにある（arboard が使っている）ものに合わせる
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "=0.6.5"
+objc2-app-kit = { version = "=0.3.2", default-features = false, features = [
+  "std",
+  "NSPasteboard",
+] }
+objc2-foundation = { version = "=0.3.2", default-features = false, features = [
+  "std",
+  "NSArray",
+  "NSString",
+] }
+
+# クリップボードの履歴（clipboard_history.rs）。Linux は文字を arboard で読み、「秘密」の印を wl-clipboard-rs（Wayland）か
+# x11rb（X11）で確かめる。版は Cargo.lock にすでにある（tauri-plugin-clipboard-manager が使っている）ものに合わせる
+[target.'cfg(target_os = "linux")'.dependencies]
+arboard = { version = "=3.7.0", default-features = false }
+wl-clipboard-rs = "=0.9.5"
+x11rb = "=0.13.2"
+
 [features]
 # release の画面は埋め込んだ Web を使う（これが無いと devUrl を見に行く）。cargo tauri build は自動で付ける
 custom-protocol = ["tauri/custom-protocol"]
