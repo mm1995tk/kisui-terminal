@@ -134,6 +134,9 @@
   min-width: 0;
   overflow: hidden;
   min-height: 0;
+  /* 右クリックで WebKit が canvas を丸ごと選ばないようにする（字の選択は coneko-term が自分で描く） */
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 /* 動画の欄（#555）。ターミナルの欄と同じ升目に並ぶ。上に見出し（名前と閉じるボタン）、残りに動画 */

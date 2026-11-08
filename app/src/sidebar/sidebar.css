@@ -35,6 +35,13 @@
   font-size: 13px;
 }
 
+/* 一覧と「+ リモートを足す」の中身を 84% で描く（幅は .sidebar-column のまま）。
+   メニュー（.machine-menu）は .sidebar の外にあるので、クリックした位置に出る */
+.sidebar,
+.sidebar-foot {
+  zoom: 0.84;
+}
+
 .sidebar {
   flex: 1;
   min-height: 0;
