@@ -855,24 +855,22 @@ function Workbench(props: {
     );
 
   /**
-   * CHANGES で shj のキー（s・r・R・Space・:）を押した。shj に「CHANGES で押した」ものとして渡す。
+   * s・r・R は一覧にフォーカスを残す。Space と : は続きのキー（space w の w・コマンド行の入力）が端末から shj に届くよう、要求と同時にプライマリのターミナルにキーを向ける（返事を待つ間に打ったキーも端末に入る）。
    * s・r・R は一覧にフォーカスを残す。Space と : は続きのキー（space w の w・コマンド行の入力）が端末から shj に届くよう、通ったらプライマリのターミナルにキーを向ける。
    */
   function changesShjKey(target: string, id: WorkspaceId, key: ChangesShjKey) {
     const s = sessions()[target];
     if (!s || switching || s.focus !== id) return;
     setFocusError(null);
-    s.request("shj.changesKey", { workspaceId: id, key }).then(
-      () => {
-        if (key === "s" || key === "r" || key === "R" || s.focus !== id) return;
-        termGroup()?.setActive(0); // 0 番目がプライマリ
-        focusTerminal();
-      },
-      (e) =>
-        setFocusError({
-          title: "CHANGES の操作ができませんでした",
-          error: e instanceof Error ? e.message : String(e),
-        }),
+    if (key === "space" || key === ":") {
+      termGroup()?.setActive(0); // 0 番目がプライマリ
+      focusTerminal();
+    }
+    s.request("shj.changesKey", { workspaceId: id, key }).catch((e) =>
+      setFocusError({
+        title: "CHANGES の操作ができませんでした",
+        error: e instanceof Error ? e.message : String(e),
+      }),
     );
   }
 
