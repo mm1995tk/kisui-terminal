@@ -127,7 +127,11 @@ import { TermGroup, TermGroups } from "./terminal/group.ts";
 import type { MediaFetch } from "./terminal/media.ts";
 import { TerminalGrid } from "./terminal/TerminalGrid.tsx";
 import { openUrlExternally, urlOpenSetting } from "./terminal/browserOs.ts";
-import { isOpenableUrl, urlTarget } from "./terminal/urlOpen.ts";
+import {
+  forwardIfRemote,
+  isOpenableUrl,
+  urlTarget,
+} from "./terminal/urlOpen.ts";
 
 /**
  * 起動したら、先に手元の設定ファイルの [[gui.machines]] を読む。間違いがあれば、場所・行・理由だけを出して、ほかは何もしない
@@ -1080,7 +1084,10 @@ function Workbench(props: {
       fail("設定ファイルを読めませんでした")(e);
       return;
     }
-    const to = urlTarget(click, IS_MAC, setting);
+    const first = urlTarget(click, IS_MAC, setting);
+    // リモートのマシンの localhost 系は、手元の外のブラウザでは別のマシンに行く。内蔵ブラウザ（ポート転送越し）で開く
+    const to =
+      first && forwardIfRemote(first, click.url, focus()?.target !== LOCAL);
     if (to === "external") {
       openUrlExternally(click.url).catch(fail("URL を開けませんでした"));
     } else if (to === "builtin") {

@@ -61,7 +61,7 @@ kisui pane title build
 kisui-terminal の設定は `shj` と同じ `config.toml`（`~/.config/shijimi-editor/config.toml`。nightly 版は `shijimi-editor-nightly/`）に書きます。
 
 - `[[gui.machines]]`：サイドバーに出すマシン（`ssh = "dev-vm"`、`name = "dev"`）。
-- `[gui]` の `url_open`：画面の URL（波線が引かれる）を `cmd + shift + click`（macOS 以外は `ctrl + shift + click`）で開く先。`"external"`（OS 既定のブラウザ。初期値）か `"builtin"`（kisui-terminal の内蔵ブラウザ）。`cmd + click`（`ctrl + click`）は反対側で開く。開くのは http と https の URL だけ。
+- `[gui]` の `url_open`：画面の URL（波線が引かれる）を `cmd + shift + click`（macOS 以外は `ctrl + shift + click`）で開く先。`"external"`（OS 既定のブラウザ。初期値）か `"builtin"`（kisui-terminal の内蔵ブラウザ）。`cmd + click`（`ctrl + click`）は反対側で開く。開くのは http と https の URL だけ。 リモート（ssh）のマシンのターミナルに出た `localhost` 系の URL は、手元のブラウザだと手元の localhost に行ってしまうため、いつも内蔵ブラウザ（ポート転送越し）で開く。アプリがマウスの報告を有効にしている間（vim・tmux・htop・`shj` など）は、shift なしのクリックはアプリに届くので、`cmd + shift + click` を使う。
 - `[server]`：`idle_stop_days`（窓がつながっていない状態で `kisui serve` が待つ日数。既定 7、0 は止めない）と `start_dir`（新しいワークスペースのシェルを始めるフォルダ）。
 - `ui-language`：kisui 自身のメッセージの言語（`shj` と同じ項目）。
 

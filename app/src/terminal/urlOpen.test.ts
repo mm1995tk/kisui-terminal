@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { isOpenableUrl, urlTarget } from "./urlOpen.ts";
+import { forwardIfRemote, isOpenableUrl, urlTarget } from "./urlOpen.ts";
 
 const click = (
   o: Partial<Record<"shiftKey" | "altKey" | "ctrlKey" | "metaKey", boolean>>,
@@ -80,5 +80,31 @@ describe("isOpenableUrl", () => {
       "example.com",
     ])
       assert.equal(isOpenableUrl(s), false, s);
+  });
+});
+
+describe("forwardIfRemote", () => {
+  it("リモートの localhost 系の外ブラウザ行きは内蔵に寄せる", () => {
+    for (const u of [
+      "http://localhost:5173/",
+      "http://127.0.0.1:3000",
+      "http://[::1]:80/",
+      "http://a.localhost/",
+    ])
+      assert.equal(forwardIfRemote("external", u, true), "builtin", u);
+  });
+  it("ローカルのマシン・localhost でない URL・内蔵行きはそのまま", () => {
+    assert.equal(
+      forwardIfRemote("external", "http://localhost:5173/", false),
+      "external",
+    );
+    assert.equal(
+      forwardIfRemote("external", "https://example.com/", true),
+      "external",
+    );
+    assert.equal(
+      forwardIfRemote("builtin", "http://localhost/", true),
+      "builtin",
+    );
   });
 });
