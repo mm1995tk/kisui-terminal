@@ -58,7 +58,7 @@ fn valid_version(v: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '+' | '-'))
 }
 
-/// nightly 版の GUI かどうか（版が `X.Y.Z-nightly.<日付>.<sha>`）。
+/// nightly 版の GUI かどうか（版が `X.Y.Z-nightly.<日付>.g<sha>`）。
 fn is_nightly(version: &str) -> bool {
     version.contains("-nightly")
 }

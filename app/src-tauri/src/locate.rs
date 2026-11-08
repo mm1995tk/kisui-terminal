@@ -157,7 +157,7 @@ fn is_executable(p: &Path) -> bool {
     p.is_file()
 }
 
-/// GUI の版が nightly（`X.Y.Z-nightly.<日付>.<sha>`）なら、`(X.Y.Z, Some(sha))`。安定版（`X.Y.Z`）なら `(X.Y.Z, None)`。
+/// GUI の版が nightly（`X.Y.Z-nightly.<日付>.g<sha>`）なら、`(X.Y.Z, Some(g<sha>))`。安定版（`X.Y.Z`）なら `(X.Y.Z, None)`。
 /// それ以外の形なら None。
 pub(crate) fn split_version(v: &str) -> Option<(&str, Option<&str>)> {
     let is_xyz = |s: &str| {

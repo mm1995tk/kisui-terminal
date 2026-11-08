@@ -34,7 +34,7 @@ on:
   workflow_call:
     inputs:
       version:
-        description: "GUI の版（X.Y.Z か X.Y.Z-nightly.<yyyymmdd>.<sha>）"
+        description: "GUI の版（X.Y.Z か X.Y.Z-nightly.<yyyymmdd>.g<sha>）"
         type: string
         required: true
       shj_version:

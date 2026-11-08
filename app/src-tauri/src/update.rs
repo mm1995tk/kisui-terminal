@@ -42,7 +42,7 @@ pub async fn update_install(
     imp::install(&app, &state).await
 }
 
-/// nightly の版（`X.Y.Z-nightly.<日付>.<sha>`）どうしで、`X.Y.Z` と日付が同じで sha だけが違うか。
+/// nightly の版（`X.Y.Z-nightly.<日付>.g<sha>`）どうしで、`X.Y.Z` と日付が同じで sha だけが違うか。
 ///
 /// semver は sha を文字の順で比べるので、同じ日の後のコミットの nightly が、前のものより古く見えることがある
 /// （`…20261107.022b809` は `…20261107.2367a9a` より前になる）。nightly は main を前に進めたときだけ作り直すので、
