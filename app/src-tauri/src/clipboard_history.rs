@@ -5,6 +5,7 @@
 //! すべて入る。
 //!
 //! - 入れるのは文字だけ（画像は入れない）。空の文字と、`MAX_TEXT_BYTES` を超える文字も入れない。
+//! - 起動したときにクリップボードにある文字は、比べる元にするだけで入れない（起動したときの中身は「変化」ではない）。
 //! - 同じ文字がもう履歴にあれば、新しく足さずに先頭へ動かす（時刻も新しくする）。先頭と同じなら何もしない。
 //! - 入れてから `MAX_AGE` たったものと、`MAX_ENTRIES` 件を超えた古いものは消す。
 //! - パスワード管理アプリが「秘密」の印を付けたコピーは入れない。macOS は `org.nspasteboard.ConcealedType` と
@@ -255,9 +256,14 @@ enum Seen {
 }
 
 /// 見張りの状態。前に見た文字を覚え、変わったときだけ履歴に入れる。
+///
+/// 起動して最初に読めた中身は、比べる元にするだけで履歴には入れない。起動したときの中身は「変化」ではなく、
+/// 入れると、12 時間で消えた文が開き直すたびに新しい時刻で戻ってしまうため。
 #[cfg(any(target_os = "macos", target_os = "linux", test))]
 #[derive(Default)]
 struct Watcher {
+    /// 最初の中身を読めたか
+    primed: bool,
     last: Option<String>,
 }
 
@@ -265,6 +271,17 @@ struct Watcher {
 impl Watcher {
     /// 見た結果を受け取り、履歴に入れる文字を返す。
     fn observe(&mut self, seen: Seen) -> Option<String> {
+        if !self.primed {
+            match seen {
+                Seen::Unchanged | Seen::Unknown => {}
+                Seen::Text(t) => {
+                    self.primed = true;
+                    self.last = Some(t);
+                }
+                Seen::Concealed | Seen::Empty => self.primed = true,
+            }
+            return None;
+        }
         match seen {
             Seen::Unchanged | Seen::Unknown => None,
             Seen::Concealed | Seen::Empty => {
@@ -660,6 +677,7 @@ mod tests {
     #[test]
     fn watcher_reports_only_changes_and_forgets_after_concealed() {
         let mut w = Watcher::default();
+        assert_eq!(w.observe(Seen::Empty), None, "first content is a baseline");
         assert_eq!(w.observe(Seen::Text("a".into())), Some("a".into()));
         assert_eq!(w.observe(Seen::Text("a".into())), None);
         assert_eq!(w.observe(Seen::Unknown), None);
@@ -669,5 +687,28 @@ mod tests {
         assert_eq!(w.observe(Seen::Text("a".into())), Some("a".into()));
         assert_eq!(w.observe(Seen::Empty), None);
         assert_eq!(w.observe(Seen::Text("b".into())), Some("b".into()));
+    }
+
+    #[test]
+    fn reopening_does_not_bring_back_expired_text() {
+        let dir = tmp("reopen");
+        let path = dir.join(FILE_NAME);
+        // 「a」をコピーして閉じる
+        let mut h = History::default();
+        let mut w = Watcher::default();
+        assert_eq!(w.observe(Seen::Empty), None);
+        h.add(&w.observe(Seen::Text("a".into())).unwrap(), HOUR);
+        h.save(&path).unwrap();
+        // 13 時間後に開き直す。クリップボードには「a」が残っている
+        let now = 14 * HOUR;
+        let mut h = History::load(&path, now);
+        assert!(h.entries().is_empty());
+        let mut w = Watcher::default();
+        assert_eq!(w.observe(Seen::Unknown), None);
+        assert_eq!(w.observe(Seen::Text("a".into())), None);
+        assert_eq!(w.observe(Seen::Text("a".into())), None);
+        assert!(!h.prune(now));
+        assert!(h.entries().is_empty());
+        let _ = fs::remove_dir_all(&dir);
     }
 }
