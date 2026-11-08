@@ -198,6 +198,23 @@ func TestShellIntegrationPbcopyKisuiExe(t *testing.T) {
 	}
 }
 
+// KISUI_EXE の kisui が無くなっていたら（更新で入れ替わったなど）、PATH の kisui を呼ぶ。
+func TestShellIntegrationPbcopyKisuiExeGone(t *testing.T) {
+	home, _, other := setupShellTest(t)
+	setupClipboardTest(t, other)
+	_, env := bundledShell("/bin/sh", nil)
+	cmd := exec.Command("/bin/sh", "-c", "echo hi | pbcopy")
+	cmd.Dir = home
+	cmd.Env = append(os.Environ(), append(env, envKisuiExe+"="+filepath.Join(t.TempDir(), "kisui"))...)
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if got := strings.TrimSpace(string(out)); got != "kisui clipboard copy hi" {
+		t.Fatalf("got %q", got)
+	}
+}
+
 func TestShellIntegrationUnsupportedShell(t *testing.T) {
 	_, bundled, _ := setupShellTest(t)
 	args, env := bundledShell("/bin/sh", nil)
