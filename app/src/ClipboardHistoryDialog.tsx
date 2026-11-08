@@ -1,5 +1,4 @@
-if (e.shiftKey) putBack();
-else choose(); // クリップボードの履歴の一覧（#54）。キーで開き、選んだ文字を今の欄に貼るか、OS のクリップボードに戻す。
+// クリップボードの履歴の一覧（#54）。キーで開き、選んだ文字を今の欄に貼るか、OS のクリップボードに戻す。
 // 履歴を持つのは Tauri の側（clipboard_history.rs）。ここは開くたびに読み、選ばせる。
 import {
   createEffect,
@@ -114,8 +113,8 @@ function History(props: { opened: Opened }): JSX.Element {
     } else if (e.key === "Enter") {
       e.preventDefault();
       // Shift+Enter は OS のクリップボードに戻す。Enter は貼る（貼る欄が無ければ戻す）
-      if (e.shiftKey || !props.opened.paste) putBack();
-      else paste();
+      if (e.shiftKey) putBack();
+      else choose();
     }
   }
 
