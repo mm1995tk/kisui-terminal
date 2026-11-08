@@ -323,7 +323,6 @@ fn watch(app: AppHandle) {
     let mut os = platform::Clipboard::new();
     let mut w = Watcher::default();
     loop {
-        // 見たものを入れて、古いものを消す
         let seen = w.observe(os.read());
         if let Some(s) = app.try_state::<ClipboardHistory>() {
             let now = now_ms();
