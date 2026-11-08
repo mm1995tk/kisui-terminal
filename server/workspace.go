@@ -188,8 +188,9 @@ func (w *wsManager) createLocked(wsID, dir string) (id, termID string, err error
 // promote は、プライマリターミナル old のシェルが終わったとき、同じワークスペースに生きている分割した
 // ターミナルがあれば、その 1 つをプライマリにして、元のプライマリの欄を閉じる（term.close と同じ）。
 // 選ぶのは、いちばん前に作った（id の番号が小さい）もの。分割したターミナルが無ければ何もしない
-// （欄は残り、term.restart で新しいシェルを始める）。昇格したシェルは環境変数 SHIJIMI_GUI_PRIMARY を
-// 持たないので、その中の shj はプライマリとして名乗れない（term.restart で作り直したシェルなら名乗れる）。
+// （欄は残り、term.restart で新しいシェルを始める）。分割した欄のシェルにも環境変数
+// SHIJIMI_GUI_PRIMARY（値はその欄の id）を渡してあるので、昇格したあとに起動した shj は名乗れる
+// （昇格の前は claimShj がプライマリでないと断る）。
 func (w *wsManager) promote(old *terminal) bool {
 	w.recomputeMu.Lock()
 	defer w.recomputeMu.Unlock()
