@@ -51,6 +51,7 @@ import {
 import { UpdateBar } from "./update/UpdateBar.tsx";
 import { OsClipboard } from "./clipboard.ts";
 import { CopiedToast, copiedNotice } from "./CopiedToast.tsx";
+import { ScaleToast, showScale } from "./ScaleToast.tsx";
 import { copyAndNotify } from "./copiedNotice.ts";
 import {
   applyMove,
@@ -385,6 +386,7 @@ function Workbench(props: {
       scale = nextScale(scale, sc);
       saveScale(store, scale);
       void applyScale(scale);
+      showScale(scale);
       return;
     }
     if (isZoomKey(e, IS_MAC)) {
@@ -1444,6 +1446,7 @@ function Workbench(props: {
       <ClipboardHistoryDialog />
       <TransferDialog />
       <CopiedToast />
+      <ScaleToast />
       <Notices notices={notices()}>
         <UpdateBar />
       </Notices>
