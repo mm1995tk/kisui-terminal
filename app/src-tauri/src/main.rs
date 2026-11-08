@@ -3,6 +3,7 @@
 
 mod askpass;
 mod browser;
+mod clipboard_history;
 mod config;
 mod connection;
 mod install;
@@ -121,6 +122,8 @@ fn main() {
             version::init(app.package_info().version.to_string());
             // 「ローカル」の kisui のターミナルに渡す PATH を、先にログインシェルに聞いておく（locate.rs）
             locate::warm_up();
+            // クリップボードの履歴を読み込み、OS のクリップボードの見張りを始める（clipboard_history.rs）
+            clipboard_history::start(app.handle());
             let askpass = AskpassServer::start(app.handle().clone())?;
             app.manage(AppState {
                 conns: Connections::default(),
@@ -145,6 +148,7 @@ fn main() {
             browser::browser_nav,
             browser::browser_external,
             browser::browser_close,
+            clipboard_history::clipboard_history_list,
             notify::notify_show,
             transfer::transfer_dest,
             transfer::transfer_write_begin,
