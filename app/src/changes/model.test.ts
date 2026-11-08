@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { RpcError } from "../rpc/message.ts";
-import { changeErrorText, changeRows, letterOf } from "./model.ts";
+import { changeErrorText, changeRows, changeTree, letterOf } from "./model.ts";
 
 describe("changeRows", () => {
   it("root の中は相対パスにし、外は絶対パスのまま出す。選んでいるファイルに印を付ける", () => {
@@ -62,5 +62,92 @@ describe("changeErrorText", () => {
     const e = new RpcError({ code: -32003, message: "not in the list" });
     assert.match(changeErrorText("/w/a.go", e), /一覧にありません/);
     assert.match(changeErrorText("/w/a.go", new Error("boom")), /boom/);
+  });
+});
+
+describe("changeTree", () => {
+  const tree = (paths: string[], closed: string[] = [], selected?: string) =>
+    changeTree(
+      changeRows({ files: paths.map((path) => ({ path })), selected }, "/w"),
+      new Set(closed),
+    );
+  const show = (es: ReturnType<typeof tree>) =>
+    es.map((e) => [e.kind, e.name, e.depth, e.expanded, e.count]);
+  const rows = [
+    "/w/a.go",
+    "/w/pkg/b.go",
+    "/w/pkg/sub/c.go",
+    "/w/pkg/d.go",
+    "/other/dir/e.go",
+  ];
+
+  it("フォルダの木にする。フォルダは最初のファイルが出た所に置く", () => {
+    assert.deepEqual(show(tree(rows)), [
+      ["file", "a.go", 0, false, 0],
+      ["dir", "pkg", 0, true, 3],
+      ["file", "b.go", 1, false, 0],
+      ["dir", "sub", 1, true, 1],
+      ["file", "c.go", 2, false, 0],
+      ["file", "d.go", 1, false, 0],
+      ["dir", "other/dir", 0, true, 1],
+      ["file", "e.go", 1, false, 0],
+    ]);
+  });
+
+  it("ファイルが無く子のフォルダが 1 つだけのフォルダは 1 行にまとめる（TUI と同じ）", () => {
+    const es = tree(["/w/app/src/changes/keys.ts"]);
+    assert.deepEqual(show(es), [
+      ["dir", "app/src/changes", 0, true, 1],
+      ["file", "keys.ts", 1, false, 0],
+    ]);
+    assert.equal(es[0].key, "app/src/changes");
+    assert.equal(es[1].parent, "app/src/changes");
+  });
+
+  it("まとめない：フォルダにファイルもある・子のフォルダが 2 つ", () => {
+    assert.deepEqual(
+      show(tree(["/w/a/x.go", "/w/a/b/y.go"])).map((r) => r[1]),
+      ["a", "x.go", "b", "y.go"],
+    );
+    assert.deepEqual(
+      show(tree(["/w/a/b/x.go", "/w/a/c/y.go"])).map((r) => r[1]),
+      ["a", "b", "x.go", "c", "y.go"],
+    );
+  });
+
+  it("まとめた先に続く枝も、同じ規則でまとめる", () => {
+    assert.deepEqual(
+      show(tree(["/w/a/b/c/x.go", "/w/a/b/d/y.go"])).map((r) => r[1]),
+      ["a/b", "c", "x.go", "d", "y.go"],
+    );
+  });
+
+  it("閉じたフォルダは行を残し、中身を出さない（まとめた行は一番深い鍵で閉じる）", () => {
+    assert.deepEqual(show(tree(rows, ["pkg"])), [
+      ["file", "a.go", 0, false, 0],
+      ["dir", "pkg", 0, false, 3],
+      ["dir", "other/dir", 0, true, 1],
+      ["file", "e.go", 1, false, 0],
+    ]);
+    assert.equal(tree(rows, ["pkg/sub"]).length, 7);
+    assert.equal(tree(["/w/a/b/x.go"], ["a/b"]).length, 1);
+  });
+
+  it("親の鍵を持つ。外のフォルダは絶対パスが鍵", () => {
+    const es = tree(rows);
+    assert.equal(es.find((e) => e.name === "c.go")?.parent, "pkg/sub");
+    assert.equal(es.find((e) => e.name === "sub")?.parent, "pkg");
+    assert.equal(es.find((e) => e.name === "a.go")?.parent, undefined);
+    assert.equal(es.find((e) => e.name === "other/dir")?.key, "/other/dir");
+  });
+
+  it("差分を出しているファイルが閉じたフォルダの中なら、そのフォルダの行に印を付ける", () => {
+    const held = (closed: string[]) =>
+      tree(rows, closed, "/w/pkg/sub/c.go")
+        .filter((e) => e.holdsSelected)
+        .map((e) => e.name);
+    assert.deepEqual(held([]), []);
+    assert.deepEqual(held(["pkg"]), ["pkg"]);
+    assert.deepEqual(held(["pkg/sub"]), ["sub"]);
   });
 });

@@ -72,3 +72,130 @@ export function changeErrorText(path: string, e: unknown): string {
         : String(e);
   return `${path} の差分を出せませんでした（${why}）`;
 }
+
+/** CHANGES の木の 1 行：フォルダか、変更のあるファイル。 */
+export interface ChangeEntry {
+  /** フォルダは dir の途中までのパス（閉じた印の鍵。まとめた行は一番深いフォルダのパス）、ファイルは ChangeRow.path */
+  key: string;
+  kind: "dir" | "file";
+  /** 出す名前（フォルダは 1 階層ぶん。まとめた行は "app/src" のようにつなぐ） */
+  name: string;
+  /** 一番上が 0 */
+  depth: number;
+  /** フォルダが開いているか（ファイルは false） */
+  expanded: boolean;
+  /** フォルダの中にある変更のあるファイルの数（ファイルは 0） */
+  count: number;
+  /** 閉じたフォルダで、shj が差分を出しているファイルがその中にある */
+  holdsSelected: boolean;
+  /** ファイルの行（フォルダは無い） */
+  row?: ChangeRow;
+  /** 親のフォルダの key（一番上なら undefined） */
+  parent?: string;
+}
+
+/** 木の枝。children は shj が知らせたファイルの順に、フォルダはそのフォルダのファイルが最初に出た所に置く。 */
+interface Branch {
+  key: string;
+  name: string;
+  children: (Branch | ChangeRow)[];
+}
+
+/** フォルダ名の列。dir の "" は []、絶対パスは先頭の "/" を落とす（鍵は先頭に "/" を戻す）。 */
+function dirChain(dir: string): { key: string; name: string }[] {
+  if (dir === "") return [];
+  const abs = dir.startsWith("/");
+  const parts = dir.split("/").filter((p) => p !== "");
+  return parts.map((name, i) => ({
+    key: (abs ? "/" : "") + parts.slice(0, i + 1).join("/"),
+    name,
+  }));
+}
+
+const isBranch = (c: Branch | ChangeRow): c is Branch => "children" in c;
+
+/** 行を木にする（TUI の changeTree と同じく、ファイルが無く子のフォルダが 1 つだけのフォルダは 1 行にまとめる）。 */
+function buildBranches(rows: readonly ChangeRow[]): (Branch | ChangeRow)[] {
+  const top: (Branch | ChangeRow)[] = [];
+  const byKey = new Map<string, Branch>();
+  for (const r of rows) {
+    let into = top;
+    for (const d of dirChain(r.dir)) {
+      let b = byKey.get(d.key);
+      if (!b) {
+        b = { key: d.key, name: d.name, children: [] };
+        byKey.set(d.key, b);
+        into.push(b);
+      }
+      into = b.children;
+    }
+    into.push(r);
+  }
+  const merge = (c: Branch | ChangeRow): Branch | ChangeRow => {
+    if (!isBranch(c)) return c;
+    let b = c;
+    while (b.children.length === 1 && isBranch(b.children[0])) {
+      const only = b.children[0];
+      b = {
+        key: only.key,
+        name: `${b.name}/${only.name}`,
+        children: only.children,
+      };
+    }
+    return { ...b, children: b.children.map(merge) };
+  };
+  return top.map(merge);
+}
+
+function countFiles(b: Branch): number {
+  return b.children.reduce((n, c) => n + (isBranch(c) ? countFiles(c) : 1), 0);
+}
+
+/**
+ * 変更のあるファイルの行を、TUI の CHANGES と同じフォルダの木にして、見えている行を上から順に返す。
+ * 順番は shj が知らせたファイルの順。closed は閉じているフォルダの鍵。閉じたフォルダの行は出し、中身は出さない。
+ */
+export function changeTree(
+  rows: readonly ChangeRow[],
+  closed: ReadonlySet<string>,
+): ChangeEntry[] {
+  const out: ChangeEntry[] = [];
+  const holds = (b: Branch): boolean =>
+    b.children.some((c) => (isBranch(c) ? holds(c) : c.selected));
+  const walk = (
+    cs: (Branch | ChangeRow)[],
+    depth: number,
+    parent: string | undefined,
+  ) => {
+    for (const c of cs) {
+      if (!isBranch(c)) {
+        out.push({
+          key: c.path,
+          kind: "file",
+          name: c.name,
+          depth,
+          expanded: false,
+          count: 0,
+          holdsSelected: false,
+          row: c,
+          parent,
+        });
+        continue;
+      }
+      const expanded = !closed.has(c.key);
+      out.push({
+        key: c.key,
+        kind: "dir",
+        name: c.name,
+        depth,
+        expanded,
+        count: countFiles(c),
+        holdsSelected: !expanded && holds(c),
+        parent,
+      });
+      if (expanded) walk(c.children, depth + 1, c.key);
+    }
+  };
+  walk(buildBranches(rows), 0, undefined);
+  return out;
+}

@@ -346,10 +346,31 @@ func TestPrimaryShjDiffList(t *testing.T) {
 	default:
 	}
 
+	// s・r・R だけを、差分モードのあいだ shj に頼む
+	changesKey := func(k string) error {
+		return c.Call(context.Background(), "shj.changesKey", map[string]any{"workspaceId": id, "key": k}, nil)
+	}
+	for _, k := range []string{"s", "r", "R", "space", ":"} {
+		if err := changesKey(k); err != nil {
+			t.Fatalf("changesKey(%q): %v", k, err)
+		}
+		if got := <-asked; got.Cmd != "changes-key" || got.Line != k {
+			t.Errorf("asked: %+v", got)
+		}
+	}
+	for _, bad := range []string{"j", "x", "", "sr", "space w", "space ", "Space"} {
+		if err := changesKey(bad); err == nil {
+			t.Errorf("changesKey(%q) must be refused", bad)
+		}
+	}
+
 	send(`{"file":"/x/a.go","diff":{"files":[]}}`) // 変更が無くなっても、差分モードのあいだは一覧（空）を出す
 	waitFor(t, "empty list", func() bool { p := primaryShjOf(t, c, id); return p != nil && p.Diff != nil && len(p.Diff.Files) == 0 })
 	send(`{"file":"/x/a.go"}`)
 	waitFor(t, "diff off", func() bool { p := primaryShjOf(t, c, id); return p != nil && p.Diff == nil })
+	if err := changesKey("s"); err == nil {
+		t.Error("changesKey outside the diff mode must be refused")
+	}
 }
 
 // 上限を超える行は、その行だけ捨てる。接続は切らないので、shj は忘れられず、次の行は読まれる。

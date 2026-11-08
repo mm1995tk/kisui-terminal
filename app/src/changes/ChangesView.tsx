@@ -1,19 +1,59 @@
-// 差分モードの CHANGES の一覧（ファイルエクスプローラの下）を描く。行を押す（Enter でも）と、そのファイルの差分を shj に出させる。
+// 差分モードの CHANGES の一覧（ファイルエクスプローラの下）を、TUI の CHANGES と同じフォルダの木で描く。
+// 行を押す（Enter・l・o でも）と、そのファイルの差分を shj に出させる。フォルダの行は押すと開け閉めする。
 // shj が今差分を出しているファイルの行は強調する。見た目は changes.css。
-import { For, Show, type JSX } from "solid-js";
+// 行にフォーカスがあるときは TUI と同じキーで動かせる（#45。割り当ては keys.ts、操作は actions.ts、1 行の描画は ChangeTreeRow.tsx）。
+import { createMemo, createSignal, Index, Show, type JSX } from "solid-js";
 
-import type { ChangeRow } from "./model.ts";
+import { runChangesAction, type ChangesHandlers } from "./actions.ts";
+import { ChangeTreeRow } from "./ChangeTreeRow.tsx";
+import { changesKey } from "./keys.ts";
+import { changeTree, type ChangeRow } from "./model.ts";
 import "./changes.css";
 
+export type { ChangesHandlers };
+
 /**
- * CHANGES の一覧。行を押す（Enter・Space でも）と onSelect を呼ぶ。
- * label は一覧の読み上げの名前、onSelect に渡す path は行の ChangeRow.path（shj が知らせた絶対パス）。
+ * CHANGES の一覧。label は一覧の読み上げの名前。
+ * rows の順番は shj が見せる順。閉じたフォルダは、この一覧が覚えている（描き直しても残る）。
  */
-export function ChangesView(props: {
-  rows: ChangeRow[];
-  label: string;
-  onSelect: (path: string) => void;
-}): JSX.Element {
+export function ChangesView(
+  props: ChangesHandlers & {
+    rows: ChangeRow[];
+    label: string;
+  },
+): JSX.Element {
+  const [closed, setClosed] = createSignal<ReadonlySet<string>>(new Set());
+  const entries = createMemo(() => changeTree(props.rows, closed()));
+  let list: HTMLDivElement | undefined;
+
+  const setFolder = (key: string, open: boolean) =>
+    setClosed((s) => {
+      if (s.has(key) !== open) return s; // もうその状態
+      const next = new Set(s);
+      if (open) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+
+  const ctx = {
+    get onSelect() {
+      return props.onSelect;
+    },
+    get onShjKey() {
+      return props.onShjKey;
+    },
+    get onExplorer() {
+      return props.onExplorer;
+    },
+    get onLeave() {
+      return props.onLeave;
+    },
+    entries,
+    rowEls: () =>
+      list ? [...list.querySelectorAll<HTMLElement>(".changes-row")] : [],
+    setFolder,
+  };
+
   return (
     <section class="changes" aria-label={props.label}>
       <h3 class="changes-title">
@@ -23,40 +63,31 @@ export function ChangesView(props: {
         when={props.rows.length > 0}
         fallback={<p class="changes-empty">変更はありません</p>}
       >
-        <div class="changes-list" role="listbox" aria-label={props.label}>
-          <For each={props.rows}>
-            {(r) => (
-              <div
-                class="changes-row"
-                role="option"
-                aria-selected={r.selected ? "true" : "false"}
-                data-letter={r.letter}
-                title={r.dir ? `${r.dir}/${r.name}` : r.name}
-                tabIndex={0}
-                onClick={() => props.onSelect(r.path)}
+        <div
+          class="changes-list"
+          role="tree"
+          aria-label={props.label}
+          ref={list}
+        >
+          {/* 位置で使い回す（フォルダの開閉で行が増減しても、フォーカスしている要素が残る） */}
+          <Index each={entries()}>
+            {(en) => (
+              <ChangeTreeRow
+                entry={en()}
+                onPress={() => {
+                  if (en().kind === "dir") setFolder(en().key, !en().expanded);
+                  else if (en().row) props.onSelect(en().row!.path);
+                }}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
+                  const a = changesKey(en(), e);
+                  if (a && runChangesAction(ctx, en(), e.currentTarget, a)) {
                     e.preventDefault();
-                    props.onSelect(r.path);
+                    e.stopPropagation();
                   }
                 }}
-              >
-                <span class="changes-name">{r.name}</span>
-                <Show when={r.dir}>
-                  <span class="changes-dir">{r.dir}</span>
-                </Show>
-                <Show when={r.added > 0}>
-                  <span class="changes-added">+{r.added}</span>
-                </Show>
-                <Show when={r.deleted > 0}>
-                  <span class="changes-deleted">-{r.deleted}</span>
-                </Show>
-                <span class="changes-mark" role="img" aria-label={r.label}>
-                  {r.letter}
-                </span>
-              </div>
+              />
             )}
-          </For>
+          </Index>
         </div>
       </Show>
     </section>

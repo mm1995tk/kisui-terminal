@@ -100,6 +100,9 @@ func (w *wsManager) pane(rq ctl.PaneRequest) (ctl.PaneReply, error) {
 	case "explorer": // ファイルエクスプローラにキーを向けさせる。GUI の状態なので、通知するだけ
 		w.srv.notifyOwner("explorer.focus", map[string]any{"workspaceId": wsID})
 		return ctl.PaneReply{}, nil
+	case "changes": // サイドバーの CHANGES にキーを向けさせる。explorer と同じく通知するだけ
+		w.srv.notifyOwner("changes.focus", map[string]any{"workspaceId": wsID})
+		return ctl.PaneReply{}, nil
 	case "show", "send", "tail", "alive", "close":
 	default:
 		return ctl.PaneReply{}, fmt.Errorf("unknown op: %q", rq.Op)

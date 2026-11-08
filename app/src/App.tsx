@@ -29,6 +29,8 @@ import {
 
 import { AskpassDialog } from "./AskpassDialog.tsx";
 import { explorerRow, isLeaveExplorerKey } from "./explorerFocus.ts";
+import { afterChangesKey } from "./changes/handover.ts";
+import { changesRow } from "./changes/keys.ts";
 import { ClipboardDialog } from "./ClipboardDialog.tsx";
 import {
   ClipboardHistoryDialog,
@@ -66,6 +68,7 @@ import {
 } from "./panes.ts";
 import { ErrorCode, RpcError } from "./rpc/message.ts";
 import type {
+  ChangesShjKey,
   ExtraPane,
   PrimaryShj,
   SplitDir,
@@ -279,6 +282,14 @@ function Workbench(props: {
     const f = untrack(focus);
     if (!f || f.target !== target || f.id !== id) return;
     const row = explorerRow(nav);
+    row?.focus();
+    row?.scrollIntoView({ block: "nearest" });
+  }
+  /** shj の Space E・cmd.diffchanges：フォーカスしているワークスペースなら、サイドバーの CHANGES にキーを向ける。 */
+  function focusChanges(target: string, id: WorkspaceId) {
+    const f = untrack(focus);
+    if (!f || f.target !== target || f.id !== id) return;
+    const row = changesRow(nav);
     row?.focus();
     row?.scrollIntoView({ block: "nearest" });
   }
@@ -526,6 +537,7 @@ function Workbench(props: {
       else if (ev.kind === "show-extra")
         paneShowExtra(target, ev.workspaceId, ev.extraId);
       else if (ev.kind === "explorer") focusExplorer(target, ev.workspaceId);
+      else if (ev.kind === "changes") focusChanges(target, ev.workspaceId);
       else zoomWs(target, ev.workspaceId, true);
     });
     offStates.set(target, () => {
@@ -852,6 +864,32 @@ function Workbench(props: {
       "差分を出せませんでした",
       changeErrorText,
     );
+
+  /**
+   * CHANGES で押した shj のキー（s・r・R・Space・:）を、shj に「CHANGES で押した」ものとして渡す。
+   * s・r・R は一覧にフォーカスを残す。Space と : は、通ってからプライマリのターミナルにキーを向ける（handover.ts。先に向けると続きのキーが先に届く）。
+   */
+  function changesShjKey(target: string, id: WorkspaceId, key: ChangesShjKey) {
+    const s = sessions()[target];
+    if (!s || switching || s.focus !== id) return;
+    setFocusError(null);
+    afterChangesKey(
+      key,
+      s.request("shj.changesKey", { workspaceId: id, key }),
+      {
+        toTerminal: () => {
+          if (s.focus !== id) return;
+          termGroup()?.setActive(0); // 0 番目がプライマリ
+          focusTerminal();
+        },
+        fail: (e) =>
+          setFocusError({
+            title: "CHANGES の操作ができませんでした",
+            error: e instanceof Error ? e.message : String(e),
+          }),
+      },
+    );
+  }
 
   // ツリーの右クリックのメニューから開いた窓（名前を入れる・削除の確認）
   const [treeDialog, setTreeDialog] = createSignal<{
@@ -1234,6 +1272,9 @@ function Workbench(props: {
         onOpen={openFile}
         changesOf={changesOf}
         onChange={openChange}
+        onChangesKey={changesShjKey}
+        onChangesExplorer={focusExplorer}
+        onChangesLeave={() => focusTerminal()}
         onTreeAction={treeAction}
         currentOf={currentOf}
         ref={(el) => {

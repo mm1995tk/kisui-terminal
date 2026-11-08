@@ -114,7 +114,7 @@ export type TermMethod =
 /** Session.request で送れる要求（動画の欄の中身。#555）。 */
 export type BlobMethod = "media.read";
 /** Session.request で送れる要求（プライマリの shj にファイルを開かせる）。 */
-export type ShjMethod = "shj.open" | "shj.diff";
+export type ShjMethod = "shj.open" | "shj.diff" | "shj.changesKey";
 /** ターミナルの通知（F1）。method で見分ける。 */
 export type TermEvent =
   | { method: "term.output"; params: Notifications["term.output"] }
@@ -126,7 +126,8 @@ export type PaneEvent =
   | { kind: "show"; workspaceId: WorkspaceId; termId: TermId }
   | { kind: "show-extra"; workspaceId: WorkspaceId; extraId: string }
   | { kind: "hide"; workspaceId: WorkspaceId }
-  | { kind: "explorer"; workspaceId: WorkspaceId };
+  | { kind: "explorer"; workspaceId: WorkspaceId }
+  | { kind: "changes"; workspaceId: WorkspaceId };
 
 /** 1, 2, 4, 8, 16, 30 秒…（最後の値を繰り返す）。10 回で待ちは合わせて 151 秒ほど（ssh の接続待ちは別）。 */
 export const DEFAULT_DELAYS = [1000, 2000, 4000, 8000, 16000, 30000];
@@ -610,6 +611,12 @@ export class Session {
         if (typeof n?.workspaceId !== "string") return;
         for (const h of [...this.paneHandlers])
           h({ kind: "explorer", workspaceId: n.workspaceId });
+      }),
+      conn.client.on("changes.focus", (n) => {
+        if (gen !== this.generation || this.conn !== conn) return;
+        if (typeof n?.workspaceId !== "string") return;
+        for (const h of [...this.paneHandlers])
+          h({ kind: "changes", workspaceId: n.workspaceId });
       }),
       ...(["term.output", "term.exit", "term.title"] as const).map((method) =>
         conn.client.on(method, (params) => {

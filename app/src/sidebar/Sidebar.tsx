@@ -19,7 +19,7 @@ import {
 } from "solid-js";
 
 import type { MachineStatus } from "../connect/status.ts";
-import type { WorkspaceId } from "../rpc/protocol.ts";
+import type { ChangesShjKey, WorkspaceId } from "../rpc/protocol.ts";
 import type { TreeRow } from "../tree/model.ts";
 import { menuItems, type TreeMenuAction } from "../tree/menu.ts";
 import { TreeMenu } from "../tree/TreeMenu.tsx";
@@ -63,6 +63,12 @@ interface Handlers {
   changesOf?: (target: string, id: WorkspaceId) => ChangeRow[] | undefined;
   /** CHANGES の行を押した（path は shj が知らせた絶対パス） */
   onChange?: (target: string, id: WorkspaceId, path: string) => void;
+  /** CHANGES で shj のキー（s・r・R・Space・:）を押した（shj に渡す） */
+  onChangesKey?: (target: string, id: WorkspaceId, key: ChangesShjKey) => void;
+  /** CHANGES で Tab を押した（エクスプローラに移る） */
+  onChangesExplorer?: (target: string, id: WorkspaceId) => void;
+  /** CHANGES で Esc・q を押した（端末に戻る） */
+  onChangesLeave?: (target: string, id: WorkspaceId) => void;
   /** ツリーの行を右クリックした（Sidebar が内側に渡す。App は onTreeAction を使う） */
   onTreeMenu?: (
     target: string,
@@ -348,6 +354,15 @@ function handlers(
     get onChange() {
       return props.onChange;
     },
+    get onChangesKey() {
+      return props.onChangesKey;
+    },
+    get onChangesExplorer() {
+      return props.onChangesExplorer;
+    },
+    get onChangesLeave() {
+      return props.onChangesLeave;
+    },
     get onTreeAction() {
       return props.onTreeAction;
     },
@@ -563,6 +578,9 @@ function BandItem(
             rows={rows()}
             label={`${b().title} の変更`}
             onSelect={(p) => props.onChange?.(props.target, b().id, p)}
+            onShjKey={(k) => props.onChangesKey?.(props.target, b().id, k)}
+            onExplorer={() => props.onChangesExplorer?.(props.target, b().id)}
+            onLeave={() => props.onChangesLeave?.(props.target, b().id)}
           />
         )}
       </Show>
