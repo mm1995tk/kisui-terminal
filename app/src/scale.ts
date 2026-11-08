@@ -12,7 +12,7 @@ export const SCALES: readonly number[] = [
 ];
 
 /** 初めて開いたときの大きさ。Cmd 0 で戻る先。覚えた大きさが無い・壊れているときもこれ。 */
-export const DEFAULT_SCALE = 0.8;
+export const DEFAULT_SCALE = 1;
 
 /** 大きさを変える動き。 */
 export type ScaleAction = "in" | "out" | "reset";

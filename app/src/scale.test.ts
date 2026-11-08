@@ -50,7 +50,7 @@ describe("表示の大きさのキー（#594）", () => {
     assert.equal(nextScale(1, "out"), 0.9);
     assert.equal(nextScale(2, "in"), 2);
     assert.equal(nextScale(0.7, "out"), 0.7);
-    assert.equal(nextScale(1.5, "reset"), 0.8);
+    assert.equal(nextScale(1.5, "reset"), 1);
   });
   it("覚えた大きさを読み、壊れた値は元に戻す", () => {
     const mem = (v: string | null) => ({
@@ -58,10 +58,10 @@ describe("表示の大きさのキー（#594）", () => {
       setItem: () => {},
     });
     assert.equal(loadScale(mem("1.25")), 1.25);
-    assert.equal(loadScale(mem("9")), 0.8);
-    assert.equal(loadScale(mem("x")), 0.8);
-    assert.equal(loadScale(mem(null)), 0.8);
-    assert.equal(loadScale(undefined), 0.8);
+    assert.equal(loadScale(mem("9")), 1);
+    assert.equal(loadScale(mem("x")), 1);
+    assert.equal(loadScale(mem(null)), 1);
+    assert.equal(loadScale(undefined), 1);
     let saved = "";
     saveScale({ getItem: () => null, setItem: (_k, v) => (saved = v) }, 1.5);
     assert.equal(saved, "1.5");
