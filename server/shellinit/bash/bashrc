@@ -1,15 +1,17 @@
 # kisui-terminal が書き出した、ユーザーの ~/.bashrc を読むための包み（--rcfile で /etc/bash.bashrc が読まれなくなるので、それも読む）。ユーザーのファイルは書き換えない。
 [ -r /etc/bash.bashrc ] && . /etc/bash.bashrc
 [ -r "$HOME/.bashrc" ] && . "$HOME/.bashrc"
-# 同梱の shj のフォルダを PATH の先頭に入れ直す（ユーザーの起動ファイルが入れた別の shj より先にする）
-if [ -n "$KISUI_SHJ_PATH_DIR" ]; then
+# pbcopy・pbpaste のフォルダと同梱の shj のフォルダを PATH の先頭に入れ直す
+# （ユーザーの起動ファイルが前に出した別の pbcopy や shj より先にする）
+for _kisui_dir in "$KISUI_BIN_PATH_DIR" "$KISUI_SHJ_PATH_DIR"; do
+  [ -n "$_kisui_dir" ] || continue
   _kisui_rest=
   _kisui_ifs=$IFS
   IFS=:
   for _kisui_p in $PATH; do
-    [ "$_kisui_p" = "$KISUI_SHJ_PATH_DIR" ] || _kisui_rest="${_kisui_rest:+$_kisui_rest:}$_kisui_p"
+    [ "$_kisui_p" = "$_kisui_dir" ] || _kisui_rest="${_kisui_rest:+$_kisui_rest:}$_kisui_p"
   done
   IFS=$_kisui_ifs
-  PATH="$KISUI_SHJ_PATH_DIR${_kisui_rest:+:$_kisui_rest}"
-  unset _kisui_rest _kisui_ifs _kisui_p
-fi
+  PATH="$_kisui_dir${_kisui_rest:+:$_kisui_rest}"
+done
+unset _kisui_dir _kisui_rest _kisui_ifs _kisui_p

@@ -1,0 +1,5 @@
+#!/bin/sh
+# kisui-terminal が書き出した pbcopy。標準入力の文を、kisui clipboard copy で手元（窓の動くコンピュータ）のクリップボードに入れる。
+# KISUI_EXE が指す kisui が無くなっていたら（更新で入れ替わったなど）、PATH の kisui を呼ぶ。
+[ -x "${KISUI_EXE:-}" ] && exec "$KISUI_EXE" clipboard copy "$@"
+exec kisui clipboard copy "$@"

@@ -36,18 +36,30 @@ func newPaneToken() (string, error) {
 // withKisuiPath は、この kisui の実行ファイルのあるフォルダを env の PATH の先頭に足す。欄の中で kisui open を打てるように。
 // 実行ファイルの名前が kisui でないとき（go test など）と、同梱の shj と同じフォルダのときは足さない。
 func withKisuiPath(env []string) []string {
+	exe := kisuiExecutable()
+	if exe == "" {
+		return env
+	}
+	dir := filepath.Dir(exe)
+	if dir == bundledShjDir() { // 同梱の shj と同じフォルダなら、bundledShell が足す
+		return env
+	}
+	return prependPath(env, dir)
+}
+
+// kisuiExecutable は、この kisui の実行ファイル（シンボリックリンクはたどる）。名前が kisui でないとき（go test など）は空。
+func kisuiExecutable() string {
 	exe, err := os.Executable()
 	if err != nil {
-		return env
+		return ""
 	}
 	if r, err := filepath.EvalSymlinks(exe); err == nil {
 		exe = r
 	}
-	dir := filepath.Dir(exe)
-	if filepath.Base(exe) != "kisui" || dir == bundledShjDir() { // 同梱の shj と同じフォルダなら、bundledShell が足す
-		return env
+	if filepath.Base(exe) != "kisui" {
+		return ""
 	}
-	return prependPath(env, dir)
+	return exe
 }
 
 // paneCmdConn は panecmd.Request 1 つを受けて、panecmd.Reply を返す。
