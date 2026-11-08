@@ -1,5 +1,6 @@
 import { createSignal, Show } from "solid-js";
 
+import styles from "./CopiedToast.module.css";
 import { TimedNotice } from "./timedNotice.ts";
 
 const [visible, setVisible] = createSignal(false);
@@ -11,7 +12,7 @@ export const copiedNotice = new TimedNotice(setVisible);
 export function CopiedToast() {
   return (
     <Show when={visible()}>
-      <div class="copied-toast" role="status">
+      <div class={styles.toast} role="status">
         コピーしました
       </div>
     </Show>

@@ -81,34 +81,3 @@ a {
 .resizer[data-lit] {
   background: var(--machine-color, var(--gh-accent-text));
 }
-
-/* 表示の大きさ（ScaleToast.tsx）。変えたときに画面の右上に少し出て、自分で消える（押せない） */
-.scale-toast {
-  position: fixed;
-  top: 16px;
-  right: 16px;
-  padding: 10px 20px;
-  border-radius: 8px;
-  background: var(--gh-bg-hover);
-  border: 1px solid var(--gh-border);
-  color: var(--gh-text-strong);
-  font-size: 20px;
-  font-variant-numeric: tabular-nums;
-  pointer-events: none;
-  z-index: 1000;
-}
-
-/* 「コピーしました」。画面の下に少し出て、自分で消える（押せない） */
-.copied-toast {
-  position: fixed;
-  left: 50%;
-  bottom: 24px;
-  transform: translateX(-50%);
-  padding: 6px 14px;
-  border-radius: 6px;
-  background: var(--gh-bg-hover);
-  border: 1px solid var(--gh-border);
-  color: var(--gh-text-strong);
-  pointer-events: none;
-  z-index: 1000;
-}

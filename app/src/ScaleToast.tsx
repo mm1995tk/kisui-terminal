@@ -1,5 +1,6 @@
 import { createSignal, Show } from "solid-js";
 
+import styles from "./ScaleToast.module.css";
 import { TimedNotice } from "./timedNotice.ts";
 
 const [visible, setVisible] = createSignal(false);
@@ -16,7 +17,7 @@ export function showScale(v: number): void {
 export function ScaleToast() {
   return (
     <Show when={visible()}>
-      <div class="scale-toast" role="status">
+      <div class={styles.toast} role="status">
         {percent()}%
       </div>
     </Show>
