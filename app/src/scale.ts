@@ -11,8 +11,8 @@ export const SCALES: readonly number[] = [
   0.7, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2,
 ];
 
-/** 元の大きさ。Cmd 0 で戻る先。 */
-export const DEFAULT_SCALE = 1;
+/** 初めて開いたときの大きさ（0.8）。Cmd 0 で戻る先。覚えた大きさが無い・壊れているときもこれ。 */
+export const DEFAULT_SCALE = 0.8;
 
 /** 大きさを変える動き。 */
 export type ScaleAction = "in" | "out" | "reset";
@@ -49,7 +49,7 @@ export function nextScale(cur: number, a: ScaleAction): number {
   return SCALES[j];
 }
 
-/** 覚えておいた大きさを読む。無い・壊れている・選べない値は元の大きさ。 */
+/** 覚えておいた大きさを読む。無い・壊れている・選べない値は初期値。 */
 export function loadScale(store: KeyValueStore | undefined): number {
   try {
     const v = Number(store?.getItem(STORAGE_KEY));
