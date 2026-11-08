@@ -1,0 +1,15 @@
+/* 表示の大きさ（ScaleToast.tsx）。変えたときに画面の右上に少し出て、自分で消える（押せない） */
+.toast {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  padding: 10px 20px;
+  border-radius: 8px;
+  background: var(--gh-bg-hover);
+  border: 1px solid var(--gh-border);
+  color: var(--gh-text-strong);
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  z-index: 1000;
+}
