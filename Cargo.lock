@@ -538,9 +538,9 @@ dependencies = [
 
 [[package]]
 name = "coneko-term"
-version = "0.1.4"
+version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cbbeff8f6a1c3368630a28ded1f5f3edd2c8625d47e5eee32bfcb743aa215cee"
+checksum = "ddc1f7bb081c0b7ee6b764463415984b35402089bf4ec5ac8fb590539b1cd869"
 dependencies = [
  "unicode-width",
 ]
