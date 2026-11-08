@@ -268,6 +268,11 @@ export class TermGroup {
     return true;
   }
 
+  /** URL をブラウザの欄に開く（ターミナルの URL のクリック）。欄は shj の一覧で届くので、ここでは並べない。 */
+  openUrl(url: string): Promise<unknown> {
+    return this.port.request("extra.open", { workspaceId: this.wsId, url });
+  }
+
   /** ターミナルでない欄を閉じる（欄の閉じるボタン・Cmd+W）。shj には extra.close を送る。 */
   closeExtra(id: string): void {
     const i = this.extraList.findIndex((x) => x.id === id);

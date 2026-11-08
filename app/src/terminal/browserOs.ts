@@ -61,3 +61,13 @@ export async function onBrowserUrl(
 export function openExternally(key: string): Promise<void> {
   return invoke("browser_external", { key });
 }
+
+/** ターミナルの URL を手元の既定のブラウザで開く（#47。殻が http と https 以外を断る）。 */
+export function openUrlExternally(url: string): Promise<void> {
+  return invoke("open_url_external", { url });
+}
+
+/** 設定ファイルの `[gui] url_open`（`cmd + shift + click` で開く先。初期値は external）。間違いがあれば「ファイル:行: 理由」で失敗する。 */
+export function urlOpenSetting(): Promise<"external" | "builtin"> {
+  return invoke("config_url_open");
+}

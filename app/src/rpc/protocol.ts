@@ -195,6 +195,11 @@ export interface Requests {
     };
     result: { mime: string; size: number; data: string; eof: boolean };
   };
+  /** ターミナルに出た URL を、ブラウザの欄に開く（http か https。開いていれば入れ替わる） */
+  "extra.open": {
+    params: { workspaceId: WorkspaceId; url: string };
+    result: { id: string };
+  };
   "extra.close": {
     params: { workspaceId: WorkspaceId; id: string };
     result: Record<string, never>;

@@ -1,4 +1,4 @@
-import { Terminal } from "coneko-term";
+import { Terminal, type UrlClick } from "coneko-term";
 import {
   createEffect,
   createSignal,
@@ -57,6 +57,8 @@ export function TerminalView(props: {
   place?: Record<string, string>;
   /** 欄がフォーカスを受けた（押した・キーを向けた） */
   onFocus?: () => void;
+  /** 画面の URL がクリックされた（波線は coneko-term が引く。開くかどうか・開く先は呼ぶ側が決める。#47） */
+  onUrl?: (click: UrlClick) => void;
   /** この欄にキーを向ける関数を受け取る（欄が無くなるとき undefined で呼ぶ） */
   focusRef?: (focus: (() => void) | undefined) => void;
 }): JSX.Element {
@@ -85,6 +87,8 @@ export function TerminalView(props: {
   // キー・貼り付け・マウスの報告・問い合わせへの返事は、どれもバイト列で出てくる
   term.onData((b) => current?.input(b));
 
+  // URL のクリック（cmd / ctrl の判定と開く先は urlOpen.ts と呼ぶ側）
+  term.onUrlClick((c) => props.onUrl?.(c));
   // ターミナルの通知（kitty の OSC 99）を OS の通知につなぐ。何に対応すると答えるかは notify.ts
   term.onNotificationQuery((id) =>
     term.replyNotificationQuery(

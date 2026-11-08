@@ -398,13 +398,8 @@ pub fn browser_nav(
     child(&app, &key)?.eval(js).map_err(|e| e.to_string())
 }
 
-/// いま欄が開いているページを、手元の既定のブラウザで開き直す（パスキーなど、子の webview で使えないものの逃がし道）。
-/// リモートのマシンの localhost 系は、転送越しの URL のまま開く（転送が生きているあいだ手元から見える）。
-#[tauri::command]
-pub fn browser_external(app: AppHandle, webview: Webview, key: String) -> Result<(), String> {
-    from_main(&webview)?;
-    let u = child(&app, &key)?.url().map_err(|e| e.to_string())?;
-    let u = parse_url(u.as_str())?;
+/// OS の既定のブラウザで `u` を開く（`open` / `xdg-open`）。
+fn open_with_os(u: &Url) -> Result<(), String> {
     let opener = if cfg!(target_os = "macos") {
         "open"
     } else {
@@ -422,6 +417,23 @@ pub fn browser_external(app: AppHandle, webview: Webview, key: String) -> Result
             });
         })
         .map_err(|e| format!("failed to start {opener}: {e}"))
+}
+
+/// いま欄が開いているページを、手元の既定のブラウザで開き直す（パスキーなど、子の webview で使えないものの逃がし道）。
+/// リモートのマシンの localhost 系は、転送越しの URL のまま開く（転送が生きているあいだ手元から見える）。
+#[tauri::command]
+pub fn browser_external(app: AppHandle, webview: Webview, key: String) -> Result<(), String> {
+    from_main(&webview)?;
+    let u = child(&app, &key)?.url().map_err(|e| e.to_string())?;
+    open_with_os(&parse_url(u.as_str())?)
+}
+
+/// ターミナルに出た URL（クリックされたもの）を、手元の既定のブラウザで開く（#47）。
+/// 開いてよいのは `parse_url` が通る URL（http と https。ユーザー名とパスワードを含むものは断る）だけ。
+#[tauri::command]
+pub fn open_url_external(webview: Webview, url: String) -> Result<(), String> {
+    from_main(&webview)?;
+    open_with_os(&parse_url(&url)?)
 }
 
 /// 欄を閉じる（子の webview を壊し、転送を止める）。

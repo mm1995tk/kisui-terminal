@@ -110,6 +110,7 @@ export type TermMethod =
   | "term.input"
   | "term.cd"
   | "extra.close"
+  | "extra.open"
   | "layout.resize";
 /** Session.request で送れる要求（動画の欄の中身。#555）。 */
 export type BlobMethod = "media.read";

@@ -291,7 +291,25 @@ func TestPrimaryShjBrowserPane(t *testing.T) {
 	if e := extras(); len(e) != 1 || e[0].ID != r2.ID || e[0].URL != "https://example.com/" {
 		t.Fatalf("extras after replacing: %+v", e)
 	}
-	if err := c.Call(context.Background(), "extra.close", map[string]any{"workspaceId": id, "id": r2.ID}, &struct{}{}); err != nil {
+	// GUI が URL のクリックで開く（extra.open）。同じブラウザの欄と入れ替わる。http と https 以外は断る。
+	var o struct {
+		ID string `json:"id"`
+	}
+	if err := c.Call(context.Background(), "extra.open", map[string]any{"workspaceId": id, "url": "https://example.org/x"}, &o); err != nil || o.ID == "" || o.ID == r2.ID {
+		t.Fatalf("extra.open: %v %+v", err, o)
+	}
+	if e := extras(); len(e) != 1 || e[0].ID != o.ID || e[0].Kind != "browser" || e[0].URL != "https://example.org/x" {
+		t.Fatalf("extras after extra.open: %+v", e)
+	}
+	for _, bad := range []string{"file:///etc/passwd", "javascript:alert(1)", "ftp://example.com/", "https://u:p@example.com/", ""} {
+		if err := c.Call(context.Background(), "extra.open", map[string]any{"workspaceId": id, "url": bad}, &o); err == nil {
+			t.Fatalf("extra.open must refuse %q", bad)
+		}
+	}
+	if err := c.Call(context.Background(), "extra.open", map[string]any{"workspaceId": "nope", "url": "https://example.org/"}, &o); err == nil {
+		t.Fatal("extra.open into a workspace that does not exist must fail")
+	}
+	if err := c.Call(context.Background(), "extra.close", map[string]any{"workspaceId": id, "id": o.ID}, &struct{}{}); err != nil {
 		t.Fatal(err)
 	}
 	if e := extras(); len(e) != 0 {
