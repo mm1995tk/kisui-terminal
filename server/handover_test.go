@@ -31,7 +31,17 @@ func TestMain(m *testing.M) {
 	if sock := os.Getenv(handoverChildEnv); sock != "" && len(os.Args) == 3 && os.Args[1] == "serve" && os.Args[2] == "--handover" {
 		os.Exit(handoverChild(sock))
 	}
-	os.Exit(m.Run())
+	// 欄のシェルを始めると、起動ファイルの包みと pbcopy・pbpaste をキャッシュに書き出す（writeShellInit）。
+	// ユーザーのキャッシュに書かないよう、テストの間だけのフォルダに向ける（Linux。macOS は ~/Library/Caches のまま）。
+	cache, err := os.MkdirTemp("", "kisui-server-test-cache-*")
+	if err == nil {
+		os.Setenv("XDG_CACHE_HOME", cache)
+	}
+	code := m.Run()
+	if cache != "" {
+		os.RemoveAll(cache)
+	}
+	os.Exit(code)
 }
 
 // handoverChild は cmd/kisui の runServe の --handover と同じことをする。
