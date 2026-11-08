@@ -3,6 +3,7 @@ import { test } from "node:test";
 
 import {
   ago,
+  emptyMessage,
   filterEntries,
   isHistoryKey,
   moveSelection,
@@ -78,4 +79,12 @@ test("moveSelection は端で止まる", () => {
   assert.equal(moveSelection(2, 1, 3), 2);
   assert.equal(moveSelection(1, 1, 3), 2);
   assert.equal(moveSelection(5, 0, 0), 0);
+});
+
+test("emptyMessage は空の理由ごとに文を変える", () => {
+  const e = [{ text: "a", copiedAt: 1 }];
+  assert.equal(emptyMessage(true, undefined), "履歴を読めませんでした");
+  assert.equal(emptyMessage(false, undefined), "読み込んでいます");
+  assert.equal(emptyMessage(false, []), "履歴はまだありません");
+  assert.equal(emptyMessage(false, e), "当てはまるものがありません");
 });

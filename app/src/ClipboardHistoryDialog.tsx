@@ -1,4 +1,5 @@
-// クリップボードの履歴の一覧（#54）。キーで開き、選んだ文字を今の欄に貼るか、OS のクリップボードに戻す。
+if (e.shiftKey) putBack();
+else choose(); // クリップボードの履歴の一覧（#54）。キーで開き、選んだ文字を今の欄に貼るか、OS のクリップボードに戻す。
 // 履歴を持つのは Tauri の側（clipboard_history.rs）。ここは開くたびに読み、選ばせる。
 import {
   createEffect,
@@ -13,6 +14,7 @@ import {
 import { copiedNotice } from "./CopiedToast.tsx";
 import {
   ago,
+  emptyMessage,
   filterEntries,
   isHistoryKey,
   moveSelection,
@@ -112,8 +114,8 @@ function History(props: { opened: Opened }): JSX.Element {
     } else if (e.key === "Enter") {
       e.preventDefault();
       // Shift+Enter は OS のクリップボードに戻す。Enter は貼る（貼る欄が無ければ戻す）
-      if (e.shiftKey) putBack();
-      else choose();
+      if (e.shiftKey || !props.opened.paste) putBack();
+      else paste();
     }
   }
 
@@ -144,65 +146,100 @@ function History(props: { opened: Opened }): JSX.Element {
         when={shown().length > 0}
         fallback={
           <p class="card-empty history-empty">
-            {failed()
-              ? "履歴を読めませんでした"
-              : entries() === undefined
-                ? "読み込んでいます"
-                : entries()!.length === 0
-                  ? "履歴はまだありません"
-                  : "当てはまるものがありません"}
+            {emptyMessage(failed(), entries())}
           </p>
         }
       >
-        <ul
-          class="card-rows history-rows"
-          role="listbox"
-          aria-label="履歴"
-          ref={list}
-        >
-          <For each={shown()}>
-            {(e, i) => (
-              <li role="presentation">
-                <button
-                  type="button"
-                  class="card-row"
-                  role="option"
-                  tabIndex={-1}
-                  aria-selected={i() === selectedIndex()}
-                  title={preview(e.text, 400)}
-                  onMouseDown={(ev) => ev.preventDefault()}
-                  onClick={() => setSel(i())}
-                  onDblClick={choose}
-                >
-                  <span class="card-row-name">{preview(e.text)}</span>
-                  <span class="card-row-state">{ago(e.copiedAt, now())}</span>
-                </button>
-              </li>
-            )}
-          </For>
-        </ul>
+        <HistoryRows
+          entries={shown()}
+          selectedIndex={selectedIndex()}
+          now={now()}
+          onSelect={setSel}
+          onChoose={choose}
+          listRef={(el) => (list = el)}
+        />
       </Show>
-      <div class="card-actions">
-        <button type="button" class="card-button" onClick={close}>
-          閉じる
-        </button>
-        <button
-          type="button"
-          class="card-button"
-          disabled={!selected()}
-          onClick={putBack}
-        >
-          クリップボードに戻す
-        </button>
-        <button
-          type="button"
-          class="card-button primary"
-          disabled={!selected() || !props.opened.paste}
-          onClick={paste}
-        >
-          貼る
-        </button>
-      </div>
+      <HistoryActions
+        canPutBack={!!selected()}
+        canPaste={!!selected() && !!props.opened.paste}
+        onClose={close}
+        onPutBack={putBack}
+        onPaste={paste}
+      />
     </ModalCard>
+  );
+}
+
+/** 履歴の一覧。選んでいる行は selectedIndex。 */
+function HistoryRows(props: {
+  entries: HistoryEntry[];
+  selectedIndex: number;
+  now: number;
+  onSelect: (i: number) => void;
+  onChoose: () => void;
+  listRef: (el: HTMLUListElement) => void;
+}): JSX.Element {
+  return (
+    <ul
+      class="card-rows history-rows"
+      role="listbox"
+      aria-label="履歴"
+      ref={props.listRef}
+    >
+      <For each={props.entries}>
+        {(e, i) => (
+          <li role="presentation">
+            <button
+              type="button"
+              class="card-row"
+              role="option"
+              tabIndex={-1}
+              aria-selected={i() === props.selectedIndex}
+              title={preview(e.text, 400)}
+              // 入力欄からフォーカスを動かさない（押したあとも↑↓と Enter が効くように）
+              onMouseDown={(ev) => ev.preventDefault()}
+              onClick={() => props.onSelect(i())}
+              onDblClick={props.onChoose}
+            >
+              <span class="card-row-name">{preview(e.text)}</span>
+              <span class="card-row-state">{ago(e.copiedAt, props.now)}</span>
+            </button>
+          </li>
+        )}
+      </For>
+    </ul>
+  );
+}
+
+/** 下のボタン列（閉じる・クリップボードに戻す・貼る）。 */
+function HistoryActions(props: {
+  canPutBack: boolean;
+  canPaste: boolean;
+  onClose: () => void;
+  onPutBack: () => void;
+  onPaste: () => void;
+}): JSX.Element {
+  return (
+    <div class="card-actions">
+      <button type="button" class="card-button" onClick={props.onClose}>
+        閉じる
+      </button>
+      <button
+        type="button"
+        class="card-button"
+        disabled={!props.canPutBack}
+        onClick={props.onPutBack}
+      >
+        クリップボードに戻す
+      </button>
+      <button
+        type="button"
+        class="card-button primary"
+        disabled={!props.canPaste}
+        onClick={props.onPaste}
+      >
+        貼る
+      </button>
+    </div>
   );
 }

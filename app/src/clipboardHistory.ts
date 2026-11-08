@@ -59,3 +59,14 @@ export function moveSelection(cur: number, step: number, len: number): number {
   if (len <= 0) return 0;
   return Math.min(len - 1, Math.max(0, cur + step));
 }
+
+/** 一覧が空のときに出す文。entries は履歴（読み込み中は undefined）、failed は読めなかったか。 */
+export function emptyMessage(
+  failed: boolean,
+  entries: readonly HistoryEntry[] | undefined,
+): string {
+  if (failed) return "履歴を読めませんでした";
+  if (entries === undefined) return "読み込んでいます";
+  if (entries.length === 0) return "履歴はまだありません";
+  return "当てはまるものがありません";
+}
