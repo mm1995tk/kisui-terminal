@@ -44,6 +44,8 @@ echo hello | kisui clipboard copy
 kisui clipboard paste > note.txt
 ```
 
+In the shell of a pane, `pbcopy` and `pbpaste` call `kisui clipboard copy` and `kisui clipboard paste` (`echo hello | pbcopy`), and `pbpaste` asks you every time too. This works the same in the panes of a remote machine. kisui-terminal puts the folder of the two at the front of `PATH` after zsh, bash and fish have read their startup files, so they come before the `pbcopy` of macOS and work the same from a script. Your startup files are not changed. Other shells only get the folder at the front of `PATH`, so the `pbcopy` of macOS can come first when a startup file rebuilds `PATH`.
+
 `kisui pane split --right` / `--down` splits the pane you type it in, to the right or down, and gives the new pane the focus. A command after it runs in the new pane instead of a shell (`kisui pane split --down htop`). The pane closes when the command ends, so to keep the output of a short command, run a shell that runs it, such as `kisui pane split --down sh -c "ls; exec sh"`. It refuses when the pane would be left smaller than 20 columns or 5 rows, the same as splitting with the keys. `kisui pane title <name>` puts a name on a thin band above the pane (an empty name takes it away). The server keeps the name, so it stays when you reopen the window.
 
 ```sh
