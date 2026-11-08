@@ -5,7 +5,7 @@
 #
 #   packaging/build-kisui.sh VERSION SHJ_DIR [macos]
 #
-# VERSION is the GUI's version (X.Y.Z, or X.Y.Z-nightly.<yyyymmdd>.<sha> for a
+# VERSION is the GUI's version (X.Y.Z, or X.Y.Z-nightly.<yyyymmdd>.g<sha> for a
 # nightly); kisui gets it, since it is the GUI's server. SHJ_DIR holds the shj of
 # every OS and CPU as fetch-shj.sh leaves them. Without "macos" it builds for the CPU
 # this machine runs on (Linux). With "macos" it builds for macOS on Apple silicon

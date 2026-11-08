@@ -55,10 +55,11 @@
           # dirtyShortRev ends in "-dirty" when built from uncommitted changes
           commit = self.shortRev or self.dirtyShortRev or "";
 
-          # nightly は X.Y.Z に -nightly、コミットの日付とハッシュを付けたもの（shijimi-editor と同じ付け方）
+          # nightly は X.Y.Z に -nightly、コミットの日付と、g を前に付けたハッシュを付けたもの（nightly.yml と同じ付け方）。
+          # g は、ハッシュが数字だけで 0 から始まるとき（0408254 など）に semver の決まりに反するのを避けるため
           nightlyVersion = "${version}-nightly.${
             builtins.substring 0 8 (self.lastModifiedDate or "00000000")
-          }.${commit}";
+          }.g${commit}";
 
           # 同梱する shj。安定版は入力 shijimi-editor の shj、nightly 版は入力 shijimi-editor-nightly の shj-nightly
           shj = shijimi-editor.packages.${system}.default;

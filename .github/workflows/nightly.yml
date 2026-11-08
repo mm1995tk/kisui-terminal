@@ -3,7 +3,9 @@ name: nightly 版を配る
 # main の最新を nightly 版として毎日配る。pre-release nightly に、kisui-terminal-nightly の .dmg（macOS の Apple シリコン
 # だけ。Linux の AppImage と macOS の Intel は作らない）、自動更新の latest.json、リモートに入れる kisui-nightly-<os>-<cpu> と shj-nightly-<os>-<cpu>、SHA256SUMS を置く（build.yml）。
 #
-# - 版は <Cargo.toml の version>-nightly.<yyyymmdd>.<sha>。Cargo.toml は書き換えず、v<版> のタグも打たない
+# - 版は <Cargo.toml の version>-nightly.<yyyymmdd>.g<sha>。sha の前の g は、sha が数字だけで 0 から始まるとき
+#   （0408254 など）に semver の決まりに反し、Tauri が版を読めなくなるのを避けるため（git describe と同じ付け方）。
+#   Cargo.toml は書き換えず、v<版> のタグも打たない
 #   （pre-release が持つタグ nightly だけを、そのコミットに付け直す）。
 # - 同梱する shj は、shijimi-editor の pre-release nightly の shj（その時点の版）。
 # - 前の nightly から main にコミットが無く、shijimi-editor の nightly も進んでいなければ何もしない
@@ -59,7 +61,7 @@ jobs:
           # 日付はコミットの日付（UTC）。flake.nix の nightly の版（lastModifiedDate）と同じ付け方
           date=$(TZ=UTC git log -1 --format=%cd --date=format-local:%Y%m%d)
           sha=$(git rev-parse --short HEAD)
-          version="$base-nightly.$date.$sha"
+          version="$base-nightly.$date.g$sha"
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
           # 同梱する shj は shijimi-editor の pre-release nightly のもの。版はその本文の「- Version: `…`」

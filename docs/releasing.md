@@ -28,7 +28,7 @@ macOS（Apple シリコン、aarch64-apple-darwin）の Apple の署名の無い
 ## nightly 版
 
 - `nightly.yml` が毎日 16:00 UTC（日本時間 1:00。shijimi-editor の nightly の 1 時間後）に main で動き、pre-release `nightly`（毎回作り直します）に、`kisui-terminal-nightly` の `.dmg`（macOS の Apple シリコンだけ。nightly の AppImage は作りません）・`latest.json`、`kisui-nightly-<os>-<cpu>` と `shj-nightly-<os>-<cpu>`、`SHA256SUMS` を置きます。
-- 版は `<Cargo.toml の version>-nightly.<yyyymmdd>.<sha>` です。同梱する shj は、その時点の shijimi-editor の pre-release `nightly` の shj です。
+- 版は `<Cargo.toml の version>-nightly.<yyyymmdd>.g<sha>` です（sha の前の `g` は、sha が数字だけで 0 から始まっても semver になるようにするため）。同梱する shj は、その時点の shijimi-editor の pre-release `nightly` の shj です。
 - 前の nightly から main にコミットが無く、shijimi-editor の nightly も進んでいなければ何もしません（`gh workflow run nightly.yml -f force=true` で作り直せます）。
 - nightly 版の自動更新の確認先は `https://github.com/mm1995tk/kisui-terminal/releases/download/nightly/latest.json` です（`app/src-tauri/tauri.nightly.conf.json`）。
 
