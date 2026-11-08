@@ -22,7 +22,7 @@ ldflags() {
 }
 
 # shj_tag SHJ_VERSION: the tag of the Release of shijimi-editor that has the shj of that
-# version: vX.Y.Z, or the moving pre-release nightly for X.Y.Z-nightly.<yyyymmdd>.g<sha>.
+# version: vX.Y.Z, or the moving pre-release nightly for X.Y.Z-nightly.<yyyymmdd>.<sha> (shijimi-editor's version, without g).
 shj_tag() {
   if [[ "$1" == *-nightly.* ]]; then
     printf 'nightly'
