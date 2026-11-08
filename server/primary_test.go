@@ -116,8 +116,8 @@ func TestSplitTerminalShjIsNotPrimary(t *testing.T) {
 	}
 }
 
-// 環境変数 SHIJIMI_GUI_PRIMARY はプライマリにだけ渡る（restart でも）。
-func TestPrimaryEnvOnlyInPrimary(t *testing.T) {
+// 環境変数 SHIJIMI_GUI_PRIMARY は分割した欄にも、その欄の id を値にして渡る。
+func TestPrimaryEnvInEveryPane(t *testing.T) {
 	t.Setenv("HOME", normalizePath(t.TempDir()))
 	_, sock := startFast(t)
 	c, nt := termClient(t, sock)
@@ -128,7 +128,7 @@ func TestPrimaryEnvOnlyInPrimary(t *testing.T) {
 	if err := c.Call(context.Background(), "term.create", map[string]any{"workspaceId": id, "cols": 80, "rows": 24}, &res); err != nil {
 		t.Fatal(err)
 	}
-	for term, want := range map[string]string{primary: "P=" + primary + ".", res.TermID: "P=."} {
+	for term, want := range map[string]string{primary: "P=" + primary + ".", res.TermID: "P=" + res.TermID + "."} {
 		c.Call(context.Background(), "term.input", map[string]any{"termId": term, "data": b64("echo P=$" + ctl.EnvGUIPrimary + ".\n")}, nil)
 		waitFor(t, "env of "+term, func() bool { d, _ := nt.output(t, term); return strings.Contains(string(d), want) })
 	}
@@ -412,4 +412,38 @@ func TestPrimaryShjLongLineIsDropped(t *testing.T) {
 	conn.Write(long)
 	conn.Write([]byte(`{"file":"/x/b.txt"}` + "\n"))
 	waitFor(t, "file b after the long line", func() bool { p := primaryShjOf(t, c, id); return p != nil && p.File == "/x/b.txt" })
+}
+
+// 分割した欄は、昇格の前は名乗りを断られ、プライマリのシェルが終わって昇格したあとは名乗れる（#50）。
+func TestPrimaryPromotedSplitCanAnnounce(t *testing.T) {
+	t.Setenv("HOME", normalizePath(t.TempDir()))
+	_, sock := startFast(t)
+	c, nt := termClient(t, sock)
+	ctx := context.Background()
+	id, primary := createWS(t, c)
+	split := createTerm(t, c, map[string]any{"workspaceId": id})
+
+	// 昇格の前：環境変数は渡っているが、プライマリではないので断る
+	c.Call(ctx, "term.input", map[string]any{"termId": split, "data": b64("echo P=$" + ctl.EnvGUIPrimary + ".\n")}, nil)
+	waitFor(t, "env of split", func() bool { d, _ := nt.output(t, split); return strings.Contains(string(d), "P="+split+".") })
+	if r, _ := announceShj(t, sock, ctl.PrimaryHello{TermID: split, Socket: "/run/a.sock", PID: 1}); r.OK {
+		t.Fatal("a split terminal is not a primary before the promotion")
+	}
+
+	c.Call(ctx, "term.input", map[string]any{"termId": primary, "data": b64("exit\n")}, nil)
+	waitFor(t, "split becomes primary", func() bool {
+		var l wsList
+		if err := c.Call(ctx, "workspace.list", map[string]any{}, &l); err != nil || len(l.Workspaces) != 1 {
+			return false
+		}
+		return l.Workspaces[0].Primary == split
+	})
+	r, conn := announceShj(t, sock, ctl.PrimaryHello{TermID: split, Socket: "/run/b.sock", PID: 2})
+	if !r.OK {
+		t.Fatalf("a promoted terminal must be able to announce: %+v", r)
+	}
+	defer conn.Close()
+	if primaryShjOf(t, c, id) == nil {
+		t.Fatal("primaryShj must be set")
+	}
 }

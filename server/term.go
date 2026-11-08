@@ -234,10 +234,9 @@ func (m *termManager) start(a termStart) (*terminal, error) {
 		return nil, rpc.Errorf(rpc.CodeBusy, "server is shutting down")
 	}
 	env := a.env
-	if a.primary {
-		// 起動する shj が自分で名乗れるように、プライマリにだけ渡す。ターミナルの id はこの下で振る番号。
-		env = append(slices.Clone(env), ctl.EnvGUIPrimary+"="+fmt.Sprintf("t%d", m.next+1))
-	}
+	// 起動する shj が自分で名乗れるように、すべての欄に渡す（値はその欄の id。KISUI_PANE と同じ。この下で振る番号）。
+	// 分割した欄は、プライマリのシェルが終わって昇格したあとに名乗れるように。昇格の前は claimShj が断る。
+	env = append(slices.Clone(env), ctl.EnvGUIPrimary+"="+fmt.Sprintf("t%d", m.next+1))
 	if a.wsID != "" {
 		// 同じワークスペースのどのターミナルからも、プライマリの shj に届くように（ctl.GUILinkPath）。
 		env = append(slices.Clone(env), ctl.EnvGUIWorkspace+"="+a.wsID)

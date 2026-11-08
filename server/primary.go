@@ -2,7 +2,9 @@ package server
 
 // プライマリターミナルの中で動く TUI の shj を知る。設計は docs/design/gui-protocol.md の「プライマリの shj」。
 //
-// kisui serve は、プライマリターミナルのシェルにだけ環境変数 SHIJIMI_GUI_PRIMARY（値はそのターミナルの id）を渡す。
+// kisui serve は、どのターミナルのシェルにも環境変数 SHIJIMI_GUI_PRIMARY（値はそのターミナルの id）を渡す。
+// 分割したターミナルがプライマリに昇格したあとでも、中の shj が名乗れるように。名乗りを受けるとき、
+// そのターミナルが今プライマリかは claimShj が確かめる（昇格の前の分割したターミナルは断る）。
 // TUI の shj はそれを見つけたら、serve-primary.rpc（serve.rpc と同じ場所・同じ権限）に 1 行の JSON
 // （ctl.PrimaryHello）を送って名乗り、つなぎっぱなしにする。つながっている間がその shj の生きている間で、
 // 切れたら（shj が終わったら）ワークスペースの primaryShj が消える。1 つのプライマリで名乗れるのは最初の 1 つだけ。
