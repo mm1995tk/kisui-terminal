@@ -2,7 +2,14 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { RpcError } from "../rpc/message.ts";
-import { changeErrorText, changeRows, changeTree, letterOf } from "./model.ts";
+import {
+  changeErrorText,
+  changeRows,
+  changesBaseLabel,
+  changesBaseOf,
+  changeTree,
+  letterOf,
+} from "./model.ts";
 
 describe("changeRows", () => {
   it("root の中は相対パスにし、外は絶対パスのまま出す。選んでいるファイルに印を付ける", () => {
@@ -149,5 +156,16 @@ describe("changeTree", () => {
     assert.deepEqual(held([]), []);
     assert.deepEqual(held(["pkg"]), ["pkg"]);
     assert.deepEqual(held(["pkg/sub"]), ["sub"]);
+  });
+});
+
+describe("changesBaseOf（比べている相手。Issue #46）", () => {
+  it("pr は PR、無いときと知らない値は HEAD", () => {
+    assert.equal(changesBaseOf({ base: "pr" }), "pr");
+    assert.equal(changesBaseOf({ base: "head" }), "head");
+    assert.equal(changesBaseOf({}), "head");
+    assert.equal(changesBaseOf({ base: "x" as never }), "head");
+    assert.equal(changesBaseLabel("pr"), "PR");
+    assert.equal(changesBaseLabel("head"), "HEAD");
   });
 });

@@ -181,9 +181,11 @@ type PrimaryHello struct {
 //
 // Diff is present while the shj is in diff mode against HEAD (Ctrl+G) and
 // absent otherwise: its presence is the beginning of the diff mode and its
-// absence the end. The diff mode against a pull request (Space g) is not
-// reported: the shj shows its own list there, because the "diff" request
-// would switch it to HEAD. An older kisui ignores Diff.
+// absence the end. The diff mode against a pull request (Space g) is reported
+// too, with PrimaryDiff.Base "pr", but only to a kisui that answered with
+// PrimaryReply.ChangesPR; to any other the shj shows its own list there,
+// because an older kisui's "diff" request would switch it to HEAD. An older
+// kisui ignores Diff.
 type PrimaryFile struct {
 	File string       `json:"file"`
 	Diff *PrimaryDiff `json:"diff,omitempty"`
@@ -193,11 +195,20 @@ type PrimaryFile struct {
 // runs in the primary terminal of a GUI workspace. kisui shows it in the
 // sidebar under the file explorer, and the shj shows no list of its own.
 // Files are in the order the shj shows them. Selected is the absolute path of
-// the file whose diff the shj shows now, or "" when none is shown.
+// the file whose diff the shj shows now, or "" when none is shown. Base says
+// what the diff compares with: BaseHead ("head", also when empty) or BasePR
+// ("pr", the pull request of the branch; Space g).
 type PrimaryDiff struct {
 	Files    []DiffFile `json:"files"`
 	Selected string     `json:"selected,omitempty"`
+	Base     string     `json:"base,omitempty"`
 }
+
+// Values of PrimaryDiff.Base. Any other value is taken as BaseHead.
+const (
+	BaseHead = "head"
+	BasePR   = "pr"
+)
 
 // DiffFile is a changed file of PrimaryDiff. Path is absolute (a deleted file
 // has no file on disk but a path all the same). Status is one of "modified",
@@ -219,14 +230,18 @@ type DiffFile struct {
 // versions "kisui serve" accepts. Changes is true when OK and this kisui shows
 // the CHANGES of the shj's diff mode in its sidebar (PrimaryFile.Diff); a
 // reply without it is from a kisui that does not, and the shj then shows its
-// own list.
+// own list. ChangesPR is true when OK and this kisui also shows the CHANGES of
+// the diff mode against a pull request (PrimaryDiff.Base "pr") and keeps the
+// shj in that mode when a file is opened from it; the shj sends the list of
+// that mode only then.
 type PrimaryReply struct {
-	OK      bool   `json:"ok"`
-	Changes bool   `json:"changes,omitempty"`
-	Error   string `json:"error,omitempty"`
-	Code    string `json:"code,omitempty"`
-	Min     int    `json:"min,omitempty"`
-	Max     int    `json:"max,omitempty"`
+	OK        bool   `json:"ok"`
+	Changes   bool   `json:"changes,omitempty"`
+	ChangesPR bool   `json:"changesPR,omitempty"`
+	Error     string `json:"error,omitempty"`
+	Code      string `json:"code,omitempty"`
+	Min       int    `json:"min,omitempty"`
+	Max       int    `json:"max,omitempty"`
 }
 
 // PaneRequest is the one line a shj that runs in the primary terminal of a GUI

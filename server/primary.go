@@ -316,7 +316,7 @@ func (s *Server) followShj(l *primaryLink) {
 }
 
 func reply(c net.Conn, err error) {
-	r := ctl.PrimaryReply{OK: err == nil, Changes: err == nil}
+	r := ctl.PrimaryReply{OK: err == nil, Changes: err == nil, ChangesPR: err == nil}
 	if err != nil {
 		r.Error = err.Error()
 	}
@@ -384,6 +384,9 @@ func cleanDiff(d *ctl.PrimaryDiff) *ctl.PrimaryDiff {
 		return nil
 	}
 	out := &ctl.PrimaryDiff{Files: make([]ctl.DiffFile, 0, len(d.Files))}
+	if d.Base == ctl.BasePR {
+		out.Base = ctl.BasePR // 知らない値は HEAD（空）にする
+	}
 	for _, f := range d.Files {
 		if !filepath.IsAbs(f.Path) {
 			continue
@@ -403,7 +406,7 @@ func diffEq(a, b *ctl.PrimaryDiff) bool {
 	if a == nil || b == nil {
 		return a == b
 	}
-	return a.Selected == b.Selected && slices.Equal(a.Files, b.Files)
+	return a.Selected == b.Selected && a.Base == b.Base && slices.Equal(a.Files, b.Files)
 }
 
 // setShjState は claim の shj が出しているファイルと、差分モードの一覧（diff。差分モードでなければ nil）を覚え、

@@ -101,7 +101,7 @@ import {
 } from "./ssh/machines.ts";
 import { Session, type SessionState } from "./ssh/session.ts";
 import { tauriShell } from "./ssh/tauri.ts";
-import { changeRows, changeErrorText } from "./changes/model.ts";
+import { changeRows, changeErrorText, changesBaseOf } from "./changes/model.ts";
 import {
   relativeIn,
   openErrorText,
@@ -1029,7 +1029,12 @@ function Workbench(props: {
     if (f?.target !== target || f.id !== id) return undefined;
     const diff = workspaces()[target]?.find((x) => x.id === id)?.primaryShj
       ?.diff;
-    return diff ? changeRows(diff, rootOf(target, id)) : undefined;
+    return diff
+      ? {
+          rows: changeRows(diff, rootOf(target, id)),
+          base: changesBaseOf(diff),
+        }
+      : undefined;
   }
 
   /** プライマリの shj が出しているファイル（ツリーで強調する行）。 */

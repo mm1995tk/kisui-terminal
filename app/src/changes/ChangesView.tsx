@@ -7,7 +7,12 @@ import { createMemo, createSignal, Index, Show, type JSX } from "solid-js";
 import { runChangesAction, type ChangesHandlers } from "./actions.ts";
 import { ChangeTreeRow } from "./ChangeTreeRow.tsx";
 import { changesKey } from "./keys.ts";
-import { changeTree, type ChangeRow } from "./model.ts";
+import {
+  changeTree,
+  changesBaseLabel,
+  type ChangeRow,
+  type ChangesBase,
+} from "./model.ts";
 import "./changes.css";
 
 export type { ChangesHandlers };
@@ -19,6 +24,8 @@ export type { ChangesHandlers };
 export function ChangesView(
   props: ChangesHandlers & {
     rows: ChangeRow[];
+    /** 比べている相手（HEAD / PR）。見出しに出す */
+    base: ChangesBase;
     label: string;
   },
 ): JSX.Element {
@@ -57,7 +64,11 @@ export function ChangesView(
   return (
     <section class="changes" aria-label={props.label}>
       <h3 class="changes-title">
-        CHANGES<span class="changes-count">{props.rows.length}</span>
+        CHANGES
+        <span class="changes-base" data-base={props.base}>
+          {changesBaseLabel(props.base)}
+        </span>
+        <span class="changes-count">{props.rows.length}</span>
       </h3>
       <Show
         when={props.rows.length > 0}

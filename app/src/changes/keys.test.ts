@@ -5,6 +5,8 @@ import {
   changesKey,
   domKey,
   moveIndex,
+  PR_CHANGES_KEYS,
+  PR_SPACE_FOLLOWUPS,
   TUI_CHANGES_KEYS,
   type ChangesAction,
 } from "./keys.ts";
@@ -128,6 +130,24 @@ describe("changesKey: TUI の CHANGES と同じキー（Issue #45 の表）", ()
       "open",
       "shj",
     ]);
+  });
+});
+
+describe("PR モードの CHANGES のキー（Issue #46）", () => {
+  it("r・R・Space は shj に渡す（PR を読み直す・Space メニュー）", () => {
+    for (const tui of PR_CHANGES_KEYS) {
+      for (const row of [file, open, closed]) {
+        const a = changesKey(row, k(domKey(tui)));
+        assert.equal(a?.kind, "shj", tui);
+      }
+    }
+  });
+
+  it("space v・space g：space を shj に渡し、続きの v・g は端末から届く（一覧は割り当てない）", () => {
+    assert.deepEqual(changesKey(file, k(" ")), { kind: "shj", key: "space" });
+    for (const key of PR_SPACE_FOLLOWUPS) {
+      assert.equal(changesKey(file, k(key))?.kind === "shj", false, key);
+    }
   });
 });
 
