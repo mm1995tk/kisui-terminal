@@ -29,6 +29,7 @@ import {
 
 import { AskpassDialog } from "./AskpassDialog.tsx";
 import { explorerRow, isLeaveExplorerKey } from "./explorerFocus.ts";
+import { afterChangesKey } from "./changes/handover.ts";
 import { changesRow } from "./changes/keys.ts";
 import { ClipboardDialog } from "./ClipboardDialog.tsx";
 import { TransferDialog } from "./TransferDialog.tsx";
@@ -855,22 +856,28 @@ function Workbench(props: {
     );
 
   /**
-   * s・r・R は一覧にフォーカスを残す。Space と : は続きのキー（space w の w・コマンド行の入力）が端末から shj に届くよう、要求と同時にプライマリのターミナルにキーを向ける（返事を待つ間に打ったキーも端末に入る）。
-   * s・r・R は一覧にフォーカスを残す。Space と : は続きのキー（space w の w・コマンド行の入力）が端末から shj に届くよう、通ったらプライマリのターミナルにキーを向ける。
+   * CHANGES で押した shj のキー（s・r・R・Space・:）を、shj に「CHANGES で押した」ものとして渡す。
+   * s・r・R は一覧にフォーカスを残す。Space と : は、通ってからプライマリのターミナルにキーを向ける（handover.ts。先に向けると続きのキーが先に届く）。
    */
   function changesShjKey(target: string, id: WorkspaceId, key: ChangesShjKey) {
     const s = sessions()[target];
     if (!s || switching || s.focus !== id) return;
     setFocusError(null);
-    if (key === "space" || key === ":") {
-      termGroup()?.setActive(0); // 0 番目がプライマリ
-      focusTerminal();
-    }
-    s.request("shj.changesKey", { workspaceId: id, key }).catch((e) =>
-      setFocusError({
-        title: "CHANGES の操作ができませんでした",
-        error: e instanceof Error ? e.message : String(e),
-      }),
+    afterChangesKey(
+      key,
+      s.request("shj.changesKey", { workspaceId: id, key }),
+      {
+        toTerminal: () => {
+          if (s.focus !== id) return;
+          termGroup()?.setActive(0); // 0 番目がプライマリ
+          focusTerminal();
+        },
+        fail: (e) =>
+          setFocusError({
+            title: "CHANGES の操作ができませんでした",
+            error: e instanceof Error ? e.message : String(e),
+          }),
+      },
     );
   }
 
