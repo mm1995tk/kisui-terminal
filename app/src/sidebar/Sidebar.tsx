@@ -19,7 +19,7 @@ import {
 } from "solid-js";
 
 import type { MachineStatus } from "../connect/status.ts";
-import type { WorkspaceId } from "../rpc/protocol.ts";
+import type { ChangesShjKey, WorkspaceId } from "../rpc/protocol.ts";
 import type { TreeRow } from "../tree/model.ts";
 import { menuItems, type TreeMenuAction } from "../tree/menu.ts";
 import { TreeMenu } from "../tree/TreeMenu.tsx";
@@ -63,14 +63,8 @@ interface Handlers {
   changesOf?: (target: string, id: WorkspaceId) => ChangeRow[] | undefined;
   /** CHANGES の行を押した（path は shj が知らせた絶対パス） */
   onChange?: (target: string, id: WorkspaceId, path: string) => void;
-  /** CHANGES で s・r・R を押した（shj に渡す） */
-  onChangesKey?: (
-    target: string,
-    id: WorkspaceId,
-    key: "s" | "r" | "R",
-  ) => void;
-  /** CHANGES で Space・: を押した（端末に戻して、その文字を打つ） */
-  onChangesTerminal?: (target: string, id: WorkspaceId, text: string) => void;
+  /** CHANGES で shj のキー（s・r・R・Space・: と Space の続き）を押した（shj に渡す） */
+  onChangesKey?: (target: string, id: WorkspaceId, key: ChangesShjKey) => void;
   /** CHANGES で Tab を押した（エクスプローラに移る） */
   onChangesExplorer?: (target: string, id: WorkspaceId) => void;
   /** CHANGES で Esc・q を押した（端末に戻る） */
@@ -363,9 +357,6 @@ function handlers(
     get onChangesKey() {
       return props.onChangesKey;
     },
-    get onChangesTerminal() {
-      return props.onChangesTerminal;
-    },
     get onChangesExplorer() {
       return props.onChangesExplorer;
     },
@@ -588,9 +579,6 @@ function BandItem(
             label={`${b().title} の変更`}
             onSelect={(p) => props.onChange?.(props.target, b().id, p)}
             onShjKey={(k) => props.onChangesKey?.(props.target, b().id, k)}
-            onTerminal={(t) =>
-              props.onChangesTerminal?.(props.target, b().id, t)
-            }
             onExplorer={() => props.onChangesExplorer?.(props.target, b().id)}
             onLeave={() => props.onChangesLeave?.(props.target, b().id)}
           />

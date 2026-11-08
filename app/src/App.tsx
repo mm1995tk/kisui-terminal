@@ -63,6 +63,7 @@ import {
 } from "./panes.ts";
 import { ErrorCode, RpcError } from "./rpc/message.ts";
 import type {
+  ChangesShjKey,
   ExtraPane,
   PrimaryShj,
   SplitDir,
@@ -853,31 +854,26 @@ function Workbench(props: {
       changeErrorText,
     );
 
-  /** CHANGES で s・r・R を押した（shj に渡す。フォーカスは一覧に残す）。 */
-  function changesShjKey(
-    target: string,
-    id: WorkspaceId,
-    key: "s" | "r" | "R",
-  ) {
+  /**
+   * CHANGES で shj のキー（s・r・R・Space・: と Space の続き）を押した。shj に「CHANGES で押した」ものとして渡す。
+   * フォーカスは一覧に残す。ただしコマンド行（:）は端末に打つので、通ったらプライマリのターミナルにキーを向ける。
+   */
+  function changesShjKey(target: string, id: WorkspaceId, key: ChangesShjKey) {
     const s = sessions()[target];
     if (!s || switching || s.focus !== id) return;
     setFocusError(null);
-    s.request("shj.changesKey", { workspaceId: id, key }).catch((e) =>
-      setFocusError({
-        title: "CHANGES の操作ができませんでした",
-        error: e instanceof Error ? e.message : String(e),
-      }),
+    s.request("shj.changesKey", { workspaceId: id, key }).then(
+      () => {
+        if (key !== ":" || s.focus !== id) return;
+        termGroup()?.setActive(0); // 0 番目がプライマリ
+        focusTerminal();
+      },
+      (e) =>
+        setFocusError({
+          title: "CHANGES の操作ができませんでした",
+          error: e instanceof Error ? e.message : String(e),
+        }),
     );
-  }
-
-  /** CHANGES で Space・: を押した。プライマリのターミナルに戻して、その文字を打つ（shj の Space メニュー・コマンド行が開く）。 */
-  function changesToTerminal(target: string, id: WorkspaceId, text: string) {
-    const f = untrack(focus);
-    if (!f || f.target !== target || f.id !== id) return;
-    const g = termGroup();
-    g?.setActive(0); // 0 番目がプライマリ
-    g?.list[0]?.input(new TextEncoder().encode(text));
-    focusTerminal();
   }
 
   // ツリーの右クリックのメニューから開いた窓（名前を入れる・削除の確認）
@@ -1262,7 +1258,6 @@ function Workbench(props: {
         changesOf={changesOf}
         onChange={openChange}
         onChangesKey={changesShjKey}
-        onChangesTerminal={changesToTerminal}
         onChangesExplorer={focusExplorer}
         onChangesLeave={() => focusTerminal()}
         onTreeAction={treeAction}

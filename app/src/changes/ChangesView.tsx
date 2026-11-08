@@ -4,7 +4,13 @@
 // 行にフォーカスがあるときは TUI と同じキーで動かせる（#45。割り当ては keys.ts）。
 import { createMemo, createSignal, Index, Show, type JSX } from "solid-js";
 
-import { changesKey, moveIndex, type ChangesAction } from "./keys.ts";
+import type { ChangesShjKey } from "../rpc/protocol.ts";
+import {
+  changesKey,
+  moveIndex,
+  spaceFollow,
+  type ChangesAction,
+} from "./keys.ts";
 import { changeTree, type ChangeEntry, type ChangeRow } from "./model.ts";
 import "./changes.css";
 
@@ -12,10 +18,8 @@ import "./changes.css";
 export interface ChangesHandlers {
   /** 変更の行を押した・開いた（path は ChangeRow.path） */
   onSelect: (path: string) => void;
-  /** s・r・R（shj の CHANGES のキー） */
-  onShjKey?: (key: "s" | "r" | "R") => void;
-  /** 端末に戻して、text を端末に打つ（Space・:） */
-  onTerminal?: (text: string) => void;
+  /** shj の CHANGES のキー（s・r・R・Space・: と Space の続き） */
+  onShjKey?: (key: ChangesShjKey) => void;
   /** エクスプローラに移る（Tab） */
   onExplorer?: () => void;
   /** 端末に戻る（Esc・q） */
@@ -35,6 +39,8 @@ export function ChangesView(
   const [closed, setClosed] = createSignal<ReadonlySet<string>>(new Set());
   const entries = createMemo(() => changeTree(props.rows, closed()));
   let list: HTMLDivElement | undefined;
+  // Space を押して、続きの 1 文字（w など）を待っている間。続きも shj に渡す
+  let spacePending = false;
 
   const setFolder = (key: string, open: boolean) =>
     setClosed((s) => {
@@ -73,11 +79,8 @@ export function ChangesView(
         return true;
       case "shj":
         if (!props.onShjKey) return false;
+        spacePending = a.key === "space";
         props.onShjKey(a.key);
-        return true;
-      case "terminal":
-        if (!props.onTerminal) return false;
-        props.onTerminal(a.text);
         return true;
       case "explorer":
         if (!props.onExplorer) return false;
@@ -126,6 +129,16 @@ export function ChangesView(
                   tabIndex={0}
                   onClick={() => press(en())}
                   onKeyDown={(e) => {
+                    if (spacePending) {
+                      spacePending = false;
+                      const follow = spaceFollow(e);
+                      if (follow && props.onShjKey) {
+                        props.onShjKey(follow);
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }
+                      return; // Esc などは待ちをやめるだけ
+                    }
                     const a = changesKey(en(), e);
                     if (!a) return;
                     if (run(en(), e.currentTarget, a)) {

@@ -2,6 +2,7 @@
 // （shijimi-editor の core/gitdiff.go の handleChangesKey）に合わせる。
 // DOM を使わないので node --test で確かめられる。行を動かす・shj に頼むのは ChangesView.tsx と App.tsx。
 
+import type { ChangesShjKey } from "../rpc/protocol.ts";
 import type { ChangeEntry } from "./model.ts";
 
 /** フォーカスを移す先。 */
@@ -15,10 +16,8 @@ export type ChangesAction =
   | { kind: "folder"; op: "open" | "close" | "toggle" }
   /** 変更を開く（shj.diff）。行を押したのと同じ */
   | { kind: "open" }
-  /** shj の CHANGES のキー s・r・R を shj に渡す（shj.changesKey） */
-  | { kind: "shj"; key: "s" | "r" | "R" }
-  /** 端末にフォーカスを戻して、このキーを端末に打つ（Space メニュー・コマンド行） */
-  | { kind: "terminal"; text: string }
+  /** shj の CHANGES のキーを shj に渡す（shj.changesKey）。space のあとの 1 文字は ChangesView が続きとして渡す */
+  | { kind: "shj"; key: ChangesShjKey }
   /** kisui のファイルエクスプローラに移る（Tab） */
   | { kind: "explorer" }
   /** 一覧を出て端末へ戻る（Esc・q） */
@@ -41,7 +40,7 @@ export interface ChangesKey {
  * TUI の割り当て（表は Issue #45）：
  * - k ↑ / j ↓ で上下、g Home / G End で最初・最後、h ← でフォルダを閉じる（閉じていれば親へ）、l → でフォルダを開く・変更を開く、
  *   Enter・o でフォルダの開け閉め・変更を開く。
- * - s は split / unified、r・R は読み直す（shj が行う）。Space は Space メニュー、: はコマンド行（端末に打つ。Space w はその続き）。
+ * - s は split / unified、r・R は読み直す（shj が行う）。Space は Space メニュー、: はコマンド行（どれも shj に渡す。Space w の w は spaceFollow が続きとして渡す）。
  * - Tab でエクスプローラへ、Esc・q で端末へ戻る。
  */
 export function changesKey(
@@ -78,11 +77,10 @@ export function changesKey(
     case "s":
     case "r":
     case "R":
+    case ":":
       return { kind: "shj", key: e.key };
     case " ":
-      return { kind: "terminal", text: " " };
-    case ":":
-      return { kind: "terminal", text: ":" };
+      return { kind: "shj", key: "space" };
     case "Tab":
       return e.shiftKey ? null : { kind: "explorer" };
     case "Escape":
@@ -164,4 +162,14 @@ export function changesRow(root: ParentNode | undefined): HTMLElement | null {
     root.querySelector<HTMLElement>('.changes-row[aria-selected="true"]') ??
     root.querySelector<HTMLElement>(".changes-row")
   );
+}
+
+/**
+ * Space を押したあとの 1 文字（Space メニューの続き。w で window など）を、shj に渡すキーにする。
+ * 1 文字の印字できるキーだけ（Esc や ← などは続きにならない＝待ちをやめる）。
+ */
+export function spaceFollow(e: ChangesKey): ChangesShjKey | null {
+  if (e.isComposing || e.ctrlKey || e.metaKey || e.altKey) return null;
+  if ([...e.key].length !== 1 || e.key.trim() === "") return null;
+  return `space ${e.key}`;
 }

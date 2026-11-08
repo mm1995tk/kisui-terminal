@@ -98,6 +98,12 @@ export interface ExtraPane {
   url?: string;
 }
 
+/**
+ * shj の CHANGES に渡すキー（shj.changesKey）：s（split / unified）・r・R（読み直す）・space（Space メニュー）・:（コマンド行）と、
+ * space に続く 1 文字（"space w" など。shj の続きの待ちは CHANGES のフォーカスで見るので、続きも渡す）。
+ */
+export type ChangesShjKey = "s" | "r" | "R" | "space" | ":" | `space ${string}`;
+
 export interface PrimaryShj {
   /** その shj の制御用ソケット（core/ctl）の場所 */
   socket: string;
@@ -277,8 +283,8 @@ export interface Requests {
     result: Record<string, never>;
   };
   "shj.changesKey": {
-    /** TUI の CHANGES の s（split / unified）・r・R（読み直す）。差分モードのプライマリの shj に、CHANGES でそのキーを押したものとして渡す */
-    params: { workspaceId: WorkspaceId; key: "s" | "r" | "R" };
+    /** TUI の CHANGES のキー（ChangesShjKey）。差分モードのプライマリの shj に、CHANGES でそのキーを押したものとして渡す */
+    params: { workspaceId: WorkspaceId; key: ChangesShjKey };
     result: Record<string, never>;
   };
   "git.status": {
