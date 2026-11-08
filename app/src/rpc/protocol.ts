@@ -62,6 +62,8 @@ export interface Workspace {
   kind: "git" | "shijimi" | "cwd" | null;
   /** folder が未定のあいだ null */
   name: string | null;
+  /** folder を、そのマシンのホームディレクトリを ~ にして書いた見せる用のパス。見せ方だけで、ホームの外は folder と同じ。古い kisui serve は送らない */
+  display?: string;
   branch?: string;
   /** プライマリターミナル（ワークスペースを閉じるまで残る） */
   primary: TermId;

@@ -53,6 +53,20 @@ describe("band", () => {
     assert.equal(b.focused, true);
   });
 
+  it("display があれば、パスの帯はそれを出す（root は絶対パスのまま）", () => {
+    const b = band(
+      ws({
+        id: "h",
+        root: "/Users/me/x",
+        kind: "cwd",
+        display: "~/x",
+      }),
+      false,
+    );
+    assert.equal(b.title, "~/x");
+    assert.equal(b.root, "/Users/me/x");
+  });
+
   it("フォルダ未定のワークスペースは「（フォルダ未定）」", () => {
     const b = band(ws({ id: "u" }), false);
     assert.equal(b.title, UNSET_TITLE);

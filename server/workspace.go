@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 	"slices"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -27,10 +28,13 @@ import (
 // wsInfo は workspace.list などで GUI に渡すワークスペース。
 // folder・kind・name は、フォルダ未定のあいだ null。
 type wsInfo struct {
-	ID      string   `json:"id"`
-	Folder  *string  `json:"folder"`
-	Kind    *string  `json:"kind"` // "git" | "shijimi" | "cwd"
-	Name    *string  `json:"name"`
+	ID     string  `json:"id"`
+	Folder *string `json:"folder"`
+	Kind   *string `json:"kind"` // "git" | "shijimi" | "cwd"
+	Name   *string `json:"name"`
+	// Display は Folder をこのマシンのホームディレクトリ基準で書いた見せる用のパス（~/x）。ホームの外は Folder と同じ。
+	// 見せ方だけで、Folder は絶対パスのまま。未定のあいだは省く
+	Display string   `json:"display,omitempty"`
 	Branch  string   `json:"branch,omitempty"`
 	Primary string   `json:"primary"` // プライマリターミナル
 	Terms   []string `json:"terms"`   // 分割したターミナル
@@ -278,7 +282,7 @@ func (w *wsManager) recomputeLocked() {
 		states = append(states, &c)
 	}
 	w.mu.Unlock()
-	next := buildWorkspaces(states, terms)
+	next := buildWorkspaces(states, terms, w.home)
 	w.mu.Lock()
 	for id, x := range next {
 		if st := w.reg[id]; st != nil {
@@ -300,13 +304,14 @@ func (w *wsManager) recomputeLocked() {
 }
 
 // buildWorkspaces はワークスペースの一覧を作る。分割したターミナルは属するワークスペースごとにまとめる。
-func buildWorkspaces(states []*wsState, terms []*terminal) map[string]*wsInfo {
+func buildWorkspaces(states []*wsState, terms []*terminal, home string) map[string]*wsInfo {
 	next := map[string]*wsInfo{}
 	for _, st := range states {
 		x := &wsInfo{ID: st.id, Primary: st.primary, Terms: []string{}, Extras: []extraPane{}, root: st.root, seq: st.seq, PrimaryShj: st.shj}
 		if st.root != "" {
 			folder, kind, name := st.root, st.kind, filepath.Base(st.root)
 			x.Folder, x.Kind, x.Name = &folder, &kind, &name
+			x.Display = tildePath(folder, home)
 			if st.kind == "git" {
 				x.Branch = gitBranch(st.root)
 			}
@@ -388,6 +393,20 @@ func changedParams(added, updated []*wsInfo, removed []string) map[string]any {
 	}
 	if len(updated) > 0 {
 		p["updated"] = updated
+	}
+	return p
+}
+
+// tildePath は p がホームディレクトリの中なら、ホームの部分を ~ にしたパスを返す。外なら p のまま。
+func tildePath(p, home string) string {
+	if home == "" || home == "/" {
+		return p
+	}
+	if p == home {
+		return "~"
+	}
+	if rest, ok := strings.CutPrefix(p, home+"/"); ok {
+		return "~/" + rest
 	}
 	return p
 }
