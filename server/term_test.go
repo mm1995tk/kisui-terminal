@@ -426,7 +426,18 @@ func TestTermPrimaryCloseAndRestart(t *testing.T) {
 	}
 
 	c.Call(ctx, "term.input", map[string]any{"termId": primary, "data": b64("exit\n")}, nil)
-	waitFor(t, "exit", func() bool { return nt.find("term.exit") != nil })
+	waitFor(t, "exit", func() bool {
+		for _, raw := range nt.all("term.exit") {
+			var e struct {
+				TermID string `json:"termId"`
+			}
+			json.Unmarshal(*raw, &e)
+			if e.TermID == primary {
+				return true
+			}
+		}
+		return false
+	})
 	// シェルが終わってもワークスペースは残る。
 	var l wsList
 	if err := c.Call(ctx, "workspace.list", map[string]any{}, &l); err != nil || len(l.Workspaces) != 1 || l.Workspaces[0].Primary != primary {

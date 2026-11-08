@@ -697,13 +697,9 @@ func (ss *session) termRequest(req *rpc.Message) (res any, err error, handled bo
 		res, err = m.restart(t)
 		return res, err, true
 	case "term.close":
-		t.mu.Lock()
-		primary := t.primary
-		t.mu.Unlock()
-		if primary {
+		if !ss.srv.ws.closeSplit(t.id) {
 			return nil, rpc.Errorf(rpc.CodeDenied, "a primary terminal is closed with its workspace (workspace.close): %s", t.id), true
 		}
-		m.closeTerm(t.id)
 		ss.srv.ws.recompute()
 		return struct{}{}, nil, true
 	case "term.resize":
