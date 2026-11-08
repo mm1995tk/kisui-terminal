@@ -247,6 +247,9 @@ enum Seen {
     Unchanged,
     /// 文字がある
     Text(String),
+    /// 文字がある。前に調べたときからコピーされたことが分かっている（macOS の changeCount が変わったとき）。
+    /// 前と同じ文字でも、もう一度コピーされたものとして入れる
+    Copied(String),
     /// 「秘密」の印が付いている
     Concealed,
     /// 文字が無い
@@ -274,7 +277,7 @@ impl Watcher {
         if !self.primed {
             match seen {
                 Seen::Unchanged | Seen::Unknown => {}
-                Seen::Text(t) => {
+                Seen::Text(t) | Seen::Copied(t) => {
                     self.primed = true;
                     self.last = Some(t);
                 }
@@ -287,6 +290,10 @@ impl Watcher {
             Seen::Concealed | Seen::Empty => {
                 self.last = None;
                 None
+            }
+            Seen::Copied(t) => {
+                self.last = Some(t.clone());
+                Some(t)
             }
             Seen::Text(t) => {
                 if self.last.as_deref() == Some(t.as_str()) {
@@ -361,7 +368,9 @@ mod platform {
                     Seen::Concealed
                 } else {
                     match pb.stringForType(unsafe { NSPasteboardTypeString }) {
-                        Some(s) => Seen::Text(s.to_string()),
+                        // 初めて読むときは、前の changeCount が無いので、コピーされたかは分からない
+                        Some(s) if self.last_count.is_none() => Seen::Text(s.to_string()),
+                        Some(s) => Seen::Copied(s.to_string()),
                         None => Seen::Empty,
                     }
                 };
@@ -687,6 +696,15 @@ mod tests {
         assert_eq!(w.observe(Seen::Text("a".into())), Some("a".into()));
         assert_eq!(w.observe(Seen::Empty), None);
         assert_eq!(w.observe(Seen::Text("b".into())), Some("b".into()));
+    }
+
+    #[test]
+    fn watcher_takes_a_known_copy_of_the_same_text_again() {
+        let mut w = Watcher::default();
+        assert_eq!(w.observe(Seen::Text("a".into())), None, "baseline");
+        assert_eq!(w.observe(Seen::Copied("a".into())), Some("a".into()));
+        assert_eq!(w.observe(Seen::Copied("a".into())), Some("a".into()));
+        assert_eq!(w.observe(Seen::Text("a".into())), None);
     }
 
     #[test]
