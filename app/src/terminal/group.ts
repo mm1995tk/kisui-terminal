@@ -162,6 +162,11 @@ export class TermGroup {
     for (const id of want) {
       if (this.closing.has(id)) continue;
       const old = this.links.find((l) => l.id === id);
+      if (old && old.primary !== (id === layout.primary)) {
+        // プライマリのシェルが終わって、分割したターミナルが昇格した（serve が決める）
+        old.primary = id === layout.primary;
+        old.onExit = old.primary ? undefined : () => this.exited(old);
+      }
       next.push(old ?? this.newLink(id, id === layout.primary));
     }
     const lk = JSON.stringify(layout.layout ?? null);

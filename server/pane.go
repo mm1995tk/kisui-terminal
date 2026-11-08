@@ -193,7 +193,9 @@ func (w *wsManager) closePane(claim *primaryShj, id string) {
 	w.mu.Lock()
 	claim.panes = slices.DeleteFunc(claim.panes, func(x string) bool { return x == id })
 	w.mu.Unlock()
-	w.srv.terms.closeTerm(id)
+	if !w.closeSplit(id) {
+		w.srv.log.Info("pane not closed: it became the primary", "termId", id)
+	}
 	w.recompute()
 }
 

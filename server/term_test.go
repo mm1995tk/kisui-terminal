@@ -420,9 +420,24 @@ func TestTermPrimaryCloseAndRestart(t *testing.T) {
 	if err := c.Call(ctx, "term.restart", map[string]any{"termId": primary}, nil); !isCode(err, rpc.CodeBusy) {
 		t.Errorf("restart a running shell: %v", err)
 	}
+	// 分割したターミナルがあるとプライマリのシェルが終わったときに昇格するので（TestTermPrimaryExitPromotesSplit）、先に閉じる
+	if err := c.Call(ctx, "term.close", map[string]any{"termId": split}, nil); err != nil {
+		t.Fatal(err)
+	}
 
 	c.Call(ctx, "term.input", map[string]any{"termId": primary, "data": b64("exit\n")}, nil)
-	waitFor(t, "exit", func() bool { return nt.find("term.exit") != nil })
+	waitFor(t, "exit", func() bool {
+		for _, raw := range nt.all("term.exit") {
+			var e struct {
+				TermID string `json:"termId"`
+			}
+			json.Unmarshal(*raw, &e)
+			if e.TermID == primary {
+				return true
+			}
+		}
+		return false
+	})
 	// シェルが終わってもワークスペースは残る。
 	var l wsList
 	if err := c.Call(ctx, "workspace.list", map[string]any{}, &l); err != nil || len(l.Workspaces) != 1 || l.Workspaces[0].Primary != primary {
@@ -450,6 +465,36 @@ func TestTermPrimaryCloseAndRestart(t *testing.T) {
 	if out, _ := nt.output(t, primary); !bytes.Contains(out, []byte("again-ok")) {
 		t.Errorf("output after restart: %q", out)
 	}
+}
+
+// プライマリのシェルが終わったとき、分割したターミナルがあれば、その 1 つがプライマリになり、
+// 元のプライマリは閉じる。新しいプライマリのシェルが終わると、今度は term.restart で開き直せる。
+func TestTermPrimaryExitPromotesSplit(t *testing.T) {
+	_, sock := start(t)
+	c, _ := termClient(t, sock)
+	ctx := context.Background()
+	id, primary := createWS(t, c)
+	split := createTerm(t, c, map[string]any{"workspaceId": id})
+
+	c.Call(ctx, "term.input", map[string]any{"termId": primary, "data": b64("exit\n")}, nil)
+	waitFor(t, "split becomes primary", func() bool {
+		var l wsList
+		if err := c.Call(ctx, "workspace.list", map[string]any{}, &l); err != nil || len(l.Workspaces) != 1 {
+			return false
+		}
+		return l.Workspaces[0].Primary == split && len(l.Workspaces[0].Terms) == 0
+	})
+	if err := c.Call(ctx, "term.attach", map[string]any{"termId": primary}, nil); !isCode(err, rpc.CodeNotFound) {
+		t.Errorf("old primary should be closed: %v", err)
+	}
+	// 昇格したので term.close は断られ、終われば term.restart できる
+	if err := c.Call(ctx, "term.close", map[string]any{"termId": split}, nil); !isCode(err, rpc.CodeDenied) {
+		t.Errorf("close promoted: %v", err)
+	}
+	c.Call(ctx, "term.input", map[string]any{"termId": split, "data": b64("exit\n")}, nil)
+	waitFor(t, "restartable", func() bool {
+		return c.Call(ctx, "term.restart", map[string]any{"termId": split}, nil) == nil
+	})
 }
 
 // term.create の split の誤りは、小さすぎるときだけ busy。ほかは not_found と invalid_params。
