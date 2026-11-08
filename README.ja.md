@@ -44,6 +44,8 @@ echo hello | kisui clipboard copy
 kisui clipboard paste > note.txt
 ```
 
+欄のシェルでは、`pbcopy` と `pbpaste` もそれぞれ `kisui clipboard copy` と `kisui clipboard paste` を呼びます（`echo hello | pbcopy`）。`pbpaste` も読むたびに許すかを聞きます。ssh 先のマシンの欄でも同じです。kisui-terminal は zsh・bash・fish の起動ファイルを読んだあとに、この 2 つを置いたフォルダを `PATH` の先頭に入れるので、macOS の `pbcopy` より先になり、スクリプトの中から呼んでも同じに動きます。ユーザーの起動ファイルは書き換えません。ほかのシェルでは `PATH` の先頭に足すだけなので、起動ファイルが `PATH` を組み直すと macOS の `pbcopy` が先になることがあります。
+
 `kisui pane split --right` / `--down` は、打った欄を右か下に分け、新しい欄にフォーカスを移します。後ろにコマンドを付けると、新しい欄ではシェルの代わりにそのコマンドを動かします（`kisui pane split --down htop`）。コマンドが終わると欄も閉じるので、短いコマンドの出力を残したいときは、シェルに動かさせて最後にシェルを残します（`kisui pane split --down sh -c "ls; exec sh"`）。分けた後の欄が 20 列・5 行より小さくなるときは、キーで分けるときと同じく断ります。`kisui pane title <名前>` は、欄の上の細い帯に名前を出します（空の名前なら外します）。名前は serve が持つので、ウィンドウを開き直しても残ります。
 
 ```sh

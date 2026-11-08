@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -109,14 +110,91 @@ func TestShellIntegrationFish(t *testing.T) {
 	}
 }
 
-func TestShellIntegrationNoBundledShj(t *testing.T) {
-	setupShellTest(t)
-	t.Setenv(EnvShjDir, t.TempDir()) // shj の無いフォルダ
-	for _, sh := range []string{"zsh", "bash", "fish"} {
-		args, env := bundledShell("/bin/"+sh, []string{"A=1"})
-		if args != nil || len(env) != 1 {
-			t.Errorf("%s: changed args=%v env=%v", sh, args, env)
+// setupClipboardTest は、引数と標準入力を出すだけの偽の kisui を PATH に置き、
+// ユーザーの起動ファイルが PATH の先頭に入れる別の pbcopy・pbpaste（macOS の /usr/bin のもの）を other に置く。
+func setupClipboardTest(t *testing.T, other string) {
+	t.Helper()
+	fake := t.TempDir()
+	if err := os.WriteFile(filepath.Join(fake, "kisui"), []byte("#!/bin/sh\necho \"kisui $*\" \"$(cat)\"\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"pbcopy", "pbpaste"} {
+		if err := os.WriteFile(filepath.Join(other, name), []byte("#!/bin/sh\necho WRONG_"+name+"\n"), 0o755); err != nil {
+			t.Fatal(err)
 		}
+	}
+	t.Setenv("PATH", fake+":"+os.Getenv("PATH"))
+	t.Setenv(envKisuiExe, "")
+}
+
+// 欄のシェルでは pbcopy・pbpaste が kisui clipboard copy / paste を呼ぶ。ユーザーの起動ファイルが別の pbcopy を
+// 前に出しても、スクリプトの中から呼んでも、同梱の shj が無くても同じ。
+func TestShellIntegrationPbcopy(t *testing.T) {
+	const script = "echo hi | pbcopy; pbpaste </dev/null; sh -c 'echo yo | pbcopy'"
+	const want = "kisui clipboard copy hi\nkisui clipboard paste \nkisui clipboard copy yo"
+	rc := map[string]string{
+		"zsh":  ".zshrc",
+		"bash": ".bashrc",
+		"fish": filepath.Join(".config", "fish", "config.fish"),
+	}
+	for sh, file := range rc {
+		for _, noShj := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/noShj=%v", sh, noShj), func(t *testing.T) {
+				home, _, other := setupShellTest(t)
+				if noShj {
+					t.Setenv(EnvShjDir, t.TempDir()) // shj の無いフォルダ
+				}
+				setupClipboardTest(t, other)
+				line := "export PATH=" + other + ":$PATH\n"
+				if sh == "fish" {
+					line = "set -gx PATH " + other + " $PATH\n"
+				}
+				writeFile(t, filepath.Join(home, file), line)
+				if got := runBundledShell(t, sh, home, script); got != want {
+					t.Errorf("got %q, want %q", got, want)
+				}
+			})
+		}
+	}
+}
+
+func TestShellIntegrationPbcopyUnsupportedShell(t *testing.T) {
+	home, _, other := setupShellTest(t)
+	t.Setenv(EnvShjDir, t.TempDir())
+	setupClipboardTest(t, other)
+	args, env := bundledShell("/bin/sh", nil)
+	if args != nil {
+		t.Fatalf("args=%v", args)
+	}
+	cmd := exec.Command("/bin/sh", "-c", "echo hi | pbcopy")
+	cmd.Dir = home
+	cmd.Env = append(os.Environ(), env...)
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if got := strings.TrimSpace(string(out)); got != "kisui clipboard copy hi" {
+		t.Fatalf("got %q", got)
+	}
+}
+
+// pbcopy・pbpaste は、kisui serve が渡す KISUI_EXE の kisui を呼ぶ（PATH に kisui が無くても動く）。
+func TestShellIntegrationPbcopyKisuiExe(t *testing.T) {
+	home, _, _ := setupShellTest(t)
+	exe := filepath.Join(t.TempDir(), "kisui")
+	if err := os.WriteFile(exe, []byte("#!/bin/sh\necho \"exe $*\"\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	_, env := bundledShell("/bin/sh", nil)
+	cmd := exec.Command("/bin/sh", "-c", "pbpaste")
+	cmd.Dir = home
+	cmd.Env = append(os.Environ(), append(env, envKisuiExe+"="+exe)...)
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if got := strings.TrimSpace(string(out)); got != "exe clipboard paste" {
+		t.Fatalf("got %q", got)
 	}
 }
 

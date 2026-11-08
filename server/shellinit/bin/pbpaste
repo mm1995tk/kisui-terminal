@@ -1,0 +1,3 @@
+#!/bin/sh
+# kisui-terminal が書き出した pbpaste。手元（窓の動くコンピュータ）のクリップボードの文を、kisui clipboard paste で出す（読むたびに許すかを聞く）。
+exec "${KISUI_EXE:-kisui}" clipboard paste "$@"

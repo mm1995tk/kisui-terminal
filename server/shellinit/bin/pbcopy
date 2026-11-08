@@ -1,0 +1,3 @@
+#!/bin/sh
+# kisui-terminal が書き出した pbcopy。標準入力の文を、kisui clipboard copy で手元（窓の動くコンピュータ）のクリップボードに入れる。
+exec "${KISUI_EXE:-kisui}" clipboard copy "$@"
