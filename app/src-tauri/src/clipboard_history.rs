@@ -84,14 +84,24 @@ impl History {
         true
     }
 
-    /// 入れてから `MAX_AGE` たったものと、`MAX_ENTRIES` 件を超えた古いものを消す。消したら true。
+    /// 入れてから `MAX_AGE` たったものと、`MAX_ENTRIES` 件を超えた古いものを消す。変えたら true。
+    ///
+    /// 時刻が `now` より先のもの（時計が進みすぎていたときに入れた、ファイルを手で書き換えたなど）は、`now` に
+    /// 丸める。そのままだと、時計が追いつくまで消えないため。
     pub fn prune(&mut self, now: u64) -> bool {
+        let mut clamped = false;
+        for e in &mut self.entries {
+            if e.copied_at > now {
+                e.copied_at = now;
+                clamped = true;
+            }
+        }
         let before = self.entries.len();
         let max_age = MAX_AGE.as_millis() as u64;
         self.entries
             .retain(|e| now.saturating_sub(e.copied_at) < max_age);
         self.entries.truncate(MAX_ENTRIES);
-        self.entries.len() != before
+        clamped || self.entries.len() != before
     }
 
     /// ファイルから読む。無い・壊れている・版が違うときは空。古いものは消してから返す。
@@ -633,6 +643,17 @@ mod tests {
         assert_eq!(h.entries().len(), MAX_ENTRIES);
         assert_eq!(h.entries()[0].text, (MAX_ENTRIES + 4).to_string());
         assert_eq!(h.entries()[MAX_ENTRIES - 1].text, "5");
+    }
+
+    #[test]
+    fn prune_clamps_entries_from_the_future() {
+        let mut h = History::default();
+        h.add("future", 100 * HOUR);
+        assert!(h.prune(HOUR), "clamped to now");
+        assert_eq!(h.entries()[0].copied_at, HOUR);
+        assert!(!h.prune(HOUR));
+        assert!(h.prune(13 * HOUR), "expires 12 hours after now");
+        assert!(h.entries().is_empty());
     }
 
     #[test]
