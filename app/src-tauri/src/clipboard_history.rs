@@ -311,16 +311,14 @@ fn watch(app: AppHandle) {
     let mut os = platform::Clipboard::new();
     let mut w = Watcher::default();
     loop {
-        if let Some(text) = w.observe(os.read()) {
-            if let Some(s) = app.try_state::<ClipboardHistory>() {
-                let now = now_ms();
-                s.update(&app, |h| {
-                    let added = h.add(&text, now);
-                    h.prune(now) || added
-                });
-            }
-        } else if let Some(s) = app.try_state::<ClipboardHistory>() {
-            s.update(&app, |h| h.prune(now_ms()));
+        // 見たものを入れて、古いものを消す
+        let seen = w.observe(os.read());
+        if let Some(s) = app.try_state::<ClipboardHistory>() {
+            let now = now_ms();
+            s.update(&app, |h| {
+                let added = seen.is_some_and(|t| h.add(&t, now));
+                h.prune(now) || added
+            });
         }
         std::thread::sleep(platform::INTERVAL);
     }
