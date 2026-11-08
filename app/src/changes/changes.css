@@ -1,9 +1,33 @@
 /* 差分モードの CHANGES の一覧。ファイルエクスプローラ（tree.css）の下に、細い線で区切って出す。
-   行の高さと左右の余白、色はツリーと同じ（GitHub Dark）。一覧が長いときはサイドバーごとスクロールする。 */
+   行の高さと左右の余白、色はツリーと同じ（GitHub Dark）。サイドバーの下に固定する（#44）。
+   ツリーが長くても CHANGES はいつも見え、ツリーはその上の場所でスクロールする。
+   固定は sticky の bottom で行い、下に固定する .sidebar-after があればその上に積む
+   （高さは Sidebar.tsx が --sidebar-after-height に入れる）。
+   行が多いときは .changes-list の中でスクロールする。 */
 
 .changes {
   border-top: 1px solid var(--gh-border, var(--gh-indent-guide));
   padding: 4px 0 6px;
+  position: sticky;
+  bottom: var(--sidebar-after-height, 0px);
+  z-index: 102;
+  background: var(--sidebar-bg, var(--gh-bg-side));
+}
+
+/* 6 行半。これより多いときは中でスクロールする（ツリーの場所を食いつぶさない） */
+.changes-list {
+  max-height: 143px;
+  overflow-y: auto;
+}
+.changes-list::-webkit-scrollbar {
+  width: 4px;
+}
+.changes-list::-webkit-scrollbar-thumb {
+  background: var(--gh-border-strong);
+  border-radius: 2px;
+}
+.changes-list::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .changes-title {
