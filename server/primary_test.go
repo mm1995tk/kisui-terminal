@@ -311,7 +311,7 @@ func TestPrimaryShjDiffList(t *testing.T) {
 	}()
 
 	r, conn := announceShj(t, sock, ctl.PrimaryHello{TermID: primary, Socket: shjSock, PID: 11})
-	if !r.OK || !r.Changes {
+	if !r.OK || !r.Changes || !r.ChangesPR {
 		t.Fatalf("reply: %+v", r)
 	}
 	diff := func(path string) error {
@@ -366,6 +366,28 @@ func TestPrimaryShjDiffList(t *testing.T) {
 
 	send(`{"file":"/x/a.go","diff":{"files":[]}}`) // 変更が無くなっても、差分モードのあいだは一覧（空）を出す
 	waitFor(t, "empty list", func() bool { p := primaryShjOf(t, c, id); return p != nil && p.Diff != nil && len(p.Diff.Files) == 0 })
+	// PR との差分モード（base "pr"）の一覧も出る。知らない base は HEAD。切り替わりは更新として届く
+	send(`{"file":"/x/a.go","diff":{"files":[{"path":"/x/a.go"}],"base":"pr"}}`)
+	waitFor(t, "pr list", func() bool {
+		p := primaryShjOf(t, c, id)
+		return p != nil && p.Diff != nil && p.Diff.Base == ctl.BasePR
+	})
+	if err := diff("/x/a.go"); err != nil {
+		t.Fatal(err)
+	}
+	if got := <-asked; got.Cmd != "diff" || got.Path != "/x/a.go" {
+		t.Errorf("asked: %+v", got)
+	}
+	for _, k := range []string{"r", "R", "space"} {
+		if err := changesKey(k); err != nil {
+			t.Fatalf("changesKey(%q) in the PR mode: %v", k, err)
+		}
+		if got := <-asked; got.Cmd != "changes-key" || got.Line != k {
+			t.Errorf("asked: %+v", got)
+		}
+	}
+	send(`{"file":"/x/a.go","diff":{"files":[{"path":"/x/a.go"}],"base":"other"}}`)
+	waitFor(t, "unknown base is head", func() bool { p := primaryShjOf(t, c, id); return p != nil && p.Diff != nil && p.Diff.Base == "" })
 	send(`{"file":"/x/a.go"}`)
 	waitFor(t, "diff off", func() bool { p := primaryShjOf(t, c, id); return p != nil && p.Diff == nil })
 	if err := changesKey("s"); err == nil {

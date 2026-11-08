@@ -60,6 +60,19 @@ export function changeRows(
   });
 }
 
+/** 比べている相手。 */
+export type ChangesBase = "head" | "pr";
+
+/** 一覧が比べている相手。pr 以外（無いときも）は HEAD。 */
+export function changesBaseOf(diff: Pick<PrimaryDiff, "base">): ChangesBase {
+  return diff.base === "pr" ? "pr" : "head";
+}
+
+/** 見出しに出す、比べている相手の名前。 */
+export function changesBaseLabel(base: ChangesBase): string {
+  return base === "pr" ? "PR" : "HEAD";
+}
+
 /** shj.diff が断られたときに出す文。 */
 export function changeErrorText(path: string, e: unknown): string {
   const why =

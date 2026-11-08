@@ -121,6 +121,8 @@ export interface PrimaryDiff {
   files: DiffFile[];
   /** shj が今差分を出しているファイルの絶対パス。無ければ省く */
   selected?: string;
+  /** 比べている相手：'head'（HEAD。無いときも）か 'pr'（PR。Space g）。知らない値は HEAD */
+  base?: "head" | "pr";
 }
 
 /** 変更したファイル 1 つ（Go の ctl.DiffFile）。added と deleted は増えた行・減った行の数（バイナリは 0 か省く） */

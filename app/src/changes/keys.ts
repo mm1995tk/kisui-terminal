@@ -164,3 +164,13 @@ export function changesRow(root: ParentNode | undefined): HTMLElement | null {
     ) ?? root.querySelector<HTMLElement>(".changes-row")
   );
 }
+
+/**
+ * PR モード（Space g）の CHANGES で、TUI が足して受けるキー（Issue #46）。TUI_CHANGES_KEYS に加えて。
+ * r・R は PR を読み直す（ReloadPR）。space のあとの v（レビュー）・g（PR との差分を開く・閉じる）は Space メニューの続きなので、
+ * space を shj に渡したあと端末から shj に届く（TUI_CHANGES_KEYS の w と同じ）。
+ */
+export const PR_CHANGES_KEYS: readonly string[] = ["r", "R", "space"];
+
+/** PR モードで space の続きに打つキー（端末から shj に届く）。 */
+export const PR_SPACE_FOLLOWUPS: readonly string[] = ["v", "g"];
