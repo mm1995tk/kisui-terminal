@@ -5,7 +5,6 @@ import {
   changesKey,
   domKey,
   moveIndex,
-  spaceFollow,
   TUI_CHANGES_KEYS,
   type ChangesAction,
 } from "./keys.ts";
@@ -74,19 +73,9 @@ describe("changesKey: TUI の CHANGES と同じキー（Issue #45 の表）", ()
     }
   });
 
-  it("Space と : も shj に渡す（続きの 1 文字は spaceFollow）", () => {
+  it("Space と : も shj に渡す（続きのキーは端末から shj に届く）", () => {
     assert.deepEqual(changesKey(file, k(" ")), { kind: "shj", key: "space" });
     assert.deepEqual(changesKey(file, k(":")), { kind: "shj", key: ":" });
-  });
-
-  it("Space のあとの 1 文字は shj に続きとして渡す。Esc・矢印・修飾キーは続きにならない", () => {
-    assert.equal(spaceFollow(k("w")), "space w");
-    assert.equal(spaceFollow(k("E")), "space E");
-    for (const x of ["Escape", "ArrowUp", "Enter", " ", "Tab"]) {
-      assert.equal(spaceFollow(k(x)), null, x);
-    }
-    assert.equal(spaceFollow(k("w", { ctrlKey: true })), null);
-    assert.equal(spaceFollow(k("w", { isComposing: true })), null);
   });
 
   it("Tab はエクスプローラへ。Shift+Tab は既定の動きに任せる", () => {

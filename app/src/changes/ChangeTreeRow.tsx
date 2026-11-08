@@ -3,6 +3,12 @@ import { Show, type JSX } from "solid-js";
 
 import type { ChangeEntry } from "./model.ts";
 
+/**
+ * CHANGES の木の 1 行：フォルダ（開閉の矢印・名前・中のファイルの数）か、変更のあるファイル（名前・+n・-n・印 M/A/D/R/B）。
+ * aria-selected は shj が今差分を出しているファイルの行。data-holds は、閉じたフォルダの中にそのファイルがあるフォルダの行
+ * （space E でキーを向ける先。changesRow が探す）。
+ * onPress は行をクリックしたとき、onKeyDown は行にフォーカスがあるときのキー（割り当ては ChangesView が keys.ts で決める）。
+ */
 export function ChangeTreeRow(props: {
   entry: ChangeEntry;
   onPress: () => void;

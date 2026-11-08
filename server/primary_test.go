@@ -350,7 +350,7 @@ func TestPrimaryShjDiffList(t *testing.T) {
 	changesKey := func(k string) error {
 		return c.Call(context.Background(), "shj.changesKey", map[string]any{"workspaceId": id, "key": k}, nil)
 	}
-	for _, k := range []string{"s", "r", "R", "space", ":", "space w"} {
+	for _, k := range []string{"s", "r", "R", "space", ":"} {
 		if err := changesKey(k); err != nil {
 			t.Fatalf("changesKey(%q): %v", k, err)
 		}
@@ -358,7 +358,7 @@ func TestPrimaryShjDiffList(t *testing.T) {
 			t.Errorf("asked: %+v", got)
 		}
 	}
-	for _, bad := range []string{"j", "x", "", "sr", "space ", "space ww", "space \n", "Space"} {
+	for _, bad := range []string{"j", "x", "", "sr", "space w", "space ", "Space"} {
 		if err := changesKey(bad); err == nil {
 			t.Errorf("changesKey(%q) must be refused", bad)
 		}

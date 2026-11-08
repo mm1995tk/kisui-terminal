@@ -6,7 +6,7 @@ import { createMemo, createSignal, Index, Show, type JSX } from "solid-js";
 
 import { runChangesAction, type ChangesHandlers } from "./actions.ts";
 import { ChangeTreeRow } from "./ChangeTreeRow.tsx";
-import { changesKey, spaceFollow } from "./keys.ts";
+import { changesKey } from "./keys.ts";
 import { changeTree, type ChangeRow } from "./model.ts";
 import "./changes.css";
 
@@ -25,8 +25,6 @@ export function ChangesView(
   const [closed, setClosed] = createSignal<ReadonlySet<string>>(new Set());
   const entries = createMemo(() => changeTree(props.rows, closed()));
   let list: HTMLDivElement | undefined;
-  // Space を押して、続きの 1 文字（w など）を待っている間。続きも shj に渡す
-  let spacePending = false;
 
   const setFolder = (key: string, open: boolean) =>
     setClosed((s) => {
@@ -54,7 +52,6 @@ export function ChangesView(
     rowEls: () =>
       list ? [...list.querySelectorAll<HTMLElement>(".changes-row")] : [],
     setFolder,
-    waitSpace: () => (spacePending = true),
   };
 
   return (
@@ -82,16 +79,6 @@ export function ChangesView(
                   else if (en().row) props.onSelect(en().row!.path);
                 }}
                 onKeyDown={(e) => {
-                  if (spacePending) {
-                    spacePending = false;
-                    const follow = spaceFollow(e);
-                    if (follow && props.onShjKey) {
-                      props.onShjKey(follow);
-                      e.preventDefault();
-                      e.stopPropagation();
-                    }
-                    return; // Esc などは待ちをやめるだけ
-                  }
                   const a = changesKey(en(), e);
                   if (a && runChangesAction(ctx, en(), e.currentTarget, a)) {
                     e.preventDefault();

@@ -99,10 +99,10 @@ export interface ExtraPane {
 }
 
 /**
- * shj の CHANGES に渡すキー（shj.changesKey）：s（split / unified）・r・R（読み直す）・space（Space メニュー）・:（コマンド行）と、
- * space に続く 1 文字（"space w" など。shj の続きの待ちは CHANGES のフォーカスで見るので、続きも渡す）。
+ * shj の CHANGES に渡すキー（shj.changesKey）：s（split / unified）・r・R（読み直す）・space（Space メニュー）・:（コマンド行）。
+ * space と : のあと、GUI はプライマリの端末にキーを向ける。続きのキー（space w の w など）は端末から shj に届き、shj が CHANGES の続きとして扱う。
  */
-export type ChangesShjKey = "s" | "r" | "R" | "space" | ":" | `space ${string}`;
+export type ChangesShjKey = "s" | "r" | "R" | "space" | ":";
 
 export interface PrimaryShj {
   /** その shj の制御用ソケット（core/ctl）の場所 */

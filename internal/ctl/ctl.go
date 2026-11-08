@@ -43,7 +43,7 @@ const (
 type Request struct {
 	Cmd  string `json:"cmd"`            // diff | exec | command-end | open | changes-key
 	Path string `json:"path,omitempty"` // diff, open: an absolute path (diff: also the Path of a DiffFile, which may be deleted)
-	Line string `json:"line,omitempty"` // exec: the ":" command to run; command-end: the exit code; changes-key: the key ("s", "r", "R", "space", ":" or "space <char>")
+	Line string `json:"line,omitempty"` // exec: the ":" command to run; command-end: the exit code; changes-key: the key ("s", "r", "R", "space" or ":")
 }
 
 // Response is the editor's reply.

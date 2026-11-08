@@ -855,8 +855,8 @@ function Workbench(props: {
     );
 
   /**
-   * CHANGES で shj のキー（s・r・R・Space・: と Space の続き）を押した。shj に「CHANGES で押した」ものとして渡す。
-   * フォーカスは一覧に残す。ただしコマンド行（:）は端末に打つので、通ったらプライマリのターミナルにキーを向ける。
+   * CHANGES で shj のキー（s・r・R・Space・:）を押した。shj に「CHANGES で押した」ものとして渡す。
+   * s・r・R は一覧にフォーカスを残す。Space と : は続きのキー（space w の w・コマンド行の入力）が端末から shj に届くよう、通ったらプライマリのターミナルにキーを向ける。
    */
   function changesShjKey(target: string, id: WorkspaceId, key: ChangesShjKey) {
     const s = sessions()[target];
@@ -864,7 +864,7 @@ function Workbench(props: {
     setFocusError(null);
     s.request("shj.changesKey", { workspaceId: id, key }).then(
       () => {
-        if (key !== ":" || s.focus !== id) return;
+        if (key === "s" || key === "r" || key === "R" || s.focus !== id) return;
         termGroup()?.setActive(0); // 0 番目がプライマリ
         focusTerminal();
       },

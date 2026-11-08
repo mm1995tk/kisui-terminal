@@ -63,7 +63,7 @@ interface Handlers {
   changesOf?: (target: string, id: WorkspaceId) => ChangeRow[] | undefined;
   /** CHANGES の行を押した（path は shj が知らせた絶対パス） */
   onChange?: (target: string, id: WorkspaceId, path: string) => void;
-  /** CHANGES で shj のキー（s・r・R・Space・: と Space の続き）を押した（shj に渡す） */
+  /** CHANGES で shj のキー（s・r・R・Space・:）を押した（shj に渡す） */
   onChangesKey?: (target: string, id: WorkspaceId, key: ChangesShjKey) => void;
   /** CHANGES で Tab を押した（エクスプローラに移る） */
   onChangesExplorer?: (target: string, id: WorkspaceId) => void;

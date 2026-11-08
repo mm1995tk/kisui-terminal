@@ -9,7 +9,7 @@ kisui-terminal（`kisui`）と、欄の中で動く shj は、版がずれるこ
 | 向き | 内容 | 持ち主 | 版 |
 | --- | --- | --- | --- |
 | shj → kisui | プライマリの欄で名乗る `PrimaryHello` / `PrimaryReply`、開いているファイルと差分モードの変更の一覧（`diff`）を知らせる `PrimaryFile`（`PrimaryReply` の `changes` で、kisui が一覧を出せると shj に知らせる。#19）、欄を開く `PaneRequest` / `PaneReply`（`op: "explorer"` で GUI のファイルエクスプローラに、`op: "changes"` でサイドバーの CHANGES にフォーカスを頼む。#14・#45）、環境変数 `SHIJIMI_GUI_PRIMARY` / `SHIJIMI_GUI_WORKSPACE`、ソケット `serve-primary.rpc` | kisui-terminal | あり（下） |
-| kisui → shj | shj の操作用のソケット（`GUILinkPath` のリンク先）に送る命令（サイドバーの CHANGES で選んだファイルの差分は、既にある `{cmd: "diff", path}`。#19。CHANGES の s・r・R・Space・: と Space の続きは新しい命令 `{cmd: "changes-key", line}`。#45） | shijimi-editor | なし |
+| kisui → shj | shj の操作用のソケット（`GUILinkPath` のリンク先）に送る命令（サイドバーの CHANGES で選んだファイルの差分は、既にある `{cmd: "diff", path}`。#19。CHANGES の s・r・R・Space・: は新しい命令 `{cmd: "changes-key", line}`。#45） | shijimi-editor | なし |
 
 型と定数は、kisui の側が `internal/ctl/ctl.go`、shj の側が shijimi-editor の `core/ctl/ctl.go`（同じ内容の写し）。欄を開く `op: "open"` の `kind` は `"video"`・`"image"`・`"pdf"`（`path` は絶対パスのファイル。拡張子と大きさの上限は kisui が決める）と `"browser"`（`url`）。`image` と `pdf` は #15 で足した（項目の値の追加なので版は上げない。知らない `kind` を断る古い kisui には、shj が「開けない」と状態行に出す）。HEAD との差分モードの変更の一覧（`PrimaryFile.diff`、`PrimaryReply.changes`。PR との差分モードは含まない）は #19 で足した（これも項目の追加だけなので版は上げない。新しい shj が古い kisui に当たったときは、`changes` が返事に無いので、shj が自分の左に CHANGES を出す）。詳しい動きは [design/gui-protocol.md](design/gui-protocol.md) の「プライマリの shj」。
 

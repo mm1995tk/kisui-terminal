@@ -19,7 +19,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"strings"
 	"sync"
 	"time"
 
@@ -520,21 +519,17 @@ func (ss *session) shjDiff(req *rpc.Message) (any, error) {
 }
 
 // validChangesKey は shj.changesKey で shj に渡せるキーか：TUI の CHANGES の s（split / unified）・r・R（読み直す）・
-// space（Space メニュー）・:（コマンド行）と、space に続く 1 文字（"space w" など。shj の Pending は CHANGES のフォーカスで見るので、続きも shj に渡す）。
+// space（Space メニュー）・:（コマンド行）。続きのキーは端末から shj に届く。
 // 動き・開閉などのキーは GUI が受け持つので、ここには無い。
 func validChangesKey(k string) bool {
 	switch k {
 	case "s", "r", "R", "space", ":":
 		return true
 	}
-	if rest, ok := strings.CutPrefix(k, "space "); ok {
-		r := []rune(rest)
-		return len(r) == 1 && r[0] > 0x20 && r[0] != 0x7f
-	}
 	return false
 }
 
-// shjChangesKey は shj.changesKey。サイドバーの CHANGES で押した s・r・R・Space・: と Space の続きを、プライマリの shj に
+// shjChangesKey は shj.changesKey。サイドバーの CHANGES で押した s・r・R・Space・: を、プライマリの shj に
 // 「CHANGES にフォーカスがあるときに押した」ものとして受けさせる（ctl の changes-key。動きは shj の handleChangesKey が決める）。
 // 差分モードでなければ not_found。
 func (ss *session) shjChangesKey(req *rpc.Message) (any, error) {

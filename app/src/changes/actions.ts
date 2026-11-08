@@ -9,7 +9,7 @@ import type { ChangesShjKey } from "../rpc/protocol.ts";
 export interface ChangesHandlers {
   /** 変更の行を押した・開いた（path は ChangeRow.path） */
   onSelect: (path: string) => void;
-  /** shj の CHANGES のキー（s・r・R・Space・: と Space の続き） */
+  /** shj の CHANGES のキー（s・r・R・Space・:） */
   onShjKey?: (key: ChangesShjKey) => void;
   /** エクスプローラに移る（Tab） */
   onExplorer?: () => void;
@@ -25,8 +25,6 @@ export interface ChangesContext extends ChangesHandlers {
   rowEls: () => HTMLElement[];
   /** フォルダを開く（true）・閉じる（false） */
   setFolder: (key: string, open: boolean) => void;
-  /** Space を押した。続きの 1 文字を待つ */
-  waitSpace: () => void;
 }
 
 /** 行 en（要素 el）で a をする。何かしたら true（ブラウザの既定の動き・スクロールを止める）。 */
@@ -53,7 +51,6 @@ export function runChangesAction(
       return true;
     case "shj":
       if (!ctx.onShjKey) return false;
-      if (a.key === "space") ctx.waitSpace();
       ctx.onShjKey(a.key);
       return true;
     case "explorer":

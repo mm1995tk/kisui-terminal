@@ -40,7 +40,7 @@ export interface ChangesKey {
  * TUI の割り当て（表は Issue #45）：
  * - k ↑ / j ↓ で上下、g Home / G End で最初・最後、h ← でフォルダを閉じる（閉じていれば親へ）、l → でフォルダを開く・変更を開く、
  *   Enter・o でフォルダの開け閉め・変更を開く。
- * - s は split / unified、r・R は読み直す（shj が行う）。Space は Space メニュー、: はコマンド行（どれも shj に渡す。Space w の w は spaceFollow が続きとして渡す）。
+ * - s は split / unified、r・R は読み直す（shj が行う）。Space は Space メニュー、: はコマンド行（どれも shj に渡し、続きのキーは端末から shj に届く）。
  * - Tab でエクスプローラへ、Esc・q で端末へ戻る。
  */
 export function changesKey(
@@ -163,14 +163,4 @@ export function changesRow(root: ParentNode | undefined): HTMLElement | null {
       '.changes-row[aria-selected="true"], .changes-row[data-holds]',
     ) ?? root.querySelector<HTMLElement>(".changes-row")
   );
-}
-
-/**
- * Space を押したあとの 1 文字（Space メニューの続き。w で window など）を、shj に渡すキーにする。
- * 1 文字の印字できるキーだけ（Esc や ← などは続きにならない＝待ちをやめる）。
- */
-export function spaceFollow(e: ChangesKey): ChangesShjKey | null {
-  if (e.isComposing || e.ctrlKey || e.metaKey || e.altKey) return null;
-  if ([...e.key].length !== 1 || e.key.trim() === "") return null;
-  return `space ${e.key}`;
 }
