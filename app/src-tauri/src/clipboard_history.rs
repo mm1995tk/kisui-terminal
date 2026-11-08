@@ -42,6 +42,7 @@ const EVENT_CHANGED: &str = "clipboard-history-changed";
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Entry {
+    /// コピーされた文字
     pub text: String,
     /// 入れた時刻（UNIX 時刻のミリ秒）
     pub copied_at: u64,
@@ -60,6 +61,7 @@ struct Stored {
 }
 
 impl History {
+    /// 履歴（新しいものが先頭）。
     pub fn entries(&self) -> &[Entry] {
         &self.entries
     }
@@ -344,6 +346,7 @@ mod platform {
 
     use super::Seen;
 
+    /// 調べる間隔。changeCount を見るだけでほぼ費用が無いので、コピーしてすぐ一覧を開いても入っているように短くする。
     pub const INTERVAL: Duration = Duration::from_millis(500);
 
     /// 履歴に入れない印（http://nspasteboard.org/）。
@@ -352,15 +355,19 @@ mod platform {
         "org.nspasteboard.TransientType",
     ];
 
+    /// 手元のクリップボード（`generalPasteboard`）を読むもの。最後に読めた changeCount を覚える。
     pub struct Clipboard {
         last_count: Option<isize>,
     }
 
     impl Clipboard {
+        /// 前の changeCount を持たずに始める（初めての `read` は必ず中身を読む）。
         pub fn new() -> Self {
             Clipboard { last_count: None }
         }
 
+        /// クリップボードを調べる。changeCount が前と同じなら `Unchanged`（中身は読まない）。変わっていれば、初めて読むときは
+        /// `Text`、それ以外は `Copied`。ほかに `Concealed`・`Empty`、読んでいる間に変わったら `Unknown`（次にもう一度読む）。
         pub fn read(&mut self) -> Seen {
             autoreleasepool(|_| {
                 let pb = NSPasteboard::generalPasteboard();
@@ -409,6 +416,8 @@ mod platform {
 
     use super::Seen;
 
+    /// 調べる間隔。変わったかを安く知る手段が無く、毎回中身を読む（X11 ならクリップボードの持ち主とやり取りする）ので、
+    /// macOS より長くする。
     pub const INTERVAL: Duration = Duration::from_secs(1);
 
     /// KDE の Klipper などが使う「秘密」の印。
@@ -416,12 +425,14 @@ mod platform {
 
     type Res<T> = Result<T, Box<dyn std::error::Error>>;
 
+    /// 手元のクリップボードを読むもの。文字を読む arboard と、TARGETS を聞く X11 の接続を持ち、失敗したら次に作り直す。
     pub struct Clipboard {
         text: Option<arboard::Clipboard>,
         x11: Option<X11>,
     }
 
     impl Clipboard {
+        /// まだつながない（初めて `read` するときにつなぐ）。
         pub fn new() -> Self {
             Clipboard {
                 text: None,
@@ -429,6 +440,8 @@ mod platform {
             }
         }
 
+        /// クリップボードを調べる。`Text`（変わったかは分からないので、比べるのは `Watcher`）・`Concealed`・`Empty`・
+        /// `Unknown` のどれか。「秘密」の印は、文字を読む前と後の両方で確かめる（その間に中身が変わることがあるため）。
         pub fn read(&mut self) -> Seen {
             if let Some(seen) = self.probe().stop() {
                 return seen;
