@@ -6,9 +6,11 @@ ZDOTDIR=${KISUI_ORIG_ZDOTDIR:-$HOME}
 [[ $ZDOTDIR != ${KISUI_ORIG_ZDOTDIR:-$HOME} ]] && KISUI_ORIG_ZDOTDIR=$ZDOTDIR
 ZDOTDIR=$_kisui_zdotdir
 unset _kisui_zdotdir
-# 同梱の shj のフォルダを PATH の先頭に入れ直す（ユーザーの起動ファイルが入れた別の shj より先にする）
-if [[ -n $KISUI_SHJ_PATH_DIR ]]; then
-  path=("$KISUI_SHJ_PATH_DIR" ${path:#"$KISUI_SHJ_PATH_DIR"})
-fi
+# pbcopy・pbpaste のフォルダと同梱の shj のフォルダを PATH の先頭に入れ直す
+# （ユーザーの起動ファイルや path_helper が前に出した別の pbcopy や shj より先にする）
+for _kisui_p in "$KISUI_BIN_PATH_DIR" "$KISUI_SHJ_PATH_DIR"; do
+  [[ -n $_kisui_p ]] && path=("$_kisui_p" ${path:#"$_kisui_p"})
+done
+unset _kisui_p
 # ZDOTDIR をユーザーの値に戻す
 if [[ -n $KISUI_ORIG_ZDOTDIR ]]; then ZDOTDIR=$KISUI_ORIG_ZDOTDIR; else unset ZDOTDIR; fi

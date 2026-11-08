@@ -19,19 +19,27 @@ func pathOf(env []string) string {
 
 func TestWithBundledShj(t *testing.T) {
 	t.Setenv("PATH", "/usr/bin:/bin")
+	t.Setenv("HOME", t.TempDir())
+	cache := t.TempDir()
+	t.Setenv("XDG_CACHE_HOME", cache)
+	root, err := writeShellInit()
+	if err != nil {
+		t.Fatal(err)
+	}
+	bin := filepath.Join(root, "bin") // pbcopy・pbpaste のフォルダ。shj の有無に関係なく足す
 	dir := t.TempDir()
 
-	// 同梱が無ければ変えない
+	// 同梱が無ければ、pbcopy・pbpaste のフォルダだけを足す
 	t.Setenv(EnvShjDir, dir)
-	if _, got := bundledShell("/bin/sh", []string{"A=1"}); len(got) != 1 {
-		t.Fatalf("no shj: env changed: %v", got)
+	if _, got := bundledShell("/bin/sh", []string{"A=1"}); pathOf(got) != bin+":/usr/bin:/bin" {
+		t.Fatalf("no shj: PATH = %q", pathOf(got))
 	}
 	// 実行できない shj は使わない
 	if err := os.WriteFile(filepath.Join(dir, "shj"), nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, got := bundledShell("/bin/sh", nil); got != nil {
-		t.Fatalf("non-executable shj used: %v", got)
+	if _, got := bundledShell("/bin/sh", nil); pathOf(got) != bin+":/usr/bin:/bin" {
+		t.Fatalf("non-executable shj used: PATH = %q", pathOf(got))
 	}
 	if err := os.Chmod(filepath.Join(dir, "shj"), 0o755); err != nil {
 		t.Fatal(err)
@@ -40,7 +48,7 @@ func TestWithBundledShj(t *testing.T) {
 	// kisui の PATH の先頭に足す
 	env := []string{"A=1"}
 	_, got := bundledShell("/bin/sh", env)
-	if p := pathOf(got); p != dir+":/usr/bin:/bin" {
+	if p := pathOf(got); p != dir+":"+bin+":/usr/bin:/bin" {
 		t.Fatalf("PATH = %q", p)
 	}
 	if len(env) != 1 {
@@ -48,7 +56,7 @@ func TestWithBundledShj(t *testing.T) {
 	}
 	// 呼ぶ側が PATH を指していれば、それの先頭に足す
 	_, e2 := bundledShell("/bin/sh", []string{"PATH=/x"})
-	if p := pathOf(e2); p != dir+":/x" {
+	if p := pathOf(e2); p != dir+":"+bin+":/x" {
 		t.Fatalf("PATH = %q", p)
 	}
 }
