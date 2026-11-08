@@ -148,6 +148,15 @@ mod tests {
         ));
     }
 
+    // sha の前に g を付けた nightly（nightly.yml）へも、付ける前の同じ日の nightly から更新が届く
+    #[test]
+    fn same_day_nightly_with_g_prefixed_sha_is_newer() {
+        assert!(same_day_nightly_moved(
+            "0.1.0-nightly.20261108.b9b606c",
+            "0.1.0-nightly.20261108.g0408254"
+        ));
+    }
+
     #[test]
     fn same_nightly_is_not_newer() {
         assert!(!same_day_nightly_moved(
