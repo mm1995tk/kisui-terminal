@@ -120,6 +120,17 @@ describe("TermGroup", () => {
     assert.equal(g.active?.id, "t2");
   });
 
+  it("プライマリが外れて分割したターミナルが昇格したら、同じ TermLink がプライマリになる", () => {
+    const f = fakePort();
+    const g = new TermGroup(f.port, layout(["t2", "t3"]), () => {});
+    const t2 = g.list[1]!;
+    g.update(layout(["t3"], "t2"));
+    assert.deepEqual(ids(g), ["t2", "t3"]);
+    assert.equal(g.list[0], t2);
+    assert.equal(t2.primary, true);
+    assert.equal(t2.onExit, undefined);
+  });
+
   it("shj が出した欄（termId）を active にする。無ければ false", () => {
     const f = fakePort();
     const g = new TermGroup(f.port, layout(["t2", "t3"]), () => {});

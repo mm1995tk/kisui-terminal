@@ -181,6 +181,55 @@ func (w *wsManager) createLocked(wsID, dir string) (id, termID string, err error
 	return st.id, t.id, nil
 }
 
+// promote は、プライマリターミナル old のシェルが終わったとき、同じワークスペースに生きている分割した
+// ターミナルがあれば、その 1 つをプライマリにして、元のプライマリの欄を閉じる（term.close と同じ）。
+// 選ぶのは、いちばん前に作った（id の番号が小さい）もの。分割したターミナルが無ければ何もしない
+// （欄は残り、term.restart で新しいシェルを始める）。昇格したシェルは環境変数 SHIJIMI_GUI_PRIMARY を
+// 持たないので、その中の shj はプライマリとして名乗れない（term.restart で作り直したシェルなら名乗れる）。
+func (w *wsManager) promote(old *terminal) bool {
+	w.recomputeMu.Lock()
+	defer w.recomputeMu.Unlock()
+	old.mu.Lock()
+	primary, wsID := old.primary, old.wsID
+	old.mu.Unlock()
+	if !primary {
+		return false
+	}
+	// ワークスペースやサーバーを閉じている途中で、すでに外されたターミナルのときは何もしない
+	if t, err := w.srv.terms.get(old.id); err != nil || t != old {
+		return false
+	}
+	w.mu.Lock()
+	st := w.reg[wsID]
+	ok := st != nil && st.primary == old.id
+	w.mu.Unlock()
+	if !ok {
+		return false
+	}
+	var next *terminal
+	for _, t := range w.srv.terms.all() { // all は作った順ではないので、番号の小さいものを選ぶ
+		t.mu.Lock()
+		cand := t.wsID == wsID && !t.primary && t.alive
+		t.mu.Unlock()
+		if cand && (next == nil || termIDNum(t.id) < termIDNum(next.id)) {
+			next = t
+		}
+	}
+	if next == nil {
+		return false
+	}
+	next.mu.Lock()
+	next.primary = true
+	next.mu.Unlock()
+	w.mu.Lock()
+	st.primary = next.id
+	w.mu.Unlock()
+	w.srv.terms.closeTerm(old.id)
+	w.srv.log.Info("primary promoted", "workspace", wsID, "from", old.id, "to", next.id)
+	w.recomputeLocked()
+	return true
+}
+
 // recompute は reg と生きているターミナルからワークスペースの一覧を作り直し、前回との差を workspace.changed で通知する。
 func (w *wsManager) recompute() {
 	w.recomputeMu.Lock()

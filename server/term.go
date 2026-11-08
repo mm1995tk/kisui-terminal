@@ -472,6 +472,8 @@ func (t *terminal) pump(ptmx *os.File, cmd *exec.Cmd, p *os.Process) {
 	}
 	t.mu.Unlock()
 	t.flush() // 最後の出力が先に届くように
+	// プライマリのシェルが終わり、分割したターミナルがあれば、その 1 つをプライマリにして元の欄を閉じる
+	t.mgr.srv.ws.promote(t)
 	t.mgr.srv.notifyOwner("term.exit", exit)
 	t.mgr.srv.ws.recompute()
 	t.mgr.srv.log.Info("term exited", "termId", t.id, "code", exit["code"])

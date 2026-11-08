@@ -58,8 +58,8 @@ export class TermLink {
   private readonly onError: (message: string) => void;
   private sink?: TermSink;
   private readonly termId: TermId;
-  /** ワークスペースのプライマリターミナルか（終わっても欄を閉じず、Enter で作り直す） */
-  readonly primary: boolean;
+  /** ワークスペースのプライマリターミナルか（終わっても欄を閉じず、Enter で作り直す）。分割したターミナルが昇格すると true になる */
+  primary: boolean;
   /** 画面に渡した分の seq（バイト数の累計） */
   private received = 0;
   /** attach の返事待ち。この間の term.output は取っておく（queued） */
