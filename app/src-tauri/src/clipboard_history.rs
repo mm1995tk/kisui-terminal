@@ -420,50 +420,42 @@ mod platform {
         }
 
         pub fn read(&mut self) -> Seen {
-            match self.concealed() {
-                Some(Some(false)) => {}
-                Some(Some(true)) => return Seen::Concealed,
-                Some(None) => return Seen::Empty,
-                None => return Seen::Unknown,
+            if let Some(seen) = self.probe().stop() {
+                return seen;
             }
             let text = match self.text() {
-                Some(t) => t,
-                None => return Seen::Unknown,
+                Seen::Text(t) => t,
+                other => return other,
             };
-            let Some(text) = text else {
-                return Seen::Empty;
-            };
-            match self.concealed() {
-                Some(Some(false)) => Seen::Text(text),
-                Some(Some(true)) => Seen::Concealed,
-                Some(None) => Seen::Empty,
-                None => Seen::Unknown,
-            }
+            self.probe().stop().unwrap_or(Seen::Text(text))
         }
 
-        /// 文字。外側の None は読めなかった、内側の None は文字が無い。
-        fn text(&mut self) -> Option<Option<String>> {
+        /// 文字。`Text`・`Empty`（文字が無い）・`Unknown`（読めなかった）のどれか。
+        fn text(&mut self) -> Seen {
             if self.text.is_none() {
                 self.text = arboard::Clipboard::new().ok();
             }
-            let cb = self.text.as_mut()?;
+            let Some(cb) = self.text.as_mut() else {
+                return Seen::Unknown;
+            };
             match cb.get_text() {
-                Ok(t) => Some(Some(t)),
-                Err(arboard::Error::ContentNotAvailable) => Some(None),
+                Ok(t) => Seen::Text(t),
+                Err(arboard::Error::ContentNotAvailable) => Seen::Empty,
                 Err(_) => {
                     self.text = None;
-                    None
+                    Seen::Unknown
                 }
             }
         }
 
-        /// 「秘密」の印があるか。外側の None は確かめられなかった、内側の None はクリップボードが空。
-        fn concealed(&mut self) -> Option<Option<bool>> {
+        /// 「秘密」の印があるかを、型の一覧で確かめる。
+        fn probe(&mut self) -> Probe {
             if std::env::var_os("WAYLAND_DISPLAY").is_some() {
                 match wl::get_mime_types(ClipboardType::Regular, Seat::Unspecified) {
-                    Ok(types) => return Some(Some(types.contains(HINT))),
+                    Ok(types) if types.contains(HINT) => return Probe::Concealed,
+                    Ok(_) => return Probe::Clear,
                     Err(wl::Error::NoSeats | wl::Error::ClipboardEmpty | wl::Error::NoMimeType) => {
-                        return Some(None)
+                        return Probe::Empty
                     }
                     // data-control が無い（GNOME など）。XWayland の X11 で確かめる
                     Err(_) => {}
@@ -472,13 +464,41 @@ mod platform {
             if self.x11.is_none() {
                 self.x11 = X11::new().ok();
             }
-            let x = self.x11.as_ref()?;
+            let Some(x) = self.x11.as_ref() else {
+                return Probe::Unknown;
+            };
             match x.has_target(x.hint) {
-                Ok(r) => Some(r),
+                Ok(Some(true)) => Probe::Concealed,
+                Ok(Some(false)) => Probe::Clear,
+                Ok(None) => Probe::Empty,
                 Err(_) => {
                     self.x11 = None;
-                    None
+                    Probe::Unknown
                 }
+            }
+        }
+    }
+
+    /// 型の一覧で確かめた結果。
+    enum Probe {
+        /// 「秘密」の印が無い（文字を読んでよい）
+        Clear,
+        /// 「秘密」の印がある
+        Concealed,
+        /// クリップボードが空
+        Empty,
+        /// 確かめられなかった
+        Unknown,
+    }
+
+    impl Probe {
+        /// 文字を読まずに止めるときの結果。読んでよい（`Clear`）なら None。
+        fn stop(self) -> Option<Seen> {
+            match self {
+                Probe::Clear => None,
+                Probe::Concealed => Some(Seen::Concealed),
+                Probe::Empty => Some(Seen::Empty),
+                Probe::Unknown => Some(Seen::Unknown),
             }
         }
     }
