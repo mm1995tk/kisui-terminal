@@ -61,6 +61,7 @@ kisui pane title build
 kisui-terminal reads its settings from the same `config.toml` as `shj` (`~/.config/shijimi-editor/config.toml`, or `shijimi-editor-nightly/` for the nightly):
 
 - `[[gui.machines]]`: the machines shown in the sidebar (`ssh = "dev-vm"`, `name = "dev"`).
+- `url_open` under `[gui]`: where a URL on the screen (underlined) opens on `cmd + shift + click` (`ctrl + shift + click` outside macOS): `"external"` (your OS default browser; the default) or `"builtin"` (kisui-terminal's built-in browser). `cmd + click` (`ctrl + click`) opens it on the other side. Only http and https URLs open. For a `localhost` URL shown in a terminal on a remote (ssh) machine, kisui-terminal always uses the built-in browser (it forwards the port), because your own browser would reach your own localhost. While an app has mouse reporting on (vim, tmux, htop, `shj`), a plain `cmd + click` goes to the app; use `cmd + shift + click`.
 - `[server]`: `idle_stop_days` (days `kisui serve` stays up with no window connected; default 7, 0 = never) and `start_dir` (the folder a new workspace's shell starts in).
 - `ui-language`: the language of kisui's own messages, like `shj`'s.
 

@@ -143,7 +143,7 @@ func (w *wsManager) addExtra(wsID string, claim *primaryShj, e extraPane) (strin
 	st := w.reg[wsID]
 	if st == nil {
 		w.mu.Unlock()
-		return "", fmt.Errorf("no such workspace: %s", wsID)
+		return "", fmt.Errorf("%w: %s", errNoWorkspace, wsID)
 	}
 	if claim != nil && st.shj != claim {
 		w.mu.Unlock()
@@ -230,11 +230,13 @@ func extraIDNum(id string) int {
 	return n
 }
 
-// mediaRequest は media.read と extra.close を振り分ける。
+// mediaRequest は media.read・extra.close・extra.open を振り分ける。
 func (ss *session) mediaRequest(req *rpc.Message) (res any, err error, handled bool) {
 	switch req.Method {
 	case "media.read":
 		res, err = ss.readMediaReq(req)
+	case "extra.open":
+		res, err = ss.openURLReq(req)
 	case "extra.close":
 		res, err = ss.closeExtraReq(req)
 	default:
@@ -294,6 +296,33 @@ func (ss *session) closeExtraReq(req *rpc.Message) (any, error) {
 	}
 	ss.srv.ws.closeExtra(p.WorkspaceID, p.ID)
 	return struct{}{}, nil
+}
+
+// openURLReq は extra.open：ターミナルに出た URL を GUI のクリックでブラウザの欄に開く（kisui open <URL> と同じ欄）。
+// 受ける URL はブラウザの欄と同じ（http か https）。ブラウザの欄は 1 つなので、開いていれば入れ替わる。
+func (ss *session) openURLReq(req *rpc.Message) (any, error) {
+	if err := ss.needHello(); err != nil {
+		return nil, err
+	}
+	var p struct {
+		WorkspaceID string `json:"workspaceId"`
+		URL         string `json:"url"`
+	}
+	if err := json.Unmarshal(req.Params, &p); err != nil {
+		return nil, invalidParams(err)
+	}
+	u, err := parseBrowserURL(p.URL)
+	if err != nil {
+		return nil, rpc.Errorf(rpc.CodeInvalidParams, "%v", err)
+	}
+	id, err := ss.srv.ws.addExtra(p.WorkspaceID, nil, extraPane{Kind: "browser", URL: u})
+	if err != nil {
+		if errors.Is(err, errNoWorkspace) {
+			return nil, rpc.Errorf(rpc.CodeNotFound, "%v", err)
+		}
+		return nil, rpc.Errorf(rpc.CodeBusy, "%v", err)
+	}
+	return map[string]any{"id": id}, nil
 }
 
 // MediaResult は media.read の結果。`{mime, size, data (base64), eof}`。1 回に返すのは 4 MiB まで。

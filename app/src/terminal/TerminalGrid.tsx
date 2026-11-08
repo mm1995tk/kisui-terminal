@@ -7,6 +7,7 @@ import {
   Show,
   type JSX,
 } from "solid-js";
+import type { UrlClick } from "coneko-term";
 import { Dynamic } from "solid-js/web";
 
 import { IS_MAC } from "../guiKeys.ts";
@@ -57,6 +58,8 @@ export function TerminalGrid(props: {
   zoomed?: boolean;
   /** マシンの色（D4）。並べたときの今の欄の印に使う */
   accent?: string;
+  /** 画面の URL がクリックされた（#47） */
+  onUrl?: (click: UrlClick) => void;
   /** 欄を押した・欄にキーを向けた */
   onActivate: (i: number) => void;
   /** 今使っている欄にキーを向ける関数を受け取る */
@@ -175,6 +178,7 @@ export function TerminalGrid(props: {
             place={place(link.id)}
             name={props.titles?.[link.id]}
             onFocus={() => props.onActivate(i())}
+            onUrl={props.onUrl}
             focusRef={(f) =>
               f ? focusers.set(link, f) : focusers.delete(link)
             }

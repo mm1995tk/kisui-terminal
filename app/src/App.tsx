@@ -122,9 +122,16 @@ import { cmdDigit, IS_MAC, isCloseTermKey } from "./guiKeys.ts";
 import { loadScale, nextScale, saveScale, scaleKey } from "./scale.ts";
 import { applyScale } from "./scaleOs.ts";
 import { directionKey, isZoomKey, splitKey } from "./terminal/grid.ts";
+import type { UrlClick } from "coneko-term";
 import { TermGroup, TermGroups } from "./terminal/group.ts";
 import type { MediaFetch } from "./terminal/media.ts";
 import { TerminalGrid } from "./terminal/TerminalGrid.tsx";
+import { openUrlExternally, urlOpenSetting } from "./terminal/browserOs.ts";
+import {
+  forwardIfRemote,
+  isOpenableUrl,
+  urlTarget,
+} from "./terminal/urlOpen.ts";
 
 /**
  * 起動したら、先に手元の設定ファイルの [[gui.machines]] を読む。間違いがあれば、場所・行・理由だけを出して、ほかは何もしない
@@ -1057,6 +1064,39 @@ function Workbench(props: {
     };
   }
 
+  /**
+   * ターミナルの URL がクリックされた（#47）。cmd（macOS 以外は ctrl）を押していなければ何もしない。
+   * cmd + shift + クリックは設定（`[gui] url_open`。初期値は OS 既定のブラウザ）の先、cmd + クリックはその反対側で開く。
+   * 開くのは http と https の URL だけ。
+   */
+  async function openUrl(click: UrlClick) {
+    if (!isOpenableUrl(click.url)) return;
+    if (urlTarget(click, IS_MAC, "external") === undefined) return;
+    const fail = (title: string) => (e: unknown) =>
+      setFocusError({
+        title,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    let setting: "external" | "builtin";
+    try {
+      setting = await urlOpenSetting();
+    } catch (e) {
+      fail("設定ファイルを読めませんでした")(e);
+      return;
+    }
+    const first = urlTarget(click, IS_MAC, setting);
+    // リモートのマシンの localhost 系は、手元の外のブラウザでは別のマシンに行く。内蔵ブラウザ（ポート転送越し）で開く
+    const to =
+      first && forwardIfRemote(first, click.url, focus()?.target !== LOCAL);
+    if (to === "external") {
+      openUrlExternally(click.url).catch(fail("URL を開けませんでした"));
+    } else if (to === "builtin") {
+      termGroup()
+        ?.openUrl(click.url)
+        .catch(fail("URL を内蔵ブラウザで開けませんでした"));
+    }
+  }
+
   /** 今使っているターミナルの欄にキーを向ける。 */
   function focusTerminal() {
     // 足した欄のターミナルが開くのを待つ（作ったばかりのワークスペースは、欄が描かれるまでもう少しかかる）
@@ -1313,6 +1353,7 @@ function Workbench(props: {
           litBorder={litSplit()}
           accent={colors()[termTarget() ?? ""]}
           onActivate={(i) => termGroup()?.setActive(i)}
+          onUrl={openUrl}
           focusRef={(f) => (focusActiveTerminal = f)}
         />
       </div>

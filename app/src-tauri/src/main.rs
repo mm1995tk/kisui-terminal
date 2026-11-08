@@ -42,6 +42,12 @@ fn config_machines() -> Result<Vec<config::ConfigMachine>, String> {
     config::load_default()
 }
 
+/// 手元の設定ファイルの `[gui] url_open`（ターミナルの URL を `cmd + shift + click` で開く先）。間違いがあれば「ファイル:行: 理由」を返す。
+#[tauri::command]
+fn config_url_open() -> Result<config::UrlOpen, String> {
+    config::load_url_open_default()
+}
+
 /// kisui につなぐ。`target` は ssh のホスト名か `@local`。`id` は画面側が決める（イベントの宛先）。
 /// メインスレッドの外で動かす。「ローカル」は、ログインシェルが PATH を答えるのを待つことがある（locate.rs）
 #[tauri::command(async)]
@@ -147,6 +153,8 @@ fn main() {
             browser::browser_go,
             browser::browser_nav,
             browser::browser_external,
+            browser::open_url_external,
+            config_url_open,
             browser::browser_close,
             clipboard_history::clipboard_history_list,
             notify::notify_show,

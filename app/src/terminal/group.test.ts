@@ -178,6 +178,17 @@ describe("TermGroup", () => {
     assert.equal(extraId(g), undefined);
   });
 
+  it("openUrl は extra.open を送る（ターミナルの URL のクリック）", async () => {
+    const f = fakePort();
+    f.handlers["extra.open"] = () => ({ id: "x1" });
+    const g = new TermGroup(f.port, layout(["t2"]), () => {});
+    await g.openUrl("https://example.com/");
+    assert.deepEqual(f.calls.at(-1), {
+      method: "extra.open",
+      params: { workspaceId: "w1", url: "https://example.com/" },
+    });
+  });
+
   it("欄を閉じると extra.close を送り、一覧から消えるまで並べ直さない。Cmd+W も欄を閉じる", () => {
     const f = fakePort();
     f.handlers["extra.close"] = () => ({});

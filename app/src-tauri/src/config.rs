@@ -100,6 +100,76 @@ pub fn load(path: &Path) -> Result<Vec<ConfigMachine>, String> {
     })
 }
 
+/// ターミナルの URL を `cmd + shift + click` で開く先（`[gui] url_open`）。`cmd + click` は反対側で開く。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum UrlOpen {
+    /// OS 既定のブラウザ（初期値）
+    #[default]
+    External,
+    /// kisui-terminal の内蔵ブラウザ（ブラウザの欄）
+    Builtin,
+}
+
+#[derive(Deserialize)]
+struct UrlFile {
+    gui: Option<UrlGui>,
+}
+
+#[derive(Deserialize)]
+struct UrlGui {
+    url_open: Option<Spanned<String>>,
+}
+
+/// 環境から設定ファイルの場所を決めて、`[gui] url_open` を読む。
+pub fn load_url_open_default() -> Result<UrlOpen, String> {
+    let xdg = std::env::var_os("XDG_CONFIG_HOME").map(PathBuf::from);
+    let home = std::env::var_os("HOME").map(PathBuf::from);
+    let nightly = matches!(
+        crate::locate::split_version(crate::version::get()),
+        Some((_, Some(_)))
+    );
+    match config_path(xdg.as_deref(), home.as_deref(), nightly) {
+        Some(p) => load_url_open(&p),
+        None => Ok(UrlOpen::default()),
+    }
+}
+
+/// 設定ファイルの `[gui] url_open` を読む。ファイルか項目が無ければ初期値。
+pub fn load_url_open(path: &Path) -> Result<UrlOpen, String> {
+    let text = match fs::read(path) {
+        Ok(b) => {
+            String::from_utf8(b).map_err(|_| format!("{}: UTF-8 で読めません", path.display()))?
+        }
+        Err(e) if e.kind() == ErrorKind::NotFound => return Ok(UrlOpen::default()),
+        Err(e) => return Err(format!("{}: 読めません（{e}）", path.display())),
+    };
+    parse_url_open(&text).map_err(|(line, why)| match line {
+        Some(l) => format!("{}:{l}: {why}", path.display()),
+        None => format!("{}: {why}", path.display()),
+    })
+}
+
+fn parse_url_open(text: &str) -> Result<UrlOpen, (Option<usize>, String)> {
+    let file: UrlFile = toml::from_str(text).map_err(|e| {
+        (
+            e.span().map(|s| line_of(text, s.start)),
+            e.message().to_string(),
+        )
+    })?;
+    let Some(v) = file.gui.and_then(|g| g.url_open) else {
+        return Ok(UrlOpen::default());
+    };
+    match v.get_ref().as_str() {
+        "external" => Ok(UrlOpen::External),
+        "builtin" => Ok(UrlOpen::Builtin),
+        other => Err((
+            Some(line_of(text, v.span().start)),
+            format!("gui.url_open: \"external\"（OS 既定のブラウザ）か \"builtin\"（内蔵ブラウザ）にしてください（{other:?} は使えません）"),
+        )),
+    }
+}
+
 /// 1 始まりの行番号。
 fn line_of(text: &str, offset: usize) -> usize {
     let end = offset.min(text.len());
@@ -286,5 +356,39 @@ mod tests {
     #[test]
     fn missing_file_is_empty() {
         assert_eq!(load(Path::new("/nonexistent/config.toml")).unwrap(), vec![]);
+    }
+
+    #[test]
+    fn url_open_defaults_to_external() {
+        assert_eq!(parse_url_open("").unwrap(), UrlOpen::External);
+        assert_eq!(
+            parse_url_open("[gui]\ncolor = 1\n").unwrap(),
+            UrlOpen::External
+        );
+        assert_eq!(
+            load_url_open(Path::new("/nonexistent/config.toml")).unwrap(),
+            UrlOpen::External
+        );
+    }
+
+    #[test]
+    fn url_open_reads_both_values_next_to_machines() {
+        assert_eq!(
+            parse_url_open("[gui]\nurl_open = \"builtin\"\n[[gui.machines]]\nssh = \"a\"\n")
+                .unwrap(),
+            UrlOpen::Builtin
+        );
+        assert_eq!(
+            parse_url_open("[gui]\nurl_open = \"external\"\n").unwrap(),
+            UrlOpen::External
+        );
+    }
+
+    #[test]
+    fn url_open_rejects_other_values_with_a_line() {
+        let e = parse_url_open("[gui]\nurl_open = \"firefox\"\n").unwrap_err();
+        assert_eq!(e.0, Some(2));
+        let e = parse_url_open("[gui]\nurl_open = 1\n").unwrap_err();
+        assert_eq!(e.0, Some(2));
     }
 }
