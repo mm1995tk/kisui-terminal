@@ -57,6 +57,20 @@ func (t *TTY) ReadsKeys() (bool, error) {
 	return tio.Lflag&unix.ICANON == 0, nil
 }
 
+// AskUnlessKeys is Ask, except while a full-screen program reads the terminal
+// (ReadsKeys, or when that cannot be told): then it only writes req, and does
+// not change the terminal nor read it. Ask would read the terminal at the same
+// time as the program and take its keys. Ask also changes the terminal so that
+// a read returns at once with nothing, and the program can take that as the end
+// of its input and stop reading keys. The answer goes to the program instead,
+// which drops it when it parses it as an unknown OSC (shj does).
+func (t *TTY) AskUnlessKeys(req []byte, timeout time.Duration, handle func(Packet) (bool, error)) error {
+	if keys, err := t.ReadsKeys(); err != nil || keys {
+		return t.Write(req)
+	}
+	return t.Ask(req, timeout, handle)
+}
+
 // ErrTimeout is returned by Ask when the terminal did not answer in time: it is
 // not one that speaks the protocol (kisui-terminal does).
 var ErrTimeout = errors.New("the terminal did not answer")
