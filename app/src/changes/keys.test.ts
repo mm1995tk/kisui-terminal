@@ -90,6 +90,20 @@ describe("changesKey: TUI の CHANGES と同じキー（Issue #45 の表）", ()
     assert.deepEqual(changesKey(file, k("q")), { kind: "leave" });
   });
 
+  it("Ctrl+E はエディタ（端末）へ戻る（#77）。ほかの修飾キーが加わると使わない", () => {
+    assert.deepEqual(changesKey(file, k("e", { ctrlKey: true })), {
+      kind: "leave",
+    });
+    assert.equal(changesKey(file, k("e")), null);
+    for (const m of ["metaKey", "altKey", "shiftKey", "isComposing"]) {
+      assert.equal(
+        changesKey(file, k("e", { ctrlKey: true, [m]: true })),
+        null,
+        m,
+      );
+    }
+  });
+
   it("Ctrl・Cmd・Alt を押したキーと、かな漢字変換中のキーは使わない", () => {
     for (const m of ["ctrlKey", "metaKey", "altKey", "isComposing"]) {
       assert.equal(changesKey(file, k("j", { [m]: true })), null, m);

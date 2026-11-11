@@ -3,8 +3,17 @@
 
 import type { KeyLike } from "./guiKeys.ts";
 
-/** ツリーから端末へ戻るキー：修飾キーなしの Esc（かな漢字変換中は除く）。 */
+/** ツリーから端末へ戻るキー：修飾キーなしの Esc と、TUI と同じ Ctrl+E（かな漢字変換中は除く）。 */
 export function isLeaveExplorerKey(e: KeyLike): boolean {
+  if (
+    e.key.toLowerCase() === "e" &&
+    e.ctrlKey &&
+    !e.shiftKey &&
+    !e.altKey &&
+    !e.metaKey &&
+    !e.isComposing
+  )
+    return true;
   return (
     e.key === "Escape" &&
     !e.ctrlKey &&
