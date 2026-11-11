@@ -284,6 +284,12 @@ func TestPrimaryShjBrowserOpensExternally(t *testing.T) {
 	if err := c.Call(context.Background(), "extra.open", map[string]any{"workspaceId": id, "url": "https://example.org/x"}, nil); err == nil {
 		t.Fatal("extra.open must not exist")
 	}
+	// GUI（持ち主）がつながっていなければ、shj に分かる形で断る。
+	c.Close()
+	waitFor(t, "refusal without a GUI", func() bool {
+		r := open("https://example.com/")
+		return !r.OK && r.Error == "no GUI is connected to open the URL"
+	})
 }
 
 // 画像と PDF の欄は動画と同じ道（fileKinds）で開き、media.read で取れる。種類ごとに欄は 1 つで、拡張子の違うファイルは断る。
