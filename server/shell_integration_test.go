@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -240,53 +241,114 @@ func TestShellIntegrationZshZDOTDIRFromZshenv(t *testing.T) {
 	}
 }
 
-// runBundledShellPTY は、bundledShell が作る引数と環境変数でシェル sh を、疑似端末の上の対話シェルとして起動し、
-// コマンド cmds を 1 行ずつ打って、シェルが終わるまでの出力を返す。
-func runBundledShellPTY(t *testing.T, sh, home string, cmds ...string) string {
+// ptyShell は、疑似端末の上で動く対話シェル。出力は on に渡しながら、全部を溜める。
+type ptyShell struct {
+	t    *testing.T
+	cmd  *exec.Cmd
+	ptmx *os.File
+
+	mu   sync.Mutex
+	out  strings.Builder
+	last time.Time // 最後に出力が来た時刻
+	done chan struct{}
+}
+
+// startPTYShell は、bundledShell が作る引数と環境変数でシェル sh を、疑似端末の上の対話シェルとして起動する。
+// シェルが無いときは t.Skip する。
+func startPTYShell(t *testing.T, sh, home string, rows, cols int, on func([]byte)) *ptyShell {
 	t.Helper()
 	path, err := exec.LookPath(sh)
 	if err != nil {
 		t.Skipf("%s is not installed", sh)
 	}
 	args, env := bundledShell(path, nil)
-	args = append(args, "-i")
-	cmd := exec.Command(path, args...)
+	cmd := exec.Command(path, append(args, "-i")...)
 	cmd.Dir = home
-	cmd.Env = append(os.Environ(), env...)
-	cmd.Env = append(cmd.Env, "TERM=xterm-256color")
-	ptmx, err := pty.StartWithSize(cmd, &pty.Winsize{Rows: 24, Cols: 80})
+	cmd.Env = append(append(os.Environ(), env...), "TERM=xterm-256color")
+	ptmx, err := pty.StartWithSize(cmd, &pty.Winsize{Rows: uint16(rows), Cols: uint16(cols)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer ptmx.Close()
-	done := make(chan string, 1)
+	s := &ptyShell{t: t, cmd: cmd, ptmx: ptmx, last: time.Now(), done: make(chan struct{})}
 	go func() {
-		var out strings.Builder
-		buf := make([]byte, 4096)
+		defer close(s.done)
+		buf := make([]byte, 65536)
 		for {
 			n, err := ptmx.Read(buf)
-			out.Write(buf[:n])
+			if n > 0 {
+				if on != nil {
+					on(buf[:n])
+				}
+				s.mu.Lock()
+				s.out.Write(buf[:n])
+				s.last = time.Now()
+				s.mu.Unlock()
+			}
 			if err != nil {
-				done <- out.String()
 				return
 			}
 		}
 	}()
-	// 最初のプロンプトが出るのを待ってから打つ
-	time.Sleep(500 * time.Millisecond)
-	for _, c := range cmds {
-		ptmx.WriteString(c + "\n")
-		time.Sleep(200 * time.Millisecond)
+	t.Cleanup(func() { ptmx.Close(); cmd.Process.Kill(); cmd.Wait() })
+	return s
+}
+
+func (s *ptyShell) output() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.out.String()
+}
+
+// waitFor は、出力が cond を満たすまで待つ。固定の時間は待たない（CI が混んでいても、出るのを待つ）。
+func (s *ptyShell) waitFor(what string, cond func(out string) bool) {
+	s.t.Helper()
+	deadline := time.Now().Add(20 * time.Second)
+	for !cond(s.output()) {
+		if time.Now().After(deadline) {
+			s.t.Fatalf("timed out waiting for %s; output so far: %q", what, s.output())
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
-	ptmx.WriteString("exit\n")
+}
+
+// settle は、出力が quiet の間止まるまで待つ。
+func (s *ptyShell) settle(quiet time.Duration) {
+	s.t.Helper()
+	deadline := time.Now().Add(20 * time.Second)
+	for {
+		s.mu.Lock()
+		idle := time.Since(s.last)
+		s.mu.Unlock()
+		if idle >= quiet {
+			return
+		}
+		if time.Now().After(deadline) {
+			s.t.Fatal("the shell kept printing")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+// runBundledShellPTY は、シェル sh を疑似端末の上の対話シェルとして起動し、コマンド cmds を 1 行ずつ、
+// 前のコマンドのあとのプロンプト（OSC 133 の A）が出てから打って、シェルが終わるまでの出力を返す。
+// A を出さない設定のときはプロンプトを見分けられないので、使わない。
+func runBundledShellPTY(t *testing.T, sh, home string, cmds ...string) string {
+	t.Helper()
+	s := startPTYShell(t, sh, home, 24, 80, nil)
+	for i, c := range cmds {
+		s.waitFor("a prompt", func(out string) bool { return strings.Count(out, "\x1b]133;A\a") > i })
+		s.settle(100 * time.Millisecond)
+		s.ptmx.WriteString(c + "\n")
+	}
+	s.waitFor("the last prompt", func(out string) bool { return strings.Count(out, "\x1b]133;A\a") > len(cmds) })
+	s.settle(100 * time.Millisecond)
+	s.ptmx.WriteString("exit\n")
 	select {
-	case out := <-done:
-		return out
+	case <-s.done:
 	case <-time.After(10 * time.Second):
-		cmd.Process.Kill()
 		t.Fatal("the shell did not exit")
-		return ""
 	}
+	return s.output()
 }
 
 // osc133 は、出力の中の OSC 133 の印（A・B・C・D;n）を出てきた順に返す。
@@ -348,6 +410,32 @@ func TestShellIntegrationOSC133NotDoubled(t *testing.T) {
 			}
 			if !strings.Contains(out, "\x1b]133;A\a") {
 				t.Fatalf("the user's own mark is missing: %q", out)
+			}
+		})
+	}
+}
+
+// ユーザーの PROMPT_COMMAND がどんな形でも、壊さず、kisui の印も出る。
+func TestShellIntegrationOSC133BashPromptCommand(t *testing.T) {
+	cases := map[string]string{
+		// 元が空のまま足す書き方。; で終わる
+		"trailing semicolon": "PROMPT_COMMAND=\"echo UPC1; $PROMPT_COMMAND\"\n",
+		"trailing newline":   "PROMPT_COMMAND=$'echo UPC1\\n'\n",
+		// -f・-p・-- のような語や、* を含む語があっても、関数の本体を取り違えない
+		"words that look like options": "PROMPT_COMMAND='[ -f /nonexistent ] && :; echo -p -- ${HOSTNAME%%.*}; echo UPC1'\n",
+	}
+	for name, rc := range cases {
+		t.Run(name, func(t *testing.T) {
+			home, _, _ := setupShellTest(t)
+			writeFile(t, filepath.Join(home, ".bashrc"), rc)
+			out := runBundledShellPTY(t, "bash", home, "true", "(exit 3)")
+			if strings.Contains(out, "syntax error") || !strings.Contains(out, "UPC1") {
+				t.Fatalf("the user's PROMPT_COMMAND is broken: %q", out)
+			}
+			got := osc133(out)
+			want := []string{"A", "B", "C", "D;0", "A", "B", "C", "D;3", "A", "B"}
+			if len(got) < len(want) || strings.Join(got[:len(want)], " ") != strings.Join(want, " ") {
+				t.Fatalf("marks %q, want prefix %q\n%q", got, want, out)
 			}
 		})
 	}

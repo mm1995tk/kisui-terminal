@@ -22,11 +22,18 @@ unset _kisui_dir _kisui_rest _kisui_ifs _kisui_p
 if [[ $- == *i* ]]; then
   _kisui_a='\[\e]133;A\a\]'
   _kisui_b='\[\e]133;B\a\]'
+  _kisui_nl=$'\n'
   _kisui_has_osc133() {
-    local text="${PROMPT_COMMAND[*]}" w
-    for w in ${PROMPT_COMMAND[*]//;/ }; do
-      [[ $w == _kisui_* ]] && continue
-      text+=$(declare -f "$w" 2>/dev/null)
+    local text="${PROMPT_COMMAND[*]}" w words
+    # PROMPT_COMMAND の語のうち、関数であるものの本体も見る（語の分割でパス名の展開が走らないように -f の下で）
+    local noglob=; [[ $- == *f* ]] && noglob=1
+    set -f
+    local flat=${PROMPT_COMMAND[*]//;/ }
+    read -ra words <<<"${flat//$_kisui_nl/ }"
+    [[ -n $noglob ]] || set +f
+    for w in "${words[@]}"; do
+      [[ $w == _kisui_* || $(type -t -- "$w" 2>/dev/null) != function ]] && continue
+      text+=$(declare -f -- "$w" 2>/dev/null)
     done
     [[ $text == *'133;'* || $PS1 == *'133;'* || $PS0 == *'133;'* ]]
   }
@@ -58,6 +65,7 @@ if [[ $- == *i* ]]; then
   if [[ $(declare -p PROMPT_COMMAND 2>/dev/null) == "declare -a"* ]]; then
     PROMPT_COMMAND=(_kisui_pc_start "${PROMPT_COMMAND[@]}" _kisui_pc_end)
   else
-    PROMPT_COMMAND="_kisui_pc_start${PROMPT_COMMAND:+;$PROMPT_COMMAND};_kisui_pc_end"
+    # 区切りは改行。; だと、ユーザーのものが ; で終わっているときに構文エラーになる
+    PROMPT_COMMAND="_kisui_pc_start${PROMPT_COMMAND:+$_kisui_nl$PROMPT_COMMAND}${_kisui_nl}_kisui_pc_end"
   fi
 fi

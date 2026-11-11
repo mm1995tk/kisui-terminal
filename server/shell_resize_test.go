@@ -1,7 +1,6 @@
 package server
 
 import (
-	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -26,12 +25,8 @@ func TestShellResizeKeepsPromptOnce(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.sh, func(t *testing.T) {
-			path, err := exec.LookPath(c.sh)
-			if err != nil {
-				t.Skipf("%s is not installed", c.sh)
-			}
 			// readline の無い bash（nix の stdenv の bash など）は、プロンプトの \[ \] を解釈せず、そのまま出す
-			if c.sh == "bash" && exec.Command(path, "-c", "type bind").Run() != nil {
+			if path, err := exec.LookPath(c.sh); err == nil && c.sh == "bash" && exec.Command(path, "-c", "type bind").Run() != nil {
 				t.Skip("this bash has no readline")
 			}
 			home, _, _ := setupShellTest(t)
@@ -42,33 +37,12 @@ func TestShellResizeKeepsPromptOnce(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer em.Close()
-			args, env := bundledShell(path, nil)
-			cmd := exec.Command(path, append(args, "-i")...)
-			cmd.Dir = home
-			cmd.Env = append(append(os.Environ(), env...), "TERM=xterm-256color")
-			ptmx, err := pty.StartWithSize(cmd, &pty.Winsize{Rows: rows, Cols: cols})
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer func() { ptmx.Close(); cmd.Process.Kill(); cmd.Wait() }()
 			var mu sync.Mutex
-			go func() {
-				buf := make([]byte, 65536)
-				for {
-					n, err := ptmx.Read(buf)
-					if n > 0 {
-						mu.Lock()
-						em.Write(buf[:n])
-						mu.Unlock()
-					}
-					if err != nil {
-						return
-					}
-				}
-			}()
-			time.Sleep(500 * time.Millisecond)
-			ptmx.WriteString("echo AGENTS-md-cmd-flake-shell-nix-go-sum-package-lock-json-rpc-vite-config-ts\n")
-			time.Sleep(500 * time.Millisecond)
+			s := startPTYShell(t, c.sh, home, rows, cols, func(p []byte) {
+				mu.Lock()
+				defer mu.Unlock()
+				em.Write(p)
+			})
 			count := func() int {
 				mu.Lock()
 				defer mu.Unlock()
@@ -78,21 +52,30 @@ func TestShellResizeKeepsPromptOnce(t *testing.T) {
 				}
 				return strings.Count(ansi.Strip(string(b)), "PRMT-")
 			}
+			s.waitFor("the first prompt", func(out string) bool { return strings.Contains(out, "\x1b]133;B\a") })
+			s.settle(100 * time.Millisecond)
+			s.ptmx.WriteString("echo AGENTS-md-cmd-flake-shell-nix-go-sum-package-lock-json-rpc-vite-config-ts\n")
+			// コマンドが終わり（D）、次のプロンプトが出る
+			s.waitFor("the second prompt", func(out string) bool {
+				_, after, ok := strings.Cut(out, "\x1b]133;D;0\a")
+				return ok && strings.Contains(after, "\x1b]133;B\a")
+			})
+			s.settle(100 * time.Millisecond)
 			// 打ったコマンドの前のプロンプトと、今のプロンプトで 2 つ
 			if n := count(); n != 2 {
-				t.Fatalf("before resizing: %d prompts, want 2", n)
+				t.Fatalf("before resizing: %d prompts, want 2\n%q", n, s.output())
 			}
 			for w := cols - 5; w >= 40; w -= 5 {
+				before := len(s.output())
 				mu.Lock()
 				em.Resize(rows, w)
 				mu.Unlock()
-				pty.Setsize(ptmx, &pty.Winsize{Rows: rows, Cols: uint16(w)})
-				time.Sleep(200 * time.Millisecond)
+				pty.Setsize(s.ptmx, &pty.Winsize{Rows: rows, Cols: uint16(w)})
+				// シェルが描き直し終えるのを待つ（SIGWINCH を受けると、何か出力する）
+				s.waitFor("the redraw", func(out string) bool { return len(out) > before })
+				s.settle(100 * time.Millisecond)
 				if n := count(); n != 2 {
-					mu.Lock()
-					b, _ := em.Serialize(1000)
-					mu.Unlock()
-					t.Fatalf("at %d columns: %d prompts, want 2\n%q", w, n, ansi.Strip(string(b)))
+					t.Fatalf("at %d columns: %d prompts, want 2", w, n)
 				}
 			}
 		})
