@@ -51,7 +51,11 @@ async function run(): Promise<UpdateOutcome> {
       "update_check_now",
     );
     if (r.status === "available")
-      setInfo({ current: r.current, version: r.version, notes: r.notes ?? null });
+      setInfo({
+        current: r.current,
+        version: r.version,
+        notes: r.notes ?? null,
+      });
     // 最新（か自動更新を持たない版）なら、前に出した知らせは殻の pending と一緒に無くなっているので消す
     else if (r.status === "latest" || r.status === "manual") setInfo(null);
     return r;

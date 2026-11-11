@@ -170,7 +170,34 @@ mod imp {
 
 #[cfg(test)]
 mod tests {
-    use super::same_day_nightly_moved;
+    use super::{same_day_nightly_moved, Outcome, UpdateInfo};
+
+    // Go と TS（app/src/rpc/protocol.ts の UpdateReport）との約束：status 付きの平らな JSON
+    #[test]
+    fn outcome_is_flat_json_with_status() {
+        let v = serde_json::to_value(Outcome::Available(UpdateInfo {
+            current: "0.1.0".into(),
+            version: "0.2.0".into(),
+            notes: None,
+        }))
+        .unwrap();
+        assert_eq!(
+            v,
+            serde_json::json!({"status": "available", "current": "0.1.0", "version": "0.2.0", "notes": null})
+        );
+        let v = serde_json::to_value(Outcome::Latest {
+            current: "0.1.0".into(),
+        })
+        .unwrap();
+        assert_eq!(
+            v,
+            serde_json::json!({"status": "latest", "current": "0.1.0"})
+        );
+        let v = serde_json::to_value(Outcome::Manual).unwrap();
+        assert_eq!(v, serde_json::json!({"status": "manual"}));
+        let v = serde_json::to_value(Outcome::Failed { error: "x".into() }).unwrap();
+        assert_eq!(v, serde_json::json!({"status": "failed", "error": "x"}));
+    }
 
     #[test]
     fn same_day_nightly_with_other_sha_is_newer() {

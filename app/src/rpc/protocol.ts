@@ -372,7 +372,12 @@ export interface GuiNotifications {
 
 /** 新しい版の調べ直しの答え（#94）。 */
 export type UpdateReport =
-  | { status: "available"; current: string; version: string }
+  | {
+      status: "available";
+      current: string;
+      version: string;
+      notes?: string | null;
+    }
   | { status: "latest"; current: string }
   | { status: "manual" }
   | { status: "failed"; error: string };
