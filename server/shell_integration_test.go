@@ -7,6 +7,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/creack/pty"
 )
 
 // writeShj は、dir に実行できる shj を置く。
@@ -234,5 +237,118 @@ func TestShellIntegrationZshZDOTDIRFromZshenv(t *testing.T) {
 	want := filepath.Join(bundled, "shj") + "\nhello='echo hi'\nZD=" + zd
 	if got != want {
 		t.Fatalf("got %q, want %q", got, want)
+	}
+}
+
+// runBundledShellPTY は、bundledShell が作る引数と環境変数でシェル sh を、疑似端末の上の対話シェルとして起動し、
+// コマンド cmds を 1 行ずつ打って、シェルが終わるまでの出力を返す。
+func runBundledShellPTY(t *testing.T, sh, home string, cmds ...string) string {
+	t.Helper()
+	path, err := exec.LookPath(sh)
+	if err != nil {
+		t.Skipf("%s is not installed", sh)
+	}
+	args, env := bundledShell(path, nil)
+	args = append(args, "-i")
+	cmd := exec.Command(path, args...)
+	cmd.Dir = home
+	cmd.Env = append(os.Environ(), env...)
+	cmd.Env = append(cmd.Env, "TERM=xterm-256color")
+	ptmx, err := pty.StartWithSize(cmd, &pty.Winsize{Rows: 24, Cols: 80})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ptmx.Close()
+	done := make(chan string, 1)
+	go func() {
+		var out strings.Builder
+		buf := make([]byte, 4096)
+		for {
+			n, err := ptmx.Read(buf)
+			out.Write(buf[:n])
+			if err != nil {
+				done <- out.String()
+				return
+			}
+		}
+	}()
+	// 最初のプロンプトが出るのを待ってから打つ
+	time.Sleep(500 * time.Millisecond)
+	for _, c := range cmds {
+		ptmx.WriteString(c + "\n")
+		time.Sleep(200 * time.Millisecond)
+	}
+	ptmx.WriteString("exit\n")
+	select {
+	case out := <-done:
+		return out
+	case <-time.After(10 * time.Second):
+		cmd.Process.Kill()
+		t.Fatal("the shell did not exit")
+		return ""
+	}
+}
+
+// osc133 は、出力の中の OSC 133 の印（A・B・C・D;n）を出てきた順に返す。
+func osc133(out string) []string {
+	var marks []string
+	for {
+		i := strings.Index(out, "\x1b]133;")
+		if i < 0 {
+			return marks
+		}
+		out = out[i+len("\x1b]133;"):]
+		j := strings.IndexByte(out, '\a')
+		if j < 0 {
+			return marks
+		}
+		marks = append(marks, out[:j])
+	}
+}
+
+func TestShellIntegrationOSC133(t *testing.T) {
+	// 1 つ目のコマンドは成功、2 つ目は失敗する。最初のプロンプトの前には D が無い。
+	cases := []struct {
+		sh   string
+		want []string
+	}{
+		{"zsh", []string{"A", "B", "C", "D;0", "A", "B", "C", "D;3", "A", "B"}},
+		{"bash", []string{"A", "B", "C", "D;0", "A", "B", "C", "D;3", "A", "B"}},
+	}
+	for _, c := range cases {
+		t.Run(c.sh, func(t *testing.T) {
+			home, _, _ := setupShellTest(t)
+			out := runBundledShellPTY(t, c.sh, home, "true", "(exit 3)")
+			got := osc133(out)
+			// exit を打ったあとの印は見ない
+			if len(got) < len(c.want) || strings.Join(got[:len(c.want)], " ") != strings.Join(c.want, " ") {
+				t.Fatalf("marks %q, want prefix %q\n%q", got, c.want, out)
+			}
+		})
+	}
+}
+
+// ユーザーの設定がすでに OSC 133 を出しているときは、kisui は足さない。
+func TestShellIntegrationOSC133NotDoubled(t *testing.T) {
+	cases := []struct {
+		sh, rc, file string
+	}{
+		{"zsh", "_user_precmd() { printf '\\e]133;A\\a' }\nprecmd_functions+=(_user_precmd)\n", ".zshrc"},
+		{"zsh", "PS1=$'%{\\e]133;A\\a%}% '\n", ".zshrc"},
+		{"bash", "_user_pc() { printf '\\e]133;A\\a'; }\nPROMPT_COMMAND=_user_pc\n", ".bashrc"},
+		{"bash", "PS1='\\[\\e]133;A\\a\\]$ '\n", ".bashrc"},
+	}
+	for i, c := range cases {
+		t.Run(fmt.Sprintf("%s-%d", c.sh, i), func(t *testing.T) {
+			home, _, _ := setupShellTest(t)
+			writeFile(t, filepath.Join(home, c.file), c.rc)
+			out := runBundledShellPTY(t, c.sh, home, "true", "true")
+			if strings.Contains(out, "133;B") || strings.Contains(out, "133;C") || strings.Contains(out, "133;D") {
+				t.Fatalf("kisui added marks on top of the user's: %q", out)
+			}
+			if !strings.Contains(out, "\x1b]133;A\a") {
+				t.Fatalf("the user's own mark is missing: %q", out)
+			}
+		})
 	}
 }
