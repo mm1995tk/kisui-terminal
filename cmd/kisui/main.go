@@ -33,6 +33,7 @@ var commands = []command{
 	{name: "serve", help: "help.serve", run: runServe},
 	{name: "attach", help: "help.attach", run: runAttach},
 	{name: "open", args: "<file|url>", help: "help.open", run: runOpen},
+	{name: "update", help: "help.update", run: runUpdate},
 	{name: "notify", args: "<text>", help: "help.notify", run: runNotify},
 	{name: "clipboard", sub: []command{
 		{name: "copy", help: "help.clipboard.copy", run: runClipboardCopy},

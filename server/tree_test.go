@@ -441,3 +441,54 @@ func mustJSON(t *testing.T, raw []byte, v any) {
 		t.Fatal(err)
 	}
 }
+
+// ~ に .git があっても（dotfiles）、フォルダが ~（kind は cwd）のワークスペースでは git の印を取らない。
+func TestGitStatusSkippedForHomeFolder(t *testing.T) {
+	home := normalizePath(t.TempDir())
+	gitInit(t, home)
+	t.Setenv("HOME", home)
+	write(t, filepath.Join(home, "a.txt"), "1")
+	_, sock := startFast(t)
+	c, _ := termClient(t, sock)
+	id, _ := createWS(t, c)
+	if x := listWS(t, c).find(id); x == nil || x.Folder == nil || *x.Folder != home || *x.Kind != "cwd" {
+		t.Fatalf("workspace: %+v", x)
+	}
+	var st struct {
+		Branch string            `json:"branch"`
+		Marks  map[string]string `json:"marks"`
+	}
+	if err := call(t, c, "git.status", map[string]any{"workspaceId": id}, &st); err != nil {
+		t.Fatal(err)
+	}
+	if st.Branch != "" || len(st.Marks) != 0 {
+		t.Fatalf("status must be empty: %+v", st)
+	}
+}
+
+// .git のあるフォルダの下の .shijimi-editor/ をルートにしたワークスペース（kind は shijimi）でも、git の印が出る。
+func TestGitStatusForShijimiRootInsideRepo(t *testing.T) {
+	repo := normalizePath(t.TempDir())
+	gitInit(t, repo)
+	pkg := filepath.Join(repo, "pkg")
+	write(t, filepath.Join(pkg, ".shijimi-editor", "x"), "")
+	write(t, filepath.Join(pkg, "a.txt"), "1")
+	gitDo(t, repo, "add", "pkg/a.txt")
+	gitDo(t, repo, "commit", "-qm", "init")
+	write(t, filepath.Join(pkg, "a.txt"), "2")
+	_, sock := startFastWith(t, func(o *Options) { o.StartDir = pkg })
+	c, _ := termClient(t, sock)
+	id, _ := createWS(t, c)
+	if x := listWS(t, c).find(id); x == nil || x.Kind == nil || *x.Kind != "shijimi" {
+		t.Fatalf("workspace: %+v", x)
+	}
+	var st struct {
+		Marks map[string]string `json:"marks"`
+	}
+	if err := call(t, c, "git.status", map[string]any{"workspaceId": id}, &st); err != nil {
+		t.Fatal(err)
+	}
+	if st.Marks["a.txt"] != "M" {
+		t.Fatalf("marks: %+v", st.Marks)
+	}
+}

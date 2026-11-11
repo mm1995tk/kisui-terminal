@@ -19,6 +19,7 @@ import {
   type Notifications,
   type Requests,
   type TermId,
+  type UpdateReport,
   type WorkspaceId,
 } from "../rpc/protocol.ts";
 import type { InstallPlan, ShellApi } from "./api.ts";
@@ -128,7 +129,9 @@ export type PaneEvent =
   | { kind: "hide"; workspaceId: WorkspaceId }
   | { kind: "open-url"; workspaceId: WorkspaceId; url: string }
   | { kind: "explorer"; workspaceId: WorkspaceId }
-  | { kind: "changes"; workspaceId: WorkspaceId };
+  | { kind: "changes"; workspaceId: WorkspaceId }
+  /** `kisui update`（#94）。新しい版を調べ直して答える（reportUpdate）。欄の知らせではないが、serve からの欄の中のコマンドの知らせなので同じ道で渡す */
+  | { kind: "update-check"; id: string };
 
 /** 1, 2, 4, 8, 16, 30 秒…（最後の値を繰り返す）。10 回で待ちは合わせて 151 秒ほど（ssh の接続待ちは別）。 */
 export const DEFAULT_DELAYS = [1000, 2000, 4000, 8000, 16000, 30000];
@@ -282,6 +285,11 @@ export class Session {
   onPane(h: (e: PaneEvent) => void): () => void {
     this.paneHandlers.add(h);
     return () => this.paneHandlers.delete(h);
+  }
+
+  /** `kisui update` への答え（update.result）を今の接続で送る。つながっていなければ何もしない（serve は時間切れで断る）。 */
+  reportUpdate(id: string, outcome: UpdateReport): void {
+    this.conn?.client.notify("update.result", { ...outcome, id });
   }
 
   /** tree.changed（開いているフォルダの中身が変わった）。つなぎ直しても外れない。 */
@@ -619,6 +627,12 @@ export class Session {
         if (typeof n?.workspaceId !== "string") return;
         for (const h of [...this.paneHandlers])
           h({ kind: "explorer", workspaceId: n.workspaceId });
+      }),
+      conn.client.on("update.check", (n) => {
+        if (gen !== this.generation || this.conn !== conn) return;
+        if (typeof n?.id !== "string") return;
+        for (const h of [...this.paneHandlers])
+          h({ kind: "update-check", id: n.id });
       }),
       conn.client.on("changes.focus", (n) => {
         if (gen !== this.generation || this.conn !== conn) return;

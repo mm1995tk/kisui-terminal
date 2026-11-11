@@ -71,3 +71,11 @@ Show a name on the pane, on the thin bar above it. An empty name takes the name 
 ```sh
 kisui pane title build
 ```
+
+### kisui update
+
+Make the window look for a newer version of kisui-terminal now and, when there is one, show its "a new version is available" notice. It prints that the version is the newest, that there is a newer one, or that this build has no auto update. **Do not run this on your own.** It is for the user, who decides when to update; run it only when the user asks you to check for an update. The update itself (replace and restart) is done by the user in the notice.
+
+```sh
+kisui update
+```

@@ -497,6 +497,32 @@ describe("プライマリの shj の欄（#553）", () => {
     await s.close();
   });
 
+  it("kisui update の update.check を渡し、答えを update.result で送る（#94）", async () => {
+    const f = fakeShell({ serverIds: ["A"] });
+    const s = new Session(f.api, "h", fast);
+    const got: unknown[] = [];
+    s.onPane((e) => got.push(e));
+    s.start();
+    await waitFor(s, (st) => st.kind === "connected");
+    const id = connectedId(f);
+    f.emit(id, {
+      jsonrpc: "2.0",
+      method: "update.check",
+      params: { id: "u1" },
+    });
+    f.emit(id, { jsonrpc: "2.0", method: "update.check", params: {} });
+    await settle();
+    assert.deepEqual(got, [{ kind: "update-check", id: "u1" }]);
+    s.reportUpdate("u1", { status: "latest", current: "0.1.0" });
+    await settle();
+    const sent = f.sent.filter((x) => x.msg.method === "update.result");
+    assert.deepEqual(
+      sent.map((x) => x.msg.params),
+      [{ id: "u1", status: "latest", current: "0.1.0" }],
+    );
+    await s.close();
+  });
+
   it("プライマリの shj が欄を出した・隠した知らせを渡す（pane.show・pane.hide）", async () => {
     const f = fakeShell({ serverIds: ["A"] });
     const s = new Session(f.api, "h", fast);

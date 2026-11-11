@@ -49,8 +49,8 @@ func TestFindRoot(t *testing.T) {
 		{"worktree root", wt, wt, "git", true},
 		{"shijimi-editor dir", shjSub, shj, "shijimi", true},
 		{"no marker uses cwd", plain, plain, "cwd", true},
-		{"home itself", home, "", "", false},
-		{"slash itself", "/", "", "", false},
+		{"home itself (even with .git)", home, home, "cwd", true},
+		{"slash itself", "/", "/", "cwd", true},
 		{"home with .git is not a root", dotfilesSub, dotfilesSub, "cwd", true},
 		{"relative path", "rel", "", "", false},
 	}

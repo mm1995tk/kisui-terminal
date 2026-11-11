@@ -164,6 +164,7 @@ fn main() {
             transfer::transfer_read_next,
             transfer::transfer_read_close,
             update::update_check,
+            update::update_check_now,
             update::update_install
         ])
         .build(tauri::generate_context!())

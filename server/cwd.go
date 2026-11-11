@@ -14,12 +14,16 @@ import (
 
 // findRoot は cwd から親へたどってワークスペースのルートを決める。
 // `.git`（フォルダでもファイルでもよい）か `.shijimi-editor/` がある最初のフォルダがルート。
-// 無ければ cwd そのもの（kind "cwd"）。cwd が home か / なら ok == false（ワークスペースにしない）。
-// たどる途中で home や / に着いても、そこはルートにしない。
+// 無ければ cwd そのもの（kind "cwd"）。cwd が home か / そのものなら、目印は探さず cwd そのもの（kind "cwd"）。
+// たどる途中で home や / に着いても、そこはルートにしない（home に .git があっても、~/memo のルートは ~ にならない）。
+// ok == false になるのは、cwd が絶対パスでないときだけ。
 func findRoot(cwd, home string) (root, kind string, ok bool) {
 	cwd = filepath.Clean(cwd)
-	if !filepath.IsAbs(cwd) || isHomeOrSlash(cwd, home) {
+	if !filepath.IsAbs(cwd) {
 		return "", "", false
+	}
+	if isHomeOrSlash(cwd, home) {
+		return cwd, "cwd", true
 	}
 	for d := cwd; !isHomeOrSlash(d, home); d = filepath.Dir(d) {
 		if _, err := os.Lstat(filepath.Join(d, ".git")); err == nil {
