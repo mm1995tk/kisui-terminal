@@ -427,7 +427,7 @@ function Workbench(props: {
       }
       return;
     }
-    // ファイルツリーから端末へ戻る（Esc）。メニューや窓の中の Esc には触らない
+    // ファイルツリーから端末へ戻る（Esc・Ctrl+E）。メニューや窓の中の Esc には触らない
     if (
       isLeaveExplorerKey(e) &&
       e.target instanceof Element &&

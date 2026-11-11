@@ -73,3 +73,25 @@ export function isCmdZoomKey(e: KeyLike): boolean {
     e.metaKey && e.shiftKey && !e.ctrlKey && !e.altKey && e.key === "Enter"
   );
 }
+
+/**
+ * Ctrl+E だけ（Shift・Alt・Cmd なし）。TUI と同じ「エディタ（端末の shj）へ戻る」キー（#77）。
+ * かな漢字変換中は除く。サイドバーのファイルツリーと CHANGES の両方がこれを使う。
+ */
+export function isEditorKey(e: {
+  key: string;
+  ctrlKey?: boolean;
+  shiftKey?: boolean;
+  altKey?: boolean;
+  metaKey?: boolean;
+  isComposing?: boolean;
+}): boolean {
+  return (
+    e.key.toLowerCase() === "e" &&
+    !!e.ctrlKey &&
+    !e.shiftKey &&
+    !e.altKey &&
+    !e.metaKey &&
+    !e.isComposing
+  );
+}

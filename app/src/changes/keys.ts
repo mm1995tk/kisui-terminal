@@ -2,6 +2,7 @@
 // （shijimi-editor の core/gitdiff.go の handleChangesKey）に合わせる。
 // DOM を使わないので node --test で確かめられる。行を動かす・shj に頼むのは ChangesView.tsx と App.tsx。
 
+import { isEditorKey } from "../guiKeys.ts";
 import type { ChangesShjKey } from "../rpc/protocol.ts";
 import type { ChangeEntry } from "./model.ts";
 
@@ -41,13 +42,16 @@ export interface ChangesKey {
  * - k ↑ / j ↓ で上下、g Home / G End で最初・最後、h ← でフォルダを閉じる（閉じていれば親へ）、l → でフォルダを開く・変更を開く、
  *   Enter・o でフォルダの開け閉め・変更を開く。
  * - s は split / unified、r・R は読み直す（shj が行う）。Space は Space メニュー、: はコマンド行（どれも shj に渡し、続きのキーは端末から shj に届く）。
- * - Tab でエクスプローラへ、Esc・q で端末へ戻る。
+ * - Tab でエクスプローラへ、Esc・q・Ctrl+E で端末（エディタ）へ戻る。
  */
 export function changesKey(
   entry: Pick<ChangeEntry, "kind" | "expanded">,
   e: ChangesKey,
 ): ChangesAction | null {
-  if (e.isComposing || e.ctrlKey || e.metaKey || e.altKey) return null;
+  if (e.isComposing) return null;
+  // Ctrl+E は TUI と同じ、エディタ（端末の shj）へ戻るキー（#77）。CHANGES が GUI にあるあいだ、shj のフォーカスはエディタにある
+  if (isEditorKey(e)) return { kind: "leave" };
+  if (e.ctrlKey || e.metaKey || e.altKey) return null;
   const dir = entry.kind === "dir";
   const move = (to: ChangesMove): ChangesAction => ({ kind: "move", to });
   switch (e.key) {

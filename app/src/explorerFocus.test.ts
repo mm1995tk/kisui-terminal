@@ -20,6 +20,17 @@ describe("ファイルツリーから端末へ戻るキー", () => {
     assert.equal(isLeaveExplorerKey(k({ shiftKey: true })), false);
     assert.equal(isLeaveExplorerKey(k({ isComposing: true })), false);
   });
+  it("Ctrl+E でも戻る（#77）。ほかの修飾キーが加わると戻らない", () => {
+    assert.equal(isLeaveExplorerKey(k({ key: "e", ctrlKey: true })), true);
+    assert.equal(isLeaveExplorerKey(k({ key: "e" })), false);
+    for (const m of ["shiftKey", "metaKey", "altKey", "isComposing"]) {
+      assert.equal(
+        isLeaveExplorerKey(k({ key: "e", ctrlKey: true, [m]: true })),
+        false,
+        m,
+      );
+    }
+  });
 });
 
 describe("キーを向ける行", () => {
