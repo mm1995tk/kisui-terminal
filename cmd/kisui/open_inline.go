@@ -9,20 +9,20 @@ import (
 	"io"
 	"os"
 
-	"golang.org/x/image/bmp"
+	_ "golang.org/x/image/bmp"
 	_ "golang.org/x/image/webp"
 	"golang.org/x/sys/unix"
 
 	"github.com/mm1995tk/kisui-terminal/internal/kittyterm"
 )
 
-func init() { image.RegisterFormat("bmp", "BM????\x00\x00\x00\x00", bmp.Decode, bmp.DecodeConfig) }
+// maxInlineBytes is the largest image "kisui open" sends to the terminal itself
+// (the file, and the PNG made from it): the bytes go through the pty (and, in a
+// remote pane, ssh) in base64. A bigger one opens in a pane, which has the limit
+// of the pane. It is a variable so that a test can make it small.
+var maxInlineBytes = 16 << 20
 
 const (
-	// maxInlineBytes is the largest file "kisui open" sends to the terminal
-	// itself: the bytes go through the pty (and, in a remote pane, ssh) in
-	// base64. A bigger one opens in a pane, which has the limit of the pane.
-	maxInlineBytes = 16 << 20
 	// maxInlineSide is the longest side coneko-term takes (the same as kitty).
 	maxInlineSide = 10000
 	// guessCellWidth is the width of a cell in pixels when the terminal does
@@ -48,12 +48,17 @@ func inlineImage(fd int, path string) (seq []byte, ok bool) {
 		return nil, false
 	}
 	defer f.Close()
-	data, err := io.ReadAll(io.LimitReader(f, maxInlineBytes+1))
-	if err != nil || len(data) > maxInlineBytes {
+	// The header says whether it is an image before the whole file is read (a
+	// video or a big PDF is left to the pane without reading it).
+	cfg, format, err := image.DecodeConfig(f)
+	if err != nil || cfg.Width > maxInlineSide || cfg.Height > maxInlineSide {
 		return nil, false
 	}
-	cfg, format, err := image.DecodeConfig(bytes.NewReader(data))
-	if err != nil || cfg.Width > maxInlineSide || cfg.Height > maxInlineSide {
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
+		return nil, false
+	}
+	data, err := io.ReadAll(io.LimitReader(f, int64(maxInlineBytes)+1))
+	if err != nil || len(data) > maxInlineBytes {
 		return nil, false
 	}
 	if format != "png" {
@@ -66,6 +71,9 @@ func inlineImage(fd int, path string) (seq []byte, ok bool) {
 			return nil, false
 		}
 		data = b.Bytes()
+		if len(data) > maxInlineBytes { // a PNG made from a JPEG is many times bigger
+			return nil, false
+		}
 	}
 	cols := 0
 	if ws.Col > 0 {
