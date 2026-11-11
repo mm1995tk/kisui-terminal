@@ -240,7 +240,12 @@
           // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
             go-test = kisuiDrv.overrideAttrs (_: {
               pname = "kisui-go-test";
-              nativeCheckInputs = [ pkgs.git ];
+              # bashInteractive は readline 付きの bash（シェルの包みの幅のテストが使う）。zsh は包みの PTY のテストが使う
+              nativeCheckInputs = [
+                pkgs.git
+                pkgs.bashInteractive
+                pkgs.zsh
+              ];
               checkPhase = ''
                 runHook preCheck
                 export HOME="$TMPDIR/home"
