@@ -87,6 +87,7 @@ import {
   buildSidebar,
   keepFocus,
   type WorkspaceFocus,
+  stepFrom,
   stepMachine,
   stepWorkspace,
   type Step,
@@ -1144,14 +1145,24 @@ function Workbench(props: {
    * （shj が動いているワークスペースなら、shj にキーが届く）。
    */
   async function goWorkspace(target: string, id: WorkspaceId) {
-    await focusWorkspace(target, id);
+    // 返事を待つあいだに続けて押されたら、ここを起点に次を決める（focus() はまだ前のまま）
+    const mine: WorkspaceFocus = { target, id };
+    heading = mine;
+    setPickedMachine(null);
+    try {
+      await focusWorkspace(target, id);
+    } finally {
+      if (heading === mine) heading = null;
+    }
     const f = focus();
     if (f?.target === target && f.id === id) focusTerminal();
   }
+  /** キーで移っている途中の、向かっている先（返事が返るまで focus() に反映されない）。無ければ null */
+  let heading: WorkspaceFocus | null = null;
 
   /** リーダーの w j / w k。サイドバーの次・前のワークスペースへ（マシンをまたぐ。端で止まる）。 */
   function stepWs(step: Step) {
-    const next = stepWorkspace(groups(), focus(), step);
+    const next = stepWorkspace(groups(), stepFrom(heading, focus()), step);
     if (next) void goWorkspace(next.target, next.id);
   }
 
@@ -1160,11 +1171,18 @@ function Workbench(props: {
    * 1 つも無いマシンならそのマシンを「選んでいるマシン」にして止まる。
    */
   function stepMachineTo(step: Step) {
-    const next = stepMachine(groups(), currentTarget(), step, (t) =>
-      lastOnMachine.get(t),
+    const next = stepMachine(
+      groups(),
+      heading?.target ?? currentTarget(),
+      step,
+      (t) => lastOnMachine.get(t),
     );
     if (!next) return;
     if (next.ws === null) {
+      // 待っている移動は捨てる（返ってきても、止まったマシンの印を外したり、フォーカスを飛ばしたりしない）
+      heading = null;
+      focusSeq++;
+      switching = false;
       setPickedMachine(next.target);
       return;
     }

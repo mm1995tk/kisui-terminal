@@ -243,6 +243,17 @@ export interface StepTarget {
 }
 
 /**
+ * キーで続けて移るときの起点。移っている途中（返事を待っている）なら向かっている先、そうでなければ今のフォーカス。
+ * 返事が返るまでフォーカスは前のままなので、起点を向かっている先にしないと、続けて押しても 1 つしか進まない。
+ */
+export function stepFrom(
+  heading: WorkspaceFocus | null,
+  current: WorkspaceFocus | null,
+): WorkspaceFocus | null {
+  return heading ?? current;
+}
+
+/**
  * サイドバーの次・前のワークスペース（マシンをまたいで、上から下へ並べた並びで）。端では null（回らない）。
  * 今のフォーカスが無い（または並びに無い）ときは、次なら先頭、前なら末尾。ワークスペースが 1 つも無ければ null。
  */

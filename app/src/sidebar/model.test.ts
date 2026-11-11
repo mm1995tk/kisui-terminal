@@ -10,6 +10,7 @@ import {
   buildSidebar,
   health,
   keepFocus,
+  stepFrom,
   stepMachine,
   stepWorkspace,
   splitAtFocus,
@@ -367,6 +368,24 @@ describe("stepWorkspace / stepMachine（キーで移る）", () => {
       target: "m",
       id: "w10",
     });
+  });
+
+  it("返事を待つあいだに続けて押しても、向かっている先を起点にして進む", () => {
+    const current = { target: "local", id: "a" };
+    let heading: { target: string; id: string } | null = null;
+    const seen: string[] = [];
+    // フォーカスは前のまま（current）。向かっている先だけが進む
+    for (let n = 0; n < 3; n++) {
+      const next = stepWorkspace(groups, stepFrom(heading, current), "next");
+      assert.ok(next);
+      heading = next;
+      seen.push(next.id);
+    }
+    assert.deepEqual(seen, ["b", "c", "d"]);
+    // 向かっている先が無ければ、今のフォーカス
+    assert.deepEqual(stepFrom(null, current), current);
+    // マシンも、向かっている先のマシンから数える
+    assert.equal(stepMachine(groups, heading?.target, "prev")?.target, "empty");
   });
 
   it("ワークスペースは、端で止まる（回らない）", () => {
