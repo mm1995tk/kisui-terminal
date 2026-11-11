@@ -41,6 +41,9 @@ const (
 //     an absolute path; the new terminal ends with the command) in Cwd. Env is
 //     "NAME=value" entries for the new terminal.
 //   - "title": give the terminal Pane the name Title (empty takes the name away).
+//   - "update": ask the window to look for a newer version of kisui-terminal now.
+//     The window shows its "a new version is available" notice when there is one,
+//     and answers (Reply.Update) for the command to print.
 //
 // The server tells a Request from the other lines on the socket (the ones of
 // shj, docs/protocol.md) by Cmd.
@@ -64,6 +67,29 @@ type Reply struct {
 	Error string `json:"error,omitempty"`
 	Code  string `json:"code,omitempty"`
 	ID    string `json:"id,omitempty"`
+	// Update is what the window found for "update".
+	Update *UpdateResult `json:"update,omitempty"`
+}
+
+// The Status of an UpdateResult.
+const (
+	// UpdateAvailable: there is a newer version (Version); the window shows its notice.
+	UpdateAvailable = "available"
+	// UpdateLatest: this is the newest version.
+	UpdateLatest = "latest"
+	// UpdateManual: this build has no auto update (the Nix build, or Linux other than the AppImage).
+	UpdateManual = "manual"
+	// UpdateFailed: the check did not finish (Error says why; often no network).
+	UpdateFailed = "failed"
+)
+
+// UpdateResult is the answer of the window to "update". Current is the version
+// that runs and Version the newer one (only for UpdateAvailable).
+type UpdateResult struct {
+	Status  string `json:"status"`
+	Current string `json:"current,omitempty"`
+	Version string `json:"version,omitempty"`
+	Error   string `json:"error,omitempty"`
 }
 
 // CodeNotInPane is Reply.Code when the server does not know the pane.

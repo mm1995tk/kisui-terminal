@@ -16,6 +16,21 @@ pub struct UpdateInfo {
     pub notes: Option<String>,
 }
 
+/// 手で調べた（`kisui update`）ときの答え。`update_check` と違い、更新が無い理由まで分ける。
+#[cfg_attr(not(feature = "updater"), allow(dead_code))] // 自動更新を持たない版では Manual しか返さない
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "status", rename_all = "lowercase")]
+pub enum Outcome {
+    /// 新しい版がある。
+    Available(UpdateInfo),
+    /// いまの版が最新。
+    Latest { current: String },
+    /// 自動更新を持たない版（Nix で作った版、AppImage でない Linux）。
+    Manual,
+    /// 調べられなかった（ネットにつながっていないなど）。
+    Failed { error: String },
+}
+
 /// 見つけた更新（入れるまで持っておく）。
 #[derive(Default)]
 pub struct Updates {
@@ -30,6 +45,19 @@ pub async fn update_check(
     app: tauri::AppHandle,
     state: State<'_, Updates>,
 ) -> Result<Option<UpdateInfo>, String> {
+    Ok(match imp::check(&app, &state).await? {
+        Outcome::Available(info) => Some(info),
+        _ => None,
+    })
+}
+
+/// `kisui update` が頼んだ、新しい版の調べ直し。`update_check` と同じに調べ、答えを分けて返す
+/// （調べられなかったときも `Failed` で返す。頼んだ人がいるので、画面に出さない理由が無い）。
+#[tauri::command]
+pub async fn update_check_now(
+    app: tauri::AppHandle,
+    state: State<'_, Updates>,
+) -> Result<Outcome, String> {
     imp::check(&app, &state).await
 }
 
@@ -62,7 +90,7 @@ fn same_day_nightly_moved(current: &str, remote: &str) -> bool {
 
 #[cfg(feature = "updater")]
 mod imp {
-    use super::{same_day_nightly_moved, UpdateInfo, Updates};
+    use super::{same_day_nightly_moved, Outcome, UpdateInfo, Updates};
     use tauri_plugin_updater::UpdaterExt;
 
     /// 自動で入れ替えられる形で動いているか。Linux は AppImage のときだけ（ほかの形は入れ替える先が無い）。
@@ -77,12 +105,9 @@ mod imp {
         true
     }
 
-    pub async fn check(
-        app: &tauri::AppHandle,
-        state: &Updates,
-    ) -> Result<Option<UpdateInfo>, String> {
+    pub async fn check(app: &tauri::AppHandle, state: &Updates) -> Result<Outcome, String> {
         if !replaceable(app) {
-            return Ok(None);
+            return Ok(Outcome::Manual);
         }
         let updater = app
             .updater_builder()
@@ -96,7 +121,9 @@ mod imp {
             Ok(u) => u,
             Err(e) => {
                 eprintln!("kisui-terminal: update check failed: {e}");
-                return Ok(None);
+                return Ok(Outcome::Failed {
+                    error: e.to_string(),
+                });
             }
         };
         let info = update.as_ref().map(|u| UpdateInfo {
@@ -105,7 +132,12 @@ mod imp {
             notes: u.body.clone(),
         });
         *state.pending.lock().map_err(|e| e.to_string())? = update;
-        Ok(info)
+        Ok(match info {
+            Some(info) => Outcome::Available(info),
+            None => Outcome::Latest {
+                current: app.package_info().version.to_string(),
+            },
+        })
     }
 
     pub async fn install(app: &tauri::AppHandle, state: &Updates) -> Result<(), String> {
@@ -125,10 +157,10 @@ mod imp {
 
 #[cfg(not(feature = "updater"))]
 mod imp {
-    use super::{UpdateInfo, Updates};
+    use super::{Outcome, Updates};
 
-    pub async fn check(_: &tauri::AppHandle, _: &Updates) -> Result<Option<UpdateInfo>, String> {
-        Ok(None)
+    pub async fn check(_: &tauri::AppHandle, _: &Updates) -> Result<Outcome, String> {
+        Ok(Outcome::Manual)
     }
 
     pub async fn install(_: &tauri::AppHandle, _: &Updates) -> Result<(), String> {
@@ -138,7 +170,34 @@ mod imp {
 
 #[cfg(test)]
 mod tests {
-    use super::same_day_nightly_moved;
+    use super::{same_day_nightly_moved, Outcome, UpdateInfo};
+
+    // Go と TS（app/src/rpc/protocol.ts の UpdateReport）との約束：status 付きの平らな JSON
+    #[test]
+    fn outcome_is_flat_json_with_status() {
+        let v = serde_json::to_value(Outcome::Available(UpdateInfo {
+            current: "0.1.0".into(),
+            version: "0.2.0".into(),
+            notes: None,
+        }))
+        .unwrap();
+        assert_eq!(
+            v,
+            serde_json::json!({"status": "available", "current": "0.1.0", "version": "0.2.0", "notes": null})
+        );
+        let v = serde_json::to_value(Outcome::Latest {
+            current: "0.1.0".into(),
+        })
+        .unwrap();
+        assert_eq!(
+            v,
+            serde_json::json!({"status": "latest", "current": "0.1.0"})
+        );
+        let v = serde_json::to_value(Outcome::Manual).unwrap();
+        assert_eq!(v, serde_json::json!({"status": "manual"}));
+        let v = serde_json::to_value(Outcome::Failed { error: "x".into() }).unwrap();
+        assert_eq!(v, serde_json::json!({"status": "failed", "error": "x"}));
+    }
 
     #[test]
     fn same_day_nightly_with_other_sha_is_newer() {

@@ -338,3 +338,48 @@ func TestPaneCmdSplitAndTitle(t *testing.T) {
 		t.Fatalf("titles after clearing: %+v", got)
 	}
 }
+
+// kisui update は GUI に update.check を通知し、GUI の update.result を待って返す。
+func TestPaneCmdUpdate(t *testing.T) {
+	t.Setenv("HOME", normalizePath(t.TempDir()))
+	srv, sock := startFast(t)
+	c, nt := termClient(t, sock)
+	_, primary := createWS(t, c)
+	token := termToken(t, srv, primary)
+
+	done := make(chan panecmd.Reply, 1)
+	go func() {
+		done <- paneCmdDo(t, sock, panecmd.Request{Cmd: "update", Pane: primary, Token: token})
+	}()
+	var id string
+	waitFor(t, "update.check", func() bool {
+		for _, m := range nt.all("update.check") {
+			var p struct{ ID string }
+			_ = json.Unmarshal(*m, &p)
+			id = p.ID
+		}
+		return id != ""
+	})
+	if err := c.Notify("update.result", map[string]any{"id": id, "status": "available", "current": "0.1.0", "version": "0.2.0"}); err != nil {
+		t.Fatal(err)
+	}
+	r := <-done
+	if !r.OK || r.Update == nil || r.Update.Status != panecmd.UpdateAvailable || r.Update.Version != "0.2.0" || r.Update.Current != "0.1.0" {
+		t.Fatalf("update: %+v", r)
+	}
+
+	// 欄の外からは頼めない
+	if r := paneCmdDo(t, sock, panecmd.Request{Cmd: "update", Pane: primary, Token: "wrong"}); r.OK || r.Code != panecmd.CodeNotInPane {
+		t.Fatalf("a wrong secret: %+v", r)
+	}
+	// GUI がつながっていなければ断る
+	c.Close()
+	waitFor(t, "owner gone", func() bool {
+		srv.mu.Lock()
+		defer srv.mu.Unlock()
+		return srv.owner == nil
+	})
+	if r := paneCmdDo(t, sock, panecmd.Request{Cmd: "update", Pane: primary, Token: token}); r.OK || !strings.Contains(r.Error, "not connected") {
+		t.Fatalf("no window: %+v", r)
+	}
+}

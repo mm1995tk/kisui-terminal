@@ -49,6 +49,7 @@ import {
   statusLine,
 } from "./connect/status.ts";
 import { UpdateBar } from "./update/UpdateBar.tsx";
+import { checkNow } from "./update/store.ts";
 import { OsClipboard } from "./clipboard.ts";
 import { CopiedToast, copiedNotice } from "./CopiedToast.tsx";
 import { ScaleToast, showScale } from "./ScaleToast.tsx";
@@ -545,6 +546,8 @@ function Workbench(props: {
       else if (ev.kind === "explorer") focusExplorer(target, ev.workspaceId);
       else if (ev.kind === "changes") focusChanges(target, ev.workspaceId);
       else if (ev.kind === "open-url") openUrlFor(target, ev.url);
+      else if (ev.kind === "update-check")
+        void checkNow().then((r) => s.reportUpdate(ev.id, r));
       else zoomWs(target, ev.workspaceId, true);
     });
     offStates.set(target, () => {

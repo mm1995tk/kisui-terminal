@@ -60,6 +60,8 @@ kisui pane split --down npm run dev
 kisui pane title build
 ```
 
+`kisui update` makes the app look for a newer version now, so you do not have to close and reopen it (it looks once at start-up otherwise). When there is one, the app shows the same "a new version is available" notice as at start-up, even if you closed it with "Later"; "Update and restart" works as it does there, and the shells of the panes stay (the server hands over). `kisui update` prints what the app found: that there is a newer version, that this is the newest, or that this build has no auto update (the Nix build and Linux other than the AppImage: update it with `nix flake update`, or install the new version). It works in the panes of a remote machine too: the app on your computer looks and shows the notice. `kisui update --help` shows its usage.
+
 `kisui skill install [folder]` writes a skill (`SKILL.md`) that teaches a coding agent such as Claude Code how to use `kisui open`, `kisui notify`, `kisui clipboard` and `kisui pane` in a pane. It writes to `~/.claude/skills/kisui-terminal/` when you give no folder. The skill is built into the `kisui` binary, so it matches the version you have. It tells the agent not to run `kisui clipboard paste` on its own.
 
 ```sh
