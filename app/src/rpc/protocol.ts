@@ -317,6 +317,8 @@ export interface Notifications {
     extraId?: string;
   };
   "pane.hide": { workspaceId: WorkspaceId };
+  /** `kisui update`（#94）。手元のアプリが新しい版を調べ直し、update.result で答える */
+  "update.check": { id: string };
   /** プライマリの shj の `:open-url`・`kisui open <URL>` が、URL を手元の外部ブラウザで開くよう頼んだ（#96）。欄は作らない。リモートのマシンの localhost 系は、GUI がポート転送を張って開く */
   "browser.open": { workspaceId: WorkspaceId; url: string };
   /** プライマリの shj が、そのワークスペースのファイルエクスプローラにキーを向けるよう頼んだ（Space e）。Esc で端末に戻る */
@@ -364,4 +366,13 @@ export function hasCapability(
 /** GUI から shj へ送る通知（返事の無いもの）。メソッド名 → パラメータ。 */
 export interface GuiNotifications {
   "term.ack": { termId: TermId; seq: number };
+  /** update.check への答え（`kisui update` に渡る。serve の panecmd.UpdateResult） */
+  "update.result": { id: string } & UpdateReport;
 }
+
+/** 新しい版の調べ直しの答え（#94）。 */
+export type UpdateReport =
+  | { status: "available"; current: string; version: string }
+  | { status: "latest"; current: string }
+  | { status: "manual" }
+  | { status: "failed"; error: string };

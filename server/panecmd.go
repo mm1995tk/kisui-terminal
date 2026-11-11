@@ -121,6 +121,8 @@ func (s *Server) paneCmd(rq panecmd.Request) (panecmd.Reply, error) {
 	case "split":
 		id, err := s.ws.splitFrom(wsID, rq)
 		return panecmd.Reply{ID: id}, err
+	case "update":
+		return s.updateCheck()
 	case "title":
 		name, err := cleanPaneName(rq.Title)
 		if err != nil {
