@@ -183,9 +183,9 @@ func TestAskOnAPTY(t *testing.T) {
 	}
 }
 
-// InUse is false while the terminal waits for lines (a shell runs the
+// ReadsKeys is false while the terminal waits for lines (a shell runs the
 // command) and true while a full-screen program reads the keys one by one.
-func TestInUseOnAPTY(t *testing.T) {
+func TestReadsKeysOnAPTY(t *testing.T) {
 	ptmx, tty, err := pty.Open()
 	if err != nil {
 		t.Skip("no pty:", err)
@@ -194,8 +194,8 @@ func TestInUseOnAPTY(t *testing.T) {
 	defer tty.Close()
 	tt := &TTY{fd: int(tty.Fd())}
 
-	if inUse, err := tt.InUse(); err != nil || inUse {
-		t.Errorf("lines: %v %v", inUse, err)
+	if keys, err := tt.ReadsKeys(); err != nil || keys {
+		t.Errorf("lines: %v %v", keys, err)
 	}
 	tio, err := unix.IoctlGetTermios(tt.fd, ioctlGetTermios)
 	if err != nil {
@@ -205,7 +205,7 @@ func TestInUseOnAPTY(t *testing.T) {
 	if err := unix.IoctlSetTermios(tt.fd, ioctlSetTermios, tio); err != nil {
 		t.Fatal(err)
 	}
-	if inUse, err := tt.InUse(); err != nil || !inUse {
-		t.Errorf("keys: %v %v", inUse, err)
+	if keys, err := tt.ReadsKeys(); err != nil || !keys {
+		t.Errorf("keys: %v %v", keys, err)
 	}
 }

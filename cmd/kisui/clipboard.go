@@ -52,10 +52,12 @@ func runClipboardCopy(args []string) int {
 	return withTTY(name, func(t *kittyterm.TTY) error {
 		id := kittyterm.NewID()
 		req := kittyterm.ClipboardWrite(id, data)
-		// Called by a full-screen program (shj, vim) that reads the terminal
-		// itself: write and do not wait for the answer. The program gets the
-		// answer and drops it as an unknown sequence.
-		if inUse, err := t.InUse(); err != nil || inUse {
+		// Called by a full-screen program (shj) that reads the terminal itself:
+		// write and do not wait for the answer. Ask would read the terminal at
+		// the same time as the program and take its keys. Ask also changes the
+		// terminal so that a read returns at once with nothing. The program can
+		// take that as the end of its input and stop reading keys.
+		if keys, err := t.ReadsKeys(); err != nil || keys {
 			return t.Write(req)
 		}
 		return t.Ask(req, copyTimeout, kittyterm.WriteReply(id))
