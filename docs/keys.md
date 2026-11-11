@@ -128,7 +128,6 @@ shj の側から `Space e` でツリーにキーを向けるのは、shj が出�
 次のキーは、欄の中のプログラムか WebView に任せていて、kisui-terminal は割り当てを持たない。
 
 - ターミナルの欄の中の字・Ctrl・Alt のキー、貼り付け、マウスの報告：`coneko-term` が受けて（`terminal/TerminalView.tsx:88`）、バイト列にして shj やシェルへ送る。Mac の `Cmd+C` でのコピーはしない（選んで離すとコピーする。2.1 の表）。
-- ブラウザの欄の中のキー：WebView が受ける。
 - 上の表に無い Ctrl・Cmd・Alt 付きのキー：全体のキーに当たらなければ、そのまま欄に届く。
 
 ## 2. マウスでしかできない操作
@@ -140,10 +139,10 @@ shj の側から `Space e` でツリーにキーを向けるのは、shj が出�
 | どこで                       | 操作                                                                 | 動き                                                                                                                                                     | 定義の場所                                                            |
 | ---------------------------- | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
 | ターミナルの欄               | 文字をドラッグで選んで離す                                           | 選んだ文字を OS のクリップボードに入れ、知らせを出す（プログラムがマウスを受けている間は選択が変わらないので、コピーしない）                             | `terminal/TerminalView.tsx:261`・`terminal/selectionCopy.ts:6`        |
-| ターミナルの欄               | 出ている URL を Cmd+クリック（Mac）/ Ctrl+クリック（Linux）          | 設定と反対側で開く（ブラウザの欄 ↔ OS 既定のブラウザ）。Alt を押していれば開かない。URL には波線が付く                                                   | `terminal/urlOpen.ts:13`・`terminal/TerminalView.tsx:91`・`App.tsx:1074` |
-| ターミナルの欄               | URL を Cmd+Shift+クリック（Mac）/ Ctrl+Shift+クリック（Linux）       | 設定の側で開く                                                                                                                                           | `terminal/urlOpen.ts:22`                                              |
+| ターミナルの欄               | 出ている URL を Cmd+クリック（Mac）/ Ctrl+クリック（Linux）          | OS 既定のブラウザで開く。Alt を押していれば開かない。URL には波線が付く                                                   | `terminal/urlOpen.ts`・`terminal/TerminalView.tsx:91`・`App.tsx:1074` |
+| ターミナルの欄               | URL を Cmd+Shift+クリック（Mac）/ Ctrl+Shift+クリック（Linux）       | Cmd+クリックと同じ（OS 既定のブラウザで開く）                                                                                                                                           | `terminal/urlOpen.ts`                                              |
 | ターミナルの欄               | OS からテキストやファイルをドロップ                                  | 受け付けているプログラムにだけ渡す（受け付けていなければ何もしない）。ほかの欄・窓へのドロップは断る                                                     | `terminal/TerminalView.tsx:218`・`terminal/TerminalView.tsx:236`・`index.tsx:10` |
-| 欄（ターミナル・動画・ブラウザ・ファイル） | 欄を押す                                                             | その欄に GUI のフォーカスを移す                                                                                                                          | `terminal/VideoView.tsx:65`・`terminal/BrowserView.tsx:170`・`terminal/FileView.tsx:89`・`terminal/TerminalView.tsx:355`（`onFocusIn`） |
+| 欄（ターミナル・動画・ファイル） | 欄を押す                                                             | その欄に GUI のフォーカスを移す                                                                                                                          | `terminal/VideoView.tsx:65`・`terminal/FileView.tsx:89`・`terminal/TerminalView.tsx:355`（`onFocusIn`） |
 
 ### 2.2 境界とリサイズ
 
@@ -175,10 +174,6 @@ shj の側から `Space e` でツリーにキーを向けるのは、shj が出�
 
 | どこで                       | 操作       | 動き                                                           | 定義の場所                          |
 | ---------------------------- | ---------- | -------------------------------------------------------------- | ----------------------------------- |
-| ブラウザの欄の ← / → / ↻     | クリック   | 戻る・進む・再読み込み                                         | `terminal/BrowserView.tsx:179`・`terminal/BrowserView.tsx:189`・`terminal/BrowserView.tsx:199` |
-| ブラウザの欄のアドレス欄     | 入力して Enter | その URL へ移る（フォーカスすると全部選ぶ）                | `terminal/BrowserView.tsx:172`（`onSubmit={go}`） |
-| ブラウザの欄の ↗             | クリック   | OS 既定のブラウザで開き直す                                    | `terminal/BrowserView.tsx:218`      |
-| ブラウザの欄の ×             | クリック   | ブラウザの欄を閉じる                                           | `terminal/BrowserView.tsx:227`      |
 | 動画の欄の ×                 | クリック   | 動画の欄を閉じる                                               | `terminal/VideoView.tsx:76`         |
 | ファイル（画像・PDF）の欄の × | クリック   | 欄を閉じる                                                     | `terminal/FileView.tsx:100`         |
 
@@ -200,7 +195,7 @@ shj の側から `Space e` でツリーにキーを向けるのは、shj が出�
 
 - Mac と Linux で形が違う：分割は Mac が Cmd+D / Cmd+Shift+D、Linux が Ctrl+Shift+D / Ctrl+Shift+E。Cmd+1〜9（ワークスペース）と Cmd+W（分割した欄を閉じる）は Mac だけで、Linux には同じ操作のキーが無い。リサイズモードに入るのは Cmd+R / Ctrl+Shift+R。
 - Mac でも効く Ctrl+Shift の形がある：Ctrl+Shift+矢印（欄の移動）と Ctrl+Shift+M（欄を隠す）は Mac でも受ける（`directionKey`・`isZoomKey` は `isCtrlShift` を Mac でも見る）。分割とリサイズに入るキーは Mac では Ctrl+Shift の形を受けない。
-- キーでできないもの：ワークスペースを閉じる・マシンを足す・マシンを切る／外す／名前を変える・つなぎ直す・ワークスペースを作る・ブラウザの欄の操作・動画の欄とファイルの欄の ×（欄を閉じる）・Linux の分割した欄を閉じる操作・ツリーの「ここへ移動」「名前をコピー」・欄どうしのフォーカス移動以外の欄の選択は、マウスだけ（2 の表）。
+- キーでできないもの：ワークスペースを閉じる・マシンを足す・マシンを切る／外す／名前を変える・つなぎ直す・ワークスペースを作る・動画の欄とファイルの欄の ×（欄を閉じる）・Linux の分割した欄を閉じる操作・ツリーの「ここへ移動」「名前をコピー」・欄どうしのフォーカス移動以外の欄の選択は、マウスだけ（2 の表）。
 - 同じ字のキーが場所ごとに別の意味：`j` `k` `l` `h` はツリー・CHANGES・リサイズモードで移動、動画の欄では `j` `l` が 10 秒の移動、`k` が再生・停止。`r` はツリーでは名前の変更、CHANGES では読み直し、リサイズモードでは何もしない。`Esc` はツリーでは端末へ戻る、CHANGES では一覧を出る、窓・メニューでは閉じる、リサイズモードでは出る。
 - 全体のキーが、ターミナルの欄の外（ツリー・CHANGES・動画の欄・窓の中）でも効くものと、欄の中だけで効くもの（欄の移動・Cmd+W）が混ざっている。
 - `Ctrl`+`-`（Linux の表示を小さく）は、端末の `C-_`（readline の undo）を奪う（`scale.ts:25` に承知の上と書いてある）。
