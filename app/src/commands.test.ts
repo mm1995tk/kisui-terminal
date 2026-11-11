@@ -568,3 +568,31 @@ describe("keyspec", () => {
     assert.throws(() => parseSpec("Super+K"));
   });
 });
+
+describe("リーダーの中の字の当たり方", () => {
+  const L = LEADER_KEY(LINUX);
+
+  it("打った字（key）で探す。AZERTY の q（物理キーは KeyA）は、a の葉に当たらない", () => {
+    const r = press(LINUX, [L, key("m"), key("q", "", "KeyA")]);
+    assert.deepEqual(r.runs, []);
+    assert.equal(r.state.leader, null);
+    // 同じ配列で、字が a なら（物理キーは KeyQ）a の葉
+    assert.deepEqual(press(LINUX, [L, key("m"), key("a", "", "KeyQ")]).runs, [
+      { id: "machine.add" },
+    ]);
+  });
+
+  it("かな漢字変換中など、字が分からないときだけ、物理キーで探す", () => {
+    const ime = (code: string): KeyLike => ({
+      ...key("Process", "", code),
+      isComposing: true,
+    });
+    assert.deepEqual(press(LINUX, [L, key("m"), ime("KeyA")]).runs, [
+      { id: "machine.add" },
+    ]);
+    assert.deepEqual(press(LINUX, [L, ime("Digit1")]).runs, []);
+    assert.deepEqual(press(LINUX, [L, key("w"), ime("Digit1")]).runs, [
+      { id: "workspace.nth", arg: 0 },
+    ]);
+  });
+});

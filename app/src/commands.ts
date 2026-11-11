@@ -7,7 +7,7 @@
 // DOM には触らない（node --test で確かめられる）。
 
 import type { KeyLike } from "./guiKeys.ts";
-import { isKey, isModifierOnly, matchSpec, parseSpec } from "./keyspec.ts";
+import { isModifierOnly, matchSpec, parseSpec } from "./keyspec.ts";
 
 /** コマンドの名前。動きは App.tsx の runCommand が持つ。 */
 export type CommandId =
@@ -259,23 +259,37 @@ export function childrenAt(
   return list;
 }
 
-/** 一覧の中で、キー e に当たるもの。キーは修飾キー無し（Shift だけは許す）で、字は code でも見る。 */
+/**
+ * 一覧の中で、キー e に当たるもの。キーは修飾キー無し（Shift だけは許す）。
+ * 打った字（e.key）で探す。字が分からないとき（かな漢字変換中などで key が Process・Unidentified になる）だけ、
+ * 物理キー（e.code）で探す。AZERTY など QWERTY 以外の配列で、別の字の葉に当たらないようにするため。
+ */
 function nodeFor(list: Node[], e: KeyLike): Node | undefined {
   if (e.ctrlKey || e.metaKey || e.altKey) return undefined;
-  return list.find((n) =>
-    n.type === "group"
-      ? matchLeaderKey(n.key, e)
-      : n.keys.some((k) => matchLeaderKey(k, e)),
-  );
+  const unknown =
+    !!e.isComposing || e.key === "Process" || e.key === "Unidentified";
+  const find = (by: "key" | "code") =>
+    list.find((n) =>
+      n.type === "group"
+        ? matchLeaderKey(n.key, e, by)
+        : n.keys.some((k) => matchLeaderKey(k, e, by)),
+    );
+  return find("key") ?? (unknown ? find("code") : undefined);
 }
 
-function matchLeaderKey(k: string, e: KeyLike): boolean {
+function matchLeaderKey(k: string, e: KeyLike, by: "key" | "code"): boolean {
+  if (by === "code") {
+    const c = e.code ?? "";
+    if (/^[a-z]$/.test(k)) return c === `Key${k.toUpperCase()}`;
+    if (/^[0-9]$/.test(k))
+      return !e.shiftKey && (c === `Digit${k}` || c === `Numpad${k}`);
+    if (k === "-") return c === "Minus" || c === "NumpadSubtract";
+    if (k === "=" || k === "+") return c === "Equal" || c === "NumpadAdd";
+    return false;
+  }
   // 字は Shift を押していても（Caps Lock でも）当たる。記号は、その記号そのもの（`?` は Shift+/）
-  if (/^[a-z]$/.test(k)) return isKey(e, k);
-  if (k === "+" || k === "=")
-    return e.key === k || (k === "=" && isKey(e, "="));
-  if (/^[0-9]$/.test(k)) return !e.shiftKey && isKey(e, k);
-  if (k === "Tab" || k === "Escape" || k === "Backspace") return e.key === k;
+  if (/^[a-z]$/.test(k)) return e.key.toLowerCase() === k;
+  if (/^[0-9]$/.test(k)) return !e.shiftKey && e.key === k;
   return e.key === k;
 }
 
