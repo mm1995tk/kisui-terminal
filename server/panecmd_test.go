@@ -187,7 +187,7 @@ func TestPaneCmdOpen(t *testing.T) {
 		t.Fatal("the shj must not close a pane it did not open")
 	}
 	conn.Close()
-	waitFor(t, "the shj's pane closes with it", func() bool { return len(list()) == 3 })
+	waitFor(t, "the shj's pane closes with it", func() bool { return len(list()) == 2 })
 
 	// GUI の extra.close で閉じられる。
 	if err := c.Call(context.Background(), "extra.close", map[string]any{"workspaceId": id, "id": ids[mp4]}, nil); err != nil {
