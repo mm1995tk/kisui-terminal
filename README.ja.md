@@ -95,6 +95,8 @@ ssh 先では、kisui-terminal は聞いてから自分の `kisui` と `shj` を
 
 リーダーを通さずに押せる近道もあります（`?` の一覧に、使っている OS のものが出ます）。`Cmd+Shift+W` / `Ctrl+Shift+W` と `Cmd+Shift+P` / `Ctrl+Shift+P` は、ワークスペースと欄のグループに 1 回で入ります。`Cmd+D` / `Ctrl+Shift+D` と `Cmd+Shift+D` / `Ctrl+Shift+E` は欄を分け、`Cmd+R` / `Ctrl+Shift+R` は大きさを変え、`Cmd+Shift+Enter` / `Ctrl+Shift+M` はほかの欄を隠し、`Cmd+Shift+H` / `Ctrl+Shift+H` はクリップボードの履歴、`Cmd+=` `Cmd+-` `Cmd+0`（Linux は `Ctrl+=` `Ctrl+0`）は表示の大きさを変えます。macOS では `Cmd+1`〜`Cmd+9` でワークスペースを選び、`Cmd+W` で欄を閉じます。次のキーは、`shj` やシェルが使うので、なくなりました。`Ctrl+Shift+矢印` と `Cmd+Option+矢印`（欄の移動。リーダーを使います）、macOS の `Ctrl+Shift+M`、Linux の `Ctrl+-`（表示を小さくする。リーダーを使います）。
 
+画像の欄（`kisui open --pane` で開いたものと、`shj` から開いたもの）では、欄にフォーカスがあるあいだ次のキーが効きます（リーダーには載せていません。`?` の一覧に出ます）。`+` / `=` で拡大、`-` で縮小、`0` で欄に収まる大きさに戻し、拡大中は `h` `j` `k` `l` か矢印で見える場所を動かし、`Esc` でターミナルへ戻ります。マウスでは、`Ctrl` + ホイールかトラックパッドのピンチで（ポインタの位置を中心に）拡大・縮小し、拡大中はドラッグで動かせます。画面全体の大きさを変えるキー（`Cmd+=` など）は修飾キーが付くので、重なりません。
+
 ## 開発
 
 Nix の devShell（Go・gopls・gomod2nix・git・Node.js・Rust。Linux では WebView のライブラリも）を使います。direnv があれば `.envrc` で自動で入ります。コマンドはどれもリポジトリの根で動かします。`go.mod`（サーバーの `kisui`）、`package.json`（Web 画面。ソースは `app/`）、`Cargo.toml`（Tauri の殻 `app/src-tauri` を member に持つ workspace）はどれも根にあります。

@@ -1569,6 +1569,7 @@ function Workbench(props: {
           readExtra={readExtra}
           onActivateExtra={(x) => termGroup()?.activateExtra(x)}
           onCloseExtra={(x) => termGroup()?.closeExtra(x)}
+          onLeaveExtra={() => focusTerminal()}
           zoomed={zoomed()}
           onBorder={(k, r) => termGroup()?.setBorder(k, r)}
           litBorder={litSplit()}

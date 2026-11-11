@@ -5,6 +5,7 @@ import { createSignal, For, Show, type JSX } from "solid-js";
 import { helpRows, leaderKeyName } from "./commands.ts";
 import { ModalCard } from "./connect/Card.tsx";
 import { IS_MAC } from "./guiKeys.ts";
+import { IMAGE_KEY_ROWS } from "./terminal/imageView.ts";
 import styles from "./KeyListDialog.module.css";
 
 const [opened, setOpened] = createSignal(false);
@@ -50,6 +51,23 @@ export function KeyListDialog(): JSX.Element {
                       {r.group ? " ›" : ""}
                     </td>
                     <td class={styles.shortcut}>{r.shortcut ?? ""}</td>
+                  </tr>
+                )}
+              </For>
+            </tbody>
+          </table>
+          <h2 class={styles.subtitle}>画像のペインにフォーカスがあるとき</h2>
+          <p class={styles.lead}>
+            リーダーを通さず、そのペインの中だけで効きます。マウスでは、Ctrl
+            +ホイールかトラックパッドのピンチで拡大・縮小、拡大中にドラッグで動かせます。
+          </p>
+          <table class={styles.table}>
+            <tbody>
+              <For each={IMAGE_KEY_ROWS}>
+                {(r) => (
+                  <tr>
+                    <td class={styles.keys}>{r.keys}</td>
+                    <td>{r.label}</td>
                   </tr>
                 )}
               </For>
