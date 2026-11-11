@@ -51,7 +51,14 @@ func runClipboardCopy(args []string) int {
 	}
 	return withTTY(name, func(t *kittyterm.TTY) error {
 		id := kittyterm.NewID()
-		return t.Ask(kittyterm.ClipboardWrite(id, data), copyTimeout, kittyterm.WriteReply(id))
+		req := kittyterm.ClipboardWrite(id, data)
+		// Called by a full-screen program (shj, vim) that reads the terminal
+		// itself: write and do not wait for the answer. The program gets the
+		// answer and drops it as an unknown sequence.
+		if inUse, err := t.InUse(); err != nil || inUse {
+			return t.Write(req)
+		}
+		return t.Ask(req, copyTimeout, kittyterm.WriteReply(id))
 	})
 }
 

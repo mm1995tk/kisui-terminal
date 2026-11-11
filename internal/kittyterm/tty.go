@@ -44,6 +44,22 @@ func (t *TTY) Write(b []byte) error {
 	return nil
 }
 
+// InUse reports whether a full-screen program (an editor such as shj or vim)
+// has the terminal: it reads the keys one by one (the terminal does not wait
+// for a line). A shell puts the terminal back to lines before it runs a
+// command, so a command the user runs from the shell sees false. When it is
+// true, the program reads the terminal at the same time as Ask would, and Ask
+// must not run: it would take the keys meant for the program, and change the
+// terminal under it (a program that reads while Ask has the terminal return at
+// once with nothing can take it as the end of its input and stop reading keys).
+func (t *TTY) InUse() (bool, error) {
+	tio, err := unix.IoctlGetTermios(t.fd, ioctlGetTermios)
+	if err != nil {
+		return false, err
+	}
+	return tio.Lflag&unix.ICANON == 0, nil
+}
+
 // ErrTimeout is returned by Ask when the terminal did not answer in time: it is
 // not one that speaks the protocol (kisui-terminal does).
 var ErrTimeout = errors.New("the terminal did not answer")

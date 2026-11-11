@@ -182,3 +182,30 @@ func TestAskOnAPTY(t *testing.T) {
 		t.Error("the second request was not written")
 	}
 }
+
+// InUse is false while the terminal waits for lines (a shell runs the
+// command) and true while a full-screen program reads the keys one by one.
+func TestInUseOnAPTY(t *testing.T) {
+	ptmx, tty, err := pty.Open()
+	if err != nil {
+		t.Skip("no pty:", err)
+	}
+	defer ptmx.Close()
+	defer tty.Close()
+	tt := &TTY{fd: int(tty.Fd())}
+
+	if inUse, err := tt.InUse(); err != nil || inUse {
+		t.Errorf("lines: %v %v", inUse, err)
+	}
+	tio, err := unix.IoctlGetTermios(tt.fd, ioctlGetTermios)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tio.Lflag &^= unix.ICANON | unix.ECHO
+	if err := unix.IoctlSetTermios(tt.fd, ioctlSetTermios, tio); err != nil {
+		t.Fatal(err)
+	}
+	if inUse, err := tt.InUse(); err != nil || !inUse {
+		t.Errorf("keys: %v %v", inUse, err)
+	}
+}
