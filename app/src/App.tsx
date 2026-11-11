@@ -136,7 +136,7 @@ import {
   type Command,
   type RouterState,
 } from "./commands.ts";
-import { closeTarget, IS_MAC, isFocusLost } from "./guiKeys.ts";
+import { closeTarget, IS_MAC } from "./guiKeys.ts";
 import { KeyListDialog, openKeyList } from "./KeyListDialog.tsx";
 import { LeaderMenu, setLeaderPath } from "./LeaderMenu.tsx";
 import { loadScale, nextScale, saveScale, type ScaleAction } from "./scale.ts";
@@ -404,14 +404,13 @@ function Workbench(props: {
   const onGuiKey = (e: KeyboardEvent) => {
     // 隣へ移るのは、ターミナルを並べていて、キーがターミナルに向いているときだけ
     const card = mainEl?.querySelector(":scope > .terminal");
-    const inTerm = !!card?.contains(e.target as Node);
     const routed = route(router, e, {
       mac: IS_MAC,
       dialogOpen: !!document.querySelector("dialog[open]"),
       resizeMode: resizeMode(),
       // Cmd+W（Mac）は、キーがターミナルの欄（画像・動画・PDF の欄を含む）に向いているときか、どこにも向いていないときに、
       // 今の欄だけを閉じる。どちらでも、アプリの窓は閉じない（#83）
-      inPane: inTerm || isFocusLost(e.target),
+      inPane: closeTarget(e.target, card, !!termGroup()) === "pane",
     });
     setRouter(routed.state);
     if (routed.consume) {
@@ -473,10 +472,8 @@ function Workbench(props: {
       offs.push(
         await api.onCloseRequest(() => {
           const card = mainEl?.querySelector(":scope > .terminal");
-          const dialogOpen = !!document.querySelector("dialog[open]");
           if (
-            !dialogOpen &&
-            closeTarget(document.activeElement, card) === "pane"
+            closeTarget(document.activeElement, card, !!termGroup()) === "pane"
           ) {
             runCommand({ id: "pane.close" });
           } else {

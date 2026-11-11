@@ -18,13 +18,17 @@ describe("closeTarget", () => {
   const inside = {};
   const card = { contains: (n: unknown) => n === inside };
   it("ターミナルの欄の中（PDF の iframe を含む）とどこにも向いていないときは、欄", () => {
-    assert.equal(closeTarget(inside, card, doc), "pane");
-    assert.equal(closeTarget(doc.body, card, doc), "pane");
-    assert.equal(closeTarget(null, null, doc), "pane");
+    assert.equal(closeTarget(inside, card, true, doc), "pane");
+    assert.equal(closeTarget(doc.body, card, true, doc), "pane");
+    assert.equal(closeTarget(null, null, true, doc), "pane");
   });
   it("欄の外（サイドバー・入力欄など）や、欄が無いときは、窓", () => {
-    assert.equal(closeTarget({}, card, doc), "window");
-    assert.equal(closeTarget({}, null, doc), "window");
+    assert.equal(closeTarget({}, card, true, doc), "window");
+    assert.equal(closeTarget({}, null, true, doc), "window");
+  });
+  it("欄を持つ画面が無いときは、どこにも向いていなくても窓", () => {
+    assert.equal(closeTarget(doc.body, card, false, doc), "window");
+    assert.equal(closeTarget(inside, card, false, doc), "window");
   });
 });
 
