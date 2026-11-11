@@ -13,10 +13,12 @@ import {
   transformOf,
   wheelFactor,
   zoomBy,
+  type ImageKey,
   type Size,
   type View,
 } from "./imageView.ts";
 
+/** createImageZoom に渡すもの。 */
 export interface ImageZoomOptions {
   /** 画像の欄か（PDF の欄では何も受けない） */
   enabled: () => boolean;
@@ -30,30 +32,145 @@ export interface ImageZoomOptions {
   onHelp?: () => void;
 }
 
+/** 見える場所を、収めた大きさ（base）と本文の大きさ（view）を渡して動かす関数。 */
+type Apply = (f: (v: View, s: { base: Size; view: Size }) => View) => void;
+
+/** 画像のキーの働きを、見える場所の動きにする。zoom・pan のほかは、呼んだ側に任せる。 */
+function runKey(
+  k: ImageKey,
+  apply: Apply,
+  reset: () => void,
+  o: Pick<ImageZoomOptions, "onLeave" | "onHelp">,
+): void {
+  switch (k.kind) {
+    case "zoom":
+      apply((v, s) =>
+        zoomBy(
+          v,
+          k.dir === "in" ? KEY_STEP : 1 / KEY_STEP,
+          { x: 0, y: 0 },
+          s.base,
+          s.view,
+        ),
+      );
+      break;
+    case "reset":
+      reset();
+      break;
+    case "pan":
+      apply((v, s) => panBy(v, k.dir, s.base, s.view));
+      break;
+    case "leave":
+      o.onLeave?.();
+      break;
+    case "help":
+      o.onHelp?.();
+      break;
+  }
+}
+
+/**
+ * 本文にホイールとピンチを付け、欄の大きさが変わったら収め直す。外すのは onCleanup。
+ * ブラウザ自身の拡大を止めるため、wheel は passive にしない。
+ */
+function watchBody(
+  body: HTMLElement,
+  apply: Apply,
+  scale: () => number,
+  fromCenter: (x: number, y: number) => { x: number; y: number },
+): void {
+  // Ctrl+ホイール（トラックパッドのピンチもこの形で届く）
+  const onWheel = (e: WheelEvent) => {
+    if (!e.ctrlKey) return;
+    e.preventDefault();
+    const at = fromCenter(e.clientX, e.clientY);
+    apply((v, s) =>
+      zoomBy(v, wheelFactor(e.deltaY, e.deltaMode), at, s.base, s.view),
+    );
+  };
+  // WKWebView（macOS）のピンチは、wheel でなく gesture イベントで届く
+  let start = 1;
+  const onGestureStart = (e: Event) => {
+    e.preventDefault();
+    start = scale();
+  };
+  const onGestureChange = (e: Event) => {
+    e.preventDefault();
+    const g = e as Event & {
+      scale: number;
+      clientX?: number;
+      clientY?: number;
+    };
+    const at = fromCenter(g.clientX ?? 0, g.clientY ?? 0);
+    apply((v, s) => zoomBy(v, (start * g.scale) / v.scale, at, s.base, s.view));
+  };
+  body.addEventListener("wheel", onWheel, { passive: false });
+  body.addEventListener("gesturestart", onGestureStart);
+  body.addEventListener("gesturechange", onGestureChange);
+  const ro = new ResizeObserver(() =>
+    apply((v, s) => clampView(v, s.base, s.view)),
+  );
+  ro.observe(body);
+  onCleanup(() => {
+    body.removeEventListener("wheel", onWheel);
+    body.removeEventListener("gesturestart", onGestureStart);
+    body.removeEventListener("gesturechange", onGestureChange);
+    ro.disconnect();
+  });
+}
+
+/** ドラッグで画像を動かす（拡大中だけ）。 */
+function createDrag(
+  o: Pick<ImageZoomOptions, "enabled" | "body">,
+  apply: Apply,
+  zoomed: () => boolean,
+) {
+  const [dragging, setDragging] = createSignal(false);
+  let last: { x: number; y: number } | undefined;
+  return {
+    dragging,
+    onPointerDown: (e: PointerEvent) => {
+      if (!o.enabled() || e.button !== 0 || !zoomed()) return;
+      last = { x: e.clientX, y: e.clientY };
+      setDragging(true);
+      o.body().setPointerCapture(e.pointerId);
+      e.preventDefault();
+    },
+    onPointerMove: (e: PointerEvent) => {
+      if (!last) return;
+      const dx = e.clientX - last.x;
+      const dy = e.clientY - last.y;
+      last = { x: e.clientX, y: e.clientY };
+      apply((v, s) => dragBy(v, dx, dy, s.base, s.view));
+    },
+    onPointerUp: () => {
+      last = undefined;
+      setDragging(false);
+    },
+  };
+}
+
 /** 倍率 1 は、欄に収めた大きさ。 */
 export function createImageZoom(o: ImageZoomOptions) {
   const [view, setView] = createSignal<View>(HOME);
-  const [dragging, setDragging] = createSignal(false);
   let img: HTMLImageElement | undefined;
 
-  const sizes = (): { base: Size; view: Size } | undefined => {
-    if (!img) return undefined;
+  const apply: Apply = (f) => {
+    if (!img) return;
     const body = o.body();
     // offsetWidth・Height は transform の影響を受けない（収めた大きさ）
-    return {
+    const s = {
       base: { w: img.offsetWidth, h: img.offsetHeight },
       view: { w: body.clientWidth, h: body.clientHeight },
     };
-  };
-  const apply = (f: (v: View, s: { base: Size; view: Size }) => View) => {
-    const s = sizes();
-    if (s) setView((v) => f(v, s));
+    setView((v) => f(v, s));
   };
   /** 本文の中心からの位置（px）。 */
   const fromCenter = (x: number, y: number) => {
     const r = o.body().getBoundingClientRect();
     return { x: x - (r.left + r.width / 2), y: y - (r.top + r.height / 2) };
   };
+  const zoomed = () => o.enabled() && view().scale > 1;
 
   createEffect(
     on(
@@ -61,120 +178,31 @@ export function createImageZoom(o: ImageZoomOptions) {
       () => setView(HOME),
     ),
   );
-
-  const onKeyDown = (e: KeyboardEvent) => {
-    if (!o.enabled()) return;
-    const k = imageKey(e);
-    if (!k) return;
-    e.preventDefault();
-    e.stopPropagation();
-    switch (k.kind) {
-      case "zoom":
-        apply((v, s) =>
-          zoomBy(
-            v,
-            k.dir === "in" ? KEY_STEP : 1 / KEY_STEP,
-            { x: 0, y: 0 },
-            s.base,
-            s.view,
-          ),
-        );
-        break;
-      case "reset":
-        setView(HOME);
-        break;
-      case "pan":
-        apply((v, s) => panBy(v, k.dir, s.base, s.view));
-        break;
-      case "leave":
-        o.onLeave?.();
-        break;
-      case "help":
-        o.onHelp?.();
-        break;
-    }
-  };
-
   onMount(() => {
-    if (!o.enabled()) return;
-    const body = o.body();
-    // Ctrl+ホイール（トラックパッドのピンチもこの形で届く）。ブラウザ自身の拡大を止めるため passive にしない
-    const onWheel = (e: WheelEvent) => {
-      if (!e.ctrlKey) return;
-      e.preventDefault();
-      const at = fromCenter(e.clientX, e.clientY);
-      apply((v, s) =>
-        zoomBy(v, wheelFactor(e.deltaY, e.deltaMode), at, s.base, s.view),
-      );
-    };
-    // WKWebView（macOS）のピンチは、wheel でなく gesture イベントで届く
-    let start = 1;
-    const onGestureStart = (e: Event) => {
-      e.preventDefault();
-      start = view().scale;
-    };
-    const onGestureChange = (e: Event) => {
-      e.preventDefault();
-      const g = e as Event & {
-        scale: number;
-        clientX?: number;
-        clientY?: number;
-      };
-      const at = fromCenter(g.clientX ?? 0, g.clientY ?? 0);
-      apply((v, s) =>
-        zoomBy(v, (start * g.scale) / v.scale, at, s.base, s.view),
-      );
-    };
-    body.addEventListener("wheel", onWheel, { passive: false });
-    body.addEventListener("gesturestart", onGestureStart);
-    body.addEventListener("gesturechange", onGestureChange);
-    // 欄の大きさが変わったら、はみ出す範囲に収め直す
-    const ro = new ResizeObserver(() =>
-      apply((v, s) => clampView(v, s.base, s.view)),
-    );
-    ro.observe(body);
-    onCleanup(() => {
-      body.removeEventListener("wheel", onWheel);
-      body.removeEventListener("gesturestart", onGestureStart);
-      body.removeEventListener("gesturechange", onGestureChange);
-      ro.disconnect();
-    });
+    if (o.enabled()) watchBody(o.body(), apply, () => view().scale, fromCenter);
   });
-
-  // ドラッグで動かす（拡大中）
-  let drag: { x: number; y: number } | undefined;
-  const onPointerDown = (e: PointerEvent) => {
-    if (!o.enabled() || e.button !== 0 || view().scale <= 1) return;
-    drag = { x: e.clientX, y: e.clientY };
-    setDragging(true);
-    o.body().setPointerCapture(e.pointerId);
-    e.preventDefault();
-  };
-  const onPointerMove = (e: PointerEvent) => {
-    if (!drag) return;
-    const dx = e.clientX - drag.x;
-    const dy = e.clientY - drag.y;
-    drag = { x: e.clientX, y: e.clientY };
-    apply((v, s) => dragBy(v, dx, dy, s.base, s.view));
-  };
-  const onPointerUp = () => {
-    drag = undefined;
-    setDragging(false);
-  };
+  const drag = createDrag(o, apply, zoomed);
 
   return {
     /** 拡大中か */
-    zoomed: () => o.enabled() && view().scale > 1,
-    dragging,
+    zoomed,
+    dragging: drag.dragging,
     /** <img> に当てる transform */
     transform: () => transformOf(view()),
     /** <img> の ref */
     imgRef: (el: HTMLImageElement) => {
       img = el;
     },
-    onKeyDown,
-    onPointerDown,
-    onPointerMove,
-    onPointerUp,
+    onKeyDown: (e: KeyboardEvent) => {
+      if (!o.enabled()) return;
+      const k = imageKey(e);
+      if (!k) return;
+      e.preventDefault();
+      e.stopPropagation();
+      runKey(k, apply, () => setView(HOME), o);
+    },
+    onPointerDown: drag.onPointerDown,
+    onPointerMove: drag.onPointerMove,
+    onPointerUp: drag.onPointerUp,
   };
 }
