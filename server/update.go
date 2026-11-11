@@ -55,27 +55,33 @@ func (u *updateWaits) deliver(id string, r panecmd.UpdateResult) {
 	}
 }
 
+// updateWaiting は、kisui update の頼みを GUI に送り、答えを待つだけになったことを paneCmd が知らせる値（error として返す）。
+// 呼ぶ側（paneCmdConn）が読みロックを手放してから wait を呼ぶ。
+type updateWaiting struct{ wait func() (panecmd.Reply, error) }
+
+func (*updateWaiting) Error() string { return "waiting for the window" }
+
 var (
 	errNoWindow      = errors.New("the kisui-terminal window is not connected")
 	errUpdateTimeout = errors.New("the window did not answer in time (the notice may still appear)")
 )
 
-// updateCheck は kisui update。GUI に調べさせて、答えを返す。opMu の読みロックを持って呼ぶ（待つ間は手放す）。
-func (s *Server) updateCheck() (panecmd.Reply, error) {
+// updateStart は kisui update。GUI に update.check を送り、答えを待つ updateWaiting を返す（待つのは呼ぶ側）。
+func (s *Server) updateStart() (panecmd.Reply, error) {
 	id, ch := s.updates.add()
-	defer s.updates.remove(id)
 	if !s.notifyOwner("update.check", map[string]any{"id": id}) {
+		s.updates.remove(id)
 		return panecmd.Reply{}, errNoWindow
 	}
-	// GUI の答え（update.result の通知）も読みロックを取るので、待つ間は手放す（引き継ぎの書きロックを止めず、行き違いで詰まらない）
-	s.opMu.RUnlock()
-	defer s.opMu.RLock()
-	select {
-	case r := <-ch:
-		return panecmd.Reply{Update: &r}, nil
-	case <-time.After(updateWait):
-		return panecmd.Reply{}, errUpdateTimeout
-	}
+	return panecmd.Reply{}, &updateWaiting{wait: func() (panecmd.Reply, error) {
+		defer s.updates.remove(id)
+		select {
+		case r := <-ch:
+			return panecmd.Reply{Update: &r}, nil
+		case <-time.After(updateWait):
+			return panecmd.Reply{}, errUpdateTimeout
+		}
+	}}
 }
 
 // updateNotify は GUI の update.result。いまの GUI（owner）のものだけを受ける。

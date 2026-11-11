@@ -70,12 +70,20 @@ func (s *Server) paneCmdConn(c net.Conn, line []byte) {
 		return
 	}
 	s.opMu.RLock() // 引き継ぎ（handover.go）の間は待つ
-	defer s.opMu.RUnlock()
 	if s.isHandedOver() {
+		s.opMu.RUnlock()
 		replyPaneCmd(c, panecmd.Reply{Error: errHandedOver.Error()})
 		return
 	}
 	r, err := s.paneCmd(rq)
+	if w, ok := errors.AsType[*updateWaiting](err); ok {
+		// kisui update は GUI の答えを待つ。答え（update.result）も読みロックを取るので、待つ間は手放す
+		// （引き継ぎの書きロックが待っていても詰まらないように）
+		s.opMu.RUnlock()
+		r, err = w.wait()
+	} else {
+		s.opMu.RUnlock()
+	}
 	if err != nil {
 		r = panecmd.Reply{Error: err.Error()}
 		if errors.Is(err, errNotAPane) {
@@ -122,7 +130,7 @@ func (s *Server) paneCmd(rq panecmd.Request) (panecmd.Reply, error) {
 		id, err := s.ws.splitFrom(wsID, rq)
 		return panecmd.Reply{ID: id}, err
 	case "update":
-		return s.updateCheck()
+		return s.updateStart()
 	case "title":
 		name, err := cleanPaneName(rq.Title)
 		if err != nil {
