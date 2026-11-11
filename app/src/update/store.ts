@@ -47,9 +47,7 @@ export function checkNow(): Promise<UpdateOutcome> {
 
 async function run(): Promise<UpdateOutcome> {
   try {
-    const r = await invoke<UpdateOutcome & { notes?: string | null }>(
-      "update_check_now",
-    );
+    const r = await invoke<UpdateOutcome>("update_check_now");
     if (r.status === "available")
       setInfo({
         current: r.current,
