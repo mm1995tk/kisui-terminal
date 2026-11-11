@@ -118,7 +118,7 @@ describe("コマンドの表", () => {
     assert.equal(leaderKeyName(MAC), "Cmd+K");
   });
 
-  it("キーの定義の、docs/key-design.md の表のとおりの並び（#88・#93・#51 のキーはまだ無い）", () => {
+  it("キーの定義の、docs/key-design.md の表のとおりの並び（#88・#51 のキーはまだ無い。#93 は場所のキーで、ここには足さない）", () => {
     const rows = helpRows(MAC).map((r) => r.path.join(" "));
     assert.deepEqual(rows, [
       "h",

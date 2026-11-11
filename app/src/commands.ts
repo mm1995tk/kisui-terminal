@@ -69,6 +69,7 @@ export interface Group extends Common {
   children: Node[];
 }
 
+/** リーダーの木の 1 つ。動きを行う葉か、一段下の一覧に入るグループ。 */
 export type Node = Leaf | Group;
 
 function leaf(
@@ -121,8 +122,9 @@ const paneMoves = (): Leaf[] =>
 
 /**
  * リーダーの木。1 段目から下へ。
- * ワークスペースのグループ（w）の `h` `j` `k` `l`（ワークスペースとマシンを移る）と、画像のペインの拡大・縮小、URL のヒントモードは、
- * それぞれの Issue（#88・#93・#51）が、ここに葉を足して入れる。足すまでは、案内にも出ない。
+ * ワークスペースのグループ（w）の `h` `j` `k` `l`（ワークスペースとマシンを移る。#88）と、URL のヒントモードに入るキー（#51）は、
+ * それぞれの Issue が、ここに葉を足して入れる。足すまでは、案内にも出ない。
+ * 画像のペインの拡大・縮小（#93）は、リーダーに載せない場所のキー（docs/key-design.md の 5 章。#115 で作る定義）に足す。
  */
 export const LEADER: Node[] = [
   ...paneMoves(),
@@ -277,14 +279,9 @@ function matchLeaderKey(k: string, e: KeyLike): boolean {
   return e.key === k;
 }
 
-/** 表示用：キーの名前。 */
-export function keyName(k: string): string {
-  return k;
-}
-
 /** 表示用：一覧の 1 行のキー（葉が複数のキーを持つなら「+ =」のように並べる）。 */
 export function nodeKeys(n: Node): string {
-  return n.type === "group" ? keyName(n.key) : n.keys.map(keyName).join(" ");
+  return n.type === "group" ? n.key : n.keys.join(" ");
 }
 
 /** shortcut の、今の OS の書き方。この OS に近道が無ければ undefined。 */
@@ -303,6 +300,8 @@ interface ShortcutEntry {
   command?: Command;
   into?: Path;
   inPane: boolean;
+  /** 押しっぱなしの繰り返しを受けるか（葉の repeat） */
+  repeat: boolean;
 }
 
 function collect(
@@ -314,9 +313,21 @@ function collect(
   for (const n of list) {
     const spec = shortcutOf(n.shortcut, mac);
     if (n.type === "leaf") {
-      if (spec) out.push({ spec, command: n.run, inPane: !!n.shortcutInPane });
+      if (spec)
+        out.push({
+          spec,
+          command: n.run,
+          inPane: !!n.shortcutInPane,
+          repeat: !!n.repeat,
+        });
     } else {
-      if (spec) out.push({ spec, into: [...path, n.key], inPane: false });
+      if (spec)
+        out.push({
+          spec,
+          into: [...path, n.key],
+          inPane: false,
+          repeat: false,
+        });
       collect(n.children, mac, [...path, n.key], out);
     }
   }
@@ -365,6 +376,7 @@ export interface RouterState {
   swallow: boolean;
 }
 
+/** リーダーに入っておらず、繰り返しも捨てていない、初めの状態。 */
 export const IDLE: RouterState = { leader: null, swallow: false };
 
 /** キーを受けるときの周りの様子。 */
@@ -416,15 +428,10 @@ export function route(state: RouterState, e: KeyLike, env: Env): Routed {
       consume: true,
       state,
       run: entry.command,
-      repeat: leafRepeat(entry.command),
+      repeat: entry.repeat,
     };
   }
   return { consume: false, state };
-}
-
-/** 近道で動かすコマンドが、押しっぱなしの繰り返しを受けるか（表示の大きさの + と -）。 */
-function leafRepeat(c: Command | undefined): boolean {
-  return c?.id === "scale" && c.arg !== "reset";
 }
 
 function inLeader(
