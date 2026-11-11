@@ -15,3 +15,59 @@ for _kisui_dir in "$KISUI_BIN_PATH_DIR" "$KISUI_SHJ_PATH_DIR"; do
   PATH="$_kisui_dir${_kisui_rest:+:$_kisui_rest}"
 done
 unset _kisui_dir _kisui_rest _kisui_ifs _kisui_p
+# OSC 133 の印（プロンプトの始まり A・入力の始まり B・コマンドの始まり C・終わり D）を出す。
+# 欄の幅が変わるとき、端末はプロンプトの行を組み直さず、シェルの描き直しに任せる（印があるシェルだけ）。
+# ユーザーの設定がすでに OSC 133 を出しているときは（最初のプロンプトの前に見つかったら）何もしない。
+# 見つけるのは、フックの関数の本体や PS1 に `133;` がそのまま書かれている場合だけ。フックが別の関数を呼んで印を出す設定
+# （iTerm2 のシェル統合など）は見つけられないので、そのときは印が二重になる。
+# C は PS0（bash 4.4 から）で出すので、それより古い bash（macOS の /bin/bash など）では出ない。
+if [[ $- == *i* ]]; then
+  _kisui_a='\[\e]133;A\a\]'
+  _kisui_b='\[\e]133;B\a\]'
+  _kisui_nl=$'\n'
+  _kisui_has_osc133() {
+    local text="${PROMPT_COMMAND[*]}" w words
+    # PROMPT_COMMAND の語のうち、関数であるものの本体も見る（語の分割でパス名の展開が走らないように -f の下で）
+    local noglob=; [[ $- == *f* ]] && noglob=1
+    set -f
+    local flat=${PROMPT_COMMAND[*]//;/ }
+    read -ra words <<<"${flat//$_kisui_nl/ }"
+    [[ -n $noglob ]] || set +f
+    for w in "${words[@]}"; do
+      [[ $w == _kisui_* || $(type -t -- "$w" 2>/dev/null) != function ]] && continue
+      text+=$(declare -f -- "$w" 2>/dev/null)
+    done
+    [[ $text == *'133;'* || $PS1 == *'133;'* || $PS0 == *'133;'* ]]
+  }
+  # 最初に走らせて、直前のコマンドの終わり（D）を出す。ユーザーの PROMPT_COMMAND が $? を変える前に取る。
+  _kisui_pc_start() {
+    local ret=$?
+    if [[ -z $_kisui_prompted ]]; then
+      _kisui_prompted=1
+      if _kisui_has_osc133; then _kisui_off=1; return $ret; fi
+      PS0+='\e]133;C\a'
+    else
+      [[ -n $_kisui_off ]] || printf '\e]133;D;%s\a' "$ret"
+    fi
+    return $ret
+  }
+  # 最後に走らせて、ユーザーが PS1 を組み直したあとに A と B を入れる
+  _kisui_pc_end() {
+    local ret=$?
+    if [[ -z $_kisui_off ]]; then
+      PS1=${PS1//"$_kisui_a"/}
+      PS1=${PS1//"$_kisui_b"/}
+      # readline は、複数行のプロンプトの最後の行だけを描き直す。A はその行の頭に置く
+      local r1=${PS1##*\\n} r2=${PS1##*$'\n'} r
+      r=$r1; (( ${#r2} < ${#r1} )) && r=$r2
+      PS1=${PS1%"$r"}$_kisui_a$r$_kisui_b
+    fi
+    return $ret
+  }
+  if [[ $(declare -p PROMPT_COMMAND 2>/dev/null) == "declare -a"* ]]; then
+    PROMPT_COMMAND=(_kisui_pc_start "${PROMPT_COMMAND[@]}" _kisui_pc_end)
+  else
+    # 区切りは改行。; だと、ユーザーのものが ; で終わっているときに構文エラーになる
+    PROMPT_COMMAND="_kisui_pc_start${PROMPT_COMMAND:+$_kisui_nl$PROMPT_COMMAND}${_kisui_nl}_kisui_pc_end"
+  fi
+fi

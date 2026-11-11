@@ -6,7 +6,11 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
+	"time"
+
+	"github.com/creack/pty"
 )
 
 // writeShj は、dir に実行できる shj を置く。
@@ -234,5 +238,205 @@ func TestShellIntegrationZshZDOTDIRFromZshenv(t *testing.T) {
 	want := filepath.Join(bundled, "shj") + "\nhello='echo hi'\nZD=" + zd
 	if got != want {
 		t.Fatalf("got %q, want %q", got, want)
+	}
+}
+
+// ptyShell は、疑似端末の上で動く対話シェル。出力は on に渡しながら、全部を溜める。
+type ptyShell struct {
+	t    *testing.T
+	cmd  *exec.Cmd
+	ptmx *os.File
+
+	mu   sync.Mutex
+	out  strings.Builder
+	last time.Time // 最後に出力が来た時刻
+	done chan struct{}
+}
+
+// startPTYShell は、bundledShell が作る引数と環境変数でシェル sh を、疑似端末の上の対話シェルとして起動する。
+// シェルが無いときは t.Skip する。
+func startPTYShell(t *testing.T, sh, home string, rows, cols int, on func([]byte)) *ptyShell {
+	t.Helper()
+	path, err := exec.LookPath(sh)
+	if err != nil {
+		t.Skipf("%s is not installed", sh)
+	}
+	args, env := bundledShell(path, nil)
+	cmd := exec.Command(path, append(args, "-i")...)
+	cmd.Dir = home
+	cmd.Env = append(append(os.Environ(), env...), "TERM=xterm-256color")
+	ptmx, err := pty.StartWithSize(cmd, &pty.Winsize{Rows: uint16(rows), Cols: uint16(cols)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := &ptyShell{t: t, cmd: cmd, ptmx: ptmx, last: time.Now(), done: make(chan struct{})}
+	go func() {
+		defer close(s.done)
+		buf := make([]byte, 65536)
+		for {
+			n, err := ptmx.Read(buf)
+			if n > 0 {
+				if on != nil {
+					on(buf[:n])
+				}
+				s.mu.Lock()
+				s.out.Write(buf[:n])
+				s.last = time.Now()
+				s.mu.Unlock()
+			}
+			if err != nil {
+				return
+			}
+		}
+	}()
+	t.Cleanup(func() { ptmx.Close(); cmd.Process.Kill(); cmd.Wait() })
+	return s
+}
+
+func (s *ptyShell) output() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.out.String()
+}
+
+// waitFor は、出力が cond を満たすまで待つ。固定の時間は待たない（CI が混んでいても、出るのを待つ）。
+func (s *ptyShell) waitFor(what string, cond func(out string) bool) {
+	s.t.Helper()
+	deadline := time.Now().Add(20 * time.Second)
+	for !cond(s.output()) {
+		if time.Now().After(deadline) {
+			s.t.Fatalf("timed out waiting for %s; output so far: %q", what, s.output())
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+// settle は、出力が quiet の間止まるまで待つ。
+func (s *ptyShell) settle(quiet time.Duration) {
+	s.t.Helper()
+	deadline := time.Now().Add(20 * time.Second)
+	for {
+		s.mu.Lock()
+		idle := time.Since(s.last)
+		s.mu.Unlock()
+		if idle >= quiet {
+			return
+		}
+		if time.Now().After(deadline) {
+			s.t.Fatal("the shell kept printing")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+// runBundledShellPTY は、シェル sh を疑似端末の上の対話シェルとして起動し、コマンド cmds を 1 行ずつ、
+// 前のコマンドのあとのプロンプト（OSC 133 の A）が出てから打って、シェルが終わるまでの出力を返す。
+// A を出さない設定のときはプロンプトを見分けられないので、使わない。
+func runBundledShellPTY(t *testing.T, sh, home string, cmds ...string) string {
+	t.Helper()
+	s := startPTYShell(t, sh, home, 24, 80, nil)
+	for i, c := range cmds {
+		s.waitFor("a prompt", func(out string) bool { return strings.Count(out, "\x1b]133;A\a") > i })
+		s.settle(100 * time.Millisecond)
+		s.ptmx.WriteString(c + "\n")
+	}
+	s.waitFor("the last prompt", func(out string) bool { return strings.Count(out, "\x1b]133;A\a") > len(cmds) })
+	s.settle(100 * time.Millisecond)
+	s.ptmx.WriteString("exit\n")
+	select {
+	case <-s.done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the shell did not exit")
+	}
+	return s.output()
+}
+
+// osc133 は、出力の中の OSC 133 の印（A・B・C・D;n）を出てきた順に返す。
+func osc133(out string) []string {
+	var marks []string
+	for {
+		i := strings.Index(out, "\x1b]133;")
+		if i < 0 {
+			return marks
+		}
+		out = out[i+len("\x1b]133;"):]
+		j := strings.IndexByte(out, '\a')
+		if j < 0 {
+			return marks
+		}
+		marks = append(marks, out[:j])
+	}
+}
+
+func TestShellIntegrationOSC133(t *testing.T) {
+	// 1 つ目のコマンドは成功、2 つ目は失敗する。最初のプロンプトの前には D が無い。
+	cases := []struct {
+		sh   string
+		want []string
+	}{
+		{"zsh", []string{"A", "B", "C", "D;0", "A", "B", "C", "D;3", "A", "B"}},
+		{"bash", []string{"A", "B", "C", "D;0", "A", "B", "C", "D;3", "A", "B"}},
+	}
+	for _, c := range cases {
+		t.Run(c.sh, func(t *testing.T) {
+			home, _, _ := setupShellTest(t)
+			out := runBundledShellPTY(t, c.sh, home, "true", "(exit 3)")
+			got := osc133(out)
+			// exit を打ったあとの印は見ない
+			if len(got) < len(c.want) || strings.Join(got[:len(c.want)], " ") != strings.Join(c.want, " ") {
+				t.Fatalf("marks %q, want prefix %q\n%q", got, c.want, out)
+			}
+		})
+	}
+}
+
+// ユーザーの設定がすでに OSC 133 を出しているときは、kisui は足さない。
+func TestShellIntegrationOSC133NotDoubled(t *testing.T) {
+	cases := []struct {
+		sh, rc, file string
+	}{
+		{"zsh", "_user_precmd() { printf '\\e]133;A\\a' }\nprecmd_functions+=(_user_precmd)\n", ".zshrc"},
+		{"zsh", "PS1=$'%{\\e]133;A\\a%}% '\n", ".zshrc"},
+		{"bash", "_user_pc() { printf '\\e]133;A\\a'; }\nPROMPT_COMMAND=_user_pc\n", ".bashrc"},
+		{"bash", "PS1='\\[\\e]133;A\\a\\]$ '\n", ".bashrc"},
+	}
+	for i, c := range cases {
+		t.Run(fmt.Sprintf("%s-%d", c.sh, i), func(t *testing.T) {
+			home, _, _ := setupShellTest(t)
+			writeFile(t, filepath.Join(home, c.file), c.rc)
+			out := runBundledShellPTY(t, c.sh, home, "true", "true")
+			if strings.Contains(out, "133;B") || strings.Contains(out, "133;C") || strings.Contains(out, "133;D") {
+				t.Fatalf("kisui added marks on top of the user's: %q", out)
+			}
+			if !strings.Contains(out, "\x1b]133;A\a") {
+				t.Fatalf("the user's own mark is missing: %q", out)
+			}
+		})
+	}
+}
+
+// ユーザーの PROMPT_COMMAND がどんな形でも、壊さず、kisui の印も出る。
+func TestShellIntegrationOSC133BashPromptCommand(t *testing.T) {
+	cases := map[string]string{
+		// 元が空のまま足す書き方。; で終わる
+		"trailing semicolon": "PROMPT_COMMAND=\"echo UPC1; $PROMPT_COMMAND\"\n",
+		"trailing newline":   "PROMPT_COMMAND=$'echo UPC1\\n'\n",
+		// -f・-p・-- のような語や、* を含む語があっても、関数の本体を取り違えない
+		"words that look like options": "PROMPT_COMMAND='[ -f /nonexistent ] && :; echo -p -- ${HOSTNAME%%.*}; echo UPC1'\n",
+	}
+	for name, rc := range cases {
+		t.Run(name, func(t *testing.T) {
+			home, _, _ := setupShellTest(t)
+			writeFile(t, filepath.Join(home, ".bashrc"), rc)
+			out := runBundledShellPTY(t, "bash", home, "true", "(exit 3)")
+			if strings.Contains(out, "syntax error") || !strings.Contains(out, "UPC1") {
+				t.Fatalf("the user's PROMPT_COMMAND is broken: %q", out)
+			}
+			got := osc133(out)
+			want := []string{"A", "B", "C", "D;0", "A", "B", "C", "D;3", "A", "B"}
+			if len(got) < len(want) || strings.Join(got[:len(want)], " ") != strings.Join(want, " ") {
+				t.Fatalf("marks %q, want prefix %q\n%q", got, want, out)
+			}
+		})
 	}
 }
