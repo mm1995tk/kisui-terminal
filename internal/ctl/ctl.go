@@ -216,12 +216,15 @@ const (
 // has no file on disk but a path all the same). Status is one of "modified",
 // "added", "deleted", "renamed" and "binary"; kisui takes any other value (or
 // none) as "modified". Added and Deleted are numbers of lines (0 for a binary
-// file).
+// file). Viewed is true when the file is marked as viewed in the pull request
+// (told only when PrimaryDiff.Base is BasePR, left out otherwise; a shj that
+// does not know it, or a list without it, means not viewed).
 type DiffFile struct {
 	Path    string `json:"path"`
 	Status  string `json:"status,omitempty"`
 	Added   int    `json:"added,omitempty"`
 	Deleted int    `json:"deleted,omitempty"`
+	Viewed  bool   `json:"viewed,omitempty"`
 }
 
 // PrimaryReply answers a PrimaryHello with one line. When OK, the connection

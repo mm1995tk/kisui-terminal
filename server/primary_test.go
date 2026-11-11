@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -386,6 +387,24 @@ func TestPrimaryShjDiffList(t *testing.T) {
 			t.Errorf("asked: %+v", got)
 		}
 	}
+	// viewed の欄は PR モードのときだけ通る。変わったら一覧が更新として届く。HEAD（知らない base も）では捨てる
+	viewedOf := func() []bool {
+		p := primaryShjOf(t, c, id)
+		if p == nil || p.Diff == nil {
+			return nil
+		}
+		var v []bool
+		for _, f := range p.Diff.Files {
+			v = append(v, f.Viewed)
+		}
+		return v
+	}
+	send(`{"file":"/x/a.go","diff":{"files":[{"path":"/x/a.go","viewed":true},{"path":"/x/b.go"}],"base":"pr"}}`)
+	waitFor(t, "viewed in the PR mode", func() bool { return slices.Equal(viewedOf(), []bool{true, false}) })
+	send(`{"file":"/x/a.go","diff":{"files":[{"path":"/x/a.go","viewed":true},{"path":"/x/b.go","viewed":true}],"base":"pr"}}`)
+	waitFor(t, "viewed changed", func() bool { return slices.Equal(viewedOf(), []bool{true, true}) })
+	send(`{"file":"/x/a.go","diff":{"files":[{"path":"/x/a.go","viewed":true}]}}`)
+	waitFor(t, "viewed dropped in the HEAD mode", func() bool { return slices.Equal(viewedOf(), []bool{false}) })
 	send(`{"file":"/x/a.go","diff":{"files":[{"path":"/x/a.go"}],"base":"other"}}`)
 	waitFor(t, "unknown base is head", func() bool { p := primaryShjOf(t, c, id); return p != nil && p.Diff != nil && p.Diff.Base == "" })
 	send(`{"file":"/x/a.go"}`)
