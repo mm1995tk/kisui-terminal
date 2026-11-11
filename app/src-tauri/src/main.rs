@@ -2,7 +2,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod askpass;
-mod browser;
 mod clipboard_history;
 mod clipboard_popup;
 mod config;
@@ -10,6 +9,7 @@ mod connection;
 mod install;
 mod locate;
 mod notify;
+mod open_url;
 mod ssh_config;
 mod transfer;
 mod update;
@@ -41,12 +41,6 @@ fn list_ssh_hosts() -> Vec<String> {
 #[tauri::command]
 fn config_machines() -> Result<Vec<config::ConfigMachine>, String> {
     config::load_default()
-}
-
-/// 手元の設定ファイルの `[gui] url_open`（ターミナルの URL を `cmd + shift + click` で開く先）。間違いがあれば「ファイル:行: 理由」を返す。
-#[tauri::command]
-fn config_url_open() -> Result<config::UrlOpen, String> {
-    config::load_url_open_default()
 }
 
 /// kisui につなぐ。`target` は ssh のホスト名か `@local`。`id` は画面側が決める（イベントの宛先）。
@@ -127,7 +121,7 @@ fn main() {
     builder
         .manage(update::Updates::default())
         .manage(transfer::Transfers::default())
-        .manage(browser::Browsers::default())
+        .manage(open_url::Forwards::default())
         .setup(|app| {
             version::init(app.package_info().version.to_string());
             // 「ローカル」の kisui のターミナルに渡す PATH を、先にログインシェルに聞いておく（locate.rs）
@@ -153,15 +147,7 @@ fn main() {
             install_plan,
             install_remote,
             install_cancel,
-            browser::browser_open,
-            browser::browser_bounds,
-            browser::browser_visible,
-            browser::browser_go,
-            browser::browser_nav,
-            browser::browser_external,
-            browser::open_url_external,
-            config_url_open,
-            browser::browser_close,
+            open_url::open_url_external,
             clipboard_history::clipboard_history_list,
             clipboard_popup::clipboard_popup_pick,
             clipboard_popup::clipboard_popup_dismiss,
@@ -197,7 +183,7 @@ fn main() {
             if let RunEvent::Exit = event {
                 if let Some(s) = app.try_state::<AppState>() {
                     s.conns.close_all();
-                    if let Some(b) = app.try_state::<browser::Browsers>() {
+                    if let Some(b) = app.try_state::<open_url::Forwards>() {
                         b.close_all();
                     }
                     s.askpass.cleanup();

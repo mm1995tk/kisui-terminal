@@ -472,6 +472,31 @@ describe("待ち時間と閉じる", () => {
 describe("プライマリの shj の欄（#553）", () => {
   const settle = () => new Promise((r) => setTimeout(r, 10));
 
+  it("URL を外部ブラウザで開く頼みを渡す（browser.open）", async () => {
+    const f = fakeShell({ serverIds: ["A"] });
+    const s = new Session(f.api, "h", fast);
+    const got: unknown[] = [];
+    s.onPane((e) => got.push(e));
+    s.start();
+    await waitFor(s, (st) => st.kind === "connected");
+    const id = connectedId(f);
+    f.emit(id, {
+      jsonrpc: "2.0",
+      method: "browser.open",
+      params: { workspaceId: "w1", url: "http://localhost:3000/" },
+    });
+    f.emit(id, {
+      jsonrpc: "2.0",
+      method: "browser.open",
+      params: { workspaceId: "w1" },
+    });
+    await settle();
+    assert.deepEqual(got, [
+      { kind: "open-url", workspaceId: "w1", url: "http://localhost:3000/" },
+    ]);
+    await s.close();
+  });
+
   it("プライマリの shj が欄を出した・隠した知らせを渡す（pane.show・pane.hide）", async () => {
     const f = fakeShell({ serverIds: ["A"] });
     const s = new Session(f.api, "h", fast);

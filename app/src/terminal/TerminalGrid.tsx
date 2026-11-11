@@ -22,7 +22,6 @@ import {
 import type { TermLink } from "./link.ts";
 import type { MediaFetch } from "./media.ts";
 import { TerminalView } from "./TerminalView.tsx";
-import { BrowserView } from "./BrowserView.tsx";
 import { FileView } from "./FileView.tsx";
 import { VideoView } from "./VideoView.tsx";
 
@@ -50,8 +49,6 @@ export function TerminalGrid(props: {
   activeExtra?: ExtraPane;
   /** ターミナルでない欄の中身を取る関数を作る */
   readExtra?: (pane: ExtraPane) => MediaFetch;
-  /** ブラウザの欄を開いたマシン（ssh のホスト名か @local） */
-  target?: string;
   onActivateExtra?: (id: string) => void;
   onCloseExtra?: (id: string) => void;
   /** プライマリ以外の欄を隠しているか（隠した欄のターミナルは動かし続ける） */
@@ -187,37 +184,19 @@ export function TerminalGrid(props: {
       </For>
       <For each={extras()}>
         {(x) => (
-          <Show
-            when={x.kind === "browser"}
-            fallback={
-              <Dynamic
-                component={x.kind === "video" ? VideoView : FileView}
-                pane={x}
-                read={props.readExtra!(x)}
-                active={x.id === props.activeExtra?.id}
-                hidden={!extraVisible(x)}
-                place={place(x.id)}
-                onFocus={() => props.onActivateExtra?.(x.id)}
-                onClose={() => props.onCloseExtra?.(x.id)}
-                focusRef={(f) =>
-                  f ? extraFocusers.set(x.id, f) : extraFocusers.delete(x.id)
-                }
-              />
+          <Dynamic
+            component={x.kind === "video" ? VideoView : FileView}
+            pane={x}
+            read={props.readExtra!(x)}
+            active={x.id === props.activeExtra?.id}
+            hidden={!extraVisible(x)}
+            place={place(x.id)}
+            onFocus={() => props.onActivateExtra?.(x.id)}
+            onClose={() => props.onCloseExtra?.(x.id)}
+            focusRef={(f) =>
+              f ? extraFocusers.set(x.id, f) : extraFocusers.delete(x.id)
             }
-          >
-            <BrowserView
-              pane={x}
-              target={props.target ?? ""}
-              active={x.id === props.activeExtra?.id}
-              hidden={!extraVisible(x)}
-              place={place(x.id)}
-              onFocus={() => props.onActivateExtra?.(x.id)}
-              onClose={() => props.onCloseExtra?.(x.id)}
-              focusRef={(f) =>
-                f ? extraFocusers.set(x.id, f) : extraFocusers.delete(x.id)
-              }
-            />
-          </Show>
+          />
         )}
       </For>
       <Index each={bars()}>

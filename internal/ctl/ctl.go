@@ -271,9 +271,10 @@ type PrimaryReply struct {
 //
 // "open" adds a pane that is not a terminal: Kind says which. "video", "image"
 // and "pdf": Path is the absolute path of the file it shows. "browser": URL is the http or https
-// address it shows. The reply has its ID; the GUI shows it and moves the focus
-// to it. The workspace has one pane of each kind: a new one takes the place of
-// the old. "close" also closes such a pane.
+// address the GUI opens in the browser of the machine it runs on (no pane; the
+// reply has no ID). For the other kinds the reply has the pane's ID; the GUI
+// shows it and moves the focus to it. The workspace has one pane of each kind:
+// a new one takes the place of the old. "close" also closes such a pane.
 type PaneRequest struct {
 	Op     string   `json:"op"`
 	TermID string   `json:"termId"`

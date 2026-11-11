@@ -107,7 +107,7 @@ func TestPaneCmdOpen(t *testing.T) {
 		t.Fatal("an unknown command must be refused")
 	}
 
-	want := map[string]string{png: "image", pdf: "pdf", mp4: "video", "https://example.com/a": "browser"}
+	want := map[string]string{png: "image", pdf: "pdf", mp4: "video"}
 	ids := map[string]string{}
 	for target := range want {
 		r := open(target)
@@ -124,6 +124,18 @@ func TestPaneCmdOpen(t *testing.T) {
 			return false
 		})
 	}
+	// URL は欄にならず、GUI に browser.open が届く。
+	if r := open("https://example.com/a"); !r.OK || r.ID != "" {
+		t.Fatalf("open url: %+v", r)
+	}
+	waitFor(t, "browser.open", func() bool {
+		for _, m := range nt.all("browser.open") {
+			if strings.Contains(string(*m), `"url":"https://example.com/a"`) && strings.Contains(string(*m), `"workspaceId":"`+id+`"`) {
+				return true
+			}
+		}
+		return false
+	})
 	list := func() []extraPane {
 		var l struct {
 			Workspaces []wsInfo `json:"workspaces"`
@@ -139,14 +151,11 @@ func TestPaneCmdOpen(t *testing.T) {
 		return l.Workspaces[0].Extras
 	}
 	got := list()
-	if len(got) != 4 {
+	if len(got) != 3 {
 		t.Fatalf("extras: %+v", got)
 	}
 	for _, e := range got {
 		target := e.Path
-		if e.Kind == "browser" {
-			target = e.URL
-		}
 		if want[target] != e.Kind || ids[target] != e.ID {
 			t.Fatalf("extra %+v", e)
 		}
@@ -157,7 +166,7 @@ func TestPaneCmdOpen(t *testing.T) {
 		t.Fatalf("open sniffed: %+v", r)
 	}
 	got = list()
-	if len(got) != 4 || got[3].ID != r.ID || got[3].Kind != "pdf" || got[3].MIME != "application/pdf" {
+	if len(got) != 3 || got[2].ID != r.ID || got[2].Kind != "pdf" || got[2].MIME != "application/pdf" {
 		t.Fatalf("extras after the sniffed pdf: %+v", got)
 	}
 
@@ -170,7 +179,7 @@ func TestPaneCmdOpen(t *testing.T) {
 	if !rs.OK {
 		t.Fatalf("shj open: %+v", rs)
 	}
-	if got = list(); len(got) != 4 || got[3].ID != rs.ID {
+	if got = list(); len(got) != 3 || got[2].ID != rs.ID {
 		t.Fatalf("extras after the shj's image: %+v", got)
 	}
 	// shj は、自分が開かせていない欄を閉じられない。
@@ -178,13 +187,13 @@ func TestPaneCmdOpen(t *testing.T) {
 		t.Fatal("the shj must not close a pane it did not open")
 	}
 	conn.Close()
-	waitFor(t, "the shj's pane closes with it", func() bool { return len(list()) == 3 })
+	waitFor(t, "the shj's pane closes with it", func() bool { return len(list()) == 2 })
 
 	// GUI の extra.close で閉じられる。
 	if err := c.Call(context.Background(), "extra.close", map[string]any{"workspaceId": id, "id": ids[mp4]}, nil); err != nil {
 		t.Fatal(err)
 	}
-	if got = list(); len(got) != 2 {
+	if got = list(); len(got) != 1 {
 		t.Fatalf("extras after extra.close: %+v", got)
 	}
 }

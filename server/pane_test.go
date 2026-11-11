@@ -237,7 +237,7 @@ func TestPrimaryShjVideoPane(t *testing.T) {
 	_ = srv
 }
 
-func TestPrimaryShjBrowserPane(t *testing.T) {
+func TestPrimaryShjBrowserOpensExternally(t *testing.T) {
 	t.Setenv("HOME", normalizePath(t.TempDir()))
 	_, sock := startFast(t)
 	c, nt := termClient(t, sock)
@@ -248,73 +248,48 @@ func TestPrimaryShjBrowserPane(t *testing.T) {
 	open := func(url string) ctl.PaneReply {
 		return paneDo(t, sock, ctl.PaneRequest{Op: "open", Kind: "browser", URL: url, TermID: primary, PID: 11})
 	}
-	extras := func() []extraPane {
-		var l struct {
-			Workspaces []wsInfo `json:"workspaces"`
-		}
-		if err := c.Call(context.Background(), "workspace.list", map[string]any{}, &l); err != nil || len(l.Workspaces) != 1 {
-			t.Fatalf("workspace.list: %v %+v", err, l)
-		}
-		return l.Workspaces[0].Extras
-	}
-
 	for _, bad := range []string{"", "localhost:3000", "file:///etc/passwd", "javascript:alert(1)", "ftp://x.example/", "https://", "https://u:p@example.com/", "http://a.example/\n", "tauri://localhost/"} {
 		if r := open(bad); r.OK {
 			t.Fatalf("%q must be refused", bad)
 		}
 	}
+	// 欄は作らず（ID は空）、GUI に browser.open を通知する。
 	r := open("http://localhost:3000/a?b=1")
-	if !r.OK || r.ID == "" {
+	if !r.OK || r.ID != "" {
 		t.Fatalf("open: %+v", r)
 	}
-	waitFor(t, "pane.show of the browser", func() bool {
-		for _, m := range nt.all("pane.show") {
-			if strings.Contains(string(*m), `"extraId":"`+r.ID+`"`) {
+	waitFor(t, "browser.open", func() bool {
+		for _, m := range nt.all("browser.open") {
+			if strings.Contains(string(*m), `"url":"http://localhost:3000/a?b=1"`) && strings.Contains(string(*m), `"workspaceId":"`+id+`"`) {
 				return true
 			}
 		}
 		return false
 	})
-	if e := extras(); len(e) != 1 || e[0].ID != r.ID || e[0].Kind != "browser" || e[0].URL != "http://localhost:3000/a?b=1" || e[0].Path != "" {
-		t.Fatalf("extras: %+v", e)
+	var l struct {
+		Workspaces []wsInfo `json:"workspaces"`
 	}
-	// ブラウザの欄には、取れる中身が無い。
-	var m MediaResult
-	if err := c.Call(context.Background(), "media.read", map[string]any{"workspaceId": id, "id": r.ID}, &m); err == nil {
-		t.Fatal("a browser pane has no media")
+	if err := c.Call(context.Background(), "workspace.list", map[string]any{}, &l); err != nil || len(l.Workspaces) != 1 {
+		t.Fatalf("workspace.list: %v %+v", err, l)
 	}
-	// 開き直すと入れ替わる（ブラウザの欄は 1 つ）。
-	r2 := open("https://example.com/")
-	if !r2.OK || r2.ID == r.ID {
-		t.Fatalf("open again: %+v", r2)
+	if e := l.Workspaces[0].Extras; len(e) != 0 {
+		t.Fatalf("a URL makes no pane: %+v", e)
 	}
-	if e := extras(); len(e) != 1 || e[0].ID != r2.ID || e[0].URL != "https://example.com/" {
-		t.Fatalf("extras after replacing: %+v", e)
+	// 何度でも開ける（欄が無いので入れ替わらない）。
+	if r := open("https://example.com/"); !r.OK {
+		t.Fatalf("open again: %+v", r)
 	}
-	// GUI が URL のクリックで開く（extra.open）。同じブラウザの欄と入れ替わる。http と https 以外は断る。
-	var o struct {
-		ID string `json:"id"`
+	waitFor(t, "second browser.open", func() bool { return len(nt.all("browser.open")) == 2 })
+	// 欄を作る extra.open は無い。
+	if err := c.Call(context.Background(), "extra.open", map[string]any{"workspaceId": id, "url": "https://example.org/x"}, nil); err == nil {
+		t.Fatal("extra.open must not exist")
 	}
-	if err := c.Call(context.Background(), "extra.open", map[string]any{"workspaceId": id, "url": "https://example.org/x"}, &o); err != nil || o.ID == "" || o.ID == r2.ID {
-		t.Fatalf("extra.open: %v %+v", err, o)
-	}
-	if e := extras(); len(e) != 1 || e[0].ID != o.ID || e[0].Kind != "browser" || e[0].URL != "https://example.org/x" {
-		t.Fatalf("extras after extra.open: %+v", e)
-	}
-	for _, bad := range []string{"file:///etc/passwd", "javascript:alert(1)", "ftp://example.com/", "https://u:p@example.com/", ""} {
-		if err := c.Call(context.Background(), "extra.open", map[string]any{"workspaceId": id, "url": bad}, &o); err == nil {
-			t.Fatalf("extra.open must refuse %q", bad)
-		}
-	}
-	if err := c.Call(context.Background(), "extra.open", map[string]any{"workspaceId": "nope", "url": "https://example.org/"}, &o); err == nil {
-		t.Fatal("extra.open into a workspace that does not exist must fail")
-	}
-	if err := c.Call(context.Background(), "extra.close", map[string]any{"workspaceId": id, "id": o.ID}, &struct{}{}); err != nil {
-		t.Fatal(err)
-	}
-	if e := extras(); len(e) != 0 {
-		t.Fatalf("extras after close: %+v", e)
-	}
+	// GUI（持ち主）がつながっていなければ、shj に分かる形で断る。
+	c.Close()
+	waitFor(t, "refusal without a GUI", func() bool {
+		r := open("https://example.com/")
+		return !r.OK && r.Error == "no GUI is connected to open the URL"
+	})
 }
 
 // 画像と PDF の欄は動画と同じ道（fileKinds）で開き、media.read で取れる。種類ごとに欄は 1 つで、拡張子の違うファイルは断る。

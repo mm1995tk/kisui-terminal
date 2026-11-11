@@ -2,7 +2,7 @@
 
 [日本語](README.ja.md)
 
-kisui-terminal is a terminal-centered workspace that works closely with [shijimi-editor](https://github.com/mm1995tk/shijimi-editor): it splits a window into panes and runs terminals (with `shj` inside), videos, images, PDFs, browser pages and a file tree in them. The name is 汽水 (kisui, brackish water), where the shijimi clam lives.
+kisui-terminal is a terminal-centered workspace that works closely with [shijimi-editor](https://github.com/mm1995tk/shijimi-editor): it splits a window into panes and runs terminals (with `shj` inside), videos, images, PDFs and a file tree in them. The name is 汽水 (kisui, brackish water), where the shijimi clam lives.
 
 It is a separate app from shijimi-editor, with its own version and releases. It ships with the `shj` it was tested with, and the terminals in its panes use that `shj` first (the `shj` you install yourself is still used outside kisui-terminal). How kisui-terminal and `shj` talk to each other is written in [docs/protocol.md](docs/protocol.md); the two share no code.
 
@@ -25,9 +25,9 @@ nix profile install github:mm1995tk/kisui-terminal#kisui-terminal-nightly
 
 ## Using it
 
-The manual of shijimi-editor explains how `shj` behaves inside kisui-terminal: the panes it opens, videos, the browser pane and the file tree. See its pages [Terminal](https://mm1995tk.github.io/shijimi-editor/manual/terminal/), [Browser](https://mm1995tk.github.io/shijimi-editor/manual/browser/) and [Configuration files](https://mm1995tk.github.io/shijimi-editor/manual/config/) ("Machines in kisui-terminal" and `[server]`).
+The manual of shijimi-editor explains how `shj` behaves inside kisui-terminal: the panes it opens, videos, opening a URL and the file tree. See its pages [Terminal](https://mm1995tk.github.io/shijimi-editor/manual/terminal/), [Browser](https://mm1995tk.github.io/shijimi-editor/manual/browser/) and [Configuration files](https://mm1995tk.github.io/shijimi-editor/manual/config/) ("Machines in kisui-terminal" and `[server]`).
 
-In a pane, `kisui open <file|url>` shows a file or a page in a pane of the same workspace, by its kind: a video, an image, a PDF (by the extension, or by the first bytes when the extension does not tell), or an `http`/`https` URL in a browser pane. A pane of each kind replaces the one already open. It works in the panes of a remote machine too, and only in the panes of kisui-terminal: from any other shell it refuses. `kisui --help` lists the commands.
+In a pane, `kisui open <file|url>` shows a file in a pane of the same workspace, by its kind: a video, an image, a PDF (by the extension, or by the first bytes when the extension does not tell). A pane of each kind replaces the one already open. An `http`/`https` URL opens in the browser of the computer kisui-terminal runs on (your OS default browser; no pane), the same as `:open-url` in `shj`. A `localhost` URL from a remote (ssh) machine opens through an ssh port forward that kisui-terminal sets up, so it shows the page of the remote machine. It works in the panes of a remote machine too, and only in the panes of kisui-terminal: from any other shell it refuses. `kisui --help` lists the commands.
 
 ```sh
 kisui open ./diagram.png
@@ -63,7 +63,7 @@ kisui pane title build
 kisui-terminal reads its settings from the same `config.toml` as `shj` (`~/.config/shijimi-editor/config.toml`, or `shijimi-editor-nightly/` for the nightly):
 
 - `[[gui.machines]]`: the machines shown in the sidebar (`ssh = "dev-vm"`, `name = "dev"`).
-- `url_open` under `[gui]`: where a URL on the screen (underlined) opens on `cmd + shift + click` (`ctrl + shift + click` outside macOS): `"external"` (your OS default browser; the default) or `"builtin"` (kisui-terminal's built-in browser). `cmd + click` (`ctrl + click`) opens it on the other side. Only http and https URLs open. For a `localhost` URL shown in a terminal on a remote (ssh) machine, kisui-terminal always uses the built-in browser (it forwards the port), because your own browser would reach your own localhost. While an app has mouse reporting on (vim, tmux, htop, `shj`), a plain `cmd + click` goes to the app; use `cmd + shift + click`.
+- A URL on the screen (underlined) opens in your OS default browser on `cmd + click` or `cmd + shift + click` (`ctrl + click` or `ctrl + shift + click` outside macOS). Only http and https URLs open. For a `localhost` URL shown in a terminal on a remote (ssh) machine, kisui-terminal forwards the port over ssh and opens the forwarded address, because your own browser would reach your own localhost. While an app has mouse reporting on (vim, tmux, htop, `shj`), a plain `cmd + click` goes to the app; use `cmd + shift + click`. The `url_open` setting under `[gui]` from older versions is ignored.
 - `[server]`: `idle_stop_days` (days `kisui serve` stays up with no window connected; default 7, 0 = never) and `start_dir` (the folder a new workspace's shell starts in).
 - `ui-language`: the language of kisui's own messages, like `shj`'s.
 

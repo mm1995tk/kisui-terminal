@@ -235,7 +235,7 @@ pub fn clipboard_history_list(
     state: State<ClipboardHistory>,
 ) -> Result<Vec<Entry>, String> {
     if webview.label() != crate::clipboard_popup::LABEL {
-        crate::browser::from_main(&webview)?;
+        crate::open_url::from_main(&webview)?;
     }
     state.update(&app, |h| h.prune(now_ms()));
     let h = state.history.lock().unwrap_or_else(|e| e.into_inner());

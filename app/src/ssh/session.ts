@@ -110,7 +110,6 @@ export type TermMethod =
   | "term.input"
   | "term.cd"
   | "extra.close"
-  | "extra.open"
   | "layout.resize";
 /** Session.request で送れる要求（動画の欄の中身。#555）。 */
 export type BlobMethod = "media.read";
@@ -127,6 +126,7 @@ export type PaneEvent =
   | { kind: "show"; workspaceId: WorkspaceId; termId: TermId }
   | { kind: "show-extra"; workspaceId: WorkspaceId; extraId: string }
   | { kind: "hide"; workspaceId: WorkspaceId }
+  | { kind: "open-url"; workspaceId: WorkspaceId; url: string }
   | { kind: "explorer"; workspaceId: WorkspaceId }
   | { kind: "changes"; workspaceId: WorkspaceId };
 
@@ -606,6 +606,13 @@ export class Session {
         if (typeof n?.workspaceId !== "string") return;
         for (const h of [...this.paneHandlers])
           h({ kind: "hide", workspaceId: n.workspaceId });
+      }),
+      conn.client.on("browser.open", (n) => {
+        if (gen !== this.generation || this.conn !== conn) return;
+        if (typeof n?.workspaceId !== "string" || typeof n.url !== "string")
+          return;
+        for (const h of [...this.paneHandlers])
+          h({ kind: "open-url", workspaceId: n.workspaceId, url: n.url });
       }),
       conn.client.on("explorer.focus", (n) => {
         if (gen !== this.generation || this.conn !== conn) return;

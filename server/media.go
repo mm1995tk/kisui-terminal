@@ -1,10 +1,11 @@
 package server
 
-// プライマリの shj が開かせる、ターミナルでない欄（動画・画像・PDF とブラウザ）。設計は docs/design/gui-protocol.md の「ターミナルでない欄」。
+// プライマリの shj が開かせる、ターミナルでない欄（動画・画像・PDF）と、URL を GUI の手元の外部ブラウザで開かせる通知。設計は docs/design/gui-protocol.md の「ターミナルでない欄」。
 //
 // 欄はプライマリの shj（primaryShj）が持つ extras で、shj が終わると一緒に消える。ctl.PaneRequest の "open" で足し、
 // "close" か GUI の extra.close で閉じる。中身は GUI が media.read で範囲を指して取る（ssh の向こうにある動画も、
-// 同じ接続で GUI に届く）。取れるのは、いま extras にあるファイルだけ。ブラウザの欄は URL だけを持ち、ページは GUI が手元で開く。
+// 同じ接続で GUI に届く）。取れるのは、いま extras にあるファイルだけ。URL（kind が "browser" の要求）は欄を作らず、
+// GUI に browser.open の通知を送るだけで、ページは GUI が手元の外部ブラウザで開く。
 
 import (
 	"encoding/base64"
@@ -29,32 +30,22 @@ const mediaChunk = 4 << 20
 // extraPane はターミナルでない欄。GUI へは Workspace.extras で届く。
 type extraPane struct {
 	ID string `json:"id"`
-	// Kind は欄の種類："video"・"image"・"pdf"（fileKinds）か "browser"。
+	// Kind は欄の種類："video"・"image"・"pdf"（fileKinds）。
 	Kind string `json:"kind"`
-	// Path は動画・画像・PDF のファイルの絶対パス（ブラウザでは空）。
+	// Path は動画・画像・PDF のファイルの絶対パス。
 	Path string `json:"path"`
-	// MIME と Size は、GUI が開けるかと、取る量を決めるため（ブラウザでは空と 0）。
+	// MIME と Size は、GUI が開けるかと、取る量を決めるため。
 	MIME string `json:"mime"`
 	Size int64  `json:"size"`
-	// URL はブラウザの欄が最初に開く http か https の URL（動画では空）。
-	URL string `json:"url,omitempty"`
 }
 
-// maxBrowserURL はブラウザの欄の URL の長さの上限（バイト）。
-const maxBrowserURL = 4096
+// maxOpenURL は GUI に外部ブラウザで開かせる URL の長さの上限（バイト）。
+const maxOpenURL = 4096
 
-// newExtra は "open" の rq から欄を作る（ID は付けない）。動画・画像・PDF は絶対パスのそのファイル（種類ごとの拡張子と大きさは fileKinds）、ブラウザは http か https の URL だけ。
+// newExtra は "open" の rq から欄を作る（ID は付けない）。動画・画像・PDF は絶対パスのそのファイル（種類ごとの拡張子と大きさは fileKinds）。
 func newExtra(rq ctl.PaneRequest) (extraPane, error) {
 	if _, ok := fileKinds[rq.Kind]; ok {
 		return newFileExtra(rq.Kind, rq.Path, fileMIME(rq.Kind, rq.Path))
-	}
-	switch rq.Kind {
-	case "browser":
-		u, err := parseBrowserURL(rq.URL)
-		if err != nil {
-			return extraPane{}, err
-		}
-		return extraPane{Kind: "browser", URL: u}, nil
 	}
 	return extraPane{}, fmt.Errorf("unknown pane kind: %q", rq.Kind)
 }
@@ -91,9 +82,9 @@ func fileExtra(kind, path, mime string, fi os.FileInfo) (extraPane, error) {
 	return extraPane{Kind: kind, Path: path, MIME: mime, Size: fi.Size()}, nil
 }
 
-// parseBrowserURL は s が欄で開いてよい URL（ホストのある http か https。ユーザー名とパスワードを含まない）か確かめ、整えた形を返す。
-func parseBrowserURL(s string) (string, error) {
-	if s == "" || len(s) > maxBrowserURL || strings.ContainsFunc(s, unicode.IsControl) {
+// parseOpenURL は s が外部ブラウザで開いてよい URL（ホストのある http か https。ユーザー名とパスワードを含まない）か確かめ、整えた形を返す。
+func parseOpenURL(s string) (string, error) {
+	if s == "" || len(s) > maxOpenURL || strings.ContainsFunc(s, unicode.IsControl) {
 		return "", fmt.Errorf("invalid URL: %q", s)
 	}
 	u, err := url.Parse(s)
@@ -110,7 +101,7 @@ func (w *wsManager) ownExtra(claim *primaryShj, id string) bool {
 	return slices.ContainsFunc(claim.extras, func(e extraPane) bool { return e.ID == id })
 }
 
-// openExtra は ctl.PaneRequest の "open"。動画・画像・PDF かブラウザの欄を 1 つ足して GUI に出させる（addExtra）。
+// openExtra は ctl.PaneRequest の "open"。動画・画像・PDF の欄を 1 つ足して GUI に出させる（addExtra）。
 func (w *wsManager) openExtra(claim *primaryShj, wsID string, rq ctl.PaneRequest) (string, error) {
 	e, err := newExtra(rq)
 	if err != nil {
@@ -203,6 +194,26 @@ func (w *wsManager) closeExtra(wsID, id string) {
 	w.recompute()
 }
 
+// openURL は URL u を GUI の手元の外部ブラウザで開かせる。欄は作らず、browser.open を GUI に通知するだけ
+// （リモートのマシンの localhost 系の URL は、GUI がポート転送を張って開く）。開かせる GUI が（つながっていなくて）いなければ断る。
+// 返す ID は空（欄が無い）。
+func (w *wsManager) openURL(wsID, u string) (string, error) {
+	u, err := parseOpenURL(u)
+	if err != nil {
+		return "", err
+	}
+	w.mu.Lock()
+	_, ok := w.reg[wsID]
+	w.mu.Unlock()
+	if !ok {
+		return "", fmt.Errorf("%w: %s", errNoWorkspace, wsID)
+	}
+	if !w.srv.notifyOwner("browser.open", map[string]any{"workspaceId": wsID, "url": u}) {
+		return "", errors.New("no GUI is connected to open the URL")
+	}
+	return "", nil
+}
+
 // extraOf はワークスペースの id の欄。無ければ ok == false。
 func (w *wsManager) extraOf(wsID, id string) (extraPane, bool) {
 	w.mu.Lock()
@@ -230,13 +241,11 @@ func extraIDNum(id string) int {
 	return n
 }
 
-// mediaRequest は media.read・extra.close・extra.open を振り分ける。
+// mediaRequest は media.read・extra.close を振り分ける。
 func (ss *session) mediaRequest(req *rpc.Message) (res any, err error, handled bool) {
 	switch req.Method {
 	case "media.read":
 		res, err = ss.readMediaReq(req)
-	case "extra.open":
-		res, err = ss.openURLReq(req)
 	case "extra.close":
 		res, err = ss.closeExtraReq(req)
 	default:
@@ -296,33 +305,6 @@ func (ss *session) closeExtraReq(req *rpc.Message) (any, error) {
 	}
 	ss.srv.ws.closeExtra(p.WorkspaceID, p.ID)
 	return struct{}{}, nil
-}
-
-// openURLReq は extra.open：ターミナルに出た URL を GUI のクリックでブラウザの欄に開く（kisui open <URL> と同じ欄）。
-// 受ける URL はブラウザの欄と同じ（http か https）。ブラウザの欄は 1 つなので、開いていれば入れ替わる。
-func (ss *session) openURLReq(req *rpc.Message) (any, error) {
-	if err := ss.needHello(); err != nil {
-		return nil, err
-	}
-	var p struct {
-		WorkspaceID string `json:"workspaceId"`
-		URL         string `json:"url"`
-	}
-	if err := json.Unmarshal(req.Params, &p); err != nil {
-		return nil, invalidParams(err)
-	}
-	u, err := parseBrowserURL(p.URL)
-	if err != nil {
-		return nil, rpc.Errorf(rpc.CodeInvalidParams, "%v", err)
-	}
-	id, err := ss.srv.ws.addExtra(p.WorkspaceID, nil, extraPane{Kind: "browser", URL: u})
-	if err != nil {
-		if errors.Is(err, errNoWorkspace) {
-			return nil, rpc.Errorf(rpc.CodeNotFound, "%v", err)
-		}
-		return nil, rpc.Errorf(rpc.CodeBusy, "%v", err)
-	}
-	return map[string]any{"id": id}, nil
 }
 
 // MediaResult は media.read の結果。`{mime, size, data (base64), eof}`。1 回に返すのは 4 MiB まで。
