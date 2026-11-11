@@ -57,3 +57,12 @@
   font-size: 14px;
   font-weight: 600;
 }
+.part {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+/* 場所のキーの `?` から開いたとき、その場所のキーを先に出す */
+.first {
+  order: -1;
+}

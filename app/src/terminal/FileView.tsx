@@ -90,7 +90,7 @@ export function FileView(props: {
     body: () => body,
     url: () => ready()?.url,
     onLeave: () => props.onLeave?.(),
-    onHelp: () => openKeyList(),
+    onHelp: () => openKeyList("image"),
   });
 
   const label = () => FILE_LABEL[props.pane.kind] ?? "ファイル";
