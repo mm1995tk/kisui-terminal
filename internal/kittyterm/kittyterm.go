@@ -231,7 +231,9 @@ func Image(png []byte, cols int) []byte {
 		} else {
 			fmt.Fprintf(&b, "\x1b_Gq=2,m=%d", more)
 		}
-		b.WriteString(";" + data[:n] + "\x1b\\")
+		b.WriteString(";")
+		b.WriteString(data[:n])
+		b.WriteString("\x1b\\")
 		data = data[n:]
 		if more == 0 {
 			return b.Bytes()
