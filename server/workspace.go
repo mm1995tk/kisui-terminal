@@ -146,7 +146,7 @@ func (w *wsManager) isGit(id string) bool {
 	return st != nil && st.root != "" && st.kind == "git"
 }
 
-// folderOf は新しいシェルを始めるフォルダ（ワークスペースのフォルダ。未定なら start_dir）。
+// folderOf は新しいシェルを始めるフォルダ（ワークスペースのフォルダ。決まっていなければ start_dir）。
 func (w *wsManager) folderOf(id string) (string, bool) {
 	w.mu.Lock()
 	st := w.reg[id]
@@ -164,8 +164,8 @@ func (w *wsManager) folderOf(id string) (string, bool) {
 	return w.startDir(), true
 }
 
-// create はフォルダ未定のワークスペースを作り、プライマリターミナルを start_dir で始める。
-// start_dir がプロジェクトの中なら、そのままフォルダが決まる。
+// create はワークスペースを作り、プライマリターミナルを start_dir で始める。
+// フォルダは start_dir から決まる（プロジェクトの中ならそのルート、~ なら ~）。
 func (w *wsManager) create() (id, termID string, err error) {
 	w.recomputeMu.Lock()
 	defer w.recomputeMu.Unlock()
