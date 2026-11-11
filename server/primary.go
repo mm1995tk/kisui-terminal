@@ -396,6 +396,7 @@ func cleanDiff(d *ctl.PrimaryDiff) *ctl.PrimaryDiff {
 		if len(out.Files) == maxDiffFiles {
 			break
 		}
+		f.Viewed = f.Viewed && out.Base == ctl.BasePR // viewed は PR モードのときだけ
 		out.Files = append(out.Files, f)
 	}
 	if filepath.IsAbs(d.Selected) {

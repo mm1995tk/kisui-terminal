@@ -55,6 +55,17 @@ export function ChangeTreeRow(props: {
       <Show when={r()}>
         {(row) => (
           <>
+            <Show when={row().viewed !== undefined}>
+              <span
+                class="changes-viewed"
+                role="checkbox"
+                aria-checked={row().viewed ? "true" : "false"}
+                aria-readonly="true"
+                aria-label="viewed"
+              >
+                {row().viewed ? "[x]" : "[ ]"}
+              </span>
+            </Show>
             <Show when={row().added > 0}>
               <span class="changes-added">+{row().added}</span>
             </Show>

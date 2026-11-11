@@ -101,6 +101,12 @@
 .changes-row[data-kind="dir"] {
   font-weight: 500;
 }
+.changes-viewed {
+  flex: none;
+  font-size: 11px;
+  font-family: var(--gh-mono, monospace);
+  color: var(--gh-text-dim);
+}
 .changes-added {
   flex: none;
   font-size: 11px;

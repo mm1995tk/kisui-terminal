@@ -133,6 +133,8 @@ export interface DiffFile {
   status?: string;
   added?: number;
   deleted?: number;
+  /** PR で viewed にしている（base が 'pr' のときだけ入る。無ければ viewed でない） */
+  viewed?: boolean;
 }
 
 // ---- ファイルのツリー ----

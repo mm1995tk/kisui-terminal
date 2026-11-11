@@ -22,6 +22,8 @@ export interface ChangeRow {
   deleted: number;
   /** shj が今差分を出しているファイル */
   selected: boolean;
+  /** PR モードのときだけ：PR で viewed にしているか。HEAD モードでは undefined（チェックボックスを出さない） */
+  viewed: boolean | undefined;
 }
 
 const letters = new Map<string, [ChangeLetter, string]>([
@@ -42,6 +44,7 @@ export function changeRows(
   root: string | undefined,
 ): ChangeRow[] {
   const base = root ? (root.endsWith("/") ? root : `${root}/`) : undefined;
+  const pr = changesBaseOf(diff) === "pr";
   return diff.files.map((f: DiffFile) => {
     const shown =
       base && f.path.startsWith(base) ? f.path.slice(base.length) : f.path;
@@ -56,6 +59,7 @@ export function changeRows(
       added: f.added ?? 0,
       deleted: f.deleted ?? 0,
       selected: f.path === diff.selected,
+      viewed: pr ? f.viewed === true : undefined,
     };
   });
 }

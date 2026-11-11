@@ -48,6 +48,26 @@ describe("changeRows", () => {
     assert.equal(r.letter, "M");
   });
 
+  it("PR モードのときだけ viewed を持つ（無い欄は viewed でない）。HEAD モードは undefined", () => {
+    const files = [
+      { path: "/w/a.go", viewed: true },
+      { path: "/w/b.go" },
+      { path: "/w/c.go", viewed: false },
+    ];
+    assert.deepEqual(
+      changeRows({ files, base: "pr" }, "/w").map((r) => r.viewed),
+      [true, false, false],
+    );
+    assert.deepEqual(
+      changeRows({ files, base: "head" }, "/w").map((r) => r.viewed),
+      [undefined, undefined, undefined],
+    );
+    assert.deepEqual(
+      changeRows({ files }, "/w").map((r) => r.viewed),
+      [undefined, undefined, undefined],
+    );
+  });
+
   it("空の一覧は空の行", () => {
     assert.deepEqual(changeRows({ files: [] }, "/w"), []);
   });
