@@ -5,6 +5,8 @@ name: flake.lock を更新する
 # 上げるのは nixpkgs と、同梱する shj（入力 shijimi-editor は release ブランチの最新のリリース、
 # shijimi-editor-nightly はタグ nightly の最新）。ほかの input は Dependabot が 7 日待ってから上げる（.github/dependabot.yml）。
 # 更新後に整形も行う。nixpkgs が動くと treefmt / nixfmt の出力が変わりうるため。
+# emulator.wasm も作り直す。nixpkgs が動くと rustc が変わり、wasm のバイト列も変わるため
+# （作り直さないと checks.emulator-wasm が落ちる）。ランナーは x86_64-linux なので、決まりどおりの場所で作れる。
 on:
   workflow_dispatch:
   schedule:
@@ -29,6 +31,9 @@ jobs:
 
       - name: flake.lock の nixpkgs と shijimi-editor を更新する
         run: nix flake update nixpkgs shijimi-editor shijimi-editor-nightly
+
+      - name: emulator.wasm を作り直す
+        run: scripts/build-emulator.sh
 
       - name: nix fmt で整形する
         run: nix fmt
