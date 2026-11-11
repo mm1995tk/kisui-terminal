@@ -1,4 +1,8 @@
-//! macOS のメニューバー。Tauri の既定のメニューと同じ並びで、「閉じる」（Cmd+W）だけを差し替える（#111）。
+//! macOS のメニューバー。Tauri 2.12.4 の `Menu::default` を写し、「閉じる」（Cmd+W）を差し替える（#111）。tauri を上げたときは、見比べる。
+//! 既定との違いは 3 つ。
+//! - 「閉じる」を、窓を閉じるものから、画面に任せるものに替えた（File に置く）。
+//! - 既定の Window メニューの separator と「Close Window」は抜いた。残すと Cmd+W を持つ項目が 2 つになり、既定の「閉じる」が窓を閉じてしまう。
+//! - About に copyright と authors を渡していない（kisui-terminal は設定していない）。
 //!
 //! PDF の欄は iframe で、欄の中を押すとキーが PDF の表示に取られ、親の画面の `keydown` に届かない。
 //! そのまま Cmd+W を押すと、既定メニューの「閉じる」が動いて、アプリの窓が閉じてしまう。
@@ -26,7 +30,7 @@ pub fn install<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
         version: Some(info.version.to_string()),
         ..Default::default()
     };
-    let close = MenuItem::with_id(app, CLOSE_ID, "Close Window", true, Some("CmdOrCtrl+W"))?;
+    let close = MenuItem::with_id(app, CLOSE_ID, "Close", true, Some("CmdOrCtrl+W"))?;
     let menu = Menu::with_items(
         app,
         &[
