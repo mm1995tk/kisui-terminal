@@ -345,10 +345,11 @@
   font-weight: 400;
 }
 
-/* 足したマシンの見出しを右クリックしたメニュー */
+/* 足したマシンの見出し・ツリーの行を右クリックしたメニュー。
+   z-index は、上下に固定した欄（最大 103）より上にする。トースト（1000）・リーダーキーのメニュー（900）よりは下 */
 .machine-menu {
   position: fixed;
-  z-index: 20;
+  z-index: 200;
   min-width: 140px;
   padding: 4px;
   border: 1px solid var(--add-machine-border);
