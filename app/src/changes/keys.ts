@@ -2,6 +2,7 @@
 // （shijimi-editor の core/gitdiff.go の handleChangesKey）に合わせる。
 // DOM を使わないので node --test で確かめられる。行を動かす・shj に頼むのは ChangesView.tsx と App.tsx。
 
+import { isEditorKey } from "../guiKeys.ts";
 import type { ChangesShjKey } from "../rpc/protocol.ts";
 import type { ChangeEntry } from "./model.ts";
 
@@ -49,14 +50,7 @@ export function changesKey(
 ): ChangesAction | null {
   if (e.isComposing) return null;
   // Ctrl+E は TUI と同じ、エディタ（端末の shj）へ戻るキー（#77）。CHANGES が GUI にあるあいだ、shj のフォーカスはエディタにある
-  if (
-    e.key.toLowerCase() === "e" &&
-    e.ctrlKey &&
-    !e.metaKey &&
-    !e.altKey &&
-    !e.shiftKey
-  )
-    return { kind: "leave" };
+  if (isEditorKey(e)) return { kind: "leave" };
   if (e.ctrlKey || e.metaKey || e.altKey) return null;
   const dir = entry.kind === "dir";
   const move = (to: ChangesMove): ChangesAction => ({ kind: "move", to });

@@ -1,19 +1,11 @@
-// shj の Space e で、サイドバーのファイルツリーにキーを向ける（explorer.focus）。戻るのは Esc。
+// shj の Space e で、サイドバーのファイルツリーにキーを向ける（explorer.focus）。戻るのは Esc・Ctrl+E。
 // DOM の要素は引数で受けるので、キーの判定だけ node --test で確かめられる。
 
-import type { KeyLike } from "./guiKeys.ts";
+import { isEditorKey, type KeyLike } from "./guiKeys.ts";
 
 /** ツリーから端末へ戻るキー：修飾キーなしの Esc と、TUI と同じ Ctrl+E（かな漢字変換中は除く）。 */
 export function isLeaveExplorerKey(e: KeyLike): boolean {
-  if (
-    e.key.toLowerCase() === "e" &&
-    e.ctrlKey &&
-    !e.shiftKey &&
-    !e.altKey &&
-    !e.metaKey &&
-    !e.isComposing
-  )
-    return true;
+  if (isEditorKey(e)) return true;
   return (
     e.key === "Escape" &&
     !e.ctrlKey &&
