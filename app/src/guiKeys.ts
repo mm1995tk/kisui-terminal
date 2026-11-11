@@ -59,3 +59,19 @@ export function isEditorKey(e: {
     !e.isComposing
   );
 }
+
+/**
+ * Mac のメニューの「閉じる」（Cmd+W）が選ばれたとき、閉じるのは今の欄か、アプリの窓か（#111）。
+ * キーがターミナルの欄（画像・動画・PDF の欄を含む。PDF は欄の中の iframe にフォーカスがある）に向いているときか、
+ * どこにも向いていないときは、今の欄（プライマリの欄なら何もしない）。サイドバー・入力欄・窓の中などでは、今までどおり窓を閉じる。
+ * キーが画面に届く場合の判定（App.tsx の `inPane`）と同じにしてある。
+ */
+export function closeTarget(
+  focused: unknown,
+  card: { contains(n: Node | null): boolean } | null | undefined,
+  doc: Document = document,
+): "pane" | "window" {
+  return isFocusLost(focused, doc) || !!card?.contains(focused as Node)
+    ? "pane"
+    : "window";
+}

@@ -21,4 +21,6 @@ export const tauriShell: ShellApi = {
   onClosed: (h) => listen("shj-closed", (e) => h(e.payload as never)),
   onAskpass: (h) => listen("askpass", (e) => h(e.payload as never)),
   onAskpassDone: (h) => listen<number>("askpass-done", (e) => h(e.payload)),
+  onCloseRequest: (h) => listen("close-request", () => h()),
+  windowClose: () => invoke("window_close"),
 };

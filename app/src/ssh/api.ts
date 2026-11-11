@@ -66,6 +66,10 @@ export interface ShellApi {
   onAskpass(h: (e: AskpassRequest) => void): Promise<Unlisten>;
   /** 答えが済んだ（時間切れ・接続が閉じた）質問の requestId */
   onAskpassDone(h: (requestId: number) => void): Promise<Unlisten>;
+  /** Mac のメニューの「閉じる」（Cmd+W）が選ばれた。PDF の欄の中を押した後は、キーが画面に届かず、これで知る（#111） */
+  onCloseRequest?(h: () => void): Promise<Unlisten>;
+  /** アプリの窓を閉じる */
+  windowClose?(): Promise<void>;
 }
 
 /** 「ローカル」。ssh を挟まず kisui attach を直接起動する。ssh のホスト名とは取り違えない形にしてある。 */
