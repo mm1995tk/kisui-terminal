@@ -279,7 +279,9 @@ func TestTermAckResumes(t *testing.T) {
 	ctx := context.Background()
 	id := createTerm(t, c, nil)
 	const total = 600 << 10
-	c.Call(ctx, "term.input", map[string]any{"termId": id, "data": b64("head -c 614400 /dev/zero | tr '\\0' 'b'; printf DONE; exit\n")}, nil)
+	// 終わりの印 DONE は printf の書式で組み立てる。打ち込んだ行のエコーに DONE がそのまま出ると、
+	// 出力が届き切る前に待ちを抜けてしまう。
+	c.Call(ctx, "term.input", map[string]any{"termId": id, "data": b64("head -c 614400 /dev/zero | tr '\\0' 'b'; printf 'DO%s' NE; exit\n")}, nil)
 	acked := int64(0)
 	waitFor(t, "all output", func() bool {
 		out, last := nt.output(t, id)
@@ -287,13 +289,13 @@ func TestTermAckResumes(t *testing.T) {
 			acked = last
 			c.Notify("term.ack", map[string]any{"termId": id, "seq": last})
 		}
-		return bytes.Contains(out, []byte("DONE")) && len(out) >= total
+		return bytes.Contains(out, []byte("DONE"))
 	})
-	out, _ := nt.output(t, id)
+	out, last := nt.output(t, id)
 	if n := bytes.Count(out, []byte("b")); n < total || n > total+8 { // 打ち込んだ行のエコーにも b がある
 		t.Errorf("got %d b", n)
 	}
-	if _, last := nt.output(t, id); last != int64(len(out)) {
+	if last != int64(len(out)) {
 		t.Errorf("seq %d, bytes %d", last, len(out))
 	}
 }
@@ -342,7 +344,8 @@ func TestTermResumesAfterOverflow(t *testing.T) {
 		return a.Seq >= 2<<20
 	})
 	// attach は末尾まで進めてしまうので、溢れを作り直す: もう 2 MiB 出して ack 無しで待つ。
-	c.Call(ctx, "term.input", map[string]any{"termId": id, "data": b64("head -c 2097152 /dev/zero | tr '\\0' 'c'; printf FIN\n")}, nil)
+	// FIN は printf の書式で組み立てる。打ち込んだ行のエコー（printf FIN\r\n）に当たって、待たずに抜けないように。
+	c.Call(ctx, "term.input", map[string]any{"termId": id, "data": b64("head -c 2097152 /dev/zero | tr '\\0' 'c'; printf 'FI%s' N\n")}, nil)
 	waitFor(t, "window", func() bool { _, last := nt.output(t, id); return last > a.Seq })
 	time.Sleep(300 * time.Millisecond)
 	var acked int64
@@ -352,7 +355,7 @@ func TestTermResumesAfterOverflow(t *testing.T) {
 			acked = last
 			c.Notify("term.ack", map[string]any{"termId": id, "seq": last})
 		}
-		return bytes.Contains(out, []byte("FIN\r\n")) || bytes.HasSuffix(out, []byte("FIN"))
+		return bytes.Contains(out, []byte("FIN"))
 	})
 }
 
