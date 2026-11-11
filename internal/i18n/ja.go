@@ -9,7 +9,7 @@ var ja = map[string]string{
 	"update.usage":          "usage: kisui update（ウィンドウが新しい版を今すぐ調べ直す）",
 	"update.failed":         "kisui update: %s",
 	"update.available":      "新しい版 %s があります（今は %s）。ウィンドウに知らせを出したので、「更新して再起動」を押してください。",
-	"update.latest":         "最新です（%s）。",
+	"update.latest":         "kisui-terminal は最新です（%s）。",
 	"update.manual":         "この版は自動更新を持ちません。入れた方法で更新してください（Nix で入れた版は nix flake update。AppImage でない Linux は新しい版を入れ直す）。",
 	"update.checkfailed":    "kisui update: 新しい版を調べられませんでした: %s",
 	"help.version":          "版を出す",
