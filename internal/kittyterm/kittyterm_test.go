@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -270,5 +271,40 @@ func TestAskUnlessKeysOnAPTY(t *testing.T) {
 	}
 	if !bytes.Equal(got, req) {
 		t.Errorf("request %q, want %q", got, req)
+	}
+}
+
+// An image is one packet that opens with the keys, then packets of 4096 bytes
+// of base64 that join into the PNG, and the last has m=0.
+func TestImage(t *testing.T) {
+	png := bytes.Repeat([]byte{1, 2, 3}, 5000) // 20000 base64 bytes: 5 packets
+	got := string(Image(png, 40))
+	packets := strings.Split(strings.TrimSuffix(got, "\x1b\\"), "\x1b\\")
+	if len(packets) != 5 {
+		t.Fatalf("%d packets", len(packets))
+	}
+	var joined strings.Builder
+	for i, p := range packets {
+		keys, data, _ := strings.Cut(strings.TrimPrefix(p, "\x1b_G"), ";")
+		if len(data) > 4096 {
+			t.Errorf("packet %d is %d bytes", i, len(data))
+		}
+		wantM := "m=1"
+		if i == len(packets)-1 {
+			wantM = "m=0"
+		}
+		if !strings.Contains(keys, wantM) || strings.Contains(keys, "a=T") != (i == 0) {
+			t.Errorf("packet %d keys: %q", i, keys)
+		}
+		joined.WriteString(data)
+	}
+	if want := "a=T,f=100,q=2,m=1,c=40"; !strings.HasPrefix(got, "\x1b_G"+want+";") {
+		t.Errorf("got %q", got[:40])
+	}
+	if b, err := base64.StdEncoding.DecodeString(joined.String()); err != nil || !bytes.Equal(b, png) {
+		t.Errorf("the data does not come back: %v", err)
+	}
+	if got := string(Image([]byte("x"), 0)); got != "\x1b_Ga=T,f=100,q=2,m=0;eA==\x1b\\" {
+		t.Errorf("small: %q", got)
 	}
 }

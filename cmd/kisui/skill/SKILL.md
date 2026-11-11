@@ -25,10 +25,11 @@ If you are not in a pane, do not use these commands and do not try to work aroun
 
 ### kisui open <file|url>
 
-Show a video, an image, a PDF or an `http` / `https` page in a pane of the same workspace. The kind is judged by the extension (or the first bytes of the file). A pane of the same kind that is already open is replaced. Use it when the user should look at something you made or found: a diagram, a screenshot, a PDF, a running dev server.
+Show an image in your own pane (at the cursor, like kitty's `icat`), or a video, a PDF or an `http` / `https` page elsewhere (a pane of the same workspace; the kind is judged by the extension or the first bytes of the file; a pane of the same kind that is already open is replaced). `--pane` opens an image in a pane of its own instead. Without a terminal on stdout (the shell of a coding agent), an image also opens in a pane. Use it when the user should look at something you made or found: a diagram, a screenshot, a PDF, a running dev server.
 
 ```sh
-kisui open ./diagram.png
+kisui open ./diagram.png         # in this pane
+kisui open --pane ./diagram.png  # in a pane of its own
 kisui open https://example.com/
 ```
 

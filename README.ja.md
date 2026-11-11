@@ -27,10 +27,11 @@ nix profile install github:mm1995tk/kisui-terminal#kisui-terminal-nightly
 
 kisui-terminal の中での `shj` の動き（開く欄、動画、URL の開き方、ファイルツリー）は shijimi-editor のマニュアルにあります。[ターミナル](https://mm1995tk.github.io/shijimi-editor/manual/ja/terminal/)・[ブラウザ](https://mm1995tk.github.io/shijimi-editor/manual/ja/browser/)・[設定ファイル](https://mm1995tk.github.io/shijimi-editor/manual/ja/config/)（「kisui-terminal のマシン」と `[server]`）を見てください。
 
-欄の中で `kisui open <ファイル|URL>` を打つと、種類に合う欄に、同じワークスペースの中で開きます。動画・画像・PDF（拡張子で見分け、拡張子で分からなければファイルの頭の中身で見分ける）のファイルです。同じ種類の欄が開いていれば入れ替えます。`http`・`https` の URL は欄にせず、kisui-terminal が動いている手元のブラウザ（OS 既定のブラウザ）で開きます（`shj` の `:open-url` と同じ）。ssh 先のマシンの `localhost` の URL は、kisui-terminal が張る ssh のポート転送越しに開くので、ssh 先のページが見えます。ssh 先のマシンの欄でも使えます。使えるのは kisui-terminal の欄の中だけで、ほかのシェルから打つと断ります。コマンドの一覧は `kisui --help` で出ます。
+欄の中で `kisui open <ファイル|URL>` を打つと、画像は打った欄のカーソルの位置にそのまま出ます（kitty の `icat` と同じ。kitty の画像のプロトコルで端末に書き出すので、ssh 先のマシンの欄でも出ます。PNG・JPEG・GIF（最初のコマ）・WebP・BMP で、欄の幅までの大きさ）。ほかのファイルは、種類に合う欄に、同じワークスペースの中で開きます。動画・PDF（拡張子で見分け、拡張子で分からなければファイルの頭の中身で見分ける）です。同じ種類の欄が開いていれば入れ替えます。`kisui open --pane <画像>` なら、画像も別の欄に開きます。SVG・AVIF の画像、16 MB か 10000 ピクセルを超える画像、標準出力が端末でないとき（パイプ、コーディングエージェントのシェル）の画像は、`--pane` が無くても欄に開きます。`http`・`https` の URL は欄にせず、kisui-terminal が動いている手元のブラウザ（OS 既定のブラウザ）で開きます（`shj` の `:open-url` と同じ）。ssh 先のマシンの `localhost` の URL は、kisui-terminal が張る ssh のポート転送越しに開くので、ssh 先のページが見えます。ssh 先のマシンの欄でも使えます。使えるのは kisui-terminal の欄の中だけで、ほかのシェルから打つと断ります。コマンドの一覧は `kisui --help` で出ます。
 
 ```sh
-kisui open ./diagram.png
+kisui open ./diagram.png         # この欄に出す
+kisui open --pane ./diagram.png  # 別の欄に出す
 kisui open ./talk.mp4
 kisui open ./paper.pdf
 kisui open https://example.com/
