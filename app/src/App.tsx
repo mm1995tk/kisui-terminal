@@ -1126,6 +1126,41 @@ function Workbench(props: {
     setFocusError({ title, error });
   }
 
+  /** リーダーの m の下。今のマシンに、名前を変える・外す・切る・つなぎ直すを行う。できないマシンには、理由を知らせる。 */
+  function runMachineCommand(
+    id:
+      | "machine.rename"
+      | "machine.remove"
+      | "machine.disconnect"
+      | "machine.reconnect",
+  ) {
+    const t = currentTarget();
+    const g = groups().find((x) => x.target === t);
+    if (!t || !g) return;
+    switch (id) {
+      case "machine.rename":
+      case "machine.remove":
+        if (!g.removable || g.fixed) {
+          cannot(
+            `${g.label} は${id === "machine.rename" ? "名前を変えられません" : "外せません"}`,
+            "「ローカル」と、設定ファイル（[[gui.machines]]）で決めたマシンは、名前を変えたり外したりできません。",
+          );
+        } else if (id === "machine.rename") {
+          setRenameError(undefined);
+          setRenaming(t);
+        } else removeFromSidebar(t);
+        break;
+      case "machine.disconnect":
+        if (!g.removable)
+          cannot(`${g.label} は切れません`, "「ローカル」は切れません。");
+        else void disconnect(t);
+        break;
+      case "machine.reconnect":
+        retry(t);
+        break;
+    }
+  }
+
   /**
    * コマンドの表（commands.ts）のコマンドを動かす。リーダーの葉と近道の両方がここに来る。
    * キーの割り当ては表にあり、ここは動きだけを持つ。
@@ -1186,35 +1221,11 @@ function Workbench(props: {
         setAdding(true);
         break;
       case "machine.rename":
-      case "machine.remove": {
-        const t = currentTarget();
-        const g = groups().find((x) => x.target === t);
-        if (!t || !g) break;
-        if (!g.removable || g.fixed) {
-          cannot(
-            `${g.label} は${c.id === "machine.rename" ? "名前を変えられません" : "外せません"}`,
-            "「ローカル」と、設定ファイル（[[gui.machines]]）で決めたマシンは、名前を変えたり外したりできません。",
-          );
-        } else if (c.id === "machine.rename") {
-          setRenameError(undefined);
-          setRenaming(t);
-        } else removeFromSidebar(t);
+      case "machine.remove":
+      case "machine.disconnect":
+      case "machine.reconnect":
+        runMachineCommand(c.id);
         break;
-      }
-      case "machine.disconnect": {
-        const t = currentTarget();
-        const g = groups().find((x) => x.target === t);
-        if (!t || !g) break;
-        if (!g.removable)
-          cannot(`${g.label} は切れません`, "「ローカル」は切れません。");
-        else void disconnect(t);
-        break;
-      }
-      case "machine.reconnect": {
-        const t = currentTarget();
-        if (t) retry(t);
-        break;
-      }
       case "clipboard.history":
         openClipboardHistory();
         break;
