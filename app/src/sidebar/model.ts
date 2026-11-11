@@ -232,3 +232,67 @@ export function splitAtFocus(groups: MachineGroup[]): SplitSidebar {
     },
   };
 }
+
+/** キーで移る向き。サイドバーで下・次は "next"、上・前は "prev"。 */
+export type Step = "next" | "prev";
+
+/** 移り先。ws が null のマシンは、ワークスペースが 1 つも無い（マシンだけを選ぶ）。 */
+export interface StepTarget {
+  target: string;
+  ws: WorkspaceId | null;
+}
+
+/**
+ * サイドバーの次・前のワークスペース（マシンをまたいで、上から下へ並べた並びで）。端では null（回らない）。
+ * 今のフォーカスが無い（または並びに無い）ときは、次なら先頭、前なら末尾。ワークスペースが 1 つも無ければ null。
+ */
+export function stepWorkspace(
+  groups: readonly StepGroup[],
+  current: WorkspaceFocus | null,
+  step: Step,
+): WorkspaceFocus | null {
+  const all = groups.flatMap((g) =>
+    g.bands.map((b) => ({ target: g.target, id: b.id })),
+  );
+  if (all.length === 0) return null;
+  const i = current
+    ? all.findIndex((w) => w.target === current.target && w.id === current.id)
+    : -1;
+  if (i < 0) return step === "next" ? all[0] : all[all.length - 1];
+  const j = step === "next" ? i + 1 : i - 1;
+  return all[j] ?? null;
+}
+
+/**
+ * 前・次のマシン。端では null（回らない）。ワークスペースが 1 つも無いマシンにも止まる（ws は null）。
+ * 移り先のワークスペースは、そのマシンで最後に選んでいたもの（lastOf。今も有るもの）、無ければ先頭。
+ * 今のマシンが分からない（無い）ときは、次なら先頭のマシン、前なら末尾のマシン。
+ */
+export function stepMachine(
+  groups: readonly StepGroup[],
+  current: string | undefined,
+  step: Step,
+  lastOf: (target: string) => WorkspaceId | undefined = () => undefined,
+): StepTarget | null {
+  if (groups.length === 0) return null;
+  const i = groups.findIndex((g) => g.target === current);
+  const j =
+    i < 0
+      ? step === "next"
+        ? 0
+        : groups.length - 1
+      : step === "next"
+        ? i + 1
+        : i - 1;
+  const g = groups[j];
+  if (!g) return null;
+  const last = lastOf(g.target);
+  const ws = g.bands.find((b) => b.id === last)?.id ?? g.bands[0]?.id ?? null;
+  return { target: g.target, ws };
+}
+
+/** stepWorkspace・stepMachine が使う、マシン 1 台分の項目（MachineGroup の一部）。 */
+export interface StepGroup {
+  target: string;
+  bands: readonly { id: WorkspaceId }[];
+}

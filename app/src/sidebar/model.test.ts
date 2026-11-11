@@ -10,6 +10,8 @@ import {
   buildSidebar,
   health,
   keepFocus,
+  stepMachine,
+  stepWorkspace,
   splitAtFocus,
   UNSET_TITLE,
 } from "./model.ts";
@@ -336,5 +338,91 @@ describe("buildSidebar の fixed", () => {
       buildSidebar([LOCAL, "dev"], {}, {}, null).map((x) => x.fixed),
       [false, false],
     );
+  });
+});
+
+describe("stepWorkspace / stepMachine（キーで移る）", () => {
+  const g = (target: string, ...ids: string[]) => ({
+    target,
+    bands: ids.map((id) => ({ id })),
+  });
+  const groups = [g("local", "a", "b"), g("empty"), g("ssh", "c", "d")];
+
+  it("ワークスペースは、マシンをまたいで下へ・上へ。10 番目以降にも移れる", () => {
+    assert.deepEqual(
+      stepWorkspace(groups, { target: "local", id: "a" }, "next"),
+      { target: "local", id: "b" },
+    );
+    // 最後のワークスペースから、ワークスペースが無いマシンを飛ばして次のマシンの先頭へ
+    assert.deepEqual(
+      stepWorkspace(groups, { target: "local", id: "b" }, "next"),
+      { target: "ssh", id: "c" },
+    );
+    assert.deepEqual(
+      stepWorkspace(groups, { target: "ssh", id: "c" }, "prev"),
+      { target: "local", id: "b" },
+    );
+    const many = [g("m", ...Array.from({ length: 12 }, (_, i) => `w${i}`))];
+    assert.deepEqual(stepWorkspace(many, { target: "m", id: "w9" }, "next"), {
+      target: "m",
+      id: "w10",
+    });
+  });
+
+  it("ワークスペースは、端で止まる（回らない）", () => {
+    assert.equal(
+      stepWorkspace(groups, { target: "ssh", id: "d" }, "next"),
+      null,
+    );
+    assert.equal(
+      stepWorkspace(groups, { target: "local", id: "a" }, "prev"),
+      null,
+    );
+  });
+
+  it("ワークスペースは、フォーカスが無ければ次は先頭・前は末尾。1 つも無ければ null", () => {
+    assert.deepEqual(stepWorkspace(groups, null, "next"), {
+      target: "local",
+      id: "a",
+    });
+    assert.deepEqual(stepWorkspace(groups, null, "prev"), {
+      target: "ssh",
+      id: "d",
+    });
+    assert.deepEqual(
+      stepWorkspace(groups, { target: "gone", id: "x" }, "next"),
+      { target: "local", id: "a" },
+    );
+    assert.equal(stepWorkspace([g("empty")], null, "next"), null);
+  });
+
+  it("マシンは、前・次へ。移り先は最後に選んでいたワークスペース、無ければ先頭", () => {
+    assert.deepEqual(stepMachine(groups, "ssh", "prev"), {
+      target: "empty",
+      ws: null,
+    });
+    assert.deepEqual(stepMachine(groups, "empty", "next"), {
+      target: "ssh",
+      ws: "c",
+    });
+    assert.deepEqual(
+      stepMachine(groups, "empty", "next", (t) =>
+        t === "ssh" ? "d" : undefined,
+      ),
+      { target: "ssh", ws: "d" },
+    );
+    // 覚えていたワークスペースが無くなっていたら先頭
+    assert.deepEqual(
+      stepMachine(groups, "empty", "next", () => "gone"),
+      { target: "ssh", ws: "c" },
+    );
+  });
+
+  it("マシンは、端で止まる。今のマシンが分からなければ次は先頭・前は末尾", () => {
+    assert.equal(stepMachine(groups, "ssh", "next"), null);
+    assert.equal(stepMachine(groups, "local", "prev"), null);
+    assert.equal(stepMachine(groups, undefined, "next")?.target, "local");
+    assert.equal(stepMachine(groups, undefined, "prev")?.target, "ssh");
+    assert.equal(stepMachine([], undefined, "next"), null);
   });
 });

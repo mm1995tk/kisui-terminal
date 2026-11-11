@@ -275,6 +275,10 @@
 /* 上下の固定（D3）。見出し → 帯 → ツリーのフォルダの行（tree.css）の順に積み、下の要素はその上に重ねる。
    z-index はフォルダの行（100 - 深さ）より上にする。
    CHANGES（changes.css）は下に固定し、z-index 102 でフォルダの行より上、.sidebar-after（103）より下 */
+/* キーで止まった、ワークスペースが無いマシン（リーダーの w h / w l） */
+.machine-heading[data-picked] {
+  box-shadow: inset 0 -2px 0 var(--machine-color);
+}
 .machine-heading[data-sticky] {
   position: sticky;
   top: 0;

@@ -86,7 +86,7 @@ You do not have to remember the keys. Press the leader, `Cmd+K` (macOS) or `Ctrl
 | Keys after the leader | What it does                                                                                                  |
 | --------------------- | ------------------------------------------------------------------------------------------------------------- |
 | `h` `j` `k` `l`       | Move to the pane on the left, below, above, on the right. You can keep pressing them. `Tab` goes back to the pane you were in. |
-| `w`                   | Workspaces: `1`-`9` the nth in the sidebar, `n` new on this machine, `x` close, `Tab` back to the last one    |
+| `w`                   | Workspaces: `j` `k` the next / previous workspace in the sidebar (across machines; it stops at the ends; you can keep pressing them), `h` `l` the previous / next machine (the workspace you last used on it, or the first; a machine with no workspace gets selected too, so `m` and `n` act on it), `1`-`9` the nth in the sidebar, `n` new on this machine, `x` close, `Tab` back to the last one |
 | `m`                   | Machines (the one of the current workspace): `a` add, `n` rename, `d` remove from the list, `x` disconnect, `r` reconnect |
 | `p`                   | Panes: `v` split right, `s` split down, `x` close, `z` hide or show the panes other than the primary one, `r` resize (and `h` `j` `k` `l` as above) |
 | `y`                   | The clipboard history                                                                                         |
