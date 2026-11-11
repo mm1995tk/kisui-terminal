@@ -1,5 +1,6 @@
 // クリップボードの履歴の一覧（#54）。キーで開き、選んだ文字を今の欄に貼るか、OS のクリップボードに戻す。
 // 履歴を持つのは Tauri の側（clipboard_history.rs）。ここは開くたびに読み、選ばせる。
+// 一覧の中身（HistoryPanel）は、kisui-terminal の外から開く小さな窓（ClipboardHistoryPopup.tsx）でも使う。
 import {
   createEffect,
   createMemo,
@@ -54,6 +55,45 @@ export function ClipboardHistoryDialog(): JSX.Element {
 
 function History(props: { opened: Opened }): JSX.Element {
   const close = () => setOpened(undefined);
+  const target = props.opened.paste;
+  return (
+    <ModalCard label="クリップボードの履歴" onCancel={close}>
+      <HistoryPanel
+        onPaste={
+          target &&
+          ((text) => {
+            close();
+            target(text);
+          })
+        }
+        onPutBack={(text) => {
+          close();
+          void copyAndNotify(
+            () =>
+              writeOs({ kind: "text", text }).then(
+                () => true,
+                () => false,
+              ),
+            () => copiedNotice.show(),
+          );
+        }}
+        onClose={close}
+      />
+    </ModalCard>
+  );
+}
+
+/**
+ * 履歴の一覧の中身（見出し・絞り込み・一覧・ボタン）。出すたびに履歴を読む。
+ * onPaste が無ければ貼れない（Enter はクリップボードに戻す）。窓を閉じるのは、onPaste・onPutBack・onClose を渡した側。
+ * outside は kisui-terminal の外から開いた窓（貼るボタンを出さず、戻したあとに自分で貼ることを案内する）。
+ */
+export function HistoryPanel(props: {
+  onPaste?: (text: string) => void;
+  onPutBack: (text: string) => void;
+  onClose: () => void;
+  outside?: boolean;
+}): JSX.Element {
   const [entries, setEntries] = createSignal<HistoryEntry[] | undefined>();
   const [failed, setFailed] = createSignal(false);
   const [query, setQuery] = createSignal("");
@@ -78,28 +118,18 @@ function History(props: { opened: Opened }): JSX.Element {
 
   function paste() {
     const e = selected();
-    if (!e || !props.opened.paste) return;
-    const target = props.opened.paste;
-    close();
-    target(e.text);
+    if (!e || !props.onPaste) return;
+    props.onPaste(e.text);
   }
   function putBack() {
     const e = selected();
     if (!e) return;
-    close();
-    void copyAndNotify(
-      () =>
-        writeOs({ kind: "text", text: e.text }).then(
-          () => true,
-          () => false,
-        ),
-      () => copiedNotice.show(),
-    );
+    props.onPutBack(e.text);
   }
 
   // 貼る欄があれば貼り、無ければクリップボードに戻す
   function choose() {
-    if (props.opened.paste) paste();
+    if (props.onPaste) paste();
     else putBack();
   }
 
@@ -119,7 +149,7 @@ function History(props: { opened: Opened }): JSX.Element {
   }
 
   return (
-    <ModalCard label="クリップボードの履歴" onCancel={close}>
+    <>
       <div class="card-body">
         <h1 class="card-title">クリップボードの履歴</h1>
         <input
@@ -136,9 +166,10 @@ function History(props: { opened: Opened }): JSX.Element {
           ref={(el) => queueMicrotask(() => el.focus())}
         />
         <p class="card-text history-hint">
-          ↑↓ で選ぶ・Enter で
-          {props.opened.paste ? "貼る" : "クリップボードに戻す"}・Shift+Enter
-          でクリップボードに戻す・Esc で閉じる
+          <Show when={!props.outside} fallback={outsideHint()}>
+            ↑↓ で選ぶ・Enter で{props.onPaste ? "貼る" : "クリップボードに戻す"}
+            ・Shift+Enter でクリップボードに戻す・Esc で閉じる
+          </Show>
         </p>
       </div>
       <Show
@@ -160,13 +191,20 @@ function History(props: { opened: Opened }): JSX.Element {
       </Show>
       <HistoryActions
         canPutBack={!!selected()}
-        canPaste={!!selected() && !!props.opened.paste}
-        onClose={close}
+        canPaste={!!selected() && !!props.onPaste}
+        showPaste={!props.outside}
+        onClose={props.onClose}
         onPutBack={putBack}
         onPaste={paste}
       />
-    </ModalCard>
+    </>
   );
+}
+
+/** 外から開いた窓の案内。貼るのはユーザー（kisui-terminal からは貼る操作を送らない）。 */
+function outsideHint(): string {
+  const paste = IS_MAC ? "Cmd+V" : "Ctrl+V";
+  return `↑↓ で選ぶ・Enter でクリップボードに戻す（そのあと ${paste} で貼る）・Esc で閉じる`;
 }
 
 /** 履歴の一覧。選んでいる行は selectedIndex。 */
@@ -210,10 +248,11 @@ function HistoryRows(props: {
   );
 }
 
-/** 下のボタン列（閉じる・クリップボードに戻す・貼る）。 */
+/** 下のボタン列（閉じる・クリップボードに戻す・貼る）。showPaste でなければ貼るを出さず、戻すを主のボタンにする。 */
 function HistoryActions(props: {
   canPutBack: boolean;
   canPaste: boolean;
+  showPaste: boolean;
   onClose: () => void;
   onPutBack: () => void;
   onPaste: () => void;
@@ -226,19 +265,22 @@ function HistoryActions(props: {
       <button
         type="button"
         class="card-button"
+        classList={{ primary: !props.showPaste }}
         disabled={!props.canPutBack}
         onClick={props.onPutBack}
       >
         クリップボードに戻す
       </button>
-      <button
-        type="button"
-        class="card-button primary"
-        disabled={!props.canPaste}
-        onClick={props.onPaste}
-      >
-        貼る
-      </button>
+      <Show when={props.showPaste}>
+        <button
+          type="button"
+          class="card-button primary"
+          disabled={!props.canPaste}
+          onClick={props.onPaste}
+        >
+          貼る
+        </button>
+      </Show>
     </div>
   );
 }

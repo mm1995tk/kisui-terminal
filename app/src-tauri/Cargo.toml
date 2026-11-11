@@ -26,14 +26,25 @@ notify-rust = "=4.18.2"
 tauri-plugin-clipboard-manager = "=2.5.0"
 # ファイル転送（transfer.rs）の openat・O_NOFOLLOW。版は Cargo.lock にすでにある（tauri などが使っている）ものに合わせる
 libc = "=0.2.191"
+# kisui-terminal の外からクリップボードの履歴を開く全体のキー（clipboard_popup.rs）。macOS は Carbon の RegisterEventHotKey、
+# Linux は X11 の XGrabKey で取る（macOS のアクセシビリティの許可は要らない）
+tauri-plugin-global-shortcut = "=2.4.1"
 
 # クリップボードの履歴（clipboard_history.rs）。macOS は NSPasteboard の changeCount と型の一覧を見る。
+# 外から開く履歴の窓（clipboard_popup.rs）は、前にいたアプリを NSWorkspace で覚えて NSRunningApplication で戻し、
+# 窓を NSWindow でキーの窓にしてから NSApplication で前に出す。
 # 版は Cargo.lock にすでにある（arboard が使っている）ものに合わせる
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "=0.6.5"
 objc2-app-kit = { version = "=0.3.2", default-features = false, features = [
   "std",
+  "libc",
+  "NSApplication",
   "NSPasteboard",
+  "NSResponder",
+  "NSRunningApplication",
+  "NSWindow",
+  "NSWorkspace",
 ] }
 objc2-foundation = { version = "=0.3.2", default-features = false, features = [
   "std",

@@ -14,7 +14,7 @@
 //!
 //! 画面には、変わったことを `clipboard-history-changed`（中身なし）で知らせ、中身は `clipboard_history_list` で渡す。
 //! 中身をイベントに載せないのは、ブラウザの欄（外のページの子の webview）に届かないようにするため。命令は
-//! 呼んだ webview が `main` かも確かめる。
+//! 呼んだ webview が `main` か、kisui-terminal の外から開く履歴の窓（clipboard_popup.rs）かも確かめる。
 
 use std::fs;
 use std::io::Write;
@@ -219,16 +219,24 @@ impl ClipboardHistory {
         drop(h);
         let _ = app.emit_to("main", EVENT_CHANGED, ());
     }
+
+    /// `text` が履歴にあるか。
+    pub fn contains(&self, text: &str) -> bool {
+        let h = self.history.lock().unwrap_or_else(|e| e.into_inner());
+        h.entries().iter().any(|e| e.text == text)
+    }
 }
 
-/// 履歴（新しいものが先頭）。メイン窓の画面からだけ呼べる。
+/// 履歴（新しいものが先頭）。メイン窓と、kisui-terminal の外から開く履歴の窓（clipboard_popup.rs）の画面からだけ呼べる。
 #[tauri::command]
 pub fn clipboard_history_list(
     webview: Webview,
     app: AppHandle,
     state: State<ClipboardHistory>,
 ) -> Result<Vec<Entry>, String> {
-    crate::browser::from_main(&webview)?;
+    if webview.label() != crate::clipboard_popup::LABEL {
+        crate::browser::from_main(&webview)?;
+    }
     state.update(&app, |h| h.prune(now_ms()));
     let h = state.history.lock().unwrap_or_else(|e| e.into_inner());
     Ok(h.entries().to_vec())

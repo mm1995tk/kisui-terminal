@@ -1,5 +1,6 @@
 // Mac で GUI が受ける Cmd のキー（#529）。Linux と Windows は今までどおり Ctrl+Shift（terminal/grid.ts）。
-// Option は字を打つキーのまま使うので、Cmd+Option+矢印以外では使わない。Cmd+` は macOS が使うので使わない。
+// Option は字を打つキーのまま使うので、Cmd+Option+矢印以外では使わない（例外は、kisui-terminal の外からクリップボードの
+// 履歴を開く全体のキー Option+Space。これは殻が OS から取る。clipboard_popup.rs）。Cmd+` は macOS が使うので使わない。
 // DOM には触らない（node --test で確かめられる）。
 
 /** KeyboardEvent のうち、ここで使う項目。 */

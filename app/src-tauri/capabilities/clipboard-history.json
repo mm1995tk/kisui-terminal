@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "clipboard-history",
+  "description": "kisui-terminal の外から開くクリップボードの履歴の窓（clipboard_popup.rs）の権限。窓を出し直したことを受け取るイベントの listen だけ許可する。クリップボードへの書き込みと窓を隠すのは自前のコマンド（clipboard_popup_pick・clipboard_popup_dismiss）が殻の側で行う",
+  "windows": ["clipboard-history"],
+  "permissions": ["core:event:allow-listen", "core:event:allow-unlisten"]
+}
