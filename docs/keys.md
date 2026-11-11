@@ -113,6 +113,7 @@ shj の側から `Space e` でツリーにキーを向けるのは、shj が出�
 | 同上                                                            | `Enter`                      | `Enter`                      | 選んだ候補を入れる。選んでいなければ足す                                                              | `connect/AddMachine.tsx:81`                                                        |
 | リモートを足す窓の「名前」の欄                                  | `Enter`                      | `Enter`                      | 足す                                                                                                  | `connect/AddMachine.tsx:132`                                                       |
 | 名前を変える窓の入力欄                                          | `Enter`                      | `Enter`                      | 名前を変える                                                                                          | `connect/RenameMachine.tsx:29`                                                     |
+| ssh の質問の窓の入力欄 | `Enter` | `Enter` | 答えを返す（`<form>` の submit）。`Esc` は答えずに閉じる（`ModalCard`） | `AskpassDialog.tsx:29`・`AskpassDialog.tsx:31` |
 | ツリーの新規作成・名前の変更の窓の入力欄                        | `Enter`                      | `Enter`                      | 決める                                                                                                | `tree/TreeDialogs.tsx:50`                                                          |
 | 窓（`ModalCard`）                                               | `Esc`                        | `Esc`                        | 閉じる（キャンセル）。リモートを足す・名前を変える・ツリーの窓・履歴の窓・確認の窓など、どれも同じ    | `connect/Card.tsx:48`                                                              |
 | ツリーの右クリックのメニュー                                    | `↓` / `↑`                    | `↓` / `↑`                    | 項目を選ぶ（端でぐるっと回る）                                                                        | `tree/TreeMenu.tsx:22`                                                             |
@@ -199,7 +200,7 @@ shj の側から `Space e` でツリーにキーを向けるのは、shj が出�
 
 - Mac と Linux で形が違う：分割は Mac が Cmd+D / Cmd+Shift+D、Linux が Ctrl+Shift+D / Ctrl+Shift+E。Cmd+1〜9（ワークスペース）と Cmd+W（分割した欄を閉じる）は Mac だけで、Linux には同じ操作のキーが無い。リサイズモードに入るのは Cmd+R / Ctrl+Shift+R。
 - Mac でも効く Ctrl+Shift の形がある：Ctrl+Shift+矢印（欄の移動）と Ctrl+Shift+M（欄を隠す）は Mac でも受ける（`directionKey`・`isZoomKey` は `isCtrlShift` を Mac でも見る）。分割とリサイズに入るキーは Mac では Ctrl+Shift の形を受けない。
-- キーでできないもの：ワークスペースを閉じる・マシンを足す・マシンを切る／外す／名前を変える・つなぎ直す・ワークスペースを作る・ブラウザの欄の操作・ツリーの「ここへ移動」「名前をコピー」・欄どうしのフォーカス移動以外の欄の選択は、マウスだけ（2 の表）。
+- キーでできないもの：ワークスペースを閉じる・マシンを足す・マシンを切る／外す／名前を変える・つなぎ直す・ワークスペースを作る・ブラウザの欄の操作・動画の欄とファイルの欄の ×（欄を閉じる）・Linux の分割した欄を閉じる操作・ツリーの「ここへ移動」「名前をコピー」・欄どうしのフォーカス移動以外の欄の選択は、マウスだけ（2 の表）。
 - 同じ字のキーが場所ごとに別の意味：`j` `k` `l` `h` はツリー・CHANGES・リサイズモードで移動、動画の欄では `j` `l` が 10 秒の移動、`k` が再生・停止。`r` はツリーでは名前の変更、CHANGES では読み直し、リサイズモードでは何もしない。`Esc` はツリーでは端末へ戻る、CHANGES では一覧を出る、窓・メニューでは閉じる、リサイズモードでは出る。
 - 全体のキーが、ターミナルの欄の外（ツリー・CHANGES・動画の欄・窓の中）でも効くものと、欄の中だけで効くもの（欄の移動・Cmd+W）が混ざっている。
 - `Ctrl`+`-`（Linux の表示を小さく）は、端末の `C-_`（readline の undo）を奪う（`scale.ts:25` に承知の上と書いてある）。
