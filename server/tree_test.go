@@ -465,3 +465,30 @@ func TestGitStatusSkippedForHomeFolder(t *testing.T) {
 		t.Fatalf("status must be empty: %+v", st)
 	}
 }
+
+// .git のあるフォルダの下の .shijimi-editor/ をルートにしたワークスペース（kind は shijimi）でも、git の印が出る。
+func TestGitStatusForShijimiRootInsideRepo(t *testing.T) {
+	repo := normalizePath(t.TempDir())
+	gitInit(t, repo)
+	pkg := filepath.Join(repo, "pkg")
+	write(t, filepath.Join(pkg, ".shijimi-editor", "x"), "")
+	write(t, filepath.Join(pkg, "a.txt"), "1")
+	gitDo(t, repo, "add", "pkg/a.txt")
+	gitDo(t, repo, "commit", "-qm", "init")
+	write(t, filepath.Join(pkg, "a.txt"), "2")
+	_, sock := startFastWith(t, func(o *Options) { o.StartDir = pkg })
+	c, _ := termClient(t, sock)
+	id, _ := createWS(t, c)
+	if x := listWS(t, c).find(id); x == nil || x.Kind == nil || *x.Kind != "shijimi" {
+		t.Fatalf("workspace: %+v", x)
+	}
+	var st struct {
+		Marks map[string]string `json:"marks"`
+	}
+	if err := call(t, c, "git.status", map[string]any{"workspaceId": id}, &st); err != nil {
+		t.Fatal(err)
+	}
+	if st.Marks["a.txt"] != "M" {
+		t.Fatalf("marks: %+v", st.Marks)
+	}
+}

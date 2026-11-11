@@ -138,12 +138,13 @@ func (w *wsManager) rootOf(id string) (string, bool) {
 	return st.root, true
 }
 
-// isGit は id のワークスペースのフォルダが git のリポジトリ（kind が "git"）かどうか。
-func (w *wsManager) isGit(id string) bool {
+// tracksGit は id のワークスペースが git の印を取る対象かどうか。kind が "cwd"（目印が無い、または ~ と / そのもの）
+// のものは取らない。"shijimi" は git の中にあることがある（.git のあるフォルダの下の .shijimi-editor/）ので取る。
+func (w *wsManager) tracksGit(id string) bool {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	st := w.reg[id]
-	return st != nil && st.root != "" && st.kind == "git"
+	return st != nil && st.root != "" && st.kind != "cwd"
 }
 
 // folderOf は新しいシェルを始めるフォルダ（ワークスペースのフォルダ。決まっていなければ start_dir）。

@@ -60,8 +60,8 @@ func (c *gitCache) state(id, root string) *gitState {
 func (c *gitCache) refresh(id, root string) *gitState {
 	c.run.Lock()
 	defer c.run.Unlock()
-	// git の印を取るのは kind が "git" のワークスペースだけ（~ や / のフォルダで git status をかけ続けない）。
-	if !c.m.srv.ws.isGit(id) {
+	// git の印を取らないのは kind が "cwd" のワークスペース（~ や / のフォルダで git status をかけ続けない）。
+	if !c.m.srv.ws.tracksGit(id) {
 		c.mu.Lock()
 		delete(c.by, id)
 		c.mu.Unlock()
