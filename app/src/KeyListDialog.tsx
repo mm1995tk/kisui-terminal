@@ -11,7 +11,7 @@ import styles from "./KeyListDialog.module.css";
 const [opened, setOpened] = createSignal(false);
 const [place, setPlace] = createSignal<"image" | undefined>();
 
-/** 一覧を開く。place を渡すと、その場所のキーを先に出す（場所のキーの `?`。docs/key-design.md の 3.3）。 */
+/** 一覧を開く。first を渡すと、その場所のキーを先に出す（場所のキーの `?`。docs/key-design.md の 3.3）。 */
 export function openKeyList(first?: "image"): void {
   setPlace(first);
   setOpened(true);
