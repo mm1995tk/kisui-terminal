@@ -9,13 +9,15 @@ kisui-terminal is a terminal workspace. Its panes run a shell, and `kisui` is th
 
 ## Check that you are in a pane
 
-The commands work only in a pane of kisui-terminal (also in a pane of a remote machine over ssh). Any other shell makes them fail, so check first:
+The commands work only in a pane of kisui-terminal (also in a pane of a remote machine listed in the sidebar; not in a shell you opened yourself with `ssh`). Any other shell makes them fail, so check first:
 
 ```sh
 [ -n "$KISUI_PANE" ] && echo in a pane || echo not in a pane
 ```
 
 If you are not in a pane, do not use these commands and do not try to work around the failure.
+
+`kisui notify` and `kisui clipboard` (and `pbcopy` / `pbpaste`) also need a terminal (`/dev/tty`), and the shell of a coding agent may have none. If they fail with "there is no terminal to talk to", tell the user and do not work around it. `kisui open` and `kisui pane` do not need a terminal.
 
 ## Commands
 
@@ -54,7 +56,7 @@ Print the text on the clipboard of the computer the window runs on. **Do not run
 
 ### kisui pane split --right|--down [command ...]
 
-Split the pane you run in to the right or down and move the focus to the new pane. With a command, the new pane runs it instead of a shell, and closes when the command ends; to keep the output of a short command, end with a shell (`sh -c "ls; exec sh"`). It is refused when the new pane would be smaller than 20 columns by 5 rows. Use it to start a dev server or a watcher beside your work.
+Split the pane you run in to the right or down and move the focus to the new pane. With a command, the new pane runs it instead of a shell, and closes when the command ends; to keep the output of a short command, end with a shell (`sh -c "ls; exec sh"`). It is refused when `--right` would leave a pane narrower than 20 columns, or `--down` shorter than 5 rows. The focus moves to the new pane, so what the user is typing goes there too: split only when the user asks or the work needs it. Use it to start a dev server or a watcher beside your work.
 
 ```sh
 kisui pane split --right
