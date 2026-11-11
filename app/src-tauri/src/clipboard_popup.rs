@@ -15,7 +15,7 @@
 //!   書く。X11 につながらないとき（X の無い Wayland など）は何も出ない（global-hotkey は X11 につなげないと黙って
 //!   何もせず、登録は成功を返す）。
 
-use std::sync::Mutex;
+use std::sync::{Mutex, MutexGuard};
 
 use tauri::{
     AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, Position, State, Webview,
@@ -47,6 +47,36 @@ struct Inner {
     previous: Option<i32>,
     /// 出してから、窓にフォーカスが来たか（来る前のフォーカスの外れでは隠さない）
     focused: bool,
+}
+
+impl Popup {
+    fn lock(&self) -> MutexGuard<'_, Inner> {
+        self.inner.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// 窓を出した。前にいたアプリ `previous` を覚え、まだフォーカスは来ていないことにする。
+    fn opened(&self, previous: Option<i32>) {
+        let mut i = self.lock();
+        i.previous = previous;
+        i.focused = false;
+    }
+
+    /// 窓にフォーカスが来た。
+    fn focused(&self) {
+        self.lock().focused = true;
+    }
+
+    /// 出してから、窓にフォーカスが来たか。
+    fn was_focused(&self) -> bool {
+        self.lock().focused
+    }
+
+    /// 窓を隠す。覚えていた前のアプリを返して忘れる。
+    fn take_previous(&self) -> Option<i32> {
+        let mut i = self.lock();
+        i.focused = false;
+        i.previous.take()
+    }
 }
 
 /// 全体のキー：Option+Space（macOS）・Alt+Space（Linux）。どちらも ALT の修飾。
@@ -87,11 +117,7 @@ fn show(app: &AppHandle) {
     if !visible {
         // 前のアプリは、隠れているときに出すときだけ覚える（出ている間に押し直したら、もう自分が前にいる）
         let previous = platform::frontmost_other();
-        if let Some(p) = app.try_state::<Popup>() {
-            let mut i = p.inner.lock().unwrap_or_else(|e| e.into_inner());
-            i.previous = previous;
-            i.focused = false;
-        }
+        app.state::<Popup>().opened(previous);
         place(&w);
         let _ = w.emit_to(LABEL, EVENT_SHOWN, ());
         let _ = w.show();
@@ -121,16 +147,11 @@ fn create(app: &AppHandle) -> tauri::Result<WebviewWindow> {
             hide(&app, true);
         }
         WindowEvent::Focused(true) => {
-            if let Some(p) = app.try_state::<Popup>() {
-                p.inner.lock().unwrap_or_else(|e| e.into_inner()).focused = true;
-            }
+            app.state::<Popup>().focused();
         }
         // ほかのアプリに移った。前のアプリには戻さずに隠す
         WindowEvent::Focused(false) => {
-            let was_focused = app
-                .try_state::<Popup>()
-                .is_some_and(|p| p.inner.lock().unwrap_or_else(|e| e.into_inner()).focused);
-            if was_focused {
+            if app.state::<Popup>().was_focused() {
                 hide(&app, false);
             }
         }
@@ -141,11 +162,7 @@ fn create(app: &AppHandle) -> tauri::Result<WebviewWindow> {
 
 /// 窓を隠す。`back` なら、前に使っていたアプリに戻す。
 fn hide(app: &AppHandle, back: bool) {
-    let previous = app.try_state::<Popup>().and_then(|p| {
-        let mut i = p.inner.lock().unwrap_or_else(|e| e.into_inner());
-        i.focused = false;
-        i.previous.take()
-    });
+    let previous = app.state::<Popup>().take_previous();
     let Some(w) = app.get_webview_window(LABEL) else {
         return;
     };
