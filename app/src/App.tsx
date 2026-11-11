@@ -11,7 +11,7 @@
 // （プログラムが動いていれば、先に確認の窓を出す）。ターミナルはワークスペースごとにあり、帯を押してフォーカスを移すと、
 // 右の欄のターミナルもそのワークスペースのものに切り替わる（F2）。
 // 右の欄には、フォーカスしているワークスペースのターミナル（先頭がプライマリ）を、kisui serve が持つ分割の木の通りに並べる。編集はプライマリの欄の中の shj が受け持つ。
-// Cmd+D・Ctrl+Shift+D（右）と Cmd+Shift+D・Ctrl+Shift+E（下）で今の欄を分けて増やし、分割したターミナルの `exit` で閉じて並び直し、Ctrl+Shift+矢印で隣へ移る（F4。terminal/group.ts・
+// Cmd+D・Ctrl+Shift+D（右）と Cmd+Shift+D・Ctrl+Shift+E（下）で今の欄を分けて増やし、分割したターミナルの `exit` で閉じて並び直し、リーダーの h j k l で隣へ移る（キーは commands.ts の表）（F4。terminal/group.ts・
 // terminal/grid.ts）。プライマリターミナルは `exit` しても閉じず、Enter で作り直す。
 // 新しい版があれば右下に知らせ、押されたら入れ替えて起動し直す（C8。update/UpdateBar.tsx）。
 // 窓と知らせは、どれもモック Connect.dc.html のカードの決まりで描く（connect/card.css）。
@@ -34,7 +34,7 @@ import { changesRow } from "./changes/keys.ts";
 import { ClipboardDialog } from "./ClipboardDialog.tsx";
 import {
   ClipboardHistoryDialog,
-  handleClipboardHistoryKey,
+  openClipboardHistory,
 } from "./ClipboardHistoryDialog.tsx";
 import { TransferDialog } from "./TransferDialog.tsx";
 import { AddMachine } from "./connect/AddMachine.tsx";
@@ -49,7 +49,12 @@ import {
   statusLine,
 } from "./connect/status.ts";
 import { UpdateBar } from "./update/UpdateBar.tsx";
-import { checkNow } from "./update/store.ts";
+import {
+  checkNow,
+  dismissUpdate,
+  installUpdate,
+  updateInfo,
+} from "./update/store.ts";
 import { OsClipboard } from "./clipboard.ts";
 import { CopiedToast, copiedNotice } from "./CopiedToast.tsx";
 import { ScaleToast, showScale } from "./ScaleToast.tsx";
@@ -120,10 +125,20 @@ import {
 } from "./tree/menu.ts";
 import { DeleteDialog, NameDialog } from "./tree/TreeDialogs.tsx";
 import { WorkspaceTrees } from "./tree/trees.ts";
-import { cmdDigit, IS_MAC, isCloseTermKey, isFocusLost } from "./guiKeys.ts";
-import { loadScale, nextScale, saveScale, scaleKey } from "./scale.ts";
+import {
+  afterKeyUp,
+  IDLE,
+  route,
+  type Command,
+  type RouterState,
+} from "./commands.ts";
+import { IS_MAC, isFocusLost } from "./guiKeys.ts";
+import { KeyListDialog, openKeyList } from "./KeyListDialog.tsx";
+import { LeaderMenu, setLeaderPath } from "./LeaderMenu.tsx";
+import { loadScale, nextScale, saveScale, type ScaleAction } from "./scale.ts";
 import { applyScale } from "./scaleOs.ts";
-import { directionKey, isZoomKey, splitKey } from "./terminal/grid.ts";
+import type { Direction } from "./terminal/grid.ts";
+import { focusLastNotified } from "./terminal/lastNotified.ts";
 import type { UrlClick } from "coneko-term";
 import { TermGroup, TermGroups } from "./terminal/group.ts";
 import type { MediaFetch } from "./terminal/media.ts";
@@ -373,59 +388,40 @@ function Workbench(props: {
   // 表示の大きさ（#594）。覚えておいた大きさで始める
   let scale = loadScale(store);
   if (scale !== 1) void applyScale(scale);
-  // GUI が受けるキーなので、欄やターミナルに届く前（capture）に取って、shj にもシェルにも送らない
+  // リーダー（Cmd+K / Ctrl+Shift+K）の状態。入っている間は、次に押せるキーの一覧を出す（LeaderMenu）
+  let router: RouterState = IDLE;
+  const setRouter = (next: RouterState) => {
+    if (next.leader !== router.leader) setLeaderPath(next.leader);
+    router = next;
+  };
+  // GUI が受けるキーなので、欄やターミナルに届く前（capture）に取って、shj にもシェルにも送らない。
+  // 何を受けるかは、コマンドの表（commands.ts）が決める。リーダーに入っていないときは、その表のキーに当たるものだけを受け、
+  // ほかのキーは今までどおりターミナル（shj やシェル）に届く
   const onGuiKey = (e: KeyboardEvent) => {
-    // 表示の大きさ（#594）。窓全体の zoom を変える。ターミナルは欄の変化で合わせ直す
-    const sc = scaleKey(e, IS_MAC);
-    if (sc) {
+    // 隣へ移るのは、ターミナルを並べていて、キーがターミナルに向いているときだけ
+    const card = mainEl?.querySelector(":scope > .terminal");
+    const inTerm = !!card?.contains(e.target as Node);
+    const routed = route(router, e, {
+      mac: IS_MAC,
+      dialogOpen: !!document.querySelector("dialog[open]"),
+      resizeMode: resizeMode(),
+      // Cmd+W（Mac）は、キーがターミナルの欄（画像・動画・PDF の欄を含む）に向いているときか、どこにも向いていないときに、
+      // 今の欄だけを閉じる。どちらでも、アプリの窓は閉じない（#83）
+      inPane: inTerm || isFocusLost(e.target),
+    });
+    setRouter(routed.state);
+    if (routed.consume) {
       e.preventDefault();
       e.stopPropagation();
-      scale = nextScale(scale, sc);
-      saveScale(store, scale);
-      void applyScale(scale);
-      showScale(scale);
+      if (routed.run && (!e.repeat || routed.repeat)) runCommand(routed.run);
       return;
     }
-    if (isZoomKey(e, IS_MAC)) {
-      e.preventDefault();
-      e.stopPropagation();
-      if (!e.repeat) setZoom();
-      return;
-    }
-    // クリップボードの履歴の一覧（#54）
-    if (handleClipboardHistoryKey(e)) {
-      e.preventDefault();
-      e.stopPropagation();
-      return;
-    }
-    const sd = splitKey(e, IS_MAC);
-    if (sd) {
-      e.preventDefault();
-      e.stopPropagation();
-      if (!e.repeat) newTerminal(sd);
-      return;
-    }
-    // Cmd+1〜9（Mac）：サイドバーの上から順にワークスペースを選ぶ。足りなければ何もしない
-    const nth = IS_MAC ? cmdDigit(e) : null;
-    if (nth !== null) {
-      e.preventDefault();
-      e.stopPropagation();
-      const b = groups().flatMap((g) =>
-        g.bands.map((x) => [g.target, x.id] as const),
-      )[nth];
-      if (b && !e.repeat) void focusWorkspace(b[0], b[1]);
-      return;
-    }
-    // リサイズモード（#526）：キーは境界を動かすのに使い、ターミナルには送らない。Mac は Cmd+R、Linux は Ctrl+Shift+R で入る（Alt+R は端末に渡す）
+    // リサイズモード（#526）：キーは境界を動かすのに使い、ターミナルには送らない。入るのは Cmd+R / Ctrl+Shift+R（Alt+R は端末に渡す）
     const rname = e.isComposing ? null : resizeKeyName(e, IS_MAC);
-    if (rname && (resizeMode() || rname === "mod+r")) {
+    if (rname && resizeMode()) {
       e.preventDefault();
       e.stopPropagation();
-      if (resizeMode()) {
-        if (!e.repeat || resizeAction(rname).kind !== "exit") resizeKey(rname);
-      } else if (!e.repeat) {
-        setResizeMode(true);
-      }
+      if (!e.repeat || resizeAction(rname).kind !== "exit") resizeKey(rname);
       return;
     }
     // ファイルツリーから端末へ戻る（Esc・Ctrl+E）。メニューや窓の中の Esc には触らない
@@ -438,29 +434,22 @@ function Workbench(props: {
       e.preventDefault();
       e.stopPropagation();
       focusTerminal();
-      return;
-    }
-    // 隣へ移るのは、ターミナルを並べていて、キーがターミナルに向いているときだけ
-    const dir = directionKey(e, IS_MAC);
-    const card = mainEl?.querySelector(":scope > .terminal");
-    const inTerm = !!card?.contains(e.target as Node);
-    // Cmd+W（Mac）：キーがターミナルの欄（画像・動画・PDF の欄を含む）に向いているときか、どこにも向いていないときに、
-    // 今の欄だけを閉じる。プライマリのターミナルは閉じず、何もしない。どちらでも、アプリの窓は閉じない（#83）
-    if (isCloseTermKey(e, IS_MAC) && (inTerm || isFocusLost(e.target))) {
-      e.preventDefault();
-      e.stopPropagation();
-      if (!e.repeat) termGroup()?.closeActive();
-      return;
-    }
-    if (dir && !zoomed() && inTerm) {
-      e.preventDefault();
-      e.stopPropagation();
-      if (termGroup()?.move(dir)) focusTerminal();
     }
   };
+  const onGuiKeyUp = () => setRouter(afterKeyUp(router));
+  // 窓を離れたり、画面を押したりしたら、リーダーを出る（キーが向く先が変わるため）
+  const leaveLeader = () => {
+    if (router.leader) setRouter(IDLE);
+  };
   window.addEventListener("keydown", onGuiKey, true);
+  window.addEventListener("keyup", onGuiKeyUp, true);
+  window.addEventListener("blur", leaveLeader);
+  window.addEventListener("pointerdown", leaveLeader, true);
   onCleanup(() => {
     window.removeEventListener("keydown", onGuiKey, true);
+    window.removeEventListener("keyup", onGuiKeyUp, true);
+    window.removeEventListener("blur", leaveLeader);
+    window.removeEventListener("pointerdown", leaveLeader, true);
     clearInterval(tick);
     offs.forEach((f) => f());
     for (const s of Object.values(sessions())) void s.close();
@@ -1111,6 +1100,145 @@ function Workbench(props: {
       });
   }
 
+  // 直前に選んでいたワークスペース（リーダーの w Tab で戻る先）
+  let lastWorkspace: WorkspaceFocus | null = null;
+  createEffect(
+    on(focus, (f, prev) => {
+      if (prev && (f?.target !== prev.target || f?.id !== prev.id))
+        lastWorkspace = prev;
+    }),
+  );
+
+  /** 表示の大きさを変える（#594）。窓全体の zoom を変える。ターミナルは欄の変化で合わせ直す。 */
+  function changeScale(a: ScaleAction) {
+    scale = nextScale(scale, a);
+    saveScale(store, scale);
+    void applyScale(scale);
+    showScale(scale);
+  }
+
+  /** 今のマシン（今のワークスペースのマシン。ワークスペースがまだ無ければ、先頭のマシン）。 */
+  const currentTarget = (): string | undefined =>
+    focus()?.target ?? groups()[0]?.target;
+
+  /** できないことを、右下の知らせで伝える（リーダーの m の下は、見出しの右クリックなどと違い、選べないものも押せてしまうため）。 */
+  function cannot(title: string, error: string) {
+    setFocusError({ title, error });
+  }
+
+  /**
+   * コマンドの表（commands.ts）のコマンドを動かす。リーダーの葉と近道の両方がここに来る。
+   * キーの割り当ては表にあり、ここは動きだけを持つ。
+   */
+  function runCommand(c: Command) {
+    const f = focus();
+    switch (c.id) {
+      case "pane.focus":
+        // 隠している間は、隣の欄が見えないので移らない
+        if (!zoomed() && termGroup()?.move(c.arg as Direction)) focusTerminal();
+        break;
+      case "pane.last":
+        if (!zoomed() && termGroup()?.focusPrevious()) focusTerminal();
+        break;
+      case "pane.split":
+        newTerminal(c.arg as SplitDir);
+        break;
+      case "pane.close":
+        // プライマリのターミナルは閉じず、何もしない
+        termGroup()?.closeActive();
+        break;
+      case "pane.zoom":
+        setZoom();
+        break;
+      case "pane.resize":
+        // 入る・出るの両方（Cmd+R / Ctrl+Shift+R）
+        setResizeMode(!resizeMode());
+        break;
+      case "workspace.nth": {
+        // サイドバーの上から順に（マシンをまたいで数える）。足りなければ何もしない
+        const b = groups().flatMap((g) =>
+          g.bands.map((x) => [g.target, x.id] as const),
+        )[c.arg as number];
+        if (b) void focusWorkspace(b[0], b[1]);
+        break;
+      }
+      case "workspace.last": {
+        const l = lastWorkspace;
+        if (
+          l &&
+          groups().some(
+            (g) => g.target === l.target && g.bands.some((b) => b.id === l.id),
+          )
+        )
+          void focusWorkspace(l.target, l.id);
+        break;
+      }
+      case "workspace.new": {
+        const t = currentTarget();
+        if (t) void createWorkspace(t);
+        break;
+      }
+      case "workspace.close":
+        if (f) void closeWorkspace(f.target, f.id);
+        break;
+      case "machine.add":
+        setAddError(undefined);
+        setAdding(true);
+        break;
+      case "machine.rename":
+      case "machine.remove": {
+        const t = currentTarget();
+        const g = groups().find((x) => x.target === t);
+        if (!t || !g) break;
+        if (!g.removable || g.fixed) {
+          cannot(
+            `${g.label} は${c.id === "machine.rename" ? "名前を変えられません" : "外せません"}`,
+            "「ローカル」と、設定ファイル（[[gui.machines]]）で決めたマシンは、名前を変えたり外したりできません。",
+          );
+        } else if (c.id === "machine.rename") {
+          setRenameError(undefined);
+          setRenaming(t);
+        } else removeFromSidebar(t);
+        break;
+      }
+      case "machine.disconnect": {
+        const t = currentTarget();
+        const g = groups().find((x) => x.target === t);
+        if (!t || !g) break;
+        if (!g.removable)
+          cannot(`${g.label} は切れません`, "「ローカル」は切れません。");
+        else void disconnect(t);
+        break;
+      }
+      case "machine.reconnect": {
+        const t = currentTarget();
+        if (t) retry(t);
+        break;
+      }
+      case "clipboard.history":
+        openClipboardHistory();
+        break;
+      case "scale":
+        changeScale(c.arg as ScaleAction);
+        break;
+      case "notice.act":
+        // いちばん下のお知らせ（新しい版の知らせがあればそれ）の、主のボタン
+        if (updateInfo()) void installUpdate();
+        else notices().at(-1)?.primary?.run();
+        break;
+      case "notice.dismiss":
+        if (updateInfo()) dismissUpdate();
+        else notices().at(-1)?.dismiss?.();
+        break;
+      case "notice.focusNotified":
+        focusLastNotified();
+        break;
+      case "help.keys":
+        openKeyList();
+        break;
+    }
+  }
+
   /** 「足す」を押した。ssh でつなぎ（kisui が無ければ確認して送り）、つながったら保存する（下の effect）。 */
   function submitAdd(target: string, name: string) {
     const r = addMachine(machines(), target, name);
@@ -1213,6 +1341,7 @@ function Workbench(props: {
             title: err.title,
             error: err.error,
             primary: { label: "閉じる", run: () => setFocusError(null) },
+            dismiss: () => setFocusError(null),
           },
         };
       }
@@ -1242,11 +1371,12 @@ function Workbench(props: {
         title: `${label} につながりません`,
         error: st.message,
         secondary: [close, cut],
+        dismiss: close.run,
         primary: { label: "つなぎ直す", run: () => connect(t) },
       };
     }
     const failed = handoverFailure(label, st);
-    if (failed) return { ...failed, primary: close };
+    if (failed) return { ...failed, primary: close, dismiss: close.run };
     if (st.kind === "superseded") {
       const who = st.by ? describeClient(st.by) : "";
       return {
@@ -1258,6 +1388,7 @@ function Workbench(props: {
           "取り合いにならないよう、自動ではつなぎ直しません。" +
           "「つなぎ直す」を押すとこちらに戻し、あちらの kisui-terminal が切れます。",
         secondary: [close, cut],
+        dismiss: close.run,
         primary: { label: "つなぎ直す", run: () => connect(t) },
       };
     }
@@ -1435,6 +1566,8 @@ function Workbench(props: {
       <TransferDialog />
       <CopiedToast />
       <ScaleToast />
+      <LeaderMenu />
+      <KeyListDialog />
       <Notices notices={notices()}>
         <UpdateBar />
       </Notices>

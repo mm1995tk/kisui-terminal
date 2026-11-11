@@ -5,41 +5,9 @@ import {
   ago,
   emptyMessage,
   filterEntries,
-  isHistoryKey,
   moveSelection,
   preview,
 } from "./clipboardHistory.ts";
-import type { KeyLike } from "./guiKeys.ts";
-
-function key(over: Partial<KeyLike>): KeyLike {
-  return {
-    key: "H",
-    code: "KeyH",
-    ctrlKey: false,
-    shiftKey: true,
-    altKey: false,
-    metaKey: false,
-    ...over,
-  };
-}
-
-test("開くキーは Mac が Cmd+Shift+H、そのほかが Ctrl+Shift+H", () => {
-  assert.equal(isHistoryKey(key({ metaKey: true }), true), true);
-  assert.equal(isHistoryKey(key({ ctrlKey: true }), true), false);
-  assert.equal(isHistoryKey(key({ ctrlKey: true }), false), true);
-  assert.equal(isHistoryKey(key({ metaKey: true }), false), false);
-});
-
-test("Shift が無い・Alt がある・変換中・別の文字は開かない", () => {
-  const c = { ctrlKey: true };
-  assert.equal(isHistoryKey(key({ ...c, shiftKey: false }), false), false);
-  assert.equal(isHistoryKey(key({ ...c, altKey: true }), false), false);
-  assert.equal(isHistoryKey(key({ ...c, isComposing: true }), false), false);
-  assert.equal(
-    isHistoryKey(key({ ...c, key: "V", code: "KeyV" }), false),
-    false,
-  );
-});
 
 test("preview は改行と空白をたたみ、長ければ切る", () => {
   assert.equal(preview("a\n  b\tc "), "a b c");

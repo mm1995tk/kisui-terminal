@@ -1,0 +1,54 @@
+/* 全部のキーの一覧（リーダーの `?`）。リーダーの木と、リーダーを通さずに押せる近道を並べる */
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px 20px 8px;
+  overflow-y: auto;
+}
+.title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+.lead {
+  margin: 0;
+  color: var(--gh-text-muted);
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.table th {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--gh-border);
+  color: var(--gh-text-muted);
+  font-size: 12px;
+  font-weight: 400;
+  text-align: left;
+}
+.table td {
+  padding: 3px 8px;
+  vertical-align: top;
+}
+.keys {
+  white-space: nowrap;
+  color: var(--gh-accent-text);
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 12px;
+}
+.shortcut {
+  white-space: nowrap;
+  color: var(--gh-text-muted);
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 12px;
+}
+.groupRow td {
+  padding-top: 10px;
+  font-weight: 600;
+}
+.outside {
+  margin: 0;
+  color: var(--gh-text-muted);
+  font-size: 12px;
+}

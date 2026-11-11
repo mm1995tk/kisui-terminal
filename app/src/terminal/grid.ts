@@ -6,21 +6,13 @@
 // - 木と実際の欄が食い違うとき（serve が古い・欄が閉じたばかり）は、reconcileLayout で欄に合わせる。
 //   serve（server/layout.go）と同じ規則：無くなった欄は外して隣が埋め、木に無い欄は最後の欄を
 //   交互の向き（右・下・右…）に分けて足す。
-// - Ctrl+Shift+矢印で隣の欄へ移る。隣は、描かれる位置（layoutRects）で決める。
+// - リーダーの h j k l で隣の欄へ移る。隣は、描かれる位置（layoutRects）で決める。
 //
 // DOM を使わないので node --test で確かめられる。
 
-import {
-  isCmdKey,
-  isCmdOptionKey,
-  isCmdShiftKey,
-  isCmdZoomKey,
-  isCtrlShift,
-  type KeyLike,
-} from "../guiKeys.ts";
 import type { PaneLayout, SplitDir } from "../rpc/protocol.ts";
 
-/** 隣へ移る向き（Ctrl+Shift+矢印）。 */
+/** 隣へ移る向き（リーダーの h j k l）。 */
 export type Direction = "left" | "right" | "up" | "down";
 
 /** 欄の位置。カードの左上を原点にした割合（0〜1）。 */
@@ -169,46 +161,6 @@ export function neighbor(
       best = { id: other, hit, len };
   }
   return best?.id;
-}
-
-/** Ctrl+Shift+矢印（Mac は Cmd+Option+矢印も）なら向き、そうでなければ null。 */
-export function directionKey(e: KeyLike, mac = false): Direction | null {
-  if (!(isCtrlShift(e) || (mac && isCmdOptionKey(e)))) return null;
-  switch (e.key) {
-    case "ArrowLeft":
-      return "left";
-    case "ArrowRight":
-      return "right";
-    case "ArrowUp":
-      return "up";
-    case "ArrowDown":
-      return "down";
-    default:
-      return null;
-  }
-}
-
-/**
- * 今の欄を分けるキー。Mac は Cmd+D で右、Cmd+Shift+D で下（iTerm2 と同じ）。
- * ほかは Ctrl+Shift+D で右、Ctrl+Shift+E で下。分けないキーなら null。
- */
-export function splitKey(e: KeyLike, mac = false): SplitDir | null {
-  if (mac) {
-    if (isCmdKey(e, "d")) return "right";
-    if (isCmdShiftKey(e, "d")) return "down";
-    return null;
-  }
-  if (!isCtrlShift(e)) return null;
-  if (e.code === "KeyD" || e.key === "D" || e.key === "d") return "right";
-  if (e.code === "KeyE" || e.key === "E" || e.key === "e") return "down";
-  return null;
-}
-
-/** プライマリ以外の欄を隠す・戻すキー（Ctrl+Shift+M。Mac は Cmd+Shift+Enter も）か。 */
-export function isZoomKey(e: KeyLike, mac = false): boolean {
-  if (mac && isCmdZoomKey(e)) return true;
-  if (!isCtrlShift(e)) return false;
-  return e.code === "KeyM" || e.key === "M" || e.key === "m";
 }
 
 // ---- 欄どうしの境界（#18）----

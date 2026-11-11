@@ -1,7 +1,5 @@
 // クリップボードの履歴の窓（ClipboardHistoryDialog）の、DOM に触らない部分。
-// 履歴を持つのは Tauri の側（clipboard_history.rs）。ここは開くキーと、一覧の見せ方を決める。
-
-import type { KeyLike } from "./guiKeys.ts";
+// 履歴を持つのは Tauri の側（clipboard_history.rs）。ここは一覧の見せ方を決める。
 
 /** kisui-terminal の外から開く履歴の窓のラベル（clipboard_popup.rs の LABEL と同じ）。 */
 export const POPUP_LABEL = "clipboard-history";
@@ -12,18 +10,6 @@ export interface HistoryEntry {
   /** コピーした時刻（UNIX 時刻のミリ秒） */
   copiedAt: number;
 }
-
-/**
- * 履歴の窓を開くキー。Mac は Cmd+Shift+H、そのほかは Ctrl+Shift+H（History の H）。
- * Ctrl+Shift+V は端末の貼り付けなので避けた。
- */
-export function isHistoryKey(e: KeyLike, mac: boolean): boolean {
-  if (e.isComposing || !e.shiftKey || e.altKey) return false;
-  const mod = mac ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey;
-  if (!mod) return false;
-  return e.key.toLowerCase() === "h" || e.code === "KeyH";
-}
-
 /** 一覧の 1 行に出す文字の最大の長さ。 */
 export const PREVIEW_MAX = 120;
 

@@ -1,120 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import {
-  cmdDigit,
-  isCloseTermKey,
-  isFocusLost,
-  isCmdKey,
-  isCmdZoomKey,
-  type KeyLike,
-} from "./guiKeys.ts";
-import { directionKey, isZoomKey, splitKey } from "./terminal/grid.ts";
-
-function key(p: Partial<KeyLike>): KeyLike {
-  return {
-    key: "",
-    ctrlKey: false,
-    shiftKey: false,
-    altKey: false,
-    metaKey: false,
-    ...p,
-  };
-}
-
-describe("Mac の Cmd のキー", () => {
-  it("Mac は Cmd+D で右、Cmd+Shift+D で下に分ける。Ctrl+Shift+D/E と Cmd+T は効かない", () => {
-    const cmdD = key({ key: "d", code: "KeyD", metaKey: true });
-    assert.equal(splitKey(cmdD, true), "right");
-    assert.equal(splitKey(cmdD, false), null);
-    const cmdShiftD = key({
-      key: "D",
-      code: "KeyD",
-      metaKey: true,
-      shiftKey: true,
-    });
-    assert.equal(splitKey(cmdShiftD, true), "down");
-    assert.equal(splitKey(cmdShiftD, false), null);
-    const csD = key({ key: "D", code: "KeyD", ctrlKey: true, shiftKey: true });
-    assert.equal(splitKey(csD, true), null);
-    assert.equal(splitKey(csD, false), "right");
-    assert.equal(
-      splitKey(key({ key: "t", code: "KeyT", metaKey: true }), true),
-      null,
-    );
-  });
-
-  it("Cmd+Option+矢印で隣へ移る。Option だけ・Cmd だけでは移らない", () => {
-    const k = (p: Partial<KeyLike>) => key({ key: "ArrowLeft", ...p });
-    assert.equal(
-      directionKey(k({ metaKey: true, altKey: true }), true),
-      "left",
-    );
-    assert.equal(directionKey(k({ metaKey: true, altKey: true }), false), null);
-    assert.equal(directionKey(k({ altKey: true }), true), null);
-    assert.equal(directionKey(k({ metaKey: true }), true), null);
-    assert.equal(
-      directionKey(k({ ctrlKey: true, shiftKey: true }), true),
-      "left",
-    );
-  });
-
-  it("Cmd+W は Mac だけ。Shift や Option を足したら違う", () => {
-    assert.equal(isCloseTermKey(key({ key: "w", metaKey: true }), true), true);
-    assert.equal(
-      isCloseTermKey(key({ key: "w", metaKey: true }), false),
-      false,
-    );
-    assert.equal(
-      isCloseTermKey(key({ key: "w", metaKey: true, shiftKey: true }), true),
-      false,
-    );
-  });
-
-  it("Cmd+1〜9 は 0〜8。0 や Option 付きは null", () => {
-    assert.equal(cmdDigit(key({ key: "1", code: "Digit1", metaKey: true })), 0);
-    assert.equal(cmdDigit(key({ key: "9", code: "Digit9", metaKey: true })), 8);
-    assert.equal(
-      cmdDigit(key({ key: "0", code: "Digit0", metaKey: true })),
-      null,
-    );
-    assert.equal(
-      cmdDigit(key({ key: "1", code: "Digit1", metaKey: true, altKey: true })),
-      null,
-    );
-    assert.equal(cmdDigit(key({ key: "1", code: "Digit1" })), null);
-  });
-
-  it("Cmd+T・Cmd+1〜9 は Cmd だけのキー。Shift など別のキーを足したら違う", () => {
-    assert.equal(isCmdKey(key({ key: "t", metaKey: true }), "t"), true);
-    assert.equal(isCmdKey(key({ key: "s", metaKey: true }), "t"), false);
-    assert.equal(
-      isCmdKey(key({ key: "t", metaKey: true, shiftKey: true }), "t"),
-      false,
-    );
-  });
-});
-
-describe("Cmd+Shift+Enter（プライマリ以外の欄を隠す）", () => {
-  const cse = key({
-    key: "Enter",
-    code: "Enter",
-    metaKey: true,
-    shiftKey: true,
-  });
-  it("Mac では Cmd+Shift+Enter で隠す。kisui-terminal が受けるキー", () => {
-    assert.equal(isCmdZoomKey(cse), true);
-    assert.equal(isZoomKey(cse, true), true);
-  });
-  it("Shift が無い・Option も押している・Ctrl も押しているときは受けない", () => {
-    assert.equal(isCmdZoomKey({ ...cse, shiftKey: false }), false);
-    assert.equal(isCmdZoomKey({ ...cse, altKey: true }), false);
-    assert.equal(isCmdZoomKey({ ...cse, ctrlKey: true }), false);
-  });
-  it("Mac 以外では受けない（ターミナルに送る）", () => {
-    assert.equal(isZoomKey(cse, false), false);
-  });
-});
+import { isEditorKey, isFocusLost, isMac } from "./guiKeys.ts";
 
 describe("isFocusLost", () => {
   it("body・html・null は、どこにも向いていない", () => {
@@ -123,5 +10,24 @@ describe("isFocusLost", () => {
     assert.equal(isFocusLost(doc.documentElement, doc), true);
     assert.equal(isFocusLost(null, doc), true);
     assert.equal(isFocusLost({}, doc), false);
+  });
+});
+
+describe("isMac", () => {
+  it("macOS だけ true", () => {
+    assert.equal(isMac("MacIntel"), true);
+    assert.equal(isMac("Linux x86_64"), false);
+    assert.equal(isMac("Win32"), false);
+  });
+});
+
+describe("isEditorKey", () => {
+  it("Ctrl+E だけ。Shift・Alt・Cmd・変換中は違う", () => {
+    const e = { key: "e", ctrlKey: true };
+    assert.equal(isEditorKey(e), true);
+    assert.equal(isEditorKey({ ...e, shiftKey: true }), false);
+    assert.equal(isEditorKey({ ...e, altKey: true }), false);
+    assert.equal(isEditorKey({ ...e, metaKey: true }), false);
+    assert.equal(isEditorKey({ ...e, isComposing: true }), false);
   });
 });

@@ -79,6 +79,22 @@ kisui-terminal reads its settings from the same `config.toml` as `shj` (`~/.conf
 
 On a remote machine (ssh), kisui-terminal installs its own `kisui` and `shj` under `~/.cache/kisui-terminal/<version>/` after asking you; it does not touch the `shj` on the PATH there.
 
+### Keys
+
+You do not have to remember the keys. Press the leader, `Cmd+K` (macOS) or `Ctrl+Shift+K` (Linux), and the keys you can press next appear at the bottom left of the window, each with what it does. Press one to run it, or to go one level down into a group. `Backspace` goes back a level, `Esc` (or the leader again) leaves, and `?` shows every key in a list. A key that is not in the list is dropped and leaves the leader, so a stray letter never reaches the shell. `shj` has its own keys (`Space` and the rest) and they work in a pane as before: kisui-terminal takes a key only when it is the leader or one of the shortcuts below, never `Ctrl` + a letter or `Alt` + a key on their own.
+
+| Keys after the leader | What it does                                                                                                  |
+| --------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `h` `j` `k` `l`       | Move to the pane on the left, below, above, on the right. You can keep pressing them. `Tab` goes back to the pane you were in. |
+| `w`                   | Workspaces: `1`-`9` the nth in the sidebar, `n` new on this machine, `x` close, `Tab` back to the last one    |
+| `m`                   | Machines (the one of the current workspace): `a` add, `n` rename, `d` remove from the list, `x` disconnect, `r` reconnect |
+| `p`                   | Panes: `v` split right, `s` split down, `x` close, `z` hide or show the panes other than the primary one, `r` resize (and `h` `j` `k` `l` as above) |
+| `y`                   | The clipboard history                                                                                         |
+| `v`                   | Size of the display: `+` bigger, `-` smaller, `0` back to normal                                              |
+| `n`                   | Notices: `a` press the main button of the newest one, `d` close it, `g` bring forward the pane that last sent an OS notification |
+
+Some of them also have a shortcut that does not go through the leader (the list from `?` shows the ones for your OS). `Cmd+Shift+W` / `Ctrl+Shift+W` and `Cmd+Shift+P` / `Ctrl+Shift+P` open the workspaces and the panes group at once. `Cmd+D` / `Ctrl+Shift+D` and `Cmd+Shift+D` / `Ctrl+Shift+E` split a pane, `Cmd+R` / `Ctrl+Shift+R` is resize, `Cmd+Shift+Enter` / `Ctrl+Shift+M` hides the other panes, `Cmd+Shift+H` / `Ctrl+Shift+H` is the clipboard history, `Cmd+=` `Cmd+-` `Cmd+0` (`Ctrl+=` `Ctrl+0` on Linux) change the size of the display, and on macOS `Cmd+1`-`Cmd+9` pick a workspace and `Cmd+W` closes a pane. These keys used to exist and are gone, because `shj` and the shell use them: `Ctrl+Shift+Arrow` and `Cmd+Option+Arrow` (move between panes: use the leader), `Ctrl+Shift+M` on macOS, and `Ctrl+-` on Linux (size: use the leader).
+
 ## Development
 
 Use the Nix devShell (Go, gopls, gomod2nix, git, Node.js, Rust, and on Linux the WebView libraries). With direnv, `.envrc` enters it automatically. Every command runs from the root of the repository: `go.mod` (`kisui`, the server), `package.json` (the web UI, sources in `app/`) and `Cargo.toml` (a workspace whose member is the Tauri shell, `app/src-tauri`) are all there.
