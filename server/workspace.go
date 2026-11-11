@@ -138,6 +138,14 @@ func (w *wsManager) rootOf(id string) (string, bool) {
 	return st.root, true
 }
 
+// isGit は id のワークスペースのフォルダが git のリポジトリ（kind が "git"）かどうか。
+func (w *wsManager) isGit(id string) bool {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	st := w.reg[id]
+	return st != nil && st.root != "" && st.kind == "git"
+}
+
 // folderOf は新しいシェルを始めるフォルダ（ワークスペースのフォルダ。未定なら start_dir）。
 func (w *wsManager) folderOf(id string) (string, bool) {
 	w.mu.Lock()
