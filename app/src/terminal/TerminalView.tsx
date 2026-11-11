@@ -33,6 +33,7 @@ import {
   toOsNotification,
 } from "./notify.ts";
 import { showOsNotification } from "./notifyOs.ts";
+import { rememberNotified } from "./lastNotified.ts";
 import "./terminal.css";
 import { terminalTheme } from "./theme.ts";
 import { throttle } from "./throttle.ts";
@@ -128,6 +129,12 @@ export function TerminalView(props: {
           },
         );
         notifyCancels.add(cancel);
+        // リーダーの n g で、この欄を前に出せるようにする（欄が無くなったら忘れる）
+        const forget = rememberNotified(() => {
+          props.onFocus?.();
+          term.focus();
+        });
+        notifyCancels.add(forget);
       } catch {
         // 通知を出せなくても、ターミナルの動きには関わらない
       }

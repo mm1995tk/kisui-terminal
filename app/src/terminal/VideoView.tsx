@@ -8,7 +8,7 @@ import { createFileSource } from "./fileSource.ts";
  * 動画の欄（#555）。ターミナルの欄と同じ升目に並ぶ（TerminalGrid）。shj が頼んだ動画を media.read で取って
  * <video> で再生する（取るのは fileSource.ts）。見出しの × で閉じる。キーは、この欄にキーが向いているときだけ
  * 受ける：空白と k は再生・停止、← → は 5 秒、j l は 10 秒、m は消音。GUI のショートカット
- * （Ctrl+Shift+矢印など）はここで止めず、いつも通り GUI が受ける。隠したら止める（音が鳴り続けないように。戻しても再開しない）。
+ * （リーダー・Cmd+D など）はここで止めず、いつも通り GUI が受ける。隠したら止める（音が鳴り続けないように。戻しても再開しない）。
  */
 export function VideoView(props: {
   pane: ExtraPane;

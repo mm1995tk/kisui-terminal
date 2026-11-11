@@ -375,6 +375,30 @@ describe("TermGroup", () => {
   });
 });
 
+describe("直前の欄へ戻る（リーダーの Tab）", () => {
+  it("欄を移すたびに、前にキーを向けていた欄を覚えて、そこへ戻る。戻るたびに入れ替わる", () => {
+    const f = fakePort();
+    const g = new TermGroup(f.port, layout(["t2", "t3"]), () => {});
+    assert.equal(g.focusPrevious(), false, "移っていないので戻る先が無い");
+    g.setActive(1);
+    g.setActive(2);
+    assert.equal(g.focusPrevious(), true);
+    assert.equal(g.active?.id, "t2");
+    assert.equal(g.focusPrevious(), true);
+    assert.equal(g.active?.id, "t3");
+  });
+
+  it("欄が無くなっていたら戻らない", () => {
+    const f = fakePort();
+    const g = new TermGroup(f.port, layout(["t2", "t3"]), () => {});
+    g.setActive(1);
+    g.setActive(2);
+    g.update(layout(["t3"]));
+    assert.equal(g.focusPrevious(), false);
+    assert.equal(g.active?.id, "t3");
+  });
+});
+
 describe("TermGroups", () => {
   const ws = (
     id: string,

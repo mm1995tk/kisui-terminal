@@ -111,7 +111,7 @@ describe("操作", () => {
     assert.deepEqual(k("l"), { kind: "seek", dt: 10 });
     assert.deepEqual(k("m"), { kind: "mute" });
     assert.equal(k("x"), null);
-    // GUI のショートカット（Ctrl+Shift+矢印など）は動画で受けない
+    // GUI のショートカット（Cmd+D・リーダーなど）は動画で受けない
     assert.equal(k("ArrowLeft", { ctrlKey: true, shiftKey: true }), null);
     assert.equal(k("k", { metaKey: true }), null);
   });

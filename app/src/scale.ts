@@ -1,9 +1,8 @@
-// 画面全体の大きさ（#594）。Mac は Cmd = / Cmd + / Cmd - / Cmd 0、そのほかは Ctrl で同じ。
+// 画面全体の大きさ（#594）。キーは commands.ts の表：近道は Mac が Cmd = / Cmd - / Cmd 0、Linux が Ctrl = / Ctrl 0、リーダーは v + - 0。
 // Tauri の webview の zoom で変える。CSS の px はそのままで窓の幅が狭く（広く）見えるので、
 // サイドバー・ツリー・ターミナルが同じ割合で変わり、ターミナルは欄の大きさの変化（ResizeObserver）で合わせ直す。
 // DOM にも Tauri にも触らない（テストできるように）。
 
-import type { KeyLike } from "./guiKeys.ts";
 import type { KeyValueStore } from "./ssh/machines.ts";
 
 /** 選べる大きさ。1 が元の大きさ。 */
@@ -18,23 +17,6 @@ export const DEFAULT_SCALE = 1;
 export type ScaleAction = "in" | "out" | "reset";
 
 const STORAGE_KEY = "shijimi.uiScale";
-
-/**
- * 大きさを変えるキーなら、その動き。Mac は Cmd、そのほかは Ctrl（どちらも Alt は押さない）。
- * Shift は + を打つために許す（US 配列の Cmd+Shift+=）。
- * Mac 以外の Ctrl+- は、ターミナルの C-_（readline の undo）を奪うことを承知で選んだ（ブラウザや多くのターミナルと同じ形に揃える）。
- */
-export function scaleKey(e: KeyLike, mac: boolean): ScaleAction | null {
-  const mod = mac ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey;
-  if (!mod || e.altKey || e.isComposing) return null;
-  const c = e.code ?? "";
-  if (e.key === "+" || c === "NumpadAdd") return "in";
-  if (e.key === "=" || c === "Equal") return "in";
-  if (e.shiftKey) return null;
-  if (e.key === "-" || c === "Minus" || c === "NumpadSubtract") return "out";
-  if (e.key === "0" || c === "Digit0" || c === "Numpad0") return "reset";
-  return null;
-}
 
 /** 選べる大きさのうち、v に一番近いもの。 */
 function nearest(v: number): number {

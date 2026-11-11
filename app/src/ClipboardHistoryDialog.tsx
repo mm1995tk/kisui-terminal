@@ -16,7 +16,6 @@ import {
   ago,
   emptyMessage,
   filterEntries,
-  isHistoryKey,
   moveSelection,
   preview,
   type HistoryEntry,
@@ -25,7 +24,6 @@ import { listClipboardHistory } from "./clipboardHistoryOs.ts";
 import { copyAndNotify } from "./copiedNotice.ts";
 import { ModalCard } from "./connect/Card.tsx";
 import { IS_MAC } from "./guiKeys.ts";
-import type { KeyLike } from "./guiKeys.ts";
 import { writeOs } from "./terminal/clipboardOs.ts";
 import { focusedPasteTarget } from "./terminal/pasteTarget.ts";
 
@@ -36,12 +34,10 @@ interface Opened {
 
 const [opened, setOpened] = createSignal<Opened | undefined>();
 
-/** 開くキーなら窓を出して true（呼んだ側は、そのキーを端末に渡さない）。出ている間に押されても true。 */
-export function handleClipboardHistoryKey(e: KeyLike): boolean {
-  if (!isHistoryKey(e, IS_MAC)) return false;
+/** 履歴の窓を出す（近道の Cmd+Shift+H / Ctrl+Shift+H と、リーダーの `y`）。出ている間は何もしない。 */
+export function openClipboardHistory(): void {
   // 窓を出すと欄からフォーカスが外れるので、宛先は先に決める
   if (!opened()) setOpened({ paste: focusedPasteTarget() });
-  return true;
 }
 
 /** 履歴の窓。開いていなければ何も出さない。 */

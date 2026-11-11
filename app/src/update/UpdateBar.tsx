@@ -1,29 +1,20 @@
 // 自動更新の知らせ（C8）。起動したら 1 度だけ新しい版があるかを殻に聞き（`kisui update` でも調べ直す。store.ts）、あれば右下の知らせ（connect/Notices.tsx）に積む。
-// 入れ替えは「更新して再起動」を押したときだけ行う（編集中に勝手に起動し直さないため）。
+// 入れ替えは「更新して再起動」を押したときだけ行う（編集中に勝手に起動し直さないため。リーダーの `n a` でも同じ）。
 // 自動更新は AppImage と .dmg の版だけが持つ。Nix で作る版では殻がいつも「無い」と答えるので、何も出ない。
-import { invoke } from "@tauri-apps/api/core";
-import { createSignal, onMount, Show, type JSX } from "solid-js";
+import { onMount, Show, type JSX } from "solid-js";
 
 import "../connect/card.css";
-import { checkOnStart, setUpdateInfo, updateInfo } from "./store.ts";
+import {
+  checkOnStart,
+  dismissUpdate,
+  installUpdate,
+  updateBusy,
+  updateError,
+  updateInfo,
+} from "./store.ts";
 
 export function UpdateBar(): JSX.Element {
-  const [busy, setBusy] = createSignal(false);
-  const [error, setError] = createSignal("");
-
   onMount(checkOnStart);
-
-  async function install() {
-    setBusy(true);
-    setError("");
-    try {
-      // うまくいけば起動し直すので、ここには戻らない
-      await invoke("update_install");
-    } catch (e) {
-      setError(String(e));
-      setBusy(false);
-    }
-  }
 
   return (
     <Show when={updateInfo()}>
@@ -34,9 +25,9 @@ export function UpdateBar(): JSX.Element {
             <p class="card-text">
               今は {u().current} です。更新すると、入れ替えて起動し直します。
             </p>
-            <Show when={error()}>
+            <Show when={updateError()}>
               <pre class="card-error" role="alert">
-                {error()}
+                {updateError()}
               </pre>
             </Show>
           </div>
@@ -44,18 +35,18 @@ export function UpdateBar(): JSX.Element {
             <button
               type="button"
               class="card-button"
-              disabled={busy()}
-              onClick={() => setUpdateInfo(null)}
+              disabled={updateBusy()}
+              onClick={dismissUpdate}
             >
               あとで
             </button>
             <button
               type="button"
               class="card-button primary"
-              disabled={busy()}
-              onClick={() => void install()}
+              disabled={updateBusy()}
+              onClick={() => void installUpdate()}
             >
-              {busy() ? "更新しています…" : "更新して再起動"}
+              {updateBusy() ? "更新しています…" : "更新して再起動"}
             </button>
           </div>
         </aside>

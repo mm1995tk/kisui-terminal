@@ -4,9 +4,7 @@ import { describe, it } from "node:test";
 import type { PaneLayout } from "../rpc/protocol.ts";
 import {
   clampRatio,
-  directionKey,
   firstPane,
-  isZoomKey,
   layoutBars,
   layoutPanes,
   layoutRects,
@@ -14,18 +12,8 @@ import {
   neighbor,
   ratioLimits,
   reconcileLayout,
-  splitKey,
   withRatio,
 } from "./grid.ts";
-
-const key = (k: string, code = "", mods = { ctrl: true, shift: true }) => ({
-  key: k,
-  code,
-  ctrlKey: mods.ctrl,
-  shiftKey: mods.shift,
-  altKey: false,
-  metaKey: false,
-});
 
 const leaf = (pane: string): PaneLayout => ({ pane });
 const right = (a: PaneLayout, b: PaneLayout): PaneLayout => ({
@@ -119,40 +107,6 @@ describe("neighbor", () => {
     const r = layoutRects(t);
     assert.equal(neighbor(r, "c", "up"), "a");
     assert.equal(neighbor(r, "b", "down"), "c");
-  });
-});
-
-describe("keys", () => {
-  it("Ctrl+Shift+矢印だけを向きにする", () => {
-    assert.equal(directionKey(key("ArrowLeft")), "left");
-    assert.equal(directionKey(key("ArrowDown")), "down");
-    assert.equal(
-      directionKey(key("ArrowLeft", "", { ctrl: true, shift: false })),
-      null,
-    );
-    assert.equal(directionKey(key("a")), null);
-  });
-
-  it("Linux は Ctrl+Shift+D で右、Ctrl+Shift+E で下に分ける", () => {
-    assert.equal(splitKey(key("D", "KeyD")), "right");
-    assert.equal(splitKey(key("d")), "right");
-    assert.equal(splitKey(key("E", "KeyE")), "down");
-    assert.equal(
-      splitKey(key("d", "KeyD", { ctrl: true, shift: false })),
-      null,
-    );
-    // 前の Ctrl+Shift+T は欄を足さない
-    assert.equal(splitKey(key("T", "KeyT")), null);
-  });
-
-  it("Ctrl+Shift+M をプライマリ以外の欄を隠すキーにする", () => {
-    assert.equal(isZoomKey(key("M", "KeyM")), true);
-    assert.equal(isZoomKey(key("m")), true);
-    assert.equal(
-      isZoomKey(key("m", "KeyM", { ctrl: true, shift: false })),
-      false,
-    );
-    assert.equal(isZoomKey(key("T", "KeyT")), false);
   });
 });
 

@@ -15,6 +15,8 @@ export interface Notice {
   primary?: { label: string; run: () => void };
   /** ほかのボタン（主ボタンの左） */
   secondary?: { label: string; run: () => void }[];
+  /** 閉じる（リーダーの `n d`）。閉じるボタンの動きと同じ */
+  dismiss?: () => void;
 }
 
 /**

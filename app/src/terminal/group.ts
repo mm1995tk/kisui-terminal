@@ -76,6 +76,9 @@ export class TermGroup {
   private extraCurrent?: string;
   /** こちらから extra.close を送った欄。shj の一覧から消えるまで、並べ直さない */
   private readonly closingExtras = new Set<string>();
+  /** 最後に見た active の欄の id と、その前にキーを向けていた欄の id（focusPrevious で戻る先） */
+  private seen?: string;
+  private previousId?: string;
 
   constructor(
     port: TermPort,
@@ -88,6 +91,31 @@ export class TermGroup {
     this.onChange = onChange;
     this.onError = onError;
     this.update(layout, false);
+    this.seen = this.activeId;
+  }
+
+  /** 並びか active が変わったことを知らせる。active が変わっていれば、前の欄を覚える（リーダー Tab で戻る先）。 */
+  private changed(): void {
+    const id = this.activeId;
+    if (id !== this.seen) {
+      if (this.seen !== undefined) this.previousId = this.seen;
+      this.seen = id;
+    }
+    this.onChange();
+  }
+
+  /** 直前にキーを向けていた欄に戻る（リーダー Tab）。その欄がもう無ければ何もせず false。 */
+  focusPrevious(): boolean {
+    const to = this.previousId;
+    if (to === undefined || to === this.activeId) return false;
+    const l = this.links.find((x) => x.id === to);
+    if (l) {
+      this.current = l;
+      this.extraCurrent = undefined;
+    } else if (this.extraList.some((x) => x.id === to)) this.extraCurrent = to;
+    else return false;
+    this.changed();
+    return true;
   }
 
   /** 並べるターミナル（並べる順。先頭がプライマリ）。変えるたびに新しい配列にする。 */
@@ -193,7 +221,7 @@ export class TermGroup {
       next.length === this.links.length &&
       next.every((l, i) => l === this.links[i]);
     if (same && sameX) {
-      if ((layoutChanged || titlesChanged) && notify) this.onChange();
+      if ((layoutChanged || titlesChanged) && notify) this.changed();
       return;
     }
     const was = this.current ? this.links.indexOf(this.current) : -1;
@@ -204,7 +232,7 @@ export class TermGroup {
     this.extraList = nextX;
     if (!nextX.some((x) => x.id === this.extraCurrent))
       this.extraCurrent = undefined;
-    if (notify) this.onChange();
+    if (notify) this.changed();
   }
 
   /** shj からの通知。termId が合うものが受ける。 */
@@ -239,7 +267,7 @@ export class TermGroup {
       }
       this.current = l;
       this.extraCurrent = undefined;
-      this.onChange();
+      this.changed();
       return true;
     } catch (e) {
       this.onError(`term.create: ${e instanceof Error ? e.message : e}`);
@@ -253,7 +281,7 @@ export class TermGroup {
     if (!l || (l === this.current && this.extraCurrent === undefined)) return;
     this.current = l;
     this.extraCurrent = undefined;
-    this.onChange();
+    this.changed();
   }
 
   /** id の、ターミナルでない欄にキーを向ける（shj が欄を出した・欄を押した。#555）。無ければ false。 */
@@ -261,7 +289,7 @@ export class TermGroup {
     if (!this.extraList.some((x) => x.id === id)) return false;
     if (this.extraCurrent !== id) {
       this.extraCurrent = id;
-      this.onChange();
+      this.changed();
     }
     return true;
   }
@@ -276,7 +304,7 @@ export class TermGroup {
       .request("extra.close", { workspaceId: this.wsId, id })
       .catch(() => {});
     if (this.extraCurrent === id) this.extraCurrent = undefined;
-    this.onChange();
+    this.changed();
   }
 
   /** termId の欄を active にする（shj が欄を出した。#553）。無ければ false。 */
@@ -287,7 +315,7 @@ export class TermGroup {
     return true;
   }
 
-  /** active を dir の向きの隣へ移す（Ctrl+Shift+矢印）。動いたら true。 */
+  /** active を dir の向きの隣へ移す（リーダーの h j k l）。動いたら true。 */
   move(dir: Direction): boolean {
     const from = this.activeId;
     if (!from) return false;
@@ -298,7 +326,7 @@ export class TermGroup {
       this.current = l;
       this.extraCurrent = undefined;
     } else this.extraCurrent = to;
-    this.onChange();
+    this.changed();
     return true;
   }
 
@@ -320,7 +348,7 @@ export class TermGroup {
     if (cur === r) return true;
     this.ratios.set(key, r);
     this.ratioRev++;
-    this.onChange();
+    this.changed();
     this.resizeQueued.set(key, r);
     this.sendBorder(key);
     return true;
@@ -349,7 +377,7 @@ export class TermGroup {
         // 返事の前に workspace.changed が届くので、serve の木にはもう反映されている。重ねていた割合を外す
         this.ratios.delete(key);
         this.ratioRev++;
-        this.onChange();
+        this.changed();
       });
   }
 
@@ -382,7 +410,7 @@ export class TermGroup {
     this.port.request("term.close", { termId: l.id }).catch(() => {});
     if (this.current === l)
       this.current = this.links[Math.min(i, this.links.length - 1)];
-    this.onChange();
+    this.changed();
   }
 }
 

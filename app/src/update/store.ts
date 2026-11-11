@@ -61,3 +61,31 @@ async function run(): Promise<UpdateOutcome> {
     return { status: "failed", error: String(e) };
   }
 }
+
+const [busy, setBusy] = createSignal(false);
+const [installError, setInstallError] = createSignal("");
+
+/** 入れ替えている最中か。 */
+export { busy as updateBusy, installError as updateError };
+
+/**
+ * 「更新して再起動」。入れ替えて起動し直す。失敗したら理由を updateError に出す。
+ * 知らせのボタン（UpdateBar.tsx）と、リーダーの `n a`（App.tsx）が同じものを呼ぶ。
+ */
+export async function installUpdate(): Promise<void> {
+  if (busy()) return;
+  setBusy(true);
+  setInstallError("");
+  try {
+    // うまくいけば起動し直すので、ここには戻らない
+    await invoke("update_install");
+  } catch (e) {
+    setInstallError(String(e));
+    setBusy(false);
+  }
+}
+
+/** 「あとで」。知らせを閉じる（入れ替えている最中は閉じない）。 */
+export function dismissUpdate(): void {
+  if (!busy()) setInfo(null);
+}
