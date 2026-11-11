@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 import {
   cmdDigit,
   isCloseTermKey,
+  isFocusLost,
   isCmdKey,
   isCmdZoomKey,
   type KeyLike,
@@ -112,5 +113,15 @@ describe("Cmd+Shift+Enter（プライマリ以外の欄を隠す）", () => {
   });
   it("Mac 以外では受けない（ターミナルに送る）", () => {
     assert.equal(isZoomKey(cse, false), false);
+  });
+});
+
+describe("isFocusLost", () => {
+  it("body・html・null は、どこにも向いていない", () => {
+    const doc = { body: {}, documentElement: {} } as unknown as Document;
+    assert.equal(isFocusLost(doc.body, doc), true);
+    assert.equal(isFocusLost(doc.documentElement, doc), true);
+    assert.equal(isFocusLost(null, doc), true);
+    assert.equal(isFocusLost({}, doc), false);
   });
 });
