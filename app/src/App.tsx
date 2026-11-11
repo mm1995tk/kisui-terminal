@@ -119,7 +119,7 @@ import {
 } from "./tree/menu.ts";
 import { DeleteDialog, NameDialog } from "./tree/TreeDialogs.tsx";
 import { WorkspaceTrees } from "./tree/trees.ts";
-import { cmdDigit, IS_MAC, isCloseTermKey } from "./guiKeys.ts";
+import { cmdDigit, IS_MAC, isCloseTermKey, isFocusLost } from "./guiKeys.ts";
 import { loadScale, nextScale, saveScale, scaleKey } from "./scale.ts";
 import { applyScale } from "./scaleOs.ts";
 import { directionKey, isZoomKey, splitKey } from "./terminal/grid.ts";
@@ -443,8 +443,9 @@ function Workbench(props: {
     const dir = directionKey(e, IS_MAC);
     const card = mainEl?.querySelector(":scope > .terminal");
     const inTerm = !!card?.contains(e.target as Node);
-    // Cmd+W（Mac）：キーがターミナルに向いているときだけ、分割したターミナルを閉じる。プライマリは閉じず、何もしない
-    if (isCloseTermKey(e, IS_MAC) && inTerm) {
+    // Cmd+W（Mac）：キーがターミナルの欄（画像・動画・PDF の欄を含む）に向いているときか、どこにも向いていないときに、
+    // 今の欄だけを閉じる。プライマリのターミナルは閉じず、何もしない。どちらでも、アプリの窓は閉じない（#83）
+    if (isCloseTermKey(e, IS_MAC) && (inTerm || isFocusLost(e.target))) {
       e.preventDefault();
       e.stopPropagation();
       if (!e.repeat) termGroup()?.closeActive();

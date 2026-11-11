@@ -67,6 +67,18 @@ export function isCloseTermKey(e: KeyLike, mac = false): boolean {
   return mac && isCmdKey(e, "w");
 }
 
+/**
+ * キーの向き先がどの欄にも無い（フォーカスが画面全体に落ちている）か。
+ * フォーカスがどの要素にも無いときに起こる（Mac の実機では、どの場面で起こるかを確かめていない）。
+ * このとき Cmd+W を受けないと、OS のメニューの「閉じる」にまで届いて、アプリの窓が閉じる（#83）。
+ */
+export function isFocusLost(
+  target: unknown,
+  doc: Document = document,
+): boolean {
+  return !target || target === doc.body || target === doc.documentElement;
+}
+
 /** Cmd+Shift+Enter（プライマリ以外の欄を隠す・戻す。iTerm2 の欄の拡大と同じ）か。 */
 export function isCmdZoomKey(e: KeyLike): boolean {
   return (
