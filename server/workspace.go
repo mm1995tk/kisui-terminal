@@ -86,7 +86,7 @@ func newWSManager(s *Server) *wsManager {
 	return &wsManager{srv: s, home: normalizePath(home), reg: map[string]*wsState{}, list: map[string]*wsInfo{}}
 }
 
-// resolve は cwd からフォルダを決める。フォルダにしないとき（~ と /）は ok == false。
+// resolve は cwd からフォルダを決める。cwd が絶対パスでないときは ok == false。
 func (w *wsManager) resolve(cwd string) (root, kind string, ok bool) {
 	return findRoot(normalizePath(cwd), w.home)
 }
@@ -464,7 +464,6 @@ func (w *wsManager) poll() {
 		if !primary {
 			continue
 		}
-		// ~ と / そのものには切り替えない（ファイルも閉じない）。
 		if root, kind, ok := w.resolve(cwd); ok {
 			w.switchFolder(id, root, kind)
 		}

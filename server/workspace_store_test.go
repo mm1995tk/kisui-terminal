@@ -73,7 +73,7 @@ func TestWorkspacesRestoredAfterShutdown(t *testing.T) {
 
 	srv1, sock1 := startFastWith(t, withState)
 	c1, _ := termClient(t, sock1)
-	a, _ := createWS(t, c1) // フォルダ未定のまま
+	a, _ := createWS(t, c1) // start_dir（~）のまま
 	b, bPrimary := createWS(t, c1)
 	cd(t, c1, bPrimary, repo)
 	waitFor(t, "folder", func() bool { return folderOfWS(t, c1, b) == repo })
@@ -98,8 +98,8 @@ func TestWorkspacesRestoredAfterShutdown(t *testing.T) {
 		t.Errorf("focus must not be restored")
 	}
 	xa, xb := l.Workspaces[0], l.Workspaces[1]
-	if xa.Folder != nil {
-		t.Errorf("a must have no folder: %v", *xa.Folder)
+	if xa.Folder == nil || *xa.Folder != home {
+		t.Errorf("a folder (start_dir): %v", xa.Folder)
 	}
 	if xb.Folder == nil || *xb.Folder != repo {
 		t.Errorf("b folder: %v", xb.Folder)
@@ -123,7 +123,7 @@ func TestWorkspacesRestoredAfterShutdown(t *testing.T) {
 	}
 }
 
-// 保存したフォルダがもう無いワークスペースは、フォルダ未定として戻り、start_dir で始まる。
+// 保存したフォルダがもう無いワークスペースは、start_dir（~）で始まり、フォルダもそこになる。
 func TestWorkspaceRestoredWithoutMissingFolder(t *testing.T) {
 	needCwd(t)
 	home := normalizePath(t.TempDir())
@@ -137,16 +137,16 @@ func TestWorkspaceRestoredWithoutMissingFolder(t *testing.T) {
 	srv, sock := startFastWith(t, func(o *Options) { o.StatePath = state })
 	c, _ := termClient(t, sock)
 	x := listWS(t, c).find("wkeep")
-	if x == nil || x.Folder != nil {
+	if x == nil || x.Folder == nil || *x.Folder != home {
 		t.Fatalf("restored: %+v", x)
 	}
 	if got := primaryCwd(t, srv, x.Primary); got != home {
 		t.Errorf("starts in %q, want %q", got, home)
 	}
-	// 保存し直しても、ワークスペースは消えない（フォルダだけ未定になる）。
+	// 保存し直しても、ワークスペースは消えない（フォルダは start_dir になる）。
 	waitFor(t, "saved", func() bool {
 		l, err := loadState(state)
-		return err == nil && len(l) == 1 && l[0].ID == "wkeep" && l[0].Folder == ""
+		return err == nil && len(l) == 1 && l[0].ID == "wkeep" && l[0].Folder == home
 	})
 }
 
