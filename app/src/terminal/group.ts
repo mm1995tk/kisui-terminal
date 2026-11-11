@@ -39,9 +39,7 @@ export type TermLayout = Pick<Workspace, "id" | "primary" | "terms"> &
   Partial<Pick<Workspace, "extras" | "layout" | "titles">>;
 
 function sameExtra(a: ExtraPane, b: ExtraPane): boolean {
-  return (
-    a.id === b.id && a.kind === b.kind && a.path === b.path && a.url === b.url
-  );
+  return a.id === b.id && a.kind === b.kind && a.path === b.path;
 }
 
 /** 1 つのワークスペースのターミナルの並びと、今使っている 1 つ（active）を持つ。並びか active が変わったら onChange を呼ぶ。 */
@@ -266,11 +264,6 @@ export class TermGroup {
       this.onChange();
     }
     return true;
-  }
-
-  /** URL をブラウザの欄に開く（ターミナルの URL のクリック）。欄は shj の一覧で届くので、ここでは並べない。 */
-  openUrl(url: string): Promise<unknown> {
-    return this.port.request("extra.open", { workspaceId: this.wsId, url });
   }
 
   /** ターミナルでない欄を閉じる（欄の閉じるボタン・Cmd+W）。shj には extra.close を送る。 */

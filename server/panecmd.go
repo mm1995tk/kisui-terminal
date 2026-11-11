@@ -108,6 +108,10 @@ func (s *Server) paneCmd(rq panecmd.Request) (panecmd.Reply, error) {
 	}
 	switch rq.Cmd {
 	case "open":
+		if panecmd.HasScheme(rq.Target) { // URL は欄にせず、GUI の手元の外部ブラウザで開かせる
+			id, err := s.ws.openURL(wsID, rq.Target)
+			return panecmd.Reply{ID: id}, err
+		}
 		e, err := paneTarget(rq.Target)
 		if err != nil {
 			return panecmd.Reply{}, err
@@ -131,16 +135,9 @@ func (s *Server) paneCmd(rq panecmd.Request) (panecmd.Reply, error) {
 	return panecmd.Reply{}, fmt.Errorf("unknown command: %q", rq.Cmd)
 }
 
-// paneTarget は kisui open の相手から欄を作る（ID は付けない）。URL の形（panecmd.HasScheme）なら http か https だけをブラウザで、
-// 残りは絶対パスのファイルとして、種類を拡張子か中身で決める（detectFileKind）。
+// paneTarget は kisui open の相手（URL でないもの）から欄を作る（ID は付けない）。絶対パスのファイルとして、
+// 種類を拡張子か中身で決める（detectFileKind）。
 func paneTarget(target string) (extraPane, error) {
-	if panecmd.HasScheme(target) {
-		u, err := parseBrowserURL(target)
-		if err != nil {
-			return extraPane{}, err
-		}
-		return extraPane{Kind: "browser", URL: u}, nil
-	}
 	if !filepath.IsAbs(target) {
 		return extraPane{}, fmt.Errorf("not an absolute path: %s", target)
 	}

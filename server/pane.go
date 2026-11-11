@@ -92,6 +92,10 @@ func (w *wsManager) pane(rq ctl.PaneRequest) (ctl.PaneReply, error) {
 		id, err := w.splitPane(claim, wsID, rq)
 		return ctl.PaneReply{ID: id}, err
 	case "open":
+		if rq.Kind == "browser" { // 欄は作らず、GUI の手元の外部ブラウザで開かせる
+			id, err := w.openURL(wsID, rq.URL)
+			return ctl.PaneReply{ID: id}, err
+		}
 		id, err := w.openExtra(claim, wsID, rq)
 		return ctl.PaneReply{ID: id}, err
 	case "hide":

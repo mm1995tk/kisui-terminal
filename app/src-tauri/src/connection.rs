@@ -93,7 +93,7 @@ fn with_askpass(c: &mut Command, ask: &AskpassServer, id: &str) -> Result<(), St
     Ok(())
 }
 
-/// ポート転送だけの `ssh -N -L 127.0.0.1:<local>:localhost:<remote> <host>`（ブラウザの欄。browser.rs）。
+/// ポート転送だけの `ssh -N -L 127.0.0.1:<local>:localhost:<remote> <host>`（外部ブラウザで開く URL のポート転送。open_url.rs）。
 /// 転送を張れなければ ssh が終わる（ExitOnForwardFailure）。
 pub fn ssh_forward_command(
     target: &str,

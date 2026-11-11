@@ -33,7 +33,8 @@ const (
 // Request is the one line a command sends. Cmd is what it asks for:
 //
 //   - "open": show Target in a pane of the workspace of the terminal. Target is
-//     an http or https URL (a browser pane), or the absolute path of a file
+//     an http or https URL (the GUI opens it in the browser of the machine it
+//     runs on; no pane), or the absolute path of a file
 //     (a video, image or PDF pane, by its kind).
 //   - "split": split the terminal Pane in the direction Dir ("right" or "down") and
 //     start a new terminal in it: its shell, or the command Argv (its first word is
@@ -55,7 +56,7 @@ type Request struct {
 	Title  string   `json:"title,omitempty"`
 }
 
-// Reply answers a Request. ID is the pane that "open" or "split" made. Code is
+// Reply answers a Request. ID is the pane that "open" (a file) or "split" made. Code is
 // CodeNotInPane when the id and the secret are not the ones of a terminal of
 // that "kisui serve".
 type Reply struct {

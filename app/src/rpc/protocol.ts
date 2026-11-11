@@ -87,17 +87,15 @@ export type PaneLayout =
   | { pane: string }
   | { dir: SplitDir; ratio: number; a: PaneLayout; b: PaneLayout };
 
-/** ターミナルでない欄：動画（#555）・画像・PDF（どれもファイルを media.read で取る）かブラウザ（#556） */
+/** ターミナルでない欄：動画（#555）・画像・PDF（どれもファイルを media.read で取る） */
 export interface ExtraPane {
   id: string;
-  kind: "video" | "image" | "pdf" | "browser";
-  /** 動画・画像・PDF のファイルの絶対パス（その欄を開いたマシンのもの）。ブラウザでは空 */
+  kind: "video" | "image" | "pdf";
+  /** 動画・画像・PDF のファイルの絶対パス（その欄を開いたマシンのもの） */
   path: string;
-  /** ファイルの種類と大きさ。ブラウザでは空と 0 */
+  /** ファイルの種類と大きさ */
   mime: string;
   size: number;
-  /** ブラウザが最初に開く http か https の URL（動画では無い） */
-  url?: string;
 }
 
 /**
@@ -196,11 +194,6 @@ export interface Requests {
       length?: number;
     };
     result: { mime: string; size: number; data: string; eof: boolean };
-  };
-  /** ターミナルに出た URL を、ブラウザの欄に開く（http か https。開いていれば入れ替わる） */
-  "extra.open": {
-    params: { workspaceId: WorkspaceId; url: string };
-    result: { id: string };
   };
   "extra.close": {
     params: { workspaceId: WorkspaceId; id: string };
@@ -324,6 +317,8 @@ export interface Notifications {
     extraId?: string;
   };
   "pane.hide": { workspaceId: WorkspaceId };
+  /** プライマリの shj の `:open-url`・`kisui open <URL>` が、URL を手元の外部ブラウザで開くよう頼んだ（#96）。欄は作らない。リモートのマシンの localhost 系は、GUI がポート転送を張って開く */
+  "browser.open": { workspaceId: WorkspaceId; url: string };
   /** プライマリの shj が、そのワークスペースのファイルエクスプローラにキーを向けるよう頼んだ（Space e）。Esc で端末に戻る */
   "explorer.focus": { workspaceId: WorkspaceId };
   /** プライマリの shj が、サイドバーの CHANGES にキーを向けるよう頼んだ（Space E・cmd.diffchanges）。Esc・q で端末に戻る */

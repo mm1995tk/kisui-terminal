@@ -9,8 +9,7 @@ description = "kisui-terminal (Tauri shell), the terminal-centered workspace tha
 tauri-build = { version = "=2.7.3", features = [] }
 
 [dependencies]
-# unstable：窓に子の webview を足す add_child（ブラウザの欄。browser.rs）。新しい依存は入らない
-tauri = { version = "=2.12.4", features = ["unstable"] }
+tauri = { version = "=2.12.4", features = [] }
 # 版は Cargo.lock にすでにある（tauri が使っている）ものに合わせる
 serde = { version = "=1.0.229", features = ["derive"] }
 serde_json = "=1.0.154"
