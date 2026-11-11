@@ -247,7 +247,7 @@ PR の説明の最初にある一覧と同じ。表には、各選択の先頭�
    - C. Alt+1〜9（readline の数引数・shj の検索パネルの `Alt+1` と重なる。奪う）
 4. **ワークスペースとマシンを移る近道**
    - A. #88 の案のまま（Mac は Ctrl+Cmd+j/k が次・前のワークスペース、h/l が前・次のマシン。Linux は Ctrl+Super）
-   - B. ワークスペースは Mac の Cmd+Shift+] / [ と Linux の Ctrl+PageDown / PageUp（macOS の Terminal.app・Safari と GNOME Terminal の「次のタブ」の習慣。shj は使っていないが、vim などが使いうるキーを奪う）、マシンは A のまま
+   - B. ワークスペースは Mac の Cmd+Shift+] / [ と Linux の Ctrl+PageDown / PageUp（macOS の Terminal.app・Safari と GNOME Terminal の「次のタブ」の習慣。shj は使っていないが、vim などが使いうるキーを奪う。方針 4 の「Linux の Ctrl 単独のキーは新しく奪わない」の例外になる）、マシンは A のまま
    - C. 近道は置かず、リーダー `w j/k` `m h/l` だけにする
 5. **ワークスペースを作る近道**
    - A. 置かない（リーダー `w n` だけ）
