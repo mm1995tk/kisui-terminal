@@ -60,6 +60,13 @@ kisui pane split --down npm run dev
 kisui pane title build
 ```
 
+`kisui skill install [folder]` writes a skill (`SKILL.md`) that teaches a coding agent such as Claude Code how to use `kisui open`, `kisui notify`, `kisui clipboard` and `kisui pane` in a pane. It writes to `~/.claude/skills/kisui-terminal/` when you give no folder. The skill is built into the `kisui` binary, so it matches the version you have. It tells the agent not to run `kisui clipboard paste` on its own.
+
+```sh
+kisui skill install
+kisui skill install ./my-skills/kisui-terminal
+```
+
 kisui-terminal reads its settings from the same `config.toml` as `shj` (`~/.config/shijimi-editor/config.toml`, or `shijimi-editor-nightly/` for the nightly):
 
 - `[[gui.machines]]`: the machines shown in the sidebar (`ssh = "dev-vm"`, `name = "dev"`).

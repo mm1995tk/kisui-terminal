@@ -42,6 +42,9 @@ var commands = []command{
 		{name: "split", args: "--right|--down [command ...]", help: "help.pane.split", run: runPaneSplit},
 		{name: "title", args: "<name>", help: "help.pane.title", run: runPaneTitle},
 	}},
+	{name: "skill", sub: []command{
+		{name: "install", args: "[dir]", help: "help.skill.install", run: runSkillInstall},
+	}},
 }
 
 func main() {
