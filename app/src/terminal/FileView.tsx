@@ -3,6 +3,8 @@ import { Match, onCleanup, Show, Switch, type JSX } from "solid-js";
 import type { ExtraPane } from "../rpc/protocol.ts";
 import { baseName, FILE_LABEL, type MediaFetch } from "./media.ts";
 import { createFileSource } from "./fileSource.ts";
+import { createImageZoom } from "./imageZoom.ts";
+import { openKeyList } from "../KeyListDialog.tsx";
 
 /** WebView が PDF を表示できるか（WebKitGTK は偽。古い WebView で値が無いときは表示を試す）。 */
 function pdfViewable(): boolean {
@@ -14,6 +16,8 @@ function Body(props: {
   pane: ExtraPane;
   url: string;
   fail: (text: string) => void;
+  imgRef?: (el: HTMLImageElement) => void;
+  imgStyle?: JSX.CSSProperties;
 }): JSX.Element {
   return (
     <Switch>
@@ -35,6 +39,9 @@ function Body(props: {
       </Match>
       <Match when={true}>
         <img
+          ref={(el) => props.imgRef?.(el)}
+          style={props.imgStyle}
+          draggable={false}
           src={props.url}
           alt={baseName(props.pane.path)}
           onError={() =>
@@ -63,8 +70,11 @@ export function FileView(props: {
   onClose: () => void;
   /** この欄にキーを向ける関数を受け取る（欄が無くなるとき undefined で呼ぶ） */
   focusRef?: (focus: (() => void) | undefined) => void;
+  /** 画像の欄で Esc を押した（ターミナルへ戻る） */
+  onLeave?: () => void;
 }): JSX.Element {
   let cell!: HTMLDivElement;
+  let body!: HTMLDivElement;
   const source = createFileSource(
     () => props.pane,
     () => props.read,
@@ -75,6 +85,14 @@ export function FileView(props: {
     const l = source.load();
     return l.kind === "ready" ? l : undefined;
   };
+  const zoom = createImageZoom({
+    enabled: () => props.pane.kind === "image",
+    body: () => body,
+    url: () => ready()?.url,
+    onLeave: () => props.onLeave?.(),
+    onHelp: () => openKeyList("image"),
+  });
+
   const label = () => FILE_LABEL[props.pane.kind] ?? "ファイル";
 
   return (
@@ -86,6 +104,7 @@ export function FileView(props: {
       tabindex="-1"
       ref={cell}
       onFocusIn={() => props.onFocus?.()}
+      onKeyDown={zoom.onKeyDown}
       onPointerDown={() => props.onFocus?.()}
     >
       <div class="video-head">
@@ -102,10 +121,29 @@ export function FileView(props: {
           ×
         </button>
       </div>
-      <div class="video-body">
+      <div
+        class="video-body"
+        classList={{
+          "image-zoomed": zoom.zoomed(),
+          "image-dragging": zoom.dragging(),
+        }}
+        ref={body}
+        onPointerDown={zoom.onPointerDown}
+        onPointerMove={zoom.onPointerMove}
+        onPointerUp={zoom.onPointerUp}
+        onPointerCancel={zoom.onPointerUp}
+      >
         <Switch>
           <Match when={ready()}>
-            {(l) => <Body pane={props.pane} url={l().url} fail={source.fail} />}
+            {(l) => (
+              <Body
+                pane={props.pane}
+                url={l().url}
+                fail={source.fail}
+                imgRef={zoom.imgRef}
+                imgStyle={{ transform: zoom.transform() }}
+              />
+            )}
           </Match>
           <Match when={source.load()}>
             {(l) => (

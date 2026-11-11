@@ -214,6 +214,25 @@
   object-fit: contain;
 }
 
+/* 拡大中の画像（#93）：欄からはみ出す分は隠し、ドラッグで動かせる */
+.video-body:has(> img) {
+  overflow: hidden;
+  touch-action: none;
+}
+
+.video-body > img {
+  transform-origin: center;
+  user-select: none;
+}
+
+.video-body.image-zoomed {
+  cursor: grab;
+}
+
+.video-body.image-zoomed.image-dragging {
+  cursor: grabbing;
+}
+
 .video-body > .file-pdf {
   width: 100%;
   height: 100%;

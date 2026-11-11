@@ -51,6 +51,8 @@ export function TerminalGrid(props: {
   readExtra?: (pane: ExtraPane) => MediaFetch;
   onActivateExtra?: (id: string) => void;
   onCloseExtra?: (id: string) => void;
+  /** 画像の欄で Esc を押した（ターミナルへ戻る） */
+  onLeaveExtra?: () => void;
   /** プライマリ以外の欄を隠しているか（隠した欄のターミナルは動かし続ける） */
   zoomed?: boolean;
   /** マシンの色（D4）。並べたときの今の欄の印に使う */
@@ -193,6 +195,7 @@ export function TerminalGrid(props: {
             place={place(x.id)}
             onFocus={() => props.onActivateExtra?.(x.id)}
             onClose={() => props.onCloseExtra?.(x.id)}
+            onLeave={() => props.onLeaveExtra?.()}
             focusRef={(f) =>
               f ? extraFocusers.set(x.id, f) : extraFocusers.delete(x.id)
             }
