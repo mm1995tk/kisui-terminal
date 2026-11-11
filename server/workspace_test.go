@@ -108,9 +108,9 @@ func needCwd(t *testing.T) {
 	}
 }
 
-// workspace.create はフォルダ未定のワークスペースとプライマリターミナルをすぐ作る。
-// シェルは start_dir（無ければ ~）で始まる。
-func TestWorkspaceCreateIsUndecided(t *testing.T) {
+// workspace.create はワークスペースとプライマリターミナルをすぐ作る。シェルは start_dir（無ければ ~）で始まり、
+// ~ で始まったときもフォルダは ~ になる（git なし）。
+func TestWorkspaceCreateStartsInStartDir(t *testing.T) {
 	home := normalizePath(t.TempDir())
 	t.Setenv("HOME", home)
 	_, sock := startFast(t)
@@ -119,18 +119,11 @@ func TestWorkspaceCreateIsUndecided(t *testing.T) {
 
 	l := listWS(t, c)
 	x := l.find(id)
-	if x == nil || x.Folder != nil || x.Kind != nil || x.Name != nil || x.Primary != primary || len(x.Terms) != 0 {
+	if x == nil || x.Folder == nil || *x.Folder != home || x.Kind == nil || *x.Kind != "cwd" || x.Name == nil || x.Primary != primary || len(x.Terms) != 0 {
 		t.Fatalf("workspace: %+v", x)
 	}
 	if l.Focus != nil {
 		t.Errorf("create must not take the focus: %v", *l.Focus)
-	}
-	var raw struct {
-		Workspaces []map[string]json.RawMessage `json:"workspaces"`
-	}
-	c.Call(context.Background(), "workspace.list", map[string]any{}, &raw)
-	if string(raw.Workspaces[0]["folder"]) != "null" || string(raw.Workspaces[0]["name"]) != "null" {
-		t.Errorf("folder and name must be null: %s", raw.Workspaces[0])
 	}
 	waitFor(t, "workspace.changed", func() bool { return len(nt.all("workspace.changed")) > 0 })
 
@@ -176,7 +169,7 @@ func TestWorkspaceStartDirInProjectAndSameFolder(t *testing.T) {
 }
 
 // プライマリターミナルが別のフォルダへ cd したら、ワークスペースのフォルダが切り替わる（新しいワークスペースは
-// 増えず、id も変わらない）。~ と / へ移っても、同じフォルダの中で移っても、
+// 増えず、id も変わらない）。~ と / へ移ると、そこに切り替わる。同じフォルダの中で移っても、
 // 切り替えない。分割したターミナルの cd は何も起こさない。
 func TestWorkspaceFollowsPrimaryCd(t *testing.T) {
 	needCwd(t)
@@ -196,8 +189,8 @@ func TestWorkspaceFollowsPrimaryCd(t *testing.T) {
 	// 分割したターミナルの cd は何もしない。
 	cd(t, c, split, repo)
 	time.Sleep(200 * time.Millisecond)
-	if f := folderOfWS(t, c, id); f != "" {
-		t.Fatalf("a split terminal's cd set the folder: %s", f)
+	if f := folderOfWS(t, c, id); f != home {
+		t.Fatalf("a split terminal's cd changed the folder: %s", f)
 	}
 
 	// プライマリターミナルの cd でフォルダが決まる（サブフォルダからでも、.git のあるフォルダに）。
@@ -215,7 +208,7 @@ func TestWorkspaceFollowsPrimaryCd(t *testing.T) {
 		t.Errorf("cd inside the folder switched it")
 	}
 
-	// ~ と / では切り替えない。
+	// ~ と / へ移ると、そこに切り替わる（git なし）。
 	for _, d := range []string{home, "/"} {
 		cd(t, c, primary, d)
 		waitFor(t, "cwd "+d, func() bool {
@@ -224,9 +217,10 @@ func TestWorkspaceFollowsPrimaryCd(t *testing.T) {
 			defer tm.mu.Unlock()
 			return tm.cwd == normalizePath(d)
 		})
-		time.Sleep(100 * time.Millisecond)
-		if f := folderOfWS(t, c, id); f != repo {
-			t.Fatalf("cd %s: folder = %q", d, f)
+		want := normalizePath(d)
+		waitFor(t, "folder "+d, func() bool { return folderOfWS(t, c, id) == want })
+		if x := listWS(t, c).find(id); x == nil || x.Kind == nil || *x.Kind != "cwd" {
+			t.Fatalf("cd %s: %+v", d, x)
 		}
 	}
 

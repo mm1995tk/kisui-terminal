@@ -86,7 +86,7 @@ func newWSManager(s *Server) *wsManager {
 	return &wsManager{srv: s, home: normalizePath(home), reg: map[string]*wsState{}, list: map[string]*wsInfo{}}
 }
 
-// resolve は cwd からフォルダを決める。フォルダにしないとき（~ と /）は ok == false。
+// resolve は cwd からフォルダを決める。cwd が絶対パスでないときは ok == false。
 func (w *wsManager) resolve(cwd string) (root, kind string, ok bool) {
 	return findRoot(normalizePath(cwd), w.home)
 }
@@ -138,7 +138,16 @@ func (w *wsManager) rootOf(id string) (string, bool) {
 	return st.root, true
 }
 
-// folderOf は新しいシェルを始めるフォルダ（ワークスペースのフォルダ。未定なら start_dir）。
+// tracksGit は id のワークスペースが git の印を取る対象かどうか。kind が "cwd"（目印が無い、または ~ と / そのもの）
+// のものは取らない。"shijimi" は git の中にあることがある（.git のあるフォルダの下の .shijimi-editor/）ので取る。
+func (w *wsManager) tracksGit(id string) bool {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	st := w.reg[id]
+	return st != nil && st.root != "" && st.kind != "cwd"
+}
+
+// folderOf は新しいシェルを始めるフォルダ（ワークスペースのフォルダ。決まっていなければ start_dir）。
 func (w *wsManager) folderOf(id string) (string, bool) {
 	w.mu.Lock()
 	st := w.reg[id]
@@ -156,8 +165,8 @@ func (w *wsManager) folderOf(id string) (string, bool) {
 	return w.startDir(), true
 }
 
-// create はフォルダ未定のワークスペースを作り、プライマリターミナルを start_dir で始める。
-// start_dir がプロジェクトの中なら、そのままフォルダが決まる。
+// create はワークスペースを作り、プライマリターミナルを start_dir で始める。
+// フォルダは start_dir から決まる（プロジェクトの中ならそのルート、~ なら ~）。
 func (w *wsManager) create() (id, termID string, err error) {
 	w.recomputeMu.Lock()
 	defer w.recomputeMu.Unlock()
@@ -464,7 +473,6 @@ func (w *wsManager) poll() {
 		if !primary {
 			continue
 		}
-		// ~ と / そのものには切り替えない（ファイルも閉じない）。
 		if root, kind, ok := w.resolve(cwd); ok {
 			w.switchFolder(id, root, kind)
 		}
