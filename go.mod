@@ -7,7 +7,8 @@ require (
 	github.com/charmbracelet/x/ansi v0.11.9
 	github.com/creack/pty v1.1.24
 	github.com/tetratelabs/wazero v1.12.0
-	golang.org/x/sys v0.49.0
+	golang.org/x/image v0.48.0
+	golang.org/x/sys v0.50.0
 )
 
 require (

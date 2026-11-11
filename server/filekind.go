@@ -22,7 +22,7 @@ type fileKind struct {
 }
 
 // fileKinds are the kinds of panes that show a file, by Kind of a PaneRequest.
-// The video list is the same as shj's (core/video.go in shijimi-editor): the
+// The video list is the same as shj's (core/media.go in shijimi-editor): the
 // videos shj asks kisui to play are the ones kisui's web view can show.
 var fileKinds = map[string]fileKind{
 	"video": {mime: map[string]string{

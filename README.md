@@ -27,10 +27,11 @@ nix profile install github:mm1995tk/kisui-terminal#kisui-terminal-nightly
 
 The manual of shijimi-editor explains how `shj` behaves inside kisui-terminal: the panes it opens, videos, opening a URL and the file tree. See its pages [Terminal](https://mm1995tk.github.io/shijimi-editor/manual/terminal/), [Browser](https://mm1995tk.github.io/shijimi-editor/manual/browser/) and [Configuration files](https://mm1995tk.github.io/shijimi-editor/manual/config/) ("Machines in kisui-terminal" and `[server]`).
 
-In a pane, `kisui open <file|url>` shows a file in a pane of the same workspace, by its kind: a video, an image, a PDF (by the extension, or by the first bytes when the extension does not tell). A pane of each kind replaces the one already open. An `http`/`https` URL opens in the browser of the computer kisui-terminal runs on (your OS default browser; no pane), the same as `:open-url` in `shj`. A `localhost` URL from a remote (ssh) machine opens through an ssh port forward that kisui-terminal sets up, so it shows the page of the remote machine. It works in the panes of a remote machine too, and only in the panes of kisui-terminal: from any other shell it refuses. `kisui --help` lists the commands.
+In a pane, `kisui open <file|url>` shows an image right there in the pane you typed it in, at the cursor, the way `icat` of kitty does (it writes the image to the terminal with kitty's graphics protocol, so it works in the panes of a remote machine too; PNG, JPEG, GIF (the first frame), WebP and BMP, as wide as the pane at most). Other files open in a pane of the same workspace, by their kind: a video, a PDF (by the extension, or by the first bytes when the extension does not tell). A pane of each kind replaces the one already open. `kisui open --pane <image>` opens an image in a pane of its own instead. SVG and AVIF images, images over 16 MB or 10000 pixels, and an image when stdout is not a terminal (a pipe, the shell of a coding agent) open in a pane without `--pane`. An `http`/`https` URL opens in the browser of the computer kisui-terminal runs on (your OS default browser; no pane), the same as `:open-url` in `shj`. A `localhost` URL from a remote (ssh) machine opens through an ssh port forward that kisui-terminal sets up, so it shows the page of the remote machine. It works in the panes of a remote machine too, and only in the panes of kisui-terminal: from any other shell it refuses. `kisui --help` lists the commands.
 
 ```sh
-kisui open ./diagram.png
+kisui open ./diagram.png         # in this pane
+kisui open --pane ./diagram.png  # in a pane of its own
 kisui open ./talk.mp4
 kisui open ./paper.pdf
 kisui open https://example.com/

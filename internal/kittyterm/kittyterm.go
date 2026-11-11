@@ -206,3 +206,37 @@ func (r *TextReply) Handle(p Packet) (bool, error) {
 		return true, &StatusError{s}
 	}
 }
+
+// Image is the APC sequence of kitty's graphics protocol that shows a PNG at
+// the cursor (a=T, f=100), in packets of at most 4096 bytes of base64 (m=1
+// until the last). cols is how many cells wide it is drawn (0: the size of the
+// image in pixels); the rows follow from the aspect ratio. q=2 keeps the
+// terminal from answering, so nothing is left on the input of the shell.
+func Image(png []byte, cols int) []byte {
+	var b bytes.Buffer
+	data := b64(png)
+	first := true
+	for {
+		n := min(4096, len(data))
+		more := 0
+		if n < len(data) {
+			more = 1
+		}
+		if first {
+			fmt.Fprintf(&b, "\x1b_Ga=T,f=100,q=2,m=%d", more)
+			if cols > 0 {
+				fmt.Fprintf(&b, ",c=%d", cols)
+			}
+			first = false
+		} else {
+			fmt.Fprintf(&b, "\x1b_Gq=2,m=%d", more)
+		}
+		b.WriteString(";")
+		b.WriteString(data[:n])
+		b.WriteString("\x1b\\")
+		data = data[n:]
+		if more == 0 {
+			return b.Bytes()
+		}
+	}
+}
