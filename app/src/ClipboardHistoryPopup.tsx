@@ -8,9 +8,6 @@ import { createSignal, onCleanup, Show, type JSX } from "solid-js";
 import { HistoryPanel } from "./ClipboardHistoryDialog.tsx";
 import "./connect/card.css";
 
-/** この窓のラベル（clipboard_popup.rs の LABEL と同じ）。 */
-export const POPUP_LABEL = "clipboard-history";
-
 /** kisui-terminal の外から開く履歴の窓の中身。出し直されるたびに一覧を作り直し、Esc で窓を隠す。 */
 export function ClipboardHistoryPopup(): JSX.Element {
   // 窓を出し直すたびに中身を作り直す（履歴を読み直し、絞り込みを空にし、入力欄にフォーカスを置く）

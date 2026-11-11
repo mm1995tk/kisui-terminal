@@ -3,6 +3,9 @@
 
 import type { KeyLike } from "./guiKeys.ts";
 
+/** kisui-terminal の外から開く履歴の窓のラベル（clipboard_popup.rs の LABEL と同じ）。 */
+export const POPUP_LABEL = "clipboard-history";
+
 /** 履歴の 1 件（clipboard_history.rs の Entry）。 */
 export interface HistoryEntry {
   text: string;

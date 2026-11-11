@@ -3,6 +3,7 @@ import { init } from "coneko-term";
 import { render } from "solid-js/web";
 import "./theme.css";
 import "./fonts.ts";
+import { POPUP_LABEL } from "./clipboardHistory.ts";
 
 // dragDropEnabled: false なので、OS からのドロップは WebView に届く。受け付けた欄（TerminalView）が止めなかった
 // ドロップは、既定の動き（落とされた URL に画面が置き換わる）にならないよう、ここで断る
@@ -20,7 +21,7 @@ const root = document.getElementById("root")!;
 /** この画面が、kisui-terminal の外から開くクリップボードの履歴の窓（clipboard_popup.rs）か。 */
 function isClipboardHistoryPopup(): boolean {
   try {
-    return getCurrentWindow().label === "clipboard-history";
+    return getCurrentWindow().label === POPUP_LABEL;
   } catch {
     return false;
   }
