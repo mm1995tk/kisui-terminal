@@ -118,7 +118,7 @@ describe("コマンドの表", () => {
     assert.equal(leaderKeyName(MAC), "Cmd+K");
   });
 
-  it("キーの定義の、docs/key-design.md の表のとおりの並び（#88・#51 のキーはまだ無い。#93 は場所のキーで、ここには足さない）", () => {
+  it("キーの定義の、docs/key-design.md の表のとおりの並び（#51 のキーはまだ無い。#93 は場所のキーで、ここには足さない）", () => {
     const rows = helpRows(MAC).map((r) => r.path.join(" "));
     assert.deepEqual(rows, [
       "h",
@@ -127,6 +127,10 @@ describe("コマンドの表", () => {
       "l",
       "Tab",
       "w",
+      "w j",
+      "w k",
+      "w h",
+      "w l",
       "w Tab",
       ...Array.from({ length: 9 }, (_, i) => `w ${i + 1}`),
       "w n",
@@ -160,14 +164,22 @@ describe("コマンドの表", () => {
     ]);
   });
 
-  it("#88 のキー（w h/j/k/l）は、まだ案内に出さない", () => {
+  it("#88 のキー（w j/k はワークスペース、w h/l はマシン）は続けて押せて、近道は無い", () => {
     const w = childrenAt(["w"]) ?? [];
-    for (const n of w)
-      assert.ok(
-        n.type === "leaf" &&
-          !["h", "j", "k", "l"].some((k) => n.keys.includes(k)),
-        n.label,
-      );
+    const find = (k: string) =>
+      w.find((n) => n.type === "leaf" && n.keys.includes(k));
+    for (const [k, id, arg] of [
+      ["j", "workspace.step", "next"],
+      ["k", "workspace.step", "prev"],
+      ["h", "machine.step", "prev"],
+      ["l", "machine.step", "next"],
+    ] as const) {
+      const n = find(k);
+      assert.ok(n && n.type === "leaf", k);
+      assert.deepEqual(n.run, { id, arg });
+      assert.equal(n.repeat, true);
+      assert.equal(n.shortcut, undefined);
+    }
   });
 });
 

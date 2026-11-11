@@ -18,9 +18,11 @@ export type CommandId =
   | "pane.zoom"
   | "pane.resize"
   | "workspace.nth"
+  | "workspace.step"
   | "workspace.last"
   | "workspace.new"
   | "workspace.close"
+  | "machine.step"
   | "machine.add"
   | "machine.rename"
   | "machine.remove"
@@ -121,9 +123,39 @@ const paneMoves = (): Leaf[] =>
   );
 
 /**
+ * ワークスペースのグループ（w）の `j` `k`（サイドバーで次・前のワークスペースへ。マシンをまたぐ）と、
+ * `h` `l`（前・次のマシンへ）。端で止まる（回らない）。続けて押せる。
+ */
+const workspaceMoves = (): Leaf[] => [
+  leaf(
+    "j",
+    "次（サイドバーで下）のワークスペースへ（マシンをまたぐ）",
+    { id: "workspace.step", arg: "next" },
+    { repeat: true },
+  ),
+  leaf(
+    "k",
+    "前（サイドバーで上）のワークスペースへ（マシンをまたぐ）",
+    { id: "workspace.step", arg: "prev" },
+    { repeat: true },
+  ),
+  leaf(
+    "h",
+    "前のマシンへ",
+    { id: "machine.step", arg: "prev" },
+    { repeat: true },
+  ),
+  leaf(
+    "l",
+    "次のマシンへ",
+    { id: "machine.step", arg: "next" },
+    { repeat: true },
+  ),
+];
+
+/**
  * リーダーの木。1 段目から下へ。
- * ワークスペースのグループ（w）の `h` `j` `k` `l`（ワークスペースとマシンを移る。#88）と、URL のヒントモードに入るキー（#51）は、
- * それぞれの Issue が、ここに葉を足して入れる。足すまでは、案内にも出ない。
+ * URL のヒントモードに入るキー（#51）は、その Issue が、ここに葉を足して入れる。足すまでは、案内にも出ない。
  * 画像のペインの拡大・縮小（#93）は、リーダーに載せない場所のキー（docs/key-design.md の 5 章。#115 で作る定義）に足す。
  */
 export const LEADER: Node[] = [
@@ -140,6 +172,7 @@ export const LEADER: Node[] = [
     "w",
     "ワークスペース",
     [
+      ...workspaceMoves(),
       leaf("Tab", "直前に選んでいたワークスペースへ戻る", {
         id: "workspace.last",
       }),

@@ -41,6 +41,8 @@ const healthLabel: Record<Health, string> = {
 };
 
 interface Handlers {
+  /** キー（リーダーの w h / w l）で止まった、ワークスペースが無いマシン。見出しに印を付ける */
+  picked?: string | null;
   onFocus: (target: string, id: WorkspaceId) => void;
   /** ツリーの行。まだ取っていなければ undefined */
   treeOf?: (target: string, id: WorkspaceId) => TreeRow[] | undefined;
@@ -321,6 +323,9 @@ function handlers(
 ): Handlers {
   return {
     onTreeMenu,
+    get picked() {
+      return props.picked;
+    },
     get onFocus() {
       return props.onFocus;
     },
@@ -394,6 +399,7 @@ function Machine(
       <div
         class="machine-heading"
         data-sticky={props.sticky ? "top" : undefined}
+        data-picked={props.picked === g().target ? "" : undefined}
         onContextMenu={(e) => {
           if (!g().removable || !props.onMenu) return;
           e.preventDefault();

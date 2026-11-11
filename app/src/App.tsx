@@ -87,6 +87,10 @@ import {
   buildSidebar,
   keepFocus,
   type WorkspaceFocus,
+  stepFrom,
+  stepMachine,
+  stepWorkspace,
+  type Step,
 } from "./sidebar/model.ts";
 import { machineColors } from "./sidebar/colors.ts";
 import { Sidebar } from "./sidebar/Sidebar.tsx";
@@ -1117,9 +1121,87 @@ function Workbench(props: {
     showScale(scale);
   }
 
-  /** 今のマシン（今のワークスペースのマシン。ワークスペースがまだ無ければ、先頭のマシン）。 */
-  const currentTarget = (): string | undefined =>
-    focus()?.target ?? groups()[0]?.target;
+  // 各マシンで最後に選んでいたワークスペース（リーダーの w h / w l で、そのマシンへ移ったときの行き先）
+  const lastOnMachine = new Map<string, WorkspaceId>();
+  // ワークスペースが 1 つも無いマシンに、w h / w l で止まったときの、そのマシン（「選んでいるマシン」）。
+  // ワークスペースを選ぶと外れる
+  const [pickedMachine, setPickedMachine] = createSignal<string | null>(null);
+  createEffect(
+    on(focus, (f) => {
+      if (f) lastOnMachine.set(f.target, f.id);
+      setPickedMachine(null);
+    }),
+  );
+
+  /** 今のマシン（w h / w l で止まったマシン。無ければ今のワークスペースのマシン。ワークスペースがまだ無ければ、先頭のマシン）。 */
+  const currentTarget = (): string | undefined => {
+    const p = pickedMachine();
+    if (p && groups().some((g) => g.target === p)) return p;
+    return focus()?.target ?? groups()[0]?.target;
+  };
+
+  /**
+   * キーでワークスペースを移る（リーダーの w j / w k / w h / w l）。移ったら、そのワークスペースの欄にキーを向ける
+   * （shj が動いているワークスペースなら、shj にキーが届く）。
+   */
+  async function goWorkspace(target: string, id: WorkspaceId) {
+    // 返事を待つあいだに続けて押されたら、ここを起点に次を決める（focus() はまだ前のまま）
+    const mine: WorkspaceFocus = { target, id };
+    heading = mine;
+    setPickedMachine(null);
+    try {
+      await focusWorkspace(target, id);
+    } finally {
+      if (heading === mine) heading = null;
+    }
+    const f = focus();
+    if (f?.target === target && f.id === id) focusTerminal();
+  }
+  /** キーで移っている途中の、向かっている先（返事が返るまで focus() に反映されない）。無ければ null */
+  let heading: WorkspaceFocus | null = null;
+
+  /** リーダーの w j / w k。サイドバーの次・前のワークスペースへ（マシンをまたぐ。端で止まる）。 */
+  function stepWs(step: Step) {
+    const next = stepWorkspace(
+      groups(),
+      stepFrom(heading, focus()),
+      step,
+      pickedMachine(),
+    );
+    if (next) void goWorkspace(next.target, next.id);
+  }
+
+  /**
+   * リーダーの w h / w l。前・次のマシンへ（端で止まる）。ワークスペースが有れば最後に選んでいたもの（無ければ先頭）へ、
+   * 1 つも無いマシンならそのマシンを「選んでいるマシン」にして止まる。
+   */
+  function stepMachineTo(step: Step) {
+    const next = stepMachine(
+      groups(),
+      heading?.target ?? currentTarget(),
+      step,
+      (t) => lastOnMachine.get(t),
+    );
+    if (!next) return;
+    if (next.ws === null) {
+      // 待っている移動は捨てる（返ってきても、止まったマシンの印を外したり、フォーカスを飛ばしたりしない）
+      const dropped = heading;
+      heading = null;
+      focusSeq++;
+      switching = false;
+      // 捨てた移動の workspace.focus は、もう shj に届いている。GUI のフォーカスと同じマシンへのものだったら、
+      // 今のワークスペースを送り直して、shj のフォーカスを GUI に合わせ直す（食い違うと、ファイルや CHANGES の操作が無視される）
+      const f = focus();
+      if (dropped && f && dropped.target === f.target)
+        void sessions()
+          [f.target]?.focusWorkspace(f.id)
+          .catch(() => {});
+      setPickedMachine(next.target);
+      return;
+    }
+    setPickedMachine(null);
+    void goWorkspace(next.target, next.ws);
+  }
 
   /** できないことを、右下の知らせで伝える（リーダーの m の下は、見出しの右クリックなどと違い、選べないものも押せてしまうため）。 */
   function cannot(title: string, error: string) {
@@ -1197,6 +1279,12 @@ function Workbench(props: {
         if (b) void focusWorkspace(b[0], b[1]);
         break;
       }
+      case "workspace.step":
+        stepWs(c.arg as Step);
+        break;
+      case "machine.step":
+        stepMachineTo(c.arg as Step);
+        break;
       case "workspace.last": {
         const l = lastWorkspace;
         if (
@@ -1426,6 +1514,7 @@ function Workbench(props: {
     >
       <Sidebar
         groups={groups()}
+        picked={pickedMachine()}
         onFocus={(t, id) => void focusWorkspace(t, id)}
         treeOf={treeOf}
         onToggle={(t, id, p) => trees.get(t)?.toggle(id, p)}
