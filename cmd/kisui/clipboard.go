@@ -51,7 +51,8 @@ func runClipboardCopy(args []string) int {
 	}
 	return withTTY(name, func(t *kittyterm.TTY) error {
 		id := kittyterm.NewID()
-		return t.Ask(kittyterm.ClipboardWrite(id, data), copyTimeout, kittyterm.WriteReply(id))
+		// shj calls pbcopy when it copies, while it reads the terminal itself
+		return t.AskUnlessKeys(kittyterm.ClipboardWrite(id, data), copyTimeout, kittyterm.WriteReply(id))
 	})
 }
 

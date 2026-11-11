@@ -182,3 +182,93 @@ func TestAskOnAPTY(t *testing.T) {
 		t.Error("the second request was not written")
 	}
 }
+
+// ReadsKeys is false while the terminal waits for lines (a shell runs the
+// command) and true while a full-screen program reads the keys one by one.
+func TestReadsKeysOnAPTY(t *testing.T) {
+	ptmx, tty, err := pty.Open()
+	if err != nil {
+		t.Skip("no pty:", err)
+	}
+	defer ptmx.Close()
+	defer tty.Close()
+	tt := &TTY{fd: int(tty.Fd())}
+
+	if keys, err := tt.ReadsKeys(); err != nil || keys {
+		t.Errorf("lines: %v %v", keys, err)
+	}
+	tio, err := unix.IoctlGetTermios(tt.fd, ioctlGetTermios)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tio.Lflag &^= unix.ICANON | unix.ECHO
+	if err := unix.IoctlSetTermios(tt.fd, ioctlSetTermios, tio); err != nil {
+		t.Fatal(err)
+	}
+	if keys, err := tt.ReadsKeys(); err != nil || !keys {
+		t.Errorf("keys: %v %v", keys, err)
+	}
+}
+
+// While a full-screen program reads the keys one by one, AskUnlessKeys writes
+// the request and returns at once: it leaves the terminal as it was and the
+// keys waiting for the program.
+func TestAskUnlessKeysOnAPTY(t *testing.T) {
+	ptmx, tty, err := pty.Open()
+	if err != nil {
+		t.Skip("no pty:", err)
+	}
+	defer ptmx.Close()
+	defer tty.Close()
+	tt := &TTY{fd: int(tty.Fd())}
+
+	// The program: keys one by one, a read waits for one byte.
+	tio, err := unix.IoctlGetTermios(tt.fd, ioctlGetTermios)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tio.Lflag &^= unix.ICANON | unix.ECHO
+	tio.Cc[unix.VMIN] = 1
+	tio.Cc[unix.VTIME] = 0
+	if err := unix.IoctlSetTermios(tt.fd, ioctlSetTermios, tio); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ptmx.Write([]byte("k")); err != nil {
+		t.Fatal(err)
+	}
+
+	req := ClipboardWrite("a", []byte("hello"))
+	never := func(Packet) (bool, error) { return false, nil }
+	start := time.Now()
+	if err := tt.AskUnlessKeys(req, 5*time.Second, never); err != nil {
+		t.Fatal(err)
+	}
+	if d := time.Since(start); d > time.Second {
+		t.Errorf("waited %v", d)
+	}
+
+	after, err := unix.IoctlGetTermios(tt.fd, ioctlGetTermios)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.Lflag != tio.Lflag || after.Cc[unix.VMIN] != 1 || after.Cc[unix.VTIME] != 0 {
+		t.Errorf("the terminal was changed: lflag %#x vmin %d vtime %d", after.Lflag, after.Cc[unix.VMIN], after.Cc[unix.VTIME])
+	}
+	key := make([]byte, 1)
+	if n, err := tty.Read(key); err != nil || n != 1 || key[0] != 'k' {
+		t.Errorf("the key for the program: %q %v", key[:n], err)
+	}
+	got := make([]byte, 0, len(req))
+	buf := make([]byte, 4096)
+	for len(got) < len(req) {
+		_ = ptmx.SetReadDeadline(time.Now().Add(2 * time.Second))
+		n, err := ptmx.Read(buf)
+		if err != nil {
+			t.Fatalf("the request: %q %v", got, err)
+		}
+		got = append(got, buf[:n]...)
+	}
+	if !bytes.Equal(got, req) {
+		t.Errorf("request %q, want %q", got, req)
+	}
+}
