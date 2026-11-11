@@ -14,7 +14,7 @@
    - **リーダー**：Mac は Cmd+K、Linux は Super+K。場所のキー（下の層）とアプリの外のキー（Option+Space）を除く、すべての操作がここの下にある。押すと、次に押せるキーと動きが出る（which-key の形）。`?` で全部のキーの一覧が出る。覚えなくても使える層。
    - **近道**：よく使う操作だけ、リーダーを通さずに 1 回で押せるキーを残す。リーダーの下にも同じ操作がある（近道を忘れても困らない）。
    - **場所のキー**：ファイルツリー・CHANGES・動画・画像・リサイズモードの中で、その欄にフォーカスがあるときだけ効くキー（修飾キー無し）。リーダーの木には載せず、その欄の `?` の一覧に載せる。ターミナルの欄にフォーカスがあるときは効かないので、シェルや shj のキーを奪わない。
-4. kisui-terminal が奪うキーは、できるだけ少なくする。ターミナルの中のプログラム（シェル・vim・shj・herdr など）に届くべきキーは奪わない。奪うのは、Mac の Cmd 系（ターミナルのプログラムは受けない）と、Linux の Super 系・Ctrl+Shift 系（旧来の端末の符号では Ctrl+Shift+字が Ctrl+字と同じで、区別して受けるプログラムはほぼ無い）に限る。Linux の Ctrl 単独・Alt 単独のキーは、新しく奪わない（7 章）。
+4. kisui-terminal が奪うキーは、できるだけ少なくする。ターミナルの中のプログラム（シェル・vim・shj・herdr など）に届くべきキーは奪わない。奪うのは、Mac の Cmd 系（ターミナルのプログラムは受けない）と、Linux の Super 系・Ctrl+Shift 系（旧来の端末の符号では Ctrl+Shift+字が Ctrl+字と同じで、区別して受けるプログラムはほぼ無い。ただし矢印は別で、Ctrl+Shift+矢印は旧来の端末でも Ctrl+矢印と別の符号になり、shj が単語選択に使う。7.1）に限る。Linux の Ctrl 単独・Alt 単独のキーは、新しく奪わない（7 章）。
 5. 近道は 1 つの操作に OS ごとに 1 つ。別名で同じ操作を二重に持たない。
 
 ## 2. リーダー
@@ -102,7 +102,7 @@
 | ワークスペースを作る                | （無い）                                | （無い）        | なし（選択 5）                    | なし（選択 5）                        | リーダーのみ      | 作る回数は少ない。選択 5 に候補を置いた。                                                                                                  |
 | 欄を閉じる                          | Cmd+W                                   | （無い）        | 残す                              | Ctrl+Shift+W（選択 6）                | Linux に足す      | Linux に同じ操作のキーが無かった。GNOME Terminal などで「タブを閉じる」の習慣。リーダー `p x`。                                            |
 | リサイズモードに入る                | Cmd+R                                   | Ctrl+Shift+R    | 残す                              | 残す                                  | 残す              | 入るキーを変える理由が無い。リーダー `p r` にも置く。                                                                                      |
-| 隣の欄へ移る                        | Ctrl+Shift+矢印、または Cmd+Option+矢印 | Ctrl+Shift+矢印 | Cmd+Option+矢印                   | Ctrl+Shift+矢印                       | Mac の別名を消す  | 方針 5。Mac の Ctrl+Shift+矢印は、端末の中のプログラムも使いうるので奪うのをやめる（選択 7）。リーダー `p h/j/k/l`。                       |
+| 隣の欄へ移る                        | Ctrl+Shift+矢印、または Cmd+Option+矢印 | Ctrl+Shift+矢印 | Cmd+Option+矢印                   | Ctrl+Shift+矢印                       | Mac の別名を消す  | 方針 5。Mac の Ctrl+Shift+矢印は、shj の単語選択（Ctrl+Shift+←/→）など、端末の中のプログラムが使うキーを奪うので、別名として持つのをやめる（選択 7）。Linux の Ctrl+Shift+矢印は選択 9。リーダー `p h/j/k/l`。                       |
 | OS から履歴の窓を出す（アプリの外） | Option+Space                            | Alt+Space       | 残す                              | 残す                                  | 残す              | OS の全体のキー。リーダーはアプリが前にあるときしか使えないので、別に残す。Linux はウィンドウマネージャーが先に取ることがある（今のまま）。 |
 
 近道が無く、リーダーだけにあるもの：ワークスペースを閉じる・マシンの追加・名前の変更・外す・切る・つなぎ直す・お知らせの操作・ファイルツリーと CHANGES に移る。頻度が低いか、確認の窓を伴う操作で、近道を覚える必要が無い。
@@ -187,20 +187,21 @@ kisui-terminal は、キーを欄に届く前（`window` の `keydown` の captu
 
 ### 7.1 shj のキーとの照合
 
-shj が受けるキー（README の Space メニュー・Helix モード・VS Code モード・ターミナル欄・検索パネル）：`Space` で始まる操作（`Space f/b/w/e/k/o/r/s/d/g/G/m/v/y/p/?` など）、`F1`、`Ctrl+K`、`Ctrl+P`、`Ctrl+B`、`Ctrl+E`、`Ctrl+G`、``Ctrl+` ``、`Ctrl+J`、`Ctrl+S`、`Ctrl+W`、`Ctrl+Tab`、`Ctrl+\`、`Ctrl+1` / `Ctrl+2`、`Ctrl+Q`、`Alt+R`、`Alt+A`、`Alt+I`、`Alt+C`、`Alt+←` `Alt+→`、`Ctrl+Alt+D` / `Ctrl+Alt+U`、`Ctrl+O` / `Ctrl+I`、`Ctrl+C`、`Ctrl+X`、`Ctrl+Z`、`Ctrl+F` ほか。shj は Cmd・Super を使わない。
+shj が受けるキー（README の Space メニュー・Helix モード・VS Code モード・ターミナル欄・検索パネル）：`Space` で始まる操作（`Space f/b/w/e/k/o/r/s/d/g/G/m/v/y/p/?` など）、`F1`、`Ctrl+K`、`Ctrl+P`、`Ctrl+B`、`Ctrl+E`、`Ctrl+G`、``Ctrl+` ``、`Ctrl+J`、`Ctrl+S`、`Ctrl+W`、`Ctrl+Tab`、`Ctrl+\`、`Ctrl+1` / `Ctrl+2`、`Ctrl+Q`、`Alt+R`、`Alt+A`、`Alt+I`、`Alt+C`、`Alt+←` `Alt+→`、`Ctrl+Alt+D` / `Ctrl+Alt+U`、`Ctrl+O` / `Ctrl+I`、`Ctrl+C`、`Ctrl+X`、`Ctrl+Z`、`Ctrl+F`、`Ctrl+Shift+←` `Ctrl+Shift+→` `Ctrl+Shift+Home` `Ctrl+Shift+End`（選択）、`Ctrl+Shift+Z`（やり直し）、`Ctrl+_` / `Ctrl+/`（コメントの切り替え）ほか。shj は Cmd・Super を使わない。
 
 | 新しいキー                                                                                                       | shj のキーとの関係                                                                                                                                                                                   | 結論                        |
 | ---------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
 | リーダー Cmd+K（Mac）・Super+K（Linux）                                                                          | shj の `Ctrl+K`（コマンドパレット）とは別のキー。Cmd・Super は shj に届くキーではないので、shj のキーが減らない。リーダーの中の `w` `m` `p` などは、リーダーが受けるので shj には届かない。shj の `Space` のメニューとは入り口が別で、リーダーは `Space` を使わない。 | 奪わない                    |
-| 選択 1 の Ctrl+Shift+K                                                                                           | 旧来の端末の符号では Ctrl+K（shj のコマンドパレット）と同じ。kisui は Shift 付きだけを取り、Shift 無しの Ctrl+K は shj に届く。shj は Ctrl+Shift+字を使っていない。                                   | 奪わない（Shift 付きの形だけ） |
+| 選択 1 の Ctrl+Shift+K                                                                                           | 旧来の端末の符号では Ctrl+K（shj のコマンドパレット）と同じ。kisui は Shift 付きだけを取り、Shift 無しの Ctrl+K は shj に届く。shj は Ctrl+Shift+K を使っていない（shj の Ctrl+Shift+字は、やり直しの Ctrl+Shift+Z だけ）。                                   | 奪わない（Shift 付きの形だけ） |
 | Cmd+D / Cmd+Shift+D / Cmd+W / Cmd+R / Cmd+Shift+H / Cmd+Shift+Enter / Cmd+1〜9 / Cmd+Option+矢印 / Cmd+= - 0（Mac） | Cmd のキーは shj に届かない。shj の `Ctrl+W`（ファイルを閉じる）・`Alt+R`（リサイズ）とは別のキー。                                                                                                   | 奪わない                    |
-| Ctrl+Shift+D / E / H / M / R / 矢印（Linux）                                                                     | shj は Ctrl+Shift+字を使っていない（README の範囲）。`Ctrl+Shift+R` は shj の `Alt+R`（リサイズ）とは別。                                                                                             | 奪わない                    |
+| Ctrl+Shift+D / E / H / M / R（Linux）                                                                     | shj は Ctrl+Shift+D / E / H / M / R を使っていない（コードの `core/app.go` で確かめた）。`Ctrl+Shift+R` は shj の `Alt+R`（リサイズ）とは別。                                                                                             | 奪わない                    |
 | Ctrl+Shift+W（Linux、新しく足す）                                                                                | shj の `Ctrl+W`（ファイルを閉じる）と、Shift の有無だけが違う。Shift 無しの `Ctrl+W` は shj に届く。                                                                                                  | 奪わない                    |
 | Ctrl+Cmd+h/j/k/l（Mac）・Ctrl+Super+h/j/k/l（Linux）                                                             | shj は Cmd・Super を受けない。                                                                                                                                                                       | 奪わない                    |
 | Linux の Ctrl+`=` `0`                                                                                            | shj は使っていない。                                                                                                                                                                                 | 奪わない                    |
-| Linux の **Ctrl+`-`**（今のまま）                                                                                | 端末の `C-_`（readline の undo）と同じ符号。**奪う**。shj の undo は `u` / `Ctrl+Z` なので shj では困らないが、シェルでは困る。選択 2。                                                              | 奪う（今もそう）            |
+| Ctrl+Shift+←/→（Linux の「隣の欄へ移る」。Mac の別名も同じ） | **shj の単語単位の選択（`ctrl+shift+left` / `ctrl+shift+right`。VS Code の形の keymap と insert モード）と同じキー**。Ctrl+Shift+矢印は旧来の端末でも Ctrl+矢印と別の符号（`CSI 1;6D` など）になるので、文字と違い、shj に届く。**奪う**（今もそう）。shj の `Ctrl+Shift+Home` / `End`（選択）・`Ctrl+Shift+Z`（やり直し）は、kisui が取らないので届く。選択 9。 | 奪う（今もそう） |
+| Linux の **Ctrl+`-`**（今のまま）                                                                                | 端末の `C-_`（readline の undo）と同じ符号。**奪う**。shj の undo は `u` / `Ctrl+Z` だが、shj は同じ符号（`0x1F`、shj では `ctrl+_`）を「コメントの切り替え」にも使っている（VS Code の形の keymap と insert モード）。**シェルの undo と shj のコメントの切り替えの両方を奪う**。コメントの切り替えは Ctrl+`/` と Ctrl+C でもできる。選択 2。                                                              | 奪う（今もそう）            |
 | 選択 3 の Alt+1〜9                                                                                               | shj の検索パネルの `Alt+1`、readline の数引数（`Alt+数字`）と重なる。                                                                                                                                | 奪う（案にしない）          |
-| 選択 3 の Ctrl+Alt+1〜9                                                                                          | shj の `Ctrl+Alt+D` `Ctrl+Alt+U` とは別。ただし GNOME・Cinnamon・XFCE などが、ワークスペースの切り替えに使っていることがある。                                                                       | 奪わないが、OS に取られうる |
+| 選択 3 の Ctrl+Alt+1〜9                                                                                          | shj の `Ctrl+Alt+D` `Ctrl+Alt+U` とは別。ただし、デスクトップの設定でワークスペースの切り替えなどに割り当てられていることがある（既定の割り当てとしては確かめていない）。                                                                       | 奪わないが、OS に取られうる |
 
 場所のキー（修飾キー無しの `m` `c` `.` `?`・画像の `+` `-` `0`）は、ファイルツリー・CHANGES・画像の欄にフォーカスがあるときだけ効く。そのときのフォーカスは kisui-terminal の欄にあり、shj のキーを受ける端末の欄にはないので、shj には影響しない。ただし CHANGES は、`s` `r` `R` `:` `Space` を shj に渡す（`keys.md` の 1.4）。ここに足す `?` は、今 CHANGES から shj に渡している字に無いので、kisui-terminal が受けても shj のキーは減らない。
 
@@ -209,8 +210,9 @@ shj が受けるキー（README の Space メニュー・Helix モード・VS Co
 | キー                                                                        | 奪うもの                                                                                                                                                                                                         |
 | --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Mac の Cmd・Ctrl+Cmd 系すべて                                               | 何も奪わない（Cmd は端末の符号にならない。Ctrl+Cmd+字も同じ）。                                                                                                                                                  |
-| Mac の Ctrl+Shift+矢印・Ctrl+Shift+M（今ある別名）                          | **選択 7 で消す案**。端末の中のプログラム（シェルの Ctrl+Shift+矢印の割り当てなど）が使いうるキーを、別名のために奪わない。                                                                                      |
-| Linux の Ctrl+Shift+字（D・E・H・M・R・W・K）                               | 旧来の端末の符号では Ctrl+字と同じで、区別して受けるプログラムはほぼ無い。kisui が取るのは Shift 付きだけで、Ctrl+字は届く。kitty のキーボード拡張を使うプログラムが Ctrl+Shift+字を割り当てていると、届かない（今も同じ）。 |
+| Mac の Ctrl+Shift+矢印・Ctrl+Shift+M（今ある別名）                          | **選択 7 で消す案**。shj の単語選択（Ctrl+Shift+←/→）など、端末の中のプログラムが使うキーを、別名のために奪わない。                                                                                      |
+| Linux の Ctrl+Shift+字（D・E・H・M・R・W・K）。矢印は含まない                               | 旧来の端末の符号では Ctrl+字と同じで、区別して受けるプログラムはほぼ無い。kisui が取るのは Shift 付きだけで、Ctrl+字は届く。kitty のキーボード拡張を使うプログラムが Ctrl+Shift+字を割り当てていると、届かない（今も同じ）。 |
+| Linux の Ctrl+Shift+矢印（隣の欄へ移る） | **奪う（今もそう）**。shj の単語選択（Ctrl+Shift+←/→）に当たる（7.1）。選択 9。 |
 | Linux の Ctrl+`=` `0` `-`                                                   | `-` だけ readline の undo を奪う（上）。                                                                                                                                                                         |
 | Option+Space・Alt+Space（アプリの外からの履歴の窓）                         | OS 全体のキー。Alt+Space は、ウィンドウマネージャーがウィンドウメニューに使うことが多く、取れない環境がある（今も同じ）。                                                                                        |
 | リーダーの中のキー（`w` `m` `p` `e` `g` `h` `v` `n` `?` `Esc` `Backspace`） | リーダーに入っている間だけ受ける。リーダーに入るのは、リーダーのキーを押したときだけなので、シェルや shj のキーを奪わない。                                                                                      |
@@ -226,6 +228,8 @@ Linux には、Super のキーをウィンドウマネージャー・デスク�
 
 届かない環境では、リーダーに入れない。選択 1 の B か C（Ctrl+Shift+K）を選ぶと、そうした環境でも入れる。Mac の Cmd+K は、OS・WebView が取らない。
 
+選択 4 の A の Ctrl+Super+h/j/k/l（Linux の近道）も、同じ環境（i3・sway・Hyprland の vim 風の設定、Wayland のコンポジター）に取られうる。選択 1 で C（Super を使わない）を選ぶなら、選択 4 の Linux の近道も Super を使わない形（B か C）にする必要がある。
+
 ## 8. 選んでほしいこと
 
 PR の説明の最初にある一覧と同じ。表には、各選択の先頭の案（A）を置いた。
@@ -235,15 +239,15 @@ PR の説明の最初にある一覧と同じ。表には、各選択の先頭�
    - B. Super+K と Ctrl+Shift+K の両方で入れる（Super が届かない環境でも使える。Ctrl+Shift の近道と同じ系統）
    - C. Ctrl+Shift+K だけ（Super は一切使わない。#88 の Ctrl+Super+h/j/k/l の近道は、選択 4 で別のキーにする）
 2. **Linux の表示を小さくするキー（Ctrl+`-`）は readline の undo を奪う**
-   - A. 今のまま（ブラウザと同じ習慣を優先）
-   - B. Linux の表示の大きさは、リーダー `v + - 0` だけにする（Ctrl+`=` `0` も近道から外す）
+   - A. 今のまま（ブラウザと同じ習慣を優先。シェルの undo と shj のコメントの切り替え（`Ctrl+_`）が、この 2 つのプログラムに届かない。shj は Ctrl+`/` でも切り替えられる）
+   - B. Linux の表示の大きさは、リーダー `v + - 0` だけにする（Ctrl+`=` `0` も近道から外す。シェルの undo と shj のコメントの切り替えが届く）
 3. **Linux のワークスペースを番号で選ぶ近道（Mac は Cmd+1〜9）**
    - A. 置かない（リーダー `w 1`〜`w 9` と、Ctrl+Super+j/k の順送り）
-   - B. Ctrl+Alt+1〜9（デスクトップがワークスペースの切り替えに使うことがある）
+   - B. Ctrl+Alt+1〜9（デスクトップの設定で別の割り当てがあることがある）
    - C. Alt+1〜9（readline の数引数・shj の検索パネルの `Alt+1` と重なる。奪う）
 4. **ワークスペースとマシンを移る近道**
    - A. #88 の案のまま（Mac は Ctrl+Cmd+j/k が次・前のワークスペース、h/l が前・次のマシン。Linux は Ctrl+Super）
-   - B. ワークスペースは Mac の Cmd+Shift+] / [ と Linux の Ctrl+Shift+PageDown / PageUp（macOS・GNOME Terminal の「次のタブ」の習慣）、マシンは A のまま
+   - B. ワークスペースは Mac の Cmd+Shift+] / [ と Linux の Ctrl+PageDown / PageUp（macOS の Terminal.app・Safari と GNOME Terminal の「次のタブ」の習慣。shj は使っていないが、vim などが使いうるキーを奪う）、マシンは A のまま
    - C. 近道は置かず、リーダー `w j/k` `m h/l` だけにする
 5. **ワークスペースを作る近道**
    - A. 置かない（リーダー `w n` だけ）
@@ -252,8 +256,12 @@ PR の説明の最初にある一覧と同じ。表には、各選択の先頭�
    - A. Ctrl+Shift+W を足す
    - B. 足さない（リーダー `p x` だけ）
 7. **Mac の別名（Ctrl+Shift+矢印・Ctrl+Shift+M）**
-   - A. 消す（Cmd+Option+矢印・Cmd+Shift+Enter だけ。端末の中のプログラムが使いうるキーを奪わなくなる）
+   - A. 消す（Cmd+Option+矢印・Cmd+Shift+Enter だけ。shj の単語選択（Ctrl+Shift+←/→）など、端末の中のプログラムが使うキーを奪わなくなる）
    - B. 残す（今の動きを変えない）
 8. **キーだけでできない 2 つの操作（文字を選んでコピー、画面の URL を開く）**
    - A. GUI を主にする（今のまま。5.2 の理由）
    - B. キーでもできるようにする。コピーモード（端末の中をキーで動いて選ぶ）と、URL の hint mode（画面の URL に字を振って選ぶ）を、別の Issue で作る
+9. **Linux の「隣の欄へ移る」（今は Ctrl+Shift+矢印。shj の単語選択を奪っている）**
+   - A. 今のまま（今の動きを変えない。shj の Ctrl+Shift+←/→ は届かない）
+   - B. 近道を置かず、リーダー `p h/j/k/l` だけにする（shj のキーを奪わなくなる）
+   - C. 別のキーに替える（例：Ctrl+Alt+矢印。デスクトップがワークスペースの切り替えに使っている環境がある）
