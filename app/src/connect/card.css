@@ -289,3 +289,15 @@
 .history-empty {
   padding: 10px 20px 16px;
 }
+
+/* kisui-terminal の外から開く履歴の窓（ClipboardHistoryPopup.tsx）。窓いっぱいに出し、一覧が残りの高さを使う */
+.history-popup {
+  position: fixed;
+  inset: 0;
+  border: none;
+  border-radius: 0;
+}
+.history-popup .history-rows {
+  flex: 1;
+  max-height: none;
+}

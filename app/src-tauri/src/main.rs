@@ -4,6 +4,7 @@
 mod askpass;
 mod browser;
 mod clipboard_history;
+mod clipboard_popup;
 mod config;
 mod connection;
 mod install;
@@ -17,7 +18,7 @@ mod version;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use tauri::{Manager, RunEvent, State};
+use tauri::{Manager, RunEvent, State, WindowEvent};
 
 use askpass::AskpassServer;
 use connection::Connections;
@@ -116,7 +117,10 @@ fn main() {
         std::process::exit(askpass::run_helper(&prompt));
     }
 
-    let builder = tauri::Builder::default().plugin(tauri_plugin_clipboard_manager::init());
+    let builder = tauri::Builder::default()
+        .plugin(tauri_plugin_clipboard_manager::init())
+        // クリップボードの履歴を kisui-terminal の外から開く全体のキー（clipboard_popup.rs）
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build());
     // 自動更新（AppImage と .dmg の版だけ。update.rs）
     #[cfg(feature = "updater")]
     let builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
@@ -130,6 +134,8 @@ fn main() {
             locate::warm_up();
             // クリップボードの履歴を読み込み、OS のクリップボードの見張りを始める（clipboard_history.rs）
             clipboard_history::start(app.handle());
+            // 全体のキー（Option+Space・Alt+Space）で、履歴の小さな窓を出す（clipboard_popup.rs）
+            clipboard_popup::start(app.handle());
             let askpass = AskpassServer::start(app.handle().clone())?;
             app.manage(AppState {
                 conns: Connections::default(),
@@ -157,6 +163,8 @@ fn main() {
             config_url_open,
             browser::browser_close,
             clipboard_history::clipboard_history_list,
+            clipboard_popup::clipboard_popup_pick,
+            clipboard_popup::clipboard_popup_dismiss,
             notify::notify_show,
             transfer::transfer_dest,
             transfer::transfer_write_begin,
@@ -175,6 +183,17 @@ fn main() {
         .build(tauri::generate_context!())
         .expect("failed to build kisui-terminal")
         .run(|app, event| {
+            // メイン窓が閉じたら、隠れている履歴の窓も閉じる（残るとアプリが終わらない）
+            if let RunEvent::WindowEvent {
+                label,
+                event: WindowEvent::Destroyed,
+                ..
+            } = &event
+            {
+                if label == "main" {
+                    clipboard_popup::close(app);
+                }
+            }
             if let RunEvent::Exit = event {
                 if let Some(s) = app.try_state::<AppState>() {
                     s.conns.close_all();

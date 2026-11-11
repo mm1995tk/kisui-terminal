@@ -528,7 +528,14 @@ mod tests {
                 v.get("remote").is_none(),
                 "a capability must not have remote"
             );
-            assert_eq!(v["windows"], serde_json::json!(["main"]));
+            // 権限を持つのは、メイン窓と、kisui-terminal の外から開く履歴の窓（clipboard_popup.rs）だけ。
+            // ワイルドカードや、ブラウザの欄（`browser-*`）に当たる名前は書かない
+            let windows = &v["windows"];
+            assert!(
+                *windows == serde_json::json!(["main"])
+                    || *windows == serde_json::json!([crate::clipboard_popup::LABEL]),
+                "unexpected windows in a capability: {windows}"
+            );
         }
     }
 
