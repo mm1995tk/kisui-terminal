@@ -34,7 +34,7 @@ Run every command from the root of the repository. `go.mod`, `package.json` and 
 
 ## Conventions
 
-- **Keys come with every operation.** The app is keyboard-first: the mouse is the escape hatch, not the main path. When you add or change an operation, give it a key, put it in the leader tree (Cmd+K on macOS, Super+K elsewhere) in `docs/key-design.md`, and update `docs/keys.md`. If a GUI-only operation is better (scrolling, dropping files from the OS), say why in `docs/key-design.md`. Do not take a key that a program in the terminal (the shell, `shj`) needs; check it against the table in `docs/key-design.md` first.
+- **Keys come with every operation.** The app is keyboard-first: the mouse is the escape hatch, not the main path. When you add or change an operation, give it a key, put it in the leader tree (Cmd+K on macOS, Super+K elsewhere) in `docs/key-design.md`, and update `docs/keys.md`. If a GUI-only operation is better (scrolling, dropping files from the OS), say why in `docs/key-design.md`. Do not take a key that a program in the terminal (the shell, `shj`) needs; check it against the table in `docs/key-design.md` first. An operation that only works inside one area (the file tree, CHANGES, the video or image pane) is an area key instead: it goes in the `?` list of that area, not in the leader tree.
 - `README.md` and `README.ja.md` describe the same things. When you change one, change the other.
 - One pull request is one change. Describe what changed and why, and link the issue if there is one.
 - Commit messages and pull request text may be in Japanese or English. The existing history is in Japanese.
