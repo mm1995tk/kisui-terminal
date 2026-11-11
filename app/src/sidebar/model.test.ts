@@ -388,6 +388,20 @@ describe("stepWorkspace / stepMachine（キーで移る）", () => {
     assert.equal(stepMachine(groups, heading?.target, "prev")?.target, "empty");
   });
 
+  it("ワークスペースの無いマシンに止まっているときは、そのマシンの位置から移る", () => {
+    const cur = { target: "local", id: "a" };
+    assert.deepEqual(stepWorkspace(groups, cur, "next", "empty"), {
+      target: "ssh",
+      id: "c",
+    });
+    assert.deepEqual(stepWorkspace(groups, cur, "prev", "empty"), {
+      target: "local",
+      id: "b",
+    });
+    // 先頭のマシンなら、前は無い（端で止まる）
+    assert.equal(stepWorkspace([g("e"), g("x", "a")], null, "prev", "e"), null);
+  });
+
   it("ワークスペースは、端で止まる（回らない）", () => {
     assert.equal(
       stepWorkspace(groups, { target: "ssh", id: "d" }, "next"),

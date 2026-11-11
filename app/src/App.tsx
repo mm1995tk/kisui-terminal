@@ -1162,7 +1162,12 @@ function Workbench(props: {
 
   /** リーダーの w j / w k。サイドバーの次・前のワークスペースへ（マシンをまたぐ。端で止まる）。 */
   function stepWs(step: Step) {
-    const next = stepWorkspace(groups(), stepFrom(heading, focus()), step);
+    const next = stepWorkspace(
+      groups(),
+      stepFrom(heading, focus()),
+      step,
+      pickedMachine(),
+    );
     if (next) void goWorkspace(next.target, next.id);
   }
 

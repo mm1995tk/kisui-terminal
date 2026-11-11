@@ -256,12 +256,24 @@ export function stepFrom(
 /**
  * サイドバーの次・前のワークスペース（マシンをまたいで、上から下へ並べた並びで）。端では null（回らない）。
  * 今のフォーカスが無い（または並びに無い）ときは、次なら先頭、前なら末尾。ワークスペースが 1 つも無ければ null。
+ * picked は、w h / w l で止まった（選んでいる）マシン。有れば、フォーカスではなくそのマシンの位置を起点にする
+ * （次ならそのマシンより下の最初の、前なら上の最後のワークスペース）。
  */
 export function stepWorkspace(
   groups: readonly StepGroup[],
   current: WorkspaceFocus | null,
   step: Step,
+  picked: string | null = null,
 ): WorkspaceFocus | null {
+  const at =
+    picked === null ? -1 : groups.findIndex((g) => g.target === picked);
+  if (at >= 0) {
+    const side = step === "next" ? groups.slice(at) : groups.slice(0, at + 1);
+    const ws = side.flatMap((g) =>
+      g.bands.map((b) => ({ target: g.target, id: b.id })),
+    );
+    return (step === "next" ? ws[0] : ws[ws.length - 1]) ?? null;
+  }
   const all = groups.flatMap((g) =>
     g.bands.map((b) => ({ target: g.target, id: b.id })),
   );
