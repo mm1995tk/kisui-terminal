@@ -1185,9 +1185,17 @@ function Workbench(props: {
     if (!next) return;
     if (next.ws === null) {
       // 待っている移動は捨てる（返ってきても、止まったマシンの印を外したり、フォーカスを飛ばしたりしない）
+      const dropped = heading;
       heading = null;
       focusSeq++;
       switching = false;
+      // 捨てた移動の workspace.focus は、もう shj に届いている。GUI のフォーカスと同じマシンへのものだったら、
+      // 今のワークスペースを送り直して、shj のフォーカスを GUI に合わせ直す（食い違うと、ファイルや CHANGES の操作が無視される）
+      const f = focus();
+      if (dropped && f && dropped.target === f.target)
+        void sessions()
+          [f.target]?.focusWorkspace(f.id)
+          .catch(() => {});
       setPickedMachine(next.target);
       return;
     }
