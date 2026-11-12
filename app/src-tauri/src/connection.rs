@@ -77,14 +77,16 @@ pub fn ssh_command(
     }
     let mut c = Command::new("ssh");
     c.args(["-T", target, "--"]).arg(remote_command);
-    with_askpass(&mut c, ask, id)?;
+    with_ssh_env(&mut c, ask, id)?;
     Ok(c)
 }
 
-/// ssh に askpass の環境変数を付ける（質問を GUI の窓に出させる）。
-fn with_askpass(c: &mut Command, ask: &AskpassServer, id: &str) -> Result<(), String> {
+/// ssh の環境変数を付ける。askpass（質問を GUI の窓に出させる）と PATH。
+/// PATH は `~/.ssh/config` の `ProxyCommand` や `Match exec` のコマンドを見つけられるよう、ログインシェルのものを足す（`locate::launch_path`）。
+fn with_ssh_env(c: &mut Command, ask: &AskpassServer, id: &str) -> Result<(), String> {
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
-    c.env("SSH_ASKPASS", exe)
+    c.env("PATH", locate::launch_path())
+        .env("SSH_ASKPASS", exe)
         // DISPLAY が無くても、端末が無くても askpass を使わせる（OpenSSH 8.4 以降）
         .env("SSH_ASKPASS_REQUIRE", "force")
         .env(askpass::ENV_SOCK, &ask.sock)
@@ -117,7 +119,7 @@ pub fn ssh_forward_command(
     ])
     .arg(format!("127.0.0.1:{local}:localhost:{remote}"))
     .args(["--", target]);
-    with_askpass(&mut c, ask, id)?;
+    with_ssh_env(&mut c, ask, id)?;
     Ok(c)
 }
 
