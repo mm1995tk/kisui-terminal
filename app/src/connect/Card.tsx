@@ -52,7 +52,7 @@ export function ModalCard(props: {
       aria-label={props.label}
       tabIndex={props.focusSelf ? -1 : undefined}
       onKeyDown={(e) => {
-        if (!isCancelKey(e)) return;
+        if (e.defaultPrevented || !isCancelKey(e)) return;
         e.preventDefault();
         handled = true;
         setTimeout(() => (handled = false), 0);
