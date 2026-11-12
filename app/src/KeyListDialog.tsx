@@ -66,7 +66,7 @@ export function KeyListDialog(): JSX.Element {
           </section>
           <Show when={place()}>
             {(pl) => (
-              <section class={styles.part} classList={{ [styles.first]: true }}>
+              <section class={`${styles.part} ${styles.first}`}>
                 <h2 class={styles.subtitle}>{PLACE_KEYS[pl()].title}</h2>
                 <Show when={PLACE_KEYS[pl()].lead}>
                   <p class={styles.lead}>{PLACE_KEYS[pl()].lead}</p>
