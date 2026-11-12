@@ -165,7 +165,8 @@ export function HistoryPanel(props: {
         />
         <p class="card-text history-hint">
           <Show when={!props.outside} fallback={outsideHint()}>
-            ↑↓ で選ぶ・Enter で{props.onPaste ? "貼る" : "クリップボードに戻す"}
+            ↑↓ か Ctrl+J/K で選ぶ・Enter で
+            {props.onPaste ? "貼る" : "クリップボードに戻す"}
             ・Shift+Enter でクリップボードに戻す・Esc で閉じる
           </Show>
         </p>
@@ -202,7 +203,7 @@ export function HistoryPanel(props: {
 /** 外から開いた窓の案内。貼るのはユーザー（kisui-terminal からは貼る操作を送らない）。 */
 function outsideHint(): string {
   const paste = IS_MAC ? "Cmd+V" : "Ctrl+V";
-  return `↑↓ で選ぶ・Enter でクリップボードに戻す（そのあと ${paste} で貼る）・Esc で閉じる`;
+  return `↑↓ か Ctrl+J/K で選ぶ・Enter でクリップボードに戻す（そのあと ${paste} で貼る）・Esc で閉じる`;
 }
 
 /** 履歴の一覧。選んでいる行は selectedIndex。 */

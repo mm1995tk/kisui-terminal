@@ -149,6 +149,8 @@
   margin: 0;
   padding: 4px 12px 12px;
   overflow-y: auto;
+  /* 選んだ行の枠（outline 1px）は行の外に描く。scrollIntoView は行を入れ物の端いっぱいに寄せて枠を切るので、枠の分を空ける */
+  scroll-padding: 4px 0;
   list-style: none;
 }
 .card-row {

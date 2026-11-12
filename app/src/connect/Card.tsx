@@ -9,9 +9,9 @@ import "./card.css";
 
 /**
  * 真ん中に出すカード。出したら showModal で後ろを触らせず、Esc で onCancel を呼ぶ
- * （Esc の keydown を preventDefault する。しないと macOS の WKWebView が AppKit に渡し、
- * 全画面の窓では全画面まで解けてしまう）
  * （dialog は自分では閉じない。閉じるのは呼んだ側が出すのをやめたとき）。
+ * Esc の keydown は preventDefault する。しないと macOS の WKWebView が AppKit に渡し、
+ * 全画面の窓では全画面まで解けてしまうため。
  * 出すのをやめたら close() し、開く前にフォーカスがあった要素へフォーカスを戻す
  * （DOM から外すだけでは close() を通らず、ブラウザが戻さないため）。
  * focusSelf なら、中のボタンや入力欄ではなく窓そのものにフォーカスを置く
