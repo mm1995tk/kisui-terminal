@@ -1,4 +1,4 @@
-// ターミナルを並べる配置（F4）。設計書 docs/design/gui-protocol.md の「欄の配置」。
+// ターミナルを並べる配置（F4）。設計書 docs/design/gui-protocol.md の「ペインの配置」。
 //
 // - 配置は分割の木（PaneLayout）。葉が欄、節は「右に分ける（dir: "right"。a が左、b が右）」か
 //   「下に分ける（dir: "down"。a が上、b が下）」。木は kisui serve が持ち、Workspace.layout で届く。

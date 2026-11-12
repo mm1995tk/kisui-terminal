@@ -1,6 +1,6 @@
 package server
 
-// プライマリの shj が開かせる、ターミナルでない欄（動画・画像・PDF）と、URL を GUI の手元の外部ブラウザで開かせる通知。設計は docs/design/gui-protocol.md の「ターミナルでない欄」。
+// プライマリの shj が開かせる、ターミナルでない欄（動画・画像・PDF）と、URL を GUI の手元の外部ブラウザで開かせる通知。設計は docs/design/gui-protocol.md の「ターミナルでないペイン」。
 //
 // 欄はプライマリの shj（primaryShj）が持つ extras で、shj が終わると一緒に消える。ctl.PaneRequest の "open" で足し、
 // "close" か GUI の extra.close で閉じる。中身は GUI が media.read で範囲を指して取る（ssh の向こうにある動画も、

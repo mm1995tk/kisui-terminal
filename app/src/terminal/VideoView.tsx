@@ -6,25 +6,25 @@ import { baseName, seekTo, videoKey, type MediaFetch } from "./media.ts";
 import { createFileSource } from "./fileSource.ts";
 
 /**
- * 動画の欄（#555）。ターミナルの欄と同じ升目に並ぶ（TerminalGrid）。shj が頼んだ動画を media.read で取って
- * <video> で再生する（取るのは fileSource.ts）。見出しの × で閉じる。キーは、この欄にキーが向いているときだけ
+ * 動画のペイン（#555）。ターミナルのペインと同じ升目に並ぶ（TerminalGrid）。shj が頼んだ動画を media.read で取って
+ * <video> で再生する（取るのは fileSource.ts）。見出しの × で閉じる。キーは、このペインにキーが向いているときだけ
  * 受ける：空白と k は再生・停止、← → は 5 秒、j l は 10 秒、m は消音。GUI のショートカット
  * （リーダー・Cmd+D など）はここで止めず、いつも通り GUI が受ける。隠したら止める（音が鳴り続けないように。戻しても再開しない）。
  */
 export function VideoView(props: {
   pane: ExtraPane;
-  /** 中身を取る関数（欄の id は束ねてある） */
+  /** 中身を取る関数（ペインの id は束ねてある） */
   read: MediaFetch;
-  /** 今キーを向けている欄か（並べたときに印を付ける） */
+  /** 今キーを向けているペインか（並べたときに印を付ける） */
   active?: boolean;
-  /** 隠すか（ほかの欄を隠しているとき） */
+  /** 隠すか（ほかのペインを隠しているとき） */
   hidden?: boolean;
-  /** 欄の位置（分割の木から決めた、親の中の left・top・width・height） */
+  /** ペインの位置（分割の木から決めた、親の中の left・top・width・height） */
   place?: Record<string, string>;
-  /** 欄がフォーカスを受けた */
+  /** ペインがフォーカスを受けた */
   onFocus?: () => void;
   onClose: () => void;
-  /** この欄にキーを向ける関数を受け取る（欄が無くなるとき undefined で呼ぶ） */
+  /** このペインにキーを向ける関数を受け取る（ペインが無くなるとき undefined で呼ぶ） */
   focusRef?: (focus: (() => void) | undefined) => void;
 }): JSX.Element {
   let cell!: HTMLDivElement;
@@ -81,7 +81,7 @@ export function VideoView(props: {
         <button
           type="button"
           class="video-close"
-          aria-label="動画の欄を閉じる"
+          aria-label="動画のペインを閉じる"
           title="閉じる"
           onClick={() => props.onClose()}
         >
