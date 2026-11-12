@@ -30,6 +30,10 @@ const row = (
   probes: readonly string[] = [keys],
 ): PlaceKeyRow => ({ keys, label, probes });
 
+/**
+ * 場所ごとの、`?` の一覧に出す行の表。キーを実際に受けるのは各場所の判定（tree/keys.ts など）で、
+ * placeKeys.test.ts が、表のキーを判定が受けることを確かめる。
+ */
 export const PLACE_KEYS: Record<Place, PlaceKeys> = {
   tree: {
     title: "ファイルツリーにフォーカスがあるとき",
