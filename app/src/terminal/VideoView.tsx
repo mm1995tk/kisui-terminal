@@ -56,8 +56,7 @@ export function VideoView(props: {
     if (!video) return;
     e.preventDefault();
     e.stopPropagation();
-    if (k.kind === "toggle")
-      void (video.paused ? video.play() : video.pause());
+    if (k.kind === "toggle") void (video.paused ? video.play() : video.pause());
     else if (k.kind === "mute") video.muted = !video.muted;
     else video.currentTime = seekTo(video.currentTime, k.dt, video.duration);
   };
