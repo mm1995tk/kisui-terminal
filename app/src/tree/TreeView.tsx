@@ -5,6 +5,7 @@
 // 行にフォーカスがあるときは shj のファイルツリーと同じキーで動かせる（#13。割り当ては keys.ts）。
 import { Index, Match, onCleanup, Show, Switch, type JSX } from "solid-js";
 
+import { openKeyList } from "../KeyListDialog.tsx";
 import type { TreeIcon } from "./icons.ts";
 import { treeKey, type TreeMove } from "./keys.ts";
 import type { TreeMenuAction } from "./menu.ts";
@@ -117,6 +118,17 @@ function rowKeyDown(
     moveFocus(e.currentTarget, row.path, a.to);
     return true;
   }
+  if (a.kind === "help") {
+    openKeyList("tree");
+    return true;
+  }
+  if (a.kind === "contextmenu") {
+    // 右クリックのメニューを、選んでいる行の左下に開く
+    if (!handlers.onMenu) return false;
+    const r = e.currentTarget.getBoundingClientRect();
+    handlers.onMenu(row, r.left + 24, r.bottom);
+    return true;
+  }
   if (!handlers.onAction) return false;
   handlers.onAction(row, a.action);
   return true;
@@ -197,6 +209,7 @@ function Row(props: { row: TreeRow; handlers: RowHandlers }): JSX.Element {
         style={{ "--tree-depth": String(r().depth) }}
         title={r().path}
         data-path={r().path}
+        data-place="tree"
         tabIndex={0}
         onClick={() => runRowAction(r(), props.handlers, rowAction(r()))}
         onContextMenu={(e) => {

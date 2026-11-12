@@ -79,6 +79,10 @@ Cmd+R（Mac）か Ctrl+Shift+R（Linux）で入る（1.1 の表）。入って�
 | ファイルツリーの行                              | `d` / `Delete`            | `d` / `Delete`            | 削除（確認の窓を出す）                                                                         | `tree/keys.ts:81`                                      |
 | ファイルツリーの行                              | `y`                       | `y`                       | 相対パスをコピー                                                                               | `tree/keys.ts:84`                                      |
 | ファイルツリーの行                              | `Y`                       | `Y`                       | 絶対パスをコピー                                                                               | `tree/keys.ts:86`                                      |
+| ファイルツリーの行                              | `c`                       | `c`                       | 名前をコピー（右クリックのメニューの「名前をコピー」と同じ）                                   | `tree/keys.ts`（`treeKey`）                            |
+| ファイルツリーの行                              | `m`                       | `m`                       | ここへ移動（ターミナルで cd する。フォルダの行だけ。メニューの「ここへ移動」と同じ）           | 同上                                                   |
+| ファイルツリーの行                              | `.` / `Menu`              | `.` / `Menu`              | 右クリックのメニューを、この行で開く。閉じたら行にフォーカスが戻る                             | `tree/keys.ts`・`tree/TreeView.tsx`・`tree/TreeMenu.tsx` |
+| ファイルツリーの行                              | `?`                       | `?`                       | この場所のキーの一覧を出す（リーダーの `?` と同じ窓。この場所のキーを先に出す）                | `placeKeys.ts`・`tree/TreeView.tsx`                    |
 | CHANGES の行（フォーカスがあるとき）            | `j` / `↓`                 | `j` / `↓`                 | 次の行へ                                                                                       | `changes/keys.ts:58`・`changes/ChangesView.tsx:93`     |
 | CHANGES の行                                    | `k` / `↑`                 | `k` / `↑`                 | 前の行へ                                                                                       | `changes/keys.ts:61`                                   |
 | CHANGES の行                                    | `g` / `Home`              | `g` / `Home`              | 最初の行へ                                                                                     | `changes/keys.ts:64`                                   |
@@ -90,6 +94,7 @@ Cmd+R（Mac）か Ctrl+Shift+R（Linux）で入る（1.1 の表）。入って�
 | CHANGES の行                                    | `r` / `R`                 | `r` / `R`                 | shj に渡す（読み直し。PR モードでは PR を読み直す）                                            | `changes/keys.ts:82`                                   |
 | CHANGES の行                                    | `:`                       | `:`                       | shj に渡す（コマンド行）。続きのキーは端末から shj に届く                                      | `changes/keys.ts:84`                                   |
 | CHANGES の行                                    | `Space`                   | `Space`                   | shj に渡す（Space メニュー）。PR モードでは続けて `v`（レビュー）・`g`（PR との差分）を打つ    | `changes/keys.ts:86`・`changes/keys.ts:177`            |
+| CHANGES の行                                    | `?`                       | `?`                       | この場所のキーの一覧を出す（shj には渡さない）                                                 | `placeKeys.ts`・`changes/keys.ts`・`changes/actions.ts` |
 | CHANGES の行                                    | `Tab`（Shift なし）       | `Tab`（Shift なし）       | ファイルツリー（kisui のエクスプローラ）へ移る。Shift+Tab は既定の動き                         | `changes/keys.ts:88`・`changes/actions.ts:56`          |
 | CHANGES の行                                    | `Esc` / `q` / Ctrl+E               | `Esc` / `q` / Ctrl+E               | 一覧を出て端末（shj のエディタ）へ戻る                                                                           | `changes/keys.ts:90`・`changes/actions.ts:60`          |
 | ファイルツリー・CHANGES のどちらも              | Ctrl・Cmd・Alt を押したキー | Ctrl・Cmd・Alt を押したキー | 受けない（窓全体のキーに残す）。ただし Ctrl+E だけは、ツリーでも CHANGES でも端末へ戻る。かな漢字変換中も受けない                                       | `tree/keys.ts:44`・`changes/keys.ts:54`・`guiKeys.ts:81`               |
@@ -108,6 +113,7 @@ shj の側から `Space e` でツリーにキーを向けるのは、shj が出�
 | 動画の欄       | `j`             | `j`             | 10 秒戻る                      | `terminal/media.ts:114`                       |
 | 動画の欄       | `l`             | `l`             | 10 秒進む                      | `terminal/media.ts:116`                       |
 | 動画の欄       | `m`             | `m`             | 消音の入り・切り                | `terminal/media.ts:118`                       |
+| 動画の欄       | `?`             | `?`             | この場所のキーの一覧を出す      | `terminal/media.ts`・`placeKeys.ts`           |
 
 ### 1.5.1 画像の欄
 
@@ -120,7 +126,7 @@ shj の側から `Space e` でツリーにキーを向けるのは、shj が出�
 | 画像の欄 | `0`                         | `0`                         | 欄に収まる大きさに戻す                                     | 同上                                                    |
 | 画像の欄 | `h` `j` `k` `l`・矢印（Shift 付きは受けない） | 同左 | 拡大中に見える場所を動かす（見える幅の 10%）               | 同上                                                    |
 | 画像の欄 | `Esc`                       | `Esc`                       | ターミナルへ戻る                                           | 同上（`App.tsx` の `onLeaveExtra`）                     |
-| 画像の欄 | `?`                         | `?`                         | キーの一覧（リーダーの `?` と同じ窓）を出す                | `KeyListDialog.tsx`                                     |
+| 画像の欄 | `?`                         | `?`                         | キーの一覧（リーダーの `?` と同じ窓）を出す                | `placeKeys.ts`・`KeyListDialog.tsx`                     |
 | 画像の欄 | Ctrl+ホイール・ピンチ       | Ctrl+ホイール・ピンチ       | ポインタの位置を中心に拡大・縮小                           | `terminal/FileView.tsx`                                 |
 | 画像の欄 | ドラッグ                    | ドラッグ                    | 拡大中に画像を動かす                                       | 同上                                                    |
 
@@ -128,14 +134,14 @@ shj の側から `Space e` でツリーにキーを向けるのは、shj が出�
 
 | どこで                                                          | Mac のキー                   | Linux のキー                 | 動き                                                                                                  | 定義の場所                                                                         |
 | --------------------------------------------------------------- | ---------------------------- | ---------------------------- | ----------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| クリップボードの履歴の窓（Cmd+Shift+H / Ctrl+Shift+H で開いたもの）の入力欄 | `↑` / `↓`                    | `↑` / `↓`                    | 選んでいる行を動かす（端で止まる）                                                                    | `ClipboardHistoryDialog.tsx:136`・`clipboardHistory.ts:61`                          |
+| クリップボードの履歴の窓（Cmd+Shift+H / Ctrl+Shift+H で開いたもの）の入力欄 | `↑` / `↓`・`Ctrl+J` / `Ctrl+K`                    | `↑` / `↓`・`Ctrl+J` / `Ctrl+K`                    | 選んでいる行を動かす（端で止まる。Ctrl+J が次、Ctrl+K が前）                                                                    | `ClipboardHistoryDialog.tsx:136`・`clipboardHistory.ts:61`                          |
 | 同上                                                            | `Enter`                      | `Enter`                      | 貼る（開いたときに貼る欄が無ければ、クリップボードに戻す）                                            | `ClipboardHistoryDialog.tsx:143`                                                   |
 | 同上                                                            | `Shift+Enter`                | `Shift+Enter`                | OS のクリップボードに戻す                                                                             | `ClipboardHistoryDialog.tsx:146`                                                   |
 | 同上                                                            | `Esc`                        | `Esc`                        | 閉じる（`<dialog>` の cancel）                                                                        | `connect/Card.tsx:48`                                                              |
 | 同上                                                            | 文字を打つ                   | 文字を打つ                   | 履歴を絞り込む（空白で区切った語がすべて含まれるもの）                                                | `clipboardHistory.ts:48`                                                           |
 | `kisui-terminal` の外から開く履歴の窓（Option+Space / Alt+Space）| `↑` / `↓`・`Enter`・文字     | `↑` / `↓`・`Enter`・文字     | 上の窓と同じ。Enter は OS のクリップボードに戻して窓を隠す（貼るのは自分で Cmd+V / Ctrl+V）           | `ClipboardHistoryPopup.tsx:23`・`ClipboardHistoryDialog.tsx:205`                   |
 | 同上                                                            | `Esc`                        | `Esc`                        | 何もせず閉じて、前のアプリに戻る（かな漢字変換中は除く）                                              | `ClipboardHistoryPopup.tsx:23`                                                     |
-| リモートを足す窓の「行き先」の欄                                | `↓` / `↑`                    | `↓` / `↑`                    | `~/.ssh/config` の候補を選ぶ                                                                          | `connect/AddMachine.tsx:76`                                                        |
+| リモートを足す窓の「行き先」の欄                                | `↓` / `↑`・`Ctrl+J` / `Ctrl+K`                    | `↓` / `↑`・`Ctrl+J` / `Ctrl+K`                    | `~/.ssh/config` の候補を選ぶ（Ctrl+J が次、Ctrl+K が前）                                                                          | `connect/AddMachine.tsx:76`                                                        |
 | 同上                                                            | `Enter`                      | `Enter`                      | 選んだ候補を入れる。選んでいなければ足す                                                              | `connect/AddMachine.tsx:81`                                                        |
 | リモートを足す窓の「名前」の欄                                  | `Enter`                      | `Enter`                      | 足す                                                                                                  | `connect/AddMachine.tsx:132`                                                       |
 | 名前を変える窓の入力欄                                          | `Enter`                      | `Enter`                      | 名前を変える                                                                                          | `connect/RenameMachine.tsx:29`                                                     |
@@ -191,7 +197,7 @@ shj の側から `Space e` でツリーにキーを向けるのは、shj が出�
 | マシンの見出し                      | 右クリック                   | メニュー（名前を変える・外す）を出す。設定ファイルで決めたマシンは項目が押せない                   | `sidebar/Sidebar.tsx:397`・`sidebar/Sidebar.tsx:665`・`sidebar/Sidebar.tsx:674` |
 | サイドバーの下の「マシンを足す」    | クリック                     | リモートを足す窓を出す                                                                             | `sidebar/Sidebar.tsx:297`                 |
 | ファイルツリーの行                  | クリック                     | フォルダの開け閉め・ファイルを開く（キーでは Enter / Space / l / h でできる）                      | `tree/TreeView.tsx:201`                   |
-| ファイルツリーの行                  | 右クリック                   | メニュー（名前・相対パス・絶対パスをコピー、新しいファイル・フォルダ、名前の変更、削除、ここへ移動）を出す。**「ここへ移動」（フォルダの行だけ）と「名前をコピー」はキーが無い** | `tree/TreeView.tsx:202`・`tree/menu.ts:7`・`tree/menu.ts:30` |
+| ファイルツリーの行                  | 右クリック                   | メニュー（名前・相対パス・絶対パスをコピー、新しいファイル・フォルダ、名前の変更、削除、ここへ移動）を出す（キーでは `.` か `Menu` で同じメニューを開ける。「ここへ移動」は `m`、「名前をコピー」は `c`） | `tree/TreeView.tsx:202`・`tree/menu.ts:7`・`tree/menu.ts:30` |
 | ツリーのメニューの項目              | クリック                     | 選んだ項目を行う（キーは 1.4）                                                                     | `tree/TreeMenu.tsx:70`                    |
 | CHANGES の行                        | クリック                     | フォルダの開け閉め・差分を開く                                                                     | `changes/ChangeTreeRow.tsx:34`・`changes/ChangesView.tsx:89` |
 | CHANGES の行（PR モード）の viewed の `[ ]` `[x]` | （操作は無い） | 確認済みかを出すだけの表示。クリックもキーも受けない | `changes/ChangeTreeRow.tsx:60` |
@@ -223,7 +229,7 @@ shj の側から `Space e` でツリーにキーを向けるのは、shj が出�
 
 - Mac と Linux で形が違う：分割は Mac が Cmd+D / Cmd+Shift+D、Linux が Ctrl+Shift+D / Ctrl+Shift+E。Cmd+1〜9（ワークスペース）と Cmd+W（分割した欄を閉じる）は Mac だけで、Linux には同じ操作のキーが無い。リサイズモードに入るのは Cmd+R / Ctrl+Shift+R。
 - Mac でも効く Ctrl+Shift の形がある：Ctrl+Shift+矢印（欄の移動）と Ctrl+Shift+M（欄を隠す）は Mac でも受ける（`directionKey`・`isZoomKey` は `isCtrlShift` を Mac でも見る）。分割とリサイズに入るキーは Mac では Ctrl+Shift の形を受けない。
-- キーでできないもの：ワークスペースを閉じる・マシンを足す・マシンを切る／外す／名前を変える・つなぎ直す・ワークスペースを作る・動画の欄とファイルの欄の ×（欄を閉じる）・Linux の分割した欄を閉じる操作・ツリーの「ここへ移動」「名前をコピー」・欄どうしのフォーカス移動以外の欄の選択は、マウスだけ（2 の表）。
+- キーでできないもの：ワークスペースを閉じる・マシンを足す・マシンを切る／外す／名前を変える・つなぎ直す・ワークスペースを作る・動画の欄とファイルの欄の ×（欄を閉じる）・Linux の分割した欄を閉じる操作・欄どうしのフォーカス移動以外の欄の選択は、マウスだけ（2 の表）。
 - 同じ字のキーが場所ごとに別の意味：`j` `k` `l` `h` はツリー・CHANGES・リサイズモードで移動、動画の欄では `j` `l` が 10 秒の移動、`k` が再生・停止。`r` はツリーでは名前の変更、CHANGES では読み直し、リサイズモードでは何もしない。`Esc` はツリーでは端末へ戻る、CHANGES では一覧を出る、窓・メニューでは閉じる、リサイズモードでは出る。
 - 全体のキーが、ターミナルの欄の外（ツリー・CHANGES・動画の欄・窓の中）でも効くものと、欄の中だけで効くもの（欄の移動・Cmd+W）が混ざっている。
 - `Ctrl`+`-`（Linux の表示を小さく）は、端末の `C-_`（readline の undo）を奪う（`scale.ts:25` に承知の上と書いてある）。

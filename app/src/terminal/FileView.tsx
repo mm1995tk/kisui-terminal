@@ -114,6 +114,7 @@ export function FileView(props: {
       hidden={props.hidden}
       style={props.place}
       tabindex="-1"
+      data-place={props.pane.kind === "image" ? "image" : undefined}
       ref={cell}
       onFocusIn={() => props.onFocus?.()}
       onKeyDown={zoom.onKeyDown}

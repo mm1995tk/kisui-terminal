@@ -90,9 +90,12 @@ export function seekTo(current: number, dt: number, duration: number): number {
   return Math.min(Math.max(0, current + dt), end);
 }
 
-/** <video> に向けたキーの働き。空白と k は再生と停止、左右は 5 秒、j と l は 10 秒、m は消音。 */
+/** <video> に向けたキーの働き。空白と k は再生と停止、左右は 5 秒、j と l は 10 秒、m は消音、? はキーの一覧。 */
 export type VideoKey =
-  { kind: "toggle" } | { kind: "seek"; dt: number } | { kind: "mute" };
+  | { kind: "toggle" }
+  | { kind: "seek"; dt: number }
+  | { kind: "mute" }
+  | { kind: "help" };
 
 /** Ctrl・Alt・Meta を押していないキー k を、動画の操作にする。当てはまらなければ null（GUI のキーや、ブラウザの動きに回す）。 */
 export function videoKey(e: {
@@ -117,6 +120,8 @@ export function videoKey(e: {
       return { kind: "seek", dt: 10 };
     case "m":
       return { kind: "mute" };
+    case "?":
+      return { kind: "help" };
     default:
       return null;
   }

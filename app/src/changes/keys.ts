@@ -22,7 +22,9 @@ export type ChangesAction =
   /** kisui のファイルエクスプローラに移る（Tab） */
   | { kind: "explorer" }
   /** 一覧を出て端末へ戻る（Esc・q） */
-  | { kind: "leave" };
+  | { kind: "leave" }
+  /** この場所のキーの一覧を出す（?） */
+  | { kind: "help" };
 
 /** 押したキー（KeyboardEvent のうち使うところ）。 */
 export interface ChangesKey {
@@ -43,6 +45,7 @@ export interface ChangesKey {
  *   Enter・o でフォルダの開け閉め・変更を開く。
  * - s は split / unified、r・R は読み直す（shj が行う）。Space は Space メニュー、: はコマンド行（どれも shj に渡し、続きのキーは端末から shj に届く）。
  * - Tab でエクスプローラへ、Esc・q・Ctrl+E で端末（エディタ）へ戻る。
+ * - ? でこの場所のキーの一覧（kisui の案内。shj には渡さない）。
  */
 export function changesKey(
   entry: Pick<ChangeEntry, "kind" | "expanded">,
@@ -90,6 +93,8 @@ export function changesKey(
     case "Escape":
     case "q":
       return { kind: "leave" };
+    case "?":
+      return { kind: "help" };
   }
   return null;
 }

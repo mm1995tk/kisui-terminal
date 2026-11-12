@@ -15,6 +15,8 @@ export function TreeMenu(props: {
 }): JSX.Element {
   let el!: HTMLDivElement;
   onMount(() => {
+    // キー（. か Menu キー）で開いたとき、閉じたらその行にキーを戻す（ほかにフォーカスが移っていなければ）
+    const opener = document.activeElement as HTMLElement | null;
     const close = () => props.onClose();
     const down = (e: Event) => {
       if (!el.contains(e.target as Node)) close();
@@ -45,6 +47,15 @@ export function TreeMenu(props: {
     el.style.top = `${Math.max(0, Math.min(props.y, window.innerHeight - r.height))}px`;
     el.querySelector<HTMLElement>("[role=menuitem]:not(:disabled)")?.focus();
     onCleanup(() => {
+      setTimeout(() => {
+        if (
+          opener?.isConnected &&
+          opener.matches(".tree-row") &&
+          (document.activeElement === document.body ||
+            document.activeElement === null)
+        )
+          opener.focus({ preventScroll: true });
+      }, 0);
       window.removeEventListener("pointerdown", down, true);
       window.removeEventListener("contextmenu", down, true);
       window.removeEventListener("keydown", key);

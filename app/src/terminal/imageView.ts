@@ -1,8 +1,8 @@
 // 画像のペインの拡大・縮小と、見える場所の移動（#93）。docs/key-design.md の 5 章の「画像のペイン」のキー。
 // DOM には触らない（node --test で確かめられる）。表示は、ペインに収めた大きさ（倍率 1）に、倍率と平行移動を CSS の transform で重ねる。
 //
-// 場所のキーなので、リーダーの木（commands.ts）には載せない。ここに足せば、受ける判定（imageKey）と
-// `?` の一覧（IMAGE_KEY_ROWS）が同じ表から出る。
+// 場所のキーなので、リーダーの木（commands.ts）には載せない。`?` の一覧に出す行は placeKeys.ts の表にあり、
+// 受ける判定（imageKey）と合っているかは placeKeys.test.ts が確かめる。
 
 import type { KeyLike } from "../guiKeys.ts";
 
@@ -23,16 +23,6 @@ export type ImageKey =
   | { kind: "pan"; dir: Dir }
   | { kind: "leave" }
   | { kind: "help" };
-
-/** `?` の一覧に出す行。 */
-export const IMAGE_KEY_ROWS: readonly { keys: string; label: string }[] = [
-  { keys: "+ =", label: "拡大する" },
-  { keys: "-", label: "縮小する" },
-  { keys: "0", label: "ペインに収まる大きさに戻す" },
-  { keys: "h j k l / ← ↓ ↑ →", label: "拡大中に、見える場所を動かす" },
-  { keys: "Esc", label: "ターミナルへ戻る" },
-  { keys: "?", label: "このキーの一覧を出す" },
-];
 
 const ARROWS: Record<string, Dir> = {
   ArrowLeft: "left",

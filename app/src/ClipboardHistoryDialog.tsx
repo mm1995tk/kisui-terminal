@@ -24,6 +24,7 @@ import { listClipboardHistory } from "./clipboardHistoryOs.ts";
 import { copyAndNotify } from "./copiedNotice.ts";
 import { ModalCard } from "./connect/Card.tsx";
 import { IS_MAC } from "./guiKeys.ts";
+import { listStep } from "./placeKeys.ts";
 import { writeOs } from "./terminal/clipboardOs.ts";
 import { focusedPasteTarget } from "./terminal/pasteTarget.ts";
 
@@ -131,11 +132,12 @@ export function HistoryPanel(props: {
 
   function onKeyDown(e: KeyboardEvent) {
     if (e.isComposing) return;
-    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    // ↓ ↑ か Ctrl+J / Ctrl+K で選ぶ行を動かす（入力欄に字を打つので、j k は使えない）
+    const step =
+      e.key === "ArrowDown" ? 1 : e.key === "ArrowUp" ? -1 : listStep(e);
+    if (step !== 0) {
       e.preventDefault();
-      setSel((i) =>
-        moveSelection(i, e.key === "ArrowDown" ? 1 : -1, shown().length),
-      );
+      setSel((i) => moveSelection(i, step, shown().length));
     } else if (e.key === "Enter") {
       e.preventDefault();
       // Shift+Enter は OS のクリップボードに戻す。Enter は貼る（貼る欄が無ければ戻す）
