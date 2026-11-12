@@ -1,6 +1,6 @@
 # kisui-terminal と shj の通信の取り決め
 
-kisui-terminal（`kisui`）と、欄の中で動く shj は、版がずれることがある。この文書は、2 つのアプリのあいだの通信の取り決めと、その版の決まりを定める。2 つのアプリ専用の取り決めで、一般的な API ではない。機能は遠慮なく足してよい。
+kisui-terminal（`kisui`）と、ペインの中で動く shj は、版がずれることがある。この文書は、2 つのアプリのあいだの通信の取り決めと、その版の決まりを定める。2 つのアプリ専用の取り決めで、一般的な API ではない。機能は遠慮なく足してよい。
 
 プロトコル専用のリポジトリは作らない。取り決めは持ち主の側に文書として置く（shj → kisui の持ち主は kisui-terminal なので、この文書はここにある。kisui → shj の側は shijimi-editor の `docs/design/kisui-shj-protocol.md`）。Go の型を共有するための別のパッケージも作らない。型は両方が自分の側に持ち、取り決めだけでつながる。
 
@@ -8,10 +8,10 @@ kisui-terminal（`kisui`）と、欄の中で動く shj は、版がずれるこ
 
 | 向き | 内容 | 持ち主 | 版 |
 | --- | --- | --- | --- |
-| shj → kisui | プライマリの欄で名乗る `PrimaryHello` / `PrimaryReply`、開いているファイルと差分モードの変更の一覧（`diff`）を知らせる `PrimaryFile`（`PrimaryReply` の `changes` で、kisui が一覧を出せると shj に知らせる。#19）、欄を開く `PaneRequest` / `PaneReply`（`op: "explorer"` で GUI のファイルエクスプローラに、`op: "changes"` でサイドバーの CHANGES にフォーカスを頼む。#14・#45）、環境変数 `SHIJIMI_GUI_PRIMARY` / `SHIJIMI_GUI_WORKSPACE`、ソケット `serve-primary.rpc` | kisui-terminal | あり（下） |
+| shj → kisui | プライマリのペインで名乗る `PrimaryHello` / `PrimaryReply`、開いているファイルと差分モードの変更の一覧（`diff`）を知らせる `PrimaryFile`（`PrimaryReply` の `changes` で、kisui が一覧を出せると shj に知らせる。#19）、ペインを開く `PaneRequest` / `PaneReply`（`op: "explorer"` で GUI のファイルエクスプローラに、`op: "changes"` でサイドバーの CHANGES にフォーカスを頼む。#14・#45）、環境変数 `SHIJIMI_GUI_PRIMARY` / `SHIJIMI_GUI_WORKSPACE`、ソケット `serve-primary.rpc` | kisui-terminal | あり（下） |
 | kisui → shj | shj の操作用のソケット（`GUILinkPath` のリンク先）に送る命令（サイドバーの CHANGES で選んだファイルの差分は、既にある `{cmd: "diff", path}`。#19。CHANGES の s・r・R・Space・: は新しい命令 `{cmd: "changes-key", line}`。#45） | shijimi-editor | なし |
 
-型と定数は、kisui の側が `internal/ctl/ctl.go`、shj の側が shijimi-editor の `core/ctl/ctl.go`（同じ内容の写し）。欄を開く `op: "open"` の `kind` は `"video"`・`"image"`・`"pdf"`（`path` は絶対パスのファイル。拡張子と大きさの上限は kisui が決める）と `"browser"`（`url`。欄は作らず、GUI が手元の外部ブラウザで開く。もとは内蔵ブラウザの欄で開く意味だったが、#96 で外部ブラウザに変えた。項目は変えないので版は上げない。返事の `id` は空）。`image` と `pdf` は #15 で足した（項目の値の追加なので版は上げない。知らない `kind` を断る古い kisui には、shj が「開けない」と状態行に出す）。HEAD との差分モードの変更の一覧（`PrimaryFile.diff`、`PrimaryReply.changes`）は #19 で足した（これも項目の追加だけなので版は上げない。新しい shj が古い kisui に当たったときは、`changes` が返事に無いので、shj が自分の左に CHANGES を出す）。PR との差分モード（`Space g`）の一覧は #46 で足した：`PrimaryDiff.base`（`"pr"`。無いときは HEAD）と、返事の `PrimaryReply.changesPR`。shj は `changesPR` が返事にあるときだけ PR モードの一覧を送り、無ければ（古い kisui）今まで通り自分の左に出す。項目の追加だけなので版は上げない。その各ファイルの viewed の状態は #78 で足した `DiffFile.viewed`（bool。`base` が `"pr"` のときだけ入る。無ければ viewed でない。これも項目の追加だけなので版は上げない）。詳しい動きは [design/gui-protocol.md](design/gui-protocol.md) の「プライマリの shj」。
+型と定数は、kisui の側が `internal/ctl/ctl.go`、shj の側が shijimi-editor の `core/ctl/ctl.go`（同じ内容の写し）。ペインを開く `op: "open"` の `kind` は `"video"`・`"image"`・`"pdf"`（`path` は絶対パスのファイル。拡張子と大きさの上限は kisui が決める）と `"browser"`（`url`。ペインは作らず、GUI が手元の外部ブラウザで開く。もとは内蔵ブラウザのペインで開く意味だったが、#96 で外部ブラウザに変えた。項目は変えないので版は上げない。返事の `id` は空）。`image` と `pdf` は #15 で足した（項目の値の追加なので版は上げない。知らない `kind` を断る古い kisui には、shj が「開けない」と状態行に出す）。HEAD との差分モードの変更の一覧（`PrimaryFile.diff`、`PrimaryReply.changes`）は #19 で足した（これも項目の追加だけなので版は上げない。新しい shj が古い kisui に当たったときは、`changes` が返事に無いので、shj が自分の左に CHANGES を出す）。PR との差分モード（`Space g`）の一覧は #46 で足した：`PrimaryDiff.base`（`"pr"`。無いときは HEAD）と、返事の `PrimaryReply.changesPR`。shj は `changesPR` が返事にあるときだけ PR モードの一覧を送り、無ければ（古い kisui）今まで通り自分の左に出す。項目の追加だけなので版は上げない。その各ファイルの viewed の状態は #78 で足した `DiffFile.viewed`（bool。`base` が `"pr"` のときだけ入る。無ければ viewed でない。これも項目の追加だけなので版は上げない）。詳しい動きは [design/gui-protocol.md](design/gui-protocol.md) の「プライマリの shj」。
 
 ## shj → kisui の版
 
@@ -19,7 +19,7 @@ kisui-terminal（`kisui`）と、欄の中で動く shj は、版がずれるこ
 - `kisui` は受ける版の範囲（`server.MinPrimaryProtocol` 〜 `server.MaxPrimaryProtocol`）を持つ。今は 0〜1。
 - **版のない `PrimaryHello`（この版より前の shj）は版 0 として受ける。**
 - 範囲の外なら、`kisui` は名乗りを断る。返事は `{ok: false, error, code: "version", min, max}`（`min`・`max` は `kisui` が受ける範囲）。`ok: false` で接続を閉じるのは、ほかの断り方と同じ。
-- 断られた shj は、プライマリでない欄の shj と同じに動く（ツリーを出し、欄は内蔵のターミナルを使う）。状態行に「kisui-terminal と shj の版が合わない」と出す（`gui.protocol`）。
+- 断られた shj は、プライマリでないペインの shj と同じに動く（ツリーを出し、ペインは内蔵のターミナルを使う）。状態行に「kisui-terminal と shj の版が合わない」と出す（`gui.protocol`）。
 - 古い `kisui` は知らない項目を無視するので、新しい shj の名乗りは版を見ずに受けられる。そのため、版の範囲で守れるのは「新しい `kisui` が古い shj を断る」向きと「新しい shj が、範囲を知っている `kisui` に断られる」向きに限る。
 
 ### 版を上げる決まり

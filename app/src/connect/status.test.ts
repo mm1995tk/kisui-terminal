@@ -150,7 +150,7 @@ describe("新しい版への切り替え（#8）", () => {
     } as const;
     assert.deepEqual(handoverFailure("dev", st), {
       title: "dev の kisui を新しい版に切り替えられませんでした",
-      text: "古い版の kisui（0.7.0）のまま使い続けます。欄のシェルと画面はそのままです。",
+      text: "古い版の kisui（0.7.0）のまま使い続けます。ペインのシェルと画面はそのままです。",
       error: "rpc error -32603: exec format error",
     });
     assert.equal(

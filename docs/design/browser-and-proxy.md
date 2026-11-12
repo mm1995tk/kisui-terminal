@@ -2,7 +2,7 @@
 
 Issue #15 の検討結果。方式を決め、実装は個別の Issue に分ける。
 
-> **内蔵ブラウザ（ブラウザタブ）は #116 で外した。** GUI にはブラウザの欄を足したが（#556）、#96 で外した（末尾の「GUI の外部ブラウザ」）。TUI に残っているのはポート転送（`:browser forward`）と外部ブラウザ連携（`:open-url`）だけ。理由は末尾の「内蔵ブラウザを外した理由」。この文書の他の部分は、当時の検討の記録として残す。
+> **内蔵ブラウザ（ブラウザタブ）は #116 で外した。** GUI にはブラウザのペインを足したが（#556）、#96 で外した（末尾の「GUI の外部ブラウザ」）。TUI に残っているのはポート転送（`:browser forward`）と外部ブラウザ連携（`:open-url`）だけ。理由は末尾の「内蔵ブラウザを外した理由」。この文書の他の部分は、当時の検討の記録として残す。
 
 ## 結論
 
@@ -80,9 +80,9 @@ Chromium を shijimi と同じマシン（多くは SSH 先の VM）で動かし
 
 根本から直すには、ブラウザを手元のマシンで動かし、手元に中継プログラムを置いて端末への出力に画像を混ぜる必要がある（terminal-browser の `--ssh` と同じ形）。費用に見合わないため、ブラウザ機能を外し、ポート転送と手元のブラウザで見る形に戻した。
 
-## GUI の外部ブラウザ（#96。内蔵ブラウザの欄 #556 は外した）
+## GUI の外部ブラウザ（#96。内蔵ブラウザのペイン #556 は外した）
 
-GUI には #556 で、Tauri の子の webview でページを出す「ブラウザの欄」を足したが、#96 で外した。理由は次の通り。
+GUI には #556 で、Tauri の子の webview でページを出す「ブラウザのペイン」を足したが、#96 で外した。理由は次の通り。
 
 - 見づらく、操作感が良くない。
 - パスキー（WebAuthn）が使えない（macOS の WKWebView・Linux の WebKitGTK の制約）。
@@ -90,7 +90,7 @@ GUI には #556 で、Tauri の子の webview でページを出す「ブラウ�
 
 動画を小窓で観るのは Safari のピクチャー・イン・ピクチャーで済ませる。ページは手元の外部ブラウザ（OS 既定のブラウザ）で開く。Chromium（CEF）を中に入れることは、しない。
 
-- **開く入口は 3 つ**：shj の `:open-url`（`Space o`）、`kisui open <URL>`、ターミナルの URL のクリック（`cmd + click`・`cmd + shift + click`。macOS 以外は ctrl。どちらも同じ）。前の 2 つは `kisui serve` が GUI に `browser.open` を通知し（欄は作らない。gui-protocol.md の「ブラウザの URL を開く」）、クリックは GUI の中で済む。開くのは殻の `open_url_external`（`app/src-tauri/src/open_url.rs`）で、`open`（macOS）・`xdg-open`（それ以外）に URL を渡す。
+- **開く入口は 3 つ**：shj の `:open-url`（`Space o`）、`kisui open <URL>`、ターミナルの URL のクリック（`cmd + click`・`cmd + shift + click`。macOS 以外は ctrl。どちらも同じ）。前の 2 つは `kisui serve` が GUI に `browser.open` を通知し（ペインは作らない。gui-protocol.md の「ブラウザの URL を開く」）、クリックは GUI の中で済む。開くのは殻の `open_url_external`（`app/src-tauri/src/open_url.rs`）で、`open`（macOS）・`xdg-open`（それ以外）に URL を渡す。
 - **開いてよい URL**：http と https だけ。ユーザー名とパスワードを含むもの・制御文字を含むもの・長すぎるものは断る（`kisui serve` と殻の両方で確かめる）。
 - **リモートのマシンの `localhost`**：ワークスペースのマシンが ssh の先のとき、host が `localhost`・`127.0.0.1`・`[::1]`・`0.0.0.0`・`*.localhost` の URL は、手元の外部ブラウザでそのまま開くと手元の別のマシンに行ってしまう。そこで GUI が `ssh -N -L 127.0.0.1:<空きポート>:localhost:<ポート> <ホスト>` を張り（`ExitOnForwardFailure=yes`。質問は GUI の窓に出る askpass）、`http://127.0.0.1:<空きポート>/…` を開く。転送はマシンと URL のポートごとに 1 本で、生きていれば使い回し、GUI が終わるときに止める（ページを開いたあとも、タブが見続けられるように残す）。ほかの host は、手元から直接開く。
 - **絶対 URL の localhost**：ページの中のリンクやリダイレクトが絶対 URL の `http://localhost:…` を指すと、転送を通らない（今は対処しない）。

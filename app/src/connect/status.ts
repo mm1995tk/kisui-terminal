@@ -156,7 +156,7 @@ export function handoverFailure(
     title: `${label} の kisui を新しい版に切り替えられませんでした`,
     text:
       `古い版の kisui（${s.hello.shj.version}）のまま使い続けます。` +
-      "欄のシェルと画面はそのままです。",
+      "ペインのシェルと画面はそのままです。",
     error: s.handoverError,
   };
 }

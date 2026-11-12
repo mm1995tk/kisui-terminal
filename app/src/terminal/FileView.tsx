@@ -54,23 +54,23 @@ function Body(props: {
 }
 
 /**
- * 画像と PDF の欄。動画の欄（VideoView）と同じ升目・同じ見出しで、中身は media.read で取って（fileSource.ts）、
+ * 画像と PDF のペイン。動画のペイン（VideoView）と同じ升目・同じ見出しで、中身は media.read で取って（fileSource.ts）、
  * 画像は <img>、PDF は WebView の PDF 表示（<iframe>）で出す。種類を足すときは、Body に 1 つ足す。
- * WebView が PDF を表示できない環境（WebKitGTK など）では、iframe に渡さず、欄にその理由を出す。
+ * WebView が PDF を表示できない環境（WebKitGTK など）では、iframe に渡さず、ペインにその理由を出す。
  */
 export function FileView(props: {
   pane: ExtraPane;
-  /** 中身を取る関数（欄の id は束ねてある） */
+  /** 中身を取る関数（ペインの id は束ねてある） */
   read: MediaFetch;
   active?: boolean;
   hidden?: boolean;
-  /** 欄の位置（分割の木から決めた、親の中の left・top・width・height） */
+  /** ペインの位置（分割の木から決めた、親の中の left・top・width・height） */
   place?: Record<string, string>;
   onFocus?: () => void;
   onClose: () => void;
-  /** この欄にキーを向ける関数を受け取る（欄が無くなるとき undefined で呼ぶ） */
+  /** このペインにキーを向ける関数を受け取る（ペインが無くなるとき undefined で呼ぶ） */
   focusRef?: (focus: (() => void) | undefined) => void;
-  /** 画像の欄で Esc を押した（ターミナルへ戻る） */
+  /** 画像のペインで Esc を押した（ターミナルへ戻る） */
   onLeave?: () => void;
 }): JSX.Element {
   let cell!: HTMLDivElement;
@@ -81,7 +81,7 @@ export function FileView(props: {
   );
   props.focusRef?.(() => cell.focus());
   // PDF の iframe の中を押すと、フォーカスは中の文書に移り、親の focusin・pointerdown は来ない。window の blur で、
-  // iframe が新しいフォーカスの持ち主なら、この欄を今の欄にする（Cmd+W が、違う欄を閉じないように。#111）
+  // iframe が新しいフォーカスの持ち主なら、このペインを今のペインにする（Cmd+W が、違うペインを閉じないように。#111）
   const onWindowBlur = () => {
     if (props.pane.kind !== "pdf") return;
     if (
@@ -127,7 +127,7 @@ export function FileView(props: {
         <button
           type="button"
           class="video-close"
-          aria-label={`${label()}の欄を閉じる`}
+          aria-label={`${label()}のペインを閉じる`}
           title="閉じる"
           onClick={() => props.onClose()}
         >
