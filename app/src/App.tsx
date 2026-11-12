@@ -136,7 +136,7 @@ import {
   type Command,
   type RouterState,
 } from "./commands.ts";
-import { IS_MAC, isFocusLost } from "./guiKeys.ts";
+import { closeTarget, IS_MAC } from "./guiKeys.ts";
 import { KeyListDialog, openKeyList } from "./KeyListDialog.tsx";
 import { LeaderMenu, setLeaderPath } from "./LeaderMenu.tsx";
 import { loadScale, nextScale, saveScale, type ScaleAction } from "./scale.ts";
@@ -404,14 +404,13 @@ function Workbench(props: {
   const onGuiKey = (e: KeyboardEvent) => {
     // 隣へ移るのは、ターミナルを並べていて、キーがターミナルに向いているときだけ
     const card = mainEl?.querySelector(":scope > .terminal");
-    const inTerm = !!card?.contains(e.target as Node);
     const routed = route(router, e, {
       mac: IS_MAC,
       dialogOpen: !!document.querySelector("dialog[open]"),
       resizeMode: resizeMode(),
       // Cmd+W（Mac）は、キーがターミナルの欄（画像・動画・PDF の欄を含む）に向いているときか、どこにも向いていないときに、
       // 今の欄だけを閉じる。どちらでも、アプリの窓は閉じない（#83）
-      inPane: inTerm || isFocusLost(e.target),
+      inPane: closeTarget(e.target, card, !!termGroup()) === "pane",
     });
     setRouter(routed.state);
     if (routed.consume) {
@@ -467,6 +466,22 @@ function Workbench(props: {
         setAsks((a) => a.filter((x) => x.requestId !== id)),
       ),
     );
+    // Mac のメニューの「閉じる」（Cmd+W）。PDF の欄の中を押した後は、キーが画面に届かないので、ここで受ける（#111）。
+    // キーが画面に届くときは、onGuiKey が先に受けて止めるので、ここには来ない
+    if (api.onCloseRequest) {
+      offs.push(
+        await api.onCloseRequest(() => {
+          const card = mainEl?.querySelector(":scope > .terminal");
+          if (
+            closeTarget(document.activeElement, card, !!termGroup()) === "pane"
+          ) {
+            runCommand({ id: "pane.close" });
+          } else {
+            void api.windowClose?.();
+          }
+        }),
+      );
+    }
     // 質問の窓口を用意してから、「ローカル」と足したマシンにつなぐ
     for (const t of targets()) connect(t);
   });

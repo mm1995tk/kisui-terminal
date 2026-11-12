@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { isEditorKey, isFocusLost, isMac } from "./guiKeys.ts";
+import { closeTarget, isEditorKey, isFocusLost, isMac } from "./guiKeys.ts";
 
 describe("isFocusLost", () => {
   it("body・html・null は、どこにも向いていない", () => {
@@ -10,6 +10,25 @@ describe("isFocusLost", () => {
     assert.equal(isFocusLost(doc.documentElement, doc), true);
     assert.equal(isFocusLost(null, doc), true);
     assert.equal(isFocusLost({}, doc), false);
+  });
+});
+
+describe("closeTarget", () => {
+  const doc = { body: {}, documentElement: {} } as unknown as Document;
+  const inside = {};
+  const card = { contains: (n: unknown) => n === inside };
+  it("ターミナルの欄の中（PDF の iframe を含む）とどこにも向いていないときは、欄", () => {
+    assert.equal(closeTarget(inside, card, true, doc), "pane");
+    assert.equal(closeTarget(doc.body, card, true, doc), "pane");
+    assert.equal(closeTarget(null, null, true, doc), "pane");
+  });
+  it("欄の外（サイドバー・入力欄など）や、欄が無いときは、窓", () => {
+    assert.equal(closeTarget({}, card, true, doc), "window");
+    assert.equal(closeTarget({}, null, true, doc), "window");
+  });
+  it("欄を持つ画面が無いときは、どこにも向いていなくても窓", () => {
+    assert.equal(closeTarget(doc.body, card, false, doc), "window");
+    assert.equal(closeTarget(inside, card, false, doc), "window");
   });
 });
 

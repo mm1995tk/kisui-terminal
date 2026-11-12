@@ -8,6 +8,7 @@ mod config;
 mod connection;
 mod install;
 mod locate;
+mod menu;
 mod notify;
 mod open_url;
 mod ssh_config;
@@ -119,6 +120,11 @@ fn main() {
     #[cfg(feature = "updater")]
     let builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
     builder
+        .on_menu_event(|app, event| {
+            if event.id() == menu::CLOSE_ID {
+                menu::on_close(app);
+            }
+        })
         .manage(update::Updates::default())
         .manage(transfer::Transfers::default())
         .manage(open_url::Forwards::default())
@@ -130,6 +136,9 @@ fn main() {
             clipboard_history::start(app.handle());
             // 全体のキー（Option+Space・Alt+Space）で、履歴の小さな窓を出す（clipboard_popup.rs）
             clipboard_popup::start(app.handle());
+            // Mac の「閉じる」（Cmd+W）を、今の欄を閉じる動きに差し替える（menu.rs）
+            #[cfg(target_os = "macos")]
+            menu::install(app.handle())?;
             let askpass = AskpassServer::start(app.handle().clone())?;
             app.manage(AppState {
                 conns: Connections::default(),
@@ -147,6 +156,7 @@ fn main() {
             install_plan,
             install_remote,
             install_cancel,
+            menu::window_close,
             open_url::open_url_external,
             clipboard_history::clipboard_history_list,
             clipboard_popup::clipboard_popup_pick,

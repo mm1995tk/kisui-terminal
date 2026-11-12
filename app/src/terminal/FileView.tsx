@@ -80,6 +80,18 @@ export function FileView(props: {
     () => props.read,
   );
   props.focusRef?.(() => cell.focus());
+  // PDF の iframe の中を押すと、フォーカスは中の文書に移り、親の focusin・pointerdown は来ない。window の blur で、
+  // iframe が新しいフォーカスの持ち主なら、この欄を今の欄にする（Cmd+W が、違う欄を閉じないように。#111）
+  const onWindowBlur = () => {
+    if (props.pane.kind !== "pdf") return;
+    if (
+      cell.contains(document.activeElement) &&
+      document.activeElement?.tagName === "IFRAME"
+    )
+      props.onFocus?.();
+  };
+  window.addEventListener("blur", onWindowBlur);
+  onCleanup(() => window.removeEventListener("blur", onWindowBlur));
   onCleanup(() => props.focusRef?.(undefined));
   const ready = () => {
     const l = source.load();
