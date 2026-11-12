@@ -8,6 +8,7 @@ import {
   newEntryPath,
   parentPath,
   renamedPath,
+  shouldRestoreFocus,
 } from "./menu.ts";
 
 describe("menuItems", () => {
@@ -59,5 +60,35 @@ describe("パス", () => {
     assert.equal(renamedPath("a/b", "a/c"), "a/c");
     assert.equal(renamedPath("a/b", "a/b"), null);
     assert.equal(renamedPath("a/b", ""), null);
+  });
+});
+
+describe("shouldRestoreFocus（キーで開いたメニューを閉じたあと）", () => {
+  const body = {};
+  const row = (over = {}) => ({
+    isConnected: true,
+    matches: (s: string) => s === ".tree-row",
+    ...over,
+  });
+
+  it("Esc・項目の選択でフォーカスが body に落ちたら、行へ戻す", () => {
+    assert.equal(shouldRestoreFocus(row(), body, body), true);
+    assert.equal(shouldRestoreFocus(row(), null, body), true);
+  });
+
+  it("項目で窓が出た・外を押してほかにフォーカスが移ったときは戻さない", () => {
+    assert.equal(shouldRestoreFocus(row(), {}, body), false);
+  });
+
+  it("行が消えた・行でなかった・開く前にフォーカスが無かったときは戻さない", () => {
+    assert.equal(
+      shouldRestoreFocus(row({ isConnected: false }), body, body),
+      false,
+    );
+    assert.equal(
+      shouldRestoreFocus(row({ matches: () => false }), body, body),
+      false,
+    );
+    assert.equal(shouldRestoreFocus(null, body, body), false);
   });
 });

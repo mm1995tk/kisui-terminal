@@ -6,6 +6,7 @@ import { createMemo, createSignal, For, Show, type JSX } from "solid-js";
 
 import type { SessionState } from "../ssh/session.ts";
 import { ModalCard } from "./Card.tsx";
+import { listStep } from "../placeKeys.ts";
 import { filterCandidates } from "../ssh/machines.ts";
 import { stateLabel } from "./status.ts";
 
@@ -75,9 +76,16 @@ export function AddMachine(props: {
             }}
             onKeyDown={(e) => {
               if (e.isComposing) return;
-              if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+              // ↓ ↑ か Ctrl+J / Ctrl+K で候補を動かす（入力欄に字を打つので、j k は使えない）
+              const step =
+                e.key === "ArrowDown"
+                  ? 1
+                  : e.key === "ArrowUp"
+                    ? -1
+                    : listStep(e);
+              if (step !== 0) {
                 e.preventDefault();
-                move(e.key === "ArrowDown" ? 1 : -1);
+                move(step);
               } else if (e.key === "Enter") {
                 e.preventDefault();
                 const i = active();

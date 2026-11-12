@@ -97,6 +97,8 @@ Some of them also have a shortcut that does not go through the leader (the list 
 
 In an image pane (one opened with `kisui open --pane`, or from `shj`), these keys work while the pane has the focus (they are not in the leader; `?` lists them): `+` / `=` zoom in, `-` zoom out, `0` fit the pane again, `h` `j` `k` `l` or the arrow keys move the visible part while zoomed in, and `Esc` goes back to the terminal. With the mouse, `Ctrl` + the wheel or a pinch on the trackpad zooms (around the pointer), and dragging moves the image while zoomed in. They do not clash with the keys that change the size of the whole display (`Cmd+=` and the others), which carry a modifier.
 
+The file tree, the changes list and a video pane have keys of their own too, which work only while they have the focus. `?` there lists them (and `?` in the leader also lists the keys of the place that has the focus, above the leader's). In the file tree, `c` copies the name, `m` runs "move here" (cd in the terminal; folders only), and `.` or the Menu key opens the right-click menu on the selected row; these used to be in the right-click menu only. In the list in a dialog (the clipboard history, the candidates when you add a remote), `Ctrl+J` / `Ctrl+K` select the next / previous row, as `↓` `↑` do.
+
 ## Development
 
 Use the Nix devShell (Go, gopls, gomod2nix, git, Node.js, Rust, and on Linux the WebView libraries). With direnv, `.envrc` enters it automatically. Every command runs from the root of the repository: `go.mod` (`kisui`, the server), `package.json` (the web UI, sources in `app/`) and `Cargo.toml` (a workspace whose member is the Tauri shell, `app/src-tauri`) are all there.

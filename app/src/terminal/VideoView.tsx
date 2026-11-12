@@ -1,5 +1,6 @@
 import { createEffect, Match, onCleanup, Switch, type JSX } from "solid-js";
 
+import { openKeyList } from "../KeyListDialog.tsx";
 import type { ExtraPane } from "../rpc/protocol.ts";
 import { baseName, seekTo, videoKey, type MediaFetch } from "./media.ts";
 import { createFileSource } from "./fileSource.ts";
@@ -42,9 +43,17 @@ export function VideoView(props: {
   });
 
   const onKeyDown = (e: KeyboardEvent) => {
-    if (e.isComposing || !video) return;
+    if (e.isComposing) return;
     const k = videoKey(e);
     if (!k) return;
+    // キーの一覧は、動画を取っている間でも出す
+    if (k.kind === "help") {
+      e.preventDefault();
+      e.stopPropagation();
+      openKeyList("video");
+      return;
+    }
+    if (!video) return;
     e.preventDefault();
     e.stopPropagation();
     if (k.kind === "toggle") void (video.paused ? video.play() : video.pause());
@@ -59,6 +68,7 @@ export function VideoView(props: {
       hidden={props.hidden}
       style={props.place}
       tabindex="-1"
+      data-place="video"
       ref={cell}
       onFocusIn={() => props.onFocus?.()}
       onKeyDown={onKeyDown}

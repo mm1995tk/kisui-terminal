@@ -26,6 +26,7 @@ export function ChangeTreeRow(props: {
       data-kind={en().kind}
       data-letter={r()?.letter}
       data-key={en().key}
+      data-place="changes"
       // 差分を出しているファイルが、閉じたこのフォルダの中にある（space E でここに向ける）
       data-holds={en().holdsSelected ? "true" : undefined}
       style={{ "--changes-depth": String(en().depth) }}

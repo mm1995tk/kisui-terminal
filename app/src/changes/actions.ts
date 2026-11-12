@@ -1,5 +1,6 @@
 // CHANGES の行のキーの操作（keys.ts の ChangesAction）を行う。DOM の行は引数で受ける。
 
+import { openKeyList } from "../KeyListDialog.tsx";
 import type { ChangesAction } from "./keys.ts";
 import { moveIndex } from "./keys.ts";
 import type { ChangeEntry } from "./model.ts";
@@ -60,6 +61,9 @@ export function runChangesAction(
     case "leave":
       if (!ctx.onLeave) return false;
       ctx.onLeave();
+      return true;
+    case "help":
+      openKeyList("changes");
       return true;
   }
 }

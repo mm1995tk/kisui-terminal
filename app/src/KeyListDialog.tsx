@@ -5,14 +5,17 @@ import { createSignal, For, Show, type JSX } from "solid-js";
 import { helpRows, leaderKeyName } from "./commands.ts";
 import { ModalCard } from "./connect/Card.tsx";
 import { IS_MAC } from "./guiKeys.ts";
-import { IMAGE_KEY_ROWS } from "./terminal/imageView.ts";
+import { PLACE_KEYS, type Place } from "./placeKeys.ts";
 import styles from "./KeyListDialog.module.css";
 
 const [opened, setOpened] = createSignal(false);
-const [place, setPlace] = createSignal<"image" | undefined>();
+const [place, setPlace] = createSignal<Place | undefined>();
 
-/** 一覧を開く。first を渡すと、その場所のキーを先に出す（場所のキーの `?`。docs/key-design.md の 3.3）。 */
-export function openKeyList(first?: "image"): void {
+/**
+ * 一覧を開く。place を渡すと、その場所のキーを先に出す（場所のキーの `?`と、リーダーの `?` を押したときにフォーカスがある場所。
+ * docs/key-design.md の 3.3）。
+ */
+export function openKeyList(first?: Place): void {
   setPlace(first);
   setOpened(true);
 }
@@ -61,28 +64,28 @@ export function KeyListDialog(): JSX.Element {
               </tbody>
             </table>
           </section>
-          <section
-            class={styles.part}
-            classList={{ [styles.first]: place() === "image" }}
-          >
-            <h2 class={styles.subtitle}>画像のペインにフォーカスがあるとき</h2>
-            <p class={styles.lead}>
-              リーダーを通さず、そのペインの中だけで効きます。マウスでは、Ctrl
-              +ホイールかトラックパッドのピンチで拡大・縮小、拡大中にドラッグで動かせます。
-            </p>
-            <table class={styles.table}>
-              <tbody>
-                <For each={IMAGE_KEY_ROWS}>
-                  {(r) => (
-                    <tr>
-                      <td class={styles.keys}>{r.keys}</td>
-                      <td>{r.label}</td>
-                    </tr>
-                  )}
-                </For>
-              </tbody>
-            </table>
-          </section>
+          <Show when={place()}>
+            {(pl) => (
+              <section class={`${styles.part} ${styles.first}`}>
+                <h2 class={styles.subtitle}>{PLACE_KEYS[pl()].title}</h2>
+                <Show when={PLACE_KEYS[pl()].lead}>
+                  <p class={styles.lead}>{PLACE_KEYS[pl()].lead}</p>
+                </Show>
+                <table class={styles.table}>
+                  <tbody>
+                    <For each={PLACE_KEYS[pl()].rows}>
+                      {(r) => (
+                        <tr>
+                          <td class={styles.keys}>{r.keys}</td>
+                          <td>{r.label}</td>
+                        </tr>
+                      )}
+                    </For>
+                  </tbody>
+                </table>
+              </section>
+            )}
+          </Show>
           <p class={styles.outside}>
             {outside} は、kisui-terminal
             の外から、クリップボードの履歴の小さな窓を出します。

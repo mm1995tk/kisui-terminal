@@ -2,7 +2,11 @@
 // 開いたら最初の項目にキーを向ける。項目を選ぶ・メニューの外を押す・Esc・スクロール・窓が見えなくなる、のどれかで閉じる。
 import { For, onCleanup, onMount, type JSX } from "solid-js";
 
-import { treeMenuLabels, type TreeMenuAction } from "./menu.ts";
+import {
+  shouldRestoreFocus,
+  treeMenuLabels,
+  type TreeMenuAction,
+} from "./menu.ts";
 
 export function TreeMenu(props: {
   x: number;
@@ -15,6 +19,8 @@ export function TreeMenu(props: {
 }): JSX.Element {
   let el!: HTMLDivElement;
   onMount(() => {
+    // キー（. か Menu キー）で開いたとき、閉じたらその行にキーを戻す（ほかにフォーカスが移っていなければ）
+    const opener = document.activeElement as HTMLElement | null;
     const close = () => props.onClose();
     const down = (e: Event) => {
       if (!el.contains(e.target as Node)) close();
@@ -45,6 +51,10 @@ export function TreeMenu(props: {
     el.style.top = `${Math.max(0, Math.min(props.y, window.innerHeight - r.height))}px`;
     el.querySelector<HTMLElement>("[role=menuitem]:not(:disabled)")?.focus();
     onCleanup(() => {
+      setTimeout(() => {
+        if (shouldRestoreFocus(opener, document.activeElement, document.body))
+          opener?.focus({ preventScroll: true });
+      }, 0);
       window.removeEventListener("pointerdown", down, true);
       window.removeEventListener("contextmenu", down, true);
       window.removeEventListener("keydown", key);

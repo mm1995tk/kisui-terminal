@@ -38,6 +38,24 @@ export function menuItems(row: Pick<TreeRow, "dir">): TreeMenuAction[] {
     : [...common, "rename", "delete"];
 }
 
+/**
+ * メニューを閉じたあと、開く前にフォーカスがあった行へフォーカスを戻すか。戻すのは、その行がまだ画面にあり、
+ * ツリーの行で、フォーカスがどこにも無い（body）ときだけ。項目の動きで窓が出た（フォーカスが窓へ移った）ときと、
+ * メニューの外を押してほかの所にフォーカスが移ったときは戻さない。
+ */
+export function shouldRestoreFocus(
+  opener: { isConnected: boolean; matches: (s: string) => boolean } | null,
+  active: unknown,
+  body: unknown,
+): boolean {
+  return (
+    !!opener &&
+    opener.isConnected &&
+    opener.matches(".tree-row") &&
+    (active === body || active === null)
+  );
+}
+
 /** ルートのフォルダ（絶対パス）と、ルートからの相対パスをつなぐ。 */
 export function absolutePath(root: string, rel: string): string {
   if (rel === "") return root;

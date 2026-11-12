@@ -15,7 +15,11 @@ export type TreeKeyAction =
   /** ほかの行へフォーカスを移す */
   | { kind: "move"; to: TreeMove }
   /** 右クリックのメニューの項目と同じ（新規作成・名前の変更・削除・コピー） */
-  | { kind: "menu"; action: TreeMenuAction };
+  | { kind: "menu"; action: TreeMenuAction }
+  /** 右クリックのメニューを、この行で開く（. か Menu キー） */
+  | { kind: "contextmenu" }
+  /** この場所のキーの一覧を出す（?） */
+  | { kind: "help" };
 
 /** 押したキー（KeyboardEvent のうち使うところ）。 */
 export interface TreeKey {
@@ -33,7 +37,8 @@ export interface TreeKey {
  * - l（→）：閉じたフォルダは開く、ファイルは開く。h（←）：開いたフォルダは閉じる、ほかは親のフォルダへ。
  * - Enter・Space：行を押したのと同じ（フォルダの開閉・ファイルを開く）。
  * - a（n）で新しいファイル、A（N）で新しいフォルダ、r で名前の変更、d（Delete）で削除（確認を出す）。
- * - y で相対パス、Y で絶対パスをコピー。
+ * - y で相対パス、Y で絶対パス、c で名前をコピー。m で「ここへ移動」（フォルダの行だけ）。
+ * - . か Menu キーで、右クリックのメニューをこの行で開く。? でこの場所のキーの一覧。
  *
  * Ctrl・Cmd・Alt を押しながらのキーは使わない（窓全体のショートカットに残す）。
  */
@@ -85,6 +90,15 @@ export function treeKey(
       return menu("copy-relative");
     case "Y":
       return menu("copy-absolute");
+    case "c":
+      return menu("copy-name");
+    case "m":
+      return row.dir ? menu("cd") : null;
+    case ".":
+    case "ContextMenu":
+      return { kind: "contextmenu" };
+    case "?":
+      return { kind: "help" };
   }
   const a = rowAction(row, e.key);
   return a ? { kind: "row", action: a } : null;

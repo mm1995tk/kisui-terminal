@@ -138,6 +138,7 @@ import {
 } from "./commands.ts";
 import { closeTarget, IS_MAC } from "./guiKeys.ts";
 import { KeyListDialog, openKeyList } from "./KeyListDialog.tsx";
+import { placeOf } from "./placeKeys.ts";
 import { LeaderMenu, setLeaderPath } from "./LeaderMenu.tsx";
 import { loadScale, nextScale, saveScale, type ScaleAction } from "./scale.ts";
 import { applyScale } from "./scaleOs.ts";
@@ -1348,7 +1349,8 @@ function Workbench(props: {
         focusLastNotified();
         break;
       case "help.keys":
-        openKeyList();
+        // フォーカスがある場所（ツリー・変更一覧・動画・画像）のキーも出す
+        openKeyList(placeOf(document.activeElement));
         break;
     }
   }
