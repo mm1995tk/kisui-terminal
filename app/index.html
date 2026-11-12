@@ -1,11 +1,12 @@
 <!doctype html>
-<html lang="ja">
+<html lang="ja" style="background: #0d1117; color-scheme: dark">
   <head>
+    <!-- html / body のインラインの背景は、CSS（theme.css）の読み込み前に WebView の既定の白が見えるのを防ぐため。CSS に寄せない。値は app/src/startupBackground.test.ts が theme.css などと同じか確かめる -->
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>kisui-terminal</title>
   </head>
-  <body>
+  <body style="background: #0d1117">
     <div id="root"></div>
     <script type="module" src="/src/index.tsx"></script>
   </body>

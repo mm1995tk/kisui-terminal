@@ -14,7 +14,9 @@
         "title": "kisui-terminal",
         "width": 1200,
         "height": 800,
-        "dragDropEnabled": false
+        "dragDropEnabled": false,
+        "backgroundColor": "#0d1117",
+        "theme": "Dark"
       }
     ],
     "security": { "csp": null }

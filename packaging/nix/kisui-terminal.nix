@@ -31,6 +31,8 @@ let
       ../../vite.config.ts
       ../../app/index.html
       ../../app/src
+      # startupBackground.test.ts が窓の背景色を読む
+      ../../app/src-tauri/tauri.conf.json
     ];
   };
   shellSrc = fs.toSource {

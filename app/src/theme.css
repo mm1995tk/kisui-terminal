@@ -2,7 +2,7 @@
    元は shijimi-editor の core/theme.go の GithubDark。shj と kisui で同じ色に見えるようにそろえる。
    端末の背景・文字・16 色は terminal/theme.ts（xterm 風の canvas は CSS の変数を読めないため別に持つ）。 */
 :root {
-  --gh-bg: #0d1117; /* エディタ・端末の地 */
+  --gh-bg: #0d1117; /* エディタ・端末の地。tauri.conf.json の backgroundColor と index.html にも同じ値 */
   --gh-bg-side: #010409; /* サイドバー */
   --gh-bg-raised: #161b22; /* 帯・カード・パレット */
   --gh-bg-hover: #21262d;
