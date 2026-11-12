@@ -47,12 +47,16 @@ export function VideoView(props: {
     const k = videoKey(e);
     if (!k) return;
     // キーの一覧は、動画を取っている間でも出す
-    if (!video && k.kind !== "help") return;
+    if (k.kind === "help") {
+      e.preventDefault();
+      e.stopPropagation();
+      openKeyList("video");
+      return;
+    }
+    if (!video) return;
     e.preventDefault();
     e.stopPropagation();
-    if (k.kind === "help") openKeyList("video");
-    else if (!video) return;
-    else if (k.kind === "toggle")
+    if (k.kind === "toggle")
       void (video.paused ? video.play() : video.pause());
     else if (k.kind === "mute") video.muted = !video.muted;
     else video.currentTime = seekTo(video.currentTime, k.dt, video.duration);
