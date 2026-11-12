@@ -30,7 +30,8 @@ export function ModalCard(props: {
     document.activeElement instanceof HTMLElement
       ? document.activeElement
       : null;
-  // keydown で onCancel を呼んだ直後に cancel が来ても、二重に呼ばない
+  // keydown で onCancel を呼んだ直後に cancel が来ても、二重に呼ばない。
+  // keydown の既定動作（cancel）はマイクロタスクより後なので、戻すのは setTimeout で次のタスクまで待つ
   let handled = false;
   onMount(() => {
     // 取れない WebView では開いたまま（open）の素の窓になる
@@ -54,7 +55,7 @@ export function ModalCard(props: {
         if (!isCancelKey(e)) return;
         e.preventDefault();
         handled = true;
-        queueMicrotask(() => (handled = false));
+        setTimeout(() => (handled = false), 0);
         props.onCancel();
       }}
       onCancel={(e) => {
