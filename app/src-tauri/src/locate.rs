@@ -195,21 +195,28 @@ fn libexec_shj_dir(exe: &Path) -> Option<PathBuf> {
 /// 配った kisui の名前。nightly でも同じ（Tauri が `externalBin` の名前から作る）。
 const KISUI: &str = if cfg!(windows) { "kisui.exe" } else { "kisui" };
 
-/// 「ローカル」の kisui を起動するコマンド（引数はまだ付けない）。
-/// `SHIJIMI_KISUI` があればそれを使う（開発用）。無ければ GUI と一緒に配った kisui。
-/// 見つからなければ、あるはずの場所のまま（起動に失敗し、画面は「つなげませんでした」にその場所を出す）。
-/// GUI と kisui の版が違えば `session.hello` で分かる。
-pub fn local_kisui_command() -> Command {
+/// 子プロセス（ローカルの `kisui`、ssh）に渡す PATH。ログインシェルの PATH・GUI の PATH・よく使う場所の順に重ねる。
+/// Dock や Finder から起動した macOS のアプリの PATH は短いので、ssh の `ProxyCommand` や `Match exec` に書いた
+/// コマンド（Homebrew や Nix にあるもの）も、これを渡さないと見つからない。ログインシェルへの問い合わせは初めの 1 回だけ。
+pub fn launch_path() -> OsString {
     let home = std::env::var("HOME").ok();
     let user = std::env::var("USER").ok();
     let gui_path = std::env::var_os("PATH");
-    let path = merge_paths(
+    merge_paths(
         login_shell_path()
             .map(OsString::as_os_str)
             .into_iter()
             .chain(gui_path.as_deref()),
         &expand_common_dirs(home.as_deref(), user.as_deref()),
-    );
+    )
+}
+
+/// 「ローカル」の kisui を起動するコマンド（引数はまだ付けない）。
+/// `SHIJIMI_KISUI` があればそれを使う（開発用）。無ければ GUI と一緒に配った kisui。
+/// 見つからなければ、あるはずの場所のまま（起動に失敗し、画面は「つなげませんでした」にその場所を出す）。
+/// GUI と kisui の版が違えば `session.hello` で分かる。
+pub fn local_kisui_command() -> Command {
+    let path = launch_path();
     let exe = std::env::current_exe().ok();
     let kisui = std::env::var_os("SHIJIMI_KISUI")
         .or_else(|| {
@@ -342,6 +349,19 @@ mod tests {
         assert!(!d.contains(&PathBuf::from("/.nix-profile/bin")));
         assert!(!d.contains(&PathBuf::from("/etc/profiles/per-user//bin")));
         assert!(d.contains(&PathBuf::from("/run/current-system/sw/bin")));
+    }
+
+    /// ssh に渡す PATH は、GUI の PATH を残したうえで、よく使う場所（Homebrew など）を足したもの。
+    #[test]
+    fn launch_path_extends_the_gui_path() {
+        let dirs: Vec<PathBuf> = std::env::split_paths(&launch_path()).collect();
+        assert!(dirs.contains(&PathBuf::from("/opt/homebrew/bin")));
+        assert!(dirs.contains(&PathBuf::from("/usr/local/bin")));
+        if let Some(gui) = std::env::var_os("PATH") {
+            for d in std::env::split_paths(&gui).filter(|d| !d.as_os_str().is_empty()) {
+                assert!(dirs.contains(&d), "{d:?} missing");
+            }
+        }
     }
 
     #[test]

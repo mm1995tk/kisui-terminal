@@ -81,10 +81,12 @@ pub fn ssh_command(
     Ok(c)
 }
 
-/// ssh に askpass の環境変数を付ける（質問を GUI の窓に出させる）。
+/// ssh に askpass の環境変数と PATH を付ける（質問を GUI の窓に出させる）。
+/// PATH は `~/.ssh/config` の `ProxyCommand` や `Match exec` のコマンドを見つけられるよう、ログインシェルのものを足す（`locate::launch_path`）。
 fn with_askpass(c: &mut Command, ask: &AskpassServer, id: &str) -> Result<(), String> {
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
-    c.env("SSH_ASKPASS", exe)
+    c.env("PATH", locate::launch_path())
+        .env("SSH_ASKPASS", exe)
         // DISPLAY が無くても、端末が無くても askpass を使わせる（OpenSSH 8.4 以降）
         .env("SSH_ASKPASS_REQUIRE", "force")
         .env(askpass::ENV_SOCK, &ask.sock)
