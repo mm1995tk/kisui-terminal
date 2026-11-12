@@ -1,6 +1,6 @@
 package server
 
-// プライマリの shj が端末のコマンド（Ctrl+`・:sh・:run など）に使う欄。設計は docs/design/gui-protocol.md の「プライマリの shj の欄」。
+// プライマリの shj が端末のコマンド（Ctrl+`・:sh・:run など）に使う欄。設計は docs/design/gui-protocol.md の「プライマリの shj のペイン」。
 //
 // 欄は同じワークスペースの分割したターミナルで、kisui serve が term.create と同じように始める。頼むのは
 // プライマリとして名乗った shj（ctl.PaneRequest。名乗りとは別の接続で 1 回ごと）。見せる・隠すは GUI の状態なので、

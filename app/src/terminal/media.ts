@@ -1,4 +1,4 @@
-// 動画・画像・PDF の欄の中身を取る（#555）。設計書 docs/design/gui-protocol.md の「ターミナルでない欄」。
+// 動画・画像・PDF の欄の中身を取る（#555）。設計書 docs/design/gui-protocol.md の「ターミナルでないペイン」。
 //
 // ssh の向こうにある動画も、shj との同じ接続の上で media.read を繰り返して取る（1 回で 4 MiB まで）。
 // WebView の <video> に範囲を指して渡す道（Tauri の独自のスキーム）は無いので、全部取って Blob にして渡す。

@@ -1,6 +1,6 @@
 package server
 
-// 欄の中のコマンド（kisui open など）の頼み。設計は docs/design/gui-protocol.md の「欄の中のコマンド」。
+// 欄の中のコマンド（kisui open など）の頼み。設計は docs/design/gui-protocol.md の「ペインの中のコマンド」。
 //
 // kisui serve は、始めるどのターミナルにも、serve-primary.rpc の場所・ターミナルの id・そのターミナルだけの秘密を
 // 環境変数で渡す（panecmd）。コマンドは serve-primary.rpc に 1 行の panecmd.Request を送り、1 行の panecmd.Reply を受ける。

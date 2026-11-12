@@ -1,6 +1,6 @@
 package server
 
-// 欄の配置（分割の木）。設計は docs/design/gui-protocol.md の「欄の配置」。
+// 欄の配置（分割の木）。設計は docs/design/gui-protocol.md の「ペインの配置」。
 //
 // ワークスペースの欄（プライマリ・分割したターミナル・ターミナルでない欄）は 1 本の木に入る。葉が欄で、
 // 内側の節は「右に分ける（Dir == "right"。A が左、B が右。境界は縦）」か「下に分ける（Dir == "down"。
