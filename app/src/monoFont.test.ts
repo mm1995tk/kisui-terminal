@@ -16,5 +16,6 @@ test("theme.css の --gh-mono は MONO_FONT_FAMILY と同じ並び", () => {
       .map((f) => f.trim().replace(/^["']|["']$/g, ""))
       .join(",");
   assert.equal(norm(v), norm(MONO_FONT_FAMILY));
+  // Symbols Nerd Font Mono が JetBrains Mono のすぐ次に無いと、私用領域の字（プロンプトの U+E0A0 など）が OS の代わりの字で出て豆腐になる
   assert.ok(norm(v).startsWith("JetBrains Mono,Symbols Nerd Font Mono,"));
 });
