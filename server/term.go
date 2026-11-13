@@ -252,14 +252,15 @@ func (m *termManager) start(a termStart) (*terminal, error) {
 		panecmd.EnvSocket+"="+m.srv.primarySocketPath(),
 		panecmd.EnvPane+"="+fmt.Sprintf("t%d", m.next+1),
 		panecmd.EnvToken+"="+token)
-	env = withKisuiPath(env)
 	// PTY の起動は ui/internal/term と同じ（TUI のターミナルも使う）。読み出しと流量制御はここで持つ。
 	// 欄の中の shj は、kisui と一緒に配った shj を先に使う（PATH の先頭に足し、起動ファイルのあとにも入れ直す）
+	dirs := lookupPaneDirs()
 	var args []string
 	if len(a.argv) > 0 {
 		sh, args = a.argv[0], a.argv[1:]
+		env = withKisuiPath(env, dirs)
 	} else {
-		args, env = bundledShell(sh, env)
+		args, env = bundledShellWith(sh, env, dirs)
 	}
 	sess, err := term.Start(term.Options{Shell: sh, Args: args, Dir: a.dir, Env: env, Cols: a.cols, Rows: a.rows})
 	if err != nil {

@@ -27,7 +27,7 @@ var shellInit embed.FS
 
 // bundledShell は、ターミナルで起動するシェル sh の引数と環境変数を返す。
 //
-// PATH の先頭に 2 つのフォルダを足す。
+// PATH の先頭に 2 つのフォルダを足す（その後ろに kisui のフォルダも足す。withKisuiPath）。
 //   - pbcopy・pbpaste（kisui clipboard copy / paste を呼ぶ小さなスクリプト）を書き出したフォルダ。
 //     シェルの alias でなく実行ファイルにするのは、スクリプトの中から呼ばれても動くように。
 //   - 版によらないフォルダ（current.go）。今の版の shj と kisui へのリンクを置く。
@@ -40,28 +40,27 @@ var shellInit embed.FS
 // ユーザーの起動ファイルは書き換えず、今まで通り読まれる。
 // 対応しないシェル（sh など）や、包みを書き出せないときは、PATH に足すだけ。
 func bundledShell(sh string, env []string) (args, outEnv []string) {
+	return bundledShellWith(sh, env, lookupPaneDirs())
+}
+
+// bundledShellWith は bundledShell の、kisui と shj の場所（lookupPaneDirs）を受け取るもの。
+// 版によらないフォルダを使えるなら、版を上げて serve が引き継いだあとも、このシェルの shj・pbcopy・pbpaste は
+// 今の版の shj と kisui を起動する（古い版のフォルダが消されても動く）。
+func bundledShellWith(sh string, env []string, d paneDirs) (args, outEnv []string) {
 	root, werr := writeShellInit()
 	var dirs []string // 包みに渡す、PATH の先頭に入れ直すフォルダ
+	env = withKisuiPath(env, d)
 	if werr == nil {
 		bin := filepath.Join(root, "bin")
 		env = prependPath(env, bin)
 		dirs = append(dirs, envBinPathDir+"="+bin)
 	}
-	if cur, err := pointCurrent(); err == nil && cur != "" {
-		// 版によらないフォルダ（current.go）。版を上げて serve が引き継いだあとも、このシェルの shj・pbcopy・pbpaste は
-		// 今の版の shj と kisui を起動する。古い版のフォルダが消されても動く。
-		env = prependPath(env, cur)
-		dirs = append(dirs, envShjPathDir+"="+cur)
-		env = append(slices.Clone(env), envKisuiExe+"="+filepath.Join(cur, currentLinkKisui))
-	} else {
-		// 版によらないフォルダを使えないとき（ほかのユーザーが書き換えられる場所にあるなど）は、版ごとのフォルダを渡す
-		if dir := bundledShjDir(); dir != "" {
-			env = prependPath(env, dir)
-			dirs = append(dirs, envShjPathDir+"="+dir)
-		}
-		if exe := kisuiExecutable(); exe != "" {
-			env = append(slices.Clone(env), envKisuiExe+"="+exe)
-		}
+	if d.shjDir != "" {
+		env = prependPath(env, d.shjDir)
+		dirs = append(dirs, envShjPathDir+"="+d.shjDir)
+	}
+	if d.kisuiExe != "" {
+		env = append(slices.Clone(env), envKisuiExe+"="+d.kisuiExe)
 	}
 	if len(dirs) == 0 {
 		return nil, env

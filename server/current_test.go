@@ -134,11 +134,11 @@ func TestWithKisuiPathUsesCurrent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if p := pathOf(withKisuiPath(nil)); p != cur+":/usr/bin:/bin" {
+	if p := pathOf(withKisuiPath(nil, lookupPaneDirs())); p != cur+":/usr/bin:/bin" {
 		t.Fatalf("PATH = %q", p)
 	}
 	// bundledShell がもう一度足しても、PATH に 2 回は入らない
-	_, env := bundledShell("/bin/sh", withKisuiPath(nil))
+	_, env := bundledShell("/bin/sh", withKisuiPath(nil, lookupPaneDirs()))
 	if p := pathOf(env); strings.Count(p, cur) != 1 {
 		t.Fatalf("PATH = %q", p)
 	}
