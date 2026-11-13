@@ -1701,11 +1701,18 @@ function Workbench(props: {
     const r = renamingWs();
     if (!r) return;
     const s = sessions()[r.target];
+    let failed: string | undefined;
     try {
       if (!s) throw new Error(`${labelOf(r.target)} につながっていません`);
       await s.renameWorkspace(r.id, name);
     } catch (e) {
-      setWsRenameError(renameErrorText(e));
+      failed = renameErrorText(e);
+    }
+    // 返事を待つ間に、外を押してやめた・別の帯を開いたなら、その後の画面とフォーカスには触らない
+    const now = renamingWs();
+    if (!now || now.target !== r.target || now.id !== r.id) return;
+    if (failed !== undefined) {
+      setWsRenameError(failed);
       return;
     }
     setRenamingWs(null);
