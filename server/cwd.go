@@ -135,12 +135,12 @@ func readRef(gitDir, ref string) string {
 	return ""
 }
 
-// packedRefsCache は packed-refs を読んだ結果（ref -> コミット）を、ファイルの mtime・大きさ・ファイル（inode）が変わるまで取っておく。git は packed-refs を lock ファイルからの rename で書き換えるので、inode も見れば、mtime が粗いファイルシステムで同じ時刻に 2 回書き換えられても読み直せる。
-// 閉じたワークスペースの分が溜まり続けないよう、packedRefsMax 件を超えたら捨てて読み直す。
-// buildWorkspaces は 1 秒ごとに呼ばれ、packed-refs は大きいことがあるため。
 // packedRefsMax は packedRefsCache に取っておくファイルの数の上限。
 const packedRefsMax = 64
 
+// packedRefsCache は packed-refs を読んだ結果（ref -> コミット）を、ファイルの mtime・大きさ・ファイル（inode）が変わるまで取っておく。git は packed-refs を lock ファイルからの rename で書き換えるので、inode も見れば、mtime が粗いファイルシステムで同じ時刻に 2 回書き換えられても読み直せる。
+// 閉じたワークスペースの分が溜まり続けないよう、packedRefsMax 件を超えたら捨てて読み直す。
+// buildWorkspaces は 1 秒ごとに呼ばれ、packed-refs は大きいことがあるため。
 var packedRefsCache struct {
 	sync.Mutex
 	by map[string]packedRefs
