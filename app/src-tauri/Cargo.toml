@@ -1,6 +1,6 @@
 [package]
 name = "kisui-terminal"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 license = "MIT"
 description = "kisui-terminal (Tauri shell), the terminal-centered workspace that works closely with shijimi-editor"
