@@ -504,7 +504,7 @@ function BandItem(
   const b = () => props.band;
   return (
     <li>
-      {/* 帯は行にして、中の 2 つのボタン（フォーカスを移す・閉じる）を並べる（ボタンの中にボタンは置けない） */}
+      {/* カードの中は行にして、2 つのボタン（フォーカスを移す・閉じる）を並べる（ボタンの中にボタンは置けない） */}
       <div class="band-slot" data-sticky={b().focused ? "top" : undefined}>
         <div
           class="band"
