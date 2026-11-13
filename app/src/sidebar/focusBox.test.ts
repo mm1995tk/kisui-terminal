@@ -33,3 +33,9 @@ test("固定した帯の見出しの背景は箱と同じ色", () => {
     /background: var\(--focus-box-bg\)/,
   );
 });
+
+test("箱は overflow: clip で中身を角に切り取る（hidden / auto は sticky を壊す）", () => {
+  const box = rule(".band-item[data-focused]");
+  assert.match(box, /overflow: clip;/);
+  assert.doesNotMatch(box, /overflow: (hidden|auto|scroll)/);
+});
