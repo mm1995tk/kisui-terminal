@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 )
 
 // findRoot は cwd から親へたどってワークスペースのルートを決める。
@@ -127,18 +129,53 @@ func readRef(gitDir, ref string) string {
 		}
 	}
 	for _, d := range dirs {
-		b, err := os.ReadFile(filepath.Join(d, "packed-refs"))
-		if err != nil {
-			continue
-		}
-		for l := range strings.SplitSeq(string(b), "\n") {
-			// "<sha> <ref>"。"#" 始まり（ヘッダ）と "^" 始まり（タグの指す先）は読まない。
-			if sha, name, ok := strings.Cut(strings.TrimSpace(l), " "); ok && name == ref && !strings.HasPrefix(sha, "#") && !strings.HasPrefix(sha, "^") {
-				return sha
-			}
+		if sha := packedRef(filepath.Join(d, "packed-refs"), ref); sha != "" {
+			return sha
 		}
 	}
 	return ""
+}
+
+// packedRefsCache は packed-refs を読んだ結果（ref -> コミット）を、ファイルの mtime と大きさが変わるまで取っておく。
+// buildWorkspaces は 1 秒ごとに呼ばれ、packed-refs は大きいことがあるため。
+var packedRefsCache struct {
+	sync.Mutex
+	by map[string]packedRefs
+}
+
+type packedRefs struct {
+	mod  time.Time
+	size int64
+	refs map[string]string
+}
+
+// packedRef は packed-refs の file から ref のコミットを探す。無ければ ""。
+func packedRef(file, ref string) string {
+	fi, err := os.Stat(file)
+	if err != nil {
+		return ""
+	}
+	packedRefsCache.Lock()
+	defer packedRefsCache.Unlock()
+	if c, ok := packedRefsCache.by[file]; ok && c.mod.Equal(fi.ModTime()) && c.size == fi.Size() {
+		return c.refs[ref]
+	}
+	b, err := os.ReadFile(file)
+	if err != nil {
+		return ""
+	}
+	refs := map[string]string{}
+	for l := range strings.SplitSeq(string(b), "\n") {
+		// "<sha> <ref>"。"#" 始まり（ヘッダ）と "^" 始まり（タグの指す先）は読まない。
+		if sha, name, ok := strings.Cut(strings.TrimSpace(l), " "); ok && !strings.HasPrefix(sha, "#") && !strings.HasPrefix(sha, "^") {
+			refs[name] = sha
+		}
+	}
+	if packedRefsCache.by == nil {
+		packedRefsCache.by = map[string]packedRefs{}
+	}
+	packedRefsCache.by[file] = packedRefs{fi.ModTime(), fi.Size(), refs}
+	return refs[ref]
 }
 
 func shortSHA(s string) string {
