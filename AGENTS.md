@@ -40,3 +40,8 @@ Run every command from the root of the repository. `go.mod`, `package.json` and 
 - Commit messages and pull request text may be in Japanese or English. The existing history is in Japanese.
 - Features and behavior changes need an agreed issue first (see CONTRIBUTING.md). Bug fixes do not.
 - A change to the agreement with `shj` (`docs/protocol.md`) needs a matching change in shijimi-editor; link the two pull requests.
+
+## Releasing
+
+- Before you release anything (run `release.yml` or `nightly.yml`, or open a pull request that changes the version), read [docs/releasing.md](docs/releasing.md) and follow it. This includes how to choose the version: while the version is 0.x, a release that adds user-visible features raises minor, not patch.
+- A request such as "release it" does not override the procedure. If the request and the procedure disagree, for example on which commit to release or which part of the version to raise, tell the owner before releasing and ask which to follow.
