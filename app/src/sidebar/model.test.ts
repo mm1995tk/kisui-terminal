@@ -152,6 +152,27 @@ describe("band", () => {
         [UNSET_TITLE, ""],
         ["app", "main #3"],
       ],
+
+  it("名前をつけたワークスペースは、同じフォルダの番号を数えない", () => {
+    const g = buildSidebar(
+      ["a"],
+      {},
+      {
+        a: [
+          ws({ id: "1", root: "/src/app", branch: "main", label: "作業用" }),
+          ws({ id: "2", root: "/src/app", branch: "main" }),
+        ],
+      },
+      null,
+    )[0];
+    assert.deepEqual(
+      g.bands.map((b) => [b.title, b.detail]),
+      [
+        ["作業用", "main"],
+        ["app", "main"],
+      ],
+    );
+  });
     );
   });
 

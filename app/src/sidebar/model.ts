@@ -146,7 +146,7 @@ export function buildSidebar(
     const ws = workspaces[target] ?? [];
     const seen = new Map<string, number>();
     const nth = ws.map((w) => {
-      if (w.folder === null) return 1;
+      if (w.folder === null || w.label) return 1; // 名前をつけたものは、番号を数えない（帯にも付けない）
       const n = (seen.get(w.folder) ?? 0) + 1;
       seen.set(w.folder, n);
       return n;
