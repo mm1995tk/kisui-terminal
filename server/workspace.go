@@ -597,42 +597,13 @@ func (ss *session) workspaceRequest(req *rpc.Message) (res any, err error, handl
 		}
 		return map[string]any{"id": id, "termId": termID}, nil, true
 	}
-	if req.Method == "layout.resize" {
-		var lp struct {
-			WorkspaceID string   `json:"workspaceId"`
-			Pane        string   `json:"pane"`
-			Ratio       *float64 `json:"ratio"`
-		}
-		if err := json.Unmarshal(req.Params, &lp); err != nil || lp.Ratio == nil || lp.Pane == "" {
-			return nil, rpc.Errorf(rpc.CodeInvalidParams, "workspaceId, pane and ratio are required"), true
-		}
-		r, err := w.resizeBorder(lp.WorkspaceID, lp.Pane, *lp.Ratio)
-		switch {
-		case err == nil:
-			return map[string]any{"ratio": r}, nil, true
-		case errors.Is(err, errNoWorkspace), errors.Is(err, errNoBorder):
-			return nil, rpc.Errorf(rpc.CodeNotFound, "%v", err), true
-		case errors.Is(err, errTooSmall):
-			return nil, rpc.Errorf(rpc.CodeBusy, "%v", err), true
-		}
-		return nil, rpc.Errorf(rpc.CodeInvalidParams, "%v", err), true
-	}
-	if req.Method == "layout.swap" {
-		var sp struct {
-			WorkspaceID string `json:"workspaceId"`
-			Pane        string `json:"pane"`
-			Other       string `json:"other"`
-		}
-		if err := json.Unmarshal(req.Params, &sp); err != nil || sp.Pane == "" || sp.Other == "" || sp.Pane == sp.Other {
-			return nil, rpc.Errorf(rpc.CodeInvalidParams, "workspaceId, pane and other (a different pane) are required"), true
-		}
-		switch err := w.swapPanes(sp.WorkspaceID, sp.Pane, sp.Other); {
-		case err == nil:
-			return struct{}{}, nil, true
-		case errors.Is(err, errNoWorkspace), errors.Is(err, errNoPane):
-			return nil, rpc.Errorf(rpc.CodeNotFound, "%v", err), true
-		}
-		return nil, rpc.Errorf(rpc.CodeInvalidParams, "%v", err), true
+	switch req.Method {
+	case "layout.resize":
+		res, err := ss.layoutResize(req)
+		return res, err, true
+	case "layout.swap":
+		res, err := ss.layoutSwapRequest(req)
+		return res, err, true
 	}
 	if req.Method == "workspace.rename" {
 		var rp struct {
@@ -686,4 +657,46 @@ func shjEq(a, b *primaryShj) bool {
 		return a == b
 	}
 	return a.Socket == b.Socket && a.PID == b.PID && a.File == b.File && diffEq(a.Diff, b.Diff) && a.wsID == b.wsID
+}
+
+// layoutResize は layout.resize（境界の割合を変える）。
+func (ss *session) layoutResize(req *rpc.Message) (any, error) {
+	var lp struct {
+		WorkspaceID string   `json:"workspaceId"`
+		Pane        string   `json:"pane"`
+		Ratio       *float64 `json:"ratio"`
+	}
+	if err := json.Unmarshal(req.Params, &lp); err != nil || lp.Ratio == nil || lp.Pane == "" {
+		return nil, rpc.Errorf(rpc.CodeInvalidParams, "workspaceId, pane and ratio are required")
+	}
+	r, err := ss.srv.ws.resizeBorder(lp.WorkspaceID, lp.Pane, *lp.Ratio)
+	switch {
+	case err == nil:
+		return map[string]any{"ratio": r}, nil
+	case errors.Is(err, errNoWorkspace), errors.Is(err, errNoBorder):
+		return nil, rpc.Errorf(rpc.CodeNotFound, "%v", err)
+	case errors.Is(err, errTooSmall):
+		return nil, rpc.Errorf(rpc.CodeBusy, "%v", err)
+	}
+	return nil, rpc.Errorf(rpc.CodeInvalidParams, "%v", err)
+}
+
+// layoutSwapRequest は layout.swap（2 つのペインの場所を入れ替える）。
+func (ss *session) layoutSwapRequest(req *rpc.Message) (any, error) {
+	var sp struct {
+		WorkspaceID string `json:"workspaceId"`
+		Pane        string `json:"pane"`
+		Other       string `json:"other"`
+	}
+	if err := json.Unmarshal(req.Params, &sp); err != nil || sp.Pane == "" || sp.Other == "" || sp.Pane == sp.Other {
+		return nil, rpc.Errorf(rpc.CodeInvalidParams, "workspaceId, pane and other (a different pane) are required")
+	}
+	err := ss.srv.ws.swapPanes(sp.WorkspaceID, sp.Pane, sp.Other)
+	switch {
+	case err == nil:
+		return struct{}{}, nil
+	case errors.Is(err, errNoWorkspace), errors.Is(err, errNoPane):
+		return nil, rpc.Errorf(rpc.CodeNotFound, "%v", err)
+	}
+	return nil, rpc.Errorf(rpc.CodeInvalidParams, "%v", err)
 }
