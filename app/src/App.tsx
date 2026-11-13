@@ -87,6 +87,7 @@ import {
   adoptFocus,
   buildSidebar,
   keepFocus,
+  shouldSendMoveTo,
   type WorkspaceFocus,
   stepFrom,
   stepMachine,
@@ -765,6 +766,7 @@ function Workbench(props: {
     // 移り先が無いとき（フォーカスしていないものを閉じる）は、先に閉じ始めたものの移り先を消さない
     const moveTo = wasFocused && next ? { target, id: next.id } : null;
     if (moveTo) closingNext = moveTo;
+    const seqAtClose = focusSeq;
     try {
       await s.closeWorkspace(id, force);
     } catch (e) {
@@ -784,8 +786,14 @@ function Workbench(props: {
       return;
     }
     if (moveTo && closingNext === moveTo) closingNext = null;
-    // GUI のフォーカスはもう移っている。shj にも移り先を伝える
-    if (moveTo) void focusWorkspace(target, moveTo.id);
+    // GUI のフォーカスはもう移っている。shj にも移り先を伝える。
+    // 待つあいだにユーザーが別の帯を押した（返事待ちのものも含む）・移り先も消えた、なら伝えない
+    if (
+      moveTo &&
+      focusSeq === seqAtClose &&
+      shouldSendMoveTo(focus(), moveTo, workspaces())
+    )
+      void focusWorkspace(target, moveTo.id);
   }
 
   // 初めて出たマシンには色を割り当てて保存する（つなぐマシンが変わったときだけ計算し直す）

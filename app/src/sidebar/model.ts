@@ -192,6 +192,24 @@ export function keepFocus(
 }
 
 /**
+ * フォーカスしているワークスペースを閉じたあと、移り先（moveTo）を shj に workspace.focus で伝えてよいか。
+ * GUI のフォーカスがまだ移り先を指していて、移り先が一覧に残っているときだけ true。
+ * 閉じる返事を待つあいだにユーザーが別の帯を選んだ・移り先も閉じられた、なら伝えない
+ * （選んだフォーカスを古い移り先で上書きしない。無いワークスペースに移ろうとして断られない）。
+ */
+export function shouldSendMoveTo(
+  current: WorkspaceFocus | null,
+  moveTo: WorkspaceFocus,
+  workspaces: Record<string, Workspace[] | undefined>,
+): boolean {
+  return (
+    current?.target === moveTo.target &&
+    current.id === moveTo.id &&
+    (workspaces[moveTo.target]?.some((w) => w.id === moveTo.id) ?? false)
+  );
+}
+
+/**
  * 上下の固定（D3）のために、一覧をフォーカスしている帯の前後で分けたもの。
  * フォーカスしている帯までは上から順に流し（そのマシンの見出しと帯は上に固定する）、
  * それより後ろの帯とマシンは、まとめて下に固定する。

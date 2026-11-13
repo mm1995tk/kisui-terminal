@@ -10,6 +10,7 @@ import {
   buildSidebar,
   health,
   keepFocus,
+  shouldSendMoveTo,
   stepFrom,
   stepMachine,
   stepWorkspace,
@@ -314,6 +315,36 @@ describe("keepFocus", () => {
       target: "b",
       id: "z",
     });
+  });
+});
+
+describe("shouldSendMoveTo", () => {
+  const lists = {
+    a: [ws({ id: "y", root: "/y" }), ws({ id: "w", root: "/w" })],
+  };
+  const moveTo = { target: "a", id: "y" };
+
+  it("GUI のフォーカスがまだ移り先で、移り先が一覧にあれば伝える", () => {
+    assert.equal(
+      shouldSendMoveTo({ target: "a", id: "y" }, moveTo, lists),
+      true,
+    );
+  });
+
+  it("待つあいだに別の帯を選んでいたら伝えない", () => {
+    assert.equal(
+      shouldSendMoveTo({ target: "a", id: "w" }, moveTo, lists),
+      false,
+    );
+    assert.equal(shouldSendMoveTo(null, moveTo, lists), false);
+  });
+
+  it("移り先も一覧から消えていたら伝えない", () => {
+    assert.equal(
+      shouldSendMoveTo(moveTo, moveTo, { a: [ws({ id: "w", root: "/w" })] }),
+      false,
+    );
+    assert.equal(shouldSendMoveTo(moveTo, moveTo, {}), false);
   });
 });
 
