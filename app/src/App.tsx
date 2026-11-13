@@ -692,6 +692,21 @@ function Workbench(props: {
     return folderOf(target, id) ?? undefined;
   }
 
+  /**
+   * shj のフォーカスを GUI のフォーカスに合わせ直す（食い違うと、そのワークスペースのファイルや CHANGES の操作が無視される）。
+   * GUI のフォーカスのマシンへ、今のワークスペースを workspace.focus で送り直す。送るのは、
+   * inFlightTo を渡したときは、それ（捨てた移動の行き先のマシン）が GUI のフォーカスのマシンのとき
+   * （返事がまだなので、shj のフォーカスは知っているものと違わない）。渡さないときは、知っている shj のフォーカスが違うとき。
+   */
+  function resyncShjFocus(inFlightTo?: string) {
+    const f = focus();
+    const fs = f ? sessions()[f.target] : undefined;
+    if (!f || !fs) return;
+    if (inFlightTo !== undefined ? inFlightTo !== f.target : fs.focus === f.id)
+      return;
+    void fs.focusWorkspace(f.id).catch(() => {});
+  }
+
   /** 帯を押した。shj に workspace.focus を送り、受け付けられたら GUI のフォーカスも移す。 */
   async function focusWorkspace(target: string, id: WorkspaceId) {
     const s = sessions()[target];
@@ -708,13 +723,8 @@ function Workbench(props: {
     } catch (e) {
       if (seq !== focusSeq) return;
       switching = false;
-      // GUI のフォーカスのマシンの shj のフォーカスが食い違っていれば（フォーカスしているワークスペースを
-      // 閉じた返事を待つあいだに押して失敗した、など）、今のワークスペースを送り直して揃える
-      // （食い違うと、ファイルや CHANGES の操作が無視される）
-      const f = focus();
-      const fs = f ? sessions()[f.target] : undefined;
-      if (f && fs && fs.focus !== f.id)
-        void fs.focusWorkspace(f.id).catch(() => {});
+      // フォーカスしているワークスペースを閉じた返事を待つあいだに押して失敗した、など
+      resyncShjFocus();
       setFocusError({
         title: `${labelOf(target)} のワークスペースに移れませんでした`,
         error: e instanceof Error ? e.message : String(e),
@@ -1238,13 +1248,8 @@ function Workbench(props: {
       heading = null;
       focusSeq++;
       switching = false;
-      // 捨てた移動の workspace.focus は、もう shj に届いている。GUI のフォーカスと同じマシンへのものだったら、
-      // 今のワークスペースを送り直して、shj のフォーカスを GUI に合わせ直す（食い違うと、ファイルや CHANGES の操作が無視される）
-      const f = focus();
-      if (dropped && f && dropped.target === f.target)
-        void sessions()
-          [f.target]?.focusWorkspace(f.id)
-          .catch(() => {});
+      // 捨てた移動の workspace.focus は、もう shj に届いている
+      if (dropped) resyncShjFocus(dropped.target);
       setPickedMachine(next.target);
       return;
     }
