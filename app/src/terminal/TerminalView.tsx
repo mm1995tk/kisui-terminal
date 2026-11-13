@@ -13,7 +13,7 @@ import { copyAndNotify } from "../copiedNotice.ts";
 import { monoFontsReady } from "../fonts.ts";
 import { MONO_FONT_FAMILY } from "../monoFont.ts";
 import type { TermLink, TermSink } from "./link.ts";
-import { planWrite, readableMimes, supportsLocation } from "./clipboard.ts";
+import { connectClipboard } from "./clipboardBridge.ts";
 import { availableOs, readFirstOs, writeOs } from "./clipboardOs.ts";
 import { askClipboardRead } from "./clipboardPrompt.ts";
 import { registerPasteTarget } from "./pasteTarget.ts";
@@ -141,45 +141,14 @@ export function TerminalView(props: {
     })();
   });
 
-  // ターミナルのクリップボード（kitty の OSC 5522）を OS につなぐ。primary selection は扱えないので対応しないと答える
-  const pendingReads = new Set<() => void>();
-  term.onClipboardWrite((r) => {
-    const plan = supportsLocation(r.location) ? planWrite(r.items) : undefined;
-    if (!plan) return term.replyClipboardWrite(r.id, "ENOSYS");
-    void writeOs(plan).then(
-      () => term.replyClipboardWrite(r.id),
-      () => term.replyClipboardWrite(r.id, "EIO"),
-    );
-  });
-  term.onClipboardRead((r) => {
-    if (!supportsLocation(r.location)) {
-      return term.replyClipboardReadError(r.id, "ENOSYS");
-    }
-    // 種類の一覧は中身を渡さないので、許可は求めない（仕様）
-    if (r.list) {
-      void availableOs().then(
-        (mimes) => term.replyClipboardReadTypes(r.id, mimes),
-        () => term.replyClipboardReadError(r.id, "EBUSY"),
-      );
-      return;
-    }
-    const ask = askClipboardRead(r.mimes);
-    pendingReads.add(ask.cancel);
-    void (async () => {
-      try {
-        if (!(await ask.allowed)) {
-          return term.replyClipboardReadError(r.id, "EPERM");
-        }
-        const item = await readFirstOs(readableMimes(r.mimes));
-        term.replyClipboardReadData(r.id, item ? [item] : []);
-      } catch {
-        term.replyClipboardReadError(r.id, "EBUSY");
-      } finally {
-        pendingReads.delete(ask.cancel);
-      }
-    })();
-  });
-  onCleanup(() => pendingReads.forEach((cancel) => cancel()));
+  // ターミナルのクリップボード（kitty の OSC 5522 と xterm の OSC 52）を OS につなぐ（clipboardBridge.ts）
+  onCleanup(
+    connectClipboard(
+      term,
+      { write: writeOs, available: availableOs, readFirst: readFirstOs },
+      askClipboardRead,
+    ),
+  );
 
   // ターミナルのファイル転送（kitty の OSC 5113）を OS につなぐ。聞いてから、許された範囲だけ読み書きする（transfer.ts）
   const transfer = createTransfer(
