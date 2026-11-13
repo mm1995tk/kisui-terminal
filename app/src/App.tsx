@@ -738,6 +738,19 @@ function Workbench(props: {
       : Math.min(640, window.innerWidth / 2);
   }
 
+  /** 画面に出ている CHANGES の一覧の高さ。一覧が無ければ undefined。 */
+  function shownChangesHeight(): number | undefined {
+    return appEl
+      ?.querySelector<HTMLElement>(".changes-list")
+      ?.getBoundingClientRect().height;
+  }
+
+  /** sizes の changes を、画面に出ている一覧の高さにしたもの（出ていなければそのまま）。 */
+  function withShownHeight(s: PaneSizes): PaneSizes {
+    const h = shownChangesHeight();
+    return h === undefined ? s : withSize(s, "changes", h, maxOf("changes"));
+  }
+
   /** リサイズモードで key（TUI と同じ名前。panes.ts）を押した。 */
   function resizeKey(key: string) {
     const a = resizeAction(key);
@@ -748,7 +761,8 @@ function Workbench(props: {
           if (a.axis === "y")
             changeSizes(
               applyMove(
-                sizes(),
+                // 動かし始めは、画面に出ている一覧の高さ（行が少なく、覚えた値より低いとき、見えない値だけが動かないように）
+                withShownHeight(sizes()),
                 "changes",
                 -a.sign * KEY_STEP.changes,
                 maxOf("changes"),
@@ -1284,7 +1298,9 @@ function Workbench(props: {
   /** サイドバーに CHANGES が出ているか（ファイルツリーとの境目を動かせるか）。サイドバーを閉じている間は出ていない。 */
   function changesShown(): boolean {
     const f = focus();
-    return sidebarOpen() && f !== null && changesOf(f.target, f.id) !== undefined;
+    return (
+      sidebarOpen() && f !== null && changesOf(f.target, f.id) !== undefined
+    );
   }
 
   /** プライマリの shj が出しているファイル（ツリーで強調する行）。 */
