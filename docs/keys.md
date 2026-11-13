@@ -153,7 +153,7 @@ shj を引数なしで起動した直後は、kisui が同じ `explorer` の通�
 | ツリーの右クリックのメニュー                                    | `↓` / `↑`                    | `↓` / `↑`                    | 項目を選ぶ（端でぐるっと回る）                                                                        | `tree/TreeMenu.tsx:22`                                                             |
 | 同上                                                            | `Esc`                        | `Esc`                        | メニューを閉じる                                                                                      | `tree/TreeMenu.tsx:23`                                                             |
 | マシン・ワークスペースの帯の右クリックのメニュー                | `↓` / `↑`                    | `↓` / `↑`                    | 項目を選ぶ（同上）                                                                           | `sidebar/Sidebar.tsx`                                                              |
-| 同上                                                            | `Esc`                        | `Esc`                        | メニューを閉じる                                                                                      | `sidebar/Sidebar.tsx:615`                                                          |
+| 同上                                                            | `Esc`                        | `Esc`                        | メニューを閉じる                                                                                      | `sidebar/Sidebar.tsx`                                                          |
 
 メニューの項目や窓のボタンは、`Tab` でフォーカスを動かして `Enter` / `Space` で押せる（ブラウザの既定の動き。割り当てではない）。
 
