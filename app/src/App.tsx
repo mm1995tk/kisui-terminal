@@ -34,6 +34,7 @@ import {
   isLeaveExplorerKey,
   startFocusStep,
 } from "./explorerFocus.ts";
+import { openWorkspace } from "./openWorkspace.ts";
 import { afterChangesKey } from "./changes/handover.ts";
 import { changesRow } from "./changes/keys.ts";
 import { ClipboardDialog } from "./ClipboardDialog.tsx";
@@ -925,6 +926,18 @@ function Workbench(props: {
   }
 
   /**
+   * 帯を押す・番号キー・ひとつ前のキーでワークスペースを移る。移れたら、そこで最後に使っていたペインにキーを向ける（#151）。
+   * 帯を押すとキーがサイドバー（WebKit では body）に移るので、向け直さないと戻っても打てない。
+   */
+  function openWorkspaceAndFocus(target: string, id: WorkspaceId) {
+    return openWorkspace(
+      { focusWorkspace, current: focus, focusTerminal },
+      target,
+      id,
+    );
+  }
+
+  /**
    * 見出しの [+]。フォルダ未定のワークスペースを作ってフォーカスし、プライマリターミナルにキーを向ける。
    * フォルダは、そのターミナルで cd すると決まる。
    */
@@ -1541,7 +1554,7 @@ function Workbench(props: {
         const b = groups().flatMap((g) =>
           g.bands.map((x) => [g.target, x.id] as const),
         )[c.arg as number];
-        if (b) void focusWorkspace(b[0], b[1]);
+        if (b) void openWorkspaceAndFocus(b[0], b[1]);
         break;
       }
       case "workspace.step":
@@ -1558,7 +1571,7 @@ function Workbench(props: {
             (g) => g.target === l.target && g.bands.some((b) => b.id === l.id),
           )
         )
-          void focusWorkspace(l.target, l.id);
+          void openWorkspaceAndFocus(l.target, l.id);
         break;
       }
       case "workspace.new": {
@@ -1815,7 +1828,7 @@ function Workbench(props: {
       <Sidebar
         groups={groups()}
         picked={pickedMachine()}
-        onFocus={(t, id) => void focusWorkspace(t, id)}
+        onFocus={(t, id) => void openWorkspaceAndFocus(t, id)}
         treeOf={treeOf}
         onToggle={(t, id, p) => trees.get(t)?.toggle(id, p)}
         statusOf={(t) =>
