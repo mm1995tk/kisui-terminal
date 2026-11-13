@@ -310,7 +310,7 @@ describe("keepFocus", () => {
     assert.deepEqual(f2, next);
     assert.notEqual(drawn(f2), null);
 
-    // 移り先が無いと、1 で別のマシン（b）に飛ぶ（直す前の動き。サイドバーの並びが一度崩れる）
+    // 移り先が無ければ、ほかのマシンの shj のフォーカス（b）に移る
     assert.deepEqual(keepFocus(closing, after, { a: "x", b: "z" }), {
       target: "b",
       id: "z",
