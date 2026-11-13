@@ -540,7 +540,15 @@ func (w *wsManager) closeWorkspace(id string, force bool) error {
 func (w *wsManager) rename(id, name string) *rpc.Error {
 	name, err := cleanPaneName(name)
 	if err != nil {
-		return rpc.Errorf(rpc.CodeInvalidParams, "%v", err)
+		e := rpc.Errorf(rpc.CodeInvalidParams, "%v", err)
+		// 理由は data にも載せる（GUI は文の中身でなく、これで言い換える）
+		switch {
+		case errors.Is(err, errNameTooLong):
+			e.Data, _ = json.Marshal(map[string]any{"reason": "too_long", "max": maxPaneName})
+		case errors.Is(err, errNameControl):
+			e.Data, _ = json.Marshal(map[string]any{"reason": "control_character"})
+		}
+		return e
 	}
 	w.recomputeMu.Lock()
 	defer w.recomputeMu.Unlock()

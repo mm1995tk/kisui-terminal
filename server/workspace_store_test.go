@@ -240,6 +240,8 @@ func TestWorkspaceRenameSavedAndRestored(t *testing.T) {
 		var re *rpc.Error
 		if err := rename(c1, a, bad); !errors.As(err, &re) || re.Code != rpc.CodeInvalidParams {
 			t.Errorf("rename %q: %v", bad, err)
+		} else if len(re.Data) == 0 {
+			t.Errorf("rename %q: no reason in data", bad)
 		}
 	}
 	var re *rpc.Error
