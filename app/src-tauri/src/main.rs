@@ -45,6 +45,12 @@ fn config_machines() -> Result<Vec<config::ConfigMachine>, String> {
     config::load_default()
 }
 
+/// shijimi-editor の設定ファイルに、kisui-terminal の設定が残っているか（画面が場所の変わったお知らせを出す）。
+#[tauri::command]
+fn config_moved() -> bool {
+    config::moved_from_shj_default()
+}
+
 /// kisui につなぐ。`target` は ssh のホスト名か `@local`。`id` は画面側が決める（イベントの宛先）。
 /// メインスレッドの外で動かす。「ローカル」は、ログインシェルが PATH を答えるのを待つことがある（locate.rs）
 #[tauri::command(async)]
@@ -151,6 +157,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             list_ssh_hosts,
             config_machines,
+            config_moved,
             connect,
             send,
             disconnect,

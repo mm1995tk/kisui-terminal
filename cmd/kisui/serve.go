@@ -8,6 +8,8 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -72,6 +74,12 @@ func runServe(args []string) int {
 		refuse(fmt.Errorf("%s", configErrorText(err)))
 		fmt.Fprintln(os.Stderr, configErrorText(err))
 		return 1
+	}
+	if path, keys := config.Moved(buildinfo.Suffix()); len(keys) > 0 {
+		// Not read any more. There is no window to tell the user in, so the log does.
+		dir, _ := config.UserDir(buildinfo.Suffix())
+		logger.Warn("settings of kisui-terminal in the config of shj are ignored: move them to "+filepath.Join(dir, "config.toml"),
+			"file", path, "keys", strings.Join(keys, ", "))
 	}
 	idle := time.Duration(cfg.IdleStopDays) * 24 * time.Hour
 	statePath, err := server.StatePath()

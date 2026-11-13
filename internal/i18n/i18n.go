@@ -1,6 +1,6 @@
 // Package i18n holds every user-visible string of kisui in one table per
 // language (en.go, ja.go). Code asks for a string by key with T; the language
-// is chosen once, from `ui-language` in config.toml (the same key shj reads),
+// is chosen once, from `ui-language` in kisui-terminal's config.toml (or, when it is not there, shj's),
 // with SetLang.
 package i18n
 
