@@ -79,7 +79,7 @@ a {
 }
 
 /* サイドバーを閉じている間（リーダーの b）は、サイドバーと境界のつまみを出さず、右の欄を左端まで広げる。
-   display: none でも DOM には残るので、開いたときにスクロールの位置などはそのまま */
+   display: none でも DOM には残るので、ツリーの開閉はそのまま（スクロールの位置は 0 に戻るので、App.tsx が開くときに戻す） */
 .app[data-sidebar="closed"] .sidebar-column,
 .app[data-sidebar="closed"] .resizer[data-border="sidebar"] {
   display: none;
