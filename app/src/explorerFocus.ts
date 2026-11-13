@@ -24,3 +24,22 @@ export function explorerRow(root: ParentNode | undefined): HTMLElement | null {
     root.querySelector<HTMLElement>(".tree-row")
   );
 }
+
+/**
+ * shj が引数なしで起動した直後の頼み（explorer.focus の start）に、今どうするか。
+ * - "drop": 頼んだワークスペースにもうフォーカスが無い。頼みを捨てる
+ * - "wait": ツリーにすでにキーがある（向け済み）か、ツリーの行がまだ無い（取り直し待ち）。何もしない
+ * - "focus": ツリーにキーが無く、行がある。向ける（cd でツリーが捨てられて行が消えたあとも、ここに来る）
+ */
+export function startFocusStep(s: {
+  /** 頼んだワークスペースが、今フォーカスしているワークスペースか */
+  stillFocused: boolean;
+  /** キーがツリー（サイドバー）の中にあるか */
+  keyInTree: boolean;
+  /** ツリーの行が描かれているか */
+  hasRow: boolean;
+}): "drop" | "wait" | "focus" {
+  if (!s.stillFocused) return "drop";
+  if (s.keyInTree || !s.hasRow) return "wait";
+  return "focus";
+}

@@ -321,8 +321,8 @@ export interface Notifications {
   "update.check": { id: string };
   /** プライマリの shj の `:open-url`・`kisui open <URL>` が、URL を手元の外部ブラウザで開くよう頼んだ（#96）。欄は作らない。リモートのマシンの localhost 系は、GUI がポート転送を張って開く */
   "browser.open": { workspaceId: WorkspaceId; url: string };
-  /** プライマリの shj が、そのワークスペースのファイルエクスプローラにキーを向けるよう頼んだ（Space e）。Esc で端末に戻る */
-  "explorer.focus": { workspaceId: WorkspaceId };
+  /** プライマリの shj が、そのワークスペースのファイルエクスプローラにキーを向けるよう頼んだ（Space e）。Esc で端末に戻る。start は、shj が引数なしで起動した直後（ツリーが整うのを待つ）。 */
+  "explorer.focus": { workspaceId: WorkspaceId; start?: boolean };
   /** プライマリの shj が、サイドバーの CHANGES にキーを向けるよう頼んだ（Space E・cmd.diffchanges）。Esc・q で端末に戻る */
   "changes.focus": { workspaceId: WorkspaceId };
   notify: { level: string; text: string };

@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { explorerRow, isLeaveExplorerKey } from "./explorerFocus.ts";
+import {
+  explorerRow,
+  isLeaveExplorerKey,
+  startFocusStep,
+} from "./explorerFocus.ts";
 
 const k = (p: object) => ({
   key: "Escape",
@@ -51,5 +55,27 @@ describe("キーを向ける行", () => {
     assert.deepEqual(explorerRow(root(null, "top")), { n: "top" });
     assert.equal(explorerRow(root(null, null)), null);
     assert.equal(explorerRow(undefined), null);
+  });
+});
+
+describe("startFocusStep（起動直後のツリーへのフォーカス）", () => {
+  const base = { stillFocused: true, keyInTree: false, hasRow: true };
+  it("行がありキーがツリーに無ければ向ける", () => {
+    assert.equal(startFocusStep(base), "focus");
+  });
+  it("行がまだ無ければ待つ（作ったばかりのワークスペース）", () => {
+    assert.equal(startFocusStep({ ...base, hasRow: false }), "wait");
+  });
+  it("向け済みなら何もしない", () => {
+    assert.equal(startFocusStep({ ...base, keyInTree: true }), "wait");
+  });
+  it("cd でツリーが捨てられ、行が消えて待ち、取り直されたら向け直す", () => {
+    // 向けた行が消えた直後：キーはツリーに無く、行も無い
+    assert.equal(startFocusStep({ ...base, hasRow: false }), "wait");
+    // 取り直した行が描かれた
+    assert.equal(startFocusStep(base), "focus");
+  });
+  it("別のワークスペースに移ったら捨てる", () => {
+    assert.equal(startFocusStep({ ...base, stillFocused: false }), "drop");
   });
 });
