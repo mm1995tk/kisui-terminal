@@ -544,18 +544,32 @@ describe("stepWorkspace / stepMachine（キーで移る）", () => {
       target: "local",
       id: "b",
     });
-    // 先頭のマシンなら、前は無い（端で止まる）
-    assert.equal(stepWorkspace([g("e"), g("x", "a")], null, "prev", "e"), null);
+    // 先頭のマシンで前へは、末尾のワークスペースへ回る
+    assert.deepEqual(stepWorkspace([g("e"), g("x", "a")], null, "prev", "e"), {
+      target: "x",
+      id: "a",
+    });
+    // 末尾のマシンで次へは、先頭のワークスペースへ回る
+    assert.deepEqual(stepWorkspace([g("x", "a"), g("e")], null, "next", "e"), {
+      target: "x",
+      id: "a",
+    });
+    assert.equal(stepWorkspace([g("e")], null, "next", "e"), null);
   });
 
-  it("ワークスペースは、端で止まる（回らない）", () => {
-    assert.equal(
+  it("ワークスペースは、端で反対の端へ回る", () => {
+    assert.deepEqual(
       stepWorkspace(groups, { target: "ssh", id: "d" }, "next"),
-      null,
+      { target: "local", id: "a" },
     );
-    assert.equal(
+    assert.deepEqual(
       stepWorkspace(groups, { target: "local", id: "a" }, "prev"),
-      null,
+      { target: "ssh", id: "d" },
+    );
+    // 1 つだけなら、自分に戻る
+    assert.deepEqual(
+      stepWorkspace([g("m", "x")], { target: "m", id: "x" }, "next"),
+      { target: "m", id: "x" },
     );
   });
 
@@ -597,9 +611,9 @@ describe("stepWorkspace / stepMachine（キーで移る）", () => {
     );
   });
 
-  it("マシンは、端で止まる。今のマシンが分からなければ次は先頭・前は末尾", () => {
-    assert.equal(stepMachine(groups, "ssh", "next"), null);
-    assert.equal(stepMachine(groups, "local", "prev"), null);
+  it("マシンは、端で反対の端へ回る。今のマシンが分からなければ次は先頭・前は末尾", () => {
+    assert.equal(stepMachine(groups, "ssh", "next")?.target, "local");
+    assert.equal(stepMachine(groups, "local", "prev")?.target, "ssh");
     assert.equal(stepMachine(groups, undefined, "next")?.target, "local");
     assert.equal(stepMachine(groups, undefined, "prev")?.target, "ssh");
     assert.equal(stepMachine([], undefined, "next"), null);

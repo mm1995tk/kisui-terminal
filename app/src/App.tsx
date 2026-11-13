@@ -444,6 +444,10 @@ function Workbench(props: {
     }
     changeSidebarOpen(true);
     // display: none の間にスクロールの位置は 0 に戻るので、今のワークスペースで覚えている位置に戻す
+    restoreTreeScroll();
+  }
+  /** 今のワークスペースのツリーで覚えている位置に、サイドバーのスクロールを戻す（描き直しのあと）。 */
+  function restoreTreeScroll() {
     const f = untrack(focus);
     const top = f ? trees.get(f.target)?.get(f.id)?.scrollTop : undefined;
     if (top !== undefined)
@@ -503,10 +507,22 @@ function Workbench(props: {
   // 表示の大きさ（#594）。覚えておいた大きさで始める
   let scale = loadScale(store);
   if (scale !== 1) void applyScale(scale);
+  // w j / w k / w h / w l で続けて移っている間か（リーダーを閉じるまで）。この間はファイルツリーと CHANGES を出さず、
+  // 1 つ移るごとにサイドバーが伸び縮みしないようにする（#140）
+  const [walking, setWalking] = createSignal(false);
+  // ツリーを出し直したら、そのワークスペースで覚えている位置に戻す（出していない間は、スクロールの位置が合わない）
+  createEffect(
+    on(walking, (w, prev) => {
+      if (w || !prev) return;
+      restoreTreeScroll();
+    }),
+  );
   // リーダー（Cmd+K / Ctrl+Shift+K）の状態。入っている間は、次に押せるキーの一覧を出す（LeaderMenu）
   let router: RouterState = IDLE;
   const setRouter = (next: RouterState) => {
     if (next.leader !== router.leader) setLeaderPath(next.leader);
+    // リーダーを閉じたら、続けて移る間は出さずにいたファイルツリーを、行き先のワークスペースの分だけ出す
+    if (!next.leader) setWalking(false);
     router = next;
   };
   // GUI が受けるキーなので、欄やターミナルに届く前（capture）に取って、shj にもシェルにも送らない。
@@ -959,11 +975,13 @@ function Workbench(props: {
   });
 
   function rememberScroll() {
+    if (untrack(walking)) return; // ツリーを出していない間の位置は、ツリーのものではない
     const f = focus();
     if (f && nav) trees.get(f.target)?.setScroll(f.id, nav.scrollTop);
   }
 
   function treeOf(target: string, id: WorkspaceId) {
+    if (walking()) return undefined;
     treeVersion();
     const s = trees.get(target)?.get(id);
     return s && s.listings[""] ? treeRows(s) : undefined;
@@ -1191,6 +1209,7 @@ function Workbench(props: {
 
   /** 差分モードの CHANGES の一覧。フォーカスしているワークスペースの、差分モードのプライマリの shj のものだけ。 */
   function changesOf(target: string, id: WorkspaceId) {
+    if (walking()) return undefined;
     const f = focus();
     if (f?.target !== target || f.id !== id) return undefined;
     const diff = workspaces()[target]?.find((x) => x.id === id)?.primaryShj
@@ -1323,7 +1342,7 @@ function Workbench(props: {
   /** キーで移っている途中の、向かっている先（返事が返るまで focus() に反映されない）。無ければ null */
   let heading: WorkspaceFocus | null = null;
 
-  /** リーダーの w j / w k。サイドバーの次・前のワークスペースへ（マシンをまたぐ。端で止まる）。 */
+  /** リーダーの w j / w k。サイドバーの次・前のワークスペースへ（マシンをまたぐ。端では反対の端へ回る）。 */
   function stepWs(step: Step) {
     const next = stepWorkspace(
       groups(),
@@ -1331,11 +1350,14 @@ function Workbench(props: {
       step,
       pickedMachine(),
     );
-    if (next) void goWorkspace(next.target, next.id);
+    if (next) {
+      setWalking(true);
+      void goWorkspace(next.target, next.id);
+    }
   }
 
   /**
-   * リーダーの w h / w l。前・次のマシンへ（端で止まる）。ワークスペースが有れば最後に選んでいたもの（無ければ先頭）へ、
+   * リーダーの w h / w l。前・次のマシンへ（端では反対の端へ回る）。ワークスペースが有れば最後に選んでいたもの（無ければ先頭）へ、
    * 1 つも無いマシンならそのマシンを「選んでいるマシン」にして止まる。
    */
   function stepMachineTo(step: Step) {
@@ -1346,6 +1368,7 @@ function Workbench(props: {
       (t) => lastOnMachine.get(t),
     );
     if (!next) return;
+    setWalking(true);
     if (next.ws === null) {
       // 待っている移動は捨てる（返ってきても、止まったマシンの印を外したり、フォーカスを飛ばしたりしない）
       const dropped = heading;
