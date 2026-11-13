@@ -85,10 +85,6 @@ func (c *gitCache) refresh(id, root string) *gitState {
 	if prev == nil {
 		return next
 	}
-	if prev.branch != next.branch || prev.sha != next.sha {
-		// 帯の「main (9e11274)」を、コミットやブランチの切り替えのたびに更新する（一覧の作り直しで workspace.changed が出る）。
-		c.m.srv.wg.Go(c.m.srv.ws.recompute)
-	}
 	p := map[string]any{"workspaceId": id, "rev": next.rev}
 	if prev.branch != next.branch {
 		p["branch"] = next.branch
@@ -109,7 +105,7 @@ func (c *gitCache) refreshAsync(id, root string) {
 }
 
 func sameGit(a, b *gitState) bool {
-	return a.branch == b.branch && a.sha == b.sha && maps.Equal(a.marks, b.marks) && maps.Equal(a.ignored, b.ignored)
+	return a.branch == b.branch && maps.Equal(a.marks, b.marks) && maps.Equal(a.ignored, b.ignored)
 }
 
 // marksDiff は変わった分。消えた印は nil。
@@ -208,7 +204,6 @@ func readGit(root string) (*gitState, bool) {
 		}
 	}
 	g := &gitState{marks: map[string]string{}, dirs: map[string]bool{}, ignored: map[string]bool{}, branch: gitBranch(root)}
-	_, g.sha, _ = gitHead(root)
 	rel := func(p string) (string, bool) {
 		r, err := filepath.Rel(root, filepath.Join(topDir, p))
 		if err != nil || r == ".." || strings.HasPrefix(r, ".."+string(filepath.Separator)) {
