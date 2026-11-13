@@ -33,6 +33,7 @@ export type CommandId =
   | "machine.reconnect"
   | "clipboard.history"
   | "scale"
+  | "notice.update"
   | "notice.dismiss"
   | "notice.focusNotified"
   | "help.keys";
@@ -309,6 +310,7 @@ export const LEADER: Node[] = [
     "mac",
   ),
   group("n", "お知らせ", [
+    leaf("u", "新しい版に更新する", { id: "notice.update" }),
     leaf("d", "お知らせを閉じる", { id: "notice.dismiss" }),
     leaf("g", "通知を出したペインへ", {
       id: "notice.focusNotified",

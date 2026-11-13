@@ -23,7 +23,9 @@ export function UpdateBar(): JSX.Element {
           <div class="card-body">
             <h2 class="card-title">新しい版 {u().version} があります</h2>
             <p class="card-text">
-              今は {u().current} です。更新すると、入れ替えて起動し直します。
+              今は {u().current}{" "}
+              です。更新すると、入れ替えて起動し直します（リーダーの n u
+              でも更新できます）。
             </p>
             <Show when={updateError()}>
               <pre class="card-error" role="alert">

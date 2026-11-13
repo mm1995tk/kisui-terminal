@@ -70,7 +70,7 @@ export { busy as updateBusy, installError as updateError };
 
 /**
  * 「更新して再起動」。入れ替えて起動し直す。失敗したら理由を updateError に出す。
- * 知らせのボタン（UpdateBar.tsx）と、リーダーの `n a`（App.tsx）が同じものを呼ぶ。
+ * 知らせのボタン（UpdateBar.tsx）と、リーダーの `n u`（App.tsx）が同じものを呼ぶ。
  */
 export async function installUpdate(): Promise<void> {
   if (busy()) return;

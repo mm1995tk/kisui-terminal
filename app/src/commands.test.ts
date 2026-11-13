@@ -168,6 +168,7 @@ describe("コマンドの表", () => {
       "v -",
       "v 0",
       "n",
+      "n u",
       "n d",
       "n g",
       "?",
@@ -678,8 +679,8 @@ describe("リーダーの案内（menuRows）", () => {
     );
   });
 
-  it("お知らせの n に a は無い", () => {
-    assert.deepEqual(keysOf(["n"], MAC), ["d", "g"]);
+  it("お知らせの n に a は無く、新しい版に更新する u がある", () => {
+    assert.deepEqual(keysOf(["n"], MAC), ["u", "d", "g"]);
   });
 
   it("葉と範囲の無いグループは、木のとおりに並ぶ", () => {

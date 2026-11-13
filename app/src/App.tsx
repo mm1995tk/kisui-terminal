@@ -57,7 +57,12 @@ import {
   statusLine,
 } from "./connect/status.ts";
 import { UpdateBar } from "./update/UpdateBar.tsx";
-import { checkNow, dismissUpdate, updateInfo } from "./update/store.ts";
+import {
+  checkNow,
+  dismissUpdate,
+  installUpdate,
+  updateInfo,
+} from "./update/store.ts";
 import { OsClipboard } from "./clipboard.ts";
 import { CopiedToast, copiedNotice } from "./CopiedToast.tsx";
 import { ScaleToast, showScale } from "./ScaleToast.tsx";
@@ -1598,6 +1603,15 @@ function Workbench(props: {
         break;
       case "scale":
         changeScale(c.arg as ScaleAction);
+        break;
+      case "notice.update":
+        // 「新しい版があります」の「更新して再起動」。知らせが出ていないときは何もしない
+        if (updateInfo()) void installUpdate();
+        else
+          cannot(
+            "新しい版はありません",
+            "更新できる新しい版は、今ありません。",
+          );
         break;
       case "notice.dismiss":
         if (updateInfo()) dismissUpdate();
