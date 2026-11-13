@@ -70,7 +70,7 @@ kisui skill install
 kisui skill install ./my-skills/kisui-terminal
 ```
 
-kisui-terminal の設定は、kisui-terminal 自身の `config.toml` に書きます。`~/.config/kisui-terminal/config.toml`（nightly 版は、あれば `kisui-terminal-nightly/`。`$XDG_CONFIG_HOME` が絶対パスならそちらを使います）。同じフォルダの `config.nix` も、`shj` と同じように読みます。`shj` の `config.toml`（`~/.config/shijimi-editor/`）ではありません。以下の設定は以前そこに書いていましたが、**そこからはもう読みません**。手で移してください。まだそこに残っていると、起動したときにお知らせのカードで知らせ、`kisui serve` はログに書きます。例外は `ui-language` だけで、kisui-terminal の設定に無ければ `shj` の `config.toml` のものを使うので、1 行で両方の言語をそろえられます。
+kisui-terminal の設定は、kisui-terminal 自身の `config.toml` に書きます。`~/.config/kisui-terminal/config.toml`（nightly 版は、あれば `kisui-terminal-nightly/`。`$XDG_CONFIG_HOME` が絶対パスならそちらを使います）。同じフォルダの `config.nix` も、`shj` と同じように読みます。`shj` の `config.toml`（`~/.config/shijimi-editor/`）ではありません。以下の設定は以前そこに書いていましたが、**そこからはもう読みません**。手で移してください。まだそこに残っていると、起動したときにお知らせのカードで知らせ、`kisui serve` はログに書きます。例外は `ui-language` だけで、kisui-terminal の設定に無ければ `shj` の `config.toml` のものを使うので、1 行で両方の言語をそろえられます。home-manager では、この flake のモジュールの `programs.kisui-terminal.settings` に書くと、そのファイルを作ります。`programs.shijimi-editor.settings` は、もう kisui-terminal には届きません。
 
 - `[[gui.machines]]`：サイドバーに出すマシン（`ssh = "dev-vm"`、`name = "dev"`）。
 - 画面の URL（波線が引かれる）は、`cmd + click` か `cmd + shift + click`（macOS 以外は `ctrl + click` か `ctrl + shift + click`）で、OS 既定のブラウザで開きます。開くのは http と https の URL だけです。リモート（ssh）のマシンのターミナルに出た `localhost` 系の URL は、手元のブラウザだと手元の localhost に行ってしまうため、ssh の上で中継し（`kisui relay`）、手元のアドレスの URL を開きます。そのポートで誰も待っていなければ、ブラウザを開かずにそう出します。アプリがマウスの報告を有効にしている間（vim・tmux・htop・`shj` など）は、shift なしのクリックはアプリに届くので、`cmd + shift + click` を使います。以前の版の `[gui]` の `url_open` は無視します。
