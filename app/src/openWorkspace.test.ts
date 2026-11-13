@@ -45,7 +45,7 @@ describe("ワークスペースを開いたあとのフォーカス（#151）", 
     await focusWorkspaceAndTerminal(deps, "local", "b");
     assert.deepEqual(calls, ["focus local/b"]);
   });
-  it("shj が断った（例外）ときは向けず、例外はそのまま返す", async () => {
+  it("focusWorkspace が例外を投げても、向けずにそのまま返す", async () => {
     const calls: string[] = [];
     const deps = {
       focusWorkspace: async () => {

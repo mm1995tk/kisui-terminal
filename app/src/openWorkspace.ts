@@ -8,7 +8,7 @@ export interface WorkspaceRef {
 }
 
 export interface OpenWorkspaceDeps {
-  /** shj に移ると頼み、受け付けられたら GUI のフォーカスも移す（失敗や、あとの押下に上書きされたときは移らないまま返る） */
+  /** shj に移ると頼み、受け付けられたら GUI のフォーカスも移す（失敗や、あとの押下に上書きされたときは、例外を投げずに移らないまま返る。例外が来た場合は向けず、そのまま返す） */
   focusWorkspace: (target: string, id: string) => Promise<void>;
   /** 今 GUI がフォーカスしているワークスペース */
   current: () => WorkspaceRef | null | undefined;
