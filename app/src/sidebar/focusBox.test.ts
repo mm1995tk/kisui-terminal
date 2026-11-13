@@ -43,3 +43,14 @@ test("箱は overflow: clip で中身を角に切り取る（hidden / auto は s
 test("固定する帯の見出しは四角いまま（角は箱が切り取る）", () => {
   assert.doesNotMatch(rule(".band-item[data-focused] > .band-slot"), /radius/);
 });
+
+test("断られた理由は流れの中に置き、箱の clip で切り取られない（#172）", () => {
+  const err = rule(".band-rename-error");
+  assert.doesNotMatch(err, /position: (absolute|fixed)/);
+  assert.match(err, /white-space: normal;/);
+  assert.doesNotMatch(err, /text-overflow|nowrap/);
+  // 理由の要素は、帯（.band-slot）の外・箱（li.band-item）の中に置く
+  const slotEnd = tsx.indexOf("</div>\n      </div>\n      {/* 断られた理由");
+  assert.notEqual(slotEnd, -1);
+  assert.ok(tsx.indexOf('class="band-rename-error"') > slotEnd);
+});
