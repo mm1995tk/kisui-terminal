@@ -78,21 +78,23 @@ func currentDir() (string, error) {
 	if !filepath.IsAbs(base) {
 		return "", fmt.Errorf("cache dir is not absolute: %q", base)
 	}
-	parent := filepath.Join(base, "kisui-terminal")
-	if err := os.MkdirAll(parent, 0o700); err != nil {
-		return "", err
-	}
-	dir := filepath.Join(parent, "current"+buildinfo.Suffix())
-	if err := os.Mkdir(dir, 0o700); err != nil && !errors.Is(err, fs.ErrExist) {
-		return "", err
-	}
+	// 確かめてから、その中に作る（ほかのユーザーが書ける場所の中には何も作らない）。
 	// キャッシュのフォルダ自体はシンボリックリンクでもよい（先を見る）。root のものや、
 	// /tmp のように sticky bit のあるフォルダも許す（ほかのユーザーが中の kisui-terminal を消したり差し替えたりできない）。
+	// キャッシュのフォルダが無ければ作る（その上のフォルダは確かめない）。
+	if err := os.MkdirAll(base, 0o700); err != nil {
+		return "", err
+	}
 	if err := checkDir(base, os.Stat, true); err != nil {
 		return "", err
 	}
 	// kisui-terminal と current は kisui が作るフォルダ。シンボリックリンクは受けつけない。グループかほかの人が書けるなら直す。
+	parent := filepath.Join(base, "kisui-terminal")
+	dir := filepath.Join(parent, "current"+buildinfo.Suffix())
 	for _, p := range []string{parent, dir} {
+		if err := os.Mkdir(p, 0o700); err != nil && !errors.Is(err, fs.ErrExist) {
+			return "", err
+		}
 		if err := ownDir(p); err != nil {
 			return "", err
 		}

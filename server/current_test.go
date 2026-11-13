@@ -237,3 +237,26 @@ func TestCurrentFixesGroupWritableDir(t *testing.T) {
 		t.Fatalf("PATH = %q, want %q first", pathOf(env), cur)
 	}
 }
+
+// キャッシュのフォルダをほかのユーザーが書けるなら、その中に何も作らない（確かめてから作る）。
+func TestCurrentChecksBeforeCreating(t *testing.T) {
+	isolateCache(t)
+	v1 := fakeVersion(t, "v1")
+	useExecutable(t, filepath.Join(v1, "kisui"))
+	base, err := os.UserCacheDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(base, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(base, 0o777); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pointCurrent(); err == nil {
+		t.Fatal("unsafe cache dir accepted")
+	}
+	if _, err := os.Lstat(filepath.Join(base, "kisui-terminal")); !os.IsNotExist(err) {
+		t.Fatalf("kisui-terminal created in an unsafe cache dir: %v", err)
+	}
+}
