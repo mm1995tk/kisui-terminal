@@ -36,8 +36,10 @@ type wsInfo struct {
 	Label string `json:"label,omitempty"`
 	// Display は Folder をこのマシンのホームディレクトリ基準で書いた見せる用のパス（~/x）。ホームの外は Folder と同じ。
 	// 見せ方だけで、Folder は絶対パスのまま。未定のあいだは省く
-	Display string   `json:"display,omitempty"`
-	Branch  string   `json:"branch,omitempty"`
+	Display string `json:"display,omitempty"`
+	Branch  string `json:"branch,omitempty"`
+	// Sha は HEAD のコミットの先頭 7 文字（帯に「main (9e11274)」と出す）。detached HEAD では Branch が無く、これだけになる。読めなければ省く
+	Sha     string   `json:"sha,omitempty"`
 	Primary string   `json:"primary"` // プライマリターミナル
 	Terms   []string `json:"terms"`   // 分割したターミナル
 	// PrimaryShj は GUI のプライマリターミナルの中で動いている TUI の shj。無ければ null。
@@ -326,7 +328,7 @@ func buildWorkspaces(states []*wsState, terms []*terminal, home string) map[stri
 			x.Folder, x.Kind, x.Name = &folder, &kind, &name
 			x.Display = tildePath(folder, home)
 			if st.kind == "git" {
-				x.Branch = gitBranch(st.root)
+				x.Branch, x.Sha, _ = gitHead(st.root)
 			}
 		}
 		x.Extras = append(x.Extras, st.extras...)
@@ -427,7 +429,7 @@ func tildePath(p, home string) string {
 func sortWS(l []*wsInfo) { sort.Slice(l, func(i, j int) bool { return l[i].seq < l[j].seq }) }
 
 func wsEqual(a, b *wsInfo) bool {
-	return a.root == b.root && a.Label == b.Label && ptrEq(a.Kind, b.Kind) && a.Branch == b.Branch && a.Primary == b.Primary && shjEq(a.PrimaryShj, b.PrimaryShj) &&
+	return a.root == b.root && a.Label == b.Label && ptrEq(a.Kind, b.Kind) && a.Branch == b.Branch && a.Sha == b.Sha && a.Primary == b.Primary && shjEq(a.PrimaryShj, b.PrimaryShj) &&
 		slices.Equal(a.Terms, b.Terms) && slices.Equal(a.Extras, b.Extras) && maps.Equal(a.Titles, b.Titles) && layoutEqual(a.Layout, b.Layout)
 }
 

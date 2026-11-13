@@ -32,6 +32,8 @@ import {
   type Band,
   type Health,
   type MachineGroup,
+  DIR_SEP,
+  shaText,
 } from "./model.ts";
 import "./sidebar.css";
 
@@ -556,6 +558,54 @@ function Machine(
   );
 }
 
+/**
+ * 切れているときだけ、その部分の全文を title に出す。切れていなければ title を外し、帯のフルパス（親の title）を出す。
+ * 切れているかは、マウスが乗った時に調べる（幅はサイドバーを動かすと変わるので、描いた時には決めない）。
+ */
+function titleIfClipped(full: string): JSX.HTMLAttributes<HTMLSpanElement> {
+  return {
+    onMouseEnter: (e) => {
+      const el = e.currentTarget;
+      if (el.scrollWidth > el.clientWidth) el.title = full;
+      else el.removeAttribute("title");
+    },
+  };
+}
+
+/**
+ * 帯の 2 行目。「ディレクトリ名 · ブランチ (sha)」。狭いときは、先にディレクトリ名、次にブランチ名を「…」で切る（sha は切らない）。
+ * 切る順は sidebar.css の flex-shrink で決める。
+ */
+function BandDetail(props: { band: Band }): JSX.Element {
+  const b = () => props.band;
+  return (
+    <span class="band-detail">
+      <Show when={b().dir}>
+        <span class="band-dir" {...titleIfClipped(b().dir)}>
+          {b().dir}
+        </span>
+        <span class="band-sep" aria-hidden="true">
+          {DIR_SEP}
+        </span>
+      </Show>
+      <Show when={b().branch}>
+        <span class="band-branch" {...titleIfClipped(b().branch)}>
+          {b().branch}
+        </span>
+      </Show>
+      <Show when={b().sha}>
+        <span class="band-sha">{shaText(b().sha)}</span>
+      </Show>
+      <Show when={b().note}>
+        <span class="band-note">{b().note}</span>
+      </Show>
+      <Show when={b().num}>
+        <span class="band-note">{b().num}</span>
+      </Show>
+    </span>
+  );
+}
+
 /** 帯 1 つ。フォーカスしていれば帯を上に固定し、下にツリーを出す。 */
 function BandItem(
   props: Handlers & { target: string; band: Band },
@@ -586,7 +636,7 @@ function BandItem(
             >
               {b().title}
             </span>
-            <span class="band-detail">{b().detail}</span>
+            <BandDetail band={b()} />
           </button>
           <Show when={props.onClose}>
             <button

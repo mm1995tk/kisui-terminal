@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 // findRoot は cwd から親へたどってワークスペースのルートを決める。
@@ -58,19 +59,36 @@ func workspaceID(root string) string {
 // gitBranch は root の .git から今のブランチ名を読む（git は呼ばない）。
 // detached HEAD なら先頭 7 文字のコミット。分からなければ ""。
 func gitBranch(root string) string {
+	branch, sha, ok := gitHead(root)
+	if !ok {
+		return ""
+	}
+	if branch == "" {
+		return sha
+	}
+	return branch
+}
+
+// shortSHALen は帯に出す short sha の長さ。
+const shortSHALen = 7
+
+// gitHead は root の .git から、今のブランチ名と HEAD のコミット（先頭 shortSHALen 文字）を読む（git は呼ばない）。
+// detached HEAD なら branch は ""。コミットがまだ無いブランチなど、sha が分からないときは ""。
+// ok は .git が読めたか。
+func gitHead(root string) (branch, sha string, ok bool) {
 	dot := filepath.Join(root, ".git")
 	gitDir := dot
 	if fi, err := os.Stat(dot); err != nil {
-		return ""
+		return "", "", false
 	} else if !fi.IsDir() {
 		// git worktree / submodule: "gitdir: <path>"
 		b, err := os.ReadFile(dot)
 		if err != nil {
-			return ""
+			return "", "", false
 		}
-		rest, ok := strings.CutPrefix(strings.TrimSpace(string(b)), "gitdir:")
-		if !ok {
-			return ""
+		rest, found := strings.CutPrefix(strings.TrimSpace(string(b)), "gitdir:")
+		if !found {
+			return "", "", false
 		}
 		gitDir = strings.TrimSpace(rest)
 		if !filepath.IsAbs(gitDir) {
@@ -79,17 +97,92 @@ func gitBranch(root string) string {
 	}
 	b, err := os.ReadFile(filepath.Join(gitDir, "HEAD"))
 	if err != nil {
-		return ""
+		return "", "", false
 	}
 	s := strings.TrimSpace(string(b))
-	if ref, ok := strings.CutPrefix(s, "ref: refs/heads/"); ok {
-		return ref
+	ref, symbolic := strings.CutPrefix(s, "ref:")
+	if !symbolic {
+		return "", shortSHA(s), true
 	}
-	if ref, ok := strings.CutPrefix(s, "ref: "); ok {
-		return ref
+	ref = strings.TrimSpace(ref)
+	branch = strings.TrimPrefix(ref, "refs/heads/")
+	return branch, shortSHA(readRef(gitDir, ref)), true
+}
+
+// readRef は ref（refs/heads/main など）が指すコミットを読む。ref のファイル、無ければ packed-refs。
+// worktree では ref と packed-refs は gitDir ではなく共通の .git（commondir）にある。分からなければ ""。
+func readRef(gitDir, ref string) string {
+	dirs := []string{gitDir}
+	if b, err := os.ReadFile(filepath.Join(gitDir, "commondir")); err == nil {
+		c := strings.TrimSpace(string(b))
+		if !filepath.IsAbs(c) {
+			c = filepath.Join(gitDir, c)
+		}
+		dirs = append(dirs, c)
 	}
-	if len(s) >= 7 {
-		return s[:7]
+	for _, d := range dirs {
+		if b, err := os.ReadFile(filepath.Join(d, filepath.FromSlash(ref))); err == nil {
+			if s := strings.TrimSpace(string(b)); s != "" {
+				return s
+			}
+		}
+	}
+	for _, d := range dirs {
+		if sha := packedRef(filepath.Join(d, "packed-refs"), ref); sha != "" {
+			return sha
+		}
+	}
+	return ""
+}
+
+// packedRefsMax は packedRefsCache に取っておくファイルの数の上限。
+const packedRefsMax = 64
+
+// packedRefsCache は packed-refs を読んだ結果（ref -> コミット）を、ファイルの mtime・大きさ・ファイル（inode）が変わるまで取っておく。git は packed-refs を lock ファイルからの rename で書き換えるので、inode も見れば、mtime が粗いファイルシステムで同じ時刻に 2 回書き換えられても読み直せる。
+// 閉じたワークスペースの分が溜まり続けないよう、packedRefsMax 件を超えたら捨てて読み直す。
+// buildWorkspaces は 1 秒ごとに呼ばれ、packed-refs は大きいことがあるため。
+var packedRefsCache struct {
+	sync.Mutex
+	by map[string]packedRefs
+}
+
+type packedRefs struct {
+	info os.FileInfo
+	refs map[string]string
+}
+
+// packedRef は packed-refs の file から ref のコミットを探す。無ければ ""。
+func packedRef(file, ref string) string {
+	fi, err := os.Stat(file)
+	if err != nil {
+		return ""
+	}
+	packedRefsCache.Lock()
+	defer packedRefsCache.Unlock()
+	if c, ok := packedRefsCache.by[file]; ok && os.SameFile(c.info, fi) && c.info.ModTime().Equal(fi.ModTime()) && c.info.Size() == fi.Size() {
+		return c.refs[ref]
+	}
+	b, err := os.ReadFile(file)
+	if err != nil {
+		return ""
+	}
+	refs := map[string]string{}
+	for l := range strings.SplitSeq(string(b), "\n") {
+		// "<sha> <ref>"。"#" 始まり（ヘッダ）と "^" 始まり（タグの指す先）は読まない。
+		if sha, name, ok := strings.Cut(strings.TrimSpace(l), " "); ok && !strings.HasPrefix(sha, "#") && !strings.HasPrefix(sha, "^") {
+			refs[name] = sha
+		}
+	}
+	if packedRefsCache.by == nil || len(packedRefsCache.by) >= packedRefsMax {
+		packedRefsCache.by = map[string]packedRefs{}
+	}
+	packedRefsCache.by[file] = packedRefs{fi, refs}
+	return refs[ref]
+}
+
+func shortSHA(s string) string {
+	if len(s) > shortSHALen {
+		return s[:shortSHALen]
 	}
 	return s
 }

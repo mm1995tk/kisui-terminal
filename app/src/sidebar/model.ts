@@ -36,8 +36,18 @@ export interface Band {
   path: boolean;
   /** フォルダ未定か */
   unset: boolean;
-  /** 右に小さく出すもの（ブランチ、「git なし」、同じフォルダの 2 つ目からの番号） */
+  /** 2 行目の全文（ディレクトリ名 · ブランチ (sha)、「git なし」、同じフォルダの 2 つ目からの番号をつなげたもの）。画面は下の dir / branch / sha / note / num を別々に描くので、これはテストでの確かめ用 */
   detail: string;
+  /** 2 行目の先頭に出すディレクトリ名。名前を変えた帯だけ（名前を変えていない帯は、1 行目がディレクトリ名）。無ければ "" */
+  dir: string;
+  /** ブランチ名。detached HEAD・git なしなら "" */
+  branch: string;
+  /** HEAD の short sha。読めなければ "" */
+  sha: string;
+  /** 「git なし」（git の無いフォルダ）。それ以外は "" */
+  note: string;
+  /** 同じフォルダの 2 つ目からの番号（「#2」）。無ければ "" */
+  num: string;
   /** ツールチップに出すフォルダのパス（未定なら ""） */
   root: string;
   focused: boolean;
@@ -87,7 +97,41 @@ export function band(w: Workspace, focused: boolean, nth = 1): Band {
   const label = w.label ?? "";
   const auto = autoBand(w, focused, label ? 1 : nth);
   if (!label) return auto;
-  return { ...auto, title: label, label, path: false, unset: false };
+  // 名前を変えた帯は、1 行目がディレクトリ名でなくなるので、2 行目の先頭にディレクトリ名を足す
+  const dir = w.folder === null ? "" : w.name || w.folder;
+  return {
+    ...auto,
+    title: label,
+    label,
+    path: false,
+    unset: false,
+    dir,
+    detail: detailText(dir, auto.branch, auto.sha, auto.note, auto.num),
+  };
+}
+
+/** ブランチと short sha を「main (9e11274)」の形にする。ブランチが無ければ「(9e11274)」、sha が無ければブランチだけ。 */
+export function branchText(branch: string, sha: string): string {
+  if (!sha) return branch;
+  return branch ? `${branch} ${shaText(sha)}` : shaText(sha);
+}
+
+/** 名前を変えた帯の 2 行目で、ディレクトリ名とその後ろを分ける字。 */
+export const DIR_SEP = "·";
+
+/** short sha を「(9e11274)」の形にする。 */
+export const shaText = (sha: string): string => `(${sha})`;
+
+/** 2 行目の全文。ディレクトリ名は「 · 」で区切り、残りは空白でつなぐ。 */
+function detailText(
+  dir: string,
+  branch: string,
+  sha: string,
+  note: string,
+  num: string,
+): string {
+  const rest = [branchText(branch, sha), note, num].filter(Boolean).join(" ");
+  return dir && rest ? `${dir} ${DIR_SEP} ${rest}` : dir || rest;
 }
 
 function autoBand(w: Workspace, focused: boolean, nth: number): Band {
@@ -101,6 +145,11 @@ function autoBand(w: Workspace, focused: boolean, nth: number): Band {
       path: false,
       unset: true,
       detail: "",
+      dir: "",
+      branch: "",
+      sha: "",
+      note: "",
+      num: "",
       root: "",
       focused,
       showTree: w.primaryShj != null,
@@ -108,10 +157,9 @@ function autoBand(w: Workspace, focused: boolean, nth: number): Band {
   }
   const shown = w.display || w.folder;
   const title = w.kind === "cwd" ? shown : w.name || shown;
-  const detail = (w.kind === "cwd" ? ["git なし"] : [w.branch ?? ""])
-    .concat(num)
-    .filter(Boolean)
-    .join(" ");
+  const branch = w.kind === "cwd" ? "" : (w.branch ?? "");
+  const sha = w.kind === "cwd" ? "" : (w.sha ?? "");
+  const note = w.kind === "cwd" ? "git なし" : "";
   return {
     id: w.id,
     title,
@@ -119,7 +167,12 @@ function autoBand(w: Workspace, focused: boolean, nth: number): Band {
     autoTitle: title,
     path: w.kind === "cwd" || !w.name,
     unset: false,
-    detail,
+    detail: detailText("", branch, sha, note, num),
+    dir: "",
+    branch,
+    sha,
+    note,
+    num,
     root: w.folder,
     focused,
     showTree: w.primaryShj != null,

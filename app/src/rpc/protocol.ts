@@ -66,7 +66,10 @@ export interface Workspace {
   label?: string;
   /** folder を、そのマシンのホームディレクトリを ~ にして書いた見せる用のパス。見せ方だけで、ホームの外は folder と同じ。古い kisui serve は送らない */
   display?: string;
+  /** ブランチ名。detached HEAD では無い */
   branch?: string;
+  /** HEAD のコミットの先頭 7 文字（帯に「main (9e11274)」と出す）。読めなければ無い。古い kisui serve は送らない */
+  sha?: string;
   /** プライマリターミナル（ワークスペースを閉じるまで残る） */
   primary: TermId;
   /** 分割したターミナル（個数に上限は無い） */

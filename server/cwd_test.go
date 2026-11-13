@@ -88,3 +88,52 @@ func TestWorkspaceIDAndBranch(t *testing.T) {
 		t.Errorf("no git: %q", b)
 	}
 }
+
+func TestGitHead(t *testing.T) {
+	const full = "9e11274aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	const other = "bbbbbbbcccccccccccccccccccccccccccccccc"
+	d := t.TempDir()
+	gd := mkdir(t, d, ".git")
+	head := func(dir, s string) { os.WriteFile(filepath.Join(dir, "HEAD"), []byte(s+"\n"), 0o644) }
+	want := func(root, branch, sha string) {
+		t.Helper()
+		b, s, ok := gitHead(root)
+		if !ok || b != branch || s != sha {
+			t.Errorf("gitHead = %q, %q, %v; want %q, %q", b, s, ok, branch, sha)
+		}
+	}
+	// ブランチは ref のファイルから
+	head(gd, "ref: refs/heads/feat/x")
+	os.MkdirAll(filepath.Join(gd, "refs", "heads", "feat"), 0o755)
+	os.WriteFile(filepath.Join(gd, "refs", "heads", "feat", "x"), []byte(full+"\n"), 0o644)
+	want(d, "feat/x", "9e11274")
+	// コミットで ref が動いたら sha も変わる
+	os.WriteFile(filepath.Join(gd, "refs", "heads", "feat", "x"), []byte(other+"\n"), 0o644)
+	want(d, "feat/x", "bbbbbbb")
+	// ref のファイルが無ければ packed-refs（ヘッダとタグの指す先の行は読まない）
+	os.Remove(filepath.Join(gd, "refs", "heads", "feat", "x"))
+	os.WriteFile(filepath.Join(gd, "packed-refs"), []byte("# pack-refs with: peeled fully-peeled sorted\n"+full+" refs/heads/feat/xy\n"+other+" refs/heads/feat/x\n^"+full+"\n"), 0o644)
+	want(d, "feat/x", "bbbbbbb")
+	// コミットがまだ無いブランチは sha なし
+	head(gd, "ref: refs/heads/unborn")
+	want(d, "unborn", "")
+	// detached HEAD はブランチなしで sha だけ（gitBranch は今までどおり sha を返す）
+	head(gd, full)
+	want(d, "", "9e11274")
+	if b := gitBranch(d); b != "9e11274" {
+		t.Errorf("gitBranch detached %q", b)
+	}
+	// worktree: HEAD は gitdir、ref は commondir（共通の .git）にある
+	wt := t.TempDir()
+	wgd := mkdir(t, gd, "worktrees/wt")
+	head(wgd, "ref: refs/heads/wt")
+	os.WriteFile(filepath.Join(wgd, "commondir"), []byte("../..\n"), 0o644)
+	os.MkdirAll(filepath.Join(gd, "refs", "heads"), 0o755)
+	os.WriteFile(filepath.Join(gd, "refs", "heads", "wt"), []byte(other+"\n"), 0o644)
+	os.WriteFile(filepath.Join(wt, ".git"), []byte("gitdir: "+wgd+"\n"), 0o644)
+	want(wt, "wt", "bbbbbbb")
+	// git が無い
+	if _, _, ok := gitHead(t.TempDir()); ok {
+		t.Error("no git: ok")
+	}
+}

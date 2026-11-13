@@ -46,6 +46,67 @@ describe("band", () => {
     assert.equal(b.root, "/src/shijimi-editor");
   });
 
+  it("2 行目は「ブランチ (short sha)」。detached HEAD なら「(sha)」、sha が読めなければブランチだけ", () => {
+    const b = band(
+      ws({ id: "a", root: "/src/x", branch: "main", sha: "9e11274" }),
+      false,
+    );
+    assert.equal(b.detail, "main (9e11274)");
+    assert.equal(b.dir, "");
+    assert.equal(b.branch, "main");
+    assert.equal(b.sha, "9e11274");
+    assert.equal(
+      band(ws({ id: "d", root: "/src/x", sha: "9e11274" }), false).detail,
+      "(9e11274)",
+    );
+    assert.equal(
+      band(ws({ id: "u", root: "/src/x", branch: "main" }), false).detail,
+      "main",
+    );
+    assert.equal(band(ws({ id: "e", root: "/src/x" }), false).detail, "");
+  });
+
+  it("名前を変えた帯は、2 行目の先頭にディレクトリ名を足す。変えていない帯は足さない", () => {
+    const l = band(
+      ws({
+        id: "a",
+        root: "/src/shijimi-editor",
+        branch: "main",
+        sha: "9e11274",
+        label: "エディタ",
+      }),
+      false,
+    );
+    assert.equal(l.title, "エディタ");
+    assert.equal(l.dir, "shijimi-editor");
+    assert.equal(l.detail, "shijimi-editor · main (9e11274)");
+    const d = band(
+      ws({ id: "b", root: "/src/x", sha: "9e11274", label: "名前" }),
+      false,
+    );
+    assert.equal(d.detail, "x · (9e11274)");
+    const n = band(
+      ws({
+        id: "c",
+        root: "/src/x",
+        kind: "cwd",
+        sha: "9e11274",
+        label: "名前",
+      }),
+      false,
+    );
+    assert.equal(n.detail, "x · git なし");
+    assert.equal(n.sha, "");
+    const plain = band(
+      ws({ id: "p", root: "/src/x", branch: "main", sha: "9e11274" }),
+      false,
+      2,
+    );
+    assert.equal(plain.dir, "");
+    assert.equal(plain.detail, "main (9e11274) #2");
+    assert.equal(band(ws({ id: "u", label: "メモ" }), false).dir, "");
+  });
+
   it("目印が無いワークスペースはルートのパスと「git なし」", () => {
     const b = band(
       ws({ id: "n", root: "/etc/nginx", kind: "cwd", name: "nginx" }),
@@ -81,14 +142,14 @@ describe("band", () => {
     assert.equal(g.label, "作業用");
     assert.equal(g.autoTitle, "x");
     assert.equal(g.path, false);
-    assert.equal(g.detail, "main");
+    assert.equal(g.detail, "x · main");
     const n = band(
       ws({ id: "n", root: "/etc/nginx", kind: "cwd", label: "設定" }),
       false,
     );
     assert.equal(n.title, "設定");
     assert.equal(n.path, false);
-    assert.equal(n.detail, "git なし");
+    assert.equal(n.detail, "nginx · git なし");
     assert.equal(n.autoTitle, "/etc/nginx");
   });
 
@@ -170,7 +231,7 @@ describe("band", () => {
     assert.deepEqual(
       g.bands.map((b) => [b.title, b.detail]),
       [
-        ["作業用", "main"],
+        ["作業用", "app · main"],
         ["app", "main"],
       ],
     );
