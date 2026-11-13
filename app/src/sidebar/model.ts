@@ -28,6 +28,10 @@ export interface Band {
   id: WorkspaceId;
   /** 帯の名前。目印（.git / .shijimi-editor/）が無いワークスペースはフォルダのパス。フォルダ未定なら UNSET_TITLE */
   title: string;
+  /** ユーザーがつけた名前（無ければ ""。title は、あればこれになる） */
+  label: string;
+  /** 名前をつけていないときの title（名前を変える窓の「空なら」に出す） */
+  autoTitle: string;
   /** title がパスなら true（等幅で出す） */
   path: boolean;
   /** フォルダ未定か */
@@ -77,13 +81,23 @@ export function health(s: SessionState | undefined): Health {
 /**
  * ワークスペース 1 つを帯にする。nth は、同じマシンで同じフォルダを指す何番目のワークスペースか（1 から）。
  * 同じフォルダのワークスペースは名前が同じになるので、2 つ目からは番号を付けて見分ける。
+ * ユーザーがつけた名前（w.label）があれば、帯の名前はそれになる（番号は付けない。ブランチなどはそのまま出す）。
  */
 export function band(w: Workspace, focused: boolean, nth = 1): Band {
+  const label = w.label ?? "";
+  const auto = autoBand(w, focused, label ? 1 : nth);
+  if (!label) return auto;
+  return { ...auto, title: label, label, path: false, unset: false };
+}
+
+function autoBand(w: Workspace, focused: boolean, nth: number): Band {
   const num = nth > 1 ? `#${nth}` : "";
   if (w.folder === null) {
     return {
       id: w.id,
       title: UNSET_TITLE,
+      label: "",
+      autoTitle: UNSET_TITLE,
       path: false,
       unset: true,
       detail: "",
@@ -93,13 +107,16 @@ export function band(w: Workspace, focused: boolean, nth = 1): Band {
     };
   }
   const shown = w.display || w.folder;
+  const title = w.kind === "cwd" ? shown : w.name || shown;
   const detail = (w.kind === "cwd" ? ["git なし"] : [w.branch ?? ""])
     .concat(num)
     .filter(Boolean)
     .join(" ");
   return {
     id: w.id,
-    title: w.kind === "cwd" ? shown : w.name || shown,
+    title,
+    label: "",
+    autoTitle: title,
     path: w.kind === "cwd" || !w.name,
     unset: false,
     detail,
@@ -129,7 +146,7 @@ export function buildSidebar(
     const ws = workspaces[target] ?? [];
     const seen = new Map<string, number>();
     const nth = ws.map((w) => {
-      if (w.folder === null) return 1;
+      if (w.folder === null || w.label) return 1; // 名前をつけたものは、番号を数えない（帯にも付けない）
       const n = (seen.get(w.folder) ?? 0) + 1;
       seen.set(w.folder, n);
       return n;

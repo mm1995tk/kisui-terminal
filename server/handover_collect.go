@@ -103,7 +103,7 @@ func (s *Server) collectWorkspaces(st *handoverState) {
 	w.mu.Lock()
 	st.NextWorkspace, st.NextExtra, st.Focus = w.next, w.nextExtra, w.focus
 	for _, x := range w.reg {
-		hw := handoverWS{ID: x.id, Seq: x.seq, Root: x.root, Kind: x.kind, Primary: x.primary, Layout: x.layout, Extras: slices.Clone(x.extras)}
+		hw := handoverWS{ID: x.id, Seq: x.seq, Root: x.root, Kind: x.kind, Label: x.label, Primary: x.primary, Layout: x.layout, Extras: slices.Clone(x.extras)}
 		if x.shj != nil {
 			hw.Shj = &handoverShj{Socket: x.shj.Socket, PID: x.shj.PID, File: x.shj.File, Diff: x.shj.Diff,
 				Panes: slices.Clone(x.shj.panes), Extras: slices.Clone(x.shj.extras)}

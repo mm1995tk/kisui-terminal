@@ -269,6 +269,16 @@ export class Session {
   }
 
   /**
+   * workspace.rename を送る。name が空なら、つけた名前を外して自動の名前に戻す。
+   * 長すぎる名前などは invalid_params で断られるので、投げる。
+   */
+  async renameWorkspace(id: WorkspaceId, name: string): Promise<void> {
+    const conn = this.conn;
+    if (!conn) throw new Error(`${this.target} につながっていません`);
+    await conn.client.request("workspace.rename", { id, name });
+  }
+
+  /**
    * ツリーと git（D2）・ターミナル（F1）・プライマリの shj（#551）の要求を今の接続で送る。つながっていないときは投げる。
    * つなぎ直したら、呼ぶ側が取り直す（onState の connected で知る）。
    */

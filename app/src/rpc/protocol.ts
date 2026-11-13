@@ -62,6 +62,8 @@ export interface Workspace {
   kind: "git" | "shijimi" | "cwd" | null;
   /** folder が未定のあいだ null */
   name: string | null;
+  /** ユーザーがつけた名前（workspace.rename）。つけていなければ省く。あれば、帯の名前は name の代わりにこれになる。古い kisui serve は送らない */
+  label?: string;
   /** folder を、そのマシンのホームディレクトリを ~ にして書いた見せる用のパス。見せ方だけで、ホームの外は folder と同じ。古い kisui serve は送らない */
   display?: string;
   branch?: string;
@@ -254,6 +256,11 @@ export interface Requests {
   };
   "workspace.close": {
     params: { id: WorkspaceId; force?: boolean };
+    result: Record<string, never>;
+  };
+  /** name が空（前後の空白を除いて）なら、つけた名前を外して自動の名前に戻す */
+  "workspace.rename": {
+    params: { id: WorkspaceId; name: string };
     result: Record<string, never>;
   };
 

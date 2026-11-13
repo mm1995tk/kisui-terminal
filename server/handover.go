@@ -128,6 +128,7 @@ type handoverWS struct {
 	Seq     int          `json:"seq"`
 	Root    string       `json:"root,omitempty"`
 	Kind    string       `json:"kind,omitempty"`
+	Label   string       `json:"label,omitempty"` // ユーザーがつけた名前（wsState.label）。古い serve は送らない
 	Primary string       `json:"primary"`
 	Shj     *handoverShj `json:"shj,omitempty"`
 	Extras  []extraPane  `json:"extras,omitempty"` // 欄の中から開いた、ターミナルでない欄（wsState.extras）

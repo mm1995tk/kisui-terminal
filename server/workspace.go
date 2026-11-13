@@ -32,6 +32,8 @@ type wsInfo struct {
 	Folder *string `json:"folder"`
 	Kind   *string `json:"kind"` // "git" | "shijimi" | "cwd"
 	Name   *string `json:"name"`
+	// Label はユーザーがつけた名前（workspace.rename）。つけていなければ省く。GUI は、あれば Name の代わりに出す
+	Label string `json:"label,omitempty"`
 	// Display は Folder をこのマシンのホームディレクトリ基準で書いた見せる用のパス（~/x）。ホームの外は Folder と同じ。
 	// 見せ方だけで、Folder は絶対パスのまま。未定のあいだは省く
 	Display string   `json:"display,omitempty"`
@@ -57,6 +59,7 @@ type wsState struct {
 	seq     int
 	root    string // 正規化済み。未定なら ""
 	kind    string
+	label   string // ユーザーがつけた名前（workspace.rename）。無ければ ""。w.mu で守る
 	primary string // プライマリターミナルの id
 	shj     *primaryShj
 	extras  []extraPane // 欄の中から（kisui open で）開いた、ターミナルでない欄。w.mu で守る。閉じるまで残る（shj が終わっても消えない）
@@ -170,14 +173,14 @@ func (w *wsManager) folderOf(id string) (string, bool) {
 func (w *wsManager) create() (id, termID string, err error) {
 	w.recomputeMu.Lock()
 	defer w.recomputeMu.Unlock()
-	return w.createLocked(newWorkspaceID(), w.startDir())
+	return w.createLocked(newWorkspaceID(), w.startDir(), "")
 }
 
 // createLocked は recomputeMu を持って呼ぶ。wsID のワークスペースを作り、プライマリターミナルを dir で始める。
-func (w *wsManager) createLocked(wsID, dir string) (id, termID string, err error) {
+func (w *wsManager) createLocked(wsID, dir, label string) (id, termID string, err error) {
 	w.mu.Lock()
 	w.next++
-	st := &wsState{id: wsID, seq: w.next}
+	st := &wsState{id: wsID, seq: w.next, label: label}
 	if root, kind, ok := w.resolve(dir); ok {
 		st.root, st.kind = root, kind
 	}
@@ -317,7 +320,7 @@ func (w *wsManager) recomputeLocked() {
 func buildWorkspaces(states []*wsState, terms []*terminal, home string) map[string]*wsInfo {
 	next := map[string]*wsInfo{}
 	for _, st := range states {
-		x := &wsInfo{ID: st.id, Primary: st.primary, Terms: []string{}, Extras: []extraPane{}, root: st.root, seq: st.seq, PrimaryShj: st.shj}
+		x := &wsInfo{ID: st.id, Primary: st.primary, Terms: []string{}, Extras: []extraPane{}, root: st.root, seq: st.seq, PrimaryShj: st.shj, Label: st.label}
 		if st.root != "" {
 			folder, kind, name := st.root, st.kind, filepath.Base(st.root)
 			x.Folder, x.Kind, x.Name = &folder, &kind, &name
@@ -424,7 +427,7 @@ func tildePath(p, home string) string {
 func sortWS(l []*wsInfo) { sort.Slice(l, func(i, j int) bool { return l[i].seq < l[j].seq }) }
 
 func wsEqual(a, b *wsInfo) bool {
-	return a.root == b.root && ptrEq(a.Kind, b.Kind) && a.Branch == b.Branch && a.Primary == b.Primary && shjEq(a.PrimaryShj, b.PrimaryShj) &&
+	return a.root == b.root && a.Label == b.Label && ptrEq(a.Kind, b.Kind) && a.Branch == b.Branch && a.Primary == b.Primary && shjEq(a.PrimaryShj, b.PrimaryShj) &&
 		slices.Equal(a.Terms, b.Terms) && slices.Equal(a.Extras, b.Extras) && maps.Equal(a.Titles, b.Titles) && layoutEqual(a.Layout, b.Layout)
 }
 
@@ -532,6 +535,36 @@ func (w *wsManager) closeWorkspace(id string, force bool) error {
 	return nil
 }
 
+// rename は id のワークスペースにユーザーの名前をつける。空（前後の空白を除いて）なら外して、自動の名前に戻す。
+// 名前は保存し（persist）、引き継ぎでも渡す。長さと文字の決まりはペインの名前と同じ（cleanPaneName）。
+func (w *wsManager) rename(id, name string) *rpc.Error {
+	name, err := cleanPaneName(name)
+	if err != nil {
+		e := rpc.Errorf(rpc.CodeInvalidParams, "%v", err)
+		// 理由は data にも載せる（GUI は文の中身でなく、これで言い換える）
+		switch {
+		case errors.Is(err, errNameTooLong):
+			e.Data, _ = json.Marshal(map[string]any{"reason": "too_long", "max": maxPaneName})
+		case errors.Is(err, errNameControl):
+			e.Data, _ = json.Marshal(map[string]any{"reason": "control_character"})
+		}
+		return e
+	}
+	w.recomputeMu.Lock()
+	defer w.recomputeMu.Unlock()
+	w.mu.Lock()
+	st := w.reg[id]
+	if st != nil {
+		st.label = name
+	}
+	w.mu.Unlock()
+	if st == nil {
+		return rpc.Errorf(rpc.CodeNotFound, "no such workspace: %s", id)
+	}
+	w.recomputeLocked()
+	return nil
+}
+
 func busyError(reason string) *rpc.Error {
 	e := rpc.Errorf(rpc.CodeBusy, "the workspace cannot be closed: %s", reason)
 	e.Data, _ = json.Marshal(map[string]any{"reason": reason})
@@ -541,7 +574,7 @@ func busyError(reason string) *rpc.Error {
 // workspaceRequest は workspace.* のうち返事のあるもの。
 func (ss *session) workspaceRequest(req *rpc.Message) (res any, err error, handled bool) {
 	switch req.Method {
-	case "workspace.list", "workspace.create", "workspace.close", "workspace.focus", "layout.resize":
+	case "workspace.list", "workspace.create", "workspace.close", "workspace.focus", "workspace.rename", "layout.resize":
 	default:
 		return nil, nil, false
 	}
@@ -583,6 +616,19 @@ func (ss *session) workspaceRequest(req *rpc.Message) (res any, err error, handl
 			return nil, rpc.Errorf(rpc.CodeBusy, "%v", err), true
 		}
 		return nil, rpc.Errorf(rpc.CodeInvalidParams, "%v", err), true
+	}
+	if req.Method == "workspace.rename" {
+		var rp struct {
+			ID   string  `json:"id"`
+			Name *string `json:"name"`
+		}
+		if err := json.Unmarshal(req.Params, &rp); err != nil || rp.ID == "" || rp.Name == nil {
+			return nil, rpc.Errorf(rpc.CodeInvalidParams, "id and name are required"), true
+		}
+		if err := w.rename(rp.ID, *rp.Name); err != nil {
+			return nil, err, true
+		}
+		return struct{}{}, nil, true
 	}
 	var p struct {
 		ID    string `json:"id"`

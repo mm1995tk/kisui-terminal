@@ -135,6 +135,7 @@ describe("コマンドの表", () => {
       ...Array.from({ length: 9 }, (_, i) => `w ${i + 1}`),
       "w n",
       "w x",
+      "w r",
       "m",
       "m a",
       "m n",

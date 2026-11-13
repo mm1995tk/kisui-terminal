@@ -23,6 +23,7 @@ export type CommandId =
   | "workspace.last"
   | "workspace.new"
   | "workspace.close"
+  | "workspace.rename"
   | "machine.step"
   | "machine.add"
   | "machine.rename"
@@ -189,6 +190,13 @@ export const LEADER: Node[] = [
       leaf("x", "今のワークスペースを閉じる（確認が出ることがある）", {
         id: "workspace.close",
       }),
+      leaf(
+        "r",
+        "今のワークスペースの名前を変える（空にすると自動の名前に戻る）",
+        {
+          id: "workspace.rename",
+        },
+      ),
     ],
     { mac: "Cmd+Shift+W", other: "Ctrl+Shift+W" },
   ),

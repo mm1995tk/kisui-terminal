@@ -47,7 +47,8 @@ import { ConfigError } from "./connect/ConfigError.tsx";
 import { CloseWorkspaceCard } from "./connect/CloseWorkspaceCard.tsx";
 import { InstallCard } from "./connect/InstallCard.tsx";
 import { Notices, type Notice } from "./connect/Notices.tsx";
-import { RenameMachine } from "./connect/RenameMachine.tsx";
+import { RenameDialog } from "./connect/RenameDialog.tsx";
+import { renameErrorText } from "./sidebar/renameError.ts";
 import {
   describeClient,
   handoverFailure,
@@ -481,6 +482,14 @@ function Workbench(props: {
   // 名前を変える窓を出しているマシン、変えられなかった理由
   const [renaming, setRenaming] = createSignal<string | null>(null);
   const [renameError, setRenameError] = createSignal<string | undefined>();
+  // ワークスペースの名前を変える窓を出しているワークスペース（current はつけている名前、auto は空にしたときの名前）、変えられなかった理由
+  const [renamingWs, setRenamingWs] = createSignal<{
+    target: string;
+    id: WorkspaceId;
+    current: string;
+    auto: string;
+  } | null>(null);
+  const [wsRenameError, setWsRenameError] = createSignal<string | undefined>();
   // 右下の知らせのうち、閉じたもの（状態が変われば、また出す）
   const [dismissed, setDismissed] = createSignal<ReadonlySet<SessionState>>(
     new Set(),
@@ -1453,6 +1462,9 @@ function Workbench(props: {
       case "workspace.close":
         if (f) void closeWorkspace(f.target, f.id);
         break;
+      case "workspace.rename":
+        if (f) openWorkspaceRename(f.target, f.id);
+        break;
       case "machine.add":
         setAddError(undefined);
         setAdding(true);
@@ -1544,6 +1556,31 @@ function Workbench(props: {
     }
     updateMachines(r.machines);
     setRenaming(null);
+  }
+
+  /** ワークスペースの名前を変える窓を開く（帯のメニューと、リーダーの w r）。 */
+  function openWorkspaceRename(target: string, id: WorkspaceId) {
+    const b = groups()
+      .find((g) => g.target === target)
+      ?.bands.find((x) => x.id === id);
+    if (!b) return;
+    setWsRenameError(undefined);
+    setRenamingWs({ target, id, current: b.label, auto: b.autoTitle });
+  }
+
+  /** 名前を変える窓の「変える」。空なら、つけた名前を外す。断られたら窓に理由を出す。 */
+  async function submitWorkspaceRename(name: string) {
+    const r = renamingWs();
+    if (!r) return;
+    const s = sessions()[r.target];
+    try {
+      if (!s) throw new Error(`${labelOf(r.target)} につながっていません`);
+      await s.renameWorkspace(r.id, name);
+    } catch (e) {
+      setWsRenameError(renameErrorText(e));
+      return;
+    }
+    setRenamingWs(null);
   }
 
   /** 見出しのメニューの「外す」。記録から外し、GUI の接続を切る（そのマシンの kisui serve は止めない）。 */
@@ -1690,6 +1727,7 @@ function Workbench(props: {
           setRenaming(t);
         }}
         onRemove={removeFromSidebar}
+        onRenameWorkspace={openWorkspaceRename}
         onOpen={openFile}
         changesOf={changesOf}
         onChange={openChange}
@@ -1769,12 +1807,23 @@ function Workbench(props: {
       </Show>
       <Show when={renaming()}>
         {(t) => (
-          <RenameMachine
+          <RenameDialog
             current={labelOf(t())}
-            target={t()}
+            fallback={t()}
             error={renameError()}
             onSubmit={(name) => submitRename(t(), name)}
             onCancel={() => setRenaming(null)}
+          />
+        )}
+      </Show>
+      <Show when={renamingWs()}>
+        {(r) => (
+          <RenameDialog
+            current={r().current}
+            fallback={r().auto}
+            error={wsRenameError()}
+            onSubmit={(name) => void submitWorkspaceRename(name)}
+            onCancel={() => setRenamingWs(null)}
           />
         )}
       </Show>
