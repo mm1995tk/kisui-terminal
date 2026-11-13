@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/mm1995tk/kisui-terminal/internal/buildinfo"
 )
 
 // fakeVersion は、版ごとのフォルダ（~/.cache/kisui-terminal/<版>/ のような）に、名前を出すだけの kisui と shj を作る。
@@ -258,5 +260,34 @@ func TestCurrentChecksBeforeCreating(t *testing.T) {
 	}
 	if _, err := os.Lstat(filepath.Join(base, "kisui-terminal")); !os.IsNotExist(err) {
 		t.Fatalf("kisui-terminal created in an unsafe cache dir: %v", err)
+	}
+}
+
+// 安定版と nightly は別のフォルダを使い、互いのリンクを書き換えない。
+func TestCurrentSeparatesChannels(t *testing.T) {
+	isolateCache(t)
+	stable, nightly := fakeVersion(t, "stable"), fakeVersion(t, "nightly")
+
+	buildinfo.SetForTest(t, "")
+	useExecutable(t, filepath.Join(stable, "kisui"))
+	cs, err := pointCurrent()
+	if err != nil {
+		t.Fatal(err)
+	}
+	buildinfo.SetForTest(t, buildinfo.Nightly)
+	useExecutable(t, filepath.Join(nightly, "kisui"))
+	cn, err := pointCurrent()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if filepath.Base(cs) != "current" || filepath.Base(cn) != "current-nightly" || filepath.Dir(cs) != filepath.Dir(cn) {
+		t.Fatalf("stable %q, nightly %q", cs, cn)
+	}
+	for dir, want := range map[string]string{cs: stable, cn: nightly} {
+		for _, tool := range []string{"kisui", "shj"} {
+			if got, err := os.Readlink(filepath.Join(dir, tool)); err != nil || got != filepath.Join(want, tool) {
+				t.Fatalf("%s/%s -> %q, %v; want %q", dir, tool, got, err, filepath.Join(want, tool))
+			}
+		}
 	}
 }
