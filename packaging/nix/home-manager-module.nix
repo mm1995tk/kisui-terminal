@@ -16,7 +16,11 @@ let
   cfg = config.programs.kisui-terminal;
   toml = pkgs.formats.toml { };
   # nightly のパッケージ（kisui-terminal-nightly）は、自分の名前のフォルダを先に読む
-  dir = if lib.hasSuffix "-nightly" (cfg.package.pname or "") then "kisui-terminal-nightly" else "kisui-terminal";
+  dir =
+    if lib.hasSuffix "-nightly" (cfg.package.pname or "") then
+      "kisui-terminal-nightly"
+    else
+      "kisui-terminal";
 in
 {
   options.programs.kisui-terminal = {

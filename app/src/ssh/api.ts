@@ -47,10 +47,10 @@ export interface ShellApi {
    */
   configMachines(): Promise<ConfigMachine[]>;
   /**
-   * shijimi-editor の設定ファイルに、kisui-terminal の設定（[[gui.machines]] か [server]）が残っているか。
+   * shijimi-editor の設定ファイルに kisui-terminal の設定（[[gui.machines]] か [server]）が残っていれば、今の設定ファイルの場所。無ければ null。
    * 設定は kisui-terminal 自身のファイルに移ったので、残っていれば場所が変わったことを知らせる。
    */
-  configMoved(): Promise<boolean>;
+  configMoved(): Promise<string | null>;
   /** target は ssh のホスト名か LOCAL。id は呼ぶ側が決める（イベントの宛先） */
   connect(id: string, target: string): Promise<void>;
   send(id: string, text: string): Promise<void>;

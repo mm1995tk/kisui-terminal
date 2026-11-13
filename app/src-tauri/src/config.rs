@@ -109,12 +109,26 @@ pub fn load_default() -> Result<Vec<ConfigMachine>, String> {
 }
 
 /// shijimi-editor の設定ファイルに、kisui-terminal の設定（`[[gui.machines]]` か `[server]`）が
-/// 残っているか。読めない・書き方が違うファイルは「残っていない」とする（shj が知らせる）。
-pub fn moved_from_shj_default() -> bool {
+/// 残っているとき、今の kisui-terminal の設定ファイルの場所（`$HOME` は `~` で出す）を返す。残っていなければ None。
+/// 読めない・書き方が違うファイルは「残っていない」とする（shj が知らせる）。
+pub fn moved_from_shj_default() -> Option<String> {
     let (xdg, home, nightly) = env();
-    shj_config_path(xdg.as_deref(), home.as_deref(), nightly)
+    let left = shj_config_path(xdg.as_deref(), home.as_deref(), nightly)
         .and_then(|p| fs::read_to_string(p).ok())
-        .is_some_and(|t| has_moved_keys(&t))
+        .is_some_and(|t| has_moved_keys(&t));
+    if !left {
+        return None;
+    }
+    let to = config_path(xdg.as_deref(), home.as_deref(), nightly)?;
+    Some(display_path(&to, home.as_deref()))
+}
+
+/// `$HOME` の下なら `~/…` で出す。
+fn display_path(p: &Path, home: Option<&Path>) -> String {
+    match home.and_then(|h| p.strip_prefix(h).ok()) {
+        Some(rest) => format!("~/{}", rest.display()),
+        None => p.display().to_string(),
+    }
 }
 
 fn has_moved_keys(text: &str) -> bool {
@@ -361,6 +375,25 @@ mod tests {
         assert_eq!(
             shj_config_path(None, Some(home), false).unwrap(),
             Path::new("/home/u/.config/shijimi-editor/config.toml")
+        );
+    }
+
+    #[test]
+    fn display_path_uses_tilde_under_home() {
+        let home = Path::new("/home/u");
+        assert_eq!(
+            display_path(
+                Path::new("/home/u/.config/kisui-terminal/config.toml"),
+                Some(home)
+            ),
+            "~/.config/kisui-terminal/config.toml"
+        );
+        assert_eq!(
+            display_path(
+                Path::new("/x/kisui-terminal-nightly/config.toml"),
+                Some(home)
+            ),
+            "/x/kisui-terminal-nightly/config.toml"
         );
     }
 }

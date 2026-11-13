@@ -175,7 +175,7 @@ export function App(props: {
 }): JSX.Element {
   const api = props.api ?? tauriShell;
   const [loaded, setLoaded] = createSignal<
-    { config: ConfigMachine[]; moved: boolean } | { error: string } | null
+    { config: ConfigMachine[]; moved: string | null } | { error: string } | null
   >(null);
   onMount(() => {
     api.configMachines().then(
@@ -183,7 +183,7 @@ export function App(props: {
       async (config) =>
         setLoaded({
           config,
-          moved: await api.configMoved().catch(() => false),
+          moved: await api.configMoved().catch(() => null),
         }),
       (e) => setLoaded({ error: String(e) }),
     );
@@ -213,7 +213,7 @@ function Workbench(props: {
   /** 手元の設定ファイルで決めたマシン */
   config: ConfigMachine[];
   /** shijimi-editor の設定ファイルに kisui-terminal の設定が残っている（場所が変わったことを知らせる） */
-  moved: boolean;
+  moved: string | null;
 }): JSX.Element {
   const api = props.api;
   const store = props.store ?? browserStore();
@@ -1758,11 +1758,11 @@ function Workbench(props: {
 
   // 設定の場所が変わったお知らせ。古い場所（shijimi-editor の config.toml）に kisui-terminal の設定が残っている間、
   // 起動するたびに出す（閉じたら、その起動のあいだは出さない）。作り直さないよう、オブジェクトは 1 つ
-  const [movedOpen, setMovedOpen] = createSignal(props.moved);
+  const [movedOpen, setMovedOpen] = createSignal(props.moved !== null);
   const movedNotice: Notice = {
     title: "設定の場所が変わりました",
     text:
-      "kisui-terminal の設定は ~/.config/kisui-terminal/config.toml に移りました。" +
+      `kisui-terminal の設定は ${props.moved ?? ""} に移りました。` +
       "shijimi-editor の config.toml の [[gui.machines]] と [server] は、もう読みません。" +
       "詳しくはリリースノートを見てください。",
     primary: { label: "閉じる", run: () => setMovedOpen(false) },

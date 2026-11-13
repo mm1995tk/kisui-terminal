@@ -49,7 +49,7 @@ function fakeShell(opts: {
   const api: ShellApi = {
     listSshHosts: async () => [],
     configMachines: async () => [],
-    configMoved: async () => false,
+    configMoved: async () => null,
     connect: async (id) => {
       const sid = opts.serverIds[Math.min(n, opts.serverIds.length - 1)];
       n++;

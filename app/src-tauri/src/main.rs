@@ -45,9 +45,9 @@ fn config_machines() -> Result<Vec<config::ConfigMachine>, String> {
     config::load_default()
 }
 
-/// shijimi-editor の設定ファイルに、kisui-terminal の設定が残っているか（画面が場所の変わったお知らせを出す）。
+/// shijimi-editor の設定ファイルに kisui-terminal の設定が残っていれば、今の設定ファイルの場所（画面が場所の変わったお知らせを出す）。
 #[tauri::command]
-fn config_moved() -> bool {
+fn config_moved() -> Option<String> {
     config::moved_from_shj_default()
 }
 
