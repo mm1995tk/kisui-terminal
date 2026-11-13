@@ -29,7 +29,11 @@ import {
 } from "solid-js";
 
 import { AskpassDialog } from "./AskpassDialog.tsx";
-import { explorerRow, isLeaveExplorerKey } from "./explorerFocus.ts";
+import {
+  explorerRow,
+  isLeaveExplorerKey,
+  startFocusStep,
+} from "./explorerFocus.ts";
 import { afterChangesKey } from "./changes/handover.ts";
 import { changesRow } from "./changes/keys.ts";
 import { ClipboardDialog } from "./ClipboardDialog.tsx";
@@ -353,12 +357,13 @@ function Workbench(props: {
     const p = startFocus;
     if (!p) return;
     const f = untrack(focus);
-    if (!f || f.target !== p.target || f.id !== p.id) {
-      cancelStartFocus();
-      return;
-    }
-    if (nav?.contains(document.activeElement)) return;
-    focusExplorer(p.target, p.id);
+    const step = startFocusStep({
+      stillFocused: !!f && f.target === p.target && f.id === p.id,
+      keyInTree: !!nav?.contains(document.activeElement),
+      hasRow: explorerRow(nav) !== null,
+    });
+    if (step === "drop") cancelStartFocus();
+    else if (step === "focus") focusExplorer(p.target, p.id);
   }
   createEffect(() => {
     treeVersion();
