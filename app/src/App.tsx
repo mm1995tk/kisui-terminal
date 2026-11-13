@@ -34,6 +34,7 @@ import {
   isLeaveExplorerKey,
   startFocusStep,
 } from "./explorerFocus.ts";
+import { forceCloseWorkspace } from "./confirmClose.ts";
 import { focusWorkspaceAndTerminal } from "./focusWorkspaceAndTerminal.ts";
 import { afterChangesKey } from "./changes/handover.ts";
 import { changesRow } from "./changes/keys.ts";
@@ -1911,10 +1912,13 @@ function Workbench(props: {
         {(c) => (
           <CloseWorkspaceCard
             name={c().name}
-            onYes={() => {
-              setConfirmClose(null);
-              void closeWorkspace(c().target, c().id, true);
-            }}
+            onYes={() =>
+              forceCloseWorkspace(
+                c,
+                () => setConfirmClose(null),
+                (target, id, force) => void closeWorkspace(target, id, force),
+              )
+            }
             onNo={() => setConfirmClose(null)}
           />
         )}
