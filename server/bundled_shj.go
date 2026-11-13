@@ -50,7 +50,7 @@ func prependPath(env []string, dir string) []string {
 	}
 	parts := []string{dir}
 	if path != "" {
-		for _, p := range strings.Split(path, string(os.PathListSeparator)) {
+		for p := range strings.SplitSeq(path, string(os.PathListSeparator)) {
 			if p != dir {
 				parts = append(parts, p)
 			}
