@@ -35,13 +35,13 @@
 .keys {
   white-space: nowrap;
   color: var(--gh-accent-text);
-  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-family: var(--gh-mono);
   font-size: 12px;
 }
 .shortcut {
   white-space: nowrap;
   color: var(--gh-text-muted);
-  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-family: var(--gh-mono);
   font-size: 12px;
 }
 .groupRow td {

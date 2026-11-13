@@ -43,7 +43,7 @@
   border-radius: 4px;
   background: var(--gh-bg-hover);
   color: var(--gh-accent-text);
-  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-family: var(--gh-mono);
   font-size: 12px;
   text-align: center;
 }
