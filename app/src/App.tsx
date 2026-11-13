@@ -57,12 +57,7 @@ import {
   statusLine,
 } from "./connect/status.ts";
 import { UpdateBar } from "./update/UpdateBar.tsx";
-import {
-  checkNow,
-  dismissUpdate,
-  installUpdate,
-  updateInfo,
-} from "./update/store.ts";
+import { checkNow, dismissUpdate, updateInfo } from "./update/store.ts";
 import { OsClipboard } from "./clipboard.ts";
 import { CopiedToast, copiedNotice } from "./CopiedToast.tsx";
 import { ScaleToast, showScale } from "./ScaleToast.tsx";
@@ -144,6 +139,7 @@ import { WorkspaceTrees } from "./tree/trees.ts";
 import {
   afterKeyUp,
   IDLE,
+  leaderKeyName,
   route,
   type Command,
   type RouterState,
@@ -1603,11 +1599,6 @@ function Workbench(props: {
       case "scale":
         changeScale(c.arg as ScaleAction);
         break;
-      case "notice.act":
-        // いちばん下のお知らせ（新しい版の知らせがあればそれ）の、主のボタン
-        if (updateInfo()) void installUpdate();
-        else notices().at(-1)?.primary?.run();
-        break;
       case "notice.dismiss":
         if (updateInfo()) dismissUpdate();
         else notices().at(-1)?.dismiss?.();
@@ -1774,9 +1765,12 @@ function Workbench(props: {
       run: () => setDismissed((d) => new Set(d).add(st)),
     };
     const cut = { label: "切る", run: () => void disconnect(t) };
+    // ボタンと同じ動きのキー（今のワークスペースのマシンに行う）
+    const keys = `${leaderKeyName(IS_MAC)} m r でつなぎ直す、${leaderKeyName(IS_MAC)} m x で切る`;
     if (st.kind === "failed") {
       return {
         title: `${label} につながりません`,
+        text: keys,
         error: st.message,
         secondary: [close, cut],
         dismiss: close.run,
@@ -1794,7 +1788,8 @@ function Workbench(props: {
         text:
           `${label} の作業は、あとからつないだ別の kisui-terminal に移りました。` +
           "取り合いにならないよう、自動ではつなぎ直しません。" +
-          "「つなぎ直す」を押すとこちらに戻し、あちらの kisui-terminal が切れます。",
+          "「つなぎ直す」を押すとこちらに戻し、あちらの kisui-terminal が切れます。" +
+          `（${keys}）`,
         secondary: [close, cut],
         dismiss: close.run,
         primary: { label: "つなぎ直す", run: () => connect(t) },

@@ -8,6 +8,7 @@ import {
   IDLE,
   LEADER,
   leaderKeyName,
+  menuRows,
   route,
   shortcutCommand,
   type Command,
@@ -167,7 +168,6 @@ describe("コマンドの表", () => {
       "v -",
       "v 0",
       "n",
-      "n a",
       "n d",
       "n g",
       "?",
@@ -635,5 +635,54 @@ describe("リーダーの中の字の当たり方", () => {
     assert.deepEqual(press(LINUX, [L, key("w"), ime("Digit1")]).runs, [
       { id: "workspace.nth", arg: 0 },
     ]);
+  });
+});
+
+describe("リーダーの案内（menuRows）", () => {
+  const keysOf = (path: string[], mac: boolean) =>
+    menuRows(path, mac).map((r) => r.keys);
+
+  it("Mac では表示の大きさのグループ（v）を案内に出さず、Linux では出す", () => {
+    assert.equal(keysOf([], MAC).includes("v"), false);
+    assert.equal(keysOf([], LINUX).includes("v"), true);
+  });
+
+  it("v の中の案内は、Linux では + - 0 の 3 行", () => {
+    assert.deepEqual(
+      menuRows(["v"], LINUX).map((r) => [r.keys, r.label]),
+      [
+        ["+ =", "大きくする"],
+        ["-", "小さくする"],
+        ["0", "元の大きさに戻す"],
+      ],
+    );
+  });
+
+  it("`?` の一覧（helpRows）には、どの OS でも v の 3 つが載る", () => {
+    for (const mac of [MAC, LINUX]) {
+      const paths = helpRows(mac).map((r) => r.path.join(" "));
+      for (const p of ["v", "v + =", "v -", "v 0"])
+        assert.ok(paths.includes(p), `${mac ? "Mac" : "Linux"} に ${p}`);
+    }
+  });
+
+  it("w の中の 1〜9 は、案内では 1 行にまとまり、`?` の一覧では 9 行ある", () => {
+    const rows = menuRows(["w"], LINUX);
+    assert.deepEqual(
+      rows.filter((r) => /^[1-9]/.test(r.keys)),
+      [{ keys: "1–9", label: "上から N 番目へ", group: false }],
+    );
+    assert.equal(
+      helpRows(LINUX).filter((r) => /^w [1-9]$/.test(r.path.join(" "))).length,
+      9,
+    );
+  });
+
+  it("お知らせの n に a は無い", () => {
+    assert.deepEqual(keysOf(["n"], MAC), ["d", "g"]);
+  });
+
+  it("葉と範囲の無いグループは、木のとおりに並ぶ", () => {
+    assert.deepEqual(keysOf(["m"], MAC), ["a", "n", "d", "x", "r"]);
   });
 });

@@ -33,7 +33,6 @@ export type CommandId =
   | "machine.reconnect"
   | "clipboard.history"
   | "scale"
-  | "notice.act"
   | "notice.dismiss"
   | "notice.focusNotified"
   | "help.keys";
@@ -53,6 +52,8 @@ export interface Shortcut {
 interface Common {
   label: string;
   shortcut?: Shortcut;
+  /** リーダーの案内（LeaderMenu.tsx）に出さない OS。`?` の一覧には、どの OS でも出す */
+  hideInMenuOn?: "mac";
 }
 
 /** リーダーの下の、動きを行う 1 つ。 */
@@ -63,6 +64,10 @@ export interface Leaf extends Common {
   run: Command;
   /** 行ったあともリーダーを出ず、同じ一覧のまま次のキーを待つ（ペインを `j` `j` `l` と続けて移れる） */
   repeat?: boolean;
+  /**
+   * 案内では、同じ range.keys が続く葉を 1 行にまとめて出す（`1–9  上から N 番目へ`）。`?` の一覧は 1 つずつ出す。
+   */
+  range?: { keys: string; label: string };
   /** 近道は、キーがペインに向いているときか、どこにも向いていないときだけ受ける（Cmd+W が、窓を閉じるのを防ぐため） */
   shortcutInPane?: boolean;
 }
@@ -81,7 +86,7 @@ function leaf(
   keys: string | string[],
   label: string,
   run: Command,
-  opts: Pick<Leaf, "repeat" | "shortcut" | "shortcutInPane"> = {},
+  opts: Pick<Leaf, "repeat" | "shortcut" | "shortcutInPane" | "range"> = {},
 ): Leaf {
   return {
     type: "leaf",
@@ -97,8 +102,9 @@ function group(
   label: string,
   children: Node[],
   shortcut?: Shortcut,
+  hideInMenuOn?: "mac",
 ): Group {
-  return { type: "group", key, label, children, shortcut };
+  return { type: "group", key, label, children, shortcut, hideInMenuOn };
 }
 
 /** リーダーに入るキー。Linux で Super を使わないのは、Windows（Win+K）や i3・sway で取られるため。Shift なしの Ctrl+K は shj に届く。 */
@@ -119,7 +125,7 @@ const paneMoves = (): Leaf[] =>
   ).map(([k, name, dir]) =>
     leaf(
       k,
-      `${name}のペインへフォーカスを移す`,
+      `${name}のペインへ`,
       { id: "pane.focus", arg: dir },
       { repeat: true },
     ),
@@ -132,25 +138,25 @@ const paneMoves = (): Leaf[] =>
 const workspaceMoves = (): Leaf[] => [
   leaf(
     "j",
-    "次（サイドバーで下）のワークスペースへ（マシンをまたぐ）",
+    "下のワークスペースへ",
     { id: "workspace.step", arg: "next" },
     { repeat: true },
   ),
   leaf(
     "k",
-    "前（サイドバーで上）のワークスペースへ（マシンをまたぐ）",
+    "上のワークスペースへ",
     { id: "workspace.step", arg: "prev" },
     { repeat: true },
   ),
   leaf(
     "h",
-    "前のマシンへ",
+    "上のマシンへ",
     { id: "machine.step", arg: "prev" },
     { repeat: true },
   ),
   leaf(
     "l",
-    "次のマシンへ",
+    "下のマシンへ",
     { id: "machine.step", arg: "next" },
     { repeat: true },
   ),
@@ -165,7 +171,7 @@ export const LEADER: Node[] = [
   ...paneMoves(),
   leaf(
     "Tab",
-    "直前にフォーカスがあったペインへ戻る",
+    "直前のペインへ",
     { id: "pane.last" },
     {
       repeat: true,
@@ -176,66 +182,61 @@ export const LEADER: Node[] = [
     "ワークスペース",
     [
       ...workspaceMoves(),
-      leaf("Tab", "直前に選んでいたワークスペースへ戻る", {
+      leaf("Tab", "直前のワークスペースへ", {
         id: "workspace.last",
       }),
       ...Array.from({ length: 9 }, (_, i) =>
         leaf(
           String(i + 1),
-          `サイドバーの上から ${i + 1} 番目のワークスペースへ`,
+          `上から ${i + 1} 番目へ`,
           { id: "workspace.nth", arg: i },
-          { shortcut: { mac: `Cmd+${i + 1}` } },
+          {
+            shortcut: { mac: `Cmd+${i + 1}` },
+            range: { keys: "1–9", label: "上から N 番目へ" },
+          },
         ),
       ),
-      leaf("n", "今のマシンにワークスペースを作る", { id: "workspace.new" }),
-      leaf("x", "今のワークスペースを閉じる（確認が出ることがある）", {
+      leaf("n", "ワークスペースを作る", { id: "workspace.new" }),
+      leaf("x", "ワークスペースを閉じる", {
         id: "workspace.close",
       }),
-      leaf(
-        "r",
-        "今のワークスペースの名前を変える（空にすると自動の名前に戻る）",
-        {
-          id: "workspace.rename",
-        },
-      ),
+      leaf("r", "名前を変える", {
+        id: "workspace.rename",
+      }),
     ],
     { mac: "Cmd+Shift+W", other: "Ctrl+Shift+W" },
   ),
   group("m", "マシン", [
     leaf("a", "マシンを足す", { id: "machine.add" }),
-    leaf("n", "今のマシンの名前を変える", { id: "machine.rename" }),
-    leaf("d", "今のマシンを一覧から外す", { id: "machine.remove" }),
-    leaf("x", "今のマシンへのつなぎを切る", { id: "machine.disconnect" }),
-    leaf("r", "今のマシンにつなぎ直す", { id: "machine.reconnect" }),
+    leaf("n", "名前を変える", { id: "machine.rename" }),
+    leaf("d", "一覧から外す", { id: "machine.remove" }),
+    leaf("x", "接続を切る", { id: "machine.disconnect" }),
+    leaf("r", "つなぎ直す", { id: "machine.reconnect" }),
   ]),
   group(
     "p",
     "ペイン",
     [
       ...paneMoves(),
-      group(
-        "s",
-        "今のペインを分ける（向きを選ぶ。新しいペインにフォーカスが移る）",
-        [
-          leaf("h", "左に分ける", { id: "pane.split", arg: "left" }),
-          leaf(
-            "j",
-            "下に分ける",
-            { id: "pane.split", arg: "down" },
-            { shortcut: { mac: "Cmd+Shift+D", other: "Ctrl+Shift+E" } },
-          ),
-          leaf("k", "上に分ける", { id: "pane.split", arg: "up" }),
-          leaf(
-            "l",
-            "右に分ける",
-            { id: "pane.split", arg: "right" },
-            { shortcut: { mac: "Cmd+D", other: "Ctrl+Shift+D" } },
-          ),
-        ],
-      ),
+      group("s", "ペインを分ける", [
+        leaf("h", "左に分ける", { id: "pane.split", arg: "left" }),
+        leaf(
+          "j",
+          "下に分ける",
+          { id: "pane.split", arg: "down" },
+          { shortcut: { mac: "Cmd+Shift+D", other: "Ctrl+Shift+E" } },
+        ),
+        leaf("k", "上に分ける", { id: "pane.split", arg: "up" }),
+        leaf(
+          "l",
+          "右に分ける",
+          { id: "pane.split", arg: "right" },
+          { shortcut: { mac: "Cmd+D", other: "Ctrl+Shift+D" } },
+        ),
+      ]),
       group(
         "m",
-        "今のペインを隣のペインと入れ替える（向きを選ぶ。フォーカスは今のペインについていく）",
+        "隣のペインと入れ替える",
         (
           [
             ["h", "左", "left"],
@@ -252,19 +253,19 @@ export const LEADER: Node[] = [
       ),
       leaf(
         "x",
-        "今のペインを閉じる（プライマリのペインは閉じない）",
+        "ペインを閉じる",
         { id: "pane.close" },
         { shortcut: { mac: "Cmd+W" }, shortcutInPane: true },
       ),
       leaf(
         "z",
-        "プライマリのペイン以外を隠す・戻す",
+        "プライマリだけを出す・戻す",
         { id: "pane.zoom" },
         { shortcut: { mac: "Cmd+Shift+Enter", other: "Ctrl+Shift+M" } },
       ),
       leaf(
         "r",
-        "リサイズモードに入る（境界を h j k l で動かす）",
+        "リサイズモード",
         { id: "pane.resize" },
         { shortcut: { mac: "Cmd+R", other: "Ctrl+Shift+R" } },
       ),
@@ -274,41 +275,46 @@ export const LEADER: Node[] = [
   leaf("b", "サイドバーを開け閉めする", { id: "sidebar.toggle" }),
   leaf(
     "y",
-    "クリップボードの履歴を開く",
+    "クリップボードの履歴",
     { id: "clipboard.history" },
     { shortcut: { mac: "Cmd+Shift+H", other: "Ctrl+Shift+H" } },
   ),
-  group("v", "表示の大きさ", [
-    leaf(
-      ["+", "="],
-      "表示を大きくする",
-      { id: "scale", arg: "in" },
-      { repeat: true, shortcut: { mac: "Cmd+=", other: "Ctrl+=" } },
-    ),
-    // Linux の Ctrl+- は端末の C-_（shj のコメントの切り替え、シェルの undo）と同じ符号なので、近道にしない
-    leaf(
-      "-",
-      "表示を小さくする",
-      { id: "scale", arg: "out" },
-      { repeat: true, shortcut: { mac: "Cmd+-" } },
-    ),
-    leaf(
-      "0",
-      "表示を元の大きさに戻す",
-      { id: "scale", arg: "reset" },
-      { shortcut: { mac: "Cmd+0", other: "Ctrl+0" } },
-    ),
-  ]),
+  // Mac は Cmd+= / Cmd+- / Cmd+0 が共通の操作なので、案内には出さない。Linux は Ctrl+- が端末の Ctrl+_ と同じ信号で近道が無く、
+  // `v -` しか小さくするキーが無いので出す。`?` の一覧には、どの OS でも出す
+  group(
+    "v",
+    "表示の大きさ",
+    [
+      leaf(
+        ["+", "="],
+        "大きくする",
+        { id: "scale", arg: "in" },
+        { repeat: true, shortcut: { mac: "Cmd+=", other: "Ctrl+=" } },
+      ),
+      // Linux の Ctrl+- は端末の C-_（shj のコメントの切り替え、シェルの undo）と同じ符号なので、近道にしない
+      leaf(
+        "-",
+        "小さくする",
+        { id: "scale", arg: "out" },
+        { repeat: true, shortcut: { mac: "Cmd+-" } },
+      ),
+      leaf(
+        "0",
+        "元の大きさに戻す",
+        { id: "scale", arg: "reset" },
+        { shortcut: { mac: "Cmd+0", other: "Ctrl+0" } },
+      ),
+    ],
+    undefined,
+    "mac",
+  ),
   group("n", "お知らせ", [
-    leaf("a", "いちばん下のお知らせの、主のボタンを押す", {
-      id: "notice.act",
-    }),
-    leaf("d", "いちばん下のお知らせを閉じる", { id: "notice.dismiss" }),
-    leaf("g", "最後に OS の通知を出したペインを前に出す", {
+    leaf("d", "お知らせを閉じる", { id: "notice.dismiss" }),
+    leaf("g", "通知を出したペインへ", {
       id: "notice.focusNotified",
     }),
   ]),
-  leaf("?", "全部のキーの一覧を出す", { id: "help.keys" }),
+  leaf("?", "キーの一覧", { id: "help.keys" }),
 ];
 
 /** リーダーの木の中の位置（リーダーを押してから押したキー）。[] はリーダーを押した直後の 1 段目。 */
@@ -360,6 +366,35 @@ function matchLeaderKey(k: string, e: KeyLike, by: "key" | "code"): boolean {
   if (/^[a-z]$/.test(k)) return e.key.toLowerCase() === k;
   if (/^[0-9]$/.test(k)) return !e.shiftKey && e.key === k;
   return e.key === k;
+}
+
+/** リーダーの案内の 1 行。 */
+export interface MenuRow {
+  keys: string;
+  label: string;
+  group: boolean;
+}
+
+/**
+ * 案内に出す行。この OS で出さないもの（hideInMenuOn）は除き、range が同じ葉の並びは 1 行にまとめる。
+ * `?` の一覧（helpRows）は、これを通さず全部出す。
+ */
+export function menuRows(path: Path, mac: boolean): MenuRow[] {
+  const out: MenuRow[] = [];
+  let lastRange: string | undefined;
+  for (const n of childrenAt(path) ?? []) {
+    if (mac && n.hideInMenuOn === "mac") continue;
+    const range = n.type === "leaf" ? n.range : undefined;
+    if (range) {
+      if (lastRange !== range.keys)
+        out.push({ keys: range.keys, label: range.label, group: false });
+      lastRange = range.keys;
+      continue;
+    }
+    lastRange = undefined;
+    out.push({ keys: nodeKeys(n), label: n.label, group: n.type === "group" });
+  }
+  return out;
 }
 
 /** 表示用：一覧の 1 行のキー（葉が複数のキーを持つなら「+ =」のように並べる）。 */

@@ -1,7 +1,7 @@
-/* リーダーを押すと、画面の左下に出る「次に押せるキー」の一覧。押せない・フォーカスを取らない（キーは今のペインに向いたまま） */
+/* リーダーを押すと、画面の右下に出る「次に押せるキー」の一覧。押せない・フォーカスを取らない（キーは今のペインに向いたまま） */
 .menu {
   position: fixed;
-  left: 16px;
+  right: 16px;
   bottom: 16px;
   box-sizing: border-box;
   width: 360px;
@@ -17,6 +17,8 @@
   font-family: "IBM Plex Sans JP", system-ui, sans-serif;
   font-size: 13px;
   pointer-events: none;
+  /* お知らせのカード（connect/card.css の .card-notices、z-index 10）も右下にあるので、案内のほうを手前に重ねる。
+     案内は押せないので（pointer-events: none）、重なった部分のカードのボタンは、案内を出している間は押せない */
   z-index: 900;
 }
 .path {
