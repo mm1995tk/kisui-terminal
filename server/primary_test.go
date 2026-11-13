@@ -483,7 +483,8 @@ func TestPrimaryShjStartFocusesExplorerOnlyWithoutFile(t *testing.T) {
 	file := filepath.Join(t.TempDir(), "a.go")
 	_, conn := announceShj(t, sock, ctl.PrimaryHello{TermID: primary, Socket: "/run/a.sock", PID: 11})
 	send(conn, ctl.PrimaryFile{File: file})
-	waitFor(t, "file", func() bool { p := primaryShjOf(t, c, id); return p != nil && p.File == file })
+	waitFor(t, "file again", func() bool { p := primaryShjOf(t, c, id); return p != nil && p.File == file })
+	send(conn, ctl.PrimaryFile{})
 	send(conn, ctl.PrimaryFile{})
 	waitFor(t, "file cleared", func() bool { p := primaryShjOf(t, c, id); return p != nil && p.File == "" })
 	if n := len(nt.all("explorer.focus")); n != 0 {
@@ -497,9 +498,10 @@ func TestPrimaryShjStartFocusesExplorerOnlyWithoutFile(t *testing.T) {
 	send(conn, ctl.PrimaryFile{})
 	waitFor(t, "explorer.focus", func() bool {
 		ms := nt.all("explorer.focus")
-		return len(ms) == 1 && strings.Contains(string(*ms[0]), `"workspaceId":"`+id+`"`)
+		return len(ms) == 1 && strings.Contains(string(*ms[0]), `"workspaceId":"`+id+`"`) && strings.Contains(string(*ms[0]), `"start":true`)
 	})
 	send(conn, ctl.PrimaryFile{File: file})
+	waitFor(t, "file again", func() bool { p := primaryShjOf(t, c, id); return p != nil && p.File == file })
 	send(conn, ctl.PrimaryFile{})
 	waitFor(t, "file cleared", func() bool { p := primaryShjOf(t, c, id); return p != nil && p.File == "" })
 	if n := len(nt.all("explorer.focus")); n != 1 {
