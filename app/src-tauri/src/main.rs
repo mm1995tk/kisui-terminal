@@ -11,6 +11,7 @@ mod locate;
 mod menu;
 mod notify;
 mod open_url;
+mod relay;
 mod ssh_config;
 mod transfer;
 mod update;
@@ -127,7 +128,6 @@ fn main() {
         })
         .manage(update::Updates::default())
         .manage(transfer::Transfers::default())
-        .manage(open_url::Forwards::default())
         .setup(|app| {
             version::init(app.package_info().version.to_string());
             // 「ローカル」の kisui のターミナルに渡す PATH を、先にログインシェルに聞いておく（locate.rs）
@@ -140,6 +140,8 @@ fn main() {
             #[cfg(target_os = "macos")]
             menu::install(app.handle())?;
             let askpass = AskpassServer::start(app.handle().clone())?;
+            // リモートのマシンの localhost の URL を開く中継（open_url.rs・relay.rs）
+            app.manage(open_url::Forwards::new(Arc::clone(&askpass)));
             app.manage(AppState {
                 conns: Connections::default(),
                 askpass,

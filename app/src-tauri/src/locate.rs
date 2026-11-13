@@ -5,7 +5,7 @@
 //!   ログインシェルの PATH を引き継がない（`/usr/bin:/bin:/usr/sbin:/sbin` だけ）。`kisui attach` が起動する
 //!   `kisui serve` の中のターミナルが `shj` などを見つけられるよう、ログインシェルに PATH を聞き（時間切れ付き）、
 //!   GUI の PATH とよく使う場所（[`COMMON_DIRS`]）を足した PATH を子プロセスの PATH にする。
-//! - **ssh 先**：GUI の版のキャッシュ（`~/.cache/kisui-terminal/<版>/kisui`）だけを見る（[`remote_attach_script`]）。
+//! - **ssh 先**：GUI の版のキャッシュ（`~/.cache/kisui-terminal/<版>/kisui`）だけを見る（[`remote_kisui_script`]）。
 //!   無ければ、入れるかを聞く（C6。入れる先はキャッシュだけ）。リモートの PATH の `kisui` は使わない。
 
 use std::ffi::{OsStr, OsString};
@@ -238,12 +238,12 @@ pub fn local_kisui_command() -> Command {
     c
 }
 
-/// ssh 先で動かす `kisui attach`（POSIX sh のスクリプト。単一引用符と `\` は含まない）。
+/// ssh 先で動かす `kisui <sub>`（`attach` か `relay`。POSIX sh のスクリプト。単一引用符と `\` は含まない）。
 /// GUI の版のキャッシュ（`cache_rel`、`$HOME` からの相対）に kisui があればそれを使う。
 /// 無ければ `exit_missing` で終わる（画面は GUI と同じ版を入れるかを聞く。C6・設計書 3 章）。
-pub fn remote_attach_script(cache_rel: &str, exit_missing: i32) -> String {
+pub fn remote_kisui_script(cache_rel: &str, sub: &str, exit_missing: i32) -> String {
     format!(
-        "c=\"$HOME/{cache_rel}/kisui\"; if [ -x \"$c\" ]; then exec \"$c\" attach; fi; exit {exit_missing}"
+        "c=\"$HOME/{cache_rel}/kisui\"; if [ -x \"$c\" ]; then exec \"$c\" {sub}; fi; exit {exit_missing}"
     )
 }
 
@@ -428,7 +428,7 @@ mod tests {
 
     #[test]
     fn remote_script_has_no_quotes_and_only_looks_at_the_cache() {
-        let s = remote_attach_script(".cache/kisui-terminal/1.2.3", 97);
+        let s = remote_kisui_script(".cache/kisui-terminal/1.2.3", "attach", 97);
         // sh -c '…' で包むので単一引用符は使えない。fish の単一引用符の中で意味を持つ \ も避ける
         assert!(!s.contains('\'') && !s.contains('\\'), "{s}");
         assert!(s.contains("$HOME/.cache/kisui-terminal/1.2.3/kisui"));
@@ -444,7 +444,7 @@ mod tests {
         let root = temp_root("remote");
         let home = root.join("home");
         let run = |path: &str| {
-            let script = remote_attach_script(".cache/kisui-terminal/1.2.3", 97);
+            let script = remote_kisui_script(".cache/kisui-terminal/1.2.3", "attach", 97);
             Command::new("/bin/sh")
                 .arg("-c")
                 .arg(&script)

@@ -12,6 +12,7 @@ use tauri::{AppHandle, Emitter};
 
 use crate::askpass::{self, AskpassServer};
 use crate::locate;
+use crate::relay;
 
 /// 「ローカル」を表す接続先の名前。ssh のホスト名と取り違えないよう、`@` で始める（ホスト名には使えない）。
 pub const LOCAL: &str = "@local";
@@ -95,52 +96,24 @@ fn with_ssh_env(c: &mut Command, ask: &AskpassServer, id: &str) -> Result<(), St
     Ok(())
 }
 
-/// ポート転送だけの `ssh -N -L 127.0.0.1:<local>:localhost:<remote> <host>`（外部ブラウザで開く URL のポート転送。open_url.rs）。
-/// 転送を張れなければ ssh が終わる（ExitOnForwardFailure）。
-pub fn ssh_forward_command(
-    target: &str,
-    ask: &AskpassServer,
-    id: &str,
-    local: u16,
-    remote: u16,
-) -> Result<Command, String> {
-    if !valid_host(target) {
-        return Err(format!("invalid host name: {target:?}"));
-    }
-    let mut c = Command::new("ssh");
-    c.args([
-        "-N",
-        "-T",
-        "-o",
-        "ExitOnForwardFailure=yes",
-        "-o",
-        "ServerAliveInterval=30",
-        "-L",
-    ])
-    .arg(format!("127.0.0.1:{local}:localhost:{remote}"))
-    .args(["--", target]);
-    with_ssh_env(&mut c, ask, id)?;
-    Ok(c)
-}
-
-/// `SHIJIMI_REMOTE_KISUI` で場所を手で指定したときの `kisui attach`。その場所だけを見る。
+/// `SHIJIMI_REMOTE_KISUI` で場所を手で指定したときの `kisui <sub>`（`attach` か `relay`）。その場所だけを見る。
 /// kisui が無ければ（実行できなければ）EXIT_KISUI_MISSING で終わる。
-fn custom_attach_command(kisui: &str) -> String {
+fn custom_kisui_command(kisui: &str, sub: &str) -> String {
     // command -v は、パス（~ も展開される）と PATH 上の名前（SHIJIMI_REMOTE_KISUI=kisui など）の両方を調べる
-    format!("command -v {kisui} >/dev/null 2>&1 || exit {EXIT_KISUI_MISSING}; {kisui} attach")
+    format!("command -v {kisui} >/dev/null 2>&1 || exit {EXIT_KISUI_MISSING}; {kisui} {sub}")
 }
 
-/// 普段の `kisui attach`。GUI の版のキャッシュにある kisui だけを使う（locate.rs）。ログインシェルが fish などでも動くよう、`sh -c '…'` で包む。
-fn default_attach_command(version: &str) -> String {
-    let script = locate::remote_attach_script(&cache_dir_rel(version), EXIT_KISUI_MISSING);
+/// 普段の `kisui <sub>`。GUI の版のキャッシュにある kisui だけを使う（locate.rs）。ログインシェルが fish などでも動くよう、`sh -c '…'` で包む。
+fn default_kisui_command(version: &str, sub: &str) -> String {
+    let script = locate::remote_kisui_script(&cache_dir_rel(version), sub, EXIT_KISUI_MISSING);
     format!("sh -c '{script}'")
 }
 
-/// リモートで実行する `kisui attach`。
-fn remote_attach_command() -> String {
+/// リモートで実行する `kisui <sub>`（`attach` か `relay`）。
+fn remote_kisui_command(sub: &str) -> String {
     match std::env::var("SHIJIMI_REMOTE_KISUI") {
-        Ok(kisui) => custom_attach_command(&kisui),
-        Err(_) => default_attach_command(crate::version::get()),
+        Ok(kisui) => custom_kisui_command(&kisui, sub),
+        Err(_) => default_kisui_command(crate::version::get(), sub),
     }
 }
 
@@ -150,7 +123,92 @@ fn build_command(target: &str, ask: &AskpassServer, id: &str) -> Result<Command,
         c.arg("attach");
         return Ok(c);
     }
-    ssh_command(target, ask, id, &remote_attach_command())
+    ssh_command(target, ask, id, &remote_kisui_command("attach"))
+}
+
+/// `kisui relay` を動かしている ssh（relay.rs）。止めるとき・終わったときに、その接続の askpass の待ちも取り消す。
+struct SshRelay {
+    child: Child,
+    target: String,
+    conn: String,
+    ask: Arc<AskpassServer>,
+    /// 標準エラー出力の最後の数行
+    tail: Arc<Mutex<Vec<String>>>,
+    err_thread: Option<std::thread::JoinHandle<()>>,
+}
+
+impl relay::Process for SshRelay {
+    fn stop(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+        self.ask.cancel_conn(&self.conn);
+    }
+
+    fn describe(&mut self) -> String {
+        let code = self.child.wait().ok().and_then(|s| s.code());
+        if let Some(t) = self.err_thread.take() {
+            let _ = t.join();
+        }
+        if code == Some(EXIT_KISUI_MISSING) {
+            return format!(
+                "kisui is not installed on {} (connect to the machine once to install it)",
+                self.target
+            );
+        }
+        let tail = self.tail.lock().unwrap().join("\n");
+        let tail = tail.trim();
+        if !tail.is_empty() {
+            return tail.to_string();
+        }
+        match code {
+            Some(c) => format!("ssh exited with code {c}"),
+            None => "ssh ended".into(),
+        }
+    }
+}
+
+/// `ssh <target> -- <kisui> relay` を起こす（外部ブラウザで開くリモートのマシンの localhost の URL の中継。open_url.rs）。
+/// ssh の起こし方・askpass・リモートの kisui の探し方は `kisui attach` と同じ。`conn` は askpass の質問の宛先。
+pub fn spawn_relay(
+    target: &str,
+    ask: &Arc<AskpassServer>,
+    conn: &str,
+) -> Result<relay::Transport, String> {
+    let mut cmd = ssh_command(target, ask, conn, &remote_kisui_command("relay"))?;
+    let mut child = cmd
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("failed to start ssh: {e}"))?;
+    let stdin = child.stdin.take().ok_or("no stdin")?;
+    let stdout = child.stdout.take().ok_or("no stdout")?;
+    let stderr = child.stderr.take().ok_or("no stderr")?;
+    let tail: Arc<Mutex<Vec<String>>> = Arc::default();
+    let err_thread = {
+        let tail = Arc::clone(&tail);
+        std::thread::spawn(move || {
+            for line in BufReader::new(stderr).split(b'\n').map_while(Result::ok) {
+                let mut t = tail.lock().unwrap();
+                t.push(String::from_utf8_lossy(&line).into_owned());
+                if t.len() > 5 {
+                    t.remove(0);
+                }
+            }
+        })
+    };
+    Ok(relay::Transport {
+        reader: Box::new(stdout),
+        writer: Box::new(stdin),
+        process: Box::new(SshRelay {
+            child,
+            target: target.to_string(),
+            conn: conn.to_string(),
+            ask: Arc::clone(ask),
+            tail,
+            err_thread: Some(err_thread),
+        }),
+    })
 }
 
 impl Connections {
@@ -276,18 +334,30 @@ mod tests {
     #[test]
     fn attach_exits_97_without_kisui() {
         assert_eq!(
-            custom_attach_command("~/.cache/kisui-terminal/1.2.3/kisui"),
+            custom_kisui_command("~/.cache/kisui-terminal/1.2.3/kisui", "attach"),
             "command -v ~/.cache/kisui-terminal/1.2.3/kisui >/dev/null 2>&1 || exit 97; ~/.cache/kisui-terminal/1.2.3/kisui attach"
         );
     }
 
     #[test]
     fn default_attach_is_wrapped_in_sh() {
-        let c = default_attach_command("1.2.3");
+        let c = default_kisui_command("1.2.3", "attach");
         assert!(c.starts_with("sh -c '") && c.ends_with("exit 97'"));
         // 包んだ中に単一引用符が無い（あれば引用が崩れる）
         assert_eq!(c.matches('\'').count(), 2);
         assert!(c.contains("$HOME/.cache/kisui-terminal/1.2.3/kisui"));
         assert!(c.contains("exit 97"));
+    }
+
+    /// `kisui relay` も、`kisui attach` と同じキャッシュの kisui を同じ包み方で起こす。
+    #[test]
+    fn relay_uses_the_same_kisui_as_attach() {
+        let c = default_kisui_command("1.2.3", "relay");
+        assert_eq!(
+            c,
+            default_kisui_command("1.2.3", "attach").replace("\" attach;", "\" relay;")
+        );
+        assert!(c.contains("exec \"$c\" relay;"));
+        assert!(custom_kisui_command("kisui", "relay").ends_with("; kisui relay"));
     }
 }

@@ -319,7 +319,7 @@ export interface Notifications {
   "pane.hide": { workspaceId: WorkspaceId };
   /** `kisui update`（#94）。手元のアプリが新しい版を調べ直し、update.result で答える */
   "update.check": { id: string };
-  /** プライマリの shj の `:open-url`・`kisui open <URL>` が、URL を手元の外部ブラウザで開くよう頼んだ（#96）。欄は作らない。リモートのマシンの localhost 系は、GUI がポート転送を張って開く */
+  /** プライマリの shj の `:open-url`・`kisui open <URL>` が、URL を手元の外部ブラウザで開くよう頼んだ（#96）。欄は作らない。リモートのマシンの localhost 系は、GUI が `kisui relay` の中継越しに開く */
   "browser.open": { workspaceId: WorkspaceId; url: string };
   /** プライマリの shj が、そのワークスペースのファイルエクスプローラにキーを向けるよう頼んだ（Space e）。Esc で端末に戻る */
   "explorer.focus": { workspaceId: WorkspaceId };
