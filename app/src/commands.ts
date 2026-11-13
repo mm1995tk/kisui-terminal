@@ -212,17 +212,25 @@ export const LEADER: Node[] = [
     "ペイン",
     [
       ...paneMoves(),
-      leaf(
-        "v",
-        "今のペインを右に分ける",
-        { id: "pane.split", arg: "right" },
-        { shortcut: { mac: "Cmd+D", other: "Ctrl+Shift+D" } },
-      ),
-      leaf(
+      group(
         "s",
-        "今のペインを下に分ける",
-        { id: "pane.split", arg: "down" },
-        { shortcut: { mac: "Cmd+Shift+D", other: "Ctrl+Shift+E" } },
+        "今のペインを分ける（向きを選ぶ。新しいペインにフォーカスが移る）",
+        [
+          leaf("h", "左に分ける", { id: "pane.split", arg: "left" }),
+          leaf(
+            "j",
+            "下に分ける",
+            { id: "pane.split", arg: "down" },
+            { shortcut: { mac: "Cmd+Shift+D", other: "Ctrl+Shift+E" } },
+          ),
+          leaf("k", "上に分ける", { id: "pane.split", arg: "up" }),
+          leaf(
+            "l",
+            "右に分ける",
+            { id: "pane.split", arg: "right" },
+            { shortcut: { mac: "Cmd+D", other: "Ctrl+Shift+D" } },
+          ),
+        ],
       ),
       leaf(
         "x",

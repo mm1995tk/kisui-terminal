@@ -161,3 +161,68 @@ func TestLayoutMinExtentNested(t *testing.T) {
 		t.Errorf("rows of a down split: %d", got)
 	}
 }
+
+// 左と上は、節の向きは right・down のまま、新しい欄を A に、今の欄を B にして表す。
+func TestLayoutSplitLeftUp(t *testing.T) {
+	n, ok := layoutSplit(leaf("a"), "a", "b", dirLeft)
+	if !ok || n.Dir != dirRight || n.A.Pane != "b" || n.B.Pane != "a" {
+		t.Fatalf("left: %+v", n)
+	}
+	n, ok = layoutSplit(n, "a", "c", dirUp)
+	if !ok || n.Dir != dirRight || n.A.Pane != "b" || n.B.Dir != dirDown || n.B.A.Pane != "c" || n.B.B.Pane != "a" {
+		t.Fatalf("up: %+v", n)
+	}
+	if got := layoutPanes(n); !reflect.DeepEqual(got, []string{"b", "c", "a"}) {
+		t.Errorf("panes: %v", got)
+	}
+	if !validLayout(n) {
+		t.Error("validLayout")
+	}
+	// 境界は B 側の左上の葉で指す。左に分けた境界は、今の欄（B）で指す
+	if layoutFindBorder(n, "a") == nil || layoutFindBorder(n, "c") == nil || layoutFindBorder(n, "b") != nil {
+		t.Error("border keys")
+	}
+	for _, d := range []string{dirLeft, dirUp, dirRight, dirDown} {
+		if !validSplitDir(d) {
+			t.Errorf("validSplitDir(%q)", d)
+		}
+	}
+	if validSplitDir("") || validSplitDir("diagonal") {
+		t.Error("validSplitDir accepts a bad direction")
+	}
+	// 4 つ以外の向きは、木に入れない
+	if m, ok := layoutSplit(leaf("a"), "a", "b", "diagonal"); ok || !m.isLeaf() {
+		t.Errorf("a bad direction changed the tree: %+v", m)
+	}
+}
+
+// term.create に "left" を渡すと新しい欄が左（A）に入り、境界を動かせる。向きが正しくなければ断る。
+func TestSplitLeftUpRPC(t *testing.T) {
+	t.Setenv("HOME", normalizePath(t.TempDir()))
+	_, sock := startFast(t)
+	c, _ := termClient(t, sock)
+	ctx := context.Background()
+	wsID, primary := createWS(t, c)
+	id := createTerm(t, c, map[string]any{"workspaceId": wsID, "split": map[string]any{"target": primary, "dir": "left"}})
+	l := listWS(t, c).Workspaces[0].Layout
+	if l.Dir != "right" || l.A.Pane != id || l.B.Pane != primary {
+		t.Fatalf("layout: %+v", l)
+	}
+	// 境界は B 側の左上の葉（今の欄）で指す
+	var res struct{ Ratio float64 }
+	if err := c.Call(ctx, "layout.resize", map[string]any{"workspaceId": wsID, "pane": primary, "ratio": 0.4}, &res); err != nil {
+		t.Fatal(err)
+	}
+	if got := listWS(t, c).Workspaces[0].Layout; got.Ratio != 0.4 {
+		t.Errorf("listed ratio: %+v", got)
+	}
+	up := createTerm(t, c, map[string]any{"workspaceId": wsID, "split": map[string]any{"target": primary, "dir": "up"}})
+	l = listWS(t, c).Workspaces[0].Layout
+	if l.B.Dir != "down" || l.B.A.Pane != up || l.B.B.Pane != primary {
+		t.Fatalf("layout after up: %+v", l)
+	}
+	err := c.Call(ctx, "term.create", map[string]any{"workspaceId": wsID, "split": map[string]any{"target": primary, "dir": "diagonal"}}, nil)
+	if !isCode(err, rpc.CodeInvalidParams) {
+		t.Errorf("bad dir: %v", err)
+	}
+}

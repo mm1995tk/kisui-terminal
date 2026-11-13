@@ -10,7 +10,7 @@
 //
 // DOM を使わないので node --test で確かめられる。
 
-import type { PaneLayout, SplitDir } from "../rpc/protocol.ts";
+import type { PaneLayout, TreeDir } from "../rpc/protocol.ts";
 
 /** 隣へ移る向き（リーダーの h j k l）。 */
 export type Direction = "left" | "right" | "up" | "down";
@@ -49,7 +49,7 @@ function prune(
 }
 
 /** 自動で足すときに分ける欄と向き（最後の葉。深さが偶数なら右、奇数なら下）。 */
-function autoTarget(n: PaneLayout): { target: string; dir: SplitDir } {
+function autoTarget(n: PaneLayout): { target: string; dir: TreeDir } {
   let depth = 0;
   while (!("pane" in n)) {
     n = n.b;
@@ -62,7 +62,7 @@ function split(
   n: PaneLayout,
   target: string,
   id: string,
-  dir: SplitDir,
+  dir: TreeDir,
 ): PaneLayout {
   if ("pane" in n)
     return n.pane === target ? { dir, ratio: 0.5, a: n, b: { pane: id } } : n;
@@ -181,7 +181,7 @@ export const GAP = 6;
 export interface Bar {
   /** B 側の左上の葉の欄 id */
   key: string;
-  dir: SplitDir;
+  dir: TreeDir;
   /** A の割合 */
   ratio: number;
   /** この節が占める範囲（カードに対する割合） */
@@ -277,7 +277,7 @@ export function ratioLimits(
 function findNode(
   n: PaneLayout | undefined,
   key: string,
-): Extract<PaneLayout, { dir: SplitDir }> | undefined {
+): Extract<PaneLayout, { dir: TreeDir }> | undefined {
   if (!n || "pane" in n) return undefined;
   if (firstPane(n.b) === key) return n;
   return findNode(n.a, key) ?? findNode(n.b, key);

@@ -10,8 +10,8 @@ import (
 	"github.com/mm1995tk/kisui-terminal/internal/panecmd"
 )
 
-// runPaneSplit is "kisui pane split --right|--down [command ...]": the "kisui
-// serve" of the pane it runs in splits that pane to the right or down, and runs
+// runPaneSplit is "kisui pane split --right|--down|--left|--up [command ...]": the "kisui
+// serve" of the pane it runs in splits that pane to the right, down, left or up, and runs
 // the command in the new pane (a shell when there is none). It returns the
 // process exit code.
 func runPaneSplit(args []string) int {
@@ -55,13 +55,13 @@ func runPaneSplit(args []string) int {
 	return 0
 }
 
-// parseSplit reads the arguments of "kisui pane split": exactly one of --right
-// and --down, then the command (everything from the first word that is not a
+// parseSplit reads the arguments of "kisui pane split": exactly one of --right,
+// --down, --left and --up, then the command (everything from the first word that is not a
 // flag, or after "--"). It reports false for anything else.
 func parseSplit(args []string) (dir string, argv []string, ok bool) {
 	for i, a := range args {
 		switch a {
-		case "--right", "--down":
+		case "--right", "--down", "--left", "--up":
 			if dir != "" {
 				return "", nil, false
 			}

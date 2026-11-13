@@ -262,6 +262,15 @@ describe("TermGroup", () => {
     assert.deepEqual(f.calls[1]!.params.split, { target: "t10", dir: "right" });
   });
 
+  it("左と上にも分けられる（向きをそのまま term.create に渡す）", async () => {
+    const f = fakePort();
+    const g = new TermGroup(f.port, layout(), () => {});
+    assert.equal(await g.add("left"), true);
+    assert.equal(await g.add("up"), true);
+    assert.deepEqual(f.calls[0]!.params.split, { target: "t1", dir: "left" });
+    assert.deepEqual(f.calls[1]!.params.split, { target: "t10", dir: "up" });
+  });
+
   it("workspace.changed が term.create の返事より先に届いても、重ねて並べない", async () => {
     const f = fakePort();
     const g = new TermGroup(f.port, layout(), () => {});

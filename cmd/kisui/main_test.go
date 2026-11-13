@@ -66,7 +66,10 @@ func TestParseSplit(t *testing.T) {
 		{nil, "", nil, false},
 		{[]string{"htop"}, "", nil, false},
 		{[]string{"--right", "--down"}, "", nil, false},
-		{[]string{"--left"}, "", nil, false},
+		{[]string{"--left"}, "left", nil, true},
+		{[]string{"--up", "vim"}, "up", []string{"vim"}, true},
+		{[]string{"--left", "--up"}, "", nil, false},
+		{[]string{"--diagonal"}, "", nil, false},
 		{[]string{"--right", "-x"}, "", nil, false},
 	} {
 		dir, argv, ok := parseSplit(tc.args)
