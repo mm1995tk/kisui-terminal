@@ -697,6 +697,8 @@ func (ss *session) layoutSwapRequest(req *rpc.Message) (any, error) {
 		return struct{}{}, nil
 	case errors.Is(err, errNoWorkspace), errors.Is(err, errNoPane):
 		return nil, rpc.Errorf(rpc.CodeNotFound, "%v", err)
+	case errors.Is(err, errBadSwap):
+		return nil, rpc.Errorf(rpc.CodeInvalidParams, "%v", err)
 	}
 	return nil, rpc.Errorf(rpc.CodeInvalidParams, "%v", err)
 }
