@@ -24,7 +24,9 @@ import (
 //
 // 安全のために:
 //   - フォルダは本人だけが書ける（0700）。キャッシュのフォルダ・kisui-terminal・current のどれかを
-//     ほかのユーザーが書き換えられるなら使わず、今まで通り版ごとのフォルダを渡す。
+//     ほかのユーザーが書き換えられるなら使わず、今まで通り版ごとのフォルダを渡す。ただし kisui-terminal と
+//     current が本人のフォルダ（シンボリックリンクでない）なら、グループとほかの人の書き込みを落として使う
+//     （umask 002 のホストでは、そのままだとグループに書ける許可で作られるので）。
 //   - リンクは一時的な名前で作ってから rename で置き換える（どの時点でも、古い版か新しい版のどちらかの
 //     完全なリンクがある）。
 //   - リンクの先は絶対パス。
@@ -89,9 +91,9 @@ func currentDir() (string, error) {
 	if err := checkDir(base, os.Stat, true); err != nil {
 		return "", err
 	}
-	// kisui-terminal と current は kisui が作るフォルダ。シンボリックリンクは受けつけない。
+	// kisui-terminal と current は kisui が作るフォルダ。シンボリックリンクは受けつけない。グループかほかの人が書けるなら直す。
 	for _, p := range []string{parent, dir} {
-		if err := checkDir(p, os.Lstat, false); err != nil {
+		if err := ownDir(p); err != nil {
 			return "", err
 		}
 	}
@@ -152,4 +154,23 @@ func setLink(dir, name, target string) error {
 		return err
 	}
 	return nil
+}
+
+// ownDir は、kisui が作るフォルダ path が、本人のフォルダ（シンボリックリンクでない）で、ほかのユーザーが書けないことを確かめる。
+// 本人のフォルダでグループかほかの人が書けるときは、その書き込みを落としてから確かめる。umask 002 のホスト
+// （Ubuntu の既定など）では、GUI の mkdir -p や kisui の MkdirAll が 0775 で作るので、断ると仕組みが効かない。
+// 持ち主が本人でないとき・シンボリックリンクのときは直さずに断る。
+func ownDir(path string) error {
+	fi, err := os.Lstat(path)
+	if err != nil {
+		return err
+	}
+	if fi.IsDir() && fi.Mode().Perm()&0o022 != 0 {
+		if st, ok := fi.Sys().(*syscall.Stat_t); ok && int(st.Uid) == os.Getuid() {
+			if err := os.Chmod(path, fi.Mode().Perm()&^0o022); err != nil {
+				return err
+			}
+		}
+	}
+	return checkDir(path, os.Lstat, false)
 }

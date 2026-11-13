@@ -149,13 +149,16 @@ func TestCurrentRefusesUnsafeDir(t *testing.T) {
 		name  string
 		spoil func(t *testing.T, parent, cur string)
 	}{
-		{"parent writable by others", func(t *testing.T, parent, cur string) {
-			if err := os.Chmod(parent, 0o777); err != nil {
+		{"cache dir writable by others", func(t *testing.T, parent, cur string) {
+			if err := os.Chmod(filepath.Dir(parent), 0o777); err != nil {
 				t.Fatal(err)
 			}
 		}},
-		{"current writable by group", func(t *testing.T, parent, cur string) {
-			if err := os.Chmod(cur, 0o770); err != nil {
+		{"kisui-terminal is a symlink", func(t *testing.T, parent, cur string) {
+			if err := os.RemoveAll(parent); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink(t.TempDir(), parent); err != nil {
 				t.Fatal(err)
 			}
 		}},
@@ -196,5 +199,41 @@ func TestCurrentSkippedWhenNotKisui(t *testing.T) {
 	useExecutable(t, filepath.Join(t.TempDir(), "server.test"))
 	if cur, err := pointCurrent(); err != nil || cur != "" {
 		t.Fatalf("pointCurrent = %q, %v", cur, err)
+	}
+}
+
+// umask 002 のホスト（Ubuntu の既定など）では kisui-terminal や current がグループに書ける許可で作られる。
+// 本人のフォルダなら、グループとほかの人の書き込みを落として使う。
+func TestCurrentFixesGroupWritableDir(t *testing.T) {
+	isolateCache(t)
+	v1 := fakeVersion(t, "v1")
+	useExecutable(t, filepath.Join(v1, "kisui"))
+	cur, err := pointCurrent()
+	if err != nil {
+		t.Fatal(err)
+	}
+	parent := filepath.Dir(cur)
+	if err := os.Chmod(parent, 0o775); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(cur, 0o777); err != nil {
+		t.Fatal(err)
+	}
+	got, err := pointCurrent()
+	if err != nil || got != cur {
+		t.Fatalf("pointCurrent = %q, %v; want %q", got, err, cur)
+	}
+	for p, want := range map[string]os.FileMode{parent: 0o755, cur: 0o755} {
+		fi, err := os.Stat(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if fi.Mode().Perm() != want {
+			t.Fatalf("%s: %v, want %v", p, fi.Mode().Perm(), want)
+		}
+	}
+	_, env := bundledShell("/bin/sh", nil)
+	if first, _, _ := strings.Cut(pathOf(env), ":"); first != cur {
+		t.Fatalf("PATH = %q, want %q first", pathOf(env), cur)
 	}
 }
