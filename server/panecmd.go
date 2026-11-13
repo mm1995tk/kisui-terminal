@@ -167,8 +167,8 @@ const maxPaneName = 100
 
 // 名前を断る理由。cleanPaneName が返す（errors.Is で見分けられる）。
 var (
-	errNameTooLong = errors.New("name too long")
-	errNameControl = errors.New("name has a control character")
+	errNameTooLong = errors.New("the name is too long")
+	errNameControl = errors.New("the name has a control character")
 )
 
 // cleanPaneName は kisui pane title の名前を確かめる。前後の空白は落とす。空なら名前を外す。
@@ -176,10 +176,10 @@ var (
 func cleanPaneName(s string) (string, error) {
 	s = strings.TrimSpace(s)
 	if utf8.RuneCountInString(s) > maxPaneName {
-		return "", fmt.Errorf("the name is too long (at most %d characters): %w", maxPaneName, errNameTooLong)
+		return "", fmt.Errorf("%w (at most %d characters)", errNameTooLong, maxPaneName)
 	}
 	if strings.ContainsFunc(s, unicode.IsControl) {
-		return "", fmt.Errorf("the name has a control character: %w", errNameControl)
+		return "", errNameControl
 	}
 	return s, nil
 }
