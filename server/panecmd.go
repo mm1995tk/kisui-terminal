@@ -33,23 +33,40 @@ func newPaneToken() (string, error) {
 	return hex.EncodeToString(b), nil
 }
 
-// withKisuiPath は、この kisui の実行ファイルのあるフォルダを env の PATH の先頭に足す。欄の中で kisui open を打てるように。
-// 実行ファイルの名前が kisui でないとき（go test など）と、同梱の shj と同じフォルダのときは足さない。
-func withKisuiPath(env []string) []string {
-	exe := kisuiExecutable()
-	if exe == "" {
+// paneDirs は、ペインに渡す kisui と shj の場所。
+type paneDirs struct {
+	kisuiDir string // PATH に足す kisui のフォルダ。空なら足さない
+	shjDir   string // PATH に足し、シェルの包みが入れ直す shj のフォルダ。空なら足さない
+	kisuiExe string // KISUI_EXE（pbcopy・pbpaste が呼ぶ kisui）。空なら渡さない
+}
+
+// lookupPaneDirs は、ペインに渡す kisui と shj の場所を決める（版によらないフォルダを向け直す）。
+// 版によらないフォルダ（current.go）を使えるなら、どれもそのフォルダ（版を上げたあとも今の版を起動する）。
+// 使えないとき（ほかのユーザーが書き換えられる場所にあるなど）は、版ごとのフォルダ。
+// 実行ファイルの名前が kisui でないとき（go test など）は、kisui のフォルダと KISUI_EXE は空。
+func lookupPaneDirs() paneDirs {
+	if cur, err := pointCurrent(); err == nil && cur != "" {
+		return paneDirs{kisuiDir: cur, shjDir: cur, kisuiExe: filepath.Join(cur, currentLinkKisui)}
+	}
+	d := paneDirs{shjDir: bundledShjDir()}
+	if exe := kisuiExecutable(); exe != "" {
+		d.kisuiDir, d.kisuiExe = filepath.Dir(exe), exe
+	}
+	return d
+}
+
+// withKisuiPath は、kisui のフォルダ（d.kisuiDir）を env の PATH の先頭に足す。欄の中で kisui open を打てるように
+// （Nix のように kisui が PATH に無い配り方でも）。
+func withKisuiPath(env []string, d paneDirs) []string {
+	if d.kisuiDir == "" {
 		return env
 	}
-	dir := filepath.Dir(exe)
-	if dir == bundledShjDir() { // 同梱の shj と同じフォルダなら、bundledShell が足す
-		return env
-	}
-	return prependPath(env, dir)
+	return prependPath(env, d.kisuiDir)
 }
 
 // kisuiExecutable は、この kisui の実行ファイル（シンボリックリンクはたどる）。名前が kisui でないとき（go test など）は空。
 func kisuiExecutable() string {
-	exe, err := os.Executable()
+	exe, err := executable()
 	if err != nil {
 		return ""
 	}
