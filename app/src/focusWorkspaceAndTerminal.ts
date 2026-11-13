@@ -7,8 +7,8 @@ export interface WorkspaceRef {
   id: string;
 }
 
-export interface OpenWorkspaceDeps {
-  /** shj に移ると頼み、受け付けられたら GUI のフォーカスも移す（失敗や、あとの押下に上書きされたときは、例外を投げずに移らないまま返る。例外が来た場合は向けず、そのまま返す） */
+export interface FocusWorkspaceAndTerminalDeps {
+  /** shj に移ると頼み、受け付けられたら GUI のフォーカスも移す（失敗や、あとの押下に上書きされたときは、例外を投げずに移らないまま返る） */
   focusWorkspace: (target: string, id: string) => Promise<void>;
   /** 今 GUI がフォーカスしているワークスペース */
   current: () => WorkspaceRef | null | undefined;
@@ -19,9 +19,10 @@ export interface OpenWorkspaceDeps {
 /**
  * 移ったあと、頼んだワークスペースが GUI のフォーカスになっていれば、そこで最後に使っていたペインにキーを向ける。
  * 失敗したとき、返事を待つあいだに別の帯を押されたときは、向けない（キーは今のワークスペースのまま）。
+ * focusWorkspace が例外を投げたときも、向けずにそのまま返す。
  */
 export async function focusWorkspaceAndTerminal(
-  deps: OpenWorkspaceDeps,
+  deps: FocusWorkspaceAndTerminalDeps,
   target: string,
   id: string,
 ): Promise<void> {

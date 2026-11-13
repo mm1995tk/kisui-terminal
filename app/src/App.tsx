@@ -34,7 +34,7 @@ import {
   isLeaveExplorerKey,
   startFocusStep,
 } from "./explorerFocus.ts";
-import { focusWorkspaceAndTerminal } from "./openWorkspace.ts";
+import { focusWorkspaceAndTerminal } from "./focusWorkspaceAndTerminal.ts";
 import { afterChangesKey } from "./changes/handover.ts";
 import { changesRow } from "./changes/keys.ts";
 import { ClipboardDialog } from "./ClipboardDialog.tsx";

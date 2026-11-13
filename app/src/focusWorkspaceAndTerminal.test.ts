@@ -4,7 +4,7 @@ import { describe, it } from "node:test";
 import {
   focusWorkspaceAndTerminal,
   type WorkspaceRef,
-} from "./openWorkspace.ts";
+} from "./focusWorkspaceAndTerminal.ts";
 
 function setup(onFocus: (set: (f: WorkspaceRef) => void) => void) {
   let current: WorkspaceRef | undefined = { target: "local", id: "a" };
