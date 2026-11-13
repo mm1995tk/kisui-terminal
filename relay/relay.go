@@ -219,9 +219,14 @@ func (r *relay) open(id uint32, payload []byte) error {
 	port := binary.BigEndian.Uint16(payload[:2])
 	host := string(payload[2:])
 	addrs, ok := loopbackAddrs(host)
-	if !ok || port == 0 {
+	if !ok {
 		r.mu.Unlock()
 		r.send(FrameClose, id, []byte(ReasonDenied+": "+strconv.Quote(host)+" is not this machine's loopback"))
+		return nil
+	}
+	if port == 0 {
+		r.mu.Unlock()
+		r.send(FrameClose, id, []byte(ReasonDenied+": port 0"))
 		return nil
 	}
 	if len(r.streams) >= MaxStreams {

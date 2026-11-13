@@ -274,7 +274,7 @@ func TestDeniedHosts(t *testing.T) {
 		}
 	}
 	c.open(100, "127.0.0.1", 0)
-	if f := c.expect(100, FrameClose); !strings.HasPrefix(string(f.payload), ReasonDenied) {
+	if f := c.expect(100, FrameClose); string(f.payload) != ReasonDenied+": port 0" {
 		t.Errorf("port 0: close reason %q", f.payload)
 	}
 }
