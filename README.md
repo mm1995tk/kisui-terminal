@@ -89,7 +89,7 @@ You do not have to remember the keys. Press the leader, `Cmd+K` (macOS) or `Ctrl
 | `w`                   | Workspaces: `j` `k` the next / previous workspace in the sidebar (across machines; it stops at the ends; you can keep pressing them), `h` `l` the previous / next machine (the workspace you last used on it, or the first; a machine with no workspace gets selected too, so `m` and `n` act on it), `1`-`9` the nth in the sidebar, `n` new on this machine, `x` close, `Tab` back to the last one |
 | `m`                   | Machines (the one of the current workspace): `a` add, `n` rename, `d` remove from the list, `x` disconnect, `r` reconnect |
 | `p`                   | Panes: `v` split right, `s` split down, `x` close, `z` hide or show the panes other than the primary one, `r` resize (and `h` `j` `k` `l` as above) |
-| `b`                   | Open or close the sidebar (it closes only when you press this; it opens by itself when the file tree gets the focus, e.g. `Space e` in `shj`; kisui-terminal remembers it) |
+| `b`                   | Open or close the sidebar (it closes only when you press this; it opens by itself when the file tree or CHANGES gets the focus, e.g. `Space e` or `Space E` in `shj`, but not for the automatic focus right after `shj` starts; kisui-terminal remembers it) |
 | `y`                   | The clipboard history                                                                                         |
 | `v`                   | Size of the display: `+` bigger, `-` smaller, `0` back to normal                                              |
 | `n`                   | Notices: `a` press the main button of the newest one, `d` close it, `g` bring forward the pane that last sent an OS notification |
