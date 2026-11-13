@@ -1175,7 +1175,7 @@ function Workbench(props: {
     };
   }
 
-  /** URL を手元の外部ブラウザで開く。リモートのマシンの localhost 系は、殻がポート転送を張って開く（#96）。 */
+  /** URL を手元の外部ブラウザで開く。リモートのマシンの localhost 系は、殻が `kisui relay` の中継越しに開く（#96・#127）。 */
   function openUrlFor(target: string, url: string) {
     if (!isOpenableUrl(url)) return;
     openUrlExternally(target, url).catch((e: unknown) =>

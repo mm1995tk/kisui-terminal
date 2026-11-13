@@ -195,7 +195,7 @@ func (w *wsManager) closeExtra(wsID, id string) {
 }
 
 // openURL は URL u を GUI の手元の外部ブラウザで開かせる。欄は作らず、browser.open を GUI に通知するだけ
-// （リモートのマシンの localhost 系の URL は、GUI がポート転送を張って開く）。開かせる GUI が（つながっていなくて）いなければ断る。
+// （リモートのマシンの localhost 系の URL は、GUI が kisui relay の中継越しに開く）。開かせる GUI が（つながっていなくて）いなければ断る。
 // 返す ID は空（欄が無い）。
 func (w *wsManager) openURL(wsID, u string) (string, error) {
 	u, err := parseOpenURL(u)

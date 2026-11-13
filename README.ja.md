@@ -27,7 +27,7 @@ nix profile install github:mm1995tk/kisui-terminal#kisui-terminal-nightly
 
 kisui-terminal の中での `shj` の動き（開くペイン、動画、URL の開き方、ファイルツリー）は shijimi-editor のマニュアルにあります。[ターミナル](https://mm1995tk.github.io/shijimi-editor/manual/ja/terminal/)・[ブラウザ](https://mm1995tk.github.io/shijimi-editor/manual/ja/browser/)・[設定ファイル](https://mm1995tk.github.io/shijimi-editor/manual/ja/config/)（「kisui-terminal のマシン」と `[server]`）を見てください。
 
-ペインの中で `kisui open <ファイル|URL>` を打つと、画像は打ったペインのカーソルの位置にそのまま出ます（kitty の `icat` と同じ。kitty の画像のプロトコルで端末に書き出すので、ssh 先のマシンのペインでも出ます。PNG・JPEG・GIF（最初のコマ）・WebP・BMP で、ペインの幅までの大きさ）。ほかのファイルは、種類に合うペインに、同じワークスペースの中で開きます。動画・PDF（拡張子で見分け、拡張子で分からなければファイルの頭の中身で見分ける）です。同じ種類のペインが開いていれば入れ替えます。`kisui open --pane <画像>` なら、画像も別のペインに開きます。SVG・AVIF の画像、16 MB か 10000 ピクセルを超える画像、標準出力が端末でないとき（パイプ、コーディングエージェントのシェル）の画像は、`--pane` が無くてもペインに開きます。`http`・`https` の URL はペインにせず、kisui-terminal が動いている手元のブラウザ（OS 既定のブラウザ）で開きます（`shj` の `:open-url` と同じ）。ssh 先のマシンの `localhost` の URL は、kisui-terminal が張る ssh のポート転送越しに開くので、ssh 先のページが見えます。ssh 先のマシンのペインでも使えます。使えるのは kisui-terminal のペインの中だけで、ほかのシェルから打つと断ります。コマンドの一覧は `kisui --help` で出ます。
+ペインの中で `kisui open <ファイル|URL>` を打つと、画像は打ったペインのカーソルの位置にそのまま出ます（kitty の `icat` と同じ。kitty の画像のプロトコルで端末に書き出すので、ssh 先のマシンのペインでも出ます。PNG・JPEG・GIF（最初のコマ）・WebP・BMP で、ペインの幅までの大きさ）。ほかのファイルは、種類に合うペインに、同じワークスペースの中で開きます。動画・PDF（拡張子で見分け、拡張子で分からなければファイルの頭の中身で見分ける）です。同じ種類のペインが開いていれば入れ替えます。`kisui open --pane <画像>` なら、画像も別のペインに開きます。SVG・AVIF の画像、16 MB か 10000 ピクセルを超える画像、標準出力が端末でないとき（パイプ、コーディングエージェントのシェル）の画像は、`--pane` が無くてもペインに開きます。`http`・`https` の URL はペインにせず、kisui-terminal が動いている手元のブラウザ（OS 既定のブラウザ）で開きます（`shj` の `:open-url` と同じ）。ssh 先のマシンの `localhost` の URL は、kisui-terminal が普通の ssh のセッションの上で張る中継（ssh 先の `kisui relay`）越しに開くので、ssh 先のページが見えます（ssh のポート転送は使わないので、ポート転送を断る環境でも開けます）。ssh 先のマシンのペインでも使えます。使えるのは kisui-terminal のペインの中だけで、ほかのシェルから打つと断ります。コマンドの一覧は `kisui --help` で出ます。
 
 ```sh
 kisui open ./diagram.png         # このペインに出す
@@ -73,7 +73,7 @@ kisui skill install ./my-skills/kisui-terminal
 kisui-terminal の設定は `shj` と同じ `config.toml`（`~/.config/shijimi-editor/config.toml`。nightly 版は `shijimi-editor-nightly/`）に書きます。
 
 - `[[gui.machines]]`：サイドバーに出すマシン（`ssh = "dev-vm"`、`name = "dev"`）。
-- 画面の URL（波線が引かれる）は、`cmd + click` か `cmd + shift + click`（macOS 以外は `ctrl + click` か `ctrl + shift + click`）で、OS 既定のブラウザで開きます。開くのは http と https の URL だけです。リモート（ssh）のマシンのターミナルに出た `localhost` 系の URL は、手元のブラウザだと手元の localhost に行ってしまうため、ssh のポート転送を張って転送先の URL を開きます。アプリがマウスの報告を有効にしている間（vim・tmux・htop・`shj` など）は、shift なしのクリックはアプリに届くので、`cmd + shift + click` を使います。以前の版の `[gui]` の `url_open` は無視します。
+- 画面の URL（波線が引かれる）は、`cmd + click` か `cmd + shift + click`（macOS 以外は `ctrl + click` か `ctrl + shift + click`）で、OS 既定のブラウザで開きます。開くのは http と https の URL だけです。リモート（ssh）のマシンのターミナルに出た `localhost` 系の URL は、手元のブラウザだと手元の localhost に行ってしまうため、ssh の上で中継し（`kisui relay`）、手元のアドレスの URL を開きます。そのポートで誰も待っていなければ、ブラウザを開かずにそう出します。アプリがマウスの報告を有効にしている間（vim・tmux・htop・`shj` など）は、shift なしのクリックはアプリに届くので、`cmd + shift + click` を使います。以前の版の `[gui]` の `url_open` は無視します。
 - `[server]`：`idle_stop_days`（窓がつながっていない状態で `kisui serve` が待つ日数。既定 7、0 は止めない）と `start_dir`（新しいワークスペースのシェルを始めるフォルダ）。
 - `ui-language`：kisui 自身のメッセージの言語（`shj` と同じ項目）。
 
