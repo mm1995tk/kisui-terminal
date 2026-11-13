@@ -84,7 +84,7 @@
 }
 .card-text code,
 .card-mono {
-  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-family: var(--gh-mono);
   font-size: 12px;
 }
 .card-error {
@@ -95,7 +95,7 @@
   border-radius: 8px;
   background: var(--card-field-bg);
   color: var(--card-warn);
-  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-family: var(--gh-mono);
   font-size: 12px;
   white-space: pre-wrap;
   word-break: break-word;
@@ -287,6 +287,10 @@
 }
 .history-rows {
   max-height: 50vh;
+}
+/* 履歴の行はコピーした字そのもの。ターミナルからコピーした Nerd Font の字や絵文字が豆腐にならないよう、ターミナルと同じ等幅の並びで出す */
+.history-rows .card-row-name {
+  font-family: var(--gh-mono);
 }
 .history-empty {
   padding: 10px 20px 16px;

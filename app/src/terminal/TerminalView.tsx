@@ -11,6 +11,7 @@ import {
 import { copiedNotice } from "../CopiedToast.tsx";
 import { copyAndNotify } from "../copiedNotice.ts";
 import { monoFontsReady } from "../fonts.ts";
+import { MONO_FONT_FAMILY } from "../monoFont.ts";
 import type { TermLink, TermSink } from "./link.ts";
 import { planWrite, readableMimes, supportsLocation } from "./clipboard.ts";
 import { availableOs, readFirstOs, writeOs } from "./clipboardOs.ts";
@@ -65,8 +66,7 @@ export function TerminalView(props: {
 }): JSX.Element {
   let host!: HTMLDivElement;
   const term = new Terminal({
-    fontFamily:
-      "'JetBrains Mono', 'Symbols Nerd Font Mono', ui-monospace, Menlo, Consolas, 'DejaVu Sans Mono', monospace",
+    fontFamily: MONO_FONT_FAMILY,
     // macOS の kitty の既定（font_size 11pt）に合わせる。kitty は macOS で 1pt を 1 論理ピクセル（72dpi × 拡大率）として描くので、11pt は 11px。
     // Linux の kitty は 96dpi を基準にするので 11pt はおよそ 14.7px になる。Linux の kitty にはそろえていない
     fontSize: 11,
