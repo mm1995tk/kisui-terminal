@@ -330,7 +330,7 @@
   font-style: italic;
 }
 .band-title.path {
-  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-family: var(--gh-mono);
   font-size: 12px;
 }
 

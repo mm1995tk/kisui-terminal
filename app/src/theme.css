@@ -24,4 +24,9 @@
   --gh-red-soft: #ff7b72;
   /* ファイルエクスプローラのインデントの縦線。境界より明るくして見えるようにする */
   --gh-indent-guide: #484f58;
+  /* 等幅の字。ターミナルと同じ並び（monoFont.ts の MONO_FONT_FAMILY。monoFont.test.ts が同じか確かめる）。
+     JetBrains Mono に無い Nerd Font の字（プロンプトの U+E0A0 など）も、ターミナルと同じに出る */
+  --gh-mono:
+    "JetBrains Mono", "Symbols Nerd Font Mono", ui-monospace, Menlo, Consolas,
+    "DejaVu Sans Mono", monospace;
 }

@@ -104,7 +104,7 @@
 .changes-viewed {
   flex: none;
   font-size: 11px;
-  font-family: var(--gh-mono, monospace);
+  font-family: var(--gh-mono);
   color: var(--gh-text-dim);
 }
 .changes-added {
