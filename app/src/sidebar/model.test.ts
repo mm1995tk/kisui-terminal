@@ -152,6 +152,8 @@ describe("band", () => {
         [UNSET_TITLE, ""],
         ["app", "main #3"],
       ],
+    );
+  });
 
   it("名前をつけたワークスペースは、同じフォルダの番号を数えない", () => {
     const g = buildSidebar(
@@ -171,8 +173,6 @@ describe("band", () => {
         ["作業用", "main"],
         ["app", "main"],
       ],
-    );
-  });
     );
   });
 
