@@ -19,7 +19,6 @@ import (
 // gitState は 1 回の git status の結果。作ったあとは書き換えない。
 type gitState struct {
 	branch  string
-	sha     string            // HEAD のコミットの先頭 7 文字。Workspace.sha（帯の short sha）の元。git.changed には載せない
 	marks   map[string]string // ルートからの相対パス -> 文字（無視されたものは入れない）
 	dirs    map[string]bool   // 印のあるものの親フォルダ（ルートは除く）
 	ignored map[string]bool   // 無視されたパス。フォルダは中身ぜんぶを表す
