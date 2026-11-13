@@ -27,19 +27,21 @@ export function explorerRow(root: ParentNode | undefined): HTMLElement | null {
 
 /**
  * shj が引数なしで起動した直後の頼み（explorer.focus の start）に、今どうするか。
- * - "drop": 頼んだワークスペースにもうフォーカスが無い。頼みを捨てる
+ * - "drop": 頼んだワークスペースにもうフォーカスが無い、またはサイドバーが閉じている（起動直後の自動のフォーカスでは開かない）。頼みを捨てる
  * - "wait": ツリーにすでにキーがある（向け済み）か、ツリーの行がまだ無い（取り直し待ち）。何もしない
  * - "focus": ツリーにキーが無く、行がある。向ける（cd でツリーが捨てられて行が消えたあとも、ここに来る）
  */
 export function startFocusStep(s: {
   /** 頼んだワークスペースが、今フォーカスしているワークスペースか */
   stillFocused: boolean;
+  /** サイドバーが開いているか（閉じているなら、勝手に開かず捨てる） */
+  sidebarOpen: boolean;
   /** キーがツリー（サイドバー）の中にあるか */
   keyInTree: boolean;
   /** ツリーの行が描かれているか */
   hasRow: boolean;
 }): "drop" | "wait" | "focus" {
-  if (!s.stillFocused) return "drop";
+  if (!s.stillFocused || !s.sidebarOpen) return "drop";
   if (s.keyInTree || !s.hasRow) return "wait";
   return "focus";
 }

@@ -59,7 +59,12 @@ describe("キーを向ける行", () => {
 });
 
 describe("startFocusStep（起動直後のツリーへのフォーカス）", () => {
-  const base = { stillFocused: true, keyInTree: false, hasRow: true };
+  const base = {
+    stillFocused: true,
+    sidebarOpen: true,
+    keyInTree: false,
+    hasRow: true,
+  };
   it("行がありキーがツリーに無ければ向ける", () => {
     assert.equal(startFocusStep(base), "focus");
   });
@@ -74,6 +79,9 @@ describe("startFocusStep（起動直後のツリーへのフォーカス）", ()
     assert.equal(startFocusStep({ ...base, hasRow: false }), "wait");
     // 取り直した行が描かれた
     assert.equal(startFocusStep(base), "focus");
+  });
+  it("サイドバーを閉じている間は、開かずに捨てる", () => {
+    assert.equal(startFocusStep({ ...base, sidebarOpen: false }), "drop");
   });
   it("別のワークスペースに移ったら捨てる", () => {
     assert.equal(startFocusStep({ ...base, stillFocused: false }), "drop");

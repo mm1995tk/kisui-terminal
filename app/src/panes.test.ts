@@ -4,9 +4,11 @@ import { describe, it } from "node:test";
 import {
   applyMove,
   clampBorder,
+  loadSidebarOpen,
   loadSizes,
   resizeAction,
   resizeKeyName,
+  saveSidebarOpen,
   saveSizes,
   sizeOf,
   withoutSize,
@@ -177,5 +179,18 @@ describe("今の画面で効く上限", () => {
       330,
     );
     assert.equal(clampBorder("sidebar", 900, 500), 500);
+  });
+});
+
+describe("サイドバーの開け閉め", () => {
+  it("覚えていなければ開いている。閉じたことと開いたことを読み戻す", () => {
+    const s = memory();
+    assert.equal(loadSidebarOpen(s), true);
+    saveSidebarOpen(s, false);
+    assert.equal(loadSidebarOpen(s), false);
+    saveSidebarOpen(s, true);
+    assert.equal(loadSidebarOpen(s), true);
+    assert.equal(loadSidebarOpen(memory({ "kisui.sidebarOpen": "x" })), true);
+    assert.equal(loadSidebarOpen(undefined), true);
   });
 });
