@@ -1,9 +1,11 @@
 // 自動更新の知らせ（C8）。起動したら 1 度だけ新しい版があるかを殻に聞き（`kisui update` でも調べ直す。store.ts）、あれば右下の知らせ（connect/Notices.tsx）に積む。
-// 入れ替えは「更新して再起動」を押したときだけ行う（編集中に勝手に起動し直さないため。リーダーの `n a` でも同じ）。
+// 入れ替えは「更新して再起動」を押したときだけ行う（編集中に勝手に起動し直さないため）。
 // 自動更新は AppImage と .dmg の版だけが持つ。Nix で作る版では殻がいつも「無い」と答えるので、何も出ない。
 import { onMount, Show, type JSX } from "solid-js";
 
 import "../connect/card.css";
+import { IS_MAC } from "../guiKeys.ts";
+import { leaderKeyName } from "../commands.ts";
 import {
   checkOnStart,
   dismissUpdate,
@@ -23,7 +25,8 @@ export function UpdateBar(): JSX.Element {
           <div class="card-body">
             <h2 class="card-title">新しい版 {u().version} があります</h2>
             <p class="card-text">
-              今は {u().current} です。更新すると、入れ替えて起動し直します。
+              今は {u().current} です。更新すると、入れ替えて起動し直します（
+              {leaderKeyName(IS_MAC)} n u でも更新できます）。
             </p>
             <Show when={updateError()}>
               <pre class="card-error" role="alert">

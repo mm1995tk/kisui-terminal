@@ -516,6 +516,33 @@ describe("stepWorkspace / stepMachine（キーで移る）", () => {
     });
   });
 
+  it("つながっていないマシンには、ワークスペースが有っても、移らずに止まる（ws が null）", () => {
+    const connected = (t: string) => t !== "ssh";
+    assert.deepEqual(
+      stepMachine(groups, "empty", "next", () => undefined, connected),
+      { target: "ssh", ws: null },
+    );
+    // つながっているマシンは今までどおり、最後に選んでいたもの・先頭へ
+    assert.deepEqual(
+      stepMachine(
+        groups,
+        "ssh",
+        "next",
+        (t) => (t === "local" ? "b" : undefined),
+        connected,
+      ),
+      { target: "local", ws: "b" },
+    );
+    assert.deepEqual(stepMachine(groups, "local", "next"), {
+      target: "empty",
+      ws: null,
+    });
+    assert.deepEqual(stepMachine(groups, "empty", "next"), {
+      target: "ssh",
+      ws: "c",
+    });
+  });
+
   it("返事を待つあいだに続けて押しても、向かっている先を起点にして進む", () => {
     const current = { target: "local", id: "a" };
     let heading: { target: string; id: string } | null = null;

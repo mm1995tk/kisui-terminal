@@ -1,9 +1,9 @@
-// リーダーの案内。リーダー（Mac は Cmd+K、Linux は Ctrl+Shift+K）を押すと、次に押せるキーとその動きを画面の左下に出す（which-key。
+// リーダーの案内。リーダー（Mac は Cmd+K、Linux は Ctrl+Shift+K）を押すと、次に押せるキーとその動きを画面の右下に出す（which-key。
 // shijimi-editor の Space の案内と同じ考え）。中身は、コマンドの表（commands.ts）の今の段の一覧そのもの。
 // 一覧は押せず、フォーカスも取らない。キーは押した瞬間にフォーカスがあったペインに向いたまま。
 import { createSignal, For, Show, type JSX } from "solid-js";
 
-import { childrenAt, leaderKeyName, nodeKeys, type Path } from "./commands.ts";
+import { leaderKeyName, menuRows, type Path } from "./commands.ts";
 import { IS_MAC } from "./guiKeys.ts";
 import styles from "./LeaderMenu.module.css";
 
@@ -17,7 +17,7 @@ export function LeaderMenu(): JSX.Element {
   return (
     <Show when={leaderPath()}>
       {(path) => {
-        const rows = () => childrenAt(path()) ?? [];
+        const rows = () => menuRows(path(), IS_MAC);
         return (
           <div class={styles.menu} role="status" aria-label="リーダー">
             <p class={styles.path}>
@@ -27,10 +27,10 @@ export function LeaderMenu(): JSX.Element {
               <For each={rows()}>
                 {(n) => (
                   <li class={styles.row}>
-                    <kbd class={styles.key}>{nodeKeys(n)}</kbd>
-                    <span classList={{ [styles.group]: n.type === "group" }}>
+                    <kbd class={styles.key}>{n.keys}</kbd>
+                    <span classList={{ [styles.group]: n.group }}>
                       {n.label}
-                      {n.type === "group" ? " ›" : ""}
+                      {n.group ? " ›" : ""}
                     </span>
                   </li>
                 )}

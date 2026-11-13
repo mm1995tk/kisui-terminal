@@ -328,12 +328,15 @@ export function stepWorkspace(
  * 前・次のマシン。端では反対の端へ回る。ワークスペースが 1 つも無いマシンにも止まる（ws は null）。
  * 移り先のワークスペースは、そのマシンで最後に選んでいたもの（lastOf。今も有るもの）、無ければ先頭。
  * 今のマシンが分からない（無い）ときは、次なら先頭のマシン、前なら末尾のマシン。
+ * つながっていないマシン（isConnected が false）は、ワークスペースの一覧が残っていても、ワークスペースへは移れないので、
+ * ワークスペースの無いマシンと同じに ws を null にして止まる（お知らせのカードのマシンを、w h / w l で選べるように）。
  */
 export function stepMachine(
   groups: readonly StepGroup[],
   current: string | undefined,
   step: Step,
   lastOf: (target: string) => WorkspaceId | undefined = () => undefined,
+  isConnected: (target: string) => boolean = () => true,
 ): StepTarget | null {
   if (groups.length === 0) return null;
   const i = groups.findIndex((g) => g.target === current);
@@ -346,7 +349,9 @@ export function stepMachine(
       : (i + (step === "next" ? 1 : n - 1)) % n;
   const g = groups[j];
   const last = lastOf(g.target);
-  const ws = g.bands.find((b) => b.id === last)?.id ?? g.bands[0]?.id ?? null;
+  const ws = isConnected(g.target)
+    ? (g.bands.find((b) => b.id === last)?.id ?? g.bands[0]?.id ?? null)
+    : null;
   return { target: g.target, ws };
 }
 

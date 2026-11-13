@@ -144,6 +144,7 @@ import { WorkspaceTrees } from "./tree/trees.ts";
 import {
   afterKeyUp,
   IDLE,
+  leaderKeyName,
   route,
   type Command,
   type RouterState,
@@ -1450,7 +1451,7 @@ function Workbench(props: {
 
   /**
    * リーダーの w h / w l。前・次のマシンへ（端では反対の端へ回る）。ワークスペースが有れば最後に選んでいたもの（無ければ先頭）へ、
-   * 1 つも無いマシンならそのマシンを「選んでいるマシン」にして止まる。
+   * 1 つも無いマシンと、つながっていないマシンは、そのマシンを「選んでいるマシン」にして止まる。
    */
   function stepMachineTo(step: Step) {
     const next = stepMachine(
@@ -1458,6 +1459,8 @@ function Workbench(props: {
       heading?.target ?? currentTarget(),
       step,
       (t) => lastOnMachine.get(t),
+      // つながっていないマシン（お知らせのカードが出ているマシンなど。states の kind が connected でない）は、ワークスペースが残っていても、移らずにそのマシンで止まる
+      (t) => states()[t]?.kind === "connected",
     );
     if (!next) return;
     setWalking(true);
@@ -1603,10 +1606,14 @@ function Workbench(props: {
       case "scale":
         changeScale(c.arg as ScaleAction);
         break;
-      case "notice.act":
-        // いちばん下のお知らせ（新しい版の知らせがあればそれ）の、主のボタン
+      case "notice.update":
+        // 「新しい版があります」の「更新して再起動」。知らせが出ていないときは何もしない
         if (updateInfo()) void installUpdate();
-        else notices().at(-1)?.primary?.run();
+        else
+          cannot(
+            "新しい版はありません",
+            "更新できる新しい版は、今ありません。",
+          );
         break;
       case "notice.dismiss":
         if (updateInfo()) dismissUpdate();
@@ -1774,9 +1781,14 @@ function Workbench(props: {
       run: () => setDismissed((d) => new Set(d).add(st)),
     };
     const cut = { label: "切る", run: () => void disconnect(t) };
+    // ボタンと同じ動きのキー。m r・m x は「選んでいるマシン」（currentTarget。w h・w l で止まったマシン、無ければ今のワークスペースの
+    // マシン）に行うので、このマシンを選ぶ手順（w h・w l）から書く
+    const leader = leaderKeyName(IS_MAC);
+    const keys = `${leader} w h / w l でこのマシンを選び（選んでいれば要りません）、${leader} m r でつなぎ直す、${leader} m x で切る`;
     if (st.kind === "failed") {
       return {
         title: `${label} につながりません`,
+        text: keys,
         error: st.message,
         secondary: [close, cut],
         dismiss: close.run,
@@ -1794,7 +1806,8 @@ function Workbench(props: {
         text:
           `${label} の作業は、あとからつないだ別の kisui-terminal に移りました。` +
           "取り合いにならないよう、自動ではつなぎ直しません。" +
-          "「つなぎ直す」を押すとこちらに戻し、あちらの kisui-terminal が切れます。",
+          "「つなぎ直す」を押すとこちらに戻し、あちらの kisui-terminal が切れます。" +
+          `（${keys}）`,
         secondary: [close, cut],
         dismiss: close.run,
         primary: { label: "つなぎ直す", run: () => connect(t) },
