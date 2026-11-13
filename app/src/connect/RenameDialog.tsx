@@ -1,14 +1,14 @@
-// マシンの名前を変える窓（見出しの右クリックの「名前を変える」で出す）。ワークスペースの名前を変える窓（帯の右クリックと w r）にも使う（target は空にしたときの名前）。
-// 空にして決めると、名前を外して target に戻す。決められなかった理由（ほかのマシンと同じ名前、長すぎる名前など）は error に出す。
+// 名前を変える窓。マシンの見出しの右クリックの「名前を変える」と、ワークスペースの帯の右クリック・リーダーの w r で出す。
+// 空にして決めると、名前を外して fallback（マシンなら ssh の行き先、ワークスペースなら自動の名前）に戻す。決められなかった理由（ほかのマシンと同じ名前、長すぎる名前など）は error に出す。
 import { createSignal, Show, type JSX } from "solid-js";
 
 import { ModalCard } from "./Card.tsx";
 
-export function RenameMachine(props: {
+export function RenameDialog(props: {
   /** 今の名前（付けていなければ ssh の行き先） */
   current: string;
   /** 名前が空のときに戻る先（マシンなら ssh の行き先、ワークスペースなら自動の名前） */
-  target: string;
+  fallback: string;
   error?: string;
   onSubmit: (name: string) => void;
   onCancel: () => void;
@@ -23,7 +23,7 @@ export function RenameMachine(props: {
           <input
             class="card-input"
             type="text"
-            placeholder={`空なら ${props.target}`}
+            placeholder={`空なら ${props.fallback}`}
             value={name()}
             onInput={(e) => setName(e.currentTarget.value)}
             onKeyDown={(e) => {

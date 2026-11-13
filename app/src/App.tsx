@@ -47,7 +47,8 @@ import { ConfigError } from "./connect/ConfigError.tsx";
 import { CloseWorkspaceCard } from "./connect/CloseWorkspaceCard.tsx";
 import { InstallCard } from "./connect/InstallCard.tsx";
 import { Notices, type Notice } from "./connect/Notices.tsx";
-import { RenameMachine } from "./connect/RenameMachine.tsx";
+import { RenameDialog } from "./connect/RenameDialog.tsx";
+import { renameErrorText } from "./sidebar/renameError.ts";
 import {
   describeClient,
   handoverFailure,
@@ -1576,7 +1577,7 @@ function Workbench(props: {
       if (!s) throw new Error(`${labelOf(r.target)} につながっていません`);
       await s.renameWorkspace(r.id, name);
     } catch (e) {
-      setWsRenameError(e instanceof Error ? e.message : String(e));
+      setWsRenameError(renameErrorText(e));
       return;
     }
     setRenamingWs(null);
@@ -1806,9 +1807,9 @@ function Workbench(props: {
       </Show>
       <Show when={renaming()}>
         {(t) => (
-          <RenameMachine
+          <RenameDialog
             current={labelOf(t())}
-            target={t()}
+            fallback={t()}
             error={renameError()}
             onSubmit={(name) => submitRename(t(), name)}
             onCancel={() => setRenaming(null)}
@@ -1817,9 +1818,9 @@ function Workbench(props: {
       </Show>
       <Show when={renamingWs()}>
         {(r) => (
-          <RenameMachine
+          <RenameDialog
             current={r().current}
-            target={r().auto}
+            fallback={r().auto}
             error={wsRenameError()}
             onSubmit={(name) => void submitWorkspaceRename(name)}
             onCancel={() => setRenamingWs(null)}
