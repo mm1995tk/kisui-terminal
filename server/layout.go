@@ -82,15 +82,18 @@ func validLayout(n *layoutNode) bool {
 }
 
 // splitNode は葉 n を、n と id の 2 枚の節に替える。dir が right・down なら id が B（右・下）、
-// left・up なら id が A（左・上）で、節の Dir は right か down のまま。
+// left・up なら id が A（左・上）で、節の Dir は right か down のまま。dir が 4 つのどれでもなければ nil
+// （分ける向きと木の向きは別のもので、4 つ以外は木に入れない）。
 func splitNode(n *layoutNode, id, dir string) *layoutNode {
 	switch dir {
 	case dirLeft:
 		return &layoutNode{Dir: dirRight, Ratio: 0.5, A: leaf(id), B: n}
 	case dirUp:
 		return &layoutNode{Dir: dirDown, Ratio: 0.5, A: leaf(id), B: n}
+	case dirRight, dirDown:
+		return &layoutNode{Dir: dir, Ratio: 0.5, A: n, B: leaf(id)}
 	}
-	return &layoutNode{Dir: dir, Ratio: 0.5, A: n, B: leaf(id)}
+	return nil
 }
 
 // validSplitDir は分けるときの向きとして正しいか。
@@ -112,7 +115,10 @@ func layoutSplit(n *layoutNode, target, id, dir string) (*layoutNode, bool) {
 		if n.Pane != target {
 			return n, false
 		}
-		return splitNode(n, id, dir), true
+		if s := splitNode(n, id, dir); s != nil {
+			return s, true
+		}
+		return n, false
 	}
 	if a, ok := layoutSplit(n.A, target, id, dir); ok {
 		return &layoutNode{Dir: n.Dir, Ratio: n.Ratio, A: a, B: n.B}, true

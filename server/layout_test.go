@@ -190,6 +190,10 @@ func TestLayoutSplitLeftUp(t *testing.T) {
 	if validSplitDir("") || validSplitDir("diagonal") {
 		t.Error("validSplitDir accepts a bad direction")
 	}
+	// 4 つ以外の向きは、木に入れない
+	if m, ok := layoutSplit(leaf("a"), "a", "b", "diagonal"); ok || !m.isLeaf() {
+		t.Errorf("a bad direction changed the tree: %+v", m)
+	}
 }
 
 // term.create に "left" を渡すと新しい欄が左（A）に入り、境界を動かせる。向きが正しくなければ断る。
