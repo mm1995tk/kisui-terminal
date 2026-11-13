@@ -8,6 +8,7 @@ import type { ConfigMachine } from "./machines.ts";
 export const tauriShell: ShellApi = {
   listSshHosts: () => invoke<string[]>("list_ssh_hosts"),
   configMachines: () => invoke<ConfigMachine[]>("config_machines"),
+  configMoved: () => invoke<string | null>("config_moved"),
   connect: (id, target) => invoke("connect", { id, target }),
   send: (id, text) => invoke("send", { id, text }),
   disconnect: (id) => invoke("disconnect", { id }),

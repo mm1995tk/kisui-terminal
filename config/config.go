@@ -1,10 +1,12 @@
-// Package config reads the settings of kisui from the configuration files it
-// shares with shj: `~/.config/shijimi-editor/config.toml` (and config.nix),
-// or `shijimi-editor-nightly/` for a nightly kisui. kisui reads only its own
-// keys, [server] and ui-language; the rest is shj's, which checks them
-// itself when it starts in a pane. shj knows kisui's keys too, so that it
-// does not warn about them (see "Machines in kisui-terminal" and [server] in
-// the manual of shijimi-editor).
+// Package config reads the settings of kisui from its own configuration
+// files: `~/.config/kisui-terminal/config.toml` (and config.nix), or
+// `kisui-terminal-nightly/` for a nightly kisui. kisui reads only its own
+// keys, [server] and ui-language. The settings of shj are in
+// `~/.config/shijimi-editor/`, which kisui does not read, with one exception:
+// when its own files have no ui-language, the one of shj's config.toml (and
+// config.nix) is used, so that one setting can give shj and kisui the same
+// language. A [server] or [[gui.machines]] left in shj's config.toml from
+// before the move is not read; Moved finds it so that it can be told.
 package config
 
 import (
@@ -77,12 +79,12 @@ func (e *Error) Error() string {
 	return strings.Join(lines, "\n")
 }
 
-// UserDir is the user's configuration directory under $XDG_CONFIG_HOME (or
-// ~/.config): `shijimi-editor`, or `shijimi-editor<suffix>` for a channel
+// dirOf is the user's configuration directory called name under
+// $XDG_CONFIG_HOME (or ~/.config): `<name>`, or `<name><suffix>` for a channel
 // (see buildinfo.Suffix). A channel that has no directory of its own reads
-// `shijimi-editor`, so that trying the nightly needs no copying of the
-// settings. ok is false when there is no home directory.
-func UserDir(suffix string) (dir string, ok bool) {
+// `<name>`, so that trying the nightly needs no copying of the settings. ok
+// is false when there is no home directory.
+func dirOf(name, suffix string) (dir string, ok bool) {
 	base := os.Getenv("XDG_CONFIG_HOME")
 	if !filepath.IsAbs(base) {
 		home, err := os.UserHomeDir()
@@ -91,17 +93,33 @@ func UserDir(suffix string) (dir string, ok bool) {
 		}
 		base = filepath.Join(home, ".config")
 	}
-	d := filepath.Join(base, "shijimi-editor"+suffix)
+	d := filepath.Join(base, name+suffix)
 	if suffix != "" {
 		if st, err := os.Stat(d); err != nil || !st.IsDir() {
-			return filepath.Join(base, "shijimi-editor"), true
+			return filepath.Join(base, name), true
 		}
 	}
 	return d, true
 }
 
-// Load reads kisui's settings from the user's configuration directory
-// (UserDir): config.toml, then config.nix on top of it. The Settings are
+// UserDir is kisui-terminal's own configuration directory: `kisui-terminal`,
+// or `kisui-terminal<suffix>` for a channel when that exists.
+func UserDir(suffix string) (dir string, ok bool) { return dirOf("kisui-terminal", suffix) }
+
+// shjDir is the configuration directory of shj, the editor kisui-terminal
+// works with. kisui reads ui-language from it, and nothing else.
+func shjDir(suffix string) (dir string, ok bool) { return dirOf("shijimi-editor", suffix) }
+
+// files are the settings files of a directory, in the order they are applied:
+// config.toml, then config.nix on top of it.
+var files = []struct {
+	name string
+	read func(path string) (map[string]any, []Problem, bool)
+}{{"config.toml", readTOML}, {"config.nix", readNix}}
+
+// Load reads kisui's settings from kisui-terminal's configuration directory
+// (UserDir): config.toml, then config.nix on top of it. When neither sets
+// ui-language, the one in shj's files is used (shjDir). The Settings are
 // returned even with an error, with what did read, so that the language of
 // the messages is the user's.
 func Load(suffix string) (*Settings, error) {
@@ -111,21 +129,68 @@ func Load(suffix string) (*Settings, error) {
 		return s, nil
 	}
 	var probs []Problem
-	for _, f := range []struct {
-		name string
-		read func(path string) (map[string]any, []Problem, bool)
-	}{{"config.toml", readTOML}, {"config.nix", readNix}} {
+	langSet := false
+	for _, f := range files {
 		path := filepath.Join(dir, f.name)
 		raw, ps, found := f.read(path)
 		probs = append(probs, ps...)
 		if found {
+			if _, ok := raw["ui-language"]; ok {
+				langSet = true
+			}
 			probs = append(probs, s.merge(raw, path)...)
 		}
+	}
+	if !langSet {
+		s.sharedLanguage(suffix)
 	}
 	if len(probs) > 0 {
 		return s, &Error{Problems: probs}
 	}
 	return s, nil
+}
+
+// sharedLanguage takes ui-language from shj's files. A mistake there is shj's
+// to report, so a value that is not a language kisui has is skipped.
+func (s *Settings) sharedLanguage(suffix string) {
+	dir, ok := shjDir(suffix)
+	if !ok {
+		return
+	}
+	for _, f := range files {
+		raw, _, found := f.read(filepath.Join(dir, f.name))
+		if !found {
+			continue
+		}
+		if lang, ok := raw["ui-language"].(string); ok && i18n.Valid(lang) {
+			s.UILanguage = lang
+		}
+	}
+}
+
+// Moved is the kisui-terminal settings that are still in shj's config.toml,
+// where kisui no longer reads them: "server" and "gui.machines", whichever
+// are written. path is that file. Only config.toml is looked at (not
+// config.nix), and an unreadable file is not reported here (shj reports it).
+func Moved(suffix string) (path string, keys []string) {
+	dir, ok := shjDir(suffix)
+	if !ok {
+		return "", nil
+	}
+	path = filepath.Join(dir, "config.toml")
+	raw, _, found := readTOML(path)
+	if !found {
+		return path, nil
+	}
+	if _, ok := raw["server"]; ok {
+		keys = append(keys, "server")
+	}
+	if gui, ok := raw["gui"].(map[string]any); ok {
+		if _, ok := gui["machines"]; ok {
+			keys = append(keys, "gui.machines")
+		}
+	}
+	return path, keys
 }
 
 // merge applies a decoded file and reports the mistakes in kisui's keys.

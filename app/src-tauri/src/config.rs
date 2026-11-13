@@ -1,11 +1,13 @@
-//! 手元の設定ファイル（`~/.config/shijimi-editor/config.toml`）の `[[gui.machines]]`。
+//! 手元の設定ファイル（`~/.config/kisui-terminal/config.toml`）の `[[gui.machines]]`。
 //!
-//! GUI が読むのはこの節だけ。ほかの節（shj の設定）は shj が確かめるので、ここでは見ない。
+//! GUI が読むのはこの節だけ。ほかの節（`kisui serve` の `[server]` など）は kisui が読む。
 //! 間違い（TOML の書き方・型の違い・使えない ssh の行き先・重なり）は、
-//! 知らない項目は間違いにしない（新しい版の shj 用に書いた項目があっても起動する）。読み飛ばす。
+//! 知らない項目は間違いにしない（新しい版用に書いた項目があっても起動する）。読み飛ばす。
 //! 「ファイル:行: 理由」の 1 行の文字列にして返す。画面側はそれを出して、ほかは何もしない（起動しない）。
-//! 置き場は shj と同じ決まり（`$XDG_CONFIG_HOME` が絶対パスならそれ、なければ `~/.config`。
-//! nightly の GUI は `shijimi-editor-nightly/`、そのフォルダが無ければ `shijimi-editor/`）。
+//! 置き場は `$XDG_CONFIG_HOME` が絶対パスならそれ、なければ `~/.config` の下の `kisui-terminal/`
+//! （nightly の GUI は `kisui-terminal-nightly/`、そのフォルダが無ければ `kisui-terminal/`）。
+//! shijimi-editor の設定ファイル（`shijimi-editor/config.toml`）の `[[gui.machines]]` と `[server]` は読まない。
+//! 以前の版はそこに書いたので、書いてあれば `moved_from_shj_default` が知らせる（画面がお知らせを出す）。
 
 use std::collections::HashSet;
 use std::fs;
@@ -28,7 +30,7 @@ pub struct ConfigMachine {
 
 #[derive(Deserialize)]
 struct File {
-    // ほかの節は shj が確かめる
+    // ほかの節は kisui（`[server]`）などが読む
     gui: Option<Gui>,
 }
 
@@ -47,42 +49,96 @@ struct Entry {
 /// 「ローカル」の名前（GUI の LOCAL_LABEL と同じ。この名前のマシンは出せない）。
 const LOCAL_LABEL: &str = "ローカル";
 
-/// 設定ファイルの置き場所。`config_home` は `$XDG_CONFIG_HOME`（絶対パスのときだけ使う）、`home` は `$HOME`。
+/// 設定の置き場所の土台（`$XDG_CONFIG_HOME` が絶対パスならそれ、なければ `~/.config`）。
+fn base_dir(config_home: Option<&Path>, home: Option<&Path>) -> Option<PathBuf> {
+    Some(match config_home {
+        Some(d) if d.is_absolute() => d.to_path_buf(),
+        _ => home?.join(".config"),
+    })
+}
+
+/// `name` の設定フォルダ。nightly は `<name>-nightly`、無ければ `name`。
+fn dir_of(base: &Path, name: &str, nightly: bool) -> PathBuf {
+    if nightly {
+        let n = base.join(format!("{name}-nightly"));
+        if n.is_dir() {
+            return n;
+        }
+    }
+    base.join(name)
+}
+
+/// 設定ファイルの置き場所（kisui-terminal 自身のもの）。`config_home` は `$XDG_CONFIG_HOME`（絶対パスのときだけ使う）、`home` は `$HOME`。
 pub fn config_path(
     config_home: Option<&Path>,
     home: Option<&Path>,
     nightly: bool,
 ) -> Option<PathBuf> {
-    let base = match config_home {
-        Some(d) if d.is_absolute() => d.to_path_buf(),
-        _ => home?.join(".config"),
-    };
-    let plain = base.join("shijimi-editor");
-    let dir = if nightly {
-        let n = base.join("shijimi-editor-nightly");
-        if n.is_dir() {
-            n
-        } else {
-            plain
-        }
-    } else {
-        plain
-    };
-    Some(dir.join("config.toml"))
+    let base = base_dir(config_home, home)?;
+    Some(dir_of(&base, "kisui-terminal", nightly).join("config.toml"))
 }
 
-/// 環境から設定ファイルの場所を決めて読む。
-pub fn load_default() -> Result<Vec<ConfigMachine>, String> {
+/// 以前の版が使っていた shijimi-editor の設定ファイルの置き場所。今は読まない。
+fn shj_config_path(
+    config_home: Option<&Path>,
+    home: Option<&Path>,
+    nightly: bool,
+) -> Option<PathBuf> {
+    let base = base_dir(config_home, home)?;
+    Some(dir_of(&base, "shijimi-editor", nightly).join("config.toml"))
+}
+
+/// 環境（`$XDG_CONFIG_HOME`・`$HOME`・nightly か）。
+fn env() -> (Option<PathBuf>, Option<PathBuf>, bool) {
     let xdg = std::env::var_os("XDG_CONFIG_HOME").map(PathBuf::from);
     let home = std::env::var_os("HOME").map(PathBuf::from);
     let nightly = matches!(
         crate::locate::split_version(crate::version::get()),
         Some((_, Some(_)))
     );
+    (xdg, home, nightly)
+}
+
+/// 環境から設定ファイルの場所を決めて読む。
+pub fn load_default() -> Result<Vec<ConfigMachine>, String> {
+    let (xdg, home, nightly) = env();
     match config_path(xdg.as_deref(), home.as_deref(), nightly) {
         Some(p) => load(&p),
         None => Ok(Vec::new()),
     }
+}
+
+/// shijimi-editor の設定ファイルに、kisui-terminal の設定（`[[gui.machines]]` か `[server]`）が
+/// 残っているとき、今の kisui-terminal の設定ファイルの場所（`$HOME` は `~` で出す）を返す。残っていなければ None。
+/// 読めない・書き方が違うファイルは「残っていない」とする（shj が知らせる）。
+pub fn moved_from_shj_default() -> Option<String> {
+    let (xdg, home, nightly) = env();
+    let left = shj_config_path(xdg.as_deref(), home.as_deref(), nightly)
+        .and_then(|p| fs::read_to_string(p).ok())
+        .is_some_and(|t| has_moved_keys(&t));
+    if !left {
+        return None;
+    }
+    let to = config_path(xdg.as_deref(), home.as_deref(), nightly)?;
+    Some(display_path(&to, home.as_deref()))
+}
+
+/// `$HOME` の下なら `~/…` で出す。
+fn display_path(p: &Path, home: Option<&Path>) -> String {
+    match home.and_then(|h| p.strip_prefix(h).ok()) {
+        Some(rest) => format!("~/{}", rest.display()),
+        None => p.display().to_string(),
+    }
+}
+
+fn has_moved_keys(text: &str) -> bool {
+    let Ok(t) = text.parse::<toml::Table>() else {
+        return false;
+    };
+    t.contains_key("server")
+        || t.get("gui")
+            .and_then(|g| g.as_table())
+            .is_some_and(|g| g.contains_key("machines"))
 }
 
 /// 設定ファイルを読む。無ければ空。
@@ -244,41 +300,41 @@ mod tests {
     }
 
     #[test]
-    fn path_follows_shj() {
+    fn path_is_kisui_terminals_own() {
         let home = Path::new("/home/u");
         assert_eq!(
             config_path(None, Some(home), false).unwrap(),
-            Path::new("/home/u/.config/shijimi-editor/config.toml")
+            Path::new("/home/u/.config/kisui-terminal/config.toml")
         );
         assert_eq!(
             config_path(Some(Path::new("/x")), Some(home), false).unwrap(),
-            Path::new("/x/shijimi-editor/config.toml")
+            Path::new("/x/kisui-terminal/config.toml")
         );
         // 絶対パスでない XDG_CONFIG_HOME は使わない
         assert_eq!(
             config_path(Some(Path::new("rel")), Some(home), false).unwrap(),
-            Path::new("/home/u/.config/shijimi-editor/config.toml")
+            Path::new("/home/u/.config/kisui-terminal/config.toml")
         );
         assert!(config_path(None, None, false).is_none());
     }
 
     #[test]
     fn nightly_dir_only_when_it_exists() {
-        let tmp = std::env::temp_dir().join(format!("shj-gui-cfg-{}", std::process::id()));
+        let tmp = std::env::temp_dir().join(format!("kisui-gui-cfg-{}", std::process::id()));
         let _ = fs::remove_dir_all(&tmp);
-        fs::create_dir_all(tmp.join("shijimi-editor")).unwrap();
+        fs::create_dir_all(tmp.join("kisui-terminal")).unwrap();
         assert_eq!(
             config_path(Some(&tmp), None, true).unwrap(),
-            tmp.join("shijimi-editor/config.toml")
+            tmp.join("kisui-terminal/config.toml")
         );
-        fs::create_dir_all(tmp.join("shijimi-editor-nightly")).unwrap();
+        fs::create_dir_all(tmp.join("kisui-terminal-nightly")).unwrap();
         assert_eq!(
             config_path(Some(&tmp), None, true).unwrap(),
-            tmp.join("shijimi-editor-nightly/config.toml")
+            tmp.join("kisui-terminal-nightly/config.toml")
         );
         assert_eq!(
             config_path(Some(&tmp), None, false).unwrap(),
-            tmp.join("shijimi-editor/config.toml")
+            tmp.join("kisui-terminal/config.toml")
         );
         let _ = fs::remove_dir_all(&tmp);
     }
@@ -297,5 +353,47 @@ mod tests {
             assert_eq!(m.len(), 1, "{v}");
             assert_eq!(m[0].ssh, "a", "{v}");
         }
+    }
+
+    #[test]
+    fn old_location_keys_are_found() {
+        assert!(has_moved_keys("[[gui.machines]]\nssh = \"a\"\n"));
+        assert!(has_moved_keys("[server]\nidle_stop_days = 1\n"));
+        assert!(has_moved_keys("theme = \"x\"\n[gui]\nmachines = []\n"));
+        // shj 自身の項目だけなら、残っていない
+        assert!(!has_moved_keys(
+            "theme = \"x\"\nui-language = \"ja\"\n[gui]\ncolor = 1\n"
+        ));
+        assert!(!has_moved_keys(""));
+        // 読めないファイルは、知らせない（shj が知らせる）
+        assert!(!has_moved_keys("a = \n[server]\n"));
+    }
+
+    #[test]
+    fn shj_path_is_the_old_place() {
+        let home = Path::new("/home/u");
+        assert_eq!(
+            shj_config_path(None, Some(home), false).unwrap(),
+            Path::new("/home/u/.config/shijimi-editor/config.toml")
+        );
+    }
+
+    #[test]
+    fn display_path_uses_tilde_under_home() {
+        let home = Path::new("/home/u");
+        assert_eq!(
+            display_path(
+                Path::new("/home/u/.config/kisui-terminal/config.toml"),
+                Some(home)
+            ),
+            "~/.config/kisui-terminal/config.toml"
+        );
+        assert_eq!(
+            display_path(
+                Path::new("/x/kisui-terminal-nightly/config.toml"),
+                Some(home)
+            ),
+            "/x/kisui-terminal-nightly/config.toml"
+        );
     }
 }
