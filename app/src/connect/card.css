@@ -269,7 +269,8 @@
 .config-error {
   box-sizing: border-box;
   display: flex;
-  min-height: 100vh;
+  height: 100%;
+  overflow-y: auto;
   padding: 120px 16px 16px;
   justify-content: center;
   align-items: flex-start;
