@@ -812,23 +812,19 @@ function Workbench(props: {
     }
   }
 
-  /** サイドバーの境界のドラッグ。ポインタの位置が境界。 */
-  function dragBorder(border: "sidebar", e: PointerEvent) {
-    const box = appEl;
-    if (e.button !== 0 || !box) return;
+  /**
+   * 境界をつかんで動かす間の、ポインタの受け持ち。つかんだら border を光らせ、動くたびに move を呼び、離したら片付ける。
+   * 境界の値の計算（move の中身）は、動かす境界ごとに渡す。
+   */
+  function trackPointer(
+    border: Border,
+    e: PointerEvent,
+    move: (ev: PointerEvent) => void,
+  ) {
     const el = e.currentTarget as HTMLElement;
     e.preventDefault();
     el.setPointerCapture(e.pointerId);
     setDragging(border);
-    // つまみは境界の右の隙間にあるので、つかんだ位置と境界の差を覚えて、動かし始めに境界が跳ねないようにする
-    // （境界の位置は、覚えた値ではなく画面に出ているつまみの左端から取る。窓が狭いと CSS が幅を縮めているため）
-    const grab = e.clientX - el.getBoundingClientRect().left;
-    const move = (ev: PointerEvent) => {
-      const r = box.getBoundingClientRect();
-      changeSizes(
-        withSize(sizes(), border, ev.clientX - r.left - grab, maxOf()),
-      );
-    };
     const end = () => {
       setDragging(null);
       el.removeEventListener("pointermove", move);
@@ -840,18 +836,30 @@ function Workbench(props: {
     el.addEventListener("pointercancel", end);
   }
 
+  /** サイドバーの境界のドラッグ。ポインタの位置が境界。 */
+  function dragBorder(border: "sidebar", e: PointerEvent) {
+    const box = appEl;
+    if (e.button !== 0 || !box) return;
+    // つまみは境界の右の隙間にあるので、つかんだ位置と境界の差を覚えて、動かし始めに境界が跳ねないようにする
+    // （境界の位置は、覚えた値ではなく画面に出ているつまみの左端から取る。窓が狭いと CSS が幅を縮めているため）
+    const grab =
+      e.clientX - (e.currentTarget as HTMLElement).getBoundingClientRect().left;
+    trackPointer(border, e, (ev) => {
+      const r = box.getBoundingClientRect();
+      changeSizes(
+        withSize(sizes(), border, ev.clientX - r.left - grab, maxOf()),
+      );
+    });
+  }
+
   /**
    * ファイルツリーと CHANGES の境目のドラッグ。上へ動かすと CHANGES の一覧が高くなる。
    * 動かし始めの高さは、画面に出ている一覧の高さ（行が少ないと、決めた高さより低い）。
    */
   function dragChanges(e: PointerEvent, height: number) {
     if (e.button !== 0) return;
-    const el = e.currentTarget as HTMLElement;
-    e.preventDefault();
-    el.setPointerCapture(e.pointerId);
-    setDragging("changes");
     const startY = e.clientY;
-    const move = (ev: PointerEvent) => {
+    trackPointer("changes", e, (ev) => {
       changeSizes(
         withSize(
           sizes(),
@@ -860,16 +868,7 @@ function Workbench(props: {
           maxOf("changes"),
         ),
       );
-    };
-    const end = () => {
-      setDragging(null);
-      el.removeEventListener("pointermove", move);
-      el.removeEventListener("pointerup", end);
-      el.removeEventListener("pointercancel", end);
-    };
-    el.addEventListener("pointermove", move);
-    el.addEventListener("pointerup", end);
-    el.addEventListener("pointercancel", end);
+    });
   }
 
   /** ワークスペースのフォルダ。フォルダ未定なら null、ワークスペースが分からなければ undefined。 */
