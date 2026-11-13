@@ -5,7 +5,7 @@ import { createSignal, Show, type JSX } from "solid-js";
 import { ModalCard } from "./Card.tsx";
 
 export function RenameDialog(props: {
-  /** 今の名前（付けていなければ ssh の行き先） */
+  /** 今の名前（マシンで付けていなければ ssh の行き先。ワークスペースで付けていなければ空） */
   current: string;
   /** 名前が空のときに戻る先（マシンなら ssh の行き先、ワークスペースなら自動の名前） */
   fallback: string;
