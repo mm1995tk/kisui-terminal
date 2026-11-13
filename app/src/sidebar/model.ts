@@ -169,17 +169,20 @@ export function adoptFocus(
 
 /**
  * 一覧が変わった・切った・フォーカスが外れたあとに、フォーカス先がまだあるかを確かめる。
- * 無くなっていたら、ほかのマシンの shj のフォーカス（shjFocus の順）のうち一覧にあるものを使う
+ * 無くなっていたら、先に決めておいた移り先（prefer。フォーカスしているワークスペースを閉じたときの隣）が一覧にあればそれを、
+ * 無ければほかのマシンの shj のフォーカス（shjFocus の順）のうち一覧にあるものを使う
  * （起動直後の「先に分かったものを使う」に合わせ、印の無い状態を続けない）。どれも無ければ null。
  */
 export function keepFocus(
   current: WorkspaceFocus | null,
   workspaces: Record<string, Workspace[] | undefined>,
   shjFocus: Record<string, WorkspaceId | null | undefined> = {},
+  prefer: WorkspaceFocus | null = null,
 ): WorkspaceFocus | null {
   const exists = (f: WorkspaceFocus) =>
     workspaces[f.target]?.some((w) => w.id === f.id) ?? false;
   if (current && exists(current)) return current;
+  if (prefer && exists(prefer)) return prefer;
   for (const [target, id] of Object.entries(shjFocus)) {
     if (id == null) continue;
     const f = { target, id };

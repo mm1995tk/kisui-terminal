@@ -16,6 +16,7 @@
 // 新しい版があれば右下に知らせ、押されたら入れ替えて起動し直す（C8。update/UpdateBar.tsx）。
 // 窓と知らせは、どれもモック Connect.dc.html のカードの決まりで描く（connect/card.css）。
 import {
+  batch,
   createEffect,
   on,
   createMemo,
@@ -225,6 +226,12 @@ function Workbench(props: {
   let focusSeq = 0;
   /** workspace.focus の返事を待っている（ワークスペースを移している途中） */
   let switching = false;
+  /**
+   * フォーカスしているワークスペースを閉じている途中の、移り先（閉じたものの隣）。
+   * 一覧から消えた知らせ（workspace.changed）と shj のフォーカスが外れた知らせは閉じる返事より先に届くので、
+   * そこでフォーカスを一度 null にせず、すぐこの移り先にする（サイドバーが一瞬フォーカス無しで描かれるのを防ぐ）
+   */
+  let closingNext: WorkspaceFocus | null = null;
   let openSeq = 0;
   const offStates = new Map<string, () => void>();
   /** つないで最初の一覧を見たマシン（空なら自動でワークスペースを作る。作るのは 1 回だけ） */
@@ -534,8 +541,11 @@ function Workbench(props: {
         if (before && before.folder !== w.folder) tr.reset(w.id);
       }
       group.sync(ws);
-      setWorkspaces((m) => ({ ...m, [target]: ws }));
-      setFocus((f) => keepFocus(f, workspaces(), shjFocuses()));
+      // 一覧とフォーカスは一緒に変える（別々だと、消えたワークスペースにフォーカスしたままの一覧が一度描かれる）
+      batch(() => {
+        setWorkspaces((m) => ({ ...m, [target]: ws }));
+        setFocus((f) => keepFocus(f, workspaces(), shjFocuses(), closingNext));
+      });
       // つないで最初に分かった一覧が空なら、ワークスペースを 1 つ作る（何も無い画面から始めない）。
       // 閉じて空になったときは作らない
       if (!started.has(target) && s.state.kind === "connected") {
@@ -545,7 +555,12 @@ function Workbench(props: {
     });
     const offFocus = s.onFocus((id) =>
       setFocus((f) =>
-        keepFocus(adoptFocus(f, target, id), workspaces(), shjFocuses()),
+        keepFocus(
+          adoptFocus(f, target, id),
+          workspaces(),
+          shjFocuses(),
+          closingNext,
+        ),
       ),
     );
     const offPane = s.onPane((ev) => {
@@ -746,9 +761,13 @@ function Workbench(props: {
         .find((g) => g.target === target)
         ?.bands.find((b) => b.id === id)?.title ?? "";
     setFocusError(null);
+    // 移り先は閉じる前に決めておき、一覧から消えた知らせを受けたところで（返事を待たずに）フォーカスを移す
+    const moveTo = wasFocused && next ? { target, id: next.id } : null;
+    closingNext = moveTo;
     try {
       await s.closeWorkspace(id, force);
     } catch (e) {
+      if (closingNext === moveTo) closingNext = null;
       const d =
         e instanceof RpcError && e.code === ErrorCode.Busy
           ? (e.data as { reason?: string } | undefined)
@@ -763,7 +782,9 @@ function Workbench(props: {
       });
       return;
     }
-    if (wasFocused && next) void focusWorkspace(target, next.id);
+    if (closingNext === moveTo) closingNext = null;
+    // GUI のフォーカスはもう移っている。shj にも移り先を伝える
+    if (moveTo) void focusWorkspace(target, moveTo.id);
   }
 
   // 初めて出たマシンには色を割り当てて保存する（つなぐマシンが変わったときだけ計算し直す）
