@@ -39,3 +39,7 @@ test("箱は overflow: clip で中身を角に切り取る（hidden / auto は s
   assert.match(box, /overflow: clip;/);
   assert.doesNotMatch(box, /overflow: (hidden|auto|scroll)/);
 });
+
+test("固定する帯の見出しは四角いまま（角は箱が切り取る）", () => {
+  assert.doesNotMatch(rule(".band-item[data-focused] > .band-slot"), /radius/);
+});

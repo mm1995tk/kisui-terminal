@@ -316,7 +316,6 @@
 }
 .band-item[data-focused] > .band-slot {
   padding: 2px 4px;
-  border-radius: 7px 7px 0 0;
   background: var(--focus-box-bg);
 }
 .band-item[data-focused] .band {
