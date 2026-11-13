@@ -70,7 +70,7 @@
   user-select: none;
 }
 .changes-row:hover {
-  background: var(--gh-bg-raised);
+  background: var(--changes-hover, var(--gh-bg-raised));
 }
 .changes-row[aria-selected="true"] {
   background: var(--gh-bg-selected);
