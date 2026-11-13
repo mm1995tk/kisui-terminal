@@ -10,6 +10,7 @@ import {
   buildSidebar,
   health,
   keepFocus,
+  shouldSendMoveTo,
   stepFrom,
   stepMachine,
   stepWorkspace,
@@ -251,6 +252,99 @@ describe("keepFocus", () => {
       keepFocus({ target: "b", id: "y" }, lists, { c: "z" })?.target,
       "b",
     );
+  });
+
+  it("移り先（prefer）が一覧にあれば、shj のフォーカスより先に使う", () => {
+    const lists = {
+      a: [ws({ id: "y", root: "/y" })],
+      b: [ws({ id: "z", root: "/z" })],
+    };
+    const cur = { target: "a", id: "x" };
+    const prefer = { target: "a", id: "y" };
+    assert.deepEqual(keepFocus(cur, lists, { b: "z" }, prefer), prefer);
+    // 一覧に無い移り先は使わない
+    assert.deepEqual(
+      keepFocus(cur, lists, { b: "z" }, { target: "a", id: "gone" }),
+      { target: "b", id: "z" },
+    );
+    // まだあれば動かさない
+    assert.deepEqual(keepFocus({ target: "b", id: "z" }, lists, {}, prefer), {
+      target: "b",
+      id: "z",
+    });
+  });
+
+  // フォーカスしているワークスペース x を閉じると、閉じる返事より先に
+  // workspace.changed（x が消えた）→ shj のフォーカスが外れた（null）の順に知らせが届く。
+  // App はそれぞれで keepFocus（後者は adoptFocus も）を通すので、その間に描く一覧で
+  // フォーカスが一度も無くならない（サイドバーの並びが一瞬崩れない）ことを確かめる。
+  it("フォーカスしているワークスペースを閉じても、途中でフォーカスが無くならない", () => {
+    const before = {
+      a: [
+        ws({ id: "w", root: "/w" }),
+        ws({ id: "x", root: "/x" }),
+        ws({ id: "y", root: "/y" }),
+      ],
+      b: [ws({ id: "z", root: "/z" })],
+    };
+    const after = { ...before, a: before.a.filter((w) => w.id !== "x") };
+    const closing = { target: "a", id: "x" };
+    const next = { target: "a", id: "y" };
+    const drawn = (f: ReturnType<typeof keepFocus>) =>
+      splitAtFocus(buildSidebar(["a", "b"], {}, after, f)).focused;
+
+    // 1. 一覧から x が消えた（shj のフォーカスはまだ x）
+    const f1 = keepFocus(closing, after, { a: "x", b: "z" }, next);
+    assert.deepEqual(f1, next);
+    assert.deepEqual(
+      drawn(f1)?.bands.map((b) => b.id),
+      ["w", "y"],
+    );
+    // 2. shj のフォーカスが外れた
+    const f2 = keepFocus(
+      adoptFocus(f1, "a", null),
+      after,
+      { a: null, b: "z" },
+      next,
+    );
+    assert.deepEqual(f2, next);
+    assert.notEqual(drawn(f2), null);
+
+    // 移り先が無ければ、ほかのマシンの shj のフォーカス（b）に移る
+    assert.deepEqual(keepFocus(closing, after, { a: "x", b: "z" }), {
+      target: "b",
+      id: "z",
+    });
+  });
+});
+
+describe("shouldSendMoveTo", () => {
+  const lists = {
+    a: [ws({ id: "y", root: "/y" }), ws({ id: "w", root: "/w" })],
+  };
+  const moveTo = { target: "a", id: "y" };
+
+  it("GUI のフォーカスがまだ移り先で、移り先が一覧にあれば伝える", () => {
+    assert.equal(
+      shouldSendMoveTo({ target: "a", id: "y" }, moveTo, lists),
+      true,
+    );
+  });
+
+  it("待つあいだに別の帯を選んでいたら伝えない", () => {
+    assert.equal(
+      shouldSendMoveTo({ target: "a", id: "w" }, moveTo, lists),
+      false,
+    );
+    assert.equal(shouldSendMoveTo(null, moveTo, lists), false);
+  });
+
+  it("移り先も一覧から消えていたら伝えない", () => {
+    assert.equal(
+      shouldSendMoveTo(moveTo, moveTo, { a: [ws({ id: "w", root: "/w" })] }),
+      false,
+    );
+    assert.equal(shouldSendMoveTo(moveTo, moveTo, {}), false);
   });
 });
 
