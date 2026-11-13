@@ -504,52 +504,45 @@ function BandItem(
   const b = () => props.band;
   return (
     <li>
-      {/* 帯は行にして、中の 2 つのボタン（フォーカスを移す・閉じる）を並べる（ボタンの中にボタンは置けない） */}
-      <div
-        class="band"
-        aria-current={b().focused ? "true" : undefined}
-        data-sticky={b().focused ? "top" : undefined}
-        title={b().root || undefined}
-      >
-        <button
-          type="button"
-          class="band-main"
-          onClick={() => props.onFocus(props.target, b().id)}
+      {/* カードの中は行にして、2 つのボタン（フォーカスを移す・閉じる）を並べる（ボタンの中にボタンは置けない） */}
+      <div class="band-slot" data-sticky={b().focused ? "top" : undefined}>
+        <div
+          class="band"
+          aria-current={b().focused ? "true" : undefined}
+          title={b().root || undefined}
         >
-          <svg
-            class="band-icon"
-            width="16"
-            height="16"
-            viewBox="0 0 16 16"
-            aria-hidden="true"
-          >
-            <path d="M8 2l6 3-6 3-6-3z" />
-            <path d="M2 8l6 3 6-3" />
-            <path d="M2 11l6 3 6-3" />
-          </svg>
-          <span
-            class="band-title"
-            classList={{ path: b().path, unset: b().unset }}
-          >
-            {b().title}
-          </span>
-          <Show when={b().detail}>
-            <span class="band-detail">{b().detail}</span>
-          </Show>
-        </button>
-        <Show when={props.onClose}>
           <button
             type="button"
-            class="band-close"
-            aria-label={`${b().title} を閉じる`}
-            title="ワークスペースを閉じる"
-            onClick={() => props.onClose?.(props.target, b().id)}
+            class="band-main"
+            onClick={() => props.onFocus(props.target, b().id)}
           >
-            <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M6 6l12 12M18 6L6 18" />
-            </svg>
+            <span
+              class="band-title"
+              classList={{ path: b().path, unset: b().unset }}
+            >
+              {b().title}
+            </span>
+            <span class="band-detail">{b().detail}</span>
           </button>
-        </Show>
+          <Show when={props.onClose}>
+            <button
+              type="button"
+              class="band-close"
+              aria-label={`${b().title} を閉じる`}
+              title="ワークスペースを閉じる"
+              onClick={() => props.onClose?.(props.target, b().id)}
+            >
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path d="M6 6l12 12M18 6L6 18" />
+              </svg>
+            </button>
+          </Show>
+        </div>
       </div>
       <Show
         when={
