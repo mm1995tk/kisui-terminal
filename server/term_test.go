@@ -511,7 +511,7 @@ func TestTermSplitErrorCodes(t *testing.T) {
 	if err := call(map[string]any{"target": "t999", "dir": "right"}); !isCode(err, rpc.CodeNotFound) {
 		t.Errorf("missing target: %v", err)
 	}
-	if err := call(map[string]any{"target": primary, "dir": "left"}); !isCode(err, rpc.CodeInvalidParams) {
+	if err := call(map[string]any{"target": primary, "dir": "diagonal"}); !isCode(err, rpc.CodeInvalidParams) {
 		t.Errorf("bad dir: %v", err)
 	}
 }

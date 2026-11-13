@@ -35,6 +35,9 @@ var (
 const (
 	dirRight = "right"
 	dirDown  = "down"
+	// 分けるときの向きには、木の Dir にならない "left" と "up" もある。木の形は変えず、新しい欄を A に、今の欄を B にして表す。
+	dirLeft = "left"
+	dirUp   = "up"
 )
 
 // layoutNode は分割の木の節か葉。Pane が空でなければ葉。
@@ -78,7 +81,29 @@ func validLayout(n *layoutNode) bool {
 	return (n.Dir == dirRight || n.Dir == dirDown) && n.Ratio > 0 && n.Ratio < 1 && validLayout(n.A) && validLayout(n.B)
 }
 
+// splitNode は葉 n を、n と id の 2 枚の節に替える。dir が right・down なら id が B（右・下）、
+// left・up なら id が A（左・上）で、節の Dir は right か down のまま。
+func splitNode(n *layoutNode, id, dir string) *layoutNode {
+	switch dir {
+	case dirLeft:
+		return &layoutNode{Dir: dirRight, Ratio: 0.5, A: leaf(id), B: n}
+	case dirUp:
+		return &layoutNode{Dir: dirDown, Ratio: 0.5, A: leaf(id), B: n}
+	}
+	return &layoutNode{Dir: dir, Ratio: 0.5, A: n, B: leaf(id)}
+}
+
+// validSplitDir は分けるときの向きとして正しいか。
+func validSplitDir(dir string) bool {
+	switch dir {
+	case dirRight, dirDown, dirLeft, dirUp:
+		return true
+	}
+	return false
+}
+
 // layoutSplit は target の葉を、target と id の 2 枚の節に替えた木。target が無ければ ok == false。
+// dir は right・down・left・up（splitNode）。
 func layoutSplit(n *layoutNode, target, id, dir string) (*layoutNode, bool) {
 	if n == nil {
 		return nil, false
@@ -87,7 +112,7 @@ func layoutSplit(n *layoutNode, target, id, dir string) (*layoutNode, bool) {
 		if n.Pane != target {
 			return n, false
 		}
-		return &layoutNode{Dir: dir, Ratio: 0.5, A: n, B: leaf(id)}, true
+		return splitNode(n, id, dir), true
 	}
 	if a, ok := layoutSplit(n.A, target, id, dir); ok {
 		return &layoutNode{Dir: n.Dir, Ratio: n.Ratio, A: a, B: n.B}, true
@@ -184,13 +209,13 @@ func (w *wsManager) checkSplit(target, dir string) error {
 	cols, rows := t.cols, t.rows
 	t.mu.Unlock()
 	switch dir {
-	case dirRight:
+	case dirRight, dirLeft:
 		if c := cols / 2; c < minSplitCols {
-			return fmt.Errorf("%w: the pane is too narrow to split right: %d columns would be left (at least %d)", errTooSmall, c, minSplitCols)
+			return fmt.Errorf("%w: the pane is too narrow to split %s: %d columns would be left (at least %d)", errTooSmall, dir, c, minSplitCols)
 		}
-	case dirDown:
+	case dirDown, dirUp:
 		if r := rows / 2; r < minSplitRows {
-			return fmt.Errorf("%w: the pane is too short to split down: %d rows would be left (at least %d)", errTooSmall, r, minSplitRows)
+			return fmt.Errorf("%w: the pane is too short to split %s: %d rows would be left (at least %d)", errTooSmall, dir, r, minSplitRows)
 		}
 	}
 	return nil
@@ -215,7 +240,7 @@ func (w *wsManager) planSplit(wsID, target, dir string) (string, string, error) 
 	} else if !layoutHas(n, target) {
 		return "", "", fmt.Errorf("%w: %s", errNoPane, target)
 	}
-	if dir != dirRight && dir != dirDown {
+	if !validSplitDir(dir) {
 		return "", "", fmt.Errorf("%w: %q", errBadDir, dir)
 	}
 	if err := w.checkSplit(target, dir); err != nil {

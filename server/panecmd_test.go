@@ -276,7 +276,7 @@ func TestPaneCmdSplitAndTitle(t *testing.T) {
 
 	for _, bad := range []panecmd.Request{
 		{Cmd: "split"},
-		{Cmd: "split", Dir: "left"},
+		{Cmd: "split", Dir: "diagonal"},
 		{Cmd: "split", Dir: "right", Argv: []string{"sh"}},
 		{Cmd: "split", Dir: "right", Env: []string{"NOEQUALS"}},
 		{Cmd: "title", Title: "a\nb"},
@@ -316,6 +316,15 @@ func TestPaneCmdSplitAndTitle(t *testing.T) {
 		t.Fatalf("layout after split down: %+v", l)
 	}
 	waitFor(t, "output of the command", func() bool { d, _ := nt.output(t, r2.ID); return strings.Contains(string(d), "from-cmd") })
+
+	// 左に分ける。新しい欄が打った欄の左（A）に入る
+	r3 := do(panecmd.Request{Cmd: "split", Dir: "left"})
+	if !r3.OK {
+		t.Fatalf("split left: %+v", r3)
+	}
+	if l := ws().Layout; l.A.A.Dir != "right" || l.A.A.A.Pane != r3.ID || l.A.A.B.Pane != primary {
+		t.Fatalf("layout after split left: %+v", l)
+	}
 
 	// 小さい欄は分けない
 	small := createTerm(t, c, map[string]any{"workspaceId": id, "cols": 30, "rows": 8})

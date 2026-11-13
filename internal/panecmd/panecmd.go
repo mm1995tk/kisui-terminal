@@ -36,7 +36,7 @@ const (
 //     an http or https URL (the GUI opens it in the browser of the machine it
 //     runs on; no pane), or the absolute path of a file
 //     (a video, image or PDF pane, by its kind).
-//   - "split": split the terminal Pane in the direction Dir ("right" or "down") and
+//   - "split": split the terminal Pane in the direction Dir ("right", "down", "left" or "up") and
 //     start a new terminal in it: its shell, or the command Argv (its first word is
 //     an absolute path; the new terminal ends with the command) in Cwd. Env is
 //     "NAME=value" entries for the new terminal.

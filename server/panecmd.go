@@ -187,7 +187,7 @@ func cleanPaneName(s string) (string, error) {
 // splitFrom は kisui pane split。rq.Pane の欄を rq.Dir に分け、新しい欄でシェルか rq.Argv を動かす。
 // 分け方と最小の大きさの決まりは GUI で分けるときと同じ（planSplit）。フォルダは rq.Cwd（フォルダでなければ、打った欄の cwd）。
 func (w *wsManager) splitFrom(wsID string, rq panecmd.Request) (string, error) {
-	if rq.Dir != dirRight && rq.Dir != dirDown {
+	if !validSplitDir(rq.Dir) {
 		return "", fmt.Errorf("%w: %q", errBadDir, rq.Dir)
 	}
 	env, err := validEnv(rq.Env)

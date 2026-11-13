@@ -55,9 +55,9 @@ echo hello | kisui clipboard copy
 
 Print the text on the clipboard of the computer the window runs on. **Do not run this on your own.** Every call makes kisui-terminal ask the user whether to allow it, and the clipboard can hold something private. Run it only when the user asks you to read their clipboard. `pbpaste` asks in the same way, so the same rule applies.
 
-### kisui pane split --right|--down [command ...]
+### kisui pane split --right|--down|--left|--up [command ...]
 
-Split the pane you run in to the right or down and move the focus to the new pane. With a command, the new pane runs it instead of a shell, and closes when the command ends; to keep the output of a short command, end with a shell (`sh -c "ls; exec sh"`). It is refused when `--right` would leave a pane narrower than 20 columns, or `--down` shorter than 5 rows. The focus moves to the new pane, so what the user is typing goes there too: split only when the user asks or the work needs it. Use it to start a dev server or a watcher beside your work.
+Split the pane you run in to the right, down, left or up and move the focus to the new pane. With a command, the new pane runs it instead of a shell, and closes when the command ends; to keep the output of a short command, end with a shell (`sh -c "ls; exec sh"`). It is refused when `--right` or `--left` would leave a pane narrower than 20 columns, or `--down` or `--up` shorter than 5 rows. The focus moves to the new pane, so what the user is typing goes there too: split only when the user asks or the work needs it. Use it to start a dev server or a watcher beside your work.
 
 ```sh
 kisui pane split --right

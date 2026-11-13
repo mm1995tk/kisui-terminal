@@ -246,7 +246,7 @@ export class TermGroup {
   }
 
   /**
-   * 今使っている欄を dir（右か下）に分けて、新しいターミナルを足して active にする（Cmd+D・Cmd+Shift+D
+   * 今使っている欄を dir（右・下・左・上）に分けて、新しいターミナルを足して active にする（Cmd+D・Cmd+Shift+D
    * ・Ctrl+Shift+D・Ctrl+Shift+E）。フォルダは shj が決める（ワークスペースのフォルダ。未定なら start_dir）。
    * 小さすぎて分けられなければ、serve が断った理由を onError に出して false。足したら true。
    */

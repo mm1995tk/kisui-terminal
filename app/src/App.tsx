@@ -1274,7 +1274,7 @@ function Workbench(props: {
     });
   }
 
-  /** 今の欄を右か下に分けてターミナルを足し、キーを向ける（Cmd+D・Ctrl+Shift+D など。F4）。フォーカスしているワークスペースに属する。 */
+  /** 今の欄を右・下・左・上に分けてターミナルを足し、キーを向ける（Cmd+D・Ctrl+Shift+D など。F4）。フォーカスしているワークスペースに属する。 */
   function newTerminal(dir: SplitDir) {
     // 隠している欄があれば先に戻す（足した欄が見えないままになるため）
     setZoom(false);

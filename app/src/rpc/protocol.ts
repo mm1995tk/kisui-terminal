@@ -81,13 +81,16 @@ export interface Workspace {
   titles?: Record<string, string>;
 }
 
-/** 欄を分ける向き：右（縦の境界。a が左、b が右）か下（横の境界。a が上、b が下） */
-export type SplitDir = "right" | "down";
+/** 分割の木の節の向き：右（縦の境界。a が左、b が右）か下（横の境界。a が上、b が下） */
+export type TreeDir = "right" | "down";
+
+/** 欄を分ける向き。左と上は木に出ない（子の順番を逆にして、新しい欄を a にする）ので、木の節の向きは TreeDir。 */
+export type SplitDir = TreeDir | "left" | "up";
 
 /** 欄の配置：葉が欄（pane は primary・terms・extras の id）、節が分割。ratio は a の割合（0〜1） */
 export type PaneLayout =
   | { pane: string }
-  | { dir: SplitDir; ratio: number; a: PaneLayout; b: PaneLayout };
+  | { dir: TreeDir; ratio: number; a: PaneLayout; b: PaneLayout };
 
 /** ターミナルでない欄：動画（#555）・画像・PDF（どれもファイルを media.read で取る） */
 export interface ExtraPane {

@@ -624,7 +624,7 @@ type termCreateParams struct {
 	Split *splitParams `json:"split,omitempty"`
 }
 
-// splitParams は term.create の split：欄 Target を Dir（"right" か "down"）に分けて、新しい欄を足す。
+// splitParams は term.create の split：欄 Target を Dir（"right"・"down"・"left"・"up"）に分けて、新しい欄を足す。
 type splitParams struct {
 	Target string `json:"target"`
 	Dir    string `json:"dir"`

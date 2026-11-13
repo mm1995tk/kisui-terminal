@@ -147,8 +147,11 @@ describe("コマンドの表", () => {
       "p j",
       "p k",
       "p l",
-      "p v",
       "p s",
+      "p s h",
+      "p s j",
+      "p s k",
+      "p s l",
       "p x",
       "p z",
       "p r",
@@ -191,7 +194,7 @@ describe("リーダー", () => {
     const os = mac ? "Mac" : "Linux";
 
     it(`${os}：リーダーを押すと入り、次のキーで動き、行ったら出る`, () => {
-      const r = press(mac, [L, key("p"), key("v")]);
+      const r = press(mac, [L, key("p"), key("s"), key("l")]);
       assert.deepEqual(r.runs, [{ id: "pane.split", arg: "right" }]);
       assert.equal(r.state.leader, null);
       assert.deepEqual(r.passed, []);
@@ -287,9 +290,10 @@ describe("リーダー", () => {
       "p",
     ]);
     // 入ったあとは、その一覧のキーで動く
-    assert.deepEqual(press(LINUX, [key("P", "cs", "KeyP"), key("s")]).runs, [
-      { id: "pane.split", arg: "down" },
-    ]);
+    assert.deepEqual(
+      press(LINUX, [key("P", "cs", "KeyP"), key("s"), key("j")]).runs,
+      [{ id: "pane.split", arg: "down" }],
+    );
     // Backspace で 1 段目の一覧に戻る
     assert.deepEqual(
       press(MAC, [key("W", "ms", "KeyW"), key("Backspace")]).state.leader,
@@ -532,11 +536,11 @@ describe("案内の一覧（`?`）", () => {
     const mac = helpRows(MAC);
     const lin = helpRows(LINUX);
     assert.equal(
-      mac.find((r) => r.path.join(" ") === "p v")?.shortcut,
+      mac.find((r) => r.path.join(" ") === "p s l")?.shortcut,
       "Cmd+D",
     );
     assert.equal(
-      lin.find((r) => r.path.join(" ") === "p v")?.shortcut,
+      lin.find((r) => r.path.join(" ") === "p s l")?.shortcut,
       "Ctrl+Shift+D",
     );
     assert.equal(
