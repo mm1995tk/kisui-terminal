@@ -67,6 +67,7 @@ import { ScaleToast, showScale } from "./ScaleToast.tsx";
 import { copyAndNotify } from "./copiedNotice.ts";
 import {
   applyMove,
+  CHANGES_BORDER,
   KEY_STEP,
   loadSidebarOpen,
   loadSizes,
@@ -476,8 +477,14 @@ function Workbench(props: {
       ? k
       : undefined;
   };
+  // ファイルツリーと CHANGES の境目をリサイズモードで選んでいるか（CHANGES が出ていないときは選べない）
+  const litChanges = () =>
+    resizeMode() && resizeSel() === CHANGES_BORDER && changesShown();
   const lit = (b: Border) =>
-    dragging() === b || (resizeMode() && litSplit() === undefined);
+    dragging() === b ||
+    (b === "changes"
+      ? litChanges()
+      : resizeMode() && litSplit() === undefined && !litChanges());
   const [asks, setAsks] = createSignal<AskpassRequest[]>([]);
   // リモートを足す窓を出しているか。足すためにつないでいる最中のマシン、足せなかった理由
   const [adding, setAdding] = createSignal(false);
@@ -724,9 +731,11 @@ function Workbench(props: {
     await s.close();
   }
 
-  /** 今の窓で効く境界の上限（app.css の clamp と同じ）。 */
-  function maxOf(): number {
-    return Math.min(640, window.innerWidth / 2);
+  /** 今の窓で効く境界の上限（app.css の clamp・changes.css の max-height と同じ）。 */
+  function maxOf(b: Border = "sidebar"): number {
+    return b === "changes"
+      ? Math.min(640, window.innerHeight / 2)
+      : Math.min(640, window.innerWidth / 2);
   }
 
   /** リサイズモードで key（TUI と同じ名前。panes.ts）を押した。 */
@@ -734,6 +743,19 @@ function Workbench(props: {
     const a = resizeAction(key);
     switch (a.kind) {
       case "nudge": {
+        // ファイルツリーと CHANGES の境目は上下だけ動かす（上へ動かすと CHANGES が高くなる）
+        if (litChanges()) {
+          if (a.axis === "y")
+            changeSizes(
+              applyMove(
+                sizes(),
+                "changes",
+                -a.sign * KEY_STEP.changes,
+                maxOf("changes"),
+              ),
+            );
+          break;
+        }
         const k = litSplit();
         if (k === undefined) {
           if (a.axis === "x")
@@ -749,17 +771,22 @@ function Workbench(props: {
         break;
       }
       case "select": {
-        // サイドバー、欄どうしの境界（木の順）の順に回す
+        // サイドバーの幅、ファイルツリーと CHANGES の境目（CHANGES が出ているとき）、ペインどうしの境界（木の順）の順に回す
         const order: (string | null)[] = [
           null,
+          ...(changesShown() ? [CHANGES_BORDER] : []),
           ...termBars().map((b) => b.key),
         ];
-        const cur = litSplit() ?? null;
+        const cur = litChanges() ? CHANGES_BORDER : (litSplit() ?? null);
         const i = order.indexOf(cur);
         setResizeSel(order[(i + a.step + order.length) % order.length]);
         break;
       }
       case "reset": {
+        if (litChanges()) {
+          changeSizes(withoutSize(sizes(), "changes"));
+          break;
+        }
         const k = litSplit();
         if (k === undefined) changeSizes(withoutSize(sizes(), "sidebar"));
         else termGroup()?.setBorder(k, 0.5);
@@ -786,6 +813,38 @@ function Workbench(props: {
       const r = box.getBoundingClientRect();
       changeSizes(
         withSize(sizes(), border, ev.clientX - r.left - grab, maxOf()),
+      );
+    };
+    const end = () => {
+      setDragging(null);
+      el.removeEventListener("pointermove", move);
+      el.removeEventListener("pointerup", end);
+      el.removeEventListener("pointercancel", end);
+    };
+    el.addEventListener("pointermove", move);
+    el.addEventListener("pointerup", end);
+    el.addEventListener("pointercancel", end);
+  }
+
+  /**
+   * ファイルツリーと CHANGES の境目のドラッグ。上へ動かすと CHANGES の一覧が高くなる。
+   * 動かし始めの高さは、画面に出ている一覧の高さ（行が少ないと、決めた高さより低い）。
+   */
+  function dragChanges(e: PointerEvent, height: number) {
+    if (e.button !== 0) return;
+    const el = e.currentTarget as HTMLElement;
+    e.preventDefault();
+    el.setPointerCapture(e.pointerId);
+    setDragging("changes");
+    const startY = e.clientY;
+    const move = (ev: PointerEvent) => {
+      changeSizes(
+        withSize(
+          sizes(),
+          "changes",
+          height + (startY - ev.clientY),
+          maxOf("changes"),
+        ),
       );
     };
     const end = () => {
@@ -1220,6 +1279,12 @@ function Workbench(props: {
           base: changesBaseOf(diff),
         }
       : undefined;
+  }
+
+  /** サイドバーに CHANGES が出ているか（ファイルツリーとの境目を動かせるか）。 */
+  function changesShown(): boolean {
+    const f = focus();
+    return f !== null && changesOf(f.target, f.id) !== undefined;
   }
 
   /** プライマリの shj が出しているファイル（ツリーで強調する行）。 */
@@ -1722,9 +1787,11 @@ function Workbench(props: {
       class="app"
       ref={appEl}
       data-resizing={resizeMode() ? "" : undefined}
+      data-lit-changes={lit("changes") ? "" : undefined}
       data-sidebar={sidebarOpen() ? "open" : "closed"}
       style={{
         "--sidebar-w": `${sizeOf(sizes(), "sidebar")}px`,
+        "--changes-h": `${sizeOf(sizes(), "changes")}px`,
         ...(colors()[focus()?.target ?? ""]
           ? { "--machine-color": colors()[focus()!.target] }
           : {}),
@@ -1761,6 +1828,10 @@ function Workbench(props: {
         onChangesKey={changesShjKey}
         onChangesExplorer={focusExplorer}
         onChangesLeave={() => focusTerminal()}
+        onChangesResize={dragChanges}
+        onChangesResizeReset={() =>
+          changeSizes(withoutSize(sizes(), "changes"))
+        }
         onTreeAction={treeAction}
         currentOf={currentOf}
         ref={(el) => {

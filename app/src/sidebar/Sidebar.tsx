@@ -77,6 +77,10 @@ interface Handlers {
   onChangesExplorer?: (target: string, id: WorkspaceId) => void;
   /** CHANGES で Esc・q を押した（端末に戻る） */
   onChangesLeave?: (target: string, id: WorkspaceId) => void;
+  /** ファイルツリーと CHANGES の境目をつかんだ（height は画面に出ている一覧の高さ px。App がドラッグを受け持つ） */
+  onChangesResize?: (e: PointerEvent, height: number) => void;
+  /** 境目をダブルクリックした（高さを元に戻す） */
+  onChangesResizeReset?: () => void;
   /** ツリーの行を右クリックした（Sidebar が内側に渡す。App は onTreeAction を使う） */
   onTreeMenu?: (
     target: string,
@@ -420,6 +424,12 @@ function handlers(
     get onChangesLeave() {
       return props.onChangesLeave;
     },
+    get onChangesResize() {
+      return props.onChangesResize;
+    },
+    get onChangesResizeReset() {
+      return props.onChangesResizeReset;
+    },
     get onTreeAction() {
       return props.onTreeAction;
     },
@@ -638,6 +648,8 @@ function BandItem(
             onShjKey={(k) => props.onChangesKey?.(props.target, b().id, k)}
             onExplorer={() => props.onChangesExplorer?.(props.target, b().id)}
             onLeave={() => props.onChangesLeave?.(props.target, b().id)}
+            onResizeStart={props.onChangesResize}
+            onResizeReset={props.onChangesResizeReset}
           />
         )}
       </Show>

@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 
 import {
   applyMove,
+  CHANGES_BORDER,
   clampBorder,
   loadSidebarOpen,
   loadSizes,
@@ -192,5 +193,38 @@ describe("サイドバーの開け閉め", () => {
     assert.equal(loadSidebarOpen(s), true);
     assert.equal(loadSidebarOpen(memory({ "kisui.sidebarOpen": "x" })), true);
     assert.equal(loadSidebarOpen(undefined), true);
+  });
+});
+
+describe("ファイルツリーと CHANGES の境目（#152）", () => {
+  it("CHANGES の高さは 44〜640px に収め、決めていなければ 143px", () => {
+    assert.equal(sizeOf({}, "changes"), 143);
+    assert.equal(clampBorder("changes", 10), 44);
+    assert.equal(clampBorder("changes", 9999), 640);
+    assert.equal(clampBorder("changes", 9999, 300), 300);
+  });
+
+  it("1 回のキーで 1 行（22px）動き、端を超えない。戻すと元の高さ", () => {
+    assert.equal(sizeOf(applyMove({}, "changes", 22), "changes"), 165);
+    assert.equal(
+      sizeOf(applyMove({ changes: 50 }, "changes", -22), "changes"),
+      44,
+    );
+    const s = withSize({ sidebar: 280 }, "changes", 200);
+    assert.deepEqual(withoutSize(s, "changes"), { sidebar: 280 });
+  });
+
+  it("覚えて読み戻す。範囲外の値は捨てる", () => {
+    const s = memory();
+    saveSizes(s, { sidebar: 280, changes: 200 });
+    assert.deepEqual(loadSizes(s), { sidebar: 280, changes: 200 });
+    assert.deepEqual(
+      loadSizes(memory({ "shijimi.paneSizes": '{"changes":5}' })),
+      {},
+    );
+  });
+
+  it("Tab で回る境界の名前は、ペインどうしの境界のキーと混ざらない", () => {
+    assert.equal(CHANGES_BORDER, "@changes");
   });
 });

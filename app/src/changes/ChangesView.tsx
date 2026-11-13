@@ -27,6 +27,10 @@ export function ChangesView(
     /** 比べている相手（HEAD / PR）。見出しに出す */
     base: ChangesBase;
     label: string;
+    /** ファイルツリーとの境目（この一覧の上の縁）をつかんだ。height は今の一覧の高さ。無ければ境目のつまみを出さない */
+    onResizeStart?: (e: PointerEvent, height: number) => void;
+    /** 境目をダブルクリックした */
+    onResizeReset?: () => void;
   },
 ): JSX.Element {
   const [closed, setClosed] = createSignal<ReadonlySet<string>>(new Set());
@@ -63,6 +67,19 @@ export function ChangesView(
 
   return (
     <section class="changes" aria-label={props.label}>
+      <Show when={props.onResizeStart}>
+        {(start) => (
+          <div
+            class="changes-resizer"
+            data-border="changes"
+            aria-hidden="true"
+            onPointerDown={(e) =>
+              start()(e, list?.getBoundingClientRect().height ?? 0)
+            }
+            onDblClick={() => props.onResizeReset?.()}
+          />
+        )}
+      </Show>
       <h3 class="changes-title">
         CHANGES
         <span class="changes-base" data-base={props.base}>
