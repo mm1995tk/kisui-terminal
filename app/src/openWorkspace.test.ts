@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { openWorkspace, type WorkspaceRef } from "./openWorkspace.ts";
+import {
+  focusWorkspaceAndTerminal,
+  type WorkspaceRef,
+} from "./openWorkspace.ts";
 
 function setup(onFocus: (set: (f: WorkspaceRef) => void) => void) {
   let current: WorkspaceRef | undefined = { target: "local", id: "a" };
@@ -20,7 +23,7 @@ function setup(onFocus: (set: (f: WorkspaceRef) => void) => void) {
 describe("ワークスペースを開いたあとのフォーカス（#151）", () => {
   it("移れたら、そのワークスペースのペインにキーを向ける", async () => {
     const { deps, calls } = setup((set) => set({ target: "local", id: "b" }));
-    await openWorkspace(deps, "local", "b");
+    await focusWorkspaceAndTerminal(deps, "local", "b");
     assert.deepEqual(calls, ["focus local/b", "terminal"]);
   });
   it("戻る（A → B → A）ときも、戻った先のペインにキーを向ける", async () => {
@@ -33,13 +36,13 @@ describe("ワークスペースを開いたあとのフォーカス（#151）", 
       current: () => at,
       focusTerminal: () => calls.push(`terminal ${at.id}`),
     };
-    await openWorkspace(deps, "local", "b");
-    await openWorkspace(deps, "local", "a");
+    await focusWorkspaceAndTerminal(deps, "local", "b");
+    await focusWorkspaceAndTerminal(deps, "local", "a");
     assert.deepEqual(calls, ["terminal b", "terminal a"]);
   });
   it("あとの押下に上書きされて、GUI のフォーカスが頼んだ先でないときは向けない", async () => {
     const { deps, calls } = setup(() => {});
-    await openWorkspace(deps, "local", "b");
+    await focusWorkspaceAndTerminal(deps, "local", "b");
     assert.deepEqual(calls, ["focus local/b"]);
   });
   it("shj が断った（例外）ときは向けず、例外はそのまま返す", async () => {
@@ -51,7 +54,7 @@ describe("ワークスペースを開いたあとのフォーカス（#151）", 
       current: () => ({ target: "local", id: "a" }),
       focusTerminal: () => calls.push("terminal"),
     };
-    await assert.rejects(openWorkspace(deps, "local", "b"));
+    await assert.rejects(focusWorkspaceAndTerminal(deps, "local", "b"));
     assert.deepEqual(calls, []);
   });
 });

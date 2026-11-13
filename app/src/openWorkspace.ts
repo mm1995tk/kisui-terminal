@@ -20,7 +20,7 @@ export interface OpenWorkspaceDeps {
  * 移ったあと、頼んだワークスペースが GUI のフォーカスになっていれば、そこで最後に使っていたペインにキーを向ける。
  * 失敗したとき、返事を待つあいだに別の帯を押されたときは、向けない（キーは今のワークスペースのまま）。
  */
-export async function openWorkspace(
+export async function focusWorkspaceAndTerminal(
   deps: OpenWorkspaceDeps,
   target: string,
   id: string,
