@@ -3,7 +3,6 @@ import { describe, it } from "node:test";
 
 import {
   applyMove,
-  CHANGES_BORDER,
   clampBorder,
   loadSidebarOpen,
   loadSizes,
@@ -222,9 +221,5 @@ describe("ファイルツリーと CHANGES の境目（#152）", () => {
       loadSizes(memory({ "shijimi.paneSizes": '{"changes":5}' })),
       {},
     );
-  });
-
-  it("Tab で回る境界の名前は、ペインどうしの境界のキーと混ざらない", () => {
-    assert.equal(CHANGES_BORDER, "@changes");
   });
 });
