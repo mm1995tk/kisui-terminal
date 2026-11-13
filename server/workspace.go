@@ -688,8 +688,8 @@ func (ss *session) layoutSwapRequest(req *rpc.Message) (any, error) {
 		Pane        string `json:"pane"`
 		Other       string `json:"other"`
 	}
-	if err := json.Unmarshal(req.Params, &sp); err != nil || sp.Pane == "" || sp.Other == "" || sp.Pane == sp.Other {
-		return nil, rpc.Errorf(rpc.CodeInvalidParams, "workspaceId, pane and other (a different pane) are required")
+	if err := json.Unmarshal(req.Params, &sp); err != nil || sp.Pane == "" || sp.Other == "" {
+		return nil, rpc.Errorf(rpc.CodeInvalidParams, "workspaceId, pane and other are required")
 	}
 	err := ss.srv.ws.swapPanes(sp.WorkspaceID, sp.Pane, sp.Other)
 	switch {

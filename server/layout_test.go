@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	"testing"
 
@@ -230,9 +231,9 @@ func TestSplitLeftUpRPC(t *testing.T) {
 // 入れ替えは、2 つの葉の場所だけを替える。節の向きと割合は場所のまま。
 func TestLayoutSwap(t *testing.T) {
 	n := &layoutNode{Dir: dirRight, Ratio: 0.3, A: leaf("a"), B: &layoutNode{Dir: dirDown, Ratio: 0.6, A: leaf("b"), B: leaf("c")}}
-	m, ok := layoutSwap(n, "a", "c")
-	if !ok {
-		t.Fatal("not swapped")
+	m, err := layoutSwap(n, "a", "c")
+	if err != nil {
+		t.Fatal(err)
 	}
 	want := &layoutNode{Dir: dirRight, Ratio: 0.3, A: leaf("c"), B: &layoutNode{Dir: dirDown, Ratio: 0.6, A: leaf("b"), B: leaf("a")}}
 	if !layoutEqual(m, want) {
@@ -249,9 +250,12 @@ func TestLayoutSwap(t *testing.T) {
 	if back, _ := layoutSwap(m, "c", "a"); !layoutEqual(back, n) {
 		t.Errorf("swap back: %+v", back)
 	}
-	for name, p := range map[string][2]string{"same": {"a", "a"}, "missing": {"a", "z"}, "both missing": {"y", "z"}} {
-		if m, ok := layoutSwap(n, p[0], p[1]); ok || m != n {
-			t.Errorf("%s: %v", name, ok)
+	for name, c := range map[string]struct {
+		p    [2]string
+		want error
+	}{"same": {[2]string{"a", "a"}, errBadSwap}, "missing": {[2]string{"a", "z"}, errNoPane}, "both missing": {[2]string{"y", "z"}, errNoPane}} {
+		if m, err := layoutSwap(n, c.p[0], c.p[1]); !errors.Is(err, c.want) || m != n {
+			t.Errorf("%s: %v", name, err)
 		}
 	}
 }
