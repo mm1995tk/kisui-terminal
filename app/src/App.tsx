@@ -1451,7 +1451,7 @@ function Workbench(props: {
 
   /**
    * リーダーの w h / w l。前・次のマシンへ（端では反対の端へ回る）。ワークスペースが有れば最後に選んでいたもの（無ければ先頭）へ、
-   * 1 つも無いマシンならそのマシンを「選んでいるマシン」にして止まる。
+   * 1 つも無いマシンと、つながっていないマシンは、そのマシンを「選んでいるマシン」にして止まる。
    */
   function stepMachineTo(step: Step) {
     const next = stepMachine(
@@ -1459,6 +1459,8 @@ function Workbench(props: {
       heading?.target ?? currentTarget(),
       step,
       (t) => lastOnMachine.get(t),
+      // つながっていないマシン（お知らせのカードが出ているマシンなど。states の kind が connected でない）は、ワークスペースが残っていても、移らずにそのマシンで止まる
+      (t) => states()[t]?.kind === "connected",
     );
     if (!next) return;
     setWalking(true);
@@ -1782,7 +1784,7 @@ function Workbench(props: {
     // ボタンと同じ動きのキー。m r・m x は「選んでいるマシン」（currentTarget。w h・w l で止まったマシン、無ければ今のワークスペースの
     // マシン）に行うので、このマシンを選ぶ手順（w h・w l）から書く
     const leader = leaderKeyName(IS_MAC);
-    const keys = `${leader} w h / w l でこのマシンを選び、${leader} m r でつなぎ直す、${leader} m x で切る`;
+    const keys = `${leader} w h / w l でこのマシンを選び（選んでいれば要りません）、${leader} m r でつなぎ直す、${leader} m x で切る`;
     if (st.kind === "failed") {
       return {
         title: `${label} につながりません`,
