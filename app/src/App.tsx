@@ -34,6 +34,7 @@ import {
   isLeaveExplorerKey,
   startFocusStep,
 } from "./explorerFocus.ts";
+import { forceCloseWorkspace } from "./confirmClose.ts";
 import { focusWorkspaceAndTerminal } from "./focusWorkspaceAndTerminal.ts";
 import { afterChangesKey } from "./changes/handover.ts";
 import { changesRow } from "./changes/keys.ts";
@@ -1911,10 +1912,15 @@ function Workbench(props: {
         {(c) => (
           <CloseWorkspaceCard
             name={c().name}
-            onYes={() => {
-              setConfirmClose(null);
-              void closeWorkspace(c().target, c().id, true);
-            }}
+            onYes={() =>
+              // 窓を閉じる前に値を読む処理は forceCloseWorkspace に寄せている。
+              // ここで setConfirmClose(null) のあとに c() を読むと <Show> が例外を投げる（#162）
+              forceCloseWorkspace(
+                confirmClose,
+                () => setConfirmClose(null),
+                (target, id, force) => void closeWorkspace(target, id, force),
+              )
+            }
             onNo={() => setConfirmClose(null)}
           />
         )}
