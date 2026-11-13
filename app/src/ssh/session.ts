@@ -128,7 +128,7 @@ export type PaneEvent =
   | { kind: "show-extra"; workspaceId: WorkspaceId; extraId: string }
   | { kind: "hide"; workspaceId: WorkspaceId }
   | { kind: "open-url"; workspaceId: WorkspaceId; url: string }
-  | { kind: "explorer"; workspaceId: WorkspaceId }
+  | { kind: "explorer"; workspaceId: WorkspaceId; start?: boolean }
   | { kind: "changes"; workspaceId: WorkspaceId }
   /** `kisui update`（#94）。新しい版を調べ直して答える（reportUpdate）。欄の知らせではないが、serve からの欄の中のコマンドの知らせなので同じ道で渡す */
   | { kind: "update-check"; id: string };
@@ -626,7 +626,11 @@ export class Session {
         if (gen !== this.generation || this.conn !== conn) return;
         if (typeof n?.workspaceId !== "string") return;
         for (const h of [...this.paneHandlers])
-          h({ kind: "explorer", workspaceId: n.workspaceId });
+          h(
+            n.start === true
+              ? { kind: "explorer", workspaceId: n.workspaceId, start: true }
+              : { kind: "explorer", workspaceId: n.workspaceId },
+          );
       }),
       conn.client.on("update.check", (n) => {
         if (gen !== this.generation || this.conn !== conn) return;

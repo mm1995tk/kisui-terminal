@@ -569,6 +569,26 @@ describe("プライマリの shj の欄（#553）", () => {
     await s.close();
   });
 
+  it("explorer.focus の start（shj の起動直後）は start 付きで渡す", async () => {
+    const f = fakeShell({ serverIds: ["A"] });
+    const s = new Session(f.api, "h", fast);
+    const got: unknown[] = [];
+    s.onPane((e) => got.push(e));
+    s.start();
+    await waitFor(s, (st) => st.kind === "connected");
+    const id = connectedId(f);
+    f.emit(id, {
+      jsonrpc: "2.0",
+      method: "explorer.focus",
+      params: { workspaceId: "w1", start: true },
+    });
+    await settle();
+    assert.deepEqual(got, [
+      { kind: "explorer", workspaceId: "w1", start: true },
+    ]);
+    await s.close();
+  });
+
   it("CHANGES へのフォーカスの頼みを渡す（changes.focus）。workspaceId が無ければ捨てる", async () => {
     const f = fakeShell({ serverIds: ["A"] });
     const s = new Session(f.api, "h", fast);

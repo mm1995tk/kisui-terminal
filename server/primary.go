@@ -304,7 +304,7 @@ func (s *Server) followShj(l *primaryLink, started bool) {
 			if json.Unmarshal(line, &f) == nil && (f.File == "" || filepath.IsAbs(f.File)) {
 				s.ws.setShjState(l.claim, f.File, cleanDiff(f.Diff))
 				if first && f.File == "" && f.Diff == nil {
-					s.notifyOwner("explorer.focus", map[string]any{"workspaceId": l.claim.wsID})
+					s.notifyOwner("explorer.focus", map[string]any{"workspaceId": l.claim.wsID, "start": true})
 				}
 				first = false
 			}

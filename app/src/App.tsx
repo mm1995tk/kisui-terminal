@@ -318,6 +318,55 @@ function Workbench(props: {
     row?.focus();
     row?.scrollIntoView({ block: "nearest" });
   }
+  /**
+   * shj が引数なしで起動した直後の、ツリーへのフォーカスの頼み（explorer.focus の start）。
+   * 起動した直後は、ツリーの行がまだ届いていなかったり、cd したフォルダへの切り替え（1 秒おきに見る）でツリーが
+   * 捨てられて取り直されたりする。そこで頼みを少しのあいだ覚え、ツリーの行が描かれるたびに、ツリーにキーが無ければ向け直す。
+   * キーを打った・押した・別のワークスペースに移った・時間が過ぎたら捨てる。
+   */
+  let startFocus: { target: string; id: WorkspaceId; off: () => void } | null =
+    null;
+  function cancelStartFocus() {
+    startFocus?.off();
+    startFocus = null;
+  }
+  function requestStartFocus(target: string, id: WorkspaceId) {
+    const f = untrack(focus);
+    if (!f || f.target !== target || f.id !== id) return;
+    cancelStartFocus();
+    const cancel = () => cancelStartFocus();
+    window.addEventListener("keydown", cancel, true);
+    window.addEventListener("pointerdown", cancel, true);
+    const timer = window.setTimeout(cancel, 3000);
+    startFocus = {
+      target,
+      id,
+      off: () => {
+        window.removeEventListener("keydown", cancel, true);
+        window.removeEventListener("pointerdown", cancel, true);
+        window.clearTimeout(timer);
+      },
+    };
+    retryStartFocus();
+  }
+  function retryStartFocus() {
+    const p = startFocus;
+    if (!p) return;
+    const f = untrack(focus);
+    if (!f || f.target !== p.target || f.id !== p.id) {
+      cancelStartFocus();
+      return;
+    }
+    if (nav?.contains(document.activeElement)) return;
+    focusExplorer(p.target, p.id);
+  }
+  createEffect(() => {
+    treeVersion();
+    workspaces();
+    focus();
+    untrack(retryStartFocus);
+  });
+  onCleanup(cancelStartFocus);
   /** shj の Space E・cmd.diffchanges：フォーカスしているワークスペースなら、サイドバーの CHANGES にキーを向ける。 */
   function focusChanges(target: string, id: WorkspaceId) {
     const f = untrack(focus);
@@ -568,8 +617,10 @@ function Workbench(props: {
       if (ev.kind === "show") paneShow(target, ev.workspaceId, ev.termId);
       else if (ev.kind === "show-extra")
         paneShowExtra(target, ev.workspaceId, ev.extraId);
-      else if (ev.kind === "explorer") focusExplorer(target, ev.workspaceId);
-      else if (ev.kind === "changes") focusChanges(target, ev.workspaceId);
+      else if (ev.kind === "explorer") {
+        if (ev.start) requestStartFocus(target, ev.workspaceId);
+        else focusExplorer(target, ev.workspaceId);
+      } else if (ev.kind === "changes") focusChanges(target, ev.workspaceId);
       else if (ev.kind === "open-url") openUrlFor(target, ev.url);
       else if (ev.kind === "update-check")
         void checkNow().then((r) => s.reportUpdate(ev.id, r));
