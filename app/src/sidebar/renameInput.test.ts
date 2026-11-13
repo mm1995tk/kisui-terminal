@@ -17,3 +17,9 @@ test("ほかのキーは何もしない", () => {
   assert.equal(renameKeyAction({ key: "a" }), null);
   assert.equal(renameKeyAction({ key: "Tab" }), null);
 });
+
+test("変換を確定する Enter が keyCode 229・Process で来ても、決めない", () => {
+  assert.equal(renameKeyAction({ key: "Enter", keyCode: 229 }), null);
+  assert.equal(renameKeyAction({ key: "Process", keyCode: 13 }), null);
+  assert.equal(renameKeyAction({ key: "Enter", keyCode: 13 }), "submit");
+});
