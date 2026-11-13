@@ -1343,7 +1343,7 @@ function Workbench(props: {
   /** キーで移っている途中の、向かっている先（返事が返るまで focus() に反映されない）。無ければ null */
   let heading: WorkspaceFocus | null = null;
 
-  /** リーダーの w j / w k。サイドバーの次・前のワークスペースへ（マシンをまたぐ。端で止まる）。 */
+  /** リーダーの w j / w k。サイドバーの次・前のワークスペースへ（マシンをまたぐ。端では反対の端へ回る）。 */
   function stepWs(step: Step) {
     const next = stepWorkspace(
       groups(),
@@ -1358,7 +1358,7 @@ function Workbench(props: {
   }
 
   /**
-   * リーダーの w h / w l。前・次のマシンへ（端で止まる）。ワークスペースが有れば最後に選んでいたもの（無ければ先頭）へ、
+   * リーダーの w h / w l。前・次のマシンへ（端では反対の端へ回る）。ワークスペースが有れば最後に選んでいたもの（無ければ先頭）へ、
    * 1 つも無いマシンならそのマシンを「選んでいるマシン」にして止まる。
    */
   function stepMachineTo(step: Step) {
