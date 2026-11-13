@@ -483,8 +483,7 @@ func TestPrimaryShjStartFocusesExplorerOnlyWithoutFile(t *testing.T) {
 	file := filepath.Join(t.TempDir(), "a.go")
 	_, conn := announceShj(t, sock, ctl.PrimaryHello{TermID: primary, Socket: "/run/a.sock", PID: 11})
 	send(conn, ctl.PrimaryFile{File: file})
-	waitFor(t, "file again", func() bool { p := primaryShjOf(t, c, id); return p != nil && p.File == file })
-	send(conn, ctl.PrimaryFile{})
+	waitFor(t, "file", func() bool { p := primaryShjOf(t, c, id); return p != nil && p.File == file })
 	send(conn, ctl.PrimaryFile{})
 	waitFor(t, "file cleared", func() bool { p := primaryShjOf(t, c, id); return p != nil && p.File == "" })
 	if n := len(nt.all("explorer.focus")); n != 0 {
