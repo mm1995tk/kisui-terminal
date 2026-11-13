@@ -17,6 +17,7 @@ export type CommandId =
   | "pane.close"
   | "pane.zoom"
   | "pane.resize"
+  | "sidebar.toggle"
   | "workspace.nth"
   | "workspace.step"
   | "workspace.last"
@@ -236,6 +237,7 @@ export const LEADER: Node[] = [
     ],
     { mac: "Cmd+Shift+P", other: "Ctrl+Shift+P" },
   ),
+  leaf("b", "サイドバーを開け閉めする", { id: "sidebar.toggle" }),
   leaf(
     "y",
     "クリップボードの履歴を開く",

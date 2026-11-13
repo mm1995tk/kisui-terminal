@@ -174,3 +174,26 @@ export function applyMove(
 
 /** リサイズモードで、欄どうしの境界を 1 回のキーで動かす割合（動かす節の幅か高さに対する割合）。 */
 export const SPLIT_KEY_STEP = 0.02;
+
+const SIDEBAR_OPEN_KEY = "kisui.sidebarOpen";
+
+/** サイドバーが開いているか（リーダーの b で開け閉めする）。覚えていなければ・壊れていれば開いている。 */
+export function loadSidebarOpen(store: KeyValueStore | undefined): boolean {
+  try {
+    return store?.getItem(SIDEBAR_OPEN_KEY) !== "0";
+  } catch {
+    return true;
+  }
+}
+
+/** サイドバーの開け閉めを覚えておく。書けなくても例外にしない。 */
+export function saveSidebarOpen(
+  store: KeyValueStore | undefined,
+  open: boolean,
+): void {
+  try {
+    store?.setItem(SIDEBAR_OPEN_KEY, open ? "1" : "0");
+  } catch {
+    // 覚えられなくても、今の画面は変わらない
+  }
+}

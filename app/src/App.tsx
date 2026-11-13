@@ -67,9 +67,11 @@ import { copyAndNotify } from "./copiedNotice.ts";
 import {
   applyMove,
   KEY_STEP,
+  loadSidebarOpen,
   loadSizes,
   resizeAction,
   resizeKeyName,
+  saveSidebarOpen,
   saveSizes,
   SPLIT_KEY_STEP,
   sizeOf,
@@ -318,6 +320,8 @@ function Workbench(props: {
   function focusExplorer(target: string, id: WorkspaceId) {
     const f = untrack(focus);
     if (!f || f.target !== target || f.id !== id) return;
+    // 閉じているサイドバーは、ツリーにキーを向けるときに開く（隠れたままでは、キーの行き先が見えない）
+    if (!untrack(sidebarOpen)) changeSidebarOpen(true);
     const row = explorerRow(nav);
     row?.focus();
     row?.scrollIntoView({ block: "nearest" });
@@ -410,6 +414,12 @@ function Workbench(props: {
   function changeSizes(next: PaneSizes) {
     setSizes(next);
     saveSizes(store, next);
+  }
+  // サイドバーを開けているか（リーダーの b）。閉じるのは b を押したときだけ。覚えておき、GUI を起動し直しても残す
+  const [sidebarOpen, setSidebarOpen] = createSignal(loadSidebarOpen(store));
+  function changeSidebarOpen(open: boolean) {
+    setSidebarOpen(open);
+    saveSidebarOpen(store, open);
   }
   // リサイズモード（Cmd+R / Ctrl+Shift+R・パレットの「リサイズ」）か。境界を動かすキーは GUI が受ける
   const [resizeMode, setResizeMode] = createSignal(false);
@@ -1424,6 +1434,9 @@ function Workbench(props: {
       case "machine.reconnect":
         runMachineCommand(c.id);
         break;
+      case "sidebar.toggle":
+        changeSidebarOpen(!sidebarOpen());
+        break;
       case "clipboard.history":
         openClipboardHistory();
         break;
@@ -1616,6 +1629,7 @@ function Workbench(props: {
       class="app"
       ref={appEl}
       data-resizing={resizeMode() ? "" : undefined}
+      data-sidebar={sidebarOpen() ? "open" : "closed"}
       style={{
         "--sidebar-w": `${sizeOf(sizes(), "sidebar")}px`,
         ...(colors()[focus()?.target ?? ""]
