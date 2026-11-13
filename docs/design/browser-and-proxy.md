@@ -93,5 +93,6 @@ GUI には #556 で、Tauri の子の webview でページを出す「ブラウ�
 - **開く入口は 3 つ**：shj の `:open-url`（`Space o`）、`kisui open <URL>`、ターミナルの URL のクリック（`cmd + click`・`cmd + shift + click`。macOS 以外は ctrl。どちらも同じ）。前の 2 つは `kisui serve` が GUI に `browser.open` を通知し（ペインは作らない。gui-protocol.md の「ブラウザの URL を開く」）、クリックは GUI の中で済む。開くのは殻の `open_url_external`（`app/src-tauri/src/open_url.rs`）で、`open`（macOS）・`xdg-open`（それ以外）に URL を渡す。
 - **開いてよい URL**：http と https だけ。ユーザー名とパスワードを含むもの・制御文字を含むもの・長すぎるものは断る（`kisui serve` と殻の両方で確かめる）。
 - **リモートのマシンの `localhost`**：ワークスペースのマシンが ssh の先のとき、host が `localhost`・`127.0.0.1`・`[::1]`・`0.0.0.0`・`*.localhost` の URL は、手元の外部ブラウザでそのまま開くと手元の別のマシンに行ってしまう。そこで GUI が `ssh -N -L 127.0.0.1:<空きポート>:localhost:<ポート> <ホスト>` を張り（`ExitOnForwardFailure=yes`。質問は GUI の窓に出る askpass）、`http://127.0.0.1:<空きポート>/…` を開く。転送はマシンと URL のポートごとに 1 本で、生きていれば使い回し、GUI が終わるときに止める（ページを開いたあとも、タブが見続けられるように残す）。ほかの host は、手元から直接開く。
+- **ポート転送が使えないとき**：`ssh -L` は、つなぎ先の sshd と途中の中継がポート転送を許すときにしか使えない。普通の ssh のセッションの標準入出力の上で中継する `kisui relay` を足した（#126。取り決めは `relay.md`）。GUI の側で使うのは別の Issue。
 - **絶対 URL の localhost**：ページの中のリンクやリダイレクトが絶対 URL の `http://localhost:…` を指すと、転送を通らない（今は対処しない）。
 - **設定 `[gui] url_open`**：開き先を内蔵ブラウザか外部ブラウザかから選ぶ設定だったが、選ぶものが無くなったので外した。設定ファイルに残っていても無視し、起動を止めず、間違いとして出さない。
