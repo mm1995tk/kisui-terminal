@@ -188,7 +188,7 @@ func (s *Server) servePrimary(ln *net.UnixListener, path string, links []*primar
 		})
 	}
 	for _, l := range links {
-		run(l, s.followShj)
+		run(l, func(l *primaryLink) { s.followShj(l, false) })
 	}
 	p.wg.Go(func() {
 		for {
@@ -282,12 +282,18 @@ func (s *Server) primaryConn(l *primaryLink) {
 	l.claim = claim
 	l.mu.Unlock()
 	s.opMu.RUnlock()
-	s.followShj(l)
+	s.followShj(l, true)
 }
 
 // followShj は名乗った shj の接続を、切れるまで読む。名乗りのあとに来る 1 行ずつの ctl.PrimaryFile は、
 // その shj が出しているファイル。読めない行は捨てる。切れたら（shj が終わったら）その shj を忘れる。
-func (s *Server) followShj(l *primaryLink) {
+//
+// started は、この shj がいま名乗ったばかりで、kisui serve の入れ替えで引き継いだ接続ではないこと。
+// 名乗って最初の行がファイルなし（引数なしの起動）なら、単独の shj と同じく、サイドバーのファイルツリーに
+// キーを向けさせる（shj の PaneRequest の "explorer" と同じ通知）。ファイルを開いて起動したときは、
+// shj の編集の欄に残す。
+func (s *Server) followShj(l *primaryLink, started bool) {
+	first := started
 	for {
 		line, err := l.readLine()
 		if errors.Is(err, errPrimaryLineTooLong) {
@@ -297,6 +303,10 @@ func (s *Server) followShj(l *primaryLink) {
 			var f ctl.PrimaryFile
 			if json.Unmarshal(line, &f) == nil && (f.File == "" || filepath.IsAbs(f.File)) {
 				s.ws.setShjState(l.claim, f.File, cleanDiff(f.Diff))
+				if first && f.File == "" && f.Diff == nil {
+					s.notifyOwner("explorer.focus", map[string]any{"workspaceId": l.claim.wsID})
+				}
+				first = false
 			}
 			continue
 		}

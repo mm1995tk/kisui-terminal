@@ -466,3 +466,43 @@ func TestPrimaryPromotedSplitCanAnnounce(t *testing.T) {
 		t.Fatal("primaryShj must be set")
 	}
 }
+
+// 引数なしで起動した shj（最初の PrimaryFile がファイルなし）は、ファイルツリーにキーを向けさせる。
+// 最初の 1 回だけで、ファイルを開いて起動した shj は向けさせない。
+func TestPrimaryShjStartFocusesExplorerOnlyWithoutFile(t *testing.T) {
+	t.Setenv("HOME", normalizePath(t.TempDir()))
+	_, sock := startFast(t)
+	c, nt := termClient(t, sock)
+	id, primary := createWS(t, c)
+	send := func(conn net.Conn, f ctl.PrimaryFile) {
+		b, _ := json.Marshal(f)
+		conn.Write(append(b, '\n'))
+	}
+
+	// ファイルを開いて起動した: 向けさせない。あとで閉じても（ファイルなしになっても）向けさせない。
+	file := filepath.Join(t.TempDir(), "a.go")
+	_, conn := announceShj(t, sock, ctl.PrimaryHello{TermID: primary, Socket: "/run/a.sock", PID: 11})
+	send(conn, ctl.PrimaryFile{File: file})
+	waitFor(t, "file", func() bool { p := primaryShjOf(t, c, id); return p != nil && p.File == file })
+	send(conn, ctl.PrimaryFile{})
+	waitFor(t, "file cleared", func() bool { p := primaryShjOf(t, c, id); return p != nil && p.File == "" })
+	if n := len(nt.all("explorer.focus")); n != 0 {
+		t.Fatalf("a shj started with a file must not move the focus: %d", n)
+	}
+	conn.Close()
+	waitFor(t, "shj gone", func() bool { return primaryShjOf(t, c, id) == nil })
+
+	// 引数なしで起動した: 1 回だけ向けさせる。
+	_, conn = announceShj(t, sock, ctl.PrimaryHello{TermID: primary, Socket: "/run/b.sock", PID: 12})
+	send(conn, ctl.PrimaryFile{})
+	waitFor(t, "explorer.focus", func() bool {
+		ms := nt.all("explorer.focus")
+		return len(ms) == 1 && strings.Contains(string(*ms[0]), `"workspaceId":"`+id+`"`)
+	})
+	send(conn, ctl.PrimaryFile{File: file})
+	send(conn, ctl.PrimaryFile{})
+	waitFor(t, "file cleared", func() bool { p := primaryShjOf(t, c, id); return p != nil && p.File == "" })
+	if n := len(nt.all("explorer.focus")); n != 1 {
+		t.Fatalf("only the start moves the focus: %d", n)
+	}
+}
