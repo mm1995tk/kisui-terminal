@@ -488,9 +488,8 @@ func TestLimit(t *testing.T) {
 	if f := c.expect(MaxStreams+1, FrameClose); !strings.HasPrefix(string(f.payload), ReasonLimit) {
 		t.Errorf("close reason %q", f.payload)
 	}
-	// 1 本閉じれば、また開ける。
+	// 1 本閉じれば、また開ける（CLOSE も次の OPEN も readLoop が順に処理するので、待たなくてよい）。
 	c.send(FrameClose, 1, nil)
-	time.Sleep(50 * time.Millisecond)
 	c.open(MaxStreams+2, "127.0.0.1", port)
 	c.expect(MaxStreams+2, FrameOpened)
 }
