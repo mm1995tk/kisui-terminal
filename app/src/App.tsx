@@ -708,6 +708,13 @@ function Workbench(props: {
     } catch (e) {
       if (seq !== focusSeq) return;
       switching = false;
+      // GUI のフォーカスのマシンの shj のフォーカスが食い違っていれば（フォーカスしているワークスペースを
+      // 閉じた返事を待つあいだに押して失敗した、など）、今のワークスペースを送り直して揃える
+      // （食い違うと、ファイルや CHANGES の操作が無視される）
+      const f = focus();
+      const fs = f ? sessions()[f.target] : undefined;
+      if (f && fs && fs.focus !== f.id)
+        void fs.focusWorkspace(f.id).catch(() => {});
       setFocusError({
         title: `${labelOf(target)} のワークスペースに移れませんでした`,
         error: e instanceof Error ? e.message : String(e),
@@ -766,7 +773,6 @@ function Workbench(props: {
     // 移り先が無いとき（フォーカスしていないものを閉じる）は、先に閉じ始めたものの移り先を消さない
     const moveTo = wasFocused && next ? { target, id: next.id } : null;
     if (moveTo) closingNext = moveTo;
-    const seqAtClose = focusSeq;
     try {
       await s.closeWorkspace(id, force);
     } catch (e) {
@@ -787,12 +793,9 @@ function Workbench(props: {
     }
     if (moveTo && closingNext === moveTo) closingNext = null;
     // GUI のフォーカスはもう移っている。shj にも移り先を伝える。
-    // 待つあいだにユーザーが別の帯を押した（返事待ちのものも含む）・移り先も消えた、なら伝えない
-    if (
-      moveTo &&
-      focusSeq === seqAtClose &&
-      shouldSendMoveTo(focus(), moveTo, workspaces())
-    )
+    // 待つあいだにユーザーが別の帯を選んだ・移り先も消えた、なら伝えない。
+    // 押した帯の返事を待っている途中（switching）なら、その返事に任せる（失敗したら focusWorkspace が今のフォーカスを送り直す）
+    if (moveTo && !switching && shouldSendMoveTo(focus(), moveTo, workspaces()))
       void focusWorkspace(target, moveTo.id);
   }
 
