@@ -1913,8 +1913,10 @@ function Workbench(props: {
           <CloseWorkspaceCard
             name={c().name}
             onYes={() =>
+              // 窓を閉じる前に値を読む処理は forceCloseWorkspace に寄せている。
+              // ここで setConfirmClose(null) のあとに c() を読むと <Show> が例外を投げる（#162）
               forceCloseWorkspace(
-                c,
+                confirmClose,
                 () => setConfirmClose(null),
                 (target, id, force) => void closeWorkspace(target, id, force),
               )

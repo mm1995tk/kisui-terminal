@@ -4,20 +4,25 @@ import { describe, it } from "node:test";
 import { forceCloseWorkspace, type ConfirmClose } from "./confirmClose.ts";
 
 describe("forceCloseWorkspace", () => {
-  it("窓を閉じたあとで accessor を読めなくなっても、force を付けて閉じる", () => {
+  it("窓を閉じたあとには読めなくなる状態でも、先に読んで force を付けて閉じる", () => {
     let state: ConfirmClose | null = { target: "local", id: "w1", name: "a" };
-    // Solid の <Show> の accessor と同じく、状態が null になったあとに読むと投げる
-    const read = () => {
-      if (!state) throw new Error("Stale read from <Show>");
-      return state;
-    };
     const calls: string[] = [];
     forceCloseWorkspace(
-      read,
+      () => state,
       () => (state = null),
       (target, id, force) => calls.push(`${target}/${id}/${force}`),
     );
     assert.equal(state, null);
     assert.deepEqual(calls, ["local/w1/true"]);
+  });
+
+  it("窓が開いていなければ、何も閉じない", () => {
+    const calls: string[] = [];
+    forceCloseWorkspace(
+      () => null,
+      () => {},
+      (target, id) => calls.push(`${target}/${id}`),
+    );
+    assert.deepEqual(calls, []);
   });
 });

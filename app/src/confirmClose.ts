@@ -8,17 +8,17 @@ export interface ConfirmClose {
 }
 
 /**
- * 窓を閉じる前に、閉じるワークスペースを取り出してから、force を付けて閉じ直す。
- * Solid の <Show> は、when が偽になったあとに子の accessor を読むと例外を投げる。
- * 窓を閉じた（状態を null にした）あとに c() を読むと、閉じる処理まで届かない。
- * そのため、呼ぶ側は accessor を読んだ値（read）を渡し、ここで先に取り出す。
+ * 窓を閉じて、そのワークスペースを force を付けて閉じる。
+ * 窓の状態（current）は、窓を閉じる（set で null にする）前に読む。
+ * Solid の <Show> は、when が偽になったあとに子の accessor を読むと例外を投げるので、
+ * 呼ぶ側は <Show> の accessor ではなく、窓の状態そのものを渡す。
  */
 export function forceCloseWorkspace(
-  read: () => ConfirmClose,
-  dismiss: () => void,
+  current: () => ConfirmClose | null,
+  set: (v: null) => void,
   close: (target: string, id: string, force: boolean) => void,
 ): void {
-  const { target, id } = read();
-  dismiss();
-  close(target, id, true);
+  const c = current();
+  set(null);
+  if (c) close(c.target, c.id, true);
 }
