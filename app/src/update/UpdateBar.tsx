@@ -4,6 +4,8 @@
 import { onMount, Show, type JSX } from "solid-js";
 
 import "../connect/card.css";
+import { IS_MAC } from "../guiKeys.ts";
+import { leaderKeyName } from "../commands.ts";
 import {
   checkOnStart,
   dismissUpdate,
@@ -23,9 +25,8 @@ export function UpdateBar(): JSX.Element {
           <div class="card-body">
             <h2 class="card-title">新しい版 {u().version} があります</h2>
             <p class="card-text">
-              今は {u().current}{" "}
-              です。更新すると、入れ替えて起動し直します（リーダーの n u
-              でも更新できます）。
+              今は {u().current} です。更新すると、入れ替えて起動し直します（
+              {leaderKeyName(IS_MAC)} n u でも更新できます）。
             </p>
             <Show when={updateError()}>
               <pre class="card-error" role="alert">
