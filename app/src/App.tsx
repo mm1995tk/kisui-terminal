@@ -1690,6 +1690,8 @@ function Workbench(props: {
       .find((g) => g.target === target)
       ?.bands.find((x) => x.id === id);
     if (!b) return;
+    // 閉じているサイドバーの中には入力欄が見えず、フォーカスも取れないので、先に開ける
+    if (!untrack(sidebarOpen)) changeSidebarOpen(true);
     setWsRenameError(undefined);
     setRenamingWs({ target, id, current: b.label, auto: b.autoTitle });
   }
