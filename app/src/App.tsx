@@ -761,13 +761,14 @@ function Workbench(props: {
         .find((g) => g.target === target)
         ?.bands.find((b) => b.id === id)?.title ?? "";
     setFocusError(null);
-    // 移り先は閉じる前に決めておき、一覧から消えた知らせを受けたところで（返事を待たずに）フォーカスを移す
+    // 移り先は閉じる前に決めておき、一覧から消えた知らせを受けたところで（返事を待たずに）フォーカスを移す。
+    // 移り先が無いとき（フォーカスしていないものを閉じる）は、先に閉じ始めたものの移り先を消さない
     const moveTo = wasFocused && next ? { target, id: next.id } : null;
-    closingNext = moveTo;
+    if (moveTo) closingNext = moveTo;
     try {
       await s.closeWorkspace(id, force);
     } catch (e) {
-      if (closingNext === moveTo) closingNext = null;
+      if (moveTo && closingNext === moveTo) closingNext = null;
       const d =
         e instanceof RpcError && e.code === ErrorCode.Busy
           ? (e.data as { reason?: string } | undefined)
@@ -782,7 +783,7 @@ function Workbench(props: {
       });
       return;
     }
-    if (closingNext === moveTo) closingNext = null;
+    if (moveTo && closingNext === moveTo) closingNext = null;
     // GUI のフォーカスはもう移っている。shj にも移り先を伝える
     if (moveTo) void focusWorkspace(target, moveTo.id);
   }
