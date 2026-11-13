@@ -320,11 +320,23 @@ function Workbench(props: {
   function focusExplorer(target: string, id: WorkspaceId) {
     const f = untrack(focus);
     if (!f || f.target !== target || f.id !== id) return;
-    // 閉じているサイドバーは、ツリーにキーを向けるときに開く（隠れたままでは、キーの行き先が見えない）
-    if (!untrack(sidebarOpen)) changeSidebarOpen(true);
-    const row = explorerRow(nav);
-    row?.focus();
-    row?.scrollIntoView({ block: "nearest" });
+    focusInSidebar(() => explorerRow(nav));
+  }
+  /**
+   * サイドバーの中の行（ツリー・CHANGES）にキーを向ける。閉じているサイドバーは、先に開く（隠れたままでは、キーの行き先が見えない）。
+   * 開いた直後は画面（display）がまだ変わっていないことがあるので、向けるのは画面が変わったあとにする。
+   */
+  function focusInSidebar(rowOf: () => HTMLElement | null | undefined) {
+    const go = () => {
+      const row = rowOf();
+      row?.focus();
+      row?.scrollIntoView({ block: "nearest" });
+    };
+    if (untrack(sidebarOpen)) go();
+    else {
+      changeSidebarOpen(true);
+      queueMicrotask(go);
+    }
   }
   /**
    * shj が引数なしで起動した直後の、ツリーへのフォーカスの頼み（explorer.focus の start）。
@@ -341,6 +353,8 @@ function Workbench(props: {
   function requestStartFocus(target: string, id: WorkspaceId) {
     const f = untrack(focus);
     if (!f || f.target !== target || f.id !== id) return;
+    // 閉じているサイドバーは、起動した直後の自動のフォーカスでは開かない（開けるのは、利用者がツリーへ移る操作だけ）
+    if (!untrack(sidebarOpen)) return;
     cancelStartFocus();
     const cancel = () => cancelStartFocus();
     window.addEventListener("keydown", cancel, true);
@@ -363,6 +377,7 @@ function Workbench(props: {
     const f = untrack(focus);
     const step = startFocusStep({
       stillFocused: !!f && f.target === p.target && f.id === p.id,
+      sidebarOpen: untrack(sidebarOpen),
       keyInTree: !!nav?.contains(document.activeElement),
       hasRow: explorerRow(nav) !== null,
     });
@@ -380,9 +395,7 @@ function Workbench(props: {
   function focusChanges(target: string, id: WorkspaceId) {
     const f = untrack(focus);
     if (!f || f.target !== target || f.id !== id) return;
-    const row = changesRow(nav);
-    row?.focus();
-    row?.scrollIntoView({ block: "nearest" });
+    focusInSidebar(() => changesRow(nav));
   }
   const termActive = () => termGroup()?.active;
   const termExtras = () => termGroup()?.extras ?? [];
@@ -420,6 +433,22 @@ function Workbench(props: {
   function changeSidebarOpen(open: boolean) {
     setSidebarOpen(open);
     saveSidebarOpen(store, open);
+  }
+  /** b：閉じているなら開く。開けているなら閉じる（キーがサイドバーの中にあれば、見えなくなる前にターミナルへ戻す）。 */
+  function toggleSidebar() {
+    if (sidebarOpen()) {
+      if (nav?.contains(document.activeElement)) focusTerminal();
+      changeSidebarOpen(false);
+      return;
+    }
+    changeSidebarOpen(true);
+    // display: none の間にスクロールの位置は 0 に戻るので、今のワークスペースで覚えている位置に戻す
+    const f = untrack(focus);
+    const top = f ? trees.get(f.target)?.get(f.id)?.scrollTop : undefined;
+    if (top !== undefined)
+      requestAnimationFrame(() => {
+        if (nav) nav.scrollTop = top;
+      });
   }
   // リサイズモード（Cmd+R / Ctrl+Shift+R・パレットの「リサイズ」）か。境界を動かすキーは GUI が受ける
   const [resizeMode, setResizeMode] = createSignal(false);
@@ -1435,7 +1464,7 @@ function Workbench(props: {
         runMachineCommand(c.id);
         break;
       case "sidebar.toggle":
-        changeSidebarOpen(!sidebarOpen());
+        toggleSidebar();
         break;
       case "clipboard.history":
         openClipboardHistory();
