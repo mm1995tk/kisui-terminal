@@ -644,7 +644,7 @@ function BandItem(
   };
   return (
     <li class="band-item" data-focused={b().focused ? "" : undefined}>
-      {/* カードの中は行にして、2 つのボタン（フォーカスを移す・閉じる）を並べる（ボタンの中にボタンは置けない） */}
+      {/* カードの中は行にして、ボタン（フォーカスを移す・名前を変える・閉じる）を並べる。名前を変えている間は、フォーカスを移すボタンの所が入力欄の div になる（ボタンの中に入力欄もボタンも置けない） */}
       <div class="band-slot" data-sticky={b().focused ? "top" : undefined}>
         <div
           class="band"
