@@ -116,12 +116,13 @@ export function branchText(branch: string, sha: string): string {
   return branch ? `${branch} ${shaText(sha)}` : shaText(sha);
 }
 
-/** 2 行目の全文。ディレクトリ名は「 · 」で区切り、残りは空白でつなぐ。 */
+/** 名前を変えた帯の 2 行目で、ディレクトリ名とその後ろを分ける字。 */
 export const DIR_SEP = "·";
 
 /** short sha を「(9e11274)」の形にする。 */
 export const shaText = (sha: string): string => `(${sha})`;
 
+/** 2 行目の全文。ディレクトリ名は「 · 」で区切り、残りは空白でつなぐ。 */
 function detailText(
   dir: string,
   branch: string,
