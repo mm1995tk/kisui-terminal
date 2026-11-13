@@ -574,7 +574,7 @@ func busyError(reason string) *rpc.Error {
 // workspaceRequest は workspace.* のうち返事のあるもの。
 func (ss *session) workspaceRequest(req *rpc.Message) (res any, err error, handled bool) {
 	switch req.Method {
-	case "workspace.list", "workspace.create", "workspace.close", "workspace.focus", "workspace.rename", "layout.resize":
+	case "workspace.list", "workspace.create", "workspace.close", "workspace.focus", "workspace.rename", "layout.resize", "layout.swap":
 	default:
 		return nil, nil, false
 	}
@@ -614,6 +614,23 @@ func (ss *session) workspaceRequest(req *rpc.Message) (res any, err error, handl
 			return nil, rpc.Errorf(rpc.CodeNotFound, "%v", err), true
 		case errors.Is(err, errTooSmall):
 			return nil, rpc.Errorf(rpc.CodeBusy, "%v", err), true
+		}
+		return nil, rpc.Errorf(rpc.CodeInvalidParams, "%v", err), true
+	}
+	if req.Method == "layout.swap" {
+		var sp struct {
+			WorkspaceID string `json:"workspaceId"`
+			Pane        string `json:"pane"`
+			Other       string `json:"other"`
+		}
+		if err := json.Unmarshal(req.Params, &sp); err != nil || sp.Pane == "" || sp.Other == "" || sp.Pane == sp.Other {
+			return nil, rpc.Errorf(rpc.CodeInvalidParams, "workspaceId, pane and other (a different pane) are required"), true
+		}
+		switch err := w.swapPanes(sp.WorkspaceID, sp.Pane, sp.Other); {
+		case err == nil:
+			return struct{}{}, nil, true
+		case errors.Is(err, errNoWorkspace), errors.Is(err, errNoPane):
+			return nil, rpc.Errorf(rpc.CodeNotFound, "%v", err), true
 		}
 		return nil, rpc.Errorf(rpc.CodeInvalidParams, "%v", err), true
 	}

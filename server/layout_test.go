@@ -226,3 +226,73 @@ func TestSplitLeftUpRPC(t *testing.T) {
 		t.Errorf("bad dir: %v", err)
 	}
 }
+
+// 入れ替えは、2 つの葉の場所だけを替える。節の向きと割合は場所のまま。
+func TestLayoutSwap(t *testing.T) {
+	n := &layoutNode{Dir: dirRight, Ratio: 0.3, A: leaf("a"), B: &layoutNode{Dir: dirDown, Ratio: 0.6, A: leaf("b"), B: leaf("c")}}
+	m, ok := layoutSwap(n, "a", "c")
+	if !ok {
+		t.Fatal("not swapped")
+	}
+	want := &layoutNode{Dir: dirRight, Ratio: 0.3, A: leaf("c"), B: &layoutNode{Dir: dirDown, Ratio: 0.6, A: leaf("b"), B: leaf("a")}}
+	if !layoutEqual(m, want) {
+		t.Errorf("swap: %+v", m)
+	}
+	// もとの木は変えない
+	if n.A.Pane != "a" || n.B.B.Pane != "c" {
+		t.Error("the original tree changed")
+	}
+	if !validLayout(m) {
+		t.Error("validLayout")
+	}
+	// 戻せる
+	if back, _ := layoutSwap(m, "c", "a"); !layoutEqual(back, n) {
+		t.Errorf("swap back: %+v", back)
+	}
+	for name, p := range map[string][2]string{"same": {"a", "a"}, "missing": {"a", "z"}, "both missing": {"y", "z"}} {
+		if m, ok := layoutSwap(n, p[0], p[1]); ok || m != n {
+			t.Errorf("%s: %v", name, ok)
+		}
+	}
+}
+
+// layout.swap は serve の木で 2 つの欄の場所を替える。プライマリの役目は替わらない。木は workspace.list に出る。
+func TestLayoutSwapRPC(t *testing.T) {
+	t.Setenv("HOME", normalizePath(t.TempDir()))
+	_, sock := startFast(t)
+	c, _ := termClient(t, sock)
+	ctx := context.Background()
+	wsID, primary := createWS(t, c)
+	id := createTerm(t, c, map[string]any{"workspaceId": wsID, "split": map[string]any{"target": primary, "dir": "right"}})
+	if err := c.Call(ctx, "layout.swap", map[string]any{"workspaceId": wsID, "pane": primary, "other": id}, nil); err != nil {
+		t.Fatal(err)
+	}
+	ws := listWS(t, c).Workspaces[0]
+	if l := ws.Layout; l.Dir != "right" || l.A.Pane != id || l.B.Pane != primary {
+		t.Fatalf("layout: %+v", l)
+	}
+	// プライマリの役目は、場所が替わっても primary に残る
+	if ws.Primary != primary {
+		t.Errorf("primary: %q want %q", ws.Primary, primary)
+	}
+	for name, p := range map[string]map[string]any{
+		"no workspace": {"workspaceId": "nope", "pane": primary, "other": id},
+		"no pane":      {"workspaceId": wsID, "pane": primary, "other": "nope"},
+		"no pane 2":    {"workspaceId": wsID, "pane": "nope", "other": id},
+	} {
+		if err := c.Call(ctx, "layout.swap", p, nil); !isCode(err, rpc.CodeNotFound) {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+	for name, p := range map[string]map[string]any{
+		"same":    {"workspaceId": wsID, "pane": id, "other": id},
+		"missing": {"workspaceId": wsID, "pane": id},
+	} {
+		if err := c.Call(ctx, "layout.swap", p, nil); !isCode(err, rpc.CodeInvalidParams) {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+	if l := listWS(t, c).Workspaces[0].Layout; l.A.Pane != id || l.B.Pane != primary {
+		t.Errorf("a refused swap changed the tree: %+v", l)
+	}
+}

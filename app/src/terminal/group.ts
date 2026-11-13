@@ -330,6 +330,24 @@ export class TermGroup {
     return true;
   }
 
+  /**
+   * active の欄と、dir の向きの隣の欄の場所を入れ替える（リーダーの p m のあとの h j k l）。入れ替えるのは場所だけで、
+   * フォーカスは今の欄についていく（キーを向けている欄の id は変わらない）。隣が無ければ何もせず false。
+   * 隣は move と同じ規則で決め、serve に layout.swap を送る。木は serve が持つので、画面は workspace.changed で入れ替わる。
+   */
+  swap(dir: Direction): boolean {
+    const from = this.activeId;
+    if (!from) return false;
+    const to = neighbor(layoutRects(this.layout), from, dir);
+    if (!to) return false;
+    this.port
+      .request("layout.swap", { workspaceId: this.wsId, pane: from, other: to })
+      .catch((e) =>
+        this.onError(`layout.swap: ${e instanceof Error ? e.message : e}`),
+      );
+    return true;
+  }
+
   /** 動かせる欄どうしの境界（#18）。 */
   get bars(): Bar[] {
     return layoutBars(this.layout);
