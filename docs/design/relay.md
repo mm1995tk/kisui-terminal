@@ -2,7 +2,7 @@
 
 Issue #126・#127。リモートのマシンのターミナルで出た `http://localhost:<ポート>` を手元のブラウザで開くのに、前は窓が `ssh -N -L` でポート転送を張っていた。ポート転送は、つなぎ先の sshd と途中の中継が許すときにしか使えない（Cloudflare Zero Trust の Access for Infrastructure・`AllowTcpForwarding no` の sshd・会社の踏み台など）。そこで、普通の ssh のセッションの標準入出力の上で中継する `kisui relay` を置き（#126）、窓はそれだけを使う（#127。`ssh -L` は外した）。ターミナルが使える環境なら URL も開ける。
 
-この文書は、窓の Rust の側と `kisui relay` の間の取り決め。窓の画面（TypeScript）と `kisui serve` の取り決め（`gui-protocol.md`）とは別で、`kisui relay` は `kisui serve` を介さない。窓の側で使うのは別の Issue。
+この文書は、窓の Rust の側と `kisui relay` の間の取り決め。窓の画面（TypeScript）と `kisui serve` の取り決め（`gui-protocol.md`）とは別で、`kisui relay` は `kisui serve` を介さない。窓の側の動き（いつ張るか・張り直すか・失敗をどう見せるか）は、末尾の「窓の側（#127）」。
 
 ## 起こし方
 
