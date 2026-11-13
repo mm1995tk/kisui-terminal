@@ -225,9 +225,6 @@
   height: var(--band-height);
   padding: 3px 8px;
 }
-.band-slot[data-sticky] {
-  background: var(--region-bg);
-}
 .band {
   box-sizing: border-box;
   display: flex;
@@ -298,11 +295,37 @@
   background: var(--band-hover);
   color: var(--sidebar-text);
 }
-/* 開いているカードは、マシンの色の 1px の枠と、少し濃い背景（範囲の 8% より濃い 16%）で示し、太字にする */
+/* フォーカスしているワークスペース（#170）は、カードとそのツリー・CHANGES を 1 つの箱（.band-item[data-focused]）で囲んで示す。
+   箱は他のカードより少し明るい灰色の背景と灰色の枠（色は --gh-*）で、黄色などの色は使わない。名前は太字にする。
+   箱の中ではカードの背景を外し、箱の見出しに見せる。
+   箱に overflow は付けない（付けると中の sticky が効かない）。上に固定する見出しの背景は箱と同じ色にして、枠が続いて見えるようにする */
+.band-item[data-focused] {
+  --focus-box-bg: color-mix(
+    in srgb,
+    var(--gh-bg-raised) 55%,
+    var(--gh-bg-hover)
+  );
+  --sidebar-bg: var(--focus-box-bg);
+  --tree-hover: var(--gh-bg-hover);
+  --changes-hover: var(--gh-bg-hover);
+  margin: 3px 6px;
+  border: 1px solid var(--gh-border-strong);
+  border-radius: 8px;
+  background: var(--focus-box-bg);
+}
+.band-item[data-focused] > .band-slot {
+  padding: 2px 4px;
+  border-radius: 7px 7px 0 0;
+  background: var(--focus-box-bg);
+}
+.band-item[data-focused] .band {
+  background: transparent;
+}
+.band-item[data-focused] .band:hover {
+  background: var(--gh-bg-hover);
+}
 .band[aria-current="true"] {
-  border-color: var(--machine-color);
-  background: color-mix(in srgb, var(--machine-color) 16%, var(--sidebar-bg));
-  font-weight: 600;
+  font-weight: 700;
 }
 
 /* キーで止まった、ワークスペースが無いマシン（リーダーの w h / w l） */
