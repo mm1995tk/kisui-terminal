@@ -22,7 +22,7 @@ func walkCommands(cmds []command, prefix string, f func(path string, c command))
 // SKILL.md has a heading for every command that runs in a pane. The commands
 // that do not ("serve", "attach", "skill install") are not for the agent.
 func TestSkillCoversCommands(t *testing.T) {
-	notForAgent := map[string]bool{"serve": true, "attach": true, "skill install": true}
+	notForAgent := map[string]bool{"serve": true, "attach": true, "relay": true, "skill install": true}
 	text := string(skillMD)
 	walkCommands(commands, "", func(path string, c command) {
 		if notForAgent[path] {
