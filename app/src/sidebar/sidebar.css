@@ -381,16 +381,38 @@
   font-size: 12px;
 }
 
-/* 2 行目（ブランチ、「git なし」） */
+/* 2 行目（ディレクトリ名 · ブランチ (sha)、「git なし」）。部分ごとに並べ、狭いときは先にディレクトリ名、次にブランチ名を「…」で切る。
+   余った幅の削り方は flex-shrink の比で決まるので、ディレクトリ名は 1000、ブランチ名は 1、sha と「git なし」・番号は 0（切らない）にする。
+   ディレクトリ名は 3ch までしか縮めない（「a…」が残る）。そこから先の不足はブランチ名が受ける */
 .band-detail {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35em;
   min-height: 1.3em;
   min-width: 0;
   overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--sidebar-muted);
   font-size: 11px;
   font-weight: 400;
+}
+.band-dir,
+.band-branch {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.band-dir {
+  flex: 0 1000 auto;
+  min-width: 3ch;
+}
+.band-branch {
+  flex: 0 1 auto;
+}
+.band-sep,
+.band-sha,
+.band-note {
+  flex: none;
 }
 
 /* 足したマシンの見出し・ツリーの行を右クリックしたメニュー。
