@@ -35,7 +35,11 @@ func newPaneToken() (string, error) {
 
 // withKisuiPath は、この kisui の実行ファイルのあるフォルダを env の PATH の先頭に足す。欄の中で kisui open を打てるように。
 // 実行ファイルの名前が kisui でないとき（go test など）と、同梱の shj と同じフォルダのときは足さない。
+// 版によらないフォルダ（current.go）を使えるなら、そのフォルダを足す（版を上げたあとも今の版の kisui を起動する）。
 func withKisuiPath(env []string) []string {
+	if cur, err := pointCurrent(); err == nil && cur != "" {
+		return prependPath(env, cur)
+	}
 	exe := kisuiExecutable()
 	if exe == "" {
 		return env
@@ -49,7 +53,7 @@ func withKisuiPath(env []string) []string {
 
 // kisuiExecutable は、この kisui の実行ファイル（シンボリックリンクはたどる）。名前が kisui でないとき（go test など）は空。
 func kisuiExecutable() string {
-	exe, err := os.Executable()
+	exe, err := executable()
 	if err != nil {
 		return ""
 	}

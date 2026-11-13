@@ -146,6 +146,11 @@ func (s *Server) Serve(ctx context.Context) error {
 	stop := context.AfterFunc(ctx, func() { s.ln.Close() })
 	defer stop()
 	s.log.Info("serving", "socket", s.opts.SocketPath, "serverId", s.serverID, "pid", os.Getpid())
+	// 版によらないフォルダ（current.go）を、この版の kisui と shj に向け直す。引き継いだときは、
+	// 前から動いているシェルの shj・pbcopy・pbpaste も、ここから新しい版を起動するようになる。
+	if _, err := pointCurrent(); err != nil {
+		s.log.Warn("current dir", "err", err)
+	}
 	idleDone := make(chan struct{})
 	defer close(idleDone)
 	s.mu.Lock()

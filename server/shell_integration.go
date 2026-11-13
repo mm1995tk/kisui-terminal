@@ -30,7 +30,8 @@ var shellInit embed.FS
 // PATH の先頭に 2 つのフォルダを足す。
 //   - pbcopy・pbpaste（kisui clipboard copy / paste を呼ぶ小さなスクリプト）を書き出したフォルダ。
 //     シェルの alias でなく実行ファイルにするのは、スクリプトの中から呼ばれても動くように。
-//   - 同梱の shj のフォルダ（あれば）。
+//   - 版によらないフォルダ（current.go）。今の版の shj と kisui へのリンクを置く。
+//     使えないときは、同梱の shj のフォルダ（あれば）。
 //
 // PATH の先頭に足す（prependPath）だけでは、シェルの起動ファイル（.zshrc・.zprofile・path_helper など）が
 // そのあと PATH を組み直して、別の shj や macOS の pbcopy が先になることがある。
@@ -46,12 +47,21 @@ func bundledShell(sh string, env []string) (args, outEnv []string) {
 		env = prependPath(env, bin)
 		dirs = append(dirs, envBinPathDir+"="+bin)
 	}
-	if dir := bundledShjDir(); dir != "" {
-		env = prependPath(env, dir)
-		dirs = append(dirs, envShjPathDir+"="+dir)
-	}
-	if exe := kisuiExecutable(); exe != "" {
-		env = append(slices.Clone(env), envKisuiExe+"="+exe)
+	if cur, err := pointCurrent(); err == nil && cur != "" {
+		// 版によらないフォルダ（current.go）。版を上げて serve が引き継いだあとも、このシェルの shj・pbcopy・pbpaste は
+		// 今の版の shj と kisui を起動する。古い版のフォルダが消されても動く。
+		env = prependPath(env, cur)
+		dirs = append(dirs, envShjPathDir+"="+cur)
+		env = append(slices.Clone(env), envKisuiExe+"="+filepath.Join(cur, currentLinkKisui))
+	} else {
+		// 版によらないフォルダを使えないとき（ほかのユーザーが書き換えられる場所にあるなど）は、版ごとのフォルダを渡す
+		if dir := bundledShjDir(); dir != "" {
+			env = prependPath(env, dir)
+			dirs = append(dirs, envShjPathDir+"="+dir)
+		}
+		if exe := kisuiExecutable(); exe != "" {
+			env = append(slices.Clone(env), envKisuiExe+"="+exe)
+		}
 	}
 	if len(dirs) == 0 {
 		return nil, env

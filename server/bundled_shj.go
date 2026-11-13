@@ -22,7 +22,7 @@ func bundledShjDir() string {
 		}
 		return ""
 	}
-	exe, err := os.Executable()
+	exe, err := executable()
 	if err != nil {
 		return ""
 	}
@@ -40,6 +40,7 @@ func hasShj(dir string) bool {
 	return err == nil && fi.Mode().IsRegular() && fi.Mode().Perm()&0o111 != 0
 }
 
+// prependPath は、dir を env の PATH の先頭に足す。PATH にすでにあれば、そこからは除く。
 func prependPath(env []string, dir string) []string {
 	path := os.Getenv("PATH")
 	for _, e := range env {
@@ -47,10 +48,13 @@ func prependPath(env []string, dir string) []string {
 			path = v
 		}
 	}
-	if path == "" {
-		path = dir
-	} else {
-		path = dir + string(os.PathListSeparator) + path
+	parts := []string{dir}
+	if path != "" {
+		for _, p := range strings.Split(path, string(os.PathListSeparator)) {
+			if p != dir {
+				parts = append(parts, p)
+			}
+		}
 	}
-	return append(slices.Clone(env), "PATH="+path)
+	return append(slices.Clone(env), "PATH="+strings.Join(parts, string(os.PathListSeparator)))
 }
