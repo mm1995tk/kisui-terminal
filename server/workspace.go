@@ -609,13 +609,6 @@ func (ss *session) workspaceRequest(req *rpc.Message) (res any, err error, handl
 		}
 		return nil, rpc.Errorf(rpc.CodeInvalidParams, "%v", err), true
 	}
-	var p struct {
-		ID    string `json:"id"`
-		Force bool   `json:"force"`
-	}
-	if err := json.Unmarshal(req.Params, &p); err != nil {
-		return nil, rpc.Errorf(rpc.CodeInvalidParams, "invalid params: %v", err), true
-	}
 	if req.Method == "workspace.rename" {
 		var rp struct {
 			ID   string  `json:"id"`
@@ -628,6 +621,13 @@ func (ss *session) workspaceRequest(req *rpc.Message) (res any, err error, handl
 			return nil, err, true
 		}
 		return struct{}{}, nil, true
+	}
+	var p struct {
+		ID    string `json:"id"`
+		Force bool   `json:"force"`
+	}
+	if err := json.Unmarshal(req.Params, &p); err != nil {
+		return nil, rpc.Errorf(rpc.CodeInvalidParams, "invalid params: %v", err), true
 	}
 	if req.Method == "workspace.close" {
 		if err := w.closeWorkspace(p.ID, p.Force); err != nil {
