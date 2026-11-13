@@ -2,7 +2,7 @@ package server
 
 // ワークスペースの一覧の保存と復元（#450。設計は docs/design/gui-protocol.md の「ワークスペース」9）。
 //
-// 保存するのは、ワークスペースの id・フォルダ（未定なら無し）・並び順だけ。分割したターミナルと
+// 保存するのは、ワークスペースの id・フォルダ（未定なら無し）・つけた名前（あれば）・並び順だけ。分割したターミナルと
 // 開いていたファイルは保存しない。ワークスペースが変わるたび（recompute のたび）に、前に書いた内容と
 // 違えば書く。起動のときに読み、同じ id でワークスペースを作り直す。
 
@@ -28,6 +28,9 @@ func StatePath() (string, error) {
 type savedWS struct {
 	ID     string `json:"id"`
 	Folder string `json:"folder,omitempty"` // 未定なら省く
+	// Label はユーザーがつけた名前（workspace.rename）。つけていなければ省く。
+	// 足した項目で、版は上げない（名前をつけていない保存は、前の形と同じ内容）
+	Label string `json:"label,omitempty"`
 }
 
 type savedState struct {
@@ -54,7 +57,7 @@ func (w *wsManager) persist() {
 	out := savedState{Version: stateVersion, Workspaces: []savedWS{}}
 	sortStates(sts)
 	for _, st := range sts {
-		out.Workspaces = append(out.Workspaces, savedWS{ID: st.id, Folder: st.root})
+		out.Workspaces = append(out.Workspaces, savedWS{ID: st.id, Folder: st.root, Label: st.label})
 	}
 	w.mu.Unlock()
 	data, err := json.MarshalIndent(out, "", "  ")
@@ -163,7 +166,12 @@ func (w *wsManager) restore() {
 		if dir == "" {
 			dir = w.startDir()
 		}
-		if _, _, err := w.createLocked(x.ID, dir); err != nil {
+		label, err := cleanPaneName(x.Label)
+		if err != nil {
+			w.srv.log.Warn("workspace name is invalid; restored without a name", "workspace", x.ID, "err", err)
+			label = ""
+		}
+		if _, _, err := w.createLocked(x.ID, dir, label); err != nil {
 			w.srv.log.Warn("restore workspace", "workspace", x.ID, "err", err)
 		}
 	}

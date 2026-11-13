@@ -132,6 +132,9 @@ func TestHandoverKeepsShellsRunning(t *testing.T) {
 	ctx := context.Background()
 	wsID, primary := createWS(t, c)
 	id := createTerm(t, c, map[string]any{"workspaceId": wsID, "split": map[string]any{"target": primary, "dir": "down"}})
+	if err := c.Call(ctx, "workspace.rename", map[string]any{"id": wsID, "name": "引き継ぎの名前"}, nil); err != nil {
+		t.Fatal(err)
+	}
 	wantLayout := listWS(t, c).Workspaces[0].Layout
 	if wantLayout.Dir != "down" {
 		t.Fatalf("layout before handover: %+v", wantLayout)
@@ -158,6 +161,9 @@ func TestHandoverKeepsShellsRunning(t *testing.T) {
 	}
 	if info.PID != pid || info.ServerID != srv.ServerID() || info.Shj.Version != "v2" {
 		t.Fatalf("server.info after handover: %+v", info)
+	}
+	if got := listWS(t, c2).Workspaces[0].Label; got != "引き継ぎの名前" {
+		t.Errorf("label after handover: %q", got)
 	}
 	if got := listWS(t, c2).Workspaces[0].Layout; !layoutEqual(got, wantLayout) {
 		t.Errorf("layout after handover: %+v, want %+v", got, wantLayout)

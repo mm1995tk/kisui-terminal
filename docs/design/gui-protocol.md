@@ -418,6 +418,7 @@ P13-09（#385）で `Core` を `core` に移し、分割を終えた。`ui/tui` 
 | `workspace.close` | → shj | `{id, force?: bool}` → `{}`。ターミナル（プライマリと分割）を全部終わらせてワークスペースを消す。プログラムが動いているターミナルがあれば、`force` が無い限り `busy` で断る（何も閉じない。GUI は確認を出してから `force: true` で送り直す）。`busy` の `data` は `{reason: "running"}` |
 | `workspace.changed` | ← GUI | 通知 `{added?: [Workspace], removed?: [id], updated?: [Workspace]}`。ワークスペースが増えた / 減った / 中身（`folder`、ターミナルの増減、ブランチ、`primaryShj`）が変わった。`workspace.create`・`workspace.close` を送った GUI にも届く（返事より先に来ることがある） |
 | `workspace.focus` | → shj | `{id}` → `{rev, termId}`。フォーカスを移す（GUI のフォーカスは 1 つで、`workspace.list` の `focus` で分かる）。`termId` はそのワークスペースのプライマリターミナル |
+| `workspace.rename` | → shj | `{id, name}` → `{}`。ワークスペースにユーザーの名前をつける。`name` は前後の空白を落とし、空なら名前を外して自動の名前（`name`）に戻す。長さは 100 文字まで、改行などの制御文字は使えず、断られたら `invalid_params`（`kisui pane title` と同じ決まり）。`id` が無ければ `not_found`。名前は `Workspace.label` に入り（つけていなければ省く）、GUI は帯の名前に `name` の代わりに出す。`kisui serve` が持ち、`workspaces.json`（`label`。無ければ省くので `version` は上げない）と serve の入れ替え（`handoverWS.label`）で残る。変わると `workspace.changed` の `updated` で全部の GUI に届く |
 
 - `rev` はサーバー全体で 1 つの数にする（ワークスペースを移しても増え続ける）。
 - **前の設計から消すもの**：`term.cwd`（フォルダが変わったことは `workspace.changed` の `folder` で分かる。分割したターミナルの cwd は GUI は要らない）と `workspace.close_files`（ワークスペースは [×] でしか消えず、ファイルだけ閉じる操作は作らない）。`workspaceId` を `null` にして「ワークスペースに属さない」を表すこともしない（どのターミナルもどれかのワークスペースに属する）。

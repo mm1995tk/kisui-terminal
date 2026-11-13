@@ -71,6 +71,37 @@ describe("band", () => {
     assert.equal(b.root, "/Users/me/x");
   });
 
+  it("つけた名前（label）があれば、自動の名前の代わりに出す。ブランチと「git なし」はそのまま、2 つ目の番号は付けない", () => {
+    const g = band(
+      ws({ id: "a", root: "/src/x", branch: "main", label: "作業用" }),
+      false,
+      2,
+    );
+    assert.equal(g.title, "作業用");
+    assert.equal(g.label, "作業用");
+    assert.equal(g.autoTitle, "x");
+    assert.equal(g.path, false);
+    assert.equal(g.detail, "main");
+    const n = band(
+      ws({ id: "n", root: "/etc/nginx", kind: "cwd", label: "設定" }),
+      false,
+    );
+    assert.equal(n.title, "設定");
+    assert.equal(n.path, false);
+    assert.equal(n.detail, "git なし");
+    assert.equal(n.autoTitle, "/etc/nginx");
+  });
+
+  it("フォルダ未定でも、つけた名前を出す。名前が無ければ label は空で、autoTitle が title と同じ", () => {
+    const u = band(ws({ id: "u", label: "メモ" }), false);
+    assert.equal(u.title, "メモ");
+    assert.equal(u.unset, false);
+    assert.equal(u.autoTitle, UNSET_TITLE);
+    const a = band(ws({ id: "a", root: "/src/x" }), false);
+    assert.equal(a.label, "");
+    assert.equal(a.autoTitle, a.title);
+  });
+
   it("フォルダ未定のワークスペースは「（フォルダ未定）」", () => {
     const b = band(ws({ id: "u" }), false);
     assert.equal(b.title, UNSET_TITLE);

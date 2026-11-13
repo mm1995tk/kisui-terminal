@@ -3,6 +3,7 @@ package server
 import (
 	"bytes"
 	"context"
+	"errors"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -209,5 +210,77 @@ func TestWorkspacesSavedOnChange(t *testing.T) {
 	})
 	if fi, err := os.Stat(state); err != nil || fi.Mode().Perm() != 0o600 {
 		t.Errorf("state file: %v %v", fi, err)
+	}
+}
+
+// workspace.rename は名前をつけ、空にすると外す。名前は保存して、止めたあとの次の起動でも出る。
+// 長すぎる名前・制御文字・無い id は断る。
+func TestWorkspaceRenameSavedAndRestored(t *testing.T) {
+	t.Setenv("HOME", normalizePath(t.TempDir()))
+	state := filepath.Join(t.TempDir(), "workspaces.json")
+	withState := func(o *Options) { o.StatePath = state }
+	_, sock1 := startFastWith(t, withState)
+	c1, _ := termClient(t, sock1)
+	ctx := context.Background()
+	a, _ := createWS(t, c1)
+	b, _ := createWS(t, c1)
+	rename := func(c *rpc.Conn, id, name string) error {
+		return c.Call(ctx, "workspace.rename", map[string]any{"id": id, "name": name}, nil)
+	}
+	if err := rename(c1, a, "  作業用  "); err != nil {
+		t.Fatal(err)
+	}
+	if got := listWS(t, c1).find(a).Label; got != "作業用" {
+		t.Errorf("label = %q", got)
+	}
+	if got := listWS(t, c1).find(b).Label; got != "" {
+		t.Errorf("the other workspace has a label: %q", got)
+	}
+	for _, bad := range []string{strings.Repeat("あ", maxPaneName+1), "a\nb"} {
+		var re *rpc.Error
+		if err := rename(c1, a, bad); !errors.As(err, &re) || re.Code != rpc.CodeInvalidParams {
+			t.Errorf("rename %q: %v", bad, err)
+		}
+	}
+	var re *rpc.Error
+	if err := rename(c1, "wnone", "x"); !errors.As(err, &re) || re.Code != rpc.CodeNotFound {
+		t.Errorf("rename of a missing workspace: %v", err)
+	}
+	waitFor(t, "label saved", func() bool {
+		l, err := loadState(state)
+		return err == nil && len(l) == 2 && l[0].Label == "作業用" && l[1].Label == ""
+	})
+	if err := c1.Call(ctx, "server.shutdown", map[string]any{"force": true}, nil); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "stopped", func() bool { _, err := os.Stat(sock1); return err != nil })
+
+	_, sock2 := startFastWith(t, withState)
+	c2, _ := termClient(t, sock2)
+	if got := listWS(t, c2).find(a).Label; got != "作業用" {
+		t.Errorf("restored label = %q", got)
+	}
+	// 空にすると外れ、保存からも消える
+	if err := rename(c2, a, ""); err != nil {
+		t.Fatal(err)
+	}
+	if got := listWS(t, c2).find(a).Label; got != "" {
+		t.Errorf("label after clearing = %q", got)
+	}
+	waitFor(t, "label cleared in the file", func() bool {
+		l, err := loadState(state)
+		return err == nil && len(l) == 2 && l[0].Label == ""
+	})
+}
+
+// 名前をつけていない保存は、名前の項目の無い（前の版の）形のまま読める。
+func TestLoadStateWithoutLabel(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "workspaces.json")
+	if err := os.WriteFile(path, []byte(`{"version":1,"workspaces":[{"id":"w1","folder":"/tmp"}]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	l, err := loadState(path)
+	if err != nil || len(l) != 1 || l[0].Label != "" {
+		t.Fatalf("loadState: %v %+v", err, l)
 	}
 }

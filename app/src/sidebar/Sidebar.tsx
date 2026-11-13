@@ -7,6 +7,7 @@
 // 帯の右の [×] は、押すと onClose を呼ぶ（ワークスペースを閉じる。確認は App が窓で出す）。
 // 一覧の一番下には「+ リモートを足す」を置き、押すと onAddMachine を呼ぶ（窓は connect/AddMachine.tsx）。
 // 足したマシンの見出しを右クリックすると「名前を変える」「外す」のメニューを出す（onRename・onRemove）。
+// ワークスペースの帯を右クリックすると「名前を変える」のメニューを出す（onRenameWorkspace。窓は App が出す）。
 // 組み立ては model.ts、色の決め方は colors.ts、見た目は sidebar.css。
 import {
   createMemo,
@@ -57,6 +58,8 @@ interface Handlers {
   onCreate?: (target: string) => void;
   /** 帯の [×]（ワークスペースを閉じる）。省くと出さない */
   onClose?: (target: string, id: WorkspaceId) => void;
+  /** 帯を右クリックした（Sidebar が内側に渡す。App は onRenameWorkspace を使う） */
+  onBandMenu?: (target: string, id: WorkspaceId, x: number, y: number) => void;
   /** ツリーのファイルの行を押した */
   onOpen?: (target: string, id: WorkspaceId, path: string) => void;
   /** プライマリの shj が出しているファイル（ツリーで強調する行の path）。無ければ undefined */
@@ -111,8 +114,21 @@ export function Sidebar(
     onRename?: (target: string) => void;
     /** 見出しのメニューの「外す」 */
     onRemove?: (target: string) => void;
+    /** 帯のメニューの「名前を変える」 */
+    onRenameWorkspace?: (target: string, id: WorkspaceId) => void;
   },
 ): JSX.Element {
+  // 帯の右クリックのメニュー。閉じ方は見出しのメニューと同じ
+  const [bandMenu, setBandMenu] = createSignal<{
+    target: string;
+    id: WorkspaceId;
+    x: number;
+    y: number;
+  } | null>(null);
+  const openBandMenu = props.onRenameWorkspace
+    ? (target: string, id: WorkspaceId, x: number, y: number) =>
+        setBandMenu({ target, id, x, y })
+    : undefined;
   // ツリーの行の右クリックのメニュー。閉じ方は見出しのメニューと同じ
   const [treeMenu, setTreeMenu] = createSignal<{
     target: string;
@@ -217,7 +233,7 @@ export function Sidebar(
             <Machine
               group={g}
               onMenu={openMenu}
-              {...handlers(props, openTreeMenu)}
+              {...handlers(props, openTreeMenu, openBandMenu)}
             />
           )}
         </For>
@@ -227,7 +243,7 @@ export function Sidebar(
               group={g()}
               sticky
               onMenu={openMenu}
-              {...handlers(props, openTreeMenu)}
+              {...handlers(props, openTreeMenu, openBandMenu)}
             />
           )}
         </Show>
@@ -247,7 +263,7 @@ export function Sidebar(
                       <BandItem
                         target={split().after.target}
                         band={b}
-                        {...handlers(props, openTreeMenu)}
+                        {...handlers(props, openTreeMenu, openBandMenu)}
                       />
                     )}
                   </For>
@@ -259,7 +275,7 @@ export function Sidebar(
                 <Machine
                   group={g}
                   onMenu={openMenu}
-                  {...handlers(props, openTreeMenu)}
+                  {...handlers(props, openTreeMenu, openBandMenu)}
                 />
               )}
             </For>
@@ -268,13 +284,44 @@ export function Sidebar(
       </nav>
       <Show when={menu()}>
         {(m) => (
-          <MachineMenu
+          <PopupMenu
             x={m().x}
             y={m().y}
-            fixed={m().fixed}
-            onRename={() => props.onRename?.(m().target)}
-            onRemove={() => props.onRemove?.(m().target)}
+            label="マシン"
+            items={[
+              {
+                label: "名前を変える",
+                disabled: m().fixed,
+                run: () => props.onRename?.(m().target),
+              },
+              {
+                label: "外す",
+                disabled: m().fixed,
+                run: () => props.onRemove?.(m().target),
+              },
+            ]}
+            note={
+              m().fixed
+                ? "設定ファイル（config.toml の [[gui.machines]]）で決めたマシンです。変えるには設定ファイルを直してください。"
+                : undefined
+            }
             onClose={() => setMenu(null)}
+          />
+        )}
+      </Show>
+      <Show when={bandMenu()}>
+        {(m) => (
+          <PopupMenu
+            x={m().x}
+            y={m().y}
+            label="ワークスペース"
+            items={[
+              {
+                label: "名前を変える",
+                run: () => props.onRenameWorkspace?.(m().target, m().id),
+              },
+            ]}
+            onClose={() => setBandMenu(null)}
           />
         )}
       </Show>
@@ -320,9 +367,11 @@ export function Sidebar(
 function handlers(
   props: Handlers,
   onTreeMenu: Handlers["onTreeMenu"] = props.onTreeMenu,
+  onBandMenu: Handlers["onBandMenu"] = props.onBandMenu,
 ): Handlers {
   return {
     onTreeMenu,
+    onBandMenu,
     get picked() {
       return props.picked;
     },
@@ -510,6 +559,11 @@ function BandItem(
           class="band"
           aria-current={b().focused ? "true" : undefined}
           title={b().root || undefined}
+          onContextMenu={(e) => {
+            if (!props.onBandMenu) return;
+            e.preventDefault();
+            props.onBandMenu(props.target, b().id, e.clientX, e.clientY);
+          }}
         >
           <button
             type="button"
@@ -592,16 +646,17 @@ function BandItem(
 }
 
 /**
- * 見出しの右クリックのメニュー。開いたら最初の項目にキーを向ける。
+ * 右クリックのメニュー（マシンの見出し・ワークスペースの帯）。開いたら最初の項目にキーを向ける。
  * 項目を選ぶ・メニューの外を押す・Esc・スクロール・窓が見えなくなる、のどれかで閉じる。
+ * note があれば、項目の下に理由などを出す。
  */
-function MachineMenu(props: {
+function PopupMenu(props: {
   x: number;
   y: number;
-  /** 設定ファイルで決めたマシン（項目は押せず、理由を出す） */
-  fixed: boolean;
-  onRename: () => void;
-  onRemove: () => void;
+  /** メニューの名前（読み上げ用） */
+  label: string;
+  items: { label: string; run: () => void; disabled?: boolean }[];
+  note?: string;
   onClose: () => void;
 }): JSX.Element {
   let el!: HTMLDivElement;
@@ -652,33 +707,25 @@ function MachineMenu(props: {
     <div
       class="machine-menu"
       role="menu"
-      aria-label="マシン"
+      aria-label={props.label}
       ref={el}
       style={{ left: `${props.x}px`, top: `${props.y}px` }}
     >
-      <button
-        type="button"
-        role="menuitem"
-        class="machine-menu-item"
-        disabled={props.fixed}
-        onClick={choose(props.onRename)}
-      >
-        名前を変える
-      </button>
-      <button
-        type="button"
-        role="menuitem"
-        class="machine-menu-item"
-        disabled={props.fixed}
-        onClick={choose(props.onRemove)}
-      >
-        外す
-      </button>
-      <Show when={props.fixed}>
-        <p class="machine-menu-note">
-          設定ファイル（config.toml の
-          [[gui.machines]]）で決めたマシンです。変えるには設定ファイルを直してください。
-        </p>
+      <For each={props.items}>
+        {(it) => (
+          <button
+            type="button"
+            role="menuitem"
+            class="machine-menu-item"
+            disabled={it.disabled}
+            onClick={choose(it.run)}
+          >
+            {it.label}
+          </button>
+        )}
+      </For>
+      <Show when={props.note}>
+        {(n) => <p class="machine-menu-note">{n()}</p>}
       </Show>
     </div>
   );
