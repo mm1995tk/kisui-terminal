@@ -1779,8 +1779,10 @@ function Workbench(props: {
       run: () => setDismissed((d) => new Set(d).add(st)),
     };
     const cut = { label: "切る", run: () => void disconnect(t) };
-    // ボタンと同じ動きのキー（今のワークスペースのマシンに行う）
-    const keys = `${leaderKeyName(IS_MAC)} m r でつなぎ直す、${leaderKeyName(IS_MAC)} m x で切る`;
+    // ボタンと同じ動きのキー。m r・m x は「選んでいるマシン」（currentTarget。w h・w l で止まったマシン、無ければ今のワークスペースの
+    // マシン）に行うので、このマシンを選ぶ手順（w h・w l）から書く
+    const leader = leaderKeyName(IS_MAC);
+    const keys = `${leader} w h / w l でこのマシンを選び、${leader} m r でつなぎ直す、${leader} m x で切る`;
     if (st.kind === "failed") {
       return {
         title: `${label} につながりません`,
