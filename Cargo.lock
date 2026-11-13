@@ -2136,7 +2136,7 @@ dependencies = [
 
 [[package]]
 name = "kisui-terminal"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "arboard",
  "libc",
