@@ -708,14 +708,6 @@ function BandItem(
               </div>
             )}
           </Show>
-          {/* 断られた理由は、帯の高さに収まらないので、帯の下に重ねて全文を折り返して出す */}
-          <Show when={editing()?.error}>
-            {(e) => (
-              <div class="band-rename-error" role="alert">
-                {e()}
-              </div>
-            )}
-          </Show>
           <Show when={props.onRenameWorkspace && !editing()}>
             <button
               type="button"
@@ -754,6 +746,14 @@ function BandItem(
           </Show>
         </div>
       </div>
+      {/* 断られた理由は、帯の下に流れで置く（下のツリーが押し下がる）。重ねると、箱の overflow: clip（#170）で切り取られる */}
+      <Show when={editing()?.error}>
+        {(e) => (
+          <div class="band-rename-error" role="alert">
+            {e()}
+          </div>
+        )}
+      </Show>
       <Show
         when={
           b().focused && b().showTree && props.treeOf?.(props.target, b().id)
