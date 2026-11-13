@@ -32,6 +32,8 @@ import {
   type Band,
   type Health,
   type MachineGroup,
+  DIR_SEP,
+  shaText,
 } from "./model.ts";
 import "./sidebar.css";
 
@@ -583,7 +585,7 @@ function BandDetail(props: { band: Band }): JSX.Element {
           {b().dir}
         </span>
         <span class="band-sep" aria-hidden="true">
-          ·
+          {DIR_SEP}
         </span>
       </Show>
       <Show when={b().branch}>
@@ -592,7 +594,7 @@ function BandDetail(props: { band: Band }): JSX.Element {
         </span>
       </Show>
       <Show when={b().sha}>
-        <span class="band-sha">({b().sha})</span>
+        <span class="band-sha">{shaText(b().sha)}</span>
       </Show>
       <Show when={b().note}>
         <span class="band-note">{b().note}</span>

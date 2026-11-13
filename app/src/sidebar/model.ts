@@ -36,7 +36,7 @@ export interface Band {
   path: boolean;
   /** フォルダ未定か */
   unset: boolean;
-  /** 2 行目の全文（ディレクトリ名 · ブランチ (sha)、「git なし」、同じフォルダの 2 つ目からの番号をつなげたもの）。描くのは下の dir / branch / sha / note / num を分けて */
+  /** 2 行目の全文（ディレクトリ名 · ブランチ (sha)、「git なし」、同じフォルダの 2 つ目からの番号をつなげたもの）。画面は下の dir / branch / sha / note / num を別々に描くので、これはテストでの確かめ用 */
   detail: string;
   /** 2 行目の先頭に出すディレクトリ名。名前を変えた帯だけ（名前を変えていない帯は、1 行目がディレクトリ名）。無ければ "" */
   dir: string;
@@ -113,10 +113,15 @@ export function band(w: Workspace, focused: boolean, nth = 1): Band {
 /** ブランチと short sha を「main (9e11274)」の形にする。ブランチが無ければ「(9e11274)」、sha が無ければブランチだけ。 */
 export function branchText(branch: string, sha: string): string {
   if (!sha) return branch;
-  return branch ? `${branch} (${sha})` : `(${sha})`;
+  return branch ? `${branch} ${shaText(sha)}` : shaText(sha);
 }
 
 /** 2 行目の全文。ディレクトリ名は「 · 」で区切り、残りは空白でつなぐ。 */
+export const DIR_SEP = "·";
+
+/** short sha を「(9e11274)」の形にする。 */
+export const shaText = (sha: string): string => `(${sha})`;
+
 function detailText(
   dir: string,
   branch: string,
@@ -125,7 +130,7 @@ function detailText(
   num: string,
 ): string {
   const rest = [branchText(branch, sha), note, num].filter(Boolean).join(" ");
-  return dir && rest ? `${dir} · ${rest}` : dir || rest;
+  return dir && rest ? `${dir} ${DIR_SEP} ${rest}` : dir || rest;
 }
 
 function autoBand(w: Workspace, focused: boolean, nth: number): Band {
