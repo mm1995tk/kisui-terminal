@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { before, describe, it } from "node:test";
+import { afterEach, before, describe, it } from "node:test";
 
 import { init, Terminal } from "coneko-term";
 
@@ -24,6 +24,12 @@ const dec = new TextDecoder();
 const b64 = (s: string) => Buffer.from(s).toString("base64");
 const tick = () => new Promise((r) => setTimeout(r, 5));
 
+// setup で作った端末の片付け。assert が落ちたケースでも、afterEach で必ず片付ける
+const cleanups: (() => void)[] = [];
+afterEach(() => {
+  for (const c of cleanups.splice(0)) c();
+});
+
 function setup(opts: { allow?: boolean; clipboard?: string } = {}) {
   const term = new Terminal();
   const out: string[] = [];
@@ -43,11 +49,15 @@ function setup(opts: { allow?: boolean; clipboard?: string } = {}) {
     return { allowed: Promise.resolve(opts.allow ?? false), cancel: () => {} };
   };
   const dispose = connectClipboard(term, os, ask);
+  cleanups.push(() => {
+    dispose();
+    term.dispose();
+  });
   const write = async (s: string) => {
     await new Promise<void>((r) => term.write(s, r));
     await tick();
   };
-  return { term, out, writes, asked, dispose, write };
+  return { out, writes, asked, write };
 }
 
 describe("connectClipboard と OSC 52", () => {
@@ -57,8 +67,6 @@ describe("connectClipboard と OSC 52", () => {
     assert.deepEqual(s.writes, [{ kind: "text", text: "選んだ文字" }]);
     // OSC 52 には書き込みの返事が無い
     assert.deepEqual(s.out, []);
-    s.dispose();
-    s.term.dispose();
   });
 
   it("primary selection（p）への OSC 52 の書き込みは、OS に書かない", async () => {
@@ -66,8 +74,6 @@ describe("connectClipboard と OSC 52", () => {
     await s.write(`\x1b]52;p;${b64("x")}\x1b\\`);
     assert.deepEqual(s.writes, []);
     assert.deepEqual(s.out, []);
-    s.dispose();
-    s.term.dispose();
   });
 
   it("OSC 52 の読み取りは、許すかを聞き、許されたら OSC 52 の形で中身を返す", async () => {
@@ -75,8 +81,6 @@ describe("connectClipboard と OSC 52", () => {
     await s.write("\x1b]52;c;?\x07");
     assert.deepEqual(s.asked, [["text/plain"]]);
     assert.deepEqual(s.out, [`\x1b]52;c;${b64("hi")}\x07`]);
-    s.dispose();
-    s.term.dispose();
   });
 
   it("OSC 52 の読み取りを断ったら、中身の無い返事にする", async () => {
@@ -84,8 +88,6 @@ describe("connectClipboard と OSC 52", () => {
     await s.write("\x1b]52;c;?\x1b\\");
     assert.deepEqual(s.asked, [["text/plain"]]);
     assert.deepEqual(s.out, ["\x1b]52;c;\x1b\\"]);
-    s.dispose();
-    s.term.dispose();
   });
 
   it("primary selection の OSC 52 の読み取りは、聞かずに中身の無い返事にする", async () => {
@@ -93,8 +95,6 @@ describe("connectClipboard と OSC 52", () => {
     await s.write("\x1b]52;p;?\x07");
     assert.deepEqual(s.asked, []);
     assert.deepEqual(s.out, ["\x1b]52;p;\x07"]);
-    s.dispose();
-    s.term.dispose();
   });
 });
 
@@ -108,7 +108,5 @@ describe("connectClipboard と OSC 5522", () => {
     );
     assert.deepEqual(s.writes, [{ kind: "text", text: "abc" }]);
     assert.deepEqual(s.out, ["\x1b]5522;type=write:status=DONE:id=w\x1b\\"]);
-    s.dispose();
-    s.term.dispose();
   });
 });
