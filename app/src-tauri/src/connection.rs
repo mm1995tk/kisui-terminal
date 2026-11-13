@@ -73,14 +73,38 @@ pub fn ssh_command(
     id: &str,
     remote_command: &str,
 ) -> Result<Command, String> {
+    ssh_command_with(target, ask, id, &[], remote_command)
+}
+
+/// [`ssh_command`] に、ホスト名の前に置く ssh のオプション（`-o 名前=値` の並び）を足したもの。
+fn ssh_command_with(
+    target: &str,
+    ask: &AskpassServer,
+    id: &str,
+    opts: &[&str],
+    remote_command: &str,
+) -> Result<Command, String> {
     if !valid_host(target) {
         return Err(format!("invalid host name: {target:?}"));
     }
     let mut c = Command::new("ssh");
-    c.args(["-T", target, "--"]).arg(remote_command);
+    c.arg("-T")
+        .args(opts)
+        .args([target, "--"])
+        .arg(remote_command);
     with_ssh_env(&mut c, ask, id)?;
     Ok(c)
 }
+
+/// `kisui relay` の ssh に付けるオプション。手元のマシンのスリープや経路の断で、ssh が FIN を受けずに切れても、
+/// 30 秒ごとの問い合わせが 3 回続けて答えられなければ ssh が自分で終わり、relay.rs が切れたと分かる
+/// （消した `ssh -N -L` にも付けていた）。
+const RELAY_SSH_OPTS: &[&str] = &[
+    "-o",
+    "ServerAliveInterval=30",
+    "-o",
+    "ServerAliveCountMax=3",
+];
 
 /// ssh の環境変数を付ける。askpass（質問を GUI の窓に出させる）と PATH。
 /// PATH は `~/.ssh/config` の `ProxyCommand` や `Match exec` のコマンドを見つけられるよう、ログインシェルのものを足す（`locate::launch_path`）。
@@ -174,7 +198,13 @@ pub fn spawn_relay(
     ask: &Arc<AskpassServer>,
     conn: &str,
 ) -> Result<relay::Transport, String> {
-    let mut cmd = ssh_command(target, ask, conn, &remote_kisui_command("relay"))?;
+    let mut cmd = ssh_command_with(
+        target,
+        ask,
+        conn,
+        RELAY_SSH_OPTS,
+        &remote_kisui_command("relay"),
+    )?;
     let mut child = cmd
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())

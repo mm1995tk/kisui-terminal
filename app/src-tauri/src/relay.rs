@@ -105,6 +105,15 @@ pub struct Relay {
     process: Mutex<Box<dyn Process>>,
 }
 
+/// [`Relay::probe`] でつながらなかった理由。
+#[derive(Debug, PartialEq)]
+pub enum ProbeError {
+    /// `kisui relay` が CLOSE で断った（理由。`unreachable: …` など）
+    Refused(String),
+    /// `kisui relay` が答えない（時間切れ・中継が終わった）。ssh が FIN を返さずに切れたときもこれになる
+    NoAnswer,
+}
+
 /// 目印を読めなかった理由。
 enum MarkerError {
     Ended,
@@ -332,19 +341,20 @@ impl Relay {
         }
     }
 
-    /// リモートのマシンの `port` につながるかを確かめる（つないで、すぐ閉じる）。つなげなければ CLOSE の理由を返す。
+    /// リモートのマシンの `port` につながるかを確かめる（つないで、すぐ閉じる）。
     /// `ssh -L` では、つなぎ先が断っても手元のポートは受けてしまい、分からなかった。
-    pub fn probe(&self, port: u16, timeout: Duration) -> Result<(), String> {
-        let (id, _s, rx) = self.open(port).ok_or("kisui relay ended")?;
+    pub fn probe(&self, port: u16, timeout: Duration) -> Result<(), ProbeError> {
+        let (id, _s, rx) = self.open(port).ok_or(ProbeError::NoAnswer)?;
         match rx.recv_timeout(timeout) {
-            Ok(Event::Close(reason)) => Err(reason),
+            Ok(Event::Close(reason)) if self.alive() => Err(ProbeError::Refused(reason)),
+            Ok(Event::Close(_)) => Err(ProbeError::NoAnswer),
             Ok(_) => {
                 self.abort(id, "");
                 Ok(())
             }
             Err(_) => {
                 self.abort(id, "");
-                Err("timed out".into())
+                Err(ProbeError::NoAnswer)
             }
         }
     }
@@ -434,6 +444,8 @@ pub mod fake {
         out: Shared,
         /// 受けた OPEN の数
         pub opens: Arc<AtomicUsize>,
+        /// 真にすると、何を受けても答えない（ssh が FIN を返さずに切れたのと同じ）
+        pub silent: Arc<AtomicBool>,
         /// 受けた DATA のバイト数
         pub received: Arc<AtomicUsize>,
     }
@@ -470,6 +482,7 @@ pub mod fake {
             out: Arc::new(Mutex::new(Some(fake_w))),
             opens: Arc::default(),
             received: Arc::default(),
+            silent: Arc::default(),
         };
         {
             let mut g = h.out.lock().unwrap();
@@ -501,6 +514,7 @@ pub mod fake {
                 return;
             }
             match hd[0] {
+                _ if h.silent.load(Ordering::SeqCst) => {}
                 OPEN => {
                     h.opens.fetch_add(1, Ordering::SeqCst);
                     let port = u16::from_be_bytes([p[0], p[1]]);
@@ -665,10 +679,26 @@ mod tests {
     fn probe_tells_when_nothing_listens() {
         let (t, _h) = fake::start("", MARKER, true);
         let relay = Relay::start(t, T).unwrap();
-        let e = relay.probe(fake::closed_port(), T).unwrap_err();
+        let Err(ProbeError::Refused(e)) = relay.probe(fake::closed_port(), T) else {
+            panic!("must be refused");
+        };
         assert!(e.starts_with("unreachable"), "{e}");
         relay.probe(fake::echo_server(), T).unwrap();
         // 確かめた接続は閉じてある
+        assert!(relay.streams.lock().unwrap().is_empty());
+    }
+
+    /// ssh が FIN を返さずに切れた（何も答えない）relay は、時間切れで NoAnswer になり、死んだ印は付かない（張り直すかは使う側が決める）。
+    #[test]
+    fn probe_times_out_when_the_relay_does_not_answer() {
+        let (t, h) = fake::start("", MARKER, true);
+        let relay = Relay::start(t, T).unwrap();
+        h.silent.store(true, Ordering::SeqCst);
+        assert_eq!(
+            relay.probe(fake::echo_server(), Duration::from_millis(200)),
+            Err(ProbeError::NoAnswer)
+        );
+        assert!(relay.alive());
         assert!(relay.streams.lock().unwrap().is_empty());
     }
 
@@ -729,6 +759,6 @@ mod tests {
             assert!(start.elapsed() < T);
             std::thread::sleep(Duration::from_millis(10));
         }
-        assert!(relay.probe(port, T).is_err());
+        assert_eq!(relay.probe(port, T), Err(ProbeError::NoAnswer));
     }
 }

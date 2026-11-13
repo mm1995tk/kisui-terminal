@@ -19,7 +19,7 @@ use tauri::{State, Url, Webview};
 
 use crate::askpass::AskpassServer;
 use crate::connection::{spawn_relay, LOCAL};
-use crate::relay::{Relay, Transport};
+use crate::relay::{ProbeError, Relay, Transport};
 
 /// `kisui relay` が使えるようになるのを待つ上限（ssh の質問に答える時間を含む）。
 const START_TIMEOUT: Duration = Duration::from_secs(90);
@@ -117,6 +117,8 @@ pub struct Forwards {
     relays: Arc<Relays>,
     /// (マシン, リモートのポート) → 手元の待ち受け
     listeners: Mutex<HashMap<(String, u16), Listener>>,
+    /// URL を開く前の確かめを待つ上限（試験では短くする）
+    probe_timeout: Duration,
 }
 
 /// 命令を呼んだのがメイン窓の画面か（子の webview ではないか）。
@@ -161,12 +163,18 @@ pub fn rewrite(u: &Url, local: u16) -> Url {
     v
 }
 
-/// `kisui relay` の CLOSE の理由を、ユーザーに見せる文にする。
-fn explain(reason: &str, target: &str, remote: u16) -> String {
-    if reason.starts_with("unreachable") {
-        format!("nothing is listening on port {remote} of {target} ({reason})")
-    } else {
-        format!("could not open port {remote} of {target} through kisui relay: {reason}")
+/// `kisui relay` の断りを、ユーザーに見せる文にする。
+fn explain(e: ProbeError, target: &str, remote: u16) -> String {
+    match e {
+        ProbeError::Refused(r) if r.starts_with("unreachable") => {
+            format!("nothing is listening on port {remote} of {target} ({r})")
+        }
+        ProbeError::Refused(r) => {
+            format!("could not open port {remote} of {target} through kisui relay: {r}")
+        }
+        ProbeError::NoAnswer => format!(
+            "kisui relay on {target} did not answer while opening port {remote} (the ssh connection may be broken; try again)"
+        ),
     }
 }
 
@@ -188,16 +196,29 @@ impl Forwards {
                 closed: AtomicBool::new(false),
             }),
             listeners: Mutex::default(),
+            probe_timeout: PROBE_TIMEOUT,
         }
+    }
+
+    /// `target` のマシンの `remote` ポートにつながるかを確かめる。`kisui relay` が答えなければ（ssh が FIN を返さずに
+    /// 切れた など）、その relay を止めて 1 度だけ張り直す。止めた relay は、ブラウザの接続のときにも張り直される。
+    fn probe(&self, target: &str, remote: u16) -> Result<(), String> {
+        let relay = self.relays.get(target, false)?;
+        match relay.probe(remote, self.probe_timeout) {
+            Ok(()) => return Ok(()),
+            Err(ProbeError::NoAnswer) => relay.close(),
+            Err(e) => return Err(explain(e, target, remote)),
+        }
+        let relay = self.relays.get(target, false)?;
+        relay
+            .probe(remote, self.probe_timeout)
+            .map_err(|e| explain(e, target, remote))
     }
 
     /// `target` のマシンの `remote` ポートを見せる手元のポートを返す。つながらなければ（そのポートで誰も待っていない など）理由を返す。
     /// `kisui relay` も待ち受けも、あれば使い回す。
     fn ensure(&self, target: &str, remote: u16) -> Result<u16, String> {
-        let relay = self.relays.get(target, false)?;
-        relay
-            .probe(remote, PROBE_TIMEOUT)
-            .map_err(|r| explain(&r, target, remote))?;
+        self.probe(target, remote)?;
         let key = (target.to_string(), remote);
         let mut map = self.listeners.lock().unwrap();
         if let Some(l) = map.get(&key) {
@@ -445,6 +466,40 @@ mod tests {
         // URL を開き直しても、同じ待ち受け
         assert_eq!(f.ensure("dev", p).unwrap(), local);
         assert_eq!(started.lock().unwrap().len(), 2);
+        f.close_all();
+    }
+
+    /// ssh が FIN を返さずに切れて relay が答えなくなったら、URL を開くときに止めて張り直す
+    /// （ServerAliveInterval で ssh が自分で終わるより前でも、開けるように）。
+    #[test]
+    fn restarts_a_relay_that_does_not_answer() {
+        let (mut f, started) = fake_forwards();
+        f.probe_timeout = Duration::from_millis(300);
+        let p = fake::echo_server();
+        let local = f.ensure("dev", p).unwrap();
+        let (_, h) = started.lock().unwrap()[0].clone();
+        h.silent.store(true, Ordering::SeqCst);
+        assert_eq!(f.ensure("dev", p).unwrap(), local);
+        assert_eq!(started.lock().unwrap().len(), 2);
+        assert_eq!(fetch(local, b"after"), b"after");
+        f.close_all();
+    }
+
+    /// 張り直しても答えなければ、「誰も待っていない」とは分けた理由を出す。
+    #[test]
+    fn says_when_the_relay_does_not_answer() {
+        let calls = Arc::new(AtomicU64::new(0));
+        let c = Arc::clone(&calls);
+        let mut f = Forwards::with_spawn(Box::new(move |_| {
+            c.fetch_add(1, Ordering::SeqCst);
+            let (t, h) = fake::start("", "@@kisui-relay 1@@\n", true);
+            h.silent.store(true, Ordering::SeqCst);
+            Ok(t)
+        }));
+        f.probe_timeout = Duration::from_millis(200);
+        let e = f.ensure("dev", fake::echo_server()).unwrap_err();
+        assert!(e.contains("did not answer"), "{e}");
+        assert_eq!(calls.load(Ordering::SeqCst), 2);
         f.close_all();
     }
 
