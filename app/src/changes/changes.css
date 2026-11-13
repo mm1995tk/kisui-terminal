@@ -16,9 +16,10 @@
   background: var(--sidebar-bg, var(--gh-bg-side));
 }
 
-/* 6 行半。これより多いときは中でスクロールする（ツリーの場所を食いつぶさない） */
+/* 6 行半（--changes-h の元の値）。これより多いときは中でスクロールする（ツリーの場所を食いつぶさない）。
+   高さはツリーとの境目のドラッグ・リサイズモードで変えられる（#152。App.tsx が --changes-h に入れる）。窓の高さの半分までにする */
 .changes-list {
-  max-height: 143px;
+  max-height: min(var(--changes-h, 143px), 50vh);
   overflow-y: auto;
 }
 .changes-list::-webkit-scrollbar {
@@ -148,4 +149,19 @@
 .changes-base[data-base="pr"] {
   color: var(--sidebar-muted, var(--gh-text-muted));
   font-weight: 600;
+}
+
+/* ファイルツリーとの境目のつまみ（#152）。見える線は引かない（.changes の上の線のまま）。当たりは上下 4px。
+   ドラッグ中とリサイズモードで選んでいる間は、マシンの色で光らせる（app.css の .resizer と同じ） */
+.changes-resizer {
+  position: absolute;
+  top: -2px;
+  left: 0;
+  right: 0;
+  height: 4px;
+  cursor: row-resize;
+  touch-action: none;
+}
+.app[data-lit-changes] .changes-resizer {
+  background: var(--machine-color, var(--gh-accent-text));
 }

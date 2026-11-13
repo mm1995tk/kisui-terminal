@@ -2,6 +2,7 @@
 // DOM には触らない（テストできるように）。キーは TUI の ui/tui/resize.go と同じ。
 //
 // - sidebar：サイドバーとその右の境界（サイドバーの幅 px）。値は覚えておき、GUI を起動し直しても残す。
+// - changes：サイドバーの中の、ファイルツリーと CHANGES の境目（#152）。決めるのは CHANGES の一覧の高さ（px）で、上へ動かすと高くなる。値は覚えておく。
 // - 右の欄の中の、欄どうしの境界（#18）：割合は kisui serve が分割の木に持つ（terminal/grid.ts）。ここは動かすキーだけを決める。
 // キー：Tab / Shift+Tab で動かす境界を替え、←→（h l）か↑↓（k j）で動かす。縦の境界は左右、横の境界は上下だけ効く。
 
@@ -9,8 +10,8 @@ import type { KeyValueStore } from "./ssh/machines.ts";
 import { shortcutCommand } from "./commands.ts";
 import type { KeyLike } from "./guiKeys.ts";
 
-/** 動かせる境界。サイドバーの右。 */
-export type Border = "sidebar";
+/** 動かせる境界。サイドバーの右（sidebar）と、サイドバーの中のファイルツリーと CHANGES の境目（changes）。 */
+export type Border = "sidebar" | "changes";
 
 /** 境界の、決めた値。無いものは元の大きさ。 */
 export type PaneSizes = Partial<Record<Border, number>>;
@@ -18,16 +19,19 @@ export type PaneSizes = Partial<Record<Border, number>>;
 /** 元の大きさ。 */
 export const DEFAULT_SIZES: Readonly<Record<Border, number>> = {
   sidebar: 300,
+  changes: 143, // 6 行半（changes.css の元の上限）
 };
 
 /** 境界ごとの下限と上限。 */
 export const LIMITS: Readonly<Record<Border, readonly [number, number]>> = {
   sidebar: [200, 640],
+  changes: [44, 640], // 下限は 2 行
 };
 
 /** キーを 1 回押したときに境界が動く量（px）。 */
 export const KEY_STEP: Readonly<Record<Border, number>> = {
   sidebar: 20,
+  changes: 22, // 1 行（行の高さ）
 };
 
 const STORAGE_KEY = "shijimi.paneSizes";
@@ -171,6 +175,9 @@ export function applyMove(
   if (max !== undefined) cur = Math.min(cur, max);
   return withSize(sizes, border, cur + step, max);
 }
+
+/** リサイズモードで、ファイルツリーと CHANGES の境目の名前（動かす境界を替える Tab の順に入る。ペインどうしの境界のキーとは別の名前）。 */
+export const CHANGES_BORDER = "@changes";
 
 /** リサイズモードで、欄どうしの境界を 1 回のキーで動かす割合（動かす節の幅か高さに対する割合）。 */
 export const SPLIT_KEY_STEP = 0.02;
