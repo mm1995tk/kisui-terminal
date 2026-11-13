@@ -221,8 +221,9 @@ fn remote_script(version: &str, tool: &str, expected: &str) -> String {
             "set -eu; ",
             "d=\"$HOME/{dir}\"; ",
             "mkdir -p \"$d\"; ",
-            // umask 002 のホストでもグループとほかの人が書けないようにする（kisui serve の版によらないフォルダ `current` の確かめ。server/current.go）
-            "chmod go-w \"$d\" \"${{d%/*}}\"; ",
+            // umask 002 のホストでもグループとほかの人が書けないようにする（kisui serve の版によらないフォルダ `current` の確かめ。server/current.go）。
+            // 直せなくても入れる処理は続ける（そのときは serve が版によらないフォルダを使わず、版ごとのフォルダを渡す）
+            "chmod go-w \"$d\" \"${{d%/*}}\" 2>/dev/null || true; ",
             "t=\"$d/.{tool}.$$\"; ",
             "cat > \"$t\" || {{ rm -f \"$t\"; exit 1; }}; ",
             "h=$( (sha256sum \"$t\" 2>/dev/null || shasum -a 256 \"$t\") | cut -d \" \" -f1 ); ",
