@@ -702,13 +702,14 @@ function BandItem(
                     })
                   }
                 />
-                <Show when={r().error}>
-                  {(e) => (
-                    <span class="band-rename-error" role="alert">
-                      {e()}
-                    </span>
-                  )}
-                </Show>
+              </div>
+            )}
+          </Show>
+          {/* 断られた理由は、帯の高さに収まらないので、帯の下に重ねて全文を折り返して出す */}
+          <Show when={editing()?.error}>
+            {(e) => (
+              <div class="band-rename-error" role="alert">
+                {e()}
               </div>
             )}
           </Show>
