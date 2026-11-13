@@ -12,4 +12,4 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 # GUI（npm の coneko-term）と同じ版にして、画面がずれないようにする。
 # 上げるときは package.json の coneko-term も同じ版にそろえる
-coneko-term = "=0.1.12"
+coneko-term = "=0.1.13"
