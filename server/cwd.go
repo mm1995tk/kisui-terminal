@@ -11,7 +11,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 )
 
 // findRoot は cwd から親へたどってワークスペースのルートを決める。
@@ -136,16 +135,19 @@ func readRef(gitDir, ref string) string {
 	return ""
 }
 
-// packedRefsCache は packed-refs を読んだ結果（ref -> コミット）を、ファイルの mtime と大きさが変わるまで取っておく。
+// packedRefsCache は packed-refs を読んだ結果（ref -> コミット）を、ファイルの mtime・大きさ・ファイル（inode）が変わるまで取っておく。git は packed-refs を lock ファイルからの rename で書き換えるので、inode も見れば、mtime が粗いファイルシステムで同じ時刻に 2 回書き換えられても読み直せる。
+// 閉じたワークスペースの分が溜まり続けないよう、packedRefsMax 件を超えたら捨てて読み直す。
 // buildWorkspaces は 1 秒ごとに呼ばれ、packed-refs は大きいことがあるため。
+// packedRefsMax は packedRefsCache に取っておくファイルの数の上限。
+const packedRefsMax = 64
+
 var packedRefsCache struct {
 	sync.Mutex
 	by map[string]packedRefs
 }
 
 type packedRefs struct {
-	mod  time.Time
-	size int64
+	info os.FileInfo
 	refs map[string]string
 }
 
@@ -157,7 +159,7 @@ func packedRef(file, ref string) string {
 	}
 	packedRefsCache.Lock()
 	defer packedRefsCache.Unlock()
-	if c, ok := packedRefsCache.by[file]; ok && c.mod.Equal(fi.ModTime()) && c.size == fi.Size() {
+	if c, ok := packedRefsCache.by[file]; ok && os.SameFile(c.info, fi) && c.info.ModTime().Equal(fi.ModTime()) && c.info.Size() == fi.Size() {
 		return c.refs[ref]
 	}
 	b, err := os.ReadFile(file)
@@ -171,10 +173,10 @@ func packedRef(file, ref string) string {
 			refs[name] = sha
 		}
 	}
-	if packedRefsCache.by == nil {
+	if packedRefsCache.by == nil || len(packedRefsCache.by) >= packedRefsMax {
 		packedRefsCache.by = map[string]packedRefs{}
 	}
-	packedRefsCache.by[file] = packedRefs{fi.ModTime(), fi.Size(), refs}
+	packedRefsCache.by[file] = packedRefs{fi, refs}
 	return refs[ref]
 }
 
