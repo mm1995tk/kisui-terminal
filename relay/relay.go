@@ -226,7 +226,7 @@ func (r *relay) open(id uint32, payload []byte) error {
 	}
 	if len(r.streams) >= MaxStreams {
 		r.mu.Unlock()
-		r.send(FrameClose, id, []byte(fmt.Sprintf("%s: %d connections are open", ReasonLimit, MaxStreams)))
+		r.send(FrameClose, id, fmt.Appendf(nil, "%s: %d connections are open", ReasonLimit, MaxStreams))
 		return nil
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), r.opts.DialTimeout)
@@ -235,11 +235,9 @@ func (r *relay) open(id uint32, payload []byte) error {
 	r.streams[id] = s
 	r.mu.Unlock()
 
-	r.wg.Add(1)
-	go func() {
-		defer r.wg.Done()
+	r.wg.Go(func() {
 		s.run(ctx, addrs, port)
-	}()
+	})
 	return nil
 }
 
@@ -311,11 +309,9 @@ func (s *stream) run(ctx context.Context, addrs []string, port uint16) {
 	s.conn = conn
 	s.mu.Unlock()
 	s.r.send(FrameOpened, s.id, nil)
-	s.r.wg.Add(1)
-	go func() {
-		defer s.r.wg.Done()
+	s.r.wg.Go(func() {
 		s.readTCP(conn)
-	}()
+	})
 	s.writeTCP(conn)
 }
 
