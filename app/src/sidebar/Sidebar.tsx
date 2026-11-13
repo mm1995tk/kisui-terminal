@@ -693,7 +693,10 @@ function BandItem(
                       props.onRenameSubmit?.(e.currentTarget.value);
                     else props.onRenameCancel?.(true);
                   }}
-                  onBlur={() => props.onRenameCancel?.()}
+                  onBlur={() => {
+                    // ほかのアプリに切り替えただけ（窓が外れた）では、打ちかけの名前を消さない
+                    if (document.hasFocus()) props.onRenameCancel?.();
+                  }}
                   ref={(el) =>
                     // リーダーの後でターミナルにフォーカスが戻るのと競らないよう、1 拍置いて取る
                     setTimeout(() => {
