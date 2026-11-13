@@ -444,6 +444,10 @@ function Workbench(props: {
     }
     changeSidebarOpen(true);
     // display: none の間にスクロールの位置は 0 に戻るので、今のワークスペースで覚えている位置に戻す
+    restoreTreeScroll();
+  }
+  /** 今のワークスペースのツリーで覚えている位置に、サイドバーのスクロールを戻す（描き直しのあと）。 */
+  function restoreTreeScroll() {
     const f = untrack(focus);
     const top = f ? trees.get(f.target)?.get(f.id)?.scrollTop : undefined;
     if (top !== undefined)
@@ -510,12 +514,7 @@ function Workbench(props: {
   createEffect(
     on(walking, (w, prev) => {
       if (w || !prev) return;
-      const f = untrack(focus);
-      const top = f ? trees.get(f.target)?.get(f.id)?.scrollTop : undefined;
-      if (top !== undefined)
-        requestAnimationFrame(() => {
-          if (nav) nav.scrollTop = top;
-        });
+      restoreTreeScroll();
     }),
   );
   // リーダー（Cmd+K / Ctrl+Shift+K）の状態。入っている間は、次に押せるキーの一覧を出す（LeaderMenu）
