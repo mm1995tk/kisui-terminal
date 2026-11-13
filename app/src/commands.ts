@@ -14,6 +14,7 @@ export type CommandId =
   | "pane.focus"
   | "pane.last"
   | "pane.split"
+  | "pane.swap"
   | "pane.close"
   | "pane.zoom"
   | "pane.resize"
@@ -231,6 +232,23 @@ export const LEADER: Node[] = [
             { shortcut: { mac: "Cmd+D", other: "Ctrl+Shift+D" } },
           ),
         ],
+      ),
+      group(
+        "m",
+        "今のペインを隣のペインと入れ替える（向きを選ぶ。フォーカスは今のペインについていく）",
+        (
+          [
+            ["h", "左", "left"],
+            ["j", "下", "down"],
+            ["k", "上", "up"],
+            ["l", "右", "right"],
+          ] as const
+        ).map(([k, name, dir]) =>
+          leaf(k, `${name}のペインと入れ替える`, {
+            id: "pane.swap",
+            arg: dir,
+          }),
+        ),
       ),
       leaf(
         "x",

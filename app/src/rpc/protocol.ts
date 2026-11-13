@@ -209,6 +209,11 @@ export interface Requests {
     params: { workspaceId: WorkspaceId; pane: string; ratio: number };
     result: { ratio: number };
   };
+  /** 2 つの欄の場所を入れ替える（pane と other は Workspace.layout の葉）。役目（プライマリなど）は欄についたまま。どちらかが無ければ not_found、同じ欄なら invalid_params */
+  "layout.swap": {
+    params: { workspaceId: WorkspaceId; pane: string; other: string };
+    result: Record<string, never>;
+  };
 
   "term.create": {
     params: {

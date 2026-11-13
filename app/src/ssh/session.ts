@@ -111,7 +111,8 @@ export type TermMethod =
   | "term.input"
   | "term.cd"
   | "extra.close"
-  | "layout.resize";
+  | "layout.resize"
+  | "layout.swap";
 /** Session.request で送れる要求（動画の欄の中身。#555）。 */
 export type BlobMethod = "media.read";
 /** Session.request で送れる要求（プライマリの shj にファイルを開かせる）。 */

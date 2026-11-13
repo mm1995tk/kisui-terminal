@@ -315,18 +315,45 @@ export class TermGroup {
     return true;
   }
 
+  /** active の欄と、dir の向きの隣の欄（移る・入れ替えるときの「隣」の決め方はここだけ）。隣が無ければ undefined。 */
+  private neighborOf(dir: Direction): { from: string; to: string } | undefined {
+    const from = this.activeId;
+    if (!from) return undefined;
+    const to = neighbor(layoutRects(this.layout), from, dir);
+    return to ? { from, to } : undefined;
+  }
+
   /** active を dir の向きの隣へ移す（リーダーの h j k l）。動いたら true。 */
   move(dir: Direction): boolean {
-    const from = this.activeId;
-    if (!from) return false;
-    const to = neighbor(layoutRects(this.layout), from, dir);
-    if (!to) return false;
+    const n = this.neighborOf(dir);
+    if (!n) return false;
+    const to = n.to;
     const l = this.links.find((x) => x.id === to);
     if (l) {
       this.current = l;
       this.extraCurrent = undefined;
     } else this.extraCurrent = to;
     this.changed();
+    return true;
+  }
+
+  /**
+   * active の欄と、dir の向きの隣の欄の場所を入れ替える（リーダーの p m のあとの h j k l）。入れ替えるのは場所だけで、
+   * フォーカスは今の欄についていく（キーを向けている欄の id は変わらない）。隣が無ければ何もせず false。
+   * 隣は move と同じ規則で決め、serve に layout.swap を送る。木は serve が持つので、画面は workspace.changed で入れ替わる。
+   */
+  swap(dir: Direction): boolean {
+    const n = this.neighborOf(dir);
+    if (!n) return false;
+    this.port
+      .request("layout.swap", {
+        workspaceId: this.wsId,
+        pane: n.from,
+        other: n.to,
+      })
+      .catch((e) =>
+        this.onError(`layout.swap: ${e instanceof Error ? e.message : e}`),
+      );
     return true;
   }
 

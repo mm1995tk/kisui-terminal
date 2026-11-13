@@ -1438,6 +1438,10 @@ function Workbench(props: {
       case "pane.last":
         if (!zoomed() && termGroup()?.focusPrevious()) focusTerminal();
         break;
+      case "pane.swap":
+        // 隠している間は、隣の欄が見えないので入れ替えない。フォーカスは今の欄についていく
+        if (!zoomed()) termGroup()?.swap(c.arg as Direction);
+        break;
       case "pane.split":
         newTerminal(c.arg as SplitDir);
         break;

@@ -152,6 +152,11 @@ describe("コマンドの表", () => {
       "p s j",
       "p s k",
       "p s l",
+      "p m",
+      "p m h",
+      "p m j",
+      "p m k",
+      "p m l",
       "p x",
       "p z",
       "p r",
@@ -198,6 +203,24 @@ describe("リーダー", () => {
       assert.deepEqual(r.runs, [{ id: "pane.split", arg: "right" }]);
       assert.equal(r.state.leader, null);
       assert.deepEqual(r.passed, []);
+    });
+
+    it(`${os}：p m のあとに h j k l で、ペインを隣と入れ替える`, () => {
+      for (const [k, dir] of [
+        ["h", "left"],
+        ["j", "down"],
+        ["k", "up"],
+        ["l", "right"],
+      ] as const) {
+        const r = press(mac, [L, key("p"), key("m"), key(k)]);
+        assert.deepEqual(r.runs, [{ id: "pane.swap", arg: dir }]);
+        assert.equal(r.state.leader, null);
+        assert.deepEqual(r.passed, []);
+      }
+      assert.deepEqual(press(mac, [L, key("p"), key("m")]).state.leader, [
+        "p",
+        "m",
+      ]);
     });
 
     it(`${os}：グループに入ると、案内の位置が一段下がる`, () => {

@@ -309,6 +309,41 @@ describe("TermGroup", () => {
     assert.equal(g.active?.id, "t1");
   });
 
+  it("隣と場所を入れ替える：隣の id を決めて layout.swap を送る。フォーカスは今の欄のまま。隣が無ければ何も送らない", () => {
+    const f = fakePort();
+    const g = new TermGroup(f.port, layout(["t2"]), () => {});
+    assert.equal(g.swap("right"), true);
+    assert.deepEqual(f.calls.at(-1), {
+      method: "layout.swap",
+      params: { workspaceId: "w1", pane: "t1", other: "t2" },
+    });
+    assert.equal(g.active?.id, "t1");
+    // 端、または向きに欄が無いときは送らない
+    const n = f.calls.length;
+    assert.equal(g.swap("left"), false);
+    assert.equal(g.swap("up"), false);
+    assert.equal(f.calls.length, n);
+    // serve の木が替わっても、プライマリは先頭のまま、フォーカスも今の欄のまま
+    g.update({
+      ...layout(["t2"]),
+      layout: {
+        dir: "right",
+        ratio: 0.5,
+        a: { pane: "t2" },
+        b: { pane: "t1" },
+      },
+    });
+    assert.deepEqual(ids(g), ["t1", "t2"]);
+    assert.equal(g.list[0]!.primary, true);
+    assert.equal(g.active?.id, "t1");
+    assert.equal(g.swap("left"), true);
+    assert.deepEqual(f.calls.at(-1)!.params, {
+      workspaceId: "w1",
+      pane: "t1",
+      other: "t2",
+    });
+  });
+
   it("分割したターミナルのシェルが終わったら欄を閉じて並び直し、term.close を送る。shj の一覧から消えるまで戻さない", async () => {
     const f = fakePort();
     const g = new TermGroup(f.port, layout(["t2", "t3"]), () => {});

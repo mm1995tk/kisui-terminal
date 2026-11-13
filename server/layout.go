@@ -30,6 +30,7 @@ var (
 	errNoWorkspace = errors.New("no such workspace")
 	errNoPane      = errors.New("no such pane")
 	errBadDir      = errors.New("invalid split direction")
+	errBadSwap     = errors.New("cannot swap a pane with itself")
 )
 
 const (
@@ -141,6 +142,34 @@ func layoutReplace(n *layoutNode, old, id string) *layoutNode {
 		return n
 	}
 	return &layoutNode{Dir: n.Dir, Ratio: n.Ratio, A: layoutReplace(n.A, old, id), B: layoutReplace(n.B, old, id)}
+}
+
+// layoutSwap は葉 x と葉 y の場所を入れ替えた木。節の向きと割合はその場所のまま変えない（割合は「場所」の
+// 大きさなので、入れ替えたあとも同じ位置が同じ大きさで残る）。どちらかが木に無ければ errNoPane、
+// x と y が同じ欄なら errBadSwap（このとき木は変えない）。確かめる場所はここだけ。
+func layoutSwap(n *layoutNode, x, y string) (*layoutNode, error) {
+	if x == y {
+		return n, fmt.Errorf("%w: %s", errBadSwap, x)
+	}
+	for _, id := range []string{x, y} {
+		if !layoutHas(n, id) {
+			return n, fmt.Errorf("%w: %s", errNoPane, id)
+		}
+	}
+	var rec func(n *layoutNode) *layoutNode
+	rec = func(n *layoutNode) *layoutNode {
+		if n.isLeaf() {
+			switch n.Pane {
+			case x:
+				return leaf(y)
+			case y:
+				return leaf(x)
+			}
+			return n
+		}
+		return &layoutNode{Dir: n.Dir, Ratio: n.Ratio, A: rec(n.A), B: rec(n.B)}
+	}
+	return rec(n), nil
 }
 
 // layoutPrune は live に無い葉と重なった葉を外す。節の片方が無くなれば、もう片方がその場所を埋める。全部無くなれば nil。
@@ -449,4 +478,26 @@ func (w *wsManager) resizeBorder(wsID, key string, ratio float64) (float64, erro
 	w.mu.Unlock()
 	w.recomputeLocked()
 	return ratio, nil
+}
+
+// swapPanes は layout.swap：wsID のワークスペースで、欄 pane と欄 other の場所を入れ替える。入れ替えるのは
+// 木の中の場所だけで、欄の役目（プライマリなど）は変わらない。どちらかが木に無ければ errNoPane。
+func (w *wsManager) swapPanes(wsID, pane, other string) error {
+	w.recomputeMu.Lock()
+	defer w.recomputeMu.Unlock()
+	w.mu.Lock()
+	st := w.reg[wsID]
+	if st == nil {
+		w.mu.Unlock()
+		return fmt.Errorf("%w: %s", errNoWorkspace, wsID)
+	}
+	next, err := layoutSwap(st.layout, pane, other)
+	if err != nil {
+		w.mu.Unlock()
+		return err
+	}
+	st.layout = next
+	w.mu.Unlock()
+	w.recomputeLocked()
+	return nil
 }
