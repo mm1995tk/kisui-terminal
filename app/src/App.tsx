@@ -496,7 +496,7 @@ function Workbench(props: {
   // 名前を変える窓を出しているマシン、変えられなかった理由
   const [renaming, setRenaming] = createSignal<string | null>(null);
   const [renameError, setRenameError] = createSignal<string | undefined>();
-  // ワークスペースの名前を変える窓を出しているワークスペース（current はつけている名前、auto は空にしたときの名前）、変えられなかった理由
+  // 名前をその場で変えている帯のワークスペース（current はつけている名前、auto は空にしたときの名前）、変えられなかった理由
   const [renamingWs, setRenamingWs] = createSignal<{
     target: string;
     id: WorkspaceId;
@@ -1684,7 +1684,7 @@ function Workbench(props: {
     setRenaming(null);
   }
 
-  /** ワークスペースの名前を変える窓を開く（帯のメニューと、リーダーの w r）。 */
+  /** 帯の名前をその場で変える入力欄を開く（帯の鉛筆・メニュー、リーダーの w r）。 */
   function openWorkspaceRename(target: string, id: WorkspaceId) {
     const b = groups()
       .find((g) => g.target === target)
@@ -1694,7 +1694,7 @@ function Workbench(props: {
     setRenamingWs({ target, id, current: b.label, auto: b.autoTitle });
   }
 
-  /** 名前を変える窓の「変える」。空なら、つけた名前を外す。断られたら窓に理由を出す。 */
+  /** 入力欄の Enter。空なら、つけた名前を外す。断られたら入力欄の下に理由を出し、入力欄は開けておく。 */
   async function submitWorkspaceRename(name: string) {
     const r = renamingWs();
     if (!r) return;
@@ -1707,6 +1707,14 @@ function Workbench(props: {
       return;
     }
     setRenamingWs(null);
+    focusTerminal();
+  }
+
+  /** 入力欄の Esc（byKey）・フォーカスが外れたとき。Esc のときだけ、キーをターミナルに戻す。 */
+  function cancelWorkspaceRename(byKey?: boolean) {
+    if (!renamingWs()) return;
+    setRenamingWs(null);
+    if (byKey) focusTerminal();
   }
 
   /** 見出しのメニューの「外す」。記録から外し、GUI の接続を切る（そのマシンの kisui serve は止めない）。 */
@@ -1862,6 +1870,11 @@ function Workbench(props: {
         }}
         onRemove={removeFromSidebar}
         onRenameWorkspace={openWorkspaceRename}
+        renaming={
+          renamingWs() ? { ...renamingWs()!, error: wsRenameError() } : null
+        }
+        onRenameSubmit={(name) => void submitWorkspaceRename(name)}
+        onRenameCancel={cancelWorkspaceRename}
         onOpen={openFile}
         changesOf={changesOf}
         onChange={openChange}
@@ -1956,17 +1969,6 @@ function Workbench(props: {
             error={renameError()}
             onSubmit={(name) => submitRename(t(), name)}
             onCancel={() => setRenaming(null)}
-          />
-        )}
-      </Show>
-      <Show when={renamingWs()}>
-        {(r) => (
-          <RenameDialog
-            current={r().current}
-            fallback={r().auto}
-            error={wsRenameError()}
-            onSubmit={(name) => void submitWorkspaceRename(name)}
-            onCancel={() => setRenamingWs(null)}
           />
         )}
       </Show>

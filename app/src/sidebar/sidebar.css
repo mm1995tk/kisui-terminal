@@ -295,6 +295,37 @@
   background: var(--band-hover);
   color: var(--sidebar-text);
 }
+/* 鉛筆（名前を変える）。[×] と同じ大きさ・線の太さ・出す条件（.band-close を共有）。絵だけ閉じる印より細い線で描く */
+.band-edit svg {
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* 名前をその場で変えている間の入力欄。1 行目の名前と同じ文字で、2 行目の詳しい表示は隠す。断られた理由はその下に小さく出す */
+.band-rename {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: 22px;
+  padding: 0 4px;
+  border: 1px solid var(--machine-color);
+  border-radius: 4px;
+  background: var(--sidebar-bg, var(--gh-bg-side));
+  color: var(--sidebar-text);
+  font: inherit;
+}
+.band-rename:focus {
+  outline: none;
+}
+.band-rename[aria-invalid="true"] {
+  border-color: var(--gh-red);
+}
+.band-rename-error {
+  overflow: hidden;
+  color: var(--gh-red);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 /* フォーカスしているワークスペース（#170）は、カードとそのツリー・CHANGES を 1 つの箱（.band-item[data-focused]）で囲んで示す。
    箱は他のカードより少し明るい灰色の背景と灰色の枠（色は --gh-*）で、黄色などの色は使わない。名前は太字にする。
    箱の中ではカードの背景を外し、箱の見出しに見せる。

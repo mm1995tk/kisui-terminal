@@ -7,7 +7,8 @@
 // 帯の右の [×] は、押すと onClose を呼ぶ（ワークスペースを閉じる。確認は App が窓で出す）。
 // 一覧の一番下には「+ リモートを足す」を置き、押すと onAddMachine を呼ぶ（窓は connect/AddMachine.tsx）。
 // 足したマシンの見出しを右クリックすると「名前を変える」「外す」のメニューを出す（onRename・onRemove）。
-// ワークスペースの帯を右クリックすると「名前を変える」のメニューを出す（onRenameWorkspace。窓は App が出す）。
+// ワークスペースの帯の右クリックのメニューの「名前を変える」と、帯の鉛筆のボタンは、onRenameWorkspace を呼ぶ。
+// App が renaming を渡すと、その帯の 1 行目の名前がその場で入力欄になる（Enter で onRenameSubmit、Esc・フォーカスが外れたら onRenameCancel）。
 // 組み立ては model.ts、色の決め方は colors.ts、見た目は sidebar.css。
 import {
   createMemo,
@@ -26,6 +27,7 @@ import { menuItems, type TreeMenuAction } from "../tree/menu.ts";
 import { TreeMenu } from "../tree/TreeMenu.tsx";
 import { ChangesView } from "../changes/ChangesView.tsx";
 import type { ChangeRow, ChangesBase } from "../changes/model.ts";
+import { renameKeyAction } from "./renameInput.ts";
 import { TreeView } from "../tree/TreeView.tsx";
 import {
   splitAtFocus,
@@ -60,6 +62,20 @@ interface Handlers {
   onCreate?: (target: string) => void;
   /** 帯の [×]（ワークスペースを閉じる）。省くと出さない */
   onClose?: (target: string, id: WorkspaceId) => void;
+  /** 帯のメニューの「名前を変える」・帯の鉛筆のボタン（App が renaming を渡す） */
+  onRenameWorkspace?: (target: string, id: WorkspaceId) => void;
+  /** 名前をその場で変えている帯（current は入力欄の初めの値、auto は空にしたときの名前、error は断られた理由）。無ければ undefined */
+  renaming?: {
+    target: string;
+    id: WorkspaceId;
+    current: string;
+    auto: string;
+    error?: string;
+  } | null;
+  /** その場の入力欄で Enter を押した（空なら、つけた名前を外す） */
+  onRenameSubmit?: (name: string) => void;
+  /** その場の入力欄で Esc を押した（byKey が true）・フォーカスが外れた */
+  onRenameCancel?: (byKey?: boolean) => void;
   /** 帯を右クリックした（Sidebar が内側に渡す。App は onRenameWorkspace を使う） */
   onBandMenu?: (target: string, id: WorkspaceId, x: number, y: number) => void;
   /** ツリーのファイルの行を押した */
@@ -120,8 +136,6 @@ export function Sidebar(
     onRename?: (target: string) => void;
     /** 見出しのメニューの「外す」 */
     onRemove?: (target: string) => void;
-    /** 帯のメニューの「名前を変える」 */
-    onRenameWorkspace?: (target: string, id: WorkspaceId) => void;
   },
 ): JSX.Element {
   // 帯の右クリックのメニュー。閉じ方は見出しのメニューと同じ
@@ -435,6 +449,18 @@ function handlers(
     get onTreeAction() {
       return props.onTreeAction;
     },
+    get renaming() {
+      return props.renaming;
+    },
+    get onRenameSubmit() {
+      return props.onRenameSubmit;
+    },
+    get onRenameCancel() {
+      return props.onRenameCancel;
+    },
+    get onRenameWorkspace() {
+      return props.onRenameWorkspace;
+    },
   };
 }
 
@@ -611,6 +637,11 @@ function BandItem(
   props: Handlers & { target: string; band: Band },
 ): JSX.Element {
   const b = () => props.band;
+  // この帯の名前をその場で変えているときだけ、その内容
+  const editing = () => {
+    const r = props.renaming;
+    return r && r.target === props.target && r.id === b().id ? r : undefined;
+  };
   return (
     <li class="band-item" data-focused={b().focused ? "" : undefined}>
       {/* カードの中は行にして、2 つのボタン（フォーカスを移す・閉じる）を並べる（ボタンの中にボタンは置けない） */}
@@ -625,19 +656,80 @@ function BandItem(
             props.onBandMenu(props.target, b().id, e.clientX, e.clientY);
           }}
         >
-          <button
-            type="button"
-            class="band-main"
-            onClick={() => props.onFocus(props.target, b().id)}
+          <Show
+            when={editing()}
+            fallback={
+              <button
+                type="button"
+                class="band-main"
+                onClick={() => props.onFocus(props.target, b().id)}
+              >
+                <span
+                  class="band-title"
+                  classList={{ path: b().path, unset: b().unset }}
+                >
+                  {b().title}
+                </span>
+                <BandDetail band={b()} />
+              </button>
+            }
           >
-            <span
-              class="band-title"
-              classList={{ path: b().path, unset: b().unset }}
+            {(r) => (
+              // 入力欄はボタンの中に置けないので、名前を変えている間は div にする
+              <div class="band-main">
+                <input
+                  class="band-rename"
+                  type="text"
+                  aria-label="ワークスペースの名前"
+                  aria-invalid={r().error ? "true" : undefined}
+                  placeholder={`空なら ${r().auto}`}
+                  value={r().current}
+                  onKeyDown={(e) => {
+                    const a = renameKeyAction(e);
+                    if (!a) return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (a === "submit")
+                      props.onRenameSubmit?.(e.currentTarget.value);
+                    else props.onRenameCancel?.(true);
+                  }}
+                  onBlur={() => props.onRenameCancel?.()}
+                  ref={(el) =>
+                    // リーダーの後でターミナルにフォーカスが戻るのと競らないよう、1 拍置いて取る
+                    setTimeout(() => {
+                      el.focus();
+                      el.select();
+                    })
+                  }
+                />
+                <Show when={r().error}>
+                  {(e) => (
+                    <span class="band-rename-error" role="alert">
+                      {e()}
+                    </span>
+                  )}
+                </Show>
+              </div>
+            )}
+          </Show>
+          <Show when={props.onRenameWorkspace && !editing()}>
+            <button
+              type="button"
+              class="band-close band-edit"
+              aria-label={`${b().title} の名前を変える`}
+              title="名前を変える"
+              onClick={() => props.onRenameWorkspace?.(props.target, b().id)}
             >
-              {b().title}
-            </span>
-            <BandDetail band={b()} />
-          </button>
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path d="M4 20l1-4L16.5 4.5a2 2 0 0 1 3 0a2 2 0 0 1 0 3L8 19l-4 1zM14 7l3 3" />
+              </svg>
+            </button>
+          </Show>
           <Show when={props.onClose}>
             <button
               type="button"
