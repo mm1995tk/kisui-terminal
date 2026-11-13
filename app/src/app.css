@@ -8,6 +8,14 @@ body,
   margin: 0;
 }
 
+/* ページ全体はスクロールさせない。スクロールはターミナル・ファイルツリー・CHANGES・窓など、中の要素だけで起こす。
+   overscroll-behavior は macOS の WebView の弾むスクロール（ラバーバンド）でページ全体が動くのも止める */
+html,
+body {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
 /* ページ全体の土台。字と色はモックに合わせる（字は fonts.ts で同梱したもの） */
 :root {
   color-scheme: dark;
