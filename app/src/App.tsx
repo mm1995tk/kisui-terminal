@@ -1281,10 +1281,10 @@ function Workbench(props: {
       : undefined;
   }
 
-  /** サイドバーに CHANGES が出ているか（ファイルツリーとの境目を動かせるか）。 */
+  /** サイドバーに CHANGES が出ているか（ファイルツリーとの境目を動かせるか）。サイドバーを閉じている間は出ていない。 */
   function changesShown(): boolean {
     const f = focus();
-    return f !== null && changesOf(f.target, f.id) !== undefined;
+    return sidebarOpen() && f !== null && changesOf(f.target, f.id) !== undefined;
   }
 
   /** プライマリの shj が出しているファイル（ツリーで強調する行）。 */
