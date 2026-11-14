@@ -31,6 +31,7 @@ export function reducedMotion(): boolean {
   );
 }
 
+/** `mascot_images` の画像を、全部デコードし終えたもの。`aspect` は `walk-1.png` の幅 / 高さで、表示の幅（`MASCOT_HEIGHT` × `aspect`）を決めるのに使う */
 export type LoadedMascot = Mascot & { aspect: number };
 
 /** 画像 1 枚を読み込んでデコードまで済ませる（運ぶ途中のコマの切り替えで、一瞬消えないように）。縦横比（幅 / 高さ）を返す */
