@@ -1,8 +1,8 @@
 // 左の一覧（D1）に出すものを、接続の状態とワークスペースの一覧から組み立てる。
 // 画面の仕組み（Solid）には依存しない。描くのは Sidebar.tsx。
 //
-// 見た目は親 #271 のモック（「案：フラットな一覧」）に従う：マシンは見出し、ワークスペースは帯で、
-// どちらも同じ左端にそろえる。ツリー（D2）は tree/、上下の固定（D3）は splitAtFocus と Sidebar.tsx、
+// 見た目は親 #271 のモックを元に、マシンの見出しをやめてワークスペースの帯だけを 1 列に並べる（#201）。
+// 各帯の隅にマシンの名前と状態を出す。ツリー（D2）は tree/、上下の固定（D3）は splitAtFocus と Sidebar.tsx、
 // マシンごとの色（D4）の決め方と保存は colors.ts。
 
 import type { Workspace, WorkspaceId } from "../rpc/protocol.ts";
@@ -10,6 +10,7 @@ import { LOCAL } from "../ssh/api.ts";
 import { LOCAL_LABEL } from "../ssh/machines.ts";
 import type { SessionState } from "../ssh/session.ts";
 import { MACHINE_COLORS } from "./colors.ts";
+import { sortByOrder, type WsRef } from "./order.ts";
 
 /** GUI がフォーカスしているワークスペース（どのマシンの、どれか）。 */
 export interface WorkspaceFocus {
@@ -279,59 +280,65 @@ export function shouldSendMoveTo(
   );
 }
 
-/**
- * 上下の固定（D3）のために、一覧をフォーカスしている帯の前後で分けたもの。
- * フォーカスしている帯までは上から順に流し（そのマシンの見出しと帯は上に固定する）、
- * それより後ろの帯とマシンは、まとめて下に固定する。
- */
-export interface SplitSidebar {
-  /** フォーカスしている帯のマシンより前のマシン */
-  before: MachineGroup[];
-  /** フォーカスしている帯のマシン。帯はフォーカスしている帯まで。フォーカスが無ければ null */
-  focused: MachineGroup | null;
-  /** 下に固定するもの。rest はフォーカスしているマシンの残りの帯、groups はそれより後ろのマシン */
-  after: {
-    target: string;
-    label: string;
-    color: string;
-    rest: Band[];
-    groups: MachineGroup[];
-  };
+/** サイドバーの 1 行（ワークスペース 1 つ）。帯に、そのワークスペースのマシンの名前・色・つながりの状態を添える。 */
+export interface Row {
+  target: string;
+  /** マシンの名前（行の隅に小さく出す） */
+  machine: string;
+  /** マシンの色（D4）。行の左端の線などに使う */
+  color: string;
+  health: Health;
+  band: Band;
 }
 
-/** 一覧をフォーカスしている帯の前後で分ける。フォーカスが無ければ全部 before。 */
-export function splitAtFocus(groups: MachineGroup[]): SplitSidebar {
-  const gi = groups.findIndex((g) => g.bands.some((b) => b.focused));
-  if (gi < 0) {
-    return {
-      before: groups,
-      focused: null,
-      after: { target: "", label: "", color: "", rest: [], groups: [] },
-    };
-  }
-  const g = groups[gi];
-  const bi = g.bands.findIndex((b) => b.focused);
-  return {
-    before: groups.slice(0, gi),
-    focused: { ...g, bands: g.bands.slice(0, bi + 1) },
-    after: {
+/**
+ * マシンごとの組（groups）を、サイドバーの 1 列にする。
+ * order（ユーザーが並べた順。order.ts）にあるものはその順に、無いもの（新しいワークスペース）は
+ * 元の順（マシンの順、その中では作った順）のまま、order にあるものの後ろに付ける。
+ */
+export function flatRows(
+  groups: readonly MachineGroup[],
+  order: readonly WsRef[] = [],
+): Row[] {
+  const rows = groups.flatMap((g) =>
+    g.bands.map((band): Row => ({
       target: g.target,
-      label: g.label,
+      machine: g.label,
       color: g.color,
-      rest: g.bands.slice(bi + 1),
-      groups: groups.slice(gi + 1),
-    },
+      health: g.health,
+      band,
+    })),
+  );
+  return sortByOrder(rows, (r) => ({ target: r.target, id: r.band.id }), order);
+}
+
+/**
+ * 上下の固定（D3）のために、一覧をフォーカスしている行の前後で分けたもの。
+ * フォーカスしている行までは上から順に流し（フォーカスしている行は上に固定する）、
+ * それより後ろの行は、まとめて下に固定する。
+ */
+export interface SplitSidebar {
+  /** フォーカスしている行より前の行 */
+  before: Row[];
+  /** フォーカスしている行。無ければ null */
+  focused: Row | null;
+  /** フォーカスしている行より後ろの行（下に固定する） */
+  after: Row[];
+}
+
+/** 一覧をフォーカスしている行の前後で分ける。フォーカスが無ければ全部 before。 */
+export function splitAtFocus(rows: Row[]): SplitSidebar {
+  const i = rows.findIndex((r) => r.band.focused);
+  if (i < 0) return { before: rows, focused: null, after: [] };
+  return {
+    before: rows.slice(0, i),
+    focused: rows[i],
+    after: rows.slice(i + 1),
   };
 }
 
 /** キーで移る向き。サイドバーで下・次は "next"、上・前は "prev"。 */
 export type Step = "next" | "prev";
-
-/** 移り先。ws が null のマシンは、ワークスペースが 1 つも無い（マシンだけを選ぶ）。 */
-export interface StepTarget {
-  target: string;
-  ws: WorkspaceId | null;
-}
 
 /**
  * キーで続けて移るときの起点。移っている途中（返事を待っている）なら向かっている先、そうでなければ今のフォーカス。
@@ -345,71 +352,19 @@ export function stepFrom(
 }
 
 /**
- * サイドバーの次・前のワークスペース（マシンをまたいで、上から下へ並べた並びで）。端では反対の端へ回る。
+ * サイドバーの次・前のワークスペース（1 列の並びで）。端では反対の端へ回る。
  * 今のフォーカスが無い（または並びに無い）ときは、次なら先頭、前なら末尾。ワークスペースが 1 つも無ければ null。
- * picked は、w h / w l で止まった（選んでいる）マシン。有れば、フォーカスではなくそのマシンの位置を起点にする
- * （次ならそのマシンより下の最初の、前なら上の最後のワークスペース。無ければ反対の端へ回る）。
  */
 export function stepWorkspace(
-  groups: readonly StepGroup[],
+  rows: readonly { target: string; band: { id: WorkspaceId } }[],
   current: WorkspaceFocus | null,
   step: Step,
-  picked: string | null = null,
 ): WorkspaceFocus | null {
-  const at =
-    picked === null ? -1 : groups.findIndex((g) => g.target === picked);
-  if (at >= 0) {
-    const side = step === "next" ? groups.slice(at) : groups.slice(0, at + 1);
-    const ws = side.flatMap((g) =>
-      g.bands.map((b) => ({ target: g.target, id: b.id })),
-    );
-    const hit = step === "next" ? ws[0] : ws[ws.length - 1];
-    if (hit) return hit;
-  }
-  const all = groups.flatMap((g) =>
-    g.bands.map((b) => ({ target: g.target, id: b.id })),
-  );
+  const all = rows.map((r) => ({ target: r.target, id: r.band.id }));
   if (all.length === 0) return null;
   const i = current
     ? all.findIndex((w) => w.target === current.target && w.id === current.id)
     : -1;
-  if (i < 0 || at >= 0) return step === "next" ? all[0] : all[all.length - 1];
+  if (i < 0) return step === "next" ? all[0] : all[all.length - 1];
   return all[(i + (step === "next" ? 1 : all.length - 1)) % all.length];
-}
-
-/**
- * 前・次のマシン。端では反対の端へ回る。ワークスペースが 1 つも無いマシンにも止まる（ws は null）。
- * 移り先のワークスペースは、そのマシンで最後に選んでいたもの（lastOf。今も有るもの）、無ければ先頭。
- * 今のマシンが分からない（無い）ときは、次なら先頭のマシン、前なら末尾のマシン。
- * つながっていないマシン（isConnected が false）は、ワークスペースの一覧が残っていても、ワークスペースへは移れないので、
- * ワークスペースの無いマシンと同じに ws を null にして止まる（お知らせのカードのマシンを、w h / w l で選べるように）。
- */
-export function stepMachine(
-  groups: readonly StepGroup[],
-  current: string | undefined,
-  step: Step,
-  lastOf: (target: string) => WorkspaceId | undefined = () => undefined,
-  isConnected: (target: string) => boolean = () => true,
-): StepTarget | null {
-  if (groups.length === 0) return null;
-  const i = groups.findIndex((g) => g.target === current);
-  const n = groups.length;
-  const j =
-    i < 0
-      ? step === "next"
-        ? 0
-        : n - 1
-      : (i + (step === "next" ? 1 : n - 1)) % n;
-  const g = groups[j];
-  const last = lastOf(g.target);
-  const ws = isConnected(g.target)
-    ? (g.bands.find((b) => b.id === last)?.id ?? g.bands[0]?.id ?? null)
-    : null;
-  return { target: g.target, ws };
-}
-
-/** stepWorkspace・stepMachine が使う、マシン 1 台分の項目（MachineGroup の一部）。 */
-export interface StepGroup {
-  target: string;
-  bands: readonly { id: WorkspaceId }[];
 }

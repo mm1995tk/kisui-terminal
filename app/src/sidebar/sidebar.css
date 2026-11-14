@@ -1,8 +1,8 @@
 /* 左の一覧（D1）。親 #271 のモック「案：フラットな一覧」の寸法に合わせる（色は theme.css の GitHub Dark）。
-   マシンごとの色（D4）は --machine-color。Sidebar.tsx が .machine の style に入れる（決め方は colors.ts）。
+   マシンごとの色（D4）は --machine-color。Sidebar.tsx が帯（.band-item）の style に入れる（決め方は colors.ts）。
    上下の固定（D3）は Sidebar.tsx の説明のとおり、sticky と要素の組み方で決める。
-   一覧（.sidebar）はスクロールし、その下に「+ リモートを足す」（.sidebar-foot）を固定する。
-   接続の状態の丸と 1 行は親 #271 のモック Main.dc.html に合わせる
+   一覧（.sidebar）はスクロールし、その下に「+ ワークスペースを作る」（.sidebar-foot）を固定する。
+   接続の状態の丸は親 #271 のモック Main.dc.html に合わせる
    （接続中・再接続中は塗り、未接続は枠だけ。色は theme.css）。 */
 
 .sidebar-column {
@@ -15,10 +15,8 @@
   --health-up: var(--gh-green);
   --health-pending: var(--gh-yellow);
   --health-down: var(--gh-text-dim);
-  --status-text: var(--gh-yellow);
-  --add-machine-border: var(--gh-border-strong);
-  /* 上に固定するものの高さ（D3）。ツリーのフォルダの行は、見出しと帯の下から積む */
-  --heading-height: 32px;
+  --new-workspace-border: var(--gh-border-strong);
+  /* 上に固定するものの高さ（D3）。ツリーのフォルダの行は、帯の下から積む */
   --band-height: 52px;
   --sticky-shadow: rgba(0, 0, 0, 0.6);
 
@@ -35,7 +33,7 @@
   font-size: 13px;
 }
 
-/* 一覧と「+ リモートを足す」の中身を 84% で描く（幅は .sidebar-column のまま）。
+/* 一覧と「+ ワークスペースを作る」の中身を 84% で描く（幅は .sidebar-column のまま）。
    メニュー（.machine-menu）は .sidebar の外にあるので、クリックした位置に出る */
 .sidebar,
 .sidebar-foot {
@@ -62,19 +60,19 @@
   background: transparent;
 }
 
-/* 一覧の一番下の「+ リモートを足す」（モック Main.dc.html の点線の枠） */
+/* 一覧の一番下の「+ ワークスペースを作る」（モック Main.dc.html の点線の枠） */
 .sidebar-foot {
   flex: none;
   padding: 8px;
 }
-.add-machine {
+.new-workspace {
   box-sizing: border-box;
   display: flex;
   align-items: center;
   gap: 8px;
   width: 100%;
   padding: 10px 8px;
-  border: 1px dashed var(--add-machine-border);
+  border: 1px dashed var(--new-workspace-border);
   border-radius: 6px;
   background: transparent;
   color: var(--sidebar-text);
@@ -82,73 +80,62 @@
   text-align: left;
   cursor: pointer;
 }
-.add-machine:hover {
+.new-workspace:hover {
   background: var(--band-hover);
 }
-.add-machine:focus-visible {
+.new-workspace:focus-visible {
   outline: 1px solid var(--health-up);
   outline-offset: -1px;
 }
 
-/* マシンの範囲（見出しから、最後のワークスペースと、開いているワークスペースのツリー・CHANGES まで）。
-   マシンの色を 8% だけ混ぜた背景を敷き、左にマシンの色の 2px の縦線を引き、右の角を丸める（#137）。
-   範囲と範囲の間は 10px 空ける。下に固定する要素（.sidebar-after）の中の最初のマシンも、上のものと空ける。
-   ただし、フォーカスしているマシンの残りのカード（.machine-rest）は同じマシンの続きなので、空けずにつなげる。
-   --region-bg は不透明な色にする（上下に固定した見出し・カード・フォルダの行の後ろが透けないように） */
-.machine {
-  --region-bg: color-mix(in srgb, var(--machine-color) 8%, var(--sidebar-bg));
-  margin-right: 6px;
-  padding-bottom: 6px;
+/* ワークスペースの帯（li.band-item）。マシンの色（--machine-color。Sidebar.tsx が style に入れる）を 8% だけ混ぜた背景を敷き、
+   左にマシンの色の 2px の縦線を引き、右の角を丸める（#137）。帯どうしは 4px 空ける。
+   --region-bg は不透明な色にする（上下に固定した帯・フォルダの行の後ろが透けないように） */
+.band-item {
+  --region-bg: color-mix(in srgb, var(--machine-color) 8%, var(--gh-bg-side));
+  --sidebar-bg: var(--region-bg);
+  margin: 0 6px 4px 0;
   border-left: 2px solid var(--machine-color);
   border-radius: 0 8px 8px 0;
   background: var(--region-bg);
 }
-.machine + .machine,
-.machine + .sidebar-after > .machine:first-child:not(.machine-rest) {
-  margin-top: 10px;
+.sidebar > .bands {
+  padding-top: 4px;
 }
-.machine:has(+ .sidebar-after > .machine-rest) {
-  padding-bottom: 0;
-  border-bottom-right-radius: 0;
-}
-.machine-rest {
-  border-top-right-radius: 0;
-}
-/* ツリーと CHANGES の固定の背景は、範囲の背景に合わせる */
-.machine .bands {
-  --sidebar-bg: var(--region-bg);
+/* つながっていないマシンのワークスペース（最後に知っていた一覧）は薄く出す */
+.band-item[data-health="down"] .band-head,
+.band-item[data-health="down"] .band-detail {
+  opacity: 0.55;
 }
 
-/* 見出し・（D2 の）ルート直下の行は同じ左端にそろえる（左の線は .machine が引く） */
-.machine-heading,
-.no-workspace {
-  box-sizing: border-box;
+/* ワークスペースの 1 行目：名前と、そのマシンの名前・接続の状態（小さく） */
+.band-head {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 8px;
-  padding: 0 12px;
+  min-width: 0;
 }
-
-.machine-heading {
-  height: var(--heading-height);
-  margin: 0;
-  background: var(--region-bg);
+.band-machine {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 45%;
   color: var(--machine-color);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.02em;
 }
-
-.machine-name {
-  margin: 0;
-  font-size: inherit;
-  font-weight: inherit;
-  flex: 1;
+.band-machine-name {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.band-machine .health {
+  width: 6px;
+  height: 6px;
+  border-radius: 3px;
 }
 
 .health {
@@ -166,50 +153,6 @@
 .health[data-health="pending"] {
   border: 0;
   background: var(--health-pending);
-}
-
-/* 見出しのそばのボタン（今すぐつなぐ・つなぎ直す・切る）。字の邪魔をしないよう小さく、薄く出す */
-.machine-action {
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--sidebar-muted);
-  cursor: pointer;
-}
-.machine-action svg {
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2;
-}
-.machine-action:hover {
-  background: var(--band-hover);
-  color: var(--sidebar-text);
-}
-.machine-action:focus-visible {
-  outline: 1px solid var(--machine-color);
-}
-
-/* 見出しの下の接続の状態（「再接続中（2 回目）」）。左端は見出しと同じ machine の色の線 */
-.machine-status {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0 12px 6px;
-  color: var(--status-text);
-  font-size: 11px;
-  line-height: 1.4;
-}
-
-.no-workspace {
-  height: 30px;
-  margin: 0;
-  color: var(--sidebar-muted);
-  font-size: 12px;
 }
 
 .bands {
@@ -363,33 +306,23 @@
   font-weight: 700;
 }
 
-/* キーで止まった、ワークスペースが無いマシン（リーダーの w h / w l） */
-.machine-heading[data-picked] {
-  box-shadow: inset 0 -2px 0 var(--machine-color);
-}
-
-/* 上下の固定（D3）。見出し → 帯 → ツリーのフォルダの行（tree.css）の順に積み、下の要素はその上に重ねる。
+/* 上下の固定（D3）。帯 → ツリーのフォルダの行（tree.css）の順に積み、下の要素はその上に重ねる。
    z-index はフォルダの行（100 - 深さ）より上にする。
    CHANGES（changes.css）は下に固定し、z-index 102 でフォルダの行より上、.sidebar-after（103）より下 */
-.machine-heading[data-sticky] {
-  position: sticky;
-  top: 0;
-  z-index: 102;
-}
 .band-slot[data-sticky] {
   position: sticky;
-  top: var(--heading-height);
+  top: 0;
   z-index: 101;
 }
 .sidebar .tree {
-  --tree-sticky-top: calc(var(--heading-height) + var(--band-height));
+  --tree-sticky-top: var(--band-height);
 }
 .sidebar-after {
   position: sticky;
   bottom: 0;
   z-index: 103;
-  /* 中の最初のマシンの上の余白（10px）をこの要素の内側に入れる（外に出ると後ろの行が透ける） */
   display: flow-root;
+  padding-top: 4px;
   background: var(--sidebar-bg);
 }
 /* 固定されたものの境目に影を落とす（モックと同じ）。上は一番下に固定されたものの下、下は要素の上 */
@@ -455,7 +388,7 @@
   z-index: 200;
   min-width: 140px;
   padding: 4px;
-  border: 1px solid var(--add-machine-border);
+  border: 1px solid var(--new-workspace-border);
   border-radius: 6px;
   background: var(--gh-bg-raised);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);

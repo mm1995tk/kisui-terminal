@@ -160,3 +160,24 @@ export function canDo(
       return null;
   }
 }
+
+/** ワークスペースを作るマシンを選ぶ窓（リーダーの `w n`。MachinePicker.tsx）の、行の中のキーが表す動き。 */
+export type PickerKey =
+  { kind: "move"; to: "next" | "prev" | "first" | "last" } | { kind: "choose" };
+
+/**
+ * 選ぶ窓の中のキー（入力欄が無いので、字をそのまま使える。Esc は ModalCard が取り消しに使う）。
+ * マシンのダイアログの動かし方（j k g G・矢印・Ctrl+J / Ctrl+K）に、決める Enter を足したもの。
+ */
+export function pickerKey(e: KeyLike): PickerKey | null {
+  if (e.isComposing) return null;
+  if (e.key === "Enter" && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey)
+    return { kind: "choose" };
+  const k = machineKey(e);
+  return k?.kind === "move" ? k : null;
+}
+
+/** ワークスペースを作れるマシン（つながっているもの）。 */
+export function creatableRows(rows: readonly MachineRow[]): MachineRow[] {
+  return rows.filter((r) => r.health === "up");
+}

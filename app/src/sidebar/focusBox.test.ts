@@ -14,7 +14,7 @@ function rule(selector: string): string {
 }
 
 test("フォーカスしている帯・ツリー・CHANGES は 1 つの箱（li）に入る", () => {
-  assert.match(tsx, /<li class="band-item" data-focused=/);
+  assert.match(tsx, /<li\s+class="band-item"[^>]*data-focused=/);
   assert.match(
     rule(".band-item[data-focused]"),
     /border: 1px solid var\(--gh-/,
