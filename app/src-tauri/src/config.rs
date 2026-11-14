@@ -6,6 +6,8 @@
 //! 無ければ `config.toml` の一覧を使う。どちらのファイルも無くてよい。
 //! `[gui.browser] enabled`（内蔵ブラウザのタブを使うか。#202）は、書いてあるファイルのものを使い、両方にあれば `config.local.toml` が勝つ。
 //! どちらにも無ければ使わない。
+//! `[gui.shortcuts]`（近道。`"Ctrl+Shift+N" = "workspace.new"` のように、キー = コマンドの名前）は、キーごとに重ね、同じキーは `config.local.toml` が勝つ。
+//! キーの書き方とコマンドの名前が使えるかは、画面側が確かめる（間違いはお知らせに出し、起動は止めない）。
 //! 窓が設定を書くときは `config.local.toml` に書く（`config.toml` は home-manager が読み取り専用で置くことがある）。
 //! GUI が読むのはこの節と `[gui] mascot`（リーダーの案内を運ぶキャラクターの名前。mascot.rs）だけ。ほかの節（`kisui serve` の `[server]` など）は kisui が読む。
 //! 知らない項目は間違いにしない（新しい版用に書いた項目があっても起動する）。読み飛ばす。
@@ -15,7 +17,7 @@
 //! （nightly の GUI は `kisui-terminal-nightly/`、そのフォルダが無ければ `kisui-terminal/`）。
 //! shijimi-editor の設定のフォルダ（`shijimi-editor/`）は読まない。
 
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 use std::fs;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
@@ -46,6 +48,8 @@ struct Gui {
     machines: Option<Vec<Entry>>,
     /// 内蔵ブラウザ（#202）
     browser: Option<Browser>,
+    /// 近道（キー = コマンドの名前）
+    shortcuts: Option<BTreeMap<String, String>>,
 }
 
 /// `[gui.browser]`。
@@ -61,6 +65,19 @@ pub struct GuiConfig {
     pub machines: Vec<ConfigMachine>,
     /// 内蔵ブラウザのタブを使うか（`[gui.browser] enabled`。初めは使わない）
     pub browser: bool,
+    /// 設定で足した近道（`[gui.shortcuts]`。キーの順）
+    pub shortcuts: Vec<ConfigShortcut>,
+}
+
+/// 設定ファイルに書いた近道 1 つ。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ConfigShortcut {
+    /// キー（`Ctrl+Shift+N` など。書き方は画面側が読む）
+    pub key: String,
+    /// コマンドの名前（`workspace.new`、引数があれば `pane.focus:right`、既定の近道を消すなら `none`）
+    pub command: String,
+    /// どのファイルに書いたか（0 が `config.toml`、1 が `config.local.toml`）。同じキーを別の書き方（大文字小文字など）で両方に書いたとき、画面が後のものを勝たせる
+    pub source: u8,
 }
 
 /// 1 つのファイルから読んだもの（書いていない項目は None）。
@@ -68,6 +85,7 @@ pub struct GuiConfig {
 struct Parsed {
     machines: Option<Vec<ConfigMachine>>,
     browser: Option<bool>,
+    shortcuts: Option<BTreeMap<String, String>>,
 }
 
 #[derive(Deserialize)]
@@ -135,7 +153,8 @@ pub fn load_default() -> Result<GuiConfig, String> {
 pub fn load_gui(dir: &Path) -> Result<GuiConfig, String> {
     let mut out = GuiConfig::default();
     let mut errs = Vec::new();
-    for name in FILES {
+    let mut shortcuts: BTreeMap<String, (String, u8)> = BTreeMap::new();
+    for (source, name) in FILES.into_iter().enumerate() {
         match load(&dir.join(name)) {
             Ok(p) => {
                 // 一覧があるファイルが、前のファイルの一覧を丸ごと置き換える
@@ -146,10 +165,22 @@ pub fn load_gui(dir: &Path) -> Result<GuiConfig, String> {
                 if let Some(b) = p.browser {
                     out.browser = b;
                 }
+                // 近道はキーごとに重ねる（同じキーは後のファイルが勝つ）
+                if let Some(m) = p.shortcuts {
+                    shortcuts.extend(m.into_iter().map(|(k, c)| (k, (c, source as u8))));
+                }
             }
             Err(e) => errs.push(e),
         }
     }
+    out.shortcuts = shortcuts
+        .into_iter()
+        .map(|(key, (command, source))| ConfigShortcut {
+            key,
+            command,
+            source,
+        })
+        .collect();
     if errs.is_empty() {
         Ok(out)
     } else {
@@ -228,11 +259,16 @@ fn parse_all(text: &str) -> Result<Parsed, (Option<usize>, String)> {
         return Ok(Parsed::default());
     };
     let browser = gui.browser.and_then(|b| b.enabled);
+    let shortcuts = gui.shortcuts;
     let machines = match gui.machines {
         Some(entries) => Some(check_machines(text, entries)?),
         None => None,
     };
-    Ok(Parsed { machines, browser })
+    Ok(Parsed {
+        machines,
+        browser,
+        shortcuts,
+    })
 }
 
 /// `[[gui.machines]]` を確かめる。
@@ -526,6 +562,41 @@ mod tests {
         .unwrap();
         fs::remove_file(d.join("config.local.toml")).unwrap();
         assert_eq!(load_dir(&d).unwrap(), vec![machine("a")]);
+        let _ = fs::remove_dir_all(&d);
+    }
+
+    // [gui.shortcuts]（#199）。キーごとに重ね、同じキーは config.local.toml が勝つ。間違った型は間違いにする
+    #[test]
+    fn shortcuts_merge_by_key() {
+        let d = temp_dir("shortcuts");
+        assert!(load_gui(&d).unwrap().shortcuts.is_empty());
+        fs::write(
+            d.join("config.toml"),
+            "[gui.shortcuts]\n\"Ctrl+Shift+N\" = \"workspace.new\"\n\"Cmd+D\" = \"none\"\n",
+        )
+        .unwrap();
+        fs::write(
+            d.join("config.local.toml"),
+            "[gui.shortcuts]\n\"Ctrl+Shift+N\" = \"pane.focus:left\"\n\"Alt+J\" = \"pane.focus:down\"\n",
+        )
+        .unwrap();
+        let got: Vec<(String, String)> = load_gui(&d)
+            .unwrap()
+            .shortcuts
+            .into_iter()
+            .map(|s| (s.key, s.command))
+            .collect();
+        let pair = |k: &str, c: &str| (k.to_string(), c.to_string());
+        assert_eq!(
+            got,
+            vec![
+                pair("Alt+J", "pane.focus:down"),
+                pair("Cmd+D", "none"),
+                pair("Ctrl+Shift+N", "pane.focus:left"),
+            ]
+        );
+        fs::write(d.join("config.local.toml"), "[gui.shortcuts]\nx = 1\n").unwrap();
+        assert!(load_gui(&d).is_err());
         let _ = fs::remove_dir_all(&d);
     }
 

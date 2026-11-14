@@ -101,7 +101,7 @@ pub struct Character<P> {
     pub rest_after_ms: u64,
     /// さようならの具体（画面が 1 つをランダムに選ぶ）
     pub bye: Vec<Scene<P>>,
-    /// 押していく（形式だけ。動きは後で作る）
+    /// 押していく。リーダーを Esc で閉じたとき、案内を右へ押して画面の外まで持っていく
     pub push: Option<Scene<P>>,
 }
 

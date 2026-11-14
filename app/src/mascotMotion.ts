@@ -42,6 +42,19 @@ export function carryOffset(
   return rest === 0 ? 0 : -dx * rest;
 }
 
+/** `el` を止めた時点の、運び終えた位置からのずれ（px。0 以下）を取り出す（無ければ 0）。取り出したら忘れる */
+export function takeOffset(el: HTMLElement | undefined): number {
+  if (!el) return 0;
+  const v = leftover.get(el) ?? 0;
+  leftover.delete(el);
+  return v;
+}
+
+/** 押していくとき、案内とキャラクターを動かす距離（px）。どちらも画面の右端（`viewportWidth`）の外へ出きるまで。`left` は、2 つのうち左にあるほうの左端 */
+export function pushDistance(viewportWidth: number, left: number): number {
+  return Math.max(0, viewportWidth - left);
+}
+
 /**
  * 場面 `scene` のコマを `onFrame` に知らせ続ける（くり返さない場面は最後のコマで止まる）。
  * `onDone` を渡すと、くり返しにかかわらず 1 回再生し終えたところで呼ぶ（さようなら）。
@@ -104,8 +117,45 @@ export function startRest(
 }
 
 /**
- * 案内とキャラクターを、`dx` だけ左から今の位置まで、運ぶ場面の速さで動かす。コマを `onFrame` に知らせ、着いたら `onDone` を呼ぶ。
+ * 案内（`menu`）とキャラクターを、同じ動き（`keyframes`）で `duration` ミリ秒かけて動かす。場面 `scene` のコマを `onFrame` に知らせ、
+ * 動かし終えたら `onDone` を呼ぶ（止められたら呼ばない）。`beforeStop` は止めるとき、動きを取り消す前に呼ぶ。
  * `char` は、`onFrame` で描画が出るまで無いことがあるので、アニメーションを始めるときに取る。
+ */
+function moveTogether(
+  menu: HTMLElement,
+  char: () => HTMLElement | undefined,
+  keyframes: Keyframe[],
+  options: KeyframeAnimationOptions,
+  scene: MascotScene,
+  onFrame: (frame: string) => void,
+  onDone: () => void,
+  beforeStop?: () => void,
+): () => void {
+  const anims: Animation[] = [];
+  let live = true;
+  const stopFrames = startFrames(scene, onFrame);
+  queueMicrotask(() => {
+    if (!live) return;
+    for (const el of [menu, char()]) {
+      const a = el?.animate?.(keyframes, options);
+      if (a) anims.push(a);
+    }
+  });
+  const done = setTimeout(() => {
+    stopFrames();
+    onDone();
+  }, options.duration as number);
+  return () => {
+    live = false;
+    stopFrames();
+    clearTimeout(done);
+    beforeStop?.();
+    for (const a of anims) a.cancel();
+  };
+}
+
+/**
+ * 案内とキャラクターを、`dx` だけ左から今の位置まで、運ぶ場面の速さで動かす。コマを `onFrame` に知らせ、着いたら `onDone` を呼ぶ。
  */
 export function startCarry(
   menu: HTMLElement,
@@ -116,36 +166,21 @@ export function startCarry(
   onDone: () => void,
 ): () => void {
   const t0 = performance.now();
-  const duration = travelDuration(dx, scene.speed);
-  const anims: Animation[] = [];
-  let live = true;
-  const stopFrames = startFrames(scene, onFrame);
-  queueMicrotask(() => {
-    if (!live) return;
-    const keyframes = [
-      { transform: `translateX(${-dx}px)` },
-      { transform: "none" },
-    ];
-    const opts = { duration, easing: "linear" } as const;
-    for (const el of [menu, char()]) {
-      const a = el?.animate?.(keyframes, opts);
-      if (a) anims.push(a);
-    }
-  });
-  const done = setTimeout(() => {
-    stopFrames();
-    onDone();
-  }, duration);
-  return () => {
-    live = false;
-    stopFrames();
-    clearTimeout(done);
+  return moveTogether(
+    menu,
+    char,
+    [{ transform: `translateX(${-dx}px)` }, { transform: "none" }],
+    { duration: travelDuration(dx, scene.speed), easing: "linear" },
+    scene,
+    onFrame,
+    onDone,
     // 動きを止めると位置が元に戻るので、先に今の位置を覚える
-    const el = char();
-    if (el)
-      leftover.set(el, carryOffset(dx, performance.now() - t0, scene.speed));
-    for (const a of anims) a.cancel();
-  };
+    () => {
+      const el = char();
+      if (el)
+        leftover.set(el, carryOffset(dx, performance.now() - t0, scene.speed));
+    },
+  );
 }
 
 /**
@@ -161,10 +196,7 @@ export function startBye(
 ): () => void {
   let live = true;
   const el = char();
-  if (el) {
-    el.style.transform = `translateX(${leftover.get(el) ?? 0}px)`;
-    leftover.delete(el);
-  }
+  if (el) el.style.transform = `translateX(${takeOffset(el)}px)`;
   const finish = () => {
     if (!live) return;
     stop();
@@ -184,4 +216,36 @@ export function startBye(
     clearInterval(watch);
   };
   return stop;
+}
+
+/**
+ * 押していく: 案内（`menu`。閉じた後も残してある写し）とキャラクターを、今の位置（運ぶ途中なら `from`。0 以下）から `dist` だけ右へ、
+ * 場面 `scene` の速さで動かす。コマを `onFrame` に知らせ、動かし終えたら `onDone` を呼ぶ（止められたら呼ばない）。
+ * 動かし終えたあとの片付け（写しを消す）は呼び出し側がする。
+ */
+export function startPush(
+  menu: HTMLElement,
+  char: () => HTMLElement | undefined,
+  from: number,
+  dist: number,
+  scene: MascotScene,
+  onFrame: (frame: string) => void,
+  onDone: () => void,
+): () => void {
+  return moveTogether(
+    menu,
+    char,
+    [
+      { transform: `translateX(${from}px)` },
+      { transform: `translateX(${dist}px)` },
+    ],
+    {
+      duration: travelDuration(dist - from, scene.speed),
+      easing: "linear",
+      fill: "forwards",
+    },
+    scene,
+    onFrame,
+    onDone,
+  );
 }
