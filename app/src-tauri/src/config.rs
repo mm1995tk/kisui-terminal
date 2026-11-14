@@ -50,7 +50,7 @@ struct Entry {
 const LOCAL_LABEL: &str = "ローカル";
 
 /// 設定の置き場所の土台（`$XDG_CONFIG_HOME` が絶対パスならそれ、なければ `~/.config`）。
-fn base_dir(config_home: Option<&Path>, home: Option<&Path>) -> Option<PathBuf> {
+pub(crate) fn base_dir(config_home: Option<&Path>, home: Option<&Path>) -> Option<PathBuf> {
     Some(match config_home {
         Some(d) if d.is_absolute() => d.to_path_buf(),
         _ => home?.join(".config"),
@@ -58,7 +58,7 @@ fn base_dir(config_home: Option<&Path>, home: Option<&Path>) -> Option<PathBuf> 
 }
 
 /// `name` の設定フォルダ。nightly は `<name>-nightly`、無ければ `name`。
-fn dir_of(base: &Path, name: &str, nightly: bool) -> PathBuf {
+pub(crate) fn dir_of(base: &Path, name: &str, nightly: bool) -> PathBuf {
     if nightly {
         let n = base.join(format!("{name}-nightly"));
         if n.is_dir() {
@@ -89,7 +89,7 @@ fn shj_config_path(
 }
 
 /// 環境（`$XDG_CONFIG_HOME`・`$HOME`・nightly か）。
-fn env() -> (Option<PathBuf>, Option<PathBuf>, bool) {
+pub(crate) fn env() -> (Option<PathBuf>, Option<PathBuf>, bool) {
     let xdg = std::env::var_os("XDG_CONFIG_HOME").map(PathBuf::from);
     let home = std::env::var_os("HOME").map(PathBuf::from);
     let nightly = matches!(

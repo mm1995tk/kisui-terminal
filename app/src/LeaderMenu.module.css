@@ -59,3 +59,19 @@
   color: var(--gh-text-dim);
   font-size: 11px;
 }
+
+/* 案内を運ぶキャラクター（実験的。mascot.ts）。案内の左隣、下の端をそろえて置く。押せない。
+   案内の幅（.menu の width）と右の余白（16px）に合わせた位置 */
+.mascot {
+  position: fixed;
+  right: calc(16px + min(360px, 100vw - 32px));
+  bottom: 16px;
+  pointer-events: none;
+  z-index: 901;
+}
+.mascot img {
+  display: block;
+  height: 100%;
+  width: auto;
+  user-select: none;
+}

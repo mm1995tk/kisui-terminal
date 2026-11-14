@@ -8,6 +8,7 @@ mod config;
 mod connection;
 mod install;
 mod locate;
+mod mascot;
 mod menu;
 mod notify;
 mod open_url;
@@ -158,6 +159,7 @@ fn main() {
             list_ssh_hosts,
             config_machines,
             config_moved,
+            mascot::mascot_images,
             connect,
             send,
             disconnect,
