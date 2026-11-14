@@ -19,6 +19,7 @@
         "theme": "Dark"
       }
     ],
+    "macOSPrivateApi": true,
     "security": { "csp": null }
   },
   "bundle": {

@@ -282,9 +282,41 @@
 }
 
 /* クリップボードの履歴の窓（ClipboardHistoryDialog.tsx） */
+.history-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.history-close {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--card-muted);
+  cursor: pointer;
+}
+.history-close:hover {
+  background: var(--card-row-active);
+  color: var(--card-text);
+}
+.history-close:focus-visible {
+  outline: 2px solid var(--card-accent);
+}
 .history-hint {
+  min-height: 1.6em;
   color: var(--card-muted);
   font-size: 12px;
+}
+.history-copied {
+  color: var(--card-accent);
+  font-weight: 600;
 }
 .history-rows {
   max-height: 50vh;
@@ -301,8 +333,6 @@
 .history-popup {
   position: fixed;
   inset: 0;
-  border: none;
-  border-radius: 0;
 }
 .history-popup .history-rows {
   flex: 1;

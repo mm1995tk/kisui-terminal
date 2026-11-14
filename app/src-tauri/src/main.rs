@@ -170,7 +170,7 @@ fn main() {
             menu::window_close,
             open_url::open_url_external,
             clipboard_history::clipboard_history_list,
-            clipboard_popup::clipboard_popup_pick,
+            clipboard_popup::clipboard_popup_copy,
             clipboard_popup::clipboard_popup_dismiss,
             notify::notify_show,
             transfer::transfer_dest,

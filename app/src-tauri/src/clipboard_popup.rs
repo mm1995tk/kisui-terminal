@@ -1,7 +1,7 @@
 //! クリップボードの履歴を、kisui-terminal の外から開く小さな窓（#95）。
 //!
 //! どのアプリを使っていても、全体のキー（Mac は Option+Space、Linux は Alt+Space）でこの窓を前に出す。1 件を選ぶと
-//! その文字を OS のクリップボードに戻し、窓を隠して、前に使っていたアプリに戻る。貼るのはユーザー（Cmd+V・Ctrl+V）で、
+//! その文字を OS のクリップボードに戻し、「コピーしました」を少し見せてから窓を隠して、前に使っていたアプリに戻る。貼るのはユーザー（Cmd+V・Ctrl+V）で、
 //! ここからは貼る操作を送らない（macOS のアクセシビリティの許可を要らないようにするため）。Esc は何もせずに隠す。
 //!
 //! - 窓はメイン窓とは別の窓（ラベル `LABEL`）。中身はメイン窓と同じ画面（index.html）で、画面側は窓のラベルを見て
@@ -132,6 +132,8 @@ fn create(app: &AppHandle) -> tauri::Result<WebviewWindow> {
         .inner_size(WIDTH, HEIGHT)
         .resizable(false)
         .decorations(false)
+        // 角を丸く見せるため、窓は透明にして、画面側のカードが角を丸める（macOS は macOSPrivateApi が要る）
+        .transparent(true)
         .always_on_top(true)
         .skip_taskbar(true)
         // macOS：今いるデスクトップ（Space）に出す（メイン窓のあるデスクトップに移らない）
@@ -223,10 +225,10 @@ fn from_popup(w: &Webview) -> Result<(), String> {
     }
 }
 
-/// 選んだ文字をクリップボードに戻し、窓を隠して前のアプリに戻る。この窓の画面からだけ呼べる。
-/// 戻せるのは履歴にある文字だけ。
+/// 選んだ文字をクリップボードに戻す。窓は隠さない（画面が「コピーしました」を見せてから `clipboard_popup_dismiss` で隠す）。
+/// この窓の画面からだけ呼べる。戻せるのは履歴にある文字だけ。
 #[tauri::command]
-pub fn clipboard_popup_pick(
+pub fn clipboard_popup_copy(
     webview: Webview,
     app: AppHandle,
     history: State<ClipboardHistory>,
@@ -236,14 +238,10 @@ pub fn clipboard_popup_pick(
     if !history.contains(&text) {
         return Err("not in the clipboard history".into());
     }
-    app.clipboard()
-        .write_text(text)
-        .map_err(|e| e.to_string())?;
-    hide(&app, true);
-    Ok(())
+    app.clipboard().write_text(text).map_err(|e| e.to_string())
 }
 
-/// 何もせずに窓を隠し、前のアプリに戻る（Esc）。この窓の画面からだけ呼べる。
+/// 窓を隠し、前のアプリに戻る（Esc・✕・戻したあと）。この窓の画面からだけ呼べる。
 #[tauri::command]
 pub fn clipboard_popup_dismiss(webview: Webview, app: AppHandle) -> Result<(), String> {
     from_popup(&webview)?;
