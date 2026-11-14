@@ -31,21 +31,24 @@ export function reducedMotion(): boolean {
   );
 }
 
-/** 画像を読む。使えなければ null。画像の縦横比（幅 / 高さ）も返す */
 export type LoadedMascot = Mascot & { aspect: number };
 
-export async function loadMascot(): Promise<
-  (Mascot & { aspect: number }) | null
-> {
+/** 画像 1 枚を読み込んでデコードまで済ませる（運ぶ途中のコマの切り替えで、一瞬消えないように）。縦横比（幅 / 高さ）を返す */
+async function decode(src: string): Promise<number> {
+  const img = new Image();
+  img.src = src;
+  await img.decode();
+  return img.naturalWidth / img.naturalHeight;
+}
+
+/** 画像を読む（全部デコードしてから返す）。使えなければ null。画像の縦横比（幅 / 高さ）も返す */
+export async function loadMascot(): Promise<LoadedMascot | null> {
   try {
     const m = (await invoke("mascot_images")) as Mascot | null;
     if (!m || m.walk.length !== 4) return null;
-    const aspect = await new Promise<number>((resolve, reject) => {
-      const img = new Image();
-      img.onload = () => resolve(img.naturalWidth / img.naturalHeight);
-      img.onerror = () => reject(new Error("mascot image"));
-      img.src = m.walk[0];
-    });
+    const srcs = [...m.walk, m.stop, ...(m.leave ? [m.leave] : [])];
+    const aspects = await Promise.all(srcs.map(decode));
+    const aspect = aspects[0];
     return Number.isFinite(aspect) && aspect > 0 ? { ...m, aspect } : null;
   } catch {
     return null;
