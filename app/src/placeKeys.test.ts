@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { changesKey } from "./changes/keys.ts";
+import { machineKey } from "./connect/machineList.ts";
 import { isHelpKey, listStep, PLACE_KEYS, placeOf } from "./placeKeys.ts";
 import { imageKey } from "./terminal/imageView.ts";
 import { videoKey } from "./terminal/media.ts";
@@ -41,6 +42,12 @@ describe("場所のキーの表は、その場所の判定と合っている", (
     for (const r of PLACE_KEYS.image.rows)
       for (const p of r.probes)
         assert.notEqual(imageKey(ev(p)), null, `${r.keys}: ${p}`);
+  });
+
+  it("マシンのダイアログ：表のキーは、どれも判定が受ける", () => {
+    for (const r of PLACE_KEYS.machines.rows)
+      for (const p of r.probes)
+        assert.notEqual(machineKey(ev(p)), null, `${r.keys}: ${p}`);
   });
 
   it("`?` は、ファイルツリー・変更一覧・動画・画像のどれでも一覧を出す", () => {
@@ -145,7 +152,7 @@ describe("placeOf", () => {
   });
 
   it("フォーカスがある要素の場所を返す", () => {
-    for (const p of ["tree", "changes", "video", "image"] as const)
+    for (const p of ["tree", "changes", "video", "image", "machines"] as const)
       assert.equal(placeOf(el(p)), p);
   });
 

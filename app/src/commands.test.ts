@@ -138,11 +138,6 @@ describe("コマンドの表", () => {
       "w x",
       "w r",
       "m",
-      "m a",
-      "m n",
-      "m d",
-      "m x",
-      "m r",
       "p",
       "p h",
       "p j",
@@ -614,13 +609,13 @@ describe("keyspec", () => {
 describe("リーダーの中の字の当たり方", () => {
   const L = LEADER_KEY(LINUX);
 
-  it("打った字（key）で探す。AZERTY の q（物理キーは KeyA）は、a の葉に当たらない", () => {
-    const r = press(LINUX, [L, key("m"), key("q", "", "KeyA")]);
+  it("打った字（key）で探す。AZERTY の q（物理キーは KeyA）は、n の葉に当たらない", () => {
+    const r = press(LINUX, [L, key("w"), key("q", "", "KeyA")]);
     assert.deepEqual(r.runs, []);
     assert.equal(r.state.leader, null);
-    // 同じ配列で、字が a なら（物理キーは KeyQ）a の葉
-    assert.deepEqual(press(LINUX, [L, key("m"), key("a", "", "KeyQ")]).runs, [
-      { id: "machine.add" },
+    // 同じ配列で、字が n なら（物理キーは KeyQ）n の葉
+    assert.deepEqual(press(LINUX, [L, key("w"), key("n", "", "KeyQ")]).runs, [
+      { id: "workspace.new" },
     ]);
   });
 
@@ -629,8 +624,8 @@ describe("リーダーの中の字の当たり方", () => {
       ...key("Process", "", code),
       isComposing: true,
     });
-    assert.deepEqual(press(LINUX, [L, key("m"), ime("KeyA")]).runs, [
-      { id: "machine.add" },
+    assert.deepEqual(press(LINUX, [L, key("w"), ime("KeyN")]).runs, [
+      { id: "workspace.new" },
     ]);
     assert.deepEqual(press(LINUX, [L, ime("Digit1")]).runs, []);
     assert.deepEqual(press(LINUX, [L, key("w"), ime("Digit1")]).runs, [
@@ -722,7 +717,14 @@ describe("リーダーの案内（menuRows）", () => {
     );
   });
 
+  it("m は、グループではなくマシンのダイアログを開く葉（中の操作はダイアログのキー）", () => {
+    const r = press(LINUX, [LEADER_KEY(LINUX), key("m")]);
+    assert.deepEqual(r.runs, [{ id: "machine.dialog" }]);
+    assert.equal(r.state.leader, null);
+    assert.deepEqual(keysOf(["m"], MAC), []);
+  });
+
   it("葉と範囲の無いグループは、木のとおりに並ぶ", () => {
-    assert.deepEqual(keysOf(["m"], MAC), ["a", "n", "d", "x", "r"]);
+    assert.equal(keysOf([], MAC).includes("m"), true);
   });
 });

@@ -1,0 +1,162 @@
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+
+import {
+  canDo,
+  keepRow,
+  machineKey,
+  machineRows,
+  moveRow,
+  type MachineRow,
+} from "./machineList.ts";
+import type { MachineGroup } from "../sidebar/model.ts";
+import { statusLine } from "./status.ts";
+
+const ev = (key: string, extra: object = {}) => ({
+  key,
+  ctrlKey: false,
+  altKey: false,
+  metaKey: false,
+  shiftKey: false,
+  ...extra,
+});
+
+const group = (over: Partial<MachineGroup>): MachineGroup => ({
+  target: "dev",
+  label: "dev",
+  removable: true,
+  fixed: false,
+  color: "#fff",
+  health: "up",
+  bands: [],
+  ...over,
+});
+
+const row = (over: Partial<MachineRow> = {}): MachineRow => ({
+  target: "dev",
+  label: "dev",
+  health: "up",
+  status: "つながっています",
+  title: "",
+  workspaces: 0,
+  removable: true,
+  fixed: false,
+  hasSession: true,
+  ...over,
+});
+
+describe("machineRows", () => {
+  it("ワークスペースが無いマシンと、つながっていないマシンも、数と状態を持って並ぶ", () => {
+    const rows = machineRows(
+      [
+        group({ target: "local", label: "ローカル", removable: false }),
+        group({ target: "a", label: "a", health: "down" }),
+      ],
+      (t) =>
+        t === "a"
+          ? { text: "つながりません", title: "boom", retry: "again" }
+          : statusLine(undefined),
+      (t) => t === "local",
+    );
+    assert.equal(rows.length, 2);
+    assert.equal(rows[0].status, "つながっています");
+    assert.equal(rows[0].workspaces, 0);
+    assert.equal(rows[1].status, "つながりません");
+    assert.equal(rows[1].title, "boom");
+    assert.equal(rows[1].retry, "again");
+    assert.equal(rows[1].hasSession, false);
+  });
+
+  it("状態の文が空でつながっていなければ、「つながっていません」", () => {
+    const [r] = machineRows(
+      [group({ health: "down" })],
+      () => ({ text: "", title: "" }),
+      () => false,
+    );
+    assert.equal(r.status, "つながっていません");
+  });
+});
+
+describe("machineKey", () => {
+  it("操作のキー", () => {
+    for (const [k, action] of [
+      ["a", "add"],
+      ["n", "rename"],
+      ["d", "remove"],
+      ["x", "disconnect"],
+      ["r", "reconnect"],
+    ] as const)
+      assert.deepEqual(machineKey(ev(k)), { kind: "action", action });
+  });
+
+  it("移るキー（j k / 矢印 / Ctrl+J Ctrl+K / g G）", () => {
+    assert.deepEqual(machineKey(ev("j")), { kind: "move", to: "next" });
+    assert.deepEqual(machineKey(ev("ArrowUp")), { kind: "move", to: "prev" });
+    assert.deepEqual(machineKey(ev("j", { ctrlKey: true })), {
+      kind: "move",
+      to: "next",
+    });
+    assert.deepEqual(machineKey(ev("g")), { kind: "move", to: "first" });
+    assert.deepEqual(machineKey(ev("G", { shiftKey: true })), {
+      kind: "move",
+      to: "last",
+    });
+  });
+
+  it("? は一覧。修飾キーを重ねたもの・変換中は受けない", () => {
+    assert.deepEqual(machineKey(ev("?", { shiftKey: true })), { kind: "help" });
+    for (const extra of [
+      { ctrlKey: true },
+      { metaKey: true },
+      { altKey: true },
+      { isComposing: true },
+    ])
+      assert.equal(machineKey(ev("r", extra)), null);
+    assert.equal(machineKey(ev("z")), null);
+  });
+});
+
+describe("moveRow・keepRow", () => {
+  it("端で止まる", () => {
+    assert.equal(moveRow(0, "prev", 3), 0);
+    assert.equal(moveRow(2, "next", 3), 2);
+    assert.equal(moveRow(1, "first", 3), 0);
+    assert.equal(moveRow(1, "last", 3), 2);
+    assert.equal(moveRow(0, "next", 0), 0);
+  });
+
+  it("消えた行は、元の位置（端なら 1 つ前）に選び直す", () => {
+    const rows = [{ target: "a" }, { target: "b" }];
+    assert.equal(keepRow(rows, "b", 0), 1);
+    assert.equal(keepRow(rows, "gone", 5), 1);
+    assert.equal(keepRow([], "gone", 0), 0);
+  });
+});
+
+describe("canDo", () => {
+  it("設定ファイルで決めたマシンと「ローカル」は、名前を変えられず外せない", () => {
+    for (const a of ["rename", "remove"] as const) {
+      assert.match(canDo(row({ fixed: true }), a) ?? "", /設定ファイル/);
+      assert.match(canDo(row({ removable: false }), a) ?? "", /ローカル/);
+      assert.equal(canDo(row(), a), null);
+    }
+  });
+
+  it("設定ファイルで決めたマシンでも、切る・つなぎ直すはできる", () => {
+    assert.equal(canDo(row({ fixed: true }), "disconnect"), null);
+    assert.equal(
+      canDo(row({ fixed: true, health: "down", retry: "again" }), "reconnect"),
+      null,
+    );
+  });
+
+  it("切れるのは、足したマシンで、つないでいるものだけ", () => {
+    assert.ok(canDo(row({ removable: false }), "disconnect"));
+    assert.ok(canDo(row({ hasSession: false }), "disconnect"));
+  });
+
+  it("つなぎ直すのは、待ち時間中・失敗・引き継がれたあとだけ", () => {
+    assert.ok(canDo(row(), "reconnect"));
+    assert.equal(canDo(row({ retry: "now" }), "reconnect"), null);
+  });
+});
