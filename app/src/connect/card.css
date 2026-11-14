@@ -338,3 +338,39 @@
   flex: 1;
   max-height: none;
 }
+
+/* マシンのダイアログ（MachineDialog.tsx）。行は card-row を使い、キーはダイアログ全体で受ける */
+.machine-dialog {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.machine-dialog .card-rows:focus {
+  outline: none;
+}
+.machine-row {
+  cursor: default;
+}
+.machine-row-mark {
+  margin-left: 6px;
+  color: var(--card-muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+.machine-row-count {
+  min-width: 9em;
+  text-align: right;
+}
+.machine-keys {
+  margin: 0;
+  color: var(--card-muted);
+  font-size: 12px;
+  line-height: 1.8;
+}
+.machine-keys kbd {
+  padding: 0 5px;
+  border: 1px solid var(--card-field-border);
+  border-radius: 4px;
+  font-family: var(--gh-mono);
+  font-size: 11px;
+}

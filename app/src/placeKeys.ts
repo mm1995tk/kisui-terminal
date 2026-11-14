@@ -8,7 +8,8 @@
 import type { KeyLike } from "./guiKeys.ts";
 
 /** キーがそれぞれに決まっている場所。 */
-export type Place = "tree" | "changes" | "video" | "image" | "list";
+export type Place =
+  "tree" | "changes" | "video" | "image" | "machines" | "list";
 
 /** 表の 1 行。keys は一覧に出す書き方、probes は、判定が受けるはずのキー（KeyboardEvent.key。テストで使う）。 */
 export interface PlaceKeyRow {
@@ -105,6 +106,23 @@ export const PLACE_KEYS: Record<Place, PlaceKeys> = {
       row("?", "キーの一覧", ["?"]),
     ],
   },
+  machines: {
+    title: "マシンのダイアログ",
+    lead: "リーダーの m で開くマシンのダイアログの中だけで効くキーです。",
+    rows: [
+      row("j k / ↓ ↑", "次・前のマシンへ", ["j", "k", "ArrowDown", "ArrowUp"]),
+      row("g G / Home End", "最初・最後のマシンへ", ["g", "G", "Home", "End"]),
+      row("a", "マシンを足す", ["a"]),
+      row("n", "名前を変える（設定ファイルで決めたマシンは変えられない）", [
+        "n",
+      ]),
+      row("d", "一覧から外す（設定ファイルで決めたマシンは外せない）", ["d"]),
+      row("x", "接続を切る", ["x"]),
+      row("r", "つなぎ直す・今すぐつなぐ", ["r"]),
+      row("Esc", "閉じる", []),
+      row("?", "キーの一覧", ["?"]),
+    ],
+  },
   list: {
     title: "候補・履歴の一覧",
     lead: "候補・履歴の一覧の中だけで効くキーです。",
@@ -135,7 +153,13 @@ export function listStep(e: KeyLike): 1 | -1 | 0 {
   return 0;
 }
 
-const PLACES = new Set<string>(["tree", "changes", "video", "image"]);
+const PLACES = new Set<string>([
+  "tree",
+  "changes",
+  "video",
+  "image",
+  "machines",
+]);
 
 /**
  * 今フォーカスがある場所（要素か、その祖先に data-place を付けたもの）。一覧を出す場所のキー（`list` は出さない）。
