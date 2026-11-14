@@ -9,6 +9,8 @@
 // マシンの操作（足す・名前を変える・外す・切る・つなぎ直す）は、サイドバーではなくマシンのダイアログ（リーダーの m）にある。
 // ワークスペースの帯の右クリックのメニューの「名前を変える」と、帯の鉛筆のボタンは、onRenameWorkspace を呼ぶ。
 // App が renaming を渡すと、その帯の 1 行目の名前がその場で入力欄になる（Enter で onRenameSubmit、Esc・フォーカスが外れたら onRenameCancel）。
+// 内蔵ブラウザ（#202）を有効にしていれば、帯の下にそのワークスペースのタブを並べる（browserOf）。タブの行を押すと onTab、× で onTabClose、
+// 「タブ」の見出しで onTabsFold（並びを畳む・開く）。タブを出していれば、その行を光らせる。
 // 組み立ては model.ts、並び順は order.ts、色の決め方は colors.ts、見た目は sidebar.css。
 import {
   createMemo,
@@ -20,6 +22,7 @@ import {
   type JSX,
 } from "solid-js";
 
+import type { BrowserTab } from "../browser/tabs.ts";
 import type { ChangesShjKey, WorkspaceId } from "../rpc/protocol.ts";
 import type { TreeRow } from "../tree/model.ts";
 import { menuItems, type TreeMenuAction } from "../tree/menu.ts";
@@ -44,8 +47,27 @@ const healthLabel: Record<Health, string> = {
   down: "つながっていません",
 };
 
+/** 帯の下に並べる、内蔵ブラウザのタブ。 */
+export interface BandTabs {
+  tabs: BrowserTab[];
+  /** そのワークスペースで出しているタブ（グリッドなら undefined） */
+  shown: string | undefined;
+  /** 並びを畳んでいるか */
+  folded: boolean;
+  /** そのワークスペースにフォーカスしているか（出しているタブを強く光らせる） */
+  focused: boolean;
+}
+
 interface Handlers {
   onFocus: (target: string, id: WorkspaceId) => void;
+  /** 内蔵ブラウザのタブ（有効にしていなければ省く） */
+  browserOf?: (target: string, id: WorkspaceId) => BandTabs;
+  /** タブの行を押した */
+  onTab?: (target: string, id: WorkspaceId, tab: string) => void;
+  /** タブの行の × */
+  onTabClose?: (tab: string) => void;
+  /** 「タブ」の見出し（並びを畳む・開く） */
+  onTabsFold?: (target: string, id: WorkspaceId) => void;
   /** ツリーの行。まだ取っていなければ undefined */
   treeOf?: (target: string, id: WorkspaceId) => TreeRow[] | undefined;
   onToggle?: (target: string, id: WorkspaceId, path: string) => void;
@@ -320,6 +342,18 @@ function handlers(
     get onFocus() {
       return props.onFocus;
     },
+    get browserOf() {
+      return props.browserOf;
+    },
+    get onTab() {
+      return props.onTab;
+    },
+    get onTabClose() {
+      return props.onTabClose;
+    },
+    get onTabsFold() {
+      return props.onTabsFold;
+    },
     get treeOf() {
       return props.treeOf;
     },
@@ -565,6 +599,17 @@ function BandItem(props: Handlers & { row: Row }): JSX.Element {
           </div>
         )}
       </Show>
+      <Show when={props.browserOf?.(props.row.target, b().id)}>
+        {(br) => (
+          <BandTabRows
+            title={b().title}
+            tabs={br()}
+            onTab={(t) => props.onTab?.(props.row.target, b().id, t)}
+            onClose={(t) => props.onTabClose?.(t)}
+            onFold={() => props.onTabsFold?.(props.row.target, b().id)}
+          />
+        )}
+      </Show>
       <Show
         when={
           b().focused &&
@@ -618,6 +663,94 @@ function BandItem(props: Handlers & { row: Row }): JSX.Element {
         )}
       </Show>
     </li>
+  );
+}
+
+/** URL の host（題がまだ分からないタブの名前と、題の横に小さく出す）。読めなければ URL のまま。 */
+function hostOf(url: string): string {
+  try {
+    return new URL(url).host || url;
+  } catch {
+    return url;
+  }
+}
+
+/** 帯の下の、内蔵ブラウザのタブの並び（#202）。タブが無ければ何も出さない。 */
+function BandTabRows(props: {
+  /** ワークスペースの名前（読み上げ用） */
+  title: string;
+  tabs: BandTabs;
+  onTab: (tab: string) => void;
+  onClose: (tab: string) => void;
+  onFold: () => void;
+}): JSX.Element {
+  return (
+    <Show when={props.tabs.tabs.length > 0}>
+      <div class="band-tabs">
+        <button
+          type="button"
+          class="band-tabs-fold"
+          aria-expanded={!props.tabs.folded}
+          title="タブの並びを畳む・開く"
+          onClick={() => props.onFold()}
+        >
+          <span class="band-tabs-chevron" aria-hidden="true">
+            {props.tabs.folded ? "▸" : "▾"}
+          </span>
+          タブ {props.tabs.tabs.length}
+        </button>
+        <Show when={!props.tabs.folded}>
+          <ul class="tab-rows" aria-label={`${props.title} のタブ`}>
+            <For each={props.tabs.tabs}>
+              {(t) => (
+                <li
+                  class="tab-row"
+                  data-shown={props.tabs.shown === t.id ? "" : undefined}
+                  data-current={
+                    props.tabs.shown === t.id && props.tabs.focused
+                      ? ""
+                      : undefined
+                  }
+                >
+                  <button
+                    type="button"
+                    class="tab-main"
+                    title={t.url}
+                    aria-current={
+                      props.tabs.shown === t.id && props.tabs.focused
+                        ? "page"
+                        : undefined
+                    }
+                    onClick={() => props.onTab(t.id)}
+                  >
+                    <span class="tab-title">{t.title || hostOf(t.url)}</span>
+                    <Show when={t.title}>
+                      <span class="tab-host">{hostOf(t.url)}</span>
+                    </Show>
+                  </button>
+                  <button
+                    type="button"
+                    class="band-close tab-close"
+                    aria-label={`${t.title || hostOf(t.url)} のタブを閉じる`}
+                    title="タブを閉じる"
+                    onClick={() => props.onClose(t.id)}
+                  >
+                    <svg
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                    >
+                      <path d="M6 6l12 12M18 6L6 18" />
+                    </svg>
+                  </button>
+                </li>
+              )}
+            </For>
+          </ul>
+        </Show>
+      </div>
+    </Show>
   );
 }
 

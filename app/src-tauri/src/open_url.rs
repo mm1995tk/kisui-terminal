@@ -531,13 +531,17 @@ mod tests {
                 v.get("remote").is_none(),
                 "a capability must not have remote"
             );
-            // 権限を持つのは、メイン窓と、kisui-terminal の外から開く履歴の窓（clipboard_popup.rs）だけ。
+            // 権限を持つのは、メイン窓の画面（webview の main）と、kisui-terminal の外から開く履歴の窓（clipboard_popup.rs）だけ。
+            // メイン窓は窓（windows）で指さない。窓で指すと、同じ窓に重ねる内蔵ブラウザのタブ（子の webview。browser.rs）にも当たる。
             // ワイルドカードは書かない
-            let windows = &v["windows"];
+            let none = serde_json::json!([]);
+            let windows = v.get("windows").unwrap_or(&none);
+            let webviews = v.get("webviews").unwrap_or(&none);
             assert!(
-                *windows == serde_json::json!(["main"])
-                    || *windows == serde_json::json!([crate::clipboard_popup::LABEL]),
-                "unexpected windows in a capability: {windows}"
+                (*windows == none && *webviews == serde_json::json!(["main"]))
+                    || (*windows == serde_json::json!([crate::clipboard_popup::LABEL])
+                        && *webviews == none),
+                "unexpected windows or webviews in a capability: {windows} {webviews}"
             );
         }
     }
