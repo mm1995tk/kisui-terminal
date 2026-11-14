@@ -175,7 +175,12 @@ import {
   resolveTabUrl,
   saveTabs,
 } from "./browser/browserOs.ts";
-import { relayedOf, unrelay, type Relayed } from "./browser/relay.ts";
+import {
+  addRelayed,
+  relayedOf,
+  unrelay,
+  type Relayed,
+} from "./browser/relay.ts";
 import {
   addTab,
   closeTab,
@@ -1526,10 +1531,11 @@ function Workbench(props: {
   });
   let focusBrowserPage: (() => void) | undefined;
   /**
-   * タブ → 中継の origin と元の origin（リモートのマシンの localhost 系を `kisui relay` の中継で開いているタブだけ。#203）。
-   * タブは元の URL を覚えて入力欄に出し、ページから届く中継の URL は元の URL に戻してから書く（browser/relay.ts）
+   * タブ → これまで使った中継の origin と元の origin（リモートのマシンの localhost 系を `kisui relay` の中継で開いたタブだけ。#203）。
+   * タブは元の URL を覚えて入力欄に出し、ページから届く中継の URL は元の URL に戻してから書く（browser/relay.ts）。
+   * 戻る・進むで前の中継の URL に戻ることもあるので、対応は足すだけにし、捨てるのはタブを閉じたときだけ
    */
-  const relays = new Map<string, Relayed>();
+  const relays = new Map<string, readonly Relayed[]>();
   /** タブ tab で url を開くときに、ページに実際に開かせる URL を得て、中継の対応を覚える。 */
   async function resolveFor(
     tab: Pick<BrowserTab, "id" | "target">,
@@ -1537,8 +1543,7 @@ function Workbench(props: {
   ): Promise<string> {
     const opened = await resolveTabUrl(tab.target, url);
     const r = relayedOf(url, opened);
-    if (r) relays.set(tab.id, r);
-    else relays.delete(tab.id);
+    if (r) relays.set(tab.id, addRelayed(relays.get(tab.id) ?? [], r));
     return opened;
   }
   // 閉じたタブの対応を捨てる
