@@ -167,3 +167,26 @@ describe("止める関数は Web Animations も止める", () => {
     assert.equal(char.started[0].cancelled, true);
   });
 });
+
+describe("去るとき、キャラクターの要素が取れない", () => {
+  it("onDone を呼んで消す。止められた後は呼ばない", async () => {
+    const { startLeave } = await import("./mascotMotion.ts");
+    let done = 0;
+    startLeave(
+      () => undefined,
+      () => {},
+      () => done++,
+    );
+    await wait(5);
+    assert.equal(done, 1);
+
+    const stop = startLeave(
+      () => undefined,
+      () => {},
+      () => done++,
+    );
+    stop();
+    await wait(5);
+    assert.equal(done, 1);
+  });
+});

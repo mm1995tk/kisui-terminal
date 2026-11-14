@@ -87,8 +87,13 @@ export function startLeave(
   let anim: Animation | undefined;
   onFrame(0);
   queueMicrotask(() => {
+    if (!live) return;
     const el = char();
-    if (!live || !el) return;
+    if (!el) {
+      // 消す相手が取れなくても、場面が残らないように終わらせる
+      onDone();
+      return;
+    }
     // 運ぶ途中で閉じたときは、今見えている位置（運び終えた位置から `from` だけ左）から歩く
     const from = leftover.get(el) ?? 0;
     leftover.delete(el);
