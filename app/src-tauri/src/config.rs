@@ -57,7 +57,7 @@ const LOCAL_LABEL: &str = "ローカル";
 const FILES: [&str; 2] = ["config.toml", "config.local.toml"];
 
 /// 設定の置き場所の土台（`$XDG_CONFIG_HOME` が絶対パスならそれ、なければ `~/.config`）。
-pub(crate) fn base_dir(config_home: Option<&Path>, home: Option<&Path>) -> Option<PathBuf> {
+fn base_dir(config_home: Option<&Path>, home: Option<&Path>) -> Option<PathBuf> {
     Some(match config_home {
         Some(d) if d.is_absolute() => d.to_path_buf(),
         _ => home?.join(".config"),
@@ -65,7 +65,7 @@ pub(crate) fn base_dir(config_home: Option<&Path>, home: Option<&Path>) -> Optio
 }
 
 /// `name` の設定フォルダ。nightly は `<name>-nightly`、無ければ `name`。
-pub(crate) fn dir_of(base: &Path, name: &str, nightly: bool) -> PathBuf {
+fn dir_of(base: &Path, name: &str, nightly: bool) -> PathBuf {
     if nightly {
         let n = base.join(format!("{name}-nightly"));
         if n.is_dir() {
