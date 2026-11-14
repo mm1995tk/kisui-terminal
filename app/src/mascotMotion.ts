@@ -53,6 +53,7 @@ export function startCarry(
     live = false;
     clearInterval(tick);
     clearTimeout(done);
+    for (const a of anims) a.cancel();
   };
 }
 
@@ -66,13 +67,14 @@ export function startLeave(
   let live = true;
   let tick: ReturnType<typeof setInterval> | undefined;
   let done: ReturnType<typeof setTimeout> | undefined;
+  let anim: Animation | undefined;
   onFrame(0);
   queueMicrotask(() => {
     const el = char();
     if (!live || !el) return;
     const dx = window.innerWidth - el.getBoundingClientRect().left;
     const duration = walkDuration(dx);
-    el.animate?.(
+    anim = el.animate?.(
       [{ transform: "none" }, { transform: `translateX(${dx}px)` }],
       { duration, easing: "linear" },
     );
@@ -86,5 +88,6 @@ export function startLeave(
     live = false;
     clearInterval(tick);
     clearTimeout(done);
+    anim?.cancel();
   };
 }

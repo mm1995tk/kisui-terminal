@@ -72,3 +72,59 @@ describe("nextAction", () => {
     );
   });
 });
+
+/** Web Animations の代わり。`animate` で始めた動きと、止められたかを覚える */
+function fakeEl(left: number) {
+  const el = {
+    started: [] as { keyframes: { transform: string }[]; cancelled: boolean }[],
+    getBoundingClientRect: () => ({ left }),
+    animate(keyframes: { transform: string }[]) {
+      const rec = { keyframes, cancelled: false };
+      el.started.push(rec);
+      return {
+        cancel: () => {
+          rec.cancelled = true;
+        },
+      };
+    },
+  };
+  return el;
+}
+const asEl = (e: unknown) => e as HTMLElement;
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+describe("止める関数は Web Animations も止める", () => {
+  it("運ぶ途中で止めると、案内とキャラクターの動きを cancel する", async () => {
+    const { startCarry } = await import("./mascotMotion.ts");
+    const menu = fakeEl(0);
+    const char = fakeEl(0);
+    const stop = startCarry(
+      asEl(menu),
+      () => asEl(char),
+      1000,
+      () => {},
+      () => {},
+    );
+    await wait(5);
+    assert.equal(menu.started.length, 1);
+    assert.equal(char.started.length, 1);
+    stop();
+    assert.equal(menu.started[0].cancelled, true);
+    assert.equal(char.started[0].cancelled, true);
+  });
+
+  it("去る途中で止める（開き直す）と、去る動きを cancel する", async () => {
+    const { startLeave } = await import("./mascotMotion.ts");
+    (globalThis as { window?: unknown }).window = { innerWidth: 1400 };
+    const char = fakeEl(100);
+    const stop = startLeave(
+      () => asEl(char),
+      () => {},
+      () => {},
+    );
+    await wait(5);
+    assert.equal(char.started.length, 1);
+    stop();
+    assert.equal(char.started[0].cancelled, true);
+  });
+});
