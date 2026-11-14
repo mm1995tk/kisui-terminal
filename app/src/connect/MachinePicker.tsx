@@ -1,13 +1,16 @@
-// ワークスペースを作るマシンを選ぶ窓（リーダーの `w n`）。つながっているマシンを並べ、Enter で決める。
-// 並べるのはつながっているマシンだけ（呼んだ側が選ぶ）。マシンが 1 つしか無ければ、呼んだ側がこの窓を出さずに作る。
-// 窓のキーは machineList.ts の pickerKey、決まりは docs/key-design.md。
-import { createMemo, createSignal, For, type JSX } from "solid-js";
+import { For, type JSX } from "solid-js";
 
 import { ModalCard } from "./Card.tsx";
-import { keepRow, moveRow, pickerKey, type MachineRow } from "./machineList.ts";
+import { pickerKey, type MachineRow } from "./machineList.ts";
+import { createRowSelection } from "./rowSelection.ts";
 
 const rowId = (i: number) => `machine-picker-row-${i}`;
 
+/**
+ * ワークスペースを作るマシンを選ぶ窓（リーダーの `w n`）。rows のマシンを並べ、j / k で選び、Enter かダブルクリックで
+ * onChoose、Esc かボタンで onCancel を呼ぶ。並べるのはつながっているマシンだけで、それを選ぶのは呼んだ側。
+ * マシンが 1 つしか無ければ、呼んだ側がこの窓を出さずに作る。窓のキーは machineList.ts の pickerKey、決まりは docs/key-design.md。
+ */
 export function MachinePicker(props: {
   rows: MachineRow[];
   /** 開いたときに選んでおくマシン（今のマシン） */
@@ -15,22 +18,15 @@ export function MachinePicker(props: {
   onChoose: (target: string) => void;
   onCancel: () => void;
 }): JSX.Element {
-  const [target, setTarget] = createSignal(props.initial);
-  let last = 0;
-  const index = createMemo(() => {
-    last = keepRow(props.rows, target(), last);
-    return last;
-  });
-  const move = (to: "next" | "prev" | "first" | "last") =>
-    setTarget(props.rows[moveRow(index(), to, props.rows.length)]?.target);
+  const sel = createRowSelection(() => props.rows, props.initial);
 
   function onKeyDown(e: KeyboardEvent) {
     const k = pickerKey(e);
     if (!k) return;
     e.preventDefault();
-    if (k.kind === "move") move(k.to);
+    if (k.kind === "move") sel.move(k.to);
     else {
-      const r = props.rows[index()];
+      const r = sel.selected();
       if (r) props.onChoose(r.target);
     }
   }
@@ -51,7 +47,7 @@ export function MachinePicker(props: {
           role="listbox"
           aria-label="マシンの一覧"
           aria-activedescendant={
-            props.rows[index()] ? rowId(index()) : undefined
+            sel.selected() ? rowId(sel.index()) : undefined
           }
           onKeyDown={onKeyDown}
           ref={(el) => queueMicrotask(() => el.focus())}
@@ -62,8 +58,8 @@ export function MachinePicker(props: {
                 id={rowId(i())}
                 class="card-row machine-row"
                 role="option"
-                aria-selected={index() === i() ? "true" : "false"}
-                onClick={() => setTarget(r.target)}
+                aria-selected={sel.index() === i() ? "true" : "false"}
+                onClick={() => sel.pick(i())}
                 onDblClick={() => props.onChoose(r.target)}
               >
                 <span
