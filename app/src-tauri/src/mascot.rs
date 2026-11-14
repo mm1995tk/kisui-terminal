@@ -33,8 +33,7 @@ pub fn mascot_dir(
     home: Option<&Path>,
     nightly: bool,
 ) -> Option<PathBuf> {
-    let base = crate::config::base_dir(config_home, home)?;
-    Some(crate::config::dir_of(&base, "kisui-terminal", nightly).join("mascot"))
+    crate::config::config_dir(config_home, home, nightly).map(|d| d.join("mascot"))
 }
 
 fn encode_base64(data: &[u8]) -> String {

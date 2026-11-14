@@ -48,8 +48,6 @@ var ja = map[string]string{
 	"config.err.head":       "設定に間違いが %d 件あるため、kisui を起動しませんでした。直してからもう一度起動してください。",
 	"config.err.read":       "ファイルを読めません: %s",
 	"config.err.syntax":     "TOML の書き方が間違っています: %s",
-	"config.err.nix":        "Nix のファイルを評価できません: %s",
-	"config.err.nixtop":     "Nix のファイルは属性集合（{ ... }）に評価される必要があります",
 	"config.err.int":        "整数で書いてください",
 	"config.err.string":     "文字列で書いてください",
 	"config.err.table":      "テーブルで書いてください",

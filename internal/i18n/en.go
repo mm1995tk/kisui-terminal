@@ -48,8 +48,6 @@ var en = map[string]string{
 	"config.err.head":       "The configuration has %d error(s), so kisui did not start. Fix them and start it again:",
 	"config.err.read":       "cannot read the file: %s",
 	"config.err.syntax":     "invalid TOML: %s",
-	"config.err.nix":        "cannot evaluate the Nix file: %s",
-	"config.err.nixtop":     "the Nix file must evaluate to an attribute set",
 	"config.err.int":        "must be an integer",
 	"config.err.string":     "must be a string",
 	"config.err.table":      "must be a table",
