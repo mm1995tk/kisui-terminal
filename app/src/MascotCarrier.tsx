@@ -11,14 +11,12 @@ import {
 } from "solid-js";
 
 import styles from "./LeaderMenu.module.css";
+import { carryDistance, startCarry, startLeave } from "./mascotMotion.ts";
 import {
-  CARRY_MS,
-  LEAVE_MS,
   loadMascot,
   MASCOT_HEIGHT,
   nextAction,
   reducedMotion,
-  walkFrame,
   type LoadedMascot,
 } from "./mascot.ts";
 
@@ -42,54 +40,23 @@ export function MascotCarrier(props: {
   const carry = (m: LoadedMascot) => {
     const menu = props.menu();
     if (!menu) return;
-    const width = MASCOT_HEIGHT * m.aspect;
-    const sidebarRight =
-      document.querySelector(".sidebar-column")?.getBoundingClientRect()
-        .right ?? 0;
-    const dx = Math.max(
-      0,
-      menu.getBoundingClientRect().left - (sidebarRight + width),
+    const dx = carryDistance(menu, MASCOT_HEIGHT * m.aspect);
+    stopTimers = startCarry(
+      menu,
+      () => charEl,
+      dx,
+      (frame) => setScene({ kind: "walk", frame }),
+      () => setScene({ kind: "stop" }),
     );
-    const t0 = performance.now();
-    setScene({ kind: "walk", frame: 0 });
-    queueMicrotask(() => {
-      const keyframes = [
-        { transform: `translateX(${-dx}px)` },
-        { transform: "none" },
-      ];
-      const opts = { duration: CARRY_MS, easing: "ease-out" } as const;
-      menu.animate?.(keyframes, opts);
-      charEl?.animate?.(keyframes, opts);
-    });
-    const tick = setInterval(
-      () =>
-        setScene({ kind: "walk", frame: walkFrame(performance.now() - t0) }),
-      30,
-    );
-    const done = setTimeout(() => {
-      clearInterval(tick);
-      setScene({ kind: "stop" });
-    }, CARRY_MS);
-    stopTimers = () => {
-      clearInterval(tick);
-      clearTimeout(done);
-    };
   };
 
   /** 案内を閉じるとき、キャラクターが右へ去る */
   const leave = () => {
     setScene({ kind: "leave" });
-    queueMicrotask(() => {
-      const el = charEl;
-      if (!el) return;
-      const dx = window.innerWidth - el.getBoundingClientRect().left;
-      el.animate?.(
-        [{ transform: "none" }, { transform: `translateX(${dx}px)` }],
-        { duration: LEAVE_MS, easing: "ease-in" },
-      );
-    });
-    const done = setTimeout(() => setScene(null), LEAVE_MS);
-    stopTimers = () => clearTimeout(done);
+    stopTimers = startLeave(
+      () => charEl,
+      () => setScene(null),
+    );
   };
 
   createEffect(
