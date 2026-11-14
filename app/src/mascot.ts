@@ -50,6 +50,14 @@ export function playOnceDuration(scene: MascotScene): number {
   return scene.frames.length * scene.frameMs;
 }
 
+/** 押していく速さの既定（px/秒。Rust 側 mascot.rs の `DEFAULT_SPEED` と同じ） */
+export const DEFAULT_PUSH_SPEED = 90;
+
+/** 押していくときの場面。`[push]` が無ければ、運ぶ場面のコマ・コマの時間・くり返しを使い、速さは既定（運ぶ場面の速さは借りない） */
+export function pushScene(m: Pick<Mascot, "carry" | "push">): MascotScene {
+  return m.push ?? { ...m.carry, speed: DEFAULT_PUSH_SPEED };
+}
+
 /** 運び終えて止まっているときの姿（一息つく場面。無ければ運ぶ場面の 1 コマ目で止まる） */
 export function restingScene(m: Pick<Mascot, "carry" | "sigh">): MascotScene {
   return m.sigh ?? { ...m.carry, frames: [m.carry.frames[0]], loop: false };

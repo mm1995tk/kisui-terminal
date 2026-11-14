@@ -5,6 +5,7 @@ import {
   mapFrames,
   nextAction,
   pickVariant,
+  pushScene,
   playOnceDuration,
   restingScene,
   sceneFrame,
@@ -434,5 +435,20 @@ describe("押していく", () => {
     assert.equal(char.started[0].cancelled, true);
     await wait(30);
     assert.equal(done, 0);
+  });
+});
+
+describe("pushScene", () => {
+  it("`[push]` があればそのまま使う", () => {
+    const push = scene(["p1", "p2"], { speed: 240 });
+    assert.equal(pushScene(mascot({ push })), push);
+  });
+
+  it("無ければ、運ぶ場面のコマを使い、速さは運ぶ場面のものではなく既定の 90", () => {
+    const carry = scene(["w1", "w2"], { speed: 240, frameMs: 50 });
+    const s = pushScene(mascot({ carry }));
+    assert.deepEqual(s.frames, ["w1", "w2"]);
+    assert.equal(s.frameMs, 50);
+    assert.equal(s.speed, 90);
   });
 });

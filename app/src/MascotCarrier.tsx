@@ -26,6 +26,7 @@ import {
   MASCOT_HEIGHT,
   nextAction,
   pickVariant,
+  pushScene,
   reducedMotion,
   restingScene,
   type CloseReason,
@@ -102,7 +103,7 @@ export function MascotCarrier(props: {
       () => charEl,
       from,
       pushDistance(window.innerWidth, left),
-      m.push ?? m.carry,
+      pushScene(m),
       setFrame,
       () => {
         ghost.remove();
