@@ -258,7 +258,17 @@ fn replace_file(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
         name.to_string_lossy(),
         std::process::id()
     ));
-    let written = fs::File::create(&tmp).and_then(|mut f| {
+    // 作るときは持ち主だけが読み書きできる権限で作り、書き終えてから元の権限に揃える（書いている間、ほかのユーザーに読ませない）
+    let mut opts = fs::OpenOptions::new();
+    opts.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        opts.mode(0o600);
+    }
+    // 前に落ちて残った一時ファイルがあれば消してから作る
+    let _ = fs::remove_file(&tmp);
+    let written = opts.open(&tmp).and_then(|mut f| {
         f.write_all(bytes)?;
         if let Ok(m) = fs::metadata(&target) {
             fs::set_permissions(&tmp, m.permissions())?;
