@@ -683,6 +683,45 @@ describe("リーダーの案内（menuRows）", () => {
     assert.deepEqual(keysOf(["n"], MAC), ["u", "d", "g"]);
   });
 
+  it("向きの hjkl は、案内では 1 行（ワークスペースは 2 行）にまとまる", () => {
+    const rows = (path: string[]) =>
+      menuRows(path, LINUX).map((r) => [r.keys, r.label]);
+    const move = ["h|j|k|l", "ペインを移動"];
+    assert.deepEqual(rows([]).slice(0, 2), [move, ["Tab", "直前のペインへ"]]);
+    assert.deepEqual(rows(["p"]).slice(0, 1), [move]);
+    assert.deepEqual(rows(["p", "s"]), [["h|j|k|l", "向きを選んで分ける"]]);
+    assert.deepEqual(rows(["p", "m"]), [["h|j|k|l", "向きを選んで入れ替える"]]);
+    assert.deepEqual(rows(["w"]).slice(0, 3), [
+      ["j|k", "ワークスペースを移動"],
+      ["h|l", "マシンを移動"],
+      ["Tab", "直前のワークスペースへ"],
+    ]);
+  });
+
+  it("まとめても、`?` の一覧と近道には hjkl が 1 つずつ残り、押したときの動きは変わらない", () => {
+    const rows = helpRows(MAC);
+    const paths = rows.map((r) => r.path.join(" "));
+    for (const g of ["", "p ", "p s ", "p m ", "w "])
+      for (const k of ["h", "j", "k", "l"])
+        assert.ok(paths.includes(g + k), g + k);
+    assert.match(
+      JSON.stringify(rows.find((r) => r.path.join(" ") === "p s l")),
+      /Cmd\+D/,
+    );
+    assert.deepEqual(
+      press(LINUX, [LEADER_KEY(LINUX), key("p"), key("s"), key("j")]).runs,
+      [{ id: "pane.split", arg: "down" }],
+    );
+    assert.deepEqual(
+      press(LINUX, [LEADER_KEY(LINUX), key("p"), key("m"), key("h")]).runs,
+      [{ id: "pane.swap", arg: "left" }],
+    );
+    assert.deepEqual(
+      press(LINUX, [LEADER_KEY(LINUX), key("w"), key("l")]).runs,
+      [{ id: "machine.step", arg: "next" }],
+    );
+  });
+
   it("葉と範囲の無いグループは、木のとおりに並ぶ", () => {
     assert.deepEqual(keysOf(["m"], MAC), ["a", "n", "d", "x", "r"]);
   });

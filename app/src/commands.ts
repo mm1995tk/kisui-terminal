@@ -66,7 +66,7 @@ export interface Leaf extends Common {
   /** 行ったあともリーダーを出ず、同じ一覧のまま次のキーを待つ（ペインを `j` `j` `l` と続けて移れる） */
   repeat?: boolean;
   /**
-   * 案内では、同じ range.keys が続く葉を 1 行にまとめて出す（`1–9  上から N 番目へ`）。`?` の一覧は 1 つずつ出す。
+   * 案内では、同じ range.keys が続く葉を 1 行にまとめて出す（`1–9  上から N 番目へ`、`h|j|k|l  ペインを移動`）。`?` の一覧は 1 つずつ出す。
    */
   range?: { keys: string; label: string };
   /** 近道は、キーがペインに向いているときか、どこにも向いていないときだけ受ける（Cmd+W が、窓を閉じるのを防ぐため） */
@@ -128,7 +128,7 @@ const paneMoves = (): Leaf[] =>
       k,
       `${name}のペインへ`,
       { id: "pane.focus", arg: dir },
-      { repeat: true },
+      { repeat: true, range: { keys: "h|j|k|l", label: "ペインを移動" } },
     ),
   );
 
@@ -141,25 +141,25 @@ const workspaceMoves = (): Leaf[] => [
     "j",
     "下のワークスペースへ",
     { id: "workspace.step", arg: "next" },
-    { repeat: true },
+    { repeat: true, range: { keys: "j|k", label: "ワークスペースを移動" } },
   ),
   leaf(
     "k",
     "上のワークスペースへ",
     { id: "workspace.step", arg: "prev" },
-    { repeat: true },
+    { repeat: true, range: { keys: "j|k", label: "ワークスペースを移動" } },
   ),
   leaf(
     "h",
     "上のマシンへ",
     { id: "machine.step", arg: "prev" },
-    { repeat: true },
+    { repeat: true, range: { keys: "h|l", label: "マシンを移動" } },
   ),
   leaf(
     "l",
     "下のマシンへ",
     { id: "machine.step", arg: "next" },
-    { repeat: true },
+    { repeat: true, range: { keys: "h|l", label: "マシンを移動" } },
   ),
 ];
 
@@ -220,19 +220,39 @@ export const LEADER: Node[] = [
     [
       ...paneMoves(),
       group("s", "ペインを分ける", [
-        leaf("h", "左に分ける", { id: "pane.split", arg: "left" }),
+        leaf(
+          "h",
+          "左に分ける",
+          { id: "pane.split", arg: "left" },
+          {
+            range: { keys: "h|j|k|l", label: "向きを選んで分ける" },
+          },
+        ),
         leaf(
           "j",
           "下に分ける",
           { id: "pane.split", arg: "down" },
-          { shortcut: { mac: "Cmd+Shift+D", other: "Ctrl+Shift+E" } },
+          {
+            shortcut: { mac: "Cmd+Shift+D", other: "Ctrl+Shift+E" },
+            range: { keys: "h|j|k|l", label: "向きを選んで分ける" },
+          },
         ),
-        leaf("k", "上に分ける", { id: "pane.split", arg: "up" }),
+        leaf(
+          "k",
+          "上に分ける",
+          { id: "pane.split", arg: "up" },
+          {
+            range: { keys: "h|j|k|l", label: "向きを選んで分ける" },
+          },
+        ),
         leaf(
           "l",
           "右に分ける",
           { id: "pane.split", arg: "right" },
-          { shortcut: { mac: "Cmd+D", other: "Ctrl+Shift+D" } },
+          {
+            shortcut: { mac: "Cmd+D", other: "Ctrl+Shift+D" },
+            range: { keys: "h|j|k|l", label: "向きを選んで分ける" },
+          },
         ),
       ]),
       group(
@@ -246,10 +266,12 @@ export const LEADER: Node[] = [
             ["l", "右", "right"],
           ] as const
         ).map(([k, name, dir]) =>
-          leaf(k, `${name}のペインと入れ替える`, {
-            id: "pane.swap",
-            arg: dir,
-          }),
+          leaf(
+            k,
+            `${name}のペインと入れ替える`,
+            { id: "pane.swap", arg: dir },
+            { range: { keys: "h|j|k|l", label: "向きを選んで入れ替える" } },
+          ),
         ),
       ),
       leaf(
