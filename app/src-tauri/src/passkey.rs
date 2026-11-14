@@ -244,6 +244,7 @@ fn now_secs() -> f64 {
 }
 
 impl Passkey {
+    /// 許可サイト `sites` と、移る先のブラウザ `browser` で作る（待ちは空）。
     pub fn new(sites: Vec<String>, browser: PasskeyBrowser) -> Self {
         Self {
             sites,
@@ -259,10 +260,12 @@ impl Passkey {
             .then(|| Self::new(c.passkey_sites.clone(), c.passkey_browser))
     }
 
+    /// 許可サイト（設定の `passkey_sites`）。
     pub fn sites(&self) -> &[String] {
         &self.sites
     }
 
+    /// 移る先のブラウザ（設定の `passkey_browser`）。
     pub fn browser(&self) -> PasskeyBrowser {
         self.browser
     }
