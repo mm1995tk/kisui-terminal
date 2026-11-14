@@ -311,56 +311,71 @@ impl Passkey {
             Err(e) => return error("bad-request", &e.to_string()),
         };
         match req {
-            Request::Sites => {
-                let mut w = self.waiting.lock().unwrap();
-                Self::expire(&mut w, now);
-                let mut waiting: Vec<WaitingSite> = w
-                    .iter()
-                    .map(|(s, x)| WaitingSite {
-                        site: s,
-                        url: x.url.as_str(),
-                    })
-                    .collect();
-                waiting.sort_by(|a, b| a.site.cmp(b.site));
-                json!({
-                    "type": "sites",
-                    "version": PROTOCOL_VERSION,
-                    "sites": self.sites,
-                    "waiting": waiting,
-                })
-            }
+            Request::Sites => self.answer_sites(now),
             Request::Cookies { site, cookies } => {
-                if !self.sites.contains(&site) {
-                    return error("not-allowed", "the site is not in passkey_sites");
-                }
-                if cookies.len() > MAX_COOKIES {
-                    return error("bad-request", "too many cookies");
-                }
-                let waiting = {
-                    let mut w = self.waiting.lock().unwrap();
-                    Self::expire(&mut w, now);
-                    match w.get(&site) {
-                        Some(x) => x.clone(),
-                        None => {
-                            return error(
-                                "not-waiting",
-                                "kisui-terminal is not waiting for a login to this site",
-                            )
-                        }
-                    }
-                };
-                let (ok, dropped) = accept_cookies(&cookies, &site, now_secs);
-                if ok.is_empty() {
-                    return error("no-cookies", "no cookie of the site was sent");
-                }
-                let accepted = ok.len();
-                // 1 回だけ受ける（入れられなくても、待ちは終える）
-                self.waiting.lock().unwrap().remove(&site);
-                match apply(&waiting, ok) {
-                    Ok(()) => json!({ "type": "done", "accepted": accepted, "dropped": dropped }),
-                    Err(e) => error("failed", &e),
+                self.take_cookies(&site, &cookies, now, now_secs, apply)
+            }
+        }
+    }
+
+    /// `sites` の答え（許可サイトと、待っているサイト）。
+    fn answer_sites(&self, now: Instant) -> Value {
+        let mut w = self.waiting.lock().unwrap();
+        Self::expire(&mut w, now);
+        let mut waiting: Vec<WaitingSite> = w
+            .iter()
+            .map(|(s, x)| WaitingSite {
+                site: s,
+                url: x.url.as_str(),
+            })
+            .collect();
+        waiting.sort_by(|a, b| a.site.cmp(b.site));
+        json!({
+            "type": "sites",
+            "version": PROTOCOL_VERSION,
+            "sites": self.sites,
+            "waiting": waiting,
+        })
+    }
+
+    /// `cookies` を受ける。待っているサイトの分だけを `apply` に渡し、待ちを終える。
+    fn take_cookies(
+        &self,
+        site: &str,
+        cookies: &[WireCookie],
+        now: Instant,
+        now_secs: f64,
+        apply: impl FnOnce(&Waiting, Vec<Cookie<'static>>) -> Result<(), String>,
+    ) -> Value {
+        if !self.sites.iter().any(|s| s == site) {
+            return error("not-allowed", "the site is not in passkey_sites");
+        }
+        if cookies.len() > MAX_COOKIES {
+            return error("bad-request", "too many cookies");
+        }
+        let waiting = {
+            let mut w = self.waiting.lock().unwrap();
+            Self::expire(&mut w, now);
+            match w.get(site) {
+                Some(x) => x.clone(),
+                None => {
+                    return error(
+                        "not-waiting",
+                        "kisui-terminal is not waiting for a login to this site",
+                    )
                 }
             }
+        };
+        let (ok, dropped) = accept_cookies(cookies, site, now_secs);
+        if ok.is_empty() {
+            return error("no-cookies", "no cookie of the site was sent");
+        }
+        let accepted = ok.len();
+        // 1 回だけ受ける（入れられなくても、待ちは終える）
+        self.waiting.lock().unwrap().remove(site);
+        match apply(&waiting, ok) {
+            Ok(()) => json!({ "type": "done", "accepted": accepted, "dropped": dropped }),
+            Err(e) => error("failed", &e),
         }
     }
 }
