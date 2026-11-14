@@ -77,6 +77,14 @@ kisui-terminal の設定は、kisui-terminal 自身の `config.toml` に書き�
 - `[server]`：`idle_stop_days`（窓がつながっていない状態で `kisui serve` が待つ日数。既定 7、0 は止めない）と `start_dir`（新しいワークスペースのシェルを始めるフォルダ）。
 - `ui-language`：kisui 自身のメッセージの言語（`shj` と同じ項目）。
 
+**キャラクター（実験的）**。画面を動かすマシンの、`config.toml` と同じフォルダの `mascot/`（`~/.config/kisui-terminal/mascot/`。nightly 版は、あれば `kisui-terminal-nightly/mascot/`。`$XDG_CONFIG_HOME` が絶対パスならそちらを使います）に画像を置くと、リーダーの案内を、キャラクターがターミナルの左端から右下の位置まで押して運んできます。画像は kisui-terminal に入っていません。設定の項目もありません。画像は背景が透明な PNG で、全部同じ大きさ、右向きに描きます（左右の反転はしません）。読むのは次の 6 つの名前だけで、窓を開いたときに 1 回読みます。
+
+- `walk-1.png`〜`walk-4.png`：案内を押して歩く 4 コマ。4 枚全部が要ります。1 枚でも欠けていれば、今までと同じ案内だけが出ます。
+- `stop.png`：運び終えて止まる姿（なくてもかまいません。なければ `walk-1.png` を使います）。
+- `leave.png`：案内を閉じるときに去る姿（なくてもかまいません。なければ去る動きは出ません）。
+
+OS の「視差効果を減らす」が入っているときは、動かしません。リーダーの後のキーは、アニメーションを待たずにすぐ効きます。
+
 ssh 先では、kisui-terminal は聞いてから自分の `kisui` と `shj` を `~/.cache/kisui-terminal/<版>/` に入れます。その先の PATH の `shj` には触りません。
 
 ### キー操作
