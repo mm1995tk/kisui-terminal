@@ -26,11 +26,7 @@ export type CommandId =
   | "workspace.close"
   | "workspace.rename"
   | "machine.step"
-  | "machine.add"
-  | "machine.rename"
-  | "machine.remove"
-  | "machine.disconnect"
-  | "machine.reconnect"
+  | "machine.dialog"
   | "clipboard.history"
   | "scale"
   | "notice.update"
@@ -207,13 +203,7 @@ export const LEADER: Node[] = [
     ],
     { mac: "Cmd+Shift+W", other: "Ctrl+Shift+W" },
   ),
-  group("m", "マシン", [
-    leaf("a", "マシンを足す", { id: "machine.add" }),
-    leaf("n", "名前を変える", { id: "machine.rename" }),
-    leaf("d", "一覧から外す", { id: "machine.remove" }),
-    leaf("x", "接続を切る", { id: "machine.disconnect" }),
-    leaf("r", "つなぎ直す", { id: "machine.reconnect" }),
-  ]),
+  leaf("m", "マシンの一覧を開く", { id: "machine.dialog" }),
   group(
     "p",
     "ペイン",

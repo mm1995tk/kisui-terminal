@@ -48,6 +48,8 @@ import { AddMachine } from "./connect/AddMachine.tsx";
 import { ConfigError } from "./connect/ConfigError.tsx";
 import { CloseWorkspaceCard } from "./connect/CloseWorkspaceCard.tsx";
 import { InstallCard } from "./connect/InstallCard.tsx";
+import { MachineDialog } from "./connect/MachineDialog.tsx";
+import { machineRows } from "./connect/machineList.ts";
 import { Notices, type Notice } from "./connect/Notices.tsx";
 import { RenameDialog } from "./connect/RenameDialog.tsx";
 import { renameErrorText } from "./sidebar/renameError.ts";
@@ -55,6 +57,7 @@ import {
   describeClient,
   handoverFailure,
   statusLine,
+  type MachineStatus,
 } from "./connect/status.ts";
 import { UpdateBar } from "./update/UpdateBar.tsx";
 import {
@@ -501,6 +504,8 @@ function Workbench(props: {
       ? litChanges()
       : resizeMode() && litSplit() === undefined && !litChanges());
   const [asks, setAsks] = createSignal<AskpassRequest[]>([]);
+  // マシンのダイアログ（リーダーの m）を出しているか
+  const [machinesOpen, setMachinesOpen] = createSignal(false);
   // リモートを足す窓を出しているか。足すためにつないでいる最中のマシン、足せなかった理由
   const [adding, setAdding] = createSignal(false);
   const [addPending, setAddPending] = createSignal<Machine | null>(null);
@@ -640,6 +645,13 @@ function Workbench(props: {
     return Object.fromEntries(
       Object.entries(sessions()).map(([t, s]) => [t, s.focus]),
     );
+  }
+
+  /** マシンの状態の 1 行（サイドバーの見出しの下と、マシンのダイアログ）。 */
+  function statusOf(t: string): MachineStatus {
+    return sessions()[t]
+      ? statusLine(states()[t], now())
+      : { text: "つながっていません", title: "", retry: "again" };
   }
 
   function connect(target: string) {
@@ -1491,44 +1503,9 @@ function Workbench(props: {
     void goWorkspace(next.target, next.ws);
   }
 
-  /** できないことを、右下の知らせで伝える（リーダーの m の下は、見出しの右クリックなどと違い、選べないものも押せてしまうため）。 */
+  /** できないことを、右下の知らせで伝える（リーダーの葉は、できないときでも押せてしまうため）。 */
   function cannot(title: string, error: string) {
     setFocusError({ title, error });
-  }
-
-  /** リーダーの m の下。今のマシンに、名前を変える・外す・切る・つなぎ直すを行う。できないマシンには、理由を知らせる。 */
-  function runMachineCommand(
-    id:
-      | "machine.rename"
-      | "machine.remove"
-      | "machine.disconnect"
-      | "machine.reconnect",
-  ) {
-    const t = currentTarget();
-    const g = groups().find((x) => x.target === t);
-    if (!t || !g) return;
-    switch (id) {
-      case "machine.rename":
-      case "machine.remove":
-        if (!g.removable || g.fixed) {
-          cannot(
-            `${g.label} は${id === "machine.rename" ? "名前を変えられません" : "外せません"}`,
-            "「ローカル」と、設定ファイル（[[gui.machines]]）で決めたマシンは、名前を変えたり外したりできません。",
-          );
-        } else if (id === "machine.rename") {
-          setRenameError(undefined);
-          setRenaming(t);
-        } else removeFromSidebar(t);
-        break;
-      case "machine.disconnect":
-        if (!g.removable)
-          cannot(`${g.label} は切れません`, "「ローカル」は切れません。");
-        else void disconnect(t);
-        break;
-      case "machine.reconnect":
-        retry(t);
-        break;
-    }
   }
 
   /**
@@ -1599,15 +1576,8 @@ function Workbench(props: {
       case "workspace.rename":
         if (f) openWorkspaceRename(f.target, f.id);
         break;
-      case "machine.add":
-        setAddError(undefined);
-        setAdding(true);
-        break;
-      case "machine.rename":
-      case "machine.remove":
-      case "machine.disconnect":
-      case "machine.reconnect":
-        runMachineCommand(c.id);
+      case "machine.dialog":
+        setMachinesOpen(true);
         break;
       case "sidebar.toggle":
         toggleSidebar();
@@ -1824,10 +1794,9 @@ function Workbench(props: {
       run: () => setDismissed((d) => new Set(d).add(st)),
     };
     const cut = { label: "切る", run: () => void disconnect(t) };
-    // ボタンと同じ動きのキー。m r・m x は「選んでいるマシン」（currentTarget。w h・w l で止まったマシン、無ければ今のワークスペースの
-    // マシン）に行うので、このマシンを選ぶ手順（w h・w l）から書く
+    // ボタンと同じ動きのキー。マシンのダイアログ（リーダーの m）で、このマシンを選んで押す
     const leader = leaderKeyName(IS_MAC);
-    const keys = `${leader} w h / w l でこのマシンを選び（選んでいれば要りません）、${leader} m r でつなぎ直す、${leader} m x で切る`;
+    const keys = `${leader} m でマシンのダイアログを開き、このマシンを j・k で選んで、r でつなぎ直す、x で切る`;
     if (st.kind === "failed") {
       return {
         title: `${label} につながりません`,
@@ -1886,11 +1855,7 @@ function Workbench(props: {
         onFocus={(t, id) => void switchWorkspace(t, id)}
         treeOf={treeOf}
         onToggle={(t, id, p) => trees.get(t)?.toggle(id, p)}
-        statusOf={(t) =>
-          sessions()[t]
-            ? statusLine(states()[t], now())
-            : { text: "つながっていません", title: "", retry: "again" }
-        }
+        statusOf={statusOf}
         onRetry={retry}
         onDisconnect={(t) => void disconnect(t)}
         onCreate={(t) => void createWorkspace(t)}
@@ -1985,6 +1950,34 @@ function Workbench(props: {
             onNo={() => setConfirmClose(null)}
           />
         )}
+      </Show>
+      <Show when={machinesOpen()}>
+        <MachineDialog
+          rows={machineRows(groups(), statusOf, (t) => !!sessions()[t])}
+          initial={currentTarget() ?? undefined}
+          onAdd={() => {
+            setAddError(undefined);
+            setAdding(true);
+          }}
+          onAct={(action, row) => {
+            switch (action) {
+              case "rename":
+                setRenameError(undefined);
+                setRenaming(row.target);
+                break;
+              case "remove":
+                removeFromSidebar(row.target);
+                break;
+              case "disconnect":
+                void disconnect(row.target);
+                break;
+              case "reconnect":
+                retry(row.target);
+                break;
+            }
+          }}
+          onCancel={() => setMachinesOpen(false)}
+        />
       </Show>
       <Show when={adding()}>
         <AddMachine
