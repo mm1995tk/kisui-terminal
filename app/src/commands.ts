@@ -583,14 +583,31 @@ const shortcutCache = new Map<
 function shortcuts(mac: boolean) {
   let v = shortcutCache.get(mac);
   if (!v) {
-    const all = collect(activeLeader(), mac, [], []);
+    // 同じキーは、設定で足した近道が既定のものに勝つ
+    const all = collect(activeLeader(), mac, [], [])
+      .map((entry) => ({ spec: parseSpec(entry.spec), entry }))
+      .filter(({ spec }) => !userEntries.some((u) => sameSpec(u.spec, spec)));
+    const user = userEntries.flatMap((u) =>
+      u.command
+        ? [
+            {
+              spec: u.spec,
+              entry: {
+                spec: u.text,
+                command: u.command,
+                inPane: false,
+                inBrowser: false,
+                repeat: u.repeat,
+              },
+            },
+          ]
+        : [],
+    );
     v = [
-      ...all.filter((e) => e.inBrowser),
-      ...all.filter((e) => !e.inBrowser),
-    ].map((entry) => ({
-      spec: parseSpec(entry.spec),
-      entry,
-    }));
+      ...all.filter(({ entry }) => entry.inBrowser),
+      ...all.filter(({ entry }) => !entry.inBrowser),
+      ...user,
+    ];
     shortcutCache.set(mac, v);
   }
   return v;
@@ -631,6 +648,137 @@ export function shortcutCommand(e: KeyLike, mac: boolean): Command | null {
   return null;
 }
 
+// ---- ユーザーが設定ファイルで足す近道（[gui.shortcuts]。docs/key-design.md の 4.3）----
+
+/** 設定ファイルに書いた近道 1 つ（殻の ConfigShortcut）。command は「コマンドの名前」か「名前:引数」、既定の近道を消すなら none。 */
+export interface UserShortcut {
+  key: string;
+  command: string;
+}
+
+interface UserEntry {
+  /** 書いたとおりのキー（`?` の一覧に出す） */
+  text: string;
+  spec: KeySpec;
+  /** 動かすコマンド。無ければ（none）、同じキーの既定の近道を消すだけ */
+  command?: Command;
+  repeat: boolean;
+  /** 一覧で行を決める鍵（`id` か `id:引数`） */
+  name?: string;
+}
+
+let userEntries: UserEntry[] = [];
+
+/** コマンドの名前（`id` か `id:引数`）。 */
+function commandName(c: Command): string {
+  return c.arg === undefined ? c.id : `${c.id}:${c.arg}`;
+}
+
+/** 木の中の葉を、コマンドの名前で引けるようにしたもの。 */
+function leavesByName(list: Node[], out = new Map<string, Leaf>()) {
+  for (const n of list) {
+    if (n.type === "group") leavesByName(n.children, out);
+    else if (!out.has(commandName(n.run))) out.set(commandName(n.run), n);
+  }
+  return out;
+}
+
+/** 使えるコマンドの名前の一覧（今使うリーダーの木にある動き）。間違いのお知らせに添える。 */
+export function commandNames(): string[] {
+  return [...leavesByName(activeLeader()).keys()];
+}
+
+const MODIFIER_NAMES: Record<string, string> = {
+  cmd: "Cmd",
+  command: "Cmd",
+  ctrl: "Ctrl",
+  control: "Ctrl",
+  shift: "Shift",
+  alt: "Alt",
+  option: "Alt",
+};
+
+/** 書いたキーを parseSpec の書き方にそろえる（修飾キーの大文字小文字・別名を許す）。読めなければ throw。 */
+function parseUserKey(text: string): KeySpec {
+  let t = text.trim();
+  // キーが + 自身（"Ctrl++"）のとき
+  const keyIsPlus = t.endsWith("+");
+  if (keyIsPlus) t = t.slice(0, -1).replace(/\+$/, "");
+  const parts = t === "" ? [] : t.split("+");
+  const keyPart = keyIsPlus ? "+" : (parts.pop() ?? "");
+  if (!keyPart) throw new Error("キーがありません");
+  const mods = parts.map((m) => {
+    const name = MODIFIER_NAMES[m.trim().toLowerCase()];
+    if (!name)
+      throw new Error(`修飾キー ${m} は使えません（Cmd・Ctrl・Shift・Alt）`);
+    return name;
+  });
+  const spec = parseSpec([...mods, keyPart].join("+"));
+  if (!spec.ctrl && !spec.alt && !spec.meta)
+    throw new Error(
+      "Cmd・Ctrl・Alt のどれかが要ります（字だけのキーはターミナルに届かなくなるため）",
+    );
+  return spec;
+}
+
+function sameSpec(a: KeySpec, b: KeySpec): boolean {
+  return (
+    a.ctrl === b.ctrl &&
+    a.shift === b.shift &&
+    a.alt === b.alt &&
+    a.meta === b.meta &&
+    a.key === b.key
+  );
+}
+
+/**
+ * 設定ファイルの近道を受け入れる。読めたものだけを使い、読めなかったものの理由を返す（呼んだ側がお知らせに出す。起動は止めない）。
+ * 同じキーの既定の近道は、設定のほうが勝つ（既定の近道を消すだけなら command に none）。
+ * setBrowserEnabled のあとに呼ぶ（内蔵ブラウザを使わないときの browser.* は、使えるコマンドに入らない）。
+ */
+export function setUserShortcuts(list: UserShortcut[], mac: boolean): string[] {
+  const problems: string[] = [];
+  const leaves = leavesByName(activeLeader());
+  const out: UserEntry[] = [];
+  const leader = parseSpec(shortcutOf(LEADER_SHORTCUT, mac) ?? "Ctrl+Shift+K");
+  for (const { key, command } of list) {
+    const where = `gui.shortcuts."${key}"`;
+    let spec: KeySpec;
+    try {
+      spec = parseUserKey(key);
+    } catch (e) {
+      problems.push(`${where}: ${e instanceof Error ? e.message : String(e)}`);
+      continue;
+    }
+    if (sameSpec(spec, leader)) {
+      problems.push(`${where}: リーダーのキーと同じです`);
+      continue;
+    }
+    if (out.some((o) => sameSpec(o.spec, spec))) {
+      problems.push(`${where}: 同じキーを 2 回書いています`);
+      continue;
+    }
+    if (command === "none") {
+      out.push({ text: key, spec, repeat: false });
+      continue;
+    }
+    const leaf = leaves.get(command);
+    if (!leaf) {
+      problems.push(`${where}: コマンド ${command} はありません`);
+      continue;
+    }
+    out.push({
+      text: key,
+      spec,
+      command: leaf.run,
+      repeat: !!leaf.repeat,
+      name: command,
+    });
+  }
+  userEntries = out;
+  shortcutCache.clear();
+  return problems;
+}
 // ---- キーの受け方 ----
 
 /** キーを受ける状態。leader は、リーダーに入っているときの木の中の位置（入っていなければ null）。 */
@@ -758,24 +906,46 @@ export interface HelpRow {
   depth: number;
 }
 
-/** 木を上から順に平らにした一覧。 */
-export function helpRows(
+/** 木を上から順に平らにした一覧。設定で足した近道は、そのコマンドの最初の行に添える。 */
+export function helpRows(mac: boolean): HelpRow[] {
+  return rowsOf(mac, activeLeader(), [], new Set());
+}
+
+function rowsOf(
   mac: boolean,
-  list: Node[] = activeLeader(),
-  path: string[] = [],
+  list: Node[],
+  path: string[],
+  used: Set<string>,
 ): HelpRow[] {
   const out: HelpRow[] = [];
   for (const n of list) {
     const p = [...path, nodeKeys(n)];
+    let shortcut = shortcutOf(n.shortcut, mac);
+    // 設定で同じキーを別のコマンドに割り当てた既定の近道は、もう効かないので出さない
+    if (shortcut) {
+      const spec = parseSpec(shortcut);
+      if (userEntries.some((u) => sameSpec(u.spec, spec))) shortcut = undefined;
+    }
+    if (n.type === "leaf") {
+      const name = commandName(n.run);
+      if (!used.has(name)) {
+        used.add(name);
+        const own = userEntries
+          .filter((u) => u.name === name)
+          .map((u) => u.text);
+        if (own.length)
+          shortcut = [shortcut, ...own].filter(Boolean).join(", ");
+      }
+    }
     out.push({
       path: p,
       label: n.label,
       group: n.type === "group",
-      shortcut: shortcutOf(n.shortcut, mac),
+      shortcut,
       depth: path.length,
     });
     if (n.type === "group")
-      out.push(...helpRows(mac, n.children, [...path, n.key]));
+      out.push(...rowsOf(mac, n.children, [...path, n.key], used));
   }
   return out;
 }
