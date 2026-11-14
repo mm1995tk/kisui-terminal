@@ -76,6 +76,8 @@ pub struct ConfigShortcut {
     pub key: String,
     /// コマンドの名前（`workspace.new`、引数があれば `pane.focus:right`、既定の近道を消すなら `none`）
     pub command: String,
+    /// どのファイルに書いたか（0 が `config.toml`、1 が `config.local.toml`）。同じキーを別の書き方（大文字小文字など）で両方に書いたとき、画面が後のものを勝たせる
+    pub source: u8,
 }
 
 /// 1 つのファイルから読んだもの（書いていない項目は None）。
@@ -151,8 +153,8 @@ pub fn load_default() -> Result<GuiConfig, String> {
 pub fn load_gui(dir: &Path) -> Result<GuiConfig, String> {
     let mut out = GuiConfig::default();
     let mut errs = Vec::new();
-    let mut shortcuts: BTreeMap<String, String> = BTreeMap::new();
-    for name in FILES {
+    let mut shortcuts: BTreeMap<String, (String, u8)> = BTreeMap::new();
+    for (source, name) in FILES.into_iter().enumerate() {
         match load(&dir.join(name)) {
             Ok(p) => {
                 // 一覧があるファイルが、前のファイルの一覧を丸ごと置き換える
@@ -165,7 +167,7 @@ pub fn load_gui(dir: &Path) -> Result<GuiConfig, String> {
                 }
                 // 近道はキーごとに重ねる（同じキーは後のファイルが勝つ）
                 if let Some(m) = p.shortcuts {
-                    shortcuts.extend(m);
+                    shortcuts.extend(m.into_iter().map(|(k, c)| (k, (c, source as u8))));
                 }
             }
             Err(e) => errs.push(e),
@@ -173,7 +175,11 @@ pub fn load_gui(dir: &Path) -> Result<GuiConfig, String> {
     }
     out.shortcuts = shortcuts
         .into_iter()
-        .map(|(key, command)| ConfigShortcut { key, command })
+        .map(|(key, (command, source))| ConfigShortcut {
+            key,
+            command,
+            source,
+        })
         .collect();
     if errs.is_empty() {
         Ok(out)

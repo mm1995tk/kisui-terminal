@@ -183,14 +183,14 @@ kisui-terminal のキー操作の表。今のキーとマウスの操作の一�
 "Cmd+Shift+D" = "none" # 既定の近道を消す
 ```
 
-- **キーの書き方**は、この文書の表と同じ（`Cmd`・`Ctrl`・`Shift`・`Alt`（Option）を `+` でつなぎ、最後に 1 つのキー）。修飾キーの大文字小文字は問わず、`Command`・`Control`・`Option` も使える。このマシンの OS で押すキーをそのまま書く（Mac と Linux の書き分けは要らない。設定のフォルダはマシンごと）。
+- **キーの書き方**は、この文書の表と同じ（`Cmd`・`Ctrl`・`Shift`・`Alt`（Option）を `+` でつなぎ、最後に 1 つのキー。1 文字（字・数字・記号）か、Enter・Tab・Escape・Backspace・Space・矢印（Left・Right・Up・Down）・F1〜F12。ほかの名前は間違い）。修飾キーとキーの名前の大文字小文字は問わず、`Command`・`Control`・`Option` も使える。このマシンの OS で押すキーをそのまま書く（Mac と Linux の書き分けは要らない。設定のフォルダはマシンごと）。
 - **修飾キー**：`Cmd`・`Ctrl`・`Alt` のどれかを含める。字だけ（Shift だけ）のキーは、ターミナルで打てなくなるので受けない。
 - **コマンドの名前**は `app/src/commands.ts` の動きの名前で、引数があるものは `名前:引数` と書く。リーダーの木の葉と同じ動きだけが使える。pane.focus:left|down|up|right（隣のペインへ）、pane.last、pane.split:left|down|up|right、pane.swap:left|down|up|right、pane.close、pane.zoom、pane.resize、workspace.step:next|prev、workspace.move:down|up、workspace.last、workspace.nth:0〜8（上から 1〜9 番目）、workspace.new、workspace.close、workspace.rename、machine.dialog、sidebar.toggle、clipboard.history、scale:in|out|reset、notice.update、notice.dismiss、notice.focusNotified、help.keys、browser.new・browser.url・browser.cycle:next|prev・browser.back・browser.forward・browser.reload・browser.close・browser.external・browser.fold（内蔵ブラウザを使うときだけ）。
 - **既定の近道との重なり**：同じキーなら、設定が勝つ。その既定の近道は効かなくなり、`?` の一覧からも消える。コマンドの名前に `none` と書くと、そのキーの既定の近道を消すだけで、何も足さない。リーダーの木のキーは変えられない。
 - **2 つのファイル**：キーごとに重ね、同じキーは `config.local.toml` が勝つ。
 - **間違い**（読めないキー・知らないコマンド・リーダーのキーと同じ・同じキーを 2 回書いた・修飾キーが無い）は、起動を止めず、右下のお知らせに理由を出し、その近道だけ使わない。値が文字列でないなど TOML の型の間違いは、ほかの設定と同じく、場所と理由を出して起動しない。
 - **`?` の一覧**：足した近道は、そのコマンドの最初の行の「近道」の欄に（既定の近道があれば並べて）出る。内蔵ブラウザのページにキーがある間も効く（既定の近道と同じ）。
-- リーダーの木とグループの入口の近道は変えない。
+- リーダーの木のキーは変えない。グループの入口の近道（4.1）は、同じキーを書けば上書きでき、`none` で消せる。リーダーのキー自身は変えられない（間違いになる）。
 
 ## 5. 場所のキー（そこにフォーカスがあるときだけ）
 

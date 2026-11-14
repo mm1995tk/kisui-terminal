@@ -654,6 +654,8 @@ export function shortcutCommand(e: KeyLike, mac: boolean): Command | null {
 export interface UserShortcut {
   key: string;
   command: string;
+  /** どのファイルに書いたか（0 が config.toml、1 が config.local.toml）。省くと 0 */
+  source?: number;
 }
 
 interface UserEntry {
@@ -665,6 +667,8 @@ interface UserEntry {
   repeat: boolean;
   /** 一覧で行を決める鍵（`id` か `id:引数`） */
   name?: string;
+  /** どのファイルに書いたか（大きいほど後で、同じキーならそちらが勝つ） */
+  source: number;
 }
 
 let userEntries: UserEntry[] = [];
@@ -675,17 +679,12 @@ function commandName(c: Command): string {
 }
 
 /** 木の中の葉を、コマンドの名前で引けるようにしたもの。 */
-function leavesByName(list: Node[], out = new Map<string, Leaf>()) {
+export function leavesByName(list: Node[], out = new Map<string, Leaf>()) {
   for (const n of list) {
     if (n.type === "group") leavesByName(n.children, out);
     else if (!out.has(commandName(n.run))) out.set(commandName(n.run), n);
   }
   return out;
-}
-
-/** 使えるコマンドの名前の一覧（今使うリーダーの木にある動き）。間違いのお知らせに添える。 */
-export function commandNames(): string[] {
-  return [...leavesByName(activeLeader()).keys()];
 }
 
 const MODIFIER_NAMES: Record<string, string> = {
@@ -713,13 +712,42 @@ function parseUserKey(text: string): KeySpec {
       throw new Error(`修飾キー ${m} は使えません（Cmd・Ctrl・Shift・Alt）`);
     return name;
   });
-  const spec = parseSpec([...mods, keyPart].join("+"));
+  let name = keyPart;
+  if (keyPart.length > 1) {
+    name = KEY_NAMES[keyPart.toLowerCase()];
+    if (!name)
+      throw new Error(
+        `キー ${keyPart} は使えません（1 文字、Enter・Tab・Escape・Backspace・Space・矢印（Left など）・F1〜F12）`,
+      );
+  }
+  const spec = parseSpec([...mods, name].join("+"));
   if (!spec.ctrl && !spec.alt && !spec.meta)
     throw new Error(
       "Cmd・Ctrl・Alt のどれかが要ります（字だけのキーはターミナルに届かなくなるため）",
     );
   return spec;
 }
+
+/** キーの名前（最後の部分）。大文字小文字を問わず、この書き方にそろえる。1 文字は字・数字・記号。 */
+const KEY_NAMES: Record<string, string> = {
+  enter: "Enter",
+  tab: "Tab",
+  escape: "Escape",
+  esc: "Escape",
+  backspace: "Backspace",
+  space: "Space",
+  arrowleft: "ArrowLeft",
+  left: "ArrowLeft",
+  arrowright: "ArrowRight",
+  right: "ArrowRight",
+  arrowup: "ArrowUp",
+  up: "ArrowUp",
+  arrowdown: "ArrowDown",
+  down: "ArrowDown",
+  ...Object.fromEntries(
+    Array.from({ length: 12 }, (_, i) => [`f${i + 1}`, `F${i + 1}`]),
+  ),
+};
 
 function sameSpec(a: KeySpec, b: KeySpec): boolean {
   return (
@@ -741,7 +769,7 @@ export function setUserShortcuts(list: UserShortcut[], mac: boolean): string[] {
   const leaves = leavesByName(activeLeader());
   const out: UserEntry[] = [];
   const leader = parseSpec(shortcutOf(LEADER_SHORTCUT, mac) ?? "Ctrl+Shift+K");
-  for (const { key, command } of list) {
+  for (const { key, command, source = 0 } of list) {
     const where = `gui.shortcuts."${key}"`;
     let spec: KeySpec;
     try {
@@ -754,26 +782,30 @@ export function setUserShortcuts(list: UserShortcut[], mac: boolean): string[] {
       problems.push(`${where}: リーダーのキーと同じです`);
       continue;
     }
-    if (out.some((o) => sameSpec(o.spec, spec))) {
-      problems.push(`${where}: 同じキーを 2 回書いています`);
-      continue;
-    }
+    let entry: UserEntry;
     if (command === "none") {
-      out.push({ text: key, spec, repeat: false });
-      continue;
+      entry = { text: key, spec, repeat: false, source };
+    } else {
+      const leaf = leaves.get(command);
+      if (!leaf) {
+        problems.push(`${where}: コマンド ${command} はありません`);
+        continue;
+      }
+      entry = {
+        text: key,
+        spec,
+        command: leaf.run,
+        repeat: !!leaf.repeat,
+        name: command,
+        source,
+      };
     }
-    const leaf = leaves.get(command);
-    if (!leaf) {
-      problems.push(`${where}: コマンド ${command} はありません`);
-      continue;
-    }
-    out.push({
-      text: key,
-      spec,
-      command: leaf.run,
-      repeat: !!leaf.repeat,
-      name: command,
-    });
+    // 同じキーは、後のファイル（config.local.toml）が勝つ。同じファイルに 2 回書いたら間違い
+    const at = out.findIndex((o) => sameSpec(o.spec, spec));
+    if (at < 0) out.push(entry);
+    else if (out[at].source === source)
+      problems.push(`${where}: 同じキーを 2 回書いています`);
+    else if (out[at].source < source) out[at] = entry;
   }
   userEntries = out;
   shortcutCache.clear();

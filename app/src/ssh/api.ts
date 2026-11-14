@@ -45,7 +45,7 @@ export interface GuiConfig {
   /** 内蔵ブラウザのタブを使うか（[gui.browser] enabled。初めは使わない） */
   browser: boolean;
   /** 設定で足した近道（[gui.shortcuts]。キーの順。書き方と使えるコマンドかは commands.ts の setUserShortcuts が確かめる） */
-  shortcuts: { key: string; command: string }[];
+  shortcuts: { key: string; command: string; source: number }[];
 }
 
 export interface ShellApi {
