@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  generationOf,
   mapFrames,
   nextAction,
   pickVariant,
@@ -450,5 +451,12 @@ describe("pushScene", () => {
     assert.deepEqual(s.frames, ["w1", "w2"]);
     assert.equal(s.frameMs, 50);
     assert.equal(s.speed, 90);
+  });
+});
+
+describe("generationOf", () => {
+  it("画像の番号 <世代>-<番号> の世代を取り出す", () => {
+    assert.equal(generationOf({ carry: scene(["12-0"]) }), 12);
+    assert.equal(generationOf({ carry: scene(["3-7", "3-8"]) }), 3);
   });
 });

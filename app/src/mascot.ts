@@ -174,6 +174,11 @@ export async function loadMascot(): Promise<LoadedMascot | null> {
   }
 }
 
+/** Rust 側が付けた画像の番号（`<世代>-<番号>`）の世代 */
+export function generationOf(m: Pick<Mascot, "carry">): number {
+  return Number.parseInt(m.carry.frames[0], 10);
+}
+
 /** 読み直した結果（リーダーの `c r`）。`none` は、キャラクターを選んでいない */
 export type Reloaded =
   | { kind: "loaded"; mascot: LoadedMascot }
@@ -186,9 +191,11 @@ export async function reloadMascot(): Promise<Reloaded> {
     const raw = (await invoke("mascot_reload")) as Mascot | null;
     if (!raw) return { kind: "none" };
     const mascot = await decodeMascot(raw);
-    return mascot
-      ? { kind: "loaded", mascot }
-      : { kind: "error", error: "画像を読み込めませんでした" };
+    if (!mascot)
+      return { kind: "error", error: "画像を読み込めませんでした" };
+    // デコードできたので、読み直した画像を使うものにする（できなければ、前のキャラクターの画像の URL が使えるまま残る）
+    await invoke("mascot_commit", { generation: generationOf(raw) });
+    return { kind: "loaded", mascot };
   } catch (e) {
     return { kind: "error", error: String(e) };
   }

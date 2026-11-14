@@ -162,6 +162,7 @@ fn main() {
             list_ssh_hosts,
             mascot::mascot_load,
             mascot::mascot_reload,
+            mascot::mascot_commit,
             mascot::mascot_list,
             mascot::mascot_select,
             config_gui,
