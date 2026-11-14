@@ -241,6 +241,87 @@ fn data_dir(app: &AppHandle) -> Option<PathBuf> {
     Some(d)
 }
 
+/// 子の webview の中で遷移してよい URL か（http・https・about だけ。file:・javascript:・tauri: などには行かせない）。
+fn may_navigate(u: &Url) -> bool {
+    matches!(u.scheme(), "http" | "https" | "about")
+}
+
+/// 新しい窓として開こうとした URL を、代わりに同じタブで開くか（http・https だけ。新しい窓は #204）。
+fn opens_in_same_tab(u: &Url) -> bool {
+    matches!(u.scheme(), "http" | "https")
+}
+
+/// 子の webview が新しい窓を開こうとした（`target=_blank`・`window.open`）。どれも開かずに断る。
+/// ページのスクリプトが知らせたキー（`kisui-key:`。nonce が合うもの）なら、画面に知らせてからキーをメインの webview に移す。
+/// http・https なら、同じタブで開く。
+/// この中は webview の処理の最中なので、知らせる・移す・開くは別のスレッドで行う。
+fn on_new_window(app: &AppHandle, tab: &str, nonce: &str, u: Url) -> NewWindowResponse<tauri::Wry> {
+    let app = app.clone();
+    if let Some(ev) = parse_key(&u, nonce, tab) {
+        std::thread::spawn(move || {
+            // 先に知らせてからキーを移す（移したあとに画面に届くキーより前に、このキーを届ける）
+            let _ = app.emit(EVENT_KEY, ev);
+            focus_main(&app);
+        });
+    } else if opens_in_same_tab(&u) {
+        let lbl = label(tab);
+        std::thread::spawn(move || {
+            if let Some(v) = app.get_webview(&lbl) {
+                let _ = v.navigate(u);
+            }
+        });
+    }
+    NewWindowResponse::Deny
+}
+
+/// タブの子の webview を組む。ページにはキーのスクリプトを入れ、遷移・新しい窓・読み込み・題の変化を受ける。
+fn tab_builder(
+    app: &AppHandle,
+    tab: &str,
+    first: Url,
+    nonce: String,
+    keys: &[KeySpec],
+) -> WebviewBuilder<tauri::Wry> {
+    let script = key_script(&nonce, keys);
+    let (win_app, win_tab) = (app.clone(), tab.to_string());
+    let (load_app, load_tab) = (app.clone(), tab.to_string());
+    let (title_app, title_tab) = (app.clone(), tab.to_string());
+    let builder = WebviewBuilder::new(label(tab), WebviewUrl::External(first))
+        .initialization_script_for_all_frames(script)
+        .focused(false)
+        .on_navigation(may_navigate)
+        .on_new_window(move |u, _| on_new_window(&win_app, &win_tab, &nonce, u))
+        .on_page_load(move |_, p| {
+            let loading = match p.event() {
+                PageLoadEvent::Started => true,
+                PageLoadEvent::Finished => false,
+            };
+            let _ = load_app.emit(
+                EVENT_PAGE,
+                PageEvent {
+                    tab: load_tab.clone(),
+                    url: p.url().to_string(),
+                    loading,
+                },
+            );
+        })
+        .on_document_title_changed(move |_, title| {
+            let _ = title_app.emit(
+                EVENT_TITLE,
+                TitleEvent {
+                    tab: title_tab.clone(),
+                    title,
+                },
+            );
+        });
+    #[cfg(not(target_os = "macos"))]
+    let builder = match data_dir(app) {
+        Some(d) => builder.data_directory(d),
+        None => builder,
+    };
+    builder
+}
+
 /// タブを作る（子の webview）。位置と大きさはメイン窓の左上からの論理ピクセル。作るだけで、キーは向けない（`browser_focus`）。
 /// `keys` はページにキーがある間も受けるキー（リーダーと近道）。
 #[tauri::command(async)]
@@ -267,67 +348,10 @@ pub fn browser_open(
     let win = app
         .get_window("main")
         .ok_or_else(|| "no main window".to_string())?;
-    let lbl = label(&tab);
-    if app.get_webview(&lbl).is_some() {
+    if app.get_webview(&label(&tab)).is_some() {
         return Err("the tab is already open".into());
     }
-    let nonce = new_nonce();
-    let script = key_script(&nonce, &keys);
-    let (key_app, key_tab, key_lbl) = (app.clone(), tab.clone(), lbl.clone());
-    let (load_app, load_tab) = (app.clone(), tab.clone());
-    let (title_app, title_tab) = (app.clone(), tab.clone());
-    let builder = WebviewBuilder::new(&lbl, WebviewUrl::External(first))
-        .initialization_script_for_all_frames(script)
-        .focused(false)
-        .on_navigation(|u| matches!(u.scheme(), "http" | "https" | "about"))
-        .on_new_window(move |u, _| {
-            // この中は webview の処理の最中なので、知らせる・移すのは別のスレッドで行う
-            let app = key_app.clone();
-            if let Some(ev) = parse_key(&u, &nonce, &key_tab) {
-                std::thread::spawn(move || {
-                    // 先に知らせてからキーを移す（移したあとに画面に届くキーより前に、このキーを届ける）
-                    let _ = app.emit(EVENT_KEY, ev);
-                    focus_main(&app);
-                });
-            } else if matches!(u.scheme(), "http" | "https") {
-                // 新しい窓は開かず、同じタブで開く（新しい窓は #204）
-                let lbl = key_lbl.clone();
-                std::thread::spawn(move || {
-                    if let Some(v) = app.get_webview(&lbl) {
-                        let _ = v.navigate(u);
-                    }
-                });
-            }
-            NewWindowResponse::Deny
-        })
-        .on_page_load(move |_, p| {
-            let loading = match p.event() {
-                PageLoadEvent::Started => true,
-                PageLoadEvent::Finished => false,
-            };
-            let _ = load_app.emit(
-                EVENT_PAGE,
-                PageEvent {
-                    tab: load_tab.clone(),
-                    url: p.url().to_string(),
-                    loading,
-                },
-            );
-        })
-        .on_document_title_changed(move |_, title| {
-            let _ = title_app.emit(
-                EVENT_TITLE,
-                TitleEvent {
-                    tab: title_tab.clone(),
-                    title,
-                },
-            );
-        });
-    #[cfg(not(target_os = "macos"))]
-    let builder = match data_dir(&app) {
-        Some(d) => builder.data_directory(d),
-        None => builder,
-    };
+    let builder = tab_builder(&app, &tab, first, new_nonce(), &keys);
     win.add_child(
         builder,
         LogicalPosition::new(x, y),
@@ -703,5 +727,29 @@ mod tests {
                 "{name}"
             );
         }
+    }
+
+    // 遷移は http・https・about だけ。新しい窓の代わりに同じタブで開くのは http・https だけ
+    #[test]
+    fn where_a_tab_may_go() {
+        let u = |s: &str| Url::parse(s).unwrap();
+        for ok in [
+            "https://a.example/",
+            "http://localhost:3000/",
+            "about:blank",
+        ] {
+            assert!(may_navigate(&u(ok)), "{ok}");
+        }
+        for bad in [
+            "file:///etc/passwd",
+            "javascript:alert(1)",
+            "tauri://localhost/",
+            "kisui-key://key?n=x",
+        ] {
+            assert!(!may_navigate(&u(bad)), "{bad}");
+        }
+        assert!(opens_in_same_tab(&u("https://a.example/")));
+        assert!(!opens_in_same_tab(&u("about:blank")));
+        assert!(!opens_in_same_tab(&u("kisui-key://key?n=x")));
     }
 }
