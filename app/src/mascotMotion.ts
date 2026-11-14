@@ -1,6 +1,14 @@
-// キャラクター（MascotCarrier.tsx）が案内を運ぶ・去るときの、DOM を動かす手続き。
+// キャラクター（MascotCarrier.tsx）が案内を運ぶ・一息つく・さようならをするときの、DOM とコマを動かす手続き。
 // 始める関数は、止める関数を返す（タイマーとアニメーションを止める）。場面の状態は持たない。
-import { walkDuration, walkFrame } from "./mascot.ts";
+import {
+  playOnceDuration,
+  sceneFrame,
+  travelDuration,
+  type MascotScene,
+} from "./mascot.ts";
+
+/** コマを切り替えるかを確かめる間隔（ミリ秒） */
+const TICK_MS = 30;
 
 /** 案内（`menu`）を、サイドバーの右端にキャラクターの幅（`width`）を足した位置から今の位置まで運ぶときの、動かす距離（px） */
 export function carryDistance(menu: HTMLElement, width: number): number {
@@ -15,34 +23,70 @@ export function carryDistance(menu: HTMLElement, width: number): number {
 
 /**
  * 運ぶ動きを止めた時点で、キャラクターが運び終えた位置から左にずれていた距離（px。0 以下）。
- * 去る動き（startLeave）が、今見えている位置から始められるように、止めるときに覚えておく。
+ * さようなら（startBye）を、今見えている位置で（移動せずに）始めるため、止めるときに覚えておく。
  */
 const leftover = new WeakMap<HTMLElement, number>();
 
-/** 運び始めて `elapsed` ミリ秒後に、運び終えた位置から左にずれている距離（px。0 以下）。速さが一定なので直線 */
-export function carryOffset(dx: number, elapsed: number): number {
-  const duration = walkDuration(dx);
+/** 速さ `speed`（px/秒）で運び始めて `elapsed` ミリ秒後に、運び終えた位置から左にずれている距離（px。0 以下）。速さが一定なので直線 */
+export function carryOffset(
+  dx: number,
+  elapsed: number,
+  speed: number,
+): number {
+  const duration = travelDuration(dx, speed);
   if (duration <= 0) return 0;
   const rest = Math.max(0, 1 - elapsed / duration);
   return rest === 0 ? 0 : -dx * rest;
 }
 
 /**
- * 案内とキャラクターを、`dx` だけ左から今の位置まで動かす。歩きのコマを `onFrame` に知らせ、着いたら `onDone` を呼ぶ。
+ * 場面 `scene` のコマを `onFrame` に知らせ続ける（くり返さない場面は最後のコマで止まる）。
+ * `onDone` を渡すと、くり返しにかかわらず 1 回再生し終えたところで呼ぶ（さようなら）。
+ */
+export function startFrames(
+  scene: MascotScene,
+  onFrame: (frame: string) => void,
+  onDone?: () => void,
+): () => void {
+  const t0 = performance.now();
+  const once: MascotScene = onDone ? { ...scene, loop: false } : scene;
+  onFrame(scene.frames[0]);
+  const animated = scene.frames.length > 1;
+  const tick = animated
+    ? setInterval(
+        () => onFrame(scene.frames[sceneFrame(once, performance.now() - t0)]),
+        TICK_MS,
+      )
+    : undefined;
+  const done = onDone
+    ? setTimeout(() => {
+        clearInterval(tick);
+        onDone();
+      }, playOnceDuration(scene))
+    : undefined;
+  return () => {
+    clearInterval(tick);
+    clearTimeout(done);
+  };
+}
+
+/**
+ * 案内とキャラクターを、`dx` だけ左から今の位置まで、運ぶ場面の速さで動かす。コマを `onFrame` に知らせ、着いたら `onDone` を呼ぶ。
  * `char` は、`onFrame` で描画が出るまで無いことがあるので、アニメーションを始めるときに取る。
  */
 export function startCarry(
   menu: HTMLElement,
   char: () => HTMLElement | undefined,
   dx: number,
-  onFrame: (frame: number) => void,
+  scene: MascotScene,
+  onFrame: (frame: string) => void,
   onDone: () => void,
 ): () => void {
   const t0 = performance.now();
-  const duration = walkDuration(dx);
+  const duration = travelDuration(dx, scene.speed);
   const anims: Animation[] = [];
   let live = true;
-  onFrame(0);
+  const stopFrames = startFrames(scene, onFrame);
   queueMicrotask(() => {
     if (!live) return;
     const keyframes = [
@@ -55,67 +99,56 @@ export function startCarry(
       if (a) anims.push(a);
     }
   });
-  const tick = setInterval(
-    () => onFrame(walkFrame(performance.now() - t0)),
-    30,
-  );
   const done = setTimeout(() => {
-    clearInterval(tick);
+    stopFrames();
     onDone();
   }, duration);
   return () => {
     live = false;
-    clearInterval(tick);
+    stopFrames();
     clearTimeout(done);
     // 動きを止めると位置が元に戻るので、先に今の位置を覚える
     const el = char();
-    if (el) leftover.set(el, carryOffset(dx, performance.now() - t0));
+    if (el)
+      leftover.set(el, carryOffset(dx, performance.now() - t0, scene.speed));
     for (const a of anims) a.cancel();
   };
 }
 
-/** キャラクター（`char`）が、歩きのコマで右へ歩いて去る（運ぶときと同じ速さ）。歩きのコマを `onFrame` に知らせ、去り終えたら `onDone` を呼ぶ */
-export function startLeave(
+/**
+ * さようなら: キャラクター（`char`）が、その場で（移動せずに）場面 `scene` を 1 回再生し、終えたら `onDone` を呼ぶ。
+ * 運ぶ途中で閉じたときは、今見えている位置に留める。`interrupted` が true を返したら（ダイアログが開いたなど）、すぐ `onDone` を呼ぶ。
+ */
+export function startBye(
   char: () => HTMLElement | undefined,
-  onFrame: (frame: number) => void,
+  scene: MascotScene,
+  onFrame: (frame: string) => void,
   onDone: () => void,
+  interrupted: () => boolean,
 ): () => void {
-  const t0 = performance.now();
   let live = true;
-  let tick: ReturnType<typeof setInterval> | undefined;
-  let done: ReturnType<typeof setTimeout> | undefined;
-  let anim: Animation | undefined;
-  onFrame(0);
-  queueMicrotask(() => {
-    if (!live) return;
-    const el = char();
-    if (!el) {
-      // 消す相手が取れなくても、場面が残らないように終わらせる
-      onDone();
-      return;
-    }
-    // 運ぶ途中で閉じたときは、今見えている位置（運び終えた位置から `from` だけ左）から歩く
-    const from = leftover.get(el) ?? 0;
+  const el = char();
+  if (el) {
+    el.style.transform = `translateX(${leftover.get(el) ?? 0}px)`;
     leftover.delete(el);
-    const dx = window.innerWidth - (el.getBoundingClientRect().left + from);
-    const duration = walkDuration(dx);
-    anim = el.animate?.(
-      [
-        { transform: `translateX(${from}px)` },
-        { transform: `translateX(${from + dx}px)` },
-      ],
-      { duration, easing: "linear" },
-    );
-    tick = setInterval(() => onFrame(walkFrame(performance.now() - t0)), 30);
-    done = setTimeout(() => {
-      clearInterval(tick);
-      onDone();
-    }, duration);
-  });
-  return () => {
-    live = false;
-    clearInterval(tick);
-    clearTimeout(done);
-    anim?.cancel();
+  }
+  const finish = () => {
+    if (!live) return;
+    stop();
+    onDone();
   };
+  const stopFrames = startFrames(scene, onFrame, finish);
+  // リーダーから開いたダイアログは、閉じた後の同じキーの処理の中で開く。その後で確かめる
+  queueMicrotask(() => {
+    if (interrupted()) finish();
+  });
+  const watch = setInterval(() => {
+    if (interrupted()) finish();
+  }, TICK_MS);
+  const stop = () => {
+    live = false;
+    stopFrames();
+    clearInterval(watch);
+  };
+  return stop;
 }

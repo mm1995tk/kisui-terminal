@@ -1,28 +1,64 @@
-// リーダーの案内を運んでくるキャラクター（実験的）。画像は使う人が設定のフォルダの `mascot/` に置く（README）。
-// 画像を読むのは Rust 側（mascot.rs）。画面からはパスを渡さない。置いていない・欠けているときは null で、案内だけが出る。
-import { invoke } from "@tauri-apps/api/core";
+// リーダーの案内を運んでくるキャラクター（実験的）。形式は docs/mascot.md。
+// キャラクターは設定のフォルダの `mascot/<名前>/` に置き、設定ファイルの `[gui] mascot` で選ぶ。
+// `mascot.toml` と画像を読むのは Rust 側（mascot.rs）。画面からはパスを渡さない（画像は `mascot:` のスキームの番号で受け取る）。
+// 選んでいない・使えないときは null で、案内だけが出る。
+import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 
-/** Rust 側（mascot.rs）が返す画像（どれも data: の URL） */
+/** 場面 1 つ（Rust 側の mascot.rs の `Scene`）。既定の値は Rust 側が埋めてある */
+export interface MascotScene {
+  /** コマの画像（Rust 側からは番号、読んだ後は URL）。1 枚なら静止画 */
+  frames: string[];
+  /** 1 コマの時間（ミリ秒） */
+  frameMs: number;
+  /** 最後のコマのあと最初に戻るか（false は最後のコマで止まる） */
+  loop: boolean;
+  /** 動く速さ（px/秒）。動く場面（運ぶ・押していく）だけが使う */
+  speed: number;
+}
+
+/** キャラクター 1 つ分（Rust 側の `Character`）。無い場面は null か空の並び */
 export interface Mascot {
-  walk: string[];
-  stop: string;
+  carry: MascotScene;
+  sigh: MascotScene | null;
+  /** 休憩の具体（形式だけ。動きは後で作る） */
+  rest: MascotScene[];
+  restAfterMs: number;
+  bye: MascotScene[];
+  /** 押していく（形式だけ。動きは後で作る） */
+  push: MascotScene | null;
 }
 
 /** キャラクターの表示の高さ（px）。幅は画像の縦横比のまま */
 export const MASCOT_HEIGHT = 72;
-/** 歩く速さ（px/秒）。運ぶときも去るときも同じ。キャラクターの高さの 1.25 倍 / 秒（人がゆっくり歩く速さ） */
-export const WALK_SPEED = MASCOT_HEIGHT * 1.25;
-/** 歩きの 1 コマを出す時間（ミリ秒）。4 コマで 1 周（0.8 秒）。1 コマで 18px 進む */
-export const FRAME_MS = 200;
 
-/** `distance`（px）を一定の速さ（`WALK_SPEED`）で歩く時間（ミリ秒）。距離に比例する */
-export function walkDuration(distance: number): number {
-  return (Math.max(0, distance) / WALK_SPEED) * 1000;
+/** `distance`（px）を一定の速さ `speed`（px/秒）で動く時間（ミリ秒）。距離に比例する */
+export function travelDuration(distance: number, speed: number): number {
+  if (!(speed > 0)) return 0;
+  return (Math.max(0, distance) / speed) * 1000;
 }
 
-/** 歩き始めてから `elapsed` ミリ秒後に出す歩きのコマ（0 始まり） */
-export function walkFrame(elapsed: number, frames = 4): number {
-  return Math.floor(Math.max(0, elapsed) / FRAME_MS) % frames;
+/** 場面を始めてから `elapsed` ミリ秒後に出すコマ（0 始まり）。くり返さない場面は最後のコマで止まる */
+export function sceneFrame(scene: MascotScene, elapsed: number): number {
+  const n = scene.frames.length;
+  const i = Math.floor(Math.max(0, elapsed) / scene.frameMs);
+  return scene.loop ? i % n : Math.min(i, n - 1);
+}
+
+/** 1 回再生し終えるまでの時間（ミリ秒。さようならの長さ） */
+export function playOnceDuration(scene: MascotScene): number {
+  return scene.frames.length * scene.frameMs;
+}
+
+/** 運び終えて止まっているときの姿（一息つく場面。無ければ運ぶ場面の 1 コマ目で止まる） */
+export function restingScene(m: Mascot): MascotScene {
+  return m.sigh ?? { ...m.carry, frames: [m.carry.frames[0]], loop: false };
+}
+
+/** さようならの具体を 1 つ選ぶ（`random` は 0 以上 1 未満）。無ければ null（その場で消える） */
+export function pickBye(m: Mascot, random: number): MascotScene | null {
+  if (m.bye.length === 0) return null;
+  const i = Math.min(m.bye.length - 1, Math.floor(random * m.bye.length));
+  return m.bye[Math.max(0, i)];
 }
 
 /** OS の「視差効果を減らす」が入っているか */
@@ -34,8 +70,7 @@ export function reducedMotion(): boolean {
 }
 
 /**
- * `mascot_images` の画像を、全部デコードし終えたもの。`aspect` は `walk-1.png` の幅 / 高さで、表示の幅（`MASCOT_HEIGHT` × `aspect`）を決めるのに使う。
- * `stop` は壊れていると `walk[0]` で代わりにする。
+ * 読み込みとデコードを済ませたキャラクター。`aspect` は運ぶ場面の 1 コマ目の幅 / 高さで、運ぶ距離を決めるのに使う。
  * `images` は、デコード済みのデータをブラウザが捨てないように、参照を持っておくためのもの。
  */
 export type LoadedMascot = Mascot & {
@@ -43,7 +78,7 @@ export type LoadedMascot = Mascot & {
   images: HTMLImageElement[];
 };
 
-/** 画像 1 枚を読み込んでデコードまで済ませる（運ぶ途中のコマの切り替えで、一瞬消えないように）。壊れていれば null */
+/** 画像 1 枚を読み込んでデコードまで済ませる（コマの切り替えで、一瞬消えないように）。壊れていれば null */
 async function decode(src: string): Promise<HTMLImageElement | null> {
   try {
     const img = new Image();
@@ -55,41 +90,89 @@ async function decode(src: string): Promise<HTMLImageElement | null> {
   }
 }
 
-/** 画像を読む（全部デコードしてから返す）。使えなければ null。歩く 4 枚が 1 枚でも壊れていれば使えない。`stop` が壊れているときは、無いときと同じ扱い */
+/**
+ * デコードできない画像が 1 枚でもある場面を外す（その場面が無いのと同じ）。運ぶ場面が使えなければ null。
+ * `usable` は画像（URL）が使えるか。
+ */
+export function usableMascot(
+  m: Mascot,
+  usable: (frame: string) => boolean,
+): Mascot | null {
+  const ok = (s: MascotScene | null): MascotScene | null =>
+    s && s.frames.length > 0 && s.frames.every(usable) ? s : null;
+  const carry = ok(m.carry);
+  if (!carry) return null;
+  const many = (list: MascotScene[]) => list.filter((s) => ok(s) !== null);
+  return {
+    carry,
+    sigh: ok(m.sigh),
+    rest: many(m.rest),
+    restAfterMs: m.restAfterMs,
+    bye: many(m.bye),
+    push: ok(m.push),
+  };
+}
+
+/** 全部の場面の画像を `f` で置き換える */
+export function mapFrames(m: Mascot, f: (frame: string) => string): Mascot {
+  const scene = (s: MascotScene): MascotScene => ({
+    ...s,
+    frames: s.frames.map(f),
+  });
+  return {
+    carry: scene(m.carry),
+    sigh: m.sigh && scene(m.sigh),
+    rest: m.rest.map(scene),
+    restAfterMs: m.restAfterMs,
+    bye: m.bye.map(scene),
+    push: m.push && scene(m.push),
+  };
+}
+
+/** 設定で選んだキャラクターを読む（全部デコードしてから返す）。使えなければ null */
 export async function loadMascot(): Promise<LoadedMascot | null> {
   try {
-    const m = (await invoke("mascot_images")) as Mascot | null;
-    if (!m || m.walk.length !== 4) return null;
-    const [walk, stop] = await Promise.all([
-      Promise.all(m.walk.map(decode)),
-      decode(m.stop),
-    ]);
-    if (walk.some((i) => i === null)) return null;
-    const frames = walk as HTMLImageElement[];
-    const aspect = frames[0].naturalWidth / frames[0].naturalHeight;
+    const raw = (await invoke("mascot_load")) as Mascot | null;
+    if (!raw) return null;
+    const m = mapFrames(raw, (id) => convertFileSrc(id, "mascot"));
+    const urls = new Set<string>();
+    for (const s of [m.carry, m.sigh, m.push, ...m.rest, ...m.bye]) {
+      for (const f of s?.frames ?? []) urls.add(f);
+    }
+    const decoded = new Map(
+      await Promise.all(
+        [...urls].map(async (u) => [u, await decode(u)] as const),
+      ),
+    );
+    const usable = usableMascot(m, (u) => !!decoded.get(u));
+    if (!usable) return null;
+    const first = decoded.get(usable.carry.frames[0]);
+    const aspect = first ? first.naturalWidth / first.naturalHeight : NaN;
     if (!Number.isFinite(aspect) || aspect <= 0) return null;
-    return {
-      walk: m.walk,
-      stop: stop ? m.stop : m.walk[0],
-      aspect,
-      images: [...frames, ...(stop ? [stop] : [])],
-    };
+    const images = [...decoded.values()].filter(
+      (i): i is HTMLImageElement => i !== null,
+    );
+    return { ...usable, aspect, images };
   } catch {
     return null;
   }
 }
 
-/** 案内の開閉に応じて、キャラクターがすること（運ぶ・去る・消す） */
+/**
+ * 案内の開閉に応じて、キャラクターがすること。
+ * - carry: 運ぶ。still: 動かさずに右下に出す（視差効果を減らすとき）
+ * - bye: さようなら（その場で 1 回再生して消える）。clear: その場ですぐ消す
+ */
 export function nextAction(s: {
   isOpen: boolean;
   wasOpen: boolean | undefined;
-  /** 画像が使えるか（4 枚そろって読めた） */
+  /** キャラクターが使えるか */
   hasMascot: boolean;
   reduced: boolean;
   /** 今キャラクターが出ているか */
   shown: boolean;
-}): "carry" | "leave" | "clear" {
-  if (!s.hasMascot || s.reduced) return "clear";
-  if (s.isOpen) return "carry";
-  return s.wasOpen && s.shown ? "leave" : "clear";
+}): "carry" | "still" | "bye" | "clear" {
+  if (!s.hasMascot) return "clear";
+  if (s.isOpen) return s.reduced ? "still" : "carry";
+  return s.wasOpen && s.shown && !s.reduced ? "bye" : "clear";
 }
