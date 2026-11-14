@@ -353,26 +353,27 @@ impl Passkey {
         if cookies.len() > MAX_COOKIES {
             return error("bad-request", "too many cookies");
         }
+        let (ok, dropped) = accept_cookies(cookies, site, now_secs);
+        // 待ちを確かめて取り出すのは 1 回のロックの中で行う（同時に 2 つ届いても、受けるのは 1 つだけ）。
+        // 1 回だけ受ける（入れられなくても、待ちは終える）。入れられる Cookie が無ければ、待ちは続ける
         let waiting = {
             let mut w = self.waiting.lock().unwrap();
             Self::expire(&mut w, now);
-            match w.get(site) {
-                Some(x) => x.clone(),
-                None => {
-                    return error(
-                        "not-waiting",
-                        "kisui-terminal is not waiting for a login to this site",
-                    )
-                }
+            if !w.contains_key(site) {
+                return error(
+                    "not-waiting",
+                    "kisui-terminal is not waiting for a login to this site",
+                );
+            }
+            if ok.is_empty() {
+                return error("no-cookies", "no cookie of the site was sent");
+            }
+            match w.remove(site) {
+                Some(x) => x,
+                None => return error("not-waiting", "kisui-terminal is not waiting"),
             }
         };
-        let (ok, dropped) = accept_cookies(cookies, site, now_secs);
-        if ok.is_empty() {
-            return error("no-cookies", "no cookie of the site was sent");
-        }
         let accepted = ok.len();
-        // 1 回だけ受ける（入れられなくても、待ちは終える）
-        self.waiting.lock().unwrap().remove(site);
         match apply(&waiting, ok) {
             Ok(()) => json!({ "type": "done", "accepted": accepted, "dropped": dropped }),
             Err(e) => error("failed", &e),
@@ -1045,6 +1046,37 @@ mod tests {
             never,
         );
         assert_eq!(r["code"], "not-waiting");
+    }
+
+    // 同時に届いても、受けるのは 1 つだけ
+    #[test]
+    fn takes_cookies_once_even_when_sent_at_the_same_time() {
+        let p = Arc::new(Passkey::new(sites(), PasskeyBrowser::Chrome));
+        let t0 = Instant::now();
+        p.hand_off("t1", &url("https://github.com/login"), t0);
+        let applied = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let threads: Vec<_> = (0..8)
+            .map(|_| {
+                let (p, applied) = (Arc::clone(&p), Arc::clone(&applied));
+                std::thread::spawn(move || {
+                    p.handle(&cookies_msg("github.com"), t0, 0.0, |_, _| {
+                        applied.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                        std::thread::sleep(Duration::from_millis(20));
+                        Ok(())
+                    })
+                })
+            })
+            .collect();
+        let answers: Vec<Value> = threads.into_iter().map(|t| t.join().unwrap()).collect();
+        assert_eq!(applied.load(std::sync::atomic::Ordering::SeqCst), 1);
+        assert_eq!(answers.iter().filter(|a| a["type"] == "done").count(), 1);
+        assert_eq!(
+            answers
+                .iter()
+                .filter(|a| a["code"] == "not-waiting")
+                .count(),
+            7
+        );
     }
 
     #[test]
