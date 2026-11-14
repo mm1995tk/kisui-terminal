@@ -161,6 +161,7 @@ import {
   leaderKeyName,
   route,
   setBrowserEnabled,
+  setUserShortcuts,
   type Command,
   type RouterState,
 } from "./commands.ts";
@@ -219,14 +220,22 @@ export function App(props: {
 }): JSX.Element {
   const api = props.api ?? tauriShell;
   const [loaded, setLoaded] = createSignal<
-    { config: ConfigMachine[]; browser: boolean } | { error: string } | null
+    | { config: ConfigMachine[]; browser: boolean; shortcutProblems: string[] }
+    | { error: string }
+    | null
   >(null);
   onMount(() => {
     api.configGui().then(
       (g) => {
         // 内蔵ブラウザ（#202）は、設定で有効にしたときだけ、リーダーの o のグループを出す
         setBrowserEnabled(g.browser);
-        setLoaded({ config: g.machines, browser: g.browser });
+        // 近道の間違い（読めないキー・知らないコマンド）では止めず、お知らせで知らせる
+        const shortcutProblems = setUserShortcuts(g.shortcuts, IS_MAC);
+        setLoaded({
+          config: g.machines,
+          browser: g.browser,
+          shortcutProblems,
+        });
       },
       (e) => setLoaded({ error: String(e) }),
     );
@@ -243,6 +252,7 @@ export function App(props: {
             store={props.store}
             config={v.config}
             browser={v.browser}
+            shortcutProblems={v.shortcutProblems}
           />
         );
       }}
@@ -257,6 +267,8 @@ function Workbench(props: {
   config: ConfigMachine[];
   /** 内蔵ブラウザのタブを使うか（設定の [gui.browser] enabled。#202） */
   browser?: boolean;
+  /** 設定の [gui.shortcuts] の間違い（あればお知らせに出す） */
+  shortcutProblems?: string[];
 }): JSX.Element {
   const api = props.api;
   const store = props.store ?? browserStore();
@@ -587,7 +599,7 @@ function Workbench(props: {
   // リーダー（Cmd+K / Ctrl+Shift+K）の状態。入っている間は、次に押せるキーの一覧を出す（LeaderMenu）
   let router: RouterState = IDLE;
   const setRouter = (next: RouterState) => {
-    if (next.leader !== router.leader) setLeaderPath(next.leader);
+    if (next.leader !== router.leader) setLeaderPath(next.leader, next.escaped);
     // リーダーを閉じたら、続けて移る間は出さずにいたファイルツリーを、行き先のワークスペースの分だけ出す
     if (!next.leader) setWalking(false);
     const left = router.leader !== null && next.leader === null;
@@ -2033,12 +2045,23 @@ function Workbench(props: {
   // 知らせのオブジェクトは、元のもの（SessionState・focusError のオブジェクト）が同じなら使い回す。
   // 作り直すと Notices が描き直し、ほかのマシンの状態が変わるだけで読み上げ直し、ボタンのフォーカスも消えるため
   const noticeOf = new WeakMap<SessionState, Notice | null>();
+  const [shortcutDismissed, setShortcutDismissed] = createSignal(false);
+  const shortcutNotice: Notice | undefined = props.shortcutProblems?.length
+    ? {
+        title: "近道の設定に間違いがあります",
+        text: "間違いのある近道だけを使いません。ほかは効きます。",
+        error: props.shortcutProblems.join("\n"),
+        primary: { label: "閉じる", run: () => setShortcutDismissed(true) },
+        dismiss: () => setShortcutDismissed(true),
+      }
+    : undefined;
   let focusNotice:
     { err: { title: string; error: string }; notice: Notice } | undefined;
 
   /** 右下に積む知らせ。つながらない・別の GUI に移った・ワークスペースに移れなかった・ファイルを開けなかった。 */
   const notices = createMemo<Notice[]>(() => {
     const out: Notice[] = [];
+    if (shortcutNotice && !shortcutDismissed()) out.push(shortcutNotice);
     const err = focusError();
     if (err) {
       if (focusNotice?.err !== err) {
