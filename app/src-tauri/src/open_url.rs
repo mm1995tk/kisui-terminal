@@ -497,6 +497,14 @@ mod tests {
         let (f, _) = fake_forwards();
         let a = f.ensure("restart-test", p).unwrap();
         f.close_all();
+        // 先に試すポートがたまたまほかのプログラムに使われていて、空きポートになったときは、確かめられないので飛ばす
+        if a != preferred_port("restart-test", p) {
+            eprintln!(
+                "skipped: port {} is in use",
+                preferred_port("restart-test", p)
+            );
+            return;
+        }
         // 止めた待ち受けの糸がソケットを閉じるのを待つ（本当の起動し直しでは、前のプロセスごと無くなっている）
         let until = Instant::now() + Duration::from_secs(5);
         while TcpStream::connect((Ipv4Addr::LOCALHOST, a)).is_ok() && Instant::now() < until {
