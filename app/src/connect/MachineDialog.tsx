@@ -3,10 +3,11 @@
 // 足す・名前を変えるの窓は、これを出したまま、その上に出す（呼んだ側。App.tsx）。キーの決まりは machineList.ts と docs/key-design.md。
 import {
   createEffect,
+  createMemo,
   createSignal,
   For,
   Show,
-  untrack,
+  type Accessor,
   type JSX,
 } from "solid-js";
 
@@ -23,6 +24,73 @@ import {
 
 const rowId = (i: number) => `machine-dialog-row-${i}`;
 
+/**
+ * 一覧で選んでいる行。選んでいるのは位置ではなくマシンで、外したり足したりして並びが変わっても同じマシンを選び続ける
+ * （選んでいるマシンが消えたら、元の位置に寄せる）。
+ */
+function createRowSelection(
+  rows: Accessor<readonly MachineRow[]>,
+  initial: string | undefined,
+) {
+  const [target, setTarget] = createSignal(initial);
+  let last = 0;
+  const index = createMemo(() => {
+    last = keepRow(rows(), target(), last);
+    return last;
+  });
+  return {
+    index,
+    selected: () => rows()[index()],
+    /** 行（位置）を選ぶ */
+    pick: (i: number) => setTarget(rows()[i]?.target),
+    /** 選ぶ行を動かす */
+    move: (to: "next" | "prev" | "first" | "last") =>
+      setTarget(rows()[moveRow(index(), to, rows().length)]?.target),
+  };
+}
+
+/** 一覧の 1 行（状態の点・名前・設定ファイルの印・状態・ワークスペースの数）。 */
+function MachineRowItem(props: {
+  row: MachineRow;
+  id: string;
+  selected: boolean;
+  onPick: () => void;
+}): JSX.Element {
+  const r = () => props.row;
+  return (
+    <li
+      id={props.id}
+      class="card-row machine-row"
+      role="option"
+      aria-selected={props.selected ? "true" : "false"}
+      title={r().title || undefined}
+      onClick={props.onPick}
+    >
+      <span class="state-dot" data-health={r().health} aria-hidden="true" />
+      <span class="card-row-name">
+        {r().label}
+        <Show when={r().fixed}>
+          <span class="machine-row-mark">（設定ファイル）</span>
+        </Show>
+      </span>
+      <span class="card-row-state">
+        <span role="status">{r().status}</span>
+        <Show when={r().countdown}>
+          {(c) => <span aria-hidden="true">・{c()}</span>}
+        </Show>
+      </span>
+      <span class="card-row-state machine-row-count">
+        ワークスペース {r().workspaces}
+      </span>
+    </li>
+  );
+}
+
+/**
+ * マシンのダイアログ。rows のマシンを並べ、選んだマシンへの操作のキー（足す・名前を変える・外す・切る・つなぎ直す）を受ける。
+ * 操作そのものと、足す・名前を変える窓を出すのは呼んだ側（onAdd・onAct）。
+ * 閉じるのも呼んだ側で、このダイアログは Esc と「閉じる」で onCancel を呼ぶだけ（出すのをやめるのは呼んだ側）。
+ */
 export function MachineDialog(props: {
   rows: MachineRow[];
   /** 開いたときに選んでおくマシン（今のマシン） */
@@ -33,30 +101,16 @@ export function MachineDialog(props: {
   onAct: (action: Exclude<MachineAction, "add">, row: MachineRow) => void;
   onCancel: () => void;
 }): JSX.Element {
-  const [index, setIndex] = createSignal(
-    Math.max(
-      0,
-      props.rows.findIndex((r) => r.target === props.initial),
-    ),
-  );
-  // 行を決めているのは、位置ではなくマシン（外したり足したりして並びが変わっても、同じマシンを選び続ける）
-  let target: string | undefined = props.rows[index()]?.target;
+  const sel = createRowSelection(() => props.rows, props.initial);
   const [note, setNote] = createSignal<string | undefined>();
   let list: HTMLUListElement | undefined;
 
   createEffect(() => {
-    const i = keepRow(props.rows, target, untrack(index));
-    setIndex(i);
-    target = props.rows[i]?.target;
-  });
-  createEffect(() => {
-    const i = index();
+    const i = sel.index();
     queueMicrotask(() =>
       list?.children[i]?.scrollIntoView?.({ block: "nearest" }),
     );
   });
-
-  const selected = () => props.rows[index()];
 
   function onKeyDown(e: KeyboardEvent) {
     const k = machineKey(e);
@@ -64,15 +118,13 @@ export function MachineDialog(props: {
     e.preventDefault();
     setNote(undefined);
     if (k.kind === "move") {
-      const i = moveRow(index(), k.to, props.rows.length);
-      setIndex(i);
-      target = props.rows[i]?.target;
+      sel.move(k.to);
     } else if (k.kind === "help") {
       openKeyList("machines");
     } else if (k.action === "add") {
       props.onAdd();
     } else {
-      const r = selected();
+      const r = sel.selected();
       if (!r) return;
       const why = canDo(r, k.action);
       if (why) setNote(why);
@@ -92,7 +144,7 @@ export function MachineDialog(props: {
           tabIndex={0}
           role="listbox"
           aria-label="マシンの一覧"
-          aria-activedescendant={selected() ? rowId(index()) : undefined}
+          aria-activedescendant={sel.selected() ? rowId(sel.index()) : undefined}
           onKeyDown={onKeyDown}
           ref={(el) => {
             list = el;
@@ -101,38 +153,12 @@ export function MachineDialog(props: {
         >
           <For each={props.rows}>
             {(r, i) => (
-              <li
+              <MachineRowItem
+                row={r}
                 id={rowId(i())}
-                class="card-row machine-row"
-                role="option"
-                aria-selected={index() === i() ? "true" : "false"}
-                title={r.title || undefined}
-                onClick={() => {
-                  setIndex(i());
-                  target = r.target;
-                }}
-              >
-                <span
-                  class="state-dot"
-                  data-health={r.health}
-                  aria-hidden="true"
-                />
-                <span class="card-row-name">
-                  {r.label}
-                  <Show when={r.fixed}>
-                    <span class="machine-row-mark">（設定ファイル）</span>
-                  </Show>
-                </span>
-                <span class="card-row-state">
-                  <span role="status">{r.status}</span>
-                  <Show when={r.countdown}>
-                    {(c) => <span aria-hidden="true">・{c()}</span>}
-                  </Show>
-                </span>
-                <span class="card-row-state machine-row-count">
-                  ワークスペース {r.workspaces}
-                </span>
-              </li>
+                selected={sel.index() === i()}
+                onPick={() => sel.pick(i())}
+              />
             )}
           </For>
         </ul>
