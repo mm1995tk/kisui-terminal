@@ -519,7 +519,7 @@ export interface RouterState {
    * 次の押し直し（repeat でない keydown）か keyup で解く。
    */
   swallow: boolean;
-  /** リーダーを Esc で出た直後（閉じ方を画面のキャラクターに伝える。ほかの出方では付かない） */
+  /** リーダーを Esc で出たとき付く（ほかの出方では付かない）。次にリーダーに入るまで残る。App は、リーダーを出たときにだけ読んで、閉じ方を画面のキャラクターに伝える */
   escaped?: boolean;
 }
 
