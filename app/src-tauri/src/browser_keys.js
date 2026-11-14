@@ -2,20 +2,52 @@
 // ページ（外のサイト）には Tauri の命令を使わせないので、キーは IPC ではなく、`kisui-key:` の URL を window.open で開こうとして
 // 殻に知らせる（殻の on_new_window が受けて、開かずに断る）。ページの遷移（URL の書き換え）は使わない（beforeunload を起こさないため）。
 // nonce と受けるキーの一覧は、殻が下の 2 つの印に埋める。nonce はこの関数の中にだけ置き、ページのスクリプトからは読めない。
-// ページが後から組み込みの関数を差し替えても nonce を渡さないよう、使う関数は先に取っておく。
+// ページが後から組み込みの関数を差し替えても、nonce を渡さず、キーを見せかけられないよう、使う関数と getter は先に取っておく。
 (() => {
   const nonce = __KISUI_NONCE__;
   // [{ ctrl, shift, alt, meta, key, enter }]。enter は、リーダーとグループの入口（押したあとのキーも続けて殻に送る）
   const keys = __KISUI_KEYS__;
-  const open = window.open.bind(window);
+  // 組み込みの関数と、キーの中身を読む getter は、ページのスクリプトが差し替える前（ここ）で取っておき、それだけを使う。
+  // ページが KeyboardEvent.prototype の key などを差し替えても、本物のキーを別のキーに見せかけて送れないようにするため
+  const uncurry = Function.prototype.call.bind.bind(Function.prototype.call);
+  const getter = (proto, name) =>
+    uncurry(Object.getOwnPropertyDescriptor(proto, name).get);
+  const K = KeyboardEvent.prototype;
+  const keyOf = getter(K, "key");
+  const codeOf = getter(K, "code");
+  const ctrlOf = getter(K, "ctrlKey");
+  const shiftOf = getter(K, "shiftKey");
+  const altOf = getter(K, "altKey");
+  const metaOf = getter(K, "metaKey");
+  const repeatOf = getter(K, "repeat");
+  const composingOf = getter(K, "isComposing");
+  const preventDefault = uncurry(Event.prototype.preventDefault);
+  const stopImmediatePropagation = uncurry(
+    Event.prototype.stopImmediatePropagation,
+  );
+  const lower = uncurry(String.prototype.toLowerCase);
+  const upper = uncurry(String.prototype.toUpperCase);
+  const open = uncurry(window.open);
   const enc = encodeURIComponent;
-  const addListener = window.addEventListener.bind(window);
+  const addListener = uncurry(window.addEventListener);
   const now = Date.now;
   // リーダーに入ったあと、キーが kisui-terminal の画面に移るまでのキーも送る（速く打つと、移る前に次のキーがページに届く）
   let followUntil = 0;
 
+  /** キーの中身を、取っておいた getter で読む（読んだあとは、ページの差し替えに触れない）。 */
+  const read = (e) => ({
+    key: "" + keyOf(e),
+    code: "" + (codeOf(e) || ""),
+    ctrl: !!ctrlOf(e),
+    shift: !!shiftOf(e),
+    alt: !!altOf(e),
+    meta: !!metaOf(e),
+    repeat: !!repeatOf(e),
+    composing: !!composingOf(e),
+  });
+
   const isKey = (e, k) => {
-    const c = e.code || "";
+    const c = e.code;
     switch (k) {
       case "+":
       case "=":
@@ -35,17 +67,15 @@
     if (k.length === 1 && k >= "0" && k <= "9")
       return e.key === k || c === "Digit" + k || c === "Numpad" + k;
     if (k.length === 1 && k >= "a" && k <= "z")
-      return (
-        e.key.toLowerCase() === k || c === "Key" + k.toUpperCase()
-      );
+      return lower(e.key) === k || c === "Key" + upper(k);
     return e.key === k;
   };
   // keyspec.ts の matchSpec と同じ判定
   const match = (e, s) => {
-    if (!!e.ctrlKey !== s.ctrl || !!e.altKey !== s.alt) return false;
-    if (!!e.metaKey !== s.meta) return false;
+    if (e.ctrl !== s.ctrl || e.alt !== s.alt) return false;
+    if (e.meta !== s.meta) return false;
     const plus = s.key === "+" || s.key === "=";
-    if (!plus && !!e.shiftKey !== s.shift) return false;
+    if (!plus && e.shift !== s.shift) return false;
     return isKey(e, s.key);
   };
   const modifierOnly = (k) =>
@@ -59,17 +89,15 @@
 
   const send = (e) => {
     const m =
-      (e.ctrlKey ? 1 : 0) |
-      (e.shiftKey ? 2 : 0) |
-      (e.altKey ? 4 : 0) |
-      (e.metaKey ? 8 : 0);
+      (e.ctrl ? 1 : 0) | (e.shift ? 2 : 0) | (e.alt ? 4 : 0) | (e.meta ? 8 : 0);
     open(
+      window,
       "kisui-key://key?n=" +
         nonce +
         "&k=" +
-        enc(String(e.key)) +
+        enc(e.key) +
         "&c=" +
-        enc(String(e.code || "")) +
+        enc(e.code) +
         "&m=" +
         m +
         "&r=" +
@@ -79,28 +107,31 @@
   };
 
   addListener(
+    window,
     "keydown",
-    (e) => {
-      // ページのスクリプトが作ったキーは送らない
-      if (!e.isTrusted || e.isComposing) return;
+    (ev) => {
+      // ページのスクリプトが作ったキーは送らない（isTrusted はページが差し替えられない）
+      if (!ev.isTrusted) return;
+      const e = read(ev);
+      if (e.composing) return;
       let hit = null;
-      for (const s of keys) {
-        if (match(e, s)) {
-          hit = s;
+      // 配列の反復（Symbol.iterator）はページが差し替えられるので、番号で回す
+      for (let i = 0; i < keys.length; i++) {
+        if (match(e, keys[i])) {
+          hit = keys[i];
           break;
         }
       }
       if (!hit && now() > followUntil) return;
       if (!hit && modifierOnly(e.key)) return;
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      if (hit && hit.enter) followUntil = now() + 1500;
-      else if (!hit) followUntil = now() + 1500;
+      preventDefault(ev);
+      stopImmediatePropagation(ev);
+      if (!hit || hit.enter) followUntil = now() + 1500;
       send(e);
     },
     true,
   );
-  addListener("blur", () => {
+  addListener(window, "blur", () => {
     followUntil = 0;
   });
 })();

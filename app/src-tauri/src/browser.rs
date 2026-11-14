@@ -681,4 +681,27 @@ mod tests {
         // 遷移（location）ではなく window.open で知らせる（ページの beforeunload を起こさない）
         assert!(!KEY_SCRIPT.contains("location"));
     }
+
+    // キーの中身は、先に取っておいた getter だけで読む（ページが KeyboardEvent.prototype を差し替えても見せかけられない）。
+    // 受けたイベント（ev）から直接読むのは、差し替えられない isTrusted だけ
+    #[test]
+    fn script_reads_keys_through_saved_getters() {
+        assert_eq!(KEY_SCRIPT.matches("ev.").count(), 1);
+        assert!(KEY_SCRIPT.contains("ev.isTrusted"));
+        for name in [
+            "key",
+            "code",
+            "ctrlKey",
+            "shiftKey",
+            "altKey",
+            "metaKey",
+            "repeat",
+            "isComposing",
+        ] {
+            assert!(
+                KEY_SCRIPT.contains(&format!("getter(K, \"{name}\")")),
+                "{name}"
+            );
+        }
+    }
 }
