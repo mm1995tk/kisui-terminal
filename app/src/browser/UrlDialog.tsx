@@ -5,6 +5,10 @@ import { createSignal, Show, type JSX } from "solid-js";
 import { ModalCard } from "../connect/Card.tsx";
 import { normalizeUrl } from "./tabs.ts";
 
+/**
+ * URL の入力欄のダイアログ（リーダーの o n・o u）。決めると、開ける形に直した URL で onSubmit を呼ぶ。
+ * 開けない URL なら、ダイアログの中に理由を出して閉じない。
+ */
 export function UrlDialog(props: {
   /** 新しいタブか、今のタブの URL を書き換えるか */
   kind: "new" | "edit";

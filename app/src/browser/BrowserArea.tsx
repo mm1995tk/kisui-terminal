@@ -48,6 +48,10 @@ function rectOf(el: Element): Bounds {
 const nothingFocused = () =>
   document.activeElement === null || document.activeElement === document.body;
 
+/**
+ * 今のワークスペースで出しているタブのページを、グリッドの場所すべてに出す（子の webview を重ねる）。
+ * タブごとの子の webview を、初めて出すときに作り、出さないときは隠し、閉じたタブのものは壊す。
+ */
 export function BrowserArea(props: {
   /** 開いているタブ全部（無くなったタブの webview を壊すため） */
   tabs: readonly BrowserTab[];

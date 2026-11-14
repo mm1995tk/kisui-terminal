@@ -43,6 +43,7 @@ export interface StoredTabs {
   collapsed: { target: string; workspace: string }[];
 }
 
+/** タブが 1 つも無い、初めの状態。 */
 export const EMPTY_TABS: TabsState = { tabs: [], views: {}, collapsed: [] };
 
 /** ワークスペースを指すキー。 */
