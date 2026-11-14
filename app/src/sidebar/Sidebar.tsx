@@ -322,7 +322,7 @@ export function Sidebar(
             ]}
             note={
               m().fixed
-                ? "設定ファイル（config.toml の [[gui.machines]]）で決めたマシンです。変えるには設定ファイルを直してください。"
+                ? "設定ファイル（config.toml か config.local.toml の [[gui.machines]]）で決めたマシンです。変えるには設定ファイルを直してください。"
                 : undefined
             }
             onClose={() => setMenu(null)}

@@ -135,68 +135,56 @@ func TestRelativeXDG(t *testing.T) {
 	}
 }
 
-// shjConfig writes shj's config.toml, which is next to kisui-terminal's directory.
-func shjConfig(t *testing.T, text string) {
-	t.Helper()
-	dir, _ := shjDir("")
-	os.MkdirAll(dir, 0o755)
-	os.WriteFile(filepath.Join(dir, "config.toml"), []byte(text), 0o644)
-}
-
-// [server] and [[gui.machines]] in shj's config.toml are not read any more.
-func TestOldLocationIsNotRead(t *testing.T) {
-	userDir(t)
-	shjConfig(t, "[server]\nidle_stop_days = 3\nstart_dir = \"/nonexistent-dir\"\n[[gui.machines]]\nssh = \"a\"\n")
-	s, err := Load("")
-	if err != nil || s.IdleStopDays != 7 || s.StartDir != "" {
-		t.Fatalf("settings from the old place: %+v, %v", s, err)
-	}
-}
-
-// ui-language is the one key read from shj's config.toml, when kisui-terminal's
-// settings do not have it.
-func TestUILanguageFallsBackToShj(t *testing.T) {
+// config.local.toml is applied on top of config.toml: a key in it wins, and
+// the keys of [server] are taken one by one.
+func TestLocalWins(t *testing.T) {
 	dir := userDir(t)
-	shjConfig(t, "ui-language = \"ja\"\n")
-	if s, err := Load(""); err != nil || s.UILanguage != "ja" {
-		t.Fatalf("fallback: %q, %v", s.UILanguage, err)
-	}
-	// Its own setting wins, even when it is the default.
-	os.WriteFile(filepath.Join(dir, "config.toml"), []byte("ui-language = \"en\"\n"), 0o644)
-	if s, err := Load(""); err != nil || s.UILanguage != "en" {
-		t.Fatalf("own setting: %q, %v", s.UILanguage, err)
-	}
-	// A file of kisui-terminal that has no ui-language still falls back.
-	os.WriteFile(filepath.Join(dir, "config.toml"), []byte("[server]\nidle_stop_days = 1\n"), 0o644)
-	if s, err := Load(""); err != nil || s.UILanguage != "ja" || s.IdleStopDays != 1 {
-		t.Fatalf("no ui-language of its own: %+v, %v", s, err)
-	}
-	// A value kisui does not have, or a broken file, is shj's to report.
-	shjConfig(t, "ui-language = \"fr\"\n")
-	if s, err := Load(""); err != nil || s.UILanguage != "en" {
-		t.Fatalf("unsupported language in shj's file: %q, %v", s.UILanguage, err)
-	}
-	shjConfig(t, "ui-language = \n")
-	if s, err := Load(""); err != nil || s.UILanguage != "en" {
-		t.Fatalf("broken shj file: %q, %v", s.UILanguage, err)
+	work := filepath.Join(os.Getenv("HOME"), "work")
+	os.Mkdir(work, 0o755)
+	os.WriteFile(filepath.Join(dir, "config.toml"), []byte("ui-language = \"en\"\n[server]\nidle_stop_days = 3\nstart_dir = \"~/work\"\n"), 0o644)
+	os.WriteFile(filepath.Join(dir, "config.local.toml"), []byte("ui-language = \"ja\"\n[server]\nidle_stop_days = 0\n"), 0o644)
+	s, err := Load("")
+	if err != nil || s.UILanguage != "ja" || s.IdleStopDays != 0 || s.StartDir != work {
+		t.Fatalf("merged: %+v, %v", s, err)
 	}
 }
 
-func TestMoved(t *testing.T) {
+// config.local.toml alone is enough.
+func TestLocalOnly(t *testing.T) {
+	dir := userDir(t)
+	os.WriteFile(filepath.Join(dir, "config.local.toml"), []byte("ui-language = \"ja\"\n"), 0o644)
+	if s, err := Load(""); err != nil || s.UILanguage != "ja" {
+		t.Fatalf("local only: %+v, %v", s, err)
+	}
+}
+
+// A mistake in config.local.toml names that file.
+func TestLocalError(t *testing.T) {
+	dir := userDir(t)
+	path := filepath.Join(dir, "config.local.toml")
+	os.WriteFile(path, []byte("[server]\nidle_stop_days = -1\n"), 0o644)
+	if _, err := Load(""); err == nil || !strings.HasPrefix(err.Error(), path+": server.idle_stop_days: ") {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+// config.nix is not read any more.
+func TestNixIsNotRead(t *testing.T) {
+	dir := userDir(t)
+	os.WriteFile(filepath.Join(dir, "config.nix"), []byte("{ ui-language = \"ja\"; server.idle_stop_days = 1; }\n"), 0o644)
+	if s, err := Load(""); err != nil || s.UILanguage != "en" || s.IdleStopDays != 7 {
+		t.Fatalf("config.nix was read: %+v, %v", s, err)
+	}
+}
+
+// The settings of shj (~/.config/shijimi-editor/) are not read, ui-language
+// included.
+func TestShjIsNotRead(t *testing.T) {
 	userDir(t)
-	if _, keys := Moved(""); len(keys) != 0 {
-		t.Fatalf("no file: %v", keys)
-	}
-	shjConfig(t, "theme = \"x\"\nui-language = \"ja\"\n[gui]\ncolor = 1\n")
-	if _, keys := Moved(""); len(keys) != 0 {
-		t.Fatalf("shj's own keys: %v", keys)
-	}
-	shjConfig(t, "[[gui.machines]]\nssh = \"a\"\n")
-	if p, keys := Moved(""); strings.Join(keys, ",") != "gui.machines" || !strings.HasSuffix(p, "shijimi-editor/config.toml") {
-		t.Fatalf("machines: %s %v", p, keys)
-	}
-	shjConfig(t, "[server]\nidle_stop_days = 1\n[[gui.machines]]\nssh = \"a\"\n")
-	if _, keys := Moved(""); strings.Join(keys, ",") != "server,gui.machines" {
-		t.Fatalf("both: %v", keys)
+	shj := filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "shijimi-editor")
+	os.MkdirAll(shj, 0o755)
+	os.WriteFile(filepath.Join(shj, "config.toml"), []byte("ui-language = \"ja\"\n[server]\nidle_stop_days = 3\n"), 0o644)
+	if s, err := Load(""); err != nil || s.UILanguage != "en" || s.IdleStopDays != 7 {
+		t.Fatalf("settings from shj: %+v, %v", s, err)
 	}
 }

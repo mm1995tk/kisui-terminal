@@ -293,7 +293,7 @@ P13-09（#385）で `Core` を `core` に移し、分割を終えた。`ui/tui` 
 - **引き継ぎ**：サーバーが受けつける GUI は常に 1 台。2 台目の `session.hello` が来たら、1 台目に `session.superseded` を送って閉じ、2 台目に引き継ぐ。1 台目が出した返事前の要求は捨てる。閉じ損ねた 1 台目からの要求は `not_owner`。
 - **切れる**：標準入出力が閉じたら、GUI がいなくなったとみなす。状態（ワークスペース、ターミナル）は残り、`lastClientAt` を覚える。
 - **つなぎ直す**：新しい `session.hello` で `resume: {serverId, rev}` を送る。同じ `serverId` なら状態（ワークスペース、ターミナル）が残っているので、ターミナルは `term.attach` で取り直して続けられる。`serverId` が違えば shj が作り直されたので、GUI はワークスペースの一覧から取り直す。
-- **止まる**：`lastClientAt` から 7 日（`config.toml` の `[server] idle_stop_days`、0 で止まらない）つながらなければ、`kisui serve` は終わる。つながっている間は止まらない。ターミナルでシェルが動いていても止まる（そのシェルは SIGHUP で終わる）。ワークスペースの一覧は、止まる前に保存して次の起動で作り直す（「ワークスペース」の節の「`kisui serve` が止まったあと」）。`[server] idle_stop_days` は `~/.config/kisui-terminal/config.toml`（nightly は `kisui-terminal-nightly/`）だけで有効（shijimi-editor の `config.toml` の `[server]` は読まない。残っていれば `kisui serve` がログに書く）。
+- **止まる**：`lastClientAt` から 7 日（`config.toml` の `[server] idle_stop_days`、0 で止まらない）つながらなければ、`kisui serve` は終わる。つながっている間は止まらない。ターミナルでシェルが動いていても止まる（そのシェルは SIGHUP で終わる）。ワークスペースの一覧は、止まる前に保存して次の起動で作り直す（「ワークスペース」の節の「`kisui serve` が止まったあと」）。`[server] idle_stop_days` は `~/.config/kisui-terminal/` の `config.toml` と `config.local.toml`（nightly は `kisui-terminal-nightly/`）だけで有効（shijimi-editor の設定は読まない）。
 
 ### 外したメソッド（#557）
 
@@ -390,7 +390,7 @@ P13-09（#385）で `Core` を `core` に移し、分割を終えた。`ui/tui` 
 12. **リモートを足す**：サイドバーの一番下は「+ リモートを足す」（herdr の `machine add` のような形）。カードの窓で ssh の行き先（`~/.ssh/config` の候補）と名前（空なら ssh の行き先）を入れる。足すときに ssh でつなぎ（「ssh 越しに shj を起動する」）、`shj` が無ければ確認してから送り、`kisui serve` を起動できたらマシンを保存して見出しを出す。つなげなければ理由を出して保存しない（実装は #451）。マシンの一覧は GUI の側（手元）が持つ。shj のプロトコルには出ない。
 13. **サイドバーに出るマシン**は「ローカル」と足したマシンだけ。`~/.ssh/config` のホストを全部並べない（候補に出すだけ）。
 14. **マシンの見出しを右クリック**して「名前を変える」「外す」。外しても、そのマシンの `kisui serve` は止めない。
-15. **既定のマシン**：手元（GUI を動かしているマシン）の `~/.config/kisui-terminal/config.toml` の `[[gui.machines]]` に書ける（shijimi-editor の `config.toml` の `[[gui.machines]]` は読まない。残っていれば、画面が場所の変わったお知らせを出す）。設定ファイルに書いたマシンは、GUI の「外す」「名前を変える」では変えられない（設定ファイルを直す。実装は #453）。
+15. **既定のマシン**：手元（GUI を動かしているマシン）の `~/.config/kisui-terminal/` の `config.toml` か `config.local.toml` の `[[gui.machines]]` に書ける（`config.local.toml` にあれば、`config.toml` の一覧を丸ごと置き換える。shijimi-editor の設定は読まない）。設定ファイルに書いたマシンは、GUI の「外す」「名前を変える」では変えられない（設定ファイルを直す。実装は #453）。
 
     ```toml
     [[gui.machines]]

@@ -175,16 +175,11 @@ export function App(props: {
 }): JSX.Element {
   const api = props.api ?? tauriShell;
   const [loaded, setLoaded] = createSignal<
-    { config: ConfigMachine[]; moved: string | null } | { error: string } | null
+    { config: ConfigMachine[] } | { error: string } | null
   >(null);
   onMount(() => {
     api.configMachines().then(
-      // 場所が変わったお知らせの判定に失敗しても、起動は止めない（知らせないだけ）
-      async (config) =>
-        setLoaded({
-          config,
-          moved: await api.configMoved().catch(() => null),
-        }),
+      (config) => setLoaded({ config }),
       (e) => setLoaded({ error: String(e) }),
     );
   });
@@ -195,12 +190,7 @@ export function App(props: {
         return "error" in v ? (
           <ConfigError message={v.error} />
         ) : (
-          <Workbench
-            api={api}
-            store={props.store}
-            config={v.config}
-            moved={v.moved}
-          />
+          <Workbench api={api} store={props.store} config={v.config} />
         );
       }}
     </Show>
@@ -212,8 +202,6 @@ function Workbench(props: {
   store?: KeyValueStore;
   /** 手元の設定ファイルで決めたマシン */
   config: ConfigMachine[];
-  /** shijimi-editor の設定ファイルに kisui-terminal の設定が残っている（場所が変わったことを知らせる） */
-  moved: string | null;
 }): JSX.Element {
   const api = props.api;
   const store = props.store ?? browserStore();
@@ -1773,23 +1761,9 @@ function Workbench(props: {
   let focusNotice:
     { err: { title: string; error: string }; notice: Notice } | undefined;
 
-  // 設定の場所が変わったお知らせ。古い場所（shijimi-editor の config.toml）に kisui-terminal の設定が残っている間、
-  // 起動するたびに出す（閉じたら、その起動のあいだは出さない）。作り直さないよう、オブジェクトは 1 つ
-  const [movedOpen, setMovedOpen] = createSignal(props.moved !== null);
-  const movedNotice: Notice = {
-    title: "設定の場所が変わりました",
-    text:
-      `kisui-terminal の設定は ${props.moved ?? ""} に移りました。` +
-      "shijimi-editor の config.toml の [[gui.machines]] と [server] は、もう読みません。" +
-      "詳しくはリリースノートを見てください。",
-    primary: { label: "閉じる", run: () => setMovedOpen(false) },
-    dismiss: () => setMovedOpen(false),
-  };
-
   /** 右下に積む知らせ。つながらない・別の GUI に移った・ワークスペースに移れなかった・ファイルを開けなかった。 */
   const notices = createMemo<Notice[]>(() => {
     const out: Notice[] = [];
-    if (movedOpen()) out.push(movedNotice);
     const err = focusError();
     if (err) {
       if (focusNotice?.err !== err) {
