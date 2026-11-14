@@ -122,6 +122,9 @@ export function BrowserArea(props: {
     }
     v.state = "open";
     v.shown = at;
+    // 作っている間に出すタブが替わった（o j で先へ進んだ・グリッドに戻った）なら、隠す。
+    // 子の webview は見える状態で作られ、見回り（tick）は今出しているタブしか見ないので、ここで隠さないとグリッドを覆ったまま残る
+    if (untrack(() => props.shown?.id) !== tab.id) hide(tab.id, v);
     refreshStatus();
   }
 
