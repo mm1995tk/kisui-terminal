@@ -1,0 +1,1130 @@
+//! 内蔵ブラウザのパスキー（#206）。パスキーが要る場面だけ外のブラウザ（Chrome か Firefox）に移ってログインし、
+//! ログインした後の Cookie を内蔵ブラウザに写して戻る。取り決めは `docs/passkey-extension.md`。
+//!
+//! 流れ:
+//! 1. 内蔵ブラウザのページ（設定の `[gui.browser] passkey_sites` に書いたサイト）が `navigator.credentials.get` か `create` で
+//!    パスキーを求めると、ページに入れたスクリプト（browser_passkey.js）が `kisui-passkey:` の URL で殻に知らせる
+//!    （browser.rs の on_new_window が受ける。nonce が合うものだけ）。
+//! 2. 殻は、そのタブの今の URL（一番上のフレーム）の host が設定にあれば、その URL を外のブラウザで開き、
+//!    「そのサイトのログインを待っている」と覚える（`WAIT` の間）。ページには NotAllowedError を返す。
+//! 3. 外のブラウザの拡張機能（#207）がログインした後の Cookie を native messaging で送る。ブラウザが起動する受け口
+//!    （この実行ファイルを `--native-messaging-host` で起動したもの。`run_host`）が、それを窓の Unix ソケットに渡す。
+//! 4. 窓は、待っているサイトの Cookie だけを、内蔵ブラウザの共有のデータに入れ、移る前のタブで同じ URL を開き直す。
+//!
+//! 受け口から窓への経路（Unix ソケット）は、データのフォルダの `passkey/`（自分だけが入れる 0700 のフォルダ）に置き、
+//! つないだ相手のユーザーが自分と同じかも確かめる（ほかのユーザーは Cookie を差し込めず、一覧も読めない）。
+//! さらに、窓が外のブラウザに移ったサイトの Cookie だけを、移ってから `WAIT` の間に 1 回だけ受ける。
+//! 同じユーザーのほかのプログラムは、受け口を真似れば、その間に限って Cookie を差し込める。ただし同じユーザーのプログラムは、
+//! もともと内蔵ブラウザの Cookie の置き場（同じユーザーのファイル）を直接読み書きできるので、この経路で広がる害は無い。
+
+use std::collections::HashMap;
+use std::fs;
+use std::io::{BufRead, BufReader, ErrorKind, Read, Write};
+use std::os::unix::fs::PermissionsExt;
+use std::os::unix::io::AsRawFd;
+use std::os::unix::net::{UnixListener, UnixStream};
+use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
+use tauri::webview::cookie::{time::OffsetDateTime, Cookie, SameSite};
+use tauri::{AppHandle, Manager, Url};
+
+use crate::config::{GuiConfig, PasskeyBrowser};
+
+/// ページのスクリプトが殻に知らせる URL の scheme。
+pub const SCHEME: &str = "kisui-passkey";
+/// ページに入れるスクリプト。
+const SCRIPT: &str = include_str!("browser_passkey.js");
+/// ブラウザが受け口として起動したとき（登録のファイルの指すスクリプトが付ける）の引数。続けてソケットのパス。
+pub const HOST_FLAG: &str = "--native-messaging-host";
+/// native messaging の受け口の名前（拡張機能が `connectNative` に渡す）。
+pub const HOST_NAME: &str = "dev.mm1995tk.kisui_terminal";
+/// 受け口につないでよい Firefox の拡張機能（#207 の拡張機能の `browser_specific_settings.gecko.id`）。
+pub const FIREFOX_EXTENSION_ID: &str = "kisui-terminal@mm1995tk.github.io";
+/// 受け口につないでよい Chrome の拡張機能の id。#207 で拡張機能の id が決まったら足す。空の間は Chrome の登録のファイルを置かない。
+pub const CHROME_EXTENSION_IDS: &[&str] = &[];
+/// 取り決めの版（`sites` の答えに入れる）。
+pub const PROTOCOL_VERSION: u32 = 1;
+
+/// 外のブラウザに移ってから、Cookie を待つ長さ。
+const WAIT: Duration = Duration::from_secs(10 * 60);
+/// 同じタブから続けて知らせが来ても、外のブラウザを開き直さない間隔。
+const MIN_INTERVAL: Duration = Duration::from_secs(3);
+/// 拡張機能から受ける 1 つのメッセージの上限（native messaging の拡張機能から受け口への上限 64 MiB より小さく）。
+const MAX_REQUEST: usize = 4 << 20;
+/// 受け口から拡張機能へ返す 1 つのメッセージの上限（native messaging の上限は 1 MiB）。
+const MAX_REPLY: usize = 1 << 20;
+/// 1 回に受ける Cookie の数の上限。
+const MAX_COOKIES: usize = 1000;
+/// Cookie の名前・値の長さの上限。
+const MAX_COOKIE_TEXT: usize = 8192;
+/// ソケットのフォルダ（データのフォルダの中）。
+const DIR: &str = "passkey";
+/// ソケットの名前。
+const SOCK: &str = "host.sock";
+/// 登録のファイルが指すスクリプトの名前（この実行ファイルを `HOST_FLAG` 付きで起動する）。
+const SCRIPT_FILE: &str = "native-host";
+
+/// 外のブラウザでのログインを待っているサイト 1 つ。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Waiting {
+    /// 移る前のタブ（画面が付けた id）
+    pub tab: String,
+    /// 移る前のタブの URL（Cookie を入れたあとに開き直す）
+    pub url: Url,
+    at: Instant,
+}
+
+/// パスキーのときに外のブラウザへ移る仕組みの状態。設定に `passkey_sites` があるときだけ作る（起動したときの設定を使う）。
+pub struct Passkey {
+    sites: Vec<String>,
+    browser: PasskeyBrowser,
+    /// サイト（host）ごとの待ち
+    waiting: Mutex<HashMap<String, Waiting>>,
+    /// タブごとの、最後に外のブラウザを開いた時刻
+    last: Mutex<HashMap<String, Instant>>,
+}
+
+/// 拡張機能から受けるメッセージ。
+#[derive(Debug, Deserialize)]
+#[serde(tag = "type", rename_all = "kebab-case")]
+enum Request {
+    /// 許可サイトの一覧と、待っているサイト
+    Sites,
+    /// ログインした後の Cookie
+    Cookies {
+        site: String,
+        cookies: Vec<WireCookie>,
+    },
+}
+
+/// 拡張機能が送る Cookie 1 つ（Chrome と Firefox の `cookies.Cookie` の形。知らない項目は読み飛ばす）。
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WireCookie {
+    pub name: String,
+    pub value: String,
+    pub domain: String,
+    #[serde(default)]
+    pub host_only: bool,
+    #[serde(default = "root_path")]
+    pub path: String,
+    #[serde(default)]
+    pub secure: bool,
+    #[serde(default)]
+    pub http_only: bool,
+    #[serde(default)]
+    pub same_site: Option<String>,
+    #[serde(default)]
+    pub session: bool,
+    #[serde(default)]
+    pub expiration_date: Option<f64>,
+}
+
+fn root_path() -> String {
+    "/".into()
+}
+
+#[derive(Serialize)]
+struct WaitingSite<'a> {
+    site: &'a str,
+    url: &'a str,
+}
+
+/// 断るときの答え。
+fn error(code: &str, message: &str) -> Value {
+    json!({ "type": "error", "code": code, "message": message })
+}
+
+/// `u` が許可サイトのページなら、そのサイト（host）。http・https だけ。
+pub fn site_of(u: &Url, sites: &[String]) -> Option<String> {
+    if !matches!(u.scheme(), "http" | "https") {
+        return None;
+    }
+    let host = u.host_str()?;
+    sites.iter().find(|s| s.as_str() == host).cloned()
+}
+
+/// ページのスクリプトが知らせた URL か（nonce が合うもの）。
+pub fn is_request(u: &Url, nonce: &str) -> bool {
+    u.scheme() == SCHEME
+        && !nonce.is_empty()
+        && u.query_pairs()
+            .any(|(k, v)| k == "n" && v.as_ref() == nonce)
+}
+
+/// ページに入れるスクリプト（nonce とサイトの一覧を埋めたもの）。
+pub fn script(nonce: &str, sites: &[String]) -> String {
+    let n = serde_json::to_string(nonce).unwrap_or_else(|_| "\"\"".into());
+    let s = serde_json::to_string(sites).unwrap_or_else(|_| "[]".into());
+    SCRIPT
+        .replace("__KISUI_NONCE__", &n)
+        .replace("__KISUI_PASSKEY_SITES__", &s)
+}
+
+/// 送られた Cookie のうち、`site` のページに送られるものを、`site` だけの Cookie にして返す（入れられないものは数えて捨てる）。
+/// `site` の上のドメインの Cookie（`.cloudflare.com` など）も、`site`（`dash.cloudflare.com`）だけのものにする
+/// （上のドメインに入れると、許可していないサイトにも送られるため）。`site` の下のドメインの Cookie は捨てる。
+/// 期限の切れたもの・名前や値に使えない文字のあるものも捨てる。同じ名前とパスなら、ドメインのより細かいものが勝つ。
+pub fn accept_cookies(
+    cookies: &[WireCookie],
+    site: &str,
+    now: f64,
+) -> (Vec<Cookie<'static>>, usize) {
+    let mut ok: Vec<(usize, Cookie<'static>)> = Vec::new();
+    let mut dropped = 0;
+    for c in cookies {
+        match accept_cookie(c, site, now) {
+            Some(x) => ok.push(x),
+            None => dropped += 1,
+        }
+    }
+    // ドメインの細かいものを後に入れる（同じ名前とパスのものを上書きする）
+    ok.sort_by_key(|(depth, _)| *depth);
+    (ok.into_iter().map(|(_, c)| c).collect(), dropped)
+}
+
+/// 名前と値に使える文字か（制御文字と `;` を含まない）。
+fn cookie_text(s: &str) -> bool {
+    s.len() <= MAX_COOKIE_TEXT && !s.chars().any(|c| c.is_control() || c == ';')
+}
+
+/// 1 つの Cookie を確かめる。入れるなら（ドメインの細かさ, `site` だけの Cookie）。
+fn accept_cookie(c: &WireCookie, site: &str, now: f64) -> Option<(usize, Cookie<'static>)> {
+    let host_only = c.host_only && !c.domain.starts_with('.');
+    let domain = c.domain.trim_start_matches('.').to_ascii_lowercase();
+    let applies = domain == site
+        || (!host_only && domain.contains('.') && site.ends_with(&format!(".{domain}")));
+    if !applies
+        || c.name.is_empty()
+        || c.name.contains('=')
+        || !cookie_text(&c.name)
+        || !cookie_text(&c.value)
+        || !c.path.starts_with('/')
+        || !cookie_text(&c.path)
+    {
+        return None;
+    }
+    let mut b = Cookie::build((c.name.clone(), c.value.clone()))
+        .domain(site.to_string())
+        .path(c.path.clone())
+        .secure(c.secure)
+        .http_only(c.http_only);
+    if let Some(s) = c.same_site.as_deref() {
+        b = match s {
+            "lax" => b.same_site(SameSite::Lax),
+            "strict" => b.same_site(SameSite::Strict),
+            "no_restriction" => b.same_site(SameSite::None),
+            _ => b,
+        };
+    }
+    if !c.session {
+        if let Some(e) = c.expiration_date {
+            if !e.is_finite() || e <= now {
+                return None;
+            }
+            let t = OffsetDateTime::from_unix_timestamp(e as i64).ok()?;
+            b = b.expires(t);
+        }
+    }
+    // 細かさ：上のドメインのものほど小さい。`site` 自身は host だけのものを一番後に
+    let depth = domain.len() * 2 + usize::from(host_only);
+    Some((depth, b.build()))
+}
+
+fn now_secs() -> f64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs_f64())
+        .unwrap_or(0.0)
+}
+
+impl Passkey {
+    pub fn new(sites: Vec<String>, browser: PasskeyBrowser) -> Self {
+        Self {
+            sites,
+            browser,
+            waiting: Mutex::default(),
+            last: Mutex::default(),
+        }
+    }
+
+    /// 設定から作る。内蔵ブラウザを使わない・サイトが無いときは None。
+    pub fn from_config(c: &GuiConfig) -> Option<Self> {
+        (c.browser && !c.passkey_sites.is_empty())
+            .then(|| Self::new(c.passkey_sites.clone(), c.passkey_browser))
+    }
+
+    pub fn sites(&self) -> &[String] {
+        &self.sites
+    }
+
+    pub fn browser(&self) -> PasskeyBrowser {
+        self.browser
+    }
+
+    /// タブ `tab`（今 `url` を出している）のページがパスキーを求めた。許可サイトなら待ちを覚え、外のブラウザで開く URL を返す。
+    pub fn hand_off(&self, tab: &str, url: &Url, now: Instant) -> Option<Url> {
+        let site = site_of(url, &self.sites)?;
+        {
+            let mut last = self.last.lock().unwrap();
+            if let Some(t) = last.get(tab) {
+                if now.saturating_duration_since(*t) < MIN_INTERVAL {
+                    return None;
+                }
+            }
+            last.insert(tab.to_string(), now);
+        }
+        self.waiting.lock().unwrap().insert(
+            site,
+            Waiting {
+                tab: tab.to_string(),
+                url: url.clone(),
+                at: now,
+            },
+        );
+        Some(url.clone())
+    }
+
+    /// 期限の切れた待ちを捨てる。
+    fn expire(w: &mut HashMap<String, Waiting>, now: Instant) {
+        w.retain(|_, x| now.saturating_duration_since(x.at) < WAIT);
+    }
+
+    /// 拡張機能からのメッセージ 1 つに答える。Cookie を入れるのは `apply`（待っていたタブと、入れる Cookie を受ける）。
+    pub fn handle(
+        &self,
+        msg: &Value,
+        now: Instant,
+        now_secs: f64,
+        apply: impl FnOnce(&Waiting, Vec<Cookie<'static>>) -> Result<(), String>,
+    ) -> Value {
+        let req = match serde_json::from_value::<Request>(msg.clone()) {
+            Ok(r) => r,
+            Err(e) => return error("bad-request", &e.to_string()),
+        };
+        match req {
+            Request::Sites => {
+                let mut w = self.waiting.lock().unwrap();
+                Self::expire(&mut w, now);
+                let mut waiting: Vec<WaitingSite> = w
+                    .iter()
+                    .map(|(s, x)| WaitingSite {
+                        site: s,
+                        url: x.url.as_str(),
+                    })
+                    .collect();
+                waiting.sort_by(|a, b| a.site.cmp(b.site));
+                json!({
+                    "type": "sites",
+                    "version": PROTOCOL_VERSION,
+                    "sites": self.sites,
+                    "waiting": waiting,
+                })
+            }
+            Request::Cookies { site, cookies } => {
+                if !self.sites.contains(&site) {
+                    return error("not-allowed", "the site is not in passkey_sites");
+                }
+                if cookies.len() > MAX_COOKIES {
+                    return error("bad-request", "too many cookies");
+                }
+                let waiting = {
+                    let mut w = self.waiting.lock().unwrap();
+                    Self::expire(&mut w, now);
+                    match w.get(&site) {
+                        Some(x) => x.clone(),
+                        None => {
+                            return error(
+                                "not-waiting",
+                                "kisui-terminal is not waiting for a login to this site",
+                            )
+                        }
+                    }
+                };
+                let (ok, dropped) = accept_cookies(&cookies, &site, now_secs);
+                if ok.is_empty() {
+                    return error("no-cookies", "no cookie of the site was sent");
+                }
+                let accepted = ok.len();
+                // 1 回だけ受ける（入れられなくても、待ちは終える）
+                self.waiting.lock().unwrap().remove(&site);
+                match apply(&waiting, ok) {
+                    Ok(()) => json!({ "type": "done", "accepted": accepted, "dropped": dropped }),
+                    Err(e) => error("failed", &e),
+                }
+            }
+        }
+    }
+}
+
+/// 外のブラウザで `u` を開く。見つからなければ次の候補を試す。
+pub fn open_external(browser: PasskeyBrowser, u: &Url) {
+    let url = u.to_string();
+    std::thread::spawn(move || {
+        for (prog, args) in candidates(browser) {
+            let child = Command::new(prog)
+                .args(args)
+                .arg(&url)
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .spawn();
+            let Ok(mut child) = child else { continue };
+            let status = child.wait();
+            // macOS の open は、アプリが無いと失敗で終わる。Linux はブラウザそのものなので、起動できれば終わり
+            if cfg!(target_os = "macos") && !status.map(|s| s.success()).unwrap_or(false) {
+                continue;
+            }
+            return;
+        }
+        eprintln!("kisui-terminal: cannot start the browser for passkeys ({browser:?})");
+    });
+}
+
+/// 外のブラウザを起動するコマンドの候補（前のものから試す）。
+fn candidates(browser: PasskeyBrowser) -> Vec<(&'static str, Vec<&'static str>)> {
+    if cfg!(target_os = "macos") {
+        match browser {
+            PasskeyBrowser::Chrome => vec![
+                ("open", vec!["-a", "Google Chrome"]),
+                ("open", vec!["-a", "Chromium"]),
+            ],
+            PasskeyBrowser::Firefox => vec![("open", vec!["-a", "Firefox"])],
+        }
+    } else {
+        match browser {
+            PasskeyBrowser::Chrome => vec![
+                ("google-chrome-stable", vec![]),
+                ("google-chrome", vec![]),
+                ("chromium", vec![]),
+                ("chromium-browser", vec![]),
+            ],
+            PasskeyBrowser::Firefox => vec![("firefox", vec![])],
+        }
+    }
+}
+
+// ---- 窓の受け口（Unix ソケット） ----
+
+/// つないだ相手のユーザー。
+#[cfg(target_os = "linux")]
+fn peer_uid(s: &UnixStream) -> std::io::Result<u32> {
+    let mut cred = libc::ucred {
+        pid: 0,
+        uid: 0,
+        gid: 0,
+    };
+    let mut len = std::mem::size_of::<libc::ucred>() as libc::socklen_t;
+    // SAFETY: cred と len は、getsockopt が書く大きさの、生きている領域を指す
+    let r = unsafe {
+        libc::getsockopt(
+            s.as_raw_fd(),
+            libc::SOL_SOCKET,
+            libc::SO_PEERCRED,
+            (&mut cred as *mut libc::ucred).cast(),
+            &mut len,
+        )
+    };
+    if r != 0 {
+        return Err(std::io::Error::last_os_error());
+    }
+    Ok(cred.uid)
+}
+
+/// つないだ相手のユーザー。
+#[cfg(not(target_os = "linux"))]
+fn peer_uid(s: &UnixStream) -> std::io::Result<u32> {
+    let mut uid: libc::uid_t = 0;
+    let mut gid: libc::gid_t = 0;
+    // SAFETY: uid と gid は、getpeereid が書く、生きている領域を指す
+    let r = unsafe { libc::getpeereid(s.as_raw_fd(), &mut uid, &mut gid) };
+    if r != 0 {
+        return Err(std::io::Error::last_os_error());
+    }
+    Ok(uid)
+}
+
+/// 自分のユーザー。
+fn my_uid() -> u32 {
+    // SAFETY: getuid は引数を取らず、失敗しない
+    unsafe { libc::getuid() }
+}
+
+/// 1 行を上限つきで読む（上限を超えたら間違い）。
+fn read_line_limited(r: impl Read, max: usize) -> std::io::Result<Vec<u8>> {
+    let mut bytes = Vec::new();
+    BufReader::new(r.take(max as u64 + 1)).read_until(b'\n', &mut bytes)?;
+    if bytes.len() > max {
+        return Err(std::io::Error::new(ErrorKind::InvalidData, "too long"));
+    }
+    if bytes.last() == Some(&b'\n') {
+        bytes.pop();
+    }
+    Ok(bytes)
+}
+
+/// 自分だけが入れるフォルダを作る（もうあれば 0700 に直す）。
+fn private_dir(dir: &Path) -> std::io::Result<()> {
+    crate::clipboard_history::create_private_dir(dir)?;
+    fs::set_permissions(dir, fs::Permissions::from_mode(0o700))
+}
+
+/// ソケットのフォルダ。
+fn socket_dir(app: &AppHandle) -> Option<PathBuf> {
+    Some(app.path().app_data_dir().ok()?.join(DIR))
+}
+
+/// 窓の受け口を作り、受け付けるスレッドを始める。
+fn serve(app: &AppHandle, dir: &Path, passkey: Arc<Passkey>) -> std::io::Result<PathBuf> {
+    private_dir(dir)?;
+    let sock = dir.join(SOCK);
+    // 前に動いていたもの（落ちたもの）の残り
+    let _ = fs::remove_file(&sock);
+    let listener = UnixListener::bind(&sock)?;
+    fs::set_permissions(&sock, fs::Permissions::from_mode(0o600))?;
+    let app = app.clone();
+    std::thread::spawn(move || {
+        for stream in listener.incoming().flatten() {
+            let app = app.clone();
+            let p = Arc::clone(&passkey);
+            std::thread::spawn(move || serve_one(&app, &p, stream));
+        }
+    });
+    Ok(sock)
+}
+
+/// 受け口からの 1 回（1 行の JSON を受けて 1 行の JSON を返す）。
+fn serve_one(app: &AppHandle, p: &Passkey, stream: UnixStream) {
+    // ほかのユーザーからは受けない
+    if peer_uid(&stream).ok() != Some(my_uid()) {
+        return;
+    }
+    let _ = stream.set_read_timeout(Some(Duration::from_secs(10)));
+    let Ok(r) = stream.try_clone() else { return };
+    let reply = match read_line_limited(r, MAX_REQUEST)
+        .ok()
+        .and_then(|b| serde_json::from_slice::<Value>(&b).ok())
+    {
+        Some(msg) => p.handle(&msg, Instant::now(), now_secs(), |w, cookies| {
+            apply_cookies(app, w, cookies)
+        }),
+        None => error("bad-request", "not a JSON line"),
+    };
+    let mut w = stream;
+    let _ = writeln!(w, "{reply}");
+}
+
+/// Cookie を内蔵ブラウザの共有のデータに入れ、移る前のタブで同じ URL を開き直し、窓を前に出す。
+fn apply_cookies(
+    app: &AppHandle,
+    w: &Waiting,
+    cookies: Vec<Cookie<'static>>,
+) -> Result<(), String> {
+    let tab = app.get_webview(&crate::browser::label(&w.tab));
+    // データはすべてのタブで共有なので、移る前のタブが閉じていれば、ほかのタブから入れる
+    let any = tab.clone().or_else(|| {
+        app.webviews()
+            .into_iter()
+            .find(|(l, _)| crate::browser::is_tab_label(l))
+            .map(|(_, v)| v)
+    });
+    let Some(v) = any else {
+        return Err("no browser tab is open".into());
+    };
+    for c in cookies {
+        v.set_cookie(c).map_err(|e| e.to_string())?;
+    }
+    if let Some(t) = tab {
+        t.navigate(w.url.clone()).map_err(|e| e.to_string())?;
+    }
+    if let Some(win) = app.get_window("main") {
+        let _ = win.set_focus();
+    }
+    Ok(())
+}
+
+// ---- ブラウザが起動する受け口（native messaging のホスト） ----
+
+/// native messaging のメッセージを 1 つ読む（4 バイトの長さ（そのマシンのバイト順）と JSON）。終わりなら None。
+fn read_message(r: &mut impl Read) -> std::io::Result<Option<Vec<u8>>> {
+    let mut len = [0u8; 4];
+    match r.read_exact(&mut len) {
+        Ok(()) => {}
+        Err(e) if e.kind() == ErrorKind::UnexpectedEof => return Ok(None),
+        Err(e) => return Err(e),
+    }
+    let n = u32::from_ne_bytes(len) as usize;
+    if n > MAX_REQUEST {
+        return Err(std::io::Error::new(ErrorKind::InvalidData, "too long"));
+    }
+    let mut buf = vec![0u8; n];
+    r.read_exact(&mut buf)?;
+    Ok(Some(buf))
+}
+
+/// native messaging のメッセージを 1 つ書く。
+fn write_message(w: &mut impl Write, v: &Value) -> std::io::Result<()> {
+    let mut body = serde_json::to_vec(v).map_err(std::io::Error::other)?;
+    if body.len() > MAX_REPLY {
+        body = serde_json::to_vec(&error("failed", "the reply is too long"))
+            .map_err(std::io::Error::other)?;
+    }
+    w.write_all(&(body.len() as u32).to_ne_bytes())?;
+    w.write_all(&body)?;
+    w.flush()
+}
+
+/// 窓に 1 つのメッセージを渡し、答えを受ける。
+fn forward(sock: &Path, msg: &Value) -> Value {
+    let Ok(mut s) = UnixStream::connect(sock) else {
+        return error("not-running", "kisui-terminal is not running");
+    };
+    let _ = s.set_read_timeout(Some(Duration::from_secs(60)));
+    if writeln!(s, "{msg}").is_err() {
+        return error("not-running", "kisui-terminal did not answer");
+    }
+    match read_line_limited(&s, MAX_REPLY)
+        .ok()
+        .and_then(|b| serde_json::from_slice::<Value>(&b).ok())
+    {
+        Some(v) => v,
+        None => error("not-running", "kisui-terminal did not answer"),
+    }
+}
+
+/// 受け口の本体。標準入力のメッセージを窓に渡し、答えを標準出力に返す。終了コードを返す。
+pub fn run_host(sock: &Path) -> i32 {
+    let mut stdin = std::io::stdin().lock();
+    let mut stdout = std::io::stdout().lock();
+    loop {
+        let msg = match read_message(&mut stdin) {
+            Ok(Some(b)) => b,
+            Ok(None) => return 0,
+            Err(_) => return 1,
+        };
+        let reply = match serde_json::from_slice::<Value>(&msg) {
+            Ok(v) => forward(sock, &v),
+            Err(e) => error("bad-request", &e.to_string()),
+        };
+        if write_message(&mut stdout, &reply).is_err() {
+            return 1;
+        }
+    }
+}
+
+// ---- 登録のファイル ----
+
+/// 登録のファイルを置くブラウザの種類。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Kind {
+    Chromium,
+    Firefox,
+}
+
+/// 登録のファイルを置くフォルダ。（ブラウザが入っている印のフォルダ, 置くフォルダ, 種類）。
+/// 印のフォルダが無ければ（そのブラウザを使っていなければ）置かない。
+fn manifest_dirs(home: &Path, config_home: Option<&Path>) -> Vec<(PathBuf, PathBuf, Kind)> {
+    if cfg!(target_os = "macos") {
+        let a = home.join("Library/Application Support");
+        let mut v: Vec<_> = ["Google/Chrome", "Chromium"]
+            .iter()
+            .map(|b| {
+                (
+                    a.join(b),
+                    a.join(b).join("NativeMessagingHosts"),
+                    Kind::Chromium,
+                )
+            })
+            .collect();
+        v.push((
+            a.join("Firefox"),
+            a.join("Mozilla/NativeMessagingHosts"),
+            Kind::Firefox,
+        ));
+        v
+    } else {
+        let cfg = match config_home {
+            Some(d) if d.is_absolute() => d.to_path_buf(),
+            _ => home.join(".config"),
+        };
+        let mut v: Vec<_> = ["google-chrome", "chromium"]
+            .iter()
+            .map(|b| {
+                (
+                    cfg.join(b),
+                    cfg.join(b).join("NativeMessagingHosts"),
+                    Kind::Chromium,
+                )
+            })
+            .collect();
+        for m in [home.join(".mozilla"), cfg.join("mozilla")] {
+            let to = m.join("native-messaging-hosts");
+            v.push((m, to, Kind::Firefox));
+        }
+        v
+    }
+}
+
+/// 登録のファイルの中身。
+fn manifest(kind: Kind, script: &Path) -> Value {
+    let mut m = json!({
+        "name": HOST_NAME,
+        "description": "kisui-terminal: copies the login of passkey sites to its built-in browser",
+        "path": script.to_string_lossy(),
+        "type": "stdio",
+    });
+    match kind {
+        Kind::Chromium => {
+            let o: Vec<String> = CHROME_EXTENSION_IDS
+                .iter()
+                .map(|id| format!("chrome-extension://{id}/"))
+                .collect();
+            m["allowed_origins"] = json!(o);
+        }
+        Kind::Firefox => m["allowed_extensions"] = json!([FIREFOX_EXTENSION_ID]),
+    }
+    m
+}
+
+/// sh の 1 つの引数として書く。
+fn sh_quote(s: &str) -> String {
+    format!("'{}'", s.replace('\'', "'\\''"))
+}
+
+/// 中身を `path` に置き換える（別の名前に書いてから置き換える）。
+fn write_file(path: &Path, body: &[u8], mode: u32) -> std::io::Result<()> {
+    let mut tmp = path.as_os_str().to_owned();
+    tmp.push(".tmp");
+    let tmp = PathBuf::from(tmp);
+    let _ = fs::remove_file(&tmp);
+    let mut f = crate::clipboard_history::open_private(&tmp)?;
+    f.write_all(body)?;
+    f.sync_all()?;
+    drop(f);
+    fs::set_permissions(&tmp, fs::Permissions::from_mode(mode))?;
+    fs::rename(&tmp, path)
+}
+
+/// 受け口のスクリプト（`dir/native-host`）と、使っているブラウザの登録のファイルを置く。
+/// スクリプトは、今の実行ファイルを `HOST_FLAG` とソケットのパス付きで起動する（起動するたびに書き直すので、実行ファイルが動いても追う）。
+fn install(
+    dir: &Path,
+    sock: &Path,
+    exe: &Path,
+    home: &Path,
+    config_home: Option<&Path>,
+) -> std::io::Result<Vec<PathBuf>> {
+    let (Some(exe), Some(sock_s)) = (exe.to_str(), sock.to_str()) else {
+        return Err(std::io::Error::new(ErrorKind::InvalidData, "not UTF-8"));
+    };
+    let script = dir.join(SCRIPT_FILE);
+    let body = format!(
+        "#!/bin/sh\n# kisui-terminal の native messaging の受け口（passkey.rs が起動のたびに書く）\nexec {} {} {}\n",
+        sh_quote(exe),
+        HOST_FLAG,
+        sh_quote(sock_s)
+    );
+    write_file(&script, body.as_bytes(), 0o700)?;
+    let mut written = Vec::new();
+    for (marker, to, kind) in manifest_dirs(home, config_home) {
+        if !marker.is_dir() || (kind == Kind::Chromium && CHROME_EXTENSION_IDS.is_empty()) {
+            continue;
+        }
+        fs::create_dir_all(&to)?;
+        let path = to.join(format!("{HOST_NAME}.json"));
+        let body =
+            serde_json::to_vec_pretty(&manifest(kind, &script)).map_err(std::io::Error::other)?;
+        write_file(&path, &body, 0o644)?;
+        written.push(path);
+    }
+    Ok(written)
+}
+
+/// 置いた登録のファイルを消す（サイトを書かなくなったとき）。
+fn uninstall(home: &Path, config_home: Option<&Path>) {
+    for (_, to, _) in manifest_dirs(home, config_home) {
+        let _ = fs::remove_file(to.join(format!("{HOST_NAME}.json")));
+    }
+}
+
+/// 起動したときに呼ぶ。設定にサイトがあれば、窓の受け口を作り、登録のファイルを置き、状態を `app` に持たせる。
+/// 無ければ、前に置いた登録のファイルを消す。
+pub fn setup(app: &AppHandle, cfg: Option<&GuiConfig>) {
+    let home = std::env::var_os("HOME").map(PathBuf::from);
+    let config_home = std::env::var_os("XDG_CONFIG_HOME").map(PathBuf::from);
+    let Some(p) = cfg.and_then(Passkey::from_config) else {
+        if let Some(h) = &home {
+            uninstall(h, config_home.as_deref());
+        }
+        return;
+    };
+    let p = Arc::new(p);
+    app.manage(Arc::clone(&p));
+    let Some(dir) = socket_dir(app) else {
+        eprintln!("kisui-terminal: passkey: no data directory");
+        return;
+    };
+    let sock = match serve(app, &dir, p) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!(
+                "kisui-terminal: passkey: cannot listen on {}: {e}",
+                dir.display()
+            );
+            return;
+        }
+    };
+    // AppImage は、動いている間だけ見える場所から起動しているので、AppImage そのものを指す
+    let exe = std::env::var_os("APPIMAGE")
+        .map(PathBuf::from)
+        .or_else(|| std::env::current_exe().ok());
+    if let (Some(exe), Some(h)) = (exe, home) {
+        if let Err(e) = install(&dir, &sock, &exe, &h, config_home.as_deref()) {
+            eprintln!("kisui-terminal: passkey: cannot register the native messaging host: {e}");
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sites() -> Vec<String> {
+        vec!["github.com".into(), "dash.cloudflare.com".into()]
+    }
+
+    fn url(s: &str) -> Url {
+        Url::parse(s).unwrap()
+    }
+
+    #[test]
+    fn only_the_listed_hosts_are_sites() {
+        let s = sites();
+        assert_eq!(
+            site_of(&url("https://github.com/login"), &s).as_deref(),
+            Some("github.com")
+        );
+        assert_eq!(
+            site_of(&url("https://dash.cloudflare.com/login"), &s).as_deref(),
+            Some("dash.cloudflare.com")
+        );
+        for bad in [
+            "https://gist.github.com/",
+            "https://evilgithub.com/",
+            "https://github.com.evil.example/",
+            "https://cloudflare.com/",
+            "file:///github.com",
+            "about:blank",
+        ] {
+            assert_eq!(site_of(&url(bad), &s), None, "{bad}");
+        }
+    }
+
+    #[test]
+    fn requests_need_the_nonce() {
+        assert!(is_request(&url("kisui-passkey://passkey?n=abc"), "abc"));
+        assert!(!is_request(&url("kisui-passkey://passkey?n=abd"), "abc"));
+        assert!(!is_request(&url("kisui-passkey://passkey"), "abc"));
+        assert!(!is_request(&url("kisui-passkey://passkey?n="), ""));
+        assert!(!is_request(&url("kisui-key://key?n=abc"), "abc"));
+        assert!(!is_request(&url("https://github.com/?n=abc"), "abc"));
+    }
+
+    #[test]
+    fn script_has_the_nonce_and_sites() {
+        let s = script("abc\"</script>", &sites());
+        assert!(!s.contains("__KISUI_"));
+        assert!(s.contains(r#"const nonce = "abc\"</script>";"#), "{s}");
+        assert!(s.contains(r#"const sites = ["github.com","dash.cloudflare.com"];"#));
+        // 殻の受ける URL の形で知らせる
+        assert!(SCRIPT.contains("\"kisui-passkey://passkey?n=\""));
+        assert!(!SCRIPT.contains("location.href"));
+    }
+
+    #[test]
+    fn hand_off_only_for_sites_and_not_too_often() {
+        let p = Passkey::new(sites(), PasskeyBrowser::Chrome);
+        let t0 = Instant::now();
+        let u = url("https://github.com/login?return_to=%2F");
+        assert_eq!(p.hand_off("t1", &u, t0), Some(u.clone()));
+        // 続けて来たものは開き直さない
+        assert_eq!(p.hand_off("t1", &u, t0 + Duration::from_secs(1)), None);
+        assert_eq!(p.hand_off("t1", &u, t0 + MIN_INTERVAL), Some(u.clone()));
+        assert_eq!(p.hand_off("t2", &url("https://example.com/"), t0), None);
+        assert_eq!(p.waiting.lock().unwrap().len(), 1);
+    }
+
+    fn wire(name: &str, domain: &str, host_only: bool) -> WireCookie {
+        WireCookie {
+            name: name.into(),
+            value: "v".into(),
+            domain: domain.into(),
+            host_only,
+            path: "/".into(),
+            secure: true,
+            http_only: true,
+            same_site: Some("lax".into()),
+            session: true,
+            expiration_date: None,
+        }
+    }
+
+    #[test]
+    fn accepts_only_cookies_sent_to_the_site() {
+        let cs = vec![
+            wire("user_session", "github.com", true),
+            wire("logged_in", ".github.com", false),
+            wire("gist", "gist.github.com", true),
+            wire("other", "example.com", true),
+            wire("tld", ".com", false),
+            wire("bad;name", "github.com", true),
+            wire("", "github.com", true),
+        ];
+        let (ok, dropped) = accept_cookies(&cs, "github.com", 0.0);
+        let names: Vec<_> = ok.iter().map(|c| c.name().to_string()).collect();
+        assert_eq!(names, vec!["logged_in", "user_session"]);
+        assert_eq!(dropped, 5);
+        for c in &ok {
+            // 許可したサイトだけの Cookie にする
+            assert_eq!(c.domain(), Some("github.com"));
+            assert_eq!(c.http_only(), Some(true));
+            assert_eq!(c.secure(), Some(true));
+            assert_eq!(c.same_site(), Some(SameSite::Lax));
+        }
+        // 上のドメインの Cookie は、許可したサイトだけのものにして入れる
+        let (ok, _) = accept_cookies(
+            &[wire("CF_Authorization", ".cloudflare.com", false)],
+            "dash.cloudflare.com",
+            0.0,
+        );
+        assert_eq!(ok[0].domain(), Some("dash.cloudflare.com"));
+        // host だけの上のドメインの Cookie は、サイトに送られないので捨てる
+        let (ok, dropped) = accept_cookies(
+            &[wire("x", "cloudflare.com", true)],
+            "dash.cloudflare.com",
+            0.0,
+        );
+        assert!(ok.is_empty());
+        assert_eq!(dropped, 1);
+    }
+
+    #[test]
+    fn expiry_is_kept_and_expired_cookies_are_dropped() {
+        let mut c = wire("a", "github.com", true);
+        c.session = false;
+        c.expiration_date = Some(2_000_000_000.5);
+        let (ok, _) = accept_cookies(std::slice::from_ref(&c), "github.com", 1_000.0);
+        assert_eq!(
+            ok[0].expires_datetime().map(|t| t.unix_timestamp()),
+            Some(2_000_000_000)
+        );
+        let (ok, dropped) = accept_cookies(&[c], "github.com", 2_000_000_001.0);
+        assert!(ok.is_empty());
+        assert_eq!(dropped, 1);
+    }
+
+    #[test]
+    fn the_more_specific_cookie_comes_last() {
+        let (ok, _) = accept_cookies(
+            &[
+                wire("s", "github.com", true),
+                wire("s", ".github.com", false),
+            ],
+            "github.com",
+            0.0,
+        );
+        assert_eq!(ok.len(), 2);
+        // 後に入れたものが勝つ。host だけのものを後に
+        let (ok2, _) = accept_cookies(
+            &[
+                wire("s", ".github.com", false),
+                wire("s", "github.com", true),
+            ],
+            "github.com",
+            0.0,
+        );
+        assert_eq!(ok.len(), ok2.len());
+        let mut a = wire("s", ".github.com", false);
+        a.value = "parent".into();
+        let mut b = wire("s", "github.com", true);
+        b.value = "host".into();
+        let (ok, _) = accept_cookies(&[b, a], "github.com", 0.0);
+        assert_eq!(ok.last().unwrap().value(), "host");
+    }
+
+    fn cookies_msg(site: &str) -> Value {
+        json!({
+            "type": "cookies",
+            "site": site,
+            "cookies": [
+                { "name": "user_session", "value": "s", "domain": "github.com", "hostOnly": true,
+                  "path": "/", "secure": true, "httpOnly": true, "sameSite": "lax", "session": true,
+                  "storeId": "0" },
+                { "name": "x", "value": "y", "domain": "example.com", "hostOnly": true }
+            ]
+        })
+    }
+
+    #[test]
+    fn answers_the_sites_and_what_it_waits_for() {
+        let p = Passkey::new(sites(), PasskeyBrowser::Chrome);
+        let t0 = Instant::now();
+        let never = |_: &Waiting, _: Vec<Cookie<'static>>| -> Result<(), String> { panic!() };
+        let r = p.handle(&json!({"type": "sites"}), t0, 0.0, never);
+        assert_eq!(
+            r,
+            json!({"type": "sites", "version": 1, "sites": ["github.com", "dash.cloudflare.com"], "waiting": []})
+        );
+        p.hand_off("t1", &url("https://github.com/login"), t0);
+        let r = p.handle(&json!({"type": "sites"}), t0, 0.0, never);
+        assert_eq!(
+            r["waiting"],
+            json!([{"site": "github.com", "url": "https://github.com/login"}])
+        );
+        // 待つのは WAIT の間だけ
+        let r = p.handle(&json!({"type": "sites"}), t0 + WAIT, 0.0, never);
+        assert_eq!(r["waiting"], json!([]));
+        let r = p.handle(&json!({"type": "nope"}), t0, 0.0, never);
+        assert_eq!(r["code"], "bad-request");
+    }
+
+    #[test]
+    fn takes_cookies_once_and_only_while_waiting() {
+        let p = Passkey::new(sites(), PasskeyBrowser::Chrome);
+        let t0 = Instant::now();
+        let never = |_: &Waiting, _: Vec<Cookie<'static>>| -> Result<(), String> { panic!() };
+        // 許可していないサイト
+        let r = p.handle(&cookies_msg("example.com"), t0, 0.0, never);
+        assert_eq!(r["code"], "not-allowed");
+        // 外のブラウザに移っていないサイト
+        let r = p.handle(&cookies_msg("github.com"), t0, 0.0, never);
+        assert_eq!(r["code"], "not-waiting");
+        p.hand_off("t1", &url("https://github.com/login"), t0);
+        let mut got = None;
+        let r = p.handle(&cookies_msg("github.com"), t0, 0.0, |w, c| {
+            got = Some((w.tab.clone(), w.url.to_string(), c.len()));
+            Ok(())
+        });
+        assert_eq!(r, json!({"type": "done", "accepted": 1, "dropped": 1}));
+        assert_eq!(
+            got,
+            Some(("t1".into(), "https://github.com/login".into(), 1))
+        );
+        // 2 回目は受けない
+        let r = p.handle(&cookies_msg("github.com"), t0, 0.0, never);
+        assert_eq!(r["code"], "not-waiting");
+        // 期限が切れたら受けない
+        p.hand_off("t1", &url("https://github.com/"), t0 + MIN_INTERVAL);
+        let r = p.handle(
+            &cookies_msg("github.com"),
+            t0 + MIN_INTERVAL + WAIT,
+            0.0,
+            never,
+        );
+        assert_eq!(r["code"], "not-waiting");
+    }
+
+    #[test]
+    fn messages_round_trip_in_the_native_messaging_frame() {
+        let v = json!({"type": "sites"});
+        let mut buf = Vec::new();
+        write_message(&mut buf, &v).unwrap();
+        assert_eq!(&buf[..4], &(buf.len() as u32 - 4).to_ne_bytes());
+        let mut r = &buf[..];
+        let got = read_message(&mut r).unwrap().unwrap();
+        assert_eq!(serde_json::from_slice::<Value>(&got).unwrap(), v);
+        assert!(read_message(&mut r).unwrap().is_none());
+        // 長すぎるものは読まない
+        let big = ((MAX_REQUEST + 1) as u32).to_ne_bytes();
+        assert!(read_message(&mut &big[..]).is_err());
+    }
+
+    fn temp_dir(name: &str) -> PathBuf {
+        let d = std::env::temp_dir().join(format!("kisui-passkey-{name}-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&d);
+        d
+    }
+
+    // 受け口は、ソケットの向こうの窓にメッセージを渡し、答えを返す。窓が無ければ not-running
+    #[test]
+    fn the_host_forwards_to_the_socket() {
+        let d = temp_dir("forward");
+        private_dir(&d).unwrap();
+        let sock = d.join(SOCK);
+        assert_eq!(
+            forward(&sock, &json!({"type": "sites"}))["code"],
+            "not-running"
+        );
+        let l = UnixListener::bind(&sock).unwrap();
+        let th = std::thread::spawn(move || {
+            let (s, _) = l.accept().unwrap();
+            assert_eq!(peer_uid(&s).unwrap(), my_uid());
+            let line = read_line_limited(&s, MAX_REQUEST).unwrap();
+            let v: Value = serde_json::from_slice(&line).unwrap();
+            let mut w = s;
+            writeln!(w, "{}", json!({"type": "echo", "got": v})).unwrap();
+        });
+        let r = forward(&sock, &json!({"type": "sites"}));
+        assert_eq!(r, json!({"type": "echo", "got": {"type": "sites"}}));
+        th.join().unwrap();
+        let mode = fs::metadata(&d).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o700);
+        let _ = fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn installs_the_script_and_manifests_for_browsers_in_use() {
+        let d = temp_dir("install");
+        let home = d.join("home");
+        let dir = d.join("data").join(DIR);
+        private_dir(&dir).unwrap();
+        let sock = dir.join(SOCK);
+        let exe = PathBuf::from("/opt/it's/kisui-terminal");
+        // 使っているブラウザ（印のフォルダがあるもの）にだけ置く
+        let firefox = if cfg!(target_os = "macos") {
+            fs::create_dir_all(home.join("Library/Application Support/Firefox")).unwrap();
+            home.join("Library/Application Support/Mozilla/NativeMessagingHosts")
+        } else {
+            fs::create_dir_all(home.join(".mozilla")).unwrap();
+            home.join(".mozilla/native-messaging-hosts")
+        };
+        let written = install(&dir, &sock, &exe, &home, None).unwrap();
+        let m = firefox.join(format!("{HOST_NAME}.json"));
+        assert_eq!(written, vec![m.clone()]);
+        let v: Value = serde_json::from_slice(&fs::read(&m).unwrap()).unwrap();
+        assert_eq!(v["name"], HOST_NAME);
+        assert_eq!(v["type"], "stdio");
+        assert_eq!(v["allowed_extensions"], json!([FIREFOX_EXTENSION_ID]));
+        let script = dir.join(SCRIPT_FILE);
+        assert_eq!(v["path"], script.to_str().unwrap());
+        let body = fs::read_to_string(&script).unwrap();
+        assert!(body.starts_with("#!/bin/sh\n"));
+        assert!(
+            body.contains(&format!(
+                "exec '/opt/it'\\''s/kisui-terminal' {HOST_FLAG} '{}'",
+                sock.display()
+            )),
+            "{body}"
+        );
+        let mode = fs::metadata(&script).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o700);
+        // Chrome の id が決まるまで、Chrome には置かない
+        assert!(!home.join(".config/google-chrome").exists());
+        uninstall(&home, None);
+        assert!(!m.exists());
+        let _ = fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn host_name_is_valid_for_browsers() {
+        // Chrome：小文字の英数字・`_`・`.` だけ
+        assert!(HOST_NAME
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_' || c == '.'));
+    }
+}
