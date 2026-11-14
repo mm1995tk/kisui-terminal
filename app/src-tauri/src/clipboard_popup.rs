@@ -6,6 +6,7 @@
 //!
 //! - 窓はメイン窓とは別の窓（ラベル `LABEL`）。中身はメイン窓と同じ画面（index.html）で、画面側は窓のラベルを見て
 //!   履歴だけを出す（ClipboardHistoryPopup.tsx）。初めて開くときに作り、閉じても隠すだけで、次はそれを出し直す。
+//! - 窓は全画面のアプリの上にも出る（macOS。collectionBehavior の FullScreenAuxiliary と、高い window level。#196）。
 //! - メイン窓は前に出さない。macOS では、この窓をキーの窓にしてからアプリを前に出す（前に出るのはキーの窓と
 //!   メインの窓だけなので）。
 //! - 前のアプリに戻すのは、macOS は開く前に前にいたアプリを覚えておき、それを前に出してから窓を隠す。Linux は窓を
@@ -141,6 +142,7 @@ fn create(app: &AppHandle) -> tauri::Result<WebviewWindow> {
         .visible(false)
         .focused(true)
         .build()?;
+    platform::over_fullscreen(&w);
     let app = app.clone();
     w.on_window_event(move |e| match e {
         // 閉じる（macOS の Cmd+W など）は、隠すだけにする（次に出し直す）
@@ -261,7 +263,8 @@ pub fn close(app: &AppHandle) {
 mod platform {
     use objc2::MainThreadMarker;
     use objc2_app_kit::{
-        NSApplication, NSApplicationActivationOptions, NSRunningApplication, NSWindow, NSWorkspace,
+        NSApplication, NSApplicationActivationOptions, NSRunningApplication, NSStatusWindowLevel,
+        NSWindow, NSWindowCollectionBehavior, NSWorkspace,
     };
     use tauri::WebviewWindow;
 
@@ -276,6 +279,22 @@ mod platform {
     pub fn activate(pid: i32) {
         if let Some(app) = NSRunningApplication::runningApplicationWithProcessIdentifier(pid) {
             app.activateWithOptions(NSApplicationActivationOptions::empty());
+        }
+    }
+
+    /// 全画面のアプリの上にも出せるようにする（#196）。全画面のアプリは自分専用の Space にいて、窓がそこに出るには
+    /// `FullScreenAuxiliary`（全画面の Space に同席できる）が要る。`CanJoinAllSpaces`（tauri の visible_on_all_workspaces が
+    /// 付けるもの）は残す。窓の level も、全画面のアプリの窓より上（NSStatusWindowLevel）に上げる。メインスレッドで呼ぶ。
+    pub fn over_fullscreen(w: &WebviewWindow) {
+        if let Ok(ptr) = w.ns_window() {
+            // SAFETY: ns_window は、この窓の生きている NSWindow を指す。メインスレッドで使う
+            let win: &NSWindow = unsafe { &*ptr.cast::<NSWindow>() };
+            win.setCollectionBehavior(
+                win.collectionBehavior()
+                    | NSWindowCollectionBehavior::CanJoinAllSpaces
+                    | NSWindowCollectionBehavior::FullScreenAuxiliary,
+            );
+            win.setLevel(NSStatusWindowLevel);
         }
     }
 
@@ -306,6 +325,8 @@ mod platform {
     }
 
     pub fn activate(_pid: i32) {}
+
+    pub fn over_fullscreen(_w: &WebviewWindow) {}
 
     pub fn focus(w: &WebviewWindow) {
         let _ = w.set_focus();
