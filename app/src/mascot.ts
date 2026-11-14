@@ -191,8 +191,7 @@ export async function reloadMascot(): Promise<Reloaded> {
     const raw = (await invoke("mascot_reload")) as Mascot | null;
     if (!raw) return { kind: "none" };
     const mascot = await decodeMascot(raw);
-    if (!mascot)
-      return { kind: "error", error: "画像を読み込めませんでした" };
+    if (!mascot) return { kind: "error", error: "画像を読み込めませんでした" };
     // デコードできたので、読み直した画像を使うものにする（できなければ、前のキャラクターの画像の URL が使えるまま残る）
     await invoke("mascot_commit", { generation: generationOf(raw) });
     return { kind: "loaded", mascot };

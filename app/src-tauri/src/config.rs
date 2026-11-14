@@ -239,7 +239,39 @@ pub fn write_mascot_name(dir: &Path, name: &str) -> Result<(), String> {
         }
     }
     fs::create_dir_all(dir).map_err(|e| format!("{}: 作れません（{e}）", dir.display()))?;
-    fs::write(&path, doc.to_string()).map_err(|e| format!("{}: 書けません（{e}）", path.display()))
+    replace_file(&path, doc.to_string().as_bytes())
+        .map_err(|e| format!("{}: 書けません（{e}）", path.display()))
+}
+
+/// `path` の中身を `bytes` に置き換える。同じフォルダの一時ファイルに書いてから名前を付け替えるので、途中で落ちても、
+/// 書きかけを `kisui serve` が読んでも、元の中身か新しい中身のどちらかが見える。
+/// `path` がシンボリックリンクなら、リンクの先を置き換える（リンクは外さない）。元の権限は引き継ぐ。
+/// 一時ファイルを作れない（フォルダに書けない）ときは、そのまま書き込む。
+fn replace_file(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    use std::io::Write;
+    let target = fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    let (Some(dir), Some(name)) = (target.parent(), target.file_name()) else {
+        return fs::write(path, bytes);
+    };
+    let tmp = dir.join(format!(
+        ".{}.kisui-{}",
+        name.to_string_lossy(),
+        std::process::id()
+    ));
+    let written = fs::File::create(&tmp).and_then(|mut f| {
+        f.write_all(bytes)?;
+        if let Ok(m) = fs::metadata(&target) {
+            fs::set_permissions(&tmp, m.permissions())?;
+        }
+        f.sync_all()
+    });
+    match written.and_then(|()| fs::rename(&tmp, &target)) {
+        Ok(()) => Ok(()),
+        Err(_) => {
+            let _ = fs::remove_file(&tmp);
+            fs::write(&target, bytes)
+        }
+    }
 }
 
 /// 1 始まりの行番号。
@@ -634,6 +666,29 @@ mod tests {
             fs::read_to_string(d.join("config.local.toml")).unwrap(),
             "[gui\nmascot = "
         );
+        // シンボリックリンクなら、リンクは外さず、先を置き換える。一時ファイルは残さない
+        let real = d.join("real.toml");
+        fs::write(&real, "# 実体\n").unwrap();
+        fs::remove_file(d.join("config.local.toml")).unwrap();
+        std::os::unix::fs::symlink(&real, d.join("config.local.toml")).unwrap();
+        write_mascot_name(&d, "inu").unwrap();
+        assert!(fs::symlink_metadata(d.join("config.local.toml"))
+            .unwrap()
+            .file_type()
+            .is_symlink());
+        assert!(fs::read_to_string(&real).unwrap().contains("# 実体\n"));
+        assert_eq!(mascot_name(&d).as_deref(), Some("inu"));
+        let leftovers = fs::read_dir(&d)
+            .unwrap()
+            .filter(|e| {
+                e.as_ref()
+                    .unwrap()
+                    .file_name()
+                    .to_string_lossy()
+                    .contains(".kisui-")
+            })
+            .count();
+        assert_eq!(leftovers, 0);
         // 設定のフォルダが無ければ作る
         let sub = d.join("new").join("kisui-terminal");
         write_mascot_name(&sub, "neko").unwrap();
