@@ -20,8 +20,9 @@ export interface MascotScene {
 export interface Mascot {
   carry: MascotScene;
   sigh: MascotScene | null;
-  /** 休憩の具体（形式だけ。動きは後で作る） */
+  /** 休憩の具体。一息つく場面になってから `restAfterMs` 経つと、1 つをランダムに選んで動かす */
   rest: MascotScene[];
+  /** 一息つく場面になってから休憩に入るまでの待ち時間（ミリ秒） */
   restAfterMs: number;
   bye: MascotScene[];
   /** 押していく（形式だけ。動きは後で作る） */

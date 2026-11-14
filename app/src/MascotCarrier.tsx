@@ -49,7 +49,7 @@ export function MascotCarrier(props: {
   onCleanup(() => stopTimers());
 
   /** 一息つく（無ければ運ぶ場面の 1 コマ目で止まる） */
-  const sigh = (m: LoadedMascot) => {
+  const rest = (m: LoadedMascot) => {
     stopTimers = startRest(m, setFrame, Math.random);
   };
 
@@ -64,7 +64,7 @@ export function MascotCarrier(props: {
       dx,
       m.carry,
       setFrame,
-      () => sigh(m),
+      () => rest(m),
     );
   };
 
