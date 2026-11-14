@@ -32,6 +32,8 @@ export function reducedMotion(): boolean {
 }
 
 /** 画像を読む。使えなければ null。画像の縦横比（幅 / 高さ）も返す */
+export type LoadedMascot = Mascot & { aspect: number };
+
 export async function loadMascot(): Promise<
   (Mascot & { aspect: number }) | null
 > {
@@ -48,4 +50,20 @@ export async function loadMascot(): Promise<
   } catch {
     return null;
   }
+}
+
+/** 案内の開閉に応じて、キャラクターがすること（運ぶ・去る・消す） */
+export function nextAction(s: {
+  isOpen: boolean;
+  wasOpen: boolean | undefined;
+  /** 画像が使えるか（4 枚そろって読めた） */
+  hasMascot: boolean;
+  reduced: boolean;
+  hasLeave: boolean;
+  /** 今キャラクターが出ているか */
+  shown: boolean;
+}): "carry" | "leave" | "clear" {
+  if (!s.hasMascot || s.reduced) return "clear";
+  if (s.isOpen) return "carry";
+  return s.wasOpen && s.hasLeave && s.shown ? "leave" : "clear";
 }
