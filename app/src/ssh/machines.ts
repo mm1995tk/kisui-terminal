@@ -15,7 +15,7 @@ export interface KeyValueStore {
 
 /** 設定ファイルで決めたマシンを変えようとしたときの理由。 */
 export const FIXED_REASON =
-  "設定ファイル（config.toml の [[gui.machines]]）で決めたマシンです。変えるには設定ファイルを直してください";
+  "設定ファイル（config.toml か config.local.toml の [[gui.machines]]）で決めたマシンです。変えるには設定ファイルを直してください";
 
 /** 「ローカル」の表示名。 */
 export const LOCAL_LABEL = "ローカル";

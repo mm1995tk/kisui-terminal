@@ -63,7 +63,7 @@ export interface MachineGroup {
   label: string;
   /** 名前を変えたり外したり切ったりできるか（「ローカル」はできない） */
   removable: boolean;
-  /** 設定ファイル（config.toml の [[gui.machines]]）で決めたマシンか。外せず、名前も変えられない */
+  /** 設定ファイル（config.toml か config.local.toml の [[gui.machines]]）で決めたマシンか。外せず、名前も変えられない */
   fixed: boolean;
   /** マシンの色（D4）。見出しと帯の左端の線などに使う */
   color: string;

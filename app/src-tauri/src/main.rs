@@ -40,16 +40,10 @@ fn list_ssh_hosts() -> Vec<String> {
         .unwrap_or_default()
 }
 
-/// 手元の設定ファイルの `[[gui.machines]]`。間違いがあれば「ファイル:行: 理由」を返す（画面は起動しない）。
+/// 手元の設定ファイル（config.toml に config.local.toml を重ねたもの）の `[[gui.machines]]`。間違いがあれば「ファイル:行: 理由」を返す（画面は起動しない）。
 #[tauri::command]
 fn config_machines() -> Result<Vec<config::ConfigMachine>, String> {
     config::load_default()
-}
-
-/// shijimi-editor の設定ファイルに kisui-terminal の設定が残っていれば、今の設定ファイルの場所（画面が場所の変わったお知らせを出す）。
-#[tauri::command]
-fn config_moved() -> Option<String> {
-    config::moved_from_shj_default()
 }
 
 /// kisui につなぐ。`target` は ssh のホスト名か `@local`。`id` は画面側が決める（イベントの宛先）。
@@ -158,7 +152,6 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             list_ssh_hosts,
             config_machines,
-            config_moved,
             mascot::mascot_images,
             connect,
             send,
@@ -170,7 +163,7 @@ fn main() {
             menu::window_close,
             open_url::open_url_external,
             clipboard_history::clipboard_history_list,
-            clipboard_popup::clipboard_popup_pick,
+            clipboard_popup::clipboard_popup_copy,
             clipboard_popup::clipboard_popup_dismiss,
             notify::notify_show,
             transfer::transfer_dest,

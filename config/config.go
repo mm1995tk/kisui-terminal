@@ -1,25 +1,20 @@
 // Package config reads the settings of kisui from its own configuration
-// files: `~/.config/kisui-terminal/config.toml` (and config.nix), or
-// `kisui-terminal-nightly/` for a nightly kisui. kisui reads only its own
-// keys, [server] and ui-language. The settings of shj are in
-// `~/.config/shijimi-editor/`, which kisui does not read, with one exception:
-// when its own files have no ui-language, the one of shj's config.toml (and
-// config.nix) is used, so that one setting can give shj and kisui the same
-// language. A [server] or [[gui.machines]] left in shj's config.toml from
-// before the move is not read; Moved finds it so that it can be told.
+// directory, `~/.config/kisui-terminal/` (`kisui-terminal-nightly/` for a
+// nightly kisui), from the files listed in files. kisui reads only its own
+// keys, [server] and ui-language. The window reads [[gui.machines]] from the
+// same files in the same order (app/src-tauri/src/config.rs). What the window
+// writes goes to config.local.toml, never to config.toml, so that config.toml
+// can be a read-only file (such as the one home-manager makes). The settings
+// of shj (`~/.config/shijimi-editor/`) are not read.
 package config
 
 import (
-	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/BurntSushi/toml"
 
@@ -44,7 +39,7 @@ func Default() *Settings { return &Settings{IdleStopDays: 7, UILanguage: i18n.De
 // Problem is one mistake in a file.
 type Problem struct {
 	File string // path of the file
-	Line int    // line in File; 0 when unknown (Nix has no lines)
+	Line int    // line in File; 0 when unknown
 	Key  string // the setting, such as "server.start_dir"; empty for the file as a whole
 	Code string // i18n key of the reason
 	Args []any  // its format arguments
@@ -106,22 +101,16 @@ func dirOf(name, suffix string) (dir string, ok bool) {
 // or `kisui-terminal<suffix>` for a channel when that exists.
 func UserDir(suffix string) (dir string, ok bool) { return dirOf("kisui-terminal", suffix) }
 
-// shjDir is the configuration directory of shj, the editor kisui-terminal
-// works with. kisui reads ui-language from it, and nothing else.
-func shjDir(suffix string) (dir string, ok bool) { return dirOf("shijimi-editor", suffix) }
-
-// files are the settings files of a directory, in the order they are applied:
-// config.toml, then config.nix on top of it.
-var files = []struct {
-	name string
-	read func(path string) (map[string]any, []Problem, bool)
-}{{"config.toml", readTOML}, {"config.nix", readNix}}
+// files are the settings files of a directory, in the order they are
+// applied: config.toml, then config.local.toml on top of it. A key in
+// config.local.toml wins over the same key in config.toml; the keys of a
+// table such as [server] are taken one by one. Either file may be missing.
+var files = []string{"config.toml", "config.local.toml"}
 
 // Load reads kisui's settings from kisui-terminal's configuration directory
-// (UserDir): config.toml, then config.nix on top of it. When neither sets
-// ui-language, the one in shj's files is used (shjDir). The Settings are
-// returned even with an error, with what did read, so that the language of
-// the messages is the user's.
+// (UserDir), applying files in their order. The Settings are returned even
+// with an error, with what did read, so that the language of the messages is
+// the user's.
 func Load(suffix string) (*Settings, error) {
 	s := Default()
 	dir, ok := UserDir(suffix)
@@ -129,68 +118,18 @@ func Load(suffix string) (*Settings, error) {
 		return s, nil
 	}
 	var probs []Problem
-	langSet := false
-	for _, f := range files {
-		path := filepath.Join(dir, f.name)
-		raw, ps, found := f.read(path)
+	for _, name := range files {
+		path := filepath.Join(dir, name)
+		raw, ps, found := readTOML(path)
 		probs = append(probs, ps...)
 		if found {
-			if _, ok := raw["ui-language"]; ok {
-				langSet = true
-			}
 			probs = append(probs, s.merge(raw, path)...)
 		}
-	}
-	if !langSet {
-		s.sharedLanguage(suffix)
 	}
 	if len(probs) > 0 {
 		return s, &Error{Problems: probs}
 	}
 	return s, nil
-}
-
-// sharedLanguage takes ui-language from shj's files. A mistake there is shj's
-// to report, so a value that is not a language kisui has is skipped.
-func (s *Settings) sharedLanguage(suffix string) {
-	dir, ok := shjDir(suffix)
-	if !ok {
-		return
-	}
-	for _, f := range files {
-		raw, _, found := f.read(filepath.Join(dir, f.name))
-		if !found {
-			continue
-		}
-		if lang, ok := raw["ui-language"].(string); ok && i18n.Valid(lang) {
-			s.UILanguage = lang
-		}
-	}
-}
-
-// Moved is the kisui-terminal settings that are still in shj's config.toml,
-// where kisui no longer reads them: "server" and "gui.machines", whichever
-// are written. path is that file. Only config.toml is looked at (not
-// config.nix), and an unreadable file is not reported here (shj reports it).
-func Moved(suffix string) (path string, keys []string) {
-	dir, ok := shjDir(suffix)
-	if !ok {
-		return "", nil
-	}
-	path = filepath.Join(dir, "config.toml")
-	raw, _, found := readTOML(path)
-	if !found {
-		return path, nil
-	}
-	if _, ok := raw["server"]; ok {
-		keys = append(keys, "server")
-	}
-	if gui, ok := raw["gui"].(map[string]any); ok {
-		if _, ok := gui["machines"]; ok {
-			keys = append(keys, "gui.machines")
-		}
-	}
-	return path, keys
 }
 
 // merge applies a decoded file and reports the mistakes in kisui's keys.
@@ -241,8 +180,10 @@ func (s *Settings) merge(raw map[string]any, path string) []Problem {
 	return probs
 }
 
-// integer is v as an integer: TOML decodes one as int64, Nix (through JSON)
-// as a float64 with nothing after the point.
+// integer is v as an integer: TOML decodes one as int64. A float64 with
+// nothing after the point (such as 3.0) is taken too: earlier versions took
+// it (for config.nix, whose numbers come as float64), in config.toml as well,
+// and a file written so must keep working.
 func integer(v any) (int64, bool) {
 	switch n := v.(type) {
 	case int64:
@@ -293,41 +234,4 @@ func readTOML(path string) (raw map[string]any, probs []Problem, found bool) {
 		return nil, []Problem{p}, false
 	}
 	return raw, nil, true
-}
-
-// nixEvalTimeout bounds `nix eval` of a config.nix.
-const nixEvalTimeout = 20 * time.Second
-
-// readNix evaluates a Nix file with `nix eval --json --file`, the way shj
-// does. found is false when the file does not exist or does not evaluate.
-func readNix(path string) (raw map[string]any, probs []Problem, found bool) {
-	if _, err := os.Stat(path); err != nil {
-		return nil, nil, false
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), nixEvalTimeout)
-	defer cancel()
-	out, err := exec.CommandContext(ctx, "nix", "--extra-experimental-features", "nix-command",
-		"eval", "--json", "--file", path).Output()
-	if err != nil {
-		reason := err.Error()
-		if ee, ok := errors.AsType[*exec.ExitError](err); ok {
-			reason = lastLines(string(ee.Stderr))
-		} else if ctx.Err() != nil {
-			reason = fmt.Sprintf("nix eval did not finish in %s", nixEvalTimeout)
-		}
-		return nil, []Problem{{File: path, Code: "config.err.nix", Args: []any{reason}}}, false
-	}
-	if err := json.Unmarshal(out, &raw); err != nil || raw == nil {
-		return nil, []Problem{{File: path, Code: "config.err.nixtop"}}, false
-	}
-	return raw, nil, true
-}
-
-// lastLines is the end of a nix error message, where the reason is.
-func lastLines(s string) string {
-	lines := strings.Split(strings.TrimSpace(s), "\n")
-	if len(lines) > 3 {
-		lines = lines[len(lines)-3:]
-	}
-	return strings.TrimSpace(strings.Join(lines, " "))
 }

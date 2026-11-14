@@ -1,13 +1,17 @@
-//! 手元の設定ファイル（`~/.config/kisui-terminal/config.toml`）の `[[gui.machines]]`。
+//! 手元の設定ファイルの `[[gui.machines]]`。
 //!
+//! 読むのは設定のフォルダの `config.toml` と `config.local.toml` の 2 つ。`config.toml` が土台で、
+//! `config.local.toml` を上に重ねる（kisui の `config/config.go` と同じファイルを同じ順で読む）。
+//! `config.local.toml` に `[[gui.machines]]`（`[gui] machines = []` も）があれば、`config.toml` の一覧を丸ごと置き換える。
+//! 無ければ `config.toml` の一覧を使う。どちらのファイルも無くてよい。
+//! 窓が設定を書くときは `config.local.toml` に書く（`config.toml` は home-manager が読み取り専用で置くことがある）。
 //! GUI が読むのはこの節だけ。ほかの節（`kisui serve` の `[server]` など）は kisui が読む。
-//! 間違い（TOML の書き方・型の違い・使えない ssh の行き先・重なり）は、
 //! 知らない項目は間違いにしない（新しい版用に書いた項目があっても起動する）。読み飛ばす。
-//! 「ファイル:行: 理由」の 1 行の文字列にして返す。画面側はそれを出して、ほかは何もしない（起動しない）。
+//! 間違い（TOML の書き方・型の違い・使えない ssh の行き先・重なり）は、
+//! 「ファイル:行: 理由」の 1 行の文字列にして返す（2 つのファイルにあれば改行でつなぐ）。画面側はそれを出して、ほかは何もしない（起動しない）。
 //! 置き場は `$XDG_CONFIG_HOME` が絶対パスならそれ、なければ `~/.config` の下の `kisui-terminal/`
 //! （nightly の GUI は `kisui-terminal-nightly/`、そのフォルダが無ければ `kisui-terminal/`）。
-//! shijimi-editor の設定ファイル（`shijimi-editor/config.toml`）の `[[gui.machines]]` と `[server]` は読まない。
-//! 以前の版はそこに書いたので、書いてあれば `moved_from_shj_default` が知らせる（画面がお知らせを出す）。
+//! shijimi-editor の設定のフォルダ（`shijimi-editor/`）は読まない。
 
 use std::collections::HashSet;
 use std::fs;
@@ -36,8 +40,8 @@ struct File {
 
 #[derive(Deserialize)]
 struct Gui {
-    #[serde(default)]
-    machines: Vec<Entry>,
+    // 書いていない（None）と書いて空（Some(空)）を分ける。config.local.toml の空の一覧は、config.toml の一覧を消す
+    machines: Option<Vec<Entry>>,
 }
 
 #[derive(Deserialize)]
@@ -49,8 +53,11 @@ struct Entry {
 /// 「ローカル」の名前（GUI の LOCAL_LABEL と同じ。この名前のマシンは出せない）。
 const LOCAL_LABEL: &str = "ローカル";
 
+/// 設定のフォルダで読むファイル。重ねる順（後のものが勝つ）。
+const FILES: [&str; 2] = ["config.toml", "config.local.toml"];
+
 /// 設定の置き場所の土台（`$XDG_CONFIG_HOME` が絶対パスならそれ、なければ `~/.config`）。
-pub(crate) fn base_dir(config_home: Option<&Path>, home: Option<&Path>) -> Option<PathBuf> {
+fn base_dir(config_home: Option<&Path>, home: Option<&Path>) -> Option<PathBuf> {
     Some(match config_home {
         Some(d) if d.is_absolute() => d.to_path_buf(),
         _ => home?.join(".config"),
@@ -58,7 +65,7 @@ pub(crate) fn base_dir(config_home: Option<&Path>, home: Option<&Path>) -> Optio
 }
 
 /// `name` の設定フォルダ。nightly は `<name>-nightly`、無ければ `name`。
-pub(crate) fn dir_of(base: &Path, name: &str, nightly: bool) -> PathBuf {
+fn dir_of(base: &Path, name: &str, nightly: bool) -> PathBuf {
     if nightly {
         let n = base.join(format!("{name}-nightly"));
         if n.is_dir() {
@@ -68,24 +75,14 @@ pub(crate) fn dir_of(base: &Path, name: &str, nightly: bool) -> PathBuf {
     base.join(name)
 }
 
-/// 設定ファイルの置き場所（kisui-terminal 自身のもの）。`config_home` は `$XDG_CONFIG_HOME`（絶対パスのときだけ使う）、`home` は `$HOME`。
-pub fn config_path(
+/// 設定のフォルダ（kisui-terminal 自身のもの）。`config_home` は `$XDG_CONFIG_HOME`（絶対パスのときだけ使う）、`home` は `$HOME`。
+pub fn config_dir(
     config_home: Option<&Path>,
     home: Option<&Path>,
     nightly: bool,
 ) -> Option<PathBuf> {
     let base = base_dir(config_home, home)?;
-    Some(dir_of(&base, "kisui-terminal", nightly).join("config.toml"))
-}
-
-/// 以前の版が使っていた shijimi-editor の設定ファイルの置き場所。今は読まない。
-fn shj_config_path(
-    config_home: Option<&Path>,
-    home: Option<&Path>,
-    nightly: bool,
-) -> Option<PathBuf> {
-    let base = base_dir(config_home, home)?;
-    Some(dir_of(&base, "shijimi-editor", nightly).join("config.toml"))
+    Some(dir_of(&base, "kisui-terminal", nightly))
 }
 
 /// 環境（`$XDG_CONFIG_HOME`・`$HOME`・nightly か）。
@@ -99,58 +96,44 @@ pub(crate) fn env() -> (Option<PathBuf>, Option<PathBuf>, bool) {
     (xdg, home, nightly)
 }
 
-/// 環境から設定ファイルの場所を決めて読む。
+/// 環境から設定のフォルダを決めて読む。
 pub fn load_default() -> Result<Vec<ConfigMachine>, String> {
     let (xdg, home, nightly) = env();
-    match config_path(xdg.as_deref(), home.as_deref(), nightly) {
-        Some(p) => load(&p),
+    match config_dir(xdg.as_deref(), home.as_deref(), nightly) {
+        Some(d) => load_dir(&d),
         None => Ok(Vec::new()),
     }
 }
 
-/// shijimi-editor の設定ファイルに、kisui-terminal の設定（`[[gui.machines]]` か `[server]`）が
-/// 残っているとき、今の kisui-terminal の設定ファイルの場所（`$HOME` は `~` で出す）を返す。残っていなければ None。
-/// 読めない・書き方が違うファイルは「残っていない」とする（shj が知らせる）。
-pub fn moved_from_shj_default() -> Option<String> {
-    let (xdg, home, nightly) = env();
-    let left = shj_config_path(xdg.as_deref(), home.as_deref(), nightly)
-        .and_then(|p| fs::read_to_string(p).ok())
-        .is_some_and(|t| has_moved_keys(&t));
-    if !left {
-        return None;
+/// 設定のフォルダの 2 つのファイルを読んで重ねる。どちらかに間違いがあれば、全部の間違いを改行でつないで返す。
+pub fn load_dir(dir: &Path) -> Result<Vec<ConfigMachine>, String> {
+    let mut machines = Vec::new();
+    let mut errs = Vec::new();
+    for name in FILES {
+        match load(&dir.join(name)) {
+            // 一覧があるファイルが、前のファイルの一覧を丸ごと置き換える
+            Ok(Some(m)) => machines = m,
+            Ok(None) => {}
+            Err(e) => errs.push(e),
+        }
     }
-    let to = config_path(xdg.as_deref(), home.as_deref(), nightly)?;
-    Some(display_path(&to, home.as_deref()))
-}
-
-/// `$HOME` の下なら `~/…` で出す。
-fn display_path(p: &Path, home: Option<&Path>) -> String {
-    match home.and_then(|h| p.strip_prefix(h).ok()) {
-        Some(rest) => format!("~/{}", rest.display()),
-        None => p.display().to_string(),
+    if errs.is_empty() {
+        Ok(machines)
+    } else {
+        Err(errs.join("\n"))
     }
 }
 
-fn has_moved_keys(text: &str) -> bool {
-    let Ok(t) = text.parse::<toml::Table>() else {
-        return false;
-    };
-    t.contains_key("server")
-        || t.get("gui")
-            .and_then(|g| g.as_table())
-            .is_some_and(|g| g.contains_key("machines"))
-}
-
-/// 設定ファイルを読む。無ければ空。
-pub fn load(path: &Path) -> Result<Vec<ConfigMachine>, String> {
+/// 設定ファイルを 1 つ読む。無いか `[[gui.machines]]` が書いていなければ None。
+fn load(path: &Path) -> Result<Option<Vec<ConfigMachine>>, String> {
     let text = match fs::read(path) {
         Ok(b) => {
             String::from_utf8(b).map_err(|_| format!("{}: UTF-8 で読めません", path.display()))?
         }
-        Err(e) if e.kind() == ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(e) if e.kind() == ErrorKind::NotFound => return Ok(None),
         Err(e) => return Err(format!("{}: 読めません（{e}）", path.display())),
     };
-    parse(&text).map_err(|(line, why)| match line {
+    parse_file(&text).map_err(|(line, why)| match line {
         Some(l) => format!("{}:{l}: {why}", path.display()),
         None => format!("{}: {why}", path.display()),
     })
@@ -166,14 +149,17 @@ fn line_of(text: &str, offset: usize) -> usize {
         + 1
 }
 
-fn parse(text: &str) -> Result<Vec<ConfigMachine>, (Option<usize>, String)> {
+/// 1 つのファイルの `[[gui.machines]]`。書いていなければ None。
+fn parse_file(text: &str) -> Result<Option<Vec<ConfigMachine>>, (Option<usize>, String)> {
     let file: File = toml::from_str(text).map_err(|e| {
         (
             e.span().map(|s| line_of(text, s.start)),
             e.message().to_string(),
         )
     })?;
-    let entries = file.gui.map(|g| g.machines).unwrap_or_default();
+    let Some(entries) = file.gui.and_then(|g| g.machines) else {
+        return Ok(None);
+    };
     let mut out: Vec<ConfigMachine> = Vec::new();
     let mut targets = HashSet::new();
     let mut labels = HashSet::new();
@@ -219,12 +205,17 @@ fn parse(text: &str) -> Result<Vec<ConfigMachine>, (Option<usize>, String)> {
         }
         out.push(ConfigMachine { ssh, name });
     }
-    Ok(out)
+    Ok(Some(out))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 1 つのファイルの一覧（書いていなければ空）。
+    fn parse(text: &str) -> Result<Vec<ConfigMachine>, (Option<usize>, String)> {
+        parse_file(text).map(Option::unwrap_or_default)
+    }
 
     fn err(text: &str) -> (Option<usize>, String) {
         parse(text).unwrap_err()
@@ -303,19 +294,19 @@ mod tests {
     fn path_is_kisui_terminals_own() {
         let home = Path::new("/home/u");
         assert_eq!(
-            config_path(None, Some(home), false).unwrap(),
-            Path::new("/home/u/.config/kisui-terminal/config.toml")
+            config_dir(None, Some(home), false).unwrap(),
+            Path::new("/home/u/.config/kisui-terminal")
         );
         assert_eq!(
-            config_path(Some(Path::new("/x")), Some(home), false).unwrap(),
-            Path::new("/x/kisui-terminal/config.toml")
+            config_dir(Some(Path::new("/x")), Some(home), false).unwrap(),
+            Path::new("/x/kisui-terminal")
         );
         // 絶対パスでない XDG_CONFIG_HOME は使わない
         assert_eq!(
-            config_path(Some(Path::new("rel")), Some(home), false).unwrap(),
-            Path::new("/home/u/.config/kisui-terminal/config.toml")
+            config_dir(Some(Path::new("rel")), Some(home), false).unwrap(),
+            Path::new("/home/u/.config/kisui-terminal")
         );
-        assert!(config_path(None, None, false).is_none());
+        assert!(config_dir(None, None, false).is_none());
     }
 
     #[test]
@@ -324,24 +315,24 @@ mod tests {
         let _ = fs::remove_dir_all(&tmp);
         fs::create_dir_all(tmp.join("kisui-terminal")).unwrap();
         assert_eq!(
-            config_path(Some(&tmp), None, true).unwrap(),
-            tmp.join("kisui-terminal/config.toml")
+            config_dir(Some(&tmp), None, true).unwrap(),
+            tmp.join("kisui-terminal")
         );
         fs::create_dir_all(tmp.join("kisui-terminal-nightly")).unwrap();
         assert_eq!(
-            config_path(Some(&tmp), None, true).unwrap(),
-            tmp.join("kisui-terminal-nightly/config.toml")
+            config_dir(Some(&tmp), None, true).unwrap(),
+            tmp.join("kisui-terminal-nightly")
         );
         assert_eq!(
-            config_path(Some(&tmp), None, false).unwrap(),
-            tmp.join("kisui-terminal/config.toml")
+            config_dir(Some(&tmp), None, false).unwrap(),
+            tmp.join("kisui-terminal")
         );
         let _ = fs::remove_dir_all(&tmp);
     }
 
     #[test]
-    fn missing_file_is_empty() {
-        assert_eq!(load(Path::new("/nonexistent/config.toml")).unwrap(), vec![]);
+    fn missing_dir_is_empty() {
+        assert_eq!(load_dir(Path::new("/nonexistent")).unwrap(), vec![]);
     }
 
     // 以前の版の `[gui] url_open` が残っていても、間違いにしない（値が何でも無視する）
@@ -355,45 +346,88 @@ mod tests {
         }
     }
 
-    #[test]
-    fn old_location_keys_are_found() {
-        assert!(has_moved_keys("[[gui.machines]]\nssh = \"a\"\n"));
-        assert!(has_moved_keys("[server]\nidle_stop_days = 1\n"));
-        assert!(has_moved_keys("theme = \"x\"\n[gui]\nmachines = []\n"));
-        // shj 自身の項目だけなら、残っていない
-        assert!(!has_moved_keys(
-            "theme = \"x\"\nui-language = \"ja\"\n[gui]\ncolor = 1\n"
-        ));
-        assert!(!has_moved_keys(""));
-        // 読めないファイルは、知らせない（shj が知らせる）
-        assert!(!has_moved_keys("a = \n[server]\n"));
+    /// 空の一時フォルダを作る。
+    fn temp_dir(name: &str) -> PathBuf {
+        let d = std::env::temp_dir().join(format!("kisui-gui-{name}-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&d);
+        fs::create_dir_all(&d).unwrap();
+        d
     }
 
-    #[test]
-    fn shj_path_is_the_old_place() {
-        let home = Path::new("/home/u");
-        assert_eq!(
-            shj_config_path(None, Some(home), false).unwrap(),
-            Path::new("/home/u/.config/shijimi-editor/config.toml")
-        );
+    fn machine(ssh: &str) -> ConfigMachine {
+        ConfigMachine {
+            ssh: ssh.into(),
+            name: None,
+        }
     }
 
+    // config.local.toml の一覧は、config.toml の一覧を丸ごと置き換える
     #[test]
-    fn display_path_uses_tilde_under_home() {
-        let home = Path::new("/home/u");
-        assert_eq!(
-            display_path(
-                Path::new("/home/u/.config/kisui-terminal/config.toml"),
-                Some(home)
-            ),
-            "~/.config/kisui-terminal/config.toml"
+    fn local_replaces_machines() {
+        let d = temp_dir("local-wins");
+        fs::write(
+            d.join("config.toml"),
+            "[[gui.machines]]\nssh = \"a\"\n[[gui.machines]]\nssh = \"b\"\n",
+        )
+        .unwrap();
+        assert_eq!(load_dir(&d).unwrap(), vec![machine("a"), machine("b")]);
+        // 一覧の無い config.local.toml は、config.toml の一覧を変えない
+        fs::write(
+            d.join("config.local.toml"),
+            "[server]\nidle_stop_days = 1\n",
+        )
+        .unwrap();
+        assert_eq!(load_dir(&d).unwrap(), vec![machine("a"), machine("b")]);
+        fs::write(
+            d.join("config.local.toml"),
+            "[[gui.machines]]\nssh = \"c\"\n",
+        )
+        .unwrap();
+        assert_eq!(load_dir(&d).unwrap(), vec![machine("c")]);
+        // 空の一覧も置き換える
+        fs::write(d.join("config.local.toml"), "[gui]\nmachines = []\n").unwrap();
+        assert_eq!(load_dir(&d).unwrap(), vec![]);
+        // config.local.toml だけでもよい
+        fs::remove_file(d.join("config.toml")).unwrap();
+        fs::write(
+            d.join("config.local.toml"),
+            "[[gui.machines]]\nssh = \"c\"\n",
+        )
+        .unwrap();
+        assert_eq!(load_dir(&d).unwrap(), vec![machine("c")]);
+        let _ = fs::remove_dir_all(&d);
+    }
+
+    // 間違いは、どちらのファイルのものも、ファイルの場所を付けて出す
+    #[test]
+    fn errors_of_both_files() {
+        let d = temp_dir("errs");
+        fs::write(d.join("config.toml"), "[[gui.machines]]\nssh = 1\n").unwrap();
+        fs::write(d.join("config.local.toml"), "a = \n").unwrap();
+        let e = load_dir(&d).unwrap_err();
+        let lines: Vec<&str> = e.lines().collect();
+        assert_eq!(lines.len(), 2, "{e}");
+        assert!(
+            lines[0].starts_with(&format!("{}:2: ", d.join("config.toml").display())),
+            "{e}"
         );
-        assert_eq!(
-            display_path(
-                Path::new("/x/kisui-terminal-nightly/config.toml"),
-                Some(home)
-            ),
-            "/x/kisui-terminal-nightly/config.toml"
+        assert!(
+            lines[1].starts_with(&format!("{}:1: ", d.join("config.local.toml").display())),
+            "{e}"
         );
+        let _ = fs::remove_dir_all(&d);
+    }
+
+    // config.nix は読まない
+    #[test]
+    fn config_nix_is_not_read() {
+        let d = temp_dir("nix");
+        fs::write(
+            d.join("config.nix"),
+            "{ gui.machines = [ { ssh = \"a\"; } ]; }\n",
+        )
+        .unwrap();
+        assert_eq!(load_dir(&d).unwrap(), vec![]);
+        let _ = fs::remove_dir_all(&d);
     }
 }

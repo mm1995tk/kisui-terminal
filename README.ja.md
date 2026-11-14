@@ -51,7 +51,7 @@ kisui-terminal は、手元のクリップボードにコピーした文の履�
 
 `Cmd+Shift+H`（macOS）か `Ctrl+Shift+H`（Linux）で、履歴を新しい順の一覧で開きます。文字を打つと絞り込め、上下キー（か `Ctrl+J` / `Ctrl+K`）で選び、`Enter` で打っていたペインに貼り、`Shift+Enter` でクリップボードに戻します。`Esc` は何もせずに閉じます。
 
-kisui-terminal の外（ほかのアプリを使っているとき）でも、`Option+Space`（macOS）か `Alt+Space`（Linux）で、履歴の小さな窓が前に出ます。kisui-terminal のメインの窓は前に出ません。上下キー（か `Ctrl+J` / `Ctrl+K`）で選んで `Enter` を押すと、その文をクリップボードに戻し、窓を閉じて前に使っていたアプリに戻るので、`Cmd+V`（Linux は `Ctrl+V`）で貼ります。kisui-terminal からは貼る操作を送らないので、macOS のアクセシビリティの許可は要りません。`Esc` は何もせずに閉じて前のアプリに戻ります。使えるのは kisui-terminal が起動している間だけです。Linux では、`Alt+Space` をウィンドウマネージャー（GNOME や KDE の窓のメニューなど）が先に取っていると届きません。そのときは、ウィンドウマネージャーの側でそのキーを外してください。Wayland のセッションでは全体のキーを取れないことがあります（X11 のアプリを使っている間だけ届くことがあります）。
+kisui-terminal の外（ほかのアプリを使っているとき）でも、`Option+Space`（macOS）か `Alt+Space`（Linux）で、履歴の小さな窓が前に出ます。kisui-terminal のメインの窓は前に出ません。上下キー（か `Ctrl+J` / `Ctrl+K`）で選んで `Enter` を押すと、その文をクリップボードに戻し、「コピーしました」を少し出してから窓を閉じて前に使っていたアプリに戻るので、`Cmd+V`（Linux は `Ctrl+V`）で貼ります。kisui-terminal からは貼る操作を送らないので、macOS のアクセシビリティの許可は要りません。`Esc` は何もせずに閉じて前のアプリに戻ります。使えるのは kisui-terminal が起動している間だけです。Linux では、`Alt+Space` をウィンドウマネージャー（GNOME や KDE の窓のメニューなど）が先に取っていると届きません。そのときは、ウィンドウマネージャーの側でそのキーを外してください。Wayland のセッションでは全体のキーを取れないことがあります（X11 のアプリを使っている間だけ届くことがあります）。
 
 `kisui pane split --right` / `--down` / `--left` / `--up` は、打ったペインを右・下・左・上に分け、新しいペインにフォーカスを移します。後ろにコマンドを付けると、新しいペインではシェルの代わりにそのコマンドを動かします（`kisui pane split --down htop`）。コマンドが終わるとペインも閉じるので、短いコマンドの出力を残したいときは、シェルに動かさせて最後にシェルを残します（`kisui pane split --down sh -c "ls; exec sh"`）。分けた後のペインが 20 列（`--right`・`--left`）・5 行（`--down`・`--up`）より小さくなるときは、キーで分けるときと同じく断ります。`kisui pane title <名前>` は、ペインの上の細い帯に名前を出します（空の名前なら外します）。名前は serve が持つので、ウィンドウを開き直しても残ります。
 
@@ -70,12 +70,12 @@ kisui skill install
 kisui skill install ./my-skills/kisui-terminal
 ```
 
-kisui-terminal の設定は、kisui-terminal 自身の `config.toml` に書きます。`~/.config/kisui-terminal/config.toml`（nightly 版は、あれば `kisui-terminal-nightly/`。`$XDG_CONFIG_HOME` が絶対パスならそちらを使います）。同じフォルダの `config.nix` も、`shj` と同じように読みます。`shj` の `config.toml`（`~/.config/shijimi-editor/`）ではありません。以下の設定は以前そこに書いていましたが、**そこからはもう読みません**。手で移してください。まだそこに残っていると、起動したときにお知らせのカードで知らせ、`kisui serve` はログに書きます。例外は `ui-language` だけで、kisui-terminal の設定に無ければ `shj` の `config.toml` のものを使うので、1 行で両方の言語をそろえられます。home-manager では、この flake のモジュールの `programs.kisui-terminal.settings` に書くと、そのファイルを作ります。`programs.shijimi-editor.settings` は、もう kisui-terminal には届きません。
+kisui-terminal の設定は、kisui-terminal 自身の設定のフォルダの `config.toml` と `config.local.toml` に書きます。フォルダは `~/.config/kisui-terminal/`（nightly 版は、あれば `kisui-terminal-nightly/`。`$XDG_CONFIG_HOME` が絶対パスならそちらを使います）。`config.toml` を土台に、`config.local.toml` を上に重ねて読みます。同じ項目は `config.local.toml` が勝ちます。`[server]` のような表は項目ごとに重ね、`[[gui.machines]]` の一覧は、`config.local.toml` にあれば（`[gui]` の `machines = []` も）`config.toml` の一覧を丸ごと置き換えます。どちらのファイルも無くてかまいません。読むのはこの 2 つだけで、`config.nix` は読みません。kisui-terminal 自身が設定を書くときは `config.local.toml` に書き、`config.toml` には書きません。`shj` の設定（`~/.config/shijimi-editor/`）は読みません（`ui-language` も）。home-manager では、この flake のモジュールの `programs.kisui-terminal.settings` に書くと、`config.toml` を作ります。
 
 - `[[gui.machines]]`：マシン（マシンのダイアログ `m` に出て、ワークスペースはサイドバーに並ぶ。`ssh = "dev-vm"`、`name = "dev"`）。
 - 画面の URL（波線が引かれる）は、`cmd + click` か `cmd + shift + click`（macOS 以外は `ctrl + click` か `ctrl + shift + click`）で、OS 既定のブラウザで開きます。開くのは http と https の URL だけです。リモート（ssh）のマシンのターミナルに出た `localhost` 系の URL は、手元のブラウザだと手元の localhost に行ってしまうため、ssh の上で中継し（`kisui relay`）、手元のアドレスの URL を開きます。そのポートで誰も待っていなければ、ブラウザを開かずにそう出します。アプリがマウスの報告を有効にしている間（vim・tmux・htop・`shj` など）は、shift なしのクリックはアプリに届くので、`cmd + shift + click` を使います。以前の版の `[gui]` の `url_open` は無視します。
 - `[server]`：`idle_stop_days`（窓がつながっていない状態で `kisui serve` が待つ日数。既定 7、0 は止めない）と `start_dir`（新しいワークスペースのシェルを始めるフォルダ）。
-- `ui-language`：kisui 自身のメッセージの言語（`shj` と同じ項目）。
+- `ui-language`：kisui 自身のメッセージの言語（`shj` の同じ名前の項目とは別に書きます）。
 
 **キャラクター（実験的）**。画面を動かすマシンの、`config.toml` と同じフォルダの `mascot/`（`~/.config/kisui-terminal/mascot/`。nightly 版は、あれば `kisui-terminal-nightly/mascot/`。`$XDG_CONFIG_HOME` が絶対パスならそちらを使います）に画像を置くと、リーダーの案内を、キャラクターがターミナルの左端から右下の位置まで押して運んできます。画像は kisui-terminal に入っていません。設定の項目もありません。画像は背景が透明な PNG で、全部同じ大きさ、右向きに描きます（左右の反転はしません）。読むのは次の 5 つの名前だけで、窓を開いたときに 1 回読みます。
 
