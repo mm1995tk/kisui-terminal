@@ -21,33 +21,9 @@ import {
   type MachineAction,
   type MachineRow,
 } from "./machineList.ts";
+import { createRowSelection } from "./rowSelection.ts";
 
 const rowId = (i: number) => `machine-dialog-row-${i}`;
-
-/**
- * 一覧で選んでいる行。選んでいるのは位置ではなくマシンで、外したり足したりして並びが変わっても同じマシンを選び続ける
- * （選んでいるマシンが消えたら、元の位置に寄せる）。
- */
-function createRowSelection(
-  rows: Accessor<readonly MachineRow[]>,
-  initial: string | undefined,
-) {
-  const [target, setTarget] = createSignal(initial);
-  let last = 0;
-  const index = createMemo(() => {
-    last = keepRow(rows(), target(), last);
-    return last;
-  });
-  return {
-    index,
-    selected: () => rows()[index()],
-    /** 行（位置）を選ぶ */
-    pick: (i: number) => setTarget(rows()[i]?.target),
-    /** 選ぶ行を動かす */
-    move: (to: "next" | "prev" | "first" | "last") =>
-      setTarget(rows()[moveRow(index(), to, rows().length)]?.target),
-  };
-}
 
 /** 一覧の 1 行（状態の点・名前・設定ファイルの印・状態・ワークスペースの数）。 */
 function MachineRowItem(props: {
