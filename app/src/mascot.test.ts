@@ -93,6 +93,45 @@ function fakeEl(left: number) {
 const asEl = (e: unknown) => e as HTMLElement;
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+describe("運ぶ途中に閉じたとき", () => {
+  it("今見えている位置から去り始める（右下へ飛ばない）", async () => {
+    const { startCarry, startLeave } = await import("./mascotMotion.ts");
+    (globalThis as { window?: unknown }).window = { innerWidth: 1400 };
+    const char = fakeEl(300);
+    const stopCarry = startCarry(
+      asEl(fakeEl(0)),
+      () => asEl(char),
+      1000,
+      () => {},
+      () => {},
+    );
+    await wait(5);
+    stopCarry();
+    const stopLeave = startLeave(
+      () => asEl(char),
+      () => {},
+      () => {},
+    );
+    await wait(5);
+    stopLeave();
+    const [a, b] = char.started[1].keyframes.map((k) =>
+      Number(/-?[\d.]+/.exec(k.transform)?.[0]),
+    );
+    // 運び始めたばかり: ほぼ -1000（運び終えた位置の 1000px 左）から始まる
+    assert.ok(a < -900 && a > -1000, `from=${a}`);
+    // 着く先は、運び終えた位置から画面の右端まで（左の位置から数えない）
+    assert.ok(Math.abs(b - (1400 - 300)) < 1e-6, `to=${b}`);
+  });
+
+  it("運び終えてから閉じたときは、運び終えた位置から歩く", async () => {
+    const { carryOffset } = await import("./mascotMotion.ts");
+    assert.equal(carryOffset(1000, walkDuration(1000)), 0);
+    assert.equal(carryOffset(1000, walkDuration(1000) * 5), 0);
+    assert.equal(carryOffset(1000, 0), -1000);
+    assert.equal(carryOffset(1000, walkDuration(1000) / 2), -500);
+  });
+});
+
 describe("止める関数は Web Animations も止める", () => {
   it("運ぶ途中で止めると、案内とキャラクターの動きを cancel する", async () => {
     const { startCarry } = await import("./mascotMotion.ts");

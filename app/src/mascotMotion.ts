@@ -14,6 +14,20 @@ export function carryDistance(menu: HTMLElement, width: number): number {
 }
 
 /**
+ * 運ぶ動きを止めた時点で、キャラクターが運び終えた位置から左にずれていた距離（px。0 以下）。
+ * 去る動き（startLeave）が、今見えている位置から始められるように、止めるときに覚えておく。
+ */
+const leftover = new WeakMap<HTMLElement, number>();
+
+/** 運び始めて `elapsed` ミリ秒後に、運び終えた位置から左にずれている距離（px。0 以下）。速さが一定なので直線 */
+export function carryOffset(dx: number, elapsed: number): number {
+  const duration = walkDuration(dx);
+  if (duration <= 0) return 0;
+  const rest = Math.max(0, 1 - elapsed / duration);
+  return rest === 0 ? 0 : -dx * rest;
+}
+
+/**
  * 案内とキャラクターを、`dx` だけ左から今の位置まで動かす。歩きのコマを `onFrame` に知らせ、着いたら `onDone` を呼ぶ。
  * `char` は、`onFrame` で描画が出るまで無いことがあるので、アニメーションを始めるときに取る。
  */
@@ -53,6 +67,9 @@ export function startCarry(
     live = false;
     clearInterval(tick);
     clearTimeout(done);
+    // 動きを止めると位置が元に戻るので、先に今の位置を覚える
+    const el = char();
+    if (el) leftover.set(el, carryOffset(dx, performance.now() - t0));
     for (const a of anims) a.cancel();
   };
 }
@@ -72,10 +89,16 @@ export function startLeave(
   queueMicrotask(() => {
     const el = char();
     if (!live || !el) return;
-    const dx = window.innerWidth - el.getBoundingClientRect().left;
+    // 運ぶ途中で閉じたときは、今見えている位置（運び終えた位置から `from` だけ左）から歩く
+    const from = leftover.get(el) ?? 0;
+    leftover.delete(el);
+    const dx = window.innerWidth - (el.getBoundingClientRect().left + from);
     const duration = walkDuration(dx);
     anim = el.animate?.(
-      [{ transform: "none" }, { transform: `translateX(${dx}px)` }],
+      [
+        { transform: `translateX(${from}px)` },
+        { transform: `translateX(${from + dx}px)` },
+      ],
       { duration, easing: "linear" },
     );
     tick = setInterval(() => onFrame(walkFrame(performance.now() - t0)), 30);
