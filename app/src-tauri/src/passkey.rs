@@ -17,6 +17,7 @@
 //! 同じユーザーのほかのプログラムは、受け口を真似れば、その間に限って Cookie を差し込める。ただし同じユーザーのプログラムは、
 //! もともと内蔵ブラウザの Cookie の置き場（同じユーザーのファイル）を直接読み書きできるので、この経路で広がる害は無い。
 
+use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::fs;
 use std::io::{BufRead, BufReader, ErrorKind, Read, Write};
@@ -361,19 +362,16 @@ impl Passkey {
         let waiting = {
             let mut w = self.waiting.lock().unwrap();
             Self::expire(&mut w, now);
-            if !w.contains_key(site) {
+            let Entry::Occupied(e) = w.entry(site.to_string()) else {
                 return error(
                     "not-waiting",
                     "kisui-terminal is not waiting for a login to this site",
                 );
-            }
+            };
             if ok.is_empty() {
                 return error("no-cookies", "no cookie of the site was sent");
             }
-            match w.remove(site) {
-                Some(x) => x,
-                None => return error("not-waiting", "kisui-terminal is not waiting"),
-            }
+            e.remove()
         };
         let accepted = ok.len();
         match apply(&waiting, ok) {
