@@ -122,6 +122,13 @@ fn main() {
     #[cfg(feature = "updater")]
     let builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
     builder
+        // リーダーの案内を運ぶキャラクターの画像（mascot.rs）。画面は `mascot_load` が付けた番号だけを渡す。
+        // ファイルを読むので、メインスレッドの外で答える
+        .register_asynchronous_uri_scheme_protocol(mascot::SCHEME, |ctx, req, responder| {
+            let webview = ctx.webview_label().to_string();
+            let path = req.uri().path().to_string();
+            std::thread::spawn(move || responder.respond(mascot::respond(&webview, &path)));
+        })
         .on_menu_event(|app, event| {
             if event.id() == menu::CLOSE_ID {
                 menu::on_close(app);
@@ -152,7 +159,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             list_ssh_hosts,
             config_machines,
-            mascot::mascot_images,
+            mascot::mascot_load,
             connect,
             send,
             disconnect,

@@ -5,7 +5,7 @@
 //! `config.local.toml` に `[[gui.machines]]`（`[gui] machines = []` も）があれば、`config.toml` の一覧を丸ごと置き換える。
 //! 無ければ `config.toml` の一覧を使う。どちらのファイルも無くてよい。
 //! 窓が設定を書くときは `config.local.toml` に書く（`config.toml` は home-manager が読み取り専用で置くことがある）。
-//! GUI が読むのはこの節だけ。ほかの節（`kisui serve` の `[server]` など）は kisui が読む。
+//! GUI が読むのはこの節と `[gui] mascot`（リーダーの案内を運ぶキャラクターの名前。mascot.rs）だけ。ほかの節（`kisui serve` の `[server]` など）は kisui が読む。
 //! 知らない項目は間違いにしない（新しい版用に書いた項目があっても起動する）。読み飛ばす。
 //! 間違い（TOML の書き方・型の違い・使えない ssh の行き先・重なり）は、
 //! 「ファイル:行: 理由」の 1 行の文字列にして返す（2 つのファイルにあれば改行でつなぐ）。画面側はそれを出して、ほかは何もしない（起動しない）。
@@ -137,6 +137,28 @@ fn load(path: &Path) -> Result<Option<Vec<ConfigMachine>>, String> {
         Some(l) => format!("{}:{l}: {why}", path.display()),
         None => format!("{}: {why}", path.display()),
     })
+}
+
+/// `[gui] mascot`（使うキャラクターの名前）。`config.local.toml` に書いてあれば、そちらが勝つ（空の文字列も。キャラクターを出さない）。
+/// 書いていなければ None。実験的な機能なので、読めないファイルや文字列でない値は、書いていないのと同じに扱う（マシンの一覧の間違いとは分ける）。
+pub fn mascot_name(dir: &Path) -> Option<String> {
+    let mut name = None;
+    for file in FILES {
+        let Ok(text) = fs::read_to_string(dir.join(file)) else {
+            continue;
+        };
+        let Ok(table) = text.parse::<toml::Table>() else {
+            continue;
+        };
+        if let Some(s) = table
+            .get("gui")
+            .and_then(|g| g.get("mascot"))
+            .and_then(|v| v.as_str())
+        {
+            name = Some(s.to_string());
+        }
+    }
+    name.filter(|n| !n.is_empty())
 }
 
 /// 1 始まりの行番号。
@@ -415,6 +437,37 @@ mod tests {
             lines[1].starts_with(&format!("{}:1: ", d.join("config.local.toml").display())),
             "{e}"
         );
+        let _ = fs::remove_dir_all(&d);
+    }
+
+    // [gui] mascot は config.local.toml が勝つ。空の文字列は出さない
+    #[test]
+    fn mascot_name_local_wins() {
+        let d = temp_dir("mascot");
+        assert_eq!(mascot_name(&d), None);
+        fs::write(d.join("config.toml"), "[gui]\nmascot = \"neko\"\n").unwrap();
+        assert_eq!(mascot_name(&d).as_deref(), Some("neko"));
+        fs::write(
+            d.join("config.local.toml"),
+            "[server]\nidle_stop_days = 1\n",
+        )
+        .unwrap();
+        assert_eq!(mascot_name(&d).as_deref(), Some("neko"));
+        fs::write(d.join("config.local.toml"), "[gui]\nmascot = \"inu\"\n").unwrap();
+        assert_eq!(mascot_name(&d).as_deref(), Some("inu"));
+        // 文字列でない値は、書いていないのと同じ（config.toml の値を使う）
+        fs::write(d.join("config.local.toml"), "[gui]\nmascot = 5\n").unwrap();
+        assert_eq!(mascot_name(&d).as_deref(), Some("neko"));
+        fs::write(d.join("config.local.toml"), "[gui]\nmascot = \"\"\n").unwrap();
+        assert_eq!(mascot_name(&d), None);
+        // マシンの一覧は mascot を読み飛ばす
+        fs::write(
+            d.join("config.toml"),
+            "[gui]\nmascot = \"neko\"\n[[gui.machines]]\nssh = \"a\"\n",
+        )
+        .unwrap();
+        fs::remove_file(d.join("config.local.toml")).unwrap();
+        assert_eq!(load_dir(&d).unwrap(), vec![machine("a")]);
         let _ = fs::remove_dir_all(&d);
     }
 
