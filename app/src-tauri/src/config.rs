@@ -150,8 +150,12 @@ pub fn mascot_name(dir: &Path) -> Option<String> {
         let Ok(table) = text.parse::<toml::Table>() else {
             continue;
         };
-        if let Some(v) = table.get("gui").and_then(|g| g.get("mascot")) {
-            name = v.as_str().map(str::to_string);
+        if let Some(s) = table
+            .get("gui")
+            .and_then(|g| g.get("mascot"))
+            .and_then(|v| v.as_str())
+        {
+            name = Some(s.to_string());
         }
     }
     name.filter(|n| !n.is_empty())
@@ -451,6 +455,9 @@ mod tests {
         assert_eq!(mascot_name(&d).as_deref(), Some("neko"));
         fs::write(d.join("config.local.toml"), "[gui]\nmascot = \"inu\"\n").unwrap();
         assert_eq!(mascot_name(&d).as_deref(), Some("inu"));
+        // 文字列でない値は、書いていないのと同じ（config.toml の値を使う）
+        fs::write(d.join("config.local.toml"), "[gui]\nmascot = 5\n").unwrap();
+        assert_eq!(mascot_name(&d).as_deref(), Some("neko"));
         fs::write(d.join("config.local.toml"), "[gui]\nmascot = \"\"\n").unwrap();
         assert_eq!(mascot_name(&d), None);
         // マシンの一覧は mascot を読み飛ばす
