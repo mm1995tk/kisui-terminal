@@ -166,6 +166,7 @@ export function MascotCarrier(props: {
         <div
           ref={(e) => (charEl = e)}
           class={styles.mascot}
+          data-overlay=""
           style={{ height: `${MASCOT_HEIGHT}px` }}
           aria-hidden="true"
         >

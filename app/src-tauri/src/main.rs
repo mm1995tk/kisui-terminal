@@ -2,6 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod askpass;
+mod browser;
 mod clipboard_history;
 mod clipboard_popup;
 mod config;
@@ -40,9 +41,10 @@ fn list_ssh_hosts() -> Vec<String> {
         .unwrap_or_default()
 }
 
-/// 手元の設定ファイル（config.toml に config.local.toml を重ねたもの）の `[[gui.machines]]`。間違いがあれば「ファイル:行: 理由」を返す（画面は起動しない）。
+/// 手元の設定ファイル（config.toml に config.local.toml を重ねたもの）の `[[gui.machines]]` と `[gui.browser]`。
+/// 間違いがあれば「ファイル:行: 理由」を返す（画面は起動しない）。
 #[tauri::command]
-fn config_machines() -> Result<Vec<config::ConfigMachine>, String> {
+fn config_gui() -> Result<config::GuiConfig, String> {
     config::load_default()
 }
 
@@ -158,8 +160,8 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             list_ssh_hosts,
-            config_machines,
             mascot::mascot_load,
+            config_gui,
             connect,
             send,
             disconnect,
@@ -169,6 +171,15 @@ fn main() {
             install_cancel,
             menu::window_close,
             open_url::open_url_external,
+            browser::browser_open,
+            browser::browser_bounds,
+            browser::browser_visible,
+            browser::browser_focus,
+            browser::browser_go,
+            browser::browser_nav,
+            browser::browser_close,
+            browser::browser_tabs_load,
+            browser::browser_tabs_save,
             clipboard_history::clipboard_history_list,
             clipboard_popup::clipboard_popup_copy,
             clipboard_popup::clipboard_popup_dismiss,

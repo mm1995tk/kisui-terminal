@@ -1,0 +1,24 @@
+/* 内蔵ブラウザのタブ（#202。BrowserArea.tsx）を出す場所。グリッドの場所すべてを覆う。
+   ページそのものは、この上に子の webview を重ねて出す。ここに見えるのは、ページを開いている途中・隠している間の案内だけ */
+.browser-area {
+  position: absolute;
+  inset: 0;
+  /* ターミナルのグリッドより上、境界のつまみ（app.css の .resizer、z-index 5）より下 */
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--gh-bg);
+}
+.browser-area[hidden] {
+  display: none;
+}
+.browser-note {
+  margin: 0;
+  max-width: 40em;
+  font-size: 12px;
+  color: var(--gh-text-muted);
+  text-align: center;
+  overflow-wrap: anywhere;
+}

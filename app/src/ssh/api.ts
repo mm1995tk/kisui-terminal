@@ -39,13 +39,20 @@ export const EXIT_KISUI_MISSING = 97;
 
 export type Unlisten = () => void;
 
+/** 手元の設定ファイルの GUI の節（殻の config.rs の GuiConfig）。 */
+export interface GuiConfig {
+  machines: ConfigMachine[];
+  /** 内蔵ブラウザのタブを使うか（[gui.browser] enabled。初めは使わない） */
+  browser: boolean;
+}
+
 export interface ShellApi {
   listSshHosts(): Promise<string[]>;
   /**
-   * 手元の設定ファイルの [[gui.machines]]。間違いがあれば「ファイル:行: 理由」の文字列で reject する
+   * 手元の設定ファイルの [[gui.machines]] と [gui.browser]。間違いがあれば「ファイル:行: 理由」の文字列で reject する
    * （そのときは何もつながずに理由だけを出す）。
    */
-  configMachines(): Promise<ConfigMachine[]>;
+  configGui(): Promise<GuiConfig>;
   /** target は ssh のホスト名か LOCAL。id は呼ぶ側が決める（イベントの宛先） */
   connect(id: string, target: string): Promise<void>;
   send(id: string, text: string): Promise<void>;

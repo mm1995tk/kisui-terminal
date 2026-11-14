@@ -7,7 +7,12 @@
 // DOM には触らない（node --test で確かめられる）。
 
 import type { KeyLike } from "./guiKeys.ts";
-import { isModifierOnly, matchSpec, parseSpec } from "./keyspec.ts";
+import {
+  isModifierOnly,
+  matchSpec,
+  parseSpec,
+  type KeySpec,
+} from "./keyspec.ts";
 
 /** コマンドの名前。動きは App.tsx の runCommand が持つ。 */
 export type CommandId =
@@ -32,6 +37,15 @@ export type CommandId =
   | "notice.update"
   | "notice.dismiss"
   | "notice.focusNotified"
+  | "browser.new"
+  | "browser.url"
+  | "browser.back"
+  | "browser.forward"
+  | "browser.reload"
+  | "browser.close"
+  | "browser.external"
+  | "browser.cycle"
+  | "browser.fold"
   | "help.keys";
 
 /** コマンドと、その引数（向き・番号など）。 */
@@ -67,6 +81,11 @@ export interface Leaf extends Common {
   range?: { keys: string; label: string };
   /** 近道は、キーがペインに向いているときか、どこにも向いていないときだけ受ける（Cmd+W が、窓を閉じるのを防ぐため） */
   shortcutInPane?: boolean;
+  /**
+   * 近道は、内蔵ブラウザのタブを出しているときだけ受け、そのときは同じキーのほかの近道より先に受ける
+   * （Cmd+R / Ctrl+Shift+R は、ブラウザを出している間だけ読み込み直しにし、ほかのときはリサイズモードのまま）
+   */
+  shortcutInBrowser?: boolean;
 }
 
 /** 一段下の一覧に入る 1 つ。shortcut は、そのグループに 1 回で入る近道。 */
@@ -74,6 +93,8 @@ export interface Group extends Common {
   type: "group";
   key: string;
   children: Node[];
+  /** 設定で有効にしたときだけ出すグループ（内蔵ブラウザ。setBrowserEnabled） */
+  feature?: "browser";
 }
 
 /** リーダーの木の 1 つ。動きを行う葉か、一段下の一覧に入るグループ。 */
@@ -83,7 +104,10 @@ function leaf(
   keys: string | string[],
   label: string,
   run: Command,
-  opts: Pick<Leaf, "repeat" | "shortcut" | "shortcutInPane" | "range"> = {},
+  opts: Pick<
+    Leaf,
+    "repeat" | "shortcut" | "shortcutInPane" | "shortcutInBrowser" | "range"
+  > = {},
 ): Leaf {
   return {
     type: "leaf",
@@ -100,8 +124,17 @@ function group(
   children: Node[],
   shortcut?: Shortcut,
   hideInMenuOn?: "mac",
+  feature?: "browser",
 ): Group {
-  return { type: "group", key, label, children, shortcut, hideInMenuOn };
+  return {
+    type: "group",
+    key,
+    label,
+    children,
+    shortcut,
+    hideInMenuOn,
+    feature,
+  };
 }
 
 /** リーダーに入るキー。Linux で Super を使わないのは、Windows（Win+K）や i3・sway で取られるため。Shift なしの Ctrl+K は shj に届く。 */
@@ -286,6 +319,44 @@ export const LEADER: Node[] = [
     ],
     { mac: "Cmd+Shift+P", other: "Ctrl+Shift+P" },
   ),
+  // 内蔵ブラウザ（#202）。設定（[gui.browser] enabled）で有効にしたときだけ出す（setBrowserEnabled）
+  group(
+    "o",
+    "ブラウザ",
+    [
+      leaf("n", "新しいタブを開く", { id: "browser.new" }),
+      leaf("u", "URL を書き換える", { id: "browser.url" }),
+      leaf(
+        "j",
+        "次のタブへ",
+        { id: "browser.cycle", arg: "next" },
+        { repeat: true, range: { keys: "j|k", label: "グリッドとタブを回る" } },
+      ),
+      leaf(
+        "k",
+        "前のタブへ",
+        { id: "browser.cycle", arg: "prev" },
+        { repeat: true, range: { keys: "j|k", label: "グリッドとタブを回る" } },
+      ),
+      leaf("h", "戻る", { id: "browser.back" }, { repeat: true }),
+      leaf("l", "進む", { id: "browser.forward" }, { repeat: true }),
+      leaf(
+        "r",
+        "読み込み直す",
+        { id: "browser.reload" },
+        {
+          shortcut: { mac: "Cmd+R", other: "Ctrl+Shift+R" },
+          shortcutInBrowser: true,
+        },
+      ),
+      leaf("x", "タブを閉じる", { id: "browser.close" }),
+      leaf("e", "外のブラウザで開く", { id: "browser.external" }),
+      leaf("z", "タブの並びを畳む・開く", { id: "browser.fold" }),
+    ],
+    undefined,
+    undefined,
+    "browser",
+  ),
   leaf("b", "サイドバーを開け閉めする", { id: "sidebar.toggle" }),
   leaf(
     "y",
@@ -332,13 +403,33 @@ export const LEADER: Node[] = [
   leaf("?", "キーの一覧", { id: "help.keys" }),
 ];
 
+/** 内蔵ブラウザ（`o` のグループ）を出すか。設定で有効にしたときだけ App が true にする。 */
+let browserEnabled = false;
+let activeCache: Node[] | undefined;
+
+/** 内蔵ブラウザのグループ（feature: "browser"）を、リーダーの木・案内・`?` の一覧・近道に入れるか（設定の [gui.browser] enabled）。 */
+export function setBrowserEnabled(on: boolean): void {
+  if (on === browserEnabled) return;
+  browserEnabled = on;
+  activeCache = undefined;
+  shortcutCache.clear();
+}
+
+/** 今使うリーダーの木（設定で有効にしていないグループを除いたもの）。 */
+export function activeLeader(): Node[] {
+  activeCache ??= LEADER.filter(
+    (n) => n.type !== "group" || !n.feature || browserEnabled,
+  );
+  return activeCache;
+}
+
 /** リーダーの木の中の位置（リーダーを押してから押したキー）。[] はリーダーを押した直後の 1 段目。 */
 export type Path = readonly string[];
 
 /** path の一覧（そのグループの children）。path が葉や無い所を指すなら undefined。 */
 export function childrenAt(
   path: Path,
-  root: Node[] = LEADER,
+  root: Node[] = activeLeader(),
 ): Node[] | undefined {
   let list = root;
   for (const k of path) {
@@ -445,6 +536,8 @@ interface ShortcutEntry {
   command?: Command;
   into?: Path;
   inPane: boolean;
+  /** 内蔵ブラウザのタブを出しているときだけ受ける（葉の shortcutInBrowser） */
+  inBrowser: boolean;
   /** 押しっぱなしの繰り返しを受けるか（葉の repeat） */
   repeat: boolean;
 }
@@ -463,6 +556,7 @@ function collect(
           spec,
           command: n.run,
           inPane: !!n.shortcutInPane,
+          inBrowser: !!n.shortcutInBrowser,
           repeat: !!n.repeat,
         });
     } else {
@@ -471,6 +565,7 @@ function collect(
           spec,
           into: [...path, n.key],
           inPane: false,
+          inBrowser: false,
           repeat: false,
         });
       collect(n.children, mac, [...path, n.key], out);
@@ -484,10 +579,15 @@ const shortcutCache = new Map<
   { spec: ReturnType<typeof parseSpec>; entry: ShortcutEntry }[]
 >();
 
+/** この OS の近道。ブラウザを出しているときだけのもの（inBrowser）を先に並べる（同じキーのほかの近道より先に受けるため）。 */
 function shortcuts(mac: boolean) {
   let v = shortcutCache.get(mac);
   if (!v) {
-    v = collect(LEADER, mac, [], []).map((entry) => ({
+    const all = collect(activeLeader(), mac, [], []);
+    v = [
+      ...all.filter((e) => e.inBrowser),
+      ...all.filter((e) => !e.inBrowser),
+    ].map((entry) => ({
       spec: parseSpec(entry.spec),
       entry,
     }));
@@ -496,16 +596,38 @@ function shortcuts(mac: boolean) {
   return v;
 }
 
+/** 内蔵ブラウザのページに渡す、ページにキーがあっても受けるキー（browser.rs の KeySpec）。 */
+export interface InterceptKey extends KeySpec {
+  /** リーダーとグループの入口（押したあとのキーも続けて受ける） */
+  enter: boolean;
+}
+
+/** ページにキーがある間も受けるキー：リーダーと、すべての近道（グループの入口を含む）。 */
+export function interceptKeys(mac: boolean): InterceptKey[] {
+  const leader = shortcutOf(LEADER_SHORTCUT, mac);
+  return [
+    ...(leader ? [{ ...parseSpec(leader), enter: true }] : []),
+    ...shortcuts(mac).map(({ spec, entry }) => ({
+      ...spec,
+      enter: !!entry.into,
+    })),
+  ];
+}
+
 /** この OS で、リーダーに入るキーか。 */
 export function isLeaderKey(e: KeyLike, mac: boolean): boolean {
   const s = shortcutOf(LEADER_SHORTCUT, mac);
   return !!s && matchSpec(e, parseSpec(s));
 }
 
-/** e が当たる、リーダーを通さない近道のコマンド。無ければ null。グループの入口の近道は null（route が受ける）。 */
+/**
+ * e が当たる、リーダーを通さない近道のコマンド。無ければ null。グループの入口の近道は null（route が受ける）。
+ * ブラウザを出しているときだけの近道（shortcutInBrowser）は見ない（route が受ける）。
+ */
 export function shortcutCommand(e: KeyLike, mac: boolean): Command | null {
   for (const { spec, entry } of shortcuts(mac))
-    if (entry.command && matchSpec(e, spec)) return entry.command;
+    if (entry.command && !entry.inBrowser && matchSpec(e, spec))
+      return entry.command;
   return null;
 }
 
@@ -535,6 +657,8 @@ export interface Env {
   resizeMode: boolean;
   /** キーがペインに向いているか、どこにも向いていない（shortcutInPane の近道を受ける条件） */
   inPane: boolean;
+  /** 内蔵ブラウザのタブを出している（shortcutInBrowser の近道を受ける条件。リサイズモードの中は受けない） */
+  browser?: boolean;
 }
 
 /** route の結果。consume なら、呼んだ側は preventDefault と stopPropagation をして、ターミナルに送らない。 */
@@ -564,6 +688,7 @@ export function route(state: RouterState, e: KeyLike, env: Env): Routed {
   }
   for (const { spec, entry } of shortcuts(env.mac)) {
     if (!matchSpec(e, spec)) continue;
+    if (entry.inBrowser && (!env.browser || env.resizeMode)) continue;
     if (entry.into) {
       if (!canEnter) return { consume: false, state };
       return e.repeat
@@ -640,7 +765,7 @@ export interface HelpRow {
 /** 木を上から順に平らにした一覧。 */
 export function helpRows(
   mac: boolean,
-  list: Node[] = LEADER,
+  list: Node[] = activeLeader(),
   path: string[] = [],
 ): HelpRow[] {
   const out: HelpRow[] = [];
