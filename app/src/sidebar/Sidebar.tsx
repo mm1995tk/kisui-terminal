@@ -1,15 +1,15 @@
-// 左の一覧（D1）：つないだマシンごとに見出しとワークスペースの帯を出す。帯を押すとフォーカスを移す。
+// 左の一覧（D1）：ワークスペースの帯を 1 列に並べる（#201）。マシンの見出しは無い。帯を押すとフォーカスを移す。
+// 並び順はユーザーが並べた順（order.ts。リーダーの w J / w K で動かす）。マシンをまたいで 1 列になる。
+// 各帯には、そのワークスペースのマシンの名前と接続の状態（丸）を小さく出す。つながっていないマシンのワークスペースは、最後に知っていた一覧を薄く出す。
 // フォーカスしているワークスペースの帯の下にはツリーを出す（プライマリで shj が動いているときだけ。動いていなければ帯だけ）（D2、描くのは tree/TreeView.tsx）。
-// スクロールしても、上にフォーカスしているマシンの見出し → 帯 → 親フォルダを、下にそれより後ろの帯を固定する（D3）。
-// マシンごとの色（D4）は section の --machine-color に入れ、見出しと帯の左端の線とアイコンに使う。
-// 見出しには接続の状態（丸と、その下の短い 1 行。言葉は connect/status.ts）と、今すぐつなぐ・つなぎ直す・切るボタンを出す（切るボタンはローカルには出さない。ローカルは切る理由が無い）。
-// つながっているマシンの見出しの右には [+] を置き、押すと onCreate を呼ぶ（フォルダ未定のワークスペースができる）。
+// スクロールしても、上にフォーカスしている帯と親フォルダを、下にそれより後ろの帯を固定する（D3）。
+// マシンごとの色（D4）は帯の --machine-color に入れ、左端の線とアイコンに使う。
 // 帯の右の [×] は、押すと onClose を呼ぶ（ワークスペースを閉じる。確認は App が窓で出す）。
-// 一覧の一番下には「+ リモートを足す」を置き、押すと onAddMachine を呼ぶ（窓は connect/AddMachine.tsx）。
-// 足したマシンの見出しを右クリックすると「名前を変える」「外す」のメニューを出す（onRename・onRemove）。
+// 一覧の一番下の「+ ワークスペースを作る」は、押すと onNew を呼ぶ（どのマシンに作るかは App が窓で選ばせる）。
+// マシンの操作（足す・名前を変える・外す・切る・つなぎ直す）は、サイドバーではなくマシンのダイアログ（リーダーの m）にある。
 // ワークスペースの帯の右クリックのメニューの「名前を変える」と、帯の鉛筆のボタンは、onRenameWorkspace を呼ぶ。
 // App が renaming を渡すと、その帯の 1 行目の名前がその場で入力欄になる（Enter で onRenameSubmit、Esc・フォーカスが外れたら onRenameCancel）。
-// 組み立ては model.ts、色の決め方は colors.ts、見た目は sidebar.css。
+// 組み立ては model.ts、並び順は order.ts、色の決め方は colors.ts、見た目は sidebar.css。
 import {
   createMemo,
   createSignal,
@@ -20,7 +20,6 @@ import {
   type JSX,
 } from "solid-js";
 
-import type { MachineStatus } from "../connect/status.ts";
 import type { ChangesShjKey, WorkspaceId } from "../rpc/protocol.ts";
 import type { TreeRow } from "../tree/model.ts";
 import { menuItems, type TreeMenuAction } from "../tree/menu.ts";
@@ -33,7 +32,7 @@ import {
   splitAtFocus,
   type Band,
   type Health,
-  type MachineGroup,
+  type Row,
   DIR_SEP,
   shaText,
 } from "./model.ts";
@@ -46,20 +45,10 @@ const healthLabel: Record<Health, string> = {
 };
 
 interface Handlers {
-  /** キー（リーダーの w h / w l）で止まった、ワークスペースが無いマシン。見出しに印を付ける */
-  picked?: string | null;
   onFocus: (target: string, id: WorkspaceId) => void;
   /** ツリーの行。まだ取っていなければ undefined */
   treeOf?: (target: string, id: WorkspaceId) => TreeRow[] | undefined;
   onToggle?: (target: string, id: WorkspaceId, path: string) => void;
-  /** 見出しの下の 1 行とボタン。省くと出さない */
-  statusOf?: (target: string) => MachineStatus;
-  /** 見出しのそばの「今すぐつなぐ」「つなぎ直す」 */
-  onRetry?: (target: string) => void;
-  /** 見出しのそばの「切る」 */
-  onDisconnect?: (target: string) => void;
-  /** 見出しの [+]（ワークスペースを作る）。省くと出さない */
-  onCreate?: (target: string) => void;
   /** 帯の [×]（ワークスペースを閉じる）。省くと出さない */
   onClose?: (target: string, id: WorkspaceId) => void;
   /** 帯のメニューの「名前を変える」・帯の鉛筆のボタン（App が renaming を渡す） */
@@ -117,28 +106,23 @@ interface Handlers {
 }
 
 /**
- * 左の一覧。つないだマシンごとに見出しとワークスペースの帯を出し、帯を押すと onFocus を呼ぶ。
+ * 左の一覧。ワークスペースの帯を 1 列に出し、帯を押すと onFocus を呼ぶ。
  * フォーカスしている帯の下に treeOf のツリーを出し、フォルダを押すと onToggle、ファイルを押すと onOpen を呼ぶ。
  *
  * 上下の固定（D3）は CSS の sticky で、要素の組み方で止まるところを決める:
- * フォーカスしているマシンの見出しはそのマシンの要素（帯はフォーカスしている帯まで）の中で、
- * 帯はツリーと一緒の要素の中で、フォルダの行は中身と一緒の要素の中で止まる。
- * それより後ろの帯とマシンは 1 つの要素にまとめ、一覧の下に固定する。
+ * フォーカスしている帯までは 1 つの列（ul）に流し、帯はツリーと一緒の要素の中で、フォルダの行は中身と一緒の要素の中で止まる。
+ * それより後ろの帯は 1 つの要素にまとめ、一覧の下に固定する。
  */
 export function Sidebar(
   props: Handlers & {
-    groups: MachineGroup[];
+    rows: Row[];
     /** 一覧の要素（スクロールの位置を覚えて戻すのに使う） */
     ref?: (el: HTMLElement) => void;
-    /** 一番下の「+ リモートを足す」 */
-    onAddMachine?: () => void;
-    /** 見出しのメニューの「名前を変える」 */
-    onRename?: (target: string) => void;
-    /** 見出しのメニューの「外す」 */
-    onRemove?: (target: string) => void;
+    /** 一番下の「+ ワークスペースを作る」 */
+    onNew?: () => void;
   },
 ): JSX.Element {
-  // 帯の右クリックのメニュー。閉じ方は見出しのメニューと同じ
+  // 帯の右クリックのメニュー。閉じ方はツリーのメニューと同じ
   const [bandMenu, setBandMenu] = createSignal<{
     target: string;
     id: WorkspaceId;
@@ -149,7 +133,7 @@ export function Sidebar(
     ? (target: string, id: WorkspaceId, x: number, y: number) =>
         setBandMenu({ target, id, x, y })
     : undefined;
-  // ツリーの行の右クリックのメニュー。閉じ方は見出しのメニューと同じ
+  // ツリーの行の右クリックのメニュー。出している間は、押す・Esc・スクロール・窓の切り替えで閉じる
   const [treeMenu, setTreeMenu] = createSignal<{
     target: string;
     id: WorkspaceId;
@@ -161,19 +145,8 @@ export function Sidebar(
     ? (target: string, id: WorkspaceId, row: TreeRow, x: number, y: number) =>
         setTreeMenu({ target, id, row, x, y })
     : undefined;
-  // 見出しの右クリックのメニュー（足したマシンだけ）。出している間は、押す・Esc・スクロール・窓の切り替えで閉じる
-  const [menu, setMenu] = createSignal<{
-    target: string;
-    fixed: boolean;
-    x: number;
-    y: number;
-  } | null>(null);
-  const split = createMemo(() => splitAtFocus(props.groups));
-  const hasAfter = () =>
-    split().after.rest.length > 0 || split().after.groups.length > 0;
+  const split = createMemo(() => splitAtFocus(props.rows));
   let nav!: HTMLElement;
-  const openMenu = (target: string, x: number, y: number, fixed: boolean) =>
-    setMenu({ target, fixed, x, y });
 
   // 固定されているものに data-stuck を付ける（背景と影をモックに合わせる）。
   // 上に固定するものは、sticky の位置（一覧の上端から top）にいて、親の要素の上端より下にずれていれば
@@ -242,93 +215,45 @@ export function Sidebar(
     <div class="sidebar-column">
       <nav
         class="sidebar"
-        aria-label="マシンとワークスペース"
+        aria-label="ワークスペース"
         ref={(el) => {
           nav = el;
           props.ref?.(el);
         }}
       >
-        <For each={split().before}>
-          {(g) => (
-            <Machine
-              group={g}
-              onMenu={openMenu}
-              {...handlers(props, openTreeMenu, openBandMenu)}
-            />
-          )}
-        </For>
-        <Show when={split().focused}>
-          {(g) => (
-            <Machine
-              group={g()}
-              sticky
-              onMenu={openMenu}
-              {...handlers(props, openTreeMenu, openBandMenu)}
-            />
-          )}
-        </Show>
-        <Show when={hasAfter()}>
+        <ul class="bands">
+          <For each={split().before}>
+            {(r) => (
+              <BandItem
+                row={r}
+                {...handlers(props, openTreeMenu, openBandMenu)}
+              />
+            )}
+          </For>
+          <Show when={split().focused}>
+            {(r) => (
+              <BandItem
+                row={r()}
+                {...handlers(props, openTreeMenu, openBandMenu)}
+              />
+            )}
+          </Show>
+        </ul>
+        <Show when={split().after.length > 0}>
           <div class="sidebar-after" data-sticky="bottom">
-            <Show when={split().after.rest.length > 0}>
-              {/* 見出しの無いマシンの要素にして、マシンの色（--machine-color）を同じにする */}
-              <section
-                class="machine machine-rest"
-                style={{ "--machine-color": split().after.color }}
-                data-target={split().after.target}
-                aria-label={split().after.label}
-              >
-                <ul class="bands">
-                  <For each={split().after.rest}>
-                    {(b) => (
-                      <BandItem
-                        target={split().after.target}
-                        band={b}
-                        {...handlers(props, openTreeMenu, openBandMenu)}
-                      />
-                    )}
-                  </For>
-                </ul>
-              </section>
-            </Show>
-            <For each={split().after.groups}>
-              {(g) => (
-                <Machine
-                  group={g}
-                  onMenu={openMenu}
-                  {...handlers(props, openTreeMenu, openBandMenu)}
-                />
-              )}
-            </For>
+            <ul class="bands">
+              <For each={split().after}>
+                {(r) => (
+                  <BandItem
+                    row={r}
+                    {...handlers(props, openTreeMenu, openBandMenu)}
+                  />
+                )}
+              </For>
+            </ul>
           </div>
         </Show>
       </nav>
-      <Show when={menu()}>
-        {(m) => (
-          <PopupMenu
-            x={m().x}
-            y={m().y}
-            label="マシン"
-            items={[
-              {
-                label: "名前を変える",
-                disabled: m().fixed,
-                run: () => props.onRename?.(m().target),
-              },
-              {
-                label: "外す",
-                disabled: m().fixed,
-                run: () => props.onRemove?.(m().target),
-              },
-            ]}
-            note={
-              m().fixed
-                ? "設定ファイル（config.toml の [[gui.machines]]）で決めたマシンです。変えるには設定ファイルを直してください。"
-                : undefined
-            }
-            onClose={() => setMenu(null)}
-          />
-        )}
-      </Show>
       <Show when={bandMenu()}>
         {(m) => (
           <PopupMenu
@@ -363,7 +288,7 @@ export function Sidebar(
         <button
           type="button"
           class="add-machine"
-          onClick={() => props.onAddMachine?.()}
+          onClick={() => props.onNew?.()}
         >
           <svg
             width="16"
@@ -376,7 +301,7 @@ export function Sidebar(
           >
             <path d="M12 5v14M5 12h14" />
           </svg>
-          リモートを足す
+          ワークスペースを作る
         </button>
       </div>
     </div>
@@ -392,9 +317,6 @@ function handlers(
   return {
     onTreeMenu,
     onBandMenu,
-    get picked() {
-      return props.picked;
-    },
     get onFocus() {
       return props.onFocus;
     },
@@ -403,18 +325,6 @@ function handlers(
     },
     get onToggle() {
       return props.onToggle;
-    },
-    get statusOf() {
-      return props.statusOf;
-    },
-    get onRetry() {
-      return props.onRetry;
-    },
-    get onDisconnect() {
-      return props.onDisconnect;
-    },
-    get onCreate() {
-      return props.onCreate;
     },
     get onClose() {
       return props.onClose;
@@ -462,126 +372,6 @@ function handlers(
       return props.onRenameWorkspace;
     },
   };
-}
-
-/** マシン 1 台分。sticky なら見出しを上に固定する（フォーカスしているマシン）。 */
-function Machine(
-  props: Handlers & {
-    group: MachineGroup;
-    sticky?: boolean;
-    /** 見出しを右クリックした（足したマシンだけ） */
-    onMenu?: (target: string, x: number, y: number, fixed: boolean) => void;
-  },
-): JSX.Element {
-  const g = () => props.group;
-  const status = () => props.statusOf?.(g().target);
-  return (
-    <section
-      class="machine"
-      style={{ "--machine-color": g().color }}
-      data-target={g().target}
-      aria-label={g().label}
-    >
-      {/* 見出しの行。見出し（h2）の名前がマシンの名前だけになるよう、ボタンと丸は h2 の外に置く */}
-      <div
-        class="machine-heading"
-        data-sticky={props.sticky ? "top" : undefined}
-        data-picked={props.picked === g().target ? "" : undefined}
-        onContextMenu={(e) => {
-          if (!g().removable || !props.onMenu) return;
-          e.preventDefault();
-          props.onMenu(g().target, e.clientX, e.clientY, g().fixed);
-        }}
-      >
-        <h2 class="machine-name" title={status()?.title || undefined}>
-          {g().label}
-        </h2>
-        <Show when={status()?.retry}>
-          {(r) => {
-            const label = () =>
-              r() === "now"
-                ? `${g().label} に今すぐつなぐ`
-                : `${g().label} につなぎ直す`;
-            return (
-              <button
-                type="button"
-                class="machine-action"
-                aria-label={label()}
-                title={label()}
-                onClick={() => props.onRetry?.(g().target)}
-              >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  aria-hidden="true"
-                >
-                  <path d="M20 12a8 8 0 1 1-2.34-5.66" />
-                  <path d="M20 4v5h-5" />
-                </svg>
-              </button>
-            );
-          }}
-        </Show>
-        <Show when={props.onCreate && g().health === "up"}>
-          <button
-            type="button"
-            class="machine-action"
-            aria-label={`${g().label} にワークスペースを作る`}
-            title={`${g().label} にワークスペースを作る`}
-            onClick={() => props.onCreate?.(g().target)}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 5v14M5 12h14" />
-            </svg>
-          </button>
-        </Show>
-        <Show when={props.onDisconnect && g().removable}>
-          <button
-            type="button"
-            class="machine-action"
-            aria-label={`${g().label} を切る`}
-            title={`${g().label} を切る`}
-            onClick={() => props.onDisconnect?.(g().target)}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M6 6l12 12M18 6L6 18" />
-            </svg>
-          </button>
-        </Show>
-        <span
-          class="health"
-          data-health={g().health}
-          role="img"
-          aria-label={healthLabel[g().health]}
-          title={healthLabel[g().health]}
-        />
-      </div>
-      <Show when={status()?.text}>
-        {(t) => (
-          <p class="machine-status" title={status()?.title || undefined}>
-            {/* 読み上げは状態が変わったときだけにし、毎秒動く残り秒数は live region の外に出す */}
-            <span role="status">{t()}</span>
-            <Show when={status()?.countdown}>
-              {(c) => <span aria-hidden="true">・{c()}</span>}
-            </Show>
-          </p>
-        )}
-      </Show>
-      <Show
-        when={g().bands.length > 0}
-        fallback={<p class="no-workspace">ワークスペースはありません</p>}
-      >
-        <ul class="bands">
-          <For each={g().bands}>
-            {(b) => (
-              <BandItem target={g().target} band={b} {...handlers(props)} />
-            )}
-          </For>
-        </ul>
-      </Show>
-    </section>
-  );
 }
 
 /**
@@ -633,17 +423,22 @@ function BandDetail(props: { band: Band }): JSX.Element {
 }
 
 /** 帯 1 つ。フォーカスしていれば帯を上に固定し、下にツリーを出す。 */
-function BandItem(
-  props: Handlers & { target: string; band: Band },
-): JSX.Element {
-  const b = () => props.band;
+function BandItem(props: Handlers & { row: Row }): JSX.Element {
+  const b = () => props.row.band;
   // この帯の名前をその場で変えているときだけ、その内容
   const editing = () => {
     const r = props.renaming;
-    return r && r.target === props.target && r.id === b().id ? r : undefined;
+    return r && r.target === props.row.target && r.id === b().id
+      ? r
+      : undefined;
   };
   return (
-    <li class="band-item" data-focused={b().focused ? "" : undefined}>
+    <li
+      class="band-item"
+      style={{ "--machine-color": props.row.color }}
+      data-focused={b().focused ? "" : undefined}
+      data-health={props.row.health}
+    >
       {/* カードの中は行にして、ボタン（フォーカスを移す・名前を変える・閉じる）を並べる。名前を変えている間は、フォーカスを移すボタンの所が入力欄の div になる（ボタンの中に入力欄もボタンも置けない） */}
       <div class="band-slot" data-sticky={b().focused ? "top" : undefined}>
         <div
@@ -653,7 +448,7 @@ function BandItem(
           onContextMenu={(e) => {
             if (!props.onBandMenu) return;
             e.preventDefault();
-            props.onBandMenu(props.target, b().id, e.clientX, e.clientY);
+            props.onBandMenu(props.row.target, b().id, e.clientX, e.clientY);
           }}
         >
           <Show
@@ -662,13 +457,27 @@ function BandItem(
               <button
                 type="button"
                 class="band-main"
-                onClick={() => props.onFocus(props.target, b().id)}
+                onClick={() => props.onFocus(props.row.target, b().id)}
               >
-                <span
-                  class="band-title"
-                  classList={{ path: b().path, unset: b().unset }}
-                >
-                  {b().title}
+                <span class="band-head">
+                  <span
+                    class="band-title"
+                    classList={{ path: b().path, unset: b().unset }}
+                  >
+                    {b().title}
+                  </span>
+                  <span
+                    class="band-machine"
+                    title={`${props.row.machine}：${healthLabel[props.row.health]}`}
+                  >
+                    <span
+                      class="health"
+                      data-health={props.row.health}
+                      role="img"
+                      aria-label={healthLabel[props.row.health]}
+                    />
+                    <span class="band-machine-name">{props.row.machine}</span>
+                  </span>
                 </span>
                 <BandDetail band={b()} />
               </button>
@@ -714,7 +523,9 @@ function BandItem(
               class="band-close band-edit"
               aria-label={`${b().title} の名前を変える`}
               title="名前を変える"
-              onClick={() => props.onRenameWorkspace?.(props.target, b().id)}
+              onClick={() =>
+                props.onRenameWorkspace?.(props.row.target, b().id)
+              }
             >
               <svg
                 width="12"
@@ -732,7 +543,7 @@ function BandItem(
               class="band-close"
               aria-label={`${b().title} を閉じる`}
               title="ワークスペースを閉じる"
-              onClick={() => props.onClose?.(props.target, b().id)}
+              onClick={() => props.onClose?.(props.row.target, b().id)}
             >
               <svg
                 width="12"
@@ -756,25 +567,28 @@ function BandItem(
       </Show>
       <Show
         when={
-          b().focused && b().showTree && props.treeOf?.(props.target, b().id)
+          b().focused &&
+          b().showTree &&
+          props.treeOf?.(props.row.target, b().id)
         }
       >
         {(rows) => (
           <TreeView
             rows={rows()}
             label={`${b().title} のファイル`}
-            onToggle={(p) => props.onToggle?.(props.target, b().id, p)}
-            onOpen={(p) => props.onOpen?.(props.target, b().id, p)}
-            current={props.currentOf?.(props.target, b().id)}
+            onToggle={(p) => props.onToggle?.(props.row.target, b().id, p)}
+            onOpen={(p) => props.onOpen?.(props.row.target, b().id, p)}
+            current={props.currentOf?.(props.row.target, b().id)}
             onMenu={
               props.onTreeMenu
                 ? (row, x, y) =>
-                    props.onTreeMenu?.(props.target, b().id, row, x, y)
+                    props.onTreeMenu?.(props.row.target, b().id, row, x, y)
                 : undefined
             }
             onAction={
               props.onTreeAction
-                ? (row, a) => props.onTreeAction?.(props.target, b().id, row, a)
+                ? (row, a) =>
+                    props.onTreeAction?.(props.row.target, b().id, row, a)
                 : undefined
             }
           />
@@ -782,7 +596,9 @@ function BandItem(
       </Show>
       <Show
         when={
-          b().focused && b().showTree && props.changesOf?.(props.target, b().id)
+          b().focused &&
+          b().showTree &&
+          props.changesOf?.(props.row.target, b().id)
         }
       >
         {(c) => (
@@ -790,10 +606,12 @@ function BandItem(
             rows={c().rows}
             base={c().base}
             label={`${b().title} の変更`}
-            onSelect={(p) => props.onChange?.(props.target, b().id, p)}
-            onShjKey={(k) => props.onChangesKey?.(props.target, b().id, k)}
-            onExplorer={() => props.onChangesExplorer?.(props.target, b().id)}
-            onLeave={() => props.onChangesLeave?.(props.target, b().id)}
+            onSelect={(p) => props.onChange?.(props.row.target, b().id, p)}
+            onShjKey={(k) => props.onChangesKey?.(props.row.target, b().id, k)}
+            onExplorer={() =>
+              props.onChangesExplorer?.(props.row.target, b().id)
+            }
+            onLeave={() => props.onChangesLeave?.(props.row.target, b().id)}
             onResizeStart={props.onChangesResize}
             onResizeReset={props.onChangesResizeReset}
           />

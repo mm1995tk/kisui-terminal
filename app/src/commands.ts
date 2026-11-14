@@ -25,7 +25,7 @@ export type CommandId =
   | "workspace.new"
   | "workspace.close"
   | "workspace.rename"
-  | "machine.step"
+  | "workspace.move"
   | "machine.dialog"
   | "clipboard.history"
   | "scale"
@@ -129,8 +129,9 @@ const paneMoves = (): Leaf[] =>
   );
 
 /**
- * ワークスペースのグループ（w）の `j` `k`（サイドバーで次・前のワークスペースへ。マシンをまたぐ）と、
- * `h` `l`（前・次のマシンへ）。端では反対の端へ回る。続けて押せる。
+ * ワークスペースのグループ（w）の `j` `k`（サイドバーの 1 列で次・前のワークスペースへ）と、
+ * `J` `K`（今のワークスペースを 1 つ下・上へ並べ替える）。端では、移るほうは反対の端へ回り、並べ替えるほうは動かさない。続けて押せる。
+ * `J` `K` は Shift を押した `j` `k`。小文字の `j` `k` と別の葉にするため、nodeFor が打った字そのもの（大文字）を先に探す。
  */
 const workspaceMoves = (): Leaf[] => [
   leaf(
@@ -146,16 +147,16 @@ const workspaceMoves = (): Leaf[] => [
     { repeat: true, range: { keys: "j|k", label: "ワークスペースを移動" } },
   ),
   leaf(
-    "h",
-    "上のマシンへ",
-    { id: "machine.step", arg: "prev" },
-    { repeat: true, range: { keys: "h|l", label: "マシンを移動" } },
+    "J",
+    "今のワークスペースを 1 つ下へ動かす",
+    { id: "workspace.move", arg: "down" },
+    { repeat: true, range: { keys: "J|K", label: "ワークスペースを並べ替え" } },
   ),
   leaf(
-    "l",
-    "下のマシンへ",
-    { id: "machine.step", arg: "next" },
-    { repeat: true, range: { keys: "h|l", label: "マシンを移動" } },
+    "K",
+    "今のワークスペースを 1 つ上へ動かす",
+    { id: "workspace.move", arg: "up" },
+    { repeat: true, range: { keys: "J|K", label: "ワークスペースを並べ替え" } },
   ),
 ];
 
@@ -363,7 +364,19 @@ function nodeFor(list: Node[], e: KeyLike): Node | undefined {
         ? matchLeaderKey(n.key, e, by)
         : n.keys.some((k) => matchLeaderKey(k, e, by)),
     );
-  return find("key") ?? (unknown ? find("code") : undefined);
+  // Shift を押しているときは、大文字の葉（`J` `K`）を先に探す。小文字の葉は Shift を押していても当たるので、後にしないと大文字の葉に届かない
+  const upper = e.shiftKey
+    ? list.find(
+        (n) =>
+          n.type === "leaf" &&
+          n.keys.some(
+            (k) =>
+              /^[A-Z]$/.test(k) &&
+              (e.key === k || (unknown && e.code === `Key${k}`)),
+          ),
+      )
+    : undefined;
+  return upper ?? find("key") ?? (unknown ? find("code") : undefined);
 }
 
 function matchLeaderKey(k: string, e: KeyLike, by: "key" | "code"): boolean {

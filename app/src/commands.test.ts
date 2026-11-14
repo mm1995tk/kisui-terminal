@@ -130,8 +130,8 @@ describe("コマンドの表", () => {
       "w",
       "w j",
       "w k",
-      "w h",
-      "w l",
+      "w J",
+      "w K",
       "w Tab",
       ...Array.from({ length: 9 }, (_, i) => `w ${i + 1}`),
       "w n",
@@ -170,15 +170,15 @@ describe("コマンドの表", () => {
     ]);
   });
 
-  it("#88 のキー（w j/k はワークスペース、w h/l はマシン）は続けて押せて、近道は無い", () => {
+  it("#88・#201 のキー（w j/k はワークスペースを移る、w J/K は並べ替える）は続けて押せて、近道は無い", () => {
     const w = childrenAt(["w"]) ?? [];
     const find = (k: string) =>
       w.find((n) => n.type === "leaf" && n.keys.includes(k));
     for (const [k, id, arg] of [
       ["j", "workspace.step", "next"],
       ["k", "workspace.step", "prev"],
-      ["h", "machine.step", "prev"],
-      ["l", "machine.step", "next"],
+      ["K", "workspace.move", "up"],
+      ["J", "workspace.move", "down"],
     ] as const) {
       const n = find(k);
       assert.ok(n && n.type === "leaf", k);
@@ -581,9 +581,9 @@ describe("案内の一覧（`?`）", () => {
     for (const { path, node } of leaves()) {
       if (node.type !== "leaf") continue;
       const first = node.keys[0];
-      // 葉の最初のキーで動くか。`+` は Shift を伴うことがある
+      // 葉の最初のキーで動くか。`+` と大文字は Shift を伴う
       const press1 = (k: string): KeyLike =>
-        k === "?" || k === "+" ? key(k, "s") : key(k);
+        k === "?" || k === "+" || /^[A-Z]$/.test(k) ? key(k, "s") : key(k);
       const seq = [
         L,
         ...path.slice(0, -1).map((k) => press1(k)),
@@ -688,7 +688,7 @@ describe("リーダーの案内（menuRows）", () => {
     assert.deepEqual(rows(["p", "m"]), [["h|j|k|l", "向きを選んで入れ替える"]]);
     assert.deepEqual(rows(["w"]).slice(0, 3), [
       ["j|k", "ワークスペースを移動"],
-      ["h|l", "マシンを移動"],
+      ["J|K", "ワークスペースを並べ替え"],
       ["Tab", "直前のワークスペースへ"],
     ]);
   });
@@ -696,7 +696,7 @@ describe("リーダーの案内（menuRows）", () => {
   it("まとめても、`?` の一覧と近道には hjkl が 1 つずつ残り、押したときの動きは変わらない", () => {
     const rows = helpRows(MAC);
     const paths = rows.map((r) => r.path.join(" "));
-    for (const g of ["", "p ", "p s ", "p m ", "w "])
+    for (const g of ["", "p ", "p s ", "p m "])
       for (const k of ["h", "j", "k", "l"])
         assert.ok(paths.includes(g + k), g + k);
     assert.match(
@@ -712,9 +712,20 @@ describe("リーダーの案内（menuRows）", () => {
       [{ id: "pane.swap", arg: "left" }],
     );
     assert.deepEqual(
-      press(LINUX, [LEADER_KEY(LINUX), key("w"), key("l")]).runs,
-      [{ id: "machine.step", arg: "next" }],
+      press(LINUX, [LEADER_KEY(LINUX), key("w"), key("J", "s")]).runs,
+      [{ id: "workspace.move", arg: "down" }],
     );
+  });
+
+  it("w J / w K は並べ替え、Shift を押さない w j / w k は移る（大文字と小文字は別の葉）。w h / w l は無い", () => {
+    const w = (k: string, mods = "") =>
+      press(LINUX, [LEADER_KEY(LINUX), key("w"), key(k, mods)]);
+    assert.deepEqual(w("J", "s").runs, [{ id: "workspace.move", arg: "down" }]);
+    assert.deepEqual(w("K", "s").runs, [{ id: "workspace.move", arg: "up" }]);
+    assert.deepEqual(w("j").runs, [{ id: "workspace.step", arg: "next" }]);
+    assert.deepEqual(w("k").runs, [{ id: "workspace.step", arg: "prev" }]);
+    assert.deepEqual(w("h").runs, []);
+    assert.deepEqual(w("l").runs, []);
   });
 
   it("m は、グループではなくマシンのダイアログを開く葉（中の操作はダイアログのキー）", () => {

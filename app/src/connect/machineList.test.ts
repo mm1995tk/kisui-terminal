@@ -3,10 +3,12 @@ import { describe, it } from "node:test";
 
 import {
   canDo,
+  creatableRows,
   keepRow,
   machineKey,
   machineRows,
   moveRow,
+  pickerKey,
   type MachineRow,
 } from "./machineList.ts";
 import type { MachineGroup } from "../sidebar/model.ts";
@@ -158,5 +160,31 @@ describe("canDo", () => {
   it("つなぎ直すのは、待ち時間中・失敗・引き継がれたあとだけ", () => {
     assert.ok(canDo(row(), "reconnect"));
     assert.equal(canDo(row({ retry: "now" }), "reconnect"), null);
+  });
+});
+
+describe("pickerKey / creatableRows（ワークスペースを作るマシンを選ぶ窓）", () => {
+  it("Enter で決め、j k g G・矢印で動かす。修飾キーを重ねた Enter と変換中は受けない", () => {
+    assert.deepEqual(pickerKey(ev("Enter")), { kind: "choose" });
+    assert.deepEqual(pickerKey(ev("j")), { kind: "move", to: "next" });
+    assert.deepEqual(pickerKey(ev("ArrowUp")), { kind: "move", to: "prev" });
+    assert.equal(pickerKey(ev("Enter", { shiftKey: true })), null);
+    assert.equal(pickerKey(ev("Enter", { ctrlKey: true })), null);
+    assert.equal(pickerKey(ev("Enter", { isComposing: true })), null);
+    // マシンのダイアログの操作（足す・外すなど）は、この窓では受けない
+    assert.equal(pickerKey(ev("a")), null);
+    assert.equal(pickerKey(ev("d")), null);
+  });
+
+  it("作れるのは、つながっているマシンだけ", () => {
+    const rows = [
+      row({ target: "a", health: "up" }),
+      row({ target: "b", health: "down" }),
+      row({ target: "c", health: "pending" }),
+    ];
+    assert.deepEqual(
+      creatableRows(rows).map((r) => r.target),
+      ["a"],
+    );
   });
 });

@@ -99,15 +99,24 @@ import type {
 import {
   adoptFocus,
   buildSidebar,
+  flatRows,
   keepFocus,
   shouldSendMoveTo,
   type WorkspaceFocus,
   stepFrom,
-  stepMachine,
   stepWorkspace,
   type Step,
 } from "./sidebar/model.ts";
 import { machineColors } from "./sidebar/colors.ts";
+import {
+  loadOrder,
+  moveInOrder,
+  pruneOrder,
+  saveOrder,
+  type WsRef,
+} from "./sidebar/order.ts";
+import { MachinePicker } from "./connect/MachinePicker.tsx";
+import { creatableRows } from "./connect/machineList.ts";
 import { Sidebar } from "./sidebar/Sidebar.tsx";
 import "./app.css";
 import { LOCAL, type AskpassRequest, type ShellApi } from "./ssh/api.ts";
@@ -1001,8 +1010,9 @@ function Workbench(props: {
   ) {
     const s = sessions()[target];
     if (!s) return;
-    const list = workspaces()[target] ?? [];
-    const i = list.findIndex((w) => w.id === id);
+    // 閉じたあとの移り先は、サイドバーの 1 列で隣のワークスペース（マシンが違ってもよい）
+    const list = rows();
+    const i = list.findIndex((r) => r.target === target && r.band.id === id);
     const next = list[i + 1] ?? list[i - 1];
     const wasFocused = focus()?.target === target && focus()?.id === id;
     const name =
@@ -1012,7 +1022,8 @@ function Workbench(props: {
     setFocusError(null);
     // 移り先は閉じる前に決めておき、一覧から消えた知らせを受けたところで（返事を待たずに）フォーカスを移す。
     // 移り先が無いとき（フォーカスしていないものを閉じる）は、先に閉じ始めたものの移り先を消さない
-    const moveTo = wasFocused && next ? { target, id: next.id } : null;
+    const moveTo =
+      wasFocused && next ? { target: next.target, id: next.band.id } : null;
     if (moveTo) closingNext = moveTo;
     try {
       await s.closeWorkspace(id, force);
@@ -1037,7 +1048,7 @@ function Workbench(props: {
     // 待つあいだにユーザーが別の帯を選んだ・移り先も消えた、なら伝えない。
     // 押した帯の返事を待っている途中（switching）なら、その返事に任せる（失敗したら focusWorkspace が今のフォーカスを送り直す）
     if (moveTo && !switching && shouldSendMoveTo(focus(), moveTo, workspaces()))
-      void focusWorkspace(target, moveTo.id);
+      void focusWorkspace(moveTo.target, moveTo.id);
   }
 
   // 初めて出たマシンには色を割り当てて保存する（つなぐマシンが変わったときだけ計算し直す）
@@ -1053,6 +1064,10 @@ function Workbench(props: {
       fixedOf,
     ),
   );
+
+  // サイドバーの並び順（ユーザーが並べた順。マシンをまたぐので、手元の GUI が覚える。order.ts）
+  const [order, setOrder] = createSignal<WsRef[]>(loadOrder(store));
+  const rows = createMemo(() => flatRows(groups(), order()));
 
   // フォーカスしているワークスペースのツリーだけを動かし（監視と取り直し）、
   // 前にそのワークスペースで覚えたスクロールの位置に戻す（D2）
@@ -1422,34 +1437,18 @@ function Workbench(props: {
     showScale(scale);
   }
 
-  // 各マシンで最後に選んでいたワークスペース（リーダーの w h / w l で、そのマシンへ移ったときの行き先）
-  const lastOnMachine = new Map<string, WorkspaceId>();
-  // ワークスペースが 1 つも無いマシンに、w h / w l で止まったときの、そのマシン（「選んでいるマシン」）。
-  // ワークスペースを選ぶと外れる
-  const [pickedMachine, setPickedMachine] = createSignal<string | null>(null);
-  createEffect(
-    on(focus, (f) => {
-      if (f) lastOnMachine.set(f.target, f.id);
-      setPickedMachine(null);
-    }),
-  );
-
-  /** 今のマシン（w h / w l で止まったマシン。無ければ今のワークスペースのマシン。ワークスペースがまだ無ければ、先頭のマシン）。 */
-  const currentTarget = (): string | undefined => {
-    const p = pickedMachine();
-    if (p && groups().some((g) => g.target === p)) return p;
-    return focus()?.target ?? groups()[0]?.target;
-  };
+  /** 今のマシン（今のワークスペースのマシン。ワークスペースがまだ無ければ、先頭のマシン）。マシンのダイアログで最初に選ぶマシン。 */
+  const currentTarget = (): string | undefined =>
+    focus()?.target ?? groups()[0]?.target;
 
   /**
-   * キーでワークスペースを移る（リーダーの w j / w k / w h / w l）。移ったら、そのワークスペースの欄にキーを向ける
+   * キーでワークスペースを移る（リーダーの w j / w k）。移ったら、そのワークスペースの欄にキーを向ける
    * （shj が動いているワークスペースなら、shj にキーが届く）。
    */
   async function goWorkspace(target: string, id: WorkspaceId) {
     // 返事を待つあいだに続けて押されたら、ここを起点に次を決める（focus() はまだ前のまま）
     const mine: WorkspaceFocus = { target, id };
     heading = mine;
-    setPickedMachine(null);
     try {
       await switchWorkspace(target, id);
     } finally {
@@ -1459,14 +1458,9 @@ function Workbench(props: {
   /** キーで移っている途中の、向かっている先（返事が返るまで focus() に反映されない）。無ければ null */
   let heading: WorkspaceFocus | null = null;
 
-  /** リーダーの w j / w k。サイドバーの次・前のワークスペースへ（マシンをまたぐ。端では反対の端へ回る）。 */
+  /** リーダーの w j / w k。サイドバーの次・前のワークスペースへ（1 列の並びで。端では反対の端へ回る）。 */
   function stepWs(step: Step) {
-    const next = stepWorkspace(
-      groups(),
-      stepFrom(heading, focus()),
-      step,
-      pickedMachine(),
-    );
+    const next = stepWorkspace(rows(), stepFrom(heading, focus()), step);
     if (next) {
       setWalking(true);
       void goWorkspace(next.target, next.id);
@@ -1474,34 +1468,40 @@ function Workbench(props: {
   }
 
   /**
-   * リーダーの w h / w l。前・次のマシンへ（端では反対の端へ回る）。ワークスペースが有れば最後に選んでいたもの（無ければ先頭）へ、
-   * 1 つも無いマシンと、つながっていないマシンは、そのマシンを「選んでいるマシン」にして止まる。
+   * リーダーの w J / w K。今のワークスペースを 1 つ下・上へ動かし、順を覚える（再起動しても残る）。端では動かさない。
+   * 続けて押せる（押すたびに、今の並びから動かす）。
    */
-  function stepMachineTo(step: Step) {
-    const next = stepMachine(
-      groups(),
-      heading?.target ?? currentTarget(),
-      step,
-      (t) => lastOnMachine.get(t),
-      // つながっていないマシン（お知らせのカードが出ているマシンなど。states の kind が connected でない）は、ワークスペースが残っていても、移らずにそのマシンで止まる
-      (t) => states()[t]?.kind === "connected",
-    );
+  function moveWs(dir: "up" | "down") {
+    const f = focus();
+    if (!f) return;
+    const shown = rows().map((r) => ({ target: r.target, id: r.band.id }));
+    const next = moveInOrder(order(), shown, f, dir);
     if (!next) return;
-    setWalking(true);
-    if (next.ws === null) {
-      // 待っている移動は捨てる（返ってきても、止まったマシンの印を外したり、フォーカスを飛ばしたりしない）
-      const dropped = heading;
-      heading = null;
-      focusSeq++;
-      switching = false;
-      // 捨てた移動の workspace.focus は、もう shj に届いている
-      if (dropped) resyncShjFocus(dropped.target);
-      setPickedMachine(next.target);
-      return;
-    }
-    setPickedMachine(null);
-    void goWorkspace(next.target, next.ws);
+    const kept = pruneOrder(next, workspaces());
+    saveOrder(store, kept);
+    setOrder(kept);
   }
+
+  // ワークスペースを作るマシンを選んでいる窓（リーダーの w n）
+  const [pickingMachine, setPickingMachine] = createSignal(false);
+
+  /**
+   * リーダーの w n。どのマシンに作るかを選んでから作る。
+   * つながっているマシンが 1 つしか無ければ選ぶ余地が無いので、窓を出さずにそこへ作る。1 つも無ければ、できないことを伝える。
+   */
+  function newWorkspace() {
+    const up = creatableRows(machineList());
+    if (up.length === 0) {
+      cannot(
+        "ワークスペースを作れません",
+        "つながっているマシンがありません。マシンのダイアログ（リーダーの m）で、つなぎ直してください。",
+      );
+    } else if (up.length === 1) void createWorkspace(up[0].target);
+    else setPickingMachine(true);
+  }
+
+  const machineList = () =>
+    machineRows(groups(), statusOf, (t) => !!sessions()[t]);
 
   /** できないことを、右下の知らせで伝える（リーダーの葉は、できないときでも押せてしまうため）。 */
   function cannot(title: string, error: string) {
@@ -1541,35 +1541,29 @@ function Workbench(props: {
         setResizeMode(!resizeMode());
         break;
       case "workspace.nth": {
-        // サイドバーの上から順に（マシンをまたいで数える）。足りなければ何もしない
-        const b = groups().flatMap((g) =>
-          g.bands.map((x) => [g.target, x.id] as const),
-        )[c.arg as number];
-        if (b) void switchWorkspace(b[0], b[1]);
+        // サイドバーの上から順に（1 列の並びで）。足りなければ何もしない
+        const r = rows()[c.arg as number];
+        if (r) void switchWorkspace(r.target, r.band.id);
         break;
       }
       case "workspace.step":
         stepWs(c.arg as Step);
         break;
-      case "machine.step":
-        stepMachineTo(c.arg as Step);
+      case "workspace.move":
+        moveWs(c.arg as "up" | "down");
         break;
       case "workspace.last": {
         const l = lastWorkspace;
         if (
           l &&
-          groups().some(
-            (g) => g.target === l.target && g.bands.some((b) => b.id === l.id),
-          )
+          rows().some((r) => r.target === l.target && r.band.id === l.id)
         )
           void switchWorkspace(l.target, l.id);
         break;
       }
-      case "workspace.new": {
-        const t = currentTarget();
-        if (t) void createWorkspace(t);
+      case "workspace.new":
+        newWorkspace();
         break;
-      }
       case "workspace.close":
         if (f) void closeWorkspace(f.target, f.id);
         break;
@@ -1850,25 +1844,11 @@ function Workbench(props: {
       }}
     >
       <Sidebar
-        groups={groups()}
-        picked={pickedMachine()}
+        rows={rows()}
         onFocus={(t, id) => void switchWorkspace(t, id)}
         treeOf={treeOf}
         onToggle={(t, id, p) => trees.get(t)?.toggle(id, p)}
-        statusOf={statusOf}
-        onRetry={retry}
-        onDisconnect={(t) => void disconnect(t)}
-        onCreate={(t) => void createWorkspace(t)}
         onClose={(t, id) => void closeWorkspace(t, id)}
-        onAddMachine={() => {
-          setAddError(undefined);
-          setAdding(true);
-        }}
-        onRename={(t) => {
-          setRenameError(undefined);
-          setRenaming(t);
-        }}
-        onRemove={removeFromSidebar}
         onRenameWorkspace={openWorkspaceRename}
         renaming={
           renamingWs() ? { ...renamingWs()!, error: wsRenameError() } : null
@@ -1953,7 +1933,7 @@ function Workbench(props: {
       </Show>
       <Show when={machinesOpen()}>
         <MachineDialog
-          rows={machineRows(groups(), statusOf, (t) => !!sessions()[t])}
+          rows={machineList()}
           initial={currentTarget() ?? undefined}
           onAdd={() => {
             setAddError(undefined);
@@ -1977,6 +1957,17 @@ function Workbench(props: {
             }
           }}
           onCancel={() => setMachinesOpen(false)}
+        />
+      </Show>
+      <Show when={pickingMachine()}>
+        <MachinePicker
+          rows={creatableRows(machineList())}
+          initial={currentTarget()}
+          onChoose={(t) => {
+            setPickingMachine(false);
+            void createWorkspace(t);
+          }}
+          onCancel={() => setPickingMachine(false)}
         />
       </Show>
       <Show when={adding()}>
