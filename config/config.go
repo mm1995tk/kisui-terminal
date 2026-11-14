@@ -1,12 +1,11 @@
 // Package config reads the settings of kisui from its own configuration
 // directory, `~/.config/kisui-terminal/` (`kisui-terminal-nightly/` for a
-// nightly kisui): config.toml, then config.local.toml on top of it. kisui
-// reads only its own keys, [server] and ui-language. The window reads
-// [[gui.machines]] from the same two files in the same order
-// (app/src-tauri/src/config.rs). What the window writes goes to
-// config.local.toml, never to config.toml, so that config.toml can be a
-// read-only file (such as the one home-manager makes). The settings of shj
-// (`~/.config/shijimi-editor/`) are not read.
+// nightly kisui), from the files listed in files. kisui reads only its own
+// keys, [server] and ui-language. The window reads [[gui.machines]] from the
+// same files in the same order (app/src-tauri/src/config.rs). What the window
+// writes goes to config.local.toml, never to config.toml, so that config.toml
+// can be a read-only file (such as the one home-manager makes). The settings
+// of shj (`~/.config/shijimi-editor/`) are not read.
 package config
 
 import (
@@ -109,9 +108,9 @@ func UserDir(suffix string) (dir string, ok bool) { return dirOf("kisui-terminal
 var files = []string{"config.toml", "config.local.toml"}
 
 // Load reads kisui's settings from kisui-terminal's configuration directory
-// (UserDir): config.toml, then config.local.toml on top of it. The Settings
-// are returned even with an error, with what did read, so that the language
-// of the messages is the user's.
+// (UserDir), applying files in their order. The Settings are returned even
+// with an error, with what did read, so that the language of the messages is
+// the user's.
 func Load(suffix string) (*Settings, error) {
 	s := Default()
 	dir, ok := UserDir(suffix)
