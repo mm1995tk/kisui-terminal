@@ -1,7 +1,7 @@
 // リーダーの案内。リーダー（Mac は Cmd+K、Linux は Ctrl+Shift+K）を押すと、次に押せるキーとその動きを画面の右下に出す（which-key。
 // shijimi-editor の Space の案内と同じ考え）。中身は、コマンドの表（commands.ts）の今の段の一覧そのもの。
 // 一覧は押せず、フォーカスも取らない。キーは押した瞬間にフォーカスがあったペインに向いたまま。
-// 実験的: 設定のフォルダに画像があるときだけ、キャラクターが案内を運んでくる（MascotCarrier.tsx）。
+// 実験的: 設定ファイルの `[gui] mascot` でキャラクターを選び、その `mascot.toml` が読めるときだけ、キャラクターが案内を運んでくる（MascotCarrier.tsx・docs/mascot.md）。
 import { createMemo, createSignal, For, Show, type JSX } from "solid-js";
 
 import { leaderKeyName, menuRows, type Path } from "./commands.ts";
