@@ -31,6 +31,7 @@ Run every command from the root of the repository. `go.mod`, `package.json` and 
 - **UI strings of kisui**: add a key to both `internal/i18n/en.go` and `internal/i18n/ja.go`. A test fails when the two tables differ.
 - **`internal/emulator/emulator.wasm`**: after changing `emulator/` or `Cargo.lock`, rebuild it on x86_64-linux and commit it (`scripts/build-emulator.sh`, or the `emulator-wasm` artifact of the CI `check` run; see CONTRIBUTING.md). A wasm built on macOS or aarch64-linux does not match.
 - **No import of shijimi-editor** (`cmd/kisui/deps_test.go`).
+- **Mascot format**: the skill `agent-plugin/skills/make-mascot/SKILL.md` (the Claude Code / Codex plugin `kisui-mascot`) carries the `mascot.toml` format in its own text, because the repository is not there where it is installed. When you change the format in `docs/mascot.md` (scenes, keys, defaults, image rules), change the skill too.
 
 ## Conventions
 

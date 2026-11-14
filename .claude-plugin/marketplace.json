@@ -1,0 +1,11 @@
+{
+  "name": "kisui-terminal",
+  "owner": { "name": "mm1995tk" },
+  "plugins": [
+    {
+      "name": "kisui-mascot",
+      "source": "./agent-plugin",
+      "description": "kisui-terminal のキャラクター（mascot.toml と、コマごとの画像の指示文）を作る skill"
+    }
+  ]
+}
