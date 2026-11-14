@@ -28,6 +28,7 @@ export function LeaderMenu(): JSX.Element {
             <div
               ref={(e) => (menuEl = e)}
               class={styles.menu}
+              data-overlay=""
               role="status"
               aria-label="リーダー"
             >

@@ -426,3 +426,96 @@
   font-size: 11px;
   line-height: 1.5;
 }
+
+/* 内蔵ブラウザのタブ（#202。Sidebar.tsx の BandTabRows）。帯の下に、そのワークスペースのタブを並べる */
+.band-tabs {
+  padding: 0 4px 4px 10px;
+}
+.band-tabs-fold {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--sidebar-muted);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.band-tabs-fold:hover {
+  background: var(--band-hover);
+  color: var(--sidebar-text);
+}
+.band-tabs-fold:focus-visible,
+.tab-main:focus-visible {
+  outline: 1px solid var(--machine-color);
+  outline-offset: -1px;
+}
+.band-tabs-chevron {
+  width: 10px;
+  text-align: center;
+}
+.tab-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.tab-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 4px 0 6px;
+  border-left: 2px solid transparent;
+  border-radius: 0 4px 4px 0;
+}
+.tab-row:hover {
+  background: var(--band-hover);
+}
+/* そのワークスペースで出しているタブ。今のワークスペースのものは、地の色も変える */
+.tab-row[data-shown] {
+  border-left-color: color-mix(in srgb, var(--machine-color) 55%, transparent);
+}
+.tab-row[data-current] {
+  border-left-color: var(--machine-color);
+  background: var(--band-bg);
+}
+.tab-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--sidebar-text);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.tab-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tab-host {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--sidebar-muted);
+  font-size: 10px;
+}
+/* タブの × は、行に乗せたとき・キーが向いたとき・出しているタブだけ出す（帯の × と同じ考え） */
+.tab-row:hover .tab-close,
+.tab-row:focus-within .tab-close,
+.tab-row[data-current] .tab-close {
+  opacity: 1;
+}

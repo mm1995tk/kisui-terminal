@@ -157,11 +157,42 @@ import { WorkspaceTrees } from "./tree/trees.ts";
 import {
   afterKeyUp,
   IDLE,
+  interceptKeys,
   leaderKeyName,
   route,
+  setBrowserEnabled,
   type Command,
   type RouterState,
 } from "./commands.ts";
+import { BrowserArea } from "./browser/BrowserArea.tsx";
+import {
+  goTab,
+  loadTabs,
+  navTab,
+  onTabKey,
+  onTabPage,
+  onTabTitle,
+  saveTabs,
+} from "./browser/browserOs.ts";
+import {
+  addTab,
+  closeTab,
+  cycle,
+  EMPTY_TABS,
+  fromStored,
+  isFolded,
+  newTabId,
+  pruneWorkspaces,
+  shownTab,
+  showTab,
+  tabsOf,
+  toggleFold,
+  toStored,
+  updateTab,
+  type TabsState,
+} from "./browser/tabs.ts";
+import { UrlDialog } from "./browser/UrlDialog.tsx";
+import type { KeyLike } from "./guiKeys.ts";
 import { closeTarget, IS_MAC } from "./guiKeys.ts";
 import { KeyListDialog, openKeyList } from "./KeyListDialog.tsx";
 import { placeOf } from "./placeKeys.ts";
@@ -188,11 +219,15 @@ export function App(props: {
 }): JSX.Element {
   const api = props.api ?? tauriShell;
   const [loaded, setLoaded] = createSignal<
-    { config: ConfigMachine[] } | { error: string } | null
+    { config: ConfigMachine[]; browser: boolean } | { error: string } | null
   >(null);
   onMount(() => {
-    api.configMachines().then(
-      (config) => setLoaded({ config }),
+    api.configGui().then(
+      (g) => {
+        // 内蔵ブラウザ（#202）は、設定で有効にしたときだけ、リーダーの o のグループを出す
+        setBrowserEnabled(g.browser);
+        setLoaded({ config: g.machines, browser: g.browser });
+      },
       (e) => setLoaded({ error: String(e) }),
     );
   });
@@ -203,7 +238,12 @@ export function App(props: {
         return "error" in v ? (
           <ConfigError message={v.error} />
         ) : (
-          <Workbench api={api} store={props.store} config={v.config} />
+          <Workbench
+            api={api}
+            store={props.store}
+            config={v.config}
+            browser={v.browser}
+          />
         );
       }}
     </Show>
@@ -215,6 +255,8 @@ function Workbench(props: {
   store?: KeyValueStore;
   /** 手元の設定ファイルで決めたマシン */
   config: ConfigMachine[];
+  /** 内蔵ブラウザのタブを使うか（設定の [gui.browser] enabled。#202） */
+  browser?: boolean;
 }): JSX.Element {
   const api = props.api;
   const store = props.store ?? browserStore();
@@ -548,7 +590,10 @@ function Workbench(props: {
     if (next.leader !== router.leader) setLeaderPath(next.leader);
     // リーダーを閉じたら、続けて移る間は出さずにいたファイルツリーを、行き先のワークスペースの分だけ出す
     if (!next.leader) setWalking(false);
+    const left = router.leader !== null && next.leader === null;
     router = next;
+    // ページから入ったリーダーを出たら、ページにキーを戻す（内蔵ブラウザ）
+    if (left && pageReturn !== undefined) returnToPageLater();
   };
   // GUI が受けるキーなので、欄やターミナルに届く前（capture）に取って、shj にもシェルにも送らない。
   // 何を受けるかは、コマンドの表（commands.ts）が決める。リーダーに入っていないときは、その表のキーに当たるものだけを受け、
@@ -562,7 +607,11 @@ function Workbench(props: {
       resizeMode: resizeMode(),
       // Cmd+W（Mac）は、キーがターミナルの欄（画像・動画・PDF の欄を含む）に向いているときか、どこにも向いていないときに、
       // 今の欄だけを閉じる。どちらでも、アプリの窓は閉じない（#83）
-      inPane: closeTarget(e.target, card, !!termGroup()) === "pane",
+      inPane:
+        !shownBrowserTab() &&
+        closeTarget(e.target, card, !!termGroup()) === "pane",
+      // 内蔵ブラウザのタブを出している間は、Cmd+R / Ctrl+Shift+R を読み込み直しにする
+      browser: !!shownBrowserTab(),
     });
     setRouter(routed.state);
     if (routed.consume) {
@@ -623,6 +672,8 @@ function Workbench(props: {
     if (api.onCloseRequest) {
       offs.push(
         await api.onCloseRequest(() => {
+          // 内蔵ブラウザのタブを出している間は、見えないペインも窓も閉じない
+          if (untrack(shownBrowserTab)) return;
           const card = mainEl?.querySelector(":scope > .terminal");
           if (
             closeTarget(document.activeElement, card, !!termGroup()) === "pane"
@@ -697,6 +748,15 @@ function Workbench(props: {
         setWorkspaces((m) => ({ ...m, [target]: ws }));
         setFocus((f) => keepFocus(f, workspaces(), shjFocuses(), closingNext));
       });
+      // 閉じたワークスペースの、内蔵ブラウザのタブも閉じる（つながって一覧が分かったときだけ。つながる前には捨てない）
+      if (props.browser && s.state.kind === "connected")
+        setTabs((t) =>
+          pruneWorkspaces(
+            t,
+            target,
+            ws.map((w) => w.id),
+          ),
+        );
       // つないで最初に分かった一覧が空なら、ワークスペースを 1 つ作る（何も無い画面から始めない）。
       // 閉じて空になったときは作らない
       if (!started.has(target) && s.state.kind === "connected") {
@@ -1394,8 +1454,14 @@ function Workbench(props: {
     if (f) openUrlFor(f.target, click.url);
   }
 
-  /** 今使っているターミナルの欄にキーを向ける。 */
+  /**
+   * 今使っているターミナルの欄にキーを向ける。今のワークスペースで内蔵ブラウザのタブを出していれば、そのページに向ける。
+   */
   function focusTerminal() {
+    if (untrack(shownBrowserTab)) {
+      focusBrowserPage?.();
+      return;
+    }
     // 足した欄のターミナルが開くのを待つ（作ったばかりのワークスペースは、欄が描かれるまでもう少しかかる）
     const focus = () => focusActiveTerminal?.();
     queueMicrotask(() => {
@@ -1415,6 +1481,226 @@ function Workbench(props: {
       .then((added) => {
         if (added) focusTerminal();
       });
+  }
+
+  // ---- 内蔵ブラウザのタブ（#202。設定の [gui.browser] enabled で有効にしたときだけ）----
+  // タブはワークスペースに属し、サイドバーのワークスペースの帯の下に並ぶ。タブを選ぶと、グリッドの場所すべてがそのページになる。
+  // 開いていたタブは殻がデータのフォルダに覚え、再起動したら戻す（browser/tabs.ts・browser.rs）
+  const [tabs, setTabsState] = createSignal<TabsState>(EMPTY_TABS);
+  /** 覚えていたタブを読み終えたか（読む前に空のまま書いて、覚えていたものを消さないため） */
+  let tabsLoaded = false;
+  let saveTimer: number | undefined;
+  function setTabs(next: TabsState | ((t: TabsState) => TabsState)) {
+    const before = untrack(tabs);
+    const v = typeof next === "function" ? next(before) : next;
+    if (v === before) return;
+    setTabsState(v);
+    if (!tabsLoaded) return;
+    // ページの遷移のたびに書かないよう、少し待ってまとめて書く
+    window.clearTimeout(saveTimer);
+    saveTimer = window.setTimeout(() => {
+      void saveTabs(toStored(untrack(tabs))).catch((e: unknown) =>
+        console.warn("browser tabs:", e),
+      );
+    }, 500);
+  }
+  /** 今のワークスペースで出しているタブ。グリッドを出していれば undefined。 */
+  const shownBrowserTab = createMemo(() => {
+    const f = focus();
+    return props.browser && f ? shownTab(tabs(), f.target, f.id) : undefined;
+  });
+  let focusBrowserPage: (() => void) | undefined;
+  /** URL の入力欄（リーダーの o n・o u） */
+  const [urlDialog, setUrlDialog] = createSignal<
+    | { kind: "new"; target: string; id: WorkspaceId }
+    | { kind: "edit"; tab: string; url: string }
+    | null
+  >(null);
+  /**
+   * ページにキーがあるときにリーダーか近道を押した（殻がキーをこの画面に移してから届く）。そのときの画面のキーの行き先。
+   * 押した操作が終わって（リーダーなら出て）も、キーの行き先がそのままなら、ページにキーを戻す
+   */
+  let pageReturn: Element | null | undefined;
+  function returnToPageLater() {
+    setTimeout(() =>
+      requestAnimationFrame(() => {
+        if (pageReturn === undefined || router.leader) return;
+        const was = pageReturn;
+        pageReturn = undefined;
+        if (
+          !untrack(shownBrowserTab) ||
+          untrack(resizeMode) ||
+          document.querySelector("dialog[open]")
+        )
+          return;
+        // 押した操作がキーをほかへ向けた（名前の入力欄・ファイルツリーなど）ときは、戻さない
+        if (document.activeElement !== was) return;
+        focusTerminal();
+      }),
+    );
+  }
+  /** ページにキーがあったときに押されたキー（リーダー・近道と、リーダーに入ったあと画面に移るまでのキー）。 */
+  function onPageKey(e: KeyLike) {
+    if (pageReturn === undefined) pageReturn = document.activeElement;
+    const routed = route(router, e, {
+      mac: IS_MAC,
+      dialogOpen: !!document.querySelector("dialog[open]"),
+      resizeMode: resizeMode(),
+      // ページを出している間は、ペインに向いていないものとする（Cmd+W で、見えないペインを閉じない）
+      inPane: false,
+      browser: !!shownBrowserTab(),
+    });
+    setRouter(routed.state);
+    if (routed.consume && routed.run && (!e.repeat || routed.repeat))
+      runCommand(routed.run);
+    returnToPageLater();
+  }
+  if (props.browser) {
+    onMount(async () => {
+      try {
+        const stored = fromStored(await loadTabs());
+        // 読むあいだに分かったワークスペースの一覧で、閉じたワークスペースのタブを捨てる
+        let t = stored;
+        for (const [target, ws] of Object.entries(untrack(workspaces)))
+          if (untrack(sessions)[target]?.state.kind === "connected")
+            t = pruneWorkspaces(
+              t,
+              target,
+              ws.map((w) => w.id),
+            );
+        // 読むあいだに開いたタブも残す
+        const opened = untrack(tabs);
+        setTabsState({
+          tabs: [...t.tabs, ...opened.tabs],
+          views: opened.views,
+          collapsed: [...t.collapsed, ...opened.collapsed],
+        });
+      } catch (e) {
+        console.warn("browser tabs:", e);
+      }
+      tabsLoaded = true;
+      offs.push(
+        await onTabKey(onPageKey),
+        await onTabPage((e) => {
+          if (isOpenableUrl(e.url))
+            setTabs((t) => updateTab(t, e.tab, { url: e.url }));
+        }),
+        await onTabTitle((e) =>
+          setTabs((t) => updateTab(t, e.tab, { title: e.title })),
+        ),
+      );
+    });
+    // リサイズモードを出たら、ページにキーを戻す
+    createEffect(
+      on(resizeMode, (m, prev) => {
+        if (prev && !m && untrack(shownBrowserTab)) focusTerminal();
+      }),
+    );
+    onCleanup(() => window.clearTimeout(saveTimer));
+  }
+
+  /** 今のワークスペースで出しているタブ。無ければ「できない」と知らせて undefined。 */
+  function currentTab() {
+    const t = shownBrowserTab();
+    if (!t)
+      cannot(
+        "ブラウザのタブを出していません",
+        "リーダーの o j・o k でタブを出すか、o n で新しいタブを開いてください。",
+      );
+    return t;
+  }
+
+  /** 内蔵ブラウザのコマンド（リーダーの o）。 */
+  function runBrowser(c: Command) {
+    const f = focus();
+    switch (c.id) {
+      case "browser.new":
+        if (!f)
+          cannot(
+            "タブを開けません",
+            "ワークスペースがありません。タブはワークスペースの下に開きます。",
+          );
+        else setUrlDialog({ kind: "new", target: f.target, id: f.id });
+        break;
+      case "browser.url": {
+        const t = currentTab();
+        if (t) setUrlDialog({ kind: "edit", tab: t.id, url: t.url });
+        break;
+      }
+      case "browser.back":
+      case "browser.forward":
+      case "browser.reload": {
+        const t = currentTab();
+        const action =
+          c.id === "browser.back"
+            ? "back"
+            : c.id === "browser.forward"
+              ? "forward"
+              : "reload";
+        if (t) void navTab(t.id, action).catch(() => {});
+        break;
+      }
+      case "browser.close": {
+        const t = currentTab();
+        if (t) {
+          setTabs((s) => closeTab(s, t.id));
+          focusTerminal();
+        }
+        break;
+      }
+      case "browser.external": {
+        const t = currentTab();
+        if (t) openUrlFor(t.target, t.url);
+        break;
+      }
+      case "browser.cycle":
+        if (f) {
+          setTabs((s) => cycle(s, f.target, f.id, c.arg as "next" | "prev"));
+          focusTerminal();
+        }
+        break;
+      case "browser.fold":
+        if (f) setTabs((s) => toggleFold(s, f.target, f.id));
+        break;
+    }
+  }
+
+  /** URL の入力欄で決めた。新しいタブを開くか、今のタブで開く。 */
+  function submitUrl(url: string) {
+    const d = urlDialog();
+    if (!d) return;
+    setUrlDialog(null);
+    if (d.kind === "new") {
+      setTabs((s) =>
+        addTab(s, {
+          id: newTabId(),
+          target: d.target,
+          workspace: d.id,
+          url,
+          title: "",
+        }),
+      );
+    } else {
+      setTabs((s) => updateTab(s, d.tab, { url }));
+      // まだ作っていない・開けなかったタブは、BrowserArea が新しい URL で作る
+      void goTab(d.tab, url).catch(() => {});
+    }
+    focusTerminal();
+  }
+
+  /** サイドバーのタブの行を押した。そのワークスペースでそのタブを出し、キーをページに向ける。 */
+  function selectTab(target: string, id: WorkspaceId, tab: string) {
+    setTabs((s) => showTab(s, target, id, tab));
+    const f = focus();
+    if (f?.target === target && f.id === id) focusTerminal();
+    else void switchWorkspace(target, id);
+  }
+
+  /** サイドバーのタブの行の ×。 */
+  function closeTabRow(tab: string) {
+    const shown = shownBrowserTab()?.id === tab;
+    setTabs((s) => closeTab(s, tab));
+    if (shown) focusTerminal();
   }
 
   // 直前に選んでいたワークスペース（リーダーの w Tab で戻る先）
@@ -1511,6 +1797,22 @@ function Workbench(props: {
    */
   function runCommand(c: Command) {
     const f = focus();
+    if (c.id.startsWith("browser.")) {
+      runBrowser(c);
+      return;
+    }
+    // ブラウザのタブを出している間のペインの操作は、まずグリッドに戻す（見えないペインは動かさない）。
+    // ペインを閉じる（p x）は、戻すだけで閉じない（どのペインが閉じるか見えないまま閉じないため）
+    if (
+      c.id.startsWith("pane.") &&
+      c.id !== "pane.resize" &&
+      f &&
+      shownBrowserTab()
+    ) {
+      setTabs((s) => showTab(s, f.target, f.id, null));
+      focusTerminal();
+      if (c.id === "pane.close") return;
+    }
     switch (c.id) {
       case "pane.focus":
         // 隠している間は、隣の欄が見えないので移らない
@@ -1829,7 +2131,24 @@ function Workbench(props: {
       <Sidebar
         rows={rows()}
         onNew={newWorkspace}
-        onFocus={(t, id) => void switchWorkspace(t, id)}
+        onFocus={(t, id) => {
+          // ワークスペースの帯を押すと、ターミナルのグリッドに戻る（内蔵ブラウザのタブを出していても）
+          setTabs((s) => showTab(s, t, id, null));
+          void switchWorkspace(t, id);
+        }}
+        browserOf={
+          props.browser
+            ? (t, id) => ({
+                tabs: tabsOf(tabs(), t, id),
+                shown: shownTab(tabs(), t, id)?.id,
+                folded: isFolded(tabs(), t, id),
+                focused: focus()?.target === t && focus()?.id === id,
+              })
+            : undefined
+        }
+        onTab={selectTab}
+        onTabClose={closeTabRow}
+        onTabsFold={(t, id) => setTabs((s) => toggleFold(s, t, id))}
         treeOf={treeOf}
         onToggle={(t, id, p) => trees.get(t)?.toggle(id, p)}
         onClose={(t, id) => void closeWorkspace(t, id)}
@@ -1885,6 +2204,16 @@ function Workbench(props: {
           onUrl={openUrl}
           focusRef={(f) => (focusActiveTerminal = f)}
         />
+        <Show when={props.browser}>
+          <BrowserArea
+            tabs={tabs().tabs}
+            shown={shownBrowserTab()}
+            zoom={() => scale}
+            keys={() => interceptKeys(IS_MAC)}
+            onError={(title, error) => setFocusError({ title, error })}
+            focusRef={(f) => (focusBrowserPage = f)}
+          />
+        </Show>
       </div>
       <Show when={installing()}>
         {(t) => (
@@ -2010,6 +2339,19 @@ function Workbench(props: {
               onCancel={() => setTreeDialog(null)}
             />
           </Show>
+        )}
+      </Show>
+      <Show when={urlDialog()}>
+        {(d) => (
+          <UrlDialog
+            kind={d().kind}
+            initial={(() => {
+              const v = d();
+              return v.kind === "edit" ? v.url : "";
+            })()}
+            onSubmit={submitUrl}
+            onCancel={() => setUrlDialog(null)}
+          />
         )}
       </Show>
       <AskpassDialog ask={asks()[0]} onReply={reply} />

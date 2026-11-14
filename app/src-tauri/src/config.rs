@@ -1,9 +1,11 @@
-//! 手元の設定ファイルの `[[gui.machines]]`。
+//! 手元の設定ファイルの `[[gui.machines]]` と `[gui.browser]`。
 //!
 //! 読むのは設定のフォルダの `config.toml` と `config.local.toml` の 2 つ。`config.toml` が土台で、
 //! `config.local.toml` を上に重ねる（kisui の `config/config.go` と同じファイルを同じ順で読む）。
 //! `config.local.toml` に `[[gui.machines]]`（`[gui] machines = []` も）があれば、`config.toml` の一覧を丸ごと置き換える。
 //! 無ければ `config.toml` の一覧を使う。どちらのファイルも無くてよい。
+//! `[gui.browser] enabled`（内蔵ブラウザのタブを使うか。#202）は、書いてあるファイルのものを使い、両方にあれば `config.local.toml` が勝つ。
+//! どちらにも無ければ使わない。
 //! 窓が設定を書くときは `config.local.toml` に書く（`config.toml` は home-manager が読み取り専用で置くことがある）。
 //! GUI が読むのはこの節と `[gui] mascot`（リーダーの案内を運ぶキャラクターの名前。mascot.rs）だけ。ほかの節（`kisui serve` の `[server]` など）は kisui が読む。
 //! 知らない項目は間違いにしない（新しい版用に書いた項目があっても起動する）。読み飛ばす。
@@ -42,6 +44,30 @@ struct File {
 struct Gui {
     // 書いていない（None）と書いて空（Some(空)）を分ける。config.local.toml の空の一覧は、config.toml の一覧を消す
     machines: Option<Vec<Entry>>,
+    /// 内蔵ブラウザ（#202）
+    browser: Option<Browser>,
+}
+
+/// `[gui.browser]`。
+#[derive(Deserialize)]
+struct Browser {
+    /// 内蔵ブラウザのタブを使うか。書いていなければ使わない。config.local.toml に書けば、config.toml のものより勝つ
+    enabled: Option<bool>,
+}
+
+/// 設定ファイルの GUI の節（`[gui]`）のうち、画面が使うもの。
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+pub struct GuiConfig {
+    pub machines: Vec<ConfigMachine>,
+    /// 内蔵ブラウザのタブを使うか（`[gui.browser] enabled`。初めは使わない）
+    pub browser: bool,
+}
+
+/// 1 つのファイルから読んだもの（書いていない項目は None）。
+#[derive(Default)]
+struct Parsed {
+    machines: Option<Vec<ConfigMachine>>,
+    browser: Option<bool>,
 }
 
 #[derive(Deserialize)]
@@ -97,43 +123,56 @@ pub(crate) fn env() -> (Option<PathBuf>, Option<PathBuf>, bool) {
 }
 
 /// 環境から設定のフォルダを決めて読む。
-pub fn load_default() -> Result<Vec<ConfigMachine>, String> {
+pub fn load_default() -> Result<GuiConfig, String> {
     let (xdg, home, nightly) = env();
     match config_dir(xdg.as_deref(), home.as_deref(), nightly) {
-        Some(d) => load_dir(&d),
-        None => Ok(Vec::new()),
+        Some(d) => load_gui(&d),
+        None => Ok(GuiConfig::default()),
     }
 }
 
 /// 設定のフォルダの 2 つのファイルを読んで重ねる。どちらかに間違いがあれば、全部の間違いを改行でつないで返す。
-pub fn load_dir(dir: &Path) -> Result<Vec<ConfigMachine>, String> {
-    let mut machines = Vec::new();
+pub fn load_gui(dir: &Path) -> Result<GuiConfig, String> {
+    let mut out = GuiConfig::default();
     let mut errs = Vec::new();
     for name in FILES {
         match load(&dir.join(name)) {
-            // 一覧があるファイルが、前のファイルの一覧を丸ごと置き換える
-            Ok(Some(m)) => machines = m,
-            Ok(None) => {}
+            Ok(p) => {
+                // 一覧があるファイルが、前のファイルの一覧を丸ごと置き換える
+                if let Some(m) = p.machines {
+                    out.machines = m;
+                }
+                // 書いてあるファイルが、前のファイルのものに勝つ
+                if let Some(b) = p.browser {
+                    out.browser = b;
+                }
+            }
             Err(e) => errs.push(e),
         }
     }
     if errs.is_empty() {
-        Ok(machines)
+        Ok(out)
     } else {
         Err(errs.join("\n"))
     }
 }
 
-/// 設定ファイルを 1 つ読む。無いか `[[gui.machines]]` が書いていなければ None。
-fn load(path: &Path) -> Result<Option<Vec<ConfigMachine>>, String> {
+/// `load_gui` のマシンの一覧だけ。
+#[cfg(test)]
+fn load_dir(dir: &Path) -> Result<Vec<ConfigMachine>, String> {
+    load_gui(dir).map(|g| g.machines)
+}
+
+/// 設定ファイルを 1 つ読む。無ければ何も書いていないものとする。
+fn load(path: &Path) -> Result<Parsed, String> {
     let text = match fs::read(path) {
         Ok(b) => {
             String::from_utf8(b).map_err(|_| format!("{}: UTF-8 で読めません", path.display()))?
         }
-        Err(e) if e.kind() == ErrorKind::NotFound => return Ok(None),
+        Err(e) if e.kind() == ErrorKind::NotFound => return Ok(Parsed::default()),
         Err(e) => return Err(format!("{}: 読めません（{e}）", path.display())),
     };
-    parse_file(&text).map_err(|(line, why)| match line {
+    parse_all(&text).map_err(|(line, why)| match line {
         Some(l) => format!("{}:{l}: {why}", path.display()),
         None => format!("{}: {why}", path.display()),
     })
@@ -172,16 +211,35 @@ fn line_of(text: &str, offset: usize) -> usize {
 }
 
 /// 1 つのファイルの `[[gui.machines]]`。書いていなければ None。
+#[cfg(test)]
 fn parse_file(text: &str) -> Result<Option<Vec<ConfigMachine>>, (Option<usize>, String)> {
+    parse_all(text).map(|p| p.machines)
+}
+
+/// 1 つのファイルの `[gui]` の、画面が使う項目。
+fn parse_all(text: &str) -> Result<Parsed, (Option<usize>, String)> {
     let file: File = toml::from_str(text).map_err(|e| {
         (
             e.span().map(|s| line_of(text, s.start)),
             e.message().to_string(),
         )
     })?;
-    let Some(entries) = file.gui.and_then(|g| g.machines) else {
-        return Ok(None);
+    let Some(gui) = file.gui else {
+        return Ok(Parsed::default());
     };
+    let browser = gui.browser.and_then(|b| b.enabled);
+    let machines = match gui.machines {
+        Some(entries) => Some(check_machines(text, entries)?),
+        None => None,
+    };
+    Ok(Parsed { machines, browser })
+}
+
+/// `[[gui.machines]]` を確かめる。
+fn check_machines(
+    text: &str,
+    entries: Vec<Entry>,
+) -> Result<Vec<ConfigMachine>, (Option<usize>, String)> {
     let mut out: Vec<ConfigMachine> = Vec::new();
     let mut targets = HashSet::new();
     let mut labels = HashSet::new();
@@ -227,7 +285,7 @@ fn parse_file(text: &str) -> Result<Option<Vec<ConfigMachine>>, (Option<usize>, 
         }
         out.push(ConfigMachine { ssh, name });
     }
-    Ok(Some(out))
+    Ok(out)
 }
 
 #[cfg(test)]
@@ -481,6 +539,48 @@ mod tests {
         )
         .unwrap();
         assert_eq!(load_dir(&d).unwrap(), vec![]);
+        let _ = fs::remove_dir_all(&d);
+    }
+
+    // [gui.browser] enabled（#202）。書いていなければ使わない。config.local.toml が勝つ
+    #[test]
+    fn browser_is_off_unless_enabled() {
+        let d = temp_dir("browser");
+        assert!(!load_gui(&d).unwrap().browser);
+        fs::write(
+            d.join("config.toml"),
+            "[gui.browser]\nenabled = true\n[[gui.machines]]\nssh = \"a\"\n",
+        )
+        .unwrap();
+        let g = load_gui(&d).unwrap();
+        assert!(g.browser);
+        assert_eq!(g.machines, vec![machine("a")]);
+        // 書いていない config.local.toml は変えない
+        fs::write(
+            d.join("config.local.toml"),
+            "[[gui.machines]]\nssh = \"b\"\n",
+        )
+        .unwrap();
+        assert!(load_gui(&d).unwrap().browser);
+        fs::write(
+            d.join("config.local.toml"),
+            "[gui.browser]\nenabled = false\n",
+        )
+        .unwrap();
+        let g = load_gui(&d).unwrap();
+        assert!(!g.browser);
+        assert_eq!(g.machines, vec![machine("a")]);
+        // 型の違いは間違い
+        fs::write(
+            d.join("config.local.toml"),
+            "[gui.browser]\nenabled = \"yes\"\n",
+        )
+        .unwrap();
+        let e = load_gui(&d).unwrap_err();
+        assert!(
+            e.starts_with(&format!("{}:2: ", d.join("config.local.toml").display())),
+            "{e}"
+        );
         let _ = fs::remove_dir_all(&d);
     }
 }

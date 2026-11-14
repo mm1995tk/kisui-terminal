@@ -1,15 +1,18 @@
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { after, before, describe, it } from "node:test";
 
 import {
+  activeLeader,
   afterKeyUp,
   childrenAt,
   helpRows,
+  interceptKeys,
   IDLE,
   LEADER,
   leaderKeyName,
   menuRows,
   route,
+  setBrowserEnabled,
   shortcutCommand,
   type Command,
   type Env,
@@ -62,7 +65,7 @@ function press(mac: boolean, keys: KeyLike[], e: Partial<Env> = {}) {
 }
 
 function leaves(
-  list: Node[] = LEADER,
+  list: Node[] = activeLeader(),
   path: string[] = [],
 ): { path: string[]; node: Node }[] {
   return list.flatMap((n) => [
@@ -733,5 +736,129 @@ describe("リーダーの案内（menuRows）", () => {
     assert.deepEqual(r.runs, [{ id: "machine.dialog" }]);
     assert.equal(r.state.leader, null);
     assert.equal(keysOf([], MAC).includes("m"), true);
+  });
+});
+
+describe("内蔵ブラウザ（#202。設定で有効にしたときだけ）", () => {
+  it("有効にしていなければ、o のグループは案内にも `?` の一覧にも無く、キーも受けない", () => {
+    setBrowserEnabled(false);
+    assert.equal(childrenAt(["o"]), undefined);
+    assert.ok(!helpRows(MAC).some((r) => r.path[0] === "o"));
+    assert.ok(!menuRows([], MAC).some((r) => r.keys === "o"));
+    const r = press(MAC, [LEADER_KEY(MAC), key("o")]);
+    assert.equal(r.state.leader, null);
+    // Cmd+R はリサイズモードのまま
+    assert.deepEqual(
+      press(MAC, [key("r", "m", "KeyR")], { browser: true }).runs,
+      [{ id: "pane.resize" }],
+    );
+  });
+
+  describe("有効にしたとき", () => {
+    before(() => setBrowserEnabled(true));
+    after(() => setBrowserEnabled(false));
+
+    it("o のグループの葉は、Issue の表のとおり", () => {
+      const rows = helpRows(MAC)
+        .filter((r) => r.path[0] === "o")
+        .map((r) => [r.path.join(" "), r.shortcut ?? ""]);
+      assert.deepEqual(rows, [
+        ["o", ""],
+        ["o n", ""],
+        ["o u", ""],
+        ["o j", ""],
+        ["o k", ""],
+        ["o h", ""],
+        ["o l", ""],
+        ["o r", "Cmd+R"],
+        ["o x", ""],
+        ["o e", ""],
+        ["o z", ""],
+      ]);
+      // 続けて押せるのは、戻る・進む・グリッドとタブを回る
+      const repeat = (childrenAt(["o"]) ?? [])
+        .filter((n) => n.type === "leaf" && n.repeat)
+        .map((n) => (n.type === "leaf" ? n.keys[0] : ""));
+      assert.deepEqual(repeat.sort(), ["h", "j", "k", "l"]);
+    });
+
+    for (const mac of [MAC, LINUX]) {
+      const os = mac ? "Mac" : "Linux";
+      const R = mac ? key("r", "m", "KeyR") : key("R", "cs", "KeyR");
+
+      it(`${os}：ブラウザを出している間だけ、Cmd+R / Ctrl+Shift+R は読み込み直す。ほかのときはリサイズモード`, () => {
+        assert.deepEqual(press(mac, [R], { browser: true }).runs, [
+          { id: "browser.reload" },
+        ]);
+        assert.deepEqual(press(mac, [R]).runs, [{ id: "pane.resize" }]);
+        // リサイズモードの中は、出る（リサイズモードのキーを先にする）
+        assert.deepEqual(
+          press(mac, [R], { browser: true, resizeMode: true }).runs,
+          [{ id: "pane.resize" }],
+        );
+        // リサイズモードを出るキーの判定（panes.ts）は、ブラウザの近道に取られない
+        assert.equal(shortcutCommand(R, mac)?.id, "pane.resize");
+        // リーダーの p r はリサイズモードのまま
+        assert.deepEqual(
+          press(mac, [LEADER_KEY(mac), key("p"), key("r")], { browser: true })
+            .runs,
+          [{ id: "pane.resize" }],
+        );
+      });
+
+      it(`${os}：o j を続けて押すと、リーダーを出ずに回り続ける`, () => {
+        const r = press(mac, [LEADER_KEY(mac), key("o"), key("j"), key("j")]);
+        assert.deepEqual(r.runs, [
+          { id: "browser.cycle", arg: "next" },
+          { id: "browser.cycle", arg: "next" },
+        ]);
+        assert.deepEqual(r.state.leader, ["o"]);
+      });
+    }
+
+    it("近道は、ブラウザを出しているときだけのものを除いて OS ごとに重ならない（ブラウザだけのものどうしも重ならない）", () => {
+      for (const mac of [MAC, LINUX]) {
+        for (const inBrowser of [false, true]) {
+          const seen = new Map<string, string>();
+          for (const { path, node } of leaves()) {
+            if (node.type === "leaf" && !!node.shortcutInBrowser !== inBrowser)
+              continue;
+            if (node.type === "group" && inBrowser) continue;
+            const s = mac ? node.shortcut?.mac : node.shortcut?.other;
+            if (!s) continue;
+            assert.equal(seen.has(s), false, `${s}（${path.join(" ")}）`);
+            seen.set(s, path.join(" "));
+          }
+        }
+      }
+    });
+
+    it("案内に出るキーは、すべて実際に受ける", () => {
+      const L = LEADER_KEY(LINUX);
+      for (const { path, node } of leaves()) {
+        if (node.type !== "leaf" || path[0] !== "o") continue;
+        const r = press(LINUX, [L, key("o"), key(node.keys[0])]);
+        assert.deepEqual(r.runs, [node.run], path.join(" "));
+      }
+    });
+
+    it("ページに渡すキーは、リーダーとすべての近道。リーダーとグループの入口だけが、続くキーも受ける", () => {
+      for (const mac of [MAC, LINUX]) {
+        const keys = interceptKeys(mac);
+        const has = (s: string, enter: boolean) =>
+          keys.some(
+            (k) =>
+              JSON.stringify({ ...parseSpec(s), enter }) === JSON.stringify(k),
+          );
+        assert.ok(has(mac ? "Cmd+K" : "Ctrl+Shift+K", true));
+        assert.ok(has(mac ? "Cmd+Shift+W" : "Ctrl+Shift+W", true));
+        assert.ok(has(mac ? "Cmd+Shift+P" : "Ctrl+Shift+P", true));
+        assert.ok(has(mac ? "Cmd+R" : "Ctrl+Shift+R", false));
+        assert.ok(has(mac ? "Cmd+D" : "Ctrl+Shift+D", false));
+        // Cmd+C・Cmd+V（ページのコピー・貼り付け）は渡さない
+        assert.ok(!has(mac ? "Cmd+C" : "Ctrl+Shift+C", false));
+        assert.ok(!has(mac ? "Cmd+V" : "Ctrl+Shift+V", false));
+      }
+    });
   });
 });

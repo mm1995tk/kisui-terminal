@@ -2,12 +2,11 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 
-import type { ShellApi } from "./api.ts";
-import type { ConfigMachine } from "./machines.ts";
+import type { GuiConfig, ShellApi } from "./api.ts";
 
 export const tauriShell: ShellApi = {
   listSshHosts: () => invoke<string[]>("list_ssh_hosts"),
-  configMachines: () => invoke<ConfigMachine[]>("config_machines"),
+  configGui: () => invoke<GuiConfig>("config_gui"),
   connect: (id, target) => invoke("connect", { id, target }),
   send: (id, text) => invoke("send", { id, text }),
   disconnect: (id) => invoke("disconnect", { id }),

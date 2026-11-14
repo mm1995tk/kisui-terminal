@@ -146,7 +146,7 @@ impl History {
 }
 
 #[cfg(unix)]
-fn create_private_dir(dir: &Path) -> std::io::Result<()> {
+pub(crate) fn create_private_dir(dir: &Path) -> std::io::Result<()> {
     use std::os::unix::fs::DirBuilderExt;
     fs::DirBuilder::new()
         .recursive(true)
@@ -155,12 +155,12 @@ fn create_private_dir(dir: &Path) -> std::io::Result<()> {
 }
 
 #[cfg(not(unix))]
-fn create_private_dir(dir: &Path) -> std::io::Result<()> {
+pub(crate) fn create_private_dir(dir: &Path) -> std::io::Result<()> {
     fs::create_dir_all(dir)
 }
 
 #[cfg(unix)]
-fn open_private(path: &Path) -> std::io::Result<fs::File> {
+pub(crate) fn open_private(path: &Path) -> std::io::Result<fs::File> {
     use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
     let f = fs::OpenOptions::new()
         .write(true)
@@ -173,7 +173,7 @@ fn open_private(path: &Path) -> std::io::Result<fs::File> {
 }
 
 #[cfg(not(unix))]
-fn open_private(path: &Path) -> std::io::Result<fs::File> {
+pub(crate) fn open_private(path: &Path) -> std::io::Result<fs::File> {
     fs::OpenOptions::new()
         .write(true)
         .create_new(true)
