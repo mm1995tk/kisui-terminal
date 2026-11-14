@@ -111,6 +111,7 @@ import { machineColors } from "./sidebar/colors.ts";
 import {
   loadOrder,
   moveInOrder,
+  appendToOrder,
   pruneOrder,
   saveOrder,
   type WsRef,
@@ -970,6 +971,14 @@ function Workbench(props: {
     setFocusError(null);
     try {
       const { id } = await s.createWorkspace();
+      // 新しいワークスペースは、並びの一番下に入る（記録に無い今の行も、今の並びのまま記録に入れる）
+      const kept = appendToOrder(
+        order(),
+        rows().map((r) => ({ target: r.target, id: r.band.id })),
+        { target, id },
+      );
+      saveOrder(store, kept);
+      setOrder(kept);
       await focusWorkspace(target, id);
       if (focus()?.id === id) focusTerminal();
     } catch (e) {
@@ -1819,6 +1828,7 @@ function Workbench(props: {
     >
       <Sidebar
         rows={rows()}
+        onNew={newWorkspace}
         onFocus={(t, id) => void switchWorkspace(t, id)}
         treeOf={treeOf}
         onToggle={(t, id, p) => trees.get(t)?.toggle(id, p)}

@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 import type { Workspace } from "../rpc/protocol.ts";
 import type { KeyValueStore } from "../ssh/machines.ts";
 import {
+  appendToOrder,
   loadOrder,
   moveInOrder,
   ORDER_KEY,
@@ -108,6 +109,27 @@ describe("pruneOrder", () => {
     assert.deepEqual(
       pruneOrder([r("a", "1"), r("a", "2"), r("off", "9")], { a: [w("1")] }),
       [r("a", "1"), r("off", "9")],
+    );
+  });
+});
+
+describe("appendToOrder", () => {
+  it("記録が空でも、今の並びのまま記録に入れてから、新しいものを一番下に足す", () => {
+    const shown = [r("a", "1"), r("b", "2"), r("a", "3")];
+    assert.deepEqual(appendToOrder([], shown, r("a", "3")), [
+      r("a", "1"),
+      r("b", "2"),
+      r("a", "3"),
+    ]);
+  });
+  it("記録にあるものは動かさず、記録に無いものを後ろに足す", () => {
+    assert.deepEqual(
+      appendToOrder(
+        [r("b", "2"), r("a", "1")],
+        [r("b", "2"), r("a", "1"), r("c", "4")],
+        r("a", "3"),
+      ),
+      [r("b", "2"), r("a", "1"), r("c", "4"), r("a", "3")],
     );
   });
 });

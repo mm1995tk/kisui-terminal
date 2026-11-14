@@ -115,3 +115,19 @@ export function pruneOrder(
     return !list || list.some((w) => w.id === o.id);
   });
 }
+
+/**
+ * 新しいワークスペース at を、並びの一番下に入れた記録。
+ * 記録に無い今の行（shown。画面に出ている順）は、今の並びのまま記録の後ろに入れてから at を足す。
+ * こうしないと、並べ替えたことが無いとき、at が（記録に無い）ほかのマシンの行より上に出てしまう。
+ */
+export function appendToOrder(
+  order: readonly WsRef[],
+  shown: readonly WsRef[],
+  at: WsRef,
+): WsRef[] {
+  const out = order.slice();
+  for (const s of [...shown.filter((s) => !same(s, at)), at])
+    if (!out.some((o) => same(o, s))) out.push(s);
+  return out;
+}
