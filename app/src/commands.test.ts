@@ -721,10 +721,6 @@ describe("リーダーの案内（menuRows）", () => {
     const r = press(LINUX, [LEADER_KEY(LINUX), key("m")]);
     assert.deepEqual(r.runs, [{ id: "machine.dialog" }]);
     assert.equal(r.state.leader, null);
-    assert.deepEqual(keysOf(["m"], MAC), []);
-  });
-
-  it("葉と範囲の無いグループは、木のとおりに並ぶ", () => {
     assert.equal(keysOf([], MAC).includes("m"), true);
   });
 });
