@@ -1750,12 +1750,15 @@ function Workbench(props: {
         }),
       );
     } else {
-      setTabs((s) => updateTab(s, d.tab, { url }));
-      // まだ作っていない・開けなかったタブは、BrowserArea が新しい URL で作る（goTab は失敗する）
+      // 中継を用意できてから（リモートのマシンの localhost 系）タブの URL を書き換える。用意できなければ、ページも URL も前のまま。
+      // まだ作っていない・開けなかったタブは、BrowserArea が書き換えた URL で作る（goTab は失敗する）
       const tab = untrack(tabs).tabs.find((t) => t.id === d.tab);
       if (tab)
         resolveFor(tab, url).then(
-          (opened) => void goTab(d.tab, opened).catch(() => {}),
+          (opened) => {
+            setTabs((s) => updateTab(s, d.tab, { url }));
+            void goTab(d.tab, opened).catch(() => {});
+          },
           (e: unknown) =>
             setFocusError({
               title: "ページを開けませんでした",
