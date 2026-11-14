@@ -5,7 +5,7 @@
 //! 読むのは決まった 6 つの名前（`walk-1.png`〜`walk-4.png`・`stop.png`・`leave.png`）だけ。
 //! 画面の側からパスやファイル名は受け取らない（置き場所の外のファイルを読めない）。
 //! 画像は PNG の見た目（先頭の 8 バイト）と大きさ（1 枚 4 MiB まで）だけ確かめ、`data:` の URL にして返す。
-//! シンボリックリンクは辿らない。
+//! 最後の名前がシンボリックリンクのファイルは読まない（`mascot/` などの途中のフォルダがリンクなのは、設定のフォルダの決まりと同じく辿る）。
 
 use std::fs;
 use std::io::Read;
@@ -63,19 +63,23 @@ fn encode_base64(data: &[u8]) -> String {
 }
 
 /// `dir` の中の `name`（固定の名前）を読んで data URL にする。普通のファイルで PNG でなければ None。
+/// 最後の名前がシンボリックリンクなら読まない（`O_NOFOLLOW`）。FIFO などで開くところで止まらないよう `O_NONBLOCK` で開き、
+/// 確かめるのは開いたハンドルの `metadata()` にする（確かめてから開くまでの間に差し替えられても、確かめたものを読む）。
 fn read_png(dir: &Path, name: &str) -> Option<String> {
-    let path = dir.join(name);
-    // シンボリックリンクは辿らない
-    let meta = fs::symlink_metadata(&path).ok()?;
+    let mut opts = fs::OpenOptions::new();
+    opts.read(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        opts.custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK);
+    }
+    let file = opts.open(dir.join(name)).ok()?;
+    let meta = file.metadata().ok()?;
     if !meta.is_file() || meta.len() > MAX_BYTES {
         return None;
     }
     let mut buf = Vec::new();
-    fs::File::open(&path)
-        .ok()?
-        .take(MAX_BYTES + 1)
-        .read_to_end(&mut buf)
-        .ok()?;
+    file.take(MAX_BYTES + 1).read_to_end(&mut buf).ok()?;
     if buf.len() as u64 > MAX_BYTES || !buf.starts_with(PNG_MAGIC) {
         return None;
     }
@@ -185,6 +189,13 @@ mod tests {
         {
             std::os::unix::fs::symlink(d.join("real.png"), d.join("link.png")).unwrap();
             assert!(read_png(&d, "link.png").is_none());
+        }
+        // FIFO は開くところで止まらず、読まない
+        #[cfg(unix)]
+        {
+            let fifo = std::ffi::CString::new(d.join("fifo.png").to_str().unwrap()).unwrap();
+            assert_eq!(unsafe { libc::mkfifo(fifo.as_ptr(), 0o600) }, 0);
+            assert!(read_png(&d, "fifo.png").is_none());
         }
         assert!(read_png(&d, "missing.png").is_none());
         let _ = fs::remove_dir_all(&d);
