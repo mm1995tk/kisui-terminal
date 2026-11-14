@@ -182,7 +182,9 @@ func (s *Settings) merge(raw map[string]any, path string) []Problem {
 }
 
 // integer is v as an integer: TOML decodes one as int64. A float64 with
-// nothing after the point (such as 3.0) is taken too.
+// nothing after the point (such as 3.0) is taken too: earlier versions took
+// it (for config.nix, whose numbers come as float64), in config.toml as well,
+// and a file written so must keep working.
 func integer(v any) (int64, bool) {
 	switch n := v.(type) {
 	case int64:
