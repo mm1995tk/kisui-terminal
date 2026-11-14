@@ -20,8 +20,7 @@ import {
   type LoadedMascot,
 } from "./mascot.ts";
 
-type Scene =
-  { kind: "walk"; frame: number } | { kind: "stop" } | { kind: "leave" };
+type Scene = { kind: "walk"; frame: number } | { kind: "stop" };
 
 /** `open` が true の間、`menu`（案内の要素）を左端から今の位置まで押して運ぶ。閉じるとき、あれば去る */
 export function MascotCarrier(props: {
@@ -50,11 +49,11 @@ export function MascotCarrier(props: {
     );
   };
 
-  /** 案内を閉じるとき、キャラクターが右へ去る */
+  /** 案内を閉じるとき、キャラクターが歩いて右へ去る */
   const leave = () => {
-    setScene({ kind: "leave" });
     stopTimers = startLeave(
       () => charEl,
+      (frame) => setScene({ kind: "walk", frame }),
       () => setScene(null),
     );
   };
@@ -69,7 +68,6 @@ export function MascotCarrier(props: {
         wasOpen,
         hasMascot: m !== null,
         reduced: reducedMotion(),
-        hasLeave: !!m?.leave,
         shown: scene() !== null,
       });
       if (action === "carry" && m) carry(m);
@@ -83,7 +81,6 @@ export function MascotCarrier(props: {
     const s = scene();
     if (!m || !s) return "";
     if (s.kind === "walk") return m.walk[s.frame] ?? m.walk[0];
-    if (s.kind === "leave") return m.leave ?? m.stop;
     return m.stop;
   };
 

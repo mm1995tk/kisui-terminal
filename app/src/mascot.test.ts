@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { FRAME_MS, nextAction, walkFrame } from "./mascot.ts";
+import {
+  FRAME_MS,
+  nextAction,
+  walkDuration,
+  walkFrame,
+  WALK_SPEED,
+} from "./mascot.ts";
 
 describe("walkFrame", () => {
   it("1 コマずつ進み、4 コマで 1 周する", () => {
@@ -17,13 +23,30 @@ describe("walkFrame", () => {
   });
 });
 
+describe("walkDuration", () => {
+  it("時間は距離に比例する（速さが一定）", () => {
+    assert.equal(walkDuration(0), 0);
+    assert.equal(walkDuration(WALK_SPEED), 1000);
+    assert.equal(walkDuration(400) * 2, walkDuration(800));
+    assert.equal(walkDuration(300) * 3, walkDuration(900));
+  });
+
+  it("負の距離は 0", () => {
+    assert.equal(walkDuration(-10), 0);
+  });
+
+  it("ゆっくり歩く: 1 秒に高さの 1〜1.5 倍、幅 1400px ほどで 10 秒以上", () => {
+    assert.ok(WALK_SPEED >= 72 && WALK_SPEED <= 72 * 1.5);
+    assert.ok(walkDuration(1400) >= 10_000);
+  });
+});
+
 describe("nextAction", () => {
   const base = {
     isOpen: true,
     wasOpen: false,
     hasMascot: true,
     reduced: false,
-    hasLeave: true,
     shown: true,
   };
 
@@ -36,10 +59,9 @@ describe("nextAction", () => {
     assert.equal(nextAction({ ...base, reduced: true }), "clear");
   });
 
-  it("閉じたとき、leave.png があれば去る。無ければすぐ消える", () => {
+  it("閉じたとき、出ていれば去る。出ていなければすぐ消える", () => {
     const closed = { ...base, isOpen: false, wasOpen: true };
     assert.equal(nextAction(closed), "leave");
-    assert.equal(nextAction({ ...closed, hasLeave: false }), "clear");
     assert.equal(nextAction({ ...closed, shown: false }), "clear");
   });
 

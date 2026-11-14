@@ -1,6 +1,6 @@
 // キャラクター（MascotCarrier.tsx）が案内を運ぶ・去るときの、DOM を動かす手続き。
 // 始める関数は、止める関数を返す（タイマーとアニメーションを止める）。場面の状態は持たない。
-import { CARRY_MS, LEAVE_MS, walkFrame } from "./mascot.ts";
+import { walkDuration, walkFrame } from "./mascot.ts";
 
 /** 案内（`menu`）を、サイドバーの右端にキャラクターの幅（`width`）を足した位置から今の位置まで運ぶときの、動かす距離（px） */
 export function carryDistance(menu: HTMLElement, width: number): number {
@@ -25,6 +25,7 @@ export function startCarry(
   onDone: () => void,
 ): () => void {
   const t0 = performance.now();
+  const duration = walkDuration(dx);
   const anims: Animation[] = [];
   let live = true;
   onFrame(0);
@@ -34,7 +35,7 @@ export function startCarry(
       { transform: `translateX(${-dx}px)` },
       { transform: "none" },
     ];
-    const opts = { duration: CARRY_MS, easing: "ease-out" } as const;
+    const opts = { duration, easing: "linear" } as const;
     for (const el of [menu, char()]) {
       const a = el?.animate?.(keyframes, opts);
       if (a) anims.push(a);
@@ -47,7 +48,7 @@ export function startCarry(
   const done = setTimeout(() => {
     clearInterval(tick);
     onDone();
-  }, CARRY_MS);
+  }, duration);
   return () => {
     live = false;
     clearInterval(tick);
@@ -55,24 +56,35 @@ export function startCarry(
   };
 }
 
-/** キャラクター（`char`）が右へ去る。去り終えたら `onDone` を呼ぶ */
+/** キャラクター（`char`）が、歩きのコマで右へ歩いて去る（運ぶときと同じ速さ）。歩きのコマを `onFrame` に知らせ、去り終えたら `onDone` を呼ぶ */
 export function startLeave(
   char: () => HTMLElement | undefined,
+  onFrame: (frame: number) => void,
   onDone: () => void,
 ): () => void {
+  const t0 = performance.now();
   let live = true;
+  let tick: ReturnType<typeof setInterval> | undefined;
+  let done: ReturnType<typeof setTimeout> | undefined;
+  onFrame(0);
   queueMicrotask(() => {
     const el = char();
     if (!live || !el) return;
     const dx = window.innerWidth - el.getBoundingClientRect().left;
+    const duration = walkDuration(dx);
     el.animate?.(
       [{ transform: "none" }, { transform: `translateX(${dx}px)` }],
-      { duration: LEAVE_MS, easing: "ease-in" },
+      { duration, easing: "linear" },
     );
+    tick = setInterval(() => onFrame(walkFrame(performance.now() - t0)), 30);
+    done = setTimeout(() => {
+      clearInterval(tick);
+      onDone();
+    }, duration);
   });
-  const done = setTimeout(onDone, LEAVE_MS);
   return () => {
     live = false;
+    clearInterval(tick);
     clearTimeout(done);
   };
 }

@@ -2,7 +2,7 @@
 //!
 //! 置き場は、設定のフォルダ（config.rs と同じ決まり）の下の `mascot/`
 //! （`$XDG_CONFIG_HOME/kisui-terminal/mascot/`、無ければ `~/.config/kisui-terminal/mascot/`。nightly は `kisui-terminal-nightly/`、そのフォルダが無ければ `kisui-terminal/`）。
-//! 読むのは決まった 6 つの名前（`walk-1.png`〜`walk-4.png`・`stop.png`・`leave.png`）だけ。
+//! 読むのは決まった 5 つの名前（`walk-1.png`〜`walk-4.png`・`stop.png`）だけ。
 //! 画面の側からパスやファイル名は受け取らない（置き場所の外のファイルを読めない）。
 //! 画像は PNG の見た目（先頭の 8 バイト）と大きさ（1 枚 4 MiB まで）だけ確かめ、`data:` の URL にして返す。
 //! 最後の名前がシンボリックリンクのファイルは読まない（`mascot/` などの途中のフォルダがリンクなのは、設定のフォルダの決まりと同じく辿る）。
@@ -25,8 +25,6 @@ pub struct Mascot {
     pub walk: Vec<String>,
     /// 運び終えて止まる姿（`stop.png`。無ければ `walk-1.png`）
     pub stop: String,
-    /// 案内を閉じるときに去る姿（無ければ None）
-    pub leave: Option<String>,
 }
 
 /// キャラクターの画像のフォルダ。
@@ -93,11 +91,7 @@ pub fn load(dir: &Path) -> Option<Mascot> {
         .map(|n| read_png(dir, n))
         .collect::<Option<_>>()?;
     let stop = read_png(dir, "stop.png").unwrap_or_else(|| walk[0].clone());
-    Some(Mascot {
-        walk,
-        stop,
-        leave: read_png(dir, "leave.png"),
-    })
+    Some(Mascot { walk, stop })
 }
 
 /// リーダーの案内を運ぶキャラクターの画像。置いていない・欠けているときは None。
@@ -165,14 +159,11 @@ mod tests {
         fs::write(d.join("walk-4.png"), png(b"a")).unwrap();
         let m = load(&d).unwrap();
         assert_eq!(m.walk.len(), 4);
-        // stop.png が無ければ walk-1.png、leave.png が無ければ去る動きは無い
+        // stop.png が無ければ walk-1.png
         assert_eq!(m.stop, m.walk[0]);
-        assert!(m.leave.is_none());
         fs::write(d.join("stop.png"), png(b"s")).unwrap();
-        fs::write(d.join("leave.png"), png(b"l")).unwrap();
         let m = load(&d).unwrap();
         assert_ne!(m.stop, m.walk[0]);
-        assert!(m.leave.is_some());
         let _ = fs::remove_dir_all(&d);
     }
 
