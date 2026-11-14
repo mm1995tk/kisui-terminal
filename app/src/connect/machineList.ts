@@ -74,7 +74,7 @@ export type MachineKey =
 
 /**
  * ダイアログの中のキー（入力欄が無いので、字をそのまま使える。Esc は ModalCard が取り消しに使う）。
- * Shift・Alt・Cmd・Ctrl を重ねたものは受けない（Ctrl+J・Ctrl+K は、ほかの一覧と同じく次・前の行）。
+ * Alt・Cmd・Ctrl を重ねたものは受けない（Shift は、G と ? の字が出るので受ける。Ctrl+J・Ctrl+K は、ほかの一覧と同じく次・前の行）。
  */
 export function machineKey(e: KeyLike): MachineKey | null {
   if (e.isComposing) return null;
