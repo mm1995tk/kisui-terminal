@@ -157,6 +157,7 @@ describe("nextAction", () => {
     hasMascot: true,
     reduced: false,
     shown: true,
+    closedBy: "other" as const,
   };
 
   it("開いたら運ぶ", () => {
@@ -179,6 +180,33 @@ describe("nextAction", () => {
     const closed = { ...base, isOpen: false, wasOpen: true };
     assert.equal(nextAction(closed), "bye");
     assert.equal(nextAction({ ...closed, shown: false }), "clear");
+  });
+
+  it("Esc で閉じたときだけ、出ていれば押していく", () => {
+    const closed = { ...base, isOpen: false, wasOpen: true };
+    assert.equal(nextAction({ ...closed, closedBy: "escape" }), "push");
+    assert.equal(nextAction({ ...closed, closedBy: "other" }), "bye");
+    assert.equal(
+      nextAction({ ...closed, closedBy: "escape", shown: false }),
+      "clear",
+    );
+  });
+
+  it("視差効果を減らすときは、Esc でも押していかず、その場で消える", () => {
+    assert.equal(
+      nextAction({
+        ...base,
+        isOpen: false,
+        wasOpen: true,
+        closedBy: "escape",
+        reduced: true,
+      }),
+      "clear",
+    );
+  });
+
+  it("開き直したら、閉じ方に関わらず運ぶ", () => {
+    assert.equal(nextAction({ ...base, closedBy: "escape" }), "carry");
   });
 
   it("最初から閉じているときは何もしない", () => {
@@ -335,5 +363,76 @@ describe("止める関数は Web Animations も止める", () => {
     );
     await wait(60);
     assert.equal(done, 1);
+  });
+});
+
+describe("押していく", () => {
+  it("動かす距離は、案内もキャラクターも画面の右端の外へ出きるまで", async () => {
+    const { pushDistance } = await import("./mascotMotion.ts");
+    assert.equal(pushDistance(1000, 400), 600);
+    assert.equal(pushDistance(1000, 1200), 0);
+  });
+
+  it("案内の写しとキャラクターを、場面の速さで右へ動かし、着いたら知らせる", async () => {
+    const { startPush } = await import("./mascotMotion.ts");
+    const menu = fakeEl(0);
+    const char = fakeEl(0);
+    const frames: string[] = [];
+    let done = 0;
+    startPush(
+      asEl(menu),
+      () => asEl(char),
+      0,
+      10,
+      scene(["p1", "p2"], { speed: 1000 }),
+      (f) => frames.push(f),
+      () => done++,
+    );
+    await wait(5);
+    assert.equal(menu.started.length, 1);
+    assert.equal(char.started.length, 1);
+    assert.equal(menu.started[0].keyframes[1].transform, "translateX(10px)");
+    assert.equal(frames[0], "p1");
+    await wait(60);
+    assert.equal(done, 1);
+  });
+
+  it("運ぶ途中から押すときは、今見えている位置から始める", async () => {
+    const { startPush } = await import("./mascotMotion.ts");
+    const char = fakeEl(0);
+    const stop = startPush(
+      asEl(fakeEl(0)),
+      () => asEl(char),
+      -300,
+      1000,
+      scene(["p"]),
+      () => {},
+      () => {},
+    );
+    await wait(5);
+    stop();
+    assert.equal(char.started[0].keyframes[0].transform, "translateX(-300px)");
+  });
+
+  it("止められたら（開き直した）、動きを止め、着いた知らせを出さない", async () => {
+    const { startPush } = await import("./mascotMotion.ts");
+    const menu = fakeEl(0);
+    const char = fakeEl(0);
+    let done = 0;
+    const stop = startPush(
+      asEl(menu),
+      () => asEl(char),
+      0,
+      1000,
+      scene(["p"], { speed: 90 }),
+      () => {},
+      () => done++,
+    );
+    await wait(5);
+    stop();
+    assert.equal(menu.started[0].cancelled, true);
+    assert.equal(char.started[0].cancelled, true);
+    await wait(30);
+    assert.equal(done, 0);
   });
 });

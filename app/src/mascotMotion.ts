@@ -42,6 +42,19 @@ export function carryOffset(
   return rest === 0 ? 0 : -dx * rest;
 }
 
+/** `el` を止めた時点の、運び終えた位置からのずれ（px。0 以下）を取り出す（無ければ 0）。取り出したら忘れる */
+export function takeOffset(el: HTMLElement | undefined): number {
+  if (!el) return 0;
+  const v = leftover.get(el) ?? 0;
+  leftover.delete(el);
+  return v;
+}
+
+/** 押していくとき、案内とキャラクターを動かす距離（px）。どちらも画面の右端（`viewportWidth`）の外へ出きるまで。`left` は、2 つのうち左にあるほうの左端 */
+export function pushDistance(viewportWidth: number, left: number): number {
+  return Math.max(0, viewportWidth - left);
+}
+
 /**
  * 場面 `scene` のコマを `onFrame` に知らせ続ける（くり返さない場面は最後のコマで止まる）。
  * `onDone` を渡すと、くり返しにかかわらず 1 回再生し終えたところで呼ぶ（さようなら）。
@@ -161,10 +174,7 @@ export function startBye(
 ): () => void {
   let live = true;
   const el = char();
-  if (el) {
-    el.style.transform = `translateX(${leftover.get(el) ?? 0}px)`;
-    leftover.delete(el);
-  }
+  if (el) el.style.transform = `translateX(${takeOffset(el)}px)`;
   const finish = () => {
     if (!live) return;
     stop();
@@ -184,4 +194,47 @@ export function startBye(
     clearInterval(watch);
   };
   return stop;
+}
+
+/**
+ * 押していく: 案内（`menu`。閉じた後も残してある写し）とキャラクターを、今の位置（運ぶ途中なら `from`。0 以下）から `dist` だけ右へ、
+ * 場面 `scene` の速さで動かす。コマを `onFrame` に知らせ、動かし終えたら `onDone` を呼ぶ（止められたら呼ばない）。
+ * 動かし終えたあとの片付け（写しを消す）は呼び出し側がする。
+ */
+export function startPush(
+  menu: HTMLElement,
+  char: () => HTMLElement | undefined,
+  from: number,
+  dist: number,
+  scene: MascotScene,
+  onFrame: (frame: string) => void,
+  onDone: () => void,
+): () => void {
+  const duration = travelDuration(dist - from, scene.speed);
+  const anims: Animation[] = [];
+  let live = true;
+  const stopFrames = startFrames(scene, onFrame);
+  const keyframes = [
+    { transform: `translateX(${from}px)` },
+    { transform: `translateX(${dist}px)` },
+  ];
+  const opts = { duration, easing: "linear", fill: "forwards" } as const;
+  // キャラクターの要素は、最初のコマが出てから現れるので、少し待って取る
+  queueMicrotask(() => {
+    if (!live) return;
+    for (const el of [menu, char()]) {
+      const a = el?.animate?.(keyframes, opts);
+      if (a) anims.push(a);
+    }
+  });
+  const done = setTimeout(() => {
+    stopFrames();
+    onDone();
+  }, duration);
+  return () => {
+    live = false;
+    stopFrames();
+    clearTimeout(done);
+    for (const a of anims) a.cancel();
+  };
 }

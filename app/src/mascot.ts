@@ -25,7 +25,7 @@ export interface Mascot {
   /** 一息つく場面になってから休憩に入るまでの待ち時間（ミリ秒） */
   restAfterMs: number;
   bye: MascotScene[];
-  /** 押していく（形式だけ。動きは後で作る） */
+  /** 押していく。リーダーを Esc で閉じたとき、案内を右へ押して画面の外まで持っていく。無ければ運ぶ場面を使う */
   push: MascotScene | null;
 }
 
@@ -162,9 +162,13 @@ export async function loadMascot(): Promise<LoadedMascot | null> {
   }
 }
 
+/** リーダーの閉じ方。`escape` は Esc。`other` はそれ以外（リーダーのキー・操作の実行・一覧に無いキー・窓のフォーカスが外れた、など） */
+export type CloseReason = "escape" | "other";
+
 /**
  * 案内の開閉に応じて、キャラクターがすること。
  * - carry: 運ぶ。still: 動かさずに右下に出す（視差効果を減らすとき）
+ * - push: 押していく（Esc で閉じたときだけ。案内を右へ押して画面の外へ持っていく）
  * - bye: さようなら（その場で 1 回再生して消える）。clear: その場ですぐ消す
  */
 export function nextAction(s: {
@@ -175,8 +179,11 @@ export function nextAction(s: {
   reduced: boolean;
   /** 今キャラクターが出ているか */
   shown: boolean;
-}): "carry" | "still" | "bye" | "clear" {
+  /** 閉じ方。Esc で閉じたときだけ押していく */
+  closedBy: CloseReason;
+}): "carry" | "still" | "push" | "bye" | "clear" {
   if (!s.hasMascot) return "clear";
   if (s.isOpen) return s.reduced ? "still" : "carry";
-  return s.wasOpen && s.shown && !s.reduced ? "bye" : "clear";
+  if (!s.wasOpen || !s.shown || s.reduced) return "clear";
+  return s.closedBy === "escape" ? "push" : "bye";
 }

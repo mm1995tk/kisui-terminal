@@ -735,3 +735,25 @@ describe("リーダーの案内（menuRows）", () => {
     assert.equal(keysOf([], MAC).includes("m"), true);
   });
 });
+
+describe("リーダーの閉じ方（キャラクターが案内を押していくかの見分け）", () => {
+  for (const [os, mac] of [
+    ["mac", true],
+    ["linux", false],
+  ] as const) {
+    const L = LEADER_KEY(mac);
+    it(`${os}：Esc で出たときだけ escaped が付く`, () => {
+      assert.equal(press(mac, [L, key("Escape")]).state.escaped, true);
+      assert.equal(
+        press(mac, [L, key("p"), key("Escape")]).state.escaped,
+        true,
+      );
+    });
+    it(`${os}：リーダーのキー・Backspace・一覧に無いキー・操作の実行で出たときは付かない`, () => {
+      assert.notEqual(press(mac, [L, L]).state.escaped, true);
+      assert.notEqual(press(mac, [L, key("Backspace")]).state.escaped, true);
+      assert.notEqual(press(mac, [L, key("F13")]).state.escaped, true);
+      assert.notEqual(press(mac, [L, key("y")]).state.escaped, true);
+    });
+  }
+});

@@ -519,6 +519,8 @@ export interface RouterState {
    * 次の押し直し（repeat でない keydown）か keyup で解く。
    */
   swallow: boolean;
+  /** リーダーを Esc で出た直後（閉じ方を画面のキャラクターに伝える。ほかの出方では付かない） */
+  escaped?: boolean;
 }
 
 /** リーダーに入っておらず、繰り返しも捨てていない、初めの状態。 */
@@ -596,7 +598,9 @@ function inLeader(
   const leafNode = node?.type === "leaf" ? node : undefined;
   // 押しっぱなしの繰り返しは、続けて押せる葉のほかは捨てる（出ない。入るときのキーの繰り返しで、すぐ出てしまわないように）
   if (e.repeat && !leafNode?.repeat) return stay;
-  if (isLeaderKey(e, env.mac) || e.key === "Escape") return out;
+  if (isLeaderKey(e, env.mac)) return out;
+  if (e.key === "Escape")
+    return { consume: true, state: { ...out.state, escaped: true } };
   if (e.key === "Backspace" && !e.ctrlKey && !e.metaKey && !e.altKey)
     return path.length === 0
       ? out

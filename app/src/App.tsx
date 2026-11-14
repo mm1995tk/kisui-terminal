@@ -545,7 +545,7 @@ function Workbench(props: {
   // リーダー（Cmd+K / Ctrl+Shift+K）の状態。入っている間は、次に押せるキーの一覧を出す（LeaderMenu）
   let router: RouterState = IDLE;
   const setRouter = (next: RouterState) => {
-    if (next.leader !== router.leader) setLeaderPath(next.leader);
+    if (next.leader !== router.leader) setLeaderPath(next.leader, next.escaped);
     // リーダーを閉じたら、続けて移る間は出さずにいたファイルツリーを、行き先のワークスペースの分だけ出す
     if (!next.leader) setWalking(false);
     router = next;
