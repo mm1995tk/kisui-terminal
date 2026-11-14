@@ -31,26 +31,49 @@ export function reducedMotion(): boolean {
   );
 }
 
-/** `mascot_images` の画像を、全部デコードし終えたもの。`aspect` は `walk-1.png` の幅 / 高さで、表示の幅（`MASCOT_HEIGHT` × `aspect`）を決めるのに使う */
-export type LoadedMascot = Mascot & { aspect: number };
+/**
+ * `mascot_images` の画像を、全部デコードし終えたもの。`aspect` は `walk-1.png` の幅 / 高さで、表示の幅（`MASCOT_HEIGHT` × `aspect`）を決めるのに使う。
+ * `leave` は無い（または壊れている）と null。`stop` は壊れていると `walk[0]` で代わりにする。
+ * `images` は、デコード済みのデータをブラウザが捨てないように、参照を持っておくためのもの。
+ */
+export type LoadedMascot = Mascot & {
+  aspect: number;
+  images: HTMLImageElement[];
+};
 
-/** 画像 1 枚を読み込んでデコードまで済ませる（運ぶ途中のコマの切り替えで、一瞬消えないように）。縦横比（幅 / 高さ）を返す */
-async function decode(src: string): Promise<number> {
-  const img = new Image();
-  img.src = src;
-  await img.decode();
-  return img.naturalWidth / img.naturalHeight;
+/** 画像 1 枚を読み込んでデコードまで済ませる（運ぶ途中のコマの切り替えで、一瞬消えないように）。壊れていれば null */
+async function decode(src: string): Promise<HTMLImageElement | null> {
+  try {
+    const img = new Image();
+    img.src = src;
+    await img.decode();
+    return img;
+  } catch {
+    return null;
+  }
 }
 
-/** 画像を読む（全部デコードしてから返す）。使えなければ null。画像の縦横比（幅 / 高さ）も返す */
+/** 画像を読む（全部デコードしてから返す）。使えなければ null。歩く 4 枚が 1 枚でも壊れていれば使えない。`stop`・`leave` が壊れているときは、無いときと同じ扱い */
 export async function loadMascot(): Promise<LoadedMascot | null> {
   try {
     const m = (await invoke("mascot_images")) as Mascot | null;
     if (!m || m.walk.length !== 4) return null;
-    const srcs = [...m.walk, m.stop, ...(m.leave ? [m.leave] : [])];
-    const aspects = await Promise.all(srcs.map(decode));
-    const aspect = aspects[0];
-    return Number.isFinite(aspect) && aspect > 0 ? { ...m, aspect } : null;
+    const [walk, stop, leave] = await Promise.all([
+      Promise.all(m.walk.map(decode)),
+      decode(m.stop),
+      m.leave ? decode(m.leave) : null,
+    ]);
+    if (walk.some((i) => i === null)) return null;
+    const frames = walk as HTMLImageElement[];
+    const aspect = frames[0].naturalWidth / frames[0].naturalHeight;
+    if (!Number.isFinite(aspect) || aspect <= 0) return null;
+    return {
+      walk: m.walk,
+      stop: stop ? m.stop : m.walk[0],
+      leave: leave ? m.leave : null,
+      aspect,
+      images: [...frames, ...(stop ? [stop] : []), ...(leave ? [leave] : [])],
+    };
   } catch {
     return null;
   }
