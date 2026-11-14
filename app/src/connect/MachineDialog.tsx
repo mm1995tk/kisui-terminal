@@ -144,7 +144,9 @@ export function MachineDialog(props: {
           tabIndex={0}
           role="listbox"
           aria-label="マシンの一覧"
-          aria-activedescendant={sel.selected() ? rowId(sel.index()) : undefined}
+          aria-activedescendant={
+            sel.selected() ? rowId(sel.index()) : undefined
+          }
           onKeyDown={onKeyDown}
           ref={(el) => {
             list = el;
