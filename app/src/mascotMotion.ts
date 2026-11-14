@@ -117,8 +117,45 @@ export function startRest(
 }
 
 /**
- * 案内とキャラクターを、`dx` だけ左から今の位置まで、運ぶ場面の速さで動かす。コマを `onFrame` に知らせ、着いたら `onDone` を呼ぶ。
+ * 案内（`menu`）とキャラクターを、同じ動き（`keyframes`）で `duration` ミリ秒かけて動かす。場面 `scene` のコマを `onFrame` に知らせ、
+ * 動かし終えたら `onDone` を呼ぶ（止められたら呼ばない）。`beforeStop` は止めるとき、動きを取り消す前に呼ぶ。
  * `char` は、`onFrame` で描画が出るまで無いことがあるので、アニメーションを始めるときに取る。
+ */
+function moveTogether(
+  menu: HTMLElement,
+  char: () => HTMLElement | undefined,
+  keyframes: Keyframe[],
+  options: KeyframeAnimationOptions,
+  scene: MascotScene,
+  onFrame: (frame: string) => void,
+  onDone: () => void,
+  beforeStop?: () => void,
+): () => void {
+  const anims: Animation[] = [];
+  let live = true;
+  const stopFrames = startFrames(scene, onFrame);
+  queueMicrotask(() => {
+    if (!live) return;
+    for (const el of [menu, char()]) {
+      const a = el?.animate?.(keyframes, options);
+      if (a) anims.push(a);
+    }
+  });
+  const done = setTimeout(() => {
+    stopFrames();
+    onDone();
+  }, options.duration as number);
+  return () => {
+    live = false;
+    stopFrames();
+    clearTimeout(done);
+    beforeStop?.();
+    for (const a of anims) a.cancel();
+  };
+}
+
+/**
+ * 案内とキャラクターを、`dx` だけ左から今の位置まで、運ぶ場面の速さで動かす。コマを `onFrame` に知らせ、着いたら `onDone` を呼ぶ。
  */
 export function startCarry(
   menu: HTMLElement,
@@ -129,36 +166,21 @@ export function startCarry(
   onDone: () => void,
 ): () => void {
   const t0 = performance.now();
-  const duration = travelDuration(dx, scene.speed);
-  const anims: Animation[] = [];
-  let live = true;
-  const stopFrames = startFrames(scene, onFrame);
-  queueMicrotask(() => {
-    if (!live) return;
-    const keyframes = [
-      { transform: `translateX(${-dx}px)` },
-      { transform: "none" },
-    ];
-    const opts = { duration, easing: "linear" } as const;
-    for (const el of [menu, char()]) {
-      const a = el?.animate?.(keyframes, opts);
-      if (a) anims.push(a);
-    }
-  });
-  const done = setTimeout(() => {
-    stopFrames();
-    onDone();
-  }, duration);
-  return () => {
-    live = false;
-    stopFrames();
-    clearTimeout(done);
+  return moveTogether(
+    menu,
+    char,
+    [{ transform: `translateX(${-dx}px)` }, { transform: "none" }],
+    { duration: travelDuration(dx, scene.speed), easing: "linear" },
+    scene,
+    onFrame,
+    onDone,
     // 動きを止めると位置が元に戻るので、先に今の位置を覚える
-    const el = char();
-    if (el)
-      leftover.set(el, carryOffset(dx, performance.now() - t0, scene.speed));
-    for (const a of anims) a.cancel();
-  };
+    () => {
+      const el = char();
+      if (el)
+        leftover.set(el, carryOffset(dx, performance.now() - t0, scene.speed));
+    },
+  );
 }
 
 /**
@@ -210,31 +232,20 @@ export function startPush(
   onFrame: (frame: string) => void,
   onDone: () => void,
 ): () => void {
-  const duration = travelDuration(dist - from, scene.speed);
-  const anims: Animation[] = [];
-  let live = true;
-  const stopFrames = startFrames(scene, onFrame);
-  const keyframes = [
-    { transform: `translateX(${from}px)` },
-    { transform: `translateX(${dist}px)` },
-  ];
-  const opts = { duration, easing: "linear", fill: "forwards" } as const;
-  // キャラクターの要素は、最初のコマが出てから現れるので、少し待って取る
-  queueMicrotask(() => {
-    if (!live) return;
-    for (const el of [menu, char()]) {
-      const a = el?.animate?.(keyframes, opts);
-      if (a) anims.push(a);
-    }
-  });
-  const done = setTimeout(() => {
-    stopFrames();
-    onDone();
-  }, duration);
-  return () => {
-    live = false;
-    stopFrames();
-    clearTimeout(done);
-    for (const a of anims) a.cancel();
-  };
+  return moveTogether(
+    menu,
+    char,
+    [
+      { transform: `translateX(${from}px)` },
+      { transform: `translateX(${dist}px)` },
+    ],
+    {
+      duration: travelDuration(dist - from, scene.speed),
+      easing: "linear",
+      fill: "forwards",
+    },
+    scene,
+    onFrame,
+    onDone,
+  );
 }
