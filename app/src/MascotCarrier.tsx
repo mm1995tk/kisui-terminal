@@ -22,7 +22,7 @@ import {
 
 type Scene = { kind: "walk"; frame: number } | { kind: "stop" };
 
-/** `open` が true の間、`menu`（案内の要素）を左端から今の位置まで押して運ぶ。閉じるとき、あれば去る */
+/** `open` が true の間、`menu`（案内の要素）を左端から今の位置まで押して運ぶ。閉じるとき、出ていれば歩いて去る */
 export function MascotCarrier(props: {
   open: () => boolean;
   menu: () => HTMLElement | undefined;
