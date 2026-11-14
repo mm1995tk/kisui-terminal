@@ -1,11 +1,16 @@
 /* リーダーを押すと、画面の右下に出る「次に押せるキー」の一覧。押せない・フォーカスを取らない（キーは今のペインに向いたまま） */
+/* 案内の右の余白と幅。キャラクター（.mascot）の位置もこれで決まる（案内を変えたとき、1 か所で済むように） */
+:root {
+  --leader-menu-gap: 16px;
+  --leader-menu-width: 360px;
+}
 .menu {
   position: fixed;
-  right: 16px;
-  bottom: 16px;
+  right: var(--leader-menu-gap);
+  bottom: var(--leader-menu-gap);
   box-sizing: border-box;
-  width: 360px;
-  max-width: calc(100vw - 32px);
+  width: var(--leader-menu-width);
+  max-width: calc(100vw - 2 * var(--leader-menu-gap));
   max-height: calc(100vh - 32px);
   overflow-y: auto;
   padding: 10px 12px 8px;
@@ -61,11 +66,13 @@
 }
 
 /* 案内を運ぶキャラクター（実験的。mascot.ts）。案内の左隣、下の端をそろえて置く。押せない。
-   案内の幅（.menu の width）と右の余白（16px）に合わせた位置 */
+   位置は案内の幅と右の余白（上の --leader-menu-*）から決める */
 .mascot {
   position: fixed;
-  right: calc(16px + min(360px, 100vw - 32px));
-  bottom: 16px;
+  right: calc(
+    var(--leader-menu-gap) + min(var(--leader-menu-width), 100vw - 2 * var(--leader-menu-gap))
+  );
+  bottom: var(--leader-menu-gap);
   pointer-events: none;
   z-index: 901;
 }
