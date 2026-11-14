@@ -1,6 +1,6 @@
 // kisui-terminal の外から開くクリップボードの履歴の窓（#95）。窓を出し入れするのは Tauri の側（clipboard_popup.rs）。
 // 全体のキー（Mac は Option+Space、Linux は Alt+Space）で出る小さな窓に、履歴の一覧（HistoryPanel）だけを出す。
-// 選ぶとクリップボードに戻して窓を隠し、前のアプリに戻る（貼るのはユーザー）。Esc は何もせずに隠す。
+// 選ぶとクリップボードに戻し、「コピーしました」を少し見せてから窓を隠し、前のアプリに戻る（貼るのはユーザー）。Esc は何もせずに隠す。
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { createSignal, onCleanup, Show, type JSX } from "solid-js";
@@ -18,7 +18,12 @@ export function ClipboardHistoryPopup(): JSX.Element {
   onCleanup(() => void unlisten.then((f) => f()));
 
   const dismiss = () => void invoke("clipboard_popup_dismiss");
-  const pick = (text: string) => void invoke("clipboard_popup_pick", { text });
+  // クリップボードに書くだけ（窓を隠すのは、「コピーしました」を見せたあとの dismiss）
+  const copy = (text: string) =>
+    invoke("clipboard_popup_copy", { text }).then(
+      () => true,
+      () => false,
+    );
 
   const onKeyDown = (e: KeyboardEvent) => {
     if (e.key === "Escape" && !e.isComposing) {
@@ -37,7 +42,7 @@ export function ClipboardHistoryPopup(): JSX.Element {
           role="dialog"
           aria-label="クリップボードの履歴"
         >
-          <HistoryPanel onPutBack={pick} onClose={dismiss} outside />
+          <HistoryPanel onPutBack={copy} onClose={dismiss} outside />
         </div>
       )}
     </Show>

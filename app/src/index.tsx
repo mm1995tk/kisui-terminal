@@ -28,7 +28,9 @@ function isClipboardHistoryPopup(): boolean {
 }
 
 if (isClipboardHistoryPopup()) {
-  // 履歴の一覧だけを出す（ターミナルは使わない）
+  // 履歴の一覧だけを出す（ターミナルは使わない）。窓は透明で、カードの丸い角の外は地を塗らない
+  document.documentElement.style.background = "transparent";
+  document.body.style.background = "transparent";
   const { ClipboardHistoryPopup } = await import("./ClipboardHistoryPopup.tsx");
   render(() => <ClipboardHistoryPopup />, root);
 } else {
