@@ -200,6 +200,48 @@ pub fn mascot_name(dir: &Path) -> Option<String> {
     name.filter(|n| !n.is_empty())
 }
 
+/// 選んだキャラクターの名前を、`config.local.toml` の `[gui] mascot` に書く（`config.toml` には書かない。home-manager が置く
+/// 読み取り専用のファイルのことがあるため）。ほかの項目・コメント・並びは変えない。ファイルが無ければ作る。
+/// 読めない・TOML として壊れているファイルは、上書きせずに Err を返す。
+pub fn write_mascot_name(dir: &Path, name: &str) -> Result<(), String> {
+    use toml_edit::{DocumentMut, Item, Table, Value};
+    let path = dir.join("config.local.toml");
+    let text = match fs::read(&path) {
+        Ok(b) => {
+            String::from_utf8(b).map_err(|_| format!("{}: UTF-8 で読めません", path.display()))?
+        }
+        Err(e) if e.kind() == ErrorKind::NotFound => String::new(),
+        Err(e) => return Err(format!("{}: 読めません（{e}）", path.display())),
+    };
+    let mut doc: DocumentMut = text
+        .parse()
+        .map_err(|e| format!("{}: TOML として読めません（{e}）", path.display()))?;
+    let gui = doc
+        .entry("gui")
+        .or_insert_with(|| Item::Table(Table::new()));
+    if let Some(t) = gui.as_table_mut() {
+        // `[gui.browser]` だけを書いたファイルでは `[gui]` の見出しは省かれているので、`mascot` を書くために出す
+        t.set_implicit(false);
+    }
+    let table = gui
+        .as_table_like_mut()
+        .ok_or_else(|| format!("{}: [gui] が表ではありません", path.display()))?;
+    match table.get_mut("mascot").and_then(|i| i.as_value_mut()) {
+        // 前の値の前後の空白と、行末のコメントを残す
+        Some(v) => {
+            let decor = v.decor().clone();
+            let mut nv = Value::from(name);
+            *nv.decor_mut() = decor;
+            *v = nv;
+        }
+        None => {
+            table.insert("mascot", Item::Value(Value::from(name)));
+        }
+    }
+    fs::create_dir_all(dir).map_err(|e| format!("{}: 作れません（{e}）", dir.display()))?;
+    fs::write(&path, doc.to_string()).map_err(|e| format!("{}: 書けません（{e}）", path.display()))
+}
+
 /// 1 始まりの行番号。
 fn line_of(text: &str, offset: usize) -> usize {
     let end = offset.min(text.len());
@@ -539,6 +581,63 @@ mod tests {
         )
         .unwrap();
         assert_eq!(load_dir(&d).unwrap(), vec![]);
+        let _ = fs::remove_dir_all(&d);
+    }
+
+    // 選んだキャラクターは config.local.toml に書く。config.toml は触らない（読み取り専用でもよい）。ほかの項目とコメントは残す
+    #[test]
+    fn write_mascot_name_keeps_the_rest() {
+        use std::os::unix::fs::PermissionsExt;
+        let d = temp_dir("write-mascot");
+        // ファイルが無ければ作る。config.toml は作らない
+        write_mascot_name(&d, "neko").unwrap();
+        assert_eq!(
+            fs::read_to_string(d.join("config.local.toml")).unwrap(),
+            "[gui]\nmascot = \"neko\"\n"
+        );
+        assert!(!d.join("config.toml").exists());
+        // 読み取り専用の config.toml があっても書ける。config.toml の名前より勝つ
+        fs::write(d.join("config.toml"), "[gui]\nmascot = \"inu\"\n").unwrap();
+        fs::set_permissions(d.join("config.toml"), fs::Permissions::from_mode(0o444)).unwrap();
+        write_mascot_name(&d, "tori").unwrap();
+        assert_eq!(mascot_name(&d).as_deref(), Some("tori"));
+        assert_eq!(
+            fs::read_to_string(d.join("config.toml")).unwrap(),
+            "[gui]\nmascot = \"inu\"\n"
+        );
+        // 前の値だけを替える。行末のコメントも、ほかの項目と表も残す
+        let src = "# 自分の設定\n[gui]\nmascot = \"inu\" # 前のキャラクター\n\n[gui.browser]\nenabled = true\n\n[[gui.machines]]\nssh = \"a\"\n";
+        fs::write(d.join("config.local.toml"), src).unwrap();
+        write_mascot_name(&d, "neko").unwrap();
+        assert_eq!(
+            fs::read_to_string(d.join("config.local.toml")).unwrap(),
+            src.replace("\"inu\"", "\"neko\"")
+        );
+        // `[gui]` の見出しが無いファイル（`[gui.browser]` だけ）には、見出しごと足す
+        let src = "# コメント\n[gui.browser]\nenabled = true\n";
+        fs::write(d.join("config.local.toml"), src).unwrap();
+        write_mascot_name(&d, "neko").unwrap();
+        let out = fs::read_to_string(d.join("config.local.toml")).unwrap();
+        assert!(out.contains("# コメント\n"), "{out}");
+        assert!(out.contains("enabled = true"), "{out}");
+        assert_eq!(mascot_name(&d).as_deref(), Some("neko"));
+        assert!(load_gui(&d).unwrap().browser);
+        // [gui] の無いファイル
+        fs::write(d.join("config.local.toml"), "# だけ\n").unwrap();
+        write_mascot_name(&d, "neko").unwrap();
+        assert_eq!(mascot_name(&d).as_deref(), Some("neko"));
+        // 壊れたファイルは上書きしない
+        fs::write(d.join("config.local.toml"), "[gui\nmascot = ").unwrap();
+        let e = write_mascot_name(&d, "neko").unwrap_err();
+        assert!(e.contains("config.local.toml"), "{e}");
+        assert_eq!(
+            fs::read_to_string(d.join("config.local.toml")).unwrap(),
+            "[gui\nmascot = "
+        );
+        // 設定のフォルダが無ければ作る
+        let sub = d.join("new").join("kisui-terminal");
+        write_mascot_name(&sub, "neko").unwrap();
+        assert_eq!(mascot_name(&sub).as_deref(), Some("neko"));
         let _ = fs::remove_dir_all(&d);
     }
 

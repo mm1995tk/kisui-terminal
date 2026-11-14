@@ -141,33 +141,83 @@ export function mapFrames(m: Mascot, f: (frame: string) => string): Mascot {
   };
 }
 
+/** Rust 側から受け取ったキャラクターの画像を全部デコードして、使える形にする。使えなければ null */
+async function decodeMascot(raw: Mascot): Promise<LoadedMascot | null> {
+  const m = mapFrames(raw, (id) => convertFileSrc(id, "mascot"));
+  const urls = new Set<string>();
+  for (const s of [m.carry, m.sigh, m.push, ...m.rest, ...m.bye]) {
+    for (const f of s?.frames ?? []) urls.add(f);
+  }
+  const decoded = new Map(
+    await Promise.all(
+      [...urls].map(async (u) => [u, await decode(u)] as const),
+    ),
+  );
+  const usable = usableMascot(m, (u) => !!decoded.get(u));
+  if (!usable) return null;
+  const first = decoded.get(usable.carry.frames[0]);
+  const aspect = first ? first.naturalWidth / first.naturalHeight : NaN;
+  if (!Number.isFinite(aspect) || aspect <= 0) return null;
+  const images = [...decoded.values()].filter(
+    (i): i is HTMLImageElement => i !== null,
+  );
+  return { ...usable, aspect, images };
+}
+
 /** 設定で選んだキャラクターを読む（全部デコードしてから返す）。使えなければ null */
 export async function loadMascot(): Promise<LoadedMascot | null> {
   try {
     const raw = (await invoke("mascot_load")) as Mascot | null;
-    if (!raw) return null;
-    const m = mapFrames(raw, (id) => convertFileSrc(id, "mascot"));
-    const urls = new Set<string>();
-    for (const s of [m.carry, m.sigh, m.push, ...m.rest, ...m.bye]) {
-      for (const f of s?.frames ?? []) urls.add(f);
-    }
-    const decoded = new Map(
-      await Promise.all(
-        [...urls].map(async (u) => [u, await decode(u)] as const),
-      ),
-    );
-    const usable = usableMascot(m, (u) => !!decoded.get(u));
-    if (!usable) return null;
-    const first = decoded.get(usable.carry.frames[0]);
-    const aspect = first ? first.naturalWidth / first.naturalHeight : NaN;
-    if (!Number.isFinite(aspect) || aspect <= 0) return null;
-    const images = [...decoded.values()].filter(
-      (i): i is HTMLImageElement => i !== null,
-    );
-    return { ...usable, aspect, images };
+    return raw ? await decodeMascot(raw) : null;
   } catch {
     return null;
   }
+}
+
+/** 読み直した結果（リーダーの `c r`）。`none` は、キャラクターを選んでいない */
+export type Reloaded =
+  | { kind: "loaded"; mascot: LoadedMascot }
+  | { kind: "none" }
+  | { kind: "error"; error: string };
+
+/** 今選んでいるキャラクターを、`mascot.toml` と画像から読み直す。使えなければ理由を返す（前のキャラクターは、呼んだ側がそのまま使う） */
+export async function reloadMascot(): Promise<Reloaded> {
+  try {
+    const raw = (await invoke("mascot_reload")) as Mascot | null;
+    if (!raw) return { kind: "none" };
+    const mascot = await decodeMascot(raw);
+    return mascot
+      ? { kind: "loaded", mascot }
+      : { kind: "error", error: "画像を読み込めませんでした" };
+  } catch (e) {
+    return { kind: "error", error: String(e) };
+  }
+}
+
+/** 一覧の 1 行（Rust 側の mascot.rs の `Entry`） */
+export interface MascotEntry {
+  name: string;
+  /** 使えないときの理由。使えれば null */
+  error: string | null;
+}
+
+/** 選べるキャラクターの一覧（Rust 側の `Listing`） */
+export interface MascotListing {
+  /** キャラクターの置き場（`mascot/`） */
+  root: string;
+  /** 今選んでいるキャラクターの名前。選んでいなければ null */
+  current: string | null;
+  entries: MascotEntry[];
+}
+
+/** `mascot/` の中のキャラクターの一覧と、今選んでいるもの */
+export function listMascots(): Promise<MascotListing> {
+  return invoke("mascot_list");
+}
+
+/** キャラクターを選び、`config.local.toml` に書く。書けなければ理由で失敗する。読み込みは `reloadMascot` で別に行う */
+export async function selectMascot(name: string): Promise<void> {
+  await invoke("mascot_select", { name });
 }
 
 /** リーダーの閉じ方。`escape` は Esc。`other` はそれ以外（リーダーのキー・操作の実行・一覧に無いキー・窓のフォーカスが外れた、など） */

@@ -361,25 +361,118 @@ pub fn respond(webview: &str, path: &str) -> tauri::http::Response<Cow<'static, 
     .expect("static response")
 }
 
-/// 設定で選んだキャラクター。選んでいない・名前が使えない・ディレクトリや `mascot.toml` が使えないときは None（案内だけが出る）。
+/// 設定で選んだキャラクターを読んで、画面に渡す形にする。選んでいないときは Ok(None)。
+/// 名前が使えない・ディレクトリや `mascot.toml` が使えないときは Err（理由）。
+fn load_selected() -> Result<Option<Character<String>>, String> {
+    let (xdg, home, nightly) = crate::config::env();
+    let Some(config) = crate::config::config_dir(xdg.as_deref(), home.as_deref(), nightly) else {
+        return Ok(None);
+    };
+    let Some(name) = crate::config::mascot_name(&config) else {
+        return Ok(None);
+    };
+    if !valid_name(&name) {
+        return Err(format!("名前 {name:?} は使えません"));
+    }
+    let dir = mascot_root(xdg.as_deref(), home.as_deref(), nightly)
+        .ok_or("設定のフォルダが分かりません")?
+        .join(&name);
+    let c = load_character(&dir)?;
+    Ok(Some(register(dir, c)))
+}
+
+/// 設定で選んだキャラクター。選んでいない・使えないときは None（案内だけが出る。窓を開いたときの 1 回。理由は標準エラーに書く）。
 /// ファイルを読むので、メインスレッドの外で動かす。
 #[tauri::command(async)]
 pub fn mascot_load() -> Option<Character<String>> {
+    load_selected().unwrap_or_else(|e| {
+        eprintln!("kisui-terminal: mascot: {e}");
+        None
+    })
+}
+
+/// 今選んでいるキャラクターを読み直す（リーダーの `c r`）。`mascot_load` と同じ読み方で、使えないときは理由を返す
+/// （画面がお知らせに出す。前のキャラクターはそのまま使う）。選んでいなければ Ok(None)。
+#[tauri::command(async)]
+pub fn mascot_reload() -> Result<Option<Character<String>>, String> {
+    load_selected()
+}
+
+/// 一覧の 1 行（`mascot/` の中のキャラクターのディレクトリ 1 つ）。
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct Entry {
+    /// ディレクトリの名前（設定ファイルに書く名前）
+    pub name: String,
+    /// 使えないときの理由（`mascot.toml` が無い・読めない・運ぶ場面が無い、など）。使えれば None
+    pub error: Option<String>,
+}
+
+/// リーダーの `c s` の一覧。
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct Listing {
+    /// キャラクターの置き場（`mascot/`。一覧が空のとき、どこに置くかを伝えるため）
+    pub root: String,
+    /// 今選んでいるキャラクターの名前（選んでいなければ None）
+    pub current: Option<String>,
+    /// 名前の順
+    pub entries: Vec<Entry>,
+}
+
+/// `root` の中のキャラクターのディレクトリを、名前の順に並べる。
+/// 並べるのはディレクトリ（シンボリックリンクの先がディレクトリのものも）で、名前が `.` で始まるもの・設定ファイルに書けない名前のものは除く。
+/// `mascot.toml` が使えないものも、理由を付けて並べる。`root` が無ければ空。
+fn list_characters(root: &Path) -> Vec<Entry> {
+    let Ok(rd) = fs::read_dir(root) else {
+        return Vec::new();
+    };
+    let mut entries: Vec<Entry> = rd
+        .filter_map(|e| e.ok())
+        .filter_map(|e| {
+            let name = e.file_name().into_string().ok()?;
+            if name.starts_with('.') || !valid_name(&name) {
+                return None;
+            }
+            // 辿った先がディレクトリのものだけ（`mascot/` の中のリンクは、置き場の決まりと同じく辿る）
+            fs::metadata(e.path()).ok()?.is_dir().then_some(())?;
+            let error = load_character(&e.path()).err();
+            Some(Entry { name, error })
+        })
+        .collect();
+    entries.sort_by(|a, b| a.name.cmp(&b.name));
+    entries
+}
+
+/// 選べるキャラクターの一覧と、今選んでいるもの。ファイルを読むので、メインスレッドの外で動かす。
+#[tauri::command(async)]
+pub fn mascot_list() -> Result<Listing, String> {
     let (xdg, home, nightly) = crate::config::env();
-    let config = crate::config::config_dir(xdg.as_deref(), home.as_deref(), nightly)?;
-    let name = crate::config::mascot_name(&config)?;
+    let config = crate::config::config_dir(xdg.as_deref(), home.as_deref(), nightly)
+        .ok_or("設定のフォルダが分かりません（HOME が無い）")?;
+    let root = mascot_root(xdg.as_deref(), home.as_deref(), nightly)
+        .ok_or("設定のフォルダが分かりません")?;
+    Ok(Listing {
+        entries: list_characters(&root),
+        current: crate::config::mascot_name(&config),
+        root: root.display().to_string(),
+    })
+}
+
+/// キャラクターを選ぶ（リーダーの `c s`）。`name` が使えることを確かめ、`config.local.toml` の `[gui] mascot` に書く。
+/// 読み込みは、画面が続けて `mascot_reload` を呼ぶ。
+#[tauri::command(async)]
+pub fn mascot_select(name: String) -> Result<(), String> {
     if !valid_name(&name) {
-        eprintln!("kisui-terminal: mascot: 名前 {name:?} は使えません");
-        return None;
+        return Err(format!("名前 {name:?} は使えません"));
     }
-    let dir = mascot_root(xdg.as_deref(), home.as_deref(), nightly)?.join(&name);
-    match load_character(&dir) {
-        Ok(c) => Some(register(dir, c)),
-        Err(e) => {
-            eprintln!("kisui-terminal: mascot: {e}");
-            None
-        }
-    }
+    let (xdg, home, nightly) = crate::config::env();
+    let config = crate::config::config_dir(xdg.as_deref(), home.as_deref(), nightly)
+        .ok_or("設定のフォルダが分かりません（HOME が無い）")?;
+    load_character(
+        &mascot_root(xdg.as_deref(), home.as_deref(), nightly)
+            .ok_or("設定のフォルダが分かりません")?
+            .join(&name),
+    )?;
+    crate::config::write_mascot_name(&config, &name)
 }
 
 #[cfg(test)]
@@ -429,6 +522,34 @@ mod tests {
         for n in ["", ".", "..", "a/b", "/a", "a\\b", "a\0"] {
             assert!(!valid_name(n), "{n:?}");
         }
+    }
+
+    // 一覧は名前の順。使えないものも理由を付けて並べ、ファイルと「.」で始まるものは並べない
+    #[test]
+    fn lists_characters_with_reasons() {
+        let root = tmp("list");
+        for (n, png_name, toml) in [
+            ("neko", "w.png", "[carry]\nframes = [\"w.png\"]\n"),
+            ("inu", "w.png", "[carry]\nframes = [\"w.png\"]\n"),
+            ("broken", "w.png", "[carry\n"),
+        ] {
+            let d = root.join(n);
+            fs::create_dir_all(&d).unwrap();
+            fs::write(d.join(png_name), png(b"")).unwrap();
+            fs::write(d.join(TOML_NAME), toml).unwrap();
+        }
+        fs::create_dir_all(root.join("empty")).unwrap();
+        fs::create_dir_all(root.join(".hidden")).unwrap();
+        fs::write(root.join("file.txt"), "x").unwrap();
+        let list = list_characters(&root);
+        let names: Vec<&str> = list.iter().map(|e| e.name.as_str()).collect();
+        assert_eq!(names, ["broken", "empty", "inu", "neko"]);
+        let ok: Vec<bool> = list.iter().map(|e| e.error.is_none()).collect();
+        assert_eq!(ok, [false, false, true, true]);
+        assert!(list[0].error.as_ref().unwrap().contains("mascot.toml"));
+        // 置き場が無ければ空
+        assert!(list_characters(&root.join("none")).is_empty());
+        let _ = fs::remove_dir_all(&root);
     }
 
     #[test]
