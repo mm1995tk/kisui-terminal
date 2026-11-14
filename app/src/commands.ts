@@ -679,7 +679,7 @@ function commandName(c: Command): string {
 }
 
 /** 木の中の葉を、コマンドの名前で引けるようにしたもの。 */
-export function leavesByName(list: Node[], out = new Map<string, Leaf>()) {
+function leavesByName(list: Node[], out = new Map<string, Leaf>()) {
   for (const n of list) {
     if (n.type === "group") leavesByName(n.children, out);
     else if (!out.has(commandName(n.run))) out.set(commandName(n.run), n);

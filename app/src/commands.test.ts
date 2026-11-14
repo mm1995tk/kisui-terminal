@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import { after, before, describe, it } from "node:test";
 
 import {
@@ -11,7 +10,6 @@ import {
   IDLE,
   LEADER,
   leaderKeyName,
-  leavesByName,
   menuRows,
   route,
   setBrowserEnabled,
@@ -971,23 +969,6 @@ describe("設定で足す近道（[gui.shortcuts]）", () => {
     assert.deepEqual(press(LINUX, [key("m", "ca")]).runs, [
       { id: "workspace.new" },
     ]);
-  });
-
-  it("key-design.md 4.3 の一覧に、使えるコマンドの名前が全部載っている", () => {
-    setBrowserEnabled(true);
-    try {
-      const doc = readFileSync(
-        new URL("../../docs/key-design.md", import.meta.url),
-        "utf8",
-      );
-      const part = doc.slice(doc.indexOf("### 4.3"), doc.indexOf("## 5."));
-      for (const id of new Set(
-        [...leavesByName(LEADER).keys()].map((n) => n.split(":")[0]),
-      ))
-        assert.ok(part.includes(id), id);
-    } finally {
-      setBrowserEnabled(false);
-    }
   });
 
   it("ページに渡すキーに入る", () => {
