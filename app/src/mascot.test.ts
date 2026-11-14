@@ -4,7 +4,7 @@ import { describe, it } from "node:test";
 import {
   mapFrames,
   nextAction,
-  pickBye,
+  pickVariant,
   playOnceDuration,
   restingScene,
   sceneFrame,
@@ -88,18 +88,18 @@ describe("場面が無いとき", () => {
   });
 
   it("さようならが無ければ null（その場で消える。運ぶ場面のコマは使わない）", () => {
-    assert.equal(pickBye(mascot(), 0.5), null);
+    assert.equal(pickVariant(mascot().bye, 0.5), null);
   });
 
   it("さようならは具体から 1 つを選ぶ", () => {
     const a = scene(["wave"]);
     const b = scene(["door"]);
     const m = mascot({ bye: [a, b] });
-    assert.equal(pickBye(m, 0), a);
-    assert.equal(pickBye(m, 0.49), a);
-    assert.equal(pickBye(m, 0.5), b);
-    assert.equal(pickBye(m, 0.9999), b);
-    assert.equal(pickBye(m, 1), b);
+    assert.equal(pickVariant(m.bye, 0), a);
+    assert.equal(pickVariant(m.bye, 0.49), a);
+    assert.equal(pickVariant(m.bye, 0.5), b);
+    assert.equal(pickVariant(m.bye, 0.9999), b);
+    assert.equal(pickVariant(m.bye, 1), b);
   });
 
   it("さようならは 1 回再生する長さ", () => {

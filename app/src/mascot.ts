@@ -50,15 +50,18 @@ export function playOnceDuration(scene: MascotScene): number {
 }
 
 /** 運び終えて止まっているときの姿（一息つく場面。無ければ運ぶ場面の 1 コマ目で止まる） */
-export function restingScene(m: Mascot): MascotScene {
+export function restingScene(m: Pick<Mascot, "carry" | "sigh">): MascotScene {
   return m.sigh ?? { ...m.carry, frames: [m.carry.frames[0]], loop: false };
 }
 
-/** さようならの具体を 1 つ選ぶ（`random` は 0 以上 1 未満）。無ければ null（その場で消える） */
-export function pickBye(m: Mascot, random: number): MascotScene | null {
-  if (m.bye.length === 0) return null;
-  const i = Math.min(m.bye.length - 1, Math.floor(random * m.bye.length));
-  return m.bye[Math.max(0, i)];
+/** 具体（さようなら・休憩）を 1 つ選ぶ（`random` は 0 以上 1 未満）。無ければ null */
+export function pickVariant(
+  list: MascotScene[],
+  random: number,
+): MascotScene | null {
+  if (list.length === 0) return null;
+  const i = Math.min(list.length - 1, Math.floor(random * list.length));
+  return list[Math.max(0, i)];
 }
 
 /** OS の「視差効果を減らす」が入っているか */
