@@ -1,9 +1,12 @@
 // キャラクター（MascotCarrier.tsx）が案内を運ぶ・一息つく・さようならをするときの、DOM とコマを動かす手続き。
 // 始める関数は、止める関数を返す（タイマーとアニメーションを止める）。場面の状態は持たない。
 import {
+  pickVariant,
   playOnceDuration,
+  restingScene,
   sceneFrame,
   travelDuration,
+  type Mascot,
   type MascotScene,
 } from "./mascot.ts";
 
@@ -67,6 +70,36 @@ export function startFrames(
   return () => {
     clearInterval(tick);
     clearTimeout(done);
+  };
+}
+
+/**
+ * 一息つく場面から始め、待ち時間（`restAfterMs`）が経つと休憩の具体を 1 つ選んで動かす（`random` は 0 以上 1 未満を返す）。
+ * くり返さない具体は、最後のコマのあと一息つく場面に戻り、また待ってから選び直す（前と同じ具体になることもある）。
+ * くり返す具体は、止めるまでくり返す。休憩の具体が無ければ、一息つく場面のまま。
+ */
+export function startRest(
+  m: Pick<Mascot, "carry" | "sigh" | "rest" | "restAfterMs">,
+  onFrame: (frame: string) => void,
+  random: () => number,
+): () => void {
+  let stopCurrent: () => void = () => {};
+  let wait: ReturnType<typeof setTimeout> | undefined;
+  const sigh = () => {
+    stopCurrent();
+    stopCurrent = startFrames(restingScene(m), onFrame);
+    if (m.rest.length > 0) wait = setTimeout(rest, m.restAfterMs);
+  };
+  const rest = () => {
+    const scene = pickVariant(m.rest, random());
+    if (!scene) return;
+    stopCurrent();
+    stopCurrent = startFrames(scene, onFrame, scene.loop ? undefined : sigh);
+  };
+  sigh();
+  return () => {
+    clearTimeout(wait);
+    stopCurrent();
   };
 }
 

@@ -16,13 +16,13 @@ import {
   carryDistance,
   startBye,
   startCarry,
-  startFrames,
+  startRest,
 } from "./mascotMotion.ts";
 import {
   loadMascot,
   MASCOT_HEIGHT,
   nextAction,
-  pickBye,
+  pickVariant,
   reducedMotion,
   restingScene,
   type LoadedMascot,
@@ -48,9 +48,9 @@ export function MascotCarrier(props: {
   onMount(() => void loadMascot().then(setMascot));
   onCleanup(() => stopTimers());
 
-  /** 一息つく（無ければ運ぶ場面の 1 コマ目で止まる） */
-  const sigh = (m: LoadedMascot) => {
-    stopTimers = startFrames(restingScene(m), setFrame);
+  /** 一息つく（無ければ運ぶ場面の 1 コマ目で止まる）。しばらく経つと休憩の具体を動かす（startRest） */
+  const rest = (m: LoadedMascot) => {
+    stopTimers = startRest(m, setFrame, Math.random);
   };
 
   /** 案内とキャラクターを、左端（サイドバーの右端）から今の位置まで動かす */
@@ -64,13 +64,13 @@ export function MascotCarrier(props: {
       dx,
       m.carry,
       setFrame,
-      () => sigh(m),
+      () => rest(m),
     );
   };
 
   /** 案内を閉じたとき、その場でさようならを 1 回再生して消える。さようならの場面が無ければ、すぐ消える */
   const bye = (m: LoadedMascot) => {
-    const scene = pickBye(m, Math.random());
+    const scene = pickVariant(m.bye, Math.random());
     if (!scene || dialogOpen()) {
       setFrame(null);
       return;
