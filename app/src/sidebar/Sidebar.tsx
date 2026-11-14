@@ -287,7 +287,7 @@ export function Sidebar(
       <div class="sidebar-foot">
         <button
           type="button"
-          class="add-machine"
+          class="new-workspace"
           onClick={() => props.onNew?.()}
         >
           <svg

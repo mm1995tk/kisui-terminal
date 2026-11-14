@@ -1,8 +1,8 @@
 /* 左の一覧（D1）。親 #271 のモック「案：フラットな一覧」の寸法に合わせる（色は theme.css の GitHub Dark）。
    マシンごとの色（D4）は --machine-color。Sidebar.tsx が帯（.band-item）の style に入れる（決め方は colors.ts）。
    上下の固定（D3）は Sidebar.tsx の説明のとおり、sticky と要素の組み方で決める。
-   一覧（.sidebar）はスクロールし、その下に「+ リモートを足す」（.sidebar-foot）を固定する。
-   接続の状態の丸と 1 行は親 #271 のモック Main.dc.html に合わせる
+   一覧（.sidebar）はスクロールし、その下に「+ ワークスペースを作る」（.sidebar-foot）を固定する。
+   接続の状態の丸は親 #271 のモック Main.dc.html に合わせる
    （接続中・再接続中は塗り、未接続は枠だけ。色は theme.css）。 */
 
 .sidebar-column {
@@ -15,7 +15,7 @@
   --health-up: var(--gh-green);
   --health-pending: var(--gh-yellow);
   --health-down: var(--gh-text-dim);
-  --add-machine-border: var(--gh-border-strong);
+  --new-workspace-border: var(--gh-border-strong);
   /* 上に固定するものの高さ（D3）。ツリーのフォルダの行は、帯の下から積む */
   --band-height: 52px;
   --sticky-shadow: rgba(0, 0, 0, 0.6);
@@ -33,7 +33,7 @@
   font-size: 13px;
 }
 
-/* 一覧と「+ リモートを足す」の中身を 84% で描く（幅は .sidebar-column のまま）。
+/* 一覧と「+ ワークスペースを作る」の中身を 84% で描く（幅は .sidebar-column のまま）。
    メニュー（.machine-menu）は .sidebar の外にあるので、クリックした位置に出る */
 .sidebar,
 .sidebar-foot {
@@ -60,19 +60,19 @@
   background: transparent;
 }
 
-/* 一覧の一番下の「+ リモートを足す」（モック Main.dc.html の点線の枠） */
+/* 一覧の一番下の「+ ワークスペースを作る」（モック Main.dc.html の点線の枠） */
 .sidebar-foot {
   flex: none;
   padding: 8px;
 }
-.add-machine {
+.new-workspace {
   box-sizing: border-box;
   display: flex;
   align-items: center;
   gap: 8px;
   width: 100%;
   padding: 10px 8px;
-  border: 1px dashed var(--add-machine-border);
+  border: 1px dashed var(--new-workspace-border);
   border-radius: 6px;
   background: transparent;
   color: var(--sidebar-text);
@@ -80,10 +80,10 @@
   text-align: left;
   cursor: pointer;
 }
-.add-machine:hover {
+.new-workspace:hover {
   background: var(--band-hover);
 }
-.add-machine:focus-visible {
+.new-workspace:focus-visible {
   outline: 1px solid var(--health-up);
   outline-offset: -1px;
 }
@@ -388,7 +388,7 @@
   z-index: 200;
   min-width: 140px;
   padding: 4px;
-  border: 1px solid var(--add-machine-border);
+  border: 1px solid var(--new-workspace-border);
   border-radius: 6px;
   background: var(--gh-bg-raised);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
