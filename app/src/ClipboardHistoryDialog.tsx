@@ -117,10 +117,15 @@ export function HistoryPanel(props: {
     if (!e || !props.onPaste || copied()) return;
     props.onPaste(e.text);
   }
+  // 書いている最中の Enter の連打・リピートで、書き込みとタイマーが 2 つにならないようにする
+  let busy = false;
   async function putBack() {
     const e = selected();
-    if (!e || copied()) return;
-    if (!(await props.onPutBack(e.text))) return;
+    if (!e || copied() || busy) return;
+    busy = true;
+    const ok = await props.onPutBack(e.text);
+    busy = false;
+    if (!ok) return;
     setCopied(true);
     closing = setTimeout(props.onClose, COPIED_MS);
   }
