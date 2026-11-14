@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { FRAME_MS, nextAction, walkFrame } from "./mascot.ts";
+import {
+  FRAME_MS,
+  nextAction,
+  walkDuration,
+  walkFrame,
+  WALK_SPEED,
+} from "./mascot.ts";
 
 describe("walkFrame", () => {
   it("1 コマずつ進み、4 コマで 1 周する", () => {
@@ -17,13 +23,30 @@ describe("walkFrame", () => {
   });
 });
 
+describe("walkDuration", () => {
+  it("時間は距離に比例する（速さが一定）", () => {
+    assert.equal(walkDuration(0), 0);
+    assert.equal(walkDuration(WALK_SPEED), 1000);
+    assert.equal(walkDuration(400) * 2, walkDuration(800));
+    assert.equal(walkDuration(300) * 3, walkDuration(900));
+  });
+
+  it("負の距離は 0", () => {
+    assert.equal(walkDuration(-10), 0);
+  });
+
+  it("ゆっくり歩く: 1 秒に高さの 1〜1.5 倍、幅 1400px ほどで 10 秒以上", () => {
+    assert.ok(WALK_SPEED >= 72 && WALK_SPEED <= 72 * 1.5);
+    assert.ok(walkDuration(1400) >= 10_000);
+  });
+});
+
 describe("nextAction", () => {
   const base = {
     isOpen: true,
     wasOpen: false,
     hasMascot: true,
     reduced: false,
-    hasLeave: true,
     shown: true,
   };
 
@@ -36,10 +59,9 @@ describe("nextAction", () => {
     assert.equal(nextAction({ ...base, reduced: true }), "clear");
   });
 
-  it("閉じたとき、leave.png があれば去る。無ければすぐ消える", () => {
+  it("閉じたとき、出ていれば去る。出ていなければすぐ消える", () => {
     const closed = { ...base, isOpen: false, wasOpen: true };
     assert.equal(nextAction(closed), "leave");
-    assert.equal(nextAction({ ...closed, hasLeave: false }), "clear");
     assert.equal(nextAction({ ...closed, shown: false }), "clear");
   });
 
@@ -48,5 +70,123 @@ describe("nextAction", () => {
       nextAction({ ...base, isOpen: false, wasOpen: undefined }),
       "clear",
     );
+  });
+});
+
+/** Web Animations の代わり。`animate` で始めた動きと、止められたかを覚える */
+function fakeEl(left: number) {
+  const el = {
+    started: [] as { keyframes: { transform: string }[]; cancelled: boolean }[],
+    getBoundingClientRect: () => ({ left }),
+    animate(keyframes: { transform: string }[]) {
+      const rec = { keyframes, cancelled: false };
+      el.started.push(rec);
+      return {
+        cancel: () => {
+          rec.cancelled = true;
+        },
+      };
+    },
+  };
+  return el;
+}
+const asEl = (e: unknown) => e as HTMLElement;
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+describe("運ぶ途中に閉じたとき", () => {
+  it("今見えている位置から去り始める（右下へ飛ばない）", async () => {
+    const { startCarry, startLeave } = await import("./mascotMotion.ts");
+    (globalThis as { window?: unknown }).window = { innerWidth: 1400 };
+    const char = fakeEl(300);
+    const stopCarry = startCarry(
+      asEl(fakeEl(0)),
+      () => asEl(char),
+      1000,
+      () => {},
+      () => {},
+    );
+    await wait(5);
+    stopCarry();
+    const stopLeave = startLeave(
+      () => asEl(char),
+      () => {},
+      () => {},
+    );
+    await wait(5);
+    stopLeave();
+    const [a, b] = char.started[1].keyframes.map((k) =>
+      Number(/-?[\d.]+/.exec(k.transform)?.[0]),
+    );
+    // 運び始めたばかり: ほぼ -1000（運び終えた位置の 1000px 左）から始まる
+    assert.ok(a < -900 && a > -1000, `from=${a}`);
+    // 着く先は、運び終えた位置から画面の右端まで（左の位置から数えない）
+    assert.ok(Math.abs(b - (1400 - 300)) < 1e-6, `to=${b}`);
+  });
+
+  it("運び終えてから閉じたときは、運び終えた位置から歩く", async () => {
+    const { carryOffset } = await import("./mascotMotion.ts");
+    assert.equal(carryOffset(1000, walkDuration(1000)), 0);
+    assert.equal(carryOffset(1000, walkDuration(1000) * 5), 0);
+    assert.equal(carryOffset(1000, 0), -1000);
+    assert.equal(carryOffset(1000, walkDuration(1000) / 2), -500);
+  });
+});
+
+describe("止める関数は Web Animations も止める", () => {
+  it("運ぶ途中で止めると、案内とキャラクターの動きを cancel する", async () => {
+    const { startCarry } = await import("./mascotMotion.ts");
+    const menu = fakeEl(0);
+    const char = fakeEl(0);
+    const stop = startCarry(
+      asEl(menu),
+      () => asEl(char),
+      1000,
+      () => {},
+      () => {},
+    );
+    await wait(5);
+    assert.equal(menu.started.length, 1);
+    assert.equal(char.started.length, 1);
+    stop();
+    assert.equal(menu.started[0].cancelled, true);
+    assert.equal(char.started[0].cancelled, true);
+  });
+
+  it("去る途中で止める（開き直す）と、去る動きを cancel する", async () => {
+    const { startLeave } = await import("./mascotMotion.ts");
+    (globalThis as { window?: unknown }).window = { innerWidth: 1400 };
+    const char = fakeEl(100);
+    const stop = startLeave(
+      () => asEl(char),
+      () => {},
+      () => {},
+    );
+    await wait(5);
+    assert.equal(char.started.length, 1);
+    stop();
+    assert.equal(char.started[0].cancelled, true);
+  });
+});
+
+describe("去るとき、キャラクターの要素が取れない", () => {
+  it("onDone を呼んで消す。止められた後は呼ばない", async () => {
+    const { startLeave } = await import("./mascotMotion.ts");
+    let done = 0;
+    startLeave(
+      () => undefined,
+      () => {},
+      () => done++,
+    );
+    await wait(5);
+    assert.equal(done, 1);
+
+    const stop = startLeave(
+      () => undefined,
+      () => {},
+      () => done++,
+    );
+    stop();
+    await wait(5);
+    assert.equal(done, 1);
   });
 });

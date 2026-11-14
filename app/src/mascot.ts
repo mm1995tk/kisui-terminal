@@ -6,17 +6,19 @@ import { invoke } from "@tauri-apps/api/core";
 export interface Mascot {
   walk: string[];
   stop: string;
-  leave: string | null;
 }
 
-/** 案内を運ぶ時間（ミリ秒） */
-export const CARRY_MS = 600;
-/** 歩きの 1 コマを出す時間（ミリ秒）。4 コマで 1 周 */
-export const FRAME_MS = 120;
-/** 去る動きの時間（ミリ秒） */
-export const LEAVE_MS = 500;
 /** キャラクターの表示の高さ（px）。幅は画像の縦横比のまま */
 export const MASCOT_HEIGHT = 72;
+/** 歩く速さ（px/秒）。運ぶときも去るときも同じ。キャラクターの高さの 1.25 倍 / 秒（人がゆっくり歩く速さ） */
+export const WALK_SPEED = MASCOT_HEIGHT * 1.25;
+/** 歩きの 1 コマを出す時間（ミリ秒）。4 コマで 1 周（0.8 秒）。1 コマで 18px 進む */
+export const FRAME_MS = 200;
+
+/** `distance`（px）を一定の速さ（`WALK_SPEED`）で歩く時間（ミリ秒）。距離に比例する */
+export function walkDuration(distance: number): number {
+  return (Math.max(0, distance) / WALK_SPEED) * 1000;
+}
 
 /** 歩き始めてから `elapsed` ミリ秒後に出す歩きのコマ（0 始まり） */
 export function walkFrame(elapsed: number, frames = 4): number {
@@ -33,7 +35,7 @@ export function reducedMotion(): boolean {
 
 /**
  * `mascot_images` の画像を、全部デコードし終えたもの。`aspect` は `walk-1.png` の幅 / 高さで、表示の幅（`MASCOT_HEIGHT` × `aspect`）を決めるのに使う。
- * `leave` は無い（または壊れている）と null。`stop` は壊れていると `walk[0]` で代わりにする。
+ * `stop` は壊れていると `walk[0]` で代わりにする。
  * `images` は、デコード済みのデータをブラウザが捨てないように、参照を持っておくためのもの。
  */
 export type LoadedMascot = Mascot & {
@@ -53,15 +55,14 @@ async function decode(src: string): Promise<HTMLImageElement | null> {
   }
 }
 
-/** 画像を読む（全部デコードしてから返す）。使えなければ null。歩く 4 枚が 1 枚でも壊れていれば使えない。`stop`・`leave` が壊れているときは、無いときと同じ扱い */
+/** 画像を読む（全部デコードしてから返す）。使えなければ null。歩く 4 枚が 1 枚でも壊れていれば使えない。`stop` が壊れているときは、無いときと同じ扱い */
 export async function loadMascot(): Promise<LoadedMascot | null> {
   try {
     const m = (await invoke("mascot_images")) as Mascot | null;
     if (!m || m.walk.length !== 4) return null;
-    const [walk, stop, leave] = await Promise.all([
+    const [walk, stop] = await Promise.all([
       Promise.all(m.walk.map(decode)),
       decode(m.stop),
-      m.leave ? decode(m.leave) : null,
     ]);
     if (walk.some((i) => i === null)) return null;
     const frames = walk as HTMLImageElement[];
@@ -70,9 +71,8 @@ export async function loadMascot(): Promise<LoadedMascot | null> {
     return {
       walk: m.walk,
       stop: stop ? m.stop : m.walk[0],
-      leave: leave ? m.leave : null,
       aspect,
-      images: [...frames, ...(stop ? [stop] : []), ...(leave ? [leave] : [])],
+      images: [...frames, ...(stop ? [stop] : [])],
     };
   } catch {
     return null;
@@ -86,11 +86,10 @@ export function nextAction(s: {
   /** 画像が使えるか（4 枚そろって読めた） */
   hasMascot: boolean;
   reduced: boolean;
-  hasLeave: boolean;
   /** 今キャラクターが出ているか */
   shown: boolean;
 }): "carry" | "leave" | "clear" {
   if (!s.hasMascot || s.reduced) return "clear";
   if (s.isOpen) return "carry";
-  return s.wasOpen && s.hasLeave && s.shown ? "leave" : "clear";
+  return s.wasOpen && s.shown ? "leave" : "clear";
 }

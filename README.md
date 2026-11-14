@@ -77,13 +77,12 @@ kisui-terminal reads its settings from its own `config.toml`: `~/.config/kisui-t
 - `[server]`: `idle_stop_days` (days `kisui serve` stays up with no window connected; default 7, 0 = never) and `start_dir` (the folder a new workspace's shell starts in).
 - `ui-language`: the language of kisui's own messages, like `shj`'s.
 
-**Mascot (experimental).** If you put images in the `mascot/` folder next to `config.toml` (`~/.config/kisui-terminal/mascot/`; `kisui-terminal-nightly/mascot/` for the nightly, if that folder exists; `$XDG_CONFIG_HOME` is used when it is an absolute path) on the machine where the window runs, a character pushes the leader guide from the left edge of the terminal to its place at the bottom right. No image ships with kisui-terminal, and there is no setting for it. The images are transparent PNGs of the same size, facing right (they are not flipped). Only these six names are read, and they are read once when the window starts:
+**Mascot (experimental).** If you put images in the `mascot/` folder next to `config.toml` (`~/.config/kisui-terminal/mascot/`; `kisui-terminal-nightly/mascot/` for the nightly, if that folder exists; `$XDG_CONFIG_HOME` is used when it is an absolute path) on the machine where the window runs, a character pushes the leader guide from the left edge of the terminal to its place at the bottom right. No image ships with kisui-terminal, and there is no setting for it. The images are transparent PNGs of the same size, facing right (they are not flipped). Only these five names are read, and they are read once when the window starts:
 
 - `walk-1.png` to `walk-4.png`: four frames of walking while pushing. All four are needed; if one is missing, only the guide is shown, as before.
 - `stop.png`: the pose after it has carried the guide (optional; `walk-1.png` is used if it is missing).
-- `leave.png`: the pose when it leaves as the guide closes (optional; without it, it does not leave).
 
-The animation is not shown when the OS setting "reduce motion" is on. Keys after the leader work at once, without waiting for the animation.
+It walks slowly at a constant speed (about 90 px per second, so a wide window takes a while). When the guide closes, it walks away to the right with the same walking frames (a `leave.png` from an earlier version is ignored). The animation is not shown when the OS setting "reduce motion" is on. Keys after the leader work at once, without waiting for the animation.
 
 On a remote machine (ssh), kisui-terminal installs its own `kisui` and `shj` under `~/.cache/kisui-terminal/<version>/` after asking you; it does not touch the `shj` on the PATH there.
 
