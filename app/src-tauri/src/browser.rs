@@ -150,23 +150,14 @@ fn child(app: &AppHandle, tab: &str) -> Result<Webview, String> {
         .ok_or_else(|| "no such browser tab".to_string())
 }
 
-/// 推し量れない 16 バイトを 16 進で（キーの URL の nonce）。
-fn new_nonce() -> String {
+/// 推し量れない 16 バイトを 16 進で（キーの URL の nonce）。`/dev/urandom` が読めなければ失敗する
+/// （推し量れる値で続けると、ページのスクリプトがキーを真似できてしまうため。タブは開かない）。
+fn new_nonce() -> Result<String, String> {
     let mut b = [0u8; 16];
-    let ok = fs::File::open("/dev/urandom")
+    fs::File::open("/dev/urandom")
         .and_then(|mut f| f.read_exact(&mut b))
-        .is_ok();
-    if !ok {
-        // /dev/urandom が無い OS（対応 OS ではない）。時刻とプロセスから作る
-        use sha2::{Digest, Sha256};
-        let t = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or_default();
-        let h = Sha256::digest(format!("{t}-{}-{:p}", std::process::id(), &b));
-        b.copy_from_slice(&h[..16]);
-    }
-    b.iter().map(|x| format!("{x:02x}")).collect()
+        .map_err(|e| format!("cannot read /dev/urandom: {e}"))?;
+    Ok(b.iter().map(|x| format!("{x:02x}")).collect())
 }
 
 /// 送ってよいキーの一覧か。
@@ -351,7 +342,7 @@ pub fn browser_open(
     if app.get_webview(&label(&tab)).is_some() {
         return Err("the tab is already open".into());
     }
-    let builder = tab_builder(&app, &tab, first, new_nonce(), &keys);
+    let builder = tab_builder(&app, &tab, first, new_nonce()?, &keys);
     win.add_child(
         builder,
         LogicalPosition::new(x, y),
@@ -592,8 +583,8 @@ mod tests {
 
     #[test]
     fn nonces_differ() {
-        let a = new_nonce();
-        let b = new_nonce();
+        let a = new_nonce().unwrap();
+        let b = new_nonce().unwrap();
         assert_eq!(a.len(), 32);
         assert_ne!(a, b);
         assert!(a.chars().all(|c| c.is_ascii_hexdigit()));
