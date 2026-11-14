@@ -41,11 +41,14 @@ passkey_browser = "chrome"   # chrome（既定。無ければ Chromium）か fir
 
 ## 受け口（native messaging のホスト）
 
-- 名前：`dev.mm1995tk.kisui_terminal`（拡張機能は `runtime.connectNative` か `runtime.sendNativeMessage` にこれを渡す）。
-- 起動するもの：データのフォルダ（macOS は `~/Library/Application Support/dev.mm1995tk.kisui-terminal`、Linux は
+- 名前：普通の版は `dev.mm1995tk.kisui_terminal`、nightly 版は `dev.mm1995tk.kisui_terminal_nightly`（アプリの identifier の、英数字と `.` 以外を `_` にしたもの）。
+  拡張機能は `runtime.connectNative` か `runtime.sendNativeMessage` にこれを渡す。2 つの版を並べて入れていることがあるので、拡張機能は両方の名前に `sites` を聞き、
+  そのサイトを `waiting` に挙げた方に `cookies` を送る（つなげない名前は、その版が入っていないか、サイトを書いていない）。
+  版ごとに名前を分けるのは、ソケットと受け口のスクリプトが版ごとに別のデータのフォルダにあり、登録のファイルが 1 つだと互いに上書き・消去し合うため。
+- 起動するもの：データのフォルダ（nightly 版は `dev.mm1995tk.kisui-terminal-nightly` のフォルダ。macOS は `~/Library/Application Support/dev.mm1995tk.kisui-terminal`、Linux は
   `~/.local/share/dev.mm1995tk.kisui-terminal`）の `passkey/native-host`。kisui-terminal 自身の実行ファイルを
   `--native-messaging-host <ソケット>` 付きで起動する sh のスクリプトで、kisui-terminal が起動するたびに書き直す（実行ファイルが動いても追う）。
-- 登録のファイル（`dev.mm1995tk.kisui_terminal.json`）を置く場所（そのブラウザの印のフォルダがあるときだけ置く）：
+- 登録のファイル（`<名前>.json`）を置く場所（そのブラウザの印のフォルダがあるときだけ置く）：
 
   | ブラウザ | macOS                                                                    | Linux                                                                                                   |
   | -------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------- |

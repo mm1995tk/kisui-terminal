@@ -41,8 +41,6 @@ pub const SCHEME: &str = "kisui-passkey";
 const SCRIPT: &str = include_str!("browser_passkey.js");
 /// ブラウザが受け口として起動したとき（登録のファイルの指すスクリプトが付ける）の引数。続けてソケットのパス。
 pub const HOST_FLAG: &str = "--native-messaging-host";
-/// native messaging の受け口の名前（拡張機能が `connectNative` に渡す）。
-pub const HOST_NAME: &str = "dev.mm1995tk.kisui_terminal";
 /// 受け口につないでよい Firefox の拡張機能（#207 の拡張機能の `browser_specific_settings.gecko.id`）。
 pub const FIREFOX_EXTENSION_ID: &str = "kisui-terminal@mm1995tk.github.io";
 /// 受け口につないでよい Chrome の拡張機能の id。#207 で拡張機能の id が決まったら足す。空の間は Chrome の登録のファイルを置かない。
@@ -693,10 +691,27 @@ fn manifest_dirs(home: &Path, config_home: Option<&Path>) -> Vec<(PathBuf, PathB
     }
 }
 
+/// native messaging の受け口の名前。アプリの identifier の、英数字と `.` 以外を `_` にしたもの
+/// （普通の版は `dev.mm1995tk.kisui_terminal`、nightly 版は `dev.mm1995tk.kisui_terminal_nightly`）。
+/// 版ごとに分けるのは、2 つの版を並べて入れたときに、登録のファイルが互いを上書きしたり消したりしないため
+/// （ソケットと受け口のスクリプトは、版ごとに別のデータのフォルダにある）。
+pub fn host_name(identifier: &str) -> String {
+    identifier
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '.' {
+                c.to_ascii_lowercase()
+            } else {
+                '_'
+            }
+        })
+        .collect()
+}
+
 /// 登録のファイルの中身。
-fn manifest(kind: Kind, script: &Path) -> Value {
+fn manifest(name: &str, kind: Kind, script: &Path) -> Value {
     let mut m = json!({
-        "name": HOST_NAME,
+        "name": name,
         "description": "kisui-terminal: copies the login of passkey sites to its built-in browser",
         "path": script.to_string_lossy(),
         "type": "stdio",
@@ -733,9 +748,10 @@ fn write_file(path: &Path, body: &[u8], mode: u32) -> std::io::Result<()> {
     fs::rename(&tmp, path)
 }
 
-/// 受け口のスクリプト（`dir/native-host`）と、使っているブラウザの登録のファイルを置く。
+/// 受け口のスクリプト（`dir/native-host`）と、使っているブラウザの登録のファイル（`<name>.json`）を置く。
 /// スクリプトは、今の実行ファイルを `HOST_FLAG` とソケットのパス付きで起動する（起動するたびに書き直すので、実行ファイルが動いても追う）。
 fn install(
+    name: &str,
     dir: &Path,
     sock: &Path,
     exe: &Path,
@@ -759,19 +775,19 @@ fn install(
             continue;
         }
         fs::create_dir_all(&to)?;
-        let path = to.join(format!("{HOST_NAME}.json"));
-        let body =
-            serde_json::to_vec_pretty(&manifest(kind, &script)).map_err(std::io::Error::other)?;
+        let path = to.join(format!("{name}.json"));
+        let body = serde_json::to_vec_pretty(&manifest(name, kind, &script))
+            .map_err(std::io::Error::other)?;
         write_file(&path, &body, 0o644)?;
         written.push(path);
     }
     Ok(written)
 }
 
-/// 置いた登録のファイルを消す（サイトを書かなくなったとき）。
-fn uninstall(home: &Path, config_home: Option<&Path>) {
+/// 置いた登録のファイル（`<name>.json`。この版のものだけ）を消す（サイトを書かなくなったとき）。
+fn uninstall(name: &str, home: &Path, config_home: Option<&Path>) {
     for (_, to, _) in manifest_dirs(home, config_home) {
-        let _ = fs::remove_file(to.join(format!("{HOST_NAME}.json")));
+        let _ = fs::remove_file(to.join(format!("{name}.json")));
     }
 }
 
@@ -780,9 +796,10 @@ fn uninstall(home: &Path, config_home: Option<&Path>) {
 pub fn setup(app: &AppHandle, cfg: Option<&GuiConfig>) {
     let home = std::env::var_os("HOME").map(PathBuf::from);
     let config_home = std::env::var_os("XDG_CONFIG_HOME").map(PathBuf::from);
+    let name = host_name(&app.config().identifier);
     let Some(p) = cfg.and_then(Passkey::from_config) else {
         if let Some(h) = &home {
-            uninstall(h, config_home.as_deref());
+            uninstall(&name, h, config_home.as_deref());
         }
         return;
     };
@@ -807,7 +824,7 @@ pub fn setup(app: &AppHandle, cfg: Option<&GuiConfig>) {
         .map(PathBuf::from)
         .or_else(|| std::env::current_exe().ok());
     if let (Some(exe), Some(h)) = (exe, home) {
-        if let Err(e) = install(&dir, &sock, &exe, &h, config_home.as_deref()) {
+        if let Err(e) = install(&name, &dir, &sock, &exe, &h, config_home.as_deref()) {
             eprintln!("kisui-terminal: passkey: cannot register the native messaging host: {e}");
         }
     }
@@ -1148,11 +1165,12 @@ mod tests {
             fs::create_dir_all(home.join(".mozilla")).unwrap();
             home.join(".mozilla/native-messaging-hosts")
         };
-        let written = install(&dir, &sock, &exe, &home, None).unwrap();
-        let m = firefox.join(format!("{HOST_NAME}.json"));
+        let name = STABLE;
+        let written = install(name, &dir, &sock, &exe, &home, None).unwrap();
+        let m = firefox.join(format!("{name}.json"));
         assert_eq!(written, vec![m.clone()]);
         let v: Value = serde_json::from_slice(&fs::read(&m).unwrap()).unwrap();
-        assert_eq!(v["name"], HOST_NAME);
+        assert_eq!(v["name"], name);
         assert_eq!(v["type"], "stdio");
         assert_eq!(v["allowed_extensions"], json!([FIREFOX_EXTENSION_ID]));
         let script = dir.join(SCRIPT_FILE);
@@ -1170,15 +1188,68 @@ mod tests {
         assert_eq!(mode, 0o700);
         // Chrome の id が決まるまで、Chrome には置かない
         assert!(!home.join(".config/google-chrome").exists());
-        uninstall(&home, None);
+        uninstall(name, &home, None);
         assert!(!m.exists());
+        let _ = fs::remove_dir_all(&d);
+    }
+
+    const STABLE: &str = "dev.mm1995tk.kisui_terminal";
+    const NIGHTLY: &str = "dev.mm1995tk.kisui_terminal_nightly";
+
+    // 受け口の名前は版ごとに別（tauri.conf.json と tauri.nightly.conf.json の identifier から）
+    #[test]
+    fn host_names_differ_by_version() {
+        assert_eq!(host_name("dev.mm1995tk.kisui-terminal"), STABLE);
+        assert_eq!(host_name("dev.mm1995tk.kisui-terminal-nightly"), NIGHTLY);
+        let conf = |f: &str| -> String {
+            let p = Path::new(env!("CARGO_MANIFEST_DIR")).join(f);
+            let v: Value = serde_json::from_slice(&fs::read(p).unwrap()).unwrap();
+            host_name(v["identifier"].as_str().unwrap())
+        };
+        assert_eq!(conf("tauri.conf.json"), STABLE);
+        assert_eq!(conf("tauri.nightly.conf.json"), NIGHTLY);
+    }
+
+    // 普通の版と nightly 版を並べて入れても、登録のファイルは互いを上書きせず、消しもしない
+    #[test]
+    fn two_versions_keep_their_own_manifests() {
+        let d = temp_dir("two");
+        let home = d.join("home");
+        let exe = PathBuf::from("/x/kisui-terminal");
+        let firefox = if cfg!(target_os = "macos") {
+            fs::create_dir_all(home.join("Library/Application Support/Firefox")).unwrap();
+            home.join("Library/Application Support/Mozilla/NativeMessagingHosts")
+        } else {
+            fs::create_dir_all(home.join(".mozilla")).unwrap();
+            home.join(".mozilla/native-messaging-hosts")
+        };
+        let mut scripts = Vec::new();
+        for (name, data) in [(STABLE, "stable"), (NIGHTLY, "nightly")] {
+            let dir = d.join(data).join(DIR);
+            private_dir(&dir).unwrap();
+            install(name, &dir, &dir.join(SOCK), &exe, &home, None).unwrap();
+            scripts.push(dir.join(SCRIPT_FILE));
+        }
+        let path_of = |name: &str| -> Value {
+            let v: Value =
+                serde_json::from_slice(&fs::read(firefox.join(format!("{name}.json"))).unwrap())
+                    .unwrap();
+            v["path"].clone()
+        };
+        assert_eq!(path_of(STABLE), scripts[0].to_str().unwrap());
+        assert_eq!(path_of(NIGHTLY), scripts[1].to_str().unwrap());
+        // サイトを書かずに起動した版は、自分の登録だけを消す
+        uninstall(STABLE, &home, None);
+        assert!(!firefox.join(format!("{STABLE}.json")).exists());
+        assert_eq!(path_of(NIGHTLY), scripts[1].to_str().unwrap());
         let _ = fs::remove_dir_all(&d);
     }
 
     #[test]
     fn host_name_is_valid_for_browsers() {
         // Chrome：小文字の英数字・`_`・`.` だけ
-        assert!(HOST_NAME
+        assert!([STABLE, NIGHTLY]
+            .concat()
             .chars()
             .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_' || c == '.'));
     }
