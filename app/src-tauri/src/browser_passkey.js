@@ -9,6 +9,8 @@
   const nonce = __KISUI_NONCE__;
   // ["github.com", ...]。ページの host と完全に同じものだけ
   const sites = __KISUI_PASSKEY_SITES__;
+  // 続けて知らせない間隔（ミリ秒。殻の MIN_INTERVAL と同じ値を殻が埋める）
+  const interval = __KISUI_PASSKEY_INTERVAL__;
   const host = location.hostname;
   let allowed = false;
   for (let i = 0; i < sites.length; i++) {
@@ -32,7 +34,7 @@
   /** 殻に知らせる。殻は今のタブの URL（一番上のフレームのもの）を外のブラウザで開く。 */
   const handOff = () => {
     const t = now();
-    if (t - last < 3000) return;
+    if (t - last < interval) return;
     last = t;
     try {
       open(window, "kisui-passkey://passkey?n=" + nonce, "_blank");

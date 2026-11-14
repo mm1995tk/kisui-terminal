@@ -157,13 +157,17 @@ pub fn is_request(u: &Url, nonce: &str) -> bool {
             .any(|(k, v)| k == "n" && v.as_ref() == nonce)
 }
 
-/// ページに入れるスクリプト（nonce とサイトの一覧を埋めたもの）。
+/// ページに入れるスクリプト（nonce・サイトの一覧・続けて知らせない間隔を埋めたもの）。
 pub fn script(nonce: &str, sites: &[String]) -> String {
     let n = serde_json::to_string(nonce).unwrap_or_else(|_| "\"\"".into());
     let s = serde_json::to_string(sites).unwrap_or_else(|_| "[]".into());
     SCRIPT
         .replace("__KISUI_NONCE__", &n)
         .replace("__KISUI_PASSKEY_SITES__", &s)
+        .replace(
+            "__KISUI_PASSKEY_INTERVAL__",
+            &MIN_INTERVAL.as_millis().to_string(),
+        )
 }
 
 /// 送られた Cookie のうち、`site` のページに送られるものを、`site` だけの Cookie にして返す（入れられないものは数えて捨てる）。
@@ -860,6 +864,7 @@ mod tests {
         assert!(!s.contains("__KISUI_"));
         assert!(s.contains(r#"const nonce = "abc\"</script>";"#), "{s}");
         assert!(s.contains(r#"const sites = ["github.com","dash.cloudflare.com"];"#));
+        assert!(s.contains("const interval = 3000;"), "{s}");
         // 殻の受ける URL の形で知らせる
         assert!(SCRIPT.contains("\"kisui-passkey://passkey?n=\""));
         assert!(!SCRIPT.contains("location.href"));
