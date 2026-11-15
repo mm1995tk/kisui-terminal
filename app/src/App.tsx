@@ -245,6 +245,7 @@ import {
   startPasskeyLogin,
   zoomTab,
   type DownloadDone,
+  type PasskeyLogin,
   type TabPopup,
 } from "./browser/browserOs.ts";
 import {
@@ -2347,24 +2348,16 @@ function Workbench(props: {
     } catch {
       // URL の形でなければそのまま出す
     }
+    // 使えないときの理由（答えを足したら、ここに足し忘れると型で分かる）
+    const reasons: Record<Exclude<PasskeyLogin, "opened">, () => string> = {
+      incognito: () => T("cannot.browser.login.incognito"),
+      "no-sites": () => T("cannot.browser.login.noSites"),
+      "not-allowed": () => T("cannot.browser.login.notAllowed", { host }),
+    };
     startPasskeyLogin(tab).then(
       (r) => {
         if (r === "opened") showToast(T("toast.browser.login"));
-        else if (r === "incognito")
-          cannot(
-            T("cannot.browser.login.title"),
-            T("cannot.browser.login.incognito"),
-          );
-        else if (r === "no-sites")
-          cannot(
-            T("cannot.browser.login.title"),
-            T("cannot.browser.login.noSites"),
-          );
-        else
-          cannot(
-            T("cannot.browser.login.title"),
-            T("cannot.browser.login.notAllowed", { host }),
-          );
+        else cannot(T("cannot.browser.login.title"), reasons[r]());
       },
       (e: unknown) =>
         setFocusError({
