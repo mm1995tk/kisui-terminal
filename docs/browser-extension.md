@@ -46,6 +46,7 @@ Firefox は、入れるときに host の権限を断れる。断ったときは
 
 ```sh
 npm run test:extension     # テスト（nix flake check の checks.extension も同じもの）
+npm run typecheck:extension # JSDoc の型の検査（tsc -p extension。npm test にも入っている。web-test の check が回す）
 npm run build:extension    # extension/dist/ に chrome/・firefox/ と、ストアに上げる 2 つの zip を作る
 nix build .#kisui-terminal-extension   # 同じものを Nix で作る（result/ に出る）
 ```

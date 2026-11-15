@@ -10,6 +10,20 @@
 
 if (typeof importScripts === "function") importScripts("lib.js");
 
+/**
+ * kisui-terminal が開いたタブ（site は待っているサイトの host、host は native messaging の受け口）
+ * @typedef {{ site: string, host: string }} Hit
+ */
+/**
+ * タブ。id は、ここで扱うタブ（ウィンドウのあるもの）では必ずある。cookieStoreId は Firefox のもの
+ * @typedef {chrome.tabs.Tab & { id: number, cookieStoreId?: string }} Tab
+ */
+/**
+ * パスキーが通ったあと、落ち着くのを待っているタブ
+ * @typedef {Hit & { successAt: number, lastCookieChange: number }} Settling
+ */
+
+// Chrome の chrome と Firefox の browser は、ここで使う範囲では同じ形（どちらも promise を返す）。型は chrome のものを使う
 const api = globalThis.browser ?? globalThis.chrome;
 const K = KisuiPasskey;
 
@@ -24,6 +38,7 @@ const SCRIPT_IDS = ["kisui-page", "kisui-relay"];
 // ---- 覚えておくもの（service worker が止まっても残るよう storage.session に置く）
 
 async function loadState() {
+  /** @type {{ sites?: string[], sitesAt?: number }} */
   const s = await api.storage.session.get(["sites", "sitesAt"]);
   return {
     sites: s.sites ?? [],
@@ -31,12 +46,14 @@ async function loadState() {
   };
 }
 
+/** @param {Record<string, unknown>} patch */
 async function saveState(patch) {
   await api.storage.session.set(patch);
 }
 
 // ---- kisui-terminal とのやり取り
 
+/** @param {string} host @param {object} message @returns {Promise<any>} 信用できない答え（形は使う側が確かめる） */
 async function ask(host, message) {
   try {
     return await api.runtime.sendNativeMessage(host, message);
@@ -68,8 +85,10 @@ async function refreshSites() {
 
 // ---- 許可サイトのページに入れるスクリプト
 
+/** @param {string[]} sites */
 async function syncScripts(sites) {
   const matches = K.matchPatterns(sites);
+  /** @type {chrome.scripting.RegisteredContentScript[]} */
   let current = [];
   try {
     current = await api.scripting.getRegisteredContentScripts({
@@ -113,19 +132,23 @@ async function syncScripts(sites) {
 
 // できたばかりで、まだ http(s) のページを開いていないタブ（tabId → できた時刻）。
 // タブができてから最初のページまでは短く、その間は service worker が止まらないので、メモリに置く
+/** @type {Map<number, number>} */
 const newTabs = new Map();
 
+/** @param {Tab} tab */
 async function onTabCreated(tab) {
   newTabs.set(tab.id, Date.now());
   const url = tab.pendingUrl || tab.url;
   if (url && K.hostOf(url)) await checkNewTab(tab.id, url);
 }
 
+/** @param {number} tabId @param {{ url?: string }} changeInfo */
 async function onTabUpdated(tabId, changeInfo) {
   if (changeInfo.url) await checkNewTab(tabId, changeInfo.url);
 }
 
 // できたばかりのタブの最初の http(s) のページを見る（見るのは 1 回だけ）
+/** @param {number} tabId @param {string} url */
 async function checkNewTab(tabId, url) {
   const host = K.hostOf(url);
   if (!host) return;
@@ -152,22 +175,27 @@ async function checkExistingTabs() {
     const url = tab.pendingUrl || tab.url || "";
     const host = K.hostOf(url);
     const w = host && waiting.get(host);
-    if (w && K.sameUrl(url, w.url))
+    if (tab.id !== undefined && w && K.sameUrl(url, w.url))
       await track(tab.id, { site: host, host: w.host });
   }
 }
 
 // kisui-terminal が開いたタブ（{ site, host }）は、タブごとの鍵に置く（全体を読んで書き戻すと、
 // 覚えるのと別のタブを忘れるのが重なったときに片方が消えるため）
+/** @param {number} tabId */
 const trackedKey = (tabId) => `tracked:${tabId}`;
 
+/** @param {number} tabId @returns {Promise<Hit | undefined>} */
 async function tracked(tabId) {
   const key = trackedKey(tabId);
-  return (await api.storage.session.get([key]))[key];
+  /** @type {Record<string, Hit | undefined>} */
+  const got = await api.storage.session.get([key]);
+  return got[key];
 }
 
 // タブを覚え、そのタブの今のページにも page.js と relay.js を入れる。一覧に足したばかりのサイトを初めて開いたときは、
 // 登録（syncScripts）がページの読み込みの後になり、そのページには入っていないため（2 回入っても、どちらも 1 回しか動かない）
+/** @param {number} tabId @param {Hit} hit */
 async function track(tabId, hit) {
   await saveState({ [trackedKey(tabId)]: hit });
   // 入れるのは、今のページがそのサイトのときだけ（聞いている間に別の host へリダイレクトしていれば入れない）
@@ -182,6 +210,7 @@ async function track(tabId, hit) {
     .catch(() => {});
 }
 
+/** @param {number} tabId */
 async function untrack(tabId) {
   await api.storage.session.remove(trackedKey(tabId));
 }
@@ -189,27 +218,31 @@ async function untrack(tabId) {
 // ---- パスキーが通ったあと、落ち着くのを待つ
 
 // 落ち着くのを待っているタブ（tabId → { site, host, successAt, lastCookieChange }）
+/** @type {Map<number, Settling>} */
 const settling = new Map();
 
+/** @param {{ cookie: chrome.cookies.Cookie }} change */
 function onCookieChanged({ cookie }) {
   for (const s of settling.values()) {
     if (K.appliesTo(cookie, s.site)) s.lastCookieChange = Date.now();
   }
 }
 
+/** @param {any} message @param {chrome.runtime.MessageSender} sender */
 async function onMessage(message, sender) {
   if (!message || message.type !== "passkey-success" || !sender.tab) return;
-  const tabId = sender.tab.id;
+  const tabId = /** @type {Tab} */ (sender.tab).id;
   const t = await tracked(tabId);
   if (!t || K.hostOf(sender.url ?? sender.tab.url ?? "") !== t.site) return;
   if (settling.has(tabId)) {
-    settling.get(tabId).successAt = Date.now();
+    /** @type {Settling} */ (settling.get(tabId)).successAt = Date.now();
     return;
   }
   settling.set(tabId, { ...t, successAt: Date.now(), lastCookieChange: 0 });
   waitAndSend(tabId);
 }
 
+/** @param {number} tabId */
 async function waitAndSend(tabId) {
   for (;;) {
     await new Promise((r) => setTimeout(r, SETTLE_POLL_MS));
@@ -239,13 +272,14 @@ async function waitAndSend(tabId) {
     if (!sites.includes(s.site)) return showError(tabId, "not-allowed");
     const w = waiting.get(s.site);
     if (!w) return showError(tabId, "not-waiting");
-    await sendCookies(tab, s.site, w.host);
+    await sendCookies(/** @type {Tab} */ (tab), s.site, w.host);
     return;
   }
 }
 
 // ---- Cookie を読んで送る
 
+/** @param {Tab} tab @returns {Promise<string | undefined>} */
 async function storeIdOf(tab) {
   if (tab.cookieStoreId) return tab.cookieStoreId;
   const stores = await api.cookies.getAllCookieStores();
@@ -253,6 +287,7 @@ async function storeIdOf(tab) {
   return s ? s.id : undefined;
 }
 
+/** @param {any} details @returns {Promise<chrome.cookies.Cookie[]>} */
 async function getAll(details) {
   try {
     return await api.cookies.getAll(details);
@@ -267,6 +302,7 @@ async function getAll(details) {
 
 // `site` のページに送られる Cookie だけを返す。url で引くと、path が `/` に当たらない Cookie（`/login` だけのものなど）が落ちるので、
 // domain でも引いて合わせる（domain で引くと下のドメインのものも来るが、pickCookies が捨てる）
+/** @param {Tab} tab @param {string} site */
 async function readCookies(tab, site) {
   const storeId = await storeIdOf(tab);
   const base = storeId ? { storeId } : {};
@@ -277,6 +313,7 @@ async function readCookies(tab, site) {
   return K.pickCookies([...byUrl, ...byDomain], site);
 }
 
+/** @param {Tab} tab @param {string} site @param {string} host */
 async function sendCookies(tab, site, host) {
   let reply;
   try {
@@ -299,6 +336,7 @@ async function sendCookies(tab, site, host) {
 
 // ---- 手で戻るボタン
 
+/** @param {Tab} tab */
 async function onActionClicked(tab) {
   // Firefox では、入れるときに権限を断れる。ボタンを押したとき（ユーザーの操作の中）に頼み直す
   let granted = false;
@@ -319,6 +357,7 @@ async function onActionClicked(tab) {
   await sendCookies(tab, site, w.host);
 }
 
+/** @param {number} tabId @param {string} code */
 async function showError(tabId, code) {
   const key =
     {
@@ -345,7 +384,9 @@ async function showError(tabId, code) {
 
 // ---- つなぐ（service worker が起き直すたびに、同期で登録する）
 
-api.tabs.onCreated.addListener((tab) => void onTabCreated(tab));
+api.tabs.onCreated.addListener(
+  (tab) => void onTabCreated(/** @type {Tab} */ (tab)),
+);
 api.tabs.onUpdated.addListener(
   (tabId, changeInfo) => void onTabUpdated(tabId, changeInfo),
 );
@@ -358,6 +399,8 @@ api.cookies.onChanged.addListener(onCookieChanged);
 api.runtime.onMessage.addListener((message, sender) => {
   void onMessage(message, sender);
 });
-api.action.onClicked.addListener((tab) => void onActionClicked(tab));
+api.action.onClicked.addListener(
+  (tab) => void onActionClicked(/** @type {Tab} */ (tab)),
+);
 api.runtime.onStartup.addListener(() => void checkExistingTabs());
 api.runtime.onInstalled.addListener(() => void refreshSites());

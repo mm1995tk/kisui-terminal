@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "test": "node --test \"app/src/**/*.test.ts\"",
+    "test": "tsc -p extension && node --test \"app/src/**/*.test.ts\"",
+    "typecheck:extension": "tsc -p extension",
     "test:extension": "node --test \"extension/**/*.test.ts\"",
     "build:extension": "node extension/build.mjs",
     "build": "tsc --noEmit && vite build",
@@ -20,6 +21,7 @@
   },
   "devDependencies": {
     "@tauri-apps/cli": "2.12.3",
+    "@types/chrome": "0.3.7",
     "@types/node": "24.19.2",
     "typescript": "7.0.2",
     "vite": "8.3.4",

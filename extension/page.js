@@ -2,12 +2,17 @@
 // 成功したら、relay.js（拡張機能の側の content script）に知らせる。値（資格情報）は渡さない。
 // background.js が、kisui-terminal の設定の passkey_sites のサイトにだけ入れる。
 (() => {
-  const creds = globalThis.navigator && navigator.credentials;
+  // 型の検査のため、書き換える 2 つの関数と印だけを持つものとして扱う
+  const creds =
+    /** @type {{ get?: Function, create?: Function, __kisuiPasskey?: boolean } | undefined} */ (
+      /** @type {unknown} */ (globalThis.navigator && navigator.credentials)
+    );
   if (!creds || creds.__kisuiPasskey) return;
   const EVENT = "kisui-terminal-passkey-success";
-  for (const name of ["get", "create"]) {
+  for (const name of /** @type {const} */ (["get", "create"])) {
     const orig = creds[name];
     if (typeof orig !== "function") continue;
+    /** @this {unknown} @param {{ publicKey?: unknown } | undefined} options */
     const wrapped = function (options) {
       const p = orig.apply(this, arguments);
       if (options && options.publicKey) {

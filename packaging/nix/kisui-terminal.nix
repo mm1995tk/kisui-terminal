@@ -31,6 +31,8 @@ let
       ../../vite.config.ts
       ../../app/index.html
       ../../app/src
+      # npm test が拡張機能の JavaScript の型も検査する（tsc -p extension）
+      ../../extension
       # startupBackground.test.ts が窓の背景色を読む
       ../../app/src-tauri/tauri.conf.json
     ];
@@ -60,7 +62,7 @@ let
     inherit version;
     src = webSrc;
     # package-lock.json を変えたら、ここを lib.fakeHash にして nix build .#kisui-terminal を回し、出た値に直す
-    npmDepsHash = "sha256-P8Ij6u7brjRmCGtrgHCBwda/wJgh4u99lUzXPv9goxQ=";
+    npmDepsHash = "sha256-+Tf4pxJ0cW8CrKw7xx49t4jkcU2sZ9bAOMPekR4sXIM=";
     # tauri の CLI は殻のビルドには使わない（cargo を直接回す）。バイナリの取得を避ける
     npmFlags = [ "--ignore-scripts" ];
     installPhase = ''
