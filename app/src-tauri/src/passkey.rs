@@ -44,8 +44,10 @@ const SCRIPT: &str = include_str!("browser_passkey.js");
 pub const HOST_FLAG: &str = "--native-messaging-host";
 /// 受け口につないでよい Firefox の拡張機能（#207 の拡張機能の `browser_specific_settings.gecko.id`）。
 pub const FIREFOX_EXTENSION_ID: &str = "kisui-terminal@mm1995tk.github.io";
-/// 受け口につないでよい Chrome の拡張機能の id。Chrome ウェブストアで id が決まったら足す（docs/browser-extension.md）。空の間は Chrome の登録のファイルを置かない。
-pub const CHROME_EXTENSION_IDS: &[&str] = &[];
+/// 受け口につないでよい Chrome の拡張機能の id（Chrome ウェブストアのアイテム ID。docs/browser-extension.md）。
+/// `extension/build.mjs` の `CHROME_PUBLIC_KEY` から計算した id と同じであること（`extension/extension.test.ts` が確かめる）。
+/// 空なら Chrome の登録のファイルを置かない。
+pub const CHROME_EXTENSION_IDS: &[&str] = &["ljfmfmfcicodilhhbmhkfkgjbcpphjel"];
 /// 取り決めの版（`sites` の答えに入れる）。
 pub const PROTOCOL_VERSION: u32 = 1;
 
@@ -1155,18 +1157,40 @@ mod tests {
         private_dir(&dir).unwrap();
         let sock = dir.join(SOCK);
         let exe = PathBuf::from("/opt/it's/kisui-terminal");
-        // 使っているブラウザ（印のフォルダがあるもの）にだけ置く
-        let firefox = if cfg!(target_os = "macos") {
-            fs::create_dir_all(home.join("Library/Application Support/Firefox")).unwrap();
-            home.join("Library/Application Support/Mozilla/NativeMessagingHosts")
+        // 使っているブラウザ（印のフォルダがあるもの）にだけ置く（Chrome と Firefox は使っていて、Chromium は使っていない）
+        let (chrome, chromium, firefox) = if cfg!(target_os = "macos") {
+            let a = home.join("Library/Application Support");
+            fs::create_dir_all(a.join("Google/Chrome")).unwrap();
+            fs::create_dir_all(a.join("Firefox")).unwrap();
+            (
+                a.join("Google/Chrome/NativeMessagingHosts"),
+                a.join("Chromium"),
+                a.join("Mozilla/NativeMessagingHosts"),
+            )
         } else {
+            fs::create_dir_all(home.join(".config/google-chrome")).unwrap();
             fs::create_dir_all(home.join(".mozilla")).unwrap();
-            home.join(".mozilla/native-messaging-hosts")
+            (
+                home.join(".config/google-chrome/NativeMessagingHosts"),
+                home.join(".config/chromium"),
+                home.join(".mozilla/native-messaging-hosts"),
+            )
         };
         let name = STABLE;
         let written = install(name, &dir, &sock, &exe, &home, None).unwrap();
+        let c = chrome.join(format!("{name}.json"));
         let m = firefox.join(format!("{name}.json"));
-        assert_eq!(written, vec![m.clone()]);
+        assert_eq!(written, vec![c.clone(), m.clone()]);
+        // Chrome には CHROME_EXTENSION_IDS の id だけをつないでよいと書く
+        let cv: Value = serde_json::from_slice(&fs::read(&c).unwrap()).unwrap();
+        let origins: Vec<Value> = CHROME_EXTENSION_IDS
+            .iter()
+            .map(|id| json!(format!("chrome-extension://{id}/")))
+            .collect();
+        assert!(!origins.is_empty());
+        assert_eq!(cv["allowed_origins"], Value::Array(origins));
+        assert_eq!(cv["allowed_extensions"], Value::Null);
+        assert!(!chromium.exists());
         let v: Value = serde_json::from_slice(&fs::read(&m).unwrap()).unwrap();
         assert_eq!(v["name"], name);
         assert_eq!(v["type"], "stdio");
@@ -1184,9 +1208,8 @@ mod tests {
         );
         let mode = fs::metadata(&script).unwrap().permissions().mode() & 0o777;
         assert_eq!(mode, 0o700);
-        // Chrome の id が決まるまで、Chrome には置かない
-        assert!(!home.join(".config/google-chrome").exists());
         uninstall(name, &home, None);
+        assert!(!c.exists());
         assert!(!m.exists());
         let _ = fs::remove_dir_all(&d);
     }
