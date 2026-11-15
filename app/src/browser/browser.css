@@ -232,6 +232,15 @@
 .newtab-tile[aria-current="true"] {
   outline: 1px solid var(--gh-accent);
 }
+.newtab-tile-head {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.newtab-tile-head .newtab-tile-name {
+  flex: 1;
+  min-width: 0;
+}
 .newtab-tile-name,
 .newtab-tile-url {
   overflow: hidden;

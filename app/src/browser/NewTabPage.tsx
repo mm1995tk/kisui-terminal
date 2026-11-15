@@ -64,8 +64,8 @@ function BookmarkTiles(props: {
               onMouseDown={(ev) => ev.preventDefault()}
               onClick={() => props.onOpen(b.url)}
             >
-              <span class="newtab-tile-name">
-                {b.title || b.url}
+              <span class="newtab-tile-head">
+                <span class="newtab-tile-name">{b.title || b.url}</span>
                 <Show when={b.source === "chrome"}>
                   <span class="bookmark-source">{T("bookmarks.chrome")}</span>
                 </Show>
