@@ -1,5 +1,6 @@
 // 画面のアプリの文（English）。キーは en.ts と ja.ts で同じでなければならない（i18n.test.ts）。
 // {名前} の形の穴は、T(key, { 名前: 値 }) で埋める。
+/** 画面のアプリの文の表（英語）。キーの集まり `Key` の元。 */
 export const en = {
   "leader.pane.focus.left": "Go to the pane on the left",
   "leader.pane.focus.down": "Go to the pane below",
@@ -468,4 +469,5 @@ export const en = {
   "boot.error": "Could not load the terminal component (coneko-term): {error}",
 } as const satisfies Record<string, string>;
 
+/** 表のキー。`T` に渡す。 */
 export type Key = keyof typeof en;

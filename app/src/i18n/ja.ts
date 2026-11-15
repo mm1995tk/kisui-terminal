@@ -2,6 +2,7 @@
 // {名前} の形の穴は、T(key, { 名前: 値 }) で埋める。
 import type { Key } from "./en.ts";
 
+/** 画面のアプリの文の表（日本語）。キーは `en` と同じ。 */
 export const ja: Record<Key, string> = {
   "leader.pane.focus.left": "左のペインへ",
   "leader.pane.focus.down": "下のペインへ",
