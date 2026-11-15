@@ -56,8 +56,21 @@ objc2-app-kit = { version = "=0.3.2", default-features = false, features = [
 objc2-foundation = { version = "=0.3.2", default-features = false, features = [
   "std",
   "NSArray",
+  "NSDictionary",
+  "NSError",
   "NSString",
 ] }
+# 内蔵ブラウザのタブの favicon（favicon.rs。#237）。ページの外の世界（WKContentWorld）でスクリプトを動かし、答えを受ける。
+# 版は Cargo.lock にすでにある（wry が使っている）ものに合わせる
+objc2-web-kit = { version = "=0.3.2", default-features = false, features = [
+  "std",
+  "objc2-app-kit",
+  "block2",
+  "WKWebView",
+  "WKContentWorld",
+  "WKFrameInfo",
+] }
+block2 = "=0.6.2"
 
 # クリップボードの履歴（clipboard_history.rs）。Linux は文字を arboard で読み、「秘密」の印を wl-clipboard-rs（Wayland）か
 # x11rb（X11）で確かめる。版は Cargo.lock にすでにある（tauri-plugin-clipboard-manager が使っている）ものに合わせる
@@ -68,7 +81,9 @@ x11rb = "=0.13.2"
 # 内蔵ブラウザ（browser.rs・download.rs）。ページの window.close() と、ダウンロードを WebKitGTK から直接受ける
 # （wry はどちらも殻に知らせない。wry のダウンロードの受け口は、Cookie を共有するタブの数だけ重なる）。
 # 版は Cargo.lock にすでにある（wry が使っている）ものに合わせる
-webkit2gtk = "=2.0.2"
+# favicon（favicon.rs。#237）は、ページの外の世界でスクリプトを動かして答えを受ける（call_async_javascript_function。WebKitGTK 2.40 から）
+webkit2gtk = { version = "=2.0.2", features = ["v2_40"] }
+javascriptcore-rs = "=1.1.2"
 
 [features]
 # release の画面は埋め込んだ Web を使う（これが無いと devUrl を見に行く）。cargo tauri build は自動で付ける

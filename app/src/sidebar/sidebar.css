@@ -471,6 +471,12 @@ div.band-main {
   text-align: center;
   color: var(--sidebar-muted);
 }
+/* ページの favicon（#237）。地球のアイコンと同じ幅に収める */
+.tab-favicon {
+  flex: none;
+  height: 14px;
+  object-fit: contain;
+}
 /* マシンの札（アイコン・つながりの丸・マシン名をマシンの色で）。名前が長ければ札を縮める */
 .tab-machine {
   flex: none;

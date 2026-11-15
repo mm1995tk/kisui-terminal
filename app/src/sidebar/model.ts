@@ -327,6 +327,8 @@ export interface TabItem {
   tip: string;
   /** シークレットのタブか */
   incognito: boolean;
+  /** ブラウザのタブのページの favicon（#237。PNG の data: URL）。無ければ地球のアイコン */
+  favicon?: string;
   /** ターミナルのタブのマシン（札に出す。ブラウザのタブは undefined） */
   machine?: { name: string; color: string; health: Health };
   /** ターミナルのタブのマシンとのつながり（ブラウザのタブは undefined）。"down" の行は薄く出す */
@@ -476,6 +478,7 @@ function browserItem(r: BrowserRef, ctx: RowContext): TabItem | undefined {
     git: "",
     tip: t.url,
     incognito: !!t.incognito,
+    ...(t.favicon ? { favicon: t.favicon } : {}),
     closable: true,
   };
 }

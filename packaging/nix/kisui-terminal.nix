@@ -35,6 +35,8 @@ let
       ../../extension
       # startupBackground.test.ts が窓の背景色を読む
       ../../app/src-tauri/tauri.conf.json
+      # browser/favicon.test.ts が、殻がページで動かす favicon のスクリプトの候補の順を確かめる（#237）
+      ../../app/src-tauri/src/browser_favicon.js
     ];
   };
   shellSrc = fs.toSource {

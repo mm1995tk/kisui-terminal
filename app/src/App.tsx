@@ -223,6 +223,7 @@ import {
   onTabPage,
   onTabPopup,
   onTabTitle,
+  onTabFavicon,
   openDownload,
   openTabDevtools,
   resolveTabUrl,
@@ -2167,7 +2168,13 @@ function Workbench(props: {
           // 中継で開いているタブは、元の URL に戻して覚える（入力欄にも元の URL を出す）
           const url = unrelay(e.url, relays.get(e.tab));
           if (isOpenableUrl(url)) setTabs((t) => updateTab(t, e.tab, { url }));
+          // 読み込み中は地球のアイコン（#237。読み込みが終われば、殻が新しいページの favicon を知らせる）
+          if (e.loading)
+            setTabs((t) => updateTab(t, e.tab, { favicon: undefined }));
         }),
+        await onTabFavicon((e) =>
+          setTabs((t) => updateTab(t, e.tab, { favicon: e.icon || undefined })),
+        ),
         await onTabTitle((e) =>
           setTabs((t) => updateTab(t, e.tab, { title: e.title })),
         ),

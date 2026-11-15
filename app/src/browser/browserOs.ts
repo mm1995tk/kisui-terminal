@@ -131,6 +131,18 @@ export function onTabTitle(
   );
 }
 
+/**
+ * ページの favicon を読んだ（#237）。icon は 32×32 の PNG の data: URL（殻が形を確かめたもの）。取れなければ ""。
+ * ページの読み込みが始まったら、画面は前の favicon を消す（殻は前のページの答えを捨てる）。
+ */
+export function onTabFavicon(
+  h: (e: { tab: string; icon: string }) => void,
+): Promise<() => void> {
+  return listen<{ tab: string; icon: string }>("browser-favicon", (e) =>
+    h(e.payload),
+  );
+}
+
 /** ページにキーがあるときに、リーダーか近道が押された（殻がキーを kisui-terminal の画面に移してから届く）。 */
 export function onTabKey(
   h: (e: KeyLike & { tab: string }) => void,

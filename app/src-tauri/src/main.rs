@@ -9,6 +9,7 @@ mod clipboard_popup;
 mod config;
 mod connection;
 mod download;
+mod favicon;
 mod install;
 mod locate;
 mod mascot;

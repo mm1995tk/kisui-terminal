@@ -607,7 +607,7 @@ describe("gwsRows", () => {
     assert.equal(r.band.dir, "a1");
   });
 
-  it("ターミナルのタブとブラウザのタブを、開いた順の 1 つの並びにして出す。切れているマシンのタブは薄く出す", () => {
+  it("ターミナルのタブとブラウザのタブを、開いた順の 1 つの並びにして出す。切れているマシンのタブは薄く出す。ブラウザのタブは favicon も出す", () => {
     const state: GwsState = {
       list: [
         {
@@ -637,6 +637,7 @@ describe("gwsRows", () => {
             workspace: "a1",
             url: "https://x.example/p",
             title: "題",
+            favicon: "data:image/png;base64,AAAA",
           },
         ],
       ]),
@@ -647,11 +648,17 @@ describe("gwsRows", () => {
     });
     assert.equal(r.band.focused, true);
     assert.deepEqual(
-      r.tabs.items.map((i) => [i.kind, i.title, i.path, i.health]),
+      r.tabs.items.map((i) => [i.kind, i.title, i.path, i.health, i.favicon]),
       [
-        ["term", "a1", "/a1", "down"],
-        ["browser", "メモ", "https://x.example/p", undefined],
-        ["term", "古い名前", "", "up"],
+        ["term", "a1", "/a1", "down", undefined],
+        [
+          "browser",
+          "メモ",
+          "https://x.example/p",
+          undefined,
+          "data:image/png;base64,AAAA",
+        ],
+        ["term", "古い名前", "", "up", undefined],
       ],
     );
     assert.equal(r.tabs.shown, JSON.stringify(["b", "t1"]));
