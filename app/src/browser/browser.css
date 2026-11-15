@@ -27,6 +27,16 @@
 .bookmark-rows {
   max-height: 50vh;
 }
+/* Chrome から読んだブックマークの札（#239） */
+.bookmark-source {
+  flex: none;
+  margin-left: 0.5em;
+  padding: 0 0.4em;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  font-size: 0.75em;
+  opacity: 0.6;
+}
 .bookmark-url {
   flex: 0 1 auto;
   max-width: 45%;
@@ -221,6 +231,15 @@
 }
 .newtab-tile[aria-current="true"] {
   outline: 1px solid var(--gh-accent);
+}
+.newtab-tile-head {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.newtab-tile-head .newtab-tile-name {
+  flex: 1;
+  min-width: 0;
 }
 .newtab-tile-name,
 .newtab-tile-url {

@@ -495,17 +495,21 @@ export const ja: Record<Key, string> = {
     "[シェルが終わりました。Enter で新しいシェルを開きます]",
   "toast.copied": "コピーしました",
   "toast.bookmarked": "ブックマークに足しました",
+  "toast.bookmarks.chromeKept":
+    "Chrome のブックマークはここでは消せません（Chrome で消してください）",
   "bookmarks.title": "ブックマーク",
   "bookmarks.filter": "ブックマークを絞り込む",
   "bookmarks.filterPlaceholder": "題か URL で絞り込む",
   "bookmarks.hint":
     "↑↓（Ctrl+J/K）・Enter で新しいタブに開く・Ctrl+D で消す・? でキー",
   "bookmarks.list": "ブックマーク",
+  "bookmarks.chrome": "Chrome",
   "bookmarks.empty.loading": "読み込んでいます…",
   "bookmarks.empty.failed": "ブックマークを読めませんでした",
   "bookmarks.empty.none":
     "ブックマークはまだありません。見ているページを {leader} o b で足せます。",
   "bookmarks.empty.noMatch": "当てはまるものがありません",
+  "err.bookmarks.read": "kisui-terminal のブックマークを読めませんでした",
   "err.bookmarks.save": "ブックマークを保存できませんでした",
   "err.devtools": "DevTools を開けませんでした",
   "find.label": "ページ内を検索",

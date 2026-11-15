@@ -199,7 +199,9 @@ import {
 import { BookmarkDialog } from "./browser/BookmarkDialog.tsx";
 import {
   addBookmark,
+  chromeFromLoaded,
   fromLoaded as bookmarksFromLoaded,
+  mergeBookmarks,
   removeBookmark,
   type Bookmark,
 } from "./browser/bookmarks.ts";
@@ -209,6 +211,7 @@ import {
   closeTabView,
   goTab,
   loadBookmarks,
+  loadChromeBookmarks,
   loadTabs,
   navTab,
   onDownload,
@@ -1914,8 +1917,33 @@ function Workbench(props: {
   /** ブックマーク（新しく足したものが先）。読み終えるまでは undefined */
   const [bookmarks, setBookmarks] = createSignal<Bookmark[] | undefined>();
   const [bookmarksFailed, setBookmarksFailed] = createSignal(false);
+  /** Chrome のブックマーク（#239。読むだけ。無い・読めないときは空） */
+  const [chromeBookmarks, setChromeBookmarks] = createSignal<
+    Bookmark[] | undefined
+  >();
+  /** 一覧とタブのページに出す、kisui-terminal 自身と Chrome を合わせたブックマーク */
+  const allBookmarks = createMemo(() =>
+    mergeBookmarks(bookmarks(), chromeBookmarks()),
+  );
   /** ブックマークの一覧のダイアログ（リーダーの o B）を出しているか */
   const [bookmarkDialog, setBookmarkDialog] = createSignal(false);
+  /** Chrome のブックマークを読み直す（#239。Chrome で足し・消しした分が反映される）。読めなければ前のまま（無ければ空）。 */
+  function readChromeBookmarks() {
+    loadChromeBookmarks().then(
+      (v) => {
+        const first = untrack(chromeBookmarks) === undefined;
+        const list = chromeFromLoaded(v);
+        setChromeBookmarks(list);
+        // 自分のものの読み込みが先に失敗していたら、Chrome のものが届いたここで知らせる（読み終わる順に依らないように）
+        if (first && list.length > 0 && untrack(bookmarksFailed))
+          showToast(T("err.bookmarks.read"));
+      },
+      (e: unknown) => {
+        console.warn("chrome bookmarks:", e);
+        if (untrack(chromeBookmarks) === undefined) setChromeBookmarks([]);
+      },
+    );
+  }
   /** 覚えているブックマークを読む（一覧を開くたびと、初めて足すとき。読めなければ前のまま）。 */
   function readBookmarks(): Promise<Bookmark[]> {
     return loadBookmarks().then(
@@ -1928,6 +1956,9 @@ function Workbench(props: {
       (e: unknown) => {
         console.warn("bookmarks:", e);
         if (untrack(bookmarks) === undefined) setBookmarksFailed(true);
+        // 一覧には Chrome のものが出るので、自分のものが読めなかったことは別に知らせる（#239）
+        if (untrack(chromeBookmarks)?.length)
+          showToast(T("err.bookmarks.read"));
         throw e;
       },
     );
@@ -1990,7 +2021,10 @@ function Workbench(props: {
   // 新しいタブのページ（#238）を出すたびに、ブックマークを読み直す（読めなければ、前に読んだものを出す）
   createEffect(
     on(newTabPageId, (id) => {
-      if (id !== undefined) readBookmarks().catch(() => {});
+      if (id !== undefined) {
+        readChromeBookmarks();
+        readBookmarks().catch(() => {});
+      }
     }),
   );
 
@@ -2242,6 +2276,7 @@ function Workbench(props: {
       case "browser.bookmarks":
         setBookmarkDialog(true);
         // 開くたびに読み直す（読めなければ、前に読んだものを出す）
+        readChromeBookmarks();
         readBookmarks().catch(() => {});
         break;
       case "browser.find": {
@@ -3003,8 +3038,8 @@ function Workbench(props: {
               {(id) => (
                 <NewTabPage
                   incognito={!!shownBrowserTab()?.incognito}
-                  list={bookmarks()}
-                  failed={bookmarksFailed()}
+                  list={allBookmarks()}
+                  failed={bookmarksFailed() && !chromeBookmarks()?.length}
                   onOpen={(url) => submitUrlBar(id, url)}
                   focusRef={(f) => (focusUrlBar = f)}
                 />
@@ -3231,12 +3266,15 @@ function Workbench(props: {
       </Show>
       <Show when={bookmarkDialog()}>
         <BookmarkDialog
-          list={bookmarks()}
-          failed={bookmarksFailed()}
+          list={allBookmarks()}
+          failed={bookmarksFailed() && !chromeBookmarks()?.length}
           onOpen={openBookmark}
-          onDelete={(b) =>
-            changeBookmarks(removeBookmark(bookmarks() ?? [], b.url))
-          }
+          onDelete={(b) => {
+            // Chrome のブックマークは消せない（読むだけ。#239）
+            if (b.source === "chrome")
+              showToast(T("toast.bookmarks.chromeKept"));
+            else changeBookmarks(removeBookmark(bookmarks() ?? [], b.url));
+          }}
           onCancel={() => {
             setBookmarkDialog(false);
             focusTerminal();

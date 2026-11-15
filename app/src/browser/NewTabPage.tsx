@@ -15,7 +15,7 @@ import {
 
 import { leaderKeyName } from "../commands.ts";
 import { IS_MAC } from "../guiKeys.ts";
-import { filterBookmarks, type Bookmark } from "./bookmarks.ts";
+import { bookmarkTitle, filterBookmarks, type Bookmark } from "./bookmarks.ts";
 import { moveSelection, newTabKey, type NewTabKey } from "./newTab.ts";
 import { urlOrSearch } from "./tabs.ts";
 import "./browser.css";
@@ -59,12 +59,17 @@ function BookmarkTiles(props: {
               type="button"
               class="newtab-tile"
               aria-current={i() === props.selected}
-              title={b.url}
+              title={bookmarkTitle(b)}
               // 検索窓からキーを奪わない（押すと開くので、すぐ別のページに替わる）
               onMouseDown={(ev) => ev.preventDefault()}
               onClick={() => props.onOpen(b.url)}
             >
-              <span class="newtab-tile-name">{b.title || b.url}</span>
+              <span class="newtab-tile-head">
+                <span class="newtab-tile-name">{b.title || b.url}</span>
+                <Show when={b.source === "chrome"}>
+                  <span class="bookmark-source">{T("bookmarks.chrome")}</span>
+                </Show>
+              </span>
               <span class="newtab-tile-url">{b.url}</span>
             </button>
           </li>
