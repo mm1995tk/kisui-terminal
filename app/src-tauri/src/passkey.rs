@@ -1181,12 +1181,14 @@ mod tests {
         let c = chrome.join(format!("{name}.json"));
         let m = firefox.join(format!("{name}.json"));
         assert_eq!(written, vec![c.clone(), m.clone()]);
-        // Chrome にはストアの id だけをつないでよいと書く
+        // Chrome には CHROME_EXTENSION_IDS の id だけをつないでよいと書く
         let cv: Value = serde_json::from_slice(&fs::read(&c).unwrap()).unwrap();
-        assert_eq!(
-            cv["allowed_origins"],
-            json!(["chrome-extension://ljfmfmfcicodilhhbmhkfkgjbcpphjel/"])
-        );
+        let origins: Vec<Value> = CHROME_EXTENSION_IDS
+            .iter()
+            .map(|id| json!(format!("chrome-extension://{id}/")))
+            .collect();
+        assert!(!origins.is_empty());
+        assert_eq!(cv["allowed_origins"], Value::Array(origins));
         assert_eq!(cv["allowed_extensions"], Value::Null);
         assert!(!chromium.exists());
         let v: Value = serde_json::from_slice(&fs::read(&m).unwrap()).unwrap();
