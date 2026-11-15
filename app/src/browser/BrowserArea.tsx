@@ -1,7 +1,7 @@
 // 内蔵ブラウザのタブ（#202）を出す場所。グリッドの場所すべてを覆い、今のワークスペースで選んでいるタブのページを出す。
 // ページそのものは、この場所に Tauri の子の webview を重ねて出す（browser.rs。外のサイトの多くは iframe に出せないため）。
 // 子の webview は画面（DOM）より上に重なるので、ダイアログを出している間は隠し、お知らせ・リーダーの案内などが重なるときは
-// ページの下の端を上げる（overlay.ts）。macOS は、お知らせ・リーダーの案内・メニューをページを縮めずに重ねる
+// ページの下の端を上げる（overlay.ts）。macOS は、リーダーの案内・メニューをページを縮めずに重ねる
 // （画面をページより前に出し、ページはすりガラス越しに見える。操作はできない。殻の browser_layer）。
 // 子の webview はタブごとに 1 つで、初めて出すときに作る。ほかのワークスペースに移る・グリッドに戻るときは隠すだけで、
 // ページはそのまま残す（戻ったときに、読んでいた所から続けられる）。タブを閉じたら壊す。
@@ -38,14 +38,13 @@ import { isNewTab } from "./newTab.ts";
 import type { BrowserTab } from "./tabs.ts";
 import "./browser.css";
 
-/** ページを縮めて避けさせるもの（ページ内検索の欄とトースト。data-overlay-shrink を付ける） */
-const SHRINK_SELECTOR = "[data-overlay-shrink]";
+/** ページを縮めて避けさせるもの（右下のお知らせ・ページ内検索の欄・トースト。お知らせは閉じるまで残り、後ろの画面を触れたままにするので、重ねない。ほかは data-overlay-shrink を付ける） */
+const SHRINK_SELECTOR = ".card-notices > *, [data-overlay-shrink]";
 /**
- * ページの上に浮かべるもの（右下のお知らせ・リーダーの案内とキャラクター・右クリックのメニュー）。
+ * ページの上に浮かべるもの（リーダーの案内とキャラクター・右クリックのメニュー）。
  * macOS はページを縮めず、画面をページより前に出して重ねる。ほかの OS は、縮めて避ける
  */
-const FLOAT_SELECTOR =
-  ".card-notices > *, [data-overlay], .machine-menu, [role='menu']";
+const FLOAT_SELECTOR = "[data-overlay], .machine-menu, [role='menu']";
 
 /** 子の webview 1 つの様子。 */
 interface View {
@@ -107,8 +106,10 @@ export function BrowserArea(props: {
 
   /** ページの上に浮かべるものを、縮めずに重ねられるか（macOS。殻が答える）。分かるまでは false（縮めて避ける） */
   let native = false;
-  /** 今、前に出している層（`o:<タブ>` は画面、`p:<タブ>` はページ）。殻に頼んでいる間・出していなければ null */
-  let layer: string | null = null;
+  /** 今、前に出している層（画面か、そのタブのページか）。殻に頼んでいる間・出していなければ null */
+  let layer: { tab: string; front: "ui" | "page" } | null = null;
+  /** 見回り（tick）が最後に見た、浮かべるものがページに重なっているか（重なっている間は、ページにキーを向けない） */
+  let floatingNow = false;
   let layerBusy = false;
   /** releaseLayer のたびに増やす（頼んでいる間に放した古い答えを捨てる） */
   let layerGen = 0;
@@ -149,14 +150,15 @@ export function BrowserArea(props: {
    * （先に替えると、切り替わるまでの間、ページの場所が空いて見える）。
    */
   function setLayer(id: string, floating: boolean) {
-    const want = `${floating ? "o" : "p"}:${id}`;
-    if (!native || layerBusy || layer === want) return;
+    const front = floating ? "ui" : "page";
+    if (!native || layerBusy || (layer?.tab === id && layer.front === front))
+      return;
     layerBusy = true;
     const gen = layerGen;
     layerTab(id, floating)
       .then(() => {
         if (gen !== layerGen) return;
-        layer = want;
+        layer = { tab: id, front };
         setFrost(floating);
         // 画面を前に出した（キーも画面に向いた）あと、ページを前に戻すとき、画面のどこにもキーが無ければ、ページに戻す
         if (!floating && wantFocus === null && nothingFocused()) wantFocus = id;
@@ -169,6 +171,7 @@ export function BrowserArea(props: {
   function releaseLayer() {
     if (!native) return;
     layer = null;
+    floatingNow = false;
     layerGen++;
     setFrost(false);
   }
@@ -211,6 +214,8 @@ export function BrowserArea(props: {
       return;
     }
     v.state = "open";
+    // 作り直した webview は前に来る。層を決め直させる
+    layer = null;
     v.shown = at;
     // 覚えていた表示の大きさ（#205）。作っている間に変えたものも、ここで当てる
     const zoom = untrack(() => props.tabs.find((t) => t.id === tab.id)?.zoom);
@@ -254,10 +259,10 @@ export function BrowserArea(props: {
     const id = untrack(() => props.shown?.id);
     if (!id) return;
     const v = views.get(id);
-    if (v?.state === "open" && v.shown !== null) {
+    if (v?.state === "open" && v.shown !== null && !floatingNow) {
       wantFocus = null;
       focusNow(id);
-    } else wantFocus = id;
+    } else wantFocus = id; // 重ねている間は、重なりが消えて、見回りがページを前に戻してから向ける
   });
 
   // 位置が変わるのは、大きさの変化のほかに、サイドバーの幅の変更・お知らせの出し入れなどもある。
@@ -282,6 +287,7 @@ export function BrowserArea(props: {
         return;
       }
       const { b, floating } = bounds();
+      floatingNow = floating;
       setHidden(b === null);
       const v = views.get(tab.id);
       // 開けなかったタブは、URL を書き換えたら（o u）作り直す
