@@ -9,7 +9,16 @@
 //!   capability はメインの webview（`main`）にだけ与える（capabilities/default.json は `webviews: ["main"]`。
 //!   `windows: ["main"]` にすると、同じ窓に置く子の webview にも当たるため）。
 //! - そのうえで、ここの命令は呼んだ webview が `main` かも確かめる（`from_main`）。
-//! - 子の webview の遷移は http・https・about だけ許す。新しい窓（`target=_blank` など）は開かず、同じタブで開く。
+//! - 子の webview の遷移は http・https・about だけ許す。
+//!
+//! ページが開く新しい窓（`target=_blank` のリンク・`window.open`。#204）は、同じワークスペースの新しいタブにする（`open_popup`）。
+//! 開いた元のページとの連絡（`window.opener`）を保つには、WebKit が求める形（Linux は元の webview に関係付けた webview、
+//! macOS は WebKit が渡す設定で作った webview）で作り、`NewWindowResponse::Create` で返す必要がある。tauri はそれを
+//! 「窓の最初の webview」でしか受けないので、隠した窓に子の webview として作って返し、そのあとメイン窓に移して（reparent）
+//! 窓を壊す。新しいタブは、開いた元のタブと同じデータ（ログイン）を使う（シークレットのタブから開いたものはシークレット）。
+//! ページが自分で閉じたら（`window.close()`）、画面に知らせ、画面はタブを閉じて元のタブに戻る。
+//! Linux は WebKitGTK の close を直接受け、macOS はページに入れたスクリプト（browser_close.js）が `kisui-close:` の URL で知らせる。
+//! ダウンロードは download.rs。
 //!
 //! ページにキーがある間も、リーダーと近道を効かせる。キーは IPC では受けない。ページに入れるスクリプト（browser_keys.js）が、
 //! 当たるキーを `kisui-key:` の URL にして window.open で開こうとし、ここの on_new_window が受けて画面に渡す（開かずに断る）。
@@ -19,18 +28,20 @@
 //!
 //! ログイン（Cookie などのページのデータ）は、すべてのタブで 1 つを共有し、ディスクに残す。Linux はデータのフォルダの
 //! `browser/` に置く。macOS は WKWebView の既定の置き場（`~/Library/WebKit/<アプリの id>/` など。場所は OS が決める）を使う。
-//! 開いていたタブ（ワークスペースと URL）は、データのフォルダの `browser-tabs.json` に覚える（画面が書く）。
+//! シークレットのタブ（#204）は、タブごとに別の、ディスクに残さないデータを使う（tauri の `incognito`）。パスキーのスクリプトは入れない。
+//! 開いていたタブ（ワークスペースと URL）は、データのフォルダの `browser-tabs.json` に覚える（画面が書く。シークレットのタブは書かない）。
 
+use std::collections::HashMap;
 use std::fs;
 use std::io::{ErrorKind, Read, Write};
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use serde::{Deserialize, Serialize};
-use tauri::webview::{NewWindowResponse, PageLoadEvent};
+use tauri::webview::{NewWindowFeatures, NewWindowResponse, PageLoadEvent};
 use tauri::{
-    AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, Url, Webview, WebviewBuilder,
+    AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, State, Url, Webview, WebviewBuilder,
     WebviewUrl,
 };
 
@@ -54,11 +65,25 @@ const FORMAT_VERSION: u32 = 1;
 const MAX_TABS: usize = 500;
 /// 送ってよいキーの数の上限（リーダーと近道の数より十分多く）。
 const MAX_KEYS: usize = 64;
+/// 1 つのタブが新しい窓を開ける数の上限（POPUP_WINDOW の間に）。ページが window.open を繰り返しても、タブを増やし続けない
+/// （macOS の WKWebView は、ユーザーの操作の無い window.open も既定で通す）。
+const MAX_POPUPS: usize = 5;
+const POPUP_WINDOW: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// ページが自分を閉じたことを殻に知らせる URL の scheme（macOS だけ。browser_close.js）。
+const CLOSE_SCHEME: &str = "kisui-close";
+/// ページが自分を閉じたら知らせるスクリプト（macOS だけ入れる）。
+#[cfg(target_os = "macos")]
+const CLOSE_SCRIPT: &str = include_str!("browser_close.js");
 
 /// 画面に知らせるイベント。
 const EVENT_KEY: &str = "browser-key";
 const EVENT_PAGE: &str = "browser-page";
 const EVENT_TITLE: &str = "browser-title";
+/// ページが新しい窓を開いた（新しいタブにした）。
+const EVENT_POPUP: &str = "browser-popup";
+/// ページが自分を閉じた。
+const EVENT_CLOSED: &str = "browser-closed";
 
 /// ページで受けるキー 1 つ（keyspec.ts の KeySpec と同じ形）。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -97,6 +122,112 @@ struct PageEvent {
 struct TitleEvent {
     tab: String,
     title: String,
+}
+
+#[derive(Serialize, Clone)]
+struct PopupEvent {
+    /// 開いた元のタブ
+    opener: String,
+    /// 新しいタブ（殻が付けた id。webview はもうある）
+    tab: String,
+    url: String,
+}
+
+#[derive(Serialize, Clone)]
+struct ClosedEvent {
+    tab: String,
+}
+
+/// タブ 1 つについて、殻が覚えること（ページが開いた新しい窓のタブに引き継ぐ）。
+#[derive(Debug, Clone)]
+struct TabInfo {
+    keys: Vec<KeySpec>,
+    incognito: bool,
+    /// ページのスクリプトが殻に知らせる URL の nonce。ページが開いた新しい窓のタブは、開いた元のタブと同じものを使う
+    /// （macOS は、ページに入れるスクリプトの入れ物を開いた元と共有するため。`tab_builder`）
+    nonce: String,
+    /// 新しい窓の数を数える元のタブ（ふつうのタブは自分。ページが開いた新しい窓のタブは、開いた元の root を引き継ぐ。
+    /// 新しいタブがそれぞれ自分の上限を持つと、開いた窓がまた開く、を繰り返して増え続けるため）
+    root: String,
+}
+
+/// 開いているタブ（id → 覚えること）。
+#[derive(Default)]
+pub struct Tabs {
+    tabs: Mutex<HashMap<String, TabInfo>>,
+    /// 元のタブ（TabInfo の root）→ その下のタブが新しい窓を開いた時刻（POPUP_WINDOW より前のものは捨てる）
+    popups: Mutex<HashMap<String, Vec<Instant>>>,
+}
+
+impl Tabs {
+    fn get(&self, tab: &str) -> Option<TabInfo> {
+        self.tabs
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(tab)
+            .cloned()
+    }
+
+    fn set(&self, tab: &str, info: TabInfo) {
+        self.tabs
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(tab.to_string(), info);
+    }
+
+    /// 元のタブ root の下のタブが、今 (now) 新しい窓を開いてよいか。よければ数える。
+    fn allow_popup(&self, root: &str, now: Instant) -> bool {
+        let mut m = self.popups.lock().unwrap_or_else(|e| e.into_inner());
+        let ok = allow_popup(m.entry(root.to_string()).or_default(), now);
+        // 時刻が残っていない元のタブは忘れる（閉じたタブの分が積もらないように）
+        m.retain(|_, t| {
+            t.retain(|x| now.saturating_duration_since(*x) < POPUP_WINDOW);
+            !t.is_empty()
+        });
+        ok
+    }
+
+    fn remove(&self, tab: &str) {
+        self.tabs
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(tab);
+    }
+}
+
+/// 新しい窓を開いた時刻の並び times に、今 (now) を足してよいか（POPUP_WINDOW の間に MAX_POPUPS まで）。よければ足す。
+fn allow_popup(times: &mut Vec<Instant>, now: Instant) -> bool {
+    times.retain(|t| now.saturating_duration_since(*t) < POPUP_WINDOW);
+    if times.len() >= MAX_POPUPS {
+        return false;
+    }
+    times.push(now);
+    true
+}
+
+/// タブのページのデータ（ログイン）をどこに置くか。
+enum Data {
+    /// すべてのタブで共有し、ディスクに残す
+    Shared,
+    /// このタブだけの、ディスクに残さないデータ（シークレットのタブ）
+    Incognito,
+    /// ページが開いた新しい窓。開いた元の webview と同じデータ（WebKit が決める）。
+    /// incognito は元のタブがシークレットか（パスキーのスクリプトを入れるかを決める）
+    Opener {
+        features: NewWindowFeatures,
+        incognito: bool,
+    },
+}
+
+impl Data {
+    /// シークレットのデータか（ページが開いた新しい窓は、開いた元のタブがシークレットか）。
+    fn incognito(&self) -> bool {
+        match self {
+            Data::Shared => false,
+            Data::Incognito => true,
+            Data::Opener { incognito, .. } => *incognito,
+        }
+    }
 }
 
 /// 覚えるタブ 1 つ。
@@ -247,17 +378,42 @@ fn may_navigate(u: &Url) -> bool {
     matches!(u.scheme(), "http" | "https" | "about")
 }
 
-/// 新しい窓として開こうとした URL を、代わりに同じタブで開くか（http・https だけ。新しい窓は #204）。
-fn opens_in_same_tab(u: &Url) -> bool {
-    matches!(u.scheme(), "http" | "https")
+/// ページが新しい窓として開こうとした URL を、新しいタブで開くか（http・https と about:blank。
+/// OAuth の小窓などは、about:blank で開いてから行き先に移ることがある）。
+fn opens_in_new_tab(u: &Url) -> bool {
+    matches!(u.scheme(), "http" | "https") || u.as_str() == "about:blank"
 }
 
-/// 子の webview が新しい窓を開こうとした（`target=_blank`・`window.open`）。どれも開かずに断る。
+/// ページのスクリプトが知らせた「ページが自分を閉じた」（`kisui-close:`。nonce が合うもの）か（macOS。browser_close.js）。
+fn is_close_request(u: &Url, nonce: &str) -> bool {
+    u.scheme() == CLOSE_SCHEME
+        && !nonce.is_empty()
+        && u.query_pairs().any(|(k, v)| k == "n" && v == nonce)
+}
+
+/// ページが自分を閉じたことを画面に知らせる（画面はタブを閉じ、元のタブに戻る）。
+fn tell_closed(app: &AppHandle, tab: &str) {
+    let _ = app.emit(
+        EVENT_CLOSED,
+        ClosedEvent {
+            tab: tab.to_string(),
+        },
+    );
+}
+
+/// 子の webview が新しい窓を開こうとした（`target=_blank`・`window.open`）。
 /// ページのスクリプトが知らせたキー（`kisui-key:`。nonce が合うもの）なら、画面に知らせてからキーをメインの webview に移す。
 /// ページのスクリプトが知らせたパスキーの求め（`kisui-passkey:`。nonce が合うもの）なら、外のブラウザに移る（passkey.rs）。
-/// http・https なら、同じタブで開く。
-/// この中は webview の処理の最中なので、知らせる・移す・開くは別のスレッドで行う。
-fn on_new_window(app: &AppHandle, tab: &str, nonce: &str, u: Url) -> NewWindowResponse<tauri::Wry> {
+/// ページのスクリプトが知らせた「閉じた」（`kisui-close:`。macOS）なら、画面に知らせる。どれも開かずに断る。
+/// http・https・about:blank なら、新しいタブにする（`open_popup`）。作れなければ、http・https は同じタブで開く。
+/// この中は webview の処理の最中なので、知らせる・移す・開くは別のスレッドで行う（新しいタブを作るのは、ここで行う）。
+fn on_new_window(
+    app: &AppHandle,
+    tab: &str,
+    nonce: &str,
+    u: Url,
+    features: NewWindowFeatures,
+) -> NewWindowResponse<tauri::Wry> {
     let app = app.clone();
     if let Some(ev) = parse_key(&u, nonce, tab) {
         std::thread::spawn(move || {
@@ -279,42 +435,186 @@ fn on_new_window(app: &AppHandle, tab: &str, nonce: &str, u: Url) -> NewWindowRe
                 passkey::open_external(p.browser(), &to);
             }
         });
-    } else if opens_in_same_tab(&u) {
-        let lbl = label(tab);
-        std::thread::spawn(move || {
-            if let Some(v) = app.get_webview(&lbl) {
-                let _ = v.navigate(u);
+    } else if is_close_request(&u, nonce) {
+        let tab = tab.to_string();
+        std::thread::spawn(move || tell_closed(&app, &tab));
+    } else if opens_in_new_tab(&u) {
+        match open_popup(&app, tab, &u, features) {
+            Ok(r) => return r,
+            Err(e) => {
+                eprintln!("kisui-terminal: cannot open a new tab for {u}: {e}");
+                if u.scheme() != "about" {
+                    let lbl = label(tab);
+                    std::thread::spawn(move || {
+                        if let Some(v) = app.get_webview(&lbl) {
+                            let _ = v.navigate(u);
+                        }
+                    });
+                }
             }
-        });
+        }
     }
     NewWindowResponse::Deny
 }
 
-/// タブの子の webview を組む。ページにはキーのスクリプトを入れ、遷移・新しい窓・読み込み・題の変化を受ける。
-fn tab_builder(
+/// ページが開こうとした新しい窓を、新しいタブ（子の webview）として作り、WebKit に返す（`window.opener` を保つ）。
+/// tauri の `Create` は窓の最初の webview しか受けないので、隠した窓（ラベルはタブと同じ）に作って返し、
+/// 返したあと（別のスレッドで）メイン窓に移して窓を壊し、画面に知らせる（画面は、開いた元のタブのワークスペースに足す）。
+/// webview の処理の最中（メインスレッド）に呼ぶ。
+fn open_popup(
+    app: &AppHandle,
+    opener: &str,
+    u: &Url,
+    features: NewWindowFeatures,
+) -> Result<NewWindowResponse<tauri::Wry>, String> {
+    let tabs = app.try_state::<Tabs>().ok_or("no tabs")?;
+    let info = tabs.get(opener).ok_or("unknown tab")?;
+    if !tabs.allow_popup(&info.root, Instant::now()) {
+        // 同じタブで開き直すこともしない（繰り返し開くページに、今のページを捨てさせない）
+        eprintln!("kisui-terminal: tab {opener} opened too many windows; ignoring {u}");
+        return Ok(NewWindowResponse::Deny);
+    }
+    let main = app.get_window("main").ok_or("no main window")?;
+    let id = format!("w{}", &new_nonce()?[..16]);
+    let lbl = label(&id);
+    let holder = tauri::window::WindowBuilder::new(app, &lbl)
+        .visible(false)
+        .focused(false)
+        .skip_taskbar(true)
+        .build()
+        .map_err(|e| e.to_string())?;
+    let builder = tab_builder(
+        app,
+        &id,
+        Url::parse("about:blank").map_err(|e| e.to_string())?,
+        info.nonce.clone(),
+        &info.keys,
+        Data::Opener {
+            features,
+            incognito: info.incognito,
+        },
+    );
+    let v = match holder.add_child(
+        builder,
+        LogicalPosition::new(0.0, 0.0),
+        LogicalSize::new(800.0, 600.0),
+    ) {
+        Ok(v) => v,
+        Err(e) => {
+            let _ = holder.destroy();
+            return Err(e.to_string());
+        }
+    };
+    let Some(window) = app.get_webview_window(&lbl) else {
+        let _ = v.close();
+        let _ = holder.destroy();
+        return Err("cannot find the new webview".into());
+    };
+    // 開いた元と同じ root で数える
+    tabs.set(&id, info);
+    watch_native(app, &v, &id);
+    let (app, opener, url) = (app.clone(), opener.to_string(), u.to_string());
+    std::thread::spawn(move || {
+        // WebKit が webview を受け取ってから（この関数から戻ってから）移す
+        if let Err(e) = v.reparent(&main) {
+            eprintln!("kisui-terminal: cannot move the new tab into the window: {e}");
+            if let Some(t) = app.try_state::<Tabs>() {
+                t.remove(&id);
+            }
+            let _ = v.close();
+            let _ = holder.destroy();
+            return;
+        }
+        let _ = v.hide();
+        let _ = holder.destroy();
+        let _ = app.emit(
+            EVENT_POPUP,
+            PopupEvent {
+                opener,
+                tab: id,
+                url,
+            },
+        );
+    });
+    Ok(NewWindowResponse::Create { window })
+}
+
+/// Linux：WebKitGTK から直接受けるもの（ページの window.close() と、ダウンロード）を足す。
+/// wry は window.close() で webview を壊すだけで殻に知らせないので、画面に知らせてタブを閉じさせる。
+#[cfg(target_os = "linux")]
+fn watch_native(app: &AppHandle, v: &Webview, tab: &str) {
+    let (app, tab) = (app.clone(), tab.to_string());
+    let _ = v.with_webview(move |pv| {
+        use webkit2gtk::WebViewExt;
+        let w = pv.inner();
+        if let Some(ctx) = w.context() {
+            crate::download::watch(&app, &ctx);
+        }
+        w.connect_close(move |_| tell_closed(&app, &tab));
+    });
+}
+
+#[cfg(not(target_os = "linux"))]
+fn watch_native(_: &AppHandle, _: &Webview, _: &str) {}
+
+/// ページに入れるスクリプト 1 つ。
+struct PageScript {
+    /// すべてのフレームに入れるか（false なら上のフレームだけ）
+    all_frames: bool,
+    source: String,
+}
+
+/// タブのページに入れるスクリプト（キー・パスキー・macOS の `window.close`）。
+fn page_scripts(app: &AppHandle, nonce: &str, keys: &[KeySpec], data: &Data) -> Vec<PageScript> {
+    // macOS で、ページが開いた新しい窓は、WebKit が渡す設定（開いた元の設定の写し）で作る。スクリプトの入れ物
+    // （WKUserContentController）は開いた元と同じ 1 つなので、ここで足すと開いた元のタブにも入り、重なる。
+    // 足さずに、開いた元のタブのスクリプト（同じ nonce）をそのまま使う
+    if cfg!(target_os = "macos") && matches!(data, Data::Opener { .. }) {
+        return Vec::new();
+    }
+    let mut out = vec![PageScript {
+        all_frames: true,
+        source: key_script(nonce, keys),
+    }];
+    // パスキーのサイトを設定に書いたときだけ、パスキーを捕まえるスクリプトも入れる（passkey.rs）。
+    // シークレットのタブには入れない（外のブラウザから写した Cookie は外のブラウザに残り、「残さない」と食い違うため）
+    if !data.incognito() {
+        if let Some(p) = app.try_state::<Arc<Passkey>>() {
+            out.push(PageScript {
+                all_frames: true,
+                source: passkey::script(nonce, p.sites()),
+            });
+        }
+    }
+    #[cfg(target_os = "macos")]
+    out.push(PageScript {
+        all_frames: false,
+        source: CLOSE_SCRIPT.replace(
+            "__KISUI_NONCE__",
+            &serde_json::to_string(nonce).unwrap_or_else(|_| "\"\"".into()),
+        ),
+    });
+    out
+}
+
+/// 遷移・新しい窓・読み込み・題の変化・ダウンロード（macOS）の受け口を足す。
+fn with_handlers(
+    builder: WebviewBuilder<tauri::Wry>,
     app: &AppHandle,
     tab: &str,
-    first: Url,
     nonce: String,
-    keys: &[KeySpec],
 ) -> WebviewBuilder<tauri::Wry> {
-    let script = key_script(&nonce, keys);
-    // パスキーのサイトを設定に書いたときだけ、パスキーを捕まえるスクリプトも入れる（passkey.rs）
-    let passkey_script = app
-        .try_state::<Arc<Passkey>>()
-        .map(|p| passkey::script(&nonce, p.sites()));
     let (win_app, win_tab) = (app.clone(), tab.to_string());
     let (load_app, load_tab) = (app.clone(), tab.to_string());
     let (title_app, title_tab) = (app.clone(), tab.to_string());
-    let mut builder = WebviewBuilder::new(label(tab), WebviewUrl::External(first))
-        .initialization_script_for_all_frames(script);
-    if let Some(s) = passkey_script {
-        builder = builder.initialization_script_for_all_frames(s);
-    }
-    let builder = builder
-        .focused(false)
+    #[cfg(target_os = "macos")]
+    let builder = {
+        let dl_app = app.clone();
+        builder.on_download(move |_, ev| crate::download::on_download(&dl_app, ev))
+    };
+    builder
         .on_navigation(may_navigate)
-        .on_new_window(move |u, _| on_new_window(&win_app, &win_tab, &nonce, u))
+        .on_new_window(move |u, f| on_new_window(&win_app, &win_tab, &nonce, u, f))
         .on_page_load(move |_, p| {
             let loading = match p.event() {
                 PageLoadEvent::Started => true,
@@ -337,25 +637,71 @@ fn tab_builder(
                     title,
                 },
             );
-        });
-    #[cfg(not(target_os = "macos"))]
-    let builder = match data_dir(app) {
-        Some(d) => builder.data_directory(d),
-        None => builder,
-    };
-    builder
+        })
+}
+
+/// ページのデータ（ログイン）の置き場を当てる。
+fn with_data(
+    builder: WebviewBuilder<tauri::Wry>,
+    #[allow(unused_variables)] app: &AppHandle,
+    data: Data,
+) -> WebviewBuilder<tauri::Wry> {
+    match data {
+        Data::Shared => {
+            #[cfg(not(target_os = "macos"))]
+            if let Some(d) = data_dir(app) {
+                return builder.data_directory(d);
+            }
+            builder
+        }
+        Data::Incognito => builder.incognito(true),
+        // 開いた元の webview と同じデータ・同じ処理の中で作る（WebKit が求める）
+        Data::Opener { features, .. } => {
+            #[cfg(target_os = "linux")]
+            let builder = builder.with_related_view(features.opener().webview.clone());
+            #[cfg(target_os = "macos")]
+            let builder =
+                builder.with_webview_configuration(features.opener().target_configuration.clone());
+            #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+            let _ = features;
+            builder
+        }
+    }
+}
+
+/// タブの子の webview を組む。ページにスクリプトを入れ、受け口を足し、データの置き場を当てる。
+fn tab_builder(
+    app: &AppHandle,
+    tab: &str,
+    first: Url,
+    nonce: String,
+    keys: &[KeySpec],
+    data: Data,
+) -> WebviewBuilder<tauri::Wry> {
+    let mut builder = WebviewBuilder::new(label(tab), WebviewUrl::External(first)).focused(false);
+    for s in page_scripts(app, &nonce, keys, &data) {
+        builder = if s.all_frames {
+            builder.initialization_script_for_all_frames(s.source)
+        } else {
+            builder.initialization_script(s.source)
+        };
+    }
+    let builder = with_handlers(builder, app, tab, nonce);
+    with_data(builder, app, data)
 }
 
 /// タブを作る（子の webview）。位置と大きさはメイン窓の左上からの論理ピクセル。作るだけで、キーは向けない（`browser_focus`）。
-/// `keys` はページにキーがある間も受けるキー（リーダーと近道）。
+/// `keys` はページにキーがある間も受けるキー（リーダーと近道）。`incognito` はシークレットのタブ（#204）。
 #[tauri::command(async)]
 #[allow(clippy::too_many_arguments)]
 pub fn browser_open(
     app: AppHandle,
     webview: Webview,
+    tabs: State<Tabs>,
     tab: String,
     url: String,
     keys: Vec<KeySpec>,
+    incognito: bool,
     x: f64,
     y: f64,
     w: f64,
@@ -375,13 +721,30 @@ pub fn browser_open(
     if app.get_webview(&label(&tab)).is_some() {
         return Err("the tab is already open".into());
     }
-    let builder = tab_builder(&app, &tab, first, new_nonce()?, &keys);
-    win.add_child(
-        builder,
-        LogicalPosition::new(x, y),
-        LogicalSize::new(w.max(1.0), h.max(1.0)),
-    )
-    .map_err(|e| e.to_string())?;
+    let data = if incognito {
+        Data::Incognito
+    } else {
+        Data::Shared
+    };
+    let nonce = new_nonce()?;
+    let builder = tab_builder(&app, &tab, first, nonce.clone(), &keys, data);
+    let v = win
+        .add_child(
+            builder,
+            LogicalPosition::new(x, y),
+            LogicalSize::new(w.max(1.0), h.max(1.0)),
+        )
+        .map_err(|e| e.to_string())?;
+    tabs.set(
+        &tab,
+        TabInfo {
+            keys,
+            incognito,
+            nonce,
+            root: tab.clone(),
+        },
+    );
+    watch_native(&app, &v, &tab);
     Ok(())
 }
 
@@ -464,11 +827,17 @@ pub fn browser_nav(
 
 /// タブを閉じる（子の webview を壊す）。無ければ何もしない。
 #[tauri::command]
-pub fn browser_close(app: AppHandle, webview: Webview, tab: String) -> Result<(), String> {
+pub fn browser_close(
+    app: AppHandle,
+    webview: Webview,
+    tabs: State<Tabs>,
+    tab: String,
+) -> Result<(), String> {
     from_main(&webview)?;
     if !valid_tab(&tab) {
         return Err("invalid tab id".into());
     }
+    tabs.remove(&tab);
     if let Some(v) = app.get_webview(&label(&tab)) {
         let _ = v.close();
         focus_main(&app);
@@ -753,7 +1122,7 @@ mod tests {
         }
     }
 
-    // 遷移は http・https・about だけ。新しい窓の代わりに同じタブで開くのは http・https だけ
+    // 遷移は http・https・about だけ。新しい窓を新しいタブで開くのは http・https と about:blank だけ
     #[test]
     fn where_a_tab_may_go() {
         let u = |s: &str| Url::parse(s).unwrap();
@@ -772,8 +1141,62 @@ mod tests {
         ] {
             assert!(!may_navigate(&u(bad)), "{bad}");
         }
-        assert!(opens_in_same_tab(&u("https://a.example/")));
-        assert!(!opens_in_same_tab(&u("about:blank")));
-        assert!(!opens_in_same_tab(&u("kisui-key://key?n=x")));
+        assert!(opens_in_new_tab(&u("https://a.example/")));
+        assert!(opens_in_new_tab(&u("about:blank")));
+        assert!(!opens_in_new_tab(&u("about:srcdoc")));
+        assert!(!opens_in_new_tab(&u("file:///etc/passwd")));
+        assert!(!opens_in_new_tab(&u("kisui-key://key?n=x")));
+        assert!(!opens_in_new_tab(&u("kisui-close://close?n=x")));
+    }
+
+    // 1 つのタブが新しい窓を開けるのは、POPUP_WINDOW の間に MAX_POPUPS まで
+    #[test]
+    fn popups_are_limited() {
+        let t0 = Instant::now();
+        let mut times = Vec::new();
+        for _ in 0..MAX_POPUPS {
+            assert!(allow_popup(&mut times, t0));
+        }
+        assert!(!allow_popup(&mut times, t0));
+        assert!(!allow_popup(&mut times, t0 + POPUP_WINDOW / 2));
+        // 時間が経てば、また開ける
+        assert!(allow_popup(&mut times, t0 + POPUP_WINDOW));
+        assert_eq!(times.len(), 1);
+    }
+
+    // 開いた新しいタブは、開いた元と同じ上限を使う（新しいタブがそれぞれ 5 つ開けると、増え続ける）
+    #[test]
+    fn popups_count_against_the_first_tab() {
+        let tabs = Tabs::default();
+        let t0 = Instant::now();
+        for _ in 0..MAX_POPUPS {
+            assert!(tabs.allow_popup("t1", t0));
+        }
+        assert!(!tabs.allow_popup("t1", t0));
+        // ほかの元のタブは別に数える
+        assert!(tabs.allow_popup("t2", t0));
+        // 時間が経った元のタブは忘れる
+        assert!(tabs.allow_popup("t2", t0 + POPUP_WINDOW));
+        assert!(!tabs.popups.lock().unwrap().contains_key("t1"));
+    }
+
+    // ページが自分を閉じた知らせは、nonce が合うものだけ受ける
+    #[test]
+    fn close_requests_need_the_nonce() {
+        let u = |s: &str| Url::parse(s).unwrap();
+        assert!(is_close_request(&u("kisui-close://close?n=abc"), "abc"));
+        assert!(!is_close_request(&u("kisui-close://close?n=abd"), "abc"));
+        assert!(!is_close_request(&u("kisui-close://close"), "abc"));
+        assert!(!is_close_request(&u("kisui-close://close?n="), ""));
+        assert!(!is_close_request(&u("https://a.example/?n=abc"), "abc"));
+    }
+
+    // 閉じた知らせのスクリプトは、殻の受ける URL の形で知らせ、nonce の印を持つ
+    #[test]
+    fn close_script_sends_the_url_this_shell_reads() {
+        let s = include_str!("browser_close.js");
+        assert!(s.contains("\"kisui-close://close?n=\""));
+        assert!(s.contains("__KISUI_NONCE__"));
+        assert!(!s.contains("location"));
     }
 }

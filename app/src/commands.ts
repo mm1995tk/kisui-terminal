@@ -39,7 +39,10 @@ export type CommandId =
   | "notice.focusNotified"
   | "mascot.select"
   | "mascot.reload"
+  | "notice.openDownload"
+  | "notice.revealDownload"
   | "browser.new"
+  | "browser.incognito"
   | "browser.url"
   | "browser.back"
   | "browser.forward"
@@ -327,6 +330,7 @@ export const LEADER: Node[] = [
     "ブラウザ",
     [
       leaf("n", "新しいタブを開く", { id: "browser.new" }),
+      leaf("N", "シークレットのタブを開く", { id: "browser.incognito" }),
       leaf("u", "URL を書き換える", { id: "browser.url" }),
       leaf(
         "j",
@@ -400,6 +404,10 @@ export const LEADER: Node[] = [
     leaf("d", "お知らせを閉じる", { id: "notice.dismiss" }),
     leaf("g", "通知を出したペインへ", {
       id: "notice.focusNotified",
+    }),
+    leaf("o", "ダウンロードしたファイルを開く", { id: "notice.openDownload" }),
+    leaf("f", "ダウンロードしたフォルダを表示", {
+      id: "notice.revealDownload",
     }),
   ]),
   group("c", "キャラクター", [

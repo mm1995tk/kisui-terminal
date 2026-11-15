@@ -1,4 +1,4 @@
-// 内蔵ブラウザ（#202）の URL の入力欄。リーダーの o n（新しいタブ）と o u（今のタブの URL を書き換える）で出す。
+// 内蔵ブラウザ（#202）の URL の入力欄。リーダーの o n（新しいタブ）・o N（シークレットのタブ。#204）と o u（今のタブの URL を書き換える）で出す。
 // scheme を省くと https（localhost などは http）で開く。開けない URL（http と https 以外など）は、窓の中に理由を出す。
 import { createSignal, Show, type JSX } from "solid-js";
 
@@ -12,6 +12,8 @@ import { normalizeUrl } from "./tabs.ts";
 export function UrlDialog(props: {
   /** 新しいタブか、今のタブの URL を書き換えるか */
   kind: "new" | "edit";
+  /** シークレットのタブを開く（#204） */
+  incognito?: boolean;
   /** 入力欄の初めの値（書き換えるときは今の URL） */
   initial: string;
   onSubmit: (url: string) => void;
@@ -20,7 +22,11 @@ export function UrlDialog(props: {
   const [value, setValue] = createSignal(props.initial);
   const [error, setError] = createSignal<string | undefined>();
   const title = () =>
-    props.kind === "new" ? "新しいタブを開く" : "URL を書き換える";
+    props.kind === "edit"
+      ? "URL を書き換える"
+      : props.incognito
+        ? "シークレットのタブを開く"
+        : "新しいタブを開く";
   function submit() {
     const u = normalizeUrl(value());
     if (u === null) {

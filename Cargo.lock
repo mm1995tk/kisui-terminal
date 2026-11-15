@@ -2154,6 +2154,7 @@ dependencies = [
  "tauri-plugin-updater",
  "toml 1.1.8+spec-1.1.0",
  "toml_edit 0.25.17+spec-1.1.0",
+ "webkit2gtk",
  "wl-clipboard-rs",
  "x11rb",
 ]

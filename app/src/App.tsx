@@ -169,14 +169,22 @@ import {
 } from "./commands.ts";
 import { BrowserArea } from "./browser/BrowserArea.tsx";
 import {
+  closeTabView,
   goTab,
   loadTabs,
   navTab,
+  onDownload,
+  onTabClosed,
   onTabKey,
   onTabPage,
+  onTabPopup,
   onTabTitle,
+  openDownload,
   resolveTabUrl,
+  revealDownload,
   saveTabs,
+  type DownloadDone,
+  type TabPopup,
 } from "./browser/browserOs.ts";
 import {
   addRelayed,
@@ -1594,9 +1602,9 @@ function Workbench(props: {
         }),
     );
   }
-  /** URL の入力欄（リーダーの o n・o u） */
+  /** URL の入力欄（リーダーの o n・o N・o u） */
   const [urlDialog, setUrlDialog] = createSignal<
-    | { kind: "new"; target: string; id: WorkspaceId }
+    | { kind: "new"; target: string; id: WorkspaceId; incognito: boolean }
     | { kind: "edit"; tab: string; url: string }
     | null
   >(null);
@@ -1639,6 +1647,108 @@ function Workbench(props: {
       runCommand(routed.run);
     returnToPageLater();
   }
+  /**
+   * ページが新しい窓（`target=_blank` のリンク・`window.open`）を開いた（#204）。殻はもう webview を作ってある。
+   * 開いた元のタブと同じワークスペースの新しいタブにして出す（元がシークレットならシークレット。データは元と同じ）。
+   * 元のタブがもう無ければ、webview を壊す。
+   */
+  function addPopupTab(e: TabPopup) {
+    const from = untrack(tabs).tabs.find((t) => t.id === e.opener);
+    // 足す前にページが閉じていた（window.open(...).close()。殻の知らせは「閉じた」が先に届きうる）なら、足さずに壊す
+    if (!from || closedEarly.delete(e.tab)) {
+      void closeTabView(e.tab).catch(() => {});
+      return;
+    }
+    // 中継で開いているタブから開いたなら、中継の対応を引き継ぐ（同じ origin のページを開くことが多い）
+    const r = relays.get(from.id);
+    if (r) relays.set(e.tab, r);
+    const tab: BrowserTab = {
+      id: e.tab,
+      target: from.target,
+      workspace: from.workspace,
+      url: unrelay(e.url, r),
+      title: "",
+      incognito: from.incognito,
+      opener: from.id,
+      made: true,
+    };
+    setTabs((s) => addTab(s, tab));
+    const f = untrack(focus);
+    if (f?.target === tab.target && f.id === tab.workspace) focusTerminal();
+  }
+  /**
+   * まだ足していないタブの「閉じた」（ページが開いた新しい窓が、画面に知らせが届く前に閉じた）。あとで届く「新しいタブ」を足さない。
+   * 知らないタブの知らせが積もらないよう、新しい 32 個だけ覚える
+   */
+  const closedEarly = new Set<string>();
+  /** ページが自分を閉じた（`window.close()`。#204）。タブを閉じ、出していたなら開いた元のタブに戻る。 */
+  function closedByPage(id: string) {
+    const tab = untrack(tabs).tabs.find((t) => t.id === id);
+    if (!tab) {
+      closedEarly.add(id);
+      for (const old of closedEarly) {
+        if (closedEarly.size <= 32) break;
+        closedEarly.delete(old);
+      }
+      return;
+    }
+    const shown = untrack(shownBrowserTab)?.id === id;
+    setTabs((s) => closeTab(s, id, tab.opener));
+    if (shown) focusTerminal();
+  }
+
+  // ---- 内蔵ブラウザのダウンロード（#204）。~/Downloads に保存し、右下のお知らせで知らせる ----
+  /** 知らせているダウンロード（古い順。多すぎるときは古いものから消す） */
+  const [downloads, setDownloads] = createSignal<DownloadDone[]>([]);
+  function addDownload(d: DownloadDone) {
+    setDownloads((l) => [...l, d].slice(-3));
+  }
+  const dropDownload = (d: DownloadDone) =>
+    setDownloads((l) => l.filter((x) => x !== d));
+  /** ダウンロードしたファイルを開く・フォルダを表示する。開けなければ知らせる。 */
+  function useDownload(d: DownloadDone, how: "open" | "reveal") {
+    (how === "open" ? openDownload(d.id) : revealDownload(d.id)).then(
+      () => dropDownload(d),
+      (e: unknown) =>
+        setFocusError({
+          title:
+            how === "open"
+              ? `${d.name} を開けませんでした`
+              : `${d.name} のフォルダを表示できませんでした`,
+          error: e instanceof Error ? e.message : String(e),
+        }),
+    );
+  }
+  /** いちばん新しい、保存できたダウンロード（リーダーの n o・n f が使う）。 */
+  const lastDownload = () => [...downloads()].reverse().find((d) => d.ok);
+  /** ダウンロード 1 つの知らせ（同じダウンロードには同じオブジェクトを返す）。 */
+  const downloadNotices = new WeakMap<DownloadDone, Notice>();
+  function downloadNotice(d: DownloadDone): Notice {
+    const had = downloadNotices.get(d);
+    if (had) return had;
+    const close = { label: "閉じる", run: () => dropDownload(d) };
+    const leader = leaderKeyName(IS_MAC);
+    const n: Notice = d.ok
+      ? {
+          title: "ダウンロードしました",
+          text: `${d.name}（${d.dir}）。${leader} n o で開く、n f でフォルダを表示`,
+          secondary: [
+            close,
+            { label: "フォルダを表示", run: () => useDownload(d, "reveal") },
+          ],
+          primary: { label: "開く", run: () => useDownload(d, "open") },
+          dismiss: close.run,
+        }
+      : {
+          title: "ダウンロードできませんでした",
+          text: d.name,
+          primary: close,
+          dismiss: close.run,
+        };
+    downloadNotices.set(d, n);
+    return n;
+  }
+
   if (props.browser) {
     onMount(async () => {
       try {
@@ -1673,6 +1783,9 @@ function Workbench(props: {
         await onTabTitle((e) =>
           setTabs((t) => updateTab(t, e.tab, { title: e.title })),
         ),
+        await onTabPopup(addPopupTab),
+        await onTabClosed((e) => closedByPage(e.tab)),
+        await onDownload(addDownload),
       );
     });
     // リサイズモードを出たら、ページにキーを戻す
@@ -1700,12 +1813,19 @@ function Workbench(props: {
     const f = focus();
     switch (c.id) {
       case "browser.new":
+      case "browser.incognito":
         if (!f)
           cannot(
             "タブを開けません",
             "ワークスペースがありません。タブはワークスペースの下に開きます。",
           );
-        else setUrlDialog({ kind: "new", target: f.target, id: f.id });
+        else
+          setUrlDialog({
+            kind: "new",
+            target: f.target,
+            id: f.id,
+            incognito: c.id === "browser.incognito",
+          });
         break;
       case "browser.url": {
         const t = currentTab();
@@ -1763,6 +1883,7 @@ function Workbench(props: {
           workspace: d.id,
           url,
           title: "",
+          ...(d.incognito ? { incognito: true } : {}),
         }),
       );
     } else {
@@ -1996,6 +2117,18 @@ function Workbench(props: {
         if (updateInfo()) dismissUpdate();
         else notices().at(-1)?.dismiss?.();
         break;
+      case "notice.openDownload":
+      case "notice.revealDownload": {
+        const d = lastDownload();
+        if (d)
+          useDownload(d, c.id === "notice.openDownload" ? "open" : "reveal");
+        else
+          cannot(
+            "ダウンロードしたファイルはありません",
+            "内蔵ブラウザでダウンロードすると、右下のお知らせに出ます。",
+          );
+        break;
+      }
       case "notice.focusNotified":
         focusLastNotified();
         break;
@@ -2181,6 +2314,8 @@ function Workbench(props: {
       const n = noticeOf.get(st);
       if (n) out.push(n);
     }
+    // ダウンロード（#204）は最後に積む（リーダーの n d で、いちばん新しいものから閉じる）
+    for (const d of downloads()) out.push(downloadNotice(d));
     return out;
   });
 
@@ -2474,6 +2609,10 @@ function Workbench(props: {
         {(d) => (
           <UrlDialog
             kind={d().kind}
+            incognito={(() => {
+              const v = d();
+              return v.kind === "new" && v.incognito;
+            })()}
             initial={(() => {
               const v = d();
               return v.kind === "edit" ? v.url : "";

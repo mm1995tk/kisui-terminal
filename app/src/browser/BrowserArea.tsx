@@ -115,7 +115,7 @@ export function BrowserArea(props: {
     try {
       const url = await props.resolve(tab, tab.url);
       if (disposed || views.get(tab.id) !== v) return;
-      await openTab(tab.id, url, props.keys(), at);
+      await openTab(tab.id, url, props.keys(), !!tab.incognito, at);
     } catch (e) {
       if (views.get(tab.id) !== v) return;
       v.state = "failed";
@@ -138,8 +138,13 @@ export function BrowserArea(props: {
     refreshStatus();
   }
 
-  // 閉じたタブの webview を壊す
+  // 閉じたタブの webview を壊す。殻がもう作ってあるタブ（ページが開いた新しい窓。#204）は、作らずにそのまま使う
+  // （殻は隠して渡すので、出すタブなら見回り（tick）が置いて見せる）
   createEffect(() => {
+    for (const t of props.tabs)
+      if (t.made && !views.has(t.id))
+        views.set(t.id, { state: "open", url: t.url, shown: null });
+    refreshStatus();
     const alive = new Set(props.tabs.map((t) => t.id));
     for (const [id, v] of [...views]) {
       if (alive.has(id)) continue;

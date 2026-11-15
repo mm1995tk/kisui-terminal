@@ -498,6 +498,17 @@
   text-align: left;
   cursor: pointer;
 }
+/* シークレットのタブ（#204）の印。題の前に置く小さな札。題が長くても縮めない */
+.tab-incognito {
+  flex: none;
+  align-self: center;
+  padding: 0 4px;
+  border: 1px solid var(--sidebar-muted);
+  border-radius: 3px;
+  color: var(--sidebar-muted);
+  font-size: 9px;
+  line-height: 13px;
+}
 .tab-title {
   min-width: 0;
   overflow: hidden;
