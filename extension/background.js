@@ -47,7 +47,8 @@ async function ask(host, message) {
   }
 }
 
-// 両方の受け口に sites を聞く。どれかが答えたら、ページに入れるスクリプトを一覧に合わせる
+// 両方の受け口に sites を聞く。どれかが答えたら、覚えている一覧と、ページに入れるスクリプトを合わせる。
+// 聞いた時刻は答えが無くても覚え、kisui-terminal が動いていない間に新しいタブのたびに聞き直さないようにする
 async function refreshSites() {
   const answers = await Promise.all(
     K.HOSTS.map(async (host) => ({
@@ -60,6 +61,8 @@ async function refreshSites() {
   if (anyReply) {
     await saveState({ sites: combined.sites, sitesAt: Date.now() });
     await syncScripts(combined.sites);
+  } else {
+    await saveState({ sitesAt: Date.now() });
   }
   return combined;
 }

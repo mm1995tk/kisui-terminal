@@ -247,6 +247,8 @@ function event() {
 function fakeBrowser(opts: {
   sites: string[];
   waiting: { site: string; url: string }[];
+  // kisui-terminal が動いていない（どの受け口も答えない）
+  down?: boolean;
 }) {
   let clock = 1_000_000;
   const session: Record<string, any> = {};
@@ -303,7 +305,7 @@ function fakeBrowser(opts: {
     runtime: {
       sendNativeMessage: async (host: string, message: any) => {
         native.push({ host, message });
-        if (host !== "dev.mm1995tk.kisui_terminal")
+        if (opts.down || host !== "dev.mm1995tk.kisui_terminal")
           throw new Error("not found");
         if (message.type === "sites")
           return {
@@ -457,6 +459,20 @@ test("kisui-terminal が開いていないタブの知らせは使わない", as
   await settle();
   assert.equal(b.native.filter((n) => n.message.type === "cookies").length, 0);
   assert.deepEqual(b.removed, []);
+});
+
+test("kisui-terminal が答えないときも、聞いてから 1 分は新しいタブで聞き直さない", async () => {
+  const b = fakeBrowser({ ...GH, down: true });
+  for (const id of [20, 21]) {
+    b.ev.created.fire({ id, pendingUrl: "https://example.com/" });
+    await settle();
+  }
+  // 1 つ目のタブで 2 つの受け口に 1 回ずつ聞き、2 つ目では聞かない
+  assert.equal(b.native.length, 2);
+  b.advance(60 * 1000);
+  b.ev.created.fire({ id: 22, pendingUrl: "https://example.com/" });
+  await settle();
+  assert.equal(b.native.length, 4);
 });
 
 test("待っていないサイトのタブは覚えない", async () => {
