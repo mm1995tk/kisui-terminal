@@ -179,7 +179,7 @@ async function checkExistingTabs() {
   for (const tab of tabs) {
     // 起動した直後の Chrome では、url が空で pendingUrl にだけ入っていることがある
     const url = tab.pendingUrl || tab.url || "";
-    const site = K.siteOf(K.hostOf(url), sites);
+    const site = K.waitingSiteOf(K.hostOf(url), sites, waiting);
     const w = site && waiting.get(site);
     if (site && w && K.sameUrl(url, w.url))
       await track(/** @type {Tab} */ (tab).id, { site, host: w.host });
@@ -369,10 +369,11 @@ async function onActionClicked(tab) {
   if (!granted) return showError(tab.id, "no-permission");
   const { sites, waiting } = await refreshSites();
   // 当たる許可サイトの項目（`.google.com` で待っていれば、myaccount.google.com のタブからも送れる）
-  const site = K.siteOf(K.hostOf(tab.url ?? ""), sites);
-  if (!site) return showError(tab.id, "not-allowed");
-  const w = waiting.get(site);
-  if (!w) return showError(tab.id, "not-waiting");
+  const host = K.hostOf(tab.url ?? "");
+  if (!K.siteOf(host, sites)) return showError(tab.id, "not-allowed");
+  const site = K.waitingSiteOf(host, sites, waiting);
+  const w = site && waiting.get(site);
+  if (!site || !w) return showError(tab.id, "not-waiting");
   await sendCookies(tab, site, w.host);
 }
 

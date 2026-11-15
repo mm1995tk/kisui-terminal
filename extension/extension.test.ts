@@ -85,6 +85,35 @@ test("inSite と siteOf は kisui-terminal の passkey.rs と同じ決まり", (
   assert.equal(K.siteOf(null, sites), null);
 });
 
+test("waitingSiteOf は当たる項目のうち待っているものを選ぶ（2 つの版の passkey_sites が違うとき）", () => {
+  // 普通の版が .google.com で待ち、nightly 版の設定に accounts.google.com がある
+  const sites = [".google.com", "accounts.google.com"];
+  const waiting = new Map([
+    [".google.com", { host: "h", url: "https://accounts.google.com/" }],
+  ]);
+  assert.equal(K.siteOf("accounts.google.com", sites), "accounts.google.com");
+  assert.equal(
+    K.waitingSiteOf("accounts.google.com", sites, waiting),
+    ".google.com",
+  );
+  assert.equal(K.waitingSiteOf("example.com", sites, waiting), null);
+  assert.equal(K.waitingSiteOf("accounts.google.com", sites, new Map()), null);
+  assert.deepEqual(
+    JSON.parse(
+      JSON.stringify(
+        K.openedByKisui({
+          url: "https://accounts.google.com/v3/signin",
+          createdAt: 0,
+          now: 1000,
+          sites,
+          waiting,
+        }),
+      ),
+    ),
+    { site: ".google.com", host: "h" },
+  );
+});
+
 test("appliesTo は kisui-terminal が受けるのと同じ決まり", () => {
   const site = "dash.cloudflare.com";
   assert.equal(

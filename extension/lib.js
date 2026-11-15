@@ -65,19 +65,30 @@ var KisuiPasskey = (() => {
     return host === site;
   }
 
-  // host に当たる許可サイトの項目（`sites` に書いた形）。いくつも当たれば、host と完全に同じもの、次に細かい（長い）もの。
-  // 当たらなければ null（kisui-terminal の passkey.rs の site_of と同じ決まり）
+  // host に当たる許可サイトの項目（`sites` に書いた形）を、選ぶ順に並べたもの：host と完全に同じもの、次に細かい（長い）もの
+  /** @param {string | null | undefined} host @param {string[]} sites @returns {string[]} */
+  function sitesOf(host, sites) {
+    if (!host) return [];
+    const rank = (/** @type {string} */ s) =>
+      s === host ? Infinity : s.length;
+    return sites
+      .filter((s) => inSite(host, s))
+      .sort((a, b) => rank(b) - rank(a));
+  }
+
+  // host に当たる許可サイトの項目のうち、選ぶ順で最初のもの。当たらなければ null
+  // （kisui-terminal の passkey.rs の site_of と同じ決まり）
   /** @param {string | null | undefined} host @param {string[]} sites @returns {string | null} */
   function siteOf(host, sites) {
-    if (!host) return null;
-    /** @type {string | null} */
-    let best = null;
-    for (const s of sites) {
-      if (!inSite(host, s)) continue;
-      if (s === host) return s;
-      if (best === null || s.length > best.length) best = s;
-    }
-    return best;
+    return sitesOf(host, sites)[0] ?? null;
+  }
+
+  // host に当たる許可サイトの項目のうち、kisui-terminal が待っているものを、選ぶ順で最初のもの。無ければ null。
+  // `sites` は普通の版と nightly 版の答えを合わせたものなので、2 つの版の passkey_sites が違うと、siteOf の選ぶ項目と、
+  // 待っている項目（その版の site_of が選んだもの）がずれることがある。待っているものを先に選んで合わせる
+  /** @param {string | null | undefined} host @param {string[]} sites @param {Map<string, Waiting>} waiting @returns {string | null} */
+  function waitingSiteOf(host, sites, waiting) {
+    return sitesOf(host, sites).find((s) => waiting.has(s)) ?? null;
   }
 
   // `sites` の答えの形を確かめて、{ sites, waiting } にする。形が違えば null
@@ -184,7 +195,7 @@ var KisuiPasskey = (() => {
   /** @param {{ url: string, createdAt: number, now: number, sites: string[], waiting: Map<string, Waiting> }} p @returns {{ site: string, host: string } | null} */
   function openedByKisui({ url, createdAt, now, sites, waiting }) {
     if (now - createdAt > NEW_TAB_MS) return null;
-    const site = siteOf(hostOf(url), sites);
+    const site = waitingSiteOf(hostOf(url), sites, waiting);
     if (!site) return null;
     const w = waiting.get(site);
     return w ? { site, host: w.host } : null;
@@ -214,6 +225,7 @@ var KisuiPasskey = (() => {
     hostOf,
     inSite,
     siteOf,
+    waitingSiteOf,
     parseSites,
     combine,
     matchPatterns,
