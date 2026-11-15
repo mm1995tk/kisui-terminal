@@ -3,7 +3,7 @@
 // プライマリの shj が出しているファイルの行は強調する（モックと同じ背景）。
 // 開いたフォルダの行は、中身をスクロールしている間だけ上に固定する（D3）。そのために行を親子の要素に組む。
 // 行にフォーカスがあるときは shj のファイルツリーと同じキーで動かせる（#13。割り当ては keys.ts）。
-import { T, type Key } from "../i18n/index.ts";
+import { T } from "../i18n/index.ts";
 import { Index, Match, onCleanup, Show, Switch, type JSX } from "solid-js";
 
 import { openKeyList } from "../KeyListDialog.tsx";
@@ -26,7 +26,7 @@ import "./tree.css";
 function markLabel(m: RowMark): string {
   if (m.kind === "children") return T("tree.mark.children");
   if (m.kind === "ignored") return T("tree.mark.ignored");
-  return T(`tree.mark.${m.letter}` as Key);
+  return T(`tree.mark.${m.letter}`);
 }
 
 /** 行を押したときに呼ぶものと、強調する行。 */
