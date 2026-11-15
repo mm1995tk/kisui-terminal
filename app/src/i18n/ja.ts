@@ -200,6 +200,9 @@ export const ja: Record<Key, string> = {
   "err.machine.notConnected": "{machine} につながっていません",
   "notice.shortcuts.title": "近道の設定に間違いがあります",
   "notice.shortcuts.text": "間違いのある近道だけを使いません。ほかは効きます。",
+  "notice.passkeySites.title": "passkey_sites に使えない項目があります",
+  "notice.passkeySites.text":
+    "次の項目は公開サフィックス（.com・.github.io のように、誰でもその下にサブドメインを持てる名前）で、他人のサイトの Cookie まで写す対象になるため使いません。ほかの項目は使います。",
   "button.disconnect": "切る",
   "notice.machine.keys":
     "{leader} m でマシンのダイアログを開き、このマシンを j・k で選んで、r でつなぎ直す、x で切る",

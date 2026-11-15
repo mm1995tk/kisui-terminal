@@ -292,7 +292,12 @@ export function App(props: {
 }): JSX.Element {
   const api = props.api ?? tauriShell;
   const [loaded, setLoaded] = createSignal<
-    | { config: ConfigMachine[]; browser: boolean; shortcutProblems: string[] }
+    | {
+        config: ConfigMachine[];
+        browser: boolean;
+        shortcutProblems: string[];
+        passkeyRejected: string[];
+      }
     | { error: string }
     | null
   >(null);
@@ -307,6 +312,8 @@ export function App(props: {
           config: g.machines,
           browser: g.browser,
           shortcutProblems,
+          // passkey_sites の公開サフィックスの項目（使わない）。内蔵ブラウザを使うときだけ知らせる
+          passkeyRejected: g.browser ? g.passkeyRejected : [],
         });
       },
       (e) => setLoaded({ error: String(e) }),
@@ -325,6 +332,7 @@ export function App(props: {
             config={v.config}
             browser={v.browser}
             shortcutProblems={v.shortcutProblems}
+            passkeyRejected={v.passkeyRejected}
           />
         );
       }}
@@ -341,6 +349,8 @@ function Workbench(props: {
   browser?: boolean;
   /** 設定の [gui.shortcuts] の間違い（あればお知らせに出す） */
   shortcutProblems?: string[];
+  /** 設定の [gui.browser] passkey_sites の、公開サフィックスなので使わない項目（あればお知らせに出す） */
+  passkeyRejected?: string[];
 }): JSX.Element {
   const api = props.api;
   const store = props.store ?? browserStore();
@@ -3149,6 +3159,19 @@ function Workbench(props: {
         dismiss: () => setShortcutDismissed(true),
       }
     : undefined;
+  const [passkeyDismissed, setPasskeyDismissed] = createSignal(false);
+  const passkeyNotice: Notice | undefined = props.passkeyRejected?.length
+    ? {
+        title: T("notice.passkeySites.title"),
+        text: T("notice.passkeySites.text"),
+        error: props.passkeyRejected.join("\n"),
+        primary: {
+          label: T("button.close"),
+          run: () => setPasskeyDismissed(true),
+        },
+        dismiss: () => setPasskeyDismissed(true),
+      }
+    : undefined;
   let focusNotice:
     { err: { title: string; error: string }; notice: Notice } | undefined;
 
@@ -3156,6 +3179,7 @@ function Workbench(props: {
   const notices = createMemo<Notice[]>(() => {
     const out: Notice[] = [];
     if (shortcutNotice && !shortcutDismissed()) out.push(shortcutNotice);
+    if (passkeyNotice && !passkeyDismissed()) out.push(passkeyNotice);
     const err = focusError();
     if (err) {
       if (focusNotice?.err !== err) {

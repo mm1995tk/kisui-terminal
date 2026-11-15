@@ -8,6 +8,8 @@
 //! どちらにも無ければ使わない。
 //! `[gui.browser] passkey_sites`（パスキーのときに外のブラウザへ移り、Cookie を写して戻ってよいサイト。#206）と
 //! `passkey_browser`（移る先のブラウザ）も、`enabled` と同じく、書いてあるファイルのものを使い、両方にあれば `config.local.toml` が勝つ。
+//! `passkey_sites` に `.google.com`（先頭に `.`）の書き方で公開サフィックス（`.com`・`.github.io`）を書いた項目は、間違いにせず使わない
+//! （`passkey_rejected` に入れ、画面がお知らせに出す。ほかの項目は使う）。
 //! `[gui.shortcuts]`（近道。`"Ctrl+Shift+N" = "workspace.new"` のように、キー = コマンドの名前）は、キーごとに重ね、同じキーは `config.local.toml` が勝つ。
 //! キーの書き方とコマンドの名前が使えるかは、画面側が確かめる（間違いはお知らせに出し、起動は止めない）。
 //! 窓が設定を書くときは `config.local.toml` に書く（`config.toml` は home-manager が読み取り専用で置くことがある）。
@@ -86,6 +88,9 @@ pub struct GuiConfig {
     /// 移る先のブラウザ（`[gui.browser] passkey_browser`。殻だけが使う）
     #[serde(skip)]
     pub passkey_browser: PasskeyBrowser,
+    /// `passkey_sites` に書いたが、公開サフィックスなので使わない項目（`.com` など。書いた形のまま。画面がお知らせに出す）
+    #[serde(rename = "passkeyRejected")]
+    pub passkey_rejected: Vec<String>,
     /// 設定で足した近道（`[gui.shortcuts]`。キーの順）
     pub shortcuts: Vec<ConfigShortcut>,
 }
@@ -106,7 +111,8 @@ pub struct ConfigShortcut {
 struct Parsed {
     machines: Option<Vec<ConfigMachine>>,
     browser: Option<bool>,
-    passkey_sites: Option<Vec<String>>,
+    /// （使う項目, 公開サフィックスなので使わない項目）
+    passkey_sites: Option<(Vec<String>, Vec<String>)>,
     passkey_browser: Option<PasskeyBrowser>,
     shortcuts: Option<BTreeMap<String, String>>,
 }
@@ -188,8 +194,9 @@ pub fn load_gui(dir: &Path) -> Result<GuiConfig, String> {
                 if let Some(b) = p.browser {
                     out.browser = b;
                 }
-                if let Some(s) = p.passkey_sites {
+                if let Some((s, rejected)) = p.passkey_sites {
                     out.passkey_sites = s;
+                    out.passkey_rejected = rejected;
                 }
                 if let Some(b) = p.passkey_browser {
                     out.passkey_browser = b;
@@ -425,9 +432,8 @@ fn parse_all(text: &str) -> Result<Parsed, (Option<usize>, String)> {
     })
 }
 
-/// サイトの名前（host）として使えるか。小文字の英数字・`-`・`.` だけで、`.` で始まらず終わらず、`..` を含まない。
-/// scheme・ポート・パス・ワイルドカードは書けない（決まった host とだけ照らし合わせる）。
-pub fn valid_site(s: &str) -> bool {
+/// host の名前として使えるか。小文字の英数字・`-`・`.` だけで、`.` で始まらず終わらず、`..` を含まない。
+fn valid_host_name(s: &str) -> bool {
     !s.is_empty()
         && s.len() <= 253
         && !s.starts_with('.')
@@ -437,27 +443,51 @@ pub fn valid_site(s: &str) -> bool {
             .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '.')
 }
 
-/// `[gui.browser] passkey_sites` を確かめる（重なりは 1 つにまとめる）。
+/// サイトの名前として使えるか。`github.com` のような host（ページの host と完全に同じものに当たる）か、
+/// 先頭に `.` を 1 つ付けた `.google.com`（そのドメインとすべてのサブドメインに当たる。passkey.rs の `site_matches`）。
+/// scheme・ポート・パス・`*` は書けない。
+pub fn valid_site(s: &str) -> bool {
+    valid_host_name(s.strip_prefix('.').unwrap_or(s))
+}
+
+/// `.google.com` の書き方の項目で、ドメイン（`.` の後ろ）が公開サフィックス（Public Suffix List にあり、誰でもその下に
+/// サブドメインを持てる名前。`com`・`co.jp`・`github.io`）か。そう書くと、他人のサイトの Cookie まで写す対象になる。
+/// 一覧に無い最上位のドメイン（`internal` など）も、一覧の決まり（`*`）どおり公開サフィックスと見る。
+/// `github.com` の書き方（host と完全に同じものだけに当たる）は見ない（false）。
+pub fn public_suffix_site(s: &str) -> bool {
+    let Some(name) = s.strip_prefix('.') else {
+        return false;
+    };
+    psl::suffix(name.as_bytes()).is_some_and(|x| x.as_bytes() == name.as_bytes())
+}
+
+/// `[gui.browser] passkey_sites` を確かめる（重なりは 1 つにまとめる）。（使う項目, 公開サフィックスなので使わない項目）を返す。
 fn check_sites(
     text: &str,
     sites: &[Spanned<String>],
-) -> Result<Vec<String>, (Option<usize>, String)> {
+) -> Result<(Vec<String>, Vec<String>), (Option<usize>, String)> {
     let mut out: Vec<String> = Vec::new();
+    let mut rejected: Vec<String> = Vec::new();
     for (i, s) in sites.iter().enumerate() {
         let v = s.get_ref();
         if !valid_site(v) {
             return Err((
                 Some(line_of(text, s.span().start)),
                 format!(
-                    "gui.browser.passkey_sites[{i}]: サイトの名前（github.com のような host。小文字。https:// やパスは書かない）ではありません"
+                    "gui.browser.passkey_sites[{i}]: サイトの名前（github.com のような host か、サブドメインもまとめる .google.com。小文字。https:// やパスは書かない）ではありません"
                 ),
             ));
         }
-        if !out.contains(v) {
-            out.push(v.clone());
+        let to = if public_suffix_site(v) {
+            &mut rejected
+        } else {
+            &mut out
+        };
+        if !to.contains(v) {
+            to.push(v.clone());
         }
     }
-    Ok(out)
+    Ok((out, rejected))
 }
 
 /// `[gui.browser] passkey_browser` を確かめる。
@@ -1002,7 +1032,9 @@ mod tests {
             "passkey_sites = [\"GitHub.com\"]",
             "passkey_sites = [\"*.github.com\"]",
             "passkey_sites = [\"github.com/login\"]",
-            "passkey_sites = [\".github.com\"]",
+            "passkey_sites = [\"..github.com\"]",
+            "passkey_sites = [\".\"]",
+            "passkey_sites = [\"github.com.\"]",
             "passkey_sites = [\"github.com:443\"]",
             "passkey_browser = \"safari\"",
         ] {
@@ -1018,5 +1050,59 @@ mod tests {
             );
         }
         let _ = fs::remove_dir_all(&d);
+    }
+
+    // passkey_sites の .google.com の書き方（#279）。公開サフィックスの項目は間違いにせず、使わずに知らせる
+    #[test]
+    fn passkey_sites_with_subdomains() {
+        let d = temp_dir("passkey-sub");
+        fs::write(
+            d.join("config.toml"),
+            "[gui.browser]\nenabled = true\npasskey_sites = [\".google.com\", \".com\", \"github.com\", \".github.io\", \".co.jp\", \".alice.github.io\", \".com\", \".internal\"]\n",
+        )
+        .unwrap();
+        let g = load_gui(&d).unwrap();
+        assert_eq!(
+            g.passkey_sites,
+            vec![".google.com", "github.com", ".alice.github.io"]
+        );
+        assert_eq!(
+            g.passkey_rejected,
+            vec![".com", ".github.io", ".co.jp", ".internal"]
+        );
+        // 画面には passkeyRejected で渡す（使う項目は渡さない）
+        let v = serde_json::to_value(&g).unwrap();
+        assert_eq!(
+            v["passkeyRejected"],
+            serde_json::json!([".com", ".github.io", ".co.jp", ".internal"])
+        );
+        assert!(v.get("passkey_sites").is_none());
+        // 一覧を書き直したファイルが勝つ（使わない項目も、勝ったファイルのものだけ）
+        fs::write(
+            d.join("config.local.toml"),
+            "[gui.browser]\npasskey_sites = [\"github.com\"]\n",
+        )
+        .unwrap();
+        let g = load_gui(&d).unwrap();
+        assert_eq!(g.passkey_sites, vec!["github.com"]);
+        assert!(g.passkey_rejected.is_empty());
+        let _ = fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn public_suffix_sites() {
+        for s in [".com", ".jp", ".co.jp", ".github.io", ".internal"] {
+            assert!(public_suffix_site(s), "{s}");
+        }
+        // github.com の書き方は見ない。公開サフィックスの下の名前は使える
+        for s in [
+            "com",
+            "github.io",
+            ".google.com",
+            ".example.co.jp",
+            ".alice.github.io",
+        ] {
+            assert!(!public_suffix_site(s), "{s}");
+        }
     }
 }

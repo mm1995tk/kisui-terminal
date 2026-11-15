@@ -14,9 +14,9 @@ iCloud キーチェーンや 1Password のパスキーを使えない（macOS �
    kisui-terminal は、ページに入れたスクリプトでそれを捕まえ、ページには `NotAllowedError` を返す。
    入力欄の候補に出すパスキー（`mediation: "conditional"`）は、ページを開いただけで求められるので、捕まえても外のブラウザに移らない。
 3. kisui-terminal は、そのタブの今の URL（一番上のフレームのもの）を外のブラウザで開き、そのサイトのログインを 10 分待つ。
-   移るのは、URL の host が設定のサイトと完全に同じときだけ。
+   移るのは、URL の host が設定のサイトの項目に当たるときだけ（下の「設定」）。待つ単位は、当たった項目（`.google.com` で当たれば `.google.com`）。
 4. ユーザーが外のブラウザでパスキーでログインする。
-5. 拡張機能が、そのサイトの Cookie を native messaging で kisui-terminal に送る（kisui-terminal が開いたタブでパスキーが通り、ページの移動と Cookie の書き換えが落ち着いたとき。または、拡張機能のボタンを押したとき。`docs/browser-extension.md`）。
+5. 拡張機能が、そのタブの今のページに送られる Cookie を native messaging で kisui-terminal に送る（kisui-terminal が開いたタブでパスキーが通り、ページの移動と Cookie の書き換えが落ち着いたとき。または、拡張機能のボタンを押したとき。`docs/browser-extension.md`）。
 6. kisui-terminal は、待っているサイトの Cookie だけを内蔵ブラウザの共有のデータに入れ、移る前のタブで同じ URL を開き直し、窓を前に出す。
    1 回受けたら待ちを終える。
 
@@ -29,12 +29,20 @@ GUI の設定ファイル（`~/.config/kisui-terminal/config.toml`。`config.loc
 ```toml
 [gui.browser]
 enabled = true
-passkey_sites = ["github.com", "dash.cloudflare.com"]
+passkey_sites = ["github.com", "dash.cloudflare.com", ".google.com"]
 passkey_browser = "chrome"   # chrome（既定。無ければ Chromium）か firefox
 ```
 
-- `passkey_sites`：host を小文字で書く（`https://`・ポート・パス・`*` は書けない）。ページの host と完全に同じものだけが当たる
-  （`github.com` は `gist.github.com` に当たらない）。外のブラウザに移るのも、Cookie を受け取るのも、ここに書いたサイトだけ。
+- `passkey_sites`：host を小文字で書く（`https://`・ポート・パス・`*` は書けない）。書き方は 2 つ。
+  - `github.com`：ページの host と完全に同じものだけが当たる（`github.com` は `gist.github.com` に当たらない）。
+  - `.google.com`（先頭に `.`）：そのドメインとすべてのサブドメインに当たる（`google.com`・`accounts.google.com`・`myaccount.google.com`）。
+    ログインの後に別のサブドメインへ移るサイト（Google は `accounts.google.com` でログインすると `myaccount.google.com` に移る）に使う。
+    公開サフィックス（[Public Suffix List](https://publicsuffix.org/) にある、`.com`・`.co.jp`・`.github.io` のように誰でもその下に
+    サブドメインを持てる名前。一覧に無い最上位のドメインも含む）は書けない。他人のサイトの Cookie まで写す対象になるため。
+    そう書いた項目は使わず、理由を右下のお知らせに出す（ほかの項目と設定は使う）。kisui-terminal は一覧を埋め込んで持つ（Rust の crate `psl`）。
+  - 1 つの host に 2 つ以上の項目が当たれば、host と完全に同じもの、次に `.` の後ろの長いもの（細かいもの）を使う。
+    kisui-terminal（外のブラウザに移るか・待っているサイトか）と拡張機能（スクリプトを入れるサイト・手で戻るボタン・自動で送るときのサイトの比べ方）は同じ決まりで当てる。
+  外のブラウザに移るのも、Cookie を受け取るのも、ここに書いたサイトだけ。
 - 変えたら kisui-terminal を起動し直す（起動したときの設定を使う）。
 - 書いてあれば、kisui-terminal は起動するたびに、受け口のスクリプトと登録のファイルを置き直す（下の「受け口」）。
   一覧を空にするか消して起動すると、置いた登録のファイルを消す。
@@ -77,16 +85,19 @@ native messaging の決まりどおり、1 つのメッセージは JSON 1 つ�
 ```json
 {
   "type": "sites",
-  "version": 1,
-  "sites": ["github.com", "dash.cloudflare.com"],
-  "waiting": [{ "site": "github.com", "url": "https://github.com/login" }]
+  "version": 2,
+  "sites": ["github.com", "dash.cloudflare.com", ".google.com"],
+  "waiting": [
+    { "site": ".google.com", "url": "https://accounts.google.com/v3/signin" }
+  ]
 }
 ```
 
-- `sites`：設定の `passkey_sites`。拡張機能は、ここにあるサイトの Cookie だけを読む。
-- `waiting`：kisui-terminal が外のブラウザに移って、ログインを待っているサイトと、外のブラウザで開いた URL。
+- `sites`：設定の `passkey_sites`（使う項目だけ。書いた形のまま）。拡張機能は、ここにある項目に当たるページの Cookie だけを読む。
+- `waiting`：kisui-terminal が外のブラウザに移って、ログインを待っているサイト（当たった項目）と、外のブラウザで開いた URL。
   拡張機能は、この URL で kisui-terminal が開いたタブを見分けられる。
 - `version`：取り決めの版。項目を足すだけなら上げない。今の形と合わなくなる変更で上げる。
+  2 で、`sites`・`waiting`・`cookies` の `site` に `.google.com` の書き方が入るようになった（拡張機能は 0.2.0 から読める。0.1.0 は `.google.com` の項目を扱えない）。
 
 ### `cookies`：ログインした後の Cookie
 
@@ -111,15 +122,20 @@ native messaging の決まりどおり、1 つのメッセージは JSON 1 つ�
 }
 ```
 
-- `site`：`sites` の 1 つ。
+- `site`：`sites` の 1 つ（今のタブの host に当たる項目。`.google.com` なら、`myaccount.google.com` のタブからでも `.google.com`）。
 - `cookies`：Chrome と Firefox の `cookies.Cookie` をそのまま入れてよい（`storeId` などほかの項目は読み飛ばす）。
   `name`・`value`・`domain` は要る。ほかは省ける（`hostOnly`・`secure`・`httpOnly`・`session` は false、`path` は `/`）。
   `sameSite` は `no_restriction`・`lax`・`strict`（ほかの値は指定なし）。`expirationDate` は 1970 年からの秒（`session` が true なら見ない）。
   1 回に 1000 個まで。
-- kisui-terminal が入れる Cookie：
+- 拡張機能が送る Cookie：今のタブのページ（host）に送られるもの。
+- kisui-terminal が入れる Cookie（`site` が `github.com` の書き方のとき）：
   - そのサイトのページに送られるものだけ（`domain` がサイトと同じか、`hostOnly` でない上のドメインのもの。`.cloudflare.com` は
     `dash.cloudflare.com` に送られる）。サイトの下のドメイン（`gist.github.com`）や、ほかのサイトのものは捨てる。
   - 入れるときは、どれもサイトの host だけの Cookie にする（上のドメインのまま入れると、許可していないサイトにも送られるため）。
+- kisui-terminal が入れる Cookie（`site` が `.google.com` の書き方のとき）：
+  - `google.com` とその下のドメインのものは、そのドメインのまま入れる（どれも許可した範囲）。
+  - `hostOnly` でない上のドメインのものは、`google.com` のものにする。ほかのサイトのものは捨てる。
+- どちらの書き方でも：
   - 期限の切れたもの、名前や値に制御文字か `;` のあるもの、名前が空か `=` を含むもの、`path` が `/` で始まらないものは捨てる。
   - HttpOnly の Cookie も入れる。
 
@@ -154,7 +170,7 @@ Cookie をほかのプログラムに持ち出す動きは、ログイン情報�
   窓は、つないだ相手のユーザー（Linux は `SO_PEERCRED`、macOS は `getpeereid`）が自分と同じでなければ、何も読まずに切る。
   ほかのユーザーは、Cookie を差し込むことも、サイトの一覧を読むこともできない。
 - 窓は、自分が外のブラウザに移ったサイトの Cookie だけを、移ってから 10 分の間に 1 回だけ受ける。
-  入れる Cookie は、そのサイトの host だけのものにする。
+  入れる Cookie は、そのサイトの host だけ（`.google.com` の書き方なら、そのドメインの中だけ）のものにする。公開サフィックスは書けない。
 - 同じユーザーのほかのプログラムは、受け口を真似れば、その間に限って Cookie を差し込める。ただし、同じユーザーのプログラムは、
   もともと内蔵ブラウザの Cookie の置き場（同じユーザーのファイル）や設定ファイルを直接読み書きできるので、この経路で広がる害は無い。
 - ページ（外のサイト）には Tauri の命令を開かない。ページのスクリプトは、`kisui-passkey:` の URL を `window.open` で開こうとして

@@ -8,11 +8,12 @@
 
 1. kisui-terminal の受け口（普通の版と nightly 版の 2 つの名前）に `sites` を聞き、許可サイト（kisui-terminal の設定の `passkey_sites`）の
    ページにだけ、`page.js`（ページの中。MAIN world）と `relay.js`（拡張機能の側）を入れる（`scripting.registerContentScripts`）。
+   `.google.com` の書き方の項目は `https://*.google.com/*`（`google.com` とすべてのサブドメイン）に入れる。
    聞き直すのは、ブラウザの起動・拡張機能を入れたとき・新しいタブが許可サイトを開いたとき・一覧が 1 分より古いとき。
    どの受け口も答えなければ（kisui-terminal が動いていない）、入れたスクリプトはそのままにする。
 2. kisui-terminal が開いたタブを見分ける：できてから 30 秒のうちに、kisui-terminal がログインを待っているサイト（`sites` の答えの
    `waiting`）のページを最初に開いたタブを、kisui-terminal が開いたものと見る。サイトが最初にリダイレクトしても見分けられるよう、
-   URL でなくサイト（host）で比べる。ブラウザが動いていなかったとき（kisui-terminal がブラウザを URL 付きで起動した）は、拡張機能が
+   URL でなくサイト（host が当たる `passkey_sites` の項目。当て方は `docs/passkey-extension.md` の「設定」で、kisui-terminal と同じ）で比べる。ブラウザが動いていなかったとき（kisui-terminal がブラウザを URL 付きで起動した）は、拡張機能が
    動き出す前にタブができているので、起動したときに `waiting` の URL と同じページを開いているタブを探す。
    タブを覚えたら、そのタブの今のページにも `page.js` と `relay.js` を入れる（一覧に足したばかりのサイトでは、登録が 1 ページ目の読み込みに間に合わないため）。
    一覧は 1 分のあいだ聞き直さないことがある（kisui-terminal が答えなかったときも）ので、`passkey_sites` を変えて kisui-terminal を起動し直した直後と、
@@ -20,14 +21,15 @@
 3. そのタブで `navigator.credentials.get` か `create` がパスキー（`publicKey`）で成功すると、`page.js` が知らせる（資格情報そのものは渡さない）。
 4. 落ち着くのを待つ：パスキーが通ってから 2 秒は待ち、そのあと、タブの読み込みが済み、そのサイトに送られる Cookie が 1.5 秒変わらなければ
    落ち着いたと見る。15 秒を過ぎたら、落ち着かなくても送る。そのときタブが別のサイトに移っていれば送らない（手で戻るボタンを使う）。
-5. そのサイトのページに送られる Cookie だけを読み（`cookies.getAll` を、サイトの URL と、サイトのドメインで。タブの Cookie の置き場から）、
-   取り決めの `cookies` で、そのサイトを `waiting` に挙げた受け口に送る。`done` が返ったらタブを閉じる。断られたら、拡張機能のボタンに
+   サイトは待っている項目で比べるので、`.google.com` で待っていれば、`accounts.google.com` から `myaccount.google.com` に移っていても送る。
+5. 今のタブのページに送られる Cookie だけを読み（`cookies.getAll` を、タブの host の URL と、その host のドメインで。タブの Cookie の置き場から）、
+   取り決めの `cookies` で、その項目を `waiting` に挙げた受け口に送る。`done` が返ったらタブを閉じる。断られたら、拡張機能のボタンに
    `!` を付け、ボタンの説明（マウスを乗せると出る）に理由を書く。
-6. 手で戻るボタン（拡張機能のボタン）：パスキーの後にまだ手順が続くサイトのため。押すと、今のタブのサイトが許可サイトで、kisui-terminal が
-   待っていれば、そのサイトの Cookie を送り、タブを閉じる。キーは、Chrome は `chrome://extensions/shortcuts`、Firefox は
+6. 手で戻るボタン（拡張機能のボタン）：パスキーの後にまだ手順が続くサイトのため。押すと、今のタブの host が許可サイトの項目に当たり、kisui-terminal が
+   その項目を待っていれば、今のタブのページに送られる Cookie を送り、タブを閉じる（`.google.com` で待っていれば、`myaccount.google.com` のタブからも送れる）。キーは、Chrome は `chrome://extensions/shortcuts`、Firefox は
    アドオンの管理の「拡張機能のショートカットキーの管理」で付けられる（既定では付けない。ブラウザやページのキーとぶつけないため）。
 
-Cookie を読むのは、kisui-terminal の答えの `sites` にあるサイトのものだけ。そのほかのサイトの Cookie・閲覧の履歴は読まない。
+Cookie を読むのは、kisui-terminal の答えの `sites` にある項目に当たるページのものだけ。そのほかのサイトの Cookie・閲覧の履歴は読まない。
 `page.js` は許可サイトのすべてのタブに入るが、知らせを使うのは kisui-terminal が開いたタブ（と、手で押したボタン）だけ。
 
 ## 権限
@@ -96,6 +98,7 @@ zip は、同じソースからは同じバイト列になる（中のファイ�
 ### 版を上げるとき
 
 `extension/manifest.json` の `version` を上げて zip を作り直し、両方のストアに上げる。kisui-terminal の版とは別に数える。
+0.2.0 で、`passkey_sites` の `.google.com` の書き方（取り決めの版 2）を読めるようにした（#279）。
 取り決め（`docs/passkey-extension.md`）を変えるときは、kisui-terminal と拡張機能を合わせて変える。
 
 ### ストアの説明
