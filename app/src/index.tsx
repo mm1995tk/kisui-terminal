@@ -5,7 +5,7 @@ import { render } from "solid-js/web";
 import "./theme.css";
 import "./fonts.ts";
 import { POPUP_LABEL } from "./clipboardHistory.ts";
-import { setLang, T } from "./i18n/index.ts";
+import { lang, setLang, T } from "./i18n/index.ts";
 
 // dragDropEnabled: false なので、OS からのドロップは WebView に届く。受け付けた欄（TerminalView）が止めなかった
 // ドロップは、既定の動き（落とされた URL に画面が置き換わる）にならないよう、ここで断る
@@ -27,6 +27,8 @@ try {
 } catch (e) {
   console.error("could not read ui-language", e);
 }
+// 文書の言語も合わせる（スクリーンリーダーの読み方・字形の選び方が変わる）
+document.documentElement.lang = lang();
 
 /** この画面が、kisui-terminal の外から開くクリップボードの履歴の窓（clipboard_popup.rs）か。 */
 function isClipboardHistoryPopup(): boolean {
