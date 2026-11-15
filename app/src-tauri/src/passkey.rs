@@ -192,7 +192,8 @@ pub fn script(nonce: &str, sites: &[String]) -> String {
 /// `site` の上のドメインの Cookie（`.cloudflare.com` など）も、`site`（`dash.cloudflare.com`）だけのものにする
 /// （上のドメインに入れると、許可していないサイトにも送られるため）。`site` の下のドメインの Cookie は捨てる。
 /// `site` が `.google.com` の書き方なら、`google.com` とその下のドメインの Cookie は、そのドメインのまま入れる
-/// （どれも許可した範囲）。上のドメインの Cookie は `google.com` のものにする。
+/// （どれも許可した範囲。host だけのものは host だけ、サブドメインにも送られるものはサブドメインにも送られるまま）。
+/// 上のドメインの Cookie は、`google.com` とそのサブドメインに送られるもの（`.google.com`）にする。
 /// 期限の切れたもの・名前や値に使えない文字のあるものも捨てる。同じ名前とパスなら、ドメインのより細かいものが勝つ。
 pub fn accept_cookies(
     cookies: &[WireCookie],
@@ -244,6 +245,15 @@ fn accept_cookie(c: &WireCookie, site: &str, now: f64) -> Option<(usize, Cookie<
         domain.clone()
     } else {
         base.to_string()
+    };
+    // WebView（wry の set_cookie）は `Cookie::domain()` の値をそのまま渡し、先頭に `.` の無い domain は host だけの Cookie になる。
+    // `github.com` の書き方は、どれも host だけにする（上の説明）。`.google.com` の書き方では、host だけでない Cookie と
+    // 上のドメインから寄せたものを、サブドメインにも送られる `.google.com` のままにする（host だけにすると、開き直す
+    // `accounts.google.com` に送られない）。`domain()` は先頭の `.` を 1 つ取るので、`..google.com` と入れて `.google.com` を渡す
+    let to = if subdomains && !(inside && host_only) {
+        format!("..{to}")
+    } else {
+        to
     };
     let mut b = Cookie::build((c.name.clone(), c.value.clone()))
         .domain(to)
@@ -1357,22 +1367,23 @@ mod tests {
             .iter()
             .map(|c| (c.name().to_string(), c.domain().unwrap().to_string()))
             .collect();
+        // WebView には domain() をそのまま渡す。先頭の `.` があればサブドメインにも送られ、無ければ host だけ
         assert_eq!(
             got,
             vec![
-                ("SID".to_string(), "google.com".to_string()),
+                ("SID".to_string(), ".google.com".to_string()),
                 ("host".to_string(), "google.com".to_string()),
                 ("ACCOUNT".to_string(), "myaccount.google.com".to_string()),
             ]
         );
         assert_eq!(dropped, 3);
-        // 上のドメインの Cookie は、許可したドメインのものにする
+        // 上のドメインの Cookie は、許可したドメインとそのサブドメインに送られるものにする
         let (ok, _) = accept_cookies(
             &[wire("CF_Authorization", ".cloudflare.com", false)],
             ".dash.cloudflare.com",
             0.0,
         );
-        assert_eq!(ok[0].domain(), Some("dash.cloudflare.com"));
+        assert_eq!(ok[0].domain(), Some(".dash.cloudflare.com"));
     }
 
     // 待つ単位は当たった項目。accounts.google.com で移っても、myaccount.google.com のタブの Cookie を受ける
