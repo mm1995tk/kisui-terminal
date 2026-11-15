@@ -5,6 +5,10 @@
 //! `127.0.0.1` の空きポートで待ち受け、ブラウザの接続を、そのマシンの `kisui relay` の上でリモートのポートへ運ぶ。
 //! 開くのは手元の URL（`127.0.0.1:<ポート>`）。`kisui relay` はマシンごとに 1 本、待ち受けはマシンと URL のポートごとに
 //! 1 つで、どちらも使い回し、GUI が終わるときに止める。
+//! 待ち受けのポートは、マシンとリモートのポートから決まる番号を先に試す（`preferred_port`）。起動し直しても同じ番号に
+//! なりやすく、ページの origin（`127.0.0.1:<ポート>`）の localStorage などが残る（#203）。使われていれば、空きポートにする。
+//!
+//! 内蔵ブラウザ（browser.rs）のタブで開くときも、同じ中継を使う。タブに開かせる URL を返すのが `browser_resolve_url`（#203）。
 //!
 //! 命令はメイン窓の画面からだけ呼べる（`from_main`）。開いてよい URL は http と https だけ（`parse_url`）。
 
@@ -163,6 +167,34 @@ pub fn rewrite(u: &Url, local: u16) -> Url {
     v
 }
 
+/// 待ち受けのポートに先に試す番号（20000〜29999）。マシンとリモートのポートだけから決まる（FNV-1a）ので、起動し直しても同じ。
+/// OS が空きポートを選ぶ範囲（Linux は 32768〜、macOS は 49152〜）の外にして、ほかの接続とぶつかりにくくする。
+fn preferred_port(target: &str, remote: u16) -> u16 {
+    let mut h: u32 = 0x811c_9dc5;
+    for b in target.bytes().chain([0]).chain(remote.to_be_bytes()) {
+        h ^= u32::from(b);
+        h = h.wrapping_mul(0x0100_0193);
+    }
+    20000 + (h % 10000) as u16
+}
+
+/// 手元の 127.0.0.1 で待ち受ける。`preferred` が使えればそれを、使えなければ空きポートを使う。
+/// 先に `preferred` へつないでみて、誰かが答えたら使わない（macOS では、ほかのプログラムが 0.0.0.0 で待っているポートにも
+/// 127.0.0.1 で bind できてしまい、そのプログラムへの手元の接続を横取りするため）。
+fn bind_listener(preferred: u16) -> Result<TcpListener, String> {
+    let taken = TcpStream::connect_timeout(
+        &(Ipv4Addr::LOCALHOST, preferred).into(),
+        Duration::from_millis(200),
+    )
+    .is_ok();
+    if !taken {
+        if let Ok(l) = TcpListener::bind((Ipv4Addr::LOCALHOST, preferred)) {
+            return Ok(l);
+        }
+    }
+    TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).map_err(|e| e.to_string())
+}
+
 /// `kisui relay` の断りを、ユーザーに見せる文にする。
 fn explain(e: ProbeError, target: &str, remote: u16) -> String {
     match e {
@@ -224,7 +256,7 @@ impl Forwards {
         if let Some(l) = map.get(&key) {
             return Ok(l.port);
         }
-        let l = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).map_err(|e| e.to_string())?;
+        let l = bind_listener(preferred_port(target, remote))?;
         let port = l.local_addr().map_err(|e| e.to_string())?.port();
         let stop = Arc::new(AtomicBool::new(false));
         let relays = Arc::clone(&self.relays);
@@ -320,6 +352,20 @@ pub fn open_url_external(
     from_main(&webview)?;
     let u = resolve(&forwards, &target, parse_url(&url)?)?;
     open_with_os(&u)
+}
+
+/// 内蔵ブラウザのタブで `url` を開くときに、タブに実際に開かせる URL を返す（#203）。`target` はタブのワークスペースのマシン。
+/// リモートのマシンの localhost 系なら、`kisui relay` の中継を用意して、手元の待ち受けの URL（`127.0.0.1:<ポート>`）を返す。
+/// そのポートで誰も待っていなければ理由を返す。ほかの URL はそのまま返す。開いてよいのは `parse_url` が通る URL だけ。
+#[tauri::command(async)]
+pub fn browser_resolve_url(
+    forwards: State<Forwards>,
+    webview: Webview,
+    target: String,
+    url: String,
+) -> Result<String, String> {
+    from_main(&webview)?;
+    Ok(resolve(&forwards, &target, parse_url(&url)?)?.to_string())
 }
 
 #[cfg(test)]
@@ -432,6 +478,52 @@ mod tests {
             .collect();
         assert_eq!(names, ["dev", "other"]);
         f.close_all();
+    }
+
+    // 待ち受けのポートは、マシンとリモートのポートだけで決まる（起動し直しても同じ origin になる）
+    #[test]
+    fn preferred_ports_are_stable() {
+        let a = preferred_port("dev", 3000);
+        assert_eq!(a, preferred_port("dev", 3000));
+        assert!((20000..30000).contains(&a), "{a}");
+        assert_ne!(a, preferred_port("dev", 3001));
+        assert_ne!(a, preferred_port("other", 3000));
+    }
+
+    // 起動し直した（別の Forwards）ときも、同じマシンとポートは同じ待ち受けのポートになる
+    #[test]
+    fn the_same_local_port_after_a_restart() {
+        let p = fake::echo_server();
+        let (f, _) = fake_forwards();
+        let a = f.ensure("restart-test", p).unwrap();
+        f.close_all();
+        // 先に試すポートがたまたまほかのプログラムに使われていて、空きポートになったときは、確かめられないので飛ばす
+        if a != preferred_port("restart-test", p) {
+            eprintln!(
+                "skipped: port {} is in use",
+                preferred_port("restart-test", p)
+            );
+            return;
+        }
+        // 止めた待ち受けの糸がソケットを閉じるのを待つ（本当の起動し直しでは、前のプロセスごと無くなっている）
+        let until = Instant::now() + Duration::from_secs(5);
+        while TcpStream::connect((Ipv4Addr::LOCALHOST, a)).is_ok() && Instant::now() < until {
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        let (g, _) = fake_forwards();
+        let b = g.ensure("restart-test", p).unwrap();
+        assert_eq!(a, b);
+        assert_eq!(fetch(b, b"x"), b"x");
+        g.close_all();
+    }
+
+    // 先に試すポートでほかのプログラムが待っていれば、そこを使わずに空きポートにする
+    #[test]
+    fn skips_a_preferred_port_in_use() {
+        let other = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+        let taken = other.local_addr().unwrap().port();
+        let l = bind_listener(taken).unwrap();
+        assert_ne!(l.local_addr().unwrap().port(), taken);
     }
 
     #[test]

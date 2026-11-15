@@ -18,6 +18,15 @@ export function openTab(
   return invoke("browser_open", { tab, url, keys, ...b });
 }
 
+/**
+ * タブで url を開くときに、ページに実際に開かせる URL（#203。殻の open_url.rs の browser_resolve_url）。
+ * `target` はタブのワークスペースのマシン。リモートのマシンの localhost 系なら、殻が `kisui relay` の中継を用意して、
+ * 手元の待ち受けの URL を返す（そのポートで誰も待っていなければ失敗する）。ほかはそのまま返す。
+ */
+export function resolveTabUrl(target: string, url: string): Promise<string> {
+  return invoke("browser_resolve_url", { target, url });
+}
+
 /** タブの位置と大きさを合わせる（論理ピクセル）。 */
 export function moveTab(tab: string, b: Bounds): Promise<void> {
   return invoke("browser_bounds", { tab, ...b });

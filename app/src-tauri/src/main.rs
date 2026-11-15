@@ -180,6 +180,7 @@ fn main() {
             install_cancel,
             menu::window_close,
             open_url::open_url_external,
+            open_url::browser_resolve_url,
             browser::browser_open,
             browser::browser_bounds,
             browser::browser_visible,

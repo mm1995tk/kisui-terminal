@@ -173,8 +173,15 @@ import {
   onTabKey,
   onTabPage,
   onTabTitle,
+  resolveTabUrl,
   saveTabs,
 } from "./browser/browserOs.ts";
+import {
+  addRelayed,
+  relayedOf,
+  unrelay,
+  type Relayed,
+} from "./browser/relay.ts";
 import {
   addTab,
   closeTab,
@@ -190,6 +197,7 @@ import {
   toggleFold,
   toStored,
   updateTab,
+  type BrowserTab,
   type TabsState,
 } from "./browser/tabs.ts";
 import { UrlDialog } from "./browser/UrlDialog.tsx";
@@ -207,7 +215,7 @@ import { TermGroup, TermGroups } from "./terminal/group.ts";
 import type { MediaFetch } from "./terminal/media.ts";
 import { TerminalGrid } from "./terminal/TerminalGrid.tsx";
 import { openUrlExternally } from "./terminal/openUrlOs.ts";
-import { isOpenableUrl, isUrlOpenClick } from "./terminal/urlOpen.ts";
+import { isOpenableUrl, urlClickAction } from "./terminal/urlOpen.ts";
 
 /**
  * 起動したら、先に手元の設定ファイルの [[gui.machines]] を読む。間違いがあれば、場所・行・理由だけを出して、ほかは何もしない
@@ -794,7 +802,8 @@ function Workbench(props: {
         if (ev.start) requestStartFocus(target, ev.workspaceId);
         else focusExplorer(target, ev.workspaceId);
       } else if (ev.kind === "changes") focusChanges(target, ev.workspaceId);
-      else if (ev.kind === "open-url") openUrlFor(target, ev.url);
+      else if (ev.kind === "open-url")
+        openUrlFor(target, ev.url, ev.workspaceId);
       else if (ev.kind === "update-check")
         void checkNow().then((r) => s.reportUpdate(ev.id, r));
       else zoomWs(target, ev.workspaceId, true);
@@ -1445,9 +1454,16 @@ function Workbench(props: {
     };
   }
 
-  /** URL を手元の外部ブラウザで開く。リモートのマシンの localhost 系は、殻が `kisui relay` の中継越しに開く（#96・#127）。 */
-  function openUrlFor(target: string, url: string) {
+  /**
+   * URL を開く。`ws` を渡し、内蔵ブラウザを有効にしていれば（#203）、そのワークスペースの新しいタブで開く。
+   * そうでなければ手元の外部ブラウザで開く。どちらも、リモートのマシンの localhost 系は、殻が `kisui relay` の中継越しに開く（#96・#127）。
+   */
+  function openUrlFor(target: string, url: string, ws?: WorkspaceId) {
     if (!isOpenableUrl(url)) return;
+    if (props.browser && ws !== undefined) {
+      openInNewTab(target, ws, url);
+      return;
+    }
     openUrlExternally(target, url).catch((e: unknown) =>
       setFocusError({
         title: "URL を開けませんでした",
@@ -1458,12 +1474,16 @@ function Workbench(props: {
 
   /**
    * ターミナルの URL がクリックされた（#47）。cmd（macOS 以外は ctrl）を押していなければ何もしない。
-   * cmd + クリックも cmd + shift + クリックも、手元の外部ブラウザで開く。開くのは http と https の URL だけ。
+   * cmd + クリックは、内蔵ブラウザを有効にしていれば今のワークスペースの新しいタブ、無効なら手元の外部ブラウザで開く（#203）。
+   * cmd + option + クリック（macOS 以外は ctrl + alt）は、いつも外部ブラウザで開く。shift は付けても同じ。
+   * 開くのは http と https の URL だけ。
    */
   function openUrl(click: UrlClick) {
-    if (!isOpenableUrl(click.url) || !isUrlOpenClick(click, IS_MAC)) return;
+    const action = urlClickAction(click, IS_MAC);
+    if (!isOpenableUrl(click.url) || action === null) return;
     const f = focus();
-    if (f) openUrlFor(f.target, click.url);
+    if (f)
+      openUrlFor(f.target, click.url, action === "open" ? f.id : undefined);
   }
 
   /**
@@ -1522,6 +1542,54 @@ function Workbench(props: {
     return props.browser && f ? shownTab(tabs(), f.target, f.id) : undefined;
   });
   let focusBrowserPage: (() => void) | undefined;
+  /**
+   * タブ → これまで使った中継の origin と元の origin（リモートのマシンの localhost 系を `kisui relay` の中継で開いたタブだけ。#203）。
+   * タブは元の URL を覚えて入力欄に出し、ページから届く中継の URL は元の URL に戻してから書く（browser/relay.ts）。
+   * 戻る・進むで前の中継の URL に戻ることもあるので、対応は足すだけにし、捨てるのはタブを閉じたときだけ
+   */
+  const relays = new Map<string, readonly Relayed[]>();
+  /** タブ tab で url を開くときに、ページに実際に開かせる URL を得て、中継の対応を覚える。 */
+  async function resolveFor(
+    tab: Pick<BrowserTab, "id" | "target">,
+    url: string,
+  ): Promise<string> {
+    const opened = await resolveTabUrl(tab.target, url);
+    const r = relayedOf(url, opened);
+    if (r) relays.set(tab.id, addRelayed(relays.get(tab.id) ?? [], r));
+    return opened;
+  }
+  // 閉じたタブの対応を捨てる
+  createEffect(() => {
+    const alive = new Set(tabs().tabs.map((t) => t.id));
+    for (const id of [...relays.keys()]) if (!alive.has(id)) relays.delete(id);
+  });
+  /**
+   * URL をワークスペースの新しいタブで開く（`kisui open`・shj の URL を開く要求・ターミナルの URL のクリック。#203）。
+   * リモートのマシンの localhost 系は、先に中継を用意する（そのポートで誰も待っていなければ、タブを作らずにそう出す。外部ブラウザと同じ）。
+   * フォーカスしているワークスペースなら、そのページにキーを向ける。ほかのワークスペースなら、そこへは移らない
+   * （そのワークスペースに移ると、タブのページが出ている）。
+   */
+  function openInNewTab(target: string, ws: WorkspaceId, url: string) {
+    const tab: BrowserTab = {
+      id: newTabId(),
+      target,
+      workspace: ws,
+      url,
+      title: "",
+    };
+    resolveFor(tab, url).then(
+      () => {
+        setTabs((s) => addTab(s, tab));
+        const f = untrack(focus);
+        if (f?.target === target && f.id === ws) focusTerminal();
+      },
+      (e: unknown) =>
+        setFocusError({
+          title: "URL を開けませんでした",
+          error: e instanceof Error ? e.message : String(e),
+        }),
+    );
+  }
   /** URL の入力欄（リーダーの o n・o u） */
   const [urlDialog, setUrlDialog] = createSignal<
     | { kind: "new"; target: string; id: WorkspaceId }
@@ -1594,8 +1662,9 @@ function Workbench(props: {
       offs.push(
         await onTabKey(onPageKey),
         await onTabPage((e) => {
-          if (isOpenableUrl(e.url))
-            setTabs((t) => updateTab(t, e.tab, { url: e.url }));
+          // 中継で開いているタブは、元の URL に戻して覚える（入力欄にも元の URL を出す）
+          const url = unrelay(e.url, relays.get(e.tab));
+          if (isOpenableUrl(url)) setTabs((t) => updateTab(t, e.tab, { url }));
         }),
         await onTabTitle((e) =>
           setTabs((t) => updateTab(t, e.tab, { title: e.title })),
@@ -1693,9 +1762,21 @@ function Workbench(props: {
         }),
       );
     } else {
-      setTabs((s) => updateTab(s, d.tab, { url }));
-      // まだ作っていない・開けなかったタブは、BrowserArea が新しい URL で作る
-      void goTab(d.tab, url).catch(() => {});
+      // 中継を用意できてから（リモートのマシンの localhost 系）タブの URL を書き換える。用意できなければ、ページも URL も前のまま。
+      // まだ作っていない・開けなかったタブは、BrowserArea が書き換えた URL で作る（goTab は失敗する）
+      const tab = untrack(tabs).tabs.find((t) => t.id === d.tab);
+      if (tab)
+        resolveFor(tab, url).then(
+          (opened) => {
+            setTabs((s) => updateTab(s, d.tab, { url }));
+            void goTab(d.tab, opened).catch(() => {});
+          },
+          (e: unknown) =>
+            setFocusError({
+              title: "ページを開けませんでした",
+              error: e instanceof Error ? e.message : String(e),
+            }),
+        );
     }
     focusTerminal();
   }
@@ -2233,6 +2314,7 @@ function Workbench(props: {
             shown={shownBrowserTab()}
             zoom={() => scale}
             keys={() => interceptKeys(IS_MAC)}
+            resolve={resolveFor}
             onError={(title, error) => setFocusError({ title, error })}
             focusRef={(f) => (focusBrowserPage = f)}
           />
