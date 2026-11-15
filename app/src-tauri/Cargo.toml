@@ -42,6 +42,7 @@ tauri-plugin-global-shortcut = "=2.4.1"
 # クリップボードの履歴（clipboard_history.rs）。macOS は NSPasteboard の changeCount と型の一覧を見る。
 # 外から開く履歴の窓（clipboard_popup.rs）は、窓を NSPanel（NonactivatingPanel）に替えて、アプリを前に出さずに
 # キーの窓にする。
+# 内蔵ブラウザの DevTools（browser.rs の open_devtools。#205）は、Inspector をくっつける先にする隠した NSView を作る。
 # 版は Cargo.lock にすでにある（arboard が使っている）ものに合わせる
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "=0.6.5"
@@ -51,6 +52,7 @@ objc2-app-kit = { version = "=0.3.2", default-features = false, features = [
   "NSPanel",
   "NSPasteboard",
   "NSResponder",
+  "NSView",
   "NSWindow",
 ] }
 objc2-foundation = { version = "=0.3.2", default-features = false, features = [
