@@ -269,7 +269,7 @@ export function BrowserArea(props: {
     ) {
       wantFocus = null;
       focusNow(id);
-    } else wantFocus = id; // 重ねている間は、重なりが消えて、見回りがページを前に戻してから向ける
+    } else wantFocus = id; // 重ねている間とリーダーの間は、重なりが消える・リーダーを出るのを待ち、見回りが向けられるようになってから向ける
   });
 
   // 位置が変わるのは、大きさの変化のほかに、サイドバーの幅の変更・お知らせの出し入れなどもある。
