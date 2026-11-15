@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { dropBefore, edgeScroll } from "./drag.ts";
+import { dropBefore, dropPlan, edgeScroll } from "./drag.ts";
 
 const items = [
   { key: "a", mid: 10 },
@@ -33,5 +33,29 @@ describe("edgeScroll", () => {
     assert.ok(edgeScroll(380, 0, 400) > 0);
     assert.ok(edgeScroll(0, 0, 400) < edgeScroll(20, 0, 400));
     assert.ok(edgeScroll(400, 0, 400) > edgeScroll(380, 0, 400));
+  });
+});
+
+describe("dropPlan", () => {
+  it("行の前に落とすなら、その行の上に印を付ける", () => {
+    assert.deepEqual(dropPlan(items, "x", 20), {
+      before: "b",
+      target: "b",
+      at: "before",
+    });
+  });
+  it("一番後ろに落とすなら、一番後ろの行（動かす行を除く）の下に印を付ける", () => {
+    assert.deepEqual(dropPlan(items, "c", 80), {
+      before: null,
+      target: "b",
+      at: "after",
+    });
+  });
+  it("動かす行しか無ければ、印を付ける行が無い", () => {
+    assert.deepEqual(dropPlan([{ key: "a", mid: 10 }], "a", 0), {
+      before: null,
+      target: null,
+      at: "after",
+    });
   });
 });

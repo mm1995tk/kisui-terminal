@@ -25,6 +25,27 @@ export function dropBefore(
   return null;
 }
 
+/** 落とし先の印を付ける行（target）と、その行の上（before）か下（after）か。 */
+export interface DropPlan {
+  /** 落とした行の前に入る行のキー（一番後ろなら null） */
+  before: string | null;
+  /** 印を付ける行（動かす行しか無ければ null） */
+  target: string | null;
+  at: "before" | "after";
+}
+
+/** y に落とすときの、落とし先と印。一番後ろなら、一番後ろの行の下に印を付ける。 */
+export function dropPlan(
+  items: readonly DragItem[],
+  self: string,
+  y: number,
+): DropPlan {
+  const before = dropBefore(items, self, y);
+  if (before !== null) return { before, target: before, at: "before" };
+  const last = items.filter((it) => it.key !== self).pop();
+  return { before: null, target: last?.key ?? null, at: "after" };
+}
+
 /** 動かしてよいほど離れたか（押しただけ・少し手が触れただけでは始めない）。 */
 export const DRAG_THRESHOLD = 4;
 
@@ -95,7 +116,7 @@ export function startDrag(e: PointerEvent, spec: DragSpec): void {
       dragged = self;
       dragged?.setAttribute("data-dragging", "");
     }
-    before = dropBefore(
+    const plan = dropPlan(
       rows.map((r) => {
         const b = r.ref.getBoundingClientRect();
         return { key: r.key, mid: b.top + b.height / 2 };
@@ -103,12 +124,8 @@ export function startDrag(e: PointerEvent, spec: DragSpec): void {
       spec.self,
       y,
     );
-    if (before !== null) {
-      mark(rows.find((r) => r.key === before)?.el ?? null, "before");
-    } else {
-      const last = rows.filter((r) => r.key !== spec.self).pop();
-      mark(last?.el ?? null, "after");
-    }
+    before = plan.before;
+    mark(rows.find((r) => r.key === plan.target)?.el ?? null, plan.at);
   };
 
   // 一覧の端にいるあいだは、フレームごとにスクロールする
