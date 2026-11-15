@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { dropBefore, dropPlan, edgeScroll } from "./drag.ts";
+import { dropBefore, edgeScroll, layoutShifts } from "./drag.ts";
 
 const items = [
   { key: "a", mid: 10 },
@@ -36,26 +36,51 @@ describe("edgeScroll", () => {
   });
 });
 
-describe("dropPlan", () => {
-  it("行の前に落とすなら、その行の上に印を付ける", () => {
-    assert.deepEqual(dropPlan(items, "x", 20), {
-      before: "b",
-      target: "b",
-      at: "before",
+describe("layoutShifts", () => {
+  // 高さ 20・行間 4 の 4 行
+  const slots = [
+    { key: "a", top: 0, height: 20 },
+    { key: "b", top: 24, height: 20 },
+    { key: "c", top: 48, height: 20 },
+    { key: "d", top: 72, height: 20 },
+  ];
+  const obj = (m: Map<string, number>) => Object.fromEntries(m);
+
+  it("元の場所のままなら、だれもよけない", () => {
+    assert.deepEqual(obj(layoutShifts(slots, "b", "c")), { a: 0, c: 0, d: 0 });
+  });
+  it("下へ動かすと、間にある行が 1 行分（行間も）上へよける", () => {
+    assert.deepEqual(obj(layoutShifts(slots, "a", "d")), {
+      b: -24,
+      c: -24,
+      d: 0,
+    });
+    assert.deepEqual(obj(layoutShifts(slots, "a", null)), {
+      b: -24,
+      c: -24,
+      d: -24,
     });
   });
-  it("一番後ろに落とすなら、一番後ろの行（動かす行を除く）の下に印を付ける", () => {
-    assert.deepEqual(dropPlan(items, "c", 80), {
-      before: null,
-      target: "b",
-      at: "after",
+  it("上へ動かすと、間にある行が 1 行分下へよける", () => {
+    assert.deepEqual(obj(layoutShifts(slots, "d", "b")), {
+      a: 0,
+      b: 24,
+      c: 24,
+    });
+    assert.deepEqual(obj(layoutShifts(slots, "c", "a")), {
+      a: 24,
+      b: 24,
+      d: 0,
     });
   });
-  it("動かす行しか無ければ、印を付ける行が無い", () => {
-    assert.deepEqual(dropPlan([{ key: "a", mid: 10 }], "a", 0), {
-      before: null,
-      target: null,
-      at: "after",
+  it("一番後ろの行は、前の行との間を行間として使う", () => {
+    assert.deepEqual(obj(layoutShifts(slots, "d", "a")), {
+      a: 24,
+      b: 24,
+      c: 24,
     });
+  });
+  it("動かす行しか無ければ何も返さない", () => {
+    assert.equal(layoutShifts([slots[0]!], "a", null).size, 0);
   });
 });

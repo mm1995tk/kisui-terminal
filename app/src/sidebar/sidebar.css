@@ -195,25 +195,26 @@
   opacity: 1;
 }
 
-/* ドラッグの印（drag.ts）。動かしている帯・行は薄くし、落とす位置には線を引く（帯は帯の上か下、タブの行はその行の内側の上か下。
-   帯は overflow: clip の箱なので、タブの行の線は内側に引く）。線の色はマシンの色 */
-.band-item[data-dragging] {
-  opacity: 0.5;
+/* ドラッグ中の動き（drag.ts）。つかんだ帯・行は、drag.ts が掛ける transform でマウスについて動く（transition は付けない）。
+   ほかの帯・行（data-shift）は、入る場所を空けるように、transform の変化をなめらかにしてよける。
+   視差効果を減らす設定のときは、よける動きを省く（空ける位置には、すぐに移る）。 */
+.band-item[data-dragging],
+.tab-row[data-dragging] {
+  position: relative;
+  z-index: 2;
+  opacity: 0.85;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.3);
+  cursor: grabbing;
 }
-.band-item[data-drop="before"] {
-  box-shadow: 0 -3px 0 0 var(--machine-color);
+.band-item[data-shift],
+.tab-row[data-shift] {
+  transition: transform 150ms ease;
 }
-.band-item[data-drop="after"] {
-  box-shadow: 0 3px 0 0 var(--machine-color);
-}
-.tab-row[data-dragging] > .tab-line {
-  opacity: 0.5;
-}
-.tab-row[data-drop="before"] > .tab-line {
-  box-shadow: inset 0 2px 0 0 var(--machine-color);
-}
-.tab-row[data-drop="after"] > .tab-line {
-  box-shadow: inset 0 -2px 0 0 var(--machine-color);
+@media (prefers-reduced-motion: reduce) {
+  .band-item[data-shift],
+  .tab-row[data-shift] {
+    transition: none;
+  }
 }
 
 /* ヘッダーとタブの行のボタン（畳む・足す・名前を変える・閉じる）。同じ大きさ */
