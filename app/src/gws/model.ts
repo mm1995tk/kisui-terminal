@@ -5,7 +5,7 @@
 // 覚えるもの：名前、サイドバーでの並び順（list の順）、中のタブとその並び順。再起動しても残す（置き場は webview の localStorage）。
 //
 // 名前を付けていないワークスペースは「ws1」「ws2」の番号の名前で出す。番号は作ったときに空いている一番小さい番号で、閉じるまで変えない。
-// どのワークスペースにも入っていないターミナルのタブ（記録が消えた・別の PC の GUI から作った・この変更の前から開いていた）は、
+// どのワークスペースにも入っていないターミナルのタブ（記録が消えた・別の PC の GUI から作った・GUI のワークスペースの記録が無かった版から開いていた）は、
 // 1 つにつき新しいワークスペースを 1 つ作って入れる（reconcile）。
 
 import type { WorkspaceId } from "../rpc/protocol.ts";
@@ -50,6 +50,7 @@ export interface GwsState {
   list: Gws[];
 }
 
+/** ワークスペースが 1 つも無い、初めの状態。 */
 export const EMPTY_GWS: GwsState = { list: [] };
 
 /** localStorage のキー。 */
@@ -62,15 +63,16 @@ export const displayName = (g: Pick<Gws, "name" | "num">): string =>
 /** 名前を付けていないときの名前。 */
 export const autoName = (num: number): string => `ws${num}`;
 
-/** タブを指すキー（サイドバーの行・出しているタブの印）。 */
-export const refKey = (r: TabRef | { target: string; ws: WorkspaceId }) =>
-  "kind" in r && r.kind === "browser"
-    ? JSON.stringify(["b", r.id])
-    : JSON.stringify(["t", (r as TermRef).target, (r as TermRef).ws]);
-
+/** ターミナルのタブ（マシンと、そのマシンのワークスペース）を指すキー。 */
 export const termKey = (target: string, ws: WorkspaceId): string =>
   JSON.stringify(["t", target, ws]);
+
+/** ブラウザのタブ（id）を指すキー。 */
 export const browserKey = (id: string): string => JSON.stringify(["b", id]);
+
+/** タブを指すキー（サイドバーの行・出しているタブの印）。termKey・browserKey と同じ形。 */
+export const refKey = (r: TabRef): string =>
+  r.kind === "browser" ? browserKey(r.id) : termKey(r.target, r.ws);
 
 const isTerm = (r: TabRef): r is TermRef => r.kind === "term";
 
@@ -261,8 +263,8 @@ export interface ReconcileInput {
    */
   browser?: readonly { id: string; target: string; workspace: WorkspaceId }[];
   /**
-   * この変更の前の並び順の記録（sidebar/order.ts）。新しく作るワークスペースを、この順に並べる。
-   * 並びの記録を持たない GUI が初めて一覧を見たときの、並びの移し方
+   * GUI のワークスペースの記録より前の、並び順だけの記録（sidebar/order.ts）。新しく作るワークスペースを、この順に並べる。
+   * GUI のワークスペースの記録を持たない GUI が初めて一覧を見たときの、並びの移し方
    */
   legacyOrder?: readonly { target: string; id: WorkspaceId }[];
   /**
