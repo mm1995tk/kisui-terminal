@@ -1834,7 +1834,7 @@ function Workbench(props: {
     if (ref.kind === "term") void switchWorkspace(ref.target, ref.ws);
     else if (inside) focusTerminal();
     else {
-      const t = repTerm(g, f);
+      const t = repTerm(g, f, (m) => states()[m]?.kind === "connected");
       void switchWorkspace(t.target, t.ws);
     }
   }

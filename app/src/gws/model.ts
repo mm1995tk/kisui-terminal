@@ -119,19 +119,23 @@ export function termsOf(g: Gws): TermRef[] {
 /**
  * ワークスペースが今出すターミナルのタブ。focus（GUI のフォーカス）がこのワークスペースのタブならそれ、
  * そうでなければ最後に使っていたもの、無ければ最初のもの。ターミナルのタブは、いつも 1 つ以上ある。
+ * up を渡すと、フォーカスのタブでないとき、そのマシンがつながっていなければ（up が false）、つながっているマシンの最初のタブを選び直す
+ * （つながっているタブも持つワークスペースに、移れなくなるのを避ける）。つながっているタブが無ければ、そのまま。
  */
 export function repTerm(
   g: Gws,
   focus?: { target: string; id: WorkspaceId } | null,
+  up?: (target: string) => boolean,
 ): TermRef {
   const terms = termsOf(g);
   const find = (target: string, ws: WorkspaceId) =>
     terms.find((r) => r.target === target && r.ws === ws);
-  return (
-    (focus ? find(focus.target, focus.id) : undefined) ??
-    (g.term ? find(g.term.target, g.term.ws) : undefined) ??
-    terms[0]
-  );
+  const focused = focus ? find(focus.target, focus.id) : undefined;
+  if (focused) return focused;
+  const last =
+    (g.term ? find(g.term.target, g.term.ws) : undefined) ?? terms[0];
+  if (!up || up(last.target)) return last;
+  return terms.find((r) => up(r.target)) ?? last;
 }
 
 /**

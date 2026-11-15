@@ -367,7 +367,7 @@ export interface RowContext {
  */
 export function gwsRows(state: GwsState, ctx: RowContext): Row[] {
   return state.list.map((g): Row => {
-    const rep = repTerm(g, ctx.focus);
+    const rep = repTerm(g, ctx.focus, (t) => ctx.healthOf(t) === "up");
     const focused = g.tabs.some(
       (r) =>
         r.kind === "term" &&

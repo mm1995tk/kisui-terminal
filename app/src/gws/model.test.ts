@@ -110,6 +110,10 @@ describe("ワークスペースの操作", () => {
     assert.equal(repTerm(g(), { target: "b", id: "other" }).ws, "w1");
     s = setActiveTerm(s, "b", "w2");
     assert.equal(repTerm(g()).ws, "w2");
+    // 最後に使ったタブのマシンが切れていれば、つながっているマシンのタブにする。どれも切れていればそのまま
+    assert.equal(repTerm(g(), null, (t) => t === "a").ws, "w1");
+    assert.equal(repTerm(g(), null, () => false).ws, "w2");
+    assert.equal(repTerm(g(), { target: "b", id: "w2" }, () => false).ws, "w2");
     assert.equal(setActiveTerm(s, "b", "w2"), s);
     assert.equal(setActiveTerm(s, "zz", "w2"), s);
   });
