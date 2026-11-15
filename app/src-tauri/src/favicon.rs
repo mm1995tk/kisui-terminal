@@ -17,7 +17,7 @@ use std::sync::Arc;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Webview};
 
-/// ページの中で動かすスクリプト（async の矢印関数 1 つ）。
+/// ページの中で動かすスクリプト（関数の宣言だけ。`main` を呼んで答えを返す）。
 const SCRIPT: &str = include_str!("browser_favicon.js");
 /// スクリプトを動かす世界の名前（ページの世界とは別）。
 #[cfg_attr(not(any(target_os = "linux", target_os = "macos")), allow(dead_code))]
@@ -74,7 +74,7 @@ impl Page {
 
 /// 関数の本体（WebKitGTK の call_async_javascript_function と WKWebView の callAsyncJavaScript は、関数の本体を受ける）。
 fn body() -> String {
-    format!("return ({})();", SCRIPT.trim().trim_end_matches(';'))
+    format!("{SCRIPT}\nreturn main();")
 }
 
 /// ページの答えが、画面に出してよい形（PNG の data: URL で、base64 の文字だけ、上限より短い）か。違えば ""。
@@ -206,13 +206,12 @@ mod tests {
         assert_eq!(valid(&big), "");
     }
 
-    // 殻が動かすのは、関数の本体として読める形（スクリプトの矢印関数を呼んで返す）
+    // 殻が動かすのは、関数の本体として読める形（スクリプトの関数を宣言し、main を呼んで返す）
     #[test]
     fn body_calls_the_script() {
         let b = body();
-        assert!(b.starts_with("return (") && b.ends_with(")();"), "{b}");
-        assert!(b.contains("async () =>"), "{b}");
-        assert!(!b.contains("};)"), "{b}");
+        assert!(b.contains("async function main()"), "{b}");
+        assert!(b.ends_with("\nreturn main();"), "{b}");
     }
 
     // 頼んだあとに読み込みが始まった・新しく頼んだなら、その答えは捨てる。読み込み中は頼まない
