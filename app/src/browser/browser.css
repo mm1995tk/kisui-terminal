@@ -274,3 +274,35 @@ html[data-page-overlay] .main > .terminal {
 html[data-page-overlay] .browser-area {
   background: color-mix(in srgb, var(--gh-bg) 55%, transparent);
 }
+
+/* ブックマークのフォルダ（#275）。一覧のダイアログの行と、新しいタブのページの幅いっぱいの見出し */
+.bookmark-folder {
+  font-weight: 600;
+}
+.newtab-tiles > .newtab-folder-item {
+  grid-column: 1 / -1;
+}
+.newtab-folder {
+  box-sizing: border-box;
+  max-width: 100%;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--gh-text-strong);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.newtab-folder:hover,
+.newtab-folder[aria-current="true"] {
+  background: var(--gh-bg-hover);
+}
+.newtab-folder[aria-current="true"] {
+  outline: 1px solid var(--gh-accent);
+}

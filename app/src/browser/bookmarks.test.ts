@@ -2,17 +2,15 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { PLACE_KEYS } from "../placeKeys.ts";
+import { chromeTreeFromLoaded } from "./bookmarkTree.ts";
 import {
   addBookmark,
   bookmarkKey,
-  bookmarkTitle,
-  chromeFromLoaded,
   chromeProblemFromLoaded,
   chromeProblemKey,
   filterBookmarks,
   fromLoaded,
   MAX_BOOKMARKS,
-  mergeBookmarks,
   removeBookmark,
   type Bookmark,
 } from "./bookmarks.ts";
@@ -133,58 +131,29 @@ describe("ブックマークの一覧のキー（bookmarkKey）", () => {
   });
 });
 
-it("Chrome のブックマークを読み、kisui-terminal 自身のものを先に、同じ URL は自身のものを残して合わせる（#239）", () => {
-  const chrome = chromeFromLoaded({
-    bookmarks: [
-      { url: "https://a.example/", title: "Chrome A", folder: "Bookmarks bar" },
-      { url: "https://c.example/", title: "C", folder: "Other" },
-      { url: "https://c.example/", title: "C2", folder: "Other" },
-      { title: "no url" },
-      null,
-    ],
-  });
-  assert.deepEqual(
-    chrome.map((b) => [b.url, b.source]),
-    [
-      ["https://a.example/", "chrome"],
-      ["https://c.example/", "chrome"],
-    ],
-  );
-  const own: Bookmark[] = [{ url: "https://a.example/", title: "Alpha" }];
-  const merged = mergeBookmarks(own, chrome);
-  assert.deepEqual(
-    merged?.map((b) => [b.url, b.title, b.source]),
-    [
-      ["https://a.example/", "Alpha", undefined],
-      ["https://c.example/", "C", "chrome"],
-    ],
-  );
-  assert.equal(mergeBookmarks(undefined, undefined), undefined);
-  assert.equal(mergeBookmarks(undefined, chrome)?.length, 2);
-  assert.equal(mergeBookmarks(own, undefined)?.length, 1);
-  assert.equal(chromeFromLoaded("x").length, 0);
-  assert.equal(chromeFromLoaded([{ url: "https://a.example/" }]).length, 0);
-  assert.equal(bookmarkTitle(chrome[0]), "Bookmarks bar\nhttps://a.example/");
-  assert.equal(bookmarkTitle(own[0]), "https://a.example/");
-});
-
 it("Chrome のブックマークの読み込みから、ブックマークと読めなかった理由を取り出す（#265）", () => {
   const ok = {
-    bookmarks: [{ url: "https://a.example/", title: "A", folder: "" }],
+    roots: [
+      {
+        type: "folder",
+        name: "Bookmarks bar",
+        children: [{ type: "url", url: "https://a.example/", title: "A" }],
+      },
+    ],
     problem: null,
   };
-  assert.equal(chromeFromLoaded(ok).length, 1);
+  assert.equal(chromeTreeFromLoaded(ok).length, 1);
   assert.equal(chromeProblemFromLoaded(ok), undefined);
   assert.equal(chromeProblemFromLoaded([]), undefined);
   const denied = {
-    bookmarks: [],
+    roots: [],
     problem: {
       path: "/h/Bookmarks",
       reason: "Operation not permitted (os error 1)",
       needsPermission: true,
     },
   };
-  assert.equal(chromeFromLoaded(denied).length, 0);
+  assert.equal(chromeTreeFromLoaded(denied).length, 0);
   const p = chromeProblemFromLoaded(denied);
   assert.deepEqual(p, denied.problem);
   assert.equal(chromeProblemKey(p!), chromeProblemKey({ ...denied.problem }));
