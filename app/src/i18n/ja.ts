@@ -509,6 +509,7 @@ export const ja: Record<Key, string> = {
   "bookmarks.empty.none":
     "ブックマークはまだありません。見ているページを {leader} o b で足せます。",
   "bookmarks.empty.noMatch": "当てはまるものがありません",
+  "err.bookmarks.read": "kisui-terminal のブックマークを読めませんでした",
   "err.bookmarks.save": "ブックマークを保存できませんでした",
   "err.devtools": "DevTools を開けませんでした",
   "find.label": "ページ内を検索",

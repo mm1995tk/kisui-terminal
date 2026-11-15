@@ -515,6 +515,7 @@ export const en = {
   "bookmarks.empty.none":
     "No bookmarks yet. Add the page you are viewing with {leader} o b.",
   "bookmarks.empty.noMatch": "Nothing matches",
+  "err.bookmarks.read": "Could not read your own bookmarks",
   "err.bookmarks.save": "Could not save the bookmarks",
   "err.devtools": "Could not open DevTools",
   "find.label": "Find in page",

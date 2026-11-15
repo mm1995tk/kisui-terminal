@@ -1927,9 +1927,8 @@ function Workbench(props: {
   );
   /** ブックマークの一覧のダイアログ（リーダーの o B）を出しているか */
   const [bookmarkDialog, setBookmarkDialog] = createSignal(false);
-  /** 覚えているブックマークを読む（一覧を開くたびと、初めて足すとき。読めなければ前のまま）。 */
-  function readBookmarks(): Promise<Bookmark[]> {
-    // Chrome のブックマークも読み直す（Chrome で足し・消しした分が反映される）。読めなければ前のまま（無ければ空）
+  /** Chrome のブックマークを読み直す（#239。Chrome で足し・消しした分が反映される）。読めなければ前のまま（無ければ空）。 */
+  function readChromeBookmarks() {
     loadChromeBookmarks().then(
       (v) => setChromeBookmarks(chromeFromLoaded(v)),
       (e: unknown) => {
@@ -1937,6 +1936,9 @@ function Workbench(props: {
         if (untrack(chromeBookmarks) === undefined) setChromeBookmarks([]);
       },
     );
+  }
+  /** 覚えているブックマークを読む（一覧を開くたびと、初めて足すとき。読めなければ前のまま）。 */
+  function readBookmarks(): Promise<Bookmark[]> {
     return loadBookmarks().then(
       (v) => {
         const list = bookmarksFromLoaded(v);
@@ -1947,6 +1949,9 @@ function Workbench(props: {
       (e: unknown) => {
         console.warn("bookmarks:", e);
         if (untrack(bookmarks) === undefined) setBookmarksFailed(true);
+        // 一覧には Chrome のものが出るので、自分のものが読めなかったことは別に知らせる（#239）
+        if (untrack(chromeBookmarks)?.length)
+          showToast(T("err.bookmarks.read"));
         throw e;
       },
     );
@@ -2009,7 +2014,10 @@ function Workbench(props: {
   // 新しいタブのページ（#238）を出すたびに、ブックマークを読み直す（読めなければ、前に読んだものを出す）
   createEffect(
     on(newTabPageId, (id) => {
-      if (id !== undefined) readBookmarks().catch(() => {});
+      if (id !== undefined) {
+        readChromeBookmarks();
+        readBookmarks().catch(() => {});
+      }
     }),
   );
 
@@ -2261,6 +2269,7 @@ function Workbench(props: {
       case "browser.bookmarks":
         setBookmarkDialog(true);
         // 開くたびに読み直す（読めなければ、前に読んだものを出す）
+        readChromeBookmarks();
         readBookmarks().catch(() => {});
         break;
       case "browser.find": {
