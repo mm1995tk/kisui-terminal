@@ -35,7 +35,6 @@ import {
   isLeaveExplorerKey,
   startFocusStep,
 } from "./explorerFocus.ts";
-import { machineChosen } from "./machineChosen.ts";
 import { focusWorkspaceAndTerminal } from "./focusWorkspaceAndTerminal.ts";
 import { afterChangesKey } from "./changes/handover.ts";
 import { changesRow } from "./changes/keys.ts";
@@ -3460,11 +3459,10 @@ function Workbench(props: {
           <MachinePicker
             rows={creatableRows(machineList())}
             initial={currentTarget()}
-            onChoose={machineChosen(
-              gid,
-              () => setPickingFor(null),
-              (g, t) => void newTerminalTab(g, t),
-            )}
+            onChoose={(t) => {
+              setPickingFor(null);
+              void newTerminalTab(gid, t);
+            }}
             onCancel={() => setPickingFor(null)}
           />
         )}

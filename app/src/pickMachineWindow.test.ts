@@ -1,7 +1,9 @@
+// タブを足すマシンを選ぶ窓（#272）を、本物の Solid の <Show> で確かめる。
+// App.tsx の窓は JSX なので node --test では描けない。ここでは同じ形（when={pickingFor()}、
+// onChoose で setPickingFor(null) のあとに newTerminalTab(gid, t)）を JSX を使わずに作る。
+// App.tsx の <Show> が keyed であることは windowShow.test.ts が確かめる。
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-
-import { machineChosen } from "./machineChosen.ts";
 
 // node では solid-js がサーバー用（反応しない作り）に解決されるので、ブラウザー用を名指しで読む。
 // このパスには型の宣言が無いので、型は solid-js のものを当てる
@@ -10,25 +12,21 @@ const solid: typeof import("solid-js") = await import(
 );
 
 /**
- * App.tsx の、タブを足すマシンを選ぶ窓と同じ形を、本物の <Show> で作る。
  * 窓を描いて、MachinePicker が受け取る onChoose を返す。
- * keyed なら今の作り（machineChosen）、keyed でなければ直す前の作り（閉じてからアクセサを読む）。
+ * keyed なら今の作り（子が受け取るのは値）、keyed でなければ直す前の作り（子が受け取るのはアクセサ）。
  */
 function openPicker(
   keyed: boolean,
-  newTab: (gid: string, target: string) => void,
+  newTerminalTab: (gid: string, target: string) => void,
 ): (target: string) => void {
   return solid.createRoot(() => {
     const [pickingFor, setPickingFor] = solid.createSignal<string | null>("g1");
     let onChoose: ((target: string) => void) | undefined;
     const children = (gid: string | (() => string)) => {
-      onChoose =
-        typeof gid === "string"
-          ? machineChosen(gid, () => setPickingFor(null), newTab)
-          : (t) => {
-              setPickingFor(null);
-              newTab(gid(), t);
-            };
+      onChoose = (t) => {
+        setPickingFor(null);
+        newTerminalTab(typeof gid === "string" ? gid : gid(), t);
+      };
       return null;
     };
     const view = solid.Show({
@@ -46,18 +44,8 @@ function openPicker(
   });
 }
 
-describe("machineChosen", () => {
-  it("窓を閉じたあとでも、選んだマシンでそのワークスペースにタブを足す", () => {
-    const calls: string[] = [];
-    machineChosen(
-      "g1",
-      () => calls.push("close"),
-      (gid, t) => calls.push(`${gid}/${t}`),
-    )("m1");
-    assert.deepEqual(calls, ["close", "g1/m1"]);
-  });
-
-  it("<Show keyed> の窓でマシンを選ぶと、newTerminalTab が呼ばれる（#272）", () => {
+describe("タブを足すマシンを選ぶ窓", () => {
+  it("<Show keyed> の窓でマシンを選ぶと、そのワークスペースで newTerminalTab が呼ばれる", () => {
     const calls: string[] = [];
     const choose = openPicker(true, (gid, t) => calls.push(`${gid}/${t}`));
     choose("m1");
