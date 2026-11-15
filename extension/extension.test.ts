@@ -482,6 +482,19 @@ test("ブラウザを起動したとき、待っている URL を読み込み中
   assert.equal(b.session["tracked:41"], undefined);
 });
 
+test("覚えたタブが別の host にリダイレクトしていたら、スクリプトを入れない", async () => {
+  const b = fakeBrowser(GH);
+  b.tabs.set(60, {
+    id: 60,
+    url: "https://sso.example.com/",
+    status: "complete",
+  });
+  b.ev.created.fire({ id: 60, pendingUrl: "https://github.com/login" });
+  await settle();
+  assert.ok(b.session["tracked:60"]);
+  assert.equal(b.injected.length, 0);
+});
+
 test("覚えた後に待ちが終わったサイトの Cookie は、パスキーが通っても読まない", async () => {
   const opts = { ...GH };
   const b = fakeBrowser(opts);

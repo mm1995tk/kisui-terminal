@@ -170,6 +170,9 @@ async function tracked(tabId) {
 // 登録（syncScripts）がページの読み込みの後になり、そのページには入っていないため（2 回入っても、どちらも 1 回しか動かない）
 async function track(tabId, hit) {
   await saveState({ [trackedKey(tabId)]: hit });
+  // 入れるのは、今のページがそのサイトのときだけ（聞いている間に別の host へリダイレクトしていれば入れない）
+  const tab = await api.tabs.get(tabId).catch(() => null);
+  if (!tab || K.hostOf(tab.url ?? "") !== hit.site) return;
   const target = { tabId };
   await api.scripting
     .executeScript({ target, files: ["page.js"], world: "MAIN" })
