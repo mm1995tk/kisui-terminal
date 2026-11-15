@@ -960,8 +960,9 @@ pub fn load_tabs(path: &Path) -> StoredTabs {
     match serde_json::from_slice::<StoredFile>(&text) {
         Ok(f) if f.version == FORMAT_VERSION => {
             let mut d = f.data;
+            // URL が空のタブは、まだ何も開いていない新しいタブのページ（#238）
             d.tabs
-                .retain(|t| valid_tab(&t.id) && parse_url(&t.url).is_ok());
+                .retain(|t| valid_tab(&t.id) && (t.url.is_empty() || parse_url(&t.url).is_ok()));
             for t in &mut d.tabs {
                 t.zoom = t.zoom.filter(|z| valid_zoom_percent(*z));
             }
@@ -1182,13 +1183,16 @@ mod tests {
               {"id":"ok","target":"@local","workspace":"w","url":"https://a.example/"},
               {"id":"bad id","target":"@local","workspace":"w","url":"https://a.example/"},
               {"id":"js","target":"@local","workspace":"w","url":"javascript:alert(1)"},
-              {"id":"file","target":"@local","workspace":"w","url":"file:///etc/passwd"}
+              {"id":"file","target":"@local","workspace":"w","url":"file:///etc/passwd"},
+              {"id":"new","target":"@local","workspace":"w","url":""}
             ]}"#,
         )
         .unwrap();
         let got = load_tabs(&p);
-        assert_eq!(got.tabs.len(), 1);
+        // URL が空のタブは、新しいタブのページ（#238）として残す
+        assert_eq!(got.tabs.len(), 2);
         assert_eq!(got.tabs[0].id, "ok");
+        assert_eq!(got.tabs[1].id, "new");
         assert_eq!(got.tabs[0].title, "");
         let _ = fs::remove_dir_all(&d);
     }

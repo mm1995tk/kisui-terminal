@@ -245,7 +245,8 @@ import {
   type TabsState,
 } from "./browser/tabs.ts";
 import { UrlBar } from "./browser/UrlBar.tsx";
-import { UrlDialog } from "./browser/UrlDialog.tsx";
+import { isNewTab, NEW_TAB_URL } from "./browser/newTab.ts";
+import { NewTabPage } from "./browser/NewTabPage.tsx";
 import type { KeyLike } from "./guiKeys.ts";
 import { closeTarget, IS_MAC } from "./guiKeys.ts";
 import { KeyListDialog, openKeyList } from "./KeyListDialog.tsx";
@@ -1693,6 +1694,15 @@ function Workbench(props: {
     const g = currentGws();
     return props.browser && g ? shownTab(tabs(), g.id) : undefined;
   });
+  /** 出しているタブのうち、ページを開いているもの（URL バーを出す）と、新しいタブのページ（#238。NewTabPage を出す）の id */
+  const pageTabId = createMemo(() => {
+    const t = shownBrowserTab();
+    return t && !isNewTab(t) ? t.id : undefined;
+  });
+  const newTabPageId = createMemo(() => {
+    const t = shownBrowserTab();
+    return t && isNewTab(t) ? t.id : undefined;
+  });
   let focusBrowserPage: (() => void) | undefined;
   /**
    * タブ → これまで使った中継の origin と元の origin（リモートのマシンの localhost 系を `kisui relay` の中継で開いたタブだけ。#203）。
@@ -1746,12 +1756,31 @@ function Workbench(props: {
         }),
     );
   }
-  /** URL の入力欄（リーダーの o n・o N）。今のタブの URL の書き換えは、ページの上の URL バー（#232） */
-  const [urlDialog, setUrlDialog] = createSignal<{
-    target: string;
-    id: WorkspaceId;
-    incognito: boolean;
-  } | null>(null);
+  /**
+   * 新しいタブのページのタブを開く（リーダーの o n・o N と、「+」のメニューの「ブラウザ」。#238）。URL は聞かず、URL が空のタブ（newTab.ts）を
+   * 足して出す。検索窓とブックマークの中身は NewTabPage が描く（出たら検索窓にキーがある）。今のタブの URL の書き換えは、ページの上の URL バー（#232）
+   */
+  function openNewTab(target: string, ws: WorkspaceId, incognito: boolean) {
+    const id = newTabId();
+    const gid = gwsOfTerm(untrack(gws), target, ws)?.id;
+    // ページから押したときに覚えた「戻す先」を捨てる（検索窓にキーを向けるのを、ページに戻させない。openFind と同じ）
+    pageReturn = undefined;
+    setTabs((s) =>
+      addTab(
+        s,
+        {
+          id,
+          target,
+          workspace: ws,
+          url: NEW_TAB_URL,
+          title: "",
+          ...(incognito ? { incognito: true } : {}),
+        },
+        gid,
+      ),
+    );
+    if (gid) setGws((g) => addBrowser(g, gid, id));
+  }
   /**
    * ページにキーがあるときにリーダーか近道を押した（殻がキーをこの画面に移してから届く）。そのときの画面のキーの行き先。
    * 押した操作が終わって（リーダーなら出て）も、キーの行き先がそのままなら、ページにキーを戻す
@@ -1956,6 +1985,13 @@ function Workbench(props: {
     focusTerminal();
   }
 
+  // 新しいタブのページ（#238）を出すたびに、ブックマークを読み直す（読めなければ、前に読んだものを出す）
+  createEffect(
+    on(newTabPageId, (id) => {
+      if (id !== undefined) readBookmarks().catch(() => {});
+    }),
+  );
+
   // ---- 内蔵ブラウザのページ内検索（#205）。出しているタブの下の端に、検索の欄を出す ----
   /** 検索の欄を出しているタブ。無ければ null */
   const [findTab, setFindTab] = createSignal<string | null>(null);
@@ -2116,6 +2152,15 @@ function Workbench(props: {
       cannot(T("cannot.browser.noTab.title"), T("cannot.browser.noTab.text"));
     return t;
   }
+  /** 今のタブ。ページを開いていない新しいタブのページ（#238）なら「できない」と知らせて undefined（足す・コピー・検索などページが要る操作用）。 */
+  function currentPage() {
+    const t = currentTab();
+    if (t && isNewTab(t)) {
+      cannot(T("cannot.browser.newTab.title"), T("cannot.browser.newTab.text"));
+      return undefined;
+    }
+    return t;
+  }
 
   /** 内蔵ブラウザのコマンド（リーダーの o）。 */
   function runBrowser(c: Command) {
@@ -2125,13 +2170,7 @@ function Workbench(props: {
       case "browser.incognito":
         if (!f)
           cannot(T("cannot.browser.open.title"), T("cannot.browser.open.text"));
-        else
-          setUrlDialog({
-            kind: "new",
-            target: f.target,
-            id: f.id,
-            incognito: c.id === "browser.incognito",
-          });
+        else openNewTab(f.target, f.id, c.id === "browser.incognito");
         break;
       case "browser.url": {
         const t = currentTab();
@@ -2164,7 +2203,7 @@ function Workbench(props: {
         break;
       }
       case "browser.external": {
-        const t = currentTab();
+        const t = currentPage();
         if (t) openUrlFor(t.target, t.url);
         break;
       }
@@ -2194,7 +2233,7 @@ function Workbench(props: {
         break;
       }
       case "browser.bookmark": {
-        const t = currentTab();
+        const t = currentPage();
         if (t) bookmarkPage(t);
         break;
       }
@@ -2204,17 +2243,17 @@ function Workbench(props: {
         readBookmarks().catch(() => {});
         break;
       case "browser.find": {
-        const t = currentTab();
+        const t = currentPage();
         if (t) openFind(t);
         break;
       }
       case "browser.copyUrl": {
-        const t = currentTab();
+        const t = currentPage();
         if (t) void copyToClipboard(t.url);
         break;
       }
       case "browser.devtools": {
-        const t = currentTab();
+        const t = currentPage();
         if (t)
           openTabDevtools(t.id).catch((e: unknown) =>
             setFocusError({
@@ -2225,31 +2264,6 @@ function Workbench(props: {
         break;
       }
     }
-  }
-
-  /** URL の入力欄（o n・o N）で決めた。新しいタブを開く。 */
-  function submitUrl(url: string) {
-    const d = urlDialog();
-    if (!d) return;
-    setUrlDialog(null);
-    const id = newTabId();
-    const gid = gwsOfTerm(untrack(gws), d.target, d.id)?.id;
-    setTabs((s) =>
-      addTab(
-        s,
-        {
-          id,
-          target: d.target,
-          workspace: d.id,
-          url,
-          title: "",
-          ...(d.incognito ? { incognito: true } : {}),
-        },
-        gid,
-      ),
-    );
-    if (gid) setGws((g) => addBrowser(g, gid, id));
-    focusTerminal();
   }
 
   /** サイドバーのタブの行を押した。そのワークスペースでそのタブを出し、キーをそのタブに向ける。 */
@@ -2409,18 +2423,13 @@ function Workbench(props: {
     });
   }
 
-  /** ワークスペース gid にブラウザのタブを足す（URL の窓を出す。リーダーの o n と同じ。rep はそのワークスペースが出しているターミナルのタブ）。 */
+  /** ワークスペース gid にブラウザのタブを足す（新しいタブのページを出す。リーダーの o n と同じ。rep はそのワークスペースが出しているターミナルのタブ）。 */
   function newBrowserTab(
     gid: string,
     rep: { target: string; ws: WorkspaceId },
   ) {
     if (!untrack(gws).list.some((x) => x.id === gid)) return;
-    setUrlDialog({
-      kind: "new",
-      target: rep.target,
-      id: rep.ws,
-      incognito: false,
-    });
+    openNewTab(rep.target, rep.ws, false);
   }
 
   // 直前に選んでいたワークスペース（リーダーの w Tab で戻る先）
@@ -2966,7 +2975,7 @@ function Workbench(props: {
             onError={(title, error) => setFocusError({ title, error })}
             focusRef={(f) => (focusBrowserPage = f)}
           >
-            <Show when={shownBrowserTab()?.id} keyed>
+            <Show when={pageTabId()} keyed>
               {(id) => (
                 <UrlBar
                   url={shownBrowserTab()?.url ?? ""}
@@ -2976,6 +2985,17 @@ function Workbench(props: {
                     void navTab(id, action).catch(() => {});
                     focusTerminal();
                   }}
+                  focusRef={(f) => (focusUrlBar = f)}
+                />
+              )}
+            </Show>
+            <Show when={newTabPageId()} keyed>
+              {(id) => (
+                <NewTabPage
+                  incognito={!!shownBrowserTab()?.incognito}
+                  list={bookmarks()}
+                  failed={bookmarksFailed()}
+                  onOpen={(url) => submitUrlBar(id, url)}
                   focusRef={(f) => (focusUrlBar = f)}
                 />
               )}
@@ -3197,15 +3217,6 @@ function Workbench(props: {
               onCancel={() => setTreeDialog(null)}
             />
           </Show>
-        )}
-      </Show>
-      <Show when={urlDialog()}>
-        {(d) => (
-          <UrlDialog
-            incognito={d().incognito}
-            onSubmit={submitUrl}
-            onCancel={() => setUrlDialog(null)}
-          />
         )}
       </Show>
       <Show when={bookmarkDialog()}>

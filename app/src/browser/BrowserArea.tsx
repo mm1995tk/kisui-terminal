@@ -25,6 +25,7 @@ import {
   zoomTab,
 } from "./browserOs.ts";
 import { pageBounds, sameBounds, toLogical, type Bounds } from "./overlay.ts";
+import { isNewTab } from "./newTab.ts";
 import type { BrowserTab } from "./tabs.ts";
 import "./browser.css";
 
@@ -199,6 +200,11 @@ export function BrowserArea(props: {
       raf = requestAnimationFrame(tick);
       const tab = props.shown;
       if (!tab) return;
+      // 新しいタブのページ（URL が空。#238）は、画面（NewTabPage）が描く。webview は、何かを開いて URL が決まってから作る
+      if (isNewTab(tab)) {
+        setHidden(false);
+        return;
+      }
       const b = bounds();
       setHidden(b === null);
       const v = views.get(tab.id);

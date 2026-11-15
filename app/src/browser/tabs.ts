@@ -9,6 +9,7 @@
 // collapsed は空で書く）。どれを出していたか（views）は覚えない（起動したときは、どのワークスペースもターミナルから始める）。
 // シークレットのタブ（#204）は覚えない（閉じるとログインが消え、再起動しても戻さない）。
 
+import { T } from "../i18n/index.ts";
 import type { WorkspaceId } from "../rpc/protocol.ts";
 import { SCALES } from "../scale.ts";
 
@@ -20,7 +21,7 @@ export interface BrowserTab {
   target: string;
   /** 開いたときのターミナルのタブ（マシンの kisui serve のワークスペース） */
   workspace: WorkspaceId;
-  /** 今出しているページの URL（開いた URL から、ページの遷移で変わる） */
+  /** 今出しているページの URL（開いた URL から、ページの遷移で変わる）。空は、まだ何も開いていない新しいタブのページ（#238。newTab.ts） */
   url: string;
   /** ページの題（まだ分からなければ空） */
   title: string;
@@ -124,12 +125,12 @@ export function updateTab(
   return { ...s, tabs };
 }
 
-/** 画面に出すタブの名前。つけた名前（name。gws/model.ts の BrowserRef が持つ）、無ければページの題、それも無ければ host。 */
+/** 画面に出すタブの名前。つけた名前（name。gws/model.ts の BrowserRef が持つ）、無ければページの題、それも無ければ host（新しいタブのページ（URL が空。#238）は「新しいタブ」）。 */
 export function tabTitle(
   t: Pick<BrowserTab, "title" | "url">,
   name = "",
 ): string {
-  return name || t.title || hostOf(t.url);
+  return name || t.title || (t.url === "" ? T("newTab.name") : hostOf(t.url));
 }
 
 /** URL の host（題がまだ分からないタブの名前と、題の横に小さく出す）。読めなければ URL のまま。 */
