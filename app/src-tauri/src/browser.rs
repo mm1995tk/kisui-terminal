@@ -139,6 +139,9 @@ struct ClosedEvent {
 struct TabInfo {
     keys: Vec<KeySpec>,
     incognito: bool,
+    /// ページのスクリプトが殻に知らせる URL の nonce。ページが開いた新しい窓のタブは、開いた元のタブと同じものを使う
+    /// （macOS は、ページに入れるスクリプトの入れ物を開いた元と共有するため。`tab_builder`）
+    nonce: String,
 }
 
 /// 開いているタブ（id → 覚えること）。
@@ -432,7 +435,7 @@ fn open_popup(
         app,
         &id,
         Url::parse("about:blank").map_err(|e| e.to_string())?,
-        new_nonce()?,
+        info.nonce.clone(),
         &info.keys,
         Data::Opener {
             features,
@@ -532,14 +535,23 @@ fn tab_builder(
     let (win_app, win_tab) = (app.clone(), tab.to_string());
     let (load_app, load_tab) = (app.clone(), tab.to_string());
     let (title_app, title_tab) = (app.clone(), tab.to_string());
-    let mut builder = WebviewBuilder::new(label(tab), WebviewUrl::External(first))
-        .initialization_script_for_all_frames(script);
-    if let Some(s) = passkey_script {
-        builder = builder.initialization_script_for_all_frames(s);
+    // macOS で、ページが開いた新しい窓は、WebKit が渡す設定（開いた元の設定の写し）で作る。スクリプトの入れ物
+    // （WKUserContentController）は開いた元と同じ 1 つなので、ここで足すと開いた元のタブにも入り、重なる。
+    // 足さずに、開いた元のタブのスクリプト（同じ nonce）をそのまま使う
+    let shares_scripts = cfg!(target_os = "macos") && matches!(data, Data::Opener { .. });
+    let mut builder = WebviewBuilder::new(label(tab), WebviewUrl::External(first));
+    if !shares_scripts {
+        builder = builder.initialization_script_for_all_frames(script);
+        if let Some(s) = passkey_script {
+            builder = builder.initialization_script_for_all_frames(s);
+        }
+        #[cfg(target_os = "macos")]
+        {
+            builder = builder.initialization_script(close_script);
+        }
     }
     #[cfg(target_os = "macos")]
     {
-        builder = builder.initialization_script(close_script);
         let dl_app = app.clone();
         builder = builder.on_download(move |_, ev| crate::download::on_download(&dl_app, ev));
     }
@@ -629,7 +641,8 @@ pub fn browser_open(
     } else {
         Data::Shared
     };
-    let builder = tab_builder(&app, &tab, first, new_nonce()?, &keys, data);
+    let nonce = new_nonce()?;
+    let builder = tab_builder(&app, &tab, first, nonce.clone(), &keys, data);
     let v = win
         .add_child(
             builder,
@@ -637,7 +650,14 @@ pub fn browser_open(
             LogicalSize::new(w.max(1.0), h.max(1.0)),
         )
         .map_err(|e| e.to_string())?;
-    tabs.set(&tab, TabInfo { keys, incognito });
+    tabs.set(
+        &tab,
+        TabInfo {
+            keys,
+            incognito,
+            nonce,
+        },
+    );
     watch_native(&app, &v, &tab);
     Ok(())
 }
