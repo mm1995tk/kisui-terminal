@@ -87,6 +87,11 @@ export function loadBookmarks(): Promise<Bookmark[]> {
   return invoke("browser_bookmarks_load");
 }
 
+/** Chrome のブックマーク（#239。読むだけ。Chrome が無ければ空）。 */
+export function loadChromeBookmarks(): Promise<unknown> {
+  return invoke("browser_chrome_bookmarks_load");
+}
+
 /** ブックマークを覚える（丸ごと置き換える）。 */
 export function saveBookmarks(bookmarks: readonly Bookmark[]): Promise<void> {
   return invoke("browser_bookmarks_save", { bookmarks });

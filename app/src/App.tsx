@@ -199,7 +199,9 @@ import {
 import { BookmarkDialog } from "./browser/BookmarkDialog.tsx";
 import {
   addBookmark,
+  chromeFromLoaded,
   fromLoaded as bookmarksFromLoaded,
+  mergeBookmarks,
   removeBookmark,
   type Bookmark,
 } from "./browser/bookmarks.ts";
@@ -209,6 +211,7 @@ import {
   closeTabView,
   goTab,
   loadBookmarks,
+  loadChromeBookmarks,
   loadTabs,
   navTab,
   onDownload,
@@ -1914,10 +1917,26 @@ function Workbench(props: {
   /** ブックマーク（新しく足したものが先）。読み終えるまでは undefined */
   const [bookmarks, setBookmarks] = createSignal<Bookmark[] | undefined>();
   const [bookmarksFailed, setBookmarksFailed] = createSignal(false);
+  /** Chrome のブックマーク（#239。読むだけ。無い・読めないときは空） */
+  const [chromeBookmarks, setChromeBookmarks] = createSignal<
+    Bookmark[] | undefined
+  >();
+  /** 一覧とタブのページに出す、kisui-terminal 自身と Chrome を合わせたブックマーク */
+  const allBookmarks = createMemo(() =>
+    mergeBookmarks(bookmarks(), chromeBookmarks()),
+  );
   /** ブックマークの一覧のダイアログ（リーダーの o B）を出しているか */
   const [bookmarkDialog, setBookmarkDialog] = createSignal(false);
   /** 覚えているブックマークを読む（一覧を開くたびと、初めて足すとき。読めなければ前のまま）。 */
   function readBookmarks(): Promise<Bookmark[]> {
+    // Chrome のブックマークも読み直す（Chrome で足し・消しした分が反映される）。読めなければ前のまま（無ければ空）
+    loadChromeBookmarks().then(
+      (v) => setChromeBookmarks(chromeFromLoaded(v)),
+      (e: unknown) => {
+        console.warn("chrome bookmarks:", e);
+        if (untrack(chromeBookmarks) === undefined) setChromeBookmarks([]);
+      },
+    );
     return loadBookmarks().then(
       (v) => {
         const list = bookmarksFromLoaded(v);
@@ -3003,8 +3022,8 @@ function Workbench(props: {
               {(id) => (
                 <NewTabPage
                   incognito={!!shownBrowserTab()?.incognito}
-                  list={bookmarks()}
-                  failed={bookmarksFailed()}
+                  list={allBookmarks()}
+                  failed={bookmarksFailed() && !chromeBookmarks()?.length}
                   onOpen={(url) => submitUrlBar(id, url)}
                   focusRef={(f) => (focusUrlBar = f)}
                 />
@@ -3231,12 +3250,15 @@ function Workbench(props: {
       </Show>
       <Show when={bookmarkDialog()}>
         <BookmarkDialog
-          list={bookmarks()}
-          failed={bookmarksFailed()}
+          list={allBookmarks()}
+          failed={bookmarksFailed() && !chromeBookmarks()?.length}
           onOpen={openBookmark}
-          onDelete={(b) =>
-            changeBookmarks(removeBookmark(bookmarks() ?? [], b.url))
-          }
+          onDelete={(b) => {
+            // Chrome のブックマークは消せない（読むだけ。#239）
+            if (b.source === "chrome")
+              showToast(T("toast.bookmarks.chromeKept"));
+            else changeBookmarks(removeBookmark(bookmarks() ?? [], b.url));
+          }}
           onCancel={() => {
             setBookmarkDialog(false);
             focusTerminal();

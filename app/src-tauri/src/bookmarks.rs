@@ -100,6 +100,102 @@ pub fn browser_bookmarks_save(
     save(&path(&app)?, &bookmarks).map_err(|e| e.to_string())
 }
 
+// ---- Chrome のブックマーク（#239）。読むだけで、Chrome のファイルには書かない ----
+
+/// 読む Chrome のプロファイル（Chrome の既定のプロファイルのフォルダ名）。
+const CHROME_PROFILE: &str = "Default";
+/// Chrome のブックマークのファイルの大きさの上限（バイト。これより大きければ読まない）。
+const MAX_CHROME_FILE: u64 = 64 * 1024 * 1024;
+/// Chrome のフォルダの入れ子をたどる深さの上限。
+const MAX_DEPTH: usize = 32;
+
+/// Chrome のブックマーク 1 つ。folder は、Chrome の中のフォルダの道（`Bookmarks bar / Dev` のように。直下なら根の名前だけ）。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ChromeBookmark {
+    pub url: String,
+    pub title: String,
+    pub folder: String,
+}
+
+/// Chrome のブックマークのファイル。`home` は `$HOME`。macOS は `~/Library/Application Support/Google/Chrome/<プロファイル>/Bookmarks`、
+/// それ以外（Linux）は `~/.config/google-chrome/<プロファイル>/Bookmarks`。
+fn chrome_file(home: &Path, profile: &str) -> PathBuf {
+    let base = if cfg!(target_os = "macos") {
+        home.join("Library/Application Support/Google/Chrome")
+    } else {
+        home.join(".config/google-chrome")
+    };
+    base.join(profile).join("Bookmarks")
+}
+
+fn walk_chrome(node: &serde_json::Value, path: &str, depth: usize, out: &mut Vec<ChromeBookmark>) {
+    if depth > MAX_DEPTH || out.len() >= MAX_BOOKMARKS {
+        return;
+    }
+    let name = node.get("name").and_then(|v| v.as_str()).unwrap_or("");
+    match node.get("type").and_then(|v| v.as_str()) {
+        Some("url") => {
+            let url = node.get("url").and_then(|v| v.as_str()).unwrap_or("");
+            let b = Bookmark {
+                url: url.to_string(),
+                title: name.to_string(),
+            };
+            if valid(&b) {
+                out.push(ChromeBookmark {
+                    url: b.url,
+                    title: b.title,
+                    folder: path.to_string(),
+                });
+            }
+        }
+        Some("folder") => {
+            let here = if path.is_empty() {
+                name.to_string()
+            } else {
+                format!("{path} / {name}")
+            };
+            if let Some(children) = node.get("children").and_then(|v| v.as_array()) {
+                for c in children {
+                    walk_chrome(c, &here, depth + 1, out);
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Chrome のブックマークを読む（ブックマークバー、その他のブックマーク、モバイルの順）。ファイルが無い・壊れている・大きすぎるときは空
+/// （Chrome が入っていない環境で、エラーにしない）。開けない URL のものは捨てる。
+pub fn load_chrome(file: &Path) -> Vec<ChromeBookmark> {
+    match fs::metadata(file) {
+        Ok(m) if m.is_file() && m.len() <= MAX_CHROME_FILE => {}
+        _ => return Vec::new(),
+    }
+    let Ok(text) = fs::read(file) else {
+        return Vec::new();
+    };
+    let Ok(root) = serde_json::from_slice::<serde_json::Value>(&text) else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    for key in ["bookmark_bar", "other", "synced"] {
+        if let Some(n) = root.get("roots").and_then(|r| r.get(key)) {
+            walk_chrome(n, "", 0, &mut out);
+        }
+    }
+    out
+}
+
+/// Chrome のブックマーク（読むだけ。開くたびに読み直す）。
+#[tauri::command(async)]
+pub fn browser_chrome_bookmarks_load(webview: Webview) -> Result<Vec<ChromeBookmark>, String> {
+    from_main(&webview)?;
+    let Some(home) = std::env::var_os("HOME").map(PathBuf::from) else {
+        return Ok(Vec::new());
+    };
+    Ok(load_chrome(&chrome_file(&home, CHROME_PROFILE)))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -177,5 +273,50 @@ mod tests {
             &format!("https://a.example/{}", "x".repeat(MAX_URL)),
             ""
         )));
+    }
+
+    #[test]
+    fn chrome_bookmarks_are_read_with_their_folders_and_never_written() {
+        let d = temp_dir("chrome");
+        fs::create_dir_all(&d).unwrap();
+        let p = d.join("Bookmarks");
+        assert_eq!(load_chrome(&p), Vec::new());
+        fs::write(&p, "{").unwrap();
+        assert_eq!(load_chrome(&p), Vec::new());
+        let body = r#"{"roots":{
+          "bookmark_bar":{"type":"folder","name":"Bookmarks bar","children":[
+            {"type":"url","name":"A","url":"https://a.example/"},
+            {"type":"folder","name":"Dev","children":[
+              {"type":"url","name":"B","url":"https://b.example/"},
+              {"type":"url","name":"js","url":"javascript:alert(1)"}
+            ]}
+          ]},
+          "other":{"type":"folder","name":"Other bookmarks","children":[
+            {"type":"url","name":"C","url":"http://localhost:3000/"}
+          ]}
+        }}"#;
+        fs::write(&p, body).unwrap();
+        let got = load_chrome(&p);
+        let v: Vec<_> = got
+            .iter()
+            .map(|b| (b.url.as_str(), b.title.as_str(), b.folder.as_str()))
+            .collect();
+        assert_eq!(
+            v,
+            [
+                ("https://a.example/", "A", "Bookmarks bar"),
+                ("https://b.example/", "B", "Bookmarks bar / Dev"),
+                ("http://localhost:3000/", "C", "Other bookmarks"),
+            ]
+        );
+        assert_eq!(fs::read_to_string(&p).unwrap(), body);
+        let _ = fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn chrome_file_is_under_the_profile() {
+        let p = chrome_file(Path::new("/h"), "Default");
+        assert!(p.ends_with("Default/Bookmarks"));
+        assert!(p.starts_with("/h"));
     }
 }

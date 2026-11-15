@@ -501,12 +501,15 @@ export const en = {
     "[The shell has exited. Press Enter to open a new shell]",
   "toast.copied": "Copied",
   "toast.bookmarked": "Bookmarked",
+  "toast.bookmarks.chromeKept":
+    "Bookmarks from Chrome cannot be deleted here (delete them in Chrome)",
   "bookmarks.title": "Bookmarks",
   "bookmarks.filter": "Filter bookmarks",
   "bookmarks.filterPlaceholder": "Type to filter by title or URL",
   "bookmarks.hint":
     "↑↓ (Ctrl+J/K) · Enter opens in a new tab · Ctrl+D deletes · ? keys",
   "bookmarks.list": "Bookmarks",
+  "bookmarks.chrome": "Chrome",
   "bookmarks.empty.loading": "Loading…",
   "bookmarks.empty.failed": "Could not read the bookmarks",
   "bookmarks.empty.none":
