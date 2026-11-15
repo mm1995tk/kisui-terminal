@@ -146,17 +146,22 @@ struct TabInfo {
     /// ページのスクリプトが殻に知らせる URL の nonce。ページが開いた新しい窓のタブは、開いた元のタブと同じものを使う
     /// （macOS は、ページに入れるスクリプトの入れ物を開いた元と共有するため。`tab_builder`）
     nonce: String,
-    /// このタブのページが新しい窓を開いた時刻（POPUP_WINDOW より前のものは捨てる）
-    popups: Vec<Instant>,
+    /// 新しい窓の数を数える元のタブ（ふつうのタブは自分。ページが開いた新しい窓のタブは、開いた元の root を引き継ぐ。
+    /// 新しいタブがそれぞれ自分の上限を持つと、開いた窓がまた開く、を繰り返して増え続けるため）
+    root: String,
 }
 
 /// 開いているタブ（id → 覚えること）。
 #[derive(Default)]
-pub struct Tabs(Mutex<HashMap<String, TabInfo>>);
+pub struct Tabs {
+    tabs: Mutex<HashMap<String, TabInfo>>,
+    /// 元のタブ（TabInfo の root）→ その下のタブが新しい窓を開いた時刻（POPUP_WINDOW より前のものは捨てる）
+    popups: Mutex<HashMap<String, Vec<Instant>>>,
+}
 
 impl Tabs {
     fn get(&self, tab: &str) -> Option<TabInfo> {
-        self.0
+        self.tabs
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .get(tab)
@@ -164,21 +169,29 @@ impl Tabs {
     }
 
     fn set(&self, tab: &str, info: TabInfo) {
-        self.0
+        self.tabs
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .insert(tab.to_string(), info);
     }
 
-    /// タブ tab のページが、今 (now) 新しい窓を開いてよいか。よければ数える。
-    fn allow_popup(&self, tab: &str, now: Instant) -> bool {
-        let mut m = self.0.lock().unwrap_or_else(|e| e.into_inner());
-        m.get_mut(tab)
-            .is_some_and(|i| allow_popup(&mut i.popups, now))
+    /// 元のタブ root の下のタブが、今 (now) 新しい窓を開いてよいか。よければ数える。
+    fn allow_popup(&self, root: &str, now: Instant) -> bool {
+        let mut m = self.popups.lock().unwrap_or_else(|e| e.into_inner());
+        let ok = allow_popup(m.entry(root.to_string()).or_default(), now);
+        // 時刻が残っていない元のタブは忘れる（閉じたタブの分が積もらないように）
+        m.retain(|_, t| {
+            t.retain(|x| now.saturating_duration_since(*x) < POPUP_WINDOW);
+            !t.is_empty()
+        });
+        ok
     }
 
     fn remove(&self, tab: &str) {
-        self.0.lock().unwrap_or_else(|e| e.into_inner()).remove(tab);
+        self.tabs
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(tab);
     }
 }
 
@@ -456,7 +469,7 @@ fn open_popup(
 ) -> Result<NewWindowResponse<tauri::Wry>, String> {
     let tabs = app.try_state::<Tabs>().ok_or("no tabs")?;
     let info = tabs.get(opener).ok_or("unknown tab")?;
-    if !tabs.allow_popup(opener, Instant::now()) {
+    if !tabs.allow_popup(&info.root, Instant::now()) {
         // 同じタブで開き直すこともしない（繰り返し開くページに、今のページを捨てさせない）
         eprintln!("kisui-terminal: tab {opener} opened too many windows; ignoring {u}");
         return Ok(NewWindowResponse::Deny);
@@ -497,13 +510,8 @@ fn open_popup(
         let _ = holder.destroy();
         return Err("cannot find the new webview".into());
     };
-    tabs.set(
-        &id,
-        TabInfo {
-            popups: Vec::new(),
-            ..info
-        },
-    );
+    // 開いた元と同じ root で数える
+    tabs.set(&id, info);
     watch_native(app, &v, &id);
     let (app, opener, url) = (app.clone(), opener.to_string(), u.to_string());
     std::thread::spawn(move || {
@@ -733,7 +741,7 @@ pub fn browser_open(
             keys,
             incognito,
             nonce,
-            popups: Vec::new(),
+            root: tab.clone(),
         },
     );
     watch_native(&app, &v, &tab);
@@ -1154,6 +1162,22 @@ mod tests {
         // 時間が経てば、また開ける
         assert!(allow_popup(&mut times, t0 + POPUP_WINDOW));
         assert_eq!(times.len(), 1);
+    }
+
+    // 開いた新しいタブは、開いた元と同じ上限を使う（新しいタブがそれぞれ 5 つ開けると、増え続ける）
+    #[test]
+    fn popups_count_against_the_first_tab() {
+        let tabs = Tabs::default();
+        let t0 = Instant::now();
+        for _ in 0..MAX_POPUPS {
+            assert!(tabs.allow_popup("t1", t0));
+        }
+        assert!(!tabs.allow_popup("t1", t0));
+        // ほかの元のタブは別に数える
+        assert!(tabs.allow_popup("t2", t0));
+        // 時間が経った元のタブは忘れる
+        assert!(tabs.allow_popup("t2", t0 + POPUP_WINDOW));
+        assert!(!tabs.popups.lock().unwrap().contains_key("t1"));
     }
 
     // ページが自分を閉じた知らせは、nonce が合うものだけ受ける
