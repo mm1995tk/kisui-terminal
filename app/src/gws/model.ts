@@ -380,13 +380,13 @@ export function addTerm(
   const moved = gwsOfTerm(s, target, ws)?.tabs.find((r) =>
     sameTerm(r, target, ws),
   );
-  if (title === "" && moved && isTerm(moved)) title = moved.title;
+  const name = title || (moved && isTerm(moved) ? moved.title : "");
   const list = s.list.flatMap((g): Gws[] => {
     if (g.id === id)
       return [
         {
           ...g,
-          tabs: [...g.tabs, { kind: "term", target, ws, title }],
+          tabs: [...g.tabs, { kind: "term", target, ws, title: name }],
           term: { target, ws },
         },
       ];
