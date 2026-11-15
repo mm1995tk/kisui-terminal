@@ -96,7 +96,7 @@ export interface DragPosition {
  * confine なら、全部の行の上端から下端までの内に収める（タブの行が、帯の外で切れて見えなくならないように）。
  */
 export function dragPosition(
-  items: readonly (DragSlot & { mid: number })[],
+  items: readonly DragSlot[],
   self: string,
   want: number,
   confine: boolean,
