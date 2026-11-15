@@ -1917,9 +1917,7 @@ function Workbench(props: {
     const gid = gwsOfBrowser(untrack(gws), from.id)?.id;
     setTabs((s) => addTab(s, tab, gid));
     if (gid) setGws((g) => addBrowser(g, gid, tab.id));
-    const f = untrack(focus);
-    if (gid && f && gwsOfTerm(untrack(gws), f.target, f.id)?.id === gid)
-      focusTerminal();
+    if (gid && untrack(currentGws)?.id === gid) focusTerminal();
   }
   /**
    * まだ足していないタブの「閉じた」（ページが開いた新しい窓が、画面に知らせが届く前に閉じた）。あとで届く「新しいタブ」を足さない。
