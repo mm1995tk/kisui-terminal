@@ -6,6 +6,7 @@ import { readFileSync, mkdtempSync, rmSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { inflateRawSync } from "node:zlib";
+import { createHash } from "node:crypto";
 import vm from "node:vm";
 // @ts-ignore 型の無い Node のスクリプト
 import { build, manifestFor, zip } from "./build.mjs";
@@ -690,6 +691,49 @@ test("build は両方のブラウザのフォルダと zip を作り、manifest 
     } finally {
       rmSync(again, { recursive: true, force: true });
     }
+  } finally {
+    rmSync(out, { recursive: true, force: true });
+  }
+});
+
+// Chrome の拡張機能の id：manifest の key（公開鍵の DER を base64 にしたもの）の SHA-256 の先頭 16 バイトを、16 進の 0〜f を a〜p に置き換えて書いたもの
+function chromeId(key: string): string {
+  return [
+    ...createHash("sha256")
+      .update(Buffer.from(key, "base64"))
+      .digest("hex")
+      .slice(0, 32),
+  ]
+    .map((c) => String.fromCharCode(97 + parseInt(c, 16)))
+    .join("");
+}
+
+test("手で入れる chrome/ の id は、受け口がつないでよいストアの id と同じで、zip には key を入れない", () => {
+  const rs = readFileSync(join(dir, "../app/src-tauri/src/passkey.rs"), "utf8");
+  const ids = rs.match(/CHROME_EXTENSION_IDS: &\[&str\] = &\[([^\]]*)\]/);
+  assert.ok(ids, "CHROME_EXTENSION_IDS が passkey.rs に無い");
+  const allowed = [...ids[1].matchAll(/"([a-p]{32})"/g)].map((m) => m[1]);
+  assert.deepEqual(allowed, ["ljfmfmfcicodilhhbmhkfkgjbcpphjel"]);
+  const out = mkdtempSync(join(tmpdir(), "kisui-ext-"));
+  try {
+    build(out);
+    const m = JSON.parse(
+      readFileSync(join(out, "chrome", "manifest.json"), "utf8"),
+    );
+    assert.equal(chromeId(m.key), allowed[0]);
+    for (const browser of ["chrome", "firefox"]) {
+      const files = unzip(
+        readFileSync(
+          join(out, `kisui-terminal-${browser}-${base.version}.zip`),
+        ),
+      );
+      const zm = JSON.parse(files.get("manifest.json")!.toString());
+      assert.equal(zm.key, undefined, browser);
+    }
+    const fm = JSON.parse(
+      readFileSync(join(out, "firefox", "manifest.json"), "utf8"),
+    );
+    assert.equal(fm.key, undefined);
   } finally {
     rmSync(out, { recursive: true, force: true });
   }

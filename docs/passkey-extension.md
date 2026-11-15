@@ -58,7 +58,7 @@ passkey_browser = "chrome"   # chrome（既定。無ければ Chromium）か fir
 
   Linux の `~/.config` は、`$XDG_CONFIG_HOME` が絶対パスならそれ。
 - つないでよい拡張機能：Firefox は `kisui-terminal@mm1995tk.github.io`（拡張機能の `browser_specific_settings.gecko.id`）。
-  Chrome は、Chrome ウェブストアで拡張機能の id が決まったら `passkey.rs` の `CHROME_EXTENSION_IDS` に足す（`docs/browser-extension.md` の「ストアに出す」）。それまで Chrome の登録のファイルは置かない。
+  Chrome は、Chrome ウェブストアのアイテム ID `ljfmfmfcicodilhhbmhkfkgjbcpphjel`（`passkey.rs` の `CHROME_EXTENSION_IDS`。`docs/browser-extension.md` の「ストアに出す」）。
 - 受け口は、受けたメッセージを、動いている kisui-terminal の窓に渡し、窓の答えをそのまま返す。窓が動いていなければ `not-running` を返す。
 
 ## メッセージ

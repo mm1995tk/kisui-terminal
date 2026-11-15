@@ -59,9 +59,9 @@ zip は、同じソースからは同じバイト列になる（中のファイ�
   （Firefox を閉じると外れる。署名の無い拡張機能を残しておけるのは Developer Edition・Nightly・ESR だけ）。
   id（`kisui-terminal@mm1995tk.github.io`）が決まっているので、kisui-terminal の受け口にそのままつながる。
 - Chrome：`chrome://extensions` でデベロッパー モードを入れ、「パッケージ化されていない拡張機能を読み込む」で `extension/dist/chrome/` を選ぶ。
-  受け口がつないでよい Chrome の拡張機能の id（`app/src-tauri/src/passkey.rs` の `CHROME_EXTENSION_IDS`）は、ストアの id が決まるまで空なので、
-  それまで Chrome ではつながらない。ストアの id と公開鍵が決まったら、`extension/build.mjs` の `CHROME_PUBLIC_KEY` に公開鍵を入れると、
-  パッケージ化されていない `chrome/` もストアと同じ id になる。
+  `extension/build.mjs` の `CHROME_PUBLIC_KEY` にストアの公開鍵を入れてあるので、パッケージ化されていない `chrome/` もストアと同じ id
+  （`ljfmfmfcicodilhhbmhkfkgjbcpphjel`）になり、受け口がつないでよい Chrome の拡張機能の id（`app/src-tauri/src/passkey.rs` の `CHROME_EXTENSION_IDS`）
+  に合うので、kisui-terminal の受け口にそのままつながる。
 
 ## ストアに出す（オーナーの作業）
 
@@ -77,9 +77,12 @@ zip は、同じソースからは同じバイト列になる（中のファイ�
 4. この 2 つをリポジトリに入れる PR を作る（Issue にコメントすれば作業役が作れる）：
    - `app/src-tauri/src/passkey.rs` の `CHROME_EXTENSION_IDS` に id を足す（これで kisui-terminal は Chrome と Chromium にも受け口の登録のファイルを置く）。
    - `extension/build.mjs` の `CHROME_PUBLIC_KEY` に公開鍵を入れる（手で入れて試す `chrome/` の id がストアと同じになる）。
-   - README の「まだ公開していない」をストアの URL に直す。
+     公開鍵から計算した id が `CHROME_EXTENSION_IDS` と同じことは、`npm run test:extension` が確かめる。
+
+   済み：id は `ljfmfmfcicodilhhbmhkfkgjbcpphjel`（Issue #207）。
 5. ダッシュボードで下の「ストアの説明」と「プライバシー」を入れ、審査に出す。全サイトの権限を持つので、審査は長くなることがある。
    審査が通ったら、30 日のうちに公開する。
+6. 公開したら、README（`README.md` と `README.ja.md`）の「まだ公開していない」をストアの URL に直す。
 
 ### 2. addons.mozilla.org（AMO）
 

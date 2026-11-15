@@ -27,8 +27,10 @@ const src = dirname(fileURLToPath(import.meta.url));
 
 // Chrome ウェブストアの公開鍵（ダッシュボードの「パッケージ」の「公開鍵を表示」の、BEGIN と END の間を 1 行にしたもの）。
 // 入れると、パッケージ化されていない chrome/ もストアと同じ id になる（docs/browser-extension.md）。
-// ストアに上げる zip には入れない
-export const CHROME_PUBLIC_KEY = "";
+// ストアに上げる zip には入れない。この鍵から計算した id は、app/src-tauri/src/passkey.rs の CHROME_EXTENSION_IDS にある
+// ストアのアイテム ID と同じ（extension.test.ts が確かめる）
+export const CHROME_PUBLIC_KEY =
+  "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvYXdRKgzalGtemC7QK0Hu0e8noiFIQAD34mLs338bBI85Q7oV0WKUkMzHhZ3Kxd9046my3p+w3icl2wVlGdF+TPBVJmwsQXhlaWsWvz/NIVeaX6OtEB+vt0BF+MohMWBGu3UE+m8sYkYmk4xJZy+1xnMQOefs9I9CH+ZTQ3sUdi3GLEUFl1eEszedP+FQTEEJHFcga0nIIaBD6Z84y6bVJu4PQxSbIrjve2t8w7PCTIc4909oHnPAlXEK4hM6S8BnJj0/ywA8oEBGM53Ecn2/05QXpSJB4e/IMvtvpyQ1t3oH9HtV6ZEyjJ5U/NXGrUBtIe1+otYIhA9cMegutyyeQIDAQAB";
 
 // 拡張機能に入れるファイル（manifest.json は別に作る）
 const FILES = [
