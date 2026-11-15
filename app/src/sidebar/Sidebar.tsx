@@ -476,6 +476,46 @@ function Grip(): JSX.Element {
 }
 
 /**
+ * 名前をその場で変える入力欄（Enter で onRenameSubmit、Esc・フォーカスが外れたら onRenameCancel）。
+ * 入力欄はボタンの中に置けないので、名前を変えている間は、フォーカスを移すボタンの所がこの div になる。
+ */
+function BandRenameInput(
+  props: Handlers & { edit: NonNullable<Handlers["renaming"]> },
+): JSX.Element {
+  return (
+    <div class="band-main">
+      <input
+        class="band-rename"
+        type="text"
+        aria-label={T("sidebar.nameLabel")}
+        aria-invalid={props.edit.error ? "true" : undefined}
+        placeholder={T("sidebar.namePlaceholder", { auto: props.edit.auto })}
+        value={props.edit.current}
+        onKeyDown={(e) => {
+          const a = renameKeyAction(e);
+          if (!a) return;
+          e.preventDefault();
+          e.stopPropagation();
+          if (a === "submit") props.onRenameSubmit?.(e.currentTarget.value);
+          else props.onRenameCancel?.(true);
+        }}
+        onBlur={() => {
+          // ほかのアプリに切り替えただけ（窓が外れた）では、打ちかけの名前を消さない
+          if (document.hasFocus()) props.onRenameCancel?.();
+        }}
+        ref={(el) =>
+          // リーダーの後でターミナルにフォーカスが戻るのと競らないよう、1 拍置いて取る
+          setTimeout(() => {
+            el.focus();
+            el.select();
+          })
+        }
+      />
+    </div>
+  );
+}
+
+/**
  * 帯のヘッダー（つかむ所・畳む・名前（その場の入力欄）・「+」・鉛筆・✕）。フォーカスしていれば上に固定する。
  * ヘッダーは行にして、ボタンを並べる。名前を変えている間は、フォーカスを移すボタンの所が入力欄の div になる（ボタンの中に入力欄もボタンも置けない）。
  */
@@ -520,39 +560,7 @@ function BandHeader(
             </button>
           }
         >
-          {(r) => (
-            // 入力欄はボタンの中に置けないので、名前を変えている間は div にする
-            <div class="band-main">
-              <input
-                class="band-rename"
-                type="text"
-                aria-label={T("sidebar.nameLabel")}
-                aria-invalid={r().error ? "true" : undefined}
-                placeholder={T("sidebar.namePlaceholder", { auto: r().auto })}
-                value={r().current}
-                onKeyDown={(e) => {
-                  const a = renameKeyAction(e);
-                  if (!a) return;
-                  e.preventDefault();
-                  e.stopPropagation();
-                  if (a === "submit")
-                    props.onRenameSubmit?.(e.currentTarget.value);
-                  else props.onRenameCancel?.(true);
-                }}
-                onBlur={() => {
-                  // ほかのアプリに切り替えただけ（窓が外れた）では、打ちかけの名前を消さない
-                  if (document.hasFocus()) props.onRenameCancel?.();
-                }}
-                ref={(el) =>
-                  // リーダーの後でターミナルにフォーカスが戻るのと競らないよう、1 拍置いて取る
-                  setTimeout(() => {
-                    el.focus();
-                    el.select();
-                  })
-                }
-              />
-            </div>
-          )}
+          {(r) => <BandRenameInput {...props} edit={r()} />}
         </Show>
         <Show when={props.onAddMenu}>
           <button
