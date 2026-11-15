@@ -75,3 +75,11 @@ export function sameBounds(a: Bounds | null, b: Bounds | null): boolean {
 export function floatsOver(area: Bounds, floats: readonly Bounds[]): boolean {
   return floats.some((o) => o.w > 0 && o.h > 0 && overlaps(area, o));
 }
+
+/**
+ * ページにキーを向けてよいか。浮かべるものがページに重なっている間と、リーダーに入っている間は向けない。
+ * リーダーの途中でページにキーを向けると、画面（メインの webview）がキーを失い、リーダーが閉じる（#256）。
+ */
+export function mayFocusPage(floating: boolean, leaderOpen: boolean): boolean {
+  return !floating && !leaderOpen;
+}
