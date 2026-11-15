@@ -10,7 +10,7 @@ import { T } from "./i18n/index.ts";
 
 /** キーがそれぞれに決まっている場所。 */
 export type Place =
-  "tree" | "changes" | "video" | "image" | "machines" | "list";
+  "tree" | "changes" | "video" | "image" | "machines" | "list" | "bookmarks";
 
 /** 表の 1 行。keys は一覧に出す書き方、probes は、判定が受けるはずのキー（KeyboardEvent.key。テストで使う）。 */
 export interface PlaceKeyRow {
@@ -158,6 +158,22 @@ export const PLACE_KEYS: Record<Place, PlaceKeys> = {
     rows: [
       row("Ctrl+J / Ctrl+K", T("place.list.step"), []),
       row("↓ ↑", T("place.list.step"), []),
+    ],
+  },
+  // 内蔵ブラウザのブックマークの一覧（リーダーの o B。#205）。判定は browser/bookmarks.ts の bookmarkKey（修飾キー付きのものは probes に書けないので、
+  // bookmarks.test.ts で確かめる）
+  bookmarks: {
+    title: T("place.bookmarks.title"),
+    lead: T("place.bookmarks.lead"),
+    rows: [
+      row("↓ ↑ / Ctrl+J Ctrl+K", T("place.list.step"), [
+        "ArrowDown",
+        "ArrowUp",
+      ]),
+      row("Enter", T("place.bookmarks.open")),
+      row("Ctrl+D", T("place.bookmarks.delete"), []),
+      row("?", T("place.bookmarks.help")),
+      row("Esc", T("place.row.close"), []),
     ],
   },
 };

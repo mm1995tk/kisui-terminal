@@ -70,7 +70,7 @@ import {
   updateInfo,
 } from "./update/store.ts";
 import { OsClipboard } from "./clipboard.ts";
-import { CopiedToast, copiedNotice } from "./CopiedToast.tsx";
+import { CopiedToast, copiedNotice, showToast } from "./CopiedToast.tsx";
 import { ScaleToast, showScale } from "./ScaleToast.tsx";
 import { copyAndNotify } from "./copiedNotice.ts";
 import {
@@ -168,10 +168,19 @@ import {
   type Command,
   type RouterState,
 } from "./commands.ts";
+import { BookmarkDialog } from "./browser/BookmarkDialog.tsx";
+import {
+  addBookmark,
+  fromLoaded as bookmarksFromLoaded,
+  removeBookmark,
+  type Bookmark,
+} from "./browser/bookmarks.ts";
 import { BrowserArea } from "./browser/BrowserArea.tsx";
+import { FindBar } from "./browser/FindBar.tsx";
 import {
   closeTabView,
   goTab,
+  loadBookmarks,
   loadTabs,
   navTab,
   onDownload,
@@ -181,9 +190,12 @@ import {
   onTabPopup,
   onTabTitle,
   openDownload,
+  openTabDevtools,
   resolveTabUrl,
   revealDownload,
+  saveBookmarks,
   saveTabs,
+  zoomTab,
   type DownloadDone,
   type TabPopup,
 } from "./browser/browserOs.ts";
@@ -1700,6 +1712,104 @@ function Workbench(props: {
     if (shown) focusTerminal();
   }
 
+  // ---- 内蔵ブラウザのブックマーク（#205）。すべてのワークスペースで共有し、殻がデータのフォルダに覚える ----
+  /** ブックマーク（新しく足したものが先）。読み終えるまでは undefined */
+  const [bookmarks, setBookmarks] = createSignal<Bookmark[] | undefined>();
+  const [bookmarksFailed, setBookmarksFailed] = createSignal(false);
+  /** ブックマークの一覧のダイアログ（リーダーの o B）を出しているか */
+  const [bookmarkDialog, setBookmarkDialog] = createSignal(false);
+  /** 覚えているブックマークを読む（一覧を開くたびと、初めて足すとき。読めなければ前のまま）。 */
+  function readBookmarks(): Promise<Bookmark[]> {
+    return loadBookmarks().then(
+      (v) => {
+        const list = bookmarksFromLoaded(v);
+        setBookmarks(list);
+        setBookmarksFailed(false);
+        return list;
+      },
+      (e: unknown) => {
+        console.warn("bookmarks:", e);
+        if (untrack(bookmarks) === undefined) setBookmarksFailed(true);
+        throw e;
+      },
+    );
+  }
+  /** ブックマークを書き換えて覚える。書けなければ知らせる。 */
+  function changeBookmarks(next: Bookmark[]) {
+    setBookmarks(next);
+    saveBookmarks(next).catch((e: unknown) =>
+      setFocusError({
+        title: T("err.bookmarks.save"),
+        error: e instanceof Error ? e.message : String(e),
+      }),
+    );
+  }
+  /** 今のページをブックマークに足す（リーダーの o b）。読む前なら、先に読んでから足す（覚えていたものを消さないため）。 */
+  function bookmarkPage(t: BrowserTab) {
+    const add = (list: Bookmark[]) => {
+      changeBookmarks(addBookmark(list, { url: t.url, title: t.title }));
+      showToast(T("toast.bookmarked"));
+    };
+    const had = bookmarks();
+    if (had) add(had);
+    else
+      readBookmarks().then(add, (e: unknown) =>
+        setFocusError({
+          title: T("err.bookmarks.save"),
+          error: e instanceof Error ? e.message : String(e),
+        }),
+      );
+  }
+  /** ブックマークを今のワークスペースの新しいタブで開く（一覧の Enter）。 */
+  function openBookmark(b: Bookmark) {
+    const f = focus();
+    setBookmarkDialog(false);
+    if (!f) {
+      cannot(T("cannot.browser.open.title"), T("cannot.browser.open.text"));
+      return;
+    }
+    setTabs((s) =>
+      addTab(s, {
+        id: newTabId(),
+        target: f.target,
+        workspace: f.id,
+        url: b.url,
+        title: b.title,
+      }),
+    );
+    focusTerminal();
+  }
+
+  // ---- 内蔵ブラウザのページ内検索（#205）。出しているタブの下の端に、検索の欄を出す ----
+  /** 検索の欄を出しているタブ。無ければ null */
+  const [findTab, setFindTab] = createSignal<string | null>(null);
+  let focusFind: (() => void) | undefined;
+  /** 検索の欄を開く。開いていれば、入力欄にキーを向ける。 */
+  function openFind(t: BrowserTab) {
+    if (untrack(findTab) === t.id) focusFind?.();
+    else setFindTab(t.id);
+  }
+  /** 検索の欄を閉じ、キーをページに戻す。 */
+  function closeFind() {
+    setFindTab(null);
+    focusTerminal();
+  }
+  // 出すタブが替わったら（グリッドに戻った・ほかのタブへ）、検索の欄を閉じる
+  createEffect(
+    on(shownBrowserTab, (t) => {
+      const open = untrack(findTab);
+      if (open !== null && t?.id !== open) setFindTab(null);
+    }),
+  );
+
+  /** ブラウザを出している間の表示の大きさ（リーダーの v のグループ。#205）。ページの表示の大きさを変え、タブに覚える。 */
+  function changePageZoom(t: BrowserTab, a: ScaleAction) {
+    const z = nextScale(t.zoom ?? 1, a);
+    setTabs((s) => updateTab(s, t.id, { zoom: z === 1 ? undefined : z }));
+    void zoomTab(t.id, z).catch(() => {});
+    showScale(z);
+  }
+
   // ---- 内蔵ブラウザのダウンロード（#204）。~/Downloads に保存し、右下のお知らせで知らせる ----
   /** 知らせているダウンロード（古い順。多すぎるときは古いものから消す） */
   const [downloads, setDownloads] = createSignal<DownloadDone[]>([]);
@@ -1870,6 +1980,37 @@ function Workbench(props: {
       case "browser.fold":
         if (f) setTabs((s) => toggleFold(s, f.target, f.id));
         break;
+      case "browser.bookmark": {
+        const t = currentTab();
+        if (t) bookmarkPage(t);
+        break;
+      }
+      case "browser.bookmarks":
+        setBookmarkDialog(true);
+        // 開くたびに読み直す（読めなければ、前に読んだものを出す）
+        readBookmarks().catch(() => {});
+        break;
+      case "browser.find": {
+        const t = currentTab();
+        if (t) openFind(t);
+        break;
+      }
+      case "browser.copyUrl": {
+        const t = currentTab();
+        if (t) void copyToClipboard(t.url);
+        break;
+      }
+      case "browser.devtools": {
+        const t = currentTab();
+        if (t)
+          openTabDevtools(t.id).catch((e: unknown) =>
+            setFocusError({
+              title: T("err.devtools"),
+              error: e instanceof Error ? e.message : String(e),
+            }),
+          );
+        break;
+      }
     }
   }
 
@@ -2101,9 +2242,13 @@ function Workbench(props: {
       case "clipboard.history":
         openClipboardHistory();
         break;
-      case "scale":
-        changeScale(c.arg as ScaleAction);
+      case "scale": {
+        // ブラウザを出している間は、ページの表示の大きさ（#205）。画面全体の大きさは、グリッドに戻してから変える
+        const t = shownBrowserTab();
+        if (t) changePageZoom(t, c.arg as ScaleAction);
+        else changeScale(c.arg as ScaleAction);
         break;
+      }
       case "notice.update":
         // 「新しい版があります」の「更新して再起動」。知らせが出ていないときは何もしない
         if (updateInfo()) void installUpdate();
@@ -2470,7 +2615,17 @@ function Workbench(props: {
             resolve={resolveFor}
             onError={(title, error) => setFocusError({ title, error })}
             focusRef={(f) => (focusBrowserPage = f)}
-          />
+          >
+            <Show when={findTab()} keyed>
+              {(id) => (
+                <FindBar
+                  tab={id}
+                  onClose={closeFind}
+                  focusRef={(f) => (focusFind = f)}
+                />
+              )}
+            </Show>
+          </BrowserArea>
         </Show>
       </div>
       <Show when={installing()}>
@@ -2628,6 +2783,20 @@ function Workbench(props: {
             onCancel={() => setUrlDialog(null)}
           />
         )}
+      </Show>
+      <Show when={bookmarkDialog()}>
+        <BookmarkDialog
+          list={bookmarks()}
+          failed={bookmarksFailed()}
+          onOpen={openBookmark}
+          onDelete={(b) =>
+            changeBookmarks(removeBookmark(bookmarks() ?? [], b.url))
+          }
+          onCancel={() => {
+            setBookmarkDialog(false);
+            focusTerminal();
+          }}
+        />
       </Show>
       <AskpassDialog ask={asks()[0]} onReply={reply} />
       <ClipboardDialog />

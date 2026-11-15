@@ -52,6 +52,11 @@ export type CommandId =
   | "browser.external"
   | "browser.cycle"
   | "browser.fold"
+  | "browser.bookmark"
+  | "browser.bookmarks"
+  | "browser.find"
+  | "browser.copyUrl"
+  | "browser.devtools"
   | "help.keys";
 
 /** コマンドと、その引数（向き・番号など）。 */
@@ -391,6 +396,21 @@ export const LEADER: Node[] = [
       leaf("x", T("leader.browser.close"), { id: "browser.close" }),
       leaf("e", T("leader.browser.external"), { id: "browser.external" }),
       leaf("z", T("leader.browser.fold"), { id: "browser.fold" }),
+      // #205
+      leaf("b", T("leader.browser.bookmark"), { id: "browser.bookmark" }),
+      leaf("B", T("leader.browser.bookmarks"), { id: "browser.bookmarks" }),
+      // ページ内検索。ブラウザを出している間は Cmd+F / Ctrl+F でも（ターミナルが見えていないので、シェルや shj のキーとぶつからない）
+      leaf(
+        "/",
+        T("leader.browser.find"),
+        { id: "browser.find" },
+        {
+          shortcut: { mac: "Cmd+F", other: "Ctrl+F" },
+          shortcutInBrowser: true,
+        },
+      ),
+      leaf("y", T("leader.browser.copyUrl"), { id: "browser.copyUrl" }),
+      leaf("i", T("leader.browser.devtools"), { id: "browser.devtools" }),
     ],
     undefined,
     undefined,

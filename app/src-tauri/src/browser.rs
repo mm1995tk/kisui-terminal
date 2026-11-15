@@ -30,6 +30,9 @@
 //! `browser/` に置く。macOS は WKWebView の既定の置き場（`~/Library/WebKit/<アプリの id>/` など。場所は OS が決める）を使う。
 //! シークレットのタブ（#204）は、タブごとに別の、ディスクに残さないデータを使う（tauri の `incognito`）。パスキーのスクリプトは入れない。
 //! 開いていたタブ（ワークスペースと URL）は、データのフォルダの `browser-tabs.json` に覚える（画面が書く。シークレットのタブは書かない）。
+//!
+//! #205：ページの表示の大きさ（`browser_zoom`。タブごとに、覚えるタブと一緒に覚える）、ページ内検索（`browser_find`）、
+//! DevTools（`browser_devtools`）。ブックマークは bookmarks.rs。
 
 use std::collections::HashMap;
 use std::fs;
@@ -240,6 +243,9 @@ pub struct StoredTab {
     pub url: String,
     #[serde(default)]
     pub title: String,
+    /// ページの表示の大きさ（百分率。#205）。元の大きさ（100）なら書かない
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub zoom: Option<u32>,
 }
 
 /// タブの並びを畳んだワークスペース。
@@ -678,7 +684,10 @@ fn tab_builder(
     keys: &[KeySpec],
     data: Data,
 ) -> WebviewBuilder<tauri::Wry> {
-    let mut builder = WebviewBuilder::new(label(tab), WebviewUrl::External(first)).focused(false);
+    // DevTools（`o i`。#205）はタブのページで使う（メインの webview は、release では main.rs で切る）
+    let mut builder = WebviewBuilder::new(label(tab), WebviewUrl::External(first))
+        .focused(false)
+        .devtools(true);
     for s in page_scripts(app, &nonce, keys, &data) {
         builder = if s.all_frames {
             builder.initialization_script_for_all_frames(s.source)
@@ -845,6 +854,92 @@ pub fn browser_close(
     Ok(())
 }
 
+/// ページの表示の大きさの範囲（倍率。#205）。画面が選ぶ段（app/src/scale.ts の SCALES）より広く受ける。
+const MIN_ZOOM: f64 = 0.25;
+const MAX_ZOOM: f64 = 5.0;
+
+fn valid_zoom(z: f64) -> bool {
+    z.is_finite() && (MIN_ZOOM..=MAX_ZOOM).contains(&z)
+}
+
+fn valid_zoom_percent(z: u32) -> bool {
+    valid_zoom(f64::from(z) / 100.0)
+}
+
+/// ページの表示の大きさを変える（1 が元の大きさ。#205。ブラウザを出している間の、リーダーの `v` のグループ）。
+#[tauri::command]
+pub fn browser_zoom(
+    app: AppHandle,
+    webview: Webview,
+    tab: String,
+    zoom: f64,
+) -> Result<(), String> {
+    from_main(&webview)?;
+    if !valid_zoom(zoom) {
+        return Err(format!("invalid zoom: {zoom}"));
+    }
+    child(&app, &tab)?.set_zoom(zoom).map_err(|e| e.to_string())
+}
+
+/// ページ内検索で探す字の長さの上限（バイト）。
+const MAX_FIND: usize = 1000;
+/// ページ内検索の答えを待つ時間。
+const FIND_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+
+/// ページ内検索のスクリプト。WebKit の `window.find` で、今の選択の先（back なら前）を探し、端では折り返す。
+/// again でなければ（探す字を変えた）、今の選択の頭から探し直す（打ち足しても、同じ所に留まる）。
+/// 探す字は JSON の文字列として埋める（JS の外に出ない）。
+fn find_script(text: &str, again: bool, back: bool) -> String {
+    let q = serde_json::to_string(text).unwrap_or_else(|_| "\"\"".into());
+    let restart = !again;
+    format!(
+        "(() => {{ try {{ const s = window.getSelection(); \
+         if ({restart} && s && s.rangeCount > 0) s.collapseToStart(); \
+         return !!window.find({q}, false, {back}, true, false, false, false); \
+         }} catch (e) {{ return false; }} }})()"
+    )
+}
+
+/// ページ内を探す（#205。リーダーの `o /`）。mode は `first`（探す字を変えた）・`next`・`prev`。見つかったかを返す。
+/// 見つけた所はページの選択になり、そこまでスクロールする。
+#[tauri::command(async)]
+pub fn browser_find(
+    app: AppHandle,
+    webview: Webview,
+    tab: String,
+    text: String,
+    mode: String,
+) -> Result<bool, String> {
+    from_main(&webview)?;
+    if text.is_empty() || text.len() > MAX_FIND {
+        return Err("invalid text".into());
+    }
+    let (again, back) = match mode.as_str() {
+        "first" => (false, false),
+        "next" => (true, false),
+        "prev" => (true, true),
+        _ => return Err(format!("unknown mode: {mode:?}")),
+    };
+    let v = child(&app, &tab)?;
+    let (tx, rx) = std::sync::mpsc::channel();
+    v.eval_with_callback(find_script(&text, again, back), move |r| {
+        let _ = tx.send(r);
+    })
+    .map_err(|e| e.to_string())?;
+    let r = rx
+        .recv_timeout(FIND_TIMEOUT)
+        .map_err(|_| "the page did not answer".to_string())?;
+    Ok(r.trim() == "true")
+}
+
+/// タブのページの DevTools（Web Inspector）を開く（#205。リーダーの `o i`）。
+#[tauri::command]
+pub fn browser_devtools(app: AppHandle, webview: Webview, tab: String) -> Result<(), String> {
+    from_main(&webview)?;
+    child(&app, &tab)?.open_devtools();
+    Ok(())
+}
+
 fn tabs_path(app: &AppHandle) -> Result<PathBuf, String> {
     app.path()
         .app_data_dir()
@@ -867,6 +962,9 @@ pub fn load_tabs(path: &Path) -> StoredTabs {
             let mut d = f.data;
             d.tabs
                 .retain(|t| valid_tab(&t.id) && parse_url(&t.url).is_ok());
+            for t in &mut d.tabs {
+                t.zoom = t.zoom.filter(|z| valid_zoom_percent(*z));
+            }
             d.tabs.truncate(MAX_TABS);
             d
         }
@@ -876,20 +974,25 @@ pub fn load_tabs(path: &Path) -> StoredTabs {
 
 /// タブを覚える（自分だけが読めるファイル。書きかけを残さないよう、別の名前に書いてから置き換える）。
 pub fn save_tabs(path: &Path, data: &StoredTabs) -> std::io::Result<()> {
-    if let Some(dir) = path.parent() {
-        crate::clipboard_history::create_private_dir(dir)?;
-    }
     let body = serde_json::to_vec(&StoredFile {
         version: FORMAT_VERSION,
         data: data.clone(),
     })
     .map_err(std::io::Error::other)?;
+    write_private(path, &body)
+}
+
+/// body を、自分だけが読めるファイル path に書く（書きかけを残さないよう、別の名前に書いてから置き換える）。
+pub(crate) fn write_private(path: &Path, body: &[u8]) -> std::io::Result<()> {
+    if let Some(dir) = path.parent() {
+        crate::clipboard_history::create_private_dir(dir)?;
+    }
     let mut tmp = path.as_os_str().to_owned();
     tmp.push(".tmp");
     let tmp = PathBuf::from(tmp);
     let _ = fs::remove_file(&tmp);
     let mut f = crate::clipboard_history::open_private(&tmp)?;
-    f.write_all(&body)?;
+    f.write_all(body)?;
     f.sync_all()?;
     drop(f);
     fs::rename(&tmp, path)
@@ -914,6 +1017,7 @@ pub fn browser_tabs_save(app: AppHandle, webview: Webview, data: StoredTabs) -> 
                 || t.title.len() > 4096
                 || t.target.len() > 1024
                 || t.workspace.len() > 1024
+                || t.zoom.is_some_and(|z| !valid_zoom_percent(z))
         })
     {
         return Err("invalid tabs".into());
@@ -1045,6 +1149,7 @@ mod tests {
                 workspace: "w1".into(),
                 url: "https://example.com/".into(),
                 title: "Example".into(),
+                zoom: Some(125),
             }],
             collapsed: vec![StoredWs {
                 target: "dev".into(),
@@ -1189,6 +1294,46 @@ mod tests {
         assert!(!is_close_request(&u("kisui-close://close"), "abc"));
         assert!(!is_close_request(&u("kisui-close://close?n="), ""));
         assert!(!is_close_request(&u("https://a.example/?n=abc"), "abc"));
+    }
+
+    // 表示の大きさは 25%〜500% だけ受ける。覚えたタブの範囲の外の値は捨てる（タブは残す）
+    #[test]
+    fn zoom_is_limited() {
+        assert!(valid_zoom(1.0) && valid_zoom(0.25) && valid_zoom(5.0));
+        assert!(!valid_zoom(0.1) && !valid_zoom(6.0) && !valid_zoom(f64::NAN));
+        assert!(valid_zoom_percent(70) && !valid_zoom_percent(0));
+        let d = temp_dir("zoom");
+        fs::create_dir_all(&d).unwrap();
+        let p = d.join(TABS_FILE);
+        fs::write(
+            &p,
+            r#"{"version":1,"tabs":[
+              {"id":"a","target":"@local","workspace":"w","url":"https://a.example/","zoom":150},
+              {"id":"b","target":"@local","workspace":"w","url":"https://a.example/","zoom":9000}
+            ]}"#,
+        )
+        .unwrap();
+        let got = load_tabs(&p);
+        assert_eq!(got.tabs[0].zoom, Some(150));
+        assert_eq!(got.tabs[1].zoom, None);
+        // 元の大きさのタブは zoom を書かない
+        let body = serde_json::to_string(&got.tabs[1]).unwrap();
+        assert!(!body.contains("zoom"), "{body}");
+        let _ = fs::remove_dir_all(&d);
+    }
+
+    // ページ内検索のスクリプトは、探す字を JS の文字列として埋め、向きと探し直しを入れる
+    #[test]
+    fn find_script_embeds_the_text_as_a_string() {
+        let s = find_script("a\"); alert(1); (\"", false, false);
+        assert!(
+            s.contains(r#"window.find("a\"); alert(1); (\"", false, false, true"#),
+            "{s}"
+        );
+        assert!(s.contains("if (true && s"), "{s}");
+        let s = find_script("x", true, true);
+        assert!(s.contains(r#"window.find("x", false, true, true"#), "{s}");
+        assert!(s.contains("if (false && s"), "{s}");
     }
 
     // 閉じた知らせのスクリプトは、殻の受ける URL の形で知らせ、nonce の印を持つ

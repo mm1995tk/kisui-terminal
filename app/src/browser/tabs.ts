@@ -8,6 +8,7 @@
 // シークレットのタブ（#204）は覚えない（閉じるとログインが消え、再起動しても戻さない）。
 
 import type { WorkspaceId } from "../rpc/protocol.ts";
+import { SCALES } from "../scale.ts";
 
 /** タブ 1 つ。 */
 export interface BrowserTab {
@@ -29,6 +30,10 @@ export interface BrowserTab {
   opener?: string;
   /** 殻がもう webview を作ってある（ページが開いた新しい窓。#204）。画面は作らずに、そのまま使う。覚えない */
   made?: boolean;
+  /**
+   * ページの表示の大きさ（#205。1 が元の大きさ。無ければ 1）。タブごとに持ち、ページを移っても変わらない。覚える（再起動しても戻す）
+   */
+  zoom?: number;
 }
 
 /** タブ全部と、ワークスペースごとの表示。 */
@@ -49,6 +54,8 @@ export interface StoredTabs {
     workspace: string;
     url: string;
     title: string;
+    /** 表示の大きさ（百分率。元の大きさなら書かない） */
+    zoom?: number;
   }[];
   collapsed: { target: string; workspace: string }[];
 }
@@ -183,13 +190,14 @@ export function toggleFold(
 export function updateTab(
   s: TabsState,
   id: string,
-  patch: { url?: string; title?: string },
+  patch: { url?: string; title?: string; zoom?: number },
 ): TabsState {
   const i = s.tabs.findIndex((t) => t.id === id);
   if (i < 0) return s;
   const t = s.tabs[i];
   const next = { ...t, ...patch };
-  if (next.url === t.url && next.title === t.title) return s;
+  if (next.url === t.url && next.title === t.title && next.zoom === t.zoom)
+    return s;
   const tabs = [...s.tabs];
   tabs[i] = next;
   return { ...s, tabs };
@@ -230,12 +238,15 @@ export function toStored(s: TabsState): StoredTabs {
   return {
     tabs: s.tabs
       .filter((t) => !t.incognito)
-      .map(({ id, target, workspace, url, title }) => ({
+      .map(({ id, target, workspace, url, title, zoom }) => ({
         id,
         target,
         workspace,
         url,
         title,
+        ...(zoom !== undefined && zoom !== 1
+          ? { zoom: Math.round(zoom * 100) }
+          : {}),
       })),
     collapsed: s.collapsed.map((k) => {
       const [target, workspace] = JSON.parse(k) as [string, string];
@@ -266,6 +277,7 @@ export function fromStored(v: unknown): TabsState {
         workspace: t.workspace,
         url: t.url,
         title: typeof t.title === "string" ? t.title : "",
+        ...zoomOf(t.zoom),
       });
   }
   const collapsed: string[] = [];
@@ -317,4 +329,11 @@ export function normalizeUrl(input: string): string | null {
   } catch {
     return null;
   }
+}
+
+/** 覚えていた表示の大きさ（百分率）を、タブの zoom にする。選べる大きさ（scale.ts の SCALES）でなければ元の大きさ。 */
+function zoomOf(percent: unknown): { zoom?: number } {
+  if (typeof percent !== "number") return {};
+  const z = percent / 100;
+  return SCALES.includes(z) && z !== 1 ? { zoom: z } : {};
 }
