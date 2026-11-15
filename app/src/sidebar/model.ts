@@ -21,7 +21,10 @@ import {
   refKey,
   repTerm,
   termKey,
+  type BrowserRef,
+  type Gws,
   type GwsState,
+  type TermRef,
 } from "../gws/model.ts";
 
 /** GUI がフォーカスしているワークスペース（どのマシンの、どれか）。 */
@@ -371,85 +374,103 @@ export function gwsRows(state: GwsState, ctx: RowContext): Row[] {
         r.target === ctx.focus?.target &&
         r.ws === ctx.focus.id,
     );
-    const name = displayName(g);
-    const w = ctx.workspaces[rep.target]?.find((x) => x.id === rep.ws);
-    let b: Band;
-    if (w) {
-      b = {
-        ...band({ ...w, label: name }, focused),
-        label: g.name,
-        autoTitle: autoName(g.num),
-      };
-    } else {
-      b = {
-        id: rep.ws,
-        title: name,
-        label: g.name,
-        autoTitle: autoName(g.num),
-        path: false,
-        unset: false,
-        detail: rep.title,
-        dir: rep.title,
-        branch: "",
-        sha: "",
-        note: "",
-        num: "",
-        root: "",
-        focused,
-        showTree: false,
-      };
-    }
-    const health = ctx.healthOf(rep.target);
-    const shownBrowser = ctx.views[g.id];
-    const items: TabItem[] = [];
-    for (const r of g.tabs) {
-      if (r.kind === "term") {
-        const tw = ctx.workspaces[r.target]?.find((x) => x.id === r.ws);
-        items.push({
-          key: refKey(r),
-          kind: "term",
-          title: tw ? band(tw, false).title : r.title || unsetTitle(),
-          sub: ctx.labelOf(r.target),
-          tip: tw?.folder ?? "",
-          incognito: false,
-          health: ctx.healthOf(r.target),
-          closable: false,
-        });
-      } else {
-        const t = ctx.browser.get(r.id);
-        if (!t) continue;
-        const title = tabTitle(t, r.name);
-        items.push({
-          key: refKey(r),
-          kind: "browser",
-          tab: r.id,
-          title,
-          sub: title !== hostOf(t.url) ? hostOf(t.url) : "",
-          tip: t.url,
-          incognito: !!t.incognito,
-          closable: true,
-        });
-      }
-    }
-    const repKey = termKey(rep.target, rep.ws);
-    const shown =
-      shownBrowser !== undefined &&
-      items.some((i) => i.key === browserKey(shownBrowser))
-        ? browserKey(shownBrowser)
-        : repKey;
+    const items = g.tabs.flatMap((r) => {
+      const item = r.kind === "term" ? termItem(r, ctx) : browserItem(r, ctx);
+      return item ? [item] : [];
+    });
     return {
       gws: g.id,
       target: rep.target,
       machine: ctx.labelOf(rep.target),
       color: ctx.colorOf(rep.target),
-      health,
-      band: b,
+      health: ctx.healthOf(rep.target),
+      band: bandOf(g, rep, focused, ctx),
       tabs:
         items.length > 1
-          ? { items, shown, folded: !!g.folded, focused }
+          ? {
+              items,
+              shown: shownKey(rep, ctx.views[g.id], items),
+              folded: !!g.folded,
+              focused,
+            }
           : undefined,
     };
   });
+}
+
+/**
+ * ワークスペースの帯。rep（今出しているターミナルのタブ）の一覧があればフォルダ・ブランチを出し、
+ * 無ければ（つながっていない）最後に分かった名前を 2 行目に出す。帯の名前はワークスペースの名前。
+ */
+function bandOf(g: Gws, rep: TermRef, focused: boolean, ctx: RowContext): Band {
+  const w = ctx.workspaces[rep.target]?.find((x) => x.id === rep.ws);
+  const name = displayName(g);
+  if (w)
+    return {
+      ...band({ ...w, label: name }, focused),
+      label: g.name,
+      autoTitle: autoName(g.num),
+    };
+  return {
+    id: rep.ws,
+    title: name,
+    label: g.name,
+    autoTitle: autoName(g.num),
+    path: false,
+    unset: false,
+    detail: rep.title,
+    dir: rep.title,
+    branch: "",
+    sha: "",
+    note: "",
+    num: "",
+    root: "",
+    focused,
+    showTree: false,
+  };
+}
+
+/** ターミナルのタブの行。名前はマシンの一覧にあればその名前、無ければ最後に分かった名前。 */
+function termItem(r: TermRef, ctx: RowContext): TabItem {
+  const tw = ctx.workspaces[r.target]?.find((x) => x.id === r.ws);
+  return {
+    key: refKey(r),
+    kind: "term",
+    title: tw ? band(tw, false).title : r.title || unsetTitle(),
+    sub: ctx.labelOf(r.target),
+    tip: tw?.folder ?? "",
+    incognito: false,
+    health: ctx.healthOf(r.target),
+    closable: false,
+  };
+}
+
+/** ブラウザのタブの行。タブがもう無ければ undefined（行を出さない）。 */
+function browserItem(r: BrowserRef, ctx: RowContext): TabItem | undefined {
+  const t = ctx.browser.get(r.id);
+  if (!t) return undefined;
+  const title = tabTitle(t, r.name);
+  return {
+    key: refKey(r),
+    kind: "browser",
+    tab: r.id,
+    title,
+    sub: title !== hostOf(t.url) ? hostOf(t.url) : "",
+    tip: t.url,
+    incognito: !!t.incognito,
+    closable: true,
+  };
+}
+
+/** 出しているタブのキー。ブラウザのタブを出している（view）ならそれ、そうでなければ rep のターミナルのタブ。 */
+function shownKey(
+  rep: TermRef,
+  view: string | undefined,
+  items: readonly TabItem[],
+): string {
+  return view !== undefined && items.some((i) => i.key === browserKey(view))
+    ? browserKey(view)
+    : termKey(rep.target, rep.ws);
 }
 
 /**
