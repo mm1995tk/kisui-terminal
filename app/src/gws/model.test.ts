@@ -21,6 +21,8 @@ import {
   move,
   moveBefore,
   moveTabBefore,
+  moveTabStep,
+  refKey,
   nameError,
   nameErrorText,
   parseGws,
@@ -482,5 +484,34 @@ describe("nameErrorText", () => {
     assert.ok(nameErrorText("a".repeat(101)));
     assert.ok(nameErrorText("a\nb"));
     assert.notEqual(nameErrorText("a".repeat(101)), nameErrorText("a\nb"));
+  });
+});
+
+describe("moveTabStep（t J / t K）", () => {
+  const mk = (): GwsState => ({
+    list: [
+      {
+        id: "g1",
+        num: 1,
+        name: "",
+        folded: false,
+        tabs: [
+          { kind: "term", target: "m", ws: "a", title: "" },
+          { kind: "browser", id: "b1" },
+          { kind: "term", target: "m", ws: "c", title: "" },
+        ],
+      } as never,
+    ],
+  });
+  const keys = (s: GwsState) => s.list[0].tabs.map(refKey);
+  it("1 つ下・上へ動かし、端では動かさない", () => {
+    const s = mk();
+    const [a, b, c] = keys(s);
+    assert.deepEqual(keys(moveTabStep(s, "g1", a, "down")!), [b, a, c]);
+    assert.deepEqual(keys(moveTabStep(s, "g1", b, "down")!), [a, c, b]);
+    assert.deepEqual(keys(moveTabStep(s, "g1", c, "up")!), [a, c, b]);
+    assert.equal(moveTabStep(s, "g1", c, "down"), null);
+    assert.equal(moveTabStep(s, "g1", a, "up"), null);
+    assert.equal(moveTabStep(s, "g1", "nope", "up"), null);
   });
 });

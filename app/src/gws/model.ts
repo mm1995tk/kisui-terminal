@@ -246,6 +246,31 @@ export function moveTabBefore(
     : update(s, id, (x) => ({ ...x, tabs: tabs.slice() }));
 }
 
+/**
+ * ワークスペースの中のタブ（key は refKey）を、1 つ下（dir が "down"）・上（"up"）へ動かす（リーダーの t J / t K）。
+ * 端では回らず、動かさない（動かさなかったときは null）。
+ */
+export function moveTabStep(
+  s: GwsState,
+  id: string,
+  key: string,
+  dir: "up" | "down",
+): GwsState | null {
+  const g = s.list.find((x) => x.id === id);
+  if (!g) return null;
+  const i = g.tabs.findIndex((r) => refKey(r) === key);
+  if (i < 0) return null;
+  // 1 つ下へは「2 つ下のタブの前」へ、1 つ上へは「1 つ上のタブの前」へ
+  const j = dir === "down" ? i + 2 : i - 1;
+  if (dir === "down" ? i + 1 >= g.tabs.length : i === 0) return null;
+  return moveTabBefore(
+    s,
+    id,
+    key,
+    j < g.tabs.length ? refKey(g.tabs[j]) : null,
+  );
+}
+
 /** 最後に使っていたターミナルのタブを覚える。 */
 export function setActiveTerm(
   s: GwsState,

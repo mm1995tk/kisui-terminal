@@ -262,7 +262,8 @@ export interface Requests {
     result: { rev: number; termId?: TermId };
   };
   "workspace.create": {
-    params: Record<string, never>;
+    /** dir は、プライマリターミナルのシェルを始めるフォルダ（絶対パス）。無い・フォルダでなければ start_dir。古い kisui serve は無視する */
+    params: { dir?: string };
     result: { id: WorkspaceId; termId: TermId };
   };
   "workspace.close": {

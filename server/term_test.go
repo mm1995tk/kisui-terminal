@@ -99,6 +99,19 @@ func waitFor(t *testing.T, what string, f func() bool) {
 
 func b64(s string) string { return base64.StdEncoding.EncodeToString([]byte(s)) }
 
+// createWSIn は dir つきの workspace.create を送り、ワークスペースとそのプライマリターミナルの id を返す。
+func createWSIn(t *testing.T, c *rpc.Conn, dir string) (id, primary string) {
+	t.Helper()
+	var r struct {
+		ID     string `json:"id"`
+		TermID string `json:"termId"`
+	}
+	if err := c.Call(context.Background(), "workspace.create", map[string]any{"dir": dir}, &r); err != nil || r.ID == "" || r.TermID == "" {
+		t.Fatalf("workspace.create: %+v %v", r, err)
+	}
+	return r.ID, r.TermID
+}
+
 // createWS は workspace.create を送り、ワークスペースとそのプライマリターミナルの id を返す。
 func createWS(t *testing.T, c *rpc.Conn) (id, primary string) {
 	t.Helper()

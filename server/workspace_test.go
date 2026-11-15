@@ -360,3 +360,26 @@ func TestTildePath(t *testing.T) {
 		}
 	}
 }
+
+// workspace.create の dir は、プライマリターミナルのシェルを始めるフォルダ。フォルダでない・絶対パスでないときは start_dir（~）。
+func TestWorkspaceCreateWithDir(t *testing.T) {
+	home := normalizePath(t.TempDir())
+	t.Setenv("HOME", home)
+	dir := normalizePath(filepath.Join(home, "proj"))
+	if err := os.Mkdir(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	_, sock := startFast(t)
+	c, _ := termClient(t, sock)
+	for _, tc := range []struct{ dir, want string }{
+		{dir, dir},
+		{filepath.Join(home, "gone"), home},
+		{"relative", home},
+	} {
+		id, _ := createWSIn(t, c, tc.dir)
+		x := listWS(t, c).find(id)
+		if x == nil || x.Folder == nil || *x.Folder != tc.want {
+			t.Errorf("dir %q: workspace %+v, want folder %q", tc.dir, x, tc.want)
+		}
+	}
+}

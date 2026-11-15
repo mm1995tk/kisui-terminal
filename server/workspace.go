@@ -170,12 +170,21 @@ func (w *wsManager) folderOf(id string) (string, bool) {
 	return w.startDir(), true
 }
 
-// create はワークスペースを作り、プライマリターミナルを start_dir で始める。
-// フォルダは start_dir から決まる（プロジェクトの中ならそのルート、~ なら ~）。
-func (w *wsManager) create() (id, termID string, err error) {
+// create はワークスペースを作り、プライマリターミナルを dir（絶対パスのフォルダ）で始める。
+// dir が無い・フォルダでないときは start_dir。フォルダは始めたフォルダから決まる（プロジェクトの中ならそのルート、~ なら ~）。
+func (w *wsManager) create(dir string) (id, termID string, err error) {
 	w.recomputeMu.Lock()
 	defer w.recomputeMu.Unlock()
-	return w.createLocked(newWorkspaceID(), w.startDir(), "")
+	// dir（GUI が、今のタブのフォルダを引き継ぐために送る）が絶対パスのフォルダなら、そこで始める。そうでなければ start_dir
+	if !filepath.IsAbs(dir) {
+		dir = ""
+	} else if fi, err := os.Stat(dir); err != nil || !fi.IsDir() {
+		dir = ""
+	}
+	if dir == "" {
+		dir = w.startDir()
+	}
+	return w.createLocked(newWorkspaceID(), dir, "")
 }
 
 // createLocked は recomputeMu を持って呼ぶ。wsID のワークスペースを作り、プライマリターミナルを dir で始める。
@@ -593,7 +602,13 @@ func (ss *session) workspaceRequest(req *rpc.Message) (res any, err error, handl
 		}
 		return map[string]any{"workspaces": l, "focus": focus}, nil, true
 	case "workspace.create":
-		id, termID, err := w.create()
+		var cp struct {
+			Dir string `json:"dir"`
+		}
+		if len(req.Params) > 0 {
+			_ = json.Unmarshal(req.Params, &cp) // 形が違えば dir 無し（start_dir）
+		}
+		id, termID, err := w.create(cp.Dir)
 		if err != nil {
 			return nil, err, true
 		}

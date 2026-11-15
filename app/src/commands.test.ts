@@ -142,6 +142,16 @@ describe("コマンドの表", () => {
       "w n",
       "w x",
       "w r",
+      "t",
+      "t n",
+      "t N",
+      "t x",
+      "t j",
+      "t k",
+      "t J",
+      "t K",
+      ...Array.from({ length: 9 }, (_, i) => `t ${i + 1}`),
+      "t r",
       "m",
       "p",
       "p h",
@@ -745,6 +755,31 @@ describe("リーダーの案内（menuRows）", () => {
     assert.deepEqual(w("l").runs, []);
   });
 
+  it("t のグループ（#235）：作る・閉じる・移る・並べ替える・名前を変える。j k J K は続けて押せて、小文字と大文字は別の葉", () => {
+    const t = (...ks: [string, string?][]) =>
+      press(LINUX, [
+        LEADER_KEY(LINUX),
+        key("t"),
+        ...ks.map(([k, m]) => key(k, m ?? "")),
+      ]);
+    assert.deepEqual(t(["n"]).runs, [{ id: "tab.new" }]);
+    assert.deepEqual(t(["N", "s"]).runs, [{ id: "tab.newPick" }]);
+    assert.deepEqual(t(["x"]).runs, [{ id: "tab.close" }]);
+    assert.deepEqual(t(["r"]).runs, [{ id: "tab.rename" }]);
+    assert.deepEqual(t(["3"]).runs, [{ id: "tab.nth", arg: 2 }]);
+    assert.deepEqual(t(["j"]).runs, [{ id: "tab.step", arg: "next" }]);
+    assert.deepEqual(t(["k"]).runs, [{ id: "tab.step", arg: "prev" }]);
+    assert.deepEqual(t(["J", "s"]).runs, [{ id: "tab.move", arg: "down" }]);
+    assert.deepEqual(t(["K", "s"]).runs, [{ id: "tab.move", arg: "up" }]);
+    const r = t(["j"], ["j"], ["J", "s"]);
+    assert.equal(r.runs.length, 3);
+    assert.deepEqual(r.state.leader, ["t"]);
+    // 続けて押せない葉は出る
+    assert.equal(t(["x"]).state.leader, null);
+    // 内蔵ブラウザを無効にしていても、t のグループは出る（ターミナルのタブだけでも使う）
+    assert.ok(childrenAt(["t"]));
+  });
+
   it("m は、グループではなくマシンのダイアログを開く葉（中の操作はダイアログのキー）", () => {
     const r = press(LINUX, [LEADER_KEY(LINUX), key("m")]);
     assert.deepEqual(r.runs, [{ id: "machine.dialog" }]);
@@ -803,8 +838,6 @@ describe("内蔵ブラウザ（#202。設定で有効にしたときだけ）", 
         ["o n", ""],
         ["o N", ""],
         ["o u", ""],
-        ["o j", ""],
-        ["o k", ""],
         ["o h", ""],
         ["o l", ""],
         ["o r", "Cmd+R"],
@@ -818,11 +851,11 @@ describe("内蔵ブラウザ（#202。設定で有効にしたときだけ）", 
         ["o i", ""],
         ["o R", ""],
       ]);
-      // 続けて押せるのは、戻る・進む・タブを回る
+      // 続けて押せるのは、戻る・進む（タブを回るのは t j / t k）
       const repeat = (childrenAt(["o"]) ?? [])
         .filter((n) => n.type === "leaf" && n.repeat)
         .map((n) => (n.type === "leaf" ? n.keys[0] : ""));
-      assert.deepEqual(repeat.sort(), ["h", "j", "k", "l"]);
+      assert.deepEqual(repeat.sort(), ["h", "l"]);
     });
 
     for (const mac of [MAC, LINUX]) {
@@ -886,13 +919,9 @@ describe("内蔵ブラウザ（#202。設定で有効にしたときだけ）", 
         );
       });
 
-      it(`${os}：o j を続けて押すと、リーダーを出ずに回り続ける`, () => {
-        const r = press(mac, [LEADER_KEY(mac), key("o"), key("j"), key("j")]);
-        assert.deepEqual(r.runs, [
-          { id: "browser.cycle", arg: "next" },
-          { id: "browser.cycle", arg: "next" },
-        ]);
-        assert.deepEqual(r.state.leader, ["o"]);
+      it(`${os}：o j・o k は無い（タブを回るのは t j / t k）`, () => {
+        const r = press(mac, [LEADER_KEY(mac), key("o"), key("j")]);
+        assert.deepEqual(r.runs, []);
       });
     }
 
