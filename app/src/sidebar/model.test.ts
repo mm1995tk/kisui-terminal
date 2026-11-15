@@ -18,8 +18,10 @@ import {
   type Row,
   stepFrom,
   stepWorkspace,
+  shownIsBrowser,
   splitAtFocus,
   unsetTitle,
+  type BandTabs,
 } from "./model.ts";
 import { setLang } from "../i18n/index.ts";
 
@@ -890,5 +892,25 @@ describe("stepWorkspace（キーで移る）", () => {
       id: "a",
     });
     assert.equal(stepWorkspace([], null, "next"), null);
+  });
+});
+
+describe("shownIsBrowser（ファイルツリーと CHANGES を隠すか）", () => {
+  const item = (key: string, kind: "term" | "browser") =>
+    ({ key, kind }) as unknown as BandTabs["items"][number];
+  const tabs = (shown: string): BandTabs => ({
+    items: [item("t", "term"), item("b", "browser")],
+    shown,
+    folded: false,
+    focused: true,
+  });
+  it("ターミナルのタブを出している間は隠さない", () => {
+    assert.equal(shownIsBrowser(tabs("t")), false);
+  });
+  it("ブラウザのタブを出している間は隠す", () => {
+    assert.equal(shownIsBrowser(tabs("b")), true);
+  });
+  it("出しているタブのキーが items に無ければ隠さない", () => {
+    assert.equal(shownIsBrowser(tabs("x")), false);
   });
 });

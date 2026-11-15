@@ -35,7 +35,13 @@ import { ChangesView } from "../changes/ChangesView.tsx";
 import type { ChangeRow, ChangesBase } from "../changes/model.ts";
 import { renameKeyAction } from "./renameInput.ts";
 import { TreeView } from "../tree/TreeView.tsx";
-import { splitAtFocus, type Health, type Row, type TabItem } from "./model.ts";
+import {
+  shownIsBrowser,
+  splitAtFocus,
+  type Health,
+  type Row,
+  type TabItem,
+} from "./model.ts";
 import { ICON } from "./icons.ts";
 import { termKey } from "../gws/model.ts";
 import { startDrag } from "./drag.ts";
@@ -701,11 +707,8 @@ function BandHeader(
  */
 function RowPanes(props: Handlers & { row: Row }): JSX.Element {
   const b = () => props.row.band;
-  // ブラウザのタブを出している間は隠す。外さずに見えなくして、開いているフォルダ・選んでいる行・境目の位置を保つ（#268）
-  const hidden = () => {
-    const t = props.row.tabs;
-    return t.items.some((i) => i.key === t.shown && i.kind === "browser");
-  };
+  // ブラウザのタブを出している間は、外さずに見えなくして、状態を保つ（#268）
+  const hidden = () => shownIsBrowser(props.row.tabs);
   return (
     <div
       style={{ display: hidden() ? "none" : "contents" }}
