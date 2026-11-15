@@ -151,7 +151,8 @@ export const ja: Record<Key, string> = {
   "place.bookmarks.title": "ブックマークの一覧",
   "place.bookmarks.lead":
     "ブックマークの一覧（リーダーの o B）の中で効くキーです。字を打つと、題か URL で絞り込みます。",
-  "place.bookmarks.open": "今のワークスペースの新しいタブで開く",
+  "place.bookmarks.open":
+    "ブックマークは今のワークスペースの新しいタブで開き、フォルダは開け閉めする",
   "place.bookmarks.delete": "選んでいるブックマークを消す",
   "place.bookmarks.help": "キーの一覧（絞り込みが空のとき）",
   "status.disconnected": "つながっていません",
@@ -435,7 +436,7 @@ export const ja: Record<Key, string> = {
     "このタブで開いたページは、ログインもデータもディスクに残りません。",
   "newTab.search": "検索語か URL を入力",
   "newTab.hint":
-    "Enter で開く（URL か、Google の検索）· ↓ ↑（Ctrl+J/K）でブックマークを選ぶ · 打つとブックマークを絞り込む",
+    "Enter で開く（URL か、Google の検索。フォルダは開け閉め）· ↓ ↑（Ctrl+J/K）でブックマークを選ぶ · 打つとブックマークを絞り込む",
   "newTab.bookmarks": "ブックマーク",
   "newTab.empty.none":
     "ブックマークはまだありません。見ているページを {leader} o b で足せます。",
@@ -519,7 +520,7 @@ export const ja: Record<Key, string> = {
   "bookmarks.filter": "ブックマークを絞り込む",
   "bookmarks.filterPlaceholder": "題か URL で絞り込む",
   "bookmarks.hint":
-    "↑↓（Ctrl+J/K）・Enter で新しいタブに開く・Ctrl+D で消す・? でキー",
+    "↑↓（Ctrl+J/K）・Enter で新しいタブに開く（フォルダは開け閉め）・Ctrl+D で消す・? でキー",
   "bookmarks.list": "ブックマーク",
   "bookmarks.chrome": "Chrome",
   "bookmarks.empty.loading": "読み込んでいます…",

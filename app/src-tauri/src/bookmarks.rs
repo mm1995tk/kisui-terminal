@@ -109,12 +109,18 @@ const MAX_CHROME_FILE: u64 = 64 * 1024 * 1024;
 /// Chrome のフォルダの入れ子をたどる深さの上限。
 const MAX_DEPTH: usize = 32;
 
-/// Chrome のブックマーク 1 つ。folder は、Chrome の中のフォルダの道（`Bookmarks bar / Dev` のように。直下なら根の名前だけ）。
+/// Chrome のブックマークの木の節。Chrome のファイルと同じ入れ子で、フォルダの中の並びも Chrome の順のまま（#275）。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct ChromeBookmark {
-    pub url: String,
-    pub title: String,
-    pub folder: String,
+#[serde(tag = "type", rename_all = "lowercase")]
+pub enum ChromeNode {
+    Folder {
+        name: String,
+        children: Vec<ChromeNode>,
+    },
+    Url {
+        url: String,
+        title: String,
+    },
 }
 
 /// Chrome のブックマークのファイル。`home` は `$HOME`。macOS は `~/Library/Application Support/Google/Chrome/<プロファイル>/Bookmarks`、
@@ -128,9 +134,10 @@ fn chrome_file(home: &Path, profile: &str) -> PathBuf {
     base.join(profile).join("Bookmarks")
 }
 
-fn walk_chrome(node: &serde_json::Value, path: &str, depth: usize, out: &mut Vec<ChromeBookmark>) {
-    if depth > MAX_DEPTH || out.len() >= MAX_BOOKMARKS {
-        return;
+/// 節 1 つを木にする。数えるのは、残したブックマーク（count。MAX_BOOKMARKS まで）。開けない URL のものと、深すぎるフォルダの先は捨てる。
+fn walk_chrome(node: &serde_json::Value, depth: usize, count: &mut usize) -> Option<ChromeNode> {
+    if depth > MAX_DEPTH || *count >= MAX_BOOKMARKS {
+        return None;
     }
     let name = node.get("name").and_then(|v| v.as_str()).unwrap_or("");
     match node.get("type").and_then(|v| v.as_str()) {
@@ -149,27 +156,31 @@ fn walk_chrome(node: &serde_json::Value, path: &str, depth: usize, out: &mut Vec
                 url: url.to_string(),
                 title,
             };
-            if valid(&b) {
-                out.push(ChromeBookmark {
-                    url: b.url,
-                    title: b.title,
-                    folder: path.to_string(),
-                });
+            if !valid(&b) {
+                return None;
             }
+            *count += 1;
+            Some(ChromeNode::Url {
+                url: b.url,
+                title: b.title,
+            })
         }
         Some("folder") => {
-            let here = if path.is_empty() {
-                name.to_string()
-            } else {
-                format!("{path} / {name}")
-            };
-            if let Some(children) = node.get("children").and_then(|v| v.as_array()) {
-                for c in children {
-                    walk_chrome(c, &here, depth + 1, out);
-                }
-            }
+            let children = node
+                .get("children")
+                .and_then(|v| v.as_array())
+                .map(|cs| {
+                    cs.iter()
+                        .filter_map(|c| walk_chrome(c, depth + 1, count))
+                        .collect()
+                })
+                .unwrap_or_default();
+            Some(ChromeNode::Folder {
+                name: name.to_string(),
+                children,
+            })
         }
-        _ => {}
+        _ => None,
     }
 }
 
@@ -185,16 +196,16 @@ pub struct ChromeProblem {
     pub needs_permission: bool,
 }
 
-/// Chrome のブックマークを読んだ結果。読めなかったときは bookmarks が空で、problem に理由が入る。
+/// Chrome のブックマークを読んだ結果。roots は根のフォルダ（ブックマークバー、その他のブックマーク、モバイルの順）。読めなかったときは roots が空で、problem に理由が入る。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
 pub struct ChromeLoad {
-    pub bookmarks: Vec<ChromeBookmark>,
+    pub roots: Vec<ChromeNode>,
     pub problem: Option<ChromeProblem>,
 }
 
 fn fail(file: &Path, reason: String, needs_permission: bool) -> ChromeLoad {
     ChromeLoad {
-        bookmarks: Vec::new(),
+        roots: Vec::new(),
         problem: Some(ChromeProblem {
             path: file.display().to_string(),
             reason,
@@ -240,14 +251,15 @@ pub fn load_chrome(file: &Path) -> ChromeLoad {
         Ok(r) => r,
         Err(e) => return fail(file, format!("invalid JSON: {e}"), false),
     };
-    let mut out = Vec::new();
+    let mut count = 0;
+    let mut roots = Vec::new();
     for key in ["bookmark_bar", "other", "synced"] {
         if let Some(n) = root.get("roots").and_then(|r| r.get(key)) {
-            walk_chrome(n, "", 0, &mut out);
+            roots.extend(walk_chrome(n, 0, &mut count));
         }
     }
     ChromeLoad {
-        bookmarks: out,
+        roots,
         problem: None,
     }
 }
@@ -349,7 +361,7 @@ mod tests {
         assert_eq!(load_chrome(&p), ChromeLoad::default());
         fs::write(&p, "{").unwrap();
         let broken = load_chrome(&p);
-        assert!(broken.bookmarks.is_empty());
+        assert!(broken.roots.is_empty());
         let problem = broken.problem.unwrap();
         assert_eq!(problem.path, p.display().to_string());
         assert!(problem.reason.starts_with("invalid JSON"));
@@ -370,26 +382,36 @@ mod tests {
         fs::write(&p, body).unwrap();
         let loaded = load_chrome(&p);
         assert_eq!(loaded.problem, None);
-        let got = loaded.bookmarks;
+        let url = |u: &str, t: &str| ChromeNode::Url {
+            url: u.into(),
+            title: t.into(),
+        };
+        let ChromeNode::Folder { name, children } = &loaded.roots[0] else {
+            panic!()
+        };
+        assert_eq!(name, "Bookmarks bar");
+        // 開けない URL のものは捨て、フォルダの入れ子と並びは Chrome のまま
+        assert_eq!(children[0], url("https://a.example/", "A"));
+        let ChromeNode::Folder { name, children } = &children[1] else {
+            panic!()
+        };
+        assert_eq!(name, "Dev");
+        assert_eq!(children.len(), 2);
+        assert_eq!(children[0], url("https://b.example/", "B"));
         // 題が長すぎるものは、URL が正しければ題を切って残す
-        let long = got
-            .iter()
-            .find(|b| b.url == "https://long.example/")
-            .unwrap();
-        assert!(!long.title.is_empty() && long.title.len() <= MAX_TITLE);
-        let v: Vec<_> = got
-            .iter()
-            .filter(|b| b.url != "https://long.example/")
-            .map(|b| (b.url.as_str(), b.title.as_str(), b.folder.as_str()))
-            .collect();
+        let ChromeNode::Url { url: u, title } = &children[1] else {
+            panic!()
+        };
+        assert_eq!(u, "https://long.example/");
+        assert!(!title.is_empty() && title.len() <= MAX_TITLE);
         assert_eq!(
-            v,
-            [
-                ("https://a.example/", "A", "Bookmarks bar"),
-                ("https://b.example/", "B", "Bookmarks bar / Dev"),
-                ("http://localhost:3000/", "C", "Other bookmarks"),
-            ]
+            loaded.roots[1],
+            ChromeNode::Folder {
+                name: "Other bookmarks".into(),
+                children: vec![url("http://localhost:3000/", "C")],
+            }
         );
+        assert_eq!(loaded.roots.len(), 2);
         assert_eq!(fs::read_to_string(&p).unwrap(), body);
         let _ = fs::remove_dir_all(&d);
     }

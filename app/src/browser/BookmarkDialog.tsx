@@ -16,17 +16,66 @@ import { ModalCard } from "../connect/Card.tsx";
 import { moveSelection } from "../clipboardHistory.ts";
 import { IS_MAC } from "../guiKeys.ts";
 import { openKeyList } from "../KeyListDialog.tsx";
+import { bookmarkKey, type Bookmark } from "./bookmarks.ts";
 import {
-  bookmarkKey,
-  bookmarkTitle,
-  filterBookmarks,
-  type Bookmark,
-} from "./bookmarks.ts";
+  bookmarkRows,
+  toggleFolder,
+  type BookmarkRow,
+  type ChromeNode,
+} from "./bookmarkTree.ts";
 import "./browser.css";
+
+/** 一覧の 1 行（フォルダか、ブックマーク）。フォルダは深さだけ字下げする。 */
+function BookmarkDialogRow(props: {
+  row: BookmarkRow;
+  selected: boolean;
+  onSelect: () => void;
+  onOpen: () => void;
+}): JSX.Element {
+  const r = props.row;
+  return (
+    <li role="presentation">
+      <button
+        type="button"
+        class="card-row"
+        role="option"
+        tabIndex={-1}
+        aria-selected={props.selected}
+        aria-expanded={r.kind === "folder" ? r.open : undefined}
+        style={{ "padding-left": `${0.75 + r.depth * 1.25}em` }}
+        title={r.kind === "folder" ? r.name : r.bookmark.url}
+        // 入力欄からフォーカスを動かさない（押したあとも↑↓と Enter が効くように）
+        onMouseDown={(ev) => ev.preventDefault()}
+        onClick={props.onSelect}
+        onDblClick={props.onOpen}
+      >
+        {r.kind === "folder" ? (
+          <span class="card-row-name bookmark-folder">
+            {r.open ? "▾ " : "▸ "}
+            {r.name}
+          </span>
+        ) : (
+          <>
+            <span class="card-row-name">
+              {r.bookmark.title || r.bookmark.url}
+            </span>
+            <Show when={r.bookmark.source === "chrome"}>
+              <span class="bookmark-source">{T("bookmarks.chrome")}</span>
+            </Show>
+            <span class="card-row-state bookmark-url">{r.bookmark.url}</span>
+          </>
+        )}
+      </button>
+    </li>
+  );
+}
 
 /** ブックマークの一覧のダイアログ。list が undefined なら読み込み中、failed なら読めなかった。 */
 export function BookmarkDialog(props: {
-  list: readonly Bookmark[] | undefined;
+  /** kisui-terminal 自身のブックマーク（undefined は読み込み中） */
+  own: readonly Bookmark[] | undefined;
+  /** Chrome のブックマークの木（#275。undefined は読み込み中） */
+  chrome: readonly ChromeNode[] | undefined;
   failed: boolean;
   onOpen: (b: Bookmark) => void;
   onDelete: (b: Bookmark) => void;
@@ -35,9 +84,19 @@ export function BookmarkDialog(props: {
   const [query, setQuery] = createSignal("");
   const [sel, setSel] = createSignal(0);
   let rows: HTMLUListElement | undefined;
-  const shown = createMemo(() => filterBookmarks(props.list ?? [], query()));
+  /** 開け閉めを逆にしたフォルダ（根は最初から開き、その下は閉じている。bookmarkRows） */
+  const [flipped, setFlipped] = createSignal<ReadonlySet<string>>(new Set());
+  const shown = createMemo(() =>
+    bookmarkRows(props.own, props.chrome, flipped(), query()),
+  );
   const selectedIndex = () => Math.max(0, Math.min(sel(), shown().length - 1));
   const selected = () => shown()[selectedIndex()];
+  /** 選んでいる行がフォルダなら開け閉めし、ブックマークなら開く */
+  const activate = (r: BookmarkRow | undefined) => {
+    if (!r) return;
+    if (r.kind === "folder") setFlipped((s) => toggleFolder(s, r.key));
+    else props.onOpen(r.bookmark);
+  };
 
   // 選んだ行が見える所へ
   createEffect(() => {
@@ -55,14 +114,12 @@ export function BookmarkDialog(props: {
       case "step":
         setSel((i) => moveSelection(i, k.step, shown().length));
         break;
-      case "open": {
-        const b = selected();
-        if (b) props.onOpen(b);
+      case "open":
+        activate(selected());
         break;
-      }
       case "delete": {
-        const b = selected();
-        if (b) props.onDelete(b);
+        const r = selected();
+        if (r?.kind === "bookmark") props.onDelete(r.bookmark);
         break;
       }
       case "help":
@@ -74,9 +131,9 @@ export function BookmarkDialog(props: {
   const emptyText = () =>
     props.failed
       ? T("bookmarks.empty.failed")
-      : props.list === undefined
+      : props.own === undefined && props.chrome === undefined
         ? T("bookmarks.empty.loading")
-        : props.list.length === 0
+        : query().trim() === ""
           ? T("bookmarks.empty.none", { leader: leaderKeyName(IS_MAC) })
           : T("bookmarks.empty.noMatch");
 
@@ -112,27 +169,19 @@ export function BookmarkDialog(props: {
           ref={(el) => (rows = el)}
         >
           <For each={shown()}>
-            {(b, i) => (
-              <li role="presentation">
-                <button
-                  type="button"
-                  class="card-row"
-                  role="option"
-                  tabIndex={-1}
-                  aria-selected={i() === selectedIndex()}
-                  title={bookmarkTitle(b)}
-                  // 入力欄からフォーカスを動かさない（押したあとも↑↓と Enter が効くように）
-                  onMouseDown={(ev) => ev.preventDefault()}
-                  onClick={() => setSel(i())}
-                  onDblClick={() => props.onOpen(b)}
-                >
-                  <span class="card-row-name">{b.title || b.url}</span>
-                  <Show when={b.source === "chrome"}>
-                    <span class="bookmark-source">{T("bookmarks.chrome")}</span>
-                  </Show>
-                  <span class="card-row-state bookmark-url">{b.url}</span>
-                </button>
-              </li>
+            {(r, i) => (
+              <BookmarkDialogRow
+                row={r}
+                selected={i() === selectedIndex()}
+                onSelect={() => {
+                  setSel(i());
+                  // フォルダは 1 回押すと開け閉めする（ブックマークは、2 回押すと開く）
+                  if (r.kind === "folder") activate(r);
+                }}
+                onOpen={() => {
+                  if (r.kind === "bookmark") props.onOpen(r.bookmark);
+                }}
+              />
             )}
           </For>
         </ul>
