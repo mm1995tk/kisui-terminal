@@ -13,8 +13,6 @@ export interface Bookmark {
   title: string;
   /** Chrome から読んだものなら "chrome"（#239。kisui-terminal 自身のものは付けない。覚えるファイルには入らない） */
   source?: "chrome";
-  /** Chrome の中のフォルダの道（Chrome のものだけ） */
-  folder?: string;
 }
 
 /** 覚えるブックマークの数の上限（bookmarks.rs の MAX_BOOKMARKS と同じ）。 */
@@ -106,49 +104,6 @@ export function bookmarkKey(
     return { kind: "delete" };
   if (plain && e.key === "?" && queryEmpty) return { kind: "help" };
   return null;
-}
-
-/** 殻が読んだ Chrome のブックマーク（#239。`{ bookmarks, problem }` の形）。形の違うものは捨て、source を "chrome" にする。同じ URL は先のものだけ残す。 */
-export function chromeFromLoaded(v: unknown): Bookmark[] {
-  const list =
-    typeof v === "object" && v !== null
-      ? (v as { bookmarks?: unknown }).bookmarks
-      : undefined;
-  if (!Array.isArray(list)) return [];
-  const out: Bookmark[] = [];
-  const seen = new Set<string>();
-  for (const b of list as unknown[]) {
-    if (typeof b !== "object" || b === null) continue;
-    const { url, title, folder } = b as Record<string, unknown>;
-    if (typeof url !== "string" || seen.has(url)) continue;
-    seen.add(url);
-    out.push({
-      url,
-      title: typeof title === "string" ? title : "",
-      source: "chrome",
-      folder: typeof folder === "string" ? folder : "",
-    });
-  }
-  return out;
-}
-
-/**
- * kisui-terminal 自身のブックマークの後ろに、Chrome のブックマークを足す（#239）。同じ URL は kisui-terminal のものを残す。
- * どちらかが undefined（まだ読んでいない）でも、読んだ方は出す。どちらも undefined なら undefined。
- */
-export function mergeBookmarks(
-  own: readonly Bookmark[] | undefined,
-  chrome: readonly Bookmark[] | undefined,
-): Bookmark[] | undefined {
-  if (own === undefined && chrome === undefined) return undefined;
-  const base = own ?? [];
-  const urls = new Set(base.map((b) => b.url));
-  return [...base, ...(chrome ?? []).filter((b) => !urls.has(b.url))];
-}
-
-/** ブックマークの行の title（マウスを載せたときの文）。URL。Chrome のものは、Chrome の中のフォルダの道も添える。 */
-export function bookmarkTitle(b: Bookmark): string {
-  return b.source === "chrome" && b.folder ? `${b.folder}\n${b.url}` : b.url;
 }
 
 /** Chrome のブックマークを読めなかった理由（#265）。殻の `ChromeProblem`。 */
