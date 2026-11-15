@@ -104,7 +104,7 @@
   --sidebar-bg: var(--region-bg);
   box-sizing: border-box;
   margin: 0 6px 6px;
-  border: 1px solid var(--gh-border);
+  border: 1px solid var(--gh-border-strong);
   border-radius: 8px;
   /* 中身を角の丸みに切り取る。hidden や auto はスクロールの入れ物を作って中の sticky を壊すが、clip は作らない */
   overflow: clip;
@@ -233,7 +233,6 @@
 }
 .band-btn:hover {
   background: var(--band-hover);
-  color: var(--sidebar-text);
 }
 .band-btn:focus-visible,
 .band-main:focus-visible,
@@ -241,18 +240,23 @@
   outline: 1px solid var(--machine-color);
   outline-offset: -1px;
 }
-/* 鉛筆と ✕ は、選んでいる帯・行と、マウスを乗せた帯・行（キーが向いているものも）にだけ見せる。出ていないときも場所は空ける（opacity）。
-   ✕ を出せない行（ワークスペースの最後のターミナルのタブ）などは、見せずに場所だけ空ける（data-off） */
-.band-close {
-  opacity: 0;
+/* 鉛筆・✕・「+」は、すべての帯とタブの行にいつも出す（#258）。選んでいない帯・行では少し控えめな色にし、選んでいる帯・行と、マウスを乗せた
+   帯・行（キーが向いているものも）で通常の色に戻す。押せない ✕ などは、見せずに場所だけ空ける（data-off） */
+.band-close,
+.band-add {
+  color: var(--gh-text-dim);
 }
-.band:hover .band-close,
-.band:focus-within .band-close,
-.band[aria-current="true"] .band-close,
-.tab-line:hover .band-close,
-.tab-line:focus-within .band-close,
-.tab-row[data-current] .band-close {
-  opacity: 1;
+.band:hover .band-btn,
+.band:focus-within .band-btn,
+.band[aria-current="true"] .band-btn,
+.tab-line:hover .band-btn,
+.tab-line:focus-within .band-btn,
+.tab-row[data-current] .band-btn {
+  color: var(--sidebar-muted);
+}
+/* ボタン自身にマウスを乗せたときの色。詳細度が上の帯・行の規則と同じなので、それらより後ろに置く */
+.band-btn:hover {
+  color: var(--sidebar-text);
 }
 .band-btn[data-off] {
   visibility: hidden;
@@ -318,10 +322,10 @@ div.band-main {
    黄色などの色は使わない。ツリーと CHANGES は、この箱の中のタブの行の下に開く */
 .band-item[data-focused] {
   --head-bg: color-mix(in srgb, var(--gh-bg-raised) 55%, var(--gh-bg-hover));
-  --head-border: var(--gh-text-dim);
+  --head-border: var(--gh-text-muted);
   --tree-hover: var(--gh-bg-hover);
   --changes-hover: var(--gh-bg-hover);
-  border-color: var(--gh-text-dim);
+  border-color: var(--gh-text-muted);
 }
 
 /* 上下の固定（D3）。帯 → ツリーのフォルダの行（tree.css）の順に積み、下の要素はその上に重ねる。
