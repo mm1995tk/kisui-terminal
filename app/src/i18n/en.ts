@@ -44,7 +44,7 @@ export const en = {
   "leader.browser.url": "Edit the URL",
   "leader.browser.next": "Next tab",
   "leader.browser.prev": "Previous tab",
-  "leader.browser.cycle.range": "Cycle through the grid and tabs",
+  "leader.browser.cycle.range": "Cycle through the tabs",
   "leader.browser.back": "Back",
   "leader.browser.forward": "Forward",
   "leader.browser.reload": "Reload",
@@ -56,6 +56,7 @@ export const en = {
   "leader.browser.find": "Find in page",
   "leader.browser.copyUrl": "Copy the URL",
   "leader.browser.devtools": "Open DevTools",
+  "leader.browser.rename": "Rename this tab",
   "leader.sidebar": "Toggle the sidebar",
   "leader.clipboard": "Clipboard history",
   "leader.scale.group": "Display size",
@@ -142,7 +143,6 @@ export const en = {
   "status.disconnected": "Not connected",
   "err.workspace.focus": "Could not switch to a workspace on {machine}",
   "err.workspace.create": "Could not create a workspace on {machine}",
-  "workspace.fallbackName": "Workspace",
   "err.workspace.close": "Could not close {name}",
   "err.file.open": "Could not open the file",
   "err.diff.show": "Could not show the diff",
@@ -168,6 +168,8 @@ export const en = {
     "There is no workspace. A tab opens under a workspace.",
   "err.page.open": "Could not open the page",
   "cannot.workspace.title": "Cannot create a workspace",
+  "cannot.tab.disconnected":
+    "Not connected to {machine}. Reconnect it in the machine dialog (m in the leader).",
   "cannot.workspace.text":
     "No machine is connected. Reconnect one in the machine dialog (m in the leader).",
   "cannot.update.title": "No new version",

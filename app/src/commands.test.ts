@@ -816,8 +816,9 @@ describe("内蔵ブラウザ（#202。設定で有効にしたときだけ）", 
         ["o /", "Cmd+F"],
         ["o y", ""],
         ["o i", ""],
+        ["o R", ""],
       ]);
-      // 続けて押せるのは、戻る・進む・グリッドとタブを回る
+      // 続けて押せるのは、戻る・進む・タブを回る
       const repeat = (childrenAt(["o"]) ?? [])
         .filter((n) => n.type === "leaf" && n.repeat)
         .map((n) => (n.type === "leaf" ? n.keys[0] : ""));

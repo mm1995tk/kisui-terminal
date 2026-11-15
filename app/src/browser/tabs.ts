@@ -1,10 +1,12 @@
-// 内蔵ブラウザのタブ（#202）の、ワークスペースごとの並びと、どれを出しているか。DOM も Tauri も使わない（node --test で確かめられる）。
+// 内蔵ブラウザのタブ（#202）の、並びと、どれを出しているか。DOM も Tauri も使わない（node --test で確かめられる）。
 //
-// タブはワークスペースに属する（どのワークスペースにも属さないタブは無い）。タブを選ぶと、グリッドの画面すべてがそのページになり、
-// ワークスペースの帯を選ぶと、ターミナルのグリッドに戻る。どれを出しているか（views）はワークスペースごとに覚える。
-// タブは、開いたときのワークスペースのマシン（target）を覚える（リモートの localhost の中継で使う。#203）。
-// 開いていたタブ（ワークスペースと URL）と、畳んだワークスペースは、殻がデータのフォルダに覚える（browser.rs の StoredTabs と同じ形）。
-// どれを出していたか（views）は覚えない（起動したときは、どのワークスペースもグリッドから始める）。
+// タブは GUI のワークスペース（gws/model.ts）に属する。ワークスペースの中の並びは、ターミナルのタブと混ぜて gws/model.ts が持つ。
+// ここは、タブの中身（URL・題・表示の大きさ）と、ワークスペースごとに出しているタブ（views）を持つ。
+// タブを選ぶと、グリッドの画面すべてがそのページになり、ターミナルのタブを選ぶと、ターミナルのグリッドになる。
+// タブは、開いたときのターミナルのタブのマシン（target）とワークスペース（workspace）を覚える（リモートの localhost の中継で使う。#203。
+// 持ち主のワークスペースが分からなくなったタブを、そのターミナルのタブのワークスペースに入れるのにも使う）。
+// 開いていたタブ（ワークスペースと URL）は、殻がデータのフォルダに覚える（browser.rs の StoredTabs と同じ形。畳んだ印は GUI のワークスペースが覚えるので、
+// collapsed は空で書く）。どれを出していたか（views）は覚えない（起動したときは、どのワークスペースもターミナルから始める）。
 // シークレットのタブ（#204）は覚えない（閉じるとログインが消え、再起動しても戻さない）。
 
 import type { WorkspaceId } from "../rpc/protocol.ts";
@@ -14,8 +16,9 @@ import { SCALES } from "../scale.ts";
 export interface BrowserTab {
   /** 子の webview のラベルになる id（英数字・- ・_ で 32 字まで） */
   id: string;
-  /** 開いたときのワークスペースのマシン（ssh の行き先か `@local`） */
+  /** 開いたときのターミナルのタブのマシン（ssh の行き先か `@local`） */
   target: string;
+  /** 開いたときのターミナルのタブ（マシンの kisui serve のワークスペース） */
   workspace: WorkspaceId;
   /** 今出しているページの URL（開いた URL から、ページの遷移で変わる） */
   url: string;
@@ -38,12 +41,10 @@ export interface BrowserTab {
 
 /** タブ全部と、ワークスペースごとの表示。 */
 export interface TabsState {
-  /** 開いた順。ワークスペースの中の並びも、この順 */
+  /** 開いた順 */
   tabs: readonly BrowserTab[];
-  /** ワークスペース（wsKey）→ 出しているタブの id。無ければグリッドを出している */
+  /** ワークスペースの id（gws/model.ts）→ 出しているブラウザのタブの id。無ければターミナルのタブを出している */
   views: Readonly<Record<string, string>>;
-  /** タブの並びを畳んだワークスペース（wsKey） */
-  collapsed: readonly string[];
 }
 
 /** 殻が覚える形（browser.rs の StoredTabs）。 */
@@ -57,136 +58,56 @@ export interface StoredTabs {
     /** 表示の大きさ（百分率。元の大きさなら書かない） */
     zoom?: number;
   }[];
+  /** 使わない（畳んだ印は GUI のワークスペースが覚える）。いつも空 */
   collapsed: { target: string; workspace: string }[];
 }
 
 /** タブが 1 つも無い、初めの状態。 */
-export const EMPTY_TABS: TabsState = { tabs: [], views: {}, collapsed: [] };
+export const EMPTY_TABS: TabsState = { tabs: [], views: {} };
 
-/** ワークスペースを指すキー。 */
-export const wsKey = (target: string, id: WorkspaceId): string =>
-  JSON.stringify([target, id]);
-
-const inWs = (t: BrowserTab, target: string, ws: WorkspaceId) =>
-  t.target === target && t.workspace === ws;
-
-/** ワークスペースのタブ（開いた順）。 */
-export function tabsOf(
-  s: TabsState,
-  target: string,
-  ws: WorkspaceId,
-): BrowserTab[] {
-  return s.tabs.filter((t) => inWs(t, target, ws));
+/** ワークスペース gws で出しているタブ。ターミナルのタブを出していれば undefined。 */
+export function shownTab(s: TabsState, gws: string): BrowserTab | undefined {
+  const id = s.views[gws];
+  return id === undefined ? undefined : s.tabs.find((t) => t.id === id);
 }
 
-/** ワークスペースで出しているタブ。グリッドを出していれば undefined。 */
-export function shownTab(
+/** ワークスペースで出すものを替える（null はターミナルのタブ）。 */
+export function showTab(
   s: TabsState,
-  target: string,
-  ws: WorkspaceId,
-): BrowserTab | undefined {
-  const id = s.views[wsKey(target, ws)];
-  return id === undefined
-    ? undefined
-    : s.tabs.find((t) => t.id === id && inWs(t, target, ws));
-}
-
-function withView(
-  s: TabsState,
-  target: string,
-  ws: WorkspaceId,
+  gws: string,
   id: string | null,
 ): TabsState {
-  const k = wsKey(target, ws);
+  if (id !== null && !s.tabs.some((t) => t.id === id)) return s;
   const views = { ...s.views };
-  if (id === null) delete views[k];
-  else views[k] = id;
+  if (id === null) {
+    if (!(gws in views)) return s;
+    delete views[gws];
+  } else {
+    if (views[gws] === id) return s;
+    views[gws] = id;
+  }
   return { ...s, views };
 }
 
-/** タブを足し（そのワークスペースの最後）、それを出す。 */
-export function addTab(s: TabsState, tab: BrowserTab): TabsState {
-  return withView(
-    { ...s, tabs: [...s.tabs, tab] },
-    tab.target,
-    tab.workspace,
-    tab.id,
-  );
-}
-
-/** ワークスペースで出すものを替える（null はグリッド）。そのワークスペースに無いタブは出さない。 */
-export function showTab(
-  s: TabsState,
-  target: string,
-  ws: WorkspaceId,
-  id: string | null,
-): TabsState {
-  if (id !== null && !s.tabs.some((t) => t.id === id && inWs(t, target, ws)))
-    return s;
-  return withView(s, target, ws, id);
+/** タブを足し、ワークスペース gws でそれを出す（gws が分からなければ、足すだけ）。 */
+export function addTab(s: TabsState, tab: BrowserTab, gws?: string): TabsState {
+  const next = { ...s, tabs: [...s.tabs, tab] };
+  return gws === undefined ? next : showTab(next, gws, tab.id);
 }
 
 /**
- * タブを閉じる。出していたタブなら、同じワークスペースの次のタブ（無ければ前のタブ、それも無ければグリッド）を出す
- * （ふつうのブラウザで、今のタブを閉じたときと同じ）。back（同じワークスペースのタブ）を渡すと、次のタブの代わりにそれを出す
- * （ページが自分を閉じたときに、開いた元のタブに戻る。#204）。
+ * タブを閉じる。出していたワークスペースは、ターミナルのタブに戻る（次に何を出すかは、閉じる前に呼ぶ側が決めて showTab で替える。
+ * ふつうのブラウザで今のタブを閉じたときと同じに、同じワークスペースの次のタブを出す。gws/model.ts の after）。
  */
-export function closeTab(s: TabsState, id: string, back?: string): TabsState {
-  const tab = s.tabs.find((t) => t.id === id);
-  if (!tab) return s;
-  const mine = tabsOf(s, tab.target, tab.workspace);
-  const i = mine.findIndex((t) => t.id === id);
-  const rest = { ...s, tabs: s.tabs.filter((t) => t.id !== id) };
-  if (s.views[wsKey(tab.target, tab.workspace)] !== id) return rest;
-  if (back !== undefined && mine.some((t) => t.id === back && t.id !== id))
-    return withView(rest, tab.target, tab.workspace, back);
-  const next = mine[i + 1] ?? mine[i - 1];
-  return withView(rest, tab.target, tab.workspace, next?.id ?? null);
+export function closeTab(s: TabsState, id: string): TabsState {
+  if (!s.tabs.some((t) => t.id === id)) return s;
+  const views = Object.fromEntries(
+    Object.entries(s.views).filter(([, v]) => v !== id),
+  );
+  return { tabs: s.tabs.filter((t) => t.id !== id), views };
 }
 
-/** グリッドとタブを順に回る（`o j` は グリッド → 1 番目 → 2 番目 → グリッド、`o k` は逆）。 */
-export function cycle(
-  s: TabsState,
-  target: string,
-  ws: WorkspaceId,
-  step: "next" | "prev",
-): TabsState {
-  const order: (string | null)[] = [
-    null,
-    ...tabsOf(s, target, ws).map((t) => t.id),
-  ];
-  if (order.length === 1) return s;
-  const cur = shownTab(s, target, ws)?.id ?? null;
-  const i = order.indexOf(cur);
-  const d = step === "next" ? 1 : -1;
-  return withView(s, target, ws, order[(i + d + order.length) % order.length]);
-}
-
-/** タブの並びを畳んでいるか。 */
-export function isFolded(
-  s: TabsState,
-  target: string,
-  ws: WorkspaceId,
-): boolean {
-  return s.collapsed.includes(wsKey(target, ws));
-}
-
-/** タブの並びを畳む・開く。 */
-export function toggleFold(
-  s: TabsState,
-  target: string,
-  ws: WorkspaceId,
-): TabsState {
-  const k = wsKey(target, ws);
-  return {
-    ...s,
-    collapsed: s.collapsed.includes(k)
-      ? s.collapsed.filter((x) => x !== k)
-      : [...s.collapsed, k],
-  };
-}
-
-/** タブの URL・題を書き換える（ページが変わった）。同じなら s をそのまま返す。 */
+/** タブの URL・題・表示の大きさを書き換える（ページが変わった）。同じなら s をそのまま返す。 */
 export function updateTab(
   s: TabsState,
   id: string,
@@ -203,34 +124,21 @@ export function updateTab(
   return { ...s, tabs };
 }
 
-/**
- * マシン target のワークスペースの一覧が分かったとき、一覧に無いワークスペース（閉じたもの）のタブと表示を捨てる。
- * つながる前（一覧がまだ分からない）には呼ばない（覚えていたタブを、つながる前に捨てないため）。
- */
-export function pruneWorkspaces(
-  s: TabsState,
-  target: string,
-  ids: readonly WorkspaceId[],
-): TabsState {
-  const alive = new Set(ids.map((id) => wsKey(target, id)));
-  const keep = (k: string) => {
-    const [t] = JSON.parse(k) as [string, string];
-    return t !== target || alive.has(k);
-  };
-  const tabs = s.tabs.filter(
-    (t) => t.target !== target || ids.includes(t.workspace),
-  );
-  const collapsed = s.collapsed.filter(keep);
-  const views = Object.fromEntries(
-    Object.entries(s.views).filter(([k]) => keep(k)),
-  );
-  if (
-    tabs.length === s.tabs.length &&
-    collapsed.length === s.collapsed.length &&
-    Object.keys(views).length === Object.keys(s.views).length
-  )
-    return s;
-  return { tabs, views, collapsed };
+/** 画面に出すタブの名前。つけた名前（name。gws/model.ts の BrowserRef が持つ）、無ければページの題、それも無ければ host。 */
+export function tabTitle(
+  t: Pick<BrowserTab, "title" | "url">,
+  name = "",
+): string {
+  return name || t.title || hostOf(t.url);
+}
+
+/** URL の host（題がまだ分からないタブの名前と、題の横に小さく出す）。読めなければ URL のまま。 */
+export function hostOf(url: string): string {
+  try {
+    return new URL(url).host || url;
+  } catch {
+    return url;
+  }
 }
 
 /** 殻に覚えさせる形。 */
@@ -248,14 +156,11 @@ export function toStored(s: TabsState): StoredTabs {
           ? { zoom: Math.round(zoom * 100) }
           : {}),
       })),
-    collapsed: s.collapsed.map((k) => {
-      const [target, workspace] = JSON.parse(k) as [string, string];
-      return { target, workspace };
-    }),
+    collapsed: [],
   };
 }
 
-/** 殻が覚えていたもの。形の違うもの・重なりは捨てる。どれもグリッドから始める。 */
+/** 殻が覚えていたもの。形の違うもの・重なりは捨てる。どれもターミナルのタブから始める。 */
 export function fromStored(v: unknown): TabsState {
   if (typeof v !== "object" || v === null) return EMPTY_TABS;
   const o = v as Partial<StoredTabs>;
@@ -280,19 +185,7 @@ export function fromStored(v: unknown): TabsState {
         ...zoomOf(t.zoom),
       });
   }
-  const collapsed: string[] = [];
-  for (const c of Array.isArray(o.collapsed) ? o.collapsed : []) {
-    if (
-      typeof c === "object" &&
-      c !== null &&
-      typeof c.target === "string" &&
-      typeof c.workspace === "string"
-    ) {
-      const k = wsKey(c.target, c.workspace);
-      if (!collapsed.includes(k)) collapsed.push(k);
-    }
-  }
-  return { tabs, views: {}, collapsed };
+  return { tabs, views: {} };
 }
 
 /** 子の webview のラベルに使える id か（browser.rs の valid_tab と同じ）。 */

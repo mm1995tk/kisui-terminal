@@ -4,6 +4,8 @@ import { describe, it } from "node:test";
 import type { Workspace } from "../rpc/protocol.ts";
 import { LOCAL } from "../ssh/api.ts";
 import { MACHINE_COLORS } from "./colors.ts";
+import { EMPTY_GWS, reconcile, type GwsState } from "../gws/model.ts";
+import type { SessionState } from "../ssh/session.ts";
 import {
   adoptFocus,
   band,
@@ -11,7 +13,9 @@ import {
   health,
   keepFocus,
   shouldSendMoveTo,
-  flatRows,
+  gwsRows,
+  machineLabel,
+  type Row,
   stepFrom,
   stepWorkspace,
   splitAtFocus,
@@ -37,6 +41,52 @@ const ws = (
     ...rest,
   };
 };
+
+/**
+ * マシンの一覧から、サイドバーの行を作る（ワークスペース 1 つ = ターミナルのタブ 1 つ = GUI のワークスペース 1 つ）。
+ * state を渡すと、その GUI のワークスペースで作る。
+ */
+function rowsOf(
+  targets: string[],
+  lists: Record<string, Workspace[]>,
+  focus: { target: string; id: string } | null,
+  opts: {
+    states?: Record<string, SessionState | undefined>;
+    colors?: Record<string, string>;
+    legacy?: { target: string; id: string }[];
+    state?: GwsState;
+  } = {},
+): Row[] {
+  const groups = buildSidebar(
+    targets,
+    opts.states ?? {},
+    lists,
+    focus,
+    opts.colors ?? {},
+  );
+  const state =
+    opts.state ??
+    reconcile(EMPTY_GWS, {
+      lists: Object.fromEntries(
+        Object.entries(lists).map(([t, l]) => [
+          t,
+          l.map((w) => ({ id: w.id, title: band(w, false).title })),
+        ]),
+      ),
+      legacyOrder: opts.legacy,
+    }).state;
+  const group = (t: string) => groups.find((g) => g.target === t)!;
+  return gwsRows(state, {
+    groups,
+    workspaces: lists,
+    focus,
+    browser: new Map(),
+    views: {},
+    labelOf: machineLabel,
+    colorOf: (t) => group(t).color,
+    healthOf: (t) => group(t).health,
+  });
+}
 
 describe("band", () => {
   it("git のワークスペースは名前とブランチ", () => {
@@ -398,7 +448,7 @@ describe("keepFocus", () => {
     const closing = { target: "a", id: "x" };
     const next = { target: "a", id: "y" };
     const drawn = (f: ReturnType<typeof keepFocus>) =>
-      splitAtFocus(flatRows(buildSidebar(["a", "b"], {}, after, f))).focused;
+      splitAtFocus(rowsOf(["a", "b"], after, f)).focused;
 
     // 1. 一覧から x が消えた（shj のフォーカスはまだ x）
     const f1 = keepFocus(closing, after, { a: "x", b: "z" }, next);
@@ -452,25 +502,19 @@ describe("shouldSendMoveTo", () => {
   });
 });
 
-describe("flatRows", () => {
+describe("gwsRows", () => {
   const lists = {
     a: [ws({ id: "a1", root: "/a1" }), ws({ id: "a2", root: "/a2" })],
     b: [ws({ id: "b1", root: "/b1" }), ws({ id: "b2", root: "/b2" })],
   };
-  const groups = (focus: { target: string; id: string } | null) =>
-    buildSidebar(
-      ["a", "b"],
-      { b: { kind: "connected", hello: {} as never } },
-      lists,
-      focus,
-      {
-        b: "#e5b567",
-      },
-    );
+  const up = { b: { kind: "connected", hello: {} as never } } as const;
   const ids = (rows: { band: { id: string } }[]) => rows.map((r) => r.band.id);
 
-  it("並び順の記録が無ければ、マシンの順、その中では作った順に 1 列にする。マシンの名前・色・状態を添える", () => {
-    const rows = flatRows(groups(null));
+  it("GUI のワークスペースの順に 1 列にする。マシンの名前・色・状態を添え、名前の無いものは ws1・ws2…", () => {
+    const rows = rowsOf(["a", "b"], lists, null, {
+      states: up,
+      colors: { b: "#e5b567" },
+    });
     assert.deepEqual(ids(rows), ["a1", "a2", "b1", "b2"]);
     assert.deepEqual(
       rows.map((r) => [r.target, r.machine, r.health]),
@@ -482,15 +526,105 @@ describe("flatRows", () => {
       ],
     );
     assert.equal(rows[2].color, "#e5b567");
+    assert.deepEqual(
+      rows.map((r) => r.band.title),
+      ["ws1", "ws2", "ws3", "ws4"],
+    );
+    assert.equal(rows[0].band.label, "");
+    assert.equal(rows[0].band.autoTitle, "ws1");
+    // タブが 1 つのワークスペースは、タブの並びを出さない
+    assert.equal(rows[0].tabs, undefined);
   });
 
-  it("記録にあるものはその順（マシンをまたいでよい）、無いもの（新しいワークスペース）は元の順で後ろに付ける", () => {
-    const rows = flatRows(groups(null), [
-      { target: "b", id: "b2" },
-      { target: "a", id: "a1" },
-      { target: "gone", id: "x" },
-    ]);
+  it("前の並び順の記録（#88）があれば、新しく作るワークスペースをその順に並べる", () => {
+    const rows = rowsOf(["a", "b"], lists, null, {
+      legacy: [
+        { target: "b", id: "b2" },
+        { target: "a", id: "a1" },
+        { target: "gone", id: "x" },
+      ],
+    });
     assert.deepEqual(ids(rows), ["b2", "a1", "a2", "b1"]);
+  });
+
+  it("名前を付けたワークスペースは、その名前を帯に出し、フォルダ名を 2 行目に出す", () => {
+    let state = reconcile(EMPTY_GWS, {
+      lists: { a: [{ id: "a1", title: "a1" }] },
+    }).state;
+    state = { list: [{ ...state.list[0], name: "調査" }] };
+    const [r] = rowsOf(["a"], { a: [lists.a[0]] }, null, { state });
+    assert.equal(r.band.title, "調査");
+    assert.equal(r.band.label, "調査");
+    assert.equal(r.band.dir, "a1");
+  });
+
+  it("ターミナルのタブとブラウザのタブを、開いた順の 1 つの並びにして出す。切れているマシンのタブは薄く出す", () => {
+    const state: GwsState = {
+      list: [
+        {
+          id: "g1",
+          name: "",
+          num: 1,
+          tabs: [
+            { kind: "term", target: "a", ws: "a1", title: "a1" },
+            { kind: "browser", id: "t1", name: "メモ" },
+            { kind: "term", target: "b", ws: "b9", title: "古い名前" },
+            { kind: "browser", id: "gone" },
+          ],
+        },
+      ],
+    };
+    const groups = buildSidebar(["a", "b"], up, { a: [lists.a[0]] }, null);
+    const [r] = gwsRows(state, {
+      groups,
+      workspaces: { a: [lists.a[0]] },
+      focus: { target: "a", id: "a1" },
+      browser: new Map([
+        [
+          "t1",
+          {
+            id: "t1",
+            target: "a",
+            workspace: "a1",
+            url: "https://x.example/p",
+            title: "題",
+          },
+        ],
+      ]),
+      views: { g1: "t1" },
+      labelOf: machineLabel,
+      colorOf: () => "#000",
+      healthOf: (t) => groups.find((g) => g.target === t)!.health,
+    });
+    assert.equal(r.band.focused, true);
+    assert.deepEqual(
+      r.tabs?.items.map((i) => [i.kind, i.title, i.sub, i.health]),
+      [
+        ["term", "a1", "a", "down"],
+        ["browser", "メモ", "x.example", undefined],
+        ["term", "古い名前", "b", "up"],
+      ],
+    );
+    assert.equal(r.tabs?.shown, JSON.stringify(["b", "t1"]));
+    assert.equal(r.tabs?.focused, true);
+  });
+
+  it("今出しているターミナルのタブが切れているマシンのものなら、最後に分かった名前で薄く出す", () => {
+    const state: GwsState = {
+      list: [
+        {
+          id: "g1",
+          name: "",
+          num: 1,
+          tabs: [{ kind: "term", target: "a", ws: "a1", title: "前の名前" }],
+        },
+      ],
+    };
+    const [r] = rowsOf(["a"], {}, null, { state });
+    assert.equal(r.health, "down");
+    assert.equal(r.band.title, "ws1");
+    assert.equal(r.band.dir, "前の名前");
+    assert.equal(r.band.id, "a1");
   });
 });
 
@@ -504,7 +638,7 @@ describe("splitAtFocus", () => {
     ],
   };
   const rows = (focus: { target: string; id: string } | null) =>
-    flatRows(buildSidebar(["a", "b"], {}, lists, focus));
+    rowsOf(["a", "b"], lists, focus);
   const ids = (rs: { band: { id: string } }[]) => rs.map((r) => r.band.id);
 
   it("フォーカスの前を上に、フォーカスの行を上に固定する行に、後ろを下に分ける", () => {

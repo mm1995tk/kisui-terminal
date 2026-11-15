@@ -55,7 +55,6 @@ import { chooseMascot, reloadCurrent, type Failure } from "./mascotStore.ts";
 import { machineRows } from "./connect/machineList.ts";
 import { Notices, type Notice } from "./connect/Notices.tsx";
 import { RenameDialog } from "./connect/RenameDialog.tsx";
-import { renameErrorText } from "./sidebar/renameError.ts";
 import {
   describeClient,
   handoverFailure,
@@ -101,8 +100,10 @@ import type {
 } from "./rpc/protocol.ts";
 import {
   adoptFocus,
+  band,
   buildSidebar,
-  flatRows,
+  gwsRows,
+  health,
   keepFocus,
   shouldSendMoveTo,
   type WorkspaceFocus,
@@ -110,15 +111,38 @@ import {
   stepWorkspace,
   type Step,
 } from "./sidebar/model.ts";
-import { machineColors } from "./sidebar/colors.ts";
+import { MACHINE_COLORS, machineColors } from "./sidebar/colors.ts";
+import { loadOrder } from "./sidebar/order.ts";
 import {
-  loadOrder,
-  moveInOrder,
-  appendToOrder,
-  pruneOrder,
-  saveOrder,
-  type WsRef,
-} from "./sidebar/order.ts";
+  addBrowser,
+  autoName,
+  nameErrorText,
+  addWorkspace,
+  after,
+  browserKey,
+  cycleKey,
+  displayName,
+  dropTerm,
+  EMPTY_GWS,
+  gwsOfBrowser,
+  gwsOfTerm,
+  loadGws,
+  move as moveGws,
+  reconcile,
+  refKey,
+  removeBrowser,
+  rename as renameGws,
+  renameBrowser,
+  repTerm,
+  saveGws,
+  setActiveTerm,
+  termKey,
+  termsOf,
+  toggleFold,
+  type GwsState,
+  type Lists,
+  type TabRef,
+} from "./gws/model.ts";
 import { MachinePicker } from "./connect/MachinePicker.tsx";
 import { creatableRows } from "./connect/machineList.ts";
 import { Sidebar } from "./sidebar/Sidebar.tsx";
@@ -208,16 +232,11 @@ import {
 import {
   addTab,
   closeTab,
-  cycle,
   EMPTY_TABS,
   fromStored,
-  isFolded,
   newTabId,
-  pruneWorkspaces,
   shownTab,
   showTab,
-  tabsOf,
-  toggleFold,
   toStored,
   updateTab,
   type BrowserTab,
@@ -598,13 +617,17 @@ function Workbench(props: {
   // 名前を変える窓を出しているマシン、変えられなかった理由
   const [renaming, setRenaming] = createSignal<string | null>(null);
   const [renameError, setRenameError] = createSignal<string | undefined>();
-  // 名前をその場で変えている帯のワークスペース（current はつけている名前、auto は空にしたときの名前）、変えられなかった理由
+  // 名前をその場で変えている帯の GUI のワークスペース（current はつけている名前、auto は空にしたときの名前）、変えられなかった理由
   const [renamingWs, setRenamingWs] = createSignal<{
-    target: string;
-    id: WorkspaceId;
+    gws: string;
     current: string;
     auto: string;
   } | null>(null);
+  // 名前を変えているブラウザのタブ（窓で変える。リーダーの o R）
+  const [renamingTab, setRenamingTab] = createSignal<string | null>(null);
+  const [tabRenameError, setTabRenameError] = createSignal<
+    string | undefined
+  >();
   const [wsRenameError, setWsRenameError] = createSignal<string | undefined>();
   // 右下の知らせのうち、閉じたもの（状態が変われば、また出す）
   const [dismissed, setDismissed] = createSignal<ReadonlySet<SessionState>>(
@@ -793,15 +816,6 @@ function Workbench(props: {
         setWorkspaces((m) => ({ ...m, [target]: ws }));
         setFocus((f) => keepFocus(f, workspaces(), shjFocuses(), closingNext));
       });
-      // 閉じたワークスペースの、内蔵ブラウザのタブも閉じる（つながって一覧が分かったときだけ。つながる前には捨てない）
-      if (props.browser && s.state.kind === "connected")
-        setTabs((t) =>
-          pruneWorkspaces(
-            t,
-            target,
-            ws.map((w) => w.id),
-          ),
-        );
       // つないで最初に分かった一覧が空なら、ワークスペースを 1 つ作る（何も無い画面から始めない）。
       // 閉じて空になったときは作らない
       if (!started.has(target) && s.state.kind === "connected") {
@@ -1060,6 +1074,14 @@ function Workbench(props: {
    * 帯を押すとキーがサイドバー（WebKit では body）に移るので、向け直さないと戻っても打てない。
    */
   function switchWorkspace(target: string, id: WorkspaceId) {
+    // マシンにつながっていないタブは移れない。つなぎ直す案内を出す（タブは並びに残してある）
+    if (!sessions()[target] || states()[target]?.kind !== "connected") {
+      cannot(
+        T("err.workspace.focus", { machine: labelOf(target) }),
+        T("cannot.tab.disconnected", { machine: labelOf(target) }),
+      );
+      return Promise.resolve();
+    }
     return focusWorkspaceAndTerminal(
       { focusWorkspace, current: focus, focusTerminal },
       target,
@@ -1077,14 +1099,9 @@ function Workbench(props: {
     setFocusError(null);
     try {
       const { id } = await s.createWorkspace();
-      // 新しいワークスペースは、並びの一番下に入る（記録に無い今の行も、今の並びのまま記録に入れる）
-      const kept = appendToOrder(
-        order(),
-        rows().map((r) => ({ target: r.target, id: r.band.id })),
-        { target, id },
-      );
-      saveOrder(store, kept);
-      setOrder(kept);
+      // 新しいワークスペースは、ターミナルのタブ 1 つを持って、並びの一番下に入る（マシンの一覧の知らせより先に、ここで入れてよい。二重には入らない）
+      justCreated.add(termKey(target, id));
+      setGws((g) => addWorkspace(g, target, id));
       await focusWorkspace(target, id);
       if (focus()?.id === id) focusTerminal();
     } catch (e) {
@@ -1097,31 +1114,27 @@ function Workbench(props: {
 
   // 閉じる前に確認している（プログラムが動いている）ワークスペース
   const [confirmClose, setConfirmClose] = createSignal<{
-    target: string;
-    id: WorkspaceId;
+    gws: string;
     name: string;
   } | null>(null);
 
   /**
-   * 帯の [×]。ターミナルを全部終わらせる。プログラムが動いていれば断られるので、確認の窓を出す
-   * （force は窓で「終わらせて閉じる」を押したとき）。フォーカスしているワークスペースを閉じたら、隣のワークスペースに移る。
+   * 帯の [×]。GUI のワークスペースを閉じる：中のターミナルのタブ（マシンのワークスペース）のターミナルを全部終わらせ、ブラウザのタブも閉じる。
+   * プログラムが動いていれば断られるので、確認の窓を出す（force は窓で「終わらせて閉じる」を押したとき。残りのタブは窓の後に続ける）。
+   * マシンにつながっていないタブは、閉じられないので記録から外すだけ（マシンのワークスペースは残り、つながったらまた新しいワークスペースになる）。
+   * フォーカスしているワークスペースを閉じたら、隣のワークスペースに移る。
    */
-  async function closeWorkspace(
-    target: string,
-    id: WorkspaceId,
-    force = false,
-  ) {
-    const s = sessions()[target];
-    if (!s) return;
+  async function closeWorkspace(gid: string, force = false) {
+    const g = untrack(gws).list.find((x) => x.id === gid);
+    if (!g) return;
     // 閉じたあとの移り先は、サイドバーの 1 列で隣のワークスペース（マシンが違ってもよい）
     const list = rows();
-    const i = list.findIndex((r) => r.target === target && r.band.id === id);
+    const i = list.findIndex((r) => r.gws === gid);
     const next = list[i + 1] ?? list[i - 1];
-    const wasFocused = focus()?.target === target && focus()?.id === id;
-    const name =
-      groups()
-        .find((g) => g.target === target)
-        ?.bands.find((b) => b.id === id)?.title ?? "";
+    const f = focus();
+    const wasFocused =
+      !!f && termsOf(g).some((r) => r.target === f.target && r.ws === f.id);
+    const name = displayName(g);
     setFocusError(null);
     // 移り先は閉じる前に決めておき、一覧から消えた知らせを受けたところで（返事を待たずに）フォーカスを移す。
     // 移り先が無いとき（フォーカスしていないものを閉じる）は、先に閉じ始めたものの移り先を消さない
@@ -1129,7 +1142,19 @@ function Workbench(props: {
       wasFocused && next ? { target: next.target, id: next.band.id } : null;
     if (moveTo) closingNext = moveTo;
     try {
-      await s.closeWorkspace(id, force);
+      for (const r of termsOf(g)) {
+        const s = sessions()[r.target];
+        if (!s || states()[r.target]?.kind !== "connected") {
+          const dropped = dropTerm(untrack(gws), r.target, r.ws);
+          setGws(dropped.state);
+          for (const id of dropped.close) {
+            void closeTabView(id).catch(() => {});
+            setTabs((t) => closeTab(t, id));
+          }
+          continue;
+        }
+        await s.closeWorkspace(r.ws, force);
+      }
     } catch (e) {
       if (moveTo && closingNext === moveTo) closingNext = null;
       const d =
@@ -1137,13 +1162,11 @@ function Workbench(props: {
           ? (e.data as { reason?: string } | undefined)
           : undefined;
       if (d?.reason === "running" && !force) {
-        setConfirmClose({ target, id, name });
+        setConfirmClose({ gws: gid, name });
         return;
       }
       setFocusError({
-        title: T("err.workspace.close", {
-          name: name || T("workspace.fallbackName"),
-        }),
+        title: T("err.workspace.close", { name }),
         error: e instanceof Error ? e.message : String(e),
       });
       return;
@@ -1170,9 +1193,72 @@ function Workbench(props: {
     ),
   );
 
-  // サイドバーの並び順（ユーザーが並べた順。マシンをまたぐので、手元の GUI が覚える。order.ts）
-  const [order, setOrder] = createSignal<WsRef[]>(loadOrder(store));
-  const rows = createMemo(() => flatRows(groups(), order()));
+  // ---- GUI のワークスペース（#231）----
+  // ワークスペースは手元の GUI が持つ。中のターミナルのタブは、各マシンの kisui serve のワークスペース 1 つずつ。
+  // 名前・並び・中のタブは webview の localStorage に覚える（gws/model.ts）。
+  // 内蔵ブラウザのタブ（#202）は GUI のワークスペースに属する。タブの中身と、ワークスペースごとに何を出しているかは tabs に持つ
+  const [tabs, setTabsState] = createSignal<TabsState>(EMPTY_TABS);
+  /** 覚えていたブラウザのタブを読み終えたか（読む前の空のまま、ワークスペースの記録からブラウザのタブを外さないため） */
+  const [tabsReady, setTabsReady] = createSignal(false);
+  const [gws, setGwsState] = createSignal<GwsState>(
+    loadGws(store) ?? EMPTY_GWS,
+  );
+  function setGws(next: GwsState | ((g: GwsState) => GwsState)) {
+    const before = untrack(gws);
+    const v = typeof next === "function" ? next(before) : next;
+    if (v === before) return;
+    setGwsState(v);
+    saveGws(store, v);
+  }
+  /** 前の並び順の記録（w J・w K）。初めてワークスペースを作るときの並びに使う */
+  const legacyOrder = loadOrder(store);
+  /** GUI がフォーカスしているワークスペース */
+  const currentGws = () => {
+    const f = focus();
+    return f ? gwsOfTerm(gws(), f.target, f.id) : undefined;
+  };
+  /** 作ったばかりで、マシンの一覧の知らせがまだ届いていないターミナルのタブ（termKey）。reconcile が外さない */
+  const justCreated = new Set<string>();
+  const rows = createMemo(() =>
+    gwsRows(gws(), {
+      groups: groups(),
+      workspaces: workspaces(),
+      focus: focus(),
+      browser: new Map(tabs().tabs.map((t) => [t.id, t])),
+      views: tabs().views,
+      labelOf,
+      colorOf: (t) => colors()[t] ?? MACHINE_COLORS[0],
+      healthOf: (t) => health(states()[t]),
+    }),
+  );
+  // マシンの一覧・ブラウザのタブに、ワークスペースの記録を合わせる（reconcile）
+  createEffect(() => {
+    const lists: Lists = {};
+    for (const [t, ws] of Object.entries(workspaces()))
+      if (states()[t]?.kind === "connected")
+        lists[t] = ws.map((w) => ({ id: w.id, title: band(w, false).title }));
+    const browser = props.browser && tabsReady() ? tabs().tabs : undefined;
+    const r = reconcile(untrack(gws), {
+      lists,
+      browser,
+      legacyOrder,
+      keep: justCreated,
+    });
+    setGws(r.state);
+    // 一覧に載ったら、もう守らなくてよい
+    for (const [t, l] of Object.entries(lists))
+      for (const w of l ?? []) justCreated.delete(termKey(t, w.id));
+    // 持ち主のワークスペースが無くなったブラウザのタブも閉じる
+    for (const id of r.close) {
+      void closeTabView(id).catch(() => {});
+      setTabs((t) => closeTab(t, id));
+    }
+  });
+  // 最後に使っていたターミナルのタブを覚える
+  createEffect(() => {
+    const f = focus();
+    if (f) setGws((g) => setActiveTerm(g, f.target, f.id));
+  });
 
   // フォーカスしているワークスペースのツリーだけを動かし（監視と取り直し）、
   // 前にそのワークスペースで覚えたスクロールの位置に戻す（D2）
@@ -1543,9 +1629,8 @@ function Workbench(props: {
   }
 
   // ---- 内蔵ブラウザのタブ（#202。設定の [gui.browser] enabled で有効にしたときだけ）----
-  // タブはワークスペースに属し、サイドバーのワークスペースの帯の下に並ぶ。タブを選ぶと、グリッドの場所すべてがそのページになる。
+  // タブは GUI のワークスペースに属し、サイドバーのワークスペースの帯の下に、ターミナルのタブと一緒に並ぶ（#231）。タブを選ぶと、グリッドの場所すべてがそのページになる。
   // 開いていたタブは殻がデータのフォルダに覚え、再起動したら戻す（browser/tabs.ts・browser.rs）
-  const [tabs, setTabsState] = createSignal<TabsState>(EMPTY_TABS);
   /** 覚えていたタブを読み終えたか（読む前に空のまま書いて、覚えていたものを消さないため） */
   let tabsLoaded = false;
   let saveTimer: number | undefined;
@@ -1563,10 +1648,10 @@ function Workbench(props: {
       );
     }, 500);
   }
-  /** 今のワークスペースで出しているタブ。グリッドを出していれば undefined。 */
+  /** 今のワークスペースで出しているブラウザのタブ。ターミナルのタブを出していれば undefined。 */
   const shownBrowserTab = createMemo(() => {
-    const f = focus();
-    return props.browser && f ? shownTab(tabs(), f.target, f.id) : undefined;
+    const g = currentGws();
+    return props.browser && g ? shownTab(tabs(), g.id) : undefined;
   });
   let focusBrowserPage: (() => void) | undefined;
   /**
@@ -1606,9 +1691,13 @@ function Workbench(props: {
     };
     resolveFor(tab, url).then(
       () => {
-        setTabs((s) => addTab(s, tab));
+        // 持ち主は、そのターミナルのタブがあるワークスペース（無ければ、分かったときに reconcile が入れる）
+        const gid = gwsOfTerm(untrack(gws), target, ws)?.id;
+        setTabs((s) => addTab(s, tab, gid));
+        if (gid) setGws((g) => addBrowser(g, gid, tab.id));
         const f = untrack(focus);
-        if (f?.target === target && f.id === ws) focusTerminal();
+        if (gid && f && gwsOfTerm(untrack(gws), f.target, f.id)?.id === gid)
+          focusTerminal();
       },
       (e: unknown) =>
         setFocusError({
@@ -1687,9 +1776,12 @@ function Workbench(props: {
       opener: from.id,
       made: true,
     };
-    setTabs((s) => addTab(s, tab));
+    const gid = gwsOfBrowser(untrack(gws), from.id)?.id;
+    setTabs((s) => addTab(s, tab, gid));
+    if (gid) setGws((g) => addBrowser(g, gid, tab.id));
     const f = untrack(focus);
-    if (f?.target === tab.target && f.id === tab.workspace) focusTerminal();
+    if (gid && f && gwsOfTerm(untrack(gws), f.target, f.id)?.id === gid)
+      focusTerminal();
   }
   /**
    * まだ足していないタブの「閉じた」（ページが開いた新しい窓が、画面に知らせが届く前に閉じた）。あとで届く「新しいタブ」を足さない。
@@ -1708,8 +1800,43 @@ function Workbench(props: {
       return;
     }
     const shown = untrack(shownBrowserTab)?.id === id;
-    setTabs((s) => closeTab(s, id, tab.opener));
+    removeTab(id, tab.opener);
     if (shown) focusTerminal();
+  }
+
+  /**
+   * ブラウザのタブを閉じる。出していたタブなら、同じワークスペースの次のタブ（無ければ前のタブ）を出す
+   * （ふつうのブラウザで、今のタブを閉じたときと同じ。ターミナルのタブも並びの中にある）。
+   * back（同じワークスペースのブラウザのタブ）を渡すと、次のタブの代わりにそれを出す（ページが自分を閉じたときに、開いた元のタブへ戻る。#204）。
+   */
+  function removeTab(id: string, back?: string) {
+    const g = gwsOfBrowser(untrack(gws), id);
+    const next =
+      g && untrack(tabs).views[g.id] === id
+        ? after(g, browserKey(id), back)
+        : undefined;
+    setTabs((s) => closeTab(s, id));
+    setGws((x) => removeBrowser(x, id));
+    if (g && next) activateTab(g.id, next);
+  }
+
+  /**
+   * ワークスペース gid のタブ ref を出す。ブラウザのタブならそのページを、ターミナルのタブならそのターミナルのグリッドを。
+   * ほかのワークスペースにいれば、そこへ移る（移るのは、そのワークスペースの今のターミナルのタブ。キーはそのタブに向く）。
+   */
+  function activateTab(gid: string, ref: TabRef) {
+    const g = untrack(gws).list.find((x) => x.id === gid);
+    if (!g) return;
+    if (ref.kind === "browser") setTabs((s) => showTab(s, gid, ref.id));
+    else setTabs((s) => showTab(s, gid, null));
+    const f = untrack(focus);
+    const inside = !!f && gwsOfTerm(untrack(gws), f.target, f.id)?.id === gid;
+    if (ref.kind === "term") void switchWorkspace(ref.target, ref.ws);
+    else if (inside) focusTerminal();
+    else {
+      const t = repTerm(g, f, (m) => states()[m]?.kind === "connected");
+      void switchWorkspace(t.target, t.ws);
+    }
   }
 
   // ---- 内蔵ブラウザのブックマーク（#205）。すべてのワークスペースで共有し、殻がデータのフォルダに覚える ----
@@ -1883,27 +2010,19 @@ function Workbench(props: {
   if (props.browser) {
     onMount(async () => {
       try {
-        const stored = fromStored(await loadTabs());
-        // 読むあいだに分かったワークスペースの一覧で、閉じたワークスペースのタブを捨てる
-        let t = stored;
-        for (const [target, ws] of Object.entries(untrack(workspaces)))
-          if (untrack(sessions)[target]?.state.kind === "connected")
-            t = pruneWorkspaces(
-              t,
-              target,
-              ws.map((w) => w.id),
-            );
+        // 閉じたワークスペースのタブは、reconcile が捨てる（読み終えたあと、一覧が分かっていれば）
+        const t = fromStored(await loadTabs());
         // 読むあいだに開いたタブも残す
         const opened = untrack(tabs);
         setTabsState({
           tabs: [...t.tabs, ...opened.tabs],
           views: opened.views,
-          collapsed: [...t.collapsed, ...opened.collapsed],
         });
       } catch (e) {
         console.warn("browser tabs:", e);
       }
       tabsLoaded = true;
+      setTabsReady(true);
       offs.push(
         await onTabKey(onPageKey),
         await onTabPage((e) => {
@@ -1973,7 +2092,7 @@ function Workbench(props: {
       case "browser.close": {
         const t = currentTab();
         if (t) {
-          setTabs((s) => closeTab(s, t.id));
+          removeTab(t.id);
           focusTerminal();
         }
         break;
@@ -1983,15 +2102,31 @@ function Workbench(props: {
         if (t) openUrlFor(t.target, t.url);
         break;
       }
-      case "browser.cycle":
-        if (f) {
-          setTabs((s) => cycle(s, f.target, f.id, c.arg as "next" | "prev"));
+      case "browser.cycle": {
+        // ターミナルのタブとブラウザのタブを、並びの順に回る
+        const g = currentGws();
+        if (g && f) {
+          const cur = shownBrowserTab();
+          const next = cycleKey(
+            g,
+            cur ? browserKey(cur.id) : termKey(f.target, f.id),
+            c.arg as "next" | "prev",
+          );
+          if (next) activateTab(g.id, next);
           focusTerminal();
         }
         break;
-      case "browser.fold":
-        if (f) setTabs((s) => toggleFold(s, f.target, f.id));
+      }
+      case "browser.fold": {
+        const g = currentGws();
+        if (g) setGws((x) => toggleFold(x, g.id));
         break;
+      }
+      case "browser.rename": {
+        const t = currentTab();
+        if (t) setRenamingTab(t.id);
+        break;
+      }
       case "browser.bookmark": {
         const t = currentTab();
         if (t) bookmarkPage(t);
@@ -2032,16 +2167,23 @@ function Workbench(props: {
     if (!d) return;
     setUrlDialog(null);
     if (d.kind === "new") {
+      const id = newTabId();
+      const gid = gwsOfTerm(untrack(gws), d.target, d.id)?.id;
       setTabs((s) =>
-        addTab(s, {
-          id: newTabId(),
-          target: d.target,
-          workspace: d.id,
-          url,
-          title: "",
-          ...(d.incognito ? { incognito: true } : {}),
-        }),
+        addTab(
+          s,
+          {
+            id,
+            target: d.target,
+            workspace: d.id,
+            url,
+            title: "",
+            ...(d.incognito ? { incognito: true } : {}),
+          },
+          gid,
+        ),
       );
+      if (gid) setGws((g) => addBrowser(g, gid, id));
     } else {
       // 中継を用意できてから（リモートのマシンの localhost 系）タブの URL を書き換える。用意できなければ、ページも URL も前のまま。
       // まだ作っていない・開けなかったタブは、BrowserArea が書き換えた URL で作る（goTab は失敗する）
@@ -2062,18 +2204,18 @@ function Workbench(props: {
     focusTerminal();
   }
 
-  /** サイドバーのタブの行を押した。そのワークスペースでそのタブを出し、キーをページに向ける。 */
-  function selectTab(target: string, id: WorkspaceId, tab: string) {
-    setTabs((s) => showTab(s, target, id, tab));
-    const f = focus();
-    if (f?.target === target && f.id === id) focusTerminal();
-    else void switchWorkspace(target, id);
+  /** サイドバーのタブの行を押した。そのワークスペースでそのタブを出し、キーをそのタブに向ける。 */
+  function selectTab(gid: string, key: string) {
+    const ref = gws()
+      .list.find((g) => g.id === gid)
+      ?.tabs.find((r) => refKey(r) === key);
+    if (ref) activateTab(gid, ref);
   }
 
-  /** サイドバーのタブの行の ×。 */
+  /** サイドバーのタブの行の ×（ブラウザのタブ）。 */
   function closeTabRow(tab: string) {
     const shown = shownBrowserTab()?.id === tab;
-    setTabs((s) => closeTab(s, tab));
+    removeTab(tab);
     if (shown) focusTerminal();
   }
 
@@ -2117,7 +2259,12 @@ function Workbench(props: {
 
   /** リーダーの w j / w k。サイドバーの次・前のワークスペースへ（1 列の並びで。端では反対の端へ回る）。 */
   function stepWs(step: Step) {
-    const next = stepWorkspace(rows(), stepFrom(heading, focus()), step);
+    // つながっていないマシンのタブは移れない（そこで止まらないよう、飛ばす）
+    const next = stepWorkspace(
+      rows().filter((r) => r.health === "up" || r.band.focused),
+      stepFrom(heading, focus()),
+      step,
+    );
     if (next) {
       setWalking(true);
       void goWorkspace(next.target, next.id);
@@ -2129,14 +2276,10 @@ function Workbench(props: {
    * 続けて押せる（押すたびに、今の並びから動かす）。
    */
   function moveWs(dir: "up" | "down") {
-    const f = focus();
-    if (!f) return;
-    const shown = rows().map((r) => ({ target: r.target, id: r.band.id }));
-    const next = moveInOrder(order(), shown, f, dir);
-    if (!next) return;
-    const kept = pruneOrder(next, workspaces());
-    saveOrder(store, kept);
-    setOrder(kept);
+    const g = currentGws();
+    if (!g) return;
+    const next = moveGws(gws(), g.id, dir);
+    if (next) setGws(next);
   }
 
   // ワークスペースを作るマシンを選んでいる窓（リーダーの w n）
@@ -2185,7 +2328,8 @@ function Workbench(props: {
       f &&
       shownBrowserTab()
     ) {
-      setTabs((s) => showTab(s, f.target, f.id, null));
+      const g = currentGws();
+      if (g) setTabs((s) => showTab(s, g.id, null));
       focusTerminal();
       if (c.id === "pane.close") return;
     }
@@ -2229,19 +2373,18 @@ function Workbench(props: {
         break;
       case "workspace.last": {
         const l = lastWorkspace;
-        if (
-          l &&
-          rows().some((r) => r.target === l.target && r.band.id === l.id)
-        )
+        if (l && gwsOfTerm(gws(), l.target, l.id))
           void switchWorkspace(l.target, l.id);
         break;
       }
       case "workspace.new":
         newWorkspace();
         break;
-      case "workspace.close":
-        if (f) void closeWorkspace(f.target, f.id);
+      case "workspace.close": {
+        const g = currentGws();
+        if (g) void closeWorkspace(g.id);
         break;
+      }
       case "workspace.rename":
         if (f) openWorkspaceRename(f.target, f.id);
         break;
@@ -2352,41 +2495,42 @@ function Workbench(props: {
     setRenaming(null);
   }
 
-  /** 帯の名前をその場で変える入力欄を開く（帯の鉛筆・メニュー、リーダーの w r）。 */
+  /** 帯の名前をその場で変える入力欄を開く（帯の鉛筆・メニュー、リーダーの w r）。target と id は、帯が今出しているターミナルのタブ。 */
   function openWorkspaceRename(target: string, id: WorkspaceId) {
-    const b = groups()
-      .find((g) => g.target === target)
-      ?.bands.find((x) => x.id === id);
-    if (!b) return;
+    const g = gwsOfTerm(gws(), target, id);
+    if (!g) return;
     // 閉じているサイドバーの中には入力欄が見えず、フォーカスも取れないので、先に開ける
     if (!untrack(sidebarOpen)) changeSidebarOpen(true);
     setWsRenameError(undefined);
-    setRenamingWs({ target, id, current: b.label, auto: b.autoTitle });
+    setRenamingWs({ gws: g.id, current: g.name, auto: autoName(g.num) });
   }
 
-  /** 入力欄の Enter。空なら、つけた名前を外す。断られたら入力欄の下に理由を出し、入力欄は開けておく。 */
-  async function submitWorkspaceRename(name: string) {
+  /** 入力欄の Enter。空なら、つけた名前を外す（「ws1」の番号の名前に戻る）。断られたら入力欄の下に理由を出し、入力欄は開けておく。 */
+  function submitWorkspaceRename(name: string) {
     const r = renamingWs();
     if (!r) return;
-    const s = sessions()[r.target];
-    let failed: string | undefined;
-    try {
-      if (!s)
-        throw new Error(
-          T("err.machine.notConnected", { machine: labelOf(r.target) }),
-        );
-      await s.renameWorkspace(r.id, name);
-    } catch (e) {
-      failed = renameErrorText(e);
-    }
-    // 返事を待つ間に、外を押してやめた・別の帯を開いたなら、その後の画面とフォーカスには触らない
-    const now = renamingWs();
-    if (!now || now.target !== r.target || now.id !== r.id) return;
-    if (failed !== undefined) {
-      setWsRenameError(failed);
+    const bad = nameErrorText(name);
+    if (bad) {
+      setWsRenameError(bad);
       return;
     }
+    setGws((g) => renameGws(g, r.gws, name));
     setRenamingWs(null);
+    focusTerminal();
+  }
+
+  /** ブラウザのタブの名前の窓で決めた。空なら、ページの題に戻る。 */
+  function submitTabRename(name: string) {
+    const id = renamingTab();
+    if (id === null) return;
+    const bad = nameErrorText(name);
+    if (bad) {
+      setTabRenameError(bad);
+      return;
+    }
+    setGws((g) => renameBrowser(g, id, name));
+    setRenamingTab(null);
+    setTabRenameError(undefined);
     focusTerminal();
   }
 
@@ -2545,32 +2689,19 @@ function Workbench(props: {
       <Sidebar
         rows={rows()}
         onNew={newWorkspace}
-        onFocus={(t, id) => {
-          // ワークスペースの帯を押すと、ターミナルのグリッドに戻る（内蔵ブラウザのタブを出していても）
-          setTabs((s) => showTab(s, t, id, null));
-          void switchWorkspace(t, id);
-        }}
-        browserOf={
-          props.browser
-            ? (t, id) => ({
-                tabs: tabsOf(tabs(), t, id),
-                shown: shownTab(tabs(), t, id)?.id,
-                folded: isFolded(tabs(), t, id),
-                focused: focus()?.target === t && focus()?.id === id,
-              })
-            : undefined
-        }
+        // ワークスペースの帯を押すと、そのワークスペースが出していたものに移る（ブラウザのタブを出していたなら、そのページ）
+        onFocus={(t, id) => void switchWorkspace(t, id)}
         onTab={selectTab}
         onTabClose={closeTabRow}
-        onTabsFold={(t, id) => setTabs((s) => toggleFold(s, t, id))}
+        onTabsFold={(gid) => setGws((g) => toggleFold(g, gid))}
         treeOf={treeOf}
         onToggle={(t, id, p) => trees.get(t)?.toggle(id, p)}
-        onClose={(t, id) => void closeWorkspace(t, id)}
+        onClose={(gid) => void closeWorkspace(gid)}
         onRenameWorkspace={openWorkspaceRename}
         renaming={
           renamingWs() ? { ...renamingWs()!, error: wsRenameError() } : null
         }
-        onRenameSubmit={(name) => void submitWorkspaceRename(name)}
+        onRenameSubmit={submitWorkspaceRename}
         onRenameCancel={cancelWorkspaceRename}
         onOpen={openFile}
         changesOf={changesOf}
@@ -2662,7 +2793,7 @@ function Workbench(props: {
               forceCloseWorkspace(
                 confirmClose,
                 () => setConfirmClose(null),
-                (target, id, force) => void closeWorkspace(target, id, force),
+                (gid, force) => void closeWorkspace(gid, force),
               )
             }
             onNo={() => setConfirmClose(null)}
@@ -2735,6 +2866,27 @@ function Workbench(props: {
             error={renameError()}
             onSubmit={(name) => submitRename(t(), name)}
             onCancel={() => setRenaming(null)}
+          />
+        )}
+      </Show>
+      <Show when={renamingTab()}>
+        {(id) => (
+          <RenameDialog
+            current={
+              gws()
+                .list.flatMap((g) => g.tabs)
+                .flatMap((r) =>
+                  r.kind === "browser" && r.id === id() ? [r.name ?? ""] : [],
+                )[0] ?? ""
+            }
+            fallback={tabs().tabs.find((t) => t.id === id())?.title ?? ""}
+            error={tabRenameError()}
+            onSubmit={submitTabRename}
+            onCancel={() => {
+              setRenamingTab(null);
+              setTabRenameError(undefined);
+              focusTerminal();
+            }}
           />
         )}
       </Show>
