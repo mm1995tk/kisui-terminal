@@ -35,7 +35,6 @@ import {
   isLeaveExplorerKey,
   startFocusStep,
 } from "./explorerFocus.ts";
-import { forceCloseWorkspace } from "./confirmClose.ts";
 import { focusWorkspaceAndTerminal } from "./focusWorkspaceAndTerminal.ts";
 import { afterChangesKey } from "./changes/handover.ts";
 import { changesRow } from "./changes/keys.ts";
@@ -3372,31 +3371,27 @@ function Workbench(props: {
           </BrowserArea>
         </Show>
       </div>
-      <Show when={installing()}>
+      <Show when={installing()} keyed>
         {(t) => (
           <InstallCard
-            target={labelOf(t())}
+            target={labelOf(t)}
             state={
-              states()[t()] as Extract<SessionState, { kind: "needs-install" }>
+              states()[t] as Extract<SessionState, { kind: "needs-install" }>
             }
-            onYes={() => void sessions()[t()]?.install()}
-            onNo={() => sessions()[t()]?.declineInstall()}
+            onYes={() => void sessions()[t]?.install()}
+            onNo={() => sessions()[t]?.declineInstall()}
           />
         )}
       </Show>
-      <Show when={confirmClose()}>
+      <Show when={confirmClose()} keyed>
         {(c) => (
           <CloseWorkspaceCard
-            name={c().name}
-            onYes={() =>
-              // 窓を閉じる前に値を読む処理は forceCloseWorkspace に寄せている。
-              // ここで setConfirmClose(null) のあとに c() を読むと <Show> が例外を投げる（#162）
-              forceCloseWorkspace(
-                confirmClose,
-                () => setConfirmClose(null),
-                (gid, force) => void closeWorkspace(gid, force),
-              )
-            }
+            name={c.name}
+            onYes={() => {
+              // <Show keyed> の c は値そのものなので、窓を閉じたあとに読んでよい（#162・#272）
+              setConfirmClose(null);
+              void closeWorkspace(c.gws, true);
+            }}
             onNo={() => setConfirmClose(null)}
           />
         )}
@@ -3459,14 +3454,14 @@ function Workbench(props: {
           onCancel={() => setPickingMachine(false)}
         />
       </Show>
-      <Show when={pickingFor()}>
+      <Show when={pickingFor()} keyed>
         {(gid) => (
           <MachinePicker
             rows={creatableRows(machineList())}
             initial={currentTarget()}
             onChoose={(t) => {
               setPickingFor(null);
-              void newTerminalTab(gid(), t);
+              void newTerminalTab(gid, t);
             }}
             onCancel={() => setPickingFor(null)}
           />
@@ -3482,40 +3477,38 @@ function Workbench(props: {
           onCancel={cancelAdd}
         />
       </Show>
-      <Show when={renaming()}>
+      <Show when={renaming()} keyed>
         {(t) => (
           <RenameDialog
-            current={labelOf(t())}
-            fallback={t()}
+            current={labelOf(t)}
+            fallback={t}
             error={renameError()}
-            onSubmit={(name) => submitRename(t(), name)}
+            onSubmit={(name) => submitRename(t, name)}
             onCancel={() => setRenaming(null)}
           />
         )}
       </Show>
-      <Show when={confirmCloseTab()}>
+      <Show when={confirmCloseTab()} keyed>
         {(c) => (
           <CloseWorkspaceCard
             kind="tab"
-            name={c().name}
+            name={c.name}
             onYes={() => {
-              const v = c();
               setConfirmCloseTab(null);
-              void closeTermTab(v.target, v.ws, true);
+              void closeTermTab(c.target, c.ws, true);
             }}
             onNo={() => setConfirmCloseTab(null)}
           />
         )}
       </Show>
-      <Show when={renamingTerm()}>
+      <Show when={renamingTerm()} keyed>
         {(r) => (
           <RenameDialog
             current={
-              workspaces()[r().target]?.find((w) => w.id === r().ws)?.label ??
-              ""
+              workspaces()[r.target]?.find((w) => w.id === r.ws)?.label ?? ""
             }
             fallback={(() => {
-              const w = workspaces()[r().target]?.find((x) => x.id === r().ws);
+              const w = workspaces()[r.target]?.find((x) => x.id === r.ws);
               return w ? band({ ...w, label: "" }, false).title : "";
             })()}
             error={termRenameError()}
@@ -3527,17 +3520,17 @@ function Workbench(props: {
           />
         )}
       </Show>
-      <Show when={renamingTab()}>
+      <Show when={renamingTab()} keyed>
         {(id) => (
           <RenameDialog
             current={
               gws()
                 .list.flatMap((g) => g.tabs)
                 .flatMap((r) =>
-                  r.kind === "browser" && r.id === id() ? [r.name ?? ""] : [],
+                  r.kind === "browser" && r.id === id ? [r.name ?? ""] : [],
                 )[0] ?? ""
             }
-            fallback={tabs().tabs.find((t) => t.id === id())?.title ?? ""}
+            fallback={tabs().tabs.find((t) => t.id === id)?.title ?? ""}
             error={tabRenameError()}
             onSubmit={submitTabRename}
             onCancel={() => {
@@ -3548,41 +3541,39 @@ function Workbench(props: {
           />
         )}
       </Show>
-      <Show when={treeDialog()}>
+      <Show when={treeDialog()} keyed>
         {(d) => (
           <Show
-            when={d().kind === "delete"}
+            when={d.kind === "delete"}
             fallback={
               <NameDialog
                 title={
-                  d().kind === "new-file"
+                  d.kind === "new-file"
                     ? T("dialog.tree.newFile")
-                    : d().kind === "new-dir"
+                    : d.kind === "new-dir"
                       ? T("dialog.tree.newDir")
                       : T("dialog.tree.rename")
                 }
                 field={
-                  d().kind === "rename"
+                  d.kind === "rename"
                     ? T("dialog.tree.newPath")
                     : T("dialog.tree.path")
                 }
-                initial={
-                  d().kind === "rename" ? d().path : newEntryDefault(d().path)
-                }
+                initial={d.kind === "rename" ? d.path : newEntryDefault(d.path)}
                 submit={
-                  d().kind === "rename"
+                  d.kind === "rename"
                     ? T("dialog.tree.renameSubmit")
                     : T("dialog.tree.createSubmit")
                 }
-                selectName={d().kind === "rename"}
+                selectName={d.kind === "rename"}
                 onSubmit={submitTreeName}
                 onCancel={() => setTreeDialog(null)}
               />
             }
           >
             <DeleteDialog
-              path={d().path}
-              dir={d().dir}
+              path={d.path}
+              dir={d.dir}
               onYes={submitTreeDelete}
               onCancel={() => setTreeDialog(null)}
             />

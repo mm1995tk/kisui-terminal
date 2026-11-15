@@ -78,7 +78,6 @@ export function TreeMenu(props: {
             role="menuitem"
             class="machine-menu-item"
             onClick={() => {
-              // 親の <Show> の値は onClose で消えるので、選んだものを先に渡す
               props.onChoose(a);
               props.onClose();
             }}
