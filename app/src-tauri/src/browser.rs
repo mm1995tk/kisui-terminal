@@ -614,7 +614,7 @@ fn with_handlers(
     let (win_app, win_tab) = (app.clone(), tab.to_string());
     let (load_app, load_tab) = (app.clone(), tab.to_string());
     let (title_app, title_tab) = (app.clone(), tab.to_string());
-    // favicon（#237）：読み込みの終わりと題の変化のたびに読みに行く。読み込みが始まったら、それまでの答えを捨てる
+    // favicon（#237）：読み込みの終わりと、読み込みの後の題の変化のたびに読みに行く（読み込み中は頼まない）。読み込みが始まったら、それまでの答えを捨てる
     let page = crate::favicon::Page::default();
     let title_page = page.clone();
     #[cfg(target_os = "macos")]
@@ -632,6 +632,8 @@ fn with_handlers(
             };
             if loading {
                 page.started();
+            } else {
+                page.finished();
             }
             let _ = load_app.emit(
                 EVENT_PAGE,

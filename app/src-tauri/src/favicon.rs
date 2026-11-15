@@ -1,6 +1,6 @@
 //! 内蔵ブラウザのタブの favicon（#237）。サイドバーのブラウザのタブの行の頭に出す。
 //!
-//! 取り方：ページの読み込みが終わったとき・題が変わったときに、殻からページの中で browser_favicon.js を動かし、
+//! 取り方：ページの読み込みが終わったとき・（読み込みの後に）題が変わったときに、殻からページの中で browser_favicon.js を動かし、
 //! 返した文字（32×32 の PNG の data: URL）を受けて画面に知らせる（`browser-favicon`）。
 //! - 動かすのはページの外の世界（isolated world。Linux は WebKitGTK の world、macOS は WKContentWorld）。ページのスクリプトは
 //!   この世界を見られず、DOM の関数を差し替えても効かないので、殻が受ける答えに手を出せるのは、ページの `<link rel="icon">`
@@ -8,9 +8,9 @@
 //! - 画像を読み込むのはページ自身（ページと同じデータの置き場）。殻と画面（メインの webview）はネットワークに出ない。
 //!   シークレットのタブは、ディスクに残さないデータで読み込み、答えは画面の中だけに持つ（browser-tabs.json に書かない）。
 //! - 答えは、形（PNG の data: URL）と大きさを確かめてから画面に渡す（`valid`）。違えば "" （画面は地球のアイコン）。
-//! - ページの読み込みが始まったら、それまでに頼んだ答えは捨てる（前のページの favicon を新しいページに出さない）。
+//! - ページの読み込みが始まったら・新しく頼んだら、それまでに頼んだ答えは捨てる（前のページの favicon や、後から届いた古い答えを出さない）。読み込み中は頼まない。
 
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 
 use serde::Serialize;
@@ -35,18 +35,39 @@ struct FaviconEvent {
     icon: String,
 }
 
-/// タブ 1 つの、ページの読み込みの数（始まるたびに 1 増やす）。答えが来たときに数が変わっていれば、前のページの答えなので捨てる。
+/// タブ 1 つの、頼んだ数と、読み込み中か。
+/// 数は、ページの読み込みが始まるたびと、頼むたびに 1 増やす。答えが来たときに数が変わっていれば、前のページの答えか、
+/// もっと新しく頼んだものがある答えなので捨てる（後から届いた古い答えが、新しい答えを上書きしないように）。
+/// 読み込み中は頼まない（画面は地球のアイコンを出す。読み込みが終わったら必ず頼む）。
 #[derive(Clone, Default)]
-pub struct Page(Arc<AtomicU64>);
+pub struct Page {
+    seq: Arc<AtomicU64>,
+    loading: Arc<AtomicBool>,
+}
 
 impl Page {
-    /// ページの読み込みが始まった。
+    /// ページの読み込みが始まった。それまでに頼んだ答えは捨てる。
     pub fn started(&self) {
-        self.0.fetch_add(1, Ordering::SeqCst);
+        self.loading.store(true, Ordering::SeqCst);
+        self.seq.fetch_add(1, Ordering::SeqCst);
     }
 
-    fn now(&self) -> u64 {
-        self.0.load(Ordering::SeqCst)
+    /// ページの読み込みが終わった。
+    pub fn finished(&self) {
+        self.loading.store(false, Ordering::SeqCst);
+    }
+
+    /// 頼む。読み込み中なら None。そうでなければ、この頼みの数（それまでに頼んだ答えは捨てる）。
+    fn ask(&self) -> Option<u64> {
+        if self.loading.load(Ordering::SeqCst) {
+            return None;
+        }
+        Some(self.seq.fetch_add(1, Ordering::SeqCst) + 1)
+    }
+
+    /// 頼みの数 asked の答えを知らせてよいか（頼んだあとに、読み込みが始まっていない・新しく頼んでいない）。
+    fn current(&self, asked: u64) -> bool {
+        self.seq.load(Ordering::SeqCst) == asked
     }
 }
 
@@ -70,9 +91,9 @@ fn valid(s: &str) -> String {
     }
 }
 
-/// 答えを画面に知らせる。頼んだあとにページの読み込みが始まっていれば捨てる。
+/// 答えを画面に知らせる。頼んだあとに、ページの読み込みが始まった・新しく頼んだなら捨てる。
 fn tell(app: &AppHandle, tab: &str, page: &Page, asked: u64, answer: &str) {
-    if page.now() != asked {
+    if !page.current(asked) {
         return;
     }
     let _ = app.emit(
@@ -84,10 +105,12 @@ fn tell(app: &AppHandle, tab: &str, page: &Page, asked: u64, answer: &str) {
     );
 }
 
-/// タブのページの favicon を読みに行く（答えは後で `browser-favicon` で知らせる）。
+/// タブのページの favicon を読みに行く（答えは後で `browser-favicon` で知らせる）。読み込み中は何もしない。
 pub fn request(app: &AppHandle, v: &Webview, tab: &str, page: &Page) {
+    let Some(asked) = page.ask() else {
+        return;
+    };
     let (app, tab, page) = (app.clone(), tab.to_string(), page.clone());
-    let asked = page.now();
     let _ = v.with_webview(move |pv| run(pv, app, tab, page, asked));
 }
 
@@ -186,12 +209,20 @@ mod tests {
         assert!(!b.contains("};)"), "{b}");
     }
 
+    // 頼んだあとに読み込みが始まった・新しく頼んだなら、その答えは捨てる。読み込み中は頼まない
     #[test]
-    fn answers_for_an_old_page_are_dropped() {
+    fn only_the_newest_answer_is_told() {
         let p = Page::default();
-        let asked = p.now();
-        assert_eq!(p.now(), asked);
+        let first = p.ask().unwrap();
+        assert!(p.current(first));
+        let second = p.ask().unwrap();
+        assert!(!p.current(first));
+        assert!(p.current(second));
         p.started();
-        assert_ne!(p.now(), asked);
+        assert!(!p.current(second));
+        assert_eq!(p.ask(), None);
+        p.finished();
+        let third = p.ask().unwrap();
+        assert!(p.current(third));
     }
 }
