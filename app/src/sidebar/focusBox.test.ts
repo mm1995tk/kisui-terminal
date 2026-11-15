@@ -56,11 +56,27 @@ test("ヘッダーとコンテンツの境目に太い線があり、マシン�
   assert.doesNotMatch(rule(".band-item"), /border-left|machine-color/);
 });
 
-test("ファイルツリーと CHANGES は、今出しているターミナルのタブの行の中に開く", () => {
-  const row = tsx.indexOf("<TabRow");
-  const tree = tsx.indexOf("<TreeView");
-  const changes = tsx.indexOf("<ChangesView");
-  assert.ok(row !== -1 && tree > row && changes > tree);
+test("ファイルツリーと CHANGES は、今出しているターミナルのタブの行の中に開き、タブの並びを畳んでいてもヘッダーの下に出る", () => {
+  const panes = tsx.slice(tsx.indexOf("function RowPanes"));
+  assert.ok(panes.indexOf("<TreeView") < panes.indexOf("<ChangesView"));
+  const item = tsx.slice(
+    tsx.indexOf("function BandItem"),
+    tsx.indexOf("function TabRow"),
+  );
+  // 開いているときはタブの行（TabRow）の中、畳んでいるとき（Show の fallback）はヘッダーの下
+  assert.match(item, /fallback=\{<RowPanes \{\.\.\.props\} \/>\}/);
+  assert.match(
+    item,
+    /<TabRow[\s\S]*<RowPanes \{\.\.\.props\} \/>[\s\S]*<\/TabRow>/,
+  );
+  // ツリーと CHANGES の部品は、畳むかどうかを知らない
+  assert.doesNotMatch(
+    tsx.slice(
+      tsx.indexOf("function RowPanes"),
+      tsx.indexOf("function BandItem"),
+    ),
+    /folded/,
+  );
 });
 
 test("断られた理由は流れの中に置き、箱の clip で切り取られない（#172）", () => {
@@ -69,7 +85,7 @@ test("断られた理由は流れの中に置き、箱の clip で切り取ら�
   assert.match(err, /white-space: normal;/);
   assert.doesNotMatch(err, /text-overflow|nowrap/);
   // 理由の要素は、帯（.band-slot）の外・箱（li.band-item）の中に置く
-  const slotEnd = tsx.indexOf("</div>\n      </div>\n      {/* 断られた理由");
+  const slotEnd = tsx.indexOf("<BandHeader {...props}");
   assert.notEqual(slotEnd, -1);
   assert.ok(tsx.indexOf('class="band-rename-error"') > slotEnd);
 });

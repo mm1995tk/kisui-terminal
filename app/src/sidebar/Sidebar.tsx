@@ -475,7 +475,190 @@ function Grip(): JSX.Element {
   return <span class="grip" aria-hidden="true" />;
 }
 
-/** 帯 1 つ（ヘッダーとコンテンツ）。フォーカスしていれば、ヘッダーを上に固定する。 */
+/**
+ * 帯のヘッダー（つかむ所・畳む・名前（その場の入力欄）・「+」・鉛筆・✕）。フォーカスしていれば上に固定する。
+ * ヘッダーは行にして、ボタンを並べる。名前を変えている間は、フォーカスを移すボタンの所が入力欄の div になる（ボタンの中に入力欄もボタンも置けない）。
+ */
+function BandHeader(
+  props: Handlers & { row: Row; editing: Handlers["renaming"] },
+): JSX.Element {
+  const b = () => props.row.band;
+  const tabs = () => props.row.tabs;
+  const editing = () => props.editing ?? undefined;
+  return (
+    <div class="band-slot" data-sticky={b().focused ? "top" : undefined}>
+      <div
+        class="band"
+        aria-current={b().focused ? "true" : undefined}
+        title={b().root || undefined}
+        onContextMenu={(e) => {
+          if (!props.onBandMenu) return;
+          e.preventDefault();
+          props.onBandMenu(props.row.target, b().id, e.clientX, e.clientY);
+        }}
+      >
+        <Grip />
+        <button
+          type="button"
+          class="band-btn band-fold"
+          aria-expanded={!tabs().folded}
+          aria-label={T("sidebar.foldTabs")}
+          title={T("sidebar.foldTabs")}
+          onClick={() => props.onTabsFold?.(props.row.gws)}
+        >
+          <Nf c={tabs().folded ? ICON.folded : ICON.open} />
+        </button>
+        <Show
+          when={editing()}
+          fallback={
+            <button
+              type="button"
+              class="band-main"
+              onClick={() => props.onFocus(props.row.target, b().id)}
+            >
+              <span class="band-title">{b().title}</span>
+            </button>
+          }
+        >
+          {(r) => (
+            // 入力欄はボタンの中に置けないので、名前を変えている間は div にする
+            <div class="band-main">
+              <input
+                class="band-rename"
+                type="text"
+                aria-label={T("sidebar.nameLabel")}
+                aria-invalid={r().error ? "true" : undefined}
+                placeholder={T("sidebar.namePlaceholder", { auto: r().auto })}
+                value={r().current}
+                onKeyDown={(e) => {
+                  const a = renameKeyAction(e);
+                  if (!a) return;
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (a === "submit")
+                    props.onRenameSubmit?.(e.currentTarget.value);
+                  else props.onRenameCancel?.(true);
+                }}
+                onBlur={() => {
+                  // ほかのアプリに切り替えただけ（窓が外れた）では、打ちかけの名前を消さない
+                  if (document.hasFocus()) props.onRenameCancel?.();
+                }}
+                ref={(el) =>
+                  // リーダーの後でターミナルにフォーカスが戻るのと競らないよう、1 拍置いて取る
+                  setTimeout(() => {
+                    el.focus();
+                    el.select();
+                  })
+                }
+              />
+            </div>
+          )}
+        </Show>
+        <Show when={props.onAddMenu}>
+          <button
+            type="button"
+            class="band-btn band-add"
+            aria-haspopup="menu"
+            aria-label={T("sidebar.addTabTo", { title: b().title })}
+            title={T("sidebar.addTab")}
+            onClick={(e) => {
+              const r = e.currentTarget.getBoundingClientRect();
+              props.onAddMenu?.(props.row.gws, r.left, r.bottom);
+            }}
+          >
+            <Nf c={ICON.plus} />
+          </button>
+        </Show>
+        <button
+          type="button"
+          class="band-btn band-close band-edit"
+          data-off={props.onRenameWorkspace && !editing() ? undefined : ""}
+          aria-label={T("sidebar.renameBand", { title: b().title })}
+          title={T("sidebar.rename")}
+          onClick={() => props.onRenameWorkspace?.(props.row.target, b().id)}
+        >
+          <Nf c={ICON.pencil} />
+        </button>
+        <button
+          type="button"
+          class="band-btn band-close"
+          data-off={props.onClose ? undefined : ""}
+          aria-label={T("sidebar.closeBand", { title: b().title })}
+          title={T("sidebar.closeWorkspace")}
+          onClick={() => props.onClose?.(props.row.gws)}
+        >
+          <Nf c={ICON.close} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * 今出しているターミナルのタブの下に開く、ファイルツリーと CHANGES（プライマリで shj が動いている、フォーカスしているワークスペースだけ）。
+ * タブの並びを開いているときはそのタブの行の中、畳んでいるときはヘッダーのすぐ下に出す（畳んでもツリーは消えない）。
+ */
+function RowPanes(props: Handlers & { row: Row }): JSX.Element {
+  const b = () => props.row.band;
+  return (
+    <>
+      <Show
+        when={
+          b().focused &&
+          b().showTree &&
+          props.treeOf?.(props.row.target, b().id)
+        }
+      >
+        {(rows) => (
+          <TreeView
+            rows={rows()}
+            label={T("sidebar.files", { title: b().title })}
+            onToggle={(p) => props.onToggle?.(props.row.target, b().id, p)}
+            onOpen={(p) => props.onOpen?.(props.row.target, b().id, p)}
+            current={props.currentOf?.(props.row.target, b().id)}
+            onMenu={
+              props.onTreeMenu
+                ? (row, x, y) =>
+                    props.onTreeMenu?.(props.row.target, b().id, row, x, y)
+                : undefined
+            }
+            onAction={
+              props.onTreeAction
+                ? (row, a) =>
+                    props.onTreeAction?.(props.row.target, b().id, row, a)
+                : undefined
+            }
+          />
+        )}
+      </Show>
+      <Show
+        when={
+          b().focused &&
+          b().showTree &&
+          props.changesOf?.(props.row.target, b().id)
+        }
+      >
+        {(c) => (
+          <ChangesView
+            rows={c().rows}
+            base={c().base}
+            label={T("sidebar.changes", { title: b().title })}
+            onSelect={(p) => props.onChange?.(props.row.target, b().id, p)}
+            onShjKey={(k) => props.onChangesKey?.(props.row.target, b().id, k)}
+            onExplorer={() =>
+              props.onChangesExplorer?.(props.row.target, b().id)
+            }
+            onLeave={() => props.onChangesLeave?.(props.row.target, b().id)}
+            onResizeStart={props.onChangesResize}
+            onResizeReset={props.onChangesResizeReset}
+          />
+        )}
+      </Show>
+    </>
+  );
+}
+
+/** 帯 1 つ（ヘッダーとコンテンツ）。 */
 function BandItem(props: Handlers & { row: Row }): JSX.Element {
   const b = () => props.row.band;
   const tabs = () => props.row.tabs;
@@ -493,112 +676,7 @@ function BandItem(props: Handlers & { row: Row }): JSX.Element {
       data-focused={b().focused ? "" : undefined}
       data-health={props.row.health}
     >
-      {/* ヘッダーは行にして、ボタン（畳む・フォーカスを移す・足す・名前を変える・閉じる）を並べる。名前を変えている間は、フォーカスを移すボタンの所が入力欄の div になる（ボタンの中に入力欄もボタンも置けない） */}
-      <div class="band-slot" data-sticky={b().focused ? "top" : undefined}>
-        <div
-          class="band"
-          aria-current={b().focused ? "true" : undefined}
-          title={b().root || undefined}
-          onContextMenu={(e) => {
-            if (!props.onBandMenu) return;
-            e.preventDefault();
-            props.onBandMenu(props.row.target, b().id, e.clientX, e.clientY);
-          }}
-        >
-          <Grip />
-          <button
-            type="button"
-            class="band-btn band-fold"
-            aria-expanded={!tabs().folded}
-            aria-label={T("sidebar.foldTabs")}
-            title={T("sidebar.foldTabs")}
-            onClick={() => props.onTabsFold?.(props.row.gws)}
-          >
-            <Nf c={tabs().folded ? ICON.folded : ICON.open} />
-          </button>
-          <Show
-            when={editing()}
-            fallback={
-              <button
-                type="button"
-                class="band-main"
-                onClick={() => props.onFocus(props.row.target, b().id)}
-              >
-                <span class="band-title">{b().title}</span>
-              </button>
-            }
-          >
-            {(r) => (
-              // 入力欄はボタンの中に置けないので、名前を変えている間は div にする
-              <div class="band-main">
-                <input
-                  class="band-rename"
-                  type="text"
-                  aria-label={T("sidebar.nameLabel")}
-                  aria-invalid={r().error ? "true" : undefined}
-                  placeholder={T("sidebar.namePlaceholder", { auto: r().auto })}
-                  value={r().current}
-                  onKeyDown={(e) => {
-                    const a = renameKeyAction(e);
-                    if (!a) return;
-                    e.preventDefault();
-                    e.stopPropagation();
-                    if (a === "submit")
-                      props.onRenameSubmit?.(e.currentTarget.value);
-                    else props.onRenameCancel?.(true);
-                  }}
-                  onBlur={() => {
-                    // ほかのアプリに切り替えただけ（窓が外れた）では、打ちかけの名前を消さない
-                    if (document.hasFocus()) props.onRenameCancel?.();
-                  }}
-                  ref={(el) =>
-                    // リーダーの後でターミナルにフォーカスが戻るのと競らないよう、1 拍置いて取る
-                    setTimeout(() => {
-                      el.focus();
-                      el.select();
-                    })
-                  }
-                />
-              </div>
-            )}
-          </Show>
-          <Show when={props.onAddMenu}>
-            <button
-              type="button"
-              class="band-btn band-add"
-              aria-haspopup="menu"
-              aria-label={T("sidebar.addTabTo", { title: b().title })}
-              title={T("sidebar.addTab")}
-              onClick={(e) => {
-                const r = e.currentTarget.getBoundingClientRect();
-                props.onAddMenu?.(props.row.gws, r.left, r.bottom);
-              }}
-            >
-              <Nf c={ICON.plus} />
-            </button>
-          </Show>
-          <button
-            type="button"
-            class="band-btn band-close band-edit"
-            data-off={props.onRenameWorkspace && !editing() ? undefined : ""}
-            aria-label={T("sidebar.renameBand", { title: b().title })}
-            title={T("sidebar.rename")}
-            onClick={() => props.onRenameWorkspace?.(props.row.target, b().id)}
-          >
-            <Nf c={ICON.pencil} />
-          </button>
-          <button
-            type="button"
-            class="band-btn band-close"
-            data-off={props.onClose ? undefined : ""}
-            aria-label={T("sidebar.closeBand", { title: b().title })}
-            title={T("sidebar.closeWorkspace")}
-            onClick={() => props.onClose?.(props.row.gws)}
-          >
-            <Nf c={ICON.close} />
-          </button>
-        </div>
-      </div>
+      <BandHeader {...props} editing={editing()} />
       {/* 断られた理由は、帯の下に流れで置く（下のツリーが押し下がる）。重ねると、箱の overflow: clip（#170）で切り取られる */}
       <Show when={editing()?.error}>
         {(e) => (
@@ -607,7 +685,7 @@ function BandItem(props: Handlers & { row: Row }): JSX.Element {
           </div>
         )}
       </Show>
-      <Show when={!tabs().folded}>
+      <Show when={!tabs().folded} fallback={<RowPanes {...props} />}>
         <ul
           class="tab-rows"
           aria-label={T("sidebar.tabsOf", { title: b().title })}
@@ -626,81 +704,8 @@ function BandItem(props: Handlers & { row: Row }): JSX.Element {
                     : undefined
                 }
               >
-                {/* ファイルツリーと CHANGES は、今出しているターミナルのタブの行の下に開く */}
                 <Show when={t.key === repKey()}>
-                  <Show
-                    when={
-                      b().focused &&
-                      b().showTree &&
-                      props.treeOf?.(props.row.target, b().id)
-                    }
-                  >
-                    {(rows) => (
-                      <TreeView
-                        rows={rows()}
-                        label={T("sidebar.files", { title: b().title })}
-                        onToggle={(p) =>
-                          props.onToggle?.(props.row.target, b().id, p)
-                        }
-                        onOpen={(p) =>
-                          props.onOpen?.(props.row.target, b().id, p)
-                        }
-                        current={props.currentOf?.(props.row.target, b().id)}
-                        onMenu={
-                          props.onTreeMenu
-                            ? (row, x, y) =>
-                                props.onTreeMenu?.(
-                                  props.row.target,
-                                  b().id,
-                                  row,
-                                  x,
-                                  y,
-                                )
-                            : undefined
-                        }
-                        onAction={
-                          props.onTreeAction
-                            ? (row, a) =>
-                                props.onTreeAction?.(
-                                  props.row.target,
-                                  b().id,
-                                  row,
-                                  a,
-                                )
-                            : undefined
-                        }
-                      />
-                    )}
-                  </Show>
-                  <Show
-                    when={
-                      b().focused &&
-                      b().showTree &&
-                      props.changesOf?.(props.row.target, b().id)
-                    }
-                  >
-                    {(c) => (
-                      <ChangesView
-                        rows={c().rows}
-                        base={c().base}
-                        label={T("sidebar.changes", { title: b().title })}
-                        onSelect={(p) =>
-                          props.onChange?.(props.row.target, b().id, p)
-                        }
-                        onShjKey={(k) =>
-                          props.onChangesKey?.(props.row.target, b().id, k)
-                        }
-                        onExplorer={() =>
-                          props.onChangesExplorer?.(props.row.target, b().id)
-                        }
-                        onLeave={() =>
-                          props.onChangesLeave?.(props.row.target, b().id)
-                        }
-                        onResizeStart={props.onChangesResize}
-                        onResizeReset={props.onChangesResizeReset}
-                      />
-                    )}
-                  </Show>
+                  <RowPanes {...props} />
                 </Show>
               </TabRow>
             )}
