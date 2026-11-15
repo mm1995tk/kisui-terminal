@@ -1,7 +1,8 @@
-// サイドバーの帯とタブの行を、つかむ所（.grip）からのドラッグで上下に並べ替える（#236）。
-// 動くのは上下だけ。落とし先は、押している位置（y）が、どの行の真ん中より上かで決める。
+// サイドバーの帯とタブの行を、つかむ所（.grip）からのドラッグで上下に並べ替える（#236, #259）。
+// 動くのは上下だけ。つかんだ行はマウスについて動き、ほかの行は入る場所を空けるようによける（どちらも transform。よける動きの速さは CSS の transition）。
+// 落とし先は、つかんだ行の真ん中が、どの行の真ん中より上かで決める。
 // 並びそのものは持たない（落とし先を「どの行の前か」で App に返し、App が gws/model.ts の moveBefore・moveTabBefore で動かして覚える）。
-// DOM を触るのは startDrag と dropMarker だけ。落とし先を決める dropBefore と、自動のスクロールの量 edgeScroll は DOM を使わない（node --test で確かめられる）。
+// DOM を触るのは startDrag だけ。落とし先を決める dropBefore、よける量を決める layoutShifts と、自動のスクロールの量 edgeScroll は DOM を使わない（node --test で確かめられる）。
 //
 // 行の DOM は、ドラッグの途中でも作り直される（サイドバーの行は、ターミナルの題名や git の知らせで作り直される）。
 // そのため、行の要素を覚えず、動くたびに items() で引き直す。動かしている行も、そのたびに印を付け直す。
@@ -25,25 +26,44 @@ export function dropBefore(
   return null;
 }
 
-/** 落とし先の印を付ける行（target）と、その行の上（before）か下（after）か。 */
-export interface DropPlan {
-  /** 落とした行の前に入る行のキー（一番後ろなら null） */
-  before: string | null;
-  /** 印を付ける行（動かす行しか無ければ null） */
-  target: string | null;
-  at: "before" | "after";
+/** 並びの 1 行の、動かす前の縦の位置（top は画面での上端、height は高さ）。 */
+export interface DragSlot {
+  key: string;
+  top: number;
+  height: number;
 }
 
-/** y に落とすときの、落とし先と印。一番後ろなら、一番後ろの行の下に印を付ける。 */
-export function dropPlan(
-  items: readonly DragItem[],
+/**
+ * つかんだ行（self）が before の行の前に入るとき、ほかの行がよける量（px。下へなら正）。
+ * items は動かす前の位置で、上から順（self も含む）。つかんだ行が抜けた空きと、入る空きの間にある行だけが、1 行分（行間も）動く。
+ */
+export function layoutShifts(
+  items: readonly DragSlot[],
   self: string,
-  y: number,
-): DropPlan {
-  const before = dropBefore(items, self, y);
-  if (before !== null) return { before, target: before, at: "before" };
-  const last = items.filter((it) => it.key !== self).pop();
-  return { before: null, target: last?.key ?? null, at: "after" };
+  before: string | null,
+): Map<string, number> {
+  const out = new Map<string, number>();
+  const i = items.findIndex((it) => it.key === self);
+  if (i < 0) return out;
+  const s = items[i]!;
+  const others = items.filter((it) => it.key !== self);
+  if (others.length === 0) return out;
+  // 1 行分の幅：次の行の上端までの距離。一番後ろなら、行の高さに前の行との間を足す
+  const next = items[i + 1];
+  const prev = items[i - 1];
+  const slot = next
+    ? next.top - s.top
+    : s.height + (s.top - (prev!.top + prev!.height));
+  const found =
+    before === null ? -1 : others.findIndex((o) => o.key === before);
+  const j = found < 0 ? others.length : found;
+  others.forEach((o, k) => {
+    let d = 0;
+    if (k < i && k >= j) d = slot;
+    else if (k >= i && k < j) d = -slot;
+    out.set(o.key, d);
+  });
+  return out;
 }
 
 /** 動かしてよいほど離れたか（押しただけ・少し手が触れただけでは始めない）。 */
@@ -62,24 +82,99 @@ export function edgeScroll(y: number, top: number, bottom: number): number {
   return 0;
 }
 
+/** つかんだ行の、動かした量と、落とし先を決める位置。 */
+export interface DragPosition {
+  /** つかんだ行の移動量（px。下へなら正） */
+  shift: number;
+  /** この位置を、ほかの行の真ん中と比べて落とし先を決める */
+  probe: number;
+}
+
+/**
+ * つかんだ行（self）を want（px）動かしたいときの、実際の移動量と落とし先を決める位置。
+ * 下へ動かすときは、つかんだ行の下端を、上へ動かすときは上端を、ほかの行の真ん中と比べる（背の高い行でも、空く場所とつかんだ行の位置が合う。上下とも、行の半分動くとよける。confine で端に止めたときも、端の行の前後に入れる）。
+ * confine なら、全部の行の上端から下端までの内に収める（タブの行が、帯の外で切れて見えなくならないように）。
+ */
+export function dragPosition(
+  items: readonly DragSlot[],
+  self: string,
+  want: number,
+  confine: boolean,
+): DragPosition | null {
+  const s = items.find((it) => it.key === self);
+  if (!s) return null;
+  let shift = want;
+  if (confine) {
+    const first = items[0]!;
+    const last = items[items.length - 1]!;
+    shift = Math.min(
+      Math.max(shift, first.top - s.top),
+      last.top + last.height - (s.top + s.height),
+    );
+  }
+  return {
+    shift,
+    probe: shift > 0 ? s.top + shift + s.height : s.top + shift,
+  };
+}
+
 /** 並びの 1 行の、いまの DOM。 */
 export interface DragRow {
   key: string;
-  /** 印（data-dragging・data-drop）を付ける要素 */
+  /** 動かす要素（transform を掛ける。つかんだ行に data-dragging、よける行に data-shift を付ける） */
   el: HTMLElement;
-  /** 縦の真ん中を測る要素 */
+  /** 落とし先を決めるために、縦の真ん中を測る要素（el の中） */
   ref: HTMLElement;
 }
 
-/** 落とし先の印。data-drop="before"（その行の上）か "after"（その行の下）を、いま 1 つの行にだけ付ける。 */
-function dropMarker() {
-  let marked: HTMLElement | null = null;
-  return (el: HTMLElement | null, at?: "before" | "after") => {
-    if (marked === el && el?.dataset.drop === at) return;
-    marked?.removeAttribute("data-drop");
-    marked = el;
-    if (el && at) el.dataset.drop = at;
-  };
+/** el にいま掛かっている縦の移動量（px）。transition の途中なら、途中の値。 */
+function currentShift(el: HTMLElement): number {
+  const t = getComputedStyle(el).transform;
+  return t && t !== "none" ? new DOMMatrixReadOnly(t).m42 : 0;
+}
+
+/** 行の、動く前の（transform を除いた）位置。transition の途中でも、いまの移動量を引けば元の位置が分かる。 */
+function measureRows(rows: readonly DragRow[]) {
+  return rows.map((r) => {
+    const shift = currentShift(r.el);
+    const b = r.el.getBoundingClientRect();
+    const m = r.ref.getBoundingClientRect();
+    return {
+      key: r.key,
+      el: r.el,
+      top: b.top - shift,
+      height: b.height,
+      mid: m.top - shift + m.height / 2,
+    };
+  });
+}
+
+/** el の transform と印を外す。 */
+function clearRow(el: HTMLElement) {
+  el.removeAttribute("data-dragging");
+  el.removeAttribute("data-shift");
+  el.style.transform = "";
+}
+
+/** つかんだ行に selfShift、ほかの行に shifts の量の transform と印を掛ける。掛けた要素を返す。 */
+function applyDrag(
+  measured: readonly { key: string; el: HTMLElement }[],
+  self: string,
+  selfShift: number,
+  shifts: ReadonlyMap<string, number>,
+): HTMLElement[] {
+  for (const n of measured) {
+    if (n.key === self) {
+      n.el.setAttribute("data-dragging", "");
+      n.el.removeAttribute("data-shift");
+      n.el.style.transform = `translateY(${selfShift}px)`;
+    } else {
+      n.el.removeAttribute("data-dragging");
+      n.el.setAttribute("data-shift", "");
+      n.el.style.transform = `translateY(${shifts.get(n.key) ?? 0}px)`;
+    }
+  }
+  return measured.map((n) => n.el);
 }
 
 export interface DragSpec {
@@ -89,6 +184,8 @@ export interface DragSpec {
   self: string;
   /** 並びの全部の行（動かしている行も）を、いまの DOM から引き直して返す。呼ぶたびに引き直すこと */
   rows: () => DragRow[];
+  /** true なら、つかんだ行を、全部の行の上端から下端までの内でしか動かさない（タブの行。帯の外で切れて見えなくならないように） */
+  confine?: boolean;
   /** 落とした（before は、その行の前。一番後ろなら null）。動かさずに離したときは呼ばない */
   onDrop: (before: string | null) => void;
 }
@@ -104,29 +201,37 @@ export function startDrag(e: PointerEvent, spec: DragSpec): void {
   let active = false;
   let frame = 0;
   let before: string | null = null;
-  let dragged: HTMLElement | null = null;
-  const mark = dropMarker();
+  let grabOffset: number | null = null; // つかんだ行の上端から、押した位置までの距離
+  let marked: HTMLElement[] = [];
 
-  // 落とし先を決めて印を付ける。動かしている行の印も、作り直されていれば付け直す
+  // 行を動かす。行は作り直されることがあるので、毎回いまの DOM から引き直して掛け直す
   const update = () => {
-    const rows = spec.rows();
-    const self = rows.find((r) => r.key === spec.self)?.el ?? null;
-    if (self !== dragged) {
-      dragged?.removeAttribute("data-dragging");
-      dragged = self;
-      dragged?.setAttribute("data-dragging", "");
-    }
-    const plan = dropPlan(
-      rows.map((r) => {
-        const b = r.ref.getBoundingClientRect();
-        return { key: r.key, mid: b.top + b.height / 2 };
-      }),
+    const measured = measureRows(spec.rows());
+    const self = measured.find((n) => n.key === spec.self);
+    if (!self) return;
+    grabOffset ??= startY - self.top;
+    const pos = dragPosition(
+      measured,
       spec.self,
-      y,
+      y - grabOffset - self.top,
+      spec.confine === true,
+    )!;
+    before = dropBefore(measured, spec.self, pos.probe);
+    const now = applyDrag(
+      measured,
+      spec.self,
+      pos.shift,
+      layoutShifts(measured, spec.self, before),
     );
-    before = plan.before;
-    mark(rows.find((r) => r.key === plan.target)?.el ?? null, plan.at);
+    for (const el of marked) if (!now.includes(el)) clearRow(el);
+    marked = now;
   };
+
+  // 行が作り直されたら（題名や git の知らせ）、新しい行にも掛け直す
+  const observer = new MutationObserver(() => {
+    if (active) update();
+  });
+  observer.observe(spec.scroller, { childList: true, subtree: true });
 
   // 一覧の端にいるあいだは、フレームごとにスクロールする
   const tick = () => {
@@ -152,17 +257,19 @@ export function startDrag(e: PointerEvent, spec: DragSpec): void {
   };
 
   const finish = (drop: boolean) => {
+    const wasActive = active;
+    active = false;
     window.removeEventListener("pointermove", move, true);
     window.removeEventListener("pointerup", up, true);
     window.removeEventListener("pointercancel", cancel, true);
     window.removeEventListener("keydown", key, true);
     window.removeEventListener("blur", cancel);
     if (frame !== 0) cancelAnimationFrame(frame);
-    mark(null);
-    dragged?.removeAttribute("data-dragging");
+    observer.disconnect();
+    for (const el of marked) clearRow(el);
+    for (const r of spec.rows()) clearRow(r.el);
     document.body.style.cursor = "";
-    if (active && drop) spec.onDrop(before);
-    active = false;
+    if (wasActive && drop) spec.onDrop(before);
   };
   const up = () => finish(true);
   const cancel = () => finish(false);
