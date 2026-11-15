@@ -811,6 +811,11 @@ describe("内蔵ブラウザ（#202。設定で有効にしたときだけ）", 
         ["o x", ""],
         ["o e", ""],
         ["o z", ""],
+        ["o b", ""],
+        ["o B", ""],
+        ["o /", "Cmd+F"],
+        ["o y", ""],
+        ["o i", ""],
       ]);
       // 続けて押せるのは、戻る・進む・グリッドとタブを回る
       const repeat = (childrenAt(["o"]) ?? [])
@@ -843,6 +848,43 @@ describe("内蔵ブラウザ（#202。設定で有効にしたときだけ）", 
         );
       });
 
+      it(`${os}：ブラウザを出している間だけ、${mac ? "Cmd+F" : "Ctrl+F"} はページ内検索（#205）。ほかのときはターミナルに届く`, () => {
+        const F = mac ? key("f", "m", "KeyF") : key("f", "c", "KeyF");
+        assert.deepEqual(press(mac, [F], { browser: true }).runs, [
+          { id: "browser.find" },
+        ]);
+        const r = press(mac, [F]);
+        assert.deepEqual(r.runs, []);
+        assert.equal(r.passed.length, 1);
+        // リサイズモードの中は受けない
+        assert.deepEqual(
+          press(mac, [F], { browser: true, resizeMode: true }).runs,
+          [],
+        );
+        // ページにキーがある間も受ける
+        assert.ok(
+          interceptKeys(mac).some(
+            (k) =>
+              k.key === "f" && k.meta === mac && k.ctrl === !mac && !k.shift,
+          ),
+        );
+      });
+
+      it(`${os}：o b は今のページを足し、o B（Shift+b）は一覧を開く（#205）`, () => {
+        const L = LEADER_KEY(mac);
+        assert.deepEqual(press(mac, [L, key("o"), key("b")]).runs, [
+          { id: "browser.bookmark" },
+        ]);
+        assert.deepEqual(
+          press(mac, [L, key("o"), key("B", "s", "KeyB")]).runs,
+          [{ id: "browser.bookmarks" }],
+        );
+        assert.deepEqual(
+          press(mac, [L, key("o"), key("/", "", "Slash")]).runs,
+          [{ id: "browser.find" }],
+        );
+      });
+
       it(`${os}：o j を続けて押すと、リーダーを出ずに回り続ける`, () => {
         const r = press(mac, [LEADER_KEY(mac), key("o"), key("j"), key("j")]);
         assert.deepEqual(r.runs, [
@@ -867,6 +909,21 @@ describe("内蔵ブラウザ（#202。設定で有効にしたときだけ）", 
             seen.set(s, path.join(" "));
           }
         }
+      }
+    });
+
+    it("Linux で Ctrl 単独を使う近道は、ブラウザを出している間だけの Ctrl+F（ページ内検索）だけ", () => {
+      for (const { node } of leaves()) {
+        const s = node.shortcut?.other;
+        if (
+          !s ||
+          /^Ctrl\+Shift\+[A-Z]$/.test(s) ||
+          s === "Ctrl+=" ||
+          s === "Ctrl+0"
+        )
+          continue;
+        assert.equal(s, "Ctrl+F");
+        assert.ok(node.type === "leaf" && node.shortcutInBrowser);
       }
     });
 

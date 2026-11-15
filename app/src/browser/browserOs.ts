@@ -5,6 +5,7 @@ import { listen } from "@tauri-apps/api/event";
 
 import type { InterceptKey } from "../commands.ts";
 import type { KeyLike } from "../guiKeys.ts";
+import type { Bookmark } from "./bookmarks.ts";
 import type { Bounds } from "./overlay.ts";
 import type { StoredTabs } from "./tabs.ts";
 
@@ -57,6 +58,38 @@ export function navTab(
   action: "back" | "forward" | "reload",
 ): Promise<void> {
   return invoke("browser_nav", { tab, action });
+}
+
+/** ページの表示の大きさを変える（1 が元の大きさ。#205）。 */
+export function zoomTab(tab: string, zoom: number): Promise<void> {
+  return invoke("browser_zoom", { tab, zoom });
+}
+
+/**
+ * ページ内を探す（#205）。mode は `first`（探す字を変えた。今の所から探し直す）・`next`・`prev`。見つかったかを返す。
+ * 見つけた所はページの選択になり、そこまでスクロールする。端では折り返す。
+ */
+export function findInTab(
+  tab: string,
+  text: string,
+  mode: "first" | "next" | "prev",
+): Promise<boolean> {
+  return invoke("browser_find", { tab, text, mode });
+}
+
+/** タブのページの DevTools を開く（#205）。 */
+export function openTabDevtools(tab: string): Promise<void> {
+  return invoke("browser_devtools", { tab });
+}
+
+/** 覚えたブックマーク（#205。すべてのワークスペースで共有）。 */
+export function loadBookmarks(): Promise<Bookmark[]> {
+  return invoke("browser_bookmarks_load");
+}
+
+/** ブックマークを覚える（丸ごと置き換える）。 */
+export function saveBookmarks(bookmarks: readonly Bookmark[]): Promise<void> {
+  return invoke("browser_bookmarks_save", { bookmarks });
 }
 
 /** タブを閉じる（子の webview を壊す）。 */

@@ -22,3 +22,71 @@
   text-align: center;
   overflow-wrap: anywhere;
 }
+
+/* ブックマークの一覧（#205。BookmarkDialog.tsx）。行は題と、右に薄く URL */
+.bookmark-rows {
+  max-height: 50vh;
+}
+.bookmark-url {
+  flex: 0 1 auto;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ページ内検索の欄（#205。FindBar.tsx）。ブラウザを出す場所の下の端に置き、ページはその上まで縮む（BrowserArea の data-overlay） */
+.find-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--gh-bg-raised);
+  border-top: 1px solid var(--gh-border);
+  font-size: 12px;
+  color: var(--gh-text-muted);
+}
+.find-input {
+  flex: 0 1 280px;
+  min-width: 80px;
+  padding: 3px 6px;
+  border: 1px solid var(--gh-border);
+  border-radius: 4px;
+  background: var(--gh-bg-field);
+  color: var(--gh-text-strong);
+  font: inherit;
+  font-size: 13px;
+}
+.find-input:focus {
+  outline: 1px solid var(--gh-accent);
+}
+.find-input[aria-invalid="true"] {
+  border-color: var(--gh-red);
+}
+.find-status {
+  color: var(--gh-red);
+}
+.find-hint {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.find-close {
+  flex: none;
+  padding: 2px 6px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.find-close:hover {
+  background: var(--gh-bg);
+  color: var(--gh-text-strong);
+}

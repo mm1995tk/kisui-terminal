@@ -139,6 +139,8 @@ fn create(app: &AppHandle) -> tauri::Result<WebviewWindow> {
         .skip_taskbar(true)
         // macOS：今いるデスクトップ（Space）に出す（メイン窓のあるデスクトップに移らない）
         .visible_on_all_workspaces(true)
+        // 内蔵ブラウザのために tauri の feature `devtools` を入れている（#205）。kisui-terminal の画面では、release では使わせない
+        .devtools(cfg!(debug_assertions))
         .visible(false)
         .focused(true)
         .build()?;

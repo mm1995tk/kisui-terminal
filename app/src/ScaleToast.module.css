@@ -13,3 +13,12 @@
   pointer-events: none;
   z-index: 1000;
 }
+
+/* 内蔵ブラウザのページを出している間は、画面の下の中央に出す（ページが下の端を上げて避ける。ScaleToast.tsx） */
+.overPage {
+  top: auto;
+  right: auto;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+}

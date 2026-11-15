@@ -135,6 +135,50 @@ describe("内蔵ブラウザのタブ", () => {
     assert.deepEqual(back.views, {});
   });
 
+  it("表示の大きさ（#205）はタブごとに覚え、百分率で書く。元の大きさと選べない値は書かない・読まない", () => {
+    let s = updateTab(three(), "a", { zoom: 1.25 });
+    s = updateTab(s, "b", { zoom: 0.7 });
+    assert.equal(updateTab(s, "a", { zoom: 1.25 }), s);
+    const stored = toStored(s);
+    assert.equal(stored.tabs[0].zoom, 125);
+    assert.equal(stored.tabs[1].zoom, 70);
+    assert.ok(!("zoom" in stored.tabs[2]));
+    const back = fromStored(JSON.parse(JSON.stringify(stored)));
+    assert.deepEqual(
+      back.tabs.map((t) => t.zoom),
+      [1.25, 0.7, undefined, undefined],
+    );
+    const odd = fromStored({
+      tabs: [
+        {
+          id: "a",
+          target: "@local",
+          workspace: "w",
+          url: "https://a/",
+          zoom: 133,
+        },
+        {
+          id: "b",
+          target: "@local",
+          workspace: "w",
+          url: "https://b/",
+          zoom: 100,
+        },
+        {
+          id: "c",
+          target: "@local",
+          workspace: "w",
+          url: "https://c/",
+          zoom: "2",
+        },
+      ],
+    });
+    assert.deepEqual(
+      odd.tabs.map((t) => t.zoom),
+      [undefined, undefined, undefined],
+    );
+  });
+
   it("覚えていたものの、形の違うもの・重なり・使えない id は捨てる", () => {
     const got = fromStored({
       tabs: [

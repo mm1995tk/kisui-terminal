@@ -11,7 +11,13 @@ tauri-build = { version = "=2.7.3", features = [] }
 [dependencies]
 # macos-private-api：外から開くクリップボードの履歴の窓を透明にして角を丸く見せる（tauri.conf.json の macOSPrivateApi と揃える）
 # unstable：内蔵ブラウザのタブ（browser.rs）を、子の webview としてメイン窓に重ねる（Window::add_child）
-tauri = { version = "=2.12.4", features = ["macos-private-api", "unstable"] }
+# devtools：内蔵ブラウザのタブのページの DevTools（リーダーの `o i`。#205）を release でも開く。macOS では Apple の非公開の API を使う
+# （App Store では配らないので問題ない）。メイン窓と履歴の窓では、release では切る（main.rs の context・clipboard_popup.rs）
+tauri = { version = "=2.12.4", features = [
+  "macos-private-api",
+  "unstable",
+  "devtools",
+] }
 # 版は Cargo.lock にすでにある（tauri が使っている）ものに合わせる
 serde = { version = "=1.0.229", features = ["derive"] }
 serde_json = "=1.0.154"

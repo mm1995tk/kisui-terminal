@@ -2,6 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod askpass;
+mod bookmarks;
 mod browser;
 mod clipboard_history;
 mod clipboard_popup;
@@ -117,6 +118,18 @@ fn askpass_reply(state: State<AppState>, request_id: u64, value: Option<String>)
     state.askpass.reply(request_id, value);
 }
 
+/// tauri の設定（tauri.conf.json）。内蔵ブラウザの DevTools（リーダーの `o i`。#205）のために tauri の feature `devtools` を入れて
+/// いるので、release では、メイン窓（kisui-terminal の画面）の DevTools を切る（タブのページだけで使う。browser.rs の tab_builder）。
+fn context() -> tauri::Context<tauri::Wry> {
+    #[allow(unused_mut)]
+    let mut ctx = tauri::generate_context!();
+    #[cfg(not(debug_assertions))]
+    for w in &mut ctx.config_mut().app.windows {
+        w.devtools = Some(false);
+    }
+    ctx
+}
+
 fn main() {
     // ssh が SSH_ASKPASS としてこの実行ファイルを起動したときは、窓を出さず質問を本体に中継する。
     if std::env::var_os(askpass::ENV_SOCK).is_some() {
@@ -204,6 +217,11 @@ fn main() {
             browser::browser_close,
             browser::browser_tabs_load,
             browser::browser_tabs_save,
+            browser::browser_zoom,
+            browser::browser_find,
+            browser::browser_devtools,
+            bookmarks::browser_bookmarks_load,
+            bookmarks::browser_bookmarks_save,
             download::download_open,
             download::download_reveal,
             clipboard_history::clipboard_history_list,
@@ -225,7 +243,7 @@ fn main() {
             update::update_check_now,
             update::update_install
         ])
-        .build(tauri::generate_context!())
+        .build(context())
         .expect("failed to build kisui-terminal")
         .run(|app, event| {
             // メイン窓が閉じたら、隠れている履歴の窓も閉じる（残るとアプリが終わらない）

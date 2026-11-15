@@ -22,12 +22,13 @@ import {
   moveTab,
   openTab,
   showTabView,
+  zoomTab,
 } from "./browserOs.ts";
 import { pageBounds, sameBounds, toLogical, type Bounds } from "./overlay.ts";
 import type { BrowserTab } from "./tabs.ts";
 import "./browser.css";
 
-/** 上に出ていて、ページが避けるもの（右下のお知らせ・リーダーの案内とキャラクター・右クリックのメニュー）。トーストは避けない */
+/** 上に出ていて、ページが避けるもの（右下のお知らせ・リーダーの案内とキャラクター・右クリックのメニュー・data-overlay を付けたページ内検索の欄とトースト） */
 const OVERLAY_SELECTOR =
   ".card-notices > *, [data-overlay], .machine-menu, [role='menu']";
 
@@ -70,6 +71,8 @@ export function BrowserArea(props: {
   onError: (title: string, error: string) => void;
   /** 今出しているタブのページにキーを向ける関数を受け取る */
   focusRef: (focus: () => void) => void;
+  /** ページの上に重ねて出すもの（ページ内検索の欄。#205）。data-overlay を付ければ、ページはその上まで縮む */
+  children?: JSX.Element;
 }): JSX.Element {
   let area!: HTMLDivElement;
   const views = new Map<string, View>();
@@ -133,6 +136,10 @@ export function BrowserArea(props: {
     }
     v.state = "open";
     v.shown = at;
+    // 覚えていた表示の大きさ（#205）。作っている間に変えたものも、ここで当てる
+    const zoom = untrack(() => props.tabs.find((t) => t.id === tab.id)?.zoom);
+    if (zoom !== undefined && zoom !== 1)
+      void zoomTab(tab.id, zoom).catch(() => {});
     // 作っている間に出すタブが替わった（o j で先へ進んだ・グリッドに戻った）なら、隠す。
     // 子の webview は見える状態で作られ、見回り（tick）は今出しているタブしか見ないので、ここで隠さないとグリッドを覆ったまま残る
     if (untrack(() => props.shown?.id) !== tab.id) hide(tab.id, v);
@@ -238,6 +245,7 @@ export function BrowserArea(props: {
           </p>
         )}
       </Show>
+      {props.children}
     </div>
   );
 }
