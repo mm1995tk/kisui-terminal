@@ -221,7 +221,13 @@ async function waitAndSend(tabId) {
     settling.delete(tabId);
     // ページの移動で別のサイトに出ていたら送らない（手で戻るボタンは使える）
     if (K.hostOf(tab.url ?? "") !== s.site) return;
-    await sendCookies(tab, s.site, s.host);
+    // 読む前に、今も許可サイトで、今も待っているかを聞き直す（覚えた後に一覧から消えた・待ちが終わったサイトの
+    // Cookie は読まない）。送る先も今の答えの受け口にする
+    const { sites, waiting } = await refreshSites();
+    if (!sites.includes(s.site)) return showError(tabId, "not-allowed");
+    const w = waiting.get(s.site);
+    if (!w) return showError(tabId, "not-waiting");
+    await sendCookies(tab, s.site, w.host);
     return;
   }
 }

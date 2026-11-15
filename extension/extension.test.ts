@@ -479,6 +479,22 @@ test("ブラウザを起動したとき、待っている URL を読み込み中
   assert.equal(b.session["tracked:41"], undefined);
 });
 
+test("覚えた後に待ちが終わったサイトの Cookie は、パスキーが通っても読まない", async () => {
+  const opts = { ...GH };
+  const b = fakeBrowser(opts);
+  const tab = { id: 50, url: "https://github.com/login", status: "complete" };
+  b.tabs.set(50, tab);
+  b.ev.created.fire({ id: 50, pendingUrl: tab.url });
+  await settle();
+  assert.ok(b.session["tracked:50"]);
+  opts.waiting = [];
+  b.ev.message.fire({ type: "passkey-success" }, { tab, url: tab.url });
+  await settle();
+  assert.equal(b.cookieQueries.length, 0);
+  assert.deepEqual(b.removed, []);
+  assert.equal(b.badges.at(-1).text, "!");
+});
+
 test("kisui-terminal が開いていないタブの知らせは使わない", async () => {
   const b = fakeBrowser(GH);
   const tab = { id: 8, url: "https://github.com/login", status: "complete" };
