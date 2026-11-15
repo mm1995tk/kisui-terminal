@@ -4,7 +4,7 @@
 iCloud キーチェーンや 1Password のパスキーを使えない（macOS は Apple の権限が要り、Linux は OS がパスキーをアプリに渡す仕組みを持たない）。
 そこで、パスキーが要る場面だけ外のブラウザ（Chrome か Firefox）に移ってログインし、ログインした後の Cookie を内蔵ブラウザに写して戻る。
 
-この文書は、kisui-terminal（#206。`app/src-tauri/src/passkey.rs`）と、外のブラウザに入れる拡張機能（#207）の間の取り決めを書く。
+この文書は、kisui-terminal（#206。`app/src-tauri/src/passkey.rs`）と、外のブラウザに入れる拡張機能（#207。`extension/`。作りとストアに出す手順は `docs/browser-extension.md`）の間の取り決めを書く。
 取り決めを変えるときは、両方を合わせて変える。
 
 ## 流れ
@@ -16,7 +16,7 @@ iCloud キーチェーンや 1Password のパスキーを使えない（macOS �
 3. kisui-terminal は、そのタブの今の URL（一番上のフレームのもの）を外のブラウザで開き、そのサイトのログインを 10 分待つ。
    移るのは、URL の host が設定のサイトと完全に同じときだけ。
 4. ユーザーが外のブラウザでパスキーでログインする。
-5. 拡張機能が、そのサイトの Cookie を native messaging で kisui-terminal に送る（いつ送るかは拡張機能が決める。#207）。
+5. 拡張機能が、そのサイトの Cookie を native messaging で kisui-terminal に送る（kisui-terminal が開いたタブでパスキーが通り、ページの移動と Cookie の書き換えが落ち着いたとき。または、拡張機能のボタンを押したとき。`docs/browser-extension.md`）。
 6. kisui-terminal は、待っているサイトの Cookie だけを内蔵ブラウザの共有のデータに入れ、移る前のタブで同じ URL を開き直し、窓を前に出す。
    1 回受けたら待ちを終える。
 
@@ -58,7 +58,7 @@ passkey_browser = "chrome"   # chrome（既定。無ければ Chromium）か fir
 
   Linux の `~/.config` は、`$XDG_CONFIG_HOME` が絶対パスならそれ。
 - つないでよい拡張機能：Firefox は `kisui-terminal@mm1995tk.github.io`（拡張機能の `browser_specific_settings.gecko.id`）。
-  Chrome は拡張機能の id が決まったら（#207）`passkey.rs` の `CHROME_EXTENSION_IDS` に足す。それまで Chrome の登録のファイルは置かない。
+  Chrome は、Chrome ウェブストアで拡張機能の id が決まったら `passkey.rs` の `CHROME_EXTENSION_IDS` に足す（`docs/browser-extension.md` の「ストアに出す」）。それまで Chrome の登録のファイルは置かない。
 - 受け口は、受けたメッセージを、動いている kisui-terminal の窓に渡し、窓の答えをそのまま返す。窓が動いていなければ `not-running` を返す。
 
 ## メッセージ
@@ -160,7 +160,7 @@ Cookie をほかのプログラムに持ち出す動きは、ログイン情報�
 - ページ（外のサイト）には Tauri の命令を開かない。ページのスクリプトは、`kisui-passkey:` の URL を `window.open` で開こうとして
   知らせるだけで（殻が受けて断る）、URL にはタブを作るたびに決める nonce を入れる。外のブラウザで開く URL はページから受け取らず、
   殻がタブの今の URL を読む。真似されても、できるのは許可サイトの今のページを外のブラウザで開くことまで（同じタブからは 3 秒に 1 回）。
-- 拡張機能は、入れるときに 1 回だけ全サイトの権限をもらい、実際に読むのは `sites` の答えにあるサイトだけにする（#207）。
+- 拡張機能は、入れるときに 1 回だけ全サイトの権限をもらい、実際に読むのは `sites` の答えにあるサイトだけにする（`extension/background.js`）。
 
 ## 使えないサイトと場面
 

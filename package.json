@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "test": "node --test \"app/src/**/*.test.ts\"",
+    "test:extension": "node --test \"extension/**/*.test.ts\"",
+    "build:extension": "node extension/build.mjs",
     "build": "tsc --noEmit && vite build",
     "tauri": "tauri"
   },

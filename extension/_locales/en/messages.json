@@ -1,0 +1,32 @@
+{
+  "extensionName": {
+    "message": "kisui-terminal passkey login"
+  },
+  "extensionDescription": {
+    "message": "After a passkey login, sends the cookies of the site back to the built-in browser of kisui-terminal (only the sites you list there)."
+  },
+  "actionTitle": {
+    "message": "Send the login of this site back to kisui-terminal"
+  },
+  "errorBadRequest": {
+    "message": "kisui-terminal did not understand the request. Update kisui-terminal and this extension."
+  },
+  "errorNotAllowed": {
+    "message": "This site is not in passkey_sites of kisui-terminal."
+  },
+  "errorNotWaiting": {
+    "message": "kisui-terminal is not waiting for this site. Ask for the passkey again in the built-in browser (it waits 10 minutes)."
+  },
+  "errorNoCookies": {
+    "message": "This site has no cookies to send yet. Finish the login, then press the button again."
+  },
+  "errorFailed": {
+    "message": "kisui-terminal could not take the login (is a tab of the built-in browser open?)."
+  },
+  "errorNotRunning": {
+    "message": "kisui-terminal is not running, or its native messaging host is not registered for this browser."
+  },
+  "errorNoPermission": {
+    "message": "This extension needs access to the sites to read their cookies."
+  }
+}

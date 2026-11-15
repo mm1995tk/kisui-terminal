@@ -131,6 +131,8 @@
             '';
             dontFixup = true;
           };
+          # 外のブラウザの拡張機能（パスキーのログインの Cookie を送る。extension/）。ストアに上げる zip も作る
+          extensionDrv = import ./packaging/nix/extension.nix { inherit pkgs; };
           kisuiDrv = mkKisui { };
           kisuiNightlyDrv = mkKisui { channel = "nightly"; };
 
@@ -160,6 +162,7 @@
             inherit shj;
             shj-nightly = shjNightly;
             emulator-wasm = emulatorWasm;
+            kisui-terminal-extension = extensionDrv;
             treefmt = treefmtEval.config.build.configFile;
           };
 
@@ -211,6 +214,9 @@
           # nix flake check で回す検査。CI（check.yml）も同じものを回す
           checks = {
             formatting = treefmtEval.config.build.check self;
+
+            # 外のブラウザの拡張機能のテストと組み立て（npm run test:extension と build:extension）
+            extension = extensionDrv;
 
             # GUI の殻（cargo test も回る）と Web 画面のテスト（npm test）
             kisui-terminal = guiDrv;

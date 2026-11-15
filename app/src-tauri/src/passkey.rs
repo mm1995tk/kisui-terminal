@@ -44,7 +44,7 @@ const SCRIPT: &str = include_str!("browser_passkey.js");
 pub const HOST_FLAG: &str = "--native-messaging-host";
 /// 受け口につないでよい Firefox の拡張機能（#207 の拡張機能の `browser_specific_settings.gecko.id`）。
 pub const FIREFOX_EXTENSION_ID: &str = "kisui-terminal@mm1995tk.github.io";
-/// 受け口につないでよい Chrome の拡張機能の id。#207 で拡張機能の id が決まったら足す。空の間は Chrome の登録のファイルを置かない。
+/// 受け口につないでよい Chrome の拡張機能の id。Chrome ウェブストアで id が決まったら足す（docs/browser-extension.md）。空の間は Chrome の登録のファイルを置かない。
 pub const CHROME_EXTENSION_IDS: &[&str] = &[];
 /// 取り決めの版（`sites` の答えに入れる）。
 pub const PROTOCOL_VERSION: u32 = 1;
