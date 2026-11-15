@@ -65,6 +65,10 @@ const FORMAT_VERSION: u32 = 1;
 const MAX_TABS: usize = 500;
 /// 送ってよいキーの数の上限（リーダーと近道の数より十分多く）。
 const MAX_KEYS: usize = 64;
+/// 1 つのタブが新しい窓を開ける数の上限（POPUP_WINDOW の間に）。ページが window.open を繰り返しても、タブを増やし続けない
+/// （macOS の WKWebView は、ユーザーの操作の無い window.open も既定で通す）。
+const MAX_POPUPS: usize = 5;
+const POPUP_WINDOW: std::time::Duration = std::time::Duration::from_secs(10);
 
 /// ページが自分を閉じたことを殻に知らせる URL の scheme（macOS だけ。browser_close.js）。
 const CLOSE_SCHEME: &str = "kisui-close";
@@ -142,6 +146,8 @@ struct TabInfo {
     /// ページのスクリプトが殻に知らせる URL の nonce。ページが開いた新しい窓のタブは、開いた元のタブと同じものを使う
     /// （macOS は、ページに入れるスクリプトの入れ物を開いた元と共有するため。`tab_builder`）
     nonce: String,
+    /// このタブのページが新しい窓を開いた時刻（POPUP_WINDOW より前のものは捨てる）
+    popups: Vec<Instant>,
 }
 
 /// 開いているタブ（id → 覚えること）。
@@ -164,9 +170,26 @@ impl Tabs {
             .insert(tab.to_string(), info);
     }
 
+    /// タブ tab のページが、今 (now) 新しい窓を開いてよいか。よければ数える。
+    fn allow_popup(&self, tab: &str, now: Instant) -> bool {
+        let mut m = self.0.lock().unwrap_or_else(|e| e.into_inner());
+        m.get_mut(tab)
+            .is_some_and(|i| allow_popup(&mut i.popups, now))
+    }
+
     fn remove(&self, tab: &str) {
         self.0.lock().unwrap_or_else(|e| e.into_inner()).remove(tab);
     }
+}
+
+/// 新しい窓を開いた時刻の並び times に、今 (now) を足してよいか（POPUP_WINDOW の間に MAX_POPUPS まで）。よければ足す。
+fn allow_popup(times: &mut Vec<Instant>, now: Instant) -> bool {
+    times.retain(|t| now.saturating_duration_since(*t) < POPUP_WINDOW);
+    if times.len() >= MAX_POPUPS {
+        return false;
+    }
+    times.push(now);
+    true
 }
 
 /// タブのページのデータ（ログイン）をどこに置くか。
@@ -433,6 +456,11 @@ fn open_popup(
 ) -> Result<NewWindowResponse<tauri::Wry>, String> {
     let tabs = app.try_state::<Tabs>().ok_or("no tabs")?;
     let info = tabs.get(opener).ok_or("unknown tab")?;
+    if !tabs.allow_popup(opener, Instant::now()) {
+        // 同じタブで開き直すこともしない（繰り返し開くページに、今のページを捨てさせない）
+        eprintln!("kisui-terminal: tab {opener} opened too many windows; ignoring {u}");
+        return Ok(NewWindowResponse::Deny);
+    }
     let main = app.get_window("main").ok_or("no main window")?;
     let id = format!("w{}", &new_nonce()?[..16]);
     let lbl = label(&id);
@@ -469,7 +497,13 @@ fn open_popup(
         let _ = holder.destroy();
         return Err("cannot find the new webview".into());
     };
-    tabs.set(&id, info);
+    tabs.set(
+        &id,
+        TabInfo {
+            popups: Vec::new(),
+            ..info
+        },
+    );
     watch_native(app, &v, &id);
     let (app, opener, url) = (app.clone(), opener.to_string(), u.to_string());
     std::thread::spawn(move || {
@@ -699,6 +733,7 @@ pub fn browser_open(
             keys,
             incognito,
             nonce,
+            popups: Vec::new(),
         },
     );
     watch_native(&app, &v, &tab);
@@ -1104,6 +1139,21 @@ mod tests {
         assert!(!opens_in_new_tab(&u("file:///etc/passwd")));
         assert!(!opens_in_new_tab(&u("kisui-key://key?n=x")));
         assert!(!opens_in_new_tab(&u("kisui-close://close?n=x")));
+    }
+
+    // 1 つのタブが新しい窓を開けるのは、POPUP_WINDOW の間に MAX_POPUPS まで
+    #[test]
+    fn popups_are_limited() {
+        let t0 = Instant::now();
+        let mut times = Vec::new();
+        for _ in 0..MAX_POPUPS {
+            assert!(allow_popup(&mut times, t0));
+        }
+        assert!(!allow_popup(&mut times, t0));
+        assert!(!allow_popup(&mut times, t0 + POPUP_WINDOW / 2));
+        // 時間が経てば、また開ける
+        assert!(allow_popup(&mut times, t0 + POPUP_WINDOW));
+        assert_eq!(times.len(), 1);
     }
 
     // ページが自分を閉じた知らせは、nonce が合うものだけ受ける
