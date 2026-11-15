@@ -46,7 +46,8 @@ export type NewTabKind = "terminal" | "terminal.pick" | "browser";
 const healthLabel = (h: Health): string => T(`health.${h}`);
 
 interface Handlers {
-  onFocus: (target: string, id: WorkspaceId) => void;
+  /** 帯を押した（row の帯が出しているタブへ移る） */
+  onFocus: (row: Row) => void;
   /** タブの行を押した（gws は GUI のワークスペースの id、key は TabItem.key） */
   onTab?: (gws: string, key: string) => void;
   /** タブの行の ✕（ターミナルのタブもブラウザのタブも） */
@@ -71,7 +72,7 @@ interface Handlers {
   /** 帯の [×]（GUI のワークスペースを閉じる）。省くと出さない */
   onClose?: (gws: string) => void;
   /** 帯のメニューの「名前を変える」・帯の鉛筆のボタン（App が renaming を渡す） */
-  onRenameWorkspace?: (target: string, id: WorkspaceId) => void;
+  onRenameWorkspace?: (gws: string) => void;
   /** 名前をその場で変えている帯（current は入力欄の初めの値、auto は空にしたときの名前、error は断られた理由）。無ければ undefined */
   renaming?: {
     /** GUI のワークスペースの id */
@@ -85,7 +86,7 @@ interface Handlers {
   /** その場の入力欄で Esc を押した（byKey が true）・フォーカスが外れた */
   onRenameCancel?: (byKey?: boolean) => void;
   /** 帯を右クリックした（Sidebar が内側に渡す。App は onRenameWorkspace を使う） */
-  onBandMenu?: (target: string, id: WorkspaceId, x: number, y: number) => void;
+  onBandMenu?: (gws: string, x: number, y: number) => void;
   /** ツリーのファイルの行を押した */
   onOpen?: (target: string, id: WorkspaceId, path: string) => void;
   /** プライマリの shj が出しているファイル（ツリーで強調する行の path）。無ければ undefined */
@@ -143,14 +144,12 @@ export function Sidebar(
 ): JSX.Element {
   // 帯の右クリックのメニュー。閉じ方はツリーのメニューと同じ
   const [bandMenu, setBandMenu] = createSignal<{
-    target: string;
-    id: WorkspaceId;
+    gws: string;
     x: number;
     y: number;
   } | null>(null);
   const openBandMenu = props.onRenameWorkspace
-    ? (target: string, id: WorkspaceId, x: number, y: number) =>
-        setBandMenu({ target, id, x, y })
+    ? (gws: string, x: number, y: number) => setBandMenu({ gws, x, y })
     : undefined;
   // ヘッダーの「+」のメニュー。閉じ方は帯のメニューと同じ
   const [addMenu, setAddMenu] = createSignal<{
@@ -296,7 +295,7 @@ export function Sidebar(
             items={[
               {
                 label: T("sidebar.rename"),
-                run: () => props.onRenameWorkspace?.(m().target, m().id),
+                run: () => props.onRenameWorkspace?.(m().gws),
               },
             ]}
             onClose={() => setBandMenu(null)}
@@ -615,7 +614,7 @@ function BandHeader(
         onContextMenu={(e) => {
           if (!props.onBandMenu) return;
           e.preventDefault();
-          props.onBandMenu(props.row.target, b().id, e.clientX, e.clientY);
+          props.onBandMenu(props.row.gws, e.clientX, e.clientY);
         }}
       >
         <Grip
@@ -641,7 +640,7 @@ function BandHeader(
             <button
               type="button"
               class="band-main"
-              onClick={() => props.onFocus(props.row.target, b().id)}
+              onClick={() => props.onFocus(props.row)}
             >
               <span class="band-title">{b().title}</span>
             </button>
@@ -670,7 +669,7 @@ function BandHeader(
           data-off={props.onRenameWorkspace && !editing() ? undefined : ""}
           aria-label={T("sidebar.renameBand", { title: b().title })}
           title={T("sidebar.rename")}
-          onClick={() => props.onRenameWorkspace?.(props.row.target, b().id)}
+          onClick={() => props.onRenameWorkspace?.(props.row.gws)}
         >
           <Nf c={ICON.pencil} />
         </button>

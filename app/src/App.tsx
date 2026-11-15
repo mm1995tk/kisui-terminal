@@ -105,6 +105,8 @@ import {
   unsetTitle,
   gwsRows,
   health,
+  type Row,
+  isBrowserOnly,
   keepFocus,
   shouldSendMoveTo,
   type WorkspaceFocus,
@@ -116,6 +118,7 @@ import { MACHINE_COLORS, machineColors } from "./sidebar/colors.ts";
 import { loadOrder } from "./sidebar/order.ts";
 import {
   addBrowser,
+  addBrowserWorkspace,
   addTerm,
   autoName,
   nameErrorText,
@@ -133,6 +136,7 @@ import {
   moveBefore,
   moveTabBefore,
   moveTabStep,
+  newGwsId,
   steppableTabs,
   visibleTabs,
   reconcile,
@@ -143,14 +147,17 @@ import {
   repTerm,
   saveGws,
   setActiveTerm,
+  shownBrowserId,
   termKey,
   termsOf,
   toggleFold,
+  type Gws,
   type GwsState,
   type Lists,
   type TabRef,
 } from "./gws/model.ts";
 import { MachinePicker } from "./connect/MachinePicker.tsx";
+import { WorkspaceKindPicker } from "./connect/WorkspaceKindPicker.tsx";
 import { creatableRows } from "./connect/machineList.ts";
 import { Sidebar, type NewTabKind } from "./sidebar/Sidebar.tsx";
 import "./app.css";
@@ -833,7 +840,16 @@ function Workbench(props: {
       // 閉じて空になったときは作らない
       if (!started.has(target) && s.state.kind === "connected") {
         started.add(target);
-        if (ws.length === 0) void createWorkspace(target);
+        // 内蔵ブラウザを使っていて、ブラウザのタブだけのワークスペースがあれば、そこに居られるので作らない
+        // （ブラウザのタブを読み終えたら、そこへ移る。下の effect）
+        if (ws.length === 0) {
+          if (
+            props.browser &&
+            untrack(gws).list.some((g) => termsOf(g).length === 0)
+          )
+            setLanding(target);
+          else void createWorkspace(target);
+        }
       }
     });
     const offFocus = s.onFocus((id) =>
@@ -1069,7 +1085,10 @@ function Workbench(props: {
       if (seq !== focusSeq) return;
       switching = false;
       // 右下のターミナルは、そのワークスペースのものに切り替わる（F2。termGroup が focus から決める）
-      setFocus({ target, id });
+      batch(() => {
+        setTermless(null);
+        setFocus({ target, id });
+      });
     } catch (e) {
       if (seq !== focusSeq) return;
       switching = false;
@@ -1155,6 +1174,8 @@ function Workbench(props: {
     force: boolean,
     close: () => Promise<void>,
     onRunning: () => void,
+    /** 閉じられたあとに動かす（移り先がターミナルのタブでないとき、そこへ移る） */
+    onClosed?: () => void,
   ) {
     setFocusError(null);
     // 移り先が無いとき（フォーカスしていないものを閉じる）は、先に閉じ始めたものの移り先を消さない
@@ -1180,6 +1201,7 @@ function Workbench(props: {
     if (moveTo && closingNext === moveTo) closingNext = null;
     if (moveTo && !switching && shouldSendMoveTo(focus(), moveTo, workspaces()))
       void focusWorkspace(moveTo.target, moveTo.id);
+    onClosed?.();
   }
 
   // 閉じる前に確認している（プログラムが動いている）ワークスペース
@@ -1201,12 +1223,15 @@ function Workbench(props: {
     const list = rows();
     const i = list.findIndex((r) => r.gws === gid);
     const next = list[i + 1] ?? list[i - 1];
-    const f = focus();
-    const wasFocused =
-      !!f && termsOf(g).some((r) => r.target === f.target && r.ws === f.id);
+    const wasCurrent = currentGws()?.id === gid;
     const name = displayName(g);
+    // ターミナルのタブにフォーカスしていて、移り先もターミナルのタブなら、moveTo で移る（shj にも伝える）。
+    // ターミナルのタブを持たないワークスペースに居たとき・移り先がそうなときは、閉じたあとに goRow で移る
+    const fromTerm = termsOf(g).length > 0;
     const moveTo =
-      wasFocused && next ? { target: next.target, id: next.band.id } : null;
+      wasCurrent && fromTerm && next && !isBrowserOnly(next)
+        ? { target: next.target, id: next.band.id }
+        : null;
     await closeThenMove(
       moveTo,
       name,
@@ -1215,19 +1240,26 @@ function Workbench(props: {
         for (const r of termsOf(g)) {
           const s = sessions()[r.target];
           if (!s || states()[r.target]?.kind !== "connected") {
-            const dropped = dropTerm(untrack(gws), r.target, r.ws);
-            setGws(dropped.state);
-            for (const id of dropped.close) {
-              void closeTabView(id).catch(() => {});
-              setTabs((t) => closeTab(t, id));
-            }
+            setGws(dropTerm(untrack(gws), r.target, r.ws));
             continue;
           }
           await s.closeWorkspace(r.ws, force);
         }
+        // ブラウザのタブも閉じる（ターミナルのタブが全部閉じたあとに）
+        for (const r of g.tabs) if (r.kind === "browser") dropBrowserTab(r.id);
       },
       () => setConfirmClose({ gws: gid, name }),
+      () => {
+        if (wasCurrent && next && !moveTo) goRow(next);
+      },
     );
+  }
+
+  /** ブラウザのタブを、ページも記録もまとめて閉じる（出すタブの移り先は決めない）。 */
+  function dropBrowserTab(id: string) {
+    void closeTabView(id).catch(() => {});
+    setTabs((t) => closeTab(t, id));
+    setGws((x) => removeBrowser(x, id));
   }
 
   // 初めて出たマシンには色を割り当てて保存する（つなぐマシンが変わったときだけ計算し直す）
@@ -1263,11 +1295,57 @@ function Workbench(props: {
   }
   /** 前の並び順の記録（w J・w K）。初めてワークスペースを作るときの並びに使う */
   const legacyOrder = loadOrder(store);
+  /**
+   * いま居るのが、ターミナルのタブを持たないワークスペース（ブラウザのタブだけのもの。#257）なら、その id。
+   * このときも focus（ターミナルのタブのフォーカス）は、最後にフォーカスしていたターミナルのタブのまま残る（隠れているだけ）。
+   * ターミナルのタブへ移ったら（focusWorkspace）消える
+   */
+  const [termless, setTermless] = createSignal<string | null>(null);
   /** GUI がフォーカスしているワークスペース */
   const currentGws = () => {
+    const t = termless();
+    if (t !== null) {
+      const g = gws().list.find((x) => x.id === t);
+      if (g && termsOf(g).length === 0) return g;
+    }
     const f = focus();
     return f ? gwsOfTerm(gws(), f.target, f.id) : undefined;
   };
+  /**
+   * 起動したとき、ターミナルのタブが無くて、ブラウザのタブだけのワークスペースへ入る待ち（値は、ワークスペースを作るはずだったマシン）。
+   * ブラウザのタブを読み終えても、ブラウザのタブだけのワークスペースが残らなければ（記録が読めなかった・消えていた）、そのマシンにワークスペースを作る
+   */
+  const [landing, setLanding] = createSignal<string | null>(null);
+  createEffect(() => {
+    const target = landing();
+    if (target === null) return;
+    if (currentGws()) {
+      setLanding(null);
+      return;
+    }
+    // ブラウザのタブを読み終えるまでは、行が無い。読めたら、最初のブラウザのタブだけのワークスペースへ移る
+    const r = rows().find(isBrowserOnly);
+    if (r) {
+      setLanding(null);
+      untrack(() => showGws(r.gws));
+    } else if (
+      tabsReady() &&
+      !gws().list.some((g) => termsOf(g).length === 0)
+    ) {
+      setLanding(null);
+      untrack(() => void createWorkspace(target));
+    }
+  });
+  /** ターミナルのタブを持たないワークスペースへ移る（そのワークスペースのブラウザのタブのページにキーを向ける）。 */
+  function showGws(gid: string) {
+    setTermless(gid);
+    focusTerminal();
+  }
+  /** サイドバーの行 r のワークスペースへ移る。ターミナルのタブがあればそのタブ、無ければブラウザのタブのページ。 */
+  function goRow(r: Row) {
+    if (isBrowserOnly(r)) showGws(r.gws);
+    else void switchWorkspace(r.target, r.band.id);
+  }
   /** 作ったばかりで、マシンの一覧の知らせがまだ届いていないターミナルのタブ（termKey）。reconcile が外さない */
   const justCreated = new Set<string>();
   const rows = createMemo(() =>
@@ -1275,6 +1353,7 @@ function Workbench(props: {
       groups: groups(),
       workspaces: workspaces(),
       focus: focus(),
+      current: currentGws()?.id ?? "",
       browser: new Map(tabs().tabs.map((t) => [t.id, t])),
       views: tabs().views,
       labelOf,
@@ -1702,7 +1781,11 @@ function Workbench(props: {
   /** 今のワークスペースで出しているブラウザのタブ。ターミナルのタブを出していれば undefined。 */
   const shownBrowserTab = createMemo(() => {
     const g = currentGws();
-    return props.browser && g ? shownTab(tabs(), g.id) : undefined;
+    if (!props.browser || !g) return undefined;
+    const id = shownBrowserId(g, tabs().views[g.id], (x) =>
+      tabs().tabs.some((t) => t.id === x),
+    );
+    return id === undefined ? undefined : tabs().tabs.find((t) => t.id === id);
   });
   /** 出しているタブのうち、ページを開いているもの（URL バーを出す）と、新しいタブのページ（#238。NewTabPage を出す）の id */
   const pageTabId = createMemo(() => {
@@ -1770,9 +1853,14 @@ function Workbench(props: {
    * 新しいタブのページのタブを開く（リーダーの o n・o N と、「+」のメニューの「ブラウザ」。#238）。URL は聞かず、URL が空のタブ（newTab.ts）を
    * 足して出す。検索窓とブックマークの中身は NewTabPage が描く（出たら検索窓にキーがある）。今のタブの URL の書き換えは、ページの上の URL バー（#232）
    */
-  function openNewTab(target: string, ws: WorkspaceId, incognito: boolean) {
+  function openNewTab(
+    target: string,
+    ws: WorkspaceId,
+    incognito: boolean,
+    owner?: string,
+  ) {
     const id = newTabId();
-    const gid = gwsOfTerm(untrack(gws), target, ws)?.id;
+    const gid = owner ?? gwsOfTerm(untrack(gws), target, ws)?.id;
     // ページから押したときに覚えた「戻す先」を捨てる（検索窓にキーを向けるのを、ページに戻させない。openFind と同じ）
     pageReturn = undefined;
     setTabs((s) =>
@@ -1858,9 +1946,7 @@ function Workbench(props: {
     const gid = gwsOfBrowser(untrack(gws), from.id)?.id;
     setTabs((s) => addTab(s, tab, gid));
     if (gid) setGws((g) => addBrowser(g, gid, tab.id));
-    const f = untrack(focus);
-    if (gid && f && gwsOfTerm(untrack(gws), f.target, f.id)?.id === gid)
-      focusTerminal();
+    if (gid && untrack(currentGws)?.id === gid) focusTerminal();
   }
   /**
    * まだ足していないタブの「閉じた」（ページが開いた新しい窓が、画面に知らせが届く前に閉じた）。あとで届く「新しいタブ」を足さない。
@@ -1891,12 +1977,25 @@ function Workbench(props: {
   function removeTab(id: string, back?: string) {
     const g = gwsOfBrowser(untrack(gws), id);
     const next =
-      g && untrack(tabs).views[g.id] === id
-        ? after(g, browserKey(id), back)
+      g && shownIdOf(g) === id ? after(g, browserKey(id), back) : undefined;
+    // ワークスペースの最後のタブなら、ワークスペースも閉じる。いま居るなら、サイドバーの隣のワークスペースへ移る
+    const list = rows();
+    const k = g ? list.findIndex((r) => r.gws === g.id) : -1;
+    const last =
+      !!g && g.tabs.length === 1 && untrack(currentGws)?.id === g.id
+        ? (list[k + 1] ?? list[k - 1])
         : undefined;
     setTabs((s) => closeTab(s, id));
     setGws((x) => removeBrowser(x, id));
     if (g && next) activateTab(g.id, next);
+    else if (last) goRow(last);
+  }
+  /** ワークスペース g が今出しているブラウザのタブの id（ターミナルのタブを出していれば undefined。ターミナルのタブが無いワークスペースは、出している・無ければ最初のブラウザのタブ）。 */
+  function shownIdOf(g: Gws): string | undefined {
+    const t = untrack(tabs);
+    return shownBrowserId(g, t.views[g.id], (id) =>
+      t.tabs.some((x) => x.id === id),
+    );
   }
 
   /**
@@ -1909,12 +2008,13 @@ function Workbench(props: {
     if (ref.kind === "browser") setTabs((s) => showTab(s, gid, ref.id));
     else setTabs((s) => showTab(s, gid, null));
     const f = untrack(focus);
-    const inside = !!f && gwsOfTerm(untrack(gws), f.target, f.id)?.id === gid;
+    const inside = untrack(currentGws)?.id === gid;
     if (ref.kind === "term") void switchWorkspace(ref.target, ref.ws);
     else if (inside) focusTerminal();
     else {
       const t = repTerm(g, f, (m) => states()[m]?.kind === "connected");
-      void switchWorkspace(t.target, t.ws);
+      if (t) void switchWorkspace(t.target, t.ws);
+      else showGws(gid);
     }
   }
 
@@ -2214,11 +2314,13 @@ function Workbench(props: {
     const f = focus();
     switch (c.id) {
       case "browser.new":
-      case "browser.incognito":
-        if (!f)
+      case "browser.incognito": {
+        const g = currentGws();
+        if (!g)
           cannot(T("cannot.browser.open.title"), T("cannot.browser.open.text"));
-        else openNewTab(f.target, f.id, c.id === "browser.incognito");
+        else newBrowserTab(g, c.id === "browser.incognito");
         break;
+      }
       case "browser.url": {
         const t = currentTab();
         if (t) {
@@ -2330,36 +2432,59 @@ function Workbench(props: {
   } | null>(null);
 
   /**
-   * ターミナルのタブ 1 つを閉じる（サイドバーのタブの行の ✕。#235 の t x もこれを使う）。ワークスペースの最後のターミナルのタブは閉じない。
+   * ターミナルのタブ 1 つを閉じる（サイドバーのタブの行の ✕。#235 の t x もこれを使う）。ワークスペースの最後のターミナルのタブも閉じられる
+   * （ワークスペースの最後のタブなら、ワークスペースも閉じる。#257）。
    * プログラムが動いていれば断られるので、確認の窓を出す（force は窓で「終わらせて閉じる」を押したとき）。
    * マシンにつながっていないタブは、閉じられないので記録から外すだけ。
    * フォーカスしているタブを閉じたら、同じワークスペースの隣のターミナルのタブに移る。
+   * ターミナルのタブがもう無ければ、同じワークスペースのブラウザのタブ、それも無ければ（ワークスペースも閉じるので）サイドバーの隣のワークスペースに移る。
    */
   async function closeTermTab(target: string, ws: WorkspaceId, force = false) {
     const g = gwsOfTerm(untrack(gws), target, ws);
     if (!g) return;
     const terms = termsOf(g);
-    if (terms.length <= 1) return;
     const i = terms.findIndex((r) => r.target === target && r.ws === ws);
-    const next = terms[i + 1] ?? terms[i - 1];
+    if (i < 0) return;
+    const nextTerm = terms[i + 1] ?? terms[i - 1];
     const tw = untrack(workspaces)[target]?.find((w) => w.id === ws);
     const name = tw ? band(tw, false).title : terms[i].title || unsetTitle();
     const s = sessions()[target];
     if (!s || states()[target]?.kind !== "connected") {
-      setGws(dropTerm(untrack(gws), target, ws).state);
+      setGws(dropTerm(untrack(gws), target, ws));
       return;
     }
     const f = untrack(focus);
-    const moveTo =
-      f?.target === target && f.id === ws
-        ? { target: next.target, id: next.ws }
-        : null;
+    let moveTo: WorkspaceFocus | null = null;
+    let onClosed: (() => void) | undefined;
+    if (f?.target === target && f.id === ws && currentGws()?.id === g.id) {
+      const browserRef = g.tabs.find((r) => r.kind === "browser");
+      if (nextTerm) moveTo = { target: nextTerm.target, id: nextTerm.ws };
+      else if (browserRef) {
+        onClosed = () => {
+          setTabs((t) => showTab(t, g.id, browserRef.id));
+          showGws(g.id);
+        };
+      } else {
+        // 最後のタブ：ワークスペースも閉じるので、サイドバーの隣のワークスペースへ
+        const list = rows();
+        const k = list.findIndex((r) => r.gws === g.id);
+        const nr = list[k + 1] ?? list[k - 1];
+        if (nr && !isBrowserOnly(nr))
+          moveTo = { target: nr.target, id: nr.band.id };
+        else if (nr) onClosed = () => showGws(nr.gws);
+      }
+    }
     await closeThenMove(
       moveTo,
       name,
       force,
-      () => s.closeWorkspace(ws, force),
+      async () => {
+        await s.closeWorkspace(ws, force);
+        // マシンの一覧の知らせより先に記録から外す（移り先のブラウザのタブのワークスペースを、すぐターミナルのタブ無しとして扱えるように）
+        setGws((x) => dropTerm(x, target, ws));
+      },
       () => setConfirmCloseTab({ target, ws, name }),
+      onClosed,
     );
   }
 
@@ -2420,11 +2545,14 @@ function Workbench(props: {
     if (!g) return;
     const up = (m: string) => states()[m]?.kind === "connected";
     const rep = repTerm(g, untrack(focus), up);
-    const f = untrack(focus);
-    const inside = !!f && gwsOfTerm(untrack(gws), f.target, f.id)?.id === gid;
-    if (!inside) await switchWorkspace(rep.target, rep.ws);
-    if (what === "browser") newBrowserTab(gid, rep);
-    else if (what === "terminal.pick") void newTerminalTab(gid);
+    const inside = untrack(currentGws)?.id === gid;
+    if (!inside) {
+      if (rep) await switchWorkspace(rep.target, rep.ws);
+      else showGws(gid);
+    }
+    if (what === "browser") newBrowserTab(g);
+    // ターミナルのタブが無いワークスペースには、同じマシン・フォルダにする元のタブが無いので、マシンを選ぶ（t N と同じ）
+    else if (what === "terminal.pick" || !rep) void newTerminalTab(gid);
     else {
       // 今のターミナルのタブと同じマシン・同じフォルダ（フォルダが未定なら、start_dir）
       const folder = untrack(workspaces)[rep.target]?.find(
@@ -2464,13 +2592,23 @@ function Workbench(props: {
     );
   }
 
-  /** ワークスペース gid にブラウザのタブを足す（新しいタブのページを出す。リーダーの o n と同じ。rep はそのワークスペースが出しているターミナルのタブ）。 */
-  function newBrowserTab(
-    gid: string,
-    rep: { target: string; ws: WorkspaceId },
-  ) {
-    if (!untrack(gws).list.some((x) => x.id === gid)) return;
-    openNewTab(rep.target, rep.ws, false);
+  /** ワークスペース g にブラウザのタブを足す（新しいタブのページを出す。リーダーの o n と同じ）。 */
+  function newBrowserTab(g: Gws, incognito = false) {
+    const o = browserOrigin(g);
+    openNewTab(o.target, o.ws, incognito, g.id);
+  }
+
+  /**
+   * ワークスペース g に足すブラウザのタブの「開いたところ」（タブが覚えるマシンとワークスペース）。
+   * ターミナルのタブがあれば、今出しているそのタブ。無ければ（ブラウザのタブだけのワークスペース。#257）、中のタブと同じマシンか今のマシンと、空のワークスペース
+   */
+  function browserOrigin(g: Gws): { target: string; ws: WorkspaceId } {
+    const rep = repTerm(g, untrack(focus));
+    if (rep) return { target: rep.target, ws: rep.ws };
+    const own = untrack(tabs).tabs.find((t) =>
+      g.tabs.some((r) => r.kind === "browser" && r.id === t.id),
+    );
+    return { target: own?.target ?? untrack(currentTarget) ?? LOCAL, ws: "" };
   }
 
   /** ブラウザのタブ id のタブがまだあるか（サイドバーに出るか）。 */
@@ -2506,27 +2644,25 @@ function Workbench(props: {
 
   /**
    * リーダーの t x。今出しているタブを閉じる。ブラウザのタブはそのページを閉じ、ターミナルのタブはそのターミナルを終わらせる
-   * （プログラムが動いていれば確認を出す。closeTermTab）。ワークスペースの最後のターミナルのタブは閉じない。
+   * （プログラムが動いていれば確認を出す。closeTermTab）。ワークスペースの最後のタブを閉じると、ワークスペースも閉じる。
    */
   function closeCurrentTab() {
     const g = currentGws();
     const key = currentTabKey();
     if (!g || !key) return;
-    const ref = g.tabs.find((r) => refKey(r) === key);
-    if (ref?.kind === "term" && termsOf(g).length <= 1) {
-      cannot(T("cannot.tab.last.title"), T("cannot.tab.last.text"));
-      return;
-    }
     closeTabRow(g.id, key);
   }
 
-  // 直前に選んでいたワークスペース（リーダーの w Tab で戻る先）
-  let lastWorkspace: WorkspaceFocus | null = null;
+  // 直前に選んでいたワークスペース（リーダーの w Tab で戻る先）の GUI のワークスペースの id。
+  // ターミナルのタブが無いワークスペースも覚えるので、focus ではなく今いるワークスペースの変化で覚える
+  let lastWorkspace: string | null = null;
   createEffect(
-    on(focus, (f, prev) => {
-      if (prev && (f?.target !== prev.target || f?.id !== prev.id))
-        lastWorkspace = prev;
-    }),
+    on(
+      () => currentGws()?.id,
+      (id, prev) => {
+        if (prev && id !== prev) lastWorkspace = prev;
+      },
+    ),
   );
 
   /** 表示の大きさを変える（#594）。窓全体の zoom を変える。ターミナルは欄の変化で合わせ直す。 */
@@ -2561,12 +2697,21 @@ function Workbench(props: {
   /** リーダーの w j / w k。サイドバーの次・前のワークスペースへ（1 列の並びで。端では反対の端へ回る）。 */
   function stepWs(step: Step) {
     // つながっていないマシンのタブは移れない（そこで止まらないよう、飛ばす）
+    // ターミナルのタブが無いワークスペースは、target が ""・id が GUI のワークスペースの id の組で数える
+    const cur = untrack(currentGws);
+    const here: WorkspaceFocus | null =
+      cur && termsOf(cur).length === 0
+        ? { target: "", id: cur.id }
+        : stepFrom(heading, focus());
     const next = stepWorkspace(
       rows().filter((r) => r.health === "up" || r.band.focused),
-      stepFrom(heading, focus()),
+      here,
       step,
     );
-    if (next) {
+    if (next?.target === "") {
+      setWalking(true);
+      showGws(next.id);
+    } else if (next) {
       setWalking(true);
       void goWorkspace(next.target, next.id);
     }
@@ -2585,17 +2730,52 @@ function Workbench(props: {
 
   // ワークスペースを作るマシンを選んでいる窓（リーダーの w n）
   const [pickingMachine, setPickingMachine] = createSignal(false);
+  // ワークスペースの種類（ターミナルかブラウザか）を選んでいる窓（リーダーの w n。内蔵ブラウザを有効にしているとき）
+  const [pickingKind, setPickingKind] = createSignal(false);
 
   /**
-   * リーダーの w n。どのマシンに作るかを選んでから作る。
-   * つながっているマシンが 1 つしか無ければ選ぶ余地が無いので、窓を出さずにそこへ作る。1 つも無ければ、できないことを伝える。
+   * リーダーの w n。内蔵ブラウザを有効にしていれば、先にターミナルかブラウザかを選ぶ（#257）。無効なら、ターミナルのワークスペースを作る。
    */
   function newWorkspace() {
+    if (props.browser) setPickingKind(true);
+    else newTerminalWorkspace();
+  }
+
+  /**
+   * ターミナルのタブ 1 つのワークスペースを作る。どのマシンに作るかを選んでから作る。
+   * つながっているマシンが 1 つしか無ければ選ぶ余地が無いので、窓を出さずにそこへ作る。1 つも無ければ、できないことを伝える。
+   */
+  function newTerminalWorkspace() {
     const up = creatableRows(machineList());
     if (up.length === 0) {
       cannot(T("cannot.workspace.title"), T("cannot.workspace.text"));
     } else if (up.length === 1) void createWorkspace(up[0].target);
     else setPickingMachine(true);
+  }
+
+  /**
+   * ブラウザのタブ 1 つ（新しいタブのページ）のワークスペースを作って、そこへ移る。ターミナルのタブは無い。
+   * タブの「開いたところ」のマシンは今のマシン（リモートの localhost の中継に使う）、ワークスペースは空。
+   */
+  function createBrowserWorkspace() {
+    const gid = newGwsId();
+    const id = newTabId();
+    pageReturn = undefined;
+    setTabs((s) =>
+      addTab(
+        s,
+        {
+          id,
+          target: untrack(currentTarget) ?? LOCAL,
+          workspace: "",
+          url: NEW_TAB_URL,
+          title: "",
+        },
+        gid,
+      ),
+    );
+    setGws((g) => addBrowserWorkspace(g, id, gid));
+    showGws(gid);
   }
 
   const machineList = () =>
@@ -2620,6 +2800,14 @@ function Workbench(props: {
     if (c.id.startsWith("browser.")) {
       runBrowser(c);
       return;
+    }
+    // ターミナルのタブが無いワークスペースには、ペインが無い
+    if (c.id.startsWith("pane.") && termless() !== null && shownBrowserTab()) {
+      const g = currentGws();
+      if (g && termsOf(g).length === 0) {
+        cannot(T("cannot.pane.none.title"), T("cannot.pane.none.text"));
+        return;
+      }
     }
     // ブラウザのタブを出している間のペインの操作は、まずグリッドに戻す（見えないペインは動かさない）。
     // ペインを閉じる（p x）は、戻すだけで閉じない（どのペインが閉じるか見えないまま閉じないため）
@@ -2663,7 +2851,7 @@ function Workbench(props: {
       case "workspace.nth": {
         // サイドバーの上から順に（1 列の並びで）。足りなければ何もしない
         const r = rows()[c.arg as number];
-        if (r) void switchWorkspace(r.target, r.band.id);
+        if (r) goRow(r);
         break;
       }
       case "workspace.step":
@@ -2673,9 +2861,8 @@ function Workbench(props: {
         moveWs(c.arg as "up" | "down");
         break;
       case "workspace.last": {
-        const l = lastWorkspace;
-        if (l && gwsOfTerm(gws(), l.target, l.id))
-          void switchWorkspace(l.target, l.id);
+        const r = rows().find((x) => x.gws === lastWorkspace);
+        if (r) goRow(r);
         break;
       }
       case "workspace.new":
@@ -2686,9 +2873,11 @@ function Workbench(props: {
         if (g) void closeWorkspace(g.id);
         break;
       }
-      case "workspace.rename":
-        if (f) openWorkspaceRename(f.target, f.id);
+      case "workspace.rename": {
+        const g = currentGws();
+        if (g) openWorkspaceRename(g.id);
         break;
+      }
       case "tab.new":
       case "tab.newPick": {
         const g = currentGws();
@@ -2842,9 +3031,9 @@ function Workbench(props: {
     setRenaming(null);
   }
 
-  /** 帯の名前をその場で変える入力欄を開く（帯の鉛筆・メニュー、リーダーの w r）。target と id は、帯が今出しているターミナルのタブ。 */
-  function openWorkspaceRename(target: string, id: WorkspaceId) {
-    const g = gwsOfTerm(gws(), target, id);
+  /** 帯の名前をその場で変える入力欄を開く（帯の鉛筆・メニュー、リーダーの w r）。gid は GUI のワークスペースの id。 */
+  function openWorkspaceRename(gid: string) {
+    const g = gws().list.find((x) => x.id === gid);
     if (!g) return;
     // 閉じているサイドバーの中には入力欄が見えず、フォーカスも取れないので、先に開ける
     if (!untrack(sidebarOpen)) changeSidebarOpen(true);
@@ -3037,7 +3226,7 @@ function Workbench(props: {
         rows={rows()}
         onNew={newWorkspace}
         // ワークスペースの帯を押すと、そのワークスペースが出していたものに移る（ブラウザのタブを出していたなら、そのページ）
-        onFocus={(t, id) => void switchWorkspace(t, id)}
+        onFocus={goRow}
         onTab={selectTab}
         onTabClose={closeTabRow}
         onTabRename={renameTabRow}
@@ -3218,6 +3407,16 @@ function Workbench(props: {
             }
           }}
           onCancel={() => setMachinesOpen(false)}
+        />
+      </Show>
+      <Show when={pickingKind()}>
+        <WorkspaceKindPicker
+          onChoose={(kind) => {
+            setPickingKind(false);
+            if (kind === "browser") createBrowserWorkspace();
+            else newTerminalWorkspace();
+          }}
+          onCancel={() => setPickingKind(false)}
         />
       </Show>
       <Show when={pickingMachine()}>

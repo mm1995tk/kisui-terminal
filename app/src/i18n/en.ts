@@ -34,9 +34,9 @@ export const en = {
   "leader.tab.nth": "Go to number {n} from the top",
   "leader.tab.nth.range": "Go to number N from the top",
   "leader.tab.rename": "Rename this tab",
-  "cannot.tab.last.title": "Cannot close the tab",
-  "cannot.tab.last.text":
-    "This is the last terminal tab of the workspace. To remove the workspace, close it (w x).",
+  "cannot.pane.none.title": "No panes here",
+  "cannot.pane.none.text":
+    "This workspace has only browser tabs, so it has no terminal panes. Open a terminal tab with t n or t N.",
   "leader.machine": "Open the machine list",
   "leader.pane.group": "Panes",
   "leader.pane.split": "Split pane",
@@ -354,7 +354,7 @@ export const en = {
   "history.hint": "↑↓ (Ctrl+J/K) · Shift+Enter to put it back",
   "history.list": "History",
   "machineDialog.fixed": "(config file)",
-  "machineDialog.workspaces": "Workspaces {n}",
+  "machineDialog.terminalTabs": "Terminal tabs {n}",
   "machineDialog.label": "Machines",
   "machineDialog.list": "Machine list",
   "machineDialog.keys.select": "select",
@@ -419,6 +419,11 @@ export const en = {
   "picker.label": "Machine for the new workspace",
   "picker.title": "On which machine do you want to create the workspace?",
   "picker.keys.create": "create",
+  "kindPicker.label": "Kind of the new workspace",
+  "kindPicker.title": "What do you want to create the workspace with?",
+  "kindPicker.terminal": "Terminal",
+  "kindPicker.browser": "Browser",
+  "kindPicker.keys.choose": "choose",
   "deleteDialog.label": "Confirm deletion",
   "deleteDialog.title": "Delete {path}?",
   "deleteDialog.dir":

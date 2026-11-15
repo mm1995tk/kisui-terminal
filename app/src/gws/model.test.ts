@@ -4,8 +4,10 @@ import { describe, it } from "node:test";
 import type { KeyValueStore } from "../ssh/machines.ts";
 import {
   addBrowser,
+  addBrowserWorkspace,
   addTerm,
   addWorkspace,
+  shownBrowserId,
   after,
   autoName,
   browserKey,
@@ -131,15 +133,18 @@ describe("ワークスペースの操作", () => {
   it("最後に使っていたターミナルのタブを覚え、帯が出すタブはフォーカスのタブ、無ければそれ、無ければ最初", () => {
     let s = two();
     const g = () => s.list[0];
-    assert.equal(repTerm(g()).ws, "w1");
-    assert.equal(repTerm(g(), { target: "b", id: "w2" }).ws, "w2");
-    assert.equal(repTerm(g(), { target: "b", id: "other" }).ws, "w1");
+    assert.equal(repTerm(g())?.ws, "w1");
+    assert.equal(repTerm(g(), { target: "b", id: "w2" })?.ws, "w2");
+    assert.equal(repTerm(g(), { target: "b", id: "other" })?.ws, "w1");
     s = setActiveTerm(s, "b", "w2");
-    assert.equal(repTerm(g()).ws, "w2");
+    assert.equal(repTerm(g())?.ws, "w2");
     // 最後に使ったタブのマシンが切れていれば、つながっているマシンのタブにする。どれも切れていればそのまま
-    assert.equal(repTerm(g(), null, (t) => t === "a").ws, "w1");
-    assert.equal(repTerm(g(), null, () => false).ws, "w2");
-    assert.equal(repTerm(g(), { target: "b", id: "w2" }, () => false).ws, "w2");
+    assert.equal(repTerm(g(), null, (t) => t === "a")?.ws, "w1");
+    assert.equal(repTerm(g(), null, () => false)?.ws, "w2");
+    assert.equal(
+      repTerm(g(), { target: "b", id: "w2" }, () => false)?.ws,
+      "w2",
+    );
     assert.equal(setActiveTerm(s, "b", "w2"), s);
     assert.equal(setActiveTerm(s, "zz", "w2"), s);
   });
@@ -198,20 +203,64 @@ describe("ワークスペースの操作", () => {
   });
 
   it("切れているマシンのタブだけを記録から外す", () => {
-    const { state: s, close } = dropTerm(two(), "b", "w2");
+    const s = dropTerm(two(), "b", "w2");
     assert.deepEqual(
       s.list[0].tabs.map((r) => r.kind === "term" && r.ws),
       ["w1"],
     );
-    assert.deepEqual(close, []);
-    assert.equal(dropTerm(s, "b", "w2").state, s);
+    assert.equal(dropTerm(s, "b", "w2"), s);
   });
 
-  it("最後のターミナルのタブを外すと、ワークスペースごと外し、中のブラウザのタブを閉じさせる", () => {
+  it("最後のタブ（ターミナルのタブ）を外すと、ワークスペースごと外す", () => {
+    assert.deepEqual(ids(dropTerm(two(), "a", "w3")), ["g1"]);
+  });
+
+  it("最後のターミナルのタブを外しても、ブラウザのタブがあれば、ワークスペースは残る（#257）", () => {
     const s = addBrowser(two(), "g2", "t1");
     const r = dropTerm(s, "a", "w3");
-    assert.deepEqual(ids(r.state), ["g1"]);
-    assert.deepEqual(r.close, ["t1"]);
+    assert.deepEqual(ids(r), ["g1", "g2"]);
+    assert.deepEqual(r.list[1].tabs, [{ kind: "browser", id: "t1" }]);
+    assert.equal(r.list[1].term, undefined);
+    assert.equal(repTerm(r.list[1]), undefined);
+  });
+
+  it("shownBrowserId：ターミナルのタブがあれば出しているブラウザのタブだけ。無ければ、出しているもの、なければ最初のブラウザのタブ（#257）", () => {
+    const all = () => true;
+    const withTerm = addBrowser(two(), "g1", "t1").list[0];
+    assert.equal(shownBrowserId(withTerm, undefined, all), undefined);
+    assert.equal(shownBrowserId(withTerm, "t1", all), "t1");
+    assert.equal(
+      shownBrowserId(withTerm, "t1", () => false),
+      undefined,
+    );
+    let s = addBrowserWorkspace(two(), "a", "g9");
+    s = addBrowser(s, "g9", "b");
+    const only = s.list[2];
+    assert.equal(shownBrowserId(only, undefined, all), "a");
+    assert.equal(shownBrowserId(only, "b", all), "b");
+    // 出しているタブが無くなっていれば、残っている最初のもの。他のワークスペースのタブは出さない
+    assert.equal(
+      shownBrowserId(only, "a", (id) => id === "b"),
+      "b",
+    );
+    assert.equal(shownBrowserId(only, "t1", all), "a");
+    assert.equal(
+      shownBrowserId(only, undefined, () => false),
+      undefined,
+    );
+  });
+
+  it("ブラウザのタブだけのワークスペースを足せる。最後のブラウザのタブを外すと、ワークスペースごと外す（#257）", () => {
+    let s = addBrowserWorkspace(two(), "t1", "g9");
+    assert.deepEqual(ids(s), ["g1", "g2", "g9"]);
+    assert.equal(s.list[2].num, 3);
+    assert.equal(gwsOfBrowser(s, "t1")?.id, "g9");
+    assert.equal(addBrowserWorkspace(s, "t1"), s);
+    s = addBrowser(s, "g9", "t2");
+    s = removeBrowser(s, "t1");
+    assert.deepEqual(ids(s), ["g1", "g2", "g9"]);
+    s = removeBrowser(s, "t2");
+    assert.deepEqual(ids(s), ["g1", "g2"]);
   });
 });
 
@@ -314,14 +363,37 @@ describe("reconcile", () => {
     assert.equal(closed.state.list[0].tabs.length, 1);
   });
 
-  it("ターミナルのタブが 1 つも無くなったワークスペースは外し、その中のブラウザのタブは閉じる", () => {
+  it("ターミナルのタブが 1 つも無くなったワークスペースは、ブラウザのタブがあれば残し、タブが 1 つも無ければ外す（#257）", () => {
     const s = addBrowser(two(), "g2", "t1");
     const r = reconcile(s, {
       lists: { a: list("w1"), b: list("w2") },
       browser: [{ id: "t1", target: "a", workspace: "w3" }],
     });
-    assert.deepEqual(ids(r.state), ["g1"]);
-    assert.deepEqual(r.close, ["t1"]);
+    assert.deepEqual(ids(r.state), ["g1", "g2"]);
+    assert.deepEqual(r.state.list[1].tabs, [{ kind: "browser", id: "t1" }]);
+    assert.deepEqual(r.close, []);
+    // ブラウザのタブも無くなれば外す
+    const r2 = reconcile(r.state, {
+      lists: { a: list("w1"), b: list("w2") },
+      browser: [],
+    });
+    assert.deepEqual(ids(r2.state), ["g1"]);
+  });
+
+  it("ターミナルのタブから開いたのではないブラウザのタブ（workspace が空）がどこにも無ければ、新しいワークスペースを作る（#257）", () => {
+    const r = reconcile(two(), {
+      lists: { a: list("w1", "w3"), b: list("w2") },
+      browser: [{ id: "t1", target: "a", workspace: "" }],
+    });
+    assert.deepEqual(ids(r.state).length, 3);
+    assert.deepEqual(r.state.list[2].tabs, [{ kind: "browser", id: "t1" }]);
+    assert.deepEqual(r.close, []);
+    // もう入っていれば、足さない
+    const again = reconcile(r.state, {
+      lists: { a: list("w1", "w3"), b: list("w2") },
+      browser: [{ id: "t1", target: "a", workspace: "" }],
+    });
+    assert.equal(again.state, r.state);
   });
 
   it("どこにも入っていないブラウザのタブは、開いたときのターミナルのタブがあるワークスペースに入れる", () => {
@@ -434,7 +506,7 @@ describe("記録", () => {
     assert.equal(loadGws(bad), null);
   });
 
-  it("形の違うもの・重なり・ターミナルのタブが無いワークスペースは捨てる。番号が壊れていれば振り直す", () => {
+  it("形の違うもの・重なり・タブが 1 つも無いワークスペースは捨てる（ブラウザのタブだけのものは残す）。番号が壊れていれば振り直す", () => {
     const s = parseGws({
       list: [
         { id: "g1", name: "a", num: 1, tabs: [term("a", "w1"), { kind: "x" }] },
@@ -446,6 +518,7 @@ describe("記録", () => {
           tabs: [term("a", "w1"), term("a", "w3")],
         },
         { id: "g3", name: "", num: 3, tabs: [{ kind: "browser", id: "t" }] },
+        { id: "g5", name: "", num: 6, tabs: [{ kind: "x" }] },
         {
           id: "g4",
           name: 5,
@@ -456,12 +529,11 @@ describe("記録", () => {
         "x",
       ],
     });
-    assert.deepEqual(ids(s), ["g1", "g2", "g4"]);
+    assert.deepEqual(ids(s), ["g1", "g2", "g3", "g4"]);
     assert.deepEqual(s.list[1].tabs.length, 1); // w1 は g1 にある
-    assert.deepEqual(nums(s), [1, 2, 3].slice(0, 1).concat(nums(s).slice(1)));
-    assert.equal(new Set(nums(s)).size, 3);
-    assert.equal(s.list[2].name, "");
-    assert.equal(s.list[2].term, undefined);
+    assert.equal(new Set(nums(s)).size, 4);
+    assert.equal(s.list[3].name, "");
+    assert.equal(s.list[3].term, undefined);
     assert.deepEqual(parseGws(null), EMPTY_GWS);
     assert.deepEqual(parseGws({ list: 3 }), EMPTY_GWS);
   });

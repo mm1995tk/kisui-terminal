@@ -20,6 +20,7 @@ import {
   displayName,
   refKey,
   repTerm,
+  shownBrowserId,
   termKey,
   termsOf,
   type BrowserRef,
@@ -300,7 +301,10 @@ export function shouldSendMoveTo(
 export interface Row {
   /** GUI のワークスペースの id（gws/model.ts） */
   gws: string;
-  /** 今出しているターミナルのタブのマシン（band.id がそのワークスペース。ツリー・CHANGES・shj はそのタブのもの） */
+  /**
+   * 今出しているターミナルのタブのマシン（band.id がそのワークスペース。ツリー・CHANGES・shj はそのタブのもの）。
+   * ターミナルのタブが無いワークスペース（#257）は ""（band.id は GUI のワークスペースの id。ターミナルのタブは無いので、マシンの名前も出さない）
+   */
   target: string;
   /** マシンの名前（行の隅に小さく出す） */
   machine: string;
@@ -337,7 +341,7 @@ export interface TabItem {
   tab?: string;
   /** ターミナルのタブのマシンとワークスペース（ブラウザのタブは undefined） */
   term?: { target: string; ws: WorkspaceId };
-  /** 行の ✕ を出すか（ブラウザのタブはいつも。ターミナルのタブは、ワークスペースの最後の 1 つでなければ） */
+  /** 行の ✕ を出すか（どのタブもいつも。最後のタブを閉じると、ワークスペースも閉じる） */
   closable: boolean;
 }
 
@@ -359,6 +363,11 @@ export interface RowContext {
   /** マシンごとのワークスペース（ターミナルのタブ）の一覧 */
   workspaces: Record<string, Workspace[] | undefined>;
   focus: WorkspaceFocus | null;
+  /**
+   * GUI が今いるワークスペースの id。ターミナルのタブが無いワークスペース（#257）にいるときは、focus（ターミナルのタブのフォーカス）と食い違うので別に渡す。
+   * 省くと、focus のターミナルのタブがあるワークスペース
+   */
+  current?: string;
   /** ブラウザのタブ（id → タブ）。内蔵ブラウザを使わなければ空 */
   browser: ReadonlyMap<string, BrowserTab>;
   /** ワークスペースの id → 出しているブラウザのタブの id */
@@ -375,36 +384,84 @@ export interface RowContext {
  * マシンにつながっていなくて一覧が分からないタブは、最後に分かった名前で薄く出す（health は "down"）。
  */
 export function gwsRows(state: GwsState, ctx: RowContext): Row[] {
-  return state.list.map((g): Row => {
+  return state.list.flatMap((g): Row[] => {
     const rep = repTerm(g, ctx.focus, (t) => ctx.healthOf(t) === "up");
-    const focused = g.tabs.some(
-      (r) =>
-        r.kind === "term" &&
-        r.target === ctx.focus?.target &&
-        r.ws === ctx.focus.id,
-    );
-    const lastTerm = termsOf(g).length <= 1;
+    const focused =
+      ctx.current !== undefined
+        ? g.id === ctx.current
+        : g.tabs.some(
+            (r) =>
+              r.kind === "term" &&
+              r.target === ctx.focus?.target &&
+              r.ws === ctx.focus.id,
+          );
     const items = g.tabs.flatMap((r) => {
-      const item =
-        r.kind === "term" ? termItem(r, ctx, !lastTerm) : browserItem(r, ctx);
+      const item = r.kind === "term" ? termItem(r, ctx) : browserItem(r, ctx);
       return item ? [item] : [];
     });
-    return {
-      gws: g.id,
-      target: rep.target,
-      machine: ctx.labelOf(rep.target),
-      color: ctx.colorOf(rep.target),
-      health: ctx.healthOf(rep.target),
-      band: bandOf(g, rep, focused, ctx),
-      tabs: {
-        items,
-        shown: shownKey(rep, ctx.views[g.id], items),
-        folded: !!g.folded,
-        focused,
+    const tabs = (shown: string): BandTabs => ({
+      items,
+      shown,
+      folded: !!g.folded,
+      focused,
+    });
+    if (!rep) {
+      // ターミナルのタブが無いワークスペース。出すブラウザのタブが 1 つも無ければ（内蔵ブラウザを無効にしている）、行を出さない
+      if (items.length === 0) return [];
+      return [
+        {
+          gws: g.id,
+          target: "",
+          machine: "",
+          color: ctx.colorOf(""),
+          health: "up",
+          band: bandOfBrowserOnly(g, focused),
+          tabs: tabs(
+            browserKey(
+              shownBrowserId(g, ctx.views[g.id], (id) => ctx.browser.has(id))!,
+            ),
+          ),
+        },
+      ];
+    }
+    return [
+      {
+        gws: g.id,
+        target: rep.target,
+        machine: ctx.labelOf(rep.target),
+        color: ctx.colorOf(rep.target),
+        health: ctx.healthOf(rep.target),
+        band: bandOf(g, rep, focused, ctx),
+        tabs: tabs(shownKey(rep, ctx.views[g.id], items)),
       },
-    };
+    ];
   });
 }
+
+/** ターミナルのタブが無いワークスペースの帯（ワークスペースの名前だけ。フォルダ・ブランチ・ツリーは無い）。id は GUI のワークスペースの id。 */
+function bandOfBrowserOnly(g: Gws, focused: boolean): Band {
+  return {
+    id: g.id,
+    title: displayName(g),
+    label: g.name,
+    autoTitle: autoName(g.num),
+    path: false,
+    unset: false,
+    detail: "",
+    dir: "",
+    branch: "",
+    sha: "",
+    note: "",
+    num: "",
+    root: "",
+    focused,
+    showTree: false,
+  };
+}
+
+/** 行が、ターミナルのタブが無いワークスペース（#257）のものか。そのときの target は ""（Row.target） */
+export const isBrowserOnly = (r: Pick<Row, "target">): boolean =>
+  r.target === "";
 
 /**
  * ワークスペースの帯。rep（今出しているターミナルのタブ）の一覧があればフォルダ・ブランチを出し、
@@ -439,7 +496,7 @@ function bandOf(g: Gws, rep: TermRef, focused: boolean, ctx: RowContext): Band {
 }
 
 /** ターミナルのタブの行。名前はマシンの一覧にあればその名前、無ければ最後に分かった名前。 */
-function termItem(r: TermRef, ctx: RowContext, closable: boolean): TabItem {
+function termItem(r: TermRef, ctx: RowContext): TabItem {
   const tw = ctx.workspaces[r.target]?.find((x) => x.id === r.ws);
   const health = ctx.healthOf(r.target);
   const git =
@@ -460,7 +517,7 @@ function termItem(r: TermRef, ctx: RowContext, closable: boolean): TabItem {
     },
     health,
     term: { target: r.target, ws: r.ws },
-    closable,
+    closable: true,
   };
 }
 

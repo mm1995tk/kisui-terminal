@@ -532,10 +532,10 @@ describe("gwsRows", () => {
     );
     assert.equal(rows[0].band.label, "");
     assert.equal(rows[0].band.autoTitle, "ws1");
-    // タブが 1 つのワークスペースも、タブの行を 1 つ出す。最後のターミナルのタブには ✕ を出さない
+    // タブが 1 つのワークスペースも、タブの行を 1 つ出す。最後のタブにも ✕ を出す（閉じると、ワークスペースも閉じる）
     assert.deepEqual(
       rows[0].tabs.items.map((i) => [i.kind, i.closable]),
-      [["term", false]],
+      [["term", true]],
     );
   });
 
@@ -663,6 +663,74 @@ describe("gwsRows", () => {
     );
     assert.equal(r.tabs.shown, JSON.stringify(["b", "t1"]));
     assert.equal(r.tabs.focused, true);
+  });
+
+  it("ターミナルのタブが無いワークスペース（ブラウザのタブだけ）は、マシンの名前を出さずに行にする。出すブラウザのタブが 1 つも無ければ行を出さない（#257）", () => {
+    const state: GwsState = {
+      list: [
+        {
+          id: "g1",
+          name: "調べもの",
+          num: 1,
+          tabs: [
+            { kind: "browser", id: "t1" },
+            { kind: "browser", id: "t2" },
+          ],
+        },
+        { id: "g2", name: "", num: 2, tabs: [{ kind: "browser", id: "gone" }] },
+      ],
+    };
+    const groups = buildSidebar(["a"], up, { a: [lists.a[0]] }, null);
+    const tab = (id: string) => ({
+      id,
+      target: "a",
+      workspace: "",
+      url: `https://${id}.example/`,
+      title: "",
+    });
+    const rows = gwsRows(state, {
+      groups,
+      workspaces: { a: [lists.a[0]] },
+      focus: { target: "a", id: "a1" },
+      current: "g1",
+      browser: new Map([
+        ["t1", tab("t1")],
+        ["t2", tab("t2")],
+      ]),
+      views: { g1: "t2" },
+      labelOf: machineLabel,
+      colorOf: () => "#000",
+      healthOf: () => "up",
+    });
+    assert.equal(rows.length, 1);
+    const [r] = rows;
+    assert.equal(r.gws, "g1");
+    assert.equal(r.target, "");
+    assert.equal(r.machine, "");
+    assert.equal(r.band.title, "調べもの");
+    assert.equal(r.band.focused, true);
+    assert.equal(r.band.showTree, false);
+    assert.deepEqual(
+      r.tabs.items.map((i) => [i.kind, i.closable]),
+      [
+        ["browser", true],
+        ["browser", true],
+      ],
+    );
+    assert.equal(r.tabs.shown, JSON.stringify(["b", "t2"]));
+    // 出しているタブが決まっていなければ、最初のタブ
+    const [r2] = gwsRows(state, {
+      groups,
+      workspaces: {},
+      focus: null,
+      browser: new Map([["t1", tab("t1")]]),
+      views: {},
+      labelOf: machineLabel,
+      colorOf: () => "#000",
+      healthOf: () => "up",
+    });
+    assert.equal(r2.tabs.shown, JSON.stringify(["b", "t1"]));
+    assert.equal(r2.band.focused, false);
   });
 
   it("今出しているターミナルのタブが切れているマシンのものなら、最後に分かった名前で薄く出す", () => {
