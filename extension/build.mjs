@@ -40,6 +40,9 @@ const FILES = [
   "icons",
 ];
 
+// 元の manifest.json（base）から、ブラウザ（"chrome" か "firefox"）の manifest を作る（base は変えない）。
+// Chrome：background を service_worker だけにし、Firefox だけの browser_specific_settings を消す。chromeKey があれば key に入れる。
+// Firefox：background を scripts だけにする（browser_specific_settings は残す）。ほかのブラウザの名前なら例外にする
 export function manifestFor(browser, base, { chromeKey = "" } = {}) {
   const m = structuredClone(base);
   if (browser === "chrome") {
@@ -114,6 +117,9 @@ export function zip(entries) {
   return Buffer.concat([...locals, cd, end]);
 }
 
+// out に拡張機能を作り、作った 2 つの zip のパスを返す。out は先に消してから作り直す（渡したフォルダの中身は残らない）。
+// 作るもの：chrome/・firefox/（手で入れるフォルダ。chrome/ には CHROME_PUBLIC_KEY があれば key を入れる）と、
+// ストアに上げる kisui-terminal-chrome-<版>.zip・kisui-terminal-firefox-<版>.zip（key は入れない）
 export function build(out) {
   const base = JSON.parse(readFileSync(join(src, "manifest.json"), "utf8"));
   rmSync(out, { recursive: true, force: true });
