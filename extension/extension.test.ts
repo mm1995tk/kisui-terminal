@@ -469,6 +469,16 @@ test("タブを覚えるのと、別のタブが閉じるのが重なっても�
   );
 });
 
+test("ブラウザを起動したとき、待っている URL を読み込み中（pendingUrl だけ）のタブも覚える", async () => {
+  const b = fakeBrowser(GH);
+  b.tabs.set(40, { id: 40, url: "", pendingUrl: "https://github.com/login" });
+  b.tabs.set(41, { id: 41, url: "https://github.com/" });
+  b.ev.startup.fire();
+  await settle();
+  assert.ok(b.session["tracked:40"]);
+  assert.equal(b.session["tracked:41"], undefined);
+});
+
 test("kisui-terminal が開いていないタブの知らせは使わない", async () => {
   const b = fakeBrowser(GH);
   const tab = { id: 8, url: "https://github.com/login", status: "complete" };

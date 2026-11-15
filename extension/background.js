@@ -148,9 +148,11 @@ async function checkExistingTabs() {
   if (waiting.size === 0) return;
   const tabs = await api.tabs.query({});
   for (const tab of tabs) {
-    const host = K.hostOf(tab.url ?? "");
+    // 起動した直後の Chrome では、url が空で pendingUrl にだけ入っていることがある
+    const url = tab.pendingUrl || tab.url || "";
+    const host = K.hostOf(url);
     const w = host && waiting.get(host);
-    if (w && K.sameUrl(tab.url, w.url))
+    if (w && K.sameUrl(url, w.url))
       await track(tab.id, { site: host, host: w.host });
   }
 }
