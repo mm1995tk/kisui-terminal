@@ -1,4 +1,4 @@
-// kisui-terminal の拡張機能の、ブラウザの API に触れない部分（background.js が使う。テストは lib.test.ts）。
+// kisui-terminal の拡張機能の、ブラウザの API に触れない部分（background.js が使う。テストは extension.test.ts）。
 // 取り決めは docs/passkey-extension.md。
 //
 // Chrome の service worker（importScripts）と Firefox の background の scripts の両方で読めるよう、
