@@ -28,7 +28,7 @@ import { pageBounds, sameBounds, toLogical, type Bounds } from "./overlay.ts";
 import type { BrowserTab } from "./tabs.ts";
 import "./browser.css";
 
-/** 上に出ていて、ページが避けるもの（右下のお知らせ・リーダーの案内とキャラクター・右クリックのメニュー）。トーストは避けない */
+/** 上に出ていて、ページが避けるもの（右下のお知らせ・リーダーの案内とキャラクター・右クリックのメニュー・data-overlay を付けたページ内検索の欄とトースト） */
 const OVERLAY_SELECTOR =
   ".card-notices > *, [data-overlay], .machine-menu, [role='menu']";
 

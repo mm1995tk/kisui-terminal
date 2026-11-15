@@ -2802,8 +2802,8 @@ function Workbench(props: {
       <ClipboardDialog />
       <ClipboardHistoryDialog />
       <TransferDialog />
-      <CopiedToast />
-      <ScaleToast />
+      <CopiedToast overPage={!!shownBrowserTab()} />
+      <ScaleToast overPage={!!shownBrowserTab()} />
       <LeaderMenu />
       <KeyListDialog />
       <Notices notices={notices()}>
