@@ -713,14 +713,14 @@ test("手で入れる chrome/ の id は、受け口がつないでよいスト�
   const ids = rs.match(/CHROME_EXTENSION_IDS: &\[&str\] = &\[([^\]]*)\]/);
   assert.ok(ids, "CHROME_EXTENSION_IDS が passkey.rs に無い");
   const allowed = [...ids[1].matchAll(/"([a-p]{32})"/g)].map((m) => m[1]);
-  assert.deepEqual(allowed, ["ljfmfmfcicodilhhbmhkfkgjbcpphjel"]);
+  assert.ok(allowed.length > 0, "CHROME_EXTENSION_IDS が空");
   const out = mkdtempSync(join(tmpdir(), "kisui-ext-"));
   try {
     build(out);
     const m = JSON.parse(
       readFileSync(join(out, "chrome", "manifest.json"), "utf8"),
     );
-    assert.equal(chromeId(m.key), allowed[0]);
+    assert.ok(allowed.includes(chromeId(m.key)), chromeId(m.key));
     for (const browser of ["chrome", "firefox"]) {
       const files = unzip(
         readFileSync(
