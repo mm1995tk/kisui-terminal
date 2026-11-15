@@ -100,17 +100,19 @@ export function onTabKey(
   return listen<KeyLike & { tab: string }>("browser-key", (e) => h(e.payload));
 }
 
+/** ページが新しい窓を開いた知らせ（#204）。tab は殻が付けた新しいタブの id、opener は開いた元のタブ。 */
+export interface TabPopup {
+  opener: string;
+  tab: string;
+  url: string;
+}
+
 /**
- * ページが新しい窓（`target=_blank` のリンク・`window.open`）を開いた（#204）。殻はもう webview を作ってある（tab が id）。
- * 画面は、開いた元のタブ（opener）と同じワークスペースに、新しいタブとして足す。
+ * ページが新しい窓（`target=_blank` のリンク・`window.open`）を開いた（#204）。殻はもう webview を作ってある。
+ * 画面は、開いた元のタブと同じワークスペースに、新しいタブとして足す。
  */
-export function onTabPopup(
-  h: (e: { opener: string; tab: string; url: string }) => void,
-): Promise<() => void> {
-  return listen<{ opener: string; tab: string; url: string }>(
-    "browser-popup",
-    (e) => h(e.payload),
-  );
+export function onTabPopup(h: (e: TabPopup) => void): Promise<() => void> {
+  return listen<TabPopup>("browser-popup", (e) => h(e.payload));
 }
 
 /** ページが自分を閉じた（`window.close()`。#204）。 */

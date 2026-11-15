@@ -184,6 +184,7 @@ import {
   revealDownload,
   saveTabs,
   type DownloadDone,
+  type TabPopup,
 } from "./browser/browserOs.ts";
 import {
   addRelayed,
@@ -1651,9 +1652,10 @@ function Workbench(props: {
    * 開いた元のタブと同じワークスペースの新しいタブにして出す（元がシークレットならシークレット。データは元と同じ）。
    * 元のタブがもう無ければ、webview を壊す。
    */
-  function addPopupTab(e: { opener: string; tab: string; url: string }) {
+  function addPopupTab(e: TabPopup) {
     const from = untrack(tabs).tabs.find((t) => t.id === e.opener);
-    if (!from) {
+    // 足す前にページが閉じていた（window.open(...).close()。殻の知らせは「閉じた」が先に届きうる）なら、足さずに壊す
+    if (!from || closedEarly.delete(e.tab)) {
       void closeTabView(e.tab).catch(() => {});
       return;
     }
@@ -1674,10 +1676,22 @@ function Workbench(props: {
     const f = untrack(focus);
     if (f?.target === tab.target && f.id === tab.workspace) focusTerminal();
   }
+  /**
+   * まだ足していないタブの「閉じた」（ページが開いた新しい窓が、画面に知らせが届く前に閉じた）。あとで届く「新しいタブ」を足さない。
+   * 知らないタブの知らせが積もらないよう、新しい 32 個だけ覚える
+   */
+  const closedEarly = new Set<string>();
   /** ページが自分を閉じた（`window.close()`。#204）。タブを閉じ、出していたなら開いた元のタブに戻る。 */
   function closedByPage(id: string) {
     const tab = untrack(tabs).tabs.find((t) => t.id === id);
-    if (!tab) return;
+    if (!tab) {
+      closedEarly.add(id);
+      for (const old of closedEarly) {
+        if (closedEarly.size <= 32) break;
+        closedEarly.delete(old);
+      }
+      return;
+    }
     const shown = untrack(shownBrowserTab)?.id === id;
     setTabs((s) => closeTab(s, id, tab.opener));
     if (shown) focusTerminal();
