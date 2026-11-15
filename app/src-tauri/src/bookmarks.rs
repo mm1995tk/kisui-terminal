@@ -136,9 +136,18 @@ fn walk_chrome(node: &serde_json::Value, path: &str, depth: usize, out: &mut Vec
     match node.get("type").and_then(|v| v.as_str()) {
         Some("url") => {
             let url = node.get("url").and_then(|v| v.as_str()).unwrap_or("");
+            // 題が長すぎても、URL が正しければ残す（覚えるファイルには入らないので、字の境目で切る）
+            let mut title = name.to_string();
+            if title.len() > MAX_TITLE {
+                let mut end = MAX_TITLE;
+                while !title.is_char_boundary(end) {
+                    end -= 1;
+                }
+                title.truncate(end);
+            }
             let b = Bookmark {
                 url: url.to_string(),
-                title: name.to_string(),
+                title,
             };
             if valid(&b) {
                 out.push(ChromeBookmark {
@@ -288,7 +297,8 @@ mod tests {
             {"type":"url","name":"A","url":"https://a.example/"},
             {"type":"folder","name":"Dev","children":[
               {"type":"url","name":"B","url":"https://b.example/"},
-              {"type":"url","name":"js","url":"javascript:alert(1)"}
+              {"type":"url","name":"js","url":"javascript:alert(1)"},
+              {"type":"url","name":"長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長長","url":"https://long.example/"}
             ]}
           ]},
           "other":{"type":"folder","name":"Other bookmarks","children":[
@@ -297,8 +307,15 @@ mod tests {
         }}"#;
         fs::write(&p, body).unwrap();
         let got = load_chrome(&p);
+        // 題が長すぎるものは、URL が正しければ題を切って残す
+        let long = got
+            .iter()
+            .find(|b| b.url == "https://long.example/")
+            .unwrap();
+        assert!(!long.title.is_empty() && long.title.len() <= MAX_TITLE);
         let v: Vec<_> = got
             .iter()
+            .filter(|b| b.url != "https://long.example/")
             .map(|b| (b.url.as_str(), b.title.as_str(), b.folder.as_str()))
             .collect();
         assert_eq!(
