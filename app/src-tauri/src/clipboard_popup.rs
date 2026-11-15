@@ -156,7 +156,7 @@ fn create(app: &AppHandle) -> tauri::Result<WebviewWindow> {
     Ok(w)
 }
 
-/// 窓を隠す。アプリを前に出していないので、前に使っていたアプリは前にいたまま戻る。
+/// 窓を隠す。前に使っていたアプリへは、隠すだけで戻る（理由は `platform` の各 mod を参照）。
 fn hide(app: &AppHandle) {
     app.state::<Popup>().closed();
     let Some(w) = app.get_webview_window(LABEL) else {
@@ -287,9 +287,14 @@ mod platform {
     ///   アプリが前にいないと隠れる）。
     pub fn make_panel(w: &WebviewWindow) {
         let Ok(ptr) = w.ns_window() else { return };
-        // SAFETY: ns_window は、この窓の生きている NSWindow を指す。メインスレッドで使う。NSPanel は NSWindow の
-        // 子クラスで、NSPanel の子クラスに替えたものは NSWindow としてそのまま使える
+        // SAFETY: ns_window は、この窓の生きている NSWindow を指す。メインスレッドで使う。tao が作る窓のクラスは
+        // NSWindow の子クラス `TaoWindow` で、替えると `TaoWindow` の ivar `focusable` と `sendEvent:` の上書きを失う。
+        // この窓には tao の `set_focusable` を呼ばないこと（ivar が無く panic する）。NSPanel は NSWindow に ivar を足さない
+        // ので、替えたあとの大きさは確保済みの大きさを超えない（下の debug_assert で確かめる）
         unsafe {
+            debug_assert!(
+                panel_class().instance_size() <= (*ptr.cast::<AnyObject>()).class().instance_size()
+            );
             ffi::object_setClass(ptr.cast::<AnyObject>(), panel_class());
             let win: &NSWindow = &*ptr.cast::<NSWindow>();
             win.setStyleMask(win.styleMask() | NSWindowStyleMask::NonactivatingPanel);
