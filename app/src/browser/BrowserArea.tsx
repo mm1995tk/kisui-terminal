@@ -41,6 +41,9 @@ interface View {
   shown: Bounds | null;
 }
 
+/** 上の端に出ていて、ページの上の端を下げるもの（URL バー。#232） */
+const TOP_SELECTOR = "[data-overlay-top]";
+
 function rectOf(el: Element): Bounds {
   const r = el.getBoundingClientRect();
   return { x: r.left, y: r.top, w: r.width, h: r.height };
@@ -93,7 +96,11 @@ export function BrowserArea(props: {
       rectOf,
     );
     const modal = document.querySelector("dialog[open]") !== null;
-    const b = pageBounds(rectOf(area), overlays, modal);
+    const areaRect = rectOf(area);
+    const bar = document.querySelector(TOP_SELECTOR);
+    const barRect = bar ? rectOf(bar) : null;
+    const top = barRect ? barRect.y + barRect.h - areaRect.y : 0;
+    const b = pageBounds(areaRect, overlays, modal, top);
     return b && toLogical(b, props.zoom());
   }
 

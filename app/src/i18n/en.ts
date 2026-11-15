@@ -397,9 +397,12 @@ export const en = {
     "Everything in the folder is deleted too. This cannot be undone.",
   "deleteDialog.file": "This cannot be undone.",
   "deleteDialog.yes": "Delete",
-  "urlDialog.edit": "Edit the URL",
   "urlDialog.incognito": "Open a private tab",
   "urlDialog.new": "Open a new tab",
+  "urlBar.label": "Address bar",
+  "urlBar.placeholder": "Search or type a URL",
+  "urlBar.invalid":
+    "Only http and https URLs can be opened (not ones with a user name or password)",
   "urlDialog.invalid":
     "Only http and https URLs can be opened (not ones with a user name or password, or with whitespace)",
   "rename.label": "Rename",
