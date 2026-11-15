@@ -37,6 +37,7 @@ import { TreeView } from "../tree/TreeView.tsx";
 import { splitAtFocus, type Health, type Row, type TabItem } from "./model.ts";
 import { ICON } from "./icons.ts";
 import { termKey } from "../gws/model.ts";
+import { startDrag } from "./drag.ts";
 import "./sidebar.css";
 
 /** 「+」のメニューで足せるタブ。 */
@@ -52,6 +53,10 @@ interface Handlers {
   onTabClose?: (gws: string, key: string) => void;
   /** タブの行の鉛筆（名前を変える） */
   onTabRename?: (gws: string, key: string) => void;
+  /** 帯のつかむ所からドラッグして落とした（before は、その帯のすぐ前の GUI のワークスペースの id。一番後ろなら null） */
+  onWorkspaceMove?: (gws: string, before: string | null) => void;
+  /** タブの行のつかむ所からドラッグして落とした（同じワークスペースの中だけ。before は、そのすぐ前のタブのキー。一番後ろなら null） */
+  onTabMove?: (gws: string, key: string, before: string | null) => void;
   /** ヘッダーの ▾ / ▸（並びを畳む・開く） */
   onTabsFold?: (gws: string) => void;
   /** ヘッダーの「+」のメニューで選んだ。選んでいないワークスペースなら、App が先にそのワークスペースに移る */
@@ -381,6 +386,12 @@ function handlers(
     get onTabRename() {
       return props.onTabRename;
     },
+    get onWorkspaceMove() {
+      return props.onWorkspaceMove;
+    },
+    get onTabMove() {
+      return props.onTabMove;
+    },
     get onFocus() {
       return props.onFocus;
     },
@@ -470,9 +481,76 @@ function Nf(props: { c: string; class?: string }): JSX.Element {
   );
 }
 
-/** ヘッダーとタブの行の左端の、つかむ所（縦の点 3 つ）の場所。並べ替えは #236 で作る。ここでは場所と見た目だけ */
-function Grip(): JSX.Element {
-  return <span class="grip" aria-hidden="true" />;
+/**
+ * ヘッダーとタブの行の左端の、つかむ所（縦の点 3 つ）。ドラッグ（drag.ts）はここからだけ始める。
+ * 行のボタンはここに無いので、行の押下とは取り合わない。スクロールも、ここを押したときは始めさせない（CSS の touch-action）。
+ * onGrab を渡さなければ、場所と見た目だけ（動かせない）。キーでの並べ替えは別にある（リーダーの w J / w K）ので、読み上げには出さない。
+ */
+function Grip(props: { onGrab?: (e: PointerEvent) => void }): JSX.Element {
+  return (
+    <span
+      class="grip"
+      data-grab={props.onGrab ? "" : undefined}
+      aria-hidden="true"
+      onPointerDown={(e) => props.onGrab?.(e)}
+    />
+  );
+}
+
+/** 帯のつかむ所を押した。一覧の帯を、ヘッダーの真ん中で比べて、落とした先の帯の前へ動かす。 */
+function grabBand(
+  e: PointerEvent,
+  row: Row,
+  onMove: NonNullable<Handlers["onWorkspaceMove"]>,
+) {
+  const source = (e.currentTarget as HTMLElement).closest<HTMLElement>(
+    "li.band-item",
+  );
+  const scroller = source?.closest<HTMLElement>("nav.sidebar");
+  if (!source || !scroller) return;
+  startDrag(e, {
+    scroller,
+    self: row.gws,
+    source,
+    items: () =>
+      [...scroller.querySelectorAll<HTMLElement>("li.band-item[data-gws]")].map(
+        (el) => ({
+          key: el.dataset.gws!,
+          el,
+          ref: el.querySelector<HTMLElement>(".band-slot") ?? el,
+        }),
+      ),
+    onDrop: (before) => onMove(row.gws, before),
+  });
+}
+
+/** タブの行のつかむ所を押した。同じ帯の中のタブの行だけを相手にする（別の帯には落とせない）。 */
+function grabTab(
+  e: PointerEvent,
+  gws: string,
+  key: string,
+  onMove: NonNullable<Handlers["onTabMove"]>,
+) {
+  const source = (e.currentTarget as HTMLElement).closest<HTMLElement>(
+    "li.tab-row",
+  );
+  const list = source?.parentElement;
+  const scroller = source?.closest<HTMLElement>("nav.sidebar");
+  if (!source || !list || !scroller) return;
+  startDrag(e, {
+    scroller,
+    self: key,
+    source,
+    items: () =>
+      [
+        ...list.querySelectorAll<HTMLElement>(":scope > li.tab-row[data-key]"),
+      ].map((el) => ({
+        key: el.dataset.key!,
+        el,
+        ref: el.querySelector<HTMLElement>(".tab-line") ?? el,
+      })),
+    onDrop: (before) => onMove(gws, key, before),
+  });
 }
 
 /**
@@ -537,7 +615,13 @@ function BandHeader(
           props.onBandMenu(props.row.target, b().id, e.clientX, e.clientY);
         }}
       >
-        <Grip />
+        <Grip
+          onGrab={
+            props.onWorkspaceMove
+              ? (e) => grabBand(e, props.row, props.onWorkspaceMove!)
+              : undefined
+          }
+        />
         <button
           type="button"
           class="band-btn band-fold"
@@ -680,6 +764,7 @@ function BandItem(props: Handlers & { row: Row }): JSX.Element {
   return (
     <li
       class="band-item"
+      data-gws={props.row.gws}
       style={{ "--machine-color": props.row.color }}
       data-focused={b().focused ? "" : undefined}
       data-health={props.row.health}
@@ -711,6 +796,11 @@ function BandItem(props: Handlers & { row: Row }): JSX.Element {
                     ? () => props.onTabRename?.(props.row.gws, t.key)
                     : undefined
                 }
+                onGrab={
+                  props.onTabMove
+                    ? (e) => grabTab(e, props.row.gws, t.key, props.onTabMove!)
+                    : undefined
+                }
               >
                 <Show when={t.key === repKey()}>
                   <RowPanes {...props} />
@@ -739,19 +829,22 @@ function TabRow(props: {
   onTab: () => void;
   onClose: () => void;
   onRename?: () => void;
+  /** つかむ所を押した（ドラッグで並べ替える）。省くと動かせない */
+  onGrab?: (e: PointerEvent) => void;
   children?: JSX.Element;
 }): JSX.Element {
   const t = () => props.t;
   return (
     <li
       class="tab-row"
+      data-key={t().key}
       data-kind={t().kind}
       data-health={t().health}
       data-shown={props.shown ? "" : undefined}
       data-current={props.current ? "" : undefined}
     >
       <div class="tab-line">
-        <Grip />
+        <Grip onGrab={props.onGrab} />
         <button
           type="button"
           class="tab-main"
