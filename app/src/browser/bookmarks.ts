@@ -106,11 +106,6 @@ export function bookmarkKey(
   return null;
 }
 
-/** ブックマークの行の title（マウスを載せたときの文）。URL。 */
-export function bookmarkTitle(b: Bookmark): string {
-  return b.url;
-}
-
 /** Chrome のブックマークを読めなかった理由（#265）。殻の `ChromeProblem`。 */
 export type ChromeProblem = {
   path: string;

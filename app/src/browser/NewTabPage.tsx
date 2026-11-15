@@ -15,7 +15,7 @@ import {
 
 import { leaderKeyName } from "../commands.ts";
 import { IS_MAC } from "../guiKeys.ts";
-import { bookmarkTitle, type Bookmark } from "./bookmarks.ts";
+import { type Bookmark } from "./bookmarks.ts";
 import {
   bookmarkRows,
   toggleFolder,
@@ -87,7 +87,7 @@ function BookmarkTiles(props: {
                 type="button"
                 class="newtab-tile"
                 aria-current={i() === props.selected}
-                title={bookmarkTitle(r.bookmark)}
+                title={r.bookmark.url}
                 // 検索窓からキーを奪わない（押すと開くので、すぐ別のページに替わる）
                 onMouseDown={(ev) => ev.preventDefault()}
                 onClick={() => props.onOpen(r.bookmark.url)}

@@ -16,7 +16,7 @@ import { ModalCard } from "../connect/Card.tsx";
 import { moveSelection } from "../clipboardHistory.ts";
 import { IS_MAC } from "../guiKeys.ts";
 import { openKeyList } from "../KeyListDialog.tsx";
-import { bookmarkKey, bookmarkTitle, type Bookmark } from "./bookmarks.ts";
+import { bookmarkKey, type Bookmark } from "./bookmarks.ts";
 import {
   bookmarkRows,
   toggleFolder,
@@ -43,7 +43,7 @@ function BookmarkDialogRow(props: {
         aria-selected={props.selected}
         aria-expanded={r.kind === "folder" ? r.open : undefined}
         style={{ "padding-left": `${0.75 + r.depth * 1.25}em` }}
-        title={r.kind === "folder" ? r.name : bookmarkTitle(r.bookmark)}
+        title={r.kind === "folder" ? r.name : r.bookmark.url}
         // 入力欄からフォーカスを動かさない（押したあとも↑↓と Enter が効くように）
         onMouseDown={(ev) => ev.preventDefault()}
         onClick={props.onSelect}

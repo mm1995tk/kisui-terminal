@@ -6,7 +6,6 @@ import { chromeTreeFromLoaded } from "./bookmarkTree.ts";
 import {
   addBookmark,
   bookmarkKey,
-  bookmarkTitle,
   chromeProblemFromLoaded,
   chromeProblemKey,
   filterBookmarks,
