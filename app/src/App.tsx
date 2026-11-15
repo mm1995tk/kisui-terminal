@@ -1734,22 +1734,31 @@ function Workbench(props: {
       },
     );
   }
-  /** ブックマークを書き換えて覚える。書けなければ知らせる。 */
-  function changeBookmarks(next: Bookmark[]) {
+  /**
+   * ブックマークを書き換えて覚える。書けたら onSaved を呼ぶ。書けなければ前の一覧に戻して知らせる
+   * （書けないものを一覧に残すと、画面とファイルが食い違い、その後の保存もすべて失敗するため）。
+   */
+  function changeBookmarks(next: Bookmark[], onSaved?: () => void) {
+    const prev = untrack(bookmarks);
     setBookmarks(next);
-    saveBookmarks(next).catch((e: unknown) =>
-      setFocusError({
-        title: T("err.bookmarks.save"),
-        error: e instanceof Error ? e.message : String(e),
-      }),
+    saveBookmarks(next).then(
+      () => onSaved?.(),
+      (e: unknown) => {
+        // 書いている間に、ほかの操作がまた書き換えていれば、そちらを残す
+        if (untrack(bookmarks) === next) setBookmarks(prev);
+        setFocusError({
+          title: T("err.bookmarks.save"),
+          error: e instanceof Error ? e.message : String(e),
+        });
+      },
     );
   }
   /** 今のページをブックマークに足す（リーダーの o b）。読む前なら、先に読んでから足す（覚えていたものを消さないため）。 */
   function bookmarkPage(t: BrowserTab) {
-    const add = (list: Bookmark[]) => {
-      changeBookmarks(addBookmark(list, { url: t.url, title: t.title }));
-      showToast(T("toast.bookmarked"));
-    };
+    const add = (list: Bookmark[]) =>
+      changeBookmarks(addBookmark(list, { url: t.url, title: t.title }), () =>
+        showToast(T("toast.bookmarked")),
+      );
     const had = bookmarks();
     if (had) add(had);
     else
