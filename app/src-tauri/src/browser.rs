@@ -1018,6 +1018,23 @@ fn open_devtools(v: &Webview) {
     v.open_devtools();
 }
 
+/// macOS：`with_webview` の閉包に渡る webview から、ページの WKWebView と、メインスレッドの印を取り出す。
+/// 閉包の外（メインスレッドでない所）や、WKWebView が無いときは None。返す WKWebView は `pv` が生きている間だけ使う。
+#[cfg(target_os = "macos")]
+pub(crate) fn wk_webview(
+    pv: &tauri::webview::PlatformWebview,
+) -> Option<(&objc2_web_kit::WKWebView, objc2::MainThreadMarker)> {
+    // with_webview の中はメインスレッド
+    let mtm = objc2::MainThreadMarker::new()?;
+    let ptr = pv.inner() as *const objc2_web_kit::WKWebView;
+    if ptr.is_null() {
+        return None;
+    }
+    // SAFETY: tauri の PlatformWebview::inner は、生きている WKWebView を指す（with_webview の閉包の間。返す参照の
+    // 寿命は pv に縛る）
+    Some((unsafe { &*ptr }, mtm))
+}
+
 /// macOS：DevTools を別の窓で開き、窓にくっつけさせない。
 ///
 /// WKWebView の Web Inspector は、くっつける先の view（`_inspectorAttachmentView`。既定はページの WKWebView 自身）の
@@ -1032,25 +1049,17 @@ fn open_devtools(v: &Webview) {
     let r = v.with_webview(|pv| {
         use objc2::rc::Retained;
         use objc2::runtime::{AnyObject, NSObjectProtocol};
-        use objc2::{msg_send, sel, MainThreadMarker};
+        use objc2::{msg_send, sel};
         use objc2_app_kit::NSView;
-        use objc2_web_kit::WKWebView;
 
         thread_local! {
             /// くっつける先にする、窓に置かない隠した view（すべてのタブで 1 つ。アプリが終わるまで持つ）
             static NOWHERE: std::cell::OnceCell<Retained<NSView>> = const { std::cell::OnceCell::new() };
         }
 
-        // with_webview の中はメインスレッド
-        let Some(mtm) = MainThreadMarker::new() else {
+        let Some((w, mtm)) = wk_webview(&pv) else {
             return;
         };
-        let ptr = pv.inner() as *const WKWebView;
-        if ptr.is_null() {
-            return;
-        }
-        // SAFETY: tauri の PlatformWebview::inner は、生きている WKWebView を指す（この閉包の間）
-        let w: &WKWebView = unsafe { &*ptr };
         // `_setInspectorAttachmentView:` は Apple の非公開の API（macOS 10.13.4 から）。無ければ替えずに開く
         if w.respondsToSelector(sel!(_setInspectorAttachmentView:)) {
             NOWHERE.with(|n| {

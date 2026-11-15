@@ -141,25 +141,17 @@ fn run(pv: tauri::webview::PlatformWebview, app: AppHandle, tab: String, page: P
 fn run(pv: tauri::webview::PlatformWebview, app: AppHandle, tab: String, page: Page, asked: u64) {
     use block2::RcBlock;
     use objc2::runtime::AnyObject;
-    use objc2::MainThreadMarker;
     use objc2_foundation::{NSError, NSString};
-    use objc2_web_kit::{WKContentWorld, WKWebView};
+    use objc2_web_kit::WKContentWorld;
 
     // WKContentWorld と callAsyncJavaScript は macOS 11 から。それより前の macOS ではクラスが無いので、何もしない
     // （サイドバーは地球のアイコンのまま）
     if objc2::runtime::AnyClass::get(c"WKContentWorld").is_none() {
         return;
     }
-    // with_webview の中はメインスレッド
-    let Some(mtm) = MainThreadMarker::new() else {
+    let Some((w, mtm)) = crate::browser::wk_webview(&pv) else {
         return;
     };
-    let ptr = pv.inner() as *const WKWebView;
-    if ptr.is_null() {
-        return;
-    }
-    // SAFETY: tauri の PlatformWebview::inner は、生きている WKWebView を指す（この閉包の間）
-    let w: &WKWebView = unsafe { &*ptr };
     let world = unsafe { WKContentWorld::worldWithName(&NSString::from_str(WORLD), mtm) };
     let done: RcBlock<dyn Fn(*mut AnyObject, *mut NSError)> =
         RcBlock::new(move |res: *mut AnyObject, err: *mut NSError| {
