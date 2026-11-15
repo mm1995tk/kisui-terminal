@@ -17,7 +17,7 @@
   --health-down: var(--gh-text-dim);
   --new-workspace-border: var(--gh-border-strong);
   /* 上に固定するものの高さ（D3）。ツリーのフォルダの行は、帯の下から積む */
-  --band-height: 52px;
+  --band-height: 34px;
   --sticky-shadow: rgba(0, 0, 0, 0.6);
 
   box-sizing: border-box;
@@ -88,54 +88,30 @@
   outline-offset: -1px;
 }
 
-/* ワークスペースの帯（li.band-item）。マシンの色（--machine-color。Sidebar.tsx が style に入れる）を 8% だけ混ぜた背景を敷き、
-   左にマシンの色の 2px の縦線を引き、右の角を丸める（#137）。帯どうしは 4px 空ける。
+/* ワークスペースの帯（li.band-item。#234）。角の丸い箱で、ヘッダー（.band-slot > .band）とコンテンツ（.tab-rows）に分ける。字下げはしない。
+   選んでも位置と高さが変わらないよう、箱の余白・枠の太さはいつも同じにして、枠の色だけを変える（フォーカスしている帯は枠と見出しの色が明るい）。
    --region-bg は不透明な色にする（上下に固定した帯・フォルダの行の後ろが透けないように） */
 .band-item {
-  --region-bg: color-mix(in srgb, var(--machine-color) 8%, var(--gh-bg-side));
+  --region-bg: var(--gh-bg-side);
+  --head-bg: var(--gh-bg-raised);
+  --head-border: var(--gh-border-strong);
+  --row-bg: var(--gh-bg-side);
+  --row-shown-bg: color-mix(
+    in srgb,
+    var(--gh-bg-raised) 70%,
+    var(--gh-bg-side)
+  );
   --sidebar-bg: var(--region-bg);
-  margin: 0 6px 4px 0;
-  border-left: 2px solid var(--machine-color);
-  border-radius: 0 8px 8px 0;
+  box-sizing: border-box;
+  margin: 0 6px 6px;
+  border: 1px solid var(--gh-border);
+  border-radius: 8px;
+  /* 中身を角の丸みに切り取る。hidden や auto はスクロールの入れ物を作って中の sticky を壊すが、clip は作らない */
+  overflow: clip;
   background: var(--region-bg);
 }
 .sidebar > .bands {
   padding-top: 4px;
-}
-/* つながっていないマシンのワークスペース（最後に知っていた一覧）は薄く出す */
-.band-item[data-health="down"] .band-head,
-.band-item[data-health="down"] .band-detail {
-  opacity: 0.55;
-}
-
-/* ワークスペースの 1 行目：名前と、そのマシンの名前・接続の状態（小さく） */
-.band-head {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  min-width: 0;
-}
-.band-machine {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  max-width: 45%;
-  color: var(--machine-color);
-  font-size: 10px;
-  font-weight: 400;
-  letter-spacing: 0.02em;
-}
-.band-machine-name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.band-machine .health {
-  width: 6px;
-  height: 6px;
-  border-radius: 3px;
 }
 
 .health {
@@ -161,24 +137,31 @@
   list-style: none;
 }
 
-/* ワークスペースのカード（#137）。スロット（.band-slot）が左右の余白と上下の間を持ち、中のカード（.band）が角の丸い箱。
-   開いているカードのスロットは上に固定するので、範囲の背景を敷いて後ろの行を隠す */
+/* Nerd Fonts の絵の字（icons.ts）。JetBrains Mono → Symbols Nerd Font Mono の順（--gh-mono） */
+.nf {
+  flex: none;
+  font-family: var(--gh-mono);
+  font-style: normal;
+  font-weight: 400;
+  line-height: 1;
+}
+
+/* ヘッダー。開いているワークスペースのヘッダーは上に固定するので、不透明な背景を敷き、下に太い線を引いてコンテンツとの境目をはっきりさせる。
+   高さは --band-height で決め、ツリーのフォルダの行はその下から積む */
 .band-slot {
   box-sizing: border-box;
   height: var(--band-height);
-  padding: 3px 8px;
+  background: var(--head-bg);
+  border-bottom: 2px solid var(--head-border);
 }
 .band {
   box-sizing: border-box;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 2px;
   width: 100%;
   height: 100%;
-  padding: 0 8px 0 10px;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  background: var(--band-bg);
+  padding: 0 4px 0 0;
   color: var(--sidebar-text);
   font: inherit;
   text-align: left;
@@ -186,17 +169,77 @@
 .band:hover {
   background: var(--band-hover);
 }
-/* 帯の中のフォーカスを移すボタン。帯の幅いっぱいに広げる */
+
+/* つかむ所（縦の点 3 つ。幅 6px）。ドラッグで並べ替える動きは #236 で作る。場所はいつも空けておき、マウスを乗せたときだけ点を見せる */
+.grip {
+  flex: none;
+  box-sizing: border-box;
+  width: 6px;
+  height: 15px;
+  margin: 0 3px 0 3px;
+  background: radial-gradient(
+      circle at 3px 2.5px,
+      var(--sidebar-muted) 1.1px,
+      transparent 1.6px
+    )
+    0 0 / 6px 5px repeat-y;
+  opacity: 0;
+}
+.band:hover .grip,
+.tab-line:hover .grip {
+  opacity: 1;
+}
+
+/* ヘッダーとタブの行のボタン（畳む・足す・名前を変える・閉じる）。同じ大きさ */
+.band-btn {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--sidebar-muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+.band-btn:hover {
+  background: var(--band-hover);
+  color: var(--sidebar-text);
+}
+.band-btn:focus-visible,
+.band-main:focus-visible,
+.tab-main:focus-visible {
+  outline: 1px solid var(--machine-color);
+  outline-offset: -1px;
+}
+/* 鉛筆と ✕ は、選んでいる帯・行と、マウスを乗せた帯・行（キーが向いているものも）にだけ見せる。出ていないときも場所は空ける（opacity）。
+   ✕ を出せない行（ワークスペースの最後のターミナルのタブ）などは、見せずに場所だけ空ける（data-off） */
+.band-close {
+  opacity: 0;
+}
+.band:hover .band-close,
+.band:focus-within .band-close,
+.band[aria-current="true"] .band-close,
+.tab-line:hover .band-close,
+.tab-line:focus-within .band-close,
+.tab-row[data-current] .band-close {
+  opacity: 1;
+}
+.band-btn[data-off] {
+  visibility: hidden;
+}
+
+/* 名前（フォーカスを移すボタン）。幅いっぱいに広げる */
 .band-main {
   flex: 1;
   min-width: 0;
   height: 100%;
   display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: stretch;
-  gap: 1px;
-  padding: 0;
+  align-items: center;
+  padding: 0 4px;
   border: 0;
   background: transparent;
   color: inherit;
@@ -204,46 +247,18 @@
   text-align: left;
   cursor: pointer;
 }
-.band-main:focus-visible,
-.band-close:focus-visible {
-  outline: 1px solid var(--machine-color);
-  outline-offset: -1px;
+div.band-main {
+  cursor: default;
 }
-/* 帯の右の [×]。押す前に目に入りすぎないよう、帯に乗せたとき・キーが向いたとき・フォーカス中の帯だけ出す */
-.band-close {
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--sidebar-muted);
-  cursor: pointer;
-  opacity: 0;
+.band-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
 }
-.band-close svg {
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2;
-}
-.band:hover .band-close,
-.band:focus-within .band-close,
-.band[aria-current="true"] .band-close {
-  opacity: 1;
-}
-.band-close:hover {
-  background: var(--band-hover);
-  color: var(--sidebar-text);
-}
-/* 鉛筆（名前を変える）。[×] と同じ大きさ・線の太さ・出す条件（.band-close を共有）。絵だけ、線の端と角を丸める（太さは × と同じ） */
-.band-edit svg {
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-/* 名前をその場で変えている間の入力欄。1 行目の名前と同じ文字で、2 行目の詳しい表示は隠す。断られた理由は帯の下に流れで置き、全文を折り返して出す */
+/* 名前をその場で変えている間の入力欄。ヘッダーの名前と同じ文字にする。断られた理由は帯の下に流れで置き、全文を折り返して出す */
 .band-rename {
   box-sizing: border-box;
   width: 100%;
@@ -273,37 +288,14 @@
   overflow-wrap: anywhere;
   white-space: normal;
 }
-/* フォーカスしているワークスペース（#170）は、カードとそのツリー・CHANGES を 1 つの箱（.band-item[data-focused]）で囲んで示す。
-   箱は他のカードより少し明るい灰色の背景と灰色の枠（色は --gh-*）で、黄色などの色は使わない。名前は太字にする。
-   箱の中ではカードの背景を外し、箱の見出しに見せる。
-   箱は overflow: clip で中身を角の丸みに切り取る（hidden や auto はスクロールの入れ物を作って中の sticky を壊すが、clip は作らない）。上に固定する見出しの背景は箱と同じ色にして、枠が続いて見えるようにする */
+/* フォーカスしているワークスペース（#170）は、枠と見出しを明るくして示す（太さ・余白は変えない）。
+   黄色などの色は使わない。ツリーと CHANGES は、この箱の中のタブの行の下に開く */
 .band-item[data-focused] {
-  --focus-box-bg: color-mix(
-    in srgb,
-    var(--gh-bg-raised) 55%,
-    var(--gh-bg-hover)
-  );
-  --sidebar-bg: var(--focus-box-bg);
+  --head-bg: color-mix(in srgb, var(--gh-bg-raised) 55%, var(--gh-bg-hover));
+  --head-border: var(--gh-text-dim);
   --tree-hover: var(--gh-bg-hover);
   --changes-hover: var(--gh-bg-hover);
-  margin: 3px 6px;
-  border: 1px solid var(--gh-border-strong);
-  border-radius: 8px;
-  overflow: clip;
-  background: var(--focus-box-bg);
-}
-.band-item[data-focused] > .band-slot {
-  padding: 2px 4px;
-  background: var(--focus-box-bg);
-}
-.band-item[data-focused] .band {
-  background: transparent;
-}
-.band-item[data-focused] .band:hover {
-  background: var(--gh-bg-hover);
-}
-.band[aria-current="true"] {
-  font-weight: 700;
+  border-color: var(--gh-text-dim);
 }
 
 /* 上下の固定（D3）。帯 → ツリーのフォルダの行（tree.css）の順に積み、下の要素はその上に重ねる。
@@ -331,54 +323,6 @@
 }
 .sidebar-after[data-shadow] {
   box-shadow: 0 -6px 8px -4px var(--sticky-shadow);
-}
-
-.band-title {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.band-title.unset {
-  color: var(--sidebar-muted);
-  font-style: italic;
-}
-.band-title.path {
-  font-family: var(--gh-mono);
-  font-size: 12px;
-}
-
-/* 2 行目（ディレクトリ名 · ブランチ (sha)、「git なし」）。部分ごとに並べ、狭いときは先にディレクトリ名、次にブランチ名を「…」で切る。
-   余った幅の削り方は flex-shrink の比で決まるので、ディレクトリ名は 1000、ブランチ名は 1、sha と「git なし」・番号は 0（切らない）にする。ディレクトリ名は 0 まで縮み、それでも足りない分をブランチ名が受ける */
-.band-detail {
-  display: flex;
-  align-items: baseline;
-  gap: 0.35em;
-  min-height: 1.3em;
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  color: var(--sidebar-muted);
-  font-size: 11px;
-  font-weight: 400;
-}
-.band-dir,
-.band-branch {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.band-dir {
-  flex: 0 1000 auto;
-}
-.band-branch {
-  flex: 0 1 auto;
-}
-.band-sep,
-.band-sha,
-.band-note {
-  flex: none;
 }
 
 /* 足したマシンの見出し・ツリーの行を右クリックしたメニュー。
@@ -427,81 +371,129 @@
   line-height: 1.5;
 }
 
-/* 内蔵ブラウザのタブ（#202。Sidebar.tsx の BandTabRows）。帯の下に、そのワークスペースのタブを並べる */
-.band-tabs {
-  padding: 0 4px 4px 10px;
-}
-.band-tabs-fold {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 4px;
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--sidebar-muted);
-  font: inherit;
-  font-size: 11px;
-  cursor: pointer;
-}
-.band-tabs-fold:hover {
-  background: var(--band-hover);
-  color: var(--sidebar-text);
-}
-.band-tabs-fold:focus-visible,
-.tab-main:focus-visible {
-  outline: 1px solid var(--machine-color);
-  outline-offset: -1px;
-}
-.band-tabs-chevron {
-  width: 10px;
-  text-align: center;
-}
+/* ヘッダーの下のコンテンツ：タブの行を、ヘッダーと同じ左端から並べる（字下げしない）。タブとタブの間に区切り線を引く */
 .tab-rows {
   margin: 0;
   padding: 0;
   list-style: none;
 }
 .tab-row {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  height: 26px;
-  padding: 0 4px 0 6px;
-  border-left: 2px solid transparent;
-  border-radius: 0 4px 4px 0;
+  --sidebar-bg: var(--row-bg);
+  background: var(--row-bg);
 }
-.tab-row:hover {
-  background: var(--band-hover);
+.tab-row + .tab-row {
+  border-top: 1px solid var(--gh-border);
 }
 /* そのワークスペースで出しているタブ。今のワークスペースのものは、地の色も変える */
 .tab-row[data-shown] {
-  border-left-color: color-mix(in srgb, var(--machine-color) 55%, transparent);
+  --row-bg: var(--row-shown-bg);
 }
 .tab-row[data-current] {
-  border-left-color: var(--machine-color);
-  background: var(--band-bg);
+  --row-bg: var(--gh-bg-hover);
+}
+/* 行の高さの最小は、ターミナルのタブもブラウザのタブも同じ（2 行ぶん）。git のあるターミナルのタブは 3 行ぶんに伸びる */
+.tab-line {
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  min-height: 46px;
+  padding: 4px 6px 4px 0;
+}
+.tab-line:hover {
+  background: var(--band-hover);
 }
 .tab-main {
   flex: 1;
   min-width: 0;
   display: flex;
-  align-items: baseline;
-  gap: 6px;
-  height: 100%;
+  flex-direction: column;
+  gap: 1px;
   padding: 0;
   border: 0;
   background: transparent;
   color: var(--sidebar-text);
   font: inherit;
-  font-size: 12px;
   text-align: left;
   cursor: pointer;
+}
+/* 鉛筆と ✕ は 1 行目の右に重ねる。名前が下に潜らないよう、1 行目の右は空けておく */
+.tab-actions {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  display: flex;
+  gap: 0;
+}
+.tab-l1 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding-right: 46px;
+  font-size: 12px;
+}
+.tab-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tab-icon {
+  width: 14px;
+  text-align: center;
+  color: var(--sidebar-muted);
+}
+/* マシンの札（アイコン・つながりの丸・マシン名をマシンの色で）。名前が長ければ札を縮める */
+.tab-machine {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: 45%;
+  font-size: 10px;
+  letter-spacing: 0.02em;
+}
+.tab-machine .health {
+  width: 6px;
+  height: 6px;
+  border-radius: 3px;
+}
+.tab-machine-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* 2 行目（フォルダ・URL）と 3 行目（git）は横幅いっぱいに使い、切れるときは「…」で切る */
+.tab-l2,
+.tab-l3 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  height: 16px;
+  color: var(--sidebar-muted);
+  font-size: 11px;
+}
+.tab-l2 .nf,
+.tab-l3 .nf {
+  width: 14px;
+  text-align: center;
+}
+.tab-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--gh-mono);
 }
 /* シークレットのタブ（#204）の印。題の前に置く小さな札。題が長くても縮めない */
 .tab-incognito {
   flex: none;
-  align-self: center;
   padding: 0 4px;
   border: 1px solid var(--sidebar-muted);
   border-radius: 3px;
@@ -509,32 +501,10 @@
   font-size: 9px;
   line-height: 13px;
 }
-.tab-title {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.tab-host {
-  flex: 0 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--sidebar-muted);
-  font-size: 10px;
-}
-/* ターミナルのタブ（#231）の、マシンとのつながりの丸。つながっていないマシンのタブは、文字を薄くする */
-.tab-health {
-  align-self: center;
-}
+/* つながっていないマシンのタブは、文字を薄くする（マシンの札の丸は「切れている」色のまま） */
 .tab-row[data-health="down"] .tab-title,
-.tab-row[data-health="down"] .tab-host {
+.tab-row[data-health="down"] .tab-icon,
+.tab-row[data-health="down"] .tab-l2,
+.tab-row[data-health="down"] .tab-l3 {
   opacity: 0.55;
-}
-/* タブの × は、行に乗せたとき・キーが向いたとき・出しているタブだけ出す（帯の × と同じ考え） */
-.tab-row:hover .tab-close,
-.tab-row:focus-within .tab-close,
-.tab-row[data-current] .tab-close {
-  opacity: 1;
 }

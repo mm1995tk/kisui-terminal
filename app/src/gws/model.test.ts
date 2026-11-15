@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 import type { KeyValueStore } from "../ssh/machines.ts";
 import {
   addBrowser,
+  addTerm,
   addWorkspace,
   after,
   autoName,
@@ -86,6 +87,25 @@ describe("番号の名前", () => {
 });
 
 describe("ワークスペースの操作", () => {
+  it("ターミナルのタブを、ワークスペースの一番後ろに足して、最後に使ったタブにする", () => {
+    const s = addTerm(two(), "g2", "b", "w9", "新");
+    assert.deepEqual(s.list[1].tabs, [term("a", "w3"), term("b", "w9", "新")]);
+    assert.deepEqual(s.list[1].term, { target: "b", ws: "w9" });
+    assert.equal(addTerm(s, "g2", "b", "w9"), s); // もう入っている
+    assert.equal(addTerm(s, "nope", "b", "w8"), s);
+  });
+
+  it("作った直後に別のワークスペースとして入っていたら、そこから移す（空になれば並びから外す）", () => {
+    const s = addTerm(
+      addWorkspace(two(), "b", "w9", "w9", "g3"),
+      "g1",
+      "b",
+      "w9",
+    );
+    assert.deepEqual(ids(s), ["g1", "g2"]);
+    assert.equal(gwsOfTerm(s, "b", "w9")?.id, "g1");
+  });
+
   it("ターミナルのタブがもうどこかにあれば、足さない", () => {
     const s = two();
     assert.equal(addWorkspace(s, "b", "w2"), s);

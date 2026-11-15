@@ -11,21 +11,29 @@ import { ModalCard } from "./Card.tsx";
  * 打っていた Enter が押さないよう、フォーカスはボタンではなく窓そのものに置く。
  */
 export function CloseWorkspaceCard(props: {
-  /** ワークスペースの表示名 */
+  /** ワークスペース（tab なら、ターミナルのタブ）の表示名 */
   name: string;
+  /** 閉じるのがターミナルのタブ 1 つのとき "tab"（文が変わる）。省くとワークスペース */
+  kind?: "workspace" | "tab";
   onYes: () => void;
   onNo: () => void;
 }): JSX.Element {
   return (
     <ModalCard
-      label={T("closeWorkspace.label")}
+      label={T(
+        props.kind === "tab" ? "closeTab.label" : "closeWorkspace.label",
+      )}
       onCancel={props.onNo}
       focusSelf
     >
       <div class="card-body">
-        <h1 class="card-title">{T("closeWorkspace.title")}</h1>
+        <h1 class="card-title">
+          {T(props.kind === "tab" ? "closeTab.title" : "closeWorkspace.title")}
+        </h1>
         <p class="card-text">
-          {T("closeWorkspace.text", { name: props.name })}
+          {T(props.kind === "tab" ? "closeTab.text" : "closeWorkspace.text", {
+            name: props.name,
+          })}
         </p>
       </div>
       <div class="card-actions">
