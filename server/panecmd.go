@@ -133,7 +133,7 @@ func (s *Server) paneCmd(rq panecmd.Request) (panecmd.Reply, error) {
 	}
 	switch rq.Cmd {
 	case "open":
-		if panecmd.HasScheme(rq.Target) { // URL は欄にせず、GUI の手元の外部ブラウザで開かせる
+		if panecmd.HasScheme(rq.Target) { // URL は欄にせず、GUI の手元のブラウザ（内蔵ブラウザのタブか外部ブラウザ）で開かせる
 			id, err := s.ws.openURL(wsID, rq.Target)
 			return panecmd.Reply{ID: id}, err
 		}

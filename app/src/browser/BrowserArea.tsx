@@ -61,6 +61,10 @@ export function BrowserArea(props: {
   zoom: () => number;
   /** ページにキーがあっても受けるキー（リーダーと近道） */
   keys: () => InterceptKey[];
+  /**
+   * タブの URL（元の URL）から、ページに実際に開かせる URL を得る（リモートのマシンの localhost 系は `kisui relay` の中継の URL。#203）
+   */
+  resolve: (tab: BrowserTab, url: string) => Promise<string>;
   /** ページを開けなかった */
   onError: (title: string, error: string) => void;
   /** 今出しているタブのページにキーを向ける関数を受け取る */
@@ -109,7 +113,9 @@ export function BrowserArea(props: {
     // 隠すときも、いったん場所の四角で作る（次の見回りで隠す）
     const at = b ?? toLogical(rectOf(area), props.zoom());
     try {
-      await openTab(tab.id, tab.url, props.keys(), at);
+      const url = await props.resolve(tab, tab.url);
+      if (disposed || views.get(tab.id) !== v) return;
+      await openTab(tab.id, url, props.keys(), at);
     } catch (e) {
       if (views.get(tab.id) !== v) return;
       v.state = "failed";
