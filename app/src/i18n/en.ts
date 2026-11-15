@@ -534,6 +534,10 @@ export const en = {
     "No bookmarks yet. Add the page you are viewing with {leader} o b.",
   "bookmarks.empty.noMatch": "Nothing matches",
   "err.bookmarks.read": "Could not read your own bookmarks",
+  "err.bookmarks.chrome":
+    "Could not read the Chrome bookmarks: {reason} ({path})",
+  "err.bookmarks.chromePermission":
+    "Could not read the Chrome bookmarks: {reason} ({path}). Add kisui-terminal in System Settings > Privacy & Security > Full Disk Access.",
   "err.bookmarks.save": "Could not save the bookmarks",
   "err.devtools": "Could not open DevTools",
   "find.label": "Find in page",

@@ -7,6 +7,8 @@ import {
   bookmarkKey,
   bookmarkTitle,
   chromeFromLoaded,
+  chromeProblemFromLoaded,
+  chromeProblemKey,
   filterBookmarks,
   fromLoaded,
   MAX_BOOKMARKS,
@@ -132,13 +134,15 @@ describe("ブックマークの一覧のキー（bookmarkKey）", () => {
 });
 
 it("Chrome のブックマークを読み、kisui-terminal 自身のものを先に、同じ URL は自身のものを残して合わせる（#239）", () => {
-  const chrome = chromeFromLoaded([
-    { url: "https://a.example/", title: "Chrome A", folder: "Bookmarks bar" },
-    { url: "https://c.example/", title: "C", folder: "Other" },
-    { url: "https://c.example/", title: "C2", folder: "Other" },
-    { title: "no url" },
-    null,
-  ]);
+  const chrome = chromeFromLoaded({
+    bookmarks: [
+      { url: "https://a.example/", title: "Chrome A", folder: "Bookmarks bar" },
+      { url: "https://c.example/", title: "C", folder: "Other" },
+      { url: "https://c.example/", title: "C2", folder: "Other" },
+      { title: "no url" },
+      null,
+    ],
+  });
   assert.deepEqual(
     chrome.map((b) => [b.url, b.source]),
     [
@@ -159,6 +163,34 @@ it("Chrome のブックマークを読み、kisui-terminal 自身のものを先
   assert.equal(mergeBookmarks(undefined, chrome)?.length, 2);
   assert.equal(mergeBookmarks(own, undefined)?.length, 1);
   assert.equal(chromeFromLoaded("x").length, 0);
+  assert.equal(chromeFromLoaded([{ url: "https://a.example/" }]).length, 0);
   assert.equal(bookmarkTitle(chrome[0]), "Bookmarks bar\nhttps://a.example/");
   assert.equal(bookmarkTitle(own[0]), "https://a.example/");
+});
+
+it("Chrome のブックマークの読み込みから、ブックマークと読めなかった理由を取り出す（#265）", () => {
+  const ok = {
+    bookmarks: [{ url: "https://a.example/", title: "A", folder: "" }],
+    problem: null,
+  };
+  assert.equal(chromeFromLoaded(ok).length, 1);
+  assert.equal(chromeProblemFromLoaded(ok), undefined);
+  assert.equal(chromeProblemFromLoaded([]), undefined);
+  const denied = {
+    bookmarks: [],
+    problem: {
+      path: "/h/Bookmarks",
+      reason: "Operation not permitted (os error 1)",
+      needsPermission: true,
+    },
+  };
+  assert.equal(chromeFromLoaded(denied).length, 0);
+  const p = chromeProblemFromLoaded(denied);
+  assert.deepEqual(p, denied.problem);
+  assert.equal(chromeProblemKey(p!), chromeProblemKey({ ...denied.problem }));
+  assert.notEqual(
+    chromeProblemKey(p!),
+    chromeProblemKey({ ...denied.problem, reason: "invalid JSON" }),
+  );
+  assert.equal(chromeProblemFromLoaded({ problem: { path: 1 } }), undefined);
 });

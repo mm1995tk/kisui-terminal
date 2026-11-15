@@ -108,12 +108,16 @@ export function bookmarkKey(
   return null;
 }
 
-/** 殻が読んだ Chrome のブックマーク（#239）。形の違うものは捨て、source を "chrome" にする。同じ URL は先のものだけ残す。 */
+/** 殻が読んだ Chrome のブックマーク（#239。`{ bookmarks, problem }` の形）。形の違うものは捨て、source を "chrome" にする。同じ URL は先のものだけ残す。 */
 export function chromeFromLoaded(v: unknown): Bookmark[] {
-  if (!Array.isArray(v)) return [];
+  const list =
+    typeof v === "object" && v !== null
+      ? (v as { bookmarks?: unknown }).bookmarks
+      : undefined;
+  if (!Array.isArray(list)) return [];
   const out: Bookmark[] = [];
   const seen = new Set<string>();
-  for (const b of v as unknown[]) {
+  for (const b of list as unknown[]) {
     if (typeof b !== "object" || b === null) continue;
     const { url, title, folder } = b as Record<string, unknown>;
     if (typeof url !== "string" || seen.has(url)) continue;
@@ -145,4 +149,26 @@ export function mergeBookmarks(
 /** ブックマークの行の title（マウスを載せたときの文）。URL。Chrome のものは、Chrome の中のフォルダの道も添える。 */
 export function bookmarkTitle(b: Bookmark): string {
   return b.source === "chrome" && b.folder ? `${b.folder}\n${b.url}` : b.url;
+}
+
+/** Chrome のブックマークを読めなかった理由（#265）。殻の `ChromeProblem`。 */
+export type ChromeProblem = {
+  path: string;
+  reason: string;
+  needsPermission: boolean;
+};
+
+/** 殻が返した Chrome のブックマークの読み込みから、読めなかった理由を取り出す。無い・形が違うときは undefined。 */
+export function chromeProblemFromLoaded(v: unknown): ChromeProblem | undefined {
+  if (typeof v !== "object" || v === null || !("problem" in v)) return;
+  const p = (v as { problem: unknown }).problem;
+  if (typeof p !== "object" || p === null) return;
+  const { path, reason, needsPermission } = p as Record<string, unknown>;
+  if (typeof path !== "string" || typeof reason !== "string") return;
+  return { path, reason, needsPermission: needsPermission === true };
+}
+
+/** 同じ理由を何度も知らせないための印（読もうとしたファイルと理由が同じなら同じ）。 */
+export function chromeProblemKey(p: ChromeProblem): string {
+  return `${p.path}\n${p.reason}\n${p.needsPermission}`;
 }
