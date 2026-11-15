@@ -8,6 +8,7 @@
 // どのワークスペースにも入っていないターミナルのタブ（記録が消えた・別の PC の GUI から作った・GUI のワークスペースの記録が無かった版から開いていた）は、
 // 1 つにつき新しいワークスペースを 1 つ作って入れる（reconcile）。
 
+import { T } from "../i18n/index.ts";
 import type { WorkspaceId } from "../rpc/protocol.ts";
 import type { KeyValueStore } from "../ssh/machines.ts";
 
@@ -536,6 +537,18 @@ export function nameError(name: string): "too_long" | "control" | undefined {
   // eslint-disable-next-line no-control-regex
   if (/[\u0000-\u001f\u007f]/.test(n)) return "control";
   return undefined;
+}
+
+/** nameError の理由を、名前の入力欄に出す文にする。付けられる名前なら undefined。 */
+export function nameErrorText(name: string): string | undefined {
+  switch (nameError(name)) {
+    case "too_long":
+      return T("rename.err.tooLongMax", { max: MAX_NAME });
+    case "control":
+      return T("rename.err.control");
+    default:
+      return undefined;
+  }
 }
 
 /**

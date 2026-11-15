@@ -19,6 +19,7 @@ import {
   loadGws,
   move,
   nameError,
+  nameErrorText,
   parseGws,
   reconcile,
   removeBrowser,
@@ -392,5 +393,14 @@ describe("reconcile の keep", () => {
       keep: new Set([termKey("a", "w9")]),
     });
     assert.equal(kept.state, s);
+  });
+});
+
+describe("nameErrorText", () => {
+  it("付けられる名前なら undefined、付けられなければ理由の文", () => {
+    assert.equal(nameErrorText("調査"), undefined);
+    assert.ok(nameErrorText("a".repeat(101)));
+    assert.ok(nameErrorText("a\nb"));
+    assert.notEqual(nameErrorText("a".repeat(101)), nameErrorText("a\nb"));
   });
 });

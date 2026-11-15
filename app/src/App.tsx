@@ -116,8 +116,7 @@ import { loadOrder } from "./sidebar/order.ts";
 import {
   addBrowser,
   autoName,
-  MAX_NAME,
-  nameError,
+  nameErrorText,
   addWorkspace,
   after,
   browserKey,
@@ -2510,13 +2509,9 @@ function Workbench(props: {
   function submitWorkspaceRename(name: string) {
     const r = renamingWs();
     if (!r) return;
-    const bad = nameError(name);
+    const bad = nameErrorText(name);
     if (bad) {
-      setWsRenameError(
-        bad === "too_long"
-          ? T("rename.err.tooLongMax", { max: MAX_NAME })
-          : T("rename.err.control"),
-      );
+      setWsRenameError(bad);
       return;
     }
     setGws((g) => renameGws(g, r.gws, name));
@@ -2528,13 +2523,9 @@ function Workbench(props: {
   function submitTabRename(name: string) {
     const id = renamingTab();
     if (id === null) return;
-    const bad = nameError(name);
+    const bad = nameErrorText(name);
     if (bad) {
-      setTabRenameError(
-        bad === "too_long"
-          ? T("rename.err.tooLongMax", { max: MAX_NAME })
-          : T("rename.err.control"),
-      );
+      setTabRenameError(bad);
       return;
     }
     setGws((g) => renameBrowser(g, id, name));
