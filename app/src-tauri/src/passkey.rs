@@ -153,7 +153,7 @@ pub fn site_of(u: &Url, sites: &[String]) -> Option<String> {
 /// ユーザーがリーダーの操作で外のブラウザでのログインを始めたとき（#276。`o s`）の答え。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Start {
-    /// 待ちを覚えた。外のブラウザで開く URL（同じタブから続けて押したときは None。開き直さない）
+    /// 待ちを覚えた。外のブラウザで開く URL（同じタブから同じサイトに続けて押したときは None。待ちは続いているので開き直さない）
     Opened(Option<Url>),
     /// `passkey_sites` が無い（または内蔵ブラウザを使っていない）
     NoSites,
@@ -184,8 +184,13 @@ pub fn start(p: Option<&Passkey>, incognito: bool, tab: &str, url: &Url, now: In
     let Some(p) = p else {
         return Start::NoSites;
     };
-    if site_of(url, &p.sites).is_none() {
+    let Some(site) = site_of(url, &p.sites) else {
         return Start::NotAllowed;
+    };
+    // 続けて開き直さない間隔はタブごと。そのサイトをまだ待っていなければ（3 秒以内に同じタブが別のサイトへ移った）、
+    // 間隔を無視して覚える（Opened(None) は「待ちが続いている」ときだけにする）
+    if !p.waits_for(&site, now) {
+        p.last.lock().unwrap().remove(tab);
     }
     Start::Opened(p.hand_off(tab, url, now))
 }
@@ -336,6 +341,13 @@ impl Passkey {
             },
         );
         Some(url.clone())
+    }
+
+    /// サイト（`site_of` の答え）のログインを、今も待っているか。
+    fn waits_for(&self, site: &str, now: Instant) -> bool {
+        let mut w = self.waiting.lock().unwrap();
+        Self::expire(&mut w, now);
+        w.contains_key(site)
     }
 
     /// 期限の切れた待ちを捨てる。
@@ -974,6 +986,13 @@ mod tests {
             r["waiting"],
             json!([{"site": "github.com", "url": "https://github.com/login"}])
         );
+        // 同じタブが 3 秒以内に別の許可サイトへ移って押したときは、間隔を待たずにそのサイトを待つ
+        let d = url("https://dash.cloudflare.com/login");
+        assert_eq!(
+            start(Some(&p), false, "t1", &d, t0 + Duration::from_secs(2)),
+            Start::Opened(Some(d.clone()))
+        );
+        assert_eq!(p.waiting.lock().unwrap().len(), 2);
         assert_eq!(Start::Opened(None).code(), "opened");
         assert_eq!(Start::NotAllowed.code(), "not-allowed");
     }
