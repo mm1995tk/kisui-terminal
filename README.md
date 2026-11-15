@@ -15,7 +15,7 @@ Linux (x86_64 and aarch64) and macOS on Apple silicon (arm64); macOS on Intel is
 
 The nightly build of main is `kisui-terminal-nightly` in the [`nightly` pre-release](https://github.com/mm1995tk/kisui-terminal/releases/tag/nightly) (a `.dmg` only; on Linux, use Nix for the nightly). It has its own name and identifier, so it can be installed next to the stable one.
 
-With Nix, kisui-terminal is the `kisui-terminal` package (`kisui-terminal-nightly` for the nightly, installed under that name), or `programs.kisui-terminal.enable = true;` in home-manager with the flake's `homeManagerModules.default`. Built with Nix it has no auto update: update it with `nix flake update`.
+With Nix, kisui-terminal is the `kisui-terminal` package (`kisui-terminal-nightly` for the nightly, installed under that name), or `programs.kisui-terminal.enable = true;` in home-manager with the flake's `homeManagerModules.default`. Built with Nix it has no auto update: update it with `nix flake update`. If you install the app another way (the .dmg on macOS, say) and only want home-manager to place the settings, write `programs.kisui-terminal.package = null;` (no package is installed). `programs.kisui-terminal.channel` chooses the folder of the settings: `"stable"` for `~/.config/kisui-terminal/`, `"nightly"` for `~/.config/kisui-terminal-nightly/`. Unset, it follows the package name when there is a package, and is `"stable"` when `package = null`; a `channel` that differs from the package is an evaluation error. Example: `programs.kisui-terminal = { enable = true; package = null; channel = "nightly"; settings = { /* ... */ }; };`
 
 ```sh
 nix run github:mm1995tk/kisui-terminal
