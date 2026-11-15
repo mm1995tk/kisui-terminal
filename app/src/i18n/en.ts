@@ -353,7 +353,7 @@ export const en = {
   "treeMenu.new-dir": "New folder",
   "treeMenu.rename": "Rename",
   "treeMenu.delete": "Delete",
-  "treeMenu.cd": "Go here",
+  "treeMenu.cd": "cd here in the terminal",
   "clipboardAsk.label": "Clipboard read",
   "clipboardAsk.title": "Allow reading the clipboard?",
   "clipboardAsk.text":
@@ -424,7 +424,7 @@ export const en = {
     "A program is running in a terminal of {name}. Closing ends all its terminals. Open files are saved before closing.",
   "closeWorkspace.yes": "End them and close",
   "askpass.label": "ssh question",
-  "askpass.reveal": "Show it (type yes / no for the host key check)",
+  "askpass.reveal": "Show what you type (type yes / no for the host key check)",
   "askpass.cancel": "Cancel",
   "browser.opening": "Opening {url}…",
   "browser.failed":
