@@ -106,6 +106,7 @@ import {
   gwsRows,
   health,
   type Row,
+  isBrowserOnly,
   keepFocus,
   shouldSendMoveTo,
   type WorkspaceFocus,
@@ -146,6 +147,7 @@ import {
   repTerm,
   saveGws,
   setActiveTerm,
+  shownBrowserId,
   termKey,
   termsOf,
   toggleFold,
@@ -1227,7 +1229,7 @@ function Workbench(props: {
     // ターミナルのタブを持たないワークスペースに居たとき・移り先がそうなときは、閉じたあとに goRow で移る
     const fromTerm = termsOf(g).length > 0;
     const moveTo =
-      wasCurrent && fromTerm && next && next.target !== ""
+      wasCurrent && fromTerm && next && !isBrowserOnly(next)
         ? { target: next.target, id: next.band.id }
         : null;
     await closeThenMove(
@@ -1318,7 +1320,7 @@ function Workbench(props: {
       return;
     }
     // ブラウザのタブを読み終えるまでは、行が無い。読めたら、最初のブラウザのタブだけのワークスペースへ移る
-    const r = rows().find((x) => x.target === "");
+    const r = rows().find(isBrowserOnly);
     if (r) {
       setLanding(false);
       untrack(() => showGws(r.gws));
@@ -1331,7 +1333,7 @@ function Workbench(props: {
   }
   /** サイドバーの行 r のワークスペースへ移る。ターミナルのタブがあればそのタブ、無ければブラウザのタブのページ。 */
   function goRow(r: Row) {
-    if (r.target === "") showGws(r.gws);
+    if (isBrowserOnly(r)) showGws(r.gws);
     else void switchWorkspace(r.target, r.band.id);
   }
   /** 作ったばかりで、マシンの一覧の知らせがまだ届いていないターミナルのタブ（termKey）。reconcile が外さない */
@@ -1770,12 +1772,10 @@ function Workbench(props: {
   const shownBrowserTab = createMemo(() => {
     const g = currentGws();
     if (!props.browser || !g) return undefined;
-    const t = shownTab(tabs(), g.id);
-    if (t || termsOf(g).length > 0) return t;
-    // ターミナルのタブが無いワークスペースは、いつもブラウザのタブを出す（出していたタブが無ければ、最初のもの）
-    return g.tabs.flatMap((r) =>
-      r.kind === "browser" ? tabs().tabs.filter((x) => x.id === r.id) : [],
-    )[0];
+    const id = shownBrowserId(g, tabs().views[g.id], (x) =>
+      tabs().tabs.some((t) => t.id === x),
+    );
+    return id === undefined ? undefined : tabs().tabs.find((t) => t.id === id);
   });
   /** 出しているタブのうち、ページを開いているもの（URL バーを出す）と、新しいタブのページ（#238。NewTabPage を出す）の id */
   const pageTabId = createMemo(() => {
@@ -1982,9 +1982,10 @@ function Workbench(props: {
   }
   /** ワークスペース g が今出しているブラウザのタブの id（ターミナルのタブを出していれば undefined。ターミナルのタブが無いワークスペースは、出している・無ければ最初のブラウザのタブ）。 */
   function shownIdOf(g: Gws): string | undefined {
-    const v = untrack(tabs).views[g.id];
-    if (v !== undefined || termsOf(g).length > 0) return v;
-    return g.tabs.find((r) => r.kind === "browser")?.id;
+    const t = untrack(tabs);
+    return shownBrowserId(g, t.views[g.id], (id) =>
+      t.tabs.some((x) => x.id === id),
+    );
   }
 
   /**
@@ -2458,7 +2459,7 @@ function Workbench(props: {
         const list = rows();
         const k = list.findIndex((r) => r.gws === g.id);
         const nr = list[k + 1] ?? list[k - 1];
-        if (nr && nr.target !== "")
+        if (nr && !isBrowserOnly(nr))
           moveTo = { target: nr.target, id: nr.band.id };
         else if (nr) onClosed = () => showGws(nr.gws);
       }

@@ -316,6 +316,25 @@ export function toggleFold(s: GwsState, id: string): GwsState {
 }
 
 /**
+ * ワークスペース g が今出しているブラウザのタブの id。view は、ワークスペースが出すと覚えているブラウザのタブ（browser/tabs.ts の views）。
+ * ターミナルのタブを出していれば undefined。ターミナルのタブが無いワークスペースは、いつもブラウザのタブを出す
+ * （view のタブが無ければ、最初のブラウザのタブ）。hasBrowser は、そのブラウザのタブがまだあるか。
+ * 画面に出すページ（App.tsx）とサイドバーで強調する行（sidebar/model.ts）は、どちらもこれで決める。
+ */
+export function shownBrowserId(
+  g: Gws,
+  view: string | undefined,
+  hasBrowser: (id: string) => boolean,
+): string | undefined {
+  const own = (id: string) =>
+    hasBrowser(id) && g.tabs.some((r) => r.kind === "browser" && r.id === id);
+  if (view !== undefined && own(view)) return view;
+  if (termsOf(g).length > 0) return undefined;
+  for (const r of g.tabs) if (r.kind === "browser" && own(r.id)) return r.id;
+  return undefined;
+}
+
+/**
  * ブラウザのタブ 1 つだけを持つ新しいワークスペースを、並びの一番下に足す（ターミナルのタブは無い。#257）。
  * そのタブがもうどこかのワークスペースにあれば、そのまま返す。
  */

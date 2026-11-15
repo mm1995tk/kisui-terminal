@@ -7,6 +7,7 @@ import {
   addBrowserWorkspace,
   addTerm,
   addWorkspace,
+  shownBrowserId,
   after,
   autoName,
   browserKey,
@@ -221,6 +222,32 @@ describe("ワークスペースの操作", () => {
     assert.deepEqual(r.list[1].tabs, [{ kind: "browser", id: "t1" }]);
     assert.equal(r.list[1].term, undefined);
     assert.equal(repTerm(r.list[1]), undefined);
+  });
+
+  it("shownBrowserId：ターミナルのタブがあれば出しているブラウザのタブだけ。無ければ、出しているもの、なければ最初のブラウザのタブ（#257）", () => {
+    const all = () => true;
+    const withTerm = addBrowser(two(), "g1", "t1").list[0];
+    assert.equal(shownBrowserId(withTerm, undefined, all), undefined);
+    assert.equal(shownBrowserId(withTerm, "t1", all), "t1");
+    assert.equal(
+      shownBrowserId(withTerm, "t1", () => false),
+      undefined,
+    );
+    let s = addBrowserWorkspace(two(), "a", "g9");
+    s = addBrowser(s, "g9", "b");
+    const only = s.list[2];
+    assert.equal(shownBrowserId(only, undefined, all), "a");
+    assert.equal(shownBrowserId(only, "b", all), "b");
+    // 出しているタブが無くなっていれば、残っている最初のもの。他のワークスペースのタブは出さない
+    assert.equal(
+      shownBrowserId(only, "a", (id) => id === "b"),
+      "b",
+    );
+    assert.equal(shownBrowserId(only, "t1", all), "a");
+    assert.equal(
+      shownBrowserId(only, undefined, () => false),
+      undefined,
+    );
   });
 
   it("ブラウザのタブだけのワークスペースを足せる。最後のブラウザのタブを外すと、ワークスペースごと外す（#257）", () => {

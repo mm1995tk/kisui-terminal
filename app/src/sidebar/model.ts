@@ -20,6 +20,7 @@ import {
   displayName,
   refKey,
   repTerm,
+  shownBrowserId,
   termKey,
   termsOf,
   type BrowserRef,
@@ -415,7 +416,11 @@ export function gwsRows(state: GwsState, ctx: RowContext): Row[] {
           color: ctx.colorOf(""),
           health: "up",
           band: bandOfBrowserOnly(g, focused),
-          tabs: tabs(shownKeyBrowserOnly(ctx.views[g.id], items)),
+          tabs: tabs(
+            browserKey(
+              shownBrowserId(g, ctx.views[g.id], (id) => ctx.browser.has(id))!,
+            ),
+          ),
         },
       ];
     }
@@ -454,15 +459,9 @@ function bandOfBrowserOnly(g: Gws, focused: boolean): Band {
   };
 }
 
-/** ターミナルのタブが無いワークスペースで出しているタブのキー。出している（view）ブラウザのタブ、無ければ最初のタブ。 */
-function shownKeyBrowserOnly(
-  view: string | undefined,
-  items: readonly TabItem[],
-): string {
-  return view !== undefined && items.some((i) => i.key === browserKey(view))
-    ? browserKey(view)
-    : items[0].key;
-}
+/** 行が、ターミナルのタブが無いワークスペース（#257）のものか。そのときの target は ""（Row.target） */
+export const isBrowserOnly = (r: Pick<Row, "target">): boolean =>
+  r.target === "";
 
 /**
  * ワークスペースの帯。rep（今出しているターミナルのタブ）の一覧があればフォルダ・ブランチを出し、
