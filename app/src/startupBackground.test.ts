@@ -34,3 +34,14 @@ describe("起動時の背景色", () => {
     assert.equal(term?.toLowerCase(), want);
   });
 });
+
+describe("ページの上に重ねる間（data-page-overlay。#255）", () => {
+  it("html と body のインラインの背景を !important で透かす（無いと、ページの場所が塗られてページが見えない）", () => {
+    const css = read("./browser/browser.css");
+    const rule = css.match(
+      /html\[data-page-overlay\],\s*html\[data-page-overlay\] body\s*\{([^}]*)\}/,
+    );
+    assert.ok(rule, "html と body の両方を透かす規則が無い");
+    assert.match(rule[1], /background:\s*transparent\s*!important/);
+  });
+});
