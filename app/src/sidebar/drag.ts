@@ -82,6 +82,42 @@ export function edgeScroll(y: number, top: number, bottom: number): number {
   return 0;
 }
 
+/** つかんだ行の、動かした量と、落とし先を決める位置。 */
+export interface DragPosition {
+  /** つかんだ行の移動量（px。下へなら正） */
+  shift: number;
+  /** この位置を、ほかの行の真ん中と比べて落とし先を決める */
+  probe: number;
+}
+
+/**
+ * つかんだ行（self）を want（px）動かしたいときの、実際の移動量と落とし先を決める位置。
+ * 下へ動かすときは、つかんだ行の下端を比べる（背の高い行でも、空く場所とつかんだ行の位置が合う）。上へ動かすときは、真ん中（ヘッダー）を比べる。
+ * confine なら、全部の行の上端から下端までの内に収める（タブの行が、帯の外で切れて見えなくならないように）。
+ */
+export function dragPosition(
+  items: readonly (DragSlot & { mid: number })[],
+  self: string,
+  want: number,
+  confine: boolean,
+): DragPosition | null {
+  const s = items.find((it) => it.key === self);
+  if (!s) return null;
+  let shift = want;
+  if (confine) {
+    const first = items[0]!;
+    const last = items[items.length - 1]!;
+    shift = Math.min(
+      Math.max(shift, first.top - s.top),
+      last.top + last.height - (s.top + s.height),
+    );
+  }
+  return {
+    shift,
+    probe: shift > 0 ? s.top + shift + s.height : s.mid + shift,
+  };
+}
+
 /** 並びの 1 行の、いまの DOM。 */
 export interface DragRow {
   key: string;
@@ -97,6 +133,50 @@ function currentShift(el: HTMLElement): number {
   return t && t !== "none" ? new DOMMatrixReadOnly(t).m42 : 0;
 }
 
+/** 行の、動く前の（transform を除いた）位置。transition の途中でも、いまの移動量を引けば元の位置が分かる。 */
+function measureRows(rows: readonly DragRow[]) {
+  return rows.map((r) => {
+    const shift = currentShift(r.el);
+    const b = r.el.getBoundingClientRect();
+    const m = r.ref.getBoundingClientRect();
+    return {
+      key: r.key,
+      el: r.el,
+      top: b.top - shift,
+      height: b.height,
+      mid: m.top - shift + m.height / 2,
+    };
+  });
+}
+
+/** el の transform と印を外す。 */
+function clearRow(el: HTMLElement) {
+  el.removeAttribute("data-dragging");
+  el.removeAttribute("data-shift");
+  el.style.transform = "";
+}
+
+/** つかんだ行に selfShift、ほかの行に shifts の量の transform と印を掛ける。掛けた要素を返す。 */
+function applyDrag(
+  measured: readonly { key: string; el: HTMLElement }[],
+  self: string,
+  selfShift: number,
+  shifts: ReadonlyMap<string, number>,
+): HTMLElement[] {
+  for (const n of measured) {
+    if (n.key === self) {
+      n.el.setAttribute("data-dragging", "");
+      n.el.removeAttribute("data-shift");
+      n.el.style.transform = `translateY(${selfShift}px)`;
+    } else {
+      n.el.removeAttribute("data-dragging");
+      n.el.setAttribute("data-shift", "");
+      n.el.style.transform = `translateY(${shifts.get(n.key) ?? 0}px)`;
+    }
+  }
+  return measured.map((n) => n.el);
+}
+
 export interface DragSpec {
   /** 一覧（スクロールする要素）。作り直されない */
   scroller: HTMLElement;
@@ -104,6 +184,8 @@ export interface DragSpec {
   self: string;
   /** 並びの全部の行（動かしている行も）を、いまの DOM から引き直して返す。呼ぶたびに引き直すこと */
   rows: () => DragRow[];
+  /** true なら、つかんだ行を、全部の行の上端から下端までの内でしか動かさない（タブの行。帯の外で切れて見えなくならないように） */
+  confine?: boolean;
   /** 落とした（before は、その行の前。一番後ろなら null）。動かさずに離したときは呼ばない */
   onDrop: (before: string | null) => void;
 }
@@ -122,47 +204,26 @@ export function startDrag(e: PointerEvent, spec: DragSpec): void {
   let grabOffset: number | null = null; // つかんだ行の上端から、押した位置までの距離
   let marked: HTMLElement[] = [];
 
-  const clear = (el: HTMLElement) => {
-    el.removeAttribute("data-dragging");
-    el.removeAttribute("data-shift");
-    el.style.transform = "";
-  };
-
   // 行を動かす。行は作り直されることがあるので、毎回いまの DOM から引き直して掛け直す
   const update = () => {
-    const rows = spec.rows();
-    // 動く前の（transform を除いた）位置。transition の途中でも、いまの移動量を引けば元の位置が分かる
-    const natural = rows.map((r) => {
-      const shift = currentShift(r.el);
-      const b = r.el.getBoundingClientRect();
-      const m = r.ref.getBoundingClientRect();
-      return {
-        key: r.key,
-        el: r.el,
-        top: b.top - shift,
-        height: b.height,
-        mid: m.top - shift + m.height / 2,
-      };
-    });
-    const self = natural.find((n) => n.key === spec.self);
+    const measured = measureRows(spec.rows());
+    const self = measured.find((n) => n.key === spec.self);
     if (!self) return;
     grabOffset ??= startY - self.top;
-    const selfShift = y - grabOffset - self.top;
-    before = dropBefore(natural, spec.self, self.mid + selfShift);
-    const shifts = layoutShifts(natural, spec.self, before);
-    for (const n of natural) {
-      if (n.key === spec.self) {
-        n.el.setAttribute("data-dragging", "");
-        n.el.removeAttribute("data-shift");
-        n.el.style.transform = `translateY(${selfShift}px)`;
-      } else {
-        n.el.removeAttribute("data-dragging");
-        n.el.setAttribute("data-shift", "");
-        n.el.style.transform = `translateY(${shifts.get(n.key) ?? 0}px)`;
-      }
-    }
-    const now = natural.map((n) => n.el);
-    for (const el of marked) if (!now.includes(el)) clear(el);
+    const pos = dragPosition(
+      measured,
+      spec.self,
+      y - grabOffset - self.top,
+      spec.confine === true,
+    )!;
+    before = dropBefore(measured, spec.self, pos.probe);
+    const now = applyDrag(
+      measured,
+      spec.self,
+      pos.shift,
+      layoutShifts(measured, spec.self, before),
+    );
+    for (const el of marked) if (!now.includes(el)) clearRow(el);
     marked = now;
   };
 
@@ -205,8 +266,8 @@ export function startDrag(e: PointerEvent, spec: DragSpec): void {
     window.removeEventListener("blur", cancel);
     if (frame !== 0) cancelAnimationFrame(frame);
     observer.disconnect();
-    for (const el of marked) clear(el);
-    for (const r of spec.rows()) clear(r.el);
+    for (const el of marked) clearRow(el);
+    for (const r of spec.rows()) clearRow(r.el);
     document.body.style.cursor = "";
     if (wasActive && drop) spec.onDrop(before);
   };

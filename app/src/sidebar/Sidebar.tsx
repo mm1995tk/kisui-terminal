@@ -533,6 +533,7 @@ function grabTab(
   startDrag(e, {
     scroller,
     self: key,
+    confine: true,
     // 帯もタブの行も、描き直されて作り直されることがあるので、そのたびに一覧から引き直す
     rows: () => {
       const band = bandElements(scroller).find((el) => el.dataset.gws === gws);

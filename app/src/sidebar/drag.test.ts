@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { dropBefore, edgeScroll, layoutShifts } from "./drag.ts";
+import { dragPosition, dropBefore, edgeScroll, layoutShifts } from "./drag.ts";
 
 const items = [
   { key: "a", mid: 10 },
@@ -82,5 +82,38 @@ describe("layoutShifts", () => {
   });
   it("動かす行しか無ければ何も返さない", () => {
     assert.equal(layoutShifts([slots[0]!], "a", null).size, 0);
+  });
+});
+
+describe("dragPosition", () => {
+  // 高さ 20・行間 4。a は背が高く（高さ 60）、ヘッダー（真ん中）は上から 10
+  const slots = [
+    { key: "a", top: 0, height: 60, mid: 10 },
+    { key: "b", top: 64, height: 20, mid: 74 },
+    { key: "c", top: 88, height: 20, mid: 98 },
+  ];
+  it("上へは真ん中、下へは下端を比べる", () => {
+    assert.deepEqual(dragPosition(slots, "b", -10, false), {
+      shift: -10,
+      probe: 64,
+    });
+    assert.deepEqual(dragPosition(slots, "a", 20, false), {
+      shift: 20,
+      probe: 80,
+    });
+  });
+  it("背の高い行は、下端が下の行の真ん中を越えるまで、下の行がよけない", () => {
+    const p = dragPosition(slots, "a", 10, false)!;
+    assert.equal(dropBefore(slots, "a", p.probe), "b");
+    const q = dragPosition(slots, "a", 20, false)!;
+    assert.equal(dropBefore(slots, "a", q.probe), "c");
+  });
+  it("confine なら、全部の行の上端から下端までの内に収める", () => {
+    assert.equal(dragPosition(slots, "b", -500, true)!.shift, -64);
+    assert.equal(dragPosition(slots, "b", 500, true)!.shift, 24);
+    assert.equal(dragPosition(slots, "b", 500, false)!.shift, 500);
+  });
+  it("つかんだ行が無ければ null", () => {
+    assert.equal(dragPosition(slots, "x", 0, false), null);
   });
 });
