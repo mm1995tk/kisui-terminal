@@ -460,12 +460,16 @@ pub fn valid_site(s: &str) -> bool {
 /// `.google.com` の書き方の項目で、ドメイン（`.` の後ろ）が公開サフィックス（Public Suffix List にあり、誰でもその下に
 /// サブドメインを持てる名前。`com`・`co.jp`・`github.io`）か。そう書くと、他人のサイトの Cookie まで写す対象になる。
 /// 一覧に無い最上位のドメイン（`internal` など）も、一覧の決まり（`*`）どおり公開サフィックスと見る。
+/// 名前そのものは公開サフィックスでなくても、一覧に `*.<名前>` の決まりがあるもの（`kobe.jp`。`x.kobe.jp` はどれも公開サフィックス）も
+/// 同じに扱う（その下は他人のサイト）。
 /// `github.com` の書き方（host と完全に同じものだけに当たる）は見ない（false）。
 pub fn public_suffix_site(s: &str) -> bool {
     let Some(name) = s.strip_prefix('.') else {
         return false;
     };
-    psl::suffix(name.as_bytes()).is_some_and(|x| x.as_bytes() == name.as_bytes())
+    let is_suffix = |n: &str| psl::suffix(n.as_bytes()).is_some_and(|x| x.as_bytes() == n.as_bytes());
+    // 一覧に無い名前を 1 つ下に付けて、`*.<名前>` の決まりに当たるかを見る
+    is_suffix(name) || is_suffix(&format!("kisui-terminal-probe.{name}"))
 }
 
 /// `[gui.browser] passkey_sites` を確かめる（重なりは 1 つにまとめる）。使う項目と、公開サフィックスなので使わない項目に分ける。
@@ -1098,7 +1102,7 @@ mod tests {
 
     #[test]
     fn public_suffix_sites() {
-        for s in [".com", ".jp", ".co.jp", ".github.io", ".internal"] {
+        for s in [".com", ".jp", ".co.jp", ".github.io", ".internal", ".kobe.jp", ".ck"] {
             assert!(public_suffix_site(s), "{s}");
         }
         // github.com の書き方は見ない。公開サフィックスの下の名前は使える
