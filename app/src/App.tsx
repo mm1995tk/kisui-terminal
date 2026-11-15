@@ -1795,6 +1795,9 @@ function Workbench(props: {
   let focusFind: (() => void) | undefined;
   /** 検索の欄を開く。開いていれば、入力欄にキーを向ける。 */
   function openFind(t: BrowserTab) {
+    // ページから押したときに覚えた「戻す先」を捨てる。ページを押した後も画面のキーの行き先は入力欄のまま残るので、
+    // 捨てないと「行き先が変わっていない」と見て、キーをページに戻してしまう
+    pageReturn = undefined;
     if (untrack(findTab) === t.id) focusFind?.();
     else setFindTab(t.id);
   }
