@@ -256,7 +256,7 @@
   color: var(--gh-text-muted);
 }
 
-/* ページの上に浮かべるもの（リーダーの案内・お知らせ・メニュー）を重ねている間（macOS。BrowserArea.tsx の floatsOver）。
+/* ページの上に浮かべるもの（リーダーの案内・キャラクター・メニュー）を重ねている間（macOS。BrowserArea.tsx の floatsOver）。
    画面（メインの webview）をページの webview より前に出し、ページの場所の背景を塗らないで、ページが透けて見えるようにする。
    ページの上には、半透明の色をかぶせて、操作できないことが一目で分かるようにする（すりガラス）。ぼかし（NSVisualEffectView）はまだ試していない。
    CSS の backdrop-filter は、別の webview であるページをぼかせない（#255, #262）。

@@ -196,7 +196,7 @@ export function revealDownload(id: number): Promise<void> {
 }
 
 /**
- * 重なりもの（リーダーの案内・お知らせ・メニュー）を、ページを縮めずにページの上に重ねられるかを殻に聞く（macOS だけ true）。
+ * 重なりもの（リーダーの案内・キャラクター・メニュー）を、ページを縮めずにページの上に重ねられるかを殻に聞く（macOS だけ true）。
  * true のとき、殻は画面（メインの webview）の背景を透明にする。
  */
 export function enableOverlay(): Promise<boolean> {
