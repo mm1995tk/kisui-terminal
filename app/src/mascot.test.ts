@@ -160,6 +160,7 @@ describe("nextAction", () => {
     reduced: false,
     shown: true,
     closedBy: "other" as const,
+    carrying: false,
   };
 
   it("開いたら運ぶ", () => {
@@ -192,6 +193,12 @@ describe("nextAction", () => {
       nextAction({ ...closed, closedBy: "escape", shown: false }),
       "clear",
     );
+  });
+
+  it("運んでいる途中に Esc で閉じたら、押していかず、すぐ消える。Esc 以外ならさようなら", () => {
+    const closed = { ...base, isOpen: false, wasOpen: true, carrying: true };
+    assert.equal(nextAction({ ...closed, closedBy: "escape" }), "clear");
+    assert.equal(nextAction({ ...closed, closedBy: "other" }), "bye");
   });
 
   it("視差効果を減らすときは、Esc でも押していかず、その場で消える", () => {

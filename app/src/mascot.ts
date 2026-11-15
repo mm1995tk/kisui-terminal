@@ -246,9 +246,12 @@ export function nextAction(s: {
   shown: boolean;
   /** 閉じ方。Esc で閉じたときだけ押していく */
   closedBy: CloseReason;
+  /** 案内を運んでいる途中か（運び終える前）。この間に Esc で閉じたときは、押していかず、すぐ消す */
+  carrying: boolean;
 }): "carry" | "still" | "push" | "bye" | "clear" {
   if (!s.hasMascot) return "clear";
   if (s.isOpen) return s.reduced ? "still" : "carry";
   if (!s.wasOpen || !s.shown || s.reduced) return "clear";
-  return s.closedBy === "escape" ? "push" : "bye";
+  if (s.closedBy === "escape") return s.carrying ? "clear" : "push";
+  return "bye";
 }
