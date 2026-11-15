@@ -177,7 +177,7 @@ export const ja: Record<Key, string> = {
   "download.failed.title": "ダウンロードできませんでした",
   "cannot.browser.noTab.title": "ブラウザのタブを出していません",
   "cannot.browser.noTab.text":
-    "リーダーの o j・o k でタブを出すか、o n で新しいタブを開いてください。",
+    "リーダーの t j・t k でタブを出すか、o n で新しいタブを開いてください。",
   "cannot.browser.newTab.title": "このタブにはまだページがありません",
   "cannot.browser.newTab.text":
     "新しいタブのページのままです。先にページを開いてください。",

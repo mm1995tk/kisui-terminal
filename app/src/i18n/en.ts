@@ -176,7 +176,7 @@ export const en = {
   "download.failed.title": "Could not download",
   "cannot.browser.noTab.title": "No browser tab is shown",
   "cannot.browser.noTab.text":
-    "Show a tab with o j or o k in the leader, or open a new one with o n.",
+    "Show a tab with t j or t k in the leader, or open a new one with o n.",
   "cannot.browser.newTab.title": "No page is open in this tab",
   "cannot.browser.newTab.text":
     "This tab is still the new tab page. Open a page first.",

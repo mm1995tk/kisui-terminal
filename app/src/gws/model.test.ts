@@ -183,7 +183,7 @@ describe("ワークスペースの操作", () => {
     assert.deepEqual(after(g(), browserKey("b"), "b"), g().tabs[4]);
   });
 
-  it("o j・o k はターミナルのタブとブラウザのタブを、並びの順に回る", () => {
+  it("cycleKey は、ターミナルのタブとブラウザのタブを並びの順に回る", () => {
     let s = addBrowser(two(), "g1", "a");
     const g = (): Gws => s.list[0];
     const k = (r: ReturnType<typeof cycleKey>) =>
