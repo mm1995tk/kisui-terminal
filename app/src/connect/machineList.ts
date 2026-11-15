@@ -18,8 +18,8 @@ export interface MachineRow {
   countdown?: string;
   /** 状態のツールチップ（理由など） */
   title: string;
-  /** ワークスペースの数 */
-  workspaces: number;
+  /** そのマシンのターミナルのタブ（マシンの kisui serve のワークスペース）の数 */
+  terminalTabs: number;
   /** 名前を変えたり外したり切ったりできるか（「ローカル」はできない） */
   removable: boolean;
   /** 設定ファイルで決めたマシンか。外せず、名前も変えられない */
@@ -50,7 +50,7 @@ export function machineRows(
       status: st.text || healthText(g.health),
       countdown: st.countdown,
       title: st.title,
-      workspaces: g.bands.length,
+      terminalTabs: g.bands.length,
       removable: g.removable,
       fixed: g.fixed,
       hasSession: hasSession(g.target),

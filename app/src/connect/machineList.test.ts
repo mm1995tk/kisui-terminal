@@ -44,7 +44,7 @@ const row = (over: Partial<MachineRow> = {}): MachineRow => ({
   health: "up",
   status: "つながっています",
   title: "",
-  workspaces: 0,
+  terminalTabs: 0,
   removable: true,
   fixed: false,
   hasSession: true,
@@ -66,7 +66,7 @@ describe("machineRows", () => {
     );
     assert.equal(rows.length, 2);
     assert.equal(rows[0].status, "つながっています");
-    assert.equal(rows[0].workspaces, 0);
+    assert.equal(rows[0].terminalTabs, 0);
     assert.equal(rows[1].status, "つながりません");
     assert.equal(rows[1].title, "boom");
     assert.equal(rows[1].retry, "again");

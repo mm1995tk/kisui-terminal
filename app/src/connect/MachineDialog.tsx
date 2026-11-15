@@ -62,7 +62,7 @@ function MachineRowItem(props: {
         </Show>
       </span>
       <span class="card-row-state machine-row-count">
-        {T("machineDialog.workspaces", { n: r().workspaces })}
+        {T("machineDialog.terminalTabs", { n: r().terminalTabs })}
       </span>
     </li>
   );

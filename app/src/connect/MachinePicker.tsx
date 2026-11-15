@@ -65,9 +65,6 @@ export function MachinePicker(props: {
                   aria-hidden="true"
                 />
                 <span class="card-row-name">{r.label}</span>
-                <span class="card-row-state machine-row-count">
-                  {T("machineDialog.workspaces", { n: r.workspaces })}
-                </span>
               </li>
             )}
           </For>
