@@ -7,6 +7,7 @@
 //!   （ページ自身の favicon）だけ。殻から呼んで答えを受けるので、ページが偽の知らせを送る口も無い（nonce も要らない）。
 //! - 画像を読み込むのはページ自身（ページと同じデータの置き場）。殻と画面（メインの webview）はネットワークに出ない。
 //!   シークレットのタブは、ディスクに残さないデータで読み込み、答えは画面の中だけに持つ（browser-tabs.json に書かない）。
+//! - macOS は 11 から（WKContentWorld が無ければ何もしない。地球のアイコンのまま）。Linux は WebKitGTK 2.40 から（wry が求める版と同じ）。
 //! - 答えは、形（PNG の data: URL）と大きさを確かめてから画面に渡す（`valid`）。違えば "" （画面は地球のアイコン）。
 //! - ページの読み込みが始まったら・新しく頼んだら、それまでに頼んだ答えは捨てる（前のページの favicon や、後から届いた古い答えを出さない）。読み込み中は頼まない。
 
@@ -142,6 +143,11 @@ fn run(pv: tauri::webview::PlatformWebview, app: AppHandle, tab: String, page: P
     use objc2_foundation::{NSError, NSString};
     use objc2_web_kit::{WKContentWorld, WKWebView};
 
+    // WKContentWorld と callAsyncJavaScript は macOS 11 から。それより前の macOS ではクラスが無いので、何もしない
+    // （サイドバーは地球のアイコンのまま）
+    if objc2::runtime::AnyClass::get(c"WKContentWorld").is_none() {
+        return;
+    }
     // with_webview の中はメインスレッド
     let Some(mtm) = MainThreadMarker::new() else {
         return;
