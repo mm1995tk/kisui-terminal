@@ -16,7 +16,7 @@ import {
 import { leaderKeyName } from "../commands.ts";
 import { IS_MAC } from "../guiKeys.ts";
 import { filterBookmarks, type Bookmark } from "./bookmarks.ts";
-import { moveSelection, newTabKey } from "./newTab.ts";
+import { moveSelection, newTabKey, type NewTabKey } from "./newTab.ts";
 import { urlOrSearch } from "./tabs.ts";
 import "./browser.css";
 
@@ -110,6 +110,18 @@ export function NewTabPage(props: {
       input.focus();
   });
 
+  /** 検索窓のキー。選びの移動・開く・打ったものを消す（Esc。キーは検索窓に残す。ページがまだ無いので、戻す先が無い）。 */
+  function onSearchKey(k: NewTabKey) {
+    if (k.kind === "step")
+      setSel(() => moveSelection(selected(), k.step, shown().length));
+    else if (k.kind === "enter") submit();
+    else {
+      setQuery("");
+      setInvalid(false);
+      setSel(-1);
+    }
+  }
+
   function submit() {
     const b = shown()[selected()];
     if (b) {
@@ -156,15 +168,7 @@ export function NewTabPage(props: {
             const k = newTabKey(e);
             if (!k) return;
             e.preventDefault();
-            if (k.kind === "step")
-              setSel(() => moveSelection(selected(), k.step, shown().length));
-            else if (k.kind === "enter") submit();
-            else {
-              // Esc は打ったものと選びを消す（キーは検索窓に残す。ページがまだ無いので、戻す先が無い）
-              setQuery("");
-              setInvalid(false);
-              setSel(-1);
-            }
+            onSearchKey(k);
           }}
         />
         <p class="newtab-hint">{T("newTab.hint")}</p>
