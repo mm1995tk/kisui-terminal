@@ -83,11 +83,12 @@ export function openTabDevtools(tab: string): Promise<void> {
 }
 
 /**
- * パスキーを待たずに、今のタブのサイトを外のブラウザで開き、そのサイトのログインを待つ（#276）。
- * `opened` 開いた・`no-sites` passkey_sites が無い・`incognito` シークレットのタブ・`not-allowed` 許可サイトでない。
+ * `startPasskeyLogin` の答え。`opened` 待ちを覚えて外のブラウザで開いた・`no-sites` passkey_sites が無い・
+ * `incognito` シークレットのタブ・`not-allowed` 許可サイトでない。
  */
 export type PasskeyLogin = "opened" | "no-sites" | "incognito" | "not-allowed";
 
+/** パスキーを待たずに、今のタブのサイトを外のブラウザで開き、そのサイトのログインを待つ（#276）。 */
 export function startPasskeyLogin(tab: string): Promise<PasskeyLogin> {
   return invoke("browser_passkey_login", { tab });
 }
