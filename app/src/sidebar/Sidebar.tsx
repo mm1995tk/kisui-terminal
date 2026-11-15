@@ -298,42 +298,42 @@ export function Sidebar(
           </div>
         </Show>
       </nav>
-      <Show when={bandMenu()}>
+      <Show when={bandMenu()} keyed>
         {(m) => (
           <PopupMenu
-            x={m().x}
-            y={m().y}
+            x={m.x}
+            y={m.y}
             label={T("sidebar.workspaces")}
             items={[
               {
                 label: T("sidebar.rename"),
-                run: () => props.onRenameWorkspace?.(m().gws),
+                run: () => props.onRenameWorkspace?.(m.gws),
               },
             ]}
             onClose={() => setBandMenu(null)}
           />
         )}
       </Show>
-      <Show when={addMenu()}>
+      <Show when={addMenu()} keyed>
         {(m) => (
           <PopupMenu
-            x={m().x}
-            y={m().y}
+            x={m.x}
+            y={m.y}
             label={T("sidebar.addTab")}
             items={[
               {
                 label: T("sidebar.addTerminal"),
-                run: () => props.onAddTab?.(m().gws, "terminal"),
+                run: () => props.onAddTab?.(m.gws, "terminal"),
               },
               {
                 label: T("sidebar.addTerminalPick"),
-                run: () => props.onAddTab?.(m().gws, "terminal.pick"),
+                run: () => props.onAddTab?.(m.gws, "terminal.pick"),
               },
               ...(props.browser
                 ? [
                     {
                       label: T("sidebar.addBrowser"),
-                      run: () => props.onAddTab?.(m().gws, "browser"),
+                      run: () => props.onAddTab?.(m.gws, "browser"),
                     },
                   ]
                 : []),
@@ -342,16 +342,14 @@ export function Sidebar(
           />
         )}
       </Show>
-      <Show when={treeMenu()}>
+      <Show when={treeMenu()} keyed>
         {(m) => (
           <TreeMenu
-            x={m().x}
-            y={m().y}
-            label={m().row.name}
-            items={menuItems(m().row)}
-            onChoose={(a) =>
-              props.onTreeAction?.(m().target, m().id, m().row, a)
-            }
+            x={m.x}
+            y={m.y}
+            label={m.row.name}
+            items={menuItems(m.row)}
+            onChoose={(a) => props.onTreeAction?.(m.target, m.id, m.row, a)}
             onClose={() => setTreeMenu(null)}
           />
         )}
@@ -1015,7 +1013,7 @@ function PopupMenu(props: {
     });
   });
   const choose = (run: () => void) => () => {
-    run(); // 親の <Show> の値は onClose で消えるので、先に run
+    run();
     props.onClose();
   };
   return (
