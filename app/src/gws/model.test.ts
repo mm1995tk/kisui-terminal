@@ -167,12 +167,20 @@ describe("ワークスペースの操作", () => {
   });
 
   it("切れているマシンのタブだけを記録から外す", () => {
-    const s = dropTerm(two(), "b", "w2");
+    const { state: s, close } = dropTerm(two(), "b", "w2");
     assert.deepEqual(
       s.list[0].tabs.map((r) => r.kind === "term" && r.ws),
       ["w1"],
     );
-    assert.equal(dropTerm(s, "b", "w2"), s);
+    assert.deepEqual(close, []);
+    assert.equal(dropTerm(s, "b", "w2").state, s);
+  });
+
+  it("最後のターミナルのタブを外すと、ワークスペースごと外し、中のブラウザのタブを閉じさせる", () => {
+    const s = addBrowser(two(), "g2", "t1");
+    const r = dropTerm(s, "a", "w3");
+    assert.deepEqual(ids(r.state), ["g1"]);
+    assert.deepEqual(r.close, ["t1"]);
   });
 });
 

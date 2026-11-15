@@ -358,8 +358,19 @@ export function reconcile(s: GwsState, input: ReconcileInput): Reconciled {
   }
 
   // 4. ターミナルのタブが無くなったワークスペースを外す
+  const emptied = dropEmpty(state);
+  close.push(...emptied.close);
+  return { state: emptied.state, close };
+}
+
+/**
+ * ターミナルのタブが 1 つも無いワークスペースを外し、その中のブラウザのタブの id を close に返す
+ * （ターミナルのタブは、ワークスペースにいつも 1 つ以上ある）。最後に使っていたタブがもう無ければ、その覚えも消す。
+ */
+function dropEmpty(s: GwsState): Reconciled {
+  const close: string[] = [];
   const alive: Gws[] = [];
-  for (const g of state.list) {
+  for (const g of s.list) {
     if (termsOf(g).length > 0) {
       alive.push(
         g.term && !g.tabs.some((r) => sameTerm(r, g.term!.target, g.term!.ws))
@@ -370,13 +381,9 @@ export function reconcile(s: GwsState, input: ReconcileInput): Reconciled {
     }
     for (const r of g.tabs) if (r.kind === "browser") close.push(r.id);
   }
-  if (
-    alive.length !== state.list.length ||
-    alive.some((g, i) => g !== state.list[i])
-  )
-    state = { list: alive };
-
-  return { state, close };
+  const same =
+    alive.length === s.list.length && alive.every((g, i) => g === s.list[i]);
+  return { state: same ? s : { list: alive }, close };
 }
 
 function sameTabs(a: readonly TabRef[], b: readonly TabRef[]): boolean {
@@ -509,16 +516,21 @@ export function nameError(name: string): "too_long" | "control" | undefined {
   return undefined;
 }
 
-/** ターミナルのタブを記録から外す（マシンにつながっていなくて閉じられないとき）。 */
+/**
+ * ターミナルのタブを記録から外す（マシンにつながっていなくて閉じられないとき）。
+ * 最後のターミナルのタブを外したワークスペースは、並びから外し、中のブラウザのタブの id を close に返す（閉じるのは呼ぶ側）。
+ */
 export function dropTerm(
   s: GwsState,
   target: string,
   ws: WorkspaceId,
-): GwsState {
+): Reconciled {
   const g = gwsOfTerm(s, target, ws);
-  if (!g) return s;
-  return update(s, g.id, (x) => ({
-    ...x,
-    tabs: x.tabs.filter((r) => !sameTerm(r, target, ws)),
-  }));
+  if (!g) return { state: s, close: [] };
+  return dropEmpty(
+    update(s, g.id, (x) => ({
+      ...x,
+      tabs: x.tabs.filter((r) => !sameTerm(r, target, ws)),
+    })),
+  );
 }

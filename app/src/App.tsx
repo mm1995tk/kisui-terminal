@@ -1146,7 +1146,12 @@ function Workbench(props: {
       for (const r of termsOf(g)) {
         const s = sessions()[r.target];
         if (!s || states()[r.target]?.kind !== "connected") {
-          setGws((x) => dropTerm(x, r.target, r.ws));
+          const dropped = dropTerm(untrack(gws), r.target, r.ws);
+          setGws(dropped.state);
+          for (const id of dropped.close) {
+            void closeTabView(id).catch(() => {});
+            setTabs((t) => closeTab(t, id));
+          }
           continue;
         }
         await s.closeWorkspace(r.ws, force);
