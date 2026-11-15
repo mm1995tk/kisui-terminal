@@ -270,6 +270,15 @@ describe("URL バー（#232）：URL か検索語か", () => {
     );
   });
 
+  it("最後の「.」の後ろが英字でないもの（1.5）は検索、IPv4 の 4 つ組は URL。長すぎる検索語は切り詰める", () => {
+    assert.equal(urlOrSearch("1.5"), "https://www.google.com/search?q=1.5");
+    assert.equal(urlOrSearch("192.168.0.1:8080"), "https://192.168.0.1:8080/");
+    assert.equal(urlOrSearch("example.dev"), "https://example.dev/");
+    const long = urlOrSearch("a ".repeat(3000));
+    assert.ok(long?.startsWith("https://www.google.com/search?q="));
+    assert.ok(long!.length < 7000);
+  });
+
   it("開けないもの・空は null", () => {
     for (const bad of [
       "",

@@ -200,6 +200,14 @@ export function newTabId(random: () => number = Math.random): string {
   return s;
 }
 
+/** `://` 付きの scheme で始まる（normalizeUrl と urlOrSearch が同じ判断をする）。 */
+const HAS_SCHEME = /^[a-z][a-z0-9+.-]*:\/\//i;
+/** `javascript:` などの、// の無い scheme（`localhost:3000` のようにポートが続くものは除く）。 */
+const BARE_SCHEME = /^[a-z][a-z0-9+.-]*:(?!\d)/i;
+/** scheme の無い入力が、localhost・127.0.0.1・[::1] で始まるか（http で開く）。 */
+const isLocalHost = (s: string) =>
+  /^(localhost|127\.0\.0\.1|\[::1\])(?=$|[:/?#])/i.test(s);
+
 /**
  * URL の入力欄に打ったものを、開く URL にする。開けないもの（http と https 以外・host が無い・ユーザー名とパスワード入り・
  * 空白や制御文字を含む）は null。scheme を省くと https（localhost・127.0.0.1・[::1] は http）にする。
@@ -209,9 +217,9 @@ export function normalizeUrl(input: string): string | null {
   if (s === "" || s.length > 4096 || /[\s\u0000-\u001f\u007f]/.test(s))
     return null;
   let full = s;
-  if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(s)) {
-    if (/^[a-z][a-z0-9+.-]*:(?!\d)/i.test(s)) return null; // javascript: などの、// の無い scheme
-    const local = /^(localhost|127\.0\.0\.1|\[::1\])(?=$|[:/?#])/i.test(s);
+  if (!HAS_SCHEME.test(s)) {
+    if (BARE_SCHEME.test(s)) return null; // javascript: などの、// の無い scheme
+    const local = isLocalHost(s);
     full = `${local ? "http" : "https"}://${s}`;
   }
   try {
@@ -226,6 +234,8 @@ export function normalizeUrl(input: string): string | null {
 
 /** URL バーで検索語を Google で探すときの URL の前の部分（#232。検索エンジンは選べない）。 */
 export const SEARCH_URL = "https://www.google.com/search?q=";
+/** 検索語の長さの上限（これを超えた分は切り捨てる）。 */
+const MAX_QUERY = 2048;
 
 /**
  * URL バー（#232）に打ったものを、開く URL にする。URL なら normalizeUrl と同じに直し、URL でなければ Google の検索の URL にする。
@@ -237,25 +247,31 @@ export function urlOrSearch(input: string): string | null {
   const s = input.trim();
   if (s === "") return null;
   // scheme が付いている（`://`）ものは、URL として開けるか開けないかだけ
-  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(s)) return normalizeUrl(s);
+  if (HAS_SCHEME.test(s)) return normalizeUrl(s);
   const oneWord = !/\s/.test(s);
   if (oneWord && looksLikeHost(s)) {
     const u = normalizeUrl(s);
     if (u !== null) return u;
   }
   // `javascript:` などの、// の無い scheme は検索語にしない（開けないものとして断る）
-  if (oneWord && /^[a-z][a-z0-9+.-]*:(?!\d)/i.test(s)) return null;
-  if (s.length > 2048) return null;
-  return SEARCH_URL + encodeURIComponent(s);
+  if (oneWord && BARE_SCHEME.test(s)) return null;
+  // 長すぎる検索語は切り詰めて探す（URL ではないので、URL の長さの上限で断らない）
+  return SEARCH_URL + encodeURIComponent(s.slice(0, MAX_QUERY));
 }
 
 /** scheme の無い入力の host の部分が、URL らしいか（localhost 系か、「.」で区切った名前）。 */
 function looksLikeHost(s: string): boolean {
-  if (/^(localhost|127\.0\.0\.1|\[::1\])(?=$|[:/?#])/i.test(s)) return true;
+  if (isLocalHost(s)) return true;
   const host = /^[^/?#]*/.exec(s)?.[0] ?? "";
   if (host.includes("@")) return false;
   const name = host.replace(/:\d*$/, "");
-  return /^[^.\s:]+(\.[^.\s:]+)+$/.test(name);
+  if (!/^[^.\s:]+(\.[^.\s:]+)+$/.test(name)) return false;
+  // 最後の「.」の後ろが、英字 2 字以上（com・dev・日本など）か xn-- で始まる名前か、IPv4 の 4 つ組のときだけ（`1.5` は検索）
+  const last = name.slice(name.lastIndexOf(".") + 1);
+  return (
+    /^(\p{L}{2,}|xn--[a-z0-9-]+)$/iu.test(last) ||
+    /^(\d{1,3}\.){3}\d{1,3}$/.test(name)
+  );
 }
 
 /** 覚えていた表示の大きさ（百分率）を、タブの zoom にする。選べる大きさ（scale.ts の SCALES）でなければ元の大きさ。 */
