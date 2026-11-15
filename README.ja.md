@@ -15,7 +15,7 @@ Linux（x86_64 と aarch64）と、Apple シリコン（arm64）の macOS で動
 
 main の nightly 版は `kisui-terminal-nightly` で、[`nightly` の pre-release](https://github.com/mm1995tk/kisui-terminal/releases/tag/nightly) に置いています（`.dmg` だけです。Linux で nightly 版を使うなら Nix で入れます）。名前と identifier が違うので、普通の版と並べて入れられます。
 
-Nix では、パッケージ `kisui-terminal`（nightly 版は `kisui-terminal-nightly`。同じ名前で入ります）か、home-manager で flake の `homeManagerModules.default` を import して `programs.kisui-terminal.enable = true;` で入れます。Nix で入れた版に自動更新はありません。`nix flake update` で進めます。 アプリは別の方法で入れ（macOS の .dmg など）、設定だけを home-manager で置くときは、`programs.kisui-terminal.package = null;` と書きます（パッケージを入れません）。設定を置くフォルダは `programs.kisui-terminal.channel` で選びます（`"stable"` なら `~/.config/kisui-terminal/`、`"nightly"` なら `~/.config/kisui-terminal-nightly/`。書かなければ、パッケージがあるときはパッケージの名前で、`package = null` のときは `"stable"` で決まります。パッケージと食い違う `channel` は、評価の時点でエラーになります）。例: `programs.kisui-terminal = { enable = true; package = null; channel = "nightly"; settings = { /* ... */ }; };`
+Nix では、パッケージ `kisui-terminal`（nightly 版は `kisui-terminal-nightly`。同じ名前で入ります）か、home-manager で flake の `homeManagerModules.default` を import して `programs.kisui-terminal.enable = true;` で入れます。Nix で入れた版に自動更新はありません。`nix flake update` で進めます。アプリは別の方法で入れ（macOS の .dmg など）、設定だけを home-manager で置くときは、`programs.kisui-terminal.package = null;` と書きます（パッケージを入れません）。設定を置くフォルダは `programs.kisui-terminal.channel` で選びます（`"stable"` なら `~/.config/kisui-terminal/`、`"nightly"` なら `~/.config/kisui-terminal-nightly/`。書かなければ、パッケージがあるときはパッケージの名前で、`package = null` のときは `"stable"` で決まります。パッケージと食い違う `channel` は、評価の時点でエラーになります）。例: `programs.kisui-terminal = { enable = true; package = null; channel = "nightly"; settings = { /* ... */ }; };`
 
 ```sh
 nix run github:mm1995tk/kisui-terminal
