@@ -607,3 +607,8 @@ export function stepWorkspace(
   if (i < 0) return step === "next" ? all[0] : all[all.length - 1];
   return all[(i + (step === "next" ? 1 : all.length - 1)) % all.length];
 }
+
+/** 出しているタブがブラウザのタブか。そうなら、ファイルツリーと CHANGES を隠す（#268）。出しているタブのキーが items に無ければ false。 */
+export function shownIsBrowser(tabs: BandTabs): boolean {
+  return tabs.items.some((i) => i.key === tabs.shown && i.kind === "browser");
+}

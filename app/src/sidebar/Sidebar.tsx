@@ -13,6 +13,7 @@
 // タブの行を押すと onTab、行の ✕ で onTabClose、鉛筆で onTabRename、ヘッダーの ▾ / ▸ で onTabsFold（並びを畳む・開く）。タブを出していれば、その行を光らせる。
 // ヘッダーの「+」は小さなメニューを出し、選んだものを onAddTab に渡す（ターミナル・ターミナル（マシンを選ぶ）・ブラウザ）。
 // ファイルツリーと CHANGES は、今出しているターミナルのタブの行のすぐ下（その行の中）に開く。
+// ブラウザのタブを出している間は、ファイルツリーと CHANGES を見えなくする（外さないので、開いているフォルダ・選んでいる行・境目の位置は残る。#268）。
 // 選んでも帯・行の位置と高さが変わらないよう、鉛筆・✕・つかむ所は出ていないときも場所を空けておく（sidebar.css）。
 // 組み立ては model.ts、並び順は order.ts、色の決め方は colors.ts、見た目は sidebar.css。
 import { T } from "../i18n/index.ts";
@@ -34,7 +35,13 @@ import { ChangesView } from "../changes/ChangesView.tsx";
 import type { ChangeRow, ChangesBase } from "../changes/model.ts";
 import { renameKeyAction } from "./renameInput.ts";
 import { TreeView } from "../tree/TreeView.tsx";
-import { splitAtFocus, type Health, type Row, type TabItem } from "./model.ts";
+import {
+  shownIsBrowser,
+  splitAtFocus,
+  type Health,
+  type Row,
+  type TabItem,
+} from "./model.ts";
 import { ICON } from "./icons.ts";
 import { termKey } from "../gws/model.ts";
 import { startDrag } from "./drag.ts";
@@ -226,9 +233,14 @@ export function Sidebar(
     nav.addEventListener("scroll", schedule, { passive: true });
     const resize = new ResizeObserver(schedule);
     resize.observe(nav);
-    // 行が増減した・フォーカスが移った（属性は見ないので、data-stuck を付けても回らない）
+    // 行が増減した・フォーカスが移った。属性は data-panes-hidden だけ見る（data-stuck・data-shadow を付けても回らない。隠した・戻したときに CHANGES の高さを測り直す）
     const mutation = new MutationObserver(schedule);
-    mutation.observe(nav, { childList: true, subtree: true });
+    mutation.observe(nav, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["data-panes-hidden"],
+    });
     schedule();
     onCleanup(() => {
       nav.removeEventListener("scroll", schedule);
@@ -695,8 +707,13 @@ function BandHeader(
  */
 function RowPanes(props: Handlers & { row: Row }): JSX.Element {
   const b = () => props.row.band;
+  // ブラウザのタブを出している間は、外さずに見えなくして、状態を保つ（#268）
+  const hidden = () => shownIsBrowser(props.row.tabs);
   return (
-    <>
+    <div
+      style={{ display: hidden() ? "none" : "contents" }}
+      data-panes-hidden={hidden() ? "" : undefined}
+    >
       <Show
         when={
           b().focused &&
@@ -749,7 +766,7 @@ function RowPanes(props: Handlers & { row: Row }): JSX.Element {
           />
         )}
       </Show>
-    </>
+    </div>
   );
 }
 
