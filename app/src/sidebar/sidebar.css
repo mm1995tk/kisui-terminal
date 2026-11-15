@@ -113,7 +113,6 @@
 .sidebar > .bands {
   padding-top: 4px;
 }
-/* つながっていないマシンのワークスペースのタブの行は、文字を薄くする（.tab-row[data-health="down"]） */
 
 .health {
   flex: none;
