@@ -239,7 +239,8 @@ async function getAll(details) {
   }
 }
 
-// `site` のページに送られる Cookie だけを読む（site 自身と、その下のドメインのもの、site の URL に送られる上のドメインのもの）
+// `site` のページに送られる Cookie だけを返す。url で引くと、path が `/` に当たらない Cookie（`/login` だけのものなど）が落ちるので、
+// domain でも引いて合わせる（domain で引くと下のドメインのものも来るが、pickCookies が捨てる）
 async function readCookies(tab, site) {
   const storeId = await storeIdOf(tab);
   const base = storeId ? { storeId } : {};
