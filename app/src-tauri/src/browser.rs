@@ -1021,10 +1021,10 @@ pub fn browser_passkey_login(
         .get(&tab)
         .ok_or_else(|| "no such browser tab".to_string())?;
     // 外のブラウザで開く URL は、画面から受け取らず、タブの今の URL（一番上のフレーム）を読む
-    let now = v.url().map_err(|e| e.to_string())?;
+    let page_url = v.url().map_err(|e| e.to_string())?;
     let p = app.try_state::<Arc<Passkey>>();
     let p = p.as_deref().map(Arc::as_ref);
-    let r = passkey::start(p, info.incognito, &tab, &now, Instant::now());
+    let r = passkey::start(p, info.incognito, &tab, &page_url, Instant::now());
     if let (passkey::Start::Opened(Some(to)), Some(p)) = (&r, p) {
         passkey::open_external(p.browser(), to);
     }
