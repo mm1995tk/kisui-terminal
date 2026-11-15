@@ -130,6 +130,8 @@ import {
   gwsOfTerm,
   loadGws,
   move as moveGws,
+  moveBefore,
+  moveTabBefore,
   reconcile,
   refKey,
   removeBrowser,
@@ -2901,6 +2903,14 @@ function Workbench(props: {
         onAddTab={(gid, what) => void addWorkspaceTab(gid, what)}
         browser={props.browser}
         onTabsFold={(gid) => setGws((g) => toggleFold(g, gid))}
+        onWorkspaceMove={(gid, before) => {
+          const next = moveBefore(untrack(gws), gid, before);
+          if (next) setGws(next);
+        }}
+        onTabMove={(gid, key, before) => {
+          const next = moveTabBefore(untrack(gws), gid, key, before);
+          if (next) setGws(next);
+        }}
         treeOf={treeOf}
         onToggle={(t, id, p) => trees.get(t)?.toggle(id, p)}
         onClose={(gid) => void closeWorkspace(gid)}

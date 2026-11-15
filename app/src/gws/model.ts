@@ -190,6 +190,62 @@ export function move(
   return { list };
 }
 
+/**
+ * 並びの中の 1 つを取り出して、beforeAt が指す位置へ入れ直す（無ければ一番後ろ）。
+ * 動かさなかったときは同じ配列を返す（呼ぶ側が「変わらなかった」と分かる）。
+ */
+function placeBefore<T>(
+  list: readonly T[],
+  from: number,
+  beforeAt: (rest: readonly T[]) => number,
+): readonly T[] {
+  const rest = list.filter((_, i) => i !== from);
+  const to = beforeAt(rest);
+  const out = rest.slice();
+  out.splice(to < 0 ? rest.length : to, 0, list[from]);
+  return out.every((x, i) => x === list[i]) ? list : out;
+}
+
+/**
+ * ワークスペースを、before のワークスペースのすぐ前へ動かす（ドラッグの落とし先。before が null なら一番後ろ）。
+ * マシンに関係なく 1 列の中で動かせる。動かさなかったとき（もう、そこにいる・id が無い）は null。
+ */
+export function moveBefore(
+  s: GwsState,
+  id: string,
+  before: string | null,
+): GwsState | null {
+  const i = s.list.findIndex((g) => g.id === id);
+  if (i < 0 || id === before) return null;
+  const list = placeBefore(s.list, i, (rest) =>
+    rest.findIndex((g) => g.id === before),
+  );
+  return list === s.list ? null : { list: list.slice() };
+}
+
+/**
+ * ワークスペースの中のタブ（key は refKey）を、before のタブのすぐ前へ動かす（before が null なら一番後ろ）。
+ * 動かせるのは同じワークスペースの中だけ。before がそのワークスペースのタブでなければ、一番後ろへ動かす（別のワークスペースへは移さない）。
+ * 動かさなかったときは null。
+ */
+export function moveTabBefore(
+  s: GwsState,
+  id: string,
+  key: string,
+  before: string | null,
+): GwsState | null {
+  const g = s.list.find((x) => x.id === id);
+  if (!g) return null;
+  const i = g.tabs.findIndex((r) => refKey(r) === key);
+  if (i < 0 || key === before) return null;
+  const tabs = placeBefore(g.tabs, i, (rest) =>
+    rest.findIndex((r) => refKey(r) === before),
+  );
+  return tabs === g.tabs
+    ? null
+    : update(s, id, (x) => ({ ...x, tabs: tabs.slice() }));
+}
+
 /** 最後に使っていたターミナルのタブを覚える。 */
 export function setActiveTerm(
   s: GwsState,

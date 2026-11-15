@@ -19,6 +19,8 @@ import {
   gwsOfTerm,
   loadGws,
   move,
+  moveBefore,
+  moveTabBefore,
   nameError,
   nameErrorText,
   parseGws,
@@ -206,6 +208,60 @@ describe("ワークスペースの操作", () => {
     const r = dropTerm(s, "a", "w3");
     assert.deepEqual(ids(r.state), ["g1"]);
     assert.deepEqual(r.close, ["t1"]);
+  });
+});
+
+describe("ドラッグでの並べ替え", () => {
+  const three = (): GwsState => addWorkspace(two(), "b", "w9", "w9", "g3"); // g1, g2, g3
+
+  it("ワークスペースを、落とした先の帯の前へ動かす（null なら一番後ろ）", () => {
+    assert.deepEqual(ids(moveBefore(three(), "g3", "g1")!), ["g3", "g1", "g2"]);
+    assert.deepEqual(ids(moveBefore(three(), "g1", "g3")!), ["g2", "g1", "g3"]);
+    assert.deepEqual(ids(moveBefore(three(), "g1", null)!), ["g2", "g3", "g1"]);
+  });
+
+  it("ワークスペースが動かないとき（今の場所・自分の前・id が無い）は null", () => {
+    assert.equal(moveBefore(three(), "g1", "g2"), null);
+    assert.equal(moveBefore(three(), "g3", null), null);
+    assert.equal(moveBefore(three(), "g2", "g2"), null);
+    assert.equal(moveBefore(three(), "nope", "g1"), null);
+  });
+
+  it("タブを、同じワークスペースの中で動かす", () => {
+    const s = addTerm(two(), "g1", "b", "w5", "x"); // g1: w1, w2, w5
+    const k = (w: string, t = "b") => termKey(t, w);
+    const a = moveTabBefore(s, "g1", k("w5"), termKey("a", "w1"))!;
+    assert.deepEqual(
+      a.list[0].tabs.map((r) => (r.kind === "term" ? r.ws : "")),
+      ["w5", "w1", "w2"],
+    );
+    const z = moveTabBefore(s, "g1", termKey("a", "w1"), null)!;
+    assert.deepEqual(
+      z.list[0].tabs.map((r) => (r.kind === "term" ? r.ws : "")),
+      ["w2", "w5", "w1"],
+    );
+    assert.equal(z.list[1], s.list[1]); // 他のワークスペースはそのまま
+  });
+
+  it("タブは別のワークスペースへ移さない（落とし先が別のワークスペースのタブなら、一番後ろ）", () => {
+    const s = two();
+    const z = moveTabBefore(s, "g1", termKey("a", "w1"), termKey("a", "w3"))!;
+    assert.deepEqual(
+      z.list[0].tabs.map((r) => (r.kind === "term" ? r.ws : "")),
+      ["w2", "w1"],
+    );
+    assert.deepEqual(z.list[1], s.list[1]);
+  });
+
+  it("タブが動かないとき（今の場所・id やキーが無い）は null", () => {
+    const s = two();
+    assert.equal(
+      moveTabBefore(s, "g1", termKey("a", "w1"), termKey("b", "w2")),
+      null,
+    );
+    assert.equal(moveTabBefore(s, "g1", termKey("b", "w2"), null), null);
+    assert.equal(moveTabBefore(s, "nope", termKey("a", "w1"), null), null);
+    assert.equal(moveTabBefore(s, "g1", termKey("a", "zz"), null), null);
   });
 });
 
