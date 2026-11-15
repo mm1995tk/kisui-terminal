@@ -175,8 +175,8 @@ async function checkExistingTabs() {
     const url = tab.pendingUrl || tab.url || "";
     const host = K.hostOf(url);
     const w = host && waiting.get(host);
-    if (tab.id !== undefined && w && K.sameUrl(url, w.url))
-      await track(tab.id, { site: host, host: w.host });
+    if (w && K.sameUrl(url, w.url))
+      await track(/** @type {Tab} */ (tab).id, { site: host, host: w.host });
   }
 }
 
