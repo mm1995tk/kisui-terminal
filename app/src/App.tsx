@@ -3389,9 +3389,9 @@ function Workbench(props: {
           <CloseWorkspaceCard
             name={c.name}
             onYes={() => {
-              const { gws } = c;
+              // <Show keyed> の c は値そのものなので、窓を閉じたあとに読んでよい（#162・#272）
               setConfirmClose(null);
-              void closeWorkspace(gws, true);
+              void closeWorkspace(c.gws, true);
             }}
             onNo={() => setConfirmClose(null)}
           />
@@ -3496,9 +3496,8 @@ function Workbench(props: {
             kind="tab"
             name={c.name}
             onYes={() => {
-              const v = c;
               setConfirmCloseTab(null);
-              void closeTermTab(v.target, v.ws, true);
+              void closeTermTab(c.target, c.ws, true);
             }}
             onNo={() => setConfirmCloseTab(null)}
           />
