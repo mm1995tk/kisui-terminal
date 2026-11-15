@@ -210,6 +210,8 @@ import { BookmarkDialog } from "./browser/BookmarkDialog.tsx";
 import {
   addBookmark,
   chromeFromLoaded,
+  chromeProblemFromLoaded,
+  chromeProblemKey,
   fromLoaded as bookmarksFromLoaded,
   mergeBookmarks,
   removeBookmark,
@@ -2032,11 +2034,29 @@ function Workbench(props: {
   );
   /** ブックマークの一覧のダイアログ（リーダーの o B）を出しているか */
   const [bookmarkDialog, setBookmarkDialog] = createSignal(false);
+  /** 最後に知らせた、Chrome のブックマークを読めなかった理由（#265。同じ理由を開くたびに知らせない。読めたら忘れる） */
+  let lastChromeProblem: string | undefined;
   /** Chrome のブックマークを読み直す（#239。Chrome で足し・消しした分が反映される）。読めなければ前のまま（無ければ空）。 */
   function readChromeBookmarks() {
     loadChromeBookmarks().then(
       (v) => {
         const first = untrack(chromeBookmarks) === undefined;
+        const problem = chromeProblemFromLoaded(v);
+        if (problem) {
+          // 同じ理由は続けて知らせない（開くたびに読み直すので）
+          const key = chromeProblemKey(problem);
+          if (key !== lastChromeProblem) {
+            lastChromeProblem = key;
+            showToast(
+              T(
+                problem.needsPermission
+                  ? "err.bookmarks.chromePermission"
+                  : "err.bookmarks.chrome",
+                { reason: problem.reason, path: problem.path },
+              ),
+            );
+          }
+        } else lastChromeProblem = undefined;
         const list = chromeFromLoaded(v);
         setChromeBookmarks(list);
         // 自分のものの読み込みが先に失敗していたら、Chrome のものが届いたここで知らせる（読み終わる順に依らないように）

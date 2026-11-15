@@ -173,18 +173,72 @@ fn walk_chrome(node: &serde_json::Value, path: &str, depth: usize, out: &mut Vec
     }
 }
 
-/// Chrome のブックマークを読む（ブックマークバー、その他のブックマーク、モバイルの順）。ファイルが無い・壊れている・大きすぎるときは空
-/// （Chrome が入っていない環境で、エラーにしない）。開けない URL のものは捨てる。
-pub fn load_chrome(file: &Path) -> Vec<ChromeBookmark> {
-    match fs::metadata(file) {
-        Ok(m) if m.is_file() && m.len() <= MAX_CHROME_FILE => {}
-        _ => return Vec::new(),
+/// Chrome のブックマークを読めなかった理由（#265）。ファイルが無いのは理由にしない（Chrome が入っていない環境で、お知らせを出さない）。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChromeProblem {
+    /// 読もうとしたファイル
+    pub path: String,
+    /// 理由（OS のエラーの文、または壊れている・大きすぎるなどの短い文）
+    pub reason: String,
+    /// macOS で権限が無いための失敗か（画面が、フルディスクアクセスの案内を添える）
+    pub needs_permission: bool,
+}
+
+/// Chrome のブックマークを読んだ結果。読めなかったときは bookmarks が空で、problem に理由が入る。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
+pub struct ChromeLoad {
+    pub bookmarks: Vec<ChromeBookmark>,
+    pub problem: Option<ChromeProblem>,
+}
+
+fn fail(file: &Path, reason: String, needs_permission: bool) -> ChromeLoad {
+    ChromeLoad {
+        bookmarks: Vec::new(),
+        problem: Some(ChromeProblem {
+            path: file.display().to_string(),
+            reason,
+            needs_permission,
+        }),
     }
-    let Ok(text) = fs::read(file) else {
-        return Vec::new();
+}
+
+fn io_fail(file: &Path, e: &std::io::Error) -> ChromeLoad {
+    fail(
+        file,
+        e.to_string(),
+        cfg!(target_os = "macos") && e.kind() == ErrorKind::PermissionDenied,
+    )
+}
+
+/// Chrome のブックマークを読む（ブックマークバー、その他のブックマーク、モバイルの順）。ファイルが無いときは空で理由も無し
+/// （Chrome が入っていない環境で、エラーにしない）。権限が無い・読み込みの失敗・壊れている・大きすぎるときは、空と理由。
+/// 開けない URL のものは捨てる。
+pub fn load_chrome(file: &Path) -> ChromeLoad {
+    let meta = match fs::metadata(file) {
+        Ok(m) => m,
+        Err(e) if e.kind() == ErrorKind::NotFound => return ChromeLoad::default(),
+        Err(e) => return io_fail(file, &e),
     };
-    let Ok(root) = serde_json::from_slice::<serde_json::Value>(&text) else {
-        return Vec::new();
+    if !meta.is_file() {
+        return fail(file, "not a regular file".into(), false);
+    }
+    if meta.len() > MAX_CHROME_FILE {
+        return fail(
+            file,
+            format!("file too large ({} bytes)", meta.len()),
+            false,
+        );
+    }
+    let text = match fs::read(file) {
+        Ok(t) => t,
+        // 調べた後に消えた
+        Err(e) if e.kind() == ErrorKind::NotFound => return ChromeLoad::default(),
+        Err(e) => return io_fail(file, &e),
+    };
+    let root = match serde_json::from_slice::<serde_json::Value>(&text) {
+        Ok(r) => r,
+        Err(e) => return fail(file, format!("invalid JSON: {e}"), false),
     };
     let mut out = Vec::new();
     for key in ["bookmark_bar", "other", "synced"] {
@@ -192,15 +246,18 @@ pub fn load_chrome(file: &Path) -> Vec<ChromeBookmark> {
             walk_chrome(n, "", 0, &mut out);
         }
     }
-    out
+    ChromeLoad {
+        bookmarks: out,
+        problem: None,
+    }
 }
 
 /// Chrome のブックマーク（読むだけ。開くたびに読み直す）。
 #[tauri::command(async)]
-pub fn browser_chrome_bookmarks_load(webview: Webview) -> Result<Vec<ChromeBookmark>, String> {
+pub fn browser_chrome_bookmarks_load(webview: Webview) -> Result<ChromeLoad, String> {
     from_main(&webview)?;
     let Some(home) = std::env::var_os("HOME").map(PathBuf::from) else {
-        return Ok(Vec::new());
+        return Ok(ChromeLoad::default());
     };
     Ok(load_chrome(&chrome_file(&home, CHROME_PROFILE)))
 }
@@ -289,9 +346,14 @@ mod tests {
         let d = temp_dir("chrome");
         fs::create_dir_all(&d).unwrap();
         let p = d.join("Bookmarks");
-        assert_eq!(load_chrome(&p), Vec::new());
+        assert_eq!(load_chrome(&p), ChromeLoad::default());
         fs::write(&p, "{").unwrap();
-        assert_eq!(load_chrome(&p), Vec::new());
+        let broken = load_chrome(&p);
+        assert!(broken.bookmarks.is_empty());
+        let problem = broken.problem.unwrap();
+        assert_eq!(problem.path, p.display().to_string());
+        assert!(problem.reason.starts_with("invalid JSON"));
+        assert!(!problem.needs_permission);
         let body = r#"{"roots":{
           "bookmark_bar":{"type":"folder","name":"Bookmarks bar","children":[
             {"type":"url","name":"A","url":"https://a.example/"},
@@ -306,7 +368,9 @@ mod tests {
           ]}
         }}"#;
         fs::write(&p, body).unwrap();
-        let got = load_chrome(&p);
+        let loaded = load_chrome(&p);
+        assert_eq!(loaded.problem, None);
+        let got = loaded.bookmarks;
         // 題が長すぎるものは、URL が正しければ題を切って残す
         let long = got
             .iter()
@@ -327,6 +391,52 @@ mod tests {
             ]
         );
         assert_eq!(fs::read_to_string(&p).unwrap(), body);
+        let _ = fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn chrome_problems_carry_the_path_and_reason_but_a_missing_file_does_not() {
+        let d = temp_dir("chrome-problem");
+        fs::create_dir_all(&d).unwrap();
+        // ファイルでないもの
+        let dir_as_file = d.join("Bookmarks");
+        fs::create_dir_all(&dir_as_file).unwrap();
+        let got = load_chrome(&dir_as_file);
+        assert_eq!(got.problem.unwrap().reason, "not a regular file");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            // 権限が無い（root は権限を無視するので、読めないときだけ確かめる）
+            let p = d.join("locked");
+            fs::write(&p, "{}").unwrap();
+            fs::set_permissions(&p, fs::Permissions::from_mode(0o000)).unwrap();
+            if fs::read(&p).is_err() {
+                let problem = load_chrome(&p).problem.unwrap();
+                assert_eq!(problem.path, p.display().to_string());
+                assert!(problem.reason.contains("Permission denied"));
+                assert_eq!(problem.needs_permission, cfg!(target_os = "macos"));
+            }
+            // 入れ物のフォルダを開けない
+            let sub = d.join("sub");
+            fs::create_dir_all(&sub).unwrap();
+            fs::write(sub.join("Bookmarks"), "{}").unwrap();
+            fs::set_permissions(&sub, fs::Permissions::from_mode(0o000)).unwrap();
+            if fs::metadata(sub.join("Bookmarks")).is_err() {
+                assert!(load_chrome(&sub.join("Bookmarks")).problem.is_some());
+            }
+            fs::set_permissions(&sub, fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        // 大きすぎる
+        let big = d.join("big");
+        fs::File::create(&big)
+            .unwrap()
+            .set_len(MAX_CHROME_FILE + 1)
+            .unwrap();
+        assert!(load_chrome(&big)
+            .problem
+            .unwrap()
+            .reason
+            .starts_with("file too large"));
         let _ = fs::remove_dir_all(&d);
     }
 
