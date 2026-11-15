@@ -847,7 +847,7 @@ function Workbench(props: {
             props.browser &&
             untrack(gws).list.some((g) => termsOf(g).length === 0)
           )
-            setLanding(true);
+            setLanding(target);
           else void createWorkspace(target);
         }
       }
@@ -1311,19 +1311,29 @@ function Workbench(props: {
     const f = focus();
     return f ? gwsOfTerm(gws(), f.target, f.id) : undefined;
   };
-  /** 起動したとき、ターミナルのタブが無くて、ブラウザのタブだけのワークスペースへ入る待ちか */
-  const [landing, setLanding] = createSignal(false);
+  /**
+   * 起動したとき、ターミナルのタブが無くて、ブラウザのタブだけのワークスペースへ入る待ち（値は、ワークスペースを作るはずだったマシン）。
+   * ブラウザのタブを読み終えても、ブラウザのタブだけのワークスペースが残らなければ（記録が読めなかった・消えていた）、そのマシンにワークスペースを作る
+   */
+  const [landing, setLanding] = createSignal<string | null>(null);
   createEffect(() => {
-    if (!landing()) return;
+    const target = landing();
+    if (target === null) return;
     if (currentGws()) {
-      setLanding(false);
+      setLanding(null);
       return;
     }
     // ブラウザのタブを読み終えるまでは、行が無い。読めたら、最初のブラウザのタブだけのワークスペースへ移る
     const r = rows().find(isBrowserOnly);
     if (r) {
-      setLanding(false);
+      setLanding(null);
       untrack(() => showGws(r.gws));
+    } else if (
+      tabsReady() &&
+      !gws().list.some((g) => termsOf(g).length === 0)
+    ) {
+      setLanding(null);
+      untrack(() => void createWorkspace(target));
     }
   });
   /** ターミナルのタブを持たないワークスペースへ移る（そのワークスペースのブラウザのタブのページにキーを向ける）。 */
