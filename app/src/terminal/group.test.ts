@@ -4,7 +4,7 @@ import { describe, it } from "node:test";
 import { ErrorCode, RpcError } from "../rpc/message.ts";
 import type { TermInfo, Workspace } from "../rpc/protocol.ts";
 import { TermGroup, TermGroups, type TermLayout } from "./group.ts";
-import { EXITED_NOTICE, type TermPort, type TermSink } from "./link.ts";
+import { exitedNotice, type TermPort, type TermSink } from "./link.ts";
 
 function alive(termId: string): TermInfo {
   return {
@@ -410,7 +410,7 @@ describe("TermGroup", () => {
     g.handle({ method: "term.exit", params: { termId: "t1", code: 0 } });
     await tick();
     assert.deepEqual(ids(g), ["t1", "t2"]);
-    assert.ok(sinks.get(g.list[0])!.text.endsWith(EXITED_NOTICE));
+    assert.ok(sinks.get(g.list[0])!.text.endsWith(exitedNotice()));
     f.calls.length = 0;
     g.list[0]!.input(new TextEncoder().encode("\r"));
     await tick();

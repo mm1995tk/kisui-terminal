@@ -12,6 +12,7 @@
 // 内蔵ブラウザ（#202）を有効にしていれば、帯の下にそのワークスペースのタブを並べる（browserOf）。タブの行を押すと onTab、× で onTabClose、
 // 「タブ」の見出しで onTabsFold（並びを畳む・開く）。タブを出していれば、その行を光らせる。
 // 組み立ては model.ts、並び順は order.ts、色の決め方は colors.ts、見た目は sidebar.css。
+import { T } from "../i18n/index.ts";
 import {
   createMemo,
   createSignal,
@@ -41,11 +42,7 @@ import {
 } from "./model.ts";
 import "./sidebar.css";
 
-const healthLabel: Record<Health, string> = {
-  up: "つながっています",
-  pending: "つないでいます",
-  down: "つながっていません",
-};
+const healthLabel = (h: Health): string => T(`health.${h}`);
 
 /** 帯の下に並べる、内蔵ブラウザのタブ。 */
 export interface BandTabs {
@@ -237,7 +234,7 @@ export function Sidebar(
     <div class="sidebar-column">
       <nav
         class="sidebar"
-        aria-label="ワークスペース"
+        aria-label={T("sidebar.workspaces")}
         ref={(el) => {
           nav = el;
           props.ref?.(el);
@@ -281,10 +278,10 @@ export function Sidebar(
           <PopupMenu
             x={m().x}
             y={m().y}
-            label="ワークスペース"
+            label={T("sidebar.workspaces")}
             items={[
               {
-                label: "名前を変える",
+                label: T("sidebar.rename"),
                 run: () => props.onRenameWorkspace?.(m().target, m().id),
               },
             ]}
@@ -323,7 +320,7 @@ export function Sidebar(
           >
             <path d="M12 5v14M5 12h14" />
           </svg>
-          ワークスペースを作る
+          {T("sidebar.newWorkspace")}
         </button>
       </div>
     </div>
@@ -502,13 +499,16 @@ function BandItem(props: Handlers & { row: Row }): JSX.Element {
                   </span>
                   <span
                     class="band-machine"
-                    title={`${props.row.machine}：${healthLabel[props.row.health]}`}
+                    title={T("sidebar.machineHealth", {
+                      machine: props.row.machine,
+                      health: healthLabel(props.row.health),
+                    })}
                   >
                     <span
                       class="health"
                       data-health={props.row.health}
                       role="img"
-                      aria-label={healthLabel[props.row.health]}
+                      aria-label={healthLabel(props.row.health)}
                     />
                     <span class="band-machine-name">{props.row.machine}</span>
                   </span>
@@ -523,9 +523,9 @@ function BandItem(props: Handlers & { row: Row }): JSX.Element {
                 <input
                   class="band-rename"
                   type="text"
-                  aria-label="ワークスペースの名前"
+                  aria-label={T("sidebar.nameLabel")}
                   aria-invalid={r().error ? "true" : undefined}
-                  placeholder={`空なら ${r().auto}`}
+                  placeholder={T("sidebar.namePlaceholder", { auto: r().auto })}
                   value={r().current}
                   onKeyDown={(e) => {
                     const a = renameKeyAction(e);
@@ -555,8 +555,8 @@ function BandItem(props: Handlers & { row: Row }): JSX.Element {
             <button
               type="button"
               class="band-close band-edit"
-              aria-label={`${b().title} の名前を変える`}
-              title="名前を変える"
+              aria-label={T("sidebar.renameBand", { title: b().title })}
+              title={T("sidebar.rename")}
               onClick={() =>
                 props.onRenameWorkspace?.(props.row.target, b().id)
               }
@@ -575,8 +575,8 @@ function BandItem(props: Handlers & { row: Row }): JSX.Element {
             <button
               type="button"
               class="band-close"
-              aria-label={`${b().title} を閉じる`}
-              title="ワークスペースを閉じる"
+              aria-label={T("sidebar.closeBand", { title: b().title })}
+              title={T("sidebar.closeWorkspace")}
               onClick={() => props.onClose?.(props.row.target, b().id)}
             >
               <svg
@@ -620,7 +620,7 @@ function BandItem(props: Handlers & { row: Row }): JSX.Element {
         {(rows) => (
           <TreeView
             rows={rows()}
-            label={`${b().title} のファイル`}
+            label={T("sidebar.files", { title: b().title })}
             onToggle={(p) => props.onToggle?.(props.row.target, b().id, p)}
             onOpen={(p) => props.onOpen?.(props.row.target, b().id, p)}
             current={props.currentOf?.(props.row.target, b().id)}
@@ -650,7 +650,7 @@ function BandItem(props: Handlers & { row: Row }): JSX.Element {
           <ChangesView
             rows={c().rows}
             base={c().base}
-            label={`${b().title} の変更`}
+            label={T("sidebar.changes", { title: b().title })}
             onSelect={(p) => props.onChange?.(props.row.target, b().id, p)}
             onShjKey={(k) => props.onChangesKey?.(props.row.target, b().id, k)}
             onExplorer={() =>
@@ -691,16 +691,19 @@ function BandTabRows(props: {
           type="button"
           class="band-tabs-fold"
           aria-expanded={!props.tabs.folded}
-          title="タブの並びを畳む・開く"
+          title={T("sidebar.foldTabs")}
           onClick={() => props.onFold()}
         >
           <span class="band-tabs-chevron" aria-hidden="true">
             {props.tabs.folded ? "▸" : "▾"}
           </span>
-          タブ {props.tabs.tabs.length}
+          {T("sidebar.tabsCount", { n: props.tabs.tabs.length })}
         </button>
         <Show when={!props.tabs.folded}>
-          <ul class="tab-rows" aria-label={`${props.title} のタブ`}>
+          <ul
+            class="tab-rows"
+            aria-label={T("sidebar.tabsOf", { title: props.title })}
+          >
             <For each={props.tabs.tabs}>
               {(t) => (
                 <li
@@ -724,7 +727,9 @@ function BandTabRows(props: {
                     onClick={() => props.onTab(t.id)}
                   >
                     <Show when={t.incognito}>
-                      <span class="tab-incognito">シークレット</span>
+                      <span class="tab-incognito">
+                        {T("sidebar.incognito")}
+                      </span>
                     </Show>
                     <span class="tab-title">{t.title || hostOf(t.url)}</span>
                     <Show when={t.title}>
@@ -734,8 +739,13 @@ function BandTabRows(props: {
                   <button
                     type="button"
                     class="band-close tab-close"
-                    aria-label={`${t.incognito ? "シークレットの " : ""}${t.title || hostOf(t.url)} のタブを閉じる`}
-                    title="タブを閉じる"
+                    aria-label={T(
+                      t.incognito
+                        ? "sidebar.closeTabLabelIncognito"
+                        : "sidebar.closeTabLabel",
+                      { title: t.title || hostOf(t.url) },
+                    )}
+                    title={T("sidebar.closeTab")}
                     onClick={() => props.onClose(t.id)}
                   >
                     <svg

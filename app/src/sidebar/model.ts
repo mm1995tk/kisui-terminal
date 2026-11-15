@@ -5,9 +5,10 @@
 // 各帯の隅にマシンの名前と状態を出す。ツリー（D2）は tree/、上下の固定（D3）は splitAtFocus と Sidebar.tsx、
 // マシンごとの色（D4）の決め方と保存は colors.ts。
 
+import { T } from "../i18n/index.ts";
 import type { Workspace, WorkspaceId } from "../rpc/protocol.ts";
 import { LOCAL } from "../ssh/api.ts";
-import { LOCAL_LABEL } from "../ssh/machines.ts";
+import { localLabel } from "../ssh/machines.ts";
 import type { SessionState } from "../ssh/session.ts";
 import { MACHINE_COLORS } from "./colors.ts";
 import { sortByOrder, type WsRef } from "./order.ts";
@@ -22,12 +23,12 @@ export interface WorkspaceFocus {
 export type Health = "up" | "pending" | "down";
 
 /** フォルダが決まっていないワークスペースの帯の名前。 */
-export const UNSET_TITLE = "（フォルダ未定）";
+export const unsetTitle = (): string => T("sidebar.noFolder");
 
 /** ワークスペース 1 つ分の帯に出すもの。 */
 export interface Band {
   id: WorkspaceId;
-  /** 帯の名前。目印（.git / .shijimi-editor/）が無いワークスペースはフォルダのパス。フォルダ未定なら UNSET_TITLE */
+  /** 帯の名前。目印（.git / .shijimi-editor/）が無いワークスペースはフォルダのパス。フォルダ未定なら unsetTitle() */
   title: string;
   /** ユーザーがつけた名前（無ければ ""。title は、あればこれになる） */
   label: string;
@@ -73,7 +74,7 @@ export interface MachineGroup {
 
 /** つなぎ先の表示名（名前を付けていないとき）。 */
 export const machineLabel = (t: string): string =>
-  t === LOCAL ? LOCAL_LABEL : t;
+  t === LOCAL ? localLabel() : t;
 
 /** 見出しの丸の色分け。 */
 export function health(s: SessionState | undefined): Health {
@@ -140,9 +141,9 @@ function autoBand(w: Workspace, focused: boolean, nth: number): Band {
   if (w.folder === null) {
     return {
       id: w.id,
-      title: UNSET_TITLE,
+      title: unsetTitle(),
       label: "",
-      autoTitle: UNSET_TITLE,
+      autoTitle: unsetTitle(),
       path: false,
       unset: true,
       detail: "",
@@ -160,7 +161,7 @@ function autoBand(w: Workspace, focused: boolean, nth: number): Band {
   const title = w.kind === "cwd" ? shown : w.name || shown;
   const branch = w.kind === "cwd" ? "" : (w.branch ?? "");
   const sha = w.kind === "cwd" ? "" : (w.sha ?? "");
-  const note = w.kind === "cwd" ? "git なし" : "";
+  const note = w.kind === "cwd" ? T("sidebar.noGit") : "";
   return {
     id: w.id,
     title,

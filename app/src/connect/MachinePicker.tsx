@@ -1,3 +1,4 @@
+import { T } from "../i18n/index.ts";
 import { For, type JSX } from "solid-js";
 
 import { ModalCard } from "./Card.tsx";
@@ -32,20 +33,16 @@ export function MachinePicker(props: {
   }
 
   return (
-    <ModalCard
-      label="ワークスペースを作るマシン"
-      width={560}
-      onCancel={props.onCancel}
-    >
+    <ModalCard label={T("picker.label")} width={560} onCancel={props.onCancel}>
       <div class="machine-dialog">
         <div class="card-body">
-          <h1 class="card-title">どのマシンにワークスペースを作りますか</h1>
+          <h1 class="card-title">{T("picker.title")}</h1>
         </div>
         <ul
           class="card-rows"
           tabIndex={0}
           role="listbox"
-          aria-label="マシンの一覧"
+          aria-label={T("machineDialog.list")}
           aria-activedescendant={
             sel.selected() ? rowId(sel.index()) : undefined
           }
@@ -69,7 +66,7 @@ export function MachinePicker(props: {
                 />
                 <span class="card-row-name">{r.label}</span>
                 <span class="card-row-state machine-row-count">
-                  ワークスペース {r.workspaces}
+                  {T("machineDialog.workspaces", { n: r.workspaces })}
                 </span>
               </li>
             )}
@@ -77,14 +74,15 @@ export function MachinePicker(props: {
         </ul>
         <div class="card-body">
           <p class="machine-keys">
-            <kbd>j</kbd> <kbd>k</kbd> 選ぶ・<kbd>Enter</kbd> 作る・
-            <kbd>Esc</kbd> やめる
+            <kbd>j</kbd> <kbd>k</kbd> {T("machineDialog.keys.select")} ·{" "}
+            <kbd>Enter</kbd> {T("picker.keys.create")} · <kbd>Esc</kbd>{" "}
+            {T("mascot.keys.cancel")}
           </p>
         </div>
       </div>
       <div class="card-actions">
         <button type="button" class="card-button" onClick={props.onCancel}>
-          やめる
+          {T("button.cancelAlt")}
         </button>
       </div>
     </ModalCard>

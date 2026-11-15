@@ -1,4 +1,5 @@
 // ssh の質問（パスワード・認証コード・ホスト鍵の確認）を出す窓。見た目は窓のカード（connect/Card.tsx）。
+import { T } from "./i18n/index.ts";
 import { createSignal, Show, type JSX } from "solid-js";
 
 import { ModalCard } from "./connect/Card.tsx";
@@ -25,7 +26,7 @@ export function AskpassDialog(props: {
   return (
     <Show when={props.ask} keyed>
       {(ask) => (
-        <ModalCard label="ssh の質問" onCancel={() => reply(ask, null)}>
+        <ModalCard label={T("askpass.label")} onCancel={() => reply(ask, null)}>
           <form
             method="dialog"
             onSubmit={(e) => {
@@ -34,7 +35,7 @@ export function AskpassDialog(props: {
             }}
           >
             <div class="card-body">
-              <h1 class="card-title">ssh の質問</h1>
+              <h1 class="card-title">{T("askpass.label")}</h1>
               <label class="card-field">
                 <span class="card-text">{ask.prompt}</span>
                 <input
@@ -51,7 +52,7 @@ export function AskpassDialog(props: {
                   checked={reveal()}
                   onChange={(e) => setReveal(e.currentTarget.checked)}
                 />
-                表示する（host key の確認は yes / no と打つ）
+                {T("askpass.reveal")}
               </label>
             </div>
             <div class="card-actions">
@@ -60,7 +61,7 @@ export function AskpassDialog(props: {
                 class="card-button"
                 onClick={() => reply(ask, null)}
               >
-                取り消し
+                {T("askpass.cancel")}
               </button>
               <button type="submit" class="card-button primary">
                 OK

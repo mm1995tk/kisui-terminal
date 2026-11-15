@@ -7,6 +7,7 @@
 // DOM には触らない（node --test で確かめられる）。
 
 import type { KeyLike } from "./guiKeys.ts";
+import { T } from "./i18n/index.ts";
 import {
   isModifierOnly,
   matchSpec,
@@ -152,17 +153,20 @@ export const LEADER_SHORTCUT: Shortcut = {
 const paneMoves = (): Leaf[] =>
   (
     [
-      ["h", "左", "left"],
-      ["j", "下", "down"],
-      ["k", "上", "up"],
-      ["l", "右", "right"],
+      ["h", "left"],
+      ["j", "down"],
+      ["k", "up"],
+      ["l", "right"],
     ] as const
-  ).map(([k, name, dir]) =>
+  ).map(([k, dir]) =>
     leaf(
       k,
-      `${name}のペインへ`,
+      T(`leader.pane.focus.${dir}`),
       { id: "pane.focus", arg: dir },
-      { repeat: true, range: { keys: "h|j|k|l", label: "ペインを移動" } },
+      {
+        repeat: true,
+        range: { keys: "h|j|k|l", label: T("leader.pane.focus.range") },
+      },
     ),
   );
 
@@ -174,27 +178,39 @@ const paneMoves = (): Leaf[] =>
 const workspaceMoves = (): Leaf[] => [
   leaf(
     "j",
-    "下のワークスペースへ",
+    T("leader.ws.next"),
     { id: "workspace.step", arg: "next" },
-    { repeat: true, range: { keys: "j|k", label: "ワークスペースを移動" } },
+    {
+      repeat: true,
+      range: { keys: "j|k", label: T("leader.ws.step.range") },
+    },
   ),
   leaf(
     "k",
-    "上のワークスペースへ",
+    T("leader.ws.prev"),
     { id: "workspace.step", arg: "prev" },
-    { repeat: true, range: { keys: "j|k", label: "ワークスペースを移動" } },
+    {
+      repeat: true,
+      range: { keys: "j|k", label: T("leader.ws.step.range") },
+    },
   ),
   leaf(
     "J",
-    "今のワークスペースを 1 つ下へ動かす",
+    T("leader.ws.moveDown"),
     { id: "workspace.move", arg: "down" },
-    { repeat: true, range: { keys: "J|K", label: "ワークスペースを並べ替え" } },
+    {
+      repeat: true,
+      range: { keys: "J|K", label: T("leader.ws.move.range") },
+    },
   ),
   leaf(
     "K",
-    "今のワークスペースを 1 つ上へ動かす",
+    T("leader.ws.moveUp"),
     { id: "workspace.move", arg: "up" },
-    { repeat: true, range: { keys: "J|K", label: "ワークスペースを並べ替え" } },
+    {
+      repeat: true,
+      range: { keys: "J|K", label: T("leader.ws.move.range") },
+    },
   ),
 ];
 
@@ -202,12 +218,13 @@ const workspaceMoves = (): Leaf[] => [
  * リーダーの木。1 段目から下へ。
  * URL のヒントモードに入るキー（#51）は、その Issue が、ここに葉を足して入れる。足すまでは、案内にも出ない。
  * 画像のペインの拡大・縮小（#93）は、リーダーに載せない場所のキー（docs/key-design.md の 5 章。#115 で作る定義）に足す。
+ * 文は i18n の表から引く（言語は起動時に決まるので、この木は言語を選んだあとに読み込む）。
  */
 export const LEADER: Node[] = [
   ...paneMoves(),
   leaf(
     "Tab",
-    "直前のペインへ",
+    T("leader.pane.last"),
     { id: "pane.last" },
     {
       repeat: true,
@@ -215,109 +232,109 @@ export const LEADER: Node[] = [
   ),
   group(
     "w",
-    "ワークスペース",
+    T("leader.ws.group"),
     [
       ...workspaceMoves(),
-      leaf("Tab", "直前のワークスペースへ", {
+      leaf("Tab", T("leader.ws.last"), {
         id: "workspace.last",
       }),
       ...Array.from({ length: 9 }, (_, i) =>
         leaf(
           String(i + 1),
-          `上から ${i + 1} 番目へ`,
+          T("leader.ws.nth", { n: i + 1 }),
           { id: "workspace.nth", arg: i },
           {
             shortcut: { mac: `Cmd+${i + 1}` },
-            range: { keys: "1–9", label: "上から N 番目へ" },
+            range: { keys: "1–9", label: T("leader.ws.nth.range") },
           },
         ),
       ),
-      leaf("n", "ワークスペースを作る", { id: "workspace.new" }),
-      leaf("x", "ワークスペースを閉じる", {
+      leaf("n", T("leader.ws.new"), { id: "workspace.new" }),
+      leaf("x", T("leader.ws.close"), {
         id: "workspace.close",
       }),
-      leaf("r", "名前を変える", {
+      leaf("r", T("leader.ws.rename"), {
         id: "workspace.rename",
       }),
     ],
     { mac: "Cmd+Shift+W", other: "Ctrl+Shift+W" },
   ),
-  leaf("m", "マシンの一覧を開く", { id: "machine.dialog" }),
+  leaf("m", T("leader.machine"), { id: "machine.dialog" }),
   group(
     "p",
-    "ペイン",
+    T("leader.pane.group"),
     [
       ...paneMoves(),
-      group("s", "ペインを分ける", [
+      group("s", T("leader.pane.split"), [
         leaf(
           "h",
-          "左に分ける",
+          T("leader.pane.split.left"),
           { id: "pane.split", arg: "left" },
           {
-            range: { keys: "h|j|k|l", label: "向きを選んで分ける" },
+            range: { keys: "h|j|k|l", label: T("leader.pane.split.range") },
           },
         ),
         leaf(
           "j",
-          "下に分ける",
+          T("leader.pane.split.down"),
           { id: "pane.split", arg: "down" },
           {
             shortcut: { mac: "Cmd+Shift+D", other: "Ctrl+Shift+E" },
-            range: { keys: "h|j|k|l", label: "向きを選んで分ける" },
+            range: { keys: "h|j|k|l", label: T("leader.pane.split.range") },
           },
         ),
         leaf(
           "k",
-          "上に分ける",
+          T("leader.pane.split.up"),
           { id: "pane.split", arg: "up" },
           {
-            range: { keys: "h|j|k|l", label: "向きを選んで分ける" },
+            range: { keys: "h|j|k|l", label: T("leader.pane.split.range") },
           },
         ),
         leaf(
           "l",
-          "右に分ける",
+          T("leader.pane.split.right"),
           { id: "pane.split", arg: "right" },
           {
             shortcut: { mac: "Cmd+D", other: "Ctrl+Shift+D" },
-            range: { keys: "h|j|k|l", label: "向きを選んで分ける" },
+            range: { keys: "h|j|k|l", label: T("leader.pane.split.range") },
           },
         ),
       ]),
       group(
         "m",
-        "隣のペインと入れ替える",
+        T("leader.pane.swap"),
         (
           [
-            ["h", "左", "left"],
-            ["j", "下", "down"],
-            ["k", "上", "up"],
-            ["l", "右", "right"],
+            ["h", "left"],
+            ["j", "down"],
+            ["k", "up"],
+            ["l", "right"],
           ] as const
-        ).map(([k, name, dir]) =>
+        ).map(([k, dir]) =>
           leaf(
             k,
-            `${name}のペインと入れ替える`,
+            T(`leader.pane.swap.${dir}`),
             { id: "pane.swap", arg: dir },
-            { range: { keys: "h|j|k|l", label: "向きを選んで入れ替える" } },
+            { range: { keys: "h|j|k|l", label: T("leader.pane.swap.range") } },
           ),
         ),
       ),
       leaf(
         "x",
-        "ペインを閉じる",
+        T("leader.pane.close"),
         { id: "pane.close" },
         { shortcut: { mac: "Cmd+W" }, shortcutInPane: true },
       ),
       leaf(
         "z",
-        "プライマリだけを出す・戻す",
+        T("leader.pane.zoom"),
         { id: "pane.zoom" },
         { shortcut: { mac: "Cmd+Shift+Enter", other: "Ctrl+Shift+M" } },
       ),
       leaf(
         "r",
-        "リサイズモード",
+        T("leader.pane.resize"),
         { id: "pane.resize" },
         { shortcut: { mac: "Cmd+R", other: "Ctrl+Shift+R" } },
       ),
@@ -327,46 +344,62 @@ export const LEADER: Node[] = [
   // 内蔵ブラウザ（#202）。設定（[gui.browser] enabled）で有効にしたときだけ出す（setBrowserEnabled）
   group(
     "o",
-    "ブラウザ",
+    T("leader.browser.group"),
     [
-      leaf("n", "新しいタブを開く", { id: "browser.new" }),
-      leaf("N", "シークレットのタブを開く", { id: "browser.incognito" }),
-      leaf("u", "URL を書き換える", { id: "browser.url" }),
+      leaf("n", T("leader.browser.new"), { id: "browser.new" }),
+      leaf("N", T("leader.browser.incognito"), { id: "browser.incognito" }),
+      leaf("u", T("leader.browser.url"), { id: "browser.url" }),
       leaf(
         "j",
-        "次のタブへ",
+        T("leader.browser.next"),
         { id: "browser.cycle", arg: "next" },
-        { repeat: true, range: { keys: "j|k", label: "グリッドとタブを回る" } },
+        {
+          repeat: true,
+          range: { keys: "j|k", label: T("leader.browser.cycle.range") },
+        },
       ),
       leaf(
         "k",
-        "前のタブへ",
+        T("leader.browser.prev"),
         { id: "browser.cycle", arg: "prev" },
-        { repeat: true, range: { keys: "j|k", label: "グリッドとタブを回る" } },
+        {
+          repeat: true,
+          range: { keys: "j|k", label: T("leader.browser.cycle.range") },
+        },
       ),
-      leaf("h", "戻る", { id: "browser.back" }, { repeat: true }),
-      leaf("l", "進む", { id: "browser.forward" }, { repeat: true }),
+      leaf(
+        "h",
+        T("leader.browser.back"),
+        { id: "browser.back" },
+        { repeat: true },
+      ),
+      leaf(
+        "l",
+        T("leader.browser.forward"),
+        { id: "browser.forward" },
+        { repeat: true },
+      ),
       leaf(
         "r",
-        "読み込み直す",
+        T("leader.browser.reload"),
         { id: "browser.reload" },
         {
           shortcut: { mac: "Cmd+R", other: "Ctrl+Shift+R" },
           shortcutInBrowser: true,
         },
       ),
-      leaf("x", "タブを閉じる", { id: "browser.close" }),
-      leaf("e", "外のブラウザで開く", { id: "browser.external" }),
-      leaf("z", "タブの並びを畳む・開く", { id: "browser.fold" }),
+      leaf("x", T("leader.browser.close"), { id: "browser.close" }),
+      leaf("e", T("leader.browser.external"), { id: "browser.external" }),
+      leaf("z", T("leader.browser.fold"), { id: "browser.fold" }),
     ],
     undefined,
     undefined,
     "browser",
   ),
-  leaf("b", "サイドバーを開け閉めする", { id: "sidebar.toggle" }),
+  leaf("b", T("leader.sidebar"), { id: "sidebar.toggle" }),
   leaf(
     "y",
-    "クリップボードの履歴",
+    T("leader.clipboard"),
     { id: "clipboard.history" },
     { shortcut: { mac: "Cmd+Shift+H", other: "Ctrl+Shift+H" } },
   ),
@@ -374,24 +407,24 @@ export const LEADER: Node[] = [
   // `v -` しか小さくするキーが無いので出す。`?` の一覧には、どの OS でも出す
   group(
     "v",
-    "表示の大きさ",
+    T("leader.scale.group"),
     [
       leaf(
         ["+", "="],
-        "大きくする",
+        T("leader.scale.in"),
         { id: "scale", arg: "in" },
         { repeat: true, shortcut: { mac: "Cmd+=", other: "Ctrl+=" } },
       ),
       // Linux の Ctrl+- は端末の C-_（shj のコメントの切り替え、シェルの undo）と同じ符号なので、近道にしない
       leaf(
         "-",
-        "小さくする",
+        T("leader.scale.out"),
         { id: "scale", arg: "out" },
         { repeat: true, shortcut: { mac: "Cmd+-" } },
       ),
       leaf(
         "0",
-        "元の大きさに戻す",
+        T("leader.scale.reset"),
         { id: "scale", arg: "reset" },
         { shortcut: { mac: "Cmd+0", other: "Ctrl+0" } },
       ),
@@ -399,22 +432,22 @@ export const LEADER: Node[] = [
     undefined,
     "mac",
   ),
-  group("n", "お知らせ", [
-    leaf("u", "新しい版に更新する", { id: "notice.update" }),
-    leaf("d", "お知らせを閉じる", { id: "notice.dismiss" }),
-    leaf("g", "通知を出したペインへ", {
+  group("n", T("leader.notice.group"), [
+    leaf("u", T("leader.notice.update"), { id: "notice.update" }),
+    leaf("d", T("leader.notice.dismiss"), { id: "notice.dismiss" }),
+    leaf("g", T("leader.notice.focusNotified"), {
       id: "notice.focusNotified",
     }),
-    leaf("o", "ダウンロードしたファイルを開く", { id: "notice.openDownload" }),
-    leaf("f", "ダウンロードしたフォルダを表示", {
+    leaf("o", T("leader.notice.openDownload"), { id: "notice.openDownload" }),
+    leaf("f", T("leader.notice.revealDownload"), {
       id: "notice.revealDownload",
     }),
   ]),
-  group("c", "キャラクター", [
-    leaf("s", "キャラクターを選ぶ", { id: "mascot.select" }),
-    leaf("r", "キャラクターを読み直す", { id: "mascot.reload" }),
+  group("c", T("leader.mascot.group"), [
+    leaf("s", T("leader.mascot.select"), { id: "mascot.select" }),
+    leaf("r", T("leader.mascot.reload"), { id: "mascot.reload" }),
   ]),
-  leaf("?", "キーの一覧", { id: "help.keys" }),
+  leaf("?", T("help.keys"), { id: "help.keys" }),
 ];
 
 /** 内蔵ブラウザ（`o` のグループ）を出すか。設定で有効にしたときだけ App が true にする。 */
@@ -713,32 +746,26 @@ const MODIFIER_NAMES: Record<string, string> = {
 
 /** 書いたキーを parseSpec の書き方にそろえる（修飾キーの大文字小文字・別名を許す）。読めなければ throw。 */
 function parseUserKey(text: string): KeySpec {
-  let t = text.trim();
+  let s = text.trim();
   // キーが + 自身（"Ctrl++"）のとき
-  const keyIsPlus = t.endsWith("+");
-  if (keyIsPlus) t = t.slice(0, -1).replace(/\+$/, "");
-  const parts = t === "" ? [] : t.split("+");
+  const keyIsPlus = s.endsWith("+");
+  if (keyIsPlus) s = s.slice(0, -1).replace(/\+$/, "");
+  const parts = s === "" ? [] : s.split("+");
   const keyPart = keyIsPlus ? "+" : (parts.pop() ?? "");
-  if (!keyPart) throw new Error("キーがありません");
+  if (!keyPart) throw new Error(T("shortcut.err.noKey"));
   const mods = parts.map((m) => {
     const name = MODIFIER_NAMES[m.trim().toLowerCase()];
-    if (!name)
-      throw new Error(`修飾キー ${m} は使えません（Cmd・Ctrl・Shift・Alt）`);
+    if (!name) throw new Error(T("shortcut.err.modifier", { m }));
     return name;
   });
   let name = keyPart;
   if (keyPart.length > 1) {
     name = KEY_NAMES[keyPart.toLowerCase()];
-    if (!name)
-      throw new Error(
-        `キー ${keyPart} は使えません（1 文字、Enter・Tab・Escape・Backspace・Space・矢印（Left など）・F1〜F12）`,
-      );
+    if (!name) throw new Error(T("shortcut.err.key", { key: keyPart }));
   }
   const spec = parseSpec([...mods, name].join("+"));
   if (!spec.ctrl && !spec.alt && !spec.meta)
-    throw new Error(
-      "Cmd・Ctrl・Alt のどれかが要ります（字だけのキーはターミナルに届かなくなるため）",
-    );
+    throw new Error(T("shortcut.err.needModifier"));
   return spec;
 }
 
@@ -793,7 +820,7 @@ export function setUserShortcuts(list: UserShortcut[], mac: boolean): string[] {
       continue;
     }
     if (sameSpec(spec, leader)) {
-      problems.push(`${where}: リーダーのキーと同じです`);
+      problems.push(`${where}: ${T("shortcut.err.leader")}`);
       continue;
     }
     let entry: UserEntry;
@@ -802,7 +829,7 @@ export function setUserShortcuts(list: UserShortcut[], mac: boolean): string[] {
     } else {
       const leaf = leaves.get(command);
       if (!leaf) {
-        problems.push(`${where}: コマンド ${command} はありません`);
+        problems.push(`${where}: ${T("shortcut.err.noCommand", { command })}`);
         continue;
       }
       entry = {
@@ -818,7 +845,7 @@ export function setUserShortcuts(list: UserShortcut[], mac: boolean): string[] {
     const at = out.findIndex((o) => sameSpec(o.spec, spec));
     if (at < 0) out.push(entry);
     else if (out[at].source === source)
-      problems.push(`${where}: 同じキーを 2 回書いています`);
+      problems.push(`${where}: ${T("shortcut.err.twice")}`);
     else if (out[at].source < source) out[at] = entry;
   }
   userEntries = out;

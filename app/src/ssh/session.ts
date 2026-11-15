@@ -10,6 +10,7 @@
 //    つなぎ直す（#8。needsHandover）
 // Solid などの画面の仕組みには依存しない。
 
+import { T } from "../i18n/index.ts";
 import type { Client } from "../rpc/client.ts";
 import { ErrorCode, RpcError } from "../rpc/message.ts";
 import {
@@ -238,7 +239,8 @@ export class Session {
    */
   async focusWorkspace(id: WorkspaceId): Promise<TermId | undefined> {
     const conn = this.conn;
-    if (!conn) throw new Error(`${this.target} につながっていません`);
+    if (!conn)
+      throw new Error(T("err.session.notConnected", { machine: this.target }));
     const gen = this.generation;
     const r = await conn.client.request("workspace.focus", { id });
     if (gen !== this.generation || this.conn !== conn) return r.termId;
@@ -252,7 +254,8 @@ export class Session {
    */
   async createWorkspace(): Promise<{ id: WorkspaceId; termId: TermId }> {
     const conn = this.conn;
-    if (!conn) throw new Error(`${this.target} につながっていません`);
+    if (!conn)
+      throw new Error(T("err.session.notConnected", { machine: this.target }));
     return conn.client.request("workspace.create", {});
   }
 
@@ -262,7 +265,8 @@ export class Session {
    */
   async closeWorkspace(id: WorkspaceId, force = false): Promise<void> {
     const conn = this.conn;
-    if (!conn) throw new Error(`${this.target} につながっていません`);
+    if (!conn)
+      throw new Error(T("err.session.notConnected", { machine: this.target }));
     await conn.client.request(
       "workspace.close",
       force ? { id, force } : { id },
@@ -275,7 +279,8 @@ export class Session {
    */
   async renameWorkspace(id: WorkspaceId, name: string): Promise<void> {
     const conn = this.conn;
-    if (!conn) throw new Error(`${this.target} につながっていません`);
+    if (!conn)
+      throw new Error(T("err.session.notConnected", { machine: this.target }));
     await conn.client.request("workspace.rename", { id, name });
   }
 
@@ -288,7 +293,8 @@ export class Session {
     params: Requests[M]["params"],
   ): Promise<Requests[M]["result"]> {
     const conn = this.conn;
-    if (!conn) throw new Error(`${this.target} につながっていません`);
+    if (!conn)
+      throw new Error(T("err.session.notConnected", { machine: this.target }));
     return conn.client.request(method, params);
   }
 
@@ -376,7 +382,7 @@ export class Session {
     this.generation++;
     this.setState({
       kind: "failed",
-      message: `kisui が ${this.target} にありません（入れませんでした）`,
+      message: T("err.session.noKisui", { machine: this.target }),
     });
   }
 

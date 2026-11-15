@@ -18,6 +18,10 @@ import {
   type KeyValueStore,
   type Machine,
 } from "./machines.ts";
+import { setLang } from "../i18n/index.ts";
+
+// 日本語の文で確かめる（画面の言葉の既定は英語）
+setLang("ja");
 
 function mem(init: Record<string, string> = {}): KeyValueStore & {
   m: Map<string, string>;

@@ -1,5 +1,6 @@
 // ツリーの右クリックから開く窓：名前を入れる窓（新しいファイル・新しいフォルダ・名前の変更）と、削除の確認の窓。
 // 窓は ModalCard（connect/Card.tsx）。決めたあとの処理は onSubmit / onYes が返す Promise で、断られたら窓を開いたまま理由を出す。
+import { T } from "../i18n/index.ts";
 import { createSignal, Show, type JSX } from "solid-js";
 
 import { ModalCard } from "../connect/Card.tsx";
@@ -80,7 +81,7 @@ export function NameDialog(props: {
       </div>
       <div class="card-actions">
         <button type="button" class="card-button" onClick={props.onCancel}>
-          キャンセル
+          {T("button.cancel")}
         </button>
         <button
           type="button"
@@ -118,13 +119,17 @@ export function DeleteDialog(props: {
     }
   };
   return (
-    <ModalCard label="削除の確認" onCancel={props.onCancel} focusSelf>
+    <ModalCard
+      label={T("deleteDialog.label")}
+      onCancel={props.onCancel}
+      focusSelf
+    >
       <div class="card-body">
-        <h1 class="card-title">{props.path} を削除しますか？</h1>
+        <h1 class="card-title">
+          {T("deleteDialog.title", { path: props.path })}
+        </h1>
         <p class="card-text">
-          {props.dir
-            ? "フォルダの中身も全部消えます。元には戻せません。"
-            : "元には戻せません。"}
+          {props.dir ? T("deleteDialog.dir") : T("deleteDialog.file")}
         </p>
         <Show when={error()}>
           {(e) => (
@@ -136,7 +141,7 @@ export function DeleteDialog(props: {
       </div>
       <div class="card-actions">
         <button type="button" class="card-button" onClick={props.onCancel}>
-          やめる
+          {T("button.cancelAlt")}
         </button>
         <button
           type="button"
@@ -144,7 +149,7 @@ export function DeleteDialog(props: {
           disabled={busy()}
           onClick={() => void yes()}
         >
-          削除する
+          {T("deleteDialog.yes")}
         </button>
       </div>
     </ModalCard>

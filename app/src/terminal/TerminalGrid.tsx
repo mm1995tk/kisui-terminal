@@ -1,3 +1,4 @@
+import { T } from "../i18n/index.ts";
 import {
   createEffect,
   createSignal,
@@ -157,7 +158,7 @@ export function TerminalGrid(props: {
   return (
     <section
       class="terminal"
-      aria-label="ターミナル"
+      aria-label={T("terminal.label")}
       data-split={shown() > 1 ? "" : undefined}
       data-empty={total() === 0 ? "" : undefined}
       style={template()}
@@ -239,8 +240,10 @@ export function TerminalGrid(props: {
       </Index>
       <Show when={props.zoomed && total() > 1}>
         <p class="terminal-others" role="status">
-          ほかに {total() - 1} つを隠している（
-          {IS_MAC ? "Cmd+Shift+Enter" : "Ctrl+Shift+M"} で戻す）
+          {T("terminal.others", {
+            n: total() - 1,
+            key: IS_MAC ? "Cmd+Shift+Enter" : "Ctrl+Shift+M",
+          })}
         </p>
       </Show>
     </section>

@@ -1,6 +1,7 @@
 // 今使っているキャラクター（実験的。形式は docs/mascot.md）。窓を開いたときに 1 回読み、リーダーの `c r`（読み直す）と
 // `c s`（選ぶ）で入れ替える。MascotCarrier.tsx が見て、App.tsx が入れ替える。
 // 入れ替えても、今出している動きには関わらない（次にリーダーを開いたときから新しい絵になる）。
+import { T } from "./i18n/index.ts";
 import { createSignal } from "solid-js";
 
 import {
@@ -33,11 +34,11 @@ export async function reloadCurrent(): Promise<Failure> {
     case "none":
       setMascot(null);
       return {
-        title: "キャラクターを選んでいません",
-        error: "リーダーの c → s で、使うキャラクターを選んでください。",
+        title: T("mascot.err.noneTitle"),
+        error: T("mascot.err.noneText"),
       };
     case "error":
-      return { title: "キャラクターを読み直せません", error: r.error };
+      return { title: T("mascot.err.reload"), error: r.error };
   }
 }
 
@@ -46,7 +47,7 @@ export async function chooseMascot(name: string): Promise<Failure> {
   try {
     await selectMascot(name);
   } catch (e) {
-    return { title: "キャラクターを選べません", error: String(e) };
+    return { title: T("mascot.err.choose"), error: String(e) };
   }
   return reloadCurrent();
 }

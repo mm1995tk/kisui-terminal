@@ -8,6 +8,10 @@ import {
   moveSelection,
   preview,
 } from "./clipboardHistory.ts";
+import { setLang } from "./i18n/index.ts";
+
+// 日本語の文で確かめる（画面の言葉の既定は英語）
+setLang("ja");
 
 test("preview は改行と空白をたたみ、長ければ切る", () => {
   assert.equal(preview("a\n  b\tc "), "a b c");

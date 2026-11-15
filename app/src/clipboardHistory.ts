@@ -1,6 +1,8 @@
 // クリップボードの履歴の窓（ClipboardHistoryDialog）の、DOM に触らない部分。
 // 履歴を持つのは Tauri の側（clipboard_history.rs）。ここは一覧の見せ方を決める。
 
+import { T } from "./i18n/index.ts";
+
 /** kisui-terminal の外から開く履歴の窓のラベル（clipboard_popup.rs の LABEL と同じ）。 */
 export const POPUP_LABEL = "clipboard-history";
 
@@ -24,10 +26,10 @@ export function preview(text: string, max = PREVIEW_MAX): string {
 /** コピーしてからの時間の見せ方（たとえば「3 分前」）。 */
 export function ago(copiedAt: number, now: number): string {
   const s = Math.max(0, Math.floor((now - copiedAt) / 1000));
-  if (s < 60) return "たった今";
+  if (s < 60) return T("history.ago.now");
   const m = Math.floor(s / 60);
-  if (m < 60) return `${m} 分前`;
-  return `${Math.floor(m / 60)} 時間前`;
+  if (m < 60) return T("history.ago.minutes", { n: m });
+  return T("history.ago.hours", { n: Math.floor(m / 60) });
 }
 
 /** 打った文字で絞り込む（大文字小文字を区別せず、空白で区切った語がすべて含まれるもの）。順は変えない。 */
@@ -54,8 +56,8 @@ export function emptyMessage(
   failed: boolean,
   entries: readonly HistoryEntry[] | undefined,
 ): string {
-  if (failed) return "履歴を読めませんでした";
-  if (entries === undefined) return "読み込んでいます";
-  if (entries.length === 0) return "履歴はまだありません";
-  return "当てはまるものがありません";
+  if (failed) return T("history.empty.failed");
+  if (entries === undefined) return T("history.empty.loading");
+  if (entries.length === 0) return T("history.empty.none");
+  return T("history.empty.noMatch");
 }

@@ -9,6 +9,10 @@ import {
   Session,
   type SessionState,
 } from "./session.ts";
+import { setLang } from "../i18n/index.ts";
+
+// 日本語の文で確かめる（画面の言葉の既定は英語）
+setLang("ja");
 
 type Line = (e: { id: string; line: string }) => void;
 

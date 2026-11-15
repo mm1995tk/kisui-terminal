@@ -1,6 +1,7 @@
 // キャラクターを選ぶ窓（リーダーの `c s`）。`mascot/` の中のキャラクターを名前の順に並べ、j / k（矢印）で選び、
 // Enter かダブルクリックで決め、Esc かボタンでやめる。使えないキャラクター（`mascot.toml` が読めない）は、
 // 理由を付けて並べ、選べない。窓のキーはマシンを選ぶ窓と同じ（connect/machineList.ts の pickerKey）。決まりは docs/key-design.md。
+import { T } from "./i18n/index.ts";
 import {
   createEffect,
   createResource,
@@ -63,7 +64,8 @@ export function MascotDialog(props: {
   function choose(i: number) {
     const e = entries()[i];
     if (!e) return;
-    if (e.error) setNote(`${e.name} は使えません。${e.error}`);
+    if (e.error)
+      setNote(T("mascot.unusable", { name: e.name, error: e.error }));
     else props.onChoose(e.name);
   }
 
@@ -77,10 +79,10 @@ export function MascotDialog(props: {
   }
 
   return (
-    <ModalCard label="キャラクター" width={560} onCancel={props.onCancel}>
+    <ModalCard label={T("mascot.label")} width={560} onCancel={props.onCancel}>
       <div class="machine-dialog">
         <div class="card-body">
-          <h1 class="card-title">キャラクターを選ぶ</h1>
+          <h1 class="card-title">{T("mascot.title")}</h1>
         </div>
         <Show
           when={entries().length > 0}
@@ -88,9 +90,9 @@ export function MascotDialog(props: {
             <div class="card-body">
               <p class="card-text" role="status">
                 {loaded.loading
-                  ? "読んでいます"
+                  ? T("mascot.loading")
                   : (loaded()?.failure ??
-                    `キャラクターがありません。${listing()?.root ?? ""} の中に、キャラクターごとのフォルダ（mascot.toml と画像）を置いてください。`)}
+                    T("mascot.none", { root: listing()?.root ?? "" }))}
               </p>
             </div>
           }
@@ -99,7 +101,7 @@ export function MascotDialog(props: {
             class="card-rows"
             tabIndex={0}
             role="listbox"
-            aria-label="キャラクターの一覧"
+            aria-label={T("mascot.listLabel")}
             aria-activedescendant={rowId(index())}
             onKeyDown={onKeyDown}
             ref={(el) => {
@@ -125,11 +127,15 @@ export function MascotDialog(props: {
                   <span class="card-row-name">
                     {e.name}
                     <Show when={e.name === listing()?.current}>
-                      <span class="machine-row-mark">（使用中）</span>
+                      <span class="machine-row-mark">
+                        {T("mascot.current")}
+                      </span>
                     </Show>
                   </span>
                   <Show when={e.error}>
-                    <span class="card-row-state">使えません</span>
+                    <span class="card-row-state">
+                      {T("mascot.rowUnusable")}
+                    </span>
                   </Show>
                 </li>
               )}
@@ -145,14 +151,15 @@ export function MascotDialog(props: {
             )}
           </Show>
           <p class="machine-keys">
-            <kbd>j</kbd> <kbd>k</kbd> 選ぶ・<kbd>Enter</kbd> 決める・
-            <kbd>Esc</kbd> やめる
+            <kbd>j</kbd> <kbd>k</kbd> {T("mascot.keys.select")} ·{" "}
+            <kbd>Enter</kbd> {T("mascot.keys.confirm")} · <kbd>Esc</kbd>{" "}
+            {T("mascot.keys.cancel")}
           </p>
         </div>
       </div>
       <div class="card-actions">
         <button type="button" class="card-button" onClick={props.onCancel}>
-          やめる
+          {T("button.cancelAlt")}
         </button>
       </div>
     </ModalCard>

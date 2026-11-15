@@ -2,6 +2,7 @@
 // コマンドの表（commands.ts）が、近道を文字列で持ち、案内の表示と実際の判定の両方にこれを使う。
 // DOM には触らない（node --test で確かめられる）。
 
+import { T } from "./i18n/index.ts";
 import type { KeyLike } from "./guiKeys.ts";
 
 /** 近道 1 つを分けたもの。key は小文字の字か、Enter・Tab・Space・Escape・Backspace・=・-・数字。 */
@@ -23,7 +24,7 @@ export function parseSpec(s: string): KeySpec {
   );
   for (const m of mods)
     if (!["Cmd", "Ctrl", "Shift", "Alt"].includes(m))
-      throw new Error(`キーの書き方が読めません: ${s}`);
+      throw new Error(T("keyspec.err", { key: s }));
   return {
     ctrl: mods.has("Ctrl"),
     shift: mods.has("Shift"),

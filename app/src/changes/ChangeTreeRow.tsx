@@ -1,4 +1,5 @@
 // CHANGES の木の 1 行（フォルダか、変更のあるファイル）を描く。キーの操作は ChangesView と actions.ts。
+import { T } from "../i18n/index.ts";
 import { Show, type JSX } from "solid-js";
 
 import type { ChangeEntry } from "./model.ts";
@@ -62,7 +63,7 @@ export function ChangeTreeRow(props: {
                 role="checkbox"
                 aria-checked={row().viewed ? "true" : "false"}
                 aria-readonly="true"
-                aria-label="確認済み"
+                aria-label={T("changes.viewed")}
               >
                 {row().viewed ? "[x]" : "[ ]"}
               </span>

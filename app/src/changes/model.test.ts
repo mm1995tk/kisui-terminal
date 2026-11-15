@@ -10,6 +10,10 @@ import {
   changeTree,
   letterOf,
 } from "./model.ts";
+import { setLang } from "../i18n/index.ts";
+
+// 日本語の文で確かめる（画面の言葉の既定は英語）
+setLang("ja");
 
 describe("changeRows", () => {
   it("root の中は相対パスにし、外は絶対パスのまま出す。選んでいるファイルに印を付ける", () => {

@@ -2,6 +2,7 @@
 // リモートを足す窓に出す状態（stateLabel）と、引き継いだ GUI の説明（describeClient）。
 // 画面の仕組み（Solid）には依存しない。
 
+import { T } from "../i18n/index.ts";
 import type { SessionState } from "../ssh/session.ts";
 
 /** 見出しのそばのボタン。now は待ち時間を飛ばして今すぐ、again は使い切った・引き継がれたあとにつなぎ直す。 */
@@ -29,48 +30,57 @@ export function statusLine(
   switch (s.kind) {
     case "connecting": {
       if (s.switching) return switchingLine(s, now);
-      const n = s.attempt > 1 ? `（${s.attempt} 回目）` : "";
+      const n = s.attempt > 1 ? T("status.attempt", { n: s.attempt }) : "";
       if (s.retryAt !== undefined) {
         return {
-          text: `つなげませんでした${n}`,
+          text: T("status.connectFailed", { attempt: n }),
           title: s.reason ?? "",
           retry: "now",
-          countdown: `${secondsLeft(s.retryAt, now)} 秒後にもう一度`,
+          countdown: T("status.retryNow", { n: secondsLeft(s.retryAt, now) }),
         };
       }
-      return { text: `つないでいます…${n}`, title: s.reason ?? "" };
+      return {
+        text: T("status.connecting", { attempt: n }),
+        title: s.reason ?? "",
+      };
     }
     case "connected":
       return {
         text: "",
         title: s.handoverError
-          ? `つながっています（古い版の kisui ${s.hello.shj.version} のまま）`
-          : `つながっています（kisui ${s.hello.shj.version}）`,
+          ? T("status.connected.old", { version: s.hello.shj.version })
+          : T("status.connected", { version: s.hello.shj.version }),
       };
     case "reconnecting": {
       if (s.switching) return switchingLine(s, now);
-      const text = `再接続中（${s.attempt} 回目）`;
+      const text = T("status.reconnecting", {
+        attempt: T("status.attempt", { n: s.attempt }),
+      });
       if (s.retryAt !== undefined) {
         return {
           text,
           title: s.reason,
           retry: "now",
-          countdown: `${secondsLeft(s.retryAt, now)} 秒後`,
+          countdown: T("status.in", { n: secondsLeft(s.retryAt, now) }),
         };
       }
       return { text, title: s.reason };
     }
     case "needs-install":
-      return { text: "kisui がありません", title: "" };
+      return { text: T("status.noKisui"), title: "" };
     case "installing":
-      return { text: "kisui を入れています…", title: "" };
+      return { text: T("status.installing"), title: "" };
     case "failed":
-      return { text: "つながりません", title: s.message, retry: "again" };
+      return {
+        text: T("status.cannotConnect"),
+        title: s.message,
+        retry: "again",
+      };
     case "superseded": {
       const who = s.by ? describeClient(s.by) : "";
       return {
-        text: "別の kisui-terminal に移りました",
-        title: who ? `別の kisui-terminal に移りました（${who}）` : "",
+        text: T("status.superseded"),
+        title: who ? T("status.superseded.by", { who }) : "",
         retry: "again",
       };
     }
@@ -80,19 +90,19 @@ export function statusLine(
 }
 
 /** 新しい版の kisui serve に切り替えている間の言葉（#8） */
-export const SWITCHING = "新しい版に切り替えています";
+export const switching = (): string => T("status.switching");
 
 /** 切り替えている間の 1 行。つなぎ直しに手間取っていれば、理由をツールチップに、待ち時間とボタンを出す。 */
 function switchingLine(
   s: Extract<SessionState, { kind: "connecting" | "reconnecting" }>,
   now: number,
 ): MachineStatus {
-  const line = { text: `${SWITCHING}…`, title: s.reason ?? "" };
+  const line = { text: `${switching()}…`, title: s.reason ?? "" };
   if (s.retryAt === undefined) return line;
   return {
     ...line,
     retry: "now",
-    countdown: `${secondsLeft(s.retryAt, now)} 秒後`,
+    countdown: T("status.in", { n: secondsLeft(s.retryAt, now) }),
   };
 }
 
@@ -103,19 +113,19 @@ export function stateLabel(s: SessionState | undefined): string {
     case "closed":
       return "";
     case "connected":
-      return "接続中";
+      return T("status.label.connected");
     case "connecting":
-      return s.switching ? SWITCHING : "つないでいます";
+      return s.switching ? switching() : T("status.label.connecting");
     case "reconnecting":
-      return s.switching ? SWITCHING : "再接続中";
+      return s.switching ? switching() : T("status.label.reconnecting");
     case "needs-install":
-      return "kisui がありません";
+      return T("status.noKisui");
     case "installing":
-      return "kisui を入れています";
+      return T("status.label.installing");
     case "failed":
-      return "つながりません";
+      return T("status.cannotConnect");
     case "superseded":
-      return "別の kisui-terminal に移りました";
+      return T("status.superseded");
   }
 }
 
@@ -139,8 +149,10 @@ export function describeClient(
   const at = new Date(by.connectedAt);
   const time = Number.isNaN(at.getTime())
     ? ""
-    : `${at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} から`;
-  return [name, time].filter((x) => x !== "").join("、");
+    : T("client.since", {
+        time: at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      });
+  return [name, time].filter((x) => x !== "").join(T("client.join"));
 }
 
 /**
@@ -153,10 +165,8 @@ export function handoverFailure(
 ): { title: string; text: string; error: string } | undefined {
   if (s?.kind !== "connected" || s.handoverError === undefined) return;
   return {
-    title: `${label} の kisui を新しい版に切り替えられませんでした`,
-    text:
-      `古い版の kisui（${s.hello.shj.version}）のまま使い続けます。` +
-      "ペインのシェルと画面はそのままです。",
+    title: T("status.handover.title", { machine: label }),
+    text: T("status.handover.text", { version: s.hello.shj.version }),
     error: s.handoverError,
   };
 }

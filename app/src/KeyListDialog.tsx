@@ -1,5 +1,6 @@
 // 全部のキーの一覧（リーダーの `?`）。コマンドの表（commands.ts）から作るので、実際に受けるキーとずれない。
 // 左はリーダーを押してから押すキー、右はリーダーを通さずに 1 回で押せる近道（この OS のもの）。
+import { T } from "./i18n/index.ts";
 import { createSignal, For, Show, type JSX } from "solid-js";
 
 import { helpRows, leaderKeyName } from "./commands.ts";
@@ -27,25 +28,21 @@ export function KeyListDialog(): JSX.Element {
   return (
     <Show when={opened()}>
       <ModalCard
-        label="キーの一覧"
+        label={T("keys.label")}
         width={640}
         onCancel={() => setOpened(false)}
         focusSelf
       >
         <div class={styles.body}>
-          <h1 class={styles.title}>キーの一覧</h1>
+          <h1 class={styles.title}>{T("keys.label")}</h1>
           <section class={styles.part}>
-            <p class={styles.lead}>
-              {leader} を押してから、左のキーを順に押します（Esc
-              で出る、Backspace で一段戻る）。右の近道は、{leader} を通さずに 1
-              回で押せます。
-            </p>
+            <p class={styles.lead}>{T("keys.lead", { leader })}</p>
             <table class={styles.table}>
               <thead>
                 <tr>
-                  <th>{leader} のあとに</th>
-                  <th>動き</th>
-                  <th>近道</th>
+                  <th>{T("keys.col.after", { leader })}</th>
+                  <th>{T("keys.col.action")}</th>
+                  <th>{T("keys.col.shortcut")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -86,10 +83,7 @@ export function KeyListDialog(): JSX.Element {
               </section>
             )}
           </Show>
-          <p class={styles.outside}>
-            {outside} は、kisui-terminal
-            の外から、クリップボードの履歴の小さな窓を出します。
-          </p>
+          <p class={styles.outside}>{T("keys.outside", { key: outside })}</p>
         </div>
         <div class="card-actions">
           <button
@@ -97,7 +91,7 @@ export function KeyListDialog(): JSX.Element {
             class="card-button primary"
             onClick={() => setOpened(false)}
           >
-            閉じる
+            {T("button.close")}
           </button>
         </div>
       </ModalCard>

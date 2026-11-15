@@ -1,7 +1,8 @@
+import { T } from "../i18n/index.ts";
 import { Match, onCleanup, Show, Switch, type JSX } from "solid-js";
 
 import type { ExtraPane } from "../rpc/protocol.ts";
-import { baseName, FILE_LABEL, type MediaFetch } from "./media.ts";
+import { baseName, fileLabel, type MediaFetch } from "./media.ts";
 import { createFileSource } from "./fileSource.ts";
 import { createImageZoom } from "./imageZoom.ts";
 import { openKeyList } from "../KeyListDialog.tsx";
@@ -26,7 +27,7 @@ function Body(props: {
           when={pdfViewable()}
           fallback={
             <p class="video-note" role="status">
-              この環境の WebView は PDF を表示できません（{props.pane.path}）
+              {T("file.pdfUnsupported", { path: props.pane.path })}
             </p>
           }
         >
@@ -44,9 +45,7 @@ function Body(props: {
           draggable={false}
           src={props.url}
           alt={baseName(props.pane.path)}
-          onError={() =>
-            props.fail("この画像は表示できません（形式に対応していません）")
-          }
+          onError={() => props.fail(T("file.imageUnsupported"))}
         />
       </Match>
     </Switch>
@@ -105,7 +104,7 @@ export function FileView(props: {
     onHelp: () => openKeyList("image"),
   });
 
-  const label = () => FILE_LABEL[props.pane.kind] ?? "ファイル";
+  const label = () => fileLabel(props.pane.kind);
 
   return (
     <div
@@ -127,8 +126,8 @@ export function FileView(props: {
         <button
           type="button"
           class="video-close"
-          aria-label={`${label()}のペインを閉じる`}
-          title="閉じる"
+          aria-label={T("file.closePane", { what: label() })}
+          title={T("button.close")}
           onClick={() => props.onClose()}
         >
           ×
@@ -165,7 +164,12 @@ export function FileView(props: {
                   const v = l();
                   return v.kind === "error"
                     ? v.text
-                    : `${label()}を取っています… ${Math.round((v.kind === "loading" ? v.ratio : 1) * 100)}%`;
+                    : T("file.loading", {
+                        what: label(),
+                        percent: Math.round(
+                          (v.kind === "loading" ? v.ratio : 1) * 100,
+                        ),
+                      });
                 })()}
               </p>
             )}

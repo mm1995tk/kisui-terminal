@@ -2,6 +2,7 @@
 // ssh の行き先は、~/.ssh/config のホストの候補から選ぶか、打って入れる（打った文字で候補を絞る）。
 // 名前は空なら ssh の行き先を使う。「足す」で ssh につなぎ、つながったら呼んだ側がマシンを保存して窓を閉じる。
 // つないでいる最中は入力を止めて状態を出し、つなげなければ理由を出して、直して足し直せるようにする。
+import { T } from "../i18n/index.ts";
 import { createMemo, createSignal, For, Show, type JSX } from "solid-js";
 
 import type { SessionState } from "../ssh/session.ts";
@@ -50,11 +51,11 @@ export function AddMachine(props: {
   }
 
   return (
-    <ModalCard label="リモートを足す" onCancel={props.onCancel}>
+    <ModalCard label={T("addMachine.title")} onCancel={props.onCancel}>
       <div class="card-body">
-        <h1 class="card-title">リモートを足す</h1>
+        <h1 class="card-title">{T("addMachine.title")}</h1>
         <label class="card-field">
-          ssh の行き先
+          {T("addMachine.target")}
           <input
             class="card-input"
             type="text"
@@ -65,7 +66,7 @@ export function AddMachine(props: {
             aria-activedescendant={
               active() !== undefined ? optionId(active()!) : undefined
             }
-            placeholder="~/.ssh/config のホスト、または user@host"
+            placeholder={T("addMachine.targetPlaceholder")}
             value={target()}
             disabled={props.busy}
             spellcheck={false}
@@ -100,7 +101,7 @@ export function AddMachine(props: {
       </div>
       <Show when={shown().length > 0}>
         <div class="card-section" id="add-machine-list">
-          ~/.ssh/config の候補
+          {T("addMachine.candidates")}
         </div>
         <ul
           id="add-machine-options"
@@ -129,11 +130,11 @@ export function AddMachine(props: {
       </Show>
       <div class="card-body">
         <label class="card-field">
-          名前
+          {T("addMachine.name")}
           <input
             class="card-input"
             type="text"
-            placeholder="空なら ssh の行き先"
+            placeholder={T("addMachine.namePlaceholder")}
             value={name()}
             disabled={props.busy}
             onInput={(e) => setName(e.currentTarget.value)}
@@ -148,8 +149,9 @@ export function AddMachine(props: {
         </label>
         <Show when={props.busy}>
           <p class="card-text" role="status">
-            {stateLabel(props.state) || "つないでいます"}
-            ……つながったら足します。
+            {T("addMachine.busy", {
+              state: stateLabel(props.state) || T("addMachine.connecting"),
+            })}
           </p>
         </Show>
         <Show when={props.error}>
@@ -162,7 +164,7 @@ export function AddMachine(props: {
       </div>
       <div class="card-actions">
         <button type="button" class="card-button" onClick={props.onCancel}>
-          キャンセル
+          {T("button.cancel")}
         </button>
         <button
           type="button"
@@ -170,7 +172,7 @@ export function AddMachine(props: {
           disabled={props.busy}
           onClick={submit}
         >
-          足す
+          {T("addMachine.add")}
         </button>
       </div>
     </ModalCard>

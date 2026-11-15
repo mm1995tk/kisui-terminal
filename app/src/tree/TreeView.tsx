@@ -3,6 +3,7 @@
 // プライマリの shj が出しているファイルの行は強調する（モックと同じ背景）。
 // 開いたフォルダの行は、中身をスクロールしている間だけ上に固定する（D3）。そのために行を親子の要素に組む。
 // 行にフォーカスがあるときは shj のファイルツリーと同じキーで動かせる（#13。割り当ては keys.ts）。
+import { T, type Key } from "../i18n/index.ts";
 import { Index, Match, onCleanup, Show, Switch, type JSX } from "solid-js";
 
 import { openKeyList } from "../KeyListDialog.tsx";
@@ -22,20 +23,10 @@ import {
 import "./tree.css";
 
 /** 印の文字と、読み上げの言葉。 */
-const markText: Record<string, string> = {
-  M: "変更",
-  A: "追加",
-  D: "削除",
-  R: "名前変更",
-  "?": "追跡していない",
-  U: "衝突",
-  children: "中に変更あり",
-};
-
 function markLabel(m: RowMark): string {
-  if (m.kind === "children") return markText.children;
-  if (m.kind === "ignored") return "無視";
-  return markText[m.letter];
+  if (m.kind === "children") return T("tree.mark.children");
+  if (m.kind === "ignored") return T("tree.mark.ignored");
+  return T(`tree.mark.${m.letter}` as Key);
 }
 
 /** 行を押したときに呼ぶものと、強調する行。 */
@@ -190,7 +181,7 @@ function Row(props: { row: TreeRow; handlers: RowHandlers }): JSX.Element {
         >
           <Guides depth={r().depth} />
           <span class="tree-chevron" />
-          <span class="tree-name">…（5000 件より先は出していません）</span>
+          <span class="tree-name">{T("tree.truncated")}</span>
         </div>
       }
     >
@@ -238,8 +229,8 @@ function Row(props: { row: TreeRow; handlers: RowHandlers }): JSX.Element {
         <Show when={r().symlink}>
           <span
             class="tree-link"
-            aria-label="シンボリックリンク"
-            title="シンボリックリンク"
+            aria-label={T("tree.symlink")}
+            title={T("tree.symlink")}
           >
             ↪
           </span>

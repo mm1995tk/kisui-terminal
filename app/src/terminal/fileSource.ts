@@ -1,9 +1,10 @@
+import { T } from "../i18n/index.ts";
 import { createEffect, createSignal, on, onCleanup } from "solid-js";
 
 import type { ExtraPane } from "../rpc/protocol.ts";
 import { formatBytes } from "./transfer.ts";
 import {
-  FILE_LABEL,
+  fileLabel,
   loadFile,
   maxBytes,
   tooLarge,
@@ -37,11 +38,15 @@ export function createFileSource(
           ac.abort();
           if (url) URL.revokeObjectURL(url);
         });
-        const what = FILE_LABEL[p.kind] ?? "ファイル";
+        const what = fileLabel(p.kind);
         if (tooLarge(p.kind, p.size)) {
           setLoad({
             kind: "error",
-            text: `${what}が大きすぎて開けません（${formatBytes(p.size)}。上限は ${formatBytes(maxBytes(p.kind))}）`,
+            text: T("file.tooLarge", {
+              what,
+              size: formatBytes(p.size),
+              max: formatBytes(maxBytes(p.kind)),
+            }),
           });
           return;
         }
@@ -60,7 +65,10 @@ export function createFileSource(
             if (ac.signal.aborted) return;
             setLoad({
               kind: "error",
-              text: `${what}を取れませんでした：${e instanceof Error ? e.message : e}`,
+              text: T("file.fetchFailed", {
+                what,
+                reason: e instanceof Error ? e.message : String(e),
+              }),
             });
           },
         );

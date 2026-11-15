@@ -1,6 +1,7 @@
 // 差分モードの CHANGES の一覧（サイドバーのファイルエクスプローラの下）の行を組み立てる。
 // 元は shj が知らせる primaryShj.diff（docs/protocol.md の PrimaryDiff）。
 
+import { T, type Key } from "../i18n/index.ts";
 import { RpcError } from "../rpc/message.ts";
 import type { DiffFile, PrimaryDiff } from "../rpc/protocol.ts";
 
@@ -26,16 +27,20 @@ export interface ChangeRow {
   viewed: boolean | undefined;
 }
 
-const letters = new Map<string, [ChangeLetter, string]>([
-  ["added", ["A", "追加"]],
-  ["deleted", ["D", "削除"]],
-  ["renamed", ["R", "名前変更"]],
-  ["binary", ["B", "バイナリ"]],
+const letters = new Map<string, [ChangeLetter, Key]>([
+  ["added", ["A", "changes.status.added"]],
+  ["deleted", ["D", "changes.status.deleted"]],
+  ["renamed", ["R", "changes.status.renamed"]],
+  ["binary", ["B", "changes.status.binary"]],
 ]);
 
 /** 状態の言葉を印にする。知らない言葉・無い言葉は「変更」。 */
 export function letterOf(status: string | undefined): [ChangeLetter, string] {
-  return (status ? letters.get(status) : undefined) ?? ["M", "変更"];
+  const [letter, key] = (status ? letters.get(status) : undefined) ?? [
+    "M",
+    "changes.status.modified",
+  ];
+  return [letter, T(key)];
 }
 
 /** 一覧の行。root は ワークスペースのルート（その中のファイルは相対パスで出す）。 */
@@ -82,12 +87,12 @@ export function changeErrorText(path: string, e: unknown): string {
   const why =
     e instanceof RpcError
       ? e.codeName === "not_found"
-        ? "一覧にありません（変更が済んだか、差分モードを閉じました）"
+        ? T("changes.err.notFound")
         : e.message
       : e instanceof Error
         ? e.message
         : String(e);
-  return `${path} の差分を出せませんでした（${why}）`;
+  return T("changes.err.diff", { path, why });
 }
 
 /** CHANGES の木の 1 行：フォルダか、変更のあるファイル。 */
