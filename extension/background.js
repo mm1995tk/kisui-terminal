@@ -166,8 +166,17 @@ async function tracked(tabId) {
   return (await api.storage.session.get([key]))[key];
 }
 
+// タブを覚え、そのタブの今のページにも page.js と relay.js を入れる。一覧に足したばかりのサイトを初めて開いたときは、
+// 登録（syncScripts）がページの読み込みの後になり、そのページには入っていないため（2 回入っても、どちらも 1 回しか動かない）
 async function track(tabId, hit) {
   await saveState({ [trackedKey(tabId)]: hit });
+  const target = { tabId };
+  await api.scripting
+    .executeScript({ target, files: ["page.js"], world: "MAIN" })
+    .catch(() => {});
+  await api.scripting
+    .executeScript({ target, files: ["relay.js"] })
+    .catch(() => {});
 }
 
 async function untrack(tabId) {

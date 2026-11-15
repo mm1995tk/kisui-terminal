@@ -257,6 +257,7 @@ function fakeBrowser(opts: {
   const badges: any[] = [];
   const tabs = new Map<number, any>();
   const registered: any[] = [];
+  const injected: any[] = [];
   const allCookies = [
     {
       name: "user_session",
@@ -331,6 +332,7 @@ function fakeBrowser(opts: {
         registered.length = 0;
       },
       registerContentScripts: async (s: any[]) => registered.push(...s),
+      executeScript: async (d: any) => injected.push(d),
     },
     tabs: {
       onCreated: ev.created,
@@ -394,6 +396,7 @@ function fakeBrowser(opts: {
     removed,
     badges,
     registered,
+    injected,
     cookieQueries,
     session,
     advance: (ms: number) => (clock += ms),
