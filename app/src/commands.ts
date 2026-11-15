@@ -32,6 +32,13 @@ export type CommandId =
   | "workspace.close"
   | "workspace.rename"
   | "workspace.move"
+  | "tab.new"
+  | "tab.newPick"
+  | "tab.close"
+  | "tab.step"
+  | "tab.move"
+  | "tab.nth"
+  | "tab.rename"
   | "machine.dialog"
   | "clipboard.history"
   | "scale"
@@ -50,7 +57,6 @@ export type CommandId =
   | "browser.reload"
   | "browser.close"
   | "browser.external"
-  | "browser.cycle"
   | "browser.fold"
   | "browser.bookmark"
   | "browser.bookmarks"
@@ -265,6 +271,57 @@ export const LEADER: Node[] = [
     ],
     { mac: "Cmd+Shift+W", other: "Ctrl+Shift+W" },
   ),
+  // ワークスペースの中のタブ（ターミナルのタブとブラウザのタブ。#235）。ブラウザのタブが無ければ、ターミナルのタブだけ
+  group("t", T("leader.tab.group"), [
+    leaf("n", T("leader.tab.new"), { id: "tab.new" }),
+    leaf("N", T("leader.tab.newPick"), { id: "tab.newPick" }),
+    leaf("x", T("leader.tab.close"), { id: "tab.close" }),
+    leaf(
+      "j",
+      T("leader.tab.next"),
+      { id: "tab.step", arg: "next" },
+      {
+        repeat: true,
+        range: { keys: "j|k", label: T("leader.tab.step.range") },
+      },
+    ),
+    leaf(
+      "k",
+      T("leader.tab.prev"),
+      { id: "tab.step", arg: "prev" },
+      {
+        repeat: true,
+        range: { keys: "j|k", label: T("leader.tab.step.range") },
+      },
+    ),
+    leaf(
+      "J",
+      T("leader.tab.moveDown"),
+      { id: "tab.move", arg: "down" },
+      {
+        repeat: true,
+        range: { keys: "J|K", label: T("leader.tab.move.range") },
+      },
+    ),
+    leaf(
+      "K",
+      T("leader.tab.moveUp"),
+      { id: "tab.move", arg: "up" },
+      {
+        repeat: true,
+        range: { keys: "J|K", label: T("leader.tab.move.range") },
+      },
+    ),
+    ...Array.from({ length: 9 }, (_, i) =>
+      leaf(
+        String(i + 1),
+        T("leader.tab.nth", { n: i + 1 }),
+        { id: "tab.nth", arg: i },
+        { range: { keys: "1–9", label: T("leader.tab.nth.range") } },
+      ),
+    ),
+    leaf("r", T("leader.tab.rename"), { id: "tab.rename" }),
+  ]),
   leaf("m", T("leader.machine"), { id: "machine.dialog" }),
   group(
     "p",
@@ -355,24 +412,6 @@ export const LEADER: Node[] = [
       leaf("n", T("leader.browser.new"), { id: "browser.new" }),
       leaf("N", T("leader.browser.incognito"), { id: "browser.incognito" }),
       leaf("u", T("leader.browser.url"), { id: "browser.url" }),
-      leaf(
-        "j",
-        T("leader.browser.next"),
-        { id: "browser.cycle", arg: "next" },
-        {
-          repeat: true,
-          range: { keys: "j|k", label: T("leader.browser.cycle.range") },
-        },
-      ),
-      leaf(
-        "k",
-        T("leader.browser.prev"),
-        { id: "browser.cycle", arg: "prev" },
-        {
-          repeat: true,
-          range: { keys: "j|k", label: T("leader.browser.cycle.range") },
-        },
-      ),
       leaf(
         "h",
         T("leader.browser.back"),

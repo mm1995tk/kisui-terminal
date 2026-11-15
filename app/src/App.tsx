@@ -132,6 +132,9 @@ import {
   move as moveGws,
   moveBefore,
   moveTabBefore,
+  moveTabStep,
+  steppableTabs,
+  visibleTabs,
   reconcile,
   refKey,
   removeBrowser,
@@ -1112,18 +1115,19 @@ function Workbench(props: {
   /**
    * マシンにワークスペース（ターミナルのタブ）を 1 つ作り、place で GUI の記録に入れ、フォーカスして、ターミナルにキーを向ける。
    * 記録には、マシンの一覧の知らせより先に入れてよい（二重には入らない）。作れなければ errKey の題で理由を伝える。
-   * ワークスペースを作る（w n）・ターミナルのタブを足す（「+」）の共通の部分。
+   * ワークスペースを作る（w n）・ターミナルのタブを足す（「+」・t n）の共通の部分。dir があれば、そのフォルダでシェルを始める。
    */
   async function createMachineWorkspace(
     target: string,
     errKey: "err.workspace.create" | "err.tab.add",
     place: (id: WorkspaceId) => void,
+    dir?: string,
   ) {
     const s = sessions()[target];
     if (!s) return;
     setFocusError(null);
     try {
-      const { id } = await s.createWorkspace();
+      const { id } = await s.createWorkspace(dir);
       justCreated.add(termKey(target, id));
       place(id);
       await focusWorkspace(target, id);
@@ -2243,21 +2247,6 @@ function Workbench(props: {
         if (t) openUrlFor(t.target, t.url);
         break;
       }
-      case "browser.cycle": {
-        // ターミナルのタブとブラウザのタブを、並びの順に回る
-        const g = currentGws();
-        if (g && f) {
-          const cur = shownBrowserTab();
-          const next = cycleKey(
-            g,
-            cur ? browserKey(cur.id) : termKey(f.target, f.id),
-            c.arg as "next" | "prev",
-          );
-          if (next) activateTab(g.id, next);
-          focusTerminal();
-        }
-        break;
-      }
       case "browser.fold": {
         const g = currentGws();
         if (g) setGws((x) => toggleFold(x, g.id));
@@ -2428,18 +2417,21 @@ function Workbench(props: {
     const inside = !!f && gwsOfTerm(untrack(gws), f.target, f.id)?.id === gid;
     if (!inside) await switchWorkspace(rep.target, rep.ws);
     if (what === "browser") newBrowserTab(gid, rep);
-    else
-      void newTerminalTab(
-        gid,
-        what === "terminal.pick" ? undefined : rep.target,
-      );
+    else if (what === "terminal.pick") void newTerminalTab(gid);
+    else {
+      // 今のターミナルのタブと同じマシン・同じフォルダ（フォルダが未定なら、start_dir）
+      const folder = untrack(workspaces)[rep.target]?.find(
+        (w) => w.id === rep.ws,
+      )?.folder;
+      void newTerminalTab(gid, rep.target, folder ?? undefined);
+    }
   }
 
   /**
    * ワークスペース gid にターミナルのタブを足す。target があればそのマシンに、無ければマシンを選ぶ窓を出して、選んだマシンに。
-   * 新しいターミナルは、フォルダ未定で始まる（workspace.create にフォルダの指定がまだ無い）。
+   * dir があれば、そのフォルダで始める。無ければ、マシンの start_dir で始まる（マシンを選ぶときは、別のマシンのフォルダは使えない）。
    */
-  async function newTerminalTab(gid: string, target?: string) {
+  async function newTerminalTab(gid: string, target?: string, dir?: string) {
     if (target === undefined) {
       if (creatableRows(machineList()).length === 0)
         cannot(T("cannot.workspace.title"), T("cannot.workspace.text"));
@@ -2454,10 +2446,15 @@ function Workbench(props: {
       );
       return;
     }
-    await createMachineWorkspace(target, "err.tab.add", (id) => {
-      setGws((x) => addTerm(x, gid, target, id));
-      setTabs((t) => showTab(t, gid, null));
-    });
+    await createMachineWorkspace(
+      target,
+      "err.tab.add",
+      (id) => {
+        setGws((x) => addTerm(x, gid, target, id));
+        setTabs((t) => showTab(t, gid, null));
+      },
+      dir,
+    );
   }
 
   /** ワークスペース gid にブラウザのタブを足す（新しいタブのページを出す。リーダーの o n と同じ。rep はそのワークスペースが出しているターミナルのタブ）。 */
@@ -2467,6 +2464,53 @@ function Workbench(props: {
   ) {
     if (!untrack(gws).list.some((x) => x.id === gid)) return;
     openNewTab(rep.target, rep.ws, false);
+  }
+
+  /** ブラウザのタブ id のタブがまだあるか（サイドバーに出るか）。 */
+  const hasBrowserTab = (id: string) => tabs().tabs.some((t) => t.id === id);
+
+  /** 今出しているタブの key（refKey）。ブラウザのタブを出していればそれ、そうでなければフォーカスしているターミナルのタブ。無ければ undefined。 */
+  function currentTabKey(): string | undefined {
+    const b = shownBrowserTab();
+    if (b) return browserKey(b.id);
+    // キーで移っている途中（返事が返るまで focus() が前のまま）は、向かっている先から数える（続けて押せるように）
+    const f = heading ?? untrack(focus);
+    return f ? termKey(f.target, f.id) : undefined;
+  }
+
+  /** リーダーの t j / t k。今のワークスペースのタブ（ターミナルのタブもブラウザのタブも、並びの順）を順に回る。端では反対の端へ回る。 */
+  function stepTab(step: Step) {
+    const g = currentGws();
+    const key = currentTabKey();
+    if (!g || !key) return;
+    // サイドバーに出ていないタブと、つながっていないマシンのタブでは止まるので、飛ばす
+    const list = steppableTabs(
+      visibleTabs(g, hasBrowserTab),
+      (m) => states()[m]?.kind === "connected",
+      key,
+    );
+    const next = cycleKey({ ...g, tabs: list }, key, step);
+    if (!next) focusTerminal();
+    else if (next.kind === "term") {
+      setTabs((t) => showTab(t, g.id, null));
+      void goWorkspace(next.target, next.ws);
+    } else activateTab(g.id, next);
+  }
+
+  /**
+   * リーダーの t x。今出しているタブを閉じる。ブラウザのタブはそのページを閉じ、ターミナルのタブはそのターミナルを終わらせる
+   * （プログラムが動いていれば確認を出す。closeTermTab）。ワークスペースの最後のターミナルのタブは閉じない。
+   */
+  function closeCurrentTab() {
+    const g = currentGws();
+    const key = currentTabKey();
+    if (!g || !key) return;
+    const ref = g.tabs.find((r) => refKey(r) === key);
+    if (ref?.kind === "term" && termsOf(g).length <= 1) {
+      cannot(T("cannot.tab.last.title"), T("cannot.tab.last.text"));
+      return;
+    }
+    closeTabRow(g.id, key);
   }
 
   // 直前に選んでいたワークスペース（リーダーの w Tab で戻る先）
@@ -2638,6 +2682,52 @@ function Workbench(props: {
       case "workspace.rename":
         if (f) openWorkspaceRename(f.target, f.id);
         break;
+      case "tab.new":
+      case "tab.newPick": {
+        const g = currentGws();
+        if (g)
+          void addWorkspaceTab(
+            g.id,
+            c.id === "tab.new" ? "terminal" : "terminal.pick",
+          );
+        break;
+      }
+      case "tab.close":
+        closeCurrentTab();
+        break;
+      case "tab.step":
+        stepTab(c.arg as Step);
+        break;
+      case "tab.move": {
+        const g = currentGws();
+        const key = currentTabKey();
+        if (g && key) {
+          const next = moveTabStep(
+            gws(),
+            g.id,
+            key,
+            c.arg as "up" | "down",
+            visibleTabs(g, hasBrowserTab),
+          );
+          if (next) setGws(next);
+        }
+        break;
+      }
+      case "tab.nth": {
+        const g = currentGws();
+        // サイドバーの上から n 番目（出ているタブだけを数える）
+        const ref = g
+          ? visibleTabs(g, hasBrowserTab)[c.arg as number]
+          : undefined;
+        if (g && ref) activateTab(g.id, ref);
+        break;
+      }
+      case "tab.rename": {
+        const g = currentGws();
+        const key = currentTabKey();
+        if (g && key) renameTabRow(g.id, key);
+        break;
+      }
       case "machine.dialog":
         setMachinesOpen(true);
         break;

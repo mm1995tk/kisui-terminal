@@ -249,14 +249,17 @@ export class Session {
   }
 
   /**
-   * workspace.create を送る。フォルダ未定のワークスペースとそのプライマリターミナルができる。
+   * workspace.create を送る。ワークスペースとそのプライマリターミナルができる。
+   * dir（絶対パス）があれば、そのフォルダでシェルを始める（無い・フォルダでなければ start_dir。古い kisui serve は dir を無視する）。
    * つながっていないとき・shj が断ったときは投げる。
    */
-  async createWorkspace(): Promise<{ id: WorkspaceId; termId: TermId }> {
+  async createWorkspace(
+    dir?: string,
+  ): Promise<{ id: WorkspaceId; termId: TermId }> {
     const conn = this.conn;
     if (!conn)
       throw new Error(T("err.session.notConnected", { machine: this.target }));
-    return conn.client.request("workspace.create", {});
+    return conn.client.request("workspace.create", dir ? { dir } : {});
   }
 
   /**
