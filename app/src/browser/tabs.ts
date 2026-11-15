@@ -12,6 +12,7 @@
 import { T } from "../i18n/index.ts";
 import type { WorkspaceId } from "../rpc/protocol.ts";
 import { SCALES } from "../scale.ts";
+import { isNewTab } from "./newTab.ts";
 
 /** タブ 1 つ。 */
 export interface BrowserTab {
@@ -130,7 +131,7 @@ export function tabTitle(
   t: Pick<BrowserTab, "title" | "url">,
   name = "",
 ): string {
-  return name || t.title || (t.url === "" ? T("newTab.name") : hostOf(t.url));
+  return name || t.title || (isNewTab(t) ? T("newTab.name") : hostOf(t.url));
 }
 
 /** URL の host（題がまだ分からないタブの名前と、題の横に小さく出す）。読めなければ URL のまま。 */
