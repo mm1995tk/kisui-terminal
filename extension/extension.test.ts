@@ -300,6 +300,9 @@ function fakeBrowser(opts: {
             keys.filter((k) => k in session).map((k) => [k, session[k]]),
           ),
         set: async (p: any) => Object.assign(session, structuredClone(p)),
+        remove: async (k: string) => {
+          delete session[k];
+        },
       },
     },
     runtime: {
@@ -448,6 +451,22 @@ test("kisui-terminal が開いたタブでパスキーが通ると、Cookie を�
     );
   }
   assert.deepEqual(b.removed, [7]);
+});
+
+test("タブを覚えるのと、別のタブが閉じるのが重なっても、覚えたタブは消えない", async () => {
+  const b = fakeBrowser(GH);
+  const tab = { id: 30, url: "https://github.com/login", status: "complete" };
+  b.tabs.set(30, tab);
+  b.ev.created.fire({ id: 30, pendingUrl: tab.url });
+  b.ev.removedTab.fire(31);
+  await settle();
+  assert.deepEqual(
+    { ...b.session["tracked:30"] },
+    {
+      site: "github.com",
+      host: "dev.mm1995tk.kisui_terminal",
+    },
+  );
 });
 
 test("kisui-terminal が開いていないタブの知らせは使わない", async () => {

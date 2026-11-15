@@ -24,9 +24,8 @@ const SCRIPT_IDS = ["kisui-page", "kisui-relay"];
 // ---- 覚えておくもの（service worker が止まっても残るよう storage.session に置く）
 
 async function loadState() {
-  const s = await api.storage.session.get(["tracked", "sites", "sitesAt"]);
+  const s = await api.storage.session.get(["sites", "sitesAt"]);
   return {
-    tracked: s.tracked ?? {},
     sites: s.sites ?? [],
     sitesAt: s.sitesAt ?? 0,
   };
@@ -156,16 +155,21 @@ async function checkExistingTabs() {
   }
 }
 
+// kisui-terminal が開いたタブ（{ site, host }）は、タブごとの鍵に置く（全体を読んで書き戻すと、
+// 覚えるのと別のタブを忘れるのが重なったときに片方が消えるため）
+const trackedKey = (tabId) => `tracked:${tabId}`;
+
+async function tracked(tabId) {
+  const key = trackedKey(tabId);
+  return (await api.storage.session.get([key]))[key];
+}
+
 async function track(tabId, hit) {
-  const st = await loadState();
-  st.tracked[tabId] = hit;
-  await saveState({ tracked: st.tracked });
+  await saveState({ [trackedKey(tabId)]: hit });
 }
 
 async function untrack(tabId) {
-  const st = await loadState();
-  delete st.tracked[tabId];
-  await saveState({ tracked: st.tracked });
+  await api.storage.session.remove(trackedKey(tabId));
 }
 
 // ---- パスキーが通ったあと、落ち着くのを待つ
@@ -182,8 +186,7 @@ function onCookieChanged({ cookie }) {
 async function onMessage(message, sender) {
   if (!message || message.type !== "passkey-success" || !sender.tab) return;
   const tabId = sender.tab.id;
-  const st = await loadState();
-  const t = st.tracked[tabId];
+  const t = await tracked(tabId);
   if (!t || K.hostOf(sender.url ?? sender.tab.url ?? "") !== t.site) return;
   if (settling.has(tabId)) {
     settling.get(tabId).successAt = Date.now();
