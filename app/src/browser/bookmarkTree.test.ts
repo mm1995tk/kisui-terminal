@@ -135,6 +135,17 @@ describe("Chrome のブックマークの木（#275）", () => {
     assert.deepEqual(rows(undefined, [], "  "), rows(undefined));
   });
 
+  it("根の中身がすべて自身のブックマークと同じ URL なら、その根の見出しも出さない", () => {
+    const own: Bookmark[] = [{ url: "https://e.example/", title: "Mine" }];
+    assert.deepEqual(rows(own), [
+      "Mine",
+      "vBookmarks bar",
+      "-Alpha",
+      "->Dev",
+      "-Gamma",
+    ]);
+  });
+
   it("読み込み中は何も出ない。木だけ・自身だけでも出る", () => {
     assert.deepEqual(bookmarkRows(undefined, undefined, new Set(), ""), []);
     assert.deepEqual(

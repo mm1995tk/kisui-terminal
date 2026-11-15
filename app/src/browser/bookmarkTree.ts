@@ -102,15 +102,19 @@ export function bookmarkRows(
       }
       const key = path === "" ? String(i) : `${path}/${i}`;
       const at = rows.length;
-      // 子は、親の行の後ろに足す。絞り込みで当たるものが無いフォルダの行は、あとで取り除く
+      // 子は、親の行の後ろに足す
       const open = filtering || (depth === 0) !== flipped.has(key);
       rows.push({ kind: "folder", key, name: n.name, depth, open });
       if (open) {
         walk(n.children, depth + 1, key);
       }
-      if (filtering && rows.length === at + 1) rows.pop();
-      // 根は、中が空なら出さない（モバイルのブックマークが無い、など）
-      else if (!filtering && depth === 0 && n.children.length === 0) rows.pop();
+      // 子の行が 1 つも足されなかった開いたフォルダは外す（絞り込みで当たるものが無い・根の中身がすべて自身のものと同じ URL）。
+      // 根は、中が空なら閉じていても出さない（モバイルのブックマークが無い、など）
+      if (
+        (open && rows.length === at + 1 && (filtering || depth === 0)) ||
+        (!filtering && depth === 0 && n.children.length === 0)
+      )
+        rows.pop();
     });
   }
   walk(chrome ?? [], 0, "");
