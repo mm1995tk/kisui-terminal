@@ -20,6 +20,60 @@ import { moveSelection, newTabKey } from "./newTab.ts";
 import { urlOrSearch } from "./tabs.ts";
 import "./browser.css";
 
+/** ブックマークが 1 つも出ないときの文（読めなかった・読み込み中・まだ無い・絞り込みに合わない）。 */
+function emptyMessage(
+  list: readonly Bookmark[] | undefined,
+  failed: boolean,
+): string {
+  if (failed) return T("bookmarks.empty.failed");
+  if (list === undefined) return T("bookmarks.empty.loading");
+  if (list.length === 0)
+    return T("newTab.empty.none", { leader: leaderKeyName(IS_MAC) });
+  return T("bookmarks.empty.noMatch");
+}
+
+/** ブックマークのタイルの一覧。選んでいるもの（selected。-1 は無し）が見える所へ動かす。押すと onOpen。 */
+function BookmarkTiles(props: {
+  list: readonly Bookmark[];
+  selected: number;
+  onOpen: (url: string) => void;
+}): JSX.Element {
+  let tiles: HTMLUListElement | undefined;
+  createEffect(() => {
+    const i = props.selected;
+    if (i >= 0)
+      queueMicrotask(() =>
+        tiles?.children[i]?.scrollIntoView?.({ block: "nearest" }),
+      );
+  });
+  return (
+    <ul
+      class="newtab-tiles"
+      aria-label={T("bookmarks.list")}
+      ref={(el) => (tiles = el)}
+    >
+      <For each={props.list}>
+        {(b, i) => (
+          <li>
+            <button
+              type="button"
+              class="newtab-tile"
+              aria-current={i() === props.selected}
+              title={b.url}
+              // 検索窓からキーを奪わない（押すと開くので、すぐ別のページに替わる）
+              onMouseDown={(ev) => ev.preventDefault()}
+              onClick={() => props.onOpen(b.url)}
+            >
+              <span class="newtab-tile-name">{b.title || b.url}</span>
+              <span class="newtab-tile-url">{b.url}</span>
+            </button>
+          </li>
+        )}
+      </For>
+    </ul>
+  );
+}
+
 /**
  * 新しいタブのページ。タブが替わるときは作り直す（打ちかけを持ち越さない）。
  * list が undefined ならブックマークを読み込み中、failed なら読めなかった。
@@ -34,7 +88,6 @@ export function NewTabPage(props: {
   focusRef: (focus: () => void) => void;
 }): JSX.Element {
   let input!: HTMLInputElement;
-  let tiles: HTMLUListElement | undefined;
   const [query, setQuery] = createSignal("");
   const [invalid, setInvalid] = createSignal(false);
   /** -1 は検索窓、0 以上は絞り込んだ一覧の番号 */
@@ -55,15 +108,6 @@ export function NewTabPage(props: {
       document.activeElement === document.body
     )
       input.focus();
-  });
-
-  // 選んだものが見える所へ
-  createEffect(() => {
-    const i = selected();
-    if (i >= 0)
-      queueMicrotask(() =>
-        tiles?.children[i]?.scrollIntoView?.({ block: "nearest" }),
-      );
   });
 
   function submit() {
@@ -128,41 +172,14 @@ export function NewTabPage(props: {
         <Show
           when={shown().length > 0}
           fallback={
-            <p class="newtab-empty">
-              {props.failed
-                ? T("bookmarks.empty.failed")
-                : props.list === undefined
-                  ? T("bookmarks.empty.loading")
-                  : props.list.length === 0
-                    ? T("newTab.empty.none", { leader: leaderKeyName(IS_MAC) })
-                    : T("bookmarks.empty.noMatch")}
-            </p>
+            <p class="newtab-empty">{emptyMessage(props.list, props.failed)}</p>
           }
         >
-          <ul
-            class="newtab-tiles"
-            aria-label={T("bookmarks.list")}
-            ref={(el) => (tiles = el)}
-          >
-            <For each={shown()}>
-              {(b, i) => (
-                <li>
-                  <button
-                    type="button"
-                    class="newtab-tile"
-                    aria-current={i() === selected()}
-                    title={b.url}
-                    // 検索窓からキーを奪わない（押すと開くので、すぐ別のページに替わる）
-                    onMouseDown={(ev) => ev.preventDefault()}
-                    onClick={() => props.onOpen(b.url)}
-                  >
-                    <span class="newtab-tile-name">{b.title || b.url}</span>
-                    <span class="newtab-tile-url">{b.url}</span>
-                  </button>
-                </li>
-              )}
-            </For>
-          </ul>
+          <BookmarkTiles
+            list={shown()}
+            selected={selected()}
+            onOpen={props.onOpen}
+          />
         </Show>
       </div>
     </div>
