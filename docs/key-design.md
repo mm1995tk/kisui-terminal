@@ -1,4 +1,4 @@
-# kisui-terminal のキー操作
+Ctrl+D で選んだものを消す（Chrome のブックマークは消せない）。Chrome のブックマーク（#239。`Default` プロファイルのファイルを読むだけで、書かない）も、札を付けて後ろに並ぶ。絞り込みが空のときの `?` で、ダイアログのキーの一覧（5 章） | | #205・#239 |# kisui-terminal のキー操作
 
 kisui-terminal のキー操作の表。今のキーとマウスの操作の一覧は [`keys.md`](keys.md)。この表は #91 で決めたもの。リーダー・案内（`?`）・近道の入れ替えは #92 で実装した（コマンドの表は `app/src/commands.ts`）。場所のキー（5 章）は #115 で入れた（定義は `app/src/placeKeys.ts`。判定は場所ごとに `tree/keys.ts`・`changes/keys.ts`・`terminal/media.ts`・`terminal/imageView.ts`）。キーを足す・変えるときは、この表も直す。
 

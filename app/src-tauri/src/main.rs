@@ -222,6 +222,7 @@ fn main() {
             browser::browser_devtools,
             bookmarks::browser_bookmarks_load,
             bookmarks::browser_bookmarks_save,
+            bookmarks::browser_chrome_bookmarks_load,
             download::download_open,
             download::download_reveal,
             clipboard_history::clipboard_history_list,

@@ -16,7 +16,12 @@ import { ModalCard } from "../connect/Card.tsx";
 import { moveSelection } from "../clipboardHistory.ts";
 import { IS_MAC } from "../guiKeys.ts";
 import { openKeyList } from "../KeyListDialog.tsx";
-import { bookmarkKey, filterBookmarks, type Bookmark } from "./bookmarks.ts";
+import {
+  bookmarkKey,
+  bookmarkTitle,
+  filterBookmarks,
+  type Bookmark,
+} from "./bookmarks.ts";
 import "./browser.css";
 
 /** ブックマークの一覧のダイアログ。list が undefined なら読み込み中、failed なら読めなかった。 */
@@ -115,13 +120,16 @@ export function BookmarkDialog(props: {
                   role="option"
                   tabIndex={-1}
                   aria-selected={i() === selectedIndex()}
-                  title={b.url}
+                  title={bookmarkTitle(b)}
                   // 入力欄からフォーカスを動かさない（押したあとも↑↓と Enter が効くように）
                   onMouseDown={(ev) => ev.preventDefault()}
                   onClick={() => setSel(i())}
                   onDblClick={() => props.onOpen(b)}
                 >
                   <span class="card-row-name">{b.title || b.url}</span>
+                  <Show when={b.source === "chrome"}>
+                    <span class="bookmark-source">{T("bookmarks.chrome")}</span>
+                  </Show>
                   <span class="card-row-state bookmark-url">{b.url}</span>
                 </button>
               </li>
