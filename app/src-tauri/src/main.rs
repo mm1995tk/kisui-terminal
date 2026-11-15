@@ -13,6 +13,7 @@ mod mascot;
 mod menu;
 mod notify;
 mod open_url;
+mod passkey;
 mod relay;
 mod ssh_config;
 mod transfer;
@@ -115,6 +116,12 @@ fn main() {
         let prompt = std::env::args().nth(1).unwrap_or_default();
         std::process::exit(askpass::run_helper(&prompt));
     }
+    // 外のブラウザが native messaging の受け口として（登録のファイルの指すスクリプトから）起動したときは、窓を出さず、
+    // 拡張機能のメッセージを動いている窓に中継する（passkey.rs）。
+    let args: Vec<_> = std::env::args_os().collect();
+    if args.len() >= 3 && args[1] == passkey::HOST_FLAG {
+        std::process::exit(passkey::run_host(std::path::Path::new(&args[2])));
+    }
 
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_clipboard_manager::init())
@@ -152,6 +159,8 @@ fn main() {
             let askpass = AskpassServer::start(app.handle().clone())?;
             // リモートのマシンの localhost の URL を開く中継（open_url.rs・relay.rs）
             app.manage(open_url::Forwards::new(Arc::clone(&askpass)));
+            // パスキーのときに外のブラウザへ移り、Cookie を写して戻る受け口（passkey.rs）
+            passkey::setup(app.handle(), config::load_default().ok().as_ref());
             app.manage(AppState {
                 conns: Connections::default(),
                 askpass,

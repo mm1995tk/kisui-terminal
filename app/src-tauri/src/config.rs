@@ -6,6 +6,8 @@
 //! 無ければ `config.toml` の一覧を使う。どちらのファイルも無くてよい。
 //! `[gui.browser] enabled`（内蔵ブラウザのタブを使うか。#202）は、書いてあるファイルのものを使い、両方にあれば `config.local.toml` が勝つ。
 //! どちらにも無ければ使わない。
+//! `[gui.browser] passkey_sites`（パスキーのときに外のブラウザへ移り、Cookie を写して戻ってよいサイト。#206）と
+//! `passkey_browser`（移る先のブラウザ）も、`enabled` と同じく、書いてあるファイルのものを使い、両方にあれば `config.local.toml` が勝つ。
 //! `[gui.shortcuts]`（近道。`"Ctrl+Shift+N" = "workspace.new"` のように、キー = コマンドの名前）は、キーごとに重ね、同じキーは `config.local.toml` が勝つ。
 //! キーの書き方とコマンドの名前が使えるかは、画面側が確かめる（間違いはお知らせに出し、起動は止めない）。
 //! 窓が設定を書くときは `config.local.toml` に書く（`config.toml` は home-manager が読み取り専用で置くことがある）。
@@ -57,6 +59,19 @@ struct Gui {
 struct Browser {
     /// 内蔵ブラウザのタブを使うか。書いていなければ使わない。config.local.toml に書けば、config.toml のものより勝つ
     enabled: Option<bool>,
+    /// パスキーのときに外のブラウザへ移り、Cookie を写して戻ってよいサイト（host。#206）
+    passkey_sites: Option<Vec<Spanned<String>>>,
+    /// 移る先のブラウザ（`chrome` か `firefox`。書いていなければ `chrome`）
+    passkey_browser: Option<Spanned<String>>,
+}
+
+/// パスキーのときに移る外のブラウザ（#206）。
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum PasskeyBrowser {
+    /// Google Chrome（無ければ Chromium）
+    #[default]
+    Chrome,
+    Firefox,
 }
 
 /// 設定ファイルの GUI の節（`[gui]`）のうち、画面が使うもの。
@@ -65,6 +80,12 @@ pub struct GuiConfig {
     pub machines: Vec<ConfigMachine>,
     /// 内蔵ブラウザのタブを使うか（`[gui.browser] enabled`。初めは使わない）
     pub browser: bool,
+    /// パスキーのときに外のブラウザへ移ってよいサイト（`[gui.browser] passkey_sites`。殻だけが使う）
+    #[serde(skip)]
+    pub passkey_sites: Vec<String>,
+    /// 移る先のブラウザ（`[gui.browser] passkey_browser`。殻だけが使う）
+    #[serde(skip)]
+    pub passkey_browser: PasskeyBrowser,
     /// 設定で足した近道（`[gui.shortcuts]`。キーの順）
     pub shortcuts: Vec<ConfigShortcut>,
 }
@@ -85,6 +106,8 @@ pub struct ConfigShortcut {
 struct Parsed {
     machines: Option<Vec<ConfigMachine>>,
     browser: Option<bool>,
+    passkey_sites: Option<Vec<String>>,
+    passkey_browser: Option<PasskeyBrowser>,
     shortcuts: Option<BTreeMap<String, String>>,
 }
 
@@ -164,6 +187,12 @@ pub fn load_gui(dir: &Path) -> Result<GuiConfig, String> {
                 // 書いてあるファイルが、前のファイルのものに勝つ
                 if let Some(b) = p.browser {
                     out.browser = b;
+                }
+                if let Some(s) = p.passkey_sites {
+                    out.passkey_sites = s;
+                }
+                if let Some(b) = p.passkey_browser {
+                    out.passkey_browser = b;
                 }
                 // 近道はキーごとに重ねる（同じキーは後のファイルが勝つ）
                 if let Some(m) = p.shortcuts {
@@ -258,7 +287,16 @@ fn parse_all(text: &str) -> Result<Parsed, (Option<usize>, String)> {
     let Some(gui) = file.gui else {
         return Ok(Parsed::default());
     };
-    let browser = gui.browser.and_then(|b| b.enabled);
+    let (browser, passkey_sites, passkey_browser) = match gui.browser {
+        Some(b) => (
+            b.enabled,
+            b.passkey_sites.map(|s| check_sites(text, &s)).transpose()?,
+            b.passkey_browser
+                .map(|s| check_passkey_browser(text, &s))
+                .transpose()?,
+        ),
+        None => (None, None, None),
+    };
     let shortcuts = gui.shortcuts;
     let machines = match gui.machines {
         Some(entries) => Some(check_machines(text, entries)?),
@@ -267,8 +305,60 @@ fn parse_all(text: &str) -> Result<Parsed, (Option<usize>, String)> {
     Ok(Parsed {
         machines,
         browser,
+        passkey_sites,
+        passkey_browser,
         shortcuts,
     })
+}
+
+/// サイトの名前（host）として使えるか。小文字の英数字・`-`・`.` だけで、`.` で始まらず終わらず、`..` を含まない。
+/// scheme・ポート・パス・ワイルドカードは書けない（決まった host とだけ照らし合わせる）。
+pub fn valid_site(s: &str) -> bool {
+    !s.is_empty()
+        && s.len() <= 253
+        && !s.starts_with('.')
+        && !s.ends_with('.')
+        && !s.contains("..")
+        && s.chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '.')
+}
+
+/// `[gui.browser] passkey_sites` を確かめる（重なりは 1 つにまとめる）。
+fn check_sites(
+    text: &str,
+    sites: &[Spanned<String>],
+) -> Result<Vec<String>, (Option<usize>, String)> {
+    let mut out: Vec<String> = Vec::new();
+    for (i, s) in sites.iter().enumerate() {
+        let v = s.get_ref();
+        if !valid_site(v) {
+            return Err((
+                Some(line_of(text, s.span().start)),
+                format!(
+                    "gui.browser.passkey_sites[{i}]: サイトの名前（github.com のような host。小文字。https:// やパスは書かない）ではありません"
+                ),
+            ));
+        }
+        if !out.contains(v) {
+            out.push(v.clone());
+        }
+    }
+    Ok(out)
+}
+
+/// `[gui.browser] passkey_browser` を確かめる。
+fn check_passkey_browser(
+    text: &str,
+    s: &Spanned<String>,
+) -> Result<PasskeyBrowser, (Option<usize>, String)> {
+    match s.get_ref().as_str() {
+        "chrome" => Ok(PasskeyBrowser::Chrome),
+        "firefox" => Ok(PasskeyBrowser::Firefox),
+        _ => Err((
+            Some(line_of(text, s.span().start)),
+            "gui.browser.passkey_browser: chrome か firefox を書きます".to_string(),
+        )),
+    }
 }
 
 /// `[[gui.machines]]` を確かめる。
@@ -652,6 +742,60 @@ mod tests {
             e.starts_with(&format!("{}:2: ", d.join("config.local.toml").display())),
             "{e}"
         );
+        let _ = fs::remove_dir_all(&d);
+    }
+
+    // [gui.browser] passkey_sites・passkey_browser（#206）。書いてあるファイルのものを使い、config.local.toml が勝つ
+    #[test]
+    fn passkey_sites_and_browser() {
+        let d = temp_dir("passkey");
+        let g = load_gui(&d).unwrap();
+        assert!(g.passkey_sites.is_empty());
+        assert_eq!(g.passkey_browser, PasskeyBrowser::Chrome);
+        fs::write(
+            d.join("config.toml"),
+            "[gui.browser]\nenabled = true\npasskey_sites = [\"github.com\", \"dash.cloudflare.com\", \"github.com\"]\npasskey_browser = \"firefox\"\n",
+        )
+        .unwrap();
+        let g = load_gui(&d).unwrap();
+        assert_eq!(g.passkey_sites, vec!["github.com", "dash.cloudflare.com"]);
+        assert_eq!(g.passkey_browser, PasskeyBrowser::Firefox);
+        // 書いていない config.local.toml は変えない。書けば勝つ（空の一覧も）
+        fs::write(
+            d.join("config.local.toml"),
+            "[gui.browser]\nenabled = true\n",
+        )
+        .unwrap();
+        assert_eq!(load_gui(&d).unwrap().passkey_sites.len(), 2);
+        fs::write(
+            d.join("config.local.toml"),
+            "[gui.browser]\npasskey_sites = []\npasskey_browser = \"chrome\"\n",
+        )
+        .unwrap();
+        let g = load_gui(&d).unwrap();
+        assert!(g.passkey_sites.is_empty());
+        assert_eq!(g.passkey_browser, PasskeyBrowser::Chrome);
+        // 使えない名前とブラウザは間違い
+        for bad in [
+            "passkey_sites = [\"https://github.com\"]",
+            "passkey_sites = [\"GitHub.com\"]",
+            "passkey_sites = [\"*.github.com\"]",
+            "passkey_sites = [\"github.com/login\"]",
+            "passkey_sites = [\".github.com\"]",
+            "passkey_sites = [\"github.com:443\"]",
+            "passkey_browser = \"safari\"",
+        ] {
+            fs::write(
+                d.join("config.local.toml"),
+                format!("[gui.browser]\n{bad}\n"),
+            )
+            .unwrap();
+            let e = load_gui(&d).unwrap_err();
+            assert!(
+                e.starts_with(&format!("{}:2: ", d.join("config.local.toml").display())),
+                "{bad}: {e}"
+            );
+        }
         let _ = fs::remove_dir_all(&d);
     }
 }
