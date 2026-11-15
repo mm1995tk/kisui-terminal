@@ -22,6 +22,8 @@ import {
   moveBefore,
   moveTabBefore,
   moveTabStep,
+  steppableTabs,
+  visibleTabs,
   refKey,
   nameError,
   nameErrorText,
@@ -513,5 +515,58 @@ describe("moveTabStep（t J / t K）", () => {
     assert.equal(moveTabStep(s, "g1", c, "down"), null);
     assert.equal(moveTabStep(s, "g1", a, "up"), null);
     assert.equal(moveTabStep(s, "g1", "nope", "up"), null);
+  });
+});
+
+describe("t の操作が数えるタブ（visibleTabs・steppableTabs・moveTabStep の visible）", () => {
+  const g = {
+    id: "g1",
+    num: 1,
+    name: "",
+    folded: false,
+    tabs: [
+      { kind: "term", target: "m", ws: "a", title: "" },
+      { kind: "browser", id: "gone" },
+      { kind: "term", target: "off", ws: "b", title: "" },
+      { kind: "browser", id: "b1" },
+    ],
+  } as unknown as Gws;
+  const s: GwsState = { list: [g] };
+  const has = (id: string) => id === "b1";
+  it("消えたブラウザのタブは出ない。つながっていないマシンのタブは t j で飛ばす（今のタブなら残す）", () => {
+    const v = visibleTabs(g, has);
+    assert.deepEqual(v.map(refKey), [
+      termKey("m", "a"),
+      termKey("off", "b"),
+      browserKey("b1"),
+    ]);
+    const up = (m: string) => m === "m";
+    assert.deepEqual(steppableTabs(v, up, termKey("m", "a")).map(refKey), [
+      termKey("m", "a"),
+      browserKey("b1"),
+    ]);
+    assert.deepEqual(steppableTabs(v, up, termKey("off", "b")).map(refKey), [
+      termKey("m", "a"),
+      termKey("off", "b"),
+      browserKey("b1"),
+    ]);
+  });
+  it("t J は、出ていないタブを飛び越えて、出ている隣と入れ替える", () => {
+    const v = visibleTabs(g, has);
+    const n = moveTabStep(s, "g1", termKey("m", "a"), "down", v)!;
+    assert.deepEqual(n.list[0].tabs.map(refKey), [
+      browserKey("gone"),
+      termKey("off", "b"),
+      termKey("m", "a"),
+      browserKey("b1"),
+    ]);
+    const u = moveTabStep(s, "g1", browserKey("b1"), "up", v)!;
+    assert.deepEqual(u.list[0].tabs.map(refKey), [
+      termKey("m", "a"),
+      browserKey("gone"),
+      browserKey("b1"),
+      termKey("off", "b"),
+    ]);
+    assert.equal(moveTabStep(s, "g1", browserKey("b1"), "down", v), null);
   });
 });

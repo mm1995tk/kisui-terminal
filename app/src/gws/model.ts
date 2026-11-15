@@ -247,28 +247,53 @@ export function moveTabBefore(
 }
 
 /**
- * ワークスペースの中のタブ（key は refKey）を、1 つ下（dir が "down"）・上（"up"）へ動かす（リーダーの t J / t K）。
- * 端では回らず、動かさない（動かさなかったときは null）。
+ * サイドバーに出ているタブ（t の操作が数える並び。t 1〜9・t J / t K）。ターミナルのタブは全部。
+ * ブラウザのタブは、タブがまだあるもの（hasBrowser）だけ（内蔵ブラウザを無効にしたあとも記録は残るが、サイドバーには出ない）。
+ */
+export function visibleTabs(
+  g: Gws,
+  hasBrowser: (id: string) => boolean,
+): TabRef[] {
+  return g.tabs.filter((r) => r.kind === "term" || hasBrowser(r.id));
+}
+
+/**
+ * t j / t k で移れるタブ。visibleTabs のうち、つながっていないマシンのターミナルのタブ（移れず、止まってしまう）を除く。
+ * 今のタブ cur は、つながっていなくても残す（そこから数えるため）。
+ */
+export function steppableTabs(
+  visible: readonly TabRef[],
+  up: (target: string) => boolean,
+  cur: string,
+): TabRef[] {
+  return visible.filter(
+    (r) => r.kind === "browser" || up(r.target) || refKey(r) === cur,
+  );
+}
+
+/**
+ * ワークスペースの中のタブ（key は refKey）を、サイドバーに出ている並び visible の 1 つ下（dir が "down"）・上（"up"）の隣と入れ替える
+ * （リーダーの t J / t K）。出ていないタブは飛び越える。端では回らず、動かさない（動かさなかったときは null）。
  */
 export function moveTabStep(
   s: GwsState,
   id: string,
   key: string,
   dir: "up" | "down",
+  visible?: readonly TabRef[],
 ): GwsState | null {
   const g = s.list.find((x) => x.id === id);
   if (!g) return null;
-  const i = g.tabs.findIndex((r) => refKey(r) === key);
+  const list = visible ?? g.tabs;
+  const i = list.findIndex((r) => refKey(r) === key);
   if (i < 0) return null;
-  // 1 つ下へは「2 つ下のタブの前」へ、1 つ上へは「1 つ上のタブの前」へ
-  const j = dir === "down" ? i + 2 : i - 1;
-  if (dir === "down" ? i + 1 >= g.tabs.length : i === 0) return null;
-  return moveTabBefore(
-    s,
-    id,
-    key,
-    j < g.tabs.length ? refKey(g.tabs[j]) : null,
-  );
+  const nb = list[dir === "down" ? i + 1 : i - 1];
+  if (!nb) return null;
+  if (dir === "up") return moveTabBefore(s, id, key, refKey(nb));
+  // 下へは、隣のタブのすぐ後ろ（記録の並びで、隣の次のタブの前）へ
+  const k = g.tabs.findIndex((r) => refKey(r) === refKey(nb));
+  const after = g.tabs[k + 1];
+  return moveTabBefore(s, id, key, after ? refKey(after) : null);
 }
 
 /** 最後に使っていたターミナルのタブを覚える。 */

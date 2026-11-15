@@ -133,6 +133,8 @@ import {
   moveBefore,
   moveTabBefore,
   moveTabStep,
+  steppableTabs,
+  visibleTabs,
   reconcile,
   refKey,
   removeBrowser,
@@ -2429,6 +2431,9 @@ function Workbench(props: {
     openNewTab(rep.target, rep.ws, false);
   }
 
+  /** ブラウザのタブ id のタブがまだあるか（サイドバーに出るか）。 */
+  const hasBrowserTab = (id: string) => tabs().tabs.some((t) => t.id === id);
+
   /** 今出しているタブの key（refKey）。ブラウザのタブを出していればそれ、そうでなければフォーカスしているターミナルのタブ。無ければ undefined。 */
   function currentTabKey(): string | undefined {
     const b = shownBrowserTab();
@@ -2443,7 +2448,13 @@ function Workbench(props: {
     const g = currentGws();
     const key = currentTabKey();
     if (!g || !key) return;
-    const next = cycleKey(g, key, step);
+    // サイドバーに出ていないタブと、つながっていないマシンのタブでは止まるので、飛ばす
+    const list = steppableTabs(
+      visibleTabs(g, hasBrowserTab),
+      (m) => states()[m]?.kind === "connected",
+      key,
+    );
+    const next = cycleKey({ ...g, tabs: list }, key, step);
     if (!next) focusTerminal();
     else if (next.kind === "term") {
       setTabs((t) => showTab(t, g.id, null));
@@ -2656,14 +2667,23 @@ function Workbench(props: {
         const g = currentGws();
         const key = currentTabKey();
         if (g && key) {
-          const next = moveTabStep(gws(), g.id, key, c.arg as "up" | "down");
+          const next = moveTabStep(
+            gws(),
+            g.id,
+            key,
+            c.arg as "up" | "down",
+            visibleTabs(g, hasBrowserTab),
+          );
           if (next) setGws(next);
         }
         break;
       }
       case "tab.nth": {
         const g = currentGws();
-        const ref = g?.tabs[c.arg as number];
+        // サイドバーの上から n 番目（出ているタブだけを数える）
+        const ref = g
+          ? visibleTabs(g, hasBrowserTab)[c.arg as number]
+          : undefined;
         if (g && ref) activateTab(g.id, ref);
         break;
       }
