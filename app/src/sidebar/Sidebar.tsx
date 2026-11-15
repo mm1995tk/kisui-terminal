@@ -233,9 +233,8 @@ export function Sidebar(
     nav.addEventListener("scroll", schedule, { passive: true });
     const resize = new ResizeObserver(schedule);
     resize.observe(nav);
-    // 行が増減した・フォーカスが移った（属性は見ないので、data-stuck を付けても回らない）
+    // 行が増減した・フォーカスが移った。属性は data-panes-hidden だけ見る（data-stuck・data-shadow を付けても回らない。隠した・戻したときに CHANGES の高さを測り直す）
     const mutation = new MutationObserver(schedule);
-    // 属性は data-panes-hidden（ファイルツリーと CHANGES を隠した・戻した。CHANGES の高さを測り直す）だけ見る
     mutation.observe(nav, {
       childList: true,
       subtree: true,
