@@ -1151,7 +1151,9 @@ function Workbench(props: {
     setFocusError(null);
     try {
       const { id } = await s.createWorkspace(dir);
-      justCreated.add(termKey(target, id));
+      // 一覧の知らせが返事より先に届いていれば、整理はもう済んでいて印を外す機会が来ない。守る必要もないので印を付けない
+      if (!untrack(workspaces)[target]?.some((w) => w.id === id))
+        justCreated.add(termKey(target, id));
       place(id);
       await focusWorkspace(target, id);
       if (focus()?.id === id) focusTerminal();
@@ -2471,6 +2473,7 @@ function Workbench(props: {
     const i = terms.findIndex((r) => r.target === target && r.ws === ws);
     if (i < 0) return;
     const nextTerm = terms[i + 1] ?? terms[i - 1];
+    justCreated.delete(termKey(target, ws)); // 閉じたタブを、整理で守り続けない
     const tw = untrack(workspaces)[target]?.find((w) => w.id === ws);
     const name = tw ? band(tw, false).title : terms[i].title || unsetTitle();
     const s = sessions()[target];

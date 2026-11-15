@@ -376,12 +376,17 @@ export function addTerm(
 ): GwsState {
   const home = s.list.find((g) => g.id === id);
   if (!home || sameGws(gwsOfTerm(s, target, ws), home)) return s;
+  // 別のワークスペースに先に入っていたなら、その名前を引き継ぐ（名前が空のまま「(no folder yet)」と出ないように）
+  const moved = gwsOfTerm(s, target, ws)?.tabs.find((r) =>
+    sameTerm(r, target, ws),
+  );
+  const name = title || (moved && isTerm(moved) ? moved.title : "");
   const list = s.list.flatMap((g): Gws[] => {
     if (g.id === id)
       return [
         {
           ...g,
-          tabs: [...g.tabs, { kind: "term", target, ws, title }],
+          tabs: [...g.tabs, { kind: "term", target, ws, title: name }],
           term: { target, ws },
         },
       ];

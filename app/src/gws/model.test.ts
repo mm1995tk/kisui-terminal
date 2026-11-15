@@ -114,6 +114,22 @@ describe("ワークスペースの操作", () => {
     assert.equal(gwsOfTerm(s, "b", "w9")?.id, "g1");
   });
 
+  it("知らせが返事より先に届く順（孤児として入る → 移す → 一覧から消える → 整理）で、閉じたタブの行が残らない", () => {
+    // 知らせが先：整理は印なしで走り、新しいタブが別のワークスペースとして入る
+    const lists = { b: [...list("w2"), { id: "w9", title: "新" }] };
+    let s = reconcile(two(), { lists, keep: new Set() }).state;
+    const orphan = gwsOfTerm(s, "b", "w9");
+    assert.ok(orphan && !["g1", "g2"].includes(orphan.id));
+    // 返事：addTerm が元のワークスペースへ移す。名前は引き継ぐ
+    s = addTerm(s, "g1", "b", "w9");
+    assert.deepEqual(ids(s), ["g1", "g2"]);
+    assert.deepEqual(s.list[0].tabs.at(-1), term("b", "w9", "新"));
+    // 閉じた知らせ：印を付けていなければ、行は消える
+    s = reconcile(s, { lists: { b: list("w2") }, keep: new Set() }).state;
+    assert.equal(gwsOfTerm(s, "b", "w9"), undefined);
+    assert.deepEqual(ids(s), ["g1", "g2"]);
+  });
+
   it("ターミナルのタブがもうどこかにあれば、足さない", () => {
     const s = two();
     assert.equal(addWorkspace(s, "b", "w2"), s);
