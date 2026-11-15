@@ -1005,11 +1005,83 @@ pub fn browser_find(
 }
 
 /// タブのページの DevTools（Web Inspector）を開く（#205。リーダーの `o i`）。
+/// Linux（WebKitGTK）は、ページの webview の中にくっつく（ページの領域の外には出ない）。macOS は別の窓で開く（`open_devtools`）。
 #[tauri::command]
 pub fn browser_devtools(app: AppHandle, webview: Webview, tab: String) -> Result<(), String> {
     from_main(&webview)?;
-    child(&app, &tab)?.open_devtools();
+    open_devtools(&child(&app, &tab)?);
     Ok(())
+}
+
+#[cfg(not(target_os = "macos"))]
+fn open_devtools(v: &Webview) {
+    v.open_devtools();
+}
+
+/// macOS：`with_webview` の閉包に渡る webview から、ページの WKWebView と、メインスレッドの印を取り出す。
+/// 閉包の外（メインスレッドでない所）や、WKWebView が無いときは None。返す WKWebView は `pv` が生きている間だけ使う。
+#[cfg(target_os = "macos")]
+pub(crate) fn wk_webview(
+    pv: &tauri::webview::PlatformWebview,
+) -> Option<(&objc2_web_kit::WKWebView, objc2::MainThreadMarker)> {
+    // with_webview の中はメインスレッド
+    let mtm = objc2::MainThreadMarker::new()?;
+    let ptr = pv.inner() as *const objc2_web_kit::WKWebView;
+    if ptr.is_null() {
+        return None;
+    }
+    // SAFETY: tauri の PlatformWebview::inner は、生きている WKWebView を指す（with_webview の閉包の間。返す参照の
+    // 寿命は pv に縛る）
+    Some((unsafe { &*ptr }, mtm))
+}
+
+/// macOS：DevTools を別の窓で開き、窓にくっつけさせない。
+///
+/// WKWebView の Web Inspector は、くっつける先の view（`_inspectorAttachmentView`。既定はページの WKWebView 自身）の
+/// 「親の view」の大きさを基準に、くっつける先の枠を組み替える（WebKit の WebInspectorUIProxyMac.mm の
+/// `inspectedViewFrameDidChange`。下にくっつけるときは、横は親の幅いっぱい、縦は親の下から Inspector の高さを除いた所）。
+/// タブのページの WKWebView は、kisui-terminal の画面（メインの webview）と同じく窓の content view の子なので（wry の子の
+/// webview）、ページの枠が窓の幅いっぱいに広がってサイドバーにかぶさり、Inspector は窓の下に置かれる。
+/// そこで、くっつける先を、窓に置かない隠した view に替える。隠した view にはくっつけられない（`platformCanAttach` が断る）
+/// ので、Inspector は必ず別の窓で開き、Inspector の「くっつける」ボタンでもくっつかない。ページの枠には触らない。
+#[cfg(target_os = "macos")]
+fn open_devtools(v: &Webview) {
+    let r = v.with_webview(|pv| {
+        use objc2::rc::Retained;
+        use objc2::runtime::{AnyObject, NSObjectProtocol};
+        use objc2::{msg_send, sel};
+        use objc2_app_kit::NSView;
+
+        thread_local! {
+            /// くっつける先にする、窓に置かない隠した view（すべてのタブで 1 つ。アプリが終わるまで持つ）
+            static NOWHERE: std::cell::OnceCell<Retained<NSView>> = const { std::cell::OnceCell::new() };
+        }
+
+        let Some((w, mtm)) = wk_webview(&pv) else {
+            return;
+        };
+        // `_setInspectorAttachmentView:` は Apple の非公開の API（macOS 10.13.4 から）。無ければ替えずに開く
+        if w.respondsToSelector(sel!(_setInspectorAttachmentView:)) {
+            NOWHERE.with(|n| {
+                let nowhere = n.get_or_init(|| {
+                    let view = NSView::new(mtm);
+                    view.setHidden(true);
+                    view
+                });
+                // SAFETY: WKWebView の非公開の setter。引数は生きている NSView（こちらもアプリが終わるまで持つ）
+                let () = unsafe { msg_send![w, _setInspectorAttachmentView: &**nowhere] };
+            });
+        }
+        // wry の open_devtools と同じ（`_inspector` の `show`）。くっつける先を替えてから開くよう、同じ閉包で呼ぶ
+        // SAFETY: `_inspector` は _WKInspector を返す非公開の API（wry も同じものを使う）
+        let inspector: Option<Retained<AnyObject>> = unsafe { msg_send![w, _inspector] };
+        if let Some(i) = inspector {
+            let () = unsafe { msg_send![&i, show] };
+        }
+    });
+    if let Err(e) = r {
+        eprintln!("kisui-terminal: cannot open DevTools: {e}");
+    }
 }
 
 fn tabs_path(app: &AppHandle) -> Result<PathBuf, String> {
