@@ -267,12 +267,12 @@ mod platform {
         CLASS.get_or_init(|| {
             let mut b = ClassBuilder::new(c"KisuiClipboardPanel", NSPanel::class())
                 .expect("KisuiClipboardPanel is declared once");
+            // 型を `_` で書くのは、`extern "C" fn(&AnyObject, Sel) -> Bool` と書くと
+            // `for<'a>` の型になり、`MethodImplementation` が実装されていないため（objc2 のテストも同じ書き方）
+            let imp: extern "C" fn(_, _) -> _ = yes;
             // SAFETY: メソッドの型は `- (BOOL)canBecomeKeyWindow` と同じ
             unsafe {
-                b.add_method(
-                    sel!(canBecomeKeyWindow),
-                    yes as extern "C" fn(&AnyObject, Sel) -> Bool,
-                );
+                b.add_method(sel!(canBecomeKeyWindow), imp);
             }
             b.register()
         })
