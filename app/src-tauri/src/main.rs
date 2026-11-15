@@ -212,6 +212,8 @@ fn main() {
             browser::browser_open,
             browser::browser_bounds,
             browser::browser_visible,
+            browser::browser_overlay_enable,
+            browser::browser_layer,
             browser::browser_focus,
             browser::browser_go,
             browser::browser_nav,

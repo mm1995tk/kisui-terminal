@@ -194,3 +194,19 @@ export function openDownload(id: number): Promise<void> {
 export function revealDownload(id: number): Promise<void> {
   return invoke("download_reveal", { id });
 }
+
+/**
+ * 重なりもの（リーダーの案内・キャラクター・メニュー）を、ページを縮めずにページの上に重ねられるかを殻に聞く（macOS だけ true）。
+ * true のとき、殻は画面（メインの webview）の背景を透明にする。
+ */
+export function enableOverlay(): Promise<boolean> {
+  return invoke("browser_overlay_enable");
+}
+
+/**
+ * 前に出すものを決める。overlay なら画面（キーも画面に向く）、そうでなければタブのページ。
+ * enableOverlay が true のときだけ呼ぶ。
+ */
+export function layerTab(tab: string, overlay: boolean): Promise<void> {
+  return invoke("browser_layer", { tab, overlay });
+}

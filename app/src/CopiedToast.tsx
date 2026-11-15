@@ -25,7 +25,7 @@ export function showToast(message: string): void {
 
 /**
  * 画面の下の中央に出る「コピーしました」などの短い知らせ。copiedNotice.show()・showToast() で出て、自分で消える。
- * overPage のときは、内蔵ブラウザのページ（子の webview）が避ける印（data-overlay）を付ける。付けないとページの下に隠れる。
+ * overPage のときは、内蔵ブラウザのページ（子の webview）が避ける印（data-overlay-shrink）を付ける。付けないとページの下に隠れる。
  */
 export function CopiedToast(props: {
   /** 内蔵ブラウザのページを出しているか */
@@ -36,7 +36,7 @@ export function CopiedToast(props: {
       <div
         class={styles.toast}
         role="status"
-        data-overlay={props.overPage ? "" : undefined}
+        data-overlay-shrink={props.overPage ? "" : undefined}
       >
         {text() ?? T("toast.copied")}
       </div>
