@@ -233,7 +233,6 @@
 }
 .band-btn:hover {
   background: var(--band-hover);
-  color: var(--sidebar-text);
 }
 .band-btn:focus-visible,
 .band-main:focus-visible,
@@ -255,6 +254,7 @@
 .tab-row[data-current] .band-btn {
   color: var(--sidebar-muted);
 }
+/* ボタン自身にマウスを乗せたときの色。詳細度が上の帯・行の規則と同じなので、それらより後ろに置く */
 .band-btn:hover {
   color: var(--sidebar-text);
 }

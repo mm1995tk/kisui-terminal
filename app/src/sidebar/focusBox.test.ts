@@ -36,7 +36,18 @@ test("選んでも帯の位置と高さが変わらない：フォーカスの�
 });
 
 test("鉛筆・✕・「+」はいつも出す（#258）。つかむ所と押せないボタンは、出ていないときも場所を空ける（opacity か visibility で隠し、display で消さない）", () => {
-  assert.doesNotMatch(css, /\.band-close\s*\{[^}]*opacity: 0;/);
+  // どの規則も、鉛筆・✕・「+」（.band-btn / .band-close / .band-add / .band-edit / .tab-edit）を opacity: 0 で隠さない
+  for (const m of css.matchAll(/([^{}]+)\{([^}]*)\}/g))
+    if (/band-btn|band-close|band-add|band-edit|tab-edit/.test(m[1]!))
+      assert.doesNotMatch(m[2]!, /opacity: 0;/, `${m[1]!.trim()} が隠している`);
+  // visibility: hidden で隠すのは、押せないボタン（data-off）だけ
+  for (const m of css.matchAll(/([^{}]+)\{([^}]*)\}/g))
+    if (/visibility: hidden/.test(m[2]!))
+      assert.match(
+        m[1]!,
+        /\[data-off\]/,
+        `${m[1]!.trim()} が visibility: hidden`,
+      );
   assert.match(rule(".grip"), /opacity: 0;/);
   assert.match(rule(".band-btn[data-off]"), /visibility: hidden;/);
   for (const sel of [".grip", ".band-btn[data-off]"])
