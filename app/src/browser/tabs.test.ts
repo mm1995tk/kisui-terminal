@@ -4,17 +4,13 @@ import { describe, it } from "node:test";
 import {
   addTab,
   closeTab,
-  cycle,
   EMPTY_TABS,
   fromStored,
-  isFolded,
   newTabId,
   normalizeUrl,
-  pruneWorkspaces,
   shownTab,
   showTab,
-  tabsOf,
-  toggleFold,
+  tabTitle,
   toStored,
   updateTab,
   validTabId,
@@ -30,73 +26,53 @@ const tab = (id: string, workspace = "w1", target = "@local"): BrowserTab => ({
   title: "",
 });
 
-/** w1 に a・b・c、w2 に d（どれも出していない）。 */
+/** ワークスペース g1 に a・b・c、g2 に d（どれも出していない）。 */
 function three(): TabsState {
   let s = EMPTY_TABS;
-  for (const t of [tab("a"), tab("b"), tab("c"), tab("d", "w2")])
-    s = addTab(s, t);
-  return showTab(showTab(s, "@local", "w1", null), "@local", "w2", null);
+  for (const [t, g] of [
+    [tab("a"), "g1"],
+    [tab("b"), "g1"],
+    [tab("c"), "g1"],
+    [tab("d", "w2"), "g2"],
+  ] as const)
+    s = addTab(s, t, g);
+  return showTab(showTab(s, "g1", null), "g2", null);
 }
 
 describe("内蔵ブラウザのタブ", () => {
-  it("足したタブはワークスペースの最後に入り、それを出す", () => {
-    const s = addTab(EMPTY_TABS, tab("a"));
-    assert.equal(shownTab(s, "@local", "w1")?.id, "a");
-    assert.equal(shownTab(s, "@local", "w2"), undefined);
-    // 同じ id のワークスペースでも、マシンが違えば別
-    assert.equal(shownTab(s, "dev", "w1"), undefined);
-    assert.deepEqual(
-      tabsOf(three(), "@local", "w1").map((t) => t.id),
-      ["a", "b", "c"],
-    );
+  it("足したタブをそのワークスペースで出す。ワークスペースが分からなければ、足すだけ", () => {
+    const s = addTab(EMPTY_TABS, tab("a"), "g1");
+    assert.equal(shownTab(s, "g1")?.id, "a");
+    assert.equal(shownTab(s, "g2"), undefined);
+    const t = addTab(EMPTY_TABS, tab("b"));
+    assert.equal(t.tabs.length, 1);
+    assert.deepEqual(t.views, {});
   });
 
-  it("o j は グリッド → 1 番目 → 2 番目 → … → グリッド、o k は逆に回る", () => {
-    let s = three();
-    const seq: (string | undefined)[] = [];
-    for (let i = 0; i < 4; i++) {
-      s = cycle(s, "@local", "w1", "next");
-      seq.push(shownTab(s, "@local", "w1")?.id);
-    }
-    assert.deepEqual(seq, ["a", "b", "c", undefined]);
-    s = cycle(s, "@local", "w1", "prev");
-    assert.equal(shownTab(s, "@local", "w1")?.id, "c");
-    // タブの無いワークスペースでは何もしない
-    assert.equal(cycle(s, "@local", "w9", "next"), s);
+  it("出すものを替える。ターミナルのタブ（null）に戻せる。無いタブは出さない", () => {
+    let s = showTab(three(), "g1", "b");
+    assert.equal(shownTab(s, "g1")?.id, "b");
     // ほかのワークスペースの表示は変えない
-    assert.equal(shownTab(s, "@local", "w2"), undefined);
+    assert.equal(shownTab(s, "g2"), undefined);
+    s = showTab(s, "g1", null);
+    assert.equal(shownTab(s, "g1"), undefined);
+    assert.equal(showTab(s, "g1", "nope"), s);
+    assert.equal(showTab(s, "g1", null), s);
   });
 
-  it("出しているタブを閉じたら、次（無ければ前、それも無ければグリッド）を出す", () => {
-    let s = showTab(three(), "@local", "w1", "b");
+  it("タブを閉じると、そのタブを出していたワークスペースはターミナルのタブに戻る", () => {
+    let s = showTab(three(), "g1", "b");
     s = closeTab(s, "b");
-    assert.equal(shownTab(s, "@local", "w1")?.id, "c");
-    s = closeTab(s, "c");
-    assert.equal(shownTab(s, "@local", "w1")?.id, "a");
-    s = closeTab(s, "a");
-    assert.equal(shownTab(s, "@local", "w1"), undefined);
+    assert.equal(shownTab(s, "g1"), undefined);
     assert.deepEqual(
       s.tabs.map((t) => t.id),
-      ["d"],
+      ["a", "c", "d"],
     );
     // 出していないタブを閉じても、表示は変えない
-    let t = showTab(three(), "@local", "w1", "a");
+    let t = showTab(three(), "g1", "a");
     t = closeTab(t, "c");
-    assert.equal(shownTab(t, "@local", "w1")?.id, "a");
+    assert.equal(shownTab(t, "g1")?.id, "a");
     assert.equal(closeTab(t, "nope"), t);
-  });
-
-  it("ほかのワークスペースのタブは出さない", () => {
-    const s = three();
-    assert.equal(showTab(s, "@local", "w1", "d"), s);
-  });
-
-  it("並びを畳む・開く", () => {
-    let s = toggleFold(three(), "@local", "w1");
-    assert.equal(isFolded(s, "@local", "w1"), true);
-    assert.equal(isFolded(s, "@local", "w2"), false);
-    s = toggleFold(s, "@local", "w1");
-    assert.equal(isFolded(s, "@local", "w1"), false);
   });
 
   it("URL と題を書き換える。変わらなければ同じものを返す", () => {
@@ -108,30 +84,19 @@ describe("内蔵ブラウザのタブ", () => {
     assert.equal(updateTab(t, "nope", { title: "Y" }), t);
   });
 
-  it("閉じたワークスペースのタブ・表示・畳みを捨てる。ほかのマシンのものは残す", () => {
-    let s = addTab(three(), tab("e", "w1", "dev"));
-    s = toggleFold(s, "@local", "w2");
-    s = toggleFold(s, "dev", "w1");
-    s = showTab(s, "@local", "w2", "d");
-    const p = pruneWorkspaces(s, "@local", ["w1"]);
-    assert.deepEqual(
-      p.tabs.map((t) => t.id),
-      ["a", "b", "c", "e"],
-    );
-    assert.equal(shownTab(p, "@local", "w2"), undefined);
-    assert.equal(isFolded(p, "@local", "w2"), false);
-    assert.equal(isFolded(p, "dev", "w1"), true);
-    assert.equal(shownTab(p, "dev", "w1")?.id, "e");
-    // 何も捨てなければ同じもの
-    assert.equal(pruneWorkspaces(p, "@local", ["w1", "w2"]), p);
+  it("タブの名前は、つけた名前、無ければページの題、それも無ければ host", () => {
+    const t = { ...tab("a"), title: "Page" };
+    assert.equal(tabTitle(t, "Mine"), "Mine");
+    assert.equal(tabTitle(t, ""), "Page");
+    assert.equal(tabTitle({ ...t, title: "" }), "a.example");
   });
 
-  it("覚える形に直して戻すと、タブと畳みが戻る。表示はグリッドから始める", () => {
-    let s = toggleFold(three(), "@local", "w2");
-    s = showTab(s, "@local", "w1", "a");
-    const back = fromStored(JSON.parse(JSON.stringify(toStored(s))));
+  it("覚える形に直して戻すと、タブが戻る。畳んだ印は殻に書かない。表示はターミナルから始める", () => {
+    const s = showTab(three(), "g1", "a");
+    const stored = toStored(s);
+    assert.deepEqual(stored.collapsed, []);
+    const back = fromStored(JSON.parse(JSON.stringify(stored)));
     assert.deepEqual(back.tabs, s.tabs);
-    assert.deepEqual(back.collapsed, s.collapsed);
     assert.deepEqual(back.views, {});
   });
 
@@ -188,13 +153,11 @@ describe("内蔵ブラウザのタブ", () => {
         { id: "n", target: 1, workspace: "w", url: "https://d/" },
         "x",
       ],
-      collapsed: [{ target: "@local", workspace: "w" }, { target: 1 }],
     });
     assert.deepEqual(
       got.tabs.map((t) => [t.id, t.url, t.title]),
       [["a", "https://a/", ""]],
     );
-    assert.deepEqual(got.collapsed, [JSON.stringify(["@local", "w"])]);
     assert.deepEqual(fromStored(null), EMPTY_TABS);
     assert.deepEqual(fromStored({ tabs: "x" }).tabs, []);
   });
@@ -215,24 +178,6 @@ describe("内蔵ブラウザのタブ", () => {
       "url",
       "workspace",
     ]);
-  });
-
-  it("ページが自分を閉じたら、開いた元のタブに戻る（#204）", () => {
-    let s = three();
-    s = addTab(s, { ...tab("p"), opener: "a" });
-    s = closeTab(s, "p", "a");
-    assert.equal(shownTab(s, "@local", "w1")?.id, "a");
-    // 元のタブがもう無い・ほかのワークスペースなら、ふつうに閉じたときと同じ
-    s = addTab(three(), tab("p"));
-    s = closeTab(s, "p", "gone");
-    assert.equal(shownTab(s, "@local", "w1")?.id, "c");
-    s = addTab(three(), tab("p"));
-    s = closeTab(s, "p", "d");
-    assert.equal(shownTab(s, "@local", "w1")?.id, "c");
-    // 出していないタブを閉じても、出すものは変わらない
-    s = showTab(addTab(three(), tab("p")), "@local", "w1", "b");
-    s = closeTab(s, "p", "a");
-    assert.equal(shownTab(s, "@local", "w1")?.id, "b");
   });
 
   it("新しいタブの id は、殻のラベルに使える形", () => {

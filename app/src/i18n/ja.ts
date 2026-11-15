@@ -46,7 +46,7 @@ export const ja: Record<Key, string> = {
   "leader.browser.url": "URL を書き換える",
   "leader.browser.next": "次のタブへ",
   "leader.browser.prev": "前のタブへ",
-  "leader.browser.cycle.range": "グリッドとタブを回る",
+  "leader.browser.cycle.range": "タブを順に回る",
   "leader.browser.back": "戻る",
   "leader.browser.forward": "進む",
   "leader.browser.reload": "読み込み直す",
@@ -58,6 +58,7 @@ export const ja: Record<Key, string> = {
   "leader.browser.find": "ページ内を検索",
   "leader.browser.copyUrl": "URL をコピー",
   "leader.browser.devtools": "DevTools を開く",
+  "leader.browser.rename": "このタブの名前を変える",
   "leader.sidebar": "サイドバーを開け閉めする",
   "leader.clipboard": "クリップボードの履歴",
   "leader.scale.group": "表示の大きさ",
@@ -143,7 +144,6 @@ export const ja: Record<Key, string> = {
   "status.disconnected": "つながっていません",
   "err.workspace.focus": "{machine} のワークスペースに移れませんでした",
   "err.workspace.create": "{machine} にワークスペースを作れませんでした",
-  "workspace.fallbackName": "ワークスペース",
   "err.workspace.close": "{name} を閉じられませんでした",
   "err.file.open": "ファイルを開けませんでした",
   "err.diff.show": "差分を出せませんでした",
@@ -169,6 +169,8 @@ export const ja: Record<Key, string> = {
     "ワークスペースがありません。タブはワークスペースの下に開きます。",
   "err.page.open": "ページを開けませんでした",
   "cannot.workspace.title": "ワークスペースを作れません",
+  "cannot.tab.disconnected":
+    "{machine} につながっていません。マシンのダイアログ（リーダーの m）で、つなぎ直してください。",
   "cannot.workspace.text":
     "つながっているマシンがありません。マシンのダイアログ（リーダーの m）で、つなぎ直してください。",
   "cannot.update.title": "新しい版はありません",

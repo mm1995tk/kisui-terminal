@@ -2,6 +2,7 @@
 // 画面の仕組み（Solid）には依存しない。描くのは Sidebar.tsx。
 //
 // 見た目は親 #271 のモックを元に、マシンの見出しをやめてワークスペースの帯だけを 1 列に並べる（#201）。
+// 帯は GUI のワークスペース（gws/model.ts。#231）1 つが 1 つ。中のターミナルのタブがマシンの kisui serve のワークスペース（Workspace）1 つに当たる。
 // 各帯の隅にマシンの名前と状態を出す。ツリー（D2）は tree/、上下の固定（D3）は splitAtFocus と Sidebar.tsx、
 // マシンごとの色（D4）の決め方と保存は colors.ts。
 
@@ -11,7 +12,17 @@ import { LOCAL } from "../ssh/api.ts";
 import { localLabel } from "../ssh/machines.ts";
 import type { SessionState } from "../ssh/session.ts";
 import { MACHINE_COLORS } from "./colors.ts";
-import { sortByOrder, type WsRef } from "./order.ts";
+import type { BrowserTab } from "../browser/tabs.ts";
+import { hostOf, tabTitle } from "../browser/tabs.ts";
+import {
+  autoName,
+  browserKey,
+  displayName,
+  refKey,
+  repTerm,
+  termKey,
+  type GwsState,
+} from "../gws/model.ts";
 
 /** GUI がフォーカスしているワークスペース（どのマシンの、どれか）。 */
 export interface WorkspaceFocus {
@@ -281,8 +292,11 @@ export function shouldSendMoveTo(
   );
 }
 
-/** サイドバーの 1 行（ワークスペース 1 つ）。帯に、そのワークスペースのマシンの名前・色・つながりの状態を添える。 */
+/** サイドバーの 1 行（GUI のワークスペース 1 つ）。帯に、今出しているターミナルのタブのマシンの名前・色・つながりの状態を添える。 */
 export interface Row {
+  /** GUI のワークスペースの id（gws/model.ts） */
+  gws: string;
+  /** 今出しているターミナルのタブのマシン（band.id がそのワークスペース。ツリー・CHANGES・shj はそのタブのもの） */
   target: string;
   /** マシンの名前（行の隅に小さく出す） */
   machine: string;
@@ -290,27 +304,152 @@ export interface Row {
   color: string;
   health: Health;
   band: Band;
+  /** 帯の下のタブの並び。タブが 1 つだけなら出さない（undefined） */
+  tabs?: BandTabs;
+}
+
+/** 帯の下に並べるタブの行（ターミナルのタブもブラウザのタブも）。 */
+export interface TabItem {
+  /** タブを指すキー（gws/model.ts の refKey） */
+  key: string;
+  kind: "term" | "browser";
+  /** タブの名前 */
+  title: string;
+  /** 名前の横に小さく出すもの（ターミナルのタブはマシンの名前、ブラウザのタブはページの host。題を出しているときだけ） */
+  sub: string;
+  /** ツールチップ（ブラウザのタブは URL、ターミナルのタブはフォルダ） */
+  tip: string;
+  /** シークレットのタブか */
+  incognito: boolean;
+  /** ターミナルのタブのマシンとのつながり（ブラウザのタブは undefined）。"down" の行は薄く出す */
+  health?: Health;
+  /** ブラウザのタブの id（ターミナルのタブは undefined） */
+  tab?: string;
+  /** 行の × で閉じられるか（ブラウザのタブだけ。ターミナルのタブを閉じるのは帯の ×） */
+  closable: boolean;
+}
+
+/** 帯の下に並べるタブ。 */
+export interface BandTabs {
+  items: TabItem[];
+  /** 出しているタブのキー */
+  shown: string;
+  /** 並びを畳んでいるか */
+  folded: boolean;
+  /** そのワークスペースにフォーカスしているか（出しているタブを強く光らせる） */
+  focused: boolean;
+}
+
+/** gwsRows の材料。 */
+export interface RowContext {
+  /** マシンごとの組（buildSidebar の結果） */
+  groups: readonly MachineGroup[];
+  /** マシンごとのワークスペース（ターミナルのタブ）の一覧 */
+  workspaces: Record<string, Workspace[] | undefined>;
+  focus: WorkspaceFocus | null;
+  /** ブラウザのタブ（id → タブ）。内蔵ブラウザを使わなければ空 */
+  browser: ReadonlyMap<string, BrowserTab>;
+  /** ワークスペースの id → 出しているブラウザのタブの id */
+  views: Readonly<Record<string, string>>;
+  labelOf: (target: string) => string;
+  colorOf: (target: string) => string;
+  healthOf: (target: string) => Health;
 }
 
 /**
- * マシンごとの組（groups）を、サイドバーの 1 列にする。
- * order（ユーザーが並べた順。order.ts）にあるものはその順に、無いもの（新しいワークスペース）は
- * 元の順（マシンの順、その中では作った順）のまま、order にあるものの後ろに付ける。
+ * GUI のワークスペースを、サイドバーの行にする（並びは state.list の順）。
+ * 行の帯は、そのワークスペースが今出しているターミナルのタブ（repTerm）で作る：マシンの名前・色・つながり、フォルダ・ブランチ。
+ * 帯の名前は、ワークスペースの名前（付けていなければ「ws1」）。
+ * マシンにつながっていなくて一覧が分からないタブは、最後に分かった名前で薄く出す（health は "down"）。
  */
-export function flatRows(
-  groups: readonly MachineGroup[],
-  order: readonly WsRef[] = [],
-): Row[] {
-  const rows = groups.flatMap((g) =>
-    g.bands.map((band): Row => ({
-      target: g.target,
-      machine: g.label,
-      color: g.color,
-      health: g.health,
-      band,
-    })),
-  );
-  return sortByOrder(rows, (r) => ({ target: r.target, id: r.band.id }), order);
+export function gwsRows(state: GwsState, ctx: RowContext): Row[] {
+  return state.list.map((g): Row => {
+    const rep = repTerm(g, ctx.focus);
+    const focused = g.tabs.some(
+      (r) =>
+        r.kind === "term" &&
+        r.target === ctx.focus?.target &&
+        r.ws === ctx.focus.id,
+    );
+    const name = displayName(g);
+    const w = ctx.workspaces[rep.target]?.find((x) => x.id === rep.ws);
+    let b: Band;
+    if (w) {
+      b = {
+        ...band({ ...w, label: name }, focused),
+        label: g.name,
+        autoTitle: autoName(g.num),
+      };
+    } else {
+      b = {
+        id: rep.ws,
+        title: name,
+        label: g.name,
+        autoTitle: autoName(g.num),
+        path: false,
+        unset: false,
+        detail: rep.title,
+        dir: rep.title,
+        branch: "",
+        sha: "",
+        note: "",
+        num: "",
+        root: "",
+        focused,
+        showTree: false,
+      };
+    }
+    const health = ctx.healthOf(rep.target);
+    const shownBrowser = ctx.views[g.id];
+    const items: TabItem[] = [];
+    for (const r of g.tabs) {
+      if (r.kind === "term") {
+        const tw = ctx.workspaces[r.target]?.find((x) => x.id === r.ws);
+        items.push({
+          key: refKey(r),
+          kind: "term",
+          title: tw ? band(tw, false).title : r.title || unsetTitle(),
+          sub: ctx.labelOf(r.target),
+          tip: tw?.folder ?? "",
+          incognito: false,
+          health: ctx.healthOf(r.target),
+          closable: false,
+        });
+      } else {
+        const t = ctx.browser.get(r.id);
+        if (!t) continue;
+        const title = tabTitle(t, r.name);
+        items.push({
+          key: refKey(r),
+          kind: "browser",
+          tab: r.id,
+          title,
+          sub: title !== hostOf(t.url) ? hostOf(t.url) : "",
+          tip: t.url,
+          incognito: !!t.incognito,
+          closable: true,
+        });
+      }
+    }
+    const repKey = termKey(rep.target, rep.ws);
+    const shown =
+      shownBrowser !== undefined &&
+      items.some((i) => i.key === browserKey(shownBrowser))
+        ? browserKey(shownBrowser)
+        : repKey;
+    return {
+      gws: g.id,
+      target: rep.target,
+      machine: ctx.labelOf(rep.target),
+      color: ctx.colorOf(rep.target),
+      health,
+      band: b,
+      tabs:
+        items.length > 1
+          ? { items, shown, folded: !!g.folded, focused }
+          : undefined,
+    };
+  });
 }
 
 /**

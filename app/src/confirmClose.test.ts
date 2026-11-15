@@ -5,15 +5,15 @@ import { forceCloseWorkspace, type ConfirmClose } from "./confirmClose.ts";
 
 describe("forceCloseWorkspace", () => {
   it("窓を閉じたあとには読めなくなる状態でも、先に読んで force を付けて閉じる", () => {
-    let state: ConfirmClose | null = { target: "local", id: "w1", name: "a" };
+    let state: ConfirmClose | null = { gws: "g1", name: "a" };
     const calls: string[] = [];
     forceCloseWorkspace(
       () => state,
       () => (state = null),
-      (target, id, force) => calls.push(`${target}/${id}/${force}`),
+      (gws, force) => calls.push(`${gws}/${force}`),
     );
     assert.equal(state, null);
-    assert.deepEqual(calls, ["local/w1/true"]);
+    assert.deepEqual(calls, ["g1/true"]);
   });
 
   it("窓が開いていなければ、何も閉じない", () => {
@@ -21,7 +21,7 @@ describe("forceCloseWorkspace", () => {
     forceCloseWorkspace(
       () => null,
       () => {},
-      (target, id) => calls.push(`${target}/${id}`),
+      (gws) => calls.push(gws),
     );
     assert.deepEqual(calls, []);
   });

@@ -57,6 +57,7 @@ export type CommandId =
   | "browser.find"
   | "browser.copyUrl"
   | "browser.devtools"
+  | "browser.rename"
   | "help.keys";
 
 /** コマンドと、その引数（向き・番号など）。 */
@@ -411,6 +412,7 @@ export const LEADER: Node[] = [
       ),
       leaf("y", T("leader.browser.copyUrl"), { id: "browser.copyUrl" }),
       leaf("i", T("leader.browser.devtools"), { id: "browser.devtools" }),
+      leaf("R", T("leader.browser.rename"), { id: "browser.rename" }),
     ],
     undefined,
     undefined,

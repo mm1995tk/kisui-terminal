@@ -2,8 +2,8 @@
 // 依存は引数で受けるので、node --test で確かめられる。
 
 export interface ConfirmClose {
-  target: string;
-  id: string;
+  /** 閉じる GUI のワークスペースの id */
+  gws: string;
   name: string;
 }
 
@@ -16,9 +16,9 @@ export interface ConfirmClose {
 export function forceCloseWorkspace(
   current: () => ConfirmClose | null,
   dismiss: (v: null) => void,
-  close: (target: string, id: string, force: boolean) => void,
+  close: (gws: string, force: boolean) => void,
 ): void {
   const c = current();
   dismiss(null);
-  if (c) close(c.target, c.id, true);
+  if (c) close(c.gws, true);
 }

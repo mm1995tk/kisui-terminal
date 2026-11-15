@@ -1,15 +1,15 @@
-// 左の一覧（D1）：ワークスペースの帯を 1 列に並べる（#201）。マシンの見出しは無い。帯を押すとフォーカスを移す。
-// 並び順はユーザーが並べた順（order.ts。リーダーの w J / w K で動かす）。マシンをまたいで 1 列になる。
-// 各帯には、そのワークスペースのマシンの名前と接続の状態（丸）を小さく出す。つながっていないマシンのワークスペースは、最後に知っていた一覧を薄く出す。
+// 左の一覧（D1）：GUI のワークスペース（gws/model.ts。#231）の帯を 1 列に並べる（#201）。マシンの見出しは無い。帯を押すとフォーカスを移す。
+// 並び順はユーザーが並べた順（リーダーの w J / w K で動かす）。マシンをまたいで 1 列になる。
+// 各帯には、そのワークスペースが今出しているターミナルのタブのマシンの名前と接続の状態（丸）を小さく出す。つながっていないマシンのタブは、最後に分かった名前で薄く出す。
 // フォーカスしているワークスペースの帯の下にはツリーを出す（プライマリで shj が動いているときだけ。動いていなければ帯だけ）（D2、描くのは tree/TreeView.tsx）。
 // スクロールしても、上にフォーカスしている帯と親フォルダを、下にそれより後ろの帯を固定する（D3）。
 // マシンごとの色（D4）は帯の --machine-color に入れ、左端の線とアイコンに使う。
-// 帯の右の [×] は、押すと onClose を呼ぶ（ワークスペースを閉じる。確認は App が窓で出す）。
+// 帯の右の [×] は、押すと onClose を呼ぶ（ワークスペースを閉じる。中のターミナルのタブも閉じる。確認は App が窓で出す）。
 // 一覧の一番下の「+ ワークスペースを作る」は、押すと onNew を呼ぶ（どのマシンに作るかは App が窓で選ばせる）。
 // マシンの操作（足す・名前を変える・外す・切る・つなぎ直す）は、サイドバーではなくマシンのダイアログ（リーダーの m）にある。
 // ワークスペースの帯の右クリックのメニューの「名前を変える」と、帯の鉛筆のボタンは、onRenameWorkspace を呼ぶ。
 // App が renaming を渡すと、その帯の 1 行目の名前がその場で入力欄になる（Enter で onRenameSubmit、Esc・フォーカスが外れたら onRenameCancel）。
-// 内蔵ブラウザ（#202）を有効にしていれば、帯の下にそのワークスペースのタブを並べる（browserOf）。タブの行を押すと onTab、× で onTabClose、
+// 帯の下には、ワークスペースのタブ（ターミナルのタブも内蔵ブラウザ（#202）のタブも、開いた順に 1 つの並びで）を並べる（row.tabs。タブが 1 つだけなら出さない）。タブの行を押すと onTab、ブラウザのタブの × で onTabClose、
 // 「タブ」の見出しで onTabsFold（並びを畳む・開く）。タブを出していれば、その行を光らせる。
 // 組み立ては model.ts、並び順は order.ts、色の決め方は colors.ts、見た目は sidebar.css。
 import { T } from "../i18n/index.ts";
@@ -23,7 +23,6 @@ import {
   type JSX,
 } from "solid-js";
 
-import type { BrowserTab } from "../browser/tabs.ts";
 import type { ChangesShjKey, WorkspaceId } from "../rpc/protocol.ts";
 import type { TreeRow } from "../tree/model.ts";
 import { menuItems, type TreeMenuAction } from "../tree/menu.ts";
@@ -35,6 +34,7 @@ import { TreeView } from "../tree/TreeView.tsx";
 import {
   splitAtFocus,
   type Band,
+  type BandTabs,
   type Health,
   type Row,
   DIR_SEP,
@@ -44,38 +44,25 @@ import "./sidebar.css";
 
 const healthLabel = (h: Health): string => T(`health.${h}`);
 
-/** 帯の下に並べる、内蔵ブラウザのタブ。 */
-export interface BandTabs {
-  tabs: BrowserTab[];
-  /** そのワークスペースで出しているタブ（グリッドなら undefined） */
-  shown: string | undefined;
-  /** 並びを畳んでいるか */
-  folded: boolean;
-  /** そのワークスペースにフォーカスしているか（出しているタブを強く光らせる） */
-  focused: boolean;
-}
-
 interface Handlers {
   onFocus: (target: string, id: WorkspaceId) => void;
-  /** 内蔵ブラウザのタブ（有効にしていなければ省く） */
-  browserOf?: (target: string, id: WorkspaceId) => BandTabs;
-  /** タブの行を押した */
-  onTab?: (target: string, id: WorkspaceId, tab: string) => void;
-  /** タブの行の × */
+  /** タブの行を押した（gws は GUI のワークスペースの id、key は TabItem.key） */
+  onTab?: (gws: string, key: string) => void;
+  /** ブラウザのタブの行の × */
   onTabClose?: (tab: string) => void;
   /** 「タブ」の見出し（並びを畳む・開く） */
-  onTabsFold?: (target: string, id: WorkspaceId) => void;
+  onTabsFold?: (gws: string) => void;
   /** ツリーの行。まだ取っていなければ undefined */
   treeOf?: (target: string, id: WorkspaceId) => TreeRow[] | undefined;
   onToggle?: (target: string, id: WorkspaceId, path: string) => void;
-  /** 帯の [×]（ワークスペースを閉じる）。省くと出さない */
-  onClose?: (target: string, id: WorkspaceId) => void;
+  /** 帯の [×]（GUI のワークスペースを閉じる）。省くと出さない */
+  onClose?: (gws: string) => void;
   /** 帯のメニューの「名前を変える」・帯の鉛筆のボタン（App が renaming を渡す） */
   onRenameWorkspace?: (target: string, id: WorkspaceId) => void;
   /** 名前をその場で変えている帯（current は入力欄の初めの値、auto は空にしたときの名前、error は断られた理由）。無ければ undefined */
   renaming?: {
-    target: string;
-    id: WorkspaceId;
+    /** GUI のワークスペースの id */
+    gws: string;
     current: string;
     auto: string;
     error?: string;
@@ -339,9 +326,6 @@ function handlers(
     get onFocus() {
       return props.onFocus;
     },
-    get browserOf() {
-      return props.browserOf;
-    },
     get onTab() {
       return props.onTab;
     },
@@ -459,9 +443,7 @@ function BandItem(props: Handlers & { row: Row }): JSX.Element {
   // この帯の名前をその場で変えているときだけ、その内容
   const editing = () => {
     const r = props.renaming;
-    return r && r.target === props.row.target && r.id === b().id
-      ? r
-      : undefined;
+    return r && r.gws === props.row.gws ? r : undefined;
   };
   return (
     <li
@@ -577,7 +559,7 @@ function BandItem(props: Handlers & { row: Row }): JSX.Element {
               class="band-close"
               aria-label={T("sidebar.closeBand", { title: b().title })}
               title={T("sidebar.closeWorkspace")}
-              onClick={() => props.onClose?.(props.row.target, b().id)}
+              onClick={() => props.onClose?.(props.row.gws)}
             >
               <svg
                 width="12"
@@ -599,14 +581,14 @@ function BandItem(props: Handlers & { row: Row }): JSX.Element {
           </div>
         )}
       </Show>
-      <Show when={props.browserOf?.(props.row.target, b().id)}>
+      <Show when={props.row.tabs}>
         {(br) => (
           <BandTabRows
             title={b().title}
             tabs={br()}
-            onTab={(t) => props.onTab?.(props.row.target, b().id, t)}
+            onTab={(k) => props.onTab?.(props.row.gws, k)}
             onClose={(t) => props.onTabClose?.(t)}
-            onFold={() => props.onTabsFold?.(props.row.target, b().id)}
+            onFold={() => props.onTabsFold?.(props.row.gws)}
           />
         )}
       </Show>
@@ -666,76 +648,75 @@ function BandItem(props: Handlers & { row: Row }): JSX.Element {
   );
 }
 
-/** URL の host（題がまだ分からないタブの名前と、題の横に小さく出す）。読めなければ URL のまま。 */
-function hostOf(url: string): string {
-  try {
-    return new URL(url).host || url;
-  } catch {
-    return url;
-  }
-}
-
-/** 帯の下の、内蔵ブラウザのタブの並び（#202）。タブが無ければ何も出さない。 */
+/** 帯の下の、タブの並び（ターミナルのタブもブラウザのタブも。#231）。 */
 function BandTabRows(props: {
   /** ワークスペースの名前（読み上げ用） */
   title: string;
   tabs: BandTabs;
-  onTab: (tab: string) => void;
+  onTab: (key: string) => void;
   onClose: (tab: string) => void;
   onFold: () => void;
 }): JSX.Element {
   return (
-    <Show when={props.tabs.tabs.length > 0}>
-      <div class="band-tabs">
-        <button
-          type="button"
-          class="band-tabs-fold"
-          aria-expanded={!props.tabs.folded}
-          title={T("sidebar.foldTabs")}
-          onClick={() => props.onFold()}
+    <div class="band-tabs">
+      <button
+        type="button"
+        class="band-tabs-fold"
+        aria-expanded={!props.tabs.folded}
+        title={T("sidebar.foldTabs")}
+        onClick={() => props.onFold()}
+      >
+        <span class="band-tabs-chevron" aria-hidden="true">
+          {props.tabs.folded ? "▸" : "▾"}
+        </span>
+        {T("sidebar.tabsCount", { n: props.tabs.items.length })}
+      </button>
+      <Show when={!props.tabs.folded}>
+        <ul
+          class="tab-rows"
+          aria-label={T("sidebar.tabsOf", { title: props.title })}
         >
-          <span class="band-tabs-chevron" aria-hidden="true">
-            {props.tabs.folded ? "▸" : "▾"}
-          </span>
-          {T("sidebar.tabsCount", { n: props.tabs.tabs.length })}
-        </button>
-        <Show when={!props.tabs.folded}>
-          <ul
-            class="tab-rows"
-            aria-label={T("sidebar.tabsOf", { title: props.title })}
-          >
-            <For each={props.tabs.tabs}>
-              {(t) => (
-                <li
-                  class="tab-row"
-                  data-shown={props.tabs.shown === t.id ? "" : undefined}
-                  data-current={
-                    props.tabs.shown === t.id && props.tabs.focused
-                      ? ""
+          <For each={props.tabs.items}>
+            {(t) => (
+              <li
+                class="tab-row"
+                data-kind={t.kind}
+                data-health={t.health}
+                data-shown={props.tabs.shown === t.key ? "" : undefined}
+                data-current={
+                  props.tabs.shown === t.key && props.tabs.focused
+                    ? ""
+                    : undefined
+                }
+              >
+                <button
+                  type="button"
+                  class="tab-main"
+                  title={t.tip || undefined}
+                  aria-current={
+                    props.tabs.shown === t.key && props.tabs.focused
+                      ? "page"
                       : undefined
                   }
+                  onClick={() => props.onTab(t.key)}
                 >
-                  <button
-                    type="button"
-                    class="tab-main"
-                    title={t.url}
-                    aria-current={
-                      props.tabs.shown === t.id && props.tabs.focused
-                        ? "page"
-                        : undefined
-                    }
-                    onClick={() => props.onTab(t.id)}
-                  >
-                    <Show when={t.incognito}>
-                      <span class="tab-incognito">
-                        {T("sidebar.incognito")}
-                      </span>
-                    </Show>
-                    <span class="tab-title">{t.title || hostOf(t.url)}</span>
-                    <Show when={t.title}>
-                      <span class="tab-host">{hostOf(t.url)}</span>
-                    </Show>
-                  </button>
+                  <Show when={t.kind === "term"}>
+                    <span
+                      class="health tab-health"
+                      data-health={t.health}
+                      role="img"
+                      aria-label={healthLabel(t.health ?? "down")}
+                    />
+                  </Show>
+                  <Show when={t.incognito}>
+                    <span class="tab-incognito">{T("sidebar.incognito")}</span>
+                  </Show>
+                  <span class="tab-title">{t.title}</span>
+                  <Show when={t.sub}>
+                    <span class="tab-host">{t.sub}</span>
+                  </Show>
+                </button>
+                <Show when={t.closable}>
                   <button
                     type="button"
                     class="band-close tab-close"
@@ -743,10 +724,10 @@ function BandTabRows(props: {
                       t.incognito
                         ? "sidebar.closeTabLabelIncognito"
                         : "sidebar.closeTabLabel",
-                      { title: t.title || hostOf(t.url) },
+                      { title: t.title },
                     )}
                     title={T("sidebar.closeTab")}
-                    onClick={() => props.onClose(t.id)}
+                    onClick={() => t.tab !== undefined && props.onClose(t.tab)}
                   >
                     <svg
                       width="12"
@@ -757,13 +738,13 @@ function BandTabRows(props: {
                       <path d="M6 6l12 12M18 6L6 18" />
                     </svg>
                   </button>
-                </li>
-              )}
-            </For>
-          </ul>
-        </Show>
-      </div>
-    </Show>
+                </Show>
+              </li>
+            )}
+          </For>
+        </ul>
+      </Show>
+    </div>
   );
 }
 
