@@ -484,7 +484,7 @@ function Nf(props: { c: string; class?: string }): JSX.Element {
 /**
  * ヘッダーとタブの行の左端の、つかむ所（縦の点 3 つ）。ドラッグ（drag.ts）はここからだけ始める。
  * 行のボタンはここに無いので、行の押下とは取り合わない。スクロールも、ここを押したときは始めさせない（CSS の touch-action）。
- * onGrab を渡さなければ、場所と見た目だけ（動かせない）。キーでの並べ替えは別にある（リーダーの w J / w K）ので、読み上げには出さない。
+ * onGrab を渡さなければ、場所と見た目だけ（動かせない）。ドラッグは場所を指す操作なので、読み上げには出さない（帯にはキー、リーダーの w J / w K がある。タブの行にはキーが無い）。
  */
 function Grip(props: { onGrab?: (e: PointerEvent) => void }): JSX.Element {
   return (
@@ -503,23 +503,19 @@ function grabBand(
   row: Row,
   onMove: NonNullable<Handlers["onWorkspaceMove"]>,
 ) {
-  const source = (e.currentTarget as HTMLElement).closest<HTMLElement>(
-    "li.band-item",
+  const scroller = (e.currentTarget as HTMLElement).closest<HTMLElement>(
+    "nav.sidebar",
   );
-  const scroller = source?.closest<HTMLElement>("nav.sidebar");
-  if (!source || !scroller) return;
+  if (!scroller) return;
   startDrag(e, {
     scroller,
     self: row.gws,
-    source,
-    items: () =>
-      [...scroller.querySelectorAll<HTMLElement>("li.band-item[data-gws]")].map(
-        (el) => ({
-          key: el.dataset.gws!,
-          el,
-          ref: el.querySelector<HTMLElement>(".band-slot") ?? el,
-        }),
-      ),
+    rows: () =>
+      bandElements(scroller).map((el) => ({
+        key: el.dataset.gws!,
+        el,
+        ref: el.querySelector<HTMLElement>(".band-slot") ?? el,
+      })),
     onDrop: (before) => onMove(row.gws, before),
   });
 }
@@ -531,27 +527,34 @@ function grabTab(
   key: string,
   onMove: NonNullable<Handlers["onTabMove"]>,
 ) {
-  const source = (e.currentTarget as HTMLElement).closest<HTMLElement>(
-    "li.tab-row",
+  const scroller = (e.currentTarget as HTMLElement).closest<HTMLElement>(
+    "nav.sidebar",
   );
-  const list = source?.parentElement;
-  const scroller = source?.closest<HTMLElement>("nav.sidebar");
-  if (!source || !list || !scroller) return;
+  if (!scroller) return;
   startDrag(e, {
     scroller,
     self: key,
-    source,
-    items: () =>
-      [
-        ...list.querySelectorAll<HTMLElement>(":scope > li.tab-row[data-key]"),
+    // 帯もタブの行も、描き直されて作り直されることがあるので、そのたびに一覧から引き直す
+    rows: () => {
+      const band = bandElements(scroller).find((el) => el.dataset.gws === gws);
+      return [
+        ...(band?.querySelectorAll<HTMLElement>(
+          ":scope > ul.tab-rows > li.tab-row[data-key]",
+        ) ?? []),
       ].map((el) => ({
         key: el.dataset.key!,
         el,
         ref: el.querySelector<HTMLElement>(".tab-line") ?? el,
-      })),
+      }));
+    },
     onDrop: (before) => onMove(gws, key, before),
   });
 }
+
+/** 一覧にいまある帯（li.band-item）。上から順。 */
+const bandElements = (scroller: HTMLElement): HTMLElement[] => [
+  ...scroller.querySelectorAll<HTMLElement>("li.band-item[data-gws]"),
+];
 
 /**
  * 名前をその場で変える入力欄（Enter で onRenameSubmit、Esc・フォーカスが外れたら onRenameCancel）。

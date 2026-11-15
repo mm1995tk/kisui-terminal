@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { dropBefore } from "./drag.ts";
+import { dropBefore, edgeScroll } from "./drag.ts";
 
 const items = [
   { key: "a", mid: 10 },
@@ -21,5 +21,17 @@ describe("dropBefore", () => {
   it("動かしている行は数えない", () => {
     assert.equal(dropBefore(items, "b", 20), "c");
     assert.equal(dropBefore(items, "c", 80), null);
+  });
+});
+
+describe("edgeScroll", () => {
+  it("端から離れていれば 0", () => {
+    assert.equal(edgeScroll(200, 0, 400), 0);
+  });
+  it("上の端に寄ると負、下の端に寄ると正で、端に近いほど速い", () => {
+    assert.ok(edgeScroll(20, 0, 400) < 0);
+    assert.ok(edgeScroll(380, 0, 400) > 0);
+    assert.ok(edgeScroll(0, 0, 400) < edgeScroll(20, 0, 400));
+    assert.ok(edgeScroll(400, 0, 400) > edgeScroll(380, 0, 400));
   });
 });
