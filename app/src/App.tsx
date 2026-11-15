@@ -242,6 +242,7 @@ import {
   revealDownload,
   saveBookmarks,
   saveTabs,
+  startPasskeyLogin,
   zoomTab,
   type DownloadDone,
   type TabPopup,
@@ -2335,6 +2336,44 @@ function Workbench(props: {
     return t;
   }
 
+  /**
+   * パスキーを待たずに、タブのサイトを外のブラウザで開き、そのサイトのログインを待つ（#276。リーダーの `o s`）。
+   * 許可サイト（passkey_sites）か・シークレットのタブかは殻が決め、使えなければ理由をお知らせに出す。
+   */
+  function loginExternally(tab: string, url: string) {
+    let host = url;
+    try {
+      host = new URL(url).hostname;
+    } catch {
+      // URL の形でなければそのまま出す
+    }
+    startPasskeyLogin(tab).then(
+      (r) => {
+        if (r === "opened") showToast(T("toast.browser.login"));
+        else if (r === "incognito")
+          cannot(
+            T("cannot.browser.login.title"),
+            T("cannot.browser.login.incognito"),
+          );
+        else if (r === "no-sites")
+          cannot(
+            T("cannot.browser.login.title"),
+            T("cannot.browser.login.noSites"),
+          );
+        else
+          cannot(
+            T("cannot.browser.login.title"),
+            T("cannot.browser.login.notAllowed", { host }),
+          );
+      },
+      (e: unknown) =>
+        setFocusError({
+          title: T("cannot.browser.login.title"),
+          error: e instanceof Error ? e.message : String(e),
+        }),
+    );
+  }
+
   /** 内蔵ブラウザのコマンド（リーダーの o）。 */
   function runBrowser(c: Command) {
     const f = focus();
@@ -2422,6 +2461,11 @@ function Workbench(props: {
               error: e instanceof Error ? e.message : String(e),
             }),
           );
+        break;
+      }
+      case "browser.login": {
+        const t = currentPage();
+        if (t) loginExternally(t.id, t.url);
         break;
       }
     }

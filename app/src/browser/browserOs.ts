@@ -82,6 +82,16 @@ export function openTabDevtools(tab: string): Promise<void> {
   return invoke("browser_devtools", { tab });
 }
 
+/**
+ * パスキーを待たずに、今のタブのサイトを外のブラウザで開き、そのサイトのログインを待つ（#276）。
+ * `opened` 開いた・`no-sites` passkey_sites が無い・`incognito` シークレットのタブ・`not-allowed` 許可サイトでない。
+ */
+export type PasskeyLogin = "opened" | "no-sites" | "incognito" | "not-allowed";
+
+export function startPasskeyLogin(tab: string): Promise<PasskeyLogin> {
+  return invoke("browser_passkey_login", { tab });
+}
+
 /** 覚えたブックマーク（#205。すべてのワークスペースで共有）。 */
 export function loadBookmarks(): Promise<Bookmark[]> {
   return invoke("browser_bookmarks_load");

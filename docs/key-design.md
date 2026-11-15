@@ -128,6 +128,7 @@ kisui-terminal のキー操作の表。今のキーとマウスの操作の一�
 | 2   | `/`             | ページ内を検索する（vim・less の検索の `/`）。ページの下の端に検索の欄が出る。字を打つたびに探し、`Enter` で次、`Shift+Enter` で前（端では折り返す）。`Esc` で閉じてページにキーを戻す | | Cmd+F / Ctrl+F（ブラウザを出している間だけ。4.2） |
 | 2   | `y`             | 今のページの URL をクリップボードにコピーする（yank の `y`。リモートのマシンの `localhost` 系は、中継前の元の URL） | | #205 |
 | 2   | `i`             | 今のページの DevTools（Web Inspector）を開く（inspect の `i`） | | #205 |
+| 2   | `s`             | 今のタブのサイトに、外のブラウザでログインする（sign in の `s`）。パスキーを待たずに、今のページの URL を外のブラウザ（`passkey_browser`）で開き、そのサイトのログインを 10 分待つ。外のブラウザでログインし、拡張機能のボタンを押すと、Cookie が戻り、このタブがログインした状態で開き直す（`docs/passkey-extension.md` の「手で始める」）。URL の host が `[gui.browser] passkey_sites` に当たるときだけ使え、当たらなければ（シークレットのタブでも）理由を右下のお知らせに出す | | #276 |
 | 2   | `R`             | 今のブラウザのタブに名前を付ける（Shift+r。rename の `R`。小文字の `r` は読み込み直し）。名前の入力欄が出る。付けた名前をサイドバーの 1 行目に出し、ページの題は出さない。空にして決めるとページの題に戻る | | #231 |
 | 1   | `b`             | サイドバーを開け閉めする（葉。bar の `b`。閉じるのはこのキーを押したときだけ。閉じている間にファイルツリーか CHANGES へフォーカスが移ると開く（shj を起動した直後の自動のフォーカスでは開かない）。覚えておく） |        |                                                      |
 | 1   | `y`             | クリップボードの履歴のダイアログを開く（葉。yank の `y`）                                                                                                                  |        | Cmd+Shift+H / Ctrl+Shift+H                           |
@@ -206,7 +207,7 @@ kisui-terminal のキー操作の表。今のキーとマウスの操作の一�
 
 - **キーの書き方**は、この文書の表と同じ（`Cmd`・`Ctrl`・`Shift`・`Alt`（Option）を `+` でつなぎ、最後に 1 つのキー。1 文字（字・数字・記号）か、Enter・Tab・Escape・Backspace・Space・矢印（Left・Right・Up・Down）・F1〜F12。ほかの名前は間違い）。修飾キーとキーの名前の大文字小文字は問わず、`Command`・`Control`・`Option` も使える。このマシンの OS で押すキーをそのまま書く（Mac と Linux の書き分けは要らない。設定のフォルダはマシンごと）。
 - **修飾キー**：`Cmd`・`Ctrl`・`Alt` のどれかを含める。字だけ（Shift だけ）のキーは、ターミナルで打てなくなるので受けない。
-- **コマンドの名前**は `app/src/commands.ts` の動きの名前（正は `commands.ts` の表。名前を足したらここも直す）で、引数があるものは `名前:引数` と書く。リーダーの木の葉と同じ動きだけが使える。pane.focus:left|down|up|right（隣のペインへ）、pane.last、pane.split:left|down|up|right、pane.swap:left|down|up|right、pane.close、pane.zoom、pane.resize、workspace.step:next|prev、workspace.move:down|up、workspace.last、workspace.nth:0〜8（上から 1〜9 番目）、workspace.new、workspace.close、workspace.rename、tab.new・tab.newPick・tab.close・tab.step:next|prev・tab.move:down|up・tab.nth:0〜8（上から 1〜9 番目）・tab.rename、machine.dialog、sidebar.toggle、clipboard.history、scale:in|out|reset、notice.update、notice.dismiss、notice.focusNotified、notice.openDownload、notice.revealDownload、help.keys、browser.new・browser.incognito・browser.url・browser.back・browser.forward・browser.reload・browser.close・browser.external・browser.fold・browser.bookmark・browser.bookmarks・browser.find・browser.copyUrl・browser.devtools・browser.rename（内蔵ブラウザを使うときだけ）。
+- **コマンドの名前**は `app/src/commands.ts` の動きの名前（正は `commands.ts` の表。名前を足したらここも直す）で、引数があるものは `名前:引数` と書く。リーダーの木の葉と同じ動きだけが使える。pane.focus:left|down|up|right（隣のペインへ）、pane.last、pane.split:left|down|up|right、pane.swap:left|down|up|right、pane.close、pane.zoom、pane.resize、workspace.step:next|prev、workspace.move:down|up、workspace.last、workspace.nth:0〜8（上から 1〜9 番目）、workspace.new、workspace.close、workspace.rename、tab.new・tab.newPick・tab.close・tab.step:next|prev・tab.move:down|up・tab.nth:0〜8（上から 1〜9 番目）・tab.rename、machine.dialog、sidebar.toggle、clipboard.history、scale:in|out|reset、notice.update、notice.dismiss、notice.focusNotified、notice.openDownload、notice.revealDownload、help.keys、browser.new・browser.incognito・browser.url・browser.back・browser.forward・browser.reload・browser.close・browser.external・browser.fold・browser.bookmark・browser.bookmarks・browser.find・browser.copyUrl・browser.devtools・browser.login・browser.rename（内蔵ブラウザを使うときだけ）。
 - **既定の近道との重なり**：同じキーなら、設定が勝つ。その既定の近道は効かなくなり、`?` の一覧からも消える。コマンドの名前に `none` と書くと、そのキーの既定の近道を消すだけで、何も足さない。リーダーの木のキーは変えられない。
 - **2 つのファイル**：キーごとに重ね、同じキーは `config.local.toml` が勝つ。
 - **間違い**（読めないキー・知らないコマンド・リーダーのキーと同じ・同じキーを 2 回書いた・修飾キーが無い）は、起動を止めず、右下のお知らせに理由を出し、その近道だけ使わない。値が文字列でないなど TOML の型の間違いは、ほかの設定と同じく、場所と理由を出して起動しない。
@@ -308,6 +309,7 @@ kisui-terminal のキー操作の表。今のキーとマウスの操作の一�
 | #235  | ワークスペースの中のタブのキー | リーダーの `t` のグループ（3.2）。`t n` は今のターミナルのタブと同じマシン・同じフォルダに作る（`workspace.create` に、シェルを始めるフォルダ `dir` を足した。古い `kisui serve` は無視するので、フォルダは `start_dir` になる）。`o j` `o k` は外した（`t j` `t k` が代わる）。 |
 | #238  | 新しいタブのページ | リーダー `o n` `o N` は URL を聞かず、新しいタブのページ（検索窓とブックマーク）を開く。ページの中のキーは場所のキー（5 章）で、マウスでもブックマークを開ける。 |
 | #205  | ブックマーク・ページ内検索・表示の大きさ・URL のコピー・DevTools | リーダー `o b` `o B` `o /` `o y` `o i`（3.2）と、ブラウザを出している間の Cmd+F / Ctrl+F（4.2）。表示の大きさは新しいキーを足さず、ブラウザを出している間の `v` のグループ（と近道）をページに向ける。ブックマークの一覧とページ内検索の欄のキーは場所のキー（5 章）。 |
+| #276  | パスキーを使わないサイトで、外のブラウザでログインする | リーダー `o s`（3.2）。ログインの操作なので sign in の `s`。外のブラウザで開くだけの `o e` とは別の葉にする（`o e` は OS の既定のブラウザで開き、待ちを覚えない）。 |
 
 ## 8. shj・ターミナルの中のプログラムのキーを奪わないか
 
