@@ -111,10 +111,17 @@ pub struct ConfigShortcut {
 struct Parsed {
     machines: Option<Vec<ConfigMachine>>,
     browser: Option<bool>,
-    /// （使う項目, 公開サフィックスなので使わない項目）
-    passkey_sites: Option<(Vec<String>, Vec<String>)>,
+    passkey_sites: Option<PasskeySites>,
     passkey_browser: Option<PasskeyBrowser>,
     shortcuts: Option<BTreeMap<String, String>>,
+}
+
+/// 1 つのファイルの `[gui.browser] passkey_sites`（`check_sites` が分けたもの）。
+struct PasskeySites {
+    /// 使う項目
+    used: Vec<String>,
+    /// 公開サフィックスなので使わない項目
+    rejected: Vec<String>,
 }
 
 #[derive(Deserialize)]
@@ -194,9 +201,9 @@ pub fn load_gui(dir: &Path) -> Result<GuiConfig, String> {
                 if let Some(b) = p.browser {
                     out.browser = b;
                 }
-                if let Some((s, rejected)) = p.passkey_sites {
-                    out.passkey_sites = s;
-                    out.passkey_rejected = rejected;
+                if let Some(s) = p.passkey_sites {
+                    out.passkey_sites = s.used;
+                    out.passkey_rejected = s.rejected;
                 }
                 if let Some(b) = p.passkey_browser {
                     out.passkey_browser = b;
@@ -461,12 +468,12 @@ pub fn public_suffix_site(s: &str) -> bool {
     psl::suffix(name.as_bytes()).is_some_and(|x| x.as_bytes() == name.as_bytes())
 }
 
-/// `[gui.browser] passkey_sites` を確かめる（重なりは 1 つにまとめる）。（使う項目, 公開サフィックスなので使わない項目）を返す。
+/// `[gui.browser] passkey_sites` を確かめる（重なりは 1 つにまとめる）。使う項目と、公開サフィックスなので使わない項目に分ける。
 fn check_sites(
     text: &str,
     sites: &[Spanned<String>],
-) -> Result<(Vec<String>, Vec<String>), (Option<usize>, String)> {
-    let mut out: Vec<String> = Vec::new();
+) -> Result<PasskeySites, (Option<usize>, String)> {
+    let mut used: Vec<String> = Vec::new();
     let mut rejected: Vec<String> = Vec::new();
     for (i, s) in sites.iter().enumerate() {
         let v = s.get_ref();
@@ -481,13 +488,13 @@ fn check_sites(
         let to = if public_suffix_site(v) {
             &mut rejected
         } else {
-            &mut out
+            &mut used
         };
         if !to.contains(v) {
             to.push(v.clone());
         }
     }
-    Ok((out, rejected))
+    Ok(PasskeySites { used, rejected })
 }
 
 /// `[gui.browser] passkey_browser` を確かめる。
