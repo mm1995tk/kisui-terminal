@@ -15,28 +15,39 @@ import {
 
 import { leaderKeyName } from "../commands.ts";
 import { IS_MAC } from "../guiKeys.ts";
-import { bookmarkTitle, filterBookmarks, type Bookmark } from "./bookmarks.ts";
+import { bookmarkTitle, type Bookmark } from "./bookmarks.ts";
+import {
+  bookmarkRows,
+  toggleFolder,
+  type BookmarkRow,
+  type ChromeNode,
+} from "./bookmarkTree.ts";
 import { moveSelection, newTabKey, type NewTabKey } from "./newTab.ts";
 import { urlOrSearch } from "./tabs.ts";
 import "./browser.css";
 
 /** ブックマークが 1 つも出ないときの文（読めなかった・読み込み中・まだ無い・絞り込みに合わない）。 */
 function emptyMessage(
-  list: readonly Bookmark[] | undefined,
+  loading: boolean,
   failed: boolean,
+  filtering: boolean,
 ): string {
   if (failed) return T("bookmarks.empty.failed");
-  if (list === undefined) return T("bookmarks.empty.loading");
-  if (list.length === 0)
+  if (loading) return T("bookmarks.empty.loading");
+  if (!filtering)
     return T("newTab.empty.none", { leader: leaderKeyName(IS_MAC) });
   return T("bookmarks.empty.noMatch");
 }
 
-/** ブックマークのタイルの一覧。選んでいるもの（selected。-1 は無し）が見える所へ動かす。押すと onOpen。 */
+/**
+ * ブックマークのタイルの一覧（#275。フォルダは、幅いっぱいの見出しの行で、押すと開け閉めする）。
+ * 選んでいるもの（selected。-1 は無し）が見える所へ動かす。ブックマークを押すと onOpen。
+ */
 function BookmarkTiles(props: {
-  list: readonly Bookmark[];
+  rows: readonly BookmarkRow[];
   selected: number;
   onOpen: (url: string) => void;
+  onToggle: (key: string) => void;
 }): JSX.Element {
   let tiles: HTMLUListElement | undefined;
   createEffect(() => {
@@ -52,28 +63,48 @@ function BookmarkTiles(props: {
       aria-label={T("bookmarks.list")}
       ref={(el) => (tiles = el)}
     >
-      <For each={props.list}>
-        {(b, i) => (
-          <li>
-            <button
-              type="button"
-              class="newtab-tile"
-              aria-current={i() === props.selected}
-              title={bookmarkTitle(b)}
-              // 検索窓からキーを奪わない（押すと開くので、すぐ別のページに替わる）
-              onMouseDown={(ev) => ev.preventDefault()}
-              onClick={() => props.onOpen(b.url)}
-            >
-              <span class="newtab-tile-head">
-                <span class="newtab-tile-name">{b.title || b.url}</span>
-                <Show when={b.source === "chrome"}>
-                  <span class="bookmark-source">{T("bookmarks.chrome")}</span>
-                </Show>
-              </span>
-              <span class="newtab-tile-url">{b.url}</span>
-            </button>
-          </li>
-        )}
+      <For each={props.rows}>
+        {(r, i) =>
+          r.kind === "folder" ? (
+            <li class="newtab-folder-item">
+              <button
+                type="button"
+                class="newtab-folder"
+                aria-current={i() === props.selected}
+                aria-expanded={r.open}
+                style={{ "margin-left": `${r.depth * 16}px` }}
+                // 検索窓からキーを奪わない
+                onMouseDown={(ev) => ev.preventDefault()}
+                onClick={() => props.onToggle(r.key)}
+              >
+                {r.open ? "▾ " : "▸ "}
+                {r.name}
+              </button>
+            </li>
+          ) : (
+            <li>
+              <button
+                type="button"
+                class="newtab-tile"
+                aria-current={i() === props.selected}
+                title={bookmarkTitle(r.bookmark)}
+                // 検索窓からキーを奪わない（押すと開くので、すぐ別のページに替わる）
+                onMouseDown={(ev) => ev.preventDefault()}
+                onClick={() => props.onOpen(r.bookmark.url)}
+              >
+                <span class="newtab-tile-head">
+                  <span class="newtab-tile-name">
+                    {r.bookmark.title || r.bookmark.url}
+                  </span>
+                  <Show when={r.bookmark.source === "chrome"}>
+                    <span class="bookmark-source">{T("bookmarks.chrome")}</span>
+                  </Show>
+                </span>
+                <span class="newtab-tile-url">{r.bookmark.url}</span>
+              </button>
+            </li>
+          )
+        }
       </For>
     </ul>
   );
@@ -85,7 +116,10 @@ function BookmarkTiles(props: {
  */
 export function NewTabPage(props: {
   incognito: boolean;
-  list: readonly Bookmark[] | undefined;
+  /** kisui-terminal 自身のブックマーク（undefined は読み込み中） */
+  own: readonly Bookmark[] | undefined;
+  /** Chrome のブックマークの木（#275。undefined は読み込み中） */
+  chrome: readonly ChromeNode[] | undefined;
   failed: boolean;
   /** 開く URL を渡す（検索窓に打ったものを直した URL か、ブックマークの URL） */
   onOpen: (url: string) => void;
@@ -97,7 +131,12 @@ export function NewTabPage(props: {
   const [invalid, setInvalid] = createSignal(false);
   /** -1 は検索窓、0 以上は絞り込んだ一覧の番号 */
   const [sel, setSel] = createSignal(-1);
-  const shown = createMemo(() => filterBookmarks(props.list ?? [], query()));
+  /** 開け閉めを逆にしたフォルダ（根は最初から開き、その下は閉じている。bookmarkRows） */
+  const [flipped, setFlipped] = createSignal<ReadonlySet<string>>(new Set());
+  const shown = createMemo(() =>
+    bookmarkRows(props.own, props.chrome, flipped(), query()),
+  );
+  const toggle = (key: string) => setFlipped((s) => toggleFolder(s, key));
   const selected = () => Math.min(sel(), shown().length - 1);
 
   const focus = () => {
@@ -128,9 +167,13 @@ export function NewTabPage(props: {
   }
 
   function submit() {
-    const b = shown()[selected()];
-    if (b) {
-      props.onOpen(b.url);
+    const r = shown()[selected()];
+    if (r?.kind === "folder") {
+      toggle(r.key);
+      return;
+    }
+    if (r) {
+      props.onOpen(r.bookmark.url);
       return;
     }
     const u = urlOrSearch(query());
@@ -181,13 +224,20 @@ export function NewTabPage(props: {
         <Show
           when={shown().length > 0}
           fallback={
-            <p class="newtab-empty">{emptyMessage(props.list, props.failed)}</p>
+            <p class="newtab-empty">
+              {emptyMessage(
+                props.own === undefined && props.chrome === undefined,
+                props.failed,
+                query().trim() !== "",
+              )}
+            </p>
           }
         >
           <BookmarkTiles
-            list={shown()}
+            rows={shown()}
             selected={selected()}
             onOpen={props.onOpen}
+            onToggle={toggle}
           />
         </Show>
       </div>

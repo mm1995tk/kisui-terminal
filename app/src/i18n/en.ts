@@ -150,7 +150,8 @@ export const en = {
   "place.bookmarks.title": "Bookmarks",
   "place.bookmarks.lead":
     "Keys in the bookmark list (leader o B). Type to filter by title or URL.",
-  "place.bookmarks.open": "Open in a new tab of this workspace",
+  "place.bookmarks.open":
+    "Open the bookmark in a new tab of this workspace, or open / close the folder",
   "place.bookmarks.delete": "Delete the selected bookmark",
   "place.bookmarks.help": "Key list (when the filter is empty)",
   "status.disconnected": "Not connected",
@@ -437,7 +438,7 @@ export const en = {
     "Pages opened in this tab leave no login or data on disk.",
   "newTab.search": "Search or enter a URL",
   "newTab.hint":
-    "Enter opens (a URL, or a Google search) · ↓ ↑ (Ctrl+J/K) pick a bookmark · typing filters bookmarks",
+    "Enter opens (a URL, or a Google search), or opens / closes a folder · ↓ ↑ (Ctrl+J/K) pick a bookmark · typing filters bookmarks",
   "newTab.bookmarks": "Bookmarks",
   "newTab.empty.none":
     "No bookmarks yet. Add a page you are viewing with {leader} o b.",
@@ -525,7 +526,7 @@ export const en = {
   "bookmarks.filter": "Filter bookmarks",
   "bookmarks.filterPlaceholder": "Type to filter by title or URL",
   "bookmarks.hint":
-    "↑↓ (Ctrl+J/K) · Enter opens in a new tab · Ctrl+D deletes · ? keys",
+    "↑↓ (Ctrl+J/K) · Enter opens in a new tab, or opens / closes a folder · Ctrl+D deletes · ? keys",
   "bookmarks.list": "Bookmarks",
   "bookmarks.chrome": "Chrome",
   "bookmarks.empty.loading": "Loading…",

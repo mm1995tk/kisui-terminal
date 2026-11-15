@@ -207,13 +207,16 @@ import {
 } from "./commands.ts";
 import { BookmarkDialog } from "./browser/BookmarkDialog.tsx";
 import {
+  chromeTreeFromLoaded,
+  countChrome,
+  type ChromeNode,
+} from "./browser/bookmarkTree.ts";
+import {
   addBookmark,
-  chromeFromLoaded,
   chromeProblemFromLoaded,
   type ChromeProblem,
   chromeProblemKey,
   fromLoaded as bookmarksFromLoaded,
-  mergeBookmarks,
   removeBookmark,
   type Bookmark,
 } from "./browser/bookmarks.ts";
@@ -2026,14 +2029,12 @@ function Workbench(props: {
   /** ブックマーク（新しく足したものが先）。読み終えるまでは undefined */
   const [bookmarks, setBookmarks] = createSignal<Bookmark[] | undefined>();
   const [bookmarksFailed, setBookmarksFailed] = createSignal(false);
-  /** Chrome のブックマーク（#239。読むだけ。無い・読めないときは空） */
+  /** Chrome のブックマークの木（#239。#275 でフォルダの入れ子のまま持つ。読むだけ。無い・読めないときは空） */
   const [chromeBookmarks, setChromeBookmarks] = createSignal<
-    Bookmark[] | undefined
+    ChromeNode[] | undefined
   >();
-  /** 一覧とタブのページに出す、kisui-terminal 自身と Chrome を合わせたブックマーク */
-  const allBookmarks = createMemo(() =>
-    mergeBookmarks(bookmarks(), chromeBookmarks()),
-  );
+  /** Chrome のブックマークの数（自身のものが読めなかったときの案内に使う） */
+  const chromeCount = createMemo(() => countChrome(chromeBookmarks() ?? []));
   /** ブックマークの一覧のダイアログ（リーダーの o B）を出しているか */
   const [bookmarkDialog, setBookmarkDialog] = createSignal(false);
   /** 最後に知らせた、Chrome のブックマークを読めなかった理由（#265。同じ理由を開くたびに知らせない。読めたら忘れる） */
@@ -2063,10 +2064,10 @@ function Workbench(props: {
         const first = untrack(chromeBookmarks) === undefined;
         const problem = chromeProblemFromLoaded(v);
         notifyChromeProblem(problem);
-        const list = chromeFromLoaded(v);
+        const list = chromeTreeFromLoaded(v);
         if (!problem || first) setChromeBookmarks(list);
         // 自分のものの読み込みが先に失敗していたら、Chrome のものが届いたここで知らせる（読み終わる順に依らないように）
-        if (first && list.length > 0 && untrack(bookmarksFailed))
+        if (first && countChrome(list) > 0 && untrack(bookmarksFailed))
           showToast(T("err.bookmarks.read"));
       },
       (e: unknown) => {
@@ -2088,8 +2089,7 @@ function Workbench(props: {
         console.warn("bookmarks:", e);
         if (untrack(bookmarks) === undefined) setBookmarksFailed(true);
         // 一覧には Chrome のものが出るので、自分のものが読めなかったことは別に知らせる（#239）
-        if (untrack(chromeBookmarks)?.length)
-          showToast(T("err.bookmarks.read"));
+        if (untrack(chromeCount) > 0) showToast(T("err.bookmarks.read"));
         throw e;
       },
     );
@@ -3352,8 +3352,9 @@ function Workbench(props: {
               {(id) => (
                 <NewTabPage
                   incognito={!!shownBrowserTab()?.incognito}
-                  list={allBookmarks()}
-                  failed={bookmarksFailed() && !chromeBookmarks()?.length}
+                  own={bookmarks()}
+                  chrome={chromeBookmarks()}
+                  failed={bookmarksFailed() && chromeCount() === 0}
                   onOpen={(url) => submitUrlBar(id, url)}
                   focusRef={(f) => (focusUrlBar = f)}
                 />
@@ -3582,8 +3583,9 @@ function Workbench(props: {
       </Show>
       <Show when={bookmarkDialog()}>
         <BookmarkDialog
-          list={allBookmarks()}
-          failed={bookmarksFailed() && !chromeBookmarks()?.length}
+          own={bookmarks()}
+          chrome={chromeBookmarks()}
+          failed={bookmarksFailed() && chromeCount() === 0}
           onOpen={openBookmark}
           onDelete={(b) => {
             // Chrome のブックマークは消せない（読むだけ。#239）
