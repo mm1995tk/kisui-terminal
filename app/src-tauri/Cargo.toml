@@ -61,6 +61,10 @@ objc2-foundation = { version = "=0.3.2", default-features = false, features = [
 arboard = { version = "=3.7.0", default-features = false }
 wl-clipboard-rs = "=0.9.5"
 x11rb = "=0.13.2"
+# 内蔵ブラウザ（browser.rs・download.rs）。ページの window.close() と、ダウンロードを WebKitGTK から直接受ける
+# （wry はどちらも殻に知らせない。wry のダウンロードの受け口は、Cookie を共有するタブの数だけ重なる）。
+# 版は Cargo.lock にすでにある（wry が使っている）ものに合わせる
+webkit2gtk = "=2.0.2"
 
 [features]
 # release の画面は埋め込んだ Web を使う（これが無いと devUrl を見に行く）。cargo tauri build は自動で付ける

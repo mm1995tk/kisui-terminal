@@ -7,6 +7,7 @@ mod clipboard_history;
 mod clipboard_popup;
 mod config;
 mod connection;
+mod download;
 mod install;
 mod locate;
 mod mascot;
@@ -145,6 +146,8 @@ fn main() {
         })
         .manage(update::Updates::default())
         .manage(transfer::Transfers::default())
+        .manage(browser::Tabs::default())
+        .manage(download::Downloads::default())
         .setup(|app| {
             version::init(app.package_info().version.to_string());
             // 「ローカル」の kisui のターミナルに渡す PATH を、先にログインシェルに聞いておく（locate.rs）
@@ -194,6 +197,8 @@ fn main() {
             browser::browser_close,
             browser::browser_tabs_load,
             browser::browser_tabs_save,
+            download::download_open,
+            download::download_reveal,
             clipboard_history::clipboard_history_list,
             clipboard_popup::clipboard_popup_copy,
             clipboard_popup::clipboard_popup_dismiss,

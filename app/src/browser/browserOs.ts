@@ -8,14 +8,18 @@ import type { KeyLike } from "../guiKeys.ts";
 import type { Bounds } from "./overlay.ts";
 import type { StoredTabs } from "./tabs.ts";
 
-/** タブ（子の webview）を作る。作るだけで、キーは向けない。keys は、ページにキーがあっても受けるキー（リーダーと近道）。 */
+/**
+ * タブ（子の webview）を作る。作るだけで、キーは向けない。keys は、ページにキーがあっても受けるキー（リーダーと近道）。
+ * incognito はシークレットのタブ（#204。タブだけの、ディスクに残さないデータを使う）。
+ */
 export function openTab(
   tab: string,
   url: string,
   keys: InterceptKey[],
+  incognito: boolean,
   b: Bounds,
 ): Promise<void> {
-  return invoke("browser_open", { tab, url, keys, ...b });
+  return invoke("browser_open", { tab, url, keys, incognito, ...b });
 }
 
 /**
@@ -94,4 +98,47 @@ export function onTabKey(
   h: (e: KeyLike & { tab: string }) => void,
 ): Promise<() => void> {
   return listen<KeyLike & { tab: string }>("browser-key", (e) => h(e.payload));
+}
+
+/**
+ * ページが新しい窓（`target=_blank` のリンク・`window.open`）を開いた（#204）。殻はもう webview を作ってある（tab が id）。
+ * 画面は、開いた元のタブ（opener）と同じワークスペースに、新しいタブとして足す。
+ */
+export function onTabPopup(
+  h: (e: { opener: string; tab: string; url: string }) => void,
+): Promise<() => void> {
+  return listen<{ opener: string; tab: string; url: string }>(
+    "browser-popup",
+    (e) => h(e.payload),
+  );
+}
+
+/** ページが自分を閉じた（`window.close()`。#204）。 */
+export function onTabClosed(
+  h: (e: { tab: string }) => void,
+): Promise<() => void> {
+  return listen<{ tab: string }>("browser-closed", (e) => h(e.payload));
+}
+
+/** ダウンロードが終わった（#204。download.rs）。id は開く・表示するときの番号（保存できなかったときは 0）。 */
+export interface DownloadDone {
+  id: number;
+  name: string;
+  dir: string;
+  ok: boolean;
+}
+
+/** ダウンロードが終わった。 */
+export function onDownload(h: (e: DownloadDone) => void): Promise<() => void> {
+  return listen<DownloadDone>("browser-download", (e) => h(e.payload));
+}
+
+/** ダウンロードしたファイルを、OS の既定のアプリで開く。 */
+export function openDownload(id: number): Promise<void> {
+  return invoke("download_open", { id });
+}
+
+/** ダウンロードしたファイルのフォルダを表示する。 */
+export function revealDownload(id: number): Promise<void> {
+  return invoke("download_reveal", { id });
 }

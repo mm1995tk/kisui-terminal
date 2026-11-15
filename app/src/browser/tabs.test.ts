@@ -155,6 +155,42 @@ describe("内蔵ブラウザのタブ", () => {
     assert.deepEqual(fromStored({ tabs: "x" }).tabs, []);
   });
 
+  it("シークレットのタブは覚えない（#204）", () => {
+    let s = addTab(EMPTY_TABS, tab("a"));
+    s = addTab(s, { ...tab("b"), incognito: true });
+    s = addTab(s, { ...tab("c"), opener: "b", incognito: true, made: true });
+    assert.deepEqual(
+      toStored(s).tabs.map((t) => t.id),
+      ["a"],
+    );
+    // 覚える形に、シークレット・開いた元・作ってあるかは入れない
+    assert.deepEqual(Object.keys(toStored(s).tabs[0]).sort(), [
+      "id",
+      "target",
+      "title",
+      "url",
+      "workspace",
+    ]);
+  });
+
+  it("ページが自分を閉じたら、開いた元のタブに戻る（#204）", () => {
+    let s = three();
+    s = addTab(s, { ...tab("p"), opener: "a" });
+    s = closeTab(s, "p", "a");
+    assert.equal(shownTab(s, "@local", "w1")?.id, "a");
+    // 元のタブがもう無い・ほかのワークスペースなら、ふつうに閉じたときと同じ
+    s = addTab(three(), tab("p"));
+    s = closeTab(s, "p", "gone");
+    assert.equal(shownTab(s, "@local", "w1")?.id, "c");
+    s = addTab(three(), tab("p"));
+    s = closeTab(s, "p", "d");
+    assert.equal(shownTab(s, "@local", "w1")?.id, "c");
+    // 出していないタブを閉じても、出すものは変わらない
+    s = showTab(addTab(three(), tab("p")), "@local", "w1", "b");
+    s = closeTab(s, "p", "a");
+    assert.equal(shownTab(s, "@local", "w1")?.id, "b");
+  });
+
   it("新しいタブの id は、殻のラベルに使える形", () => {
     for (let i = 0; i < 20; i++) assert.ok(validTabId(newTabId()));
     assert.equal(

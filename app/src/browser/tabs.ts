@@ -5,6 +5,7 @@
 // タブは、開いたときのワークスペースのマシン（target）を覚える（リモートの localhost の中継で使う。#203）。
 // 開いていたタブ（ワークスペースと URL）と、畳んだワークスペースは、殻がデータのフォルダに覚える（browser.rs の StoredTabs と同じ形）。
 // どれを出していたか（views）は覚えない（起動したときは、どのワークスペースもグリッドから始める）。
+// シークレットのタブ（#204）は覚えない（閉じるとログインが消え、再起動しても戻さない）。
 
 import type { WorkspaceId } from "../rpc/protocol.ts";
 
@@ -19,6 +20,15 @@ export interface BrowserTab {
   url: string;
   /** ページの題（まだ分からなければ空） */
   title: string;
+  /**
+   * シークレットのタブ（#204）。タブだけの、ディスクに残さないデータを使い、閉じるとログインが消える。覚えない（再起動しても戻さない）。
+   * ページが開いた新しい窓のタブは、開いた元のタブと同じデータを使うので、元がシークレットならシークレット
+   */
+  incognito?: boolean;
+  /** ページが開いた新しい窓のタブ（#204）の、開いた元のタブ。ページが自分を閉じたら、ここへ戻る。覚えない */
+  opener?: string;
+  /** 殻がもう webview を作ってある（ページが開いた新しい窓。#204）。画面は作らずに、そのまま使う。覚えない */
+  made?: boolean;
 }
 
 /** タブ全部と、ワークスペースごとの表示。 */
@@ -111,15 +121,18 @@ export function showTab(
 
 /**
  * タブを閉じる。出していたタブなら、同じワークスペースの次のタブ（無ければ前のタブ、それも無ければグリッド）を出す
- * （ふつうのブラウザで、今のタブを閉じたときと同じ）。
+ * （ふつうのブラウザで、今のタブを閉じたときと同じ）。back（同じワークスペースのタブ）を渡すと、次のタブの代わりにそれを出す
+ * （ページが自分を閉じたときに、開いた元のタブに戻る。#204）。
  */
-export function closeTab(s: TabsState, id: string): TabsState {
+export function closeTab(s: TabsState, id: string, back?: string): TabsState {
   const tab = s.tabs.find((t) => t.id === id);
   if (!tab) return s;
   const mine = tabsOf(s, tab.target, tab.workspace);
   const i = mine.findIndex((t) => t.id === id);
   const rest = { ...s, tabs: s.tabs.filter((t) => t.id !== id) };
   if (s.views[wsKey(tab.target, tab.workspace)] !== id) return rest;
+  if (back !== undefined && mine.some((t) => t.id === back && t.id !== id))
+    return withView(rest, tab.target, tab.workspace, back);
   const next = mine[i + 1] ?? mine[i - 1];
   return withView(rest, tab.target, tab.workspace, next?.id ?? null);
 }
@@ -215,13 +228,15 @@ export function pruneWorkspaces(
 /** 殻に覚えさせる形。 */
 export function toStored(s: TabsState): StoredTabs {
   return {
-    tabs: s.tabs.map(({ id, target, workspace, url, title }) => ({
-      id,
-      target,
-      workspace,
-      url,
-      title,
-    })),
+    tabs: s.tabs
+      .filter((t) => !t.incognito)
+      .map(({ id, target, workspace, url, title }) => ({
+        id,
+        target,
+        workspace,
+        url,
+        title,
+      })),
     collapsed: s.collapsed.map((k) => {
       const [target, workspace] = JSON.parse(k) as [string, string];
       return { target, workspace };

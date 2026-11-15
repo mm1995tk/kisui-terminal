@@ -723,6 +723,9 @@ function BandTabRows(props: {
                     }
                     onClick={() => props.onTab(t.id)}
                   >
+                    <Show when={t.incognito}>
+                      <span class="tab-incognito">シークレット</span>
+                    </Show>
                     <span class="tab-title">{t.title || hostOf(t.url)}</span>
                     <Show when={t.title}>
                       <span class="tab-host">{hostOf(t.url)}</span>
@@ -731,7 +734,7 @@ function BandTabRows(props: {
                   <button
                     type="button"
                     class="band-close tab-close"
-                    aria-label={`${t.title || hostOf(t.url)} のタブを閉じる`}
+                    aria-label={`${t.incognito ? "シークレットの " : ""}${t.title || hostOf(t.url)} のタブを閉じる`}
                     title="タブを閉じる"
                     onClick={() => props.onClose(t.id)}
                   >

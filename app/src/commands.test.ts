@@ -170,6 +170,8 @@ describe("コマンドの表", () => {
       "n u",
       "n d",
       "n g",
+      "n o",
+      "n f",
       "c",
       "c s",
       "c r",
@@ -682,7 +684,7 @@ describe("リーダーの案内（menuRows）", () => {
   });
 
   it("お知らせの n に a は無く、新しい版に更新する u がある", () => {
-    assert.deepEqual(keysOf(["n"], MAC), ["u", "d", "g"]);
+    assert.deepEqual(keysOf(["n"], MAC), ["u", "d", "g", "o", "f"]);
   });
 
   it("向きの hjkl は、案内では 1 行（ワークスペースは 2 行）にまとまる", () => {
@@ -791,6 +793,7 @@ describe("内蔵ブラウザ（#202。設定で有効にしたときだけ）", 
       assert.deepEqual(rows, [
         ["o", ""],
         ["o n", ""],
+        ["o N", ""],
         ["o u", ""],
         ["o j", ""],
         ["o k", ""],
@@ -863,7 +866,9 @@ describe("内蔵ブラウザ（#202。設定で有効にしたときだけ）", 
       const L = LEADER_KEY(LINUX);
       for (const { path, node } of leaves()) {
         if (node.type !== "leaf" || path[0] !== "o") continue;
-        const r = press(LINUX, [L, key("o"), key(node.keys[0])]);
+        const k = node.keys[0];
+        const shift = /^[A-Z]$/.test(k) ? "s" : "";
+        const r = press(LINUX, [L, key("o"), key(k, shift)]);
         assert.deepEqual(r.runs, [node.run], path.join(" "));
       }
     });
