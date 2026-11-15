@@ -183,6 +183,17 @@ enum Data {
     },
 }
 
+impl Data {
+    /// シークレットのデータか（ページが開いた新しい窓は、開いた元のタブがシークレットか）。
+    fn incognito(&self) -> bool {
+        match self {
+            Data::Shared => false,
+            Data::Incognito => true,
+            Data::Opener { incognito, .. } => *incognito,
+        }
+    }
+}
+
 /// 覚えるタブ 1 つ。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StoredTab {
@@ -504,59 +515,62 @@ fn watch_native(app: &AppHandle, v: &Webview, tab: &str) {
 #[cfg(not(target_os = "linux"))]
 fn watch_native(_: &AppHandle, _: &Webview, _: &str) {}
 
-/// タブの子の webview を組む。ページにはキーのスクリプトを入れ、遷移・新しい窓・読み込み・題の変化・ダウンロードを受ける。
-fn tab_builder(
-    app: &AppHandle,
-    tab: &str,
-    first: Url,
-    nonce: String,
-    keys: &[KeySpec],
-    data: Data,
-) -> WebviewBuilder<tauri::Wry> {
-    let script = key_script(&nonce, keys);
-    let incognito = match &data {
-        Data::Shared => false,
-        Data::Incognito => true,
-        Data::Opener { incognito, .. } => *incognito,
-    };
-    // パスキーのサイトを設定に書いたときだけ、パスキーを捕まえるスクリプトも入れる（passkey.rs）。
-    // シークレットのタブには入れない（外のブラウザから写した Cookie は外のブラウザに残り、「残さない」と食い違うため）
-    let passkey_script = if incognito {
-        None
-    } else {
-        app.try_state::<Arc<Passkey>>()
-            .map(|p| passkey::script(&nonce, p.sites()))
-    };
-    #[cfg(target_os = "macos")]
-    let close_script = CLOSE_SCRIPT.replace(
-        "__KISUI_NONCE__",
-        &serde_json::to_string(&nonce).unwrap_or_else(|_| "\"\"".into()),
-    );
-    let (win_app, win_tab) = (app.clone(), tab.to_string());
-    let (load_app, load_tab) = (app.clone(), tab.to_string());
-    let (title_app, title_tab) = (app.clone(), tab.to_string());
+/// ページに入れるスクリプト 1 つ。
+struct PageScript {
+    /// すべてのフレームに入れるか（false なら上のフレームだけ）
+    all_frames: bool,
+    source: String,
+}
+
+/// タブのページに入れるスクリプト（キー・パスキー・macOS の `window.close`）。
+fn page_scripts(app: &AppHandle, nonce: &str, keys: &[KeySpec], data: &Data) -> Vec<PageScript> {
     // macOS で、ページが開いた新しい窓は、WebKit が渡す設定（開いた元の設定の写し）で作る。スクリプトの入れ物
     // （WKUserContentController）は開いた元と同じ 1 つなので、ここで足すと開いた元のタブにも入り、重なる。
     // 足さずに、開いた元のタブのスクリプト（同じ nonce）をそのまま使う
-    let shares_scripts = cfg!(target_os = "macos") && matches!(data, Data::Opener { .. });
-    let mut builder = WebviewBuilder::new(label(tab), WebviewUrl::External(first));
-    if !shares_scripts {
-        builder = builder.initialization_script_for_all_frames(script);
-        if let Some(s) = passkey_script {
-            builder = builder.initialization_script_for_all_frames(s);
-        }
-        #[cfg(target_os = "macos")]
-        {
-            builder = builder.initialization_script(close_script);
+    if cfg!(target_os = "macos") && matches!(data, Data::Opener { .. }) {
+        return Vec::new();
+    }
+    let mut out = vec![PageScript {
+        all_frames: true,
+        source: key_script(nonce, keys),
+    }];
+    // パスキーのサイトを設定に書いたときだけ、パスキーを捕まえるスクリプトも入れる（passkey.rs）。
+    // シークレットのタブには入れない（外のブラウザから写した Cookie は外のブラウザに残り、「残さない」と食い違うため）
+    if !data.incognito() {
+        if let Some(p) = app.try_state::<Arc<Passkey>>() {
+            out.push(PageScript {
+                all_frames: true,
+                source: passkey::script(nonce, p.sites()),
+            });
         }
     }
     #[cfg(target_os = "macos")]
-    {
+    out.push(PageScript {
+        all_frames: false,
+        source: CLOSE_SCRIPT.replace(
+            "__KISUI_NONCE__",
+            &serde_json::to_string(nonce).unwrap_or_else(|_| "\"\"".into()),
+        ),
+    });
+    out
+}
+
+/// 遷移・新しい窓・読み込み・題の変化・ダウンロード（macOS）の受け口を足す。
+fn with_handlers(
+    builder: WebviewBuilder<tauri::Wry>,
+    app: &AppHandle,
+    tab: &str,
+    nonce: String,
+) -> WebviewBuilder<tauri::Wry> {
+    let (win_app, win_tab) = (app.clone(), tab.to_string());
+    let (load_app, load_tab) = (app.clone(), tab.to_string());
+    let (title_app, title_tab) = (app.clone(), tab.to_string());
+    #[cfg(target_os = "macos")]
+    let builder = {
         let dl_app = app.clone();
-        builder = builder.on_download(move |_, ev| crate::download::on_download(&dl_app, ev));
-    }
-    let builder = builder
-        .focused(false)
+        builder.on_download(move |_, ev| crate::download::on_download(&dl_app, ev))
+    };
+    builder
         .on_navigation(may_navigate)
         .on_new_window(move |u, f| on_new_window(&win_app, &win_tab, &nonce, u, f))
         .on_page_load(move |_, p| {
@@ -581,7 +595,15 @@ fn tab_builder(
                     title,
                 },
             );
-        });
+        })
+}
+
+/// ページのデータ（ログイン）の置き場を当てる。
+fn with_data(
+    builder: WebviewBuilder<tauri::Wry>,
+    #[allow(unused_variables)] app: &AppHandle,
+    data: Data,
+) -> WebviewBuilder<tauri::Wry> {
     match data {
         Data::Shared => {
             #[cfg(not(target_os = "macos"))]
@@ -603,6 +625,27 @@ fn tab_builder(
             builder
         }
     }
+}
+
+/// タブの子の webview を組む。ページにスクリプトを入れ、受け口を足し、データの置き場を当てる。
+fn tab_builder(
+    app: &AppHandle,
+    tab: &str,
+    first: Url,
+    nonce: String,
+    keys: &[KeySpec],
+    data: Data,
+) -> WebviewBuilder<tauri::Wry> {
+    let mut builder = WebviewBuilder::new(label(tab), WebviewUrl::External(first)).focused(false);
+    for s in page_scripts(app, &nonce, keys, &data) {
+        builder = if s.all_frames {
+            builder.initialization_script_for_all_frames(s.source)
+        } else {
+            builder.initialization_script(s.source)
+        };
+    }
+    let builder = with_handlers(builder, app, tab, nonce);
+    with_data(builder, app, data)
 }
 
 /// タブを作る（子の webview）。位置と大きさはメイン窓の左上からの論理ピクセル。作るだけで、キーは向けない（`browser_focus`）。
