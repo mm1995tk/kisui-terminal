@@ -1095,23 +1095,79 @@ function Workbench(props: {
    * 見出しの [+]。フォルダ未定のワークスペースを作ってフォーカスし、プライマリターミナルにキーを向ける。
    * フォルダは、そのターミナルで cd すると決まる。
    */
-  async function createWorkspace(target: string) {
+  function createWorkspace(target: string) {
+    // 新しいワークスペースは、ターミナルのタブ 1 つを持って、並びの一番下に入る
+    return createMachineWorkspace(target, "err.workspace.create", (id) =>
+      setGws((g) => addWorkspace(g, target, id)),
+    );
+  }
+
+  /**
+   * マシンにワークスペース（ターミナルのタブ）を 1 つ作り、place で GUI の記録に入れ、フォーカスして、ターミナルにキーを向ける。
+   * 記録には、マシンの一覧の知らせより先に入れてよい（二重には入らない）。作れなければ errKey の題で理由を伝える。
+   * ワークスペースを作る（w n）・ターミナルのタブを足す（「+」）の共通の部分。
+   */
+  async function createMachineWorkspace(
+    target: string,
+    errKey: "err.workspace.create" | "err.tab.add",
+    place: (id: WorkspaceId) => void,
+  ) {
     const s = sessions()[target];
     if (!s) return;
     setFocusError(null);
     try {
       const { id } = await s.createWorkspace();
-      // 新しいワークスペースは、ターミナルのタブ 1 つを持って、並びの一番下に入る（マシンの一覧の知らせより先に、ここで入れてよい。二重には入らない）
       justCreated.add(termKey(target, id));
-      setGws((g) => addWorkspace(g, target, id));
+      place(id);
       await focusWorkspace(target, id);
       if (focus()?.id === id) focusTerminal();
     } catch (e) {
       setFocusError({
-        title: T("err.workspace.create", { machine: labelOf(target) }),
+        title: T(errKey, { machine: labelOf(target) }),
         error: e instanceof Error ? e.message : String(e),
       });
     }
+  }
+
+  /**
+   * 閉じる処理 close を、移り先 moveTo（フォーカスしているものを閉じるときの隣。無ければ null）つきで動かす。
+   * 移り先は閉じる前に決めておき、一覧から消えた知らせを受けたところで（返事を待たずに）フォーカスを移す。
+   * プログラムが動いていて断られたら（force でないとき）onRunning を呼び、ほかの失敗は name を添えて伝える。
+   * 閉じられたら、GUI のフォーカスはもう移っているので shj にも移り先を伝える
+   * （待つあいだにユーザーが別の帯を選んだ・移り先も消えた、なら伝えない。押した帯の返事を待っている途中（switching）なら、その返事に任せる）。
+   * ワークスペースを閉じる（✕）・ターミナルのタブを閉じる（✕）の共通の部分。
+   */
+  async function closeThenMove(
+    moveTo: WorkspaceFocus | null,
+    name: string,
+    force: boolean,
+    close: () => Promise<void>,
+    onRunning: () => void,
+  ) {
+    setFocusError(null);
+    // 移り先が無いとき（フォーカスしていないものを閉じる）は、先に閉じ始めたものの移り先を消さない
+    if (moveTo) closingNext = moveTo;
+    try {
+      await close();
+    } catch (e) {
+      if (moveTo && closingNext === moveTo) closingNext = null;
+      const d =
+        e instanceof RpcError && e.code === ErrorCode.Busy
+          ? (e.data as { reason?: string } | undefined)
+          : undefined;
+      if (d?.reason === "running" && !force) {
+        onRunning();
+        return;
+      }
+      setFocusError({
+        title: T("err.workspace.close", { name }),
+        error: e instanceof Error ? e.message : String(e),
+      });
+      return;
+    }
+    if (moveTo && closingNext === moveTo) closingNext = null;
+    if (moveTo && !switching && shouldSendMoveTo(focus(), moveTo, workspaces()))
+      void focusWorkspace(moveTo.target, moveTo.id);
   }
 
   // 閉じる前に確認している（プログラムが動いている）ワークスペース
@@ -1137,48 +1193,29 @@ function Workbench(props: {
     const wasFocused =
       !!f && termsOf(g).some((r) => r.target === f.target && r.ws === f.id);
     const name = displayName(g);
-    setFocusError(null);
-    // 移り先は閉じる前に決めておき、一覧から消えた知らせを受けたところで（返事を待たずに）フォーカスを移す。
-    // 移り先が無いとき（フォーカスしていないものを閉じる）は、先に閉じ始めたものの移り先を消さない
     const moveTo =
       wasFocused && next ? { target: next.target, id: next.band.id } : null;
-    if (moveTo) closingNext = moveTo;
-    try {
-      for (const r of termsOf(g)) {
-        const s = sessions()[r.target];
-        if (!s || states()[r.target]?.kind !== "connected") {
-          const dropped = dropTerm(untrack(gws), r.target, r.ws);
-          setGws(dropped.state);
-          for (const id of dropped.close) {
-            void closeTabView(id).catch(() => {});
-            setTabs((t) => closeTab(t, id));
+    await closeThenMove(
+      moveTo,
+      name,
+      force,
+      async () => {
+        for (const r of termsOf(g)) {
+          const s = sessions()[r.target];
+          if (!s || states()[r.target]?.kind !== "connected") {
+            const dropped = dropTerm(untrack(gws), r.target, r.ws);
+            setGws(dropped.state);
+            for (const id of dropped.close) {
+              void closeTabView(id).catch(() => {});
+              setTabs((t) => closeTab(t, id));
+            }
+            continue;
           }
-          continue;
+          await s.closeWorkspace(r.ws, force);
         }
-        await s.closeWorkspace(r.ws, force);
-      }
-    } catch (e) {
-      if (moveTo && closingNext === moveTo) closingNext = null;
-      const d =
-        e instanceof RpcError && e.code === ErrorCode.Busy
-          ? (e.data as { reason?: string } | undefined)
-          : undefined;
-      if (d?.reason === "running" && !force) {
-        setConfirmClose({ gws: gid, name });
-        return;
-      }
-      setFocusError({
-        title: T("err.workspace.close", { name }),
-        error: e instanceof Error ? e.message : String(e),
-      });
-      return;
-    }
-    if (moveTo && closingNext === moveTo) closingNext = null;
-    // GUI のフォーカスはもう移っている。shj にも移り先を伝える。
-    // 待つあいだにユーザーが別の帯を選んだ・移り先も消えた、なら伝えない。
-    // 押した帯の返事を待っている途中（switching）なら、その返事に任せる（失敗したら focusWorkspace が今のフォーカスを送り直す）
-    if (moveTo && !switching && shouldSendMoveTo(focus(), moveTo, workspaces()))
-      void focusWorkspace(moveTo.target, moveTo.id);
+      },
+      () => setConfirmClose({ gws: gid, name }),
+    );
   }
 
   // 初めて出たマシンには色を割り当てて保存する（つなぐマシンが変わったときだけ計算し直す）
@@ -2261,29 +2298,13 @@ function Workbench(props: {
       f?.target === target && f.id === ws
         ? { target: next.target, id: next.ws }
         : null;
-    if (moveTo) closingNext = moveTo;
-    setFocusError(null);
-    try {
-      await s.closeWorkspace(ws, force);
-    } catch (e) {
-      if (moveTo && closingNext === moveTo) closingNext = null;
-      const d =
-        e instanceof RpcError && e.code === ErrorCode.Busy
-          ? (e.data as { reason?: string } | undefined)
-          : undefined;
-      if (d?.reason === "running" && !force) {
-        setConfirmCloseTab({ target, ws, name });
-        return;
-      }
-      setFocusError({
-        title: T("err.workspace.close", { name }),
-        error: e instanceof Error ? e.message : String(e),
-      });
-      return;
-    }
-    if (moveTo && closingNext === moveTo) closingNext = null;
-    if (moveTo && !switching && shouldSendMoveTo(focus(), moveTo, workspaces()))
-      void focusWorkspace(moveTo.target, moveTo.id);
+    await closeThenMove(
+      moveTo,
+      name,
+      force,
+      () => s.closeWorkspace(ws, force),
+      () => setConfirmCloseTab({ target, ws, name }),
+    );
   }
 
   // 名前を変えているターミナルのタブ（窓で変える。サイドバーのタブの行の鉛筆）
@@ -2373,21 +2394,10 @@ function Workbench(props: {
       );
       return;
     }
-    setFocusError(null);
-    try {
-      const { id } = await s.createWorkspace();
-      // 作ったタブは、マシンの一覧の知らせより先に、ここで入れてよい（二重には入らない）
-      justCreated.add(termKey(target, id));
+    await createMachineWorkspace(target, "err.tab.add", (id) => {
       setGws((x) => addTerm(x, gid, target, id));
       setTabs((t) => showTab(t, gid, null));
-      await focusWorkspace(target, id);
-      if (focus()?.id === id) focusTerminal();
-    } catch (e) {
-      setFocusError({
-        title: T("err.tab.add", { machine: labelOf(target) }),
-        error: e instanceof Error ? e.message : String(e),
-      });
-    }
+    });
   }
 
   /** ワークスペース gid にブラウザのタブを足す（URL の窓を出す。リーダーの o n と同じ。rep はそのワークスペースが出しているターミナルのタブ）。 */
