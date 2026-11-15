@@ -286,13 +286,26 @@ export interface Reconciled {
  * 変わらなければ同じ state を返す。
  */
 export function reconcile(s: GwsState, input: ReconcileInput): Reconciled {
+  const pruned = pruneTabs(s, input);
+  let state = adoptOrphanTerms(pruned.state, pruned.seen, input);
+  const adopted = adoptOrphanBrowsers(state, input);
+  state = adopted.state;
+  const emptied = dropEmpty(state);
+  return { state: emptied.state, close: [...adopted.close, ...emptied.close] };
+}
+
+/**
+ * 一覧に無いタブ（閉じられたもの）と、ブラウザのタブが無くなった記録を外し、ターミナルのタブの名前を最新にする。
+ * 重なったタブは先のものだけ残す。seen は、残ったタブのキー。
+ */
+function pruneTabs(
+  s: GwsState,
+  input: ReconcileInput,
+): { state: GwsState; seen: Set<string> } {
   const { lists, browser } = input;
-  const close: string[] = [];
   const browserIds = browser ? new Set(browser.map((b) => b.id)) : undefined;
   const seen = new Set<string>();
-
-  // 1. 一覧に無いタブを外し、名前を更新する。重なったタブは先のものだけ残す
-  let list = s.list.map((g): Gws => {
+  const list = s.list.map((g): Gws => {
     const tabs: TabRef[] = [];
     for (const r of g.tabs) {
       const k = refKey(r);
@@ -317,11 +330,17 @@ export function reconcile(s: GwsState, input: ReconcileInput): Reconciled {
     }
     return sameTabs(tabs, g.tabs) ? g : { ...g, tabs };
   });
-  let state: GwsState = sameList(list, s.list) ? s : { list };
+  return { state: sameList(list, s.list) ? s : { list }, seen };
+}
 
-  // 2. どこにも入っていないターミナルのタブで、新しいワークスペースを作る
+/** どこにも入っていない（seen に無い）ターミナルのタブで、新しいワークスペースを作る。前の並び順の記録があれば、その順に並べる。 */
+function adoptOrphanTerms(
+  s: GwsState,
+  seen: ReadonlySet<string>,
+  input: ReconcileInput,
+): GwsState {
   const orphans: { target: string; ws: WorkspaceId; title: string }[] = [];
-  for (const [target, l] of Object.entries(lists)) {
+  for (const [target, l] of Object.entries(input.lists)) {
     if (!l) continue;
     for (const w of l)
       if (!seen.has(termKey(target, w.id)))
@@ -337,30 +356,31 @@ export function reconcile(s: GwsState, input: ReconcileInput): Reconciled {
     const y = at(b);
     return x === y ? 0 : x < y ? -1 : 1; // 安定な並べ替え。記録に無いものは一覧の順のまま
   });
+  let state = s;
   for (const o of orphans) state = addWorkspace(state, o.target, o.ws, o.title);
+  return state;
+}
 
-  // 3. どこにも入っていないブラウザのタブ
-  if (browser) {
-    const claimed = new Set(
-      state.list.flatMap((g) =>
-        g.tabs
-          .filter((r) => r.kind === "browser")
-          .map((r) => (r as BrowserRef).id),
-      ),
-    );
-    for (const b of browser) {
-      if (claimed.has(b.id)) continue;
-      const g = gwsOfTerm(state, b.target, b.workspace);
-      if (g) state = addBrowser(state, g.id, b.id);
-      else if (lists[b.target]) close.push(b.id);
-      // 元のマシンの一覧がまだ分からなければ、分かるまで待つ
-    }
+/**
+ * どこにも入っていないブラウザのタブを、開いたときのターミナルのタブがあるワークスペースに入れる。
+ * その元も無ければ（元のマシンの一覧が分かっていれば）close に返す。元のマシンの一覧がまだ分からなければ、分かるまで待つ。
+ */
+function adoptOrphanBrowsers(s: GwsState, input: ReconcileInput): Reconciled {
+  const close: string[] = [];
+  if (!input.browser) return { state: s, close };
+  const claimed = new Set(
+    s.list.flatMap((g) =>
+      g.tabs.flatMap((r) => (r.kind === "browser" ? [r.id] : [])),
+    ),
+  );
+  let state = s;
+  for (const b of input.browser) {
+    if (claimed.has(b.id)) continue;
+    const g = gwsOfTerm(state, b.target, b.workspace);
+    if (g) state = addBrowser(state, g.id, b.id);
+    else if (input.lists[b.target]) close.push(b.id);
   }
-
-  // 4. ターミナルのタブが無くなったワークスペースを外す
-  const emptied = dropEmpty(state);
-  close.push(...emptied.close);
-  return { state: emptied.state, close };
+  return { state, close };
 }
 
 /**
