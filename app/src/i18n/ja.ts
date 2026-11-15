@@ -165,6 +165,9 @@ export const ja: Record<Key, string> = {
   "cannot.browser.noTab.title": "ブラウザのタブを出していません",
   "cannot.browser.noTab.text":
     "リーダーの o j・o k でタブを出すか、o n で新しいタブを開いてください。",
+  "cannot.browser.newTab.title": "このタブにはまだページがありません",
+  "cannot.browser.newTab.text":
+    "新しいタブのページのままです。先にページを開いてください。",
   "cannot.browser.open.title": "タブを開けません",
   "cannot.browser.open.text":
     "ワークスペースがありません。タブはワークスペースの下に開きます。",
@@ -407,14 +410,21 @@ export const ja: Record<Key, string> = {
   "deleteDialog.dir": "フォルダの中身も全部消えます。元には戻せません。",
   "deleteDialog.file": "元には戻せません。",
   "deleteDialog.yes": "削除する",
-  "urlDialog.incognito": "シークレットのタブを開く",
-  "urlDialog.new": "新しいタブを開く",
+  "newTab.name": "新しいタブ",
+  "newTab.title": "新しいタブ",
+  "newTab.incognito": "新しいシークレットのタブ",
+  "newTab.incognito.note":
+    "このタブで開いたページは、ログインもデータもディスクに残りません。",
+  "newTab.search": "検索語か URL を入力",
+  "newTab.hint":
+    "Enter で開く（URL か、Google の検索）· ↓ ↑（Ctrl+J/K）でブックマークを選ぶ · 打つとブックマークを絞り込む",
+  "newTab.bookmarks": "ブックマーク",
+  "newTab.empty.none":
+    "ブックマークはまだありません。見ているページを {leader} o b で足せます。",
   "urlBar.label": "アドレスバー",
   "urlBar.placeholder": "検索語か URL を入力",
   "urlBar.invalid":
     "開けるのは http と https の URL だけです（ユーザー名やパスワードを含むものは開けません）",
-  "urlDialog.invalid":
-    "開けるのは http と https の URL だけです（ユーザー名やパスワードを含むもの、空白を含むものは開けません）",
   "rename.label": "名前を変える",
   "rename.name": "名前",
   "rename.placeholder": "空なら {fallback}",

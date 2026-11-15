@@ -164,6 +164,9 @@ export const en = {
   "cannot.browser.noTab.title": "No browser tab is shown",
   "cannot.browser.noTab.text":
     "Show a tab with o j or o k in the leader, or open a new one with o n.",
+  "cannot.browser.newTab.title": "No page is open in this tab",
+  "cannot.browser.newTab.text":
+    "This tab is still the new tab page. Open a page first.",
   "cannot.browser.open.title": "Cannot open a tab",
   "cannot.browser.open.text":
     "There is no workspace. A tab opens under a workspace.",
@@ -409,14 +412,21 @@ export const en = {
     "Everything in the folder is deleted too. This cannot be undone.",
   "deleteDialog.file": "This cannot be undone.",
   "deleteDialog.yes": "Delete",
-  "urlDialog.incognito": "Open a private tab",
-  "urlDialog.new": "Open a new tab",
+  "newTab.name": "New tab",
+  "newTab.title": "New tab",
+  "newTab.incognito": "New private tab",
+  "newTab.incognito.note":
+    "Pages opened in this tab leave no login or data on disk.",
+  "newTab.search": "Search or enter a URL",
+  "newTab.hint":
+    "Enter opens (a URL, or a Google search) · ↓ ↑ (Ctrl+J/K) pick a bookmark · typing filters bookmarks",
+  "newTab.bookmarks": "Bookmarks",
+  "newTab.empty.none":
+    "No bookmarks yet. Add a page you are viewing with {leader} o b.",
   "urlBar.label": "Address bar",
   "urlBar.placeholder": "Search or type a URL",
   "urlBar.invalid":
     "Only http and https URLs can be opened (not ones with a user name or password)",
-  "urlDialog.invalid":
-    "Only http and https URLs can be opened (not ones with a user name or password, or with whitespace)",
   "rename.label": "Rename",
   "rename.name": "Name",
   "rename.placeholder": "If empty: {fallback}",
