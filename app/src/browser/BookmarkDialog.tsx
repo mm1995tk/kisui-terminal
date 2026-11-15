@@ -25,6 +25,51 @@ import {
 } from "./bookmarkTree.ts";
 import "./browser.css";
 
+/** 一覧の 1 行（フォルダか、ブックマーク）。フォルダは深さだけ字下げする。 */
+function BookmarkDialogRow(props: {
+  row: BookmarkRow;
+  selected: boolean;
+  onSelect: () => void;
+  onOpen: () => void;
+}): JSX.Element {
+  const r = props.row;
+  return (
+    <li role="presentation">
+      <button
+        type="button"
+        class="card-row"
+        role="option"
+        tabIndex={-1}
+        aria-selected={props.selected}
+        aria-expanded={r.kind === "folder" ? r.open : undefined}
+        style={{ "padding-left": `${0.75 + r.depth * 1.25}em` }}
+        title={r.kind === "folder" ? r.name : bookmarkTitle(r.bookmark)}
+        // 入力欄からフォーカスを動かさない（押したあとも↑↓と Enter が効くように）
+        onMouseDown={(ev) => ev.preventDefault()}
+        onClick={props.onSelect}
+        onDblClick={props.onOpen}
+      >
+        {r.kind === "folder" ? (
+          <span class="card-row-name bookmark-folder">
+            {r.open ? "▾ " : "▸ "}
+            {r.name}
+          </span>
+        ) : (
+          <>
+            <span class="card-row-name">
+              {r.bookmark.title || r.bookmark.url}
+            </span>
+            <Show when={r.bookmark.source === "chrome"}>
+              <span class="bookmark-source">{T("bookmarks.chrome")}</span>
+            </Show>
+            <span class="card-row-state bookmark-url">{r.bookmark.url}</span>
+          </>
+        )}
+      </button>
+    </li>
+  );
+}
+
 /** ブックマークの一覧のダイアログ。list が undefined なら読み込み中、failed なら読めなかった。 */
 export function BookmarkDialog(props: {
   /** kisui-terminal 自身のブックマーク（undefined は読み込み中） */
@@ -125,51 +170,18 @@ export function BookmarkDialog(props: {
         >
           <For each={shown()}>
             {(r, i) => (
-              <li role="presentation">
-                <button
-                  type="button"
-                  class="card-row"
-                  role="option"
-                  tabIndex={-1}
-                  aria-selected={i() === selectedIndex()}
-                  aria-expanded={r.kind === "folder" ? r.open : undefined}
-                  style={{ "padding-left": `${0.75 + r.depth * 1.25}em` }}
-                  title={
-                    r.kind === "folder" ? r.name : bookmarkTitle(r.bookmark)
-                  }
-                  // 入力欄からフォーカスを動かさない（押したあとも↑↓と Enter が効くように）
-                  onMouseDown={(ev) => ev.preventDefault()}
-                  onClick={() => {
-                    setSel(i());
-                    // フォルダは 1 回押すと開け閉めする（ブックマークは、2 回押すと開く）
-                    if (r.kind === "folder") activate(r);
-                  }}
-                  onDblClick={() => {
-                    if (r.kind === "bookmark") props.onOpen(r.bookmark);
-                  }}
-                >
-                  {r.kind === "folder" ? (
-                    <span class="card-row-name bookmark-folder">
-                      {r.open ? "▾ " : "▸ "}
-                      {r.name}
-                    </span>
-                  ) : (
-                    <>
-                      <span class="card-row-name">
-                        {r.bookmark.title || r.bookmark.url}
-                      </span>
-                      <Show when={r.bookmark.source === "chrome"}>
-                        <span class="bookmark-source">
-                          {T("bookmarks.chrome")}
-                        </span>
-                      </Show>
-                      <span class="card-row-state bookmark-url">
-                        {r.bookmark.url}
-                      </span>
-                    </>
-                  )}
-                </button>
-              </li>
+              <BookmarkDialogRow
+                row={r}
+                selected={i() === selectedIndex()}
+                onSelect={() => {
+                  setSel(i());
+                  // フォルダは 1 回押すと開け閉めする（ブックマークは、2 回押すと開く）
+                  if (r.kind === "folder") activate(r);
+                }}
+                onOpen={() => {
+                  if (r.kind === "bookmark") props.onOpen(r.bookmark);
+                }}
+              />
             )}
           </For>
         </ul>
