@@ -92,7 +92,7 @@ export interface DragPosition {
 
 /**
  * つかんだ行（self）を want（px）動かしたいときの、実際の移動量と落とし先を決める位置。
- * 下へ動かすときは、つかんだ行の下端を比べる（背の高い行でも、空く場所とつかんだ行の位置が合う）。上へ動かすときは、真ん中（ヘッダー）を比べる。
+ * 下へ動かすときは、つかんだ行の下端を、上へ動かすときは上端を、ほかの行の真ん中と比べる（背の高い行でも、空く場所とつかんだ行の位置が合う。上下とも、行の半分動くとよける。confine で端に止めたときも、端の行の前後に入れる）。
  * confine なら、全部の行の上端から下端までの内に収める（タブの行が、帯の外で切れて見えなくならないように）。
  */
 export function dragPosition(
@@ -114,7 +114,7 @@ export function dragPosition(
   }
   return {
     shift,
-    probe: shift > 0 ? s.top + shift + s.height : s.mid + shift,
+    probe: shift > 0 ? s.top + shift + s.height : s.top + shift,
   };
 }
 

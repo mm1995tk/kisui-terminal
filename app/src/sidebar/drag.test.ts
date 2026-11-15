@@ -92,10 +92,10 @@ describe("dragPosition", () => {
     { key: "b", top: 64, height: 20, mid: 74 },
     { key: "c", top: 88, height: 20, mid: 98 },
   ];
-  it("上へは真ん中、下へは下端を比べる", () => {
+  it("上へは上端、下へは下端を比べる", () => {
     assert.deepEqual(dragPosition(slots, "b", -10, false), {
       shift: -10,
-      probe: 64,
+      probe: 54,
     });
     assert.deepEqual(dragPosition(slots, "a", 20, false), {
       shift: 20,
@@ -115,5 +115,18 @@ describe("dragPosition", () => {
   });
   it("つかんだ行が無ければ null", () => {
     assert.equal(dragPosition(slots, "x", 0, false), null);
+  });
+});
+
+describe("dragPosition: 一番上へ動かす", () => {
+  // 2 行目より下には上の枠（1px）があり、真ん中が行の上端から 11px の所にある
+  const tabs = [
+    { key: "a", top: 0, height: 20, mid: 10 },
+    { key: "b", top: 21, height: 20, mid: 32 },
+  ];
+  it("confine で一番上に止めても、一番上の行の前に入れる", () => {
+    const p = dragPosition(tabs, "b", -500, true)!;
+    assert.equal(p.shift, -21);
+    assert.equal(dropBefore(tabs, "b", p.probe), "a");
   });
 });
