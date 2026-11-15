@@ -1,0 +1,32 @@
+{
+  "extensionName": {
+    "message": "kisui-terminal パスキーのログイン"
+  },
+  "extensionDescription": {
+    "message": "このブラウザでパスキーでログインしたあと、そのサイトの Cookie を kisui-terminal の内蔵ブラウザに送り返します。kisui-terminal に書いたサイトだけが対象です。"
+  },
+  "actionTitle": {
+    "message": "このサイトのログインを kisui-terminal に戻す"
+  },
+  "errorBadRequest": {
+    "message": "kisui-terminal が頼みを読めませんでした。kisui-terminal とこの拡張機能を新しくしてください。"
+  },
+  "errorNotAllowed": {
+    "message": "このサイトは kisui-terminal の passkey_sites にありません。"
+  },
+  "errorNotWaiting": {
+    "message": "kisui-terminal はこのサイトを待っていません。内蔵ブラウザでもう一度パスキーを求めさせてください（待つのは 10 分です）。"
+  },
+  "errorNoCookies": {
+    "message": "このサイトには、まだ送る Cookie がありません。ログインを済ませてから、もう一度押してください。"
+  },
+  "errorFailed": {
+    "message": "kisui-terminal がログインを受け取れませんでした（内蔵ブラウザのタブは開いていますか）。"
+  },
+  "errorNotRunning": {
+    "message": "kisui-terminal が動いていないか、このブラウザに native messaging の受け口が登録されていません。"
+  },
+  "errorNoPermission": {
+    "message": "Cookie を読むには、サイトへのアクセスの許可が要ります。"
+  }
+}

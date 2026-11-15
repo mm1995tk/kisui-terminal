@@ -5,3 +5,4 @@ result
 /app/dist
 /app/src-tauri/gen
 /app/src-tauri/binaries
+/extension/dist

@@ -4,7 +4,7 @@ Instructions for coding agents working in this repository. Humans: see [CONTRIBU
 
 ## Project
 
-- kisui-terminal is a terminal-centered workspace (a desktop app, Tauri) that works closely with shijimi-editor. `app/` is the window: the web UI (Solid + TypeScript) in `app/src/` and the Tauri shell (Rust) in `app/src-tauri/`. `kisui` (Go) is its server: `cmd/kisui` (`kisui serve` / `kisui attach`), `server/`, `attach/`, `rpc/`, `config/`. `internal/` is kisui's own copy of what it shares with `shj` and the small parts it keeps for itself.
+- kisui-terminal is a terminal-centered workspace (a desktop app, Tauri) that works closely with shijimi-editor. `app/` is the window: the web UI (Solid + TypeScript) in `app/src/` and the Tauri shell (Rust) in `app/src-tauri/`. `kisui` (Go) is its server: `cmd/kisui` (`kisui serve` / `kisui attach`), `server/`, `attach/`, `rpc/`, `config/`. `internal/` is kisui's own copy of what it shares with `shj` and the small parts it keeps for itself. `extension/` is the Chrome and Firefox extension that hands a passkey login back to the built-in browser (`docs/browser-extension.md`).
 - Call it **kisui-terminal** in user-facing text (README, release notes). The editor is **shijimi-editor** (its binary is `shj`); do not shorten it to "shijimi".
 - kisui-terminal imports no Go code of shijimi-editor, and shijimi-editor none of kisui-terminal. They meet through the agreement in `docs/protocol.md`; the types are copied on both sides (`internal/ctl` here, `core/ctl` there). Keep it that way (a test, `cmd/kisui/deps_test.go`, fails otherwise). Add a feature to the agreement by adding a field or a request; see `docs/protocol.md` for when the version goes up.
 - The `shj` kisui-terminal ships is the one shijimi-editor released (the flake input `shijimi-editor`, or the Release that `packaging/fetch-shj.sh` downloads). This repository does not build `shj`.
@@ -16,9 +16,10 @@ Run these from the Nix devShell (`nix develop`, or `direnv allow`):
 ```sh
 go test ./...        # must pass
 npm test             # the web UI
+npm run test:extension  # the browser extension (extension/)
 cargo test           # the Tauri shell
 nix fmt              # must leave no changes (nixfmt / gofmt / taplo / rustfmt / prettier)
-nix flake check      # what CI runs: formatting, go test ./..., the build (cargo test) and npm test
+nix flake check      # what CI runs: formatting, go test ./..., the build (cargo test), npm test and the extension
 ```
 
 Run every command from the root of the repository. `go.mod`, `package.json` and `Cargo.toml` (a workspace whose member is `app/src-tauri`) are all there. Do not `cd` into `app/`.

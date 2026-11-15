@@ -1,0 +1,696 @@
+// 拡張機能（extension/）のテスト。npm run test:extension で回す。
+// lib.js と background.js はブラウザの大域のスクリプトなので、vm の中で読む。background.js にはブラウザの API の偽物を渡す。
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync, mkdtempSync, rmSync, readdirSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { inflateRawSync } from "node:zlib";
+import vm from "node:vm";
+// @ts-ignore 型の無い Node のスクリプト
+import { build, manifestFor, zip } from "./build.mjs";
+
+const dir = import.meta.dirname;
+const read = (p: string) => readFileSync(join(dir, p), "utf8");
+
+function loadLib(): any {
+  const ctx: any = { URL };
+  vm.createContext(ctx);
+  vm.runInContext(read("lib.js"), ctx);
+  return vm.runInContext("KisuiPasskey", ctx);
+}
+
+const K = loadLib();
+
+test("hostOf は http(s) の host だけを小文字で返す", () => {
+  assert.equal(K.hostOf("https://GitHub.com/login"), "github.com");
+  assert.equal(K.hostOf("http://localhost:3000/"), "localhost");
+  assert.equal(K.hostOf("about:blank"), null);
+  assert.equal(K.hostOf("chrome://newtab/"), null);
+  assert.equal(K.hostOf("not a url"), null);
+});
+
+test("combine は両方の受け口の答えをまとめ、待っているサイトに答えた受け口を覚える", () => {
+  const r = K.combine([
+    {
+      host: "a",
+      reply: { type: "sites", version: 1, sites: ["github.com"], waiting: [] },
+    },
+    {
+      host: "b",
+      reply: {
+        type: "sites",
+        version: 1,
+        sites: ["github.com", "dash.cloudflare.com"],
+        waiting: [
+          { site: "github.com", url: "https://github.com/login" },
+          // sites に無いサイトの待ちは使わない
+          { site: "evil.example", url: "https://evil.example/" },
+        ],
+      },
+    },
+    { host: "c", reply: null },
+    { host: "d", reply: { type: "error", code: "not-running" } },
+  ]);
+  assert.deepEqual([...r.sites], ["dash.cloudflare.com", "github.com"]);
+  assert.deepEqual(
+    { ...r.waiting.get("github.com") },
+    { host: "b", url: "https://github.com/login" },
+  );
+  assert.equal(r.waiting.has("evil.example"), false);
+});
+
+test("matchPatterns は https のそのサイトだけ", () => {
+  assert.deepEqual(
+    [...K.matchPatterns(["github.com"])],
+    ["https://github.com/*"],
+  );
+});
+
+test("appliesTo は kisui-terminal が受けるのと同じ決まり", () => {
+  const site = "dash.cloudflare.com";
+  assert.equal(
+    K.appliesTo({ domain: "dash.cloudflare.com", hostOnly: true }, site),
+    true,
+  );
+  assert.equal(
+    K.appliesTo({ domain: ".cloudflare.com", hostOnly: false }, site),
+    true,
+  );
+  // 上のドメインでも host だけのものは送られない
+  assert.equal(
+    K.appliesTo({ domain: "cloudflare.com", hostOnly: true }, site),
+    false,
+  );
+  // 下のドメイン・ほかのサイト・TLD だけ
+  assert.equal(
+    K.appliesTo({ domain: "x.dash.cloudflare.com", hostOnly: true }, site),
+    false,
+  );
+  assert.equal(
+    K.appliesTo({ domain: "example.com", hostOnly: false }, site),
+    false,
+  );
+  assert.equal(K.appliesTo({ domain: ".com", hostOnly: false }, site), false);
+});
+
+test("pickCookies はサイトに送られるものを、重ねずに取り決めの形にする", () => {
+  const out = K.pickCookies(
+    [
+      {
+        name: "user_session",
+        value: "v",
+        domain: "github.com",
+        hostOnly: true,
+        path: "/",
+        secure: true,
+        httpOnly: true,
+        sameSite: "lax",
+        session: false,
+        expirationDate: 1790000000.5,
+        storeId: "0",
+      },
+      // url と domain の両方で読むと同じものが 2 回来る
+      {
+        name: "user_session",
+        value: "v",
+        domain: "github.com",
+        hostOnly: true,
+        path: "/",
+      },
+      {
+        name: "_gh_sess",
+        value: "s",
+        domain: "gist.github.com",
+        hostOnly: true,
+        path: "/",
+      },
+      {
+        name: "_octo",
+        value: "o",
+        domain: ".github.com",
+        hostOnly: false,
+        path: "/",
+        session: true,
+      },
+    ],
+    "github.com",
+  );
+  assert.equal(out.length, 2);
+  assert.deepEqual(JSON.parse(JSON.stringify(out[0])), {
+    name: "user_session",
+    value: "v",
+    domain: "github.com",
+    hostOnly: true,
+    path: "/",
+    secure: true,
+    httpOnly: true,
+    session: false,
+    sameSite: "lax",
+    expirationDate: 1790000000.5,
+  });
+  assert.equal(out[1].name, "_octo");
+});
+
+test("pickCookies は上限で切る", () => {
+  const many = Array.from({ length: 1500 }, (_, i) => ({
+    name: `c${i}`,
+    value: "v",
+    domain: "github.com",
+    hostOnly: true,
+    path: "/",
+  }));
+  assert.equal(K.pickCookies(many, "github.com").length, K.MAX_COOKIES);
+});
+
+test("settled は読み込みが済み、Cookie が止まってから", () => {
+  const s = { successAt: 1000, lastCookieChange: 0, tabComplete: true };
+  // パスキーの直後は待つ
+  assert.equal(K.settled({ ...s, now: 1000 + K.SETTLE_MIN_MS - 1 }), false);
+  assert.equal(K.settled({ ...s, now: 1000 + K.SETTLE_MIN_MS }), true);
+  // 読み込み中は待つ
+  assert.equal(
+    K.settled({ ...s, tabComplete: false, now: 1000 + K.SETTLE_MIN_MS }),
+    false,
+  );
+  // Cookie が変わったばかりなら待つ
+  const changed = { ...s, lastCookieChange: 2500 };
+  assert.equal(
+    K.settled({ ...changed, now: 2500 + K.SETTLE_QUIET_MS - 1 }),
+    false,
+  );
+  assert.equal(K.settled({ ...changed, now: 2500 + K.SETTLE_QUIET_MS }), true);
+  // 長く落ち着かなくても、上限で送る
+  assert.equal(
+    K.settled({
+      ...s,
+      tabComplete: false,
+      lastCookieChange: 1e12,
+      now: 1000 + K.SETTLE_MAX_MS,
+    }),
+    true,
+  );
+});
+
+test("openedByKisui はできたばかりのタブが待っているサイトを開いたときだけ", () => {
+  const waiting = new Map([
+    ["github.com", { host: "h", url: "https://github.com/login" }],
+  ]);
+  const base = { createdAt: 0, waiting };
+  assert.deepEqual(
+    JSON.parse(
+      JSON.stringify(
+        K.openedByKisui({
+          ...base,
+          url: "https://github.com/session",
+          now: 1000,
+        }),
+      ),
+    ),
+    { site: "github.com", host: "h" },
+  );
+  assert.equal(
+    K.openedByKisui({ ...base, url: "https://gist.github.com/", now: 1000 }),
+    null,
+  );
+  assert.equal(
+    K.openedByKisui({
+      ...base,
+      url: "https://github.com/",
+      now: K.NEW_TAB_MS + 1,
+    }),
+    null,
+  );
+});
+
+test("sameUrl は # の後ろを見ない", () => {
+  assert.equal(
+    K.sameUrl("https://github.com/login#x", "https://GITHUB.com/login"),
+    true,
+  );
+  assert.equal(
+    K.sameUrl("https://github.com/login", "https://github.com/session"),
+    false,
+  );
+});
+
+// ---- background.js をブラウザの API の偽物で動かす
+
+function event() {
+  const fns: Function[] = [];
+  return {
+    addListener: (f: Function) => fns.push(f),
+    fire: (...a: any[]) => fns.map((f) => f(...a)),
+  };
+}
+
+function fakeBrowser(opts: {
+  sites: string[];
+  waiting: { site: string; url: string }[];
+  // kisui-terminal が動いていない（どの受け口も答えない）
+  down?: boolean;
+}) {
+  let clock = 1_000_000;
+  const session: Record<string, any> = {};
+  const native: { host: string; message: any }[] = [];
+  const removed: number[] = [];
+  const badges: any[] = [];
+  const tabs = new Map<number, any>();
+  const registered: any[] = [];
+  const injected: any[] = [];
+  const allCookies = [
+    {
+      name: "user_session",
+      value: "v",
+      domain: "github.com",
+      hostOnly: true,
+      path: "/",
+      httpOnly: true,
+    },
+    {
+      name: "_gh_sess",
+      value: "s",
+      domain: "gist.github.com",
+      hostOnly: true,
+      path: "/",
+    },
+    {
+      name: "other",
+      value: "o",
+      domain: "example.com",
+      hostOnly: true,
+      path: "/",
+    },
+  ];
+  const cookieQueries: any[] = [];
+  const ev = {
+    created: event(),
+    updated: event(),
+    removedTab: event(),
+    cookie: event(),
+    message: event(),
+    action: event(),
+    startup: event(),
+    installed: event(),
+  };
+  const api = {
+    storage: {
+      session: {
+        get: async (keys: string[]) =>
+          Object.fromEntries(
+            keys.filter((k) => k in session).map((k) => [k, session[k]]),
+          ),
+        set: async (p: any) => Object.assign(session, structuredClone(p)),
+        remove: async (k: string) => {
+          delete session[k];
+        },
+      },
+    },
+    runtime: {
+      sendNativeMessage: async (host: string, message: any) => {
+        native.push({ host, message });
+        if (opts.down || host !== "dev.mm1995tk.kisui_terminal")
+          throw new Error("not found");
+        if (message.type === "sites")
+          return {
+            type: "sites",
+            version: 1,
+            sites: opts.sites,
+            waiting: opts.waiting,
+          };
+        if (message.type === "cookies")
+          return { type: "done", accepted: message.cookies.length, dropped: 0 };
+        return { type: "error", code: "bad-request" };
+      },
+      onMessage: ev.message,
+      onStartup: ev.startup,
+      onInstalled: ev.installed,
+    },
+    scripting: {
+      getRegisteredContentScripts: async () => registered,
+      unregisterContentScripts: async () => {
+        registered.length = 0;
+      },
+      registerContentScripts: async (s: any[]) => registered.push(...s),
+      executeScript: async (d: any) => injected.push(d),
+    },
+    tabs: {
+      onCreated: ev.created,
+      onUpdated: ev.updated,
+      onRemoved: ev.removedTab,
+      get: async (id: number) => {
+        if (!tabs.has(id)) throw new Error("no tab");
+        return tabs.get(id);
+      },
+      query: async () => [...tabs.values()],
+      remove: async (id: number) => {
+        removed.push(id);
+        tabs.delete(id);
+      },
+    },
+    cookies: {
+      onChanged: ev.cookie,
+      getAllCookieStores: async () => [{ id: "0", tabIds: [...tabs.keys()] }],
+      getAll: async (d: any) => {
+        cookieQueries.push(d);
+        if (d.url)
+          return allCookies.filter((c) => c.domain === K.hostOf(d.url));
+        return allCookies.filter(
+          (c) => c.domain === d.domain || c.domain.endsWith(`.${d.domain}`),
+        );
+      },
+    },
+    permissions: { request: async () => true, contains: async () => true },
+    action: {
+      onClicked: ev.action,
+      setBadgeText: async (b: any) => badges.push(b),
+      setBadgeBackgroundColor: async () => {},
+      setTitle: async () => {},
+    },
+    i18n: { getMessage: (k: string) => k },
+  };
+  class FakeDate extends Date {
+    static now() {
+      return clock;
+    }
+  }
+  const ctx: any = {
+    chrome: api,
+    URL,
+    Date: FakeDate,
+    console,
+    structuredClone,
+    // 待つたびに時計を進める
+    setTimeout: (f: Function, ms: number) => {
+      clock += ms;
+      queueMicrotask(() => f());
+    },
+  };
+  vm.createContext(ctx);
+  vm.runInContext(read("lib.js"), ctx);
+  vm.runInContext(read("background.js"), ctx);
+  return {
+    ev,
+    tabs,
+    native,
+    removed,
+    badges,
+    registered,
+    injected,
+    cookieQueries,
+    session,
+    advance: (ms: number) => (clock += ms),
+  };
+}
+
+const flush = () => new Promise((r) => setImmediate(r));
+async function settle() {
+  for (let i = 0; i < 200; i++) await flush();
+}
+
+const GH = {
+  sites: ["github.com"],
+  waiting: [{ site: "github.com", url: "https://github.com/login" }],
+};
+
+test("入れたとき、許可サイトにだけページのスクリプトを入れる", async () => {
+  const b = fakeBrowser(GH);
+  b.ev.installed.fire();
+  await settle();
+  assert.deepEqual(
+    b.registered.map((s) => [s.id, s.world ?? "ISOLATED", [...s.matches]]),
+    [
+      ["kisui-page", "MAIN", ["https://github.com/*"]],
+      ["kisui-relay", "ISOLATED", ["https://github.com/*"]],
+    ],
+  );
+});
+
+test("kisui-terminal が開いたタブでパスキーが通ると、Cookie を送ってタブを閉じる", async () => {
+  const b = fakeBrowser(GH);
+  const tab = { id: 7, url: "https://github.com/login", status: "complete" };
+  b.tabs.set(7, tab);
+  b.ev.created.fire({ id: 7, pendingUrl: "https://github.com/login" });
+  await settle();
+  b.ev.message.fire(
+    { type: "passkey-success" },
+    { tab, url: "https://github.com/login" },
+  );
+  await settle();
+  const sent = b.native.filter((n) => n.message.type === "cookies");
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].host, "dev.mm1995tk.kisui_terminal");
+  assert.equal(sent[0].message.site, "github.com");
+  // 送るのはサイトのものだけ
+  assert.deepEqual(
+    [...sent[0].message.cookies.map((c: any) => c.name)],
+    ["user_session"],
+  );
+  // 読むのは github.com の URL とドメインだけ
+  for (const q of b.cookieQueries) {
+    assert.ok(
+      q.url === "https://github.com/" || q.domain === "github.com",
+      JSON.stringify(q),
+    );
+  }
+  assert.deepEqual(b.removed, [7]);
+});
+
+test("タブを覚えるのと、別のタブが閉じるのが重なっても、覚えたタブは消えない", async () => {
+  const b = fakeBrowser(GH);
+  const tab = { id: 30, url: "https://github.com/login", status: "complete" };
+  b.tabs.set(30, tab);
+  b.ev.created.fire({ id: 30, pendingUrl: tab.url });
+  b.ev.removedTab.fire(31);
+  await settle();
+  assert.deepEqual(
+    { ...b.session["tracked:30"] },
+    {
+      site: "github.com",
+      host: "dev.mm1995tk.kisui_terminal",
+    },
+  );
+});
+
+test("ブラウザを起動したとき、待っている URL を読み込み中（pendingUrl だけ）のタブも覚える", async () => {
+  const b = fakeBrowser(GH);
+  b.tabs.set(40, { id: 40, url: "", pendingUrl: "https://github.com/login" });
+  b.tabs.set(41, { id: 41, url: "https://github.com/" });
+  b.ev.startup.fire();
+  await settle();
+  assert.ok(b.session["tracked:40"]);
+  assert.equal(b.session["tracked:41"], undefined);
+});
+
+test("覚えたタブが別の host にリダイレクトしていたら、スクリプトを入れない", async () => {
+  const b = fakeBrowser(GH);
+  b.tabs.set(60, {
+    id: 60,
+    url: "https://sso.example.com/",
+    status: "complete",
+  });
+  b.ev.created.fire({ id: 60, pendingUrl: "https://github.com/login" });
+  await settle();
+  assert.ok(b.session["tracked:60"]);
+  assert.equal(b.injected.length, 0);
+});
+
+test("覚えた後に待ちが終わったサイトの Cookie は、パスキーが通っても読まない", async () => {
+  const opts = { ...GH };
+  const b = fakeBrowser(opts);
+  const tab = { id: 50, url: "https://github.com/login", status: "complete" };
+  b.tabs.set(50, tab);
+  b.ev.created.fire({ id: 50, pendingUrl: tab.url });
+  await settle();
+  assert.ok(b.session["tracked:50"]);
+  opts.waiting = [];
+  b.ev.message.fire({ type: "passkey-success" }, { tab, url: tab.url });
+  await settle();
+  assert.equal(b.cookieQueries.length, 0);
+  assert.deepEqual(b.removed, []);
+  assert.equal(b.badges.at(-1).text, "!");
+});
+
+test("kisui-terminal が開いていないタブの知らせは使わない", async () => {
+  const b = fakeBrowser(GH);
+  const tab = { id: 8, url: "https://github.com/login", status: "complete" };
+  b.tabs.set(8, tab);
+  // 前からあるタブ（onCreated が来ていない）
+  b.ev.message.fire({ type: "passkey-success" }, { tab, url: tab.url });
+  await settle();
+  assert.equal(b.native.filter((n) => n.message.type === "cookies").length, 0);
+  assert.deepEqual(b.removed, []);
+});
+
+test("kisui-terminal が答えないときも、聞いてから 1 分は新しいタブで聞き直さない", async () => {
+  const b = fakeBrowser({ ...GH, down: true });
+  for (const id of [20, 21]) {
+    b.ev.created.fire({ id, pendingUrl: "https://example.com/" });
+    await settle();
+  }
+  // 1 つ目のタブで 2 つの受け口に 1 回ずつ聞き、2 つ目では聞かない
+  assert.equal(b.native.length, 2);
+  b.advance(60 * 1000);
+  b.ev.created.fire({ id: 22, pendingUrl: "https://example.com/" });
+  await settle();
+  assert.equal(b.native.length, 4);
+});
+
+test("待っていないサイトのタブは覚えない", async () => {
+  const b = fakeBrowser({ sites: ["github.com"], waiting: [] });
+  const tab = { id: 9, url: "https://github.com/", status: "complete" };
+  b.tabs.set(9, tab);
+  b.ev.created.fire({ id: 9, pendingUrl: tab.url });
+  await settle();
+  b.ev.message.fire({ type: "passkey-success" }, { tab, url: tab.url });
+  await settle();
+  assert.equal(b.native.filter((n) => n.message.type === "cookies").length, 0);
+});
+
+test("手で戻るボタンは、待っているサイトの Cookie を送ってタブを閉じる", async () => {
+  const b = fakeBrowser(GH);
+  const tab = {
+    id: 10,
+    url: "https://github.com/settings",
+    status: "complete",
+  };
+  b.tabs.set(10, tab);
+  b.ev.action.fire(tab);
+  await settle();
+  assert.equal(b.native.filter((n) => n.message.type === "cookies").length, 1);
+  assert.deepEqual(b.removed, [10]);
+});
+
+test("手で戻るボタンは、許可していないサイトの Cookie を読まない", async () => {
+  const b = fakeBrowser(GH);
+  const tab = { id: 11, url: "https://example.com/", status: "complete" };
+  b.tabs.set(11, tab);
+  b.ev.action.fire(tab);
+  await settle();
+  assert.equal(b.cookieQueries.length, 0);
+  assert.equal(b.native.filter((n) => n.message.type === "cookies").length, 0);
+  assert.deepEqual(b.removed, []);
+  assert.equal(b.badges.at(-1).text, "!");
+});
+
+// ---- manifest と組み立て
+
+const base = JSON.parse(read("manifest.json"));
+
+test("Firefox の id は kisui-terminal の受け口が許すものと同じ", () => {
+  const rs = readFileSync(join(dir, "../app/src-tauri/src/passkey.rs"), "utf8");
+  const id = rs.match(/FIREFOX_EXTENSION_ID: &str = "([^"]+)"/)![1];
+  assert.equal(
+    manifestFor("firefox", base).browser_specific_settings.gecko.id,
+    id,
+  );
+});
+
+test("受け口の名前は kisui-terminal のものと同じ", () => {
+  assert.deepEqual(
+    [...K.HOSTS],
+    ["dev.mm1995tk.kisui_terminal", "dev.mm1995tk.kisui_terminal_nightly"],
+  );
+});
+
+test("Chrome の manifest には Firefox だけの項目を入れない", () => {
+  const m = manifestFor("chrome", base);
+  assert.deepEqual(m.background, { service_worker: "background.js" });
+  assert.equal(m.browser_specific_settings, undefined);
+  assert.equal(m.key, undefined);
+  assert.equal(manifestFor("chrome", base, { chromeKey: "k" }).key, "k");
+  assert.deepEqual(manifestFor("firefox", base).background, {
+    scripts: ["lib.js", "background.js"],
+  });
+});
+
+test("訳は en と ja で同じ鍵を持ち、使う鍵がすべてある", () => {
+  const en = JSON.parse(read("_locales/en/messages.json"));
+  const ja = JSON.parse(read("_locales/ja/messages.json"));
+  assert.deepEqual(Object.keys(en).sort(), Object.keys(ja).sort());
+  const used = new Set<string>();
+  for (const m of JSON.stringify(base).matchAll(/__MSG_(\w+)__/g))
+    used.add(m[1]);
+  for (const m of read("background.js").matchAll(
+    /(?:getMessage\(|: )"(\w+)"/g,
+  )) {
+    if (/^(error|action)/.test(m[1])) used.add(m[1]);
+  }
+  for (const k of used) assert.ok(k in en, k);
+  // Chrome ウェブストアの上限
+  for (const t of [en, ja]) {
+    assert.ok([...t.extensionName.message].length <= 75);
+    assert.ok(
+      [...t.extensionDescription.message].length <= 132,
+      t.extensionDescription.message,
+    );
+  }
+});
+
+function unzip(buf: Buffer) {
+  const files = new Map<string, Buffer>();
+  let p = 0;
+  while (buf.readUInt32LE(p) === 0x04034b50) {
+    const size = buf.readUInt32LE(p + 18);
+    const nlen = buf.readUInt16LE(p + 26);
+    const xlen = buf.readUInt16LE(p + 28);
+    const name = buf.subarray(p + 30, p + 30 + nlen).toString("utf8");
+    const start = p + 30 + nlen + xlen;
+    files.set(name, inflateRawSync(buf.subarray(start, start + size)));
+    p = start + size;
+  }
+  return files;
+}
+
+test("zip は読み戻せる", () => {
+  const z = zip([
+    { name: "a.txt", data: Buffer.from("hello") },
+    { name: "d/b.json", data: Buffer.from("{}") },
+  ]);
+  const f = unzip(z);
+  assert.equal(f.get("a.txt")!.toString(), "hello");
+  assert.equal(f.get("d/b.json")!.toString(), "{}");
+});
+
+test("build は両方のブラウザのフォルダと zip を作り、manifest の指すファイルがそろう", () => {
+  const out = mkdtempSync(join(tmpdir(), "kisui-ext-"));
+  try {
+    const made = build(out);
+    assert.equal(made.length, 2);
+    for (const browser of ["chrome", "firefox"]) {
+      const files = unzip(
+        readFileSync(
+          join(out, `kisui-terminal-${browser}-${base.version}.zip`),
+        ),
+      );
+      const m = JSON.parse(files.get("manifest.json")!.toString());
+      const refs = [
+        ...Object.values(m.icons as Record<string, string>),
+        ...Object.values(m.action.default_icon as Record<string, string>),
+        ...(m.background.scripts ?? [m.background.service_worker]),
+        "page.js",
+        "relay.js",
+        "_locales/en/messages.json",
+        "_locales/ja/messages.json",
+      ];
+      for (const r of refs) assert.ok(files.has(r), `${browser}: ${r}`);
+      assert.ok(readdirSync(join(out, browser)).includes("manifest.json"));
+    }
+    // 同じソースからは同じ zip
+    const again = mkdtempSync(join(tmpdir(), "kisui-ext-"));
+    try {
+      build(again);
+      for (const browser of ["chrome", "firefox"]) {
+        const name = `kisui-terminal-${browser}-${base.version}.zip`;
+        assert.deepEqual(
+          readFileSync(join(out, name)),
+          readFileSync(join(again, name)),
+        );
+      }
+    } finally {
+      rmSync(again, { recursive: true, force: true });
+    }
+  } finally {
+    rmSync(out, { recursive: true, force: true });
+  }
+});

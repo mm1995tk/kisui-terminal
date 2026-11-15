@@ -18,6 +18,12 @@ _: {
       "app/**/*.tsx"
       "app/**/*.html"
       "app/**/*.json"
+      # 外のブラウザの拡張機能
+      "extension/*.js"
+      "extension/*.mjs"
+      "extension/*.ts"
+      "extension/*.json"
+      "extension/**/*.json"
     ];
   };
   # gomod2nix writes this file; reformatting it only makes the next gomod2nix run show a diff.

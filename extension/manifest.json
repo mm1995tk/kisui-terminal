@@ -1,0 +1,41 @@
+{
+  "manifest_version": 3,
+  "name": "__MSG_extensionName__",
+  "short_name": "kisui-terminal",
+  "description": "__MSG_extensionDescription__",
+  "version": "0.1.0",
+  "default_locale": "en",
+  "homepage_url": "https://github.com/mm1995tk/kisui-terminal",
+  "icons": {
+    "32": "icons/32.png",
+    "64": "icons/64.png",
+    "128": "icons/128.png"
+  },
+  "action": {
+    "default_title": "__MSG_actionTitle__",
+    "default_icon": {
+      "32": "icons/32.png",
+      "64": "icons/64.png"
+    }
+  },
+  "commands": {
+    "_execute_action": {
+      "description": "__MSG_actionTitle__"
+    }
+  },
+  "permissions": ["cookies", "nativeMessaging", "scripting", "storage"],
+  "host_permissions": ["https://*/*"],
+  "background": {
+    "service_worker": "background.js",
+    "scripts": ["lib.js", "background.js"]
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "kisui-terminal@mm1995tk.github.io",
+      "strict_min_version": "140.0",
+      "data_collection_permissions": {
+        "required": ["authenticationInfo"]
+      }
+    }
+  }
+}
