@@ -3,6 +3,10 @@ import { describe, it } from "node:test";
 
 import { ErrorCode, RpcError } from "../rpc/message.ts";
 import { renameErrorText } from "./renameError.ts";
+import { setLang } from "../i18n/index.ts";
+
+// 日本語の文で確かめる（画面の言葉の既定は英語）
+setLang("ja");
 
 const invalid = (message: string, data?: unknown) =>
   new RpcError({ code: ErrorCode.InvalidParams, message, data });

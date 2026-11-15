@@ -18,6 +18,7 @@
 //
 // DOM を使わないので node --test で確かめられる。画面は TermSink、shj は TermPort で差し替える。
 
+import { T } from "../i18n/index.ts";
 import { ErrorCode, RpcError } from "../rpc/message.ts";
 import type { Requests, TermId } from "../rpc/protocol.ts";
 import type { TermEvent, TermMethod } from "../ssh/session.ts";
@@ -45,8 +46,8 @@ export interface TermSink {
 export const DEFAULT_SIZE = { cols: 80, rows: 24 };
 
 /** シェルが終わったときに画面に出す知らせ。 */
-export const EXITED_NOTICE =
-  "\r\n[シェルが終わりました。Enter で新しいシェルを開きます]\r\n";
+export const exitedNotice = (): string =>
+  `\r\n${T("terminal.shellExited")}\r\n`;
 
 /**
  * ターミナル 1 つと、それを描く画面をつなぐ。ターミナル 1 つにつき 1 つ作り（並びは TermGroup が持つ）、
@@ -164,7 +165,7 @@ export class TermLink {
         this.exited = true;
         void this.attach(this.op).then((r) => {
           if (!this.exited) return;
-          if (r === "ok" && this.primary) this.sink?.notice(EXITED_NOTICE);
+          if (r === "ok" && this.primary) this.sink?.notice(exitedNotice());
           if (!this.primary) this.onExit?.();
         });
         return;
@@ -213,7 +214,7 @@ export class TermLink {
     if (op !== this.op) return;
     // 前から終わっていたものは、取り直して描き直した画面にもう一度出す（checkAlive で知ったときはそちらが出す）
     if (r === "ok" && wasExited && this.primary)
-      this.sink?.notice(EXITED_NOTICE);
+      this.sink?.notice(exitedNotice());
     // shj にターミナルが無い（shj が作り直された）。欄は、ワークスペースが一覧から消えるまで残る
     if (r === "missing") this.markExited();
   }
@@ -295,7 +296,7 @@ export class TermLink {
   private markExited(): void {
     if (this.exited) return;
     this.exited = true;
-    if (this.primary) this.sink?.notice(EXITED_NOTICE);
+    if (this.primary) this.sink?.notice(exitedNotice());
     else this.onExit?.();
   }
 

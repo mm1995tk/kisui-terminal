@@ -2,6 +2,7 @@
 // キャラクターは設定のフォルダの `mascot/<名前>/` に置き、設定ファイルの `[gui] mascot` で選ぶ。
 // `mascot.toml` と画像を読むのは Rust 側（mascot.rs）。画面からはパスを渡さない（画像は `mascot:` のスキームの番号で受け取る）。
 // 選んでいない・使えないときは null で、案内だけが出る。
+import { T } from "./i18n/index.ts";
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 
 /** 場面 1 つ（Rust 側の mascot.rs の `Scene`）。既定の値は Rust 側が埋めてある */
@@ -191,7 +192,7 @@ export async function reloadMascot(): Promise<Reloaded> {
     const raw = (await invoke("mascot_reload")) as Mascot | null;
     if (!raw) return { kind: "none" };
     const mascot = await decodeMascot(raw);
-    if (!mascot) return { kind: "error", error: "画像を読み込めませんでした" };
+    if (!mascot) return { kind: "error", error: T("mascot.err.image") };
     // デコードできたので、読み直した画像を使うものにする（できなければ、前のキャラクターの画像の URL が使えるまま残る）
     await invoke("mascot_commit", { generation: generationOf(raw) });
     return { kind: "loaded", mascot };

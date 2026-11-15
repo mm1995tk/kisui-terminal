@@ -1,5 +1,6 @@
 // 内蔵ブラウザ（#202）の URL の入力欄。リーダーの o n（新しいタブ）・o N（シークレットのタブ。#204）と o u（今のタブの URL を書き換える）で出す。
 // scheme を省くと https（localhost などは http）で開く。開けない URL（http と https 以外など）は、窓の中に理由を出す。
+import { T } from "../i18n/index.ts";
 import { createSignal, Show, type JSX } from "solid-js";
 
 import { ModalCard } from "../connect/Card.tsx";
@@ -23,16 +24,14 @@ export function UrlDialog(props: {
   const [error, setError] = createSignal<string | undefined>();
   const title = () =>
     props.kind === "edit"
-      ? "URL を書き換える"
+      ? T("urlDialog.edit")
       : props.incognito
-        ? "シークレットのタブを開く"
-        : "新しいタブを開く";
+        ? T("urlDialog.incognito")
+        : T("urlDialog.new");
   function submit() {
     const u = normalizeUrl(value());
     if (u === null) {
-      setError(
-        "開けるのは http と https の URL だけです（ユーザー名やパスワードを含むもの、空白を含むものは開けません）",
-      );
+      setError(T("urlDialog.invalid"));
       return;
     }
     props.onSubmit(u);
@@ -76,10 +75,10 @@ export function UrlDialog(props: {
       </div>
       <div class="card-actions">
         <button type="button" class="card-button" onClick={props.onCancel}>
-          キャンセル
+          {T("button.cancel")}
         </button>
         <button type="button" class="card-button primary" onClick={submit}>
-          開く
+          {T("download.open")}
         </button>
       </div>
     </ModalCard>

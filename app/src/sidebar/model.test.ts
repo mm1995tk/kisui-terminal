@@ -15,8 +15,12 @@ import {
   stepFrom,
   stepWorkspace,
   splitAtFocus,
-  UNSET_TITLE,
+  unsetTitle,
 } from "./model.ts";
+import { setLang } from "../i18n/index.ts";
+
+// 日本語の文で確かめる（画面の言葉の既定は英語）
+setLang("ja");
 
 /** root はフォルダ（省くか null ならフォルダ未定）。 */
 const ws = (
@@ -157,7 +161,7 @@ describe("band", () => {
     const u = band(ws({ id: "u", label: "メモ" }), false);
     assert.equal(u.title, "メモ");
     assert.equal(u.unset, false);
-    assert.equal(u.autoTitle, UNSET_TITLE);
+    assert.equal(u.autoTitle, unsetTitle());
     const a = band(ws({ id: "a", root: "/src/x" }), false);
     assert.equal(a.label, "");
     assert.equal(a.autoTitle, a.title);
@@ -165,7 +169,7 @@ describe("band", () => {
 
   it("フォルダ未定のワークスペースは「（フォルダ未定）」", () => {
     const b = band(ws({ id: "u" }), false);
-    assert.equal(b.title, UNSET_TITLE);
+    assert.equal(b.title, unsetTitle());
     assert.equal(b.unset, true);
     assert.equal(b.path, false);
     assert.equal(b.detail, "");
@@ -210,7 +214,7 @@ describe("band", () => {
       [
         ["app", "main"],
         ["app", "main #2"],
-        [UNSET_TITLE, ""],
+        [unsetTitle(), ""],
         ["app", "main #3"],
       ],
     );

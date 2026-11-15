@@ -1,6 +1,7 @@
 // マシンのダイアログ（リーダーの `m`）。すべてのマシンを、つながりの状態とワークスペースの数と一緒に並べ、
 // マシンを足す・名前を変える・外す・切る・つなぎ直す（今すぐつなぐ）を、キーで行う。
 // 足す・名前を変えるの窓は、これを出したまま、その上に出す（呼んだ側。App.tsx）。キーの決まりは machineList.ts と docs/key-design.md。
+import { T } from "../i18n/index.ts";
 import {
   createEffect,
   createMemo,
@@ -46,17 +47,22 @@ function MachineRowItem(props: {
       <span class="card-row-name">
         {r().label}
         <Show when={r().fixed}>
-          <span class="machine-row-mark">（設定ファイル）</span>
+          <span class="machine-row-mark">{T("machineDialog.fixed")}</span>
         </Show>
       </span>
       <span class="card-row-state">
         <span role="status">{r().status}</span>
         <Show when={r().countdown}>
-          {(c) => <span aria-hidden="true">・{c()}</span>}
+          {(c) => (
+            <span aria-hidden="true">
+              {T("machineDialog.countdownSep")}
+              {c()}
+            </span>
+          )}
         </Show>
       </span>
       <span class="card-row-state machine-row-count">
-        ワークスペース {r().workspaces}
+        {T("machineDialog.workspaces", { n: r().workspaces })}
       </span>
     </li>
   );
@@ -109,17 +115,21 @@ export function MachineDialog(props: {
   }
 
   return (
-    <ModalCard label="マシン" width={640} onCancel={props.onCancel}>
+    <ModalCard
+      label={T("machineDialog.label")}
+      width={640}
+      onCancel={props.onCancel}
+    >
       <div class="machine-dialog">
         <div class="card-body">
-          <h1 class="card-title">マシン</h1>
+          <h1 class="card-title">{T("machineDialog.label")}</h1>
         </div>
         <ul
           class="card-rows"
           data-place="machines"
           tabIndex={0}
           role="listbox"
-          aria-label="マシンの一覧"
+          aria-label={T("machineDialog.list")}
           aria-activedescendant={
             sel.selected() ? rowId(sel.index()) : undefined
           }
@@ -149,15 +159,20 @@ export function MachineDialog(props: {
             )}
           </Show>
           <p class="machine-keys">
-            <kbd>j</kbd> <kbd>k</kbd> 選ぶ・<kbd>a</kbd> 足す・<kbd>n</kbd>{" "}
-            名前を変える・<kbd>d</kbd> 外す・<kbd>x</kbd> 切る・<kbd>r</kbd>{" "}
-            つなぎ直す・<kbd>?</kbd> キーの一覧・<kbd>Esc</kbd> 閉じる
+            <kbd>j</kbd> <kbd>k</kbd> {T("machineDialog.keys.select")} ·{" "}
+            <kbd>a</kbd> {T("machineDialog.keys.add")} · <kbd>n</kbd>{" "}
+            {T("machineDialog.keys.rename")} · <kbd>d</kbd>{" "}
+            {T("machineDialog.keys.remove")} · <kbd>x</kbd>{" "}
+            {T("machineDialog.keys.disconnect")} · <kbd>r</kbd>{" "}
+            {T("machineDialog.keys.reconnect")} · <kbd>?</kbd>{" "}
+            {T("machineDialog.keys.keyList")} · <kbd>Esc</kbd>{" "}
+            {T("machineDialog.keys.close")}
           </p>
         </div>
       </div>
       <div class="card-actions">
         <button type="button" class="card-button" onClick={props.onCancel}>
-          閉じる
+          {T("button.close")}
         </button>
       </div>
     </ModalCard>

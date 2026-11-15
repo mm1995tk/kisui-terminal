@@ -13,6 +13,10 @@ import {
 } from "./machineList.ts";
 import type { MachineGroup } from "../sidebar/model.ts";
 import { statusLine } from "./status.ts";
+import { setLang } from "../i18n/index.ts";
+
+// 日本語の文で確かめる（画面の言葉の既定は英語）
+setLang("ja");
 
 const ev = (key: string, extra: object = {}) => ({
   key,

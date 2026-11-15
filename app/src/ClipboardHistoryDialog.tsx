@@ -1,6 +1,7 @@
 // クリップボードの履歴の一覧（#54）。キーで開き、選んだ文字を今の欄に貼るか、OS のクリップボードに戻す。
 // 履歴を持つのは Tauri の側（clipboard_history.rs）。ここは開くたびに読み、選ばせる。
 // 一覧の中身（HistoryPanel）は、kisui-terminal の外から開く小さな窓（ClipboardHistoryPopup.tsx）でも使う。
+import { T } from "./i18n/index.ts";
 import {
   createEffect,
   createMemo,
@@ -51,7 +52,7 @@ function History(props: { opened: Opened }): JSX.Element {
   const close = () => setOpened(undefined);
   const target = props.opened.paste;
   return (
-    <ModalCard label="クリップボードの履歴" onCancel={close}>
+    <ModalCard label={T("history.label")} onCancel={close}>
       <HistoryPanel
         onPaste={
           target &&
@@ -156,12 +157,12 @@ export function HistoryPanel(props: {
     <>
       <div class="card-body">
         <div class="history-head">
-          <h1 class="card-title">クリップボードの履歴</h1>
+          <h1 class="card-title">{T("history.label")}</h1>
           <button
             type="button"
             class="history-close"
-            aria-label="閉じる"
-            title="閉じる"
+            aria-label={T("history.close")}
+            title={T("history.close")}
             // 入力欄からフォーカスを動かさない（押したあとも↑↓と Enter が効くように）
             onMouseDown={(ev) => ev.preventDefault()}
             onClick={props.onClose}
@@ -180,8 +181,8 @@ export function HistoryPanel(props: {
         <input
           class="card-input"
           type="text"
-          placeholder="文字を打って絞り込む"
-          aria-label="絞り込み"
+          placeholder={T("history.filterPlaceholder")}
+          aria-label={T("history.filter")}
           value={query()}
           onInput={(e) => {
             setQuery(e.currentTarget.value);
@@ -193,11 +194,9 @@ export function HistoryPanel(props: {
         <p class="card-text history-hint" role="status">
           <Show
             when={!copied()}
-            fallback={<span class="history-copied">コピーしました</span>}
+            fallback={<span class="history-copied">{T("history.copied")}</span>}
           >
-            {props.outside
-              ? "↑↓（Ctrl+J/K）"
-              : "↑↓（Ctrl+J/K）・Shift+Enter で戻す"}
+            {props.outside ? T("history.hint.outside") : T("history.hint")}
           </Show>
         </p>
       </div>
@@ -235,7 +234,7 @@ function HistoryRows(props: {
     <ul
       class="card-rows history-rows"
       role="listbox"
-      aria-label="履歴"
+      aria-label={T("history.list")}
       ref={props.listRef}
     >
       <For each={props.entries}>

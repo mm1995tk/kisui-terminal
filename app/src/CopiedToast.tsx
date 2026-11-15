@@ -1,3 +1,4 @@
+import { T } from "./i18n/index.ts";
 import { createSignal, Show } from "solid-js";
 
 import styles from "./CopiedToast.module.css";
@@ -13,7 +14,7 @@ export function CopiedToast() {
   return (
     <Show when={visible()}>
       <div class={styles.toast} role="status">
-        コピーしました
+        {T("toast.copied")}
       </div>
     </Show>
   );

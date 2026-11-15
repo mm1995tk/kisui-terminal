@@ -1,3 +1,4 @@
+import { T } from "../i18n/index.ts";
 import { createEffect, Match, onCleanup, Switch, type JSX } from "solid-js";
 
 import { openKeyList } from "../KeyListDialog.tsx";
@@ -81,8 +82,8 @@ export function VideoView(props: {
         <button
           type="button"
           class="video-close"
-          aria-label="動画のペインを閉じる"
-          title="閉じる"
+          aria-label={T("video.closePane")}
+          title={T("button.close")}
           onClick={() => props.onClose()}
         >
           ×
@@ -104,11 +105,7 @@ export function VideoView(props: {
                 autoplay
                 playsinline
                 tabindex="0"
-                onError={() =>
-                  source.fail(
-                    "この動画は再生できません（形式に対応していません）",
-                  )
-                }
+                onError={() => source.fail(T("video.unsupported"))}
               />
             )}
           </Match>
@@ -119,7 +116,11 @@ export function VideoView(props: {
                   const v = l();
                   return v.kind === "error"
                     ? v.text
-                    : `動画を取っています… ${Math.round((v.kind === "loading" ? v.ratio : 1) * 100)}%`;
+                    : T("video.loading", {
+                        percent: Math.round(
+                          (v.kind === "loading" ? v.ratio : 1) * 100,
+                        ),
+                      });
                 })()}
               </p>
             )}

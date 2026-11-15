@@ -117,8 +117,8 @@ struct Entry {
     name: Option<Spanned<String>>,
 }
 
-/// 「ローカル」の名前（GUI の LOCAL_LABEL と同じ。この名前のマシンは出せない）。
-const LOCAL_LABEL: &str = "ローカル";
+/// 「ローカル」の名前（画面の言葉ごとの、GUI の localLabel。どちらの名前のマシンも出せない）。
+const LOCAL_LABELS: [&str; 2] = ["Local", "ローカル"];
 
 /// 設定のフォルダで読むファイル。重ねる順（後のものが勝つ）。
 const FILES: [&str; 2] = ["config.toml", "config.local.toml"];
@@ -236,6 +236,36 @@ fn load(path: &Path) -> Result<Parsed, String> {
         Some(l) => format!("{}:{l}: {why}", path.display()),
         None => format!("{}: {why}", path.display()),
     })
+}
+
+/// 画面の言葉（`ui-language`。`"en"` か `"ja"`）。kisui（`config/config.go`）と同じ項目で、同じ 2 つのファイルから読む。
+/// `config.local.toml` に書いてあれば、そちらが勝つ。書いていない・`"en"` と `"ja"` のどちらでもない値は、英語にする。
+/// 読めないファイルや文字列でない値は、書いていないのと同じに扱う（マシンの一覧の間違いとは分ける。間違いは kisui が知らせる）。
+pub fn ui_language(dir: &Path) -> &'static str {
+    let mut lang = "en";
+    for file in FILES {
+        let Ok(text) = fs::read_to_string(dir.join(file)) else {
+            continue;
+        };
+        let Ok(table) = text.parse::<toml::Table>() else {
+            continue;
+        };
+        match table.get("ui-language").and_then(|v| v.as_str()) {
+            Some("en") => lang = "en",
+            Some("ja") => lang = "ja",
+            _ => {}
+        }
+    }
+    lang
+}
+
+/// 環境から設定のフォルダを決めて、画面の言葉を答える。フォルダが決まらなければ英語。
+pub fn ui_language_default() -> &'static str {
+    let (xdg, home, nightly) = env();
+    match config_dir(xdg.as_deref(), home.as_deref(), nightly) {
+        Some(d) => ui_language(&d),
+        None => "en",
+    }
 }
 
 /// `[gui] mascot`（使うキャラクターの名前）。`config.local.toml` に書いてあれば、そちらが勝つ（空の文字列も。キャラクターを出さない）。
@@ -486,7 +516,7 @@ fn check_machines(
             }
         };
         let label = name.clone().unwrap_or_else(|| ssh.clone());
-        if label == LOCAL_LABEL || !labels.insert(label.clone()) {
+        if LOCAL_LABELS.contains(&label.as_str()) || !labels.insert(label.clone()) {
             let n = e.name.as_ref().unwrap_or(&e.ssh);
             return Err((
                 at(n),
@@ -571,6 +601,8 @@ mod tests {
         let (line, _) = err("[[gui.machines]]\nssh = \"a\"\nname = \"x\"\n[[gui.machines]]\nssh = \"b\"\nname = \"x\"\n");
         assert_eq!(line, Some(6));
         let (line, _) = err("[[gui.machines]]\nssh = \"a\"\nname = \"ローカル\"\n");
+        assert_eq!(line, Some(3));
+        let (line, _) = err("[[gui.machines]]\nssh = \"a\"\nname = \"Local\"\n");
         assert_eq!(line, Some(3));
         let (line, _) = err("[[gui.machines]]\nssh = \"a\"\nname = \"  \"\n");
         assert_eq!(line, Some(3));
@@ -732,6 +764,31 @@ mod tests {
         fs::write(
             d.join("config.toml"),
             "[gui]\nmascot = \"neko\"\n[[gui.machines]]\nssh = \"a\"\n",
+        )
+        .unwrap();
+        fs::remove_file(d.join("config.local.toml")).unwrap();
+        assert_eq!(load_dir(&d).unwrap(), vec![machine("a")]);
+        let _ = fs::remove_dir_all(&d);
+    }
+
+    // `ui-language`（#174）。無い・分からない値は英語、config.local.toml が勝つ
+    #[test]
+    fn ui_language_local_wins() {
+        let d = temp_dir("ui-language");
+        assert_eq!(ui_language(&d), "en");
+        fs::write(d.join("config.toml"), "ui-language = \"ja\"\n").unwrap();
+        assert_eq!(ui_language(&d), "ja");
+        fs::write(d.join("config.local.toml"), "ui-language = \"en\"\n").unwrap();
+        assert_eq!(ui_language(&d), "en");
+        // 分からない値・文字列でない値は、書いていないのと同じ（前のファイルの値を使う）
+        fs::write(d.join("config.local.toml"), "ui-language = \"fr\"\n").unwrap();
+        assert_eq!(ui_language(&d), "ja");
+        fs::write(d.join("config.local.toml"), "ui-language = 5\n").unwrap();
+        assert_eq!(ui_language(&d), "ja");
+        // マシンの一覧は ui-language を読み飛ばす
+        fs::write(
+            d.join("config.toml"),
+            "ui-language = \"ja\"\n[[gui.machines]]\nssh = \"a\"\n",
         )
         .unwrap();
         fs::remove_file(d.join("config.local.toml")).unwrap();

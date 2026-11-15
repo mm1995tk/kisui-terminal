@@ -6,7 +6,7 @@ import type { TermInfo } from "../rpc/protocol.ts";
 import {
   decodeBase64,
   encodeBase64,
-  EXITED_NOTICE,
+  exitedNotice,
   TermLink,
   type TermPort,
   type TermSink,
@@ -260,7 +260,7 @@ describe("TermLink", () => {
     });
     link.handle(exitOf("t1"));
     await tick();
-    assert.equal(s.text(), "exit\n" + EXITED_NOTICE);
+    assert.equal(s.text(), "exit\n" + exitedNotice());
     assert.equal(exits, 0, "欄を閉じさせない");
 
     f.calls.length = 0;
@@ -400,8 +400,8 @@ describe("TermLink", () => {
     const s = fakeSink();
     link.bind(s.sink);
     await tick();
-    assert.ok(s.text().endsWith(EXITED_NOTICE));
-    assert.equal(s.text().split(EXITED_NOTICE).length - 1, 1); // 1 回だけ
+    assert.ok(s.text().endsWith(exitedNotice()));
+    assert.equal(s.text().split(exitedNotice()).length - 1, 1); // 1 回だけ
     f.calls.length = 0;
     link.input(enc.encode("\r"));
     await tick();
@@ -421,7 +421,7 @@ describe("TermLink", () => {
       });
     link.input(enc.encode("a"));
     await tick();
-    assert.ok(s.text().endsWith(EXITED_NOTICE));
+    assert.ok(s.text().endsWith(exitedNotice()));
   });
 
   it("shj にターミナルが無ければ（shj が作り直された）、分割したターミナルは欄を閉じさせる", async () => {
@@ -455,7 +455,7 @@ describe("TermLink", () => {
     f.handlers["term.list"] = () => ({ terms: [alive("t1", false)] });
     link.reconnected();
     await tick();
-    assert.equal(s.text(), "exit\n" + EXITED_NOTICE);
+    assert.equal(s.text(), "exit\n" + exitedNotice());
   });
 
   it("書き出しの返事を待つ間に届いた出力が、書き出しより前の分だけなら書かない", async () => {

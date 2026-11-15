@@ -4,6 +4,7 @@
 // ページの下の端を上げる（overlay.ts）。
 // 子の webview はタブごとに 1 つで、初めて出すときに作る。ほかのワークスペースに移る・グリッドに戻るときは隠すだけで、
 // ページはそのまま残す（戻ったときに、読んでいた所から続けられる）。タブを閉じたら壊す。
+import { T } from "../i18n/index.ts";
 import {
   createEffect,
   createSignal,
@@ -121,7 +122,7 @@ export function BrowserArea(props: {
       v.state = "failed";
       refreshStatus();
       props.onError(
-        "ページを開けませんでした",
+        T("err.page.open"),
         e instanceof Error ? e.message : String(e),
       );
       return;
@@ -228,11 +229,11 @@ export function BrowserArea(props: {
         {(t) => (
           <p class="browser-note" role="status">
             {status() === "opening"
-              ? `${t().url} を開いています…`
+              ? T("browser.opening", { url: t().url })
               : status() === "failed"
-                ? `${t().url} を開けませんでした。リーダーの o u で URL を書き換えられます`
+                ? T("browser.failed", { url: t().url })
                 : hidden()
-                  ? "ダイアログ・お知らせ・案内を出している間は、ページを隠しています"
+                  ? T("browser.hidden")
                   : ""}
           </p>
         )}

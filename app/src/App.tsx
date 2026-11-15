@@ -15,6 +15,7 @@
 // terminal/grid.ts）。プライマリターミナルは `exit` しても閉じず、Enter で作り直す。
 // 新しい版があれば右下に知らせ、押されたら入れ替えて起動し直す（C8。update/UpdateBar.tsx）。
 // 窓と知らせは、どれもモック Connect.dc.html のカードの決まりで描く（connect/card.css）。
+import { T } from "./i18n/index.ts";
 import {
   batch,
   createEffect,
@@ -732,7 +733,7 @@ function Workbench(props: {
   function statusOf(t: string): MachineStatus {
     return sessions()[t]
       ? statusLine(states()[t], now())
-      : { text: "つながっていません", title: "", retry: "again" };
+      : { text: T("status.disconnected"), title: "", retry: "again" };
   }
 
   function connect(target: string) {
@@ -1036,7 +1037,7 @@ function Workbench(props: {
       // フォーカスしているワークスペースを閉じた返事を待つあいだに押して失敗した、など
       resyncShjFocus();
       setFocusError({
-        title: `${labelOf(target)} のワークスペースに移れませんでした`,
+        title: T("err.workspace.focus", { machine: labelOf(target) }),
         error: e instanceof Error ? e.message : String(e),
       });
     }
@@ -1076,7 +1077,7 @@ function Workbench(props: {
       if (focus()?.id === id) focusTerminal();
     } catch (e) {
       setFocusError({
-        title: `${labelOf(target)} にワークスペースを作れませんでした`,
+        title: T("err.workspace.create", { machine: labelOf(target) }),
         error: e instanceof Error ? e.message : String(e),
       });
     }
@@ -1128,7 +1129,9 @@ function Workbench(props: {
         return;
       }
       setFocusError({
-        title: `${name || "ワークスペース"} を閉じられませんでした`,
+        title: T("err.workspace.close", {
+          name: name || T("workspace.fallbackName"),
+        }),
         error: e instanceof Error ? e.message : String(e),
       });
       return;
@@ -1249,7 +1252,7 @@ function Workbench(props: {
       id,
       path,
       (shj) => !!shj,
-      "ファイルを開けませんでした",
+      T("err.file.open"),
       openErrorText,
     );
 
@@ -1261,7 +1264,7 @@ function Workbench(props: {
       id,
       path,
       (shj) => !!shj?.diff,
-      "差分を出せませんでした",
+      T("err.diff.show"),
       changeErrorText,
     );
 
@@ -1284,7 +1287,7 @@ function Workbench(props: {
         },
         fail: (e) =>
           setFocusError({
-            title: "CHANGES の操作ができませんでした",
+            title: T("err.changes.op"),
             error: e instanceof Error ? e.message : String(e),
           }),
       },
@@ -1372,9 +1375,9 @@ function Workbench(props: {
         e.code === ErrorCode.Busy &&
         (e.data as { reason?: string } | undefined)?.reason === "running";
       setFocusError({
-        title: "プライマリターミナルに cd を送れませんでした",
+        title: T("err.cd.send"),
         error: running
-          ? "プライマリターミナルでプログラムが動いています。終わらせてからもう一度試してください。"
+          ? T("err.cd.running")
           : e instanceof Error
             ? e.message
             : String(e),
@@ -1461,7 +1464,7 @@ function Workbench(props: {
     const workspaceId = f?.id;
     return async (p) => {
       if (!s || workspaceId === undefined)
-        throw new Error("つながっていません");
+        throw new Error(T("status.disconnected"));
       return s.request("media.read", { workspaceId, id: pane.id, ...p });
     };
   }
@@ -1478,7 +1481,7 @@ function Workbench(props: {
     }
     openUrlExternally(target, url).catch((e: unknown) =>
       setFocusError({
-        title: "URL を開けませんでした",
+        title: T("err.url.open"),
         error: e instanceof Error ? e.message : String(e),
       }),
     );
@@ -1597,7 +1600,7 @@ function Workbench(props: {
       },
       (e: unknown) =>
         setFocusError({
-          title: "URL を開けませんでした",
+          title: T("err.url.open"),
           error: e instanceof Error ? e.message : String(e),
         }),
     );
@@ -1713,8 +1716,8 @@ function Workbench(props: {
         setFocusError({
           title:
             how === "open"
-              ? `${d.name} を開けませんでした`
-              : `${d.name} のフォルダを表示できませんでした`,
+              ? T("err.download.open", { name: d.name })
+              : T("err.download.reveal", { name: d.name }),
           error: e instanceof Error ? e.message : String(e),
         }),
     );
@@ -1726,21 +1729,27 @@ function Workbench(props: {
   function downloadNotice(d: DownloadDone): Notice {
     const had = downloadNotices.get(d);
     if (had) return had;
-    const close = { label: "閉じる", run: () => dropDownload(d) };
+    const close = { label: T("button.close"), run: () => dropDownload(d) };
     const leader = leaderKeyName(IS_MAC);
     const n: Notice = d.ok
       ? {
-          title: "ダウンロードしました",
-          text: `${d.name}（${d.dir}）。${leader} n o で開く、n f でフォルダを表示`,
+          title: T("download.done.title"),
+          text: T("download.done.text", { name: d.name, dir: d.dir, leader }),
           secondary: [
             close,
-            { label: "フォルダを表示", run: () => useDownload(d, "reveal") },
+            {
+              label: T("download.reveal"),
+              run: () => useDownload(d, "reveal"),
+            },
           ],
-          primary: { label: "開く", run: () => useDownload(d, "open") },
+          primary: {
+            label: T("download.open"),
+            run: () => useDownload(d, "open"),
+          },
           dismiss: close.run,
         }
       : {
-          title: "ダウンロードできませんでした",
+          title: T("download.failed.title"),
           text: d.name,
           primary: close,
           dismiss: close.run,
@@ -1801,10 +1810,7 @@ function Workbench(props: {
   function currentTab() {
     const t = shownBrowserTab();
     if (!t)
-      cannot(
-        "ブラウザのタブを出していません",
-        "リーダーの o j・o k でタブを出すか、o n で新しいタブを開いてください。",
-      );
+      cannot(T("cannot.browser.noTab.title"), T("cannot.browser.noTab.text"));
     return t;
   }
 
@@ -1815,10 +1821,7 @@ function Workbench(props: {
       case "browser.new":
       case "browser.incognito":
         if (!f)
-          cannot(
-            "タブを開けません",
-            "ワークスペースがありません。タブはワークスペースの下に開きます。",
-          );
+          cannot(T("cannot.browser.open.title"), T("cannot.browser.open.text"));
         else
           setUrlDialog({
             kind: "new",
@@ -1898,7 +1901,7 @@ function Workbench(props: {
           },
           (e: unknown) =>
             setFocusError({
-              title: "ページを開けませんでした",
+              title: T("err.page.open"),
               error: e instanceof Error ? e.message : String(e),
             }),
         );
@@ -1993,10 +1996,7 @@ function Workbench(props: {
   function newWorkspace() {
     const up = creatableRows(machineList());
     if (up.length === 0) {
-      cannot(
-        "ワークスペースを作れません",
-        "つながっているマシンがありません。マシンのダイアログ（リーダーの m）で、つなぎ直してください。",
-      );
+      cannot(T("cannot.workspace.title"), T("cannot.workspace.text"));
     } else if (up.length === 1) void createWorkspace(up[0].target);
     else setPickingMachine(true);
   }
@@ -2107,11 +2107,7 @@ function Workbench(props: {
       case "notice.update":
         // 「新しい版があります」の「更新して再起動」。知らせが出ていないときは何もしない
         if (updateInfo()) void installUpdate();
-        else
-          cannot(
-            "新しい版はありません",
-            "更新できる新しい版は、今ありません。",
-          );
+        else cannot(T("cannot.update.title"), T("cannot.update.text"));
         break;
       case "notice.dismiss":
         if (updateInfo()) dismissUpdate();
@@ -2122,11 +2118,7 @@ function Workbench(props: {
         const d = lastDownload();
         if (d)
           useDownload(d, c.id === "notice.openDownload" ? "open" : "reveal");
-        else
-          cannot(
-            "ダウンロードしたファイルはありません",
-            "内蔵ブラウザでダウンロードすると、右下のお知らせに出ます。",
-          );
+        else cannot(T("cannot.download.title"), T("cannot.download.text"));
         break;
       }
       case "notice.focusNotified":
@@ -2173,8 +2165,11 @@ function Workbench(props: {
       } else if (st.kind === "failed" || st.kind === "superseded") {
         setAddError(
           st.kind === "failed"
-            ? `${labelOf(p.target)} につなげませんでした\n${st.message}`
-            : `${labelOf(p.target)} は別の kisui-terminal が使っています`,
+            ? T("err.machine.connect", {
+                machine: labelOf(p.target),
+                message: st.message,
+              })
+            : T("err.machine.usedByOther", { machine: labelOf(p.target) }),
         );
         setAddPending(null);
         void disconnect(p.target);
@@ -2219,7 +2214,10 @@ function Workbench(props: {
     const s = sessions()[r.target];
     let failed: string | undefined;
     try {
-      if (!s) throw new Error(`${labelOf(r.target)} につながっていません`);
+      if (!s)
+        throw new Error(
+          T("err.machine.notConnected", { machine: labelOf(r.target) }),
+        );
       await s.renameWorkspace(r.id, name);
     } catch (e) {
       failed = renameErrorText(e);
@@ -2277,10 +2275,13 @@ function Workbench(props: {
   const [shortcutDismissed, setShortcutDismissed] = createSignal(false);
   const shortcutNotice: Notice | undefined = props.shortcutProblems?.length
     ? {
-        title: "近道の設定に間違いがあります",
-        text: "間違いのある近道だけを使いません。ほかは効きます。",
+        title: T("notice.shortcuts.title"),
+        text: T("notice.shortcuts.text"),
         error: props.shortcutProblems.join("\n"),
-        primary: { label: "閉じる", run: () => setShortcutDismissed(true) },
+        primary: {
+          label: T("button.close"),
+          run: () => setShortcutDismissed(true),
+        },
         dismiss: () => setShortcutDismissed(true),
       }
     : undefined;
@@ -2299,7 +2300,10 @@ function Workbench(props: {
           notice: {
             title: err.title,
             error: err.error,
-            primary: { label: "閉じる", run: () => setFocusError(null) },
+            primary: {
+              label: T("button.close"),
+              run: () => setFocusError(null),
+            },
             dismiss: () => setFocusError(null),
           },
         };
@@ -2323,21 +2327,24 @@ function Workbench(props: {
   function makeNotice(t: string, st: SessionState): Notice | null {
     const label = labelOf(t);
     const close = {
-      label: "閉じる",
+      label: T("button.close"),
       run: () => setDismissed((d) => new Set(d).add(st)),
     };
-    const cut = { label: "切る", run: () => void disconnect(t) };
+    const cut = {
+      label: T("button.disconnect"),
+      run: () => void disconnect(t),
+    };
     // ボタンと同じ動きのキー。マシンのダイアログ（リーダーの m）で、このマシンを選んで押す
     const leader = leaderKeyName(IS_MAC);
-    const keys = `${leader} m でマシンのダイアログを開き、このマシンを j・k で選んで、r でつなぎ直す、x で切る`;
+    const keys = T("notice.machine.keys", { leader });
     if (st.kind === "failed") {
       return {
-        title: `${label} につながりません`,
+        title: T("notice.machine.failed", { machine: label }),
         text: keys,
         error: st.message,
         secondary: [close, cut],
         dismiss: close.run,
-        primary: { label: "つなぎ直す", run: () => connect(t) },
+        primary: { label: T("button.reconnect"), run: () => connect(t) },
       };
     }
     const failed = handoverFailure(label, st);
@@ -2346,16 +2353,12 @@ function Workbench(props: {
       const who = st.by ? describeClient(st.by) : "";
       return {
         title: who
-          ? `${label} は別の kisui-terminal に移りました（${who}）`
-          : `${label} は別の kisui-terminal に移りました`,
-        text:
-          `${label} の作業は、あとからつないだ別の kisui-terminal に移りました。` +
-          "取り合いにならないよう、自動ではつなぎ直しません。" +
-          "「つなぎ直す」を押すとこちらに戻し、あちらの kisui-terminal が切れます。" +
-          `（${keys}）`,
+          ? T("notice.superseded.titleBy", { machine: label, who })
+          : T("notice.superseded.title", { machine: label }),
+        text: T("notice.superseded.text", { machine: label, keys }),
         secondary: [close, cut],
         dismiss: close.run,
-        primary: { label: "つなぎ直す", run: () => connect(t) },
+        primary: { label: T("button.reconnect"), run: () => connect(t) },
       };
     }
     return null;
@@ -2576,20 +2579,24 @@ function Workbench(props: {
               <NameDialog
                 title={
                   d().kind === "new-file"
-                    ? "新しいファイル"
+                    ? T("dialog.tree.newFile")
                     : d().kind === "new-dir"
-                      ? "新しいフォルダ"
-                      : "名前の変更"
+                      ? T("dialog.tree.newDir")
+                      : T("dialog.tree.rename")
                 }
                 field={
                   d().kind === "rename"
-                    ? "新しいパス（ワークスペースのフォルダから）"
-                    : "パス（ワークスペースのフォルダから）"
+                    ? T("dialog.tree.newPath")
+                    : T("dialog.tree.path")
                 }
                 initial={
                   d().kind === "rename" ? d().path : newEntryDefault(d().path)
                 }
-                submit={d().kind === "rename" ? "変更する" : "作る"}
+                submit={
+                  d().kind === "rename"
+                    ? T("dialog.tree.renameSubmit")
+                    : T("dialog.tree.createSubmit")
+                }
                 selectName={d().kind === "rename"}
                 onSubmit={submitTreeName}
                 onCancel={() => setTreeDialog(null)}

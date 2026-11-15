@@ -4,6 +4,7 @@
 // WebView の <video> に範囲を指して渡す道（Tauri の独自のスキーム）は無いので、全部取って Blob にして渡す。
 // 取る前に大きさを見て、種類ごとの上限（MAX_BYTES）を超えるものは取らない（WebView のメモリを使い切らないため）。
 
+import { T } from "../i18n/index.ts";
 import type { Requests } from "../rpc/protocol.ts";
 
 type MediaRead = Requests["media.read"];
@@ -33,11 +34,13 @@ export const MAX_BYTES: Record<string, number> = {
 export const MAX_VIDEO_BYTES = MAX_BYTES.video!;
 
 /** 欄の見出しや失敗の理由に出す、種類の呼び名。 */
-export const FILE_LABEL: Record<string, string> = {
-  video: "動画",
-  image: "画像",
-  pdf: "PDF",
-};
+export function fileLabel(kind: string): string {
+  return T(
+    kind === "video" || kind === "image" || kind === "pdf"
+      ? `file.kind.${kind}`
+      : "file.kind.other",
+  );
+}
 
 /** kind のファイルの上限（バイト）。 */
 export function maxBytes(kind: string): number {

@@ -2,6 +2,7 @@
 // shijimi-editor の Space の案内と同じ考え）。中身は、コマンドの表（commands.ts）の今の段の一覧そのもの。
 // 一覧は押せず、フォーカスも取らない。キーは押した瞬間にフォーカスがあったペインに向いたまま。
 // 実験的: 設定ファイルの `[gui] mascot` でキャラクターを選び、その `mascot.toml` が読めるときだけ、キャラクターが案内を運んでくる（MascotCarrier.tsx・docs/mascot.md）。
+import { T } from "./i18n/index.ts";
 import { batch, createMemo, createSignal, For, Show, type JSX } from "solid-js";
 
 import { leaderKeyName, menuRows, type Path } from "./commands.ts";
@@ -42,7 +43,7 @@ export function LeaderMenu(): JSX.Element {
               class={styles.menu}
               data-overlay=""
               role="status"
-              aria-label="リーダー"
+              aria-label={T("leader.label")}
             >
               <p class={styles.path}>
                 {[leaderKeyName(IS_MAC), ...path()].join(" ")}
@@ -61,7 +62,9 @@ export function LeaderMenu(): JSX.Element {
                 </For>
               </ul>
               <p class={styles.foot}>
-                Esc で出る{path().length > 0 ? " ・ Backspace で一段戻る" : ""}
+                {path().length > 0
+                  ? T("leader.foot.escBack")
+                  : T("leader.foot.esc")}
               </p>
             </div>
           );

@@ -1,3 +1,4 @@
+import { T } from "./i18n/index.ts";
 import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
 
@@ -656,9 +657,9 @@ describe("リーダーの案内（menuRows）", () => {
     assert.deepEqual(
       menuRows(["v"], LINUX).map((r) => [r.keys, r.label]),
       [
-        ["+ =", "大きくする"],
-        ["-", "小さくする"],
-        ["0", "元の大きさに戻す"],
+        ["+ =", T("leader.scale.in")],
+        ["-", T("leader.scale.out")],
+        ["0", T("leader.scale.reset")],
       ],
     );
   });
@@ -675,7 +676,7 @@ describe("リーダーの案内（menuRows）", () => {
     const rows = menuRows(["w"], LINUX);
     assert.deepEqual(
       rows.filter((r) => /^[1-9]/.test(r.keys)),
-      [{ keys: "1–9", label: "上から N 番目へ", group: false }],
+      [{ keys: "1–9", label: T("leader.ws.nth.range"), group: false }],
     );
     assert.equal(
       helpRows(LINUX).filter((r) => /^w [1-9]$/.test(r.path.join(" "))).length,
@@ -690,15 +691,22 @@ describe("リーダーの案内（menuRows）", () => {
   it("向きの hjkl は、案内では 1 行（ワークスペースは 2 行）にまとまる", () => {
     const rows = (path: string[]) =>
       menuRows(path, LINUX).map((r) => [r.keys, r.label]);
-    const move = ["h|j|k|l", "ペインを移動"];
-    assert.deepEqual(rows([]).slice(0, 2), [move, ["Tab", "直前のペインへ"]]);
+    const move = ["h|j|k|l", T("leader.pane.focus.range")];
+    assert.deepEqual(rows([]).slice(0, 2), [
+      move,
+      ["Tab", T("leader.pane.last")],
+    ]);
     assert.deepEqual(rows(["p"]).slice(0, 1), [move]);
-    assert.deepEqual(rows(["p", "s"]), [["h|j|k|l", "向きを選んで分ける"]]);
-    assert.deepEqual(rows(["p", "m"]), [["h|j|k|l", "向きを選んで入れ替える"]]);
+    assert.deepEqual(rows(["p", "s"]), [
+      ["h|j|k|l", T("leader.pane.split.range")],
+    ]);
+    assert.deepEqual(rows(["p", "m"]), [
+      ["h|j|k|l", T("leader.pane.swap.range")],
+    ]);
     assert.deepEqual(rows(["w"]).slice(0, 3), [
-      ["j|k", "ワークスペースを移動"],
-      ["J|K", "ワークスペースを並べ替え"],
-      ["Tab", "直前のワークスペースへ"],
+      ["j|k", T("leader.ws.step.range")],
+      ["J|K", T("leader.ws.move.range")],
+      ["Tab", T("leader.ws.last")],
     ]);
   });
 
@@ -956,7 +964,7 @@ describe("設定で足す近道（[gui.shortcuts]）", () => {
     assert.equal(problems.length, 5);
     assert.match(problems[0], /nothing\.here/);
     assert.match(problems[1], /Hyper/);
-    assert.match(problems[3], /リーダー/);
+    assert.ok(problems[3].endsWith(T("shortcut.err.leader")));
     // 内蔵ブラウザを使わないときは、browser.* は使えない
     assert.match(problems[4], /browser\.new/);
     assert.deepEqual(press(LINUX, [key("y", "ca")]).runs, [

@@ -2,6 +2,7 @@
 // 行を押す（Enter・l・o でも）と、そのファイルの差分を shj に出させる。フォルダの行は押すと開け閉めする。
 // shj が今差分を出しているファイルの行は強調する。見た目は changes.css。
 // 行にフォーカスがあるときは TUI と同じキーで動かせる（#45。割り当ては keys.ts、操作は actions.ts、1 行の描画は ChangeTreeRow.tsx）。
+import { T } from "../i18n/index.ts";
 import { createMemo, createSignal, Index, Show, type JSX } from "solid-js";
 
 import { runChangesAction, type ChangesHandlers } from "./actions.ts";
@@ -89,7 +90,7 @@ export function ChangesView(
       </h3>
       <Show
         when={props.rows.length > 0}
-        fallback={<p class="changes-empty">変更はありません</p>}
+        fallback={<p class="changes-empty">{T("changes.empty")}</p>}
       >
         <div
           class="changes-list"

@@ -1,6 +1,7 @@
 // ツリーの右クリックのメニュー（項目の出し分け）と、パスの組み立て。
 // DOM を使わないので node --test で確かめられる。
 
+import { T } from "../i18n/index.ts";
 import type { TreeRow } from "./model.ts";
 
 /** メニューの項目。 */
@@ -15,16 +16,7 @@ export type TreeMenuAction =
   | "cd";
 
 /** 項目の文言。 */
-export const treeMenuLabels: Record<TreeMenuAction, string> = {
-  "copy-name": "名前をコピー",
-  "copy-relative": "相対パスをコピー",
-  "copy-absolute": "絶対パスをコピー",
-  "new-file": "新しいファイル",
-  "new-dir": "新しいフォルダ",
-  rename: "名前の変更",
-  delete: "削除",
-  cd: "ここへ移動",
-};
+export const treeMenuLabel = (a: TreeMenuAction): string => T(`treeMenu.${a}`);
 
 /** 行に出す項目（上から順）。ファイルはパスのコピーと名前の変更・削除、フォルダは新規作成と cd も。 */
 export function menuItems(row: Pick<TreeRow, "dir">): TreeMenuAction[] {

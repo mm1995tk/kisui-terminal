@@ -1,3 +1,4 @@
+import { T } from "../i18n/index.ts";
 import type { ClipboardItem, ClipboardLocation } from "coneko-term";
 
 /**
@@ -65,9 +66,11 @@ export function supportsLocation(location: ClipboardLocation): boolean {
 export function describeMimes(wanted: string[]): string {
   const names: string[] = [];
   const known = readableMimes(wanted);
-  if (known.includes(READ_TEXT)) names.push("テキスト");
-  if (known.includes(READ_IMAGE)) names.push("画像");
+  if (known.includes(READ_TEXT)) names.push(T("clipboardAsk.text.kind"));
+  if (known.includes(READ_IMAGE)) names.push(T("clipboardAsk.image.kind"));
   if (wanted.some((w) => !known.includes(baseMime(w))))
-    names.push("ほかの種類");
-  return names.length > 0 ? names.join("、") : "（指定なし）";
+    names.push(T("clipboardAsk.other.kind"));
+  return names.length > 0
+    ? names.join(T("clipboardAsk.join"))
+    : T("clipboardAsk.none");
 }

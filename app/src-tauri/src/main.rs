@@ -50,6 +50,12 @@ fn config_gui() -> Result<config::GuiConfig, String> {
     config::load_default()
 }
 
+/// 画面の言葉（設定ファイルの `ui-language`。`"en"` か `"ja"`。無い・分からない値は `"en"`）。画面は起動時に 1 度だけ読む。
+#[tauri::command]
+fn ui_language() -> &'static str {
+    config::ui_language_default()
+}
+
 /// kisui につなぐ。`target` は ssh のホスト名か `@local`。`id` は画面側が決める（イベントの宛先）。
 /// メインスレッドの外で動かす。「ローカル」は、ログインシェルが PATH を答えるのを待つことがある（locate.rs）
 #[tauri::command(async)]
@@ -172,6 +178,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             list_ssh_hosts,
+            ui_language,
             mascot::mascot_load,
             mascot::mascot_reload,
             mascot::mascot_commit,

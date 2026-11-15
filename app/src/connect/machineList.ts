@@ -1,6 +1,7 @@
 // マシンのダイアログ（リーダーの m。MachineDialog.tsx）の、画面の仕組み（Solid）に依らない部分。
 // 一覧の行の組み立てと、ダイアログの中のキー、操作ができるかの判定。node --test で確かめる。
 
+import { T } from "../i18n/index.ts";
 import type { Health, MachineGroup } from "../sidebar/model.ts";
 import type { KeyLike } from "../guiKeys.ts";
 import { listStep } from "../placeKeys.ts";
@@ -29,11 +30,7 @@ export interface MachineRow {
   retry?: "now" | "again";
 }
 
-const healthText: Record<Health, string> = {
-  up: "つながっています",
-  pending: "つないでいます",
-  down: "つながっていません",
-};
+const healthText = (h: Health): string => T(`health.${h}`);
 
 /**
  * サイドバーの見出しの材料（groups）から、ダイアログの行を作る。
@@ -50,7 +47,7 @@ export function machineRows(
       target: g.target,
       label: g.label,
       health: g.health,
-      status: st.text || healthText[g.health],
+      status: st.text || healthText(g.health),
       countdown: st.countdown,
       title: st.title,
       workspaces: g.bands.length,
@@ -141,22 +138,23 @@ export function canDo(
   switch (action) {
     case "rename":
     case "remove": {
-      const verb = action === "rename" ? "名前を変えられません" : "外せません";
-      if (!row.removable) return `${row.label} は${verb}（「ローカル」です）`;
+      if (!row.removable)
+        return T(`machine.cant.${action}.local`, { label: row.label });
       if (row.fixed)
-        return `${row.label} は${verb}（設定ファイルの [[gui.machines]] で決めたマシンです）`;
+        return T(`machine.cant.${action}.fixed`, { label: row.label });
       return null;
     }
     case "disconnect":
       if (!row.removable)
-        return `${row.label} は切れません（「ローカル」です）`;
-      if (!row.hasSession) return `${row.label} はつながっていません`;
+        return T("machine.cant.disconnect.local", { label: row.label });
+      if (!row.hasSession)
+        return T("machine.cant.disconnect.none", { label: row.label });
       return null;
     case "reconnect":
       if (!row.retry)
         return row.health === "up"
-          ? `${row.label} はつながっています`
-          : `${row.label} は今つないでいる最中です`;
+          ? T("machine.cant.reconnect.up", { label: row.label })
+          : T("machine.cant.reconnect.pending", { label: row.label });
       return null;
   }
 }

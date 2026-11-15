@@ -5,6 +5,7 @@
 // 1 階層取り、tree.watch で開いているフォルダを教え、tree.changed で取り直す。git の印は git.status と
 // git.changed、フォルダの印は gitChildren から GUI が求める。
 
+import { T } from "../i18n/index.ts";
 import type {
   GitMark,
   Notifications,
@@ -342,12 +343,12 @@ export function openErrorText(path: string, e: unknown): string {
   const why =
     e instanceof RpcError
       ? ({
-          denied: "ワークスペースの外を指しています",
-          not_found: "見つかりません",
-          invalid_params: "ファイルではありません",
+          denied: T("tree.err.denied"),
+          not_found: T("tree.err.notFound"),
+          invalid_params: T("tree.err.invalid"),
         }[e.codeName] ?? e.message)
       : e instanceof Error
         ? e.message
         : String(e);
-  return `${path} を開けませんでした（${why}）`;
+  return T("tree.err.open", { path, why });
 }

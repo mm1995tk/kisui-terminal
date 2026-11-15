@@ -4,7 +4,7 @@ import { For, onCleanup, onMount, type JSX } from "solid-js";
 
 import {
   shouldRestoreFocus,
-  treeMenuLabels,
+  treeMenuLabel,
   type TreeMenuAction,
 } from "./menu.ts";
 
@@ -83,7 +83,7 @@ export function TreeMenu(props: {
               props.onClose();
             }}
           >
-            {treeMenuLabels[a]}
+            {treeMenuLabel(a)}
           </button>
         )}
       </For>

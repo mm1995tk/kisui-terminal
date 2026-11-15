@@ -1,5 +1,6 @@
 // ターミナルのプログラムが OS のクリップボードを読もうとしたとき、許すかをユーザーに聞く窓（kitty の OSC 5522）。
 // ssh 先のプログラムが手元のクリップボード（パスワードなど）を読めてしまうので、そのたびに聞く。
+import { T } from "./i18n/index.ts";
 import { Show, type JSX } from "solid-js";
 
 import { ModalCard } from "./connect/Card.tsx";
@@ -12,20 +13,15 @@ export function ClipboardDialog(): JSX.Element {
     <Show when={currentReadPrompt()} keyed>
       {(ask) => (
         <ModalCard
-          label="クリップボードの読み取り"
+          label={T("clipboardAsk.label")}
           focusSelf
           onCancel={() => ask.resolve(false)}
         >
           <div class="card-body">
-            <h1 class="card-title">クリップボードを読ませますか</h1>
+            <h1 class="card-title">{T("clipboardAsk.title")}</h1>
+            <p class="card-text">{T("clipboardAsk.text")}</p>
             <p class="card-text">
-              ターミナルの中のプログラムが、手元のクリップボードの中身を読もうとしています。
-              ssh
-              先のプログラムでも同じ頼みができます。心当たりがなければ許さないでください。
-            </p>
-            <p class="card-text">
-              頼まれた種類：
-              {describeMimes(ask.mimes)}
+              {T("clipboardAsk.kinds", { kinds: describeMimes(ask.mimes) })}
             </p>
           </div>
           <div class="card-actions">
@@ -34,14 +30,14 @@ export function ClipboardDialog(): JSX.Element {
               class="card-button"
               onClick={() => ask.resolve(false)}
             >
-              許さない
+              {T("transfer.deny")}
             </button>
             <button
               type="button"
               class="card-button primary"
               onClick={() => ask.resolve(true)}
             >
-              読ませる
+              {T("clipboardAsk.allow")}
             </button>
           </div>
         </ModalCard>
