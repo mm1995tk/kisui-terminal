@@ -214,6 +214,10 @@
           # nix flake check で回す検査。CI（check.yml）も同じものを回す
           checks = {
             formatting = treefmtEval.config.build.check self;
+            # home-manager のモジュールの評価（packaging/nix/home-manager-module-test.nix）
+            home-manager-module = import ./packaging/nix/home-manager-module-test.nix {
+              inherit pkgs self system;
+            };
 
             # 外のブラウザの拡張機能のテストと組み立て（npm run test:extension と build:extension）
             extension = extensionDrv;
