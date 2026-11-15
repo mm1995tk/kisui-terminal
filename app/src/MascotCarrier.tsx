@@ -22,7 +22,6 @@ import {
   takeOffset,
 } from "./mascotMotion.ts";
 import {
-  loadMascot,
   MASCOT_HEIGHT,
   nextAction,
   pickVariant,
@@ -32,6 +31,7 @@ import {
   type CloseReason,
   type LoadedMascot,
 } from "./mascot.ts";
+import { initMascot, mascot } from "./mascotStore.ts";
 
 /** ダイアログ（`?` のキーの一覧・クリップボードの履歴など）が開いているか。開いていれば、キャラクターはその場ですぐ消える */
 const dialogOpen = () => !!document.querySelector("dialog[open]");
@@ -47,13 +47,25 @@ export function MascotCarrier(props: {
   closedBy: () => CloseReason;
   menu: () => HTMLElement | undefined;
 }): JSX.Element {
-  const [mascot, setMascot] = createSignal<LoadedMascot | null>(null);
   /** 今出しているコマの画像（null は出していない） */
   const [frame, setFrame] = createSignal<string | null>(null);
   let charEl: HTMLDivElement | undefined;
   let stopTimers: () => void = () => {};
 
-  onMount(() => void loadMascot().then(setMascot));
+  onMount(() => void initMascot());
+  // 読み直した（`c r`）・選び直した（`c s`）とき、出している動きは、前のキャラクターの画像（読み直すと使えなくなる）なので、止めて消す。
+  // 新しい絵は、次にリーダーを開いたときから出る
+  createEffect(
+    on(
+      mascot,
+      () => {
+        stopTimers();
+        stopTimers = () => {};
+        setFrame(null);
+      },
+      { defer: true },
+    ),
+  );
   onCleanup(() => stopTimers());
 
   /** 一息つく（無ければ運ぶ場面の 1 コマ目で止まる）。しばらく経つと休憩の具体を動かす（startRest） */

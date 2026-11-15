@@ -17,6 +17,8 @@ serde = { version = "=1.0.229", features = ["derive"] }
 serde_json = "=1.0.154"
 # 設定ファイルの [[gui.machines]]（config.rs）。版は Cargo.lock にすでにある（tauri が使っている）ものに合わせる
 toml = "=1.1.8"
+# 選んだキャラクターを config.local.toml に書くとき、ほかの項目とコメントを壊さない（config.rs の write_mascot_name）。版は Cargo.lock にすでにあるものに合わせる
+toml_edit = "=0.25.17"
 # SHA-256。版は Cargo.lock にすでにある（tauri が使っている）ものに合わせる
 sha2 = "=0.10.9"
 # 自動更新（C8）。AppImage と .dmg の版だけが feature `updater` で入れる。Nix で作る版は入れない（更新は nix flake update で行う）

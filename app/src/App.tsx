@@ -49,6 +49,8 @@ import { ConfigError } from "./connect/ConfigError.tsx";
 import { CloseWorkspaceCard } from "./connect/CloseWorkspaceCard.tsx";
 import { InstallCard } from "./connect/InstallCard.tsx";
 import { MachineDialog } from "./connect/MachineDialog.tsx";
+import { MascotDialog } from "./MascotDialog.tsx";
+import { chooseMascot, reloadCurrent, type Failure } from "./mascotStore.ts";
 import { machineRows } from "./connect/machineList.ts";
 import { Notices, type Notice } from "./connect/Notices.tsx";
 import { RenameDialog } from "./connect/RenameDialog.tsx";
@@ -566,6 +568,8 @@ function Workbench(props: {
   const [asks, setAsks] = createSignal<AskpassRequest[]>([]);
   // マシンのダイアログ（リーダーの m）を出しているか
   const [machinesOpen, setMachinesOpen] = createSignal(false);
+  /** キャラクターを選ぶ窓（リーダーの c s）を出しているか */
+  const [mascotPicking, setMascotPicking] = createSignal(false);
   // リモートを足す窓を出しているか。足すためにつないでいる最中のマシン、足せなかった理由
   const [adding, setAdding] = createSignal(false);
   const [addPending, setAddPending] = createSignal<Machine | null>(null);
@@ -1884,6 +1888,11 @@ function Workbench(props: {
     setFocusError({ title, error });
   }
 
+  /** キャラクターの読み直し・選び直しの結果。できなかったときは、その理由を伝える */
+  function failed(f: Failure) {
+    if (f) cannot(f.title, f.error);
+  }
+
   /**
    * コマンドの表（commands.ts）のコマンドを動かす。リーダーの葉と近道の両方がここに来る。
    * キーの割り当ては表にあり、ここは動きだけを持つ。
@@ -1989,6 +1998,12 @@ function Workbench(props: {
         break;
       case "notice.focusNotified":
         focusLastNotified();
+        break;
+      case "mascot.select":
+        setMascotPicking(true);
+        break;
+      case "mascot.reload":
+        void reloadCurrent().then(failed);
         break;
       case "help.keys":
         // フォーカスがある場所（ツリー・変更一覧・動画・画像）のキーも出す
@@ -2348,6 +2363,15 @@ function Workbench(props: {
             onNo={() => setConfirmClose(null)}
           />
         )}
+      </Show>
+      <Show when={mascotPicking()}>
+        <MascotDialog
+          onChoose={(name) => {
+            setMascotPicking(false);
+            void chooseMascot(name).then(failed);
+          }}
+          onCancel={() => setMascotPicking(false)}
+        />
       </Show>
       <Show when={machinesOpen()}>
         <MachineDialog

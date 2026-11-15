@@ -294,49 +294,98 @@ pub fn load_character(dir: &Path) -> Result<Character<PathBuf>, String> {
     })
 }
 
-/// `mascot_load` が確かめた画像。スキーム `mascot:` はここにあるものだけを返す。
-struct Registry {
-    /// 読み直すたびに増やす（前の番号の URL を使い回さない）
+/// 確かめた画像の組 1 つ（キャラクター 1 つ分）。
+#[derive(Default)]
+struct Slot {
+    /// 0 は空
     generation: u64,
     dir: PathBuf,
     files: Vec<PathBuf>,
 }
 
+/// `mascot_load` と `mascot_reload` が確かめた画像。スキーム `mascot:` はここにあるものだけを返す。
+/// 読み直したもの（`pending`）は、画面が画像をデコードし終えて `mascot_commit` を呼ぶまで、使っているもの（`current`）を置き換えない
+/// （デコードできずに前のキャラクターを使い続けるとき、前の画像の URL が 404 にならないように）。
+struct Registry {
+    /// 読むたびに増やす（前の番号の URL を使い回さない）
+    last: u64,
+    current: Slot,
+    pending: Slot,
+}
+
 static REGISTRY: Mutex<Registry> = Mutex::new(Registry {
-    generation: 0,
-    dir: PathBuf::new(),
-    files: Vec::new(),
+    last: 0,
+    current: Slot {
+        generation: 0,
+        dir: PathBuf::new(),
+        files: Vec::new(),
+    },
+    pending: Slot {
+        generation: 0,
+        dir: PathBuf::new(),
+        files: Vec::new(),
+    },
 });
 
 /// 読んだキャラクターの画像に番号を付けて覚え、画面に渡す形（画像は `<世代>-<番号>`）にする。同じファイルは同じ番号。
-fn register(dir: PathBuf, c: Character<PathBuf>) -> Character<String> {
+/// `commit` が false なら、`pending` に覚える（使っているものは置き換えない）。
+fn register_as(dir: PathBuf, c: Character<PathBuf>, commit: bool) -> Character<String> {
     let mut reg = REGISTRY.lock().unwrap_or_else(|e| e.into_inner());
-    reg.generation += 1;
-    reg.dir = dir;
-    reg.files.clear();
-    let generation = reg.generation;
-    c.map(|p| {
-        let i = match reg.files.iter().position(|f| *f == p) {
+    reg.last += 1;
+    let generation = reg.last;
+    let mut slot = Slot {
+        generation,
+        dir,
+        files: Vec::new(),
+    };
+    let out = c.map(|p| {
+        let i = match slot.files.iter().position(|f| *f == p) {
             Some(i) => i,
             None => {
-                reg.files.push(p);
-                reg.files.len() - 1
+                slot.files.push(p);
+                slot.files.len() - 1
             }
         };
         format!("{generation}-{i}")
-    })
+    });
+    if commit {
+        reg.current = slot;
+        reg.pending = Slot::default();
+    } else {
+        reg.pending = slot;
+    }
+    out
 }
 
-/// URL のパス（`/<世代>-<番号>`）の画像のバイト列。今の世代の番号でなければ None。
+/// すぐ使うものとして覚える（窓を開いたときの読み込み）。
+fn register(dir: PathBuf, c: Character<PathBuf>) -> Character<String> {
+    register_as(dir, c, true)
+}
+
+/// 読み直したものを、使うものにする。`generation` が `pending` のものでなければ何もしない。
+fn commit(generation: u64) {
+    let mut reg = REGISTRY.lock().unwrap_or_else(|e| e.into_inner());
+    if generation != 0 && reg.pending.generation == generation {
+        reg.current = std::mem::take(&mut reg.pending);
+    }
+}
+
+/// 画面がデコードし終えた、読み直したキャラクターの世代（`mascot_reload` が返した画像の番号の `<世代>`）を、使うものにする。
+#[tauri::command]
+pub fn mascot_commit(generation: u64) {
+    commit(generation);
+}
+
+/// URL のパス（`/<世代>-<番号>`）の画像のバイト列。使っている世代か、読み直した世代の番号でなければ None。
 fn lookup(path: &str) -> Option<Vec<u8>> {
     let (g, i) = path.strip_prefix('/').unwrap_or(path).split_once('-')?;
     let (g, i): (u64, usize) = (g.parse().ok()?, i.parse().ok()?);
     let (dir, rel) = {
         let reg = REGISTRY.lock().unwrap_or_else(|e| e.into_inner());
-        if g != reg.generation {
-            return None;
-        }
-        (reg.dir.clone(), reg.files.get(i)?.clone())
+        let slot = [&reg.current, &reg.pending]
+            .into_iter()
+            .find(|s| s.generation != 0 && s.generation == g)?;
+        (slot.dir.clone(), slot.files.get(i)?.clone())
     };
     read_png(&dir, &rel)
 }
@@ -361,25 +410,117 @@ pub fn respond(webview: &str, path: &str) -> tauri::http::Response<Cow<'static, 
     .expect("static response")
 }
 
-/// 設定で選んだキャラクター。選んでいない・名前が使えない・ディレクトリや `mascot.toml` が使えないときは None（案内だけが出る）。
+/// 設定のフォルダと、キャラクターの置き場（`mascot/`）。
+fn locate() -> Result<(PathBuf, PathBuf), String> {
+    let (xdg, home, nightly) = crate::config::env();
+    let config = crate::config::config_dir(xdg.as_deref(), home.as_deref(), nightly)
+        .ok_or("設定のフォルダが分かりません（HOME が無い）")?;
+    let root = mascot_root(xdg.as_deref(), home.as_deref(), nightly)
+        .ok_or("設定のフォルダが分かりません（HOME が無い）")?;
+    Ok((config, root))
+}
+
+/// `name` のキャラクターのディレクトリ（`mascot/<name>/`）。名前が使えなければ Err。
+fn character_dir(root: &Path, name: &str) -> Result<PathBuf, String> {
+    if valid_name(name) {
+        Ok(root.join(name))
+    } else {
+        Err(format!("名前 {name:?} は使えません"))
+    }
+}
+
+/// 設定で選んだキャラクターを読んで、画面に渡す形にする。選んでいないときは Ok(None)。
+/// 名前が使えない・ディレクトリや `mascot.toml` が使えないときは Err（理由）。`commit` は `register_as` と同じ。
+fn load_selected(commit: bool) -> Result<Option<Character<String>>, String> {
+    let (config, root) = locate()?;
+    let Some(name) = crate::config::mascot_name(&config) else {
+        return Ok(None);
+    };
+    let dir = character_dir(&root, &name)?;
+    let c = load_character(&dir)?;
+    Ok(Some(register_as(dir, c, commit)))
+}
+
+/// 設定で選んだキャラクター。選んでいない・使えないときは None（案内だけが出る。窓を開いたときの 1 回。理由は標準エラーに書く）。
 /// ファイルを読むので、メインスレッドの外で動かす。
 #[tauri::command(async)]
 pub fn mascot_load() -> Option<Character<String>> {
-    let (xdg, home, nightly) = crate::config::env();
-    let config = crate::config::config_dir(xdg.as_deref(), home.as_deref(), nightly)?;
-    let name = crate::config::mascot_name(&config)?;
-    if !valid_name(&name) {
-        eprintln!("kisui-terminal: mascot: 名前 {name:?} は使えません");
-        return None;
-    }
-    let dir = mascot_root(xdg.as_deref(), home.as_deref(), nightly)?.join(&name);
-    match load_character(&dir) {
-        Ok(c) => Some(register(dir, c)),
-        Err(e) => {
-            eprintln!("kisui-terminal: mascot: {e}");
-            None
-        }
-    }
+    load_selected(true).unwrap_or_else(|e| {
+        eprintln!("kisui-terminal: mascot: {e}");
+        None
+    })
+}
+
+/// 今選んでいるキャラクターを読み直す（リーダーの `c r`）。`mascot_load` と同じ読み方で、使えないときは理由を返す
+/// （画面がお知らせに出す。前のキャラクターはそのまま使う）。選んでいなければ Ok(None)。
+/// 返した画像は、画面がデコードし終えて `mascot_commit` を呼ぶまで、使っているキャラクターの画像を置き換えない。
+#[tauri::command(async)]
+pub fn mascot_reload() -> Result<Option<Character<String>>, String> {
+    load_selected(false)
+}
+
+/// 一覧の 1 行（`mascot/` の中のキャラクターのディレクトリ 1 つ）。
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct Entry {
+    /// ディレクトリの名前（設定ファイルに書く名前）
+    pub name: String,
+    /// 使えないときの理由（`mascot.toml` が無い・読めない・運ぶ場面が無い、など）。使えれば None
+    pub error: Option<String>,
+}
+
+/// リーダーの `c s` の一覧。
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct Listing {
+    /// キャラクターの置き場（`mascot/`。一覧が空のとき、どこに置くかを伝えるため）
+    pub root: String,
+    /// 今選んでいるキャラクターの名前（選んでいなければ None）
+    pub current: Option<String>,
+    /// 名前の順
+    pub entries: Vec<Entry>,
+}
+
+/// `root` の中のキャラクターのディレクトリを、名前の順に並べる。
+/// 並べるのはディレクトリ（シンボリックリンクの先がディレクトリのものも）で、名前が `.` で始まるもの・設定ファイルに書けない名前のものは除く。
+/// `mascot.toml` が使えないものも、理由を付けて並べる。`root` が無ければ空。
+fn list_characters(root: &Path) -> Vec<Entry> {
+    let Ok(rd) = fs::read_dir(root) else {
+        return Vec::new();
+    };
+    let mut entries: Vec<Entry> = rd
+        .filter_map(|e| e.ok())
+        .filter_map(|e| {
+            let name = e.file_name().into_string().ok()?;
+            if name.starts_with('.') || !valid_name(&name) {
+                return None;
+            }
+            // 辿った先がディレクトリのものだけ（`mascot/` の中のリンクは、置き場の決まりと同じく辿る）
+            fs::metadata(e.path()).ok()?.is_dir().then_some(())?;
+            let error = load_character(&e.path()).err();
+            Some(Entry { name, error })
+        })
+        .collect();
+    entries.sort_by(|a, b| a.name.cmp(&b.name));
+    entries
+}
+
+/// 選べるキャラクターの一覧と、今選んでいるもの。ファイルを読むので、メインスレッドの外で動かす。
+#[tauri::command(async)]
+pub fn mascot_list() -> Result<Listing, String> {
+    let (config, root) = locate()?;
+    Ok(Listing {
+        entries: list_characters(&root),
+        current: crate::config::mascot_name(&config),
+        root: root.display().to_string(),
+    })
+}
+
+/// キャラクターを選ぶ（リーダーの `c s`）。`name` が使えることを確かめ、`config.local.toml` の `[gui] mascot` に書く。
+/// 読み込みは、画面が続けて `mascot_reload` を呼ぶ。
+#[tauri::command(async)]
+pub fn mascot_select(name: String) -> Result<(), String> {
+    let (config, root) = locate()?;
+    load_character(&character_dir(&root, &name)?)?;
+    crate::config::write_mascot_name(&config, &name)
 }
 
 #[cfg(test)]
@@ -429,6 +570,34 @@ mod tests {
         for n in ["", ".", "..", "a/b", "/a", "a\\b", "a\0"] {
             assert!(!valid_name(n), "{n:?}");
         }
+    }
+
+    // 一覧は名前の順。使えないものも理由を付けて並べ、ファイルと「.」で始まるものは並べない
+    #[test]
+    fn lists_characters_with_reasons() {
+        let root = tmp("list");
+        for (n, png_name, toml) in [
+            ("neko", "w.png", "[carry]\nframes = [\"w.png\"]\n"),
+            ("inu", "w.png", "[carry]\nframes = [\"w.png\"]\n"),
+            ("broken", "w.png", "[carry\n"),
+        ] {
+            let d = root.join(n);
+            fs::create_dir_all(&d).unwrap();
+            fs::write(d.join(png_name), png(b"")).unwrap();
+            fs::write(d.join(TOML_NAME), toml).unwrap();
+        }
+        fs::create_dir_all(root.join("empty")).unwrap();
+        fs::create_dir_all(root.join(".hidden")).unwrap();
+        fs::write(root.join("file.txt"), "x").unwrap();
+        let list = list_characters(&root);
+        let names: Vec<&str> = list.iter().map(|e| e.name.as_str()).collect();
+        assert_eq!(names, ["broken", "empty", "inu", "neko"]);
+        let ok: Vec<bool> = list.iter().map(|e| e.error.is_none()).collect();
+        assert_eq!(ok, [false, false, true, true]);
+        assert!(list[0].error.as_ref().unwrap().contains("mascot.toml"));
+        // 置き場が無ければ空
+        assert!(list_characters(&root.join("none")).is_empty());
+        let _ = fs::remove_dir_all(&root);
     }
 
     #[test]
@@ -683,6 +852,25 @@ unknown = 1
         // 読み直すと前の世代の URL は使えない
         let _ = register(d.clone(), load_character(&d).unwrap());
         assert!(lookup(&format!("/{url}")).is_none());
+        // 読み直したもの（pending）は、確定するまで使っているものを置き換えない。どちらの URL も返す
+        let cur = register(d.clone(), load_character(&d).unwrap());
+        let pend = register_as(d.clone(), load_character(&d).unwrap(), false);
+        let (cu, pu) = (cur.carry.frames[0].clone(), pend.carry.frames[0].clone());
+        assert_ne!(cu, pu);
+        assert!(lookup(&format!("/{cu}")).is_some());
+        assert!(lookup(&format!("/{pu}")).is_some());
+        // デコードできず確定しないまま、もう一度読み直しても、使っているものは残る
+        let again = register_as(d.clone(), load_character(&d).unwrap(), false);
+        assert!(lookup(&format!("/{cu}")).is_some());
+        assert!(lookup(&format!("/{pu}")).is_none());
+        // 確定すると、前の世代は使えなくなる。ほかの世代の確定は何もしない
+        let au = again.carry.frames[0].clone();
+        commit(0);
+        commit(1);
+        assert!(lookup(&format!("/{cu}")).is_some());
+        commit(au.split('-').next().unwrap().parse().unwrap());
+        assert!(lookup(&format!("/{au}")).is_some());
+        assert!(lookup(&format!("/{cu}")).is_none());
         let _ = fs::remove_dir_all(&d);
     }
 }

@@ -37,6 +37,8 @@ export type CommandId =
   | "notice.update"
   | "notice.dismiss"
   | "notice.focusNotified"
+  | "mascot.select"
+  | "mascot.reload"
   | "browser.new"
   | "browser.url"
   | "browser.back"
@@ -399,6 +401,10 @@ export const LEADER: Node[] = [
     leaf("g", "通知を出したペインへ", {
       id: "notice.focusNotified",
     }),
+  ]),
+  group("c", "キャラクター", [
+    leaf("s", "キャラクターを選ぶ", { id: "mascot.select" }),
+    leaf("r", "キャラクターを読み直す", { id: "mascot.reload" }),
   ]),
   leaf("?", "キーの一覧", { id: "help.keys" }),
 ];

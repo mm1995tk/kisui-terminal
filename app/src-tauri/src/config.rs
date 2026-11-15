@@ -260,6 +260,90 @@ pub fn mascot_name(dir: &Path) -> Option<String> {
     name.filter(|n| !n.is_empty())
 }
 
+/// 選んだキャラクターの名前を、`config.local.toml` の `[gui] mascot` に書く（`config.toml` には書かない。home-manager が置く
+/// 読み取り専用のファイルのことがあるため）。ほかの項目・コメント・並びは変えない。ファイルが無ければ作る。
+/// 読めない・TOML として壊れているファイルは、上書きせずに Err を返す。
+pub fn write_mascot_name(dir: &Path, name: &str) -> Result<(), String> {
+    use toml_edit::{DocumentMut, Item, Table, Value};
+    let path = dir.join("config.local.toml");
+    let text = match fs::read(&path) {
+        Ok(b) => {
+            String::from_utf8(b).map_err(|_| format!("{}: UTF-8 で読めません", path.display()))?
+        }
+        Err(e) if e.kind() == ErrorKind::NotFound => String::new(),
+        Err(e) => return Err(format!("{}: 読めません（{e}）", path.display())),
+    };
+    let mut doc: DocumentMut = text
+        .parse()
+        .map_err(|e| format!("{}: TOML として読めません（{e}）", path.display()))?;
+    let gui = doc
+        .entry("gui")
+        .or_insert_with(|| Item::Table(Table::new()));
+    if let Some(t) = gui.as_table_mut() {
+        // `[gui.browser]` だけを書いたファイルでは `[gui]` の見出しは省かれているので、`mascot` を書くために出す
+        t.set_implicit(false);
+    }
+    let table = gui
+        .as_table_like_mut()
+        .ok_or_else(|| format!("{}: [gui] が表ではありません", path.display()))?;
+    match table.get_mut("mascot").and_then(|i| i.as_value_mut()) {
+        // 前の値の前後の空白と、行末のコメントを残す
+        Some(v) => {
+            let decor = v.decor().clone();
+            let mut nv = Value::from(name);
+            *nv.decor_mut() = decor;
+            *v = nv;
+        }
+        None => {
+            table.insert("mascot", Item::Value(Value::from(name)));
+        }
+    }
+    fs::create_dir_all(dir).map_err(|e| format!("{}: 作れません（{e}）", dir.display()))?;
+    replace_file(&path, doc.to_string().as_bytes())
+        .map_err(|e| format!("{}: 書けません（{e}）", path.display()))
+}
+
+/// `path` の中身を `bytes` に置き換える。同じフォルダの一時ファイルに書いてから名前を付け替えるので、途中で落ちても、
+/// 書きかけを `kisui serve` が読んでも、元の中身か新しい中身のどちらかが見える。
+/// `path` がシンボリックリンクなら、リンクの先を置き換える（リンクは外さない）。元の権限は引き継ぐ。
+/// 一時ファイルを作れない（フォルダに書けない）ときは、そのまま書き込む。
+fn replace_file(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    use std::io::Write;
+    let target = fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    let (Some(dir), Some(name)) = (target.parent(), target.file_name()) else {
+        return fs::write(path, bytes);
+    };
+    let tmp = dir.join(format!(
+        ".{}.kisui-{}",
+        name.to_string_lossy(),
+        std::process::id()
+    ));
+    // 作るときは持ち主だけが読み書きできる権限で作り、書き終えてから元の権限に揃える（書いている間、ほかのユーザーに読ませない）
+    let mut opts = fs::OpenOptions::new();
+    opts.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        opts.mode(0o600);
+    }
+    // 前に落ちて残った一時ファイルがあれば消してから作る
+    let _ = fs::remove_file(&tmp);
+    let written = opts.open(&tmp).and_then(|mut f| {
+        f.write_all(bytes)?;
+        if let Ok(m) = fs::metadata(&target) {
+            fs::set_permissions(&tmp, m.permissions())?;
+        }
+        f.sync_all()
+    });
+    match written.and_then(|()| fs::rename(&tmp, &target)) {
+        Ok(()) => Ok(()),
+        Err(_) => {
+            let _ = fs::remove_file(&tmp);
+            fs::write(&target, bytes)
+        }
+    }
+}
+
 /// 1 始まりの行番号。
 fn line_of(text: &str, offset: usize) -> usize {
     let end = offset.min(text.len());
@@ -700,6 +784,86 @@ mod tests {
         )
         .unwrap();
         assert_eq!(load_dir(&d).unwrap(), vec![]);
+        let _ = fs::remove_dir_all(&d);
+    }
+
+    // 選んだキャラクターは config.local.toml に書く。config.toml は触らない（読み取り専用でもよい）。ほかの項目とコメントは残す
+    #[test]
+    fn write_mascot_name_keeps_the_rest() {
+        use std::os::unix::fs::PermissionsExt;
+        let d = temp_dir("write-mascot");
+        // ファイルが無ければ作る。config.toml は作らない
+        write_mascot_name(&d, "neko").unwrap();
+        assert_eq!(
+            fs::read_to_string(d.join("config.local.toml")).unwrap(),
+            "[gui]\nmascot = \"neko\"\n"
+        );
+        assert!(!d.join("config.toml").exists());
+        // 読み取り専用の config.toml があっても書ける。config.toml の名前より勝つ
+        fs::write(d.join("config.toml"), "[gui]\nmascot = \"inu\"\n").unwrap();
+        fs::set_permissions(d.join("config.toml"), fs::Permissions::from_mode(0o444)).unwrap();
+        write_mascot_name(&d, "tori").unwrap();
+        assert_eq!(mascot_name(&d).as_deref(), Some("tori"));
+        assert_eq!(
+            fs::read_to_string(d.join("config.toml")).unwrap(),
+            "[gui]\nmascot = \"inu\"\n"
+        );
+        // 前の値だけを替える。行末のコメントも、ほかの項目と表も残す
+        let src = "# 自分の設定\n[gui]\nmascot = \"inu\" # 前のキャラクター\n\n[gui.browser]\nenabled = true\n\n[[gui.machines]]\nssh = \"a\"\n";
+        fs::write(d.join("config.local.toml"), src).unwrap();
+        write_mascot_name(&d, "neko").unwrap();
+        assert_eq!(
+            fs::read_to_string(d.join("config.local.toml")).unwrap(),
+            src.replace("\"inu\"", "\"neko\"")
+        );
+        // `[gui]` の見出しが無いファイル（`[gui.browser]` だけ）には、見出しごと足す
+        let src = "# コメント\n[gui.browser]\nenabled = true\n";
+        fs::write(d.join("config.local.toml"), src).unwrap();
+        write_mascot_name(&d, "neko").unwrap();
+        let out = fs::read_to_string(d.join("config.local.toml")).unwrap();
+        assert!(out.contains("# コメント\n"), "{out}");
+        assert!(out.contains("enabled = true"), "{out}");
+        assert_eq!(mascot_name(&d).as_deref(), Some("neko"));
+        assert!(load_gui(&d).unwrap().browser);
+        // [gui] の無いファイル
+        fs::write(d.join("config.local.toml"), "# だけ\n").unwrap();
+        write_mascot_name(&d, "neko").unwrap();
+        assert_eq!(mascot_name(&d).as_deref(), Some("neko"));
+        // 壊れたファイルは上書きしない
+        fs::write(d.join("config.local.toml"), "[gui\nmascot = ").unwrap();
+        let e = write_mascot_name(&d, "neko").unwrap_err();
+        assert!(e.contains("config.local.toml"), "{e}");
+        assert_eq!(
+            fs::read_to_string(d.join("config.local.toml")).unwrap(),
+            "[gui\nmascot = "
+        );
+        // シンボリックリンクなら、リンクは外さず、先を置き換える。一時ファイルは残さない
+        let real = d.join("real.toml");
+        fs::write(&real, "# 実体\n").unwrap();
+        fs::remove_file(d.join("config.local.toml")).unwrap();
+        std::os::unix::fs::symlink(&real, d.join("config.local.toml")).unwrap();
+        write_mascot_name(&d, "inu").unwrap();
+        assert!(fs::symlink_metadata(d.join("config.local.toml"))
+            .unwrap()
+            .file_type()
+            .is_symlink());
+        assert!(fs::read_to_string(&real).unwrap().contains("# 実体\n"));
+        assert_eq!(mascot_name(&d).as_deref(), Some("inu"));
+        let leftovers = fs::read_dir(&d)
+            .unwrap()
+            .filter(|e| {
+                e.as_ref()
+                    .unwrap()
+                    .file_name()
+                    .to_string_lossy()
+                    .contains(".kisui-")
+            })
+            .count();
+        assert_eq!(leftovers, 0);
+        // 設定のフォルダが無ければ作る
+        let sub = d.join("new").join("kisui-terminal");
+        write_mascot_name(&sub, "neko").unwrap();
+        assert_eq!(mascot_name(&sub).as_deref(), Some("neko"));
         let _ = fs::remove_dir_all(&d);
     }
 
