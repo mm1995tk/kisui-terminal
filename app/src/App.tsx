@@ -2623,13 +2623,16 @@ function Workbench(props: {
     closeTabRow(g.id, key);
   }
 
-  // 直前に選んでいたワークスペース（リーダーの w Tab で戻る先）
-  let lastWorkspace: WorkspaceFocus | null = null;
+  // 直前に選んでいたワークスペース（リーダーの w Tab で戻る先）の GUI のワークスペースの id。
+  // ターミナルのタブが無いワークスペースも覚えるので、focus ではなく今いるワークスペースの変化で覚える
+  let lastWorkspace: string | null = null;
   createEffect(
-    on(focus, (f, prev) => {
-      if (prev && (f?.target !== prev.target || f?.id !== prev.id))
-        lastWorkspace = prev;
-    }),
+    on(
+      () => currentGws()?.id,
+      (id, prev) => {
+        if (prev && id !== prev) lastWorkspace = prev;
+      },
+    ),
   );
 
   /** 表示の大きさを変える（#594）。窓全体の zoom を変える。ターミナルは欄の変化で合わせ直す。 */
@@ -2828,9 +2831,8 @@ function Workbench(props: {
         moveWs(c.arg as "up" | "down");
         break;
       case "workspace.last": {
-        const l = lastWorkspace;
-        if (l && gwsOfTerm(gws(), l.target, l.id))
-          void switchWorkspace(l.target, l.id);
+        const r = rows().find((x) => x.gws === lastWorkspace);
+        if (r) goRow(r);
         break;
       }
       case "workspace.new":
