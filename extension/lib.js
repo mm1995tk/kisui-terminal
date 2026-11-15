@@ -3,6 +3,26 @@
 //
 // Chrome の service worker（importScripts）と Firefox の background の scripts の両方で読めるよう、
 // ES module にせず、大域の KisuiPasskey に入れる。
+//
+// 型は JSDoc で書き、tsc -p extension（npm test）で検査する。ビルドはしない。
+
+/**
+ * サイトを待っている受け口
+ * @typedef {{ host: string, url: string }} Waiting
+ */
+/**
+ * 受け口の答え。つなげなかったものは reply が null
+ * @typedef {{ host: string, reply: unknown }} Answer
+ */
+/**
+ * kisui-terminal に送る Cookie（取り決めの形）
+ * @typedef {{ name: string, value: string, domain: string, hostOnly: boolean, path: string, secure: boolean, httpOnly: boolean, session: boolean, sameSite?: string, expirationDate?: number }} WireCookie
+ */
+/**
+ * ブラウザが返す Cookie（chrome.cookies.Cookie の、ここで使う部分。Firefox も同じ名前）
+ * @typedef {{ name: string, value: string, domain: string, hostOnly?: boolean, path?: string, secure?: boolean, httpOnly?: boolean, session?: boolean, sameSite?: string, expirationDate?: number }} BrowserCookie
+ */
+
 var KisuiPasskey = (() => {
   // native messaging の受け口の名前。普通の版と nightly 版を並べて入れていることがあるので、両方に聞く
   const HOSTS = [
@@ -24,6 +44,7 @@ var KisuiPasskey = (() => {
   const SETTLE_MAX_MS = 15000;
 
   // URL の host（小文字）。http(s) でなければ null
+  /** @param {string} url @returns {string | null} */
   function hostOf(url) {
     let u;
     try {
@@ -36,13 +57,18 @@ var KisuiPasskey = (() => {
   }
 
   // `sites` の答えの形を確かめて、{ sites, waiting } にする。形が違えば null
+  /** @param {any} reply 信用できない入力（形はここで確かめる） @returns {{ sites: string[], waiting: { site: string, url: string }[] } | null} */
   function parseSites(reply) {
     if (!reply || reply.type !== "sites" || !Array.isArray(reply.sites))
       return null;
-    const sites = reply.sites.filter((s) => typeof s === "string");
+    /** @type {string[]} */
+    const sites = reply.sites.filter(
+      (/** @type {unknown} */ s) => typeof s === "string",
+    );
     const waiting = Array.isArray(reply.waiting)
       ? reply.waiting.filter(
-          (w) => w && typeof w.site === "string" && sites.includes(w.site),
+          (/** @type {any} */ w) =>
+            w && typeof w.site === "string" && sites.includes(w.site),
         )
       : [];
     return { sites, waiting };
@@ -50,6 +76,7 @@ var KisuiPasskey = (() => {
 
   // 各受け口の答え（{ host, reply }。つなげなかったものは reply が null）から、許可サイトすべてと、
   // サイトごとの待っている受け口を作る
+  /** @param {Answer[]} answers @returns {{ sites: string[], waiting: Map<string, Waiting> }} */
   function combine(answers) {
     const sites = new Set();
     const waiting = new Map();
@@ -65,12 +92,14 @@ var KisuiPasskey = (() => {
   }
 
   // 許可サイトのページに入れるスクリプトの matches
+  /** @param {string[]} sites @returns {string[]} */
   function matchPatterns(sites) {
     return sites.map((s) => `https://${s}/*`);
   }
 
   // Cookie が `site` のページに送られるか（kisui-terminal が受けるのと同じ決まり）。
   // ドメインが `site` と同じか、host だけでない上のドメインのもの
+  /** @param {BrowserCookie | null | undefined} cookie @param {string} site @returns {boolean} */
   function appliesTo(cookie, site) {
     if (!cookie || typeof cookie.domain !== "string") return false;
     const hostOnly = cookie.hostOnly === true && !cookie.domain.startsWith(".");
@@ -81,6 +110,7 @@ var KisuiPasskey = (() => {
 
   // 読んだ Cookie から `site` に送られるものだけを残し、同じもの（名前・ドメイン・パス）を 1 つにし、
   // 取り決めの形にして返す（多ければ上限で切る）
+  /** @param {BrowserCookie[]} cookies @param {string} site @returns {WireCookie[]} */
   function pickCookies(cookies, site) {
     const seen = new Set();
     const out = [];
@@ -89,6 +119,7 @@ var KisuiPasskey = (() => {
       const key = `${c.name}\u0000${c.domain}\u0000${c.path}`;
       if (seen.has(key)) continue;
       seen.add(key);
+      /** @type {WireCookie} */
       const w = {
         name: c.name,
         value: c.value,
@@ -109,6 +140,7 @@ var KisuiPasskey = (() => {
   }
 
   // パスキーが通ってから落ち着いたか。now・successAt・lastCookieChange は ms。tabComplete はページの読み込みが済んだか
+  /** @param {{ now: number, successAt: number, lastCookieChange?: number, tabComplete: boolean }} p @returns {boolean} */
   function settled({ now, successAt, lastCookieChange, tabComplete }) {
     const since = now - successAt;
     if (since >= SETTLE_MAX_MS) return true;
@@ -120,6 +152,7 @@ var KisuiPasskey = (() => {
   // 新しいタブの最初のページが、kisui-terminal が開いたものか。
   // できてから NEW_TAB_MS のうちに、待っているサイトのページを開いたタブを、kisui-terminal が開いたものと見る
   // （サイトが最初にリダイレクトしても見分けられるよう、URL でなくサイトで比べる）
+  /** @param {{ url: string, createdAt: number, now: number, waiting: Map<string, Waiting> }} p @returns {{ site: string, host: string } | null} */
   function openedByKisui({ url, createdAt, now, waiting }) {
     if (now - createdAt > NEW_TAB_MS) return null;
     const host = hostOf(url);
@@ -129,6 +162,7 @@ var KisuiPasskey = (() => {
   }
 
   // 2 つの URL が同じページか（ブラウザが書き直す形の違いと、# の後ろは見ない）
+  /** @param {string} a @param {string} b @returns {boolean} */
   function sameUrl(a, b) {
     try {
       const x = new URL(a);
