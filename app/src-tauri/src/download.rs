@@ -153,6 +153,19 @@ fn finished(app: &AppHandle, path: &Path, ok: bool) {
     let _ = app.emit(EVENT_DOWNLOAD, DownloadEvent { id, name, dir, ok });
 }
 
+/// 保存先を決められなかった（フォルダを作れない、など）ことを画面に知らせる（何も起きなかったように見せない）。
+fn cannot_save(app: &AppHandle, suggested: &str) {
+    let _ = app.emit(
+        EVENT_DOWNLOAD,
+        DownloadEvent {
+            id: 0,
+            name: file_name(suggested),
+            dir: String::new(),
+            ok: false,
+        },
+    );
+}
+
 /// WebKitGTK のデータ（WebContext）のダウンロードを受ける。同じ WebContext には 1 度だけ足す（メインスレッドで呼ぶ）。
 #[cfg(target_os = "linux")]
 pub fn watch(app: &AppHandle, ctx: &webkit2gtk::WebContext) {
@@ -177,6 +190,7 @@ pub fn watch(app: &AppHandle, ctx: &webkit2gtk::WebContext) {
             download.connect_decide_destination(move |d, suggested| {
                 let Some(p) = destination(&app, suggested) else {
                     d.cancel();
+                    cannot_save(&app, suggested);
                     return true;
                 };
                 // WebKitGTK 4.1 の保存先は file: の URI で渡す
@@ -185,7 +199,10 @@ pub fn watch(app: &AppHandle, ctx: &webkit2gtk::WebContext) {
                         d.set_destination(u.as_str());
                         *dest.borrow_mut() = Some(p);
                     }
-                    Err(()) => d.cancel(),
+                    Err(()) => {
+                        d.cancel();
+                        cannot_save(&app, suggested);
+                    }
                 }
                 true
             });
@@ -222,6 +239,7 @@ pub fn on_download(app: &AppHandle, ev: tauri::webview::DownloadEvent<'_>) -> bo
                 .map(|n| n.to_string_lossy().into_owned())
                 .unwrap_or_default();
             let Some(p) = destination(app, &suggested) else {
+                cannot_save(app, &suggested);
                 return false;
             };
             *d = p.clone();
