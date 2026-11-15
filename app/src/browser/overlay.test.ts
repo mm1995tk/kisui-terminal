@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 
 import {
   floatsOver,
+  mayFocusPage,
   MIN_HEIGHT,
   OVERLAY_GAP,
   pageBounds,
@@ -93,5 +94,14 @@ describe("浮かべるものがページに重なっているか", () => {
     assert.equal(floatsOver(area, []), false);
     assert.equal(floatsOver(area, [{ x: 10, y: 600, w: 200, h: 100 }]), false);
     assert.equal(floatsOver(area, [{ x: 784, y: 600, w: 0, h: 184 }]), false);
+  });
+});
+
+describe("ページにキーを向けてよいとき", () => {
+  it("リーダーに入っている間は、ページに重なっていなくても向けない（#256）", () => {
+    assert.equal(mayFocusPage(false, false), true);
+    assert.equal(mayFocusPage(false, true), false);
+    assert.equal(mayFocusPage(true, false), false);
+    assert.equal(mayFocusPage(true, true), false);
   });
 });

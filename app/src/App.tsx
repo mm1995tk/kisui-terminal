@@ -267,7 +267,7 @@ import type { KeyLike } from "./guiKeys.ts";
 import { closeTarget, IS_MAC } from "./guiKeys.ts";
 import { KeyListDialog, openKeyList } from "./KeyListDialog.tsx";
 import { placeOf } from "./placeKeys.ts";
-import { LeaderMenu, setLeaderPath } from "./LeaderMenu.tsx";
+import { LeaderMenu, leaderPath, setLeaderPath } from "./LeaderMenu.tsx";
 import { loadScale, nextScale, saveScale, type ScaleAction } from "./scale.ts";
 import { applyScale } from "./scaleOs.ts";
 import type { Direction } from "./terminal/grid.ts";
@@ -3305,6 +3305,7 @@ function Workbench(props: {
             resolve={resolveFor}
             onError={(title, error) => setFocusError({ title, error })}
             focusRef={(f) => (focusBrowserPage = f)}
+            leaderOpen={() => leaderPath() !== null}
           >
             <Show when={pageTabId()} keyed>
               {(id) => (

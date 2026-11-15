@@ -29,6 +29,7 @@ import {
 } from "./browserOs.ts";
 import {
   floatsOver,
+  mayFocusPage,
   pageBounds,
   sameBounds,
   toLogical,
@@ -88,6 +89,8 @@ export function BrowserArea(props: {
   onError: (title: string, error: string) => void;
   /** 今出しているタブのページにキーを向ける関数を受け取る */
   focusRef: (focus: () => void) => void;
+  /** リーダーに入っているか。入っている間は、ページにキーを向けない（向けると画面がキーを失い、リーダーが閉じる。#256）。出たら向ける */
+  leaderOpen: () => boolean;
   /** ページの上に重ねて出すもの（ページ内検索の欄。#205）。data-overlay-shrink を付ければ、ページはその上まで縮む */
   children?: JSX.Element;
 }): JSX.Element {
@@ -259,7 +262,11 @@ export function BrowserArea(props: {
     const id = untrack(() => props.shown?.id);
     if (!id) return;
     const v = views.get(id);
-    if (v?.state === "open" && v.shown !== null && !floatingNow) {
+    if (
+      v?.state === "open" &&
+      v.shown !== null &&
+      mayFocusPage(floatingNow, untrack(props.leaderOpen))
+    ) {
       wantFocus = null;
       focusNow(id);
     } else wantFocus = id; // 重ねている間は、重なりが消えて、見回りがページを前に戻してから向ける
@@ -312,7 +319,7 @@ export function BrowserArea(props: {
         if (wantFocus === null && nothingFocused()) wantFocus = tab.id;
       }
       setLayer(tab.id, floating);
-      if (wantFocus === tab.id && !floating) {
+      if (wantFocus === tab.id && mayFocusPage(floating, props.leaderOpen())) {
         wantFocus = null;
         focusNow(tab.id);
       }
