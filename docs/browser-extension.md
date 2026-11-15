@@ -114,7 +114,7 @@ zip は、同じソースからは同じバイト列になる（中のファイ�
 > Cookie を読むのは、kisui-terminal の設定（`passkey_sites`）に書いたサイトのものだけで、送る先はあなたのコンピューターの kisui-terminal だけです。ネットワークには何も送りません。kisui-terminal が要ります：https://github.com/mm1995tk/kisui-terminal
 
 カテゴリ：Chrome は「仕事効率化」の「デベロッパー ツール」、Firefox は「Privacy & Security」か「Other」。
-スクリーンショット（Chrome は 1280×800 か 640×400 を 1 枚以上）は、実際のブラウザで撮る（この PR を作った環境では撮れない）。
+スクリーンショット（Chrome は 1280×800 か 640×400 を 1 枚以上）は、実際のブラウザで撮る。
 アイコンは `extension/icons/128.png`（kisui-terminal のアイコン）。
 
 ### プライバシー（Chrome の「プライバシーへの取り組み」）
