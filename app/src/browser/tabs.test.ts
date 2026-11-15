@@ -8,6 +8,7 @@ import {
   fromStored,
   newTabId,
   normalizeUrl,
+  urlOrSearch,
   shownTab,
   showTab,
   tabTitle,
@@ -227,5 +228,57 @@ describe("URL の入力欄", () => {
       "https://a.example/\nx",
     ])
       assert.equal(normalizeUrl(bad), null, JSON.stringify(bad));
+  });
+});
+
+describe("URL バー（#232）：URL か検索語か", () => {
+  it("URL は normalizeUrl と同じに開く", () => {
+    assert.equal(urlOrSearch("example.com"), "https://example.com/");
+    assert.equal(
+      urlOrSearch(" github.com/mm1995tk?q=1 "),
+      "https://github.com/mm1995tk?q=1",
+    );
+    assert.equal(urlOrSearch("localhost:3000"), "http://localhost:3000/");
+    assert.equal(urlOrSearch("127.0.0.1:8080/x"), "http://127.0.0.1:8080/x");
+    assert.equal(urlOrSearch("[::1]:5173"), "http://[::1]:5173/");
+    assert.equal(urlOrSearch("localhost"), "http://localhost/");
+    assert.equal(urlOrSearch("http://a.example/"), "http://a.example/");
+  });
+
+  it("空白を含む・「.」の無い一語・「.」で終わるものは Google で検索する", () => {
+    assert.equal(
+      urlOrSearch("tauri webview 使い方"),
+      "https://www.google.com/search?q=tauri%20webview%20%E4%BD%BF%E3%81%84%E6%96%B9",
+    );
+    assert.equal(urlOrSearch("foo"), "https://www.google.com/search?q=foo");
+    assert.equal(
+      urlOrSearch("hello."),
+      "https://www.google.com/search?q=hello.",
+    );
+    assert.equal(
+      urlOrSearch("a&b=c"),
+      "https://www.google.com/search?q=a%26b%3Dc",
+    );
+    // 空白があれば、URL に見える語を含んでいても検索
+    assert.equal(
+      urlOrSearch("example.com foo"),
+      "https://www.google.com/search?q=example.com%20foo",
+    );
+    assert.equal(
+      urlOrSearch("user@example.com"),
+      "https://www.google.com/search?q=user%40example.com",
+    );
+  });
+
+  it("開けないもの・空は null", () => {
+    for (const bad of [
+      "",
+      "  ",
+      "javascript:alert(1)",
+      "file:///etc/passwd",
+      "data:text/html,hi",
+      "https://user:pw@a.example/",
+    ])
+      assert.equal(urlOrSearch(bad), null, JSON.stringify(bad));
   });
 });

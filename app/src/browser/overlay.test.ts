@@ -21,6 +21,25 @@ describe("内蔵ブラウザのページを置く場所", () => {
     );
   });
 
+  it("上の端の URL バーの分だけ、上の端を下げる（#232）", () => {
+    assert.deepEqual(pageBounds(area, [], false, 36), {
+      x: 300,
+      y: 36,
+      w: 900,
+      h: 764,
+    });
+    // 下の端のお知らせとも合わせて縮む
+    const notice = { x: 784, y: 600, w: 400, h: 184 };
+    assert.deepEqual(pageBounds(area, [notice], false, 36), {
+      x: 300,
+      y: 36,
+      w: 900,
+      h: 600 - OVERLAY_GAP - 36,
+    });
+    // 低くなりすぎれば隠す
+    assert.equal(pageBounds({ ...area, h: 200 }, [], false, 100), null);
+  });
+
   it("ダイアログが出ている間は隠す", () => {
     assert.equal(pageBounds(area, [], true), null);
   });

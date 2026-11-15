@@ -242,6 +242,7 @@ import {
   type BrowserTab,
   type TabsState,
 } from "./browser/tabs.ts";
+import { UrlBar } from "./browser/UrlBar.tsx";
 import { UrlDialog } from "./browser/UrlDialog.tsx";
 import type { KeyLike } from "./guiKeys.ts";
 import { closeTarget, IS_MAC } from "./guiKeys.ts";
@@ -1706,12 +1707,12 @@ function Workbench(props: {
         }),
     );
   }
-  /** URL の入力欄（リーダーの o n・o N・o u） */
-  const [urlDialog, setUrlDialog] = createSignal<
-    | { kind: "new"; target: string; id: WorkspaceId; incognito: boolean }
-    | { kind: "edit"; tab: string; url: string }
-    | null
-  >(null);
+  /** URL の入力欄（リーダーの o n・o N）。今のタブの URL の書き換えは、ページの上の URL バー（#232） */
+  const [urlDialog, setUrlDialog] = createSignal<{
+    target: string;
+    id: WorkspaceId;
+    incognito: boolean;
+  } | null>(null);
   /**
    * ページにキーがあるときにリーダーか近道を押した（殻がキーをこの画面に移してから届く）。そのときの画面のキーの行き先。
    * 押した操作が終わって（リーダーなら出て）も、キーの行き先がそのままなら、ページにキーを戻す
@@ -1928,6 +1929,28 @@ function Workbench(props: {
     if (untrack(findTab) === t.id) focusFind?.();
     else setFindTab(t.id);
   }
+  // ---- 内蔵ブラウザの URL バー（#232）。出しているタブのページの上の端 ----
+  let focusUrlBar: (() => void) | undefined;
+  /** URL バーで決めた。今のタブで開く。 */
+  function submitUrlBar(tab: string, url: string) {
+    // 中継を用意できてから（リモートのマシンの localhost 系）タブの URL を書き換える。用意できなければ、ページも URL も前のまま。
+    // まだ作っていない・開けなかったタブは、BrowserArea が書き換えた URL で作る（goTab は失敗する）
+    const t = untrack(tabs).tabs.find((x) => x.id === tab);
+    if (t)
+      resolveFor(t, url).then(
+        (opened) => {
+          setTabs((s) => updateTab(s, tab, { url }));
+          void goTab(tab, opened).catch(() => {});
+        },
+        (e: unknown) =>
+          setFocusError({
+            title: T("err.page.open"),
+            error: e instanceof Error ? e.message : String(e),
+          }),
+      );
+    focusTerminal();
+  }
+
   /** 検索の欄を閉じ、キーをページに戻す。 */
   function closeFind() {
     setFindTab(null);
@@ -2073,7 +2096,11 @@ function Workbench(props: {
         break;
       case "browser.url": {
         const t = currentTab();
-        if (t) setUrlDialog({ kind: "edit", tab: t.id, url: t.url });
+        if (t) {
+          // ページから押したときに覚えた「戻す先」を捨てる（検索の欄と同じ。openFind）
+          pageReturn = undefined;
+          focusUrlBar?.();
+        }
         break;
       }
       case "browser.back":
@@ -2161,46 +2188,28 @@ function Workbench(props: {
     }
   }
 
-  /** URL の入力欄で決めた。新しいタブを開くか、今のタブで開く。 */
+  /** URL の入力欄（o n・o N）で決めた。新しいタブを開く。 */
   function submitUrl(url: string) {
     const d = urlDialog();
     if (!d) return;
     setUrlDialog(null);
-    if (d.kind === "new") {
-      const id = newTabId();
-      const gid = gwsOfTerm(untrack(gws), d.target, d.id)?.id;
-      setTabs((s) =>
-        addTab(
-          s,
-          {
-            id,
-            target: d.target,
-            workspace: d.id,
-            url,
-            title: "",
-            ...(d.incognito ? { incognito: true } : {}),
-          },
-          gid,
-        ),
-      );
-      if (gid) setGws((g) => addBrowser(g, gid, id));
-    } else {
-      // 中継を用意できてから（リモートのマシンの localhost 系）タブの URL を書き換える。用意できなければ、ページも URL も前のまま。
-      // まだ作っていない・開けなかったタブは、BrowserArea が書き換えた URL で作る（goTab は失敗する）
-      const tab = untrack(tabs).tabs.find((t) => t.id === d.tab);
-      if (tab)
-        resolveFor(tab, url).then(
-          (opened) => {
-            setTabs((s) => updateTab(s, d.tab, { url }));
-            void goTab(d.tab, opened).catch(() => {});
-          },
-          (e: unknown) =>
-            setFocusError({
-              title: T("err.page.open"),
-              error: e instanceof Error ? e.message : String(e),
-            }),
-        );
-    }
+    const id = newTabId();
+    const gid = gwsOfTerm(untrack(gws), d.target, d.id)?.id;
+    setTabs((s) =>
+      addTab(
+        s,
+        {
+          id,
+          target: d.target,
+          workspace: d.id,
+          url,
+          title: "",
+          ...(d.incognito ? { incognito: true } : {}),
+        },
+        gid,
+      ),
+    );
+    if (gid) setGws((g) => addBrowser(g, gid, id));
     focusTerminal();
   }
 
@@ -2759,6 +2768,20 @@ function Workbench(props: {
             onError={(title, error) => setFocusError({ title, error })}
             focusRef={(f) => (focusBrowserPage = f)}
           >
+            <Show when={shownBrowserTab()?.id} keyed>
+              {(id) => (
+                <UrlBar
+                  url={shownBrowserTab()?.url ?? ""}
+                  onSubmit={(url) => submitUrlBar(id, url)}
+                  onCancel={() => focusTerminal()}
+                  onNav={(action) => {
+                    void navTab(id, action).catch(() => {});
+                    focusTerminal();
+                  }}
+                  focusRef={(f) => (focusUrlBar = f)}
+                />
+              )}
+            </Show>
             <Show when={findTab()} keyed>
               {(id) => (
                 <FindBar
@@ -2934,15 +2957,7 @@ function Workbench(props: {
       <Show when={urlDialog()}>
         {(d) => (
           <UrlDialog
-            kind={d().kind}
-            incognito={(() => {
-              const v = d();
-              return v.kind === "new" && v.incognito;
-            })()}
-            initial={(() => {
-              const v = d();
-              return v.kind === "edit" ? v.url : "";
-            })()}
+            incognito={d().incognito}
             onSubmit={submitUrl}
             onCancel={() => setUrlDialog(null)}
           />

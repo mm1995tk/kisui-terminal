@@ -27,12 +27,13 @@ const overlaps = (a: Bounds, b: Bounds) =>
 
 /**
  * ページを置く四角。隠すなら null。area はページを出す場所（グリッドの場所）、overlays は上に出ているもの、
- * modal はダイアログが出ているか。
+ * modal はダイアログが出ているか。top はページの上の端を下げる高さ（上の端の URL バー。#232）。
  */
 export function pageBounds(
   area: Bounds,
   overlays: readonly Bounds[],
   modal: boolean,
+  top = 0,
 ): Bounds | null {
   if (modal || area.w <= 0 || area.h <= 0) return null;
   let bottom = area.y + area.h;
@@ -40,9 +41,10 @@ export function pageBounds(
     if (o.w <= 0 || o.h <= 0 || !overlaps(area, o)) continue;
     bottom = Math.min(bottom, o.y - OVERLAY_GAP);
   }
-  const h = bottom - area.y;
+  const y = area.y + Math.max(0, top);
+  const h = bottom - y;
   if (h < Math.min(MIN_HEIGHT, area.h)) return null;
-  return { x: area.x, y: area.y, w: area.w, h };
+  return { x: area.x, y, w: area.w, h };
 }
 
 /** CSS ピクセルの四角を、窓の論理ピクセルにする（画面全体の大きさ zoom を掛ける）。端は整数に丸める。 */

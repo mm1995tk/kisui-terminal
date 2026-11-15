@@ -90,3 +90,48 @@
   background: var(--gh-bg);
   color: var(--gh-text-strong);
 }
+
+/* ページの上の端の URL バー（#232。UrlBar.tsx）。ページはその下まで下がる（BrowserArea の data-overlay-top） */
+.url-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  background: var(--gh-bg-raised);
+  border-bottom: 1px solid var(--gh-border);
+}
+.url-bar-button {
+  flex: none;
+  padding: 2px 8px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--gh-text-muted);
+  font-size: 14px;
+  cursor: pointer;
+}
+.url-bar-button:hover {
+  background: var(--gh-bg);
+  color: var(--gh-text-strong);
+}
+.url-bar-input {
+  flex: 1;
+  min-width: 0;
+  padding: 3px 8px;
+  border: 1px solid var(--gh-border);
+  border-radius: 4px;
+  background: var(--gh-bg-field);
+  color: var(--gh-text-strong);
+  font: inherit;
+  font-size: 13px;
+}
+.url-bar-input:focus {
+  outline: 1px solid var(--gh-accent);
+}
+.url-bar-input[aria-invalid="true"] {
+  border-color: var(--gh-red);
+}

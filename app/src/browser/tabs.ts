@@ -224,6 +224,40 @@ export function normalizeUrl(input: string): string | null {
   }
 }
 
+/** URL バーで検索語を Google で探すときの URL の前の部分（#232。検索エンジンは選べない）。 */
+export const SEARCH_URL = "https://www.google.com/search?q=";
+
+/**
+ * URL バー（#232）に打ったものを、開く URL にする。URL なら normalizeUrl と同じに直し、URL でなければ Google の検索の URL にする。
+ * 開けないもの（http と https 以外の scheme が明らかなもの・ユーザー名とパスワード入りなど）と空は null。
+ * scheme を省いたものは、host に「.」がある（`example.com`）か、localhost・127.0.0.1・[::1] のときだけ URL と見なす。
+ * 空白を含むもの・「.」の無い一語（`foo`）・`.` で終わるものなどは検索語にする。
+ */
+export function urlOrSearch(input: string): string | null {
+  const s = input.trim();
+  if (s === "") return null;
+  // scheme が付いている（`://`）ものは、URL として開けるか開けないかだけ
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(s)) return normalizeUrl(s);
+  const oneWord = !/\s/.test(s);
+  if (oneWord && looksLikeHost(s)) {
+    const u = normalizeUrl(s);
+    if (u !== null) return u;
+  }
+  // `javascript:` などの、// の無い scheme は検索語にしない（開けないものとして断る）
+  if (oneWord && /^[a-z][a-z0-9+.-]*:(?!\d)/i.test(s)) return null;
+  if (s.length > 2048) return null;
+  return SEARCH_URL + encodeURIComponent(s);
+}
+
+/** scheme の無い入力の host の部分が、URL らしいか（localhost 系か、「.」で区切った名前）。 */
+function looksLikeHost(s: string): boolean {
+  if (/^(localhost|127\.0\.0\.1|\[::1\])(?=$|[:/?#])/i.test(s)) return true;
+  const host = /^[^/?#]*/.exec(s)?.[0] ?? "";
+  if (host.includes("@")) return false;
+  const name = host.replace(/:\d*$/, "");
+  return /^[^.\s:]+(\.[^.\s:]+)+$/.test(name);
+}
+
 /** 覚えていた表示の大きさ（百分率）を、タブの zoom にする。選べる大きさ（scale.ts の SCALES）でなければ元の大きさ。 */
 function zoomOf(percent: unknown): { zoom?: number } {
   if (typeof percent !== "number") return {};

@@ -395,9 +395,12 @@ export const ja: Record<Key, string> = {
   "deleteDialog.dir": "フォルダの中身も全部消えます。元には戻せません。",
   "deleteDialog.file": "元には戻せません。",
   "deleteDialog.yes": "削除する",
-  "urlDialog.edit": "URL を書き換える",
   "urlDialog.incognito": "シークレットのタブを開く",
   "urlDialog.new": "新しいタブを開く",
+  "urlBar.label": "アドレスバー",
+  "urlBar.placeholder": "検索語か URL を入力",
+  "urlBar.invalid":
+    "開けるのは http と https の URL だけです（ユーザー名やパスワードを含むものは開けません）",
   "urlDialog.invalid":
     "開けるのは http と https の URL だけです（ユーザー名やパスワードを含むもの、空白を含むものは開けません）",
   "rename.label": "名前を変える",
