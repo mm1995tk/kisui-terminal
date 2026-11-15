@@ -253,7 +253,7 @@
                   };
                 files = m: builtins.attrNames (eval m).config.xdg.configFile;
                 failed = m: builtins.any (a: !a.assertion) (eval m).config.assertions;
-                nightlyPkg = self.packages.${system}.kisui-terminal-nightly or null;
+                nightlyPkg = self.packages.${system}.kisui-terminal-nightly;
                 cases = [
                   {
                     name = "package = null: nothing installed";
@@ -286,7 +286,7 @@
                     ok = !(failed { channel = "stable"; });
                   }
                 ]
-                ++ lib.optionals (nightlyPkg != null) [
+                ++ [
                   {
                     name = "nightly package: nightly folder";
                     ok = files { package = nightlyPkg; } == [ "kisui-terminal-nightly/config.toml" ];
