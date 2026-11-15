@@ -13,6 +13,7 @@
 // タブの行を押すと onTab、行の ✕ で onTabClose、鉛筆で onTabRename、ヘッダーの ▾ / ▸ で onTabsFold（並びを畳む・開く）。タブを出していれば、その行を光らせる。
 // ヘッダーの「+」は小さなメニューを出し、選んだものを onAddTab に渡す（ターミナル・ターミナル（マシンを選ぶ）・ブラウザ）。
 // ファイルツリーと CHANGES は、今出しているターミナルのタブの行のすぐ下（その行の中）に開く。
+// ブラウザのタブを出している間は、ファイルツリーと CHANGES を見えなくする（外さないので、開いているフォルダ・選んでいる行・境目の位置は残る。#268）。
 // 選んでも帯・行の位置と高さが変わらないよう、鉛筆・✕・つかむ所は出ていないときも場所を空けておく（sidebar.css）。
 // 組み立ては model.ts、並び順は order.ts、色の決め方は colors.ts、見た目は sidebar.css。
 import { T } from "../i18n/index.ts";
@@ -228,7 +229,13 @@ export function Sidebar(
     resize.observe(nav);
     // 行が増減した・フォーカスが移った（属性は見ないので、data-stuck を付けても回らない）
     const mutation = new MutationObserver(schedule);
-    mutation.observe(nav, { childList: true, subtree: true });
+    // 属性は data-panes-hidden（ファイルツリーと CHANGES を隠した・戻した。CHANGES の高さを測り直す）だけ見る
+    mutation.observe(nav, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["data-panes-hidden"],
+    });
     schedule();
     onCleanup(() => {
       nav.removeEventListener("scroll", schedule);
@@ -694,8 +701,16 @@ function BandHeader(
  */
 function RowPanes(props: Handlers & { row: Row }): JSX.Element {
   const b = () => props.row.band;
+  // ブラウザのタブを出している間は隠す。外さずに見えなくして、開いているフォルダ・選んでいる行・境目の位置を保つ（#268）
+  const hidden = () => {
+    const t = props.row.tabs;
+    return t.items.some((i) => i.key === t.shown && i.kind === "browser");
+  };
   return (
-    <>
+    <div
+      style={{ display: hidden() ? "none" : "contents" }}
+      data-panes-hidden={hidden() ? "" : undefined}
+    >
       <Show
         when={
           b().focused &&
@@ -748,7 +763,7 @@ function RowPanes(props: Handlers & { row: Row }): JSX.Element {
           />
         )}
       </Show>
-    </>
+    </div>
   );
 }
 
