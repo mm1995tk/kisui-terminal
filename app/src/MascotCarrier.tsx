@@ -51,6 +51,8 @@ export function MascotCarrier(props: {
   const [frame, setFrame] = createSignal<string | null>(null);
   let charEl: HTMLDivElement | undefined;
   let stopTimers: () => void = () => {};
+  /** 案内を運んでいる途中か（運び終える前）。この間に `Esc` で閉じたら、押していかずにすぐ消す */
+  let carrying = false;
 
   onMount(() => void initMascot());
   // 読み直した（`c r`）・選び直した（`c s`）とき、出している動きは、前のキャラクターの画像（読み直すと使えなくなる）なので、止めて消す。
@@ -61,6 +63,7 @@ export function MascotCarrier(props: {
       () => {
         stopTimers();
         stopTimers = () => {};
+        carrying = false;
         setFrame(null);
       },
       { defer: true },
@@ -78,13 +81,17 @@ export function MascotCarrier(props: {
     const menu = props.menu();
     if (!menu) return;
     const dx = carryDistance(menu, MASCOT_HEIGHT * m.aspect);
+    carrying = true;
     stopTimers = startCarry(
       menu,
       () => charEl,
       dx,
       m.carry,
       setFrame,
-      () => rest(m),
+      () => {
+        carrying = false;
+        rest(m);
+      },
     );
   };
 
@@ -156,7 +163,9 @@ export function MascotCarrier(props: {
         reduced: reducedMotion(),
         shown: frame() !== null,
         closedBy: props.closedBy(),
+        carrying,
       });
+      carrying = false;
       if (!m || action === "clear") {
         setFrame(null);
         return;
