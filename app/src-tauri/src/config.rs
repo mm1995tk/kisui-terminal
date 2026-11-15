@@ -467,7 +467,8 @@ pub fn public_suffix_site(s: &str) -> bool {
     let Some(name) = s.strip_prefix('.') else {
         return false;
     };
-    let is_suffix = |n: &str| psl::suffix(n.as_bytes()).is_some_and(|x| x.as_bytes() == n.as_bytes());
+    let is_suffix =
+        |n: &str| psl::suffix(n.as_bytes()).is_some_and(|x| x.as_bytes() == n.as_bytes());
     // 一覧に無い名前を 1 つ下に付けて、`*.<名前>` の決まりに当たるかを見る
     is_suffix(name) || is_suffix(&format!("kisui-terminal-probe.{name}"))
 }
@@ -1102,7 +1103,15 @@ mod tests {
 
     #[test]
     fn public_suffix_sites() {
-        for s in [".com", ".jp", ".co.jp", ".github.io", ".internal", ".kobe.jp", ".ck"] {
+        for s in [
+            ".com",
+            ".jp",
+            ".co.jp",
+            ".github.io",
+            ".internal",
+            ".kobe.jp",
+            ".ck",
+        ] {
             assert!(public_suffix_site(s), "{s}");
         }
         // github.com の書き方は見ない。公開サフィックスの下の名前は使える
