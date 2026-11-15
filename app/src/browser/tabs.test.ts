@@ -85,6 +85,18 @@ describe("内蔵ブラウザのタブ", () => {
     assert.equal(updateTab(t, "nope", { title: "Y" }), t);
   });
 
+  it("favicon を書き換え、消す。覚える形には書かない（#237）", () => {
+    const icon = "data:image/png;base64,AAAA";
+    const t = updateTab(three(), "a", { favicon: icon });
+    assert.equal(t.tabs[0].favicon, icon);
+    assert.equal(updateTab(t, "a", { favicon: icon }), t);
+    assert.equal(
+      updateTab(t, "a", { favicon: undefined }).tabs[0].favicon,
+      undefined,
+    );
+    assert.ok(!JSON.stringify(toStored(t)).includes(icon));
+  });
+
   it("タブの名前は、つけた名前、無ければページの題、それも無ければ host", () => {
     const t = { ...tab("a"), title: "Page" };
     assert.equal(tabTitle(t, "Mine"), "Mine");

@@ -2139,11 +2139,14 @@ name = "kisui-terminal"
 version = "0.2.0"
 dependencies = [
  "arboard",
+ "block2",
+ "javascriptcore-rs",
  "libc",
  "notify-rust",
  "objc2",
  "objc2-app-kit",
  "objc2-foundation",
+ "objc2-web-kit",
  "serde",
  "serde_json",
  "sha2",

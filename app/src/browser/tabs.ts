@@ -39,6 +39,11 @@ export interface BrowserTab {
    * ページの表示の大きさ（#205。1 が元の大きさ。無ければ 1）。タブごとに持ち、ページを移っても変わらない。覚える（再起動しても戻す）
    */
   zoom?: number;
+  /**
+   * ページの favicon（#237。殻が読んだ 32×32 の PNG の data: URL）。無ければ・読み込み中は無し（サイドバーは地球のアイコンを出す）。
+   * 覚えない（シークレットのタブの favicon をディスクに残さないため。どのタブも、ページを読み込めばまた取れる）
+   */
+  favicon?: string;
 }
 
 /** タブ全部と、ワークスペースごとの表示。 */
@@ -109,17 +114,22 @@ export function closeTab(s: TabsState, id: string): TabsState {
   return { tabs: s.tabs.filter((t) => t.id !== id), views };
 }
 
-/** タブの URL・題・表示の大きさを書き換える（ページが変わった）。同じなら s をそのまま返す。 */
+/** タブの URL・題・表示の大きさ・favicon を書き換える（ページが変わった）。同じなら s をそのまま返す。 */
 export function updateTab(
   s: TabsState,
   id: string,
-  patch: { url?: string; title?: string; zoom?: number },
+  patch: { url?: string; title?: string; zoom?: number; favicon?: string },
 ): TabsState {
   const i = s.tabs.findIndex((t) => t.id === id);
   if (i < 0) return s;
   const t = s.tabs[i];
   const next = { ...t, ...patch };
-  if (next.url === t.url && next.title === t.title && next.zoom === t.zoom)
+  if (
+    next.url === t.url &&
+    next.title === t.title &&
+    next.zoom === t.zoom &&
+    next.favicon === t.favicon
+  )
     return s;
   const tabs = [...s.tabs];
   tabs[i] = next;

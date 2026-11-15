@@ -856,10 +856,17 @@ function TabRow(props: {
           onClick={() => props.onTab()}
         >
           <span class="tab-l1">
-            <Nf
-              class="tab-icon"
-              c={t().kind === "term" ? ICON.terminal : ICON.globe}
-            />
+            <Show
+              when={t().favicon}
+              fallback={
+                <Nf
+                  class="tab-icon"
+                  c={t().kind === "term" ? ICON.terminal : ICON.globe}
+                />
+              }
+            >
+              {(src) => <img class="tab-icon tab-favicon" src={src()} alt="" />}
+            </Show>
             <Show when={t().incognito}>
               <span class="tab-incognito">{T("sidebar.incognito")}</span>
             </Show>

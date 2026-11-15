@@ -33,6 +33,7 @@
 //!
 //! #205：ページの表示の大きさ（`browser_zoom`。タブごとに、覚えるタブと一緒に覚える）、ページ内検索（`browser_find`）、
 //! DevTools（`browser_devtools`）。ブックマークは bookmarks.rs。
+//! ページの favicon（サイドバーのタブの行に出す。#237）は favicon.rs。
 
 use std::collections::HashMap;
 use std::fs;
@@ -613,6 +614,9 @@ fn with_handlers(
     let (win_app, win_tab) = (app.clone(), tab.to_string());
     let (load_app, load_tab) = (app.clone(), tab.to_string());
     let (title_app, title_tab) = (app.clone(), tab.to_string());
+    // favicon（#237）：読み込みの終わりと題の変化のたびに読みに行く。読み込みが始まったら、それまでの答えを捨てる
+    let page = crate::favicon::Page::default();
+    let title_page = page.clone();
     #[cfg(target_os = "macos")]
     let builder = {
         let dl_app = app.clone();
@@ -621,11 +625,14 @@ fn with_handlers(
     builder
         .on_navigation(may_navigate)
         .on_new_window(move |u, f| on_new_window(&win_app, &win_tab, &nonce, u, f))
-        .on_page_load(move |_, p| {
+        .on_page_load(move |w, p| {
             let loading = match p.event() {
                 PageLoadEvent::Started => true,
                 PageLoadEvent::Finished => false,
             };
+            if loading {
+                page.started();
+            }
             let _ = load_app.emit(
                 EVENT_PAGE,
                 PageEvent {
@@ -634,8 +641,12 @@ fn with_handlers(
                     loading,
                 },
             );
+            if !loading {
+                crate::favicon::request(&load_app, &w, &load_tab, &page);
+            }
         })
-        .on_document_title_changed(move |_, title| {
+        .on_document_title_changed(move |w, title| {
+            crate::favicon::request(&title_app, &w, &title_tab, &title_page);
             let _ = title_app.emit(
                 EVENT_TITLE,
                 TitleEvent {
