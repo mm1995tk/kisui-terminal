@@ -113,7 +113,7 @@ export function NewTabPage(props: {
             if (!k) return;
             e.preventDefault();
             if (k.kind === "step")
-              setSel((i) => moveSelection(i, k.step, shown().length));
+              setSel(() => moveSelection(selected(), k.step, shown().length));
             else if (k.kind === "enter") submit();
             else {
               // Esc は打ったものと選びを消す（キーは検索窓に残す。ページがまだ無いので、戻す先が無い）
