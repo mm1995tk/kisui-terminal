@@ -1930,7 +1930,14 @@ function Workbench(props: {
   /** Chrome のブックマークを読み直す（#239。Chrome で足し・消しした分が反映される）。読めなければ前のまま（無ければ空）。 */
   function readChromeBookmarks() {
     loadChromeBookmarks().then(
-      (v) => setChromeBookmarks(chromeFromLoaded(v)),
+      (v) => {
+        const first = untrack(chromeBookmarks) === undefined;
+        const list = chromeFromLoaded(v);
+        setChromeBookmarks(list);
+        // 自分のものの読み込みが先に失敗していたら、Chrome のものが届いたここで知らせる（読み終わる順に依らないように）
+        if (first && list.length > 0 && untrack(bookmarksFailed))
+          showToast(T("err.bookmarks.read"));
+      },
       (e: unknown) => {
         console.warn("chrome bookmarks:", e);
         if (untrack(chromeBookmarks) === undefined) setChromeBookmarks([]);
