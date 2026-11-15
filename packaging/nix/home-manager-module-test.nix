@@ -12,7 +12,7 @@ let
     module:
     lib.evalModules {
       modules = [
-        (import ./packaging/nix/home-manager-module.nix self)
+        (import ./home-manager-module.nix self)
         {
           config._module.args.pkgs = pkgs;
           options = {
