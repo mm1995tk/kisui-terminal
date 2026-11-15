@@ -1,7 +1,8 @@
 // 内蔵ブラウザのタブ（#202）を出す場所。グリッドの場所すべてを覆い、今のワークスペースで選んでいるタブのページを出す。
 // ページそのものは、この場所に Tauri の子の webview を重ねて出す（browser.rs。外のサイトの多くは iframe に出せないため）。
 // 子の webview は画面（DOM）より上に重なるので、ダイアログを出している間は隠し、お知らせ・リーダーの案内などが重なるときは
-// ページの下の端を上げる（overlay.ts）。
+// ページの下の端を上げる（overlay.ts）。macOS は、お知らせ・リーダーの案内・メニューをページを縮めずに重ねる
+// （画面をページより前に出し、ページはすりガラス越しに見える。操作はできない。殻の browser_layer）。
 // 子の webview はタブごとに 1 つで、初めて出すときに作る。ほかのワークスペースに移る・グリッドに戻るときは隠すだけで、
 // ページはそのまま残す（戻ったときに、読んでいた所から続けられる）。タブを閉じたら壊す。
 import { T } from "../i18n/index.ts";
@@ -18,19 +19,32 @@ import {
 import type { InterceptKey } from "../commands.ts";
 import {
   closeTabView,
+  enableOverlay,
   focusTab,
+  layerTab,
   moveTab,
   openTab,
   showTabView,
   zoomTab,
 } from "./browserOs.ts";
-import { pageBounds, sameBounds, toLogical, type Bounds } from "./overlay.ts";
+import {
+  floatsOver,
+  pageBounds,
+  sameBounds,
+  toLogical,
+  type Bounds,
+} from "./overlay.ts";
 import { isNewTab } from "./newTab.ts";
 import type { BrowserTab } from "./tabs.ts";
 import "./browser.css";
 
-/** 上に出ていて、ページが避けるもの（右下のお知らせ・リーダーの案内とキャラクター・右クリックのメニュー・data-overlay を付けたページ内検索の欄とトースト） */
-const OVERLAY_SELECTOR =
+/** ページを縮めて避けさせるもの（ページ内検索の欄とトースト。data-overlay-shrink を付ける） */
+const SHRINK_SELECTOR = "[data-overlay-shrink]";
+/**
+ * ページの上に浮かべるもの（右下のお知らせ・リーダーの案内とキャラクター・右クリックのメニュー）。
+ * macOS はページを縮めず、画面をページより前に出して重ねる。ほかの OS は、縮めて避ける
+ */
+const FLOAT_SELECTOR =
   ".card-notices > *, [data-overlay], .machine-menu, [role='menu']";
 
 /** 子の webview 1 つの様子。 */
@@ -75,7 +89,7 @@ export function BrowserArea(props: {
   onError: (title: string, error: string) => void;
   /** 今出しているタブのページにキーを向ける関数を受け取る */
   focusRef: (focus: () => void) => void;
-  /** ページの上に重ねて出すもの（ページ内検索の欄。#205）。data-overlay を付ければ、ページはその上まで縮む */
+  /** ページの上に重ねて出すもの（ページ内検索の欄。#205）。data-overlay-shrink を付ければ、ページはその上まで縮む */
   children?: JSX.Element;
 }): JSX.Element {
   let area!: HTMLDivElement;
@@ -91,18 +105,72 @@ export function BrowserArea(props: {
   let wantFocus: string | null = null;
   let disposed = false;
 
-  /** 今の様子で、ページを置く四角（論理ピクセル）。隠すなら null。 */
-  function bounds(): Bounds | null {
-    const overlays = [...document.querySelectorAll(OVERLAY_SELECTOR)].map(
-      rectOf,
-    );
+  /** ページの上に浮かべるものを、縮めずに重ねられるか（macOS。殻が答える）。分かるまでは false（縮めて避ける） */
+  let native = false;
+  /** 今、前に出している層（`o:<タブ>` は画面、`p:<タブ>` はページ）。殻に頼んでいる間・出していなければ null */
+  let layer: string | null = null;
+  let layerBusy = false;
+  /** releaseLayer のたびに増やす（頼んでいる間に放した古い答えを捨てる） */
+  let layerGen = 0;
+
+  /**
+   * 今の様子で、ページを置く四角（論理ピクセル。隠すなら null）と、浮かべるものがページに重なっているか。
+   * 重ねられる OS では、浮かべるものでページを縮めない（重なっているかだけ返す）。
+   */
+  function bounds(): { b: Bounds | null; floating: boolean } {
+    const shrink = [...document.querySelectorAll(SHRINK_SELECTOR)].map(rectOf);
+    const floats = [...document.querySelectorAll(FLOAT_SELECTOR)].map(rectOf);
     const modal = document.querySelector("dialog[open]") !== null;
     const areaRect = rectOf(area);
     const bar = document.querySelector(TOP_SELECTOR);
     const barRect = bar ? rectOf(bar) : null;
     const top = barRect ? barRect.y + barRect.h - areaRect.y : 0;
-    const b = pageBounds(areaRect, overlays, modal, top);
-    return b && toLogical(b, props.zoom());
+    const b = pageBounds(
+      areaRect,
+      native ? shrink : [...shrink, ...floats],
+      modal,
+      top,
+    );
+    return {
+      b: b && toLogical(b, props.zoom()),
+      floating: native && b !== null && floatsOver(areaRect, floats),
+    };
+  }
+
+  /** 画面を前に出している間だけ、ページの場所を透かして、すりガラスの色をかぶせる（browser.css） */
+  function setFrost(on: boolean) {
+    const root = document.documentElement;
+    if (on) root.dataset.pageOverlay = "";
+    else delete root.dataset.pageOverlay;
+  }
+
+  /**
+   * 前に出す層を、floating に合わせる。殻の切り替えが済んでから、見た目（透かし）を替える
+   * （先に替えると、切り替わるまでの間、ページの場所が空いて見える）。
+   */
+  function setLayer(id: string, floating: boolean) {
+    const want = `${floating ? "o" : "p"}:${id}`;
+    if (!native || layerBusy || layer === want) return;
+    layerBusy = true;
+    const gen = layerGen;
+    layerTab(id, floating)
+      .then(() => {
+        if (gen !== layerGen) return;
+        layer = want;
+        setFrost(floating);
+        // 画面を前に出した（キーも画面に向いた）あと、ページを前に戻すとき、画面のどこにもキーが無ければ、ページに戻す
+        if (!floating && wantFocus === null && nothingFocused()) wantFocus = id;
+      })
+      .catch(() => {})
+      .finally(() => (layerBusy = false));
+  }
+
+  /** ページを出さない間（グリッド・新しいタブのページ・隠している間）は、透かしをやめる。次に出すとき、層を決め直す */
+  function releaseLayer() {
+    if (!native) return;
+    layer = null;
+    layerGen++;
+    setFrost(false);
   }
 
   function hide(id: string, v: View) {
@@ -196,16 +264,24 @@ export function BrowserArea(props: {
   // 出している間は毎フレーム見て、変わったときだけ殻に送る
   onMount(() => {
     let raf = 0;
+    // 浮かべるものを縮めずに重ねられるか。答えが来るまで、また重ねられない OS では、これまでどおり縮めて避ける
+    void enableOverlay()
+      .then((ok) => (native = ok && !disposed))
+      .catch(() => {});
     const tick = () => {
       raf = requestAnimationFrame(tick);
       const tab = props.shown;
-      if (!tab) return;
+      if (!tab) {
+        releaseLayer();
+        return;
+      }
       // 新しいタブのページ（URL が空。#238）は、画面（NewTabPage）が描く。webview は、何かを開いて URL が決まってから作る
       if (isNewTab(tab)) {
+        releaseLayer();
         setHidden(false);
         return;
       }
-      const b = bounds();
+      const { b, floating } = bounds();
       setHidden(b === null);
       const v = views.get(tab.id);
       // 開けなかったタブは、URL を書き換えたら（o u）作り直す
@@ -215,6 +291,7 @@ export function BrowserArea(props: {
       }
       if (v.state !== "open") return;
       if (b === null) {
+        releaseLayer();
         hide(tab.id, v);
         return;
       }
@@ -228,7 +305,8 @@ export function BrowserArea(props: {
         // ダイアログを閉じたあと、画面のどこにもキーが無ければ、ページに戻す
         if (wantFocus === null && nothingFocused()) wantFocus = tab.id;
       }
-      if (wantFocus === tab.id) {
+      setLayer(tab.id, floating);
+      if (wantFocus === tab.id && !floating) {
         wantFocus = null;
         focusNow(tab.id);
       }
@@ -236,6 +314,8 @@ export function BrowserArea(props: {
     raf = requestAnimationFrame(tick);
     onCleanup(() => {
       disposed = true;
+      native = false;
+      setFrost(false);
       cancelAnimationFrame(raf);
       for (const [id, v] of views)
         if (v.state === "open") void closeTabView(id).catch(() => {});

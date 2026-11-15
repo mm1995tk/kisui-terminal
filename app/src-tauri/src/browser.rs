@@ -808,6 +808,65 @@ pub fn browser_visible(
     }
 }
 
+/// 重なりもの（リーダーの案内・お知らせ・メニュー）を、ページを縮めずにページの上に重ねられるか（macOS だけ）。
+/// 重ねられるなら、メインの webview の背景を透明にして true を返す（画面は、ページの場所の背景を塗らないようにする）。
+/// 重ね方は `browser_layer`。macOS 以外は何もせず false（画面は、これまでどおりページを縮めて避ける）。
+#[tauri::command]
+pub fn browser_overlay_enable(app: AppHandle, webview: Webview) -> Result<bool, String> {
+    from_main(&webview)?;
+    #[cfg(target_os = "macos")]
+    {
+        let m = app
+            .get_webview("main")
+            .ok_or_else(|| "no main webview".to_string())?;
+        m.set_background_color(Some(tauri::webview::Color(0, 0, 0, 0)))
+            .map_err(|e| e.to_string())?;
+        Ok(true)
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = app;
+        Ok(false)
+    }
+}
+
+/// 前に出すものを決める（macOS だけ。`browser_overlay_enable` が true のとき）。
+/// overlay なら、メインの webview（画面）をページより前に出し、キーも画面に向ける（ページは操作できなくなる。動き続ける）。
+/// そうでなければ、タブのページを前に出す（キーを向け直すのは画面）。
+/// 前に出すのは、同じ窓への `reparent`（macOS の wry では `addSubview` し直しで、兄弟の view のいちばん前に移る）。
+#[tauri::command]
+pub fn browser_layer(
+    app: AppHandle,
+    webview: Webview,
+    tab: String,
+    overlay: bool,
+) -> Result<(), String> {
+    from_main(&webview)?;
+    #[cfg(target_os = "macos")]
+    {
+        let win = app
+            .get_window("main")
+            .ok_or_else(|| "no main window".to_string())?;
+        if overlay {
+            let m = app
+                .get_webview("main")
+                .ok_or_else(|| "no main webview".to_string())?;
+            m.reparent(&win).map_err(|e| e.to_string())?;
+            let _ = m.set_focus();
+        } else {
+            child(&app, &tab)?
+                .reparent(&win)
+                .map_err(|e| e.to_string())?;
+        }
+        Ok(())
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = (app, tab, overlay);
+        Ok(())
+    }
+}
+
 /// タブのページにキーを向ける。
 #[tauri::command]
 pub fn browser_focus(app: AppHandle, webview: Webview, tab: String) -> Result<(), String> {

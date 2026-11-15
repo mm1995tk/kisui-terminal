@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  floatsOver,
   MIN_HEIGHT,
   OVERLAY_GAP,
   pageBounds,
@@ -80,5 +81,17 @@ describe("内蔵ブラウザのページを置く場所", () => {
     assert.ok(!sameBounds(area, null));
     assert.ok(sameBounds(area, { ...area }));
     assert.ok(!sameBounds(area, { ...area, h: 1 }));
+  });
+});
+
+describe("浮かべるものがページに重なっているか", () => {
+  it("ページを出す場所に重なっていれば true", () => {
+    assert.equal(floatsOver(area, [{ x: 784, y: 600, w: 400, h: 184 }]), true);
+  });
+
+  it("重ならないもの・大きさの無いものは false", () => {
+    assert.equal(floatsOver(area, []), false);
+    assert.equal(floatsOver(area, [{ x: 10, y: 600, w: 200, h: 100 }]), false);
+    assert.equal(floatsOver(area, [{ x: 784, y: 600, w: 0, h: 184 }]), false);
   });
 });

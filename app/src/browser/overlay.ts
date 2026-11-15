@@ -6,8 +6,11 @@
 // - お知らせ・リーダーの案内・メニューなど、ページの場所に重なるものがあれば、ページの下の端をそれの上の端まで上げる
 //   （縦だけ縮める。横に縮めると、ページの組み直しで文の折り返しが変わり、読んでいた所を見失うため）。
 //   縮めると低くなりすぎる（MIN_HEIGHT より低い）ときは隠す。
+//   macOS では、お知らせ・リーダーの案内・メニュー（浮かべるもの）はページを縮めず、画面をページより前に出して、
+//   ページの上に重ねる（BrowserArea.tsx の floatsOver。ページはすりガラス越しに見え、操作できない）。縮めるのは、
+//   ページ内検索の欄とトースト（data-overlay-shrink）だけ。ほかの OS は、浮かべるものも縮めて避ける。
 // - トースト（倍率・コピーしたこと・ブックマークに足したこと）も、ページを出している間は画面の下の中央に出して避ける
-//   （data-overlay。ページを出している間の操作は、ほかに画面が変わらないことがあり、知らせが見えないと効いたか分からないため）。
+//   （data-overlay-shrink。ページを出している間の操作は、ほかに画面が変わらないことがあり、知らせが見えないと効いたか分からないため）。
 
 /** 画面の中の四角（CSS ピクセルか論理ピクセル）。 */
 export interface Bounds {
@@ -63,4 +66,12 @@ export function toLogical(b: Bounds, zoom: number): Bounds {
 export function sameBounds(a: Bounds | null, b: Bounds | null): boolean {
   if (a === null || b === null) return a === b;
   return a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
+}
+
+/**
+ * ページの上に浮かべる（縮めずに、ページの上に重ねる）ものが、ページを出す場所に重なっているか。
+ * 重なっていれば、画面（メインの webview）をページより前に出し、ページはすりガラス越しに見せる（BrowserArea.tsx）。
+ */
+export function floatsOver(area: Bounds, floats: readonly Bounds[]): boolean {
+  return floats.some((o) => o.w > 0 && o.h > 0 && overlaps(area, o));
 }
