@@ -216,6 +216,38 @@ export function addBrowser(s: GwsState, id: string, tab: string): GwsState {
   }));
 }
 
+/**
+ * ターミナルのタブを、ワークスペース id の一番後ろに足す（「+」のメニューの「ターミナル」）。足したタブを最後に使っていたタブにする。
+ * そのタブがもう同じワークスペースにあれば何もしない。作った直後にマシンの一覧の知らせが先に届いて、別のワークスペースとして入ってしまっていたら、
+ * そこから外してこちらに入れる（そのワークスペースが空になれば、並びから外す）。
+ */
+export function addTerm(
+  s: GwsState,
+  id: string,
+  target: string,
+  ws: WorkspaceId,
+  title = "",
+): GwsState {
+  const home = s.list.find((g) => g.id === id);
+  if (!home || sameGws(gwsOfTerm(s, target, ws), home)) return s;
+  const list = s.list.flatMap((g): Gws[] => {
+    if (g.id === id)
+      return [
+        {
+          ...g,
+          tabs: [...g.tabs, { kind: "term", target, ws, title }],
+          term: { target, ws },
+        },
+      ];
+    if (!g.tabs.some((r) => sameTerm(r, target, ws))) return [g];
+    const tabs = g.tabs.filter((r) => !sameTerm(r, target, ws));
+    return tabs.length === 0 ? [] : [{ ...g, tabs }];
+  });
+  return { list };
+}
+
+const sameGws = (a: Gws | undefined, b: Gws): boolean => a?.id === b.id;
+
 /** ブラウザのタブを外す。 */
 export function removeBrowser(s: GwsState, tab: string): GwsState {
   const g = gwsOfBrowser(s, tab);

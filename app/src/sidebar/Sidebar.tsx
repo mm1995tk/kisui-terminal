@@ -3,14 +3,17 @@
 // 各帯には、そのワークスペースが今出しているターミナルのタブのマシンの名前と接続の状態（丸）を小さく出す。つながっていないマシンのタブは、最後に分かった名前で薄く出す。
 // フォーカスしているワークスペースの帯の下にはツリーを出す（プライマリで shj が動いているときだけ。動いていなければ帯だけ）（D2、描くのは tree/TreeView.tsx）。
 // スクロールしても、上にフォーカスしている帯と親フォルダを、下にそれより後ろの帯を固定する（D3）。
-// マシンごとの色（D4）は帯の --machine-color に入れ、左端の線とアイコンに使う。
+// マシンごとの色（D4）は帯の --machine-color に入れ、タブの行のマシンの札とフォーカスの輪郭に使う。
 // 帯の右の [×] は、押すと onClose を呼ぶ（ワークスペースを閉じる。中のターミナルのタブも閉じる。確認は App が窓で出す）。
 // 一覧の一番下の「+ ワークスペースを作る」は、押すと onNew を呼ぶ（どのマシンに作るかは App が窓で選ばせる）。
 // マシンの操作（足す・名前を変える・外す・切る・つなぎ直す）は、サイドバーではなくマシンのダイアログ（リーダーの m）にある。
 // ワークスペースの帯の右クリックのメニューの「名前を変える」と、帯の鉛筆のボタンは、onRenameWorkspace を呼ぶ。
 // App が renaming を渡すと、その帯の 1 行目の名前がその場で入力欄になる（Enter で onRenameSubmit、Esc・フォーカスが外れたら onRenameCancel）。
-// 帯の下には、ワークスペースのタブ（ターミナルのタブも内蔵ブラウザ（#202）のタブも、開いた順に 1 つの並びで）を並べる（row.tabs。タブが 1 つだけなら出さない）。タブの行を押すと onTab、ブラウザのタブの × で onTabClose、
-// 「タブ」の見出しで onTabsFold（並びを畳む・開く）。タブを出していれば、その行を光らせる。
+// 帯はヘッダー（つかむ所・畳む / 開く・名前・「+」・鉛筆・✕）とコンテンツ（タブの行。ターミナルのタブも内蔵ブラウザ（#202）のタブも、開いた順に 1 つの並びで）に分ける（#234）。
+// タブの行を押すと onTab、行の ✕ で onTabClose、鉛筆で onTabRename、ヘッダーの ▾ / ▸ で onTabsFold（並びを畳む・開く）。タブを出していれば、その行を光らせる。
+// ヘッダーの「+」は小さなメニューを出し、選んだものを onAddTab に渡す（ターミナル・ターミナル（マシンを選ぶ）・ブラウザ）。
+// ファイルツリーと CHANGES は、今出しているターミナルのタブの行のすぐ下（その行の中）に開く。
+// 選んでも帯・行の位置と高さが変わらないよう、鉛筆・✕・つかむ所は出ていないときも場所を空けておく（sidebar.css）。
 // 組み立ては model.ts、並び順は order.ts、色の決め方は colors.ts、見た目は sidebar.css。
 import { T } from "../i18n/index.ts";
 import {
@@ -31,16 +34,13 @@ import { ChangesView } from "../changes/ChangesView.tsx";
 import type { ChangeRow, ChangesBase } from "../changes/model.ts";
 import { renameKeyAction } from "./renameInput.ts";
 import { TreeView } from "../tree/TreeView.tsx";
-import {
-  splitAtFocus,
-  type Band,
-  type BandTabs,
-  type Health,
-  type Row,
-  DIR_SEP,
-  shaText,
-} from "./model.ts";
+import { splitAtFocus, type Health, type Row, type TabItem } from "./model.ts";
+import { ICON } from "./icons.ts";
+import { termKey } from "../gws/model.ts";
 import "./sidebar.css";
+
+/** 「+」のメニューで足せるタブ。 */
+export type NewTabKind = "terminal" | "terminal.pick" | "browser";
 
 const healthLabel = (h: Health): string => T(`health.${h}`);
 
@@ -48,10 +48,18 @@ interface Handlers {
   onFocus: (target: string, id: WorkspaceId) => void;
   /** タブの行を押した（gws は GUI のワークスペースの id、key は TabItem.key） */
   onTab?: (gws: string, key: string) => void;
-  /** ブラウザのタブの行の × */
-  onTabClose?: (tab: string) => void;
-  /** 「タブ」の見出し（並びを畳む・開く） */
+  /** タブの行の ✕（ターミナルのタブもブラウザのタブも） */
+  onTabClose?: (gws: string, key: string) => void;
+  /** タブの行の鉛筆（名前を変える） */
+  onTabRename?: (gws: string, key: string) => void;
+  /** ヘッダーの ▾ / ▸（並びを畳む・開く） */
   onTabsFold?: (gws: string) => void;
+  /** ヘッダーの「+」のメニューで選んだ。選んでいないワークスペースなら、App が先にそのワークスペースに移る */
+  onAddTab?: (gws: string, kind: NewTabKind) => void;
+  /** 内蔵ブラウザを使えるか。使えなければ「+」のメニューに「ブラウザ」を出さない */
+  browser?: boolean;
+  /** 「+」を押した（Sidebar が内側に渡す。メニューは Sidebar が出す） */
+  onAddMenu?: (gws: string, x: number, y: number) => void;
   /** ツリーの行。まだ取っていなければ undefined */
   treeOf?: (target: string, id: WorkspaceId) => TreeRow[] | undefined;
   onToggle?: (target: string, id: WorkspaceId, path: string) => void;
@@ -138,6 +146,15 @@ export function Sidebar(
   const openBandMenu = props.onRenameWorkspace
     ? (target: string, id: WorkspaceId, x: number, y: number) =>
         setBandMenu({ target, id, x, y })
+    : undefined;
+  // ヘッダーの「+」のメニュー。閉じ方は帯のメニューと同じ
+  const [addMenu, setAddMenu] = createSignal<{
+    gws: string;
+    x: number;
+    y: number;
+  } | null>(null);
+  const openAddMenu = props.onAddTab
+    ? (gws: string, x: number, y: number) => setAddMenu({ gws, x, y })
     : undefined;
   // ツリーの行の右クリックのメニュー。出している間は、押す・Esc・スクロール・窓の切り替えで閉じる
   const [treeMenu, setTreeMenu] = createSignal<{
@@ -232,7 +249,7 @@ export function Sidebar(
             {(r) => (
               <BandItem
                 row={r}
-                {...handlers(props, openTreeMenu, openBandMenu)}
+                {...handlers(props, openTreeMenu, openBandMenu, openAddMenu)}
               />
             )}
           </For>
@@ -240,7 +257,7 @@ export function Sidebar(
             {(r) => (
               <BandItem
                 row={r()}
-                {...handlers(props, openTreeMenu, openBandMenu)}
+                {...handlers(props, openTreeMenu, openBandMenu, openAddMenu)}
               />
             )}
           </Show>
@@ -252,7 +269,12 @@ export function Sidebar(
                 {(r) => (
                   <BandItem
                     row={r}
-                    {...handlers(props, openTreeMenu, openBandMenu)}
+                    {...handlers(
+                      props,
+                      openTreeMenu,
+                      openBandMenu,
+                      openAddMenu,
+                    )}
                   />
                 )}
               </For>
@@ -273,6 +295,34 @@ export function Sidebar(
               },
             ]}
             onClose={() => setBandMenu(null)}
+          />
+        )}
+      </Show>
+      <Show when={addMenu()}>
+        {(m) => (
+          <PopupMenu
+            x={m().x}
+            y={m().y}
+            label={T("sidebar.addTab")}
+            items={[
+              {
+                label: T("sidebar.addTerminal"),
+                run: () => props.onAddTab?.(m().gws, "terminal"),
+              },
+              {
+                label: T("sidebar.addTerminalPick"),
+                run: () => props.onAddTab?.(m().gws, "terminal.pick"),
+              },
+              ...(props.browser
+                ? [
+                    {
+                      label: T("sidebar.addBrowser"),
+                      run: () => props.onAddTab?.(m().gws, "browser"),
+                    },
+                  ]
+                : []),
+            ]}
+            onClose={() => setAddMenu(null)}
           />
         )}
       </Show>
@@ -319,10 +369,18 @@ function handlers(
   props: Handlers,
   onTreeMenu: Handlers["onTreeMenu"] = props.onTreeMenu,
   onBandMenu: Handlers["onBandMenu"] = props.onBandMenu,
+  onAddMenu: Handlers["onAddMenu"] = props.onAddMenu,
 ): Handlers {
   return {
     onTreeMenu,
     onBandMenu,
+    onAddMenu,
+    get browser() {
+      return props.browser;
+    },
+    get onTabRename() {
+      return props.onTabRename;
+    },
     get onFocus() {
       return props.onFocus;
     },
@@ -403,48 +461,31 @@ function titleIfClipped(full: string): JSX.HTMLAttributes<HTMLSpanElement> {
   };
 }
 
-/**
- * 帯の 2 行目。「ディレクトリ名 · ブランチ (sha)」。狭いときは、先にディレクトリ名、次にブランチ名を「…」で切る（sha は切らない）。
- * 切る順は sidebar.css の flex-shrink で決める。
- */
-function BandDetail(props: { band: Band }): JSX.Element {
-  const b = () => props.band;
+/** 絵の字（Nerd Fonts）。読み上げには出さない。 */
+function Nf(props: { c: string; class?: string }): JSX.Element {
   return (
-    <span class="band-detail">
-      <Show when={b().dir}>
-        <span class="band-dir" {...titleIfClipped(b().dir)}>
-          {b().dir}
-        </span>
-        <span class="band-sep" aria-hidden="true">
-          {DIR_SEP}
-        </span>
-      </Show>
-      <Show when={b().branch}>
-        <span class="band-branch" {...titleIfClipped(b().branch)}>
-          {b().branch}
-        </span>
-      </Show>
-      <Show when={b().sha}>
-        <span class="band-sha">{shaText(b().sha)}</span>
-      </Show>
-      <Show when={b().note}>
-        <span class="band-note">{b().note}</span>
-      </Show>
-      <Show when={b().num}>
-        <span class="band-note">{b().num}</span>
-      </Show>
+    <span class={`nf ${props.class ?? ""}`} aria-hidden="true">
+      {props.c}
     </span>
   );
 }
 
-/** 帯 1 つ。フォーカスしていれば帯を上に固定し、下にツリーを出す。 */
+/** ヘッダーとタブの行の左端の、つかむ所（縦の点 3 つ）の場所。並べ替えは #236 で作る。ここでは場所と見た目だけ */
+function Grip(): JSX.Element {
+  return <span class="grip" aria-hidden="true" />;
+}
+
+/** 帯 1 つ（ヘッダーとコンテンツ）。フォーカスしていれば、ヘッダーを上に固定する。 */
 function BandItem(props: Handlers & { row: Row }): JSX.Element {
   const b = () => props.row.band;
+  const tabs = () => props.row.tabs;
   // この帯の名前をその場で変えているときだけ、その内容
   const editing = () => {
     const r = props.renaming;
     return r && r.gws === props.row.gws ? r : undefined;
   };
+  // ファイルツリーと CHANGES を開くタブの行（今出しているターミナルのタブ）
+  const repKey = () => termKey(props.row.target, b().id);
   return (
     <li
       class="band-item"
@@ -452,7 +493,7 @@ function BandItem(props: Handlers & { row: Row }): JSX.Element {
       data-focused={b().focused ? "" : undefined}
       data-health={props.row.health}
     >
-      {/* カードの中は行にして、ボタン（フォーカスを移す・名前を変える・閉じる）を並べる。名前を変えている間は、フォーカスを移すボタンの所が入力欄の div になる（ボタンの中に入力欄もボタンも置けない） */}
+      {/* ヘッダーは行にして、ボタン（畳む・フォーカスを移す・足す・名前を変える・閉じる）を並べる。名前を変えている間は、フォーカスを移すボタンの所が入力欄の div になる（ボタンの中に入力欄もボタンも置けない） */}
       <div class="band-slot" data-sticky={b().focused ? "top" : undefined}>
         <div
           class="band"
@@ -464,6 +505,17 @@ function BandItem(props: Handlers & { row: Row }): JSX.Element {
             props.onBandMenu(props.row.target, b().id, e.clientX, e.clientY);
           }}
         >
+          <Grip />
+          <button
+            type="button"
+            class="band-btn band-fold"
+            aria-expanded={!tabs().folded}
+            aria-label={T("sidebar.foldTabs")}
+            title={T("sidebar.foldTabs")}
+            onClick={() => props.onTabsFold?.(props.row.gws)}
+          >
+            <Nf c={tabs().folded ? ICON.folded : ICON.open} />
+          </button>
           <Show
             when={editing()}
             fallback={
@@ -472,30 +524,7 @@ function BandItem(props: Handlers & { row: Row }): JSX.Element {
                 class="band-main"
                 onClick={() => props.onFocus(props.row.target, b().id)}
               >
-                <span class="band-head">
-                  <span
-                    class="band-title"
-                    classList={{ path: b().path, unset: b().unset }}
-                  >
-                    {b().title}
-                  </span>
-                  <span
-                    class="band-machine"
-                    title={T("sidebar.machineHealth", {
-                      machine: props.row.machine,
-                      health: healthLabel(props.row.health),
-                    })}
-                  >
-                    <span
-                      class="health"
-                      data-health={props.row.health}
-                      role="img"
-                      aria-label={healthLabel(props.row.health)}
-                    />
-                    <span class="band-machine-name">{props.row.machine}</span>
-                  </span>
-                </span>
-                <BandDetail band={b()} />
+                <span class="band-title">{b().title}</span>
               </button>
             }
           >
@@ -533,44 +562,41 @@ function BandItem(props: Handlers & { row: Row }): JSX.Element {
               </div>
             )}
           </Show>
-          <Show when={props.onRenameWorkspace && !editing()}>
+          <Show when={props.onAddMenu}>
             <button
               type="button"
-              class="band-close band-edit"
-              aria-label={T("sidebar.renameBand", { title: b().title })}
-              title={T("sidebar.rename")}
-              onClick={() =>
-                props.onRenameWorkspace?.(props.row.target, b().id)
-              }
+              class="band-btn band-add"
+              aria-haspopup="menu"
+              aria-label={T("sidebar.addTabTo", { title: b().title })}
+              title={T("sidebar.addTab")}
+              onClick={(e) => {
+                const r = e.currentTarget.getBoundingClientRect();
+                props.onAddMenu?.(props.row.gws, r.left, r.bottom);
+              }}
             >
-              <svg
-                width="12"
-                height="12"
-                viewBox="0 0 24 24"
-                aria-hidden="true"
-              >
-                <path d="M4 20l1-4L16.5 4.5a2 2 0 0 1 3 0a2 2 0 0 1 0 3L8 19l-4 1zM14 7l3 3" />
-              </svg>
+              <Nf c={ICON.plus} />
             </button>
           </Show>
-          <Show when={props.onClose}>
-            <button
-              type="button"
-              class="band-close"
-              aria-label={T("sidebar.closeBand", { title: b().title })}
-              title={T("sidebar.closeWorkspace")}
-              onClick={() => props.onClose?.(props.row.gws)}
-            >
-              <svg
-                width="12"
-                height="12"
-                viewBox="0 0 24 24"
-                aria-hidden="true"
-              >
-                <path d="M6 6l12 12M18 6L6 18" />
-              </svg>
-            </button>
-          </Show>
+          <button
+            type="button"
+            class="band-btn band-close band-edit"
+            data-off={props.onRenameWorkspace && !editing() ? undefined : ""}
+            aria-label={T("sidebar.renameBand", { title: b().title })}
+            title={T("sidebar.rename")}
+            onClick={() => props.onRenameWorkspace?.(props.row.target, b().id)}
+          >
+            <Nf c={ICON.pencil} />
+          </button>
+          <button
+            type="button"
+            class="band-btn band-close"
+            data-off={props.onClose ? undefined : ""}
+            aria-label={T("sidebar.closeBand", { title: b().title })}
+            title={T("sidebar.closeWorkspace")}
+            onClick={() => props.onClose?.(props.row.gws)}
+          >
+            <Nf c={ICON.close} />
+          </button>
         </div>
       </div>
       {/* 断られた理由は、帯の下に流れで置く（下のツリーが押し下がる）。重ねると、箱の overflow: clip（#170）で切り取られる */}
@@ -581,170 +607,223 @@ function BandItem(props: Handlers & { row: Row }): JSX.Element {
           </div>
         )}
       </Show>
-      <Show when={props.row.tabs}>
-        {(br) => (
-          <BandTabRows
-            title={b().title}
-            tabs={br()}
-            onTab={(k) => props.onTab?.(props.row.gws, k)}
-            onClose={(t) => props.onTabClose?.(t)}
-            onFold={() => props.onTabsFold?.(props.row.gws)}
-          />
-        )}
-      </Show>
-      <Show
-        when={
-          b().focused &&
-          b().showTree &&
-          props.treeOf?.(props.row.target, b().id)
-        }
-      >
-        {(rows) => (
-          <TreeView
-            rows={rows()}
-            label={T("sidebar.files", { title: b().title })}
-            onToggle={(p) => props.onToggle?.(props.row.target, b().id, p)}
-            onOpen={(p) => props.onOpen?.(props.row.target, b().id, p)}
-            current={props.currentOf?.(props.row.target, b().id)}
-            onMenu={
-              props.onTreeMenu
-                ? (row, x, y) =>
-                    props.onTreeMenu?.(props.row.target, b().id, row, x, y)
-                : undefined
-            }
-            onAction={
-              props.onTreeAction
-                ? (row, a) =>
-                    props.onTreeAction?.(props.row.target, b().id, row, a)
-                : undefined
-            }
-          />
-        )}
-      </Show>
-      <Show
-        when={
-          b().focused &&
-          b().showTree &&
-          props.changesOf?.(props.row.target, b().id)
-        }
-      >
-        {(c) => (
-          <ChangesView
-            rows={c().rows}
-            base={c().base}
-            label={T("sidebar.changes", { title: b().title })}
-            onSelect={(p) => props.onChange?.(props.row.target, b().id, p)}
-            onShjKey={(k) => props.onChangesKey?.(props.row.target, b().id, k)}
-            onExplorer={() =>
-              props.onChangesExplorer?.(props.row.target, b().id)
-            }
-            onLeave={() => props.onChangesLeave?.(props.row.target, b().id)}
-            onResizeStart={props.onChangesResize}
-            onResizeReset={props.onChangesResizeReset}
-          />
-        )}
+      <Show when={!tabs().folded}>
+        <ul
+          class="tab-rows"
+          aria-label={T("sidebar.tabsOf", { title: b().title })}
+        >
+          <For each={tabs().items}>
+            {(t) => (
+              <TabRow
+                t={t}
+                shown={tabs().shown === t.key}
+                current={tabs().shown === t.key && tabs().focused}
+                onTab={() => props.onTab?.(props.row.gws, t.key)}
+                onClose={() => props.onTabClose?.(props.row.gws, t.key)}
+                onRename={
+                  props.onTabRename
+                    ? () => props.onTabRename?.(props.row.gws, t.key)
+                    : undefined
+                }
+              >
+                {/* ファイルツリーと CHANGES は、今出しているターミナルのタブの行の下に開く */}
+                <Show when={t.key === repKey()}>
+                  <Show
+                    when={
+                      b().focused &&
+                      b().showTree &&
+                      props.treeOf?.(props.row.target, b().id)
+                    }
+                  >
+                    {(rows) => (
+                      <TreeView
+                        rows={rows()}
+                        label={T("sidebar.files", { title: b().title })}
+                        onToggle={(p) =>
+                          props.onToggle?.(props.row.target, b().id, p)
+                        }
+                        onOpen={(p) =>
+                          props.onOpen?.(props.row.target, b().id, p)
+                        }
+                        current={props.currentOf?.(props.row.target, b().id)}
+                        onMenu={
+                          props.onTreeMenu
+                            ? (row, x, y) =>
+                                props.onTreeMenu?.(
+                                  props.row.target,
+                                  b().id,
+                                  row,
+                                  x,
+                                  y,
+                                )
+                            : undefined
+                        }
+                        onAction={
+                          props.onTreeAction
+                            ? (row, a) =>
+                                props.onTreeAction?.(
+                                  props.row.target,
+                                  b().id,
+                                  row,
+                                  a,
+                                )
+                            : undefined
+                        }
+                      />
+                    )}
+                  </Show>
+                  <Show
+                    when={
+                      b().focused &&
+                      b().showTree &&
+                      props.changesOf?.(props.row.target, b().id)
+                    }
+                  >
+                    {(c) => (
+                      <ChangesView
+                        rows={c().rows}
+                        base={c().base}
+                        label={T("sidebar.changes", { title: b().title })}
+                        onSelect={(p) =>
+                          props.onChange?.(props.row.target, b().id, p)
+                        }
+                        onShjKey={(k) =>
+                          props.onChangesKey?.(props.row.target, b().id, k)
+                        }
+                        onExplorer={() =>
+                          props.onChangesExplorer?.(props.row.target, b().id)
+                        }
+                        onLeave={() =>
+                          props.onChangesLeave?.(props.row.target, b().id)
+                        }
+                        onResizeStart={props.onChangesResize}
+                        onResizeReset={props.onChangesResizeReset}
+                      />
+                    )}
+                  </Show>
+                </Show>
+              </TabRow>
+            )}
+          </For>
+        </ul>
       </Show>
     </li>
   );
 }
 
-/** 帯の下の、タブの並び（ターミナルのタブもブラウザのタブも。#231）。 */
-function BandTabRows(props: {
-  /** ワークスペースの名前（読み上げ用） */
-  title: string;
-  tabs: BandTabs;
-  onTab: (key: string) => void;
-  onClose: (tab: string) => void;
-  onFold: () => void;
+/**
+ * タブの行 1 つ（ターミナルのタブもブラウザのタブも）。
+ * ターミナルのタブは 1 行目にアイコン・名前・マシンの札、2 行目にフォルダ、3 行目に git。ブラウザのタブは 1 行目にアイコン・名前、2 行目に URL。
+ * 鉛筆と ✕ は、1 行目の右に場所を空けておき、出ているときだけ見せる（選んでも行の高さが変わらないように）。
+ * children は、行のすぐ下に開くもの（ファイルツリーと CHANGES）。
+ */
+function TabRow(props: {
+  t: TabItem;
+  /** そのワークスペースで出しているタブか */
+  shown: boolean;
+  /** 出しているタブで、そのワークスペースにフォーカスしているか（強く光らせる） */
+  current: boolean;
+  onTab: () => void;
+  onClose: () => void;
+  onRename?: () => void;
+  children?: JSX.Element;
 }): JSX.Element {
+  const t = () => props.t;
   return (
-    <div class="band-tabs">
-      <button
-        type="button"
-        class="band-tabs-fold"
-        aria-expanded={!props.tabs.folded}
-        title={T("sidebar.foldTabs")}
-        onClick={() => props.onFold()}
-      >
-        <span class="band-tabs-chevron" aria-hidden="true">
-          {props.tabs.folded ? "▸" : "▾"}
-        </span>
-        {T("sidebar.tabsCount", { n: props.tabs.items.length })}
-      </button>
-      <Show when={!props.tabs.folded}>
-        <ul
-          class="tab-rows"
-          aria-label={T("sidebar.tabsOf", { title: props.title })}
+    <li
+      class="tab-row"
+      data-kind={t().kind}
+      data-health={t().health}
+      data-shown={props.shown ? "" : undefined}
+      data-current={props.current ? "" : undefined}
+    >
+      <div class="tab-line">
+        <Grip />
+        <button
+          type="button"
+          class="tab-main"
+          title={t().tip || undefined}
+          aria-current={props.current ? "page" : undefined}
+          onClick={() => props.onTab()}
         >
-          <For each={props.tabs.items}>
-            {(t) => (
-              <li
-                class="tab-row"
-                data-kind={t.kind}
-                data-health={t.health}
-                data-shown={props.tabs.shown === t.key ? "" : undefined}
-                data-current={
-                  props.tabs.shown === t.key && props.tabs.focused
-                    ? ""
-                    : undefined
-                }
-              >
-                <button
-                  type="button"
-                  class="tab-main"
-                  title={t.tip || undefined}
-                  aria-current={
-                    props.tabs.shown === t.key && props.tabs.focused
-                      ? "page"
-                      : undefined
-                  }
-                  onClick={() => props.onTab(t.key)}
+          <span class="tab-l1">
+            <Nf
+              class="tab-icon"
+              c={t().kind === "term" ? ICON.terminal : ICON.globe}
+            />
+            <Show when={t().incognito}>
+              <span class="tab-incognito">{T("sidebar.incognito")}</span>
+            </Show>
+            <span class="tab-title">{t().title}</span>
+            <Show when={t().machine}>
+              {(m) => (
+                <span
+                  class="tab-machine"
+                  style={{ color: m().color }}
+                  title={T("sidebar.machineHealth", {
+                    machine: m().name,
+                    health: healthLabel(m().health),
+                  })}
                 >
-                  <Show when={t.kind === "term"}>
-                    <span
-                      class="health tab-health"
-                      data-health={t.health}
-                      role="img"
-                      aria-label={healthLabel(t.health ?? "down")}
-                    />
-                  </Show>
-                  <Show when={t.incognito}>
-                    <span class="tab-incognito">{T("sidebar.incognito")}</span>
-                  </Show>
-                  <span class="tab-title">{t.title}</span>
-                  <Show when={t.sub}>
-                    <span class="tab-host">{t.sub}</span>
-                  </Show>
-                </button>
-                <Show when={t.closable}>
-                  <button
-                    type="button"
-                    class="band-close tab-close"
-                    aria-label={T(
-                      t.incognito
-                        ? "sidebar.closeTabLabelIncognito"
-                        : "sidebar.closeTabLabel",
-                      { title: t.title },
-                    )}
-                    title={T("sidebar.closeTab")}
-                    onClick={() => t.tab !== undefined && props.onClose(t.tab)}
-                  >
-                    <svg
-                      width="12"
-                      height="12"
-                      viewBox="0 0 24 24"
-                      aria-hidden="true"
-                    >
-                      <path d="M6 6l12 12M18 6L6 18" />
-                    </svg>
-                  </button>
-                </Show>
-              </li>
+                  <Nf c={ICON.machine} />
+                  <span
+                    class="health"
+                    data-health={m().health}
+                    role="img"
+                    aria-label={healthLabel(m().health)}
+                  />
+                  <span class="tab-machine-name">{m().name}</span>
+                </span>
+              )}
+            </Show>
+          </span>
+          <Show when={t().path}>
+            <span class="tab-l2">
+              <Nf c={t().kind === "term" ? ICON.folder : ICON.link} />
+              <span class="tab-text" {...titleIfClipped(t().path)}>
+                {t().path}
+              </span>
+            </span>
+          </Show>
+          <Show when={t().git}>
+            <span class="tab-l3">
+              <Nf c={ICON.git} />
+              <span class="tab-text" {...titleIfClipped(t().git)}>
+                {t().git}
+              </span>
+            </span>
+          </Show>
+        </button>
+        <div class="tab-actions">
+          <button
+            type="button"
+            class="band-btn band-close tab-edit"
+            data-off={props.onRename ? undefined : ""}
+            aria-label={T("sidebar.renameTabLabel", { title: t().title })}
+            title={T("sidebar.renameTab")}
+            onClick={() => props.onRename?.()}
+          >
+            <Nf c={ICON.pencil} />
+          </button>
+          <button
+            type="button"
+            class="band-btn band-close tab-close"
+            data-off={t().closable ? undefined : ""}
+            aria-label={T(
+              t().incognito
+                ? "sidebar.closeTabLabelIncognito"
+                : "sidebar.closeTabLabel",
+              { title: t().title },
             )}
-          </For>
-        </ul>
-      </Show>
-    </div>
+            title={T("sidebar.closeTab")}
+            onClick={() => props.onClose()}
+          >
+            <Nf c={ICON.close} />
+          </button>
+        </div>
+      </div>
+      {props.children}
+    </li>
   );
 }
 

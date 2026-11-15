@@ -532,8 +532,57 @@ describe("gwsRows", () => {
     );
     assert.equal(rows[0].band.label, "");
     assert.equal(rows[0].band.autoTitle, "ws1");
-    // タブが 1 つのワークスペースは、タブの並びを出さない
-    assert.equal(rows[0].tabs, undefined);
+    // タブが 1 つのワークスペースも、タブの行を 1 つ出す。最後のターミナルのタブには ✕ を出さない
+    assert.deepEqual(
+      rows[0].tabs.items.map((i) => [i.kind, i.closable]),
+      [["term", false]],
+    );
+  });
+
+  it("ターミナルのタブの行：フォルダ（ホームは ~）・「ブランチ (sha)」・マシンの札。git の無いフォルダは git を出さない。ターミナルのタブが 2 つ以上なら ✕ を出す", () => {
+    const l = {
+      a: [
+        ws({
+          id: "a1",
+          root: "/home/u/src/x",
+          display: "~/src/x",
+          branch: "main",
+          sha: "9e11274",
+        }),
+        ws({ id: "a2", root: "/tmp/y", display: "/tmp/y", kind: "cwd" }),
+      ],
+    };
+    const state: GwsState = {
+      list: [
+        {
+          id: "g1",
+          name: "",
+          num: 1,
+          tabs: [
+            { kind: "term", target: "a", ws: "a1", title: "x" },
+            { kind: "term", target: "a", ws: "a2", title: "y" },
+          ],
+        },
+      ],
+    };
+    const [r] = rowsOf(["a"], l, null, {
+      state,
+      states: { a: { kind: "connected", hello: {} as never } },
+      colors: { a: "#123456" },
+    });
+    assert.deepEqual(
+      r.tabs.items.map((i) => [i.path, i.git, i.closable]),
+      [
+        ["~/src/x", "main (9e11274)", true],
+        ["/tmp/y", "", true],
+      ],
+    );
+    assert.deepEqual(r.tabs.items[0].machine, {
+      name: "a",
+      color: "#123456",
+      health: "up",
+    });
+    assert.deepEqual(r.tabs.items[0].term, { target: "a", ws: "a1" });
   });
 
   it("前の並び順の記録（#88）があれば、新しく作るワークスペースをその順に並べる", () => {
@@ -598,15 +647,15 @@ describe("gwsRows", () => {
     });
     assert.equal(r.band.focused, true);
     assert.deepEqual(
-      r.tabs?.items.map((i) => [i.kind, i.title, i.sub, i.health]),
+      r.tabs.items.map((i) => [i.kind, i.title, i.path, i.health]),
       [
-        ["term", "a1", "a", "down"],
-        ["browser", "メモ", "x.example", undefined],
-        ["term", "古い名前", "b", "up"],
+        ["term", "a1", "/a1", "down"],
+        ["browser", "メモ", "https://x.example/p", undefined],
+        ["term", "古い名前", "", "up"],
       ],
     );
-    assert.equal(r.tabs?.shown, JSON.stringify(["b", "t1"]));
-    assert.equal(r.tabs?.focused, true);
+    assert.equal(r.tabs.shown, JSON.stringify(["b", "t1"]));
+    assert.equal(r.tabs.focused, true);
   });
 
   it("今出しているターミナルのタブが切れているマシンのものなら、最後に分かった名前で薄く出す", () => {

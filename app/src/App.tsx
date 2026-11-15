@@ -102,6 +102,7 @@ import {
   adoptFocus,
   band,
   buildSidebar,
+  unsetTitle,
   gwsRows,
   health,
   keepFocus,
@@ -115,6 +116,7 @@ import { MACHINE_COLORS, machineColors } from "./sidebar/colors.ts";
 import { loadOrder } from "./sidebar/order.ts";
 import {
   addBrowser,
+  addTerm,
   autoName,
   nameErrorText,
   addWorkspace,
@@ -145,7 +147,7 @@ import {
 } from "./gws/model.ts";
 import { MachinePicker } from "./connect/MachinePicker.tsx";
 import { creatableRows } from "./connect/machineList.ts";
-import { Sidebar } from "./sidebar/Sidebar.tsx";
+import { Sidebar, type NewTabKind } from "./sidebar/Sidebar.tsx";
 import "./app.css";
 import { LOCAL, type AskpassRequest, type ShellApi } from "./ssh/api.ts";
 import {
@@ -2212,11 +2214,194 @@ function Workbench(props: {
     if (ref) activateTab(gid, ref);
   }
 
-  /** サイドバーのタブの行の ×（ブラウザのタブ）。 */
-  function closeTabRow(tab: string) {
-    const shown = shownBrowserTab()?.id === tab;
-    removeTab(tab);
+  /** サイドバーのタブの行の ✕。ブラウザのタブはそのページを閉じ、ターミナルのタブはそのターミナルを終わらせる。 */
+  function closeTabRow(gid: string, key: string) {
+    const ref = untrack(gws)
+      .list.find((g) => g.id === gid)
+      ?.tabs.find((r) => refKey(r) === key);
+    if (!ref) return;
+    if (ref.kind === "term") {
+      void closeTermTab(ref.target, ref.ws);
+      return;
+    }
+    const shown = shownBrowserTab()?.id === ref.id;
+    removeTab(ref.id);
     if (shown) focusTerminal();
+  }
+
+  // 閉じる前に確認している（プログラムが動いている）ターミナルのタブ
+  const [confirmCloseTab, setConfirmCloseTab] = createSignal<{
+    target: string;
+    ws: WorkspaceId;
+    name: string;
+  } | null>(null);
+
+  /**
+   * ターミナルのタブ 1 つを閉じる（サイドバーのタブの行の ✕。#235 の t x もこれを使う）。ワークスペースの最後のターミナルのタブは閉じない。
+   * プログラムが動いていれば断られるので、確認の窓を出す（force は窓で「終わらせて閉じる」を押したとき）。
+   * マシンにつながっていないタブは、閉じられないので記録から外すだけ。
+   * フォーカスしているタブを閉じたら、同じワークスペースの隣のターミナルのタブに移る。
+   */
+  async function closeTermTab(target: string, ws: WorkspaceId, force = false) {
+    const g = gwsOfTerm(untrack(gws), target, ws);
+    if (!g) return;
+    const terms = termsOf(g);
+    if (terms.length <= 1) return;
+    const i = terms.findIndex((r) => r.target === target && r.ws === ws);
+    const next = terms[i + 1] ?? terms[i - 1];
+    const tw = untrack(workspaces)[target]?.find((w) => w.id === ws);
+    const name = tw ? band(tw, false).title : terms[i].title || unsetTitle();
+    const s = sessions()[target];
+    if (!s || states()[target]?.kind !== "connected") {
+      setGws(dropTerm(untrack(gws), target, ws).state);
+      return;
+    }
+    const f = untrack(focus);
+    const moveTo =
+      f?.target === target && f.id === ws
+        ? { target: next.target, id: next.ws }
+        : null;
+    if (moveTo) closingNext = moveTo;
+    setFocusError(null);
+    try {
+      await s.closeWorkspace(ws, force);
+    } catch (e) {
+      if (moveTo && closingNext === moveTo) closingNext = null;
+      const d =
+        e instanceof RpcError && e.code === ErrorCode.Busy
+          ? (e.data as { reason?: string } | undefined)
+          : undefined;
+      if (d?.reason === "running" && !force) {
+        setConfirmCloseTab({ target, ws, name });
+        return;
+      }
+      setFocusError({
+        title: T("err.workspace.close", { name }),
+        error: e instanceof Error ? e.message : String(e),
+      });
+      return;
+    }
+    if (moveTo && closingNext === moveTo) closingNext = null;
+    if (moveTo && !switching && shouldSendMoveTo(focus(), moveTo, workspaces()))
+      void focusWorkspace(moveTo.target, moveTo.id);
+  }
+
+  // 名前を変えているターミナルのタブ（窓で変える。サイドバーのタブの行の鉛筆）
+  const [renamingTerm, setRenamingTerm] = createSignal<{
+    target: string;
+    ws: WorkspaceId;
+  } | null>(null);
+  const [termRenameError, setTermRenameError] = createSignal<
+    string | undefined
+  >();
+
+  /** サイドバーのタブの行の鉛筆。ブラウザのタブもターミナルのタブも、名前を変える窓を出す（空にすると、自動の名前に戻る）。 */
+  function renameTabRow(gid: string, key: string) {
+    const ref = untrack(gws)
+      .list.find((g) => g.id === gid)
+      ?.tabs.find((r) => refKey(r) === key);
+    if (!ref) return;
+    if (ref.kind === "browser") {
+      setTabRenameError(undefined);
+      setRenamingTab(ref.id);
+    } else {
+      setTermRenameError(undefined);
+      setRenamingTerm({ target: ref.target, ws: ref.ws });
+    }
+  }
+
+  /** ターミナルのタブの名前の窓で決めた（マシンのワークスペースの名前にする）。 */
+  async function submitTermRename(name: string) {
+    const r = renamingTerm();
+    if (!r) return;
+    const bad = nameErrorText(name);
+    if (bad) {
+      setTermRenameError(bad);
+      return;
+    }
+    setRenamingTerm(null);
+    try {
+      await sessions()[r.target]?.renameWorkspace(r.ws, name.trim());
+    } catch (e) {
+      setFocusError({
+        title: T("err.workspace.rename", { machine: labelOf(r.target) }),
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+    focusTerminal();
+  }
+
+  // タブを足すマシンを選んでいる窓（「+」のメニューの「ターミナル（マシンを選ぶ）」）。足すワークスペースの id
+  const [pickingFor, setPickingFor] = createSignal<string | null>(null);
+
+  /**
+   * 「+」のメニューで選んだタブを、ワークスペース gid に足す。選んでいないワークスペースなら、先にそこへ移ってから動く。
+   * 中身は newTerminalTab・newBrowserTab で、キーを付けるとき（#235）もこの 2 つを使う。
+   */
+  async function addWorkspaceTab(gid: string, what: NewTabKind) {
+    const g = untrack(gws).list.find((x) => x.id === gid);
+    if (!g) return;
+    const up = (m: string) => states()[m]?.kind === "connected";
+    const rep = repTerm(g, untrack(focus), up);
+    const f = untrack(focus);
+    const inside = !!f && gwsOfTerm(untrack(gws), f.target, f.id)?.id === gid;
+    if (!inside) await switchWorkspace(rep.target, rep.ws);
+    if (what === "browser") newBrowserTab(gid, rep);
+    else
+      void newTerminalTab(
+        gid,
+        what === "terminal.pick" ? undefined : rep.target,
+      );
+  }
+
+  /**
+   * ワークスペース gid にターミナルのタブを足す。target があればそのマシンに、無ければマシンを選ぶ窓を出して、選んだマシンに。
+   * 新しいターミナルは、フォルダ未定で始まる（workspace.create にフォルダの指定がまだ無い）。
+   */
+  async function newTerminalTab(gid: string, target?: string) {
+    if (target === undefined) {
+      if (creatableRows(machineList()).length === 0)
+        cannot(T("cannot.workspace.title"), T("cannot.workspace.text"));
+      else setPickingFor(gid);
+      return;
+    }
+    const s = sessions()[target];
+    if (!s || states()[target]?.kind !== "connected") {
+      cannot(
+        T("err.tab.add", { machine: labelOf(target) }),
+        T("cannot.tab.disconnected", { machine: labelOf(target) }),
+      );
+      return;
+    }
+    setFocusError(null);
+    try {
+      const { id } = await s.createWorkspace();
+      // 作ったタブは、マシンの一覧の知らせより先に、ここで入れてよい（二重には入らない）
+      justCreated.add(termKey(target, id));
+      setGws((x) => addTerm(x, gid, target, id));
+      setTabs((t) => showTab(t, gid, null));
+      await focusWorkspace(target, id);
+      if (focus()?.id === id) focusTerminal();
+    } catch (e) {
+      setFocusError({
+        title: T("err.tab.add", { machine: labelOf(target) }),
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+  }
+
+  /** ワークスペース gid にブラウザのタブを足す（URL の窓を出す。リーダーの o n と同じ。rep はそのワークスペースが出しているターミナルのタブ）。 */
+  function newBrowserTab(
+    gid: string,
+    rep: { target: string; ws: WorkspaceId },
+  ) {
+    if (!untrack(gws).list.some((x) => x.id === gid)) return;
+    setUrlDialog({
+      kind: "new",
+      target: rep.target,
+      id: rep.ws,
+      incognito: false,
+    });
   }
 
   // 直前に選んでいたワークスペース（リーダーの w Tab で戻る先）
@@ -2693,6 +2878,9 @@ function Workbench(props: {
         onFocus={(t, id) => void switchWorkspace(t, id)}
         onTab={selectTab}
         onTabClose={closeTabRow}
+        onTabRename={renameTabRow}
+        onAddTab={(gid, what) => void addWorkspaceTab(gid, what)}
+        browser={props.browser}
         onTabsFold={(gid) => setGws((g) => toggleFold(g, gid))}
         treeOf={treeOf}
         onToggle={(t, id, p) => trees.get(t)?.toggle(id, p)}
@@ -2848,6 +3036,19 @@ function Workbench(props: {
           onCancel={() => setPickingMachine(false)}
         />
       </Show>
+      <Show when={pickingFor()}>
+        {(gid) => (
+          <MachinePicker
+            rows={creatableRows(machineList())}
+            initial={currentTarget()}
+            onChoose={(t) => {
+              setPickingFor(null);
+              void newTerminalTab(gid(), t);
+            }}
+            onCancel={() => setPickingFor(null)}
+          />
+        )}
+      </Show>
       <Show when={adding()}>
         <AddMachine
           candidates={hosts().filter((h) => !targets().includes(h))}
@@ -2866,6 +3067,40 @@ function Workbench(props: {
             error={renameError()}
             onSubmit={(name) => submitRename(t(), name)}
             onCancel={() => setRenaming(null)}
+          />
+        )}
+      </Show>
+      <Show when={confirmCloseTab()}>
+        {(c) => (
+          <CloseWorkspaceCard
+            kind="tab"
+            name={c().name}
+            onYes={() => {
+              const v = c();
+              setConfirmCloseTab(null);
+              void closeTermTab(v.target, v.ws, true);
+            }}
+            onNo={() => setConfirmCloseTab(null)}
+          />
+        )}
+      </Show>
+      <Show when={renamingTerm()}>
+        {(r) => (
+          <RenameDialog
+            current={
+              workspaces()[r().target]?.find((w) => w.id === r().ws)?.label ??
+              ""
+            }
+            fallback={(() => {
+              const w = workspaces()[r().target]?.find((x) => x.id === r().ws);
+              return w ? band({ ...w, label: "" }, false).title : "";
+            })()}
+            error={termRenameError()}
+            onSubmit={(name) => void submitTermRename(name)}
+            onCancel={() => {
+              setRenamingTerm(null);
+              focusTerminal();
+            }}
           />
         )}
       </Show>

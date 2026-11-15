@@ -13,7 +13,7 @@ import { localLabel } from "../ssh/machines.ts";
 import type { SessionState } from "../ssh/session.ts";
 import { MACHINE_COLORS } from "./colors.ts";
 import type { BrowserTab } from "../browser/tabs.ts";
-import { hostOf, tabTitle } from "../browser/tabs.ts";
+import { tabTitle } from "../browser/tabs.ts";
 import {
   autoName,
   browserKey,
@@ -21,6 +21,7 @@ import {
   refKey,
   repTerm,
   termKey,
+  termsOf,
   type BrowserRef,
   type Gws,
   type GwsState,
@@ -303,12 +304,12 @@ export interface Row {
   target: string;
   /** マシンの名前（行の隅に小さく出す） */
   machine: string;
-  /** マシンの色（D4）。行の左端の線などに使う */
+  /** マシンの色（D4）。タブの行のマシンの札などに使う */
   color: string;
   health: Health;
   band: Band;
-  /** 帯の下のタブの並び。タブが 1 つだけなら出さない（undefined） */
-  tabs?: BandTabs;
+  /** 帯の下のタブの並び */
+  tabs: BandTabs;
 }
 
 /** 帯の下に並べるタブの行（ターミナルのタブもブラウザのタブも）。 */
@@ -318,17 +319,23 @@ export interface TabItem {
   kind: "term" | "browser";
   /** タブの名前 */
   title: string;
-  /** 名前の横に小さく出すもの（ターミナルのタブはマシンの名前、ブラウザのタブはページの host。題を出しているときだけ） */
-  sub: string;
+  /** 2 行目：ターミナルのタブはフォルダのパス（ホームは ~）、ブラウザのタブは URL。分からなければ "" */
+  path: string;
+  /** 3 行目（ターミナルのタブだけ）：「ブランチ (short sha)」。git が無いフォルダ・分からないときは ""（行を出さない） */
+  git: string;
   /** ツールチップ（ブラウザのタブは URL、ターミナルのタブはフォルダ） */
   tip: string;
   /** シークレットのタブか */
   incognito: boolean;
+  /** ターミナルのタブのマシン（札に出す。ブラウザのタブは undefined） */
+  machine?: { name: string; color: string; health: Health };
   /** ターミナルのタブのマシンとのつながり（ブラウザのタブは undefined）。"down" の行は薄く出す */
   health?: Health;
   /** ブラウザのタブの id（ターミナルのタブは undefined） */
   tab?: string;
-  /** 行の × で閉じられるか（ブラウザのタブだけ。ターミナルのタブを閉じるのは帯の ×） */
+  /** ターミナルのタブのマシンとワークスペース（ブラウザのタブは undefined） */
+  term?: { target: string; ws: WorkspaceId };
+  /** 行の ✕ を出すか（ブラウザのタブはいつも。ターミナルのタブは、ワークスペースの最後の 1 つでなければ） */
   closable: boolean;
 }
 
@@ -374,8 +381,10 @@ export function gwsRows(state: GwsState, ctx: RowContext): Row[] {
         r.target === ctx.focus?.target &&
         r.ws === ctx.focus.id,
     );
+    const lastTerm = termsOf(g).length <= 1;
     const items = g.tabs.flatMap((r) => {
-      const item = r.kind === "term" ? termItem(r, ctx) : browserItem(r, ctx);
+      const item =
+        r.kind === "term" ? termItem(r, ctx, !lastTerm) : browserItem(r, ctx);
       return item ? [item] : [];
     });
     return {
@@ -385,15 +394,12 @@ export function gwsRows(state: GwsState, ctx: RowContext): Row[] {
       color: ctx.colorOf(rep.target),
       health: ctx.healthOf(rep.target),
       band: bandOf(g, rep, focused, ctx),
-      tabs:
-        items.length > 1
-          ? {
-              items,
-              shown: shownKey(rep, ctx.views[g.id], items),
-              folded: !!g.folded,
-              focused,
-            }
-          : undefined,
+      tabs: {
+        items,
+        shown: shownKey(rep, ctx.views[g.id], items),
+        folded: !!g.folded,
+        focused,
+      },
     };
   });
 }
@@ -431,17 +437,28 @@ function bandOf(g: Gws, rep: TermRef, focused: boolean, ctx: RowContext): Band {
 }
 
 /** ターミナルのタブの行。名前はマシンの一覧にあればその名前、無ければ最後に分かった名前。 */
-function termItem(r: TermRef, ctx: RowContext): TabItem {
+function termItem(r: TermRef, ctx: RowContext, closable: boolean): TabItem {
   const tw = ctx.workspaces[r.target]?.find((x) => x.id === r.ws);
+  const health = ctx.healthOf(r.target);
+  const git =
+    tw && tw.kind !== "cwd" ? branchText(tw.branch ?? "", tw.sha ?? "") : "";
+  const path = tw ? (tw.display ?? tw.folder ?? "") : "";
   return {
     key: refKey(r),
     kind: "term",
     title: tw ? band(tw, false).title : r.title || unsetTitle(),
-    sub: ctx.labelOf(r.target),
+    path,
+    git,
     tip: tw?.folder ?? "",
     incognito: false,
-    health: ctx.healthOf(r.target),
-    closable: false,
+    machine: {
+      name: ctx.labelOf(r.target),
+      color: ctx.colorOf(r.target),
+      health,
+    },
+    health,
+    term: { target: r.target, ws: r.ws },
+    closable,
   };
 }
 
@@ -455,7 +472,8 @@ function browserItem(r: BrowserRef, ctx: RowContext): TabItem | undefined {
     kind: "browser",
     tab: r.id,
     title,
-    sub: title !== hostOf(t.url) ? hostOf(t.url) : "",
+    path: t.url,
+    git: "",
     tip: t.url,
     incognito: !!t.incognito,
     closable: true,
