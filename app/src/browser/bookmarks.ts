@@ -108,12 +108,12 @@ export function bookmarkKey(
   return null;
 }
 
-/** 殻が読んだ Chrome のブックマーク（#239）。形の違うものは捨て、source を "chrome" にする。同じ URL は先のものだけ残す。 */
+/** 殻が読んだ Chrome のブックマーク（#239。`{ bookmarks, problem }` の形）。形の違うものは捨て、source を "chrome" にする。同じ URL は先のものだけ残す。 */
 export function chromeFromLoaded(v: unknown): Bookmark[] {
   const list =
-    typeof v === "object" && v !== null && "bookmarks" in v
-      ? (v as { bookmarks: unknown }).bookmarks
-      : v;
+    typeof v === "object" && v !== null
+      ? (v as { bookmarks?: unknown }).bookmarks
+      : undefined;
   if (!Array.isArray(list)) return [];
   const out: Bookmark[] = [];
   const seen = new Set<string>();

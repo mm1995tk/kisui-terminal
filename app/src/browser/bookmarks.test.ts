@@ -134,13 +134,15 @@ describe("ブックマークの一覧のキー（bookmarkKey）", () => {
 });
 
 it("Chrome のブックマークを読み、kisui-terminal 自身のものを先に、同じ URL は自身のものを残して合わせる（#239）", () => {
-  const chrome = chromeFromLoaded([
-    { url: "https://a.example/", title: "Chrome A", folder: "Bookmarks bar" },
-    { url: "https://c.example/", title: "C", folder: "Other" },
-    { url: "https://c.example/", title: "C2", folder: "Other" },
-    { title: "no url" },
-    null,
-  ]);
+  const chrome = chromeFromLoaded({
+    bookmarks: [
+      { url: "https://a.example/", title: "Chrome A", folder: "Bookmarks bar" },
+      { url: "https://c.example/", title: "C", folder: "Other" },
+      { url: "https://c.example/", title: "C2", folder: "Other" },
+      { title: "no url" },
+      null,
+    ],
+  });
   assert.deepEqual(
     chrome.map((b) => [b.url, b.source]),
     [
@@ -161,6 +163,7 @@ it("Chrome のブックマークを読み、kisui-terminal 自身のものを先
   assert.equal(mergeBookmarks(undefined, chrome)?.length, 2);
   assert.equal(mergeBookmarks(own, undefined)?.length, 1);
   assert.equal(chromeFromLoaded("x").length, 0);
+  assert.equal(chromeFromLoaded([{ url: "https://a.example/" }]).length, 0);
   assert.equal(bookmarkTitle(chrome[0]), "Bookmarks bar\nhttps://a.example/");
   assert.equal(bookmarkTitle(own[0]), "https://a.example/");
 });
