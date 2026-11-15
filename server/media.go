@@ -1,11 +1,11 @@
 package server
 
-// プライマリの shj が開かせる、ターミナルでない欄（動画・画像・PDF）と、URL を GUI の手元の外部ブラウザで開かせる通知。設計は docs/design/gui-protocol.md の「ターミナルでないペイン」。
+// プライマリの shj が開かせる、ターミナルでない欄（動画・画像・PDF）と、URL を GUI の手元のブラウザ（内蔵ブラウザのタブか外部ブラウザ）で開かせる通知。設計は docs/design/gui-protocol.md の「ターミナルでないペイン」。
 //
 // 欄はプライマリの shj（primaryShj）が持つ extras で、shj が終わると一緒に消える。ctl.PaneRequest の "open" で足し、
 // "close" か GUI の extra.close で閉じる。中身は GUI が media.read で範囲を指して取る（ssh の向こうにある動画も、
 // 同じ接続で GUI に届く）。取れるのは、いま extras にあるファイルだけ。URL（kind が "browser" の要求）は欄を作らず、
-// GUI に browser.open の通知を送るだけで、ページは GUI が手元の外部ブラウザで開く。
+// GUI に browser.open の通知を送るだけで、ページは GUI が手元のブラウザ（内蔵ブラウザを有効にしていればワークスペースのタブ、無効なら外部ブラウザ）で開く。
 
 import (
 	"encoding/base64"
@@ -194,7 +194,7 @@ func (w *wsManager) closeExtra(wsID, id string) {
 	w.recompute()
 }
 
-// openURL は URL u を GUI の手元の外部ブラウザで開かせる。欄は作らず、browser.open を GUI に通知するだけ
+// openURL は URL u を GUI の手元のブラウザ（内蔵ブラウザのタブか外部ブラウザ）で開かせる。欄は作らず、browser.open を GUI に通知するだけ
 // （リモートのマシンの localhost 系の URL は、GUI が kisui relay の中継越しに開く）。開かせる GUI が（つながっていなくて）いなければ断る。
 // 返す ID は空（欄が無い）。
 func (w *wsManager) openURL(wsID, u string) (string, error) {

@@ -14,6 +14,8 @@
 //! ページにキーがある間も、リーダーと近道を効かせる。キーは IPC では受けない。ページに入れるスクリプト（browser_keys.js）が、
 //! 当たるキーを `kisui-key:` の URL にして window.open で開こうとし、ここの on_new_window が受けて画面に渡す（開かずに断る）。
 //! URL には webview を作るたびに決める nonce を入れ、合わないものは捨てる（ページのスクリプトが真似できないように）。
+//! 設定にパスキーのサイト（`[gui.browser] passkey_sites`）があれば、パスキーを捕まえるスクリプト（browser_passkey.js）も入れ、
+//! 同じ形（`kisui-passkey:` の URL と同じ nonce）で知らせを受けて、外のブラウザに移る（passkey.rs。#206）。
 //!
 //! ログイン（Cookie などのページのデータ）は、すべてのタブで 1 つを共有し、ディスクに残す。Linux はデータのフォルダの
 //! `browser/` に置く。macOS は WKWebView の既定の置き場（`~/Library/WebKit/<アプリの id>/` など。場所は OS が決める）を使う。
@@ -22,6 +24,8 @@
 use std::fs;
 use std::io::{ErrorKind, Read, Write};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::time::Instant;
 
 use serde::{Deserialize, Serialize};
 use tauri::webview::{NewWindowResponse, PageLoadEvent};
@@ -31,6 +35,7 @@ use tauri::{
 };
 
 use crate::open_url::{from_main, parse_url};
+use crate::passkey::{self, Passkey};
 
 /// 子の webview のラベルの頭（画面が決めたタブの id を後ろに付ける）。
 const LABEL_PREFIX: &str = "browser-";
@@ -137,8 +142,13 @@ fn valid_tab(t: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
 }
 
-fn label(tab: &str) -> String {
+pub(crate) fn label(tab: &str) -> String {
     format!("{LABEL_PREFIX}{tab}")
+}
+
+/// タブの子の webview のラベルか。
+pub(crate) fn is_tab_label(l: &str) -> bool {
+    l.strip_prefix(LABEL_PREFIX).is_some_and(valid_tab)
 }
 
 /// 子の webview（タブ）。
@@ -244,6 +254,7 @@ fn opens_in_same_tab(u: &Url) -> bool {
 
 /// 子の webview が新しい窓を開こうとした（`target=_blank`・`window.open`）。どれも開かずに断る。
 /// ページのスクリプトが知らせたキー（`kisui-key:`。nonce が合うもの）なら、画面に知らせてからキーをメインの webview に移す。
+/// ページのスクリプトが知らせたパスキーの求め（`kisui-passkey:`。nonce が合うもの）なら、外のブラウザに移る（passkey.rs）。
 /// http・https なら、同じタブで開く。
 /// この中は webview の処理の最中なので、知らせる・移す・開くは別のスレッドで行う。
 fn on_new_window(app: &AppHandle, tab: &str, nonce: &str, u: Url) -> NewWindowResponse<tauri::Wry> {
@@ -253,6 +264,20 @@ fn on_new_window(app: &AppHandle, tab: &str, nonce: &str, u: Url) -> NewWindowRe
             // 先に知らせてからキーを移す（移したあとに画面に届くキーより前に、このキーを届ける）
             let _ = app.emit(EVENT_KEY, ev);
             focus_main(&app);
+        });
+    } else if passkey::is_request(&u, nonce) {
+        // ページがパスキーを求めた（browser_passkey.js）。今の URL が許可サイトなら、外のブラウザで開く（passkey.rs）
+        let lbl = label(tab);
+        let tab = tab.to_string();
+        std::thread::spawn(move || {
+            let (Some(p), Some(v)) = (app.try_state::<Arc<Passkey>>(), app.get_webview(&lbl))
+            else {
+                return;
+            };
+            let Ok(now) = v.url() else { return };
+            if let Some(to) = p.hand_off(&tab, &now, Instant::now()) {
+                passkey::open_external(p.browser(), &to);
+            }
         });
     } else if opens_in_same_tab(&u) {
         let lbl = label(tab);
@@ -274,11 +299,19 @@ fn tab_builder(
     keys: &[KeySpec],
 ) -> WebviewBuilder<tauri::Wry> {
     let script = key_script(&nonce, keys);
+    // パスキーのサイトを設定に書いたときだけ、パスキーを捕まえるスクリプトも入れる（passkey.rs）
+    let passkey_script = app
+        .try_state::<Arc<Passkey>>()
+        .map(|p| passkey::script(&nonce, p.sites()));
     let (win_app, win_tab) = (app.clone(), tab.to_string());
     let (load_app, load_tab) = (app.clone(), tab.to_string());
     let (title_app, title_tab) = (app.clone(), tab.to_string());
-    let builder = WebviewBuilder::new(label(tab), WebviewUrl::External(first))
-        .initialization_script_for_all_frames(script)
+    let mut builder = WebviewBuilder::new(label(tab), WebviewUrl::External(first))
+        .initialization_script_for_all_frames(script);
+    if let Some(s) = passkey_script {
+        builder = builder.initialization_script_for_all_frames(s);
+    }
+    let builder = builder
         .focused(false)
         .on_navigation(may_navigate)
         .on_new_window(move |u, _| on_new_window(&win_app, &win_tab, &nonce, u))

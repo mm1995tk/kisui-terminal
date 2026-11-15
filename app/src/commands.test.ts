@@ -13,6 +13,7 @@ import {
   menuRows,
   route,
   setBrowserEnabled,
+  setUserShortcuts,
   shortcutCommand,
   type Command,
   type Env,
@@ -885,5 +886,122 @@ describe("内蔵ブラウザ（#202。設定で有効にしたときだけ）", 
         assert.ok(!has(mac ? "Cmd+V" : "Ctrl+Shift+V", false));
       }
     });
+  });
+});
+
+describe("設定で足す近道（[gui.shortcuts]）", () => {
+  after(() => setUserShortcuts([], LINUX));
+
+  it("書いたキーでコマンドを動かし、引数も渡せる。ターミナルに届かない", () => {
+    const problems = setUserShortcuts(
+      [
+        { key: "ctrl+alt+n", command: "workspace.new" },
+        { key: "Alt+J", command: "pane.focus:down" },
+        { key: "Ctrl++", command: "scale:in" },
+      ],
+      LINUX,
+    );
+    assert.deepEqual(problems, []);
+    const r = press(LINUX, [key("n", "ca"), key("j", "a"), key("+", "c")]);
+    assert.deepEqual(r.runs, [
+      { id: "workspace.new" },
+      { id: "pane.focus", arg: "down" },
+      { id: "scale", arg: "in" },
+    ]);
+    assert.equal(r.passed.length, 0);
+    // 足していないキーは今までどおりターミナルに届く
+    assert.equal(press(LINUX, [key("j", "")]).passed.length, 1);
+  });
+
+  it("同じキーの既定の近道に勝ち、none なら既定の近道を消すだけ", () => {
+    assert.deepEqual(
+      setUserShortcuts(
+        [
+          { key: "Ctrl+Shift+D", command: "workspace.new" },
+          { key: "Ctrl+Shift+E", command: "none" },
+        ],
+        LINUX,
+      ),
+      [],
+    );
+    assert.deepEqual(press(LINUX, [key("D", "cs")]).runs, [
+      { id: "workspace.new" },
+    ]);
+    assert.equal(press(LINUX, [key("E", "cs")]).passed.length, 1);
+    // `?` の一覧：消した・奪われた既定の近道は出ず、足した近道は最初の行に出る
+    const rows = helpRows(LINUX);
+    const at = (p: string) => rows.find((r) => r.path.join(" ") === p);
+    assert.equal(at("p s l")?.shortcut, undefined);
+    assert.equal(at("p s j")?.shortcut, undefined);
+    assert.equal(at("w n")?.shortcut, "Ctrl+Shift+D");
+  });
+
+  it("間違いは理由を返し、ほかの近道は使う", () => {
+    const problems = setUserShortcuts(
+      [
+        { key: "Ctrl+Alt+X", command: "nothing.here" },
+        { key: "Hyper+X", command: "workspace.new" },
+        { key: "j", command: "workspace.new" },
+        { key: "Ctrl+Shift+K", command: "workspace.new" },
+        { key: "Ctrl+Alt+B", command: "browser.new" },
+        { key: "Ctrl+Alt+Y", command: "clipboard.history" },
+      ],
+      LINUX,
+    );
+    assert.equal(problems.length, 5);
+    assert.match(problems[0], /nothing\.here/);
+    assert.match(problems[1], /Hyper/);
+    assert.match(problems[3], /リーダー/);
+    // 内蔵ブラウザを使わないときは、browser.* は使えない
+    assert.match(problems[4], /browser\.new/);
+    assert.deepEqual(press(LINUX, [key("y", "ca")]).runs, [
+      { id: "clipboard.history" },
+    ]);
+  });
+
+  it("キーの名前は大文字小文字を問わず受け、無い名前は間違いにする", () => {
+    const problems = setUserShortcuts(
+      [
+        { key: "Ctrl+Alt+enter", command: "workspace.new" },
+        { key: "Ctrl+Alt+Left", command: "pane.focus:left" },
+        { key: "Ctrl+Alt+Foo", command: "workspace.new" },
+      ],
+      LINUX,
+    );
+    assert.equal(problems.length, 1);
+    assert.match(problems[0], /Foo/);
+    const r = press(LINUX, [key("Enter", "ca"), key("ArrowLeft", "ca")]);
+    assert.deepEqual(r.runs, [
+      { id: "workspace.new" },
+      { id: "pane.focus", arg: "left" },
+    ]);
+  });
+
+  it("同じキーを別の書き方で 2 つのファイルに書いたら、後のファイルが勝つ。同じファイルなら間違い", () => {
+    const problems = setUserShortcuts(
+      [
+        { key: "Ctrl+Alt+N", command: "workspace.new", source: 0 },
+        { key: "ctrl+alt+n", command: "workspace.close", source: 1 },
+        { key: "Ctrl+Alt+M", command: "workspace.new", source: 0 },
+        { key: "control+alt+m", command: "workspace.close", source: 0 },
+      ],
+      LINUX,
+    );
+    assert.equal(problems.length, 1);
+    assert.deepEqual(press(LINUX, [key("n", "ca")]).runs, [
+      { id: "workspace.close" },
+    ]);
+    assert.deepEqual(press(LINUX, [key("m", "ca")]).runs, [
+      { id: "workspace.new" },
+    ]);
+  });
+
+  it("ページに渡すキーに入る", () => {
+    setUserShortcuts([{ key: "Ctrl+Alt+N", command: "workspace.new" }], LINUX);
+    assert.ok(
+      interceptKeys(LINUX).some(
+        (k) => k.ctrl && k.alt && k.key === "n" && !k.enter,
+      ),
+    );
   });
 });
