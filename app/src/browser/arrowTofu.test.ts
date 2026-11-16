@@ -1,5 +1,5 @@
 // 内蔵ブラウザのページに入れるスクリプト（app/src-tauri/src/browser_keys.js。#285）が、macOS が矢印キーに使う私用領域の文字
-// （U+F700〜U+F8FF）の入力だけを止めることを確かめる。ブラウザの代わりに、必要な部分だけを持つ偽物を渡して動かす。
+// （U+F700〜U+F74F）の入力だけを止めることを確かめる。ブラウザの代わりに、必要な部分だけを持つ偽物を渡して動かす。
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
@@ -93,10 +93,13 @@ describe("矢印キーの豆腐（#285）", () => {
     for (const c of ["", "", "", ""])
       assert.equal(run("insertText", c), true, c.charCodeAt(0).toString(16));
   });
-  it("私用領域 U+F700〜U+F8FF の両端も止める", () => {
-    assert.equal(run("insertText", ""), true);
-    assert.equal(run("insertText", ""), false);
-    assert.equal(run("insertText", "豈"), false);
+  it("関数キーの文字の区画 U+F700〜U+F74F の両端を止め、その外（U+F8FF の Apple のロゴなど）は止めない", () => {
+    assert.equal(run("insertText", "\uF700"), true);
+    assert.equal(run("insertText", "\uF74F"), true);
+    assert.equal(run("insertText", "\uF6FF"), false);
+    assert.equal(run("insertText", "\uF750"), false);
+    assert.equal(run("insertText", "\uF8FF"), false);
+  });
   });
   it("普通の文字・日本語・貼り付け・変換中は止めない", () => {
     assert.equal(run("insertText", "a"), false);
