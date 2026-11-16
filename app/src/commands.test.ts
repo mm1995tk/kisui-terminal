@@ -133,16 +133,6 @@ describe("コマンドの表", () => {
       "l",
       "Tab",
       "w",
-      "w j",
-      "w k",
-      "w J",
-      "w K",
-      "w Tab",
-      "w w",
-      ...Array.from({ length: 9 }, (_, i) => `w ${i + 1}`),
-      "w n",
-      "w x",
-      "w r",
       "t",
       "t n",
       "t N",
@@ -191,22 +181,17 @@ describe("コマンドの表", () => {
     ]);
   });
 
-  it("#88・#201 のキー（w j/k はワークスペースを移る、w J/K は並べ替える）は続けて押せて、近道は無い", () => {
-    const w = childrenAt(["w"]) ?? [];
-    const find = (k: string) =>
-      w.find((n) => n.type === "leaf" && n.keys.includes(k));
-    for (const [k, id, arg] of [
-      ["j", "workspace.step", "next"],
-      ["k", "workspace.step", "prev"],
-      ["K", "workspace.move", "up"],
-      ["J", "workspace.move", "down"],
-    ] as const) {
-      const n = find(k);
-      assert.ok(n && n.type === "leaf", k);
-      assert.deepEqual(n.run, { id, arg });
-      assert.equal(n.repeat, true);
-      assert.equal(n.shortcut, undefined);
-    }
+  it("w はグループではなく、ワークスペースの窓を開く 1 つの葉（#296）。その下にほかの操作は無く、Cmd+1〜9 も無い", () => {
+    const w = LEADER.find((n) => n.type === "leaf" && n.keys.includes("w"));
+    assert.ok(w && w.type === "leaf");
+    assert.deepEqual(w.run, { id: "workspace.switch" });
+    assert.deepEqual(w.shortcut, { mac: "Cmd+Shift+W", other: "Ctrl+Shift+W" });
+    assert.equal(childrenAt(["w"]), undefined);
+    for (const mac of [MAC, LINUX])
+      assert.equal(
+        helpRows(mac).some((r) => r.shortcut && /\+[1-9]$/.test(r.shortcut)),
+        false,
+      );
   });
 });
 
@@ -242,10 +227,14 @@ describe("リーダー", () => {
 
     it(`${os}：グループに入ると、案内の位置が一段下がる`, () => {
       assert.deepEqual(press(mac, [L]).state.leader, []);
-      assert.deepEqual(press(mac, [L, key("w")]).state.leader, ["w"]);
-      assert.deepEqual(press(mac, [L, key("w"), key("1")]).runs, [
-        { id: "workspace.nth", arg: 0 },
+      assert.deepEqual(press(mac, [L, key("t")]).state.leader, ["t"]);
+      assert.deepEqual(press(mac, [L, key("t"), key("n")]).runs, [
+        { id: "tab.new" },
       ]);
+      // w はグループではなく、窓を開く葉（入った先は無く、リーダーを出る）
+      const w = press(mac, [L, key("w")]);
+      assert.deepEqual(w.runs, [{ id: "workspace.switch" }]);
+      assert.equal(w.state.leader, null);
     });
 
     it(`${os}：続けて押せる葉は、行ってもリーダーを出ない`, () => {
@@ -325,9 +314,13 @@ describe("リーダー", () => {
     });
   }
 
-  it("入口の近道（Mac は Cmd+Shift+W / P、Linux は Ctrl+Shift+W / P）で、グループに 1 回で入る", () => {
-    const w = press(MAC, [key("W", "ms", "KeyW")]);
-    assert.deepEqual(w.state.leader, ["w"]);
+  it("入口の近道（Mac は Cmd+Shift+P、Linux は Ctrl+Shift+P）で、グループに 1 回で入る。Cmd+Shift+W / Ctrl+Shift+W は窓を開く", () => {
+    assert.deepEqual(press(MAC, [key("W", "ms", "KeyW")]).runs, [
+      { id: "workspace.switch" },
+    ]);
+    assert.deepEqual(press(LINUX, [key("W", "cs", "KeyW")]).runs, [
+      { id: "workspace.switch" },
+    ]);
     assert.deepEqual(press(LINUX, [key("P", "cs", "KeyP")]).state.leader, [
       "p",
     ]);
@@ -338,12 +331,12 @@ describe("リーダー", () => {
     );
     // Backspace で 1 段目の一覧に戻る
     assert.deepEqual(
-      press(MAC, [key("W", "ms", "KeyW"), key("Backspace")]).state.leader,
+      press(MAC, [key("P", "ms", "KeyP"), key("Backspace")]).state.leader,
       [],
     );
     // ダイアログの間は入らない
     assert.equal(
-      press(MAC, [key("W", "ms", "KeyW")], { dialogOpen: true }).state.leader,
+      press(MAC, [key("P", "ms", "KeyP")], { dialogOpen: true }).state.leader,
       null,
     );
   });
@@ -466,14 +459,9 @@ describe("近道（リーダーを通さずに 1 回で押せるキー）", () =
       id: "clipboard.history",
     });
     assert.deepEqual(cmd(MAC, key("w", "m", "KeyW")), { id: "pane.close" });
-    assert.deepEqual(cmd(MAC, key("1", "m", "Digit1")), {
-      id: "workspace.nth",
-      arg: 0,
-    });
-    assert.deepEqual(cmd(MAC, key("9", "m", "Digit9")), {
-      id: "workspace.nth",
-      arg: 8,
-    });
+    // Cmd+1〜9 は無い（ワークスペースは、リーダーの w の窓で選ぶ。#296）
+    assert.equal(cmd(MAC, key("1", "m", "Digit1")), null);
+    assert.equal(cmd(MAC, key("9", "m", "Digit9")), null);
     assert.equal(cmd(MAC, key("0", "m", "Digit0")) !== null, true);
   });
 
@@ -533,11 +521,9 @@ describe("近道（リーダーを通さずに 1 回で押せるキー）", () =
     assert.equal(cmd(LINUX, key("ArrowLeft", "cs")), null);
     assert.equal(cmd(LINUX, key("-", "c", "Minus")), null);
     assert.equal(cmd(LINUX, key("w", "m", "KeyW")), null);
-    assert.equal(
-      cmd(LINUX, key("W", "cs", "KeyW")),
-      null,
-      "Ctrl+Shift+W はグループの入口で、コマンドではない",
-    );
+    assert.deepEqual(cmd(LINUX, key("W", "cs", "KeyW")), {
+      id: "workspace.switch",
+    });
     assert.equal(cmd(LINUX, key("1", "c", "Digit1")), null);
     assert.equal(cmd(LINUX, key("1", "a", "Digit1")), null);
   });
@@ -633,12 +619,12 @@ describe("リーダーの中の字の当たり方", () => {
   const L = LEADER_KEY(LINUX);
 
   it("打った字（key）で探す。AZERTY の q（物理キーは KeyA）は、n の葉に当たらない", () => {
-    const r = press(LINUX, [L, key("w"), key("q", "", "KeyA")]);
+    const r = press(LINUX, [L, key("t"), key("q", "", "KeyA")]);
     assert.deepEqual(r.runs, []);
     assert.equal(r.state.leader, null);
     // 同じ配列で、字が n なら（物理キーは KeyQ）n の葉
-    assert.deepEqual(press(LINUX, [L, key("w"), key("n", "", "KeyQ")]).runs, [
-      { id: "workspace.new" },
+    assert.deepEqual(press(LINUX, [L, key("t"), key("n", "", "KeyQ")]).runs, [
+      { id: "tab.new" },
     ]);
   });
 
@@ -647,12 +633,12 @@ describe("リーダーの中の字の当たり方", () => {
       ...key("Process", "", code),
       isComposing: true,
     });
-    assert.deepEqual(press(LINUX, [L, key("w"), ime("KeyN")]).runs, [
-      { id: "workspace.new" },
+    assert.deepEqual(press(LINUX, [L, key("t"), ime("KeyN")]).runs, [
+      { id: "tab.new" },
     ]);
     assert.deepEqual(press(LINUX, [L, ime("Digit1")]).runs, []);
-    assert.deepEqual(press(LINUX, [L, key("w"), ime("Digit1")]).runs, [
-      { id: "workspace.nth", arg: 0 },
+    assert.deepEqual(press(LINUX, [L, key("t"), ime("Digit1")]).runs, [
+      { id: "tab.nth", arg: 0 },
     ]);
   });
 });
@@ -685,14 +671,14 @@ describe("リーダーの案内（menuRows）", () => {
     }
   });
 
-  it("w の中の 1〜9 は、案内では 1 行にまとまり、`?` の一覧では 9 行ある", () => {
-    const rows = menuRows(["w"], LINUX);
+  it("t の中の 1〜9 は、案内では 1 行にまとまり、`?` の一覧では 9 行ある", () => {
+    const rows = menuRows(["t"], LINUX);
     assert.deepEqual(
       rows.filter((r) => /^[1-9]/.test(r.keys)),
-      [{ keys: "1–9", label: T("leader.ws.nth.range"), group: false }],
+      [{ keys: "1–9", label: T("leader.tab.nth.range"), group: false }],
     );
     assert.equal(
-      helpRows(LINUX).filter((r) => /^w [1-9]$/.test(r.path.join(" "))).length,
+      helpRows(LINUX).filter((r) => /^t [1-9]$/.test(r.path.join(" "))).length,
       9,
     );
   });
@@ -701,7 +687,7 @@ describe("リーダーの案内（menuRows）", () => {
     assert.deepEqual(keysOf(["n"], MAC), ["u", "d", "g", "o", "f"]);
   });
 
-  it("向きの hjkl は、案内では 1 行（ワークスペースは 2 行）にまとまる", () => {
+  it("向きの hjkl は、案内では 1 行にまとまる", () => {
     const rows = (path: string[]) =>
       menuRows(path, LINUX).map((r) => [r.keys, r.label]);
     const move = ["h|j|k|l", T("leader.pane.focus.range")];
@@ -715,11 +701,6 @@ describe("リーダーの案内（menuRows）", () => {
     ]);
     assert.deepEqual(rows(["p", "m"]), [
       ["h|j|k|l", T("leader.pane.swap.range")],
-    ]);
-    assert.deepEqual(rows(["w"]).slice(0, 3), [
-      ["j|k", T("leader.ws.step.range")],
-      ["J|K", T("leader.ws.move.range")],
-      ["Tab", T("leader.ws.last")],
     ]);
   });
 
@@ -741,21 +722,6 @@ describe("リーダーの案内（menuRows）", () => {
       press(LINUX, [LEADER_KEY(LINUX), key("p"), key("m"), key("h")]).runs,
       [{ id: "pane.swap", arg: "left" }],
     );
-    assert.deepEqual(
-      press(LINUX, [LEADER_KEY(LINUX), key("w"), key("J", "s")]).runs,
-      [{ id: "workspace.move", arg: "down" }],
-    );
-  });
-
-  it("w J / w K は並べ替え、Shift を押さない w j / w k は移る（大文字と小文字は別の葉）。w h / w l は無い", () => {
-    const w = (k: string, mods = "") =>
-      press(LINUX, [LEADER_KEY(LINUX), key("w"), key(k, mods)]);
-    assert.deepEqual(w("J", "s").runs, [{ id: "workspace.move", arg: "down" }]);
-    assert.deepEqual(w("K", "s").runs, [{ id: "workspace.move", arg: "up" }]);
-    assert.deepEqual(w("j").runs, [{ id: "workspace.step", arg: "next" }]);
-    assert.deepEqual(w("k").runs, [{ id: "workspace.step", arg: "prev" }]);
-    assert.deepEqual(w("h").runs, []);
-    assert.deepEqual(w("l").runs, []);
   });
 
   it("t のグループ（#235）：作る・閉じる・移る・並べ替える・名前を変える。j k J K は続けて押せて、小文字と大文字は別の葉", () => {
@@ -979,7 +945,7 @@ describe("内蔵ブラウザ（#202。設定で有効にしたときだけ）", 
               JSON.stringify({ ...parseSpec(s), enter }) === JSON.stringify(k),
           );
         assert.ok(has(mac ? "Cmd+K" : "Ctrl+Shift+K", true));
-        assert.ok(has(mac ? "Cmd+Shift+W" : "Ctrl+Shift+W", true));
+        assert.ok(has(mac ? "Cmd+Shift+W" : "Ctrl+Shift+W", false));
         assert.ok(has(mac ? "Cmd+Shift+P" : "Ctrl+Shift+P", true));
         assert.ok(has(mac ? "Cmd+R" : "Ctrl+Shift+R", false));
         assert.ok(has(mac ? "Cmd+D" : "Ctrl+Shift+D", false));
@@ -1015,27 +981,59 @@ describe("設定で足す近道（[gui.shortcuts]）", () => {
     assert.equal(press(LINUX, [key("j", "")]).passed.length, 1);
   });
 
+  it("リーダーの木に無いワークスペースのコマンド（#296）も、近道に足せる（引数つきも）。`?` の一覧には載らない", () => {
+    const problems = setUserShortcuts(
+      [
+        { key: "Ctrl+Alt+1", command: "workspace.nth:0" },
+        { key: "Ctrl+Alt+J", command: "workspace.step:next" },
+        { key: "Ctrl+Alt+K", command: "workspace.move:up" },
+        { key: "Ctrl+Alt+L", command: "workspace.last" },
+        { key: "Ctrl+Alt+X", command: "workspace.close" },
+        { key: "Ctrl+Alt+R", command: "workspace.rename" },
+      ],
+      LINUX,
+    );
+    assert.deepEqual(problems, []);
+    const r = press(LINUX, [
+      key("1", "ca"),
+      key("j", "ca"),
+      key("k", "ca"),
+      key("l", "ca"),
+      key("x", "ca"),
+      key("r", "ca"),
+    ]);
+    assert.deepEqual(r.runs, [
+      { id: "workspace.nth", arg: 0 },
+      { id: "workspace.step", arg: "next" },
+      { id: "workspace.move", arg: "up" },
+      { id: "workspace.last" },
+      { id: "workspace.close" },
+      { id: "workspace.rename" },
+    ]);
+    assert.ok(
+      !helpRows(LINUX).some((r) => r.path[0] === "w" && r.path.length > 1),
+    );
+  });
+
   it("同じキーの既定の近道に勝ち、none なら既定の近道を消すだけ", () => {
     assert.deepEqual(
       setUserShortcuts(
         [
-          { key: "Ctrl+Shift+D", command: "workspace.new" },
+          { key: "Ctrl+Shift+D", command: "tab.new" },
           { key: "Ctrl+Shift+E", command: "none" },
         ],
         LINUX,
       ),
       [],
     );
-    assert.deepEqual(press(LINUX, [key("D", "cs")]).runs, [
-      { id: "workspace.new" },
-    ]);
+    assert.deepEqual(press(LINUX, [key("D", "cs")]).runs, [{ id: "tab.new" }]);
     assert.equal(press(LINUX, [key("E", "cs")]).passed.length, 1);
     // `?` の一覧：消した・奪われた既定の近道は出ず、足した近道は最初の行に出る
     const rows = helpRows(LINUX);
     const at = (p: string) => rows.find((r) => r.path.join(" ") === p);
     assert.equal(at("p s l")?.shortcut, undefined);
     assert.equal(at("p s j")?.shortcut, undefined);
-    assert.equal(at("w n")?.shortcut, "Ctrl+Shift+D");
+    assert.equal(at("t n")?.shortcut, "Ctrl+Shift+D");
   });
 
   it("間違いは理由を返し、ほかの近道は使う", () => {

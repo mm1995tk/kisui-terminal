@@ -1,4 +1,4 @@
-/* ワークスペースを切り替える窓（WorkspaceSwitcher.tsx。リーダーの w w）。カードは card.css。
+/* ワークスペースを切り替える窓（WorkspaceSwitcher.tsx。リーダーの w）。カードは card.css。
    左に全ワークスペース、右に選んでいる行のタブの一覧（サイドバーのタブの行 .tab-row を、sidebar.css のまま使う）。 */
 
 .switcher-cols {
@@ -26,7 +26,7 @@
   overflow-y: auto;
 }
 
-/* 左の行：つかむ所・番号・マシンの色の丸・名前・「今」・タブの数 */
+/* 左の行：つかむ所・マシンの色の丸・名前・「今」・（選んでいる行は鉛筆と ✕）・タブの数 */
 .switch-row {
   gap: 8px;
   padding: 8px 8px 8px 2px;
@@ -54,14 +54,6 @@
 }
 .switch-row:hover .grip {
   opacity: 1;
-}
-.switch-num {
-  flex: none;
-  width: 1.2em;
-  color: var(--card-muted);
-  font-family: var(--gh-mono);
-  font-size: 12px;
-  text-align: right;
 }
 /* マシンの色の丸。つながっていれば塗り、つないでいる間は薄い塗り、つながっていなければ枠だけ */
 .switch-dot {
@@ -98,6 +90,9 @@
   text-align: right;
 }
 .switch-new {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   box-sizing: border-box;
   width: 100%;
   margin-top: 4px;
@@ -133,16 +128,81 @@
   border-radius: 8px;
   background: var(--gh-bg-side);
 }
-.switch-tabs-head {
-  box-sizing: border-box;
-  padding: 8px 10px;
-  border-bottom: 2px solid var(--gh-border-strong);
-  background: var(--gh-bg-raised);
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 .switch-tabs .card-empty {
   color: var(--gh-text-muted);
+}
+
+/* 選んでいる行の、名前を変える・閉じるボタン */
+.switch-btn {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--card-muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+.switch-btn:hover {
+  background: var(--card-row-active);
+  color: var(--card-text);
+}
+/* 行の中の名前の入力欄と、断られた理由 */
+.switch-edit {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.switch-rename {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  padding: 2px 6px;
+  border: 1px solid var(--card-accent);
+  border-radius: 4px;
+  background: var(--card-field-bg, transparent);
+  color: var(--card-text);
+  font: inherit;
+}
+.switch-edit-error {
+  color: var(--card-warn);
+  font-size: 12px;
+}
+/* 閉じる確認の行のキー（y と n だけ） */
+.switch-confirm {
+  flex: none;
+  color: var(--card-muted);
+}
+.switch-confirm kbd,
+.switch-new kbd,
+.switch-keys kbd {
+  padding: 0 5px;
+  border: 1px solid var(--card-field-border);
+  border-radius: 4px;
+  font-family: var(--gh-mono);
+  font-size: 11px;
+}
+
+/* 下のキーの説明：「移る」と「変える」の 2 列。1 行に 1 つのキー */
+.switch-keys {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+  gap: 12px;
+}
+.switch-keys h2 {
+  margin: 0 0 4px;
+  color: var(--card-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+.switch-keys p {
+  margin: 0;
+  color: var(--card-muted);
+  font-size: 12px;
+  line-height: 1.8;
 }
