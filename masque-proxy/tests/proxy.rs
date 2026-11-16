@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use http::{Method, Request, StatusCode};
-use masque_proxy::{Config, Dns, Proxy};
+use masque_proxy::{Config, Dns, Identity, Proxy};
 use tokio::net::{TcpListener, UdpSocket};
 use tokio::time::timeout;
 
@@ -351,4 +351,31 @@ async fn h2_closes_udp_stream_on_too_long_capsule() {
         None | Some(Err(_)) => {}
         Some(Ok(data)) => panic!("unexpected data: {data:?}"),
     }
+}
+
+#[tokio::test]
+async fn uses_the_identity_it_is_given() {
+    // 使う側が作って覚えておいた身元（証明書と鍵）を、次の起動で渡す
+    let made = Identity::generate("masque-proxy test", Duration::from_secs(24 * 60 * 60)).unwrap();
+    let kept = Identity::from_der(made.certificate_der().to_vec(), made.key_der().to_vec());
+    let proxy = Proxy::start(Config {
+        dns: Dns::Servers(vec![IpAddr::V4(Ipv4Addr::LOCALHOST)]),
+        identity: Some(kept),
+        ..Config::default()
+    })
+    .await
+    .expect("start proxy");
+    assert_eq!(proxy.certificate_der(), made.certificate_der());
+
+    // その鍵で TLS を話せる（client は渡した証明書だけを信頼する）
+    let target = tcp_echo().await;
+    let mut send = h2_connect(&proxy).await;
+    let req = Request::builder()
+        .method(Method::CONNECT)
+        .uri(target.to_string())
+        .body(())
+        .unwrap();
+    let (resp, _body_out) = send.send_request(req, false).unwrap();
+    let resp = timeout(WAIT, resp).await.unwrap().unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
 }

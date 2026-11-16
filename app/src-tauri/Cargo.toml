@@ -71,8 +71,20 @@ objc2-web-kit = { version = "=0.3.2", default-features = false, features = [
   "WKWebView",
   "WKContentWorld",
   "WKFrameInfo",
+  # 内蔵ブラウザのプロキシ（browser_proxy.rs。#294）：データストアに中継の設定を当て、シークレットのタブの設定を作る
+  "WKWebsiteDataStore",
+  "WKWebViewConfiguration",
 ] }
 block2 = "=0.6.2"
+# 内蔵ブラウザを通す中継型のプロキシ（browser_proxy.rs。#294）。同じ workspace の独立した crate
+masque-proxy = { path = "../../masque-proxy" }
+# 内蔵ブラウザのプロキシ（browser_proxy.rs。#294）の鍵と証明書をログインのキーチェーンに置き、証明書を SSL・localhost に限って
+# 信頼させ、信頼されているかを確かめる。版は Cargo.lock にすでにある（rustls-platform-verifier が使っている）ものに合わせる
+security-framework = "=3.7.0"
+core-foundation = "=0.10.1"
+# 内蔵ブラウザのプロキシ（browser_proxy.rs）を初めてのタブで 1 度だけ用意し、メインスレッドの答えを待つ。
+# 版は Cargo.lock にすでにある（tauri が使っている）ものに合わせる
+tokio = { version = "=1.53.3", features = ["sync"] }
 
 # クリップボードの履歴（clipboard_history.rs）。Linux は文字を arboard で読み、「秘密」の印を wl-clipboard-rs（Wayland）か
 # x11rb（X11）で確かめる。版は Cargo.lock にすでにある（tauri-plugin-clipboard-manager が使っている）ものに合わせる

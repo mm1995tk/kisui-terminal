@@ -60,7 +60,9 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
     match (cert, key) {
-        (Some(cert), Some(key)) => config.identity_files = Some((cert.into(), key.into())),
+        (Some(cert), Some(key)) => {
+            config.identity = Some(masque_proxy::read_certificate(cert.as_ref(), key.as_ref())?)
+        }
         (None, None) => {}
         _ => return Err("--cert and --key go together".into()),
     }

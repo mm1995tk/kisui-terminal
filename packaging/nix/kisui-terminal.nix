@@ -49,6 +49,7 @@ let
       ../../app/src-tauri
       # workspace の member。殻の build には使わないが、cargo は member の Cargo.toml を読む
       ../../emulator
+      # 内蔵ブラウザのプロキシ（macOS の殻が依存する。browser_proxy.rs。#294）
       ../../masque-proxy
     ];
   };
