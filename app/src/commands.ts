@@ -58,7 +58,6 @@ export type CommandId =
   | "browser.reload"
   | "browser.close"
   | "browser.external"
-  | "browser.fold"
   | "browser.bookmark"
   | "browser.bookmarks"
   | "browser.find"
@@ -437,7 +436,6 @@ export const LEADER: Node[] = [
       ),
       leaf("x", T("leader.browser.close"), { id: "browser.close" }),
       leaf("e", T("leader.browser.external"), { id: "browser.external" }),
-      leaf("z", T("leader.browser.fold"), { id: "browser.fold" }),
       // #205
       leaf("b", T("leader.browser.bookmark"), { id: "browser.bookmark" }),
       leaf("B", T("leader.browser.bookmarks"), { id: "browser.bookmarks" }),

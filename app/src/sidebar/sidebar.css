@@ -1,7 +1,7 @@
 /* 左の一覧（D1）。親 #271 のモック「案：フラットな一覧」の寸法に合わせる（色は theme.css の GitHub Dark）。
    マシンごとの色（D4）は --machine-color。Sidebar.tsx が帯（.band-item）の style に入れる（決め方は colors.ts）。
    上下の固定（D3）は Sidebar.tsx の説明のとおり、sticky と要素の組み方で決める。
-   一覧（.sidebar）はスクロールし、その下に「+ ワークスペースを作る」（.sidebar-foot）を固定する。
+   一覧（.sidebar）はスクロールし、フォーカスしているワークスペースの帯だけを出す（#283）。
    接続の状態の丸は親 #271 のモック Main.dc.html に合わせる
    （接続中・再接続中は塗り、未接続は枠だけ。色は theme.css）。 */
 
@@ -35,8 +35,7 @@
 
 /* 一覧と「+ ワークスペースを作る」の中身を 84% で描く（幅は .sidebar-column のまま）。
    メニュー（.machine-menu）は .sidebar の外にあるので、クリックした位置に出る */
-.sidebar,
-.sidebar-foot {
+.sidebar {
   zoom: 0.84;
 }
 
@@ -60,9 +59,11 @@
   background: transparent;
 }
 
-/* 一覧の一番下の「+ ワークスペースを作る」（モック Main.dc.html の点線の枠） */
-.sidebar-foot {
-  flex: none;
+/* フォーカスしているワークスペースが無いときの、切り替えのボタンと「+ ワークスペースを作る」（モック Main.dc.html の点線の枠） */
+.sidebar-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   padding: 8px;
 }
 .new-workspace {
@@ -190,15 +191,13 @@
 .grip[data-grab] {
   cursor: grab;
 }
-.band:hover .grip,
 .tab-line:hover .grip {
   opacity: 1;
 }
 
-/* ドラッグ中の動き（drag.ts）。つかんだ帯・行は、drag.ts が掛ける transform でマウスについて動く（transition は付けない）。
-   ほかの帯・行（data-shift）は、入る場所を空けるように、transform の変化をなめらかにしてよける。
+/* ドラッグ中の動き（drag.ts。タブの行だけ）。つかんだ行は、drag.ts が掛ける transform でマウスについて動く（transition は付けない）。
+   ほかの行（data-shift）は、入る場所を空けるように、transform の変化をなめらかにしてよける。
    視差効果を減らす設定のときは、よける動きを省く（空ける位置には、すぐに移る）。 */
-.band-item[data-dragging],
 .tab-row[data-dragging] {
   position: relative;
   z-index: 2;
@@ -206,18 +205,16 @@
   box-shadow: 0 4px 12px rgb(0 0 0 / 0.3);
   cursor: grabbing;
 }
-.band-item[data-shift],
 .tab-row[data-shift] {
   transition: transform 150ms ease;
 }
 @media (prefers-reduced-motion: reduce) {
-  .band-item[data-shift],
   .tab-row[data-shift] {
     transition: none;
   }
 }
 
-/* ヘッダーとタブの行のボタン（畳む・足す・名前を変える・閉じる）。同じ大きさ */
+/* ヘッダーとタブの行のボタン（足す・名前を変える・閉じる）。同じ大きさ */
 .band-btn {
   flex: none;
   display: grid;
@@ -281,6 +278,48 @@
 div.band-main {
   cursor: default;
 }
+/* 名前のボタンは押すと切り替えのポップアップを開く。名前の横に「n / N」と ▾ を、名前のボタンの内側に並べる */
+.band-switch {
+  gap: 6px;
+  border-radius: 4px;
+}
+.band-switch:hover {
+  background: var(--band-hover);
+}
+.band-pos {
+  flex: none;
+  padding: 0 5px;
+  border: 1px solid var(--gh-border-strong);
+  border-radius: 8px;
+  color: var(--sidebar-muted);
+  font-size: 10px;
+  line-height: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.band-switch .nf {
+  color: var(--sidebar-muted);
+  font-size: 12px;
+}
+/* フォーカスしているワークスペースが無いときの切り替えのボタン（ヘッダーと同じ高さの、枠の付いたボタン） */
+.band-btn-wide {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: var(--band-height);
+  padding: 0 8px;
+  border: 1px solid var(--gh-border-strong);
+  border-radius: 6px;
+  background: var(--head-bg, var(--gh-bg-raised));
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.band-btn-wide:focus-visible {
+  outline: 1px solid var(--health-up);
+  outline-offset: -1px;
+}
 .band-title {
   flex: 1;
   min-width: 0;
@@ -329,9 +368,9 @@ div.band-main {
   border-color: var(--gh-text-muted);
 }
 
-/* 上下の固定（D3）。帯 → ツリーのフォルダの行（tree.css）の順に積み、下の要素はその上に重ねる。
+/* 上への固定（D3）。帯 → ツリーのフォルダの行（tree.css）の順に積む。
    z-index はフォルダの行（100 - 深さ）より上にする。
-   CHANGES（changes.css）は下に固定し、z-index 102 でフォルダの行より上、.sidebar-after（103）より下 */
+   CHANGES（changes.css）は下に固定し、z-index 102 でフォルダの行より上 */
 .band-slot[data-sticky] {
   position: sticky;
   top: 0;
@@ -340,24 +379,13 @@ div.band-main {
 .sidebar .tree {
   --tree-sticky-top: var(--band-height);
 }
-.sidebar-after {
-  position: sticky;
-  bottom: 0;
-  z-index: 103;
-  display: flow-root;
-  padding-top: 4px;
-  background: var(--sidebar-bg);
-}
-/* 固定されたものの境目に影を落とす（モックと同じ）。上は一番下に固定されたものの下、下は要素の上 */
+/* 固定されたものの境目に影を落とす（モックと同じ）。一番下に固定されたものの下に落とす */
 .sidebar [data-shadow] {
   box-shadow: 0 6px 8px -4px var(--sticky-shadow);
 }
-.sidebar-after[data-shadow] {
-  box-shadow: 0 -6px 8px -4px var(--sticky-shadow);
-}
 
 /* 足したマシンの見出し・ツリーの行を右クリックしたメニュー。
-   z-index は、上下に固定した欄（最大 103）より上にする。トースト（1000）・リーダーキーのメニュー（900）よりは下 */
+   z-index は、上に固定した欄・CHANGES（最大 102）より上にする。トースト（1000）・リーダーキーのメニュー（900）よりは下 */
 .machine-menu {
   position: fixed;
   z-index: 200;

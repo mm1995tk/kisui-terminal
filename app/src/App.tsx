@@ -149,7 +149,6 @@ import {
   shownBrowserId,
   termKey,
   termsOf,
-  toggleFold,
   type Gws,
   type GwsState,
   type Lists,
@@ -2383,11 +2382,6 @@ function Workbench(props: {
         if (t) openUrlFor(t.target, t.url);
         break;
       }
-      case "browser.fold": {
-        const g = currentGws();
-        if (g) setGws((x) => toggleFold(x, g.id));
-        break;
-      }
       case "browser.rename": {
         const t = currentTab();
         if (t) setRenamingTab(t.id);
@@ -3262,18 +3256,13 @@ function Workbench(props: {
       <Sidebar
         rows={rows()}
         onNew={newWorkspace}
-        // ワークスペースの帯を押すと、そのワークスペースが出していたものに移る（ブラウザのタブを出していたなら、そのページ）
-        onFocus={goRow}
+        // ヘッダーの名前を押すと、ワークスペースを切り替えるポップアップ（リーダーの w w）を開く
+        onSwitch={openWorkspaceSwitcher}
         onTab={selectTab}
         onTabClose={closeTabRow}
         onTabRename={renameTabRow}
         onAddTab={(gid, what) => void addWorkspaceTab(gid, what)}
         browser={props.browser}
-        onTabsFold={(gid) => setGws((g) => toggleFold(g, gid))}
-        onWorkspaceMove={(gid, before) => {
-          const next = moveBefore(untrack(gws), gid, before);
-          if (next) setGws(next);
-        }}
         onTabMove={(gid, key, before) => {
           const next = moveTabBefore(untrack(gws), gid, key, before);
           if (next) setGws(next);
