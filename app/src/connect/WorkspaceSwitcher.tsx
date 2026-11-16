@@ -10,7 +10,7 @@ import {
 
 import { startDrag } from "../sidebar/drag.ts";
 import type { Row } from "../sidebar/model.ts";
-import { SwitcherRow, SwitcherTabs } from "./SwitcherParts.tsx";
+import { type RowEdit, SwitcherRow, SwitcherTabs } from "./SwitcherParts.tsx";
 import { ModalCard } from "./Card.tsx";
 import { isCancelKey } from "./cancelKey.ts";
 import { moveRow } from "./machineList.ts";
@@ -60,7 +60,7 @@ export function WorkspaceSwitcher(props: {
   const selected = (): Row | undefined => props.rows[index()];
   // 名前を変えている行と、閉じる確認をしている行（どちらも、その行のワークスペースの id。ほかの行を選んだら、やめる）
   const [editing, setEditing] = createSignal<
-    { gws: string; current: string; auto: string; error?: string } | undefined
+    (RowEdit & { gws: string }) | undefined
   >();
   const [confirming, setConfirming] = createSignal<string | undefined>();
   let list!: HTMLUListElement;
@@ -69,6 +69,15 @@ export function WorkspaceSwitcher(props: {
   createEffect(() => {
     const i = index();
     document.getElementById(rowId(i))?.scrollIntoView?.({ block: "nearest" });
+  });
+
+  // 確認や入力欄を出している行が、窓の外の理由（マシンが切れて記録から外れたなど）で消えたら、やめる（確認が見えないまま、キーが効かなくならないように）
+  createEffect(() => {
+    const has = (g: string) => props.rows.some((r) => r.gws === g);
+    const c = confirming();
+    if (c !== undefined && !has(c)) setConfirming(undefined);
+    const e = editing();
+    if (e && !has(e.gws)) setEditing(undefined);
   });
 
   /** 選ぶ行を変える。名前を変える・閉じる確認は、その行のものなので、やめる。 */
