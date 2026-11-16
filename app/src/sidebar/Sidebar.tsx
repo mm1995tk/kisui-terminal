@@ -1,6 +1,6 @@
 // 左の一覧（D1）：GUI のワークスペース（gws/model.ts。#231）のうち、フォーカスしているものだけを出す（#283）。マシンの見出しは無い。
-// ほかのワークスペースへ移るのは、ヘッダーの名前を押して開く切り替えのポップアップ（リーダーの w w。connect/WorkspaceSwitcher.tsx）。並べ替えもそこと、リーダーの w J / w K。
-// 一覧の並び順はユーザーが並べた順。ヘッダーの名前の横に「並びの何番目か / 全部でいくつか」を出す。
+// ほかのワークスペースへ移るのは、ヘッダーの名前を押して開く切り替えのポップアップ（リーダーの w w（#296 で w に変わる）。connect/WorkspaceSwitcher.tsx）。並べ替えもそこと、リーダーの w J / w K。
+// 一覧の並び順はユーザーが並べた順。ヘッダーの名前の右に切り替えの印（⇄）を出す。
 // 帯には、そのワークスペースが今出しているターミナルのタブのマシンの名前と接続の状態（丸）を小さく出す。つながっていないマシンのタブは、最後に分かった名前で薄く出す。
 // フォーカスしている帯の下にはツリーを出す（プライマリで shj が動いているときだけ。動いていなければ帯だけ）（D2、描くのは tree/TreeView.tsx）。
 // スクロールしても、上にフォーカスしている帯と親フォルダを固定する（D3）。
@@ -50,6 +50,8 @@ import {
   type TabsSnapshot,
 } from "./model.ts";
 import { ICON } from "./icons.ts";
+import { leaderKeyName } from "../commands.ts";
+import { IS_MAC } from "../guiKeys.ts";
 import { startDrag } from "./drag.ts";
 import "./sidebar.css";
 
@@ -261,8 +263,6 @@ export function Sidebar(
             <ul class="bands">
               <BandItem
                 row={f().row}
-                index={f().index}
-                total={f().total}
                 {...handlers(props, openTreeMenu, openBandMenu, openAddMenu)}
               />
             </ul>
@@ -555,12 +555,11 @@ function EmptyHeader(props: {
           type="button"
           class="band-btn-wide band-switch"
           aria-haspopup="dialog"
-          title={T("sidebar.switchWorkspace")}
+          title={switchTip()}
           onClick={() => props.onSwitch?.()}
         >
           <span class="band-title">{T("sidebar.noFocus")}</span>
-          <span class="band-pos">{props.total}</span>
-          <Nf c={ICON.down} />
+          <SwitchIcon />
         </button>
       </Show>
       <button
@@ -585,16 +584,39 @@ function EmptyHeader(props: {
   );
 }
 
+/** 切り替えのボタンのツールチップ：「Switch workspace」と、窓を開くキー（リーダーの後の w。#296） */
+function switchTip(): string {
+  return T("sidebar.switchWorkspace", { leader: leaderKeyName(IS_MAC) });
+}
+
+/** 切り替えのボタンの印：双方向の矢印（⇄。GitHub のダッシュボードの切り替えと同じ印） */
+function SwitchIcon(): JSX.Element {
+  return (
+    <svg
+      class="band-swap"
+      width="14"
+      height="14"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.5"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M2 5.5h11M10.5 3l2.5 2.5-2.5 2.5M14 10.5H3M5.5 8 3 10.5 5.5 13" />
+    </svg>
+  );
+}
+
 /**
  * 帯のヘッダー（名前と切り替え・「+」・鉛筆・✕）。上に固定する。
- * 名前のボタンは、押すと切り替えのポップアップを開く（名前の横に、並びの何番目か / 全部でいくつかと ▾）。
+ * 名前のボタンは、押すと切り替えのポップアップを開く（名前の右に ⇄。名前から ⇄ までが 1 つのボタンで、右の「+」・鉛筆・✕とは線で区切る）。
  * ヘッダーは行にして、ボタンを並べる。名前を変えている間は、名前のボタンの所が入力欄の div になる（ボタンの中に入力欄もボタンも置けない）。
  */
 function BandHeader(
   props: Handlers & {
     row: Row;
-    index: number;
-    total: number;
     editing: Handlers["renaming"];
   },
 ): JSX.Element {
@@ -621,17 +643,12 @@ function BandHeader(
               aria-haspopup="dialog"
               aria-label={T("sidebar.switchWorkspaceFrom", {
                 title: b().title,
-                n: props.index,
-                total: props.total,
               })}
-              title={T("sidebar.switchWorkspace")}
+              title={switchTip()}
               onClick={() => props.onSwitch?.()}
             >
               <span class="band-title">{b().title}</span>
-              <span class="band-pos">
-                {props.index} / {props.total}
-              </span>
-              <Nf c={ICON.down} />
+              <SwitchIcon />
             </button>
           }
         >
@@ -765,9 +782,7 @@ function revealTabs(
 }
 
 /** 帯 1 つ（ヘッダーとコンテンツ）。 */
-function BandItem(
-  props: Handlers & { row: Row; index: number; total: number },
-): JSX.Element {
+function BandItem(props: Handlers & { row: Row }): JSX.Element {
   const b = () => props.row.band;
   const tabs = () => props.row.tabs;
   // この帯の名前をその場で変えているときだけ、その内容

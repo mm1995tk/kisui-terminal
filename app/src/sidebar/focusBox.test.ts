@@ -13,10 +13,14 @@ function rule(selector: string): string {
   return css.slice(css.indexOf("{", start), css.indexOf("}", start));
 }
 
-test("帯はいつも箱（li）で、フォーカスしていると枠と見出しの色が変わる", () => {
+test("帯は平ら（li）で、枠・角の丸み・周りの余白が無く、フォーカスしていると見出しの色が変わる（#297）", () => {
   assert.match(tsx, /<li\s+class="band-item"[^>]*data-focused=/);
-  assert.match(rule(".band-item"), /border: 1px solid var\(--gh-/);
-  assert.match(rule(".band-item[data-focused]"), /border-color: var\(--gh-/);
+  assert.doesNotMatch(
+    rule(".band-item"),
+    /^\s*(border|border-radius|margin|overflow)\s*:/m,
+  );
+  assert.match(rule(".band-item[data-focused]"), /--head-bg: /);
+  assert.doesNotMatch(rule(".band-item[data-focused]"), /^\s*border/m);
 });
 
 test("箱の色は --gh-* だけで、黄色とマシンの色は使わない", () => {
@@ -56,10 +60,14 @@ test("鉛筆・✕・「+」はいつも出す（#258）。つかむ所と押せ
   assert.match(rule(".grip"), /width: 6px;/);
 });
 
-test("箱は overflow: clip で中身を角に切り取る（hidden / auto は sticky を壊す）", () => {
-  const box = rule(".band-item");
-  assert.match(box, /overflow: clip;/);
-  assert.doesNotMatch(box, /overflow: (hidden|auto|scroll)/);
+test("帯は overflow の入れ物を作らない（hidden / auto は中の sticky を壊す）", () => {
+  assert.doesNotMatch(rule(".band-item"), /overflow/);
+});
+
+test("切り替えのボタンは、名前から ⇄ までが 1 つで、「n / N」と ▾ は出さない（#297）", () => {
+  assert.match(tsx, /<SwitchIcon \/>/);
+  assert.doesNotMatch(tsx, /band-pos|ICON\.down/);
+  assert.match(rule(".band-switch"), /border-right: 1px solid/);
 });
 
 test("ヘッダーとコンテンツの境目に太い線があり、マシンの色の縦線は無い（#234）", () => {

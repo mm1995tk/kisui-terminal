@@ -256,9 +256,8 @@ export const en = {
   "sidebar.closeWorkspace": "Close workspace",
   "sidebar.files": "Files of {title}",
   "sidebar.changes": "Changes of {title}",
-  "sidebar.switchWorkspace": "Switch workspace",
-  "sidebar.switchWorkspaceFrom":
-    "{title} (workspace {n} of {total}): switch workspace",
+  "sidebar.switchWorkspace": "Switch workspace ({leader}, then w)",
+  "sidebar.switchWorkspaceFrom": "{title}: switch workspace",
   "sidebar.noFocus": "No workspace selected",
   "sidebar.tabsOf": "Tabs of {title}",
   "sidebar.incognito": "Private",
