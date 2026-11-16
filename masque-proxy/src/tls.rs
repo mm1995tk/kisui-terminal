@@ -58,10 +58,17 @@ impl Identity {
     }
 
     /// 証明書と鍵（PKCS#8）を DER で書く。鍵は持ち主だけが読めるようにする。
+    /// 鍵のファイルがすでにあれば消してから作る。権限（mode）は新しく作るときにしか付かず、
+    /// 広い権限のファイルに書くと、その権限が残るため。
     pub(crate) fn write(&self, cert: &Path, key: &Path) -> io::Result<()> {
         std::fs::write(cert, &self.certificate_der)?;
+        match std::fs::remove_file(key) {
+            Ok(()) => {}
+            Err(e) if e.kind() == io::ErrorKind::NotFound => {}
+            Err(e) => return Err(e),
+        }
         let mut options = std::fs::OpenOptions::new();
-        options.write(true).create(true).truncate(true);
+        options.write(true).create_new(true);
         #[cfg(unix)]
         std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
         io::Write::write_all(&mut options.open(key)?, &self.key_der)
@@ -81,5 +88,30 @@ impl Identity {
             .map_err(io::Error::other)?;
         config.alpn_protocols = vec![alpn.to_vec()];
         Ok(config)
+    }
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+    use std::os::unix::fs::PermissionsExt;
+
+    #[test]
+    fn key_is_owner_only_even_if_the_file_existed() {
+        let dir = std::env::temp_dir().join(format!("masque-proxy-tls-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let (cert, key) = (dir.join("cert.der"), dir.join("key.der"));
+        std::fs::write(&key, b"old").unwrap();
+        std::fs::set_permissions(&key, std::fs::Permissions::from_mode(0o644)).unwrap();
+
+        let identity = Identity::generate(IpAddr::from([127, 0, 0, 1])).unwrap();
+        identity.write(&cert, &key).unwrap();
+        let mode = std::fs::metadata(&key).unwrap().permissions().mode() & 0o777;
+        let read = Identity::read(&cert, &key).unwrap();
+        std::fs::remove_dir_all(&dir).unwrap();
+
+        assert_eq!(mode, 0o600);
+        assert_eq!(read.key_der, identity.key_der);
+        assert_eq!(read.certificate_der, identity.certificate_der);
     }
 }
