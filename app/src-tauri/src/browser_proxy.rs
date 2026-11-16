@@ -17,7 +17,8 @@
 //!   鍵はファイルに置かず、ログインのキーチェーンの項目（generic password）に置く。
 //! - 用意するのは、内蔵ブラウザで初めてタブを開くとき（`ready`）。断られた・信頼させられなかった・macOS 13 以前なら、
 //!   プロキシを使わず、今までどおり開く。断られたことはデータのフォルダの `browser-proxy-declined` に覚え、もう聞かない
-//!   （消すと次の起動で聞き直す）。
+//!   （消すと次の起動で聞き直す）。初めての信頼を断られたら、作った証明書と鍵の項目を消す。作り直した証明書の信頼を
+//!   断られたら、信頼されたまま切れていない古い方を、切れるまで使い続ける（`plan`）。
 //! - 信頼を外すのは、README の `security` のコマンド（アプリに操作は無い）。
 
 use std::ffi::{c_char, c_void, CString};
@@ -267,13 +268,40 @@ fn save(kc: &SecKeychain, s: &Stored) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
-/// 使う身元（鍵と証明書）を決める。キーチェーンから読み、無ければ作り、信頼されていなければ信頼を聞く。
+/// 覚えている身元をどうするか。キーチェーンに触れずに決める（`prepare_identity` が従う）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Plan {
+    /// そのまま使う
+    Use,
+    /// プロキシを使わない（聞かない）
+    Skip,
+    /// 信頼を聞く（覚えている証明書が、切れる時ではないが信頼されていない）
+    Ask,
+    /// 作り直して、新しい方の信頼を聞く
+    Renew,
+    /// 作って、信頼を聞く（覚えている身元が無い）
+    Make,
+}
+
+/// `declined` は断ったことを覚えているか、`stored` は覚えている身元の（切れる時刻、信頼されているか）、`now` は今の UNIX 時刻の秒。
+/// 断ったことを覚えていれば、聞かない（作らない・作り直さない）。それでも、信頼されたまま切れていない証明書は使い続ける
+/// （作り直しの信頼を断ったときは、古い方を切れるまで使う）。
+fn plan(declined: bool, stored: Option<(u64, bool)>, now: u64) -> Plan {
+    match stored {
+        Some((not_after, true)) if !needs_renewal(not_after, now) => Plan::Use,
+        Some((not_after, true)) if declined && not_after > now => Plan::Use,
+        _ if declined => Plan::Skip,
+        None => Plan::Make,
+        Some((not_after, _)) if needs_renewal(not_after, now) => Plan::Renew,
+        Some(_) => Plan::Ask,
+    }
+}
+
+/// 使う身元（鍵と証明書）を決める（`plan`）。キーチェーンから読み、無ければ作り、信頼されていなければ信頼を聞く。
 /// 使えなければ None。メインスレッドの外で呼ぶ（macOS の確認の答えを待つ）。
 fn prepare_identity(data_dir: Option<&Path>) -> Option<Identity> {
-    let declined = data_dir.map(|d| d.join(DECLINED_FILE));
-    if declined.as_deref().is_some_and(Path::exists) {
-        return None;
-    }
+    let declined_file = data_dir.map(|d| d.join(DECLINED_FILE));
+    let declined = declined_file.as_deref().is_some_and(Path::exists);
     let kc = match SecKeychain::default() {
         Ok(kc) => kc,
         Err(e) => {
@@ -289,40 +317,68 @@ fn prepare_identity(data_dir: Option<&Path>) -> Option<Identity> {
         }
     };
     let now = unix_now();
-    let current = match stored {
-        Some(s) if !needs_renewal(s.not_after, now) => s,
-        // 切れそうなもの（または切れたもの）は作り直す。新しい方を信頼させられなければ、まだ切れていない古い方を使う
-        Some(old) => return renew(&kc, old, now, declined.as_deref()),
-        None => {
+    let state = stored.as_ref().map(|s| (s.not_after, stored_is_trusted(s)));
+    match plan(declined, state, now) {
+        Plan::Use => stored.map(|s| s.identity),
+        Plan::Skip => None,
+        Plan::Ask => first_trust(&kc, stored?, declined_file.as_deref()),
+        Plan::Renew => renew(&kc, stored?, now, declined_file.as_deref()),
+        Plan::Make => {
             let s = generate(now)?;
-            // 信頼を断られても、次に聞くときは同じ証明書を使う（キーチェーンに証明書を重ねて入れない）
+            // 信頼に失敗しても（断られたのでなければ）、次に聞くときは同じ証明書を使う（キーチェーンに証明書を重ねて入れない）
             if let Err(e) = save(&kc, &s) {
                 eprintln!("kisui-terminal: cannot keep the browser proxy key in the keychain: {e}");
                 return None;
             }
-            s
+            first_trust(&kc, s, declined_file.as_deref())
         }
-    };
-    let cert = SecCertificate::from_der(current.identity.certificate_der()).ok()?;
-    if is_trusted(&cert) || ask_trust(&cert, declined.as_deref()) {
-        Some(current.identity)
-    } else {
-        None
+    }
+}
+
+fn stored_is_trusted(s: &Stored) -> bool {
+    SecCertificate::from_der(s.identity.certificate_der()).is_ok_and(|c| is_trusted(&c))
+}
+
+/// 信頼されていない（初めての）証明書の信頼を聞く。断られたら、断ったことを覚え、作った証明書と鍵の項目を消す
+/// （断った人のキーチェーンに残さない。残すと、kisui-terminal を更新したあと、項目を読んでよいかを macOS が聞く）。
+fn first_trust(kc: &SecKeychain, s: Stored, declined_file: Option<&Path>) -> Option<Identity> {
+    let cert = SecCertificate::from_der(s.identity.certificate_der()).ok()?;
+    match ask_trust(&cert) {
+        Asked::Trusted => Some(s.identity),
+        Asked::Declined => {
+            remember_declined(declined_file);
+            forget(s.identity.certificate_der());
+            remove_item(kc);
+            None
+        }
+        Asked::Failed => None,
     }
 }
 
 /// 切れそうな身元を作り直す。新しい方を信頼させられたら、キーチェーンの項目を差し替え、古い証明書と信頼を消す。
-fn renew(kc: &SecKeychain, old: Stored, now: u64, declined: Option<&Path>) -> Option<Identity> {
-    let old_cert = SecCertificate::from_der(old.identity.certificate_der()).ok();
-    let old_usable = old.not_after > now && old_cert.as_ref().is_some_and(is_trusted);
+/// 新しい方を信頼させられなければ、新しい証明書を消し、まだ切れていない（信頼された）古い方を使う。断られたら、覚える
+/// （次の起動からは聞かず、古い方を切れるまで使う。`plan`）。
+fn renew(
+    kc: &SecKeychain,
+    old: Stored,
+    now: u64,
+    declined_file: Option<&Path>,
+) -> Option<Identity> {
+    let old_usable = old.not_after > now && stored_is_trusted(&old);
     let Some(new) = generate(now) else {
         return old_usable.then_some(old.identity);
     };
     let new_cert = SecCertificate::from_der(new.identity.certificate_der()).ok()?;
-    if !ask_trust(&new_cert, declined) {
-        // 新しい証明書はキーチェーンに入れたので消す（覚えないので、残すと同じ名前の証明書が重なる）
-        forget(new.identity.certificate_der());
-        return old_usable.then_some(old.identity);
+    match ask_trust(&new_cert) {
+        Asked::Trusted => {}
+        asked => {
+            if asked == Asked::Declined {
+                remember_declined(declined_file);
+            }
+            // 新しい証明書はキーチェーンに入れたので消す（覚えないので、残すと同じ名前の証明書が重なる）
+            forget(new.identity.certificate_der());
+            return old_usable.then_some(old.identity);
+        }
     }
     if let Err(e) = save(kc, &new) {
         // 次の起動では古い方を読むが、それが切れていれば、また作り直して聞く
@@ -331,6 +387,15 @@ fn renew(kc: &SecKeychain, old: Stored, now: u64, declined: Option<&Path>) -> Op
         forget(old.identity.certificate_der());
     }
     Some(new.identity)
+}
+
+/// キーチェーンの鍵の項目を消す。
+fn remove_item(kc: &SecKeychain) {
+    if let Ok((_, item)) =
+        find_generic_password(Some(&[kc.clone()]), KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT)
+    {
+        item.delete();
+    }
 }
 
 /// 証明書が、名前 `localhost` の TLS のサーバーとして、この Mac に信頼されているか。
@@ -352,16 +417,25 @@ extern "C" {
     ) -> i32;
 }
 
+/// 信頼を聞いた答え。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Asked {
+    Trusted,
+    /// 利用者が取り消した
+    Declined,
+    /// 信頼させられなかった（キーチェーンに入れられないなど）
+    Failed,
+}
+
 /// 証明書をログインのキーチェーンに入れ、用途を SSL、名前を `localhost` に限って信頼させる
 /// （`security add-trusted-cert -r trustRoot -p ssl -s localhost` と同じ）。macOS がパスワードを聞く。
-/// 信頼させられたら true。断られたら、覚えて次から聞かない。
-fn ask_trust(cert: &SecCertificate, declined: Option<&Path>) -> bool {
+fn ask_trust(cert: &SecCertificate) -> Asked {
     if let Err(e) = cert.add_to_keychain(None) {
         if e.code() != ERR_SEC_DUPLICATE_ITEM {
             eprintln!(
                 "kisui-terminal: cannot add the browser proxy certificate to the keychain: {e}"
             );
-            return false;
+            return Asked::Failed;
         }
     }
     let settings = CFArray::from_CFTypes(&[trust_settings()]);
@@ -377,27 +451,22 @@ fn ask_trust(cert: &SecCertificate, declined: Option<&Path>) -> bool {
         0 => {}
         ERR_AUTHORIZATION_CANCELED | ERR_SEC_USER_CANCELED => {
             eprintln!("kisui-terminal: the browser proxy certificate was not trusted; the built-in browser goes without the proxy");
-            if let Some(p) = declined {
-                if let Err(e) = remember_declined(p) {
-                    eprintln!("kisui-terminal: cannot write {}: {e}", p.display());
-                }
-            }
-            return false;
+            return Asked::Declined;
         }
         s => {
             eprintln!("kisui-terminal: cannot trust the browser proxy certificate (OSStatus {s})");
-            return false;
+            return Asked::Failed;
         }
     }
     // 信頼の設定が評価に効くまで、少し待つことがある
     for _ in 0..10 {
         if is_trusted(cert) {
-            return true;
+            return Asked::Trusted;
         }
         std::thread::sleep(Duration::from_millis(200));
     }
     eprintln!("kisui-terminal: the browser proxy certificate is still not trusted after setting its trust");
-    false
+    Asked::Failed
 }
 
 /// 信頼の設定 1 つ：用途 SSL、名前 `localhost`、根として信頼。
@@ -419,11 +488,17 @@ fn trust_settings() -> CFDictionary<CFType, CFType> {
     ])
 }
 
-fn remember_declined(p: &Path) -> std::io::Result<()> {
-    if let Some(d) = p.parent() {
-        std::fs::create_dir_all(d)?;
+/// 断られたことを覚える（次の起動から聞かない。`plan`）。
+fn remember_declined(p: Option<&Path>) {
+    let Some(p) = p else { return };
+    let r = match p.parent() {
+        Some(d) => std::fs::create_dir_all(d),
+        None => Ok(()),
     }
-    std::fs::write(p, b"")
+    .and_then(|()| std::fs::write(p, b""));
+    if let Err(e) = r {
+        eprintln!("kisui-terminal: cannot write {}: {e}", p.display());
+    }
 }
 
 /// 使わなくなった証明書を、キーチェーンと信頼の設定から消す（`security delete-certificate -t`。信頼の設定があれば、
@@ -598,6 +673,29 @@ mod tests {
     }
 
     #[test]
+    fn what_to_do_with_the_kept_identity() {
+        let now = 1_800_000_000;
+        let day = 24 * 60 * 60;
+        let fresh = now + 200 * day;
+        let soon = now + 10 * day;
+        let past = now - day;
+        // 断っていない
+        assert_eq!(plan(false, None, now), Plan::Make);
+        assert_eq!(plan(false, Some((fresh, true)), now), Plan::Use);
+        assert_eq!(plan(false, Some((fresh, false)), now), Plan::Ask);
+        assert_eq!(plan(false, Some((soon, true)), now), Plan::Renew);
+        assert_eq!(plan(false, Some((soon, false)), now), Plan::Renew);
+        assert_eq!(plan(false, Some((past, true)), now), Plan::Renew);
+        // 断った：聞かない。作り直しの信頼を断ったあとも、信頼されたまま切れていない古い方は使い続ける
+        assert_eq!(plan(true, None, now), Plan::Skip);
+        assert_eq!(plan(true, Some((fresh, true)), now), Plan::Use);
+        assert_eq!(plan(true, Some((soon, true)), now), Plan::Use);
+        assert_eq!(plan(true, Some((fresh, false)), now), Plan::Skip);
+        assert_eq!(plan(true, Some((soon, false)), now), Plan::Skip);
+        assert_eq!(plan(true, Some((past, true)), now), Plan::Skip);
+    }
+
+    #[test]
     fn the_certificate_is_a_localhost_server_certificate() {
         let identity = Identity::generate(COMMON_NAME, VALIDITY).unwrap();
         let cert = SecCertificate::from_der(identity.certificate_der()).unwrap();
@@ -656,6 +754,9 @@ mod tests {
         let s2 = generate(unix_now()).unwrap();
         save(&kc, &s2).unwrap();
         let back2 = load(&kc).unwrap().unwrap();
+        // 断られたときに消せる
+        remove_item(&kc);
+        let gone = load(&kc);
         let _ = std::process::Command::new("/usr/bin/security")
             .arg("delete-keychain")
             .arg(&path)
@@ -664,5 +765,6 @@ mod tests {
         assert!(matches!(first, Ok(None)));
         assert_eq!(back.identity.key_der(), s.identity.key_der());
         assert_eq!(back2.identity.key_der(), s2.identity.key_der());
+        assert!(matches!(gone, Ok(None)));
     }
 }
