@@ -223,3 +223,34 @@ describe("ファイルツリーと CHANGES の境目（#152）", () => {
     );
   });
 });
+
+describe("タブの段とファイルツリーの境目（#284）", () => {
+  it("高さの上限は 10〜90% に収め、決めていなければ 40%。設定の値があればそれが元の大きさ", () => {
+    assert.equal(sizeOf({}, "tabs"), 40);
+    assert.equal(sizeOf({}, "tabs", 25), 25);
+    assert.equal(sizeOf({ tabs: 60 }, "tabs", 25), 60);
+    assert.equal(clampBorder("tabs", 3), 10);
+    assert.equal(clampBorder("tabs", 99), 90);
+    assert.equal(clampBorder("tabs", 33.4), 33);
+  });
+
+  it("1 回のキーで 5% 動き、端を超えない。設定の値から動き出せる。戻すと元の大きさ（設定の値）", () => {
+    assert.equal(sizeOf(applyMove({}, "tabs", 5), "tabs"), 45);
+    assert.equal(sizeOf(applyMove({}, "tabs", 5, 90, 25), "tabs", 25), 30);
+    assert.equal(sizeOf(applyMove({ tabs: 12 }, "tabs", -5), "tabs"), 10);
+    assert.equal(sizeOf(applyMove({ tabs: 88 }, "tabs", 5), "tabs"), 90);
+    const s = withSize({ changes: 200 }, "tabs", 70);
+    assert.deepEqual(withoutSize(s, "tabs"), { changes: 200 });
+    assert.equal(sizeOf(withoutSize(s, "tabs"), "tabs", 25), 25);
+  });
+
+  it("覚えて読み戻す。範囲外の値は捨てる", () => {
+    const s = memory();
+    saveSizes(s, { tabs: 55 });
+    assert.deepEqual(loadSizes(s), { tabs: 55 });
+    assert.deepEqual(
+      loadSizes(memory({ "shijimi.paneSizes": '{"tabs":95}' })),
+      {},
+    );
+  });
+});

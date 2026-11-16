@@ -27,17 +27,16 @@
   white-space: nowrap;
   cursor: default;
   user-select: none;
-  /* キーで動かしてフォーカスした行が、上に固定された見出し・帯・親のフォルダの行（top と同じ式）と、
-     下に固定された CHANGES（--sidebar-changes-height、Sidebar.tsx が入れる）に隠れないようにする */
+  /* キーで動かしてフォーカスした行が、上に固定された親のフォルダの行（top と同じ式）に隠れないようにする
+     （ファイルツリーの段は、CHANGES とは別にスクロールするので、下には何も重ならない） */
   scroll-margin-top: calc(var(--tree-sticky-top, 0px) + var(--tree-depth, 0) * 22px);
-  scroll-margin-bottom: var(--sidebar-changes-height, 0px);
 }
 .tree-row:not(.tree-truncated) {
   cursor: pointer;
 }
 
 /* 開いたフォルダの行は、中身（.tree-group の中）をスクロールしている間だけ上に固定する（D3）。
-   深さごとに 1 行ずつ下にずらして親から順に積む。押し出される子の行は親の行の下に潜るよう、深いほど下に描く。--tree-sticky-top は上に固定するほか（見出しと帯）の高さ。
+   深さごとに 1 行ずつ下にずらして親から順に積む。押し出される子の行は親の行の下に潜るよう、深いほど下に描く。--tree-sticky-top は、段の上に固定するものの高さ（今は無いので 0）。
    後ろの行が透けないよう、背景を敷く。固定されているあいだ（data-stuck、Sidebar.tsx が付ける）はモックの色にする */
 .tree-row[data-sticky] {
   position: sticky;

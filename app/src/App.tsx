@@ -75,6 +75,7 @@ import {
   applyMove,
   CHANGES_BORDER,
   KEY_STEP,
+  LIMITS,
   loadSidebarOpen,
   loadSizes,
   resizeAction,
@@ -83,6 +84,7 @@ import {
   saveSizes,
   SPLIT_KEY_STEP,
   sizeOf,
+  TABS_BORDER,
   withoutSize,
   withSize,
   type Border,
@@ -101,6 +103,8 @@ import {
   adoptFocus,
   band,
   buildSidebar,
+  focusedRow,
+  shownIsBrowser,
   unsetTitle,
   gwsRows,
   health,
@@ -295,7 +299,12 @@ export function App(props: {
 }): JSX.Element {
   const api = props.api ?? tauriShell;
   const [loaded, setLoaded] = createSignal<
-    | { config: ConfigMachine[]; browser: boolean; shortcutProblems: string[] }
+    | {
+        config: ConfigMachine[];
+        browser: boolean;
+        shortcutProblems: string[];
+        tabsHeight?: number;
+      }
     | { error: string }
     | null
   >(null);
@@ -310,6 +319,7 @@ export function App(props: {
           config: g.machines,
           browser: g.browser,
           shortcutProblems,
+          tabsHeight: g.sidebarTabsHeight ?? undefined,
         });
       },
       (e) => setLoaded({ error: String(e) }),
@@ -327,6 +337,7 @@ export function App(props: {
             store={props.store}
             config={v.config}
             browser={v.browser}
+            tabsHeight={v.tabsHeight}
             shortcutProblems={v.shortcutProblems}
           />
         );
@@ -344,6 +355,8 @@ function Workbench(props: {
   browser?: boolean;
   /** 設定の [gui.shortcuts] の間違い（あればお知らせに出す） */
   shortcutProblems?: string[];
+  /** タブの段の高さの上限の元の値（設定の [gui.sidebar] tabs-height。サイドバーの高さに対する %）。無ければ 40 */
+  tabsHeight?: number;
 }): JSX.Element {
   const api = props.api;
   const store = props.store ?? browserStore();
@@ -598,7 +611,8 @@ function Workbench(props: {
     const top = f ? trees.get(f.target)?.get(f.id)?.scrollTop : undefined;
     if (top !== undefined)
       requestAnimationFrame(() => {
-        if (nav) nav.scrollTop = top;
+        const el = treeScroller();
+        if (el) el.scrollTop = top;
       });
   }
   // リサイズモード（Cmd+R / Ctrl+Shift+R・パレットの「リサイズ」）か。境界を動かすキーは GUI が受ける
@@ -625,11 +639,19 @@ function Workbench(props: {
   // ファイルツリーと CHANGES の境目をリサイズモードで選んでいるか（CHANGES が出ていないときは選べない）
   const litChanges = () =>
     resizeMode() && resizeSel() === CHANGES_BORDER && changesShown();
+  // タブの段とファイルツリーの境目をリサイズモードで選んでいるか（3 段に分けているときだけ選べる）
+  const litTabs = () =>
+    resizeMode() && resizeSel() === TABS_BORDER && tabsShown();
   const lit = (b: Border) =>
     dragging() === b ||
     (b === "changes"
       ? litChanges()
-      : resizeMode() && litSplit() === undefined && !litChanges());
+      : b === "tabs"
+        ? litTabs()
+        : resizeMode() &&
+          litSplit() === undefined &&
+          !litChanges() &&
+          !litTabs());
   const [asks, setAsks] = createSignal<AskpassRequest[]>([]);
   // マシンのダイアログ（リーダーの m）を出しているか
   const [machinesOpen, setMachinesOpen] = createSignal(false);
@@ -912,9 +934,32 @@ function Workbench(props: {
 
   /** 今の窓で効く境界の上限（app.css の clamp・changes.css の max-height と同じ）。 */
   function maxOf(b: Border = "sidebar"): number {
+    if (b === "tabs") return LIMITS.tabs[1];
     return b === "changes"
       ? Math.min(640, window.innerHeight / 2)
       : Math.min(640, window.innerWidth / 2);
+  }
+
+  /** タブの段の高さの上限の今の値（%）。決めていなければ設定の [gui.sidebar] tabs-height、それも無ければ 40。 */
+  const tabsPct = () => sizeOf(sizes(), "tabs", props.tabsHeight);
+
+  /** 画面に出ているタブの段の高さ（サイドバーの高さに対する %）と、ポインタ 1px あたりの %。段が出ていなければ undefined。 */
+  function shownTabs(): { pct: number; perPx: number } | undefined {
+    const ul = appEl?.querySelector<HTMLElement>(".tab-rows");
+    const box = ul?.closest<HTMLElement>(".band-item");
+    if (!ul || !box || !tabsShown()) return undefined;
+    const total = box.getBoundingClientRect().height;
+    if (total <= 0) return undefined;
+    return {
+      pct: (ul.getBoundingClientRect().height / total) * 100,
+      perPx: 100 / total,
+    };
+  }
+
+  /** sizes の tabs を、画面に出ているタブの段の高さにしたもの（出ていなければ、今の値のまま）。 */
+  function withShownTabs(s: PaneSizes): PaneSizes {
+    const t = shownTabs();
+    return withSize(s, "tabs", t ? t.pct : tabsPct(), maxOf("tabs"));
   }
 
   /** 画面に出ている CHANGES の一覧の高さ。一覧が無ければ undefined。 */
@@ -935,6 +980,20 @@ function Workbench(props: {
     const a = resizeAction(key);
     switch (a.kind) {
       case "nudge": {
+        // タブの段とファイルツリーの境目は上下だけ動かす（下へ動かすとタブの段が高くなる）
+        if (litTabs()) {
+          if (a.axis === "y")
+            changeSizes(
+              applyMove(
+                // 動かし始めは、画面に出ているタブの段の高さ（タブが少なく、上限より低いとき、見えない値だけが動かないように）
+                withShownTabs(sizes()),
+                "tabs",
+                a.sign * KEY_STEP.tabs,
+                maxOf("tabs"),
+              ),
+            );
+          break;
+        }
         // ファイルツリーと CHANGES の境目は上下だけ動かす（上へ動かすと CHANGES が高くなる）
         if (litChanges()) {
           if (a.axis === "y")
@@ -964,18 +1023,27 @@ function Workbench(props: {
         break;
       }
       case "select": {
-        // サイドバーの幅、ファイルツリーと CHANGES の境目（CHANGES が出ているとき）、ペインどうしの境界（木の順）の順に回す
+        // サイドバーの幅、タブの段とファイルツリーの境目（3 段に分けているとき）、ファイルツリーと CHANGES の境目（CHANGES が出ているとき）、ペインどうしの境界（木の順）の順に回す
         const order: (string | null)[] = [
           null,
+          ...(tabsShown() ? [TABS_BORDER] : []),
           ...(changesShown() ? [CHANGES_BORDER] : []),
           ...termBars().map((b) => b.key),
         ];
-        const cur = litChanges() ? CHANGES_BORDER : (litSplit() ?? null);
+        const cur = litTabs()
+          ? TABS_BORDER
+          : litChanges()
+            ? CHANGES_BORDER
+            : (litSplit() ?? null);
         const i = order.indexOf(cur);
         setResizeSel(order[(i + a.step + order.length) % order.length]);
         break;
       }
       case "reset": {
+        if (litTabs()) {
+          changeSizes(withoutSize(sizes(), "tabs"));
+          break;
+        }
         if (litChanges()) {
           changeSizes(withoutSize(sizes(), "changes"));
           break;
@@ -1045,6 +1113,27 @@ function Workbench(props: {
           "changes",
           height + (startY - ev.clientY),
           maxOf("changes"),
+        ),
+      );
+    });
+  }
+
+  /**
+   * タブの段とファイルツリーの境目のドラッグ。下へ動かすとタブの段が高くなる。
+   * 動かし始めの高さは、画面に出ているタブの段の高さ（タブが少ないと、決めた上限より低い）。
+   */
+  function dragTabs(e: PointerEvent) {
+    if (e.button !== 0) return;
+    const t = shownTabs();
+    if (!t) return;
+    const startY = e.clientY;
+    trackPointer("tabs", e, (ev) => {
+      changeSizes(
+        withSize(
+          sizes(),
+          "tabs",
+          t.pct + (ev.clientY - startY) * t.perPx,
+          maxOf("tabs"),
         ),
       );
     });
@@ -1422,16 +1511,25 @@ function Workbench(props: {
       if (restore !== undefined) {
         const top = restore;
         requestAnimationFrame(() => {
-          if (nav) nav.scrollTop = top;
+          const el = treeScroller();
+          if (el) el.scrollTop = top;
         });
       }
     });
   });
 
-  function rememberScroll() {
+  /** ファイルツリーをスクロールする要素（3 段のサイドバーのファイルツリーの段。#284）。出ていなければ undefined。 */
+  function treeScroller(): HTMLElement | undefined {
+    return nav?.querySelector<HTMLElement>(".tree-section") ?? undefined;
+  }
+
+  function rememberScroll(e: Event) {
+    // 一覧（nav）の中のスクロールを、キャプチャで全部受ける。覚えるのはファイルツリーの段のものだけ
+    if (e.target !== treeScroller()) return;
     if (untrack(walking)) return; // ツリーを出していない間の位置は、ツリーのものではない
     const f = focus();
-    if (f && nav) trees.get(f.target)?.setScroll(f.id, nav.scrollTop);
+    if (f)
+      trees.get(f.target)?.setScroll(f.id, (e.target as HTMLElement).scrollTop);
   }
 
   function treeOf(target: string, id: WorkspaceId) {
@@ -1681,6 +1779,17 @@ function Workbench(props: {
     const f = focus();
     return (
       sidebarOpen() && f !== null && changesOf(f.target, f.id) !== undefined
+    );
+  }
+
+  /** サイドバーを 3 段（タブ・ファイルツリー・CHANGES）に分けて出しているか（タブの段との境目を動かせるか）。ブラウザのタブを出している間は出さない。 */
+  function tabsShown(): boolean {
+    const r = focusedRow(rows());
+    return (
+      sidebarOpen() &&
+      r !== null &&
+      r.row.band.showTree &&
+      !shownIsBrowser(r.row.tabs)
     );
   }
 
@@ -3244,10 +3353,12 @@ function Workbench(props: {
       ref={appEl}
       data-resizing={resizeMode() ? "" : undefined}
       data-lit-changes={lit("changes") ? "" : undefined}
+      data-lit-tabs={lit("tabs") ? "" : undefined}
       data-sidebar={sidebarOpen() ? "open" : "closed"}
       style={{
         "--sidebar-w": `${sizeOf(sizes(), "sidebar")}px`,
         "--changes-h": `${sizeOf(sizes(), "changes")}px`,
+        "--tabs-h": String(tabsPct()),
         ...(colors()[focus()?.target ?? ""]
           ? { "--machine-color": colors()[focus()!.target] }
           : {}),
@@ -3282,6 +3393,8 @@ function Workbench(props: {
         onChangesKey={changesShjKey}
         onChangesExplorer={focusExplorer}
         onChangesLeave={() => focusTerminal()}
+        onTabsResize={dragTabs}
+        onTabsResizeReset={() => changeSizes(withoutSize(sizes(), "tabs"))}
         onChangesResize={dragChanges}
         onChangesResizeReset={() =>
           changeSizes(withoutSize(sizes(), "changes"))
@@ -3290,7 +3403,10 @@ function Workbench(props: {
         currentOf={currentOf}
         ref={(el) => {
           nav = el;
-          el.addEventListener("scroll", rememberScroll, { passive: true });
+          el.addEventListener("scroll", rememberScroll, {
+            capture: true,
+            passive: true,
+          });
         }}
       />
       <div

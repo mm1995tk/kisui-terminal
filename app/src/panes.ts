@@ -3,6 +3,7 @@
 //
 // - sidebar：サイドバーとその右の境界（サイドバーの幅 px）。値は覚えておき、GUI を起動し直しても残す。
 // - changes：サイドバーの中の、ファイルツリーと CHANGES の境目（#152）。決めるのは CHANGES の一覧の高さ（px）で、上へ動かすと高くなる。値は覚えておく。
+// - tabs：サイドバーの中の、タブの段とファイルツリーの境目（#284）。決めるのはタブの段の高さの上限（サイドバーの高さに対する %）で、下へ動かすと高くなる。値は覚えておく。元の大きさは設定の [gui.sidebar] tabs-height（無ければ 40）。
 // - 右の欄の中の、欄どうしの境界（#18）：割合は kisui serve が分割の木に持つ（terminal/grid.ts）。ここは動かすキーだけを決める。
 // キー：Tab / Shift+Tab で動かす境界を替え、←→（h l）か↑↓（k j）で動かす。縦の境界は左右、横の境界は上下だけ効く。
 
@@ -10,8 +11,8 @@ import type { KeyValueStore } from "./ssh/machines.ts";
 import { shortcutCommand } from "./commands.ts";
 import type { KeyLike } from "./guiKeys.ts";
 
-/** 動かせる境界。サイドバーの右（sidebar）と、サイドバーの中のファイルツリーと CHANGES の境目（changes）。 */
-export type Border = "sidebar" | "changes";
+/** 動かせる境界。サイドバーの右（sidebar）と、サイドバーの中の、タブの段とファイルツリーの境目（tabs）・ファイルツリーと CHANGES の境目（changes）。 */
+export type Border = "sidebar" | "changes" | "tabs";
 
 /** 境界の、決めた値。無いものは元の大きさ。 */
 export type PaneSizes = Partial<Record<Border, number>>;
@@ -20,18 +21,21 @@ export type PaneSizes = Partial<Record<Border, number>>;
 export const DEFAULT_SIZES: Readonly<Record<Border, number>> = {
   sidebar: 300,
   changes: 143, // 6 行半（changes.css の元の上限）
+  tabs: 40, // サイドバーの高さの %（設定の [gui.sidebar] tabs-height で変えられる）
 };
 
 /** 境界ごとの下限と上限。 */
 export const LIMITS: Readonly<Record<Border, readonly [number, number]>> = {
   sidebar: [200, 640],
   changes: [44, 640], // 下限は 2 行
+  tabs: [10, 90], // %。src-tauri/src/config.rs の TABS_HEIGHT_RANGE と同じ
 };
 
 /** キーを 1 回押したときに境界が動く量（px）。 */
 export const KEY_STEP: Readonly<Record<Border, number>> = {
   sidebar: 20,
   changes: 22, // 1 行（行の高さ）
+  tabs: 5, // %
 };
 
 const STORAGE_KEY = "shijimi.paneSizes";
@@ -77,9 +81,9 @@ export function saveSizes(
   }
 }
 
-/** 境界 b の今の値（決めていなければ元の大きさ）。 */
-export function sizeOf(sizes: PaneSizes, b: Border): number {
-  return sizes[b] ?? DEFAULT_SIZES[b];
+/** 境界 b の今の値（決めていなければ fallback、それも無ければ元の大きさ。fallback は設定ファイルで決めた元の大きさ）。 */
+export function sizeOf(sizes: PaneSizes, b: Border, fallback?: number): number {
+  return sizes[b] ?? fallback ?? DEFAULT_SIZES[b];
 }
 
 /** sizes の b を v にしたもの（範囲に収める）。 */
@@ -170,14 +174,18 @@ export function applyMove(
   border: Border,
   step: number,
   max?: number,
+  fallback?: number,
 ): PaneSizes {
-  let cur = sizeOf(sizes, border);
+  let cur = sizeOf(sizes, border, fallback);
   if (max !== undefined) cur = Math.min(cur, max);
   return withSize(sizes, border, cur + step, max);
 }
 
 /** リサイズモードで、ファイルツリーと CHANGES の境目の名前（動かす境界を替える Tab の順に入る。ペインどうしの境界のキーとは別の名前）。 */
 export const CHANGES_BORDER = "@changes";
+
+/** リサイズモードで、タブの段とファイルツリーの境目の名前（CHANGES_BORDER と同じく、ペインどうしの境界のキーとは別の名前）。 */
+export const TABS_BORDER = "@tabs";
 
 /** リサイズモードで、欄どうしの境界を 1 回のキーで動かす割合（動かす節の幅か高さに対する割合）。 */
 export const SPLIT_KEY_STEP = 0.02;

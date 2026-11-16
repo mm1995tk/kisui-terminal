@@ -2,6 +2,8 @@
    マシンごとの色（D4）は --machine-color。Sidebar.tsx が帯（.band-item）の style に入れる（決め方は colors.ts）。
    上下の固定（D3）は Sidebar.tsx の説明のとおり、sticky と要素の組み方で決める。
    一覧（.sidebar）はスクロールし、フォーカスしているワークスペースの帯だけを出す（#283）。
+   shj が動いているとき（.sidebar[data-sections]）は、帯の中を「タブ（.tab-rows）」「ファイルツリー（.tree-section）」「CHANGES（.changes）」の 3 段に分け、
+   一覧はスクロールせず、タブとファイルツリーの段がそれぞれの中でスクロールする（#284）。
    接続の状態の丸は親 #271 のモック Main.dc.html に合わせる
    （接続中・再接続中は塗り、未接続は枠だけ。色は theme.css）。 */
 
@@ -46,16 +48,22 @@
 }
 
 /* 端末のスクロールバー（TerminalView の scrollbarWidth: 4）と同じ細さ（#17） */
-.sidebar::-webkit-scrollbar {
+.sidebar::-webkit-scrollbar,
+.sidebar .tab-rows::-webkit-scrollbar,
+.tree-section::-webkit-scrollbar {
   width: 4px;
 }
 
-.sidebar::-webkit-scrollbar-thumb {
+.sidebar::-webkit-scrollbar-thumb,
+.sidebar .tab-rows::-webkit-scrollbar-thumb,
+.tree-section::-webkit-scrollbar-thumb {
   background: var(--gh-border-strong);
   border-radius: 2px;
 }
 
-.sidebar::-webkit-scrollbar-track {
+.sidebar::-webkit-scrollbar-track,
+.sidebar .tab-rows::-webkit-scrollbar-track,
+.tree-section::-webkit-scrollbar-track {
   background: transparent;
 }
 
@@ -113,6 +121,80 @@
 }
 .sidebar > .bands {
   padding-top: 4px;
+}
+
+/* 3 段（#284）。一覧は縦に積む入れ物にして、帯を高さいっぱいに伸ばす。ヘッダーは固定の高さ、ファイルツリーの段が残りを使う。
+   タブの段の高さの上限は、帯の高さに対する % で、--tabs-h（App.tsx が入れる）が決める。タブが少なければ中身の高さまで縮める（余りはファイルツリーの段へ）。
+   ブラウザのタブを出している間（data-panes-hidden。#268）は、ファイルツリーと CHANGES を見えなくし、タブの段に上限を付けない */
+.sidebar[data-sections] {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.sidebar[data-sections] > .bands {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+.band-item[data-sections] {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+/* ヘッダーと、名前を断られた理由は、固定の高さ */
+.band-item[data-sections] > :not(.tab-rows):not(.panes) {
+  flex: none;
+}
+.band-item[data-sections] > .tab-rows {
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: calc(var(--tabs-h, 40) * 1%);
+  overflow-y: auto;
+}
+.band-item[data-sections][data-panes-hidden] > .tab-rows {
+  flex: 1 1 auto;
+  max-height: none;
+}
+.band-item[data-panes-hidden] > .panes {
+  display: none;
+}
+/* ファイルツリーの段と CHANGES を入れる所。タブの段の残りを使う */
+.panes {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  min-height: 0;
+}
+.tree-section {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  border-top: 1px solid var(--gh-border);
+}
+/* タブの段とファイルツリーの段の境目をつかむ所（高さ 0 の帯に、上下に 3px ずつはみ出すつまみを重ねる。changes.css の .changes-resizer と同じ作り） */
+.tabs-border {
+  position: relative;
+  z-index: 103;
+  flex: none;
+  height: 0;
+}
+.tabs-resizer {
+  position: absolute;
+  top: -3px;
+  right: 0;
+  left: 0;
+  height: 6px;
+  cursor: row-resize;
+  touch-action: none;
+}
+.app[data-lit-tabs] .tabs-resizer {
+  background: var(--machine-color, var(--gh-accent-text));
+}
+/* 3 段でないとき、一覧がスクロールする。タブの行が上に固定したヘッダーに隠れないようにする */
+.sidebar:not([data-sections]) .tab-row {
+  scroll-margin-top: var(--band-height);
 }
 
 .health {
@@ -368,17 +450,15 @@ div.band-main {
   border-color: var(--gh-text-muted);
 }
 
-/* 上への固定（D3）。帯 → ツリーのフォルダの行（tree.css）の順に積む。
+/* 上への固定（D3）。帯 → ツリーのフォルダの行（tree.css）の順に積む。3 段にしたとき（#284）は、ヘッダーはスクロールの外にいるので、フォルダの行はファイルツリーの段の上端から積む（tree.css の --tree-sticky-top の元の値 0）。
    z-index はフォルダの行（100 - 深さ）より上にする。
-   CHANGES（changes.css）は下に固定し、z-index 102 でフォルダの行より上 */
+   CHANGES（changes.css）は z-index 102 でフォルダの行より上 */
 .band-slot[data-sticky] {
   position: sticky;
   top: 0;
   z-index: 101;
 }
-.sidebar .tree {
-  --tree-sticky-top: var(--band-height);
-}
+
 /* 固定されたものの境目に影を落とす（モックと同じ）。一番下に固定されたものの下に落とす */
 .sidebar [data-shadow] {
   box-shadow: 0 6px 8px -4px var(--sticky-shadow);

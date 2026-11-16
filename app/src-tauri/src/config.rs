@@ -8,6 +8,7 @@
 //! どちらにも無ければ使わない。
 //! `[gui.browser] passkey_sites`（パスキーのときに外のブラウザへ移り、Cookie を写して戻ってよいサイト。#206）と
 //! `passkey_browser`（移る先のブラウザ）も、`enabled` と同じく、書いてあるファイルのものを使い、両方にあれば `config.local.toml` が勝つ。
+//! `[gui.sidebar] tabs-height`（タブの段の高さの上限。サイドバーの高さに対する %。10〜90 の整数。#284）も、書いてあるファイルのものを使い、両方にあれば `config.local.toml` が勝つ。
 //! `[gui.shortcuts]`（近道。`"Ctrl+Shift+N" = "workspace.new"` のように、キー = コマンドの名前）は、キーごとに重ね、同じキーは `config.local.toml` が勝つ。
 //! キーの書き方とコマンドの名前が使えるかは、画面側が確かめる（間違いはお知らせに出し、起動は止めない）。
 //! 窓が設定を書くときは `config.local.toml` に書く（`config.toml` は home-manager が読み取り専用で置くことがある）。
@@ -52,7 +53,20 @@ struct Gui {
     browser: Option<Browser>,
     /// 近道（キー = コマンドの名前）
     shortcuts: Option<BTreeMap<String, String>>,
+    /// サイドバー（#284）
+    sidebar: Option<Sidebar>,
 }
+
+/// `[gui.sidebar]`。
+#[derive(Deserialize)]
+struct Sidebar {
+    /// shj が動いているときの、タブの段の高さの上限（サイドバーの高さに対する %）。書いていなければ画面の元の値（40）
+    #[serde(rename = "tabs-height")]
+    tabs_height: Option<Spanned<i64>>,
+}
+
+/// `[gui.sidebar] tabs-height` に書ける範囲（%）。app/src/panes.ts の LIMITS.tabs と同じ。
+const TABS_HEIGHT_RANGE: std::ops::RangeInclusive<i64> = 10..=90;
 
 /// `[gui.browser]`。
 #[derive(Deserialize)]
@@ -88,6 +102,9 @@ pub struct GuiConfig {
     pub passkey_browser: PasskeyBrowser,
     /// 設定で足した近道（`[gui.shortcuts]`。キーの順）
     pub shortcuts: Vec<ConfigShortcut>,
+    /// タブの段の高さの上限の元の値（`[gui.sidebar] tabs-height`。サイドバーの高さに対する %）。書いていなければ None（画面が 40 にする）
+    #[serde(rename = "sidebarTabsHeight")]
+    pub sidebar_tabs_height: Option<u8>,
 }
 
 /// 設定ファイルに書いた近道 1 つ。
@@ -109,6 +126,7 @@ struct Parsed {
     passkey_sites: Option<Vec<String>>,
     passkey_browser: Option<PasskeyBrowser>,
     shortcuts: Option<BTreeMap<String, String>>,
+    sidebar_tabs_height: Option<u8>,
 }
 
 #[derive(Deserialize)]
@@ -193,6 +211,9 @@ pub fn load_gui(dir: &Path) -> Result<GuiConfig, String> {
                 }
                 if let Some(b) = p.passkey_browser {
                     out.passkey_browser = b;
+                }
+                if let Some(h) = p.sidebar_tabs_height {
+                    out.sidebar_tabs_height = Some(h);
                 }
                 // 近道はキーごとに重ねる（同じキーは後のファイルが勝つ）
                 if let Some(m) = p.shortcuts {
@@ -412,6 +433,10 @@ fn parse_all(text: &str) -> Result<Parsed, (Option<usize>, String)> {
         None => (None, None, None),
     };
     let shortcuts = gui.shortcuts;
+    let sidebar_tabs_height = match gui.sidebar.and_then(|s| s.tabs_height) {
+        Some(h) => Some(check_tabs_height(text, &h)?),
+        None => None,
+    };
     let machines = match gui.machines {
         Some(entries) => Some(check_machines(text, entries)?),
         None => None,
@@ -422,6 +447,7 @@ fn parse_all(text: &str) -> Result<Parsed, (Option<usize>, String)> {
         passkey_sites,
         passkey_browser,
         shortcuts,
+        sidebar_tabs_height,
     })
 }
 
@@ -472,6 +498,23 @@ fn check_passkey_browser(
             Some(line_of(text, s.span().start)),
             "gui.browser.passkey_browser: chrome か firefox を書きます".to_string(),
         )),
+    }
+}
+
+/// `[gui.sidebar] tabs-height` を確かめる（範囲外は間違いにする）。
+fn check_tabs_height(text: &str, h: &Spanned<i64>) -> Result<u8, (Option<usize>, String)> {
+    let v = *h.get_ref();
+    if TABS_HEIGHT_RANGE.contains(&v) {
+        Ok(v as u8)
+    } else {
+        Err((
+            Some(line_of(text, h.span().start)),
+            format!(
+                "gui.sidebar.tabs-height: {}〜{} の整数（サイドバーの高さに対する %）を書きます",
+                TABS_HEIGHT_RANGE.start(),
+                TABS_HEIGHT_RANGE.end()
+            ),
+        ))
     }
 }
 
@@ -921,6 +964,40 @@ mod tests {
         let sub = d.join("new").join("kisui-terminal");
         write_mascot_name(&sub, "neko").unwrap();
         assert_eq!(mascot_name(&sub).as_deref(), Some("neko"));
+        let _ = fs::remove_dir_all(&d);
+    }
+
+    // [gui.sidebar] tabs-height（#284）。書いていなければ None、config.local.toml が勝つ。範囲外・整数でない値は間違い
+    #[test]
+    fn sidebar_tabs_height() {
+        let d = temp_dir("sidebar");
+        assert_eq!(load_gui(&d).unwrap().sidebar_tabs_height, None);
+        fs::write(d.join("config.toml"), "[gui.sidebar]\ntabs-height = 30\n").unwrap();
+        assert_eq!(load_gui(&d).unwrap().sidebar_tabs_height, Some(30));
+        fs::write(
+            d.join("config.local.toml"),
+            "[[gui.machines]]\nssh = \"b\"\n",
+        )
+        .unwrap();
+        assert_eq!(load_gui(&d).unwrap().sidebar_tabs_height, Some(30));
+        fs::write(
+            d.join("config.local.toml"),
+            "[gui.sidebar]\ntabs-height = 55\n",
+        )
+        .unwrap();
+        assert_eq!(load_gui(&d).unwrap().sidebar_tabs_height, Some(55));
+        for bad in ["5", "91", "-1", "40.5", "\"40\""] {
+            fs::write(
+                d.join("config.local.toml"),
+                format!("[gui.sidebar]\ntabs-height = {bad}\n"),
+            )
+            .unwrap();
+            let e = load_gui(&d).unwrap_err();
+            assert!(
+                e.starts_with(&format!("{}:2: ", d.join("config.local.toml").display())),
+                "{bad}: {e}"
+            );
+        }
         let _ = fs::remove_dir_all(&d);
     }
 
