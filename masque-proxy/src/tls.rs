@@ -57,6 +57,11 @@ impl Identity {
         &self.key_der
     }
 
+    /// 証明書と鍵を TLS に使えるか（読めるか）を確かめる。覚えておいたものが壊れていないかを、起動の前に知るため。
+    pub fn check(&self) -> io::Result<()> {
+        self.server_config(b"h3").map(|_| ())
+    }
+
     /// 起動のたびに作る身元。`listen_ip` が `localhost`・`127.0.0.1`・`::1` のほかなら、それも名前に足す。
     pub(crate) fn generate_ephemeral(listen_ip: IpAddr) -> io::Result<Identity> {
         Self::generate_for(Some(listen_ip), COMMON_NAME, VALIDITY)
@@ -137,6 +142,21 @@ impl Identity {
             .map_err(io::Error::other)?;
         config.alpn_protocols = vec![alpn.to_vec()];
         Ok(config)
+    }
+}
+
+#[cfg(test)]
+mod check_tests {
+    use super::*;
+
+    #[test]
+    fn broken_identities_fail_the_check() {
+        let good = Identity::generate("check", Duration::from_secs(60 * 60)).unwrap();
+        assert!(good.check().is_ok());
+        let broken_key = Identity::from_der(good.certificate_der().to_vec(), b"broken".to_vec());
+        assert!(broken_key.check().is_err());
+        let broken_cert = Identity::from_der(b"broken".to_vec(), good.key_der().to_vec());
+        assert!(broken_cert.check().is_err());
     }
 }
 

@@ -249,11 +249,17 @@ fn generate(now: u64) -> Option<Stored> {
 /// キーチェーンから読む。無ければ None、読めなければ（利用者が断ったなど）Err。
 fn load(kc: &SecKeychain) -> Result<Option<Stored>, String> {
     match find_generic_password(Some(&[kc.clone()]), KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT) {
-        // 形の合わないもの（壊れた・前の形式）は、無いものとして作り直す
-        Ok((password, _)) => Ok(decode(&password)),
+        // 形の合わないもの（壊れた・前の形式）と、証明書か鍵を読めないものは、無いものとして作り直す
+        // （残すと、起動のたびにプロキシの起動に失敗し、項目を消すまで使えない）
+        Ok((password, _)) => Ok(decode(&password).filter(usable)),
         Err(e) if e.code() == ERR_SEC_ITEM_NOT_FOUND => Ok(None),
         Err(e) => Err(e.to_string()),
     }
+}
+
+/// 覚えておいた身元を、プロキシ（TLS）と信頼の確かめに使えるか。
+fn usable(s: &Stored) -> bool {
+    s.identity.check().is_ok() && SecCertificate::from_der(s.identity.certificate_der()).is_ok()
 }
 
 fn save(kc: &SecKeychain, s: &Stored) -> Result<(), String> {
@@ -564,6 +570,20 @@ mod tests {
         b.extend_from_slice(&10u32.to_be_bytes());
         b.extend_from_slice(b"short");
         assert!(decode(&b).is_none());
+    }
+
+    #[test]
+    fn items_with_a_broken_key_or_certificate_are_not_used() {
+        let good = Identity::generate(COMMON_NAME, VALIDITY).unwrap();
+        let stored = |identity| Stored {
+            not_after: 1_900_000_000,
+            identity,
+        };
+        assert!(usable(&stored(good.clone())));
+        let broken_key = Identity::from_der(good.certificate_der().to_vec(), b"broken".to_vec());
+        assert!(!usable(&stored(broken_key)));
+        let broken_cert = Identity::from_der(b"broken".to_vec(), good.key_der().to_vec());
+        assert!(!usable(&stored(broken_cert)));
     }
 
     #[test]
