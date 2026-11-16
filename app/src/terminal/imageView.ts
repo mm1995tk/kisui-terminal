@@ -4,6 +4,7 @@
 // 場所のキーなので、リーダーの木（commands.ts）には載せない。`?` の一覧に出す行は placeKeys.ts の表にあり、
 // 受ける判定（imageKey）と合っているかは placeKeys.test.ts が確かめる。
 
+import { isComposingKey } from "../ime.ts";
 import type { KeyLike } from "../guiKeys.ts";
 
 /** 倍率の下限と上限（ペインに収めた大きさを 1 とする）。 */
@@ -42,7 +43,7 @@ const VIM: Record<string, Dir> = {
  * Ctrl・Alt・Meta を押していれば null。全体の倍率の Cmd+=・Ctrl+= などは、ここまで来ずに GUI が先に受ける。
  */
 export function imageKey(e: KeyLike): ImageKey | null {
-  if (e.ctrlKey || e.altKey || e.metaKey || e.isComposing) return null;
+  if (e.ctrlKey || e.altKey || e.metaKey || isComposingKey(e)) return null;
   switch (e.key) {
     case "+":
     case "=":

@@ -2,6 +2,7 @@
 // core/app.go の HandleExplorerKey と README の「ファイルツリー」）に合わせる。
 // DOM を使わないので node --test で確かめられる。行を動かす・メニューの操作をするのは TreeView.tsx と App.tsx。
 
+import { isComposingKey } from "../ime.ts";
 import type { TreeMenuAction } from "./menu.ts";
 import { rowAction, type RowAction, type TreeRow } from "./model.ts";
 
@@ -28,6 +29,7 @@ export interface TreeKey {
   metaKey?: boolean;
   altKey?: boolean;
   isComposing?: boolean;
+  keyCode?: number;
 }
 
 /**
@@ -46,7 +48,7 @@ export function treeKey(
   row: Pick<TreeRow, "dir" | "expanded" | "truncated">,
   e: TreeKey,
 ): TreeKeyAction | null {
-  if (row.truncated || e.isComposing) return null;
+  if (row.truncated || isComposingKey(e)) return null;
   if (e.ctrlKey || e.metaKey || e.altKey) return null;
   const move = (to: TreeMove): TreeKeyAction => ({ kind: "move", to });
   const menu = (action: TreeMenuAction): TreeKeyAction => ({

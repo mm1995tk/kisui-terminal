@@ -1,6 +1,7 @@
 // マシンのダイアログ（リーダーの m。MachineDialog.tsx）の、画面の仕組み（Solid）に依らない部分。
 // 一覧の行の組み立てと、ダイアログの中のキー、操作ができるかの判定。node --test で確かめる。
 
+import { isComposingKey } from "../ime.ts";
 import { T } from "../i18n/index.ts";
 import type { Health, MachineGroup } from "../sidebar/model.ts";
 import type { KeyLike } from "../guiKeys.ts";
@@ -74,7 +75,7 @@ export type MachineKey =
  * Alt・Cmd・Ctrl を重ねたものは受けない（Shift は、G と ? の字が出るので受ける。Ctrl+J・Ctrl+K は、ほかの一覧と同じく次・前の行）。
  */
 export function machineKey(e: KeyLike): MachineKey | null {
-  if (e.isComposing) return null;
+  if (isComposingKey(e)) return null;
   const step = listStep(e);
   if (step !== 0) return { kind: "move", to: step === 1 ? "next" : "prev" };
   if (e.ctrlKey || e.metaKey || e.altKey) return null;
@@ -168,7 +169,7 @@ export type PickerKey =
  * マシンのダイアログの動かし方（j k g G・矢印・Ctrl+J / Ctrl+K）に、決める Enter を足したもの。
  */
 export function pickerKey(e: KeyLike): PickerKey | null {
-  if (e.isComposing) return null;
+  if (isComposingKey(e)) return null;
   if (e.key === "Enter" && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey)
     return { kind: "choose" };
   const k = machineKey(e);

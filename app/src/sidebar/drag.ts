@@ -7,6 +7,8 @@
 // 行の DOM は、ドラッグの途中でも作り直される（サイドバーの行は、ターミナルの題名や git の知らせで作り直される）。
 // そのため、行の要素を覚えず、動くたびに items() で引き直す。動かしている行も、そのたびに印を付け直す。
 
+import { isComposingKey } from "../ime.ts";
+
 /** 並びの 1 行（key は行を指すもの、mid は画面での縦の真ん中）。 */
 export interface DragItem {
   key: string;
@@ -274,6 +276,7 @@ export function startDrag(e: PointerEvent, spec: DragSpec): void {
   const up = () => finish(true);
   const cancel = () => finish(false);
   const key = (ev: KeyboardEvent) => {
+    if (isComposingKey(ev)) return;
     if (ev.key !== "Escape") return;
     ev.preventDefault();
     ev.stopPropagation();

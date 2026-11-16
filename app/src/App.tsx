@@ -736,7 +736,7 @@ function Workbench(props: {
       return;
     }
     // リサイズモード（#526）：キーは境界を動かすのに使い、ターミナルには送らない。入るのは Cmd+R / Ctrl+Shift+R（Alt+R は端末に渡す）
-    const rname = e.isComposing ? null : resizeKeyName(e, IS_MAC);
+    const rname = resizeKeyName(e, IS_MAC);
     if (rname && resizeMode()) {
       e.preventDefault();
       e.stopPropagation();

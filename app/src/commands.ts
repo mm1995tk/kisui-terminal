@@ -6,6 +6,7 @@
 // 動きの中身は App.tsx の runCommand が id で受ける。docs/key-design.md の表も一緒に直す。
 // DOM には触らない（node --test で確かめられる）。
 
+import { isComposingKey } from "./ime.ts";
 import type { KeyLike } from "./guiKeys.ts";
 import { T } from "./i18n/index.ts";
 import {
@@ -555,8 +556,7 @@ export function childrenAt(
  */
 function nodeFor(list: Node[], e: KeyLike): Node | undefined {
   if (e.ctrlKey || e.metaKey || e.altKey) return undefined;
-  const unknown =
-    !!e.isComposing || e.key === "Process" || e.key === "Unidentified";
+  const unknown = isComposingKey(e) || e.key === "Unidentified";
   const find = (by: "key" | "code") =>
     list.find((n) =>
       n.type === "group"
@@ -959,7 +959,7 @@ export function route(state: RouterState, e: KeyLike, env: Env): Routed {
     if (e.repeat) return { consume: true, state };
     state = IDLE;
   }
-  if (e.isComposing) return { consume: false, state };
+  if (isComposingKey(e)) return { consume: false, state };
 
   const canEnter = !env.dialogOpen && !env.resizeMode;
   if (isLeaderKey(e, env.mac)) {

@@ -11,4 +11,7 @@ describe("窓を閉じるキー", () => {
     assert.equal(isCancelKey({ key: "Escape", isComposing: true }), false);
     assert.equal(isCancelKey({ key: "Enter", isComposing: false }), false);
   });
+  it("変換を取り消す Esc が keyCode 229 で来ても閉じない（macOS の WKWebView）", () => {
+    assert.equal(isCancelKey({ key: "Escape", keyCode: 229 }), false);
+  });
 });

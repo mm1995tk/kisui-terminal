@@ -19,6 +19,7 @@
 // ブラウザのタブを出している間は、ファイルツリーと CHANGES を見えなくし、タブの段に高さの上限を付けない（外さないので、開いているフォルダ・選んでいる行・境目の位置は残る。#268）。
 // 選んでも帯・行の位置と高さが変わらないよう、鉛筆・✕・つかむ所は出ていないときも場所を空けておく（sidebar.css）。
 // 組み立ては model.ts、並び順は order.ts、色の決め方は colors.ts、見た目は sidebar.css。
+import { isComposingKey } from "../ime.ts";
 import { T } from "../i18n/index.ts";
 import {
   createEffect,
@@ -984,6 +985,7 @@ function PopupMenu(props: {
       if (!el.contains(e.target as Node)) close();
     };
     const key = (e: KeyboardEvent) => {
+      if (isComposingKey(e)) return;
       if (e.key === "Escape") {
         e.preventDefault();
         close();

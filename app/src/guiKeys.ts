@@ -4,6 +4,8 @@
 // Cmd+` は macOS が使うので使わない。
 // DOM には触らない（node --test で確かめられる）。
 
+import { isComposingKey } from "./ime.ts";
+
 /** KeyboardEvent のうち、ここで使う項目。 */
 export interface KeyLike {
   key: string;
@@ -49,6 +51,7 @@ export function isEditorKey(e: {
   altKey?: boolean;
   metaKey?: boolean;
   isComposing?: boolean;
+  keyCode?: number;
 }): boolean {
   return (
     e.key.toLowerCase() === "e" &&
@@ -56,7 +59,7 @@ export function isEditorKey(e: {
     !e.shiftKey &&
     !e.altKey &&
     !e.metaKey &&
-    !e.isComposing
+    !isComposingKey(e)
   );
 }
 

@@ -1,5 +1,6 @@
 // ツリーの行を右クリックしたときのメニュー。見た目は見出しのメニュー（sidebar.css の .machine-menu）と同じ。
 // 開いたら最初の項目にキーを向ける。項目を選ぶ・メニューの外を押す・Esc・スクロール・窓が見えなくなる、のどれかで閉じる。
+import { isComposingKey } from "../ime.ts";
 import { For, onCleanup, onMount, type JSX } from "solid-js";
 
 import {
@@ -26,6 +27,7 @@ export function TreeMenu(props: {
       if (!el.contains(e.target as Node)) close();
     };
     const key = (e: KeyboardEvent) => {
+      if (isComposingKey(e)) return;
       if (e.key === "Escape") {
         e.preventDefault();
         close();

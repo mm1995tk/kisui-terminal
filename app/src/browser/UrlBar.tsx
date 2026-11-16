@@ -1,6 +1,7 @@
 // 内蔵ブラウザのページの上の端の URL バー（#232）。ブラウザのタブを出している間、今のページの URL（中継しているタブは中継前の元の URL）を出す。
 // 押すか、リーダーの o u で書き換えられる。Enter で開き（URL でなければ Google で検索する。tabs.ts の urlOrSearch）、Esc か、ほかへキーが移ると元の URL に戻す。
 // 上の端に置き、ページはその下に下がる（data-overlay-top。BrowserArea.tsx の TOP_SELECTOR）。
+import { isComposingKey } from "../ime.ts";
 import { T } from "../i18n/index.ts";
 import { createSignal, type JSX } from "solid-js";
 
@@ -86,7 +87,7 @@ export function UrlBar(props: {
           setInvalid(false);
         }}
         onKeyDown={(e) => {
-          if (e.isComposing) return;
+          if (isComposingKey(e)) return;
           if (isCancelKey(e)) {
             e.preventDefault();
             setDraft(null);
