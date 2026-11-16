@@ -1,7 +1,8 @@
 # GUI の殻（app/src-tauri）と、kisui serve が欄ごとに動かす coneko-term の wasm 殻（emulator）を、リポジトリの根から cargo で動かすための workspace。
+# masque-proxy は内蔵ブラウザ（macOS）に使わせる中継型のプロキシ。ほかの member に依存しない独立した crate（#290。安定したら別のリポジトリに切り出す）。
 # Cargo.lock と target/ は根に置く。
 [workspace]
-members = ["app/src-tauri", "emulator"]
+members = ["app/src-tauri", "emulator", "masque-proxy"]
 resolver = "2"
 
 # workspace では profile は根にしか書けない
