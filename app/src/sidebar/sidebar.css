@@ -97,8 +97,8 @@
   outline-offset: -1px;
 }
 
-/* ワークスペースの帯（li.band-item。#234）。角の丸い箱で、ヘッダー（.band-slot > .band）とコンテンツ（.tab-rows）に分ける。字下げはしない。
-   選んでも位置と高さが変わらないよう、箱の余白・枠の太さはいつも同じにして、枠の色だけを変える（フォーカスしている帯は枠と見出しの色が明るい）。
+/* ワークスペースの帯（li.band-item。#234）。平らな帯（枠・角の丸み・周りの余白は無い。#297）で、ヘッダー（.band-slot > .band）とコンテンツ（.tab-rows）に分ける。字下げはしない。
+   フォーカスしている帯は見出しの色が明るい。
    --region-bg は不透明な色にする（上下に固定した帯・フォルダの行の後ろが透けないように） */
 .band-item {
   --region-bg: var(--gh-bg-side);
@@ -112,15 +112,7 @@
   );
   --sidebar-bg: var(--region-bg);
   box-sizing: border-box;
-  margin: 0 6px 6px;
-  border: 1px solid var(--gh-border-strong);
-  border-radius: 8px;
-  /* 中身を角の丸みに切り取る。hidden や auto はスクロールの入れ物を作って中の sticky を壊すが、clip は作らない */
-  overflow: clip;
   background: var(--region-bg);
-}
-.sidebar > .bands {
-  padding-top: 4px;
 }
 
 /* 3 段（#284）。一覧は縦に積む入れ物にして、帯を高さいっぱいに伸ばす。ヘッダーは固定の高さ、ファイルツリーの段が残りを使う。
@@ -363,24 +355,15 @@ div.band-main {
 /* 名前のボタンは押すと切り替えのポップアップを開く。名前の横に「n / N」と ▾ を、名前のボタンの内側に並べる */
 .band-switch {
   gap: 6px;
-  border-radius: 4px;
+  border-right: 1px solid var(--gh-border-strong);
+  border-radius: 0;
 }
 .band-switch:hover {
   background: var(--band-hover);
 }
-.band-pos {
+.band-swap {
   flex: none;
-  padding: 0 5px;
-  border: 1px solid var(--gh-border-strong);
-  border-radius: 8px;
   color: var(--sidebar-muted);
-  font-size: 10px;
-  line-height: 14px;
-  font-variant-numeric: tabular-nums;
-}
-.band-switch .nf {
-  color: var(--sidebar-muted);
-  font-size: 12px;
 }
 /* フォーカスしているワークスペースが無いときの切り替えのボタン（ヘッダーと同じ高さの、枠の付いたボタン） */
 .band-btn-wide {
@@ -447,7 +430,6 @@ div.band-main {
   --head-border: var(--gh-text-muted);
   --tree-hover: var(--gh-bg-hover);
   --changes-hover: var(--gh-bg-hover);
-  border-color: var(--gh-text-muted);
 }
 
 /* 上への固定（D3）。帯 → ツリーのフォルダの行（tree.css）の順に積む。3 段にしたとき（#284）は、ヘッダーはスクロールの外にいるので、フォルダの行はファイルツリーの段の上端から積む（tree.css の --tree-sticky-top の元の値 0）。
@@ -536,8 +518,8 @@ div.band-main {
   box-sizing: border-box;
   display: flex;
   align-items: center;
-  min-height: 46px;
-  padding: 4px 6px 4px 0;
+  min-height: 56px;
+  padding: 8px 6px 8px 0;
 }
 .tab-line:hover {
   background: var(--band-hover);
@@ -547,7 +529,7 @@ div.band-main {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 3px;
   padding: 0;
   border: 0;
   background: transparent;
@@ -559,7 +541,7 @@ div.band-main {
 /* 鉛筆と ✕ は 1 行目の右に重ねる。名前が下に潜らないよう、1 行目の右は空けておく */
 .tab-actions {
   position: absolute;
-  top: 4px;
+  top: 8px;
   right: 6px;
   display: flex;
   gap: 0;

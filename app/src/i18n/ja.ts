@@ -256,9 +256,8 @@ export const ja: Record<Key, string> = {
   "sidebar.closeWorkspace": "ワークスペースを閉じる",
   "sidebar.files": "{title} のファイル",
   "sidebar.changes": "{title} の変更",
-  "sidebar.switchWorkspace": "ワークスペースを切り替える",
-  "sidebar.switchWorkspaceFrom":
-    "{title}（{total} 個中 {n} 番目のワークスペース）：ワークスペースを切り替える",
+  "sidebar.switchWorkspace": "ワークスペースを切り替える（{leader} の後に w）",
+  "sidebar.switchWorkspaceFrom": "{title}：ワークスペースを切り替える",
   "sidebar.noFocus": "ワークスペースを選んでいません",
   "sidebar.tabsOf": "{title} のタブ",
   "sidebar.incognito": "シークレット",
