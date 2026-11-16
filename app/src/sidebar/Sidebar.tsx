@@ -1,5 +1,5 @@
 // 左の一覧（D1）：GUI のワークスペース（gws/model.ts。#231）のうち、フォーカスしているものだけを出す（#283）。マシンの見出しは無い。
-// ほかのワークスペースへ移るのは、ヘッダーの名前を押して開く切り替えのポップアップ（リーダーの w。connect/WorkspaceSwitcher.tsx）。並べ替えもそこと、リーダーの w J / w K。
+// ほかのワークスペースへ移るのは、ヘッダーの名前を押して開く切り替えのポップアップ（リーダーの w w（#296 で w に変わる）。connect/WorkspaceSwitcher.tsx）。並べ替えもそこと、リーダーの w J / w K。
 // 一覧の並び順はユーザーが並べた順。ヘッダーの名前の右に切り替えの印（⇄）を出す。
 // 帯には、そのワークスペースが今出しているターミナルのタブのマシンの名前と接続の状態（丸）を小さく出す。つながっていないマシンのタブは、最後に分かった名前で薄く出す。
 // フォーカスしている帯の下にはツリーを出す（プライマリで shj が動いているときだけ。動いていなければ帯だけ）（D2、描くのは tree/TreeView.tsx）。
@@ -263,8 +263,6 @@ export function Sidebar(
             <ul class="bands">
               <BandItem
                 row={f().row}
-                index={f().index}
-                total={f().total}
                 {...handlers(props, openTreeMenu, openBandMenu, openAddMenu)}
               />
             </ul>
@@ -619,8 +617,6 @@ function SwitchIcon(): JSX.Element {
 function BandHeader(
   props: Handlers & {
     row: Row;
-    index: number;
-    total: number;
     editing: Handlers["renaming"];
   },
 ): JSX.Element {
@@ -786,9 +782,7 @@ function revealTabs(
 }
 
 /** 帯 1 つ（ヘッダーとコンテンツ）。 */
-function BandItem(
-  props: Handlers & { row: Row; index: number; total: number },
-): JSX.Element {
+function BandItem(props: Handlers & { row: Row }): JSX.Element {
   const b = () => props.row.band;
   const tabs = () => props.row.tabs;
   // この帯の名前をその場で変えているときだけ、その内容
