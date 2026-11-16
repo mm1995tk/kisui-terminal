@@ -3189,16 +3189,23 @@ function Workbench(props: {
     setRenamingWs({ gws: g.id, current: g.name, auto: autoName(g.num) });
   }
 
-  /** 入力欄の Enter。空なら、つけた名前を外す（「ws1」の番号の名前に戻る）。断られたら入力欄の下に理由を出し、入力欄は開けておく。 */
+  /** ワークスペースの名前を決める（空なら、つけた名前を外して番号の名前に戻る）。名前の決まりに合わなければ、断る理由を返す（サイドバーの帯と切り替える窓の共通の部分）。 */
+  function renameWorkspace(gid: string, name: string): string | undefined {
+    const bad = nameErrorText(name);
+    if (bad) return bad;
+    setGws((g) => renameGws(g, gid, name));
+    return undefined;
+  }
+
+  /** 入力欄の Enter。断られたら入力欄の下に理由を出し、入力欄は開けておく。 */
   function submitWorkspaceRename(name: string) {
     const r = renamingWs();
     if (!r) return;
-    const bad = nameErrorText(name);
+    const bad = renameWorkspace(r.gws, name);
     if (bad) {
       setWsRenameError(bad);
       return;
     }
-    setGws((g) => renameGws(g, r.gws, name));
     setRenamingWs(null);
     focusTerminal();
   }
@@ -3584,12 +3591,7 @@ function Workbench(props: {
             const g = untrack(gws).list.find((x) => x.id === gid);
             return g ? { current: g.name, auto: autoName(g.num) } : undefined;
           }}
-          onRename={(gid, name) => {
-            const bad = nameErrorText(name);
-            if (bad) return bad;
-            setGws((g) => renameGws(g, gid, name));
-            return undefined;
-          }}
+          onRename={renameWorkspace}
           onClose={(gid) => void closeWorkspace(gid)}
           onCancel={() => setWsSwitcher(false)}
         />
