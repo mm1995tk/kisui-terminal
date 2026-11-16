@@ -352,7 +352,7 @@
 div.band-main {
   cursor: default;
 }
-/* 名前のボタンは押すと切り替えのポップアップを開く。名前の横に「n / N」と ▾ を、名前のボタンの内側に並べる */
+/* 名前のボタンは押すと切り替えのポップアップを開く。名前の右に ⇄ を置き、右の「+」・鉛筆・✕とは右の線で区切る */
 .band-switch {
   gap: 6px;
   border-right: 1px solid var(--gh-border-strong);
