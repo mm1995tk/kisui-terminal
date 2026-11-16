@@ -1,6 +1,7 @@
 // 中継型のプロキシ（nw_relay_hop_create）を設定した WKWebView で URL を順に開き、
 // 開けた URL と本文を標準出力に出す。
-// 使い方: relaycheck <h3 port> <h2 port | 0> <証明書(DER)のパス> <URL>...
+// 使い方: relaycheck <h3 port> <h2 port | 0> <証明書(DER)のパス> <URL | wait:<秒>>...
+// 環境変数: STORE_ID（永続のデータストアの UUID）、TIMEOUT（全体の秒数。既定 60）
 // プロキシの名前は既定で localhost（環境変数 RELAY_HOST で変えられる）。
 // WKWebView では relay_tls_options の検証の block が効かないので、プロキシの証明書は OS に信頼させておく。
 import Cocoa
@@ -31,13 +32,22 @@ let hop = ProxyConfiguration.RelayHop(
     http3RelayEndpoint: endpoint(h3Port)!,
     http2RelayEndpoint: endpoint(h2Port),
     tlsOptions: tls)
-let store = WKWebsiteDataStore.nonPersistent()
+// STORE_ID（UUID）を渡すと、その識別子の永続のデータストアを使う。プロセスをまたいで Alt-Svc を覚えさせ、
+// 次のプロセスでは新しい接続で開くため。渡さなければ、使い捨てのデータストア。
+let storeID = ProcessInfo.processInfo.environment["STORE_ID"].flatMap { UUID(uuidString: $0) }
+let store = storeID.map { WKWebsiteDataStore(forIdentifier: $0) } ?? WKWebsiteDataStore.nonPersistent()
 store.proxyConfigurations = [ProxyConfiguration(relayHops: [hop])]
 
 final class Delegate: NSObject, WKNavigationDelegate {
     func next(_ web: WKWebView) {
         if queue.isEmpty { exit(0) }
         let url = queue.removeFirst()
+        // `wait:<秒>` は、次の URL を開く前に待つ（使っていない接続が閉じるのを待つため）。
+        if url.hasPrefix("wait:"), let seconds = Double(url.dropFirst(5)) {
+            print("== wait \(seconds)s")
+            DispatchQueue.main.asyncAfter(deadline: .now() + seconds) { self.next(web) }
+            return
+        }
         print("== load \(url)")
         web.load(URLRequest(url: URL(string: url)!))
     }
@@ -82,6 +92,7 @@ let window = NSWindow(contentRect: web.frame, styleMask: [.titled], backing: .bu
 window.contentView = web
 let delegate = Delegate()
 web.navigationDelegate = delegate
-DispatchQueue.main.asyncAfter(deadline: .now() + 60) { print("-- timeout"); exit(2) }
+let timeout = Double(ProcessInfo.processInfo.environment["TIMEOUT"] ?? "") ?? 60
+DispatchQueue.main.asyncAfter(deadline: .now() + timeout) { print("-- timeout"); exit(2) }
 delegate.next(web)
 app.run()
