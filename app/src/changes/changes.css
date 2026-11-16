@@ -1,17 +1,14 @@
 /* 差分モードの CHANGES の一覧。ファイルエクスプローラ（tree.css）の下に、細い線で区切って出す。
-   行の高さと左右の余白、色はツリーと同じ（GitHub Dark）。サイドバーの下に固定する（#44）。
-   ツリーが長くても CHANGES はいつも見え、ツリーはその上の場所でスクロールする。
-   固定は sticky の bottom で行う
-   （積む順は sidebar.css の「上への固定」のとおり。z-index 102 は、フォルダの行（100 以下）より上。
-   上に固定する見出し（101）より上に来る。サイドバーが低くて重なるときは、CHANGES が見出しを隠す）。
-   行が多いときは .changes-list の中でスクロールする。 */
+   行の高さと左右の余白、色はツリーと同じ（GitHub Dark）。サイドバーの一番下の段（#44・#284）。
+   タブの段とファイルツリーの段（sidebar.css の .tree-section）はその上にあり、それぞれの中でスクロールするので、
+   ツリーが長くても CHANGES はいつも見える。行が多いときは .changes-list の中でスクロールする。 */
 
 .changes {
   border-top: 1px solid var(--gh-border, var(--gh-indent-guide));
   padding: 4px 0 6px;
-  position: sticky;
-  bottom: 0;
+  position: relative;
   z-index: 102;
+  flex: none;
   background: var(--sidebar-bg, var(--gh-bg-side));
 }
 

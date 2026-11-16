@@ -13,15 +13,19 @@
 // 帯はヘッダー（名前と切り替え・「+」・鉛筆・✕）とコンテンツ（タブの行。ターミナルのタブも内蔵ブラウザ（#202）のタブも、開いた順に 1 つの並びで）に分ける（#234）。
 // タブの行を押すと onTab、行の ✕ で onTabClose、鉛筆で onTabRename。タブを出していれば、その行を光らせる。
 // ヘッダーの「+」は小さなメニューを出し、選んだものを onAddTab に渡す（ターミナル・ターミナル（マシンを選ぶ）・ブラウザ）。
-// ファイルツリーと CHANGES は、今出しているターミナルのタブの行のすぐ下（その行の中）に開く。
-// ブラウザのタブを出している間は、ファイルツリーと CHANGES を見えなくする（外さないので、開いているフォルダ・選んでいる行・境目の位置は残る。#268）。
+// プライマリで shj が動いているとき（ファイルツリーを出すとき）は、ヘッダーの下を「タブ」「ファイルツリー」「CHANGES」の 3 段に分け、段ごとにその中だけでスクロールする（#284）。
+// タブの段の高さには上限（サイドバーの高さの %。設定・境目のドラッグ・リサイズモードで変える）があり、タブが少なければ中身の高さまで縮める。動いていなければ、段に分けず、タブがサイドバーの高さを全部使う。
+// タブを足した・出しているタブが替わったら、その行が見える所までタブの段をスクロールする。
+// ブラウザのタブを出している間は、ファイルツリーと CHANGES を見えなくし、タブの段に高さの上限を付けない（外さないので、開いているフォルダ・選んでいる行・境目の位置は残る。#268）。
 // 選んでも帯・行の位置と高さが変わらないよう、鉛筆・✕・つかむ所は出ていないときも場所を空けておく（sidebar.css）。
 // 組み立ては model.ts、並び順は order.ts、色の決め方は colors.ts、見た目は sidebar.css。
 import { T } from "../i18n/index.ts";
 import {
+  createEffect,
   createMemo,
   createSignal,
   For,
+  on,
   onCleanup,
   onMount,
   Show,
@@ -41,10 +45,11 @@ import {
   focusedRow,
   type Health,
   type Row,
+  tabToReveal,
   type TabItem,
+  type TabsSnapshot,
 } from "./model.ts";
 import { ICON } from "./icons.ts";
-import { termKey } from "../gws/model.ts";
 import { startDrag } from "./drag.ts";
 import "./sidebar.css";
 
@@ -108,6 +113,10 @@ interface Handlers {
   onChangesExplorer?: (target: string, id: WorkspaceId) => void;
   /** CHANGES で Esc・q を押した（端末に戻る） */
   onChangesLeave?: (target: string, id: WorkspaceId) => void;
+  /** タブの段とファイルツリーの境目をつかんだ（App がドラッグを受け持つ） */
+  onTabsResize?: (e: PointerEvent) => void;
+  /** タブの段とファイルツリーの境目をダブルクリックした（高さを設定の値に戻す） */
+  onTabsResizeReset?: () => void;
   /** ファイルツリーと CHANGES の境目をつかんだ（height は画面に出ている一覧の高さ px。App がドラッグを受け持つ） */
   onChangesResize?: (e: PointerEvent, height: number) => void;
   /** 境目をダブルクリックした（高さを元に戻す） */
@@ -176,6 +185,8 @@ export function Sidebar(
         setTreeMenu({ target, id, row, x, y })
     : undefined;
   const focused = createMemo(() => focusedRow(props.rows));
+  // shj が動いているときは、タブ・ファイルツリー・CHANGES の 3 段に分ける（#284）
+  const sections = () => focused()?.row.band.showTree === true;
   let nav!: HTMLElement;
 
   // 固定されているものに data-stuck を付ける（背景と影をモックに合わせる）。
@@ -186,19 +197,15 @@ export function Sidebar(
     let frame = 0;
     const update = () => {
       frame = 0;
-      // 下に固定する CHANGES の高さ（ツリーの行の scroll-margin-bottom。キーで動かした行が隠れないように。行の増減は MutationObserver が拾う）
-      const changes = nav.querySelector<HTMLElement>(".changes");
-      nav.style.setProperty(
-        "--sidebar-changes-height",
-        `${changes?.offsetHeight ?? 0}px`,
-      );
       let last: HTMLElement | null = null;
       for (const el of nav.querySelectorAll<HTMLElement>("[data-sticky]")) {
         const parent = el.parentElement;
         const top = el.getBoundingClientRect().top;
+        // スクロールの入れ物：3 段のときはファイルツリーの段、そうでなければ一覧
+        const box = el.closest<HTMLElement>(".tree-section") ?? nav;
         const at =
-          nav.getBoundingClientRect().top +
-          nav.clientTop +
+          box.getBoundingClientRect().top +
+          box.clientTop +
           (parseFloat(getComputedStyle(el).top) || 0);
         const stuck =
           parent !== null &&
@@ -213,20 +220,16 @@ export function Sidebar(
     const schedule = () => {
       if (frame === 0) frame = requestAnimationFrame(update);
     };
-    nav.addEventListener("scroll", schedule, { passive: true });
+    // ファイルツリーの段のスクロールも拾う（scroll は泡立たないので、キャプチャで受ける）
+    nav.addEventListener("scroll", schedule, { capture: true, passive: true });
     const resize = new ResizeObserver(schedule);
     resize.observe(nav);
-    // 行が増減した・フォーカスが移った。属性は data-panes-hidden だけ見る（data-stuck・data-shadow を付けても回らない。隠した・戻したときに CHANGES の高さを測り直す）
+    // 行が増減した（属性は見ない。data-stuck・data-shadow を付けても回らないように）
     const mutation = new MutationObserver(schedule);
-    mutation.observe(nav, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-      attributeFilter: ["data-panes-hidden"],
-    });
+    mutation.observe(nav, { childList: true, subtree: true });
     schedule();
     onCleanup(() => {
-      nav.removeEventListener("scroll", schedule);
+      nav.removeEventListener("scroll", schedule, { capture: true });
       resize.disconnect();
       mutation.disconnect();
       if (frame !== 0) cancelAnimationFrame(frame);
@@ -237,6 +240,7 @@ export function Sidebar(
     <div class="sidebar-column">
       <nav
         class="sidebar"
+        data-sections={sections() ? "" : undefined}
         aria-label={T("sidebar.workspaces")}
         ref={(el) => {
           nav = el;
@@ -384,6 +388,12 @@ function handlers(
     get onChangesLeave() {
       return props.onChangesLeave;
     },
+    get onTabsResize() {
+      return props.onTabsResize;
+    },
+    get onTabsResizeReset() {
+      return props.onTabsResizeReset;
+    },
     get onChangesResize() {
       return props.onChangesResize;
     },
@@ -454,17 +464,22 @@ function grabTab(
   key: string,
   onMove: NonNullable<Handlers["onTabMove"]>,
 ) {
-  const scroller = (e.currentTarget as HTMLElement).closest<HTMLElement>(
+  const nav = (e.currentTarget as HTMLElement).closest<HTMLElement>(
     "nav.sidebar",
   );
-  if (!scroller) return;
+  if (!nav) return;
+  // 3 段のときは、タブの段がスクロールする
+  const scroller =
+    (nav.hasAttribute("data-sections")
+      ? nav.querySelector<HTMLElement>(".tab-rows")
+      : null) ?? nav;
   startDrag(e, {
     scroller,
     self: key,
     confine: true,
     // 帯もタブの行も、描き直されて作り直されることがあるので、そのたびに一覧から引き直す
     rows: () => {
-      const band = bandElements(scroller).find((el) => el.dataset.gws === gws);
+      const band = bandElements(nav).find((el) => el.dataset.gws === gws);
       return [
         ...(band?.querySelectorAll<HTMLElement>(
           ":scope > ul.tab-rows > li.tab-row[data-key]",
@@ -663,54 +678,50 @@ function BandHeader(
 }
 
 /**
- * 今出しているターミナルのタブの下に開く、ファイルツリーと CHANGES（プライマリで shj が動いている、フォーカスしているワークスペースだけ）。
- * そのタブの行の中に出す。
+ * タブの段の下の、ファイルツリーの段と CHANGES の段（プライマリで shj が動いている、フォーカスしているワークスペースだけ）。
+ * 境目（タブの段との）をつかむ所も、ここに置く。
  */
-function RowPanes(props: Handlers & { row: Row }): JSX.Element {
+function Panes(props: Handlers & { row: Row }): JSX.Element {
   const b = () => props.row.band;
-  // ブラウザのタブを出している間は、外さずに見えなくして、状態を保つ（#268）
-  const hidden = () => shownIsBrowser(props.row.tabs);
+  // ブラウザのタブを出している間は、外さずに見えなくして、状態を保つ（#268。隠すのは帯の data-panes-hidden、sidebar.css）
   return (
-    <div
-      style={{ display: hidden() ? "none" : "contents" }}
-      data-panes-hidden={hidden() ? "" : undefined}
-    >
-      <Show
-        when={
-          b().focused &&
-          b().showTree &&
-          props.treeOf?.(props.row.target, b().id)
-        }
-      >
-        {(rows) => (
-          <TreeView
-            rows={rows()}
-            label={T("sidebar.files", { title: b().title })}
-            onToggle={(p) => props.onToggle?.(props.row.target, b().id, p)}
-            onOpen={(p) => props.onOpen?.(props.row.target, b().id, p)}
-            current={props.currentOf?.(props.row.target, b().id)}
-            onMenu={
-              props.onTreeMenu
-                ? (row, x, y) =>
-                    props.onTreeMenu?.(props.row.target, b().id, row, x, y)
-                : undefined
-            }
-            onAction={
-              props.onTreeAction
-                ? (row, a) =>
-                    props.onTreeAction?.(props.row.target, b().id, row, a)
-                : undefined
-            }
-          />
-        )}
-      </Show>
-      <Show
-        when={
-          b().focused &&
-          b().showTree &&
-          props.changesOf?.(props.row.target, b().id)
-        }
-      >
+    <div class="panes">
+      <div class="tabs-border">
+        <div
+          class="tabs-resizer"
+          data-border="tabs"
+          aria-hidden="true"
+          onPointerDown={(e) => props.onTabsResize?.(e)}
+          onDblClick={() => props.onTabsResizeReset?.()}
+        />
+      </div>
+      {/* ファイルツリーの段。ツリーはこの段の中だけでスクロールする（行を出していなくても、段は残す） */}
+      <div class="tree-section">
+        <Show when={b().focused && props.treeOf?.(props.row.target, b().id)}>
+          {(rows) => (
+            <TreeView
+              rows={rows()}
+              label={T("sidebar.files", { title: b().title })}
+              onToggle={(p) => props.onToggle?.(props.row.target, b().id, p)}
+              onOpen={(p) => props.onOpen?.(props.row.target, b().id, p)}
+              current={props.currentOf?.(props.row.target, b().id)}
+              onMenu={
+                props.onTreeMenu
+                  ? (row, x, y) =>
+                      props.onTreeMenu?.(props.row.target, b().id, row, x, y)
+                  : undefined
+              }
+              onAction={
+                props.onTreeAction
+                  ? (row, a) =>
+                      props.onTreeAction?.(props.row.target, b().id, row, a)
+                  : undefined
+              }
+            />
+          )}
+        </Show>
+      </div>
+      <Show when={b().focused && props.changesOf?.(props.row.target, b().id)}>
         {(c) => (
           <ChangesView
             rows={c().rows}
@@ -731,6 +742,28 @@ function RowPanes(props: Handlers & { row: Row }): JSX.Element {
   );
 }
 
+/**
+ * タブの段の中で、足したタブ・出しているタブが替わったタブが見える所までスクロールする（見せるタブの決め方は model.ts の tabToReveal）。
+ */
+function revealTabs(
+  rows: () => HTMLElement | undefined,
+  now: () => TabsSnapshot,
+): void {
+  createEffect(
+    on(now, (cur, prev) => {
+      const key = tabToReveal(prev, cur);
+      if (!key) return;
+      for (const el of rows()?.querySelectorAll<HTMLElement>("li.tab-row") ??
+        []) {
+        if (el.dataset.key === key) {
+          el.scrollIntoView({ block: "nearest" });
+          return;
+        }
+      }
+    }),
+  );
+}
+
 /** 帯 1 つ（ヘッダーとコンテンツ）。 */
 function BandItem(
   props: Handlers & { row: Row; index: number; total: number },
@@ -742,14 +775,25 @@ function BandItem(
     const r = props.renaming;
     return r && r.gws === props.row.gws ? r : undefined;
   };
-  // ファイルツリーと CHANGES を開くタブの行（今出しているターミナルのタブ）
-  const repKey = () => termKey(props.row.target, b().id);
+  // shj が動いているときは 3 段に分ける（#284）
+  const sections = () => b().focused && b().showTree;
+  let tabRows!: HTMLUListElement;
+  revealTabs(
+    () => tabRows,
+    () => ({
+      gws: props.row.gws,
+      keys: tabs().items.map((t) => t.key),
+      shown: tabs().shown,
+    }),
+  );
   return (
     <li
       class="band-item"
       data-gws={props.row.gws}
       style={{ "--machine-color": props.row.color }}
       data-focused={b().focused ? "" : undefined}
+      data-sections={sections() ? "" : undefined}
+      data-panes-hidden={sections() && shownIsBrowser(tabs()) ? "" : undefined}
       data-health={props.row.health}
     >
       <BandHeader {...props} editing={editing()} />
@@ -763,6 +807,7 @@ function BandItem(
       </Show>
       <ul
         class="tab-rows"
+        ref={tabRows}
         aria-label={T("sidebar.tabsOf", { title: b().title })}
       >
         <For each={tabs().items}>
@@ -783,14 +828,13 @@ function BandItem(
                   ? (e) => grabTab(e, props.row.gws, t.key, props.onTabMove!)
                   : undefined
               }
-            >
-              <Show when={t.key === repKey()}>
-                <RowPanes {...props} />
-              </Show>
-            </TabRow>
+            />
           )}
         </For>
       </ul>
+      <Show when={sections()}>
+        <Panes {...props} />
+      </Show>
     </li>
   );
 }
@@ -799,7 +843,6 @@ function BandItem(
  * タブの行 1 つ（ターミナルのタブもブラウザのタブも）。
  * ターミナルのタブは 1 行目にアイコン・名前・マシンの札、2 行目にフォルダ、3 行目に git。ブラウザのタブは 1 行目にアイコン・名前、2 行目に URL。
  * 鉛筆と ✕ は、1 行目の右に場所を空けておき、出ているときだけ見せる（選んでも行の高さが変わらないように）。
- * children は、行のすぐ下に開くもの（ファイルツリーと CHANGES）。
  */
 export function TabRow(props: {
   t: TabItem;
@@ -813,7 +856,6 @@ export function TabRow(props: {
   onRename?: () => void;
   /** つかむ所を押した（ドラッグで並べ替える）。省くと動かせない */
   onGrab?: (e: PointerEvent) => void;
-  children?: JSX.Element;
 }): JSX.Element {
   const t = () => props.t;
   return (
@@ -917,7 +959,6 @@ export function TabRow(props: {
           </button>
         </div>
       </div>
-      {props.children}
     </li>
   );
 }

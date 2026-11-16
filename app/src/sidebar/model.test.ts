@@ -7,6 +7,7 @@ import { MACHINE_COLORS } from "./colors.ts";
 import { EMPTY_GWS, reconcile, type GwsState } from "../gws/model.ts";
 import type { SessionState } from "../ssh/session.ts";
 import {
+  tabToReveal,
   adoptFocus,
   band,
   buildSidebar,
@@ -906,5 +907,50 @@ describe("shownIsBrowser（ファイルツリーと CHANGES を隠すか）", ()
   });
   it("出しているタブのキーが items に無ければ隠さない", () => {
     assert.equal(shownIsBrowser(tabs("x")), false);
+  });
+});
+
+describe("tabToReveal（#284）", () => {
+  const snap = (gws: string, keys: string[], shown: string) => ({
+    gws,
+    keys,
+    shown,
+  });
+  it("初めて描いたとき・別のワークスペースに移ったとき・空から一度に埋まったときは、出しているタブ", () => {
+    assert.equal(tabToReveal(undefined, snap("a", ["x", "y"], "y")), "y");
+    assert.equal(
+      tabToReveal(snap("a", ["x"], "x"), snap("b", ["p", "q"], "q")),
+      "q",
+    );
+    assert.equal(
+      tabToReveal(snap("a", [], ""), snap("a", ["x", "y", "z"], "x")),
+      "x",
+    );
+  });
+  it("出しているタブが替わったら、出しているタブ（足したタブより先）", () => {
+    assert.equal(
+      tabToReveal(snap("a", ["x", "y"], "x"), snap("a", ["x", "y", "z"], "z")),
+      "z",
+    );
+    assert.equal(
+      tabToReveal(snap("a", ["x", "y"], "x"), snap("a", ["x", "y"], "y")),
+      "y",
+    );
+  });
+  it("出しているタブが同じでタブが増えたら、増えた最後のタブ", () => {
+    assert.equal(
+      tabToReveal(snap("a", ["x"], "x"), snap("a", ["x", "y", "z"], "x")),
+      "z",
+    );
+  });
+  it("減った・並べ替えただけなら、スクロールしない", () => {
+    assert.equal(
+      tabToReveal(snap("a", ["x", "y"], "x"), snap("a", ["x"], "x")),
+      undefined,
+    );
+    assert.equal(
+      tabToReveal(snap("a", ["x", "y"], "x"), snap("a", ["y", "x"], "x")),
+      undefined,
+    );
   });
 });

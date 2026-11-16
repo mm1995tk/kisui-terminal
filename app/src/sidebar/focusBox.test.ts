@@ -67,16 +67,30 @@ test("ヘッダーとコンテンツの境目に太い線があり、マシン�
   assert.doesNotMatch(rule(".band-item"), /border-left|machine-color/);
 });
 
-test("ファイルツリーと CHANGES は、今出しているターミナルのタブの行の中に開く", () => {
-  const panes = tsx.slice(tsx.indexOf("function RowPanes"));
+test("shj が動いているときは、タブの段の下に、ファイルツリーの段と CHANGES を別の段で出す（#284）", () => {
+  const panes = tsx.slice(
+    tsx.indexOf("function Panes"),
+    tsx.indexOf("function BandItem"),
+  );
   assert.ok(panes.indexOf("<TreeView") < panes.indexOf("<ChangesView"));
+  // ファイルツリーは、スクロールする段（.tree-section）の中。CHANGES はその外（段の下）
+  assert.ok(panes.indexOf("tree-section") < panes.indexOf("<TreeView"));
+  assert.ok(panes.indexOf("<TreeView") < panes.indexOf("</div>\n      <Show"));
   const item = tsx.slice(
     tsx.indexOf("function BandItem"),
-    tsx.indexOf("function TabRow"),
+    tsx.indexOf("export function TabRow"),
+  );
+  // タブの行の中には開かない。タブの段（ul.tab-rows）の次の兄弟として出す
+  assert.doesNotMatch(item, /<TabRow[\s\S]*<Panes[\s\S]*<\/TabRow>/);
+  assert.match(item, /<\/ul>\s*<Show when=\{sections\(\)\}>\s*<Panes /);
+  assert.match(rule(".tree-section"), /overflow-y: auto;/);
+  assert.match(
+    rule(".band-item[data-sections] > .tab-rows"),
+    /overflow-y: auto;/,
   );
   assert.match(
-    item,
-    /<TabRow[\s\S]*<RowPanes \{\.\.\.props\} \/>[\s\S]*<\/TabRow>/,
+    rule(".band-item[data-sections] > .tab-rows"),
+    /max-height: calc\(var\(--tabs-h, 40\) \* 1%\);/,
   );
   // タブの並びを畳む仕組みは無い（#283）
   assert.doesNotMatch(tsx, /folded|onTabsFold/);
