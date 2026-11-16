@@ -110,7 +110,8 @@ impl Proxy {
         self.h2_addr
     }
 
-    /// プロキシの TLS の証明書（自己署名、DER）。起動のたびに作り直す。
+    /// プロキシの TLS の証明書（自己署名、DER）。`Config::identity_files` を渡したときはそのファイルから
+    /// 読んだもの、渡さなかったときは起動のたびに作ったもの。
     /// 使う側（`nw_relay_hop_create` の `relay_tls_options` の検証）は、この証明書と一致するかで信頼する。
     pub fn certificate_der(&self) -> &[u8] {
         &self.certificate_der
