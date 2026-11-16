@@ -838,14 +838,15 @@ function BandItem(props: Handlers & { row: Row }): JSX.Element {
  * 鉛筆と ✕ は、1 行目の右に場所を空けておき、出ているときだけ見せる（選んでも行の高さが変わらないように）。
  * children は、行のすぐ下に開くもの（ファイルツリーと CHANGES）。
  */
-function TabRow(props: {
+export function TabRow(props: {
   t: TabItem;
   /** そのワークスペースで出しているタブか */
   shown: boolean;
   /** 出しているタブで、そのワークスペースにフォーカスしているか（強く光らせる） */
   current: boolean;
   onTab: () => void;
-  onClose: () => void;
+  /** 省くと ✕ を出さない（切り替えの窓の右のタブの一覧） */
+  onClose?: () => void;
   onRename?: () => void;
   /** つかむ所を押した（ドラッグで並べ替える）。省くと動かせない */
   onGrab?: (e: PointerEvent) => void;
@@ -939,7 +940,7 @@ function TabRow(props: {
           <button
             type="button"
             class="band-btn band-close tab-close"
-            data-off={t().closable ? undefined : ""}
+            data-off={t().closable && props.onClose ? undefined : ""}
             aria-label={T(
               t().incognito
                 ? "sidebar.closeTabLabelIncognito"
@@ -947,7 +948,7 @@ function TabRow(props: {
               { title: t().title },
             )}
             title={T("sidebar.closeTab")}
-            onClick={() => props.onClose()}
+            onClick={() => props.onClose?.()}
           >
             <Nf c={ICON.close} />
           </button>
