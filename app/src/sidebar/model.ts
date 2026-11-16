@@ -3,7 +3,7 @@
 //
 // 見た目は親 #271 のモックを元に、マシンの見出しをやめてワークスペースの帯だけを 1 列に並べる（#201）。
 // 帯は GUI のワークスペース（gws/model.ts。#231）1 つが 1 つ。中のターミナルのタブがマシンの kisui serve のワークスペース（Workspace）1 つに当たる。
-// 各帯の隅にマシンの名前と状態を出す。ツリー（D2）は tree/、上下の固定（D3）は splitAtFocus と Sidebar.tsx、
+// 各帯の隅にマシンの名前と状態を出す。ツリー（D2）は tree/、上への固定（D3）は Sidebar.tsx、
 // マシンごとの色（D4）の決め方と保存は colors.ts。
 
 import { T } from "../i18n/index.ts";
@@ -350,8 +350,6 @@ export interface BandTabs {
   items: TabItem[];
   /** 出しているタブのキー */
   shown: string;
-  /** 並びを畳んでいるか */
-  folded: boolean;
   /** そのワークスペースにフォーカスしているか（出しているタブを強く光らせる） */
   focused: boolean;
 }
@@ -402,7 +400,6 @@ export function gwsRows(state: GwsState, ctx: RowContext): Row[] {
     const tabs = (shown: string): BandTabs => ({
       items,
       shown,
-      folded: !!g.folded,
       focused,
     });
     if (!rep) {
@@ -552,28 +549,22 @@ function shownKey(
 }
 
 /**
- * 上下の固定（D3）のために、一覧をフォーカスしている行の前後で分けたもの。
- * フォーカスしている行までは上から順に流し（フォーカスしている行は上に固定する）、
- * それより後ろの行は、まとめて下に固定する。
+ * サイドバーに出す行（フォーカスしているワークスペース）と、その並びの中での位置。
+ * フォーカスしている行が無ければ null（ワークスペースが 1 つも無いときなど）。
  */
-export interface SplitSidebar {
-  /** フォーカスしている行より前の行 */
-  before: Row[];
-  /** フォーカスしている行。無ければ null */
-  focused: Row | null;
-  /** フォーカスしている行より後ろの行（下に固定する） */
-  after: Row[];
+export interface FocusedRow {
+  row: Row;
+  /** 並びの何番目か（1 から） */
+  index: number;
+  /** 全部でいくつか */
+  total: number;
 }
 
-/** 一覧をフォーカスしている行の前後で分ける。フォーカスが無ければ全部 before。 */
-export function splitAtFocus(rows: Row[]): SplitSidebar {
+/** 一覧から、フォーカスしている行を取り出す。 */
+export function focusedRow(rows: readonly Row[]): FocusedRow | null {
   const i = rows.findIndex((r) => r.band.focused);
-  if (i < 0) return { before: rows, focused: null, after: [] };
-  return {
-    before: rows.slice(0, i),
-    focused: rows[i],
-    after: rows.slice(i + 1),
-  };
+  if (i < 0) return null;
+  return { row: rows[i], index: i + 1, total: rows.length };
 }
 
 /** キーで移る向き。サイドバーで下・次は "next"、上・前は "prev"。 */

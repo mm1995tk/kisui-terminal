@@ -19,7 +19,7 @@ import {
   stepFrom,
   stepWorkspace,
   shownIsBrowser,
-  splitAtFocus,
+  focusedRow,
   unsetTitle,
   type BandTabs,
 } from "./model.ts";
@@ -450,7 +450,7 @@ describe("keepFocus", () => {
     const closing = { target: "a", id: "x" };
     const next = { target: "a", id: "y" };
     const drawn = (f: ReturnType<typeof keepFocus>) =>
-      splitAtFocus(rowsOf(["a", "b"], after, f)).focused;
+      focusedRow(rowsOf(["a", "b"], after, f))?.row;
 
     // 1. 一覧から x が消えた（shj のフォーカスはまだ x）
     const f1 = keepFocus(closing, after, { a: "x", b: "z" }, next);
@@ -754,7 +754,7 @@ describe("gwsRows", () => {
   });
 });
 
-describe("splitAtFocus", () => {
+describe("focusedRow", () => {
   const lists = {
     a: [ws({ id: "a1", root: "/a1" }), ws({ id: "a2", root: "/a2" })],
     b: [
@@ -765,28 +765,23 @@ describe("splitAtFocus", () => {
   };
   const rows = (focus: { target: string; id: string } | null) =>
     rowsOf(["a", "b"], lists, focus);
-  const ids = (rs: { band: { id: string } }[]) => rs.map((r) => r.band.id);
 
-  it("フォーカスの前を上に、フォーカスの行を上に固定する行に、後ろを下に分ける", () => {
-    const s = splitAtFocus(rows({ target: "b", id: "b1" }));
-    assert.deepEqual(ids(s.before), ["a1", "a2"]);
-    assert.equal(s.focused?.band.id, "b1");
-    assert.deepEqual(ids(s.after), ["b2", "b3"]);
+  it("フォーカスしている行と、並びの何番目か（1 から）・全部でいくつかを返す", () => {
+    const f = focusedRow(rows({ target: "b", id: "b1" }));
+    assert.equal(f?.row.band.id, "b1");
+    assert.equal(f?.index, 3);
+    assert.equal(f?.total, 5);
   });
 
-  it("最後の行なら下は空", () => {
-    const s = splitAtFocus(rows({ target: "b", id: "b3" }));
-    assert.deepEqual(ids(s.before), ["a1", "a2", "b1", "b2"]);
-    assert.equal(s.focused?.band.id, "b3");
-    assert.deepEqual(s.after, []);
+  it("最後の行は、最後の番号", () => {
+    const f = focusedRow(rows({ target: "b", id: "b3" }));
+    assert.equal(f?.index, 5);
+    assert.equal(f?.total, 5);
   });
 
-  it("フォーカスが無ければ全部上", () => {
-    const rs = rows(null);
-    const s = splitAtFocus(rs);
-    assert.equal(s.before, rs);
-    assert.equal(s.focused, null);
-    assert.deepEqual(s.after, []);
+  it("フォーカスが無ければ null", () => {
+    assert.equal(focusedRow(rows(null)), null);
+    assert.equal(focusedRow([]), null);
   });
 });
 
@@ -901,7 +896,6 @@ describe("shownIsBrowser（ファイルツリーと CHANGES を隠すか）", ()
   const tabs = (shown: string): BandTabs => ({
     items: [item("t", "term"), item("b", "browser")],
     shown,
-    folded: false,
     focused: true,
   });
   it("ターミナルのタブを出している間は隠さない", () => {

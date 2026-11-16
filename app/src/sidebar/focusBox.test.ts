@@ -67,27 +67,19 @@ test("ヘッダーとコンテンツの境目に太い線があり、マシン�
   assert.doesNotMatch(rule(".band-item"), /border-left|machine-color/);
 });
 
-test("ファイルツリーと CHANGES は、今出しているターミナルのタブの行の中に開き、タブの並びを畳んでいてもヘッダーの下に出る", () => {
+test("ファイルツリーと CHANGES は、今出しているターミナルのタブの行の中に開く", () => {
   const panes = tsx.slice(tsx.indexOf("function RowPanes"));
   assert.ok(panes.indexOf("<TreeView") < panes.indexOf("<ChangesView"));
   const item = tsx.slice(
     tsx.indexOf("function BandItem"),
     tsx.indexOf("function TabRow"),
   );
-  // 開いているときはタブの行（TabRow）の中、畳んでいるとき（Show の fallback）はヘッダーの下
-  assert.match(item, /fallback=\{<RowPanes \{\.\.\.props\} \/>\}/);
   assert.match(
     item,
     /<TabRow[\s\S]*<RowPanes \{\.\.\.props\} \/>[\s\S]*<\/TabRow>/,
   );
-  // ツリーと CHANGES の部品は、畳むかどうかを知らない
-  assert.doesNotMatch(
-    tsx.slice(
-      tsx.indexOf("function RowPanes"),
-      tsx.indexOf("function BandItem"),
-    ),
-    /folded/,
-  );
+  // タブの並びを畳む仕組みは無い（#283）
+  assert.doesNotMatch(tsx, /folded|onTabsFold/);
 });
 
 test("断られた理由は流れの中に置き、箱の clip で切り取られない（#172）", () => {

@@ -43,8 +43,6 @@ export interface Gws {
   tabs: TabRef[];
   /** 最後に使っていたターミナルのタブ（無ければ最初のもの。ターミナルのタブが無いワークスペースには無い） */
   term?: { target: string; ws: WorkspaceId };
-  /** タブの並びを畳んでいるか */
-  folded?: boolean;
 }
 
 export interface GwsState {
@@ -308,11 +306,6 @@ export function setActiveTerm(
   if (!g) return s;
   if (g.term?.target === target && g.term.ws === ws) return s;
   return update(s, g.id, (x) => ({ ...x, term: { target, ws } }));
-}
-
-/** タブの並びを畳む・開く。 */
-export function toggleFold(s: GwsState, id: string): GwsState {
-  return update(s, id, (g) => ({ ...g, folded: !g.folded }));
 }
 
 /**
@@ -686,7 +679,6 @@ export function parseGws(v: unknown): GwsState {
       tabs.some((r) => sameTerm(r, t.target, t.ws))
     )
       out.term = { target: t.target, ws: t.ws };
-    if (g.folded === true) out.folded = true;
     list.push(out);
   }
   return { list };

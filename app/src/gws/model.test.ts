@@ -38,7 +38,6 @@ import {
   saveGws,
   setActiveTerm,
   termKey,
-  toggleFold,
   type Gws,
   type GwsState,
 } from "./model.ts";
@@ -165,7 +164,7 @@ describe("ワークスペースの操作", () => {
     assert.equal(setActiveTerm(s, "zz", "w2"), s);
   });
 
-  it("ブラウザのタブを足す・名前を付ける・外す。畳む", () => {
+  it("ブラウザのタブを足す・名前を付ける・外す", () => {
     let s = two();
     s = addBrowser(s, "g1", "t1");
     s = addBrowser(s, "g1", "t2");
@@ -186,8 +185,6 @@ describe("ワークスペースの操作", () => {
     s = removeBrowser(s, "t1");
     assert.equal(gwsOfBrowser(s, "t1"), undefined);
     assert.equal(removeBrowser(s, "t1"), s);
-    assert.equal(toggleFold(s, "g1").list[0].folded, true);
-    assert.equal(toggleFold(toggleFold(s, "g1"), "g1").list[0].folded, false);
   });
 
   it("タブを閉じたら次（無ければ前）を出す。ページが自分を閉じたら、開いた元に戻る", () => {
@@ -496,10 +493,10 @@ describe("記録", () => {
     },
   });
 
-  it("書いたものを読める（名前・並び・中のタブ・最後のタブ・畳み）。無い・壊れているときは null", () => {
+  it("書いたものを読める（名前・並び・中のタブ・最後のタブ）。無い・壊れているときは null", () => {
     let s = addBrowser(two(), "g1", "t1");
     s = renameBrowser(rename(s, "g2", "調査"), "t1", "メモ");
-    s = toggleFold(setActiveTerm(s, "b", "w2"), "g1");
+    s = setActiveTerm(s, "b", "w2");
     const store = mem();
     saveGws(store, s);
     assert.deepEqual(loadGws(store), s);
@@ -507,6 +504,17 @@ describe("記録", () => {
     assert.equal(loadGws(mem("{")), null);
     assert.equal(loadGws(undefined), null);
     assert.equal(typeof GWS_KEY, "string");
+  });
+
+  it("前の版が書いた folded（タブの並びを畳む印）は読み捨てる（#283）", () => {
+    const s = two();
+    const store = mem();
+    saveGws(store, s);
+    const raw = JSON.parse(store.v!);
+    raw.list[0].folded = true;
+    const loaded = loadGws(mem(JSON.stringify(raw)));
+    assert.deepEqual(loaded, s);
+    assert.equal("folded" in loaded!.list[0], false);
   });
 
   it("保存できなくても例外にしない", () => {
@@ -584,7 +592,6 @@ describe("moveTabStep（t J / t K）", () => {
         id: "g1",
         num: 1,
         name: "",
-        folded: false,
         tabs: [
           { kind: "term", target: "m", ws: "a", title: "" },
           { kind: "browser", id: "b1" },
@@ -611,7 +618,6 @@ describe("t の操作が数えるタブ（visibleTabs・steppableTabs・moveTabS
     id: "g1",
     num: 1,
     name: "",
-    folded: false,
     tabs: [
       { kind: "term", target: "m", ws: "a", title: "" },
       { kind: "browser", id: "gone" },
