@@ -45,7 +45,9 @@ import {
   focusedRow,
   type Health,
   type Row,
+  tabToReveal,
   type TabItem,
+  type TabsSnapshot,
 } from "./model.ts";
 import { ICON } from "./icons.ts";
 import { startDrag } from "./drag.ts";
@@ -740,6 +742,28 @@ function Panes(props: Handlers & { row: Row }): JSX.Element {
   );
 }
 
+/**
+ * タブの段の中で、足したタブ・出しているタブが替わったタブが見える所までスクロールする（見せるタブの決め方は model.ts の tabToReveal）。
+ */
+function revealTabs(
+  rows: () => HTMLElement | undefined,
+  now: () => TabsSnapshot,
+): void {
+  createEffect(
+    on(now, (cur, prev) => {
+      const key = tabToReveal(prev, cur);
+      if (!key) return;
+      for (const el of rows()?.querySelectorAll<HTMLElement>("li.tab-row") ??
+        []) {
+        if (el.dataset.key === key) {
+          el.scrollIntoView({ block: "nearest" });
+          return;
+        }
+      }
+    }),
+  );
+}
+
 /** 帯 1 つ（ヘッダーとコンテンツ）。 */
 function BandItem(
   props: Handlers & { row: Row; index: number; total: number },
@@ -754,36 +778,13 @@ function BandItem(
   // shj が動いているときは 3 段に分ける（#284）
   const sections = () => b().focused && b().showTree;
   let tabRows!: HTMLUListElement;
-  // タブの段の中で、足したタブ・出しているタブが替わったタブが見える所までスクロールする
-  const reveal = (key: string) => {
-    for (const el of tabRows.querySelectorAll<HTMLElement>("li.tab-row")) {
-      if (el.dataset.key === key) {
-        el.scrollIntoView({ block: "nearest" });
-        return;
-      }
-    }
-  };
-  // 出しているタブが替わった（別のワークスペースに移ったときも、そのタブを見せる）
-  createEffect(
-    on(
-      () => `${props.row.gws}\n${tabs().shown}`,
-      () => {
-        const k = tabs().shown;
-        if (k) reveal(k);
-      },
-    ),
-  );
-  // 足したタブ（同じワークスペースで、前に無かったキー）。出しているタブが替わらなくても見せる
-  createEffect(
-    on(
-      () => ({ gws: props.row.gws, keys: tabs().items.map((t) => t.key) }),
-      (now, prev) => {
-        if (!prev || prev.gws !== now.gws) return;
-        const added = now.keys.filter((k) => !prev.keys.includes(k));
-        const last = added[added.length - 1];
-        if (last) reveal(last);
-      },
-    ),
+  revealTabs(
+    () => tabRows,
+    () => ({
+      gws: props.row.gws,
+      keys: tabs().items.map((t) => t.key),
+      shown: tabs().shown,
+    }),
   );
   return (
     <li

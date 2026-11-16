@@ -603,3 +603,28 @@ export function stepWorkspace(
 export function shownIsBrowser(tabs: BandTabs): boolean {
   return tabs.items.some((i) => i.key === tabs.shown && i.kind === "browser");
 }
+
+/** タブの段が、見せるかどうかを決めるときの、ある時点のタブ（#284）。 */
+export interface TabsSnapshot {
+  gws: string;
+  keys: string[];
+  shown: string;
+}
+
+/**
+ * タブの段で、見える所までスクロールするタブのキー（無ければ undefined）。
+ * - 初めて描いたとき・別のワークスペースに移ったとき・タブが空から一度に埋まったとき（起動直後に後から届く）：出しているタブ
+ * - 出しているタブが替わったとき：出しているタブ（足したタブが出ることが多いので、足したタブより先）
+ * - 出しているタブは同じで、タブが増えたとき：増えたうちの最後のタブ
+ * - 減った・並べ替えただけのとき：スクロールしない
+ */
+export function tabToReveal(
+  prev: TabsSnapshot | undefined,
+  now: TabsSnapshot,
+): string | undefined {
+  const shown = now.keys.includes(now.shown) ? now.shown : undefined;
+  if (!prev || prev.gws !== now.gws || prev.keys.length === 0) return shown;
+  if (prev.shown !== now.shown) return shown;
+  const added = now.keys.filter((k) => !prev.keys.includes(k));
+  return added[added.length - 1];
+}
