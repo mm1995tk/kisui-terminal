@@ -23,6 +23,8 @@ export function ModalCard(props: {
   /** 幅（px）。省くとモックの 560px */
   width?: number;
   focusSelf?: boolean;
+  /** 窓の外（暗くした背景）を押したら onCancel を呼ぶ。省くと呼ばない（打ちかけの入力を、押し違いで失わないため） */
+  closeOnOutside?: boolean;
   children: JSX.Element;
 }): JSX.Element {
   let el!: HTMLDialogElement;
@@ -57,6 +59,17 @@ export function ModalCard(props: {
         handled = true;
         setTimeout(() => (handled = false), 0);
         props.onCancel();
+      }}
+      onClick={(e) => {
+        // 背景（::backdrop）を押すと、target は dialog そのもの。窓の中の余白を押したときと分けるため、位置が矩形の外かも見る
+        if (!props.closeOnOutside || e.target !== el) return;
+        const r = el.getBoundingClientRect();
+        const outside =
+          e.clientX < r.left ||
+          e.clientX > r.right ||
+          e.clientY < r.top ||
+          e.clientY > r.bottom;
+        if (outside) props.onCancel();
       }}
       onCancel={(e) => {
         e.preventDefault();

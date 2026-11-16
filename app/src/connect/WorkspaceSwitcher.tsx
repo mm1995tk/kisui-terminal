@@ -105,6 +105,7 @@ export function WorkspaceSwitcher(props: {
     <ModalCard
       label={T("switcher.label")}
       width={880}
+      closeOnOutside
       onCancel={props.onCancel}
     >
       <div class="machine-dialog switcher">
