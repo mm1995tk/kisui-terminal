@@ -241,9 +241,6 @@
   font: inherit;
   text-align: left;
 }
-.band:hover {
-  background: var(--band-hover);
-}
 
 /* つかむ所（縦の点 3 つ。幅 6px）。ここからだけドラッグ（drag.ts）を始める。場所はいつも空けておき、マウスを乗せたときだけ点を見せる */
 .grip {
