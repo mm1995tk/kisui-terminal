@@ -20,5 +20,4 @@ export const ICON = {
   pencil: "",
   /** nf-fa-times：閉じる */
   close: "",
-  down: "",
 } as const;
