@@ -2,6 +2,7 @@
 // コマンドの表（commands.ts）が、近道を文字列で持ち、案内の表示と実際の判定の両方にこれを使う。
 // DOM には触らない（node --test で確かめられる）。
 
+import { isComposingKey } from "./ime.ts";
 import { T } from "./i18n/index.ts";
 import type { KeyLike } from "./guiKeys.ts";
 
@@ -67,7 +68,7 @@ export function isKey(e: KeyLike, k: string): boolean {
  * かな漢字変換中は当たらない。
  */
 export function matchSpec(e: KeyLike, spec: KeySpec): boolean {
-  if (e.isComposing) return false;
+  if (isComposingKey(e)) return false;
   if (!!e.ctrlKey !== spec.ctrl || !!e.altKey !== spec.alt) return false;
   if (!!e.metaKey !== spec.meta) return false;
   const plus = spec.key === "+" || spec.key === "=";

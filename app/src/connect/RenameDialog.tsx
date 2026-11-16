@@ -1,5 +1,6 @@
 // 名前を変える窓。マシンの見出しの右クリックの「名前を変える」と、マシンのダイアログ（リーダーの m）の n で出す（ワークスペースは、帯の中でその場で変える。sidebar/Sidebar.tsx）。
 // 空にして決めると、名前を外して fallback（ssh の行き先）に戻す。決められなかった理由（ほかのマシンと同じ名前、長すぎる名前など）は error に出す。
+import { isComposingKey } from "../ime.ts";
 import { T } from "../i18n/index.ts";
 import { createSignal, Show, type JSX } from "solid-js";
 
@@ -28,7 +29,7 @@ export function RenameDialog(props: {
             value={name()}
             onInput={(e) => setName(e.currentTarget.value)}
             onKeyDown={(e) => {
-              if (e.isComposing) return;
+              if (isComposingKey(e)) return;
               if (e.key === "Enter") {
                 e.preventDefault();
                 props.onSubmit(name());

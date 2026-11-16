@@ -299,6 +299,8 @@ describe("リーダー", () => {
         press(mac, [{ ...L, isComposing: true }]).state.leader,
         null,
       );
+      // 変換を確定する Enter が keyCode 229 で来たときと同じ見分け方（ime.ts の isComposingKey）
+      assert.deepEqual(press(mac, [{ ...L, keyCode: 229 }]).state.leader, null);
       const d = press(mac, [L], { dialogOpen: true });
       assert.equal(d.state.leader, null);
       assert.equal(d.passed.length, 1);

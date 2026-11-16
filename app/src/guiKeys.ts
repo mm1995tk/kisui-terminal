@@ -4,17 +4,16 @@
 // Cmd+` は macOS が使うので使わない。
 // DOM には触らない（node --test で確かめられる）。
 
+import { type ComposingKeyLike, isComposingKey } from "./ime.ts";
+
 /** KeyboardEvent のうち、ここで使う項目。 */
-export interface KeyLike {
-  key: string;
+export interface KeyLike extends ComposingKeyLike {
   code?: string;
   ctrlKey: boolean;
   shiftKey: boolean;
   altKey: boolean;
   metaKey: boolean;
   repeat?: boolean;
-  isComposing?: boolean;
-  keyCode?: number;
 }
 
 /** 動いている OS が macOS か。 */
@@ -42,21 +41,21 @@ export function isFocusLost(
  * Ctrl+E だけ（Shift・Alt・Cmd なし）。TUI と同じ「エディタ（端末の shj）へ戻る」キー（#77）。
  * かな漢字変換中は除く。サイドバーのファイルツリーと CHANGES の両方がこれを使う。
  */
-export function isEditorKey(e: {
-  key: string;
-  ctrlKey?: boolean;
-  shiftKey?: boolean;
-  altKey?: boolean;
-  metaKey?: boolean;
-  isComposing?: boolean;
-}): boolean {
+export function isEditorKey(
+  e: ComposingKeyLike & {
+    ctrlKey?: boolean;
+    shiftKey?: boolean;
+    altKey?: boolean;
+    metaKey?: boolean;
+  },
+): boolean {
   return (
     e.key.toLowerCase() === "e" &&
     !!e.ctrlKey &&
     !e.shiftKey &&
     !e.altKey &&
     !e.metaKey &&
-    !e.isComposing
+    !isComposingKey(e)
   );
 }
 

@@ -2,6 +2,7 @@
 // ブラウザを出す場所の下の端に置き、ページはその上まで縮む（data-overlay-shrink。BrowserArea.tsx の SHRINK_SELECTOR）。
 // 字を打つたびに探し（今の所から探し直す）、Enter で次、Shift+Enter で前へ。端では折り返す。Esc か × で閉じ、キーをページに戻す。
 // 探すのは殻（browser.rs の browser_find。WebKit の window.find）で、見つけた所はページの選択になる。
+import { isComposingKey } from "../ime.ts";
 import { T } from "../i18n/index.ts";
 import { createSignal, onCleanup, Show, type JSX } from "solid-js";
 
@@ -82,7 +83,7 @@ export function FindBar(props: {
           timer = setTimeout(() => find("first"), TYPE_WAIT_MS);
         }}
         onKeyDown={(e) => {
-          if (e.isComposing) return;
+          if (isComposingKey(e)) return;
           if (isCancelKey(e)) {
             e.preventDefault();
             props.onClose();

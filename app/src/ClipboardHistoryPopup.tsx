@@ -1,6 +1,7 @@
 // kisui-terminal の外から開くクリップボードの履歴の窓（#95）。窓を出し入れするのは Tauri の側（clipboard_popup.rs）。
 // 全体のキー（Mac は Option+Space、Linux は Alt+Space）で出る小さな窓に、履歴の一覧（HistoryPanel）だけを出す。
 // 選ぶとクリップボードに戻し、「コピーしました」を少し見せてから窓を隠し、前のアプリに戻る（貼るのはユーザー）。Esc は何もせずに隠す。
+import { isComposingKey } from "./ime.ts";
 import { T } from "./i18n/index.ts";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -27,7 +28,7 @@ export function ClipboardHistoryPopup(): JSX.Element {
     );
 
   const onKeyDown = (e: KeyboardEvent) => {
-    if (e.key === "Escape" && !e.isComposing) {
+    if (e.key === "Escape" && !isComposingKey(e)) {
       e.preventDefault();
       dismiss();
     }

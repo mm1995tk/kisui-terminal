@@ -34,6 +34,13 @@ describe("新しいタブのページ（#238）", () => {
     assert.equal(newTabKey(ev("Escape", "", true)), null);
   });
 
+  it("変換を確定する Enter が keyCode 229 で来ても開かない（macOS の WKWebView、#298）", () => {
+    assert.equal(newTabKey({ ...ev("Enter"), keyCode: 229 }), null);
+    assert.deepEqual(newTabKey({ ...ev("Enter"), keyCode: 13 }), {
+      kind: "enter",
+    });
+  });
+
   it("選ぶ所は検索窓（-1）から始まり、端で回らない", () => {
     assert.equal(moveSelection(-1, 1, 3), 0);
     assert.equal(moveSelection(0, 1, 3), 1);

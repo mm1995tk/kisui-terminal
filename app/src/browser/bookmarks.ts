@@ -3,6 +3,7 @@
 // リーダーの `o b` で今のページを足し、`o B` で一覧のダイアログ（BookmarkDialog.tsx）を開く。
 // DOM も Tauri も使わない（node --test で確かめられる）。
 
+import { isComposingKey } from "../ime.ts";
 import type { KeyLike } from "../guiKeys.ts";
 import { listStep } from "../placeKeys.ts";
 
@@ -85,7 +86,7 @@ export function bookmarkKey(
   e: KeyLike,
   queryEmpty: boolean,
 ): BookmarkKey | null {
-  if (e.isComposing) return null;
+  if (isComposingKey(e)) return null;
   const plain = !e.ctrlKey && !e.metaKey && !e.altKey;
   if (plain && !e.shiftKey && e.key === "ArrowDown")
     return { kind: "step", step: 1 };

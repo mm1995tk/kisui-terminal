@@ -10,6 +10,7 @@
 import type { KeyValueStore } from "./ssh/machines.ts";
 import { shortcutCommand } from "./commands.ts";
 import type { KeyLike } from "./guiKeys.ts";
+import { isComposingKey } from "./ime.ts";
 
 /** 動かせる境界。サイドバーの右（sidebar）と、サイドバーの中の、タブの段とファイルツリーの境目（tabs）・ファイルツリーと CHANGES の境目（changes）。 */
 export type Border = "sidebar" | "changes" | "tabs";
@@ -113,6 +114,8 @@ export type ResizeAction =
 
 /** KeyboardEvent を TUI のキーの名前にする（ui/tui の ResizeKey が受ける形）。リサイズモードで使わない組み合わせは null。 */
 export function resizeKeyName(e: KeyLike, mac = false): string | null {
+  // かな漢字変換のキーは受けない（変換のための Enter・Esc で、リサイズモードを決めたり出たりしない）
+  if (isComposingKey(e)) return null;
   // 入る・出るキー：コマンドの表の pane.resize の近道（Mac は Cmd+R、それ以外は Ctrl+Shift+R）。Alt+R は端末（shj）に渡すので取らない
   if (shortcutCommand(e, mac)?.id === "pane.resize") return "mod+r";
   if (e.ctrlKey || e.metaKey || e.altKey) return null;

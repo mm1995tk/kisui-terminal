@@ -1,6 +1,7 @@
 // クリップボードの履歴の一覧（#54）。キーで開き、選んだ文字を今の欄に貼るか、OS のクリップボードに戻す。
 // 履歴を持つのは Tauri の側（clipboard_history.rs）。ここは開くたびに読み、選ばせる。
 // 一覧の中身（HistoryPanel）は、kisui-terminal の外から開く小さな窓（ClipboardHistoryPopup.tsx）でも使う。
+import { isComposingKey } from "./ime.ts";
 import { T } from "./i18n/index.ts";
 import {
   createEffect,
@@ -138,7 +139,7 @@ export function HistoryPanel(props: {
   }
 
   function onKeyDown(e: KeyboardEvent) {
-    if (e.isComposing) return;
+    if (isComposingKey(e)) return;
     // ↓ ↑ か Ctrl+J / Ctrl+K で選ぶ行を動かす（入力欄に字を打つので、j k は使えない）
     const step =
       e.key === "ArrowDown" ? 1 : e.key === "ArrowUp" ? -1 : listStep(e);

@@ -2,6 +2,7 @@
 // ssh の行き先は、~/.ssh/config のホストの候補から選ぶか、打って入れる（打った文字で候補を絞る）。
 // 名前は空なら ssh の行き先を使う。「足す」で ssh につなぎ、つながったら呼んだ側がマシンを保存して窓を閉じる。
 // つないでいる最中は入力を止めて状態を出し、つなげなければ理由を出して、直して足し直せるようにする。
+import { isComposingKey } from "../ime.ts";
 import { T } from "../i18n/index.ts";
 import { createMemo, createSignal, For, Show, type JSX } from "solid-js";
 
@@ -76,7 +77,7 @@ export function AddMachine(props: {
               setActive(undefined);
             }}
             onKeyDown={(e) => {
-              if (e.isComposing) return;
+              if (isComposingKey(e)) return;
               // ↓ ↑ か Ctrl+J / Ctrl+K で候補を動かす（入力欄に字を打つので、j k は使えない）
               const step =
                 e.key === "ArrowDown"
@@ -139,7 +140,7 @@ export function AddMachine(props: {
             disabled={props.busy}
             onInput={(e) => setName(e.currentTarget.value)}
             onKeyDown={(e) => {
-              if (e.isComposing) return;
+              if (isComposingKey(e)) return;
               if (e.key === "Enter") {
                 e.preventDefault();
                 submit();

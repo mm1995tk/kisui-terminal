@@ -1,3 +1,4 @@
+import { isComposingKey } from "../ime.ts";
 import { T } from "../i18n/index.ts";
 import { createEffect, Match, onCleanup, Switch, type JSX } from "solid-js";
 
@@ -44,7 +45,7 @@ export function VideoView(props: {
   });
 
   const onKeyDown = (e: KeyboardEvent) => {
-    if (e.isComposing) return;
+    if (isComposingKey(e)) return;
     const k = videoKey(e);
     if (!k) return;
     // キーの一覧は、動画を取っている間でも出す

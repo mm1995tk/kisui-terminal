@@ -5,6 +5,7 @@
 // 場所のキーはリーダーには載せない（その場所の中だけで効く）。キーを足すときは、判定と、ここの表と、docs/key-design.md を直す。
 // DOM には触らない（node --test で確かめられる）。
 
+import { isComposingKey } from "./ime.ts";
 import type { KeyLike } from "./guiKeys.ts";
 import { T } from "./i18n/index.ts";
 
@@ -181,7 +182,7 @@ export const PLACE_KEYS: Record<Place, PlaceKeys> = {
 /** `?`（Shift+/ など、`?` の字が出るキー）か。修飾キー（Shift 以外）を押していれば違う。 */
 export function isHelpKey(e: KeyLike): boolean {
   return (
-    e.key === "?" && !e.ctrlKey && !e.metaKey && !e.altKey && !e.isComposing
+    e.key === "?" && !e.ctrlKey && !e.metaKey && !e.altKey && !isComposingKey(e)
   );
 }
 
@@ -190,7 +191,7 @@ export function isHelpKey(e: KeyLike): boolean {
  * Shift・Alt・Cmd を重ねたものは受けない（Ctrl+Shift+K はリーダーなど、ほかのキーに残す）。
  */
 export function listStep(e: KeyLike): 1 | -1 | 0 {
-  if (!e.ctrlKey || e.metaKey || e.altKey || e.shiftKey || e.isComposing)
+  if (!e.ctrlKey || e.metaKey || e.altKey || e.shiftKey || isComposingKey(e))
     return 0;
   const k = e.key.toLowerCase();
   if (k === "j") return 1;

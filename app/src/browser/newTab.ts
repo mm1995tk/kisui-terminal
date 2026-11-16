@@ -3,6 +3,7 @@
 // このページのタブは URL が空（NEW_TAB_URL）で、webview は作らず、画面（NewTabPage.tsx）が検索窓とブックマークを描く。
 // 検索窓に打ったものを開くと、そのタブの URL がそのページになる（そこで初めて webview を作る）。
 
+import { isComposingKey } from "../ime.ts";
 import type { KeyLike } from "../guiKeys.ts";
 import { listStep } from "../placeKeys.ts";
 import type { BrowserTab } from "./tabs.ts";
@@ -24,7 +25,7 @@ export type NewTabKey =
  * 打ったものを開く、`Esc` は打ったものを消す。かな漢字変換中は何も受けない。
  */
 export function newTabKey(e: KeyLike): NewTabKey | null {
-  if (e.isComposing) return null;
+  if (isComposingKey(e)) return null;
   const plain = !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey;
   if (plain && e.key === "ArrowDown") return { kind: "step", step: 1 };
   if (plain && e.key === "ArrowUp") return { kind: "step", step: -1 };

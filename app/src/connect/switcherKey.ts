@@ -1,6 +1,7 @@
 // ワークスペースを切り替える窓（リーダーの `w w`。WorkspaceSwitcher.tsx）の中のキー。
 // 画面の仕組み（Solid）に依らないので、node --test で確かめる。決まりは docs/key-design.md。
 
+import { isComposingKey } from "../ime.ts";
 import type { KeyLike } from "../guiKeys.ts";
 import { listStep } from "../placeKeys.ts";
 
@@ -23,7 +24,7 @@ export type SwitcherKey =
  * Alt・Cmd・Ctrl を重ねたものは受けない（Ctrl+J・Ctrl+K を除く）。
  */
 export function switcherKey(e: KeyLike): SwitcherKey | null {
-  if (e.isComposing) return null;
+  if (isComposingKey(e)) return null;
   const step = listStep(e);
   if (step !== 0) return { kind: "move", to: step === 1 ? "next" : "prev" };
   if (e.ctrlKey || e.metaKey || e.altKey) return null;
