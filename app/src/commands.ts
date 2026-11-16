@@ -184,47 +184,22 @@ const paneMoves = (): Leaf[] =>
   );
 
 /**
- * ワークスペースのグループ（w）の `j` `k`（サイドバーの 1 列で次・前のワークスペースへ）と、
- * `J` `K`（今のワークスペースを 1 つ下・上へ並べ替える）。端では、移るほうは反対の端へ回り、並べ替えるほうは動かさない。続けて押せる。
- * `J` `K` は Shift を押した `j` `k`。小文字の `j` `k` と別の葉にするため、nodeFor が打った字そのもの（大文字）を先に探す。
+ * リーダーの木に載せず、設定の `[gui.shortcuts]` からだけ使えるコマンド（#296）。
+ * ワークスペースの操作は、リーダーの `w` で開く窓（WorkspaceSwitcher.tsx）に集めた。ここのコマンドは、窓を開かずに 1 回で動かしたい人が、自分で近道を足すために残す。
+ * 木の外なので、案内にも `?` の一覧にも、既定の近道にも出ない。
  */
-const workspaceMoves = (): Leaf[] => [
-  leaf(
-    "j",
-    T("leader.ws.next"),
-    { id: "workspace.step", arg: "next" },
-    {
-      repeat: true,
-      range: { keys: "j|k", label: T("leader.ws.step.range") },
-    },
+const SHORTCUT_ONLY: Leaf[] = [
+  leaf("", T("leader.ws.next"), { id: "workspace.step", arg: "next" }),
+  leaf("", T("leader.ws.prev"), { id: "workspace.step", arg: "prev" }),
+  leaf("", T("leader.ws.moveDown"), { id: "workspace.move", arg: "down" }),
+  leaf("", T("leader.ws.moveUp"), { id: "workspace.move", arg: "up" }),
+  leaf("", T("leader.ws.last"), { id: "workspace.last" }),
+  ...Array.from({ length: 9 }, (_, i) =>
+    leaf("", T("leader.ws.nth", { n: i + 1 }), { id: "workspace.nth", arg: i }),
   ),
-  leaf(
-    "k",
-    T("leader.ws.prev"),
-    { id: "workspace.step", arg: "prev" },
-    {
-      repeat: true,
-      range: { keys: "j|k", label: T("leader.ws.step.range") },
-    },
-  ),
-  leaf(
-    "J",
-    T("leader.ws.moveDown"),
-    { id: "workspace.move", arg: "down" },
-    {
-      repeat: true,
-      range: { keys: "J|K", label: T("leader.ws.move.range") },
-    },
-  ),
-  leaf(
-    "K",
-    T("leader.ws.moveUp"),
-    { id: "workspace.move", arg: "up" },
-    {
-      repeat: true,
-      range: { keys: "J|K", label: T("leader.ws.move.range") },
-    },
-  ),
+  leaf("", T("leader.ws.new"), { id: "workspace.new" }),
+  leaf("", T("leader.ws.close"), { id: "workspace.close" }),
+  leaf("", T("leader.ws.rename"), { id: "workspace.rename" }),
 ];
 
 /**
@@ -243,35 +218,12 @@ export const LEADER: Node[] = [
       repeat: true,
     },
   ),
-  group(
+  // ワークスペースを切り替える窓を開く。ワークスペースの操作（移る・作る・名前を変える・閉じる・並べ替える）は、この窓の中のキーでする（#296）
+  leaf(
     "w",
-    T("leader.ws.group"),
-    [
-      ...workspaceMoves(),
-      leaf("Tab", T("leader.ws.last"), {
-        id: "workspace.last",
-      }),
-      leaf("w", T("leader.ws.switch"), { id: "workspace.switch" }),
-      ...Array.from({ length: 9 }, (_, i) =>
-        leaf(
-          String(i + 1),
-          T("leader.ws.nth", { n: i + 1 }),
-          { id: "workspace.nth", arg: i },
-          {
-            shortcut: { mac: `Cmd+${i + 1}` },
-            range: { keys: "1–9", label: T("leader.ws.nth.range") },
-          },
-        ),
-      ),
-      leaf("n", T("leader.ws.new"), { id: "workspace.new" }),
-      leaf("x", T("leader.ws.close"), {
-        id: "workspace.close",
-      }),
-      leaf("r", T("leader.ws.rename"), {
-        id: "workspace.rename",
-      }),
-    ],
-    { mac: "Cmd+Shift+W", other: "Ctrl+Shift+W" },
+    T("leader.ws.switch"),
+    { id: "workspace.switch" },
+    { shortcut: { mac: "Cmd+Shift+W", other: "Ctrl+Shift+W" } },
   ),
   // ワークスペースの中のタブ（ターミナルのタブとブラウザのタブ。#235）。ブラウザのタブが無ければ、ターミナルのタブだけ
   group("t", T("leader.tab.group"), [
@@ -868,7 +820,7 @@ function sameSpec(a: KeySpec, b: KeySpec): boolean {
  */
 export function setUserShortcuts(list: UserShortcut[], mac: boolean): string[] {
   const problems: string[] = [];
-  const leaves = leavesByName(activeLeader());
+  const leaves = leavesByName([...activeLeader(), ...SHORTCUT_ONLY]);
   const out: UserEntry[] = [];
   const leader = parseSpec(shortcutOf(LEADER_SHORTCUT, mac) ?? "Ctrl+Shift+K");
   for (const { key, command, source = 0 } of list) {

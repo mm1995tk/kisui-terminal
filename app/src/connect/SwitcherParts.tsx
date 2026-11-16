@@ -2,21 +2,44 @@
 import { T } from "../i18n/index.ts";
 import { For, Show, type JSX } from "solid-js";
 
+import { ICON } from "../sidebar/icons.ts";
 import type { Health, Row } from "../sidebar/model.ts";
+import { renameKeyAction } from "../sidebar/renameInput.ts";
 import { TabRow } from "../sidebar/Sidebar.tsx";
 
 const healthLabel = (h: Health): string => T(`health.${h}`);
 
-/** 左の 1 行：つかむ所・番号（1〜9。10 個目からは無し）・マシンの色の丸・名前・今の印・タブの数。 */
+/** 名前を変えている行の入力欄の状態 */
+export interface RowEdit {
+  /** 今の名前 */
+  current: string;
+  /** 名前が空のときの、番号の名前 */
+  auto: string;
+  /** 断られた理由 */
+  error?: string;
+}
+
+/**
+ * 左の 1 行：つかむ所・マシンの色の丸・名前・今の印・タブの数。
+ * 選んでいる行には、名前を変えるボタン（鉛筆）と閉じるボタン（✕）が出る。名前を変えている間は名前の所が入力欄になり、
+ * 閉じる確認の間はタブの数・ボタンの所にキーの y と n だけが出る。
+ */
 export function SwitcherRow(props: {
   id: string;
   row: Row;
-  /** 上から何番目か（0 から） */
-  index: number;
   selected: boolean;
+  edit?: RowEdit;
+  confirming: boolean;
+  /** 1 回押した（選ぶだけ） */
+  onSelect: () => void;
+  /** ダブルクリック（移って閉じる） */
   onGo: () => void;
   /** つかむ所を押した */
   onGrab: (e: PointerEvent) => void;
+  onRename: () => void;
+  onClose: () => void;
+  onRenameSubmit: (name: string) => void;
+  onRenameCancel: (byKey: boolean) => void;
 }): JSX.Element {
   const r = () => props.row;
   return (
@@ -26,7 +49,8 @@ export function SwitcherRow(props: {
       role="option"
       data-gws={r().gws}
       aria-selected={props.selected ? "true" : "false"}
-      onClick={() => props.onGo()}
+      onClick={() => props.onSelect()}
+      onDblClick={() => props.onGo()}
     >
       <span
         class="grip"
@@ -35,9 +59,6 @@ export function SwitcherRow(props: {
         onPointerDown={(e) => props.onGrab(e)}
         onClick={(e) => e.stopPropagation()}
       />
-      <span class="switch-num" aria-hidden="true">
-        {props.index < 9 ? props.index + 1 : ""}
-      </span>
       <span
         class="switch-dot"
         data-health={r().health}
@@ -46,21 +67,111 @@ export function SwitcherRow(props: {
         aria-label={healthLabel(r().health)}
         title={`${r().machine ? `${r().machine} · ` : ""}${healthLabel(r().health)}`}
       />
-      <span class="card-row-name">{r().band.title}</span>
-      <Show when={r().band.focused}>
+      <Show
+        when={props.edit}
+        fallback={<span class="card-row-name">{r().band.title}</span>}
+      >
+        {(edit) => (
+          <div class="switch-edit">
+            <input
+              class="switch-rename"
+              type="text"
+              aria-label={T("sidebar.nameLabel")}
+              aria-invalid={edit().error ? "true" : undefined}
+              placeholder={T("sidebar.namePlaceholder", { auto: edit().auto })}
+              value={edit().current}
+              onClick={(e) => e.stopPropagation()}
+              onDblClick={(e) => e.stopPropagation()}
+              onKeyDown={(e) => {
+                const a = renameKeyAction(e);
+                if (!a) return;
+                e.preventDefault();
+                e.stopPropagation();
+                if (a === "submit") props.onRenameSubmit(e.currentTarget.value);
+                else props.onRenameCancel(true);
+              }}
+              onBlur={() => {
+                // ほかのアプリに切り替えただけ（窓が外れた）では、打ちかけの名前を消さない
+                if (document.hasFocus()) props.onRenameCancel(false);
+              }}
+              ref={(el) =>
+                setTimeout(() => {
+                  el.focus();
+                  el.select();
+                })
+              }
+            />
+            <Show when={edit().error}>
+              {(e) => (
+                <span class="switch-edit-error" role="alert">
+                  {e()}
+                </span>
+              )}
+            </Show>
+          </div>
+        )}
+      </Show>
+      <Show when={r().band.focused && !props.edit}>
         <span class="switch-current">{T("switcher.current")}</span>
       </Show>
-      <span
-        class="switch-count"
-        title={T("switcher.tabCount", { n: r().tabs.items.length })}
+      <Show
+        when={props.confirming}
+        fallback={
+          <>
+            <Show when={props.selected && !props.edit}>
+              <button
+                type="button"
+                class="switch-btn"
+                tabIndex={-1}
+                aria-label={T("sidebar.renameBand", { title: r().band.title })}
+                title={`${T("sidebar.rename")} (r)`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  props.onRename();
+                }}
+              >
+                <span class="nf" aria-hidden="true">
+                  {ICON.pencil}
+                </span>
+              </button>
+              <button
+                type="button"
+                class="switch-btn"
+                tabIndex={-1}
+                aria-label={T("sidebar.closeBand", { title: r().band.title })}
+                title={`${T("sidebar.closeWorkspace")} (x)`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  props.onClose();
+                }}
+              >
+                <span class="nf" aria-hidden="true">
+                  {ICON.close}
+                </span>
+              </button>
+            </Show>
+            <span
+              class="switch-count"
+              title={T("switcher.tabCount", { n: r().tabs.items.length })}
+            >
+              {r().tabs.items.length}
+            </span>
+          </>
+        }
       >
-        {r().tabs.items.length}
-      </span>
+        <span
+          class="switch-confirm"
+          role="alert"
+          aria-label={T("switcher.confirmClose", { title: r().band.title })}
+        >
+          <kbd>y</kbd> <kbd>n</kbd>
+        </span>
+      </Show>
     </li>
   );
 }
 
-/** 右の列：選んでいる行のワークスペースの名前と、タブの行（サイドバーの TabRow）。 */
+/** 右の列：選んでいる行のワークスペースのタブの行（サイドバーの TabRow）だけ。 */
 export function SwitcherTabs(props: {
   row: Row;
   onTab: (gws: string, key: string) => void;
@@ -68,7 +179,6 @@ export function SwitcherTabs(props: {
   const r = () => props.row;
   return (
     <div class="switch-tabs" style={{ "--machine-color": r().color }}>
-      <div class="switch-tabs-head">{r().band.title}</div>
       <ul
         class="tab-rows"
         aria-label={T("sidebar.tabsOf", { title: r().band.title })}

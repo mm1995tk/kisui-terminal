@@ -689,7 +689,7 @@ function Workbench(props: {
   // 表示の大きさ（#594）。覚えておいた大きさで始める
   let scale = loadScale(store);
   if (scale !== 1) void applyScale(scale);
-  // w j / w k / w h / w l で続けて移っている間か（リーダーを閉じるまで）。この間はファイルツリーと CHANGES を出さず、
+  // workspace.step で続けて移っている間か（リーダーを閉じるまで）。この間はファイルツリーと CHANGES を出さず、
   // 1 つ移るごとにサイドバーが伸び縮みしないようにする（#140）
   const [walking, setWalking] = createSignal(false);
   // ツリーを出し直したら、そのワークスペースで覚えている位置に戻す（出していない間は、スクロールの位置が合わない）
@@ -1237,7 +1237,7 @@ function Workbench(props: {
   /**
    * マシンにワークスペース（ターミナルのタブ）を 1 つ作り、place で GUI の記録に入れ、フォーカスして、ターミナルにキーを向ける。
    * 記録には、マシンの一覧の知らせより先に入れてよい（二重には入らない）。作れなければ errKey の題で理由を伝える。
-   * ワークスペースを作る（w n）・ターミナルのタブを足す（「+」・t n）の共通の部分。dir があれば、そのフォルダでシェルを始める。
+   * ワークスペースを作る（リーダーの w の窓の n）・ターミナルのタブを足す（「+」・t n）の共通の部分。dir があれば、そのフォルダでシェルを始める。
    */
   async function createMachineWorkspace(
     target: string,
@@ -1397,7 +1397,7 @@ function Workbench(props: {
     setGwsState(v);
     saveGws(store, v);
   }
-  /** 前の並び順の記録（w J・w K）。初めてワークスペースを作るときの並びに使う */
+  /** 前の並び順の記録（窓の J・K）。初めてワークスペースを作るときの並びに使う */
   const legacyOrder = loadOrder(store);
   /**
    * いま居るのが、ターミナルのタブを持たないワークスペース（ブラウザのタブだけのもの。#257）なら、その id。
@@ -2792,7 +2792,7 @@ function Workbench(props: {
     closeTabRow(g.id, key);
   }
 
-  // 直前に選んでいたワークスペース（リーダーの w Tab で戻る先）の GUI のワークスペースの id。
+  // 直前に選んでいたワークスペース（workspace.last で戻る先）の GUI のワークスペースの id。
   // ターミナルのタブが無いワークスペースも覚えるので、focus ではなく今いるワークスペースの変化で覚える
   let lastWorkspace: string | null = null;
   createEffect(
@@ -2817,7 +2817,7 @@ function Workbench(props: {
     focus()?.target ?? groups()[0]?.target;
 
   /**
-   * キーでワークスペースを移る（リーダーの w j / w k）。移ったら、そのワークスペースの欄にキーを向ける
+   * キーでワークスペースを移る（設定の近道の workspace.step）。移ったら、そのワークスペースの欄にキーを向ける
    * （shj が動いているワークスペースなら、shj にキーが届く）。
    */
   async function goWorkspace(target: string, id: WorkspaceId) {
@@ -2833,7 +2833,7 @@ function Workbench(props: {
   /** キーで移っている途中の、向かっている先（返事が返るまで focus() に反映されない）。無ければ null */
   let heading: WorkspaceFocus | null = null;
 
-  /** リーダーの w j / w k。サイドバーの次・前のワークスペースへ（1 列の並びで。端では反対の端へ回る）。 */
+  /** 設定の近道の workspace.step。サイドバーの次・前のワークスペースへ（1 列の並びで。端では反対の端へ回る）。 */
   function stepWs(step: Step) {
     // つながっていないマシンのタブは移れない（そこで止まらないよう、飛ばす）
     // ターミナルのタブが無いワークスペースは、target が ""・id が GUI のワークスペースの id の組で数える
@@ -2857,7 +2857,7 @@ function Workbench(props: {
   }
 
   /**
-   * リーダーの w J / w K。今のワークスペースを 1 つ下・上へ動かし、順を覚える（再起動しても残る）。端では動かさない。
+   * 設定の近道の workspace.move。今のワークスペースを 1 つ下・上へ動かし、順を覚える（再起動しても残る）。端では動かさない。
    * 続けて押せる（押すたびに、今の並びから動かす）。
    */
   function moveWs(dir: "up" | "down") {
@@ -2867,19 +2867,19 @@ function Workbench(props: {
     if (next) setGws(next);
   }
 
-  // ワークスペースを切り替える窓（リーダーの w w）を出しているか。開く処理は openWorkspaceSwitcher（サイドバーの見出しからも呼べる）
+  // ワークスペースを切り替える窓（リーダーの w）を出しているか。開く処理は openWorkspaceSwitcher（サイドバーの見出しからも呼べる）
   const [wsSwitcher, setWsSwitcher] = createSignal(false);
   function openWorkspaceSwitcher() {
     setWsSwitcher(true);
   }
 
-  // ワークスペースを作るマシンを選んでいる窓（リーダーの w n）
+  // ワークスペースを作るマシンを選んでいる窓（リーダーの w の窓の n）
   const [pickingMachine, setPickingMachine] = createSignal(false);
-  // ワークスペースの種類（ターミナルかブラウザか）を選んでいる窓（リーダーの w n。内蔵ブラウザを有効にしているとき）
+  // ワークスペースの種類（ターミナルかブラウザか）を選んでいる窓（リーダーの w の窓の n。内蔵ブラウザを有効にしているとき）
   const [pickingKind, setPickingKind] = createSignal(false);
 
   /**
-   * リーダーの w n。内蔵ブラウザを有効にしていれば、先にターミナルかブラウザかを選ぶ（#257）。無効なら、ターミナルのワークスペースを作る。
+   * リーダーの w の窓の n。内蔵ブラウザを有効にしていれば、先にターミナルかブラウザかを選ぶ（#257）。無効なら、ターミナルのワークスペースを作る。
    */
   function newWorkspace() {
     if (props.browser) setPickingKind(true);
@@ -3179,7 +3179,7 @@ function Workbench(props: {
     setRenaming(null);
   }
 
-  /** 帯の名前をその場で変える入力欄を開く（帯の鉛筆・メニュー、リーダーの w r）。gid は GUI のワークスペースの id。 */
+  /** 帯の名前をその場で変える入力欄を開く（帯の鉛筆・メニュー、リーダーの w の窓の r は行の中で変える。workspace.rename）。gid は GUI のワークスペースの id。 */
   function openWorkspaceRename(gid: string) {
     const g = gws().list.find((x) => x.id === gid);
     if (!g) return;
@@ -3375,7 +3375,7 @@ function Workbench(props: {
       <Sidebar
         rows={rows()}
         onNew={newWorkspace}
-        // ヘッダーの名前を押すと、ワークスペースを切り替えるポップアップ（リーダーの w w）を開く
+        // ヘッダーの名前を押すと、ワークスペースを切り替えるポップアップ（リーダーの w）を開く
         onSwitch={openWorkspaceSwitcher}
         onTab={selectTab}
         onTabClose={closeTabRow}
@@ -3564,10 +3564,6 @@ function Workbench(props: {
             setWsSwitcher(false);
             goRow(r);
           }}
-          onLast={() => {
-            setWsSwitcher(false);
-            runCommand({ id: "workspace.last" });
-          }}
           onTab={(gid, key) => {
             setWsSwitcher(false);
             selectTab(gid, key);
@@ -3584,6 +3580,17 @@ function Workbench(props: {
             setWsSwitcher(false);
             newWorkspace();
           }}
+          renameInit={(gid) => {
+            const g = untrack(gws).list.find((x) => x.id === gid);
+            return g ? { current: g.name, auto: autoName(g.num) } : undefined;
+          }}
+          onRename={(gid, name) => {
+            const bad = nameErrorText(name);
+            if (bad) return bad;
+            setGws((g) => renameGws(g, gid, name));
+            return undefined;
+          }}
+          onClose={(gid) => void closeWorkspace(gid)}
           onCancel={() => setWsSwitcher(false)}
         />
       </Show>
