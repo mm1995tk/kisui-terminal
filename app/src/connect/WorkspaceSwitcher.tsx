@@ -45,15 +45,11 @@ export function WorkspaceSwitcher(props: {
   const [sel, setSel] = createSignal<string | undefined>(
     (props.rows.find((r) => r.band.focused) ?? props.rows[0])?.gws,
   );
-  let last = 0;
-  const index = createMemo(() => {
+  // 選んでいたワークスペースが消えたら、前の位置に寄せる（memo の前の値を使う）
+  const index = createMemo((prev: number) => {
     const i = props.rows.findIndex((r) => r.gws === sel());
-    last =
-      i >= 0
-        ? i
-        : Math.min(Math.max(0, last), Math.max(0, props.rows.length - 1));
-    return last;
-  });
+    return i >= 0 ? i : Math.min(prev, Math.max(0, props.rows.length - 1));
+  }, 0);
   const selected = (): Row | undefined => props.rows[index()];
   let list!: HTMLUListElement;
 
