@@ -29,6 +29,7 @@
   );
   const lower = uncurry(String.prototype.toLowerCase);
   const upper = uncurry(String.prototype.toUpperCase);
+  const charCodeAt = uncurry(String.prototype.charCodeAt);
   const open = uncurry(window.open);
   const enc = encodeURIComponent;
   const addListener = uncurry(window.addEventListener);
@@ -149,7 +150,7 @@
       if (d == null) return;
       const s = "" + d;
       for (let i = 0; i < s.length; i++) {
-        const c = s.charCodeAt(i);
+        const c = charCodeAt(s, i);
         if (c >= 0xf700 && c <= 0xf74f) {
           preventDefault(ie);
           stopImmediatePropagation(ie);
