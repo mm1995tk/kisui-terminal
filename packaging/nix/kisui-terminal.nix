@@ -37,6 +37,7 @@ let
       ../../app/src-tauri/tauri.conf.json
       # browser/favicon.test.ts が、殻がページで動かす favicon のスクリプトの候補の順を確かめる（#237）
       ../../app/src-tauri/src/browser_favicon.js
+      ../../app/src-tauri/src/browser_keys.js
     ];
   };
   shellSrc = fs.toSource {
