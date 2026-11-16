@@ -1,9 +1,15 @@
-//! プロキシの TLS の身元。起動のたびに自己署名の証明書を作る。
+//! プロキシの TLS の身元。既定では起動のたびに自己署名の証明書を作る。
+//! 確かめるときのために、固定のファイル（証明書と鍵、どちらも DER）に書き出し、読み込むこともできる。
 
 use std::io;
 use std::net::IpAddr;
+use std::path::Path;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use rustls::pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer};
+
+/// 証明書の有効な長さ。macOS は、TLS のサーバーの証明書で有効な長さが 825 日を超えるものを信頼しない。
+const VALIDITY: Duration = Duration::from_secs(30 * 24 * 60 * 60);
 
 pub(crate) struct Identity {
     pub(crate) certificate_der: Vec<u8>,
@@ -11,18 +17,54 @@ pub(crate) struct Identity {
 }
 
 impl Identity {
+    /// `localhost`・`127.0.0.1`・`::1`（と `listen_ip`）の、自己署名の証明書を作る。
+    /// CA ではなく、用途は TLS のサーバーだけ。有効な長さは今から 30 日。
     pub(crate) fn generate(listen_ip: IpAddr) -> io::Result<Identity> {
-        let names = vec![
+        let mut names = vec![
             "localhost".to_string(),
             "127.0.0.1".to_string(),
             "::1".to_string(),
-            listen_ip.to_string(),
         ];
-        let key = rcgen::generate_simple_self_signed(names).map_err(io::Error::other)?;
+        if !names.contains(&listen_ip.to_string()) {
+            names.push(listen_ip.to_string());
+        }
+        let mut params = rcgen::CertificateParams::new(names).map_err(io::Error::other)?;
+        params
+            .distinguished_name
+            .push(rcgen::DnType::CommonName, "masque-proxy (localhost)");
+        params.is_ca = rcgen::IsCa::ExplicitNoCa;
+        params.key_usages = vec![rcgen::KeyUsagePurpose::DigitalSignature];
+        params.extended_key_usages = vec![rcgen::ExtendedKeyUsagePurpose::ServerAuth];
+        let now = rcgen::date_time_ymd(1970, 1, 1)
+            + SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map_err(io::Error::other)?;
+        params.not_before = now - Duration::from_secs(60 * 60);
+        params.not_after = now + VALIDITY;
+        let key = rcgen::KeyPair::generate().map_err(io::Error::other)?;
+        let cert = params.self_signed(&key).map_err(io::Error::other)?;
         Ok(Identity {
-            certificate_der: key.cert.der().to_vec(),
-            key_der: key.signing_key.serialize_der(),
+            certificate_der: cert.der().to_vec(),
+            key_der: key.serialize_der(),
         })
+    }
+
+    /// `write` で書いた証明書と鍵を読む。
+    pub(crate) fn read(cert: &Path, key: &Path) -> io::Result<Identity> {
+        Ok(Identity {
+            certificate_der: std::fs::read(cert)?,
+            key_der: std::fs::read(key)?,
+        })
+    }
+
+    /// 証明書と鍵（PKCS#8）を DER で書く。鍵は持ち主だけが読めるようにする。
+    pub(crate) fn write(&self, cert: &Path, key: &Path) -> io::Result<()> {
+        std::fs::write(cert, &self.certificate_der)?;
+        let mut options = std::fs::OpenOptions::new();
+        options.write(true).create(true).truncate(true);
+        #[cfg(unix)]
+        std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+        io::Write::write_all(&mut options.open(key)?, &self.key_der)
     }
 
     /// ALPN を `alpn` にした、TLS 1.3 の rustls の設定。

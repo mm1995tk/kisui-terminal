@@ -1,6 +1,8 @@
 // 中継型のプロキシ（nw_relay_hop_create）を設定した WKWebView で URL を順に開き、
 // 開けた URL と本文を標準出力に出す。
 // 使い方: relaycheck <h3 port> <h2 port | 0> <証明書(DER)のパス> <URL>...
+// プロキシの名前は既定で localhost（環境変数 RELAY_HOST で変えられる）。
+// WKWebView では relay_tls_options の検証の block が効かないので、プロキシの証明書は OS に信頼させておく。
 import Cocoa
 import Network
 import WebKit
@@ -21,8 +23,9 @@ sec_protocol_options_set_verify_block(tls.securityProtocolOptions, { _, trust, c
     complete(leaf == certificate)
 }, DispatchQueue.main)
 
+let relayHost = ProcessInfo.processInfo.environment["RELAY_HOST"] ?? "localhost"
 func endpoint(_ port: UInt16) -> NWEndpoint? {
-    port == 0 ? nil : .hostPort(host: "127.0.0.1", port: NWEndpoint.Port(rawValue: port)!)
+    port == 0 ? nil : .hostPort(host: NWEndpoint.Host(relayHost), port: NWEndpoint.Port(rawValue: port)!)
 }
 let hop = ProxyConfiguration.RelayHop(
     http3RelayEndpoint: endpoint(h3Port)!,

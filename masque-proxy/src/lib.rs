@@ -19,6 +19,7 @@ mod wire;
 
 use std::io;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use tokio::task::JoinHandle;
@@ -38,6 +39,8 @@ pub struct Config {
     pub dns: Dns,
     /// 受けた CONNECT を標準エラーに出す（確かめるときのため）。
     pub log: bool,
+    /// TLS の証明書と鍵のファイル（DER。`write_certificate` で作る）。None なら起動のたびに作る。
+    pub identity_files: Option<(PathBuf, PathBuf)>,
 }
 
 impl Default for Config {
@@ -48,8 +51,15 @@ impl Default for Config {
             h2_port: 0,
             dns: Dns::System,
             log: false,
+            identity_files: None,
         }
     }
+}
+
+/// `localhost`・`127.0.0.1`・`::1` の自己署名の証明書と鍵を作り、ファイル（DER）に書く。
+/// 確かめるときに、同じ証明書でプロキシを何度も起動し、OS に信頼させるため。
+pub fn write_certificate(cert: &Path, key: &Path) -> io::Result<()> {
+    tls::Identity::generate(IpAddr::V4(Ipv4Addr::LOCALHOST))?.write(cert, key)
 }
 
 /// 動いているプロキシ。落とすと待ち受けを止める。
@@ -63,7 +73,10 @@ pub struct Proxy {
 impl Proxy {
     /// 待ち受けを始める。tokio の runtime の中で呼ぶ。
     pub async fn start(config: Config) -> io::Result<Proxy> {
-        let identity = tls::Identity::generate(config.listen_ip)?;
+        let identity = match &config.identity_files {
+            Some((cert, key)) => tls::Identity::read(cert, key)?,
+            None => tls::Identity::generate(config.listen_ip)?,
+        };
         let ctx = Arc::new(connect::Ctx::new(&config.dns, config.log)?);
 
         let endpoint =
