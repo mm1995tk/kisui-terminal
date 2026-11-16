@@ -20,14 +20,23 @@ use crate::wire;
 
 type BoxError = Box<dyn Error + Send + Sync>;
 
+/// 接続を受けるのに失敗したとき、やり直すまで待つ長さ。
+const ACCEPT_RETRY: std::time::Duration = std::time::Duration::from_millis(50);
+
 pub(crate) fn acceptor(identity: &Identity) -> io::Result<TlsAcceptor> {
     Ok(TlsAcceptor::from(Arc::new(identity.server_config(b"h2")?)))
 }
 
 pub(crate) async fn serve(listener: TcpListener, acceptor: TlsAcceptor, ctx: Arc<Ctx>) {
     loop {
-        let Ok((tcp, peer)) = listener.accept().await else {
-            continue;
+        let (tcp, peer) = match listener.accept().await {
+            Ok(accepted) => accepted,
+            Err(e) => {
+                // 開けるファイルの数の上限などで失敗し続けるとき、CPU を使い切らないよう少し待つ
+                ctx.trace(format_args!("h2 accept: {e}"));
+                tokio::time::sleep(ACCEPT_RETRY).await;
+                continue;
+            }
         };
         let acceptor = acceptor.clone();
         let ctx = ctx.clone();
