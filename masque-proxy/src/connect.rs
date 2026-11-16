@@ -61,8 +61,7 @@ impl Ctx {
             .map_err(|e| io::Error::new(io::ErrorKind::NotFound, e))?;
         let mut addrs: Vec<SocketAddr> =
             lookup.iter().map(|ip| SocketAddr::new(ip, port)).collect();
-        // 並びは IPv6 が先（安定な並べ替えなので、同じ種類の中の順は DNS の答えのまま）
-        addrs.sort_by_key(|a| a.is_ipv4());
+        prefer_ipv6(&mut addrs);
         if addrs.is_empty() {
             return Err(io::Error::new(
                 io::ErrorKind::NotFound,
@@ -119,5 +118,39 @@ impl Ctx {
         if self.log {
             eprintln!("masque-proxy: {args}");
         }
+    }
+}
+
+/// IPv6 のアドレスを先に並べる。同じ種類の中の順は、DNS の答えのまま（安定な並べ替え）。
+fn prefer_ipv6(addrs: &mut [SocketAddr]) {
+    addrs.sort_by_key(|a| a.is_ipv4());
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ipv6_comes_first_keeping_dns_order() {
+        let mut addrs: Vec<SocketAddr> = [
+            "192.0.2.1:443",
+            "[2001:db8::2]:443",
+            "192.0.2.2:443",
+            "[2001:db8::1]:443",
+        ]
+        .iter()
+        .map(|a| a.parse().unwrap())
+        .collect();
+        prefer_ipv6(&mut addrs);
+        let got: Vec<String> = addrs.iter().map(|a| a.to_string()).collect();
+        assert_eq!(
+            got,
+            [
+                "[2001:db8::2]:443",
+                "[2001:db8::1]:443",
+                "192.0.2.1:443",
+                "192.0.2.2:443"
+            ]
+        );
     }
 }

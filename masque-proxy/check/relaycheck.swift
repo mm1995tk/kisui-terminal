@@ -15,7 +15,6 @@ let certificate = try! Data(contentsOf: URL(fileURLWithPath: args[3]))
 var queue = Array(args[4...])
 
 let tls = NWProtocolTLS.Options()
-if ProcessInfo.processInfo.environment["NOAUTH"] != nil { sec_protocol_options_set_peer_authentication_required(tls.securityProtocolOptions, false) }
 sec_protocol_options_set_verify_block(tls.securityProtocolOptions, { _, trust, complete in
     let secTrust = sec_trust_copy_ref(trust).takeRetainedValue()
     let chain = (SecTrustCopyCertificateChain(secTrust) as? [SecCertificate]) ?? []

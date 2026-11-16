@@ -47,6 +47,7 @@ let
       ../../app/src-tauri
       # workspace の member。殻の build には使わないが、cargo は member の Cargo.toml を読む
       ../../emulator
+      ../../masque-proxy
     ];
   };
   nightly = channel == "nightly";
