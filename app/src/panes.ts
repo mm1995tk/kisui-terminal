@@ -174,9 +174,8 @@ export function applyMove(
   border: Border,
   step: number,
   max?: number,
-  fallback?: number,
 ): PaneSizes {
-  let cur = sizeOf(sizes, border, fallback);
+  let cur = sizeOf(sizes, border);
   if (max !== undefined) cur = Math.min(cur, max);
   return withSize(sizes, border, cur + step, max);
 }

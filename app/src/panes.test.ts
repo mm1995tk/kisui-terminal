@@ -234,9 +234,8 @@ describe("タブの段とファイルツリーの境目（#284）", () => {
     assert.equal(clampBorder("tabs", 33.4), 33);
   });
 
-  it("1 回のキーで 5% 動き、端を超えない。設定の値から動き出せる。戻すと元の大きさ（設定の値）", () => {
+  it("1 回のキーで 5% 動き、端を超えない。戻すと元の大きさ（設定の値）", () => {
     assert.equal(sizeOf(applyMove({}, "tabs", 5), "tabs"), 45);
-    assert.equal(sizeOf(applyMove({}, "tabs", 5, 90, 25), "tabs", 25), 30);
     assert.equal(sizeOf(applyMove({ tabs: 12 }, "tabs", -5), "tabs"), 10);
     assert.equal(sizeOf(applyMove({ tabs: 88 }, "tabs", 5), "tabs"), 90);
     const s = withSize({ changes: 200 }, "tabs", 70);
