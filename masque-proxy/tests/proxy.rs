@@ -312,3 +312,43 @@ async fn h2_carries_udp_in_capsules() {
     assert_eq!(get_varint(&mut got), 0);
     assert_eq!(got, Bytes::from_static(b"echo:hello"));
 }
+
+#[tokio::test]
+async fn h2_closes_udp_stream_on_too_long_capsule() {
+    let proxy = start_proxy().await;
+    let target = udp_echo().await;
+    let mut send = h2_connect(&proxy).await;
+    for _ in 0..100 {
+        if send.is_extended_connect_protocol_enabled() {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+        send = send.ready().await.unwrap();
+    }
+
+    let mut req = Request::builder()
+        .method(Method::CONNECT)
+        .uri(udp_path(target))
+        .header("capsule-protocol", "?1")
+        .body(())
+        .unwrap();
+    req.extensions_mut()
+        .insert(h2::ext::Protocol::from("connect-udp"));
+    let (resp, mut body_out) = send.send_request(req, false).unwrap();
+    let resp = timeout(WAIT, resp).await.unwrap().unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    // 長さに 2^29 を書いた capsule の頭と、上限を超える分の中身（全部は届かない）
+    let mut capsule = BytesMut::new();
+    put_varint(&mut capsule, 0);
+    put_varint(&mut capsule, 1 << 29);
+    capsule.put_slice(&vec![0u8; 70_000]);
+    body_out.send_data(capsule.freeze(), false).unwrap();
+
+    // プロキシは溜め続けずに stream を閉じる
+    let mut body_in = resp.into_body();
+    match timeout(WAIT, body_in.data()).await.unwrap() {
+        None | Some(Err(_)) => {}
+        Some(Ok(data)) => panic!("unexpected data: {data:?}"),
+    }
+}

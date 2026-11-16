@@ -5,6 +5,11 @@ use bytes::{Buf, BufMut, Bytes, BytesMut};
 /// CONNECT-UDP の DATAGRAM の capsule の種類（RFC 9297 3.5）。
 pub(crate) const CAPSULE_DATAGRAM: u64 = 0x00;
 
+/// 受ける capsule の長さの上限（種類と長さの頭を含む）。UDP の 1 つのデータ（65535 バイトまで）に、
+/// 文脈 ID と、種類と長さの可変長整数（8 バイトずつまで）を足したもの。
+/// これより長い capsule は運ぶ必要が無く、全部が届くまで溜め続けないようにするため。
+pub(crate) const MAX_CAPSULE_LEN: usize = 65535 + 8 + 8 + 8;
+
 pub(crate) fn put_varint(buf: &mut BytesMut, v: u64) {
     if v < 1 << 6 {
         buf.put_u8(v as u8);

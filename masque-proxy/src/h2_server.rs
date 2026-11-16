@@ -175,6 +175,11 @@ async fn udp(
                     let _ = socket.send(&payload).await;
                 }
             }
+            // 取り出せる capsule を全部取り出したあとに上限より多く残っているのは、上限より長い capsule が
+            // 途中まで届いているとき。溜め続けないよう、流れを閉じる
+            if pending.len() > wire::MAX_CAPSULE_LEN {
+                return Err::<(), BoxError>("capsule too large".into());
+            }
         }
         Ok::<_, BoxError>(())
     };
