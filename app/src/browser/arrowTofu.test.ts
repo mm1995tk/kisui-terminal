@@ -90,7 +90,7 @@ describe("矢印キーの豆腐（#285）", () => {
   };
 
   it("U+F700〜U+F703（上下左右）の入力を止める", () => {
-    for (const c of ["", "", "", ""])
+    for (const c of ["\uF700", "\uF701", "\uF702", "\uF703"])
       assert.equal(run("insertText", c), true, c.charCodeAt(0).toString(16));
   });
   it("関数キーの文字の区画 U+F700〜U+F74F の両端を止め、その外（U+F8FF の Apple のロゴなど）は止めない", () => {
@@ -100,15 +100,14 @@ describe("矢印キーの豆腐（#285）", () => {
     assert.equal(run("insertText", "\uF750"), false);
     assert.equal(run("insertText", "\uF8FF"), false);
   });
-  });
   it("普通の文字・日本語・貼り付け・変換中は止めない", () => {
     assert.equal(run("insertText", "a"), false);
     assert.equal(run("insertText", "あ"), false);
-    assert.equal(run("insertCompositionText", ""), false);
-    assert.equal(run("insertFromPaste", ""), false);
+    assert.equal(run("insertCompositionText", "\uF700"), false);
+    assert.equal(run("insertFromPaste", "\uF700"), false);
     assert.equal(run("insertText", null), false);
   });
   it("ページのスクリプトが作ったイベントには触らない", () => {
-    assert.equal(run("insertText", "", false), false);
+    assert.equal(run("insertText", "\uF700", false), false);
   });
 });
