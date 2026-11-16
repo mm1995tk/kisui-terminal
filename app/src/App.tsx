@@ -975,37 +975,45 @@ function Workbench(props: {
     return h === undefined ? s : withSize(s, "changes", h, maxOf("changes"));
   }
 
+  /** リサイズモードで、タブの段とファイルツリーの境目を動かす。上下だけ効く（下へ動かすとタブの段が高くなる）。 */
+  function nudgeTabs(axis: "x" | "y", sign: 1 | -1) {
+    if (axis !== "y") return;
+    changeSizes(
+      applyMove(
+        // 動かし始めは、画面に出ているタブの段の高さ（タブが少なく、上限より低いとき、見えない値だけが動かないように）
+        withShownTabs(sizes()),
+        "tabs",
+        sign * KEY_STEP.tabs,
+        maxOf("tabs"),
+      ),
+    );
+  }
+
+  /** リサイズモードで、ファイルツリーと CHANGES の境目を動かす。上下だけ効く（上へ動かすと CHANGES が高くなる）。 */
+  function nudgeChanges(axis: "x" | "y", sign: 1 | -1) {
+    if (axis !== "y") return;
+    changeSizes(
+      applyMove(
+        // 動かし始めは、画面に出ている一覧の高さ（行が少なく、覚えた値より低いとき、見えない値だけが動かないように）
+        withShownHeight(sizes()),
+        "changes",
+        -sign * KEY_STEP.changes,
+        maxOf("changes"),
+      ),
+    );
+  }
+
   /** リサイズモードで key（TUI と同じ名前。panes.ts）を押した。 */
   function resizeKey(key: string) {
     const a = resizeAction(key);
     switch (a.kind) {
       case "nudge": {
-        // タブの段とファイルツリーの境目は上下だけ動かす（下へ動かすとタブの段が高くなる）
         if (litTabs()) {
-          if (a.axis === "y")
-            changeSizes(
-              applyMove(
-                // 動かし始めは、画面に出ているタブの段の高さ（タブが少なく、上限より低いとき、見えない値だけが動かないように）
-                withShownTabs(sizes()),
-                "tabs",
-                a.sign * KEY_STEP.tabs,
-                maxOf("tabs"),
-              ),
-            );
+          nudgeTabs(a.axis, a.sign);
           break;
         }
-        // ファイルツリーと CHANGES の境目は上下だけ動かす（上へ動かすと CHANGES が高くなる）
         if (litChanges()) {
-          if (a.axis === "y")
-            changeSizes(
-              applyMove(
-                // 動かし始めは、画面に出ている一覧の高さ（行が少なく、覚えた値より低いとき、見えない値だけが動かないように）
-                withShownHeight(sizes()),
-                "changes",
-                -a.sign * KEY_STEP.changes,
-                maxOf("changes"),
-              ),
-            );
+          nudgeChanges(a.axis, a.sign);
           break;
         }
         const k = litSplit();
