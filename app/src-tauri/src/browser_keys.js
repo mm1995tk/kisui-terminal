@@ -21,12 +21,15 @@
   const metaOf = getter(K, "metaKey");
   const repeatOf = getter(K, "repeat");
   const composingOf = getter(K, "isComposing");
+  const inputTypeOf = getter(InputEvent.prototype, "inputType");
+  const dataOf = getter(InputEvent.prototype, "data");
   const preventDefault = uncurry(Event.prototype.preventDefault);
   const stopImmediatePropagation = uncurry(
     Event.prototype.stopImmediatePropagation,
   );
   const lower = uncurry(String.prototype.toLowerCase);
   const upper = uncurry(String.prototype.toUpperCase);
+  const charCodeAt = uncurry(String.prototype.charCodeAt);
   const open = uncurry(window.open);
   const enc = encodeURIComponent;
   const addListener = uncurry(window.addEventListener);
@@ -128,6 +131,32 @@
       stopImmediatePropagation(ev);
       if (!hit || hit.enter) followUntil = now() + 1500;
       send(e);
+    },
+    true,
+  );
+  // macOS の子の webview（Tauri の add_child）は、カーソルが動けない方向に矢印キーを押すと、矢印キーに使う私用領域の文字
+  // （NSUpArrowFunctionKey などの U+F700〜U+F703）をテキストとして入力してしまう（tauri-apps/tauri#10194。空の入力欄ではどの方向にも
+  // 動けないので毎回入る）。Tauri の殻には手を入れず、その文字を入れる入力（beforeinput の insertText）だけを止める。
+  // macOS が矢印・Home・End・F キーなどに使う関数キーの文字の区画（U+F700〜U+F74F。AppKit の NSUpArrowFunctionKey〜NSModeSwitchFunctionKey）を止める。
+  // U+F8FF（Apple のロゴ。Option+Shift+K で打てる）は区画の外なので止めない。keydown は止めないので、
+  // カーソルの移動も、ページが矢印キーを受けることも変わらない。貼り付け・日本語入力（insertText ではない種類）は止めない
+  addListener(
+    window,
+    "beforeinput",
+    (ie) => {
+      if (!ie.isTrusted) return;
+      if ("" + inputTypeOf(ie) !== "insertText") return;
+      const d = dataOf(ie);
+      if (d == null) return;
+      const s = "" + d;
+      for (let i = 0; i < s.length; i++) {
+        const c = charCodeAt(s, i);
+        if (c >= 0xf700 && c <= 0xf74f) {
+          preventDefault(ie);
+          stopImmediatePropagation(ie);
+          return;
+        }
+      }
     },
     true,
   );
