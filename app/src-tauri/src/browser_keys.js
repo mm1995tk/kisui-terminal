@@ -73,7 +73,8 @@
       return lower(e.key) === k || c === "Key" + upper(k);
     return e.key === k;
   };
-  // keyspec.ts の matchSpec と同じ判定
+  // keyspec.ts の matchSpec と同じ判定。ただし変換のキーの見分け方は isComposing だけ（下の keydown で見る）で、
+  // app/src/ime.ts の isComposingKey（keyCode 229・key が Process も見る）より狭い
   const match = (e, s) => {
     if (e.ctrl !== s.ctrl || e.alt !== s.alt) return false;
     if (e.meta !== s.meta) return false;
