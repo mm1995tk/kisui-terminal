@@ -80,8 +80,10 @@ kisui-terminal の設定は、kisui-terminal 自身の設定のフォルダの `
   ```sh
   # あとで確かめるため、証明書を写しておく
   security find-certificate -c "kisui-terminal browser proxy" -p > /tmp/kisui-browser-proxy.pem
-  # 証明書を信頼の設定ごと消し、鍵を消す
-  security delete-certificate -t -c "kisui-terminal browser proxy"
+  # その名前の証明書をすべて信頼の設定ごと消し、鍵を消す
+  for h in $(security find-certificate -a -c "kisui-terminal browser proxy" -Z | awk '/^SHA-256 hash:/ {print $3}'); do
+    security delete-certificate -t -Z "$h"
+  done
   security delete-generic-password -s "kisui-terminal browser proxy"
   # 失敗すれば（CSSMERR_TP_NOT_TRUSTED）、信頼は外れている
   security verify-cert -c /tmp/kisui-browser-proxy.pem -p ssl -s localhost

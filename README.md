@@ -80,8 +80,10 @@ kisui-terminal reads its settings from two files in its own folder, `config.toml
   ```sh
   # keep a copy of the certificate, to check afterwards
   security find-certificate -c "kisui-terminal browser proxy" -p > /tmp/kisui-browser-proxy.pem
-  # delete the certificate with its trust, then the key
-  security delete-certificate -t -c "kisui-terminal browser proxy"
+  # delete every certificate of that name with its trust, then the key
+  for h in $(security find-certificate -a -c "kisui-terminal browser proxy" -Z | awk '/^SHA-256 hash:/ {print $3}'); do
+    security delete-certificate -t -Z "$h"
+  done
   security delete-generic-password -s "kisui-terminal browser proxy"
   # this now fails (CSSMERR_TP_NOT_TRUSTED): the certificate is not trusted any more
   security verify-cert -c /tmp/kisui-browser-proxy.pem -p ssl -s localhost
