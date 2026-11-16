@@ -304,3 +304,64 @@ async fn udp(
     let _ = stream.finish().await;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn payload(n: usize) -> Bytes {
+        Bytes::from(n.to_string())
+    }
+
+    #[test]
+    fn datagrams_before_open_are_handed_over_in_order() {
+        let flows = Flows::default();
+        flows.deliver(1, payload(0));
+        flows.deliver(1, payload(1));
+        let mut rx = flows.open(1);
+        flows.deliver(1, payload(2));
+        for n in 0..3 {
+            assert_eq!(rx.try_recv().unwrap(), payload(n));
+        }
+        assert!(rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn early_datagrams_are_bounded_per_flow() {
+        let flows = Flows::default();
+        for n in 0..EARLY_PER_FLOW + 5 {
+            flows.deliver(1, payload(n));
+        }
+        let mut rx = flows.open(1);
+        let mut got = 0;
+        while rx.try_recv().is_ok() {
+            got += 1;
+        }
+        assert_eq!(got, EARLY_PER_FLOW);
+    }
+
+    #[test]
+    fn early_flows_are_bounded() {
+        let flows = Flows::default();
+        for id in 0..EARLY_FLOWS as u64 + 5 {
+            flows.deliver(id, payload(0));
+        }
+        assert_eq!(flows.inner.lock().unwrap().early.len(), EARLY_FLOWS);
+        // 溢れた流れのものは溜めていない
+        let mut rx = flows.open(EARLY_FLOWS as u64);
+        assert!(rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn close_leaves_nothing() {
+        let flows = Flows::default();
+        flows.deliver(1, payload(0));
+        flows.deliver(2, payload(0));
+        let _rx = flows.open(2);
+        flows.close(1);
+        flows.close(2);
+        let inner = flows.inner.lock().unwrap();
+        assert!(inner.early.is_empty());
+        assert!(inner.open.is_empty());
+    }
+}
