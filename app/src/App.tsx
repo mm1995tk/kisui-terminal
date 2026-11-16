@@ -157,6 +157,7 @@ import {
 } from "./gws/model.ts";
 import { MachinePicker } from "./connect/MachinePicker.tsx";
 import { WorkspaceKindPicker } from "./connect/WorkspaceKindPicker.tsx";
+import { WorkspaceSwitcher } from "./connect/WorkspaceSwitcher.tsx";
 import { creatableRows } from "./connect/machineList.ts";
 import { Sidebar, type NewTabKind } from "./sidebar/Sidebar.tsx";
 import "./app.css";
@@ -2755,6 +2756,12 @@ function Workbench(props: {
     if (next) setGws(next);
   }
 
+  // ワークスペースを切り替える窓（リーダーの w w）を出しているか。開く処理は openWorkspaceSwitcher（サイドバーの見出しからも呼べる）
+  const [wsSwitcher, setWsSwitcher] = createSignal(false);
+  function openWorkspaceSwitcher() {
+    setWsSwitcher(true);
+  }
+
   // ワークスペースを作るマシンを選んでいる窓（リーダーの w n）
   const [pickingMachine, setPickingMachine] = createSignal(false);
   // ワークスペースの種類（ターミナルかブラウザか）を選んでいる窓（リーダーの w n。内蔵ブラウザを有効にしているとき）
@@ -2894,6 +2901,9 @@ function Workbench(props: {
       }
       case "workspace.new":
         newWorkspace();
+        break;
+      case "workspace.switch":
+        openWorkspaceSwitcher();
         break;
       case "workspace.close": {
         const g = currentGws();
@@ -3432,6 +3442,36 @@ function Workbench(props: {
             }
           }}
           onCancel={() => setMachinesOpen(false)}
+        />
+      </Show>
+      <Show when={wsSwitcher()}>
+        <WorkspaceSwitcher
+          rows={rows()}
+          onGo={(r) => {
+            setWsSwitcher(false);
+            goRow(r);
+          }}
+          onLast={() => {
+            setWsSwitcher(false);
+            runCommand({ id: "workspace.last" });
+          }}
+          onTab={(gid, key) => {
+            setWsSwitcher(false);
+            selectTab(gid, key);
+          }}
+          onReorder={(gid, dir) => {
+            const next = moveGws(untrack(gws), gid, dir);
+            if (next) setGws(next);
+          }}
+          onDrop={(gid, before) => {
+            const next = moveBefore(untrack(gws), gid, before);
+            if (next) setGws(next);
+          }}
+          onNew={() => {
+            setWsSwitcher(false);
+            newWorkspace();
+          }}
+          onCancel={() => setWsSwitcher(false)}
         />
       </Show>
       <Show when={pickingKind()}>

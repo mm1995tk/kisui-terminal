@@ -1,0 +1,148 @@
+/* ワークスペースを切り替える窓（WorkspaceSwitcher.tsx。リーダーの w w）。カードは card.css。
+   左に全ワークスペース、右に選んでいる行のタブの一覧（サイドバーのタブの行 .tab-row を、sidebar.css のまま使う）。 */
+
+.switcher-cols {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+  gap: 12px;
+  min-height: 0;
+  padding: 0 12px;
+}
+.switcher-left {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.switcher-left .card-rows {
+  padding: 4px 0;
+  max-height: calc(100vh - 380px);
+  min-height: 120px;
+}
+.switcher-right {
+  min-width: 0;
+  min-height: 0;
+  max-height: calc(100vh - 320px);
+  overflow-y: auto;
+}
+
+/* 左の行：つかむ所・番号・マシンの色の丸・名前・「今」・タブの数 */
+.switch-row {
+  gap: 8px;
+  padding: 8px 8px 8px 2px;
+  cursor: pointer;
+}
+.switch-row[data-dragging] {
+  position: relative;
+  z-index: 2;
+  opacity: 0.85;
+  background: var(--card-row-active);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.3);
+  cursor: grabbing;
+}
+.switch-row[data-shift] {
+  transition: transform 150ms ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .switch-row[data-shift] {
+    transition: none;
+  }
+}
+.switch-row .grip {
+  --sidebar-muted: var(--card-muted);
+  margin: 0 0 0 4px;
+}
+.switch-row:hover .grip {
+  opacity: 1;
+}
+.switch-num {
+  flex: none;
+  width: 1.2em;
+  color: var(--card-muted);
+  font-family: var(--gh-mono);
+  font-size: 12px;
+  text-align: right;
+}
+/* マシンの色の丸。つながっていれば塗り、つないでいる間は薄い塗り、つながっていなければ枠だけ */
+.switch-dot {
+  flex: none;
+  box-sizing: border-box;
+  width: 10px;
+  height: 10px;
+  border-radius: 5px;
+  border: 1px solid var(--machine-color);
+  background: var(--machine-color);
+}
+.switch-dot[data-health="pending"] {
+  background: color-mix(in srgb, var(--machine-color) 40%, transparent);
+}
+.switch-dot[data-health="down"] {
+  background: transparent;
+}
+.switch-current {
+  flex: none;
+  padding: 0 6px;
+  border: 1px solid var(--card-accent);
+  border-radius: 8px;
+  color: var(--card-accent);
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 16px;
+}
+.switch-count {
+  flex: none;
+  min-width: 1.5em;
+  color: var(--card-muted);
+  font-size: 12px;
+  font-weight: 400;
+  text-align: right;
+}
+.switch-new {
+  box-sizing: border-box;
+  width: 100%;
+  margin-top: 4px;
+  padding: 10px 8px;
+  border: 1px dashed var(--card-field-border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--card-muted);
+  text-align: left;
+  cursor: pointer;
+}
+.switch-new:hover {
+  background: var(--card-row-active);
+  color: var(--card-text);
+}
+
+/* 右：サイドバーのタブの行を使うので、サイドバーの色の変数をここで決める */
+.switch-tabs {
+  --sidebar-text: var(--gh-text);
+  --sidebar-muted: var(--gh-text-muted);
+  --band-hover: var(--gh-bg-hover);
+  --health-up: var(--gh-green);
+  --health-pending: var(--gh-yellow);
+  --health-down: var(--gh-text-dim);
+  --row-bg: var(--gh-bg-side);
+  --row-shown-bg: color-mix(
+    in srgb,
+    var(--gh-bg-raised) 70%,
+    var(--gh-bg-side)
+  );
+  overflow: clip;
+  border: 1px solid var(--gh-border-strong);
+  border-radius: 8px;
+  background: var(--gh-bg-side);
+}
+.switch-tabs-head {
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border-bottom: 2px solid var(--gh-border-strong);
+  background: var(--gh-bg-raised);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.switch-tabs .card-empty {
+  color: var(--gh-text-muted);
+}

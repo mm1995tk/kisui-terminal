@@ -23,6 +23,8 @@ export function ModalCard(props: {
   /** 幅（px）。省くとモックの 560px */
   width?: number;
   focusSelf?: boolean;
+  /** 窓の外（暗くした背景）を押したら onCancel を呼ぶ。省くと呼ばない（打ちかけの入力を、押し違いで失わないため） */
+  closeOnOutside?: boolean;
   children: JSX.Element;
 }): JSX.Element {
   let el!: HTMLDialogElement;
@@ -33,6 +35,18 @@ export function ModalCard(props: {
   // keydown で onCancel を呼んだ直後に cancel が来ても、二重に呼ばない。
   // keydown の既定動作（cancel）はマイクロタスクより後なので、戻すのは setTimeout で次のタスクまで待つ
   let handled = false;
+  // 背景（::backdrop）のイベントは、target が dialog そのもの。窓の中の余白と分けるため、位置が矩形の外かも見る
+  let downOnBackdrop = false;
+  const onBackdrop = (e: MouseEvent): boolean => {
+    if (e.target !== el) return false;
+    const r = el.getBoundingClientRect();
+    return (
+      e.clientX < r.left ||
+      e.clientX > r.right ||
+      e.clientY < r.top ||
+      e.clientY > r.bottom
+    );
+  };
   onMount(() => {
     // 取れない WebView では開いたまま（open）の素の窓になる
     if (!el.open) el.showModal?.();
@@ -57,6 +71,15 @@ export function ModalCard(props: {
         handled = true;
         setTimeout(() => (handled = false), 0);
         props.onCancel();
+      }}
+      onPointerDown={(e) => {
+        downOnBackdrop = onBackdrop(e);
+      }}
+      onClick={(e) => {
+        // 押し始めも離したのも背景のときだけ閉じる（窓の中でつかんだドラッグを、外で離したときに閉じない）
+        const down = downOnBackdrop;
+        downOnBackdrop = false;
+        if (props.closeOnOutside && down && onBackdrop(e)) props.onCancel();
       }}
       onCancel={(e) => {
         e.preventDefault();

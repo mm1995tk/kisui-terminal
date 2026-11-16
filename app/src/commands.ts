@@ -29,6 +29,7 @@ export type CommandId =
   | "workspace.step"
   | "workspace.last"
   | "workspace.new"
+  | "workspace.switch"
   | "workspace.close"
   | "workspace.rename"
   | "workspace.move"
@@ -250,6 +251,7 @@ export const LEADER: Node[] = [
       leaf("Tab", T("leader.ws.last"), {
         id: "workspace.last",
       }),
+      leaf("w", T("leader.ws.switch"), { id: "workspace.switch" }),
       ...Array.from({ length: 9 }, (_, i) =>
         leaf(
           String(i + 1),
