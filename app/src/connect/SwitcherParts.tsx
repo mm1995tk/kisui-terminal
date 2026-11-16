@@ -50,7 +50,12 @@ export function SwitcherRow(props: {
       data-gws={r().gws}
       aria-selected={props.selected ? "true" : "false"}
       onClick={() => props.onSelect()}
-      onDblClick={() => props.onGo()}
+      onDblClick={(e) => {
+        // つかむ所とボタンをすばやく 2 回押しても、移らない（確認や入力欄が出たまま移って閉じないように）
+        if (e.target instanceof Element && e.target.closest("button, .grip"))
+          return;
+        props.onGo();
+      }}
     >
       <span
         class="grip"
