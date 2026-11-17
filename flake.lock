@@ -99,11 +99,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1794575570,
-        "narHash": "sha256-21HlGGahai6qAJpIEbpTyMaLoHDmgTPG72aT4VHx4rA=",
+        "lastModified": 1794857048,
+        "narHash": "sha256-+eKoGezUSCRCkAqHBzoDgvPXie833mNvfn9lJoIhfr8=",
         "owner": "mm1995tk",
         "repo": "shijimi-editor",
-        "rev": "3652e2f5fb5b73e6027de8d25d21e597f3a243f4",
+        "rev": "87f9c6ae787448aa79c60b0178cd41dc56afe988",
         "type": "github"
       },
       "original": {
@@ -129,11 +129,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1794688689,
-        "narHash": "sha256-kG7GPVbgAY5FMZDLSBLWS0ZRlKW4hRjk7PSRIwYPdSQ=",
+        "lastModified": 1794857048,
+        "narHash": "sha256-xR0M1Q7HIhl3tx91HxtBlFnJx4FF1nbaUCBkGWcXDd8=",
         "owner": "mm1995tk",
         "repo": "shijimi-editor",
-        "rev": "f5f4946ed88116120f7a08839f00951254f4ac41",
+        "rev": "58b5b90eea40e125828d37cf1d12b8428841b05c",
         "type": "github"
       },
       "original": {
