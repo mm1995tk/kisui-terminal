@@ -4,6 +4,7 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
+    crane.url = "github:ipetkov/crane";
     gomod2nix.url = "github:nix-community/gomod2nix";
     gomod2nix.inputs.nixpkgs.follows = "nixpkgs";
     gomod2nix.inputs.flake-utils.follows = "flake-utils";
@@ -32,6 +33,7 @@
       self,
       nixpkgs,
       flake-utils,
+      crane,
       gomod2nix,
       treefmt-nix,
       shijimi-editor,
@@ -143,6 +145,7 @@
           # kisui-terminal（GUI）。Nix で作る版に自動更新は無い（nix flake update で進める）
           guiDrv = import ./packaging/nix/kisui-terminal.nix {
             inherit pkgs version;
+            craneLib = crane.mkLib pkgs;
             kisui = "${kisuiDrv}/bin/kisui";
             shj = "${shj}/bin/shj";
           };
@@ -150,6 +153,7 @@
           guiNightlyDrv = import ./packaging/nix/kisui-terminal.nix {
             inherit pkgs;
             version = nightlyVersion;
+            craneLib = crane.mkLib pkgs;
             kisui = "${kisuiNightlyDrv}/bin/kisui";
             shj = "${shjNightly}/bin/shj-nightly";
             channel = "nightly";
