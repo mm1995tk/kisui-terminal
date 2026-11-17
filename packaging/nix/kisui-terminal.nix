@@ -85,7 +85,10 @@ let
     version = (builtins.fromTOML (builtins.readFile ../../app/src-tauri/Cargo.toml)).package.version;
     src = shellSrc;
     cargoExtraArgs = "--locked -p kisui-terminal --features custom-protocol";
-    nativeBuildInputs = [ pkgs.pkg-config ];
+    nativeBuildInputs = [
+      pkgs.pkg-config
+    ]
+    ++ lib.optionals stdenv.hostPlatform.isLinux [ pkgs.wrapGAppsHook3 ];
     buildInputs = lib.optionals stdenv.hostPlatform.isLinux [
       pkgs.webkitgtk_4_1
       pkgs.gtk3
@@ -96,7 +99,14 @@ let
     ];
     doCheck = true;
   };
-  cargoArtifacts = craneLib.buildDepsOnly cargoArgs;
+  cargoArtifacts = craneLib.buildDepsOnly (
+    cargoArgs
+    // {
+      # メタデータだけの cargo check を重ねず、配布とテストに使う成果物をキャッシュする。
+      buildPhaseCargoCommand = "cargo build --release ${cargoArgs.cargoExtraArgs}";
+      dontWrapGApps = true;
+    }
+  );
 in
 craneLib.buildPackage (
   cargoArgs
@@ -110,9 +120,6 @@ craneLib.buildPackage (
       mkdir -p app/dist
       cp -r ${web}/. app/dist/
     '';
-
-    nativeBuildInputs =
-      cargoArgs.nativeBuildInputs ++ lib.optionals stdenv.hostPlatform.isLinux [ pkgs.wrapGAppsHook3 ];
 
     # kisui は PATH に出さない（kisui は GUI だけが使う）。GUI は実行ファイルの ../libexec/kisui を見る（locate.rs）
     postInstall = ''
