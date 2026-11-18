@@ -218,7 +218,7 @@ function makeSlotMarker(): HTMLElement {
 
 /**
  * 落ちる先の枠を、画面の top（上端）に置く。left・width・height はつかんだ行と同じ。
- * 一覧（scroller）の見えている範囲にだけ出す（一覧の外や、上に固定した帯の下に隠れる所に、枠だけが浮かないように）。
+ * 一覧（scroller）の見えている範囲にだけ出す（一覧の外に、枠だけが浮かないように。上に固定した帯の下までは避けない）。
  */
 function placeSlotMarker(
   marker: HTMLElement,
