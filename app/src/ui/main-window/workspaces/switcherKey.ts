@@ -23,7 +23,9 @@ export type SwitcherKey =
   /** 選んでいる行（ワークスペースかタブ）の名前を変える */
   | { kind: "rename" }
   /** 選んでいる行を閉じる（ワークスペースは先に y / n で確かめる。タブは確かめずに閉じる） */
-  | { kind: "close" };
+  | { kind: "close" }
+  /** 選んでいるタブをつかむ（タブの列だけ。別のワークスペースへ移すために、つかんでいる間のキーに替わる。switcherHold.ts） */
+  | { kind: "hold" };
 
 /**
  * 窓の中のキー（打った文字で絞り込む入力欄は無いので、字をそのまま使える。Esc は ModalCard が取り消しに使う）。
@@ -63,6 +65,51 @@ export function switcherKey(e: KeyLike): SwitcherKey | null {
       return { kind: "rename" };
     case "x":
       return { kind: "close" };
+    case "m":
+      return { kind: "hold" };
+  }
+  return null;
+}
+
+/** タブをつかんでいる間のキーが表す動き。 */
+export type HoldKey =
+  /** ワークスペースの列なら移す先のワークスペースを、タブの列ならつかんだタブの入る位置を、1 つ動かす（端では止まる） */
+  | { kind: "move"; to: "next" | "prev" }
+  /** キーが効く列を移る（入る位置は変えない） */
+  | { kind: "col"; to: "ws" | "tab" }
+  /** 落とす（Enter・m） */
+  | { kind: "drop" }
+  /** やめて、つかんだときの所に戻す（窓は閉じない） */
+  | { kind: "cancel" };
+
+/**
+ * タブをつかんでいる間（m のあと）のキー。動かす（j k・矢印・Ctrl+J / Ctrl+K）・列を移る（h l・矢印の左右）・落とす（Enter・m）・やめる（Esc）だけで、ほかは受けない。
+ * Alt・Cmd・Ctrl を重ねたもの（Ctrl+J・Ctrl+K を除く）と変換中のキーも受けない。
+ */
+export function holdKey(e: KeyLike): HoldKey | null {
+  if (isComposingKey(e)) return null;
+  const step = listStep(e);
+  if (step !== 0) return { kind: "move", to: step === 1 ? "next" : "prev" };
+  if (e.ctrlKey || e.metaKey || e.altKey) return null;
+  switch (e.key) {
+    case "j":
+    case "ArrowDown":
+      return { kind: "move", to: "next" };
+    case "k":
+    case "ArrowUp":
+      return { kind: "move", to: "prev" };
+    case "h":
+    case "ArrowLeft":
+      return { kind: "col", to: "ws" };
+    case "l":
+    case "ArrowRight":
+      return { kind: "col", to: "tab" };
+    case "Enter":
+      return e.shiftKey ? null : { kind: "drop" };
+    case "m":
+      return { kind: "drop" };
+    case "Escape":
+      return { kind: "cancel" };
   }
   return null;
 }
@@ -113,6 +160,7 @@ export function switcherHints(
       { keys: ["r"], label: "switcher.keys.rename" },
       { keys: ["x"], label: "switcher.keys.closeTab" },
       { keys: ["J", "K"], label: "switcher.keys.reorder" },
+      { keys: ["m"], label: "switcher.keys.hold" },
       close,
     ];
   return [
@@ -127,5 +175,15 @@ export function switcherHints(
     { keys: ["x"], label: "switcher.keys.closeWorkspace" },
     { keys: ["J", "K"], label: "switcher.keys.reorder" },
     close,
+  ];
+}
+
+/** タブをつかんでいる間に、窓の下に出すキーの説明（つかんでいる間のキーだけ）。 */
+export function holdHints(): SwitcherHint[] {
+  return [
+    { keys: ["j", "k"], label: "switcher.keys.holdMove" },
+    { keys: ["h", "l"], label: "switcher.keys.holdCols" },
+    { keys: ["Enter"], label: "switcher.keys.holdDrop" },
+    { keys: ["Esc"], label: "switcher.keys.holdCancel" },
   ];
 }

@@ -325,3 +325,32 @@
   background: var(--gh-bg-hover);
   box-shadow: inset 2px 0 0 var(--card-accent);
 }
+
+/* キーでタブをつかんでいる間（m。switcherHold.ts）の見た目 */
+/* 右の見出しは、タブの数の代わりに、何を移しているかを出す */
+.switch-holding {
+  color: var(--card-accent);
+  font-weight: 600;
+}
+/* つかんだタブは、点線の枠と色の付いた地で、少し右に寄せて出す（幅は縮めて、横にはみ出さない）。ほかのタブは薄くする */
+.switch-tabs[data-holding] .tab-row[data-held] {
+  --row-bg: color-mix(in srgb, var(--card-accent) 18%, var(--gh-bg-side));
+  margin-left: 12px;
+  border-color: var(--card-accent);
+  border-style: dashed;
+}
+.switch-tabs[data-holding] .tab-row:not([data-held]) {
+  opacity: 0.5;
+}
+/* 移す先に選んでいる行の「ここの一番後ろに入る →」 */
+.switch-drop-here {
+  margin-left: 8px;
+  color: var(--card-accent);
+  font-size: 11px;
+  font-weight: 400;
+}
+/* つかんだときのワークスペースの行は、元の場所の印として点線で囲む */
+.switcher .switch-row[data-held-from] {
+  outline: 1px dashed var(--card-field-border);
+  outline-offset: -2px;
+}

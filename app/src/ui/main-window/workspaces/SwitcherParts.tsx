@@ -3,7 +3,11 @@ import { T } from "../../../i18n/index.ts";
 import { For, Show, type JSX } from "solid-js";
 
 import { ICON } from "../sidebar/icons.ts";
-import type { Health, Row } from "../../../features/workspaces/rows.ts";
+import type {
+  Health,
+  Row,
+  TabItem,
+} from "../../../features/workspaces/rows.ts";
 import { InlineInput } from "../../components/InlineInput.tsx";
 import { Kbd } from "../../components/KeyHints.tsx";
 import { TabRow } from "../sidebar/workspaces/TabRow.tsx";
@@ -92,6 +96,10 @@ export function SwitcherRow(props: {
   selected: boolean;
   edit?: RowEdit;
   confirming: boolean;
+  /** タブをつかんでいる間、つかんだときのワークスペースの行か（点線で囲む） */
+  heldFrom?: boolean;
+  /** タブをつかんでいる間、移す先に選んでいる行か（「ここの一番後ろに入る →」を出す） */
+  dropHere?: boolean;
   /** 押した */
   onPress: () => void;
   /** つかむ所を押した */
@@ -111,6 +119,7 @@ export function SwitcherRow(props: {
       class="card-row switch-row"
       role="option"
       data-gws={r().gws}
+      data-held-from={props.heldFrom ? "" : undefined}
       aria-selected={props.selected ? "true" : "false"}
       onPointerDown={(e) => {
         fromGrip = e.target instanceof Element && !!e.target.closest(".grip");
@@ -140,7 +149,14 @@ export function SwitcherRow(props: {
       />
       <Show
         when={props.edit}
-        fallback={<span class="card-row-name">{r().band.title}</span>}
+        fallback={
+          <span class="card-row-name">
+            {r().band.title}
+            <Show when={props.dropHere}>
+              <span class="switch-drop-here">{T("switcher.dropHere")}</span>
+            </Show>
+          </span>
+        }
       >
         {(edit) => (
           <InlineInput
@@ -171,6 +187,10 @@ export function SwitcherRow(props: {
  */
 export function SwitcherTabs(props: {
   row: Row;
+  /** 出すタブ（省くと row のタブ。キーでつかんでいる間は、つかんだタブを入る位置に入れたもの） */
+  items?: readonly TabItem[];
+  /** キーでつかんで移しているタブ（つかんでいる間だけ。見出しはタブの数の代わりに「〈名前〉を移しています」になり、ほかのタブは薄くなる） */
+  holding?: Pick<TabItem, "key" | "title">;
   /** キーで選んでいるタブの key（そのワークスペースに無ければ、どれも選ばない） */
   selectedKey?: string;
   /** タブの行の id を、key から作る（窓の aria-activedescendant が指す） */
@@ -203,9 +223,24 @@ export function SwitcherTabs(props: {
 }): JSX.Element {
   const r = () => props.row;
   return (
-    <div class="switch-tabs" style={{ "--machine-color": r().color }}>
+    <div
+      class="switch-tabs"
+      data-holding={props.holding ? "" : undefined}
+      style={{ "--machine-color": r().color }}
+    >
       <div class="switch-tabs-head">
-        <span>{T("switcher.tabCount", { n: r().tabs.items.length })}</span>
+        <Show
+          when={props.holding}
+          fallback={
+            <span>{T("switcher.tabCount", { n: r().tabs.items.length })}</span>
+          }
+        >
+          {(h) => (
+            <span class="switch-holding">
+              {T("switcher.holding", { title: h().title })}
+            </span>
+          )}
+        </Show>
         <span class="switch-tabs-btns">
           <Show when={props.browser}>
             <button
@@ -239,13 +274,14 @@ export function SwitcherTabs(props: {
         class="tab-rows"
         aria-label={T("sidebar.tabsOf", { title: r().band.title })}
       >
-        <For each={r().tabs.items}>
+        <For each={props.items ?? r().tabs.items}>
           {(t) => (
             <TabRow
               t={t}
               shown={r().tabs.shown === t.key}
               current={r().tabs.shown === t.key && r().tabs.focused}
               selected={props.selectedKey === t.key}
+              held={props.holding?.key === t.key}
               id={props.rowId?.(t.key)}
               onTab={() => props.onTab(r().gws, t.key)}
               onRename={() => props.onRename?.(r().gws, t.key)}
