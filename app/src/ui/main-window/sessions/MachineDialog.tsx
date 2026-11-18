@@ -211,23 +211,29 @@ export function MachineDialog(props: {
             queueMicrotask(() => el.focus());
           }}
         >
-          <For each={props.rows}>
-            {(r, i) => (
-              <MachineRowItem
-                row={r}
-                id={rowId(i())}
-                selected={sel.index() === i()}
-                onPick={() => sel.pick(i())}
-                editError={
-                  props.renaming?.target === r.target
-                    ? (props.renaming.error ?? "")
-                    : undefined
-                }
-                onRenameSubmit={(name) =>
-                  props.onRenameSubmit?.(r.target, name)
-                }
-                onRenameCancel={() => props.onRenameCancel?.()}
-              />
+          {/* 行は ssh の行き先で対応づける。行のデータは状態の文が変わるたびに作り直されるので、
+              データのオブジェクトで対応づけると、名前を打っている入力欄ごと作り直されてしまう */}
+          <For each={props.rows.map((r) => r.target)}>
+            {(target, i) => (
+              <Show when={props.rows.find((r) => r.target === target)}>
+                {(r) => (
+                  <MachineRowItem
+                    row={r()}
+                    id={rowId(i())}
+                    selected={sel.index() === i()}
+                    onPick={() => sel.pick(i())}
+                    editError={
+                      props.renaming?.target === target
+                        ? (props.renaming.error ?? "")
+                        : undefined
+                    }
+                    onRenameSubmit={(name) =>
+                      props.onRenameSubmit?.(target, name)
+                    }
+                    onRenameCancel={() => props.onRenameCancel?.()}
+                  />
+                )}
+              </Show>
             )}
           </For>
         </ul>
