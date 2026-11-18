@@ -22,6 +22,7 @@ import { isCancelKey } from "../../components/cancelKey.ts";
 import { moveRow } from "../../../features/sessions/machineList.ts";
 import { confirmKey, switcherHints, switcherKey } from "./switcherKey.ts";
 import { createSwitcherColumns } from "./switcherColumns.ts";
+import { createSwitcherTabActions } from "./switcherTabActions.ts";
 import { startTabDrag } from "./tabMoveDrag.ts";
 import "./switcher.css";
 
@@ -89,10 +90,6 @@ export function WorkspaceSwitcher(props: {
     (RowEdit & { gws: string }) | undefined
   >();
   const [confirming, setConfirming] = createSignal<string | undefined>();
-  // 名前を変えているタブ（右の列の、選んでいるワークスペースのタブ。選ぶワークスペースを変えたら、やめる）
-  const [tabEditing, setTabEditing] = createSignal<
-    (RowEdit & { key: string }) | undefined
-  >();
   // キーが効いている列と、右の列で選んでいるタブ（switcherColumns.ts）
   const { tabs, activeCol, selectedTab, toWs, toTabs, moveTab, pickTab } =
     createSwitcherColumns(selected);
@@ -119,9 +116,6 @@ export function WorkspaceSwitcher(props: {
     if (c !== undefined && !has(c)) setConfirming(undefined);
     const e = editing();
     if (e && !has(e.gws)) setEditing(undefined);
-    // 名前を変えているタブが、窓の外の理由（閉じた・移したなど）で右の列から消えたら、やめる
-    const te = tabEditing();
-    if (te && !tabs().some((t) => t.key === te.key)) setTabEditing(undefined);
   });
 
   /** 選ぶ行を変える。名前を変える・閉じる確認は、その行のものなので、やめる。 */
@@ -129,12 +123,27 @@ export function WorkspaceSwitcher(props: {
     if (gws !== sel()) {
       setEditing(undefined);
       setConfirming(undefined);
-      setTabEditing(undefined);
+      tabActions.stop();
     }
     setSel(gws);
   }
   /** 窓のキーが届く所（2 つの列を囲む入れ物）にフォーカスを戻す（ボタンや入力欄を使ったあと） */
   const focusList = () => root.focus();
+  // 右の列のタブの操作（switcherTabActions.ts）。選ぶワークスペースを変えたら、名前を変えているタブはやめる
+  const tabActions = createSwitcherTabActions({
+    tabs,
+    selected,
+    selectedTab,
+    pickTab,
+    clearRowState: () => {
+      setEditing(undefined);
+      setConfirming(undefined);
+    },
+    focusList,
+    init: props.tabRenameInit,
+    rename: props.onTabRename,
+    close: props.onTabClose,
+  });
 
   /** ワークスペースの行を押した：選んでいる行（キーが左の列で効いているとき）をもう 1 回押すと開く。それ以外は選ぶだけ。 */
   function pressRow(r: Row) {
@@ -159,47 +168,8 @@ export function WorkspaceSwitcher(props: {
     }
     setEditing(undefined);
     setConfirming(undefined);
-    // 入力欄を開いているタブの行を押したときは、入力欄を開けたままにする
-    if (tabEditing()?.key !== key) setTabEditing(undefined);
+    tabActions.stop();
     pickTab(key);
-    if (!tabEditing()) focusList();
-  }
-
-  /** タブの行の鉛筆・r：そのタブの名前の所が入力欄になる（タブを選んで、タブの列へ） */
-  function startTabRename(gws: string, key: string) {
-    const init = props.tabRenameInit(gws, key);
-    if (!init) return;
-    setEditing(undefined);
-    setConfirming(undefined);
-    pickTab(key);
-    setTabEditing({ key, ...init });
-  }
-  function submitTabRename(name: string) {
-    const e = tabEditing();
-    const r = selected();
-    if (!e || !r) return;
-    const bad = props.onTabRename(r.gws, e.key, name);
-    if (bad) setTabEditing({ ...e, error: bad });
-    else {
-      setTabEditing(undefined);
-      focusList();
-    }
-  }
-  /**
-   * タブの行の ✕・x：確かめずに閉じる（プログラムが動いているターミナルのタブの確認は、呼んだ側が出す）。窓は開けたまま。
-   * 選んでいるタブを閉じるときは、選びを隣のタブ（無ければ前のタブ）に移す。
-   */
-  function closeTab(gws: string, key: string) {
-    setEditing(undefined);
-    setConfirming(undefined);
-    setTabEditing(undefined);
-    const items = tabs();
-    const i = items.findIndex((t) => t.key === key);
-    if (selectedTab()?.key === key) {
-      const next = items[i + 1] ?? items[i - 1];
-      if (next) pickTab(next.key);
-    }
-    props.onTabClose(gws, key);
     focusList();
   }
 
@@ -210,14 +180,14 @@ export function WorkspaceSwitcher(props: {
     select(r.gws);
     toWs();
     setConfirming(undefined);
-    setTabEditing(undefined);
+    tabActions.stop();
     setEditing({ gws: r.gws, ...init });
   }
   function startClose(r: Row) {
     select(r.gws);
     toWs();
     setEditing(undefined);
-    setTabEditing(undefined);
+    tabActions.stop();
     setConfirming(r.gws);
     focusList();
   }
@@ -284,14 +254,14 @@ export function WorkspaceSwitcher(props: {
       case "rename": {
         const r = selected();
         const t = selectedTab();
-        if (r && inTabs && t) startTabRename(r.gws, t.key);
+        if (r && inTabs && t) tabActions.start(r.gws, t.key);
         else if (r && !inTabs) startRename(r);
         break;
       }
       case "close": {
         const r = selected();
         const t = selectedTab();
-        if (r && inTabs && t) closeTab(r.gws, t.key);
+        if (r && inTabs && t) tabActions.close(r.gws, t.key);
         else if (r && !inTabs) startClose(r);
         break;
       }
@@ -427,13 +397,13 @@ export function WorkspaceSwitcher(props: {
                   rowId={tabId}
                   onTab={pressTab}
                   onGrab={grabTab}
-                  onRename={startTabRename}
-                  onClose={closeTab}
-                  editKey={tabEditing()?.key}
-                  edit={tabEditing()}
-                  onRenameSubmit={submitTabRename}
+                  onRename={tabActions.start}
+                  onClose={tabActions.close}
+                  editKey={tabActions.editing()?.key}
+                  edit={tabActions.editing()}
+                  onRenameSubmit={tabActions.submit}
                   onRenameCancel={(byKey) => {
-                    setTabEditing(undefined);
+                    tabActions.stop();
                     if (byKey) focusList();
                   }}
                 />
