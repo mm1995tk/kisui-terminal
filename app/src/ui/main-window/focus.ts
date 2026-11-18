@@ -222,11 +222,11 @@ export function createFocus(deps: {
     setFindFocus(f: () => void) {
       focusFind = f;
     },
-    /** URL バー（新しいタブのページなら検索窓）にキーを向ける関数を受け取る（UrlBar・NewTabPage） */
     /** 空のワークスペースの画面にキーを向ける関数を受け取る（EmptyWorkspace。消えるときは undefined） */
     setEmptyFocus(f: (() => void) | undefined) {
       focusEmpty = f;
     },
+    /** URL バー（新しいタブのページなら検索窓）にキーを向ける関数を受け取る（UrlBar・NewTabPage） */
     setUrlBarFocus(f: () => void) {
       focusUrlBar = f;
     },
