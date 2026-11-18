@@ -2,7 +2,10 @@
 // DOM の要素は引数で受けるので、キーの判定だけ node --test で確かめられる。
 
 import { isComposingKey } from "../../../../features/commands/ime.ts";
-import { isEditorKey, type KeyLike } from "../../../../features/commands/guiKeys.ts";
+import {
+  isEditorKey,
+  type KeyLike,
+} from "../../../../features/commands/guiKeys.ts";
 
 /** ツリーから端末へ戻るキー：修飾キーなしの Esc と、TUI と同じ Ctrl+E（かな漢字変換中は除く）。 */
 export function isLeaveExplorerKey(e: KeyLike): boolean {

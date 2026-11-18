@@ -2,7 +2,10 @@
 // session.hello を通す。
 
 import { Client, type Transport } from "../../infrastructure/rpc/client.ts";
-import type { AttachInfo, HelloResult } from "../../infrastructure/rpc/protocol.ts";
+import type {
+  AttachInfo,
+  HelloResult,
+} from "../../infrastructure/rpc/protocol.ts";
 import {
   EXIT_KISUI_MISSING,
   LOCAL,

@@ -5,7 +5,7 @@ import { For, Show, type JSX } from "solid-js";
 import { ICON } from "../sidebar/icons.ts";
 import type { Health, Row } from "../../../features/workspaces/rows.ts";
 import { renameKeyAction } from "../sidebar/renameInput.ts";
-import { TabRow } from "../sidebar/Sidebar.tsx";
+import { TabRow } from "../sidebar/workspaces/TabRow.tsx";
 
 const healthLabel = (h: Health): string => T(`health.${h}`);
 

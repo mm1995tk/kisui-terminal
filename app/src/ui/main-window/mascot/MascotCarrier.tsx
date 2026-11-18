@@ -31,7 +31,7 @@ import {
   type CloseReason,
   type LoadedMascot,
 } from "../../../features/mascot/mascot.ts";
-import { initMascot, mascot } from "../../../features/mascot/mascotStore.ts";
+import type { MascotStore } from "../../../features/mascot/mascotStore.ts";
 
 /** ダイアログ（`?` のキーの一覧・クリップボードの履歴など）が開いているか。開いていれば、キャラクターはその場ですぐ消える */
 const dialogOpen = () => !!document.querySelector("dialog[open]");
@@ -46,7 +46,10 @@ export function MascotCarrier(props: {
   /** 閉じた理由。`open` が false になるときに読む */
   closedBy: () => CloseReason;
   menu: () => HTMLElement | undefined;
+  /** 今使っているキャラクターの持ち物 */
+  store: MascotStore;
 }): JSX.Element {
+  const mascot = props.store.mascot;
   /** 今出しているコマの画像（null は出していない） */
   const [frame, setFrame] = createSignal<string | null>(null);
   let charEl: HTMLDivElement | undefined;
@@ -54,7 +57,7 @@ export function MascotCarrier(props: {
   /** 案内を運んでいる途中か（運び終える前）。この間に `Esc` で閉じたら、押していかずにすぐ消す */
   let carrying = false;
 
-  onMount(() => void initMascot());
+  onMount(() => void props.store.init());
   // 読み直した（`c r`）・選び直した（`c s`）とき、出している動きは、前のキャラクターの画像（読み直すと使えなくなる）なので、止めて消す。
   // 新しい絵は、次にリーダーを開いたときから出る
   createEffect(

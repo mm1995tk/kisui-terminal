@@ -3,10 +3,16 @@
 import { T } from "../../../i18n/index.ts";
 import { createSignal, For, Show, type JSX } from "solid-js";
 
-import { helpRows, leaderKeyName } from "../../../features/commands/commands.ts";
+import {
+  helpRows,
+  leaderKeyName,
+} from "../../../features/commands/commands.ts";
 import { ModalCard } from "../../components/Card.tsx";
 import { IS_MAC } from "../../../features/commands/guiKeys.ts";
-import { PLACE_KEYS, type Place } from "../../../features/commands/placeKeys.ts";
+import {
+  PLACE_KEYS,
+  type Place,
+} from "../../../features/commands/placeKeys.ts";
 import styles from "./KeyListDialog.module.css";
 
 const [opened, setOpened] = createSignal(false);

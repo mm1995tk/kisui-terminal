@@ -1,6 +1,17 @@
 import type { NotificationSupport, TerminalNotification } from "coneko-term";
 
 /**
+ * OS の通知を出す。`onResponse` は押された・閉じられたのとき 1 回だけ呼ばれる。出せなければ例外。
+ * `focus` が真なら、押されたとき殻が窓を前に出す。返す関数は、欄が無くなるときに呼ぶ（以後の返事を捨てる）。
+ * 本物は infrastructure/tauri/notify.ts。
+ */
+export type ShowOsNotification = (
+  n: { title: string; body?: string },
+  focus: boolean,
+  onResponse: (kind: "activated" | "closed") => void,
+) => Promise<() => void>;
+
+/**
  * `p=?` への返事。押されたとき欄を前に出す（a=focus）と、押されたの返事（a=report）は 3 つの OS とも対応する。
  * 閉じられたの返事（c=1）は macOS だけ対応しない（NSUserNotification は閉じられたと期限切れを区別できず取れない）。
  * p=alive と p=close は、通知を後から調べる・閉じる口が無いので対応しないと答え、緊急度（u）も渡せないので対応しないと答える。

@@ -4,10 +4,14 @@
 // この順番を窓ごとに手で守る作りは、#162 と #272 で 2 回壊れた。
 // keyed なら子が受け取るのは値そのもので、閉じたあとでも読める。
 //
-// このテストは、app/src の .tsx の <Show when={x()}> のうち、子が関数で、同じファイルに setX(null)
+// このテストは、app/src の .tsx の <Show when={x()}> のうち、子が関数で、setX(null)
 // （その signal を空にして閉じる操作）があるものが、すべて keyed であることを確かめる。
+// 閉じる操作は、同じファイルにあるものと、機能の持ち物（features/ の .ts）にあるものの両方を見る
+// （窓を出しているかは features/ の controller が持ち、画面はその名前のまま取り出して使う。例：
+// features/workspaces/controller.ts の confirmClose を、ui/main-window/workspaces/WorkspaceDialogs.tsx が出す）。
+// 画面で別の名前に付け替えると見つけられないので、付け替えない。
 // 出している間に値が変わる表示（リーダーのメニューの道筋、マスコットの絵など）は、閉じる操作を
-// 同じファイルに持たないので当たらない。そうした表示は keyed にすると変わるたびに作り直すので、keyed にしない。
+// 持たないので当たらない。そうした表示は keyed にすると変わるたびに作り直すので、keyed にしない。
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { describe, it } from "node:test";
@@ -60,17 +64,23 @@ const NOT_WINDOWS: Record<string, Record<string, string>> = {
   },
 };
 
-/** src の中の、窓の形（when={x()} で、setX(null) で閉じる）なのに keyed でない <Show> の開きタグ */
+/**
+ * src の中の、窓の形（when={x()} で、setX(null) で閉じる）なのに keyed でない <Show> の開きタグ。
+ * 閉じる操作は src と、closers（機能の持ち物のソース）の中から探す。
+ */
 function unkeyedWindows(
   src: string,
   notWindows: Record<string, string> = {},
+  closers = "",
 ): string[] {
   return functionChildShows(src).filter((tag) => {
     if (/\bkeyed\b/.test(tag) || whenOf(tag) in notWindows) return false;
     const name = /^(\w+)\(\)$/.exec(whenOf(tag))?.[1];
     if (!name) return false;
     const setter = `set${name[0].toUpperCase()}${name.slice(1)}`;
-    return src.includes(`${setter}(null)`);
+    return (
+      src.includes(`${setter}(null)`) || closers.includes(`${setter}(null)`)
+    );
   });
 }
 
@@ -91,19 +101,40 @@ describe("窓の <Show>", () => {
     assert.deepEqual(unkeyedWindows(src), ["<Show when={menu()}>"]);
   });
 
-  const root = new URL("../", import.meta.url);
-  const files = readdirSync(root, { recursive: true, encoding: "utf8" })
-    .filter((f) => f.endsWith(".tsx"))
-    .sort();
+  it("閉じる操作が機能の持ち物にある <Show when={x()}> も、keyed でなければ見つける", () => {
+    const controller = `const [confirmClose, setConfirmClose] = createSignal(null); const cancelClose = () => setConfirmClose(null);`;
+    const src = [
+      `<Show when={confirmClose()}>{(c) => <Card onNo={cancelClose} />}</Show>`,
+      `<Show when={renaming()} keyed>{(t) => <Rename />}</Show>`,
+      `<Show when={frame()}>{(f) => <img src={f()} />}</Show>`,
+    ].join("\n");
+    assert.deepEqual(unkeyedWindows(src, {}, controller), [
+      "<Show when={confirmClose()}>",
+    ]);
+  });
 
-  it("app/src の .tsx を読んでいる", () => {
+  const root = new URL("../", import.meta.url);
+  const all = readdirSync(root, { recursive: true, encoding: "utf8" });
+  const files = all.filter((f) => f.endsWith(".tsx")).sort();
+  // 窓を出しているかを持つ、機能の持ち物（features/ の .ts。テストは除く）
+  const featureFiles = all
+    .filter((f) => /^features\/.*\.ts$/.test(f) && !/\.test\.ts$/.test(f))
+    .sort();
+  const closers = featureFiles
+    .map((f) => readFileSync(new URL(f, root), "utf8"))
+    .join("\n");
+
+  it("app/src の .tsx と、features/ の持ち物を読んでいる", () => {
     assert.ok(files.includes("ui/main-window/page.tsx"));
+    assert.ok(files.includes("ui/main-window/workspaces/WorkspaceDialogs.tsx"));
+    assert.ok(featureFiles.includes("features/workspaces/controller.ts"));
+    assert.match(closers, /setConfirmClose\(null\)/);
   });
 
   for (const file of files) {
     it(`${file} の、窓の <Show> は keyed`, () => {
       const src = readFileSync(new URL(file, root), "utf8");
-      assert.deepEqual(unkeyedWindows(src, NOT_WINDOWS[file]), []);
+      assert.deepEqual(unkeyedWindows(src, NOT_WINDOWS[file], closers), []);
     });
   }
 });

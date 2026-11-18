@@ -7,7 +7,10 @@
 // マシンごとの色（D4）の決め方と保存は colors.ts。
 
 import { T } from "../../i18n/index.ts";
-import type { Workspace, WorkspaceId } from "../../infrastructure/rpc/protocol.ts";
+import type {
+  Workspace,
+  WorkspaceId,
+} from "../../infrastructure/rpc/protocol.ts";
 import { LOCAL } from "../sessions/shell.ts";
 import { localLabel } from "../sessions/machines.ts";
 import type { SessionState } from "../sessions/session.ts";

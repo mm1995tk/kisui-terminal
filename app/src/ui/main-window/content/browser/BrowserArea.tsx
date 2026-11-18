@@ -17,16 +17,7 @@ import {
 } from "solid-js";
 
 import type { InterceptKey } from "../../../../features/commands/commands.ts";
-import {
-  closeTabView,
-  enableOverlay,
-  focusTab,
-  layerTab,
-  moveTab,
-  openTab,
-  showTabView,
-  zoomTab,
-} from "../../../../infrastructure/tauri/browser.ts";
+import { usePorts } from "../../../ports.ts";
 import {
   floatsOver,
   mayFocusPage,
@@ -94,6 +85,16 @@ export function BrowserArea(props: {
   /** ページの上に重ねて出すもの（ページ内検索の欄。#205）。data-overlay-shrink を付ければ、ページはその上まで縮む */
   children?: JSX.Element;
 }): JSX.Element {
+  const {
+    closeTabView,
+    enableOverlay,
+    focusTab,
+    layerTab,
+    moveTab,
+    openTab,
+    showTabView,
+    zoomTab,
+  } = usePorts().browser;
   let area!: HTMLDivElement;
   const views = new Map<string, View>();
   const [hidden, setHidden] = createSignal(false);

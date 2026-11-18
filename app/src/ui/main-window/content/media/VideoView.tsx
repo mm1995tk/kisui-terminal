@@ -4,7 +4,12 @@ import { createEffect, Match, onCleanup, Switch, type JSX } from "solid-js";
 
 import { openKeyList } from "../../commands/KeyListDialog.tsx";
 import type { ExtraPane } from "../../../../infrastructure/rpc/protocol.ts";
-import { baseName, seekTo, videoKey, type MediaFetch } from "../../../../features/terminal/media.ts";
+import {
+  baseName,
+  seekTo,
+  videoKey,
+  type MediaFetch,
+} from "../../../../features/terminal/media.ts";
 import { createFileSource } from "./fileSource.ts";
 
 /**

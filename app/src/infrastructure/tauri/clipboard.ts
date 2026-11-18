@@ -6,10 +6,15 @@ import {
   writeText,
 } from "@tauri-apps/plugin-clipboard-manager";
 
-import { READ_IMAGE, READ_TEXT, type WritePlan } from "../../features/clipboard/clipboard.ts";
+import {
+  READ_IMAGE,
+  READ_TEXT,
+  type WritePlan,
+} from "../../features/clipboard/clipboard.ts";
+import type { ClipboardOs } from "../../features/clipboard/clipboardBridge.ts";
 
 /** OS のクリップボードに書く。画像は WebView で RGBA にしてから渡す（Rust 側に画像の復号を足さないため）。 */
-export async function writeOs(plan: WritePlan): Promise<void> {
+async function writeOs(plan: WritePlan): Promise<void> {
   if (plan.kind === "text") {
     await writeText(plan.text);
     return;
@@ -34,7 +39,7 @@ export async function writeOs(plan: WritePlan): Promise<void> {
 }
 
 /** 今 OS のクリップボードにある種類（text/plain と image/png のうち）。中身はプログラムに渡さない。 */
-export async function availableOs(): Promise<string[]> {
+async function availableOs(): Promise<string[]> {
   const out: string[] = [];
   try {
     if ((await readText()).length > 0) out.push(READ_TEXT);
@@ -51,7 +56,7 @@ export async function availableOs(): Promise<string[]> {
 }
 
 /** 指定の種類で読む。無ければ undefined。 */
-export async function readOs(
+async function readOs(
   mime: string,
 ): Promise<{ mime: string; data: Uint8Array } | undefined> {
   try {
@@ -85,7 +90,7 @@ export async function readOs(
 }
 
 /** 頼まれた順に試して、最初に読めたもの。 */
-export async function readFirstOs(
+async function readFirstOs(
   mimes: string[],
 ): Promise<{ mime: string; data: Uint8Array } | undefined> {
   for (const m of mimes) {
@@ -94,3 +99,10 @@ export async function readFirstOs(
   }
   return undefined;
 }
+
+/** ClipboardOs（features/clipboard/clipboardBridge.ts）の本物。公式の clipboard-manager プラグインで読み書きする。 */
+export const tauriClipboard: ClipboardOs = {
+  write: writeOs,
+  available: availableOs,
+  readFirst: readFirstOs,
+};

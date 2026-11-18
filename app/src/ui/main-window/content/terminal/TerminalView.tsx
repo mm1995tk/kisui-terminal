@@ -14,12 +14,10 @@ import { monoFontsReady } from "../../../styles/fonts.ts";
 import { MONO_FONT_FAMILY } from "../../../styles/monoFont.ts";
 import type { TermLink, TermSink } from "../../../../features/terminal/link.ts";
 import { connectClipboard } from "../../../../features/clipboard/clipboardBridge.ts";
-import { availableOs, readFirstOs, writeOs } from "../../../../infrastructure/tauri/clipboard.ts";
 import { askClipboardRead } from "../../../../features/clipboard/clipboardPrompt.ts";
 import { registerPasteTarget } from "./pasteTarget.ts";
 import { SelectionCopy } from "./selectionCopy.ts";
 import { createTransfer } from "../../../../features/file-transfer/transfer.ts";
-import { tauriTransferOs } from "../../../../infrastructure/tauri/transfer.ts";
 import { askTransfer } from "../../../../features/file-transfer/transferPrompt.ts";
 import {
   collectDrop,
@@ -33,7 +31,7 @@ import {
   shouldNotify,
   toOsNotification,
 } from "../../../../features/terminal/notify.ts";
-import { showOsNotification } from "../../../../infrastructure/tauri/notify.ts";
+import { usePorts } from "../../../ports.ts";
 import { rememberNotified } from "../../../../features/terminal/lastNotified.ts";
 import "./terminal.css";
 import { terminalTheme } from "./theme.ts";
@@ -64,6 +62,7 @@ export function TerminalView(props: {
   /** この欄にキーを向ける関数を受け取る（欄が無くなるとき undefined で呼ぶ） */
   focusRef?: (focus: (() => void) | undefined) => void;
 }): JSX.Element {
+  const ports = usePorts();
   let host!: HTMLDivElement;
   const term = new Terminal({
     fontFamily: MONO_FONT_FAMILY,
@@ -111,7 +110,7 @@ export function TerminalView(props: {
       return;
     void (async () => {
       try {
-        const cancel = await showOsNotification(
+        const cancel = await ports.notify(
           toOsNotification(n),
           n.actions.focus,
           (kind) => {
@@ -142,18 +141,12 @@ export function TerminalView(props: {
   });
 
   // ターミナルのクリップボード（kitty の OSC 5522 と xterm の OSC 52）を OS につなぐ（clipboardBridge.ts）
-  onCleanup(
-    connectClipboard(
-      term,
-      { write: writeOs, available: availableOs, readFirst: readFirstOs },
-      askClipboardRead,
-    ),
-  );
+  onCleanup(connectClipboard(term, ports.clipboard, askClipboardRead));
 
   // ターミナルのファイル転送（kitty の OSC 5113）を OS につなぐ。聞いてから、許された範囲だけ読み書きする（transfer.ts）
   const transfer = createTransfer(
     term,
-    tauriTransferOs,
+    ports.transfer,
     askTransfer,
     `v${++viewSeq}`,
   );
@@ -244,7 +237,7 @@ export function TerminalView(props: {
       if (text) {
         void copyAndNotify(
           () =>
-            writeOs({ kind: "text", text }).then(
+            ports.clipboard.write({ kind: "text", text }).then(
               () => true,
               () => false,
             ),

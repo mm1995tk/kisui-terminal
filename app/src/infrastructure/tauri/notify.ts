@@ -1,6 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 
+import type { ShowOsNotification } from "../../features/terminal/notify.ts";
+
 /** 通知を出した欄が、押された・閉じられたを受け取る関数 */
 type Handler = (kind: "activated" | "closed") => void;
 
@@ -22,16 +24,12 @@ function ensureListening(): Promise<unknown> {
   return listening;
 }
 
-/**
- * OS の通知を出す。`onResponse` は押された・閉じられたのとき 1 回だけ呼ばれる。出せなければ例外。
- * `focus` が真なら、押されたとき Rust 側が窓を前に出す。
- * 返す関数は、欄が無くなるときに呼ぶ（以後の返事を捨てる）。
- */
-export async function showOsNotification(
-  n: { title: string; body?: string },
-  focus: boolean,
-  onResponse: Handler,
-): Promise<() => void> {
+/** ShowOsNotification（features/terminal/notify.ts）の本物。Rust 側（notify.rs）に出させる。 */
+export const showOsNotification: ShowOsNotification = async (
+  n,
+  focus,
+  onResponse,
+) => {
   await ensureListening();
   const key = ++seq;
   pending.set(key, onResponse);
@@ -42,4 +40,4 @@ export async function showOsNotification(
     throw e;
   }
   return () => pending.delete(key);
-}
+};

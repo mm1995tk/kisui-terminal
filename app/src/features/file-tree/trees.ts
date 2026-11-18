@@ -8,7 +8,11 @@
 // Solid には依存しない。変わったら onChange を呼ぶ。
 
 import { ErrorCode, RpcError } from "../../infrastructure/rpc/message.ts";
-import type { Notifications, Requests, WorkspaceId } from "../../infrastructure/rpc/protocol.ts";
+import type {
+  Notifications,
+  Requests,
+  WorkspaceId,
+} from "../../infrastructure/rpc/protocol.ts";
 import type { TreeMethod } from "../sessions/session.ts";
 import {
   applyGitChanged,

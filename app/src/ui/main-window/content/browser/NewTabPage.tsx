@@ -22,7 +22,11 @@ import {
   type BookmarkRow,
   type ChromeNode,
 } from "../../../../features/browser/bookmarkTree.ts";
-import { moveSelection, newTabKey, type NewTabKey } from "../../../../features/browser/newTab.ts";
+import {
+  moveSelection,
+  newTabKey,
+  type NewTabKey,
+} from "../../../../features/browser/newTab.ts";
 import { urlOrSearch } from "../../../../features/browser/tabs.ts";
 import "./browser.css";
 

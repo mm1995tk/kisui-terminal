@@ -5,7 +5,7 @@
 // 割り当ては webview の localStorage に残し、再起動しても同じ色にする（消えたら割り当て直すだけ）。
 // 記録の形は、つなぎ先（ssh の行き先か LOCAL）→ 候補の番号の JSON オブジェクト。
 
-import type { KeyValueStore } from "./machines.ts";
+import type { KeyValueStore } from "../keyValueStore.ts";
 
 /**
  * 色の候補。最初の 3 つは親 #271 のモック（「案：フラットな一覧」）の色。

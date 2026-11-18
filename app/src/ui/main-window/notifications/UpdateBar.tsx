@@ -7,21 +7,15 @@ import { onMount, Show, type JSX } from "solid-js";
 import "../../components/card.css";
 import { IS_MAC } from "../../../features/commands/guiKeys.ts";
 import { leaderKeyName } from "../../../features/commands/commands.ts";
-import {
-  checkOnStart,
-  dismissUpdate,
-  installUpdate,
-  updateBusy,
-  updateError,
-  updateInfo,
-} from "../../../features/updates/store.ts";
+import type { Updates } from "../../../features/updates/store.ts";
 
-export function UpdateBar(): JSX.Element {
-  onMount(checkOnStart);
+export function UpdateBar(props: { updates: Updates }): JSX.Element {
+  const u = props.updates;
+  onMount(() => u.checkOnStart());
 
   return (
-    <Show when={updateInfo()}>
-      {(u) => (
+    <Show when={u.info()}>
+      {(info) => (
         <aside
           class="card card-notice"
           role="status"
@@ -29,17 +23,17 @@ export function UpdateBar(): JSX.Element {
         >
           <div class="card-body">
             <h2 class="card-title">
-              {T("update.title", { version: u().version })}
+              {T("update.title", { version: info().version })}
             </h2>
             <p class="card-text">
               {T("update.text", {
-                current: u().current,
+                current: info().current,
                 leader: leaderKeyName(IS_MAC),
               })}
             </p>
-            <Show when={updateError()}>
+            <Show when={u.error()}>
               <pre class="card-error" role="alert">
-                {updateError()}
+                {u.error()}
               </pre>
             </Show>
           </div>
@@ -47,18 +41,18 @@ export function UpdateBar(): JSX.Element {
             <button
               type="button"
               class="card-button"
-              disabled={updateBusy()}
-              onClick={dismissUpdate}
+              disabled={u.busy()}
+              onClick={() => u.dismiss()}
             >
               {T("update.later")}
             </button>
             <button
               type="button"
               class="card-button primary"
-              disabled={updateBusy()}
-              onClick={() => void installUpdate()}
+              disabled={u.busy()}
+              onClick={() => void u.install()}
             >
-              {updateBusy() ? T("update.busy") : T("update.install")}
+              {u.busy() ? T("update.busy") : T("update.install")}
             </button>
           </div>
         </aside>

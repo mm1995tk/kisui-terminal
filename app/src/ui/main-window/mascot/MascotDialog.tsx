@@ -13,7 +13,7 @@ import {
 
 import { ModalCard } from "../../components/Card.tsx";
 import { moveRow, pickerKey } from "../../../features/sessions/machineList.ts";
-import { listMascots, type MascotListing } from "../../../features/mascot/mascot.ts";
+import type { MascotListing } from "../../../features/mascot/mascot.ts";
 
 const rowId = (i: number) => `mascot-dialog-row-${i}`;
 
@@ -29,6 +29,8 @@ export function initialIndex(l: MascotListing): number {
 
 /** キャラクターを選ぶ窓。選べたら onChoose（窓を閉じて書くのは呼んだ側）、Esc・ボタンで onCancel を呼ぶ */
 export function MascotDialog(props: {
+  /** `mascot/` の中のキャラクターの一覧を読む */
+  list: () => Promise<MascotListing>;
   onChoose: (name: string) => void;
   onCancel: () => void;
 }): JSX.Element {
@@ -36,7 +38,7 @@ export function MascotDialog(props: {
   const [loaded] = createResource<{ l?: MascotListing; failure?: string }>(
     async () => {
       try {
-        return { l: await listMascots() };
+        return { l: await props.list() };
       } catch (e) {
         return { failure: String(e) };
       }

@@ -7,7 +7,7 @@ import { T } from "../../../../i18n/index.ts";
 import { createSignal, onCleanup, Show, type JSX } from "solid-js";
 
 import { isCancelKey } from "../../../components/cancelKey.ts";
-import { findInTab } from "../../../../infrastructure/tauri/browser.ts";
+import { usePorts } from "../../../ports.ts";
 import "./browser.css";
 
 /** 打ち終えるのを待つ時間（ミリ秒）。打つたびにページで探さないように。 */
@@ -25,6 +25,7 @@ export function FindBar(props: {
   /** 入力欄にキーを向ける関数を受け取る（開いている間にもう一度 Cmd+F を押したとき） */
   focusRef: (focus: () => void) => void;
 }): JSX.Element {
+  const { findInTab } = usePorts().browser;
   let input!: HTMLInputElement;
   const [query, setQuery] = createSignal("");
   const [found, setFound] = createSignal<boolean | undefined>();

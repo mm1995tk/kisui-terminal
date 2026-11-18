@@ -18,7 +18,7 @@ export type ClipboardTerm = Pick<
   | "replyClipboardReadError"
 >;
 
-/** OS のクリップボード（clipboardOs.ts）。テストでは差し替える。 */
+/** OS のクリップボード。本物は infrastructure/tauri/clipboard.ts。テストでは差し替える。 */
 export interface ClipboardOs {
   write(plan: WritePlan): Promise<void>;
   available(): Promise<string[]>;

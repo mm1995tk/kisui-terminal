@@ -12,13 +12,9 @@
 // - トースト（倍率・コピーしたこと・ブックマークに足したこと）も、ページを出している間は画面の下の中央に出して避ける
 //   （data-overlay-shrink。ページを出している間の操作は、ほかに画面が変わらないことがあり、知らせが見えないと効いたか分からないため）。
 
-/** 画面の中の四角（CSS ピクセルか論理ピクセル）。 */
-export interface Bounds {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-}
+import type { Bounds } from "../../../../features/browser/os.ts";
+
+export type { Bounds };
 
 /** 重なるものとページの間に空ける幅。 */
 export const OVERLAY_GAP = 8;

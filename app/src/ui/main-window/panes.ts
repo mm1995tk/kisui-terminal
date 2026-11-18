@@ -7,7 +7,7 @@
 // - 右の欄の中の、欄どうしの境界（#18）：割合は kisui serve が分割の木に持つ（terminal/grid.ts）。ここは動かすキーだけを決める。
 // キー：Tab / Shift+Tab で動かす境界を替え、←→（h l）か↑↓（k j）で動かす。縦の境界は左右、横の境界は上下だけ効く。
 
-import type { KeyValueStore } from "../../features/sessions/machines.ts";
+import type { KeyValueStore } from "../../features/keyValueStore.ts";
 import { shortcutCommand } from "../../features/commands/commands.ts";
 import type { KeyLike } from "../../features/commands/guiKeys.ts";
 import { isComposingKey } from "../../features/commands/ime.ts";

@@ -11,7 +11,7 @@
 
 import { T } from "../../i18n/index.ts";
 import type { WorkspaceId } from "../../infrastructure/rpc/protocol.ts";
-import type { KeyValueStore } from "../sessions/machines.ts";
+import type { KeyValueStore } from "../keyValueStore.ts";
 
 /** ターミナルのタブ 1 つ（どのマシンの、どのワークスペースか）。 */
 export interface TermRef {

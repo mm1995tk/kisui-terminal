@@ -1,7 +1,11 @@
 // マシンの一覧（machineList.ts の MachineRow）で、選んでいる行を覚える。MachineDialog と MachinePicker が使う。
 import { createMemo, createSignal, type Accessor } from "solid-js";
 
-import { keepRow, moveRow, type MachineRow } from "../../../features/sessions/machineList.ts";
+import {
+  keepRow,
+  moveRow,
+  type MachineRow,
+} from "../../../features/sessions/machineList.ts";
 
 /**
  * 一覧で選んでいる行。選んでいるのは位置ではなくマシンで、外したり足したりして並びが変わっても同じマシンを選び続ける

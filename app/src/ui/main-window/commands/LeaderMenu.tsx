@@ -5,11 +5,16 @@
 import { T } from "../../../i18n/index.ts";
 import { batch, createMemo, createSignal, For, Show, type JSX } from "solid-js";
 
-import { leaderKeyName, menuRows, type Path } from "../../../features/commands/commands.ts";
+import {
+  leaderKeyName,
+  menuRows,
+  type Path,
+} from "../../../features/commands/commands.ts";
 import { IS_MAC } from "../../../features/commands/guiKeys.ts";
 import styles from "./LeaderMenu.module.css";
 import { MascotCarrier } from "../mascot/MascotCarrier.tsx";
 import type { CloseReason } from "../../../features/mascot/mascot.ts";
+import type { MascotStore } from "../../../features/mascot/mascotStore.ts";
 
 const [leaderPath, setPath] = createSignal<Path | null>(null);
 const [closedBy, setClosedBy] = createSignal<CloseReason>("other");
@@ -28,12 +33,20 @@ function setLeaderPath(path: Path | null, escaped = false): void {
 export { leaderPath, setLeaderPath };
 
 /** リーダーの中のとき、次に押せるキーの一覧を出す。入っていなければ何も出さない。 */
-export function LeaderMenu(): JSX.Element {
+export function LeaderMenu(props: {
+  /** 案内を運ぶキャラクターの持ち物 */
+  mascot: MascotStore;
+}): JSX.Element {
   let menuEl: HTMLDivElement | undefined;
   const open = createMemo(() => leaderPath() !== null);
   return (
     <>
-      <MascotCarrier open={open} closedBy={closedBy} menu={() => menuEl} />
+      <MascotCarrier
+        open={open}
+        closedBy={closedBy}
+        menu={() => menuEl}
+        store={props.mascot}
+      />
       <Show when={leaderPath()}>
         {(path) => {
           const rows = () => menuRows(path(), IS_MAC);

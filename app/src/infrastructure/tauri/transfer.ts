@@ -1,6 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
 
-import type { ListEntry, Listing, TransferOs } from "../../features/file-transfer/transfer.ts";
+import type {
+  ListEntry,
+  Listing,
+  TransferOs,
+} from "../../features/file-transfer/transfer.ts";
 
 /** Rust 側（transfer.rs）のエラーは `ENOENT:理由` の形。記号名と理由に分ける。 */
 export class TransferError extends Error {

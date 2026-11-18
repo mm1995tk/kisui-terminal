@@ -16,7 +16,10 @@ import { ModalCard } from "../../../components/Card.tsx";
 import { moveSelection } from "../../../../features/clipboard/history.ts";
 import { IS_MAC } from "../../../../features/commands/guiKeys.ts";
 import { openKeyList } from "../../commands/KeyListDialog.tsx";
-import { bookmarkKey, type Bookmark } from "../../../../features/browser/bookmarks.ts";
+import {
+  bookmarkKey,
+  type Bookmark,
+} from "../../../../features/browser/bookmarks.ts";
 import {
   bookmarkRows,
   toggleFolder,

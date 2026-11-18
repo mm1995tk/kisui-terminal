@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import type { KeyValueStore } from "../sessions/machines.ts";
+import type { KeyValueStore } from "../keyValueStore.ts";
 import { loadOrder, ORDER_KEY } from "./order.ts";
 
 const r = (target: string, id: string) => ({ target, id });

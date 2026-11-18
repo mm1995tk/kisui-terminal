@@ -12,7 +12,10 @@ import type { UrlClick } from "coneko-term";
 import { Dynamic } from "solid-js/web";
 
 import { IS_MAC } from "../../../../features/commands/guiKeys.ts";
-import type { ExtraPane, PaneLayout } from "../../../../infrastructure/rpc/protocol.ts";
+import type {
+  ExtraPane,
+  PaneLayout,
+} from "../../../../infrastructure/rpc/protocol.ts";
 import {
   GAP,
   layoutBars,

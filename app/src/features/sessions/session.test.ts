@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import type { AttachInfo, HelloResult } from "../../infrastructure/rpc/protocol.ts";
+import type {
+  AttachInfo,
+  HelloResult,
+} from "../../infrastructure/rpc/protocol.ts";
 import type { ClosedEvent, ShellApi } from "./shell.ts";
 import {
   applyWorkspaceChange,

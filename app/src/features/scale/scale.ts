@@ -3,7 +3,10 @@
 // サイドバー・ツリー・ターミナルが同じ割合で変わり、ターミナルは欄の大きさの変化（ResizeObserver）で合わせ直す。
 // DOM にも Tauri にも触らない（テストできるように）。
 
-import type { KeyValueStore } from "../sessions/machines.ts";
+import type { KeyValueStore } from "../keyValueStore.ts";
+
+/** 窓の中の画面全体の大きさを変える（1 が元の大きさ）。本物は infrastructure/tauri/scale.ts。 */
+export type ApplyScale = (v: number) => Promise<void>;
 
 /** 選べる大きさ。1 が元の大きさ。 */
 export const SCALES: readonly number[] = [

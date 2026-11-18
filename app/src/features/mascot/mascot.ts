@@ -1,9 +1,25 @@
 // リーダーの案内を運んでくるキャラクター（実験的）。形式は docs/mascot.md。
 // キャラクターは設定のフォルダの `mascot/<名前>/` に置き、設定ファイルの `[gui] mascot` で選ぶ。
 // `mascot.toml` と画像を読むのは Rust 側（mascot.rs）。画面からはパスを渡さない（画像は `mascot:` のスキームの番号で受け取る）。
+// Rust 側への頼みは MascotOs にまとめる（本物は infrastructure/tauri/mascot.ts）。
 // 選んでいない・使えないときは null で、案内だけが出る。
 import { T } from "../../i18n/index.ts";
-import { convertFileSrc, invoke } from "@tauri-apps/api/core";
+
+/** キャラクターについて、外（Tauri の殻。mascot.rs）に頼むこと。 */
+export interface MascotOs {
+  /** 設定で選んだキャラクター（コマの画像は番号）。選んでいなければ null */
+  load(): Promise<Mascot | null>;
+  /** 今選んでいるキャラクターを `mascot.toml` と画像から読み直す。選んでいなければ null */
+  reload(): Promise<Mascot | null>;
+  /** 読み直した画像（世代 generation）を、使うものにする */
+  commit(generation: number): Promise<void>;
+  /** `mascot/` の中のキャラクターの一覧と、今選んでいるもの */
+  list(): Promise<MascotListing>;
+  /** キャラクターを選び、`config.local.toml` に書く。書けなければ理由で失敗する */
+  select(name: string): Promise<void>;
+  /** コマの画像の番号を、画面で読める URL にする */
+  frameUrl(id: string): string;
+}
 
 /** 場面 1 つ（Rust 側の mascot.rs の `Scene`）。既定の値は Rust 側が埋めてある */
 export interface MascotScene {
@@ -143,8 +159,11 @@ export function mapFrames(m: Mascot, f: (frame: string) => string): Mascot {
 }
 
 /** Rust 側から受け取ったキャラクターの画像を全部デコードして、使える形にする。使えなければ null */
-async function decodeMascot(raw: Mascot): Promise<LoadedMascot | null> {
-  const m = mapFrames(raw, (id) => convertFileSrc(id, "mascot"));
+async function decodeMascot(
+  os: MascotOs,
+  raw: Mascot,
+): Promise<LoadedMascot | null> {
+  const m = mapFrames(raw, (id) => os.frameUrl(id));
   const urls = new Set<string>();
   for (const s of [m.carry, m.sigh, m.push, ...m.rest, ...m.bye]) {
     for (const f of s?.frames ?? []) urls.add(f);
@@ -166,10 +185,10 @@ async function decodeMascot(raw: Mascot): Promise<LoadedMascot | null> {
 }
 
 /** 設定で選んだキャラクターを読む（全部デコードしてから返す）。使えなければ null */
-export async function loadMascot(): Promise<LoadedMascot | null> {
+export async function loadMascot(os: MascotOs): Promise<LoadedMascot | null> {
   try {
-    const raw = (await invoke("mascot_load")) as Mascot | null;
-    return raw ? await decodeMascot(raw) : null;
+    const raw = await os.load();
+    return raw ? await decodeMascot(os, raw) : null;
   } catch {
     return null;
   }
@@ -187,14 +206,14 @@ export type Reloaded =
   | { kind: "error"; error: string };
 
 /** 今選んでいるキャラクターを、`mascot.toml` と画像から読み直す。使えなければ理由を返す（前のキャラクターは、呼んだ側がそのまま使う） */
-export async function reloadMascot(): Promise<Reloaded> {
+export async function reloadMascot(os: MascotOs): Promise<Reloaded> {
   try {
-    const raw = (await invoke("mascot_reload")) as Mascot | null;
+    const raw = await os.reload();
     if (!raw) return { kind: "none" };
-    const mascot = await decodeMascot(raw);
+    const mascot = await decodeMascot(os, raw);
     if (!mascot) return { kind: "error", error: T("mascot.err.image") };
     // デコードできたので、読み直した画像を使うものにする（できなければ、前のキャラクターの画像の URL が使えるまま残る）
-    await invoke("mascot_commit", { generation: generationOf(raw) });
+    await os.commit(generationOf(raw));
     return { kind: "loaded", mascot };
   } catch (e) {
     return { kind: "error", error: String(e) };
@@ -215,16 +234,6 @@ export interface MascotListing {
   /** 今選んでいるキャラクターの名前。選んでいなければ null */
   current: string | null;
   entries: MascotEntry[];
-}
-
-/** `mascot/` の中のキャラクターの一覧と、今選んでいるもの */
-export function listMascots(): Promise<MascotListing> {
-  return invoke("mascot_list");
-}
-
-/** キャラクターを選び、`config.local.toml` に書く。書けなければ理由で失敗する。読み込みは `reloadMascot` で別に行う */
-export async function selectMascot(name: string): Promise<void> {
-  await invoke("mascot_select", { name });
 }
 
 /** リーダーの閉じ方。`escape` は Esc。`other` はそれ以外（リーダーのキー・操作の実行・一覧に無いキー・窓のフォーカスが外れた、など） */

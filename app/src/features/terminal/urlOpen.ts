@@ -3,6 +3,13 @@
 import type { UrlClick } from "coneko-term";
 
 /**
+ * URL を、手元の OS 既定のブラウザで開く。`target` はその URL が見えているマシン（「ローカル」の `@local` か ssh の宛先）。
+ * リモートのマシンの localhost 系の URL は、殻が `kisui relay` の中継を用意し、手元の待ち受けの URL で開く（#127）。
+ * 本物は infrastructure/tauri/openUrl.ts。
+ */
+export type OpenUrlExternally = (target: string, url: string) => Promise<void>;
+
+/**
  * URL のクリックで、どう開くか。修飾キーは macOS では cmd、それ以外では ctrl（`cmd -` などと同じ扱い）。
  * - `"open"`：cmd + クリック。内蔵ブラウザを有効にしていれば今のワークスペースの新しいタブ、無効なら外のブラウザで開く（#203）。
  * - `"external"`：cmd + option + クリック（macOS 以外は ctrl + alt）。いつも外のブラウザ（OS 既定のブラウザ）で開く。

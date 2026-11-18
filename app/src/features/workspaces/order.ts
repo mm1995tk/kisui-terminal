@@ -4,7 +4,7 @@
 // 記録の形は、{ target, id } の配列を JSON にしたもの（ワークスペースの並びの順）。置き場所は webview の localStorage。
 
 import type { WorkspaceId } from "../../infrastructure/rpc/protocol.ts";
-import type { KeyValueStore } from "../sessions/machines.ts";
+import type { KeyValueStore } from "../keyValueStore.ts";
 
 /** マシンのワークスペース 1 つを指すもの（どのマシンの、どれか）。 */
 export interface WsRef {

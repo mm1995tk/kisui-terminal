@@ -2,7 +2,10 @@ import { T } from "../../../i18n/index.ts";
 import { For, type JSX } from "solid-js";
 
 import { ModalCard } from "../../components/Card.tsx";
-import { pickerKey, type MachineRow } from "../../../features/sessions/machineList.ts";
+import {
+  pickerKey,
+  type MachineRow,
+} from "../../../features/sessions/machineList.ts";
 import { createRowSelection } from "./rowSelection.ts";
 
 const rowId = (i: number) => `machine-picker-row-${i}`;

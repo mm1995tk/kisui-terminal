@@ -3,7 +3,10 @@
 
 import { T, type Key } from "../../i18n/index.ts";
 import { RpcError } from "../../infrastructure/rpc/message.ts";
-import type { DiffFile, PrimaryDiff } from "../../infrastructure/rpc/protocol.ts";
+import type {
+  DiffFile,
+  PrimaryDiff,
+} from "../../infrastructure/rpc/protocol.ts";
 
 /** 一覧の行の印：変更 M・追加 A・削除 D・名前変更 R・バイナリ B */
 export type ChangeLetter = "M" | "A" | "D" | "R" | "B";

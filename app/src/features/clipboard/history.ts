@@ -12,6 +12,23 @@ export interface HistoryEntry {
   /** コピーした時刻（UNIX 時刻のミリ秒） */
   copiedAt: number;
 }
+
+/** 履歴を読む（新しいものが先頭）。本物は infrastructure/tauri/clipboardHistory.ts。 */
+export type ListClipboardHistory = () => Promise<HistoryEntry[]>;
+
+/**
+ * kisui-terminal の外から開く履歴の窓（ui/utilities/clipboard）が、外（Tauri の殻。clipboard_popup.rs）に頼むこと。
+ * 本物は infrastructure/tauri/clipboardHistory.ts。
+ */
+export interface ClipboardPopupOs {
+  /** 窓が出し直された。返す関数で聞くのをやめる */
+  onShown(h: () => void): Promise<() => void>;
+  /** 窓を隠して、前のアプリに戻る */
+  dismiss(): Promise<void>;
+  /** クリップボードに書くだけ（窓は隠さない） */
+  copy(text: string): Promise<void>;
+}
+
 /** 一覧の 1 行に出す文字の最大の長さ。 */
 export const PREVIEW_MAX = 120;
 

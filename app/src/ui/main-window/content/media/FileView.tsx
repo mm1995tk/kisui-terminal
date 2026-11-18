@@ -2,7 +2,11 @@ import { T } from "../../../../i18n/index.ts";
 import { Match, onCleanup, Show, Switch, type JSX } from "solid-js";
 
 import type { ExtraPane } from "../../../../infrastructure/rpc/protocol.ts";
-import { baseName, fileLabel, type MediaFetch } from "../../../../features/terminal/media.ts";
+import {
+  baseName,
+  fileLabel,
+  type MediaFetch,
+} from "../../../../features/terminal/media.ts";
 import { createFileSource } from "./fileSource.ts";
 import { createImageZoom } from "./imageZoom.ts";
 import { openKeyList } from "../../commands/KeyListDialog.tsx";

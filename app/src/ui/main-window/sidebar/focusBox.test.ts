@@ -4,7 +4,20 @@ import { test } from "node:test";
 
 // DOM を立てるテストの道具は無いので、CSS と TSX の文面で、フォーカスしているワークスペースの箱（#170）の決まりを確かめる。
 const css = readFileSync(new URL("./sidebar.css", import.meta.url), "utf8");
-const tsx = readFileSync(new URL("./Sidebar.tsx", import.meta.url), "utf8");
+// サイドバーの部品のソース。上から、一覧 → 帯のヘッダー → ファイルツリーと CHANGES の段 → 帯 → タブの行 → 小さな部品の順につなぐ
+// （下のテストが、部品の並びの中の位置で確かめるため）
+const tsx = [
+  "./Sidebar.tsx",
+  "./workspaces/BandHeader.tsx",
+  "./Panes.tsx",
+  "./workspaces/BandItem.tsx",
+  "./workspaces/TabRow.tsx",
+  "./workspaces/parts.tsx",
+  "./PopupMenu.tsx",
+  "./handlers.ts",
+]
+  .map((f) => readFileSync(new URL(f, import.meta.url), "utf8"))
+  .join("\n");
 
 /** セレクタが selector の規則の中身（最初の 1 つ）を返す */
 function rule(selector: string): string {

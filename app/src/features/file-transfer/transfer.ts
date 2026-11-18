@@ -39,7 +39,7 @@ export interface Listing {
   totalSize: number;
 }
 
-/** 手元のファイルの読み書き（Rust 側。transferOs.ts）。失敗は `code`（記号名）を持つ Error で投げる。 */
+/** 手元のファイルの読み書き（Rust 側。本物は infrastructure/tauri/transfer.ts）。失敗は `code`（記号名）を持つ Error で投げる。 */
 export interface TransferOs {
   dest(): Promise<string>;
   writeBegin(key: string): Promise<string>;

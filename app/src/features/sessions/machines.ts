@@ -5,14 +5,9 @@
 // 以前は「前回ワークスペースがあったマシン」だけを記録していた（キー shijimi-editor.lastTargets）。
 // 足したマシンの記録がまだ無いときだけ、その記録を引き継ぐ。
 
+import type { KeyValueStore } from "../keyValueStore.ts";
 import { LOCAL } from "./shell.ts";
 import { T, inAllLangs } from "../../i18n/index.ts";
-
-/** 読み書きの窓口。localStorage と同じ形の最小限。テストで差し替える。 */
-export interface KeyValueStore {
-  getItem(key: string): string | null;
-  setItem(key: string, value: string): void;
-}
 
 /** 設定ファイルで決めたマシンを変えようとしたときの理由。 */
 export const fixedReason = (): string => T("machine.fixedReason");
@@ -176,15 +171,6 @@ export function labelOf(list: Machine[], target: string): string {
 function nameTaken(list: Machine[], name: string, target: string): boolean {
   if (localLabels().includes(name)) return true;
   return list.some((m) => m.target !== target && (m.name ?? m.target) === name);
-}
-
-/** 本物の localStorage（使えない環境では undefined）。 */
-export function browserStore(): KeyValueStore | undefined {
-  try {
-    return globalThis.localStorage;
-  } catch {
-    return undefined;
-  }
 }
 
 /** 候補（~/.ssh/config のホスト）を入力で絞る（大文字小文字を区別しない）。 */
