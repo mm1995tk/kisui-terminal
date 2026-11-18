@@ -35,16 +35,17 @@
 .switch-row[data-dragging] {
   position: relative;
   z-index: 2;
-  opacity: 0.85;
   background: var(--card-row-active);
-  box-shadow: 0 4px 12px rgb(0 0 0 / 0.3);
+  box-shadow: var(--shadow-raised);
   cursor: grabbing;
 }
-.switch-row[data-shift] {
+.switch-row[data-shift],
+.switch-row[data-dropping] {
   transition: transform 150ms ease;
 }
 @media (prefers-reduced-motion: reduce) {
-  .switch-row[data-shift] {
+  .switch-row[data-shift],
+  .switch-row[data-dropping] {
     transition: none;
   }
 }
