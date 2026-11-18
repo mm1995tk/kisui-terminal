@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
+import { moveView, type TabsState } from "../browser/tabs.ts";
 import type { KeyValueStore } from "../keyValueStore.ts";
 import {
   addBrowser,
@@ -759,6 +760,42 @@ describe("moveTabTo（タブを別のワークスペースへ移す。#308）", 
     });
     assert.equal(r.state, z);
     assert.deepEqual(r.close, []);
+  });
+});
+
+describe("タブを移したあとに、移動先が出すタブ（moveTabTo と features/browser/tabs.ts の moveView）", () => {
+  it("出していないブラウザのタブを、ブラウザのタブだけのワークスペースの先頭へ入れても、移動先が出すタブは替わらない", () => {
+    // A = [ターミナルのタブ, b0]（ターミナルのタブを出している）、B = [b1]。出すタブは、どちらも覚えていない
+    let s = addBrowser(
+      addWorkspace(EMPTY_GWS, "a", "w1", "w1", "A"),
+      "A",
+      "b0",
+    );
+    s = addBrowserWorkspace(s, "b1", "B");
+    const tab = (id: string) => ({
+      id,
+      target: "a",
+      workspace: "",
+      url: "",
+      title: "",
+    });
+    const t: TabsState = { tabs: [tab("b0"), tab("b1")], views: {} };
+    const has = () => true;
+    const before = shownBrowserId(s.list[1], t.views.B, has);
+    assert.equal(before, "b1");
+    const z = moveTabTo(s, browserKey("b0"), "B", browserKey("b1"))!;
+    const v = moveView(t, {
+      tab: "b0",
+      from: "A",
+      to: "B",
+      show: false,
+      destShown: before,
+    });
+    assert.deepEqual(z.list[1].tabs.map(refKey), [
+      browserKey("b0"),
+      browserKey("b1"),
+    ]);
+    assert.equal(shownBrowserId(z.list[1], v.views.B, has), "b1");
   });
 });
 

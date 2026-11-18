@@ -77,20 +77,61 @@ describe("内蔵ブラウザのタブ", () => {
     assert.equal(closeTab(t, "nope"), t);
   });
 
-  it("タブを別のワークスペースへ移したら、移動元は出すのをやめ、show のときだけ移動先で出す。タブの中身は変えない（#308）", () => {
+  it("ブラウザのタブを別のワークスペースへ移したら、移動元は出すのをやめ、show のときだけ移動先で出す。タブの中身は変えない（#308）", () => {
     const s = showTab(three(), "g1", "b");
-    const shown = moveView(s, "b", "g1", "g2", true);
+    const shown = moveView(s, { tab: "b", from: "g1", to: "g2", show: true });
     assert.equal(shownTab(shown, "g1"), undefined);
     assert.equal(shownTab(shown, "g2")?.id, "b");
     // タブの中身（開いたときのマシンとワークスペース・URL）と並びは同じもの
     assert.equal(shown.tabs, s.tabs);
     assert.deepEqual(toStored(shown), toStored(s));
-    const hidden = moveView(s, "b", "g1", "g2", false);
+    const hidden = moveView(s, {
+      tab: "b",
+      from: "g1",
+      to: "g2",
+      show: false,
+    });
     assert.equal(shownTab(hidden, "g1"), undefined);
     assert.equal(shownTab(hidden, "g2"), undefined);
     // 移動元が出していないタブを移しても、移動元の表示は変えない
-    const other = moveView(s, "a", "g1", "g2", false);
-    assert.equal(other, s);
+    assert.equal(
+      moveView(s, { tab: "a", from: "g1", to: "g2", show: false }),
+      s,
+    );
+  });
+
+  it("出さずに移すときは、移動先が出していたブラウザのタブを覚えさせる（覚えずに最初のタブを出していたワークスペースの先頭に入れても、出すタブが替わらない）", () => {
+    // g2 はブラウザのタブ d だけで、出すタブを覚えていない（最初のブラウザのタブ d を出している）
+    const s = three();
+    const z = moveView(s, {
+      tab: "a",
+      from: "g1",
+      to: "g2",
+      show: false,
+      destShown: "d",
+    });
+    assert.equal(shownTab(z, "g2")?.id, "d");
+    // ターミナルのタブを移したとき（tab が null）も同じ
+    const t = moveView(s, {
+      tab: null,
+      from: "g1",
+      to: "g2",
+      show: false,
+      destShown: "d",
+    });
+    assert.equal(shownTab(t, "g2")?.id, "d");
+    // 移動先がターミナルのタブを出していた（destShown が無い）なら、何も覚えさせない
+    assert.equal(
+      moveView(s, { tab: null, from: "g1", to: "g2", show: false }),
+      s,
+    );
+  });
+
+  it("ターミナルのタブを移して出すときは、移動先が覚えているブラウザのタブを外す。移動元の表示は変えない", () => {
+    const s = showTab(showTab(three(), "g1", "b"), "g2", "d");
+    const z = moveView(s, { tab: null, from: "g1", to: "g2", show: true });
+    assert.equal(shownTab(z, "g2"), undefined);
+    assert.equal(shownTab(z, "g1")?.id, "b");
   });
 
   it("URL と題を書き換える。変わらなければ同じものを返す", () => {

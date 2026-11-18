@@ -438,12 +438,15 @@ export function createTabs(deps: {
           ? setActiveTerm(next, ref.target, ref.ws)
           : next,
       );
-      setTabs((v) => {
-        if (ref.kind === "browser")
-          return moveView(v, ref.id, from.id, to, show);
-        if (show) return showTab(v, to, null);
-        return destBrowser === undefined ? v : showTab(v, to, destBrowser);
-      });
+      setTabs((v) =>
+        moveView(v, {
+          tab: ref.kind === "browser" ? ref.id : null,
+          from: from.id,
+          to,
+          show,
+          destShown: destBrowser,
+        }),
+      );
       if (mode === "go")
         enter(
           to,
