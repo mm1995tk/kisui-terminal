@@ -171,6 +171,8 @@ export function SwitcherTabs(props: {
   row: Row;
   /** キーで選んでいるタブの key（そのワークスペースに無ければ、どれも選ばない） */
   selectedKey?: string;
+  /** タブの行の id を、key から作る（窓の aria-activedescendant が指す） */
+  rowId?: (key: string) => string;
   /** タブの行を押した（選ぶだけか、出すかは、呼んだ側が決める） */
   onTab: (gws: string, key: string) => void;
   /** タブの行のつかむ所を押した。省くと動かせない */
@@ -193,6 +195,7 @@ export function SwitcherTabs(props: {
               shown={r().tabs.shown === t.key}
               current={r().tabs.shown === t.key && r().tabs.focused}
               selected={props.selectedKey === t.key}
+              id={props.rowId?.(t.key)}
               onTab={() => props.onTab(r().gws, t.key)}
               onGrab={
                 props.onGrab ? (e) => props.onGrab?.(e, t.key) : undefined

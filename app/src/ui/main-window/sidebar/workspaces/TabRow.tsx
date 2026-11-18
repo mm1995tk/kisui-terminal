@@ -161,6 +161,8 @@ export function TabRow(props: {
   onTab: () => void;
   /** 切り替えの窓で、キーで選んでいる行か（印は switcher.css） */
   selected?: boolean;
+  /** li の id（窓の aria-activedescendant が指す） */
+  id?: string;
   /** 省くと ✕ を出さない（切り替えの窓の右のタブの一覧） */
   onClose?: () => void;
   onRename?: () => void;
@@ -174,6 +176,7 @@ export function TabRow(props: {
   const t = () => props.t;
   return (
     <li
+      id={props.id}
       class="tab-row"
       data-key={t().key}
       data-kind={t().kind}

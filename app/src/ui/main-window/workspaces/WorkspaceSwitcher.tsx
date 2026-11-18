@@ -26,6 +26,7 @@ import { startTabDrag } from "./tabMoveDrag.ts";
 import "./switcher.css";
 
 const rowId = (i: number) => `switcher-row-${i}`;
+const tabId = (key: string) => `switcher-tab-${key}`;
 
 /**
  * ワークスペースを切り替える窓（リーダーの `w`。#282・#296）。ワークスペースの操作（移る・作る・名前を変える・閉じる・並べ替える）は、すべてここでする。
@@ -292,6 +293,15 @@ export function WorkspaceSwitcher(props: {
       <div class="machine-dialog switcher">
         <div
           class="switcher-cols"
+          role="group"
+          aria-label={T("switcher.title")}
+          aria-activedescendant={
+            activeCol() === "tab"
+              ? tabId(selectedTab()?.key ?? "")
+              : selected()
+                ? rowId(index())
+                : undefined
+          }
           data-col={activeCol()}
           tabIndex={0}
           onKeyDown={onKeyDown}
@@ -347,6 +357,7 @@ export function WorkspaceSwitcher(props: {
                 <SwitcherTabs
                   row={r()}
                   selectedKey={selectedTab()?.key}
+                  rowId={tabId}
                   onTab={pressTab}
                   onGrab={grabTab}
                 />
