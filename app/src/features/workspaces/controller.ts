@@ -37,6 +37,7 @@ import {
   dropTerm,
   EMPTY_GWS,
   gwsOfTerm,
+  hiddenGws,
   loadGws,
   move as moveGws,
   moveBefore,
@@ -63,6 +64,7 @@ import {
   gwsRows,
   health,
   isTermless,
+  rowNear,
   stepRow,
   type Row,
   type Step,
@@ -323,6 +325,8 @@ export function createWorkspaces(deps: {
     const g = untrack(gws).list.find((x) => x.id === gid);
     if (!g) return;
     const wasCurrent = untrack(currentId) === gid;
+    // 中のタブを閉じている間は、タブが無くなっても「タブがありません」の画面を出さない（閉じ終えたら隣へ移るので）
+    setClosing((c) => new Set(c).add(gid));
     await runClose(
       displayName(g),
       force,
@@ -339,9 +343,7 @@ export function createWorkspaces(deps: {
         for (const r of g.tabs) if (r.kind === "browser") dropBrowserTab(r.id);
         // 最後に、ワークスペースそのものを並びから外す（記録からも消えるので、再起動しても戻らない）。
         // 今いるワークスペースなら、同じ書き換えの中で隣へ移る（今のワークスペースが無い間を作らない）
-        const list = untrack(rows);
-        const i = list.findIndex((r) => r.gws === gid);
-        const next = list[i + 1] ?? list[i - 1];
+        const next = rowNear(untrack(gws).list, untrack(rows), gid);
         batch(() => {
           setGws((x) => removeGws(x, gid));
           if (untrack(currentId) === gid) setCurrentId(next?.gws ?? null);
@@ -352,7 +354,15 @@ export function createWorkspaces(deps: {
         if (wasCurrent) focusTerminal();
       },
     );
+    // 閉じ終えた・断られた・確認の窓を出した（窓で続けるときは、また閉じ始める）
+    setClosing((c) => {
+      const n = new Set(c);
+      n.delete(gid);
+      return n;
+    });
   }
+  /** 中のタブを閉じている途中のワークスペースの id（空の画面を出さない。currentEmpty） */
+  const [closing, setClosing] = createSignal<ReadonlySet<string>>(new Set());
 
   /** ブラウザのタブを、ページも記録もまとめて閉じる（出すタブの移り先は決めない）。 */
   function dropBrowserTab(id: string) {
@@ -375,18 +385,25 @@ export function createWorkspaces(deps: {
 
   /** 前の並び順の記録（窓の J・K）。初めてワークスペースを作るときの並びに使う */
   const legacyOrder = loadOrder(store);
-  /** いま居るのが、タブが 1 つも無い空のワークスペース（#307）か。右のペインに、タブが無いことを伝える画面を出す */
+  /**
+   * いま居るのが、タブが 1 つも無い空のワークスペース（#307）か。右のペインに、タブが無いことを伝える画面を出す。
+   * 閉じている途中のワークスペースは除く（中のタブを閉じ終えて隣へ移るまでの間に、空の画面がちらつかないように）
+   */
   const currentEmpty = () => {
     const g = currentGws();
-    return !!g && g.tabs.length === 0;
+    return !!g && g.tabs.length === 0 && !closing().has(g.id);
   };
-  /**
-   * ターミナルのタブを持たないワークスペースで、行に出る（選べる）もの。内蔵ブラウザを使うときは、いつも出る。
-   * 使わないときは、ブラウザのタブの記録を持つものは出ない（記録は残し、有効に戻せばまた出る）。タブが 1 つも無い空のものは出る
-   */
+  /** ターミナルのタブを持たないワークスペースで、行に出る（選べる）もの（model.ts の hiddenGws でないもの）。 */
   const landable = (g: Gws) =>
-    termsOf(g).length === 0 &&
-    (deps.browser || g.tabs.every((r) => r.kind === "term"));
+    termsOf(g).length === 0 && !hiddenGws(g, deps.browser);
+  // 今いるワークスペースが、居る間に行に出ないものになったら（内蔵ブラウザを使わないときに、最後のターミナルのタブを閉じ、
+  // ブラウザのタブの記録だけが残った）、並びで一番近い行のワークスペースへ移る。行に無いワークスペースに居続けない
+  createEffect(() => {
+    const g = currentGws();
+    if (!g || !hiddenGws(g, deps.browser)) return;
+    const r = rowNear(gws().list, rows(), g.id);
+    untrack(() => setCurrentId(r?.gws ?? null));
+  });
   /**
    * 起動したとき、ターミナルのタブが無くて、ターミナルのタブを持たないワークスペースへ入る待ち（値は、ワークスペースを作るはずだったマシン）。
    * ブラウザのタブを読み終えても、そのようなワークスペースの行が無ければ（記録が読めなかった・消えていた）、そのマシンにワークスペースを作る

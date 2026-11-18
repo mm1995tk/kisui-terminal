@@ -20,6 +20,7 @@ import {
   GWS_KEY,
   gwsOfBrowser,
   gwsOfTerm,
+  hiddenGws,
   loadGws,
   move,
   moveBefore,
@@ -765,5 +766,21 @@ describe("browserOriginOf（足すブラウザのタブの開いたところ）"
       browserOriginOf(only, [...tabs, { id: "t1", target: "dev" }], "local"),
       { target: "dev", ws: "" },
     );
+  });
+});
+
+describe("hiddenGws（行に出ないワークスペース）", () => {
+  it("内蔵ブラウザを使わないとき、ターミナルのタブが無く、ブラウザのタブの記録を持つものだけ", () => {
+    // ターミナルのタブ 1 つとブラウザのタブの記録を持つワークスペースの、最後のターミナルのタブを閉じた
+    const s = dropTerm(addBrowser(two(), "g2", "t1"), "a", "w3");
+    const g2 = s.list[1];
+    assert.equal(hiddenGws(g2, false), true);
+    assert.equal(hiddenGws(g2, true), false);
+    // ターミナルのタブがあれば出る。空のワークスペースは出る
+    assert.equal(
+      hiddenGws(addBrowser(two(), "g2", "t1").list[1], false),
+      false,
+    );
+    assert.equal(hiddenGws(dropTerm(two(), "a", "w3").list[1], false), false);
   });
 });

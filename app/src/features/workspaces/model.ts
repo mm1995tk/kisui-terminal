@@ -797,3 +797,16 @@ export function browserOriginOf(
   );
   return { target: own?.target ?? fallback, ws: "" };
 }
+
+/**
+ * サイドバーの行に出ないワークスペースか。内蔵ブラウザを使わない（browser が false）ときの、ターミナルのタブが無く、
+ * ブラウザのタブの記録を持つもの（記録は残し、有効に戻せばまた出る）。タブが 1 つも無い空のワークスペースは出る（#307）。
+ * そこへは移らず、居る間にそうなったら（最後のターミナルのタブを閉じた）隣のワークスペースへ移る。
+ */
+export function hiddenGws(g: Gws, browser: boolean): boolean {
+  return (
+    !browser &&
+    termsOf(g).length === 0 &&
+    g.tabs.some((r) => r.kind === "browser")
+  );
+}

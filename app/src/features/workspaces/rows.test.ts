@@ -16,6 +16,7 @@ import {
   machineLabel,
   type Row,
   stepRow,
+  rowNear,
   gwsOfShjFocus,
   shownIsBrowser,
   focusedRow,
@@ -843,5 +844,25 @@ describe("tabToReveal（#284）", () => {
       tabToReveal(snap("a", ["x", "y"], "x"), snap("a", ["y", "x"], "x")),
       undefined,
     );
+  });
+});
+
+describe("rowNear（行に出なくなった・閉じたワークスペースから移る先）", () => {
+  const list = ["g1", "g2", "g3", "g4"].map((id) => ({ id }));
+
+  it("並びで後ろの行、無ければ前の行。自分の行は選ばない", () => {
+    const rows = [{ gws: "g1" }, { gws: "g3" }, { gws: "g4" }];
+    // g2 は行に出ていない（隠れた）
+    assert.equal(rowNear(list, rows, "g2")?.gws, "g3");
+    assert.equal(rowNear(list, rows, "g4")?.gws, "g3");
+    assert.equal(
+      rowNear(list, [{ gws: "g1" }, { gws: "g2" }], "g4")?.gws,
+      "g2",
+    );
+  });
+
+  it("ほかに行が無ければ undefined", () => {
+    assert.equal(rowNear(list, [{ gws: "g2" }], "g2"), undefined);
+    assert.equal(rowNear(list, [], "g2"), undefined);
   });
 });

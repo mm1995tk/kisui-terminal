@@ -573,3 +573,22 @@ export function tabToReveal(
   const added = now.keys.filter((k) => !prev.keys.includes(k));
   return added[added.length - 1];
 }
+
+/**
+ * 並び list の中のワークスペース gid に一番近い、サイドバーの行（rows。gid そのものは行に無くてよい）。
+ * 並びで後ろの行、無ければ前の行。行が 1 つも無ければ undefined。行に出なくなった今いるワークスペースから移る先。
+ */
+export function rowNear<R extends { gws: string }>(
+  list: readonly { id: string }[],
+  rows: readonly R[],
+  gid: string,
+): R | undefined {
+  const at = (id: string) => list.findIndex((g) => g.id === id);
+  const i = at(gid);
+  const others = rows.filter((r) => r.gws !== gid);
+  return (
+    others.find((r) => at(r.gws) > i) ??
+    [...others].reverse().find((r) => at(r.gws) < i) ??
+    others[0]
+  );
+}
