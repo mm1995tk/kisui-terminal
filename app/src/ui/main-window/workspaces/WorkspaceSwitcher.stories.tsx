@@ -167,6 +167,12 @@ const meta = {
     // アプリと同じ決まりで名前を確かめる（長すぎる・制御文字を含む名前は、入力欄の下に理由が出る）
     onRename: fn((_gws: string, name: string) => nameErrorText(name)),
     onClose: fn(),
+    tabRenameInit: () => ({ current: "", auto: "" }),
+    onTabRename: fn((_gws: string, _key: string, name: string) =>
+      nameErrorText(name),
+    ),
+    onTabClose: fn(),
+    onTabReorder: fn(),
     onCancel: fn(),
   },
 } satisfies Meta<typeof WorkspaceSwitcher>;

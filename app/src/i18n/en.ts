@@ -434,6 +434,7 @@ export const en = {
   "switcher.keys.new": "new workspace",
   "switcher.keys.rename": "rename",
   "switcher.keys.closeWorkspace": "close workspace",
+  "switcher.keys.closeTab": "close tab",
   "switcher.confirmClose": "Close {title}? y: close, n: cancel",
   "switcher.keys.reorder": "reorder",
   "tabMove.label": "Workspace to move the tab to",

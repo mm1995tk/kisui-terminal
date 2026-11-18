@@ -112,7 +112,17 @@ describe("窓の下のキーの説明", () => {
     assert.ok(!labels("ws", false).includes("l"));
   });
 
-  it("タブの列では、タブの列で効くキーだけを出す（n r x J K は出さない）", () => {
-    assert.deepEqual(labels("tab", true), ["j", "k", "h", "Enter", "Esc"]);
+  it("タブの列では、タブの列で効くキー（移る・名前を変える・閉じる・並べ替え）だけを出す（n は出さない）", () => {
+    assert.deepEqual(labels("tab", true), [
+      "j",
+      "k",
+      "h",
+      "Enter",
+      "r",
+      "x",
+      "J",
+      "K",
+      "Esc",
+    ]);
   });
 });

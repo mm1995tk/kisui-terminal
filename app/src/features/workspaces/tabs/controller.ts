@@ -217,40 +217,59 @@ export function createTabs(deps: {
    * 空にして決めると、自動の名前（ターミナルはフォルダ名、ブラウザはページの題）に戻る。
    */
   function renameTabRow(gid: string, key: string) {
-    const ref = untrack(gws)
-      .list.find((g) => g.id === gid)
-      ?.tabs.find((r) => refKey(r) === key);
-    if (!ref) return;
-    let current = "";
-    let auto = "";
-    if (ref.kind === "browser") {
-      current = ref.name ?? "";
-      auto = untrack(tabs).tabs.find((t) => t.id === ref.id)?.title ?? "";
-    } else {
-      const w = untrack(workspaces)[ref.target]?.find((x) => x.id === ref.ws);
-      current = w?.label ?? "";
-      auto = w ? band({ ...w, label: "" }, false).title : "";
-    }
+    const init = tabRenameInit(gid, key);
+    if (!init) return;
     // 閉じているサイドバーの中には入力欄が見えず、フォーカスも取れないので、先に開ける
     deps.revealSidebar();
     setTabRenameError(undefined);
-    setRenamingTab({ gws: gid, key, current, auto });
+    setRenamingTab({ gws: gid, key, ...init });
   }
 
-  /** 入力欄の Enter。断られたら入力欄の下に理由を出し、入力欄は開けておく。 */
-  async function submitTabRename(name: string) {
-    const r = renamingTab();
-    if (!r) return;
-    const bad = nameErrorText(name);
-    if (bad) {
-      setTabRenameError(bad);
-      return;
-    }
+  /**
+   * タブの名前の入力欄の初めの値（current）と、空にしたときの名前（auto）。タブが無ければ undefined。
+   * サイドバーの入力欄（renameTabRow）も、切り替える窓の入力欄も、これで開く。
+   */
+  function tabRenameInit(
+    gid: string,
+    key: string,
+  ): { current: string; auto: string } | undefined {
     const ref = untrack(gws)
-      .list.find((g) => g.id === r.gws)
-      ?.tabs.find((x) => refKey(x) === r.key);
-    setRenamingTab(null);
-    setTabRenameError(undefined);
+      .list.find((g) => g.id === gid)
+      ?.tabs.find((r) => refKey(r) === key);
+    if (!ref) return undefined;
+    if (ref.kind === "browser")
+      return {
+        current: ref.name ?? "",
+        auto: untrack(tabs).tabs.find((t) => t.id === ref.id)?.title ?? "",
+      };
+    const w = untrack(workspaces)[ref.target]?.find((x) => x.id === ref.ws);
+    return {
+      current: w?.label ?? "",
+      auto: w ? band({ ...w, label: "" }, false).title : "",
+    };
+  }
+
+  /**
+   * タブ key の名前を name にする（ブラウザのタブもターミナルのタブも）。付けられない名前なら、その理由を返して何も変えない。
+   * 返ったあとの、ターミナルのタブのマシンへの知らせは待たない（失敗したら、フォーカスのあるペインにエラーを出す）。
+   * 切り替える窓の入力欄が使う。サイドバーを開かずに変えられる。
+   */
+  function renameTab(
+    gid: string,
+    key: string,
+    name: string,
+  ): string | undefined {
+    const bad = nameErrorText(name);
+    if (bad) return bad;
+    void applyTabRename(gid, key, name);
+    return undefined;
+  }
+
+  /** タブ key の名前を name にする。名前の検査は済んでいるものとする。 */
+  async function applyTabRename(gid: string, key: string, name: string) {
+    const ref = untrack(gws)
+      .list.find((g) => g.id === gid)
+      ?.tabs.find((x) => refKey(x) === key);
     if (ref?.kind === "browser") {
       setGws((g) => renameBrowser(g, ref.id, name));
     } else if (ref) {
@@ -264,6 +283,20 @@ export function createTabs(deps: {
         });
       }
     }
+  }
+
+  /** 入力欄の Enter。断られたら入力欄の下に理由を出し、入力欄は開けておく。 */
+  async function submitTabRename(name: string) {
+    const r = renamingTab();
+    if (!r) return;
+    const bad = nameErrorText(name);
+    if (bad) {
+      setTabRenameError(bad);
+      return;
+    }
+    setRenamingTab(null);
+    setTabRenameError(undefined);
+    await applyTabRename(r.gws, r.key, name);
     focusTerminal();
   }
 
@@ -491,6 +524,20 @@ export function createTabs(deps: {
     setMovingTab({ key, from: g.id });
   }
 
+  /** ワークスペース gid のタブ key を 1 つ下・上へ動かす（t J / t K・切り替える窓の J K）。端では動かさない。数えるのはサイドバーに出ているタブだけ */
+  function moveTabByStep(gid: string, key: string, dir: "up" | "down") {
+    const g = untrack(gws).list.find((x) => x.id === gid);
+    if (!g) return;
+    const next = moveTabStep(
+      untrack(gws),
+      gid,
+      key,
+      dir,
+      visibleTabs(g, hasBrowserTab),
+    );
+    if (next) setGws(next);
+  }
+
   return {
     removeTab,
     activateTab,
@@ -501,6 +548,8 @@ export function createTabs(deps: {
     cancelCloseTab: () => setConfirmCloseTab(null),
     closeTermTab,
     renameTabRow,
+    tabRenameInit,
+    renameTab,
     /** ブラウザのタブ id の名前をその場で変え始める（browser.rename） */
     renameBrowserTab(id: string) {
       const g = gwsOfBrowser(untrack(gws), id);
@@ -542,17 +591,9 @@ export function createTabs(deps: {
     moveCurrentTab(dir: "up" | "down") {
       const g = currentGws();
       const key = currentTabKey();
-      if (g && key) {
-        const next = moveTabStep(
-          gws(),
-          g.id,
-          key,
-          dir,
-          visibleTabs(g, hasBrowserTab),
-        );
-        if (next) setGws(next);
-      }
+      if (g && key) moveTabByStep(g.id, key, dir);
     },
+    moveTabByStep,
     /** tab.nth：サイドバーの上から n 番目（0 始まり。出ているタブだけを数える）のタブを出す */
     goNthTab(n: number) {
       const g = currentGws();

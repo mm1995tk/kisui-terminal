@@ -1,5 +1,5 @@
 // ワークスペースとタブにかかわる窓。閉じる前の確認・ワークスペースを切り替える窓（リーダーの w）・種類を選ぶ窓・マシンを選ぶ窓・タブを移す先を選ぶ窓。
-// タブの名前は窓を出さず、サイドバーのタブの行で変える（sidebar/workspaces/TabRow.tsx）。
+// タブの名前は、サイドバーのタブの行か、切り替える窓の右の列の行の中で変える（sidebar/workspaces/TabRow.tsx）。
 // 何を出すかは features/workspaces/controller.ts と features/workspaces/tabs/controller.ts の状態で決まる。
 import { Show, type JSX } from "solid-js";
 
@@ -51,6 +51,10 @@ export function WorkspaceDialogs(props: {
     cancelCloseTab,
     closeTermTab,
     moveTabBefore,
+    tabRenameInit,
+    renameTab,
+    closeTabRow,
+    moveTabByStep,
     movingTab,
     cancelTabMove,
     submitTabMove,
@@ -92,6 +96,10 @@ export function WorkspaceDialogs(props: {
           renameInit={renameInit}
           onRename={renameWorkspace}
           onClose={(gid) => void closeWorkspace(gid)}
+          tabRenameInit={tabRenameInit}
+          onTabRename={renameTab}
+          onTabClose={closeTabRow}
+          onTabReorder={moveTabByStep}
           onCancel={closeSwitcher}
         />
       </Show>
