@@ -24,7 +24,7 @@ app/src/
   ui/
     ports.ts                # 画面が外に頼むことの束（Ports）と、それを部品に配る文脈
     main-window/            # メインウィンドウ
-      page.tsx              # 入口。機能の持ち物を作ってつなぎ、部品を並べる（動きは書かない）
+      page.tsx              # 入口。機能の持ち物と表示用の状態を作り、部品を並べる（動きは書かない）
       layout.tsx            # 割り付け（サイドバー・境界のつまみ・右のペイン・上に重ねるもの）
       layout.css
       keys.ts               # 受けるキー（リーダー・近道・リサイズモード）
@@ -69,6 +69,7 @@ app/src/
     updates/
     scale/                  # 表示の大きさ
     commands/               # コマンドの表（リーダーと近道）、キーの書き方、コマンドを動かす
+    compose.ts              # 機能の持ち物（各 controller）を作って、互いをつなぐ
     keyValueStore.ts        # 小さな記録の読み書きの窓口（機能をまたいで使う）
     problem.ts              # 「できなかったこと」の知らせの形（機能をまたいで使う）
   infrastructure/
@@ -122,11 +123,11 @@ index.tsx ──▶ ui ──▶ features ◀── infrastructure
 | キャラクター                     | `features/mascot/mascot.ts` の `MascotOs`               | `infrastructure/tauri/mascot.ts`       |
 | 新しい版                         | `features/updates/store.ts` の `UpdatesOs`              | `infrastructure/tauri/updates.ts`      |
 
-`index.tsx` はこれらを `Ports`（`ui/ports.ts`）にまとめて、メインウィンドウの `page.tsx` に渡す。`page.tsx` は機能の持ち物を作るときに引数で渡し、奥の部品（ターミナルのペインなど）には文脈（`usePorts()`）で配る。Tauri の無い所（テスト・これから入れる Storybook）では、偽物を渡せば動かせる。
+`index.tsx` はこれらを `Ports`（`ui/ports.ts`。機能が使う分は `features/compose.ts` の `FeaturePorts`）にまとめて、メインウィンドウの `page.tsx` に渡す。`page.tsx` は機能の持ち物を作るときに引数で渡し、奥の部品（ターミナルのペインなど）には文脈（`usePorts()`）で配る。Tauri の無い所（テスト・これから入れる Storybook）では、偽物を渡せば動かせる。
 
 ## メインウィンドウの組み立て
 
-`ui/main-window/page.tsx` は、機能の持ち物（`features/` の `create…`）を作り、互いをつなぎ、部品に渡す。動きは書かない。
+機能の持ち物（`features/` の `create…`）を作って互いをつなぐのは `features/compose.ts` の `createFeatures`。`ui/main-window/page.tsx` はそれを呼び、この画面の表示用の状態（`keys.ts`・`focus.ts`・`paneResize.ts`・知らせ・窓の開閉）を作り、部品に渡す。どちらにも動きは書かない。
 
 | 持ち物                                            | 受け持つこと                                                                 |
 | ------------------------------------------------- | ---------------------------------------------------------------------------- |
@@ -139,7 +140,7 @@ index.tsx ──▶ ui ──▶ features ◀── infrastructure
 | `features/file-tree/controller.ts`・`features/changes/controller.ts` | ツリーと CHANGES の中身と操作                              |
 | `features/commands/run.ts`                        | コマンドの表のコマンドを動かす（リーダーの葉と近道）                         |
 
-持ち物どうしは互いを呼ぶ（接続の知らせでフォーカスを直す、など）。先に作る側には、後で作る側を呼ぶ関数を渡す（`page.tsx` の `hooks` や `() => …`）。
+持ち物どうしは互いを呼ぶ（接続の知らせでフォーカスを直す、など）。先に作る側には、後で作る側を呼ぶ関数を渡す（`compose.ts` の `hooks` や `() => …`）。機能が画面の側に頼むこと（キーを向ける・スクロールを戻す・窓を出す）は、`FeatureUi`・`CommandUi` の形で `page.tsx` が渡す。
 
 画面から、対応する部品・機能・外への頼みをたどる例：
 
@@ -165,7 +166,8 @@ CSS は部品ごとのファイルに分けてあり、ビルドすると、部�
 | ------------------------------------------------- | -------------------------------------------------------------------------------------------- |
 | `app/src/architecture.test.ts`                    | 依存の向き（`features/` は画面と外の実装に依存しない、Tauri の API は `infrastructure/tauri/` だけ、本物を組み立てるのは `index.tsx` だけ、など） |
 | `app/src/ui/main-window/cssOrder.test.ts`         | メインウィンドウの CSS の並び                                                                |
+| `app/src/features/compose.test.ts`                | 機能の持ち物のつなぎ。偽の殻（kisui serve の代わり）につないで、接続 → フォーカス、作る・閉じる → 移る、タブ → ブラウザのページ、shj の頼み → 画面、の流れが通ること |
 | `app/src/features/commands/ime.test.ts`           | `app/src/` のどのファイルも、かな漢字変換のキーを `isComposingKey` で見分ける                |
 | `app/src/ui/windowShow.test.ts`                   | 窓の `<Show>` が `keyed`（閉じる操作が機能の持ち物にあるものも見る）                         |
 
-ソースを読むテスト（上の 4 つ）は、どれも `app/src/` の全部を読む。ファイルを移しても、見る範囲から外れない。
+ソースを読むテスト（`architecture`・`ime`・`windowShow`）は、どれも `app/src/` の全部を読む。ファイルを移しても、見る範囲から外れない。

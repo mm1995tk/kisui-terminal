@@ -61,9 +61,7 @@ describe("app/src の配置と依存の向き", () => {
     assert.ok(files.includes("features/sessions/controller.ts"));
     assert.ok(files.includes("infrastructure/tauri/shell.ts"));
     assert.ok(
-      imports
-        .get("ui/main-window/page.tsx")!
-        .includes("features/sessions/controller.ts"),
+      imports.get("ui/main-window/page.tsx")!.includes("features/compose.ts"),
     );
   });
 

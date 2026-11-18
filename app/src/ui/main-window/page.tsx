@@ -1,5 +1,5 @@
-// メインウィンドウの入口。機能の持ち物（features/）を作ってつなぎ、割り付け（layout.tsx）に部品を並べる。
-// ここには動きを書かない。接続・ワークスペース・タブ・ブラウザーなどの状態と操作は features/ の各 controller にあり、
+// メインウィンドウの入口。機能の持ち物（features/）とこの画面の表示用の状態を作り、割り付け（layout.tsx）に部品を並べる。
+// ここには動きを書かない。接続・ワークスペース・タブ・ブラウザーなどの状態と操作は features/ の各 controller にあり（つなぐのは features/compose.ts）、
 // キーの入力（keys.ts）・キーの行き先（focus.ts）・境界の大きさ（paneResize.ts）は、この画面の表示用の状態として隣に置く。
 // 配置と依存の向きの決まりは docs/design/frontend-structure.md。
 //
@@ -9,11 +9,6 @@
 // - 窓（接続・ワークスペース・ツリー・ブックマークなど）と、右下の知らせ・リーダーの案内を、上に重ねて出す。
 import { createSignal, onMount, Show, untrack, type JSX } from "solid-js";
 
-import { createBookmarks } from "../../features/browser/bookmarksStore.ts";
-import { createDownloads } from "../../features/browser/downloads.ts";
-import { createPages } from "../../features/browser/pages.ts";
-import { createBrowserTabs } from "../../features/browser/tabsStore.ts";
-import { createChanges } from "../../features/changes/controller.ts";
 import { OsClipboard } from "../../features/clipboard/osClipboard.ts";
 import {
   setBrowserEnabled,
@@ -21,19 +16,8 @@ import {
 } from "../../features/commands/commands.ts";
 import { IS_MAC } from "../../features/commands/guiKeys.ts";
 import { placeOf } from "../../features/commands/placeKeys.ts";
-import { createCommandRunner } from "../../features/commands/run.ts";
-import { createFileTree } from "../../features/file-tree/controller.ts";
-import { createMascotStore } from "../../features/mascot/mascotStore.ts";
-import type { Problem } from "../../features/problem.ts";
-import { createScale } from "../../features/scale/controller.ts";
-import { createSessions } from "../../features/sessions/controller.ts";
+import { createFeatures } from "../../features/compose.ts";
 import type { ConfigMachine } from "../../features/sessions/machines.ts";
-import { createTerminals } from "../../features/terminal/controller.ts";
-import { createUpdates } from "../../features/updates/store.ts";
-import { createWorkspaces } from "../../features/workspaces/controller.ts";
-import { routePaneEvent } from "../../features/workspaces/paneEvents.ts";
-import { createPrimaryShj } from "../../features/workspaces/primaryShj.ts";
-import { createTabs } from "../../features/workspaces/tabs/controller.ts";
 import { PortsContext, type Ports } from "../ports.ts";
 // ここから下の、CSS を持つ部品の import は、順を変えない。CSS の規則は import の順に並び、同じ強さの規則は後のものが勝つ。
 // App.tsx を分ける前（#313）の順（キーの一覧 → トースト → サイドバー → 切り替える窓 → 割り付け → ブラウザ → リーダーの案内 → ターミナル）を保っている。
@@ -140,14 +124,7 @@ function MainWindow(props: {
 }): JSX.Element {
   // 設定は起動のときに 1 回読んだもので、出している間は変わらない
   const { ports, browser } = props;
-  const store = ports.store;
   const els: WindowEls = {};
-  // ワークスペースに移れなかった・ファイルを開けなかったなど、できなかったことの知らせ（見出しと本文）。無ければ null
-  const [focusError, setFocusError] = createSignal<Problem | null>(null);
-
-  // 画面の側ですること。持ち物どうしは互いを呼び合うので、あとで作るものは、呼ばれたときに引く
-  const focusTerminal = () => focusUi.focusTerminal();
-  const forgetPageReturn = () => focusUi.forgetPageReturn();
   const clipboard = new OsClipboard(
     () => navigator.clipboard,
     (e) => console.warn("clipboard:", e),
@@ -159,140 +136,70 @@ function MainWindow(props: {
       () => copiedNotice.show(),
     );
   }
+  // マシンのダイアログ（リーダーの m）を出しているか
+  const [machinesOpen, setMachinesOpen] = createSignal(false);
+  // キャラクターを選ぶ窓（リーダーの c s）を出しているか
+  const [mascotPicking, setMascotPicking] = createSignal(false);
+  // ワークスペースを切り替える窓（リーダーの w）を出しているか（サイドバーの見出しからも開く）
+  const [wsSwitcher, setWsSwitcher] = createSignal(false);
 
-  // ---- 機能の持ち物（features/）----
-  const updates = createUpdates(ports.updates);
-  const mascot = createMascotStore(ports.mascot);
-  const sessions = createSessions({
-    api: ports.shell,
-    store,
-    config: props.config,
-    hooks: {
-      treeChanged: () => fileTree.changed(),
-      termChanged: () => terminals.changed(),
-      workspacesChanged: () => workspaces.workspacesChanged(),
-      firstList: (target, list) => workspaces.firstList(target, list),
-      shjFocus: (target, id) => workspaces.shjFocusChanged(target, id),
-      pane: (target, ev, s) =>
-        routePaneEvent(
-          {
-            paneShow: terminals.paneShow,
-            paneShowExtra: terminals.paneShowExtra,
-            requestStartFocus: focusUi.requestStartFocus,
-            focusExplorer: focusUi.focusExplorer,
-            focusChanges: focusUi.focusChanges,
-            openUrlFor: pages.openUrlFor,
-            checkNow: updates.checkNow,
-            zoomWs: terminals.zoomWs,
-          },
-          target,
-          ev,
-          s,
-        ),
-      disconnected: () => workspaces.disconnected(),
-    },
-  });
-  const terminals = createTerminals({
-    sessions: sessions.sessions,
-    workspaces: sessions.workspaces,
-    termGroups: sessions.termGroups,
-    focus: () => workspaces.focus(),
-    focusTerminal,
-  });
-  const browserTabs = createBrowserTabs({ os: ports.browser });
-  const workspaces = createWorkspaces({
-    store,
-    browser,
+  // ---- 機能の持ち物（features/）。画面の側ですること（下で作る resize・focusUi・notices）は、呼ばれたときに引く ----
+  const {
+    focusError,
+    setFocusError,
+    updates,
+    mascot,
     sessions,
+    terminals,
     browserTabs,
-    closeTabView: ports.browser.closeTabView,
-    setFocusError,
-    focusTerminal,
-    forgetPageReturn,
-    revealSidebar: () => {
-      if (!untrack(resize.sidebarOpen)) resize.changeSidebarOpen(true);
-    },
-  });
-  const askPrimaryShj = createPrimaryShj({
-    sessions: sessions.sessions,
-    workspaces: sessions.workspaces,
-    isSwitching: workspaces.isSwitching,
-    extraShown: terminals.extraShown,
-    termGroup: terminals.termGroup,
-    focusTerminal,
-    setFocusError,
-  });
-  const fileTree = createFileTree({
-    sessions: sessions.sessions,
-    workspaces: sessions.workspaces,
-    trees: sessions.trees,
-    focus: workspaces.focus,
-    folderOf: workspaces.folderOf,
-    rootOf: workspaces.rootOf,
-    walking: workspaces.walking,
-    askPrimaryShj,
-    copyToClipboard,
-    restoreScroll: (top) => resize.restoreScrollTo(top),
-    setFocusError,
-  });
-  const changes = createChanges({
-    sessions: sessions.sessions,
-    workspaces: sessions.workspaces,
-    focus: workspaces.focus,
-    rootOf: workspaces.rootOf,
-    walking: workspaces.walking,
-    isSwitching: workspaces.isSwitching,
-    askPrimaryShj,
-    termGroup: terminals.termGroup,
-    focusTerminal,
-    setFocusError,
-  });
-  const pages = createPages({
-    os: ports.browser,
+    workspaces,
+    fileTree,
+    changes,
+    pages,
+    bookmarks,
+    downloads,
+    tabs,
+    scale,
+    commands,
+  } = createFeatures({
+    ports,
+    config: props.config,
     browser,
     mac: IS_MAC,
-    browserTabs,
-    workspaces,
-    openUrlExternally: ports.openUrl,
-    removeTab: (id, back) => tabs.removeTab(id, back),
-    setFocusError,
-    focusTerminal,
-    forgetPageReturn,
-    focusFind: () => focusUi.focusFind(),
-    showScale,
-  });
-  const bookmarks = createBookmarks({
-    os: ports.browser,
-    browserTabs,
-    focus: workspaces.focus,
-    newTabPageId: pages.newTabPageId,
-    showToast,
-    setFocusError,
-    cannot: workspaces.cannot,
-    focusTerminal,
-  });
-  const downloads = createDownloads({
-    os: ports.browser,
-    browser,
-    setFocusError,
-  });
-  const tabs = createTabs({
-    sessions,
-    workspaces,
-    browserTabs,
-    pages,
-    setFocusError,
-    focusTerminal,
-  });
-  const scale = createScale({
-    store,
-    applyScale: ports.applyScale,
-    showScale,
+    ui: {
+      focusTerminal: () => focusUi.focusTerminal(),
+      forgetPageReturn: () => focusUi.forgetPageReturn(),
+      revealSidebar: () => {
+        if (!untrack(resize.sidebarOpen)) resize.changeSidebarOpen(true);
+      },
+      restoreTreeScroll: (top) => resize.restoreScrollTo(top),
+      focusFind: () => focusUi.focusFind(),
+      requestStartFocus: (target, id) => focusUi.requestStartFocus(target, id),
+      focusExplorer: (target, id) => focusUi.focusExplorer(target, id),
+      focusChanges: (target, id) => focusUi.focusChanges(target, id),
+      copyToClipboard,
+      showScale,
+      showToast,
+    },
+    commandUi: {
+      toggleResizeMode: () => resize.setResizeMode(!resize.resizeMode()),
+      toggleSidebar: () => resize.toggleSidebar(),
+      openMachines: () => setMachinesOpen(true),
+      openWorkspaceSwitcher: () => setWsSwitcher(true),
+      openClipboardHistory,
+      openMascotPicker: () => setMascotPicking(true),
+      openKeyList: () => openKeyList(placeOf(document.activeElement)),
+      focusUrlBar: () => focusUi.focusUrlBar(),
+      forgetPageReturn: () => focusUi.forgetPageReturn(),
+      copyToClipboard,
+      dismissLastNotice: () => notices().at(-1)?.dismiss?.(),
+    },
   });
 
-  // ---- この画面の表示用の状態（境界の大きさ・キーの行き先・窓の開閉・知らせ・キーの入力）----
+  // ---- この画面の表示用の状態（境界の大きさ・キーの行き先・知らせ・キーの入力）----
+  const focusTerminal = () => focusUi.focusTerminal();
   const resize = createPaneResize({
-    store,
+    store: ports.store,
     tabsHeight: props.tabsHeight,
     els,
     focus: workspaces.focus,
@@ -324,40 +231,6 @@ function MainWindow(props: {
     sessions,
     downloads,
   });
-  // マシンのダイアログ（リーダーの m）を出しているか
-  const [machinesOpen, setMachinesOpen] = createSignal(false);
-  // キャラクターを選ぶ窓（リーダーの c s）を出しているか
-  const [mascotPicking, setMascotPicking] = createSignal(false);
-  // ワークスペースを切り替える窓（リーダーの w）を出しているか（サイドバーの見出しからも開く）
-  const [wsSwitcher, setWsSwitcher] = createSignal(false);
-  const runner = createCommandRunner({
-    workspaces,
-    tabs,
-    terminals,
-    browserTabs,
-    pages,
-    bookmarks,
-    downloads,
-    updates,
-    mascot,
-    scale,
-    os: ports.browser,
-    setFocusError,
-    focusTerminal,
-    ui: {
-      toggleResizeMode: () => resize.setResizeMode(!resize.resizeMode()),
-      toggleSidebar: resize.toggleSidebar,
-      openMachines: () => setMachinesOpen(true),
-      openWorkspaceSwitcher: () => setWsSwitcher(true),
-      openClipboardHistory,
-      openMascotPicker: () => setMascotPicking(true),
-      openKeyList: () => openKeyList(placeOf(document.activeElement)),
-      focusUrlBar: focusUi.focusUrlBar,
-      forgetPageReturn,
-      copyToClipboard,
-      dismissLastNotice: () => notices().at(-1)?.dismiss?.(),
-    },
-  });
   const keys = createGuiKeys({
     els,
     shell: ports.shell,
@@ -366,7 +239,7 @@ function MainWindow(props: {
     resizeKey: resize.resizeKey,
     shownBrowserTab: pages.shownBrowserTab,
     termGroup: terminals.termGroup,
-    runCommand: runner.runCommand,
+    runCommand: commands.runCommand,
     endWalk: workspaces.endWalk,
     focusUi,
   });
@@ -468,7 +341,7 @@ function MainWindow(props: {
           list={mascot.list}
           onChoose={(name) => {
             setMascotPicking(false);
-            runner.chooseMascot(name);
+            commands.chooseMascot(name);
           }}
           onCancel={() => setMascotPicking(false)}
         />
