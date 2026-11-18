@@ -8,7 +8,8 @@
 // - 左の行の上で離すと、そのワークスペースの一番後ろに入る。
 // - それ以外の所で離す・Esc・窓からフォーカスが外れたら、やめる（onCancel）。
 // 並びそのものは持たない（落とし先を呼ぶ側に返し、features/workspaces/tabs/controller.ts の moveTab が動かして覚える）。
-// DOM を触るのは startTabDrag だけ。入る位置を決める insertBefore は DOM を使わない（node --test で確かめられる）。
+// 落とし先を決めるのは、DOM を使わない関数（workspaceAt・dropTarget・insertBefore。node --test で確かめられる）。
+// DOM を触るのは、行を測る measure*・結果を画面に出す show*・イベントを受け持つ startTabDrag。
 
 import { isComposingKey } from "../../../features/commands/ime.ts";
 import { DRAG_THRESHOLD, edgeScroll } from "../sidebar/drag.ts";
@@ -63,8 +64,121 @@ export interface TabDragSpec {
   onCancel: () => void;
 }
 
-const inside = (r: DOMRect, x: number, y: number) =>
+/** 画面での矩形（DOMRect のうち、使う 4 つ）。 */
+export interface Box {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+}
+
+const inside = (r: Box, x: number, y: number) =>
   x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+
+/**
+ * ポインタ（x, y）の下にある、左の一覧のワークスペースの行の id。無ければ undefined。
+ * 左の一覧（list）はスクロールする。一覧からはみ出して見えていない行の矩形は一覧の箱の外にあるので、ポインタが一覧の中に無ければ当てない。
+ */
+export function workspaceAt(
+  x: number,
+  y: number,
+  list: Box,
+  rows: readonly { gws: string; box: Box }[],
+): string | undefined {
+  if (!inside(list, x, y)) return undefined;
+  return rows.find((r) => inside(r.box, x, y))?.gws;
+}
+
+/** いま離したら入る先（ワークスペース gws の、before のタブの前。一番後ろなら null）。lineY は線を出す高さ（線を出さなければ null）。 */
+export interface DropTarget {
+  gws: string;
+  before: string | null;
+  lineY: number | null;
+}
+
+/**
+ * ポインタ（x, y）で離したら入る先。落とせない所なら null。
+ * - 左のワークスペースの行の上（over がある）：そのワークスペースの一番後ろ。線は出さない。
+ * - 右の列（right）の中：右の列が出しているワークスペース（shown）の、insertBefore の位置。線は、右の列の見えている範囲に収める。
+ * - どちらでもない：落とせない。
+ * tabs は右の列のタブの行（上から順）、self はつかんだタブ。
+ */
+export function dropTarget(p: {
+  x: number;
+  y: number;
+  over: string | undefined;
+  shown: string | undefined;
+  right: Box;
+  tabs: readonly InsertItem[];
+  self: string;
+}): DropTarget | null {
+  if (p.over !== undefined) return { gws: p.over, before: null, lineY: null };
+  if (p.shown === undefined || !inside(p.right, p.x, p.y)) return null;
+  const at = insertBefore(p.tabs, p.self, p.y, p.right.top);
+  return {
+    gws: p.shown,
+    before: at.before,
+    lineY: Math.min(Math.max(at.y, p.right.top), p.right.bottom),
+  };
+}
+
+/** 左の一覧の、ワークスペースの行（いまの DOM）。 */
+const leftRows = (left: HTMLElement) => [
+  ...left.querySelectorAll<HTMLElement>("li.switch-row[data-gws]"),
+];
+
+/** 右の列の、タブの行（いまの DOM）。 */
+const tabRows = (right: HTMLElement) => [
+  ...right.querySelectorAll<HTMLElement>("li.tab-row[data-key]"),
+];
+
+/** ポインタの下にある、左の一覧のワークスペースの行の id（いまの DOM を測る）。 */
+function measureOver(left: HTMLElement, x: number, y: number) {
+  return workspaceAt(
+    x,
+    y,
+    left.getBoundingClientRect(),
+    leftRows(left).map((el) => ({
+      gws: el.dataset.gws!,
+      box: el.getBoundingClientRect(),
+    })),
+  );
+}
+
+/** 右の列のタブの行の位置（いまの DOM を測る）。 */
+function measureTabs(right: HTMLElement): InsertItem[] {
+  return tabRows(right).map((el) => {
+    const r = el.getBoundingClientRect();
+    return { key: el.dataset.key!, top: r.top, bottom: r.bottom };
+  });
+}
+
+/** 落とすと入るワークスペースの行（over）と、つかんだタブの元の行（self）に印を付ける。ほかの行の印は外す。 */
+function showMarks(
+  spec: Pick<TabDragSpec, "left" | "right">,
+  over: string | undefined,
+  self: string | undefined,
+) {
+  for (const el of leftRows(spec.left))
+    el.toggleAttribute(
+      "data-drop-target",
+      over !== undefined && el.dataset.gws === over,
+    );
+  for (const el of tabRows(spec.right))
+    el.toggleAttribute(
+      "data-drag-source",
+      self !== undefined && el.dataset.key === self,
+    );
+}
+
+/** 入る位置の線を、右の列の幅で、高さ y に出す（y が null なら隠す）。 */
+function showLine(line: HTMLElement, right: Box, y: number | null) {
+  line.style.display = y === null ? "none" : "";
+  if (y === null) return;
+  line.style.left = `${right.left}px`;
+  line.style.width = `${right.right - right.left}px`;
+  line.style.top = `${y}px`;
+}
 
 /**
  * 写しと線を置く親。窓（showModal した dialog）は一番上の層に出るので、body に置いたものは窓の下に隠れる。窓の中に置く
@@ -118,57 +232,28 @@ export function startTabDrag(e: PointerEvent, spec: TabDragSpec): void {
   let ghost: HTMLElement | null = null;
   let line: HTMLElement | null = null;
   /** いま離したら入る先。落とせない所なら null */
-  let target: { gws: string; before: string | null } | null = null;
-
-  const tabRows = () => [
-    ...spec.right.querySelectorAll<HTMLElement>("li.tab-row[data-key]"),
-  ];
-  const leftRows = () => [
-    ...spec.left.querySelectorAll<HTMLElement>("li.switch-row[data-gws]"),
-  ];
+  let target: DropTarget | null = null;
 
   // 印と線を、いまのポインタの位置に合わせる。行は作り直されることがあるので、毎回いまの DOM から引き直す
   const update = () => {
     if (!ghost || !line) return;
     ghost.style.left = `${x - grab.x}px`;
     ghost.style.top = `${y - grab.y}px`;
-    // 左の一覧はスクロールする。一覧からはみ出して見えていない行の矩形は一覧の箱の外にあるので、ポインタが一覧の中に無ければ当てない
-    const over = inside(spec.left.getBoundingClientRect(), x, y)
-      ? leftRows().find((el) => inside(el.getBoundingClientRect(), x, y))
-      : undefined;
-    const gws = over?.dataset.gws;
-    // 左の行の上へ来たら、右の列をそのワークスペースのタブに替える（Solid はその場で DOM を書き換える）
-    if (gws !== undefined && gws !== spec.shown()) spec.onOver(gws);
-    for (const el of leftRows())
-      el.toggleAttribute("data-drop-target", el === over);
-    for (const el of tabRows())
-      el.toggleAttribute("data-drag-source", el.dataset.key === spec.self);
-    const box = spec.right.getBoundingClientRect();
-    const shown = spec.shown();
-    if (gws !== undefined) {
-      target = { gws, before: null };
-      line.style.display = "none";
-    } else if (shown !== undefined && inside(box, x, y)) {
-      const at = insertBefore(
-        tabRows().map((el) => {
-          const r = el.getBoundingClientRect();
-          return { key: el.dataset.key!, top: r.top, bottom: r.bottom };
-        }),
-        spec.self,
-        y,
-        box.top,
-      );
-      target = { gws: shown, before: at.before };
-      // 線は、右の列の見えている範囲にだけ出す
-      const ly = Math.min(Math.max(at.y, box.top), box.bottom);
-      line.style.display = "";
-      line.style.left = `${box.left}px`;
-      line.style.width = `${box.width}px`;
-      line.style.top = `${ly}px`;
-    } else {
-      target = null;
-      line.style.display = "none";
-    }
+    const over = measureOver(spec.left, x, y);
+    // 左の行の上へ来たら、右の列をそのワークスペースのタブに替える（Solid はその場で DOM を書き換えるので、このあとに右の列を測る）
+    if (over !== undefined && over !== spec.shown()) spec.onOver(over);
+    const right = spec.right.getBoundingClientRect();
+    target = dropTarget({
+      x,
+      y,
+      over,
+      shown: spec.shown(),
+      right,
+      tabs: measureTabs(spec.right),
+      self: spec.self,
+    });
+    showMarks(spec, over, spec.self);
+    showLine(line, right, target?.lineY ?? null);
   };
 
   // 一覧の端にいるあいだは、フレームごとにスクロールする（ポインタがある方の一覧）
@@ -215,8 +300,7 @@ export function startTabDrag(e: PointerEvent, spec: TabDragSpec): void {
     document.body.style.cursor = "";
     ghost?.remove();
     line?.remove();
-    for (const el of leftRows()) el.removeAttribute("data-drop-target");
-    for (const el of tabRows()) el.removeAttribute("data-drag-source");
+    showMarks(spec, undefined, undefined);
     if (!wasActive) return;
     if (drop && target) spec.onDrop(target.gws, target.before);
     else spec.onCancel();
