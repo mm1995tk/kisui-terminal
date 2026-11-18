@@ -51,6 +51,18 @@ export interface DragSlot {
 }
 
 /**
+ * i 番目の行が占める 1 行分の幅（行間も）。次の行の上端までの距離。一番後ろなら、行の高さに前の行との間を足す（前の行も無ければ行の高さ）。
+ * よける量（layoutShifts）と落ちる先の位置（dropTop）が、同じ幅で計算するための関数。
+ */
+function slotSpan(items: readonly DragSlot[], i: number): number {
+  const s = items[i]!;
+  const next = items[i + 1];
+  const prev = items[i - 1];
+  if (next) return next.top - s.top;
+  return prev ? s.height + (s.top - (prev.top + prev.height)) : s.height;
+}
+
+/**
  * つかんだ行（self）が before の行の前に入るとき、ほかの行がよける量（px。下へなら正）。
  * items は動かす前の位置で、上から順（self も含む）。つかんだ行が抜けた空きと、入る空きの間にある行だけが、1 行分（行間も）動く。
  */
@@ -65,12 +77,7 @@ export function layoutShifts(
   const s = items[i]!;
   const others = items.filter((it) => it.key !== self);
   if (others.length === 0) return out;
-  // 1 行分の幅：次の行の上端までの距離。一番後ろなら、行の高さに前の行との間を足す
-  const next = items[i + 1];
-  const prev = items[i - 1];
-  const slot = next
-    ? next.top - s.top
-    : s.height + (s.top - (prev!.top + prev!.height));
+  const slot = slotSpan(items, i);
   const found =
     before === null ? -1 : others.findIndex((o) => o.key === before);
   const j = found < 0 ? others.length : found;
@@ -150,13 +157,7 @@ export function dropTop(
 ): number {
   const i = items.findIndex((it) => it.key === self);
   const s = items[i]!;
-  const next = items[i + 1];
-  const prev = items[i - 1];
-  const slot = next
-    ? next.top - s.top
-    : prev
-      ? s.height + (s.top - (prev.top + prev.height))
-      : s.height;
+  const slot = slotSpan(items, i);
   const b = before === null ? undefined : items.find((it) => it.key === before);
   if (b && b.key !== self) return b.top + (shifts.get(b.key) ?? 0) - slot;
   const last = items.filter((it) => it.key !== self).at(-1);
