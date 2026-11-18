@@ -502,18 +502,21 @@ div.band-main {
   line-height: 1.5;
 }
 
-/* ヘッダーの下のコンテンツ：タブの行を、ヘッダーと同じ左端から並べる（字下げしない）。タブとタブの間に区切り線を引く */
+/* ヘッダーの下のコンテンツ：タブの行を、角の丸い枠のブロックにして、少しずつ間をあけて並べる */
 .tab-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   margin: 0;
-  padding: 0;
+  padding: 4px 6px 6px;
   list-style: none;
 }
 .tab-row {
   --sidebar-bg: var(--row-bg);
+  overflow: clip;
+  border: 1px solid var(--gh-border);
+  border-radius: 6px;
   background: var(--row-bg);
-}
-.tab-row + .tab-row {
-  border-top: 1px solid var(--gh-border);
 }
 /* そのワークスペースで出しているタブ。今のワークスペースのものは、地の色も変える */
 .tab-row[data-shown] {
@@ -522,13 +525,13 @@ div.band-main {
 .tab-row[data-current] {
   --row-bg: var(--gh-bg-hover);
 }
-/* 行の高さの最小は、ターミナルのタブもブラウザのタブも同じ（2 行ぶん）。git のあるターミナルのタブは 3 行ぶんに伸びる */
+/* 行の高さは、ターミナルのタブもブラウザのタブも同じ（git のあるターミナルのタブの 3 行ぶん）。行が少ないタブは、真ん中にそろえる */
 .tab-line {
   position: relative;
   box-sizing: border-box;
   display: flex;
   align-items: center;
-  min-height: 56px;
+  min-height: 76px;
   padding: 8px 6px 8px 0;
 }
 .tab-line:hover {
@@ -644,4 +647,12 @@ div.band-main {
 .tab-row[data-health="down"] .tab-l2,
 .tab-row[data-health="down"] .tab-l3 {
   opacity: 0.55;
+}
+/* 鉛筆と ✕ は 1 行目の右に重ねるので、真ん中にそろえて 1 行目が下がった分だけ下げる。
+   1 行目 22px・2 行目と 3 行目 16px・行の間 3px。中身が入る高さは 60px（76px から上下の 8px を引いたもの） */
+.tab-line:not(:has(.tab-l3)):has(.tab-l2) .tab-actions {
+  top: calc(8px + (60px - 41px) / 2);
+}
+.tab-line:not(:has(.tab-l2)) .tab-actions {
+  top: calc(8px + (60px - 22px) / 2);
 }

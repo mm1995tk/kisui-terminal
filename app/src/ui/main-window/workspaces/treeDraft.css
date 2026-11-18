@@ -1,0 +1,316 @@
+/* 試作：WorkspaceTreeDraft.tsx。窓の大きさは、メインのウィンドウの幅と高さの 60% に固定する（上限と下限つき） */
+.card-modal:has(.tree-draft) {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: clamp(560px, 60vw, 1200px);
+  height: clamp(360px, 60vh, 900px);
+  max-height: calc(100vh - 2 * var(--space-16));
+  margin: auto;
+}
+.card-modal:has(.tree-draft) .card-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+.tree-draft {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+}
+.tree-draft:focus {
+  outline: none;
+}
+
+/* ワークスペース 1 つ：見出しの行と、その下のタブの一覧を、左の線でまとめる */
+.tree-ws {
+  border-left: 3px solid var(--card-field-border);
+  padding-left: 8px;
+}
+.tree-ws-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+}
+.tree-ws-row:hover {
+  background: var(--card-row-active);
+}
+.tree-ws-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tree-tabs {
+  margin: 4px 0 0 18px;
+}
+
+/* 選んでいる行（ワークスペースの行・タブの行） */
+.tree-ws-row[data-selected] {
+  background: var(--card-row-active);
+  box-shadow: inset 0 0 0 1px var(--card-accent);
+}
+.tree-tabs .tab-row[data-selected] {
+  box-shadow: inset 0 0 0 1px var(--card-accent);
+}
+.tree-ws:has([data-selected]) {
+  border-left-color: var(--card-accent);
+}
+
+/* 試作：WorkspaceColumnsDraft.tsx。左右を半分ずつにし、右の一覧は窓の右端・見出しの線・下の段の線まで余白なしで埋める。
+   選んだワークスペースの行は右の一覧と同じ地の色にし、その所だけ右の一覧の左の線を消してつなげる */
+.cols-draft {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0;
+  height: 100%;
+  padding: 0;
+  box-sizing: border-box;
+}
+.card-modal:has(.cols-draft) .card-content {
+  overflow: hidden;
+}
+.cols-ws {
+  margin: 0;
+  padding: 8px 0 8px 8px;
+  list-style: none;
+  overflow-y: auto;
+  /* 右の一覧の左の線の上に重ねる（選んだ行の地の色で、その所の線を隠す） */
+  position: relative;
+  z-index: 1;
+}
+.cols-ws-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid transparent;
+  border-right: 0;
+  border-radius: 8px 0 0 8px;
+  cursor: pointer;
+}
+.cols-ws-row:hover:not([data-on]) {
+  background: var(--card-row-active);
+}
+.cols-ws-row[data-on] {
+  border-color: var(--gh-border-strong);
+  background: var(--gh-bg-side);
+  font-weight: 600;
+}
+.cols-panel {
+  margin-left: -1px;
+  min-height: 0;
+  overflow-y: auto;
+  border-left: 1px solid var(--gh-border-strong);
+  background: var(--gh-bg-side);
+}
+.cols-tabs {
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+/* キーが動かす列を、選んだ印の色で見せる */
+.cols-draft[data-col="ws"] .cols-ws-row[data-on] {
+  box-shadow: inset 3px 0 0 var(--card-accent);
+}
+.cols-tabs .tab-row[data-selected] {
+  box-shadow: inset 3px 0 0 var(--card-accent);
+}
+/* 右の一覧の上：選んだワークスペースのタブの数 */
+.cols-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 6px 2px 12px;
+  color: var(--gh-text-muted);
+  font-size: 12px;
+}
+/* 左右の列：一覧だけがスクロールし、「作る」ボタンは列の下端に固定する */
+.cols-left {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  position: relative;
+  z-index: 1;
+}
+.cols-left .cols-ws {
+  flex: 1;
+  min-height: 0;
+}
+.cols-panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.cols-panel > .cols-tabs {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+.cols-tabs > .tab-rows {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+.cols-new {
+  flex: none;
+}
+.cols-left .cols-new {
+  width: calc(100% - 16px);
+  margin: 4px 0 8px 8px;
+}
+.cols-tabs .cols-new {
+  width: calc(100% - 12px);
+  margin: 4px 6px 8px;
+  border-color: var(--gh-border-strong);
+  color: var(--gh-text-muted);
+}
+/* 作る入力欄の行 */
+.cols-create .inline-edit {
+  flex: 1;
+  min-width: 0;
+}
+.cols-tabs .cols-create .tab-line {
+  min-height: 0;
+  padding: 8px;
+}
+/* タブを閉じる確認 */
+.cols-confirm {
+  flex: none;
+  margin: 4px 6px;
+  color: var(--gh-text-muted);
+  font-size: 12px;
+}
+.cols-head .cols-add {
+  color: var(--gh-text-muted);
+}
+/* ワークスペースの行は、今の窓の行（.switch-row。ドラッグの部品が探す）を兼ねる。左端につかむ所を置く */
+.cols-ws .cols-ws-row {
+  padding: 10px 12px 10px 2px;
+}
+/* タブを作る行（NewTabDraft.tsx）：名前の入力欄の右にマシン。マシンを押すか ↓ で、その下に一覧が開く */
+.newtab {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+.newtab-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.newtab-line .inline-input {
+  flex: 1;
+  min-width: 0;
+}
+.newtab-machine {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border: 1px solid var(--gh-border-strong);
+  border-radius: 6px;
+  background: var(--gh-bg-raised);
+  color: var(--gh-text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.newtab-machine:hover,
+.newtab-machine[aria-expanded="true"] {
+  border-color: var(--card-accent);
+}
+.newtab-caret {
+  color: var(--gh-text-muted);
+  font-size: 10px;
+}
+.newtab-list {
+  position: absolute;
+  z-index: 4;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 160px;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  border: 1px solid var(--gh-border-strong);
+  border-radius: 6px;
+  background: var(--gh-bg-raised);
+  box-shadow: var(--shadow-raised);
+}
+.newtab-list:focus {
+  outline: none;
+}
+.newtab-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.newtab-list li[data-cursor] {
+  background: var(--gh-bg-hover);
+  box-shadow: inset 2px 0 0 var(--card-accent);
+}
+/* 一覧がはみ出ても切らない（タブの一覧はスクロールするので、作る行だけは見せる） */
+.cols-tabs .cols-create {
+  overflow: visible;
+}
+/* キーでつかんでいるタブ（m）：入る位置に、浮かせた形で出す */
+.cols-tabs .tab-row[data-held] {
+  border-color: var(--card-accent);
+  box-shadow:
+    0 0 0 1px var(--card-accent),
+    var(--shadow-raised);
+}
+/* つかんでいる間、左の列にいるときは、落とす先のワークスペースの行を光らせる */
+.cols-draft[data-holding][data-col="ws"] .cols-ws-row[data-on] {
+  box-shadow:
+    inset 3px 0 0 var(--card-accent),
+    inset 0 0 0 1px var(--card-accent);
+}
+/* 右の見出しの右端のボタン（ブラウザのタブを開く・ターミナルのタブを作る） */
+.cols-head-btns {
+  display: flex;
+  gap: 2px;
+}
+/* キーでつかんでいる間（m）の見た目 */
+/* 右の見出しは、タブの数の代わりに、何を移しているかを出す */
+.cols-holding {
+  color: var(--card-accent);
+  font-weight: 600;
+}
+/* つかんだタブは、少し右に寄せ（幅は縮めて、横にはみ出さない）、地の色も変える（ほかのタブと見分けやすく） */
+.cols-draft[data-holding] .cols-tabs .tab-row[data-held] {
+  --row-bg: color-mix(in srgb, var(--card-accent) 18%, var(--gh-bg-side));
+  margin-left: 12px;
+  border-style: dashed;
+}
+/* ほかのタブは薄くする */
+.cols-draft[data-holding] .cols-tabs .tab-row:not([data-held]) {
+  opacity: 0.5;
+}
+/* 左の列で選んでいる行（落とす先）には「ここの一番後ろへ」を出す */
+.cols-drop-here {
+  margin-left: 8px;
+  color: var(--card-accent);
+  font-size: 11px;
+  font-weight: 400;
+}
+/* つかんだときのワークスペースの行には、元の場所の印として点線を引く */
+.cols-ws-row[data-held-from]:not([data-on]) {
+  outline: 1px dashed var(--card-field-border);
+  outline-offset: -2px;
+}
