@@ -132,9 +132,10 @@ export function startTabDrag(e: PointerEvent, spec: TabDragSpec): void {
     if (!ghost || !line) return;
     ghost.style.left = `${x - grab.x}px`;
     ghost.style.top = `${y - grab.y}px`;
-    const over = leftRows().find((el) =>
-      inside(el.getBoundingClientRect(), x, y),
-    );
+    // 左の一覧はスクロールする。一覧からはみ出して見えていない行の矩形は一覧の箱の外にあるので、ポインタが一覧の中に無ければ当てない
+    const over = inside(spec.left.getBoundingClientRect(), x, y)
+      ? leftRows().find((el) => inside(el.getBoundingClientRect(), x, y))
+      : undefined;
     const gws = over?.dataset.gws;
     // 左の行の上へ来たら、右の列をそのワークスペースのタブに替える（Solid はその場で DOM を書き換える）
     if (gws !== undefined && gws !== spec.shown()) spec.onOver(gws);
