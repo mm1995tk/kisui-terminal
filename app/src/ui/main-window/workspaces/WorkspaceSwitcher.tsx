@@ -165,6 +165,15 @@ export function WorkspaceSwitcher(props: {
       .querySelector(".tab-row[data-selected]")
       ?.scrollIntoView?.({ block: "nearest" });
   });
+  // つかんでいる間は、つかんだタブ（入る位置）が見える所へ（移す先や入る位置を動かしたとき）
+  createEffect(() => {
+    if (!hold.held()) return;
+    sel();
+    hold.pos();
+    right
+      .querySelector(".tab-row[data-held]")
+      ?.scrollIntoView?.({ block: "nearest" });
+  });
 
   // 確認や入力欄を出している行が、窓の外の理由（マシンが切れて記録から外れたなど）で消えたら、やめる（確認が見えないまま、キーが効かなくならないように）
   createEffect(() => {
