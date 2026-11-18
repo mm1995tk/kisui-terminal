@@ -5,6 +5,7 @@ import type {
 } from "../../../features/changes/model.ts";
 import type { TreeMenuAction } from "../../../features/file-tree/menu.ts";
 import type { TreeRow } from "../../../features/file-tree/model.ts";
+import type { TreeEditView } from "./file-tree/TreeView.tsx";
 import type { NewTabKind } from "../../../features/workspaces/tabs/controller.ts";
 import type {
   ChangesShjKey,
@@ -19,8 +20,20 @@ export interface Handlers {
   onTab?: (gws: string, key: string) => void;
   /** タブの行の ✕（ターミナルのタブもブラウザのタブも） */
   onTabClose?: (gws: string, key: string) => void;
-  /** タブの行の鉛筆（名前を変える） */
+  /** タブの行の鉛筆（名前を変える。呼ぶ側が tabRenaming を渡す） */
   onTabRename?: (gws: string, key: string) => void;
+  /** 名前をその場で変えているタブの行（key は TabItem.key。current・auto・error は renaming と同じ）。無ければ undefined か null */
+  tabRenaming?: {
+    gws: string;
+    key: string;
+    current: string;
+    auto: string;
+    error?: string;
+  } | null;
+  /** タブの行の入力欄で Enter を押した（空なら、つけた名前を外す） */
+  onTabRenameSubmit?: (name: string) => void;
+  /** タブの行の入力欄で Esc を押した（byKey が true）・フォーカスが外れた */
+  onTabRenameCancel?: (byKey?: boolean) => void;
   /** タブの行のつかむ所からドラッグして落とした（同じワークスペースの中だけ。before は、そのすぐ前のタブのキー。一番後ろなら null） */
   onTabMove?: (gws: string, key: string, before: string | null) => void;
   /** ヘッダーの「+」のメニューで選んだ。選んでいないワークスペースなら、呼ぶ側が先にそのワークスペースに移る（features/workspaces/tabs/controller.ts の addWorkspaceTab） */
@@ -75,6 +88,12 @@ export interface Handlers {
   onChangesResize?: (e: PointerEvent, height: number) => void;
   /** 境目をダブルクリックした（高さを元に戻す） */
   onChangesResizeReset?: () => void;
+  /** ツリーの中のその場の入力欄（新しいファイル・フォルダ・名前の変更）。無ければ undefined */
+  treeEditOf?: (target: string, id: WorkspaceId) => TreeEditView | undefined;
+  /** ツリーの入力欄で Enter を押した（値はルートからの相対パス） */
+  onTreeEditSubmit?: (value: string) => void;
+  /** ツリーの入力欄で Esc を押した（byKey）・フォーカスが外れた */
+  onTreeEditCancel?: (byKey: boolean) => void;
   /** ツリーの行を右クリックした（Sidebar が内側に渡す。呼ぶ側は onTreeAction を使う） */
   onTreeMenu?: (
     target: string,
@@ -108,6 +127,15 @@ export function handlers(
     },
     get onTabRename() {
       return props.onTabRename;
+    },
+    get tabRenaming() {
+      return props.tabRenaming;
+    },
+    get onTabRenameSubmit() {
+      return props.onTabRenameSubmit;
+    },
+    get onTabRenameCancel() {
+      return props.onTabRenameCancel;
     },
     get onSwitch() {
       return props.onSwitch;
@@ -165,6 +193,15 @@ export function handlers(
     },
     get onTreeAction() {
       return props.onTreeAction;
+    },
+    get treeEditOf() {
+      return props.treeEditOf;
+    },
+    get onTreeEditSubmit() {
+      return props.onTreeEditSubmit;
+    },
+    get onTreeEditCancel() {
+      return props.onTreeEditCancel;
     },
     get renaming() {
       return props.renaming;

@@ -4,7 +4,13 @@ import { createSignal, For, type JSX } from "solid-js";
 import { moveRow, pickerKey } from "../../../features/sessions/machineList.ts";
 import type { Row } from "../../../features/workspaces/rows.ts";
 import { Button } from "../../components/Button.tsx";
-import { ModalCard } from "../../components/Card.tsx";
+import {
+  ModalCard,
+  CardActions,
+  CardBody,
+  CardTitle,
+} from "../../components/Card.tsx";
+import { KeyHints } from "../../components/KeyHints.tsx";
 
 const rowId = (i: number) => `tab-move-row-${i}`;
 
@@ -37,13 +43,31 @@ export function TabMovePicker(props: {
   }
 
   return (
-    <ModalCard label={T("tabMove.label")} width={560} onCancel={props.onCancel}>
+    <ModalCard
+      label={T("tabMove.label")}
+      width={560}
+      onCancel={props.onCancel}
+      header={
+        <CardTitle>{T("tabMove.title", { title: props.title })}</CardTitle>
+      }
+      footer={
+        <>
+          <CardBody>
+            <KeyHints
+              items={[
+                { keys: ["j", "k"], label: T("machineDialog.keys.select") },
+                { keys: ["Enter"], label: T("tabMove.keys.move") },
+                { keys: ["Esc"], label: T("mascot.keys.cancel") },
+              ]}
+            />
+          </CardBody>
+          <CardActions>
+            <Button onClick={props.onCancel}>{T("button.cancelAlt")}</Button>
+          </CardActions>
+        </>
+      }
+    >
       <div class="machine-dialog">
-        <div class="card-body">
-          <h1 class="card-title">
-            {T("tabMove.title", { title: props.title })}
-          </h1>
-        </div>
         <ul
           class="card-rows"
           tabIndex={0}
@@ -76,16 +100,6 @@ export function TabMovePicker(props: {
             )}
           </For>
         </ul>
-        <div class="card-body">
-          <p class="machine-keys">
-            <kbd>j</kbd> <kbd>k</kbd> {T("machineDialog.keys.select")} ·{" "}
-            <kbd>Enter</kbd> {T("tabMove.keys.move")} · <kbd>Esc</kbd>{" "}
-            {T("mascot.keys.cancel")}
-          </p>
-        </div>
-      </div>
-      <div class="card-actions">
-        <Button onClick={props.onCancel}>{T("button.cancelAlt")}</Button>
       </div>
     </ModalCard>
   );

@@ -34,6 +34,25 @@
   /* 後ろを触れたまま重ねるもの（右下の知らせ）の影 */
   --shadow-raised: 0 8px 24px rgba(0, 0, 0, 0.5);
 
+  /* == ボタン（GitHub のボタンに合わせる） == */
+
+  /* ボタンの地 */
+  --button-bg: var(--gh-bg-hover);
+  /* ポインタが乗ったボタンの地 */
+  --button-bg-hover: var(--gh-border);
+  /* ボタンの縁。地からうっすら浮かせる */
+  --button-border: rgba(240, 246, 252, 0.1);
+  /* ポインタが乗ったボタンの縁 */
+  --button-border-hover: var(--gh-text-muted);
+  /* ボタンの字の太さ */
+  --button-weight: 500;
+  /* 主ボタンの地 */
+  --button-primary-bg: var(--gh-btn-primary);
+  /* ポインタが乗った主ボタンの地 */
+  --button-primary-bg-hover: var(--gh-btn-primary-hover);
+  /* 主ボタンの字 */
+  --button-primary-text: var(--gh-on-accent);
+
   /* == 状態（意味は docs/design/design-system.md の「状態」） == */
 
   /* hover：押せるものの上にポインタがある */
@@ -80,10 +99,8 @@
   --space-10: 10px;
   /* カードの中の塊の間・入力欄の左右 */
   --space-12: 12px;
-  /* ボタンの左右・画面の端からの最小の間 */
+  /* ボタンの左右・カードの内側の左右・画面の端からの最小の間 */
   --space-16: 16px;
-  /* カードの内側の左右 */
-  --space-20: 20px;
 
   /* == 字 == */
 

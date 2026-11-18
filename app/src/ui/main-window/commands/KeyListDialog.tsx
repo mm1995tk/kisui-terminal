@@ -8,7 +8,7 @@ import {
   leaderKeyName,
 } from "../../../features/commands/commands.ts";
 import { Button } from "../../components/Button.tsx";
-import { ModalCard } from "../../components/Card.tsx";
+import { ModalCard, CardActions } from "../../components/Card.tsx";
 import { IS_MAC } from "../../../features/commands/guiKeys.ts";
 import {
   PLACE_KEYS,
@@ -39,9 +39,16 @@ export function KeyListDialog(): JSX.Element {
         width={640}
         onCancel={() => setOpened(false)}
         focusSelf
+        header={<h1 class={styles.title}>{T("keys.label")}</h1>}
+        footer={
+          <CardActions>
+            <Button variant="primary" onClick={() => setOpened(false)}>
+              {T("button.close")}
+            </Button>
+          </CardActions>
+        }
       >
         <div class={styles.body}>
-          <h1 class={styles.title}>{T("keys.label")}</h1>
           <section class={styles.part}>
             <p class={styles.lead}>{T("keys.lead", { leader })}</p>
             <table class={styles.table}>
@@ -91,11 +98,6 @@ export function KeyListDialog(): JSX.Element {
             )}
           </Show>
           <p class={styles.outside}>{T("keys.outside", { key: outside })}</p>
-        </div>
-        <div class="card-actions">
-          <Button variant="primary" onClick={() => setOpened(false)}>
-            {T("button.close")}
-          </Button>
         </div>
       </ModalCard>
     </Show>

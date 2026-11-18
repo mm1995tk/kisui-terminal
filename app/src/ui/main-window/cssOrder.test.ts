@@ -65,8 +65,12 @@ describe("メインウィンドウの CSS の並び", () => {
       "ui/main-window/notifications/CopiedToast.module.css",
       "ui/main-window/notifications/ScaleToast.module.css",
       "ui/main-window/sidebar/changes/changes.css",
+      // その場の入力欄（.inline-* の規則だけを持ち、置き場のツリー・サイドバー・切り替える窓の規則と重ならない）
+      "ui/components/inline-input.css",
       "ui/main-window/sidebar/file-tree/tree.css",
       "ui/main-window/sidebar/sidebar.css",
+      // キー操作のヒント（.key-hint・.kbd の規則だけを持ち、置き場の窓の規則と重ならない）
+      "ui/components/key-hints.css",
       "ui/main-window/workspaces/switcher.css",
       "ui/main-window/layout.css",
       "ui/main-window/content/browser/browser.css",

@@ -14,6 +14,8 @@ export function Button(props: {
   variant?: "primary" | "secondary";
   /** 省くと "button"。form の中で送るボタンだけ "submit"（Enter で送れる） */
   type?: "button" | "submit";
+  /** submit のボタンが窓の下の段（form の外）にあるとき、送る form の id */
+  form?: string;
   /** 今は押せない */
   disabled?: boolean;
   /** 処理中。押せなくし、読み上げにも処理中と伝える */
@@ -24,6 +26,7 @@ export function Button(props: {
   return (
     <button
       type={props.type ?? "button"}
+      form={props.form}
       class="button"
       data-variant={props.variant ?? "secondary"}
       disabled={props.disabled || props.busy}

@@ -4,7 +4,13 @@ import { For, Show, type JSX } from "solid-js";
 
 import { T } from "../../../i18n/index.ts";
 import { Button } from "../../components/Button.tsx";
-import { ModalCard } from "../../components/Card.tsx";
+import {
+  ModalCard,
+  CardBody,
+  CardTitle,
+  CardText,
+  CardActions,
+} from "../../components/Card.tsx";
 import { formatBytes } from "../../../features/file-transfer/transfer.ts";
 import { currentTransferPrompt } from "../../../features/file-transfer/transferPrompt.ts";
 
@@ -20,33 +26,50 @@ export function TransferDialog(): JSX.Element {
           label={T("transfer.label")}
           focusSelf
           onCancel={() => ask.resolve(false)}
+          header={
+            <CardTitle>
+              {T(
+                ask.info.direction === "read"
+                  ? "transfer.read.title"
+                  : "transfer.write.title",
+              )}
+            </CardTitle>
+          }
+          footer={
+            <CardActions>
+              <Button onClick={() => ask.resolve(false)}>
+                {T("transfer.deny")}
+              </Button>
+              <Button variant="primary" onClick={() => ask.resolve(true)}>
+                {T("transfer.allow")}
+              </Button>
+            </CardActions>
+          }
         >
-          <div class="card-body">
+          <CardBody>
             <Show
               when={ask.info.direction === "read" ? ask.info : undefined}
               keyed
               fallback={
                 <>
-                  <h1 class="card-title">{T("transfer.write.title")}</h1>
-                  <p class="card-text">{T("transfer.write.direction")}</p>
-                  <p class="card-text">{T("transfer.write.ask")}</p>
-                  <p class="card-text">
+                  <CardText>{T("transfer.write.direction")}</CardText>
+                  <CardText>{T("transfer.write.ask")}</CardText>
+                  <CardText>
                     {T("transfer.write.destination", {
                       path:
                         ask.info.direction === "write"
                           ? ask.info.destination
                           : "",
                     })}
-                  </p>
-                  <p class="card-text">{T("transfer.write.note")}</p>
+                  </CardText>
+                  <CardText>{T("transfer.write.note")}</CardText>
                 </>
               }
             >
               {(read) => (
                 <>
-                  <h1 class="card-title">{T("transfer.read.title")}</h1>
-                  <p class="card-text">{T("transfer.read.direction")}</p>
-                  <p class="card-text">{T("transfer.read.ask")}</p>
+                  <CardText>{T("transfer.read.direction")}</CardText>
+                  <CardText>{T("transfer.read.ask")}</CardText>
                   <ul class="card-text">
                     <For each={read.items}>
                       {(item) => (
@@ -68,24 +91,16 @@ export function TransferDialog(): JSX.Element {
                       <li>{T("transfer.read.more", { n: read.more })}</li>
                     </Show>
                   </ul>
-                  <p class="card-text">
+                  <CardText>
                     {T("transfer.read.total", {
                       files: read.files,
                       size: formatBytes(read.totalSize),
                     })}
-                  </p>
+                  </CardText>
                 </>
               )}
             </Show>
-          </div>
-          <div class="card-actions">
-            <Button onClick={() => ask.resolve(false)}>
-              {T("transfer.deny")}
-            </Button>
-            <Button variant="primary" onClick={() => ask.resolve(true)}>
-              {T("transfer.allow")}
-            </Button>
-          </div>
+          </CardBody>
         </ModalCard>
       )}
     </Show>

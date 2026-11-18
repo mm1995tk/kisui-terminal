@@ -2,7 +2,13 @@ import { T } from "../../../i18n/index.ts";
 import { createSignal, For, type JSX } from "solid-js";
 
 import { Button } from "../../components/Button.tsx";
-import { ModalCard } from "../../components/Card.tsx";
+import { KeyHints } from "../../components/KeyHints.tsx";
+import {
+  ModalCard,
+  CardBody,
+  CardTitle,
+  CardActions,
+} from "../../components/Card.tsx";
 import { moveRow, pickerKey } from "../../../features/sessions/machineList.ts";
 
 /** 作るワークスペースの種類。 */
@@ -37,11 +43,25 @@ export function WorkspaceKindPicker(props: {
       label={T("kindPicker.label")}
       width={560}
       onCancel={props.onCancel}
+      footer={
+        <>
+          <CardBody>
+            <KeyHints
+              items={[
+                { keys: ["j", "k"], label: T("machineDialog.keys.select") },
+                { keys: ["Enter"], label: T("kindPicker.keys.choose") },
+                { keys: ["Esc"], label: T("mascot.keys.cancel") },
+              ]}
+            />
+          </CardBody>
+          <CardActions>
+            <Button onClick={props.onCancel}>{T("button.cancelAlt")}</Button>
+          </CardActions>
+        </>
+      }
+      header={<CardTitle>{T("kindPicker.title")}</CardTitle>}
     >
       <div class="machine-dialog">
-        <div class="card-body">
-          <h1 class="card-title">{T("kindPicker.title")}</h1>
-        </div>
         <ul
           class="card-rows"
           tabIndex={0}
@@ -66,16 +86,6 @@ export function WorkspaceKindPicker(props: {
             )}
           </For>
         </ul>
-        <div class="card-body">
-          <p class="machine-keys">
-            <kbd>j</kbd> <kbd>k</kbd> {T("machineDialog.keys.select")} ·{" "}
-            <kbd>Enter</kbd> {T("kindPicker.keys.choose")} · <kbd>Esc</kbd>{" "}
-            {T("mascot.keys.cancel")}
-          </p>
-        </div>
-      </div>
-      <div class="card-actions">
-        <Button onClick={props.onCancel}>{T("button.cancelAlt")}</Button>
       </div>
     </ModalCard>
   );

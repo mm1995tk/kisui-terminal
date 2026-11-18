@@ -5,7 +5,14 @@ import { Show, type JSX } from "solid-js";
 
 import type { SessionState } from "../../../features/sessions/session.ts";
 import { Button } from "../../components/Button.tsx";
-import { ModalCard } from "../../components/Card.tsx";
+import {
+  ModalCard,
+  CardBody,
+  CardTitle,
+  CardText,
+  CardError,
+  CardActions,
+} from "../../components/Card.tsx";
 
 /**
  * kisui が無いマシン（target）に、GUI と同じ版の kisui を入れてよいかを聞く窓。
@@ -21,32 +28,38 @@ export function InstallCard(props: {
   onNo: () => void;
 }): JSX.Element {
   return (
-    <ModalCard label={T("installCard.label")} onCancel={props.onNo} focusSelf>
-      <div class="card-body">
-        <h1 class="card-title">
+    <ModalCard
+      label={T("installCard.label")}
+      onCancel={props.onNo}
+      focusSelf
+      header={
+        <CardTitle>
           {T("installCard.title", { target: props.target })}
-        </h1>
-        <p class="card-text">
+        </CardTitle>
+      }
+      footer={
+        <CardActions>
+          <Button onClick={props.onNo}>{T("installCard.no")}</Button>
+          <Button variant="primary" onClick={props.onYes}>
+            {T("installCard.yes")}
+          </Button>
+        </CardActions>
+      }
+    >
+      <CardBody>
+        <CardText>
           {T("installCard.text", {
             target: props.target,
             version: props.state.plan.version,
             url: props.state.plan.release_url,
             path: props.state.plan.path,
           })}
-        </p>
-        <p class="card-text">{T("installCard.verify")}</p>
+        </CardText>
+        <CardText>{T("installCard.verify")}</CardText>
         <Show when={props.state.error}>
-          <pre class="card-error" role="alert">
-            {props.state.error}
-          </pre>
+          <CardError role="alert">{props.state.error}</CardError>
         </Show>
-      </div>
-      <div class="card-actions">
-        <Button onClick={props.onNo}>{T("installCard.no")}</Button>
-        <Button variant="primary" onClick={props.onYes}>
-          {T("installCard.yes")}
-        </Button>
-      </div>
+      </CardBody>
     </ModalCard>
   );
 }

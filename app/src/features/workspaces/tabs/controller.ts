@@ -63,6 +63,8 @@ export function createTabs(deps: {
   setFocusError: ReportProblem;
   /** 今使っているペイン（ブラウザのタブを出していればそのページ）にキーを向ける */
   focusTerminal: () => void;
+  /** 閉じているサイドバーを開ける（タブの名前の入力欄を出す前） */
+  revealSidebar: () => void;
 }) {
   const { setFocusError, focusTerminal } = deps;
   const { sessions, states, workspaces, labelOf } = deps.sessions;
@@ -199,70 +201,78 @@ export function createTabs(deps: {
     );
   }
 
-  // 名前を変えているターミナルのタブ（窓で変える。サイドバーのタブの行の鉛筆）
-  const [renamingTerm, setRenamingTerm] = createSignal<{
-    target: string;
-    ws: WorkspaceId;
+  // 名前をその場で変えているタブ（サイドバーのタブの行が入力欄になる。current は入力欄の初めの値、auto は空にしたときの名前）と、断られた理由
+  const [renamingTab, setRenamingTab] = createSignal<{
+    gws: string;
+    key: string;
+    current: string;
+    auto: string;
   } | null>(null);
-  const [termRenameError, setTermRenameError] = createSignal<
+  const [tabRenameError, setTabRenameError] = createSignal<
     string | undefined
   >();
 
-  /** サイドバーのタブの行の鉛筆。ブラウザのタブもターミナルのタブも、名前を変える窓を出す（空にすると、自動の名前に戻る）。 */
+  /**
+   * タブの名前をその場で変え始める（サイドバーのタブの行の鉛筆・tab.rename・browser.rename）。ブラウザのタブもターミナルのタブも同じ。
+   * 空にして決めると、自動の名前（ターミナルはフォルダ名、ブラウザはページの題）に戻る。
+   */
   function renameTabRow(gid: string, key: string) {
     const ref = untrack(gws)
       .list.find((g) => g.id === gid)
       ?.tabs.find((r) => refKey(r) === key);
     if (!ref) return;
+    let current = "";
+    let auto = "";
     if (ref.kind === "browser") {
-      setTabRenameError(undefined);
-      setRenamingTab(ref.id);
+      current = ref.name ?? "";
+      auto = untrack(tabs).tabs.find((t) => t.id === ref.id)?.title ?? "";
     } else {
-      setTermRenameError(undefined);
-      setRenamingTerm({ target: ref.target, ws: ref.ws });
+      const w = untrack(workspaces)[ref.target]?.find((x) => x.id === ref.ws);
+      current = w?.label ?? "";
+      auto = w ? band({ ...w, label: "" }, false).title : "";
     }
+    // 閉じているサイドバーの中には入力欄が見えず、フォーカスも取れないので、先に開ける
+    deps.revealSidebar();
+    setTabRenameError(undefined);
+    setRenamingTab({ gws: gid, key, current, auto });
   }
 
-  /** ターミナルのタブの名前の窓で決めた（マシンのワークスペースの名前にする）。 */
-  async function submitTermRename(name: string) {
-    const r = renamingTerm();
+  /** 入力欄の Enter。断られたら入力欄の下に理由を出し、入力欄は開けておく。 */
+  async function submitTabRename(name: string) {
+    const r = renamingTab();
     if (!r) return;
-    const bad = nameErrorText(name);
-    if (bad) {
-      setTermRenameError(bad);
-      return;
-    }
-    setRenamingTerm(null);
-    try {
-      await sessions()[r.target]?.renameWorkspace(r.ws, name.trim());
-    } catch (e) {
-      setFocusError({
-        title: T("err.workspace.rename", { machine: labelOf(r.target) }),
-        error: e instanceof Error ? e.message : String(e),
-      });
-    }
-    focusTerminal();
-  }
-
-  // 名前を変えているブラウザのタブ（窓で変える。リーダーの o R）
-  const [renamingTab, setRenamingTab] = createSignal<string | null>(null);
-  const [tabRenameError, setTabRenameError] = createSignal<
-    string | undefined
-  >();
-
-  /** ブラウザのタブの名前の窓で決めた。空なら、ページの題に戻る。 */
-  function submitTabRename(name: string) {
-    const id = renamingTab();
-    if (id === null) return;
     const bad = nameErrorText(name);
     if (bad) {
       setTabRenameError(bad);
       return;
     }
-    setGws((g) => renameBrowser(g, id, name));
+    const ref = untrack(gws)
+      .list.find((g) => g.id === r.gws)
+      ?.tabs.find((x) => refKey(x) === r.key);
     setRenamingTab(null);
     setTabRenameError(undefined);
+    if (ref?.kind === "browser") {
+      setGws((g) => renameBrowser(g, ref.id, name));
+    } else if (ref) {
+      try {
+        // ターミナルのタブの名前は、マシンのワークスペースの名前
+        await sessions()[ref.target]?.renameWorkspace(ref.ws, name.trim());
+      } catch (e) {
+        setFocusError({
+          title: T("err.workspace.rename", { machine: labelOf(ref.target) }),
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
+    }
     focusTerminal();
+  }
+
+  /** 入力欄の Esc（byKey）・フォーカスが外れたとき。Esc のときだけ、キーを今のペインに戻す。 */
+  function cancelTabRename(byKey?: boolean) {
+    if (!renamingTab()) return;
+    setRenamingTab(null);
+    setTabRenameError(undefined);
+    if (byKey) focusTerminal();
   }
 
   // タブを足すマシンを選んでいる窓（「+」のメニューの「ターミナル（マシンを選ぶ）」）。足すワークスペースの id
@@ -491,27 +501,16 @@ export function createTabs(deps: {
     cancelCloseTab: () => setConfirmCloseTab(null),
     closeTermTab,
     renameTabRow,
-    /** 名前を変えているターミナルのタブ（無ければ null） */
-    renamingTerm,
-    termRenameError,
-    submitTermRename,
-    /** ターミナルのタブの名前の窓をやめる（キーをターミナルに戻す） */
-    cancelTermRename() {
-      setRenamingTerm(null);
-      focusTerminal();
+    /** ブラウザのタブ id の名前をその場で変え始める（browser.rename） */
+    renameBrowserTab(id: string) {
+      const g = gwsOfBrowser(untrack(gws), id);
+      if (g) renameTabRow(g.id, browserKey(id));
     },
-    /** 名前を変えているブラウザのタブの id（無ければ null） */
+    /** 名前をその場で変えているタブ（無ければ null） */
     renamingTab,
     tabRenameError,
-    /** ブラウザのタブ id の名前の窓を出す（リーダーの o R） */
-    openTabRename: (id: string) => setRenamingTab(id),
     submitTabRename,
-    /** ブラウザのタブの名前の窓をやめる（キーをページに戻す） */
-    cancelTabRename() {
-      setRenamingTab(null);
-      setTabRenameError(undefined);
-      focusTerminal();
-    },
+    cancelTabRename,
     /** タブを足すマシンを選んでいる途中の、足す先のワークスペースの id（無ければ null） */
     pickingFor,
     closeTabMachinePicker: () => setPickingFor(null),

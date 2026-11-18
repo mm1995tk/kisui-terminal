@@ -25,6 +25,8 @@ import {
 import { listStep } from "../../../features/commands/placeKeys.ts";
 // 一覧の見た目（.history-*）は、カードの決まりと同じファイルにある
 import "../../components/card.css";
+import { CardBody, CardTitle, CardText } from "../../components/Card.tsx";
+import { Input } from "../../components/Field.tsx";
 
 /** クリップボードに戻したと「コピーしました」を見せておく時間（ミリ秒）。 */
 const COPIED_MS = 600;
@@ -110,9 +112,9 @@ export function HistoryPanel(props: {
 
   return (
     <>
-      <div class="card-body">
+      <CardBody>
         <div class="history-head">
-          <h1 class="card-title">{T("history.label")}</h1>
+          <CardTitle>{T("history.label")}</CardTitle>
           <button
             type="button"
             class="history-close"
@@ -133,8 +135,7 @@ export function HistoryPanel(props: {
             </svg>
           </button>
         </div>
-        <input
-          class="card-input"
+        <Input
           type="text"
           placeholder={T("history.filterPlaceholder")}
           aria-label={T("history.filter")}
@@ -146,15 +147,15 @@ export function HistoryPanel(props: {
           onKeyDown={onKeyDown}
           ref={(el) => queueMicrotask(() => el.focus())}
         />
-        <p class="card-text history-hint" role="status">
+        <CardText class="history-hint" role="status">
           <Show
             when={!copied()}
             fallback={<span class="history-copied">{T("history.copied")}</span>}
           >
             {props.outside ? T("history.hint.outside") : T("history.hint")}
           </Show>
-        </p>
-      </div>
+        </CardText>
+      </CardBody>
       <Show
         when={shown().length > 0}
         fallback={

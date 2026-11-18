@@ -4,16 +4,17 @@ import { T } from "../../../i18n/index.ts";
 import type { JSX } from "solid-js";
 
 import "../../components/card.css";
+import { CardBody, CardTitle, CardError } from "../../components/Card.tsx";
 
 export function ConfigError(props: { message: string }): JSX.Element {
   return (
     <main class="config-error" role="alert" aria-label="shijimi-editor">
       <div class="card config-error-card">
-        <div class="card-body">
-          <h1 class="card-title">{T("configError.title")}</h1>
-          <pre class="card-error">{props.message}</pre>
+        <CardBody>
+          <CardTitle>{T("configError.title")}</CardTitle>
+          <CardError>{props.message}</CardError>
           <p class="card-hint">{T("configError.hint")}</p>
-        </div>
+        </CardBody>
       </div>
     </main>
   );

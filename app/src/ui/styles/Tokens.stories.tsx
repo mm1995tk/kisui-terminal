@@ -93,10 +93,10 @@ function TokenTable(props: { prefixes: string[] }): JSX.Element {
   const resolved = (name: string) =>
     getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   return (
-    <div style={{ padding: "var(--space-20)" }}>
+    <div style={{ padding: "var(--space-16)" }}>
       <For each={groups}>
         {(g) => (
-          <section style={{ "margin-bottom": "var(--space-20)" }}>
+          <section style={{ "margin-bottom": "var(--space-16)" }}>
             <h2
               style={{
                 margin: "0 0 var(--space-8)",

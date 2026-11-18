@@ -11,7 +11,13 @@ import {
 import { startDrag } from "../sidebar/drag.ts";
 import type { Row } from "../../../features/workspaces/rows.ts";
 import { type RowEdit, SwitcherRow, SwitcherTabs } from "./SwitcherParts.tsx";
-import { ModalCard } from "../../components/Card.tsx";
+import {
+  ModalCard,
+  CardBody,
+  CardText,
+  CardTitle,
+} from "../../components/Card.tsx";
+import { Kbd, KeyHints } from "../../components/KeyHints.tsx";
 import { isCancelKey } from "../../components/cancelKey.ts";
 import { moveRow } from "../../../features/sessions/machineList.ts";
 import { confirmKey, switcherKey } from "./switcherKey.ts";
@@ -210,11 +216,25 @@ export function WorkspaceSwitcher(props: {
       width={880}
       closeOnOutside
       onCancel={props.onCancel}
+      header={<CardTitle>{T("switcher.title")}</CardTitle>}
+      footer={
+        <CardBody>
+          <KeyHints
+            items={[
+              { keys: ["j", "k"], label: T("machineDialog.keys.select") },
+              { keys: ["Enter"], label: T("switcher.keys.go") },
+              { keys: ["n"], label: T("switcher.keys.new") },
+              { keys: ["r"], label: T("switcher.keys.rename") },
+              { keys: ["x"], label: T("switcher.keys.closeWorkspace") },
+              { keys: ["J", "K"], label: T("switcher.keys.reorder") },
+              { keys: ["Esc"], label: T("switcher.keys.close") },
+            ]}
+          />
+          <CardText>{T("switcher.keys.dragTab")}</CardText>
+        </CardBody>
+      }
     >
       <div class="machine-dialog switcher">
-        <div class="card-body">
-          <h1 class="card-title">{T("switcher.title")}</h1>
-        </div>
         <div class="switcher-cols">
           <div class="switcher-left">
             <ul
@@ -264,7 +284,7 @@ export function WorkspaceSwitcher(props: {
               onClick={() => props.onNew()}
             >
               <span>+ {T("switcher.new")}</span>
-              <kbd>n</kbd>
+              <Kbd>n</Kbd>
             </button>
           </div>
           <div class="switcher-right" ref={right}>
@@ -274,36 +294,6 @@ export function WorkspaceSwitcher(props: {
               )}
             </Show>
           </div>
-        </div>
-        <div class="card-body switch-keys">
-          <div class="switch-keys-col">
-            <h2>{T("switcher.keys.goHeading")}</h2>
-            <p>
-              <kbd>j</kbd> <kbd>k</kbd> {T("machineDialog.keys.select")}
-            </p>
-            <p>
-              <kbd>Enter</kbd> {T("switcher.keys.go")}
-            </p>
-            <p>
-              <kbd>Esc</kbd> {T("switcher.keys.close")}
-            </p>
-          </div>
-          <div class="switch-keys-col">
-            <h2>{T("switcher.keys.changeHeading")}</h2>
-            <p>
-              <kbd>n</kbd> {T("switcher.keys.new")}
-            </p>
-            <p>
-              <kbd>r</kbd> {T("switcher.keys.rename")}
-            </p>
-            <p>
-              <kbd>x</kbd> {T("switcher.keys.closeWorkspace")}
-            </p>
-            <p>
-              <kbd>J</kbd> <kbd>K</kbd> {T("switcher.keys.reorder")}
-            </p>
-          </div>
-          <p class="switch-keys-note">{T("switcher.keys.dragTab")}</p>
         </div>
       </div>
     </ModalCard>

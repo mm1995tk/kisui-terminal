@@ -9,6 +9,7 @@ import { T } from "../../i18n/index.ts";
 import { Button } from "./Button.tsx";
 // 並び（.card-actions）とカードの地は card.css（アプリでは Card.tsx・Notices.tsx が読む）
 import "./card.css";
+import { CardActions } from "./Card.tsx";
 
 /** 字（children）は翻訳の表から render の中で引くので、引数からは外す */
 type Args = Omit<ComponentProps<typeof Button>, "children">;
@@ -24,9 +25,9 @@ const meta = {
   decorators: [
     (Story) => (
       <div class="card">
-        <div class="card-actions">
+        <CardActions>
           <Story />
-        </div>
+        </CardActions>
       </div>
     ),
   ],
@@ -43,7 +44,7 @@ export const Secondary: Story = {};
 /** 主の操作。窓に 1 つ、並びの右端に置く。 */
 export const Primary: Story = {
   args: { variant: "primary" },
-  render: (args) => <Button {...args}>{T("rename.submit")}</Button>,
+  render: (args) => <Button {...args}>{T("addMachine.add")}</Button>,
 };
 
 /** 今は押せない（押しても何も起きない）。 */
@@ -60,7 +61,7 @@ export const Busy: Story = {
 /** キーボードで移ったフォーカス（focus-visible）の枠。Tab で移ったときと同じ見た目。 */
 export const Focused: Story = {
   args: { variant: "primary" },
-  render: (args) => <Button {...args}>{T("rename.submit")}</Button>,
+  render: (args) => <Button {...args}>{T("addMachine.add")}</Button>,
   play: ({ canvasElement }) => {
     canvasElement.querySelector<HTMLButtonElement>("button")?.focus();
   },
@@ -72,7 +73,7 @@ export const CancelAndPrimary: Story = {
     <>
       <Button onClick={args.onClick}>{T("button.cancel")}</Button>
       <Button variant="primary" onClick={args.onClick}>
-        {T("rename.submit")}
+        {T("addMachine.add")}
       </Button>
     </>
   ),

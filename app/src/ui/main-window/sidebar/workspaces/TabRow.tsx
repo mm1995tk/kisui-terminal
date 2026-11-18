@@ -7,6 +7,7 @@ import { startDrag } from "../drag.ts";
 import type { Handlers } from "../handlers.ts";
 import { ICON } from "../icons.ts";
 import { Grip, Nf, titleIfClipped } from "./parts.tsx";
+import { InlineInput } from "../../../components/InlineInput.tsx";
 
 const healthLabel = (h: Health): string => T(`health.${h}`);
 
@@ -52,9 +53,103 @@ export function grabTab(
   });
 }
 
+/** タブのアイコン（ブラウザのタブは favicon、無ければ種類のアイコン）。 */
+function TabIcon(props: { t: TabItem }): JSX.Element {
+  return (
+    <Show
+      when={props.t.favicon}
+      fallback={
+        <Nf
+          class="tab-icon"
+          c={props.t.kind === "term" ? ICON.terminal : ICON.globe}
+        />
+      }
+    >
+      {(src) => <img class="tab-icon tab-favicon" src={src()} alt="" />}
+    </Show>
+  );
+}
+
+/** ふだんの行のボタンの中身。1 行目にアイコン・名前・マシンの札、2 行目にフォルダか URL、3 行目に git。 */
+function TabLines(props: { t: TabItem }): JSX.Element {
+  const t = () => props.t;
+  return (
+    <>
+      <span class="tab-l1">
+        <TabIcon t={t()} />
+        <Show when={t().incognito}>
+          <span class="tab-incognito">{T("sidebar.incognito")}</span>
+        </Show>
+        <span class="tab-title">{t().title}</span>
+        <Show when={t().machine}>
+          {(m) => (
+            <span
+              class="tab-machine"
+              style={{ color: m().color }}
+              title={T("sidebar.machineHealth", {
+                machine: m().name,
+                health: healthLabel(m().health),
+              })}
+            >
+              <Nf c={ICON.machine} />
+              <span
+                class="health"
+                data-health={m().health}
+                role="img"
+                aria-label={healthLabel(m().health)}
+              />
+              <span class="tab-machine-name">{m().name}</span>
+            </span>
+          )}
+        </Show>
+      </span>
+      <Show when={t().path}>
+        <span class="tab-l2">
+          <Nf c={t().kind === "term" ? ICON.folder : ICON.link} />
+          <span class="tab-text" {...titleIfClipped(t().path)}>
+            {t().path}
+          </span>
+        </span>
+      </Show>
+      <Show when={t().git}>
+        <span class="tab-l3">
+          <Nf c={ICON.git} />
+          <span class="tab-text" {...titleIfClipped(t().git)}>
+            {t().git}
+          </span>
+        </span>
+      </Show>
+    </>
+  );
+}
+
+/** 名前を変えている行の中身。1 行目の名前の所が、その場の入力欄になる。 */
+function TabRenameLine(props: {
+  t: TabItem;
+  edit: { current: string; auto: string; error?: string };
+  onSubmit: (name: string) => void;
+  onCancel: (byKey: boolean) => void;
+}): JSX.Element {
+  return (
+    <div class="tab-main">
+      <span class="tab-l1">
+        <TabIcon t={props.t} />
+        <InlineInput
+          value={props.edit.current}
+          label={T("sidebar.tabNameLabel")}
+          placeholder={T("sidebar.namePlaceholder", { auto: props.edit.auto })}
+          error={props.edit.error}
+          onSubmit={props.onSubmit}
+          onCancel={props.onCancel}
+        />
+      </span>
+    </div>
+  );
+}
+
 /**
- * タブの行 1 つ（ターミナルのタブもブラウザのタブも）。
- * ターミナルのタブは 1 行目にアイコン・名前・マシンの札、2 行目にフォルダ、3 行目に git。ブラウザのタブは 1 行目にアイコン・名前、2 行目に URL。
+ * タブの行 1 つ（ターミナルのタブもブラウザのタブも）。ふだんは TabLines を行のボタンに入れ、名前を変えている間（edit を渡したとき）は TabRenameLine を出す。
+ * 入力欄はボタンの中に置けないので、名前を変えている間は、行のボタンの代わりに div になる。
  * 鉛筆と ✕ は、1 行目の右に場所を空けておき、出ているときだけ見せる（選んでも行の高さが変わらないように）。
  */
 export function TabRow(props: {
@@ -69,6 +164,10 @@ export function TabRow(props: {
   onRename?: () => void;
   /** つかむ所を押した（ドラッグで並べ替える）。省くと動かせない */
   onGrab?: (e: PointerEvent) => void;
+  /** 名前を変えているなら、入力欄の初めの値・空にしたときの名前・断られた理由 */
+  edit?: { current: string; auto: string; error?: string };
+  onRenameSubmit?: (name: string) => void;
+  onRenameCancel?: (byKey: boolean) => void;
 }): JSX.Element {
   const t = () => props.t;
   return (
@@ -82,68 +181,29 @@ export function TabRow(props: {
     >
       <div class="tab-line">
         <Grip onGrab={props.onGrab} />
-        <button
-          type="button"
-          class="tab-main"
-          title={t().tip || undefined}
-          aria-current={props.current ? "page" : undefined}
-          onClick={() => props.onTab()}
-        >
-          <span class="tab-l1">
-            <Show
-              when={t().favicon}
-              fallback={
-                <Nf
-                  class="tab-icon"
-                  c={t().kind === "term" ? ICON.terminal : ICON.globe}
-                />
-              }
+        <Show
+          when={props.edit}
+          fallback={
+            <button
+              type="button"
+              class="tab-main"
+              title={t().tip || undefined}
+              aria-current={props.current ? "page" : undefined}
+              onClick={() => props.onTab()}
             >
-              {(src) => <img class="tab-icon tab-favicon" src={src()} alt="" />}
-            </Show>
-            <Show when={t().incognito}>
-              <span class="tab-incognito">{T("sidebar.incognito")}</span>
-            </Show>
-            <span class="tab-title">{t().title}</span>
-            <Show when={t().machine}>
-              {(m) => (
-                <span
-                  class="tab-machine"
-                  style={{ color: m().color }}
-                  title={T("sidebar.machineHealth", {
-                    machine: m().name,
-                    health: healthLabel(m().health),
-                  })}
-                >
-                  <Nf c={ICON.machine} />
-                  <span
-                    class="health"
-                    data-health={m().health}
-                    role="img"
-                    aria-label={healthLabel(m().health)}
-                  />
-                  <span class="tab-machine-name">{m().name}</span>
-                </span>
-              )}
-            </Show>
-          </span>
-          <Show when={t().path}>
-            <span class="tab-l2">
-              <Nf c={t().kind === "term" ? ICON.folder : ICON.link} />
-              <span class="tab-text" {...titleIfClipped(t().path)}>
-                {t().path}
-              </span>
-            </span>
-          </Show>
-          <Show when={t().git}>
-            <span class="tab-l3">
-              <Nf c={ICON.git} />
-              <span class="tab-text" {...titleIfClipped(t().git)}>
-                {t().git}
-              </span>
-            </span>
-          </Show>
-        </button>
+              <TabLines t={t()} />
+            </button>
+          }
+        >
+          {(edit) => (
+            <TabRenameLine
+              t={t()}
+              edit={edit()}
+              onSubmit={(name) => props.onRenameSubmit?.(name)}
+              onCancel={(byKey) => props.onRenameCancel?.(byKey)}
+            />
+          )}
+        </Show>
         <div class="tab-actions">
           <button
             type="button"

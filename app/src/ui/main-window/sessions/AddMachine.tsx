@@ -8,10 +8,18 @@ import { createMemo, createSignal, For, Show, type JSX } from "solid-js";
 
 import type { SessionState } from "../../../features/sessions/session.ts";
 import { Button } from "../../components/Button.tsx";
-import { ModalCard } from "../../components/Card.tsx";
+import {
+  ModalCard,
+  CardBody,
+  CardTitle,
+  CardText,
+  CardError,
+  CardActions,
+} from "../../components/Card.tsx";
 import { listStep } from "../../../features/commands/placeKeys.ts";
 import { filterCandidates } from "../../../features/sessions/machines.ts";
 import { stateLabel } from "../../../features/sessions/status.ts";
+import { Field, Input } from "../../components/Field.tsx";
 
 /** 行の id（入力欄の aria-activedescendant で、選んでいる行を読み上げに伝える）。 */
 const optionId = (i: number) => `add-machine-option-${i}`;
@@ -53,13 +61,23 @@ export function AddMachine(props: {
   }
 
   return (
-    <ModalCard label={T("addMachine.title")} onCancel={props.onCancel}>
-      <div class="card-body">
-        <h1 class="card-title">{T("addMachine.title")}</h1>
-        <label class="card-field">
+    <ModalCard
+      label={T("addMachine.title")}
+      onCancel={props.onCancel}
+      header={<CardTitle>{T("addMachine.title")}</CardTitle>}
+      footer={
+        <CardActions>
+          <Button onClick={props.onCancel}>{T("button.cancel")}</Button>
+          <Button variant="primary" busy={props.busy} onClick={submit}>
+            {T("addMachine.add")}
+          </Button>
+        </CardActions>
+      }
+    >
+      <CardBody>
+        <Field>
           {T("addMachine.target")}
-          <input
-            class="card-input"
+          <Input
             type="text"
             role="combobox"
             aria-expanded={shown().length > 0 ? "true" : "false"}
@@ -99,8 +117,8 @@ export function AddMachine(props: {
             }}
             autofocus
           />
-        </label>
-      </div>
+        </Field>
+      </CardBody>
       <Show when={shown().length > 0}>
         <div class="card-section" id="add-machine-list">
           {T("addMachine.candidates")}
@@ -130,11 +148,10 @@ export function AddMachine(props: {
           </For>
         </ul>
       </Show>
-      <div class="card-body">
-        <label class="card-field">
+      <CardBody>
+        <Field>
           {T("addMachine.name")}
-          <input
-            class="card-input"
+          <Input
             type="text"
             placeholder={T("addMachine.namePlaceholder")}
             value={name()}
@@ -148,28 +165,18 @@ export function AddMachine(props: {
               }
             }}
           />
-        </label>
+        </Field>
         <Show when={props.busy}>
-          <p class="card-text" role="status">
+          <CardText role="status">
             {T("addMachine.busy", {
               state: stateLabel(props.state) || T("addMachine.connecting"),
             })}
-          </p>
+          </CardText>
         </Show>
         <Show when={props.error}>
-          {(e) => (
-            <pre class="card-error" role="alert">
-              {e()}
-            </pre>
-          )}
+          {(e) => <CardError role="alert">{e()}</CardError>}
         </Show>
-      </div>
-      <div class="card-actions">
-        <Button onClick={props.onCancel}>{T("button.cancel")}</Button>
-        <Button variant="primary" busy={props.busy} onClick={submit}>
-          {T("addMachine.add")}
-        </Button>
-      </div>
+      </CardBody>
     </ModalCard>
   );
 }
