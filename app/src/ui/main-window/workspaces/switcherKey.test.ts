@@ -2,7 +2,13 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import type { KeyLike } from "../../../features/commands/guiKeys.ts";
-import { confirmKey, switcherHints, switcherKey } from "./switcherKey.ts";
+import {
+  confirmKey,
+  holdHints,
+  holdKey,
+  switcherHints,
+  switcherKey,
+} from "./switcherKey.ts";
 
 const key = (k: string, mods: Partial<KeyLike> = {}): KeyLike => ({
   key: k,
@@ -147,7 +153,74 @@ describe("窓の下のキーの説明", () => {
       "x",
       "J",
       "K",
+      "m",
       "Esc",
     ]);
+  });
+
+  it("m の説明は、タブの列にキーがあるときだけ出す", () => {
+    assert.ok(!labels("ws", true).includes("m"));
+    assert.ok(labels("tab", true).includes("m"));
+  });
+
+  it("つかんでいる間は、つかんでいる間のキーだけを出す", () => {
+    assert.deepEqual(
+      holdHints().flatMap((h) => h.keys),
+      ["j", "k", "h", "l", "Enter", "Esc"],
+    );
+  });
+});
+
+describe("タブをつかむ（m）", () => {
+  it("m は、つかむ（Cmd・Ctrl・Alt を重ねたものと変換中は受けない）", () => {
+    assert.deepEqual(switcherKey(key("m")), { kind: "hold" });
+    assert.equal(switcherKey(key("m", { ctrlKey: true })), null);
+    assert.equal(switcherKey(key("m", { metaKey: true })), null);
+    assert.equal(switcherKey(key("m", { isComposing: true })), null);
+  });
+});
+
+describe("タブをつかんでいる間のキー", () => {
+  it("j k・矢印・Ctrl+J / Ctrl+K で動かす", () => {
+    for (const k of ["j", "ArrowDown"])
+      assert.deepEqual(holdKey(key(k)), { kind: "move", to: "next" });
+    for (const k of ["k", "ArrowUp"])
+      assert.deepEqual(holdKey(key(k)), { kind: "move", to: "prev" });
+    assert.deepEqual(holdKey(key("j", { ctrlKey: true })), {
+      kind: "move",
+      to: "next",
+    });
+    assert.deepEqual(holdKey(key("k", { ctrlKey: true })), {
+      kind: "move",
+      to: "prev",
+    });
+  });
+
+  it("h l と矢印の左右で、列を移る", () => {
+    for (const k of ["h", "ArrowLeft"])
+      assert.deepEqual(holdKey(key(k)), { kind: "col", to: "ws" });
+    for (const k of ["l", "ArrowRight"])
+      assert.deepEqual(holdKey(key(k)), { kind: "col", to: "tab" });
+  });
+
+  it("Enter と m で落とし、Esc でやめる", () => {
+    assert.deepEqual(holdKey(key("Enter")), { kind: "drop" });
+    assert.deepEqual(holdKey(key("m")), { kind: "drop" });
+    assert.deepEqual(holdKey(key("Escape")), { kind: "cancel" });
+    assert.equal(holdKey(key("Enter", { shiftKey: true })), null);
+  });
+
+  it("ほかのキーは受けない（並べ替え・作る・名前を変える・閉じる・Tab）", () => {
+    for (const k of ["J", "K", "n", "N", "r", "x", "y", "Tab", "1"])
+      assert.equal(holdKey(key(k)), null, k);
+  });
+
+  it("Cmd・Alt を重ねたものと、変換中のキーは受けない", () => {
+    assert.equal(holdKey(key("j", { metaKey: true })), null);
+    assert.equal(holdKey(key("h", { altKey: true })), null);
+    assert.equal(holdKey(key("Escape", { ctrlKey: true })), null);
+    assert.equal(holdKey(key("Escape", { isComposing: true })), null);
+    assert.equal(holdKey(key("Enter", { keyCode: 229 })), null);
+    assert.equal(holdKey(key("j", { isComposing: true })), null);
   });
 });

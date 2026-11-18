@@ -22,10 +22,25 @@ import type { MachineChoice } from "./SwitcherNewTab.tsx";
 import { Kbd, KeyHints } from "../../components/KeyHints.tsx";
 import { isCancelKey } from "../../components/cancelKey.ts";
 import { moveRow } from "../../../features/sessions/machineList.ts";
-import { confirmKey, switcherHints, switcherKey } from "./switcherKey.ts";
+import {
+  confirmKey,
+  holdHints,
+  holdKey,
+  switcherHints,
+  switcherKey,
+} from "./switcherKey.ts";
 import { createSwitcherColumns } from "./switcherColumns.ts";
 import { createSwitcherTabActions } from "./switcherTabActions.ts";
 import { createSwitcherNewTab } from "./switcherNewTab.ts";
+import {
+  createSwitcherHold,
+  dropTarget,
+  holdItems,
+  startPos,
+  stepPos,
+  without,
+  type Hold,
+} from "./switcherHold.ts";
 import { startTabDrag } from "./tabMoveDrag.ts";
 import "./switcher.css";
 
@@ -44,6 +59,8 @@ const tabId = (key: string) => `switcher-tab-${key}`;
  * 右の列がそのワークスペースのタブに替わり、落とした位置に入る（左の行の上で落とすと、一番後ろに入る。空のワークスペースにも落とせる）。
  * 右の列の上の「＋」か n で、右の列の一番下に、名前の入力欄とマシンを 1 行で出し、Enter でそのワークスペースのそのマシンにターミナルのタブを作る（#331。SwitcherNewTab.tsx）。
  * 地球儀か N（どちらの列でも）で、そのワークスペースに新しいタブのページのブラウザのタブを開く（内蔵ブラウザが有効なときだけ）。どちらも窓は閉じず、作ったタブを右の列で選ぶ。
+ * タブの列の m で、選んでいるタブをキーでつかみ、別のワークスペースへ移す（#332。switcherHold.ts）。つかむとキーは左の列へ移り、j k で移す先を選ぶと、右の列がそのワークスペースのタブに替わって、つかんだタブが一番後ろに出る。
+ * 右の列で j k を押すと入る位置を 1 つずつ動かし、Enter か m で、見えている位置に落とす（onTabMove。ドラッグと同じ）。Esc で、つかんだときのワークスペースと位置に戻す（窓は閉じない）。つかんでいる間は、ほかのキーは効かない。
  * 名前を変えるのは、行の中の入力欄（サイドバーの帯と同じ。変換を確定する Enter では決めない）。閉じるのは、y / n で確かめてから。
  */
 export function WorkspaceSwitcher(props: {
@@ -118,6 +135,21 @@ export function WorkspaceSwitcher(props: {
   // キーが効いている列と、右の列で選んでいるタブ（switcherColumns.ts）
   const { tabs, activeCol, selectedTab, toWs, toTabs, moveTab, pickTab } =
     createSwitcherColumns(selected);
+  // キーでつかんでいるタブ（m）と、入る位置（switcherHold.ts）
+  const hold = createSwitcherHold();
+  // つかんでいるタブが、窓の外の理由（閉じた・移したなど）でつかんだときのワークスペースから消えたら、やめる
+  createEffect(() => {
+    const h = hold.held();
+    if (!h) return;
+    const r = props.rows.find((x) => x.gws === h.from);
+    if (!r?.tabs.items.some((t) => t.key === h.tab.key)) hold.stop();
+  });
+  /** つかんでいる間、右の列に出すタブ（つかんだタブを入る位置に入れたもの） */
+  const heldItems = () => {
+    const h = hold.held();
+    const r = selected();
+    return h && r ? holdItems(r.tabs.items, h, hold.pos()) : undefined;
+  };
   let list!: HTMLUListElement;
   let right!: HTMLDivElement;
   let root!: HTMLDivElement;
@@ -158,6 +190,7 @@ export function WorkspaceSwitcher(props: {
     setEditing(undefined);
     setConfirming(undefined);
     setCreating(undefined);
+    hold.stop();
     newTab.stop();
     tabActions.stop();
   }
@@ -192,6 +225,8 @@ export function WorkspaceSwitcher(props: {
 
   /** ワークスペースの行を押した：選んでいる行（キーが左の列で効いているとき）をもう 1 回押すと開く。それ以外は選ぶだけ。 */
   function pressRow(r: Row) {
+    // つかんでいる間は、キーで決める（押しても何もしない）
+    if (hold.held()) return;
     if (
       activeCol() === "ws" &&
       selected()?.gws === r.gws &&
@@ -207,6 +242,7 @@ export function WorkspaceSwitcher(props: {
   }
   /** タブの行を押した：選んでいる行（キーが右の列で効いているとき）をもう 1 回押すと出す。それ以外は選ぶだけ。 */
   function pressTab(gws: string, key: string) {
+    if (hold.held()) return;
     if (activeCol() === "tab" && selectedTab()?.key === key) {
       props.onTab(gws, key);
       return;
@@ -263,9 +299,82 @@ export function WorkspaceSwitcher(props: {
     }
   }
 
+  /** 選んでいるタブをつかむ（タブの列の m）。つかむと、キーは左の列（移す先を選ぶ列）へ移る */
+  function startHold() {
+    const r = selected();
+    const t = selectedTab();
+    if (!r || !t) return;
+    const index = r.tabs.items.findIndex((x) => x.key === t.key);
+    resetInputs();
+    hold.start(t, r.gws, index);
+    toWs();
+  }
+  /** つかんだタブを、右の列で見えている位置に落とす。元のワークスペースの元の位置のままなら、何も動かさない */
+  function dropHold(h: Hold) {
+    const r = selected();
+    hold.stop();
+    if (!r) return;
+    const to = dropTarget(h, r.gws, r.tabs.items, hold.pos());
+    if (to) props.onTabMove(h.tab.key, to.gws, to.before);
+    // 落としたタブを選んだまま、タブの列へ（移した結果が見える。今いるワークスペースは変えない）
+    pickTab(h.tab.key);
+  }
+  /** やめて、つかんだときのワークスペースとタブに戻す（窓は閉じない） */
+  function cancelHold(h: Hold) {
+    hold.stop();
+    select(h.from);
+    pickTab(h.tab.key);
+  }
+  /** つかんでいる間のキー。動かすのは、移す先のワークスペース（左の列）と入る位置（右の列）だけ */
+  function onHoldKey(e: KeyboardEvent, h: Hold) {
+    const k = holdKey(e);
+    if (!k) {
+      // ほかのキーは何もしない（窓も閉じない）。Tab と、修飾キー付きのキーは、そのまま通す
+      if (e.key !== "Tab" && !e.metaKey && !e.ctrlKey && !e.altKey)
+        e.preventDefault();
+      return;
+    }
+    e.preventDefault();
+    switch (k.kind) {
+      case "move":
+        if (activeCol() === "ws") {
+          const to = props.rows[moveRow(index(), k.to, props.rows.length)];
+          // 別のワークスペースへ移ったときだけ、入る位置を決め直す（別なら一番後ろ、元のワークスペースなら元の位置）
+          if (to && to.gws !== sel()) {
+            select(to.gws);
+            hold.setPos(startPos(h, to.gws, to.tabs.items));
+          }
+        } else
+          hold.setPos(
+            stepPos(
+              hold.pos(),
+              k.to,
+              without(selected()?.tabs.items ?? [], h.tab.key).length,
+            ),
+          );
+        break;
+      // 列を移るだけでは、入る位置は変えない
+      case "col":
+        if (k.to === "ws") toWs();
+        else toTabs();
+        break;
+      case "drop":
+        dropHold(h);
+        break;
+      case "cancel":
+        cancelHold(h);
+        break;
+    }
+  }
+
   function onKeyDown(e: KeyboardEvent) {
     // 名前を変える入力欄の中のキーは、入力欄が受ける（j や n を打てるように）
     if (e.target instanceof HTMLInputElement) return;
+    const h = hold.held();
+    if (h) {
+      onHoldKey(e, h);
+      return;
+    }
     const c = confirming();
     if (c !== undefined) {
       // 閉じる確認の間は y / n / Esc だけ（Esc は、窓ではなく確認をやめる）
@@ -330,11 +439,16 @@ export function WorkspaceSwitcher(props: {
         else if (r && !inTabs) startClose(r);
         break;
       }
+      // タブの列だけ（ワークスペースの列の m は、何もしない）
+      case "hold":
+        if (inTabs) startHold();
+        break;
     }
   }
 
   /** つかむ所を押した。左の一覧の行を、真ん中の高さで比べて、落とした先の行の前へ動かす。 */
   function grab(e: PointerEvent, gws: string) {
+    if (hold.held()) return;
     startDrag(e, {
       scroller: list,
       self: gws,
@@ -351,6 +465,7 @@ export function WorkspaceSwitcher(props: {
    * 落としたあとは、落とした先のワークスペースを選んだままにする（移した結果が見える）。
    */
   function grabTab(e: PointerEvent, key: string) {
+    if (hold.held()) return;
     const from = selected()?.gws;
     const row = (e.currentTarget as HTMLElement).closest<HTMLElement>(
       "li.tab-row",
@@ -374,7 +489,10 @@ export function WorkspaceSwitcher(props: {
 
   /** いまキーが効いている列で効くキーだけを、下に出す */
   const hints = () =>
-    switcherHints(activeCol(), tabs().length > 0, props.browser).map((h) => ({
+    (hold.held()
+      ? holdHints()
+      : switcherHints(activeCol(), tabs().length > 0, props.browser)
+    ).map((h) => ({
       keys: h.keys,
       label: T(h.label),
     }));
@@ -388,7 +506,9 @@ export function WorkspaceSwitcher(props: {
       footer={
         <CardBody>
           <KeyHints items={hints()} />
-          <CardText>{T("switcher.keys.dragTab")}</CardText>
+          <Show when={!hold.held()}>
+            <CardText>{T("switcher.keys.dragTab")}</CardText>
+          </Show>
         </CardBody>
       }
     >
@@ -397,9 +517,10 @@ export function WorkspaceSwitcher(props: {
           class="switcher-cols"
           role="group"
           aria-label={T("switcher.title")}
+          data-holding={hold.held() ? "" : undefined}
           aria-activedescendant={
             activeCol() === "tab"
-              ? tabId(selectedTab()?.key ?? "")
+              ? tabId(hold.held()?.tab.key ?? selectedTab()?.key ?? "")
               : selected()
                 ? rowId(index())
                 : undefined
@@ -427,6 +548,13 @@ export function WorkspaceSwitcher(props: {
                     selected={index() === i()}
                     edit={editing()?.gws === r.gws ? editing() : undefined}
                     confirming={confirming() === r.gws}
+                    heldFrom={hold.held()?.from === r.gws}
+                    dropHere={
+                      !!hold.held() &&
+                      activeCol() === "ws" &&
+                      index() === i() &&
+                      hold.held()?.from !== r.gws
+                    }
                     onPress={() => pressRow(r)}
                     onGrab={(e) => grab(e, r.gws)}
                     onRename={() => startRename(r)}
@@ -477,7 +605,16 @@ export function WorkspaceSwitcher(props: {
               {(r) => (
                 <SwitcherTabs
                   row={r()}
-                  selectedKey={selectedTab()?.key}
+                  items={heldItems()}
+                  holding={
+                    hold.held()
+                      ? {
+                          key: hold.held()!.tab.key,
+                          title: hold.held()!.tab.title,
+                        }
+                      : undefined
+                  }
+                  selectedKey={hold.held() ? undefined : selectedTab()?.key}
                   rowId={tabId}
                   onTab={pressTab}
                   onGrab={grabTab}

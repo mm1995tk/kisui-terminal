@@ -161,6 +161,8 @@ export function TabRow(props: {
   onTab: () => void;
   /** 切り替えの窓で、キーで選んでいる行か（印は switcher.css） */
   selected?: boolean;
+  /** 切り替えの窓で、キーでつかんで移しているタブか（印は switcher.css） */
+  held?: boolean;
   /** li の id（窓の aria-activedescendant が指す） */
   id?: string;
   /** 省くと ✕ を出さない（切り替えの窓の右のタブの一覧） */
@@ -184,6 +186,7 @@ export function TabRow(props: {
       data-shown={props.shown ? "" : undefined}
       data-current={props.current ? "" : undefined}
       data-selected={props.selected ? "" : undefined}
+      data-held={props.held ? "" : undefined}
     >
       <div class="tab-line">
         <Grip onGrab={props.onGrab} />
