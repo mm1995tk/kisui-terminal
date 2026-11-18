@@ -159,7 +159,12 @@ const meta = {
     onReorder: fn(),
     onDrop: fn(),
     onTabMove: fn(),
-    onNew: fn(),
+    // アプリと同じ決まりで名前を確かめる。作れたら id を返す（この部品の rows は呼んだ側のものなので、窓には足されない）
+    onCreate: fn((name: string) => {
+      const error = nameErrorText(name);
+      return error ? { error } : { id: "new" };
+    }),
+    createInit: () => "ws5",
     renameInit: (gws: string) => {
       const r = ROWS.find((x) => x.gws === gws);
       return r ? { current: r.band.label, auto: r.band.autoTitle } : undefined;

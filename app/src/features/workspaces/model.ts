@@ -399,6 +399,19 @@ export function addBrowserWorkspace(
   return { list: [...s.list, g] };
 }
 
+/**
+ * タブの無い空のワークスペースを、並びの一番下に足す（切り替える窓の `n`。#330）。name は付ける名前（空なら番号の名前）。
+ * 名前の決まりの検査は呼んだ側（nameErrorText）。
+ */
+export function addEmptyWorkspace(
+  s: GwsState,
+  name = "",
+  id: string = newGwsId(),
+): GwsState {
+  const g: Gws = { id, name: name.trim(), num: freeNum(s.list), tabs: [] };
+  return { list: [...s.list, g] };
+}
+
 /** ブラウザのタブを、ワークスペースの一番後ろに足す（すでにどこかにあれば何もしない）。 */
 export function addBrowser(s: GwsState, id: string, tab: string): GwsState {
   if (gwsOfBrowser(s, tab)) return s;

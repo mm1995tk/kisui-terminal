@@ -6,6 +6,7 @@ import type { KeyValueStore } from "../keyValueStore.ts";
 import {
   addBrowser,
   addBrowserWorkspace,
+  addEmptyWorkspace,
   addTerm,
   addWorkspace,
   shownBrowserId,
@@ -929,5 +930,32 @@ describe("hiddenGws（行に出ないワークスペース）", () => {
       false,
     );
     assert.equal(hiddenGws(dropTerm(two(), "a", "w3").list[1], false), false);
+  });
+});
+
+describe("addEmptyWorkspace（切り替える窓の n。#330）", () => {
+  it("タブの無いワークスペースを、並びの一番下に足す", () => {
+    let s = addWorkspace(EMPTY_GWS, "local", "w1", "", "g1");
+    s = addEmptyWorkspace(s, "", "g2");
+    assert.deepEqual(
+      s.list.map((g) => [g.id, g.name, g.num, g.tabs.length]),
+      [
+        ["g1", "", 1, 1],
+        ["g2", "", 2, 0],
+      ],
+    );
+    assert.equal(displayName(s.list[1]), "ws2");
+  });
+  it("名前を付けて作れる（前後の空白は除く）。空きの一番小さい番号になる", () => {
+    let s = addEmptyWorkspace(EMPTY_GWS, "  docs ", "g1");
+    s = addEmptyWorkspace(s, "", "g2");
+    s = removeGws(s, "g1");
+    s = addEmptyWorkspace(s, "", "g3");
+    assert.equal(s.list[0].num, 2);
+    assert.equal(s.list[1].num, 1);
+    assert.equal(
+      displayName(addEmptyWorkspace(EMPTY_GWS, "  docs ").list[0]),
+      "docs",
+    );
   });
 });

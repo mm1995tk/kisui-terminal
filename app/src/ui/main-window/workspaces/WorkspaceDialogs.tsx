@@ -28,7 +28,8 @@ export function WorkspaceDialogs(props: {
     goRow,
     reorder,
     dropBefore,
-    newWorkspace,
+    createEmptyWorkspace,
+    newWorkspaceAuto,
     renameInit,
     renameWorkspace,
     pickingKind,
@@ -89,10 +90,8 @@ export function WorkspaceDialogs(props: {
           onReorder={reorder}
           onDrop={dropBefore}
           onTabMove={(key, gid, before) => moveTabBefore(gid, key, before)}
-          onNew={() => {
-            closeSwitcher();
-            newWorkspace();
-          }}
+          onCreate={createEmptyWorkspace}
+          createInit={newWorkspaceAuto}
           renameInit={renameInit}
           onRename={renameWorkspace}
           onClose={(gid) => void closeWorkspace(gid)}

@@ -227,3 +227,13 @@
 .switcher-cols[data-col="tab"] .switch-tabs .tab-row[data-selected] {
   box-shadow: inset 3px 0 0 var(--card-accent);
 }
+
+/* 左の列の一番下の、新しいワークスペースの名前の入力欄（n・「ワークスペースを作る」）。行と同じ枠の中で、入力欄が幅いっぱいを使う */
+.switch-create {
+  cursor: default;
+}
+.switch-create .inline-edit {
+  flex: 1;
+  min-width: 0;
+  margin-left: 8px;
+}
