@@ -64,7 +64,7 @@
   /* つないでいる途中・再接続中 */
   --connection-pending: var(--gh-yellow);
   /* 未接続（枠だけ） */
-  --connection-down: var(--gh-text-dim);
+  --connection-down: var(--color-text-dim);
 
   /* == 余白（名前の数は px。この中から選ぶ） == */
 
