@@ -19,7 +19,7 @@ kisui-terminal の窓（`app/src/`）の、共通の色・余白・字・状態�
 | 窓の枠                 | `ui/components/Card.tsx` の `ModalCard`、`card.css`         | `components/ModalCard`                                        |
 | 組み合わせの例         | 下の「組み合わせの例」の窓（アプリの窓そのもの）            | `components/RenameDialog`、`main-window/…`                    |
 
-アプリの中のボタン（窓と知らせの下のボタン、27 か所）は、すべて `Button` に置き換えた。`card.css` は値を `tokens.css` の名前で書き直した（見た目は変わらない）。
+窓と知らせの下のボタンは `Button` を使う（`button` に CSS のクラスを付けて直に書かない）。
 
 後に回したもの（順は決めていない。サイドバーとワークスペースの Issue（#303・#311・#307・#308）で使う所から進める）：
 
@@ -167,19 +167,6 @@ kisui-terminal の窓（`app/src/`）の、共通の色・余白・字・状態�
 | 同じ行操作・利用不能操作の伝え方         | 未確定        | ボタンの「無効」と「処理中」の見せ方だけ決めた（今の窓のボタンと同じ）。隠すか、理由を出すかの決まりは未確定（サイドバーは隠す） |
 | 同じ名前変更操作のキー                   | 未合意        | 変えていない。`Button` はキーを足さない                                                                         |
 | ヒントと詳細ヘルプ                       | 合意済み（フッタと `?`） | 扱わない（#306）                                                                                     |
-
-## 確かめたこと
-
-2026-11-18 に確かめた。
-
-- `npm run build-storybook` が通り、30 の story を出せる。
-- 前からある story（`components/RenameDialog` の 2 つ、`modules/clipboard-history/HistoryPanel`、`utilities/clipboard/ClipboardUtilityPage`）を、変える前（main）と後でビルドし、headless の Chromium（1280×800、日本語）の画像を比べて、画素が 1 つも違わないことを確かめた（ボタン・入力欄・エラーの文・窓の一覧の行を含む）。
-- 日本語と英語：足した story（`components/Button`・`components/ModalCard`・`styles/Tokens`・組み合わせの例）を両方の言語で開き、文が翻訳の表から出ることを画像で確かめた。
-- 表示幅：1280×800 と 360×740 で、窓が左右 16px をあけて縮むこと、右下の知らせが画面に収まること、ボタンの並びが収まることを確かめた。
-- キーボードとフォーカス：Chromium を DevTools のプロトコルで動かし、`CloseWorkspaceCard` で、開いたときのフォーカスが窓そのものにあり、Tab で「やめる」（focus-visible の枠が出る）→ 主ボタンと移り、Enter と Space で押せることを確かめた。`Button` の並びでも同じ。処理中（`UpdateBar` の `Installing`）のボタンにはフォーカスが移らない。
-- かな漢字変換：`Button` はキーを読まない。入力欄のキーの扱いは変えていない（`ime.test.ts` が見張る）。
-
-確かめていないこと：Tauri の窓（macOS の WKWebView・Linux の WebKitGTK）での見た目、hover（ポインタを乗せた見た目。Storybook で乗せて見る）、表示の大きさを変えたとき、Storybook での Esc（`ModalCard` は変えていない）。
 
 ## テストが見張ること
 
