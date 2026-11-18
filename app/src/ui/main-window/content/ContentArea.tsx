@@ -19,6 +19,7 @@ import { UrlBar } from "./browser/UrlBar.tsx";
 import { leaderPath } from "../commands/LeaderMenu.tsx";
 import { TerminalGrid } from "./terminal/TerminalGrid.tsx";
 
+/** 右のペイン。ターミナルのグリッドと、内蔵ブラウザを使うときはブラウザのページ（URL バー・新しいタブのページ・ページ内検索）を出す。 */
 export function ContentArea(props: {
   /** ペインの要素を受け取る */
   ref: (el: HTMLDivElement) => void;

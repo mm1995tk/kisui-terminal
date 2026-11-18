@@ -14,6 +14,7 @@ import type { TermGroup } from "../terminal/group.ts";
 /** プライマリの shj に頼む関数（createPrimaryShj が返す）。 */
 export type AskPrimaryShj = ReturnType<typeof createPrimaryShj>;
 
+/** プライマリの shj に頼む関数を作る。続けて頼んだときは、最後に頼んだものの結果だけを使う。 */
 export function createPrimaryShj(deps: {
   sessions: Accessor<Record<string, Session>>;
   workspaces: Accessor<Record<string, Workspace[]>>;

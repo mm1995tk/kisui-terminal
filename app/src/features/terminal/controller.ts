@@ -16,8 +16,10 @@ import type { WorkspaceFocus } from "../workspaces/rows.ts";
 import type { TermGroup, TermGroups } from "./group.ts";
 import type { MediaFetch } from "./media.ts";
 
+/** createTerminals が返す持ち物。 */
 export type Terminals = ReturnType<typeof createTerminals>;
 
+/** ターミナルのペインの持ち物を作る。フォーカスしているワークスペースのペインの並びを出し、プライマリ以外を隠す・ペインを分けて足すを受け持つ。 */
 export function createTerminals(deps: {
   sessions: Accessor<Record<string, Session>>;
   workspaces: Accessor<Record<string, Workspace[]>>;

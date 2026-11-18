@@ -32,6 +32,7 @@ export interface DownloadDone {
 /** 知らせを聞くのをやめる関数。 */
 type Off = () => void;
 
+/** 内蔵ブラウザのタブについて、外（Tauri の殻）に頼むこと。タブのページ（子の webview）の操作、覚えているタブとブックマークの読み書き、ページからの知らせ、ダウンロード。 */
 export interface BrowserOs {
   /**
    * タブ（子の webview）を作る。作るだけで、キーは向けない。keys は、ページにキーがあっても受けるキー（リーダーと近道）。

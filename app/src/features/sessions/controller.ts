@@ -59,8 +59,10 @@ export interface SessionHooks {
   disconnected(target: string): void;
 }
 
+/** createSessions が返す持ち物。 */
 export type Sessions = ReturnType<typeof createSessions>;
 
+/** 接続の持ち物を作る。足したマシンの記録を読み、起動したら「ローカル」と足したマシンにつなぎ、マシンごとの接続・状態・ワークスペースの一覧を持つ。 */
 export function createSessions(deps: {
   api: ShellApi;
   /** 足したマシンなどの記録の置き場 */

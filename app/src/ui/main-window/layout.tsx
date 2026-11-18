@@ -6,6 +6,7 @@ import type { JSX } from "solid-js";
 
 import "./layout.css";
 
+/** メインウィンドウの割り付け。サイドバー・境界のつまみ・右のペインを並べ、上に重ねるもの（children）をその後ろに置く。 */
 export function MainWindowLayout(props: {
   /** 窓全体の要素を受け取る */
   ref: (el: HTMLElement) => void;

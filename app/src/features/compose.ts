@@ -75,8 +75,10 @@ export interface FeatureUi {
   showToast(text: string): void;
 }
 
+/** createFeatures が返す、メインウィンドウの機能の持ち物の全部。 */
 export type Features = ReturnType<typeof createFeatures>;
 
+/** メインウィンドウの機能の持ち物を全部作り、互いをつないで返す。Solid の所有者（コンポーネントか createRoot）の中で 1 回だけ呼ぶ。 */
 export function createFeatures(deps: {
   ports: FeaturePorts;
   /** 手元の設定ファイルで決めたマシン */

@@ -46,8 +46,10 @@ import {
 /** 「+」のメニューで選べるタブの種類。 */
 export type NewTabKind = "terminal" | "terminal.pick" | "browser";
 
+/** createTabs が返す持ち物。 */
 export type Tabs = ReturnType<typeof createTabs>;
 
+/** タブの操作を作る。タブを選ぶ・足す・閉じる・順に回る・並べ替える・名前を変えるを受け持ち、閉じたあとにどのタブ・ワークスペースへ移るかを決める。 */
 export function createTabs(deps: {
   sessions: Sessions;
   workspaces: Workspaces;

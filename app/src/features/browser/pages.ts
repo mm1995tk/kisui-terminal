@@ -36,8 +36,10 @@ import { addRelayed, relayedOf, unrelay, type Relayed } from "./relay.ts";
 import { addTab, newTabId, updateTab, type BrowserTab } from "./tabs.ts";
 import type { BrowserTabs } from "./tabsStore.ts";
 
+/** createPages が返す持ち物。 */
 export type Pages = ReturnType<typeof createPages>;
 
+/** ブラウザのタブのページの持ち物を作る。今出しているタブを決め、URL を開く・ページからの知らせをタブに書く・ページ内検索・ページの表示の大きさを受け持つ。 */
 export function createPages(deps: {
   os: BrowserOs;
   /** 内蔵ブラウザのタブを使うか（設定の [gui.browser] enabled） */

@@ -15,6 +15,7 @@ import {
 /** お知らせに出すこと（できなかった理由）。無ければ undefined（うまくいった） */
 export type Failure = { title: string; error: string } | undefined;
 
+/** 今使っているキャラクターの持ち物（createMascotStore が返す）。 */
 export interface MascotStore {
   /** 今使っているキャラクター（無ければ null） */
   mascot: Accessor<LoadedMascot | null>;

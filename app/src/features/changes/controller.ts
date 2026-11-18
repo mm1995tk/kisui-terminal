@@ -17,8 +17,10 @@ import type { WorkspaceFocus } from "../workspaces/rows.ts";
 import { afterChangesKey } from "./handover.ts";
 import { changeErrorText, changeRows, changesBaseOf } from "./model.ts";
 
+/** createChanges が返す持ち物。 */
 export type Changes = ReturnType<typeof createChanges>;
 
+/** CHANGES の操作を作る。フォーカスしているワークスペースの変更の一覧を出し、行を押した・キーを押したことをプライマリの shj に渡す。 */
 export function createChanges(deps: {
   sessions: Accessor<Record<string, Session>>;
   workspaces: Accessor<Record<string, Workspace[]>>;

@@ -11,6 +11,7 @@ import { AskpassDialog } from "./AskpassDialog.tsx";
 import { InstallCard } from "./InstallCard.tsx";
 import { MachineDialog } from "./MachineDialog.tsx";
 
+/** 接続にかかわる窓をまとめて出す。出していない窓は何も描かない。 */
 export function SessionDialogs(props: {
   sessions: Sessions;
   /** マシンのダイアログの行 */

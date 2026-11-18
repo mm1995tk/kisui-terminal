@@ -41,8 +41,10 @@ import {
   type PaneSizes,
 } from "./panes.ts";
 
+/** createPaneResize が返す持ち物。 */
 export type PaneResize = ReturnType<typeof createPaneResize>;
 
+/** 境界の大きさとサイドバーの開閉の持ち物を作る。覚えておいた値で始め、ドラッグとリサイズモードのキーで動かし、変えるたびに覚える。 */
 export function createPaneResize(deps: {
   store: KeyValueStore | undefined;
   /** タブの段の高さの上限の元の値（設定の [gui.sidebar] tabs-height。サイドバーの高さに対する %）。無ければ 40 */

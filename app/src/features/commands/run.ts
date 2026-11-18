@@ -50,8 +50,10 @@ export interface CommandUi {
   dismissLastNotice(): void;
 }
 
+/** createCommandRunner が返す持ち物。 */
 export type CommandRunner = ReturnType<typeof createCommandRunner>;
 
+/** コマンドを動かす関数（runCommand）を作る。コマンドの id を、各機能の操作か、画面の側に頼むこと（CommandUi）に振り分ける。 */
 export function createCommandRunner(deps: {
   workspaces: Workspaces;
   tabs: Tabs;

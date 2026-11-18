@@ -11,6 +11,7 @@ import type {
   TabPopup,
 } from "../../features/browser/os.ts";
 
+/** BrowserOs の本物。殻の `browser_*`・`download_*` の命令と `browser-*` の知らせを呼ぶ。 */
 export const tauriBrowser: BrowserOs = {
   openTab: (tab, url, keys, incognito, b) =>
     invoke("browser_open", { tab, url, keys, incognito, ...b }),

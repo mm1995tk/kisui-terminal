@@ -6,8 +6,10 @@ import { createSignal, onCleanup, untrack } from "solid-js";
 import type { BrowserOs } from "./os.ts";
 import { EMPTY_TABS, fromStored, toStored, type TabsState } from "./tabs.ts";
 
+/** createBrowserTabs が返す持ち物。 */
 export type BrowserTabs = ReturnType<typeof createBrowserTabs>;
 
+/** ブラウザのタブの持ち物を作る。タブの中身と、ワークスペースごとに何を出しているかを持ち、変わったら少し待ってから殻に覚えさせる。 */
 export function createBrowserTabs(deps: {
   os: Pick<BrowserOs, "loadTabs" | "saveTabs">;
 }) {

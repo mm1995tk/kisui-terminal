@@ -16,6 +16,7 @@ import {
 } from "../../../features/sessions/status.ts";
 import type { Notice } from "./Notices.tsx";
 
+/** 右下に積む知らせの並びを作る（古い順）。元の状態が同じ間は、同じ知らせのオブジェクトを返す（描き直さないため）。 */
 export function createNotices(deps: {
   /** 設定の [gui.shortcuts] の間違い（あればお知らせに出す） */
   shortcutProblems: string[] | undefined;

@@ -13,6 +13,7 @@ import { CloseWorkspaceCard } from "./CloseWorkspaceCard.tsx";
 import { WorkspaceKindPicker } from "./WorkspaceKindPicker.tsx";
 import { WorkspaceSwitcher } from "./WorkspaceSwitcher.tsx";
 
+/** ワークスペースとタブにかかわる窓をまとめて出す。出していない窓は何も描かない。 */
 export function WorkspaceDialogs(props: {
   sessions: Pick<Sessions, "workspaces">;
   workspaces: Workspaces;

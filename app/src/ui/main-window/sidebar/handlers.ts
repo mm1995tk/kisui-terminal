@@ -11,6 +11,7 @@ import type {
   WorkspaceId,
 } from "../../../infrastructure/rpc/protocol.ts";
 
+/** サイドバーの部品が外へ頼む処理と、外から受け取る値。どれも省ける（省いた操作は出さない）。 */
 export interface Handlers {
   /** ヘッダーの名前を押した（ワークスペースを切り替えるポップアップを開く） */
   onSwitch?: () => void;

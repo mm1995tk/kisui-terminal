@@ -9,8 +9,10 @@ import {
   type ScaleAction,
 } from "./scale.ts";
 
+/** createScale が返す持ち物。 */
 export type Scale = ReturnType<typeof createScale>;
 
+/** 表示の大きさの持ち物を作る。覚えておいた大きさを窓に当て、変えるたびに覚える。 */
 export function createScale(deps: {
   store: KeyValueStore | undefined;
   applyScale: ApplyScale;

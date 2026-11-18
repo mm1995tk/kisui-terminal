@@ -24,8 +24,10 @@ import type { FocusUi } from "./focus.ts";
 import { resizeAction, resizeKeyName } from "./panes.ts";
 import { isLeaveExplorerKey } from "./sidebar/file-tree/explorerFocus.ts";
 
+/** createGuiKeys が返すもの。 */
 export type GuiKeys = ReturnType<typeof createGuiKeys>;
 
+/** メインウィンドウのキーの受け取りを始める。window の keydown を capture で受け、コマンドの表に当たるキーを runCommand に渡す。出すのをやめたら受け取りもやめる。 */
 export function createGuiKeys(deps: {
   els: WindowEls;
   shell: Pick<ShellApi, "onCloseRequest" | "windowClose">;

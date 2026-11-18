@@ -6,8 +6,10 @@ import { createSignal, onCleanup, onMount } from "solid-js";
 import type { ReportProblem } from "../problem.ts";
 import type { BrowserOs, DownloadDone } from "./os.ts";
 
+/** createDownloads が返す持ち物。 */
 export type Downloads = ReturnType<typeof createDownloads>;
 
+/** ダウンロードの持ち物を作る。終わったダウンロードを新しい 3 件まで覚え、開く・フォルダを表示するを受け持つ。 */
 export function createDownloads(deps: {
   os: Pick<BrowserOs, "onDownload" | "openDownload" | "revealDownload">;
   /** 内蔵ブラウザのタブを使うか（設定の [gui.browser] enabled） */

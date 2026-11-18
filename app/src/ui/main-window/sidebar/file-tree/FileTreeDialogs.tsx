@@ -7,6 +7,7 @@ import type { FileTree } from "../../../../features/file-tree/controller.ts";
 import { newEntryDefault } from "../../../../features/file-tree/menu.ts";
 import { DeleteDialog, NameDialog } from "./TreeDialogs.tsx";
 
+/** ツリーのメニューから開いた窓（名前を入れる・削除の確認）を出す。開いていなければ何も描かない。 */
 export function FileTreeDialogs(props: { fileTree: FileTree }): JSX.Element {
   // 部品は作り直さないので、持ち物は 1 回だけ取り出す
   const { treeDialog, closeTreeDialog, submitTreeName, submitTreeDelete } =

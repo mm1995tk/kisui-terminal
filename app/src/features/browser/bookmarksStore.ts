@@ -31,8 +31,10 @@ import type { BrowserOs } from "./os.ts";
 import { addTab, newTabId, type BrowserTab } from "./tabs.ts";
 import type { BrowserTabs } from "./tabsStore.ts";
 
+/** createBookmarks が返す持ち物。 */
 export type Bookmarks = ReturnType<typeof createBookmarks>;
 
+/** ブックマークの持ち物を作る。自分のブックマークと Chrome のブックマークを読み、足す・消す・開く・一覧の窓の開け閉めを受け持つ。 */
 export function createBookmarks(deps: {
   os: Pick<
     BrowserOs,

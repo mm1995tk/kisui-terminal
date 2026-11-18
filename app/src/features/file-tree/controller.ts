@@ -35,8 +35,10 @@ import {
 } from "./model.ts";
 import type { WorkspaceTrees } from "./trees.ts";
 
+/** createFileTree が返す持ち物。 */
 export type FileTree = ReturnType<typeof createFileTree>;
 
+/** ファイルツリーの持ち物を作る。フォーカスしているワークスペースのツリーだけを動かし、行を開く・メニューの操作（コピー・cd・新規・名前の変更・削除）を受け持つ。 */
 export function createFileTree(deps: {
   sessions: Accessor<Record<string, Session>>;
   workspaces: Accessor<Record<string, Workspace[]>>;

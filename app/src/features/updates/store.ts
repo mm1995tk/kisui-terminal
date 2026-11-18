@@ -24,6 +24,7 @@ export interface UpdatesOs {
   install(): Promise<void>;
 }
 
+/** 新しい版の知らせの持ち物（createUpdates が返す）。 */
 export interface Updates {
   /** いま知らせている新しい版。無ければ null。 */
   info: Accessor<UpdateInfo | null>;

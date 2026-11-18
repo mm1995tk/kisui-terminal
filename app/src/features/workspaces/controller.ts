@@ -69,8 +69,10 @@ import {
   type WorkspaceFocus,
 } from "./rows.ts";
 
+/** createWorkspaces が返す持ち物。 */
 export type Workspaces = ReturnType<typeof createWorkspaces>;
 
+/** GUI のワークスペースの持ち物を作る。フォーカスとワークスペースの記録を持ち、マシンの一覧に記録を合わせ、作る・閉じる・移る・並べ替える・名前を変えるを受け持つ。 */
 export function createWorkspaces(deps: {
   /** ワークスペースの名前・並びなどの記録の置き場 */
   store: KeyValueStore | undefined;

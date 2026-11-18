@@ -17,8 +17,10 @@ import {
   startFocusStep,
 } from "./sidebar/file-tree/explorerFocus.ts";
 
+/** createFocus が返す、キーの行き先を移す操作。 */
 export type FocusUi = ReturnType<typeof createFocus>;
 
+/** キーの行き先を移す操作を作る。向ける先の要素は、描いた部品が set…Focus で渡す。 */
 export function createFocus(deps: {
   els: WindowEls;
   /** 内蔵ブラウザのタブを使うか（設定の [gui.browser] enabled） */
