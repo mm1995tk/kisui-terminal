@@ -6,7 +6,13 @@ import { batch, createSignal, untrack } from "solid-js";
 
 import type { WorkspaceId } from "../../../infrastructure/rpc/protocol.ts";
 import type { Pages } from "../../browser/pages.ts";
-import { addTab, closeTab, newTabId, showTab } from "../../browser/tabs.ts";
+import {
+  addTab,
+  closeTab,
+  moveView,
+  newTabId,
+  showTab,
+} from "../../browser/tabs.ts";
 import type { BrowserTabs } from "../../browser/tabsStore.ts";
 import type { ReportProblem } from "../../problem.ts";
 import type { Sessions } from "../../sessions/controller.ts";
@@ -21,15 +27,18 @@ import {
   cycleKey,
   dropTerm,
   gwsOfBrowser,
+  gwsOfTab,
   gwsOfTerm,
-  moveTabBefore,
   moveTabStep,
+  moveTabTo,
   nameErrorText,
   refKey,
   removeBrowser,
   renameBrowser,
   repTerm,
+  setActiveTerm,
   shownBrowserId,
+  shownTabKey,
   steppableTabs,
   termKey,
   termsOf,
@@ -62,6 +71,8 @@ export function createTabs(deps: {
     gws,
     setGws,
     currentGws,
+    enter,
+    rows,
     showGws,
     switchWorkspace,
     goWorkspace,
@@ -389,6 +400,87 @@ export function createTabs(deps: {
     closeTabRow(g.id, key);
   }
 
+  /**
+   * タブ key（refKey）を、ワークスペース to の before のタブの前へ移す（before が null なら一番後ろ）。別のワークスペースへも移せる（#308）。
+   * 書き換えるのは、記録の所属と並び（model.ts の moveTabTo）と、ワークスペースごとに出しているタブだけで、1 回の書き換えにまとめる
+   * （途中の状態を画面に出さない）。タブを閉じたり作り直したりしない：ターミナルのタブはマシンの同じワークスペースのまま、
+   * ブラウザのタブは同じ id のページのまま（開いたときのマシンとワークスペースも書き換えないので、リモートの localhost の中継元も変わらない）。
+   * mode が "go"（キーで移動先を選んだ）なら、移動先のワークスペースへ移って、移したタブを出す。
+   * "stay"（ドラッグ）なら、今いるワークスペースは変えない。移動元で出していたタブを移したときだけ、移動先でもそのタブを出す。
+   * それ以外では、移動先が出しているタブは変えない。
+   * 移動元は、出していたターミナルのタブを移したら、閉じたときと同じに隣のターミナルのタブを出す（model.ts の passActiveTerm。無ければブラウザのタブ）。
+   * 出していたブラウザのタブを移したら、ターミナルのタブを出す（無ければ、残りの最初のブラウザのタブ）。閉じたとき（並びの次のタブを出す。
+   * model.ts の after）とは違う：移したあとは移動先を見ることが多いので、移動元は、覚えた表示を外すだけにしている。
+   * 動かせなかった（タブか移動先が無い・もうそこにある）ら false。
+   */
+  function moveTab(
+    key: string,
+    to: string,
+    before: string | null,
+    mode: "go" | "stay",
+  ): boolean {
+    const s = untrack(gws);
+    const from = gwsOfTab(s, key);
+    const dest = s.list.find((g) => g.id === to);
+    const next = moveTabTo(s, key, to, before);
+    const ref = from?.tabs.find((r) => refKey(r) === key);
+    if (!from || !dest || !ref || !next) return false;
+    if (from.id === to) {
+      setGws(next);
+      return true;
+    }
+    const t = untrack(tabs);
+    const has = (id: string) => t.tabs.some((x) => x.id === id);
+    const show =
+      mode === "go" || shownTabKey(from, t.views[from.id], has) === key;
+    // 移動先が出していたブラウザのタブ（ターミナルのタブが無くて、覚えずに出していたものも）。移したタブを出さないなら、これを出し続ける
+    const destBrowser = shownBrowserId(dest, t.views[to], has);
+    batch(() => {
+      setGws(
+        show && ref.kind === "term"
+          ? setActiveTerm(next, ref.target, ref.ws)
+          : next,
+      );
+      setTabs((v) =>
+        moveView(v, {
+          tab: ref.kind === "browser" ? ref.id : null,
+          from: from.id,
+          to,
+          show,
+          destShown: destBrowser,
+        }),
+      );
+      if (mode === "go")
+        enter(
+          to,
+          ref.kind === "term" ? { target: ref.target, ws: ref.ws } : undefined,
+        );
+    });
+    if (mode === "go") focusTerminal();
+    return true;
+  }
+
+  // 別のワークスペースへ移すタブ（移動先を選ぶ窓を出している。リーダーの t m）。key は refKey、from は今のワークスペースの id
+  const [movingTab, setMovingTab] = createSignal<{
+    key: string;
+    from: string;
+  } | null>(null);
+
+  /** tab.moveTo：今出しているタブを移す先のワークスペースを選ぶ窓を出す。タブが無い・ほかのワークスペースが無いときは、できないことを伝える。 */
+  function openTabMove() {
+    const g = currentGws();
+    const key = currentTabKey();
+    if (!g || !key || gwsOfTab(untrack(gws), key)?.id !== g.id) {
+      cannot(T("cannot.tabMove.title"), T("cannot.tabMove.noTab"));
+      return;
+    }
+    if (!untrack(rows).some((r) => r.gws !== g.id)) {
+      cannot(T("cannot.tabMove.title"), T("cannot.tabMove.noWorkspace"));
+      return;
+    }
+    setMovingTab({ key, from: g.id });
+  }
+
   return {
     removeTab,
     activateTab,
@@ -430,10 +522,22 @@ export function createTabs(deps: {
     currentTabKey,
     stepTab,
     closeCurrentTab,
-    /** ワークスペース gid のタブ key を before の前へ動かす（ドラッグ。before が null なら最後へ） */
+    /** タブ key を、ワークスペース gid の before の前へ動かす（ドラッグ。before が null なら最後へ）。今いるワークスペースは変えない */
     moveTabBefore(gid: string, key: string, before: string | null) {
-      const next = moveTabBefore(untrack(gws), gid, key, before);
-      if (next) setGws(next);
+      moveTab(key, gid, before, "stay");
+    },
+    /** 別のワークスペースへ移すタブ（移動先を選ぶ窓を出している。無ければ null） */
+    movingTab,
+    openTabMove,
+    /** 移動先を選ぶ窓をやめる（キーをターミナルに戻す） */
+    cancelTabMove() {
+      setMovingTab(null);
+      focusTerminal();
+    },
+    /** 移動先を選ぶ窓で決めた。タブ key を、ワークスペース gid の一番後ろへ移し、そこへ移って、そのタブを出す */
+    submitTabMove(key: string, gid: string) {
+      setMovingTab(null);
+      if (!moveTab(key, gid, null, "go")) focusTerminal();
     },
     /** tab.move：今出しているタブを 1 つ下・上へ動かす。端では動かさない */
     moveCurrentTab(dir: "up" | "down") {

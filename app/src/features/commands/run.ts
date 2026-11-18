@@ -305,6 +305,9 @@ export function createCommandRunner(deps: {
       case "tab.rename":
         deps.tabs.renameCurrentTab();
         break;
+      case "tab.moveTo":
+        deps.tabs.openTabMove();
+        break;
       case "machine.dialog":
         ui.openMachines();
         break;

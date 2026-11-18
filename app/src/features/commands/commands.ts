@@ -41,6 +41,7 @@ export type CommandId =
   | "tab.move"
   | "tab.nth"
   | "tab.rename"
+  | "tab.moveTo"
   | "machine.dialog"
   | "clipboard.history"
   | "scale"
@@ -275,6 +276,7 @@ export const LEADER: Node[] = [
       ),
     ),
     leaf("r", T("leader.tab.rename"), { id: "tab.rename" }),
+    leaf("m", T("leader.tab.moveTo"), { id: "tab.moveTo" }),
   ]),
   leaf("m", T("leader.machine"), { id: "machine.dialog" }),
   group(

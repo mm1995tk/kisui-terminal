@@ -96,6 +96,32 @@ export function showTab(
   return { ...s, views };
 }
 
+/**
+ * タブを、ワークスペース from から to へ移したときの、表示（views）の書き換え（#308。所属と並びは features/workspaces/model.ts の moveTabTo）。
+ * tab は移したブラウザのタブの id。ターミナルのタブを移したときは null。
+ * - from がそのブラウザのタブを出していたなら、出すのをやめる（from は、ターミナルのタブを出す。無ければ、残りの最初のブラウザのタブ）。
+ * - show なら、to で移したタブを出す（ターミナルのタブなら、to が覚えているブラウザのタブを外す）。
+ * - show でなければ、to が出しているものを変えない。destShown は、移す前に to が出していたブラウザのタブ（覚えずに出していたものも。
+ *   ターミナルのタブを出していれば undefined）。それを覚えさせる。覚えさせないと、ブラウザのタブだけのワークスペースは
+ *   「最初のブラウザのタブ」か、入ってきたターミナルのタブを出すので、先頭に入れたタブ・移したターミナルのタブに替わってしまう。
+ * タブの中身（URL・開いたときのマシンとワークスペース）は変えない（リモートの localhost の中継元は、開いたときのマシンのまま）。
+ */
+export function moveView(
+  s: TabsState,
+  p: {
+    tab: string | null;
+    from: string;
+    to: string;
+    show: boolean;
+    destShown?: string;
+  },
+): TabsState {
+  const left =
+    p.tab !== null && s.views[p.from] === p.tab ? showTab(s, p.from, null) : s;
+  if (p.show) return showTab(left, p.to, p.tab);
+  return p.destShown === undefined ? left : showTab(left, p.to, p.destShown);
+}
+
 /** タブを足し、ワークスペース gws でそれを出す（gws が分からなければ、足すだけ）。 */
 export function addTab(s: TabsState, tab: BrowserTab, gws?: string): TabsState {
   const next = { ...s, tabs: [...s.tabs, tab] };

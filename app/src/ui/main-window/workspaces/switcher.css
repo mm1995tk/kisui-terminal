@@ -207,3 +207,34 @@
   font-size: 12px;
   line-height: 1.8;
 }
+
+/* 右のタブの行のドラッグ（tabMoveDrag.ts。#308）。つかんだ行の写しがポインタについて動き、入る位置に線を出す。
+   写しと線は窓（dialog）の中に置き、画面に固定する。ポインタは通す（下の行を調べるため） */
+.tab-drag-ghost {
+  position: fixed;
+  z-index: 3;
+  box-shadow: var(--shadow-raised);
+  pointer-events: none;
+}
+.tab-drag-line {
+  position: fixed;
+  z-index: 3;
+  height: 2px;
+  margin-top: -1px;
+  border-radius: 1px;
+  background: var(--card-accent);
+  pointer-events: none;
+}
+/* つかんだ行の元の場所は、薄くする */
+.switch-tabs .tab-row[data-drag-source] {
+  opacity: 0.4;
+}
+/* 落とすと入るワークスペースの行 */
+.switch-row[data-drop-target] {
+  background: var(--card-row-active);
+  box-shadow: inset 0 0 0 1px var(--card-accent);
+}
+/* キーの説明の下の、ドラッグの説明（2 列にまたがる） */
+.switch-keys-note {
+  grid-column: 1 / -1;
+}
