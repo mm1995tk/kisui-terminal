@@ -285,23 +285,35 @@
   opacity: 1;
 }
 
-/* ドラッグ中の動き（drag.ts。タブの行だけ）。つかんだ行は、drag.ts が掛ける transform でマウスについて動く（transition は付けない）。
+/* ドラッグ中の動き（drag.ts。タブの行と、ワークスペースの窓の行）。つかんだ行は、drag.ts が掛ける transform でマウスについて動く（ついて動くあいだは transition を付けない）。
+   つかんだ行は不透明にして、下の行の字が透けないようにし、持ち上げたことは影で示す（#311）。
    ほかの行（data-shift）は、入る場所を空けるように、transform の変化をなめらかにしてよける。
-   視差効果を減らす設定のときは、よける動きを省く（空ける位置には、すぐに移る）。 */
+   手を離したとき（data-dropping）は、つかんだ行も、落ちる先まで同じ速さでなめらかに動く（DROP_MS と合わせる）。
+   視差効果を減らす設定のときは、これらの動きを省く（空ける位置には、すぐに移る）。 */
 .tab-row[data-dragging] {
   position: relative;
   z-index: 2;
-  opacity: 0.85;
-  box-shadow: 0 4px 12px rgb(0 0 0 / 0.3);
+  box-shadow: var(--shadow-raised);
   cursor: grabbing;
 }
-.tab-row[data-shift] {
+.tab-row[data-shift],
+.tab-row[data-dropping] {
   transition: transform 150ms ease;
 }
 @media (prefers-reduced-motion: reduce) {
-  .tab-row[data-shift] {
+  .tab-row[data-shift],
+  .tab-row[data-dropping] {
     transition: none;
   }
+}
+/* 落ちる先（よけてできた隙間）の薄い枠。drag.ts が body に足す（画面に固定。ポインタは通す） */
+.drag-drop-slot {
+  position: fixed;
+  z-index: 800; /* ワークスペースの窓（モーダル）の上でも見えるように */
+  box-sizing: border-box;
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-4);
+  pointer-events: none;
 }
 
 /* ヘッダーとタブの行のボタン（足す・名前を変える・閉じる）。同じ大きさ */
