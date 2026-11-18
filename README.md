@@ -143,7 +143,7 @@ nix flake check        # every check CI runs: formatting, go test, the build and
 
 In `tauri dev` the terminals use the `shj` on your PATH; the built app ships its own (`packaging/`).
 
-The layout: `app/` is the window (Solid + TypeScript in `src/`, the Tauri shell in `src-tauri/`), `cmd/kisui` and `server/`, `attach/`, `rpc/`, `config/` are `kisui` (Go), `internal/` is what kisui keeps of the agreement with `shj` (`ctl`), the PTY (`term`), the build (`buildinfo`) and its messages (`i18n`). `docs/design/` is the design history.
+The layout: `app/` is the window (Solid + TypeScript in `src/`, laid out as `ui/`, `features/` and `infrastructure/`: see [docs/design/frontend-structure.md](docs/design/frontend-structure.md); the Tauri shell in `src-tauri/`), `cmd/kisui` and `server/`, `attach/`, `rpc/`, `config/` are `kisui` (Go), `internal/` is what kisui keeps of the agreement with `shj` (`ctl`), the PTY (`term`), the build (`buildinfo`) and its messages (`i18n`). `docs/design/` is the design history.
 
 Releases are described in [docs/releasing.md](docs/releasing.md).
 

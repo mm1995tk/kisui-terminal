@@ -65,7 +65,7 @@ struct Sidebar {
     tabs_height: Option<Spanned<i64>>,
 }
 
-/// `[gui.sidebar] tabs-height` に書ける範囲（%）。app/src/panes.ts の LIMITS.tabs と同じ。
+/// `[gui.sidebar] tabs-height` に書ける範囲（%）。app/src/ui/main-window/panes.ts の LIMITS.tabs と同じ。
 const TABS_HEIGHT_RANGE: std::ops::RangeInclusive<i64> = 10..=90;
 
 /// `[gui.browser]`。

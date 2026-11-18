@@ -2,7 +2,7 @@
 //!
 //! タブ 1 つにつき、メイン窓の上に重ねる子の webview を 1 つ持つ（OS の WebView。macOS は WKWebView、Linux は WebKitGTK）。
 //! 外のサイトの多くは `iframe` に出せない（X-Frame-Options・CSP の frame-ancestors）ので、`<iframe>` は使わない。
-//! どこに重ねるか・見せるか隠すかは画面（`app/src/browser/BrowserArea.tsx`）が決め、ここはその通りに置く。
+//! どこに重ねるか・見せるか隠すかは画面（`app/src/ui/main-window/content/browser/BrowserArea.tsx`）が決め、ここはその通りに置く。
 //!
 //! 外のページに Tauri の API を渡さない:
 //! - 子の webview は `WebviewUrl::External` で作る。外の URL からの IPC は、`remote` を持つ capability が無い限り tauri が断る。
@@ -963,7 +963,7 @@ pub fn browser_close(
     Ok(())
 }
 
-/// ページの表示の大きさの範囲（倍率。#205）。画面が選ぶ段（app/src/scale.ts の SCALES）より広く受ける。
+/// ページの表示の大きさの範囲（倍率。#205）。画面が選ぶ段（app/src/features/scale/scale.ts の SCALES）より広く受ける。
 const MIN_ZOOM: f64 = 0.25;
 const MAX_ZOOM: f64 = 5.0;
 

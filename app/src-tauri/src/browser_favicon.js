@@ -5,7 +5,7 @@
 // ページの中で画像を読み込み、32×32 の PNG の data: URL にして返す。読み込むのはページ自身（ページと同じデータ。
 // シークレットのタブはディスクに残さないデータ）。外の origin の画像は、CORS で許されたものだけ読める（許されなければ次の候補へ。
 // どれも駄目なら "" を返し、画面は地球のアイコンを出す）。
-// candidates は DOM に触らない（app/src/browser/favicon.test.ts で確かめる）。
+// candidates は DOM に触らない（app/src/infrastructure/tauri/favicon.test.ts で確かめる）。
 
 /** 画面に出す大きさ（縦横の画素）。 */
 const SIZE = 32;

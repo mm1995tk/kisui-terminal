@@ -143,7 +143,7 @@ nix flake check        # CI が回す検査を全部（整形・go test・ビル
 
 `tauri dev` では、ペインの中のターミナルは PATH の `shj` を使います。配るアプリは自分の `shj` を同梱します（`packaging/`）。
 
-置き場：`app/` が窓（`src/` に Solid + TypeScript、`src-tauri/` に Tauri の殻）、`cmd/kisui` と `server/`・`attach/`・`rpc/`・`config/` が `kisui`（Go）、`internal/` は kisui が持つ `shj` との取り決め（`ctl`）・PTY（`term`）・ビルドの情報（`buildinfo`）・メッセージ（`i18n`）です。`docs/design/` は設計の経緯です。
+置き場：`app/` が窓（`src/` に Solid + TypeScript。中は `ui/`・`features/`・`infrastructure/` に分けています：[docs/design/frontend-structure.md](docs/design/frontend-structure.md)。`src-tauri/` に Tauri の殻）、`cmd/kisui` と `server/`・`attach/`・`rpc/`・`config/` が `kisui`（Go）、`internal/` は kisui が持つ `shj` との取り決め（`ctl`）・PTY（`term`）・ビルドの情報（`buildinfo`）・メッセージ（`i18n`）です。`docs/design/` は設計の経緯です。
 
 リリースの流れは [docs/releasing.md](docs/releasing.md) にあります。
 

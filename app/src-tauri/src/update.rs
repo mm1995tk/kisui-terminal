@@ -172,7 +172,7 @@ mod imp {
 mod tests {
     use super::{same_day_nightly_moved, Outcome, UpdateInfo};
 
-    // Go と TS（app/src/rpc/protocol.ts の UpdateReport）との約束：status 付きの平らな JSON
+    // Go と TS（app/src/infrastructure/rpc/protocol.ts の UpdateReport）との約束：status 付きの平らな JSON
     #[test]
     fn outcome_is_flat_json_with_status() {
         let v = serde_json::to_value(Outcome::Available(UpdateInfo {
