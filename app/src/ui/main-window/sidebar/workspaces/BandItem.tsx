@@ -79,33 +79,39 @@ export function BandItem(props: Handlers & { row: Row }): JSX.Element {
         ref={tabRows}
         aria-label={T("sidebar.tabsOf", { title: b().title })}
       >
-        <For each={tabs().items}>
-          {(t) => (
-            <TabRow
-              t={t}
-              shown={tabs().shown === t.key}
-              current={tabs().shown === t.key && tabs().focused}
-              onTab={() => props.onTab?.(props.row.gws, t.key)}
-              onClose={() => props.onTabClose?.(props.row.gws, t.key)}
-              onRename={
-                props.onTabRename
-                  ? () => props.onTabRename?.(props.row.gws, t.key)
-                  : undefined
-              }
-              onGrab={
-                props.onTabMove
-                  ? (e) => grabTab(e, props.row.gws, t.key, props.onTabMove!)
-                  : undefined
-              }
-              edit={
-                props.tabRenaming?.gws === props.row.gws &&
-                props.tabRenaming.key === t.key
-                  ? props.tabRenaming
-                  : undefined
-              }
-              onRenameSubmit={(name) => props.onTabRenameSubmit?.(name)}
-              onRenameCancel={(byKey) => props.onTabRenameCancel?.(byKey)}
-            />
+        {/* 行はタブのキーで対応づける。タブの行のデータは、マシンの状態・フォルダ・ページの題などが変わるたびに作り直されるので、
+            データのオブジェクトで対応づけると、名前を打っている入力欄ごと作り直されてしまう */}
+        <For each={tabs().items.map((t) => t.key)}>
+          {(key) => (
+            <Show when={tabs().items.find((t) => t.key === key)}>
+              {(t) => (
+                <TabRow
+                  t={t()}
+                  shown={tabs().shown === key}
+                  current={tabs().shown === key && tabs().focused}
+                  onTab={() => props.onTab?.(props.row.gws, key)}
+                  onClose={() => props.onTabClose?.(props.row.gws, key)}
+                  onRename={
+                    props.onTabRename
+                      ? () => props.onTabRename?.(props.row.gws, key)
+                      : undefined
+                  }
+                  onGrab={
+                    props.onTabMove
+                      ? (e) => grabTab(e, props.row.gws, key, props.onTabMove!)
+                      : undefined
+                  }
+                  edit={
+                    props.tabRenaming?.gws === props.row.gws &&
+                    props.tabRenaming.key === key
+                      ? props.tabRenaming
+                      : undefined
+                  }
+                  onRenameSubmit={(name) => props.onTabRenameSubmit?.(name)}
+                  onRenameCancel={(byKey) => props.onTabRenameCancel?.(byKey)}
+                />
+              )}
+            </Show>
           )}
         </For>
       </ul>
