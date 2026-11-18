@@ -29,6 +29,8 @@ let
       ../../package-lock.json
       ../../tsconfig.json
       ../../vite.config.ts
+      # tsconfig.json の include にあり、tsc --noEmit が Storybook の設定の型も検査する（アプリの成果物には入らない）
+      ../../.storybook
       ../../app/index.html
       ../../app/src
       # npm test が拡張機能の JavaScript の型も検査する（tsc -p extension）
