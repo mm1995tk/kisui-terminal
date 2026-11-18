@@ -233,11 +233,13 @@ export function createFileTree(deps: {
     setTreeEditError(undefined);
     try {
       await applyTreeEdit(d, value);
-      setTreeEdit(null);
+      // 待っている間に別の入力欄を開いていたら、そちらは閉じない
+      if (treeEdit() === d) setTreeEdit(null);
     } catch (e) {
-      setTreeEditError(e instanceof Error ? e.message : String(e));
+      if (treeEdit() === d)
+        setTreeEditError(e instanceof Error ? e.message : String(e));
     } finally {
-      setTreeEditBusy(false);
+      if (treeEdit() === d || treeEdit() === null) setTreeEditBusy(false);
     }
   }
 
