@@ -3,6 +3,7 @@
 // 何を出すかは features/workspaces/controller.ts と features/workspaces/tabs/controller.ts の状態で決まる。
 import { Show, type JSX } from "solid-js";
 
+import { T } from "../../../i18n/index.ts";
 import type { Workspaces } from "../../../features/workspaces/controller.ts";
 import type { Tabs } from "../../../features/workspaces/tabs/controller.ts";
 import { MachinePicker } from "../sessions/MachinePicker.tsx";
@@ -18,6 +19,10 @@ export function WorkspaceDialogs(props: {
   /** ワークスペースを切り替える窓（リーダーの w）を出しているか */
   switcherOpen: boolean;
   onCloseSwitcher: () => void;
+  /** マシンの色（マシンの名前 → 色。タブを作る行のマシンに付ける） */
+  colors: Record<string, string>;
+  /** 内蔵ブラウザが有効か（無効なら、切り替える窓に地球儀も N も無い） */
+  browser: boolean;
 }): JSX.Element {
   // 部品は作り直さないので、持ち物は 1 回だけ取り出す
   const {
@@ -42,12 +47,15 @@ export function WorkspaceDialogs(props: {
     currentTarget,
     createWorkspace,
     gws,
+    cannot,
   } = props.workspaces;
   const {
     selectTab,
     pickingFor,
     closeTabMachinePicker,
     newTerminalTab,
+    createNamedTerminalTab,
+    openNewBrowserTabIn,
     confirmCloseTab,
     cancelCloseTab,
     closeTermTab,
@@ -99,6 +107,17 @@ export function WorkspaceDialogs(props: {
           onTabRename={renameTab}
           onTabClose={closeTabRow}
           onTabReorder={moveTabByStep}
+          machines={creatable().map((m) => ({
+            target: m.target,
+            label: m.label,
+            color: props.colors[m.target] ?? "",
+          }))}
+          onCreateTab={createNamedTerminalTab}
+          onNewBrowserTab={openNewBrowserTabIn}
+          browser={props.browser}
+          onNoMachine={() =>
+            cannot(T("cannot.workspace.title"), T("cannot.workspace.text"))
+          }
           onCancel={closeSwitcher}
         />
       </Show>

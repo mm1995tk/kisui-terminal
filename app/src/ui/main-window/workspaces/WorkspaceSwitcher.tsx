@@ -18,12 +18,14 @@ import {
   CardTitle,
 } from "../../components/Card.tsx";
 import { InlineInput } from "../../components/InlineInput.tsx";
+import type { MachineChoice } from "./SwitcherNewTab.tsx";
 import { Kbd, KeyHints } from "../../components/KeyHints.tsx";
 import { isCancelKey } from "../../components/cancelKey.ts";
 import { moveRow } from "../../../features/sessions/machineList.ts";
 import { confirmKey, switcherHints, switcherKey } from "./switcherKey.ts";
 import { createSwitcherColumns } from "./switcherColumns.ts";
 import { createSwitcherTabActions } from "./switcherTabActions.ts";
+import { createSwitcherNewTab } from "./switcherNewTab.ts";
 import { startTabDrag } from "./tabMoveDrag.ts";
 import "./switcher.css";
 
@@ -40,6 +42,8 @@ const tabId = (key: string) => `switcher-tab-${key}`;
  * 右のタブの行を開くと、そのワークスペースのそのタブへ移る。移ったあとに窓を閉じるのは、呼んだ側（出すのをやめる）。
  * 右のタブの行のつかむ所からのドラッグで、タブを並べ替える・別のワークスペースへ移す（#308。tabMoveDrag.ts）。ドラッグ中に左の行の上へ来ると、
  * 右の列がそのワークスペースのタブに替わり、落とした位置に入る（左の行の上で落とすと、一番後ろに入る。空のワークスペースにも落とせる）。
+ * 右の列の上の「＋」か n で、右の列の一番下に、名前の入力欄とマシンを 1 行で出し、Enter でそのワークスペースのそのマシンにターミナルのタブを作る（#331。SwitcherNewTab.tsx）。
+ * 地球儀か N（どちらの列でも）で、そのワークスペースに新しいタブのページのブラウザのタブを開く（内蔵ブラウザが有効なときだけ）。どちらも窓は閉じず、作ったタブを右の列で選ぶ。
  * 名前を変えるのは、行の中の入力欄（サイドバーの帯と同じ。変換を確定する Enter では決めない）。閉じるのは、y / n で確かめてから。
  */
 export function WorkspaceSwitcher(props: {
@@ -76,6 +80,20 @@ export function WorkspaceSwitcher(props: {
   onTabClose: (gws: string, key: string) => void;
   /** タブを 1 つ下・上へ並べ替える（タブの列の J K） */
   onTabReorder: (gws: string, key: string, dir: "up" | "down") => void;
+  /** タブを作る入力欄に出すマシン（つながっているマシン。マシンを選ぶ窓と同じ） */
+  machines: readonly MachineChoice[];
+  /** 名前とマシンを決めた。名前が断られたら、その理由を返す（入力欄は開けたまま）。作れたら、作ったタブの key を待てる形で返す（作れなければ undefined。理由は呼んだ側が出す）。窓は閉じない */
+  onCreateTab: (
+    gws: string,
+    machine: string,
+    name: string,
+  ) => { error: string } | { key: Promise<string | undefined> };
+  /** ブラウザのタブを開く（地球儀・N）。開いたタブの key を返す。窓は閉じない */
+  onNewBrowserTab: (gws: string) => string | undefined;
+  /** 内蔵ブラウザが有効か（無効なら、地球儀も N も無い） */
+  browser: boolean;
+  /** タブを作ろうとしたが、つながっているマシンが 1 つも無い（できないことを、呼んだ側が伝える） */
+  onNoMachine: () => void;
   onCancel: () => void;
 }): JSX.Element {
   // 選んでいるのは位置ではなくワークスペース。並べ替えても、同じワークスペースを選び続ける
@@ -130,9 +148,18 @@ export function WorkspaceSwitcher(props: {
     if (gws !== sel()) {
       setEditing(undefined);
       setConfirming(undefined);
+      newTab.stop();
       tabActions.stop();
     }
     setSel(gws);
+  }
+  /** 入力欄・確認を全部やめる（どれかを始める前に呼び、ほかのものを残さない） */
+  function resetInputs() {
+    setEditing(undefined);
+    setConfirming(undefined);
+    setCreating(undefined);
+    newTab.stop();
+    tabActions.stop();
   }
   /** 窓のキーが届く所（2 つの列を囲む入れ物）にフォーカスを戻す（ボタンや入力欄を使ったあと） */
   const focusList = () => root.focus();
@@ -142,14 +169,25 @@ export function WorkspaceSwitcher(props: {
     selected,
     selectedTab,
     pickTab,
-    clearRowState: () => {
-      setEditing(undefined);
-      setConfirming(undefined);
-    },
+    clearRowState: resetInputs,
     focusList,
     init: props.tabRenameInit,
     rename: props.onTabRename,
     close: props.onTabClose,
+  });
+  // 右の列のタブを作る操作（switcherNewTab.ts）
+  const newTab = createSwitcherNewTab({
+    selected,
+    sel,
+    has: (g) => props.rows.some((r) => r.gws === g),
+    machineCount: () => props.machines.length,
+    browser: () => props.browser,
+    create: props.onCreateTab,
+    openBrowser: props.onNewBrowserTab,
+    noMachine: props.onNoMachine,
+    pickTab,
+    focusList,
+    clearOthers: resetInputs,
   });
 
   /** ワークスペースの行を押した：選んでいる行（キーが左の列で効いているとき）をもう 1 回押すと開く。それ以外は選ぶだけ。 */
@@ -173,10 +211,7 @@ export function WorkspaceSwitcher(props: {
       props.onTab(gws, key);
       return;
     }
-    setCreating(undefined);
-    setEditing(undefined);
-    setConfirming(undefined);
-    tabActions.stop();
+    resetInputs();
     pickTab(key);
     focusList();
   }
@@ -187,26 +222,20 @@ export function WorkspaceSwitcher(props: {
     // 押した行の操作なので、その行を選ぶ（選ぶ行が変わると、ほかの行の入力欄や確認はやめる）
     select(r.gws);
     toWs();
-    setConfirming(undefined);
-    tabActions.stop();
-    setCreating(undefined);
+    resetInputs();
     setEditing({ gws: r.gws, ...init });
   }
   function startClose(r: Row) {
     select(r.gws);
     toWs();
-    setEditing(undefined);
-    tabActions.stop();
-    setCreating(undefined);
+    resetInputs();
     setConfirming(r.gws);
     focusList();
   }
   /** 左の列の一番下に、名前の入力欄を出す（n・「ワークスペースを作る」）。ほかの入力欄・確認はやめる */
   function startCreate() {
     toWs();
-    setEditing(undefined);
-    setConfirming(undefined);
-    tabActions.stop();
+    resetInputs();
     setCreating({ auto: props.createInit() });
   }
   /** 入力欄で名前を決めた。作れたら、作ったワークスペースを選ぶ（窓は閉じない）。断られたら、理由を出して入力欄は開けたまま */
@@ -272,7 +301,7 @@ export function WorkspaceSwitcher(props: {
         else if (!inTabs) props.onGo(r);
         break;
       }
-      // 並べ替える・名前を変える・閉じるは、効いている列の行に効く（ワークスペースの列ならワークスペース、タブの列ならタブ）。作るは、ワークスペースの列だけ
+      // 並べ替える・名前を変える・閉じる・作る（n）は、効いている列の行に効く（ワークスペースの列ならワークスペース、タブの列ならタブ）。ブラウザのタブを開く（N）は、どちらの列でも
       case "reorder": {
         const r = selected();
         const t = selectedTab();
@@ -281,7 +310,11 @@ export function WorkspaceSwitcher(props: {
         break;
       }
       case "new":
-        if (!inTabs) startCreate();
+        if (inTabs) newTab.start();
+        else startCreate();
+        break;
+      case "newBrowser":
+        newTab.openBrowser();
         break;
       case "rename": {
         const r = selected();
@@ -341,7 +374,7 @@ export function WorkspaceSwitcher(props: {
 
   /** いまキーが効いている列で効くキーだけを、下に出す */
   const hints = () =>
-    switcherHints(activeCol(), tabs().length > 0).map((h) => ({
+    switcherHints(activeCol(), tabs().length > 0, props.browser).map((h) => ({
       keys: h.keys,
       label: T(h.label),
     }));
@@ -457,6 +490,23 @@ export function WorkspaceSwitcher(props: {
                     tabActions.stop();
                     if (byKey) focusList();
                   }}
+                  browser={props.browser}
+                  onNewBrowser={newTab.openBrowser}
+                  onNewTab={newTab.start}
+                  newTab={
+                    newTab.creating()?.gws === r().gws
+                      ? {
+                          machines: props.machines,
+                          initial: r().target,
+                          error: newTab.creating()?.error,
+                          onSubmit: newTab.submit,
+                          onCancel: (byKey) => {
+                            newTab.stop();
+                            if (byKey) focusList();
+                          },
+                        }
+                      : undefined
+                  }
                 />
               )}
             </Show>

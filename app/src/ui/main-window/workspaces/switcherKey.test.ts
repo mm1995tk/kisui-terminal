@@ -56,6 +56,16 @@ describe("ワークスペースを切り替える窓のキー", () => {
     assert.equal(switcherKey(key("n", { metaKey: true })), null);
   });
 
+  it("N（Shift+n）はブラウザのタブを開く。Cmd・Ctrl・Alt を重ねたものと変換中のキーは受けない", () => {
+    assert.deepEqual(switcherKey(key("N", { shiftKey: true })), {
+      kind: "newBrowser",
+    });
+    assert.equal(switcherKey(key("N", { metaKey: true })), null);
+    assert.equal(switcherKey(key("N", { ctrlKey: true })), null);
+    assert.equal(switcherKey(key("N", { isComposing: true })), null);
+    assert.equal(switcherKey(key("N", { keyCode: 229 })), null);
+  });
+
   it("J K（Shift+j・Shift+k）は並べ替える", () => {
     assert.deepEqual(switcherKey(key("J", { shiftKey: true })), {
       kind: "reorder",
@@ -93,8 +103,8 @@ describe("閉じる確認のキー", () => {
 });
 
 describe("窓の下のキーの説明", () => {
-  const labels = (col: "ws" | "tab", hasTabs: boolean) =>
-    switcherHints(col, hasTabs).flatMap((h) => h.keys);
+  const labels = (col: "ws" | "tab", hasTabs: boolean, browser = false) =>
+    switcherHints(col, hasTabs, browser).flatMap((h) => h.keys);
 
   it("ワークスペースの列では、並べ替え・作る・名前を変える・閉じるを出し、タブがあるときだけ l を出す", () => {
     assert.deepEqual(labels("ws", true), [
@@ -112,12 +122,27 @@ describe("窓の下のキーの説明", () => {
     assert.ok(!labels("ws", false).includes("l"));
   });
 
-  it("タブの列では、タブの列で効くキー（移る・名前を変える・閉じる・並べ替え）だけを出す（n は出さない）", () => {
+  it("n は、ワークスペースの列では「ワークスペースを作る」、タブの列では「タブを作る」と出す", () => {
+    const n = (col: "ws" | "tab") =>
+      switcherHints(col, true, false).find((h) => h.keys[0] === "n")?.label;
+    assert.equal(n("ws"), "switcher.keys.new");
+    assert.equal(n("tab"), "switcher.keys.newTab");
+  });
+
+  it("N は、内蔵ブラウザが有効なときだけ、どちらの列でも出す", () => {
+    for (const col of ["ws", "tab"] as const) {
+      assert.ok(labels(col, true, true).includes("N"));
+      assert.ok(!labels(col, true, false).includes("N"));
+    }
+  });
+
+  it("タブの列では、タブの列で効くキー（移る・作る・名前を変える・閉じる・並べ替え）だけを出す", () => {
     assert.deepEqual(labels("tab", true), [
       "j",
       "k",
       "h",
       "Enter",
+      "n",
       "r",
       "x",
       "J",
