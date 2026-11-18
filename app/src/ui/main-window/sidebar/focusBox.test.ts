@@ -127,3 +127,23 @@ test("断られた理由は流れの中に置き、箱の clip で切り取ら�
   assert.notEqual(slotEnd, -1);
   assert.ok(tsx.indexOf('class="band-rename-error"') > slotEnd);
 });
+
+test("段の区切り（タブとツリー・ツリーと CHANGES）は、見出しの下の線と同じ 2px の濃い線に、真ん中の短い棒を足した 1 種類（#303）", () => {
+  const changes = readFileSync(
+    new URL("./changes/changes.css", import.meta.url),
+    "utf8",
+  );
+  assert.match(
+    rule(".tree-section"),
+    /border-top: 2px solid var\(--color-border-strong\);/,
+  );
+  assert.match(
+    changes,
+    /\.changes \{[^}]*border-top: 2px solid var\(--color-border-strong\);/,
+  );
+  // 棒は 2 つの境目で同じ（accent。つまみにポインタが乗ったときだけではなく、いつも見せる）
+  assert.match(
+    rule(".tabs-resizer::after,\n.changes-resizer::after"),
+    /background: var\(--color-accent\);/,
+  );
+});

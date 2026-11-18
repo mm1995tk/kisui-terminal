@@ -54,6 +54,7 @@ Vite の設定は、根の `vite.config.ts` をそのまま読む（Solid の変
 | `ui/main-window/notifications/UpdateBar.stories.tsx` | 新しい版の知らせ（ある・入れ替え中・失敗）           | 殻への頼み `UpdatesOs`（持ち物は本物の `createUpdates`） |
 | `ui/modules/clipboard-history/HistoryPanel.stories.tsx` | 履歴の一覧（一覧・貼る欄あり・空・読み込み中・読めない） | 履歴を読む頼み `ListClipboardHistory`            |
 | `ui/utilities/clipboard/page.stories.tsx`           | kisui-terminal の外から開く履歴の窓                   | 殻への頼み `ClipboardPopupOs`、`ListClipboardHistory` |
+| `ui/main-window/sidebar/PaneBorder.stories.tsx`     | サイドバーの段の境目（変える前・変えた後・並べて）。アプリと同じ CSS | —                                  |
 
 ## 外への頼みを差し替える
 

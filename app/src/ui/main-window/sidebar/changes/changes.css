@@ -4,7 +4,7 @@
    ツリーが長くても CHANGES はいつも見える。行が多いときは .changes-list の中でスクロールする。 */
 
 .changes {
-  border-top: 1px solid var(--gh-border, var(--gh-indent-guide));
+  border-top: 2px solid var(--color-border-strong);
   padding: 4px 0 6px;
   position: relative;
   z-index: 102;
@@ -147,16 +147,20 @@
   font-weight: 600;
 }
 
-/* ファイルツリーとの境目のつまみ（#152）。見える線は引かない（.changes の上の線のまま）。当たりは上下 4px。
+/* ファイルツリーとの境目のつまみ（#152）。見える線は引かない（.changes の上の 2px の線のまま。棒は sidebar.css の .changes-resizer::after）。当たりは上下 3px。
    ドラッグ中とリサイズモードで選んでいる間は、マシンの色で光らせる（app.css の .resizer と同じ） */
 .changes-resizer {
   position: absolute;
-  top: -2px;
+  top: -3px;
   left: 0;
   right: 0;
-  height: 4px;
+  height: 6px;
   cursor: row-resize;
   touch-action: none;
+}
+/* 線は .changes の border（つまみの上端から 0〜2px）。棒はその真ん中 */
+.changes-resizer::after {
+  top: 0;
 }
 .app[data-lit-changes] .changes-resizer {
   background: var(--machine-color, var(--gh-accent-text));

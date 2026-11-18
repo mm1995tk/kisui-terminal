@@ -163,7 +163,22 @@
   flex: 1 1 0;
   min-height: 0;
   overflow-y: auto;
-  border-top: 1px solid var(--gh-border);
+  border-top: 2px solid var(--color-border-strong);
+}
+/* 段の区切り（タブとファイルツリーの境目・ファイルツリーと CHANGES の境目）は、見出しの下の線（.band-slot）と同じ 2px の濃い線に、
+   真ん中の短い棒（accent。いつも見せる）を足した 1 種類にする（#303）。線は各段の border-top、棒はつまみの ::after。
+   つまみが線をまたぐ位置は、それぞれの規則で決める。 */
+.tabs-resizer::after,
+.changes-resizer::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  width: 28px;
+  height: 4px;
+  margin-left: -14px;
+  border-radius: var(--radius-4);
+  background: var(--color-accent);
+  pointer-events: none;
 }
 /* タブの段とファイルツリーの段の境目をつかむ所（高さ 0 の帯に、上下に 3px ずつはみ出すつまみを重ねる。changes.css の .changes-resizer と同じ作り） */
 .tabs-border {
@@ -180,6 +195,10 @@
   height: 6px;
   cursor: row-resize;
   touch-action: none;
+}
+/* 線は .tree-section の上の 2px（つまみの上から 3px〜5px）。棒はその真ん中 */
+.tabs-resizer::after {
+  top: 2px;
 }
 .app[data-lit-tabs] .tabs-resizer {
   background: var(--machine-color, var(--gh-accent-text));
