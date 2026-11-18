@@ -31,6 +31,8 @@ export function createFocus(deps: {
   treeVersion: Accessor<number>;
   /** 今のワークスペースで出しているブラウザのタブ（ターミナルのタブを出していれば undefined） */
   shownBrowserTab: Accessor<unknown>;
+  /** 空のワークスペース（#307）を選んでいて、タブが無いことを伝える画面を出しているか */
+  emptyShown: Accessor<boolean>;
   sidebarOpen: Accessor<boolean>;
   changeSidebarOpen: (open: boolean) => void;
   resizeMode: Accessor<boolean>;
@@ -52,6 +54,7 @@ export function createFocus(deps: {
   let focusBrowserPage: (() => void) | undefined;
   let focusFind: (() => void) | undefined;
   let focusUrlBar: (() => void) | undefined;
+  let focusEmpty: (() => void) | undefined;
 
   /** shj の Space e：フォーカスしているワークスペースなら、サイドバーのファイルツリーにキーを向ける。 */
   function focusExplorer(target: string, id: WorkspaceId) {
@@ -143,6 +146,12 @@ export function createFocus(deps: {
       focusBrowserPage?.();
       return;
     }
+    // 空のワークスペース（#307）には、キーを向けるペインもページも無い。タブが無いことを伝える画面に置く
+    // （描かれるのを待つ。移った直後は、まだ画面が出ていない）
+    if (untrack(deps.emptyShown)) {
+      queueMicrotask(() => focusEmpty?.());
+      return;
+    }
     // 足した欄のターミナルが開くのを待つ（作ったばかりのワークスペースは、欄が描かれるまでもう少しかかる）
     const focus = () => focusActiveTerminal?.();
     queueMicrotask(() => {
@@ -212,6 +221,10 @@ export function createFocus(deps: {
     /** ページ内検索の欄の入力欄にキーを向ける関数を受け取る（FindBar） */
     setFindFocus(f: () => void) {
       focusFind = f;
+    },
+    /** 空のワークスペースの画面にキーを向ける関数を受け取る（EmptyWorkspace。消えるときは undefined） */
+    setEmptyFocus(f: (() => void) | undefined) {
+      focusEmpty = f;
     },
     /** URL バー（新しいタブのページなら検索窓）にキーを向ける関数を受け取る（UrlBar・NewTabPage） */
     setUrlBarFocus(f: () => void) {
