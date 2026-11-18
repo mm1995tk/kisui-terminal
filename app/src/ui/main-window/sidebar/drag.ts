@@ -216,6 +216,45 @@ function makeSlotMarker(): HTMLElement {
   return m;
 }
 
+/**
+ * 落ちる先の枠を、画面の top（上端）に置く。left・width・height はつかんだ行と同じ。
+ * 一覧（scroller）の見えている範囲にだけ出す（一覧の外や、上に固定した帯の下に隠れる所に、枠だけが浮かないように）。
+ */
+function placeSlotMarker(
+  marker: HTMLElement,
+  rect: DOMRect,
+  top: number,
+  scroller: HTMLElement,
+): void {
+  const view = scroller.getBoundingClientRect();
+  const t = Math.max(top, view.top);
+  const b = Math.min(top + rect.height, view.bottom);
+  marker.style.display = b > t ? "" : "none";
+  marker.style.left = `${rect.left}px`;
+  marker.style.width = `${rect.width}px`;
+  marker.style.top = `${t}px`;
+  marker.style.height = `${Math.max(b - t, 0)}px`;
+}
+
+/**
+ * 手を離したら、つかんだ行（self）を、落ちる先まで（landing px）なめらかに動かしてから settle（片付けと並べ替え）を呼ぶ。
+ * 視差効果を減らす設定のときは、動かさずにすぐ settle を呼ぶ。
+ */
+function landThenSettle(
+  self: HTMLElement | undefined,
+  landing: number,
+  settle: () => void,
+): void {
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (!self || reduce) {
+    settle();
+    return;
+  }
+  self.setAttribute("data-dropping", "");
+  self.style.transform = `translateY(${landing}px)`;
+  setTimeout(settle, DROP_MS + 20);
+}
+
 /** 手を離したとき、つかんだ行が落ちる先まで動くのにかける時間（ms）。CSS の transition（data-dropping）と合わせる。 */
 export const DROP_MS = 150;
 
@@ -286,12 +325,13 @@ export function startDrag(e: PointerEvent, spec: DragSpec): void {
     const now = applyDrag(measured, spec.self, pos.shift, shifts);
     const top = dropTop(measured, spec.self, before, shifts);
     landing = top - self.top;
-    const r = self.el.getBoundingClientRect();
     marker ??= makeSlotMarker();
-    marker.style.left = `${r.left}px`;
-    marker.style.width = `${r.width}px`;
-    marker.style.top = `${top}px`;
-    marker.style.height = `${r.height}px`;
+    placeSlotMarker(
+      marker,
+      self.el.getBoundingClientRect(),
+      top,
+      spec.scroller,
+    );
     for (const el of marked) if (!now.includes(el)) clearRow(el);
     marked = now;
   };
@@ -343,15 +383,12 @@ export function startDrag(e: PointerEvent, spec: DragSpec): void {
       for (const r of spec.rows()) clearRow(r.el);
       if (wasActive && drop) spec.onDrop(before);
     };
-    // 手を離したら、つかんだ行を落ちる先までなめらかに動かしてから並べ替える（視差効果を減らす設定なら、すぐ並べ替える）
-    const self = marked.find((el) => el.hasAttribute("data-dragging"));
-    const reduce = window.matchMedia(
-      "(prefers-reduced-motion: reduce)",
-    ).matches;
-    if (wasActive && drop && self && !reduce) {
-      self.setAttribute("data-dropping", "");
-      self.style.transform = `translateY(${landing}px)`;
-      setTimeout(settle, DROP_MS + 20);
+    if (wasActive && drop) {
+      landThenSettle(
+        marked.find((el) => el.hasAttribute("data-dragging")),
+        landing,
+        settle,
+      );
     } else {
       settle();
     }
