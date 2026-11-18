@@ -615,14 +615,7 @@ export function WorkspaceSwitcher(props: {
                 <SwitcherTabs
                   row={r()}
                   items={heldItems()}
-                  holding={
-                    hold.held()
-                      ? {
-                          key: hold.held()!.tab.key,
-                          title: hold.held()!.tab.title,
-                        }
-                      : undefined
-                  }
+                  holding={hold.held()?.tab}
                   selectedKey={hold.held() ? undefined : selectedTab()?.key}
                   rowId={tabId}
                   onTab={pressTab}
