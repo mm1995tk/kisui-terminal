@@ -101,6 +101,9 @@ export function SwitcherRow(props: {
   onRenameCancel: (byKey: boolean) => void;
 }): JSX.Element {
   const r = () => props.row;
+  // つかむ所を押して、同じ行の別の所で離すと、click は両方を含むこの li で起きる（つかむ所の stopPropagation は届かない）。
+  // 並べ替えのつもりが「選んでいる行をもう 1 回押した」にならないよう、つかむ所から始まった押し方の click は捨てる
+  let fromGrip = false;
   return (
     <li
       id={props.id}
@@ -108,7 +111,16 @@ export function SwitcherRow(props: {
       role="option"
       data-gws={r().gws}
       aria-selected={props.selected ? "true" : "false"}
-      onClick={() => props.onPress()}
+      onPointerDown={(e) => {
+        fromGrip = e.target instanceof Element && !!e.target.closest(".grip");
+      }}
+      onClick={() => {
+        if (fromGrip) {
+          fromGrip = false;
+          return;
+        }
+        props.onPress();
+      }}
     >
       <span
         class="grip"
