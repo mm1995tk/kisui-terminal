@@ -5,7 +5,6 @@
 // 画面にも Tauri にも触らない。殻への頼みは ShellApi（shell.ts）、記録は KeyValueStore で受け取る。
 import { T } from "../../i18n/index.ts";
 import {
-  batch,
   createEffect,
   createMemo,
   createSignal,
@@ -44,19 +43,12 @@ export interface SessionHooks {
   treeChanged(): void;
   /** ターミナルの並びが変わった（描き直す） */
   termChanged(): void;
-  /**
-   * マシン target のワークスペースの一覧が変わった。一覧を書き換えたのと同じ batch の中で呼ぶ
-   * （一覧とフォーカスは一緒に変える。別々だと、消えたワークスペースにフォーカスしたままの一覧が一度描かれる）。
-   */
-  workspacesChanged(target: string): void;
   /** つないで最初に分かった一覧（マシンごとに 1 回だけ）。空なら、ワークスペースを作るかを決める */
   firstList(target: string, list: Workspace[]): void;
   /** マシン target の shj のフォーカスが変わった */
   shjFocus(target: string, id: WorkspaceId | null): void;
   /** shj が端末のコマンドで頼んだこと（欄を出す・ツリーへ・URL を開く、など） */
   pane(target: string, ev: PaneEvent, s: Session): void;
-  /** マシン target を切った（一覧から消したあと） */
-  disconnected(target: string): void;
 }
 
 /** createSessions が返す持ち物。 */
@@ -134,7 +126,7 @@ export function createSessions(deps: {
     for (const t of targets()) connect(t);
   });
 
-  /** マシンごとの shj のフォーカス（GUI のフォーカスが外れたときの代わりの候補）。 */
+  /** マシンごとの shj のフォーカス（今いる GUI のワークスペースが無いとき、入る先を決めるのに使う）。 */
   function shjFocuses(): Record<string, WorkspaceId | null> {
     return Object.fromEntries(
       Object.entries(sessions()).map(([t, s]) => [t, s.focus]),
@@ -188,11 +180,7 @@ export function createSessions(deps: {
         if (before && before.folder !== w.folder) tr.reset(w.id);
       }
       group.sync(ws);
-      // 一覧とフォーカスは一緒に変える（別々だと、消えたワークスペースにフォーカスしたままの一覧が一度描かれる）
-      batch(() => {
-        setWorkspaces((m) => ({ ...m, [target]: ws }));
-        hooks.workspacesChanged(target);
-      });
+      setWorkspaces((m) => ({ ...m, [target]: ws }));
       // つないで最初に分かった一覧が空なら、ワークスペースを 1 つ作る（何も無い画面から始めない。決めるのは hooks.firstList）。
       // 閉じて空になったときは作らない
       if (!started.has(target) && s.state.kind === "connected") {
@@ -227,7 +215,6 @@ export function createSessions(deps: {
     setSessions(({ [target]: _, ...rest }) => rest);
     setStates(({ [target]: _, ...rest }) => rest);
     setWorkspaces(({ [target]: _, ...rest }) => rest);
-    hooks.disconnected(target);
     await s.close();
   }
 

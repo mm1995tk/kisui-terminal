@@ -35,7 +35,7 @@ export const ja: Record<Key, string> = {
   "leader.tab.rename": "今のタブの名前を変える",
   "cannot.pane.none.title": "ここにはペインがありません",
   "cannot.pane.none.text":
-    "このワークスペースはブラウザのタブだけで、ターミナルのペインがありません。ターミナルのタブは t n・t N で作れます。",
+    "このワークスペースにはターミナルのタブが無いので、ペインがありません。ターミナルのタブは t n・t N で作れます。",
   "leader.machine": "マシンの一覧を開く",
   "leader.pane.group": "ペイン",
   "leader.pane.split": "ペインを分ける",
@@ -560,4 +560,12 @@ export const ja: Record<Key, string> = {
   "machineDialog.countdownSep": "・",
   "boot.error":
     "ターミナルの部品（coneko-term）を読み込めませんでした: {error}",
+  "emptyWorkspace.title": "このワークスペースにはタブがありません",
+  "emptyWorkspace.text":
+    "ワークスペースを閉じるまで、名前と並び順は残ります。タブを足すと、ここで作業を始められます。",
+  "emptyWorkspace.addTerminal": "ターミナルのタブを作る（マシンを選ぶ）",
+  "emptyWorkspace.addBrowser": "ブラウザのタブを開く",
+  "emptyWorkspace.closeWorkspace":
+    "このワークスペースを閉じる（ワークスペースを切り替える窓で。y で確かめる）",
+  "emptyWorkspace.plus": "サイドバーの「+」からもタブを足せます。",
 };

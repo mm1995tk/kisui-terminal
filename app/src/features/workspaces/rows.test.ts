@@ -8,17 +8,16 @@ import { EMPTY_GWS, reconcile, type GwsState } from "./model.ts";
 import type { SessionState } from "../sessions/session.ts";
 import {
   tabToReveal,
-  adoptFocus,
   band,
   buildSidebar,
   health,
-  keepFocus,
-  shouldSendMoveTo,
   gwsRows,
+  isTermless,
   machineLabel,
   type Row,
-  stepFrom,
-  stepWorkspace,
+  stepRow,
+  rowNear,
+  gwsOfShjFocus,
   shownIsBrowser,
   focusedRow,
   unsetTitle,
@@ -362,146 +361,36 @@ describe("buildSidebar", () => {
   });
 });
 
-describe("adoptFocus", () => {
-  it("フォーカスが無ければ、先に分かったマシンのものを使う", () => {
-    assert.deepEqual(adoptFocus(null, "a", "x"), { target: "a", id: "x" });
-    assert.equal(adoptFocus(null, "a", null), null);
-  });
-
-  it("別のマシンのフォーカスでは動かさない", () => {
-    const cur = { target: "a", id: "x" };
-    assert.equal(adoptFocus(cur, "b", "y"), cur);
-  });
-
-  it("同じマシンで shj のフォーカスが変われば追い、消えれば外す", () => {
-    const cur = { target: "a", id: "x" };
-    assert.deepEqual(adoptFocus(cur, "a", "y"), { target: "a", id: "y" });
-    assert.equal(adoptFocus(cur, "a", null), null);
-    assert.equal(adoptFocus(cur, "a", "x"), cur);
-  });
-});
-
-describe("keepFocus", () => {
-  it("フォーカス先が一覧から消えたら（切った・無くなった）外す", () => {
-    const cur = { target: "a", id: "x" };
-    assert.equal(keepFocus(cur, { a: [ws({ id: "x", root: "/x" })] }), cur);
-    assert.equal(keepFocus(cur, { a: [] }), null);
-    assert.equal(keepFocus(cur, {}), null);
-    assert.equal(keepFocus(null, {}), null);
-  });
-
-  it("外れたら、ほかのマシンの shj のフォーカスで一覧にあるものを使う", () => {
-    const cur = { target: "a", id: "x" };
-    const lists = {
-      a: [],
-      b: [ws({ id: "y", root: "/y" })],
-      c: [ws({ id: "z", root: "/z" })],
-    };
-    assert.deepEqual(keepFocus(cur, lists, { a: "x", b: null, c: "z" }), {
-      target: "c",
-      id: "z",
-    });
-    assert.deepEqual(keepFocus(null, lists, { b: "y", c: "z" }), {
-      target: "b",
-      id: "y",
-    });
-    // 一覧に無いフォーカスは使わない
-    assert.equal(keepFocus(cur, lists, { b: "gone" }), null);
-    // まだあれば、ほかの候補では動かさない
-    assert.equal(
-      keepFocus({ target: "b", id: "y" }, lists, { c: "z" })?.target,
-      "b",
-    );
-  });
-
-  it("移り先（prefer）が一覧にあれば、shj のフォーカスより先に使う", () => {
-    const lists = {
-      a: [ws({ id: "y", root: "/y" })],
-      b: [ws({ id: "z", root: "/z" })],
-    };
-    const cur = { target: "a", id: "x" };
-    const prefer = { target: "a", id: "y" };
-    assert.deepEqual(keepFocus(cur, lists, { b: "z" }, prefer), prefer);
-    // 一覧に無い移り先は使わない
-    assert.deepEqual(
-      keepFocus(cur, lists, { b: "z" }, { target: "a", id: "gone" }),
-      { target: "b", id: "z" },
-    );
-    // まだあれば動かさない
-    assert.deepEqual(keepFocus({ target: "b", id: "z" }, lists, {}, prefer), {
-      target: "b",
-      id: "z",
-    });
-  });
-
-  // フォーカスしているワークスペース x を閉じると、閉じる返事より先に
-  // workspace.changed（x が消えた）→ shj のフォーカスが外れた（null）の順に知らせが届く。
-  // controller.ts はそれぞれで keepFocus（後者は adoptFocus も）を通すので、その間に描く一覧で
-  // フォーカスが一度も無くならない（サイドバーの並びが一瞬崩れない）ことを確かめる。
-  it("フォーカスしているワークスペースを閉じても、途中でフォーカスが無くならない", () => {
-    const before = {
-      a: [
-        ws({ id: "w", root: "/w" }),
-        ws({ id: "x", root: "/x" }),
-        ws({ id: "y", root: "/y" }),
-      ],
-      b: [ws({ id: "z", root: "/z" })],
-    };
-    const after = { ...before, a: before.a.filter((w) => w.id !== "x") };
-    const closing = { target: "a", id: "x" };
-    const next = { target: "a", id: "y" };
-    const drawn = (f: ReturnType<typeof keepFocus>) =>
-      focusedRow(rowsOf(["a", "b"], after, f))?.row;
-
-    // 1. 一覧から x が消えた（shj のフォーカスはまだ x）
-    const f1 = keepFocus(closing, after, { a: "x", b: "z" }, next);
-    assert.deepEqual(f1, next);
-    assert.equal(drawn(f1)?.band.id, "y");
-    // 2. shj のフォーカスが外れた
-    const f2 = keepFocus(
-      adoptFocus(f1, "a", null),
-      after,
-      { a: null, b: "z" },
-      next,
-    );
-    assert.deepEqual(f2, next);
-    assert.notEqual(drawn(f2), null);
-
-    // 移り先が無ければ、ほかのマシンの shj のフォーカス（b）に移る
-    assert.deepEqual(keepFocus(closing, after, { a: "x", b: "z" }), {
-      target: "b",
-      id: "z",
-    });
-  });
-});
-
-describe("shouldSendMoveTo", () => {
-  const lists = {
-    a: [ws({ id: "y", root: "/y" }), ws({ id: "w", root: "/w" })],
+describe("gwsOfShjFocus（今いるワークスペースが無いときに入る先）", () => {
+  const state: GwsState = {
+    list: [
+      {
+        id: "g1",
+        name: "",
+        num: 1,
+        tabs: [{ kind: "term", target: "a", ws: "x", title: "" }],
+      },
+      {
+        id: "g2",
+        name: "",
+        num: 2,
+        tabs: [{ kind: "term", target: "b", ws: "y", title: "" }],
+      },
+      { id: "g3", name: "", num: 3, tabs: [] },
+    ],
   };
-  const moveTo = { target: "a", id: "y" };
 
-  it("GUI のフォーカスがまだ移り先で、移り先が一覧にあれば伝える", () => {
-    assert.equal(
-      shouldSendMoveTo({ target: "a", id: "y" }, moveTo, lists),
-      true,
-    );
+  it("shj のフォーカスのターミナルのタブを持つワークスペースと、そのタブ（マシンの順で最初のもの）", () => {
+    assert.deepEqual(gwsOfShjFocus(state, { a: null, b: "y" }), {
+      gws: state.list[1],
+      term: { target: "b", ws: "y" },
+    });
+    assert.equal(gwsOfShjFocus(state, { a: "x", b: "y" })?.gws.id, "g1");
   });
 
-  it("待つあいだに別の帯を選んでいたら伝えない", () => {
-    assert.equal(
-      shouldSendMoveTo({ target: "a", id: "w" }, moveTo, lists),
-      false,
-    );
-    assert.equal(shouldSendMoveTo(null, moveTo, lists), false);
-  });
-
-  it("移り先も一覧から消えていたら伝えない", () => {
-    assert.equal(
-      shouldSendMoveTo(moveTo, moveTo, { a: [ws({ id: "w", root: "/w" })] }),
-      false,
-    );
-    assert.equal(shouldSendMoveTo(moveTo, moveTo, {}), false);
+  it("どのワークスペースにも入っていない・フォーカスが無ければ undefined", () => {
+    assert.equal(gwsOfShjFocus(state, { a: "gone", b: null }), undefined);
+    assert.equal(gwsOfShjFocus(state, {}), undefined);
   });
 });
 
@@ -736,6 +625,41 @@ describe("gwsRows", () => {
     assert.equal(r2.band.focused, false);
   });
 
+  it("タブが 1 つも無い空のワークスペースも、名前だけの行にする（#307）。内蔵ブラウザを使っていなくても出す", () => {
+    const state: GwsState = {
+      list: [
+        { id: "g1", name: "", num: 1, tabs: [] },
+        { id: "g2", name: "あとで", num: 2, tabs: [] },
+      ],
+    };
+    const groups = buildSidebar(["a"], up, { a: [lists.a[0]] }, null);
+    const rows = gwsRows(state, {
+      groups,
+      workspaces: { a: [lists.a[0]] },
+      focus: { target: "a", id: "a1" },
+      current: "g2",
+      browser: new Map(),
+      views: { g2: "gone" },
+      labelOf: machineLabel,
+      colorOf: () => "#000",
+      healthOf: () => "up",
+    });
+    assert.deepEqual(
+      rows.map((r) => [r.gws, r.target, r.band.id, r.band.title]),
+      [
+        ["g1", "", "g1", "ws1"],
+        ["g2", "", "g2", "あとで"],
+      ],
+    );
+    assert.ok(rows.every(isTermless));
+    const r = rows[1];
+    assert.equal(r.band.focused, true);
+    assert.equal(r.band.showTree, false);
+    assert.deepEqual(r.tabs.items, []);
+    assert.equal(r.tabs.shown, "");
+    assert.equal(r.tabs.focused, true);
+  });
+
   it("今出しているターミナルのタブが切れているマシンのものなら、最後に分かった名前で薄く出す", () => {
     const state: GwsState = {
       list: [
@@ -823,71 +747,39 @@ describe("buildSidebar の fixed", () => {
   });
 });
 
-describe("stepWorkspace（キーで移る）", () => {
-  const r = (target: string, id: string) => ({ target, band: { id } });
-  const rows = [r("local", "a"), r("ssh", "c"), r("local", "b"), r("ssh", "d")];
+describe("stepRow（キーで移る）", () => {
+  const rows = ["a", "c", "b", "d"].map((gws) => ({ gws }));
 
-  it("1 列の並びで、下へ・上へ（マシンが違っても、並びのとおり）", () => {
-    assert.deepEqual(
-      stepWorkspace(rows, { target: "local", id: "a" }, "next"),
-      { target: "ssh", id: "c" },
-    );
-    assert.deepEqual(stepWorkspace(rows, { target: "ssh", id: "c" }, "prev"), {
-      target: "local",
-      id: "a",
-    });
-    const many = Array.from({ length: 12 }, (_, i) => r("m", `w${i}`));
-    assert.deepEqual(stepWorkspace(many, { target: "m", id: "w9" }, "next"), {
-      target: "m",
-      id: "w10",
-    });
+  it("1 列の並びで、下へ・上へ（ターミナルのタブの有無やマシンによらず、並びのとおり）", () => {
+    assert.equal(stepRow(rows, "a", "next"), "c");
+    assert.equal(stepRow(rows, "c", "prev"), "a");
+    const many = Array.from({ length: 12 }, (_, i) => ({ gws: `g${i}` }));
+    assert.equal(stepRow(many, "g9", "next"), "g10");
   });
 
   it("返事を待つあいだに続けて押しても、向かっている先を起点にして進む", () => {
-    const current = { target: "local", id: "a" };
-    let heading: { target: string; id: string } | null = null;
+    let from = "a";
     const seen: string[] = [];
-    // フォーカスは前のまま（current）。向かっている先だけが進む
     for (let n = 0; n < 3; n++) {
-      const next = stepWorkspace(rows, stepFrom(heading, current), "next");
+      const next = stepRow(rows, from, "next");
       assert.ok(next);
-      heading = next;
-      seen.push(next.id);
+      from = next;
+      seen.push(next);
     }
     assert.deepEqual(seen, ["c", "b", "d"]);
-    // 向かっている先が無ければ、今のフォーカス
-    assert.deepEqual(stepFrom(null, current), current);
   });
 
   it("端で反対の端へ回る。1 つだけなら自分に戻る", () => {
-    assert.deepEqual(stepWorkspace(rows, { target: "ssh", id: "d" }, "next"), {
-      target: "local",
-      id: "a",
-    });
-    assert.deepEqual(
-      stepWorkspace(rows, { target: "local", id: "a" }, "prev"),
-      { target: "ssh", id: "d" },
-    );
-    assert.deepEqual(
-      stepWorkspace([r("m", "x")], { target: "m", id: "x" }, "next"),
-      { target: "m", id: "x" },
-    );
+    assert.equal(stepRow(rows, "d", "next"), "a");
+    assert.equal(stepRow(rows, "a", "prev"), "d");
+    assert.equal(stepRow([{ gws: "x" }], "x", "next"), "x");
   });
 
-  it("フォーカスが無ければ次は先頭・前は末尾。並びに無ければ同じ。1 つも無ければ null", () => {
-    assert.deepEqual(stepWorkspace(rows, null, "next"), {
-      target: "local",
-      id: "a",
-    });
-    assert.deepEqual(stepWorkspace(rows, null, "prev"), {
-      target: "ssh",
-      id: "d",
-    });
-    assert.deepEqual(stepWorkspace(rows, { target: "gone", id: "x" }, "next"), {
-      target: "local",
-      id: "a",
-    });
-    assert.equal(stepWorkspace([], null, "next"), null);
+  it("今のワークスペースが無ければ次は先頭・前は末尾。並びに無ければ同じ。1 つも無ければ null", () => {
+    assert.equal(stepRow(rows, null, "next"), "a");
+    assert.equal(stepRow(rows, null, "prev"), "d");
+    assert.equal(stepRow(rows, "gone", "next"), "a");
+    assert.equal(stepRow([], null, "next"), null);
   });
 });
 
@@ -952,5 +844,25 @@ describe("tabToReveal（#284）", () => {
       tabToReveal(snap("a", ["x", "y"], "x"), snap("a", ["y", "x"], "x")),
       undefined,
     );
+  });
+});
+
+describe("rowNear（行に出なくなった・閉じたワークスペースから移る先）", () => {
+  const list = ["g1", "g2", "g3", "g4"].map((id) => ({ id }));
+
+  it("並びで後ろの行、無ければ前の行。自分の行は選ばない", () => {
+    const rows = [{ gws: "g1" }, { gws: "g3" }, { gws: "g4" }];
+    // g2 は行に出ていない（隠れた）
+    assert.equal(rowNear(list, rows, "g2")?.gws, "g3");
+    assert.equal(rowNear(list, rows, "g4")?.gws, "g3");
+    assert.equal(
+      rowNear(list, [{ gws: "g1" }, { gws: "g2" }], "g4")?.gws,
+      "g2",
+    );
+  });
+
+  it("ほかに行が無ければ undefined", () => {
+    assert.equal(rowNear(list, [{ gws: "g2" }], "g2"), undefined);
+    assert.equal(rowNear(list, [], "g2"), undefined);
   });
 });

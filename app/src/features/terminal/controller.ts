@@ -25,7 +25,7 @@ export function createTerminals(deps: {
   workspaces: Accessor<Record<string, Workspace[]>>;
   /** マシンごとのターミナル（つないだときに features/sessions/controller.ts が入れる） */
   termGroups: Map<string, TermGroups>;
-  /** GUI のフォーカス（どのマシンの、どのワークスペースか） */
+  /** 画面に出すターミナルのタブ（どのマシンの、どのワークスペースか）。ターミナルのタブを持たないワークスペースに居る間は null */
   focus: Accessor<WorkspaceFocus | null>;
   /** 今使っているペイン（ブラウザのタブを出していればそのページ）にキーを向ける */
   focusTerminal: () => void;

@@ -1,23 +1,28 @@
 // 右のペイン。フォーカスしているワークスペースのターミナル（先頭がプライマリ）を、kisui serve が持つ分割の木の通りに並べる（terminal/）。
 // 内蔵ブラウザのタブを出していれば、その場所すべてがそのページになる（browser/。URL バー・新しいタブのページ・ページ内検索もここに重ねる）。
+// 空のワークスペース（#307）を選んでいる間は、タブが無いことを伝える画面（EmptyWorkspace.tsx）で覆う。
 import { Show, type JSX } from "solid-js";
 
 import type { Bookmarks } from "../../../features/browser/bookmarksStore.ts";
 import type { Pages } from "../../../features/browser/pages.ts";
 import type { BrowserTabs } from "../../../features/browser/tabsStore.ts";
-import { interceptKeys } from "../../../features/commands/commands.ts";
+import {
+  interceptKeys,
+  leaderKeyName,
+} from "../../../features/commands/commands.ts";
 import { IS_MAC } from "../../../features/commands/guiKeys.ts";
 import type { ReportProblem } from "../../../features/problem.ts";
 import type { Terminals } from "../../../features/terminal/controller.ts";
 import type { FocusUi } from "../focus.ts";
 import { usePorts } from "../../ports.ts";
-// CSS を持つ部品の import は、この順（ブラウザ → リーダーの案内 → ターミナル）を変えない（理由は page.tsx）
+// CSS を持つ部品の import は、この順（ブラウザ → リーダーの案内 → ターミナル → 空のワークスペース）を変えない（理由は page.tsx）
 import { BrowserArea } from "./browser/BrowserArea.tsx";
 import { FindBar } from "./browser/FindBar.tsx";
 import { NewTabPage } from "./browser/NewTabPage.tsx";
 import { UrlBar } from "./browser/UrlBar.tsx";
 import { leaderPath } from "../commands/LeaderMenu.tsx";
 import { TerminalGrid } from "./terminal/TerminalGrid.tsx";
+import { EmptyWorkspace } from "./EmptyWorkspace.tsx";
 
 /** 右のペイン。ターミナルのグリッドと、内蔵ブラウザを使うときはブラウザのページ（URL バー・新しいタブのページ・ページ内検索）を出す。 */
 export function ContentArea(props: {
@@ -25,6 +30,8 @@ export function ContentArea(props: {
   ref: (el: HTMLDivElement) => void;
   /** 内蔵ブラウザのタブを使うか（設定の [gui.browser] enabled。#202） */
   browser: boolean;
+  /** 空のワークスペース（タブが 1 つも無い。#307）を選んでいるか。タブが無いことを伝える画面を出す */
+  empty: boolean;
   terminals: Terminals;
   browserTabs: BrowserTabs;
   pages: Pages;
@@ -131,6 +138,13 @@ export function ContentArea(props: {
             )}
           </Show>
         </BrowserArea>
+      </Show>
+      <Show when={props.empty}>
+        <EmptyWorkspace
+          leader={leaderKeyName(IS_MAC)}
+          browser={props.browser}
+          focusRef={(f) => props.focusUi.setEmptyFocus(f)}
+        />
       </Show>
     </div>
   );

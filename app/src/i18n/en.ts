@@ -33,7 +33,7 @@ export const en = {
   "leader.tab.rename": "Rename this tab",
   "cannot.pane.none.title": "No panes here",
   "cannot.pane.none.text":
-    "This workspace has only browser tabs, so it has no terminal panes. Open a terminal tab with t n or t N.",
+    "This workspace has no terminal tabs, so it has no panes. Open a terminal tab with t n or t N.",
   "leader.machine": "Open the machine list",
   "leader.pane.group": "Panes",
   "leader.pane.split": "Split pane",
@@ -565,6 +565,14 @@ export const en = {
   "keyspec.err": "Cannot read the key: {key}",
   "machineDialog.countdownSep": " · ",
   "boot.error": "Could not load the terminal component (coneko-term): {error}",
+  "emptyWorkspace.title": "This workspace has no tabs",
+  "emptyWorkspace.text":
+    "Its name and place in the list stay until you close the workspace. Add a tab to start working here.",
+  "emptyWorkspace.addTerminal": "New terminal tab (pick the machine)",
+  "emptyWorkspace.addBrowser": "New browser tab",
+  "emptyWorkspace.closeWorkspace":
+    "Close this workspace (from the workspace switcher; confirm with y)",
+  "emptyWorkspace.plus": "You can also add a tab with the + in the sidebar.",
 } as const satisfies Record<string, string>;
 
 /** 表のキー。`T` に渡す。 */
