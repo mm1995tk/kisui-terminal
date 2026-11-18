@@ -22,6 +22,7 @@ import { isCancelKey } from "../../components/cancelKey.ts";
 import { moveRow } from "../../../features/sessions/machineList.ts";
 import { confirmKey, switcherHints, switcherKey } from "./switcherKey.ts";
 import { createSwitcherColumns } from "./switcherColumns.ts";
+import { createSwitcherTabActions } from "./switcherTabActions.ts";
 import { startTabDrag } from "./tabMoveDrag.ts";
 import "./switcher.css";
 
@@ -61,6 +62,17 @@ export function WorkspaceSwitcher(props: {
   onRename: (gws: string, name: string) => string | undefined;
   /** 閉じることを確かめた（窓は開けたまま。閉じられなければ、呼んだ側が理由を出す） */
   onClose: (gws: string) => void;
+  /** タブの名前を変える入力欄を開くときの、今の名前と、空にしたときの名前（タブが無ければ undefined） */
+  tabRenameInit: (
+    gws: string,
+    key: string,
+  ) => { current: string; auto: string } | undefined;
+  /** タブの入力欄で名前を決めた。断られたら、その理由を返す（入力欄は開けたまま） */
+  onTabRename: (gws: string, key: string, name: string) => string | undefined;
+  /** タブを閉じる（x・✕。確かめずに閉じ、プログラムが動いているターミナルのタブだけ、呼んだ側が確認を出す。窓は開けたまま） */
+  onTabClose: (gws: string, key: string) => void;
+  /** タブを 1 つ下・上へ並べ替える（タブの列の J K） */
+  onTabReorder: (gws: string, key: string, dir: "up" | "down") => void;
   onCancel: () => void;
 }): JSX.Element {
   // 選んでいるのは位置ではなくワークスペース。並べ替えても、同じワークスペースを選び続ける
@@ -111,11 +123,27 @@ export function WorkspaceSwitcher(props: {
     if (gws !== sel()) {
       setEditing(undefined);
       setConfirming(undefined);
+      tabActions.stop();
     }
     setSel(gws);
   }
   /** 窓のキーが届く所（2 つの列を囲む入れ物）にフォーカスを戻す（ボタンや入力欄を使ったあと） */
   const focusList = () => root.focus();
+  // 右の列のタブの操作（switcherTabActions.ts）。選ぶワークスペースを変えたら、名前を変えているタブはやめる
+  const tabActions = createSwitcherTabActions({
+    tabs,
+    selected,
+    selectedTab,
+    pickTab,
+    clearRowState: () => {
+      setEditing(undefined);
+      setConfirming(undefined);
+    },
+    focusList,
+    init: props.tabRenameInit,
+    rename: props.onTabRename,
+    close: props.onTabClose,
+  });
 
   /** ワークスペースの行を押した：選んでいる行（キーが左の列で効いているとき）をもう 1 回押すと開く。それ以外は選ぶだけ。 */
   function pressRow(r: Row) {
@@ -140,6 +168,7 @@ export function WorkspaceSwitcher(props: {
     }
     setEditing(undefined);
     setConfirming(undefined);
+    tabActions.stop();
     pickTab(key);
     focusList();
   }
@@ -151,12 +180,14 @@ export function WorkspaceSwitcher(props: {
     select(r.gws);
     toWs();
     setConfirming(undefined);
+    tabActions.stop();
     setEditing({ gws: r.gws, ...init });
   }
   function startClose(r: Row) {
     select(r.gws);
     toWs();
     setEditing(undefined);
+    tabActions.stop();
     setConfirming(r.gws);
     focusList();
   }
@@ -209,10 +240,12 @@ export function WorkspaceSwitcher(props: {
         else if (!inTabs) props.onGo(r);
         break;
       }
-      // 並べ替える・作る・名前を変える・閉じるは、ワークスペースの列だけで効く（タブの列では、別の issue で足す）
+      // 並べ替える・名前を変える・閉じるは、効いている列の行に効く（ワークスペースの列ならワークスペース、タブの列ならタブ）。作るは、ワークスペースの列だけ
       case "reorder": {
         const r = selected();
-        if (r && !inTabs) props.onReorder(r.gws, k.dir);
+        const t = selectedTab();
+        if (r && inTabs && t) props.onTabReorder(r.gws, t.key, k.dir);
+        else if (r && !inTabs) props.onReorder(r.gws, k.dir);
         break;
       }
       case "new":
@@ -220,12 +253,16 @@ export function WorkspaceSwitcher(props: {
         break;
       case "rename": {
         const r = selected();
-        if (r && !inTabs) startRename(r);
+        const t = selectedTab();
+        if (r && inTabs && t) tabActions.start(r.gws, t.key);
+        else if (r && !inTabs) startRename(r);
         break;
       }
       case "close": {
         const r = selected();
-        if (r && !inTabs) startClose(r);
+        const t = selectedTab();
+        if (r && inTabs && t) tabActions.close(r.gws, t.key);
+        else if (r && !inTabs) startClose(r);
         break;
       }
     }
@@ -360,6 +397,15 @@ export function WorkspaceSwitcher(props: {
                   rowId={tabId}
                   onTab={pressTab}
                   onGrab={grabTab}
+                  onRename={tabActions.start}
+                  onClose={tabActions.close}
+                  editKey={tabActions.editing()?.key}
+                  edit={tabActions.editing()}
+                  onRenameSubmit={tabActions.submit}
+                  onRenameCancel={(byKey) => {
+                    tabActions.stop();
+                    if (byKey) focusList();
+                  }}
                 />
               )}
             </Show>

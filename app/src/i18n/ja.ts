@@ -433,6 +433,7 @@ export const ja: Record<Key, string> = {
   "switcher.keys.new": "ワークスペースを作る",
   "switcher.keys.rename": "名前を変える",
   "switcher.keys.closeWorkspace": "ワークスペースを閉じる",
+  "switcher.keys.closeTab": "タブを閉じる",
   "switcher.confirmClose": "{title} を閉じますか。y：閉じる、n：やめる",
   "switcher.keys.reorder": "並べ替え",
   "tabMove.label": "タブを移すワークスペース",

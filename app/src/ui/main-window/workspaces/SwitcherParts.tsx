@@ -177,6 +177,14 @@ export function SwitcherTabs(props: {
   onTab: (gws: string, key: string) => void;
   /** タブの行のつかむ所を押した。省くと動かせない */
   onGrab?: (e: PointerEvent, key: string) => void;
+  /** タブの行の鉛筆（r と同じ）・✕（x と同じ）を押した */
+  onRename?: (gws: string, key: string) => void;
+  onClose?: (gws: string, key: string) => void;
+  /** 名前を変えているタブ（その行の 1 行目が入力欄になる）と、入力欄の決定・やめる */
+  editKey?: string;
+  edit?: RowEdit;
+  onRenameSubmit?: (name: string) => void;
+  onRenameCancel?: (byKey: boolean) => void;
 }): JSX.Element {
   const r = () => props.row;
   return (
@@ -197,6 +205,11 @@ export function SwitcherTabs(props: {
               selected={props.selectedKey === t.key}
               id={props.rowId?.(t.key)}
               onTab={() => props.onTab(r().gws, t.key)}
+              onRename={() => props.onRename?.(r().gws, t.key)}
+              onClose={() => props.onClose?.(r().gws, t.key)}
+              edit={props.editKey === t.key ? props.edit : undefined}
+              onRenameSubmit={props.onRenameSubmit}
+              onRenameCancel={props.onRenameCancel}
               onGrab={
                 props.onGrab ? (e) => props.onGrab?.(e, t.key) : undefined
               }
