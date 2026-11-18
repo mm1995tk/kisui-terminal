@@ -1,0 +1,121 @@
+/* 共通の色の役割・状態・余白・字・角の丸み（デザインシステムの基礎。#315）。
+   theme.css は生の色（パレット）、ここは「何に使う色・大きさか」。部品の CSS は、パレットではなくここの名前を使う。
+   役割と使い分け・状態の意味は docs/design/design-system.md。
+   Storybook の styles/Tokens は、ここの値と、各行のすぐ上のコメント（説明）をそのまま並べる。説明は値の直前に 1 つ書く。 */
+:root {
+  /* == 色：地と字と縁 == */
+
+  /* 窓の地。ターミナルとエディタの地と同じ */
+  --color-bg: var(--gh-bg);
+  /* 地から浮かせるもの（カード・知らせ）の地 */
+  --color-surface: var(--gh-bg-raised);
+  /* 入力欄と、等幅で出す長いエラーの地 */
+  --color-field: var(--gh-bg-field);
+  /* カードの縁と、中の区切り */
+  --color-border: var(--gh-border);
+  /* 押せるもの・入力欄の縁 */
+  --color-border-strong: var(--gh-border-strong);
+  /* 窓の地の上の本文 */
+  --color-text: var(--gh-text);
+  /* カードの中の字と見出し */
+  --color-text-strong: var(--gh-text-strong);
+  /* 補いの字（入力欄のラベル・説明・状態） */
+  --color-text-muted: var(--gh-text-muted);
+  /* さらに退いた字。未接続の丸の縁 */
+  --color-text-dim: var(--gh-text-dim);
+  /* 主の操作（主ボタン）の地 */
+  --color-accent: var(--gh-accent);
+  /* 主ボタンにポインタが乗ったときの地 */
+  --color-accent-hover: var(--gh-accent-hover);
+  /* accent の地の上の字 */
+  --color-on-accent: var(--gh-on-accent);
+  /* 真ん中の窓の後ろを暗くする幕 */
+  --color-backdrop: rgba(11, 12, 15, 0.6);
+  /* 後ろを触れたまま重ねるもの（右下の知らせ）の影 */
+  --shadow-raised: 0 8px 24px rgba(0, 0, 0, 0.5);
+
+  /* == 状態（意味は docs/design/design-system.md の「状態」） == */
+
+  /* hover：押せるものの上にポインタがある */
+  --state-hover-bg: var(--gh-bg-hover);
+  /* フォーカス：キーの行き先を示す枠の色 */
+  --state-focus-ring: var(--gh-accent);
+  /* キーボードで移ったフォーカス（focus-visible）の枠の太さ */
+  --state-focus-ring-width: 2px;
+  /* その枠と部品の間 */
+  --state-focus-ring-offset: 2px;
+  /* 選択：窓の一覧で選んでいる行の地 */
+  --state-selected-bg: var(--gh-bg-hover);
+  /* 選択：窓の一覧で選んでいる行の枠 */
+  --state-selected-outline: var(--gh-accent);
+  /* 無効・処理中：押せないものの濃さ */
+  --state-disabled-opacity: 0.5;
+  /* 成功：済んだ・できた */
+  --state-success: var(--gh-green);
+  /* 警告：続けられるが気をつける。今は窓のエラーの字もこの色（未確定。design-system.md） */
+  --state-warning: var(--gh-yellow);
+  /* 失敗：できなかった・壊す操作 */
+  --state-danger: var(--gh-red);
+
+  /* == 接続の状態（状態の丸。フォーカス・選択・マシンの色とは別の意味） == */
+
+  /* 接続中 */
+  --connection-up: var(--gh-green);
+  /* つないでいる途中・再接続中 */
+  --connection-pending: var(--gh-yellow);
+  /* 未接続（枠だけ） */
+  --connection-down: var(--gh-text-dim);
+
+  /* == 余白（名前の数は px。この中から選ぶ） == */
+
+  /* 並んだ行の間 */
+  --space-2: 2px;
+  /* 一覧の上下・見出しの上下 */
+  --space-4: 4px;
+  /* ラベルと入力欄の間 */
+  --space-6: 6px;
+  /* ボタンの中の字とアイコンの間・行の左右 */
+  --space-8: 8px;
+  /* ボタンの間・行の上下 */
+  --space-10: 10px;
+  /* カードの中の塊の間・入力欄の左右 */
+  --space-12: 12px;
+  /* ボタンの左右・画面の端からの最小の間 */
+  --space-16: 16px;
+  /* カードの内側の左右 */
+  --space-20: 20px;
+
+  /* == 字 == */
+
+  /* 画面の字（fonts.ts で同梱） */
+  --font-ui: "IBM Plex Sans JP", system-ui, sans-serif;
+  /* 等幅の字。ターミナルと同じ並び（コマンド・パス・長いエラー） */
+  --font-mono: var(--gh-mono);
+  /* 一覧の見出し・キーの印 */
+  --text-label: 11px;
+  /* 入力欄のラベル・補いの説明・等幅の字 */
+  --text-caption: 12px;
+  /* 本文。画面の既定 */
+  --text-body: 13px;
+  /* 入力欄に打つ字 */
+  --text-input: 14px;
+  /* 窓の見出し */
+  --text-title: 16px;
+  /* 本文の太さ */
+  --weight-regular: 400;
+  /* 見出し・主ボタン・選んでいる行の太さ */
+  --weight-strong: 600;
+  /* 折り返す本文の行の高さ */
+  --leading-text: 1.6;
+
+  /* == 角の丸み（名前の数は px） == */
+
+  /* キーの印 */
+  --radius-4: 4px;
+  /* 小さいアイコンのボタン */
+  --radius-6: 6px;
+  /* ボタン・入力欄・行 */
+  --radius-8: 8px;
+  /* カード */
+  --radius-12: 12px;
+}

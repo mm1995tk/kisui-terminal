@@ -1,4 +1,4 @@
-// どの story にも効く設定（#314）。アプリと同じ色（theme.css）と字（fonts.ts）を読み、文は翻訳の表（app/src/i18n/）で引く。
+// どの story にも効く設定（#314）。アプリと同じ色（theme.css・tokens.css）と字（fonts.ts）を読み、文は翻訳の表（app/src/i18n/）で引く。
 // 言語は上の道具の「Language」で en と ja を切り替える。
 import { FORCE_REMOUNT } from "storybook/internal/core-events";
 import { addons } from "storybook/preview-api";
@@ -6,6 +6,7 @@ import { createDecorator, type Preview } from "storybook-solidjs-vite";
 
 import { isLang, lang, setLang } from "../app/src/i18n/index.ts";
 import "../app/src/ui/styles/theme.css";
+import "../app/src/ui/styles/tokens.css";
 import "../app/src/ui/styles/fonts.ts";
 import "./preview.css";
 
