@@ -6,6 +6,10 @@ import { Show, type JSX } from "solid-js";
 import { inlineKeyAction } from "./inlineInputKeys.ts";
 import "./inline-input.css";
 
+/**
+ * その場の入力欄 1 つと、断られた理由。開くと 1 拍置いてフォーカスを取り、selection の範囲（省けば全部）を選ぶ。
+ * 値は開いたときの value から始まり、打った字は入力欄の中だけに持つ（決めたときに onSubmit に渡す）。
+ */
 export function InlineInput(props: {
   /** 入力欄の初めの値 */
   value: string;
