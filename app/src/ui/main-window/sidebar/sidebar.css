@@ -527,12 +527,17 @@ div.band-main {
 }
 /* 行の高さは、ターミナルのタブもブラウザのタブも同じ（git のあるターミナルのタブの 3 行ぶん）。行が少ないタブは、真ん中にそろえる */
 .tab-line {
+  /* 行の寸法の置き場。高さも、鉛筆と ✕ の位置も、ここから計算する */
+  --tab-l1-h: 22px;
+  --tab-l-h: 16px;
+  --tab-gap: 3px;
+  --tab-pad-y: 8px;
   position: relative;
   box-sizing: border-box;
   display: flex;
   align-items: center;
-  min-height: 76px;
-  padding: 8px 6px 8px 0;
+  min-height: calc(var(--tab-pad-y) * 2 + var(--tab-l1-h) + (var(--tab-l-h) + var(--tab-gap)) * 2);
+  padding: var(--tab-pad-y) 6px var(--tab-pad-y) 0;
 }
 .tab-line:hover {
   background: var(--band-hover);
@@ -542,7 +547,7 @@ div.band-main {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: var(--tab-gap);
   padding: 0;
   border: 0;
   background: transparent;
@@ -554,7 +559,7 @@ div.band-main {
 /* 鉛筆と ✕ は 1 行目の右に重ねる。名前が下に潜らないよう、1 行目の右は空けておく */
 .tab-actions {
   position: absolute;
-  top: 8px;
+  top: var(--tab-pad-y);
   right: 6px;
   display: flex;
   gap: 0;
@@ -563,7 +568,7 @@ div.band-main {
   display: flex;
   align-items: center;
   gap: 6px;
-  height: 22px;
+  height: var(--tab-l1-h);
   padding-right: 46px;
   font-size: 12px;
 }
@@ -614,7 +619,7 @@ div.band-main {
   align-items: center;
   gap: 6px;
   min-width: 0;
-  height: 16px;
+  height: var(--tab-l-h);
   color: var(--sidebar-muted);
   font-size: 11px;
 }
@@ -649,10 +654,13 @@ div.band-main {
   opacity: 0.55;
 }
 /* 鉛筆と ✕ は 1 行目の右に重ねるので、真ん中にそろえて 1 行目が下がった分だけ下げる。
-   1 行目 22px・2 行目と 3 行目 16px・行の間 3px。中身が入る高さは 60px（76px から上下の 8px を引いたもの） */
+   中身が入る高さ（--tab-body-h）は、行の高さから上下の余白を引いたもの。行が 1 つだけなら 1 行目の高さ、2 つなら 1 行目 + 行の間 + 2 行目 */
+.tab-line {
+  --tab-body-h: calc(var(--tab-l1-h) + (var(--tab-l-h) + var(--tab-gap)) * 2);
+}
 .tab-line:not(:has(.tab-l3)):has(.tab-l2) .tab-actions {
-  top: calc(8px + (60px - 41px) / 2);
+  top: calc(var(--tab-pad-y) + (var(--tab-body-h) - var(--tab-l1-h) - var(--tab-l-h) - var(--tab-gap)) / 2);
 }
 .tab-line:not(:has(.tab-l2)) .tab-actions {
-  top: calc(8px + (60px - 22px) / 2);
+  top: calc(var(--tab-pad-y) + (var(--tab-body-h) - var(--tab-l1-h)) / 2);
 }
