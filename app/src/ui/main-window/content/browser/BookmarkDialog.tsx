@@ -12,7 +12,12 @@ import {
 } from "solid-js";
 
 import { leaderKeyName } from "../../../../features/commands/commands.ts";
-import { ModalCard } from "../../../components/Card.tsx";
+import {
+  ModalCard,
+  CardBody,
+  CardTitle,
+  CardText,
+} from "../../../components/Card.tsx";
 import { moveSelection } from "../../../../features/clipboard/history.ts";
 import { IS_MAC } from "../../../../features/commands/guiKeys.ts";
 import { openKeyList } from "../../commands/KeyListDialog.tsx";
@@ -27,6 +32,7 @@ import {
   type ChromeNode,
 } from "../../../../features/browser/bookmarkTree.ts";
 import "./browser.css";
+import { Input } from "../../../components/Field.tsx";
 
 /** 一覧の 1 行（フォルダか、ブックマーク）。フォルダは深さだけ字下げする。 */
 function BookmarkDialogRow(props: {
@@ -141,11 +147,13 @@ export function BookmarkDialog(props: {
           : T("bookmarks.empty.noMatch");
 
   return (
-    <ModalCard label={T("bookmarks.title")} onCancel={props.onCancel}>
-      <div class="card-body">
-        <h1 class="card-title">{T("bookmarks.title")}</h1>
-        <input
-          class="card-input"
+    <ModalCard
+      label={T("bookmarks.title")}
+      onCancel={props.onCancel}
+      header={<CardTitle>{T("bookmarks.title")}</CardTitle>}
+    >
+      <CardBody>
+        <Input
           type="text"
           spellcheck={false}
           autocomplete="off"
@@ -159,8 +167,8 @@ export function BookmarkDialog(props: {
           onKeyDown={onKeyDown}
           ref={(el) => queueMicrotask(() => el.focus())}
         />
-        <p class="card-text history-hint">{T("bookmarks.hint")}</p>
-      </div>
+        <CardText class="history-hint">{T("bookmarks.hint")}</CardText>
+      </CardBody>
       <Show
         when={shown().length > 0}
         fallback={<p class="card-empty history-empty">{emptyText()}</p>}

@@ -5,6 +5,13 @@ import { For, Show, type JSX } from "solid-js";
 
 import "../../components/card.css";
 import { Button } from "../../components/Button.tsx";
+import {
+  CardBody,
+  CardTitle,
+  CardText,
+  CardError,
+  CardActions,
+} from "../../components/Card.tsx";
 
 /** 知らせ 1 つ。 */
 export interface Notice {
@@ -34,16 +41,16 @@ export function Notices(props: {
       <For each={props.notices}>
         {(n) => (
           <aside class="card card-notice" role="alert" aria-label={n.title}>
-            <div class="card-body">
-              <h2 class="card-title">{n.title}</h2>
+            <CardBody>
+              <CardTitle level={2}>{n.title}</CardTitle>
               <Show when={n.text}>
-                <p class="card-text">{n.text}</p>
+                <CardText>{n.text}</CardText>
               </Show>
               <Show when={n.error}>
-                <pre class="card-error">{n.error}</pre>
+                <CardError>{n.error}</CardError>
               </Show>
-            </div>
-            <div class="card-actions">
+            </CardBody>
+            <CardActions>
               <For each={n.secondary ?? []}>
                 {(b) => <Button onClick={b.run}>{b.label}</Button>}
               </For>
@@ -54,7 +61,7 @@ export function Notices(props: {
                   </Button>
                 )}
               </Show>
-            </div>
+            </CardActions>
           </aside>
         )}
       </For>

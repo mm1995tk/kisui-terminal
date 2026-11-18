@@ -16,17 +16,20 @@ kisui-terminal の窓（`app/src/`）の、共通の色・余白・字・状態�
 | 共通の値               | `ui/styles/tokens.css`（読み取りは `tokens.ts`）            | `styles/Tokens`（色・状態・余白・字・角）                     |
 | 状態の決まり           | `tokens.css` の `--state-*`・`--connection-*`、この文書     | `styles/Tokens/States`、`components/Button` の各状態           |
 | ボタン                 | `ui/components/Button.tsx`・`button.css`                    | `components/Button`                                           |
-| 窓の枠                 | `ui/components/Card.tsx` の `ModalCard`、`card.css`         | `components/ModalCard`                                        |
-| 組み合わせの例         | 下の「組み合わせの例」の窓（アプリの窓そのもの）            | `components/RenameDialog`、`main-window/…`                    |
+| 窓の枠と中の部分       | `ui/components/Card.tsx` の `ModalCard`・`CardBody`・`CardTitle`・`CardText`・`CardError`・`CardActions`、`card.css` | `components/ModalCard`                    |
+| 入力欄（形だけ）       | `ui/components/Field.tsx` の `Field`・`Input`               | `components/Field`                                            |
+| 組み合わせた窓         | `ui/components/dialogs/`（機能の知識を持たない窓）と、下の「組み合わせの例」の窓 | `components/dialogs/RenameDialog`、`main-window/…` |
 
-窓と知らせの下のボタンは `Button` を使う（`button` に CSS のクラスを付けて直に書かない）。
+窓と知らせの下のボタンは `Button` を使う（`button` に CSS のクラスを付けて直に書かない）。窓の中の見出し・本文・ボタンの並び・入力欄も、`Card.tsx` と `Field.tsx` の部品を使う。
+
+部品は 2 段に分ける。`ui/components/` の直下は、1 つの役目の部品（ボタン・窓の枠と中の部分・入力欄）。`ui/components/dialogs/` は、それを組んだ窓のうち、機能の知識を持たないもの（名前を変える窓）。機能の知識を持つ窓（ワークスペースを閉じる確認など）は、使う所（`ui/main-window/…`）に置く。
 
 後に回したもの（順は決めていない。サイドバーとワークスペースの Issue（#303・#311・#307・#308）で使う所から進める）：
 
 | 部品                                       | 今の実装                                | 後に回した理由                                                 |
 | ------------------------------------------ | --------------------------------------- | -------------------------------------------------------------- |
-| 入力欄（ラベル付き）                       | `.card-field`・`.card-input`（7 ファイル） | 入力の失敗の伝え方（#306 の「入力に失敗したときの説明」）が未確定 |
-| エラーの文                                 | `.card-error`                           | 色（警告の黄か失敗の赤か）が未確定                             |
+| 入力の失敗の伝え方                         | `Field`・`Input` と `CardError`           | #306 の「入力に失敗したときの説明」が未確定。部品は形だけで、見た目は今のまま |
+| エラーの文の色                             | `CardError`                             | 色（警告の黄か失敗の赤か）が未確定                             |
 | 窓の一覧の行                               | `.card-row`・`.card-rows`               | 選択とフォーカスの見せ方が未確定                               |
 | 状態の丸                                   | `.state-dot`                            | サイドバーの見出しと合わせて決める                             |
 | チェックボックス・小さいアイコンのボタン   | `.card-check`・`.history-close`         | 使う所が 1〜2 か所。増えたときに部品にする                     |
@@ -46,7 +49,9 @@ kisui-terminal の窓（`app/src/`）の、共通の色・余白・字・状態�
 | `ui/styles/Tokens.stories.tsx`          | `tokens.css` の名前・値・説明を並べる                                                  |
 | `ui/styles/tokens.test.ts`              | 下の「テストが見張ること」                                                             |
 | `ui/components/Button.tsx`・`button.css` | ボタン                                                                                |
-| `ui/components/Card.tsx`・`card.css`    | 窓の枠（`ModalCard`）と、カードの中の並び（`.card-body`・`.card-actions` など）        |
+| `ui/components/Card.tsx`・`card.css`    | 窓の枠（`ModalCard`）と、カードの中の部分（`CardBody`・`CardTitle`・`CardText`・`CardError`・`CardActions`） |
+| `ui/components/Field.tsx`               | 入力欄（`Field` がラベル、`Input` が 1 行の入力）                                       |
+| `ui/components/dialogs/`                | 部品を組んだ窓のうち、機能の知識を持たないもの（`RenameDialog`）                       |
 
 `theme.css` と `tokens.css` は、起動のとき `index.tsx` が読む（Storybook では `.storybook/preview.tsx`）。
 
@@ -137,7 +142,11 @@ kisui-terminal の窓（`app/src/`）の、共通の色・余白・字・状態�
   - `width`：省くと 560px。キーの一覧・マシンの一覧は 640px、ワークスペースを切り替える窓は 880px。狭い画面では左右 16px をあけて縮む。
   - `focusSelf`：ユーザーの操作と関係なく開く窓（確認・ssh の質問・許可）。フォーカスを中のボタンではなく窓そのものに置き、打っていた Enter がボタンを押さないようにする。
   - `closeOnOutside`：打ちかけの入力を失わない窓だけ、外のクリックで閉じる。
-- **中の並び**：`.card-body`（見出し `h1.card-title`・本文 `.card-text`・入力欄・`.card-error`）の後に `.card-actions`（`Button` を右寄せ。主ボタンが右端）。狭いとボタンは折り返す。
+  - `header`・`footer`：上と下に固定する段（下の「3 つの段」）。JSX をそのまま渡す。
+- **3 つの段**：`header`（見出し。ふつうは `CardTitle`）・中身（`children`）・`footer`（ふつうは `CardActions`。キーの案内も置ける）。見出しと `footer` は動かず、窓の高さに収まらないときは中身だけがスクロールする。段の境目には、カードの縁と同じ色（`--color-border`）の 1px の線を、いつも引く。`footer` は省ける。`header` を省けるのは、中身が自分で見出しを描く窓（履歴の一覧 `HistoryPanel`）だけ。
+- **段の中身**：中身は `CardBody`（本文 `CardText`・入力欄 `Field`・理由 `CardError`）や一覧。`CardActions` は `Button` を右寄せにし、主ボタンが右端。狭いとボタンは折り返す。窓の中で `.card-body` などの class を手で書かない。右下の知らせも同じ部分を使う（見出しは `CardTitle level={2}`）。
+- **送るボタン**：form の送るボタンは `footer`（form の外）に置くので、`Button` の `form` に form の id を渡す（`AskpassDialog`）。
+- **閉じ方**：閉じるのは Esc（キー）を基本にする。窓の右上の × は置かない。`footer` にキーの案内を出すかどうかは、#306 の「基本操作の共通フッタと `?`」で決める。
 - **操作とフォーカス**：開くと中の最初の押せるもの（`focusSelf` なら窓そのもの）にフォーカスが移る。Esc で `onCancel`（macOS の全画面が解けないよう、Esc の既定の動きは止める）。閉じると、開く前にフォーカスがあった所へ戻す。決める（Enter）は窓ごとに決める（入力欄の Enter で決める窓は、入力欄が `isComposingKey` で変換の Enter を除く）。
 - **組み合わせの例**：下の表。
 
@@ -147,7 +156,7 @@ kisui-terminal の窓（`app/src/`）の、共通の色・余白・字・状態�
 
 | 窓                                                   | 組み合わせ                                                         | Storybook                                       |
 | ---------------------------------------------------- | ------------------------------------------------------------------ | ----------------------------------------------- |
-| 名前を変える窓（`ui/components/RenameDialog.tsx`）   | 窓の枠・入力欄・エラーの文・やめると主ボタン                       | `components/RenameDialog`                       |
+| 名前を変える窓（`ui/components/dialogs/RenameDialog.tsx`） | 窓の枠・入力欄・エラーの文・やめると主ボタン                 | `components/dialogs/RenameDialog`               |
 | ワークスペースを閉じる確認（`main-window/workspaces/CloseWorkspaceCard.tsx`） | `focusSelf` の窓・見出しと本文・やめると主ボタン | `main-window/workspaces/CloseWorkspaceCard`     |
 | kisui を入れるかの確認（`main-window/sessions/InstallCard.tsx`） | `focusSelf` の窓・本文・前に失敗した理由・ボタン         | `main-window/sessions/InstallCard`              |
 | 新しい版の知らせ（`main-window/notifications/UpdateBar.tsx`） | 右下の知らせ・本文・失敗の理由・処理中の主ボタン          | `main-window/notifications/UpdateBar`           |

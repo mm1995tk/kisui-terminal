@@ -5,7 +5,7 @@ import { Show, type JSX } from "solid-js";
 import type { Sessions } from "../../../features/sessions/controller.ts";
 import type { MachineRow } from "../../../features/sessions/machineList.ts";
 import type { SessionState } from "../../../features/sessions/session.ts";
-import { RenameDialog } from "../../components/RenameDialog.tsx";
+import { RenameDialog } from "../../components/dialogs/RenameDialog.tsx";
 import { AddMachine } from "./AddMachine.tsx";
 import { AskpassDialog } from "./AskpassDialog.tsx";
 import { InstallCard } from "./InstallCard.tsx";

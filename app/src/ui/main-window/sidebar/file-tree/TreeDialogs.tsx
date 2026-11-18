@@ -5,7 +5,15 @@ import { T } from "../../../../i18n/index.ts";
 import { createSignal, Show, type JSX } from "solid-js";
 
 import { Button } from "../../../components/Button.tsx";
-import { ModalCard } from "../../../components/Card.tsx";
+import {
+  ModalCard,
+  CardBody,
+  CardTitle,
+  CardError,
+  CardActions,
+  CardText,
+} from "../../../components/Card.tsx";
+import { Field, Input } from "../../../components/Field.tsx";
 
 /** 窓に出す理由（Error の message か文字列）。 */
 function reason(e: unknown): string {
@@ -40,13 +48,23 @@ export function NameDialog(props: {
     }
   };
   return (
-    <ModalCard label={props.title} onCancel={props.onCancel}>
-      <div class="card-body">
-        <h1 class="card-title">{props.title}</h1>
-        <label class="card-field">
+    <ModalCard
+      label={props.title}
+      onCancel={props.onCancel}
+      header={<CardTitle>{props.title}</CardTitle>}
+      footer={
+        <CardActions>
+          <Button onClick={props.onCancel}>{T("button.cancel")}</Button>
+          <Button variant="primary" busy={busy()} onClick={() => void submit()}>
+            {props.submit}
+          </Button>
+        </CardActions>
+      }
+    >
+      <CardBody>
+        <Field>
           {props.field}
-          <input
-            class="card-input"
+          <Input
             type="text"
             value={value()}
             onInput={(e) => setValue(e.currentTarget.value)}
@@ -72,21 +90,11 @@ export function NameDialog(props: {
             }
             autofocus
           />
-        </label>
+        </Field>
         <Show when={error()}>
-          {(e) => (
-            <pre class="card-error" role="alert">
-              {e()}
-            </pre>
-          )}
+          {(e) => <CardError role="alert">{e()}</CardError>}
         </Show>
-      </div>
-      <div class="card-actions">
-        <Button onClick={props.onCancel}>{T("button.cancel")}</Button>
-        <Button variant="primary" busy={busy()} onClick={() => void submit()}>
-          {props.submit}
-        </Button>
-      </div>
+      </CardBody>
     </ModalCard>
   );
 }
@@ -118,28 +126,26 @@ export function DeleteDialog(props: {
       label={T("deleteDialog.label")}
       onCancel={props.onCancel}
       focusSelf
+      header={
+        <CardTitle>{T("deleteDialog.title", { path: props.path })}</CardTitle>
+      }
+      footer={
+        <CardActions>
+          <Button onClick={props.onCancel}>{T("button.cancelAlt")}</Button>
+          <Button variant="primary" busy={busy()} onClick={() => void yes()}>
+            {T("deleteDialog.yes")}
+          </Button>
+        </CardActions>
+      }
     >
-      <div class="card-body">
-        <h1 class="card-title">
-          {T("deleteDialog.title", { path: props.path })}
-        </h1>
-        <p class="card-text">
+      <CardBody>
+        <CardText>
           {props.dir ? T("deleteDialog.dir") : T("deleteDialog.file")}
-        </p>
+        </CardText>
         <Show when={error()}>
-          {(e) => (
-            <pre class="card-error" role="alert">
-              {e()}
-            </pre>
-          )}
+          {(e) => <CardError role="alert">{e()}</CardError>}
         </Show>
-      </div>
-      <div class="card-actions">
-        <Button onClick={props.onCancel}>{T("button.cancelAlt")}</Button>
-        <Button variant="primary" busy={busy()} onClick={() => void yes()}>
-          {T("deleteDialog.yes")}
-        </Button>
-      </div>
+      </CardBody>
     </ModalCard>
   );
 }

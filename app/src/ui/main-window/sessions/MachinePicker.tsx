@@ -2,7 +2,12 @@ import { T } from "../../../i18n/index.ts";
 import { For, type JSX } from "solid-js";
 
 import { Button } from "../../components/Button.tsx";
-import { ModalCard } from "../../components/Card.tsx";
+import {
+  ModalCard,
+  CardBody,
+  CardTitle,
+  CardActions,
+} from "../../components/Card.tsx";
 import {
   pickerKey,
   type MachineRow,
@@ -37,11 +42,27 @@ export function MachinePicker(props: {
   }
 
   return (
-    <ModalCard label={T("picker.label")} width={560} onCancel={props.onCancel}>
+    <ModalCard
+      label={T("picker.label")}
+      width={560}
+      onCancel={props.onCancel}
+      footer={
+        <>
+          <CardBody>
+            <p class="machine-keys">
+              <kbd>j</kbd> <kbd>k</kbd> {T("machineDialog.keys.select")} ·{" "}
+              <kbd>Enter</kbd> {T("picker.keys.create")} · <kbd>Esc</kbd>{" "}
+              {T("mascot.keys.cancel")}
+            </p>
+          </CardBody>
+          <CardActions>
+            <Button onClick={props.onCancel}>{T("button.cancelAlt")}</Button>
+          </CardActions>
+        </>
+      }
+      header={<CardTitle>{T("picker.title")}</CardTitle>}
+    >
       <div class="machine-dialog">
-        <div class="card-body">
-          <h1 class="card-title">{T("picker.title")}</h1>
-        </div>
         <ul
           class="card-rows"
           tabIndex={0}
@@ -73,16 +94,6 @@ export function MachinePicker(props: {
             )}
           </For>
         </ul>
-        <div class="card-body">
-          <p class="machine-keys">
-            <kbd>j</kbd> <kbd>k</kbd> {T("machineDialog.keys.select")} ·{" "}
-            <kbd>Enter</kbd> {T("picker.keys.create")} · <kbd>Esc</kbd>{" "}
-            {T("mascot.keys.cancel")}
-          </p>
-        </div>
-      </div>
-      <div class="card-actions">
-        <Button onClick={props.onCancel}>{T("button.cancelAlt")}</Button>
       </div>
     </ModalCard>
   );

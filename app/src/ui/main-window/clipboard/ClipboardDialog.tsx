@@ -4,7 +4,13 @@ import { T } from "../../../i18n/index.ts";
 import { Show, type JSX } from "solid-js";
 
 import { Button } from "../../components/Button.tsx";
-import { ModalCard } from "../../components/Card.tsx";
+import {
+  ModalCard,
+  CardBody,
+  CardTitle,
+  CardText,
+  CardActions,
+} from "../../components/Card.tsx";
 import { describeMimes } from "../../../features/clipboard/clipboard.ts";
 import { currentReadPrompt } from "../../../features/clipboard/clipboardPrompt.ts";
 
@@ -17,22 +23,24 @@ export function ClipboardDialog(): JSX.Element {
           label={T("clipboardAsk.label")}
           focusSelf
           onCancel={() => ask.resolve(false)}
+          header={<CardTitle>{T("clipboardAsk.title")}</CardTitle>}
+          footer={
+            <CardActions>
+              <Button onClick={() => ask.resolve(false)}>
+                {T("transfer.deny")}
+              </Button>
+              <Button variant="primary" onClick={() => ask.resolve(true)}>
+                {T("clipboardAsk.allow")}
+              </Button>
+            </CardActions>
+          }
         >
-          <div class="card-body">
-            <h1 class="card-title">{T("clipboardAsk.title")}</h1>
-            <p class="card-text">{T("clipboardAsk.text")}</p>
-            <p class="card-text">
+          <CardBody>
+            <CardText>{T("clipboardAsk.text")}</CardText>
+            <CardText>
               {T("clipboardAsk.kinds", { kinds: describeMimes(ask.mimes) })}
-            </p>
-          </div>
-          <div class="card-actions">
-            <Button onClick={() => ask.resolve(false)}>
-              {T("transfer.deny")}
-            </Button>
-            <Button variant="primary" onClick={() => ask.resolve(true)}>
-              {T("clipboardAsk.allow")}
-            </Button>
-          </div>
+            </CardText>
+          </CardBody>
         </ModalCard>
       )}
     </Show>

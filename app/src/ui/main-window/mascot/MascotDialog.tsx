@@ -12,7 +12,13 @@ import {
 } from "solid-js";
 
 import { Button } from "../../components/Button.tsx";
-import { ModalCard } from "../../components/Card.tsx";
+import {
+  ModalCard,
+  CardBody,
+  CardTitle,
+  CardText,
+  CardActions,
+} from "../../components/Card.tsx";
 import { moveRow, pickerKey } from "../../../features/sessions/machineList.ts";
 import type { MascotListing } from "../../../features/mascot/mascot.ts";
 
@@ -82,22 +88,41 @@ export function MascotDialog(props: {
   }
 
   return (
-    <ModalCard label={T("mascot.label")} width={560} onCancel={props.onCancel}>
+    <ModalCard
+      label={T("mascot.label")}
+      width={560}
+      onCancel={props.onCancel}
+      footer={
+        <>
+          <CardBody>
+            <Show when={note()}>
+              {(n) => <CardText role="alert">{n()}</CardText>}
+            </Show>
+            <p class="machine-keys">
+              <kbd>j</kbd> <kbd>k</kbd> {T("mascot.keys.select")} ·{" "}
+              <kbd>Enter</kbd> {T("mascot.keys.confirm")} · <kbd>Esc</kbd>{" "}
+              {T("mascot.keys.cancel")}
+            </p>
+          </CardBody>
+          <CardActions>
+            <Button onClick={props.onCancel}>{T("button.cancelAlt")}</Button>
+          </CardActions>
+        </>
+      }
+      header={<CardTitle>{T("mascot.title")}</CardTitle>}
+    >
       <div class="machine-dialog">
-        <div class="card-body">
-          <h1 class="card-title">{T("mascot.title")}</h1>
-        </div>
         <Show
           when={entries().length > 0}
           fallback={
-            <div class="card-body">
-              <p class="card-text" role="status">
+            <CardBody>
+              <CardText role="status">
                 {loaded.loading
                   ? T("mascot.loading")
                   : (loaded()?.failure ??
                     T("mascot.none", { root: listing()?.root ?? "" }))}
-              </p>
-            </div>
+              </CardText>
+            </CardBody>
           }
         >
           <ul
@@ -145,23 +170,6 @@ export function MascotDialog(props: {
             </For>
           </ul>
         </Show>
-        <div class="card-body">
-          <Show when={note()}>
-            {(n) => (
-              <p class="card-text" role="alert">
-                {n()}
-              </p>
-            )}
-          </Show>
-          <p class="machine-keys">
-            <kbd>j</kbd> <kbd>k</kbd> {T("mascot.keys.select")} ·{" "}
-            <kbd>Enter</kbd> {T("mascot.keys.confirm")} · <kbd>Esc</kbd>{" "}
-            {T("mascot.keys.cancel")}
-          </p>
-        </div>
-      </div>
-      <div class="card-actions">
-        <Button onClick={props.onCancel}>{T("button.cancelAlt")}</Button>
       </div>
     </ModalCard>
   );

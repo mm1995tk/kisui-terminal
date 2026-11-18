@@ -11,7 +11,7 @@ import {
 import { startDrag } from "../sidebar/drag.ts";
 import type { Row } from "../../../features/workspaces/rows.ts";
 import { type RowEdit, SwitcherRow, SwitcherTabs } from "./SwitcherParts.tsx";
-import { ModalCard } from "../../components/Card.tsx";
+import { ModalCard, CardBody, CardTitle } from "../../components/Card.tsx";
 import { isCancelKey } from "../../components/cancelKey.ts";
 import { moveRow } from "../../../features/sessions/machineList.ts";
 import { confirmKey, switcherKey } from "./switcherKey.ts";
@@ -182,11 +182,40 @@ export function WorkspaceSwitcher(props: {
       width={880}
       closeOnOutside
       onCancel={props.onCancel}
+      header={<CardTitle>{T("switcher.title")}</CardTitle>}
+      footer={
+        <CardBody class="switch-keys">
+          <div class="switch-keys-col">
+            <h2>{T("switcher.keys.goHeading")}</h2>
+            <p>
+              <kbd>j</kbd> <kbd>k</kbd> {T("machineDialog.keys.select")}
+            </p>
+            <p>
+              <kbd>Enter</kbd> {T("switcher.keys.go")}
+            </p>
+            <p>
+              <kbd>Esc</kbd> {T("switcher.keys.close")}
+            </p>
+          </div>
+          <div class="switch-keys-col">
+            <h2>{T("switcher.keys.changeHeading")}</h2>
+            <p>
+              <kbd>n</kbd> {T("switcher.keys.new")}
+            </p>
+            <p>
+              <kbd>r</kbd> {T("switcher.keys.rename")}
+            </p>
+            <p>
+              <kbd>x</kbd> {T("switcher.keys.closeWorkspace")}
+            </p>
+            <p>
+              <kbd>J</kbd> <kbd>K</kbd> {T("switcher.keys.reorder")}
+            </p>
+          </div>
+        </CardBody>
+      }
     >
       <div class="machine-dialog switcher">
-        <div class="card-body">
-          <h1 class="card-title">{T("switcher.title")}</h1>
-        </div>
         <div class="switcher-cols">
           <div class="switcher-left">
             <ul
@@ -243,35 +272,6 @@ export function WorkspaceSwitcher(props: {
             <Show when={selected()}>
               {(r) => <SwitcherTabs row={r()} onTab={props.onTab} />}
             </Show>
-          </div>
-        </div>
-        <div class="card-body switch-keys">
-          <div class="switch-keys-col">
-            <h2>{T("switcher.keys.goHeading")}</h2>
-            <p>
-              <kbd>j</kbd> <kbd>k</kbd> {T("machineDialog.keys.select")}
-            </p>
-            <p>
-              <kbd>Enter</kbd> {T("switcher.keys.go")}
-            </p>
-            <p>
-              <kbd>Esc</kbd> {T("switcher.keys.close")}
-            </p>
-          </div>
-          <div class="switch-keys-col">
-            <h2>{T("switcher.keys.changeHeading")}</h2>
-            <p>
-              <kbd>n</kbd> {T("switcher.keys.new")}
-            </p>
-            <p>
-              <kbd>r</kbd> {T("switcher.keys.rename")}
-            </p>
-            <p>
-              <kbd>x</kbd> {T("switcher.keys.closeWorkspace")}
-            </p>
-            <p>
-              <kbd>J</kbd> <kbd>K</kbd> {T("switcher.keys.reorder")}
-            </p>
           </div>
         </div>
       </div>

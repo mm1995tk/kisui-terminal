@@ -9,6 +9,7 @@ import { T } from "../../i18n/index.ts";
 import { Button } from "./Button.tsx";
 // 並び（.card-actions）とカードの地は card.css（アプリでは Card.tsx・Notices.tsx が読む）
 import "./card.css";
+import { CardActions } from "./Card.tsx";
 
 /** 字（children）は翻訳の表から render の中で引くので、引数からは外す */
 type Args = Omit<ComponentProps<typeof Button>, "children">;
@@ -24,9 +25,9 @@ const meta = {
   decorators: [
     (Story) => (
       <div class="card">
-        <div class="card-actions">
+        <CardActions>
           <Story />
-        </div>
+        </CardActions>
       </div>
     ),
   ],

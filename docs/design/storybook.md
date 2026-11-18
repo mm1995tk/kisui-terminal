@@ -21,11 +21,11 @@ npm run build-storybook    # 静的なビルド（storybook-static/。git には
 
 ## 設定の置き場
 
-| ファイル                   | 持つもの                                                                                                 |
-| -------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `.storybook/main.ts`       | 使う連携（`storybook-solidjs-vite`）、stories の場所（`app/src/**/*.stories.tsx`）、送信をやめる設定 |
-| `.storybook/preview.tsx`   | アプリと同じ色（`ui/styles/theme.css`・`ui/styles/tokens.css`）と字（`ui/styles/fonts.ts`）を読む。言語の切り替え |
-| `.storybook/preview.css`   | story を出す枠の地と字（メインウィンドウの `layout.css` の `body` と同じく、`tokens.css` の役割で決める） |
+| ファイル                 | 持つもの                                                                                                          |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| `.storybook/main.ts`     | 使う連携（`storybook-solidjs-vite`）、stories の場所（`app/src/**/*.stories.tsx`）、送信をやめる設定              |
+| `.storybook/preview.tsx` | アプリと同じ色（`ui/styles/theme.css`・`ui/styles/tokens.css`）と字（`ui/styles/fonts.ts`）を読む。言語の切り替え |
+| `.storybook/preview.css` | story を出す枠の地と字（メインウィンドウの `layout.css` の `body` と同じく、`tokens.css` の役割で決める）         |
 
 Vite の設定は、根の `vite.config.ts` をそのまま読む（Solid の変換と、`@fontsource` の woff を落とす処理がアプリと同じになる）。
 アドオンは足していない。Storybook 10 の本体に、Controls・Actions・道具（言語の切り替えに使う）・表示幅の切り替えが入っている。
@@ -33,7 +33,7 @@ Vite の設定は、根の `vite.config.ts` をそのまま読む（Solid の変
 ## stories を足す
 
 - stories は、出す部品の隣に `部品の名前.stories.tsx` で置く（[frontend-structure.md](frontend-structure.md) の「部品をどこに置くか」）。
-- `title` は `app/src/ui/` からの置き場に合わせる（例：`components/RenameDialog`、`modules/clipboard-history/HistoryPanel`、`main-window/workspaces/CloseWorkspaceCard`）。
+- `title` は `app/src/ui/` からの置き場に合わせる（例：`components/dialogs/RenameDialog`、`modules/clipboard-history/HistoryPanel`、`main-window/workspaces/CloseWorkspaceCard`）。
 - 書き方は CSF 3（`Meta`・`StoryObj` は `storybook-solidjs-vite` から）。押した・閉じたなどの呼び出しは `storybook/test` の `fn()` で受け、Actions に出す。
 - 画面の文は、ほかのコードと同じく表のキーで引く（`T("…")`）。言語を切り替えたあとに引き直すよう、`T` は `args` に直に書かず、`render` の中で呼ぶ（`RenameDialog.stories.tsx` の `WithError`）。
 - 見本のデータを複数の stories で使うときは、stories の隣に普通のファイルで置く（例：`ui/modules/clipboard-history/historyFixtures.ts`）。`*.stories.tsx` から名前付きで書き出したものは、Storybook が story として読んでしまう。
@@ -43,17 +43,19 @@ Vite の設定は、根の `vite.config.ts` をそのまま読む（Solid の変
 
 今ある stories：
 
-| story                                               | 出すもの                                              | 差し替えたもの                                     |
-| --------------------------------------------------- | ----------------------------------------------------- | -------------------------------------------------- |
-| `ui/styles/Tokens.stories.tsx`                      | 共通の値（色・状態・余白・字・角）。名前・値・説明は `tokens.css` から読む | —                                     |
-| `ui/components/Button.stories.tsx`                  | ボタン（普通・主・無効・処理中・フォーカス・やめると主の並び） | 押した（`fn()`）                          |
-| `ui/components/Card.stories.tsx`                    | 窓の枠 `ModalCard`（既定・`focusSelf`・幅と `closeOnOutside`） | 閉じる（`fn()`）                          |
-| `ui/components/RenameDialog.stories.tsx`            | 名前を変える窓（名前あり・なし・理由を出したとき）    | 決めた・やめた（`fn()`）                           |
-| `ui/main-window/workspaces/CloseWorkspaceCard.stories.tsx` | ワークスペース・タブを閉じる確認の窓            | 決めた・やめた（`fn()`）                           |
-| `ui/main-window/sessions/InstallCard.stories.tsx`   | kisui を入れるかの確認の窓（初めて・失敗のあと）      | 入れる・入れない（`fn()`）                         |
-| `ui/main-window/notifications/UpdateBar.stories.tsx` | 新しい版の知らせ（ある・入れ替え中・失敗）           | 殻への頼み `UpdatesOs`（持ち物は本物の `createUpdates`） |
-| `ui/modules/clipboard-history/HistoryPanel.stories.tsx` | 履歴の一覧（一覧・貼る欄あり・空・読み込み中・読めない） | 履歴を読む頼み `ListClipboardHistory`            |
-| `ui/utilities/clipboard/page.stories.tsx`           | kisui-terminal の外から開く履歴の窓                   | 殻への頼み `ClipboardPopupOs`、`ListClipboardHistory` |
+| story                                                       | 出すもの                                                                   | 差し替えたもの                                                                                       |
+| ----------------------------------------------------------- | -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `ui/styles/Tokens.stories.tsx`                              | 共通の値（色・状態・余白・字・角）。名前・値・説明は `tokens.css` から読む | —                                                                                                    |
+| `ui/components/Button.stories.tsx`                          | ボタン（普通・主・無効・処理中・フォーカス・やめると主の並び）             | 押した（`fn()`）                                                                                     |
+| `ui/components/Card.stories.tsx`                            | 窓の枠 `ModalCard`（既定・`focusSelf`・幅と `closeOnOutside`）             | 閉じる（`fn()`）                                                                                     |
+| `ui/components/dialogs/RenameDialog.stories.tsx`                  | 名前を変える窓（名前あり・なし・理由を出したとき）                         | 決めた・やめた（`fn()`）                                                                             |
+| `ui/main-window/workspaces/CloseWorkspaceCard.stories.tsx`  | ワークスペース・タブを閉じる確認の窓                                       | 決めた・やめた（`fn()`）                                                                             |
+| `ui/main-window/workspaces/WorkspaceSwitcher.stories.tsx`   | ワークスペースを切り替える窓（並び・タブの無いワークスペース・空）         | 行は見本のデータ（アプリでは `gwsRows` が作る）。操作は `fn()`、名前の確かめは本物の `nameErrorText` |
+| `ui/main-window/workspaces/WorkspaceKindPicker.stories.tsx` | ワークスペースの種類（ターミナル・ブラウザ）を選ぶ窓                       | 選んだ・やめた（`fn()`）                                                                             |
+| `ui/main-window/sessions/InstallCard.stories.tsx`           | kisui を入れるかの確認の窓（初めて・失敗のあと）                           | 入れる・入れない（`fn()`）                                                                           |
+| `ui/main-window/notifications/UpdateBar.stories.tsx`        | 新しい版の知らせ（ある・入れ替え中・失敗）                                 | 殻への頼み `UpdatesOs`（持ち物は本物の `createUpdates`）                                             |
+| `ui/modules/clipboard-history/HistoryPanel.stories.tsx`     | 履歴の一覧（一覧・貼る欄あり・空・読み込み中・読めない）                   | 履歴を読む頼み `ListClipboardHistory`                                                                |
+| `ui/utilities/clipboard/page.stories.tsx`                   | kisui-terminal の外から開く履歴の窓                                        | 殻への頼み `ClipboardPopupOs`、`ListClipboardHistory`                                                |
 
 ## 外への頼みを差し替える
 
@@ -70,12 +72,13 @@ Vite の設定は、根の `vite.config.ts` をそのまま読む（Solid の変
 
 2026-11-18 に、リポジトリの版（Solid 1.9.17、Vite 8.3.4、vite-plugin-solid 2.11.14、TypeScript 7.0.2）で確かめた。
 
-| パッケージ               | 版     | 備考                                                                                  |
-| ------------------------ | ------ | ------------------------------------------------------------------------------------- |
-| `storybook`              | 10.6.7 | 本体。Vite 8 に対応（`@storybook/builder-vite` 10.6.7 の peer は Vite 5〜8）          |
-| `storybook-solidjs-vite` | 10.7.4 | Solid の連携（コミュニティの保守）。peer は Solid 1.8 以上、Vite 5〜8、Storybook 10   |
+| パッケージ               | 版     | 備考                                                                                |
+| ------------------------ | ------ | ----------------------------------------------------------------------------------- |
+| `storybook`              | 10.6.7 | 本体。Vite 8 に対応（`@storybook/builder-vite` 10.6.7 の peer は Vite 5〜8）        |
+| `storybook-solidjs-vite` | 10.7.4 | Solid の連携（コミュニティの保守）。peer は Solid 1.8 以上、Vite 5〜8、Storybook 10 |
 
 - `npm run storybook` で起動し、headless の Chromium で story を開いて、部品が出ること、上の道具で言語を切り替えると窓の文が英語と日本語で入れ替わることを確かめた。
 - `npm run build-storybook` が通り、`storybook-static/` を HTTP で出して、3 つの stories を英語・日本語で開き、アプリと同じ色・IBM Plex Sans JP・JetBrains Mono で出ることを画像で確かめた。
 - `tsc --noEmit`（`npm run build` の型の検査）は、stories と `.storybook/` も見る。
+- `storybook-solidjs-vite` は TypeScript 6（`@typescript/typescript6` が入れる `@typescript/old`）に頼る。これも `tsc` という名前のコマンドを持ち、`node_modules/.bin/tsc` が TypeScript 6 を指すことがある。そこで `package.json` の型の検査（`build`・`test`・`typecheck:extension`）は、`node node_modules/typescript/bin/tsc` と書いて、リポジトリの TypeScript 7 を使う。`npx tsc` は TypeScript 6 になることがあるので使わない。
 - 静的なビルドのとき、`storybook-solidjs-vite` の中の Solid 2 向けの分岐（`solid.merge`）に「import が無い」の警告が出る。Solid 1 では通らない分岐なので、動きには関わらない。

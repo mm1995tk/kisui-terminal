@@ -7,7 +7,7 @@ import type { Sessions } from "../../../features/sessions/controller.ts";
 import type { Workspaces } from "../../../features/workspaces/controller.ts";
 import { band } from "../../../features/workspaces/rows.ts";
 import type { Tabs } from "../../../features/workspaces/tabs/controller.ts";
-import { RenameDialog } from "../../components/RenameDialog.tsx";
+import { RenameDialog } from "../../components/dialogs/RenameDialog.tsx";
 import { MachinePicker } from "../sessions/MachinePicker.tsx";
 import { CloseWorkspaceCard } from "./CloseWorkspaceCard.tsx";
 import { WorkspaceKindPicker } from "./WorkspaceKindPicker.tsx";

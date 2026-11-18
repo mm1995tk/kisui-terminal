@@ -9,6 +9,13 @@ import { IS_MAC } from "../../../features/commands/guiKeys.ts";
 import { leaderKeyName } from "../../../features/commands/commands.ts";
 import type { Updates } from "../../../features/updates/store.ts";
 import { Button } from "../../components/Button.tsx";
+import {
+  CardBody,
+  CardTitle,
+  CardText,
+  CardError,
+  CardActions,
+} from "../../components/Card.tsx";
 
 export function UpdateBar(props: { updates: Updates }): JSX.Element {
   const u = props.updates;
@@ -22,23 +29,21 @@ export function UpdateBar(props: { updates: Updates }): JSX.Element {
           role="status"
           aria-label={T("update.label")}
         >
-          <div class="card-body">
-            <h2 class="card-title">
+          <CardBody>
+            <CardTitle level={2}>
               {T("update.title", { version: info().version })}
-            </h2>
-            <p class="card-text">
+            </CardTitle>
+            <CardText>
               {T("update.text", {
                 current: info().current,
                 leader: leaderKeyName(IS_MAC),
               })}
-            </p>
+            </CardText>
             <Show when={u.error()}>
-              <pre class="card-error" role="alert">
-                {u.error()}
-              </pre>
+              <CardError role="alert">{u.error()}</CardError>
             </Show>
-          </div>
-          <div class="card-actions">
+          </CardBody>
+          <CardActions>
             <Button disabled={u.busy()} onClick={() => u.dismiss()}>
               {T("update.later")}
             </Button>
@@ -49,7 +54,7 @@ export function UpdateBar(props: { updates: Updates }): JSX.Element {
             >
               {u.busy() ? T("update.busy") : T("update.install")}
             </Button>
-          </div>
+          </CardActions>
         </aside>
       )}
     </Show>

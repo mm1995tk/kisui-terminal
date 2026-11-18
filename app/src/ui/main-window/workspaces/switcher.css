@@ -6,7 +6,8 @@
   grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
   gap: 12px;
   min-height: 0;
-  padding: 0 12px;
+  /* 見出しの線と下の段の線から、ほかの窓の一覧と同じ 8px あける。行の字は見出しの字（16px）にそろう */
+  padding: 8px;
 }
 .switcher-left {
   display: flex;

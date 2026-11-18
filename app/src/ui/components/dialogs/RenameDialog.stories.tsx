@@ -3,11 +3,11 @@
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
 import { fn } from "storybook/test";
 
-import { T } from "../../i18n/index.ts";
+import { T } from "../../../i18n/index.ts";
 import { RenameDialog } from "./RenameDialog.tsx";
 
 const meta = {
-  title: "components/RenameDialog",
+  title: "components/dialogs/RenameDialog",
   component: RenameDialog,
   args: {
     current: "build-server",

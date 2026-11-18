@@ -14,7 +14,13 @@ import {
 
 import { openKeyList } from "../commands/KeyListDialog.tsx";
 import { Button } from "../../components/Button.tsx";
-import { ModalCard } from "../../components/Card.tsx";
+import {
+  ModalCard,
+  CardBody,
+  CardTitle,
+  CardText,
+  CardActions,
+} from "../../components/Card.tsx";
 import {
   canDo,
   keepRow,
@@ -120,11 +126,31 @@ export function MachineDialog(props: {
       label={T("machineDialog.label")}
       width={640}
       onCancel={props.onCancel}
+      footer={
+        <>
+          <CardBody>
+            <Show when={note()}>
+              {(n) => <CardText role="alert">{n()}</CardText>}
+            </Show>
+            <p class="machine-keys">
+              <kbd>j</kbd> <kbd>k</kbd> {T("machineDialog.keys.select")} ·{" "}
+              <kbd>a</kbd> {T("machineDialog.keys.add")} · <kbd>n</kbd>{" "}
+              {T("machineDialog.keys.rename")} · <kbd>d</kbd>{" "}
+              {T("machineDialog.keys.remove")} · <kbd>x</kbd>{" "}
+              {T("machineDialog.keys.disconnect")} · <kbd>r</kbd>{" "}
+              {T("machineDialog.keys.reconnect")} · <kbd>?</kbd>{" "}
+              {T("machineDialog.keys.keyList")} · <kbd>Esc</kbd>{" "}
+              {T("machineDialog.keys.close")}
+            </p>
+          </CardBody>
+          <CardActions>
+            <Button onClick={props.onCancel}>{T("button.close")}</Button>
+          </CardActions>
+        </>
+      }
+      header={<CardTitle>{T("machineDialog.label")}</CardTitle>}
     >
       <div class="machine-dialog">
-        <div class="card-body">
-          <h1 class="card-title">{T("machineDialog.label")}</h1>
-        </div>
         <ul
           class="card-rows"
           data-place="machines"
@@ -151,28 +177,6 @@ export function MachineDialog(props: {
             )}
           </For>
         </ul>
-        <div class="card-body">
-          <Show when={note()}>
-            {(n) => (
-              <p class="card-text" role="alert">
-                {n()}
-              </p>
-            )}
-          </Show>
-          <p class="machine-keys">
-            <kbd>j</kbd> <kbd>k</kbd> {T("machineDialog.keys.select")} ·{" "}
-            <kbd>a</kbd> {T("machineDialog.keys.add")} · <kbd>n</kbd>{" "}
-            {T("machineDialog.keys.rename")} · <kbd>d</kbd>{" "}
-            {T("machineDialog.keys.remove")} · <kbd>x</kbd>{" "}
-            {T("machineDialog.keys.disconnect")} · <kbd>r</kbd>{" "}
-            {T("machineDialog.keys.reconnect")} · <kbd>?</kbd>{" "}
-            {T("machineDialog.keys.keyList")} · <kbd>Esc</kbd>{" "}
-            {T("machineDialog.keys.close")}
-          </p>
-        </div>
-      </div>
-      <div class="card-actions">
-        <Button onClick={props.onCancel}>{T("button.close")}</Button>
       </div>
     </ModalCard>
   );
