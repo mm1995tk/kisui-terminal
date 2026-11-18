@@ -4,7 +4,16 @@
 // 開いたフォルダの行は、中身をスクロールしている間だけ上に固定する（D3）。そのために行を親子の要素に組む。
 // 行にフォーカスがあるときは shj のファイルツリーと同じキーで動かせる（#13。割り当ては keys.ts）。
 import { T } from "../../../../i18n/index.ts";
-import { Index, Match, onCleanup, Show, Switch, type JSX } from "solid-js";
+import {
+  createEffect,
+  Index,
+  Match,
+  on,
+  onCleanup,
+  Show,
+  Switch,
+  type JSX,
+} from "solid-js";
 
 import { openKeyList } from "../../commands/KeyListDialog.tsx";
 import { InlineInput } from "../../../components/InlineInput.tsx";
@@ -15,6 +24,8 @@ import {
 import { treeKey, type TreeMove } from "../../../../features/file-tree/keys.ts";
 import {
   newEntryDefault,
+  newEntryPath,
+  renamedPath,
   type TreeMenuAction,
 } from "../../../../features/file-tree/menu.ts";
 import {
@@ -157,6 +168,39 @@ export function TreeView(
   },
 ): JSX.Element {
   let tree: HTMLDivElement | undefined;
+  /** path の行にフォーカスを移す。行が無ければ false */
+  const focusRow = (path: string): boolean => {
+    const el = tree?.querySelector<HTMLElement>(
+      `.tree-row[data-path="${CSS.escape(path)}"]`,
+    );
+    el?.focus();
+    return !!el;
+  };
+  // 入力欄で決めて入力欄が消えたら、キーをツリーに戻す。行き先は、できた行・名前を変えた行。
+  // その行がまだツリーに出ていなければ（一覧を読み直している間）、入力欄を開いた行（無ければその親）に置き、少し待ってからもう一度できた行を探す
+  let submitted: { to: string | null; from: string } | undefined;
+  createEffect(
+    on(
+      () => props.edit,
+      (edit) => {
+        const s = submitted;
+        if (edit || !s) return;
+        submitted = undefined;
+        queueMicrotask(() => {
+          if (s.to !== null && focusRow(s.to)) return;
+          if (!focusRow(s.from)) focusRow(parentOf(s.from));
+          if (s.to !== null) {
+            const to = s.to;
+            setTimeout(() => {
+              const at = document.activeElement;
+              // そのあいだにキーをほかへ動かしていなければ、できた行へ移す
+              if (at instanceof HTMLElement && tree?.contains(at)) focusRow(to);
+            }, 500);
+          }
+        });
+      },
+    ),
+  );
   // 入力欄を閉じたら、キーを入力欄を開いた行へ戻す（Esc のときだけ。フォーカスが外れたときは、移った先のまま）
   const handlers: RowHandlers = {
     get onToggle() {
@@ -177,20 +221,22 @@ export function TreeView(
     get edit() {
       return props.edit;
     },
-    get onEditSubmit() {
-      return props.onEditSubmit;
+    onEditSubmit: (value) => {
+      const e = props.edit;
+      if (e) {
+        const to =
+          e.kind === "rename"
+            ? (renamedPath(e.path, value) ?? e.path)
+            : newEntryPath(value, e.kind === "new-file" ? "file" : "dir");
+        submitted = { to, from: e.path };
+      }
+      props.onEditSubmit?.(value);
     },
     onEditCancel: (byKey) => {
       const path = props.edit?.path;
+      submitted = undefined;
       props.onEditCancel?.(byKey);
-      if (byKey && path !== undefined)
-        queueMicrotask(() =>
-          tree
-            ?.querySelector<HTMLElement>(
-              `.tree-row[data-path="${CSS.escape(path)}"]`,
-            )
-            ?.focus(),
-        );
+      if (byKey && path !== undefined) queueMicrotask(() => focusRow(path));
     },
   };
   const newAtRoot = () =>
