@@ -161,6 +161,7 @@ export function TreeView(
   const focus = createTreeEditFocus(
     () => tree,
     () => props.edit,
+    () => props.rows,
   );
   const handlers: RowHandlers = {
     get onToggle() {
