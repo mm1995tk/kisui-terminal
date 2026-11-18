@@ -247,6 +247,58 @@ export function moveTabBefore(
     : update(s, id, (x) => ({ ...x, tabs: tabs.slice() }));
 }
 
+/** タブ key（refKey）が入っているワークスペース。 */
+export function gwsOfTab(s: GwsState, key: string): Gws | undefined {
+  return s.list.find((g) => g.tabs.some((r) => refKey(r) === key));
+}
+
+/**
+ * タブ key（refKey）を、ワークスペース to の、before のタブのすぐ前へ移す（before が null か、to のタブでなければ一番後ろ）。#308。
+ * 今のワークスペースと to が違えば、今のワークスペースから外して to に入れる（1 回の書き換え。どちらにも無い・両方にある状態を作らない）。
+ * 同じなら、中での並べ替え（moveTabBefore）。動かすのは記録の所属と並びだけで、タブそのもの（TermRef・BrowserRef）は同じものを使う
+ * （ターミナルのタブのマシンとワークスペース、ブラウザのタブの id と名前は変わらない）。
+ * 移動元は、最後のタブを移しても空のまま残る（外すのは removeGws だけ）。移動元が最後に使っていたターミナルのタブを移したら、
+ * 元の並びで隣のターミナルのタブを最後に使ったものにする（passActiveTerm。閉じたときと同じ）。
+ * 移動先が最後に使っていたターミナルのタブは変えない（移したタブを移動先で出すかは、呼ぶ側が setActiveTerm と表示の記録で決める）。
+ * 動かさなかったとき（タブか to が無い・もうそこにある）は null。
+ */
+export function moveTabTo(
+  s: GwsState,
+  key: string,
+  to: string,
+  before: string | null,
+): GwsState | null {
+  const from = gwsOfTab(s, key);
+  if (!from || !s.list.some((g) => g.id === to)) return null;
+  if (from.id === to) return moveTabBefore(s, to, key, before);
+  const ref = from.tabs.find((r) => refKey(r) === key)!;
+  const list = s.list.map((g): Gws => {
+    if (g.id === from.id)
+      return { ...g, tabs: g.tabs.filter((r) => r !== ref) };
+    if (g.id !== to) return g;
+    const at = g.tabs.findIndex((r) => refKey(r) === before);
+    const tabs = g.tabs.slice();
+    tabs.splice(at < 0 ? tabs.length : at, 0, ref);
+    return { ...g, tabs };
+  });
+  return passActiveTerm(s, { list });
+}
+
+/**
+ * ワークスペース g が今出しているタブの key（refKey）。ブラウザのタブを出していればそれ（shownBrowserId）、
+ * そうでなければ最後に使ったターミナルのタブ（repTerm）。タブが無ければ undefined。引数は shownBrowserId と同じ。
+ */
+export function shownTabKey(
+  g: Gws,
+  view: string | undefined,
+  hasBrowser: (id: string) => boolean,
+): string | undefined {
+  const b = shownBrowserId(g, view, hasBrowser);
+  if (b !== undefined) return browserKey(b);
+  const t = repTerm(g);
+  return t ? termKey(t.target, t.ws) : undefined;
+}
+
 /**
  * サイドバーに出ているタブ（t の操作が数える並び。t 1〜9・t J / t K）。ターミナルのタブは全部。
  * ブラウザのタブは、タブがまだあるもの（hasBrowser）だけ（内蔵ブラウザを無効にしたあとも記録は残るが、サイドバーには出ない）。

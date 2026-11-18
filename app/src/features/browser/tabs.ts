@@ -96,6 +96,23 @@ export function showTab(
   return { ...s, views };
 }
 
+/**
+ * タブ id を、ワークスペース from から to へ移したときの、表示の書き換え（#308。所属と並びは features/workspaces/model.ts の moveTabTo）。
+ * from がそのタブを出していたなら、出すのをやめる（from は、ターミナルのタブか残りのブラウザのタブを出す）。
+ * show なら、to でそのタブを出す。タブの中身（URL・開いたときのマシンとワークスペース）は変えない
+ * （リモートの localhost の中継元は、開いたときのマシンのまま）。
+ */
+export function moveView(
+  s: TabsState,
+  id: string,
+  from: string,
+  to: string,
+  show: boolean,
+): TabsState {
+  const left = s.views[from] === id ? showTab(s, from, null) : s;
+  return show ? showTab(left, to, id) : left;
+}
+
 /** タブを足し、ワークスペース gws でそれを出す（gws が分からなければ、足すだけ）。 */
 export function addTab(s: TabsState, tab: BrowserTab, gws?: string): TabsState {
   const next = { ...s, tabs: [...s.tabs, tab] };

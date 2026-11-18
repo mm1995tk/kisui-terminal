@@ -6,6 +6,7 @@ import {
   closeTab,
   EMPTY_TABS,
   fromStored,
+  moveView,
   newTabId,
   normalizeUrl,
   urlOrSearch,
@@ -74,6 +75,22 @@ describe("内蔵ブラウザのタブ", () => {
     t = closeTab(t, "c");
     assert.equal(shownTab(t, "g1")?.id, "a");
     assert.equal(closeTab(t, "nope"), t);
+  });
+
+  it("タブを別のワークスペースへ移したら、移動元は出すのをやめ、show のときだけ移動先で出す。タブの中身は変えない（#308）", () => {
+    const s = showTab(three(), "g1", "b");
+    const shown = moveView(s, "b", "g1", "g2", true);
+    assert.equal(shownTab(shown, "g1"), undefined);
+    assert.equal(shownTab(shown, "g2")?.id, "b");
+    // タブの中身（開いたときのマシンとワークスペース・URL）と並びは同じもの
+    assert.equal(shown.tabs, s.tabs);
+    assert.deepEqual(toStored(shown), toStored(s));
+    const hidden = moveView(s, "b", "g1", "g2", false);
+    assert.equal(shownTab(hidden, "g1"), undefined);
+    assert.equal(shownTab(hidden, "g2"), undefined);
+    // 移動元が出していないタブを移しても、移動元の表示は変えない
+    const other = moveView(s, "a", "g1", "g2", false);
+    assert.equal(other, s);
   });
 
   it("URL と題を書き換える。変わらなければ同じものを返す", () => {

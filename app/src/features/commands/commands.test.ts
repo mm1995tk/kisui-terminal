@@ -143,6 +143,7 @@ describe("コマンドの表", () => {
       "t K",
       ...Array.from({ length: 9 }, (_, i) => `t ${i + 1}`),
       "t r",
+      "t m",
       "m",
       "p",
       "p h",
@@ -735,6 +736,7 @@ describe("リーダーの案内（menuRows）", () => {
     assert.deepEqual(t(["N", "s"]).runs, [{ id: "tab.newPick" }]);
     assert.deepEqual(t(["x"]).runs, [{ id: "tab.close" }]);
     assert.deepEqual(t(["r"]).runs, [{ id: "tab.rename" }]);
+    assert.deepEqual(t(["m"]).runs, [{ id: "tab.moveTo" }]);
     assert.deepEqual(t(["3"]).runs, [{ id: "tab.nth", arg: 2 }]);
     assert.deepEqual(t(["j"]).runs, [{ id: "tab.step", arg: "next" }]);
     assert.deepEqual(t(["k"]).runs, [{ id: "tab.step", arg: "prev" }]);
