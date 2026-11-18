@@ -23,6 +23,8 @@ import {
   type ListClipboardHistory,
 } from "../../../features/clipboard/history.ts";
 import { listStep } from "../../../features/commands/placeKeys.ts";
+// 一覧の見た目（.history-*）は、カードの決まりと同じファイルにある
+import "../../components/card.css";
 
 /** クリップボードに戻したと「コピーしました」を見せておく時間（ミリ秒）。 */
 const COPIED_MS = 600;
