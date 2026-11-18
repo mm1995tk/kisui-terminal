@@ -158,7 +158,7 @@
   cursor: row-resize;
   touch-action: none;
 }
-/* 線は .changes の border（つまみの上端から 0〜2px）。棒はその真ん中 */
+/* 線は .changes の border（つまみの上端から 1〜3px。.changes の border は padding の端の上 -2〜0px にあり、つまみは top: -3px）。棒はその真ん中 */
 .changes-resizer::after {
   top: 0;
 }
