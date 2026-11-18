@@ -20,6 +20,7 @@ import {
   gwsOfBrowser,
   gwsOfTerm,
   loadGws,
+  lostAllTerms,
   move,
   moveBefore,
   moveTabBefore,
@@ -32,6 +33,7 @@ import {
   parseGws,
   reconcile,
   removeBrowser,
+  removeGws,
   rename,
   renameBrowser,
   repTerm,
@@ -73,10 +75,14 @@ describe("番号の名前", () => {
   it("番号は、作ったときに空いている一番小さい番号。閉じるまで変えない", () => {
     let s = two();
     assert.equal(freeNum(s.list), 3);
-    // 1 番を閉じたら、次に作るワークスペースが 1 番になる。2 番は変わらない
+    // 1 番のタブが全部閉じても、1 番は空のまま残る（#307）
     s = reconcile(s, {
       lists: { a: list("w3"), b: list() },
     }).state;
+    assert.deepEqual(nums(s), [1, 2]);
+    assert.deepEqual(s.list[0].tabs, []);
+    // 1 番を閉じたら、次に作るワークスペースが 1 番になる。2 番は変わらない
+    s = removeGws(s, "g1");
     assert.deepEqual(nums(s), [2]);
     s = addWorkspace(s, "a", "w4");
     assert.deepEqual(nums(s), [2, 1]);
@@ -224,8 +230,38 @@ describe("ワークスペースの操作", () => {
     assert.equal(dropTerm(s, "b", "w2"), s);
   });
 
-  it("最後のタブ（ターミナルのタブ）を外すと、ワークスペースごと外す", () => {
-    assert.deepEqual(ids(dropTerm(two(), "a", "w3")), ["g1"]);
+  it("最後のタブ（ターミナルのタブ）を外しても、ワークスペースは空のまま残る（#307）", () => {
+    const s = setActiveTerm(two(), "a", "w3");
+    const r = dropTerm(s, "a", "w3");
+    assert.deepEqual(ids(r), ["g1", "g2"]);
+    assert.deepEqual(r.list[1].tabs, []);
+    assert.equal(r.list[1].num, 2);
+    // 最後に使っていたターミナルのタブの覚えは消す
+    assert.equal(r.list[1].term, undefined);
+    assert.equal(repTerm(r.list[1]), undefined);
+  });
+
+  it("removeGws：ワークスペースを並びから外す（空のワークスペースも。#307）。無い id なら、そのまま", () => {
+    const s = dropTerm(two(), "a", "w3");
+    assert.deepEqual(ids(removeGws(s, "g2")), ["g1"]);
+    assert.deepEqual(ids(removeGws(s, "g1")), ["g2"]);
+    assert.equal(removeGws(s, "nope"), s);
+  });
+
+  it("lostAllTerms：ターミナルのタブが、一覧の分かっているマシンで全部閉じられたか", () => {
+    const g1 = two().list[0]; // a の w1 と b の w2
+    assert.equal(lostAllTerms(g1, { a: list(), b: list() }), true);
+    assert.equal(lostAllTerms(g1, { a: list(), b: list("w2") }), false);
+    // 一覧が分からない（つながっていない）マシンのタブは、閉じたと分からない
+    assert.equal(lostAllTerms(g1, { a: list() }), false);
+    // 作ったばかりで守っているタブは、閉じたとみなさない
+    assert.equal(
+      lostAllTerms(g1, { a: list(), b: list() }, new Set([termKey("b", "w2")])),
+      false,
+    );
+    // ターミナルのタブを持たないワークスペースは false
+    const empty = dropTerm(two(), "a", "w3").list[1];
+    assert.equal(lostAllTerms(empty, { a: list() }), false);
   });
 
   it("最後のターミナルのタブを外しても、ブラウザのタブがあれば、ワークスペースは残る（#257）", () => {
@@ -263,7 +299,7 @@ describe("ワークスペースの操作", () => {
     );
   });
 
-  it("ブラウザのタブだけのワークスペースを足せる。最後のブラウザのタブを外すと、ワークスペースごと外す（#257）", () => {
+  it("ブラウザのタブだけのワークスペースを足せる（#257）。最後のブラウザのタブを外しても、空のまま残る（#307）", () => {
     let s = addBrowserWorkspace(two(), "t1", "g9");
     assert.deepEqual(ids(s), ["g1", "g2", "g9"]);
     assert.equal(s.list[2].num, 3);
@@ -273,7 +309,20 @@ describe("ワークスペースの操作", () => {
     s = removeBrowser(s, "t1");
     assert.deepEqual(ids(s), ["g1", "g2", "g9"]);
     s = removeBrowser(s, "t2");
+    assert.deepEqual(ids(s), ["g1", "g2", "g9"]);
+    assert.deepEqual(s.list[2].tabs, []);
+  });
+
+  it("addTerm：作ったばかりのタブのために整理が作ったワークスペースは、タブを移すと外す（空のワークスペースとして残さない）", () => {
+    // 一覧の知らせが返事より先に届き、w9 が新しいワークスペース g3 に入ってしまった
+    let s = addWorkspace(two(), "a", "w9", "w9", "g3");
+    s = addTerm(s, "g1", "a", "w9");
     assert.deepEqual(ids(s), ["g1", "g2"]);
+    // ユーザーの空のワークスペースは、ほかのワークスペースにタブを足しても残る
+    s = dropTerm(s, "a", "w3");
+    s = addTerm(s, "g1", "a", "w10");
+    assert.deepEqual(ids(s), ["g1", "g2"]);
+    assert.deepEqual(s.list[1].tabs, []);
   });
 });
 
@@ -376,7 +425,7 @@ describe("reconcile", () => {
     assert.equal(closed.state.list[0].tabs.length, 1);
   });
 
-  it("ターミナルのタブが 1 つも無くなったワークスペースは、ブラウザのタブがあれば残し、タブが 1 つも無ければ外す（#257）", () => {
+  it("ターミナルのタブが 1 つも無くなったワークスペースは、ブラウザのタブがあれば残し（#257）、タブが 1 つも無くなっても残す（#307）", () => {
     const s = addBrowser(two(), "g2", "t1");
     const r = reconcile(s, {
       lists: { a: list("w1"), b: list("w2") },
@@ -385,12 +434,22 @@ describe("reconcile", () => {
     assert.deepEqual(ids(r.state), ["g1", "g2"]);
     assert.deepEqual(r.state.list[1].tabs, [{ kind: "browser", id: "t1" }]);
     assert.deepEqual(r.close, []);
-    // ブラウザのタブも無くなれば外す
-    const r2 = reconcile(r.state, {
+    // ブラウザのタブも無くなれば、空のワークスペースになる（並びの場所・名前・番号は変わらない）
+    const named = rename(r.state, "g2", "調査");
+    const r2 = reconcile(named, {
       lists: { a: list("w1"), b: list("w2") },
       browser: [],
     });
-    assert.deepEqual(ids(r2.state), ["g1"]);
+    assert.deepEqual(ids(r2.state), ["g1", "g2"]);
+    assert.deepEqual(r2.state.list[1].tabs, []);
+    assert.equal(displayName(r2.state.list[1]), "調査");
+    assert.equal(r2.state.list[1].num, 2);
+    // 空のワークスペースは、もう一度合わせても変わらない
+    const r3 = reconcile(r2.state, {
+      lists: { a: list("w1"), b: list("w2") },
+      browser: [],
+    });
+    assert.equal(r3.state, r2.state);
   });
 
   it("ターミナルのタブから開いたのではないブラウザのタブ（workspace が空）がどこにも無ければ、新しいワークスペースを作る（#257）", () => {
@@ -506,6 +565,19 @@ describe("記録", () => {
     assert.equal(typeof GWS_KEY, "string");
   });
 
+  it("空のワークスペースも、名前・id・番号・並び順のまま読める（#307）。閉じたものは読んでも戻らない", () => {
+    let s = rename(dropTerm(two(), "a", "w3"), "g2", "調査");
+    s = moveBefore(s, "g2", "g1")!;
+    const store = mem();
+    saveGws(store, s);
+    const loaded = loadGws(store)!;
+    assert.deepEqual(loaded, s);
+    assert.deepEqual(ids(loaded), ["g2", "g1"]);
+    assert.deepEqual(loaded.list[0].tabs, []);
+    saveGws(store, removeGws(loaded, "g2"));
+    assert.deepEqual(ids(loadGws(store)!), ["g1"]);
+  });
+
   it("前の版が書いた folded（タブの並びを畳む印）は読み捨てる（#283）", () => {
     const s = two();
     const store = mem();
@@ -530,7 +602,7 @@ describe("記録", () => {
     assert.equal(loadGws(bad), null);
   });
 
-  it("形の違うもの・重なり・タブが 1 つも無いワークスペースは捨てる（ブラウザのタブだけのものは残す）。番号が壊れていれば振り直す", () => {
+  it("形の違うもの・重なりは捨てる。ブラウザのタブだけのもの・タブが 1 つも無いもの（#307）は残す。番号が壊れていれば振り直す", () => {
     const s = parseGws({
       list: [
         { id: "g1", name: "a", num: 1, tabs: [term("a", "w1"), { kind: "x" }] },
@@ -553,11 +625,13 @@ describe("記録", () => {
         "x",
       ],
     });
-    assert.deepEqual(ids(s), ["g1", "g2", "g3", "g4"]);
+    assert.deepEqual(ids(s), ["g1", "g2", "g3", "g5", "g4"]);
     assert.deepEqual(s.list[1].tabs.length, 1); // w1 は g1 にある
-    assert.equal(new Set(nums(s)).size, 4);
-    assert.equal(s.list[3].name, "");
-    assert.equal(s.list[3].term, undefined);
+    assert.deepEqual(s.list[3].tabs, []); // 形の違うタブだけを捨てて、空のワークスペースとして残る
+    assert.equal(s.list[3].num, 6);
+    assert.equal(new Set(nums(s)).size, 5);
+    assert.equal(s.list[4].name, "");
+    assert.equal(s.list[4].term, undefined);
     assert.deepEqual(parseGws(null), EMPTY_GWS);
     assert.deepEqual(parseGws({ list: 3 }), EMPTY_GWS);
   });
@@ -567,7 +641,7 @@ describe("reconcile の keep", () => {
   it("作ったばかりでまだ一覧に無いタブは、keep に入れておけば外さない", () => {
     const s = addWorkspace(two(), "a", "w9", "", "g3");
     const lists = { a: list("w1", "w3"), b: list("w2") };
-    assert.equal(reconcile(s, { lists }).state.list.length, 2);
+    assert.deepEqual(reconcile(s, { lists }).state.list[2].tabs, []);
     const kept = reconcile(s, {
       lists,
       keep: new Set([termKey("a", "w9")]),

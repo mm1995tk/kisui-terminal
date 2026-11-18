@@ -306,7 +306,7 @@ export interface Row {
   gws: string;
   /**
    * 今出しているターミナルのタブのマシン（band.id がそのワークスペース。ツリー・CHANGES・shj はそのタブのもの）。
-   * ターミナルのタブが無いワークスペース（#257）は ""（band.id は GUI のワークスペースの id。ターミナルのタブは無いので、マシンの名前も出さない）
+   * ターミナルのタブが無いワークスペース（ブラウザのタブだけ #257・空 #307）は ""（band.id は GUI のワークスペースの id。ターミナルのタブは無いので、マシンの名前も出さない）
    */
   target: string;
   /** マシンの名前（行の隅に小さく出す） */
@@ -344,14 +344,14 @@ export interface TabItem {
   tab?: string;
   /** ターミナルのタブのマシンとワークスペース（ブラウザのタブは undefined） */
   term?: { target: string; ws: WorkspaceId };
-  /** 行の ✕ を出すか（どのタブもいつも。最後のタブを閉じると、ワークスペースも閉じる） */
+  /** 行の ✕ を出すか（どのタブもいつも。最後のタブを閉じても、ワークスペースは空のまま残る。#307） */
   closable: boolean;
 }
 
 /** 帯の下に並べるタブ。 */
 export interface BandTabs {
   items: TabItem[];
-  /** 出しているタブのキー */
+  /** 出しているタブのキー（空のワークスペースは ""） */
   shown: string;
   /** そのワークスペースにフォーカスしているか（出しているタブを強く光らせる） */
   focused: boolean;
@@ -406,8 +406,12 @@ export function gwsRows(state: GwsState, ctx: RowContext): Row[] {
       focused,
     });
     if (!rep) {
-      // ターミナルのタブが無いワークスペース。出すブラウザのタブが 1 つも無ければ（内蔵ブラウザを無効にしている）、行を出さない
-      if (items.length === 0) return [];
+      // ターミナルのタブが無いワークスペース。ブラウザのタブはあるのに 1 つも出せなければ（内蔵ブラウザを無効にしている）、行を出さない
+      // （記録は残すので、有効に戻せばまた出る）。タブが 1 つも無い空のワークスペース（#307）は出す
+      if (items.length === 0 && g.tabs.length > 0) return [];
+      const shown = shownBrowserId(g, ctx.views[g.id], (id) =>
+        ctx.browser.has(id),
+      );
       return [
         {
           gws: g.id,
@@ -415,12 +419,8 @@ export function gwsRows(state: GwsState, ctx: RowContext): Row[] {
           machine: "",
           color: ctx.colorOf(""),
           health: "up",
-          band: bandOfBrowserOnly(g, focused),
-          tabs: tabs(
-            browserKey(
-              shownBrowserId(g, ctx.views[g.id], (id) => ctx.browser.has(id))!,
-            ),
-          ),
+          band: bandOfTermless(g, focused),
+          tabs: tabs(shown === undefined ? "" : browserKey(shown)),
         },
       ];
     }
@@ -439,7 +439,7 @@ export function gwsRows(state: GwsState, ctx: RowContext): Row[] {
 }
 
 /** ターミナルのタブが無いワークスペースの帯（ワークスペースの名前だけ。フォルダ・ブランチ・ツリーは無い）。id は GUI のワークスペースの id。 */
-function bandOfBrowserOnly(g: Gws, focused: boolean): Band {
+function bandOfTermless(g: Gws, focused: boolean): Band {
   return {
     id: g.id,
     title: displayName(g),
@@ -459,9 +459,8 @@ function bandOfBrowserOnly(g: Gws, focused: boolean): Band {
   };
 }
 
-/** 行が、ターミナルのタブが無いワークスペース（#257）のものか。そのときの target は ""（Row.target） */
-export const isBrowserOnly = (r: Pick<Row, "target">): boolean =>
-  r.target === "";
+/** 行が、ターミナルのタブが無いワークスペース（ブラウザのタブだけ #257・空 #307）のものか。そのときの target は ""（Row.target） */
+export const isTermless = (r: Pick<Row, "target">): boolean => r.target === "";
 
 /**
  * ワークスペースの帯。rep（今出しているターミナルのタブ）の一覧があればフォルダ・ブランチを出し、

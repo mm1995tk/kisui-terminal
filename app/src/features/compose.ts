@@ -132,7 +132,8 @@ export function createFeatures(deps: {
     sessions: sessions.sessions,
     workspaces: sessions.workspaces,
     termGroups: sessions.termGroups,
-    focus: () => workspaces.focus(),
+    // ターミナルのタブを持たないワークスペースに居る間は、ほかのワークスペースのターミナルを出さない・キーを送らない（#307）
+    focus: () => workspaces.paneFocus(),
     focusTerminal,
   });
   const browserTabs = createBrowserTabs({ os: ports.browser });

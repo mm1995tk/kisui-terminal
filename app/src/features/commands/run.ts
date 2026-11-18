@@ -19,7 +19,6 @@ import type { Direction } from "../terminal/grid.ts";
 import { focusLastNotified } from "../terminal/lastNotified.ts";
 import type { Updates } from "../updates/store.ts";
 import type { Workspaces } from "../workspaces/controller.ts";
-import { termsOf } from "../workspaces/model.ts";
 import type { Step } from "../workspaces/rows.ts";
 import type { Tabs } from "../workspaces/tabs/controller.ts";
 import type { Command } from "./commands.ts";
@@ -74,7 +73,7 @@ export function createCommandRunner(deps: {
   const { setFocusError, focusTerminal, ui, updates } = deps;
   const {
     focus,
-    termless,
+    inTermless,
     currentGws,
     cannot,
     stepWs,
@@ -208,13 +207,11 @@ export function createCommandRunner(deps: {
       runBrowser(c);
       return;
     }
-    // ターミナルのタブが無いワークスペースには、ペインが無い
-    if (c.id.startsWith("pane.") && termless() !== null && shownBrowserTab()) {
-      const g = currentGws();
-      if (g && termsOf(g).length === 0) {
-        cannot(T("cannot.pane.none.title"), T("cannot.pane.none.text"));
-        return;
-      }
+    // ターミナルのタブが無いワークスペース（ブラウザのタブだけ・空）には、ペインが無い。
+    // focus に残っているほかのワークスペースのペインは動かさない（#307）
+    if (c.id.startsWith("pane.") && inTermless()) {
+      cannot(T("cannot.pane.none.title"), T("cannot.pane.none.text"));
+      return;
     }
     // ブラウザのタブを出している間のペインの操作は、まずグリッドに戻す（見えないペインは動かさない）。
     // ペインを閉じる（p x）は、戻すだけで閉じない（どのペインが閉じるか見えないまま閉じないため）

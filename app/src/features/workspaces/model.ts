@@ -2,7 +2,8 @@
 //
 // 各マシンの kisui serve が持つ「ワークスペース」（プライマリターミナル・分割したペイン・フォルダ・名前を持つもの）は、
 // ここでは「ターミナルのタブ」1 つになる。GUI のワークスペースは、マシンをまたいで、ターミナルのタブと内蔵ブラウザのタブを束ねる。
-// ターミナルのタブは 1 つも無くてよい（ブラウザのタブだけのワークスペース。#257）。タブが 1 つも無くなったワークスペースは閉じる。
+// ターミナルのタブは 1 つも無くてよい（ブラウザのタブだけのワークスペース。#257）。タブが 1 つも無くてもよい（空のワークスペース。#307）。
+// 最後のタブを閉じても、ワークスペースは残す（名前・id・並び順を保つ）。並びから外すのは、ワークスペースを閉じる操作（removeGws）だけ。
 // 覚えるもの：名前、サイドバーでの並び順（list の順）、中のタブとその並び順。再起動しても残す（置き場は webview の localStorage）。
 //
 // 名前を付けていないワークスペースは「ws1」「ws2」の番号の名前で出す。番号は作ったときに空いている一番小さい番号で、閉じるまで変えない。
@@ -385,6 +386,8 @@ export function addTerm(
       ];
     if (!g.tabs.some((r) => sameTerm(r, target, ws))) return [g];
     const tabs = g.tabs.filter((r) => !sameTerm(r, target, ws));
+    // 空になるのは、整理（adoptOrphanTerms）がこのタブのために作ったワークスペースだけ（作ったばかりのタブは、ほかのワークスペースに入りようがない）。
+    // ユーザーが作ったものではないので、空のワークスペースとして残さずに外す
     return tabs.length === 0 ? [] : [{ ...g, tabs }];
   });
   return { list };
@@ -392,22 +395,53 @@ export function addTerm(
 
 const sameGws = (a: Gws | undefined, b: Gws): boolean => a?.id === b.id;
 
-/** ブラウザのタブを外す。ワークスペースの最後のタブだったら、ワークスペースも並びから外す。 */
+/** ブラウザのタブを外す。ワークスペースの最後のタブだったら、ワークスペースは空のまま残る（#307）。 */
 export function removeBrowser(s: GwsState, tab: string): GwsState {
   const g = gwsOfBrowser(s, tab);
   if (!g) return s;
-  return dropEmpty(
-    update(s, g.id, (x) => ({
-      ...x,
-      tabs: x.tabs.filter((r) => !(r.kind === "browser" && r.id === tab)),
-    })),
+  return update(s, g.id, (x) => ({
+    ...x,
+    tabs: x.tabs.filter((r) => !(r.kind === "browser" && r.id === tab)),
+  }));
+}
+
+/**
+ * ワークスペースを並びから外す（ワークスペースを閉じる操作。中のタブを閉じるのは呼ぶ側）。
+ * 空のワークスペースも、これでだけ外れる（#307）。id が無ければ、そのまま返す。
+ */
+export function removeGws(s: GwsState, id: string): GwsState {
+  const list = s.list.filter((g) => g.id !== id);
+  return list.length === s.list.length ? s : { list };
+}
+
+/**
+ * ワークスペース g のターミナルのタブが、マシンの一覧 lists では全部閉じられているか。
+ * つながって一覧が分かっているマシンのタブだけを見る（つながっていないマシンのタブは、閉じたと分からない）。keep のタブは閉じたとみなさない。
+ * ターミナルのタブを持たないワークスペースは false。
+ */
+export function lostAllTerms(
+  g: Gws,
+  lists: Lists,
+  keep?: ReadonlySet<string>,
+): boolean {
+  const terms = termsOf(g);
+  return (
+    terms.length > 0 &&
+    terms.every((r) => {
+      const l = lists[r.target];
+      return (
+        !!l &&
+        !l.some((w) => w.id === r.ws) &&
+        !keep?.has(termKey(r.target, r.ws))
+      );
+    })
   );
 }
 
 /**
  * タブ key を閉じたあとに出すタブ。同じワークスペースの次のタブ（無ければ前）。
  * back（同じワークスペースのブラウザのタブ）を渡すと、次のタブの代わりにそれ（ページが自分を閉じたとき、開いた元へ戻る）。
- * 閉じるのがワークスペースの最後のタブなら undefined（ワークスペースも閉じる）。
+ * 閉じるのがワークスペースの最後のタブなら undefined（ワークスペースは空になって残る）。
  */
 export function after(g: Gws, key: string, back?: string): TabRef | undefined {
   const keys = g.tabs.map(refKey);
@@ -468,14 +502,14 @@ export interface Reconciled {
  * - どこにも入っていないターミナルのタブは、1 つにつき新しいワークスペースを作る。
  * - どこにも入っていないブラウザのタブは、開いたときのターミナルのタブがあるワークスペースに入れる。その元も無ければ（元のマシンの一覧が分かっていて）閉じる。
  *   ターミナルのタブから開いたのではないタブ（workspace が空。ブラウザのタブだけのワークスペースのもの。#257）は、新しいワークスペースを作って入れる。
- * - タブが 1 つも無くなったワークスペースは外す。
+ * - タブが 1 つも無くなったワークスペースも残す（#307）。最後に使っていたターミナルのタブの覚えだけ消す。
  * 変わらなければ同じ state を返す。
  */
 export function reconcile(s: GwsState, input: ReconcileInput): Reconciled {
   const pruned = pruneTabs(s, input);
   let state = adoptOrphanTerms(pruned.state, pruned.seen, input);
   const adopted = adoptOrphanBrowsers(state, input);
-  return { state: dropEmpty(adopted.state), close: adopted.close };
+  return { state: forgetGoneTerm(adopted.state), close: adopted.close };
 }
 
 /**
@@ -571,20 +605,15 @@ function adoptOrphanBrowsers(s: GwsState, input: ReconcileInput): Reconciled {
   return { state, close };
 }
 
-/** タブが 1 つも無いワークスペースを外す。最後に使っていたターミナルのタブがもう無ければ、その覚えも消す。 */
-function dropEmpty(s: GwsState): GwsState {
-  const alive: Gws[] = [];
-  for (const g of s.list) {
-    if (g.tabs.length === 0) continue;
-    alive.push(
-      g.term && !g.tabs.some((r) => sameTerm(r, g.term!.target, g.term!.ws))
-        ? { ...g, term: undefined }
-        : g,
-    );
-  }
-  const same =
-    alive.length === s.list.length && alive.every((g, i) => g === s.list[i]);
-  return same ? s : { list: alive };
+/** 最後に使っていたターミナルのタブがもう無いワークスペースの、その覚えを消す。タブが無くなったワークスペースは外さない（#307）。 */
+function forgetGoneTerm(s: GwsState): GwsState {
+  const list = s.list.map((g): Gws => {
+    const t = g.term;
+    if (!t || g.tabs.some((r) => sameTerm(r, t.target, t.ws))) return g;
+    const { term: _, ...rest } = g;
+    return rest;
+  });
+  return sameList(list, s.list) ? s : { list };
 }
 
 function sameTabs(a: readonly TabRef[], b: readonly TabRef[]): boolean {
@@ -615,7 +644,7 @@ export function saveGws(store: KeyValueStore | undefined, s: GwsState): void {
   }
 }
 
-/** 記録の形を確かめる。タブが 1 つも無いワークスペース・重なったものは捨てる。 */
+/** 記録の形を確かめる。形の違うもの・重なったものは捨てる。タブが 1 つも無いワークスペースは残す（空のワークスペース。#307）。 */
 export function parseGws(v: unknown): GwsState {
   if (typeof v !== "object" || v === null) return EMPTY_GWS;
   const raw = (v as { list?: unknown }).list;
@@ -654,7 +683,6 @@ export function parseGws(v: unknown): GwsState {
       seen.add(refKey(ref));
       tabs.push(ref);
     }
-    if (tabs.length === 0) continue;
     // 番号が壊れている・重なっているときは、空いている番号を振り直す
     const num =
       typeof g.num === "number" &&
@@ -729,8 +757,8 @@ export function nameErrorText(name: string): string | undefined {
 }
 
 /**
- * ターミナルのタブを記録から外す（マシンにつながっていなくて閉じられないとき）。
- * 最後のタブを外したワークスペースは、並びから外す。
+ * ターミナルのタブを記録から外す（閉じたとき・マシンにつながっていなくて閉じられないとき）。
+ * 最後のタブを外したワークスペースは、空のまま残る（#307）。
  */
 export function dropTerm(
   s: GwsState,
@@ -739,7 +767,7 @@ export function dropTerm(
 ): GwsState {
   const g = gwsOfTerm(s, target, ws);
   if (!g) return s;
-  return dropEmpty(
+  return forgetGoneTerm(
     update(s, g.id, (x) => ({
       ...x,
       tabs: x.tabs.filter((r) => !sameTerm(r, target, ws)),

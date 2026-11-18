@@ -75,6 +75,7 @@ describe("メインウィンドウの CSS の並び", () => {
       "ui/styles/jetbrains-mono.css",
       "ui/styles/symbols-nerd-font.css",
       "ui/main-window/content/terminal/terminal.css",
+      "ui/main-window/content/EmptyWorkspace.module.css",
     ]);
   });
 });

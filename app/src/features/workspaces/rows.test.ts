@@ -15,6 +15,7 @@ import {
   keepFocus,
   shouldSendMoveTo,
   gwsRows,
+  isTermless,
   machineLabel,
   type Row,
   stepFrom,
@@ -734,6 +735,41 @@ describe("gwsRows", () => {
     });
     assert.equal(r2.tabs.shown, JSON.stringify(["b", "t1"]));
     assert.equal(r2.band.focused, false);
+  });
+
+  it("タブが 1 つも無い空のワークスペースも、名前だけの行にする（#307）。内蔵ブラウザを使っていなくても出す", () => {
+    const state: GwsState = {
+      list: [
+        { id: "g1", name: "", num: 1, tabs: [] },
+        { id: "g2", name: "あとで", num: 2, tabs: [] },
+      ],
+    };
+    const groups = buildSidebar(["a"], up, { a: [lists.a[0]] }, null);
+    const rows = gwsRows(state, {
+      groups,
+      workspaces: { a: [lists.a[0]] },
+      focus: { target: "a", id: "a1" },
+      current: "g2",
+      browser: new Map(),
+      views: { g2: "gone" },
+      labelOf: machineLabel,
+      colorOf: () => "#000",
+      healthOf: () => "up",
+    });
+    assert.deepEqual(
+      rows.map((r) => [r.gws, r.target, r.band.id, r.band.title]),
+      [
+        ["g1", "", "g1", "ws1"],
+        ["g2", "", "g2", "あとで"],
+      ],
+    );
+    assert.ok(rows.every(isTermless));
+    const r = rows[1];
+    assert.equal(r.band.focused, true);
+    assert.equal(r.band.showTree, false);
+    assert.deepEqual(r.tabs.items, []);
+    assert.equal(r.tabs.shown, "");
+    assert.equal(r.tabs.focused, true);
   });
 
   it("今出しているターミナルのタブが切れているマシンのものなら、最後に分かった名前で薄く出す", () => {

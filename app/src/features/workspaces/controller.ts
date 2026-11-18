@@ -38,17 +38,20 @@ import {
   EMPTY_GWS,
   gwsOfTerm,
   loadGws,
+  lostAllTerms,
   move as moveGws,
   moveBefore,
   nameErrorText,
   newGwsId,
   reconcile,
   removeBrowser,
+  removeGws,
   rename as renameGws,
   saveGws,
   setActiveTerm,
   termKey,
   termsOf,
+  type Gws,
   type GwsState,
   type Lists,
 } from "./model.ts";
@@ -59,7 +62,7 @@ import {
   buildSidebar,
   gwsRows,
   health,
-  isBrowserOnly,
+  isTermless,
   keepFocus,
   shouldSendMoveTo,
   stepFrom,
@@ -290,11 +293,13 @@ export function createWorkspaces(deps: {
    * 帯の [×]。GUI のワークスペースを閉じる：中のターミナルのタブ（マシンのワークスペース）のターミナルを全部終わらせ、ブラウザのタブも閉じる。
    * プログラムが動いていれば断られるので、確認の窓を出す（force は窓で「終わらせて閉じる」を押したとき。残りのタブは窓の後に続ける）。
    * マシンにつながっていないタブは、閉じられないので記録から外すだけ（マシンのワークスペースは残り、つながったらまた新しいワークスペースになる）。
+   * 中のタブを全部閉じたら、ワークスペースを並びから外す（タブを閉じるだけではワークスペースは残るので。空のワークスペースもこれで閉じる。#307）。
    * フォーカスしているワークスペースを閉じたら、隣のワークスペースに移る。
    */
   async function closeWorkspace(gid: string, force = false) {
     const g = untrack(gws).list.find((x) => x.id === gid);
     if (!g) return;
+    closingGws.add(gid);
     // 閉じたあとの移り先は、サイドバーの 1 列で隣のワークスペース（マシンが違ってもよい）
     const list = rows();
     const i = list.findIndex((r) => r.gws === gid);
@@ -305,7 +310,7 @@ export function createWorkspaces(deps: {
     // ターミナルのタブを持たないワークスペースに居たとき・移り先がそうなときは、閉じたあとに goRow で移る
     const fromTerm = termsOf(g).length > 0;
     const moveTo =
-      wasCurrent && fromTerm && next && !isBrowserOnly(next)
+      wasCurrent && fromTerm && next && !isTermless(next)
         ? { target: next.target, id: next.band.id }
         : null;
     await closeThenMove(
@@ -323,13 +328,21 @@ export function createWorkspaces(deps: {
         }
         // ブラウザのタブも閉じる（ターミナルのタブが全部閉じたあとに）
         for (const r of g.tabs) if (r.kind === "browser") dropBrowserTab(r.id);
+        // 最後に、ワークスペースそのものを並びから外す（記録からも消えるので、再起動しても戻らない）
+        batch(() => {
+          setGws((x) => removeGws(x, gid));
+          if (untrack(termless) === gid) setTermless(null);
+        });
       },
       () => setConfirmClose({ gws: gid, name }),
       () => {
         if (wasCurrent && next && !moveTo) goRow(next);
       },
     );
+    closingGws.delete(gid);
   }
+  /** 閉じている途中のワークスペース（中のタブが閉じても、空のワークスペースとして留まらない。workspacesChanged） */
+  const closingGws = new Set<string>();
 
   /** ブラウザのタブを、ページも記録もまとめて閉じる（出すタブの移り先は決めない）。 */
   function dropBrowserTab(id: string) {
@@ -367,9 +380,9 @@ export function createWorkspaces(deps: {
   /** 前の並び順の記録（窓の J・K）。初めてワークスペースを作るときの並びに使う */
   const legacyOrder = loadOrder(store);
   /**
-   * いま居るのが、ターミナルのタブを持たないワークスペース（ブラウザのタブだけのもの。#257）なら、その id。
-   * このときも focus（ターミナルのタブのフォーカス）は、最後にフォーカスしていたターミナルのタブのまま残る（隠れているだけ）。
-   * ターミナルのタブへ移ったら（focusWorkspace）消える
+   * いま居るのが、ターミナルのタブを持たないワークスペース（ブラウザのタブだけのもの #257・空のもの #307）なら、その id。
+   * このときも focus（ターミナルのタブのフォーカス）は、最後にフォーカスしていたターミナルのタブのまま残る。
+   * そのタブは画面に出さず、キーも向けない（paneFocus が null になる）。ターミナルのタブへ移ったら（focusWorkspace）消える
    */
   const [termless, setTermless] = createSignal<string | null>(null);
   /** GUI がフォーカスしているワークスペース */
@@ -382,9 +395,34 @@ export function createWorkspaces(deps: {
     const f = focus();
     return f ? gwsOfTerm(gws(), f.target, f.id) : undefined;
   };
+  /** いま居るのが、ターミナルのタブを持たないワークスペースか（termless が今のワークスペースを指している） */
+  const inTermless = () => {
+    const t = termless();
+    return t !== null && currentGws()?.id === t;
+  };
   /**
-   * 起動したとき、ターミナルのタブが無くて、ブラウザのタブだけのワークスペースへ入る待ち（値は、ワークスペースを作るはずだったマシン）。
-   * ブラウザのタブを読み終えても、ブラウザのタブだけのワークスペースが残らなければ（記録が読めなかった・消えていた）、そのマシンにワークスペースを作る
+   * 画面に出してキーを向けるターミナルのタブ（ペイン）。ふだんは focus と同じ。
+   * ターミナルのタブを持たないワークスペースに居る間は null（focus に残っている、ほかのワークスペースのターミナルを出さず、
+   * キーも送らない。ペインの操作も、そのターミナルに届かない）
+   */
+  const paneFocus = (): WorkspaceFocus | null =>
+    inTermless() ? null : focus();
+  /** いま居るのが、タブが 1 つも無い空のワークスペース（#307）か。右のペインに、タブが無いことを伝える画面を出す */
+  const currentEmpty = () => {
+    const g = currentGws();
+    return !!g && g.tabs.length === 0;
+  };
+  /**
+   * ターミナルのタブが無くなっても、行に出るワークスペースか。内蔵ブラウザを使うときは、いつも出る。
+   * 使わないときは、ブラウザのタブの記録を持つものは出ない（記録は残し、有効に戻せばまた出る）。タブが 1 つも無い空のものは出る
+   */
+  const showableTermless = (g: Gws) =>
+    deps.browser || g.tabs.every((r) => r.kind === "term");
+  /** ターミナルのタブを持たないワークスペースで、行に出る（選べる）もの。 */
+  const landable = (g: Gws) => termsOf(g).length === 0 && showableTermless(g);
+  /**
+   * 起動したとき、ターミナルのタブが無くて、ターミナルのタブを持たないワークスペースへ入る待ち（値は、ワークスペースを作るはずだったマシン）。
+   * ブラウザのタブを読み終えても、そのようなワークスペースの行が無ければ（記録が読めなかった・消えていた）、そのマシンにワークスペースを作る
    */
   const [landing, setLanding] = createSignal<string | null>(null);
   createEffect(() => {
@@ -394,27 +432,24 @@ export function createWorkspaces(deps: {
       setLanding(null);
       return;
     }
-    // ブラウザのタブを読み終えるまでは、行が無い。読めたら、最初のブラウザのタブだけのワークスペースへ移る
-    const r = rows().find(isBrowserOnly);
-    if (r) {
-      setLanding(null);
-      untrack(() => showGws(r.gws));
-    } else if (
-      tabsReady() &&
-      !gws().list.some((g) => termsOf(g).length === 0)
-    ) {
-      setLanding(null);
-      untrack(() => void createWorkspace(target));
-    }
+    // ブラウザのタブを読み終えるまでは、ブラウザのタブだけのワークスペースの行が無い。読めてから、並びで最初のものへ移る
+    if (deps.browser && !tabsReady()) return;
+    const r = rows().find(isTermless);
+    setLanding(null);
+    if (r) untrack(() => showGws(r.gws));
+    else untrack(() => void createWorkspace(target));
   });
-  /** ターミナルのタブを持たないワークスペースへ移る（そのワークスペースのブラウザのタブのページにキーを向ける）。 */
+  /** ターミナルのタブを持たないワークスペースへ移る（ブラウザのタブがあればそのページに、空ならタブが無いことを伝える画面にキーを向ける）。 */
   function showGws(gid: string) {
+    // 行に出ないワークスペース（内蔵ブラウザを使わないときの、ブラウザのタブの記録だけのもの）へは移らない
+    const g = untrack(gws).list.find((x) => x.id === gid);
+    if (g && termsOf(g).length === 0 && !landable(g)) return;
     setTermless(gid);
     focusTerminal();
   }
   /** サイドバーの行 r のワークスペースへ移る。ターミナルのタブがあればそのタブ、無ければブラウザのタブのページ。 */
   function goRow(r: Row) {
-    if (isBrowserOnly(r)) showGws(r.gws);
+    if (isTermless(r)) showGws(r.gws);
     else void switchWorkspace(r.target, r.band.id);
   }
   /** 作ったばかりで、マシンの一覧の知らせがまだ届いていないターミナルのタブ（termKey）。reconcile が外さない */
@@ -432,12 +467,17 @@ export function createWorkspaces(deps: {
       healthOf: (t) => health(states()[t]),
     }),
   );
-  // マシンの一覧・ブラウザのタブに、ワークスペースの記録を合わせる（reconcile）
-  createEffect(() => {
+  /** つながって一覧が分かっているマシンの、ワークスペース（ターミナルのタブ）の一覧（reconcile に渡す形）。 */
+  function knownLists(): Lists {
     const lists: Lists = {};
     for (const [t, ws] of Object.entries(workspaces()))
       if (states()[t]?.kind === "connected")
         lists[t] = ws.map((w) => ({ id: w.id, title: band(w, false).title }));
+    return lists;
+  }
+  // マシンの一覧・ブラウザのタブに、ワークスペースの記録を合わせる（reconcile）
+  createEffect(() => {
+    const lists = knownLists();
     const browser = deps.browser && tabsReady() ? tabs().tabs : undefined;
     const r = reconcile(untrack(gws), {
       lists,
@@ -632,23 +672,38 @@ export function createWorkspaces(deps: {
     if (byKey) focusTerminal();
   }
 
-  /** マシン target のワークスペースの一覧が変わった（一覧を書き換えたのと同じ batch の中で呼ばれる）。フォーカスを一覧に合わせ直す。 */
+  /**
+   * マシン target のワークスペースの一覧が変わった（一覧を書き換えたのと同じ batch の中で呼ばれる）。フォーカスを一覧に合わせ直す。
+   * 今いるワークスペースのターミナルのタブが全部閉じられた（シェルを exit した・ほかの GUI から閉じた・t x）なら、
+   * フォーカスがほかのワークスペースのタブへ移っても、GUI はそのワークスペースに留まる（残ったブラウザのタブ、無ければ空の画面を出す。#307）。
+   * 閉じている途中のワークスペース（closeWorkspace）は、留まらずに隣へ移る。
+   */
   function workspacesChanged() {
-    setFocus((f) => keepFocus(f, workspaces(), shjFocuses(), closingNext));
+    const here = untrack(currentGws);
+    batch(() => {
+      setFocus((f) => keepFocus(f, workspaces(), shjFocuses(), closingNext));
+      if (
+        here &&
+        !closingGws.has(here.id) &&
+        showableTermless(here) &&
+        lostAllTerms(here, untrack(knownLists), justCreated)
+      ) {
+        // 整理（reconcile の effect）を待たずに記録から外す。待つと、その間だけフォーカスのタブのワークスペースへ移ってしまう
+        for (const r of termsOf(here))
+          setGws((x) => dropTerm(x, r.target, r.ws));
+        setTermless(here.id);
+      }
+    });
   }
 
   /**
    * つないで最初に分かった一覧（マシンごとに 1 回だけ）。空なら、ワークスペースを 1 つ作る（何も無い画面から始めない）。
    */
   function firstList(target: string, ws: Workspace[]) {
-    // 内蔵ブラウザを使っていて、ブラウザのタブだけのワークスペースがあれば、そこに居られるので作らない
+    // ターミナルのタブを持たないワークスペース（ブラウザのタブだけ・空）があれば、そこに居られるので作らない
     // （ブラウザのタブを読み終えたら、そこへ移る。上の effect）
     if (ws.length === 0) {
-      if (
-        deps.browser &&
-        untrack(gws).list.some((g) => termsOf(g).length === 0)
-      )
-        setLanding(target);
+      if (untrack(gws).list.some(landable)) setLanding(target);
       else void createWorkspace(target);
     }
   }
@@ -697,6 +752,12 @@ export function createWorkspaces(deps: {
     /** ターミナルのタブを持たないワークスペースに居るなら、その id */
     termless,
     currentGws,
+    /** いま居るのが、ターミナルのタブを持たないワークスペース（ブラウザのタブだけ・空）か */
+    inTermless,
+    /** 画面に出してキーを向けるターミナルのタブ（ターミナルのタブを持たないワークスペースに居る間は null） */
+    paneFocus,
+    /** いま居るのが、タブが 1 つも無い空のワークスペースか */
+    currentEmpty,
     showGws,
     goRow,
     /** 作ったばかりで、マシンの一覧の知らせがまだ届いていないターミナルのタブ（termKey） */

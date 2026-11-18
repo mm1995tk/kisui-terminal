@@ -35,13 +35,7 @@ import {
   type Gws,
   type TabRef,
 } from "../model.ts";
-import {
-  band,
-  isBrowserOnly,
-  unsetTitle,
-  type Step,
-  type WorkspaceFocus,
-} from "../rows.ts";
+import { band, unsetTitle, type Step, type WorkspaceFocus } from "../rows.ts";
 
 /** 「+」のメニューで選べるタブの種類。 */
 export type NewTabKind = "terminal" | "terminal.pick" | "browser";
@@ -66,8 +60,6 @@ export function createTabs(deps: {
     gws,
     setGws,
     currentGws,
-    rows,
-    goRow,
     showGws,
     switchWorkspace,
     goWorkspace,
@@ -90,17 +82,10 @@ export function createTabs(deps: {
     const g = gwsOfBrowser(untrack(gws), id);
     const next =
       g && shownIdOf(g) === id ? after(g, browserKey(id), back) : undefined;
-    // ワークスペースの最後のタブなら、ワークスペースも閉じる。いま居るなら、サイドバーの隣のワークスペースへ移る
-    const list = rows();
-    const k = g ? list.findIndex((r) => r.gws === g.id) : -1;
-    const last =
-      !!g && g.tabs.length === 1 && untrack(currentGws)?.id === g.id
-        ? (list[k + 1] ?? list[k - 1])
-        : undefined;
+    // ワークスペースの最後のタブなら、ワークスペースは空になって残る（#307）。いま居るなら、そこに留まる（タブが無いことを伝える画面を出す）
     setTabs((s) => closeTab(s, id));
     setGws((x) => removeBrowser(x, id));
     if (g && next) activateTab(g.id, next);
-    else if (last) goRow(last);
   }
   /** ワークスペース g が今出しているブラウザのタブの id（ターミナルのタブを出していれば undefined。ターミナルのタブが無いワークスペースは、出している・無ければ最初のブラウザのタブ）。 */
   function shownIdOf(g: Gws): string | undefined {
@@ -162,11 +147,11 @@ export function createTabs(deps: {
 
   /**
    * ターミナルのタブ 1 つを閉じる（サイドバーのタブの行の ✕。#235 の t x もこれを使う）。ワークスペースの最後のターミナルのタブも閉じられる
-   * （ワークスペースの最後のタブなら、ワークスペースも閉じる。#257）。
+   * （ワークスペースの最後のタブでも、ワークスペースは空になって残る。#307）。
    * プログラムが動いていれば断られるので、確認の窓を出す（force は窓で「終わらせて閉じる」を押したとき）。
    * マシンにつながっていないタブは、閉じられないので記録から外すだけ。
    * フォーカスしているタブを閉じたら、同じワークスペースの隣のターミナルのタブに移る。
-   * ターミナルのタブがもう無ければ、同じワークスペースのブラウザのタブ、それも無ければ（ワークスペースも閉じるので）サイドバーの隣のワークスペースに移る。
+   * ターミナルのタブがもう無ければ、同じワークスペースのブラウザのタブ、それも無ければ、空になったそのワークスペースに留まる。
    */
   async function closeTermTab(target: string, ws: WorkspaceId, force = false) {
     const g = gwsOfTerm(untrack(gws), target, ws);
@@ -180,7 +165,10 @@ export function createTabs(deps: {
     const name = tw ? band(tw, false).title : terms[i].title || unsetTitle();
     const s = sessions()[target];
     if (!s || states()[target]?.kind !== "connected") {
+      const stay = terms.length === 1 && untrack(currentGws)?.id === g.id;
       setGws(dropTerm(untrack(gws), target, ws));
+      // 最後のターミナルのタブを外したら、そのワークスペース（残ったブラウザのタブか、空の画面）に留まる
+      if (stay) showGws(g.id);
       return;
     }
     const f = untrack(focus);
@@ -195,13 +183,8 @@ export function createTabs(deps: {
           showGws(g.id);
         };
       } else {
-        // 最後のタブ：ワークスペースも閉じるので、サイドバーの隣のワークスペースへ
-        const list = rows();
-        const k = list.findIndex((r) => r.gws === g.id);
-        const nr = list[k + 1] ?? list[k - 1];
-        if (nr && !isBrowserOnly(nr))
-          moveTo = { target: nr.target, id: nr.band.id };
-        else if (nr) onClosed = () => showGws(nr.gws);
+        // 最後のタブ：ワークスペースは空になって残るので、そこに留まる（#307。タブが無いことを伝える画面を出す）
+        onClosed = () => showGws(g.id);
       }
     }
     await closeThenMove(
@@ -369,6 +352,8 @@ export function createTabs(deps: {
   function currentTabKey(): string | undefined {
     const b = shownBrowserTab();
     if (b) return browserKey(b.id);
+    // ターミナルのタブを持たないワークスペースでは、focus に残っているのはほかのワークスペースのタブ（今のタブではない）
+    if (deps.workspaces.inTermless()) return undefined;
     // キーで移っている途中（返事が返るまで focus() が前のまま）は、向かっている先から数える（続けて押せるように）
     const f = deps.workspaces.heading() ?? untrack(focus);
     return f ? termKey(f.target, f.id) : undefined;
@@ -395,7 +380,7 @@ export function createTabs(deps: {
 
   /**
    * リーダーの t x。今出しているタブを閉じる。ブラウザのタブはそのページを閉じ、ターミナルのタブはそのターミナルを終わらせる
-   * （プログラムが動いていれば確認を出す。closeTermTab）。ワークスペースの最後のタブを閉じると、ワークスペースも閉じる。
+   * （プログラムが動いていれば確認を出す。closeTermTab）。ワークスペースの最後のタブを閉じても、ワークスペースは空になって残る（#307）。
    */
   function closeCurrentTab() {
     const g = currentGws();

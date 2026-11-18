@@ -219,6 +219,7 @@ function MainWindow(props: {
     workspaces: sessions.workspaces,
     treeVersion: fileTree.treeVersion,
     shownBrowserTab: pages.shownBrowserTab,
+    emptyShown: workspaces.currentEmpty,
     sidebarOpen: resize.sidebarOpen,
     changeSidebarOpen: resize.changeSidebarOpen,
     resizeMode: resize.resizeMode,
@@ -309,6 +310,7 @@ function MainWindow(props: {
         <ContentArea
           ref={(el) => (els.main = el)}
           browser={browser}
+          empty={workspaces.currentEmpty()}
           terminals={terminals}
           browserTabs={browserTabs}
           pages={pages}
