@@ -11,6 +11,7 @@ import {
   type JSX,
 } from "solid-js";
 
+import { Button } from "../../components/Button.tsx";
 import { ModalCard } from "../../components/Card.tsx";
 import { moveRow, pickerKey } from "../../../features/sessions/machineList.ts";
 import type { MascotListing } from "../../../features/mascot/mascot.ts";
@@ -160,9 +161,7 @@ export function MascotDialog(props: {
         </div>
       </div>
       <div class="card-actions">
-        <button type="button" class="card-button" onClick={props.onCancel}>
-          {T("button.cancelAlt")}
-        </button>
+        <Button onClick={props.onCancel}>{T("button.cancelAlt")}</Button>
       </div>
     </ModalCard>
   );

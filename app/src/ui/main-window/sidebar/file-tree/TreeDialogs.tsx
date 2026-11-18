@@ -4,6 +4,7 @@ import { isComposingKey } from "../../../../features/commands/ime.ts";
 import { T } from "../../../../i18n/index.ts";
 import { createSignal, Show, type JSX } from "solid-js";
 
+import { Button } from "../../../components/Button.tsx";
 import { ModalCard } from "../../../components/Card.tsx";
 
 /** 窓に出す理由（Error の message か文字列）。 */
@@ -81,17 +82,10 @@ export function NameDialog(props: {
         </Show>
       </div>
       <div class="card-actions">
-        <button type="button" class="card-button" onClick={props.onCancel}>
-          {T("button.cancel")}
-        </button>
-        <button
-          type="button"
-          class="card-button primary"
-          disabled={busy()}
-          onClick={() => void submit()}
-        >
+        <Button onClick={props.onCancel}>{T("button.cancel")}</Button>
+        <Button variant="primary" busy={busy()} onClick={() => void submit()}>
           {props.submit}
-        </button>
+        </Button>
       </div>
     </ModalCard>
   );
@@ -141,17 +135,10 @@ export function DeleteDialog(props: {
         </Show>
       </div>
       <div class="card-actions">
-        <button type="button" class="card-button" onClick={props.onCancel}>
-          {T("button.cancelAlt")}
-        </button>
-        <button
-          type="button"
-          class="card-button primary"
-          disabled={busy()}
-          onClick={() => void yes()}
-        >
+        <Button onClick={props.onCancel}>{T("button.cancelAlt")}</Button>
+        <Button variant="primary" busy={busy()} onClick={() => void yes()}>
           {T("deleteDialog.yes")}
-        </button>
+        </Button>
       </div>
     </ModalCard>
   );

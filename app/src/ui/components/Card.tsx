@@ -1,7 +1,7 @@
 // 窓のカード（モック Connect.dc.html のカードと同じ決まり）。
 // リモートを足す窓・名前を変える窓・kisui を入れるかの確認・ssh の質問の窓は、真ん中に出して後ろを触らせないもの（ModalCard）。
 // つながらない・引き継がれた・新しい版の知らせは、右下に積んで後ろも触れるもの（.card-notice。Notices.tsx）。
-// 寸法と色は card.css。
+// 寸法と色は card.css（値は ui/styles/tokens.css）、下に並べるボタンは Button.tsx。使い方の決まりは docs/design/design-system.md の「窓の枠」。
 import { onCleanup, onMount, type JSX } from "solid-js";
 
 import { isCancelKey } from "./cancelKey.ts";

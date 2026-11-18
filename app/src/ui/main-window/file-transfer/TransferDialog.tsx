@@ -3,6 +3,7 @@
 import { For, Show, type JSX } from "solid-js";
 
 import { T } from "../../../i18n/index.ts";
+import { Button } from "../../components/Button.tsx";
 import { ModalCard } from "../../components/Card.tsx";
 import { formatBytes } from "../../../features/file-transfer/transfer.ts";
 import { currentTransferPrompt } from "../../../features/file-transfer/transferPrompt.ts";
@@ -78,20 +79,12 @@ export function TransferDialog(): JSX.Element {
             </Show>
           </div>
           <div class="card-actions">
-            <button
-              type="button"
-              class="card-button"
-              onClick={() => ask.resolve(false)}
-            >
+            <Button onClick={() => ask.resolve(false)}>
               {T("transfer.deny")}
-            </button>
-            <button
-              type="button"
-              class="card-button primary"
-              onClick={() => ask.resolve(true)}
-            >
+            </Button>
+            <Button variant="primary" onClick={() => ask.resolve(true)}>
               {T("transfer.allow")}
-            </button>
+            </Button>
           </div>
         </ModalCard>
       )}
