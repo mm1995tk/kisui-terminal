@@ -97,7 +97,7 @@
   outline-offset: -1px;
 }
 
-/* ワークスペースの帯（li.band-item。#234）。平らな帯（枠・角の丸み・周りの余白は無い。#297）で、ヘッダー（.band-slot > .band）とコンテンツ（.tab-rows）に分ける。字下げはしない。
+/* ワークスペースの帯（li.band-item。#234）。平らな帯（枠・角の丸み・周りの余白は無い。#297）で、ヘッダー（.band-slot > .band）とコンテンツ（.tab-rows）に分ける。ヘッダーは字下げしない。タブの一覧は、角の丸みが見えるよう少し内側に入る。
    フォーカスしている帯は見出しの色が明るい。
    --region-bg は不透明な色にする（上下に固定した帯・フォルダの行の後ろが透けないように） */
 .band-item {
@@ -502,18 +502,22 @@ div.band-main {
   line-height: 1.5;
 }
 
-/* ヘッダーの下のコンテンツ：タブの行を、ヘッダーと同じ左端から並べる（字下げしない）。タブとタブの間に区切り線を引く */
+/* ヘッダーの下のコンテンツ：タブの行を、角の丸い枠のブロックにして、少しずつ間をあけて並べる */
 .tab-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   margin: 0;
-  padding: 0;
+  padding: 4px 6px 6px;
   list-style: none;
 }
 .tab-row {
   --sidebar-bg: var(--row-bg);
+  flex: none;
+  overflow: clip;
+  border: 1px solid var(--gh-border);
+  border-radius: 6px;
   background: var(--row-bg);
-}
-.tab-row + .tab-row {
-  border-top: 1px solid var(--gh-border);
 }
 /* そのワークスペースで出しているタブ。今のワークスペースのものは、地の色も変える */
 .tab-row[data-shown] {
@@ -522,14 +526,20 @@ div.band-main {
 .tab-row[data-current] {
   --row-bg: var(--gh-bg-hover);
 }
-/* 行の高さの最小は、ターミナルのタブもブラウザのタブも同じ（2 行ぶん）。git のあるターミナルのタブは 3 行ぶんに伸びる */
+/* 行の高さは、ターミナルのタブもブラウザのタブも同じ（git のあるターミナルのタブの 3 行ぶん）。行が少ないタブは、真ん中にそろえる */
 .tab-line {
+  /* 行の寸法の置き場。高さも、鉛筆と ✕ の位置も、ここから計算する */
+  --tab-l1-h: 22px;
+  --tab-l-h: 16px;
+  --tab-gap: 3px;
+  --tab-pad-y: 8px;
+  --tab-body-h: calc(var(--tab-l1-h) + (var(--tab-l-h) + var(--tab-gap)) * 2);
   position: relative;
   box-sizing: border-box;
   display: flex;
   align-items: center;
-  min-height: 56px;
-  padding: 8px 6px 8px 0;
+  min-height: calc(var(--tab-pad-y) * 2 + var(--tab-body-h));
+  padding: var(--tab-pad-y) 6px var(--tab-pad-y) 0;
 }
 .tab-line:hover {
   background: var(--band-hover);
@@ -539,7 +549,7 @@ div.band-main {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: var(--tab-gap);
   padding: 0;
   border: 0;
   background: transparent;
@@ -551,7 +561,7 @@ div.band-main {
 /* 鉛筆と ✕ は 1 行目の右に重ねる。名前が下に潜らないよう、1 行目の右は空けておく */
 .tab-actions {
   position: absolute;
-  top: 8px;
+  top: var(--tab-pad-y);
   right: 6px;
   display: flex;
   gap: 0;
@@ -560,7 +570,7 @@ div.band-main {
   display: flex;
   align-items: center;
   gap: 6px;
-  height: 22px;
+  height: var(--tab-l1-h);
   padding-right: 46px;
   font-size: 12px;
 }
@@ -611,7 +621,7 @@ div.band-main {
   align-items: center;
   gap: 6px;
   min-width: 0;
-  height: 16px;
+  height: var(--tab-l-h);
   color: var(--sidebar-muted);
   font-size: 11px;
 }
@@ -644,4 +654,12 @@ div.band-main {
 .tab-row[data-health="down"] .tab-l2,
 .tab-row[data-health="down"] .tab-l3 {
   opacity: 0.55;
+}
+/* 鉛筆と ✕ は 1 行目の右に重ねるので、真ん中にそろえて 1 行目が下がった分だけ下げる。
+   --tab-body-h は中身が入る高さ（.tab-line の先頭で定義）。行が 1 つだけなら 1 行目の高さ、2 つなら 1 行目 + 行の間 + 2 行目 */
+.tab-line:not(:has(.tab-l3)):has(.tab-l2) .tab-actions {
+  top: calc(var(--tab-pad-y) + (var(--tab-body-h) - var(--tab-l1-h) - var(--tab-l-h) - var(--tab-gap)) / 2);
+}
+.tab-line:not(:has(.tab-l2)) .tab-actions {
+  top: calc(var(--tab-pad-y) + (var(--tab-body-h) - var(--tab-l1-h)) / 2);
 }
