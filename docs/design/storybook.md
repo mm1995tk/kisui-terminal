@@ -14,7 +14,7 @@ npm run build-storybook    # 静的なビルド（storybook-static/。git には
 ```
 
 `storybook-static/` は静的なファイルだけなので、静的なファイルを出す HTTP サーバー（例：`python3 -m http.server -d storybook-static`）で出して開ける。
-`tauri dev` の固定ポート（1420）は使わないので、`tauri dev` と同時に動かせる。
+`vite.config.ts` の `server`・`root`・`build` は Storybook が自分の値に置き換えるので、`tauri dev` の固定ポート（1420）は使わず、`tauri dev` と同時に動かせる。
 
 上の道具の「Language」（地球のアイコン）で、英語と日本語を切り替える。切り替えると story を作り直し、文を引き直す
 （アプリでは、言語は起動のときに 1 度だけ決まる。`app/src/i18n/`）。
@@ -23,7 +23,7 @@ npm run build-storybook    # 静的なビルド（storybook-static/。git には
 
 | ファイル                   | 持つもの                                                                                                 |
 | -------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `.storybook/main.ts`       | 使う連携（`storybook-solidjs-vite`）、stories の場所（`app/src/**/*.stories.tsx`）、送信をやめる設定、ポート |
+| `.storybook/main.ts`       | 使う連携（`storybook-solidjs-vite`）、stories の場所（`app/src/**/*.stories.tsx`）、送信をやめる設定 |
 | `.storybook/preview.tsx`   | アプリと同じ色（`ui/styles/theme.css`）と字（`ui/styles/fonts.ts`）を読む。言語の切り替え                  |
 | `.storybook/preview.css`   | story を出す枠の地と字（メインウィンドウの `layout.css` の `body` と同じ値）                              |
 
