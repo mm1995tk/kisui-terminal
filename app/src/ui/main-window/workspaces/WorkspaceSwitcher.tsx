@@ -9,7 +9,7 @@ import {
 } from "solid-js";
 
 import { startDrag } from "../sidebar/drag.ts";
-import type { Row, TabItem } from "../../../features/workspaces/rows.ts";
+import type { Row } from "../../../features/workspaces/rows.ts";
 import { type RowEdit, SwitcherRow, SwitcherTabs } from "./SwitcherParts.tsx";
 import {
   ModalCard,
@@ -20,12 +20,10 @@ import {
 import { Kbd, KeyHints } from "../../components/KeyHints.tsx";
 import { isCancelKey } from "../../components/cancelKey.ts";
 import { moveRow } from "../../../features/sessions/machineList.ts";
-import { confirmKey, switcherKey } from "./switcherKey.ts";
+import { confirmKey, switcherHints, switcherKey } from "./switcherKey.ts";
+import { createSwitcherColumns } from "./switcherColumns.ts";
 import { startTabDrag } from "./tabMoveDrag.ts";
 import "./switcher.css";
-
-/** キーが効いている列（左がワークスペース、右がそのタブ） */
-type Col = "ws" | "tab";
 
 const rowId = (i: number) => `switcher-row-${i}`;
 
@@ -79,23 +77,9 @@ export function WorkspaceSwitcher(props: {
     (RowEdit & { gws: string }) | undefined
   >();
   const [confirming, setConfirming] = createSignal<string | undefined>();
-  // キーが効いている列。タブが無いワークスペースでは、タブの列には移れない（col が "tab" のままでも、左にいるものとして扱う）
-  const [col, setCol] = createSignal<Col>("ws");
-  // 右の列で選んでいるタブの key。選んでいるワークスペースに無い key なら、出しているタブ、それも無ければ先頭を選んでいるものとする
-  const [tabSel, setTabSel] = createSignal<string | undefined>();
-  const tabs = (): readonly TabItem[] => selected()?.tabs.items ?? [];
-  const activeCol = (): Col =>
-    col() === "tab" && tabs().length > 0 ? "tab" : "ws";
-  const tabIndex = createMemo((): number => {
-    const items = tabs();
-    if (items.length === 0) return -1;
-    const at = (k: string | undefined) => items.findIndex((t) => t.key === k);
-    return Math.max(
-      0,
-      at(tabSel()) >= 0 ? at(tabSel()) : at(selected()?.tabs.shown),
-    );
-  });
-  const selectedTab = (): TabItem | undefined => tabs()[tabIndex()];
+  // キーが効いている列と、右の列で選んでいるタブ（switcherColumns.ts）
+  const { tabs, activeCol, selectedTab, toWs, toTabs, moveTab, pickTab } =
+    createSwitcherColumns(selected);
   let list!: HTMLUListElement;
   let right!: HTMLDivElement;
   let root!: HTMLDivElement;
@@ -144,7 +128,7 @@ export function WorkspaceSwitcher(props: {
       return;
     }
     select(r.gws);
-    setCol("ws");
+    toWs();
     if (!editing()) focusList();
   }
   /** タブの行を押した：選んでいる行（キーが右の列で効いているとき）をもう 1 回押すと出す。それ以外は選ぶだけ。 */
@@ -155,8 +139,7 @@ export function WorkspaceSwitcher(props: {
     }
     setEditing(undefined);
     setConfirming(undefined);
-    setTabSel(key);
-    setCol("tab");
+    pickTab(key);
     focusList();
   }
 
@@ -165,13 +148,13 @@ export function WorkspaceSwitcher(props: {
     if (!init) return;
     // 押した行の操作なので、その行を選ぶ（選ぶ行が変わると、ほかの行の入力欄や確認はやめる）
     select(r.gws);
-    setCol("ws");
+    toWs();
     setConfirming(undefined);
     setEditing({ gws: r.gws, ...init });
   }
   function startClose(r: Row) {
     select(r.gws);
-    setCol("ws");
+    toWs();
     setEditing(undefined);
     setConfirming(r.gws);
     focusList();
@@ -210,13 +193,12 @@ export function WorkspaceSwitcher(props: {
     const inTabs = activeCol() === "tab";
     switch (k.kind) {
       case "move":
-        if (inTabs)
-          setTabSel(tabs()[moveRow(tabIndex(), k.to, tabs().length)]?.key);
+        if (inTabs) moveTab(k.to);
         else select(props.rows[moveRow(index(), k.to, props.rows.length)]?.gws);
         break;
       case "col":
-        if (k.to === "ws") setCol("ws");
-        else if (tabs().length > 0) setCol("tab");
+        if (k.to === "ws") toWs();
+        else toTabs();
         break;
       case "go": {
         const r = selected();
@@ -281,34 +263,18 @@ export function WorkspaceSwitcher(props: {
       onDrop: (gws, before) => {
         props.onTabMove(key, gws, before);
         // 落としたタブを選んだまま、タブの列へ（移した結果が見える）
-        setTabSel(key);
-        setCol("tab");
+        pickTab(key);
       },
       onCancel: () => select(from),
     });
   }
 
   /** いまキーが効いている列で効くキーだけを、下に出す */
-  const hints = (): { keys: string[]; label: string }[] =>
-    activeCol() === "tab"
-      ? [
-          { keys: ["j", "k"], label: T("machineDialog.keys.select") },
-          { keys: ["h"], label: T("switcher.keys.toWorkspaces") },
-          { keys: ["Enter"], label: T("switcher.keys.showTab") },
-          { keys: ["Esc"], label: T("switcher.keys.close") },
-        ]
-      : [
-          { keys: ["j", "k"], label: T("machineDialog.keys.select") },
-          ...(tabs().length > 0
-            ? [{ keys: ["l"], label: T("switcher.keys.toTabs") }]
-            : []),
-          { keys: ["Enter"], label: T("switcher.keys.go") },
-          { keys: ["n"], label: T("switcher.keys.new") },
-          { keys: ["r"], label: T("switcher.keys.rename") },
-          { keys: ["x"], label: T("switcher.keys.closeWorkspace") },
-          { keys: ["J", "K"], label: T("switcher.keys.reorder") },
-          { keys: ["Esc"], label: T("switcher.keys.close") },
-        ];
+  const hints = () =>
+    switcherHints(activeCol(), tabs().length > 0).map((h) => ({
+      keys: h.keys,
+      label: T(h.label),
+    }));
 
   return (
     <ModalCard

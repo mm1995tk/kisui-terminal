@@ -4,6 +4,7 @@
 import { isComposingKey } from "../../../features/commands/ime.ts";
 import type { KeyLike } from "../../../features/commands/guiKeys.ts";
 import { listStep } from "../../../features/commands/placeKeys.ts";
+import type { Key } from "../../../i18n/index.ts";
 
 /** 窓の中のキーが表す動き。 */
 export type SwitcherKey =
@@ -72,4 +73,44 @@ export function confirmKey(e: KeyLike): "yes" | "no" | null {
   if (e.key === "y") return "yes";
   if (e.key === "n") return "no";
   return null;
+}
+
+/** 窓の下に出すキーの説明の 1 行（keys は押すキー、label は i18n のキー）。 */
+export interface SwitcherHint {
+  keys: string[];
+  label: Key;
+}
+
+/**
+ * 窓の下に出すキーの説明。いまキーが効いている列（col）で効くキーだけを返す。
+ * hasTabs は、選んでいるワークスペースにタブがあるか（無ければ、左の列から `l` でタブの列には移れない）。
+ */
+export function switcherHints(
+  col: "ws" | "tab",
+  hasTabs: boolean,
+): SwitcherHint[] {
+  const select: SwitcherHint = {
+    keys: ["j", "k"],
+    label: "machineDialog.keys.select",
+  };
+  const close: SwitcherHint = { keys: ["Esc"], label: "switcher.keys.close" };
+  if (col === "tab")
+    return [
+      select,
+      { keys: ["h"], label: "switcher.keys.toWorkspaces" },
+      { keys: ["Enter"], label: "switcher.keys.showTab" },
+      close,
+    ];
+  return [
+    select,
+    ...(hasTabs
+      ? [{ keys: ["l"], label: "switcher.keys.toTabs" } satisfies SwitcherHint]
+      : []),
+    { keys: ["Enter"], label: "switcher.keys.go" },
+    { keys: ["n"], label: "switcher.keys.new" },
+    { keys: ["r"], label: "switcher.keys.rename" },
+    { keys: ["x"], label: "switcher.keys.closeWorkspace" },
+    { keys: ["J", "K"], label: "switcher.keys.reorder" },
+    close,
+  ];
 }
