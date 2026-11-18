@@ -31,7 +31,6 @@ export function createNotices(deps: {
   const { focusError, setFocusError } = deps;
   const { states, targets, labelOf, connect, disconnect } = deps.sessions;
   const { downloads, dropDownload, useDownload } = deps.downloads;
-  const props = { shortcutProblems: deps.shortcutProblems };
   // 右下の知らせのうち、閉じたもの（状態が変われば、また出す）
   const [dismissed, setDismissed] = createSignal<ReadonlySet<SessionState>>(
     new Set(),
@@ -75,11 +74,11 @@ export function createNotices(deps: {
   // 作り直すと Notices が描き直し、ほかのマシンの状態が変わるだけで読み上げ直し、ボタンのフォーカスも消えるため
   const noticeOf = new WeakMap<SessionState, Notice | null>();
   const [shortcutDismissed, setShortcutDismissed] = createSignal(false);
-  const shortcutNotice: Notice | undefined = props.shortcutProblems?.length
+  const shortcutNotice: Notice | undefined = deps.shortcutProblems?.length
     ? {
         title: T("notice.shortcuts.title"),
         text: T("notice.shortcuts.text"),
-        error: props.shortcutProblems.join("\n"),
+        error: deps.shortcutProblems.join("\n"),
         primary: {
           label: T("button.close"),
           run: () => setShortcutDismissed(true),

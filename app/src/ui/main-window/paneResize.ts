@@ -77,7 +77,6 @@ export function createPaneResize(deps: {
     walking,
     focusTerminal,
   } = deps;
-  const props = { tabsHeight: deps.tabsHeight };
   // ブロックの境界の大きさ（panes.ts）。変えたら覚えておき、GUI を起動し直しても残す
   const [sizes, setSizes] = createSignal<PaneSizes>(loadSizes(store));
   function changeSizes(next: PaneSizes) {
@@ -164,7 +163,7 @@ export function createPaneResize(deps: {
   }
 
   /** タブの段の高さの上限の今の値（%）。決めていなければ設定の [gui.sidebar] tabs-height、それも無ければ 40。 */
-  const tabsPct = () => sizeOf(sizes(), "tabs", props.tabsHeight);
+  const tabsPct = () => sizeOf(sizes(), "tabs", deps.tabsHeight);
 
   /** 画面に出ているタブの段の高さ（サイドバーの高さに対する %）と、ポインタ 1px あたりの %。段が出ていなければ undefined。 */
   function shownTabs(): { pct: number; perPx: number } | undefined {
