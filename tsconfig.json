@@ -14,5 +14,5 @@
     "skipLibCheck": true,
     "isolatedModules": true
   },
-  "include": ["app/src", "vite.config.ts"]
+  "include": ["app/src", "vite.config.ts", ".storybook"]
 }

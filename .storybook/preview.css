@@ -1,0 +1,14 @@
+/* story を出す枠の地と字。アプリではメインウィンドウの layout.css（body）が決めているものと同じ値 */
+:root {
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  font:
+    13px "IBM Plex Sans JP",
+    system-ui,
+    sans-serif;
+  color: var(--gh-text);
+  background: var(--gh-bg);
+}

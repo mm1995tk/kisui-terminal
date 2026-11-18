@@ -90,7 +90,7 @@ app/src/
 
 ## 部品をどこに置くか
 
-- 部品、専用の CSS、表示用の状態、テストは、使う所の近くに置く（同じフォルダ）。Storybook の stories を足すときも同じ。
+- 部品、専用の CSS、表示用の状態、テスト、Storybook の stories は、使う所の近くに置く（同じフォルダ）。stories の足し方は [storybook.md](storybook.md)。
 - 同じ画面の中で 2 か所が使う部品は、その 2 か所にいちばん近い共通の親のフォルダに置く。例：タブの行（`sidebar/workspaces/TabRow.tsx`）は、サイドバーとワークスペースを切り替える窓が使う。
 - 画面をまたいで使う部品のうち、機能の知識を持つもの（履歴の一覧など）だけを `ui/modules/` に置く。機能の分け方をそのまま `ui/modules/` に写さない。
 - 機能の知識を持たないボタン・入力欄・ダイアログの枠・メニューは `ui/components/`、共通の色・余白・字は `ui/styles/` に置く。
@@ -123,7 +123,7 @@ index.tsx ──▶ ui ──▶ features ◀── infrastructure
 | キャラクター                     | `features/mascot/mascot.ts` の `MascotOs`               | `infrastructure/tauri/mascot.ts`       |
 | 新しい版                         | `features/updates/store.ts` の `UpdatesOs`              | `infrastructure/tauri/updates.ts`      |
 
-`index.tsx` はこれらを `Ports`（`ui/ports.ts`。機能が使う分は `features/compose.ts` の `FeaturePorts`）にまとめて、メインウィンドウの `page.tsx` に渡す。`page.tsx` は機能の持ち物を作るときに引数で渡し、奥の部品（ターミナルのペインなど）には文脈（`usePorts()`）で配る。Tauri の無い所（テスト・これから入れる Storybook）では、偽物を渡せば動かせる。
+`index.tsx` はこれらを `Ports`（`ui/ports.ts`。機能が使う分は `features/compose.ts` の `FeaturePorts`）にまとめて、メインウィンドウの `page.tsx` に渡す。`page.tsx` は機能の持ち物を作るときに引数で渡し、奥の部品（ターミナルのペインなど）には文脈（`usePorts()`）で配る。Tauri の無い所（テスト・Storybook。[storybook.md](storybook.md)）では、偽物を渡せば動かせる。
 
 ## メインウィンドウの組み立て
 
