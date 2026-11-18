@@ -50,11 +50,11 @@
   --state-selected-outline: var(--gh-accent);
   /* 無効・処理中：押せないものの濃さ */
   --state-disabled-opacity: 0.5;
-  /* 成功：済んだ・できた */
+  /* 成功：済んだ・できた（意味だけを先に決めた。まだ使う部品は無い） */
   --state-success: var(--gh-green);
   /* 警告：続けられるが気をつける。今は窓のエラーの字もこの色（未確定。design-system.md） */
   --state-warning: var(--gh-yellow);
-  /* 失敗：できなかった・壊す操作 */
+  /* 失敗：できなかった・壊す操作（意味だけを先に決めた。まだ使う部品は無い） */
   --state-danger: var(--gh-red);
 
   /* == 接続の状態（状態の丸。フォーカス・選択・マシンの色とは別の意味） == */
