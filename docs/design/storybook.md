@@ -33,9 +33,9 @@ Vite の設定は、根の `vite.config.ts` をそのまま読む（Solid の変
 ## stories を足す
 
 - stories は、出す部品の隣に `部品の名前.stories.tsx` で置く（[frontend-structure.md](frontend-structure.md) の「部品をどこに置くか」）。
-- `title` は `app/src/ui/` からの置き場に合わせる（例：`components/dialogs/RenameDialog`、`modules/clipboard-history/HistoryPanel`、`main-window/workspaces/CloseWorkspaceCard`）。
+- `title` は `app/src/ui/` からの置き場に合わせる（例：`components/InlineInput`、`modules/clipboard-history/HistoryPanel`、`main-window/workspaces/CloseWorkspaceCard`）。
 - 書き方は CSF 3（`Meta`・`StoryObj` は `storybook-solidjs-vite` から）。押した・閉じたなどの呼び出しは `storybook/test` の `fn()` で受け、Actions に出す。
-- 画面の文は、ほかのコードと同じく表のキーで引く（`T("…")`）。言語を切り替えたあとに引き直すよう、`T` は `args` に直に書かず、`render` の中で呼ぶ（`RenameDialog.stories.tsx` の `WithError`）。
+- 画面の文は、ほかのコードと同じく表のキーで引く（`T("…")`）。言語を切り替えたあとに引き直すよう、`T` は `args` に直に書かず、`render` の中で呼ぶ（`InlineInput.stories.tsx` の `WithError`）。
 - 見本のデータを複数の stories で使うときは、stories の隣に普通のファイルで置く（例：`ui/modules/clipboard-history/historyFixtures.ts`）。`*.stories.tsx` から名前付きで書き出したものは、Storybook が story として読んでしまう。
 - 窓の部品（`ModalCard` を使うもの）は、アプリで入れている組み合わせのまま出す（`HistoryPanel.stories.tsx` は、メインウィンドウと同じく `ModalCard` に入れる）。
 - 字（children）や `label` のように、翻訳の表から引く必須の引数がある部品は、`Meta<typeof 部品>` ではなく、その引数を外した型（`Omit<ComponentProps<typeof 部品>, "children">`）で `Meta` を書き、`render` の中で `T` を呼んで渡す（`Button.stories.tsx`）。
@@ -48,11 +48,12 @@ Vite の設定は、根の `vite.config.ts` をそのまま読む（Solid の変
 | `ui/styles/Tokens.stories.tsx`                              | 共通の値（色・状態・余白・字・角）。名前・値・説明は `tokens.css` から読む | —                                                                                                    |
 | `ui/components/Button.stories.tsx`                          | ボタン（普通・主・無効・処理中・フォーカス・やめると主の並び）             | 押した（`fn()`）                                                                                     |
 | `ui/components/Card.stories.tsx`                            | 窓の枠 `ModalCard`（既定・`focusSelf`・幅と `closeOnOutside`）             | 閉じる（`fn()`）                                                                                     |
-| `ui/components/dialogs/RenameDialog.stories.tsx`                  | 名前を変える窓（名前あり・なし・理由を出したとき）                         | 決めた・やめた（`fn()`）                                                                             |
+| `ui/components/InlineInput.stories.tsx` | その場の入力欄（名前あり・空・理由を出したとき） | 決めた・やめた（`fn()`） |
 | `ui/main-window/workspaces/CloseWorkspaceCard.stories.tsx`  | ワークスペース・タブを閉じる確認の窓                                       | 決めた・やめた（`fn()`）                                                                             |
 | `ui/main-window/workspaces/WorkspaceSwitcher.stories.tsx`   | ワークスペースを切り替える窓（並び・タブの無いワークスペース・空）         | 行は見本のデータ（アプリでは `gwsRows` が作る）。操作は `fn()`、名前の確かめは本物の `nameErrorText` |
 | `ui/main-window/workspaces/WorkspaceKindPicker.stories.tsx` | ワークスペースの種類（ターミナル・ブラウザ）を選ぶ窓                       | 選んだ・やめた（`fn()`）                                                                             |
 | `ui/main-window/sessions/InstallCard.stories.tsx`           | kisui を入れるかの確認の窓（初めて・失敗のあと）                           | 入れる・入れない（`fn()`）                                                                           |
+| `ui/main-window/sessions/MachineDialog.stories.tsx` | マシンのダイアログ（並び・名前をその場で変えている・断られたとき） | 行は見本のデータ（アプリでは `machineList.ts` が作る）。操作は `fn()` |
 | `ui/main-window/notifications/UpdateBar.stories.tsx`        | 新しい版の知らせ（ある・入れ替え中・失敗）                                 | 殻への頼み `UpdatesOs`（持ち物は本物の `createUpdates`）                                             |
 | `ui/modules/clipboard-history/HistoryPanel.stories.tsx`     | 履歴の一覧（一覧・貼る欄あり・空・読み込み中・読めない）                   | 履歴を読む頼み `ListClipboardHistory`                                                                |
 | `ui/utilities/clipboard/page.stories.tsx`                   | kisui-terminal の外から開く履歴の窓                                        | 殻への頼み `ClipboardPopupOs`、`ListClipboardHistory`                                                |

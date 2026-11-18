@@ -1,6 +1,7 @@
 // マシンのダイアログ（リーダーの `m`）。すべてのマシンを、つながりの状態とワークスペースの数と一緒に並べ、
 // マシンを足す・名前を変える・外す・切る・つなぎ直す（今すぐつなぐ）を、キーで行う。
-// 足す・名前を変えるの窓は、これを出したまま、その上に出す（呼んだ側。SessionDialogs.tsx）。キーの決まりは machineList.ts と docs/key-design.md。
+// 足す窓は、これを出したまま、その上に出す（呼んだ側。SessionDialogs.tsx）。名前は、選んだ行をその場で入力欄にして変える。
+// キーの決まりは machineList.ts と docs/key-design.md。
 import { T } from "../../../i18n/index.ts";
 import {
   createEffect,
@@ -29,16 +30,27 @@ import {
   type MachineAction,
   type MachineRow,
 } from "../../../features/sessions/machineList.ts";
+import { InlineInput } from "../../components/InlineInput.tsx";
 import { createRowSelection } from "./rowSelection.ts";
 
 const rowId = (i: number) => `machine-dialog-row-${i}`;
 
-/** 一覧の 1 行（状態の点・名前・設定ファイルの印・状態・ワークスペースの数）。 */
+/** 名前を変えている行と、断られた理由 */
+export interface MachineRename {
+  target: string;
+  error?: string;
+}
+
+/** 一覧の 1 行（状態の点・名前・設定ファイルの印・状態・ワークスペースの数）。名前を変えている間は、名前の所が入力欄になる。 */
 function MachineRowItem(props: {
   row: MachineRow;
   id: string;
   selected: boolean;
   onPick: () => void;
+  /** 名前を変えている行なら、断られた理由（無ければ ""）。変えていなければ undefined */
+  editError?: string;
+  onRenameSubmit: (name: string) => void;
+  onRenameCancel: (byKey: boolean) => void;
 }): JSX.Element {
   const r = () => props.row;
   return (
@@ -51,12 +63,26 @@ function MachineRowItem(props: {
       onClick={props.onPick}
     >
       <span class="state-dot" data-health={r().health} aria-hidden="true" />
-      <span class="card-row-name">
-        {r().label}
-        <Show when={r().fixed}>
-          <span class="machine-row-mark">{T("machineDialog.fixed")}</span>
-        </Show>
-      </span>
+      <Show
+        when={props.editError === undefined}
+        fallback={
+          <InlineInput
+            value={r().label}
+            label={T("rename.name")}
+            placeholder={T("rename.placeholder", { fallback: r().target })}
+            error={props.editError || undefined}
+            onSubmit={props.onRenameSubmit}
+            onCancel={props.onRenameCancel}
+          />
+        }
+      >
+        <span class="card-row-name">
+          {r().label}
+          <Show when={r().fixed}>
+            <span class="machine-row-mark">{T("machineDialog.fixed")}</span>
+          </Show>
+        </span>
+      </Show>
       <span class="card-row-state">
         <span role="status">{r().status}</span>
         <Show when={r().countdown}>
@@ -77,7 +103,7 @@ function MachineRowItem(props: {
 
 /**
  * マシンのダイアログ。rows のマシンを並べ、選んだマシンへの操作のキー（足す・名前を変える・外す・切る・つなぎ直す）を受ける。
- * 操作そのものと、足す・名前を変える窓を出すのは呼んだ側（onAdd・onAct）。
+ * 操作そのものと、足す窓を出すのは呼んだ側（onAdd・onAct）。名前を変える（onAct の "rename"）と、呼んだ側が renaming を渡し、その行が入力欄になる。
  * 閉じるのも呼んだ側で、このダイアログは Esc と「閉じる」で onCancel を呼ぶだけ（出すのをやめるのは呼んだ側）。
  */
 export function MachineDialog(props: {
@@ -88,6 +114,12 @@ export function MachineDialog(props: {
   onAdd: () => void;
   /** 選んだマシンへの操作。できると確かめたあとで呼ぶ */
   onAct: (action: Exclude<MachineAction, "add">, row: MachineRow) => void;
+  /** 名前を変えている行（無ければ null か undefined） */
+  renaming?: MachineRename | null;
+  /** 入力欄で Enter を押した（断るなら、呼んだ側が renaming の error を渡す） */
+  onRenameSubmit?: (target: string, name: string) => void;
+  /** 入力欄で Esc を押した・フォーカスが外れた */
+  onRenameCancel?: () => void;
   onCancel: () => void;
 }): JSX.Element {
   const sel = createRowSelection(() => props.rows, props.initial);
@@ -101,7 +133,17 @@ export function MachineDialog(props: {
     );
   });
 
+  // 名前を決めて入力欄が消えたら、キーを一覧に戻す
+  let wasRenaming = false;
+  createEffect(() => {
+    const now = !!props.renaming;
+    if (wasRenaming && !now) queueMicrotask(() => list?.focus());
+    wasRenaming = now;
+  });
+
   function onKeyDown(e: KeyboardEvent) {
+    // 名前の入力欄の中のキーは、入力欄が受ける
+    if (e.target instanceof HTMLInputElement) return;
     const k = machineKey(e);
     if (!k) return;
     e.preventDefault();
@@ -173,6 +215,15 @@ export function MachineDialog(props: {
                 id={rowId(i())}
                 selected={sel.index() === i()}
                 onPick={() => sel.pick(i())}
+                editError={
+                  props.renaming?.target === r.target
+                    ? (props.renaming.error ?? "")
+                    : undefined
+                }
+                onRenameSubmit={(name) =>
+                  props.onRenameSubmit?.(r.target, name)
+                }
+                onRenameCancel={() => props.onRenameCancel?.()}
               />
             )}
           </For>

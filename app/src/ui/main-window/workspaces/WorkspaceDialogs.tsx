@@ -1,13 +1,10 @@
-// ワークスペースとタブにかかわる窓。閉じる前の確認・ワークスペースを切り替える窓（リーダーの w）・種類を選ぶ窓・マシンを選ぶ窓・タブの名前を変える窓。
+// ワークスペースとタブにかかわる窓。閉じる前の確認・ワークスペースを切り替える窓（リーダーの w）・種類を選ぶ窓・マシンを選ぶ窓。
+// タブの名前は窓を出さず、サイドバーのタブの行で変える（sidebar/workspaces/TabRow.tsx）。
 // 何を出すかは features/workspaces/controller.ts と features/workspaces/tabs/controller.ts の状態で決まる。
 import { Show, type JSX } from "solid-js";
 
-import type { BrowserTabs } from "../../../features/browser/tabsStore.ts";
-import type { Sessions } from "../../../features/sessions/controller.ts";
 import type { Workspaces } from "../../../features/workspaces/controller.ts";
-import { band } from "../../../features/workspaces/rows.ts";
 import type { Tabs } from "../../../features/workspaces/tabs/controller.ts";
-import { RenameDialog } from "../../components/dialogs/RenameDialog.tsx";
 import { MachinePicker } from "../sessions/MachinePicker.tsx";
 import { CloseWorkspaceCard } from "./CloseWorkspaceCard.tsx";
 import { WorkspaceKindPicker } from "./WorkspaceKindPicker.tsx";
@@ -15,16 +12,13 @@ import { WorkspaceSwitcher } from "./WorkspaceSwitcher.tsx";
 
 /** ワークスペースとタブにかかわる窓をまとめて出す。出していない窓は何も描かない。 */
 export function WorkspaceDialogs(props: {
-  sessions: Pick<Sessions, "workspaces">;
   workspaces: Workspaces;
   tabs: Tabs;
-  browserTabs: BrowserTabs;
   /** ワークスペースを切り替える窓（リーダーの w）を出しているか */
   switcherOpen: boolean;
   onCloseSwitcher: () => void;
 }): JSX.Element {
   // 部品は作り直さないので、持ち物は 1 回だけ取り出す
-  const { workspaces } = props.sessions;
   const {
     confirmClose,
     cancelClose,
@@ -55,16 +49,7 @@ export function WorkspaceDialogs(props: {
     confirmCloseTab,
     cancelCloseTab,
     closeTermTab,
-    renamingTerm,
-    termRenameError,
-    submitTermRename,
-    cancelTermRename,
-    renamingTab,
-    tabRenameError,
-    submitTabRename,
-    cancelTabRename,
   } = props.tabs;
-  const { tabs } = props.browserTabs;
   const closeSwitcher = () => props.onCloseSwitcher();
   return (
     <>
@@ -148,39 +133,6 @@ export function WorkspaceDialogs(props: {
               void closeTermTab(c.target, c.ws, true);
             }}
             onNo={cancelCloseTab}
-          />
-        )}
-      </Show>
-      <Show when={renamingTerm()} keyed>
-        {(r) => (
-          <RenameDialog
-            current={
-              workspaces()[r.target]?.find((w) => w.id === r.ws)?.label ?? ""
-            }
-            fallback={(() => {
-              const w = workspaces()[r.target]?.find((x) => x.id === r.ws);
-              return w ? band({ ...w, label: "" }, false).title : "";
-            })()}
-            error={termRenameError()}
-            onSubmit={(name) => void submitTermRename(name)}
-            onCancel={cancelTermRename}
-          />
-        )}
-      </Show>
-      <Show when={renamingTab()} keyed>
-        {(id) => (
-          <RenameDialog
-            current={
-              gws()
-                .list.flatMap((g) => g.tabs)
-                .flatMap((r) =>
-                  r.kind === "browser" && r.id === id ? [r.name ?? ""] : [],
-                )[0] ?? ""
-            }
-            fallback={tabs().tabs.find((t) => t.id === id)?.title ?? ""}
-            error={tabRenameError()}
-            onSubmit={submitTabRename}
-            onCancel={cancelTabRename}
           />
         )}
       </Show>

@@ -151,7 +151,7 @@ export function createCommandRunner(deps: {
       }
       case "browser.rename": {
         const t = currentTab();
-        if (t) deps.tabs.openTabRename(t.id);
+        if (t) deps.tabs.renameBrowserTab(t.id);
         break;
       }
       case "browser.bookmark": {

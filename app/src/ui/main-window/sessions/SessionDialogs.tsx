@@ -1,11 +1,10 @@
-// 接続にかかわる窓。kisui を入れるかの確認・マシンのダイアログ（リーダーの m）・リモートを足す窓・マシンの名前を変える窓・ssh の質問（パスワードなど）。
+// 接続にかかわる窓。kisui を入れるかの確認・マシンのダイアログ（リーダーの m。マシンの名前は、この中の行で変える）・リモートを足す窓・ssh の質問（パスワードなど）。
 // 何を出すかは features/sessions/controller.ts の状態で決まる。
 import { Show, type JSX } from "solid-js";
 
 import type { Sessions } from "../../../features/sessions/controller.ts";
 import type { MachineRow } from "../../../features/sessions/machineList.ts";
 import type { SessionState } from "../../../features/sessions/session.ts";
-import { RenameDialog } from "../../components/dialogs/RenameDialog.tsx";
 import { AddMachine } from "./AddMachine.tsx";
 import { AskpassDialog } from "./AskpassDialog.tsx";
 import { InstallCard } from "./InstallCard.tsx";
@@ -80,7 +79,15 @@ export function SessionDialogs(props: {
                 break;
             }
           }}
-          onCancel={() => props.onCloseMachines()}
+          renaming={
+            renaming() ? { target: renaming()!, error: renameError() } : null
+          }
+          onRenameSubmit={submitRename}
+          onRenameCancel={() => props.sessions.closeRename()}
+          onCancel={() => {
+            props.sessions.closeRename();
+            props.onCloseMachines();
+          }}
         />
       </Show>
       <Show when={adding()}>
@@ -92,17 +99,6 @@ export function SessionDialogs(props: {
           onSubmit={submitAdd}
           onCancel={cancelAdd}
         />
-      </Show>
-      <Show when={renaming()} keyed>
-        {(t) => (
-          <RenameDialog
-            current={labelOf(t)}
-            fallback={t}
-            error={renameError()}
-            onSubmit={(name) => submitRename(t, name)}
-            onCancel={() => props.sessions.closeRename()}
-          />
-        )}
       </Show>
       <AskpassDialog ask={asks()[0]} onReply={reply} />
     </>

@@ -97,6 +97,14 @@ export function BandItem(props: Handlers & { row: Row }): JSX.Element {
                   ? (e) => grabTab(e, props.row.gws, t.key, props.onTabMove!)
                   : undefined
               }
+              edit={
+                props.tabRenaming?.gws === props.row.gws &&
+                props.tabRenaming.key === t.key
+                  ? props.tabRenaming
+                  : undefined
+              }
+              onRenameSubmit={(name) => props.onTabRenameSubmit?.(name)}
+              onRenameCancel={(byKey) => props.onTabRenameCancel?.(byKey)}
             />
           )}
         </For>

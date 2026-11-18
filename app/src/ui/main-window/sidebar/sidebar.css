@@ -421,32 +421,14 @@ div.band-main {
   white-space: nowrap;
   font-weight: 600;
 }
-/* 名前をその場で変えている間の入力欄。ヘッダーの名前と同じ文字にする。断られた理由は帯の下に流れで置き、全文を折り返して出す */
-.band-rename {
-  box-sizing: border-box;
-  width: 100%;
-  min-width: 0;
-  height: 22px;
-  padding: 0 4px;
-  border: 1px solid var(--machine-color);
-  border-radius: 4px;
-  background: var(--sidebar-bg, var(--gh-bg-side));
-  color: var(--sidebar-text);
-  font: inherit;
-}
-.band-rename:focus {
-  outline: none;
-}
-.band-rename[aria-invalid="true"] {
-  border-color: var(--gh-red);
-}
+/* 帯の名前をその場で変えて断られた理由。帯の下に流れで置き、全文を折り返して出す（字の色はその場の入力欄と同じ） */
 .band-rename-error {
   margin: 0 8px 4px;
   padding: 4px 8px;
-  border: 1px solid var(--gh-red);
+  border: 1px solid var(--state-warning);
   border-radius: 4px;
   background: var(--sidebar-bg, var(--gh-bg-side));
-  color: var(--gh-red);
+  color: var(--state-warning);
   font-size: 11px;
   overflow-wrap: anywhere;
   white-space: normal;

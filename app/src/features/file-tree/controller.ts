@@ -35,6 +35,14 @@ import {
 } from "./model.ts";
 import type { WorkspaceTrees } from "./trees.ts";
 
+/** ツリーの中のその場の入力欄。path は、新規なら入れるフォルダ、名前の変更なら変えるもの（ルートからの相対パス。ルートは ""） */
+export interface TreeEdit {
+  kind: "new-file" | "new-dir" | "rename";
+  target: string;
+  id: WorkspaceId;
+  path: string;
+}
+
 /** createFileTree が返す持ち物。 */
 export type FileTree = ReturnType<typeof createFileTree>;
 
@@ -118,17 +126,21 @@ export function createFileTree(deps: {
       openErrorText,
     );
 
-  // ツリーの右クリックのメニューから開いた窓（名前を入れる・削除の確認）
+  // ツリーの右クリックのメニューから開いた削除の確認の窓
   const [treeDialog, setTreeDialog] = createSignal<{
-    kind: "new-file" | "new-dir" | "rename" | "delete";
+    kind: "delete";
     target: string;
     id: WorkspaceId;
-    /** 新規は入れるフォルダ、名前の変更と削除は対象（ルートからの相対パス。ルートは ""） */
+    /** 消すもの（ルートからの相対パス） */
     path: string;
     dir: boolean;
   } | null>(null);
+  // ツリーの中のその場の入力欄（新しいファイル・新しいフォルダ・名前の変更）と、断られた理由・送っている最中か
+  const [treeEdit, setTreeEdit] = createSignal<TreeEdit | null>(null);
+  const [treeEditError, setTreeEditError] = createSignal<string>();
+  const [treeEditBusy, setTreeEditBusy] = createSignal(false);
 
-  /** ツリーの行のメニューで項目を選んだ。コピーと cd はすぐ、新規・名前の変更・削除は窓を出す。 */
+  /** ツリーの行のメニューで項目を選んだ。コピーと cd はすぐ、新規・名前の変更はツリーの中のその場の入力欄、削除は確認の窓を出す。 */
   function treeAction(
     target: string,
     id: WorkspaceId,
@@ -153,15 +165,16 @@ export function createFileTree(deps: {
       case "new-file":
       case "new-dir":
         // メニューはフォルダの行にだけ出す。キー（a・A）はファイルの行でも使え、そのファイルのフォルダに作る（shj のツリーと同じ）
-        setTreeDialog({
+        openTreeEdit({
           kind: action,
           target,
           id,
           path: row.dir ? row.path : parentPath(row.path),
-          dir: true,
         });
         break;
       case "rename":
+        openTreeEdit({ kind: action, target, id, path: row.path });
+        break;
       case "delete":
         setTreeDialog({
           kind: action,
@@ -201,11 +214,37 @@ export function createFileTree(deps: {
     }
   }
 
-  /** 名前を入れる窓で決めた。断られたら例外を投げる（窓が理由を出す）。 */
-  async function submitTreeName(value: string) {
-    const d = treeDialog();
-    const s = d && sessions()[d.target];
-    if (!d || !s) return;
+  /** その場の入力欄を開く。新しいものを閉じているフォルダに作るなら、先に開けて、入力欄の行が見えるようにする。 */
+  function openTreeEdit(e: TreeEdit) {
+    if (e.kind !== "rename" && e.path !== "") {
+      const ws = trees.get(e.target)?.get(e.id);
+      if (ws && !ws.expanded[e.path]) trees.get(e.target)?.toggle(e.id, e.path);
+    }
+    setTreeEditError(undefined);
+    setTreeEditBusy(false);
+    setTreeEdit(e);
+  }
+
+  /** その場の入力欄で Enter を押した。断られたら、入力欄の下に理由を出し、入力欄は開けておく。 */
+  async function submitTreeEdit(value: string) {
+    const d = treeEdit();
+    if (!d || treeEditBusy()) return;
+    setTreeEditBusy(true);
+    setTreeEditError(undefined);
+    try {
+      await applyTreeEdit(d, value);
+      setTreeEdit(null);
+    } catch (e) {
+      setTreeEditError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setTreeEditBusy(false);
+    }
+  }
+
+  /** 入力欄の中身で、作る・名前を変える。断られたら例外を投げる。 */
+  async function applyTreeEdit(d: TreeEdit, value: string) {
+    const s = sessions()[d.target];
+    if (!s) return;
     if (d.kind === "rename") {
       const to = renamedPath(d.path, value);
       if (to !== null) {
@@ -230,7 +269,6 @@ export function createFileTree(deps: {
         if (kind === "file") openFile(d.target, d.id, path);
       }
     }
-    setTreeDialog(null);
   }
 
   /** 削除の確認で「削除する」を押した。断られたら例外を投げる。 */
@@ -260,11 +298,23 @@ export function createFileTree(deps: {
     toggle: (target: string, id: WorkspaceId, path: string) =>
       trees.get(target)?.toggle(id, path),
     openFile,
-    /** ツリーの右クリックのメニューから開いた窓（名前を入れる・削除の確認）。無ければ null */
+    /** ツリーの右クリックのメニューから開いた削除の確認の窓。無ければ null */
     treeDialog,
     closeTreeDialog: () => setTreeDialog(null),
     treeAction,
-    submitTreeName,
+    /** ツリーの中のその場の入力欄（target・id のツリーのものだけ）。無ければ undefined */
+    treeEditOf(target: string, id: WorkspaceId) {
+      const e = treeEdit();
+      if (!e || e.target !== target || e.id !== id) return undefined;
+      return { ...e, error: treeEditError() };
+    },
+    submitTreeEdit,
+    /** その場の入力欄で Esc を押した・フォーカスが外れた（送っている最中はやめない） */
+    cancelTreeEdit() {
+      if (treeEditBusy()) return;
+      setTreeEdit(null);
+      setTreeEditError(undefined);
+    },
     submitTreeDelete,
     currentOf,
     /** フォーカスしているワークスペースのツリーで覚えているスクロールの位置（覚えていなければ undefined） */

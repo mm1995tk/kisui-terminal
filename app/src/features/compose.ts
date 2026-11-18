@@ -214,6 +214,7 @@ export function createFeatures(deps: {
     pages,
     setFocusError,
     focusTerminal,
+    revealSidebar: () => ui.revealSidebar(),
   });
   const scale = createScale({
     store,

@@ -7,44 +7,26 @@ import { IS_MAC } from "../../../../features/commands/guiKeys.ts";
 import type { Row } from "../../../../features/workspaces/rows.ts";
 import type { Handlers } from "../handlers.ts";
 import { ICON } from "../icons.ts";
-import { renameKeyAction } from "../renameInput.ts";
 import { Nf } from "./parts.tsx";
+import { InlineInput } from "../../../components/InlineInput.tsx";
 
 /**
  * 名前をその場で変える入力欄（Enter で onRenameSubmit、Esc・フォーカスが外れたら onRenameCancel）。
  * 入力欄はボタンの中に置けないので、名前を変えている間は、フォーカスを移すボタンの所がこの div になる。
+ * 断られた理由は、帯の高さが変わらないよう、帯の下に出す（BandItem.tsx）。
  */
 function BandRenameInput(
   props: Handlers & { edit: NonNullable<Handlers["renaming"]> },
 ): JSX.Element {
   return (
     <div class="band-main">
-      <input
-        class="band-rename"
-        type="text"
-        aria-label={T("sidebar.nameLabel")}
-        aria-invalid={props.edit.error ? "true" : undefined}
-        placeholder={T("sidebar.namePlaceholder", { auto: props.edit.auto })}
+      <InlineInput
         value={props.edit.current}
-        onKeyDown={(e) => {
-          const a = renameKeyAction(e);
-          if (!a) return;
-          e.preventDefault();
-          e.stopPropagation();
-          if (a === "submit") props.onRenameSubmit?.(e.currentTarget.value);
-          else props.onRenameCancel?.(true);
-        }}
-        onBlur={() => {
-          // ほかのアプリに切り替えただけ（窓が外れた）では、打ちかけの名前を消さない
-          if (document.hasFocus()) props.onRenameCancel?.();
-        }}
-        ref={(el) =>
-          // リーダーの後でターミナルにフォーカスが戻るのと競らないよう、1 拍置いて取る
-          setTimeout(() => {
-            el.focus();
-            el.select();
-          })
-        }
+        label={T("sidebar.nameLabel")}
+        placeholder={T("sidebar.namePlaceholder", { auto: props.edit.auto })}
+        invalid={!!props.edit.error}
+        onSubmit={(name) => props.onRenameSubmit?.(name)}
+        onCancel={(byKey) => props.onRenameCancel?.(byKey)}
       />
     </div>
   );

@@ -18,11 +18,14 @@ kisui-terminal の窓（`app/src/`）の、共通の色・余白・字・状態�
 | ボタン                 | `ui/components/Button.tsx`・`button.css`                    | `components/Button`                                           |
 | 窓の枠と中の部分       | `ui/components/Card.tsx` の `ModalCard`・`CardBody`・`CardTitle`・`CardText`・`CardError`・`CardActions`、`card.css` | `components/ModalCard`                    |
 | 入力欄（形だけ）       | `ui/components/Field.tsx` の `Field`・`Input`               | `components/Field`                                            |
-| 組み合わせた窓         | `ui/components/dialogs/`（機能の知識を持たない窓）と、下の「組み合わせの例」の窓 | `components/dialogs/RenameDialog`、`main-window/…` |
+| その場の入力欄         | `ui/components/InlineInput.tsx`・`inline-input.css`         | `components/InlineInput`                                      |
+| 組み合わせた窓         | 下の「組み合わせの例」の窓                                  | `main-window/…`                                               |
 
 窓と知らせの下のボタンは `Button` を使う（`button` に CSS のクラスを付けて直に書かない）。窓の中の見出し・本文・ボタンの並び・入力欄も、`Card.tsx` と `Field.tsx` の部品を使う。
 
-部品は 2 段に分ける。`ui/components/` の直下は、1 つの役目の部品（ボタン・窓の枠と中の部分・入力欄）。`ui/components/dialogs/` は、それを組んだ窓のうち、機能の知識を持たないもの（名前を変える窓）。機能の知識を持つ窓（ワークスペースを閉じる確認など）は、使う所（`ui/main-window/…`）に置く。
+`ui/components/` には、1 つの役目の部品（ボタン・窓の枠と中の部分・入力欄・その場の入力欄）だけを置く。部品を組んだ窓（ワークスペースを閉じる確認など）は、使う所（`ui/main-window/…`）に置く。
+
+名前を変える操作（ワークスペース・タブ・マシンの名前、ファイルツリーの名前の変更と新しいファイル・フォルダ）は、窓を出さず、名前を出している行をその場の入力欄（`InlineInput`）にして行う。Enter で決め、Esc でやめ、フォーカスが外れてもやめる。断られたら、入力欄の下に理由を出し、開けたままにする。
 
 後に回したもの（順は決めていない。サイドバーとワークスペースの Issue（#303・#311・#307・#308）で使う所から進める）：
 
@@ -51,7 +54,7 @@ kisui-terminal の窓（`app/src/`）の、共通の色・余白・字・状態�
 | `ui/components/Button.tsx`・`button.css` | ボタン                                                                                |
 | `ui/components/Card.tsx`・`card.css`    | 窓の枠（`ModalCard`）と、カードの中の部分（`CardBody`・`CardTitle`・`CardText`・`CardError`・`CardActions`） |
 | `ui/components/Field.tsx`               | 入力欄（`Field` がラベル、`Input` が 1 行の入力）                                       |
-| `ui/components/dialogs/`                | 部品を組んだ窓のうち、機能の知識を持たないもの（`RenameDialog`）                       |
+| `ui/components/InlineInput.tsx`・`inline-input.css` | その場の入力欄（一覧の行の名前を、その行の中で変える）                         |
 
 `theme.css` と `tokens.css` は、起動のとき `index.tsx` が読む（Storybook では `.storybook/preview.tsx`）。
 
@@ -156,7 +159,6 @@ kisui-terminal の窓（`app/src/`）の、共通の色・余白・字・状態�
 
 | 窓                                                   | 組み合わせ                                                         | Storybook                                       |
 | ---------------------------------------------------- | ------------------------------------------------------------------ | ----------------------------------------------- |
-| 名前を変える窓（`ui/components/dialogs/RenameDialog.tsx`） | 窓の枠・入力欄・エラーの文・やめると主ボタン                 | `components/dialogs/RenameDialog`               |
 | ワークスペースを閉じる確認（`main-window/workspaces/CloseWorkspaceCard.tsx`） | `focusSelf` の窓・見出しと本文・やめると主ボタン | `main-window/workspaces/CloseWorkspaceCard`     |
 | kisui を入れるかの確認（`main-window/sessions/InstallCard.tsx`） | `focusSelf` の窓・本文・前に失敗した理由・ボタン         | `main-window/sessions/InstallCard`              |
 | 新しい版の知らせ（`main-window/notifications/UpdateBar.tsx`） | 右下の知らせ・本文・失敗の理由・処理中の主ボタン          | `main-window/notifications/UpdateBar`           |

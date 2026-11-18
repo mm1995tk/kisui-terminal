@@ -10,17 +10,17 @@ import { Field, Input } from "./Field.tsx";
 function FieldExample(props: { value: string; error?: string }) {
   return (
     <ModalCard
-      label={T("rename.label")}
+      label={T("addMachine.title")}
       onCancel={fn()}
-      header={<CardTitle>{T("rename.label")}</CardTitle>}
+      header={<CardTitle>{T("addMachine.title")}</CardTitle>}
     >
       <CardBody>
         <Field>
-          {T("rename.name")}
+          {T("addMachine.name")}
           <Input
             type="text"
             value={props.value}
-            placeholder={T("rename.placeholder", { fallback: "build-server" })}
+            placeholder={T("addMachine.namePlaceholder")}
           />
         </Field>
         {props.error && <CardError role="alert">{props.error}</CardError>}

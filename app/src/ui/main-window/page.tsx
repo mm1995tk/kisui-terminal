@@ -268,6 +268,13 @@ function MainWindow(props: {
           onTab={tabs.selectTab}
           onTabClose={tabs.closeTabRow}
           onTabRename={tabs.renameTabRow}
+          tabRenaming={
+            tabs.renamingTab()
+              ? { ...tabs.renamingTab()!, error: tabs.tabRenameError() }
+              : null
+          }
+          onTabRenameSubmit={(name) => void tabs.submitTabRename(name)}
+          onTabRenameCancel={tabs.cancelTabRename}
           onAddTab={(gid, what) => void tabs.addWorkspaceTab(gid, what)}
           browser={browser}
           onTabMove={tabs.moveTabBefore}
@@ -296,6 +303,9 @@ function MainWindow(props: {
           onChangesResize={resize.dragChanges}
           onChangesResizeReset={() => resize.resetSize("changes")}
           onTreeAction={fileTree.treeAction}
+          treeEditOf={fileTree.treeEditOf}
+          onTreeEditSubmit={(v) => void fileTree.submitTreeEdit(v)}
+          onTreeEditCancel={() => fileTree.cancelTreeEdit()}
           currentOf={fileTree.currentOf}
           ref={(el) => {
             els.nav = el;
@@ -331,10 +341,8 @@ function MainWindow(props: {
         onCloseMachines={() => setMachinesOpen(false)}
       />
       <WorkspaceDialogs
-        sessions={sessions}
         workspaces={workspaces}
         tabs={tabs}
-        browserTabs={browserTabs}
         switcherOpen={wsSwitcher()}
         onCloseSwitcher={() => setWsSwitcher(false)}
       />

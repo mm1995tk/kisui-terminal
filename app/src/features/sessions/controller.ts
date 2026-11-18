@@ -99,7 +99,7 @@ export function createSessions(deps: {
   const [adding, setAdding] = createSignal(false);
   const [addPending, setAddPending] = createSignal<Machine | null>(null);
   const [addError, setAddError] = createSignal<string | undefined>();
-  // 名前を変える窓を出しているマシン、変えられなかった理由
+  // 名前を変えているマシン（マシンのダイアログの行が入力欄になる）、変えられなかった理由
   const [renaming, setRenaming] = createSignal<string | null>(null);
   const [renameError, setRenameError] = createSignal<string | undefined>();
   // 「あと何秒」を動かす
@@ -352,9 +352,9 @@ export function createSessions(deps: {
     addError,
     submitAdd,
     cancelAdd,
-    /** 名前を変える窓を出しているマシン */
+    /** 名前を変えているマシン */
     renaming,
-    /** マシン target の名前を変える窓を出す */
+    /** マシン target の名前を変え始める（マシンのダイアログのその行が入力欄になる） */
     openRename(target: string) {
       setRenameError(undefined);
       setRenaming(target);

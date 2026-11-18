@@ -53,8 +53,7 @@ app/src/
     modules/                # 画面をまたいで使う、機能の知識を持つ部品
       clipboard-history/
         HistoryPanel.tsx    # 履歴の一覧（メインウィンドウの窓と、常駐ツールの窓の両方が使う）
-    components/             # 機能の知識を持たない部品（ボタン、ダイアログの枠と中の部分、入力欄）。決まりは design-system.md
-      dialogs/              # その部品を組んだ、機能の知識を持たない窓（名前を入れる窓）
+    components/             # 機能の知識を持たない部品（ボタン、ダイアログの枠と中の部分、入力欄、その場の入力欄）。決まりは design-system.md
     styles/                 # 共通の色・余白・字（theme.css はパレット、tokens.css は役割の名前、字の定義）
   features/
     sessions/               # 接続（Session）、マシンの記録、接続の状態の文

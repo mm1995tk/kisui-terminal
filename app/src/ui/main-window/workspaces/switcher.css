@@ -153,28 +153,6 @@
   background: var(--card-row-active);
   color: var(--card-text);
 }
-/* 行の中の名前の入力欄と、断られた理由 */
-.switch-edit {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-.switch-rename {
-  box-sizing: border-box;
-  width: 100%;
-  min-width: 0;
-  padding: 2px 6px;
-  border: 1px solid var(--card-accent);
-  border-radius: 4px;
-  background: var(--card-field-bg, transparent);
-  color: var(--card-text);
-  font: inherit;
-}
-.switch-edit-error {
-  color: var(--card-warn);
-  font-size: 12px;
-}
 /* 閉じる確認の行のキー（y と n だけ） */
 .switch-confirm {
   flex: none;

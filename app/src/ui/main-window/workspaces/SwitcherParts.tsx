@@ -4,7 +4,7 @@ import { For, Show, type JSX } from "solid-js";
 
 import { ICON } from "../sidebar/icons.ts";
 import type { Health, Row } from "../../../features/workspaces/rows.ts";
-import { renameKeyAction } from "../sidebar/renameInput.ts";
+import { InlineInput } from "../../components/InlineInput.tsx";
 import { TabRow } from "../sidebar/workspaces/TabRow.tsx";
 
 const healthLabel = (h: Health): string => T(`health.${h}`);
@@ -17,53 +17,6 @@ export interface RowEdit {
   auto: string;
   /** 断られた理由 */
   error?: string;
-}
-
-/** 名前を変えている行の入力欄（Enter で決め、Esc・フォーカスが外れたらやめる）と、断られた理由。 */
-function RowRenameInput(props: {
-  edit: RowEdit;
-  onSubmit: (name: string) => void;
-  onCancel: (byKey: boolean) => void;
-}): JSX.Element {
-  return (
-    <div class="switch-edit">
-      <input
-        class="switch-rename"
-        type="text"
-        aria-label={T("sidebar.nameLabel")}
-        aria-invalid={props.edit.error ? "true" : undefined}
-        placeholder={T("sidebar.namePlaceholder", { auto: props.edit.auto })}
-        value={props.edit.current}
-        onClick={(e) => e.stopPropagation()}
-        onDblClick={(e) => e.stopPropagation()}
-        onKeyDown={(e) => {
-          const a = renameKeyAction(e);
-          if (!a) return;
-          e.preventDefault();
-          e.stopPropagation();
-          if (a === "submit") props.onSubmit(e.currentTarget.value);
-          else props.onCancel(true);
-        }}
-        onBlur={() => {
-          // ほかのアプリに切り替えただけ（窓が外れた）では、打ちかけの名前を消さない
-          if (document.hasFocus()) props.onCancel(false);
-        }}
-        ref={(el) =>
-          setTimeout(() => {
-            el.focus();
-            el.select();
-          })
-        }
-      />
-      <Show when={props.edit.error}>
-        {(e) => (
-          <span class="switch-edit-error" role="alert">
-            {e()}
-          </span>
-        )}
-      </Show>
-    </div>
-  );
 }
 
 /**
@@ -193,8 +146,11 @@ export function SwitcherRow(props: {
         fallback={<span class="card-row-name">{r().band.title}</span>}
       >
         {(edit) => (
-          <RowRenameInput
-            edit={edit()}
+          <InlineInput
+            value={edit().current}
+            label={T("sidebar.nameLabel")}
+            placeholder={T("sidebar.namePlaceholder", { auto: edit().auto })}
+            error={edit().error}
             onSubmit={props.onRenameSubmit}
             onCancel={props.onRenameCancel}
           />

@@ -44,7 +44,7 @@ export const Secondary: Story = {};
 /** 主の操作。窓に 1 つ、並びの右端に置く。 */
 export const Primary: Story = {
   args: { variant: "primary" },
-  render: (args) => <Button {...args}>{T("rename.submit")}</Button>,
+  render: (args) => <Button {...args}>{T("addMachine.add")}</Button>,
 };
 
 /** 今は押せない（押しても何も起きない）。 */
@@ -61,7 +61,7 @@ export const Busy: Story = {
 /** キーボードで移ったフォーカス（focus-visible）の枠。Tab で移ったときと同じ見た目。 */
 export const Focused: Story = {
   args: { variant: "primary" },
-  render: (args) => <Button {...args}>{T("rename.submit")}</Button>,
+  render: (args) => <Button {...args}>{T("addMachine.add")}</Button>,
   play: ({ canvasElement }) => {
     canvasElement.querySelector<HTMLButtonElement>("button")?.focus();
   },
@@ -73,7 +73,7 @@ export const CancelAndPrimary: Story = {
     <>
       <Button onClick={args.onClick}>{T("button.cancel")}</Button>
       <Button variant="primary" onClick={args.onClick}>
-        {T("rename.submit")}
+        {T("addMachine.add")}
       </Button>
     </>
   ),

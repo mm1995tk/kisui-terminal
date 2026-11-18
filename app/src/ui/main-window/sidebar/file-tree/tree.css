@@ -34,6 +34,12 @@
 .tree-row:not(.tree-truncated) {
   cursor: pointer;
 }
+/* その場の入力欄のある行（名前の変更・新しいファイル）。断られた理由が入力欄の下に出たら、行を伸ばす */
+.tree-row[data-editing] {
+  height: auto;
+  min-height: 22px;
+  cursor: default;
+}
 
 /* 開いたフォルダの行は、中身（.tree-group の中）をスクロールしている間だけ上に固定する（D3）。
    深さごとに 1 行ずつ下にずらして親から順に積む。押し出される子の行は親の行の下に潜るよう、深いほど下に描く。--tree-sticky-top は、段の上に固定するものの高さ（今は無いので 0）。

@@ -48,6 +48,9 @@ export function Panes(props: Handlers & { row: Row }): JSX.Element {
                       props.onTreeAction?.(props.row.target, b().id, row, a)
                   : undefined
               }
+              edit={props.treeEditOf?.(props.row.target, b().id)}
+              onEditSubmit={(v) => props.onTreeEditSubmit?.(v)}
+              onEditCancel={(byKey) => props.onTreeEditCancel?.(byKey)}
             />
           )}
         </Show>

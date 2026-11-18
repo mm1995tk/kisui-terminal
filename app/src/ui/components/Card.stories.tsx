@@ -1,6 +1,6 @@
 // 真ん中に出す窓の枠（Card.tsx の ModalCard）を、アプリと同じ部品・CSS・字・翻訳で出す（#315）。
 // 中は窓の 3 つの段（header の見出し・中身・footer のボタン）だけ。中身のある窓の例は、
-// main-window/ の窓の stories（CloseWorkspaceCard・InstallCard）と components/dialogs/RenameDialog。
+// main-window/ の窓の stories（CloseWorkspaceCard・InstallCard）。
 // 使い方の決まりは docs/design/design-system.md の「窓の枠」。
 import { For, type ComponentProps } from "solid-js";
 import type { Meta, StoryObj } from "storybook-solidjs-vite";

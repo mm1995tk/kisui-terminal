@@ -7,9 +7,16 @@ import { T } from "../../../../i18n/index.ts";
 import { Index, Match, onCleanup, Show, Switch, type JSX } from "solid-js";
 
 import { openKeyList } from "../../commands/KeyListDialog.tsx";
-import type { TreeIcon } from "../../../../features/file-tree/icons.ts";
+import { InlineInput } from "../../../components/InlineInput.tsx";
+import {
+  iconFor,
+  type TreeIcon,
+} from "../../../../features/file-tree/icons.ts";
 import { treeKey, type TreeMove } from "../../../../features/file-tree/keys.ts";
-import type { TreeMenuAction } from "../../../../features/file-tree/menu.ts";
+import {
+  newEntryDefault,
+  type TreeMenuAction,
+} from "../../../../features/file-tree/menu.ts";
 import {
   nest,
   parentOf,
@@ -40,6 +47,19 @@ interface RowHandlers {
   onMenu?: (row: TreeRow, x: number, y: number) => void;
   /** 行でキーを押して、メニューの項目と同じ操作をする（a で新しいファイルなど）。省くとそのキーは使わない */
   onAction?: (row: TreeRow, action: TreeMenuAction) => void;
+  /** その場の入力欄（新しいファイル・フォルダは path のフォルダのすぐ下に行を足し、名前の変更は path の行の名前を入力欄にする）。無ければ undefined */
+  edit?: TreeEditView;
+  /** 入力欄で Enter を押した（値はルートからの相対パス） */
+  onEditSubmit?: (value: string) => void;
+  /** 入力欄で Esc を押した（byKey）・フォーカスが外れた */
+  onEditCancel?: (byKey: boolean) => void;
+}
+
+/** ツリーに出すその場の入力欄。path は、新規なら入れるフォルダ（ルートは ""）、名前の変更なら変えるもの */
+export interface TreeEditView {
+  kind: "new-file" | "new-dir" | "rename";
+  path: string;
+  error?: string;
 }
 
 /** 行 from のあるツリーの、フォーカスできる行（上から順）。 */
@@ -136,12 +156,86 @@ export function TreeView(
     label: string;
   },
 ): JSX.Element {
+  let tree: HTMLDivElement | undefined;
+  // 入力欄を閉じたら、キーを入力欄を開いた行へ戻す（Esc のときだけ。フォーカスが外れたときは、移った先のまま）
+  const handlers: RowHandlers = {
+    get onToggle() {
+      return props.onToggle;
+    },
+    get onOpen() {
+      return props.onOpen;
+    },
+    get current() {
+      return props.current;
+    },
+    get onMenu() {
+      return props.onMenu;
+    },
+    get onAction() {
+      return props.onAction;
+    },
+    get edit() {
+      return props.edit;
+    },
+    get onEditSubmit() {
+      return props.onEditSubmit;
+    },
+    onEditCancel: (byKey) => {
+      const path = props.edit?.path;
+      props.onEditCancel?.(byKey);
+      if (byKey && path !== undefined)
+        queueMicrotask(() =>
+          tree
+            ?.querySelector<HTMLElement>(
+              `.tree-row[data-path="${CSS.escape(path)}"]`,
+            )
+            ?.focus(),
+        );
+    },
+  };
+  const newAtRoot = () =>
+    props.edit && props.edit.kind !== "rename" && props.edit.path === ROOT
+      ? props.edit
+      : undefined;
   return (
     <>
-      <div class="tree" role="tree" aria-label={props.label}>
-        <Nodes nodes={nest(props.rows)} handlers={props} />
+      <div class="tree" role="tree" aria-label={props.label} ref={tree}>
+        <Show when={newAtRoot()}>
+          {(e) => <NewRow depth={0} edit={e()} handlers={handlers} />}
+        </Show>
+        <Nodes nodes={nest(props.rows)} handlers={handlers} />
       </div>
     </>
+  );
+}
+
+/** 新しいファイル・フォルダの名前を入れる行。入れるフォルダのすぐ下（中身の先頭）に出す。 */
+function NewRow(props: {
+  depth: number;
+  edit: TreeEditView;
+  handlers: RowHandlers;
+}): JSX.Element {
+  const dir = () => props.edit.kind === "new-dir";
+  return (
+    <div
+      class="tree-row"
+      data-editing=""
+      role="treeitem"
+      aria-level={props.depth + 1}
+      style={{ "--tree-depth": String(props.depth) }}
+    >
+      <Guides depth={props.depth} />
+      <span class="tree-chevron" />
+      <TreeIconView icon={iconFor("", dir(), false)} />
+      <InlineInput
+        value={newEntryDefault(props.edit.path)}
+        label={dir() ? T("dialog.tree.newDir") : T("dialog.tree.newFile")}
+        error={props.edit.error}
+        selection={(v) => [v.length, v.length]}
+        onSubmit={(v) => props.handlers.onEditSubmit?.(v)}
+        onCancel={(byKey) => props.handlers.onEditCancel?.(byKey)}
+      />
+    </div>
   );
 }
 
@@ -156,6 +250,24 @@ function Nodes(props: {
       {(n) => (
         <div class="tree-group">
           <Row row={n().row} handlers={props.handlers} />
+          <Show
+            when={
+              n().row.dir &&
+              props.handlers.edit &&
+              props.handlers.edit.kind !== "rename" &&
+              props.handlers.edit.path === n().row.path
+                ? props.handlers.edit
+                : undefined
+            }
+          >
+            {(e) => (
+              <NewRow
+                depth={n().row.depth + 1}
+                edit={e()}
+                handlers={props.handlers}
+              />
+            )}
+          </Show>
           <Show when={n().children.length > 0}>
             <Nodes nodes={n().children} handlers={props.handlers} />
           </Show>
@@ -197,6 +309,12 @@ function Row(props: { row: TreeRow; handlers: RowHandlers }): JSX.Element {
         }
         data-mark={markKey(mark())}
         data-sticky={r().dir && r().expanded ? "top" : undefined}
+        data-editing={
+          props.handlers.edit?.kind === "rename" &&
+          props.handlers.edit.path === r().path
+            ? ""
+            : undefined
+        }
         style={{ "--tree-depth": String(r().depth) }}
         title={r().path}
         data-path={r().path}
@@ -225,7 +343,27 @@ function Row(props: { row: TreeRow; handlers: RowHandlers }): JSX.Element {
           </svg>
         </Show>
         <TreeIconView icon={r().icon} />
-        <span class="tree-name">{r().name}</span>
+        <Show
+          when={
+            props.handlers.edit?.kind === "rename" &&
+            props.handlers.edit.path === r().path
+              ? props.handlers.edit
+              : undefined
+          }
+          fallback={<span class="tree-name">{r().name}</span>}
+        >
+          {(e) => (
+            <InlineInput
+              value={r().path}
+              label={T("dialog.tree.newPath")}
+              error={e().error}
+              // 最後の "/" より後ろだけを選んでおく（拡張子ごと打ち直せるように。前を書き換えれば別のフォルダへ動かせる）
+              selection={(v) => [v.lastIndexOf("/") + 1, v.length]}
+              onSubmit={(v) => props.handlers.onEditSubmit?.(v)}
+              onCancel={(byKey) => props.handlers.onEditCancel?.(byKey)}
+            />
+          )}
+        </Show>
         <Show when={r().symlink}>
           <span
             class="tree-link"

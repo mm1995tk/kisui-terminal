@@ -51,7 +51,7 @@ export interface Band {
   title: string;
   /** ユーザーがつけた名前（無ければ ""。title は、あればこれになる） */
   label: string;
-  /** 名前をつけていないときの title（名前を変える窓の「空なら」に出す） */
+  /** 名前をつけていないときの title（名前のその場の入力欄の「空なら」に出す） */
   autoTitle: string;
   /** title がパスなら true（等幅で出す） */
   path: boolean;
