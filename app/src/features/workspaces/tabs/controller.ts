@@ -259,10 +259,17 @@ export function createTabs(deps: {
     key: string,
     name: string,
   ): string | undefined {
-    const bad = nameErrorText(name);
-    if (bad) return bad;
-    void applyTabRename(gid, key, name);
-    return undefined;
+    const r = tryRenameTab(gid, key, name);
+    return typeof r === "string" ? r : undefined;
+  }
+
+  /** 名前を検査して、通れば変え始める。断る理由（string）か、変え終わるのを待つ Promise を返す。検査は、ここ 1 か所だけでする。 */
+  function tryRenameTab(
+    gid: string,
+    key: string,
+    name: string,
+  ): string | Promise<void> {
+    return nameErrorText(name) ?? applyTabRename(gid, key, name);
   }
 
   /** タブ key の名前を name にする。名前の検査は済んでいるものとする。 */
@@ -289,14 +296,14 @@ export function createTabs(deps: {
   async function submitTabRename(name: string) {
     const r = renamingTab();
     if (!r) return;
-    const bad = nameErrorText(name);
-    if (bad) {
-      setTabRenameError(bad);
+    const done = tryRenameTab(r.gws, r.key, name);
+    if (typeof done === "string") {
+      setTabRenameError(done);
       return;
     }
     setRenamingTab(null);
     setTabRenameError(undefined);
-    await applyTabRename(r.gws, r.key, name);
+    await done;
     focusTerminal();
   }
 
