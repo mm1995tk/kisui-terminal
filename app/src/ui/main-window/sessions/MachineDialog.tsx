@@ -15,6 +15,7 @@ import {
 
 import { openKeyList } from "../commands/KeyListDialog.tsx";
 import { Button } from "../../components/Button.tsx";
+import { KeyHints } from "../../components/KeyHints.tsx";
 import {
   ModalCard,
   CardBody,
@@ -174,16 +175,18 @@ export function MachineDialog(props: {
             <Show when={note()}>
               {(n) => <CardText role="alert">{n()}</CardText>}
             </Show>
-            <p class="machine-keys">
-              <kbd>j</kbd> <kbd>k</kbd> {T("machineDialog.keys.select")} ·{" "}
-              <kbd>a</kbd> {T("machineDialog.keys.add")} · <kbd>n</kbd>{" "}
-              {T("machineDialog.keys.rename")} · <kbd>d</kbd>{" "}
-              {T("machineDialog.keys.remove")} · <kbd>x</kbd>{" "}
-              {T("machineDialog.keys.disconnect")} · <kbd>r</kbd>{" "}
-              {T("machineDialog.keys.reconnect")} · <kbd>?</kbd>{" "}
-              {T("machineDialog.keys.keyList")} · <kbd>Esc</kbd>{" "}
-              {T("machineDialog.keys.close")}
-            </p>
+            <KeyHints
+              items={[
+                { keys: ["j", "k"], label: T("machineDialog.keys.select") },
+                { keys: ["a"], label: T("machineDialog.keys.add") },
+                { keys: ["n"], label: T("machineDialog.keys.rename") },
+                { keys: ["d"], label: T("machineDialog.keys.remove") },
+                { keys: ["x"], label: T("machineDialog.keys.disconnect") },
+                { keys: ["r"], label: T("machineDialog.keys.reconnect") },
+                { keys: ["?"], label: T("machineDialog.keys.keyList") },
+                { keys: ["Esc"], label: T("machineDialog.keys.close") },
+              ]}
+            />
           </CardBody>
           <CardActions>
             <Button onClick={props.onCancel}>{T("button.close")}</Button>

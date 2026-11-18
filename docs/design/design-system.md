@@ -19,13 +19,16 @@ kisui-terminal の窓（`app/src/`）の、共通の色・余白・字・状態�
 | 窓の枠と中の部分       | `ui/components/Card.tsx` の `ModalCard`・`CardBody`・`CardTitle`・`CardText`・`CardError`・`CardActions`、`card.css` | `components/ModalCard`                    |
 | 入力欄（形だけ）       | `ui/components/Field.tsx` の `Field`・`Input`               | `components/Field`                                            |
 | その場の入力欄         | `ui/components/InlineInput.tsx`・`inline-input.css`         | `components/InlineInput`                                      |
+| キー操作のヒント       | `ui/components/KeyHints.tsx` の `KeyHints`・`Kbd`、`key-hints.css` | `main-window/sessions/MachineDialog` など、ヒントのある窓 |
 | 組み合わせた窓         | 下の「組み合わせの例」の窓                                  | `main-window/…`                                               |
 
 窓と知らせの下のボタンは `Button` を使う（`button` に CSS のクラスを付けて直に書かない）。窓の中の見出し・本文・ボタンの並び・入力欄も、`Card.tsx` と `Field.tsx` の部品を使う。
 
-`ui/components/` には、1 つの役目の部品（ボタン・窓の枠と中の部分・入力欄・その場の入力欄）だけを置く。部品を組んだ窓（ワークスペースを閉じる確認など）は、使う所（`ui/main-window/…`）に置く。
+`ui/components/` には、1 つの役目の部品（ボタン・窓の枠と中の部分・入力欄・その場の入力欄・キー操作のヒント）だけを置く。部品を組んだ窓（ワークスペースを閉じる確認など）は、使う所（`ui/main-window/…`）に置く。
 
 名前を変える操作（ワークスペース・タブ・マシンの名前、ファイルツリーの名前の変更と新しいファイル・フォルダ）は、窓を出さず、名前を出している行をその場の入力欄（`InlineInput`）にして行う。Enter で決め、Esc でやめ、フォーカスが外れてもやめる。断られたら、入力欄の下に理由を出し、開けたままにする。
+
+「どのキーで何をするか」のヒントは、どこでも `KeyHints` で出す（キーを並べたあとに何をするかの字。項目は横に流して折り返す）。窓では `footer` の `CardBody` の中に置く。行の中にキーを 1 つだけ出すとき（閉じる確認の `y` `n` など）は `Kbd` を使う。`kbd` に CSS のクラスを付けて直に書かない。
 
 後に回したもの（順は決めていない。サイドバーとワークスペースの Issue（#303・#311・#307・#308）で使う所から進める）：
 
@@ -55,6 +58,7 @@ kisui-terminal の窓（`app/src/`）の、共通の色・余白・字・状態�
 | `ui/components/Card.tsx`・`card.css`    | 窓の枠（`ModalCard`）と、カードの中の部分（`CardBody`・`CardTitle`・`CardText`・`CardError`・`CardActions`） |
 | `ui/components/Field.tsx`               | 入力欄（`Field` がラベル、`Input` が 1 行の入力）                                       |
 | `ui/components/InlineInput.tsx`・`inline-input.css` | その場の入力欄（一覧の行の名前を、その行の中で変える）                         |
+| `ui/components/KeyHints.tsx`・`key-hints.css` | キー操作のヒント（`KeyHints`）と、キー 1 つ（`Kbd`）                            |
 
 `theme.css` と `tokens.css` は、起動のとき `index.tsx` が読む（Storybook では `.storybook/preview.tsx`）。
 
@@ -149,7 +153,7 @@ kisui-terminal の窓（`app/src/`）の、共通の色・余白・字・状態�
 - **3 つの段**：`header`（見出し。ふつうは `CardTitle`）・中身（`children`）・`footer`（ふつうは `CardActions`。キーの案内も置ける）。見出しと `footer` は動かず、窓の高さに収まらないときは中身だけがスクロールする。段の境目には、カードの縁と同じ色（`--color-border`）の 1px の線を、いつも引く。`footer` は省ける。`header` を省けるのは、中身が自分で見出しを描く窓（履歴の一覧 `HistoryPanel`）だけ。
 - **段の中身**：中身は `CardBody`（本文 `CardText`・入力欄 `Field`・理由 `CardError`）や一覧。`CardActions` は `Button` を右寄せにし、主ボタンが右端。狭いとボタンは折り返す。窓の中で `.card-body` などの class を手で書かない。右下の知らせも同じ部分を使う（見出しは `CardTitle level={2}`）。
 - **送るボタン**：form の送るボタンは `footer`（form の外）に置くので、`Button` の `form` に form の id を渡す（`AskpassDialog`）。
-- **閉じ方**：閉じるのは Esc（キー）を基本にする。窓の右上の × は置かない。`footer` にキーの案内を出すかどうかは、#306 の「基本操作の共通フッタと `?`」で決める。
+- **閉じ方**：閉じるのは Esc（キー）を基本にする。窓の右上の × は置かない。キーの案内を出す窓は、`footer` に `KeyHints` を置く。どの窓に出すか（共通フッタ）は、#306 の「基本操作の共通フッタと `?`」で決める。
 - **操作とフォーカス**：開くと中の最初の押せるもの（`focusSelf` なら窓そのもの）にフォーカスが移る。Esc で `onCancel`（macOS の全画面が解けないよう、Esc の既定の動きは止める）。閉じると、開く前にフォーカスがあった所へ戻す。決める（Enter）は窓ごとに決める（入力欄の Enter で決める窓は、入力欄が `isComposingKey` で変換の Enter を除く）。
 - **組み合わせの例**：下の表。
 
@@ -177,7 +181,7 @@ kisui-terminal の窓（`app/src/`）の、共通の色・余白・字・状態�
 | 入力に失敗したときの説明                 | 未確定        | 扱わない。入力欄は後に回した                                                                                    |
 | 同じ行操作・利用不能操作の伝え方         | 未確定        | ボタンの「無効」と「処理中」の見せ方だけ決めた（今の窓のボタンと同じ）。隠すか、理由を出すかの決まりは未確定（サイドバーは隠す） |
 | 同じ名前変更操作のキー                   | 未合意        | 変えていない。`Button` はキーを足さない                                                                         |
-| ヒントと詳細ヘルプ                       | 合意済み（フッタと `?`） | 扱わない（#306）                                                                                     |
+| ヒントと詳細ヘルプ                       | 合意済み（フッタと `?`） | ヒントの見た目だけを `KeyHints` にそろえた。共通フッタと `?` は #306                                 |
 
 ## テストが見張ること
 

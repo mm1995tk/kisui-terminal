@@ -2,8 +2,9 @@
 // タブが無いことと、タブを足す・ワークスペースを閉じるキー（どれもリーダーの木にある操作）を伝える。
 // ほかのワークスペースのターミナルは出さず、キーも送らない。キーはこの画面そのものに置く（リーダーと近道は窓が受ける）。
 import { T } from "../../../i18n/index.ts";
-import { For, Show, onCleanup, type JSX } from "solid-js";
+import { onCleanup, type JSX } from "solid-js";
 
+import { KeyHints } from "../../components/KeyHints.tsx";
 import styles from "./EmptyWorkspace.module.css";
 
 /** 空のワークスペースの画面。leader はリーダーのキー（この OS の書き方）。browser は内蔵ブラウザを使うか（ブラウザのタブを足すキーを出すか）。 */
@@ -28,33 +29,25 @@ export function EmptyWorkspace(props: {
       <div class={styles.inner}>
         <h1 class={styles.title}>{T("emptyWorkspace.title")}</h1>
         <p class={styles.text}>{T("emptyWorkspace.text")}</p>
-        <dl class={styles.keys}>
-          <Keys keys={keys("t", "n")} label={T("emptyWorkspace.addTerminal")} />
-          <Show when={props.browser}>
-            <Keys
-              keys={keys("o", "n")}
-              label={T("emptyWorkspace.addBrowser")}
-            />
-          </Show>
-          <Keys
-            keys={keys("w", "x")}
-            label={T("emptyWorkspace.closeWorkspace")}
-          />
-        </dl>
+        <KeyHints
+          items={[
+            { keys: keys("t", "n"), label: T("emptyWorkspace.addTerminal") },
+            ...(props.browser
+              ? [
+                  {
+                    keys: keys("o", "n"),
+                    label: T("emptyWorkspace.addBrowser"),
+                  },
+                ]
+              : []),
+            {
+              keys: keys("w", "x"),
+              label: T("emptyWorkspace.closeWorkspace"),
+            },
+          ]}
+        />
         <p class={styles.text}>{T("emptyWorkspace.plus")}</p>
       </div>
     </div>
-  );
-}
-
-/** キーの並び 1 行（左にキー、右に何をするか）。 */
-function Keys(props: { keys: string[]; label: string }): JSX.Element {
-  return (
-    <>
-      <dt>
-        <For each={props.keys}>{(k) => <kbd>{k}</kbd>}</For>
-      </dt>
-      <dd>{props.label}</dd>
-    </>
   );
 }

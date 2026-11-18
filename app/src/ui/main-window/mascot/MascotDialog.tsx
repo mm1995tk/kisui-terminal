@@ -12,6 +12,7 @@ import {
 } from "solid-js";
 
 import { Button } from "../../components/Button.tsx";
+import { KeyHints } from "../../components/KeyHints.tsx";
 import {
   ModalCard,
   CardBody,
@@ -98,11 +99,13 @@ export function MascotDialog(props: {
             <Show when={note()}>
               {(n) => <CardText role="alert">{n()}</CardText>}
             </Show>
-            <p class="machine-keys">
-              <kbd>j</kbd> <kbd>k</kbd> {T("mascot.keys.select")} ·{" "}
-              <kbd>Enter</kbd> {T("mascot.keys.confirm")} · <kbd>Esc</kbd>{" "}
-              {T("mascot.keys.cancel")}
-            </p>
+            <KeyHints
+              items={[
+                { keys: ["j", "k"], label: T("mascot.keys.select") },
+                { keys: ["Enter"], label: T("mascot.keys.confirm") },
+                { keys: ["Esc"], label: T("mascot.keys.cancel") },
+              ]}
+            />
           </CardBody>
           <CardActions>
             <Button onClick={props.onCancel}>{T("button.cancelAlt")}</Button>

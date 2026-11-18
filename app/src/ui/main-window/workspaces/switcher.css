@@ -158,31 +158,4 @@
   flex: none;
   color: var(--card-muted);
 }
-.switch-confirm kbd,
-.switch-new kbd,
-.switch-keys kbd {
-  padding: 0 5px;
-  border: 1px solid var(--card-field-border);
-  border-radius: 4px;
-  font-family: var(--gh-mono);
-  font-size: 11px;
-}
 
-/* 下のキーの説明：「移る」と「変える」の 2 列。1 行に 1 つのキー */
-.switch-keys {
-  display: grid;
-  grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
-  gap: 12px;
-}
-.switch-keys h2 {
-  margin: 0 0 4px;
-  color: var(--card-muted);
-  font-size: 12px;
-  font-weight: 600;
-}
-.switch-keys p {
-  margin: 0;
-  color: var(--card-muted);
-  font-size: 12px;
-  line-height: 1.8;
-}

@@ -422,8 +422,6 @@ export const ja: Record<Key, string> = {
   "switcher.empty": "ワークスペースはありません",
   "switcher.new": "ワークスペースを作る",
   "switcher.keys.go": "移る（ダブルクリックでも）",
-  "switcher.keys.goHeading": "移る",
-  "switcher.keys.changeHeading": "変える",
   "switcher.keys.close": "窓を閉じる",
   "switcher.keys.new": "ワークスペースを作る",
   "switcher.keys.rename": "名前を変える",

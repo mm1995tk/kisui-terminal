@@ -2,6 +2,7 @@ import { T } from "../../../i18n/index.ts";
 import { createSignal, For, type JSX } from "solid-js";
 
 import { Button } from "../../components/Button.tsx";
+import { KeyHints } from "../../components/KeyHints.tsx";
 import {
   ModalCard,
   CardBody,
@@ -45,11 +46,13 @@ export function WorkspaceKindPicker(props: {
       footer={
         <>
           <CardBody>
-            <p class="machine-keys">
-              <kbd>j</kbd> <kbd>k</kbd> {T("machineDialog.keys.select")} ·{" "}
-              <kbd>Enter</kbd> {T("kindPicker.keys.choose")} · <kbd>Esc</kbd>{" "}
-              {T("mascot.keys.cancel")}
-            </p>
+            <KeyHints
+              items={[
+                { keys: ["j", "k"], label: T("machineDialog.keys.select") },
+                { keys: ["Enter"], label: T("kindPicker.keys.choose") },
+                { keys: ["Esc"], label: T("mascot.keys.cancel") },
+              ]}
+            />
           </CardBody>
           <CardActions>
             <Button onClick={props.onCancel}>{T("button.cancelAlt")}</Button>

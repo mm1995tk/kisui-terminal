@@ -5,6 +5,7 @@ import { For, Show, type JSX } from "solid-js";
 import { ICON } from "../sidebar/icons.ts";
 import type { Health, Row } from "../../../features/workspaces/rows.ts";
 import { InlineInput } from "../../components/InlineInput.tsx";
+import { Kbd } from "../../components/KeyHints.tsx";
 import { TabRow } from "../sidebar/workspaces/TabRow.tsx";
 
 const healthLabel = (h: Health): string => T(`health.${h}`);
@@ -82,7 +83,7 @@ function RowActions(props: {
         role="alert"
         aria-label={T("switcher.confirmClose", { title: r().band.title })}
       >
-        <kbd>y</kbd> <kbd>n</kbd>
+        <Kbd>y</Kbd> <Kbd>n</Kbd>
       </span>
     </Show>
   );

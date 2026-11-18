@@ -423,8 +423,6 @@ export const en = {
   "switcher.empty": "No workspaces",
   "switcher.new": "New workspace",
   "switcher.keys.go": "go (or double-click)",
-  "switcher.keys.goHeading": "Go",
-  "switcher.keys.changeHeading": "Change",
   "switcher.keys.close": "close this window",
   "switcher.keys.new": "new workspace",
   "switcher.keys.rename": "rename",
