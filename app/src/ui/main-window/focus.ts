@@ -5,13 +5,13 @@
 // 向ける先の要素は、描いた部品（TerminalGrid・BrowserArea・UrlBar・FindBar）が渡す関数で受け取る。
 import { createEffect, on, onCleanup, untrack, type Accessor } from "solid-js";
 
-import { changesRow } from "../../features/changes/keys.ts";
 import type { WorkspaceFocus } from "../../features/workspaces/rows.ts";
 import type {
   Workspace,
   WorkspaceId,
 } from "../../infrastructure/rpc/protocol.ts";
 import type { WindowEls } from "./els.ts";
+import { changesRow } from "./sidebar/changes/changesFocus.ts";
 import {
   explorerRow,
   startFocusStep,

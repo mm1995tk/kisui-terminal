@@ -20,7 +20,7 @@ import {
   startPush,
   startRest,
   takeOffset,
-} from "../../../features/mascot/mascotMotion.ts";
+} from "./mascotMotion.ts";
 import {
   MASCOT_HEIGHT,
   nextAction,

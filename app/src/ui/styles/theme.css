@@ -1,6 +1,6 @@
 /* 配色（GitHub Dark で固定。テーマを選ぶ設定は無い）。GUI の色はここで決め、各 CSS は変数で使う。
    元は shijimi-editor の core/theme.go の GithubDark。shj と kisui で同じ色に見えるようにそろえる。
-   端末の背景・文字・16 色は terminal/theme.ts（xterm 風の canvas は CSS の変数を読めないため別に持つ）。 */
+   端末の背景・文字・16 色は ui/main-window/content/terminal/theme.ts（xterm 風の canvas は CSS の変数を読めないため別に持つ）。 */
 :root {
   --gh-bg: #0d1117; /* エディタ・端末の地。tauri.conf.json の backgroundColor と index.html にも同じ値 */
   --gh-bg-side: #010409; /* サイドバー */

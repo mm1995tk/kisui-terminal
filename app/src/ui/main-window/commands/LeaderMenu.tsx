@@ -20,7 +20,7 @@ const [leaderPath, setPath] = createSignal<Path | null>(null);
 const [closedBy, setClosedBy] = createSignal<CloseReason>("other");
 
 /**
- * リーダーに入っているときの木の中の位置（入っていなければ null）。App のキーの処理が書く。
+ * リーダーに入っているときの木の中の位置（入っていなければ null）。キーの処理（ui/main-window/keys.ts）が書く。
  * 出るとき（`path` が null）は、`escaped`（Esc で出たか）で閉じ方も伝える（キャラクターが案内を押していくかを決める）。
  */
 function setLeaderPath(path: Path | null, escaped = false): void {

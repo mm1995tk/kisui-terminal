@@ -1,6 +1,6 @@
 // ツリーの行にフォーカスがあるときのキー（#13）。割り当ては shj のファイルツリー（shijimi-editor の
 // core/app.go の HandleExplorerKey と README の「ファイルツリー」）に合わせる。
-// DOM を使わないので node --test で確かめられる。行を動かす・メニューの操作をするのは TreeView.tsx と App.tsx。
+// DOM を使わないので node --test で確かめられる。行を動かすのは TreeView.tsx、メニューの操作をするのは controller.ts。
 
 import { type ComposingKeyLike, isComposingKey } from "../commands/ime.ts";
 import type { TreeMenuAction } from "./menu.ts";

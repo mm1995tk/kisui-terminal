@@ -12,7 +12,7 @@
 }
 
 /* 欄どうしの境界のつまみ（#18）。当たりは隙間いっぱい。見える線は真ん中の 1px で、ドラッグ中とリサイズモードで選んだ境界は
-   マシンの色（--machine-color。App.tsx が .app に入れる）で光らせる */
+   マシンの色（--machine-color。ui/main-window/layout.tsx が .app に入れる）で光らせる */
 .terminal-bar {
   position: absolute;
   z-index: 5;

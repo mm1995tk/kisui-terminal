@@ -7,7 +7,7 @@ const read = (rel: string) =>
   readFileSync(new URL(rel, import.meta.url), "utf8");
 
 describe("起動時の背景色", () => {
-  it("theme.css の --gh-bg・tauri.conf.json の backgroundColor・index.html・terminal/theme.ts が同じ値", () => {
+  it("theme.css の --gh-bg・tauri.conf.json の backgroundColor・index.html・ui/main-window/content/terminal/theme.ts が同じ値", () => {
     const css = read("./theme.css").match(/--gh-bg:\s*(#[0-9a-fA-F]{6})/)?.[1];
     assert.ok(css, "theme.css に --gh-bg が無い");
     const want = css.toLowerCase();

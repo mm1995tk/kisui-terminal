@@ -18,7 +18,7 @@ export function createBrowserTabs(deps: {
   const [tabsReady, setTabsReady] = createSignal(false);
   /** 覚えていたタブを読み終えたか（読む前に空のまま書いて、覚えていたものを消さないため） */
   let tabsLoaded = false;
-  let saveTimer: number | undefined;
+  let saveTimer: ReturnType<typeof setTimeout> | undefined;
   function setTabs(next: TabsState | ((t: TabsState) => TabsState)) {
     const before = untrack(tabs);
     const v = typeof next === "function" ? next(before) : next;
@@ -26,14 +26,14 @@ export function createBrowserTabs(deps: {
     setTabsState(v);
     if (!tabsLoaded) return;
     // ページの遷移のたびに書かないよう、少し待ってまとめて書く
-    window.clearTimeout(saveTimer);
-    saveTimer = window.setTimeout(() => {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
       void saveTabs(toStored(untrack(tabs))).catch((e: unknown) =>
         console.warn("browser tabs:", e),
       );
     }, 500);
   }
-  onCleanup(() => window.clearTimeout(saveTimer));
+  onCleanup(() => clearTimeout(saveTimer));
 
   /** 覚えていたタブを読む（起動したときに 1 回）。読めなくても、読み終えたことにする（空から始める）。 */
   async function load(): Promise<void> {

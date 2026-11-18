@@ -1,6 +1,6 @@
 // キャラクターを選ぶ窓（リーダーの `c s`）。`mascot/` の中のキャラクターを名前の順に並べ、j / k（矢印）で選び、
 // Enter かダブルクリックで決め、Esc かボタンでやめる。使えないキャラクター（`mascot.toml` が読めない）は、
-// 理由を付けて並べ、選べない。窓のキーはマシンを選ぶ窓と同じ（connect/machineList.ts の pickerKey）。決まりは docs/key-design.md。
+// 理由を付けて並べ、選べない。窓のキーはマシンを選ぶ窓と同じ（features/sessions/machineList.ts の pickerKey）。決まりは docs/key-design.md。
 import { T } from "../../../i18n/index.ts";
 import {
   createEffect,

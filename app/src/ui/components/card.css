@@ -329,7 +329,7 @@
   padding: 10px 20px 16px;
 }
 
-/* kisui-terminal の外から開く履歴の窓（ClipboardHistoryPopup.tsx）。窓いっぱいに出し、一覧が残りの高さを使う */
+/* kisui-terminal の外から開く履歴の窓（ui/utilities/clipboard/page.tsx）。窓いっぱいに出し、一覧が残りの高さを使う */
 .history-popup {
   position: fixed;
   inset: 0;

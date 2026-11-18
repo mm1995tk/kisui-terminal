@@ -237,7 +237,7 @@ pub fn transfer_write_begin(state: State<Transfers>, key: String) -> R<String> {
     Ok(dir.to_string_lossy().into_owned())
 }
 
-/// 画面（transferOs.ts の writeOpen）から受ける、書くファイルかディレクトリ 1 つの頼み。
+/// 画面（app/src/infrastructure/tauri/transfer.ts の writeOpen）から受ける、書くファイルかディレクトリ 1 つの頼み。
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WriteOpen {
@@ -388,7 +388,7 @@ pub fn transfer_write_close(state: State<Transfers>, key: String, keep_done: boo
 
 // ---- 読む（手元 → リモート） ----
 
-/// 画面（transferOs.ts の readList）から受ける、相手が読みたいと頼んだパス 1 つ。
+/// 画面（app/src/infrastructure/tauri/transfer.ts の readList）から受ける、相手が読みたいと頼んだパス 1 つ。
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReadRequest {

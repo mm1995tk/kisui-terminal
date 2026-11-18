@@ -94,7 +94,7 @@ export function createPages(deps: {
   });
   /**
    * タブ → これまで使った中継の origin と元の origin（リモートのマシンの localhost 系を `kisui relay` の中継で開いたタブだけ。#203）。
-   * タブは元の URL を覚えて入力欄に出し、ページから届く中継の URL は元の URL に戻してから書く（browser/relay.ts）。
+   * タブは元の URL を覚えて入力欄に出し、ページから届く中継の URL は元の URL に戻してから書く（features/browser/relay.ts）。
    * 戻る・進むで前の中継の URL に戻ることもあるので、対応は足すだけにし、捨てるのはタブを閉じたときだけ
    */
   const relays = new Map<string, readonly Relayed[]>();

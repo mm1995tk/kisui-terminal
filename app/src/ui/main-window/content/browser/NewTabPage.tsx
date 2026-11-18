@@ -2,7 +2,7 @@
 // 検索窓（打ったものは URL バーと同じ決まりで、URL なら開き、そうでなければ Google で探す。tabs.ts の urlOrSearch）と、ブックマークの一覧を出す。
 // webview は作らず、画面（DOM）が描く。出たら検索窓にキーがある。キーだけで使える：打つとブックマークを絞り込み、`↓` `↑`（Ctrl+J / Ctrl+K）で選び、
 // `Enter` で選んだブックマークか打ったものを開く。ブックマークはマウスで押して開いてもよい。
-// 開くと、そのタブがそのページになる（App.tsx の submitUrlBar）。
+// 開くと、そのタブがそのページになる（features/browser/pages.ts の submitUrlBar）。
 import { T } from "../../../../i18n/index.ts";
 import {
   createEffect,

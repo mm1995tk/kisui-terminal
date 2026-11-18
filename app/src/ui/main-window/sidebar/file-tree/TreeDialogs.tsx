@@ -1,5 +1,5 @@
 // ツリーの右クリックから開く窓：名前を入れる窓（新しいファイル・新しいフォルダ・名前の変更）と、削除の確認の窓。
-// 窓は ModalCard（connect/Card.tsx）。決めたあとの処理は onSubmit / onYes が返す Promise で、断られたら窓を開いたまま理由を出す。
+// 窓は ModalCard（ui/components/Card.tsx）。決めたあとの処理は onSubmit / onYes が返す Promise で、断られたら窓を開いたまま理由を出す。
 import { isComposingKey } from "../../../../features/commands/ime.ts";
 import { T } from "../../../../i18n/index.ts";
 import { createSignal, Show, type JSX } from "solid-js";

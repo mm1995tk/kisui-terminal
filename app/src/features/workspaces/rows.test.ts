@@ -436,7 +436,7 @@ describe("keepFocus", () => {
 
   // フォーカスしているワークスペース x を閉じると、閉じる返事より先に
   // workspace.changed（x が消えた）→ shj のフォーカスが外れた（null）の順に知らせが届く。
-  // App はそれぞれで keepFocus（後者は adoptFocus も）を通すので、その間に描く一覧で
+  // controller.ts はそれぞれで keepFocus（後者は adoptFocus も）を通すので、その間に描く一覧で
   // フォーカスが一度も無くならない（サイドバーの並びが一瞬崩れない）ことを確かめる。
   it("フォーカスしているワークスペースを閉じても、途中でフォーカスが無くならない", () => {
     const before = {

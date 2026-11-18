@@ -2,8 +2,8 @@
 // 画面の仕組み（Solid）には依存しない。描くのは Sidebar.tsx。
 //
 // 見た目は親 #271 のモックを元に、マシンの見出しをやめてワークスペースの帯だけを 1 列に並べる（#201）。
-// 帯は GUI のワークスペース（gws/model.ts。#231）1 つが 1 つ。中のターミナルのタブがマシンの kisui serve のワークスペース（Workspace）1 つに当たる。
-// 各帯の隅にマシンの名前と状態を出す。ツリー（D2）は tree/、上への固定（D3）は Sidebar.tsx、
+// 帯は GUI のワークスペース（features/workspaces/model.ts。#231）1 つが 1 つ。中のターミナルのタブがマシンの kisui serve のワークスペース（Workspace）1 つに当たる。
+// 各帯の隅にマシンの名前と状態を出す。ツリー（D2）は ui/main-window/sidebar/file-tree/、上への固定（D3）は Sidebar.tsx、
 // マシンごとの色（D4）の決め方と保存は colors.ts。
 
 import { T } from "../../i18n/index.ts";
@@ -302,7 +302,7 @@ export function shouldSendMoveTo(
 
 /** サイドバーの 1 行（GUI のワークスペース 1 つ）。帯に、今出しているターミナルのタブのマシンの名前・色・つながりの状態を添える。 */
 export interface Row {
-  /** GUI のワークスペースの id（gws/model.ts） */
+  /** GUI のワークスペースの id（features/workspaces/model.ts） */
   gws: string;
   /**
    * 今出しているターミナルのタブのマシン（band.id がそのワークスペース。ツリー・CHANGES・shj はそのタブのもの）。
@@ -321,7 +321,7 @@ export interface Row {
 
 /** 帯の下に並べるタブの行（ターミナルのタブもブラウザのタブも）。 */
 export interface TabItem {
-  /** タブを指すキー（gws/model.ts の refKey） */
+  /** タブを指すキー（features/workspaces/model.ts の refKey） */
   key: string;
   kind: "term" | "browser";
   /** タブの名前 */

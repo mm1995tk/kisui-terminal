@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, describe, it, mock } from "node:test";
 
-import type { Mascot, MascotScene } from "./mascot.ts";
+import type { Mascot, MascotScene } from "../../../features/mascot/mascot.ts";
 import { startRest } from "./mascotMotion.ts";
 
 const scene = (

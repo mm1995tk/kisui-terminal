@@ -350,7 +350,7 @@ export function createWorkspaces(deps: {
 
   // ---- GUI のワークスペース（#231）----
   // ワークスペースは手元の GUI が持つ。中のターミナルのタブは、各マシンの kisui serve のワークスペース 1 つずつ。
-  // 名前・並び・中のタブは webview の localStorage に覚える（gws/model.ts）。
+  // 名前・並び・中のタブは webview の localStorage に覚える（features/workspaces/model.ts）。
   // 内蔵ブラウザのタブ（#202）は GUI のワークスペースに属する。タブの中身と、ワークスペースごとに何を出しているかは tabs に持つ
   const [gws, setGwsState] = createSignal<GwsState>(
     loadGws(store) ?? EMPTY_GWS,

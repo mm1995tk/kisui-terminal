@@ -4,7 +4,7 @@
 // - sidebar：サイドバーとその右の境界（サイドバーの幅 px）。値は覚えておき、GUI を起動し直しても残す。
 // - changes：サイドバーの中の、ファイルツリーと CHANGES の境目（#152）。決めるのは CHANGES の一覧の高さ（px）で、上へ動かすと高くなる。値は覚えておく。
 // - tabs：サイドバーの中の、タブの段とファイルツリーの境目（#284）。決めるのはタブの段の高さの上限（サイドバーの高さに対する %）で、下へ動かすと高くなる。値は覚えておく。元の大きさは設定の [gui.sidebar] tabs-height（無ければ 40）。
-// - 右の欄の中の、欄どうしの境界（#18）：割合は kisui serve が分割の木に持つ（terminal/grid.ts）。ここは動かすキーだけを決める。
+// - 右の欄の中の、欄どうしの境界（#18）：割合は kisui serve が分割の木に持つ（features/terminal/grid.ts）。ここは動かすキーだけを決める。
 // キー：Tab / Shift+Tab で動かす境界を替え、←→（h l）か↑↓（k j）で動かす。縦の境界は左右、横の境界は上下だけ効く。
 
 import type { KeyValueStore } from "../../features/keyValueStore.ts";

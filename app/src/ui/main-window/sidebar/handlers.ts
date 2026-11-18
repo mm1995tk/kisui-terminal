@@ -22,7 +22,7 @@ export interface Handlers {
   onTabRename?: (gws: string, key: string) => void;
   /** タブの行のつかむ所からドラッグして落とした（同じワークスペースの中だけ。before は、そのすぐ前のタブのキー。一番後ろなら null） */
   onTabMove?: (gws: string, key: string, before: string | null) => void;
-  /** ヘッダーの「+」のメニューで選んだ。選んでいないワークスペースなら、App が先にそのワークスペースに移る */
+  /** ヘッダーの「+」のメニューで選んだ。選んでいないワークスペースなら、呼ぶ側が先にそのワークスペースに移る（features/workspaces/tabs/controller.ts の addWorkspaceTab） */
   onAddTab?: (gws: string, kind: NewTabKind) => void;
   /** 内蔵ブラウザを使えるか。使えなければ「+」のメニューに「ブラウザ」を出さない */
   browser?: boolean;
@@ -33,7 +33,7 @@ export interface Handlers {
   onToggle?: (target: string, id: WorkspaceId, path: string) => void;
   /** 帯の [×]（GUI のワークスペースを閉じる）。省くと出さない */
   onClose?: (gws: string) => void;
-  /** 帯のメニューの「名前を変える」・帯の鉛筆のボタン（App が renaming を渡す） */
+  /** 帯のメニューの「名前を変える」・帯の鉛筆のボタン（呼ぶ側が renaming を渡す） */
   onRenameWorkspace?: (gws: string) => void;
   /** 名前をその場で変えている帯（current は入力欄の初めの値、auto は空にしたときの名前、error は断られた理由）。無ければ undefined */
   renaming?: {
@@ -47,7 +47,7 @@ export interface Handlers {
   onRenameSubmit?: (name: string) => void;
   /** その場の入力欄で Esc を押した（byKey が true）・フォーカスが外れた */
   onRenameCancel?: (byKey?: boolean) => void;
-  /** 帯を右クリックした（Sidebar が内側に渡す。App は onRenameWorkspace を使う） */
+  /** 帯を右クリックした（Sidebar が内側に渡す。呼ぶ側は onRenameWorkspace を使う） */
   onBandMenu?: (gws: string, x: number, y: number) => void;
   /** ツリーのファイルの行を押した */
   onOpen?: (target: string, id: WorkspaceId, path: string) => void;
@@ -66,15 +66,15 @@ export interface Handlers {
   onChangesExplorer?: (target: string, id: WorkspaceId) => void;
   /** CHANGES で Esc・q を押した（端末に戻る） */
   onChangesLeave?: (target: string, id: WorkspaceId) => void;
-  /** タブの段とファイルツリーの境目をつかんだ（App がドラッグを受け持つ） */
+  /** タブの段とファイルツリーの境目をつかんだ（ドラッグは ui/main-window/paneResize.ts が受け持つ） */
   onTabsResize?: (e: PointerEvent) => void;
   /** タブの段とファイルツリーの境目をダブルクリックした（高さを設定の値に戻す） */
   onTabsResizeReset?: () => void;
-  /** ファイルツリーと CHANGES の境目をつかんだ（height は画面に出ている一覧の高さ px。App がドラッグを受け持つ） */
+  /** ファイルツリーと CHANGES の境目をつかんだ（height は画面に出ている一覧の高さ px。ドラッグは ui/main-window/paneResize.ts が受け持つ） */
   onChangesResize?: (e: PointerEvent, height: number) => void;
   /** 境目をダブルクリックした（高さを元に戻す） */
   onChangesResizeReset?: () => void;
-  /** ツリーの行を右クリックした（Sidebar が内側に渡す。App は onTreeAction を使う） */
+  /** ツリーの行を右クリックした（Sidebar が内側に渡す。呼ぶ側は onTreeAction を使う） */
   onTreeMenu?: (
     target: string,
     id: WorkspaceId,

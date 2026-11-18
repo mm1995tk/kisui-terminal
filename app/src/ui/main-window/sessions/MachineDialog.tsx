@@ -1,6 +1,6 @@
 // マシンのダイアログ（リーダーの `m`）。すべてのマシンを、つながりの状態とワークスペースの数と一緒に並べ、
 // マシンを足す・名前を変える・外す・切る・つなぎ直す（今すぐつなぐ）を、キーで行う。
-// 足す・名前を変えるの窓は、これを出したまま、その上に出す（呼んだ側。App.tsx）。キーの決まりは machineList.ts と docs/key-design.md。
+// 足す・名前を変えるの窓は、これを出したまま、その上に出す（呼んだ側。SessionDialogs.tsx）。キーの決まりは machineList.ts と docs/key-design.md。
 import { T } from "../../../i18n/index.ts";
 import {
   createEffect,

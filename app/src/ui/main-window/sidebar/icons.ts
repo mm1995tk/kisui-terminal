@@ -1,4 +1,4 @@
-// サイドバーの絵に使う Nerd Fonts の字（Symbols Nerd Font Mono。app/src/symbols-nerd-font.css が持つ）。
+// サイドバーの絵に使う Nerd Fonts の字（Symbols Nerd Font Mono。app/src/ui/styles/symbols-nerd-font.css が持つ）。
 // 字の名前は Nerd Fonts の cheat sheet のもの。描くときは .nf（sidebar.css）を付けた要素に入れる。
 
 export const ICON = {

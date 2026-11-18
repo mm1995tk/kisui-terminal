@@ -1,6 +1,6 @@
 // 内蔵ブラウザのタブ（#202）の、並びと、どれを出しているか。DOM も Tauri も使わない（node --test で確かめられる）。
 //
-// タブは GUI のワークスペース（gws/model.ts）に属する。ワークスペースの中の並びは、ターミナルのタブと混ぜて gws/model.ts が持つ。
+// タブは GUI のワークスペース（features/workspaces/model.ts）に属する。ワークスペースの中の並びは、ターミナルのタブと混ぜて features/workspaces/model.ts が持つ。
 // ここは、タブの中身（URL・題・表示の大きさ）と、ワークスペースごとに出しているタブ（views）を持つ。
 // タブを選ぶと、グリッドの画面すべてがそのページになり、ターミナルのタブを選ぶと、ターミナルのグリッドになる。
 // タブは、開いたときのターミナルのタブのマシン（target）とワークスペース（workspace）を覚える（リモートの localhost の中継で使う。#203。
@@ -50,7 +50,7 @@ export interface BrowserTab {
 export interface TabsState {
   /** 開いた順 */
   tabs: readonly BrowserTab[];
-  /** ワークスペースの id（gws/model.ts）→ 出しているブラウザのタブの id。無ければターミナルのタブを出している */
+  /** ワークスペースの id（features/workspaces/model.ts）→ 出しているブラウザのタブの id。無ければターミナルのタブを出している */
   views: Readonly<Record<string, string>>;
 }
 
@@ -104,7 +104,7 @@ export function addTab(s: TabsState, tab: BrowserTab, gws?: string): TabsState {
 
 /**
  * タブを閉じる。出していたワークスペースは、ターミナルのタブに戻る（次に何を出すかは、閉じる前に呼ぶ側が決めて showTab で替える。
- * ふつうのブラウザで今のタブを閉じたときと同じに、同じワークスペースの次のタブを出す。gws/model.ts の after）。
+ * ふつうのブラウザで今のタブを閉じたときと同じに、同じワークスペースの次のタブを出す。features/workspaces/model.ts の after）。
  */
 export function closeTab(s: TabsState, id: string): TabsState {
   if (!s.tabs.some((t) => t.id === id)) return s;
@@ -136,7 +136,7 @@ export function updateTab(
   return { ...s, tabs };
 }
 
-/** 画面に出すタブの名前。つけた名前（name。gws/model.ts の BrowserRef が持つ）、無ければページの題、それも無ければ host（新しいタブのページ（URL が空。#238）は「新しいタブ」）。 */
+/** 画面に出すタブの名前。つけた名前（name。features/workspaces/model.ts の BrowserRef が持つ）、無ければページの題、それも無ければ host（新しいタブのページ（URL が空。#238）は「新しいタブ」）。 */
 export function tabTitle(
   t: Pick<BrowserTab, "title" | "url">,
   name = "",

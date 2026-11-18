@@ -1,6 +1,6 @@
 /* 画面全体の割り付け。左に一覧（sidebar.css）、右に残り。
-   右は全部ターミナル（F1。terminal/terminal.css）。編集はプライマリの欄の中の shj が受け持つ。
-   つなぐ先を選ぶ窓と接続の知らせは connect/（カードの決まりは connect/card.css）。 */
+   右は全部ターミナル（F1。ui/main-window/content/terminal/terminal.css）。編集はプライマリの欄の中の shj が受け持つ。
+   接続の窓は sessions/、知らせは notifications/（カードの決まりは ui/components/card.css）。 */
 html,
 body,
 #root {
@@ -61,7 +61,7 @@ a {
   flex-direction: column;
 }
 
-/* ターミナル（F1。terminal/terminal.css）は右の欄いっぱいに広げる */
+/* ターミナル（F1。ui/main-window/content/terminal/terminal.css）は右の欄いっぱいに広げる */
 .main > .terminal {
   flex: 1;
   min-height: 0;
@@ -69,7 +69,7 @@ a {
 }
 
 /* ブロックの境界（#526。panes.ts）。当たりは --resizer-w で、見える線は引かない（ブロックの縁の線のまま）。
-   ドラッグ中とリサイズモードで動かす境界は、マシンの色（--machine-color。App.tsx が .app に入れる）で光らせる。
+   ドラッグ中とリサイズモードで動かす境界は、マシンの色（--machine-color。layout.tsx が .app に入れる）で光らせる。
    サイドバーとの境界は .app の左から数えて置く */
 .resizer {
   position: absolute;
@@ -87,7 +87,7 @@ a {
 }
 
 /* サイドバーを閉じている間（リーダーの b）は、サイドバーと境界のつまみを出さず、右の欄を左端まで広げる。
-   display: none でも DOM には残るので、ツリーの開閉はそのまま（スクロールの位置は 0 に戻るので、App.tsx が開くときに戻す） */
+   display: none でも DOM には残るので、ツリーの開閉はそのまま（スクロールの位置は 0 に戻るので、paneResize.ts が開くときに戻す） */
 .app[data-sidebar="closed"] .sidebar-column,
 .app[data-sidebar="closed"] .resizer[data-border="sidebar"] {
   display: none;

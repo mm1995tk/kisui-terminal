@@ -8,7 +8,7 @@ import {
   travelDuration,
   type Mascot,
   type MascotScene,
-} from "./mascot.ts";
+} from "../../../features/mascot/mascot.ts";
 
 /** コマを切り替えるかを確かめる間隔（ミリ秒） */
 const TICK_MS = 30;

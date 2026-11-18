@@ -250,7 +250,8 @@ const offsetOf = (t: string) => Number(/-?[\d.]+/.exec(t)?.[0]);
 
 describe("運ぶ途中に閉じたとき", () => {
   it("さようならは今見えている位置で（移動せずに）始める", async () => {
-    const { startCarry, startBye } = await import("./mascotMotion.ts");
+    const { startCarry, startBye } =
+      await import("../../ui/main-window/mascot/mascotMotion.ts");
     const char = fakeEl(300);
     const stopCarry = startCarry(
       asEl(fakeEl(0)),
@@ -279,7 +280,8 @@ describe("運ぶ途中に閉じたとき", () => {
   });
 
   it("運び終えてから閉じたときは、運び終えた位置のまま", async () => {
-    const { carryOffset } = await import("./mascotMotion.ts");
+    const { carryOffset } =
+      await import("../../ui/main-window/mascot/mascotMotion.ts");
     const d = travelDuration(1000, 90);
     assert.equal(carryOffset(1000, d, 90), 0);
     assert.equal(carryOffset(1000, d * 5, 90), 0);
@@ -290,7 +292,8 @@ describe("運ぶ途中に閉じたとき", () => {
 
 describe("さようなら", () => {
   it("1 回再生し終えたら消える（くり返す場面でも）", async () => {
-    const { startBye } = await import("./mascotMotion.ts");
+    const { startBye } =
+      await import("../../ui/main-window/mascot/mascotMotion.ts");
     const frames: string[] = [];
     let done = 0;
     startBye(
@@ -307,7 +310,8 @@ describe("さようなら", () => {
   });
 
   it("ダイアログが開いたら、再生を待たずにすぐ消える", async () => {
-    const { startBye } = await import("./mascotMotion.ts");
+    const { startBye } =
+      await import("../../ui/main-window/mascot/mascotMotion.ts");
     let done = 0;
     startBye(
       () => asEl(fakeEl(0)),
@@ -323,7 +327,8 @@ describe("さようなら", () => {
   });
 
   it("止められた後（開き直した）は、消す知らせを出さない", async () => {
-    const { startBye } = await import("./mascotMotion.ts");
+    const { startBye } =
+      await import("../../ui/main-window/mascot/mascotMotion.ts");
     let done = 0;
     const stop = startBye(
       () => undefined,
@@ -340,7 +345,8 @@ describe("さようなら", () => {
 
 describe("止める関数は Web Animations も止める", () => {
   it("運ぶ途中で止めると、案内とキャラクターの動きを cancel する", async () => {
-    const { startCarry } = await import("./mascotMotion.ts");
+    const { startCarry } =
+      await import("../../ui/main-window/mascot/mascotMotion.ts");
     const menu = fakeEl(0);
     const char = fakeEl(0);
     const stop = startCarry(
@@ -360,7 +366,8 @@ describe("止める関数は Web Animations も止める", () => {
   });
 
   it("運ぶ時間は、運ぶ場面の速さで決まる", async () => {
-    const { startCarry } = await import("./mascotMotion.ts");
+    const { startCarry } =
+      await import("../../ui/main-window/mascot/mascotMotion.ts");
     let done = 0;
     startCarry(
       asEl(fakeEl(0)),
@@ -377,13 +384,15 @@ describe("止める関数は Web Animations も止める", () => {
 
 describe("押していく", () => {
   it("動かす距離は、案内もキャラクターも画面の右端の外へ出きるまで", async () => {
-    const { pushDistance } = await import("./mascotMotion.ts");
+    const { pushDistance } =
+      await import("../../ui/main-window/mascot/mascotMotion.ts");
     assert.equal(pushDistance(1000, 400), 600);
     assert.equal(pushDistance(1000, 1200), 0);
   });
 
   it("案内の写しとキャラクターを、場面の速さで右へ動かし、着いたら知らせる", async () => {
-    const { startPush } = await import("./mascotMotion.ts");
+    const { startPush } =
+      await import("../../ui/main-window/mascot/mascotMotion.ts");
     const menu = fakeEl(0);
     const char = fakeEl(0);
     const frames: string[] = [];
@@ -407,7 +416,8 @@ describe("押していく", () => {
   });
 
   it("運ぶ途中から押すときは、今見えている位置から始める", async () => {
-    const { startPush } = await import("./mascotMotion.ts");
+    const { startPush } =
+      await import("../../ui/main-window/mascot/mascotMotion.ts");
     const char = fakeEl(0);
     const stop = startPush(
       asEl(fakeEl(0)),
@@ -424,7 +434,8 @@ describe("押していく", () => {
   });
 
   it("止められたら（開き直した）、動きを止め、着いた知らせを出さない", async () => {
-    const { startPush } = await import("./mascotMotion.ts");
+    const { startPush } =
+      await import("../../ui/main-window/mascot/mascotMotion.ts");
     const menu = fakeEl(0);
     const char = fakeEl(0);
     let done = 0;

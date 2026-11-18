@@ -1,4 +1,4 @@
-// 自動更新の知らせ（C8）。起動したら 1 度だけ新しい版があるかを殻に聞き（`kisui update` でも調べ直す。store.ts）、あれば右下の知らせ（connect/Notices.tsx）に積む。
+// 自動更新の知らせ（C8）。起動したら 1 度だけ新しい版があるかを殻に聞き（`kisui update` でも調べ直す。store.ts）、あれば右下の知らせ（ui/main-window/notifications/Notices.tsx）に積む。
 // 入れ替えは「更新して再起動」を押したときだけ行う（編集中に勝手に起動し直さないため）。
 // 自動更新は AppImage と .dmg の版だけが持つ。Nix で作る版では殻がいつも「無い」と答えるので、何も出ない。
 import { T } from "../../../i18n/index.ts";

@@ -1,7 +1,7 @@
 // タブを足すマシンを選ぶ窓（#272）を、本物の Solid の <Show> で確かめる。
-// App.tsx の窓は JSX なので node --test では描けない。ここでは同じ形（when={pickingFor()}、
+// 窓（workspaces/WorkspaceDialogs.tsx）は JSX なので node --test では描けない。ここでは同じ形（when={pickingFor()}、
 // onChoose で setPickingFor(null) のあとに newTerminalTab(gid, t)）を JSX を使わずに作る。
-// App.tsx の <Show> が keyed であることは windowShow.test.ts が確かめる。
+// WorkspaceDialogs.tsx の <Show> が keyed であることは ui/windowShow.test.ts が確かめる。
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 

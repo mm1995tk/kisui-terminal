@@ -22,7 +22,7 @@ export interface TermRef {
   title: string;
 }
 
-/** 内蔵ブラウザのタブ 1 つ（タブの中身は browser/tabs.ts が持つ）。 */
+/** 内蔵ブラウザのタブ 1 つ（タブの中身は features/browser/tabs.ts が持つ）。 */
 export interface BrowserRef {
   kind: "browser";
   id: string;
@@ -309,10 +309,10 @@ export function setActiveTerm(
 }
 
 /**
- * ワークスペース g が今出しているブラウザのタブの id。view は、ワークスペースが出すと覚えているブラウザのタブ（browser/tabs.ts の views）。
+ * ワークスペース g が今出しているブラウザのタブの id。view は、ワークスペースが出すと覚えているブラウザのタブ（features/browser/tabs.ts の views）。
  * ターミナルのタブを出していれば undefined。ターミナルのタブが無いワークスペースは、いつもブラウザのタブを出す
  * （view のタブが無ければ、最初のブラウザのタブ）。hasBrowser は、そのブラウザのタブがまだあるか。
- * 画面に出すページ（App.tsx）とサイドバーで強調する行（sidebar/model.ts）は、どちらもこれで決める。
+ * 画面に出すページ（features/browser/pages.ts）とサイドバーで強調する行（features/workspaces/rows.ts）は、どちらもこれで決める。
  */
 export function shownBrowserId(
   g: Gws,
@@ -446,7 +446,7 @@ export interface ReconcileInput {
    */
   browser?: readonly { id: string; target: string; workspace: WorkspaceId }[];
   /**
-   * GUI のワークスペースの記録より前の、並び順だけの記録（sidebar/order.ts）。新しく作るワークスペースを、この順に並べる。
+   * GUI のワークスペースの記録より前の、並び順だけの記録（features/workspaces/order.ts）。新しく作るワークスペースを、この順に並べる。
    * GUI のワークスペースの記録を持たない GUI が初めて一覧を見たときの、並びの移し方
    */
   legacyOrder?: readonly { target: string; id: WorkspaceId }[];

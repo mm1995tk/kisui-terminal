@@ -1,6 +1,6 @@
 // 場所のキー（docs/key-design.md の 5 章）の定義。ファイルツリー・変更一覧・動画のペイン・画像のペイン・ダイアログの一覧の
 // キーを、リーダーの木（commands.ts）と同じ流儀で、ここ 1 か所に書く。`?` の一覧（KeyListDialog.tsx）はこの表から作る。
-// 実際にキーを受ける判定は、場所ごとのファイル（tree/keys.ts・changes/keys.ts・terminal/media.ts・terminal/imageView.ts）にあり、
+// 実際にキーを受ける判定は、場所ごとのファイル（features/file-tree/keys.ts・features/changes/keys.ts・features/terminal/media.ts・ui/main-window/content/media/imageView.ts）にあり、
 // placeKeys.test.ts が「表に書いたキーを、その場所の判定が受ける」ことを確かめる。だから案内と受けるキーはずれない。
 // 場所のキーはリーダーには載せない（その場所の中だけで効く）。キーを足すときは、判定と、ここの表と、docs/key-design.md を直す。
 // DOM には触らない（node --test で確かめられる）。
@@ -34,7 +34,7 @@ const row = (
 ): PlaceKeyRow => ({ keys, label, probes });
 
 /**
- * 場所ごとの、`?` の一覧に出す行の表。キーを実際に受けるのは各場所の判定（tree/keys.ts など）で、
+ * 場所ごとの、`?` の一覧に出す行の表。キーを実際に受けるのは各場所の判定（features/file-tree/keys.ts など）で、
  * placeKeys.test.ts が、表のキーを判定が受けることを確かめる。
  */
 export const PLACE_KEYS: Record<Place, PlaceKeys> = {
@@ -161,7 +161,7 @@ export const PLACE_KEYS: Record<Place, PlaceKeys> = {
       row("↓ ↑", T("place.list.step"), []),
     ],
   },
-  // 内蔵ブラウザのブックマークの一覧（リーダーの o B。#205）。判定は browser/bookmarks.ts の bookmarkKey（修飾キー付きのものは probes に書けないので、
+  // 内蔵ブラウザのブックマークの一覧（リーダーの o B。#205）。判定は features/browser/bookmarks.ts の bookmarkKey（修飾キー付きのものは probes に書けないので、
   // bookmarks.test.ts で確かめる）
   bookmarks: {
     title: T("place.bookmarks.title"),

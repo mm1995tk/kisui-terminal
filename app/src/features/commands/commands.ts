@@ -3,7 +3,7 @@
 // 実際にキーを受ける判定（route）は、どれもこの表から作る。だから案内と受けるキーはずれない。
 //
 // キーを足す・変えるときは LEADER を直す（足すだけなら、グループの children に leaf() を 1 つ足す）。
-// 動きの中身は App.tsx の runCommand が id で受ける。docs/key-design.md の表も一緒に直す。
+// 動きの中身は run.ts の runCommand が id で受ける。docs/key-design.md の表も一緒に直す。
 // DOM には触らない（node --test で確かめられる）。
 
 import { isComposingKey } from "./ime.ts";
@@ -16,7 +16,7 @@ import {
   type KeySpec,
 } from "./keyspec.ts";
 
-/** コマンドの名前。動きは App.tsx の runCommand が持つ。 */
+/** コマンドの名前。動きは run.ts の runCommand が持つ。 */
 export type CommandId =
   | "pane.focus"
   | "pane.last"
@@ -464,7 +464,7 @@ export const LEADER: Node[] = [
   leaf("?", T("help.keys"), { id: "help.keys" }),
 ];
 
-/** 内蔵ブラウザ（`o` のグループ）を出すか。設定で有効にしたときだけ App が true にする。 */
+/** 内蔵ブラウザ（`o` のグループ）を出すか。設定で有効にしたときだけ、画面（ui/main-window/page.tsx）が true にする。 */
 let browserEnabled = false;
 let activeCache: Node[] | undefined;
 
@@ -875,7 +875,7 @@ export interface RouterState {
    * 次の押し直し（repeat でない keydown）か keyup で解く。
    */
   swallow: boolean;
-  /** リーダーを Esc で出たとき付く（ほかの出方では付かない）。次にリーダーに入るまで残る。App は、リーダーを出たときにだけ読んで、閉じ方を画面のキャラクターに伝える */
+  /** リーダーを Esc で出たとき付く（ほかの出方では付かない）。次にリーダーに入るまで残る。キーの処理（ui/main-window/keys.ts）は、リーダーを出たときにだけ読んで、閉じ方を画面のキャラクターに伝える */
   escaped?: boolean;
 }
 

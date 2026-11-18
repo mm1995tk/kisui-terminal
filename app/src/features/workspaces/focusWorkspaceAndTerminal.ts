@@ -1,5 +1,5 @@
 // サイドバーの帯を押す・キーでワークスペースを移ったあと、そのワークスペースのペインにキーを向ける（#151）。
-// 帯を押すとキーが外れる理由は、呼ぶ側（App.tsx の switchWorkspace）に書いてある。
+// 帯を押すとキーが外れる理由は、呼ぶ側（controller.ts の switchWorkspace）に書いてある。
 // 依存は引数で受けるので、node --test で確かめられる。
 
 export interface WorkspaceRef {

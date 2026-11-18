@@ -1,7 +1,7 @@
 // サイドバーの帯とタブの行を、つかむ所（.grip）からのドラッグで上下に並べ替える（#236, #259）。
 // 動くのは上下だけ。つかんだ行はマウスについて動き、ほかの行は入る場所を空けるようによける（どちらも transform。よける動きの速さは CSS の transition）。
 // 落とし先は、つかんだ行の真ん中が、どの行の真ん中より上かで決める。
-// 並びそのものは持たない（落とし先を「どの行の前か」で App に返し、App が gws/model.ts の moveBefore・moveTabBefore で動かして覚える）。
+// 並びそのものは持たない（落とし先を「どの行の前か」で呼ぶ側に返し、features/workspaces/ の controller が model.ts の moveBefore・moveTabBefore で動かして覚える）。
 // DOM を触るのは startDrag だけ。落とし先を決める dropBefore、よける量を決める layoutShifts と、自動のスクロールの量 edgeScroll は DOM を使わない（node --test で確かめられる）。
 //
 // 行の DOM は、ドラッグの途中でも作り直される（サイドバーの行は、ターミナルの題名や git の知らせで作り直される）。

@@ -6,7 +6,7 @@ import { moveIndex } from "../../../../features/changes/keys.ts";
 import type { ChangeEntry } from "../../../../features/changes/model.ts";
 import type { ChangesShjKey } from "../../../../infrastructure/rpc/protocol.ts";
 
-/** 一覧のそとへ頼むこと（shj・端末・エクスプローラは App が知っている）。 */
+/** 一覧のそとへ頼むこと（shj・端末・エクスプローラは呼ぶ側が知っている）。 */
 export interface ChangesHandlers {
   /** 変更の行を押した・開いた（path は ChangeRow.path） */
   onSelect: (path: string) => void;

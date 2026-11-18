@@ -35,7 +35,7 @@ const healthText = (h: Health): string => T(`health.${h}`);
 
 /**
  * サイドバーの見出しの材料（groups）から、ダイアログの行を作る。
- * statusOf は見出しの下の 1 行（App の statusLine）。hasSession は、そのマシンの接続があるか。
+ * statusOf は見出しの下の 1 行（controller.ts の statusOf）。hasSession は、そのマシンの接続があるか。
  */
 export function machineRows(
   groups: readonly MachineGroup[],

@@ -1,4 +1,4 @@
-// ssh の質問（パスワード・認証コード・ホスト鍵の確認）を出す窓。見た目は窓のカード（connect/Card.tsx）。
+// ssh の質問（パスワード・認証コード・ホスト鍵の確認）を出す窓。見た目は窓のカード（ui/components/Card.tsx）。
 import { T } from "../../../i18n/index.ts";
 import { createSignal, Show, type JSX } from "solid-js";
 

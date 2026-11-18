@@ -1,6 +1,6 @@
 // サイドバーの CHANGES の行にフォーカスがあるときのキー（#45）。割り当ては TUI の CHANGES
 // （shijimi-editor の core/gitdiff.go の handleChangesKey）に合わせる。
-// DOM を使わないので node --test で確かめられる。行を動かす・shj に頼むのは ChangesView.tsx と App.tsx。
+// DOM を使わないので node --test で確かめられる。行を動かすのは ChangesView.tsx、shj に頼むのは controller.ts。
 
 import { type ComposingKeyLike, isComposingKey } from "../commands/ime.ts";
 import { isEditorKey } from "../commands/guiKeys.ts";
@@ -161,16 +161,6 @@ export function moveIndex(
     j = p === undefined ? i : entries.findIndex((x) => x.key === p);
   }
   return j === i || j < 0 ? -1 : j;
-}
-
-/** キーを向ける行：shj が差分を出しているファイルの行（閉じたフォルダの中ならそのフォルダの行）、無ければ最初の行。 */
-export function changesRow(root: ParentNode | undefined): HTMLElement | null {
-  if (!root) return null;
-  return (
-    root.querySelector<HTMLElement>(
-      '.changes-row[aria-selected="true"], .changes-row[data-holds]',
-    ) ?? root.querySelector<HTMLElement>(".changes-row")
-  );
 }
 
 /**
