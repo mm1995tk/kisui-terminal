@@ -25,7 +25,7 @@ import {
   repTerm,
   shownBrowserId,
   termKey,
-  termsOf,
+  gwsOfTerm,
   type BrowserRef,
   type Gws,
   type GwsState,
@@ -240,64 +240,20 @@ export function buildSidebar(
 }
 
 /**
- * shj が教えてくれたフォーカスを GUI のフォーカスに反映する。GUI のフォーカスは 1 つなので、
- * フォーカスが無ければそれを使い、同じマシンのものなら追い（null なら外す）、別のマシンのものでは動かさない。
+ * 今いるワークスペースが無いとき（起動した直後・今のワークスペースを閉じて移り先も無いとき）に入る GUI のワークスペースと、そこで出すターミナルのタブ。
+ * マシンの shj のフォーカス（shjFocus の順）のターミナルのタブを持つワークスペースのうち、最初のもの。無ければ undefined。
+ * 今いるワークスペースがあるときは、shj のフォーカスが変わっても移らない（GUI のワークスペースを決めるのは GUI。#307）。
  */
-export function adoptFocus(
-  current: WorkspaceFocus | null,
-  target: string,
-  shjFocus: WorkspaceId | null,
-): WorkspaceFocus | null {
-  if (current) {
-    // 同じマシンで shj のフォーカスが変われば追い、消えれば外す
-    if (current.target === target && shjFocus !== current.id) {
-      return shjFocus === null ? null : { target, id: shjFocus };
-    }
-    return current;
+export function gwsOfShjFocus(
+  state: GwsState,
+  shjFocus: Record<string, WorkspaceId | null | undefined>,
+): { gws: Gws; term: { target: string; ws: WorkspaceId } } | undefined {
+  for (const [target, ws] of Object.entries(shjFocus)) {
+    if (ws == null) continue;
+    const g = gwsOfTerm(state, target, ws);
+    if (g) return { gws: g, term: { target, ws } };
   }
-  return shjFocus === null ? null : { target, id: shjFocus };
-}
-
-/**
- * 一覧が変わった・切った・フォーカスが外れたあとに、フォーカス先がまだあるかを確かめる。
- * 無くなっていたら、先に決めておいた移り先（prefer。フォーカスしているワークスペースを閉じたときの隣）が一覧にあればそれを、
- * 無ければほかのマシンの shj のフォーカス（shjFocus の順）のうち一覧にあるものを使う
- * （起動直後の「先に分かったものを使う」に合わせ、印の無い状態を続けない）。どれも無ければ null。
- */
-export function keepFocus(
-  current: WorkspaceFocus | null,
-  workspaces: Record<string, Workspace[] | undefined>,
-  shjFocus: Record<string, WorkspaceId | null | undefined> = {},
-  prefer: WorkspaceFocus | null = null,
-): WorkspaceFocus | null {
-  const exists = (f: WorkspaceFocus) =>
-    workspaces[f.target]?.some((w) => w.id === f.id) ?? false;
-  if (current && exists(current)) return current;
-  if (prefer && exists(prefer)) return prefer;
-  for (const [target, id] of Object.entries(shjFocus)) {
-    if (id == null) continue;
-    const f = { target, id };
-    if (exists(f)) return f;
-  }
-  return null;
-}
-
-/**
- * フォーカスしているワークスペースを閉じたあと、移り先（moveTo）を shj に workspace.focus で伝えてよいか。
- * GUI のフォーカスがまだ移り先を指していて、移り先が一覧に残っているときだけ true。
- * 閉じる返事を待つあいだにユーザーが別の帯を選んだ・移り先も閉じられた、なら伝えない
- * （選んだフォーカスを古い移り先で上書きしない。無いワークスペースに移ろうとして断られない）。
- */
-export function shouldSendMoveTo(
-  current: WorkspaceFocus | null,
-  moveTo: WorkspaceFocus,
-  workspaces: Record<string, Workspace[] | undefined>,
-): boolean {
-  return (
-    current?.target === moveTo.target &&
-    current.id === moveTo.id &&
-    (workspaces[moveTo.target]?.some((w) => w.id === moveTo.id) ?? false)
-  );
+  return undefined;
 }
 
 /** サイドバーの 1 行（GUI のワークスペース 1 つ）。帯に、今出しているターミナルのタブのマシンの名前・色・つながりの状態を添える。 */
@@ -573,32 +529,19 @@ export function focusedRow(rows: readonly Row[]): FocusedRow | null {
 export type Step = "next" | "prev";
 
 /**
- * キーで続けて移るときの起点。移っている途中（返事を待っている）なら向かっている先、そうでなければ今のフォーカス。
- * 返事が返るまでフォーカスは前のままなので、起点を向かっている先にしないと、続けて押しても 1 つしか進まない。
+ * サイドバーの次・前のワークスペース（1 列の並びで）の id。from（今のワークスペース。キーで続けて移っている途中なら向かっている先）から数える。
+ * 端では反対の端へ回る。from が無い（または並びに無い）ときは、次なら先頭、前なら末尾。ワークスペースが 1 つも無ければ null。
  */
-export function stepFrom(
-  heading: WorkspaceFocus | null,
-  current: WorkspaceFocus | null,
-): WorkspaceFocus | null {
-  return heading ?? current;
-}
-
-/**
- * サイドバーの次・前のワークスペース（1 列の並びで）。端では反対の端へ回る。
- * 今のフォーカスが無い（または並びに無い）ときは、次なら先頭、前なら末尾。ワークスペースが 1 つも無ければ null。
- */
-export function stepWorkspace(
-  rows: readonly { target: string; band: { id: WorkspaceId } }[],
-  current: WorkspaceFocus | null,
+export function stepRow(
+  rows: readonly { gws: string }[],
+  from: string | null,
   step: Step,
-): WorkspaceFocus | null {
-  const all = rows.map((r) => ({ target: r.target, id: r.band.id }));
-  if (all.length === 0) return null;
-  const i = current
-    ? all.findIndex((w) => w.target === current.target && w.id === current.id)
-    : -1;
-  if (i < 0) return step === "next" ? all[0] : all[all.length - 1];
-  return all[(i + (step === "next" ? 1 : all.length - 1)) % all.length];
+): string | null {
+  const n = rows.length;
+  if (n === 0) return null;
+  const i = from === null ? -1 : rows.findIndex((r) => r.gws === from);
+  if (i < 0) return (step === "next" ? rows[0] : rows[n - 1]).gws;
+  return rows[(i + (step === "next" ? 1 : n - 1)) % n].gws;
 }
 
 /** 出しているタブがブラウザのタブか。そうなら、ファイルツリーと CHANGES を隠す（#268）。出しているタブのキーが items に無ければ false。 */

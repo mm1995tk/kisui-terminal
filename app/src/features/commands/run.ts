@@ -73,7 +73,6 @@ export function createCommandRunner(deps: {
   const { setFocusError, focusTerminal, ui, updates } = deps;
   const {
     focus,
-    inTermless,
     currentGws,
     cannot,
     stepWs,
@@ -207,9 +206,8 @@ export function createCommandRunner(deps: {
       runBrowser(c);
       return;
     }
-    // ターミナルのタブが無いワークスペース（ブラウザのタブだけ・空）には、ペインが無い。
-    // focus に残っているほかのワークスペースのペインは動かさない（#307）
-    if (c.id.startsWith("pane.") && inTermless()) {
+    // ターミナルのタブが無いワークスペース（ブラウザのタブだけ・空）には、ペインが無い（focus が null）
+    if (c.id.startsWith("pane.") && currentGws() && !f) {
       cannot(T("cannot.pane.none.title"), T("cannot.pane.none.text"));
       return;
     }

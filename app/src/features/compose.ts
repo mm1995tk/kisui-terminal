@@ -106,9 +106,8 @@ export function createFeatures(deps: {
     hooks: {
       treeChanged: () => fileTree.changed(),
       termChanged: () => terminals.changed(),
-      workspacesChanged: () => workspaces.workspacesChanged(),
       firstList: (target, list) => workspaces.firstList(target, list),
-      shjFocus: (target, id) => workspaces.shjFocusChanged(target, id),
+      shjFocus: () => workspaces.shjFocusChanged(),
       pane: (target, ev, s) =>
         routePaneEvent(
           {
@@ -125,15 +124,13 @@ export function createFeatures(deps: {
           ev,
           s,
         ),
-      disconnected: () => workspaces.disconnected(),
     },
   });
   const terminals = createTerminals({
     sessions: sessions.sessions,
     workspaces: sessions.workspaces,
     termGroups: sessions.termGroups,
-    // ターミナルのタブを持たないワークスペースに居る間は、ほかのワークスペースのターミナルを出さない・キーを送らない（#307）
-    focus: () => workspaces.paneFocus(),
+    focus: () => workspaces.focus(),
     focusTerminal,
   });
   const browserTabs = createBrowserTabs({ os: ports.browser });
@@ -198,8 +195,7 @@ export function createFeatures(deps: {
   });
   const bookmarks = createBookmarks({
     os: ports.browser,
-    browserTabs,
-    focus: workspaces.focus,
+    openTab: (url, title) => tabs.openBrowserTab(url, title),
     newTabPageId: pages.newTabPageId,
     showToast: (text) => ui.showToast(text),
     setFocusError,

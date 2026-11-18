@@ -2,20 +2,22 @@
 // ターミナルのタブは、マシンの kisui serve のワークスペース 1 つ。ブラウザのタブのページの中身は features/browser/ が持つ。
 // 画面にも Tauri にも触らない。
 import { T } from "../../../i18n/index.ts";
-import { createSignal, untrack } from "solid-js";
+import { batch, createSignal, untrack } from "solid-js";
 
 import type { WorkspaceId } from "../../../infrastructure/rpc/protocol.ts";
 import type { Pages } from "../../browser/pages.ts";
-import { closeTab, showTab } from "../../browser/tabs.ts";
+import { addTab, closeTab, newTabId, showTab } from "../../browser/tabs.ts";
 import type { BrowserTabs } from "../../browser/tabsStore.ts";
 import type { ReportProblem } from "../../problem.ts";
 import type { Sessions } from "../../sessions/controller.ts";
 import { LOCAL } from "../../sessions/shell.ts";
 import type { Workspaces } from "../controller.ts";
 import {
+  addBrowser,
   addTerm,
   after,
   browserKey,
+  browserOriginOf,
   cycleKey,
   dropTerm,
   gwsOfBrowser,
@@ -35,7 +37,7 @@ import {
   type Gws,
   type TabRef,
 } from "../model.ts";
-import { band, unsetTitle, type Step, type WorkspaceFocus } from "../rows.ts";
+import { band, unsetTitle, type Step } from "../rows.ts";
 
 /** 「+」のメニューで選べるタブの種類。 */
 export type NewTabKind = "terminal" | "terminal.pick" | "browser";
@@ -64,7 +66,7 @@ export function createTabs(deps: {
     switchWorkspace,
     goWorkspace,
     createMachineWorkspace,
-    closeThenMove,
+    runClose,
     justCreated,
     creatable,
     cannot,
@@ -150,7 +152,7 @@ export function createTabs(deps: {
    * （ワークスペースの最後のタブでも、ワークスペースは空になって残る。#307）。
    * プログラムが動いていれば断られるので、確認の窓を出す（force は窓で「終わらせて閉じる」を押したとき）。
    * マシンにつながっていないタブは、閉じられないので記録から外すだけ。
-   * フォーカスしているタブを閉じたら、同じワークスペースの隣のターミナルのタブに移る。
+   * 出しているタブを閉じたら、同じワークスペースの隣のターミナルのタブに移る。
    * ターミナルのタブがもう無ければ、同じワークスペースのブラウザのタブ、それも無ければ、空になったそのワークスペースに留まる。
    */
   async function closeTermTab(target: string, ws: WorkspaceId, force = false) {
@@ -159,45 +161,30 @@ export function createTabs(deps: {
     const terms = termsOf(g);
     const i = terms.findIndex((r) => r.target === target && r.ws === ws);
     if (i < 0) return;
-    const nextTerm = terms[i + 1] ?? terms[i - 1];
     justCreated.delete(termKey(target, ws)); // 閉じたタブを、整理で守り続けない
     const tw = untrack(workspaces)[target]?.find((w) => w.id === ws);
     const name = tw ? band(tw, false).title : terms[i].title || unsetTitle();
     const s = sessions()[target];
     if (!s || states()[target]?.kind !== "connected") {
-      const stay = terms.length === 1 && untrack(currentGws)?.id === g.id;
       setGws(dropTerm(untrack(gws), target, ws));
-      // 最後のターミナルのタブを外したら、そのワークスペース（残ったブラウザのタブか、空の画面）に留まる
-      if (stay) showGws(g.id);
       return;
     }
+    // 出しているタブを閉じたら、閉じたあとに出るもの（隣のターミナルのタブ・ブラウザのタブ・空の画面）にキーを向ける。
+    // 今いるワークスペースは変わらず、出るものは記録から決まる（model.ts の passActiveTerm と shownBrowserId）
     const f = untrack(focus);
-    let moveTo: WorkspaceFocus | null = null;
-    let onClosed: (() => void) | undefined;
-    if (f?.target === target && f.id === ws && currentGws()?.id === g.id) {
-      const browserRef = g.tabs.find((r) => r.kind === "browser");
-      if (nextTerm) moveTo = { target: nextTerm.target, id: nextTerm.ws };
-      else if (browserRef) {
-        onClosed = () => {
-          setTabs((t) => showTab(t, g.id, browserRef.id));
-          showGws(g.id);
-        };
-      } else {
-        // 最後のタブ：ワークスペースは空になって残るので、そこに留まる（#307。タブが無いことを伝える画面を出す）
-        onClosed = () => showGws(g.id);
-      }
-    }
-    await closeThenMove(
-      moveTo,
+    const shown = f?.target === target && f.id === ws;
+    await runClose(
       name,
       force,
       async () => {
         await s.closeWorkspace(ws, force);
-        // マシンの一覧の知らせより先に記録から外す（移り先のブラウザのタブのワークスペースを、すぐターミナルのタブ無しとして扱えるように）
+        // マシンの一覧の知らせが遅れても、すぐ隣のタブを出すように、先に記録から外す
         setGws((x) => dropTerm(x, target, ws));
       },
       () => setConfirmCloseTab({ target, ws, name }),
-      onClosed,
+      () => {
+        if (shown) focusTerminal();
+      },
     );
   }
 
@@ -332,17 +319,32 @@ export function createTabs(deps: {
     openNewTab(o.target, o.ws, incognito, g.id);
   }
 
-  /**
-   * ワークスペース g に足すブラウザのタブの「開いたところ」（タブが覚えるマシンとワークスペース）。
-   * ターミナルのタブがあれば、今出しているそのタブ。無ければ（ブラウザのタブだけのワークスペース。#257）、中のタブと同じマシンか今のマシンと、空のワークスペース
-   */
+  /** ワークスペース g に足すブラウザのタブの「開いたところ」（model.ts の browserOriginOf）。 */
   function browserOrigin(g: Gws): { target: string; ws: WorkspaceId } {
-    const rep = repTerm(g, untrack(focus));
-    if (rep) return { target: rep.target, ws: rep.ws };
-    const own = untrack(tabs).tabs.find((t) =>
-      g.tabs.some((r) => r.kind === "browser" && r.id === t.id),
+    return browserOriginOf(
+      g,
+      untrack(tabs).tabs,
+      untrack(currentTarget) ?? LOCAL,
     );
-    return { target: own?.target ?? untrack(currentTarget) ?? LOCAL, ws: "" };
+  }
+
+  /**
+   * 今いるワークスペースに、ページ url のブラウザのタブを足して出す（ブックマークを開く。リーダーの o B）。
+   * 開いたところは browserOrigin（ターミナルのタブが無いワークスペースでも、ほかのワークスペースのタブを元にしない）。
+   * 今いるワークスペースが無ければ、開かずに false。
+   */
+  function openBrowserTab(url: string, title: string): boolean {
+    const g = untrack(currentGws);
+    if (!g) return false;
+    const o = browserOrigin(g);
+    const id = newTabId();
+    batch(() => {
+      setTabs((s) =>
+        addTab(s, { id, target: o.target, workspace: o.ws, url, title }, g.id),
+      );
+      setGws((x) => addBrowser(x, g.id, id));
+    });
+    return true;
   }
 
   /** ブラウザのタブ id のタブがまだあるか（サイドバーに出るか）。 */
@@ -352,8 +354,6 @@ export function createTabs(deps: {
   function currentTabKey(): string | undefined {
     const b = shownBrowserTab();
     if (b) return browserKey(b.id);
-    // ターミナルのタブを持たないワークスペースでは、focus に残っているのはほかのワークスペースのタブ（今のタブではない）
-    if (deps.workspaces.inTermless()) return undefined;
     // キーで移っている途中（返事が返るまで focus() が前のまま）は、向かっている先から数える（続けて押せるように）
     const f = deps.workspaces.heading() ?? untrack(focus);
     return f ? termKey(f.target, f.id) : undefined;
@@ -426,6 +426,7 @@ export function createTabs(deps: {
     addWorkspaceTab,
     newTerminalTab,
     newBrowserTab,
+    openBrowserTab,
     currentTabKey,
     stepTab,
     closeCurrentTab,

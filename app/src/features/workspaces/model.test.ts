@@ -11,6 +11,7 @@ import {
   after,
   autoName,
   browserKey,
+  browserOriginOf,
   cycleKey,
   displayName,
   dropTerm,
@@ -20,7 +21,6 @@ import {
   gwsOfBrowser,
   gwsOfTerm,
   loadGws,
-  lostAllTerms,
   move,
   moveBefore,
   moveTabBefore,
@@ -236,7 +236,7 @@ describe("ワークスペースの操作", () => {
     assert.deepEqual(ids(r), ["g1", "g2"]);
     assert.deepEqual(r.list[1].tabs, []);
     assert.equal(r.list[1].num, 2);
-    // 最後に使っていたターミナルのタブの覚えは消す
+    // 最後に使っていたターミナルのタブの覚えは消す（隣のターミナルのタブが無い）
     assert.equal(r.list[1].term, undefined);
     assert.equal(repTerm(r.list[1]), undefined);
   });
@@ -248,20 +248,25 @@ describe("ワークスペースの操作", () => {
     assert.equal(removeGws(s, "nope"), s);
   });
 
-  it("lostAllTerms：ターミナルのタブが、一覧の分かっているマシンで全部閉じられたか", () => {
-    const g1 = two().list[0]; // a の w1 と b の w2
-    assert.equal(lostAllTerms(g1, { a: list(), b: list() }), true);
-    assert.equal(lostAllTerms(g1, { a: list(), b: list("w2") }), false);
-    // 一覧が分からない（つながっていない）マシンのタブは、閉じたと分からない
-    assert.equal(lostAllTerms(g1, { a: list() }), false);
-    // 作ったばかりで守っているタブは、閉じたとみなさない
-    assert.equal(
-      lostAllTerms(g1, { a: list(), b: list() }, new Set([termKey("b", "w2")])),
-      false,
-    );
-    // ターミナルのタブを持たないワークスペースは false
-    const empty = dropTerm(two(), "a", "w3").list[1];
-    assert.equal(lostAllTerms(empty, { a: list() }), false);
+  it("最後に使っていたターミナルのタブを外すと、その隣（後ろ、無ければ前）のターミナルのタブを最後に使ったものにする", () => {
+    // g1 は a の w1・b の w2・a の w4（間にブラウザのタブ）
+    let s = addBrowser(two(), "g1", "t1");
+    s = addTerm(s, "g1", "a", "w4");
+    s = setActiveTerm(s, "b", "w2");
+    let r = dropTerm(s, "b", "w2");
+    assert.deepEqual(r.list[0].term, { target: "a", ws: "w4" });
+    r = dropTerm(r, "a", "w4");
+    assert.deepEqual(r.list[0].term, { target: "a", ws: "w1" });
+    // 一覧から消えた（reconcile）ときも同じ
+    const rc = reconcile(s, {
+      lists: { a: list("w1", "w3", "w4"), b: list() },
+    }).state;
+    assert.deepEqual(rc.list[0].term, { target: "a", ws: "w4" });
+    // 最後に使っていたのでないタブを外しても、変えない
+    assert.deepEqual(dropTerm(s, "a", "w1").list[0].term, {
+      target: "b",
+      ws: "w2",
+    });
   });
 
   it("最後のターミナルのタブを外しても、ブラウザのタブがあれば、ワークスペースは残る（#257）", () => {
@@ -736,5 +741,29 @@ describe("t の操作が数えるタブ（visibleTabs・steppableTabs・moveTabS
       termKey("off", "b"),
     ]);
     assert.equal(moveTabStep(s, "g1", browserKey("b1"), "down", v), null);
+  });
+});
+
+describe("browserOriginOf（足すブラウザのタブの開いたところ）", () => {
+  it("ターミナルのタブがあれば、最後に使ったそのタブ", () => {
+    const s = setActiveTerm(two(), "b", "w2");
+    assert.deepEqual(browserOriginOf(s.list[0], [], "local"), {
+      target: "b",
+      ws: "w2",
+    });
+  });
+
+  it("ターミナルのタブが無ければ、中のブラウザのタブのマシンか fallback と、空のワークスペース。ほかのワークスペースのタブは元にしない（#307）", () => {
+    const empty = dropTerm(two(), "a", "w3").list[1];
+    const tabs = [{ id: "other", target: "far" }];
+    assert.deepEqual(browserOriginOf(empty, tabs, "local"), {
+      target: "local",
+      ws: "",
+    });
+    const only = addBrowserWorkspace(EMPTY_GWS, "t1", "g9").list[0];
+    assert.deepEqual(
+      browserOriginOf(only, [...tabs, { id: "t1", target: "dev" }], "local"),
+      { target: "dev", ws: "" },
+    );
   });
 });

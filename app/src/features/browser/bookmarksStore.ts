@@ -12,7 +12,6 @@ import {
 } from "solid-js";
 
 import type { ReportProblem } from "../problem.ts";
-import type { WorkspaceFocus } from "../workspaces/rows.ts";
 import {
   addBookmark,
   chromeProblemFromLoaded,
@@ -28,8 +27,7 @@ import {
   type ChromeNode,
 } from "./bookmarkTree.ts";
 import type { BrowserOs } from "./os.ts";
-import { addTab, newTabId, type BrowserTab } from "./tabs.ts";
-import type { BrowserTabs } from "./tabsStore.ts";
+import type { BrowserTab } from "./tabs.ts";
 
 /** createBookmarks が返す持ち物。 */
 export type Bookmarks = ReturnType<typeof createBookmarks>;
@@ -40,8 +38,8 @@ export function createBookmarks(deps: {
     BrowserOs,
     "loadBookmarks" | "loadChromeBookmarks" | "saveBookmarks"
   >;
-  browserTabs: BrowserTabs;
-  focus: Accessor<WorkspaceFocus | null>;
+  /** 今いる GUI のワークスペースに、ページ url の新しいブラウザのタブを開いて出す。今いるワークスペースが無ければ開かずに false（features/workspaces/tabs/controller.ts の openBrowserTab） */
+  openTab: (url: string, title: string) => boolean;
   /** 出しているタブのうち、新しいタブのページ（#238）の id（出すたびにブックマークを読み直す） */
   newTabPageId: Accessor<string | undefined>;
   /** 少しの間だけ出る短い知らせ */
@@ -52,7 +50,7 @@ export function createBookmarks(deps: {
   focusTerminal: () => void;
 }) {
   const {
-    focus,
+    openTab,
     newTabPageId,
     showToast,
     setFocusError,
@@ -60,7 +58,6 @@ export function createBookmarks(deps: {
     focusTerminal,
   } = deps;
   const { loadBookmarks, loadChromeBookmarks, saveBookmarks } = deps.os;
-  const { setTabs } = deps.browserTabs;
   /** ブックマーク（新しく足したものが先）。読み終えるまでは undefined */
   const [bookmarks, setBookmarks] = createSignal<Bookmark[] | undefined>();
   const [bookmarksFailed, setBookmarksFailed] = createSignal(false);
@@ -166,21 +163,12 @@ export function createBookmarks(deps: {
   }
   /** ブックマークを今のワークスペースの新しいタブで開く（一覧の Enter）。 */
   function openBookmark(b: Bookmark) {
-    const f = focus();
     setBookmarkDialog(false);
-    if (!f) {
+    // 開く先は今いるワークスペース（ターミナルのタブが無いワークスペースでも。#307）。開いたところのマシンは、そのワークスペースのタブから決まる
+    if (!openTab(b.url, b.title)) {
       cannot(T("cannot.browser.open.title"), T("cannot.browser.open.text"));
       return;
     }
-    setTabs((s) =>
-      addTab(s, {
-        id: newTabId(),
-        target: f.target,
-        workspace: f.id,
-        url: b.url,
-        title: b.title,
-      }),
-    );
     focusTerminal();
   }
 

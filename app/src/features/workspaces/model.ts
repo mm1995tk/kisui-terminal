@@ -415,30 +415,6 @@ export function removeGws(s: GwsState, id: string): GwsState {
 }
 
 /**
- * ワークスペース g のターミナルのタブが、マシンの一覧 lists では全部閉じられているか。
- * つながって一覧が分かっているマシンのタブだけを見る（つながっていないマシンのタブは、閉じたと分からない）。keep のタブは閉じたとみなさない。
- * ターミナルのタブを持たないワークスペースは false。
- */
-export function lostAllTerms(
-  g: Gws,
-  lists: Lists,
-  keep?: ReadonlySet<string>,
-): boolean {
-  const terms = termsOf(g);
-  return (
-    terms.length > 0 &&
-    terms.every((r) => {
-      const l = lists[r.target];
-      return (
-        !!l &&
-        !l.some((w) => w.id === r.ws) &&
-        !keep?.has(termKey(r.target, r.ws))
-      );
-    })
-  );
-}
-
-/**
  * タブ key を閉じたあとに出すタブ。同じワークスペースの次のタブ（無ければ前）。
  * back（同じワークスペースのブラウザのタブ）を渡すと、次のタブの代わりにそれ（ページが自分を閉じたとき、開いた元へ戻る）。
  * 閉じるのがワークスペースの最後のタブなら undefined（ワークスペースは空になって残る）。
@@ -502,14 +478,14 @@ export interface Reconciled {
  * - どこにも入っていないターミナルのタブは、1 つにつき新しいワークスペースを作る。
  * - どこにも入っていないブラウザのタブは、開いたときのターミナルのタブがあるワークスペースに入れる。その元も無ければ（元のマシンの一覧が分かっていて）閉じる。
  *   ターミナルのタブから開いたのではないタブ（workspace が空。ブラウザのタブだけのワークスペースのもの。#257）は、新しいワークスペースを作って入れる。
- * - タブが 1 つも無くなったワークスペースも残す（#307）。最後に使っていたターミナルのタブの覚えだけ消す。
+ * - タブが 1 つも無くなったワークスペースも残す（#307）。最後に使っていたターミナルのタブが閉じられたら、その隣のターミナルのタブにする（passActiveTerm）。
  * 変わらなければ同じ state を返す。
  */
 export function reconcile(s: GwsState, input: ReconcileInput): Reconciled {
   const pruned = pruneTabs(s, input);
   let state = adoptOrphanTerms(pruned.state, pruned.seen, input);
   const adopted = adoptOrphanBrowsers(state, input);
-  return { state: forgetGoneTerm(adopted.state), close: adopted.close };
+  return { state: passActiveTerm(s, adopted.state), close: adopted.close };
 }
 
 /**
@@ -605,15 +581,42 @@ function adoptOrphanBrowsers(s: GwsState, input: ReconcileInput): Reconciled {
   return { state, close };
 }
 
-/** 最後に使っていたターミナルのタブがもう無いワークスペースの、その覚えを消す。タブが無くなったワークスペースは外さない（#307）。 */
-function forgetGoneTerm(s: GwsState): GwsState {
+/**
+ * 最後に使っていたターミナルのタブ（term）が閉じられたワークスペースの term を、閉じたタブの隣のターミナルのタブへ移す
+ * （元の並びで後ろの、まだあるもの。無ければ前の。ふつうのブラウザで今のタブを閉じたときと同じ）。ターミナルのタブがもう無ければ term を消す。
+ * 今いるワークスペースで出すターミナルのタブは term から決まる（features/workspaces/controller.ts の focus）ので、閉じたタブの隣が出る。
+ * タブが無くなったワークスペースは外さない（#307）。before は、タブを外す前の記録。
+ */
+function passActiveTerm(before: GwsState, s: GwsState): GwsState {
   const list = s.list.map((g): Gws => {
     const t = g.term;
     if (!t || g.tabs.some((r) => sameTerm(r, t.target, t.ws))) return g;
+    const old = before.list.find((x) => x.id === g.id);
+    const next = neighborTerm(old?.tabs ?? [], g.tabs, t);
     const { term: _, ...rest } = g;
-    return rest;
+    return next
+      ? { ...rest, term: { target: next.target, ws: next.ws } }
+      : rest;
   });
   return sameList(list, s.list) ? s : { list };
+}
+
+/** 外したターミナルのタブ t の隣で、now にまだあるターミナルのタブ（old は外す前の並び）。 */
+function neighborTerm(
+  old: readonly TabRef[],
+  now: readonly TabRef[],
+  t: { target: string; ws: WorkspaceId },
+): TermRef | undefined {
+  const terms = old.filter(isTerm);
+  const i = terms.findIndex((r) => r.target === t.target && r.ws === t.ws);
+  const alive = (r: TermRef) => now.some((x) => sameTerm(x, r.target, r.ws));
+  if (i >= 0) {
+    const after = terms.slice(i + 1).find(alive);
+    if (after) return after;
+    const before = terms.slice(0, i).reverse().find(alive);
+    if (before) return before;
+  }
+  return now.find(isTerm);
 }
 
 function sameTabs(a: readonly TabRef[], b: readonly TabRef[]): boolean {
@@ -767,10 +770,30 @@ export function dropTerm(
 ): GwsState {
   const g = gwsOfTerm(s, target, ws);
   if (!g) return s;
-  return forgetGoneTerm(
+  return passActiveTerm(
+    s,
     update(s, g.id, (x) => ({
       ...x,
       tabs: x.tabs.filter((r) => !sameTerm(r, target, ws)),
     })),
   );
+}
+
+/**
+ * ワークスペース g に足すブラウザのタブの「開いたところ」（タブが覚えるマシンとワークスペース。リモートの localhost の中継に使う）。
+ * ターミナルのタブがあれば、最後に使ったそのタブ（今いるワークスペースなら、出しているもの）。
+ * 無ければ（ブラウザのタブだけ #257・空 #307）、中のブラウザのタブ（browserTabs のうち g のもの）と同じマシンか fallback のマシンと、空のワークスペース。
+ * ほかのワークスペースのタブを元にすることは無い（そうすると、整理がタブをそのワークスペースへ入れてしまう）。
+ */
+export function browserOriginOf(
+  g: Gws,
+  browserTabs: readonly { id: string; target: string }[],
+  fallback: string,
+): { target: string; ws: WorkspaceId } {
+  const rep = repTerm(g);
+  if (rep) return { target: rep.target, ws: rep.ws };
+  const own = browserTabs.find((t) =>
+    g.tabs.some((r) => r.kind === "browser" && r.id === t.id),
+  );
+  return { target: own?.target ?? fallback, ws: "" };
 }
