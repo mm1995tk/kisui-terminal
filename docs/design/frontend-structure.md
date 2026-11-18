@@ -53,8 +53,8 @@ app/src/
     modules/                # 画面をまたいで使う、機能の知識を持つ部品
       clipboard-history/
         HistoryPanel.tsx    # 履歴の一覧（メインウィンドウの窓と、常駐ツールの窓の両方が使う）
-    components/             # 機能の知識を持たない部品（ダイアログの枠、名前を入れる窓）
-    styles/                 # 共通の色・字（theme.css、字の定義）
+    components/             # 機能の知識を持たない部品（ダイアログの枠、ボタン、名前を入れる窓）。決まりは design-system.md
+    styles/                 # 共通の色・余白・字（theme.css はパレット、tokens.css は役割の名前、字の定義）
   features/
     sessions/               # 接続（Session）、マシンの記録、接続の状態の文
     workspaces/             # GUI のワークスペース、フォーカス、サイドバーの行の組み立て
@@ -93,7 +93,7 @@ app/src/
 - 部品、専用の CSS、表示用の状態、テスト、Storybook の stories は、使う所の近くに置く（同じフォルダ）。stories の足し方は [storybook.md](storybook.md)。
 - 同じ画面の中で 2 か所が使う部品は、その 2 か所にいちばん近い共通の親のフォルダに置く。例：タブの行（`sidebar/workspaces/TabRow.tsx`）は、サイドバーとワークスペースを切り替える窓が使う。
 - 画面をまたいで使う部品のうち、機能の知識を持つもの（履歴の一覧など）だけを `ui/modules/` に置く。機能の分け方をそのまま `ui/modules/` に写さない。
-- 機能の知識を持たないボタン・入力欄・ダイアログの枠・メニューは `ui/components/`、共通の色・余白・字は `ui/styles/` に置く。
+- 機能の知識を持たないボタン・入力欄・ダイアログの枠・メニューは `ui/components/`、共通の色・余白・字は `ui/styles/` に置く。値・状態・部品の使い方の決まりは [design-system.md](design-system.md)。
 - スクロールの位置・キーの行き先・窓や欄の開閉のような表示用の状態は、画面の近く（`ui/`）に残す。機能の規則を画面の部品に戻さない。
 
 ## 依存の向き
