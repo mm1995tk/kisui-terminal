@@ -13,6 +13,7 @@ import {
 } from "solid-js";
 
 import { openKeyList } from "../commands/KeyListDialog.tsx";
+import { Button } from "../../components/Button.tsx";
 import { ModalCard } from "../../components/Card.tsx";
 import {
   canDo,
@@ -171,9 +172,7 @@ export function MachineDialog(props: {
         </div>
       </div>
       <div class="card-actions">
-        <button type="button" class="card-button" onClick={props.onCancel}>
-          {T("button.close")}
-        </button>
+        <Button onClick={props.onCancel}>{T("button.close")}</Button>
       </div>
     </ModalCard>
   );

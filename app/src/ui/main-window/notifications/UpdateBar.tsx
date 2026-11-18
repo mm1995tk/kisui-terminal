@@ -8,6 +8,7 @@ import "../../components/card.css";
 import { IS_MAC } from "../../../features/commands/guiKeys.ts";
 import { leaderKeyName } from "../../../features/commands/commands.ts";
 import type { Updates } from "../../../features/updates/store.ts";
+import { Button } from "../../components/Button.tsx";
 
 export function UpdateBar(props: { updates: Updates }): JSX.Element {
   const u = props.updates;
@@ -38,22 +39,16 @@ export function UpdateBar(props: { updates: Updates }): JSX.Element {
             </Show>
           </div>
           <div class="card-actions">
-            <button
-              type="button"
-              class="card-button"
-              disabled={u.busy()}
-              onClick={() => u.dismiss()}
-            >
+            <Button disabled={u.busy()} onClick={() => u.dismiss()}>
               {T("update.later")}
-            </button>
-            <button
-              type="button"
-              class="card-button primary"
-              disabled={u.busy()}
+            </Button>
+            <Button
+              variant="primary"
+              busy={u.busy()}
               onClick={() => void u.install()}
             >
               {u.busy() ? T("update.busy") : T("update.install")}
-            </button>
+            </Button>
           </div>
         </aside>
       )}

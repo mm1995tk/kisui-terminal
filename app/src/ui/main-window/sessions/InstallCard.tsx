@@ -4,6 +4,7 @@ import { T } from "../../../i18n/index.ts";
 import { Show, type JSX } from "solid-js";
 
 import type { SessionState } from "../../../features/sessions/session.ts";
+import { Button } from "../../components/Button.tsx";
 import { ModalCard } from "../../components/Card.tsx";
 
 /**
@@ -41,12 +42,10 @@ export function InstallCard(props: {
         </Show>
       </div>
       <div class="card-actions">
-        <button type="button" class="card-button" onClick={props.onNo}>
-          {T("installCard.no")}
-        </button>
-        <button type="button" class="card-button primary" onClick={props.onYes}>
+        <Button onClick={props.onNo}>{T("installCard.no")}</Button>
+        <Button variant="primary" onClick={props.onYes}>
           {T("installCard.yes")}
-        </button>
+        </Button>
       </div>
     </ModalCard>
   );

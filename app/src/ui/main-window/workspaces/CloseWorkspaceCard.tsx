@@ -3,6 +3,7 @@
 import { T } from "../../../i18n/index.ts";
 import type { JSX } from "solid-js";
 
+import { Button } from "../../components/Button.tsx";
 import { ModalCard } from "../../components/Card.tsx";
 
 /**
@@ -37,12 +38,10 @@ export function CloseWorkspaceCard(props: {
         </p>
       </div>
       <div class="card-actions">
-        <button type="button" class="card-button" onClick={props.onNo}>
-          {T("button.cancelAlt")}
-        </button>
-        <button type="button" class="card-button primary" onClick={props.onYes}>
+        <Button onClick={props.onNo}>{T("button.cancelAlt")}</Button>
+        <Button variant="primary" onClick={props.onYes}>
           {T("closeWorkspace.yes")}
-        </button>
+        </Button>
       </div>
     </ModalCard>
   );

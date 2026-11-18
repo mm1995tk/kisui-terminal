@@ -1,0 +1,44 @@
+/* ボタン（Button.tsx）。モック Connect.dc.html の寸法：高さ 44px・角丸 8px・左右 16px。
+   値は ui/styles/tokens.css の役割から選ぶ。状態の意味と使い分けは docs/design/design-system.md の「ボタン」。 */
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-8);
+  height: 44px;
+  padding: 0 var(--space-16);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-8);
+  background: transparent;
+  color: var(--color-text-strong);
+  font: inherit;
+  cursor: pointer;
+}
+
+/* hover：押せるときだけ地を変える */
+.button:hover:not(:disabled) {
+  background: var(--state-hover-bg);
+}
+
+/* 主の操作。窓に 1 つ、並びの右端 */
+.button[data-variant="primary"] {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font-weight: var(--weight-strong);
+}
+.button[data-variant="primary"]:hover:not(:disabled) {
+  background: var(--color-accent-hover);
+}
+
+/* 無効・処理中（aria-busy）：押せない。処理中の字（「更新しています…」など）は呼ぶ側が渡す */
+.button:disabled {
+  opacity: var(--state-disabled-opacity);
+  cursor: default;
+}
+
+/* フォーカス：キーボードで移ったときだけ枠を出す（押したときには出さない） */
+.button:focus-visible {
+  outline: var(--state-focus-ring-width) solid var(--state-focus-ring);
+  outline-offset: var(--state-focus-ring-offset);
+}

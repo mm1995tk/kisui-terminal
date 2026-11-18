@@ -24,8 +24,8 @@ npm run build-storybook    # 静的なビルド（storybook-static/。git には
 | ファイル                   | 持つもの                                                                                                 |
 | -------------------------- | -------------------------------------------------------------------------------------------------------- |
 | `.storybook/main.ts`       | 使う連携（`storybook-solidjs-vite`）、stories の場所（`app/src/**/*.stories.tsx`）、送信をやめる設定 |
-| `.storybook/preview.tsx`   | アプリと同じ色（`ui/styles/theme.css`）と字（`ui/styles/fonts.ts`）を読む。言語の切り替え                  |
-| `.storybook/preview.css`   | story を出す枠の地と字（メインウィンドウの `layout.css` の `body` と同じ値）                              |
+| `.storybook/preview.tsx`   | アプリと同じ色（`ui/styles/theme.css`・`ui/styles/tokens.css`）と字（`ui/styles/fonts.ts`）を読む。言語の切り替え |
+| `.storybook/preview.css`   | story を出す枠の地と字（メインウィンドウの `layout.css` の `body` と同じく、`tokens.css` の役割で決める） |
 
 Vite の設定は、根の `vite.config.ts` をそのまま読む（Solid の変換と、`@fontsource` の woff を落とす処理がアプリと同じになる）。
 アドオンは足していない。Storybook 10 の本体に、Controls・Actions・道具（言語の切り替えに使う）・表示幅の切り替えが入っている。
@@ -33,17 +33,25 @@ Vite の設定は、根の `vite.config.ts` をそのまま読む（Solid の変
 ## stories を足す
 
 - stories は、出す部品の隣に `部品の名前.stories.tsx` で置く（[frontend-structure.md](frontend-structure.md) の「部品をどこに置くか」）。
-- `title` は `app/src/ui/` からの置き場に合わせる（例：`components/RenameDialog`、`modules/clipboard-history/HistoryPanel`）。
+- `title` は `app/src/ui/` からの置き場に合わせる（例：`components/RenameDialog`、`modules/clipboard-history/HistoryPanel`、`main-window/workspaces/CloseWorkspaceCard`）。
 - 書き方は CSF 3（`Meta`・`StoryObj` は `storybook-solidjs-vite` から）。押した・閉じたなどの呼び出しは `storybook/test` の `fn()` で受け、Actions に出す。
 - 画面の文は、ほかのコードと同じく表のキーで引く（`T("…")`）。言語を切り替えたあとに引き直すよう、`T` は `args` に直に書かず、`render` の中で呼ぶ（`RenameDialog.stories.tsx` の `WithError`）。
 - 見本のデータを複数の stories で使うときは、stories の隣に普通のファイルで置く（例：`ui/modules/clipboard-history/historyFixtures.ts`）。`*.stories.tsx` から名前付きで書き出したものは、Storybook が story として読んでしまう。
 - 窓の部品（`ModalCard` を使うもの）は、アプリで入れている組み合わせのまま出す（`HistoryPanel.stories.tsx` は、メインウィンドウと同じく `ModalCard` に入れる）。
+- 字（children）や `label` のように、翻訳の表から引く必須の引数がある部品は、`Meta<typeof 部品>` ではなく、その引数を外した型（`Omit<ComponentProps<typeof 部品>, "children">`）で `Meta` を書き、`render` の中で `T` を呼んで渡す（`Button.stories.tsx`）。
+- デザインシステムの部品（`ui/components/`）と共通の値（`ui/styles/`）の stories は、[design-system.md](design-system.md) の使い方の決まりと同じ状態・組み合わせを出す。決まりを変えたら stories も変える。
 
 今ある stories：
 
 | story                                               | 出すもの                                              | 差し替えたもの                                     |
 | --------------------------------------------------- | ----------------------------------------------------- | -------------------------------------------------- |
+| `ui/styles/Tokens.stories.tsx`                      | 共通の値（色・状態・余白・字・角）。名前・値・説明は `tokens.css` から読む | —                                     |
+| `ui/components/Button.stories.tsx`                  | ボタン（普通・主・無効・処理中・フォーカス・やめると主の並び） | 押した（`fn()`）                          |
+| `ui/components/Card.stories.tsx`                    | 窓の枠 `ModalCard`（既定・`focusSelf`・幅と `closeOnOutside`） | 閉じる（`fn()`）                          |
 | `ui/components/RenameDialog.stories.tsx`            | 名前を変える窓（名前あり・なし・理由を出したとき）    | 決めた・やめた（`fn()`）                           |
+| `ui/main-window/workspaces/CloseWorkspaceCard.stories.tsx` | ワークスペース・タブを閉じる確認の窓            | 決めた・やめた（`fn()`）                           |
+| `ui/main-window/sessions/InstallCard.stories.tsx`   | kisui を入れるかの確認の窓（初めて・失敗のあと）      | 入れる・入れない（`fn()`）                         |
+| `ui/main-window/notifications/UpdateBar.stories.tsx` | 新しい版の知らせ（ある・入れ替え中・失敗）           | 殻への頼み `UpdatesOs`（持ち物は本物の `createUpdates`） |
 | `ui/modules/clipboard-history/HistoryPanel.stories.tsx` | 履歴の一覧（一覧・貼る欄あり・空・読み込み中・読めない） | 履歴を読む頼み `ListClipboardHistory`            |
 | `ui/utilities/clipboard/page.stories.tsx`           | kisui-terminal の外から開く履歴の窓                   | 殻への頼み `ClipboardPopupOs`、`ListClipboardHistory` |
 

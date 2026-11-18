@@ -7,6 +7,7 @@ import {
   helpRows,
   leaderKeyName,
 } from "../../../features/commands/commands.ts";
+import { Button } from "../../components/Button.tsx";
 import { ModalCard } from "../../components/Card.tsx";
 import { IS_MAC } from "../../../features/commands/guiKeys.ts";
 import {
@@ -92,13 +93,9 @@ export function KeyListDialog(): JSX.Element {
           <p class={styles.outside}>{T("keys.outside", { key: outside })}</p>
         </div>
         <div class="card-actions">
-          <button
-            type="button"
-            class="card-button primary"
-            onClick={() => setOpened(false)}
-          >
+          <Button variant="primary" onClick={() => setOpened(false)}>
             {T("button.close")}
-          </button>
+          </Button>
         </div>
       </ModalCard>
     </Show>

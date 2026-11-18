@@ -4,6 +4,7 @@
 import { For, Show, type JSX } from "solid-js";
 
 import "../../components/card.css";
+import { Button } from "../../components/Button.tsx";
 
 /** 知らせ 1 つ。 */
 export interface Notice {
@@ -44,21 +45,13 @@ export function Notices(props: {
             </div>
             <div class="card-actions">
               <For each={n.secondary ?? []}>
-                {(b) => (
-                  <button type="button" class="card-button" onClick={b.run}>
-                    {b.label}
-                  </button>
-                )}
+                {(b) => <Button onClick={b.run}>{b.label}</Button>}
               </For>
               <Show when={n.primary}>
                 {(b) => (
-                  <button
-                    type="button"
-                    class="card-button primary"
-                    onClick={b().run}
-                  >
+                  <Button variant="primary" onClick={b().run}>
                     {b().label}
-                  </button>
+                  </Button>
                 )}
               </Show>
             </div>

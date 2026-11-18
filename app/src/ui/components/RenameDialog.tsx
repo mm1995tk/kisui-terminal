@@ -4,6 +4,7 @@ import { isComposingKey } from "../../features/commands/ime.ts";
 import { T } from "../../i18n/index.ts";
 import { createSignal, Show, type JSX } from "solid-js";
 
+import { Button } from "./Button.tsx";
 import { ModalCard } from "./Card.tsx";
 
 export function RenameDialog(props: {
@@ -48,16 +49,10 @@ export function RenameDialog(props: {
         </Show>
       </div>
       <div class="card-actions">
-        <button type="button" class="card-button" onClick={props.onCancel}>
-          {T("button.cancel")}
-        </button>
-        <button
-          type="button"
-          class="card-button primary"
-          onClick={() => props.onSubmit(name())}
-        >
+        <Button onClick={props.onCancel}>{T("button.cancel")}</Button>
+        <Button variant="primary" onClick={() => props.onSubmit(name())}>
           {T("rename.submit")}
-        </button>
+        </Button>
       </div>
     </ModalCard>
   );

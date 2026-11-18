@@ -2,6 +2,7 @@
 import { T } from "../../../i18n/index.ts";
 import { createSignal, Show, type JSX } from "solid-js";
 
+import { Button } from "../../components/Button.tsx";
 import { ModalCard } from "../../components/Card.tsx";
 import type { AskpassRequest } from "../../../features/sessions/shell.ts";
 
@@ -56,16 +57,12 @@ export function AskpassDialog(props: {
               </label>
             </div>
             <div class="card-actions">
-              <button
-                type="button"
-                class="card-button"
-                onClick={() => reply(ask, null)}
-              >
+              <Button onClick={() => reply(ask, null)}>
                 {T("askpass.cancel")}
-              </button>
-              <button type="submit" class="card-button primary">
+              </Button>
+              <Button type="submit" variant="primary">
                 OK
-              </button>
+              </Button>
             </div>
           </form>
         </ModalCard>

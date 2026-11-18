@@ -57,6 +57,8 @@ describe("メインウィンドウの CSS の並び", () => {
 
   it("page.tsx からたどった CSS の順は、決めた並びのとおり", () => {
     assert.deepEqual(cssOrder("ui/main-window/page.tsx"), [
+      // ボタン（.button の規則だけを持ち、ほかの CSS と規則が重ならないので、カードとの前後は見た目に関わらない）
+      "ui/components/button.css",
       // カードの決まり（窓・知らせ）。常駐ツールの画面と共に使うので、ビルドでは別のファイルになる
       "ui/components/card.css",
       "ui/main-window/commands/KeyListDialog.module.css",

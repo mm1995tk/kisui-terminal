@@ -7,6 +7,7 @@ import { T } from "../../../i18n/index.ts";
 import { createMemo, createSignal, For, Show, type JSX } from "solid-js";
 
 import type { SessionState } from "../../../features/sessions/session.ts";
+import { Button } from "../../components/Button.tsx";
 import { ModalCard } from "../../components/Card.tsx";
 import { listStep } from "../../../features/commands/placeKeys.ts";
 import { filterCandidates } from "../../../features/sessions/machines.ts";
@@ -164,17 +165,10 @@ export function AddMachine(props: {
         </Show>
       </div>
       <div class="card-actions">
-        <button type="button" class="card-button" onClick={props.onCancel}>
-          {T("button.cancel")}
-        </button>
-        <button
-          type="button"
-          class="card-button primary"
-          disabled={props.busy}
-          onClick={submit}
-        >
+        <Button onClick={props.onCancel}>{T("button.cancel")}</Button>
+        <Button variant="primary" busy={props.busy} onClick={submit}>
           {T("addMachine.add")}
-        </button>
+        </Button>
       </div>
     </ModalCard>
   );

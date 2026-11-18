@@ -16,18 +16,15 @@ body {
   overscroll-behavior: none;
 }
 
-/* ページ全体の土台。字と色はモックに合わせる（字は fonts.ts で同梱したもの） */
+/* ページ全体の土台。字と色はモックに合わせる（値は ui/styles/tokens.css の役割。字は fonts.ts で同梱したもの） */
 :root {
   color-scheme: dark;
 }
 
 body {
-  font:
-    13px "IBM Plex Sans JP",
-    system-ui,
-    sans-serif;
-  color: var(--gh-text);
-  background: var(--gh-bg);
+  font: var(--text-body) var(--font-ui);
+  color: var(--color-text);
+  background: var(--color-bg);
 }
 
 button,

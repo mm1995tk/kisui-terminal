@@ -4,6 +4,7 @@
 import { init } from "coneko-term";
 import { render } from "solid-js/web";
 import "./ui/styles/theme.css";
+import "./ui/styles/tokens.css";
 import "./ui/styles/fonts.ts";
 import { POPUP_LABEL } from "./features/clipboard/history.ts";
 import { lang, setLang, T } from "./i18n/index.ts";

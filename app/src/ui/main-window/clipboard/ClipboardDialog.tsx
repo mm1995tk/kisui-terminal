@@ -3,6 +3,7 @@
 import { T } from "../../../i18n/index.ts";
 import { Show, type JSX } from "solid-js";
 
+import { Button } from "../../components/Button.tsx";
 import { ModalCard } from "../../components/Card.tsx";
 import { describeMimes } from "../../../features/clipboard/clipboard.ts";
 import { currentReadPrompt } from "../../../features/clipboard/clipboardPrompt.ts";
@@ -25,20 +26,12 @@ export function ClipboardDialog(): JSX.Element {
             </p>
           </div>
           <div class="card-actions">
-            <button
-              type="button"
-              class="card-button"
-              onClick={() => ask.resolve(false)}
-            >
+            <Button onClick={() => ask.resolve(false)}>
               {T("transfer.deny")}
-            </button>
-            <button
-              type="button"
-              class="card-button primary"
-              onClick={() => ask.resolve(true)}
-            >
+            </Button>
+            <Button variant="primary" onClick={() => ask.resolve(true)}>
               {T("clipboardAsk.allow")}
-            </button>
+            </Button>
           </div>
         </ModalCard>
       )}
