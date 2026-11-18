@@ -18,6 +18,7 @@ import {
   CardTitle,
 } from "../../components/Card.tsx";
 import { InlineInput } from "../../components/InlineInput.tsx";
+import type { MachineChoice } from "./SwitcherNewTab.tsx";
 import { Kbd, KeyHints } from "../../components/KeyHints.tsx";
 import { isCancelKey } from "../../components/cancelKey.ts";
 import { moveRow } from "../../../features/sessions/machineList.ts";
@@ -40,6 +41,8 @@ const tabId = (key: string) => `switcher-tab-${key}`;
  * 右のタブの行を開くと、そのワークスペースのそのタブへ移る。移ったあとに窓を閉じるのは、呼んだ側（出すのをやめる）。
  * 右のタブの行のつかむ所からのドラッグで、タブを並べ替える・別のワークスペースへ移す（#308。tabMoveDrag.ts）。ドラッグ中に左の行の上へ来ると、
  * 右の列がそのワークスペースのタブに替わり、落とした位置に入る（左の行の上で落とすと、一番後ろに入る。空のワークスペースにも落とせる）。
+ * 右の列の上の「＋」か n で、右の列の一番下に、名前の入力欄とマシンを 1 行で出し、Enter でそのワークスペースのそのマシンにターミナルのタブを作る（#331。SwitcherNewTab.tsx）。
+ * 地球儀か N（どちらの列でも）で、そのワークスペースに新しいタブのページのブラウザのタブを開く（内蔵ブラウザが有効なときだけ）。どちらも窓は閉じず、作ったタブを右の列で選ぶ。
  * 名前を変えるのは、行の中の入力欄（サイドバーの帯と同じ。変換を確定する Enter では決めない）。閉じるのは、y / n で確かめてから。
  */
 export function WorkspaceSwitcher(props: {
@@ -76,6 +79,20 @@ export function WorkspaceSwitcher(props: {
   onTabClose: (gws: string, key: string) => void;
   /** タブを 1 つ下・上へ並べ替える（タブの列の J K） */
   onTabReorder: (gws: string, key: string, dir: "up" | "down") => void;
+  /** タブを作る入力欄に出すマシン（つながっているマシン。マシンを選ぶ窓と同じ） */
+  machines: readonly MachineChoice[];
+  /** 名前とマシンを決めた。名前が断られたら、その理由を返す（入力欄は開けたまま）。作れたら、作ったタブの key を待てる形で返す（作れなければ undefined。理由は呼んだ側が出す）。窓は閉じない */
+  onCreateTab: (
+    gws: string,
+    machine: string,
+    name: string,
+  ) => { error: string } | { key: Promise<string | undefined> };
+  /** ブラウザのタブを開く（地球儀・N）。開いたタブの key を返す。窓は閉じない */
+  onNewBrowserTab: (gws: string) => string | undefined;
+  /** 内蔵ブラウザが有効か（無効なら、地球儀も N も無い） */
+  browser: boolean;
+  /** タブを作ろうとしたが、つながっているマシンが 1 つも無い（できないことを、呼んだ側が伝える） */
+  onNoMachine: () => void;
   onCancel: () => void;
 }): JSX.Element {
   // 選んでいるのは位置ではなくワークスペース。並べ替えても、同じワークスペースを選び続ける
@@ -96,6 +113,10 @@ export function WorkspaceSwitcher(props: {
   // 左の列の一番下に、新しいワークスペースの名前の入力欄を出している間（auto は空にしたときの番号の名前、error は断られた理由）
   const [creating, setCreating] = createSignal<
     { auto: string; error?: string } | undefined
+  >();
+  // 右の列の一番下に、タブを作る行を出している間（gws はそのワークスペースの id、error は断られた理由）
+  const [creatingTab, setCreatingTab] = createSignal<
+    { gws: string; error?: string } | undefined
   >();
   // キーが効いている列と、右の列で選んでいるタブ（switcherColumns.ts）
   const { tabs, activeCol, selectedTab, toWs, toTabs, moveTab, pickTab } =
@@ -123,6 +144,8 @@ export function WorkspaceSwitcher(props: {
     if (c !== undefined && !has(c)) setConfirming(undefined);
     const e = editing();
     if (e && !has(e.gws)) setEditing(undefined);
+    const t = creatingTab();
+    if (t && !has(t.gws)) setCreatingTab(undefined);
   });
 
   /** 選ぶ行を変える。名前を変える・閉じる確認は、その行のものなので、やめる。 */
@@ -130,6 +153,7 @@ export function WorkspaceSwitcher(props: {
     if (gws !== sel()) {
       setEditing(undefined);
       setConfirming(undefined);
+      setCreatingTab(undefined);
       tabActions.stop();
     }
     setSel(gws);
@@ -145,6 +169,7 @@ export function WorkspaceSwitcher(props: {
     clearRowState: () => {
       setEditing(undefined);
       setConfirming(undefined);
+      setCreatingTab(undefined);
     },
     focusList,
     init: props.tabRenameInit,
@@ -174,6 +199,7 @@ export function WorkspaceSwitcher(props: {
       return;
     }
     setCreating(undefined);
+    setCreatingTab(undefined);
     setEditing(undefined);
     setConfirming(undefined);
     tabActions.stop();
@@ -190,6 +216,7 @@ export function WorkspaceSwitcher(props: {
     setConfirming(undefined);
     tabActions.stop();
     setCreating(undefined);
+    setCreatingTab(undefined);
     setEditing({ gws: r.gws, ...init });
   }
   function startClose(r: Row) {
@@ -198,6 +225,7 @@ export function WorkspaceSwitcher(props: {
     setEditing(undefined);
     tabActions.stop();
     setCreating(undefined);
+    setCreatingTab(undefined);
     setConfirming(r.gws);
     focusList();
   }
@@ -207,7 +235,49 @@ export function WorkspaceSwitcher(props: {
     setEditing(undefined);
     setConfirming(undefined);
     tabActions.stop();
+    setCreatingTab(undefined);
     setCreating({ auto: props.createInit() });
+  }
+  /** 右の列の一番下に、タブの名前とマシンの行を出す（n・「＋」）。ほかの入力欄・確認はやめる。マシンが 1 つも無ければ、出さずに呼んだ側が伝える */
+  function startCreateTab() {
+    if (!selected()) return;
+    if (props.machines.length === 0) {
+      props.onNoMachine();
+      return;
+    }
+    setEditing(undefined);
+    setConfirming(undefined);
+    setCreating(undefined);
+    tabActions.stop();
+    setCreatingTab({ gws: selected()!.gws });
+  }
+  /** 名前とマシンを決めた。作れそうなら行を閉じ、できたタブを右の列で選ぶ（窓は閉じない）。断られたら、理由を出して行は開けたまま */
+  function submitCreateTab(name: string, machine: string) {
+    const c = creatingTab();
+    if (!c) return;
+    const res = props.onCreateTab(c.gws, machine, name);
+    if ("error" in res) {
+      setCreatingTab({ ...c, error: res.error });
+      return;
+    }
+    setCreatingTab(undefined);
+    focusList();
+    void res.key.then((key) => {
+      if (key !== undefined && sel() === c.gws) pickTab(key);
+    });
+  }
+  /** ブラウザのタブを開き（N・地球儀）、できたタブを右の列で選ぶ（窓は閉じない）。内蔵ブラウザが無効なら何もしない */
+  function newBrowserTab() {
+    const r = selected();
+    if (!props.browser || !r) return;
+    setEditing(undefined);
+    setConfirming(undefined);
+    setCreating(undefined);
+    setCreatingTab(undefined);
+    tabActions.stop();
+    const key = props.onNewBrowserTab(r.gws);
+    if (key !== undefined) pickTab(key);
+    focusList();
   }
   /** 入力欄で名前を決めた。作れたら、作ったワークスペースを選ぶ（窓は閉じない）。断られたら、理由を出して入力欄は開けたまま */
   function submitCreate(name: string) {
@@ -272,7 +342,7 @@ export function WorkspaceSwitcher(props: {
         else if (!inTabs) props.onGo(r);
         break;
       }
-      // 並べ替える・名前を変える・閉じるは、効いている列の行に効く（ワークスペースの列ならワークスペース、タブの列ならタブ）。作るは、ワークスペースの列だけ
+      // 並べ替える・名前を変える・閉じる・作る（n）は、効いている列の行に効く（ワークスペースの列ならワークスペース、タブの列ならタブ）。ブラウザのタブを開く（N）は、どちらの列でも
       case "reorder": {
         const r = selected();
         const t = selectedTab();
@@ -281,7 +351,11 @@ export function WorkspaceSwitcher(props: {
         break;
       }
       case "new":
-        if (!inTabs) startCreate();
+        if (inTabs) startCreateTab();
+        else startCreate();
+        break;
+      case "newBrowser":
+        newBrowserTab();
         break;
       case "rename": {
         const r = selected();
@@ -341,7 +415,7 @@ export function WorkspaceSwitcher(props: {
 
   /** いまキーが効いている列で効くキーだけを、下に出す */
   const hints = () =>
-    switcherHints(activeCol(), tabs().length > 0).map((h) => ({
+    switcherHints(activeCol(), tabs().length > 0, props.browser).map((h) => ({
       keys: h.keys,
       label: T(h.label),
     }));
@@ -457,6 +531,23 @@ export function WorkspaceSwitcher(props: {
                     tabActions.stop();
                     if (byKey) focusList();
                   }}
+                  browser={props.browser}
+                  onNewBrowser={newBrowserTab}
+                  onNewTab={startCreateTab}
+                  newTab={
+                    creatingTab()?.gws === r().gws
+                      ? {
+                          machines: props.machines,
+                          initial: r().target,
+                          error: creatingTab()?.error,
+                          onSubmit: submitCreateTab,
+                          onCancel: (byKey) => {
+                            setCreatingTab(undefined);
+                            if (byKey) focusList();
+                          },
+                        }
+                      : undefined
+                  }
                 />
               )}
             </Show>

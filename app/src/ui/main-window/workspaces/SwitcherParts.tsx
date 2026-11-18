@@ -7,6 +7,7 @@ import type { Health, Row } from "../../../features/workspaces/rows.ts";
 import { InlineInput } from "../../components/InlineInput.tsx";
 import { Kbd } from "../../components/KeyHints.tsx";
 import { TabRow } from "../sidebar/workspaces/TabRow.tsx";
+import { type MachineChoice, SwitcherNewTab } from "./SwitcherNewTab.tsx";
 
 const healthLabel = (h: Health): string => T(`health.${h}`);
 
@@ -166,6 +167,7 @@ export function SwitcherRow(props: {
 /**
  * 右の列：上に選んでいるワークスペースのタブの数、その下にタブの行（サイドバーの TabRow）。行のつかむ所からのドラッグで、タブを移す（tabMoveDrag.ts）。
  * 余白は取らず、列いっぱいに使う（枠と地の色は、列の入れ物 .switcher-right が持つ）。
+ * 上の右端に、ブラウザのタブを開く地球儀（内蔵ブラウザが有効なときだけ）とターミナルのタブを作る「＋」を置く。タブを作る行（newTab）は、タブの行の一番下に出す。
  */
 export function SwitcherTabs(props: {
   row: Row;
@@ -185,12 +187,53 @@ export function SwitcherTabs(props: {
   edit?: RowEdit;
   onRenameSubmit?: (name: string) => void;
   onRenameCancel?: (byKey: boolean) => void;
+  /** 内蔵ブラウザが有効か（無効なら、地球儀のボタンを出さない） */
+  browser?: boolean;
+  /** 地球儀（N と同じ）・「＋」（n と同じ）を押した */
+  onNewBrowser?: () => void;
+  onNewTab?: () => void;
+  /** タブを作る行（SwitcherNewTab）。出している間だけ渡す */
+  newTab?: {
+    machines: readonly MachineChoice[];
+    initial: string;
+    error?: string;
+    onSubmit: (name: string, machine: string) => void;
+    onCancel: (byKey: boolean) => void;
+  };
 }): JSX.Element {
   const r = () => props.row;
   return (
     <div class="switch-tabs" style={{ "--machine-color": r().color }}>
       <div class="switch-tabs-head">
-        {T("switcher.tabCount", { n: r().tabs.items.length })}
+        <span>{T("switcher.tabCount", { n: r().tabs.items.length })}</span>
+        <span class="switch-tabs-btns">
+          <Show when={props.browser}>
+            <button
+              type="button"
+              class="switch-btn"
+              tabIndex={-1}
+              aria-label={T("leader.browser.new")}
+              title={`${T("leader.browser.new")} (N)`}
+              onClick={() => props.onNewBrowser?.()}
+            >
+              <span class="nf" aria-hidden="true">
+                {ICON.globe}
+              </span>
+            </button>
+          </Show>
+          <button
+            type="button"
+            class="switch-btn"
+            tabIndex={-1}
+            aria-label={T("switcher.newTab")}
+            title={`${T("switcher.newTab")} (n)`}
+            onClick={() => props.onNewTab?.()}
+          >
+            <span class="nf" aria-hidden="true">
+              {ICON.plus}
+            </span>
+          </button>
+        </span>
       </div>
       <ul
         class="tab-rows"
@@ -216,8 +259,24 @@ export function SwitcherTabs(props: {
             />
           )}
         </For>
+        <Show when={props.newTab}>
+          {(c) => (
+            <li class="tab-row switch-newtab">
+              <div class="tab-line">
+                <SwitcherNewTab
+                  machines={c().machines}
+                  initial={c().initial}
+                  placeholder={T("switcher.newTabPlaceholder")}
+                  error={c().error}
+                  onSubmit={c().onSubmit}
+                  onCancel={c().onCancel}
+                />
+              </div>
+            </li>
+          )}
+        </Show>
       </ul>
-      <Show when={r().tabs.items.length === 0}>
+      <Show when={r().tabs.items.length === 0 && !props.newTab}>
         <p class="card-empty">{T("switcher.noTabs")}</p>
       </Show>
     </div>

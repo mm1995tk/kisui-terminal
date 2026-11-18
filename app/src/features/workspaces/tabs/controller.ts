@@ -347,13 +347,19 @@ export function createTabs(deps: {
   /**
    * ワークスペース gid にターミナルのタブを足す。target があればそのマシンに、無ければマシンを選ぶ窓を出して、選んだマシンに。
    * dir があれば、そのフォルダで始める。無ければ、マシンの start_dir で始まる（マシンを選ぶときは、別のマシンのフォルダは使えない）。
+   * name があれば（切り替える窓の入力欄）、その名前にする。作ったタブの key を返す（作れなければ undefined）。
    */
-  async function newTerminalTab(gid: string, target?: string, dir?: string) {
+  async function newTerminalTab(
+    gid: string,
+    target?: string,
+    dir?: string,
+    name?: string,
+  ): Promise<string | undefined> {
     if (target === undefined) {
       if (creatable().length === 0)
         cannot(T("cannot.workspace.title"), T("cannot.workspace.text"));
       else setPickingFor(gid);
-      return;
+      return undefined;
     }
     const s = sessions()[target];
     if (!s || states()[target]?.kind !== "connected") {
@@ -361,9 +367,9 @@ export function createTabs(deps: {
         T("err.tab.add", { machine: labelOf(target) }),
         T("cannot.tab.disconnected", { machine: labelOf(target) }),
       );
-      return;
+      return undefined;
     }
-    await createMachineWorkspace(
+    const id = await createMachineWorkspace(
       target,
       "err.tab.add",
       (id) => {
@@ -371,13 +377,39 @@ export function createTabs(deps: {
         setTabs((t) => showTab(t, gid, null));
       },
       dir,
+      name,
     );
+    return id === undefined ? undefined : termKey(target, id);
+  }
+
+  /**
+   * 切り替える窓の「タブを作る」入力欄で決めた：ワークスペース gid の machine に、name の名前のターミナルのタブを作る（空ならマシンの自動の名前）。
+   * 名前の決まりに合わなければ、何も作らず理由を返す。作れたら、作ったタブの key（作れなければ undefined）を、待てる形で返す。
+   */
+  function createNamedTerminalTab(
+    gid: string,
+    machine: string,
+    name: string,
+  ): { error: string } | { key: Promise<string | undefined> } {
+    const bad = nameErrorText(name);
+    if (bad) return { error: bad };
+    return { key: newTerminalTab(gid, machine, undefined, name) };
+  }
+
+  /**
+   * 切り替える窓の地球儀・N：ワークスペース gid に、新しいタブのページのブラウザのタブを開く（今いるワークスペースは変えない）。
+   * 開いたタブの key を返す（ワークスペースが無ければ undefined）。
+   */
+  function openNewBrowserTabIn(gid: string): string | undefined {
+    const g = untrack(gws).list.find((x) => x.id === gid);
+    if (!g) return undefined;
+    return browserKey(newBrowserTab(g));
   }
 
   /** ワークスペース g にブラウザのタブを足す（新しいタブのページを出す。リーダーの o n と同じ）。 */
-  function newBrowserTab(g: Gws, incognito = false) {
+  function newBrowserTab(g: Gws, incognito = false): string {
     const o = browserOrigin(g);
-    openNewTab(o.target, o.ws, incognito, g.id);
+    return openNewTab(o.target, o.ws, incognito, g.id);
   }
 
   /** ワークスペース g に足すブラウザのタブの「開いたところ」（model.ts の browserOriginOf）。 */
@@ -572,6 +604,8 @@ export function createTabs(deps: {
     closeTabMachinePicker: () => setPickingFor(null),
     addWorkspaceTab,
     newTerminalTab,
+    createNamedTerminalTab,
+    openNewBrowserTabIn,
     newBrowserTab,
     openBrowserTab,
     currentTabKey,

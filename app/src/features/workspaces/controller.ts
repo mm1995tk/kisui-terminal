@@ -250,30 +250,44 @@ export function createWorkspaces(deps: {
   /**
    * マシンにワークスペース（ターミナルのタブ）を 1 つ作り、place で GUI の記録に入れ、フォーカスして、ターミナルにキーを向ける。
    * 記録には、マシンの一覧の知らせより先に入れてよい（二重には入らない）。作れなければ errKey の題で理由を伝える。
-   * ワークスペースを作る（リーダーの w の窓の n）・ターミナルのタブを足す（「+」・t n）の共通の部分。dir があれば、そのフォルダでシェルを始める。
+   * ワークスペースを作る（リーダーの w の窓の n）・ターミナルのタブを足す（「+」・t n）の共通の部分。dir があれば、そのフォルダでシェルを始める。name があれば、その名前にする。作ったワークスペースの id を返す（作れなければ undefined）。
    */
   async function createMachineWorkspace(
     target: string,
     errKey: "err.workspace.create" | "err.tab.add",
     place: (id: WorkspaceId) => void,
     dir?: string,
-  ) {
+    name?: string,
+  ): Promise<WorkspaceId | undefined> {
     const s = sessions()[target];
-    if (!s) return;
+    if (!s) return undefined;
     setFocusError(null);
     try {
       const { id } = await s.createWorkspace(dir);
+      // 名前（空でなければ）は、ターミナルのタブの名前＝マシンのワークスペースの名前。付けられなくても、タブは作ってある
+      if (name?.trim()) {
+        try {
+          await s.renameWorkspace(id, name.trim());
+        } catch (e) {
+          setFocusError({
+            title: T("err.workspace.rename", { machine: labelOf(target) }),
+            error: e instanceof Error ? e.message : String(e),
+          });
+        }
+      }
       // 一覧の知らせが返事より先に届いていれば、整理はもう済んでいて印を外す機会が来ない。守る必要もないので印を付けない
       if (!untrack(workspaces)[target]?.some((w) => w.id === id))
         justCreated.add(termKey(target, id));
       place(id);
       await focusWorkspace(target, id);
       if (focus()?.id === id) focusTerminal();
+      return id;
     } catch (e) {
       setFocusError({
         title: T(errKey, { machine: labelOf(target) }),
         error: e instanceof Error ? e.message : String(e),
       });
+      return undefined;
     }
   }
 

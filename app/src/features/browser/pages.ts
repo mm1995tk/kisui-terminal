@@ -155,7 +155,7 @@ export function createPages(deps: {
     ws: WorkspaceId,
     incognito: boolean,
     owner?: string,
-  ) {
+  ): string {
     const id = newTabId();
     const gid = owner ?? gwsOfTerm(untrack(gws), target, ws)?.id;
     // ページから押したときに覚えた「戻す先」を捨てる（検索窓にキーを向けるのを、ページに戻させない。openFind と同じ）
@@ -175,6 +175,7 @@ export function createPages(deps: {
       ),
     );
     if (gid) setGws((g) => addBrowser(g, gid, id));
+    return id;
   }
   /**
    * ページが新しい窓（`target=_blank` のリンク・`window.open`）を開いた（#204）。殻はもう webview を作ってある。

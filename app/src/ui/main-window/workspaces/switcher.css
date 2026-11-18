@@ -147,12 +147,19 @@
 .switch-tabs .card-empty {
   color: var(--gh-text-muted);
 }
-/* 右の列の上：選んでいるワークスペースのタブの数 */
+/* 右の列の上：選んでいるワークスペースのタブの数と、右端のボタン（ブラウザのタブを開く・ターミナルのタブを作る） */
 .switch-tabs-head {
+  display: flex;
   flex: none;
-  padding: 6px 12px 2px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px 2px 12px;
   color: var(--gh-text-muted);
   font-size: 12px;
+}
+.switch-tabs-btns {
+  display: flex;
+  gap: 2px;
 }
 /* タブの行の一覧だけがスクロールする */
 .switch-tabs > .tab-rows {
@@ -236,4 +243,85 @@
   flex: 1;
   min-width: 0;
   margin-left: 8px;
+}
+
+/* 右の列の一番下の、ターミナルのタブを作る行（SwitcherNewTab.tsx）：名前の入力欄の右にマシン。マシンを押すか ↓ で、その下に一覧が開く。
+   一覧が行からはみ出すので、行は切らない（一覧は、タブの一覧のスクロールの中に出る） */
+.switch-tabs .tab-row.switch-newtab {
+  overflow: visible;
+}
+.switch-newtab .tab-line {
+  min-height: 0;
+}
+.newtab {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding-left: 8px;
+}
+.newtab-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.newtab-line .inline-input {
+  flex: 1;
+  min-height: 24px;
+}
+.newtab-machine {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border: 1px solid var(--gh-border-strong);
+  border-radius: 6px;
+  background: var(--gh-bg-raised);
+  color: var(--gh-text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.newtab-machine:hover,
+.newtab-machine[aria-expanded="true"] {
+  border-color: var(--card-accent);
+}
+.newtab-caret {
+  color: var(--gh-text-muted);
+  font-size: 10px;
+}
+.newtab-list {
+  position: absolute;
+  z-index: 4;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 160px;
+  max-height: 200px;
+  margin: 0;
+  padding: 4px;
+  overflow-y: auto;
+  list-style: none;
+  border: 1px solid var(--gh-border-strong);
+  border-radius: 6px;
+  background: var(--gh-bg-raised);
+  box-shadow: var(--shadow-raised);
+}
+.newtab-list:focus {
+  outline: none;
+}
+.newtab-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.newtab-list li[data-cursor] {
+  background: var(--gh-bg-hover);
+  box-shadow: inset 2px 0 0 var(--card-accent);
 }

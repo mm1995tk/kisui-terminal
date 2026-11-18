@@ -178,6 +178,19 @@ const meta = {
     ),
     onTabClose: fn(),
     onTabReorder: fn(),
+    // つながっているマシン（アプリでは、マシンを選ぶ窓と同じ creatable()）
+    machines: [
+      { target: "local", label: "local", color: MACHINES.local.color },
+      { target: "devbox", label: "devbox", color: MACHINES.devbox.color },
+    ],
+    // n か右の列の「＋」で、名前とマシンを入れて Enter。アプリと同じ決まりで名前を確かめ、作れたら新しいタブの key を返す（rows は呼んだ側のものなので、窓には足されない）
+    onCreateTab: fn((_gws: string, _machine: string, name: string) => {
+      const error = nameErrorText(name);
+      return error ? { error } : { key: Promise.resolve(undefined) };
+    }),
+    onNewBrowserTab: fn(() => undefined),
+    browser: true,
+    onNoMachine: fn(),
     onCancel: fn(),
   },
 } satisfies Meta<typeof WorkspaceSwitcher>;
@@ -191,6 +204,11 @@ export const Default: Story = {};
 /** タブが 1 つも無いワークスペースを選んでいるとき。 */
 export const NoTabs: Story = {
   args: { rows: [row("g1", "scratch", MACHINES.local, [], { focused: true })] },
+};
+
+/** 内蔵ブラウザが無効のとき。右の列の地球儀のボタンも、下の説明の N も無く、N を押しても何も起きない。 */
+export const BrowserDisabled: Story = {
+  args: { browser: false },
 };
 
 /** ワークスペースが 1 つも無いとき。 */

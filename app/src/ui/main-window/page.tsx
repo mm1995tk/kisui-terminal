@@ -345,6 +345,8 @@ function MainWindow(props: {
         tabs={tabs}
         switcherOpen={wsSwitcher()}
         onCloseSwitcher={() => setWsSwitcher(false)}
+        colors={sessions.colors()}
+        browser={props.browser}
       />
       <Show when={mascotPicking()}>
         <MascotDialog
