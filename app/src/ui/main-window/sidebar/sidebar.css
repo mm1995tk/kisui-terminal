@@ -513,6 +513,7 @@ div.band-main {
 }
 .tab-row {
   --sidebar-bg: var(--row-bg);
+  flex: none;
   overflow: clip;
   border: 1px solid var(--gh-border);
   border-radius: 6px;
