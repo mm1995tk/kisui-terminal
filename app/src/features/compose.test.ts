@@ -1,5 +1,5 @@
 // 機能の持ち物のつなぎ（compose.ts）を、偽の殻（kisui serve の代わり）で動かして確かめる（#313）。
-// App.tsx の 1 つの関数にあった動きを controller に分けたので、分けた境目をまたぐ流れ
+// 動きは機能ごとの controller に分かれているので、controller の境目をまたぐ流れ
 // （接続の知らせ → フォーカス、作る・閉じる → 移る、タブ → ブラウザのページ、shj の頼み → 画面）が、つないだあとも通ることを見る。
 // 画面（.tsx）は node --test では描けないので、画面の側に頼むこと（FeatureUi）は、呼ばれたことを覚えるだけの偽物にする。
 import assert from "node:assert/strict";
