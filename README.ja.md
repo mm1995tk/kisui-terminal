@@ -137,6 +137,7 @@ npm test               # Web 画面
 cargo test             # Tauri の殻
 go build -o target/dev/kisui ./cmd/kisui   # 窓が起動する kisui（SHIJIMI_KISUI）
 SHIJIMI_KISUI=$PWD/target/dev/kisui npm run tauri dev   # 動かす（devShell の外では nix run .#dev）
+npm run storybook      # 部品を 1 つずつブラウザで見る。Tauri は要らない（docs/design/storybook.md）
 nix fmt                # 全部を整形する
 nix flake check        # CI が回す検査を全部（整形・go test・ビルドとテスト）
 ```

@@ -137,6 +137,7 @@ npm test               # the web UI
 cargo test             # the Tauri shell
 go build -o target/dev/kisui ./cmd/kisui   # the kisui the window starts (SHIJIMI_KISUI)
 SHIJIMI_KISUI=$PWD/target/dev/kisui npm run tauri dev   # run it (outside the devShell: nix run .#dev)
+npm run storybook      # one component at a time in a browser, without Tauri (docs/design/storybook.md)
 nix fmt                # format everything
 nix flake check        # every check CI runs: formatting, go test, the build and its tests
 ```
