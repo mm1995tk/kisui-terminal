@@ -532,11 +532,12 @@ div.band-main {
   --tab-l-h: 16px;
   --tab-gap: 3px;
   --tab-pad-y: 8px;
+  --tab-body-h: calc(var(--tab-l1-h) + (var(--tab-l-h) + var(--tab-gap)) * 2);
   position: relative;
   box-sizing: border-box;
   display: flex;
   align-items: center;
-  min-height: calc(var(--tab-pad-y) * 2 + var(--tab-l1-h) + (var(--tab-l-h) + var(--tab-gap)) * 2);
+  min-height: calc(var(--tab-pad-y) * 2 + var(--tab-body-h));
   padding: var(--tab-pad-y) 6px var(--tab-pad-y) 0;
 }
 .tab-line:hover {
@@ -654,10 +655,7 @@ div.band-main {
   opacity: 0.55;
 }
 /* 鉛筆と ✕ は 1 行目の右に重ねるので、真ん中にそろえて 1 行目が下がった分だけ下げる。
-   中身が入る高さ（--tab-body-h）は、行の高さから上下の余白を引いたもの。行が 1 つだけなら 1 行目の高さ、2 つなら 1 行目 + 行の間 + 2 行目 */
-.tab-line {
-  --tab-body-h: calc(var(--tab-l1-h) + (var(--tab-l-h) + var(--tab-gap)) * 2);
-}
+   --tab-body-h は中身が入る高さ（.tab-line の先頭で定義）。行が 1 つだけなら 1 行目の高さ、2 つなら 1 行目 + 行の間 + 2 行目 */
 .tab-line:not(:has(.tab-l3)):has(.tab-l2) .tab-actions {
   top: calc(var(--tab-pad-y) + (var(--tab-body-h) - var(--tab-l1-h) - var(--tab-l-h) - var(--tab-gap)) / 2);
 }
