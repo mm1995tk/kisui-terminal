@@ -17,6 +17,7 @@ import {
   CardText,
   CardTitle,
 } from "../../components/Card.tsx";
+import { InlineInput } from "../../components/InlineInput.tsx";
 import { Kbd, KeyHints } from "../../components/KeyHints.tsx";
 import { isCancelKey } from "../../components/cancelKey.ts";
 import { moveRow } from "../../../features/sessions/machineList.ts";
@@ -54,8 +55,10 @@ export function WorkspaceSwitcher(props: {
   onDrop: (gws: string, before: string | null) => void;
   /** 右のタブの行をつかんで落とした（タブ key を、ワークスペース gws の before のタブの前へ。一番後ろなら null。別のワークスペースへも移せる） */
   onTabMove: (key: string, gws: string, before: string | null) => void;
-  /** 「ワークスペースを作る」（窓は閉じる） */
-  onNew: () => void;
+  /** 名前の入力欄で名前を決めた（空なら番号の名前）。タブの無い空のワークスペースを作って id を返す。名前が断られたら、その理由を返す（入力欄は開けたまま。窓は閉じない） */
+  onCreate: (name: string) => { id: string } | { error: string };
+  /** 作る入力欄を開くときの、空にしたときの番号の名前 */
+  createInit: () => string;
   /** 名前を変える入力欄を開くときの、今の名前と、空にしたときの番号の名前 */
   renameInit: (gws: string) => { current: string; auto: string } | undefined;
   /** 入力欄で名前を決めた。断られたら、その理由を返す（入力欄は開けたまま） */
@@ -90,6 +93,10 @@ export function WorkspaceSwitcher(props: {
     (RowEdit & { gws: string }) | undefined
   >();
   const [confirming, setConfirming] = createSignal<string | undefined>();
+  // 左の列の一番下に、新しいワークスペースの名前の入力欄を出している間（auto は空にしたときの番号の名前、error は断られた理由）
+  const [creating, setCreating] = createSignal<
+    { auto: string; error?: string } | undefined
+  >();
   // キーが効いている列と、右の列で選んでいるタブ（switcherColumns.ts）
   const { tabs, activeCol, selectedTab, toWs, toTabs, moveTab, pickTab } =
     createSwitcherColumns(selected);
@@ -166,6 +173,7 @@ export function WorkspaceSwitcher(props: {
       props.onTab(gws, key);
       return;
     }
+    setCreating(undefined);
     setEditing(undefined);
     setConfirming(undefined);
     tabActions.stop();
@@ -181,6 +189,7 @@ export function WorkspaceSwitcher(props: {
     toWs();
     setConfirming(undefined);
     tabActions.stop();
+    setCreating(undefined);
     setEditing({ gws: r.gws, ...init });
   }
   function startClose(r: Row) {
@@ -188,7 +197,30 @@ export function WorkspaceSwitcher(props: {
     toWs();
     setEditing(undefined);
     tabActions.stop();
+    setCreating(undefined);
     setConfirming(r.gws);
+    focusList();
+  }
+  /** 左の列の一番下に、名前の入力欄を出す（n・「ワークスペースを作る」）。ほかの入力欄・確認はやめる */
+  function startCreate() {
+    toWs();
+    setEditing(undefined);
+    setConfirming(undefined);
+    tabActions.stop();
+    setCreating({ auto: props.createInit() });
+  }
+  /** 入力欄で名前を決めた。作れたら、作ったワークスペースを選ぶ（窓は閉じない）。断られたら、理由を出して入力欄は開けたまま */
+  function submitCreate(name: string) {
+    const c = creating();
+    if (!c) return;
+    const r = props.onCreate(name);
+    if ("error" in r) {
+      setCreating({ ...c, error: r.error });
+      return;
+    }
+    setCreating(undefined);
+    select(r.id);
+    toWs();
     focusList();
   }
   function submitRename(name: string) {
@@ -249,7 +281,7 @@ export function WorkspaceSwitcher(props: {
         break;
       }
       case "new":
-        if (!inTabs) props.onNew();
+        if (!inTabs) startCreate();
         break;
       case "rename": {
         const r = selected();
@@ -374,15 +406,34 @@ export function WorkspaceSwitcher(props: {
                   />
                 )}
               </For>
-              <Show when={props.rows.length === 0}>
+              <Show when={props.rows.length === 0 && !creating()}>
                 <li class="card-empty">{T("switcher.empty")}</li>
+              </Show>
+              <Show when={creating()}>
+                {(c) => (
+                  <li class="card-row switch-row switch-create">
+                    <InlineInput
+                      value=""
+                      label={T("sidebar.nameLabel")}
+                      placeholder={T("sidebar.namePlaceholder", {
+                        auto: c().auto,
+                      })}
+                      error={c().error}
+                      onSubmit={submitCreate}
+                      onCancel={(byKey) => {
+                        setCreating(undefined);
+                        if (byKey) focusList();
+                      }}
+                    />
+                  </li>
+                )}
               </Show>
             </ul>
             <button
               type="button"
               class="switch-new"
               tabIndex={-1}
-              onClick={() => props.onNew()}
+              onClick={startCreate}
             >
               <span>+ {T("switcher.new")}</span>
               <Kbd>n</Kbd>

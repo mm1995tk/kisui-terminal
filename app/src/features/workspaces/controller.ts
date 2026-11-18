@@ -31,6 +31,7 @@ import { LOCAL } from "../sessions/shell.ts";
 import { focusWorkspaceAndTerminal } from "./focusWorkspaceAndTerminal.ts";
 import {
   addBrowserWorkspace,
+  addEmptyWorkspace,
   addWorkspace,
   autoName,
   displayName,
@@ -43,6 +44,7 @@ import {
   moveBefore,
   nameErrorText,
   newGwsId,
+  freeNum,
   reconcile,
   removeBrowser,
   removeGws,
@@ -649,6 +651,20 @@ export function createWorkspaces(deps: {
     return undefined;
   }
 
+  /**
+   * 切り替える窓の `n`：名前を付けて、タブの無い空のワークスペースを並びの一番下に作る（#330。種類もマシンも選ばない。タブは作ったあとに足す）。
+   * 名前が空なら番号の名前になる。名前の決まりに合わなければ、断る理由を返す。今いるワークスペースは変えない（窓で選ぶだけ）。
+   */
+  function createEmptyWorkspace(
+    name: string,
+  ): { id: string } | { error: string } {
+    const bad = nameErrorText(name);
+    if (bad) return { error: bad };
+    const id = newGwsId();
+    setGws((g) => addEmptyWorkspace(g, name, id));
+    return { id };
+  }
+
   /** 入力欄の Enter。断られたら入力欄の下に理由を出し、入力欄は開けておく。 */
   function submitWorkspaceRename(name: string) {
     const r = renamingWs();
@@ -769,6 +785,9 @@ export function createWorkspaces(deps: {
     wsRenameError,
     openWorkspaceRename,
     renameWorkspace,
+    createEmptyWorkspace,
+    /** 切り替える窓で名前を入れてワークスペースを作るときの、空にしたときの番号の名前 */
+    newWorkspaceAuto: () => autoName(freeNum(untrack(gws).list)),
     /** 切り替える窓の行で名前を変え始めるときの、今の名前と、空にしたときの名前 */
     renameInit(gid: string) {
       const g = untrack(gws).list.find((x) => x.id === gid);
