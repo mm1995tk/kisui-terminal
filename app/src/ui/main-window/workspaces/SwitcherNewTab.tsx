@@ -1,10 +1,9 @@
-// 切り替える窓の右の列の一番下に出す、ターミナルのタブを作る行（n・「＋」）。名前の入力欄と、その右にマシンを 1 行で出す。
-// Tab / Shift+Tab で次・前のマシンに替え、↓ かマシンを押すとマシンの一覧を開く。一覧では j / k（↓ / ↑）で選び、Enter で決めて入力欄に戻る。Esc は一覧を閉じるだけ。
-// 入力欄で Enter なら onSubmit、Esc か行の外へフォーカスが出たら onCancel。キーは newTabKey.ts。
 import { T } from "../../../i18n/index.ts";
-import { createSignal, For, Show, type JSX } from "solid-js";
+import { createSignal, Show, type JSX } from "solid-js";
 
-import { newTabInputKey, newTabListKey } from "./newTabKey.ts";
+import { MachineListbox } from "./MachineListbox.tsx";
+import { machineIndex, stepMachine } from "./newTabMachine.ts";
+import { newTabInputKey } from "./newTabKey.ts";
 
 /** タブを作るマシンの候補 1 つ（つながっているマシン） */
 export interface MachineChoice {
@@ -13,6 +12,12 @@ export interface MachineChoice {
   color: string;
 }
 
+/**
+ * 切り替える窓の右の列の一番下に出す、ターミナルのタブを作る行（n・「＋」）。名前の入力欄と、その右にマシンを 1 行で出す。
+ * Tab / Shift+Tab で次・前のマシンに替え、↓ かマシンを押すとマシンの一覧（MachineListbox）を開く。一覧では j / k（↓ / ↑）で選び、Enter で決めて入力欄に戻る。Esc は一覧を閉じるだけ。
+ * 入力欄で Enter なら onSubmit、Esc か行の外へフォーカスが出たら onCancel。キーは newTabKey.ts。
+ * 選んでいるマシンは target で持つ（行を開いている間に候補が縮んでも、選んでいたマシンのまま。消えたら先頭。newTabMachine.ts）。
+ */
 export function SwitcherNewTab(props: {
   machines: readonly MachineChoice[];
   /** 初めに選んでおくマシン（ワークスペースのマシン。候補に無ければ先頭） */
@@ -24,33 +29,17 @@ export function SwitcherNewTab(props: {
   /** byKey は Esc でやめたとき（キーを窓に戻すかを、呼んだ側が決める） */
   onCancel: (byKey: boolean) => void;
 }): JSX.Element {
-  const start = Math.max(
-    0,
-    props.machines.findIndex((m) => m.target === props.initial),
-  );
-  const [index, setIndex] = createSignal(start);
+  const [chosen, setChosen] = createSignal(props.initial);
   const [open, setOpen] = createSignal(false);
-  // 一覧で選んでいる位置（決めるまでは index を変えない）
-  const [cursor, setCursor] = createSignal(start);
   let box!: HTMLDivElement;
   let input!: HTMLInputElement;
-  let list: HTMLUListElement | undefined;
 
-  const machine = () => props.machines[index()];
-  const n = () => props.machines.length;
-  const wrap = (i: number) => (i + n()) % n();
+  const targets = () => props.machines.map((m) => m.target);
+  const machine = (): MachineChoice | undefined =>
+    props.machines[machineIndex(targets(), chosen())];
 
-  function openList() {
-    setCursor(index());
-    setOpen(true);
-    queueMicrotask(() => {
-      list?.focus();
-      // 行が一覧の下端にあるとき、開いた一覧が見える所までスクロールする
-      list?.scrollIntoView?.({ block: "nearest" });
-    });
-  }
-  function closeList(choose: boolean) {
-    if (choose) setIndex(cursor());
+  function closeList(choose?: string) {
+    if (choose !== undefined) setChosen(choose);
     setOpen(false);
     input.focus();
   }
@@ -62,28 +51,24 @@ export function SwitcherNewTab(props: {
     if (!k) return;
     e.preventDefault();
     switch (k.kind) {
-      case "machine":
-        setIndex(wrap(index() + (k.to === "prev" ? -1 : 1)));
+      case "machine": {
+        const t = stepMachine(targets(), machine()?.target, k.to);
+        if (t !== undefined) setChosen(t);
         break;
+      }
       case "openList":
-        openList();
+        if (machine()) setOpen(true);
         break;
-      case "submit":
-        props.onSubmit(input.value, machine()?.target ?? "");
+      case "submit": {
+        // マシンが全部切れていたら、作れない（空のマシンでは作らない）
+        const m = machine();
+        if (m) props.onSubmit(input.value, m.target);
         break;
+      }
       case "cancel":
         props.onCancel(true);
         break;
     }
-  }
-  function onListKey(e: KeyboardEvent) {
-    e.stopPropagation();
-    const k = newTabListKey(e);
-    if (!k) return;
-    e.preventDefault();
-    if (k.kind === "move")
-      setCursor(wrap(cursor() + (k.to === "prev" ? -1 : 1)));
-    else closeList(k.kind === "choose");
   }
 
   return (
@@ -123,7 +108,10 @@ export function SwitcherNewTab(props: {
           title={T("leader.tab.newPick")}
           // 押しても入力欄からフォーカスを外さない（WebKit はボタンを押してもフォーカスを移さず、行の外へ出たことになる）
           onPointerDown={(e) => e.preventDefault()}
-          onClick={() => (open() ? closeList(false) : openList())}
+          onClick={() => {
+            if (open()) closeList();
+            else if (machine()) setOpen(true);
+          }}
         >
           <span
             class="switch-dot"
@@ -144,38 +132,12 @@ export function SwitcherNewTab(props: {
         )}
       </Show>
       <Show when={open()}>
-        <ul
-          class="newtab-list"
-          role="listbox"
-          tabIndex={0}
-          aria-label={T("leader.tab.newPick")}
-          onKeyDown={onListKey}
-          // 一覧の行を押しても、フォーカスは一覧に置いたまま（入力欄に戻すのは closeList）
-          onPointerDown={(e) => e.preventDefault()}
-          ref={(el) => (list = el)}
-        >
-          <For each={props.machines}>
-            {(m, i) => (
-              <li
-                role="option"
-                aria-selected={cursor() === i() ? "true" : "false"}
-                data-cursor={cursor() === i() ? "" : undefined}
-                onPointerEnter={() => setCursor(i())}
-                onClick={() => {
-                  setCursor(i());
-                  closeList(true);
-                }}
-              >
-                <span
-                  class="switch-dot"
-                  data-health="up"
-                  style={{ "--machine-color": m.color }}
-                />
-                <span>{m.label}</span>
-              </li>
-            )}
-          </For>
-        </ul>
+        <MachineListbox
+          machines={props.machines}
+          selected={machine()?.target ?? ""}
+          onChoose={(t) => closeList(t)}
+          onClose={() => closeList()}
+        />
       </Show>
     </div>
   );
