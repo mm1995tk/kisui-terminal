@@ -190,7 +190,7 @@ export function SwitcherTabs(props: {
   /** 出すタブ（省くと row のタブ。キーでつかんでいる間は、つかんだタブを入る位置に入れたもの） */
   items?: readonly TabItem[];
   /** キーでつかんで移しているタブ（つかんでいる間だけ。見出しはタブの数の代わりに「〈名前〉を移しています」になり、ほかのタブは薄くなる） */
-  holding?: { key: string; title: string };
+  holding?: Pick<TabItem, "key" | "title">;
   /** キーで選んでいるタブの key（そのワークスペースに無ければ、どれも選ばない） */
   selectedKey?: string;
   /** タブの行の id を、key から作る（窓の aria-activedescendant が指す） */
