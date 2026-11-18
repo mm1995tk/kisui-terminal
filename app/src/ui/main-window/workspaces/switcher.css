@@ -1,36 +1,67 @@
 /* ワークスペースを切り替える窓（WorkspaceSwitcher.tsx。リーダーの w）。カードは card.css。
    左に全ワークスペース、右に選んでいる行のタブの一覧（サイドバーのタブの行 .tab-row を、sidebar.css のまま使う）。 */
 
+/* 窓の大きさは、メインのウィンドウの幅と高さの 60% に固定する（中身の数では伸び縮みしない）。
+   小さすぎ・大きすぎにならないよう、上限と下限を付ける（画面が小さければ、画面に収まる大きさまで縮む） */
+.card-modal:has(.switcher) {
+  box-sizing: border-box;
+  width: clamp(640px, 60vw, 1200px);
+  height: clamp(420px, 60vh, 900px);
+  max-height: calc(100vh - 2 * var(--space-16));
+  margin: auto;
+}
+/* 中身の高さは窓が決める。一覧のスクロールは、列の中でする */
+.card-modal:has(.switcher) .card-content {
+  overflow: hidden;
+}
+.switcher {
+  flex: 1;
+}
+
+/* 左右の 2 列を半分ずつにする。右の列は、余白を取らず、窓の右端・見出しの線・下の段の線までいっぱいに使い、左の線だけを残す。
+   左で選んでいる行は、右の列と同じ地の色・同じ枠の線にし、その所だけ右の列の左の線を消して、1 枚につながって見せる */
 .switcher-cols {
   display: grid;
-  grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
-  gap: 12px;
+  flex: 1;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   min-height: 0;
-  /* 見出しの線と下の段の線から、ほかの窓の一覧と同じ 8px あける。行の字は見出しの字（16px）にそろう */
-  padding: 8px;
+}
+.switcher-cols:focus {
+  outline: none;
 }
 .switcher-left {
   display: flex;
   flex-direction: column;
   min-width: 0;
   min-height: 0;
+  /* 右の列の左の線の上に重ねる（選んでいる行の地の色で、その所の線を隠す） */
+  position: relative;
+  z-index: 1;
 }
+/* 一覧だけがスクロールし、「ワークスペースを作る」は左の列の下端に固定する */
 .switcher-left .card-rows {
-  padding: 4px 0;
-  max-height: calc(100vh - 380px);
-  min-height: 120px;
+  flex: 1;
+  padding: 8px 0 4px 8px;
+  /* 行は右の列に届くまで伸ばすので、右の余白は取らない */
 }
 .switcher-right {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
   min-height: 0;
-  max-height: calc(100vh - 320px);
-  overflow-y: auto;
+  margin-left: -1px;
+  overflow: hidden;
+  border-left: 1px solid var(--gh-border-strong);
+  background: var(--gh-bg-side);
 }
 
-/* 左の行：つかむ所・マシンの色の丸・名前・「今」・（選んでいる行は鉛筆と ✕）・タブの数 */
+/* 左の行：つかむ所・マシンの色の丸・名前・鉛筆と ✕（どの行にもいつも出す）。選んでいる行は、右の列とつなげる（下の「選んでいる行」） */
 .switch-row {
   gap: 8px;
   padding: 8px 8px 8px 2px;
+  border: 1px solid transparent;
+  border-right: 0;
+  border-radius: 8px 0 0 8px;
   cursor: pointer;
 }
 .switch-row[data-dragging] {
@@ -73,31 +104,14 @@
 .switch-dot[data-health="down"] {
   background: transparent;
 }
-.switch-current {
-  flex: none;
-  padding: 0 6px;
-  border: 1px solid var(--card-accent);
-  border-radius: 8px;
-  color: var(--card-accent);
-  font-size: 11px;
-  font-weight: 400;
-  line-height: 16px;
-}
-.switch-count {
-  flex: none;
-  min-width: 1.5em;
-  color: var(--card-muted);
-  font-size: 12px;
-  font-weight: 400;
-  text-align: right;
-}
 .switch-new {
   display: flex;
   align-items: center;
   justify-content: space-between;
   box-sizing: border-box;
-  width: 100%;
-  margin-top: 4px;
+  flex: none;
+  width: calc(100% - 16px);
+  margin: 4px 0 8px 8px;
   padding: 10px 8px;
   border: 1px dashed var(--card-field-border);
   border-radius: 8px;
@@ -125,16 +139,29 @@
     var(--gh-bg-raised) 70%,
     var(--gh-bg-side)
   );
-  overflow: clip;
-  border: 1px solid var(--gh-border-strong);
-  border-radius: 8px;
-  background: var(--gh-bg-side);
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
 }
 .switch-tabs .card-empty {
   color: var(--gh-text-muted);
 }
+/* 右の列の上：選んでいるワークスペースのタブの数 */
+.switch-tabs-head {
+  flex: none;
+  padding: 6px 12px 2px;
+  color: var(--gh-text-muted);
+  font-size: 12px;
+}
+/* タブの行の一覧だけがスクロールする */
+.switch-tabs > .tab-rows {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
 
-/* 選んでいる行の、名前を変える・閉じるボタン */
+/* 行の名前を変える・閉じるボタン */
 .switch-btn {
   flex: none;
   display: grid;
@@ -184,4 +211,19 @@
 .switch-row[data-drop-target] {
   background: var(--card-row-active);
   box-shadow: inset 0 0 0 1px var(--card-accent);
+}
+
+/* 選んでいる行。左の行は、右の列と同じ地の色・同じ枠の線にして（右の枠は付けない）、右の列の左の線を隠し、1 枚につなげる。
+   card.css の選んだ行の見た目（地の色と outline）は使わない */
+.switcher .switch-row[aria-selected="true"] {
+  border-color: var(--gh-border-strong);
+  background: var(--gh-bg-side);
+  outline: none;
+}
+/* いまキーが効いている列の、選んでいる行の左端に、色の線を出す */
+.switcher-cols[data-col="ws"] .switch-row[aria-selected="true"] {
+  box-shadow: inset 3px 0 0 var(--card-accent);
+}
+.switcher-cols[data-col="tab"] .switch-tabs .tab-row[data-selected] {
+  box-shadow: inset 3px 0 0 var(--card-accent);
 }

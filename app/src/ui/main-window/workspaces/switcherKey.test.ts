@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import type { KeyLike } from "../../../features/commands/guiKeys.ts";
-import { confirmKey, switcherKey } from "./switcherKey.ts";
+import { confirmKey, switcherHints, switcherKey } from "./switcherKey.ts";
 
 const key = (k: string, mods: Partial<KeyLike> = {}): KeyLike => ({
   key: k,
@@ -29,7 +29,19 @@ describe("ワークスペースを切り替える窓のキー", () => {
     });
   });
 
-  it("Enter で移る。Tab と 1〜9 は受けない（j k で選ぶ）", () => {
+  it("h l と矢印の左右で、キーが効く列を移る", () => {
+    for (const k of ["h", "ArrowLeft"])
+      assert.deepEqual(switcherKey(key(k)), { kind: "col", to: "ws" });
+    for (const k of ["l", "ArrowRight"])
+      assert.deepEqual(switcherKey(key(k)), { kind: "col", to: "tab" });
+    assert.equal(switcherKey(key("h", { ctrlKey: true })), null);
+    assert.equal(switcherKey(key("l", { metaKey: true })), null);
+    assert.equal(switcherKey(key("l", { altKey: true })), null);
+    assert.equal(switcherKey(key("h", { isComposing: true })), null);
+    assert.equal(switcherKey(key("l", { keyCode: 229 })), null);
+  });
+
+  it("Enter で開く。Tab と 1〜9 は受けない（j k で選ぶ）", () => {
     assert.deepEqual(switcherKey(key("Enter")), { kind: "go" });
     assert.equal(switcherKey(key("Tab")), null);
     assert.equal(switcherKey(key("1")), null);
@@ -77,5 +89,30 @@ describe("閉じる確認のキー", () => {
     assert.equal(confirmKey(key("y", { ctrlKey: true })), null);
     assert.equal(confirmKey(key("y", { isComposing: true })), null);
     assert.equal(confirmKey(key("n", { keyCode: 229 })), null);
+  });
+});
+
+describe("窓の下のキーの説明", () => {
+  const labels = (col: "ws" | "tab", hasTabs: boolean) =>
+    switcherHints(col, hasTabs).flatMap((h) => h.keys);
+
+  it("ワークスペースの列では、並べ替え・作る・名前を変える・閉じるを出し、タブがあるときだけ l を出す", () => {
+    assert.deepEqual(labels("ws", true), [
+      "j",
+      "k",
+      "l",
+      "Enter",
+      "n",
+      "r",
+      "x",
+      "J",
+      "K",
+      "Esc",
+    ]);
+    assert.ok(!labels("ws", false).includes("l"));
+  });
+
+  it("タブの列では、タブの列で効くキーだけを出す（n r x J K は出さない）", () => {
+    assert.deepEqual(labels("tab", true), ["j", "k", "h", "Enter", "Esc"]);
   });
 });
