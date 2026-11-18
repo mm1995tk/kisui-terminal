@@ -158,6 +158,7 @@ const meta = {
     onTab: fn(),
     onReorder: fn(),
     onDrop: fn(),
+    onTabMove: fn(),
     onNew: fn(),
     renameInit: (gws: string) => {
       const r = ROWS.find((x) => x.gws === gws);

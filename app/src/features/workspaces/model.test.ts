@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
+import { moveView, type TabsState } from "../browser/tabs.ts";
 import type { KeyValueStore } from "../keyValueStore.ts";
 import {
   addBrowser,
@@ -26,6 +27,9 @@ import {
   moveBefore,
   moveTabBefore,
   moveTabStep,
+  moveTabTo,
+  shownTabKey,
+  gwsOfTab,
   steppableTabs,
   visibleTabs,
   refKey,
@@ -662,6 +666,149 @@ describe("nameErrorText", () => {
     assert.ok(nameErrorText("a".repeat(101)));
     assert.ok(nameErrorText("a\nb"));
     assert.notEqual(nameErrorText("a".repeat(101)), nameErrorText("a\nb"));
+  });
+});
+
+describe("moveTabTo（タブを別のワークスペースへ移す。#308）", () => {
+  const keys = (s: GwsState, id: string) =>
+    s.list.find((g) => g.id === id)!.tabs.map(refKey);
+  /** g1 は a の w1・b の w2・ブラウザの t1、g2 は a の w3、g3 は空。 */
+  function three(): GwsState {
+    const s = addBrowser(two(), "g1", "t1");
+    return {
+      list: [...s.list, { id: "g3", name: "", num: 3, tabs: [] }],
+    };
+  }
+
+  it("ターミナルのタブを、別のワークスペースの一番後ろへ移す。タブそのもの（マシン・ワークスペース・名前）は変わらない", () => {
+    const s = three();
+    const ref = s.list[0].tabs[1];
+    const z = moveTabTo(s, termKey("b", "w2"), "g2", null)!;
+    assert.deepEqual(keys(z, "g1"), [termKey("a", "w1"), browserKey("t1")]);
+    assert.deepEqual(keys(z, "g2"), [termKey("a", "w3"), termKey("b", "w2")]);
+    assert.equal(z.list[1].tabs[1], ref);
+    assert.equal(gwsOfTab(z, termKey("b", "w2"))?.id, "g2");
+    // どのタブも、どこか 1 つのワークスペースにだけある
+    const all = z.list.flatMap((g) => g.tabs.map(refKey));
+    assert.equal(new Set(all).size, all.length);
+    assert.equal(all.length, 4);
+  });
+
+  it("ブラウザのタブを、落とした位置（before の前）に入れる。つけた名前も付いて行く", () => {
+    const s = renameBrowser(three(), "t1", "docs");
+    const z = moveTabTo(s, browserKey("t1"), "g2", termKey("a", "w3"))!;
+    assert.deepEqual(keys(z, "g2"), [browserKey("t1"), termKey("a", "w3")]);
+    assert.deepEqual(z.list[1].tabs[0], {
+      kind: "browser",
+      id: "t1",
+      name: "docs",
+    });
+    // before が移動先のタブでなければ、一番後ろ
+    const y = moveTabTo(s, browserKey("t1"), "g2", termKey("a", "w1"))!;
+    assert.deepEqual(keys(y, "g2"), [termKey("a", "w3"), browserKey("t1")]);
+  });
+
+  it("空のワークスペースへ移せる。移動元の最後のタブを移しても、移動元は空のまま残る", () => {
+    const s = three();
+    const z = moveTabTo(s, termKey("a", "w3"), "g3", null)!;
+    assert.deepEqual(ids(z), ["g1", "g2", "g3"]);
+    assert.deepEqual(keys(z, "g2"), []);
+    assert.deepEqual(keys(z, "g3"), [termKey("a", "w3")]);
+    assert.deepEqual(nums(z), [1, 2, 3]);
+    // 移動元に、最後に使ったターミナルのタブの古い参照を残さない
+    assert.equal(z.list[1].term, undefined);
+    assert.deepEqual(repTerm(z.list[2]), term("a", "w3"));
+  });
+
+  it("移動元が最後に使っていたターミナルのタブを移したら、隣のターミナルのタブを最後に使ったものにする。移動先のものは変えない", () => {
+    const s = setActiveTerm(three(), "a", "w1");
+    const z = moveTabTo(s, termKey("a", "w1"), "g2", null)!;
+    assert.deepEqual(z.list[0].term, { target: "b", ws: "w2" });
+    assert.deepEqual(z.list[1].term, { target: "a", ws: "w3" });
+    // 使っていなかったタブを移しても、移動元の最後に使ったタブは変わらない
+    const y = moveTabTo(s, termKey("b", "w2"), "g2", null)!;
+    assert.deepEqual(y.list[0].term, { target: "a", ws: "w1" });
+  });
+
+  it("同じワークスペースへは、中での並べ替えになる", () => {
+    const s = three();
+    const z = moveTabTo(s, browserKey("t1"), "g1", termKey("a", "w1"))!;
+    assert.deepEqual(keys(z, "g1"), [
+      browserKey("t1"),
+      termKey("a", "w1"),
+      termKey("b", "w2"),
+    ]);
+    assert.equal(moveTabTo(s, browserKey("t1"), "g1", null), null);
+  });
+
+  it("タブか移動先が無ければ null", () => {
+    const s = three();
+    assert.equal(moveTabTo(s, termKey("a", "zz"), "g2", null), null);
+    assert.equal(moveTabTo(s, termKey("a", "w1"), "nope", null), null);
+  });
+
+  it("移した所属と並びは、記録に書いて読み直しても同じ", () => {
+    const z = moveTabTo(three(), termKey("b", "w2"), "g3", null)!;
+    assert.deepEqual(parseGws(JSON.parse(JSON.stringify(z))), z);
+  });
+
+  it("移したあとの整理（reconcile）は、タブを元のワークスペースへ戻さない（ブラウザのタブの開いたところが移動元のターミナルのタブでも）", () => {
+    const z = moveTabTo(three(), browserKey("t1"), "g2", null)!;
+    const r = reconcile(z, {
+      lists: { a: list("w1", "w3"), b: list("w2") },
+      browser: [{ id: "t1", target: "a", workspace: "w1" }],
+    });
+    assert.equal(r.state, z);
+    assert.deepEqual(r.close, []);
+  });
+});
+
+describe("タブを移したあとに、移動先が出すタブ（moveTabTo と features/browser/tabs.ts の moveView）", () => {
+  it("出していないブラウザのタブを、ブラウザのタブだけのワークスペースの先頭へ入れても、移動先が出すタブは替わらない", () => {
+    // A = [ターミナルのタブ, b0]（ターミナルのタブを出している）、B = [b1]。出すタブは、どちらも覚えていない
+    let s = addBrowser(
+      addWorkspace(EMPTY_GWS, "a", "w1", "w1", "A"),
+      "A",
+      "b0",
+    );
+    s = addBrowserWorkspace(s, "b1", "B");
+    const tab = (id: string) => ({
+      id,
+      target: "a",
+      workspace: "",
+      url: "",
+      title: "",
+    });
+    const t: TabsState = { tabs: [tab("b0"), tab("b1")], views: {} };
+    const has = () => true;
+    const before = shownBrowserId(s.list[1], t.views.B, has);
+    assert.equal(before, "b1");
+    const z = moveTabTo(s, browserKey("b0"), "B", browserKey("b1"))!;
+    const v = moveView(t, {
+      tab: "b0",
+      from: "A",
+      to: "B",
+      show: false,
+      destShown: before,
+    });
+    assert.deepEqual(z.list[1].tabs.map(refKey), [
+      browserKey("b0"),
+      browserKey("b1"),
+    ]);
+    assert.equal(shownBrowserId(z.list[1], v.views.B, has), "b1");
+  });
+});
+
+describe("shownTabKey", () => {
+  it("ブラウザのタブを出していればそれ、そうでなければ最後に使ったターミナルのタブ。タブが無ければ undefined", () => {
+    const s = addBrowser(two(), "g1", "t1");
+    const has = () => true;
+    assert.equal(shownTabKey(s.list[0], "t1", has), browserKey("t1"));
+    assert.equal(shownTabKey(s.list[0], undefined, has), termKey("a", "w1"));
+    assert.equal(
+      shownTabKey({ id: "g", name: "", num: 9, tabs: [] }, undefined, has),
+      undefined,
+    );
   });
 });
 

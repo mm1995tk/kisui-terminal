@@ -11,11 +11,17 @@ import {
 import { startDrag } from "../sidebar/drag.ts";
 import type { Row } from "../../../features/workspaces/rows.ts";
 import { type RowEdit, SwitcherRow, SwitcherTabs } from "./SwitcherParts.tsx";
-import { ModalCard, CardBody, CardTitle } from "../../components/Card.tsx";
+import {
+  ModalCard,
+  CardBody,
+  CardText,
+  CardTitle,
+} from "../../components/Card.tsx";
 import { Kbd, KeyHints } from "../../components/KeyHints.tsx";
 import { isCancelKey } from "../../components/cancelKey.ts";
 import { moveRow } from "../../../features/sessions/machineList.ts";
 import { confirmKey, switcherKey } from "./switcherKey.ts";
+import { startTabDrag } from "./tabMoveDrag.ts";
 import "./switcher.css";
 
 const rowId = (i: number) => `switcher-row-${i}`;
@@ -26,6 +32,8 @@ const rowId = (i: number) => `switcher-row-${i}`;
  * キーは switcherKey.ts、決まりは docs/key-design.md。左の行を 1 回押すと選ぶだけで、ダブルクリックか Enter で移る。
  * 行の左端のつかむ所からのドラッグで並べ替える（サイドバーの帯と同じ drag.ts。並びを覚えるのは呼んだ側）。
  * 右のタブの行を押すと、そのワークスペースのそのタブへ移る。移ったあとに窓を閉じるのは、呼んだ側（出すのをやめる）。
+ * 右のタブの行のつかむ所からのドラッグで、タブを並べ替える・別のワークスペースへ移す（#308。tabMoveDrag.ts）。ドラッグ中に左の行の上へ来ると、
+ * 右の列がそのワークスペースのタブに替わり、落とした位置に入る（左の行の上で落とすと、一番後ろに入る。空のワークスペースにも落とせる）。
  * 名前を変えるのは、行の中の入力欄（サイドバーの帯と同じ。変換を確定する Enter では決めない）。閉じるのは、y / n で確かめてから。
  */
 export function WorkspaceSwitcher(props: {
@@ -39,6 +47,8 @@ export function WorkspaceSwitcher(props: {
   onReorder: (gws: string, dir: "up" | "down") => void;
   /** つかんで落とした（before は、その行のすぐ前の GUI のワークスペースの id。一番後ろなら null） */
   onDrop: (gws: string, before: string | null) => void;
+  /** 右のタブの行をつかんで落とした（タブ key を、ワークスペース gws の before のタブの前へ。一番後ろなら null。別のワークスペースへも移せる） */
+  onTabMove: (key: string, gws: string, before: string | null) => void;
   /** 「ワークスペースを作る」（窓は閉じる） */
   onNew: () => void;
   /** 名前を変える入力欄を開くときの、今の名前と、空にしたときの番号の名前 */
@@ -65,6 +75,7 @@ export function WorkspaceSwitcher(props: {
   >();
   const [confirming, setConfirming] = createSignal<string | undefined>();
   let list!: HTMLUListElement;
+  let right!: HTMLDivElement;
 
   // 選ぶ行が見える所へ（9 個を超えると、一覧がスクロールする）
   createEffect(() => {
@@ -177,6 +188,28 @@ export function WorkspaceSwitcher(props: {
     });
   }
 
+  /**
+   * 右のタブの行のつかむ所を押した。左の行の上へ来たら、その行を選んで右の列を替える。やめたら、つかんだときのワークスペースを選び直す。
+   * 落としたあとは、落とした先のワークスペースを選んだままにする（移した結果が見える）。
+   */
+  function grabTab(e: PointerEvent, key: string) {
+    const from = selected()?.gws;
+    const row = (e.currentTarget as HTMLElement).closest<HTMLElement>(
+      "li.tab-row",
+    );
+    if (from === undefined || !row) return;
+    startTabDrag(e, {
+      row,
+      self: key,
+      left: list,
+      right,
+      shown: () => selected()?.gws,
+      onOver: select,
+      onDrop: (gws, before) => props.onTabMove(key, gws, before),
+      onCancel: () => select(from),
+    });
+  }
+
   return (
     <ModalCard
       label={T("switcher.label")}
@@ -197,6 +230,7 @@ export function WorkspaceSwitcher(props: {
               { keys: ["Esc"], label: T("switcher.keys.close") },
             ]}
           />
+          <CardText>{T("switcher.keys.dragTab")}</CardText>
         </CardBody>
       }
     >
@@ -253,9 +287,11 @@ export function WorkspaceSwitcher(props: {
               <Kbd>n</Kbd>
             </button>
           </div>
-          <div class="switcher-right">
+          <div class="switcher-right" ref={right}>
             <Show when={selected()}>
-              {(r) => <SwitcherTabs row={r()} onTab={props.onTab} />}
+              {(r) => (
+                <SwitcherTabs row={r()} onTab={props.onTab} onGrab={grabTab} />
+              )}
             </Show>
           </div>
         </div>

@@ -172,10 +172,12 @@ export function SwitcherRow(props: {
   );
 }
 
-/** 右の列：選んでいる行のワークスペースのタブの行（サイドバーの TabRow）だけ。 */
+/** 右の列：選んでいる行のワークスペースのタブの行（サイドバーの TabRow）だけ。行のつかむ所からのドラッグで、タブを移す（tabMoveDrag.ts）。 */
 export function SwitcherTabs(props: {
   row: Row;
   onTab: (gws: string, key: string) => void;
+  /** タブの行のつかむ所を押した。省くと動かせない */
+  onGrab?: (e: PointerEvent, key: string) => void;
 }): JSX.Element {
   const r = () => props.row;
   return (
@@ -191,6 +193,9 @@ export function SwitcherTabs(props: {
               shown={r().tabs.shown === t.key}
               current={r().tabs.shown === t.key && r().tabs.focused}
               onTab={() => props.onTab(r().gws, t.key)}
+              onGrab={
+                props.onGrab ? (e) => props.onGrab?.(e, t.key) : undefined
+              }
             />
           )}
         </For>

@@ -33,6 +33,7 @@ export const ja: Record<Key, string> = {
   "leader.tab.nth": "上から {n} 番目へ",
   "leader.tab.nth.range": "上から N 番目へ",
   "leader.tab.rename": "今のタブの名前を変える",
+  "leader.tab.moveTo": "今のタブを別のワークスペースへ移す",
   "cannot.pane.none.title": "ここにはペインがありません",
   "cannot.pane.none.text":
     "このワークスペースにはターミナルのタブが無いので、ペインがありません。ターミナルのタブは t n・t N で作れます。",
@@ -183,6 +184,10 @@ export const ja: Record<Key, string> = {
     "ワークスペースがありません。タブはワークスペースの下に開きます。",
   "err.page.open": "ページを開けませんでした",
   "cannot.workspace.title": "ワークスペースを作れません",
+  "cannot.tabMove.title": "タブを移せません",
+  "cannot.tabMove.noTab": "このワークスペースには、移すタブがありません。",
+  "cannot.tabMove.noWorkspace":
+    "移す先のワークスペースがありません。ワークスペースの窓（リーダーの w）の n で作れます。",
   "cannot.tab.disconnected":
     "{machine} につながっていません。マシンのダイアログ（リーダーの m）で、つなぎ直してください。",
   "cannot.workspace.text":
@@ -428,6 +433,11 @@ export const ja: Record<Key, string> = {
   "switcher.keys.closeWorkspace": "ワークスペースを閉じる",
   "switcher.confirmClose": "{title} を閉じますか。y：閉じる、n：やめる",
   "switcher.keys.reorder": "並べ替え",
+  "tabMove.label": "タブを移すワークスペース",
+  "tabMove.title": "「{title}」をどのワークスペースへ移しますか",
+  "tabMove.keys.move": "移す",
+  "switcher.keys.dragTab":
+    "タブの行のつかむ所をドラッグして、左のワークスペースの上へ運ぶと、そのワークスペースへ移せます",
   "kindPicker.label": "ワークスペースの種類",
   "kindPicker.title": "何のワークスペースを作りますか",
   "kindPicker.terminal": "ターミナル",

@@ -1,4 +1,4 @@
-// ワークスペースとタブにかかわる窓。閉じる前の確認・ワークスペースを切り替える窓（リーダーの w）・種類を選ぶ窓・マシンを選ぶ窓。
+// ワークスペースとタブにかかわる窓。閉じる前の確認・ワークスペースを切り替える窓（リーダーの w）・種類を選ぶ窓・マシンを選ぶ窓・タブを移す先を選ぶ窓。
 // タブの名前は窓を出さず、サイドバーのタブの行で変える（sidebar/workspaces/TabRow.tsx）。
 // 何を出すかは features/workspaces/controller.ts と features/workspaces/tabs/controller.ts の状態で決まる。
 import { Show, type JSX } from "solid-js";
@@ -9,6 +9,7 @@ import { MachinePicker } from "../sessions/MachinePicker.tsx";
 import { CloseWorkspaceCard } from "./CloseWorkspaceCard.tsx";
 import { WorkspaceKindPicker } from "./WorkspaceKindPicker.tsx";
 import { WorkspaceSwitcher } from "./WorkspaceSwitcher.tsx";
+import { TabMovePicker } from "./TabMovePicker.tsx";
 
 /** ワークスペースとタブにかかわる窓をまとめて出す。出していない窓は何も描かない。 */
 export function WorkspaceDialogs(props: {
@@ -49,6 +50,10 @@ export function WorkspaceDialogs(props: {
     confirmCloseTab,
     cancelCloseTab,
     closeTermTab,
+    moveTabBefore,
+    movingTab,
+    cancelTabMove,
+    submitTabMove,
   } = props.tabs;
   const closeSwitcher = () => props.onCloseSwitcher();
   return (
@@ -79,6 +84,7 @@ export function WorkspaceDialogs(props: {
           }}
           onReorder={reorder}
           onDrop={dropBefore}
+          onTabMove={(key, gid, before) => moveTabBefore(gid, key, before)}
           onNew={() => {
             closeSwitcher();
             newWorkspace();
@@ -133,6 +139,20 @@ export function WorkspaceDialogs(props: {
               void closeTermTab(c.target, c.ws, true);
             }}
             onNo={cancelCloseTab}
+          />
+        )}
+      </Show>
+      <Show when={movingTab()} keyed>
+        {(m) => (
+          <TabMovePicker
+            title={
+              rows()
+                .flatMap((r) => r.tabs.items)
+                .find((t) => t.key === m.key)?.title ?? ""
+            }
+            rows={rows().filter((r) => r.gws !== m.from)}
+            onChoose={(gid) => submitTabMove(m.key, gid)}
+            onCancel={cancelTabMove}
           />
         )}
       </Show>

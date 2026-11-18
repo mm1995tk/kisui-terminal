@@ -31,6 +31,7 @@ export const en = {
   "leader.tab.nth": "Go to number {n} from the top",
   "leader.tab.nth.range": "Go to number N from the top",
   "leader.tab.rename": "Rename this tab",
+  "leader.tab.moveTo": "Move this tab to another workspace",
   "cannot.pane.none.title": "No panes here",
   "cannot.pane.none.text":
     "This workspace has no terminal tabs, so it has no panes. Open a terminal tab with t n or t N.",
@@ -182,6 +183,10 @@ export const en = {
     "There is no workspace. A tab opens under a workspace.",
   "err.page.open": "Could not open the page",
   "cannot.workspace.title": "Cannot create a workspace",
+  "cannot.tabMove.title": "Cannot move the tab",
+  "cannot.tabMove.noTab": "This workspace has no tab to move.",
+  "cannot.tabMove.noWorkspace":
+    "There is no other workspace to move it to. Create one with n in the workspace window (leader w).",
   "cannot.tab.disconnected":
     "Not connected to {machine}. Reconnect it in the machine dialog (m in the leader).",
   "cannot.workspace.text":
@@ -429,6 +434,11 @@ export const en = {
   "switcher.keys.closeWorkspace": "close workspace",
   "switcher.confirmClose": "Close {title}? y: close, n: cancel",
   "switcher.keys.reorder": "reorder",
+  "tabMove.label": "Workspace to move the tab to",
+  "tabMove.title": "Move “{title}” to which workspace?",
+  "tabMove.keys.move": "Move",
+  "switcher.keys.dragTab":
+    "Drag a tab row by its grip over a workspace on the left to move it there",
   "kindPicker.label": "Kind of the new workspace",
   "kindPicker.title": "What do you want to create the workspace with?",
   "kindPicker.terminal": "Terminal",
