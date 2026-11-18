@@ -9,7 +9,7 @@ import {
 } from "solid-js";
 
 import { startDrag } from "../sidebar/drag.ts";
-import type { Row } from "../../../features/workspaces/rows.ts";
+import type { Row, TabItem } from "../../../features/workspaces/rows.ts";
 import { type RowEdit, SwitcherRow, SwitcherTabs } from "./SwitcherParts.tsx";
 import {
   ModalCard,
@@ -24,14 +24,19 @@ import { confirmKey, switcherKey } from "./switcherKey.ts";
 import { startTabDrag } from "./tabMoveDrag.ts";
 import "./switcher.css";
 
+/** キーが効いている列（左がワークスペース、右がそのタブ） */
+type Col = "ws" | "tab";
+
 const rowId = (i: number) => `switcher-row-${i}`;
 
 /**
  * ワークスペースを切り替える窓（リーダーの `w`。#282・#296）。ワークスペースの操作（移る・作る・名前を変える・閉じる・並べ替える）は、すべてここでする。
- * 左に全ワークスペース（サイドバーと同じ並び）、右に左で選んでいる行のタブの一覧だけを出す。
- * キーは switcherKey.ts、決まりは docs/key-design.md。左の行を 1 回押すと選ぶだけで、ダブルクリックか Enter で移る。
+ * 窓の大きさはメインのウィンドウの 60%（幅も高さも。switcher.css）に固定し、中身の数では伸び縮みしない。
+ * 左に全ワークスペース（サイドバーと同じ並び）、右に左で選んでいる行のタブの一覧だけを出す（左右は半分ずつ。選んでいる行と右の列は 1 枚につなげて見せる）。
+ * キーは 1 つの列にだけ効く（col。左がワークスペース、右がタブ）。h l で列を移り、j k でその列の選ぶ行を動かし、Enter で開く。
+ * キーは switcherKey.ts、決まりは docs/key-design.md。行を 1 回押すと選ぶだけで、選んでいる行をもう 1 回押すと開く（Enter と同じ）。
  * 行の左端のつかむ所からのドラッグで並べ替える（サイドバーの帯と同じ drag.ts。並びを覚えるのは呼んだ側）。
- * 右のタブの行を押すと、そのワークスペースのそのタブへ移る。移ったあとに窓を閉じるのは、呼んだ側（出すのをやめる）。
+ * 右のタブの行を開くと、そのワークスペースのそのタブへ移る。移ったあとに窓を閉じるのは、呼んだ側（出すのをやめる）。
  * 右のタブの行のつかむ所からのドラッグで、タブを並べ替える・別のワークスペースへ移す（#308。tabMoveDrag.ts）。ドラッグ中に左の行の上へ来ると、
  * 右の列がそのワークスペースのタブに替わり、落とした位置に入る（左の行の上で落とすと、一番後ろに入る。空のワークスペースにも落とせる）。
  * 名前を変えるのは、行の中の入力欄（サイドバーの帯と同じ。変換を確定する Enter では決めない）。閉じるのは、y / n で確かめてから。
@@ -39,9 +44,9 @@ const rowId = (i: number) => `switcher-row-${i}`;
 export function WorkspaceSwitcher(props: {
   /** サイドバーの行（GUI のワークスペース 1 つが 1 行）。並びは、ユーザーが並べた順 */
   rows: readonly Row[];
-  /** 左の行を選んで移った（Enter・ダブルクリック） */
+  /** 左の行を開いた（ワークスペースの列の Enter・選んでいる行をもう 1 回押した） */
   onGo: (row: Row) => void;
-  /** 右のタブの行を押した */
+  /** 右のタブの行を開いた（タブの列の Enter・選んでいるタブの行をもう 1 回押した） */
   onTab: (gws: string, key: string) => void;
   /** 1 つ下・上へ並べ替える（J K） */
   onReorder: (gws: string, dir: "up" | "down") => void;
@@ -74,13 +79,37 @@ export function WorkspaceSwitcher(props: {
     (RowEdit & { gws: string }) | undefined
   >();
   const [confirming, setConfirming] = createSignal<string | undefined>();
+  // キーが効いている列。タブが無いワークスペースでは、タブの列には移れない（col が "tab" のままでも、左にいるものとして扱う）
+  const [col, setCol] = createSignal<Col>("ws");
+  // 右の列で選んでいるタブの key。選んでいるワークスペースに無い key なら、出しているタブ、それも無ければ先頭を選んでいるものとする
+  const [tabSel, setTabSel] = createSignal<string | undefined>();
+  const tabs = (): readonly TabItem[] => selected()?.tabs.items ?? [];
+  const activeCol = (): Col =>
+    col() === "tab" && tabs().length > 0 ? "tab" : "ws";
+  const tabIndex = createMemo((): number => {
+    const items = tabs();
+    if (items.length === 0) return -1;
+    const at = (k: string | undefined) => items.findIndex((t) => t.key === k);
+    return Math.max(
+      0,
+      at(tabSel()) >= 0 ? at(tabSel()) : at(selected()?.tabs.shown),
+    );
+  });
+  const selectedTab = (): TabItem | undefined => tabs()[tabIndex()];
   let list!: HTMLUListElement;
   let right!: HTMLDivElement;
+  let root!: HTMLDivElement;
 
-  // 選ぶ行が見える所へ（9 個を超えると、一覧がスクロールする）
+  // 選ぶ行が見える所へ（一覧に収まらないと、一覧がスクロールする）
   createEffect(() => {
     const i = index();
     document.getElementById(rowId(i))?.scrollIntoView?.({ block: "nearest" });
+  });
+  createEffect(() => {
+    selectedTab();
+    right
+      .querySelector(".tab-row[data-selected]")
+      ?.scrollIntoView?.({ block: "nearest" });
   });
 
   // 確認や入力欄を出している行が、窓の外の理由（マシンが切れて記録から外れたなど）で消えたら、やめる（確認が見えないまま、キーが効かなくならないように）
@@ -100,16 +129,49 @@ export function WorkspaceSwitcher(props: {
     }
     setSel(gws);
   }
-  /** 窓のキーが届く一覧にフォーカスを戻す（ボタンや入力欄を使ったあと） */
-  const focusList = () => list.focus();
+  /** 窓のキーが届く所（2 つの列を囲む入れ物）にフォーカスを戻す（ボタンや入力欄を使ったあと） */
+  const focusList = () => root.focus();
+
+  /** ワークスペースの行を押した：選んでいる行（キーが左の列で効いているとき）をもう 1 回押すと開く。それ以外は選ぶだけ。 */
+  function pressRow(r: Row) {
+    if (
+      activeCol() === "ws" &&
+      selected()?.gws === r.gws &&
+      !editing() &&
+      confirming() === undefined
+    ) {
+      props.onGo(r);
+      return;
+    }
+    select(r.gws);
+    setCol("ws");
+    if (!editing()) focusList();
+  }
+  /** タブの行を押した：選んでいる行（キーが右の列で効いているとき）をもう 1 回押すと出す。それ以外は選ぶだけ。 */
+  function pressTab(gws: string, key: string) {
+    if (activeCol() === "tab" && selectedTab()?.key === key) {
+      props.onTab(gws, key);
+      return;
+    }
+    setEditing(undefined);
+    setConfirming(undefined);
+    setTabSel(key);
+    setCol("tab");
+    focusList();
+  }
 
   function startRename(r: Row) {
     const init = props.renameInit(r.gws);
     if (!init) return;
+    // 押した行の操作なので、その行を選ぶ（選ぶ行が変わると、ほかの行の入力欄や確認はやめる）
+    select(r.gws);
+    setCol("ws");
     setConfirming(undefined);
     setEditing({ gws: r.gws, ...init });
   }
   function startClose(r: Row) {
+    select(r.gws);
+    setCol("ws");
     setEditing(undefined);
     setConfirming(r.gws);
     focusList();
@@ -145,31 +207,42 @@ export function WorkspaceSwitcher(props: {
     const k = switcherKey(e);
     if (!k) return;
     e.preventDefault();
+    const inTabs = activeCol() === "tab";
     switch (k.kind) {
       case "move":
-        select(props.rows[moveRow(index(), k.to, props.rows.length)]?.gws);
+        if (inTabs)
+          setTabSel(tabs()[moveRow(tabIndex(), k.to, tabs().length)]?.key);
+        else select(props.rows[moveRow(index(), k.to, props.rows.length)]?.gws);
+        break;
+      case "col":
+        if (k.to === "ws") setCol("ws");
+        else if (tabs().length > 0) setCol("tab");
         break;
       case "go": {
         const r = selected();
-        if (r) props.onGo(r);
+        if (!r) break;
+        const t = selectedTab();
+        if (inTabs && t) props.onTab(r.gws, t.key);
+        else if (!inTabs) props.onGo(r);
         break;
       }
+      // 並べ替える・作る・名前を変える・閉じるは、ワークスペースの列だけで効く（タブの列では、別の issue で足す）
       case "reorder": {
         const r = selected();
-        if (r) props.onReorder(r.gws, k.dir);
+        if (r && !inTabs) props.onReorder(r.gws, k.dir);
         break;
       }
       case "new":
-        props.onNew();
+        if (!inTabs) props.onNew();
         break;
       case "rename": {
         const r = selected();
-        if (r) startRename(r);
+        if (r && !inTabs) startRename(r);
         break;
       }
       case "close": {
         const r = selected();
-        if (r) startClose(r);
+        if (r && !inTabs) startClose(r);
         break;
       }
     }
@@ -205,49 +278,68 @@ export function WorkspaceSwitcher(props: {
       right,
       shown: () => selected()?.gws,
       onOver: select,
-      onDrop: (gws, before) => props.onTabMove(key, gws, before),
+      onDrop: (gws, before) => {
+        props.onTabMove(key, gws, before);
+        // 落としたタブを選んだまま、タブの列へ（移した結果が見える）
+        setTabSel(key);
+        setCol("tab");
+      },
       onCancel: () => select(from),
     });
   }
 
+  /** いまキーが効いている列で効くキーだけを、下に出す */
+  const hints = (): { keys: string[]; label: string }[] =>
+    activeCol() === "tab"
+      ? [
+          { keys: ["j", "k"], label: T("machineDialog.keys.select") },
+          { keys: ["h"], label: T("switcher.keys.toWorkspaces") },
+          { keys: ["Enter"], label: T("switcher.keys.showTab") },
+          { keys: ["Esc"], label: T("switcher.keys.close") },
+        ]
+      : [
+          { keys: ["j", "k"], label: T("machineDialog.keys.select") },
+          ...(tabs().length > 0
+            ? [{ keys: ["l"], label: T("switcher.keys.toTabs") }]
+            : []),
+          { keys: ["Enter"], label: T("switcher.keys.go") },
+          { keys: ["n"], label: T("switcher.keys.new") },
+          { keys: ["r"], label: T("switcher.keys.rename") },
+          { keys: ["x"], label: T("switcher.keys.closeWorkspace") },
+          { keys: ["J", "K"], label: T("switcher.keys.reorder") },
+          { keys: ["Esc"], label: T("switcher.keys.close") },
+        ];
+
   return (
     <ModalCard
       label={T("switcher.label")}
-      width={880}
       closeOnOutside
       onCancel={props.onCancel}
       header={<CardTitle>{T("switcher.title")}</CardTitle>}
       footer={
         <CardBody>
-          <KeyHints
-            items={[
-              { keys: ["j", "k"], label: T("machineDialog.keys.select") },
-              { keys: ["Enter"], label: T("switcher.keys.go") },
-              { keys: ["n"], label: T("switcher.keys.new") },
-              { keys: ["r"], label: T("switcher.keys.rename") },
-              { keys: ["x"], label: T("switcher.keys.closeWorkspace") },
-              { keys: ["J", "K"], label: T("switcher.keys.reorder") },
-              { keys: ["Esc"], label: T("switcher.keys.close") },
-            ]}
-          />
+          <KeyHints items={hints()} />
           <CardText>{T("switcher.keys.dragTab")}</CardText>
         </CardBody>
       }
     >
       <div class="machine-dialog switcher">
-        <div class="switcher-cols">
+        <div
+          class="switcher-cols"
+          data-col={activeCol()}
+          tabIndex={0}
+          onKeyDown={onKeyDown}
+          ref={(el) => {
+            root = el;
+            queueMicrotask(() => el.focus());
+          }}
+        >
           <div class="switcher-left">
             <ul
               class="card-rows switch-rows"
-              tabIndex={0}
               role="listbox"
               aria-label={T("switcher.title")}
-              aria-activedescendant={selected() ? rowId(index()) : undefined}
-              onKeyDown={onKeyDown}
-              ref={(el) => {
-                list = el;
-                queueMicrotask(() => el.focus());
-              }}
+              ref={(el) => (list = el)}
             >
               <For each={props.rows}>
                 {(r, i) => (
@@ -257,11 +349,7 @@ export function WorkspaceSwitcher(props: {
                     selected={index() === i()}
                     edit={editing()?.gws === r.gws ? editing() : undefined}
                     confirming={confirming() === r.gws}
-                    onSelect={() => {
-                      select(r.gws);
-                      if (!editing()) focusList();
-                    }}
-                    onGo={() => props.onGo(r)}
+                    onPress={() => pressRow(r)}
                     onGrab={(e) => grab(e, r.gws)}
                     onRename={() => startRename(r)}
                     onClose={() => startClose(r)}
@@ -290,7 +378,12 @@ export function WorkspaceSwitcher(props: {
           <div class="switcher-right" ref={right}>
             <Show when={selected()}>
               {(r) => (
-                <SwitcherTabs row={r()} onTab={props.onTab} onGrab={grabTab} />
+                <SwitcherTabs
+                  row={r()}
+                  selectedKey={selectedTab()?.key}
+                  onTab={pressTab}
+                  onGrab={grabTab}
+                />
               )}
             </Show>
           </div>

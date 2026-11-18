@@ -186,3 +186,43 @@ export const NoTabs: Story = {
 export const Empty: Story = {
   args: { rows: [] },
 };
+
+const MANY_NAMES = [
+  "kisui-terminal",
+  "shijimi-editor",
+  "api-server",
+  "docs",
+  "infra",
+  "website",
+  "blog",
+  "dotfiles",
+  "scratch",
+  "experiments",
+  "release",
+  "review",
+  "mobile",
+  "data-pipeline",
+  "billing",
+  "auth-service",
+];
+
+const MANY_ROWS: Row[] = MANY_NAMES.map((name, i) => {
+  const m = i % 3 === 2 ? MACHINES.devbox : MACHINES.local;
+  const tabs: TabItem[] = Array.from({ length: 4 + (i % 9) }, (_, j) =>
+    j % 4 === 3
+      ? page(`b${i}-${j}`, `Page ${j}`, `https://example.com/${name}/${j}`)
+      : term(
+          `t${i}-${j}`,
+          j === 0 ? "zsh" : `shell ${j}`,
+          `~/workspaces/${name}`,
+          "main (81c705b)",
+          m,
+        ),
+  );
+  return row(`g${i}`, name, m, tabs, { focused: i === 0 });
+});
+
+/** ワークスペースもタブも多いとき。窓の大きさは変わらず、左の一覧と右のタブの一覧がそれぞれスクロールし、「ワークスペースを作る」は左の列の下端に残る。h / l で列を移り、j / k でその列の行を選ぶ。 */
+export const Many: Story = {
+  args: { rows: MANY_ROWS },
+};

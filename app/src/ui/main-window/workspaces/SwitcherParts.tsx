@@ -21,11 +21,10 @@ export interface RowEdit {
 }
 
 /**
- * 行の右端：選んでいる行の鉛筆（名前を変える）と ✕（閉じる）とタブの数。閉じる確認の間は、タブの数・ボタンの所にキーの y と n だけを出す。
+ * 行の右端：鉛筆（名前を変える）と ✕（閉じる）。どの行にもいつも出す。名前を変えている間は出さず、閉じる確認の間は、キーの y と n だけを出す。
  */
 function RowActions(props: {
   row: Row;
-  selected: boolean;
   editing: boolean;
   confirming: boolean;
   onRename: () => void;
@@ -36,46 +35,38 @@ function RowActions(props: {
     <Show
       when={props.confirming}
       fallback={
-        <>
-          <Show when={props.selected && !props.editing}>
-            <button
-              type="button"
-              class="switch-btn"
-              tabIndex={-1}
-              aria-label={T("sidebar.renameBand", { title: r().band.title })}
-              title={`${T("sidebar.rename")} (r)`}
-              onClick={(e) => {
-                e.stopPropagation();
-                props.onRename();
-              }}
-            >
-              <span class="nf" aria-hidden="true">
-                {ICON.pencil}
-              </span>
-            </button>
-            <button
-              type="button"
-              class="switch-btn"
-              tabIndex={-1}
-              aria-label={T("sidebar.closeBand", { title: r().band.title })}
-              title={`${T("sidebar.closeWorkspace")} (x)`}
-              onClick={(e) => {
-                e.stopPropagation();
-                props.onClose();
-              }}
-            >
-              <span class="nf" aria-hidden="true">
-                {ICON.close}
-              </span>
-            </button>
-          </Show>
-          <span
-            class="switch-count"
-            title={T("switcher.tabCount", { n: r().tabs.items.length })}
+        <Show when={!props.editing}>
+          <button
+            type="button"
+            class="switch-btn"
+            tabIndex={-1}
+            aria-label={T("sidebar.renameBand", { title: r().band.title })}
+            title={`${T("sidebar.rename")} (r)`}
+            onClick={(e) => {
+              e.stopPropagation();
+              props.onRename();
+            }}
           >
-            {r().tabs.items.length}
-          </span>
-        </>
+            <span class="nf" aria-hidden="true">
+              {ICON.pencil}
+            </span>
+          </button>
+          <button
+            type="button"
+            class="switch-btn"
+            tabIndex={-1}
+            aria-label={T("sidebar.closeBand", { title: r().band.title })}
+            title={`${T("sidebar.closeWorkspace")} (x)`}
+            onClick={(e) => {
+              e.stopPropagation();
+              props.onClose();
+            }}
+          >
+            <span class="nf" aria-hidden="true">
+              {ICON.close}
+            </span>
+          </button>
+        </Show>
       }
     >
       <span
@@ -90,9 +81,9 @@ function RowActions(props: {
 }
 
 /**
- * 左の 1 行：つかむ所・マシンの色の丸・名前・今の印・タブの数。
- * 選んでいる行には、名前を変えるボタン（鉛筆）と閉じるボタン（✕）が出る。名前を変えている間は名前の所が入力欄になり、
- * 閉じる確認の間はタブの数・ボタンの所にキーの y と n だけが出る。
+ * 左の 1 行：つかむ所・マシンの色の丸・名前・鉛筆と ✕。
+ * 名前を変えている間は名前の所が入力欄になり、閉じる確認の間は鉛筆と ✕ の所にキーの y と n だけが出る。
+ * 押したときにどうするか（選ぶだけか、開くか）は、呼んだ側が決める。
  */
 export function SwitcherRow(props: {
   id: string;
@@ -100,10 +91,8 @@ export function SwitcherRow(props: {
   selected: boolean;
   edit?: RowEdit;
   confirming: boolean;
-  /** 1 回押した（選ぶだけ） */
-  onSelect: () => void;
-  /** ダブルクリック（移って閉じる） */
-  onGo: () => void;
+  /** 押した */
+  onPress: () => void;
   /** つかむ所を押した */
   onGrab: (e: PointerEvent) => void;
   onRename: () => void;
@@ -119,13 +108,7 @@ export function SwitcherRow(props: {
       role="option"
       data-gws={r().gws}
       aria-selected={props.selected ? "true" : "false"}
-      onClick={() => props.onSelect()}
-      onDblClick={(e) => {
-        // つかむ所とボタンをすばやく 2 回押しても、移らない（確認や入力欄が出たまま移って閉じないように）
-        if (e.target instanceof Element && e.target.closest("button, .grip"))
-          return;
-        props.onGo();
-      }}
+      onClick={() => props.onPress()}
     >
       <span
         class="grip"
@@ -157,12 +140,8 @@ export function SwitcherRow(props: {
           />
         )}
       </Show>
-      <Show when={r().band.focused && !props.edit}>
-        <span class="switch-current">{T("switcher.current")}</span>
-      </Show>
       <RowActions
         row={r()}
-        selected={props.selected}
         editing={!!props.edit}
         confirming={props.confirming}
         onRename={props.onRename}
@@ -172,9 +151,15 @@ export function SwitcherRow(props: {
   );
 }
 
-/** 右の列：選んでいる行のワークスペースのタブの行（サイドバーの TabRow）だけ。行のつかむ所からのドラッグで、タブを移す（tabMoveDrag.ts）。 */
+/**
+ * 右の列：上に選んでいるワークスペースのタブの数、その下にタブの行（サイドバーの TabRow）。行のつかむ所からのドラッグで、タブを移す（tabMoveDrag.ts）。
+ * 余白は取らず、列いっぱいに使う（枠と地の色は、列の入れ物 .switcher-right が持つ）。
+ */
 export function SwitcherTabs(props: {
   row: Row;
+  /** キーで選んでいるタブの key（そのワークスペースに無ければ、どれも選ばない） */
+  selectedKey?: string;
+  /** タブの行を押した（選ぶだけか、出すかは、呼んだ側が決める） */
   onTab: (gws: string, key: string) => void;
   /** タブの行のつかむ所を押した。省くと動かせない */
   onGrab?: (e: PointerEvent, key: string) => void;
@@ -182,6 +167,9 @@ export function SwitcherTabs(props: {
   const r = () => props.row;
   return (
     <div class="switch-tabs" style={{ "--machine-color": r().color }}>
+      <div class="switch-tabs-head">
+        {T("switcher.tabCount", { n: r().tabs.items.length })}
+      </div>
       <ul
         class="tab-rows"
         aria-label={T("sidebar.tabsOf", { title: r().band.title })}
@@ -192,6 +180,7 @@ export function SwitcherTabs(props: {
               t={t}
               shown={r().tabs.shown === t.key}
               current={r().tabs.shown === t.key && r().tabs.focused}
+              selected={props.selectedKey === t.key}
               onTab={() => props.onTab(r().gws, t.key)}
               onGrab={
                 props.onGrab ? (e) => props.onGrab?.(e, t.key) : undefined

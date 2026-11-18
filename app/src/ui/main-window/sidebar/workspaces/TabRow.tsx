@@ -159,6 +159,8 @@ export function TabRow(props: {
   /** 出しているタブで、そのワークスペースにフォーカスしているか（強く光らせる） */
   current: boolean;
   onTab: () => void;
+  /** 切り替えの窓で、キーで選んでいる行か（印は switcher.css） */
+  selected?: boolean;
   /** 省くと ✕ を出さない（切り替えの窓の右のタブの一覧） */
   onClose?: () => void;
   onRename?: () => void;
@@ -178,6 +180,7 @@ export function TabRow(props: {
       data-health={t().health}
       data-shown={props.shown ? "" : undefined}
       data-current={props.current ? "" : undefined}
+      data-selected={props.selected ? "" : undefined}
     >
       <div class="tab-line">
         <Grip onGrab={props.onGrab} />

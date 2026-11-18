@@ -29,7 +29,19 @@ describe("ワークスペースを切り替える窓のキー", () => {
     });
   });
 
-  it("Enter で移る。Tab と 1〜9 は受けない（j k で選ぶ）", () => {
+  it("h l と矢印の左右で、キーが効く列を移る", () => {
+    for (const k of ["h", "ArrowLeft"])
+      assert.deepEqual(switcherKey(key(k)), { kind: "col", to: "ws" });
+    for (const k of ["l", "ArrowRight"])
+      assert.deepEqual(switcherKey(key(k)), { kind: "col", to: "tab" });
+    assert.equal(switcherKey(key("h", { ctrlKey: true })), null);
+    assert.equal(switcherKey(key("l", { metaKey: true })), null);
+    assert.equal(switcherKey(key("l", { altKey: true })), null);
+    assert.equal(switcherKey(key("h", { isComposing: true })), null);
+    assert.equal(switcherKey(key("l", { keyCode: 229 })), null);
+  });
+
+  it("Enter で開く。Tab と 1〜9 は受けない（j k で選ぶ）", () => {
     assert.deepEqual(switcherKey(key("Enter")), { kind: "go" });
     assert.equal(switcherKey(key("Tab")), null);
     assert.equal(switcherKey(key("1")), null);
