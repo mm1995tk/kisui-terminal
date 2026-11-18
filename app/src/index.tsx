@@ -2,9 +2,9 @@ import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { init } from "coneko-term";
 import { render } from "solid-js/web";
-import "./theme.css";
-import "./fonts.ts";
-import { POPUP_LABEL } from "./clipboardHistory.ts";
+import "./ui/styles/theme.css";
+import "./ui/styles/fonts.ts";
+import { POPUP_LABEL } from "./features/clipboard/history.ts";
 import { lang, setLang, T } from "./i18n/index.ts";
 
 // dragDropEnabled: false なので、OS からのドロップは WebView に届く。受け付けた欄（TerminalView）が止めなかった
@@ -43,13 +43,13 @@ if (isClipboardHistoryPopup()) {
   // 履歴の一覧だけを出す（ターミナルは使わない）。窓は透明で、カードの丸い角の外は地を塗らない
   document.documentElement.style.background = "transparent";
   document.body.style.background = "transparent";
-  const { ClipboardHistoryPopup } = await import("./ClipboardHistoryPopup.tsx");
+  const { ClipboardHistoryPopup } = await import("./ui/utilities/clipboard/page.tsx");
   render(() => <ClipboardHistoryPopup />, root);
 } else {
   // ターミナル（coneko-term）は wasm を読み終えてから作る。読み込めないと窓が真っ白になるので、理由を出す
   try {
     await init();
-    const { App } = await import("./App");
+    const { App } = await import("./ui/main-window/page.tsx");
     render(() => <App />, root);
   } catch (e) {
     console.error("failed to load coneko-term", e);
