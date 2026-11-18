@@ -25,6 +25,7 @@ import { moveRow } from "../../../features/sessions/machineList.ts";
 import { confirmKey, switcherHints, switcherKey } from "./switcherKey.ts";
 import { createSwitcherColumns } from "./switcherColumns.ts";
 import { createSwitcherTabActions } from "./switcherTabActions.ts";
+import { createSwitcherNewTab } from "./switcherNewTab.ts";
 import { startTabDrag } from "./tabMoveDrag.ts";
 import "./switcher.css";
 
@@ -114,10 +115,6 @@ export function WorkspaceSwitcher(props: {
   const [creating, setCreating] = createSignal<
     { auto: string; error?: string } | undefined
   >();
-  // 右の列の一番下に、タブを作る行を出している間（gws はそのワークスペースの id、error は断られた理由）
-  const [creatingTab, setCreatingTab] = createSignal<
-    { gws: string; error?: string } | undefined
-  >();
   // キーが効いている列と、右の列で選んでいるタブ（switcherColumns.ts）
   const { tabs, activeCol, selectedTab, toWs, toTabs, moveTab, pickTab } =
     createSwitcherColumns(selected);
@@ -144,8 +141,6 @@ export function WorkspaceSwitcher(props: {
     if (c !== undefined && !has(c)) setConfirming(undefined);
     const e = editing();
     if (e && !has(e.gws)) setEditing(undefined);
-    const t = creatingTab();
-    if (t && !has(t.gws)) setCreatingTab(undefined);
   });
 
   /** 選ぶ行を変える。名前を変える・閉じる確認は、その行のものなので、やめる。 */
@@ -153,10 +148,18 @@ export function WorkspaceSwitcher(props: {
     if (gws !== sel()) {
       setEditing(undefined);
       setConfirming(undefined);
-      setCreatingTab(undefined);
+      newTab.stop();
       tabActions.stop();
     }
     setSel(gws);
+  }
+  /** 入力欄・確認を全部やめる（どれかを始める前に呼び、ほかのものを残さない） */
+  function resetInputs() {
+    setEditing(undefined);
+    setConfirming(undefined);
+    setCreating(undefined);
+    newTab.stop();
+    tabActions.stop();
   }
   /** 窓のキーが届く所（2 つの列を囲む入れ物）にフォーカスを戻す（ボタンや入力欄を使ったあと） */
   const focusList = () => root.focus();
@@ -166,15 +169,25 @@ export function WorkspaceSwitcher(props: {
     selected,
     selectedTab,
     pickTab,
-    clearRowState: () => {
-      setEditing(undefined);
-      setConfirming(undefined);
-      setCreatingTab(undefined);
-    },
+    clearRowState: resetInputs,
     focusList,
     init: props.tabRenameInit,
     rename: props.onTabRename,
     close: props.onTabClose,
+  });
+  // 右の列のタブを作る操作（switcherNewTab.ts）
+  const newTab = createSwitcherNewTab({
+    selected,
+    sel,
+    has: (g) => props.rows.some((r) => r.gws === g),
+    machineCount: () => props.machines.length,
+    browser: () => props.browser,
+    create: props.onCreateTab,
+    openBrowser: props.onNewBrowserTab,
+    noMachine: props.onNoMachine,
+    pickTab,
+    focusList,
+    clearOthers: resetInputs,
   });
 
   /** ワークスペースの行を押した：選んでいる行（キーが左の列で効いているとき）をもう 1 回押すと開く。それ以外は選ぶだけ。 */
@@ -198,11 +211,7 @@ export function WorkspaceSwitcher(props: {
       props.onTab(gws, key);
       return;
     }
-    setCreating(undefined);
-    setCreatingTab(undefined);
-    setEditing(undefined);
-    setConfirming(undefined);
-    tabActions.stop();
+    resetInputs();
     pickTab(key);
     focusList();
   }
@@ -213,71 +222,21 @@ export function WorkspaceSwitcher(props: {
     // 押した行の操作なので、その行を選ぶ（選ぶ行が変わると、ほかの行の入力欄や確認はやめる）
     select(r.gws);
     toWs();
-    setConfirming(undefined);
-    tabActions.stop();
-    setCreating(undefined);
-    setCreatingTab(undefined);
+    resetInputs();
     setEditing({ gws: r.gws, ...init });
   }
   function startClose(r: Row) {
     select(r.gws);
     toWs();
-    setEditing(undefined);
-    tabActions.stop();
-    setCreating(undefined);
-    setCreatingTab(undefined);
+    resetInputs();
     setConfirming(r.gws);
     focusList();
   }
   /** 左の列の一番下に、名前の入力欄を出す（n・「ワークスペースを作る」）。ほかの入力欄・確認はやめる */
   function startCreate() {
     toWs();
-    setEditing(undefined);
-    setConfirming(undefined);
-    tabActions.stop();
-    setCreatingTab(undefined);
+    resetInputs();
     setCreating({ auto: props.createInit() });
-  }
-  /** 右の列の一番下に、タブの名前とマシンの行を出す（n・「＋」）。ほかの入力欄・確認はやめる。マシンが 1 つも無ければ、出さずに呼んだ側が伝える */
-  function startCreateTab() {
-    if (!selected()) return;
-    if (props.machines.length === 0) {
-      props.onNoMachine();
-      return;
-    }
-    setEditing(undefined);
-    setConfirming(undefined);
-    setCreating(undefined);
-    tabActions.stop();
-    setCreatingTab({ gws: selected()!.gws });
-  }
-  /** 名前とマシンを決めた。作れそうなら行を閉じ、できたタブを右の列で選ぶ（窓は閉じない）。断られたら、理由を出して行は開けたまま */
-  function submitCreateTab(name: string, machine: string) {
-    const c = creatingTab();
-    if (!c) return;
-    const res = props.onCreateTab(c.gws, machine, name);
-    if ("error" in res) {
-      setCreatingTab({ ...c, error: res.error });
-      return;
-    }
-    setCreatingTab(undefined);
-    focusList();
-    void res.key.then((key) => {
-      if (key !== undefined && sel() === c.gws) pickTab(key);
-    });
-  }
-  /** ブラウザのタブを開き（N・地球儀）、できたタブを右の列で選ぶ（窓は閉じない）。内蔵ブラウザが無効なら何もしない */
-  function newBrowserTab() {
-    const r = selected();
-    if (!props.browser || !r) return;
-    setEditing(undefined);
-    setConfirming(undefined);
-    setCreating(undefined);
-    setCreatingTab(undefined);
-    tabActions.stop();
-    const key = props.onNewBrowserTab(r.gws);
-    if (key !== undefined) pickTab(key);
-    focusList();
   }
   /** 入力欄で名前を決めた。作れたら、作ったワークスペースを選ぶ（窓は閉じない）。断られたら、理由を出して入力欄は開けたまま */
   function submitCreate(name: string) {
@@ -351,11 +310,11 @@ export function WorkspaceSwitcher(props: {
         break;
       }
       case "new":
-        if (inTabs) startCreateTab();
+        if (inTabs) newTab.start();
         else startCreate();
         break;
       case "newBrowser":
-        newBrowserTab();
+        newTab.openBrowser();
         break;
       case "rename": {
         const r = selected();
@@ -532,17 +491,17 @@ export function WorkspaceSwitcher(props: {
                     if (byKey) focusList();
                   }}
                   browser={props.browser}
-                  onNewBrowser={newBrowserTab}
-                  onNewTab={startCreateTab}
+                  onNewBrowser={newTab.openBrowser}
+                  onNewTab={newTab.start}
                   newTab={
-                    creatingTab()?.gws === r().gws
+                    newTab.creating()?.gws === r().gws
                       ? {
                           machines: props.machines,
                           initial: r().target,
-                          error: creatingTab()?.error,
-                          onSubmit: submitCreateTab,
+                          error: newTab.creating()?.error,
+                          onSubmit: newTab.submit,
                           onCancel: (byKey) => {
-                            setCreatingTab(undefined);
+                            newTab.stop();
                             if (byKey) focusList();
                           },
                         }
