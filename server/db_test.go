@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -189,9 +190,7 @@ func TestDBPasswordFromWindow(t *testing.T) {
 		ctx := context.Background()
 		query := func(extra map[string]any) error {
 			p := map[string]any{"connection": conn.Name, "sql": "SELECT 1"}
-			for k, v := range extra {
-				p[k] = v
-			}
+			maps.Copy(p, extra)
 			return c.Call(ctx, "db.query", p, nil)
 		}
 		if code, data := dbErr(t, query(nil)); code != rpc.CodePasswordRequired || data["reason"] != "missing" {
