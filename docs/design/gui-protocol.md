@@ -530,7 +530,7 @@ GUI は複数のワークスペースのツリーを（開閉の状態を持っ�
 | `db.query` | → shj | `{connection, sql, password?, maxRows?, queryId?}` → `{columns: [{name, type, kind: "number"\|"boolean"\|"binary"\|"text"}], rows: [[string\|null, ...]], rowCount, truncated, truncatedCells?, rowsAffected?, elapsedMs}`。`connection`（接続の `name`）に `sql` を 1 つ実行する。断られ方は下 |
 | `db.cancel` | → shj | `{queryId}` → `{}`。`queryId` を付けた、動いている `db.query` を取り消す。DB にその SQL を止めさせ、その `db.query` は `db_error`（`kind` は `cancelled`）で返る。動いていなければ `not_found` |
 
-- **設定**：接続（名前・種類・ホスト・ポート・ユーザー・DB 名・`read-only`）は、`kisui serve` が動くマシンの `config.toml`・`config.local.toml` の `[[db.connections]]`。`config.local.toml` に一覧があれば、`config.toml` の一覧を丸ごと置き換える（`[[gui.machines]]` と同じ）。`[server]` と違い、起動のときではなく **`db.*` の要求のたびに読む**：`kisui serve` は長く動き続け、止めるとターミナルが終わるので、止めずに接続を足せるようにする。同じ理由で、ここの間違いは `kisui serve` の起動を止めず、`db.connections` の `problems` で返す。
+- **設定**：接続（名前・種類・ホスト・ポート・ユーザー・DB 名・`read-only`）は、`kisui serve` が動くマシンの `config.toml`・`config.local.toml` の `[[db.connections]]`。`config.local.toml` に一覧があれば、`config.toml` の一覧を丸ごと置き換える（`[[gui.machines]]` と同じ）。`[server]` と違い、起動のときではなく **`db.*` の要求のたびに読む**：`kisui serve` は長く動き続け、止めるとターミナルが終わるので、止めずに接続を足せるようにする。同じ理由で、ここの間違いは `kisui serve` の起動を止めず、`db.connections` の `problems` で返す。接続の中の知らないキーも間違いにする（`read-only` を書き間違えた接続が、守られているように見えて書き込める、ということが起きないように）。
 - **パスワード**は設定に書かない（`password` のキーは間違いとして返す）。`db.query` のたびに、次の順に探す（`internal/db/password.go` の `Passwords`）。
   1. OS のキーチェーン（macOS だけ。サービス `kisui-terminal-db`、アカウントは接続の名前の汎用パスワード。`/usr/bin/security` で読む）。Linux の Secret Service は使わない（ssh の先のマシンには、聞く相手のセッションバスが無い）。
   2. `~/.pgpass`（PostgreSQL。`PGPASSFILE` があればそちら）・`~/.my.cnf` の `[client]`（MySQL）。

@@ -69,4 +69,5 @@ var ja = map[string]string{
 	"config.err.port":       "1 から 65535 までで書いてください",
 	"config.err.dupname":    "%q という名前は、前の接続が使っています",
 	"config.err.password":   "パスワードは設定に書きません。このキーを消し、パスワードはキーチェーン（macOS）か ~/.pgpass・~/.my.cnf に置くか、聞かれたときに入力してください",
+	"config.err.unknown":    "接続のキーではありません。使えるキー: %s",
 }

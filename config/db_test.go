@@ -98,6 +98,7 @@ func TestLoadDBMistakes(t *testing.T) {
 		"read-only":     {"name = \"x\"\nkind = \"mysql\"\nuser = \"u\"\nread-only = \"yes\"\n", "db.connections[1].read-only"},
 		"password":      {"name = \"x\"\nkind = \"mysql\"\nuser = \"u\"\npassword = \"secret\"\n", "db.connections[1].password"},
 		"control chars": {"name = \"x\"\nkind = \"mysql\"\nuser = \"u\"\nhost = \"a\\nb\"\n", "db.connections[1].host"},
+		"misspelt key":  {"name = \"x\"\nkind = \"mysql\"\nuser = \"u\"\nreadonly = true\n", "db.connections[1].readonly"},
 	} {
 		n, text := entry(c.body)
 		if n != 1 || !strings.Contains(text, c.key+": ") {

@@ -69,4 +69,5 @@ var en = map[string]string{
 	"config.err.port":       "must be from 1 to 65535",
 	"config.err.dupname":    "the name %q is used by an earlier connection",
 	"config.err.password":   "a password is not written in the settings. Remove this key, and put the password in the keychain (macOS), in ~/.pgpass or ~/.my.cnf, or type it when asked",
+	"config.err.unknown":    "is not a key of a connection. The keys are: %s",
 }

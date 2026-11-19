@@ -40,7 +40,7 @@ read-only = true
 
 - A list in `config.local.toml` replaces the list of `config.toml` as a whole.
 - The settings are read each time the list is asked for, so a connection you add shows without restarting `kisui serve`.
-- A mistake in a connection does not stop `kisui serve`. That connection is left out of the list, and the mistake is reported with it.
+- A mistake in a connection does not stop `kisui serve`. That connection is left out of the list, and the mistake is reported with it. A key that is not in the table above is a mistake too, so that a misspelt `read-only` does not give a connection that can write.
 - `read-only` is there to prevent accidents, not to replace rights. For a database nobody may write to, log in as a user that can only read.
 
 ## Passwords
