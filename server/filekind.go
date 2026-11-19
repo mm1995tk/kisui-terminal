@@ -11,13 +11,13 @@ import (
 )
 
 // fileKind is a kind of pane that shows one file (video, image, pdf). To add a
-// kind, add one entry to fileKinds, the kind to ExtraPane in app/src/rpc/protocol.ts
+// kind, add one entry to fileKinds, the kind to ExtraPane in app/src/infrastructure/rpc/protocol.ts
 // and a view in app/src/terminal (see docs/design/gui-protocol.md).
 type fileKind struct {
 	// mime maps a lower-case extension (with the dot) to the media type.
 	mime map[string]string
 	// maxSize is the largest file the pane opens, in bytes (0: no limit here;
-	// the GUI has its own limit, MAX_BYTES in app/src/terminal/media.ts: keep them equal).
+	// the GUI has its own limit, MAX_BYTES in app/src/features/terminal/media.ts: keep them equal).
 	maxSize int64
 }
 

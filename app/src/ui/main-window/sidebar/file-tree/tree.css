@@ -1,0 +1,134 @@
+/* ツリー（D2）。親 #271 のモック「案：フラットな一覧」の寸法に合わせる：
+   行の高さ 22px、左右 8px、深さごとに 16px の縦線、矢印とアイコンは 16px。
+   色は theme.css の GitHub Dark（shijimi-editor の GithubDark と同じ）。印の色は、変更・追跡していないは Dirty、追加・名前変更・衝突は GitAdded、
+   削除は GitDeleted、無視は Dim。 */
+
+.tree {
+  --tree-guide: var(--gh-indent-guide);
+  --tree-dirty: var(--gh-yellow);
+  --tree-added: var(--gh-green);
+  --tree-deleted: var(--gh-red);
+  --tree-dim: var(--gh-text-dim);
+  --tree-hover: var(--gh-bg-raised);
+  --tree-current: var(--gh-bg-selected);
+
+  display: flex;
+  flex-direction: column;
+  padding: 2px 0 6px;
+}
+
+.tree-row {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  color: var(--sidebar-text, var(--gh-text));
+  white-space: nowrap;
+  cursor: default;
+  user-select: none;
+  /* キーで動かしてフォーカスした行が、上に固定された親のフォルダの行（top と同じ式）に隠れないようにする
+     （ファイルツリーの段は、CHANGES とは別にスクロールするので、下には何も重ならない） */
+  scroll-margin-top: calc(var(--tree-sticky-top, 0px) + var(--tree-depth, 0) * 22px);
+}
+.tree-row:not(.tree-truncated) {
+  cursor: pointer;
+}
+/* その場の入力欄のある行（名前の変更・新しいファイル）。断られた理由が入力欄の下に出たら、行を伸ばす */
+.tree-row[data-editing] {
+  height: auto;
+  min-height: 22px;
+  cursor: default;
+}
+
+/* 開いたフォルダの行は、中身（.tree-group の中）をスクロールしている間だけ上に固定する（D3）。
+   深さごとに 1 行ずつ下にずらして親から順に積む。押し出される子の行は親の行の下に潜るよう、深いほど下に描く。--tree-sticky-top は、段の上に固定するものの高さ（今は無いので 0）。
+   後ろの行が透けないよう、背景を敷く。固定されているあいだ（data-stuck、Sidebar.tsx が付ける）はモックの色にする */
+.tree-row[data-sticky] {
+  position: sticky;
+  top: calc(var(--tree-sticky-top, 0px) + var(--tree-depth, 0) * 22px);
+  z-index: calc(100 - var(--tree-depth, 0));
+  background: var(--sidebar-bg, var(--gh-bg-side));
+}
+.tree-row[data-stuck] {
+  background: var(--tree-hover);
+}
+.tree-row:hover {
+  background: var(--tree-hover);
+}
+/* プライマリの shj が出しているファイルの行（モックの色） */
+.tree-row[aria-selected="true"] {
+  background: var(--tree-current);
+}
+.tree-row:focus-visible {
+  outline: 1px solid var(--machine-color, #8fb4ff);
+  outline-offset: -1px;
+}
+
+/* 縦線は親フォルダの矢印の真ん中（16px の幅の 8px のところ）に引く */
+.tree-guide {
+  flex: 0 0 8px;
+  margin-left: 8px;
+  align-self: stretch;
+  border-left: 1px solid var(--tree-guide);
+}
+
+.tree-chevron {
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: var(--sidebar-text, var(--gh-text));
+  stroke-width: 1.5;
+}
+
+.tree-icon {
+  flex: none;
+  margin: 0 6px 0 2px;
+}
+
+.tree-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tree-link {
+  flex: none;
+  margin-left: 4px;
+  color: var(--sidebar-muted, var(--gh-text-muted));
+  font-size: 11px;
+}
+
+.tree-mark {
+  flex: none;
+  width: 14px;
+  text-align: center;
+}
+
+/* 印のある行は、名前と印を印の色にする（TUI と同じ） */
+.tree-row[data-mark="M"],
+.tree-row[data-mark="untracked"],
+.tree-row[data-mark="children"] {
+  color: var(--tree-dirty);
+}
+.tree-row[data-mark="A"],
+.tree-row[data-mark="R"],
+.tree-row[data-mark="U"] {
+  color: var(--tree-added);
+}
+.tree-row[data-mark="D"] {
+  color: var(--tree-deleted);
+}
+.tree-row[data-mark="ignored"] {
+  color: var(--tree-dim);
+}
+.tree-row[data-mark="ignored"] .tree-icon {
+  opacity: 0.55;
+}
+
+.tree-truncated {
+  color: var(--sidebar-muted, var(--gh-text-muted));
+  font-size: 12px;
+}

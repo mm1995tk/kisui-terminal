@@ -1,0 +1,167 @@
+/* 差分モードの CHANGES の一覧。ファイルエクスプローラ（tree.css）の下に、段の区切りの線（sidebar.css の .tree-section と同じ 2px の濃い線）で区切って出す。
+   行の高さと左右の余白、色はツリーと同じ（GitHub Dark）。サイドバーの一番下の段（#44・#284）。
+   タブの段とファイルツリーの段（sidebar.css の .tree-section）はその上にあり、それぞれの中でスクロールするので、
+   ツリーが長くても CHANGES はいつも見える。行が多いときは .changes-list の中でスクロールする。 */
+
+.changes {
+  border-top: 2px solid var(--color-border-strong);
+  padding: 4px 0 6px;
+  position: relative;
+  z-index: 102;
+  flex: none;
+  background: var(--sidebar-bg, var(--gh-bg-side));
+}
+
+/* 6 行半（--changes-h の元の値）。これより多いときは中でスクロールする（ツリーの場所を食いつぶさない）。
+   高さはツリーとの境目のドラッグ・リサイズモードで変えられる（#152。ui/main-window/layout.tsx が --changes-h に入れる）。窓の高さの半分までにする */
+.changes-list {
+  max-height: min(var(--changes-h, 143px), 50vh);
+  overflow-y: auto;
+}
+.changes-list::-webkit-scrollbar {
+  width: 4px;
+}
+.changes-list::-webkit-scrollbar-thumb {
+  background: var(--gh-border-strong);
+  border-radius: 2px;
+}
+.changes-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.changes-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  height: 22px;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--sidebar-muted, var(--gh-text-muted));
+}
+.changes-count {
+  font-weight: 400;
+  color: var(--gh-text-dim);
+}
+
+.changes-empty {
+  margin: 0;
+  padding: 2px 8px;
+  font-size: 12px;
+  color: var(--sidebar-muted, var(--gh-text-muted));
+}
+
+.changes-row {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 8px 0 calc(8px + var(--changes-depth, 0) * 12px);
+  color: var(--sidebar-text, var(--gh-text));
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+.changes-row:hover {
+  background: var(--changes-hover, var(--gh-bg-raised));
+}
+.changes-row[aria-selected="true"] {
+  background: var(--gh-bg-selected);
+}
+.changes-row:focus-visible {
+  outline: 1px solid var(--machine-color, #8fb4ff);
+  outline-offset: -1px;
+}
+
+.changes-name {
+  flex: none;
+  max-width: 70%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.changes-chevron {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: var(--gh-text-dim);
+  stroke-width: 1.6;
+}
+.changes-dircount {
+  flex: none;
+  font-size: 11px;
+  color: var(--gh-text-dim);
+}
+.changes-row[data-kind="dir"] {
+  font-weight: 500;
+}
+.changes-viewed {
+  flex: none;
+  font-size: 11px;
+  font-family: var(--gh-mono);
+  color: var(--gh-text-dim);
+}
+.changes-added {
+  flex: none;
+  font-size: 11px;
+  color: var(--gh-green);
+}
+.changes-deleted {
+  flex: none;
+  font-size: 11px;
+  color: var(--gh-red);
+}
+.changes-mark {
+  flex: none;
+  width: 14px;
+  margin-left: auto;
+  text-align: center;
+}
+
+/* 印の色はツリーと同じ：変更は黄、追加と名前変更は緑、削除は赤 */
+.changes-row[data-letter="M"] .changes-mark,
+.changes-row[data-letter="B"] .changes-mark {
+  color: var(--gh-yellow);
+}
+.changes-row[data-letter="A"] .changes-mark,
+.changes-row[data-letter="R"] .changes-mark {
+  color: var(--gh-green);
+}
+.changes-row[data-letter="D"] .changes-mark {
+  color: var(--gh-red);
+}
+.changes-row[data-letter="D"] .changes-name {
+  color: var(--gh-red);
+  text-decoration: line-through;
+}
+
+.changes-base {
+  font-weight: 400;
+  color: var(--gh-text-dim);
+}
+.changes-base[data-base="pr"] {
+  color: var(--sidebar-muted, var(--gh-text-muted));
+  font-weight: 600;
+}
+
+/* ファイルツリーとの境目のつまみ（#152）。見える線は引かない（.changes の上の 2px の線のまま。棒は sidebar.css の .changes-resizer::after）。当たりは上下 3px。
+   ドラッグ中とリサイズモードで選んでいる間は、マシンの色で光らせる（app.css の .resizer と同じ） */
+.changes-resizer {
+  position: absolute;
+  top: -3px;
+  left: 0;
+  right: 0;
+  height: 6px;
+  cursor: row-resize;
+  touch-action: none;
+}
+/* 線は .changes の border（つまみの上端から 1〜3px。.changes の border は padding の端の上 -2〜0px にあり、つまみは top: -3px）。棒はその真ん中 */
+.changes-resizer::after {
+  top: 0;
+}
+.app[data-lit-changes] .changes-resizer {
+  background: var(--machine-color, var(--gh-accent-text));
+}

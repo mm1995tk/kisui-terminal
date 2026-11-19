@@ -7,13 +7,13 @@
 //! PDF の欄は iframe で、欄の中を押すとキーが PDF の表示に取られ、親の画面の `keydown` に届かない。
 //! そのまま Cmd+W を押すと、既定メニューの「閉じる」が動いて、アプリの窓が閉じてしまう。
 //! 差し替えた「閉じる」は窓を閉じず、画面（`close-request` のイベント）に任せる。
-//! 今の欄を閉じるか、窓を閉じるかは画面が決める（`app/src/guiKeys.ts` の `closeTarget`）。
+//! 今の欄を閉じるか、窓を閉じるかは画面が決める（`app/src/features/commands/guiKeys.ts` の `closeTarget`）。
 
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 
 /// 差し替えた「閉じる」のメニューの id。
 pub const CLOSE_ID: &str = "kisui-close";
-/// 画面へ送るイベント名（`app/src/App.tsx` が受ける）。
+/// 画面へ送るイベント名（`app/src/ui/main-window/keys.ts` が受ける）。
 pub const CLOSE_EVENT: &str = "close-request";
 
 /// 既定のメニューの「閉じる」を差し替えたメニューを付ける（macOS だけ）。

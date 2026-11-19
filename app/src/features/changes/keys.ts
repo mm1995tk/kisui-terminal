@@ -1,0 +1,174 @@
+// サイドバーの CHANGES の行にフォーカスがあるときのキー（#45）。割り当ては TUI の CHANGES
+// （shijimi-editor の core/gitdiff.go の handleChangesKey）に合わせる。
+// DOM を使わないので node --test で確かめられる。行を動かすのは ChangesView.tsx、shj に頼むのは controller.ts。
+
+import { type ComposingKeyLike, isComposingKey } from "../commands/ime.ts";
+import { isEditorKey } from "../commands/guiKeys.ts";
+import type { ChangesShjKey } from "../../infrastructure/rpc/protocol.ts";
+import type { ChangeEntry } from "./model.ts";
+
+/** フォーカスを移す先。 */
+export type ChangesMove = "next" | "prev" | "first" | "last" | "parent";
+
+/** キーでする操作。 */
+export type ChangesAction =
+  /** ほかの行へフォーカスを移す */
+  | { kind: "move"; to: ChangesMove }
+  /** フォルダを開く・閉じる（open: 開く、close: 閉じる、toggle: 逆にする） */
+  | { kind: "folder"; op: "open" | "close" | "toggle" }
+  /** 変更を開く（shj.diff）。行を押したのと同じ */
+  | { kind: "open" }
+  /** shj の CHANGES のキーを shj に渡す（shj.changesKey）。space のあとの 1 文字は ChangesView が続きとして渡す */
+  | { kind: "shj"; key: ChangesShjKey }
+  /** kisui のファイルエクスプローラに移る（Tab） */
+  | { kind: "explorer" }
+  /** 一覧を出て端末へ戻る（Esc・q） */
+  | { kind: "leave" }
+  /** この場所のキーの一覧を出す（?） */
+  | { kind: "help" };
+
+/** 押したキー（KeyboardEvent のうち使うところ）。 */
+export interface ChangesKey extends ComposingKeyLike {
+  ctrlKey?: boolean;
+  metaKey?: boolean;
+  altKey?: boolean;
+  shiftKey?: boolean;
+}
+
+/**
+ * 行でキーを押したときの操作。割り当ての無いキーは null（ブラウザの既定の動きや窓のショートカットをじゃましない）。
+ * Ctrl・Cmd・Alt を押しながらのキーは使わない。Tab は Shift なしだけ（Shift+Tab は既定の動き）。
+ *
+ * TUI の割り当て（表は Issue #45）：
+ * - k ↑ / j ↓ で上下、g Home / G End で最初・最後、h ← でフォルダを閉じる（閉じていれば親へ）、l → でフォルダを開く・変更を開く、
+ *   Enter・o でフォルダの開け閉め・変更を開く。
+ * - s は split / unified、r・R は読み直す（shj が行う）。Space は Space メニュー、: はコマンド行（どれも shj に渡し、続きのキーは端末から shj に届く）。
+ * - Tab でエクスプローラへ、Esc・q・Ctrl+E で端末（エディタ）へ戻る。
+ * - ? でこの場所のキーの一覧（kisui の案内。shj には渡さない）。
+ */
+export function changesKey(
+  entry: Pick<ChangeEntry, "kind" | "expanded">,
+  e: ChangesKey,
+): ChangesAction | null {
+  if (isComposingKey(e)) return null;
+  // Ctrl+E は TUI と同じ、エディタ（端末の shj）へ戻るキー（#77）。CHANGES が GUI にあるあいだ、shj のフォーカスはエディタにある
+  if (isEditorKey(e)) return { kind: "leave" };
+  if (e.ctrlKey || e.metaKey || e.altKey) return null;
+  const dir = entry.kind === "dir";
+  const move = (to: ChangesMove): ChangesAction => ({ kind: "move", to });
+  switch (e.key) {
+    case "j":
+    case "ArrowDown":
+      return move("next");
+    case "k":
+    case "ArrowUp":
+      return move("prev");
+    case "g":
+    case "Home":
+      return move("first");
+    case "G":
+    case "End":
+      return move("last");
+    case "h":
+    case "ArrowLeft":
+      return dir && entry.expanded
+        ? { kind: "folder", op: "close" }
+        : move("parent");
+    case "l":
+    case "ArrowRight":
+      return dir ? { kind: "folder", op: "open" } : { kind: "open" };
+    case "Enter":
+    case "o":
+      return dir ? { kind: "folder", op: "toggle" } : { kind: "open" };
+    case "s":
+    case "r":
+    case "R":
+    case ":":
+      return { kind: "shj", key: e.key };
+    case " ":
+      return { kind: "shj", key: "space" };
+    case "Tab":
+      return e.shiftKey ? null : { kind: "explorer" };
+    case "Escape":
+    case "q":
+      return { kind: "leave" };
+    case "?":
+      return { kind: "help" };
+  }
+  return null;
+}
+
+/**
+ * TUI の CHANGES が受けるキー（handleChangesKey の case の名前。space w の w は Space メニューの続きなので入れない）。
+ * TUI にキーが増えたら、ここにも足す。足すと、keys.test.ts が changesKey の割り当てを求める。
+ */
+export const TUI_CHANGES_KEYS: readonly string[] = [
+  "up",
+  "k",
+  "down",
+  "j",
+  "home",
+  "g",
+  "end",
+  "G",
+  "h",
+  "left",
+  "l",
+  "right",
+  "enter",
+  "o",
+  "s",
+  "r",
+  "R",
+  "space",
+  ":",
+  "tab",
+  "esc",
+  "q",
+];
+
+/** TUI のキーの名前を KeyboardEvent.key にする。 */
+export function domKey(tuiKey: string): string {
+  const names: Record<string, string> = {
+    up: "ArrowUp",
+    down: "ArrowDown",
+    left: "ArrowLeft",
+    right: "ArrowRight",
+    home: "Home",
+    end: "End",
+    enter: "Enter",
+    space: " ",
+    tab: "Tab",
+    esc: "Escape",
+  };
+  return names[tuiKey] ?? tuiKey;
+}
+
+/** 動かす先の位置。動けないとき（端・親がいない）は -1。 */
+export function moveIndex(
+  entries: readonly Pick<ChangeEntry, "parent" | "key">[],
+  i: number,
+  to: ChangesMove,
+): number {
+  if (entries.length === 0) return -1;
+  let j = i;
+  if (to === "next") j = Math.min(i + 1, entries.length - 1);
+  else if (to === "prev") j = Math.max(i - 1, 0);
+  else if (to === "first") j = 0;
+  else if (to === "last") j = entries.length - 1;
+  else {
+    const p = entries[i]?.parent;
+    j = p === undefined ? i : entries.findIndex((x) => x.key === p);
+  }
+  return j === i || j < 0 ? -1 : j;
+}
+
+/**
+ * PR モード（Space g）の CHANGES で、TUI が足して受けるキー（Issue #46）。TUI_CHANGES_KEYS に加えて。
+ * r・R は PR を読み直す（ReloadPR）。space のあとの v（レビュー）・g（PR との差分を開く・閉じる）は Space メニューの続きなので、
+ * space を shj に渡したあと端末から shj に届く（TUI_CHANGES_KEYS の w と同じ）。
+ */
+export const PR_CHANGES_KEYS: readonly string[] = ["r", "R", "space"];
+
+/** PR モードで space の続きに打つキー（端末から shj に届く）。 */
+export const PR_SPACE_FOLLOWUPS: readonly string[] = ["v", "g"];

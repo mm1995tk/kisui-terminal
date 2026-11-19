@@ -30,15 +30,17 @@ let
       ../../package-lock.json
       ../../tsconfig.json
       ../../vite.config.ts
+      # tsconfig.json の include にあり、tsc --noEmit が Storybook の設定の型も検査する（アプリの成果物には入らない）
+      ../../.storybook
       ../../app/index.html
       ../../app/src
       # npm test が拡張機能の JavaScript の型も検査する（tsc -p extension）
       ../../extension
       # startupBackground.test.ts が窓の背景色を読む
       ../../app/src-tauri/tauri.conf.json
-      # browser/favicon.test.ts が、殻がページで動かす favicon のスクリプトの候補の順を確かめる（#237）
+      # infrastructure/tauri/favicon.test.ts が、殻がページで動かす favicon のスクリプトの候補の順を確かめる（#237）
       ../../app/src-tauri/src/browser_favicon.js
-      # browser/arrowTofu.test.ts が、ページに入れるキーのスクリプトの、豆腐を止める処理を確かめる（#285）
+      # infrastructure/tauri/arrowTofu.test.ts が、ページに入れるキーのスクリプトの、豆腐を止める処理を確かめる（#285）
       ../../app/src-tauri/src/browser_keys.js
     ];
   };
@@ -69,7 +71,7 @@ let
     inherit version;
     src = webSrc;
     # package-lock.json を変えたら、ここを lib.fakeHash にして nix build .#kisui-terminal を回し、出た値に直す
-    npmDepsHash = "sha256-+Tf4pxJ0cW8CrKw7xx49t4jkcU2sZ9bAOMPekR4sXIM=";
+    npmDepsHash = "sha256-I5lZ0HWw4l1kGq5pvdDr7APhLrXtDBPzBgDGk1+Tjfs=";
     # tauri の CLI は殻のビルドには使わない（cargo を直接回す）。バイナリの取得を避ける
     npmFlags = [ "--ignore-scripts" ];
     installPhase = ''

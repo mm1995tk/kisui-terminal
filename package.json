@@ -5,24 +5,28 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "test": "tsc -p extension && node --test \"app/src/**/*.test.ts\"",
-    "typecheck:extension": "tsc -p extension",
+    "test": "node node_modules/typescript/bin/tsc -p extension && node --test \"app/src/**/*.test.ts\"",
+    "typecheck:extension": "node node_modules/typescript/bin/tsc -p extension",
     "test:extension": "node --test \"extension/**/*.test.ts\"",
     "build:extension": "node extension/build.mjs",
-    "build": "tsc --noEmit && vite build",
-    "tauri": "tauri"
+    "build": "node node_modules/typescript/bin/tsc --noEmit && vite build",
+    "tauri": "tauri",
+    "storybook": "storybook dev --port 6006 --no-open",
+    "build-storybook": "storybook build --output-dir storybook-static"
   },
   "dependencies": {
     "@fontsource/ibm-plex-sans-jp": "5.3.1",
     "@tauri-apps/api": "2.12.4",
     "@tauri-apps/plugin-clipboard-manager": "2.5.0",
-    "coneko-term": "0.1.13",
+    "coneko-term": "0.1.15",
     "solid-js": "1.9.17"
   },
   "devDependencies": {
     "@tauri-apps/cli": "2.12.3",
     "@types/chrome": "0.3.7",
     "@types/node": "24.19.2",
+    "storybook": "10.6.7",
+    "storybook-solidjs-vite": "10.7.4",
     "typescript": "7.0.2",
     "vite": "8.3.4",
     "vite-plugin-solid": "2.11.14"

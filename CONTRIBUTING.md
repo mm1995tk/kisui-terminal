@@ -14,6 +14,7 @@ npm ci
 go test ./...          # kisui
 npm test               # the web UI
 cargo test             # the Tauri shell
+npm run storybook      # the web UI components in a browser (docs/design/storybook.md)
 nix fmt                # format everything
 nix flake check        # every check CI runs
 ```
