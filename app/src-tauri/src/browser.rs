@@ -885,7 +885,10 @@ fn align_to_main(app: &AppHandle, child: &Webview, x: f64, y: f64, w: f64, h: f6
             None,
         );
         let now = view.frame();
-        if (now.origin.y - want.origin.y).abs() > 0.5 || (now.origin.x - want.origin.x).abs() > 0.5
+        // Mac で確かめる手がかり。補正が毎回要る状態でも、ログが出続けないよう、最初の 1 回だけ出す
+        static LOGGED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+        if ((now.origin.y - want.origin.y).abs() > 0.5 || (now.origin.x - want.origin.x).abs() > 0.5)
+            && !LOGGED.swap(true, std::sync::atomic::Ordering::Relaxed)
         {
             eprintln!(
                 "kisui-terminal: the page frame moved from ({}, {}) to ({}, {}) to match the screen",
