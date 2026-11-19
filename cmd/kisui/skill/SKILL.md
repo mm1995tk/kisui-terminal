@@ -92,7 +92,7 @@ kisui pane send t5 'Fix the failing test in server/term_test.go'
 
 ### kisui pane keys <name|id> <key>...
 
-Press keys in a pane of this machine, pointed at by its name or id, one after another. The keys are `enter`, `tab`, `shift+tab`, `esc`, `backspace`, `delete`, `insert`, `space`, `up`, `down`, `left`, `right`, `home`, `end`, `pageup`, `pagedown`, `f1` to `f12`, `ctrl+a` to `ctrl+z`, `ctrl+space`, `ctrl+\` and `ctrl+]` (also `escape` and `return`; case does not matter). An unknown key is refused before any key is sent. The focus does not move.
+Press keys in a pane of this machine, pointed at by its name or id, one after another. The keys are `enter`, `tab`, `shift+tab`, `esc`, `backspace`, `delete`, `insert`, `space`, `up`, `down`, `left`, `right`, `home`, `end`, `pageup`, `pagedown`, `f1` to `f12`, `ctrl+a` to `ctrl+z`, `ctrl+space`, `ctrl+\` and `ctrl+]` (also `escape` and `return`; case does not matter). An unknown key, or more than 64 keys at a time, is refused before any key is sent. The focus does not move.
 
 ```sh
 kisui pane keys worker ctrl+c

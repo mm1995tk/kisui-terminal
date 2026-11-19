@@ -23,6 +23,7 @@ var (
 	errSendTooLong  = errors.New("the text is too long")
 	errSendInvalid  = errors.New("the text is not valid UTF-8")
 	errNoKeys       = errors.New("no key to send")
+	errTooManyKeys  = errors.New("too many keys")
 	errUnknownKey   = errors.New("unknown key")
 	errPaneEnded    = errors.New("the program of the pane has ended")
 	errClosePrimary = errors.New("the primary terminal of a tab is not closed by itself: it closes with its tab (close the tab in the window)")
@@ -30,6 +31,11 @@ var (
 
 // maxSendText は kisui pane send で 1 度に送れる文字の長さ（バイト）。
 const maxSendText = 64 << 10
+
+// maxKeys は kisui pane keys で 1 度に押せるキーの数。キーの間に sendGap を置いても、全部を押し終えるのが
+// kisui の待ち時間（panecmd.Timeout）より十分に短くなる数にする（64 個で約 3 秒）。待ち時間が先に切れると、
+// kisui は失敗を返すのに serve は押し続けるため。
+const maxKeys = 64
 
 // sendGap は、続けて送るものの間に置く時間。Esc のあとにすぐ文字が来ると Alt を押した文字と取られ、
 // 貼り付けた文字のすぐあとの Enter を貼り付けの一部と取るプログラムもあるので、少し空ける。
@@ -76,6 +82,9 @@ func (m *termManager) sendText(target, text string) (string, error) {
 func (m *termManager) sendKeys(target string, keys []string) (string, error) {
 	if len(keys) == 0 {
 		return "", errNoKeys
+	}
+	if len(keys) > maxKeys {
+		return "", fmt.Errorf("%w (at most %d at a time)", errTooManyKeys, maxKeys)
 	}
 	for _, k := range keys {
 		if _, ok := keyBytes(k, false); !ok {

@@ -3,8 +3,10 @@ package server
 import (
 	"bytes"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/mm1995tk/kisui-terminal/internal/emulator"
 	"github.com/mm1995tk/kisui-terminal/internal/panecmd"
@@ -65,6 +67,7 @@ func TestPaneCmdSendKeysClose(t *testing.T) {
 		{Cmd: "send", To: "foo", Text: strings.Repeat("a", maxSendText+1)},
 		{Cmd: "keys", To: "foo"},
 		{Cmd: "keys", To: "foo", Keys: []string{"esc", "hyper+x"}},
+		{Cmd: "keys", To: "foo", Keys: slices.Repeat([]string{"esc"}, maxKeys+1)},
 		{Cmd: "keys", To: "nope", Keys: []string{"esc"}},
 		{Cmd: "close", To: "nope"},
 		{Cmd: "close", To: p1},
@@ -190,5 +193,12 @@ func TestKeyBytes(t *testing.T) {
 		if _, ok := keyBytes(bad, false); ok {
 			t.Errorf("keyBytes(%q) must be unknown", bad)
 		}
+	}
+}
+
+// 押し終えるまでの時間が kisui の待ち時間に収まるよう、キーの数に上限を置く。
+func TestMaxKeysFitsTimeout(t *testing.T) {
+	if d := time.Duration(maxKeys) * sendGap; d > panecmd.Timeout/2 {
+		t.Fatalf("%d keys take %v, too close to the timeout of kisui (%v)", maxKeys, d, panecmd.Timeout)
 	}
 }
