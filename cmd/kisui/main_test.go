@@ -155,3 +155,11 @@ func TestWritePaneListWide(t *testing.T) {
 		t.Errorf("the tab column is not lined up:\n%s", b.String())
 	}
 }
+
+func TestAlignColumns(t *testing.T) {
+	got := alignColumns([][]string{{"*", "t1", "日本", "x "}, {" ", "t10", "ab", "y"}}, 1)
+	want := "* t1   日本  x\n  t10  ab    y\n"
+	if got != want {
+		t.Errorf("alignColumns =\n%q, want\n%q", got, want)
+	}
+}

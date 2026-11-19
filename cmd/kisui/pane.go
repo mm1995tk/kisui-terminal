@@ -187,9 +187,7 @@ func writePaneListJSON(w io.Writer, panes []panecmd.PaneInfo) error {
 }
 
 // writePaneList writes the panes as a table for a person: one line each, with
-// a "*" in front of the pane it runs in. Empty columns are "-". The columns are
-// lined up by the width on the screen (a CJK character takes two columns), not
-// by the number of characters as text/tabwriter does.
+// a "*" in front of the pane it runs in. Empty columns are "-".
 func writePaneList(w io.Writer, panes []panecmd.PaneInfo) error {
 	// cell is the text of one column: control characters become spaces, and empty is "-".
 	cell := func(s string) string {
@@ -219,6 +217,16 @@ func writePaneList(w io.Writer, panes []panecmd.PaneInfo) error {
 		}
 		rows = append(rows, []string{mark, cell(p.ID), cell(p.Name), cell(p.Tab + " " + p.TabName), cell(p.Cwd), cell(p.Title), cell(strings.Join(notes, ","))})
 	}
+	// the mark and the id are one space apart, the other columns two
+	_, err := io.WriteString(w, alignColumns(rows, 1))
+	return err
+}
+
+// alignColumns writes rows as lines whose columns line up by the width on the
+// screen (a CJK character takes two columns; text/tabwriter counts one per
+// character). gaps[i] is the number of spaces after column i at its widest; a
+// column without one gets two. Spaces at the end of a line are dropped.
+func alignColumns(rows [][]string, gaps ...int) string {
 	var widths []int
 	for _, r := range rows {
 		for i, c := range r {
@@ -235,8 +243,8 @@ func writePaneList(w io.Writer, panes []panecmd.PaneInfo) error {
 			line.WriteString(c)
 			if i < len(r)-1 {
 				gap := 2
-				if i == 0 {
-					gap = 1 // the mark and the id
+				if i < len(gaps) {
+					gap = gaps[i]
 				}
 				line.WriteString(strings.Repeat(" ", widths[i]-runewidth.StringWidth(c)+gap))
 			}
@@ -244,6 +252,5 @@ func writePaneList(w io.Writer, panes []panecmd.PaneInfo) error {
 		b.WriteString(strings.TrimRight(line.String(), " "))
 		b.WriteString("\n")
 	}
-	_, err := io.WriteString(w, b.String())
-	return err
+	return b.String()
 }
