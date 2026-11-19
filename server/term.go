@@ -109,6 +109,8 @@ type terminal struct {
 
 	// sendMu は term.output の送り出しと term.attach を 1 つずつにする（順序と二重送りを防ぐ）。
 	sendMu sync.Mutex
+	// inputMu は kisui pane send / keys の入力を 1 つずつにする（2 つの頼みの文字とキーが混ざらないように）。
+	inputMu sync.Mutex
 
 	mu         sync.Mutex
 	cwd        string // シェルの今の cwd（workspace.go が更新）
@@ -124,6 +126,7 @@ type terminal struct {
 	sent       int64  // ここまで送った
 	acked      int64  // GUI が処理したと言ったところ
 	osc        oscScan
+	modes      modeScan    // 送り方に関わるモード（panesend.go）
 	feed       *screenFeed // 画面の状態を持つ coneko-term（screen.go）。term.attach はこの書き出しを返す
 	base       int64       // リングに入っている一番古い seq の下限（引き継いだときは、受け取ったリングの先頭）
 
@@ -434,6 +437,7 @@ func (t *terminal) pump(ptmx *os.File, cmd *exec.Cmd, p *os.Process) {
 			t.mu.Lock()
 			t.ringAppend(buf[:n])
 			t.feed.write(buf[:n]) // ring の seq と画面の状態の位置を合わせるため、同じロックの中で渡す（待たない）
+			t.modes.feed(buf[:n])
 			title, changed := t.osc.feed(buf[:n])
 			if changed {
 				t.title = title
