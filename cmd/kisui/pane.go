@@ -241,7 +241,8 @@ func writePaneList(w io.Writer, panes []panecmd.PaneInfo) error {
 				line.WriteString(strings.Repeat(" ", widths[i]-runewidth.StringWidth(c)+gap))
 			}
 		}
-		b.WriteString(strings.TrimRight(line.String(), " ") + "\n")
+		b.WriteString(strings.TrimRight(line.String(), " "))
+		b.WriteString("\n")
 	}
 	_, err := io.WriteString(w, b.String())
 	return err
