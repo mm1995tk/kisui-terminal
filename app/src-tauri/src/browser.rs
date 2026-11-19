@@ -2,7 +2,7 @@
 //!
 //! タブ 1 つにつき、メイン窓の上に重ねる子の webview を 1 つ持つ（OS の WebView。macOS は WKWebView、Linux は WebKitGTK）。
 //! 外のサイトの多くは `iframe` に出せない（X-Frame-Options・CSP の frame-ancestors）ので、`<iframe>` は使わない。
-//! どこに重ねるか・見せるか隠すかは画面（`app/src/browser/BrowserArea.tsx`）が決め、ここはその通りに置く。
+//! どこに重ねるか・見せるか隠すかは画面（`app/src/ui/main-window/content/browser/BrowserArea.tsx`）が決め、ここはその通りに置く。
 //!
 //! 外のページに Tauri の API を渡さない:
 //! - 子の webview は `WebviewUrl::External` で作る。外の URL からの IPC は、`remote` を持つ capability が無い限り tauri が断る。
@@ -30,6 +30,8 @@
 //! `browser/` に置く。macOS は WKWebView の既定の置き場（`~/Library/WebKit/<アプリの id>/` など。場所は OS が決める）を使う。
 //! シークレットのタブ（#204）は、タブごとに別の、ディスクに残さないデータを使う（tauri の `incognito`）。パスキーのスクリプトは入れない。
 //! 開いていたタブ（ワークスペースと URL）は、データのフォルダの `browser-tabs.json` に覚える（画面が書く。シークレットのタブは書かない）。
+//! macOS では、全部のタブ（シークレットのタブ・新しい窓のタブも）を、手元で動かす中継型のプロキシに通す（browser_proxy.rs。#294）。
+//! 初めてのタブを開く前に用意し（`browser_open`。証明書の信頼を聞くことがある）、データストアに当てる。
 //!
 //! #205：ページの表示の大きさ（`browser_zoom`。タブごとに、覚えるタブと一緒に覚える）、ページ内検索（`browser_find`）、
 //! DevTools（`browser_devtools`）。ブックマークは bookmarks.rs。
@@ -216,6 +218,10 @@ enum Data {
     Shared,
     /// このタブだけの、ディスクに残さないデータ（シークレットのタブ）
     Incognito,
+    /// macOS で、内蔵ブラウザのプロキシ（browser_proxy.rs。#294）を使うシークレットのタブ。
+    /// このタブだけの、ディスクに残さないデータストアに、プロキシを当てた WebView の設定
+    #[cfg(target_os = "macos")]
+    ProxiedIncognito(crate::browser_proxy::PrivateConfiguration),
     /// ページが開いた新しい窓。開いた元の webview と同じデータ（WebKit が決める）。
     /// incognito は元のタブがシークレットか（パスキーのスクリプトを入れるかを決める）
     Opener {
@@ -230,6 +236,8 @@ impl Data {
         match self {
             Data::Shared => false,
             Data::Incognito => true,
+            #[cfg(target_os = "macos")]
+            Data::ProxiedIncognito(_) => true,
             Data::Opener { incognito, .. } => *incognito,
         }
     }
@@ -675,6 +683,8 @@ fn with_data(
             builder
         }
         Data::Incognito => builder.incognito(true),
+        #[cfg(target_os = "macos")]
+        Data::ProxiedIncognito(c) => builder.with_webview_configuration(c.0),
         // 開いた元の webview と同じデータ・同じ処理の中で作る（WebKit が求める）
         Data::Opener { features, .. } => {
             #[cfg(target_os = "linux")]
@@ -715,12 +725,14 @@ fn tab_builder(
 
 /// タブを作る（子の webview）。位置と大きさはメイン窓の左上からの論理ピクセル。作るだけで、キーは向けない（`browser_focus`）。
 /// `keys` はページにキーがある間も受けるキー（リーダーと近道）。`incognito` はシークレットのタブ（#204）。
-#[tauri::command(async)]
+/// macOS では、初めてのタブの前に内蔵ブラウザのプロキシを用意する（browser_proxy.rs。#294。証明書の信頼を聞くことがあり、
+/// 答えを待つ）。
+#[tauri::command]
 #[allow(clippy::too_many_arguments)]
-pub fn browser_open(
+pub async fn browser_open(
     app: AppHandle,
     webview: Webview,
-    tabs: State<Tabs>,
+    tabs: State<'_, Tabs>,
     tab: String,
     url: String,
     keys: Vec<KeySpec>,
@@ -738,17 +750,13 @@ pub fn browser_open(
         return Err("invalid keys".into());
     }
     let first = parse_url(&url)?;
+    let data = tab_data(&app, incognito).await;
     let win = app
         .get_window("main")
         .ok_or_else(|| "no main window".to_string())?;
     if app.get_webview(&label(&tab)).is_some() {
         return Err("the tab is already open".into());
     }
-    let data = if incognito {
-        Data::Incognito
-    } else {
-        Data::Shared
-    };
     let nonce = new_nonce()?;
     let builder = tab_builder(&app, &tab, first, nonce.clone(), &keys, data);
     let v = win
@@ -769,6 +777,35 @@ pub fn browser_open(
     );
     watch_native(&app, &v, &tab);
     Ok(())
+}
+
+/// 新しいタブ（ページが開いた新しい窓でないもの）のデータの置き場。
+/// macOS では、内蔵ブラウザのプロキシを用意する（共有のデータストアには、用意したときに当ててある）。
+/// シークレットのタブは、プロキシを当てたディスクに残さないデータストアを作る。プロキシが使えなければ、今までどおり。
+#[cfg(target_os = "macos")]
+async fn tab_data(app: &AppHandle, incognito: bool) -> Data {
+    let ports = crate::browser_proxy::ready(app).await;
+    if !incognito {
+        return Data::Shared;
+    }
+    if let Some(p) = ports {
+        match crate::browser_proxy::private_configuration(app, p).await {
+            Some(c) => return Data::ProxiedIncognito(c),
+            None => eprintln!(
+                "kisui-terminal: cannot set the proxy on a private tab; it goes without the proxy"
+            ),
+        }
+    }
+    Data::Incognito
+}
+
+#[cfg(not(target_os = "macos"))]
+async fn tab_data(_: &AppHandle, incognito: bool) -> Data {
+    if incognito {
+        Data::Incognito
+    } else {
+        Data::Shared
+    }
 }
 
 /// タブの位置と大きさを合わせる（論理ピクセル）。
@@ -927,7 +964,7 @@ pub fn browser_close(
     Ok(())
 }
 
-/// ページの表示の大きさの範囲（倍率。#205）。画面が選ぶ段（app/src/scale.ts の SCALES）より広く受ける。
+/// ページの表示の大きさの範囲（倍率。#205）。画面が選ぶ段（app/src/features/scale/scale.ts の SCALES）より広く受ける。
 const MIN_ZOOM: f64 = 0.25;
 const MAX_ZOOM: f64 = 5.0;
 

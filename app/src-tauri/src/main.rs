@@ -4,6 +4,8 @@
 mod askpass;
 mod bookmarks;
 mod browser;
+#[cfg(target_os = "macos")]
+mod browser_proxy;
 mod clipboard_history;
 mod clipboard_popup;
 mod config;

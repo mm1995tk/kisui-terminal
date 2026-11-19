@@ -1,0 +1,11 @@
+/* story を出す枠の地と字。アプリのメインウィンドウの layout.css（body）と同じく、ui/styles/tokens.css の役割で決める */
+:root {
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  font: var(--text-body) var(--font-ui);
+  color: var(--color-text);
+  background: var(--color-bg);
+}

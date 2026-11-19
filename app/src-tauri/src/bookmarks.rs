@@ -1,6 +1,6 @@
 //! 内蔵ブラウザのブックマーク（#205）。すべてのワークスペースで共有し、データのフォルダの `browser-bookmarks.json` に覚える
 //! （開いていたタブの `browser-tabs.json` と同じ場所。自分だけが読めるファイル）。
-//! 並び・足す・消すは画面（`app/src/browser/bookmarks.ts`）が決め、ここは丸ごと読む・書くだけ。
+//! 並び・足す・消すは画面（`app/src/features/browser/bookmarks.ts`）が決め、ここは丸ごと読む・書くだけ。
 
 use std::fs;
 use std::io::ErrorKind;

@@ -68,7 +68,11 @@ zip は、同じソースからは同じバイト列になる（中のファイ�
 ストアのアカウントの登録・提出・公開は、オーナーのアカウントで行う。このリポジトリが用意するのは、上げる zip と、下の説明文・権限の理由・
 プライバシーの説明まで。
 
-### 1. Chrome ウェブストア：下書きを作り、id を決める
+公開しているのは addons.mozilla.org だけ（https://addons.mozilla.org/addon/kisui-terminal-passkey-login/ ）。
+Chrome ウェブストアには出さないことにした（Issue #207）。Chrome では、上の「手で入れて試す」の形で読み込む。
+下の「1. Chrome ウェブストア」は、id と公開鍵を決めたときの記録として残す。
+
+### 1. Chrome ウェブストア：下書きを作り、id を決める（審査には出さない）
 
 1. Chrome Web Store の開発者として登録する（https://chrome.google.com/webstore/devconsole 。登録料は 1 回だけ 5 ドル）。
 2. `npm run build:extension` で作った `extension/dist/kisui-terminal-chrome-<版>.zip` を「新しいアイテム」として上げる（まだ審査に出さない）。
@@ -80,9 +84,6 @@ zip は、同じソースからは同じバイト列になる（中のファイ�
      公開鍵から計算した id が `CHROME_EXTENSION_IDS` と同じことは、`npm run test:extension` が確かめる。
 
    済み：id は `ljfmfmfcicodilhhbmhkfkgjbcpphjel`（Issue #207）。
-5. ダッシュボードで下の「ストアの説明」と「プライバシー」を入れ、審査に出す。全サイトの権限を持つので、審査は長くなることがある。
-   審査が通ったら、30 日のうちに公開する。
-6. 公開したら、README（`README.md` と `README.ja.md`）の「まだ公開していない」をストアの URL に直す。
 
 ### 2. addons.mozilla.org（AMO）
 
@@ -93,9 +94,11 @@ zip は、同じソースからは同じバイト列になる（中のファイ�
    `manifest.json` だけを `extension/build.mjs` が作る。
 4. 下の「ストアの説明」と「プライバシー」を入れ、審査に出す。
 
+済み：版 0.1.0 が自動の審査を通り、公開された（2026-11-18）。
+
 ### 版を上げるとき
 
-`extension/manifest.json` の `version` を上げて zip を作り直し、両方のストアに上げる。kisui-terminal の版とは別に数える。
+`extension/manifest.json` の `version` を上げて zip を作り直し、addons.mozilla.org に上げる。kisui-terminal の版とは別に数える。
 取り決め（`docs/passkey-extension.md`）を変えるときは、kisui-terminal と拡張機能を合わせて変える。
 
 ### ストアの説明

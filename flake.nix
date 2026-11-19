@@ -107,6 +107,8 @@
                 ./Cargo.lock
                 ./app/src-tauri
                 ./emulator
+                # workspace の member。wasm には使わないが、cargo は member の Cargo.toml を読む
+                ./masque-proxy
               ];
             };
             cargoDeps = pkgsX86.rustPlatform.importCargoLock { lockFile = ./Cargo.lock; };
@@ -133,6 +135,8 @@
           };
           # 外のブラウザの拡張機能（パスキーのログインの Cookie を送る。extension/）。ストアに上げる zip も作る
           extensionDrv = import ./packaging/nix/extension.nix { inherit pkgs; };
+          # 内蔵ブラウザに使わせる中継型のプロキシ（masque-proxy/）。cargo test も回る
+          masqueProxyDrv = import ./packaging/nix/masque-proxy.nix { inherit pkgs; };
           kisuiDrv = mkKisui { };
           kisuiNightlyDrv = mkKisui { channel = "nightly"; };
 
@@ -224,6 +228,8 @@
 
             # GUI の殻（cargo test も回る）と Web 画面のテスト（npm test）
             kisui-terminal = guiDrv;
+            # 中継型のプロキシのテスト（手元に立てたサーバーに、プロキシを通して TCP と UDP でつなぐ）
+            masque-proxy = masqueProxyDrv;
             web-test = guiDrv.web.overrideAttrs (_: {
               pname = "kisui-terminal-web-test";
               doCheck = true;

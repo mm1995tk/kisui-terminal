@@ -1,0 +1,41 @@
+/* 空のワークスペース（#307。EmptyWorkspace.tsx）を選んでいる間の、右のペインの中身。グリッドの場所すべてを覆う */
+.empty {
+  position: absolute;
+  inset: 0;
+  /* ターミナルのグリッドより上、境界のつまみ（layout.css の .resizer、z-index 5）より下（ブラウザのページと同じ） */
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-20);
+  overflow-y: auto;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-ui);
+  font-size: var(--text-body);
+  line-height: var(--leading-text);
+}
+/* 中身にキーを向けても、枠は出さない（打てるものは無く、リーダーのキーを受けるためだけにフォーカスを置く） */
+.empty:focus {
+  outline: none;
+}
+
+.inner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  max-width: 560px;
+}
+
+.title {
+  margin: 0;
+  font-size: var(--text-title);
+  font-weight: var(--weight-strong);
+  color: var(--color-text-strong);
+}
+
+.text {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
