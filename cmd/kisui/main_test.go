@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/mattn/go-runewidth"
 	"github.com/mm1995tk/kisui-terminal/internal/i18n"
 	"github.com/mm1995tk/kisui-terminal/internal/panecmd"
 )
@@ -135,5 +136,22 @@ func TestWritePaneList(t *testing.T) {
 	}
 	if err := json.Unmarshal([]byte(b.String()), &got); err != nil || got.Panes == nil {
 		t.Fatalf("no panes must be an empty list: %q %v", b.String(), err)
+	}
+}
+
+// The columns line up by the width on the screen, also with wide characters.
+func TestWritePaneListWide(t *testing.T) {
+	panes := []panecmd.PaneInfo{
+		{ID: "t1", Name: "日本語", Tab: "w1", Cwd: "/a", Alive: true},
+		{ID: "t2", Name: "ab", Tab: "w1", Cwd: "/b", Alive: true},
+	}
+	var b strings.Builder
+	if err := writePaneList(&b, panes); err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimRight(b.String(), "\n"), "\n")
+	col := func(line, s string) int { return runewidth.StringWidth(line[:strings.Index(line, s)]) }
+	if col(lines[1], "w1") != col(lines[2], "w1") {
+		t.Errorf("the tab column is not lined up:\n%s", b.String())
 	}
 }

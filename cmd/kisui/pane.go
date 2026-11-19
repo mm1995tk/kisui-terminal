@@ -8,9 +8,9 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"text/tabwriter"
 	"unicode"
 
+	"github.com/mattn/go-runewidth"
 	"github.com/mm1995tk/kisui-terminal/internal/i18n"
 	"github.com/mm1995tk/kisui-terminal/internal/panecmd"
 )
@@ -187,11 +187,11 @@ func writePaneListJSON(w io.Writer, panes []panecmd.PaneInfo) error {
 }
 
 // writePaneList writes the panes as a table for a person: one line each, with
-// a "*" in front of the pane it runs in. Empty columns are "-".
+// a "*" in front of the pane it runs in. Empty columns are "-". The columns are
+// lined up by the width on the screen (a CJK character takes two columns), not
+// by the number of characters as text/tabwriter does.
 func writePaneList(w io.Writer, panes []panecmd.PaneInfo) error {
-	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "  "+i18n.T("pane.list.header"))
-	// cell is the text of one column: control characters (a tab would break the table) become spaces, and empty is "-".
+	// cell is the text of one column: control characters become spaces, and empty is "-".
 	cell := func(s string) string {
 		s = strings.TrimSpace(strings.Map(func(r rune) rune {
 			if unicode.IsControl(r) {
@@ -204,6 +204,7 @@ func writePaneList(w io.Writer, panes []panecmd.PaneInfo) error {
 		}
 		return s
 	}
+	rows := [][]string{append([]string{" "}, strings.Split(i18n.T("pane.list.header"), "\t")...)}
 	for _, p := range panes {
 		mark := " "
 		if p.Self {
@@ -216,7 +217,32 @@ func writePaneList(w io.Writer, panes []panecmd.PaneInfo) error {
 		if !p.Alive {
 			notes = append(notes, i18n.T("pane.list.ended"))
 		}
-		fmt.Fprintf(tw, "%s %s\t%s\t%s\t%s\t%s\t%s\n", mark, p.ID, cell(p.Name), cell(p.Tab+" "+p.TabName), cell(p.Cwd), cell(p.Title), cell(strings.Join(notes, ",")))
+		rows = append(rows, []string{mark, cell(p.ID), cell(p.Name), cell(p.Tab + " " + p.TabName), cell(p.Cwd), cell(p.Title), cell(strings.Join(notes, ","))})
 	}
-	return tw.Flush()
+	var widths []int
+	for _, r := range rows {
+		for i, c := range r {
+			if i >= len(widths) {
+				widths = append(widths, 0)
+			}
+			widths[i] = max(widths[i], runewidth.StringWidth(c))
+		}
+	}
+	var b strings.Builder
+	for _, r := range rows {
+		var line strings.Builder
+		for i, c := range r {
+			line.WriteString(c)
+			if i < len(r)-1 {
+				gap := 2
+				if i == 0 {
+					gap = 1 // the mark and the id
+				}
+				line.WriteString(strings.Repeat(" ", widths[i]-runewidth.StringWidth(c)+gap))
+			}
+		}
+		b.WriteString(strings.TrimRight(line.String(), " ") + "\n")
+	}
+	_, err := io.WriteString(w, b.String())
+	return err
 }
