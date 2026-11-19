@@ -39,6 +39,45 @@ function cssOrder(entry: string): string[] {
   return css;
 }
 
+/**
+ * 「このクラスだけ」を相手にする規則（.a、.a:hover、.a[data-x]）のクラス名。
+ * 親の文脈つきの規則（.x .a）は、別のファイルの部品を、この場所だけ飾り替える書き方なので、数えない。
+ * コメント・@ の規則・括弧の中は見ない。
+ */
+export function baseClasses(css: string): string[] {
+  const out: string[] = [];
+  const text = css
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/:(?:has|not|is|where)\([^()]*\)/g, "&")
+    .replace(/\([^()]*\)/g, "")
+    .replace(/\[[^\]]*\]/g, "");
+  for (const m of text.matchAll(/([^{};]+)\{/g)) {
+    const prelude = m[1]!.trim();
+    if (prelude.startsWith("@")) continue;
+    for (const sel of prelude.split(",")) {
+      const c = /^\.([A-Za-z_][\w-]*)(?::{1,2}[\w-]+)*$/.exec(sel.trim());
+      if (c) out.push(c[1]!);
+    }
+  }
+  return out;
+}
+
+/** 2 つ以上のファイルが、規則の単独の相手として書いているクラス名（クラス名 → ファイルの一覧）。 */
+export function sharedClasses(
+  files: Record<string, string>,
+): Map<string, string[]> {
+  const owners = new Map<string, Set<string>>();
+  for (const [file, css] of Object.entries(files))
+    for (const c of baseClasses(css)) {
+      const set = owners.get(c) ?? new Set<string>();
+      set.add(file);
+      owners.set(c, set);
+    }
+  const out = new Map<string, string[]>();
+  for (const [c, set] of owners) if (set.size > 1) out.set(c, [...set].sort());
+  return out;
+}
+
 describe("メインウィンドウの CSS の並び", () => {
   it("動かすときに読む import を、書いた順に取り出す（型だけの import は除く）", () => {
     assert.deepEqual(
@@ -81,5 +120,49 @@ describe("メインウィンドウの CSS の並び", () => {
       "ui/main-window/content/terminal/terminal.css",
       "ui/main-window/content/EmptyWorkspace.module.css",
     ]);
+  });
+
+  // #339: 切り替える窓の .newtab が、内蔵ブラウザの新しいタブのページの .newtab（browser.css。position: absolute）と
+  // 同じ強さで重なり、あとから読む browser.css が勝って、タブを作る行がつぶれた。
+  // 同じクラス名を 2 つのファイルが飾ると、読む順で見た目が変わるので、ファイルごとにクラス名を分ける。
+  it("同じクラス名を、2 つ以上の CSS ファイルが規則の相手にしていない", () => {
+    const files: Record<string, string> = {};
+    for (const f of cssOrder("ui/main-window/page.tsx"))
+      if (!f.endsWith(".module.css"))
+        files[f] = readFileSync(new URL(f, src), "utf8");
+    // 既に 2 つのファイルにまたがっているもの。足さない（別の Issue で分ける）
+    const known = new Set([
+      // ::after の棒を、sidebar.css と changes.css の両方が書いている（どちらも .changes-resizer::after）
+      "changes-resizer",
+    ]);
+    const shared = [...sharedClasses(files)].filter(([c]) => !known.has(c));
+    assert.deepEqual(shared, []);
+  });
+
+  it("2 つのファイルが同じクラス名を飾っていると見つける", () => {
+    assert.deepEqual(
+      [
+        ...sharedClasses({
+          "a.css": ".newtab { position: relative; }\n.x .y { color: red; }",
+          "b.css":
+            "/* .y */\n.newtab,\n.z:hover { inset: 0; }\n@media (a) { .w { top: 0 } }",
+        }),
+      ],
+      [["newtab", ["a.css", "b.css"]]],
+    );
+  });
+
+  it("属性つき・:hover つきは数え、:has() の中や子孫の規則は数えない", () => {
+    assert.deepEqual(
+      baseClasses(
+        [
+          '.c[data-x="1"] { top: 0 }',
+          ".h:hover { top: 0 }",
+          ".d:has(.e) { top: 0 }",
+          ".p .q { top: 0 }",
+        ].join("\n"),
+      ),
+      ["c", "h"],
+    );
   });
 });

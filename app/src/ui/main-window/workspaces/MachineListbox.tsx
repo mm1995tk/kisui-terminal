@@ -38,7 +38,7 @@ export function MachineListbox(props: {
 
   return (
     <ul
-      class="newtab-list"
+      class="switch-newtab-list"
       role="listbox"
       tabIndex={0}
       aria-label={T("leader.tab.newPick")}
