@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/jackc/pgx/v5/pgconn"
 
@@ -84,6 +85,9 @@ func (s *pgSession) exec(ctx context.Context, sql string) error {
 }
 
 func (s *pgSession) Query(ctx context.Context, sql string, o QueryOptions) (*Result, error) {
+	if isCopy(sql) {
+		return nil, &Error{Kind: KindQuery, Message: "COPY is not supported: there is nowhere to send its data to or take it from"}
+	}
 	// qctx is ended only by the stopper's hard step (see stopper).
 	qctx, hard := context.WithCancel(context.Background())
 	defer hard()
@@ -140,6 +144,46 @@ func pgColumns(fields []pgconn.FieldDescription) []Column {
 		cols[i] = Column{Name: f.Name, Type: pgTypeFallback(f.DataTypeOID), Kind: pgKind(f.DataTypeOID)}
 	}
 	return cols
+}
+
+// isCopy is true for a COPY statement. It is refused before it is sent:
+// `COPY ... FROM STDIN` makes the server wait for data that nobody sends, so
+// the statement would never return, and `COPY ... TO STDOUT` sends its rows
+// in a form that is not a result, so they would be lost. COPY to or from a
+// file of the server is refused with them; telling it apart needs a parser.
+func isCopy(sql string) bool {
+	return strings.EqualFold(firstWord(sql), "copy")
+}
+
+// firstWord is the first word of a statement, after white space and
+// comments (`-- ...` and `/* ... */`, which PostgreSQL lets nest).
+func firstWord(sql string) string {
+	for {
+		sql = strings.TrimLeft(sql, " \t\r\n\f")
+		switch {
+		case strings.HasPrefix(sql, "--"):
+			_, sql, _ = strings.Cut(sql, "\n")
+		case strings.HasPrefix(sql, "/*"):
+			depth, i := 1, 2
+			for ; depth > 0 && i < len(sql); i++ {
+				switch {
+				case strings.HasPrefix(sql[i:], "/*"):
+					depth++
+					i++
+				case strings.HasPrefix(sql[i:], "*/"):
+					depth--
+					i++
+				}
+			}
+			sql = sql[i:]
+		default:
+			end := strings.IndexFunc(sql, func(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsDigit(r) && r != '_' })
+			if end < 0 {
+				return sql
+			}
+			return sql[:end]
+		}
+	}
 }
 
 // typeNames asks the server for the SQL names of the column types

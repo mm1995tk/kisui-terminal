@@ -373,3 +373,32 @@ func TestSessionsAreApart(t *testing.T) {
 		}
 	})
 }
+
+// COPY is refused before it reaches the server: `COPY ... FROM STDIN` would
+// wait for ever for data.
+func TestCopyIsRefused(t *testing.T) {
+	c := dbtest.Postgres(t)
+	name := table(t, c, "id INT")
+	s := open(t, c)
+	for _, sql := range []string{
+		"COPY " + name + " FROM STDIN",
+		"  copy " + name + " TO STDOUT",
+		"-- load\n/* a /* nested */ comment */ Copy " + name + " FROM STDIN",
+	} {
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		_, err := s.Query(ctx, sql, QueryOptions{})
+		cancel()
+		if e, ok := errors.AsType[*Error](err); !ok || e.Kind != KindQuery || !strings.Contains(e.Message, "COPY") {
+			t.Errorf("%q: %v", sql, err)
+		}
+	}
+	// A statement that only looks like one is run.
+	if got := cells(query(t, s, "SELECT 'copy' AS copy /* COPY */")); !reflect.DeepEqual(got, [][]string{{"copy"}}) {
+		t.Errorf("rows: %v", got)
+	}
+	for sql, want := range map[string]string{"": "", "  select 1": "select", "--x": "", "/* open": "", "copy_table": "copy_table"} {
+		if got := firstWord(sql); got != want {
+			t.Errorf("firstWord(%q) = %q, want %q", sql, got, want)
+		}
+	}
+}
