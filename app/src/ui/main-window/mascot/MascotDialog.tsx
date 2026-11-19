@@ -12,14 +12,15 @@ import {
 } from "solid-js";
 
 import { Button } from "../../components/Button.tsx";
-import { KeyHints } from "../../components/KeyHints.tsx";
+import { KeyFooter } from "../../components/KeyFooter.tsx";
 import {
   ModalCard,
   CardBody,
   CardTitle,
   CardText,
-  CardActions,
 } from "../../components/Card.tsx";
+import { basicHints } from "../../../features/commands/placeKeys.ts";
+import { openKeyList } from "../commands/KeyListDialog.tsx";
 import { moveRow, pickerKey } from "../../../features/sessions/machineList.ts";
 import type { MascotListing } from "../../../features/mascot/mascot.ts";
 
@@ -85,6 +86,7 @@ export function MascotDialog(props: {
     e.preventDefault();
     setNote(undefined);
     if (k.kind === "move") setIndex(moveRow(index(), k.to, entries().length));
+    else if (k.kind === "help") openKeyList("picker");
     else choose(index());
   }
 
@@ -94,23 +96,17 @@ export function MascotDialog(props: {
       width={560}
       onCancel={props.onCancel}
       footer={
-        <>
-          <CardBody>
+        <KeyFooter
+          note={
             <Show when={note()}>
               {(n) => <CardText role="alert">{n()}</CardText>}
             </Show>
-            <KeyHints
-              items={[
-                { keys: ["j", "k"], label: T("mascot.keys.select") },
-                { keys: ["Enter"], label: T("mascot.keys.confirm") },
-                { keys: ["Esc"], label: T("mascot.keys.cancel") },
-              ]}
-            />
-          </CardBody>
-          <CardActions>
+          }
+          items={basicHints({ decide: T("basic.decide"), end: "cancel" })}
+          actions={
             <Button onClick={props.onCancel}>{T("button.cancelAlt")}</Button>
-          </CardActions>
-        </>
+          }
+        />
       }
       header={<CardTitle>{T("mascot.title")}</CardTitle>}
     >

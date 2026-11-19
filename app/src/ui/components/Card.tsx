@@ -111,7 +111,7 @@ export function ModalCard(props: {
       </Show>
       <div class="card-content">{props.children}</div>
       <Show when={footer()}>
-        <footer class="card-footer">{footer()}</footer>
+        <CardFooter>{footer()}</CardFooter>
       </Show>
     </dialog>
   );
@@ -124,6 +124,14 @@ export function ModalCard(props: {
 /** class を足す（部品の class の後ろに、呼ぶ側の class）。 */
 const withClass = (base: string, extra: string | undefined): string =>
   extra ? `${base} ${extra}` : base;
+
+/**
+ * 下に固定する段（上に 1px の線）。ModalCard は footer をこれに入れる。
+ * 自分で使うのは、窓の枠を自分で持つ中身（履歴の一覧 HistoryPanel。真ん中の窓と、外から開く小さな窓の両方に出る）だけ。
+ */
+export function CardFooter(props: { children: JSX.Element }): JSX.Element {
+  return <footer class="card-footer">{props.children}</footer>;
+}
 
 /** 本文の塊。見出し・文・入力欄・エラーを入れる。 */
 export function CardBody(

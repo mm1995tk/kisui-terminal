@@ -2,13 +2,10 @@ import { T } from "../../../i18n/index.ts";
 import { createSignal, For, type JSX } from "solid-js";
 
 import { Button } from "../../components/Button.tsx";
-import { KeyHints } from "../../components/KeyHints.tsx";
-import {
-  ModalCard,
-  CardBody,
-  CardTitle,
-  CardActions,
-} from "../../components/Card.tsx";
+import { KeyFooter } from "../../components/KeyFooter.tsx";
+import { ModalCard, CardTitle } from "../../components/Card.tsx";
+import { basicHints } from "../../../features/commands/placeKeys.ts";
+import { openKeyList } from "../commands/KeyListDialog.tsx";
 import { moveRow, pickerKey } from "../../../features/sessions/machineList.ts";
 
 /** 作るワークスペースの種類。 */
@@ -35,6 +32,7 @@ export function WorkspaceKindPicker(props: {
     if (!k) return;
     e.preventDefault();
     if (k.kind === "move") setIndex((i) => moveRow(i, k.to, KINDS.length));
+    else if (k.kind === "help") openKeyList("picker");
     else props.onChoose(KINDS[index()]);
   }
 
@@ -44,20 +42,12 @@ export function WorkspaceKindPicker(props: {
       width={560}
       onCancel={props.onCancel}
       footer={
-        <>
-          <CardBody>
-            <KeyHints
-              items={[
-                { keys: ["j", "k"], label: T("machineDialog.keys.select") },
-                { keys: ["Enter"], label: T("kindPicker.keys.choose") },
-                { keys: ["Esc"], label: T("mascot.keys.cancel") },
-              ]}
-            />
-          </CardBody>
-          <CardActions>
+        <KeyFooter
+          items={basicHints({ decide: T("basic.decide"), end: "cancel" })}
+          actions={
             <Button onClick={props.onCancel}>{T("button.cancelAlt")}</Button>
-          </CardActions>
-        </>
+          }
+        />
       }
       header={<CardTitle>{T("kindPicker.title")}</CardTitle>}
     >

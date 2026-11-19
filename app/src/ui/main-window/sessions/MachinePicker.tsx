@@ -2,13 +2,10 @@ import { T } from "../../../i18n/index.ts";
 import { For, type JSX } from "solid-js";
 
 import { Button } from "../../components/Button.tsx";
-import { KeyHints } from "../../components/KeyHints.tsx";
-import {
-  ModalCard,
-  CardBody,
-  CardTitle,
-  CardActions,
-} from "../../components/Card.tsx";
+import { KeyFooter } from "../../components/KeyFooter.tsx";
+import { ModalCard, CardTitle } from "../../components/Card.tsx";
+import { basicHints } from "../../../features/commands/placeKeys.ts";
+import { openKeyList } from "../commands/KeyListDialog.tsx";
 import {
   pickerKey,
   type MachineRow,
@@ -36,6 +33,7 @@ export function MachinePicker(props: {
     if (!k) return;
     e.preventDefault();
     if (k.kind === "move") sel.move(k.to);
+    else if (k.kind === "help") openKeyList("picker");
     else {
       const r = sel.selected();
       if (r) props.onChoose(r.target);
@@ -48,20 +46,12 @@ export function MachinePicker(props: {
       width={560}
       onCancel={props.onCancel}
       footer={
-        <>
-          <CardBody>
-            <KeyHints
-              items={[
-                { keys: ["j", "k"], label: T("machineDialog.keys.select") },
-                { keys: ["Enter"], label: T("picker.keys.create") },
-                { keys: ["Esc"], label: T("mascot.keys.cancel") },
-              ]}
-            />
-          </CardBody>
-          <CardActions>
+        <KeyFooter
+          items={basicHints({ decide: T("picker.keys.create"), end: "cancel" })}
+          actions={
             <Button onClick={props.onCancel}>{T("button.cancelAlt")}</Button>
-          </CardActions>
-        </>
+          }
+        />
       }
       header={<CardTitle>{T("picker.title")}</CardTitle>}
     >

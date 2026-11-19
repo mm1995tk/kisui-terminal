@@ -12,12 +12,9 @@ import {
 } from "solid-js";
 
 import { leaderKeyName } from "../../../../features/commands/commands.ts";
-import {
-  ModalCard,
-  CardBody,
-  CardTitle,
-  CardText,
-} from "../../../components/Card.tsx";
+import { ModalCard, CardBody, CardTitle } from "../../../components/Card.tsx";
+import { KeyFooter } from "../../../components/KeyFooter.tsx";
+import { basicHints } from "../../../../features/commands/placeKeys.ts";
 import { moveSelection } from "../../../../features/clipboard/history.ts";
 import { IS_MAC } from "../../../../features/commands/guiKeys.ts";
 import { openKeyList } from "../../commands/KeyListDialog.tsx";
@@ -151,6 +148,17 @@ export function BookmarkDialog(props: {
       label={T("bookmarks.title")}
       onCancel={props.onCancel}
       header={<CardTitle>{T("bookmarks.title")}</CardTitle>}
+      footer={
+        // `?` は、絞り込みが空の間だけ効くので、その間だけ出す。消す（Ctrl+D）は `?` の一覧に出す
+        <KeyFooter
+          items={basicHints({
+            select: ["↓", "↑"],
+            decide: T("bookmarks.keys.open"),
+            help: query() === "",
+            end: "close",
+          })}
+        />
+      }
     >
       <CardBody>
         <Input
@@ -167,7 +175,6 @@ export function BookmarkDialog(props: {
           onKeyDown={onKeyDown}
           ref={(el) => queueMicrotask(() => el.focus())}
         />
-        <CardText class="history-hint">{T("bookmarks.hint")}</CardText>
       </CardBody>
       <Show
         when={shown().length > 0}

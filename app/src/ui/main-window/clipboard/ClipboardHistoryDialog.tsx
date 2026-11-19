@@ -7,6 +7,7 @@ import { createSignal, Show, type JSX } from "solid-js";
 import { ModalCard } from "../../components/Card.tsx";
 import { HistoryPanel } from "../../modules/clipboard-history/HistoryPanel.tsx";
 import { usePorts } from "../../ports.ts";
+import { openKeyList } from "../commands/KeyListDialog.tsx";
 import { focusedPasteTarget } from "../content/terminal/pasteTarget.ts";
 
 interface Opened {
@@ -53,6 +54,7 @@ function History(props: { opened: Opened }): JSX.Element {
           )
         }
         onClose={close}
+        onHelp={() => openKeyList("history")}
       />
     </ModalCard>
   );
