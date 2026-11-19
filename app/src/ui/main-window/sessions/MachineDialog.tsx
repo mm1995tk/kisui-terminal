@@ -15,14 +15,9 @@ import {
 
 import { openKeyList } from "../commands/KeyListDialog.tsx";
 import { Button } from "../../components/Button.tsx";
-import { KeyHints } from "../../components/KeyHints.tsx";
-import {
-  ModalCard,
-  CardBody,
-  CardTitle,
-  CardText,
-  CardActions,
-} from "../../components/Card.tsx";
+import { KeyFooter } from "../../components/KeyFooter.tsx";
+import { ModalCard, CardTitle, CardText } from "../../components/Card.tsx";
+import { basicHints } from "../../../features/commands/placeKeys.ts";
 import {
   canDo,
   keepRow,
@@ -170,28 +165,18 @@ export function MachineDialog(props: {
       width={640}
       onCancel={props.onCancel}
       footer={
-        <>
-          <CardBody>
+        // 足す・名前を変える・外す・切る・つなぎ直す（a n d x r）は、`?` の一覧に出す
+        <KeyFooter
+          note={
             <Show when={note()}>
               {(n) => <CardText role="alert">{n()}</CardText>}
             </Show>
-            <KeyHints
-              items={[
-                { keys: ["j", "k"], label: T("machineDialog.keys.select") },
-                { keys: ["a"], label: T("machineDialog.keys.add") },
-                { keys: ["n"], label: T("machineDialog.keys.rename") },
-                { keys: ["d"], label: T("machineDialog.keys.remove") },
-                { keys: ["x"], label: T("machineDialog.keys.disconnect") },
-                { keys: ["r"], label: T("machineDialog.keys.reconnect") },
-                { keys: ["?"], label: T("machineDialog.keys.keyList") },
-                { keys: ["Esc"], label: T("machineDialog.keys.close") },
-              ]}
-            />
-          </CardBody>
-          <CardActions>
+          }
+          items={basicHints({ end: "close" })}
+          actions={
             <Button onClick={props.onCancel}>{T("button.close")}</Button>
-          </CardActions>
-        </>
+          }
+        />
       }
       header={<CardTitle>{T("machineDialog.label")}</CardTitle>}
     >

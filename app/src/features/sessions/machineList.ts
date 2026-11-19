@@ -162,18 +162,21 @@ export function canDo(
 
 /** ワークスペースを作るマシンを選ぶ窓（リーダーの `w n`。MachinePicker.tsx）の、行の中のキーが表す動き。 */
 export type PickerKey =
-  { kind: "move"; to: "next" | "prev" | "first" | "last" } | { kind: "choose" };
+  | { kind: "move"; to: "next" | "prev" | "first" | "last" }
+  | { kind: "choose" }
+  | { kind: "help" };
 
 /**
  * 選ぶ窓の中のキー（入力欄が無いので、字をそのまま使える。Esc は ModalCard が取り消しに使う）。
- * マシンのダイアログの動かし方（j k g G・矢印・Ctrl+J / Ctrl+K）に、決める Enter を足したもの。
+ * マシンのダイアログの動かし方（j k g G・矢印・Ctrl+J / Ctrl+K）と `?`（キーの一覧）に、決める Enter を足したもの。
+ * 足す・名前を変えるなどの操作のキー（a n d x r）は受けない。
  */
 export function pickerKey(e: KeyLike): PickerKey | null {
   if (isComposingKey(e)) return null;
   if (e.key === "Enter" && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey)
     return { kind: "choose" };
   const k = machineKey(e);
-  return k?.kind === "move" ? k : null;
+  return k?.kind === "move" || k?.kind === "help" ? k : null;
 }
 
 /** ワークスペースを作れるマシン（つながっているもの）。 */

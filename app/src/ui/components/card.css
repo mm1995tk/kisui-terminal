@@ -317,11 +317,6 @@
 .history-close:focus-visible {
   outline: var(--state-focus-ring-width) solid var(--state-focus-ring);
 }
-.history-hint {
-  min-height: 1.6em;
-  color: var(--card-muted);
-  font-size: var(--text-caption);
-}
 .history-copied {
   color: var(--card-accent);
   font-weight: var(--weight-strong);
@@ -345,6 +340,10 @@
 .history-popup .history-rows {
   flex: 1;
   max-height: none;
+}
+/* 一覧が空でも、下の段（基本操作のヒント）は窓の下の端に置く */
+.history-popup .card-footer {
+  margin-top: auto;
 }
 
 /* マシンのダイアログ（MachineDialog.tsx）。行は card-row を使い、キーはダイアログ全体で受ける */
