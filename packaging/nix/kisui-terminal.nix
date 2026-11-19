@@ -137,7 +137,7 @@ craneLib.buildPackage (
     '';
 
     # Web 画面だけのビルド。flake の checks が npm test を足して使う（入れるときのビルドではテストを回さない）
-    passthru = { inherit web cargoArtifacts; };
+    passthru = { inherit web; };
 
     meta = {
       description = "kisui-terminal (Tauri), the terminal-centered workspace that works closely with shijimi-editor";
