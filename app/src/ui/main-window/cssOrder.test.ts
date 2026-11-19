@@ -151,4 +151,18 @@ describe("メインウィンドウの CSS の並び", () => {
       [["newtab", ["a.css", "b.css"]]],
     );
   });
+
+  it("属性つき・:hover つきは数え、:has() の中や子孫の規則は数えない", () => {
+    assert.deepEqual(
+      baseClasses(
+        [
+          '.c[data-x="1"] { top: 0 }',
+          ".h:hover { top: 0 }",
+          ".d:has(.e) { top: 0 }",
+          ".p .q { top: 0 }",
+        ].join("\n"),
+      ),
+      ["c", "h"],
+    );
+  });
 });
