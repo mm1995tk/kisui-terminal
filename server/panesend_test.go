@@ -3,6 +3,7 @@ package server
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"slices"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"github.com/mm1995tk/kisui-terminal/internal/emulator"
+	"github.com/mm1995tk/kisui-terminal/internal/i18n"
 	"github.com/mm1995tk/kisui-terminal/internal/panecmd"
 )
 
@@ -293,4 +295,46 @@ func TestWriteInputOutlivesDeadline(t *testing.T) {
 	if !bytes.HasSuffix(got, []byte("gui")) {
 		t.Fatalf("the input of the GUI did not arrive: ...%q", got[max(0, len(got)-8):])
 	}
+}
+
+// キーの一覧（knownKeys）は、keyBytes が引けるキーと合っている。kisui pane keys の使い方（en・ja）と SKILL.md にも
+// 同じ一覧を書いている。
+func TestKnownKeysMatchKeyBytes(t *testing.T) {
+	listed := map[string]bool{}
+	for _, k := range strings.Split(knownKeys, ", ") {
+		switch k {
+		case "f1-f12":
+			for i := 1; i <= 12; i++ {
+				listed[fmt.Sprintf("f%d", i)] = true
+			}
+		case "ctrl+a-ctrl+z":
+			for c := 'a'; c <= 'z'; c++ {
+				listed["ctrl+"+string(c)] = true
+			}
+		default:
+			listed[k] = true
+		}
+	}
+	for k := range listed {
+		if _, ok := keyBytes(k, false); !ok {
+			t.Errorf("knownKeys has %q, which keyBytes does not know", k)
+		}
+	}
+	for k := range fixedKeys {
+		if !listed[k] {
+			t.Errorf("knownKeys lacks %q", k)
+		}
+	}
+	for k := range cursorKeys {
+		if !listed[k] {
+			t.Errorf("knownKeys lacks %q", k)
+		}
+	}
+	for _, lang := range []string{"en", "ja"} {
+		i18n.SetLang(lang)
+		if u := i18n.T("pane.keys.usage"); !strings.Contains(u, knownKeys) {
+			t.Errorf("the usage (%s) does not list the keys of knownKeys: %s", lang, u)
+		}
+	}
+	i18n.SetLang(i18n.Default)
 }
