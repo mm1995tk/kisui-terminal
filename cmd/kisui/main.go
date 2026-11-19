@@ -42,8 +42,9 @@ var commands = []command{
 		{name: "paste", help: "help.clipboard.paste", run: runClipboardPaste},
 	}},
 	{name: "pane", sub: []command{
-		{name: "split", args: "--right|--down|--left|--up [command ...]", help: "help.pane.split", run: runPaneSplit},
+		{name: "split", args: "--right|--down|--left|--up [--name <name>] [command ...]", help: "help.pane.split", run: runPaneSplit},
 		{name: "title", args: "<name>", help: "help.pane.title", run: runPaneTitle},
+		{name: "list", args: "[--json]", help: "help.pane.list", run: runPaneList},
 	}},
 	{name: "skill", sub: []command{
 		{name: "install", args: "[dir]", help: "help.skill.install", run: runSkillInstall},

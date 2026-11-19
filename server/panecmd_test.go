@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"net"
 	"os"
 	"path/filepath"
@@ -390,5 +391,104 @@ func TestPaneCmdUpdate(t *testing.T) {
 	})
 	if r := paneCmdDo(t, sock, panecmd.Request{Cmd: "update", Pane: primary, Token: token}); r.OK || !strings.Contains(r.Error, "not connected") {
 		t.Fatalf("no window: %+v", r)
+	}
+}
+
+// 名前はマシン（serve）の中で重ならない。kisui pane title も split --name も、ほかのペインの名前と id の形は断る。
+// list は全部のワークスペースのペインを出し、find は名前か id でペインを 1 つに決める。
+func TestPaneCmdNamesAndList(t *testing.T) {
+	t.Setenv("HOME", normalizePath(t.TempDir()))
+	srv, sock := startFast(t)
+	c, _ := termClient(t, sock)
+	ws1, p1 := createWS(t, c)
+	ws2, p2 := createWS(t, c)
+	tok1, tok2 := termToken(t, srv, p1), termToken(t, srv, p2)
+	do1 := func(rq panecmd.Request) panecmd.Reply {
+		rq.Pane, rq.Token = p1, tok1
+		return paneCmdDo(t, sock, rq)
+	}
+	do2 := func(rq panecmd.Request) panecmd.Reply {
+		rq.Pane, rq.Token = p2, tok2
+		return paneCmdDo(t, sock, rq)
+	}
+
+	if r := do1(panecmd.Request{Cmd: "title", Title: "foo"}); !r.OK {
+		t.Fatalf("title: %+v", r)
+	}
+	if r := do1(panecmd.Request{Cmd: "title", Title: " foo "}); !r.OK {
+		t.Fatalf("the own name again: %+v", r)
+	}
+	// 別のワークスペースのペインでも、同じ名前は断る
+	if r := do2(panecmd.Request{Cmd: "title", Title: "foo"}); r.OK || !strings.Contains(r.Error, "already used") || !strings.Contains(r.Error, p1) {
+		t.Fatalf("a name that another pane has: %+v", r)
+	}
+	if r := do2(panecmd.Request{Cmd: "title", Title: "t42"}); r.OK || !strings.Contains(r.Error, "id") {
+		t.Fatalf("a name like an id: %+v", r)
+	}
+	before := len(srv.terms.all())
+	for _, name := range []string{"foo", "t1", "a\nb"} {
+		if r := do2(panecmd.Request{Cmd: "split", Dir: "right", Name: name}); r.OK {
+			t.Fatalf("split --name %q must be refused: %+v", name, r)
+		}
+	}
+	if n := len(srv.terms.all()); n != before {
+		t.Fatalf("a refused split must not make a pane: %d -> %d", before, n)
+	}
+	r := do2(panecmd.Request{Cmd: "split", Dir: "right", Name: " bar "})
+	if !r.OK {
+		t.Fatalf("split --name bar: %+v", r)
+	}
+	bar := r.ID
+	if got := listWS(t, c).find(ws2).Titles; got[bar] != "bar" {
+		t.Fatalf("the titles of the new pane: %+v", got)
+	}
+	if r := do1(panecmd.Request{Cmd: "title", Title: "bar"}); r.OK {
+		t.Fatalf("the name of the split pane is taken: %+v", r)
+	}
+	// 名前を外せば、ほかのペインが使える
+	if r := do1(panecmd.Request{Cmd: "title", Title: ""}); !r.OK {
+		t.Fatal(r)
+	}
+	if r := do2(panecmd.Request{Cmd: "title", Title: "foo"}); !r.OK {
+		t.Fatalf("a name that was taken away: %+v", r)
+	}
+
+	l := do2(panecmd.Request{Cmd: "list"})
+	if !l.OK || len(l.Panes) != 3 {
+		t.Fatalf("list: %+v", l)
+	}
+	want := []panecmd.PaneInfo{
+		{ID: p1, Tab: ws1, Primary: true, Alive: true},
+		{ID: p2, Name: "foo", Tab: ws2, Primary: true, Alive: true, Self: true},
+		{ID: bar, Name: "bar", Tab: ws2, Alive: true},
+	}
+	for i, w := range want {
+		g := l.Panes[i]
+		if g.ID != w.ID || g.Name != w.Name || g.Tab != w.Tab || g.Primary != w.Primary || g.Alive != w.Alive || g.Self != w.Self || g.Cwd == "" || g.TabName == "" {
+			t.Errorf("list[%d] = %+v, want %+v", i, g, w)
+		}
+	}
+
+	for target, want := range map[string]string{"foo": p2, "bar": bar, p1: p1} {
+		if got, err := srv.terms.find(target); err != nil || got.id != want {
+			t.Errorf("find(%q) = %v %v, want %s", target, got, err, want)
+		}
+	}
+	if _, err := srv.terms.find("nope"); !errors.Is(err, errNoSuchPane) {
+		t.Errorf("find of no pane: %v", err)
+	}
+	// 引き継ぎで受け取った名前は重なっていることがある。そのときは決めない
+	tm, _ := srv.terms.get(p1)
+	tm.mu.Lock()
+	tm.name = "bar"
+	tm.mu.Unlock()
+	if _, err := srv.terms.find("bar"); !errors.Is(err, errPaneAmbiguous) {
+		t.Errorf("find of a name that two panes have: %v", err)
+	}
+	tm.mu.Lock()
+	tm.name = bar // 古い版が付けた、別のペインの id の形の名前
+	tm.mu.Unlock()
+	if _, err := srv.terms.find(bar); !errors.Is(err, errPaneAmbiguous) {
+		t.Errorf("find of a name that is the id of another pane: %v", err)
 	}
 }

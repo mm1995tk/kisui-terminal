@@ -39,8 +39,14 @@ const (
 //   - "split": split the terminal Pane in the direction Dir ("right", "down", "left" or "up") and
 //     start a new terminal in it: its shell, or the command Argv (its first word is
 //     an absolute path; the new terminal ends with the command) in Cwd. Env is
-//     "NAME=value" entries for the new terminal.
+//     "NAME=value" entries for the new terminal. Name, when not empty, is the name
+//     of the new terminal (the rules of "title").
 //   - "title": give the terminal Pane the name Title (empty takes the name away).
+//     A name is unique among the terminals of one "kisui serve" (one machine), and
+//     is not written like an id ("t1"): a name that another terminal has, or that
+//     looks like an id, is refused. So a name, or an id, points at one terminal of
+//     the machine.
+//   - "list": the terminals of this "kisui serve", of every workspace (Reply.Panes).
 //   - "update": ask the window to look for a newer version of kisui-terminal now.
 //     The window shows its "a new version is available" notice when there is one,
 //     and answers (Reply.Update) for the command to print.
@@ -57,6 +63,7 @@ type Request struct {
 	Cwd    string   `json:"cwd,omitempty"`
 	Env    []string `json:"env,omitempty"`
 	Title  string   `json:"title,omitempty"`
+	Name   string   `json:"name,omitempty"`
 }
 
 // Reply answers a Request. ID is the pane that "open" (a file) or "split" made. Code is
@@ -69,6 +76,33 @@ type Reply struct {
 	ID    string `json:"id,omitempty"`
 	// Update is what the window found for "update".
 	Update *UpdateResult `json:"update,omitempty"`
+	// Panes is the answer to "list": the terminals of the machine, by workspace
+	// (in the order they were made), the primary terminal of each first.
+	Panes []PaneInfo `json:"panes,omitempty"`
+}
+
+// PaneInfo is one terminal in the answer to "list". "kisui pane list --json"
+// prints these as they are, so the names of the fields are what an agent reads.
+//
+// Tab is the workspace of "kisui serve" the terminal belongs to, which is one
+// terminal tab in the window (a workspace of the window holds tabs, and "kisui
+// serve" does not know those). TabName is the name of the tab: the one the user
+// gave it, or else the name of its folder.
+type PaneInfo struct {
+	ID      string `json:"id"`
+	Name    string `json:"name,omitempty"`
+	Tab     string `json:"tab"`
+	TabName string `json:"tabName,omitempty"`
+	Cwd     string `json:"cwd"`
+	// Title is what the program in the terminal set as its title (OSC 0/2),
+	// which often tells what runs there. It is not the name.
+	Title string `json:"title,omitempty"`
+	// Primary is the primary terminal of the tab: closing it closes the tab.
+	Primary bool `json:"primary"`
+	// Alive is false when the shell (or the command) of the terminal has ended.
+	Alive bool `json:"alive"`
+	// Self is the terminal that asked.
+	Self bool `json:"self,omitempty"`
 }
 
 // The Status of an UpdateResult.
