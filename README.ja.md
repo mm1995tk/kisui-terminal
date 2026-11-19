@@ -63,6 +63,13 @@ kisui pane split --down --name dev npm run dev
 kisui pane list --json
 ```
 
+`kisui pane read <名前|id>` は、名前か id で指したこのマシンのペイン（どのワークスペース・タブのものでも）の画面の字を出します。あるペインのエージェントが、別のペインのエージェントやコマンドが出しているものを見られます。`--lines <数>` を付けると、画面の上の scrollback もその行数だけ出します（serve が持つ 5000 行まで）。出すのは字だけで、色は付きません。端末が折り返した行は 1 行にして出し、行末の空白と、画面の下の何も無い行は出しません。全画面のプログラム（`shj` や `htop` など）は scrollback の無い画面に描くので、そこでは `--lines` を付けても増えません。
+
+```sh
+kisui pane read build
+kisui pane read t5 --lines 200
+```
+
 `kisui update` は、アプリに新しい版を今すぐ調べ直させます。アプリを閉じて開き直さなくてすみます（何もしなければ、調べるのは起動したときの 1 回だけです）。新しい版があれば、起動したときと同じ「新しい版があります」の知らせを出します（「あとで」で閉じていても、出し直します）。「更新して再起動」の動きは、その知らせと同じで、ペインのシェルは残ります（serve が引き継ぎます）。`kisui update` は、アプリが見つけたことを出します。新しい版がある、最新である、この版は自動更新を持たない（Nix で入れた版と、AppImage でない Linux。`nix flake update` で更新するか、新しい版を入れ直す）のどれかです。ssh 先のマシンのペインでも使えます。調べて知らせを出すのは手元のアプリです。使い方は `kisui update --help` で出ます。
 
 `kisui skill install [フォルダ]` は、Claude Code などのコーディングエージェントに、ペインの中での `kisui open`・`kisui notify`・`kisui clipboard`・`kisui pane` の使い方を教える skill（`SKILL.md`）を書き出します。フォルダを省くと `~/.claude/skills/kisui-terminal/` に書きます。skill は `kisui` のバイナリに入っているので、入れた版に合った内容になります。`kisui clipboard paste` は勝手に呼ばないよう、skill に書いてあります。

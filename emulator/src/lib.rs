@@ -98,7 +98,25 @@ pub extern "C" fn em_serialize(max_scrollback: u32) -> u32 {
     }
 }
 
-/// `em_serialize` が作ったバイト列の場所。
+/// 画面の字（kisui pane read）を UTF-8 にして、その長さを返す。見えている画面に、その上の scrollback を
+/// 新しいほうから `scrollback` 行まで足す（代替画面には scrollback が無いので、画面だけ）。
+/// 折り返しでつながった行は改行を入れずにつなげ、行末の何も書かれていないセルは捨てる（`selection::text`）。
+/// 色や装飾は入らない。バイト列は `em_serialize` と同じく `em_snapshot_ptr` から読み、`em_snapshot_release` で手放す。
+#[no_mangle]
+#[allow(static_mut_refs)]
+pub extern "C" fn em_text(scrollback: u32) -> u32 {
+    use coneko_term::selection::{text, total_rows, Pos};
+    let s = term().screen();
+    let start = s.scrollback_len().saturating_sub(scrollback as usize);
+    let bytes = text(s, Pos::new(start, 0), Pos::new(total_rows(s), 0)).into_bytes();
+    // SAFETY: term() と同じ
+    unsafe {
+        SNAPSHOT = bytes;
+        SNAPSHOT.len() as u32
+    }
+}
+
+/// `em_serialize`・`em_text` が作ったバイト列の場所。
 #[no_mangle]
 #[allow(static_mut_refs)]
 pub extern "C" fn em_snapshot_ptr() -> *const u8 {
@@ -106,7 +124,7 @@ pub extern "C" fn em_snapshot_ptr() -> *const u8 {
     unsafe { SNAPSHOT.as_ptr() }
 }
 
-/// `em_serialize` が作ったバイト列を手放す。
+/// `em_serialize`・`em_text` が作ったバイト列を手放す。
 #[no_mangle]
 pub extern "C" fn em_snapshot_release() {
     // SAFETY: term() と同じ

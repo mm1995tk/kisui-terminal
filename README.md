@@ -63,6 +63,13 @@ kisui pane split --down --name dev npm run dev
 kisui pane list --json
 ```
 
+`kisui pane read <name|id>` prints the text on the screen of a pane of the machine (of any workspace or tab), pointed at by its name or id, so that an agent in one pane can see what an agent or a command in another pane shows. `--lines <n>` also prints n lines of the scrollback above the screen (up to 5000, what the server keeps). Only the characters come out, with no colors. A line that the terminal wrapped comes out as one line, and spaces at the end of a line and the empty lines at the bottom of the screen are left out. A full-screen program (such as `shj` or `htop`) draws on a screen that has no scrollback, so there `--lines` adds nothing.
+
+```sh
+kisui pane read build
+kisui pane read t5 --lines 200
+```
+
 `kisui update` makes the app look for a newer version now, so you do not have to close and reopen it (it looks once at start-up otherwise). When there is one, the app shows the same "a new version is available" notice as at start-up, even if you closed it with "Later"; "Update and restart" works as it does there, and the shells of the panes stay (the server hands over). `kisui update` prints what the app found: that there is a newer version, that this is the newest, or that this build has no auto update (the Nix build and Linux other than the AppImage: update it with `nix flake update`, or install the new version). It works in the panes of a remote machine too: the app on your computer looks and shows the notice. `kisui update --help` shows its usage.
 
 `kisui skill install [folder]` writes a skill (`SKILL.md`) that teaches a coding agent such as Claude Code how to use `kisui open`, `kisui notify`, `kisui clipboard` and `kisui pane` in a pane. It writes to `~/.claude/skills/kisui-terminal/` when you give no folder. The skill is built into the `kisui` binary, so it matches the version you have. It tells the agent not to run `kisui clipboard paste` on its own.

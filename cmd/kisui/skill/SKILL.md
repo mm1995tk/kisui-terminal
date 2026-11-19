@@ -1,6 +1,6 @@
 ---
 name: kisui-terminal
-description: Use the kisui commands from inside a pane of kisui-terminal - show a file or a web page in another pane (kisui open), split the pane (kisui pane split), name the pane (kisui pane title), list the panes of the machine (kisui pane list), send a desktop notification when long work ends (kisui notify), and use the clipboard of the user's computer (kisui clipboard copy). Use it when you run in a kisui-terminal pane and the user wants to see a result, be told when something finishes, or get text onto their clipboard.
+description: Use the kisui commands from inside a pane of kisui-terminal - show a file or a web page in another pane (kisui open), split the pane (kisui pane split), name the pane (kisui pane title), list the panes of the machine (kisui pane list), read the screen of a pane (kisui pane read), send a desktop notification when long work ends (kisui notify), and use the clipboard of the user's computer (kisui clipboard copy). Use it when you run in a kisui-terminal pane and the user wants to see a result, be told when something finishes, or get text onto their clipboard.
 ---
 
 # kisui-terminal
@@ -70,6 +70,15 @@ Show a name on the pane, on the thin bar above it. An empty name takes the name 
 
 ```sh
 kisui pane title build
+```
+
+### kisui pane read <name|id> [--lines <n>]
+
+Print the text on the screen of a pane of this machine (of any workspace or tab), pointed at by its name or id (see `kisui pane list`). Use it to see what an agent or a command you started in another pane shows: its answer, its question, or an error. `--lines <n>` also prints n lines of the scrollback above the screen (up to 5000, what kisui-terminal keeps). Only the characters come out, with no colors. A line that the terminal wrapped comes out as one line; spaces at the end of a line and the empty lines at the bottom of the screen are left out. A full-screen program (such as `shj`, `htop` or `less`) draws on a screen that has no scrollback, so there `--lines` adds nothing. It reads the screen as it is now; it does not wait for the program to finish.
+
+```sh
+kisui pane read worker
+kisui pane read t5 --lines 200
 ```
 
 ### kisui pane list [--json]

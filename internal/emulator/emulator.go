@@ -11,6 +11,7 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
+	"math"
 	"sync"
 
 	"github.com/tetratelabs/wazero"
@@ -50,6 +51,7 @@ type Emulator struct {
 	fCursor                        api.Function
 	fReset                         api.Function
 	fSerialize, fSnapPtr, fRelease api.Function
+	fText                          api.Function
 	buf                            uint32 // wasm 側の書き込み用の領域（chunk バイト）
 	closed                         bool
 }
@@ -70,6 +72,7 @@ func New(rows, cols int) (*Emulator, error) {
 		mod: mod, fWrite: mod.ExportedFunction("em_write"), fResize: mod.ExportedFunction("em_resize"),
 		fSize: mod.ExportedFunction("em_size"), fCursor: mod.ExportedFunction("em_cursor"), fReset: mod.ExportedFunction("em_reset"),
 		fSerialize: mod.ExportedFunction("em_serialize"), fSnapPtr: mod.ExportedFunction("em_snapshot_ptr"), fRelease: mod.ExportedFunction("em_snapshot_release"),
+		fText: mod.ExportedFunction("em_text"),
 	}
 	if _, err := mod.ExportedFunction("em_new").Call(ctx, uint64(clampDim(rows)), uint64(clampDim(cols))); err != nil {
 		mod.Close(ctx)
@@ -171,23 +174,36 @@ func (e *Emulator) Reset() error {
 // 主画面の scrollback は新しいほうから maxScrollback 行まで。代替画面・カーソル・モード（kitty キーボード・
 // マウス報告・bracketed paste ほか）も入る。問い合わせは入れないので、どこに書いても返事は出ない。
 func (e *Emulator) Serialize(maxScrollback int) ([]byte, error) {
+	return e.produce(e.fSerialize, "em_serialize", maxScrollback)
+}
+
+// Text は画面の字（色や装飾は無し）を返す。見えている画面に、その上の scrollback を新しいほうから scrollback 行まで
+// 足す（代替画面には scrollback が無いので、画面だけ）。行は "\n" で区切り、折り返しでつながった行は 1 行につなげる。
+// 行末の何も書かれていないセルは入らない。
+func (e *Emulator) Text(scrollback int) (string, error) {
+	b, err := e.produce(e.fText, "em_text", scrollback)
+	return string(b), err
+}
+
+// produce は、wasm の f（em_serialize か em_text）に n を渡してバイト列を作らせ、それを読み出す。
+func (e *Emulator) produce(f api.Function, name string, n int) ([]byte, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if e.closed {
 		return nil, errClosed
 	}
 	ctx := context.Background()
-	res, err := e.fSerialize.Call(ctx, uint64(max(maxScrollback, 0)))
+	res, err := f.Call(ctx, uint64(min(max(n, 0), math.MaxUint32)))
 	if err != nil {
-		return nil, fmt.Errorf("em_serialize: %w", err)
+		return nil, fmt.Errorf("%s: %w", name, err)
 	}
-	n := uint32(res[0])
+	size := uint32(res[0])
 	defer e.fRelease.Call(ctx)
 	ptrRes, err := e.fSnapPtr.Call(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("em_snapshot_ptr: %w", err)
 	}
-	b, ok := e.mod.Memory().Read(uint32(ptrRes[0]), n)
+	b, ok := e.mod.Memory().Read(uint32(ptrRes[0]), size)
 	if !ok {
 		return nil, errors.New("emulator memory read out of range")
 	}
