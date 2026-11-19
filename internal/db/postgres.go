@@ -23,9 +23,15 @@ type pgSession struct {
 }
 
 func openPostgres(ctx context.Context, c config.DBConnection, password string) (Session, error) {
-	// Everything pgconn would otherwise take from the environment of kisui
-	// serve (PGHOST, PGSSLMODE, ...) is written here, so that a connection is
-	// what its settings say. sslmode=prefer is the default of libpq: TLS when
+	// What a connection's settings say (and sslmode, the timeout and the
+	// application name) is written here, so that the environment of kisui
+	// serve does not replace it (PGHOST, PGPORT, PGUSER, PGDATABASE,
+	// PGSSLMODE, PGCONNECT_TIMEOUT, PGAPPNAME). pgconn still reads the
+	// variables for what is not written: PGSERVICE and PGSERVICEFILE,
+	// PGOPTIONS, PGTARGETSESSIONATTRS, PGREQUIREAUTH, PGSSLCERT, PGSSLKEY,
+	// PGSSLROOTCERT and so on. A PGSERVICE that names a service that is not
+	// in the service file makes ParseConfig fail, for every connection.
+	// sslmode=prefer is the default of libpq: TLS when
 	// the server offers it, without checking the certificate.
 	cfg, err := pgconn.ParseConfig(pgKeywords(
 		"host", c.Host,
