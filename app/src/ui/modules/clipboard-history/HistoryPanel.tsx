@@ -181,13 +181,16 @@ export function HistoryPanel(props: {
           listRef={(el) => (list = el)}
         />
       </Show>
-      {/* 下の段（共通フッタ）。クリップボードに戻したら、ヒントの代わりに「コピーしました」を出す */}
+      {/* 下の段（共通フッタ）。クリップボードに戻したら、ヒントの代わりに「コピーしました」を出す。
+          知らせ（role="status"）にするのは「コピーしました」だけ（ヒントは、字を打つたびに `?` が出入りするので、読み上げさせない） */}
       <CardFooter>
-        <CardBody role="status">
+        <CardBody>
           <Show
             when={!copied()}
             fallback={
-              <CardText class="history-copied">{T("history.copied")}</CardText>
+              <CardText class="history-copied" role="status">
+                {T("history.copied")}
+              </CardText>
             }
           >
             <KeyHints
