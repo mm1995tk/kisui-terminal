@@ -51,10 +51,13 @@ const (
 // termManager はサーバー全体のターミナル。
 // command-end（OSC 133;D）をサーバーで取り出さない理由は docs/design/gui-protocol.md の「ターミナル」を見る。
 type termManager struct {
-	srv    *Server
-	mu     sync.Mutex
-	next   int
-	terms  map[string]*terminal
+	srv   *Server
+	mu    sync.Mutex
+	next  int
+	terms map[string]*terminal
+	// nameMu は欄の名前を付ける操作を 1 つずつにする（名前が重ならないことを確かめてから付けるまでの間に、
+	// ほかの欄が同じ名前を取らないように。panename.go）。mu や terminal.mu を持ったまま取らない
+	nameMu sync.Mutex
 	wg     sync.WaitGroup
 	closed bool
 }
@@ -217,6 +220,7 @@ type termStart struct {
 	wsID       string
 	primary    bool
 	argv       []string // 空でなければ、シェルの代わりに動かすコマンド（kisui pane split のコマンド）。終わると欄も閉じる
+	name       string   // 欄の名前（kisui pane split --name）。呼ぶ側が nameMu を持って、重ならないことを確かめておく
 }
 
 // start はシェルを始めてターミナルを足す。ワークスペースの一覧は作り直さない（呼ぶ側がする）。
@@ -272,7 +276,7 @@ func (m *termManager) start(a termStart) (*terminal, error) {
 	t := &terminal{
 		mgr: m, id: fmt.Sprintf("t%d", m.next), pid: sess.Pid(),
 		ptmx: ptmx, cmd: cmd, process: cmd.Process, cols: a.cols, rows: a.rows, alive: true,
-		ring: make([]byte, ringSize), wsID: a.wsID, primary: a.primary, token: token,
+		ring: make([]byte, ringSize), wsID: a.wsID, primary: a.primary, token: token, name: a.name,
 		feed: newScreenFeed(m.srv.log, a.rows, a.cols),
 	}
 	t.cwd = normalizePath(a.dir) // 以後 cwd の変化を見るので、読み取った値（実パス）に合わせる

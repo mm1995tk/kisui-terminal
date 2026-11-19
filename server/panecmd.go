@@ -153,11 +153,13 @@ func (s *Server) paneCmd(rq panecmd.Request) (panecmd.Reply, error) {
 		if err != nil {
 			return panecmd.Reply{}, err
 		}
-		t.mu.Lock()
-		t.name = name
-		t.mu.Unlock()
+		if err := s.terms.setName(t, name); err != nil {
+			return panecmd.Reply{}, err
+		}
 		s.ws.recompute() // workspace.changed で GUI に届く
 		return panecmd.Reply{ID: t.id}, nil
+	case "list":
+		return panecmd.Reply{Panes: s.paneList(t.id)}, nil
 	}
 	return panecmd.Reply{}, fmt.Errorf("unknown command: %q", rq.Cmd)
 }
@@ -203,6 +205,7 @@ func cleanPaneName(s string) (string, error) {
 
 // splitFrom は kisui pane split。rq.Pane の欄を rq.Dir に分け、新しい欄でシェルか rq.Argv を動かす。
 // 分け方と最小の大きさの決まりは GUI で分けるときと同じ（planSplit）。フォルダは rq.Cwd（フォルダでなければ、打った欄の cwd）。
+// rq.Name があれば、新しい欄にその名前を付ける（kisui pane title と同じ決まり。重なれば欄を作らずに断る）。
 func (w *wsManager) splitFrom(wsID string, rq panecmd.Request) (string, error) {
 	if !validSplitDir(rq.Dir) {
 		return "", fmt.Errorf("%w: %q", errBadDir, rq.Dir)
@@ -233,13 +236,24 @@ func (w *wsManager) splitFrom(wsID string, rq panecmd.Request) (string, error) {
 			return "", fmt.Errorf("%w: %s", errNoWorkspace, wsID)
 		}
 	}
+	name, err := cleanPaneName(rq.Name)
+	if err != nil {
+		return "", err
+	}
+	// 名前が重ならないことを確かめてから、その名前で作るまでの間、ほかのペインに名前を取らせない（nameMu は recomputeMu より先に取る）
+	terms := w.srv.terms
+	terms.nameMu.Lock()
+	defer terms.nameMu.Unlock()
+	if err := terms.checkNameLocked(name, ""); err != nil {
+		return "", err
+	}
 	w.recomputeMu.Lock()
 	defer w.recomputeMu.Unlock()
 	target, sdir, err := w.planSplit(wsID, rq.Pane, rq.Dir)
 	if err != nil {
 		return "", err
 	}
-	t, err := w.srv.terms.start(termStart{cols: 80, rows: 24, dir: dir, env: env, wsID: wsID, argv: rq.Argv})
+	t, err := terms.start(termStart{cols: 80, rows: 24, dir: dir, env: env, wsID: wsID, argv: rq.Argv, name: name})
 	if err != nil {
 		return "", err
 	}

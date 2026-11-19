@@ -1,6 +1,6 @@
 ---
 name: kisui-terminal
-description: Use the kisui commands from inside a pane of kisui-terminal - show a file or a web page in another pane (kisui open), split the pane (kisui pane split), name the pane (kisui pane title), send a desktop notification when long work ends (kisui notify), and use the clipboard of the user's computer (kisui clipboard copy). Use it when you run in a kisui-terminal pane and the user wants to see a result, be told when something finishes, or get text onto their clipboard.
+description: Use the kisui commands from inside a pane of kisui-terminal - show a file or a web page in another pane (kisui open), split the pane (kisui pane split), name the pane (kisui pane title), list the panes of the machine (kisui pane list), send a desktop notification when long work ends (kisui notify), and use the clipboard of the user's computer (kisui clipboard copy). Use it when you run in a kisui-terminal pane and the user wants to see a result, be told when something finishes, or get text onto their clipboard.
 ---
 
 # kisui-terminal
@@ -55,21 +55,30 @@ echo hello | kisui clipboard copy
 
 Print the text on the clipboard of the computer the window runs on. **Do not run this on your own.** Every call makes kisui-terminal ask the user whether to allow it, and the clipboard can hold something private. Run it only when the user asks you to read their clipboard. `pbpaste` asks in the same way, so the same rule applies.
 
-### kisui pane split --right|--down|--left|--up [command ...]
+### kisui pane split --right|--down|--left|--up [--name <name>] [command ...]
 
-Split the pane you run in to the right, down, left or up and move the focus to the new pane. With a command, the new pane runs it instead of a shell, and closes when the command ends; to keep the output of a short command, end with a shell (`sh -c "ls; exec sh"`). It is refused when `--right` or `--left` would leave a pane narrower than 20 columns, or `--down` or `--up` shorter than 5 rows. The focus moves to the new pane, so what the user is typing goes there too: split only when the user asks or the work needs it. Use it to start a dev server or a watcher beside your work.
+Split the pane you run in to the right, down, left or up and move the focus to the new pane. With a command, the new pane runs it instead of a shell, and closes when the command ends; to keep the output of a short command, end with a shell (`sh -c "ls; exec sh"`). `--name` gives the new pane a name (the rules of `kisui pane title`; when the name is taken, no pane is made). It is refused when `--right` or `--left` would leave a pane narrower than 20 columns, or `--down` or `--up` shorter than 5 rows. The focus moves to the new pane, so what the user is typing goes there too: split only when the user asks or the work needs it. Use it to start a dev server or a watcher beside your work.
 
 ```sh
 kisui pane split --right
-kisui pane split --down npm run dev
+kisui pane split --down --name dev npm run dev
 ```
 
 ### kisui pane title <name>
 
-Show a name on the pane, on the thin bar above it. An empty name takes the name away. Use it to tell panes apart.
+Show a name on the pane, on the thin bar above it. An empty name takes the name away. Use it to tell panes apart. A name is unique on the machine (among the panes of every workspace and tab): a name that another pane has is refused, and so is a name written like a pane id (`t` and a number, such as `t3`). So a name, or the id of a pane without one, points at one pane.
 
 ```sh
 kisui pane title build
+```
+
+### kisui pane list [--json]
+
+List the panes (terminals) of this machine, of every workspace and tab, not only yours. Each line has the id, the name, the tab (its id and name), the folder (cwd) and the title the program in the pane set; `*` marks the pane you run in. `--json` prints `{"panes": [{"id", "name", "tab", "tabName", "cwd", "title", "primary", "alive", "self"}, ...]}` (`name`, `tabName` and `title` are left out when empty); read that one when a program or you will use the result. Use it to find a pane by its name or id.
+
+```sh
+kisui pane list
+kisui pane list --json
 ```
 
 ### kisui update
