@@ -253,7 +253,7 @@
 .switch-newtab .tab-line {
   min-height: 0;
 }
-.newtab {
+.switch-newtab-box {
   position: relative;
   display: flex;
   flex: 1;
@@ -262,16 +262,16 @@
   min-width: 0;
   padding-left: 8px;
 }
-.newtab-line {
+.switch-newtab-line {
   display: flex;
   align-items: center;
   gap: 6px;
 }
-.newtab-line .inline-input {
+.switch-newtab-line .inline-input {
   flex: 1;
   min-height: 24px;
 }
-.newtab-machine {
+.switch-newtab-machine {
   flex: none;
   display: flex;
   align-items: center;
@@ -285,15 +285,15 @@
   font-size: 12px;
   cursor: pointer;
 }
-.newtab-machine:hover,
-.newtab-machine[aria-expanded="true"] {
+.switch-newtab-machine:hover,
+.switch-newtab-machine[aria-expanded="true"] {
   border-color: var(--card-accent);
 }
-.newtab-caret {
+.switch-newtab-caret {
   color: var(--gh-text-muted);
   font-size: 10px;
 }
-.newtab-list {
+.switch-newtab-list {
   position: absolute;
   z-index: 4;
   top: calc(100% + 4px);
@@ -309,10 +309,10 @@
   background: var(--gh-bg-raised);
   box-shadow: var(--shadow-raised);
 }
-.newtab-list:focus {
+.switch-newtab-list:focus {
   outline: none;
 }
-.newtab-list li {
+.switch-newtab-list li {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -321,7 +321,7 @@
   font-size: 12px;
   cursor: pointer;
 }
-.newtab-list li[data-cursor] {
+.switch-newtab-list li[data-cursor] {
   background: var(--gh-bg-hover);
   box-shadow: inset 2px 0 0 var(--card-accent);
 }

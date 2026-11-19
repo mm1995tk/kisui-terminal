@@ -73,7 +73,7 @@ export function SwitcherNewTab(props: {
 
   return (
     <div
-      class="newtab"
+      class="switch-newtab-box"
       ref={box}
       onClick={(e) => e.stopPropagation()}
       onPointerDown={(e) => e.stopPropagation()}
@@ -87,7 +87,7 @@ export function SwitcherNewTab(props: {
         });
       }}
     >
-      <div class="newtab-line">
+      <div class="switch-newtab-line">
         <input
           class="inline-input"
           type="text"
@@ -102,7 +102,7 @@ export function SwitcherNewTab(props: {
         />
         <button
           type="button"
-          class="newtab-machine"
+          class="switch-newtab-machine"
           aria-haspopup="listbox"
           aria-expanded={open() ? "true" : "false"}
           title={T("leader.tab.newPick")}
@@ -119,7 +119,7 @@ export function SwitcherNewTab(props: {
             style={{ "--machine-color": machine()?.color }}
           />
           <span>{machine()?.label}</span>
-          <span class="newtab-caret" aria-hidden="true">
+          <span class="switch-newtab-caret" aria-hidden="true">
             ▾
           </span>
         </button>
