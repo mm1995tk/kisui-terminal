@@ -66,6 +66,7 @@ A password found in the keychain or in a file is used before a typed one. When t
 ## What a statement does
 
 - One request runs one statement. Several statements separated by `;` are refused by the database.
+- PostgreSQL's `COPY` is refused: there is nowhere to send its data to or take it from. `COPY` to or from a file of the server is refused with it.
 - Each statement logs in by itself and logs out when it is done. What a statement leaves in a session (`SET`, `USE`, a temporary table) is gone for the next one, and a transaction cannot span statements. Without `read-only`, each statement is committed by itself.
 - A result holds up to 1000 rows (the window can ask for up to 10000) and 8 MiB; one value holds up to 1 MiB. The result says when it was cut.
 - A statement can be cancelled; the database is told to stop it.
