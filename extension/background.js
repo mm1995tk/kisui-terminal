@@ -28,8 +28,8 @@ const api = globalThis.browser ?? globalThis.chrome;
 const K = KisuiPasskey;
 
 // 入れるときにもらう権限（manifest.json の host_permissions。extension.test.ts が同じことを確かめる）。
-// http://*/* は http のサイトのためではない。ブラウザは、https のサイトの Cookie でも、Secure の付かないもの
-// （Google の SID など）は、http:// の host の権限が無いと cookies.getAll で返さない
+// http://*/* は http のサイトのためではない。Chromium は、https のサイトの Cookie でも、Secure の付かないもの
+// （Google の SID など）は、http:// の host の権限が無いと cookies.getAll で返さない。Firefox で要るかは確かめていない
 const ORIGINS = ["https://*/*", "http://*/*"];
 // 許可サイトの一覧を聞き直すまでの長さ
 const SITES_TTL_MS = 60 * 1000;
