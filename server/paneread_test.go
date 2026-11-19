@@ -3,6 +3,7 @@ package server
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/mm1995tk/kisui-terminal/internal/panecmd"
 )
@@ -75,5 +76,22 @@ func TestCleanScreenText(t *testing.T) {
 		if got := cleanScreenText(c.in); got != c.want {
 			t.Errorf("cleanScreenText(%q) = %q, want %q", c.in, got, c.want)
 		}
+	}
+}
+
+// 画面の状態が追いつかない（feeder が答えない）まま readTimeout が過ぎたら、待たずに断る。
+func TestReadScreenTimeout(t *testing.T) {
+	defer func(d time.Duration) { readTimeout = d }(readTimeout)
+	readTimeout = 50 * time.Millisecond
+	m := newTermManager(nil)
+	// run を動かさない feed：頼みは溜まるだけで、答えが来ない
+	m.terms["t1"] = &terminal{id: "t1", name: "stuck", feed: &screenFeed{wake: make(chan struct{}, 1)}}
+	start := time.Now()
+	_, id, err := m.readScreen("stuck", 0)
+	if err == nil || !strings.Contains(err.Error(), "not ready") || id != "t1" {
+		t.Fatalf("readScreen = %q %v, want the error of not ready", id, err)
+	}
+	if d := time.Since(start); d > 5*time.Second {
+		t.Errorf("readScreen waited %v", d)
 	}
 }
