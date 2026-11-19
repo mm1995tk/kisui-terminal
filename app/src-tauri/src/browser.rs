@@ -765,6 +765,7 @@ pub async fn browser_open(
             LogicalSize::new(w.max(1.0), h.max(1.0)),
         )
         .map_err(|e| e.to_string())?;
+    align_to_main(&app, &v, x, y, w.max(1.0), h.max(1.0));
     tabs.set(
         &tab,
         TabInfo {
@@ -823,7 +824,91 @@ pub fn browser_bounds(
     v.set_position(LogicalPosition::new(x, y))
         .map_err(|e| e.to_string())?;
     v.set_size(LogicalSize::new(w.max(1.0), h.max(1.0)))
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+    align_to_main(&app, &v, x, y, w.max(1.0), h.max(1.0));
+    Ok(())
+}
+
+/// 子の webview の枠を、メインの webview（画面）の枠から測り直して合わせる（macOS だけ。ほかの OS では何もしない）。
+///
+/// `x`・`y`・`w`・`h` は、画面（メインの webview）の左上からの論理ピクセル（画面の DOM で測った場所）。
+/// wry の子の webview は、置く場所を「親の view の高さ」から数える（`window_position`）ので、親の view の枠が画面の枠と
+/// 食い違うと（フルスクリーンでない窓で、タイトルバーの高さだけ）、ページが上にずれて URL バーを覆う（#326）。
+/// そこで、画面の枠を窓の座標に直し、そこから数え直した場所を、子の view の親の座標に直して当てる。
+/// どの view が親でも、画面と同じ場所に出る。メインの webview や子の view が見つからないときは、wry が置いたままにする。
+#[cfg(target_os = "macos")]
+fn align_to_main(app: &AppHandle, child: &Webview, x: f64, y: f64, w: f64, h: f64) {
+    use objc2_app_kit::NSView;
+    use objc2_foundation::{NSPoint, NSRect, NSSize};
+
+    let Some(main) = app.get_webview("main") else {
+        return;
+    };
+    // 画面の枠（窓の座標。原点は左下）。メインスレッドの閉包から、次の閉包へ渡す（閉包はメインスレッドで順に動く）
+    let main_rect: Arc<Mutex<Option<(f64, f64, f64, f64)>>> = Arc::new(Mutex::new(None));
+    let slot = main_rect.clone();
+    let r = main.with_webview(move |pv| {
+        let Some((mv, _)) = wk_webview(&pv) else {
+            return;
+        };
+        let view: &NSView = mv;
+        // SAFETY: メインスレッドで、生きている view の親を読むだけ
+        let Some(parent) = (unsafe { view.superview() }) else {
+            return;
+        };
+        let f = parent.convertRect_toView(view.frame(), None);
+        *slot.lock().unwrap() = Some((f.origin.x, f.origin.y, f.size.width, f.size.height));
+    });
+    if r.is_err() {
+        return;
+    }
+    let r = child.with_webview(move |pv| {
+        let Some((cv, _)) = wk_webview(&pv) else {
+            return;
+        };
+        let Some(m) = *main_rect.lock().unwrap() else {
+            return;
+        };
+        let view: &NSView = cv;
+        // SAFETY: メインスレッドで、生きている view の親を読むだけ
+        let Some(parent) = (unsafe { view.superview() }) else {
+            return;
+        };
+        let (wx, wy, ww, wh) = want_in_window(m, x, y, w, h);
+        let want = parent.convertRect_fromView(
+            NSRect::new(NSPoint::new(wx, wy), NSSize::new(ww, wh)),
+            None,
+        );
+        let now = view.frame();
+        if (now.origin.y - want.origin.y).abs() > 0.5 || (now.origin.x - want.origin.x).abs() > 0.5
+        {
+            eprintln!(
+                "kisui-terminal: the page frame moved from ({}, {}) to ({}, {}) to match the screen",
+                now.origin.x, now.origin.y, want.origin.x, want.origin.y
+            );
+        }
+        view.setFrame(want);
+    });
+    if let Err(e) = r {
+        eprintln!("kisui-terminal: cannot align the page: {e}");
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn align_to_main(_: &AppHandle, _: &Webview, _: f64, _: f64, _: f64, _: f64) {}
+
+/// 画面の枠 `main`（窓の座標: 左下の x・y と、幅・高さ。y は上向き）の左上から `(x, y)` 下がった所に、`w`×`h` の枠を置いたときの、
+/// 窓の座標での枠（左下の x・y と、幅・高さ）。
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+fn want_in_window(
+    main: (f64, f64, f64, f64),
+    x: f64,
+    y: f64,
+    w: f64,
+    h: f64,
+) -> (f64, f64, f64, f64) {
+    let (mx, my, _, mh) = main;
+    (mx + x, my + mh - y - h, w, h)
 }
 
 /// タブを見せる・隠す。隠すときは、キーをメインの webview に戻す（隠れたページにキーが残らないように）。
@@ -1209,6 +1294,20 @@ pub fn browser_tabs_save(app: AppHandle, webview: Webview, data: StoredTabs) -> 
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn want_in_window_counts_down_from_the_top_of_the_screen() {
+        // 画面が窓の下から 0・高さ 600 のとき、上から 40 下がった高さ 100 の枠は、下から 460 の所
+        assert_eq!(
+            super::want_in_window((0.0, 0.0, 800.0, 600.0), 10.0, 40.0, 300.0, 100.0),
+            (10.0, 460.0, 300.0, 100.0)
+        );
+        // 画面が窓の下から 33 浮いていれば、それに従う
+        assert_eq!(
+            super::want_in_window((0.0, 33.0, 800.0, 600.0), 0.0, 0.0, 800.0, 600.0),
+            (0.0, 33.0, 800.0, 600.0)
+        );
+    }
+
     use super::*;
 
     #[test]
