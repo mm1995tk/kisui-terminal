@@ -127,6 +127,8 @@ In an image pane (one opened with `kisui open --pane`, or from `shj`), these key
 
 The file tree, the changes list and a video pane have keys of their own too, which work only while they have the focus. `?` there lists them (and `?` in the leader also lists the keys of the place that has the focus, above the leader's). In the file tree, `c` copies the name, `m` runs "move here" (cd in the terminal; folders only), and `.` or the Menu key opens the right-click menu on the selected row; these used to be in the right-click menu only. In the list in a dialog (the clipboard history, the candidates when you add a remote), `Ctrl+J` / `Ctrl+K` select the next / previous row, as `↓` `↑` do.
 
+A window where you move through a list with keys (the machine dialog, the workspace switcher, the windows that ask you to choose a machine or a destination, the bookmark list, the clipboard history) shows only the basic operations at the bottom (select, confirm, cancel). Press `?` to list the keys of that window, and `Esc` to go back to the window with the same row selected. In the bookmark list and the clipboard history, `?` opens the list only while the filter is empty (while you type, `?` is a character to search for).
+
 ## Development
 
 Use the Nix devShell (Go, gopls, gomod2nix, git, Node.js, Rust, and on Linux the WebView libraries). With direnv, `.envrc` enters it automatically. Every command runs from the root of the repository: `go.mod` (`kisui`, the server), `package.json` (the web UI, sources in `app/`) and `Cargo.toml` (a workspace whose member is the Tauri shell, `app/src-tauri`) are all there.
