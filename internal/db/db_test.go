@@ -237,7 +237,8 @@ func TestRowLimit(t *testing.T) {
 // than anyone reads.
 func endless(t *testing.T, c config.DBConnection) string {
 	if c.Kind == config.DBPostgres {
-		return "SELECT g FROM generate_series(1, 50000000) AS g"
+		// In FROM, generate_series is built as a whole before its first row.
+		return "SELECT generate_series(1, 2000000000) AS g"
 	}
 	// MySQL builds a recursive CTE as a whole before its first row, so the
 	// rows come from joining a small table with itself.
