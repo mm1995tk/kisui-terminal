@@ -1294,21 +1294,21 @@ pub fn browser_tabs_save(app: AppHandle, webview: Webview, data: StoredTabs) -> 
 
 #[cfg(test)]
 mod tests {
+
+    use super::*;
     #[test]
     fn want_in_window_counts_down_from_the_top_of_the_screen() {
         // 画面が窓の下から 0・高さ 600 のとき、上から 40 下がった高さ 100 の枠は、下から 460 の所
         assert_eq!(
-            super::want_in_window((0.0, 0.0, 800.0, 600.0), 10.0, 40.0, 300.0, 100.0),
+            want_in_window((0.0, 0.0, 800.0, 600.0), 10.0, 40.0, 300.0, 100.0),
             (10.0, 460.0, 300.0, 100.0)
         );
         // 画面が窓の下から 33 浮いていれば、それに従う
         assert_eq!(
-            super::want_in_window((0.0, 33.0, 800.0, 600.0), 0.0, 0.0, 800.0, 600.0),
+            want_in_window((0.0, 33.0, 800.0, 600.0), 0.0, 0.0, 800.0, 600.0),
             (0.0, 33.0, 800.0, 600.0)
         );
     }
-
-    use super::*;
 
     #[test]
     fn tab_ids() {
