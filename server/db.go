@@ -239,12 +239,10 @@ func dbQueryError(ctx context.Context, err error, src db.Source) *rpc.Error {
 	if !ok {
 		return rpc.Errorf(rpc.CodeInternalError, "%v", err)
 	}
+	// ログインの途中で取り消されたものも、取り消しとして返す。
+	e = db.Cancelled(ctx, e)
 	data := map[string]any{"kind": e.Kind}
 	switch {
-	case e.Kind != db.KindCancelled && ctx.Err() != nil:
-		// ログインの途中で取り消された。
-		e = &db.Error{Kind: db.KindCancelled, Message: "the statement was cancelled"}
-		data["kind"] = e.Kind
 	case e.Kind == db.KindAuth && src.Typed():
 		return errPasswordRequired("rejected", e.Message)
 	case e.Kind == db.KindAuth:

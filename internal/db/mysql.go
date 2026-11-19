@@ -100,73 +100,80 @@ func (s *mySession) Query(ctx context.Context, query string, o QueryOptions) (*R
 	rows, err := s.conn.QueryContext(qctx, query)
 	if err != nil {
 		s.ended(qctx, st)
-		if ctx.Err() != nil {
-			return nil, &Error{Kind: KindCancelled, Message: "the statement was cancelled"}
-		}
-		return nil, myError(err)
+		return nil, Cancelled(ctx, myError(err))
 	}
+	col := newCollector(o, myColumns(rows), stopFor(s.readOnly, st))
+	err = myRows(rows, col)
+	_ = rows.Close()
+	col.res.ElapsedMs = elapsedMs(time.Since(start))
+	asked := s.ended(qctx, st)
+	if err != nil && !col.stopped {
+		return nil, Cancelled(ctx, myError(err))
+	}
+	// Not after a stop was asked for: the statement run for that (ended) has
+	// replaced the count.
+	if len(col.res.Columns) == 0 && !asked {
+		col.res.RowsAffected = s.rowsAffected(qctx)
+	}
+	return col.res, nil
+}
+
+// myColumns describes the columns of a result.
+func myColumns(rows *sql.Rows) []Column {
 	types, _ := rows.ColumnTypes()
 	cols := make([]Column, len(types))
 	for i, t := range types {
 		cols[i] = Column{Name: t.Name(), Type: myTypeName(t.DatabaseTypeName()), Kind: myKind(t.DatabaseTypeName())}
 	}
-	col := newCollector(o, cols)
-	raw := make([]sql.RawBytes, len(cols))
-	dest := make([]any, len(cols))
+	return cols
+}
+
+// myRows reads the rows of a result to its end and gives col the ones it
+// wants.
+func myRows(rows *sql.Rows, col *collector) error {
+	raw := make([]sql.RawBytes, len(col.res.Columns))
+	dest := make([]any, len(raw))
 	for i := range raw {
 		dest[i] = &raw[i]
 	}
-	// stopped: as in pgSession.Query.
-	stopped := false
 	for rows.Next() {
-		if col.full() {
-			col.res.Truncated = true
-			if s.readOnly && !stopped {
-				stopped = true
-				st.stop()
-			}
+		if !col.wants() {
 			continue
 		}
-		if err = rows.Scan(dest...); err != nil {
-			break
+		if err := rows.Scan(dest...); err != nil {
+			return err
 		}
-		row := make([]*string, len(raw))
-		for i, v := range raw {
-			if v == nil {
-				continue
-			}
-			var cell string
-			if cols[i].Kind == KindBinary {
-				cell = "0x" + hex.EncodeToString(v)
-			} else {
-				cell = strings.ToValidUTF8(string(v), "\uFFFD")
-			}
-			row[i] = &cell
+		col.add(myRow(col.res.Columns, raw))
+	}
+	return rows.Err()
+}
+
+// myRow turns the values of a row (valid until the next row) into cells.
+func myRow(cols []Column, raw []sql.RawBytes) []*string {
+	row := make([]*string, len(raw))
+	for i, v := range raw {
+		if v == nil {
+			continue
 		}
-		col.add(row)
-	}
-	if err == nil {
-		err = rows.Err()
-	}
-	_ = rows.Close()
-	col.res.ElapsedMs = elapsedMs(time.Since(start))
-	asked := s.ended(qctx, st)
-	if err != nil && !stopped {
-		if ctx.Err() != nil {
-			return nil, &Error{Kind: KindCancelled, Message: "the statement was cancelled"}
+		var cell string
+		if cols[i].Kind == KindBinary {
+			cell = "0x" + hex.EncodeToString(v)
+		} else {
+			cell = strings.ToValidUTF8(string(v), "�")
 		}
-		return nil, myError(err)
+		row[i] = &cell
 	}
-	if len(cols) == 0 && !asked {
-		// ROW_COUNT() is the rows the last statement changed, -1 when it was
-		// not one that changes rows. It is not asked after a stop was asked
-		// for: the statement run for that (ended) has replaced the count.
-		var n int64
-		if err := s.conn.QueryRowContext(qctx, "SELECT ROW_COUNT()").Scan(&n); err == nil && n >= 0 {
-			col.res.RowsAffected = &n
-		}
+	return row
+}
+
+// rowsAffected is how many rows the statement just run changed, nil when it
+// was not one that changes rows (ROW_COUNT() is -1 then).
+func (s *mySession) rowsAffected(ctx context.Context) *int64 {
+	var n int64
+	if err := s.conn.QueryRowContext(ctx, "SELECT ROW_COUNT()").Scan(&n); err != nil || n < 0 {
+		return nil
 	}
-	return col.res, nil
+	return &n
 }
 
 // ended is called when the statement has ended. asked is stopper.end's.

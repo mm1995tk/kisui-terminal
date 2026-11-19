@@ -100,27 +100,11 @@ func (s *pgSession) Query(ctx context.Context, sql string, o QueryOptions) (*Res
 	rr := s.conn.ExecParams(qctx, sql, nil, nil, nil, nil)
 	// pgconn uses the slice again for the next statement.
 	fields := append([]pgconn.FieldDescription(nil), rr.FieldDescriptions()...)
-	cols := make([]Column, len(fields))
-	for i, f := range fields {
-		cols[i] = Column{Name: f.Name, Type: pgTypeFallback(f.DataTypeOID), Kind: pgKind(f.DataTypeOID)}
-	}
-	col := newCollector(o, cols)
-	// stopped is true when we stopped the statement ourselves because the
-	// result was full. Only a read-only session does that: there, nothing is
-	// lost. Otherwise the rest is read and thrown away, because stopping an
-	// `UPDATE ... RETURNING` halfway would undo the update while the window
-	// shows its first rows.
-	stopped := false
+	col := newCollector(o, pgColumns(fields), stopFor(s.readOnly, st))
 	for rr.NextRow() {
-		if col.full() {
-			col.res.Truncated = true
-			if s.readOnly && !stopped {
-				stopped = true
-				st.stop()
-			}
-			continue
+		if col.wants() {
+			col.add(pgRow(fields, rr.Values()))
 		}
-		col.add(pgRow(fields, rr.Values()))
 	}
 	tag, err := rr.Close()
 	col.res.ElapsedMs = elapsedMs(time.Since(start))
@@ -133,22 +117,29 @@ func (s *pgSession) Query(ctx context.Context, sql string, o QueryOptions) (*Res
 		// the failed state that a refused or stopped statement leaves.
 		_ = s.exec(qctx, "ROLLBACK")
 	}
-	if err != nil && !stopped {
-		if ctx.Err() != nil {
-			return nil, &Error{Kind: KindCancelled, Message: "the statement was cancelled"}
-		}
-		return nil, pgError(err)
+	if err != nil && !col.stopped {
+		return nil, Cancelled(ctx, pgError(err))
 	}
 	if err == nil && (len(fields) == 0 || tag.Insert() || tag.Update() || tag.Delete() || strings.HasPrefix(tag.String(), "MERGE")) {
 		n := tag.RowsAffected()
 		col.res.RowsAffected = &n
 	}
 	if names, ok := s.typeNames(qctx, fields); ok {
-		for i := range cols {
-			cols[i].Type = names[i]
+		for i := range col.res.Columns {
+			col.res.Columns[i].Type = names[i]
 		}
 	}
 	return col.res, nil
+}
+
+// pgColumns describes the columns of a result, with the names of the types
+// the server is not needed for (typeNames replaces them).
+func pgColumns(fields []pgconn.FieldDescription) []Column {
+	cols := make([]Column, len(fields))
+	for i, f := range fields {
+		cols[i] = Column{Name: f.Name, Type: pgTypeFallback(f.DataTypeOID), Kind: pgKind(f.DataTypeOID)}
+	}
+	return cols
 }
 
 // typeNames asks the server for the SQL names of the column types

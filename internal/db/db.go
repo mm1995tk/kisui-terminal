@@ -162,29 +162,45 @@ func Open(ctx context.Context, c config.DBConnection, password string) (Session,
 	return nil, &Error{Kind: KindConnect, Message: fmt.Sprintf("unknown kind of database: %q", c.Kind)}
 }
 
-// collector gathers the rows of one result up to the limits.
+// collector gathers the rows of one result up to the limits, and decides
+// what happens to the statement when the result is full.
 type collector struct {
 	max   int
 	bytes int
 	res   *Result
+	// stop stops the statement. It is called once, when the result is full,
+	// and only for a read-only session: there, nothing is lost by stopping.
+	// Otherwise the rest of the rows is read and thrown away, because
+	// stopping an `UPDATE ... RETURNING` halfway would undo the update while
+	// the window shows its first rows.
+	stop    func()
+	stopped bool
 }
 
-func newCollector(o QueryOptions, cols []Column) *collector {
-	return &collector{max: o.maxRows(), res: &Result{Columns: cols, Rows: [][]*string{}}}
+// newCollector makes the collector of one statement. stop is nil for a
+// session that is not read-only.
+func newCollector(o QueryOptions, cols []Column, stop func()) *collector {
+	return &collector{max: o.maxRows(), res: &Result{Columns: cols, Rows: [][]*string{}}, stop: stop}
 }
 
-// full is true when the next row would not be kept.
-func (c *collector) full() bool {
-	return len(c.res.Rows) >= c.max || c.bytes >= maxResultBytes
-}
-
-// add keeps one row, or marks the result truncated when it is full. The
-// cells are already text.
-func (c *collector) add(row []*string) {
-	if c.full() {
-		c.res.Truncated = true
-		return
+// wants is true when the next row is to be given to add. When the result is
+// full it is false: the result is marked truncated, and the statement is
+// stopped if that is safe (see stop).
+func (c *collector) wants() bool {
+	if len(c.res.Rows) < c.max && c.bytes < maxResultBytes {
+		return true
 	}
+	c.res.Truncated = true
+	if c.stop != nil && !c.stopped {
+		c.stopped = true
+		c.stop()
+	}
+	return false
+}
+
+// add keeps one row; the caller has asked wants. The cells are already
+// text.
+func (c *collector) add(row []*string) {
 	for _, cell := range row {
 		if cell == nil {
 			continue
@@ -198,6 +214,30 @@ func (c *collector) add(row []*string) {
 	}
 	c.res.Rows = append(c.res.Rows, row)
 	c.res.RowCount = len(c.res.Rows)
+}
+
+// stopFor is the stop of newCollector for a session: st.stop when the
+// session is read-only, nil otherwise.
+func stopFor(readOnly bool, st *stopper) func() {
+	if readOnly {
+		return st.stop
+	}
+	return nil
+}
+
+// errCancelled is the error of a statement that was stopped because its
+// context ended.
+func errCancelled() *Error {
+	return &Error{Kind: KindCancelled, Message: "the statement was cancelled"}
+}
+
+// Cancelled gives err as cancelled when ctx has ended: whatever a login or
+// a statement failed with then, the reason is that it was called off.
+func Cancelled(ctx context.Context, err *Error) *Error {
+	if ctx.Err() != nil {
+		return errCancelled()
+	}
+	return err
 }
 
 // cutUTF8 is the first max bytes of s, shortened so as not to end in the
