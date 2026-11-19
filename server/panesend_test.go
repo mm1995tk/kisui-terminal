@@ -301,7 +301,7 @@ func TestWriteInputOutlivesDeadline(t *testing.T) {
 // 同じ一覧を書いている。
 func TestKnownKeysMatchKeyBytes(t *testing.T) {
 	listed := map[string]bool{}
-	for _, k := range strings.Split(knownKeys, ", ") {
+	for k := range strings.SplitSeq(knownKeys, ", ") {
 		switch k {
 		case "f1-f12":
 			for i := 1; i <= 12; i++ {
