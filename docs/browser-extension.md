@@ -39,6 +39,7 @@ Cookie を読むのは、kisui-terminal の答えの `sites` にあるサイト�
 | `scripting`                     | 許可サイトのページに、パスキーが通ったことを知る小さなスクリプトを入れる                           |
 | `storage`                       | kisui-terminal が開いたタブと許可サイトの一覧を、ブラウザを閉じるまで覚える（`storage.session`）   |
 | `https://*/*`（host の権限）    | 許可サイトは利用者が kisui-terminal の設定で決めるので、どのサイトでも読めるよう入れるときに 1 回だけもらう |
+| `http://*/*`（host の権限）     | Secure の付かない Cookie（Google の `SID` など）を読む。ブラウザは、https のサイトの Cookie でも、Secure の付かないものは `http://` の host の権限が無いと拡張機能に渡さない |
 
 Firefox は、入れるときに host の権限を断れる。断ったときは、拡張機能のボタンを押すと頼み直す。
 
@@ -133,7 +134,7 @@ Chrome ウェブストアには出さないことにした（Issue #207）。Chr
   - `nativeMessaging`: Talks to kisui-terminal on the same computer: asks it for the list of allowed sites and sends it the cookies of the site the user logged in to.
   - `scripting`: Adds a small script to the pages of the allowed sites only, to notice that a passkey login succeeded (it does not read the credential).
   - `storage`: Remembers, until the browser closes, which tab kisui-terminal opened and the list of allowed sites.
-  - Host permission (`https://*/*`): The user chooses the sites in kisui-terminal's settings, so the extension cannot know them in advance. It reads cookies only of the sites in that list.
+  - Host permission (`https://*/*`, `http://*/*`): The user chooses the sites in kisui-terminal's settings, so the extension cannot know them in advance. It reads cookies only of the sites in that list. `http://*/*` is there because the browser hands an extension the cookies without the Secure attribute (such as Google's `SID`) only with the `http://` host permission, even for an https site; without it the login does not carry over.
 - リモートのコード：使わない（拡張機能の中のスクリプトだけ）。
 - 扱うデータ：「認証情報」（Cookie）。使うのは単一用途のためだけで、同じコンピューターの kisui-terminal にだけ渡し、拡張機能の作者やほかの誰にも送らない・売らない・
   単一用途と関係のない目的に使わない。
