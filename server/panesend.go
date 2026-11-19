@@ -13,7 +13,6 @@ import (
 	"os"
 	"strings"
 	"time"
-	"unicode"
 	"unicode/utf8"
 )
 
@@ -53,14 +52,15 @@ func (m *termManager) sendText(target, text string) (string, error) {
 	if len(text) > maxSendText {
 		return "", fmt.Errorf("%w (at most %d bytes)", errSendTooLong, maxSendText)
 	}
-	if strings.ContainsFunc(text, func(r rune) bool { return unicode.IsControl(r) && r != '\n' && r != '\t' }) {
+	text = strings.ReplaceAll(text, "\r\n", "\n") // CRLF の改行（Windows で作ったファイルなど）も改行として受ける
+	if hasControlChar(strings.NewReplacer("\n", "", "\t", "").Replace(text)) {
 		return "", errSendControl
 	}
 	t, err := m.find(target)
 	if err != nil {
 		return "", err
 	}
-	text = strings.ReplaceAll(strings.ReplaceAll(text, "\r\n", "\n"), "\n", "\r")
+	text = strings.ReplaceAll(text, "\n", "\r")
 	t.inputMu.Lock()
 	defer t.inputMu.Unlock()
 	t.mu.Lock()

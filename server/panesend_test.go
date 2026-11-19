@@ -43,6 +43,11 @@ func TestPaneCmdSendKeysClose(t *testing.T) {
 		t.Fatalf("send by id: %+v", r)
 	}
 	waitFor(t, "two lines", func() bool { return strings.Contains(out(), "a-2") && strings.Contains(out(), "b-4") })
+	// CRLF の改行も改行として受ける
+	if r := do1(panecmd.Request{Cmd: "send", To: foo, Text: "echo c-$((5+5))\r\necho d-$((6+6))"}); !r.OK {
+		t.Fatalf("send with CRLF: %+v", r)
+	}
+	waitFor(t, "two lines by CRLF", func() bool { return strings.Contains(out(), "c-10") && strings.Contains(out(), "d-12") })
 
 	// キー。前景のコマンドを Ctrl+C で止める
 	if r := do1(panecmd.Request{Cmd: "send", To: "foo", Text: "sleep 30; echo not-stopped"}); !r.OK {
@@ -64,6 +69,7 @@ func TestPaneCmdSendKeysClose(t *testing.T) {
 	for _, bad := range []panecmd.Request{
 		{Cmd: "send", To: "nope", Text: "x"},
 		{Cmd: "send", To: "foo", Text: "a\x1b[201~b"},
+		{Cmd: "send", To: "foo", Text: "a\rb"},
 		{Cmd: "send", To: "foo", Text: strings.Repeat("a", maxSendText+1)},
 		{Cmd: "keys", To: "foo"},
 		{Cmd: "keys", To: "foo", Keys: []string{"esc", "hyper+x"}},
