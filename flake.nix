@@ -4,6 +4,7 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
+    crane.url = "github:ipetkov/crane";
     gomod2nix.url = "github:nix-community/gomod2nix";
     gomod2nix.inputs.nixpkgs.follows = "nixpkgs";
     gomod2nix.inputs.flake-utils.follows = "flake-utils";
@@ -32,6 +33,7 @@
       self,
       nixpkgs,
       flake-utils,
+      crane,
       gomod2nix,
       treefmt-nix,
       shijimi-editor,
@@ -140,9 +142,12 @@
           kisuiDrv = mkKisui { };
           kisuiNightlyDrv = mkKisui { channel = "nightly"; };
 
+          # Rust の依存を分けてビルドする（通常版と nightly 版で同じ依存の成果物を使う）
+          craneLib = crane.mkLib pkgs;
           # kisui-terminal（GUI）。Nix で作る版に自動更新は無い（nix flake update で進める）
           guiDrv = import ./packaging/nix/kisui-terminal.nix {
             inherit pkgs version;
+            inherit craneLib;
             kisui = "${kisuiDrv}/bin/kisui";
             shj = "${shj}/bin/shj";
           };
@@ -150,6 +155,7 @@
           guiNightlyDrv = import ./packaging/nix/kisui-terminal.nix {
             inherit pkgs;
             version = nightlyVersion;
+            inherit craneLib;
             kisui = "${kisuiNightlyDrv}/bin/kisui";
             shj = "${shjNightly}/bin/shj-nightly";
             channel = "nightly";
