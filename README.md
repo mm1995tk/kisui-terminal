@@ -63,7 +63,7 @@ kisui pane split --down --name dev npm run dev
 kisui pane list --json
 ```
 
-`kisui pane read <name|id>` prints the text on the screen of a pane of the machine (of any workspace or tab), pointed at by its name or id, so that an agent in one pane can see what an agent or a command in another pane shows. `--lines <n>` also prints n lines of the scrollback above the screen (up to 5000, what the server keeps). Only the characters come out, with no colors. A line that the terminal wrapped comes out as one line, and spaces at the end of a line and the empty lines at the bottom of the screen are left out. A full-screen program (such as `shj` or `htop`) draws on a screen that has no scrollback, so there `--lines` adds nothing.
+`kisui pane read <name|id>` prints the text on the screen of a pane of the machine (of any workspace or tab), pointed at by its name or id, so that an agent in one pane can see what an agent or a command in another pane shows. `--lines <n>` also prints n lines of the scrollback above the screen (up to 5000, what the server keeps). Only the characters come out, with no colors. A line that the terminal wrapped comes out as one line, and spaces at the end of a line and the empty lines at the bottom of the screen are left out. A full-screen program (such as `shj` or `htop`) draws on a screen that has no scrollback, so there `--lines` adds nothing. When a program prints a great deal very fast (more than about 4 MB that the server has not caught up with, such as `yes`), the server drops what it could not follow, and the text has only what came after until the program draws its screen again.
 
 ```sh
 kisui pane read build
