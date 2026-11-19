@@ -159,7 +159,7 @@ func myRow(cols []Column, raw []sql.RawBytes) []*string {
 		if cols[i].Kind == KindBinary {
 			cell = "0x" + hex.EncodeToString(v)
 		} else {
-			cell = strings.ToValidUTF8(string(v), "�")
+			cell = strings.ToValidUTF8(string(v), replacement)
 		}
 		row[i] = &cell
 	}

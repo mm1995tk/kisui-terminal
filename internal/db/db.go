@@ -250,3 +250,7 @@ func cutUTF8(s string, max int) string {
 }
 
 func elapsedMs(d time.Duration) float64 { return float64(d.Microseconds()) / 1000 }
+
+// replacement stands for the bytes of a value that are not valid UTF-8 (the
+// Unicode replacement character).
+const replacement = "\uFFFD"

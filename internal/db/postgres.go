@@ -277,7 +277,7 @@ func pgRow(fields []pgconn.FieldDescription, values [][]byte) []*string {
 		if v == nil {
 			continue
 		}
-		s := strings.ToValidUTF8(string(v), "\uFFFD")
+		s := strings.ToValidUTF8(string(v), replacement)
 		switch fields[i].DataTypeOID {
 		case pgBool:
 			switch s {
