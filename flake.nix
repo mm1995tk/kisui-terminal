@@ -142,10 +142,12 @@
           kisuiDrv = mkKisui { };
           kisuiNightlyDrv = mkKisui { channel = "nightly"; };
 
+          # Rust の依存を分けてビルドする（通常版と nightly 版で同じ依存の成果物を使う）
+          craneLib = crane.mkLib pkgs;
           # kisui-terminal（GUI）。Nix で作る版に自動更新は無い（nix flake update で進める）
           guiDrv = import ./packaging/nix/kisui-terminal.nix {
             inherit pkgs version;
-            craneLib = crane.mkLib pkgs;
+            inherit craneLib;
             kisui = "${kisuiDrv}/bin/kisui";
             shj = "${shj}/bin/shj";
           };
@@ -153,7 +155,7 @@
           guiNightlyDrv = import ./packaging/nix/kisui-terminal.nix {
             inherit pkgs;
             version = nightlyVersion;
-            craneLib = crane.mkLib pkgs;
+            inherit craneLib;
             kisui = "${kisuiNightlyDrv}/bin/kisui";
             shj = "${shjNightly}/bin/shj-nightly";
             channel = "nightly";
