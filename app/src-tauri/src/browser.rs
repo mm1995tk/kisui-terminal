@@ -845,7 +845,7 @@ fn align_to_main(app: &AppHandle, child: &Webview, x: f64, y: f64, w: f64, h: f6
         return;
     };
     // 画面の枠（窓の座標。原点は左下）。メインスレッドの閉包から、次の閉包へ渡す（閉包はメインスレッドで順に動く）
-    let main_rect: Arc<Mutex<Option<(f64, f64, f64, f64)>>> = Arc::new(Mutex::new(None));
+    let main_rect: Arc<Mutex<Option<WindowRect>>> = Arc::new(Mutex::new(None));
     let slot = main_rect.clone();
     let r = main.with_webview(move |pv| {
         let Some((mv, _)) = wk_webview(&pv) else {
@@ -857,7 +857,12 @@ fn align_to_main(app: &AppHandle, child: &Webview, x: f64, y: f64, w: f64, h: f6
             return;
         };
         let f = parent.convertRect_toView(view.frame(), None);
-        *slot.lock().unwrap() = Some((f.origin.x, f.origin.y, f.size.width, f.size.height));
+        *slot.lock().unwrap() = Some(WindowRect {
+            x: f.origin.x,
+            y: f.origin.y,
+            w: f.size.width,
+            h: f.size.height,
+        });
     });
     if r.is_err() {
         return;
@@ -874,9 +879,9 @@ fn align_to_main(app: &AppHandle, child: &Webview, x: f64, y: f64, w: f64, h: f6
         let Some(parent) = (unsafe { view.superview() }) else {
             return;
         };
-        let (wx, wy, ww, wh) = want_in_window(m, x, y, w, h);
+        let r = want_in_window(m, x, y, w, h);
         let want = parent.convertRect_fromView(
-            NSRect::new(NSPoint::new(wx, wy), NSSize::new(ww, wh)),
+            NSRect::new(NSPoint::new(r.x, r.y), NSSize::new(r.w, r.h)),
             None,
         );
         let now = view.frame();
@@ -897,18 +902,25 @@ fn align_to_main(app: &AppHandle, child: &Webview, x: f64, y: f64, w: f64, h: f6
 #[cfg(not(target_os = "macos"))]
 fn align_to_main(_: &AppHandle, _: &Webview, _: f64, _: f64, _: f64, _: f64) {}
 
-/// 画面の枠 `main`（窓の座標: 左下の x・y と、幅・高さ。y は上向き）の左上から `(x, y)` 下がった所に、`w`×`h` の枠を置いたときの、
-/// 窓の座標での枠（左下の x・y と、幅・高さ）。
+/// 窓の座標（原点は窓の左下、y は上向き）での枠。`x`・`y` は枠の左下。
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
-fn want_in_window(
-    main: (f64, f64, f64, f64),
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct WindowRect {
     x: f64,
     y: f64,
     w: f64,
     h: f64,
-) -> (f64, f64, f64, f64) {
-    let (mx, my, _, mh) = main;
-    (mx + x, my + mh - y - h, w, h)
+}
+
+/// 画面の枠 `main` の左上から `(x, y)` 下がった所（画面の DOM で測った場所）に、`w`×`h` の枠を置いたときの、窓の座標での枠。
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+fn want_in_window(main: WindowRect, x: f64, y: f64, w: f64, h: f64) -> WindowRect {
+    WindowRect {
+        x: main.x + x,
+        y: main.y + main.h - y - h,
+        w,
+        h,
+    }
 }
 
 /// タブを見せる・隠す。隠すときは、キーをメインの webview に戻す（隠れたページにキーが残らないように）。
@@ -1294,19 +1306,23 @@ pub fn browser_tabs_save(app: AppHandle, webview: Webview, data: StoredTabs) -> 
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
+
+    fn rect(x: f64, y: f64, w: f64, h: f64) -> WindowRect {
+        WindowRect { x, y, w, h }
+    }
+
     #[test]
     fn want_in_window_counts_down_from_the_top_of_the_screen() {
         // 画面が窓の下から 0・高さ 600 のとき、上から 40 下がった高さ 100 の枠は、下から 460 の所
         assert_eq!(
-            want_in_window((0.0, 0.0, 800.0, 600.0), 10.0, 40.0, 300.0, 100.0),
-            (10.0, 460.0, 300.0, 100.0)
+            want_in_window(rect(0.0, 0.0, 800.0, 600.0), 10.0, 40.0, 300.0, 100.0),
+            rect(10.0, 460.0, 300.0, 100.0)
         );
         // 画面が窓の下から 33 浮いていれば、それに従う
         assert_eq!(
-            want_in_window((0.0, 33.0, 800.0, 600.0), 0.0, 0.0, 800.0, 600.0),
-            (0.0, 33.0, 800.0, 600.0)
+            want_in_window(rect(0.0, 33.0, 800.0, 600.0), 0.0, 0.0, 800.0, 600.0),
+            rect(0.0, 33.0, 800.0, 600.0)
         );
     }
 
