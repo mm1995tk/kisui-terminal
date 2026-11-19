@@ -182,17 +182,15 @@ export function HistoryPanel(props: {
         />
       </Show>
       {/* 下の段（共通フッタ）。クリップボードに戻したら、ヒントの代わりに「コピーしました」を出す。
-          知らせ（role="status"）にするのは「コピーしました」だけ（ヒントは、字を打つたびに `?` が出入りするので、読み上げさせない） */}
+          知らせ（role="status"）にするのは「コピーしました」だけ（ヒントは、字を打つたびに `?` が出入りするので、読み上げさせない）。
+          知らせの入れ物はいつも置いておき、コピーしたときに中の文だけを入れる（入れ物ごと後から足すと、読み上げのソフトが読まないことがある）。
+          空の間は高さが無い。下の段の並びの間（gap）が空の入れ物の分だけ空かないよう、ヒントと 1 つの塊にする */}
       <CardFooter>
-        <CardBody>
-          <Show
-            when={!copied()}
-            fallback={
-              <CardText class="history-copied" role="status">
-                {T("history.copied")}
-              </CardText>
-            }
-          >
+        <div>
+          <CardText class="history-copied" role="status">
+            {copied() ? T("history.copied") : ""}
+          </CardText>
+          <Show when={!copied()}>
             <KeyHints
               items={basicHints({
                 select: ["↓", "↑"],
@@ -204,7 +202,7 @@ export function HistoryPanel(props: {
               })}
             />
           </Show>
-        </CardBody>
+        </div>
       </CardFooter>
     </>
   );

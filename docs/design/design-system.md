@@ -168,7 +168,7 @@ kisui-terminal の窓（`app/src/`）の、共通の色・余白・字・状態�
   - `note`：ヒントの上に出す知らせ（操作できない理由など。`role` を付けた `CardText`）。
   - `actions`：マウスでやめる・閉じるための `Button`。省くと出さない。
 - **`?` の一覧**：窓のキーの表は `placeKeys.ts` の `PLACE_KEYS` に書き、窓のキーの判定が `?` を受けて `openKeyList(場所)` を呼ぶ。窓の場所（`isWindowPlace`）は、その窓のキーだけを出す。閉じると、下の窓の、`?` を押す前にフォーカスがあった所へ戻る（`ModalCard` が戻す）。
-- **窓の枠を自分で持つ中身**（履歴の一覧 `HistoryPanel`。外から開く小さな窓にも出る）は、`CardFooter` の中に同じ並び（`CardBody` と `KeyHints`）を自分で置く。
+- **窓の枠を自分で持つ中身**（履歴の一覧 `HistoryPanel`。外から開く小さな窓にも出る）は、`CardFooter` の中に `KeyHints` を自分で置く（「コピーしました」の知らせの入れ物と一緒に）。
 - **組み合わせの例**：`main-window/sessions/MachineDialog`（知らせ・ヒント・ボタン）、`main-window/workspaces/WorkspaceSwitcher`（ヒントだけ。効いている列で替わる）。
 
 ## 組み合わせの例
