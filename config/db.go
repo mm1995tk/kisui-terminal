@@ -142,6 +142,20 @@ func tables(v any) ([]map[string]any, bool) {
 // dbKeys are the keys of a [[db.connections]] entry.
 var dbKeys = []string{"name", "kind", "host", "port", "user", "database", "read-only"}
 
+// unknownDBKeys are the keys of an entry that are not known, in order. One is
+// a mistake, not something to skip: a misspelt `read-only` would otherwise
+// give a connection that can write while its settings look protected.
+// `password` is not among them: it has a message of its own.
+func unknownDBKeys(e map[string]any) []string {
+	var out []string
+	for _, key := range slices.Sorted(maps.Keys(e)) {
+		if !slices.Contains(dbKeys, key) && key != "password" {
+			out = append(out, key)
+		}
+	}
+	return out
+}
+
 // dbConnection reads one entry. The Key of a problem is the key inside the
 // entry.
 func dbConnection(e map[string]any) (c DBConnection, probs []Problem) {
@@ -170,13 +184,8 @@ func dbConnection(e map[string]any) (c DBConnection, probs []Problem) {
 		}
 		return "", false
 	}
-	// A key that is not known is a mistake, not something to skip: a
-	// misspelt `read-only` would otherwise give a connection that can write
-	// while its settings look protected.
-	for _, key := range slices.Sorted(maps.Keys(e)) {
-		if !slices.Contains(dbKeys, key) && key != "password" {
-			bad(key, "config.err.unknown", strings.Join(dbKeys, ", "))
-		}
+	for _, key := range unknownDBKeys(e) {
+		bad(key, "config.err.unknown", strings.Join(dbKeys, ", "))
 	}
 	// The value is not put in the problem: it is a password.
 	if _, has := e["password"]; has {
