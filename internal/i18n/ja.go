@@ -61,4 +61,12 @@ var ja = map[string]string{
 	"config.err.abspath":    "絶対パスか、~ で始めて書いてください",
 	"config.err.notdir":     "%s というフォルダはありません",
 	"config.err.oneof":      "値が正しくないか、この版の kisui では使えない値です。次のどれかで書いてください: %s",
+	"config.err.bool":       "true か false で書いてください",
+	"config.err.tables":     "テーブルの配列で書いてください",
+	"config.err.required":   "省けません",
+	"config.err.control":    "制御文字は使えません",
+	"config.err.toolong":    "%d 文字までで書いてください",
+	"config.err.port":       "1 から 65535 までで書いてください",
+	"config.err.dupname":    "%q という名前は、前の接続が使っています",
+	"config.err.password":   "パスワードは設定に書きません。このキーを消し、パスワードはキーチェーン（macOS）か ~/.pgpass・~/.my.cnf に置くか、聞かれたときに入力してください",
 }

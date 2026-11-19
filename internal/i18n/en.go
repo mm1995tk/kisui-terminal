@@ -61,4 +61,12 @@ var en = map[string]string{
 	"config.err.abspath":    "must be an absolute path, or start with ~",
 	"config.err.notdir":     "%s is not a folder that exists",
 	"config.err.oneof":      "is not valid, or this version of kisui cannot use it. It must be one of: %s",
+	"config.err.bool":       "must be true or false",
+	"config.err.tables":     "must be an array of tables",
+	"config.err.required":   "is required",
+	"config.err.control":    "must not have a control character",
+	"config.err.toolong":    "must be %d characters or fewer",
+	"config.err.port":       "must be from 1 to 65535",
+	"config.err.dupname":    "the name %q is used by an earlier connection",
+	"config.err.password":   "a password is not written in the settings. Remove this key, and put the password in the keychain (macOS), in ~/.pgpass or ~/.my.cnf, or type it when asked",
 }

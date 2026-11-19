@@ -1,8 +1,9 @@
 // Package config reads the settings of kisui from its own configuration
 // directory, `~/.config/kisui-terminal/` (`kisui-terminal-nightly/` for a
 // nightly kisui), from the files listed in files. kisui reads only its own
-// keys, [server] and ui-language. The window reads [[gui.machines]] from the
-// same files in the same order (app/src-tauri/src/config.rs). What the window
+// keys: [server] and ui-language (Load), and [[db.connections]] (LoadDB, in
+// db.go). The window reads [[gui.machines]] from the same files in the same
+// order (app/src-tauri/src/config.rs). What the window
 // writes goes to config.local.toml, never to config.toml, so that config.toml
 // can be a read-only file (such as the one home-manager makes). The settings
 // of shj (`~/.config/shijimi-editor/`) are not read.

@@ -157,6 +157,67 @@ export interface TreeEntry {
   gitChildren?: boolean;
 }
 
+// ---- DB（MySQL / PostgreSQL） ----
+// capabilities に "db" がある kisui serve だけが受ける。Go の側は server/db.go と internal/db。
+
+/** db.connections が返す接続の 1 つ：kisui serve が動くマシンの設定の [[db.connections]]。パスワードは入らない */
+export interface DbConnection {
+  /** 接続の名前。そのマシンの一覧の中で重ならない。db.query の connection に渡す */
+  name: string;
+  kind: "postgres" | "mysql";
+  /** ホスト名かアドレス。`/` で始まれば Unix ソケット */
+  host: string;
+  port: number;
+  user: string;
+  /** 設定に書いていなければ "" */
+  database: string;
+  /** true の接続は、SQL を読み取り専用のトランザクションで実行する（書き込みは DB が断る） */
+  readOnly: boolean;
+}
+
+/** 列の値の読み方。number：数（文字のまま届く）、boolean："true" か "false"、binary："0x" と 16 進、text：それ以外 */
+export type DbColumnKind = "number" | "boolean" | "binary" | "text";
+
+export interface DbColumn {
+  name: string;
+  /** DB の型の名前（小文字。"integer"、"character varying(20)"、"int unsigned" など）。見せるためのもので、型の判定には kind を使う */
+  type: string;
+  kind: DbColumnKind;
+}
+
+/** db.query の結果 */
+export interface DbQueryResult {
+  /** 行を返さない文（UPDATE・CREATE など）では空 */
+  columns: DbColumn[];
+  /** 値は DB が書く文字のまま（数も文字。桁を落とさないため）。NULL は null */
+  rows: (string | null)[][];
+  /** rows の行数 */
+  rowCount: number;
+  /** 文が返した行が上限（maxRows、または全体で 8 MiB）を超え、rows に入っていない行がある */
+  truncated: boolean;
+  /** 1 MiB を超えて切られた値がある */
+  truncatedCells?: boolean;
+  /** 文が変えた行数。読むだけの文では無い */
+  rowsAffected?: number;
+  /** 文を送ってから最後の行を読むまでのミリ秒（小数あり）。ログインの時間は入らない */
+  elapsedMs: number;
+}
+
+/** password_required（-32006）の data。missing：どこにも無い、rejected：入力したものを DB が断った。どちらも窓はパスワードを聞く */
+export interface DbPasswordRequiredData {
+  reason: "missing" | "rejected";
+}
+
+/** db_error（-32007）の data。message は DB の言葉そのまま */
+export interface DbErrorData {
+  /** connect：つながらない、auth：キーチェーンかファイルのパスワードを DB が断った、query：DB が SQL を断った、cancelled：取り消された */
+  kind: "connect" | "auth" | "query" | "cancelled";
+  /** DB が返した 5 文字（SQLSTATE） */
+  sqlState?: string;
+  /** kind が auth のとき、断られたパスワードを見つけた場所。聞き直しても直らない（見つけた場所のものが先に使われる） */
+  passwordSource?: "keychain" | "file";
+}
+
 // ---- ターミナル ----
 
 export interface TermInfo {
@@ -319,6 +380,31 @@ export interface Requests {
       marks: Record<string, GitMark>;
       rev: number;
     };
+  };
+  /** このマシンの設定に書いた DB の接続の一覧。problems は設定の間違い（間違いのある接続は connections に入らない） */
+  "db.connections": {
+    params: Record<string, never>;
+    result: { connections: DbConnection[]; problems: string[] };
+  };
+  /**
+   * 接続に SQL を 1 つ実行する。password は画面で入力されたもの（省くのと "" は違う："" はパスワード無しでログインする）。
+   * maxRows は rows の上限（省くと 1000、最大 10000）。queryId は db.cancel で取り消すための、窓が付ける名前。
+   * 断られ方：not_found（接続が無い）、password_required、db_error、busy（同時に動かせる数を超えた）
+   */
+  "db.query": {
+    params: {
+      connection: string;
+      sql: string;
+      password?: string;
+      maxRows?: number;
+      queryId?: string;
+    };
+    result: DbQueryResult;
+  };
+  /** queryId を付けた、動いている db.query を取り消す。その db.query は db_error（kind は cancelled）で返る。動いていなければ not_found */
+  "db.cancel": {
+    params: { queryId: string };
+    result: Record<string, never>;
   };
 }
 

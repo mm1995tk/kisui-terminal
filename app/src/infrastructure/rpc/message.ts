@@ -19,6 +19,8 @@ export const ErrorCode = {
   NotFound: -32003,
   Denied: -32004,
   Busy: -32005,
+  PasswordRequired: -32006,
+  DbError: -32007,
 } as const;
 
 const codeNames: Record<number, string> = {
@@ -32,6 +34,8 @@ const codeNames: Record<number, string> = {
   [-32003]: "not_found",
   [-32004]: "denied",
   [-32005]: "busy",
+  [-32006]: "password_required",
+  [-32007]: "db_error",
 };
 
 /** コードの名前。知らないコードは "" */

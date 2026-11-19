@@ -1,6 +1,10 @@
 schema = 3
 
 [mod]
+  [mod.'filippo.io/edwards25519']
+    version = 'v1.2.0'
+    hash = 'sha256-VOgoreEdslftsR/MyEnZAlutqvph4T57NR1mT9+APfg='
+
   [mod.'github.com/BurntSushi/toml']
     version = 'v1.6.0'
     hash = 'sha256-ptdUJvuc21ixeLt+M5way/na3aCnCO4MYHWulWp8NEY='
@@ -21,6 +25,22 @@ schema = 3
     version = 'v1.1.24'
     hash = 'sha256-6oSurN/ZYr/KHxKKU6Qbw9w8CDKmPa8yL00pZ24H0AM='
 
+  [mod.'github.com/go-sql-driver/mysql']
+    version = 'v1.10.2'
+    hash = 'sha256-68Ew7qY3zLhr9DW8xOS1ZA08Wbf+JNzQze1ppkgFEAc='
+
+  [mod.'github.com/jackc/pgpassfile']
+    version = 'v1.0.0'
+    hash = 'sha256-H0nFbC34/3pZUFnuiQk9W7yvAMh6qJDrqvHp+akBPLM='
+
+  [mod.'github.com/jackc/pgservicefile']
+    version = 'v0.0.0-20240606120523-5a60cdf6a761'
+    hash = 'sha256-ETpGsLAA2wcm5xJBayr/mZrCE1YsWbnkbSSX3ptrFn0='
+
+  [mod.'github.com/jackc/pgx/v5']
+    version = 'v5.13.0'
+    hash = 'sha256-+D8TzwWNqLYbysR1hB1uPYp5K8dewn0OfZKr0CNiU8k='
+
   [mod.'github.com/lucasb-eyer/go-colorful']
     version = 'v1.4.1'
     hash = 'sha256-nY4QB5g4wsf/BNjtNBxzAbgE40kHDhYYYQMAQUHic60='
@@ -40,3 +60,7 @@ schema = 3
   [mod.'golang.org/x/sys']
     version = 'v0.50.0'
     hash = 'sha256-3T1I5T5pgbQBxRhN9Q2Ajvsy1kJW9WM/uddR9cOUVNA='
+
+  [mod.'golang.org/x/text']
+    version = 'v0.44.0'
+    hash = 'sha256-dTeEJZSwSLJ5jumnR+JjT4gSpXW6E22IxT0aCrcf2vQ='
