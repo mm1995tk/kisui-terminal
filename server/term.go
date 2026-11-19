@@ -739,7 +739,7 @@ func (ss *session) termRequest(req *rpc.Message) (res any, err error, handled bo
 			return nil, e, true
 		}
 		ptmx, _ := t.proc()
-		if _, err := ptmx.Write(cdInput(*p.Path)); err != nil {
+		if err := writeInput(ptmx, cdInput(*p.Path)); err != nil {
 			return nil, rpc.Errorf(rpc.CodeNotFound, "terminal has exited: %s", t.id), true
 		}
 		return struct{}{}, nil, true
@@ -749,7 +749,7 @@ func (ss *session) termRequest(req *rpc.Message) (res any, err error, handled bo
 			return nil, rpc.Errorf(rpc.CodeInvalidParams, "data is not base64: %v", err), true
 		}
 		ptmx, _ := t.proc()
-		if _, err := ptmx.Write(b); err != nil {
+		if err := writeInput(ptmx, b); err != nil {
 			return nil, rpc.Errorf(rpc.CodeNotFound, "terminal has exited: %s", t.id), true
 		}
 		return struct{}{}, nil, true
@@ -889,4 +889,18 @@ func (m *termManager) closeTerm(id string) {
 	t.mu.Lock()
 	t.alive = false
 	t.mu.Unlock()
+}
+
+// writeInput は GUI の入力（term.input・term.cd）を PTY に書く。書きの期限は *os.File に付くので、kisui pane send が
+// 詰まった PTY のために付けた期限（panesend.go の typeIn）に、GUI の書きも当たることがある。そのときは書けなかった残りを
+// 書き直し、前と同じく読まれるまで待つ（期限切れを「ターミナルが終わった」と取り違えない）。
+func writeInput(ptmx *os.File, b []byte) error {
+	for {
+		n, err := ptmx.Write(b)
+		if !errors.Is(err, os.ErrDeadlineExceeded) {
+			return err
+		}
+		b = b[n:]
+		time.Sleep(10 * time.Millisecond) // 期限が外れるまで（typeIn が書き終えるまで）回り続けないように
+	}
 }

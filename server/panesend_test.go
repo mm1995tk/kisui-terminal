@@ -3,6 +3,8 @@ package server
 import (
 	"bytes"
 	"errors"
+	"io"
+	"os"
 	"slices"
 	"strings"
 	"testing"
@@ -206,5 +208,89 @@ func TestKeyBytes(t *testing.T) {
 func TestMaxKeysFitsTimeout(t *testing.T) {
 	if d := time.Duration(maxKeys) * sendGap; d > panecmd.Timeout/2 {
 		t.Fatalf("%d keys take %v, too close to the timeout of kisui (%v)", maxKeys, d, panecmd.Timeout)
+	}
+}
+
+// 入力を読まないプログラムで PTY が詰まったら、待ち続けずに理由を付けて断る。GUI の term.input は、その期限で
+// 失敗せず、読まれるまで待つ。終わったペインには送らない。
+func TestPaneCmdSendStuckAndEnded(t *testing.T) {
+	t.Setenv("HOME", normalizePath(t.TempDir()))
+	old := sendWriteTimeout
+	sendWriteTimeout = 300 * time.Millisecond
+	t.Cleanup(func() { sendWriteTimeout = old })
+	srv, sock := startFast(t)
+	c, nt := termClient(t, sock)
+	_, p := createWS(t, c)
+	tok := termToken(t, srv, p)
+	do := func(rq panecmd.Request) panecmd.Reply {
+		rq.Pane, rq.Token = p, tok
+		return paneCmdDo(t, sock, rq)
+	}
+	r := do(panecmd.Request{Cmd: "split", Dir: "right", Argv: []string{"/bin/sh", "-c", "stty -icanon -echo; echo READY; exec sleep 300"}})
+	if !r.OK {
+		t.Fatal(r)
+	}
+	id := r.ID
+	waitFor(t, "ready", func() bool { d, _ := nt.output(t, id); return bytes.Contains(d, []byte("READY")) })
+	big := strings.Repeat("a", maxSendText)
+	var stuck panecmd.Reply
+	for range 16 {
+		if stuck = do(panecmd.Request{Cmd: "send", To: id, Text: big}); !stuck.OK {
+			break
+		}
+	}
+	if stuck.OK || !strings.Contains(stuck.Error, "does not read") {
+		t.Fatalf("a stuck pane: %+v", stuck)
+	}
+
+	tm, _ := srv.terms.get(id)
+	tm.mu.Lock()
+	tm.alive = false
+	tm.mu.Unlock()
+	if r := do(panecmd.Request{Cmd: "keys", To: id, Keys: []string{"enter"}}); r.OK || !strings.Contains(r.Error, "ended") {
+		t.Fatalf("an ended pane: %+v", r)
+	}
+	tm.mu.Lock()
+	tm.alive = true
+	tm.mu.Unlock()
+}
+
+// kisui pane send が付けた書きの期限に GUI の書き（term.input）が当たっても、失敗せずに読まれるまで待つ。
+func TestWriteInputOutlivesDeadline(t *testing.T) {
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	defer w.Close()
+	// パイプを詰まらせる
+	_ = w.SetWriteDeadline(time.Now().Add(100 * time.Millisecond))
+	filled := 0
+	for {
+		n, err := w.Write(make([]byte, 4096))
+		filled += n
+		if err != nil {
+			break
+		}
+	}
+	// 期限が切れたまま（send が書き終える前）に GUI が書く
+	done := make(chan error, 1)
+	go func() { done <- writeInput(w, []byte("gui")) }()
+	time.Sleep(50 * time.Millisecond)
+	select {
+	case err := <-done:
+		t.Fatalf("writeInput gave up on the deadline: %v", err)
+	default:
+	}
+	_ = w.SetWriteDeadline(time.Time{}) // send が書き終えた
+	got, err := io.ReadAll(io.LimitReader(r, int64(filled+3)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.HasSuffix(got, []byte("gui")) {
+		t.Fatalf("the input of the GUI did not arrive: ...%q", got[max(0, len(got)-8):])
 	}
 }

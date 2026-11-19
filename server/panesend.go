@@ -41,7 +41,7 @@ const maxKeys = 64
 const sendGap = 50 * time.Millisecond
 
 // sendWriteTimeout は、相手のプログラムが入力を読まずに PTY が詰まっているとき、書くのをあきらめるまでの時間。
-const sendWriteTimeout = 5 * time.Second
+var sendWriteTimeout = 5 * time.Second // テストが短くする
 
 // sendText は kisui pane send。text を打ち、Enter を押す。相手のプログラムが bracketed paste を有効にしていれば、
 // 貼り付けとして送る（改行を含む文字が途中で実行されないように）。改行は Enter（CR）にする（貼り付けと同じ）。
@@ -118,6 +118,7 @@ func (t *terminal) typeIn(chunks [][]byte) error {
 		if i > 0 {
 			time.Sleep(sendGap)
 		}
+		// 期限は *os.File に付くので、同じ PTY への GUI の書き（term.input）にも当たる。GUI の側は writeInput で書き直す
 		_ = ptmx.SetWriteDeadline(time.Now().Add(sendWriteTimeout)) // 読まれない PTY で止まり続けないように（できなければそのまま）
 		_, err := ptmx.Write(b)
 		_ = ptmx.SetWriteDeadline(time.Time{})
