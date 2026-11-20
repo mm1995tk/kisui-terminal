@@ -14,7 +14,7 @@ import styles from "./DbTabView.module.css";
 
 /** DB のタブの画面。 */
 export function DbTabView(props: {
-  /** タブの名前（付けた名前か接続の名前）とマシン（読み上げと見出し） */
+  /** 接続の名前（そのマシンの [[db.connections]] の name。t r で付けたタブの名前ではない）とマシン（読み上げと見出し） */
   connection: string;
   machine: string;
   /** macOS か（実行のキーの書き方と判定） */
