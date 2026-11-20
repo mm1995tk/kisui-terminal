@@ -1188,6 +1188,11 @@ mod tests {
             ".internal",
             ".kobe.jp",
             ".ck",
+            ".co.uk",
+            // ワイルドカード（*.kobe.jp）の下の名前
+            ".x.kobe.jp",
+            // 日本語の名前の規則（中国 = xn--fiqs8s）
+            ".xn--fiqs8s",
         ] {
             assert!(public_suffix_site(s), "{s}");
         }
@@ -1196,8 +1201,15 @@ mod tests {
             "com",
             "github.io",
             ".google.com",
+            ".example.com",
             ".example.co.jp",
+            ".example.co.uk",
             ".alice.github.io",
+            ".a.x.kobe.jp",
+            // 例外（!city.kobe.jp・!www.ck）はワイルドカードから外れる
+            ".city.kobe.jp",
+            ".www.ck",
+            ".example.xn--fiqs8s",
         ] {
             assert!(!public_suffix_site(s), "{s}");
         }
