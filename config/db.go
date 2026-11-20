@@ -243,11 +243,12 @@ func (d *dbEntry) name() string {
 	return strings.TrimSpace(s)
 }
 
-// unknown reports the keys that are not among known, and `password`. The
-// value of a password is not put in the problem.
-func (d *dbEntry) unknown(known []string) {
+// unknown reports the keys that are not among known, with the problem code
+// (which says whose keys known are: a connection's or a variant's), and
+// `password`. The value of a password is not put in the problem.
+func (d *dbEntry) unknown(known []string, code string) {
 	for _, key := range unknownDBKeys(d.e, known) {
-		d.bad(key, "config.err.unknown", strings.Join(known, ", "))
+		d.bad(key, code, strings.Join(known, ", "))
 	}
 	if _, has := d.e["password"]; has {
 		d.bad("password", "config.err.password")
@@ -350,7 +351,7 @@ func (w dbWhere) fill(c *DBConnection) (ok bool) {
 // would look like the whole.
 func dbConnection(e map[string]any) (conns []DBConnection, probs []Problem) {
 	d := &dbEntry{e: e}
-	d.unknown(dbKeys)
+	d.unknown(dbKeys, "config.err.unknown")
 	base := DBConnection{Name: d.name()}
 	if s, ok := d.str("kind", true); ok {
 		if s != DBPostgres && s != DBMySQL {
@@ -377,7 +378,7 @@ func dbConnection(e map[string]any) (conns []DBConnection, probs []Problem) {
 	seen := map[string]bool{}
 	for i, ve := range variants {
 		vd := &dbEntry{e: ve}
-		vd.unknown(dbVariantKeys)
+		vd.unknown(dbVariantKeys, "config.err.unknownvariant")
 		c := base
 		c.Variant = vd.name()
 		if c.Variant != "" && seen[c.Variant] {

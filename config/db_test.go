@@ -233,5 +233,10 @@ func TestLoadDBVariantMistakes(t *testing.T) {
 		if strings.Contains(text, "secret") {
 			t.Errorf("%s: the problem shows the password: %q", name, text)
 		}
+		// A key that a variant cannot have is said to be no key of a variant:
+		// `kind` is a key of a connection.
+		if name == "kind in variant" && (len(probs) != 1 || probs[0].Code != "config.err.unknownvariant") {
+			t.Errorf("%s: problems %+v", name, probs)
+		}
 	}
 }
