@@ -198,6 +198,7 @@ function MainWindow(props: {
       openMascotPicker: () => setMascotPicking(true),
       openKeyList: () => openKeyList(placeOf(document.activeElement)),
       focusUrlBar: () => focusUi.focusUrlBar(),
+      focusDbTree: () => focusUi.focusDbTree(),
       forgetPageReturn: () => focusUi.forgetPageReturn(),
       copyToClipboard,
       dismissLastNotice: () => notices().at(-1)?.dismiss?.(),

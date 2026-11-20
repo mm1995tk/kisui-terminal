@@ -9,6 +9,7 @@ import type {
 } from "../../infrastructure/rpc/protocol.ts";
 import type { KeyValueStore } from "../keyValueStore.ts";
 import {
+  catalogError,
   cellText,
   collectConnections,
   connectionDetail,
@@ -306,6 +307,32 @@ describe("withPassword（password_required なら聞いて送り直す）", () =
         async () => assert.fail("聞かない"),
       ),
       (e) => e === err,
+    );
+  });
+});
+
+describe("catalogError（木の一覧を聞けなかった理由の文）", () => {
+  const rpc = (code: number, message: string, data?: unknown) =>
+    new RpcError({ code, message, data });
+
+  it("パスワードを入れなかった・取り消した・パスワードを断られた・DB の言葉", () => {
+    assert.match(
+      catalogError(new PasswordCancelled()),
+      /password was not given/,
+    );
+    assert.equal(
+      catalogError(rpc(ErrorCode.DbError, "boom", { kind: "cancelled" })),
+      "Cancelled.",
+    );
+    assert.equal(
+      catalogError(
+        rpc(ErrorCode.PasswordRequired, "x", { reason: "rejected" }),
+      ),
+      "The password was not accepted.",
+    );
+    assert.equal(
+      catalogError(rpc(ErrorCode.DbError, "no route", { kind: "connect" })),
+      "no route",
     );
   });
 });

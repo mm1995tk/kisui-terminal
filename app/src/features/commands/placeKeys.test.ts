@@ -18,7 +18,7 @@ import { setLang } from "../../i18n/index.ts";
 import { imageKey } from "../../ui/main-window/content/media/imageView.ts";
 import { videoKey } from "../terminal/media.ts";
 import { treeKey } from "../file-tree/keys.ts";
-import { dbEditorKey } from "../db/keys.ts";
+import { dbEditorKey, dbTreeKey } from "../db/keys.ts";
 
 const ev = (key: string, extra: object = {}) => ({
   key,
@@ -84,6 +84,12 @@ describe("場所のキーの表は、その場所の判定と合っている", (
           assert.notEqual(dbEditorKey(ev(p), mac), null, `${r.keys}: ${p}`);
     assert.equal(dbEditorKey(ev("Enter", { metaKey: true }), true), "run");
     assert.equal(dbEditorKey(ev("Enter", { ctrlKey: true }), false), "run");
+  });
+
+  it("DB のタブの左の木（#348）：表のキーは、どれも判定が受ける", () => {
+    for (const r of PLACE_KEYS.dbTree.rows)
+      for (const p of r.probes)
+        assert.notEqual(dbTreeKey(ev(p)), null, `${r.keys}: ${p}`);
   });
 
   it("窓の表には、`?`（キーの一覧）と Esc の行がある", () => {
@@ -265,6 +271,7 @@ describe("placeOf", () => {
       "image",
       "machines",
       "db",
+      "dbTree",
     ] as const)
       assert.equal(placeOf(el(p)), p);
   });

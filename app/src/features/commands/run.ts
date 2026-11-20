@@ -42,6 +42,8 @@ export interface CommandUi {
   openKeyList(): void;
   /** URL バー（新しいタブのページなら検索窓）にキーを向ける */
   focusUrlBar(): void;
+  /** DB のタブの左の木のペインにキーを向ける */
+  focusDbTree(): void;
   /** ページから押したときに覚えた「キーを戻す先」を捨てる */
   forgetPageReturn(): void;
   /** OS のクリップボードに入れ、書けたときだけ「コピーしました」を出す */
@@ -60,7 +62,10 @@ export function createCommandRunner(deps: {
   terminals: Terminals;
   browserTabs: BrowserTabs;
   pages: Pages;
-  db: Pick<DbTabs, "shownDbTab" | "openPicker">;
+  db: Pick<
+    DbTabs,
+    "shownDbTab" | "openPicker" | "toggleTree" | "reloadCatalog"
+  >;
   bookmarks: Bookmarks;
   downloads: Downloads;
   updates: Updates;
@@ -292,6 +297,23 @@ export function createCommandRunner(deps: {
       case "db.open":
         deps.db.openPicker();
         break;
+      case "db.tree":
+      case "db.refresh": {
+        // 左の木のペイン（#348）の操作：DB のタブを出している間だけ
+        const tab = deps.db.shownDbTab();
+        if (!tab) {
+          cannot(T("cannot.dbTree.title"), T("cannot.dbTree.text"));
+          break;
+        }
+        // 木を出したら木にキーを向け（キーだけで j k と Enter に移れる）、隠したら入力欄に戻す
+        if (c.id === "db.tree" && deps.db.toggleTree()) {
+          ui.focusDbTree();
+          break;
+        }
+        if (c.id === "db.refresh") void deps.db.reloadCatalog(tab.id);
+        focusTerminal();
+        break;
+      }
       case "workspace.nth":
         // サイドバーの上から順に（1 列の並びで）。足りなければ何もしない
         deps.workspaces.goNth(c.arg as number);

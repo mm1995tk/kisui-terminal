@@ -236,3 +236,17 @@ export async function withPassword<R>(
     }
   }
 }
+
+/** 木のペインの一覧を聞けなかった理由の文（PasswordCancelled はパスワードを入れなかった、それ以外は queryFailure の分け方）。 */
+export function catalogError(e: unknown): string {
+  if (e instanceof PasswordCancelled) return T("db.tree.passwordCancelled");
+  const f = queryFailure(e);
+  switch (f.kind) {
+    case "error":
+      return f.message;
+    case "cancelled":
+      return T("db.view.cancelled");
+    case "password":
+      return T("db.err.password");
+  }
+}

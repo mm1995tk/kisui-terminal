@@ -46,6 +46,7 @@ import {
   type MachineConnections,
   type QueryFailure,
 } from "./model.ts";
+import { createDbTree } from "./treeController.ts";
 
 /** createDbTabs が返す持ち物。 */
 export type DbTabs = ReturnType<typeof createDbTabs>;
@@ -239,6 +240,19 @@ export function createDbTabs(deps: {
     if (q) cancelQuery(q);
   }
 
+  // ---- 左の木のペイン（#348） ----
+  const tree = createDbTree({
+    store,
+    refOf,
+    sessionFor,
+    request,
+    shownDbTab,
+    setDraft,
+    run,
+    isRunning: (id) => !!untrack(runs)[id]?.running,
+    cancelQuery,
+  });
+
   // ---- 接続を選ぶ窓 ----
   const [picker, setPicker] = createSignal<DbPicker | null>(null);
   let pickerGen = 0;
@@ -336,6 +350,7 @@ export function createDbTabs(deps: {
             Object.entries(all).filter(([id]) => alive.has(id)),
           ),
         );
+      tree.forget(alive);
       const d = untrack(drafts);
       if (Object.keys(d).some((id) => !alive.has(id)))
         writeDrafts(
@@ -357,6 +372,8 @@ export function createDbTabs(deps: {
     run,
     cancel,
     request,
+    // 左の木のペイン（#348。treeController.ts）
+    ...tree,
     /** パスワードを聞いている窓（無ければ null） */
     passwordAsk,
     replyPassword: (password: string | null) => replyPassword(password),

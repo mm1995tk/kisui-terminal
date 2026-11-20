@@ -264,6 +264,7 @@ function start(opts: {
     openMascotPicker: () => void ui.push("openMascotPicker"),
     openKeyList: () => void ui.push("openKeyList"),
     focusUrlBar: () => void ui.push("focusUrlBar"),
+    focusDbTree: () => void ui.push("focusDbTree"),
     forgetPageReturn: () => void ui.push("forgetPageReturn"),
     copyToClipboard: async (text) => void ui.push(`copy ${text}`),
     dismissLastNotice: () => void ui.push("dismissLastNotice"),
