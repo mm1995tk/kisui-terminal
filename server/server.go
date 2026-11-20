@@ -2,7 +2,7 @@
 // Unix ソケットで JSON-RPC を話す。設計は docs/design/gui-protocol.md の 3 章。
 //
 // 今あるメソッドは session.* / server.info / server.handover（handover.go）/ term.*（term.go）/ workspace.*（workspace.go）/ tree.*・git.status（tree.go、treewatch.go、gitstat.go）/
-// shj.*・pane.*（primary.go、pane.go）。編集は GUI のターミナルの欄の中の shj が受け持つので、画面や入力のメソッドは無い。
+// shj.*・pane.*（primary.go、pane.go）/ db.*（db.go）。編集は GUI のターミナルの欄の中の shj が受け持つので、画面や入力のメソッドは無い。
 package server
 
 import (
@@ -19,6 +19,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/mm1995tk/kisui-terminal/config"
+	"github.com/mm1995tk/kisui-terminal/internal/db"
 	"github.com/mm1995tk/kisui-terminal/rpc"
 )
 
@@ -56,6 +58,10 @@ type Options struct {
 	TreeInterval time.Duration
 	GitInterval  time.Duration
 	Now          func() time.Time // nil なら time.Now。テストで差し替える
+	// DBConnections は設定の [[db.connections]] を読む（db.* の要求のたびに呼ぶ）。nil なら config.LoadDB。
+	DBConnections func() ([]config.DBConnection, []config.Problem)
+	// DBPasswords は DB の接続のパスワードを探すもの。nil なら OS のキーチェーンと ~/.pgpass・~/.my.cnf を見る。
+	DBPasswords *db.Passwords
 }
 
 // Server は Unix ソケットで待ち受けるサーバー。
@@ -79,6 +85,7 @@ type Server struct {
 	stopping   bool           // stop が始まった
 	primary    *primaryServer // プライマリの shj の知らせを受ける口（Serve で開く）
 	updates    updateWaits    // kisui update が GUI の答えを待っている（update.go）
+	db         *dbManager     // db.* の要求が使うもの（db.go）
 
 	// opMu は、状態を変える仕事（GUI の要求・shj の名乗りと欄の頼み・定期の見回り）を読みロックで、
 	// 引き継ぎ（handover.go）を書きロックで持つ。引き継ぐ間は、仕事を止めて状態を固める。
@@ -134,6 +141,7 @@ func newServer(opts Options, ln *net.UnixListener) *Server {
 	srv.terms = newTermManager(srv)
 	srv.ws = newWSManager(srv)
 	srv.tree = newTreeManager(srv)
+	srv.db = newDBManager(opts)
 	return srv
 }
 
@@ -323,7 +331,7 @@ type InfoResult struct {
 	Terminals    int        `json:"terminals"`
 }
 
-func (ss *session) handle(_ context.Context, req *rpc.Message) (any, error) {
+func (ss *session) handle(ctx context.Context, req *rpc.Message) (any, error) {
 	if req.Method == "server.handover" && !req.IsNotification() {
 		// 引き継ぎは自分で書きロックを取るので、読みロックの外で受ける。
 		if ss.isSuperseded() {
@@ -333,6 +341,10 @@ func (ss *session) handle(_ context.Context, req *rpc.Message) (any, error) {
 			return nil, err
 		}
 		return ss.srv.handoverReq(req)
+	}
+	if isDBRequest(req) {
+		// 長くかかるので、読みロックの外で受ける（dbRequest の説明）。
+		return ss.dbRequest(ctx, req)
 	}
 	// 引き継ぎの間は待つ。引き継いだあとは何もしていないので、GUI は次の serve に送り直せる。
 	ss.srv.opMu.RLock()
@@ -473,7 +485,7 @@ func (ss *session) helloReq(req *rpc.Message) (any, error) {
 		ServerID:     s.serverID,
 		StartedAt:    s.startedAt,
 		Supersedes:   sup,
-		Capabilities: []string{CapHandover},
+		Capabilities: []string{CapHandover, CapDB},
 		Workspaces:   wsl,
 		Rev:          s.currentRev(),
 	}, nil

@@ -268,6 +268,8 @@ P13-09（#385）で `Core` を `core` に移し、分割を終えた。`ui/tui` 
 | -32003 | `not_found` | ワークスペース・ターミナル・ファイルが無い |
 | -32004 | `denied` | 権限が無い、またはワークスペースの外 |
 | -32005 | `busy` | 上限を超えた、またはターミナルでプログラムが動いている |
+| -32006 | `password_required` | DB の接続のパスワードがどこにも無い、または入力したものを DB が断った（「DB」の節） |
+| -32007 | `db_error` | DB がログインか SQL を断った、または SQL が取り消された（「DB」の節） |
 
 ### つなぐ・引き継ぐ・切れる
 
@@ -518,6 +520,35 @@ GUI は複数のワークスペースのツリーを（開閉の状態を持っ�
 - GUI でファイルの行を押す（Enter・Space でも）と、プライマリの shj があれば `shj.open`（「プライマリの shj」の節）を送る。ツリーはプライマリで shj が動いているときだけ出すので、`shj.open` が通ったら、プライマリのターミナルを active にしてキーをそこに向ける。断られたら（`denied`・`not_found` など）、帯を押して移れなかったときと同じ所に「<path> を開けませんでした（理由）」を `role="alert"` で出す。ワークスペースを移している途中（`workspace.focus` の返事待ち）は送らない（移った先のプライマリで開くため）。プライマリの shj が出しているファイル（`primaryShj.file`）がルートの中なら、その行を強調する（`app/src/features/file-tree/model.ts` の `rowAction`・`relativeIn`）。
 - GUI でツリーの行を右クリックすると、メニューを出す（`app/src/features/file-tree/menu.ts`・`TreeMenu.tsx`）。ファイルは「名前をコピー」「相対パスをコピー」「絶対パスをコピー」「名前の変更」「削除」、フォルダはそれに「新しいファイル」「新しいフォルダ」「ここへ移動」を足す。新規・名前の変更は、ワークスペースのフォルダからのパスを入れる窓（`tree.create`・`tree.rename`。新しいファイルは作ったら `shj.open` で開く＝TUI の `a` `A` `r` と同じ）、削除は確認の窓（`tree.delete`。TUI の `d` と同じ）。断られたら窓を開いたまま理由を出す。
 - 「ここへ移動」は、そのワークスペースのプライマリターミナルに `term.cd` で `cd -- '<絶対パス>'` を送る（フォルダはプライマリターミナルの cwd で決まるので、シェルが `cd` すればツリーも切り替わる）。パスの引用と、入力の途中の行を消す処理は shj がする。シェルのほかにプログラムが動いているときは `busy` で断られ、GUI は理由を出して何もしない。
+
+### DB（MySQL / PostgreSQL）
+
+`kisui serve` が、自分の動くマシンから DB に接続して SQL を実行する（#345）。窓（Tauri）ではなく `kisui serve` が接続するのは、`kisui serve` が ssh の先のマシンでも動くから：そのマシンからしか届かない DB にも、トンネルを作らずにつながる。`capabilities` に `db` がある `kisui serve` だけが受ける。実装は `server/db.go`（要求）・`internal/db`（接続・パスワード・SQL の実行）・`config/db.go`（設定）。利用者向けの説明は `docs/database.md`。
+
+| メソッド | 向き | パラメータ → 結果 |
+| --- | --- | --- |
+| `db.connections` | → shj | `{}` → `{connections: [{name, kind: "postgres"\|"mysql", host, port, user, database, readOnly}], problems: [...]}`。そのマシンの設定の `[[db.connections]]`。パスワードは入らない。`problems` は設定の間違い（「ファイル: キー: 理由」の文。`kisui serve` の `ui-language` の言葉）で、間違いのある接続は `connections` に入らない |
+| `db.query` | → shj | `{connection, sql, password?, maxRows?, queryId?}` → `{columns: [{name, type, kind: "number"\|"boolean"\|"binary"\|"text"}], rows: [[string\|null, ...]], rowCount, truncated, truncatedCells?, rowsAffected?, elapsedMs}`。`connection`（接続の `name`）に `sql` を 1 つ実行する。断られ方は下 |
+| `db.cancel` | → shj | `{queryId}` → `{}`。`queryId` を付けた、動いている `db.query` を取り消す。DB にその SQL を止めさせ、その `db.query` は `db_error`（`kind` は `cancelled`）で返る。動いていなければ `not_found` |
+
+- **設定**：接続（名前・種類・ホスト・ポート・ユーザー・DB 名・`read-only`）は、`kisui serve` が動くマシンの `config.toml`・`config.local.toml` の `[[db.connections]]`。`config.local.toml` に一覧があれば、`config.toml` の一覧を丸ごと置き換える（`[[gui.machines]]` と同じ）。`[server]` と違い、起動のときではなく **`db.*` の要求のたびに読む**：`kisui serve` は長く動き続け、止めるとターミナルが終わるので、止めずに接続を足せるようにする。同じ理由で、ここの間違いは `kisui serve` の起動を止めず、`db.connections` の `problems` で返す。接続の中の知らないキーも間違いにする（`read-only` を書き間違えた接続が、守られているように見えて書き込める、ということが起きないように）。
+- **パスワード**は設定に書かない（`password` のキーは間違いとして返す）。`db.query` のたびに、次の順に探す（`internal/db/password.go` の `Passwords`）。
+  1. OS のキーチェーン（macOS だけ。サービス `kisui-terminal-db`、アカウントは接続の名前の汎用パスワード。`/usr/bin/security` で読む）。Linux の Secret Service は使わない（ssh の先のマシンには、聞く相手のセッションバスが無い）。
+  2. `~/.pgpass`（PostgreSQL。`PGPASSFILE` があればそちら）・`~/.my.cnf` の `[client]`（MySQL）。
+  3. `db.query` の `password`（画面で入力されたもの）。ログインが通ったら `kisui serve` がメモリに覚え（接続の名前・種類・ホスト・ポート・ユーザーの組ごと）、次からは `password` 無しで通る。ファイルには書かず、`kisui serve` の引き継ぎ（`server.handover`）でも渡さない（引き継いだあとは聞き直しになる）。
+  - どこにも無ければ `password_required`（`data` は `{reason: "missing"}`）。3 のパスワードを DB が断ったら、覚えていたものは忘れて `password_required`（`{reason: "rejected"}`）。どちらも窓はパスワードを聞いて、`password` を付けて送り直す。`password` を省くのと空文字は違う：空文字は「パスワード無しでログインする」。
+  - 1・2 で見つけたパスワードを DB が断ったら、聞き直しても直らない（見つけた場所のものが先に使われる）ので、`db_error`（`{kind: "auth", passwordSource: "keychain"\|"file"}`）。
+- **ログインは持ち続けない**：`db.query` の 1 回ごとにログインし、終わったら切る。プールにしないのは、ある SQL がセッションに残したもの（`SET`・`USE`・開いたままのトランザクション・一時テーブル）を、別のタブの次の SQL に渡さないためと、使っていないログインを本番の DB に残さないため。その代わり、トランザクションを要求をまたいで続けることはできない（`BEGIN` だけ送っても、終われば切れて取り消される）。
+- **1 つの要求は 1 つの文**。パラメータは無く、`sql` をそのまま送る。`;` で区切った複数の文は DB が断る（PostgreSQL は拡張問い合わせ、MySQL は `multiStatements` を使わない）。`read-only` でなければ、文は 1 つずつ自動で確定する。 PostgreSQL の `COPY` は DB に送る前に断る（`db_error`、`kind` は `query`）：`COPY ... FROM STDIN` は DB がデータを待ち続けて要求が返らなくなり、`COPY ... TO STDOUT` は行が結果として届かない。文の最初の語で見分けるので、サーバーのファイルとの `COPY` も一緒に断る。
+- **`read-only`** の接続では、文を読み取り専用のトランザクションで実行して取り消す（PostgreSQL は `BEGIN READ ONLY`。MySQL は `START TRANSACTION READ ONLY` に加えて、セッションを `SET SESSION TRANSACTION READ ONLY` にする：MySQL の `DROP TABLE` などは今のトランザクションを終わらせてから動くので、トランザクションだけでは断れない）。書き込みは DB が断り、`db_error`（`sqlState` は `25006`）で返る。事故を防ぐためのもので、権限の代わりではない（本当に書かせたくなければ、DB の側で読むだけのユーザーを使う）。
+- **結果の値**は、DB が書く文字のまま（`psql`・`mysql` が出すもの）で、NULL は `null`。数も文字で送る（`bigint` や `decimal` の桁を、JSON の数で落とさないため）。どう読むかは列の `kind` で分かる：`number`（数。PostgreSQL は `NaN`・`Infinity` もある）、`boolean`（`true` か `false`。PostgreSQL だけ）、`binary`（`0x` と 16 進）、`text`（それ以外。日時・JSON・配列も）。`type` は DB の型の名前（小文字。PostgreSQL は `format_type` の `character varying(20)`・`text[]`、MySQL は `int unsigned`・`varchar`）で、見せるためのもの。
+- **結果の上限**：`rows` は `maxRows` 行まで（省くと 1000、最大 10000）、全体で 8 MiB まで。超えた分は入れず、`truncated` が `true`。1 つの値は 1 MiB までで、切ったら `truncatedCells` が `true`。上限に達したとき、`read-only` の接続では DB に文を止めさせる（巨大な `SELECT` を最後まで読まない）。`read-only` でない接続では残りを読み捨てて最後まで実行する（`UPDATE ... RETURNING` を途中で止めると、更新が取り消されるのに、窓には最初の行が出てしまう）。
+- **`rowsAffected`** は文が変えた行数（`INSERT`・`UPDATE`・`DELETE` と、行を返さない文）。読むだけの文では無い。**`elapsedMs`** は、文を送ってから最後の行を読むまでのミリ秒（小数あり）で、ログインの時間は入らない。
+- **取り消し**：`db.cancel` か、GUI の接続が切れたとき（`kisui serve` の引き継ぎで古い `kisui serve` が終わるときも）。接続を切るだけでなく、DB に文を止めさせる（PostgreSQL は取り消しの要求、MySQL は別のログインからの `KILL QUERY`）：切るだけだと、長い `UPDATE` を DB が最後まで実行することがある。5 秒たっても止まらなければ接続を切る。
+- **`db_error`** の `message` は DB の言葉そのまま（訳さない）。`data` は `{kind, sqlState?, passwordSource?}`。`kind` は `connect`（つながらない）・`auth`（上の 1・2 のパスワードが断られた）・`query`（DB が SQL を断った）・`cancelled`。ほかに、`connection` が設定に無ければ `not_found`、`sql` が空・`maxRows` が負・`queryId` が動いている別の文と同じなら `invalid_params`、同時に動く `db.query` が 8 を超えたら `busy`。
+- **ロック**：`db.*` は、ほかの要求と違って `kisui serve` の読みロック（`opMu`）の外で動く。SQL は長くかかることがあり、ロックを持つと、その間 `server.handover`（書きロックを待つ）と、それを待つ全部の要求が止まる。`db.*` はワークスペースやターミナルの状態に触らないので、ロックは要らない。
+- **TLS**：DB が TLS を出せば使い、証明書は確かめない（PostgreSQL の `sslmode=prefer`、MySQL の `tls=preferred`。どちらも標準のクライアントの既定）。Unix ソケット（`host` が `/` で始まる）では使わない。
+- **ログ**：`serve.log` には、失敗した接続の名前だけを書く。SQL とパスワードは書かない。
 
 ### ssh 越しに kisui を起動する
 
