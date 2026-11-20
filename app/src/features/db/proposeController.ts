@@ -163,11 +163,25 @@ export function createDbPropose(deps: {
     } else withdrawn.add(key);
   }
 
+  /**
+   * gone が true を返すマシンの、まだ済んでいない頼みを、全部取り下げとして扱う。マシンとの接続が切れたときに呼ぶ：
+   * 切れている間は serve の取り下げ（db.proposeCancel）が届かないので、聞く窓が残って、serve が待つのをやめたあとで
+   * 上書きされてしまう。答えも届かないので、待たせておく意味が無い。
+   */
+  function withdrawProposesWhere(gone: (target: string) => boolean) {
+    for (const key of [...pending]) {
+      const at = key.indexOf("\n");
+      const target = key.slice(0, at);
+      if (gone(target)) cancelPropose(target, key.slice(at + 1));
+    }
+  }
+
   return {
     /** 上書きしてよいかを聞いている窓（無ければ null） */
     proposeAsk: ask,
     propose,
     replyPropose,
     cancelPropose,
+    withdrawProposesWhere,
   };
 }

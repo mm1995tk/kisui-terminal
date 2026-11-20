@@ -291,6 +291,22 @@ describe("kisui db propose の頼み", () => {
     assert.equal(t.drafts.d1, "SELECT 3");
   });
 
+  it("マシンとの接続が切れたら、そのマシンの頼みだけを取り下げる（聞く窓を残さない）", async () => {
+    const t = setup();
+    t.drafts.d1 = "SELECT old";
+    const first = t.p.propose("a", rq("x1", "SELECT 1"));
+    const second = t.p.propose("a", rq("x2", "SELECT 2"));
+    const other = t.p.propose("b", rq("x1", "SELECT 3", ""));
+    await tick();
+    assert.equal(t.p.proposeAsk()?.sql, "SELECT 1");
+    t.p.withdrawProposesWhere((target) => target === "a");
+    assert.ok("error" in ((await first) as DbProposeReport));
+    assert.ok("error" in ((await second) as DbProposeReport));
+    assert.deepEqual(await other, { status: "written" });
+    assert.equal(t.p.proposeAsk(), null);
+    assert.equal(t.drafts.d1, "SELECT old");
+  });
+
   it("聞いている間にタブが閉じられたら、書かずに理由を返す", async () => {
     const t = setup();
     t.drafts.d1 = "SELECT old";

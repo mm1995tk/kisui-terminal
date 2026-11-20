@@ -387,6 +387,13 @@ export function createDbTabs(deps: {
     focusTerminal,
   });
 
+  // マシンとの接続が切れたら、そのマシンの頼みは取り下げとして扱う（聞く窓を残さない）
+  createEffect(
+    on(states, (st) =>
+      proposer.withdrawProposesWhere((t) => st[t]?.kind !== "connected"),
+    ),
+  );
+
   // ---- 接続を選ぶ窓 ----
   const [picker, setPicker] = createSignal<DbPicker | null>(null);
   let pickerGen = 0;
