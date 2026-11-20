@@ -1,5 +1,6 @@
 // DB の接続を選ぶ窓（リーダーの `d n`・サイドバーの「+」のメニューの「DB」。#347）。
 // 窓がつないでいる全部のマシンの kisui serve から集めた接続を 1 つの一覧にし、どのマシンの接続かを右に出す。
+// 環境の変種のある接続は、変種ごとに 1 行（`接続 (変種)`）：接続と変種を、この一覧で 1 回で選ぶ。
 // 選ぶと、その接続の DB のタブを開く。窓のキーは、ほかの一覧から選ぶ窓と同じ（machineList.ts の pickerKey）。決まりは docs/key-design.md。
 import { T } from "../../../i18n/index.ts";
 import { createSignal, For, Show, type JSX } from "solid-js";
@@ -7,6 +8,7 @@ import { createSignal, For, Show, type JSX } from "solid-js";
 import { basicHints } from "../../../features/commands/placeKeys.ts";
 import type { DbPicker } from "../../../features/db/controller.ts";
 import { connectionDetail, type DbChoice } from "../../../features/db/model.ts";
+import { dbLabel } from "../../../features/workspaces/model.ts";
 import { moveRow, pickerKey } from "../../../features/sessions/machineList.ts";
 import { Button } from "../../components/Button.tsx";
 import { CardBody, CardTitle, ModalCard } from "../../components/Card.tsx";
@@ -76,7 +78,7 @@ export function DbConnectionPicker(props: {
                 onDblClick={() => props.onChoose(c)}
               >
                 <span class="card-row-name">
-                  {c.connection.name}
+                  {dbLabel(c.connection.name, c.connection.variant)}
                   <span class="machine-row-mark">
                     {connectionDetail(c.connection)}
                   </span>

@@ -8,6 +8,7 @@ import type { Bookmarks } from "../../../features/browser/bookmarksStore.ts";
 import type { Pages } from "../../../features/browser/pages.ts";
 import type { BrowserTabs } from "../../../features/browser/tabsStore.ts";
 import type { DbTabs } from "../../../features/db/controller.ts";
+import { dbLabel } from "../../../features/workspaces/model.ts";
 import {
   interceptKeys,
   leaderKeyName,
@@ -151,7 +152,7 @@ export function ContentArea(props: {
           const ref = () => db.refOf(id);
           return (
             <DbTabView
-              connection={ref()?.connection ?? ""}
+              connection={dbLabel(ref()?.connection ?? "", ref()?.variant)}
               machine={props.labelOf(ref()?.target ?? "")}
               mac={IS_MAC}
               sql={db.draftOf(id)}

@@ -11,6 +11,8 @@ import (
 	"slices"
 	"sync"
 	"time"
+
+	"github.com/mm1995tk/kisui-terminal/config"
 )
 
 // HistoryEntry is one statement the window ran (db.query). Its JSON form is
@@ -43,10 +45,11 @@ const (
 // one connection are never shown for another (a statement for production
 // must not turn up in the tab of a development database).
 //
-// A connection is told by its name (config.DBConnection.Name), the name the
-// window asks with. Its file is the SHA-256 of the name in hexadecimal and
-// ".jsonl": the name may hold any character, and a file system that ignores
-// case must not put "Prod" and "prod" in one file.
+// A connection is told by its key (HistoryKey): its name, and its variant
+// when it has one, which are what the window asks with. Each variant of a
+// connection has a history of its own. The file is the SHA-256 of the key in
+// hexadecimal and ".jsonl": a name may hold any character, and a file system
+// that ignores case must not put "Prod" and "prod" in one file.
 //
 // The file holds one HistoryEntry in JSON per line, oldest first. It is
 // rewritten whole (in a temporary file that then replaces it), so it is
@@ -58,13 +61,25 @@ type History struct {
 	mu sync.Mutex
 }
 
-// historyFile is the file of the connection name.
+// HistoryKey is what the history of c is kept under: the name for a
+// connection without variants (so a history from before variants existed is
+// still found), and the name, a NUL and the variant for a variant. A name
+// holds no control character (config.LoadDB), so two connections never share
+// a key.
+func HistoryKey(c config.DBConnection) string {
+	if c.Variant == "" {
+		return c.Name
+	}
+	return c.Name + "\x00" + c.Variant
+}
+
+// historyFile is the file of the connection with the key name.
 func (h *History) historyFile(name string) string {
 	sum := sha256.Sum256([]byte(name))
 	return filepath.Join(h.Dir, hex.EncodeToString(sum[:])+".jsonl")
 }
 
-// Add keeps e as the newest statement of the connection name. A statement
+// Add keeps e as the newest statement of the connection with the key name. A statement
 // longer than MaxHistorySQL is not kept (and is no error).
 func (h *History) Add(name string, e HistoryEntry) error {
 	if h == nil || h.Dir == "" || len(e.SQL) > MaxHistorySQL {
@@ -101,7 +116,7 @@ func (h *History) Add(name string, e HistoryEntry) error {
 	return writeAtomic(path, buf.Bytes())
 }
 
-// List gives the statements of the connection name, newest first: at most
+// List gives the statements of the connection with the key name, newest first: at most
 // limit of them, or all when limit is 0 or less.
 func (h *History) List(name string, limit int) ([]HistoryEntry, error) {
 	out := []HistoryEntry{}

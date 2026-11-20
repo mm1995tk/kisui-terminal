@@ -26,6 +26,8 @@ import type { DbMethod, Session } from "../sessions/session.ts";
 import type { Workspaces } from "../workspaces/controller.ts";
 import {
   addDb,
+  dbRefLabel,
+  dbRefParams,
   dbTabsOf,
   newDbTabId,
   shownDb,
@@ -152,7 +154,7 @@ export function createDbTabs(deps: {
       answer = resolve;
       setPasswordAsk({
         tab: ref.id,
-        connection: ref.connection,
+        connection: dbRefLabel(ref),
         machine: labelOf(ref.target),
         reason,
       });
@@ -216,7 +218,7 @@ export function createDbTabs(deps: {
     setRun(id, (r) => ({ ...r, running: { queryId, target: ref.target } }));
     try {
       const result = await request(ref, "db.query", {
-        connection: ref.connection,
+        ...dbRefParams(ref),
         sql: text,
         queryId,
       });
@@ -349,6 +351,7 @@ export function createDbTabs(deps: {
       id: newDbTabId(),
       target: c.target,
       connection: c.connection.name,
+      ...(c.connection.variant ? { variant: c.connection.variant } : {}),
     };
     setGws((s) => addDb(s, p.gws, ref));
     deps.activateTab(p.gws, ref);

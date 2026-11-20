@@ -70,7 +70,7 @@ func (p *Passwords) Find(ctx context.Context, c config.DBConnection, typed *stri
 	keychain, file := p.Keychain, p.File
 	if keychain == nil {
 		keychain = func(ctx context.Context, c config.DBConnection) (string, bool) {
-			return keychainPassword(ctx, c.Name)
+			return keychainPassword(ctx, KeychainAccount(c))
 		}
 	}
 	if file == nil {
@@ -112,18 +112,31 @@ func (p *Passwords) Forget(c config.DBConnection) {
 	delete(p.remembered, identity(c))
 }
 
-// identity is what a remembered password belongs to: not the name alone but
-// the server and the user too, so that a password is never sent to another
-// server after the settings were edited.
+// identity is what a remembered password belongs to: not the name (and the
+// variant) alone but the server and the user too, so that a password is never
+// sent to another server after the settings were edited. Each variant of a
+// connection has its own.
 func identity(c config.DBConnection) string {
-	return strings.Join([]string{c.Name, c.Kind, c.Host, strconv.Itoa(c.Port), c.User}, "\x00")
+	return strings.Join([]string{c.Name, c.Variant, c.Kind, c.Host, strconv.Itoa(c.Port), c.User}, "\x00")
 }
 
 // KeychainService is the service name of the keychain items. The account is
-// the name of the connection. On macOS:
+// KeychainAccount. On macOS:
 //
-//	security add-generic-password -s kisui-terminal-db -a <name> -w
+//	security add-generic-password -s kisui-terminal-db -a <account> -w
 const KeychainService = "kisui-terminal-db"
+
+// KeychainAccount is the account of the keychain item of c: the name of the
+// connection, and for a variant the name, a slash and the variant
+// ("shop/prod"). Each variant has an item of its own, and the item of one is
+// never tried for another: the password of production is not sent to the
+// server of another environment.
+func KeychainAccount(c config.DBConnection) string {
+	if c.Variant == "" {
+		return c.Name
+	}
+	return c.Name + "/" + c.Variant
+}
 
 // filePassword looks c up in the password file of its kind in the home
 // directory.

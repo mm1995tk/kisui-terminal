@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/mm1995tk/kisui-terminal/config"
 )
 
 func TestHistory(t *testing.T) {
@@ -123,5 +125,28 @@ func TestHistoryNoDir(t *testing.T) {
 	}
 	if got, err := h.List("c", 0); err != nil || len(got) != 0 {
 		t.Errorf("%+v, %v", got, err)
+	}
+}
+
+// A variant has a history of its own: apart from the other variants, and
+// from a connection without variants that has the same name.
+func TestHistoryKey(t *testing.T) {
+	plain := config.DBConnection{Name: "shop"}
+	local, prod := plain, plain
+	local.Variant, prod.Variant = "local", "prod"
+	if got := HistoryKey(plain); got != "shop" {
+		t.Errorf("without a variant: %q", got)
+	}
+	h := &History{Dir: t.TempDir()}
+	for _, c := range []config.DBConnection{plain, local, prod} {
+		if err := h.Add(HistoryKey(c), HistoryEntry{SQL: "SELECT '" + c.Variant + "'", At: time.Now(), OK: true}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, c := range []config.DBConnection{plain, local, prod} {
+		got, err := h.List(HistoryKey(c), 0)
+		if err != nil || len(got) != 1 || got[0].SQL != "SELECT '"+c.Variant+"'" {
+			t.Errorf("%q: %+v, %v", c.Variant, got, err)
+		}
 	}
 }

@@ -27,6 +27,7 @@ import {
   shownPage,
   termKey,
   gwsOfTerm,
+  dbRefLabel,
   type BrowserRef,
   type DbRef,
   type Gws,
@@ -501,7 +502,7 @@ function browserItem(r: BrowserRef, ctx: RowContext): TabItem | undefined {
 }
 
 /**
- * DB のタブの行（#347）。名前は、付けた名前、無ければ接続の名前。マシンの札は、接続を書いたマシン（そのマシンの kisui serve が DB につなぐ）。
+ * DB のタブの行（#347）。名前は、付けた名前、無ければ接続の名前（環境の変種があれば `接続 (変種)`）。マシンの札は、接続を書いたマシン（そのマシンの kisui serve が DB につなぐ）。
  * 名前を付けたときは、2 行目に接続の名前を出す。
  */
 function dbItem(r: DbRef, ctx: RowContext): TabItem {
@@ -511,10 +512,10 @@ function dbItem(r: DbRef, ctx: RowContext): TabItem {
     key: refKey(r),
     kind: "db",
     tab: r.id,
-    title: r.name || r.connection,
-    path: r.name ? r.connection : "",
+    title: r.name || dbRefLabel(r),
+    path: r.name ? dbRefLabel(r) : "",
     git: "",
-    tip: T("dbTab.tip", { connection: r.connection, machine }),
+    tip: T("dbTab.tip", { connection: dbRefLabel(r), machine }),
     incognito: false,
     machine: { name: machine, color: ctx.colorOf(r.target), health },
     health,

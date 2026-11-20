@@ -147,3 +147,28 @@ func TestFilePassword(t *testing.T) {
 		t.Errorf("zero Passwords: %q, %q, %v", pw, src, err)
 	}
 }
+
+// Each variant of a connection has a keychain item and a remembered password
+// of its own; a connection without variants keeps the account it had.
+func TestPasswordPerVariant(t *testing.T) {
+	plain := config.DBConnection{Name: "shop", Kind: config.DBPostgres, Host: "h", Port: 5432, User: "u"}
+	local, prod := plain, plain
+	local.Variant, prod.Variant = "local", "prod"
+	for c, want := range map[config.DBConnection]string{plain: "shop", local: "shop/local", prod: "shop/prod"} {
+		if got := KeychainAccount(c); got != want {
+			t.Errorf("KeychainAccount(%+v) = %q, want %q", c, got, want)
+		}
+	}
+	none := func(config.DBConnection) (string, bool) { return "", false }
+	p := &Passwords{Keychain: func(context.Context, config.DBConnection) (string, bool) { return "", false }, File: none}
+	p.Remember(prod, "prod-secret")
+	if pw, src, err := p.Find(context.Background(), prod, nil); err != nil || pw != "prod-secret" || src != SourceMemory {
+		t.Errorf("the variant itself: %q, %q, %v", pw, src, err)
+	}
+	// The same server and user, but another variant (or none): not sent.
+	for _, c := range []config.DBConnection{local, plain} {
+		if _, _, err := p.Find(context.Background(), c, nil); !errors.Is(err, ErrPasswordRequired) {
+			t.Errorf("%q got the password of prod: %v", c.Variant, err)
+		}
+	}
+}

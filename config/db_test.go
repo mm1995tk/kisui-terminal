@@ -122,3 +122,116 @@ func TestLoadDBMistakes(t *testing.T) {
 		t.Errorf("Load failed on a mistake in db: %v", err)
 	}
 }
+
+// An entry with variants gives one connection for each variant, in the order
+// written. A variant takes the keys it does not write from its entry.
+func TestLoadDBVariants(t *testing.T) {
+	dir := userDir(t)
+	os.WriteFile(filepath.Join(dir, "config.toml"), []byte(`
+[[db.connections]]
+name = "shop"
+kind = "postgres"
+user = "app"
+database = "shop"
+port = 5433
+
+[[db.connections.variants]]
+name = "local"
+
+[[db.connections.variants]]
+name = "dev"
+host = "dev.example.com"
+port = 5432
+read-only = false
+
+[[db.connections.variants]]
+name = "prod"
+host = "db.example.com"
+user = "reader"
+database = "shop_prod"
+read-only = true
+
+[[db.connections]]
+name = "plain"
+kind = "mysql"
+user = "u"
+
+[[db.connections]]
+name = "guarded"
+kind = "mysql"
+read-only = true
+variants = [{name = "a", user = "ua"}, {name = "b", user = "ub", read-only = false}]
+`), 0o644)
+	got, probs := LoadDB("")
+	want := []DBConnection{
+		{Name: "shop", Variant: "local", Kind: DBPostgres, Host: "localhost", Port: 5433, User: "app", Database: "shop"},
+		{Name: "shop", Variant: "dev", Kind: DBPostgres, Host: "dev.example.com", Port: 5432, User: "app", Database: "shop"},
+		{Name: "shop", Variant: "prod", Kind: DBPostgres, Host: "db.example.com", Port: 5433, User: "reader", Database: "shop_prod", ReadOnly: true},
+		{Name: "plain", Kind: DBMySQL, Host: "localhost", Port: 3306, User: "u"},
+		// The entry has no user (each variant has one), and its read-only is
+		// what a variant gets unless it says otherwise.
+		{Name: "guarded", Variant: "a", Kind: DBMySQL, Host: "localhost", Port: 3306, User: "ua", ReadOnly: true},
+		{Name: "guarded", Variant: "b", Kind: DBMySQL, Host: "localhost", Port: 3306, User: "ub"},
+	}
+	if len(probs) != 0 || !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %+v, %v", got, probs)
+	}
+	for _, c := range want {
+		if f, ok := FindDB(got, c.Name, c.Variant); !ok || f != c {
+			t.Errorf("FindDB(%q, %q) = %+v, %v", c.Name, c.Variant, f, ok)
+		}
+	}
+	// An entry with variants is not a connection by itself.
+	if _, ok := FindDB(got, "shop", ""); ok {
+		t.Error("FindDB found a connection with variants without a variant")
+	}
+	if _, ok := FindDB(got, "plain", "prod"); ok {
+		t.Error("FindDB found a variant of a connection without variants")
+	}
+	if l := got[2].Label(); l != "shop (prod)" {
+		t.Errorf("Label: %q", l)
+	}
+	if l := got[3].Label(); l != "plain" {
+		t.Errorf("Label: %q", l)
+	}
+	// An empty list of variants is no variants.
+	os.WriteFile(filepath.Join(dir, "config.toml"), []byte("db.connections = [{name = \"m\", kind = \"mysql\", user = \"u\", variants = []}]\n"), 0o644)
+	got, probs = LoadDB("")
+	if len(probs) != 0 || len(got) != 1 || got[0].Variant != "" {
+		t.Fatalf("got %+v, %v", got, probs)
+	}
+}
+
+// A mistake in one variant leaves the whole entry out: none of its variants
+// is listed. The other entries stay.
+func TestLoadDBVariantMistakes(t *testing.T) {
+	dir := userDir(t)
+	const head = "[[db.connections]]\nname = \"ok\"\nkind = \"postgres\"\nuser = \"u\"\n[[db.connections]]\nname = \"x\"\nkind = \"mysql\"\n"
+	for name, c := range map[string]struct{ body, key string }{
+		"not a list":      {"user = \"u\"\nvariants = 1\n", "db.connections[1].variants"},
+		"no name":         {"user = \"u\"\n[[db.connections.variants]]\nhost = \"h\"\n", "db.connections[1].variants[0].name"},
+		"same name":       {"user = \"u\"\n[[db.connections.variants]]\nname = \"a\"\n[[db.connections.variants]]\nname = \"a\"\n", "db.connections[1].variants[1].name"},
+		"no user at all":  {"[[db.connections.variants]]\nname = \"a\"\nuser = \"u\"\n[[db.connections.variants]]\nname = \"b\"\n", "db.connections[1].variants[1].user"},
+		"empty user":      {"user = \"u\"\n[[db.connections.variants]]\nname = \"a\"\nuser = \"\"\n", "db.connections[1].variants[0].user"},
+		"port range":      {"user = \"u\"\n[[db.connections.variants]]\nname = \"a\"\nport = 0\n", "db.connections[1].variants[0].port"},
+		"read-only":       {"user = \"u\"\n[[db.connections.variants]]\nname = \"a\"\nread-only = 1\n", "db.connections[1].variants[0].read-only"},
+		"kind in variant": {"user = \"u\"\n[[db.connections.variants]]\nname = \"a\"\nkind = \"postgres\"\n", "db.connections[1].variants[0].kind"},
+		"misspelt key":    {"user = \"u\"\n[[db.connections.variants]]\nname = \"a\"\nreadonly = true\n", "db.connections[1].variants[0].readonly"},
+		"password":        {"user = \"u\"\n[[db.connections.variants]]\nname = \"a\"\npassword = \"secret\"\n", "db.connections[1].variants[0].password"},
+		"entry mistake":   {"user = \"u\"\nport = 0\n[[db.connections.variants]]\nname = \"a\"\n[[db.connections.variants]]\nname = \"b\"\n", "db.connections[1].port"},
+	} {
+		os.WriteFile(filepath.Join(dir, "config.toml"), []byte(head+c.body), 0o644)
+		got, probs := LoadDB("")
+		var texts []string
+		for _, p := range probs {
+			texts = append(texts, p.Text())
+		}
+		text := strings.Join(texts, "\n")
+		if len(got) != 1 || got[0].Name != "ok" || len(probs) != 1 || !strings.Contains(text, c.key+": ") {
+			t.Errorf("%s: connections %+v, problems %q", name, got, text)
+		}
+		if strings.Contains(text, "secret") {
+			t.Errorf("%s: the problem shows the password: %q", name, text)
+		}
+	}
+}

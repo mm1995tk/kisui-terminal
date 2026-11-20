@@ -35,8 +35,8 @@ export interface BrowserRef {
 }
 
 /**
- * DB のタブ 1 つ（#347）。どのマシンの kisui serve の、どの接続（そのマシンの設定の [[db.connections]] の name）か。
- * 書きかけの SQL と結果は features/db/ が持つ。マシンと接続は、開いたときから変わらない。
+ * DB のタブ 1 つ（#347）。どのマシンの kisui serve の、どの接続（そのマシンの設定の [[db.connections]] の name）の、
+ * どの環境の変種か。書きかけの SQL と結果は features/db/ が持つ。マシン・接続・変種は、開いたときから変わらない。
  */
 export interface DbRef {
   kind: "db";
@@ -45,8 +45,30 @@ export interface DbRef {
   target: string;
   /** そのマシンの接続の名前 */
   connection: string;
+  /** 接続の環境の変種の名前（[[db.connections.variants]] の name）。変種の無い接続では省く */
+  variant?: string;
   /** タブにつけた名前（無ければ省く。出すときはこれが接続の名前より先） */
   name?: string;
+}
+
+/** 画面に出す接続の名前：変種があれば `接続 (変種)`、無ければ接続の名前。 */
+export function dbLabel(connection: string, variant?: string): string {
+  return variant ? `${connection} (${variant})` : connection;
+}
+
+/** DB のタブの接続の、画面に出す名前（dbLabel）。 */
+export function dbRefLabel(r: Pick<DbRef, "connection" | "variant">): string {
+  return dbLabel(r.connection, r.variant);
+}
+
+/** db.* の要求で DB のタブの接続を指す引数（変種の無い接続では variant を付けない）。 */
+export function dbRefParams(r: Pick<DbRef, "connection" | "variant">): {
+  connection: string;
+  variant?: string;
+} {
+  return r.variant
+    ? { connection: r.connection, variant: r.variant }
+    : { connection: r.connection };
 }
 
 export type TabRef = TermRef | BrowserRef | DbRef;
@@ -852,6 +874,9 @@ export function parseGws(v: unknown): GwsState {
           id: r.id,
           target: r.target,
           connection: r.connection,
+          ...(typeof r.variant === "string" && r.variant
+            ? { variant: r.variant }
+            : {}),
           ...(typeof r.name === "string" && r.name ? { name: r.name } : {}),
         };
       if (!ref || seen.has(refKey(ref))) continue;
