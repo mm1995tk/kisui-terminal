@@ -3,7 +3,6 @@
 // 結果を出した SQL を、db.query の offset を付けてもう一度送る。kisui serve がその SQL を
 // `SELECT * FROM (SQL) AS q LIMIT 1001 OFFSET n` と包んで実行する（internal/db の wrap.go）。
 // 包めるか（SELECT か。MySQL では列の名前が重ならないか）は kisui serve が決め、結果の wrappable で返す。
-// 列の見出しで DB に並べ替えさせる（#377）ときも、同じ SQL を同じ包み方でもう一度送る。その並べ方はここ（DbPage）に足す。
 
 import type { DbQueryResult } from "../../infrastructure/rpc/protocol.ts";
 

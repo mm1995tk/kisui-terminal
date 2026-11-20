@@ -16,8 +16,7 @@ import (
 //
 // because a session is closed after each statement (see the package), so
 // there is no cursor to read on from. The database does the skipping, and
-// the extra row tells whether there is a page after. The same wrapping is
-// where an ORDER BY of a column chosen in the window goes (#377).
+// the extra row tells whether there is a page after.
 //
 // Only a SELECT (or a WITH ... SELECT) can be wrapped. A statement is told
 // apart by its words, read by a small scanner that knows the comments and
