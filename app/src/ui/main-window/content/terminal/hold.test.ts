@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { heldCells } from "./hold.ts";
+import { heldCells, heldFrameOf } from "./hold.ts";
 
 const map = (...xs: string[]) => new Map(xs.map((x) => [x, `at-${x}`]));
 const drawnOf =
@@ -58,5 +58,18 @@ describe("heldCells", () => {
       heldCells([], map("a1"), map("a1", "a2"), drawnOf("a1")),
       [],
     );
+  });
+});
+
+describe("heldFrameOf", () => {
+  it("残し始めたら前のタブのまわりを固め、残している間は使い続け、やめたら今のものに戻す", () => {
+    // 残し始めた
+    assert.equal(heldFrameOf([], ["a1"], "frame-A", undefined), "frame-A");
+    // 残している間（前のまわりが別のタブのものに変わっても、固めたものを使う）
+    assert.equal(heldFrameOf(["a1"], ["a1"], "frame-C", "frame-A"), "frame-A");
+    // 残すのをやめた
+    assert.equal(heldFrameOf(["a1"], [], "frame-C", "frame-A"), undefined);
+    // 何も残していない
+    assert.equal(heldFrameOf([], [], "frame-A", undefined), undefined);
   });
 });

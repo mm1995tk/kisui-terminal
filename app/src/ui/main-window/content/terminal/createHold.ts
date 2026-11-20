@@ -3,7 +3,7 @@
 // どれを残すかの決まりは hold.ts（heldCells）。ここは、描けた印と、残しているペインの持ち物を Solid の計算として持つ。
 import { createMemo, createSignal, untrack, type Accessor } from "solid-js";
 
-import { heldCells, type Held } from "./hold.ts";
+import { heldCells, heldFrameOf, type Held } from "./hold.ts";
 
 /** createHold が返す持ち物。 */
 export interface Hold<L, V, F> {
@@ -52,13 +52,8 @@ export function createHold<L, V, F>(deps: {
         views: next,
         frame,
         held,
-        // 残し始めたときは前のタブのまわりを固め、残している間はそれを使い続ける
-        heldFrame:
-          held.length === 0
-            ? undefined
-            : prev.held.length === 0
-              ? prev.frame
-              : prev.heldFrame,
+        // 残し始めたときは前のタブのまわりを固め、残している間はそれを使い続ける（hold.ts）
+        heldFrame: heldFrameOf(prev.held, held, prev.frame, prev.heldFrame),
       };
     },
     { views: new Map(), frame: undefined, held: [], heldFrame: undefined },

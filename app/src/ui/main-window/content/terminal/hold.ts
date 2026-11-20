@@ -31,3 +31,19 @@ export function heldCells<L, V>(
   }
   return keep;
 }
+
+/**
+ * 残している間に使う、ペインのまわり（境界のつまみ・並べているか）を決める。
+ * - 残すのをやめた（held が空）なら undefined（今のタブのまわりに戻す）。
+ * - 残し始めた（前は空だった）なら、前のタブのまわり prevFrame を固める。
+ * - 残している間は、固めたまわり prevHeldFrame を使い続ける。
+ */
+export function heldFrameOf<F>(
+  prevHeld: readonly unknown[],
+  held: readonly unknown[],
+  prevFrame: F | undefined,
+  prevHeldFrame: F | undefined,
+): F | undefined {
+  if (held.length === 0) return undefined;
+  return prevHeld.length === 0 ? prevFrame : prevHeldFrame;
+}
