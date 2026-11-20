@@ -78,70 +78,22 @@ func wrapSQL(kind, sql string, offset, limit int) (string, error) {
 	return fmt.Sprintf("SELECT * FROM (\n%s\n) AS %s LIMIT %d OFFSET %d", s.body, wrapAlias, limit, offset), nil
 }
 
-// scan reads sql as the database kind would split it into tokens.
-//
-// The comments: `--` to the end of the line (MySQL wants white space after
-// it), `#` to the end of the line (MySQL), `/* */` (PostgreSQL lets them
-// nest). The quotes: '...' and "..." with a doubled quote inside (MySQL also
-// takes a backslash, and so does a PostgreSQL E'...'), `...` (MySQL) and
-// $tag$...$tag$ (PostgreSQL).
+// quoted is the token nextToken gives for a quoted string or name.
+const quoted = "\x00"
+
+// scan tells what the statement sql is, from its tokens (nextToken).
 func scan(kind, sql string) stmt {
-	my := kind == config.DBMySQL
 	var s stmt
-	n := len(sql)
 	end := 0        // the end of the last token that is not `;`
-	prev := ""      // the token before, a lower case word or one character
+	prev := ""      // the token before
 	opening := true // only `(` so far
 	semi := false
-	for i := 0; i < n; {
-		c := sql[i]
-		switch {
-		case c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f' || c == '\v':
-			i++
-			continue
-		case c == '-' && i+1 < n && sql[i+1] == '-' && (!my || i+2 == n || sql[i+2] <= ' '),
-			c == '#' && my:
-			if j := strings.IndexByte(sql[i:], '\n'); j >= 0 {
-				i += j + 1
-			} else {
-				i = n
-			}
-			continue
-		case c == '/' && i+1 < n && sql[i+1] == '*':
-			i = skipComment(sql, i, !my)
-			continue
+	for i := 0; ; {
+		tok, next, ok := nextToken(kind, sql, i)
+		if !ok {
+			break
 		}
-		tok := "\x00" // a quoted string or name
-		switch {
-		case c == '\'':
-			i = skipQuoted(sql, i, '\'', my)
-		case c == '"':
-			i = skipQuoted(sql, i, '"', my)
-		case c == '`' && my:
-			i = skipQuoted(sql, i, '`', false)
-		case c == '$' && !my && dollarTag(sql, i) != "":
-			tag := dollarTag(sql, i)
-			if j := strings.Index(sql[i+len(tag):], tag); j >= 0 {
-				i += len(tag) + j + len(tag)
-			} else {
-				i = n
-			}
-		case isWordByte(c) && !isDigit(c):
-			j := i + 1
-			for j < n && (isWordByte(sql[j]) || (!my && sql[j] == '$')) {
-				j++
-			}
-			tok = strings.ToLower(sql[i:j])
-			i = j
-			// A PostgreSQL E'...' takes a backslash.
-			if !my && tok == "e" && i < n && sql[i] == '\'' {
-				i = skipQuoted(sql, i, '\'', true)
-				tok = "\x00"
-			}
-		default:
-			tok = string(c)
-			i++
-		}
+		i = next
 		if tok == ";" {
 			semi = true
 			continue
@@ -151,7 +103,7 @@ func scan(kind, sql string) stmt {
 		}
 		if opening && tok != "(" {
 			opening = false
-			if tok != "\x00" && isWordByte(tok[0]) {
+			if tok != quoted && isWordByte(tok[0]) {
 				s.first = tok
 			}
 		}
@@ -163,6 +115,64 @@ func scan(kind, sql string) stmt {
 	}
 	s.body = sql[:end]
 	return s
+}
+
+// nextToken reads the token of sql at or after i, as the database kind
+// would split it, skipping white space and comments. tok is a word in lower
+// case, quoted for a quoted string or name, or else one character; next is
+// the index after it. ok is false when only white space and comments are
+// left.
+//
+// The comments: `--` to the end of the line (MySQL wants white space after
+// it), `#` to the end of the line (MySQL), `/* */` (PostgreSQL lets them
+// nest). The quotes: '...' and "..." with a doubled quote inside (MySQL also
+// takes a backslash, and so does a PostgreSQL E'...'), `...` (MySQL) and
+// $tag$...$tag$ (PostgreSQL).
+func nextToken(kind, sql string, i int) (tok string, next int, ok bool) {
+	my := kind == config.DBMySQL
+	n := len(sql)
+	for i < n {
+		c := sql[i]
+		switch {
+		case c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f' || c == '\v':
+			i++
+		case c == '-' && i+1 < n && sql[i+1] == '-' && (!my || i+2 == n || sql[i+2] <= ' '),
+			c == '#' && my:
+			if j := strings.IndexByte(sql[i:], '\n'); j >= 0 {
+				i += j + 1
+			} else {
+				i = n
+			}
+		case c == '/' && i+1 < n && sql[i+1] == '*':
+			i = skipComment(sql, i, !my)
+		case c == '\'':
+			return quoted, skipQuoted(sql, i, '\'', my), true
+		case c == '"':
+			return quoted, skipQuoted(sql, i, '"', my), true
+		case c == '`' && my:
+			return quoted, skipQuoted(sql, i, '`', false), true
+		case c == '$' && !my && dollarTag(sql, i) != "":
+			tag := dollarTag(sql, i)
+			if j := strings.Index(sql[i+len(tag):], tag); j >= 0 {
+				return quoted, i + len(tag) + j + len(tag), true
+			}
+			return quoted, n, true
+		case isWordByte(c) && !isDigit(c):
+			j := i + 1
+			for j < n && (isWordByte(sql[j]) || (!my && sql[j] == '$')) {
+				j++
+			}
+			word := strings.ToLower(sql[i:j])
+			// A PostgreSQL E'...' takes a backslash.
+			if !my && word == "e" && j < n && sql[j] == '\'' {
+				return quoted, skipQuoted(sql, j, '\'', true), true
+			}
+			return word, j, true
+		default:
+			return string(c), i + 1, true
+		}
+	}
+	return "", n, false
 }
 
 // skipComment is the index after the /* */ comment that starts at i.
