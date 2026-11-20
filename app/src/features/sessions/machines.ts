@@ -124,6 +124,7 @@ export function addMachine(
   if (list.some((m) => m.target === t))
     return { error: T("machine.err.added", { label: labelOf(list, t) }) };
   const n = cleanName(name);
+  if ((n ?? t) === LOCAL_MACHINE) return { error: T("machine.err.localName") };
   if (n !== undefined && nameTaken(list, n, t))
     return { error: T("machine.err.nameTaken", { name: n }) };
   return {
@@ -143,6 +144,8 @@ export function renameMachine(
   if (list.some((m) => m.target === target && m.fixed))
     return { error: fixedReason() };
   const n = cleanName(name);
+  if ((n ?? target) === LOCAL_MACHINE)
+    return { error: T("machine.err.localName") };
   if (n !== undefined && nameTaken(list, n, target))
     return { error: T("machine.err.nameTaken", { name: n }) };
   return {
@@ -226,4 +229,39 @@ export function recordToSave(
     (m) => !shown.some((s) => s.target === m.target && !s.fixed),
   );
   return [...next.filter((m) => !m.fixed), ...hidden];
+}
+
+/** `kisui pane … --machine` で、GUI の動く手元の PC を指す名前（予約語。#344）。 */
+export const LOCAL_MACHINE = "local";
+
+/** マシンの名前（付けた名前、無ければ ssh の行き先）。`--machine` で選ぶ名前。 */
+const nameOf = (m: { target: string; name?: string }): string =>
+  m.name ?? m.target;
+
+/**
+ * `kisui pane … --machine name` のマシンの行き先。local は手元の PC（LOCAL）。ほかは、名前（付けた名前、無ければ ssh の行き先）が
+ * name のマシン。無ければ undefined。名前が local のマシンは、手元の PC と区別できないので選ばない（設定ファイルならお知らせを出す）。
+ */
+export function machineTarget(
+  list: Machine[],
+  name: string,
+): string | undefined {
+  if (name === LOCAL_MACHINE) return LOCAL;
+  return list.find((m) => nameOf(m) === name)?.target;
+}
+
+/** `--machine` で選べるマシンの名前（local が先）。 */
+export function machineNames(list: Machine[]): string[] {
+  return [
+    LOCAL_MACHINE,
+    ...list.map(nameOf).filter((n) => n !== LOCAL_MACHINE),
+  ];
+}
+
+/**
+ * 名前（付けた名前、無ければ ssh の行き先）が local のマシンの ssh の行き先（`--machine` で選べない。お知らせに出す）。
+ * 設定ファイルのマシンも、GUI で足したマシン（足すときの確かめより前に足した記録）も。
+ */
+export function localNamed(list: Machine[]): string[] {
+  return list.filter((m) => nameOf(m) === LOCAL_MACHINE).map((m) => m.target);
 }

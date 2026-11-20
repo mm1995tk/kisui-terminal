@@ -252,6 +252,9 @@ export const ja: Record<Key, string> = {
   "err.machine.notConnected": "{machine} につながっていません",
   "notice.shortcuts.title": "近道の設定に間違いがあります",
   "notice.shortcuts.text": "間違いのある近道だけを使いません。ほかは効きます。",
+  "notice.localMachine.title": "マシンの名前 local は予約語です",
+  "notice.localMachine.text":
+    "kisui pane の --machine では、local は常に手元の PC を指すので、{machines} を --machine で選べません。別の名前を付けてください。設定ファイルで決めたマシンは [[gui.machines]] で、ウィンドウで足したマシンはマシンのダイアログ（{leader} m）の n で変えます。",
   "notice.passkeySites.title": "passkey_sites に使えない項目があります",
   "notice.passkeySites.text":
     "次の項目は公開サフィックス（.com・.github.io のように、誰でもその下にサブドメインを持てる名前）で、他人のサイトの Cookie まで写す対象になるため使いません。ほかの項目は使います。",
@@ -427,6 +430,8 @@ export const ja: Record<Key, string> = {
   "machine.err.space": "ssh の行き先に空白や制御文字は使えません",
   "machine.err.added": "{label} はもう足してあります",
   "machine.err.nameTaken": "名前 {name} はほかのマシンで使っています",
+  "machine.err.localName":
+    "名前 local は手元の PC を指す予約語です（kisui pane --machine local）。別の名前を付けてください",
   "treeMenu.copy-name": "名前をコピー",
   "treeMenu.copy-relative": "相対パスをコピー",
   "treeMenu.copy-absolute": "絶対パスをコピー",
@@ -509,6 +514,8 @@ export const ja: Record<Key, string> = {
   "err.session.notConnected": "{machine} につながっていません",
   "err.session.tooOld":
     "{machine} の kisui serve が古く、この操作に対応していません。そのマシンの kisui-terminal を新しくしてください",
+  "paneRelay.err.noMachine":
+    "「{machine}」という名前のマシンがありません（マシン: {machines}）",
   "paneOpen.err.noWorkspace":
     "「{name}」という名前のワークスペースがありません（--new を付けると作ります）",
   "paneOpen.err.ambiguous":

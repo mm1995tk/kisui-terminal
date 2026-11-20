@@ -251,6 +251,9 @@ export const en = {
   "notice.shortcuts.title": "The shortcut settings have mistakes",
   "notice.shortcuts.text":
     "Only the shortcuts with mistakes are ignored. The others work.",
+  "notice.localMachine.title": "The machine name local is reserved",
+  "notice.localMachine.text":
+    "In kisui pane --machine, local always means this computer, so --machine cannot choose {machines}. Give it another name: in [[gui.machines]] of the config file for a machine set there, or with n in the machine dialog ({leader} m) for one added in the window.",
   "notice.passkeySites.title": "Some passkey_sites entries are not used",
   "notice.passkeySites.text":
     "These entries are public suffixes (names under which anyone can have a subdomain, such as .com or .github.io), so they would copy the cookies of other people's sites too. kisui-terminal does not use them; the other entries work.",
@@ -427,6 +430,8 @@ export const en = {
     "An ssh destination cannot contain whitespace or control characters",
   "machine.err.added": "{label} is already added",
   "machine.err.nameTaken": "The name {name} is used by another machine",
+  "machine.err.localName":
+    "The name local is reserved for this computer (kisui pane --machine local). Give the machine another name",
   "treeMenu.copy-name": "Copy the name",
   "treeMenu.copy-relative": "Copy the relative path",
   "treeMenu.copy-absolute": "Copy the absolute path",
@@ -510,6 +515,8 @@ export const en = {
   "err.session.notConnected": "Not connected to {machine}",
   "err.session.tooOld":
     "The kisui serve of {machine} is too old for this. Update kisui-terminal there.",
+  "paneRelay.err.noMachine":
+    'No machine is named "{machine}" (machines: {machines})',
   "paneOpen.err.noWorkspace":
     'No workspace is named "{name}" (add --new to make one)',
   "paneOpen.err.ambiguous":

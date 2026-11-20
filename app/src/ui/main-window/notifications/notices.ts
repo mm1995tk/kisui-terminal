@@ -8,6 +8,7 @@ import type { DownloadDone } from "../../../features/browser/os.ts";
 import { leaderKeyName } from "../../../features/commands/commands.ts";
 import { IS_MAC } from "../../../features/commands/guiKeys.ts";
 import type { Problem, ReportProblem } from "../../../features/problem.ts";
+import { localNamed } from "../../../features/sessions/machines.ts";
 import type { Sessions } from "../../../features/sessions/controller.ts";
 import type { SessionState } from "../../../features/sessions/session.ts";
 import {
@@ -27,7 +28,7 @@ export function createNotices(deps: {
   setFocusError: ReportProblem;
   sessions: Pick<
     Sessions,
-    "states" | "targets" | "labelOf" | "connect" | "disconnect"
+    "states" | "targets" | "labelOf" | "connect" | "disconnect" | "machines"
   >;
   downloads: Pick<Downloads, "downloads" | "dropDownload" | "useDownload">;
 }) {
@@ -89,6 +90,30 @@ export function createNotices(deps: {
         dismiss: () => setShortcutDismissed(true),
       }
     : undefined;
+  // 名前が local のマシン（--machine で選べない）。閉じたら、同じ並びの間は出さない
+  const [localDismissed, setLocalDismissed] = createSignal("");
+  let localCache: { key: string; notice: Notice } | undefined;
+  function localNotice(): Notice | undefined {
+    const list = localNamed(deps.sessions.machines());
+    const key = list.join("\n");
+    if (list.length === 0 || localDismissed() === key) return undefined;
+    if (localCache?.key !== key) {
+      const close = () => setLocalDismissed(key);
+      localCache = {
+        key,
+        notice: {
+          title: T("notice.localMachine.title"),
+          text: T("notice.localMachine.text", {
+            machines: list.join(", "),
+            leader: leaderKeyName(IS_MAC),
+          }),
+          primary: { label: T("button.close"), run: close },
+          dismiss: close,
+        },
+      };
+    }
+    return localCache.notice;
+  }
   const [passkeyDismissed, setPasskeyDismissed] = createSignal(false);
   const passkeyNotice: Notice | undefined = deps.passkeyRejected?.length
     ? {
@@ -109,6 +134,8 @@ export function createNotices(deps: {
   const notices = createMemo<Notice[]>(() => {
     const out: Notice[] = [];
     if (shortcutNotice && !shortcutDismissed()) out.push(shortcutNotice);
+    const local = localNotice();
+    if (local) out.push(local);
     if (passkeyNotice && !passkeyDismissed()) out.push(passkeyNotice);
     const err = focusError();
     if (err) {

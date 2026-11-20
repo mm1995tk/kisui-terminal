@@ -360,6 +360,11 @@ export interface Requests {
     params: { id: WorkspaceId };
     result: { rev: number; termId?: TermId };
   };
+  /**
+   * `kisui pane` の --machine（#344）。別のマシンのペインから手元の GUI が中継した頼み（list・send・keys・close・read）を、
+   * このマシンで行う。断るときも result の error で答える。hello の capabilities に "pane.run" がある serve だけが受ける
+   */
+  "pane.run": { params: PaneRunRequest; result: PaneRunReply };
   "workspace.create": {
     /**
      * dir は、プライマリターミナルのシェルを始めるフォルダ（絶対パス）。無い・フォルダでなければ start_dir。古い kisui serve は無視する。
@@ -488,6 +493,11 @@ export interface Notifications {
    * このマシンのターミナルのタブを足し（workspace.create の argv・env・name）、pane.opened で答える。フォーカスは移さない
    */
   "pane.open": PaneOpenRequest;
+  /**
+   * `kisui pane` の --machine（#344）。machine（[[gui.machines]] の名前。local は手元の PC）のペインへの頼み request を、
+   * そのマシンの serve に pane.run で送り（open-tab は、pane.open と同じく GUI がそのマシンにタブを作る）、pane.relayed で答える
+   */
+  "pane.relay": PaneRelayRequest;
   /** プライマリの shj（`ctl.PaneRequest` の `kind: "browser"`）・`kisui open <URL>` が、URL を手元のブラウザで開くよう頼んだ（#96）。欄は作らない。内蔵ブラウザを有効にしていればそのワークスペースの新しいタブ、無効なら外部ブラウザで開く（#203）。リモートのマシンの localhost 系は、GUI が `kisui relay` の中継越しに開く */
   "browser.open": { workspaceId: WorkspaceId; url: string };
   /** プライマリの shj が、そのワークスペースのファイルエクスプローラにキーを向けるよう頼んだ（Space e）。Esc で端末に戻る。start は、shj が引数なしで起動した直後（ツリーが整うのを待つ）。 */
@@ -539,6 +549,8 @@ export interface GuiNotifications {
   "update.result": { id: string } & UpdateReport;
   /** pane.open への答え（`kisui pane open` に渡る）。作れたら termId、作れなければ error（そのまま kisui pane open が出す） */
   "pane.opened": { id: string } & PaneOpenReport;
+  /** pane.relay への答え（`kisui pane … --machine` に渡る。serve の panecmd.Reply の形） */
+  "pane.relayed": { id: string; reply: PaneRunReply };
 }
 
 /** pane.open の中身（`kisui pane open`。#343）。 */
@@ -560,6 +572,50 @@ export interface PaneOpenRequest {
 
 /** pane.open への答え（#343）。 */
 export type PaneOpenReport = { termId: TermId } | { error: string };
+
+/** pane.relay の中身（#344）。 */
+export interface PaneRelayRequest {
+  id: string;
+  /** 頼む先のマシンの名前（[[gui.machines]] の名前。local は GUI の動く手元の PC） */
+  machine: string;
+  request: PaneRunRequest;
+}
+
+/** 別のマシンのペインへの頼み（serve の panecmd.Request から、頼んだペインの id・秘密・マシンを除いたもの）。 */
+export interface PaneRunRequest {
+  /** list・send・keys・close・read・open-tab */
+  cmd: string;
+  /** 相手のペインの名前か id */
+  to?: string;
+  /** send の文字 */
+  text?: string;
+  /** keys のキー */
+  keys?: string[];
+  /** read の scrollback の行数 */
+  lines?: number;
+  /** open-tab のワークスペースの名前 */
+  workspace?: string;
+  /** open-tab で、その名前のワークスペースを新しく作る */
+  new?: boolean;
+  /** open-tab の新しいタブのペインの名前 */
+  name?: string;
+  /** open-tab で始めるフォルダ（そのマシンの絶対パス。無ければそのマシンの始めのフォルダ） */
+  cwd?: string;
+  /** open-tab で動かすコマンド（最初の語はそのマシンの絶対パス。無ければシェル） */
+  argv?: string[];
+}
+
+/** 別のマシンのペインへの頼みの答え（serve の panecmd.Reply）。中身は見ずに、頼んだマシンへそのまま渡す。 */
+export interface PaneRunReply {
+  ok?: boolean;
+  error?: string;
+  /** 頼みが指した・作ったペインの id */
+  id?: string;
+  /** list の答え */
+  panes?: unknown[];
+  /** read の答え */
+  text?: string;
+}
 
 /** 新しい版の調べ直しの答え（#94）。 */
 export type UpdateReport =

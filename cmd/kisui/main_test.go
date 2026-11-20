@@ -49,7 +49,7 @@ func TestDispatchAndUsage(t *testing.T) {
 func TestUsageListsCommands(t *testing.T) {
 	var out strings.Builder
 	usage(&out, commands, "kisui")
-	for _, want := range []string{"kisui serve", "kisui attach", "kisui open <file|url>", "kisui notify <text>", "kisui clipboard copy", "kisui clipboard paste", "kisui pane send <name|id> <text>", "kisui pane keys <name|id> <key>...", "kisui pane close <name|id>"} {
+	for _, want := range []string{"kisui serve", "kisui attach", "kisui open <file|url>", "kisui notify <text>", "kisui clipboard copy", "kisui clipboard paste", "kisui pane send [--machine <machine>] <name|id> <text>", "kisui pane keys [--machine <machine>] <name|id> <key>...", "kisui pane close [--machine <machine>] <name|id>"} {
 		if !strings.Contains(out.String(), want) {
 			t.Errorf("the help has no %q:\n%s", want, out.String())
 		}
@@ -187,6 +187,30 @@ func TestPaneToArgs(t *testing.T) {
 	} {
 		if got := c.run(c.args); got != c.want {
 			t.Errorf("%q: %d, want %d", c.args, got, c.want)
+		}
+	}
+}
+
+func TestParseList(t *testing.T) {
+	for _, tc := range []struct {
+		args    []string
+		asJSON  bool
+		machine string
+		ok      bool
+	}{
+		{nil, false, "", true},
+		{[]string{"--json"}, true, "", true},
+		{[]string{"--machine", "dev"}, false, "dev", true},
+		{[]string{"--machine=local", "--json"}, true, "local", true},
+		{[]string{"--json", "--json"}, false, "", false},
+		{[]string{"--machine"}, false, "", false},
+		{[]string{"--machine", " "}, false, "", false},
+		{[]string{"--machine", "a", "--machine", "b"}, false, "", false},
+		{[]string{"x"}, false, "", false},
+	} {
+		asJSON, machine, ok := parseList(tc.args)
+		if ok != tc.ok || (ok && (asJSON != tc.asJSON || machine != tc.machine)) {
+			t.Errorf("parseList(%q) = %v %q %v, want %v %q %v", tc.args, asJSON, machine, ok, tc.asJSON, tc.machine, tc.ok)
 		}
 	}
 }
