@@ -12,6 +12,7 @@ import { createPages } from "./browser/pages.ts";
 import { createBrowserTabs } from "./browser/tabsStore.ts";
 import { createChanges } from "./changes/controller.ts";
 import { createCommandRunner, type CommandUi } from "./commands/run.ts";
+import { createDbTabs } from "./db/controller.ts";
 import { createFileTree } from "./file-tree/controller.ts";
 import type { KeyValueStore } from "./keyValueStore.ts";
 import type { MascotOs } from "./mascot/mascot.ts";
@@ -149,6 +150,14 @@ export function createFeatures(deps: {
     forgetPageReturn,
     revealSidebar: () => ui.revealSidebar(),
   });
+  const db = createDbTabs({
+    store,
+    sessions,
+    workspaces,
+    browserTabs,
+    activateTab: (gid, ref) => tabs.activateTab(gid, ref),
+    focusTerminal,
+  });
   const openTab = createPaneOpen({
     browser,
     sessions,
@@ -224,6 +233,7 @@ export function createFeatures(deps: {
     workspaces,
     browserTabs,
     pages,
+    db,
     setFocusError,
     focusTerminal,
     revealSidebar: () => ui.revealSidebar(),
@@ -239,6 +249,7 @@ export function createFeatures(deps: {
     terminals,
     browserTabs,
     pages,
+    db,
     bookmarks,
     downloads,
     updates,
@@ -264,6 +275,7 @@ export function createFeatures(deps: {
     fileTree,
     changes,
     pages,
+    db,
     bookmarks,
     downloads,
     tabs,

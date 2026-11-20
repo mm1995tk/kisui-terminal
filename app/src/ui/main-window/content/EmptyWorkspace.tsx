@@ -40,6 +40,7 @@ export function EmptyWorkspace(props: {
                   },
                 ]
               : []),
+            { keys: keys("d", "n"), label: T("emptyWorkspace.addDb") },
             {
               keys: keys("w", "x"),
               label: T("emptyWorkspace.closeWorkspace"),

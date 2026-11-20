@@ -6,6 +6,10 @@ export const ICON = {
   terminal: "",
   /** nf-fa-globe：ブラウザのタブ */
   globe: "",
+  /** nf-fa-database：DB のタブ（#347） */
+  database: "\uf1c0",
+  /** nf-fa-plug：DB のタブの接続の名前 */
+  plug: "\uf1e6",
   /** nf-fa-link：ブラウザのタブの URL */
   link: "",
   /** nf-fa-folder：フォルダのパス */

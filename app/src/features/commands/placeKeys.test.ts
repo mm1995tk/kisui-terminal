@@ -18,6 +18,7 @@ import { setLang } from "../../i18n/index.ts";
 import { imageKey } from "../../ui/main-window/content/media/imageView.ts";
 import { videoKey } from "../terminal/media.ts";
 import { treeKey } from "../file-tree/keys.ts";
+import { dbEditorKey } from "../db/keys.ts";
 
 const ev = (key: string, extra: object = {}) => ({
   key,
@@ -74,6 +75,15 @@ describe("場所のキーの表は、その場所の判定と合っている", (
     for (const r of PLACE_KEYS.history.rows)
       for (const p of r.probes)
         assert.notEqual(historyKey(ev(p), true), null, `${r.keys}: ${p}`);
+  });
+
+  it("DB のタブ（#347）：表のキーは、どれも判定が受ける（Cmd+Enter / Ctrl+Enter は keys.test.ts）", () => {
+    for (const r of PLACE_KEYS.db.rows)
+      for (const p of r.probes)
+        for (const mac of [true, false])
+          assert.notEqual(dbEditorKey(ev(p), mac), null, `${r.keys}: ${p}`);
+    assert.equal(dbEditorKey(ev("Enter", { metaKey: true }), true), "run");
+    assert.equal(dbEditorKey(ev("Enter", { ctrlKey: true }), false), "run");
   });
 
   it("窓の表には、`?`（キーの一覧）と Esc の行がある", () => {
@@ -248,7 +258,14 @@ describe("placeOf", () => {
   });
 
   it("フォーカスがある要素の場所を返す", () => {
-    for (const p of ["tree", "changes", "video", "image", "machines"] as const)
+    for (const p of [
+      "tree",
+      "changes",
+      "video",
+      "image",
+      "machines",
+      "db",
+    ] as const)
       assert.equal(placeOf(el(p)), p);
   });
 

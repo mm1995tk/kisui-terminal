@@ -67,6 +67,7 @@ export type CommandId =
   | "browser.devtools"
   | "browser.login"
   | "browser.rename"
+  | "db.open"
   | "help.keys";
 
 /** コマンドと、その引数（向き・番号など）。 */
@@ -415,6 +416,10 @@ export const LEADER: Node[] = [
     undefined,
     "browser",
   ),
+  // DB のタブ（#347。MySQL / PostgreSQL のクライアント）。SQL の実行のように DB のタブの中だけで使う操作は、場所のキー（placeKeys.ts の db）
+  group("d", T("leader.db.group"), [
+    leaf("n", T("leader.db.open"), { id: "db.open" }),
+  ]),
   leaf("b", T("leader.sidebar"), { id: "sidebar.toggle" }),
   leaf(
     "y",

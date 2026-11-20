@@ -2,7 +2,7 @@
 
 `kisui serve` can connect to MySQL and PostgreSQL and run SQL for the window. This page is about the settings: which databases, and where their passwords come from.
 
-The window has no database tab yet. What is here is the part under it: the settings, and the requests `kisui serve` answers (`db.connections`, `db.query`, `db.cancel`, `db.schema`, `db.history`; see [design/gui-protocol.md](design/gui-protocol.md)).
+You use these connections in a database tab of the window (the leader, then `d` `n`; see the README). This page is about the part under it: the settings, and the requests `kisui serve` answers (`db.connections`, `db.query`, `db.cancel`, `db.schema`, `db.history`; see [design/gui-protocol.md](design/gui-protocol.md)).
 
 `kisui serve` is the one that connects, not the window. On a remote machine (ssh), `kisui serve` runs on that machine, so a database that only that machine can reach works with no tunnel. Write a connection in the settings of the machine that should connect.
 
