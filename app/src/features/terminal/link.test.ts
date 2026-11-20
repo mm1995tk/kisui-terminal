@@ -477,7 +477,7 @@ describe("TermLink", () => {
     assert.equal(s.text(), "S");
   });
 
-  // タブを切り替えた直後に、空の画面（カーソルだけ）を見せないため（TerminalGrid が drawn まで前の欄を残す）
+  // タブを切り替えた直後に、空の画面（カーソルだけ）を見せないため（TerminalGrid が drawn まで前のペインを残す）
   it("bind のあと、画面の状態の書き出しを書き終えてから drawn を 1 回だけ呼ぶ", async () => {
     const f = fakePort();
     let answer!: () => void;

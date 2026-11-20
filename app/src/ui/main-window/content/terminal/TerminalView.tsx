@@ -40,7 +40,7 @@ import { throttle } from "./throttle.ts";
 /** 欄の大きさが変わり続けるとき、列の数を測り直す間隔（ms）。 */
 const REFIT_INTERVAL_MS = 80;
 
-/** 最初の画面が届くのをこれ以上待たずに、欄を見せる（ms）。kisui serve が答えないまま、前のタブの欄を残し続けないように。 */
+/** 最初の画面が届くのをこれ以上待たずに、ペインを見せる（ms）。kisui serve が答えないまま、前のタブのペインを残し続けないように。 */
 const DRAWN_TIMEOUT_MS = 1000;
 
 /**
@@ -64,9 +64,9 @@ export function TerminalView(props: {
   onUrl?: (click: UrlClick) => void;
   /** この欄にキーを向ける関数を受け取る（欄が無くなるとき undefined で呼ぶ） */
   focusRef?: (focus: (() => void) | undefined) => void;
-  /** 前のタブの欄を、新しいタブの欄が描けるまで残しているところか（TerminalGrid。新しい欄の上に重ね、押しても何もしない） */
+  /** 前のタブのペインを、新しいタブのペインが描けるまで残しているところか（TerminalGrid。新しいペインの上に重ね、押しても何もしない） */
   leaving?: boolean;
-  /** 最初の画面を書き終えて、欄を見せ始めた（kisui serve が答えないときは DRAWN_TIMEOUT_MS で見せる） */
+  /** 最初の画面を書き終えて、ペインを見せ始めた（kisui serve が答えないときは DRAWN_TIMEOUT_MS で見せる） */
   onDrawn?: () => void;
 }): JSX.Element {
   const ports = usePorts();
@@ -83,7 +83,7 @@ export function TerminalView(props: {
     theme: terminalTheme,
   });
 
-  // 最初の画面を書き終えたか。それまでの coneko-term は空（カーソルだけ）なので、欄を見せない（TerminalGrid が前の欄を残す）
+  // 最初の画面を書き終えたか。それまでの coneko-term は空（カーソルだけ）なので、ペインを見せない（TerminalGrid が前のペインを残す）
   const [drawn, setDrawn] = createSignal(false);
   let drawnTimer: ReturnType<typeof setTimeout> | undefined;
   const markDrawn = () => {
