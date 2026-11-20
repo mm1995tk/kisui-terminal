@@ -139,7 +139,7 @@ function ResultTable(props: { result: DbQueryResult }): JSX.Element {
   return (
     <Show
       when={props.result.columns.length > 0}
-      fallback={<p class={styles.note}>{resultSummary(props.result)}</p>}
+      fallback={<p class={styles.note}>{T("db.view.noTable")}</p>}
     >
       <Show
         when={props.result.rows.length > 0}

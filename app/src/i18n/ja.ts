@@ -658,6 +658,7 @@ export const ja: Record<Key, string> = {
   "db.view.noRows": "行はありません。",
   "db.view.sqlState": "SQLSTATE {code}",
   "db.view.result": "結果",
+  "db.view.noTable": "この文は行を返しません。",
   "db.password.label": "DB のパスワード",
   "db.password.missing": "{machine} の {connection} のパスワード",
   "db.password.rejected":

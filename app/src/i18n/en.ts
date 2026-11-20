@@ -663,6 +663,7 @@ export const en = {
   "db.view.noRows": "No rows.",
   "db.view.sqlState": "SQLSTATE {code}",
   "db.view.result": "Result",
+  "db.view.noTable": "This statement returns no rows.",
   "db.password.label": "Database password",
   "db.password.missing": "Password for {connection} on {machine}",
   "db.password.rejected":
