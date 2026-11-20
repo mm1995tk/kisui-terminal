@@ -228,3 +228,11 @@ export function handlers(
     },
   };
 }
+
+/**
+ * この帯（focused は、フォーカスしているワークスペースの帯か）に、DB の木を出すなら、その DB のタブの id。出さなければ undefined。
+ * 出すかの判定は、Sidebar（段に分けるか）・BandItem（段に分けるか・パネルを隠すか）・Panes（木を描く）が同じ関数で決める。
+ */
+export function dbTreeTabOf(h: Handlers, focused: boolean): string | undefined {
+  return focused && h.dbTree ? h.dbTabId?.() : undefined;
+}

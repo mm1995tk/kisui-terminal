@@ -8,7 +8,7 @@ import type { Row } from "../../../features/workspaces/rows.ts";
 import { ChangesView } from "./changes/ChangesView.tsx";
 import { TreeView } from "./file-tree/TreeView.tsx";
 import { DbTree } from "./db-tree/DbTree.tsx";
-import type { Handlers } from "./handlers.ts";
+import { dbTreeTabOf, type Handlers } from "./handlers.ts";
 
 /**
  * タブの段の下の、ファイルツリーの段と CHANGES の段（プライマリで shj が動いている、フォーカスしているワークスペースだけ）。
@@ -17,7 +17,7 @@ import type { Handlers } from "./handlers.ts";
 export function Panes(props: Handlers & { row: Row }): JSX.Element {
   const b = () => props.row.band;
   // 出している DB のタブの id（この帯がフォーカスしているときだけ。DB の木は、フォーカスしているワークスペースのタブのもの）
-  const dbTab = () => (b().focused ? props.dbTabId?.() : undefined);
+  const dbTab = () => dbTreeTabOf(props, b().focused);
   // ブラウザのタブを出している間は、外さずに見えなくして、状態を保つ（#268。隠すのは帯の data-panes-hidden、sidebar.css）
   return (
     <div class="panes" data-db={dbTab() !== undefined ? "" : undefined}>
@@ -31,7 +31,7 @@ export function Panes(props: Handlers & { row: Row }): JSX.Element {
         />
       </div>
       {/* DB のタブを出している間の木。ほかのタブに移れば消え、ファイルツリーに戻る */}
-      <Show when={props.dbTree ? dbTab() : undefined} keyed>
+      <Show when={dbTab()} keyed>
         {(id) => (
           <div class="tree-section db-tree-section">
             <DbTree {...props.dbTree!(id)} />
