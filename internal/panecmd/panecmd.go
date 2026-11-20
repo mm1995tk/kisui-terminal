@@ -68,6 +68,15 @@ const (
 //     The window shows its "a new version is available" notice when there is one,
 //     and answers (Reply.Update) for the command to print.
 //
+// Machine, when not empty, is the name of another machine for "list", "send",
+// "keys", "close", "read" and "open-tab": a name of [[gui.machines]] of the
+// window (the ssh destination of a machine without a name), or "local" for the
+// PC the window runs on. "kisui serve" does not know the panes of other
+// machines, so it asks the window, which is connected to every machine, to do
+// the request there, and waits for its answer. "list" there has no Self.
+// "open-tab" there starts in Cwd (an absolute path on that machine; empty: the
+// start folder of that machine), and Argv[0] is an absolute path on that machine.
+//
 // The server tells a Request from the other lines on the socket (the ones of
 // shj, docs/protocol.md) by Cmd.
 type Request struct {
@@ -88,6 +97,8 @@ type Request struct {
 	// Workspace and New are for "open-tab".
 	Workspace string `json:"workspace,omitempty"`
 	New       bool   `json:"new,omitempty"`
+	// Machine is the machine to do the request on (empty: this one).
+	Machine string `json:"machine,omitempty"`
 }
 
 // Reply answers a Request. ID is the pane that "open" (a file), "split" or "open-tab" made, or

@@ -126,18 +126,17 @@ func runPaneTitle(args []string) int {
 	return 0
 }
 
-// runPaneList is "kisui pane list [--json]": the panes (terminals) of the
-// machine of the pane it runs in, of every workspace and tab. --json prints
-// them as JSON ({"panes": [panecmd.PaneInfo...]}) for a program to read.
+// runPaneList is "kisui pane list [--json] [--machine <machine>]": the panes
+// (terminals) of the machine of the pane it runs in (with --machine, of that
+// machine), of every workspace and tab. --json prints them as JSON ({"panes":
+// [panecmd.PaneInfo...]}) for a program to read.
 func runPaneList(args []string) int {
-	asJSON := false
-	switch {
-	case len(args) == 1 && (args[0] == "-h" || args[0] == "--help"):
+	if len(args) == 1 && (args[0] == "-h" || args[0] == "--help") {
 		fmt.Println(i18n.T("pane.list.usage"))
 		return 0
-	case len(args) == 1 && args[0] == "--json":
-		asJSON = true
-	case len(args) != 0:
+	}
+	asJSON, machine, ok := parseList(args)
+	if !ok {
 		fmt.Fprintln(os.Stderr, i18n.T("pane.list.usage"))
 		return 2
 	}
@@ -146,7 +145,7 @@ func runPaneList(args []string) int {
 		fmt.Fprintln(os.Stderr, i18n.T("pane.outside"))
 		return 1
 	}
-	r, err := pane.Do(panecmd.Request{Cmd: "list"})
+	r, err := pane.Do(panecmd.Request{Cmd: "list", Machine: machine})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, paneError(err, "pane.list.failed"))
 		return 1
@@ -161,6 +160,47 @@ func runPaneList(args []string) int {
 		return 1
 	}
 	return 0
+}
+
+// parseList reads the arguments of "kisui pane list": at most one --json and
+// one --machine <machine>, in any order. It reports false for anything else.
+func parseList(args []string) (asJSON bool, machine string, ok bool) {
+	for i := 0; i < len(args); i++ {
+		switch {
+		case args[i] == "--json" && !asJSON:
+			asJSON = true
+		case isMachineFlag(args[i]) && machine == "":
+			var n int
+			if machine, n = machineFlag(args[i:]); n == 0 {
+				return false, "", false
+			}
+			i += n - 1
+		default:
+			return false, "", false
+		}
+	}
+	return asJSON, machine, true
+}
+
+// isMachineFlag reports whether a is "--machine" or "--machine=...".
+func isMachineFlag(a string) bool {
+	return a == "--machine" || strings.HasPrefix(a, "--machine=")
+}
+
+// machineFlag reads "--machine <machine>" or "--machine=<machine>" at the start
+// of args: the machine and the number of words it took (0 when the machine is
+// missing or empty).
+func machineFlag(args []string) (string, int) {
+	v, n := "", 1
+	if after, eq := strings.CutPrefix(args[0], "--machine="); eq {
+		v = after
+	} else if len(args) > 1 {
+		v, n = args[1], 2
+	}
+	if strings.TrimSpace(v) == "" {
+		return "", 0
+	}
+	return v, n
 }
 
 // writePaneListJSON writes the panes as {"panes": [...]}, an empty list as [].
@@ -265,14 +305,24 @@ func runPaneClose(args []string) int {
 	return runPaneTo(args, "close", 1, 1, func(*panecmd.Request, []string) {})
 }
 
-// runPaneTo runs a "kisui pane <cmd> <name|id> ..." that acts on another pane:
-// args has least to most words (most < 0: no limit), the first is the pane, and
-// fill puts the rest in the request. It returns the process exit code.
+// runPaneTo runs a "kisui pane <cmd> [--machine <machine>] <name|id> ..." that
+// acts on another pane: after the --machine (the pane is on that machine), args
+// has least to most words (most < 0: no limit), the first is the pane, and fill
+// puts the rest in the request. It returns the process exit code.
 func runPaneTo(args []string, cmd string, least, most int, fill func(rq *panecmd.Request, rest []string)) int {
 	usage := i18n.T("pane." + cmd + ".usage")
 	if len(args) == 1 && (args[0] == "-h" || args[0] == "--help") {
 		fmt.Println(usage)
 		return 0
+	}
+	machine := ""
+	if len(args) > 0 && isMachineFlag(args[0]) {
+		var n int
+		if machine, n = machineFlag(args); n == 0 {
+			fmt.Fprintln(os.Stderr, usage)
+			return 2
+		}
+		args = args[n:]
 	}
 	if len(args) < least || (most >= 0 && len(args) > most) || args[0] == "" {
 		fmt.Fprintln(os.Stderr, usage)
@@ -283,7 +333,7 @@ func runPaneTo(args []string, cmd string, least, most int, fill func(rq *panecmd
 		fmt.Fprintln(os.Stderr, i18n.T("pane.outside"))
 		return 1
 	}
-	rq := panecmd.Request{Cmd: cmd, To: args[0]}
+	rq := panecmd.Request{Cmd: cmd, To: args[0], Machine: machine}
 	fill(&rq, args[1:])
 	if _, err := pane.Do(rq); err != nil {
 		fmt.Fprintln(os.Stderr, paneError(err, "pane."+cmd+".failed"))

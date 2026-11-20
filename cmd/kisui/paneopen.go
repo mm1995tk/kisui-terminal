@@ -12,11 +12,14 @@ import (
 )
 
 // runPaneOpen is "kisui pane open --workspace <name> [--new] --name <name>
-// [--cwd <folder>] [-- command ...]": the window adds a terminal tab at the end
-// of its workspace of that name (a new workspace of that name with --new), and
-// runs the command there (a shell when there is none), in the folder (the
-// current one when there is no --cwd). The pane of the tab gets the name. The
-// focus does not move. It returns the process exit code.
+// [--cwd <folder>] [--machine <machine>] [-- command ...]": the window adds a
+// terminal tab at the end of its workspace of that name (a new workspace of that
+// name with --new), and runs the command there (a shell when there is none), in
+// the folder (the current one when there is no --cwd). The pane of the tab gets
+// the name. The focus does not move. With --machine, the tab is a terminal of
+// that machine: the folder and the command are the ones of that machine, so
+// both are absolute paths there (no --cwd: the start folder of that machine).
+// It returns the process exit code.
 func runPaneOpen(args []string) int {
 	if len(args) == 1 && (args[0] == "-h" || args[0] == "--help") {
 		fmt.Println(i18n.T("pane.open.usage"))
@@ -32,23 +35,39 @@ func runPaneOpen(args []string) int {
 		fmt.Fprintln(os.Stderr, i18n.T("pane.outside"))
 		return 1
 	}
-	rq := panecmd.Request{Cmd: "open-tab", Workspace: op.workspace, New: op.new, Name: op.name}
-	wd, _ := os.Getwd()
-	switch {
-	case op.cwd == "":
-		rq.Cwd = wd
-	case filepath.IsAbs(op.cwd):
-		rq.Cwd = filepath.Clean(op.cwd)
-	default:
-		rq.Cwd = filepath.Join(wd, op.cwd)
-	}
-	if len(op.argv) > 0 {
-		argv, env, err := resolveCommand(op.argv)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, i18n.T("pane.open.notfound")+"\n", op.argv[0])
+	rq := panecmd.Request{Cmd: "open-tab", Workspace: op.workspace, New: op.new, Name: op.name, Machine: op.machine}
+	if op.machine != "" {
+		// the folder and the command of that machine cannot be looked up here
+		if op.cwd != "" && !filepath.IsAbs(op.cwd) {
+			fmt.Fprintf(os.Stderr, i18n.T("pane.open.cwdAbs")+"\n", op.cwd)
 			return 1
 		}
-		rq.Argv, rq.Env = argv, env
+		if len(op.argv) > 0 && !filepath.IsAbs(op.argv[0]) {
+			fmt.Fprintf(os.Stderr, i18n.T("pane.open.cmdAbs")+"\n", op.argv[0])
+			return 1
+		}
+		if op.cwd != "" {
+			rq.Cwd = filepath.Clean(op.cwd)
+		}
+		rq.Argv = op.argv
+	} else {
+		wd, _ := os.Getwd()
+		switch {
+		case op.cwd == "":
+			rq.Cwd = wd
+		case filepath.IsAbs(op.cwd):
+			rq.Cwd = filepath.Clean(op.cwd)
+		default:
+			rq.Cwd = filepath.Join(wd, op.cwd)
+		}
+		if len(op.argv) > 0 {
+			argv, env, err := resolveCommand(op.argv)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, i18n.T("pane.open.notfound")+"\n", op.argv[0])
+				return 1
+			}
+			rq.Argv, rq.Env = argv, env
+		}
 	}
 	if _, err := pane.Do(rq); err != nil {
 		fmt.Fprintln(os.Stderr, paneError(err, "pane.open.failed"))
@@ -59,16 +78,16 @@ func runPaneOpen(args []string) int {
 
 // open is what parseOpen reads.
 type open struct {
-	workspace, name, cwd string
-	new                  bool
-	argv                 []string
+	workspace, name, cwd, machine string
+	new                           bool
+	argv                          []string
 }
 
 // parseOpen reads the arguments of "kisui pane open": --workspace <name> and
-// --name <name> (both once, not empty), at most one --cwd <folder> and --new,
-// then the command (everything from the first word that is not a flag, or
-// after "--"). A flag with a value may also be written --flag=value. It
-// reports false for anything else.
+// --name <name> (both once, not empty), at most one --cwd <folder>, --machine
+// <machine> and --new, then the command (everything from the first word that
+// is not a flag, or after "--"). A flag with a value may also be written
+// --flag=value. It reports false for anything else.
 func parseOpen(args []string) (open, bool) {
 	var op open
 	seen := map[string]bool{}
@@ -76,7 +95,7 @@ func parseOpen(args []string) (open, bool) {
 		a := args[i]
 		flag, value, inline := strings.Cut(a, "=")
 		switch flag {
-		case "--workspace", "--name", "--cwd":
+		case "--workspace", "--name", "--cwd", "--machine":
 			if seen[flag] {
 				return open{}, false
 			}
@@ -96,6 +115,8 @@ func parseOpen(args []string) (open, bool) {
 				op.workspace = value
 			case "--name":
 				op.name = value
+			case "--machine":
+				op.machine = value
 			default:
 				op.cwd = value
 			}

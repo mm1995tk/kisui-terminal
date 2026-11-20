@@ -251,6 +251,9 @@ export const en = {
   "notice.shortcuts.title": "The shortcut settings have mistakes",
   "notice.shortcuts.text":
     "Only the shortcuts with mistakes are ignored. The others work.",
+  "notice.localMachine.title": "The machine name local is reserved",
+  "notice.localMachine.text":
+    "In kisui pane --machine, local always means this computer, so --machine cannot choose {machines}. Give it another name in [[gui.machines]] of the config file.",
   "button.disconnect": "Disconnect",
   "notice.machine.keys":
     "{leader} m opens the machine dialog; select this machine with j / k, then r to reconnect or x to disconnect",
@@ -424,6 +427,8 @@ export const en = {
     "An ssh destination cannot contain whitespace or control characters",
   "machine.err.added": "{label} is already added",
   "machine.err.nameTaken": "The name {name} is used by another machine",
+  "machine.err.localName":
+    "The name local is reserved for this computer (kisui pane --machine local). Give the machine another name",
   "treeMenu.copy-name": "Copy the name",
   "treeMenu.copy-relative": "Copy the relative path",
   "treeMenu.copy-absolute": "Copy the absolute path",
@@ -507,6 +512,8 @@ export const en = {
   "err.session.notConnected": "Not connected to {machine}",
   "err.session.tooOld":
     "The kisui serve of {machine} is too old for this. Update kisui-terminal there.",
+  "paneRelay.err.noMachine":
+    'No machine is named "{machine}" (machines: {machines})',
   "paneOpen.err.noWorkspace":
     'No workspace is named "{name}" (add --new to make one)',
   "paneOpen.err.ambiguous":

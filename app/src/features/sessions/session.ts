@@ -20,6 +20,9 @@ import {
   type Notifications,
   type PaneOpenReport,
   type PaneOpenRequest,
+  type PaneRelayRequest,
+  type PaneRunReply,
+  type PaneRunRequest,
   type Requests,
   type TermId,
   type UpdateReport,
@@ -137,7 +140,9 @@ export type PaneEvent =
   /** `kisui update`（#94）。新しい版を調べ直して答える（reportUpdate）。欄の知らせではないが、serve からの欄の中のコマンドの知らせなので同じ道で渡す */
   | { kind: "update-check"; id: string }
   /** `kisui pane open`（#343）。ワークスペースにターミナルのタブを足して答える（reportPaneOpened）。同じく欄の中のコマンドの知らせ */
-  | ({ kind: "open-tab" } & PaneOpenRequest);
+  | ({ kind: "open-tab" } & PaneOpenRequest)
+  /** `kisui pane … --machine`（#344）。別のマシンのペインへの頼みを中継して答える（reportPaneRelayed）。同じく欄の中のコマンドの知らせ */
+  | ({ kind: "relay" } & PaneRelayRequest);
 
 /** 1, 2, 4, 8, 16, 30 秒…（最後の値を繰り返す）。10 回で待ちは合わせて 151 秒ほど（ssh の接続待ちは別）。 */
 export const DEFAULT_DELAYS = [1000, 2000, 4000, 8000, 16000, 30000];
@@ -331,6 +336,24 @@ export class Session {
   /** `kisui pane open` への答え（pane.opened）を今の接続で送る。つながっていなければ何もしない（serve は時間切れで断る）。 */
   reportPaneOpened(id: string, report: PaneOpenReport): void {
     this.conn?.client.notify("pane.opened", { ...report, id });
+  }
+
+  /**
+   * 別のマシンのペインから中継した頼み（`kisui pane … --machine`。#344）を、このマシンの serve に pane.run で送る。
+   * つながっていない・古い serve（pane.run を知らない）なら投げる。
+   */
+  async runPane(rq: PaneRunRequest): Promise<PaneRunReply> {
+    const conn = this.conn;
+    if (!conn)
+      throw new Error(T("err.session.notConnected", { machine: this.target }));
+    if (!hasCapability(conn.hello, "pane.run"))
+      throw new Error(T("err.session.tooOld", { machine: this.target }));
+    return conn.client.request("pane.run", rq);
+  }
+
+  /** `kisui pane … --machine` への答え（pane.relayed）を今の接続で送る。つながっていなければ何もしない（serve は時間切れで断る）。 */
+  reportPaneRelayed(id: string, reply: PaneRunReply): void {
+    this.conn?.client.notify("pane.relayed", { id, reply });
   }
 
   /** tree.changed（開いているフォルダの中身が変わった）。つなぎ直しても外れない。 */
@@ -685,6 +708,12 @@ export class Session {
         if (!ev) return;
         for (const h of [...this.paneHandlers]) h({ kind: "open-tab", ...ev });
       }),
+      conn.client.on("pane.relay", (n) => {
+        if (gen !== this.generation || this.conn !== conn) return;
+        const ev = parsePaneRelay(n);
+        if (!ev) return;
+        for (const h of [...this.paneHandlers]) h({ kind: "relay", ...ev });
+      }),
       conn.client.on("changes.focus", (n) => {
         if (gen !== this.generation || this.conn !== conn) return;
         if (typeof n?.workspaceId !== "string") return;
@@ -808,6 +837,48 @@ export function parsePaneOpen(n: unknown): PaneOpenRequest | undefined {
     ...(p.argv !== undefined ? { argv: p.argv as string[] } : {}),
     ...(p.env !== undefined ? { env: p.env as string[] } : {}),
   };
+}
+
+/** pane.relay の中身を確かめる。形が違えば undefined（答えようがないので捨てる。serve は時間切れで断る）。 */
+export function parsePaneRelay(n: unknown): PaneRelayRequest | undefined {
+  if (typeof n !== "object" || n === null) return undefined;
+  const p = n as Record<string, unknown>;
+  if (typeof p.id !== "string" || typeof p.machine !== "string")
+    return undefined;
+  const r = p.request;
+  if (typeof r !== "object" || r === null) return undefined;
+  const q = r as Record<string, unknown>;
+  const str = (v: unknown) => v === undefined || typeof v === "string";
+  const strings = (v: unknown) =>
+    v === undefined ||
+    (Array.isArray(v) && v.every((x) => typeof x === "string"));
+  if (
+    typeof q.cmd !== "string" ||
+    !str(q.to) ||
+    !str(q.text) ||
+    !strings(q.keys) ||
+    (q.lines !== undefined && typeof q.lines !== "number") ||
+    !str(q.workspace) ||
+    (q.new !== undefined && typeof q.new !== "boolean") ||
+    !str(q.name) ||
+    !str(q.cwd) ||
+    !strings(q.argv)
+  )
+    return undefined;
+  const request: PaneRunRequest = { cmd: q.cmd };
+  for (const k of [
+    "to",
+    "text",
+    "keys",
+    "lines",
+    "workspace",
+    "new",
+    "name",
+    "cwd",
+    "argv",
+  ] as const)
+    if (q[k] !== undefined) Object.assign(request, { [k]: q[k] });
+  return { id: p.id, machine: p.machine, request };
 }
 
 /** 引き継がれたあとの古い接続が要求したときのエラー（not_owner）か。 */

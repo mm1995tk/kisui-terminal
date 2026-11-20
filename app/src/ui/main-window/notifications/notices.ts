@@ -20,6 +20,8 @@ import type { Notice } from "./Notices.tsx";
 export function createNotices(deps: {
   /** 設定の [gui.shortcuts] の間違い（あればお知らせに出す） */
   shortcutProblems: string[] | undefined;
+  /** 設定ファイルの [[gui.machines]] のうち、名前が local のマシン（ssh の行き先。あればお知らせに出す。`--machine` で選べない） */
+  localNamed?: string[];
   /** できなかったこと（無ければ null） */
   focusError: Accessor<Problem | null>;
   setFocusError: ReportProblem;
@@ -87,6 +89,20 @@ export function createNotices(deps: {
         dismiss: () => setShortcutDismissed(true),
       }
     : undefined;
+  const [localDismissed, setLocalDismissed] = createSignal(false);
+  const localNotice: Notice | undefined = deps.localNamed?.length
+    ? {
+        title: T("notice.localMachine.title"),
+        text: T("notice.localMachine.text", {
+          machines: deps.localNamed.join(", "),
+        }),
+        primary: {
+          label: T("button.close"),
+          run: () => setLocalDismissed(true),
+        },
+        dismiss: () => setLocalDismissed(true),
+      }
+    : undefined;
   let focusNotice:
     { err: { title: string; error: string }; notice: Notice } | undefined;
 
@@ -94,6 +110,7 @@ export function createNotices(deps: {
   const notices = createMemo<Notice[]>(() => {
     const out: Notice[] = [];
     if (shortcutNotice && !shortcutDismissed()) out.push(shortcutNotice);
+    if (localNotice && !localDismissed()) out.push(localNotice);
     const err = focusError();
     if (err) {
       if (focusNotice?.err !== err) {

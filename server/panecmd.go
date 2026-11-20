@@ -131,6 +131,12 @@ func (s *Server) paneCmd(rq panecmd.Request) (panecmd.Reply, error) {
 	if token == "" || subtle.ConstantTimeCompare([]byte(token), []byte(rq.Token)) != 1 || !alive || wsID == "" {
 		return panecmd.Reply{}, errNotAPane
 	}
+	if rq.Machine != "" { // 別のマシンのペイン（--machine）は、手元の GUI に中継させる（panerelay.go）
+		return s.paneRelayStart(rq)
+	}
+	if r, err, ok := s.paneOther(rq, t.id); ok {
+		return r, err
+	}
 	switch rq.Cmd {
 	case "open":
 		if panecmd.HasScheme(rq.Target) { // URL は欄にせず、GUI の手元のブラウザ（内蔵ブラウザのタブか外部ブラウザ）で開かせる
@@ -160,22 +166,31 @@ func (s *Server) paneCmd(rq panecmd.Request) (panecmd.Reply, error) {
 		}
 		s.ws.recompute() // workspace.changed で GUI に届く
 		return panecmd.Reply{ID: t.id}, nil
-	case "read":
-		text, id, err := s.terms.readScreen(rq.To, rq.Lines)
-		return panecmd.Reply{ID: id, Text: text}, err
-	case "list":
-		return panecmd.Reply{Panes: s.paneList(t.id)}, nil
-	case "send":
-		id, err := s.terms.sendText(rq.To, rq.Text)
-		return panecmd.Reply{ID: id}, err
-	case "keys":
-		id, err := s.terms.sendKeys(rq.To, rq.Keys)
-		return panecmd.Reply{ID: id}, err
-	case "close":
-		id, err := s.ws.closeByName(rq.To)
-		return panecmd.Reply{ID: id}, err
 	}
 	return panecmd.Reply{}, fmt.Errorf("unknown command: %q", rq.Cmd)
+}
+
+// paneOther は、名前か id で指したこのマシンのペインへの頼み（read・list・send・keys・close）を行う。
+// 頼んだペインによらないので、ほかのマシンから GUI が中継した頼み（pane.run）にも使う。self は list の Self に印を付ける
+// ペイン（中継なら空）。ほかの頼みなら ok は false。
+func (s *Server) paneOther(rq panecmd.Request, self string) (r panecmd.Reply, err error, ok bool) {
+	switch rq.Cmd {
+	case "read":
+		text, id, err := s.terms.readScreen(rq.To, rq.Lines)
+		return panecmd.Reply{ID: id, Text: text}, err, true
+	case "list":
+		return panecmd.Reply{Panes: s.paneList(self)}, nil, true
+	case "send":
+		id, err := s.terms.sendText(rq.To, rq.Text)
+		return panecmd.Reply{ID: id}, err, true
+	case "keys":
+		id, err := s.terms.sendKeys(rq.To, rq.Keys)
+		return panecmd.Reply{ID: id}, err, true
+	case "close":
+		id, err := s.ws.closeByName(rq.To)
+		return panecmd.Reply{ID: id}, err, true
+	}
+	return panecmd.Reply{}, nil, false
 }
 
 // paneTarget は kisui open の相手（URL でないもの）から欄を作る（ID は付けない）。絶対パスのファイルとして、

@@ -8,28 +8,32 @@ import (
 
 func TestParseRead(t *testing.T) {
 	for _, tc := range []struct {
-		args   []string
-		target string
-		lines  int
-		ok     bool
+		args []string
+		want read
+		ok   bool
 	}{
-		{[]string{"foo"}, "foo", 0, true},
-		{[]string{"foo", "--lines", "200"}, "foo", 200, true},
-		{[]string{"--lines=5", "t3"}, "t3", 5, true},
-		{[]string{"--lines", "0", "--", "-x"}, "-x", 0, true},
-		{nil, "", 0, false},
-		{[]string{""}, "", 0, false},
-		{[]string{"foo", "bar"}, "", 0, false},
-		{[]string{"foo", "--lines"}, "", 0, false},
-		{[]string{"foo", "--lines", "-1"}, "", 0, false},
-		{[]string{"foo", "--lines", "x"}, "", 0, false},
-		{[]string{"foo", "--lines=1", "--lines=2"}, "", 0, false},
-		{[]string{"foo", "--json"}, "", 0, false},
-		{[]string{"--", "a", "b"}, "", 0, false},
+		{[]string{"foo"}, read{target: "foo"}, true},
+		{[]string{"foo", "--lines", "200"}, read{target: "foo", lines: 200}, true},
+		{[]string{"--lines=5", "t3"}, read{target: "t3", lines: 5}, true},
+		{[]string{"--lines", "0", "--", "-x"}, read{target: "-x"}, true},
+		{[]string{"--machine", "dev", "bar"}, read{target: "bar", machine: "dev"}, true},
+		{[]string{"bar", "--machine=local", "--lines", "3"}, read{target: "bar", machine: "local", lines: 3}, true},
+		{nil, read{}, false},
+		{[]string{""}, read{}, false},
+		{[]string{"foo", "bar"}, read{}, false},
+		{[]string{"foo", "--lines"}, read{}, false},
+		{[]string{"foo", "--lines", "-1"}, read{}, false},
+		{[]string{"foo", "--lines", "x"}, read{}, false},
+		{[]string{"foo", "--lines=1", "--lines=2"}, read{}, false},
+		{[]string{"foo", "--json"}, read{}, false},
+		{[]string{"--", "a", "b"}, read{}, false},
+		{[]string{"foo", "--machine"}, read{}, false},
+		{[]string{"foo", "--machine="}, read{}, false},
+		{[]string{"foo", "--machine", "a", "--machine", "b"}, read{}, false},
 	} {
-		target, lines, ok := parseRead(tc.args)
-		if ok != tc.ok || (ok && (target != tc.target || lines != tc.lines)) {
-			t.Errorf("parseRead(%q) = %q %d %v, want %q %d %v", tc.args, target, lines, ok, tc.target, tc.lines, tc.ok)
+		got, ok := parseRead(tc.args)
+		if ok != tc.ok || (ok && got != tc.want) {
+			t.Errorf("parseRead(%q) = %+v %v, want %+v %v", tc.args, got, ok, tc.want, tc.ok)
 		}
 	}
 }

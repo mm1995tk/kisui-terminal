@@ -20,6 +20,7 @@ import type { Problem } from "./problem.ts";
 import { createScale } from "./scale/controller.ts";
 import type { ApplyScale } from "./scale/scale.ts";
 import { createSessions } from "./sessions/controller.ts";
+import { createPaneRelay } from "./sessions/paneRelay.ts";
 import type { ConfigMachine } from "./sessions/machines.ts";
 import type { ShellApi } from "./sessions/shell.ts";
 import { createTerminals } from "./terminal/controller.ts";
@@ -120,6 +121,7 @@ export function createFeatures(deps: {
             openUrlFor: pages.openUrlFor,
             checkNow: updates.checkNow,
             openTab: (t, rq) => openTab(t, rq),
+            relay: (m, rq) => relay(m, rq),
             zoomWs: terminals.zoomWs,
           },
           target,
@@ -154,6 +156,7 @@ export function createFeatures(deps: {
     setGws: workspaces.setGws,
     justCreated: workspaces.justCreated,
   });
+  const relay = createPaneRelay({ sessions, openTab });
   const askPrimaryShj = createPrimaryShj({
     sessions: sessions.sessions,
     workspaces: sessions.workspaces,

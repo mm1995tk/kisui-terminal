@@ -17,7 +17,10 @@ import {
 import { IS_MAC } from "../../features/commands/guiKeys.ts";
 import { placeOf } from "../../features/commands/placeKeys.ts";
 import { createFeatures } from "../../features/compose.ts";
-import type { ConfigMachine } from "../../features/sessions/machines.ts";
+import {
+  localNamedConfig,
+  type ConfigMachine,
+} from "../../features/sessions/machines.ts";
 import { PortsContext, type Ports } from "../ports.ts";
 // ここから下の、CSS を持つ部品の import は、順を変えない。CSS の規則は import の順に並び、同じ強さの規則は後のものが勝つ。
 // 順は、キーの一覧 → トースト → サイドバー → 切り替える窓 → 割り付け → ブラウザ → リーダーの案内 → ターミナル（cssOrder.test.ts が見張る）。
@@ -227,6 +230,7 @@ function MainWindow(props: {
   });
   const notices = createNotices({
     shortcutProblems: props.shortcutProblems,
+    localNamed: localNamedConfig(props.config),
     focusError,
     setFocusError,
     sessions,

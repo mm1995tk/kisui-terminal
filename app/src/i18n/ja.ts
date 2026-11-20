@@ -252,6 +252,9 @@ export const ja: Record<Key, string> = {
   "err.machine.notConnected": "{machine} につながっていません",
   "notice.shortcuts.title": "近道の設定に間違いがあります",
   "notice.shortcuts.text": "間違いのある近道だけを使いません。ほかは効きます。",
+  "notice.localMachine.title": "マシンの名前 local は予約語です",
+  "notice.localMachine.text":
+    "kisui pane の --machine では、local は常に手元の PC を指すので、{machines} を --machine で選べません。設定ファイルの [[gui.machines]] で別の名前を付けてください。",
   "button.disconnect": "切る",
   "notice.machine.keys":
     "{leader} m でマシンのダイアログを開き、このマシンを j・k で選んで、r でつなぎ直す、x で切る",
@@ -424,6 +427,8 @@ export const ja: Record<Key, string> = {
   "machine.err.space": "ssh の行き先に空白や制御文字は使えません",
   "machine.err.added": "{label} はもう足してあります",
   "machine.err.nameTaken": "名前 {name} はほかのマシンで使っています",
+  "machine.err.localName":
+    "名前 local は手元の PC を指す予約語です（kisui pane --machine local）。別の名前を付けてください",
   "treeMenu.copy-name": "名前をコピー",
   "treeMenu.copy-relative": "相対パスをコピー",
   "treeMenu.copy-absolute": "絶対パスをコピー",
@@ -506,6 +511,8 @@ export const ja: Record<Key, string> = {
   "err.session.notConnected": "{machine} につながっていません",
   "err.session.tooOld":
     "{machine} の kisui serve が古く、この操作に対応していません。そのマシンの kisui-terminal を新しくしてください",
+  "paneRelay.err.noMachine":
+    "「{machine}」という名前のマシンがありません（マシン: {machines}）",
   "paneOpen.err.noWorkspace":
     "「{name}」という名前のワークスペースがありません（--new を付けると作ります）",
   "paneOpen.err.ambiguous":
