@@ -55,6 +55,8 @@ type dbResult struct {
 	Truncated    bool        `json:"truncated"`
 	RowsAffected *int64      `json:"rowsAffected"`
 	ElapsedMs    *float64    `json:"elapsedMs"`
+	Wrappable    bool        `json:"wrappable"`
+	Offset       int         `json:"offset"`
 }
 
 // dbErr は err を db.* のエラーとして読む。data は中身を map にしたもの。
@@ -302,6 +304,23 @@ func TestDBQueryParams(t *testing.T) {
 		if err != nil || res.RowCount != 2 || !res.Truncated || res.Rows[0][0] != nil {
 			t.Errorf("maxRows: %+v, %v", res, err)
 		}
+		// offset で、その行数の後のページを読む（SQL を包んで実行する。#373）。
+		three := "SELECT 1 AS n UNION ALL SELECT 2 UNION ALL SELECT 3"
+		res, err = call(map[string]any{"connection": conn.Name, "sql": three, "maxRows": 2})
+		if err != nil || !res.Wrappable || res.Offset != 0 || !res.Truncated {
+			t.Errorf("the first page: %+v, %v", res, err)
+		}
+		res, err = call(map[string]any{"connection": conn.Name, "sql": three, "maxRows": 2, "offset": 2})
+		if err != nil || res.RowCount != 1 || res.Truncated || *res.Rows[0][0] != "3" || res.Offset != 2 || !res.Wrappable {
+			t.Errorf("offset: %+v, %v", res, err)
+		}
+		if _, err := call(map[string]any{"connection": conn.Name, "sql": three, "offset": -1}); err.(*rpc.Error).Code != rpc.CodeInvalidParams {
+			t.Errorf("a negative offset: %v", err)
+		}
+		_, err = call(map[string]any{"connection": conn.Name, "sql": "SHOW TIME ZONE", "offset": 2})
+		if code, data := dbErr(t, err); code != rpc.CodeDBError || data["kind"] != "query" {
+			t.Errorf("offset of a statement that cannot be wrapped: %v", err)
+		}
 	})
 }
 
@@ -517,6 +536,10 @@ func TestDBHistory(t *testing.T) {
 			t.Fatal("a wrong statement passed")
 		}
 		if err := c.Call(ctx, "db.query", map[string]any{"connection": other.Name, "sql": "SELECT 3"}, nil); err != nil {
+			t.Fatal(err)
+		}
+		// ページを切り替えるための実行（offset あり）は履歴に残らない。
+		if err := c.Call(ctx, "db.query", map[string]any{"connection": conn.Name, "sql": "SELECT 4", "offset": 1}, nil); err != nil {
 			t.Fatal(err)
 		}
 		// db.schema は履歴に残らない。

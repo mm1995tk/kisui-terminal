@@ -83,6 +83,11 @@ func (s *mySession) kill(ctx context.Context) error {
 }
 
 func (s *mySession) Query(ctx context.Context, query string, o QueryOptions) (*Result, error) {
+	given := query
+	query, err := prepare(config.DBMySQL, query, o)
+	if err != nil {
+		return nil, err
+	}
 	// qctx is ended only by the stopper's hard step (see stopper).
 	qctx, hard := context.WithCancel(context.Background())
 	defer hard()
@@ -115,7 +120,7 @@ func (s *mySession) Query(ctx context.Context, query string, o QueryOptions) (*R
 	if len(col.res.Columns) == 0 && !asked {
 		col.res.RowsAffected = s.rowsAffected(qctx)
 	}
-	return col.res, nil
+	return finish(config.DBMySQL, given, o, col.res), nil
 }
 
 // myColumns describes the columns of a result.

@@ -94,6 +94,11 @@ func (s *pgSession) Query(ctx context.Context, sql string, o QueryOptions) (*Res
 	if isCopy(sql) {
 		return nil, &Error{Kind: KindQuery, Message: "COPY is not supported: there is nowhere to send its data to or take it from"}
 	}
+	given := sql
+	sql, err := prepare(config.DBPostgres, sql, o)
+	if err != nil {
+		return nil, err
+	}
 	// qctx is ended only by the stopper's hard step (see stopper).
 	qctx, hard := context.WithCancel(context.Background())
 	defer hard()
@@ -139,7 +144,7 @@ func (s *pgSession) Query(ctx context.Context, sql string, o QueryOptions) (*Res
 			col.res.Columns[i].Type = names[i]
 		}
 	}
-	return col.res, nil
+	return finish(config.DBPostgres, given, o, col.res), nil
 }
 
 // pgColumns describes the columns of a result, with the names of the types

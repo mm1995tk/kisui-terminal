@@ -7,7 +7,9 @@
 //
 //   - Passwords finds the password of a connection (password.go).
 //   - Open logs in and gives a Session; Session.Query runs one statement and
-//     gives a Result (postgres.go, mysql.go).
+//     gives a Result (postgres.go, mysql.go). To read the rows of a SELECT
+//     after its first page, Query runs it wrapped in another SELECT
+//     (wrap.go).
 //   - ReadCatalog lists the schemas, tables and columns over a Session
 //     (catalog.go).
 //   - History keeps the statements run on each connection in files
@@ -49,6 +51,12 @@ type QueryOptions struct {
 	// MaxRows is the most rows Result.Rows holds. 0 means DefaultMaxRows;
 	// more than MaxMaxRows means MaxMaxRows.
 	MaxRows int
+	// Offset, when above 0, asks for the rows of a SELECT after the first
+	// Offset: the statement is run wrapped (wrap.go), and Query fails with
+	// an *Error of kind KindQuery when it cannot be wrapped (Result.Wrappable
+	// of the first run tells). A page holds as many rows as the limits here
+	// let in.
+	Offset int
 	// rowLimit, when above 0, is the most rows instead of MaxRows, with no
 	// upper bound. Only the queries of this package set it (ReadCatalog),
 	// for lists that are long but small per row.
@@ -95,6 +103,13 @@ type Result struct {
 	RowCount int `json:"rowCount"`
 	// Truncated is true when the statement gave more rows than Rows holds.
 	Truncated bool `json:"truncated"`
+	// Wrappable is true when the statement can be run again wrapped, to get
+	// the rows after these (QueryOptions.Offset): it is a SELECT that gave
+	// columns, and MySQL can take its columns as a derived table.
+	Wrappable bool `json:"wrappable,omitempty"`
+	// Offset is QueryOptions.Offset: how many rows of the statement come
+	// before Rows.
+	Offset int `json:"offset,omitempty"`
 	// TruncatedCells is true when a cell was longer than the limit and cut.
 	TruncatedCells bool `json:"truncatedCells,omitempty"`
 	// RowsAffected is how many rows the statement changed. nil for a
@@ -170,6 +185,25 @@ func Open(ctx context.Context, c config.DBConnection, password string) (Session,
 		return openMySQL(ctx, c, password)
 	}
 	return nil, &Error{Kind: KindConnect, Message: fmt.Sprintf("unknown kind of database: %q", c.Kind)}
+}
+
+// prepare gives the statement Query sends for sql: sql itself, or sql
+// wrapped when o asks for rows after the first. One row more than a page
+// holds is asked for, so that Result.Truncated tells whether there is
+// another page, and the database stops after it.
+func prepare(kind, sql string, o QueryOptions) (string, error) {
+	if o.Offset <= 0 {
+		return sql, nil
+	}
+	return wrapSQL(kind, sql, o.Offset, o.maxRows()+1)
+}
+
+// finish fills in what Query adds to the result of sql (the statement as
+// it was given, not wrapped).
+func finish(kind, sql string, o QueryOptions, res *Result) *Result {
+	res.Wrappable = wrappable(kind, sql, res.Columns)
+	res.Offset = max(o.Offset, 0)
+	return res
 }
 
 // collector gathers the rows of one result up to the limits, and decides

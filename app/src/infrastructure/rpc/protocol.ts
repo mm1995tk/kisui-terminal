@@ -200,6 +200,13 @@ export interface DbQueryResult {
   rowCount: number;
   /** 文が返した行が上限（maxRows、または全体で 8 MiB）を超え、rows に入っていない行がある */
   truncated: boolean;
+  /**
+   * 文を包んで実行し直せる（offset で続きのページを読める。#373）：列を返す SELECT（WITH … SELECT）で、MySQL では列の名前が重ならない。
+   * 古い kisui serve は付けない（そのときはページを送らない）
+   */
+  wrappable?: boolean;
+  /** db.query の offset：rows の前にある行数 */
+  offset?: number;
   /** 1 MiB を超えて切られた値がある */
   truncatedCells?: boolean;
   /** 文が変えた行数。読むだけの文では無い */
@@ -451,6 +458,8 @@ export interface Requests {
       sql: string;
       password?: string;
       maxRows?: number;
+      /** 前に実行した結果の続きのページ（#373）：SQL を包んで（SELECT * FROM (sql) AS q LIMIT … OFFSET offset）、この行数の後から読む。result.wrappable の文だけ */
+      offset?: number;
       queryId?: string;
     };
     result: DbQueryResult;

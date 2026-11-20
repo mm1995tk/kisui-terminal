@@ -691,6 +691,8 @@ export const ja: Record<Key, string> = {
   "db.summary.affected": "{n} 行を変えました",
   "db.summary.done": "実行しました",
   "db.summary.truncatedCells": "長い値の一部を切りました",
+  "db.summary.range": "{from}〜{to} 行目",
+  "db.summary.more": "続きは次のページ",
   "db.view.label": "DB のタブ：{connection}",
   "db.view.sql": "SQL",
   "db.view.placeholder": "SQL を打ち、{key} で実行します",
@@ -703,6 +705,9 @@ export const ja: Record<Key, string> = {
   "db.view.sqlState": "SQLSTATE {code}",
   "db.view.result": "結果",
   "db.view.noTable": "この文は行を返しません。",
+  "db.view.pages": "結果のページ",
+  "db.view.prevPage": "前へ",
+  "db.view.nextPage": "次へ",
   "db.password.label": "DB のパスワード",
   "db.password.missing": "{machine} の {connection} のパスワード",
   "db.password.rejected":
@@ -714,6 +719,14 @@ export const ja: Record<Key, string> = {
   // ---- DB のタブの、結果の書き出しとクエリの履歴（#349）----
   "leader.db.export": "結果を書き出す（CSV・TSV・JSON）",
   "leader.db.history": "この接続の履歴から SQL を選ぶ",
+  "leader.db.nextPage": "結果の次のページ",
+  "leader.db.prevPage": "結果の前のページ",
+  "leader.db.page.range": "結果のページを切り替え",
+  "cannot.dbPage.title": "ページを切り替えられません",
+  "cannot.dbPage.none":
+    "この結果にはほかのページがありません。ページを送れるのは、1 ページ（1000 行）より多くの行を返した SELECT だけです。",
+  "cannot.dbPage.noNext": "結果の最後のページです。",
+  "cannot.dbPage.noPrev": "結果の最初のページです。",
   "cannot.dbExport.title": "書き出せるものがありません",
   "cannot.dbExport.text":
     "先に、この DB のタブで行を返す SQL を実行してください。",
