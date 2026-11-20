@@ -1,4 +1,4 @@
-// DB のタブ（#347）の窓：接続を選ぶ窓・パスワードを聞く窓・結果の書き出しの窓・履歴の窓（#349）。どちらも features/db/controller.ts の状態を出すだけ。
+// DB のタブ（#347）の窓：接続を選ぶ窓・パスワードを聞く窓・結果の書き出しの窓・履歴の窓（#349）。どれも features/db/controller.ts の状態を出すだけ。
 import { Show, type JSX } from "solid-js";
 
 import type { DbTabs } from "../../../features/db/controller.ts";
