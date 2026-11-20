@@ -161,10 +161,7 @@ export function addTab(s: TabsState, tab: BrowserTab, gws?: string): TabsState {
  */
 export function closeTab(s: TabsState, id: string): TabsState {
   if (!s.tabs.some((t) => t.id === id)) return s;
-  const views = Object.fromEntries(
-    Object.entries(s.views).filter(([, v]) => v !== id),
-  );
-  return { tabs: s.tabs.filter((t) => t.id !== id), views };
+  return { ...dropView(s, id), tabs: s.tabs.filter((t) => t.id !== id) };
 }
 
 /** タブの URL・題・表示の大きさ・favicon を書き換える（ページが変わった）。同じなら s をそのまま返す。 */
