@@ -372,16 +372,25 @@ export function createDbTabs(deps: {
     if (q) cancelQuery(q);
   }
 
+  /**
+   * ref のマシンの kisui serve が、印 cap（capabilities）を持つか。yes：持つ、no：つながっていて持たない（古い版）、
+   * unknown：つながっていないので分からない。
+   */
+  function capabilityOf(
+    ref: Pick<DbRef, "target">,
+    cap: string,
+  ): "yes" | "no" | "unknown" {
+    const st = untrack(states)[ref.target];
+    if (st?.kind !== "connected") return "unknown";
+    return hasCapability(st.hello, cap) ? "yes" : "no";
+  }
+
   // ---- テーブルの構造（#379） ----
   const structures = createDbStructure({
     refOf,
     request,
-    supported: (ref) => {
-      const st = untrack(states)[ref.target];
-      return (
-        st?.kind === "connected" && hasCapability(st.hello, "db-structure")
-      );
-    },
+    // 古いと言うのは、つながっていて印が無いときだけ。つながっていなければ送り、その失敗（つながっていない）を出す
+    oldServe: (ref) => capabilityOf(ref, "db-structure") === "no",
     cancelQuery,
   });
 
@@ -396,10 +405,9 @@ export function createDbTabs(deps: {
     run,
     isRunning: (id) => !!untrack(runs)[id]?.running,
     cancelQuery,
-    schemaSupported: (ref) => {
-      const st = untrack(states)[ref.target];
-      return st?.kind === "connected" && hasCapability(st.hello, "db-schema");
-    },
+    // 既定のスキーマは、つながっていない（分からない）ときも選ばせない：つなぎ直した先が古い kisui serve なら、
+    // 黙って無視されて DB の既定のスキーマで実行される（書き込む文も）ので
+    schemaSupported: (ref) => capabilityOf(ref, "db-schema") === "yes",
     fail: cannot,
   });
 

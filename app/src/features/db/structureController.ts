@@ -36,8 +36,8 @@ export function createDbStructure(deps: {
     method: M,
     params: Requests[M]["params"],
   ) => Promise<Requests[M]["result"]>;
-  /** ref のマシンの kisui serve が、db.structure を受けるか（capabilities の db-structure） */
-  supported: (ref: Pick<DbRef, "target">) => boolean;
+  /** ref のマシンの kisui serve が、db.structure を受けない古い版か（つながっていて、capabilities に db-structure が無い） */
+  oldServe: (ref: Pick<DbRef, "target">) => boolean;
   /** 実行中の要求を db.cancel で取り消す */
   cancelQuery: (q: { queryId: string; target: string }) => void;
 }) {
@@ -65,7 +65,7 @@ export function createDbStructure(deps: {
     const s = untrack(states)[id];
     if (!ref || !s || s.loading) return;
     const table = s.table;
-    if (!deps.supported(ref)) {
+    if (deps.oldServe(ref)) {
       setState(id, (c) => ({ ...c, error: T("db.structure.oldServe") }));
       return;
     }
