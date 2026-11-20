@@ -158,3 +158,17 @@
   display: flex;
   gap: var(--space-8);
 }
+
+/* 見出しを押すと、その列で並べ替える（#377）。並べている列には向きの印を付ける */
+.th[data-sortable] {
+  cursor: pointer;
+  user-select: none;
+}
+.th[data-sortable]:hover {
+  background: color-mix(in srgb, var(--color-accent) 15%, var(--color-surface));
+}
+.sortMark {
+  margin-left: var(--space-4);
+  color: var(--color-accent);
+  font-size: 0.8em;
+}

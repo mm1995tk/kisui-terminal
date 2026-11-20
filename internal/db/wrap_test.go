@@ -83,18 +83,37 @@ func TestWrappable(t *testing.T) {
 }
 
 func TestWrapSQL(t *testing.T) {
-	got, err := wrapSQL(config.DBPostgres, "SELECT 1 -- one;\n;", 1000, 1001)
+	got, err := wrapSQL(config.DBPostgres, "SELECT 1 -- one;\n;", 1000, 1001, 0, false)
 	want := "SELECT * FROM (\nSELECT 1\n) AS q LIMIT 1001 OFFSET 1000"
 	if err != nil || got != want {
 		t.Errorf("got %q, %v", got, err)
 	}
 	// A comment at the end of the last line does not swallow the parenthesis.
-	got, _ = wrapSQL(config.DBMySQL, "SELECT 1 -- one", 5, 6)
+	got, _ = wrapSQL(config.DBMySQL, "SELECT 1 -- one", 5, 6, 0, false)
 	if !strings.HasPrefix(got, "SELECT * FROM (\nSELECT 1\n)") {
 		t.Errorf("got %q", got)
 	}
-	if _, err := wrapSQL(config.DBMySQL, "SHOW TABLES", 5, 6); err == nil {
+	if _, err := wrapSQL(config.DBMySQL, "SHOW TABLES", 5, 6, 0, false); err == nil {
 		t.Error("SHOW was wrapped")
+	}
+	// A sorting is an ORDER BY of the position of the column, for either database.
+	for _, c := range []struct {
+		kind    string
+		orderBy int
+		desc    bool
+		want    string
+	}{
+		{config.DBPostgres, 2, false, "SELECT * FROM (\nSELECT 1, 2\n) AS q ORDER BY 2 LIMIT 11 OFFSET 0"},
+		{config.DBMySQL, 1, true, "SELECT * FROM (\nSELECT 1, 2\n) AS q ORDER BY 1 DESC LIMIT 11 OFFSET 20"},
+	} {
+		offset := 0
+		if c.desc {
+			offset = 20
+		}
+		got, err := wrapSQL(c.kind, "SELECT 1, 2;", offset, 11, c.orderBy, c.desc)
+		if err != nil || got != c.want {
+			t.Errorf("%s: got %q, %v; want %q", c.kind, got, err, c.want)
+		}
 	}
 }
 

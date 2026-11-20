@@ -644,6 +644,8 @@ export const ja: Record<Key, string> = {
   "place.dbResult.lead":
     "結果の表にフォーカスがあるときのキー。セルをクリックで選び、Shift+クリックかドラッグで範囲に広げます。",
   "place.dbResult.copy": "選んだセルをコピーする（1 つはそのまま、複数は TSV）",
+  "place.dbResult.sort":
+    "選んだセルの列で並べ替える（押すたびに 昇順 → 降順 → なし）",
   "cannot.db.title": "DB のタブを開けません",
   "leader.db.tree": "サイドバーのスキーマの木にキーを向ける",
   "leader.db.refresh": "スキーマの木を読み直す",

@@ -12,6 +12,8 @@ export interface DbPage {
   sql: string;
   /** 前のページの offset（古い順）。「前へ」はその最後に戻る（1 ページの行数は 8 MiB の上限で減ることがあるので、引き算では戻らない） */
   back: readonly number[];
+  /** 並べ替えている列（無ければ元の順。ページを切り替えても続く。#377） */
+  sort?: DbSort;
 }
 
 /** ページを切り替える向き。 */
@@ -87,4 +89,40 @@ export function sendQueued(
   const [step, ...rest] = queued;
   if (step === undefined || !send(step)) return [];
   return rest;
+}
+
+// ---- 並べ替え（#377） ----
+// 並べ替えはデータベースにさせる。結果を出した SQL を、ORDER BY を付けて包んで（ページ送りと同じ包み方）もう一度送るので、
+// 全部の行が並び、2 ページ目以降もその順の続きになる。列は名前でなく位置で渡す（kisui serve が `ORDER BY 位置` にする。
+// 引用符が要らず、同じ名前の列が 2 つあっても取り違えない）。
+
+/** 並べ替えている列。column は 0 から数えた位置、desc は降順。 */
+export interface DbSort {
+  column: number;
+  desc: boolean;
+}
+
+/** 結果 r を並べ替えられるか：包める文で、列がある。 */
+export function sortable(r: DbQueryResult): boolean {
+  return r.wrappable === true && r.columns.length > 0;
+}
+
+/**
+ * 列 column の見出しを押したあとの並べ替え。今と違う列は昇順から、同じ列は「昇順 → 降順 → 並べ替えなし（null）」と進む。
+ */
+export function nextSort(
+  cur: DbSort | undefined,
+  column: number,
+): DbSort | null {
+  if (!cur || cur.column !== column) return { column, desc: false };
+  return cur.desc ? null : { column, desc: true };
+}
+
+/** 見出しの aria-sort の値。 */
+export function ariaSort(
+  cur: DbSort | undefined,
+  column: number,
+): "ascending" | "descending" | undefined {
+  if (!cur || cur.column !== column) return undefined;
+  return cur.desc ? "descending" : "ascending";
 }

@@ -18,8 +18,11 @@ import type { DbRun } from "../../../../features/db/controller.ts";
 import { dbEditorKey, dbResultKey } from "../../../../features/db/keys.ts";
 import { cellText, resultSummary } from "../../../../features/db/model.ts";
 import {
+  ariaSort,
   canStep,
   pageable,
+  sortable,
+  type DbSort,
   type PageStep,
 } from "../../../../features/db/paging.ts";
 import type { DbQueryResult } from "../../../../infrastructure/rpc/protocol.ts";
@@ -48,6 +51,8 @@ export function DbTabView(props: {
   onRun: (text: string, selStart: number, selEnd: number) => void;
   /** 結果のページを切り替える（#373） */
   onPage: (step: PageStep) => void;
+  /** 列 column（0 から数える）で並べ替える（#377）。押すたびに昇順 → 降順 → 並べ替えなし */
+  onSort: (column: number) => void;
   onCancel: () => void;
   /** 結果の表で選んだセルをコピーする（#372） */
   onCopyCells: (text: string) => void;
@@ -154,6 +159,12 @@ export function DbTabView(props: {
                   result={r()}
                   mac={props.mac}
                   onCopy={props.onCopyCells}
+                  sort={props.run.page?.sort}
+                  onSort={
+                    props.run.running || !sortable(r())
+                      ? undefined
+                      : props.onSort
+                  }
                 />
               )}
             </Match>
@@ -213,6 +224,9 @@ function ResultTable(props: {
   result: DbQueryResult;
   mac: boolean;
   onCopy: (text: string) => void;
+  /** 並べ替えている列と、列を押したときの動き（並べ替えられない結果・実行している間は undefined） */
+  sort: DbSort | undefined;
+  onSort: ((column: number) => void) | undefined;
 }): JSX.Element {
   const [range, setRange] = createSignal<CellRange | null>(null);
   let dragging = false;
@@ -250,11 +264,12 @@ function ResultTable(props: {
     setRange((cur) => (cur ? { anchor: cur.anchor, focus: pos } : cur));
   }
   function keydown(e: KeyboardEvent) {
-    if (dbResultKey(e, props.mac) !== "copy") return;
+    const a = dbResultKey(e, props.mac);
     const r = range();
-    if (r === null) return;
+    if (a === null || r === null) return;
     e.preventDefault();
-    props.onCopy(rangeText(props.result, r));
+    if (a === "copy") props.onCopy(rangeText(props.result, r));
+    else props.onSort?.(r.focus.col);
   }
 
   return (
@@ -267,7 +282,11 @@ function ResultTable(props: {
         fallback={
           <>
             <table class={styles.table}>
-              <Head result={props.result} />
+              <Head
+                result={props.result}
+                sort={props.sort}
+                onSort={props.onSort}
+              />
             </table>
             <p class={styles.note}>{T("db.view.noRows")}</p>
           </>
@@ -279,7 +298,7 @@ function ResultTable(props: {
           data-place="dbResult"
           onKeyDown={keydown}
         >
-          <Head result={props.result} />
+          <Head result={props.result} sort={props.sort} onSort={props.onSort} />
           <tbody>
             <For each={props.result.rows}>
               {(row, r) => (
@@ -315,15 +334,36 @@ function ResultTable(props: {
   );
 }
 
-/** 表の見出し（列の名前。型はツールチップ）。 */
-function Head(props: { result: DbQueryResult }): JSX.Element {
+/**
+ * 表の見出し（列の名前。型はツールチップ）。押すと、その列で並べ替える（#377。昇順 → 降順 → なし）。
+ * 並べ替えている列には、向きの印（▲ 昇順・▼ 降順）を付ける。
+ */
+function Head(props: {
+  result: DbQueryResult;
+  sort: DbSort | undefined;
+  onSort: ((column: number) => void) | undefined;
+}): JSX.Element {
   return (
     <thead>
       <tr>
         <For each={props.result.columns}>
-          {(c) => (
-            <th class={styles.th} title={c.type} data-kind={c.kind}>
+          {(c, i) => (
+            <th
+              class={styles.th}
+              title={c.type}
+              data-kind={c.kind}
+              data-sortable={props.onSort ? "" : undefined}
+              aria-sort={ariaSort(props.sort, i())}
+              onClick={() => props.onSort?.(i())}
+            >
               {c.name}
+              <Show when={ariaSort(props.sort, i())}>
+                {(dir) => (
+                  <span class={styles.sortMark} aria-hidden="true">
+                    {dir() === "ascending" ? "▲" : "▼"}
+                  </span>
+                )}
+              </Show>
             </th>
           )}
         </For>

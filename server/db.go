@@ -309,6 +309,12 @@ func (ss *session) dbQueryReq(ctx context.Context, req *rpc.Message) (any, error
 		// Offset は、前に実行した結果の続きのページ（#373）。0 より大きければ、SQL を包んで（internal/db の wrap.go）、
 		// その行数の後から読む。
 		Offset int `json:"offset"`
+		// OrderBy は、結果の列の位置（1 が最初の列）での並べ替え（#377）。0 か省けば並べ替えない。Desc は降順。
+		// SQL を包んで ORDER BY を付ける（internal/db の wrap.go）ので、全部の行が並び、offset のページもその順になる。
+		OrderBy int  `json:"orderBy"`
+		Desc    bool `json:"desc"`
+		// Rerun は、前に実行した SQL を読み直すだけの実行（ページ・並べ替え・並べ替えをやめる）。履歴に残さない。
+		Rerun bool `json:"rerun"`
 	}
 	if err := json.Unmarshal(req.Params, &p); err != nil {
 		return nil, invalidParams(err)
@@ -322,15 +328,18 @@ func (ss *session) dbQueryReq(ctx context.Context, req *rpc.Message) (any, error
 	if p.Offset < 0 {
 		return nil, rpc.Errorf(rpc.CodeInvalidParams, "offset is negative")
 	}
+	if p.OrderBy < 0 {
+		return nil, rpc.Errorf(rpc.CodeInvalidParams, "orderBy is negative")
+	}
 	var res *db.Result
 	err := ss.dbWith(ctx, p.dbLogin, "db.query", true, func(ctx context.Context, c config.DBConnection, s db.Session) error {
 		// 履歴に足すのは、ログインが通って SQL を DB に送ったものだけ。ログインできなかった SQL は実行していないうえ、
-		// password_required のあとに窓が送り直すと同じ SQL が 2 つ残ってしまう。ページを切り替えるための実行（offset あり）も
+		// password_required のあとに窓が送り直すと同じ SQL が 2 つ残ってしまう。ページを切り替えるための実行（offset あり）と並べ替えるための実行（orderBy あり）も
 		// 残さない：同じ SQL の続きを読むだけで、ページを送るたびに同じ SQL が並んでしまう。
 		at := ss.srv.now()
 		var err error
-		res, err = s.Query(ctx, p.SQL, db.QueryOptions{MaxRows: p.MaxRows, Offset: p.Offset})
-		if p.Offset > 0 {
+		res, err = s.Query(ctx, p.SQL, db.QueryOptions{MaxRows: p.MaxRows, Offset: p.Offset, OrderBy: p.OrderBy, Desc: p.Desc})
+		if p.Offset > 0 || p.OrderBy > 0 || p.Rerun {
 			return err
 		}
 		if herr := ss.srv.db.history.Add(db.HistoryKey(c), db.HistoryEntry{SQL: p.SQL, At: at, OK: err == nil}); herr != nil {

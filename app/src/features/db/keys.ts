@@ -28,8 +28,8 @@ export function dbEditorKey(e: KeyLike, mac: boolean): DbEditorAction | null {
   return null;
 }
 
-/** 結果の表のキーで行うこと。copy：選んだセルをコピーする。 */
-export type DbResultAction = "copy";
+/** 結果の表のキーで行うこと。copy：選んだセルをコピーする、sort：選んだセルの列で並べ替える（昇順 → 降順 → なし）。 */
+export type DbResultAction = "copy" | "sort";
 
 /**
  * 結果の表（#372）にキーがあるときに押したキー e の動き（無ければ null）。
@@ -38,6 +38,8 @@ export type DbResultAction = "copy";
  */
 export function dbResultKey(e: KeyLike, mac: boolean): DbResultAction | null {
   if (isComposingKey(e)) return null;
+  if (e.key === "s" && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey)
+    return "sort";
   const mod = mac ? e.metaKey : e.ctrlKey;
   const other = mac ? e.ctrlKey : e.metaKey;
   return e.key.toLowerCase() === "c" &&

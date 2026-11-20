@@ -485,6 +485,11 @@ export interface Requests {
       maxRows?: number;
       /** 前に実行した結果の続きのページ（#373）：SQL を包んで（SELECT * FROM (sql) AS q LIMIT … OFFSET offset）、この行数の後から読む。result.wrappable の文だけ */
       offset?: number;
+      /** 前に実行した結果の列の位置（1 が最初の列）での並べ替え（#377）：SQL を包んで ORDER BY 位置 を付ける。省くか 0 は並べ替えない。desc は降順。result.wrappable の文だけ */
+      orderBy?: number;
+      desc?: boolean;
+      /** 前に実行した SQL を読み直すだけの実行（ページ・並べ替え・並べ替えをやめる）：履歴に残さない（offset か orderBy があれば付けなくても残さない） */
+      rerun?: boolean;
       queryId?: string;
       actor?: "human" | "agent";
     };
