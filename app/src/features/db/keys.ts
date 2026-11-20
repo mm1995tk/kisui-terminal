@@ -52,6 +52,24 @@ export function dbResultKey(e: KeyLike, mac: boolean): DbResultAction | null {
 }
 
 /**
+ * 文を 2 つ以上実行したときの、結果のタブ（#380）を切り替えるキー e の向き（1 は次、-1 は前。当たらなければ 0）。
+ * - `]`：次の文の結果、`[`：前の文の結果（結果の表か、結果のタブの列にキーがあるとき）
+ * - `→` `←`：onTabs（結果のタブの列にキーがある）ときだけ（表の中では、ほかの動きに残す）
+ * Ctrl・Cmd・Alt を重ねたものと、かな漢字変換のキーは受けない（Shift は、`[` `]` を打つのに要る配列があるので見ない）。
+ */
+export function dbResultTabKey(e: KeyLike, onTabs: boolean): 1 | -1 | 0 {
+  if (isComposingKey(e)) return 0;
+  if (e.ctrlKey || e.metaKey || e.altKey) return 0;
+  if (e.key === "]") return 1;
+  if (e.key === "[") return -1;
+  if (onTabs && !e.shiftKey) {
+    if (e.key === "ArrowRight") return 1;
+    if (e.key === "ArrowLeft") return -1;
+  }
+  return 0;
+}
+
+/**
  * 木のペインで押したキー e の動き（無ければ null）。
  * - j k / ↓ ↑：行を動く、g G / Home End：先頭・末尾
  * - l / →：開ける（開いていれば中へ）、h / ←：閉じる（閉じていれば上へ）

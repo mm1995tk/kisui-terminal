@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { splitStatements, sqlToRun, statementAt } from "./statements.ts";
+import { splitStatements, statementAt, statementsToRun } from "./statements.ts";
 
 const texts = (sql: string) => splitStatements(sql).map((s) => s.text);
 
@@ -105,25 +105,41 @@ describe("statementAt", () => {
   });
 });
 
-describe("sqlToRun", () => {
+describe("statementsToRun", () => {
   const sql = "select 1;\nselect 2;\nselect 3";
 
   it("選んでいなければ、カーソルのある文", () => {
-    assert.equal(sqlToRun(sql, 12, 12), "select 2");
+    assert.deepEqual(statementsToRun(sql, 12, 12), ["select 2"]);
   });
 
   it("選んでいれば、選んだ部分（1 つの文なら ; と空白を除く）", () => {
-    assert.equal(sqlToRun(sql, 10, 20), "select 2");
-    assert.equal(sqlToRun(sql, 7, 8), "1"); // 文の一部だけでも、選んだ字
-    assert.equal(sqlToRun(sql, 20, 10), "select 2"); // 向きは関係ない
+    assert.deepEqual(statementsToRun(sql, 10, 20), ["select 2"]);
+    assert.deepEqual(statementsToRun(sql, 7, 8), ["1"]); // 文の一部だけでも、選んだ字
+    assert.deepEqual(statementsToRun(sql, 20, 10), ["select 2"]); // 向きは関係ない
   });
 
-  it("選んだ部分に文が 2 つ以上あれば、選んだ字そのまま", () => {
-    assert.equal(sqlToRun(sql, 0, 19), "select 1;\nselect 2;");
+  it("選んだ部分に文が 2 つ以上あれば、文ごとに上から順に", () => {
+    assert.deepEqual(statementsToRun(sql, 0, 19), ["select 1", "select 2"]);
+    assert.deepEqual(statementsToRun(sql, 0, sql.length), [
+      "select 1",
+      "select 2",
+      "select 3",
+    ]);
   });
 
-  it("選んだ部分が空白だけなら空", () => {
-    assert.equal(sqlToRun("select 1;   \n", 9, 12), "");
+  it("選んだ部分の文字列・コメント・$$ の中の ; では分けない", () => {
+    const s = "select ';';\n-- a; b\nselect 2;\ndo $$ begin; end $$";
+    assert.deepEqual(statementsToRun(s, 0, s.length), [
+      "select ';'",
+      "-- a; b\nselect 2",
+      "do $$ begin; end $$",
+    ]);
+  });
+
+  it("選んだ部分が空白・コメントだけなら空", () => {
+    assert.deepEqual(statementsToRun("select 1;   \n", 9, 12), []);
+    assert.deepEqual(statementsToRun("-- x\n", 0, 5), []);
+    assert.deepEqual(statementsToRun("  ", 1, 1), []);
   });
 });
 
@@ -134,7 +150,9 @@ describe("MySQL の読み方（opts.mysql）", () => {
   it("文字列の中の \\' は打ち消し（後ろの文を巻き込まない）", () => {
     const sql = "select 'it\\'s';\nselect 2;\nselect 3";
     assert.deepEqual(mtexts(sql), ["select 'it\\'s'", "select 2", "select 3"]);
-    assert.equal(sqlToRun(sql, sql.length, sql.length, my), "select 3");
+    assert.deepEqual(statementsToRun(sql, sql.length, sql.length, my), [
+      "select 3",
+    ]);
     assert.deepEqual(mtexts(`select "a\\"b;c"; select 2`), [
       `select "a\\"b;c"`,
       "select 2",
