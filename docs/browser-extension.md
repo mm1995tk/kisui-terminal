@@ -39,8 +39,12 @@ Cookie を読むのは、kisui-terminal の答えの `sites` にあるサイト�
 | `scripting`                     | 許可サイトのページに、パスキーが通ったことを知る小さなスクリプトを入れる                           |
 | `storage`                       | kisui-terminal が開いたタブと許可サイトの一覧を、ブラウザを閉じるまで覚える（`storage.session`）   |
 | `https://*/*`（host の権限）    | 許可サイトは利用者が kisui-terminal の設定で決めるので、どのサイトでも読めるよう入れるときに 1 回だけもらう |
+| `http://*/*`（host の権限）     | Secure の付かない Cookie（Google の `SID` など）を読む。Chrome（Chromium）は、https のサイトの Cookie でも、Secure の付かないものは `http://` の host の権限が無いと拡張機能に渡さない（Issue #286 で確かめた）。Firefox で要るかは確かめていない（入れた形で読めることは確かめた） |
 
 Firefox は、入れるときに host の権限を断れる。断ったときは、拡張機能のボタンを押すと頼み直す。
+版を上げて host の権限が増えたとき（0.1.1 の `http://*/*`）も、更新で新しい権限をもらえていなければ、パスキーの後に自動で送る道は
+権限を確かめないので、足りない Cookie を欠いたまま送る。そのときも、拡張機能のボタンを 1 回押すと頼み直す。
+更新で権限がもらえるかは確かめていないので、出し直す前に 0.1.0 からの更新で確かめる。
 
 ## 作る・試す
 
@@ -135,7 +139,7 @@ Chrome ウェブストアには出さないことにした（Issue #207）。Chr
   - `nativeMessaging`: Talks to kisui-terminal on the same computer: asks it for the list of allowed sites and sends it the cookies of the site the user logged in to.
   - `scripting`: Adds a small script to the pages of the allowed sites only, to notice that a passkey login succeeded (it does not read the credential).
   - `storage`: Remembers, until the browser closes, which tab kisui-terminal opened and the list of allowed sites.
-  - Host permission (`https://*/*`): The user chooses the sites in kisui-terminal's settings, so the extension cannot know them in advance. It reads cookies only of the sites in that list.
+  - Host permission (`https://*/*`, `http://*/*`): The user chooses the sites in kisui-terminal's settings, so the extension cannot know them in advance. It reads cookies only of the sites in that list. `http://*/*` is there because Chrome hands an extension the cookies without the Secure attribute (such as Google's `SID`) only with the `http://` host permission, even for an https site; without it the login does not carry over.
 - リモートのコード：使わない（拡張機能の中のスクリプトだけ）。
 - 扱うデータ：「認証情報」（Cookie）。使うのは単一用途のためだけで、同じコンピューターの kisui-terminal にだけ渡し、拡張機能の作者やほかの誰にも送らない・売らない・
   単一用途と関係のない目的に使わない。
