@@ -180,6 +180,11 @@ describe("pickerKey / creatableRows（ワークスペースを作るマシンを
     assert.equal(pickerKey(ev("d")), null);
   });
 
+  it("`?` で、キーの一覧を出す（Ctrl を重ねたものは受けない）", () => {
+    assert.deepEqual(pickerKey(ev("?", { shiftKey: true })), { kind: "help" });
+    assert.equal(pickerKey(ev("?", { ctrlKey: true })), null);
+  });
+
   it("作れるのは、つながっているマシンだけ", () => {
     const rows = [
       row({ target: "a", health: "up" }),

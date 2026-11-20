@@ -46,6 +46,13 @@ const (
 //     is not written like an id ("t1"): a name that another terminal has, or that
 //     looks like an id, is refused. So a name, or an id, points at one terminal of
 //     the machine.
+//   - "send": type Text in the terminal To (a name or an id of a terminal of this
+//     "kisui serve", of any workspace) and press Enter. Text has no control
+//     characters but newlines and tabs. When the program there turned on
+//     bracketed paste, Text is sent as a paste. The focus does not move.
+//   - "keys": press the Keys (such as "esc", "ctrl+c", "up") in the terminal To, in order.
+//   - "close": close the terminal To. The primary terminal of a tab is refused
+//     (it closes with its tab).
 //   - "list": the terminals of this "kisui serve", of every workspace (Reply.Panes).
 //   - "read": the text on the screen of the terminal To (a name or an id of a
 //     terminal of this "kisui serve", of any workspace), with Lines lines of its
@@ -68,10 +75,13 @@ type Request struct {
 	Title  string   `json:"title,omitempty"`
 	Name   string   `json:"name,omitempty"`
 	To     string   `json:"to,omitempty"`
+	Text   string   `json:"text,omitempty"`
+	Keys   []string `json:"keys,omitempty"`
 	Lines  int      `json:"lines,omitempty"`
 }
 
-// Reply answers a Request. ID is the pane that "open" (a file) or "split" made. Code is
+// Reply answers a Request. ID is the pane that "open" (a file) or "split" made, or
+// the one that "send", "keys", "close" or "read" found by its name or id. Code is
 // CodeNotInPane when the id and the secret are not the ones of a terminal of
 // that "kisui serve".
 type Reply struct {

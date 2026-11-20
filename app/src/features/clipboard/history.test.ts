@@ -5,6 +5,7 @@ import {
   ago,
   emptyMessage,
   filterEntries,
+  historyKey,
   moveSelection,
   preview,
 } from "./history.ts";
@@ -59,4 +60,52 @@ test("emptyMessage は空の理由ごとに文を変える", () => {
   assert.equal(emptyMessage(false, undefined), "読み込んでいます");
   assert.equal(emptyMessage(false, []), "履歴はまだありません");
   assert.equal(emptyMessage(false, e), "当てはまるものがありません");
+});
+
+const ev = (key: string, mods: object = {}) => ({
+  key,
+  ctrlKey: false,
+  altKey: false,
+  metaKey: false,
+  shiftKey: false,
+  ...mods,
+});
+
+test("historyKey は、↓ ↑ と Ctrl+J / Ctrl+K で選ぶ行を動かす", () => {
+  assert.deepEqual(historyKey(ev("ArrowDown"), true), {
+    kind: "step",
+    step: 1,
+  });
+  assert.deepEqual(historyKey(ev("ArrowUp"), true), { kind: "step", step: -1 });
+  assert.deepEqual(historyKey(ev("j", { ctrlKey: true }), false), {
+    kind: "step",
+    step: 1,
+  });
+  assert.deepEqual(historyKey(ev("k", { ctrlKey: true }), false), {
+    kind: "step",
+    step: -1,
+  });
+});
+
+test("historyKey は、Enter で貼り、Shift+Enter でクリップボードに戻す", () => {
+  assert.deepEqual(historyKey(ev("Enter"), false), { kind: "choose" });
+  assert.deepEqual(historyKey(ev("Enter", { shiftKey: true }), false), {
+    kind: "putBack",
+  });
+});
+
+test("historyKey の ? は、絞り込みが空のときだけキーの一覧。打っている途中の ? は入力欄の字", () => {
+  assert.deepEqual(historyKey(ev("?", { shiftKey: true }), true), {
+    kind: "help",
+  });
+  assert.equal(historyKey(ev("?", { shiftKey: true }), false), null);
+  assert.equal(historyKey(ev("?", { ctrlKey: true }), true), null);
+});
+
+test("historyKey は、字と変換中のキーを入力欄に渡す", () => {
+  assert.equal(historyKey(ev("j"), true), null);
+  assert.equal(historyKey(ev("a"), true), null);
+  assert.equal(historyKey(ev("Enter", { isComposing: true }), true), null);
+  assert.equal(historyKey(ev("Enter", { keyCode: 229 }), true), null);
+  assert.equal(historyKey(ev("?", { isComposing: true }), true), null);
 });

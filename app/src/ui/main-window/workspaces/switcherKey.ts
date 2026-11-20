@@ -3,8 +3,12 @@
 
 import { isComposingKey } from "../../../features/commands/ime.ts";
 import type { KeyLike } from "../../../features/commands/guiKeys.ts";
-import { listStep } from "../../../features/commands/placeKeys.ts";
-import type { Key } from "../../../i18n/index.ts";
+import {
+  basicHints,
+  listStep,
+  type BasicHint,
+} from "../../../features/commands/placeKeys.ts";
+import { T } from "../../../i18n/index.ts";
 
 /** 窓の中のキーが表す動き。 */
 export type SwitcherKey =
@@ -25,7 +29,9 @@ export type SwitcherKey =
   /** 選んでいる行を閉じる（ワークスペースは先に y / n で確かめる。タブは確かめずに閉じる） */
   | { kind: "close" }
   /** 選んでいるタブをつかむ（タブの列だけ。別のワークスペースへ移すために、つかんでいる間のキーに替わる。switcherHold.ts） */
-  | { kind: "hold" };
+  | { kind: "hold" }
+  /** この窓のキーの一覧を出す（`?`） */
+  | { kind: "help" };
 
 /**
  * 窓の中のキー（打った文字で絞り込む入力欄は無いので、字をそのまま使える。Esc は ModalCard が取り消しに使う）。
@@ -67,6 +73,8 @@ export function switcherKey(e: KeyLike): SwitcherKey | null {
       return { kind: "close" };
     case "m":
       return { kind: "hold" };
+    case "?":
+      return { kind: "help" };
   }
   return null;
 }
@@ -126,64 +134,37 @@ export function confirmKey(e: KeyLike): "yes" | "no" | null {
   return null;
 }
 
-/** 窓の下に出すキーの説明の 1 行（keys は押すキー、label は i18n のキー）。 */
-export interface SwitcherHint {
-  keys: string[];
-  label: Key;
-}
-
 /**
- * 窓の下に出すキーの説明。いまキーが効いている列（col）で効くキーだけを返す。
- * hasTabs は、選んでいるワークスペースにタブがあるか（無ければ、左の列から `l` でタブの列には移れない）。
- * browser は、内蔵ブラウザが有効か（無効なら、`N` は効かないので出さない）。
+ * 窓の下の段（共通フッタ）に出す基本操作。いまキーが効いている列（col）で効くものだけを、ほかの窓と同じ順（basicHints）で返す。
+ * 作る・名前を変える・閉じる・並べ替える・タブをつかむ（n N r x J K m）は出さない（`?` の一覧に出す。表は placeKeys.ts の switcher・switcherTabs）。
+ * hasTabs は、選んでいるワークスペースにタブがあるか（無ければ、左の列から `l` でタブの列には移れないので出さない）。
  */
 export function switcherHints(
   col: "ws" | "tab",
   hasTabs: boolean,
-  browser: boolean,
-): SwitcherHint[] {
-  const newBrowser: SwitcherHint[] = browser
-    ? [{ keys: ["N"], label: "switcher.keys.newBrowser" }]
-    : [];
-  const select: SwitcherHint = {
-    keys: ["j", "k"],
-    label: "machineDialog.keys.select",
-  };
-  const close: SwitcherHint = { keys: ["Esc"], label: "switcher.keys.close" };
+): BasicHint[] {
   if (col === "tab")
-    return [
-      select,
-      { keys: ["h"], label: "switcher.keys.toWorkspaces" },
-      { keys: ["Enter"], label: "switcher.keys.showTab" },
-      { keys: ["n"], label: "switcher.keys.newTab" },
-      ...newBrowser,
-      { keys: ["r"], label: "switcher.keys.rename" },
-      { keys: ["x"], label: "switcher.keys.closeTab" },
-      { keys: ["J", "K"], label: "switcher.keys.reorder" },
-      { keys: ["m"], label: "switcher.keys.hold" },
-      close,
-    ];
-  return [
-    select,
-    ...(hasTabs
-      ? [{ keys: ["l"], label: "switcher.keys.toTabs" } satisfies SwitcherHint]
-      : []),
-    { keys: ["Enter"], label: "switcher.keys.go" },
-    { keys: ["n"], label: "switcher.keys.new" },
-    ...newBrowser,
-    { keys: ["r"], label: "switcher.keys.rename" },
-    { keys: ["x"], label: "switcher.keys.closeWorkspace" },
-    { keys: ["J", "K"], label: "switcher.keys.reorder" },
-    close,
-  ];
+    return basicHints({
+      move: [{ keys: ["h"], label: T("switcher.keys.toWorkspaces") }],
+      decide: T("switcher.keys.showTab"),
+      end: "close",
+    });
+  return basicHints({
+    move: hasTabs ? [{ keys: ["l"], label: T("switcher.keys.toTabs") }] : [],
+    decide: T("switcher.keys.go"),
+    end: "close",
+  });
 }
 
-/** タブをつかんでいる間に、窓の下に出すキーの説明（つかんでいる間のキーだけ）。 */
-export function holdHints(): SwitcherHint[] {
+/**
+ * タブをつかんでいる間に、窓の下に出すキーの説明（つかんでいる間のキーだけ。どれも基本操作で、`?` は効かないので出さない）。
+ * 並びはほかの窓と同じ（選ぶ → 移る → 決める → やめる）。
+ */
+export function holdHints(): BasicHint[] {
   return [
-    { keys: ["j", "k"], label: "switcher.keys.holdMove" },
-    { keys: ["h", "l"], label: "switcher.keys.holdCols" },
-    { keys: ["Enter"], label: "switcher.keys.holdDrop" },
-    { keys: ["Esc"], label: "switcher.keys.holdCancel" },
+    { keys: ["j", "k"], label: T("switcher.keys.holdMove") },
+    { keys: ["h", "l"], label: T("switcher.keys.holdCols") },
+    { keys: ["Enter"], label: T("switcher.keys.holdDrop") },
+    { keys: ["Esc"], label: T("basic.cancel") },
   ];
 }

@@ -49,7 +49,7 @@ func TestDispatchAndUsage(t *testing.T) {
 func TestUsageListsCommands(t *testing.T) {
 	var out strings.Builder
 	usage(&out, commands, "kisui")
-	for _, want := range []string{"kisui serve", "kisui attach", "kisui open <file|url>", "kisui notify <text>", "kisui clipboard copy", "kisui clipboard paste"} {
+	for _, want := range []string{"kisui serve", "kisui attach", "kisui open <file|url>", "kisui notify <text>", "kisui clipboard copy", "kisui clipboard paste", "kisui pane send <name|id> <text>", "kisui pane keys <name|id> <key>...", "kisui pane close <name|id>"} {
 		if !strings.Contains(out.String(), want) {
 			t.Errorf("the help has no %q:\n%s", want, out.String())
 		}
@@ -161,5 +161,32 @@ func TestAlignColumns(t *testing.T) {
 	want := "* t1   日本  x\n  t10  ab    y\n"
 	if got != want {
 		t.Errorf("alignColumns =\n%q, want\n%q", got, want)
+	}
+}
+
+// send, keys and close need the pane and the right number of words: a wrong
+// number is a usage error (2) before asking anything, the right one outside a
+// pane is an error (1).
+func TestPaneToArgs(t *testing.T) {
+	t.Setenv(panecmd.EnvSocket, "")
+	for _, c := range []struct {
+		run  func([]string) int
+		args []string
+		want int
+	}{
+		{runPaneSend, nil, 2},
+		{runPaneSend, []string{"foo"}, 2},
+		{runPaneSend, []string{"foo", "a", "b"}, 2},
+		{runPaneSend, []string{"", "a"}, 2},
+		{runPaneSend, []string{"foo", "echo hi"}, 1},
+		{runPaneKeys, []string{"foo"}, 2},
+		{runPaneKeys, []string{"foo", "esc", "ctrl+c"}, 1},
+		{runPaneClose, nil, 2},
+		{runPaneClose, []string{"foo", "bar"}, 2},
+		{runPaneClose, []string{"foo"}, 1},
+	} {
+		if got := c.run(c.args); got != c.want {
+			t.Errorf("%q: %d, want %d", c.args, got, c.want)
+		}
 	}
 }

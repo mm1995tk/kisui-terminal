@@ -587,6 +587,20 @@ test("Firefox の id は kisui-terminal の受け口が許すものと同じ", (
   );
 });
 
+test("host の権限は http も持ち、頼み直す権限（background.js の ORIGINS）と同じ", () => {
+  // Chromium は、Secure の付かない Cookie を、http:// の host の権限が無いと cookies.getAll で返さない
+  assert.deepEqual(base.host_permissions, ["https://*/*", "http://*/*"]);
+  for (const browser of ["chrome", "firefox"]) {
+    assert.deepEqual(
+      manifestFor(browser, base).host_permissions,
+      base.host_permissions,
+    );
+  }
+  const origins = read("background.js").match(/const ORIGINS = (\[[^\]]*\]);/);
+  assert.ok(origins);
+  assert.deepEqual(JSON.parse(origins[1]), base.host_permissions);
+});
+
 test("受け口の名前は kisui-terminal のものと同じ", () => {
   assert.deepEqual(
     [...K.HOSTS],

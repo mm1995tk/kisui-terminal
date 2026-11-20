@@ -6,7 +6,7 @@ import { T } from "../../i18n/index.ts";
 import type { SplitDir } from "../../infrastructure/rpc/protocol.ts";
 import type { Bookmarks } from "../browser/bookmarksStore.ts";
 import type { Downloads } from "../browser/downloads.ts";
-import type { BrowserOs } from "../browser/os.ts";
+import type { BrowserOs, PasskeyLogin } from "../browser/os.ts";
 import type { Pages } from "../browser/pages.ts";
 import { showTab } from "../browser/tabs.ts";
 import type { BrowserTabs } from "../browser/tabsStore.ts";
@@ -64,8 +64,10 @@ export function createCommandRunner(deps: {
   updates: Updates;
   mascot: MascotStore;
   scale: Scale;
-  os: Pick<BrowserOs, "navTab" | "openTabDevtools">;
+  os: Pick<BrowserOs, "navTab" | "openTabDevtools" | "startPasskeyLogin">;
   setFocusError: ReportProblem;
+  /** 少しの間だけ出る短い知らせ */
+  showToast: (text: string) => void;
   /** 今使っているペイン（ブラウザのタブを出していればそのページ）にキーを向ける */
   focusTerminal: () => void;
   ui: CommandUi;
@@ -98,10 +100,40 @@ export function createCommandRunner(deps: {
     stepTab,
   } = deps.tabs;
   const { setTabs } = deps.browserTabs;
-  const { navTab, openTabDevtools } = deps.os;
+  const { navTab, openTabDevtools, startPasskeyLogin } = deps.os;
   const { bookmarkPage } = deps.bookmarks;
   const { lastDownload, useDownload } = deps.downloads;
   const { changeScale } = deps.scale;
+
+  /**
+   * パスキーを待たずに、タブのサイトを外のブラウザで開き、そのサイトのログインを待つ（#276。リーダーの `o s`）。
+   * 許可サイト（passkey_sites）か・シークレットのタブかは殻が決め、使えなければ理由をお知らせに出す。
+   */
+  function loginExternally(tab: string, url: string) {
+    let host = url;
+    try {
+      host = new URL(url).hostname;
+    } catch {
+      // URL の形でなければそのまま出す
+    }
+    // 使えないときの理由（答えを足したら、ここに足し忘れると型で分かる）
+    const reasons: Record<Exclude<PasskeyLogin, "opened">, () => string> = {
+      incognito: () => T("cannot.browser.login.incognito"),
+      "no-sites": () => T("cannot.browser.login.noSites"),
+      "not-allowed": () => T("cannot.browser.login.notAllowed", { host }),
+    };
+    startPasskeyLogin(tab).then(
+      (r) => {
+        if (r === "opened") deps.showToast(T("toast.browser.login"));
+        else cannot(T("cannot.browser.login.title"), reasons[r]());
+      },
+      (e: unknown) =>
+        setFocusError({
+          title: T("cannot.browser.login.title"),
+          error: e instanceof Error ? e.message : String(e),
+        }),
+    );
+  }
 
   /** 内蔵ブラウザのコマンド（リーダーの o）。 */
   function runBrowser(c: Command) {
@@ -181,6 +213,11 @@ export function createCommandRunner(deps: {
               error: e instanceof Error ? e.message : String(e),
             }),
           );
+        break;
+      }
+      case "browser.login": {
+        const t = currentPage();
+        if (t) loginExternally(t.id, t.url);
         break;
       }
     }

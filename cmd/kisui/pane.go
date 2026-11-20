@@ -254,3 +254,51 @@ func alignColumns(rows [][]string, gaps ...int) string {
 	}
 	return b.String()
 }
+
+// runPaneSend is "kisui pane send <name|id> <text>": type the text in the pane
+// of the machine that has the name or id, and press Enter. The focus does not
+// move.
+func runPaneSend(args []string) int {
+	return runPaneTo(args, "send", 2, 2, func(rq *panecmd.Request, rest []string) { rq.Text = rest[0] })
+}
+
+// runPaneKeys is "kisui pane keys <name|id> <key>...": press the keys (such as
+// esc or ctrl+c) in the pane of the machine that has the name or id. The server
+// knows the keys: an unknown one is refused before any key is sent.
+func runPaneKeys(args []string) int {
+	return runPaneTo(args, "keys", 2, -1, func(rq *panecmd.Request, rest []string) { rq.Keys = rest })
+}
+
+// runPaneClose is "kisui pane close <name|id>": close the pane of the machine
+// that has the name or id. The primary pane of a tab is refused (it closes with
+// its tab).
+func runPaneClose(args []string) int {
+	return runPaneTo(args, "close", 1, 1, func(*panecmd.Request, []string) {})
+}
+
+// runPaneTo runs a "kisui pane <cmd> <name|id> ..." that acts on another pane:
+// args has least to most words (most < 0: no limit), the first is the pane, and
+// fill puts the rest in the request. It returns the process exit code.
+func runPaneTo(args []string, cmd string, least, most int, fill func(rq *panecmd.Request, rest []string)) int {
+	usage := i18n.T("pane." + cmd + ".usage")
+	if len(args) == 1 && (args[0] == "-h" || args[0] == "--help") {
+		fmt.Println(usage)
+		return 0
+	}
+	if len(args) < least || (most >= 0 && len(args) > most) || args[0] == "" {
+		fmt.Fprintln(os.Stderr, usage)
+		return 2
+	}
+	pane, err := panecmd.FromEnv()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, i18n.T("pane.outside"))
+		return 1
+	}
+	rq := panecmd.Request{Cmd: cmd, To: args[0]}
+	fill(&rq, args[1:])
+	if _, err := pane.Do(rq); err != nil {
+		fmt.Fprintln(os.Stderr, paneError(err, "pane."+cmd+".failed"))
+		return 1
+	}
+	return 0
+}

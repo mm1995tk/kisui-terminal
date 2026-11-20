@@ -263,15 +263,20 @@
             go-test = kisuiDrv.overrideAttrs (_: {
               pname = "kisui-go-test";
               # bashInteractive は readline 付きの bash（シェルの包みの幅のテストが使う）。zsh は包みの PTY のテストが使う
+              # postgresql と mysql84 は、DB に接続するテスト（internal/db/dbtest）が手元に立てるサーバー
               nativeCheckInputs = [
                 pkgs.git
                 pkgs.bashInteractive
                 pkgs.zsh
+                pkgs.postgresql
+                pkgs.mysql84
               ];
               checkPhase = ''
                 runHook preCheck
                 export HOME="$TMPDIR/home"
                 mkdir -p "$HOME"
+                # DB のサーバーを立てられないときに、テストを飛ばさずに落とす
+                export KISUI_TEST_DB=1
                 go test ./...
                 runHook postCheck
               '';

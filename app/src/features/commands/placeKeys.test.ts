@@ -2,8 +2,19 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { changesKey } from "../changes/keys.ts";
-import { machineKey } from "../sessions/machineList.ts";
-import { isHelpKey, listStep, PLACE_KEYS, placeOf } from "./placeKeys.ts";
+import { bookmarkKey } from "../browser/bookmarks.ts";
+import { historyKey } from "../clipboard/history.ts";
+import { machineKey, pickerKey } from "../sessions/machineList.ts";
+import {
+  basicHints,
+  isHelpKey,
+  isWindowPlace,
+  listStep,
+  PLACE_KEYS,
+  placeOf,
+  type Place,
+} from "./placeKeys.ts";
+import { setLang } from "../../i18n/index.ts";
 import { imageKey } from "../../ui/main-window/content/media/imageView.ts";
 import { videoKey } from "../terminal/media.ts";
 import { treeKey } from "../file-tree/keys.ts";
@@ -48,6 +59,35 @@ describe("場所のキーの表は、その場所の判定と合っている", (
     for (const r of PLACE_KEYS.machines.rows)
       for (const p of r.probes)
         assert.notEqual(machineKey(ev(p)), null, `${r.keys}: ${p}`);
+  });
+
+  it("一覧から選ぶ窓：表のキーは、どれも判定が受ける", () => {
+    for (const r of PLACE_KEYS.picker.rows)
+      for (const p of r.probes)
+        assert.notEqual(pickerKey(ev(p)), null, `${r.keys}: ${p}`);
+  });
+
+  it("ブックマークの一覧・クリップボードの履歴：表のキーは、絞り込みが空のとき、どれも判定が受ける", () => {
+    for (const r of PLACE_KEYS.bookmarks.rows)
+      for (const p of r.probes)
+        assert.notEqual(bookmarkKey(ev(p), true), null, `${r.keys}: ${p}`);
+    for (const r of PLACE_KEYS.history.rows)
+      for (const p of r.probes)
+        assert.notEqual(historyKey(ev(p), true), null, `${r.keys}: ${p}`);
+  });
+
+  it("窓の表には、`?`（キーの一覧）と Esc の行がある", () => {
+    for (const [place, t] of Object.entries(PLACE_KEYS))
+      if (isWindowPlace(place as Place)) {
+        assert.ok(
+          t.rows.some((r) => r.keys === "?"),
+          `${place}: ?`,
+        );
+        assert.ok(
+          t.rows.some((r) => r.keys.includes("Esc")),
+          `${place}: Esc`,
+        );
+      }
   });
 
   it("`?` は、ファイルツリー・変更一覧・動画・画像のどれでも一覧を出す", () => {
@@ -131,6 +171,62 @@ describe("listStep（ダイアログの一覧の Ctrl+J / Ctrl+K）", () => {
   it("ほかの Ctrl+字は受けない", () => {
     assert.equal(listStep(ev("n", { ctrlKey: true })), 0);
     assert.equal(listStep(ev("p", { ctrlKey: true })), 0);
+  });
+});
+
+describe("isWindowPlace（`?` の一覧に、その窓のキーだけを出す場所）", () => {
+  it("真ん中に出す窓は窓の場所、ペインの場所（リーダーが効く）は違う", () => {
+    for (const p of [
+      "machines",
+      "bookmarks",
+      "picker",
+      "switcher",
+      "switcherTabs",
+      "history",
+    ] as const)
+      assert.equal(isWindowPlace(p), true, p);
+    for (const p of ["tree", "changes", "video", "image", "list"] as const)
+      assert.equal(isWindowPlace(p), false, p);
+  });
+});
+
+describe("basicHints（窓の下の段の基本操作）", () => {
+  const keys = (o: Parameters<typeof basicHints>[0]) =>
+    basicHints(o).map((h) => h.keys.join(" "));
+
+  it("選ぶ → 移る → 決める → `?` → やめる・閉じる の順に並べる", () => {
+    assert.deepEqual(
+      keys({
+        move: [{ keys: ["l"], label: "タブへ" }],
+        decide: "移る",
+        end: "close",
+      }),
+      ["j k", "l", "Enter", "?", "Esc"],
+    );
+  });
+
+  it("決めるものが無い窓は Enter を出さず、`?` が効かない間は `?` を出さない", () => {
+    assert.deepEqual(keys({ end: "close" }), ["j k", "?", "Esc"]);
+    assert.deepEqual(keys({ decide: "開く", help: false, end: "close" }), [
+      "j k",
+      "Enter",
+      "Esc",
+    ]);
+  });
+
+  it("入力欄に字を打つ窓は、選ぶキーに ↓ ↑ を渡す", () => {
+    assert.deepEqual(keys({ select: ["↓", "↑"], end: "close" })[0], "↓ ↑");
+  });
+
+  it("同じ役割には同じ字を使う（Esc は、やめるか閉じるか）", () => {
+    setLang("ja");
+    const label = (o: Parameters<typeof basicHints>[0], key: string) =>
+      basicHints(o).find((h) => h.keys[0] === key)?.label;
+    assert.equal(label({ end: "cancel" }, "j"), "選ぶ");
+    assert.equal(label({ end: "cancel" }, "?"), "キーの一覧");
+    assert.equal(label({ end: "cancel" }, "Esc"), "やめる");
+    assert.equal(label({ end: "close" }, "Esc"), "閉じる");
+    setLang("en");
   });
 });
 

@@ -4,13 +4,10 @@ import { createSignal, For, type JSX } from "solid-js";
 import { moveRow, pickerKey } from "../../../features/sessions/machineList.ts";
 import type { Row } from "../../../features/workspaces/rows.ts";
 import { Button } from "../../components/Button.tsx";
-import {
-  ModalCard,
-  CardActions,
-  CardBody,
-  CardTitle,
-} from "../../components/Card.tsx";
-import { KeyHints } from "../../components/KeyHints.tsx";
+import { ModalCard, CardTitle } from "../../components/Card.tsx";
+import { KeyFooter } from "../../components/KeyFooter.tsx";
+import { basicHints } from "../../../features/commands/placeKeys.ts";
+import { openKeyList } from "../commands/KeyListDialog.tsx";
 
 const rowId = (i: number) => `tab-move-row-${i}`;
 
@@ -36,6 +33,7 @@ export function TabMovePicker(props: {
     if (!k) return;
     e.preventDefault();
     if (k.kind === "move") setIndex(moveRow(at(), k.to, props.rows.length));
+    else if (k.kind === "help") openKeyList("picker");
     else {
       const r = props.rows[at()];
       if (r) props.onChoose(r.gws);
@@ -51,20 +49,12 @@ export function TabMovePicker(props: {
         <CardTitle>{T("tabMove.title", { title: props.title })}</CardTitle>
       }
       footer={
-        <>
-          <CardBody>
-            <KeyHints
-              items={[
-                { keys: ["j", "k"], label: T("machineDialog.keys.select") },
-                { keys: ["Enter"], label: T("tabMove.keys.move") },
-                { keys: ["Esc"], label: T("mascot.keys.cancel") },
-              ]}
-            />
-          </CardBody>
-          <CardActions>
+        <KeyFooter
+          items={basicHints({ decide: T("tabMove.keys.move"), end: "cancel" })}
+          actions={
             <Button onClick={props.onCancel}>{T("button.cancelAlt")}</Button>
-          </CardActions>
-        </>
+          }
+        />
       }
     >
       <div class="machine-dialog">

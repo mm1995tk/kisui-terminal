@@ -163,6 +163,15 @@ func (s *Server) paneCmd(rq panecmd.Request) (panecmd.Reply, error) {
 		return panecmd.Reply{ID: id, Text: text}, err
 	case "list":
 		return panecmd.Reply{Panes: s.paneList(t.id)}, nil
+	case "send":
+		id, err := s.terms.sendText(rq.To, rq.Text)
+		return panecmd.Reply{ID: id}, err
+	case "keys":
+		id, err := s.terms.sendKeys(rq.To, rq.Keys)
+		return panecmd.Reply{ID: id}, err
+	case "close":
+		id, err := s.ws.closeByName(rq.To)
+		return panecmd.Reply{ID: id}, err
 	}
 	return panecmd.Reply{}, fmt.Errorf("unknown command: %q", rq.Cmd)
 }

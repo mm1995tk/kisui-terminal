@@ -1,6 +1,9 @@
 // クリップボードの履歴の窓（ClipboardHistoryDialog）の、DOM に触らない部分。
 // 履歴を持つのは Tauri の側（clipboard_history.rs）。ここは一覧の見せ方を決める。
 
+import type { KeyLike } from "../commands/guiKeys.ts";
+import { isComposingKey } from "../commands/ime.ts";
+import { listStep } from "../commands/placeKeys.ts";
 import { T } from "../../i18n/index.ts";
 
 /** kisui-terminal の外から開く履歴の窓のラベル（clipboard_popup.rs の LABEL と同じ）。 */
@@ -66,6 +69,33 @@ export function filterEntries(
 export function moveSelection(cur: number, step: number, len: number): number {
   if (len <= 0) return 0;
   return Math.min(len - 1, Math.max(0, cur + step));
+}
+
+/** 履歴の窓で押したキーの動き。 */
+export type HistoryKey =
+  | { kind: "step"; step: 1 | -1 }
+  /** 貼る（貼る先が無ければ、クリップボードに戻す） */
+  | { kind: "choose" }
+  /** OS のクリップボードに戻す */
+  | { kind: "putBack" }
+  | { kind: "help" };
+
+/**
+ * 履歴の窓（絞り込みの入力欄にキーがある）のキー。当たらなければ null（入力欄に字を打つ）。
+ * ↓ ↑・Ctrl+J / Ctrl+K で選ぶ行を動かし（入力欄に字を打つので、j k は使えない）、Enter で貼り、Shift+Enter でクリップボードに戻す。
+ * `?` は、helpOn（キーの一覧を出せる窓で、絞り込みが空）のときだけキーの一覧を出す（打っている途中の `?` は、探す字として入力欄に入れる。ブックマークの一覧と同じ）。
+ * Esc は窓が受ける。
+ */
+export function historyKey(e: KeyLike, helpOn: boolean): HistoryKey | null {
+  if (isComposingKey(e)) return null;
+  if (e.key === "ArrowDown") return { kind: "step", step: 1 };
+  if (e.key === "ArrowUp") return { kind: "step", step: -1 };
+  const step = listStep(e);
+  if (step !== 0) return { kind: "step", step };
+  if (e.key === "Enter") return { kind: e.shiftKey ? "putBack" : "choose" };
+  if (e.key === "?" && !e.ctrlKey && !e.metaKey && !e.altKey && helpOn)
+    return { kind: "help" };
+  return null;
 }
 
 /** 一覧が空のときに出す文。entries は履歴（読み込み中は undefined）、failed は読めなかったか。 */

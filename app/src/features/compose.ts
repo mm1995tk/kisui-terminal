@@ -234,6 +234,7 @@ export function createFeatures(deps: {
     scale,
     os: ports.browser,
     setFocusError,
+    showToast: (text) => ui.showToast(text),
     focusTerminal,
     ui: deps.commandUi,
   });

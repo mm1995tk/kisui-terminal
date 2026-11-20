@@ -39,8 +39,12 @@ Cookie を読むのは、kisui-terminal の答えの `sites` にあるサイト�
 | `scripting`                     | 許可サイトのページに、パスキーが通ったことを知る小さなスクリプトを入れる                           |
 | `storage`                       | kisui-terminal が開いたタブと許可サイトの一覧を、ブラウザを閉じるまで覚える（`storage.session`）   |
 | `https://*/*`（host の権限）    | 許可サイトは利用者が kisui-terminal の設定で決めるので、どのサイトでも読めるよう入れるときに 1 回だけもらう |
+| `http://*/*`（host の権限）     | Secure の付かない Cookie（Google の `SID` など）を読む。Chrome（Chromium）は、https のサイトの Cookie でも、Secure の付かないものは `http://` の host の権限が無いと拡張機能に渡さない（Issue #286 で確かめた）。Firefox で要るかは確かめていない（入れた形で読めることは確かめた） |
 
 Firefox は、入れるときに host の権限を断れる。断ったときは、拡張機能のボタンを押すと頼み直す。
+版を上げて host の権限が増えたとき（0.1.1 の `http://*/*`）も、更新で新しい権限をもらえていなければ、パスキーの後に自動で送る道は
+権限を確かめないので、足りない Cookie を欠いたまま送る。そのときも、拡張機能のボタンを 1 回押すと頼み直す。
+更新で権限がもらえるかは確かめていないので、出し直す前に 0.1.0 からの更新で確かめる。
 
 ## 作る・試す
 
@@ -105,19 +109,21 @@ Chrome ウェブストアには出さないことにした（Issue #207）。Chr
 
 名前と短い説明は `extension/_locales/{en,ja}/messages.json` の `extensionName` と `extensionDescription`（ストアは manifest から読む）。
 
+下の詳しい説明とプライバシーの欄は、パスワードでのログイン（#276。kisui-terminal のリーダーの `o s`）も含めた案に直してある。審査に出したあとに直したので、ストアへの反映は公開の後にオーナーが行う（拡張機能そのものは変えていないので、版は上げない）。
+
 詳しい説明（English）：
 
-> kisui-terminal is a terminal-centered workspace with a built-in browser. The built-in browser is the WebView of the OS, so it cannot use the passkeys of iCloud Keychain or 1Password. When a page there asks for a passkey, kisui-terminal opens the same page in this browser instead.
+> kisui-terminal is a terminal-centered workspace with a built-in browser. The built-in browser is the WebView of the OS, so it cannot use the passkeys of iCloud Keychain or 1Password, nor browser extensions such as 1Password. When a page there asks for a passkey, kisui-terminal opens the same page in this browser instead. You can also move a site to this browser yourself from kisui-terminal, to log in with a password (for example with the 1Password extension).
 >
-> This extension finishes the round trip: after you log in with your passkey here, it sends the cookies of that site to kisui-terminal on the same computer (through native messaging), closes the tab, and kisui-terminal reloads its tab, logged in. If the site asks for more steps after the passkey, press the extension's button when you are done.
+> This extension finishes the round trip: after you log in with your passkey here, it sends the cookies of that site to kisui-terminal on the same computer (through native messaging), closes the tab, and kisui-terminal reloads its tab, logged in. When you log in with a password, or the site asks for more steps after the passkey, press the extension's button when you are done.
 >
 > It reads cookies only of the sites you list in the kisui-terminal settings (`passkey_sites`), and sends them only to kisui-terminal on your computer. Nothing is sent over the network. It needs kisui-terminal: https://github.com/mm1995tk/kisui-terminal
 
 詳しい説明（日本語）：
 
-> kisui-terminal は、内蔵ブラウザを持つ、ターミナルを中心にした作業場です。内蔵ブラウザは OS の WebView なので、iCloud キーチェーンや 1Password のパスキーを使えません。そこでページがパスキーを求めると、kisui-terminal は同じページをこのブラウザで開きます。
+> kisui-terminal は、内蔵ブラウザを持つ、ターミナルを中心にした作業場です。内蔵ブラウザは OS の WebView なので、iCloud キーチェーンや 1Password のパスキーも、1Password などのブラウザの拡張機能も使えません。そこでページがパスキーを求めると、kisui-terminal は同じページをこのブラウザで開きます。パスワードで（1Password の拡張機能などで）ログインしたいときは、kisui-terminal から手でサイトをこのブラウザに移すこともできます。
 >
-> この拡張機能は、その続きを受け持ちます。このブラウザでパスキーでログインすると、そのサイトの Cookie を同じコンピューターの kisui-terminal に（native messaging で）送ってタブを閉じ、kisui-terminal はタブをログインした状態で開き直します。パスキーの後にまだ手順が続くサイトでは、済んだら拡張機能のボタンを押してください。
+> この拡張機能は、その続きを受け持ちます。このブラウザでパスキーでログインすると、そのサイトの Cookie を同じコンピューターの kisui-terminal に（native messaging で）送ってタブを閉じ、kisui-terminal はタブをログインした状態で開き直します。パスワードでログインしたときや、パスキーの後にまだ手順が続くサイトでは、済んだら拡張機能のボタンを押してください。
 >
 > Cookie を読むのは、kisui-terminal の設定（`passkey_sites`）に書いたサイトのものだけで、送る先はあなたのコンピューターの kisui-terminal だけです。ネットワークには何も送りません。kisui-terminal が要ります：https://github.com/mm1995tk/kisui-terminal
 
@@ -127,13 +133,13 @@ Chrome ウェブストアには出さないことにした（Issue #207）。Chr
 
 ### プライバシー（Chrome の「プライバシーへの取り組み」）
 
-- 単一用途（single purpose）：パスキーで外のブラウザにログインしたあと、そのサイトのログイン（Cookie）を、同じコンピューターの kisui-terminal の内蔵ブラウザに戻す。
+- 単一用途（single purpose）：外のブラウザで（パスキーかパスワードで）ログインしたあと、そのサイトのログイン（Cookie）を、同じコンピューターの kisui-terminal の内蔵ブラウザに戻す。
 - 権限の理由（English。ダッシュボードの欄に入れる）：
-  - `cookies`: Reads the cookies of the sites the user lists in kisui-terminal, after the user logs in there with a passkey, to hand the login to kisui-terminal.
+  - `cookies`: Reads the cookies of the sites the user lists in kisui-terminal, after the user logs in there (with a passkey or a password), to hand the login to kisui-terminal.
   - `nativeMessaging`: Talks to kisui-terminal on the same computer: asks it for the list of allowed sites and sends it the cookies of the site the user logged in to.
   - `scripting`: Adds a small script to the pages of the allowed sites only, to notice that a passkey login succeeded (it does not read the credential).
   - `storage`: Remembers, until the browser closes, which tab kisui-terminal opened and the list of allowed sites.
-  - Host permission (`https://*/*`): The user chooses the sites in kisui-terminal's settings, so the extension cannot know them in advance. It reads cookies only of the sites in that list.
+  - Host permission (`https://*/*`, `http://*/*`): The user chooses the sites in kisui-terminal's settings, so the extension cannot know them in advance. It reads cookies only of the sites in that list. `http://*/*` is there because Chrome hands an extension the cookies without the Secure attribute (such as Google's `SID`) only with the `http://` host permission, even for an https site; without it the login does not carry over.
 - リモートのコード：使わない（拡張機能の中のスクリプトだけ）。
 - 扱うデータ：「認証情報」（Cookie）。使うのは単一用途のためだけで、同じコンピューターの kisui-terminal にだけ渡し、拡張機能の作者やほかの誰にも送らない・売らない・
   単一用途と関係のない目的に使わない。

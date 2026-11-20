@@ -1,7 +1,9 @@
-// 場所のキー（docs/key-design.md の 5 章）の定義。ファイルツリー・変更一覧・動画のペイン・画像のペイン・ダイアログの一覧の
+// 場所のキー（docs/key-design.md の 5 章）の定義。ファイルツリー・変更一覧・動画のペイン・画像のペイン・窓（ダイアログ）の
 // キーを、リーダーの木（commands.ts）と同じ流儀で、ここ 1 か所に書く。`?` の一覧（KeyListDialog.tsx）はこの表から作る。
-// 実際にキーを受ける判定は、場所ごとのファイル（features/file-tree/keys.ts・features/changes/keys.ts・features/terminal/media.ts・ui/main-window/content/media/imageView.ts）にあり、
-// placeKeys.test.ts が「表に書いたキーを、その場所の判定が受ける」ことを確かめる。だから案内と受けるキーはずれない。
+// 実際にキーを受ける判定は、場所ごとのファイル（features/file-tree/keys.ts・features/changes/keys.ts・features/terminal/media.ts・ui/main-window/content/media/imageView.ts・
+// features/sessions/machineList.ts・features/browser/bookmarks.ts・features/clipboard/history.ts・ui/main-window/workspaces/switcherKey.ts）にあり、
+// placeKeys.test.ts（切り替える窓は switcherKey.test.ts）が「表に書いたキーを、その場所の判定が受ける」ことを確かめる。だから案内と受けるキーはずれない。
+// 窓の下の段（共通フッタ）に出す基本操作の並びも、ここの basicHints が決める（docs/design/ui-ux-review.md の「ヒントとヘルプ」）。
 // 場所のキーはリーダーには載せない（その場所の中だけで効く）。キーを足すときは、判定と、ここの表と、docs/key-design.md を直す。
 // DOM には触らない（node --test で確かめられる）。
 
@@ -11,7 +13,17 @@ import { T } from "../../i18n/index.ts";
 
 /** キーがそれぞれに決まっている場所。 */
 export type Place =
-  "tree" | "changes" | "video" | "image" | "machines" | "list" | "bookmarks";
+  | "tree"
+  | "changes"
+  | "video"
+  | "image"
+  | "machines"
+  | "list"
+  | "bookmarks"
+  | "picker"
+  | "switcher"
+  | "switcherTabs"
+  | "history";
 
 /** 表の 1 行。keys は一覧に出す書き方、probes は、判定が受けるはずのキー（KeyboardEvent.key。テストで使う）。 */
 export interface PlaceKeyRow {
@@ -177,7 +189,144 @@ export const PLACE_KEYS: Record<Place, PlaceKeys> = {
       row("Esc", T("place.row.close"), []),
     ],
   },
+  // 一覧から 1 つ選ぶ窓（マシン・移す先のワークスペース・ワークスペースの種類・キャラクター）。判定は features/sessions/machineList.ts の pickerKey
+  picker: {
+    title: T("place.picker.title"),
+    lead: T("place.picker.lead"),
+    rows: [
+      row("j k / ↓ ↑", T("place.row.nextPrev"), [
+        "j",
+        "k",
+        "ArrowDown",
+        "ArrowUp",
+      ]),
+      row("g G / Home End", T("place.row.firstLast"), [
+        "g",
+        "G",
+        "Home",
+        "End",
+      ]),
+      row("Ctrl+J / Ctrl+K", T("place.row.nextPrev"), []),
+      row("Enter", T("place.picker.choose")),
+      row("?", T("place.row.keyList")),
+      row("Esc", T("place.picker.cancel"), []),
+    ],
+  },
+  // ワークスペースを切り替える窓（リーダーの w）のワークスペースの列。判定は ui/main-window/workspaces/switcherKey.ts の switcherKey
+  // （表のキーを判定が受けることは、switcherKey.test.ts が確かめる）
+  switcher: {
+    title: T("place.switcher.title"),
+    lead: T("place.switcher.lead"),
+    rows: [
+      row("j k / ↓ ↑", T("place.switcher.nextPrev"), [
+        "j",
+        "k",
+        "ArrowDown",
+        "ArrowUp",
+      ]),
+      row("l / →", T("place.switcher.toTabs"), ["l", "ArrowRight"]),
+      row("Enter", T("place.switcher.go")),
+      row("n", T("place.switcher.new")),
+      row("N", T("place.switcher.newBrowser")),
+      row("r", T("place.row.rename")),
+      row("x", T("place.switcher.close")),
+      row("J K", T("place.switcher.reorder"), ["J", "K"]),
+      row("?", T("place.row.keyList")),
+      row("Esc", T("place.row.close"), []),
+    ],
+  },
+  // 同じ窓のタブの列
+  switcherTabs: {
+    title: T("place.switcherTabs.title"),
+    lead: T("place.switcherTabs.lead"),
+    rows: [
+      row("j k / ↓ ↑", T("place.switcherTabs.nextPrev"), [
+        "j",
+        "k",
+        "ArrowDown",
+        "ArrowUp",
+      ]),
+      row("h / ←", T("place.switcherTabs.toWorkspaces"), ["h", "ArrowLeft"]),
+      row("Enter", T("place.switcherTabs.show")),
+      row("n", T("place.switcherTabs.new")),
+      row("N", T("place.switcher.newBrowser")),
+      row("r", T("place.row.rename")),
+      row("x", T("place.switcherTabs.close")),
+      row("J K", T("place.switcherTabs.reorder"), ["J", "K"]),
+      row("m", T("place.switcherTabs.hold")),
+      row("?", T("place.row.keyList")),
+      row("Esc", T("place.row.close"), []),
+    ],
+  },
+  // クリップボードの履歴の窓（リーダーの y）。判定は features/clipboard/history.ts の historyKey（修飾キー付きのものは probes に書けないので、
+  // history.test.ts で確かめる）
+  history: {
+    title: T("place.history.title"),
+    lead: T("place.history.lead"),
+    rows: [
+      row("↓ ↑ / Ctrl+J Ctrl+K", T("place.list.step"), [
+        "ArrowDown",
+        "ArrowUp",
+      ]),
+      row("Enter", T("place.history.paste")),
+      row("Shift+Enter", T("place.history.putBack"), []),
+      row("?", T("place.bookmarks.help")),
+      row("Esc", T("place.row.close"), []),
+    ],
+  },
 };
+
+/**
+ * 真ん中に出す窓（ModalCard）の場所。窓が出ている間はリーダーに入れないので、
+ * `?` の一覧は、リーダーの木を出さずに、その窓のキーだけを出す（KeyListDialog.tsx）。
+ */
+const WINDOW_PLACES = new Set<Place>([
+  "machines",
+  "bookmarks",
+  "picker",
+  "switcher",
+  "switcherTabs",
+  "history",
+]);
+
+/** 窓（ModalCard）の場所か。 */
+export function isWindowPlace(p: Place): boolean {
+  return WINDOW_PLACES.has(p);
+}
+
+/** 窓の下の段（共通フッタ）に出すヒントの 1 項目（ui/components/KeyHints.tsx の KeyHint と同じ形）。 */
+export interface BasicHint {
+  keys: string[];
+  label: string;
+}
+
+/**
+ * 窓の下の段（共通フッタ）に出す基本操作。どの窓でも「選ぶ → 移る → 決める → `?` → やめる・閉じる」の順に並べ、
+ * 同じ役割には同じ字を使う。これより詳しい操作（作る・名前を変える・並べ替えるなど）は、`?` の一覧（PLACE_KEYS）にだけ出す。
+ * - select：選ぶ行を動かすキー。省くと j k（入力欄に字を打つ窓は ↓ ↑ を渡す）
+ * - move：選ぶ以外の移るキー（切り替える窓の列を移る h・l）
+ * - decide：Enter で決める操作の字。省くと Enter を出さない（Enter で決めるものが無い窓）
+ * - help：`?` が今効くか。省くと効く。効かない間（絞り込みに字を打っている間・`?` の一覧を出せない窓）は false を渡し、出さない
+ * - end：Esc が、決めずにやめる（cancel）のか、見終えて閉じる（close）のか
+ */
+export function basicHints(o: {
+  select?: string[];
+  move?: readonly BasicHint[];
+  decide?: string;
+  help?: boolean;
+  end: "cancel" | "close";
+}): BasicHint[] {
+  return [
+    { keys: o.select ?? ["j", "k"], label: T("basic.select") },
+    ...(o.move ?? []),
+    ...(o.decide === undefined ? [] : [{ keys: ["Enter"], label: o.decide }]),
+    ...(o.help === false ? [] : [{ keys: ["?"], label: T("basic.help") }]),
+    {
+      keys: ["Esc"],
+      label: o.end === "cancel" ? T("basic.cancel") : T("basic.close"),
+    },
+  ];
+}
 
 /** `?`（Shift+/ など、`?` の字が出るキー）か。修飾キー（Shift 以外）を押していれば違う。 */
 export function isHelpKey(e: KeyLike): boolean {

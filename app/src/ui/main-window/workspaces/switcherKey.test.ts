@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import type { KeyLike } from "../../../features/commands/guiKeys.ts";
+import { PLACE_KEYS } from "../../../features/commands/placeKeys.ts";
 import {
   confirmKey,
   holdHints,
@@ -108,66 +109,72 @@ describe("閉じる確認のキー", () => {
   });
 });
 
-describe("窓の下のキーの説明", () => {
-  const labels = (col: "ws" | "tab", hasTabs: boolean, browser = false) =>
-    switcherHints(col, hasTabs, browser).flatMap((h) => h.keys);
+describe("窓の下の段（共通フッタ）の基本操作", () => {
+  const keys = (col: "ws" | "tab", hasTabs: boolean) =>
+    switcherHints(col, hasTabs).flatMap((h) => h.keys);
 
-  it("ワークスペースの列では、並べ替え・作る・名前を変える・閉じるを出し、タブがあるときだけ l を出す", () => {
-    assert.deepEqual(labels("ws", true), [
-      "j",
-      "k",
-      "l",
-      "Enter",
-      "n",
-      "r",
-      "x",
-      "J",
-      "K",
-      "Esc",
-    ]);
-    assert.ok(!labels("ws", false).includes("l"));
+  it("ワークスペースの列では、選ぶ・タブの列へ・移る・`?`・閉じるだけを、この順に出す。タブが無ければ l は出さない", () => {
+    assert.deepEqual(keys("ws", true), ["j", "k", "l", "Enter", "?", "Esc"]);
+    assert.deepEqual(keys("ws", false), ["j", "k", "Enter", "?", "Esc"]);
   });
 
-  it("n は、ワークスペースの列では「ワークスペースを作る」、タブの列では「タブを作る」と出す", () => {
-    const n = (col: "ws" | "tab") =>
-      switcherHints(col, true, false).find((h) => h.keys[0] === "n")?.label;
-    assert.equal(n("ws"), "switcher.keys.new");
-    assert.equal(n("tab"), "switcher.keys.newTab");
+  it("タブの列では、選ぶ・ワークスペースの列へ・タブを出す・`?`・閉じるだけを、この順に出す", () => {
+    assert.deepEqual(keys("tab", true), ["j", "k", "h", "Enter", "?", "Esc"]);
   });
 
-  it("N は、内蔵ブラウザが有効なときだけ、どちらの列でも出す", () => {
-    for (const col of ["ws", "tab"] as const) {
-      assert.ok(labels(col, true, true).includes("N"));
-      assert.ok(!labels(col, true, false).includes("N"));
-    }
+  it("下の段に出すキーは、どれも判定が受ける（Esc は窓が受ける）", () => {
+    for (const col of ["ws", "tab"] as const)
+      for (const k of keys(col, true))
+        if (k !== "Esc")
+          assert.notEqual(switcherKey(key(k)), null, `${col}: ${k}`);
   });
 
-  it("タブの列では、タブの列で効くキー（移る・作る・名前を変える・閉じる・並べ替え）だけを出す", () => {
-    assert.deepEqual(labels("tab", true), [
-      "j",
-      "k",
-      "h",
-      "Enter",
-      "n",
-      "r",
-      "x",
-      "J",
-      "K",
-      "m",
-      "Esc",
-    ]);
+  it("つかんでいる間は、つかんでいる間のキーだけを出し（`?` は出さない）、どれも判定が受ける", () => {
+    const held = holdHints().flatMap((h) => h.keys);
+    assert.deepEqual(held, ["j", "k", "h", "l", "Enter", "Esc"]);
+    for (const k of held)
+      assert.notEqual(holdKey(key(k === "Esc" ? "Escape" : k)), null, k);
+    assert.equal(holdKey(key("?", { shiftKey: true })), null);
+  });
+});
+
+describe("`?` の一覧の表（placeKeys.ts の switcher・switcherTabs）", () => {
+  it("`?` で、キーの一覧を出す（Ctrl・Cmd・Alt を重ねたものと変換中は受けない）", () => {
+    assert.deepEqual(switcherKey(key("?", { shiftKey: true })), {
+      kind: "help",
+    });
+    assert.equal(switcherKey(key("?", { ctrlKey: true })), null);
+    assert.equal(switcherKey(key("?", { isComposing: true })), null);
   });
 
-  it("m の説明は、タブの列にキーがあるときだけ出す", () => {
-    assert.ok(!labels("ws", true).includes("m"));
-    assert.ok(labels("tab", true).includes("m"));
+  it("表のキーは、どれも判定が受ける", () => {
+    for (const place of ["switcher", "switcherTabs"] as const)
+      for (const r of PLACE_KEYS[place].rows)
+        for (const p of r.probes)
+          assert.notEqual(
+            switcherKey(key(p)),
+            null,
+            `${place} ${r.keys}: ${p}`,
+          );
   });
 
-  it("つかんでいる間は、つかんでいる間のキーだけを出す", () => {
-    assert.deepEqual(
-      holdHints().flatMap((h) => h.keys),
-      ["j", "k", "h", "l", "Enter", "Esc"],
+  it("判定が受ける字のキーは、どちらかの列の表にある（表から漏れた操作が無い）", () => {
+    const listed = new Set(
+      (["switcher", "switcherTabs"] as const).flatMap((place) =>
+        PLACE_KEYS[place].rows.flatMap((r) => r.probes),
+      ),
     );
+    for (const k of "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ?")
+      if (switcherKey(key(k)) !== null) assert.ok(listed.has(k), k);
+  });
+
+  it("下の段に出すキーは、その列の表にもある（下の段は表の一部）", () => {
+    const of = (place: "switcher" | "switcherTabs") =>
+      new Set(PLACE_KEYS[place].rows.flatMap((r) => r.keys.split(/[ /]+/)));
+    for (const k of switcherHints("ws", true).flatMap((h) => h.keys))
+      assert.ok(of("switcher").has(k), `ws: ${k}`);
+    for (const k of switcherHints("tab", true).flatMap((h) => h.keys))
+      assert.ok(of("switcherTabs").has(k), `tab: ${k}`);
   });
 });
 

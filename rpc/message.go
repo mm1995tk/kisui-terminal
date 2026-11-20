@@ -29,6 +29,8 @@ const (
 	CodeNotFound             = -32003 // not_found: ワークスペース・ターミナル・ファイルが無い
 	CodeDenied               = -32004 // denied: 権限が無い、またはワークスペースの外
 	CodeBusy                 = -32005 // busy: 上限を超えた、またはターミナルが動いている
+	CodePasswordRequired     = -32006 // password_required: DB の接続のパスワードがどこにも無い、または入力したものが断られた
+	CodeDBError              = -32007 // db_error: DB がログインか SQL を断った、または取り消された
 )
 
 var codeNames = map[int]string{
@@ -42,6 +44,8 @@ var codeNames = map[int]string{
 	CodeNotFound:             "not_found",
 	CodeDenied:               "denied",
 	CodeBusy:                 "busy",
+	CodePasswordRequired:     "password_required",
+	CodeDBError:              "db_error",
 }
 
 // CodeName はエラーコードの名前を返す。知らないコードは "" を返す。

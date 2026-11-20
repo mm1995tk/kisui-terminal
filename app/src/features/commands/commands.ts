@@ -65,6 +65,7 @@ export type CommandId =
   | "browser.find"
   | "browser.copyUrl"
   | "browser.devtools"
+  | "browser.login"
   | "browser.rename"
   | "help.keys";
 
@@ -406,6 +407,8 @@ export const LEADER: Node[] = [
       ),
       leaf("y", T("leader.browser.copyUrl"), { id: "browser.copyUrl" }),
       leaf("i", T("leader.browser.devtools"), { id: "browser.devtools" }),
+      // #276。パスキーを待たずに、外のブラウザでログインして Cookie を戻す（sign in の `s`）
+      leaf("s", T("leader.browser.login"), { id: "browser.login" }),
       leaf("R", T("leader.browser.rename"), { id: "browser.rename" }),
     ],
     undefined,

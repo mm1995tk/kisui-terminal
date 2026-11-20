@@ -11,15 +11,12 @@ import {
 import { startDrag } from "../sidebar/drag.ts";
 import type { Row } from "../../../features/workspaces/rows.ts";
 import { type RowEdit, SwitcherRow, SwitcherTabs } from "./SwitcherParts.tsx";
-import {
-  ModalCard,
-  CardBody,
-  CardText,
-  CardTitle,
-} from "../../components/Card.tsx";
+import { ModalCard, CardTitle } from "../../components/Card.tsx";
+import { KeyFooter } from "../../components/KeyFooter.tsx";
+import { openKeyList } from "../commands/KeyListDialog.tsx";
 import { InlineInput } from "../../components/InlineInput.tsx";
 import type { MachineChoice } from "./SwitcherNewTab.tsx";
-import { Kbd, KeyHints } from "../../components/KeyHints.tsx";
+import { Kbd } from "../../components/KeyHints.tsx";
 import { isCancelKey } from "../../components/cancelKey.ts";
 import { moveRow } from "../../../features/sessions/machineList.ts";
 import {
@@ -452,6 +449,12 @@ export function WorkspaceSwitcher(props: {
       case "hold":
         if (inTabs) startHold();
         break;
+      // 効いている列のキーを先に、もう片方の列のキーを後に出す
+      case "help":
+        openKeyList(
+          inTabs ? ["switcherTabs", "switcher"] : ["switcher", "switcherTabs"],
+        );
+        break;
     }
   }
 
@@ -496,15 +499,9 @@ export function WorkspaceSwitcher(props: {
     });
   }
 
-  /** いまキーが効いている列で効くキーだけを、下に出す */
+  /** いまキーが効いている列で効く基本操作だけを、下に出す（ほかの操作は `?` の一覧） */
   const hints = () =>
-    (hold.held()
-      ? holdHints()
-      : switcherHints(activeCol(), tabs().length > 0, props.browser)
-    ).map((h) => ({
-      keys: h.keys,
-      label: T(h.label),
-    }));
+    hold.held() ? holdHints() : switcherHints(activeCol(), tabs().length > 0);
 
   return (
     <ModalCard
@@ -512,14 +509,7 @@ export function WorkspaceSwitcher(props: {
       closeOnOutside
       onCancel={props.onCancel}
       header={<CardTitle>{T("switcher.title")}</CardTitle>}
-      footer={
-        <CardBody>
-          <KeyHints items={hints()} />
-          <Show when={!hold.held()}>
-            <CardText>{T("switcher.keys.dragTab")}</CardText>
-          </Show>
-        </CardBody>
-      }
+      footer={<KeyFooter items={hints()} />}
     >
       <div class="machine-dialog switcher">
         <div
