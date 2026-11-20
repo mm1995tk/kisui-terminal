@@ -39,8 +39,9 @@ type Session interface {
 	// When ctx ends, the database is told to stop the statement and Query
 	// returns an *Error of kind KindCancelled.
 	//
-	// When the session is read-only (config.DBConnection.ReadOnly), the
-	// statement runs in a read-only transaction that is rolled back.
+	// When the session is read-only (config.DBConnection.ReadOnly of the
+	// connection given to Open), the statement runs in a read-only
+	// transaction that is rolled back.
 	Query(ctx context.Context, sql string, o QueryOptions) (*Result, error)
 	// Close logs out. It is safe to call twice.
 	Close()
@@ -175,7 +176,9 @@ func (e *Error) Error() string { return e.Message }
 // connectTimeout is how long logging in may take.
 const connectTimeout = 10 * time.Second
 
-// Open logs in to c with password. The error is an *Error: of kind KindAuth
+// Open logs in to c with password. c is the connection as somebody logs in
+// to it (config.DBConnection.Login): its User and ReadOnly are those of the
+// login. The error is an *Error: of kind KindAuth
 // when the database refused the user or the password, else KindConnect.
 func Open(ctx context.Context, c config.DBConnection, password string) (Session, error) {
 	switch c.Kind {

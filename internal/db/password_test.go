@@ -127,6 +127,68 @@ func TestMycnf(t *testing.T) {
 	}
 }
 
+// A login as the agent's own user looks for the password of that user, and
+// never gets the password of the connection's user.
+func TestPasswordOfAgentUser(t *testing.T) {
+	human := config.DBConnection{Name: "shop", Variant: "prod", Kind: config.DBMySQL, Host: "db", Port: 3306, User: "app"}
+	agent := human
+	agent.User, agent.AgentLogin = "bot", true
+	// The keychain item has the same account in a service of its own.
+	if s := keychainService(human); s != KeychainService {
+		t.Errorf("service of the connection: %q", s)
+	}
+	if s := keychainService(agent); s != KeychainAgentService || s == KeychainService {
+		t.Errorf("service of the agent: %q", s)
+	}
+	if KeychainAccount(agent) != KeychainAccount(human) {
+		t.Errorf("account of the agent: %q", KeychainAccount(agent))
+	}
+	// ~/.my.cnf: a password with no user beside it is the connection's.
+	path := filepath.Join(t.TempDir(), "my.cnf")
+	for name, c := range map[string]struct {
+		file             string
+		forHuman, forBot bool
+	}{
+		"no user":      {"[client]\npassword = p\n", true, false},
+		"the human":    {"[client]\nuser = app\npassword = p\n", true, false},
+		"the agent":    {"[client]\nuser = bot\npassword = p\n", false, true},
+		"another user": {"[client]\nuser = root\npassword = p\n", false, false},
+	} {
+		os.WriteFile(path, []byte(c.file), 0o600)
+		if _, ok := mycnfPassword(path, human); ok != c.forHuman {
+			t.Errorf("%s: for the connection's user: %v", name, ok)
+		}
+		if _, ok := mycnfPassword(path, agent); ok != c.forBot {
+			t.Errorf("%s: for the agent's user: %v", name, ok)
+		}
+	}
+	// ~/.pgpass is matched by the user.
+	pg, pgAgent := human, agent
+	pg.Kind, pgAgent.Kind = config.DBPostgres, config.DBPostgres
+	pgpass := filepath.Join(t.TempDir(), "pgpass")
+	os.WriteFile(pgpass, []byte("db:3306:*:app:human-pw\ndb:3306:*:bot:agent-pw\n"), 0o600)
+	if pw, _ := pgpassPassword(pgpass, pg); pw != "human-pw" {
+		t.Errorf("pgpass for the connection's user: %q", pw)
+	}
+	if pw, _ := pgpassPassword(pgpass, pgAgent); pw != "agent-pw" {
+		t.Errorf("pgpass for the agent's user: %q", pw)
+	}
+	// A typed password that worked is remembered for its user only.
+	none := func(config.DBConnection) (string, bool) { return "", false }
+	p := &Passwords{Keychain: func(context.Context, config.DBConnection) (string, bool) { return "", false }, File: none}
+	p.Remember(human, "human-secret")
+	if _, _, err := p.Find(context.Background(), agent, nil); !errors.Is(err, ErrPasswordRequired) {
+		t.Errorf("the agent got the password of the connection's user: %v", err)
+	}
+	p.Remember(agent, "agent-secret")
+	if pw, _, _ := p.Find(context.Background(), human, nil); pw != "human-secret" {
+		t.Errorf("the connection's user: %q", pw)
+	}
+	if pw, _, _ := p.Find(context.Background(), agent, nil); pw != "agent-secret" {
+		t.Errorf("the agent's user: %q", pw)
+	}
+}
+
 // The real files are the ones in the home directory.
 func TestFilePassword(t *testing.T) {
 	home := t.TempDir()

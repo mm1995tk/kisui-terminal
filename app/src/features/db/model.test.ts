@@ -180,7 +180,7 @@ describe("kisui serve の断り", () => {
     );
   });
 
-  it("not_found・busy は画面の文。ほかの Error はその文", () => {
+  it("not_found・busy・denied は画面の文。ほかの Error はその文", () => {
     assert.deepEqual(queryFailure(rpc(ErrorCode.NotFound, "x")), {
       kind: "error",
       message: "This connection is no longer in the settings of its machine.",
@@ -188,6 +188,10 @@ describe("kisui serve の断り", () => {
     assert.equal(
       (queryFailure(rpc(ErrorCode.Busy, "x")) as { message: string }).message,
       "Too many statements are running on this machine. Run it again when one ends.",
+    );
+    assert.equal(
+      (queryFailure(rpc(ErrorCode.Denied, "x")) as { message: string }).message,
+      "The permission of this connection does not allow running SQL here. It is set in the settings of its machine (human-permission).",
     );
     assert.deepEqual(queryFailure(new Error("closed")), {
       kind: "error",

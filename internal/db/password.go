@@ -49,6 +49,13 @@ var ErrPasswordRequired = errors.New("a password is required")
 // A password found on the machine wins over a typed one, so a connection
 // whose password is in the keychain or a file never asks.
 //
+// The connection is the one that logs in (config.DBConnection.Login), so the
+// password is the one of its user. A login as the agent's own user
+// (AgentLogin) looks in the same places for the password of that user, and
+// never gets the password of the connection's user: the keychain item is in
+// a service of its own (KeychainAgentService), the files are matched by the
+// user, and a remembered password belongs to its user.
+//
 // The zero value looks in the real keychain and the real files.
 type Passwords struct {
 	// Keychain looks a connection up in the keychain. nil means the keychain
@@ -70,7 +77,7 @@ func (p *Passwords) Find(ctx context.Context, c config.DBConnection, typed *stri
 	keychain, file := p.Keychain, p.File
 	if keychain == nil {
 		keychain = func(ctx context.Context, c config.DBConnection) (string, bool) {
-			return keychainPassword(ctx, KeychainAccount(c))
+			return keychainPassword(ctx, keychainService(c), KeychainAccount(c))
 		}
 	}
 	if file == nil {
@@ -125,6 +132,20 @@ func identity(c config.DBConnection) string {
 //
 //	security add-generic-password -s kisui-terminal-db -a <account> -w
 const KeychainService = "kisui-terminal-db"
+
+// KeychainAgentService is the service name of the keychain items of the
+// agents' own users (the `agent-user` of a permission). The account is the
+// same KeychainAccount: the item of a connection and the item of its agent
+// differ by the service.
+const KeychainAgentService = "kisui-terminal-db-agent"
+
+// keychainService is the service of the keychain item of c.
+func keychainService(c config.DBConnection) string {
+	if c.AgentLogin {
+		return KeychainAgentService
+	}
+	return KeychainService
+}
 
 // KeychainAccount is the account of the keychain item of c: the name of the
 // connection, and for a variant the name, a slash and the variant
@@ -191,6 +212,10 @@ func postgresDatabase(c config.DBConnection) string {
 // file. The file names no server per password, so the password is used only
 // when what [client] does say (user, host, port) is the connection's: a
 // password written for one account is not sent to another server.
+//
+// For a login as the agent's own user, [client] has to name that user: a
+// password with no user beside it is taken as the one of the connection's
+// user, and is not tried for the agent's.
 func mycnfPassword(path string, c config.DBConnection) (string, bool) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -201,7 +226,7 @@ func mycnfPassword(path string, c config.DBConnection) (string, bool) {
 	if !ok {
 		return "", false
 	}
-	if u, has := client["user"]; has && u != c.User {
+	if u, has := client["user"]; has && u != c.User || !has && c.AgentLogin {
 		return "", false
 	}
 	if h, has := client["host"]; has && h != c.Host {

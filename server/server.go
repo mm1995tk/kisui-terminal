@@ -500,7 +500,7 @@ func (ss *session) helloReq(req *rpc.Message) (any, error) {
 		ServerID:     s.serverID,
 		StartedAt:    s.startedAt,
 		Supersedes:   sup,
-		Capabilities: []string{CapHandover, CapDB, CapCreateCommand, CapPaneRun},
+		Capabilities: []string{CapHandover, CapDB, CapDBPermissions, CapCreateCommand, CapPaneRun},
 		Workspaces:   wsl,
 		Rev:          s.currentRev(),
 	}, nil

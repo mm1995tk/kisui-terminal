@@ -92,7 +92,7 @@ func TestDBCapability(t *testing.T) {
 	if err := c.Call(context.Background(), "session.hello", hello(Protocol.Major), &h); err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Contains(h.Capabilities, CapDB) {
+	if !slices.Contains(h.Capabilities, CapDB) || !slices.Contains(h.Capabilities, CapDBPermissions) {
 		t.Errorf("capabilities: %v", h.Capabilities)
 	}
 	err = c.Call(context.Background(), "db.nosuch", struct{}{}, nil)
@@ -114,7 +114,8 @@ func TestDBConnections(t *testing.T) {
 	if err := c.Call(context.Background(), "db.connections", struct{}{}, &raw); err != nil {
 		t.Fatal(err)
 	}
-	want := `{"connections":[{"name":"prod","variant":"","kind":"mysql","host":"db.example.com","port":3307,"user":"reader","database":"shop","readOnly":true}],"problems":[]}`
+	want := `{"connections":[{"name":"prod","variant":"","kind":"mysql","host":"db.example.com","port":3307,"user":"reader","database":"shop","readOnly":true,` +
+		`"human":{"permission":"","run":"read"},"agent":{"permission":"","run":"none","propose":true,"user":"reader"}}],"problems":[]}`
 	if string(raw) != want {
 		t.Errorf("got  %s\nwant %s", raw, want)
 	}

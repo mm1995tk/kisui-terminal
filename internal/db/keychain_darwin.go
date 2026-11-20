@@ -11,18 +11,18 @@ import (
 // because macOS can ask the user whether to allow the read.
 const keychainTimeout = 30 * time.Second
 
-// keychainPassword reads the generic password of the service KeychainService
-// and the account name with /usr/bin/security, which is part of macOS (so no
+// keychainPassword reads the generic password of the service (KeychainService
+// or KeychainAgentService) and the account name with /usr/bin/security, which is part of macOS (so no
 // library and no cgo). ok is false when there is no such item, and also when
 // the keychain cannot be read (it is locked in a login over ssh): the caller
 // then goes on to the next place.
 //
 // security prints a password that has characters outside ASCII as
 // hexadecimal digits, so such a password does not work from the keychain.
-func keychainPassword(ctx context.Context, name string) (string, bool) {
+func keychainPassword(ctx context.Context, service, name string) (string, bool) {
 	ctx, cancel := context.WithTimeout(ctx, keychainTimeout)
 	defer cancel()
-	out, err := exec.CommandContext(ctx, "/usr/bin/security", "find-generic-password", "-s", KeychainService, "-a", name, "-w").Output()
+	out, err := exec.CommandContext(ctx, "/usr/bin/security", "find-generic-password", "-s", service, "-a", name, "-w").Output()
 	if err != nil {
 		return "", false
 	}

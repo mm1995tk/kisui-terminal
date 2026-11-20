@@ -17,6 +17,11 @@ import (
 // CapDB は session.hello の capabilities に入れる、db.*（DB の接続の一覧と SQL の実行）を受けられる印。
 const CapDB = "db"
 
+// CapDBPermissions は capabilities に入れる、DB の権限（#381）を知っている印：db.query と db.schema の actor を読み、
+// 設定の権限（[db.permissions]）に従う。この印の無い kisui serve は actor を読まずに、全部を人の要求として実行するので、
+// エージェントとして頼む側（kisui db のコマンド）は、この印を確かめてから送る。
+const CapDBPermissions = "db-permissions"
+
 // dbMaxRunning は同時に動かせる db.query の数。超えたら busy。
 const dbMaxRunning = 8
 
@@ -103,7 +108,8 @@ func (m *dbManager) cancel(id string) bool {
 	return false
 }
 
-// run は c に password でログインして、そのログインで f を呼ぶ（終われば切る）。src は password の出どころで、
+// run は c に password でログインして、そのログインで f を呼ぶ（終われば切る）。c は、ログインする人のもの
+// （config.DBConnection.Login。ユーザーと読むだけかが入っている）。src は password の出どころで、
 // 窓から渡されて通ったものは覚え、覚えていて断られたものは忘れる。
 func (m *dbManager) run(ctx context.Context, c config.DBConnection, password string, src db.Source, f func(db.Session) error) error {
 	sess, err := db.Open(ctx, c, password)
@@ -128,16 +134,57 @@ type dbLogin struct {
 	// Password は窓で入力されたパスワード。省いたとき（nil）と空文字（パスワード無しでログインする）は違う。
 	Password *string `json:"password"`
 	QueryID  string  `json:"queryId"`
+	// Actor は、誰の要求か：省く（""）か "human" は人（窓）、"agent" はコーディングエージェント（kisui db のコマンド）。
+	// 権限はこれで決まる（config.DBConnection.Access）。
+	Actor string `json:"actor"`
 }
 
-// dbWith は p の接続にログインして f を呼ぶ。接続を探す・動いているものに足す（db.cancel で止められる）・
+// dbActor は要求の actor を読む。知らない値は、人として通さずに断る（invalid_params）。
+func dbActor(s string) (config.DBActor, error) {
+	switch s {
+	case "", string(config.DBHuman):
+		return config.DBHuman, nil
+	case string(config.DBAgent):
+		return config.DBAgent, nil
+	}
+	return "", rpc.Errorf(rpc.CodeInvalidParams, "actor must be %q or %q: %q", config.DBHuman, config.DBAgent, s)
+}
+
+// access は、actor が c にしてよいこと。権限の判定はここだけを通る（一時的に権限を変える仕組みを足すなら、ここで
+// c の権限を差し替えてから聞く）。
+func (m *dbManager) access(c config.DBConnection, actor config.DBActor) config.DBAccess {
+	return c.Access(actor)
+}
+
+// errDBDenied は、権限が実行を許さないときの denied。data は {actor, permission}（permission は使った権限の名前。
+// 設定に書いていなければ ""）。
+func errDBDenied(c config.DBConnection, a config.DBAccess) *rpc.Error {
+	e := rpc.Errorf(rpc.CodeDenied, "the permission of the %s does not allow running SQL on the connection %s", a.Actor, c.Label())
+	e.Data, _ = json.Marshal(map[string]any{"actor": a.Actor, "permission": a.Permission})
+	return e
+}
+
+// dbWith は p の接続にログインして f を呼ぶ。接続を探す・権限を確かめる・動いているものに足す（db.cancel で止められる）・
 // パスワードを探す・間違いを窓への返事にする、は db.query と db.schema で同じ。what はログに書く要求の名前。
-func (ss *session) dbWith(ctx context.Context, p dbLogin, what string, f func(context.Context, config.DBConnection, db.Session) error) error {
+//
+// run は、SQL を実行する要求か（db.query）。実行の段階が「しない」なら、DB につながずに denied で断る。
+// スキーマの一覧（run が false）は段階に関わらず通す（データの行ではなく、テーブルと列の名前と型だけなので）。
+// ログインは、p.Actor のユーザーで、段階が「自由」でなければ読むだけ。f に渡す接続は設定のもの（履歴の鍵と種類に使う）。
+func (ss *session) dbWith(ctx context.Context, p dbLogin, what string, run bool, f func(context.Context, config.DBConnection, db.Session) error) error {
 	m := ss.srv.db
-	c, err := m.find(p.Connection, p.Variant)
+	actor, err := dbActor(p.Actor)
 	if err != nil {
 		return err
 	}
+	conf, err := m.find(p.Connection, p.Variant)
+	if err != nil {
+		return err
+	}
+	acc := m.access(conf, actor)
+	if run && acc.Run == config.DBRunNone {
+		return errDBDenied(conf, acc)
+	}
+	c := conf.Login(acc)
 	ctx, done, err := m.begin(ctx, p.QueryID)
 	if err != nil {
 		return err
@@ -145,12 +192,15 @@ func (ss *session) dbWith(ctx context.Context, p dbLogin, what string, f func(co
 	defer done()
 	password, src, err := m.passwords.Find(ctx, c, p.Password)
 	if err != nil {
+		if c.AgentLogin {
+			return errPasswordRequired("missing", "a password is required for the agent's user "+c.User+" of the connection "+c.Label())
+		}
 		return errPasswordRequired("missing", "a password is required for the connection "+c.Label())
 	}
-	err = m.run(ctx, c, password, src, func(s db.Session) error { return f(ctx, c, s) })
+	err = m.run(ctx, c, password, src, func(s db.Session) error { return f(ctx, conf, s) })
 	if err != nil {
 		// SQL とパスワードはログに書かない。
-		ss.srv.log.Info(what+" failed", "connection", c.Name, "variant", c.Variant)
+		ss.srv.log.Info(what+" failed", "connection", c.Name, "variant", c.Variant, "actor", actor)
 		return dbQueryError(ctx, err, src)
 	}
 	return nil
@@ -201,7 +251,27 @@ type DBConnectionInfo struct {
 	Port     int    `json:"port"`
 	User     string `json:"user"`
 	Database string `json:"database"` // 書いていなければ ""
-	ReadOnly bool   `json:"readOnly"`
+	// ReadOnly は、人（窓）の実行が「読むだけ」か（Human.Run が "read"）。権限を書いていない接続では、設定の read-only。
+	ReadOnly bool `json:"readOnly"`
+	// Human と Agent は、人とコーディングエージェントがこの接続にしてよいこと（設定の権限と read-only を合わせた結果）。
+	Human DBHumanAccess `json:"human"`
+	Agent DBAgentAccess `json:"agent"`
+}
+
+// DBHumanAccess は、人がある接続にしてよいこと。
+type DBHumanAccess struct {
+	Permission string       `json:"permission"` // 使っている権限の名前。設定に書いていなければ ""
+	Run        config.DBRun `json:"run"`        // "none"・"read"・"free"
+}
+
+// DBAgentAccess は、コーディングエージェントがある接続にしてよいこと。
+type DBAgentAccess struct {
+	Permission string       `json:"permission"`
+	Run        config.DBRun `json:"run"`
+	// Propose は、DB のタブの入力欄に SQL を書いてよいか。
+	Propose bool `json:"propose"`
+	// User は、エージェントがログインする DB のユーザー（権限に agent-user が無ければ、接続の user と同じ）。
+	User string `json:"user"`
 }
 
 // DBConnectionsResult は db.connections の結果。
@@ -217,7 +287,13 @@ func (ss *session) dbConnectionsReq() (any, error) {
 	conns, probs := ss.srv.db.load()
 	res := DBConnectionsResult{Connections: make([]DBConnectionInfo, len(conns)), Problems: make([]string, len(probs))}
 	for i, c := range conns {
-		res.Connections[i] = DBConnectionInfo{Name: c.Name, Variant: c.Variant, Kind: c.Kind, Host: c.Host, Port: c.Port, User: c.User, Database: c.Database, ReadOnly: c.ReadOnly}
+		h, a := ss.srv.db.access(c, config.DBHuman), ss.srv.db.access(c, config.DBAgent)
+		res.Connections[i] = DBConnectionInfo{
+			Name: c.Name, Variant: c.Variant, Kind: c.Kind, Host: c.Host, Port: c.Port, User: c.User, Database: c.Database,
+			ReadOnly: h.Run == config.DBRunRead,
+			Human:    DBHumanAccess{Permission: h.Permission, Run: h.Run},
+			Agent:    DBAgentAccess{Permission: a.Permission, Run: a.Run, Propose: a.Propose, User: a.User},
+		}
 	}
 	for i, p := range probs {
 		res.Problems[i] = p.Text()
@@ -248,7 +324,7 @@ func (ss *session) dbQueryReq(ctx context.Context, req *rpc.Message) (any, error
 		return nil, rpc.Errorf(rpc.CodeInvalidParams, "offset is negative")
 	}
 	var res *db.Result
-	err := ss.dbWith(ctx, p.dbLogin, "db.query", func(ctx context.Context, c config.DBConnection, s db.Session) error {
+	err := ss.dbWith(ctx, p.dbLogin, "db.query", true, func(ctx context.Context, c config.DBConnection, s db.Session) error {
 		// 履歴に足すのは、ログインが通って SQL を DB に送ったものだけ。ログインできなかった SQL は実行していないうえ、
 		// password_required のあとに窓が送り直すと同じ SQL が 2 つ残ってしまう。ページを切り替えるための実行（offset あり）も
 		// 残さない：同じ SQL の続きを読むだけで、ページを送るたびに同じ SQL が並んでしまう。
@@ -277,7 +353,7 @@ func (ss *session) dbSchemaReq(ctx context.Context, req *rpc.Message) (any, erro
 		return nil, invalidParams(err)
 	}
 	var cat *db.Catalog
-	err := ss.dbWith(ctx, p, "db.schema", func(ctx context.Context, c config.DBConnection, s db.Session) error {
+	err := ss.dbWith(ctx, p, "db.schema", false, func(ctx context.Context, c config.DBConnection, s db.Session) error {
 		var err error
 		cat, err = db.ReadCatalog(ctx, s, c.Kind)
 		return err
