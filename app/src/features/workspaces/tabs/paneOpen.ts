@@ -2,7 +2,7 @@
 // serve の pane.open を受け、ワークスペースを名前で探し（--new なら作り）、タブを作るマシンの serve に workspace.create
 // （argv・env・name つき）を送って、できたタブをそのワークスペースの一番後ろに入れる。フォーカスは移さない（今いるワークスペースも、
 // そのワークスペースで最後に使っていたタブも変えない）。答え（pane.opened）は呼ぶ側が送る。
-// タブを作るマシン（target）は呼ぶ側が決める。今は頼んだ serve のマシン。別のマシンに開く（--machine。#344）ときも、target を変えればよい。
+// タブを作るマシン（target）は呼ぶ側が決める。頼んだ serve のマシンか、`--machine` で指したマシン（#344。sessions/paneRelay.ts）。
 // 画面にも Tauri にも触らない。
 import { T } from "../../../i18n/index.ts";
 import { untrack, type Accessor } from "solid-js";
