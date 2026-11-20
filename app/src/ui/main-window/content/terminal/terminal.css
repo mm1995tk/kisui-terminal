@@ -105,10 +105,15 @@
   pointer-events: none;
 }
 
-/* タブを切り替えた直後、新しいタブの欄が描けるまで残している前のタブの欄（hold.ts）。新しい欄の上に重ねる */
+/* タブを切り替えた直後、新しいタブのペインが描けるまで残している前のタブのペイン（createHold.ts）。新しいペインの上に重ねる。
+   境界のつまみも、その間は前のタブのものを見せるだけで、押せない（押すと .terminal に当たり、今のペインにキーを向ける） */
+.terminal-cell[data-leaving],
+.terminal-bar[data-leaving] {
+  pointer-events: none;
+}
+
 .terminal-cell[data-leaving] {
   z-index: 1;
-  pointer-events: none;
 }
 
 /* 並べたとき（2 つ以上）、枠の線は今使っている欄（フォーカス）だけに引く。マシンの色の 1px で 4 辺。 */

@@ -153,13 +153,14 @@ export function TerminalGrid(props: {
   }
 
   // タブを切り替えた直後、新しいペインが描けるまで、前のタブのペインを前の位置・見た目のまま残す（createHold.ts）
-  const { cells, heldOf, markDrawn } = createHold({
+  const { cells, heldOf, holding, frame, markDrawn } = createHold({
     links: () => props.links,
     view: (l: TermLink, i) => ({
       place: place(l.id),
       hidden: !visible(i),
       active: l === props.active,
     }),
+    frame: () => ({ bars: bars(), split: shown() > 1 }),
   });
 
   createEffect(
@@ -174,7 +175,7 @@ export function TerminalGrid(props: {
     <section
       class="terminal"
       aria-label={T("terminal.label")}
-      data-split={shown() > 1 ? "" : undefined}
+      data-split={frame().split ? "" : undefined}
       data-empty={total() === 0 ? "" : undefined}
       style={template()}
       ref={el}
@@ -232,7 +233,7 @@ export function TerminalGrid(props: {
           />
         )}
       </For>
-      <Index each={bars()}>
+      <Index each={frame().bars}>
         {(bar) => {
           const pct = (v: number) => `${v * 100}%`;
           const style = () => {
@@ -255,6 +256,7 @@ export function TerminalGrid(props: {
             <div
               class="terminal-bar"
               data-dir={bar().dir}
+              data-leaving={holding() ? "" : undefined}
               data-lit={
                 dragKey() === bar().key || props.litBorder === bar().key
                   ? ""
