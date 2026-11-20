@@ -697,7 +697,8 @@ export const ja: Record<Key, string> = {
   "db.summary.more": "続きは次のページ",
   "db.view.label": "DB のタブ：{connection}",
   "db.view.sql": "SQL",
-  "db.view.placeholder": "SQL を打ち、{key} で実行します",
+  "db.view.placeholder":
+    "SQL を打ち、{key} で選んだ部分（無ければカーソルのある文）を実行します",
   "db.view.run": "実行",
   "db.view.cancel": "取り消す",
   "db.view.running": "実行中…",

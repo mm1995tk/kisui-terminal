@@ -44,7 +44,8 @@ export function DbTabView(props: {
   sql: string;
   onSql: (sql: string) => void;
   run: DbRun;
-  onRun: () => void;
+  /** 実行する。入力欄の字と、選んでいる範囲（選んでいなければ、どちらもカーソルの位置）を渡す。何を実行するかは features/db/ が決める（#375） */
+  onRun: (text: string, selStart: number, selEnd: number) => void;
   /** 結果のページを切り替える（#373） */
   onPage: (step: PageStep) => void;
   onCancel: () => void;
@@ -63,13 +64,18 @@ export function DbTabView(props: {
     return f?.kind === "error" ? f : undefined;
   };
 
+  /** 入力欄で選んでいる部分か、選んでいなければカーソルのある文を実行する（#375） */
+  function runSelected() {
+    props.onRun(input.value, input.selectionStart, input.selectionEnd);
+  }
+
   function onKeyDown(e: KeyboardEvent) {
     const a = dbEditorKey(e, props.mac);
     if (!a) return;
     if (a === "cancel" && !props.run.running) return;
     e.preventDefault();
     e.stopPropagation();
-    if (a === "run") props.onRun();
+    if (a === "run") runSelected();
     else props.onCancel();
   }
 
@@ -94,7 +100,7 @@ export function DbTabView(props: {
               <Button
                 variant="primary"
                 disabled={props.sql.trim() === ""}
-                onClick={props.onRun}
+                onClick={runSelected}
               >
                 {T("db.view.run")}
               </Button>

@@ -14,7 +14,7 @@ import type {
 } from "../../infrastructure/rpc/protocol.ts";
 import type { DbMethod, Session } from "../sessions/session.ts";
 import { dbRefParams, type DbRef } from "../workspaces/model.ts";
-import { catalogError, newQueryId } from "./model.ts";
+import { catalogError, connectionOf, newQueryId } from "./model.ts";
 import { initialExpanded, previewSql } from "./tree.ts";
 
 /** タブ 1 つの、サイドバーの木のスキーマの一覧。メモリだけに持つ（開き直したら、もう一度聞く）。 */
@@ -88,11 +88,7 @@ export function createDbTree(deps: {
         (async () => sessionFor(ref).request("db.connections", {}))(),
       ]);
       if (!mine()) return;
-      const conn = list.connections.find(
-        (c) =>
-          c.name === ref.connection &&
-          (c.variant ?? "") === (ref.variant ?? ""),
-      );
+      const conn = connectionOf(list.connections, ref);
       if (!conn) throw new Error(T("db.err.noConnection"));
       setCatalog(id, () => ({ catalog, kind: conn.kind }));
       if (!(id in untrack(expanded)))
