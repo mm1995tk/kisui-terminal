@@ -38,9 +38,6 @@ libc = "=0.2.191"
 # kisui-terminal の外からクリップボードの履歴を開く全体のキー（clipboard_popup.rs）。macOS は Carbon の RegisterEventHotKey、
 # Linux は X11 の XGrabKey で取る（macOS のアクセシビリティの許可は要らない）
 tauri-plugin-global-shortcut = "=2.4.1"
-# 公開サフィックスの一覧（Public Suffix List）をコードに埋め込んだもの。`[gui.browser] passkey_sites` の `.google.com` の書き方で、
-# 誰でもサブドメインを持てる名前（`.com`・`.github.io`）を使わないため（config.rs）。一覧は crate の版を上げると新しくなる
-psl = "=2.1.245"
 # 結果の書き出しの「保存」のダイアログ（export.rs。DB のタブ。#349）。窓には権限を渡さず、Rust の側でだけ使う
 tauri-plugin-dialog = "=2.8.4"
 

@@ -493,8 +493,7 @@ pub fn public_suffix_site(s: &str) -> bool {
     let Some(name) = s.strip_prefix('.') else {
         return false;
     };
-    let is_suffix =
-        |n: &str| psl::suffix(n.as_bytes()).is_some_and(|x| x.as_bytes() == n.as_bytes());
+    let is_suffix = |n: &str| crate::public_suffix::public_suffix(n) == n;
     // 一覧に無い名前を 1 つ下に付けて、`*.<名前>` の決まりに当たるかを見る
     is_suffix(name) || is_suffix(&format!("kisui-terminal-probe.{name}"))
 }
@@ -1188,6 +1187,11 @@ mod tests {
             ".internal",
             ".kobe.jp",
             ".ck",
+            ".co.uk",
+            // ワイルドカード（*.kobe.jp）の下の名前
+            ".x.kobe.jp",
+            // 日本語の名前の規則（中国 = xn--fiqs8s）
+            ".xn--fiqs8s",
         ] {
             assert!(public_suffix_site(s), "{s}");
         }
@@ -1196,8 +1200,15 @@ mod tests {
             "com",
             "github.io",
             ".google.com",
+            ".example.com",
             ".example.co.jp",
+            ".example.co.uk",
             ".alice.github.io",
+            ".a.x.kobe.jp",
+            // 例外（!city.kobe.jp・!www.ck）はワイルドカードから外れる
+            ".city.kobe.jp",
+            ".www.ck",
+            ".example.xn--fiqs8s",
         ] {
             assert!(!public_suffix_site(s), "{s}");
         }

@@ -30,6 +30,19 @@ The bytes of a wasm depend on the machine that built it (OS and CPU), so it is a
 - On x86_64-linux: `scripts/build-emulator.sh`.
 - On macOS (or aarch64-linux): run the same script with an x86_64-linux Nix builder (for example the `nix-darwin` linux-builder with Rosetta), or let CI build it. Push the change, open the `emulator-wasm` artifact of the failed `check` run (the job uploads it on purpose), copy `emulator.wasm` over `internal/emulator/emulator.wasm`, and commit it. Never take the file out of build logs.
 
+## Updating the Public Suffix List
+
+The Tauri shell embeds a copy of the [Public Suffix List](https://publicsuffix.org/list/) (maintained by Mozilla, MPL-2.0) in `app/src-tauri/assets/public_suffix_list.dat`, and reads it with its own code (`app/src-tauri/src/public_suffix.rs`) to refuse names such as `.com` or `.github.io` in `[gui.browser] passkey_sites`. The license is next to it (`public_suffix_list-LICENSE.txt`), and the `// VERSION:` line at the top of the list says which version is bundled.
+
+The daily `update-flake.yml` workflow refreshes it together with `flake.lock`. To refresh it by hand:
+
+```sh
+scripts/update-public-suffix-list.sh   # downloads the list from publicsuffix.org and replaces the bundled copy
+cargo test                             # the tests of public_suffix.rs and config.rs must still pass
+```
+
+Then commit `app/src-tauri/assets/public_suffix_list.dat`.
+
 ## Pull requests
 
 - One pull request is one change. Say what changed and why.
