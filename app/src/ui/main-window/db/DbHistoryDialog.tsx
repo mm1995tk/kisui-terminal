@@ -16,9 +16,11 @@ import type { DbHistoryAsk } from "../../../features/db/historyController.ts";
 import {
   atText,
   filterHistory,
+  historyEmptyText,
   sqlPreview,
 } from "../../../features/db/history.ts";
 import { dbHistoryKey } from "../../../features/db/keys.ts";
+import type { DbHistoryEntry } from "../../../infrastructure/rpc/protocol.ts";
 import "../../components/card.css";
 import { Button } from "../../components/Button.tsx";
 import {
@@ -39,26 +41,16 @@ export function DbHistoryDialog(props: {
 }): JSX.Element {
   const [query, setQuery] = createSignal("");
   const [sel, setSel] = createSignal(0);
-  let list: HTMLUListElement | undefined;
 
   const shown = createMemo(() =>
     filterHistory(props.ask.entries ?? [], query()),
   );
   const selectedIndex = () => Math.min(sel(), shown().length - 1);
-  const selected = () => shown()[selectedIndex()];
   /** `?` が今効くか（絞り込みが空の間だけ） */
   const helpOn = () => query() === "";
 
-  // 選んだ行が見える所へ
-  createEffect(() => {
-    const i = selectedIndex();
-    queueMicrotask(() =>
-      list?.children[i]?.scrollIntoView?.({ block: "nearest" }),
-    );
-  });
-
   function choose() {
-    const e = selected();
+    const e = shown()[selectedIndex()];
     if (e) props.onChoose(e.sql);
   }
 
@@ -71,14 +63,6 @@ export function DbHistoryDialog(props: {
     else if (k.kind === "choose") choose();
     else openKeyList("dbHistory");
   }
-
-  const emptyText = () => {
-    if (props.ask.error !== undefined) return props.ask.error;
-    if (props.ask.entries === undefined) return T("db.history.empty.loading");
-    return props.ask.entries.length === 0
-      ? T("db.history.empty.none")
-      : T("db.history.empty.noMatch");
-  };
 
   return (
     <ModalCard
@@ -108,39 +92,16 @@ export function DbHistoryDialog(props: {
       </CardBody>
       <Show
         when={shown().length > 0}
-        fallback={<p class="card-empty history-empty">{emptyText()}</p>}
+        fallback={
+          <p class="card-empty history-empty">{historyEmptyText(props.ask)}</p>
+        }
       >
-        <ul
-          class="card-rows history-rows"
-          role="listbox"
-          aria-label={T("db.history.list")}
-          ref={(el) => (list = el)}
-        >
-          <For each={shown()}>
-            {(e, i) => (
-              <li role="presentation">
-                <button
-                  type="button"
-                  class="card-row"
-                  role="option"
-                  tabIndex={-1}
-                  aria-selected={i() === selectedIndex()}
-                  title={e.sql}
-                  // 入力欄からフォーカスを動かさない（押したあとも↑↓と Enter が効くように）
-                  onMouseDown={(ev) => ev.preventDefault()}
-                  onClick={() => setSel(i())}
-                  onDblClick={choose}
-                >
-                  <span class="card-row-name">{sqlPreview(e.sql)}</span>
-                  <span class="card-row-state">
-                    {e.ok ? "" : `${T("db.history.failedMark")} · `}
-                    {atText(e.at)}
-                  </span>
-                </button>
-              </li>
-            )}
-          </For>
-        </ul>
+        <HistoryRows
+          entries={shown()}
+          selectedIndex={selectedIndex()}
+          onSelect={setSel}
+          onChoose={choose}
+        />
       </Show>
       <CardFooter>
         <KeyHints
@@ -153,5 +114,71 @@ export function DbHistoryDialog(props: {
         />
       </CardFooter>
     </ModalCard>
+  );
+}
+
+/** 履歴の一覧。選んでいる行は selectedIndex（見える所へスクロールする）。 */
+function HistoryRows(props: {
+  entries: readonly DbHistoryEntry[];
+  selectedIndex: number;
+  onSelect: (i: number) => void;
+  onChoose: () => void;
+}): JSX.Element {
+  let list: HTMLUListElement | undefined;
+  createEffect(() => {
+    const i = props.selectedIndex;
+    queueMicrotask(() =>
+      list?.children[i]?.scrollIntoView?.({ block: "nearest" }),
+    );
+  });
+  return (
+    <ul
+      class="card-rows history-rows"
+      role="listbox"
+      aria-label={T("db.history.list")}
+      ref={(el) => (list = el)}
+    >
+      <For each={props.entries}>
+        {(e, i) => (
+          <DbHistoryRow
+            entry={e}
+            selected={i() === props.selectedIndex}
+            onSelect={() => props.onSelect(i())}
+            onChoose={props.onChoose}
+          />
+        )}
+      </For>
+    </ul>
+  );
+}
+
+/** 履歴の 1 行：SQL の見出しと、右に（失敗の札と）送った時刻。 */
+function DbHistoryRow(props: {
+  entry: DbHistoryEntry;
+  selected: boolean;
+  onSelect: () => void;
+  onChoose: () => void;
+}): JSX.Element {
+  return (
+    <li role="presentation">
+      <button
+        type="button"
+        class="card-row"
+        role="option"
+        tabIndex={-1}
+        aria-selected={props.selected}
+        title={props.entry.sql}
+        // 入力欄からフォーカスを動かさない（押したあとも↑↓と Enter が効くように）
+        onMouseDown={(ev) => ev.preventDefault()}
+        onClick={props.onSelect}
+        onDblClick={props.onChoose}
+      >
+        <span class="card-row-name">{sqlPreview(props.entry.sql)}</span>
+        <span class="card-row-state">
+          {props.entry.ok ? "" : `${T("db.history.failedMark")} · `}
+          {atText(props.entry.at)}
+        </span>
+      </button>
+    </li>
   );
 }

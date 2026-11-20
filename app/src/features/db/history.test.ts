@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { atText, filterHistory, sqlPreview } from "./history.ts";
+import { T } from "../../i18n/index.ts";
+import {
+  atText,
+  filterHistory,
+  historyEmptyText,
+  sqlPreview,
+} from "./history.ts";
 
 const e = (sql: string, ok = true) => ({
   sql,
@@ -46,5 +52,18 @@ describe("atText", () => {
 
   it("読めない時刻はそのまま", () => {
     assert.equal(atText("not a time"), "not a time");
+  });
+});
+
+describe("historyEmptyText", () => {
+  it("聞けなかった理由があればそれ。無ければ、読み込み中・まだ無い・当たらない を分ける", () => {
+    const x = e("select 1");
+    assert.equal(historyEmptyText({ error: "boom", entries: [x] }), "boom");
+    assert.equal(historyEmptyText({}), T("db.history.empty.loading"));
+    assert.equal(historyEmptyText({ entries: [] }), T("db.history.empty.none"));
+    assert.equal(
+      historyEmptyText({ entries: [x] }),
+      T("db.history.empty.noMatch"),
+    );
   });
 });

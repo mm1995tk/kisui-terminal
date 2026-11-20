@@ -1,6 +1,7 @@
 // DB のタブの、接続ごとのクエリの履歴（#349）の、画面に依存しない部分。
 // 履歴を持つのは、接続を書いたマシンの kisui serve（db.history。#346）。ここは一覧の見せ方を決める。
 
+import { T } from "../../i18n/index.ts";
 import type { DbHistoryEntry } from "../../infrastructure/rpc/protocol.ts";
 
 /** 履歴の 1 行に出す SQL の字数の上限。 */
@@ -32,4 +33,16 @@ export function atText(at: string): string {
   if (Number.isNaN(d.getTime())) return at;
   const p = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+/** 履歴の一覧が空のときに出す文（聞けなかった理由・読み込み中・まだ無い・絞り込みに当たらない）。 */
+export function historyEmptyText(ask: {
+  entries?: readonly DbHistoryEntry[];
+  error?: string;
+}): string {
+  if (ask.error !== undefined) return ask.error;
+  if (ask.entries === undefined) return T("db.history.empty.loading");
+  return ask.entries.length === 0
+    ? T("db.history.empty.none")
+    : T("db.history.empty.noMatch");
 }
