@@ -1,7 +1,6 @@
 package db
 
 import (
-	"bufio"
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
@@ -132,17 +131,18 @@ func readHistory(path string) ([]HistoryEntry, error) {
 	if err != nil {
 		return nil, err
 	}
+	// The lines are split here rather than with a bufio.Scanner, which stops at
+	// a line longer than its buffer: a line of any length is read, and one
+	// that is not an entry is skipped like any other broken line.
 	var list []HistoryEntry
-	sc := bufio.NewScanner(bytes.NewReader(data))
-	sc.Buffer(nil, maxHistoryBytes+1)
-	for sc.Scan() {
+	for line := range bytes.SplitSeq(data, []byte{'\n'}) {
 		var e HistoryEntry
-		if json.Unmarshal(sc.Bytes(), &e) != nil || e.SQL == "" {
+		if len(line) == 0 || json.Unmarshal(line, &e) != nil || e.SQL == "" {
 			continue
 		}
 		list = append(list, e)
 	}
-	return list, sc.Err()
+	return list, nil
 }
 
 // writeAtomic writes data to path through a temporary file in the same

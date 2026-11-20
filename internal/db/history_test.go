@@ -100,10 +100,11 @@ func TestHistoryLimits(t *testing.T) {
 	}
 }
 
-// A broken line is skipped; the rest stays.
+// A broken line, and a line longer than any the history writes, is skipped;
+// the rest stays.
 func TestHistoryBrokenLine(t *testing.T) {
 	h := &History{Dir: t.TempDir()}
-	if err := os.WriteFile(h.historyFile("c"), []byte(`{"sql":"SELECT 1","at":"2026-01-01T00:00:00Z","ok":true}`+"\n{broken\n"), 0o600); err != nil {
+	if err := os.WriteFile(h.historyFile("c"), []byte(`{"sql":"SELECT 1","at":"2026-01-01T00:00:00Z","ok":true}`+"\n{broken\n"+strings.Repeat("x", maxHistoryBytes+10)+"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if err := h.Add("c", HistoryEntry{SQL: "SELECT 2", At: time.Now(), OK: true}); err != nil {
