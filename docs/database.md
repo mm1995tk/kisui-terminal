@@ -2,7 +2,7 @@
 
 `kisui serve` can connect to MySQL and PostgreSQL and run SQL for the window. This page is about the settings: which databases, and where their passwords come from.
 
-You use these connections in a database tab of the window (the leader, then `d` `n`; see the README). This page is about the part under it: the settings, and the requests `kisui serve` answers (`db.connections`, `db.query`, `db.cancel`, `db.schema`, `db.history`; see [design/gui-protocol.md](design/gui-protocol.md)).
+You use these connections in a database tab of the window (the leader, then `d` `n`; see the README), and a coding agent uses them with the `kisui db` commands (below). This page is about the part under it: the settings, and the requests `kisui serve` answers (`db.connections`, `db.query`, `db.cancel`, `db.schema`, `db.history`; see [design/gui-protocol.md](design/gui-protocol.md)).
 
 `kisui serve` is the one that connects, not the window. On a remote machine (ssh), `kisui serve` runs on that machine, so a database that only that machine can reach works with no tunnel. Write a connection in the settings of the machine that should connect.
 
@@ -120,7 +120,7 @@ agent-permission = "reader"
 | `propose`           | `true` lets a coding agent write SQL into the input of a database tab, for you to read and run. `false` when left out. It says nothing for a person.                                                                                       |
 | `agent-user`        | The database user a coding agent logs in as, instead of the `user` of the connection. Left out, the agent logs in as the `user` of the connection. It says nothing for a person.                                                           |
 
-- **Who is who.** A request of the window is yours. A request of the `kisui db` commands, which a coding agent calls from a shell, is the agent's. (Those commands are not in this version yet; the permission of an agent is what they will follow.)
+- **Who is who.** A request of the window is yours. A request of the `kisui db` commands, which a coding agent calls from a shell, is the agent's (see [For a coding agent](#for-a-coding-agent-the-kisui-db-commands) below).
 - **Nothing named.** A connection without `human-permission` works as it always did: you run freely, or read only with `read-only = true`. A connection without `agent-permission` lets an agent run nothing, and lets it write into the input (so that you are the one who runs what it wrote).
 - **`read-only = true` wins.** With it, nobody is above `"read"` on that connection, whatever their permission says: naming a permission never makes a read-only connection writable.
 - **`"read"` with `propose`** is the mix for production: the agent runs the statements that read, and writes the ones that change something into the input for you to run.
@@ -130,6 +130,36 @@ agent-permission = "reader"
 - `[db.permissions]` in `config.local.toml` replaces the one of `config.toml` as a whole, apart from the list of connections: a file with only connections uses the permissions of the other file.
 - A connection that names a permission nobody wrote, or one with a mistake, is left out of the list and reported, so that it never runs with other rights than its settings show. A key of a permission that is not in the table above is a mistake too.
 - Like `read-only`, a permission is there to prevent accidents. It is checked by `kisui serve`, for requests that say who they are from. A program that runs as you on that machine can read your password files as well as you can, so for a database an agent must not write to, the rights of its database user are what holds.
+
+## For a coding agent: the `kisui db` commands
+
+A coding agent (Claude Code and the like) that runs in a pane uses the connections with four commands, from its shell. `kisui serve` of the machine of the pane connects and logs in, as it does for a database tab, so the agent needs no client and never sees a password. Every request of these commands is the agent's: the permission of the agent on the connection (above) decides what it may do, and there is no way to ask as you.
+
+```sh
+kisui db connections                       # the connections, and what the agent may do on each
+kisui db schema shop                       # the tables and views of a connection
+kisui db schema --variant prod shop orders # the columns of one table
+kisui db query --variant prod shop 'SELECT count(*) FROM orders'
+kisui db propose --variant prod shop "UPDATE orders SET status = 'cancelled' WHERE id = 42"
+```
+
+| Command | What it does | Permission |
+| --- | --- | --- |
+| `kisui db connections [--json]` | Lists the connections of this machine, a line for each variant, with `RUN` (`none`, `read` or `free`) and `PROPOSE` (`yes` or `no`) of the agent. | Always allowed. |
+| `kisui db schema [--variant <variant>] [--json] <connection> [<table>]` | Lists the tables and views; with a table (`users` or `public.users`), its columns and their types. | Always allowed (names and types, not rows). |
+| `kisui db query [--variant <variant>] [--max-rows <n>] [--json] <connection> <sql\|->` | Runs one statement and prints its rows as a table: up to 100 rows, or `--max-rows` (at most 10000). `-` reads the SQL from stdin. | `run`: refused with `"none"` (and when no permission is named); with `"read"` the database refuses what writes. |
+| `kisui db propose [--variant <variant>] <connection> <sql\|->` | Writes the SQL into the input of a database tab of the window. It does not run it: you read it and run it, with your own permission. | `propose` (allowed when no permission is named). |
+
+- **The connection** is pointed at by its `name`, and a variant with `--variant`. The connections are the ones of the machine the pane is on; the commands take no `--machine`.
+- **`--json`** prints what `kisui serve` answers (the results of `db.connections`, `db.schema` and `db.query` in [design/gui-protocol.md](design/gui-protocol.md)): every value of a row as text, or `null`. In the table, NULL is `NULL`, and a line break or a tab in a value is written `\n` or `\t`.
+- **No password is asked for.** An agent should not write a password on a command line, so the commands take none. The password must be where `kisui serve` finds it (below): the keychain or the file, or, when the agent logs in as the `user` of the connection, the password you typed in a database tab, which `kisui serve` remembers until it stops. Otherwise the command fails and says so.
+- **`kisui db query` waits as long as the statement runs.** Stopping the command (Ctrl+C, or the agent's own time limit) makes the database stop the statement.
+- **Where `kisui db propose` writes.** Into a database tab of that machine, connection and variant in the workspace you are in; when it has several, the one that is shown, else the first; when it has none, a tab is opened at the end of the workspace. The focus does not move, and a short notice says what was written where.
+  - When the input is empty (or already holds the same SQL), it is written at once.
+  - When the input holds other SQL, the window asks you first, showing both: `Enter` (or "Replace") replaces it, `Esc` (or "Cancel") keeps yours. `Enter` is not taken in the first half second, so that a key you were typing elsewhere does not answer. When you say no, the command fails with "declined". It waits for you for 90 seconds; after that (or when the command is stopped) the question closes and nothing is written.
+  - It needs the window: with the window closed, the command fails.
+- **The statements the agent runs are kept in the history** of the connection, marked as the agent's (below). SQL written with `kisui db propose` is not: it gets there when you run it.
+- `kisui skill install` writes a skill that teaches a coding agent these commands (see the README).
 
 ## Passwords
 
@@ -157,7 +187,7 @@ A password found in the keychain or in a file is used before a typed one. When t
 
 1. The keychain: the same account, in the service `kisui-terminal-db-agent` (`security add-generic-password -s kisui-terminal-db-agent -a "shop/prod" -w`).
 2. `~/.pgpass`: the line of that user. `~/.my.cnf`: the `password` of `[client]` only when `[client]` also has `user` with the agent's user (a password with no `user` beside it is taken as yours).
-3. A password sent with the agent's request; one that worked is kept in memory for that user.
+3. Nowhere else: the `kisui db` commands do not ask for a password, and the window asks only for yours. Without one in the keychain or in the file, the agent's commands fail and say that a password is needed.
 
 ## What a statement does
 
@@ -177,7 +207,7 @@ A password found in the keychain or in a file is used before a typed one. When t
 
 ## History
 
-`kisui serve` keeps the statements it runs, for each connection apart, and for each variant of a connection apart: the statement, when it was sent, and whether it worked. The rows of the result are not kept. A statement for one connection never shows up in the history of another, so the SQL of production and of development do not mix.
+`kisui serve` keeps the statements it runs, for each connection apart, and for each variant of a connection apart: the statement, when it was sent, whether it worked, and whether a coding agent ran it (`kisui db query`; the history window marks those "agent"). The rows of the result are not kept. A statement for one connection never shows up in the history of another, so the SQL of production and of development do not mix.
 
 - The history is on the machine where `kisui serve` runs, in `db-history/` beside `serve.log` (`~/.local/state/shijimi-editor/db-history/`, or under `$XDG_STATE_HOME`). It stays when `kisui serve` starts again. The files are readable by you only, but the statements are kept as they are: a password written in a statement (`ALTER USER ... PASSWORD`) is kept with it.
 - A connection is told by its `name`, and a variant by the `name` of its connection and its own. Renaming a connection or a variant starts a new history; pointing a name at another database keeps the old one. Adding variants to a connection starts a new history for each variant (the history from before stays in its file, and shows again if you remove the variants).

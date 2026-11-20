@@ -39,7 +39,7 @@ var (
 )
 
 // paneOpenStart は kisui pane open。頼んだペイン t から、rq.Workspace の名前の GUI のワークスペースに、rq.Argv（空ならシェル）を
-// rq.Cwd で動かすタブを足すよう GUI に頼み、答えを待つ windowWaiting を返す（待つのは呼ぶ側）。
+// rq.Cwd で動かすタブを足すよう GUI に頼み、答えを待つ paneCmdLater を返す（待つのは呼ぶ側）。
 // 名前・コマンド・フォルダは、GUI に頼む前にここで確かめる（作るときに serve がもう一度確かめる）。
 func (s *Server) paneOpenStart(t *terminal, rq panecmd.Request) (panecmd.Reply, error) {
 	// ワークスペースの名前の決まりは、ペインの名前と同じ（wsManager.rename と同じく cleanPaneName で確かめる）

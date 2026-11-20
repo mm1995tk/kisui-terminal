@@ -575,6 +575,64 @@ describe("プライマリの shj の欄（#553）", () => {
     await s.close();
   });
 
+  it("kisui db propose の db.propose と取り下げを渡し、答えを db.proposed で送る（#382）", async () => {
+    const f = fakeShell({ serverIds: ["A"] });
+    const s = new Session(f.api, "h", fast);
+    const got: unknown[] = [];
+    s.onPane((e) => got.push(e));
+    s.start();
+    await waitFor(s, (st) => st.kind === "connected");
+    const id = connectedId(f);
+    const p = {
+      id: "d1",
+      connection: "shop",
+      variant: "prod",
+      sql: "SELECT 1",
+    };
+    f.emit(id, { jsonrpc: "2.0", method: "db.propose", params: p });
+    // 変種の無い接続
+    f.emit(id, {
+      jsonrpc: "2.0",
+      method: "db.propose",
+      params: { id: "d2", connection: "local", sql: "SELECT 2" },
+    });
+    // 形の違うものは捨てる
+    f.emit(id, {
+      jsonrpc: "2.0",
+      method: "db.propose",
+      params: { id: "d3", connection: "shop" },
+    });
+    f.emit(id, {
+      jsonrpc: "2.0",
+      method: "db.propose",
+      params: { ...p, variant: 1 },
+    });
+    f.emit(id, {
+      jsonrpc: "2.0",
+      method: "db.proposeCancel",
+      params: { id: "d2" },
+    });
+    f.emit(id, { jsonrpc: "2.0", method: "db.proposeCancel", params: {} });
+    await settle();
+    assert.deepEqual(got, [
+      { kind: "db-propose", ...p },
+      { kind: "db-propose", id: "d2", connection: "local", sql: "SELECT 2" },
+      { kind: "db-propose-cancel", id: "d2" },
+    ]);
+    s.reportDbProposed("d1", { status: "declined" });
+    s.reportDbProposed("d2", { error: "no" });
+    await settle();
+    const sent = f.sent.filter((x) => x.msg.method === "db.proposed");
+    assert.deepEqual(
+      sent.map((x) => x.msg.params),
+      [
+        { id: "d1", status: "declined" },
+        { id: "d2", error: "no" },
+      ],
+    );
+    await s.close();
+  });
+
   it("プライマリの shj が欄を出した・隠した知らせを渡す（pane.show・pane.hide）", async () => {
     const f = fakeShell({ serverIds: ["A"] });
     const s = new Session(f.api, "h", fast);

@@ -90,6 +90,7 @@ type Server struct {
 	updates    windowWaits[panecmd.UpdateResult] // kisui update が GUI の答えを待っている（update.go）
 	opens      windowWaits[paneOpenResult]       // kisui pane open が GUI の答えを待っている（paneopen.go）
 	relays     windowWaits[paneRelayResult]      // kisui pane の --machine が GUI の答えを待っている（panerelay.go）
+	proposes   windowWaits[dbProposeResult]      // kisui db propose が GUI の答えを待っている（dbcmd.go）
 	db         *dbManager                        // db.* の要求が使うもの（db.go）
 
 	// opMu は、状態を変える仕事（GUI の要求・shj の名乗りと欄の頼み・定期の見回り）を読みロックで、
@@ -145,6 +146,7 @@ func newServer(opts Options, ln *net.UnixListener) *Server {
 		updates:  windowWaits[panecmd.UpdateResult]{prefix: "u"},
 		opens:    windowWaits[paneOpenResult]{prefix: "o"},
 		relays:   windowWaits[paneRelayResult]{prefix: "r"},
+		proposes: windowWaits[dbProposeResult]{prefix: "d"},
 	}
 	srv.terms = newTermManager(srv)
 	srv.ws = newWSManager(srv)
@@ -372,6 +374,8 @@ func (ss *session) handle(ctx context.Context, req *rpc.Message) (any, error) {
 			ss.paneOpenedNotify(req.Params)
 		case "pane.relayed":
 			ss.paneRelayedNotify(req.Params)
+		case "db.proposed":
+			ss.dbProposedNotify(req.Params)
 		}
 		return nil, nil // 知らない通知は無視する
 	}

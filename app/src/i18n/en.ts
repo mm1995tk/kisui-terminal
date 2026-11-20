@@ -727,6 +727,21 @@ export const en = {
     "The window does not save it. After the login works, kisui serve on that machine keeps it in memory until it stops.",
   "db.password.reveal": "Show the password",
   "db.password.ok": "Run",
+  // ---- コーディングエージェントが入力欄に SQL を書く頼み（kisui db propose。#382）----
+  "db.propose.label": "SQL from a coding agent",
+  "db.propose.title": "Replace the SQL in the input of {connection}?",
+  "db.propose.text":
+    "A coding agent wants to write SQL into the input of the database tab of {connection} on {machine}. The SQL in the input now would be lost. Nothing is run either way.",
+  "db.propose.new": "From the agent",
+  "db.propose.current": "In the input now",
+  "db.propose.yes": "Replace",
+  "db.propose.written":
+    "A coding agent wrote SQL into the input of {connection} ({machine})",
+  "db.propose.err.noWorkspace":
+    "the window has no workspace to open a database tab in",
+  "db.propose.err.closed":
+    "the database tab was closed before the SQL was written",
+  "db.propose.err.withdrawn": "the request was withdrawn",
   // ---- DB のタブの、結果の書き出しとクエリの履歴（#349）----
   "leader.db.export": "Export the result (CSV, TSV or JSON)",
   "leader.db.history": "Pick a SQL from this connection's history",
@@ -762,6 +777,7 @@ export const en = {
   "db.history.list": "History",
   "db.history.use": "put in the input",
   "db.history.failedMark": "failed",
+  "db.history.agentMark": "agent",
   "db.history.close": "Close",
   "db.history.empty.loading": "Loading",
   "db.history.empty.none": "There is no history for this connection yet",

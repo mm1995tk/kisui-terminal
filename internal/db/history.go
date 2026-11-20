@@ -15,9 +15,10 @@ import (
 	"github.com/mm1995tk/kisui-terminal/config"
 )
 
-// HistoryEntry is one statement the window ran (db.query). Its JSON form is
-// one line of the history file and one entry of the result of the request
-// db.history (docs/design/gui-protocol.md).
+// HistoryEntry is one statement that was run (db.query), by the window or by
+// a coding agent (the `kisui db query` command). Its JSON form is one line of
+// the history file and one entry of the result of the request db.history
+// (docs/design/gui-protocol.md).
 type HistoryEntry struct {
 	// SQL is the statement as it was sent.
 	SQL string `json:"sql"`
@@ -25,6 +26,10 @@ type HistoryEntry struct {
 	At time.Time `json:"at"`
 	// OK is true when the database ran the statement without an error.
 	OK bool `json:"ok"`
+	// Actor is "agent" for a statement a coding agent ran, and left out for
+	// one a person ran in the window (as in the files written before the
+	// agent's commands were there).
+	Actor string `json:"actor,omitempty"`
 }
 
 // The limits of the history of one connection. When a statement is added

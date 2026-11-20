@@ -8,6 +8,7 @@ package server
 // つなげない。同じユーザーでも、欄の外で始まったプロセスは秘密を知らないので断られる。
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/hex"
@@ -18,6 +19,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
@@ -93,11 +95,14 @@ func (s *Server) paneCmdConn(c net.Conn, line []byte) {
 		return
 	}
 	r, err := s.paneCmd(rq)
-	if w, ok := errors.AsType[*windowWaiting](err); ok {
-		// kisui update・kisui pane open は GUI の答えを待つ。答え（update.result・pane.opened）も読みロックを取るので、待つ間は手放す
-		// （引き継ぎの書きロックが待っていても詰まらないように）
+	if l, ok := errors.AsType[*paneCmdLater](err); ok {
+		// kisui update・kisui pane open は GUI の答えを待ち、kisui db は DB につなぐ。どちらも長くかかることがあるので、
+		// その間は読みロックを手放す（引き継ぎの書きロックが待っていても詰まらないように。GUI の答え update.result・
+		// pane.opened も読みロックを取る）
 		s.opMu.RUnlock()
-		r, err = w.wait()
+		ctx, stop := untilClosed(c)
+		r, err = l.run(ctx)
+		stop()
 	} else {
 		s.opMu.RUnlock()
 	}
@@ -106,9 +111,46 @@ func (s *Server) paneCmdConn(c net.Conn, line []byte) {
 		if errors.Is(err, errNotAPane) {
 			r.Code = panecmd.CodeNotInPane
 		}
+		if e, ok := errors.AsType[*paneCmdError](err); ok {
+			r.Code = e.code
+		}
 	}
 	replyPaneCmd(c, r)
 }
+
+// untilClosed は、頼んだコマンドが接続 c を切ると終わる ctx を返す（コマンドが止められたら、その頼みのために
+// 動かしている SQL や、GUI で待たせている問いをやめるため）。コマンドは頼みを 1 行送ったあとは何も送らないので、
+// 読めたものは捨て、読めなくなったら切れたとみなす。stop は見張りをやめる（返事を書く前に呼ぶ）。
+func untilClosed(c net.Conn) (ctx context.Context, stop func()) {
+	ctx, cancel := context.WithCancel(context.Background())
+	// 名乗りの 1 行を待つための期限（primaryConn）を外す。残すと、5 秒で「切れた」ことになってしまう
+	_ = c.SetReadDeadline(time.Time{})
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		buf := make([]byte, 256)
+		for {
+			if _, err := c.Read(buf); err != nil {
+				cancel()
+				return
+			}
+		}
+	}()
+	return ctx, func() {
+		// 読みを起こして見張りを終わらせる。書き（返事）の期限は変えない
+		_ = c.SetReadDeadline(pastDeadline)
+		<-done
+		cancel()
+	}
+}
+
+// paneCmdError は、コマンドが見分ける断り（panecmd.Reply.Code）の付いた間違い。
+type paneCmdError struct {
+	code string // panecmd.CodeDenied など
+	msg  string
+}
+
+func (e *paneCmdError) Error() string { return e.msg }
 
 func replyPaneCmd(c net.Conn, r panecmd.Reply) {
 	r.OK = r.Error == ""
@@ -133,6 +175,9 @@ func (s *Server) paneCmd(rq panecmd.Request) (panecmd.Reply, error) {
 	}
 	if rq.Machine != "" { // 別のマシンのペイン（--machine）は、手元の GUI に中継させる（panerelay.go）
 		return s.paneRelayStart(rq)
+	}
+	if isDBCmd(rq) { // kisui db（dbcmd.go）
+		return s.dbCmd(rq)
 	}
 	if r, err, ok := s.paneOther(rq, t.id); ok {
 		return r, err
