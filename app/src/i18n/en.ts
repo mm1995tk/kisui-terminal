@@ -701,7 +701,8 @@ export const en = {
   "db.summary.more": "more rows on the next page",
   "db.view.label": "Database tab: {connection}",
   "db.view.sql": "SQL",
-  "db.view.placeholder": "Type SQL and press {key} to run it",
+  "db.view.placeholder":
+    "Type SQL and press {key} to run the selection, or the statement at the cursor",
   "db.view.run": "Run",
   "db.view.cancel": "Cancel",
   "db.view.running": "Running…",
