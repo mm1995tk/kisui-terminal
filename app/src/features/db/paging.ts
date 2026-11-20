@@ -60,3 +60,31 @@ export function rowRange(
   const offset = r.offset ?? 0;
   return { from: offset + 1, to: offset + r.rowCount };
 }
+
+// ---- 読み込み中に押したページ送り ----
+// ページを読んでいる間に押した向き（リーダーの d j j j）は、捨てずに押した順に覚え、結果が来たら 1 つずつ送る。
+// 読み込みの速さによらず、押した数だけ進むように。
+
+/** 覚えておく向きの数の上限（押し続けても、要らない読み込みが長く続かないように）。 */
+export const MAX_QUEUED_STEPS = 10;
+
+/** 覚えている向き queued の後ろに step を足した列。上限に達していれば足さない。 */
+export function queueStep(
+  queued: readonly PageStep[],
+  step: PageStep,
+): readonly PageStep[] {
+  return queued.length < MAX_QUEUED_STEPS ? [...queued, step] : queued;
+}
+
+/**
+ * 結果が来たときに、覚えている向きの先頭を send で送り、まだ覚えておく残りを返す。
+ * send が送れなかった（false。端のページ・ページ送りの無い結果）なら、残りも捨てて空を返す。
+ */
+export function sendQueued(
+  queued: readonly PageStep[],
+  send: (step: PageStep) => boolean,
+): readonly PageStep[] {
+  const [step, ...rest] = queued;
+  if (step === undefined || !send(step)) return [];
+  return rest;
+}

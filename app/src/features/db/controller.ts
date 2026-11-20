@@ -46,7 +46,14 @@ import {
   type MachineConnections,
   type QueryFailure,
 } from "./model.ts";
-import { pageable, pageTarget, type DbPage, type PageStep } from "./paging.ts";
+import {
+  pageable,
+  pageTarget,
+  queueStep,
+  sendQueued,
+  type DbPage,
+  type PageStep,
+} from "./paging.ts";
 import { createDbExport } from "./exportController.ts";
 import type { SaveTextFile } from "./export.ts";
 import { createDbHistory } from "./historyController.ts";
@@ -221,9 +228,7 @@ export function createDbTabs(deps: {
    * 実行している間に押したページ送りの向き（タブ id → 押した順）。結果が来たら、1 つずつその向きに送る
    * （リーダーの d j j j が、読み込みの速さによらず 3 ページ進むように）。実行が失敗した・取り消した・端に着いたら捨てる。
    */
-  const queuedSteps = new Map<string, PageStep[]>();
-  /** 覚えておく向きの数の上限（押し続けても、要らない読み込みが長く続かないように） */
-  const MAX_QUEUED_STEPS = 10;
+  const queuedSteps = new Map<string, readonly PageStep[]>();
 
   /**
    * タブ id の結果のページを切り替える（#373）。結果を出した SQL を、offset を付けてもう一度送る（入力欄の SQL ではない）。
@@ -236,8 +241,7 @@ export function createDbTabs(deps: {
   ): "none" | "edge" | "queued" | null {
     const r = untrack(runs)[id];
     if (r?.running) {
-      const q = queuedSteps.get(id) ?? [];
-      if (q.length < MAX_QUEUED_STEPS) queuedSteps.set(id, [...q, step]);
+      queuedSteps.set(id, queueStep(queuedSteps.get(id) ?? [], step));
       return "queued";
     }
     if (!r?.result || !r.page || !pageable(r.result)) return "none";
@@ -265,10 +269,10 @@ export function createDbTabs(deps: {
       if (!mine()) return;
       setRun(id, () => ({ result, page }));
       // 実行している間に押したページ送りを 1 つ送る（その結果が来たら、残りを続ける）。送れなければ残りも捨てる
-      const [step, ...rest] = queuedSteps.get(id) ?? [];
+      const queued = queuedSteps.get(id) ?? [];
       queuedSteps.delete(id);
-      if (step && stepPage(id, step) === null && rest.length > 0)
-        queuedSteps.set(id, rest);
+      const rest = sendQueued(queued, (s) => stepPage(id, s) === null);
+      if (rest.length > 0) queuedSteps.set(id, rest);
     } catch (e) {
       if (!mine()) return;
       queuedSteps.delete(id);

@@ -2,7 +2,16 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import type { DbQueryResult } from "../../infrastructure/rpc/protocol.ts";
-import { canStep, pageable, pageTarget, rowRange } from "./paging.ts";
+import {
+  canStep,
+  MAX_QUEUED_STEPS,
+  pageable,
+  pageTarget,
+  queueStep,
+  rowRange,
+  sendQueued,
+  type PageStep,
+} from "./paging.ts";
 
 const result = (extra: Partial<DbQueryResult>): DbQueryResult => ({
   columns: [{ name: "n", type: "integer", kind: "number" }],
@@ -78,5 +87,48 @@ describe("rowRange（何行目から何行目か）", () => {
       to: 1005,
     });
     assert.equal(rowRange(result({ rowCount: 0 })), null);
+  });
+});
+
+describe("queueStep（読み込み中に押した向きを覚える）", () => {
+  it("押した順に後ろへ足す", () => {
+    assert.deepEqual(queueStep(queueStep([], "next"), "prev"), [
+      "next",
+      "prev",
+    ]);
+  });
+  it("上限に達したら足さない", () => {
+    const full: PageStep[] = Array(MAX_QUEUED_STEPS).fill("next");
+    assert.equal(queueStep(full.slice(1), "prev").length, MAX_QUEUED_STEPS);
+    assert.deepEqual(queueStep(full, "prev"), full);
+  });
+});
+
+describe("sendQueued（結果が来たら 1 つ送る）", () => {
+  it("先頭を送り、残りを返す", () => {
+    const sent: PageStep[] = [];
+    const rest = sendQueued(["next", "next", "prev"], (s) => {
+      sent.push(s);
+      return true;
+    });
+    assert.deepEqual(sent, ["next"]);
+    assert.deepEqual(rest, ["next", "prev"]);
+  });
+  it("送れなければ（端のページなど）残りも捨てる", () => {
+    assert.deepEqual(
+      sendQueued(["next", "next"], () => false),
+      [],
+    );
+  });
+  it("覚えていなければ送らない", () => {
+    let called = false;
+    assert.deepEqual(
+      sendQueued([], () => {
+        called = true;
+        return true;
+      }),
+      [],
+    );
+    assert.equal(called, false);
   });
 });
