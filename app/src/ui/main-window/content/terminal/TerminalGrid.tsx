@@ -178,6 +178,13 @@ export function TerminalGrid(props: {
       data-empty={total() === 0 ? "" : undefined}
       style={template()}
       ref={el}
+      onMouseDown={(e) => {
+        // ペインの外（描けるまで隠しているペインと、前のタブから残しているペインは押せないので、そこも含む）を
+        // 押しても、キーの行き先を外さず、今のペインに向ける
+        if (e.target !== el) return;
+        e.preventDefault();
+        focusActive();
+      }}
       onFocusIn={() => (hadFocus = true)}
       onFocusOut={(e) => {
         const to = e.relatedTarget as Node | null;
