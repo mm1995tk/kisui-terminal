@@ -644,6 +644,11 @@ export const en = {
     "Keys in the SQL input of a database tab. The result shows below it.",
   "place.db.run": "Run the SQL",
   "place.db.cancel": "Cancel the SQL that is running",
+  "place.dbResult.title": "Result table of a database tab",
+  "place.dbResult.lead":
+    "Keys while the result table has focus. Click a cell to select it, and extend the selection with Shift+click or by dragging.",
+  "place.dbResult.copy":
+    "Copy the selected cells (one cell as it is, more as TSV)",
   "cannot.db.title": "Cannot open a database tab",
   "leader.db.tree": "Show or hide the schema tree",
   "leader.db.refresh": "Reload the schema tree",

@@ -403,6 +403,8 @@ export function createDbTabs(deps: {
     // 結果の書き出し（#349。exportController.ts）と、クエリの履歴（historyController.ts）
     ...exporter,
     ...history,
+    /** 結果の表で選んだセルの文字をクリップボードに入れる（#372） */
+    copyCells: (text: string) => void deps.copyToClipboard(text),
     /** パスワードを聞いている窓（無ければ null） */
     passwordAsk,
     replyPassword: (password: string | null) => replyPassword(password),

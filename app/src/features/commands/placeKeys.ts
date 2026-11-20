@@ -25,6 +25,7 @@ export type Place =
   | "switcherTabs"
   | "history"
   | "db"
+  | "dbResult"
   | "dbTree"
   | "dbHistory";
 
@@ -287,6 +288,13 @@ export const PLACE_KEYS: Record<Place, PlaceKeys> = {
       row("Esc", T("place.db.cancel"), ["Escape"]),
     ],
   },
+  // DB のタブの結果の表（#372）。判定は features/db/keys.ts の dbResultKey（修飾キー付きのものは probes に書けないので、
+  // keys.test.ts で確かめる）。表をクリックするかフォーカスを向けたときだけ効く
+  dbResult: {
+    title: T("place.dbResult.title"),
+    lead: T("place.dbResult.lead"),
+    rows: [row("Cmd+C / Ctrl+C", T("place.dbResult.copy"), [])],
+  },
   // DB のタブの履歴の窓（リーダーの d h。#349）。判定は features/db/keys.ts の dbHistoryKey（修飾キー付きのものは probes に書けないので、
   // keys.test.ts で確かめる）
   dbHistory: {
@@ -407,6 +415,7 @@ const PLACES = new Set<string>([
   "image",
   "machines",
   "db",
+  "dbResult",
   "dbTree",
 ]);
 
