@@ -8,7 +8,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/mattn/go-runewidth"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/mm1995tk/kisui-terminal/internal/i18n"
 	"github.com/mm1995tk/kisui-terminal/internal/panecmd"
 )
@@ -262,7 +262,7 @@ func alignColumns(rows [][]string, gaps ...int) string {
 			if i >= len(widths) {
 				widths = append(widths, 0)
 			}
-			widths[i] = max(widths[i], runewidth.StringWidth(c))
+			widths[i] = max(widths[i], ansi.StringWidth(c))
 		}
 	}
 	var b strings.Builder
@@ -275,7 +275,7 @@ func alignColumns(rows [][]string, gaps ...int) string {
 				if i < len(gaps) {
 					gap = gaps[i]
 				}
-				line.WriteString(strings.Repeat(" ", widths[i]-runewidth.StringWidth(c)+gap))
+				line.WriteString(strings.Repeat(" ", widths[i]-ansi.StringWidth(c)+gap))
 			}
 		}
 		b.WriteString(strings.TrimRight(line.String(), " "))
