@@ -9,6 +9,7 @@ name: flake.lock を更新する
 # （作り直さないと checks.emulator-wasm が落ちる）。ランナーは x86_64-linux なので、決まりどおりの場所で作れる。
 # 殻に同梱した公開サフィックスの一覧（app/src-tauri/assets/public_suffix_list.dat）も取り直す（scripts/update-public-suffix-list.sh）。
 # crate に頼らず同梱しているので、ここで新しくしないと古いままになる。下の nix flake check（cargo test）が通ったときだけ入る。
+# publicsuffix.org から取れない日は警告を出して今の一覧のまま進む（外のサイト 1 つのために flake.lock の更新を止めない）。
 on:
   workflow_dispatch:
   schedule:
@@ -35,7 +36,10 @@ jobs:
         run: nix flake update nixpkgs shijimi-editor shijimi-editor-nightly
 
       - name: 公開サフィックスの一覧を取り直す
-        run: scripts/update-public-suffix-list.sh
+        run: |
+          if ! scripts/update-public-suffix-list.sh; then
+            echo "::warning::公開サフィックスの一覧を取れませんでした。今の一覧のまま進みます"
+          fi
 
       - name: emulator.wasm を作り直す
         run: scripts/build-emulator.sh
