@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { dbEditorKey, dbTreeKey } from "./keys.ts";
+import { dbEditorKey, dbHistoryKey, dbTreeKey } from "./keys.ts";
 
 const ev = (key: string, extra: object = {}) => ({
   key,
@@ -74,5 +74,49 @@ describe("dbTreeKey（左の木のペインのキー）", () => {
     assert.equal(dbTreeKey(ev("Enter", { isComposing: true })), null);
     assert.equal(dbTreeKey(ev("Enter", { keyCode: 229 })), null);
     assert.equal(dbTreeKey(ev("Escape", { isComposing: true })), null);
+  });
+});
+
+describe("dbHistoryKey（履歴の窓のキー）", () => {
+  it("↓ ↑・Ctrl+J / Ctrl+K で動き、Enter で選ぶ", () => {
+    assert.deepEqual(dbHistoryKey(ev("ArrowDown"), true), {
+      kind: "step",
+      step: 1,
+    });
+    assert.deepEqual(dbHistoryKey(ev("ArrowUp"), true), {
+      kind: "step",
+      step: -1,
+    });
+    assert.deepEqual(dbHistoryKey(ev("j", { ctrlKey: true }), true), {
+      kind: "step",
+      step: 1,
+    });
+    assert.deepEqual(dbHistoryKey(ev("k", { ctrlKey: true }), true), {
+      kind: "step",
+      step: -1,
+    });
+    assert.deepEqual(dbHistoryKey(ev("Enter"), true), { kind: "choose" });
+  });
+
+  it("字（j k を含む）は入力欄に入る。Shift+Enter は受けない", () => {
+    assert.equal(dbHistoryKey(ev("j"), true), null);
+    assert.equal(dbHistoryKey(ev("k"), true), null);
+    assert.equal(dbHistoryKey(ev("a"), true), null);
+    assert.equal(dbHistoryKey(ev("Enter", { shiftKey: true }), true), null);
+  });
+
+  it("`?` は、絞り込みが空のときだけキーの一覧", () => {
+    assert.deepEqual(dbHistoryKey(ev("?", { shiftKey: true }), true), {
+      kind: "help",
+    });
+    assert.equal(dbHistoryKey(ev("?", { shiftKey: true }), false), null);
+  });
+
+  it("かな漢字変換のキーは受けない", () => {
+    assert.equal(dbHistoryKey(ev("Enter", { isComposing: true }), true), null);
+    assert.equal(
+      dbHistoryKey(ev("ArrowDown", { isComposing: true }), true),
+      null,
+    );
   });
 });

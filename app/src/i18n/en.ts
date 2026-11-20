@@ -712,6 +712,34 @@ export const en = {
     "The window does not save it. After the login works, kisui serve on that machine keeps it in memory until it stops.",
   "db.password.reveal": "Show the password",
   "db.password.ok": "Run",
+  // ---- DB のタブの、結果の書き出しとクエリの履歴（#349）----
+  "leader.db.export": "Export the result (CSV, TSV or JSON)",
+  "leader.db.history": "Pick a SQL from this connection's history",
+  "cannot.dbExport.title": "Nothing to export",
+  "cannot.dbExport.text":
+    "Run SQL that returns rows in this database tab first.",
+  "db.export.label": "Export the result",
+  "db.export.title": "Export the result ({n} rows)",
+  "db.export.clipboard": "Copy to the clipboard",
+  "db.export.file": "Save to a file…",
+  "db.export.do": "export",
+  "db.export.saved": "Saved to {path}",
+  "db.export.failed": "Could not save the file",
+  "place.dbHistory.title": "SQL history of a database tab",
+  "place.dbHistory.lead":
+    "Keys in the history window. Type to filter. Only this connection's history is shown.",
+  "place.dbHistory.choose": "Put the selected SQL in the input (it is not run)",
+  "db.history.label": "SQL history",
+  "db.history.title": "SQL history of {connection}",
+  "db.history.filter": "Filter the history",
+  "db.history.filterPlaceholder": "Type to filter",
+  "db.history.list": "History",
+  "db.history.use": "put in the input",
+  "db.history.failedMark": "failed",
+  "db.history.close": "Close",
+  "db.history.empty.loading": "Loading",
+  "db.history.empty.none": "There is no history for this connection yet",
+  "db.history.empty.noMatch": "Nothing matches",
 } as const satisfies Record<string, string>;
 
 /** 表のキー。`T` に渡す。 */

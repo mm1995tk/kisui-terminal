@@ -70,6 +70,8 @@ export type CommandId =
   | "db.open"
   | "db.tree"
   | "db.refresh"
+  | "db.export"
+  | "db.history"
   | "help.keys";
 
 /** コマンドと、その引数（向き・番号など）。 */
@@ -424,6 +426,9 @@ export const LEADER: Node[] = [
     // 左の木のペイン（#348）。DB のタブを出している間だけ効く
     leaf("t", T("leader.db.tree"), { id: "db.tree" }),
     leaf("r", T("leader.db.refresh"), { id: "db.refresh" }),
+    // 結果の書き出しと、接続ごとのクエリの履歴（#349）。DB のタブを出している間だけ効く
+    leaf("e", T("leader.db.export"), { id: "db.export" }),
+    leaf("h", T("leader.db.history"), { id: "db.history" }),
   ]),
   leaf("b", T("leader.sidebar"), { id: "sidebar.toggle" }),
   leaf(

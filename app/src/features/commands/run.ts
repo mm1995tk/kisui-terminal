@@ -64,7 +64,12 @@ export function createCommandRunner(deps: {
   pages: Pages;
   db: Pick<
     DbTabs,
-    "shownDbTab" | "openPicker" | "toggleTree" | "reloadCatalog"
+    | "shownDbTab"
+    | "openPicker"
+    | "toggleTree"
+    | "reloadCatalog"
+    | "openExport"
+    | "openHistory"
   >;
   bookmarks: Bookmarks;
   downloads: Downloads;
@@ -312,6 +317,22 @@ export function createCommandRunner(deps: {
         }
         if (c.id === "db.refresh") void deps.db.reloadCatalog(tab.id);
         focusTerminal();
+        break;
+      }
+      case "db.export":
+      case "db.history": {
+        // 結果の書き出しと履歴の呼び出し（#349）：DB のタブを出している間だけ
+        const tab = deps.db.shownDbTab();
+        if (!tab) {
+          cannot(T("cannot.dbTree.title"), T("cannot.dbTree.text"));
+          break;
+        }
+        if (c.id === "db.history") {
+          void deps.db.openHistory(tab.id);
+          break;
+        }
+        if (!deps.db.openExport(tab.id))
+          cannot(T("cannot.dbExport.title"), T("cannot.dbExport.text"));
         break;
       }
       case "workspace.nth":

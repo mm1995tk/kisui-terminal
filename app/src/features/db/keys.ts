@@ -4,6 +4,7 @@
 
 import type { KeyLike } from "../commands/guiKeys.ts";
 import { isComposingKey } from "../commands/ime.ts";
+import { listStep } from "../commands/placeKeys.ts";
 import type { DbTreeAction } from "./tree.ts";
 
 /** SQL の入力欄のキーで行うこと。run：入力欄の SQL を実行する、cancel：実行している SQL を取り消す。 */
@@ -62,5 +63,26 @@ export function dbTreeKey(e: KeyLike): DbTreeAction | null {
     case "Escape":
       return "back";
   }
+  return null;
+}
+
+/** 履歴の窓（#349）のキーの動き。 */
+export type DbHistoryKey =
+  { kind: "step"; step: 1 | -1 } | { kind: "choose" } | { kind: "help" };
+
+/**
+ * 履歴の窓（絞り込みの入力欄にキーがある）で押したキー e の動き（当たらなければ null。入力欄に字を打つ）。
+ * ↓ ↑・Ctrl+J / Ctrl+K で選ぶ行を動かし（入力欄に字を打つので、j k は使えない）、Enter で選んだ SQL を入力欄に入れる。
+ * `?` は、helpOn（絞り込みが空）のときだけキーの一覧を出す（打っている途中の `?` は、探す字として入力欄に入れる）。Esc は窓が受ける。
+ */
+export function dbHistoryKey(e: KeyLike, helpOn: boolean): DbHistoryKey | null {
+  if (isComposingKey(e)) return null;
+  if (e.key === "ArrowDown") return { kind: "step", step: 1 };
+  if (e.key === "ArrowUp") return { kind: "step", step: -1 };
+  const step = listStep(e);
+  if (step !== 0) return { kind: "step", step };
+  if (e.key === "Enter") return e.shiftKey ? null : { kind: "choose" };
+  if (e.key === "?" && !e.ctrlKey && !e.metaKey && !e.altKey && helpOn)
+    return { kind: "help" };
   return null;
 }

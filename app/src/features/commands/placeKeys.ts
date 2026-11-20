@@ -25,7 +25,8 @@ export type Place =
   | "switcherTabs"
   | "history"
   | "db"
-  | "dbTree";
+  | "dbTree"
+  | "dbHistory";
 
 /** 表の 1 行。keys は一覧に出す書き方、probes は、判定が受けるはずのキー（KeyboardEvent.key。テストで使う）。 */
 export interface PlaceKeyRow {
@@ -286,6 +287,21 @@ export const PLACE_KEYS: Record<Place, PlaceKeys> = {
       row("Esc", T("place.db.cancel"), ["Escape"]),
     ],
   },
+  // DB のタブの履歴の窓（リーダーの d h。#349）。判定は features/db/keys.ts の dbHistoryKey（修飾キー付きのものは probes に書けないので、
+  // keys.test.ts で確かめる）
+  dbHistory: {
+    title: T("place.dbHistory.title"),
+    lead: T("place.dbHistory.lead"),
+    rows: [
+      row("↓ ↑ / Ctrl+J Ctrl+K", T("place.list.step"), [
+        "ArrowDown",
+        "ArrowUp",
+      ]),
+      row("Enter", T("place.dbHistory.choose")),
+      row("?", T("place.bookmarks.help")),
+      row("Esc", T("place.row.close"), []),
+    ],
+  },
   // DB のタブの左の木のペイン（#348）。判定は features/db/keys.ts の dbTreeKey
   dbTree: {
     title: T("place.dbTree.title"),
@@ -322,6 +338,7 @@ const WINDOW_PLACES = new Set<Place>([
   "switcher",
   "switcherTabs",
   "history",
+  "dbHistory",
 ]);
 
 /** 窓（ModalCard）の場所か。 */

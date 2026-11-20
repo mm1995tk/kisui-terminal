@@ -13,6 +13,7 @@ import { createBrowserTabs } from "./browser/tabsStore.ts";
 import { createChanges } from "./changes/controller.ts";
 import { createCommandRunner, type CommandUi } from "./commands/run.ts";
 import { createDbTabs } from "./db/controller.ts";
+import type { SaveTextFile } from "./db/export.ts";
 import { createFileTree } from "./file-tree/controller.ts";
 import type { KeyValueStore } from "./keyValueStore.ts";
 import type { MascotOs } from "./mascot/mascot.ts";
@@ -50,6 +51,8 @@ export interface FeaturePorts {
   mascot: MascotOs;
   /** 新しい版 */
   updates: UpdatesOs;
+  /** DB のタブの結果の、ファイルへの書き出し（保存のダイアログ。#349） */
+  exportFile: SaveTextFile;
 }
 
 /** 機能が、画面の側に頼むこと（キーを向ける・スクロールを戻す・短い知らせを出す）。 */
@@ -157,6 +160,9 @@ export function createFeatures(deps: {
     browserTabs,
     activateTab: (gid, ref) => tabs.activateTab(gid, ref),
     focusTerminal,
+    saveFile: ports.exportFile,
+    copyToClipboard: (text) => ui.copyToClipboard(text),
+    showToast: (text) => ui.showToast(text),
   });
   const openTab = createPaneOpen({
     browser,
