@@ -273,8 +273,7 @@ export function createDbTabs(deps: {
     // 送った文が取り消しより先に終わっていた：残りの文はやめる（失敗した・取り消したときは execute が印を外した）
     if (out === "stopped") {
       stopped.delete(id);
-      setRun(id, ({ running: _, ...r }) => r);
-      flushQueued(id);
+      finishRun(id);
     }
   }
 
@@ -362,6 +361,15 @@ export function createDbTabs(deps: {
     return true;
   }
 
+  /**
+   * タブ id の実行がうまく終わった（全部の文が終わった・取り消しより先に文が終わって残りをやめた・読み直しが終わった）：
+   * 実行中の印を外し、実行している間に押したページ送りを送る。
+   */
+  function finishRun(id: string) {
+    setRun(id, ({ running: _, ...r }) => r);
+    flushQueued(id);
+  }
+
   /** 実行している間に押したページ送りを 1 つ送る（その結果が来たら、残りを続ける）。送れなければ残りも捨てる。 */
   function flushQueued(id: string) {
     const queued = queuedSteps.get(id) ?? [];
@@ -399,17 +407,10 @@ export function createDbTabs(deps: {
         ...pageParams(page, offset, rerun),
       });
       if (!mine()) return "gone";
-      setRun(id, (r) => {
-        const next = updateStatement(r, index, (s) => ({
-          sql: s.sql,
-          result,
-          page,
-        }));
-        if (opts.more) return next;
-        const { running: _, ...rest } = next;
-        return rest;
-      });
-      if (!opts.more) flushQueued(id);
+      setRun(id, (r) =>
+        updateStatement(r, index, (s) => ({ sql: s.sql, result, page })),
+      );
+      if (!opts.more) finishRun(id);
       return "ok";
     } catch (e) {
       if (!mine()) return "gone";
