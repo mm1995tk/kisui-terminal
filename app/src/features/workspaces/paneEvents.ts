@@ -1,5 +1,7 @@
 // shj が端末のコマンド（kisui pane …・kisui open・kisui update など）で GUI に頼んだこと（Session の onPane）を、受け持つ所へ振り分ける。
 import type {
+  DbProposeReport,
+  DbProposeRequest,
   PaneOpenReport,
   PaneOpenRequest,
   PaneRunReply,
@@ -29,6 +31,10 @@ export interface PaneEventTargets {
   openTab(target: string, rq: PaneOpenRequest): Promise<PaneOpenReport>;
   /** 別のマシン machine のペインへの頼みを中継する（`kisui pane … --machine`。投げずに、できなければ理由を返す） */
   relay(machine: string, rq: PaneRunRequest): Promise<PaneRunReply>;
+  /** マシン target の接続の DB のタブの入力欄に、SQL を書く（`kisui db propose`。投げずに、書けなければ理由を返す） */
+  dbPropose(target: string, rq: DbProposeRequest): Promise<DbProposeReport>;
+  /** マシン target の `kisui db propose` の取り下げ（人に聞いている途中なら、聞くのをやめる） */
+  dbProposeCancel(target: string, id: string): void;
   /** プライマリ以外の欄を隠す・戻す */
   zoomWs(target: string, id: WorkspaceId, on: boolean | "toggle"): boolean;
 }
@@ -38,7 +44,13 @@ export function routePaneEvent(
   to: PaneEventTargets,
   target: string,
   ev: PaneEvent,
-  s: Pick<Session, "reportUpdate" | "reportPaneOpened" | "reportPaneRelayed">,
+  s: Pick<
+    Session,
+    | "reportUpdate"
+    | "reportPaneOpened"
+    | "reportPaneRelayed"
+    | "reportDbProposed"
+  >,
 ): void {
   if (ev.kind === "show") to.paneShow(target, ev.workspaceId, ev.termId);
   else if (ev.kind === "show-extra")
@@ -57,5 +69,8 @@ export function routePaneEvent(
     void to
       .relay(ev.machine, ev.request)
       .then((r) => s.reportPaneRelayed(ev.id, r));
+  else if (ev.kind === "db-propose")
+    void to.dbPropose(target, ev).then((r) => s.reportDbProposed(ev.id, r));
+  else if (ev.kind === "db-propose-cancel") to.dbProposeCancel(target, ev.id);
   else to.zoomWs(target, ev.workspaceId, true);
 }

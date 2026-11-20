@@ -725,6 +725,20 @@ export const ja: Record<Key, string> = {
     "窓はパスワードを保存しません。ログインが通ると、そのマシンの kisui serve が、止まるまでメモリに覚えます。",
   "db.password.reveal": "表示する",
   "db.password.ok": "実行",
+  // ---- コーディングエージェントが入力欄に SQL を書く頼み（kisui db propose。#382）----
+  "db.propose.label": "コーディングエージェントの SQL",
+  "db.propose.title": "{connection} の入力欄の SQL を上書きしますか？",
+  "db.propose.text":
+    "コーディングエージェントが、{machine} の {connection} の DB のタブの入力欄に SQL を書こうとしています。上書きすると、今の入力欄の SQL は消えます。どちらを選んでも、SQL は実行しません。",
+  "db.propose.new": "エージェントの SQL",
+  "db.propose.current": "今の入力欄",
+  "db.propose.yes": "上書きする",
+  "db.propose.written":
+    "コーディングエージェントが {connection}（{machine}）の入力欄に SQL を書きました",
+  "db.propose.err.noWorkspace":
+    "窓に、DB のタブを開くワークスペースがありません",
+  "db.propose.err.closed": "SQL を書く前に、DB のタブが閉じられました",
+  "db.propose.err.withdrawn": "頼みは取り下げられました",
   // ---- DB のタブの、結果の書き出しとクエリの履歴（#349）----
   "leader.db.export": "結果を書き出す（CSV・TSV・JSON）",
   "leader.db.history": "この接続の履歴から SQL を選ぶ",
@@ -760,6 +774,7 @@ export const ja: Record<Key, string> = {
   "db.history.list": "履歴",
   "db.history.use": "入力欄に入れる",
   "db.history.failedMark": "失敗",
+  "db.history.agentMark": "エージェント",
   "db.history.close": "閉じる",
   "db.history.empty.loading": "読み込み中",
   "db.history.empty.none": "この接続の履歴はまだありません",

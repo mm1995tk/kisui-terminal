@@ -51,6 +51,12 @@ var commands = []command{
 		{name: "keys", args: "[--machine <machine>] <name|id> <key>...", help: "help.pane.keys", run: runPaneKeys},
 		{name: "close", args: "[--machine <machine>] <name|id>", help: "help.pane.close", run: runPaneClose},
 	}},
+	{name: "db", sub: []command{
+		{name: "connections", args: "[--json]", help: "help.db.connections", run: runDBConnections},
+		{name: "schema", args: "[--variant <variant>] [--json] <connection> [<table>]", help: "help.db.schema", run: runDBSchema},
+		{name: "query", args: "[--variant <variant>] [--max-rows <n>] [--json] <connection> <sql|->", help: "help.db.query", run: runDBQuery},
+		{name: "propose", args: "[--variant <variant>] <connection> <sql|->", help: "help.db.propose", run: runDBPropose},
+	}},
 	{name: "skill", sub: []command{
 		{name: "install", args: "[dir]", help: "help.skill.install", run: runSkillInstall},
 	}},

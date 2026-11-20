@@ -36,27 +36,35 @@ const (
 //     an http or https URL (the GUI opens it in the browser of the machine it
 //     runs on; no pane), or the absolute path of a file
 //     (a video, image or PDF pane, by its kind).
+//
 //   - "split": split the terminal Pane in the direction Dir ("right", "down", "left" or "up") and
 //     start a new terminal in it: its shell, or the command Argv (its first word is
 //     an absolute path; the new terminal ends with the command) in Cwd. Env is
 //     "NAME=value" entries for the new terminal. Name, when not empty, is the name
 //     of the new terminal (the rules of "title").
+//
 //   - "title": give the terminal Pane the name Title (empty takes the name away).
 //     A name is unique among the terminals of one "kisui serve" (one machine), and
 //     is not written like an id ("t1"): a name that another terminal has, or that
 //     looks like an id, is refused. So a name, or an id, points at one terminal of
 //     the machine.
+//
 //   - "send": type Text in the terminal To (a name or an id of a terminal of this
 //     "kisui serve", of any workspace) and press Enter. Text has no control
 //     characters but newlines and tabs. When the program there turned on
 //     bracketed paste, Text is sent as a paste. The focus does not move.
+//
 //   - "keys": press the Keys (such as "esc", "ctrl+c", "up") in the terminal To, in order.
+//
 //   - "close": close the terminal To. The primary terminal of a tab is refused
 //     (it closes with its tab).
+//
 //   - "list": the terminals of this "kisui serve", of every workspace (Reply.Panes).
+//
 //   - "read": the text on the screen of the terminal To (a name or an id of a
 //     terminal of this "kisui serve", of any workspace), with Lines lines of its
 //     scrollback above it (Reply.Text). No colors or other attributes.
+//
 //   - "open-tab": add a terminal tab at the end of the workspace of the window
 //     named Workspace (with New, a new workspace of that name), and run its
 //     shell, or the command Argv (the rules of "split"), in Cwd (empty: the
@@ -64,9 +72,34 @@ const (
 //     (not empty) is the name of its terminal (the rules of "title"). The focus
 //     does not move. The window owns its workspaces, so "kisui serve" asks the
 //     window to make the tab and waits for its answer.
+//
 //   - "update": ask the window to look for a newer version of kisui-terminal now.
 //     The window shows its "a new version is available" notice when there is one,
 //     and answers (Reply.Update) for the command to print.
+//
+//   - "db-connections": the database connections in the settings of this "kisui
+//     serve" (the machine of the terminal), with what a coding agent may do on
+//     each (Reply.DB: the result of the request db.connections).
+//
+//   - "db-schema": the schemas, tables and columns of the connection Connection
+//     (and its Variant, "" for a connection without variants) (Reply.DB: the
+//     result of db.schema). It is allowed whatever the permission of the agent.
+//
+//   - "db-query": run the one statement SQL on the connection, as the coding
+//     agent: its permission decides whether it runs, and whether it may write
+//     (Reply.DB: the result of db.query, with at most MaxRows rows; 0 is the
+//     default of "kisui serve"). It is ended when the command goes away.
+//
+//   - "db-propose": write SQL into the input of a database tab of the window, for
+//     a person to read and run. Refused (CodeDenied) unless the permission of the
+//     agent allows it. The window owns the tabs, so "kisui serve" asks the window
+//     and waits for its answer: when the input already holds SQL, the window asks
+//     the person first, and their "no" is CodeDeclined.
+//
+// The four "db-" requests are always the coding agent's (the actor "agent" of
+// docs/design/gui-protocol.md), never the person's, and never carry a
+// password: one that is found nowhere is CodePasswordRequired. They do not
+// take a Machine: the connections are the ones of this "kisui serve".
 //
 // Machine, when not empty, is the name of another machine for "list", "send",
 // "keys", "close", "read" and "open-tab": a name of [[gui.machines]] of the
@@ -97,6 +130,11 @@ type Request struct {
 	// Workspace and New are for "open-tab".
 	Workspace string `json:"workspace,omitempty"`
 	New       bool   `json:"new,omitempty"`
+	// Connection, Variant, SQL and MaxRows are for the "db-" requests.
+	Connection string `json:"connection,omitempty"`
+	Variant    string `json:"variant,omitempty"`
+	SQL        string `json:"sql,omitempty"`
+	MaxRows    int    `json:"maxRows,omitempty"`
 	// Machine is the machine to do the request on (empty: this one).
 	Machine string `json:"machine,omitempty"`
 }
@@ -119,6 +157,10 @@ type Reply struct {
 	// newline. A line that the terminal wrapped is one line; spaces at the end of a
 	// line and the empty lines at the bottom of the screen are dropped.
 	Text string `json:"text,omitempty"`
+	// DB is the answer to "db-connections", "db-schema" and "db-query": the
+	// result of the request db.connections, db.schema or db.query, in the JSON
+	// of docs/design/gui-protocol.md. "kisui db ... --json" prints it as it is.
+	DB json.RawMessage `json:"db,omitempty"`
 }
 
 // PaneInfo is one terminal in the answer to "list". "kisui pane list --json"
@@ -166,8 +208,20 @@ type UpdateResult struct {
 	Error   string `json:"error,omitempty"`
 }
 
-// CodeNotInPane is Reply.Code when the server does not know the pane.
-const CodeNotInPane = "not-in-pane"
+// The values of Reply.Code, for the failures a command tells apart.
+const (
+	// CodeNotInPane: the server does not know the pane.
+	CodeNotInPane = "not-in-pane"
+	// CodeDenied: the permission of the coding agent does not allow it ("db-query", "db-propose").
+	CodeDenied = "denied"
+	// CodeDeclined: the person at the window said no ("db-propose").
+	CodeDeclined = "declined"
+	// CodePasswordRequired: the password of the connection is found nowhere
+	// "kisui serve" looks, or the one it remembers was refused.
+	CodePasswordRequired = "password-required"
+	// CodeNotFound: the settings have no such connection (or variant).
+	CodeNotFound = "not-found"
+)
 
 // ErrNotInPane is returned by FromEnv when the variables are not set, and by
 // Do when the server does not know the pane: the command does not run in a
@@ -202,17 +256,27 @@ func FromEnv() (Pane, error) {
 // Timeout is how long Do waits for "kisui serve".
 const Timeout = 10 * time.Second
 
-// Do sends rq (with the pane's id and secret) and reads the reply. A reply that
-// is not OK is returned as an error with its text (ErrNotInPane for
-// CodeNotInPane).
+// Do sends rq (with the pane's id and secret) and reads the reply, waiting up
+// to Timeout. A reply that is not OK is returned as an error with its text
+// (ErrNotInPane for CodeNotInPane), beside the reply (for its Code).
 func (p Pane) Do(rq Request) (Reply, error) {
+	return p.DoWithin(rq, Timeout)
+}
+
+// DoWithin is Do that waits up to wait for the reply, and without a limit when
+// wait is 0: for a request that takes as long as what it asks for (a
+// statement of a database, the answer of a person). Ending the command closes
+// the socket, which tells "kisui serve" to stop what it was doing for it.
+func (p Pane) DoWithin(rq Request, wait time.Duration) (Reply, error) {
 	rq.Pane, rq.Token = p.ID, p.Token
 	c, err := net.DialTimeout("unix", p.Socket, Timeout)
 	if err != nil {
 		return Reply{}, noServerError{err}
 	}
 	defer c.Close()
-	_ = c.SetDeadline(time.Now().Add(Timeout))
+	if wait > 0 {
+		_ = c.SetDeadline(time.Now().Add(wait))
+	}
 	b, err := json.Marshal(rq)
 	if err != nil {
 		return Reply{}, err

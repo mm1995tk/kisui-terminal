@@ -152,7 +152,7 @@ function HistoryRows(props: {
   );
 }
 
-/** 履歴の 1 行：SQL の見出しと、右に（失敗の札と）送った時刻。 */
+/** 履歴の 1 行：SQL の見出しと、右に（コーディングエージェントが実行した文の札・失敗の札と）送った時刻。 */
 function DbHistoryRow(props: {
   entry: DbHistoryEntry;
   selected: boolean;
@@ -175,6 +175,9 @@ function DbHistoryRow(props: {
       >
         <span class="card-row-name">{sqlPreview(props.entry.sql)}</span>
         <span class="card-row-state">
+          {props.entry.actor === "agent"
+            ? `${T("db.history.agentMark")} · `
+            : ""}
           {props.entry.ok ? "" : `${T("db.history.failedMark")} · `}
           {atText(props.entry.at)}
         </span>

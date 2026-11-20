@@ -164,13 +164,14 @@ func errDBDenied(c config.DBConnection, a config.DBAccess) *rpc.Error {
 }
 
 // dbWith は p の接続にログインして f を呼ぶ。接続を探す・権限を確かめる・動いているものに足す（db.cancel で止められる）・
-// パスワードを探す・間違いを窓への返事にする、は db.query と db.schema で同じ。what はログに書く要求の名前。
+// パスワードを探す・間違いを返事（*rpc.Error）にする、は db.query と db.schema で同じ。what はログに書く要求の名前。
+// 窓の要求（dbRequest）も、ペインの中のコマンド kisui db（dbcmd.go）も、ここを通る。
 //
 // run は、SQL を実行する要求か（db.query）。実行の段階が「しない」なら、DB につながずに denied で断る。
 // スキーマの一覧（run が false）は段階に関わらず通す（データの行ではなく、テーブルと列の名前と型だけなので）。
 // ログインは、p.Actor のユーザーで、段階が「自由」でなければ読むだけ。f に渡す接続は設定のもの（履歴の鍵と種類に使う）。
-func (ss *session) dbWith(ctx context.Context, p dbLogin, what string, run bool, f func(context.Context, config.DBConnection, db.Session) error) error {
-	m := ss.srv.db
+func (s *Server) dbWith(ctx context.Context, p dbLogin, what string, run bool, f func(context.Context, config.DBConnection, db.Session) error) error {
+	m := s.db
 	actor, err := dbActor(p.Actor)
 	if err != nil {
 		return err
@@ -196,10 +197,10 @@ func (ss *session) dbWith(ctx context.Context, p dbLogin, what string, run bool,
 		}
 		return errPasswordRequired("missing", "a password is required for the connection "+conf.Label())
 	}
-	err = m.run(ctx, c, password, src, func(s db.Session) error { return f(ctx, conf, s) })
+	err = m.run(ctx, c, password, src, func(sess db.Session) error { return f(ctx, conf, sess) })
 	if err != nil {
 		// SQL とパスワードはログに書かない。
-		ss.srv.log.Info(what+" failed", "connection", c.Name, "variant", c.Variant, "actor", actor)
+		s.log.Info(what+" failed", "connection", c.Name, "variant", c.Variant, "actor", actor)
 		return dbQueryError(ctx, err, src)
 	}
 	return nil
@@ -226,7 +227,7 @@ func (ss *session) dbRequest(ctx context.Context, req *rpc.Message) (any, error)
 	}
 	switch req.Method {
 	case "db.connections":
-		return ss.dbConnectionsReq()
+		return ss.srv.dbConnections(), nil
 	case "db.query":
 		return ss.dbQueryReq(ctx, req)
 	case "db.cancel":
@@ -281,12 +282,12 @@ type DBConnectionsResult struct {
 	Problems []string `json:"problems"`
 }
 
-// dbConnectionsReq は db.connections：このマシンの設定に書いた接続の一覧。
-func (ss *session) dbConnectionsReq() (any, error) {
-	conns, probs := ss.srv.db.load()
+// dbConnections は db.connections：このマシンの設定に書いた接続の一覧。
+func (s *Server) dbConnections() DBConnectionsResult {
+	conns, probs := s.db.load()
 	res := DBConnectionsResult{Connections: make([]DBConnectionInfo, len(conns)), Problems: make([]string, len(probs))}
 	for i, c := range conns {
-		h, a := ss.srv.db.access(c, config.DBHuman), ss.srv.db.access(c, config.DBAgent)
+		h, a := s.db.access(c, config.DBHuman), s.db.access(c, config.DBAgent)
 		res.Connections[i] = DBConnectionInfo{
 			Name: c.Name, Variant: c.Variant, Kind: c.Kind, Host: c.Host, Port: c.Port, User: c.User, Database: c.Database,
 			ReadOnly: h.Run == config.DBRunRead,
@@ -297,31 +298,39 @@ func (ss *session) dbConnectionsReq() (any, error) {
 	for i, p := range probs {
 		res.Problems[i] = p.Text()
 	}
-	return res, nil
+	return res
+}
+
+// dbQueryParams は db.query の引数。
+type dbQueryParams struct {
+	dbLogin
+	SQL     string `json:"sql"`
+	MaxRows int    `json:"maxRows"`
+	// Offset は、前に実行した結果の続きのページ（#373）。0 より大きければ、SQL を包んで（internal/db の wrap.go）、
+	// その行数の後から読む。
+	Offset int `json:"offset"`
+	// OrderBy は、結果の列の位置（1 が最初の列）での並べ替え（#377）。0 か省けば並べ替えない。Desc は降順。
+	// SQL を包んで ORDER BY を付ける（internal/db の wrap.go）ので、全部の行が並び、offset のページもその順になる。
+	OrderBy int  `json:"orderBy"`
+	Desc    bool `json:"desc"`
+	// Rerun は、前に実行した SQL を読み直すだけの実行（ページ・並べ替え・並べ替えをやめる）。履歴に残さない。
+	Rerun bool `json:"rerun"`
+	// Schema は、スキーマを書かない名前を先に探すスキーマ（#378。DB のタブで選んだもの）。省くか "" なら、DB の既定のまま。
+	// ログインは 1 つの文ごとなので、実行のたびに設定する（internal/db の QueryOptions.Schema）。
+	Schema string `json:"schema"`
 }
 
 // dbQueryReq は db.query：接続に SQL を 1 つ実行して結果を返す。結果の形は db.Result。
 func (ss *session) dbQueryReq(ctx context.Context, req *rpc.Message) (any, error) {
-	var p struct {
-		dbLogin
-		SQL     string `json:"sql"`
-		MaxRows int    `json:"maxRows"`
-		// Offset は、前に実行した結果の続きのページ（#373）。0 より大きければ、SQL を包んで（internal/db の wrap.go）、
-		// その行数の後から読む。
-		Offset int `json:"offset"`
-		// OrderBy は、結果の列の位置（1 が最初の列）での並べ替え（#377）。0 か省けば並べ替えない。Desc は降順。
-		// SQL を包んで ORDER BY を付ける（internal/db の wrap.go）ので、全部の行が並び、offset のページもその順になる。
-		OrderBy int  `json:"orderBy"`
-		Desc    bool `json:"desc"`
-		// Rerun は、前に実行した SQL を読み直すだけの実行（ページ・並べ替え・並べ替えをやめる）。履歴に残さない。
-		Rerun bool `json:"rerun"`
-		// Schema は、スキーマを書かない名前を先に探すスキーマ（#378。DB のタブで選んだもの）。省くか "" なら、DB の既定のまま。
-		// ログインは 1 つの文ごとなので、実行のたびに設定する（internal/db の QueryOptions.Schema）。
-		Schema string `json:"schema"`
-	}
+	var p dbQueryParams
 	if err := json.Unmarshal(req.Params, &p); err != nil {
 		return nil, invalidParams(err)
 	}
+	return ss.srv.dbQuery(ctx, p)
+}
+
+// dbQuery は p の接続に SQL を 1 つ実行する。間違いは *rpc.Error。
+func (s *Server) dbQuery(ctx context.Context, p dbQueryParams) (*db.Result, error) {
 	if strings.TrimSpace(p.SQL) == "" {
 		return nil, rpc.Errorf(rpc.CodeInvalidParams, "sql is empty")
 	}
@@ -335,19 +344,25 @@ func (ss *session) dbQueryReq(ctx context.Context, req *rpc.Message) (any, error
 		return nil, rpc.Errorf(rpc.CodeInvalidParams, "orderBy is negative")
 	}
 	var res *db.Result
-	err := ss.dbWith(ctx, p.dbLogin, "db.query", true, func(ctx context.Context, c config.DBConnection, s db.Session) error {
+	err := s.dbWith(ctx, p.dbLogin, "db.query", true, func(ctx context.Context, c config.DBConnection, sess db.Session) error {
 		// 履歴に足すのは、ログインが通って SQL を DB に送ったものだけ。ログインできなかった SQL は実行していないうえ、
 		// password_required のあとに窓が送り直すと同じ SQL が 2 つ残ってしまう。ページを切り替えるための実行（offset あり）と並べ替えるための実行（orderBy あり）も
 		// 残さない：同じ SQL の続きを読むだけで、ページを送るたびに同じ SQL が並んでしまう。
-		at := ss.srv.now()
+		at := s.now()
 		var err error
-		res, err = s.Query(ctx, p.SQL, db.QueryOptions{MaxRows: p.MaxRows, Offset: p.Offset, OrderBy: p.OrderBy, Desc: p.Desc, Schema: p.Schema})
+		res, err = sess.Query(ctx, p.SQL, db.QueryOptions{MaxRows: p.MaxRows, Offset: p.Offset, OrderBy: p.OrderBy, Desc: p.Desc, Schema: p.Schema})
 		if p.Offset > 0 || p.OrderBy > 0 || p.Rerun {
 			return err
 		}
-		if herr := ss.srv.db.history.Add(db.HistoryKey(c), db.HistoryEntry{SQL: p.SQL, At: at, OK: err == nil}); herr != nil {
+		// エージェントの文も、人の文と同じ履歴に残す（エージェントが何を実行したかを、人が後から見られるように）。
+		// どちらの文かは Actor で分かる。
+		entry := db.HistoryEntry{SQL: p.SQL, At: at, OK: err == nil}
+		if p.Actor == string(config.DBAgent) {
+			entry.Actor = p.Actor
+		}
+		if herr := s.db.history.Add(db.HistoryKey(c), entry); herr != nil {
 			// 履歴に残せなくても、SQL の結果は返す。
-			ss.srv.log.Warn("db history", "connection", c.Name, "variant", c.Variant, "err", herr)
+			s.log.Warn("db history", "connection", c.Name, "variant", c.Variant, "err", herr)
 		}
 		return err
 	})
@@ -363,10 +378,15 @@ func (ss *session) dbSchemaReq(ctx context.Context, req *rpc.Message) (any, erro
 	if err := json.Unmarshal(req.Params, &p); err != nil {
 		return nil, invalidParams(err)
 	}
+	return ss.srv.dbSchema(ctx, p)
+}
+
+// dbSchema は p の接続のスキーマの一覧を読む。間違いは *rpc.Error。
+func (s *Server) dbSchema(ctx context.Context, p dbLogin) (*db.Catalog, error) {
 	var cat *db.Catalog
-	err := ss.dbWith(ctx, p, "db.schema", false, func(ctx context.Context, c config.DBConnection, s db.Session) error {
+	err := s.dbWith(ctx, p, "db.schema", false, func(ctx context.Context, c config.DBConnection, sess db.Session) error {
 		var err error
-		cat, err = db.ReadCatalog(ctx, s, c.Kind)
+		cat, err = db.ReadCatalog(ctx, sess, c.Kind)
 		return err
 	})
 	if err != nil {

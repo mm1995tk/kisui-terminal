@@ -275,6 +275,8 @@ export interface DbHistoryEntry {
   at: string;
   /** DB が間違いなく実行した。DB が断った・取り消したものは false */
   ok: boolean;
+  /** コーディングエージェントが実行した文（`kisui db query`。#382）なら "agent"。人が窓で実行した文には無い */
+  actor?: string;
 }
 
 /** password_required（-32006）の data。missing：どこにも無い、rejected：入力したものを DB が断った。どちらも窓はパスワードを聞く */
@@ -553,6 +555,14 @@ export interface Notifications {
    * そのマシンの serve に pane.run で送り（open-tab は、pane.open と同じく GUI がそのマシンにタブを作る）、pane.relayed で答える
    */
   "pane.relay": PaneRelayRequest;
+  /**
+   * `kisui db propose`（#382）。コーディングエージェントが、このマシンの接続 connection（と variant）の DB のタブの入力欄に
+   * sql を書くよう頼んだ。今のワークスペースのそのタブ（無ければ開く）に書き、db.proposed で答える。入力欄に SQL があれば、
+   * 上書きの前に人に聞く
+   */
+  "db.propose": DbProposeRequest;
+  /** db.propose の取り下げ（serve が答えを待つのをやめた：時間切れ・コマンドが止められた）。人に聞いている途中なら、聞くのをやめて書かない */
+  "db.proposeCancel": { id: string };
   /** プライマリの shj（`ctl.PaneRequest` の `kind: "browser"`）・`kisui open <URL>` が、URL を手元のブラウザで開くよう頼んだ（#96）。欄は作らない。内蔵ブラウザを有効にしていればそのワークスペースの新しいタブ、無効なら外部ブラウザで開く（#203）。リモートのマシンの localhost 系は、GUI が `kisui relay` の中継越しに開く */
   "browser.open": { workspaceId: WorkspaceId; url: string };
   /** プライマリの shj が、そのワークスペースのファイルエクスプローラにキーを向けるよう頼んだ（Space e）。Esc で端末に戻る。start は、shj が引数なしで起動した直後（ツリーが整うのを待つ）。 */
@@ -606,7 +616,27 @@ export interface GuiNotifications {
   "pane.opened": { id: string } & PaneOpenReport;
   /** pane.relay への答え（`kisui pane … --machine` に渡る。serve の panecmd.Reply の形） */
   "pane.relayed": { id: string; reply: PaneRunReply };
+  /** db.propose への答え（`kisui db propose` に渡る） */
+  "db.proposed": { id: string } & DbProposeReport;
 }
+
+/** db.propose の中身（`kisui db propose`。#382）。 */
+export interface DbProposeRequest {
+  id: string;
+  /** 頼んだマシンの接続の名前 */
+  connection: string;
+  /** 環境の変種の名前（変種の無い接続では無い） */
+  variant?: string;
+  /** 入力欄に書く SQL */
+  sql: string;
+}
+
+/**
+ * db.propose への答え（#382）。written：入力欄に書いた。declined：入力欄に SQL があり、人が上書きを断った。
+ * error：書けなかった理由（そのまま kisui db propose が出す）。
+ */
+export type DbProposeReport =
+  { status: "written" | "declined" } | { error: string };
 
 /** pane.open の中身（`kisui pane open`。#343）。 */
 export interface PaneOpenRequest {
