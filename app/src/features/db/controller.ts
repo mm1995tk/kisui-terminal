@@ -46,6 +46,9 @@ import {
   type MachineConnections,
   type QueryFailure,
 } from "./model.ts";
+import { createDbExport } from "./exportController.ts";
+import type { SaveTextFile } from "./export.ts";
+import { createDbHistory } from "./historyController.ts";
 import { createDbTree } from "./treeController.ts";
 
 /** createDbTabs が返す持ち物。 */
@@ -92,6 +95,12 @@ export function createDbTabs(deps: {
   activateTab: (gid: string, ref: TabRef) => void;
   /** 今使っているペイン（DB のタブを出していれば SQL の入力欄）にキーを向ける */
   focusTerminal: () => void;
+  /** 結果の書き出し（#349）：保存のダイアログを出して書く */
+  saveFile: SaveTextFile;
+  /** OS のクリップボードに入れ、書けたときだけ「コピーしました」を出す */
+  copyToClipboard: (text: string) => Promise<void>;
+  /** 少しの間だけ出る短い知らせ */
+  showToast: (text: string) => void;
 }) {
   const { store, focusTerminal } = deps;
   const { sessions, states, targets, labelOf, colors } = deps.sessions;
@@ -253,6 +262,23 @@ export function createDbTabs(deps: {
     cancelQuery,
   });
 
+  // ---- 結果の書き出しと、クエリの履歴（#349） ----
+  const exporter = createDbExport({
+    refOf,
+    resultOf: (id) => untrack(runs)[id]?.result,
+    saveFile: deps.saveFile,
+    copyToClipboard: deps.copyToClipboard,
+    showToast: deps.showToast,
+    fail: cannot,
+    focusTerminal,
+  });
+  const history = createDbHistory({
+    refOf,
+    sessionFor,
+    setDraft,
+    focusTerminal,
+  });
+
   // ---- 接続を選ぶ窓 ----
   const [picker, setPicker] = createSignal<DbPicker | null>(null);
   let pickerGen = 0;
@@ -374,6 +400,9 @@ export function createDbTabs(deps: {
     request,
     // 左の木のペイン（#348。treeController.ts）
     ...tree,
+    // 結果の書き出し（#349。exportController.ts）と、クエリの履歴（historyController.ts）
+    ...exporter,
+    ...history,
     /** パスワードを聞いている窓（無ければ null） */
     passwordAsk,
     replyPassword: (password: string | null) => replyPassword(password),

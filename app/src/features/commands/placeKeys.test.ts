@@ -18,7 +18,7 @@ import { setLang } from "../../i18n/index.ts";
 import { imageKey } from "../../ui/main-window/content/media/imageView.ts";
 import { videoKey } from "../terminal/media.ts";
 import { treeKey } from "../file-tree/keys.ts";
-import { dbEditorKey, dbTreeKey } from "../db/keys.ts";
+import { dbEditorKey, dbHistoryKey, dbTreeKey } from "../db/keys.ts";
 
 const ev = (key: string, extra: object = {}) => ({
   key,
@@ -90,6 +90,12 @@ describe("場所のキーの表は、その場所の判定と合っている", (
     for (const r of PLACE_KEYS.dbTree.rows)
       for (const p of r.probes)
         assert.notEqual(dbTreeKey(ev(p)), null, `${r.keys}: ${p}`);
+  });
+
+  it("DB のタブの履歴の窓（#349）：表のキーは、絞り込みが空のとき、どれも判定が受ける", () => {
+    for (const r of PLACE_KEYS.dbHistory.rows)
+      for (const p of r.probes)
+        assert.notEqual(dbHistoryKey(ev(p), true), null, `${r.keys}: ${p}`);
   });
 
   it("窓の表には、`?`（キーの一覧）と Esc の行がある", () => {
@@ -199,6 +205,7 @@ describe("isWindowPlace（`?` の一覧に、その窓のキーだけを出す�
       "switcher",
       "switcherTabs",
       "history",
+      "dbHistory",
     ] as const)
       assert.equal(isWindowPlace(p), true, p);
     for (const p of ["tree", "changes", "video", "image", "list"] as const)

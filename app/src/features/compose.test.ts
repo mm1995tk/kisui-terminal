@@ -283,6 +283,7 @@ function start(opts: {
       select: async () => {},
       frameUrl: (id) => id,
     },
+    exportFile: async () => null,
     updates: {
       check: async () => null,
       checkNow: async () => ({ status: "latest", current: "1" }) as never,

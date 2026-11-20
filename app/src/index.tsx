@@ -11,6 +11,7 @@ import { lang, setLang, T } from "./i18n/index.ts";
 import { browserStore } from "./infrastructure/storage/localStorage.ts";
 import { tauriBrowser } from "./infrastructure/tauri/browser.ts";
 import { tauriClipboard } from "./infrastructure/tauri/clipboard.ts";
+import { tauriExportFile } from "./infrastructure/tauri/export.ts";
 import {
   listClipboardHistory,
   tauriClipboardPopup,
@@ -78,6 +79,7 @@ if (windowLabel() === POPUP_LABEL) {
     applyScale,
     mascot: tauriMascot,
     updates: tauriUpdates,
+    exportFile: tauriExportFile,
   };
   // ターミナル（coneko-term）は wasm を読み終えてから作る。読み込めないと窓が真っ白になるので、理由を出す
   try {
