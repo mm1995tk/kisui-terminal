@@ -1,8 +1,7 @@
-// DB のタブ（#347）の左の木のペイン（#348）の持ち物と操作。画面にも Tauri にも触らない。
+// DB のタブ（#347）のスキーマの木（#348。サイドバーに出す。#374）の持ち物と操作。画面にも Tauri にも触らない。
 // 木の中身（スキーマ → テーブル → 列）は、接続を書いたマシンの kisui serve が返す一覧（db.schema。#346）。
 //
 // 持ち物の分け方：
-// - 開け閉めと幅は、すべての DB のタブで共通の窓の設定。KeyValueStore（webview の localStorage）に覚える（tree.ts の loadTreeLayout・saveTreeLayout）。
 // - 一覧・聞いている最中の印・失敗の理由・開けている枝は、タブごとにメモリだけに持つ（開き直したら、もう一度聞く）。
 // DB のタブそのものと SQL の実行は controller.ts が持ち、ここはそこから必要な口だけを受け取る（createDbTabs が組み立てる）。
 import { T } from "../../i18n/index.ts";
@@ -13,20 +12,12 @@ import type {
   DbConnection,
   Requests,
 } from "../../infrastructure/rpc/protocol.ts";
-import type { KeyValueStore } from "../keyValueStore.ts";
 import type { DbMethod, Session } from "../sessions/session.ts";
 import { dbRefParams, type DbRef } from "../workspaces/model.ts";
 import { catalogError, newQueryId } from "./model.ts";
-import {
-  clampTreeWidth,
-  initialExpanded,
-  loadTreeLayout,
-  previewSql,
-  saveTreeLayout,
-  type TreeLayout,
-} from "./tree.ts";
+import { initialExpanded, previewSql } from "./tree.ts";
 
-/** タブ 1 つの、左の木のペインのスキーマの一覧。メモリだけに持つ（開き直したら、もう一度聞く）。 */
+/** タブ 1 つの、サイドバーの木のスキーマの一覧。メモリだけに持つ（開き直したら、もう一度聞く）。 */
 export interface DbCatalogState {
   /** 聞いている最中（db.cancel に渡す名前と、送ったマシン）。聞き直している間も、前の一覧は残る */
   loading?: { queryId: string; target: string };
@@ -40,9 +31,8 @@ export interface DbCatalogState {
 /** createDbTree が返す持ち物。 */
 export type DbTree = ReturnType<typeof createDbTree>;
 
-/** 木のペインの持ち物を作る。一覧を聞く・開けている枝・テーブルを選んだときの実行・ペインの開け閉めを受け持つ。 */
+/** 木の持ち物を作る。一覧を聞く・開けている枝・テーブルを選んだときの実行を受け持つ。 */
 export function createDbTree(deps: {
-  store: KeyValueStore | undefined;
   /** タブ id の記録（DbRef） */
   refOf: (id: string) => DbRef | undefined;
   /** ref のマシンの、DB を扱える接続（つながっていない・古い kisui serve なら、理由を投げる） */
@@ -62,15 +52,8 @@ export function createDbTree(deps: {
   /** 実行中の要求を db.cancel で取り消す */
   cancelQuery: (q: { queryId: string; target: string }) => void;
 }) {
-  const { store, refOf, sessionFor, request, shownDbTab } = deps;
+  const { refOf, sessionFor, request, shownDbTab } = deps;
 
-  const [treeLayout, setTreeLayout] = createSignal<TreeLayout>(
-    loadTreeLayout(store),
-  );
-  function writeTreeLayout(next: TreeLayout) {
-    setTreeLayout(next);
-    saveTreeLayout(store, next);
-  }
   const [catalogs, setCatalogs] = createSignal<
     Readonly<Record<string, DbCatalogState>>
   >({});
@@ -145,20 +128,10 @@ export function createDbTree(deps: {
     void deps.run(id, sql);
   }
 
-  /** 木のペインを開け閉めする（どの DB のタブでも同じ）。開けたとき、まだ一覧が無ければ聞く（下の effect）。開いたかを返す。 */
-  function toggleTree(): boolean {
-    const open = !untrack(treeLayout).open;
-    writeTreeLayout({ ...untrack(treeLayout), open });
-    return open;
-  }
-  function setTreeWidth(width: number) {
-    writeTreeLayout({ ...untrack(treeLayout), width: clampTreeWidth(width) });
-  }
-
-  // 木のペインが開いていて、DB のタブを出したら、まだ聞いていなければ一覧を聞く（失敗しても繰り返さない。聞き直しは操作で）
+  // DB のタブを出したら、まだ聞いていなければ一覧を聞く（失敗しても繰り返さない。聞き直しは操作で）
   createEffect(() => {
     const t = shownDbTab();
-    if (!t || !treeLayout().open) return;
+    if (!t) return;
     if (untrack(catalogs)[t.id]) return;
     untrack(() => void loadCatalog(t.id));
   });
@@ -181,10 +154,6 @@ export function createDbTree(deps: {
   }
 
   return {
-    /** 出し方（開いているか・幅）。どの DB のタブでも同じ */
-    treeLayout,
-    toggleTree,
-    setTreeWidth,
     /** タブ id の、スキーマの一覧（聞いている最中か・一覧・失敗の理由） */
     catalogOf: (id: string): DbCatalogState => catalogs()[id] ?? {},
     /** タブ id の一覧を聞き直す（開けている枝は残る） */

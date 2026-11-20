@@ -1,12 +1,14 @@
 // サイドバーの、タブの段の下の段（ファイルツリーと CHANGES）。描くのは file-tree/TreeView.tsx と changes/ChangesView.tsx。
+// DB のタブを出している間（#374）は、ファイルツリーの場所にそのタブの接続の木（db-tree/DbTree.tsx）を出し、ファイルツリーと CHANGES は外さずに見えなくする（状態を保つ）。
 import { T } from "../../../i18n/index.ts";
 import { Show, type JSX } from "solid-js";
 
 import type { Row } from "../../../features/workspaces/rows.ts";
-// CSS を持つ部品の import は、この順（CHANGES → ツリー）を変えない（理由は ../page.tsx）
+// CSS を持つ部品の import は、この順（CHANGES → ツリー → DB の木）を変えない（理由は ../page.tsx）
 import { ChangesView } from "./changes/ChangesView.tsx";
 import { TreeView } from "./file-tree/TreeView.tsx";
-import type { Handlers } from "./handlers.ts";
+import { DbTree } from "./db-tree/DbTree.tsx";
+import { dbTreeTabOf, type Handlers } from "./handlers.ts";
 
 /**
  * タブの段の下の、ファイルツリーの段と CHANGES の段（プライマリで shj が動いている、フォーカスしているワークスペースだけ）。
@@ -14,9 +16,11 @@ import type { Handlers } from "./handlers.ts";
  */
 export function Panes(props: Handlers & { row: Row }): JSX.Element {
   const b = () => props.row.band;
+  // 出している DB のタブの id（この帯がフォーカスしているときだけ。DB の木は、フォーカスしているワークスペースのタブのもの）
+  const dbTab = () => dbTreeTabOf(props, b().focused);
   // ブラウザのタブを出している間は、外さずに見えなくして、状態を保つ（#268。隠すのは帯の data-panes-hidden、sidebar.css）
   return (
-    <div class="panes">
+    <div class="panes" data-db={dbTab() !== undefined ? "" : undefined}>
       <div class="tabs-border">
         <div
           class="tabs-resizer"
@@ -26,6 +30,14 @@ export function Panes(props: Handlers & { row: Row }): JSX.Element {
           onDblClick={() => props.onTabsResizeReset?.()}
         />
       </div>
+      {/* DB のタブを出している間の木。ほかのタブに移れば消え、ファイルツリーに戻る */}
+      <Show when={dbTab()} keyed>
+        {(id) => (
+          <div class="tree-section db-tree-section">
+            <DbTree {...props.dbTree!(id)} />
+          </div>
+        )}
+      </Show>
       {/* ファイルツリーの段。ツリーはこの段の中だけでスクロールする（行を出していなくても、段は残す） */}
       <div class="tree-section">
         <Show when={b().focused && props.treeOf?.(props.row.target, b().id)}>

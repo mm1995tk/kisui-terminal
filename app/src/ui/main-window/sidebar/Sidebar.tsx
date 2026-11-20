@@ -38,7 +38,7 @@ import type { WorkspaceId } from "../../../infrastructure/rpc/protocol.ts";
 import { BandItem } from "./workspaces/BandItem.tsx";
 import { EmptyHeader } from "./workspaces/BandHeader.tsx";
 import { TreeMenu } from "./file-tree/TreeMenu.tsx";
-import { handlers, type Handlers } from "./handlers.ts";
+import { dbTreeTabOf, handlers, type Handlers } from "./handlers.ts";
 import { PopupMenu } from "./PopupMenu.tsx";
 import "./sidebar.css";
 
@@ -91,8 +91,10 @@ export function Sidebar(
         setTreeMenu({ target, id, row, x, y })
     : undefined;
   const focused = createMemo(() => focusedRow(props.rows));
-  // shj が動いているときは、タブ・ファイルツリー・CHANGES の 3 段に分ける（#284）
-  const sections = () => focused()?.row.band.showTree === true;
+  // shj が動いているとき（と DB のタブを出している間）は、タブ・ファイルツリー・CHANGES の 3 段に分ける（#284・#374）
+  const sections = () =>
+    focused()?.row.band.showTree === true ||
+    dbTreeTabOf(props, true) !== undefined;
   let nav!: HTMLElement;
 
   // 固定されているものに data-stuck を付ける（背景と影をモックに合わせる）。

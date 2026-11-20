@@ -8,7 +8,7 @@ import {
   type Row,
   type TabsSnapshot,
 } from "../../../../features/workspaces/rows.ts";
-import type { Handlers } from "../handlers.ts";
+import { dbTreeTabOf, type Handlers } from "../handlers.ts";
 import { Panes } from "../Panes.tsx";
 import { BandHeader } from "./BandHeader.tsx";
 import { grabTab, TabRow } from "./TabRow.tsx";
@@ -44,8 +44,9 @@ export function BandItem(props: Handlers & { row: Row }): JSX.Element {
     const r = props.renaming;
     return r && r.gws === props.row.gws ? r : undefined;
   };
-  // shj が動いているときは 3 段に分ける（#284）
-  const sections = () => b().focused && b().showTree;
+  // shj が動いているときは 3 段に分ける（#284）。DB のタブを出している間は、shj が動いていなくても 3 段に分ける（ファイルツリーの場所に DB の木を出すため。#374）
+  const dbShown = () => dbTreeTabOf(props, b().focused) !== undefined;
+  const sections = () => b().focused && (b().showTree || dbShown());
   let tabRows!: HTMLUListElement;
   revealTabs(
     () => tabRows,
@@ -62,7 +63,9 @@ export function BandItem(props: Handlers & { row: Row }): JSX.Element {
       style={{ "--machine-color": props.row.color }}
       data-focused={b().focused ? "" : undefined}
       data-sections={sections() ? "" : undefined}
-      data-panes-hidden={sections() && shownIsPage(tabs()) ? "" : undefined}
+      data-panes-hidden={
+        sections() && shownIsPage(tabs()) && !dbShown() ? "" : undefined
+      }
       data-health={props.row.health}
     >
       <BandHeader {...props} editing={editing()} />

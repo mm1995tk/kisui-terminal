@@ -650,13 +650,13 @@ export const en = {
   "place.dbResult.copy":
     "Copy the selected cells (one cell as it is, more as TSV)",
   "cannot.db.title": "Cannot open a database tab",
-  "leader.db.tree": "Show or hide the schema tree",
+  "leader.db.tree": "Move the keys to the schema tree in the sidebar",
   "leader.db.refresh": "Reload the schema tree",
   "cannot.dbTree.title": "No database tab is shown",
   "cannot.dbTree.text": "Show a database tab first.",
   "place.dbTree.title": "Schema tree of a database tab",
   "place.dbTree.lead":
-    "Keys in the tree on the left of a database tab. Choosing a table runs SELECT * on it (first 100 rows).",
+    "Keys in the schema tree in the sidebar, which takes the place of the file tree while a database tab is shown. Choosing a table runs SELECT * on it (first 100 rows).",
   "place.dbTree.expand": "Open the branch (or go into it)",
   "place.dbTree.collapse": "Close the branch (or go up)",
   "place.dbTree.enter": "Open or close a schema, show the rows of a table",

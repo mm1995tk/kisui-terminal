@@ -147,3 +147,28 @@ test("段の区切り（タブとツリー・ツリーと CHANGES）は、見出
     /background: var\(--color-accent\);/,
   );
 });
+
+test("DB のタブを出している間は、ファイルツリーの場所に DB の木を出し、ファイルツリーと CHANGES は外さずに隠す（#374）", () => {
+  const panes = tsx.slice(
+    tsx.indexOf("function Panes"),
+    tsx.indexOf("function BandItem"),
+  );
+  // DB の木は、ファイルツリーと同じ段（.tree-section）の中に出す
+  assert.match(
+    panes,
+    /<div class="tree-section db-tree-section">\s*<DbTree \{\.\.\.props\.dbTree!\(id\)\} \/>/,
+  );
+  // 見えなくするのは CSS（外さないので、開いているフォルダ・選んでいる行は残る）
+  assert.match(
+    rule(
+      ".panes[data-db] > .tree-section:not(.db-tree-section),\n.panes[data-db] > .changes",
+    ),
+    /display: none;/,
+  );
+  // shj が動いていなくても、DB のタブを出していれば 3 段に分け、タブの段の下にパネルを出す
+  const item = tsx.slice(
+    tsx.indexOf("function BandItem"),
+    tsx.indexOf("export function TabRow"),
+  );
+  assert.match(item, /sections\(\) && shownIsPage\(tabs\(\)\) && !dbShown\(\)/);
+});

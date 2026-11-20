@@ -42,7 +42,7 @@ export interface CommandUi {
   openKeyList(): void;
   /** URL バー（新しいタブのページなら検索窓）にキーを向ける */
   focusUrlBar(): void;
-  /** DB のタブの左の木のペインにキーを向ける */
+  /** サイドバーの DB のタブの木にキーを向ける（#374。閉じているサイドバーは開く） */
   focusDbTree(): void;
   /** ページから押したときに覚えた「キーを戻す先」を捨てる */
   forgetPageReturn(): void;
@@ -66,7 +66,6 @@ export function createCommandRunner(deps: {
     DbTabs,
     | "shownDbTab"
     | "openPicker"
-    | "toggleTree"
     | "reloadCatalog"
     | "openExport"
     | "openHistory"
@@ -305,14 +304,14 @@ export function createCommandRunner(deps: {
         break;
       case "db.tree":
       case "db.refresh": {
-        // 左の木のペイン（#348）の操作：DB のタブを出している間だけ
+        // サイドバーの木（#348・#374）の操作：DB のタブを出している間だけ
         const tab = deps.db.shownDbTab();
         if (!tab) {
           cannot(T("cannot.dbTree.title"), T("cannot.dbTree.text"));
           break;
         }
-        // 木を出したら木にキーを向け（キーだけで j k と Enter に移れる）、隠したら入力欄に戻す
-        if (c.id === "db.tree" && deps.db.toggleTree()) {
+        // d t は木にキーを向ける（キーだけで j k と Enter に移れる。閉じているサイドバーは開く）。入力欄へは木の Esc で戻る
+        if (c.id === "db.tree") {
           ui.focusDbTree();
           break;
         }

@@ -107,6 +107,8 @@ describe("メインウィンドウの CSS の並び", () => {
       // その場の入力欄（.inline-* の規則だけを持ち、置き場のツリー・サイドバー・切り替える窓の規則と重ならない）
       "ui/components/inline-input.css",
       "ui/main-window/sidebar/file-tree/tree.css",
+      // サイドバーの DB のタブの木（#374。CSS Modules なので、クラス名はほかと重ならない）
+      "ui/main-window/sidebar/db-tree/DbTree.module.css",
       "ui/main-window/sidebar/sidebar.css",
       // キー操作のヒント（.key-hint・.kbd の規則だけを持ち、置き場の窓の規則と重ならない）
       "ui/components/key-hints.css",
@@ -120,7 +122,6 @@ describe("メインウィンドウの CSS の並び", () => {
       "ui/main-window/content/terminal/terminal.css",
       "ui/main-window/content/EmptyWorkspace.module.css",
       // DB のタブの画面（#347。CSS Modules なので、クラス名はほかと重ならない）
-      "ui/main-window/content/db/DbTree.module.css",
       "ui/main-window/content/db/DbTabView.module.css",
     ]);
   });

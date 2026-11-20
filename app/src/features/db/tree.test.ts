@@ -3,14 +3,9 @@ import { describe, it } from "node:test";
 
 import type { DbCatalog } from "../../infrastructure/rpc/protocol.ts";
 import {
-  clampTreeWidth,
-  DB_TREE_KEY,
-  DEFAULT_TREE_LAYOUT,
   initialExpanded,
-  loadTreeLayout,
   previewSql,
   quoteIdent,
-  saveTreeLayout,
   schemaId,
   tableId,
   treeStep,
@@ -36,14 +31,6 @@ const catalog: DbCatalog = {
     },
     { name: "empty", tables: [] },
   ],
-};
-
-const mem = () => {
-  const m = new Map<string, string>();
-  return {
-    getItem: (k: string) => m.get(k) ?? null,
-    setItem: (k: string, v: string) => void m.set(k, v),
-  };
 };
 
 describe("visibleRows（木の見える行）", () => {
@@ -180,31 +167,5 @@ describe("previewSql（テーブルを選んだときの SQL）", () => {
     assert.equal(quoteIdent("postgres", 'a"b'), '"a""b"');
     assert.equal(quoteIdent("mysql", "a`b"), "`a``b`");
     assert.equal(quoteIdent("mysql", 'a"b'), '`a"b`');
-  });
-});
-
-describe("木のペインの開け閉めと幅の記録", () => {
-  it("書いて読み直すと戻る。無い・壊れている・版が違うときは既定", () => {
-    const s = mem();
-    assert.deepEqual(loadTreeLayout(s), DEFAULT_TREE_LAYOUT);
-    saveTreeLayout(s, { open: false, width: 300 });
-    assert.deepEqual(loadTreeLayout(s), { open: false, width: 300 });
-    s.setItem(DB_TREE_KEY, "{");
-    assert.deepEqual(loadTreeLayout(s), DEFAULT_TREE_LAYOUT);
-    s.setItem(DB_TREE_KEY, JSON.stringify({ version: 2, open: false }));
-    assert.deepEqual(loadTreeLayout(s), DEFAULT_TREE_LAYOUT);
-    assert.deepEqual(loadTreeLayout(undefined), DEFAULT_TREE_LAYOUT);
-  });
-
-  it("幅は範囲に収める", () => {
-    assert.equal(clampTreeWidth(10), 160);
-    assert.equal(clampTreeWidth(9999), 640);
-    assert.equal(clampTreeWidth(Number.NaN), 240);
-    const s = mem();
-    s.setItem(
-      DB_TREE_KEY,
-      JSON.stringify({ version: 1, open: true, width: 1 }),
-    );
-    assert.equal(loadTreeLayout(s).width, 160);
   });
 });

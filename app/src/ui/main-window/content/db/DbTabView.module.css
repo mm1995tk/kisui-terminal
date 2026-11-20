@@ -4,7 +4,6 @@
   inset: 0;
   /* ターミナルのグリッドより上、境界のつまみ（layout.css の .resizer、z-index 5）より下（空のワークスペースの画面と同じ） */
   z-index: 4;
-  /* 左の木のペイン（#348。DbTree.module.css）と、右の入力欄・結果の表を横に並べる */
   display: flex;
   background: var(--color-bg);
   color: var(--color-text);
@@ -13,23 +12,7 @@
   line-height: var(--leading-text);
 }
 
-/* 木と右の入力欄・結果の境のつまみ。つまみで幅を変えられる */
-.separator {
-  flex: none;
-  width: 5px;
-  margin: 0 -2px;
-  z-index: 1;
-  cursor: col-resize;
-  background: var(--color-border);
-  background-clip: content-box;
-  padding: 0 2px;
-}
-.separator:hover,
-.separator[data-dragging] {
-  background-color: var(--color-accent);
-}
-
-/* 右の、SQL の入力欄と結果の表 */
+/* SQL の入力欄と結果の表 */
 .query {
   flex: 1;
   min-width: 0;
@@ -174,12 +157,4 @@
   margin-left: auto;
   display: flex;
   gap: var(--space-8);
-}
-
-/* 左の木のペインを入れる枠（幅は props.tree.width） */
-.treePane {
-  flex: none;
-  min-width: 0;
-  max-width: 70%;
-  display: flex;
 }
