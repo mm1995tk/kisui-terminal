@@ -215,6 +215,7 @@ func TestLoadDBVariantMistakes(t *testing.T) {
 		"empty user":      {"user = \"u\"\n[[db.connections.variants]]\nname = \"a\"\nuser = \"\"\n", "db.connections[1].variants[0].user"},
 		"port range":      {"user = \"u\"\n[[db.connections.variants]]\nname = \"a\"\nport = 0\n", "db.connections[1].variants[0].port"},
 		"read-only":       {"user = \"u\"\n[[db.connections.variants]]\nname = \"a\"\nread-only = 1\n", "db.connections[1].variants[0].read-only"},
+		"slash in name":   {"user = \"u\"\n[[db.connections.variants]]\nname = \"b/c\"\n", "db.connections[1].variants[0].name"},
 		"kind in variant": {"user = \"u\"\n[[db.connections.variants]]\nname = \"a\"\nkind = \"postgres\"\n", "db.connections[1].variants[0].kind"},
 		"misspelt key":    {"user = \"u\"\n[[db.connections.variants]]\nname = \"a\"\nreadonly = true\n", "db.connections[1].variants[0].readonly"},
 		"password":        {"user = \"u\"\n[[db.connections.variants]]\nname = \"a\"\npassword = \"secret\"\n", "db.connections[1].variants[0].password"},

@@ -130,7 +130,11 @@ const KeychainService = "kisui-terminal-db"
 // connection, and for a variant the name, a slash and the variant
 // ("shop/prod"). Each variant has an item of its own, and the item of one is
 // never tried for another: the password of production is not sent to the
-// server of another environment.
+// server of another environment. The name of a variant holds no slash
+// (config.LoadDB), so the last slash is the border and two variants never
+// have the same account. A connection without variants whose own name is
+// "shop/prod" does have the account of that variant; docs/database.md tells
+// the user not to name one so.
 func KeychainAccount(c config.DBConnection) string {
 	if c.Variant == "" {
 		return c.Name

@@ -381,6 +381,12 @@ func dbConnection(e map[string]any) (conns []DBConnection, probs []Problem) {
 		vd.unknown(dbVariantKeys, "config.err.unknownvariant")
 		c := base
 		c.Variant = vd.name()
+		// The keychain account of a variant is "name/variant" (internal/db):
+		// without a slash in the variant, the last slash of an account is the
+		// border, so two variants never share an item.
+		if strings.Contains(c.Variant, "/") {
+			vd.bad("name", "config.err.noslash")
+		}
 		if c.Variant != "" && seen[c.Variant] {
 			vd.bad("name", "config.err.dupvariant", c.Variant)
 		}

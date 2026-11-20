@@ -89,5 +89,6 @@ var ja = map[string]string{
 	"config.err.dupvariant":     "%q という名前は、この接続の前の変種が使っています",
 	"config.err.password":       "パスワードは設定に書きません。このキーを消し、パスワードはキーチェーン（macOS）か ~/.pgpass・~/.my.cnf に置くか、聞かれたときに入力してください",
 	"config.err.unknownvariant": "変種のキーではありません。使えるキー: %s",
+	"config.err.noslash":        "/ を入れられません",
 	"config.err.unknown":        "接続のキーではありません。使えるキー: %s",
 }

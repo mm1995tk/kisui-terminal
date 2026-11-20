@@ -89,5 +89,6 @@ var en = map[string]string{
 	"config.err.dupvariant":     "the name %q is used by an earlier variant of this connection",
 	"config.err.password":       "a password is not written in the settings. Remove this key, and put the password in the keychain (macOS), in ~/.pgpass or ~/.my.cnf, or type it when asked",
 	"config.err.unknownvariant": "is not a key of a variant. The keys are: %s",
+	"config.err.noslash":        "must not have a /",
 	"config.err.unknown":        "is not a key of a connection. The keys are: %s",
 }

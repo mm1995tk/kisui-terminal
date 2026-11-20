@@ -71,7 +71,7 @@ read-only = true
 
 | Key of a variant | Meaning |
 | --- | --- |
-| `name` | What you call the variant. Required, up to 100 characters, and no two variants of a connection have the same name. |
+| `name` | What you call the variant. Required, up to 100 characters, without a `/`, and no two variants of a connection have the same name. |
 | `host`, `port`, `user`, `database`, `read-only` | As in the table above, for this variant. |
 
 - A variant takes the keys it does not write from its connection, and the defaults of the table above when the connection does not write them either. Above, `local` is `app@localhost:5432/shop`, and `prod` is `reader@db.example.com:5432/shop`, read-only. `read-only = true` on the connection makes every variant read-only, except one that writes `read-only = false`.
@@ -92,7 +92,7 @@ A password is never written in `config.toml`; a `password` key is reported as a 
    security add-generic-password -s kisui-terminal-db -a "shop (production)" -w
    ```
 
-   Each variant of a connection has an item of its own. Its account is the name of the connection, a slash and the name of the variant (`-a "shop/prod"`). The item of one variant is never tried for another. (A connection without variants named `shop/prod` would share that item, so do not name one like that.)
+   Each variant of a connection has an item of its own. Its account is the name of the connection, a slash and the name of the variant (`-a "shop/prod"`). The item of one variant is never tried for another. The name of a variant cannot have a `/`, so two variants never share an item. (A connection without variants named `shop/prod` would share that item, so do not name one like that.)
 
    Use a password of ASCII characters here (`security` cannot hand others back). In a login over ssh the keychain is usually locked; then the next places are used. On Linux there is no keychain step.
 
