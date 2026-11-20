@@ -86,6 +86,13 @@ describe("場所のキーの表は、その場所の判定と合っている", (
     assert.equal(dbEditorKey(ev("Enter", { ctrlKey: true }), false), "run");
   });
 
+  it("DB のタブの結果の表（#372）：表のキーは、Cmd+C / Ctrl+C（判定は keys.test.ts）", () => {
+    assert.deepEqual(
+      PLACE_KEYS.dbResult.rows.map((r) => r.keys),
+      ["Cmd+C / Ctrl+C"],
+    );
+  });
+
   it("DB のタブの左の木（#348）：表のキーは、どれも判定が受ける", () => {
     for (const r of PLACE_KEYS.dbTree.rows)
       for (const p of r.probes)

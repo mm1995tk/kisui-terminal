@@ -16,7 +16,7 @@ import {
 
 import type { DbRun } from "../../../../features/db/controller.ts";
 import type { DbCatalogState } from "../../../../features/db/treeController.ts";
-import { dbEditorKey } from "../../../../features/db/keys.ts";
+import { dbEditorKey, dbResultKey } from "../../../../features/db/keys.ts";
 import { cellText, resultSummary } from "../../../../features/db/model.ts";
 import type { DbQueryResult } from "../../../../infrastructure/rpc/protocol.ts";
 import {
@@ -255,8 +255,7 @@ function ResultTable(props: {
     setRange((cur) => (cur ? { anchor: cur.anchor, focus: pos } : cur));
   }
   function keydown(e: KeyboardEvent) {
-    const mod = props.mac ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey;
-    if (!mod || e.altKey || e.shiftKey || e.key.toLowerCase() !== "c") return;
+    if (dbResultKey(e, props.mac) !== "copy") return;
     const r = range();
     if (r === null) return;
     e.preventDefault();
@@ -279,7 +278,12 @@ function ResultTable(props: {
           </>
         }
       >
-        <table class={styles.table} tabindex={0} onKeyDown={keydown}>
+        <table
+          class={styles.table}
+          tabindex={0}
+          data-place="dbResult"
+          onKeyDown={keydown}
+        >
           <Head result={props.result} />
           <tbody>
             <For each={props.result.rows}>

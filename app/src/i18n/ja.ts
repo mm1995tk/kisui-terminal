@@ -640,6 +640,10 @@ export const ja: Record<Key, string> = {
     "DB のタブの、SQL の入力欄のキー。結果は入力欄の下に出ます。",
   "place.db.run": "SQL を実行する",
   "place.db.cancel": "実行中の SQL を取り消す",
+  "place.dbResult.title": "DB のタブの結果の表",
+  "place.dbResult.lead":
+    "結果の表にフォーカスがあるときのキー。セルをクリックで選び、Shift+クリックかドラッグで範囲に広げます。",
+  "place.dbResult.copy": "選んだセルをコピーする（1 つはそのまま、複数は TSV）",
   "cannot.db.title": "DB のタブを開けません",
   "leader.db.tree": "スキーマの木を出す・隠す",
   "leader.db.refresh": "スキーマの木を読み直す",

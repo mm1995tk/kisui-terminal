@@ -28,6 +28,27 @@ export function dbEditorKey(e: KeyLike, mac: boolean): DbEditorAction | null {
   return null;
 }
 
+/** 結果の表のキーで行うこと。copy：選んだセルをコピーする。 */
+export type DbResultAction = "copy";
+
+/**
+ * 結果の表（#372）にキーがあるときに押したキー e の動き（無ければ null）。
+ * - Cmd+C（macOS）・Ctrl+C（ほか）：選んだセルをコピーする
+ * Shift・Alt、ほかの修飾キーを重ねたものと、かな漢字変換のキーは受けない。
+ */
+export function dbResultKey(e: KeyLike, mac: boolean): DbResultAction | null {
+  if (isComposingKey(e)) return null;
+  const mod = mac ? e.metaKey : e.ctrlKey;
+  const other = mac ? e.ctrlKey : e.metaKey;
+  return e.key.toLowerCase() === "c" &&
+    mod &&
+    !other &&
+    !e.altKey &&
+    !e.shiftKey
+    ? "copy"
+    : null;
+}
+
 /**
  * 木のペインで押したキー e の動き（無ければ null）。
  * - j k / ↓ ↑：行を動く、g G / Home End：先頭・末尾
