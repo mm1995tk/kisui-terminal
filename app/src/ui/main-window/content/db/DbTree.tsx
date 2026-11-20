@@ -47,6 +47,7 @@ export function DbTree(props: {
       ? visibleRows(props.catalog.catalog, props.expanded)
       : [],
   );
+  const activeIndex = () => rows().findIndex((r) => r.id === cursor());
   // 選んでいる行が、閉じた枝の中に隠れた・一覧が替わって無くなったら、先頭に戻す
   createEffect(
     on(rows, (r) => {
@@ -71,6 +72,8 @@ export function DbTree(props: {
   }
 
   function onKeyDown(e: KeyboardEvent) {
+    // 木そのものにキーがあるときだけ受ける（中の「読み直す」ボタンの Enter などを奪わない。行はキーを持たない）
+    if (e.target !== e.currentTarget) return;
     const a = dbTreeKey(e);
     if (!a) return;
     e.preventDefault();
@@ -89,6 +92,9 @@ export function DbTree(props: {
       role="group"
       aria-label={T("db.tree.label")}
       tabindex="0"
+      aria-activedescendant={
+        activeIndex() >= 0 ? `dbtree-${activeIndex()}` : undefined
+      }
       data-place="dbTree"
       onKeyDown={onKeyDown}
       onFocus={() => {
@@ -125,8 +131,9 @@ export function DbTree(props: {
               aria-busy={props.catalog.loading ? "true" : undefined}
             >
               <For each={rows()}>
-                {(r) => (
+                {(r, i) => (
                   <div
+                    id={`dbtree-${i()}`}
                     class={styles.row}
                     role="treeitem"
                     aria-level={r.depth + 1}
