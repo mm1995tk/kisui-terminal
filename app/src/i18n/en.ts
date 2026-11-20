@@ -66,6 +66,7 @@ export const en = {
   "leader.browser.find": "Find in page",
   "leader.browser.copyUrl": "Copy the URL",
   "leader.browser.devtools": "Open DevTools",
+  "leader.browser.login": "Log in from the external browser",
   "leader.browser.rename": "Rename this tab",
   "leader.sidebar": "Toggle the sidebar",
   "leader.clipboard": "Clipboard history",
@@ -219,6 +220,13 @@ export const en = {
   "cannot.browser.newTab.title": "No page is open in this tab",
   "cannot.browser.newTab.text":
     "This tab is still the new tab page. Open a page first.",
+  "cannot.browser.login.title": "Cannot log in from the external browser",
+  "cannot.browser.login.notAllowed":
+    "{host} is not in [gui.browser] passkey_sites. Add the site there and restart kisui-terminal to log in to it from the external browser.",
+  "cannot.browser.login.noSites":
+    "No site is in [gui.browser] passkey_sites. Add the site there and restart kisui-terminal to log in to it from the external browser.",
+  "cannot.browser.login.incognito":
+    "A private tab cannot log in from the external browser (the copied cookies would stay in the external browser).",
   "cannot.browser.open.title": "Cannot open a tab",
   "cannot.browser.open.text":
     "There is no workspace. A tab opens under a workspace.",
@@ -566,6 +574,8 @@ export const en = {
     "[The shell has exited. Press Enter to open a new shell]",
   "toast.copied": "Copied",
   "toast.bookmarked": "Bookmarked",
+  "toast.browser.login":
+    "Opened in the external browser. After you log in, press the button of the kisui-terminal extension",
   "toast.bookmarks.chromeKept":
     "Bookmarks from Chrome cannot be deleted here (delete them in Chrome)",
   "bookmarks.title": "Bookmarks",

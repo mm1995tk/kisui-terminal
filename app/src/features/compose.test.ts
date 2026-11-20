@@ -188,6 +188,7 @@ function fakeBrowser(
     zoomTab: async () => {},
     findInTab: async () => false,
     openTabDevtools: async () => {},
+    startPasskeyLogin: async () => "opened",
     loadBookmarks: async () => [],
     loadChromeBookmarks: async () => ({}),
     saveBookmarks: async () => {},

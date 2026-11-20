@@ -35,6 +35,7 @@
 //!
 //! #205：ページの表示の大きさ（`browser_zoom`。タブごとに、覚えるタブと一緒に覚える）、ページ内検索（`browser_find`）、
 //! DevTools（`browser_devtools`）。ブックマークは bookmarks.rs。
+//! #276：パスキーを待たずに、今のタブのサイトを外のブラウザで開いてログインを待つ（`browser_passkey_login`。passkey.rs）。
 //! ページの favicon（サイドバーのタブの行に出す。#237）は favicon.rs。
 
 use std::collections::HashMap;
@@ -1139,6 +1140,32 @@ pub fn browser_find(
         .recv_timeout(FIND_TIMEOUT)
         .map_err(|_| "the page did not answer".to_string())?;
     Ok(r.trim() == "true")
+}
+
+/// パスキーを待たずに、今のタブのサイトを外のブラウザで開き、そのサイトのログインを待つ（#276。リーダーの `o s`）。
+/// 答えは `opened`（開いた。同じタブから続けて押したときは開き直さない）・`no-sites`（`passkey_sites` が無い）・
+/// `incognito`（シークレットのタブ）・`not-allowed`（今のページが許可サイトのものでない）。決めるのは passkey.rs の `start`。
+#[tauri::command]
+pub fn browser_passkey_login(
+    app: AppHandle,
+    webview: Webview,
+    tabs: State<Tabs>,
+    tab: String,
+) -> Result<String, String> {
+    from_main(&webview)?;
+    let v = child(&app, &tab)?;
+    let info = tabs
+        .get(&tab)
+        .ok_or_else(|| "no such browser tab".to_string())?;
+    // 外のブラウザで開く URL は、画面から受け取らず、タブの今の URL（一番上のフレーム）を読む
+    let page_url = v.url().map_err(|e| e.to_string())?;
+    let p = app.try_state::<Arc<Passkey>>();
+    let p = p.as_deref().map(Arc::as_ref);
+    let r = passkey::start(p, info.incognito, &tab, &page_url, Instant::now());
+    if let (passkey::Start::Opened(Some(to)), Some(p)) = (&r, p) {
+        passkey::open_external(p.browser(), to);
+    }
+    Ok(r.code().to_string())
 }
 
 /// タブのページの DevTools（Web Inspector）を開く（#205。リーダーの `o i`）。

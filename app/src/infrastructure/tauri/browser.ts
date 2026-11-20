@@ -25,6 +25,7 @@ export const tauriBrowser: BrowserOs = {
   zoomTab: (tab, zoom) => invoke("browser_zoom", { tab, zoom }),
   findInTab: (tab, text, mode) => invoke("browser_find", { tab, text, mode }),
   openTabDevtools: (tab) => invoke("browser_devtools", { tab }),
+  startPasskeyLogin: (tab) => invoke("browser_passkey_login", { tab }),
   loadBookmarks: () => invoke("browser_bookmarks_load"),
   loadChromeBookmarks: () => invoke("browser_chrome_bookmarks_load"),
   saveBookmarks: (bookmarks) => invoke("browser_bookmarks_save", { bookmarks }),

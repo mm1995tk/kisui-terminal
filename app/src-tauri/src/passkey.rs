@@ -150,6 +150,51 @@ pub fn site_of(u: &Url, sites: &[String]) -> Option<String> {
     sites.iter().find(|s| s.as_str() == host).cloned()
 }
 
+/// ユーザーがリーダーの操作で外のブラウザでのログインを始めたとき（#276。`o s`）の答え。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Start {
+    /// 待ちを覚えた。外のブラウザで開く URL（同じタブから同じサイトに続けて押したときは None。待ちは続いているので開き直さない）
+    Opened(Option<Url>),
+    /// `passkey_sites` が無い（または内蔵ブラウザを使っていない）
+    NoSites,
+    /// シークレットのタブ（写した Cookie が外のブラウザに残り、「残さない」と食い違うため使わない）
+    Incognito,
+    /// タブの今の URL が許可サイトのものでない
+    NotAllowed,
+}
+
+impl Start {
+    /// 画面に返す答えの名前。
+    pub fn code(&self) -> &'static str {
+        match self {
+            Start::Opened(_) => "opened",
+            Start::NoSites => "no-sites",
+            Start::Incognito => "incognito",
+            Start::NotAllowed => "not-allowed",
+        }
+    }
+}
+
+/// パスキーを待たずに、タブ `tab`（今 `url` を出している）のサイトを外のブラウザで開き、そのサイトのログインを待つ（#276）。
+/// 許可サイトかの見方（`site_of`）と待ちの単位は、ページがパスキーを求めたとき（`Passkey::hand_off`）と同じ。
+pub fn start(p: Option<&Passkey>, incognito: bool, tab: &str, url: &Url, now: Instant) -> Start {
+    if incognito {
+        return Start::Incognito;
+    }
+    let Some(p) = p else {
+        return Start::NoSites;
+    };
+    let Some(site) = site_of(url, &p.sites) else {
+        return Start::NotAllowed;
+    };
+    // 続けて開き直さない間隔はタブごと。そのサイトをまだ待っていなければ（3 秒以内に同じタブが別のサイトへ移った）、
+    // 間隔を無視して覚える（Opened(None) は「待ちが続いている」ときだけにする）
+    if !p.waits_for(&site, now) {
+        p.last.lock().unwrap().remove(tab);
+    }
+    Start::Opened(p.hand_off(tab, url, now))
+}
+
 /// ページのスクリプトが知らせた URL か（nonce が合うもの）。
 pub fn is_request(u: &Url, nonce: &str) -> bool {
     u.scheme() == SCHEME
@@ -296,6 +341,13 @@ impl Passkey {
             },
         );
         Some(url.clone())
+    }
+
+    /// サイト（`site_of` の答え）のログインを、今も待っているか。
+    fn waits_for(&self, site: &str, now: Instant) -> bool {
+        let mut w = self.waiting.lock().unwrap();
+        Self::expire(&mut w, now);
+        w.contains_key(site)
     }
 
     /// 期限の切れた待ちを捨てる。
@@ -898,6 +950,51 @@ mod tests {
         assert_eq!(p.hand_off("t1", &u, t0 + MIN_INTERVAL), Some(u.clone()));
         assert_eq!(p.hand_off("t2", &url("https://example.com/"), t0), None);
         assert_eq!(p.waiting.lock().unwrap().len(), 1);
+    }
+
+    // リーダーの操作で始める（#276）。許可サイトの見方と待ちは hand_off と同じ
+    #[test]
+    fn start_by_hand_only_for_sites_and_not_in_incognito() {
+        let p = Passkey::new(sites(), PasskeyBrowser::Chrome);
+        let t0 = Instant::now();
+        let u = url("https://github.com/login");
+        assert_eq!(start(None, false, "t1", &u, t0), Start::NoSites);
+        assert_eq!(start(Some(&p), true, "t1", &u, t0), Start::Incognito);
+        for other in ["https://example.com/", "https://gist.github.com/"] {
+            assert_eq!(
+                start(Some(&p), false, "t1", &url(other), t0),
+                Start::NotAllowed
+            );
+        }
+        assert!(p.waiting.lock().unwrap().is_empty());
+        assert_eq!(
+            start(Some(&p), false, "t1", &u, t0),
+            Start::Opened(Some(u.clone()))
+        );
+        // 続けて押しても開き直さない（待ちは続く）
+        assert_eq!(
+            start(Some(&p), false, "t1", &u, t0 + Duration::from_secs(1)),
+            Start::Opened(None)
+        );
+        let r = p.handle(
+            &json!({"type": "sites"}),
+            t0,
+            0.0,
+            |_: &Waiting, _: Vec<Cookie<'static>>| -> Result<(), String> { panic!() },
+        );
+        assert_eq!(
+            r["waiting"],
+            json!([{"site": "github.com", "url": "https://github.com/login"}])
+        );
+        // 同じタブが 3 秒以内に別の許可サイトへ移って押したときは、間隔を待たずにそのサイトを待つ
+        let d = url("https://dash.cloudflare.com/login");
+        assert_eq!(
+            start(Some(&p), false, "t1", &d, t0 + Duration::from_secs(2)),
+            Start::Opened(Some(d.clone()))
+        );
+        assert_eq!(p.waiting.lock().unwrap().len(), 2);
+        assert_eq!(Start::Opened(None).code(), "opened");
+        assert_eq!(Start::NotAllowed.code(), "not-allowed");
     }
 
     fn wire(name: &str, domain: &str, host_only: bool) -> WireCookie {

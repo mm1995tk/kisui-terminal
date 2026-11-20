@@ -225,6 +225,7 @@ fn main() {
             browser::browser_zoom,
             browser::browser_find,
             browser::browser_devtools,
+            browser::browser_passkey_login,
             bookmarks::browser_bookmarks_load,
             bookmarks::browser_bookmarks_save,
             bookmarks::browser_chrome_bookmarks_load,

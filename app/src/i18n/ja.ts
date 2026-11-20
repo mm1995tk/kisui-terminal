@@ -68,6 +68,7 @@ export const ja: Record<Key, string> = {
   "leader.browser.find": "ページ内を検索",
   "leader.browser.copyUrl": "URL をコピー",
   "leader.browser.devtools": "DevTools を開く",
+  "leader.browser.login": "外のブラウザでログインする",
   "leader.browser.rename": "このタブの名前を変える",
   "leader.sidebar": "サイドバーを開け閉めする",
   "leader.clipboard": "クリップボードの履歴",
@@ -221,6 +222,13 @@ export const ja: Record<Key, string> = {
   "cannot.browser.newTab.title": "このタブにはまだページがありません",
   "cannot.browser.newTab.text":
     "新しいタブのページのままです。先にページを開いてください。",
+  "cannot.browser.login.title": "外のブラウザでログインできません",
+  "cannot.browser.login.notAllowed":
+    "{host} は [gui.browser] passkey_sites にありません。外のブラウザでログインするには、そこにサイトを書いて kisui-terminal を起動し直してください。",
+  "cannot.browser.login.noSites":
+    "[gui.browser] passkey_sites にサイトがありません。外のブラウザでログインするには、そこにサイトを書いて kisui-terminal を起動し直してください。",
+  "cannot.browser.login.incognito":
+    "シークレットのタブでは、外のブラウザでログインできません（写した Cookie が外のブラウザに残るため）。",
   "cannot.browser.open.title": "タブを開けません",
   "cannot.browser.open.text":
     "ワークスペースがありません。タブはワークスペースの下に開きます。",
@@ -561,6 +569,8 @@ export const ja: Record<Key, string> = {
     "[シェルが終わりました。Enter で新しいシェルを開きます]",
   "toast.copied": "コピーしました",
   "toast.bookmarked": "ブックマークに足しました",
+  "toast.browser.login":
+    "外のブラウザで開きました。ログインしたら、kisui-terminal の拡張機能のボタンを押してください",
   "toast.bookmarks.chromeKept":
     "Chrome のブックマークはここでは消せません（Chrome で消してください）",
   "bookmarks.title": "ブックマーク",

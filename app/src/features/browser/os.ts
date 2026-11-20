@@ -32,6 +32,12 @@ export interface DownloadDone {
 /** 知らせを聞くのをやめる関数。 */
 type Off = () => void;
 
+/**
+ * `startPasskeyLogin` の答え。`opened` 待ちを覚えて外のブラウザで開いた・`no-sites` passkey_sites が無い・
+ * `incognito` シークレットのタブ・`not-allowed` 許可サイトでない。
+ */
+export type PasskeyLogin = "opened" | "no-sites" | "incognito" | "not-allowed";
+
 /** 内蔵ブラウザのタブについて、外（Tauri の殻）に頼むこと。タブのページ（子の webview）の操作、覚えているタブとブックマークの読み書き、ページからの知らせ、ダウンロード。 */
 export interface BrowserOs {
   /**
@@ -74,6 +80,8 @@ export interface BrowserOs {
   ): Promise<boolean>;
   /** タブのページの DevTools を開く（#205）。 */
   openTabDevtools(tab: string): Promise<void>;
+  /** パスキーを待たずに、今のタブのサイトを外のブラウザで開き、そのサイトのログインを待つ（#276）。 */
+  startPasskeyLogin(tab: string): Promise<PasskeyLogin>;
   /** 覚えたブックマーク（#205。すべてのワークスペースで共有）。 */
   loadBookmarks(): Promise<Bookmark[]>;
   /** Chrome のブックマーク（#239。読むだけ。Chrome が無ければ空）。 */

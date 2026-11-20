@@ -105,19 +105,21 @@ Chrome ウェブストアには出さないことにした（Issue #207）。Chr
 
 名前と短い説明は `extension/_locales/{en,ja}/messages.json` の `extensionName` と `extensionDescription`（ストアは manifest から読む）。
 
+下の詳しい説明とプライバシーの欄は、パスワードでのログイン（#276。kisui-terminal のリーダーの `o s`）も含めた案に直してある。審査に出したあとに直したので、ストアへの反映は公開の後にオーナーが行う（拡張機能そのものは変えていないので、版は上げない）。
+
 詳しい説明（English）：
 
-> kisui-terminal is a terminal-centered workspace with a built-in browser. The built-in browser is the WebView of the OS, so it cannot use the passkeys of iCloud Keychain or 1Password. When a page there asks for a passkey, kisui-terminal opens the same page in this browser instead.
+> kisui-terminal is a terminal-centered workspace with a built-in browser. The built-in browser is the WebView of the OS, so it cannot use the passkeys of iCloud Keychain or 1Password, nor browser extensions such as 1Password. When a page there asks for a passkey, kisui-terminal opens the same page in this browser instead. You can also move a site to this browser yourself from kisui-terminal, to log in with a password (for example with the 1Password extension).
 >
-> This extension finishes the round trip: after you log in with your passkey here, it sends the cookies of that site to kisui-terminal on the same computer (through native messaging), closes the tab, and kisui-terminal reloads its tab, logged in. If the site asks for more steps after the passkey, press the extension's button when you are done.
+> This extension finishes the round trip: after you log in with your passkey here, it sends the cookies of that site to kisui-terminal on the same computer (through native messaging), closes the tab, and kisui-terminal reloads its tab, logged in. When you log in with a password, or the site asks for more steps after the passkey, press the extension's button when you are done.
 >
 > It reads cookies only of the sites you list in the kisui-terminal settings (`passkey_sites`), and sends them only to kisui-terminal on your computer. Nothing is sent over the network. It needs kisui-terminal: https://github.com/mm1995tk/kisui-terminal
 
 詳しい説明（日本語）：
 
-> kisui-terminal は、内蔵ブラウザを持つ、ターミナルを中心にした作業場です。内蔵ブラウザは OS の WebView なので、iCloud キーチェーンや 1Password のパスキーを使えません。そこでページがパスキーを求めると、kisui-terminal は同じページをこのブラウザで開きます。
+> kisui-terminal は、内蔵ブラウザを持つ、ターミナルを中心にした作業場です。内蔵ブラウザは OS の WebView なので、iCloud キーチェーンや 1Password のパスキーも、1Password などのブラウザの拡張機能も使えません。そこでページがパスキーを求めると、kisui-terminal は同じページをこのブラウザで開きます。パスワードで（1Password の拡張機能などで）ログインしたいときは、kisui-terminal から手でサイトをこのブラウザに移すこともできます。
 >
-> この拡張機能は、その続きを受け持ちます。このブラウザでパスキーでログインすると、そのサイトの Cookie を同じコンピューターの kisui-terminal に（native messaging で）送ってタブを閉じ、kisui-terminal はタブをログインした状態で開き直します。パスキーの後にまだ手順が続くサイトでは、済んだら拡張機能のボタンを押してください。
+> この拡張機能は、その続きを受け持ちます。このブラウザでパスキーでログインすると、そのサイトの Cookie を同じコンピューターの kisui-terminal に（native messaging で）送ってタブを閉じ、kisui-terminal はタブをログインした状態で開き直します。パスワードでログインしたときや、パスキーの後にまだ手順が続くサイトでは、済んだら拡張機能のボタンを押してください。
 >
 > Cookie を読むのは、kisui-terminal の設定（`passkey_sites`）に書いたサイトのものだけで、送る先はあなたのコンピューターの kisui-terminal だけです。ネットワークには何も送りません。kisui-terminal が要ります：https://github.com/mm1995tk/kisui-terminal
 
@@ -127,9 +129,9 @@ Chrome ウェブストアには出さないことにした（Issue #207）。Chr
 
 ### プライバシー（Chrome の「プライバシーへの取り組み」）
 
-- 単一用途（single purpose）：パスキーで外のブラウザにログインしたあと、そのサイトのログイン（Cookie）を、同じコンピューターの kisui-terminal の内蔵ブラウザに戻す。
+- 単一用途（single purpose）：外のブラウザで（パスキーかパスワードで）ログインしたあと、そのサイトのログイン（Cookie）を、同じコンピューターの kisui-terminal の内蔵ブラウザに戻す。
 - 権限の理由（English。ダッシュボードの欄に入れる）：
-  - `cookies`: Reads the cookies of the sites the user lists in kisui-terminal, after the user logs in there with a passkey, to hand the login to kisui-terminal.
+  - `cookies`: Reads the cookies of the sites the user lists in kisui-terminal, after the user logs in there (with a passkey or a password), to hand the login to kisui-terminal.
   - `nativeMessaging`: Talks to kisui-terminal on the same computer: asks it for the list of allowed sites and sends it the cookies of the site the user logged in to.
   - `scripting`: Adds a small script to the pages of the allowed sites only, to notice that a passkey login succeeded (it does not read the credential).
   - `storage`: Remembers, until the browser closes, which tab kisui-terminal opened and the list of allowed sites.
