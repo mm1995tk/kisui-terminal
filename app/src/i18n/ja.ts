@@ -720,6 +720,9 @@ export const ja: Record<Key, string> = {
   "db.export.do": "書き出す",
   "db.export.saved": "{path} に保存しました",
   "db.export.failed": "ファイルを保存できませんでした",
+  "db.export.truncated":
+    "これより後ろの行は読んでいないので、書き出しには入りません。",
+  "db.export.truncatedCells": "長い値は切れたまま書き出します。",
   "place.dbHistory.title": "DB のタブの SQL の履歴",
   "place.dbHistory.lead":
     "履歴の窓のキー。字を打つと絞り込めます。この接続の履歴だけを出します。",

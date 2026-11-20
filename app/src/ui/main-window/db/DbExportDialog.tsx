@@ -7,11 +7,12 @@ import { basicHints } from "../../../features/commands/placeKeys.ts";
 import type { DbExportAsk } from "../../../features/db/exportController.ts";
 import {
   EXPORT_CHOICES,
+  exportNoteKeys,
   type ExportChoice,
 } from "../../../features/db/export.ts";
 import { moveRow, pickerKey } from "../../../features/sessions/machineList.ts";
 import { Button } from "../../components/Button.tsx";
-import { CardTitle, ModalCard } from "../../components/Card.tsx";
+import { CardText, CardTitle, ModalCard } from "../../components/Card.tsx";
 import { KeyFooter } from "../../components/KeyFooter.tsx";
 import { openKeyList } from "../commands/KeyListDialog.tsx";
 
@@ -53,6 +54,9 @@ export function DbExportDialog(props: {
       }
     >
       <div class="machine-dialog">
+        <For each={exportNoteKeys(props.ask)}>
+          {(k) => <CardText role="note">{T(k)}</CardText>}
+        </For>
         <ul
           class="card-rows"
           tabIndex={0}

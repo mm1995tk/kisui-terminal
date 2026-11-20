@@ -128,3 +128,14 @@ export type SaveTextFile = (o: {
   extension: string;
   text: string;
 }) => Promise<string | null>;
+
+/** 書き出すものが欠けているときの知らせの文のキー（行が上限で切れている・長い値が切られている）。欠けていなければ空。 */
+export function exportNoteKeys(o: {
+  truncated: boolean;
+  truncatedCells: boolean;
+}): ("db.export.truncated" | "db.export.truncatedCells")[] {
+  return [
+    ...(o.truncated ? (["db.export.truncated"] as const) : []),
+    ...(o.truncatedCells ? (["db.export.truncatedCells"] as const) : []),
+  ];
+}

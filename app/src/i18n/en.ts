@@ -725,6 +725,9 @@ export const en = {
   "db.export.do": "export",
   "db.export.saved": "Saved to {path}",
   "db.export.failed": "Could not save the file",
+  "db.export.truncated":
+    "The rows after these were not read, so they are not in the export.",
+  "db.export.truncatedCells": "Some long values are cut in the export.",
   "place.dbHistory.title": "SQL history of a database tab",
   "place.dbHistory.lead":
     "Keys in the history window. Type to filter. Only this connection's history is shown.",

@@ -20,6 +20,10 @@ export interface DbExportAsk {
   tab: string;
   /** 結果の行数（窓の見出しに出す） */
   rows: number;
+  /** 結果が上限で切れている（rows に入っていない行がある） */
+  truncated: boolean;
+  /** 1 MiB を超えて切られた値がある */
+  truncatedCells: boolean;
 }
 
 /** 書き出しの持ち物を作る。窓（どの形・どこへ）を開ける・決める・やめるを受け持つ。 */
@@ -44,7 +48,12 @@ export function createDbExport(deps: {
   function openExport(id: string): boolean {
     const r = deps.resultOf(id);
     if (!deps.refOf(id) || !isExportable(r)) return false;
-    setAsk({ tab: id, rows: r.rowCount });
+    setAsk({
+      tab: id,
+      rows: r.rowCount,
+      truncated: r.truncated,
+      truncatedCells: r.truncatedCells === true,
+    });
     return true;
   }
 

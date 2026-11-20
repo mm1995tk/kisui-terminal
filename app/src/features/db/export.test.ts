@@ -8,6 +8,7 @@ import type {
 import {
   EXPORT_CHOICES,
   exportFileName,
+  exportNoteKeys,
   exportText,
   field,
   isExportable,
@@ -210,5 +211,22 @@ describe("書き出しの選び方・ファイル名・書き出せる結果", (
     assert.equal(isExportable(undefined), false);
     assert.equal(isExportable(result([], [])), false);
     assert.equal(isExportable(result([col("a")], [])), true);
+  });
+});
+
+describe("exportNoteKeys", () => {
+  it("切れていなければ空、切れていればその知らせ", () => {
+    assert.deepEqual(
+      exportNoteKeys({ truncated: false, truncatedCells: false }),
+      [],
+    );
+    assert.deepEqual(
+      exportNoteKeys({ truncated: true, truncatedCells: true }),
+      ["db.export.truncated", "db.export.truncatedCells"],
+    );
+    assert.deepEqual(
+      exportNoteKeys({ truncated: false, truncatedCells: true }),
+      ["db.export.truncatedCells"],
+    );
   });
 });
