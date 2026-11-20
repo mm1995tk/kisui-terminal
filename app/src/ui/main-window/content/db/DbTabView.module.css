@@ -111,15 +111,12 @@
   white-space: nowrap;
 }
 
-/* 1 つの値は 1 行で、幅は 40 字まで。はみ出す分は「…」（全部はツールチップ） */
 /* セルの間の縦線（#372） */
 .th:not(:last-child),
 .cell:not(:last-child) {
   border-right: 1px solid var(--color-border);
 }
-.table:focus-visible {
-  outline: none;
-}
+/* 1 つの値は 1 行で、幅は 40 字まで。はみ出す分は「…」（全部はツールチップ） */
 .cell {
   user-select: none;
   max-width: 40ch;
