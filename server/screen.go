@@ -48,9 +48,11 @@ type screenOp struct {
 }
 
 // snapReq は画面の状態の書き出しの頼み。feeder が、頼む前に渡された出力と大きさの変更を全部届けたあとで答える。
+// text なら、端末に流し直すための書き出しではなく、画面の字（emulator.Emulator.Text）を答える。
 type snapReq struct {
-	max int
-	res chan snapResult // 容量 1
+	max  int
+	text bool
+	res  chan snapResult // 容量 1
 }
 
 type snapResult struct {
@@ -96,7 +98,16 @@ func (f *screenFeed) write(p []byte) {
 // 待たない。答えは返したチャンネルに 1 つだけ来る（エミュレーターが無い・閉じたあとなら err）。
 // 頼んだ時点と出力の位置（seq）を合わせたい呼び手は、write と同じロックの中で呼ぶ。
 func (f *screenFeed) snapshot(maxScrollback int) <-chan snapResult {
-	req := &snapReq{max: maxScrollback, res: make(chan snapResult, 1)}
+	return f.request(&snapReq{max: maxScrollback, res: make(chan snapResult, 1)})
+}
+
+// text は、ここまでに渡した出力と大きさの変更を全部届けた時点の、画面の字（kisui pane read）を頼む。見えている画面に、
+// その上の scrollback を新しいほうから scrollback 行まで足したもの。待たない。答えは snapshot と同じく、返したチャンネルに来る。
+func (f *screenFeed) text(scrollback int) <-chan snapResult {
+	return f.request(&snapReq{max: scrollback, text: true, res: make(chan snapResult, 1)})
+}
+
+func (f *screenFeed) request(req *snapReq) <-chan snapResult {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.closed {
@@ -193,7 +204,10 @@ func (f *screenFeed) run(rows, cols int) {
 				_ = em.Reset()
 			}
 			for _, op := range ops {
-				if op.snap != nil {
+				if op.snap != nil && op.snap.text {
+					s, err := em.Text(op.snap.max)
+					op.snap.res <- snapResult{data: []byte(s), err: err}
+				} else if op.snap != nil {
 					data, err := em.Serialize(op.snap.max)
 					op.snap.res <- snapResult{data: data, err: err}
 				} else if len(op.data) > 0 {

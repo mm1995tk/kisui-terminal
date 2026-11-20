@@ -44,6 +44,7 @@ var commands = []command{
 	{name: "pane", sub: []command{
 		{name: "split", args: "--right|--down|--left|--up [--name <name>] [command ...]", help: "help.pane.split", run: runPaneSplit},
 		{name: "title", args: "<name>", help: "help.pane.title", run: runPaneTitle},
+		{name: "read", args: "<name|id> [--lines <n>]", help: "help.pane.read", run: runPaneRead},
 		{name: "list", args: "[--json]", help: "help.pane.list", run: runPaneList},
 		{name: "send", args: "<name|id> <text>", help: "help.pane.send", run: runPaneSend},
 		{name: "keys", args: "<name|id> <key>...", help: "help.pane.keys", run: runPaneKeys},

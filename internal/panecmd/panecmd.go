@@ -54,6 +54,9 @@ const (
 //   - "close": close the terminal To. The primary terminal of a tab is refused
 //     (it closes with its tab).
 //   - "list": the terminals of this "kisui serve", of every workspace (Reply.Panes).
+//   - "read": the text on the screen of the terminal To (a name or an id of a
+//     terminal of this "kisui serve", of any workspace), with Lines lines of its
+//     scrollback above it (Reply.Text). No colors or other attributes.
 //   - "update": ask the window to look for a newer version of kisui-terminal now.
 //     The window shows its "a new version is available" notice when there is one,
 //     and answers (Reply.Update) for the command to print.
@@ -74,10 +77,11 @@ type Request struct {
 	To     string   `json:"to,omitempty"`
 	Text   string   `json:"text,omitempty"`
 	Keys   []string `json:"keys,omitempty"`
+	Lines  int      `json:"lines,omitempty"`
 }
 
 // Reply answers a Request. ID is the pane that "open" (a file) or "split" made, or
-// the one that "send", "keys" or "close" found by its name or id. Code is
+// the one that "send", "keys", "close" or "read" found by its name or id. Code is
 // CodeNotInPane when the id and the secret are not the ones of a terminal of
 // that "kisui serve".
 type Reply struct {
@@ -90,6 +94,10 @@ type Reply struct {
 	// Panes is the answer to "list": the terminals of the machine, by workspace
 	// (in the order they were made), the primary terminal of each first.
 	Panes []PaneInfo `json:"panes,omitempty"`
+	// Text is the answer to "read": the lines of the screen, each ending in a
+	// newline. A line that the terminal wrapped is one line; spaces at the end of a
+	// line and the empty lines at the bottom of the screen are dropped.
+	Text string `json:"text,omitempty"`
 }
 
 // PaneInfo is one terminal in the answer to "list". "kisui pane list --json"

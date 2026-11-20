@@ -158,6 +158,9 @@ func (s *Server) paneCmd(rq panecmd.Request) (panecmd.Reply, error) {
 		}
 		s.ws.recompute() // workspace.changed で GUI に届く
 		return panecmd.Reply{ID: t.id}, nil
+	case "read":
+		text, id, err := s.terms.readScreen(rq.To, rq.Lines)
+		return panecmd.Reply{ID: id, Text: text}, err
 	case "list":
 		return panecmd.Reply{Panes: s.paneList(t.id)}, nil
 	case "send":

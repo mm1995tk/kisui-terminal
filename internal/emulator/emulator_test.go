@@ -99,3 +99,39 @@ func BenchmarkWrite(b *testing.B) {
 		e.Write(data)
 	}
 }
+
+// Text は色を落とした字を返す。折り返した行はつなげ、scrollback は頼んだ行数だけ遡る。
+func TestText(t *testing.T) {
+	e, err := New(3, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer e.Close()
+	if _, err := e.Write([]byte("l1\r\nl2\r\n\x1b[31mred\x1b[0m\r\n0123456789abc")); err != nil {
+		t.Fatal(err)
+	}
+	// 画面は "red"・"0123456789"（折り返し）・"abc" の 3 行、scrollback に "l1"・"l2"
+	for _, c := range []struct {
+		sb   int
+		want string
+	}{
+		{0, "red\n0123456789abc"},
+		{1, "l2\nred\n0123456789abc"},
+		{100, "l1\nl2\nred\n0123456789abc"},
+	} {
+		got, err := e.Text(c.sb)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got != c.want {
+			t.Errorf("Text(%d) = %q, want %q", c.sb, got, c.want)
+		}
+	}
+	// 代替画面には scrollback が無い
+	if _, err := e.Write([]byte("\x1b[?1049h\x1b[Halt")); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := e.Text(100); got != "alt\n\n" {
+		t.Errorf("Text on the alternate screen = %q", got)
+	}
+}
