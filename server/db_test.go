@@ -27,10 +27,10 @@ func dbServer(t *testing.T, pw *db.Passwords, conns ...config.DBConnection) *rpc
 		pw = &db.Passwords{}
 	}
 	if pw.Keychain == nil {
-		pw.Keychain = func(context.Context, config.DBConnection) (string, bool) { return "", false }
+		pw.Keychain = func(context.Context, config.DBLogin) (string, bool) { return "", false }
 	}
 	if pw.File == nil {
-		pw.File = func(config.DBConnection) (string, bool) { return "", false }
+		pw.File = func(config.DBLogin) (string, bool) { return "", false }
 	}
 	_, sock := startWith(t, func(o *Options) {
 		o.DBConnections = func() ([]config.DBConnection, []config.Problem) { return conns, nil }
@@ -92,7 +92,7 @@ func TestDBCapability(t *testing.T) {
 	if err := c.Call(context.Background(), "session.hello", hello(Protocol.Major), &h); err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Contains(h.Capabilities, CapDB) {
+	if !slices.Contains(h.Capabilities, CapDB) || !slices.Contains(h.Capabilities, CapDBPermissions) {
 		t.Errorf("capabilities: %v", h.Capabilities)
 	}
 	err = c.Call(context.Background(), "db.nosuch", struct{}{}, nil)
@@ -105,16 +105,17 @@ func TestDBCapability(t *testing.T) {
 func TestDBConnections(t *testing.T) {
 	conn := config.DBConnection{Name: "prod", Kind: config.DBMySQL, Host: "db.example.com", Port: 3307, User: "reader", Database: "shop", ReadOnly: true}
 	pw := &db.Passwords{
-		Keychain: func(context.Context, config.DBConnection) (string, bool) { return "keychain-secret", true },
-		File:     func(config.DBConnection) (string, bool) { return "file-secret", true },
+		Keychain: func(context.Context, config.DBLogin) (string, bool) { return "keychain-secret", true },
+		File:     func(config.DBLogin) (string, bool) { return "file-secret", true },
 	}
-	pw.Remember(conn, "typed-secret")
+	pw.Remember(dbtest.Login(conn), "typed-secret")
 	c := dbServer(t, pw, conn)
 	var raw json.RawMessage
 	if err := c.Call(context.Background(), "db.connections", struct{}{}, &raw); err != nil {
 		t.Fatal(err)
 	}
-	want := `{"connections":[{"name":"prod","variant":"","kind":"mysql","host":"db.example.com","port":3307,"user":"reader","database":"shop","readOnly":true}],"problems":[]}`
+	want := `{"connections":[{"name":"prod","variant":"","kind":"mysql","host":"db.example.com","port":3307,"user":"reader","database":"shop","readOnly":true,` +
+		`"human":{"permission":"","run":"read"},"agent":{"permission":"","run":"none","propose":true,"user":"reader"}}],"problems":[]}`
 	if string(raw) != want {
 		t.Errorf("got  %s\nwant %s", raw, want)
 	}
@@ -224,9 +225,9 @@ func TestDBPasswordFromMachine(t *testing.T) {
 			find := func() (string, bool) { return found, true }
 			pw := &db.Passwords{}
 			if src == "keychain" {
-				pw.Keychain = func(context.Context, config.DBConnection) (string, bool) { return find() }
+				pw.Keychain = func(context.Context, config.DBLogin) (string, bool) { return find() }
 			} else {
-				pw.File = func(config.DBConnection) (string, bool) { return find() }
+				pw.File = func(config.DBLogin) (string, bool) { return find() }
 			}
 			c := dbServer(t, pw, conn)
 			// 窓が違うパスワードを渡しても、見つけたものでつながる。
@@ -378,8 +379,8 @@ func TestDBCancel(t *testing.T) {
 // SQL が動いている間も、ほかの要求（と serve の引き継ぎが待つ書きロック）は止まらない。
 func TestDBQueryDoesNotHoldTheLock(t *testing.T) {
 	conn := dbtest.Postgres(t)
-	pw := &db.Passwords{File: func(config.DBConnection) (string, bool) { return dbtest.Password, true }}
-	pw.Keychain = func(context.Context, config.DBConnection) (string, bool) { return "", false }
+	pw := &db.Passwords{File: func(config.DBLogin) (string, bool) { return dbtest.Password, true }}
+	pw.Keychain = func(context.Context, config.DBLogin) (string, bool) { return "", false }
 	srv, sock := startWith(t, func(o *Options) {
 		o.DBConnections = func() ([]config.DBConnection, []config.Problem) { return []config.DBConnection{conn}, nil }
 		o.DBPasswords = pw
@@ -423,8 +424,8 @@ func TestDBQueryDoesNotHoldTheLock(t *testing.T) {
 func dbServerAt(t *testing.T, historyDir string, conns ...config.DBConnection) *rpc.Conn {
 	t.Helper()
 	pw := &db.Passwords{
-		Keychain: func(context.Context, config.DBConnection) (string, bool) { return "", false },
-		File:     func(config.DBConnection) (string, bool) { return dbtest.Password, true },
+		Keychain: func(context.Context, config.DBLogin) (string, bool) { return "", false },
+		File:     func(config.DBLogin) (string, bool) { return dbtest.Password, true },
 	}
 	_, sock := startWith(t, func(o *Options) {
 		o.DBConnections = func() ([]config.DBConnection, []config.Problem) { return conns, nil }
@@ -579,8 +580,8 @@ func TestDBHistoryOnlyWhatRan(t *testing.T) {
 	_, sock := startWith(t, func(o *Options) {
 		o.DBConnections = func() ([]config.DBConnection, []config.Problem) { return []config.DBConnection{conn}, nil }
 		o.DBPasswords = &db.Passwords{
-			Keychain: func(context.Context, config.DBConnection) (string, bool) { return "", false },
-			File:     func(config.DBConnection) (string, bool) { return "", false },
+			Keychain: func(context.Context, config.DBLogin) (string, bool) { return "", false },
+			File:     func(config.DBLogin) (string, bool) { return "", false },
 		}
 		o.DBHistoryDir = dir
 	})

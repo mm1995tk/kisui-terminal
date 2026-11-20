@@ -91,4 +91,7 @@ var ja = map[string]string{
 	"config.err.unknownvariant": "変種のキーではありません。使えるキー: %s",
 	"config.err.noslash":        "/ を入れられません",
 	"config.err.unknown":        "接続のキーではありません。使えるキー: %s",
+	"config.err.unknownperm":    "権限のキーではありません。使えるキー: %s",
+	"config.err.noperm":         "[db.permissions] に %q という名前の権限がありません",
+	"config.err.brokenperm":     "権限 %q に間違いがあるので（別に出しています）、使えません",
 }

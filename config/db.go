@@ -24,6 +24,9 @@ const (
 //
 // It holds no password; a password is never written in the settings
 // (internal/db finds it).
+//
+// It is the settings, not a login: who logs in, and whether that login only
+// reads, depends on who asks (Access), and is a DBLogin (Login).
 type DBConnection struct {
 	// Name is what the user calls the connection (the entry).
 	Name string
@@ -44,8 +47,14 @@ type DBConnection struct {
 	// Database may be "": PostgreSQL then uses the database named like the
 	// user, MySQL selects none.
 	Database string
-	// ReadOnly makes every statement run in a read-only transaction.
+	// ReadOnly is the key `read-only`: with it every statement runs in a
+	// read-only transaction, for everybody, whatever the permissions say
+	// (Access).
 	ReadOnly bool
+	// Human and Agent are the permissions the settings name for a person and
+	// for a coding agent (`human-permission`, `agent-permission`). The zero
+	// value (Name "") is none named; Access says what holds then.
+	Human, Agent DBPermission
 }
 
 // Label is the connection as it is shown to a person: the name, and the
@@ -72,10 +81,12 @@ func FindDB(list []DBConnection, name, variant string) (DBConnection, bool) {
 // dbNameMax is the longest name of a connection, in characters.
 const dbNameMax = 100
 
-// LoadDB reads [[db.connections]] from kisui-terminal's configuration
-// directory. The list of config.local.toml, when that file has one, replaces
-// the list of config.toml as a whole, as [[gui.machines]] does: entries are
-// not merged one by one.
+// LoadDB reads [[db.connections]] and [db.permissions] from kisui-terminal's
+// configuration directory. The list of config.local.toml, when that file has
+// one, replaces the list of config.toml as a whole, as [[gui.machines]] does:
+// entries are not merged one by one. The same holds for [db.permissions],
+// apart from the list: a file can keep its connections and take the
+// permissions of the other.
 //
 // It is apart from Load because it is read each time the list is asked for,
 // not once at startup, so that a connection can be added without stopping
@@ -87,9 +98,14 @@ func LoadDB(suffix string) (conns []DBConnection, probs []Problem) {
 	if !ok {
 		return nil, nil
 	}
-	// The mistakes in the list in use. A list that was replaced takes its
-	// mistakes with it.
-	var listProbs []Problem
+	// The list and the permissions in use, each with the file it is from and
+	// its mistakes. One that was replaced takes its mistakes with it.
+	var (
+		list      []map[string]any
+		listPath  string
+		perms     dbPermissions
+		permProbs []Problem
+	)
 	for _, name := range files {
 		path := filepath.Join(dir, name)
 		raw, ps, found := readTOML(path)
@@ -97,57 +113,56 @@ func LoadDB(suffix string) (conns []DBConnection, probs []Problem) {
 		if !found {
 			continue
 		}
-		list, ps, has := dbConnections(raw, path)
-		if has {
-			conns, listProbs = list, ps
-		} else {
-			probs = append(probs, ps...)
+		t, ps := dbTable(raw, path)
+		probs = append(probs, ps...)
+		if v, has := t["permissions"]; has {
+			perms, permProbs = readDBPermissions(v, path)
+		}
+		if v, has := t["connections"]; has {
+			if l, ok := tables(v); ok {
+				list, listPath = l, path
+			} else {
+				probs = append(probs, Problem{File: path, Key: "db.connections", Code: "config.err.tables"})
+			}
 		}
 	}
-	return conns, append(probs, listProbs...)
+	conns, listProbs := dbConnections(list, listPath, perms)
+	return conns, append(append(probs, permProbs...), listProbs...)
 }
 
-// dbConnections takes [[db.connections]] out of a decoded file. has is false
-// when the file has no list: the key is not written, or is not a list (which
-// is a problem).
-func dbConnections(raw map[string]any, path string) (conns []DBConnection, probs []Problem, has bool) {
-	bad := func(key, code string, args ...any) {
-		probs = append(probs, Problem{File: path, Key: key, Code: code, Args: args})
-	}
+// dbTable takes the table [db] out of a decoded file: nil when the file has
+// none, or when `db` is not a table (which is a problem).
+func dbTable(raw map[string]any, path string) (map[string]any, []Problem) {
 	v, ok := raw["db"]
 	if !ok {
-		return nil, nil, false
+		return nil, nil
 	}
 	t, ok := v.(map[string]any)
 	if !ok {
-		bad("db", "config.err.table")
-		return nil, probs, false
+		return nil, []Problem{{File: path, Key: "db", Code: "config.err.table"}}
 	}
-	v, ok = t["connections"]
-	if !ok {
-		return nil, nil, false
-	}
-	list, ok := tables(v)
-	if !ok {
-		bad("db.connections", "config.err.tables")
-		return nil, probs, false
-	}
+	return t, nil
+}
+
+// dbConnections reads the entries of [[db.connections]] of the file at path.
+// perms are the permissions an entry can name.
+func dbConnections(list []map[string]any, path string, perms dbPermissions) (conns []DBConnection, probs []Problem) {
 	seen := map[string]bool{}
 	for i, e := range list {
 		key := fmt.Sprintf("db.connections[%d]", i)
-		cs, ps := dbConnection(e)
+		cs, ps := dbConnection(e, perms)
 		if len(ps) == 0 && seen[cs[0].Name] {
 			ps = append(ps, Problem{Key: "name", Code: "config.err.dupname", Args: []any{cs[0].Name}})
 		}
 		for _, p := range ps {
-			bad(key+"."+p.Key, p.Code, p.Args...)
+			probs = append(probs, Problem{File: path, Key: key + "." + p.Key, Code: p.Code, Args: p.Args})
 		}
 		if len(ps) == 0 {
 			seen[cs[0].Name] = true
 			conns = append(conns, cs...)
 		}
 	}
-	return conns, probs, true
+	return conns, probs
 }
 
 // tables is v as an array of tables. BurntSushi/toml decodes one as
@@ -170,10 +185,10 @@ func tables(v any) ([]map[string]any, bool) {
 	return nil, false
 }
 
-// dbWhereKeys are the keys that say where a database is and who logs in. An
-// entry and a variant can both have them: a variant takes the ones it does
-// not write from its entry.
-var dbWhereKeys = []string{"host", "port", "user", "database", "read-only"}
+// dbWhereKeys are the keys that say where a database is, who logs in and
+// what they may do. An entry and a variant can both have them: a variant
+// takes the ones it does not write from its entry.
+var dbWhereKeys = []string{"host", "port", "user", "database", "read-only", "human-permission", "agent-permission"}
 
 // dbKeys are the keys of a [[db.connections]] entry, and dbVariantKeys the
 // keys of a [[db.connections.variants]] entry.
@@ -261,10 +276,13 @@ type dbWhere struct {
 	host, user, database *string
 	port                 *int
 	readOnly             *bool
+	human, agent         *DBPermission
 }
 
-// where reads the dbWhereKeys.
-func (d *dbEntry) where() (w dbWhere) {
+// where reads the dbWhereKeys. perms are the permissions it can name.
+func (d *dbEntry) where(perms dbPermissions) (w dbWhere) {
+	w.human = d.permission("human-permission", perms)
+	w.agent = d.permission("agent-permission", perms)
 	if s, ok := d.str("host", false); ok && s != "" {
 		w.host = &s
 	}
@@ -314,6 +332,12 @@ func (w dbWhere) over(v dbWhere) dbWhere {
 	if v.readOnly != nil {
 		w.readOnly = v.readOnly
 	}
+	if v.human != nil {
+		w.human = v.human
+	}
+	if v.agent != nil {
+		w.agent = v.agent
+	}
 	return w
 }
 
@@ -337,6 +361,12 @@ func (w dbWhere) fill(c *DBConnection) (ok bool) {
 	if w.readOnly != nil {
 		c.ReadOnly = *w.readOnly
 	}
+	if w.human != nil {
+		c.Human = *w.human
+	}
+	if w.agent != nil {
+		c.Agent = *w.agent
+	}
 	if w.user == nil {
 		return false
 	}
@@ -349,7 +379,7 @@ func (w dbWhere) fill(c *DBConnection) (ok bool) {
 // (`port`, `variants[1].port`). With a problem anywhere, in a variant too,
 // the entry gives no connection: half of the environments of a database
 // would look like the whole.
-func dbConnection(e map[string]any) (conns []DBConnection, probs []Problem) {
+func dbConnection(e map[string]any, perms dbPermissions) (conns []DBConnection, probs []Problem) {
 	d := &dbEntry{e: e}
 	d.unknown(dbKeys, "config.err.unknown")
 	base := DBConnection{Name: d.name()}
@@ -360,7 +390,7 @@ func dbConnection(e map[string]any) (conns []DBConnection, probs []Problem) {
 			base.Kind = s
 		}
 	}
-	w := d.where()
+	w := d.where(perms)
 	var variants []map[string]any
 	if v, has := e["variants"]; has {
 		var ok bool
@@ -394,7 +424,7 @@ func dbConnection(e map[string]any) (conns []DBConnection, probs []Problem) {
 		// The user may be written in the entry, in the variant, or in both.
 		// When a written one is wrong, that is the problem to report, not that
 		// it is missing.
-		if !w.over(vd.where()).fill(&c) && e["user"] == nil && ve["user"] == nil {
+		if !w.over(vd.where(perms)).fill(&c) && e["user"] == nil && ve["user"] == nil {
 			vd.bad("user", "config.err.required")
 		}
 		for _, p := range vd.probs {

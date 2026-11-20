@@ -690,6 +690,8 @@ export const en = {
     "kisui serve on {machine} is too old to use databases. Reconnect to update it.",
   "db.err.noDbShort": "this kisui serve is too old to use databases",
   "db.err.password": "The password was not accepted.",
+  "db.err.denied":
+    "The permission of this connection does not allow running SQL here. It is set in the settings of its machine (human-permission).",
   "db.elapsed.ms": "{n} ms",
   "db.elapsed.s": "{n} s",
   "db.summary.rows": "{n} rows",

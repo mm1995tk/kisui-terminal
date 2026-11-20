@@ -162,6 +162,9 @@ export function queryFailure(e: unknown): QueryFailure {
       return { kind: "error", message: T("db.err.noConnection") };
     if (e.code === ErrorCode.Busy)
       return { kind: "error", message: T("db.err.busy") };
+    // 権限（#381）が実行を許していない（人の実行の段階が「しない」）
+    if (e.code === ErrorCode.Denied)
+      return { kind: "error", message: T("db.err.denied") };
     return { kind: "error", message: e.reason };
   }
   return { kind: "error", message: e instanceof Error ? e.message : String(e) };
