@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mattn/go-runewidth"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/mm1995tk/kisui-terminal/internal/i18n"
 	"github.com/mm1995tk/kisui-terminal/internal/panecmd"
 )
@@ -150,7 +150,7 @@ func TestWritePaneListWide(t *testing.T) {
 		t.Fatal(err)
 	}
 	lines := strings.Split(strings.TrimRight(b.String(), "\n"), "\n")
-	col := func(line, s string) int { return runewidth.StringWidth(line[:strings.Index(line, s)]) }
+	col := func(line, s string) int { return ansi.StringWidth(line[:strings.Index(line, s)]) }
 	if col(lines[1], "w1") != col(lines[2], "w1") {
 		t.Errorf("the tab column is not lined up:\n%s", b.String())
 	}
@@ -159,6 +159,16 @@ func TestWritePaneListWide(t *testing.T) {
 func TestAlignColumns(t *testing.T) {
 	got := alignColumns([][]string{{"*", "t1", "日本", "x "}, {" ", "t10", "ab", "y"}}, 1)
 	want := "* t1   日本  x\n  t10  ab    y\n"
+	if got != want {
+		t.Errorf("alignColumns =\n%q, want\n%q", got, want)
+	}
+}
+
+// An emoji with a variation selector (U+2764 U+FE0F) takes two columns on the
+// screen: the width is that of the terminal, not one column per base character.
+func TestAlignColumnsEmojiPresentation(t *testing.T) {
+	got := alignColumns([][]string{{"❤️", "x"}, {"abc", "y"}})
+	want := "❤️   x\nabc  y\n"
 	if got != want {
 		t.Errorf("alignColumns =\n%q, want\n%q", got, want)
 	}
