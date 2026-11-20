@@ -50,7 +50,7 @@ var (
 	errNoMachineName = errors.New("the name of the machine is empty")
 )
 
-// paneRelayStart は --machine の付いた rq を GUI に中継させ、答えを待つ windowWaiting を返す（待つのは呼ぶ側）。
+// paneRelayStart は --machine の付いた rq を GUI に中継させ、答えを待つ paneCmdLater を返す（待つのは呼ぶ側）。
 func (s *Server) paneRelayStart(rq panecmd.Request) (panecmd.Reply, error) {
 	machine := strings.TrimSpace(rq.Machine)
 	if machine == "" {
