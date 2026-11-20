@@ -18,6 +18,8 @@ import {
   type AttachInfo,
   type HelloResult,
   type Notifications,
+  type DbProposeReport,
+  type DbProposeRequest,
   type PaneOpenReport,
   type PaneOpenRequest,
   type PaneRelayRequest,
@@ -145,7 +147,11 @@ export type PaneEvent =
   /** `kisui pane open`（#343）。ワークスペースにターミナルのタブを足して答える（reportPaneOpened）。同じく欄の中のコマンドの知らせ */
   | ({ kind: "open-tab" } & PaneOpenRequest)
   /** `kisui pane … --machine`（#344）。別のマシンのペインへの頼みを中継して答える（reportPaneRelayed）。同じく欄の中のコマンドの知らせ */
-  | ({ kind: "relay" } & PaneRelayRequest);
+  | ({ kind: "relay" } & PaneRelayRequest)
+  /** `kisui db propose`（#382）。DB のタブの入力欄に SQL を書いて答える（reportDbProposed）。同じく欄の中のコマンドの知らせ */
+  | ({ kind: "db-propose" } & DbProposeRequest)
+  /** db.propose の取り下げ（serve が答えを待つのをやめた）。人に聞いている途中なら、聞くのをやめる */
+  | { kind: "db-propose-cancel"; id: string };
 
 /** 1, 2, 4, 8, 16, 30 秒…（最後の値を繰り返す）。10 回で待ちは合わせて 151 秒ほど（ssh の接続待ちは別）。 */
 export const DEFAULT_DELAYS = [1000, 2000, 4000, 8000, 16000, 30000];
@@ -356,6 +362,11 @@ export class Session {
   /** `kisui pane … --machine` への答え（pane.relayed）を今の接続で送る。つながっていなければ何もしない（serve は時間切れで断る）。 */
   reportPaneRelayed(id: string, reply: PaneRunReply): void {
     this.conn?.client.notify("pane.relayed", { id, reply });
+  }
+
+  /** `kisui db propose` への答え（db.proposed）を今の接続で送る。つながっていなければ何もしない（serve は時間切れで断る）。 */
+  reportDbProposed(id: string, report: DbProposeReport): void {
+    this.conn?.client.notify("db.proposed", { ...report, id });
   }
 
   /** tree.changed（開いているフォルダの中身が変わった）。つなぎ直しても外れない。 */
@@ -716,6 +727,19 @@ export class Session {
         if (!ev) return;
         for (const h of [...this.paneHandlers]) h({ kind: "relay", ...ev });
       }),
+      conn.client.on("db.propose", (n) => {
+        if (gen !== this.generation || this.conn !== conn) return;
+        const ev = parseDbPropose(n);
+        if (!ev) return;
+        for (const h of [...this.paneHandlers])
+          h({ kind: "db-propose", ...ev });
+      }),
+      conn.client.on("db.proposeCancel", (n) => {
+        if (gen !== this.generation || this.conn !== conn) return;
+        if (typeof n?.id !== "string") return;
+        for (const h of [...this.paneHandlers])
+          h({ kind: "db-propose-cancel", id: n.id });
+      }),
       conn.client.on("changes.focus", (n) => {
         if (gen !== this.generation || this.conn !== conn) return;
         if (typeof n?.workspaceId !== "string") return;
@@ -812,6 +836,25 @@ export function needsHandover(
   if (!a || !hasCapability(conn.hello, "server.handover")) return false;
   const s = conn.hello.shj;
   return a.version !== s.version || a.commit !== s.commit;
+}
+
+/** db.propose の中身を確かめる。形が違えば undefined（答えようがないので捨てる。serve は時間切れで断る）。 */
+export function parseDbPropose(n: unknown): DbProposeRequest | undefined {
+  if (typeof n !== "object" || n === null) return undefined;
+  const p = n as Record<string, unknown>;
+  if (
+    typeof p.id !== "string" ||
+    typeof p.connection !== "string" ||
+    typeof p.sql !== "string" ||
+    (p.variant !== undefined && typeof p.variant !== "string")
+  )
+    return undefined;
+  return {
+    id: p.id,
+    connection: p.connection,
+    sql: p.sql,
+    ...(p.variant ? { variant: p.variant } : {}),
+  };
 }
 
 /** pane.open の中身を確かめる。形が違えば undefined（答えようがないので捨てる。serve は時間切れで断る）。 */

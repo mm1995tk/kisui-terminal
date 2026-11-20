@@ -59,6 +59,7 @@ import {
 import { createDbExport } from "./exportController.ts";
 import type { SaveTextFile } from "./export.ts";
 import { createDbHistory } from "./historyController.ts";
+import { createDbPropose } from "./proposeController.ts";
 import { createDbTree } from "./treeController.ts";
 
 /** createDbTabs が返す持ち物。 */
@@ -333,6 +334,19 @@ export function createDbTabs(deps: {
     focusTerminal,
   });
 
+  // ---- コーディングエージェントが入力欄に SQL を書く頼み（kisui db propose。#382） ----
+  const proposer = createDbPropose({
+    currentGws,
+    setGws,
+    shownDbTab,
+    refOf,
+    draftOf: (id) => untrack(drafts)[id] ?? "",
+    setDraft,
+    labelOf,
+    showToast: deps.showToast,
+    focusTerminal,
+  });
+
   // ---- 接続を選ぶ窓 ----
   const [picker, setPicker] = createSignal<DbPicker | null>(null);
   let pickerGen = 0;
@@ -460,6 +474,8 @@ export function createDbTabs(deps: {
     // 結果の書き出し（#349。exportController.ts）と、クエリの履歴（historyController.ts）
     ...exporter,
     ...history,
+    // コーディングエージェントが入力欄に SQL を書く頼み（#382。proposeController.ts）
+    ...proposer,
     /** 結果の表で選んだセルの文字をクリップボードに入れる（#372） */
     copyCells: (text: string) => void deps.copyToClipboard(text),
     /** パスワードを聞いている窓（無ければ null） */
