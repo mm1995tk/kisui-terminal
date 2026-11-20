@@ -211,7 +211,11 @@ func dbPermission(name string, v any) (DBPermission, []Problem) {
 	// `run` has no default: a permission says how far it goes.
 	if s, ok := d.str("run", true); ok {
 		if !slices.Contains(dbRuns, DBRun(s)) {
-			d.bad("run", "config.err.oneof", string(DBRunNone)+", "+string(DBRunRead)+", "+string(DBRunFree))
+			names := make([]string, len(dbRuns))
+			for i, r := range dbRuns {
+				names[i] = string(r)
+			}
+			d.bad("run", "config.err.oneof", strings.Join(names, ", "))
 		} else {
 			p.Run = DBRun(s)
 		}
