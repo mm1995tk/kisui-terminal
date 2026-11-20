@@ -17,6 +17,9 @@ import {
   browserOriginOf,
   cycleKey,
   dbKey,
+  dbLabel,
+  dbRefLabel,
+  dbRefParams,
   dbTabsOf,
   displayName,
   dropTerm,
@@ -1063,6 +1066,50 @@ describe("DB のタブ（#347）", () => {
       }).list[0].tabs,
       [],
     );
+  });
+
+  it("環境の変種は、記録に書いて読み直すと戻る。変種の無い接続には付かない", () => {
+    let s = addEmptyWorkspace(EMPTY_GWS, "", "g1");
+    s = addDb(s, "g1", { ...db("db1", "a", "shop"), variant: "prod" });
+    s = addDb(s, "g1", db("db2", "a", "shop"));
+    const back = parseGws({
+      ...JSON.parse(JSON.stringify(s)),
+    });
+    assert.deepEqual(back.list[0].tabs, [
+      {
+        kind: "db",
+        id: "db1",
+        target: "a",
+        connection: "shop",
+        variant: "prod",
+      },
+      { kind: "db", id: "db2", target: "a", connection: "shop" },
+    ]);
+    // 文字でない・空の variant は、変種が無いものとして読む
+    const odd = JSON.parse(JSON.stringify(s));
+    odd.list[0].tabs[0].variant = 1;
+    odd.list[0].tabs[1].variant = "";
+    assert.deepEqual(
+      parseGws(odd).list[0].tabs.map((r) => "variant" in r),
+      [false, false],
+    );
+  });
+
+  it("出す名前は、変種があれば「接続 (変種)」。要求の引数は、変種があるときだけ variant を持つ", () => {
+    assert.equal(dbLabel("shop", "prod"), "shop (prod)");
+    assert.equal(dbLabel("shop"), "shop");
+    assert.equal(dbLabel("shop", ""), "shop");
+    assert.equal(
+      dbRefLabel({ connection: "shop", variant: "prod" }),
+      "shop (prod)",
+    );
+    assert.deepEqual(dbRefParams({ connection: "shop", variant: "prod" }), {
+      connection: "shop",
+      variant: "prod",
+    });
+    assert.deepEqual(dbRefParams({ connection: "shop" }), {
+      connection: "shop",
+    });
   });
 
   it("名前を空にすると、接続の名前に戻る（名前を外す）", () => {

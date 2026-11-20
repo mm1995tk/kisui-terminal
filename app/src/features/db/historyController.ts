@@ -5,14 +5,14 @@ import { createSignal, untrack } from "solid-js";
 
 import type { DbHistoryEntry } from "../../infrastructure/rpc/protocol.ts";
 import type { Session } from "../sessions/session.ts";
-import type { DbRef } from "../workspaces/model.ts";
+import { dbRefLabel, dbRefParams, type DbRef } from "../workspaces/model.ts";
 import { catalogError } from "./model.ts";
 
 /** 履歴の窓に出すもの。entries は聞き終えるまで無い。 */
 export interface DbHistoryAsk {
   /** 履歴を呼び出すタブ */
   tab: string;
-  /** 接続の名前（窓の見出しに出す） */
+  /** 接続の名前（窓の見出しに出す。環境の変種があれば `接続 (変種)`） */
   connection: string;
   /** 新しい順 */
   entries?: DbHistoryEntry[];
@@ -37,16 +37,15 @@ export function createDbHistory(deps: {
     const ref = deps.refOf(id);
     if (!ref) return;
     const mine = ++gen;
-    setAsk({ tab: id, connection: ref.connection });
+    const connection = dbRefLabel(ref);
+    setAsk({ tab: id, connection });
     try {
       const { entries } = await deps
         .sessionFor(ref)
-        .request("db.history", { connection: ref.connection });
-      if (mine === gen)
-        setAsk({ tab: id, connection: ref.connection, entries });
+        .request("db.history", dbRefParams(ref));
+      if (mine === gen) setAsk({ tab: id, connection, entries });
     } catch (e) {
-      if (mine === gen)
-        setAsk({ tab: id, connection: ref.connection, error: catalogError(e) });
+      if (mine === gen) setAsk({ tab: id, connection, error: catalogError(e) });
     }
   }
 

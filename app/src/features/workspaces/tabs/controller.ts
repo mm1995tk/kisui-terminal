@@ -49,6 +49,7 @@ import {
   termKey,
   termsOf,
   visibleTabs,
+  dbRefLabel,
   type Gws,
   type TabRef,
 } from "../model.ts";
@@ -268,7 +269,7 @@ export function createTabs(deps: {
         auto: untrack(tabs).tabs.find((t) => t.id === ref.id)?.title ?? "",
       };
     if (ref.kind === "db")
-      return { current: ref.name ?? "", auto: ref.connection };
+      return { current: ref.name ?? "", auto: dbRefLabel(ref) };
     const w = untrack(workspaces)[ref.target]?.find((x) => x.id === ref.ws);
     return {
       current: w?.label ?? "",

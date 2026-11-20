@@ -160,10 +160,15 @@ export interface TreeEntry {
 // ---- DB（MySQL / PostgreSQL） ----
 // capabilities に "db" がある kisui serve だけが受ける。Go の側は server/db.go と internal/db。
 
-/** db.connections が返す接続の 1 つ：kisui serve が動くマシンの設定の [[db.connections]]。パスワードは入らない */
+/**
+ * db.connections が返す接続の 1 つ：kisui serve が動くマシンの設定の [[db.connections]]。パスワードは入らない。
+ * 環境の変種（[[db.connections.variants]]）のある接続は、変種ごとに 1 つ（name が同じで variant が違うものが、設定に書いた順に続く）
+ */
 export interface DbConnection {
-  /** 接続の名前。そのマシンの一覧の中で重ならない。db.query の connection に渡す */
+  /** 接続の名前。name と variant の組は、そのマシンの一覧の中で重ならない。db.query の connection に渡す */
   name: string;
+  /** 環境の変種の名前（db.query の variant に渡す）。変種の無い接続は ""（変種を知らない古い kisui serve は付けない） */
+  variant?: string;
   kind: "postgres" | "mysql";
   /** ホスト名かアドレス。`/` で始まれば Unix ソケット */
   host: string;
@@ -442,13 +447,14 @@ export interface Requests {
     result: { connections: DbConnection[]; problems: string[] };
   };
   /**
-   * 接続に SQL を 1 つ実行する。password は画面で入力されたもの（省くのと "" は違う："" はパスワード無しでログインする）。
+   * 接続に SQL を 1 つ実行する。variant は環境の変種の名前（変種の無い接続では省く。変種のある接続で省くと not_found）。password は画面で入力されたもの（省くのと "" は違う："" はパスワード無しでログインする）。
    * maxRows は rows の上限（省くと 1000、最大 10000）。queryId は db.cancel で取り消すための、窓が付ける名前。
    * 断られ方：not_found（接続が無い）、password_required、db_error、busy（同時に動かせる数を超えた）
    */
   "db.query": {
     params: {
       connection: string;
+      variant?: string;
       sql: string;
       password?: string;
       maxRows?: number;
@@ -465,18 +471,23 @@ export interface Requests {
   };
   /**
    * 接続のスキーマ・テーブル（ビューを含む）・列の一覧を 1 回で全部返す。履歴には残らない。
-   * password・queryId と断られ方は db.query と同じ（not_found、password_required、db_error、busy）
+   * variant・password・queryId と断られ方は db.query と同じ（not_found、password_required、db_error、busy）
    */
   "db.schema": {
-    params: { connection: string; password?: string; queryId?: string };
+    params: {
+      connection: string;
+      variant?: string;
+      password?: string;
+      queryId?: string;
+    };
     result: DbCatalog;
   };
   /**
-   * 接続で実行した SQL の履歴を新しい順に返す（kisui serve のマシンに、接続ごとに最大 1000 件残る）。
-   * ほかの接続の SQL は入らない。limit は返す数の上限（省くと全部）。DB にはつながない。断られ方：not_found（接続が無い）
+   * 接続で実行した SQL の履歴を新しい順に返す（kisui serve のマシンに、接続ごと・環境の変種ごとに最大 1000 件残る）。
+   * ほかの接続・ほかの変種の SQL は入らない。limit は返す数の上限（省くと全部）。DB にはつながない。断られ方：not_found（接続が無い）
    */
   "db.history": {
-    params: { connection: string; limit?: number };
+    params: { connection: string; variant?: string; limit?: number };
     result: { entries: DbHistoryEntry[] };
   };
 }

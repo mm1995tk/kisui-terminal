@@ -114,7 +114,7 @@ func TestDBConnections(t *testing.T) {
 	if err := c.Call(context.Background(), "db.connections", struct{}{}, &raw); err != nil {
 		t.Fatal(err)
 	}
-	want := `{"connections":[{"name":"prod","kind":"mysql","host":"db.example.com","port":3307,"user":"reader","database":"shop","readOnly":true}],"problems":[]}`
+	want := `{"connections":[{"name":"prod","variant":"","kind":"mysql","host":"db.example.com","port":3307,"user":"reader","database":"shop","readOnly":true}],"problems":[]}`
 	if string(raw) != want {
 		t.Errorf("got  %s\nwant %s", raw, want)
 	}
@@ -597,4 +597,91 @@ func TestDBHistoryOnlyWhatRan(t *testing.T) {
 	if err := c.Call(ctx, "db.history", map[string]any{"connection": conn.Name}, &res); err != nil || len(res.Entries) != 0 {
 		t.Errorf("%s, %v", res.Entries, err)
 	}
+}
+
+// 環境の変種のある接続は、一覧に変種ごとに出て、要求は名前と変種で指す。変種を付けない要求と、無い変種は not_found。
+// 履歴は変種ごとに別で、変種の無い同じ名前の接続（変種を書く前の履歴）とも混ざらない。
+func TestDBVariants(t *testing.T) {
+	bothDB(t, func(t *testing.T, conn config.DBConnection) {
+		ctx := context.Background()
+		local, prod := conn, conn
+		local.Variant, prod.Variant = "local", "prod"
+		prod.ReadOnly = true
+		dir := t.TempDir()
+		// 変種を書く前に、同じ名前の接続で実行した SQL。
+		c := dbServerAt(t, dir, conn)
+		if err := c.Call(ctx, "db.query", map[string]any{"connection": conn.Name, "sql": "SELECT 0"}, nil); err != nil {
+			t.Fatal(err)
+		}
+		c.Close()
+
+		c = dbServerAt(t, dir, local, prod)
+		var list DBConnectionsResult
+		if err := c.Call(ctx, "db.connections", struct{}{}, &list); err != nil {
+			t.Fatal(err)
+		}
+		if len(list.Connections) != 2 || list.Connections[0].Name != conn.Name || list.Connections[0].Variant != "local" ||
+			list.Connections[1].Name != conn.Name || list.Connections[1].Variant != "prod" || !list.Connections[1].ReadOnly {
+			t.Fatalf("connections: %+v", list.Connections)
+		}
+		for _, method := range []string{"db.query", "db.schema", "db.history"} {
+			for name, variant := range map[string]string{"no variant": "", "unknown variant": "stg"} {
+				err := c.Call(ctx, method, map[string]any{"connection": conn.Name, "variant": variant, "sql": "SELECT 1"}, nil)
+				if e, ok := err.(*rpc.Error); !ok || e.Code != rpc.CodeNotFound {
+					t.Errorf("%s, %s: %v", method, name, err)
+				}
+			}
+		}
+		if err := c.Call(ctx, "db.query", map[string]any{"connection": conn.Name, "variant": "local", "sql": "SELECT 1"}, nil); err != nil {
+			t.Fatal(err)
+		}
+		if err := c.Call(ctx, "db.query", map[string]any{"connection": conn.Name, "variant": "prod", "sql": "SELECT 2"}, nil); err != nil {
+			t.Fatal(err)
+		}
+		if err := c.Call(ctx, "db.schema", map[string]any{"connection": conn.Name, "variant": "prod"}, nil); err != nil {
+			t.Fatal(err)
+		}
+		// 変種の read-only は、その変種だけに効く。
+		err := c.Call(ctx, "db.query", map[string]any{"connection": conn.Name, "variant": "prod", "sql": "CREATE TABLE kisui_variant_ro (a int)"}, nil)
+		if e, ok := err.(*rpc.Error); !ok || e.Code != rpc.CodeDBError {
+			t.Errorf("a write on the read-only variant: %v", err)
+		}
+		for variant, want := range map[string][]string{"local": {"SELECT 1"}, "prod": {"CREATE TABLE kisui_variant_ro (a int)", "SELECT 2"}} {
+			var res struct {
+				Entries []struct {
+					SQL string `json:"sql"`
+				} `json:"entries"`
+			}
+			if err := c.Call(ctx, "db.history", map[string]any{"connection": conn.Name, "variant": variant}, &res); err != nil {
+				t.Fatal(err)
+			}
+			var got []string
+			for _, e := range res.Entries {
+				got = append(got, e.SQL)
+			}
+			if !slices.Equal(got, want) {
+				t.Errorf("history of %s: %q, want %q", variant, got, want)
+			}
+		}
+	})
+}
+
+// 窓で入力して通ったパスワードは、変種ごとに覚える：ある変種で通ったものを、別の変種に送らない。
+func TestDBPasswordPerVariant(t *testing.T) {
+	bothDB(t, func(t *testing.T, conn config.DBConnection) {
+		ctx := context.Background()
+		local, prod := conn, conn
+		local.Variant, prod.Variant = "local", "prod"
+		c := dbServer(t, nil, local, prod)
+		if err := c.Call(ctx, "db.query", map[string]any{"connection": conn.Name, "variant": "local", "sql": "SELECT 1", "password": dbtest.Password}, nil); err != nil {
+			t.Fatal(err)
+		}
+		if err := c.Call(ctx, "db.query", map[string]any{"connection": conn.Name, "variant": "local", "sql": "SELECT 1"}, nil); err != nil {
+			t.Errorf("the remembered password of the variant: %v", err)
+		}
+		err := c.Call(ctx, "db.query", map[string]any{"connection": conn.Name, "variant": "prod", "sql": "SELECT 1"}, nil)
+		if e, ok := err.(*rpc.Error); !ok || e.Code != rpc.CodePasswordRequired {
+			t.Errorf("the other variant: %v", err)
+		}
+	})
 }

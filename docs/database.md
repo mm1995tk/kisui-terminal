@@ -37,11 +37,50 @@ read-only = true
 | `user` | Who logs in. Required. |
 | `database` | The database to open. When left out, PostgreSQL opens the one named like the user, and MySQL selects none. |
 | `read-only` | `true` makes every statement run in a read-only transaction: the database refuses anything that writes. `false` when left out. |
+| `variants` | The environments of the connection (below). Left out, the connection is one database. |
 
 - A list in `config.local.toml` replaces the list of `config.toml` as a whole.
 - The settings are read each time the list is asked for, so a connection you add shows without restarting `kisui serve`.
 - A mistake in a connection does not stop `kisui serve`. That connection is left out of the list, and the mistake is reported with it. A key that is not in the table above is a mistake too, so that a misspelt `read-only` does not give a connection that can write.
 - `read-only` is there to prevent accidents, not to replace rights. For a database nobody may write to, log in as a user that can only read.
+
+### Variants: one connection in several environments
+
+When the same database exists in several environments (your machine, a container, dev, staging, production), write it as one connection with a variant for each, instead of one connection per environment:
+
+```toml
+[[db.connections]]
+name = "shop"
+kind = "postgres"
+user = "app"
+database = "shop"
+
+[[db.connections.variants]]
+name = "local"
+
+[[db.connections.variants]]
+name = "dev"
+host = "dev.example.com"
+
+[[db.connections.variants]]
+name = "prod"
+host = "db.example.com"
+user = "reader"
+read-only = true
+```
+
+| Key of a variant | Meaning |
+| --- | --- |
+| `name` | What you call the variant. Required, up to 100 characters, without a `/`, and no two variants of a connection have the same name. |
+| `host`, `port`, `user`, `database`, `read-only` | As in the table above, for this variant. |
+
+- A variant takes the keys it does not write from its connection, and the defaults of the table above when the connection does not write them either. Above, `local` is `app@localhost:5432/shop`, and `prod` is `reader@db.example.com:5432/shop`, read-only. `read-only = true` on the connection makes every variant read-only, except one that writes `read-only = false`.
+- `kind` is written on the connection only: the variants of a connection are the same kind of database.
+- `user` may be written on the connection, on a variant, or on both, as long as every variant ends up with one.
+- You choose the variant when you open a database tab: the window lists each variant as its own row, `shop (local)`, `shop (dev)`, `shop (prod)`, in the order written. A tab stays on the variant it was opened with.
+- A connection with variants is not a database by itself: only its variants are listed.
+- A mistake in one variant leaves the whole connection out of the list (all its variants), and is reported with it.
+- When you add variants to a connection you already use, its database tabs that are open stop working (they name no variant): close them and open the variant you want. The history and the keychain item of the connection are not carried over to a variant (see below).
 
 ## Passwords
 
@@ -53,13 +92,15 @@ A password is never written in `config.toml`; a `password` key is reported as a 
    security add-generic-password -s kisui-terminal-db -a "shop (production)" -w
    ```
 
+   Each variant of a connection has an item of its own. Its account is the name of the connection, a slash and the name of the variant (`-a "shop/prod"`). The item of one variant is never tried for another. The name of a variant cannot have a `/`, so two variants never share an item. (A connection without variants named `shop/prod` would share that item, so do not name one like that.)
+
    Use a password of ASCII characters here (`security` cannot hand others back). In a login over ssh the keychain is usually locked; then the next places are used. On Linux there is no keychain step.
 
 2. **`~/.pgpass` (PostgreSQL) or `~/.my.cnf` (MySQL)**, the files the clients of the databases read.
    - `~/.pgpass` (or the file `PGPASSFILE` names): lines of `host:port:database:user:password`, where `*` matches anything. A connection over a Unix socket matches the host `localhost`.
    - `~/.my.cnf`: the `password` of the `[client]` group. When `[client]` also has `user`, `host` or `port`, the password is used only for a connection with the same ones.
 
-3. **The password you type.** When neither place has one, the window asks. `kisui serve` keeps a password that worked in memory until it stops, so you are asked once; it is not written to any file.
+3. **The password you type.** When neither place has one, the window asks. `kisui serve` keeps a password that worked in memory until it stops, so you are asked once; it is not written to any file. Each variant is asked for by itself: a password typed for one variant is not sent to another.
 
 A password found in the keychain or in a file is used before a typed one. When the database refuses it, fix it where it was found.
 
@@ -79,10 +120,10 @@ A password found in the keychain or in a file is used before a typed one. When t
 
 ## History
 
-`kisui serve` keeps the statements it runs, for each connection apart: the statement, when it was sent, and whether it worked. The rows of the result are not kept. A statement for one connection never shows up in the history of another, so the SQL of production and of development do not mix.
+`kisui serve` keeps the statements it runs, for each connection apart, and for each variant of a connection apart: the statement, when it was sent, and whether it worked. The rows of the result are not kept. A statement for one connection never shows up in the history of another, so the SQL of production and of development do not mix.
 
 - The history is on the machine where `kisui serve` runs, in `db-history/` beside `serve.log` (`~/.local/state/shijimi-editor/db-history/`, or under `$XDG_STATE_HOME`). It stays when `kisui serve` starts again. The files are readable by you only, but the statements are kept as they are: a password written in a statement (`ALTER USER ... PASSWORD`) is kept with it.
-- A connection is told by its `name`. Renaming a connection starts a new history; pointing a name at another database keeps the old one.
-- Each connection keeps its newest 1000 statements (and up to 4 MiB). A statement longer than 64 KiB is not kept.
+- A connection is told by its `name`, and a variant by the `name` of its connection and its own. Renaming a connection or a variant starts a new history; pointing a name at another database keeps the old one. Adding variants to a connection starts a new history for each variant (the history from before stays in its file, and shows again if you remove the variants).
+- Each connection (each variant) keeps its newest 1000 statements (and up to 4 MiB). A statement longer than 64 KiB is not kept.
 - A statement that never ran, because the login failed, is not kept. Listing the schemas and tables is not kept either.
 - To forget the history, delete the folder or the files in it; this works while `kisui serve` runs too.

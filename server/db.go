@@ -53,15 +53,15 @@ func newDBManager(opts Options) *dbManager {
 	return m
 }
 
-// find は名前の接続を設定から探す。
-func (m *dbManager) find(name string) (config.DBConnection, bool) {
+// find は名前と環境の変種の接続を設定から探す。変種のある接続は、変種を付けずには見つからない
+// （どの環境かを決めずに、どれかにつなぐことはしない）。無ければ not_found。
+func (m *dbManager) find(name, variant string) (config.DBConnection, error) {
 	conns, _ := m.load()
-	for _, c := range conns {
-		if c.Name == name {
-			return c, true
-		}
+	c, ok := config.FindDB(conns, name, variant)
+	if !ok {
+		return c, rpc.Errorf(rpc.CodeNotFound, "no such connection: %s", config.DBConnection{Name: name, Variant: variant}.Label())
 	}
-	return config.DBConnection{}, false
+	return c, nil
 }
 
 // begin は db.query を 1 つ動いているものに足す。返す ctx は、db.cancel か接続が切れると終わる。
@@ -123,6 +123,8 @@ func (m *dbManager) run(ctx context.Context, c config.DBConnection, password str
 // dbLogin は db.query と db.schema の共通の引数。
 type dbLogin struct {
 	Connection string `json:"connection"`
+	// Variant は環境の変種の名前。変種の無い接続では省く（""）。
+	Variant string `json:"variant"`
 	// Password は窓で入力されたパスワード。省いたとき（nil）と空文字（パスワード無しでログインする）は違う。
 	Password *string `json:"password"`
 	QueryID  string  `json:"queryId"`
@@ -132,9 +134,9 @@ type dbLogin struct {
 // パスワードを探す・間違いを窓への返事にする、は db.query と db.schema で同じ。what はログに書く要求の名前。
 func (ss *session) dbWith(ctx context.Context, p dbLogin, what string, f func(context.Context, config.DBConnection, db.Session) error) error {
 	m := ss.srv.db
-	c, ok := m.find(p.Connection)
-	if !ok {
-		return rpc.Errorf(rpc.CodeNotFound, "no such connection: %s", p.Connection)
+	c, err := m.find(p.Connection, p.Variant)
+	if err != nil {
+		return err
 	}
 	ctx, done, err := m.begin(ctx, p.QueryID)
 	if err != nil {
@@ -143,12 +145,12 @@ func (ss *session) dbWith(ctx context.Context, p dbLogin, what string, f func(co
 	defer done()
 	password, src, err := m.passwords.Find(ctx, c, p.Password)
 	if err != nil {
-		return errPasswordRequired("missing", "a password is required for the connection "+c.Name)
+		return errPasswordRequired("missing", "a password is required for the connection "+c.Label())
 	}
 	err = m.run(ctx, c, password, src, func(s db.Session) error { return f(ctx, c, s) })
 	if err != nil {
 		// SQL とパスワードはログに書かない。
-		ss.srv.log.Info(what+" failed", "connection", c.Name)
+		ss.srv.log.Info(what+" failed", "connection", c.Name, "variant", c.Variant)
 		return dbQueryError(ctx, err, src)
 	}
 	return nil
@@ -190,9 +192,11 @@ func (ss *session) dbRequest(ctx context.Context, req *rpc.Message) (any, error)
 
 // DBConnectionInfo は db.connections が返す接続の 1 つ。設定に書いたものだけで、パスワードは持たない
 // （config.DBConnection にパスワードの欄が無いので、入りようがない）。
+// 環境の変種のある接続は、変種ごとに 1 つ（Name が同じで Variant が違うものが、設定に書いた順に続く）。
 type DBConnectionInfo struct {
 	Name     string `json:"name"`
-	Kind     string `json:"kind"` // "postgres" か "mysql"
+	Variant  string `json:"variant"` // 環境の変種の名前。変種の無い接続は ""
+	Kind     string `json:"kind"`    // "postgres" か "mysql"
 	Host     string `json:"host"`
 	Port     int    `json:"port"`
 	User     string `json:"user"`
@@ -213,7 +217,7 @@ func (ss *session) dbConnectionsReq() (any, error) {
 	conns, probs := ss.srv.db.load()
 	res := DBConnectionsResult{Connections: make([]DBConnectionInfo, len(conns)), Problems: make([]string, len(probs))}
 	for i, c := range conns {
-		res.Connections[i] = DBConnectionInfo{Name: c.Name, Kind: c.Kind, Host: c.Host, Port: c.Port, User: c.User, Database: c.Database, ReadOnly: c.ReadOnly}
+		res.Connections[i] = DBConnectionInfo{Name: c.Name, Variant: c.Variant, Kind: c.Kind, Host: c.Host, Port: c.Port, User: c.User, Database: c.Database, ReadOnly: c.ReadOnly}
 	}
 	for i, p := range probs {
 		res.Problems[i] = p.Text()
@@ -254,9 +258,9 @@ func (ss *session) dbQueryReq(ctx context.Context, req *rpc.Message) (any, error
 		if p.Offset > 0 {
 			return err
 		}
-		if herr := ss.srv.db.history.Add(c.Name, db.HistoryEntry{SQL: p.SQL, At: at, OK: err == nil}); herr != nil {
+		if herr := ss.srv.db.history.Add(db.HistoryKey(c), db.HistoryEntry{SQL: p.SQL, At: at, OK: err == nil}); herr != nil {
 			// 履歴に残せなくても、SQL の結果は返す。
-			ss.srv.log.Warn("db history", "connection", c.Name, "err", herr)
+			ss.srv.log.Warn("db history", "connection", c.Name, "variant", c.Variant, "err", herr)
 		}
 		return err
 	})
@@ -294,6 +298,7 @@ type DBHistoryResult struct {
 func (ss *session) dbHistoryReq(req *rpc.Message) (any, error) {
 	var p struct {
 		Connection string `json:"connection"`
+		Variant    string `json:"variant"`
 		Limit      int    `json:"limit"`
 	}
 	if err := json.Unmarshal(req.Params, &p); err != nil {
@@ -303,13 +308,13 @@ func (ss *session) dbHistoryReq(req *rpc.Message) (any, error) {
 		return nil, rpc.Errorf(rpc.CodeInvalidParams, "limit is negative")
 	}
 	m := ss.srv.db
-	c, ok := m.find(p.Connection)
-	if !ok {
-		return nil, rpc.Errorf(rpc.CodeNotFound, "no such connection: %s", p.Connection)
-	}
-	list, err := m.history.List(c.Name, p.Limit)
+	c, err := m.find(p.Connection, p.Variant)
 	if err != nil {
-		ss.srv.log.Warn("db history", "connection", c.Name, "err", err)
+		return nil, err
+	}
+	list, err := m.history.List(db.HistoryKey(c), p.Limit)
+	if err != nil {
+		ss.srv.log.Warn("db history", "connection", c.Name, "variant", c.Variant, "err", err)
 		return nil, rpc.Errorf(rpc.CodeInternalError, "the history could not be read: %v", err)
 	}
 	return DBHistoryResult{Entries: list}, nil

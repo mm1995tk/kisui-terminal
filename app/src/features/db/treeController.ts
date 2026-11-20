@@ -13,7 +13,7 @@ import type {
   Requests,
 } from "../../infrastructure/rpc/protocol.ts";
 import type { DbMethod, Session } from "../sessions/session.ts";
-import type { DbRef } from "../workspaces/model.ts";
+import { dbRefParams, type DbRef } from "../workspaces/model.ts";
 import { catalogError, newQueryId } from "./model.ts";
 import { initialExpanded, previewSql } from "./tree.ts";
 
@@ -84,11 +84,15 @@ export function createDbTree(deps: {
       // 2 つとも async の中で始める（つながっていないときの同期の throw が、受け手の無い reject を残さないように）
       const [catalog, list] = await Promise.all([
         (async () =>
-          request(ref, "db.schema", { connection: ref.connection, queryId }))(),
+          request(ref, "db.schema", { ...dbRefParams(ref), queryId }))(),
         (async () => sessionFor(ref).request("db.connections", {}))(),
       ]);
       if (!mine()) return;
-      const conn = list.connections.find((c) => c.name === ref.connection);
+      const conn = list.connections.find(
+        (c) =>
+          c.name === ref.connection &&
+          (c.variant ?? "") === (ref.variant ?? ""),
+      );
       if (!conn) throw new Error(T("db.err.noConnection"));
       setCatalog(id, () => ({ catalog, kind: conn.kind }));
       if (!(id in untrack(expanded)))

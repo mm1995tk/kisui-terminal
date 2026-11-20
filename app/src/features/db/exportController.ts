@@ -79,7 +79,10 @@ export function createDbExport(deps: {
     }
     try {
       const path = await deps.saveFile({
-        defaultName: exportFileName(ref.connection, c.format),
+        defaultName: exportFileName(
+          ref.variant ? `${ref.connection}-${ref.variant}` : ref.connection,
+          c.format,
+        ),
         extension: exportExtension(c.format),
         text,
       });
