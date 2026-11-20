@@ -5,6 +5,7 @@ import {
   For,
   Index,
   on,
+  onCleanup,
   Show,
   type JSX,
 } from "solid-js";
@@ -25,6 +26,7 @@ import {
 } from "../../../../features/terminal/grid.ts";
 import type { TermLink } from "../../../../features/terminal/link.ts";
 import type { MediaFetch } from "../../../../features/terminal/media.ts";
+import { createHold } from "./createHold.ts";
 import { TerminalView } from "./TerminalView.tsx";
 import { FileView } from "../media/FileView.tsx";
 import { VideoView } from "../media/VideoView.tsx";
@@ -150,6 +152,17 @@ export function TerminalGrid(props: {
     h.addEventListener("pointercancel", end);
   }
 
+  // タブを切り替えた直後、新しいペインが描けるまで、前のタブのペインを前の位置・見た目のまま残す（createHold.ts）
+  const { cells, heldOf, holding, frame, markDrawn } = createHold({
+    links: () => props.links,
+    view: (l: TermLink, i) => ({
+      place: place(l.id),
+      hidden: !visible(i),
+      active: l === props.active,
+    }),
+    frame: () => ({ bars: bars(), split: shown() > 1 }),
+  });
+
   createEffect(
     on(total, (n, prev) => {
       if (prev === undefined || n >= prev || !hadFocus) return;
@@ -162,31 +175,45 @@ export function TerminalGrid(props: {
     <section
       class="terminal"
       aria-label={T("terminal.label")}
-      data-split={shown() > 1 ? "" : undefined}
+      data-split={frame().split ? "" : undefined}
       data-empty={total() === 0 ? "" : undefined}
       style={template()}
       ref={el}
+      onMouseDown={(e) => {
+        // ペインの外（描けるまで隠しているペインと、前のタブから残しているペインは押せないので、そこも含む）を
+        // 押しても、キーの行き先を外さず、今のペインに向ける
+        if (e.target !== el) return;
+        e.preventDefault();
+        focusActive();
+      }}
       onFocusIn={() => (hadFocus = true)}
       onFocusOut={(e) => {
         const to = e.relatedTarget as Node | null;
         if (to && !el.contains(to)) hadFocus = false;
       }}
     >
-      <For each={props.links}>
-        {(link, i) => (
-          <TerminalView
-            link={link}
-            active={link === props.active}
-            hidden={!visible(i())}
-            place={place(link.id)}
-            name={props.titles?.[link.id]}
-            onFocus={() => props.onActivate(i())}
-            onUrl={props.onUrl}
-            focusRef={(f) =>
-              f ? focusers.set(link, f) : focusers.delete(link)
-            }
-          />
-        )}
+      <For each={cells()}>
+        {(link, i) => {
+          onCleanup(() => markDrawn(link, false));
+          return (
+            <TerminalView
+              link={link}
+              active={heldOf(link)?.active ?? link === props.active}
+              hidden={heldOf(link)?.hidden ?? !visible(i())}
+              leaving={!!heldOf(link)}
+              place={heldOf(link)?.place ?? place(link.id)}
+              name={props.titles?.[link.id]}
+              onFocus={() => {
+                if (!heldOf(link)) props.onActivate(i());
+              }}
+              onUrl={props.onUrl}
+              focusRef={(f) =>
+                f ? focusers.set(link, f) : focusers.delete(link)
+              }
+              onDrawn={() => markDrawn(link, true)}
+            />
+          );
+        }}
       </For>
       <For each={extras()}>
         {(x) => (
@@ -206,7 +233,7 @@ export function TerminalGrid(props: {
           />
         )}
       </For>
-      <Index each={bars()}>
+      <Index each={frame().bars}>
         {(bar) => {
           const pct = (v: number) => `${v * 100}%`;
           const style = () => {
@@ -229,6 +256,7 @@ export function TerminalGrid(props: {
             <div
               class="terminal-bar"
               data-dir={bar().dir}
+              data-leaving={holding() ? "" : undefined}
               data-lit={
                 dragKey() === bar().key || props.litBorder === bar().key
                   ? ""

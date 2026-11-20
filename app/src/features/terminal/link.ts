@@ -12,6 +12,8 @@
 //   シェルに文字が届いてしまうため）。書き出しを受け取ったら画面を reset してから書き、返事の seq より
 //   先の term.output を続ける。返事を待つ間に届いた term.output は取っておき、返事のあとに seq で
 //   つなぐ（seq 以前の分は書き出しに入っているので捨てる）。
+// - bind した画面は、最初の書き出しを書き終えるまで中身が空（カーソルだけ）。書き終えたら（取り直せなかったときも）
+//   TermSink.drawn で知らせる。画面はそれまで見せない（タブを切り替えた直後に空のペインが見えないように。TerminalGrid）。
 // - プライマリターミナルのシェルが終わっても欄は閉じず、知らせを出して Enter で term.restart する
 //   （ワークスペースのフォルダ、未定なら start_dir で始まる。termId はそのまま）。分割したターミナルのシェルが
 //   終わったら、onExit で知らせる（並べた欄から外すため。F4）。
@@ -40,6 +42,11 @@ export interface TermSink {
   notice(text: string): void;
   /** 中身を消す（別のターミナルを描き始めるとき）。 */
   reset(): void;
+  /**
+   * bind のあと、最初の画面の状態を書き終えた（取り直せなかったときも呼ぶ）。bind 1 回につき 1 回だけ。
+   * それまでの画面は空（カーソルだけ）なので、見せるのはこのあとにする。
+   */
+  drawn?(): void;
 }
 
 /** 大きさが分からないうちの大きさ。 */
@@ -78,6 +85,8 @@ export class TermLink {
   private rows = DEFAULT_SIZE.rows;
   /** 続けて始めたとき、古い返事を捨てるための番号 */
   private op = 0;
+  /** bind したあと、まだ TermSink.drawn を呼んでいない */
+  private drawPending = false;
   /** 分割したターミナルのシェルが終わったと分かったとき（F4。並べた欄から外すため） */
   onExit?: () => void;
 
@@ -108,12 +117,14 @@ export class TermLink {
     this.sink = sink;
     sink.reset();
     this.received = 0;
+    this.drawPending = true;
     void this.open();
   }
 
   /** 画面を外す（畳んだ・別のマシンを出した）。シェルは止めない。 */
   unbind(): void {
     this.sink = undefined;
+    this.drawPending = false;
     this.nextOp();
   }
 
@@ -260,12 +271,13 @@ export class TermLink {
           sink.write(data, () => {
             if (op !== this.op) return;
             this.restoring = false;
+            this.markDrawn(sink);
             if (this.gapPending) {
               this.gapPending = false;
               void this.attach(op);
             }
           });
-        }
+        } else this.markDrawn(sink);
       }
       // 返事を待つ間に届いた出力のうち、書き出しのあとの分をつなぐ
       const queued = this.queued;
@@ -276,11 +288,20 @@ export class TermLink {
       if (op !== this.op) return "failed";
       this.attaching = false;
       this.queued = [];
+      // 取り直せなくても、画面（空か、知らせだけ）は見せる
+      if (this.sink) this.markDrawn(this.sink);
       if (e instanceof RpcError && e.code === ErrorCode.NotFound)
         return "missing";
       this.onError(`term.attach: ${message(e)}`);
       return "failed";
     }
+  }
+
+  /** bind のあと最初の画面を書き終えたことを、1 回だけ知らせる。 */
+  private markDrawn(sink: TermSink): void {
+    if (!this.drawPending || sink !== this.sink) return;
+    this.drawPending = false;
+    sink.drawn?.();
   }
 
   /** 古い返事と書き終わりを捨てるため、番号を進めて取り直しの状態を戻す。 */

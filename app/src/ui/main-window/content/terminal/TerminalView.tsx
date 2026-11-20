@@ -40,6 +40,9 @@ import { throttle } from "./throttle.ts";
 /** 欄の大きさが変わり続けるとき、列の数を測り直す間隔（ms）。 */
 const REFIT_INTERVAL_MS = 80;
 
+/** 最初の画面が届くのをこれ以上待たずに、ペインを見せる（ms）。kisui serve が答えないまま、前のタブのペインを残し続けないように。 */
+const DRAWN_TIMEOUT_MS = 1000;
+
 /**
  * ターミナル 1 つの欄（F1）。coneko-term で描き、shj とのやりとりは TermLink に任せる。
  * 大きさは欄に合わせ（term.fit）、変わったら term.resize を送る。並べ方は TerminalGrid（F4）が決める。
@@ -61,6 +64,10 @@ export function TerminalView(props: {
   onUrl?: (click: UrlClick) => void;
   /** この欄にキーを向ける関数を受け取る（欄が無くなるとき undefined で呼ぶ） */
   focusRef?: (focus: (() => void) | undefined) => void;
+  /** 前のタブのペインを、新しいタブのペインが描けるまで残しているところか（TerminalGrid。新しいペインの上に重ね、押しても何もしない） */
+  leaving?: boolean;
+  /** 最初の画面を書き終えて、ペインを見せ始めた（kisui serve が答えないときは DRAWN_TIMEOUT_MS で見せる） */
+  onDrawn?: () => void;
 }): JSX.Element {
   const ports = usePorts();
   let host!: HTMLDivElement;
@@ -76,10 +83,22 @@ export function TerminalView(props: {
     theme: terminalTheme,
   });
 
+  // 最初の画面を書き終えたか。それまでの coneko-term は空（カーソルだけ）なので、ペインを見せない（TerminalGrid が前のペインを残す）
+  const [drawn, setDrawn] = createSignal(false);
+  let drawnTimer: ReturnType<typeof setTimeout> | undefined;
+  const markDrawn = () => {
+    clearTimeout(drawnTimer);
+    if (drawn()) return;
+    setDrawn(true);
+    props.onDrawn?.();
+  };
+  onCleanup(() => clearTimeout(drawnTimer));
+
   const sink: TermSink = {
     write: (data, done) => term.write(data, done),
     notice: (text) => term.write(text),
     reset: () => term.reset(),
+    drawn: markDrawn,
   };
 
   // 入力は今つないでいる link に送る
@@ -302,9 +321,12 @@ export function TerminalView(props: {
     current = link;
     if (!link) {
       term.reset();
+      markDrawn();
       return;
     }
     link.resize(term.cols, term.rows);
+    clearTimeout(drawnTimer);
+    drawnTimer = setTimeout(markDrawn, DRAWN_TIMEOUT_MS);
     link.bind(sink);
   });
 
@@ -319,6 +341,8 @@ export function TerminalView(props: {
       class="terminal-cell"
       data-active={props.active ? "" : undefined}
       data-primary={props.link?.primary ? "" : undefined}
+      data-loading={drawn() ? undefined : ""}
+      data-leaving={props.leaving ? "" : undefined}
       hidden={props.hidden}
       style={props.place}
       onFocusIn={() => props.onFocus?.()}
