@@ -38,6 +38,7 @@ import { sqlToRun } from "./statements.ts";
 import { MACHINE_COLORS } from "../sessions/colors.ts";
 import {
   collectConnections,
+  connectionOf,
   loadDrafts,
   newQueryId,
   PasswordCancelled,
@@ -228,6 +229,7 @@ export function createDbTabs(deps: {
   }
 
   /** タブ id の接続の種類（文の区切り方が違う。#375）。聞けなかったときは undefined（PostgreSQL の読み方を使う）。 */
+  // 覚えるのはタブが開いている間。接続の設定を書き換えたら、タブを開き直す（SQL の失敗では捨てない）
   const kinds = new Map<string, "postgres" | "mysql">();
   async function kindOf(id: string) {
     const known = kinds.get(id);
@@ -239,11 +241,7 @@ export function createDbTabs(deps: {
         "db.connections",
         {},
       );
-      const c = connections.find(
-        (c) =>
-          c.name === ref.connection &&
-          (c.variant ?? "") === (ref.variant ?? ""),
-      );
+      const c = connectionOf(connections, ref);
       if (c) kinds.set(id, c.kind);
       return c?.kind;
     } catch {
@@ -320,7 +318,6 @@ export function createDbTabs(deps: {
     } catch (e) {
       if (!mine()) return;
       queuedSteps.delete(id);
-      kinds.delete(id);
       if (e instanceof PasswordCancelled) {
         setRun(id, ({ running: _, ...r }) => r);
         return;

@@ -120,6 +120,17 @@ export function collectConnections(
   return { choices, notes };
 }
 
+/** kisui serve の接続の一覧 list から、タブの接続 ref（名前と環境の変種）のものを探す（無ければ undefined）。 */
+export function connectionOf(
+  list: readonly DbConnection[],
+  ref: { connection: string; variant?: string },
+): DbConnection | undefined {
+  return list.find(
+    (c) =>
+      c.name === ref.connection && (c.variant ?? "") === (ref.variant ?? ""),
+  );
+}
+
 /** 接続の行き先の短い説明（`postgres · app@db.example:5432/shop`。Unix ソケットはそのパス）。 */
 export function connectionDetail(c: DbConnection): string {
   const where = c.host.startsWith("/") ? c.host : `${c.host}:${c.port}`;
