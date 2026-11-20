@@ -93,7 +93,7 @@ func askWindowWithin[T any](s *Server, u *windowWaits[T], method string, params 
 	}}
 }
 
-// paneCmdLater は、欄の中のコマンドの頼みの続き（run）を、読みロックの外で行うことを paneCmd が知らせる値（error として返す）。
+// paneCmdLater は、ペインの中のコマンドの頼みの続き（run）を、読みロックの外で行うことを paneCmd が知らせる値（error として返す）。
 // GUI に頼みを送って答えを待つもの（askWindow）と、DB につなぐもの（kisui db。dbcmd.go）が使う：どちらも長くかかることがあり、
 // 読みロックを持ったままだと、その間 serve の引き継ぎ（書きロックを待つ）が止まる。
 // 呼ぶ側（paneCmdConn）が読みロックを手放してから run を呼ぶ。run の ctx は、頼んだコマンドが切れると終わる。

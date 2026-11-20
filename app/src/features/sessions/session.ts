@@ -148,7 +148,7 @@ export type PaneEvent =
   | ({ kind: "open-tab" } & PaneOpenRequest)
   /** `kisui pane … --machine`（#344）。別のマシンのペインへの頼みを中継して答える（reportPaneRelayed）。同じく欄の中のコマンドの知らせ */
   | ({ kind: "relay" } & PaneRelayRequest)
-  /** `kisui db propose`（#382）。DB のタブの入力欄に SQL を書いて答える（reportDbProposed）。同じく欄の中のコマンドの知らせ */
+  /** `kisui db propose`（#382）。DB のタブの入力欄に SQL を書いて答える（reportDbProposed）。同じくペインの中のコマンドの知らせ */
   | ({ kind: "db-propose" } & DbProposeRequest)
   /** db.propose の取り下げ（serve が答えを待つのをやめた）。人に聞いている途中なら、聞くのをやめる */
   | { kind: "db-propose-cancel"; id: string };
