@@ -16,8 +16,6 @@ import { createEffect, createMemo, createSignal, on, untrack } from "solid-js";
 
 import {
   hasCapability,
-  type DbCatalog,
-  type DbConnection,
   type DbQueryResult,
   type Requests,
 } from "../../infrastructure/rpc/protocol.ts";
@@ -48,14 +46,7 @@ import {
   type MachineConnections,
   type QueryFailure,
 } from "./model.ts";
-import {
-  clampTreeWidth,
-  initialExpanded,
-  loadTreeLayout,
-  previewSql,
-  saveTreeLayout,
-  type TreeLayout,
-} from "./tree.ts";
+import { createDbTree } from "./treeController.ts";
 
 /** createDbTabs が返す持ち物。 */
 export type DbTabs = ReturnType<typeof createDbTabs>;
@@ -68,17 +59,6 @@ export interface DbRun {
   result?: DbQueryResult;
   /** 最後の実行が失敗した・取り消した理由（あれば result の代わりに出す） */
   failure?: Exclude<QueryFailure, { kind: "password" }>;
-}
-
-/** タブ 1 つの、左の木のペイン（#348）のスキーマの一覧。メモリだけに持つ（開き直したら、もう一度聞く）。 */
-export interface DbCatalogState {
-  /** 聞いている最中（db.cancel に渡す名前と、送ったマシン）。聞き直している間も、前の一覧は残る */
-  loading?: { queryId: string; target: string };
-  catalog?: DbCatalog;
-  /** 接続の種類（テーブルを見る SQL の引用に使う） */
-  kind?: DbConnection["kind"];
-  /** 最後に聞いたときの失敗の理由（あれば、前の一覧があってもその横に出す） */
-  error?: string;
 }
 
 /** 接続を選ぶ窓（リーダーの d n）に出すもの。 */
@@ -150,25 +130,6 @@ export function createDbTabs(deps: {
     setRuns((all) => ({ ...all, [id]: f(all[id] ?? {}) }));
   }
   const runOf = (id: string): DbRun => runs()[id] ?? {};
-
-  // ---- 左の木のペイン（#348） ----
-  const [treeLayout, setTreeLayout] = createSignal<TreeLayout>(
-    loadTreeLayout(store),
-  );
-  function writeTreeLayout(next: TreeLayout) {
-    setTreeLayout(next);
-    saveTreeLayout(store, next);
-  }
-  const [catalogs, setCatalogs] = createSignal<
-    Readonly<Record<string, DbCatalogState>>
-  >({});
-  function setCatalog(id: string, f: (c: DbCatalogState) => DbCatalogState) {
-    setCatalogs((all) => ({ ...all, [id]: f(all[id] ?? {}) }));
-  }
-  /** タブ id の木で開けている枝（tree.ts の行の id） */
-  const [expanded, setExpanded] = createSignal<
-    Readonly<Record<string, readonly string[]>>
-  >({});
 
   // ---- パスワード ----
   const [passwordAsk, setPasswordAsk] = createSignal<DbPasswordAsk | null>(
@@ -267,90 +228,6 @@ export function createDbTabs(deps: {
     }
   }
 
-  /**
-   * タブ id の接続のスキーマ・テーブル・列の一覧を聞く（db.schema）。聞いている間は、次を始めない。
-   * 前の一覧は、答えが来るまで残す。パスワードの流れは SQL の実行と同じ（request）。
-   * テーブルを見る SQL の引用のために、接続の種類も db.connections で知る。
-   */
-  async function loadCatalog(id: string) {
-    const ref = refOf(id);
-    if (!ref || untrack(catalogs)[id]?.loading) return;
-    const queryId = newQueryId();
-    const mine = () => untrack(catalogs)[id]?.loading?.queryId === queryId;
-    setCatalog(id, (c) => ({
-      ...c,
-      loading: { queryId, target: ref.target },
-      error: undefined,
-    }));
-    try {
-      const [catalog, list] = await Promise.all([
-        request(ref, "db.schema", { connection: ref.connection, queryId }),
-        sessionFor(ref).request("db.connections", {}),
-      ]);
-      if (!mine()) return;
-      const conn = list.connections.find((c) => c.name === ref.connection);
-      if (!conn) throw new Error(T("db.err.noConnection"));
-      setCatalog(id, () => ({ catalog, kind: conn.kind }));
-      if (!(id in untrack(expanded)))
-        setExpanded((all) => ({ ...all, [id]: initialExpanded(catalog) }));
-    } catch (e) {
-      if (!mine()) return;
-      const f = e instanceof PasswordCancelled ? undefined : queryFailure(e);
-      setCatalog(id, ({ loading: _, ...c }) => ({
-        ...c,
-        error:
-          f === undefined
-            ? T("db.tree.passwordCancelled")
-            : f.kind === "error"
-              ? f.message
-              : f.kind === "cancelled"
-                ? T("db.view.cancelled")
-                : T("db.err.password"),
-      }));
-    }
-  }
-
-  /** 木の枝 node を開ける・閉じる。 */
-  function toggleNode(id: string, node: string, open: boolean) {
-    setExpanded((all) => {
-      const cur = new Set(all[id] ?? []);
-      if (open) cur.add(node);
-      else cur.delete(node);
-      return { ...all, [id]: [...cur] };
-    });
-  }
-
-  /**
-   * 木でテーブル（ビュー）を選んだ：その中身を見る SQL を入力欄に入れて実行する（入れるのは、何を実行したかを見せ、
-   * 手直しして使えるようにするため）。一覧がまだ無い・別の SQL を実行している間は何もしない。
-   */
-  function previewTable(id: string, schema: string, table: string) {
-    const kind = untrack(catalogs)[id]?.kind;
-    if (!kind || untrack(runs)[id]?.running) return;
-    const sql = previewSql(kind, schema, table);
-    setDraft(id, sql);
-    void run(id, sql);
-  }
-
-  /** 木のペインを開け閉めする（どの DB のタブでも同じ）。開けたとき、まだ一覧が無ければ聞く（下の effect）。 */
-  function toggleTree() {
-    writeTreeLayout({
-      ...untrack(treeLayout),
-      open: !untrack(treeLayout).open,
-    });
-  }
-  function setTreeWidth(width: number) {
-    writeTreeLayout({ ...untrack(treeLayout), width: clampTreeWidth(width) });
-  }
-
-  // 木のペインが開いていて、DB のタブを出したら、まだ聞いていなければ一覧を聞く（失敗しても繰り返さない。聞き直しは操作で）
-  createEffect(() => {
-    const t = shownDbTab();
-    if (!t || !treeLayout().open) return;
-    if (untrack(catalogs)[t.id]) return;
-    untrack(() => void loadCatalog(t.id));
-  });
-
   /** db.cancel を送る（動いていなければ、kisui serve は not_found を返すだけ）。 */
   function cancelQuery(q: { queryId: string; target: string }) {
     const s = sessions()[q.target];
@@ -362,6 +239,19 @@ export function createDbTabs(deps: {
     const q = untrack(runs)[id]?.running;
     if (q) cancelQuery(q);
   }
+
+  // ---- 左の木のペイン（#348） ----
+  const tree = createDbTree({
+    store,
+    refOf,
+    sessionFor,
+    request,
+    shownDbTab,
+    setDraft,
+    run,
+    isRunning: (id) => !!untrack(runs)[id]?.running,
+    cancelQuery,
+  });
 
   // ---- 接続を選ぶ窓 ----
   const [picker, setPicker] = createSignal<DbPicker | null>(null);
@@ -460,24 +350,7 @@ export function createDbTabs(deps: {
             Object.entries(all).filter(([id]) => alive.has(id)),
           ),
         );
-      const lists = untrack(catalogs);
-      const goneLists = Object.keys(lists).filter((id) => !alive.has(id));
-      for (const id of goneLists) {
-        const q = lists[id].loading;
-        if (q) cancelQuery(q);
-      }
-      if (goneLists.length > 0) {
-        setCatalogs(
-          Object.fromEntries(
-            Object.entries(lists).filter(([id]) => alive.has(id)),
-          ),
-        );
-        setExpanded((all) =>
-          Object.fromEntries(
-            Object.entries(all).filter(([id]) => alive.has(id)),
-          ),
-        );
-      }
+      tree.forget(alive);
       const d = untrack(drafts);
       if (Object.keys(d).some((id) => !alive.has(id)))
         writeDrafts(
@@ -499,18 +372,8 @@ export function createDbTabs(deps: {
     run,
     cancel,
     request,
-    /** 左の木のペイン（#348）：出し方（開いているか・幅）。どの DB のタブでも同じ */
-    treeLayout,
-    toggleTree,
-    setTreeWidth,
-    /** タブ id の、スキーマの一覧（聞いている最中か・一覧・失敗の理由） */
-    catalogOf: (id: string): DbCatalogState => catalogs()[id] ?? {},
-    /** タブ id の一覧を聞き直す（開けている枝は残る） */
-    reloadCatalog: loadCatalog,
-    /** タブ id の木で開けている枝 */
-    expandedOf: (id: string): ReadonlySet<string> => new Set(expanded()[id]),
-    toggleNode,
-    previewTable,
+    // 左の木のペイン（#348。treeController.ts）
+    ...tree,
     /** パスワードを聞いている窓（無ければ null） */
     passwordAsk,
     replyPassword: (password: string | null) => replyPassword(password),
