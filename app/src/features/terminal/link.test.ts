@@ -476,6 +476,72 @@ describe("TermLink", () => {
     await tick();
     assert.equal(s.text(), "S");
   });
+
+  // タブを切り替えた直後に、空の画面（カーソルだけ）を見せないため（TerminalGrid が drawn まで前の欄を残す）
+  it("bind のあと、画面の状態の書き出しを書き終えてから drawn を 1 回だけ呼ぶ", async () => {
+    const f = fakePort();
+    let answer!: () => void;
+    f.handlers["term.attach"] = () =>
+      new Promise((r) => {
+        answer = () => r({ seq: 2, snapshot: b64("$ "), cols: 80, rows: 24 });
+      });
+    const s = fakeSink();
+    let drawn = 0;
+    s.sink.drawn = () => drawn++;
+    const link = new TermLink(f.port, "t1");
+    link.bind(s.sink);
+    await tick();
+    assert.equal(drawn, 0); // 返事を待つ間は、画面は空
+    answer();
+    await tick();
+    assert.equal(s.text(), "$ ");
+    assert.equal(drawn, 0); // 書き終えるまでは、まだ描けていない
+    s.flush();
+    assert.equal(drawn, 1);
+    // 取り直し（つなぎ直し）では呼ばない
+    link.reconnected();
+    await tick();
+    answer();
+    await tick();
+    s.flush();
+    assert.equal(drawn, 1);
+  });
+
+  it("書き出しが空・取り直せなかったときも drawn を呼び、外したあとの返事では呼ばない", async () => {
+    const empty = fakePort();
+    const s1 = fakeSink();
+    let d1 = 0;
+    s1.sink.drawn = () => d1++;
+    new TermLink(empty.port, "t1").bind(s1.sink);
+    await tick();
+    assert.equal(d1, 1);
+
+    const fail = fakePort();
+    fail.handlers["term.attach"] = () => new Error("not connected");
+    const s2 = fakeSink();
+    let d2 = 0;
+    s2.sink.drawn = () => d2++;
+    new TermLink(fail.port, "t1").bind(s2.sink);
+    await tick();
+    assert.equal(d2, 1);
+
+    const late = fakePort();
+    let answer!: () => void;
+    late.handlers["term.attach"] = () =>
+      new Promise((r) => {
+        answer = () => r({ seq: 1, snapshot: b64("x"), cols: 80, rows: 24 });
+      });
+    const s3 = fakeSink();
+    let d3 = 0;
+    s3.sink.drawn = () => d3++;
+    const link = new TermLink(late.port, "t1");
+    link.bind(s3.sink);
+    link.unbind();
+    answer();
+    await tick();
+    s3.flush();
+    assert.equal(d3, 0);
+  });
 });
 
 describe("base64", () => {

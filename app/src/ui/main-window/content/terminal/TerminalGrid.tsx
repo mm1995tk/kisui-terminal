@@ -1,11 +1,13 @@
 import { T } from "../../../../i18n/index.ts";
 import {
   createEffect,
+  createMemo,
   createSignal,
   For,
   Index,
   on,
   Show,
+  untrack,
   type JSX,
 } from "solid-js";
 import type { UrlClick } from "coneko-term";
@@ -25,6 +27,7 @@ import {
 } from "../../../../features/terminal/grid.ts";
 import type { TermLink } from "../../../../features/terminal/link.ts";
 import type { MediaFetch } from "../../../../features/terminal/media.ts";
+import { heldCells, type Held } from "./hold.ts";
 import { TerminalView } from "./TerminalView.tsx";
 import { FileView } from "../media/FileView.tsx";
 import { VideoView } from "../media/VideoView.tsx";
@@ -150,6 +153,56 @@ export function TerminalGrid(props: {
     h.addEventListener("pointercancel", end);
   }
 
+  // タブを切り替えた直後、新しい欄が最初の画面を描けるまで、前のタブの欄を前の位置のまま残す（hold.ts）。
+  // 欄の要素を作り直すと、新しい coneko-term は kisui serve から画面の状態が届くまで空なので、それを見せないため
+  type CellView = {
+    place: Record<string, string>;
+    hidden: boolean;
+    active: boolean;
+  };
+  // 最初の画面を描けた欄（TerminalView の onDrawn）
+  const [drawn, setDrawn] = createSignal<ReadonlySet<TermLink>>(new Set());
+  const views = createMemo(
+    () =>
+      new Map(
+        props.links.map((l, i): [TermLink, CellView] => [
+          l,
+          {
+            place: place(l.id),
+            hidden: !visible(i),
+            active: l === props.active,
+          },
+        ]),
+      ),
+  );
+  // 残す欄は、並びと同じ計算の中で決める（効果で後から足すと、For が前の欄を先に消してしまう）
+  const holding = createMemo(
+    (prev: {
+      views: ReadonlyMap<TermLink, CellView>;
+      held: Held<TermLink, CellView>[];
+    }) => {
+      const next = views();
+      const d = drawn();
+      return {
+        views: next,
+        held: heldCells(prev.held, prev.views, next, (l) => d.has(l)),
+      };
+    },
+    { views: new Map(), held: [] },
+  );
+  const held = () => holding().held;
+  function onDrawn(link: TermLink) {
+    // 今の欄と残している欄のほかは、もう覚えておかなくてよい
+    const keep = new Set([
+      ...untrack(views).keys(),
+      ...untrack(held).map((h) => h.link),
+    ]);
+    setDrawn(new Set([...untrack(drawn), link].filter((l) => keep.has(l))));
+  }
+  const heldOf = (l: TermLink) => held().find((h) => h.link === l)?.view;
+  // 描く欄。今のタブの欄（先頭から props.links と同じ順）のあとに、残している欄
+  const cells = () => [...props.links, ...held().map((h) => h.link)];
+
   createEffect(
     on(total, (n, prev) => {
       if (prev === undefined || n >= prev || !hadFocus) return;
@@ -172,19 +225,23 @@ export function TerminalGrid(props: {
         if (to && !el.contains(to)) hadFocus = false;
       }}
     >
-      <For each={props.links}>
+      <For each={cells()}>
         {(link, i) => (
           <TerminalView
             link={link}
-            active={link === props.active}
-            hidden={!visible(i())}
-            place={place(link.id)}
+            active={heldOf(link)?.active ?? link === props.active}
+            hidden={heldOf(link)?.hidden ?? !visible(i())}
+            leaving={!!heldOf(link)}
+            place={heldOf(link)?.place ?? place(link.id)}
             name={props.titles?.[link.id]}
-            onFocus={() => props.onActivate(i())}
+            onFocus={() => {
+              if (!heldOf(link)) props.onActivate(i());
+            }}
             onUrl={props.onUrl}
             focusRef={(f) =>
               f ? focusers.set(link, f) : focusers.delete(link)
             }
+            onDrawn={() => onDrawn(link)}
           />
         )}
       </For>
