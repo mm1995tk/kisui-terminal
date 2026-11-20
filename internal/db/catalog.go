@@ -55,9 +55,11 @@ type CatalogTable struct {
 // CatalogColumn is one column of a CatalogTable.
 type CatalogColumn struct {
 	Name string `json:"name"`
-	// Type is the type as the database writes it in lower case: PostgreSQL's
+	// Type is the type as the database writes it, unchanged: PostgreSQL's
 	// format_type ("character varying(20)", "integer"), MySQL's COLUMN_TYPE
-	// ("varchar(20)", "int unsigned"). It is for showing.
+	// ("varchar(20)", "int unsigned", "enum('Active','off')"). It is not
+	// changed to lower case, so that the values of an enum and a quoted type
+	// name ("\"Mood\"") stay as they are. It is for showing.
 	Type string `json:"type"`
 }
 
@@ -160,7 +162,7 @@ func catalogOf(res *Result, tableKind func(string) TableKind) *Catalog {
 			continue
 		}
 		tb := &sc.Tables[ti]
-		tb.Columns = append(tb.Columns, CatalogColumn{Name: *row[3], Type: strings.ToLower(text(row[4]))})
+		tb.Columns = append(tb.Columns, CatalogColumn{Name: *row[3], Type: text(row[4])})
 	}
 	return cat
 }

@@ -227,7 +227,7 @@ export interface DbCatalogTable {
 
 export interface DbCatalogColumn {
   name: string;
-  /** DB の型の名前（小文字。"character varying(20)"、"varchar(20)"、"int unsigned" など）。見せるためのもの */
+  /** DB の型の名前（DB が返したまま。"character varying(20)"、"varchar(20)"、"int unsigned"、"enum('A','b')"、引用符付きの "\"Mood\"" など）。見せるためのもの */
   type: string;
 }
 

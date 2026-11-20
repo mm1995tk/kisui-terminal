@@ -91,6 +91,24 @@ func TestCatalog(t *testing.T) {
 		if v == nil || v.Kind != TableKindView || len(v.Columns) != 2 || v.Columns[0].Name != "name" {
 			t.Errorf("view: %+v", v)
 		}
+		// The type is as the database writes it: the values of an enum and a
+		// quoted type name keep their case.
+		enumType, enumTable := "enum('Active','INACTIVE')", schema+".cat_e"
+		if c.Kind == config.DBPostgres {
+			query(t, s, `CREATE TYPE cat_full."Mood" AS ENUM ('Happy')`)
+			query(t, s, `CREATE TABLE cat_full.cat_e (m cat_full."Mood")`)
+			enumType = `cat_full."Mood"`
+		} else {
+			query(t, s, "DROP TABLE IF EXISTS "+enumTable)
+			query(t, s, "CREATE TABLE "+enumTable+" (m ENUM('Active','INACTIVE'))")
+		}
+		cat, err = ReadCatalog(context.Background(), s, c.Kind)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if tb := findTable(findSchema(cat, schema), "cat_e"); tb == nil || !reflect.DeepEqual(tb.Columns, []CatalogColumn{{"m", enumType}}) {
+			t.Errorf("enum: %+v", tb)
+		}
 		if empty != "" {
 			if e := findSchema(cat, empty); e == nil || len(e.Tables) != 0 {
 				t.Errorf("the empty schema: %+v", e)
@@ -114,7 +132,7 @@ func TestCatalogReadOnly(t *testing.T) {
 func TestCatalogOf(t *testing.T) {
 	p := func(s string) *string { return &s }
 	res := &Result{Rows: [][]*string{
-		{p("a"), p("t"), p("r"), p("x"), p("INTEGER")},
+		{p("a"), p("t"), p("r"), p("x"), p("integer")},
 		{p("b"), nil, nil, nil, nil},
 		{p("a"), p("v"), p("v"), nil, nil},
 		{p("a"), p("t"), p("r"), p("y"), p("text")},
