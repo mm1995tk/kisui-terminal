@@ -656,7 +656,8 @@ export const ja: Record<Key, string> = {
     "サイドバーのスキーマの木（DB のタブを出している間、ファイルツリーの場所に出る）のキー。テーブルを選ぶと、その中身（先頭の 100 行）を SELECT * で見ます。",
   "place.dbTree.expand": "枝を開ける（開いていれば中へ）",
   "place.dbTree.collapse": "枝を閉じる（閉じていれば上へ）",
-  "place.dbTree.enter": "スキーマは開け閉め、テーブルは中身を見る",
+  "place.dbTree.enter":
+    "スキーマはタブの既定のスキーマにする（もう既定ならやめる）、テーブルは中身を見る",
   "place.dbTree.back": "SQL の入力欄に戻る",
   "db.tree.title": "スキーマ",
   "db.tree.label": "スキーマ・テーブル・列",
@@ -664,6 +665,9 @@ export const ja: Record<Key, string> = {
   "db.tree.loading": "スキーマを読んでいます…",
   "db.tree.empty": "スキーマがありません",
   "db.tree.view": "ビュー",
+  "db.tree.defaultBadge": "既定",
+  "db.tree.defaultSchema":
+    "既定のスキーマ：{schema}（スキーマを書かないテーブルはここで探します）",
   "db.tree.truncated": "列が多すぎるので、一覧を途中で切っています。",
   "db.tree.passwordCancelled":
     "パスワードを入れなかったので、一覧を読んでいません。「読み直す」でもう一度試せます。",

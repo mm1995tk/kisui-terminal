@@ -96,3 +96,8 @@
   color: var(--color-text-dim);
   font-size: var(--text-caption);
 }
+
+/* タブの既定のスキーマの印（#378） */
+.badge[data-default] {
+  color: var(--color-accent);
+}

@@ -315,6 +315,9 @@ func (ss *session) dbQueryReq(ctx context.Context, req *rpc.Message) (any, error
 		Desc    bool `json:"desc"`
 		// Rerun は、前に実行した SQL を読み直すだけの実行（ページ・並べ替え・並べ替えをやめる）。履歴に残さない。
 		Rerun bool `json:"rerun"`
+		// Schema は、スキーマを書かない名前を先に探すスキーマ（#378。DB のタブで選んだもの）。省くか "" なら、DB の既定のまま。
+		// ログインは 1 つの文ごとなので、実行のたびに設定する（internal/db の QueryOptions.Schema）。
+		Schema string `json:"schema"`
 	}
 	if err := json.Unmarshal(req.Params, &p); err != nil {
 		return nil, invalidParams(err)
@@ -338,7 +341,7 @@ func (ss *session) dbQueryReq(ctx context.Context, req *rpc.Message) (any, error
 		// 残さない：同じ SQL の続きを読むだけで、ページを送るたびに同じ SQL が並んでしまう。
 		at := ss.srv.now()
 		var err error
-		res, err = s.Query(ctx, p.SQL, db.QueryOptions{MaxRows: p.MaxRows, Offset: p.Offset, OrderBy: p.OrderBy, Desc: p.Desc})
+		res, err = s.Query(ctx, p.SQL, db.QueryOptions{MaxRows: p.MaxRows, Offset: p.Offset, OrderBy: p.OrderBy, Desc: p.Desc, Schema: p.Schema})
 		if p.Offset > 0 || p.OrderBy > 0 || p.Rerun {
 			return err
 		}

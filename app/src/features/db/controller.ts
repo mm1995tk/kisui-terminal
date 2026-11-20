@@ -227,7 +227,13 @@ export function createDbTabs(deps: {
     if (text.trim() === "") return;
     // 前の結果のために押したページ送りを、新しい SQL の結果に持ち越さない
     if (!untrack(runs)[id]?.running) queuedSteps.delete(id);
-    await execute(id, { sql: text, back: [] }, 0, false);
+    const schema = tree.defaultSchemaOf(id);
+    await execute(
+      id,
+      { sql: text, back: [], ...(schema ? { schema } : {}) },
+      0,
+      false,
+    );
   }
 
   /** タブ id の接続の種類（文の区切り方が違う。#375）。聞けなかったときは undefined（PostgreSQL の読み方を使う）。 */
@@ -291,12 +297,7 @@ export function createDbTabs(deps: {
     if (!r?.result || !r.page || !pageable(r.result)) return "none";
     const t = pageTarget(r.result, r.page, step);
     if (!t) return "edge";
-    void execute(
-      id,
-      { sql: r.page.sql, back: t.back, sort: r.page.sort },
-      t.offset,
-      true,
-    );
+    void execute(id, { ...r.page, back: t.back }, t.offset, true);
     return null;
   }
 
@@ -310,7 +311,7 @@ export function createDbTabs(deps: {
       return false;
     if (column < 0 || column >= r.result.columns.length) return false;
     const sort = nextSort(r.page.sort, column) ?? undefined;
-    void execute(id, { sql: r.page.sql, back: [], sort }, 0, true);
+    void execute(id, { ...r.page, back: [], sort }, 0, true);
     return true;
   }
 
@@ -339,6 +340,8 @@ export function createDbTabs(deps: {
               ...(page.sort.desc ? { desc: true } : {}),
             }
           : {}),
+        // タブの既定のスキーマ（#378）。kisui serve が実行のたびに設定する（ログインは文ごとなので）
+        ...(page.schema ? { schema: page.schema } : {}),
         // 最初の実行（run）でないものは履歴に残さない（同じ SQL を読み直すだけ）
         ...(rerun ? { rerun: true } : {}),
       });

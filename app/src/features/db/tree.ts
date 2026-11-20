@@ -1,6 +1,6 @@
 // DB のタブ（#347）のスキーマの木（#348。サイドバーに出す。#374）の、画面にも Solid にも依存しない部分（node --test で確かめられる）。
 // - 一覧（db.schema の答え）を、開いている枝だけの「見える行」に並べる
-// - 木の中のキー（上下で動く・開け閉め・選ぶ）の動き
+// - 木の中のキー（上下で動く・開け閉め・選ぶ・既定のスキーマにする）の動き
 // - テーブルを選んだときに実行する SQL
 
 import type {
@@ -112,21 +112,26 @@ export interface TreeStep {
   toggle?: { id: string; open: boolean };
   /** テーブルの中身を見る（Enter） */
   preview?: { schema: string; table: string };
+  /** タブの既定のスキーマ（#378）にする（Enter）。null は、既定のスキーマをやめる（DB の既定に戻す） */
+  setDefaultSchema?: string | null;
   /** キーを SQL の入力欄に戻す（Esc） */
   leave?: boolean;
 }
 
 /**
  * 木の中のキー action を、選んでいる行 cursor（無ければ先頭の前）に対して行った結果。
+ * defaultSchema は、タブの今の既定のスキーマ（#378。選んでいなければ undefined）。
  * - 上下：見える行の中で 1 つ動く（端で止まる）
  * - 右：閉じている枝を開ける。開いていれば、1 つ下の行へ
  * - 左：開いている枝を閉じる。閉じている行・列は、1 つ上の行へ
- * - Enter：スキーマは開け閉め、テーブル・ビューはその中身を見る SQL を実行する、列は何もしない
+ * - Enter：スキーマはタブの既定のスキーマにする（閉じていれば開ける。もう既定なら、既定をやめる）、
+ *   テーブル・ビューはその中身を見る SQL を実行する、列は何もしない
  */
 export function treeStep(
   rows: readonly TreeRow[],
   cursor: string | undefined,
   action: DbTreeAction,
+  defaultSchema?: string,
 ): TreeStep {
   if (action === "back") return { leave: true };
   if (rows.length === 0) return {};
@@ -156,8 +161,13 @@ export function treeStep(
       return cur.parent ? { cursor: cur.parent } : {};
     case "enter":
       if (!cur) return {};
-      if (cur.kind === "schema")
-        return { toggle: { id: cur.id, open: !cur.expanded } };
+      if (cur.kind === "schema") {
+        if (cur.schema === defaultSchema) return { setDefaultSchema: null };
+        return {
+          setDefaultSchema: cur.schema,
+          ...(cur.expanded ? {} : { toggle: { id: cur.id, open: true } }),
+        };
+      }
       if (cur.kind === "table" || cur.kind === "view")
         return { preview: { schema: cur.schema, table: cur.table! } };
       return {};

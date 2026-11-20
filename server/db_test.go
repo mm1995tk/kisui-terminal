@@ -338,6 +338,19 @@ func TestDBQueryParams(t *testing.T) {
 		if code, data := dbErr(t, err); code != rpc.CodeDBError || data["kind"] != "query" {
 			t.Errorf("orderBy of a statement that cannot be wrapped: %v", err)
 		}
+		// schema は、スキーマを書かない名前を先に探すスキーマ（#378）。どのユーザーにもあるスキーマで確かめる。
+		which, schema := "SELECT current_schema()", "pg_catalog"
+		if conn.Kind == config.DBMySQL {
+			which, schema = "SELECT DATABASE()", "information_schema"
+		}
+		res, err = call(map[string]any{"connection": conn.Name, "sql": which, "schema": schema})
+		if err != nil || res.RowCount != 1 || *res.Rows[0][0] != schema {
+			t.Errorf("schema: %+v, %v", res, err)
+		}
+		res, err = call(map[string]any{"connection": conn.Name, "sql": which})
+		if err != nil || res.RowCount != 1 || res.Rows[0][0] == nil || *res.Rows[0][0] == schema {
+			t.Errorf("without schema: %+v, %v", res, err)
+		}
 	})
 }
 

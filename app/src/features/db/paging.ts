@@ -14,6 +14,8 @@ export interface DbPage {
   back: readonly number[];
   /** 並べ替えている列（無ければ元の順。ページを切り替えても続く。#377） */
   sort?: DbSort;
+  /** 実行したときのタブの既定のスキーマ（#378。db.query の schema）。ページを切り替えても、あとで木で選び直しても、この結果の続きは同じスキーマで読む */
+  schema?: string;
 }
 
 /** ページを切り替える向き。 */

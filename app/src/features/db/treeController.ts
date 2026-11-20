@@ -3,6 +3,8 @@
 //
 // 持ち物の分け方：
 // - 一覧・聞いている最中の印・失敗の理由・開けている枝は、タブごとにメモリだけに持つ（開き直したら、もう一度聞く）。
+// - 木で選んだ既定のスキーマ（#378）も、タブごとにメモリだけに持つ（開き直したら、DB の既定に戻る）。
+//   SQL の実行（controller.ts）が、実行のたびに db.query の schema に付ける。
 // DB のタブそのものと SQL の実行は controller.ts が持ち、ここはそこから必要な口だけを受け取る（createDbTabs が組み立てる）。
 import { T } from "../../i18n/index.ts";
 import { createEffect, createSignal, untrack } from "solid-js";
@@ -102,6 +104,20 @@ export function createDbTree(deps: {
     }
   }
 
+  /**
+   * タブ id の既定のスキーマ（#378）。スキーマを書かない名前を、kisui serve が先にここで探す
+   * （PostgreSQL は search_path の先頭、MySQL は USE）。無ければ DB の既定のまま。
+   */
+  const [schemas, setSchemas] = createSignal<Readonly<Record<string, string>>>(
+    {},
+  );
+  /** タブ id の既定のスキーマを schema にする（null なら、やめて DB の既定に戻す）。 */
+  function setDefaultSchema(id: string, schema: string | null) {
+    setSchemas(({ [id]: _, ...rest }) =>
+      schema === null ? rest : { ...rest, [id]: schema },
+    );
+  }
+
   /** 木の枝 node を開ける・閉じる。 */
   function toggleNode(id: string, node: string, open: boolean) {
     setExpanded((all) => {
@@ -147,6 +163,9 @@ export function createDbTree(deps: {
     setExpanded((all) =>
       Object.fromEntries(Object.entries(all).filter(([id]) => alive.has(id))),
     );
+    setSchemas((all) =>
+      Object.fromEntries(Object.entries(all).filter(([id]) => alive.has(id))),
+    );
   }
 
   return {
@@ -157,6 +176,9 @@ export function createDbTree(deps: {
     /** タブ id の木で開けている枝 */
     expandedOf: (id: string): ReadonlySet<string> => new Set(expanded()[id]),
     toggleNode,
+    /** タブ id の既定のスキーマ（#378。選んでいなければ undefined） */
+    defaultSchemaOf: (id: string): string | undefined => schemas()[id],
+    setDefaultSchema,
     previewTable,
     forget,
   };

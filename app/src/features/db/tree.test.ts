@@ -129,12 +129,18 @@ describe("treeStep（木のキーの動き）", () => {
     assert.deepEqual(treeStep(rows, id("empty"), "collapse"), {});
   });
 
-  it("Enter：スキーマは開け閉め、テーブル・ビューは中身を見る、列は何もしない", () => {
+  it("Enter：スキーマは既定のスキーマにする、テーブル・ビューは中身を見る、列は何もしない", () => {
+    // 開いているスキーマは開いたまま、閉じているスキーマは開ける（#378）
     assert.deepEqual(treeStep(rows, id("public"), "enter"), {
-      toggle: { id: "public", open: false },
+      setDefaultSchema: "public",
     });
-    assert.deepEqual(treeStep(rows, id("empty"), "enter"), {
+    assert.deepEqual(treeStep(rows, id("empty"), "enter", "public"), {
+      setDefaultSchema: "empty",
       toggle: { id: "empty", open: true },
+    });
+    // もう既定のスキーマなら、既定をやめる（開け閉めはしない）
+    assert.deepEqual(treeStep(rows, id("public"), "enter", "public"), {
+      setDefaultSchema: null,
     });
     assert.deepEqual(treeStep(rows, id("users"), "enter"), {
       preview: { schema: "public", table: "users" },
