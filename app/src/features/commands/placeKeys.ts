@@ -289,13 +289,15 @@ export const PLACE_KEYS: Record<Place, PlaceKeys> = {
     ],
   },
   // DB のタブの結果の表（#372）。判定は features/db/keys.ts の dbResultKey（修飾キー付きのものは probes に書けないので、
-  // keys.test.ts で確かめる）。表をクリックするかフォーカスを向けたときだけ効く
+  // keys.test.ts で確かめる）。表をクリックするかフォーカスを向けたときだけ効く。`[` `]` は文ごとの結果のタブの切り替え
+  // （#380。dbResultTabKey）で、結果のタブの列にキーがあるときも効く
   dbResult: {
     title: T("place.dbResult.title"),
     lead: T("place.dbResult.lead"),
     rows: [
       row("Cmd+C / Ctrl+C", T("place.dbResult.copy"), []),
       row("s", T("place.dbResult.sort"), ["s"]),
+      row("[ / ]", T("place.dbResult.step"), ["[", "]"]),
     ],
   },
   // DB のタブの履歴の窓（リーダーの d h。#349）。判定は features/db/keys.ts の dbHistoryKey（修飾キー付きのものは probes に書けないので、

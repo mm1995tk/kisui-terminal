@@ -16,7 +16,6 @@ import { createEffect, createMemo, createSignal, on, untrack } from "solid-js";
 
 import {
   hasCapability,
-  type DbQueryResult,
   type Requests,
 } from "../../infrastructure/rpc/protocol.ts";
 import type { BrowserTabs } from "../browser/tabsStore.ts";
@@ -34,7 +33,16 @@ import {
   type DbRef,
   type TabRef,
 } from "../workspaces/model.ts";
-import { sqlToRun } from "./statements.ts";
+import { statementsToRun } from "./statements.ts";
+import {
+  activeStatement,
+  EMPTY_RUN,
+  runInOrder,
+  startStatement,
+  stepResult,
+  updateStatement,
+  type DbRun,
+} from "./results.ts";
 import { MACHINE_COLORS } from "../sessions/colors.ts";
 import {
   collectConnections,
@@ -48,7 +56,6 @@ import {
   type DbChoice,
   type Drafts,
   type MachineConnections,
-  type QueryFailure,
 } from "./model.ts";
 import {
   pageable,
@@ -74,17 +81,7 @@ import { createDbTree } from "./treeController.ts";
 /** createDbTabs が返す持ち物。 */
 export type DbTabs = ReturnType<typeof createDbTabs>;
 
-/** タブ 1 つの、メモリだけに持つ状態。 */
-export interface DbRun {
-  /** 実行している SQL（db.cancel に渡す名前と、送ったマシン）。パスワードを聞いている間も入っている */
-  running?: { queryId: string; target: string };
-  /** 最後に実行できた SQL の結果 */
-  result?: DbQueryResult;
-  /** result がどの SQL のどのページか（ページ送り。#373）。result があれば入っている */
-  page?: DbPage;
-  /** 最後の実行が失敗した・取り消した理由（あれば result の代わりに出す） */
-  failure?: Exclude<QueryFailure, { kind: "password" }>;
-}
+export type { DbRun, DbStatementRun } from "./results.ts";
 
 /** 接続を選ぶ窓（リーダーの d n）に出すもの。 */
 export interface DbPicker {
@@ -156,11 +153,29 @@ export function createDbTabs(deps: {
   }
 
   // ---- 結果と実行中の印 ----
+  // 文を 2 つ以上順に実行したときは、文ごとの結果を持つ（#380。results.ts）
   const [runs, setRuns] = createSignal<Readonly<Record<string, DbRun>>>({});
   function setRun(id: string, f: (r: DbRun) => DbRun) {
-    setRuns((all) => ({ ...all, [id]: f(all[id] ?? {}) }));
+    setRuns((all) => ({ ...all, [id]: f(all[id] ?? EMPTY_RUN) }));
   }
-  const runOf = (id: string): DbRun => runs()[id] ?? {};
+  const runOf = (id: string): DbRun => runs()[id] ?? EMPTY_RUN;
+  /** タブ id の結果の場所に出している文の結果（まだ実行していなければ undefined） */
+  const shownOf = (id: string) =>
+    activeStatement(untrack(runs)[id] ?? EMPTY_RUN);
+
+  /** 結果のタブ（#380）で、タブ id の結果の場所に index の文の結果を出す。無い位置なら何もしない。 */
+  function showResult(id: string, index: number) {
+    const r = untrack(runs)[id];
+    if (!r || index < 0 || index >= r.statements.length || index === r.active)
+      return;
+    // 前に出していた結果のために押したページ送りを、ほかの文の結果に持ち越さない
+    queuedSteps.delete(id);
+    setRun(id, (cur) => ({ ...cur, active: index }));
+  }
+  /** 結果のタブを step（1 は次、-1 は前）だけ動かす。端では動かない。 */
+  function stepResultTab(id: string, step: 1 | -1) {
+    showResult(id, stepResult(untrack(runs)[id] ?? EMPTY_RUN, step));
+  }
 
   // ---- パスワード ----
   const [passwordAsk, setPasswordAsk] = createSignal<DbPasswordAsk | null>(
@@ -225,15 +240,41 @@ export function createDbTabs(deps: {
   }
 
   /**
-   * タブ id の SQL を実行する。sql を渡せばそれを、無ければ入力欄の SQL を（入力欄は変えない）。空なら何もしない。
+   * タブ id の SQL を 1 つの文として実行する。sql を渡せばそれを、無ければ入力欄の SQL を（入力欄は変えない）。空なら何もしない。
    * 同じタブで実行している間は、次を始めない（取り消してから）。結果が返る前にタブが閉じた・ほかの実行に替わったら、結果は捨てる。
    */
   async function run(id: string, sql?: string) {
-    const text = sql ?? untrack(drafts)[id] ?? "";
-    if (text.trim() === "") return;
+    await runStatements(id, [sql ?? untrack(drafts)[id] ?? ""]);
+  }
+
+  /** 順に実行している間に取り消した（Esc）タブ。今の文の後の文を実行しない。 */
+  const stopped = new Set<string>();
+
+  /**
+   * タブ id で、文 sqls を上から 1 つずつ実行する（#380）。文ごとに別の db.query を送り、1 つのトランザクションでは包まない
+   * （文ごとにコミットされる）。文ごとに結果のタブを 1 つ足す。失敗した・取り消したら、そこで止める（後の文は送らない）。
+   * 空の文は除く。実行するものが無い・同じタブで実行している間は何もしない。
+   */
+  async function runStatements(id: string, sqls: readonly string[]) {
+    const list = sqls.filter((s) => s.trim() !== "");
+    if (list.length === 0 || !refOf(id)) return;
+    if (untrack(runs)[id]?.running) return;
     // 前の結果のために押したページ送りを、新しい SQL の結果に持ち越さない
-    if (!untrack(runs)[id]?.running) queuedSteps.delete(id);
-    await execute(id, firstPage(text, tree.defaultSchemaOf(id)), 0, false);
+    queuedSteps.delete(id);
+    stopped.delete(id);
+    const schema = tree.defaultSchemaOf(id);
+    setRun(id, () => EMPTY_RUN);
+    const out = await runInOrder(
+      list,
+      (i, sql, more) =>
+        execute(id, i, firstPage(sql, schema), 0, false, { more }),
+      () => stopped.has(id),
+    );
+    // 送った文が取り消しより先に終わっていた：残りの文はやめる（失敗した・取り消したときは execute が印を外した）
+    if (out === "stopped") {
+      stopped.delete(id);
+      finishRun(id);
+    }
   }
 
   /** タブ id の接続の種類（文の区切り方が違う。#375）。聞けなかったときは undefined（PostgreSQL の読み方を使う）。 */
@@ -259,7 +300,8 @@ export function createDbTabs(deps: {
 
   /**
    * タブ id の入力欄の text（選んでいる範囲が selStart から selEnd。選んでいなければ、どちらもカーソルの位置）から、
-   * 選んだ部分か、カーソルのある文を実行する（#375）。区切り方は接続の種類による。
+   * 選んだ部分か、カーソルのある文を実行する（#375）。選んだ部分に文が 2 つ以上あれば、上から順に実行する（#380）。
+   * 区切り方は接続の種類による。
    */
   async function runSelection(
     id: string,
@@ -270,9 +312,9 @@ export function createDbTabs(deps: {
     // 入力欄から実行したら、結果の場所はデータの側を出す（Structure を出していても。#379）
     structures.showView(id, "data");
     const kind = await kindOf(id);
-    await run(
+    await runStatements(
       id,
-      sqlToRun(text, selStart, selEnd, { mysql: kind === "mysql" }),
+      statementsToRun(text, selStart, selEnd, { mysql: kind === "mysql" }),
     );
   }
 
@@ -296,67 +338,107 @@ export function createDbTabs(deps: {
       queuedSteps.set(id, queueStep(queuedSteps.get(id) ?? [], step));
       return "queued";
     }
-    if (!r?.result || !r.page || !pageable(r.result)) return "none";
-    const t = pageTarget(r.result, r.page, step);
+    const s = shownOf(id);
+    if (!r || !s?.result || !s.page || !pageable(s.result)) return "none";
+    const t = pageTarget(s.result, s.page, step);
     if (!t) return "edge";
-    void execute(id, steppedPage(r.page, t.back), t.offset, true);
+    void execute(id, r.active, steppedPage(s.page, t.back), t.offset, true);
     return null;
   }
 
   /**
-   * タブ id の結果を、列 column（0 から数える）で並べ替える（#377）。結果を出した SQL を ORDER BY を付けてもう一度送り、先頭のページから出す。
+   * タブ id の結果（出している文の結果）を、列 column（0 から数える）で並べ替える（#377）。結果を出した SQL を ORDER BY を付けてもう一度送り、先頭のページから出す。
    * 同じ列を続けて押すと「昇順 → 降順 → 並べ替えなし」と進む。並べ替えられない（実行している間・結果が無い・包めない文）なら、送らずに false。
    */
   function sortBy(id: string, column: number): boolean {
     const r = untrack(runs)[id];
-    if (r?.running || !r?.result || !r.page || !sortable(r.result))
+    const s = shownOf(id);
+    if (!r || r.running || !s?.result || !s.page || !sortable(s.result))
       return false;
-    if (column < 0 || column >= r.result.columns.length) return false;
-    const sort = nextSort(r.page.sort, column) ?? undefined;
-    void execute(id, sortedPage(r.page, sort), 0, true);
+    if (column < 0 || column >= s.result.columns.length) return false;
+    const sort = nextSort(s.page.sort, column) ?? undefined;
+    void execute(id, r.active, sortedPage(s.page, sort), 0, true);
     return true;
   }
 
-  /** タブ id に page.sql を送り（offset が 0 より大きければ、その行数の後のページ。page.sort があれば、その列で並べ替えて）、結果をそのタブに出す。rerun は、結果を出した SQL を読み直すだけの実行（履歴に残さない）。 */
+  /**
+   * タブ id の実行がうまく終わった（全部の文が終わった・取り消しより先に文が終わって残りをやめた・読み直しが終わった）：
+   * 実行中の印を外し、実行している間に押したページ送りを送る。
+   */
+  function finishRun(id: string) {
+    setRun(id, ({ running: _, ...r }) => r);
+    flushQueued(id);
+  }
+
+  /** 実行している間に押したページ送りを 1 つ送る（その結果が来たら、残りを続ける）。送れなければ残りも捨てる。 */
+  function flushQueued(id: string) {
+    const queued = queuedSteps.get(id) ?? [];
+    queuedSteps.delete(id);
+    const rest = sendQueued(queued, (s) => stepPage(id, s) === null);
+    if (rest.length > 0) queuedSteps.set(id, rest);
+  }
+
+  /**
+   * タブ id に page.sql を送り（offset が 0 より大きければ、その行数の後のページ。page.sort があれば、その列で並べ替えて）、
+   * 結果をそのタブの index の文の結果に出す（index が新しい位置なら、文の結果のタブを足す）。rerun は、結果を出した SQL を
+   * 読み直すだけの実行（履歴に残さない）。more は、順に実行していて後に文が残っている（#380）：うまくいっても実行中の印を外さない
+   * （次の文が付け替える）。呼ぶ側が、同じタブで実行していないことを確かめてから呼ぶ。
+   * ok：うまくいった、failed：失敗した・取り消した（印は外した）、gone：タブが閉じた・ほかの実行に替わった。
+   */
   async function execute(
     id: string,
+    index: number,
     page: DbPage,
     offset: number,
     rerun: boolean,
-  ) {
+    opts: { more?: boolean } = {},
+  ): Promise<"ok" | "failed" | "gone"> {
     const ref = refOf(id);
-    if (!ref) return;
-    if (untrack(runs)[id]?.running) return;
+    if (!ref) return "gone";
     const queryId = newQueryId();
     const mine = () => untrack(runs)[id]?.running?.queryId === queryId;
-    setRun(id, (r) => ({ ...r, running: { queryId, target: ref.target } }));
+    setRun(id, (r) =>
+      startStatement(r, index, page.sql, { queryId, target: ref.target }),
+    );
     try {
       const result = await request(ref, "db.query", {
         ...dbRefParams(ref),
         queryId,
         ...pageParams(page, offset, rerun),
       });
-      if (!mine()) return;
-      setRun(id, () => ({ result, page }));
-      // 実行している間に押したページ送りを 1 つ送る（その結果が来たら、残りを続ける）。送れなければ残りも捨てる
-      const queued = queuedSteps.get(id) ?? [];
-      queuedSteps.delete(id);
-      const rest = sendQueued(queued, (s) => stepPage(id, s) === null);
-      if (rest.length > 0) queuedSteps.set(id, rest);
+      if (!mine()) return "gone";
+      setRun(id, (r) =>
+        updateStatement(r, index, (s) => ({ sql: s.sql, result, page })),
+      );
+      if (!opts.more) finishRun(id);
+      return "ok";
     } catch (e) {
-      if (!mine()) return;
+      if (!mine()) return "gone";
       queuedSteps.delete(id);
+      stopped.delete(id);
       if (e instanceof PasswordCancelled) {
-        setRun(id, ({ running: _, ...r }) => r);
-        return;
+        // 読み直し（ページ送り・並べ替え）なら、前の結果を残す。新しい文なら、取り消したことにする
+        setRun(id, ({ running: _, ...r }) =>
+          rerun
+            ? r
+            : updateStatement(r, index, (s) => ({
+                sql: s.sql,
+                failure: { kind: "cancelled" },
+              })),
+        );
+        return "failed";
       }
       const f = queryFailure(e);
-      setRun(id, () => ({
-        failure:
-          f.kind === "password"
-            ? { kind: "error", message: T("db.err.password") }
-            : f,
-      }));
+      setRun(id, ({ running: _, ...r }) =>
+        updateStatement(r, index, (s) => ({
+          sql: s.sql,
+          failure:
+            f.kind === "password"
+              ? { kind: "error", message: T("db.err.password") }
+              : f,
+        })),
+      );
+      return "failed";
     }
   }
 
@@ -366,10 +448,15 @@ export function createDbTabs(deps: {
     void s?.request("db.cancel", { queryId: q.queryId }).catch(() => {});
   }
 
-  /** タブ id で実行している SQL を取り消す（結果は db.query の返事が db_error（cancelled）で返る）。実行していなければ何もしない。 */
+  /**
+   * タブ id で実行している SQL を取り消す（結果は db.query の返事が db_error（cancelled）で返る）。文を順に実行している間なら、
+   * 残りの文もやめる（#380）。実行していなければ何もしない。
+   */
   function cancel(id: string) {
     const q = untrack(runs)[id]?.running;
-    if (q) cancelQuery(q);
+    if (!q) return;
+    stopped.add(id);
+    cancelQuery(q);
   }
 
   /**
@@ -414,7 +501,7 @@ export function createDbTabs(deps: {
   // ---- 結果の書き出しと、クエリの履歴（#349） ----
   const exporter = createDbExport({
     refOf,
-    resultOf: (id) => untrack(runs)[id]?.result,
+    resultOf: (id) => shownOf(id)?.result,
     saveFile: deps.saveFile,
     copyToClipboard: deps.copyToClipboard,
     showToast: deps.showToast,
@@ -538,6 +625,7 @@ export function createDbTabs(deps: {
       const gone = Object.keys(all).filter((id) => !alive.has(id));
       for (const id of gone) {
         queuedSteps.delete(id);
+        stopped.delete(id);
         kinds.delete(id);
         const q = all[id].running;
         if (q) cancelQuery(q);
@@ -572,6 +660,8 @@ export function createDbTabs(deps: {
     runSelection,
     stepPage,
     sortBy,
+    showResult,
+    stepResultTab,
     cancel,
     request,
     // サイドバーの木（#348・#374。treeController.ts）

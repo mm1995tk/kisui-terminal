@@ -22,6 +22,7 @@ import {
   dbEditorKey,
   dbHistoryKey,
   dbResultKey,
+  dbResultTabKey,
   dbTreeKey,
 } from "../db/keys.ts";
 
@@ -91,13 +92,17 @@ describe("場所のキーの表は、その場所の判定と合っている", (
     assert.equal(dbEditorKey(ev("Enter", { ctrlKey: true }), false), "run");
   });
 
-  it("DB のタブの結果の表（#372）：表のキーは、Cmd+C / Ctrl+C と s（判定は keys.test.ts）", () => {
+  it("DB のタブの結果の表（#372・#380）：表のキーは、Cmd+C / Ctrl+C と s と [ / ]（判定は keys.test.ts）", () => {
     assert.deepEqual(
       PLACE_KEYS.dbResult.rows.map((r) => r.keys),
-      ["Cmd+C / Ctrl+C", "s"],
+      ["Cmd+C / Ctrl+C", "s", "[ / ]"],
     );
     // s は修飾キー無しのキー（probes に書ける）。判定が受ける
     assert.equal(dbResultKey(ev("s"), true), "sort");
+    // [ ] は結果のタブの切り替え（#380）。表でもタブの列でも受ける
+    for (const p of PLACE_KEYS.dbResult.rows[2]!.probes)
+      for (const onTabs of [true, false])
+        assert.notEqual(dbResultTabKey(ev(p), onTabs), 0, p);
   });
 
   it("サイドバーの DB のタブの木（#348・#374）：表のキーは、どれも判定が受ける", () => {

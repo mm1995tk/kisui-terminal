@@ -651,6 +651,8 @@ export const en = {
     "Copy the selected cells (one cell as it is, more as TSV)",
   "place.dbResult.sort":
     "Sort by the column of the selected cell (each press: ascending, descending, none)",
+  "place.dbResult.step":
+    "Show the result of the next or previous statement (after running two or more statements; also on the row of result tabs above the result, where ← → work too)",
   "cannot.db.title": "Cannot open a database tab",
   "cannot.dbSchema.title": "Cannot choose a default schema",
   "cannot.dbSchema.oldServe":
@@ -723,6 +725,8 @@ export const en = {
   "db.view.noRows": "No rows.",
   "db.view.sqlState": "SQLSTATE {code}",
   "db.view.result": "Result",
+  "db.view.results": "Results of the statements",
+  "db.view.resultTab": "{n} {sql}",
   "db.view.noTable": "This statement returns no rows.",
   "db.view.pages": "Pages of the result",
   "db.view.prevPage": "Previous",

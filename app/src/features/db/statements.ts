@@ -1,6 +1,6 @@
 // SQL の入力欄の文を `;` で区切る（#375）。DOM にも Solid にも触らない純粋な関数（node --test で確かめられる）。
 // 文字列・引用符で囲んだ名前・コメント・PostgreSQL の `$$`（`$タグ$`）で囲んだ中の `;` は、区切りにしない。
-// 文を 2 つ以上順に実行する機能（#380）は、splitStatements をそのまま使える（選んだ部分の字を渡す）。
+// 選んだ部分に文が 2 つ以上あれば、文ごとに上から順に実行する（#380。statementsToRun）。
 //
 // DB の種類で読み方が違う（opts.mysql）。
 // - PostgreSQL（既定）：`\` はふつうの字（`E'...'` の中だけ次の字を打ち消す）・`/* */` は入れ子になる・`$$` で囲める。
@@ -125,23 +125,23 @@ export function statementAt(
 }
 
 /**
- * 実行する SQL。入力欄の sql の、選んでいる範囲（selStart から selEnd）か、選んでいなければカーソル（selStart）のある文。
- * 選んだ部分が 1 つの文なら、その文（`;` と前後の空白を除く）。2 つ以上あるときは、選んだ字をそのまま返す
- * （今は 1 回に 1 つの文なので、DB が断る。順に実行する機能は #380）。何も無ければ ""。
+ * 実行する文（上から順。#380 で、上から 1 つずつ実行する）。入力欄の sql の、選んでいる範囲（selStart から selEnd）か、
+ * 選んでいなければカーソル（selStart）のある文。選んだ部分は `;` で区切り、文ごとに 1 つ（`;` と前後の空白を除く。
+ * 文の一部だけを選んだときは、選んだ字）。実行するものが無ければ（空白とコメントだけ）空。
  */
-export function sqlToRun(
+export function statementsToRun(
   sql: string,
   selStart: number,
   selEnd: number,
   opts: SplitOptions = {},
-): string {
+): string[] {
   if (selStart !== selEnd) {
     const sel = sql.slice(
       Math.min(selStart, selEnd),
       Math.max(selStart, selEnd),
     );
-    const all = splitStatements(sel, opts);
-    return all.length === 1 ? all[0]!.text : sel.trim();
+    return splitStatements(sel, opts).map((s) => s.text);
   }
-  return statementAt(sql, selStart, opts)?.text ?? "";
+  const s = statementAt(sql, selStart, opts);
+  return s ? [s.text] : [];
 }

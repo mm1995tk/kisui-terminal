@@ -15,13 +15,23 @@ import {
 } from "solid-js";
 
 import type { DbRun } from "../../../../features/db/controller.ts";
-import { dbEditorKey, dbResultKey } from "../../../../features/db/keys.ts";
+import {
+  dbEditorKey,
+  dbResultKey,
+  dbResultTabKey,
+} from "../../../../features/db/keys.ts";
+import {
+  activeRunning,
+  activeStatement,
+  resultTabLabel,
+} from "../../../../features/db/results.ts";
 import { cellText, resultSummary } from "../../../../features/db/model.ts";
 import {
   ariaSort,
   canStep,
   pageable,
   sortable,
+  type DbPage,
   type DbSort,
   type PageStep,
 } from "../../../../features/db/paging.ts";
@@ -66,6 +76,9 @@ export function DbTabView(props: {
   onCancel: () => void;
   /** 結果の表で選んだセルをコピーする（#372） */
   onCopyCells: (text: string) => void;
+  /** 文を 2 つ以上実行したときの、結果のタブ（#380）：index の文の結果を出す・step だけ動かす */
+  onResult: (index: number) => void;
+  onStepResult: (step: 1 | -1) => void;
   /** 木で選んだテーブルと、その構造・結果の場所に出している側（#379）。テーブルを選んでいなければ undefined（切り替えを出さない） */
   structure: DbStructureState | undefined;
   /** 結果の場所に view を出す（#379） */
@@ -162,6 +175,8 @@ export function DbTabView(props: {
             onPage={props.onPage}
             onSort={props.onSort}
             onCopyCells={props.onCopyCells}
+            onResult={props.onResult}
+            onStepResult={props.onStepResult}
           />
         </Show>
       </div>
@@ -171,7 +186,7 @@ export function DbTabView(props: {
 
 /**
  * 結果の場所の「データ」の側：SQL を実行した結果（実行中・取り消し・間違い・結果の表）と、その下の件数・ページ送り。
- * 文ごとの結果のタブ（#380）は、この中に置く。
+ * 文を 2 つ以上実行したときは、上に文ごとの結果のタブを出し、選んだ文の結果を出す（#380）。
  */
 function DataView(props: {
   run: DbRun;
@@ -179,25 +194,54 @@ function DataView(props: {
   onPage: (step: PageStep) => void;
   onSort: (column: number) => void;
   onCopyCells: (text: string) => void;
+  onResult: (index: number) => void;
+  onStepResult: (step: 1 | -1) => void;
 }): JSX.Element {
-  /** 最後の実行の間違い（取り消しは除く） */
+  /** 出している文の結果（まだ実行していなければ undefined） */
+  const stmt = () => activeStatement(props.run);
+  /** 出している文を実行している（ほかの文を実行している間は、その文の結果を出したまま、ページ送りと並べ替えを止める） */
+  const running = () => activeRunning(props.run);
+  /** このタブで何かを実行している */
+  const busy = () => props.run.running !== undefined;
+  /** 出している文の間違い（取り消しは除く） */
   const error = () => {
-    const f = props.run.failure;
+    const f = stmt()?.failure;
     return f?.kind === "error" ? f : undefined;
   };
+  /** 結果の表で押した `[` `]` で、結果のタブを切り替える（タブの列で押したものは ResultTabs が受ける） */
+  function keydown(e: KeyboardEvent) {
+    if (props.run.statements.length < 2) return;
+    const step = dbResultTabKey(e, false);
+    if (step === 0) return;
+    e.preventDefault();
+    props.onStepResult(step);
+    // 次の文の結果に表が無い（エラー・行が無い）ときは、キーを失わないよう選んだタブに移す
+    const target = e.target as HTMLElement;
+    const root = e.currentTarget as HTMLElement;
+    queueMicrotask(() => {
+      if (!target.isConnected) focusSelectedTab(root);
+    });
+  }
   return (
-    <>
+    <div class={styles.data} data-place="dbResult" onKeyDown={keydown}>
+      <Show when={props.run.statements.length > 1}>
+        <ResultTabs
+          run={props.run}
+          onResult={props.onResult}
+          onStepResult={props.onStepResult}
+        />
+      </Show>
       <div
         class={styles.result}
         role="region"
         aria-label={T("db.view.result")}
-        aria-busy={props.run.running ? "true" : undefined}
+        aria-busy={running() ? "true" : undefined}
       >
         <Switch fallback={<p class={styles.note}>{T("db.view.empty")}</p>}>
-          <Match when={props.run.running}>
+          <Match when={running()}>
             <p class={styles.note}>{T("db.view.running")}</p>
           </Match>
-          <Match when={props.run.failure?.kind === "cancelled"}>
+          <Match when={stmt()?.failure?.kind === "cancelled"}>
             <p class={styles.note}>{T("db.view.cancelled")}</p>
           </Match>
           <Match when={error()}>
@@ -214,62 +258,129 @@ function DataView(props: {
               </div>
             )}
           </Match>
-          <Match when={props.run.result}>
+          <Match when={stmt()?.result}>
             {(r) => (
               <ResultTable
                 result={r()}
                 mac={props.mac}
                 onCopy={props.onCopyCells}
-                sort={props.run.page?.sort}
-                onSort={
-                  props.run.running || !sortable(r()) ? undefined : props.onSort
-                }
+                sort={stmt()?.page?.sort}
+                onSort={busy() || !sortable(r()) ? undefined : props.onSort}
+                statement={props.run.active}
               />
             )}
           </Match>
         </Switch>
       </div>
-      <Show when={props.run.result}>
+      <Show when={stmt()?.result}>
         {(r) => (
-          <div class={styles.status}>
-            <span role="status">
-              {props.run.running ? "" : resultSummary(r())}
-            </span>
-            {/* ページ送り（#373）。包める文で 2 ページ以上あるときだけ出す。実行している間は押せない */}
-            <Show
-              when={
-                props.run.page && pageable(r()) ? props.run.page : undefined
-              }
+          <ResultStatus
+            result={r()}
+            page={stmt()?.page}
+            running={running()}
+            busy={busy()}
+            onPage={props.onPage}
+          />
+        )}
+      </Show>
+    </div>
+  );
+}
+
+/** 結果のタブの列で、選んでいるタブにキーを向ける。 */
+function focusSelectedTab(root: HTMLElement) {
+  root.querySelector<HTMLElement>('[role=tab][aria-selected="true"]')?.focus();
+}
+
+/**
+ * 文を 2 つ以上実行したときの、文ごとの結果のタブの列（#380）。見出しは番号と文の先頭（全部はツールチップ）。失敗した文は赤い字。
+ * 列にキーがあるときは、`[` `]` と `←` `→` で切り替え、キーを選んだタブに移す（WAI-ARIA のタブの動き。ViewSwitch と同じ）。
+ */
+function ResultTabs(props: {
+  run: DbRun;
+  onResult: (index: number) => void;
+  onStepResult: (step: 1 | -1) => void;
+}): JSX.Element {
+  function keydown(e: KeyboardEvent) {
+    const step = dbResultTabKey(e, true);
+    if (step === 0) return;
+    e.preventDefault();
+    // 結果の表のキー（DataView）に、もう一度受けさせない
+    e.stopPropagation();
+    props.onStepResult(step);
+    const root = e.currentTarget as HTMLElement;
+    queueMicrotask(() => focusSelectedTab(root));
+  }
+  return (
+    <div
+      class={styles.results}
+      role="tablist"
+      aria-label={T("db.view.results")}
+      onKeyDown={keydown}
+    >
+      <For each={props.run.statements}>
+        {(s, i) => (
+          <button
+            type="button"
+            role="tab"
+            class={styles.viewTab}
+            data-failed={s.failure?.kind === "error" ? "" : undefined}
+            aria-selected={props.run.active === i() ? "true" : "false"}
+            tabindex={props.run.active === i() ? 0 : -1}
+            title={s.sql}
+            onClick={() => props.onResult(i())}
+          >
+            {T("db.view.resultTab", {
+              n: String(i() + 1),
+              sql: resultTabLabel(s.sql),
+            })}
+          </button>
+        )}
+      </For>
+    </div>
+  );
+}
+
+/** 結果の表の下の、件数とかかった時間と、ページ送り（#373。包める文で 2 ページ以上あるときだけ）。 */
+function ResultStatus(props: {
+  result: DbQueryResult;
+  page: DbPage | undefined;
+  /** 出している文を実行している（件数を出さない） */
+  running: boolean;
+  /** このタブで何かを実行している（ページ送りを押せない） */
+  busy: boolean;
+  onPage: (step: PageStep) => void;
+}): JSX.Element {
+  return (
+    <div class={styles.status}>
+      <span role="status">
+        {props.running ? "" : resultSummary(props.result)}
+      </span>
+      <Show
+        when={props.page && pageable(props.result) ? props.page : undefined}
+      >
+        {(page) => (
+          <div
+            class={styles.pager}
+            role="group"
+            aria-label={T("db.view.pages")}
+          >
+            <Button
+              disabled={props.busy || !canStep(props.result, page(), "prev")}
+              onClick={() => props.onPage("prev")}
             >
-              {(page) => (
-                <div
-                  class={styles.pager}
-                  role="group"
-                  aria-label={T("db.view.pages")}
-                >
-                  <Button
-                    disabled={
-                      !!props.run.running || !canStep(r(), page(), "prev")
-                    }
-                    onClick={() => props.onPage("prev")}
-                  >
-                    {T("db.view.prevPage")}
-                  </Button>
-                  <Button
-                    disabled={
-                      !!props.run.running || !canStep(r(), page(), "next")
-                    }
-                    onClick={() => props.onPage("next")}
-                  >
-                    {T("db.view.nextPage")}
-                  </Button>
-                </div>
-              )}
-            </Show>
+              {T("db.view.prevPage")}
+            </Button>
+            <Button
+              disabled={props.busy || !canStep(props.result, page(), "next")}
+              onClick={() => props.onPage("next")}
+            >
+              {T("db.view.nextPage")}
+            </Button>
           </div>
         )}
       </Show>
-    </>
+    </div>
   );
 }
 
@@ -285,13 +396,20 @@ function ResultTable(props: {
   /** 並べ替えている列と、列を押したときの動き（並べ替えられない結果・実行している間は undefined） */
   sort: DbSort | undefined;
   onSort: ((column: number) => void) | undefined;
+  /** 出している文の位置（#380）。替わったら、別の文の結果なので選びを外す */
+  statement: number;
 }): JSX.Element {
   const [range, setRange] = createSignal<CellRange | null>(null);
   let dragging = false;
-  // 結果が入れ替わったら、選びを表の大きさに収める（収まるセルが無ければ外す）
+  // 同じ文の結果が入れ替わったら（ページ送り・並べ替え）、選びを表の大きさに収める（収まるセルが無ければ外す）。
+  // 別の文の結果に替わったら、前の文で選んだ位置を持ち越さない
+  let shown = props.statement;
   createEffect(() => {
     const r = props.result;
-    setRange((cur) => clampRange(cur, r));
+    const s = props.statement;
+    const same = s === shown;
+    shown = s;
+    setRange((cur) => (same ? clampRange(cur, r) : null));
   });
   const stopDrag = () => {
     dragging = false;

@@ -646,6 +646,8 @@ export const ja: Record<Key, string> = {
   "place.dbResult.copy": "選んだセルをコピーする（1 つはそのまま、複数は TSV）",
   "place.dbResult.sort":
     "選んだセルの列で並べ替える（押すたびに 昇順 → 降順 → なし）",
+  "place.dbResult.step":
+    "次・前の文の結果を出す（文を 2 つ以上実行したとき。結果の上の結果のタブの列でも効き、そこでは ← → でも）",
   "cannot.db.title": "DB のタブを開けません",
   "cannot.dbSchema.title": "既定のスキーマを選べません",
   "cannot.dbSchema.oldServe":
@@ -717,6 +719,8 @@ export const ja: Record<Key, string> = {
   "db.view.noRows": "行はありません。",
   "db.view.sqlState": "SQLSTATE {code}",
   "db.view.result": "結果",
+  "db.view.results": "文ごとの結果",
+  "db.view.resultTab": "{n} {sql}",
   "db.view.noTable": "この文は行を返しません。",
   "db.view.pages": "結果のページ",
   "db.view.prevPage": "前へ",

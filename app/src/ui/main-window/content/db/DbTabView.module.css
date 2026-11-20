@@ -221,3 +221,29 @@
   font-size: var(--text-label);
   font-weight: var(--weight-strong);
 }
+
+/* 結果の場所の「データ」の側（#380）。キーを受ける入れ物だけで、並べ方は .query の縦の並びのまま */
+.data {
+  display: contents;
+}
+/* 文を 2 つ以上実行したときの、文ごとの結果のタブの列（#380）。見た目は「データ」と「Structure」の切り替えと同じ。
+   多ければ、この列だけが横にスクロールする */
+.results {
+  display: flex;
+  gap: var(--space-4);
+  min-width: 0;
+  overflow-x: auto;
+}
+.results .viewTab {
+  flex: none;
+  max-width: 32ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+}
+/* 失敗した文のタブ */
+.viewTab[data-failed] {
+  color: var(--state-danger);
+}

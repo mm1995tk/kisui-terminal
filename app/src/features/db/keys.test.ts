@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { dbEditorKey, dbHistoryKey, dbResultKey, dbTreeKey } from "./keys.ts";
+import {
+  dbEditorKey,
+  dbHistoryKey,
+  dbResultKey,
+  dbResultTabKey,
+  dbTreeKey,
+} from "./keys.ts";
 
 const ev = (key: string, extra: object = {}) => ({
   key,
@@ -151,5 +157,33 @@ describe("dbResultKey の s（並べ替え。#377）", () => {
     assert.equal(dbResultKey(ev("s", { ctrlKey: true }), false), null);
     assert.equal(dbResultKey(ev("s", { altKey: true }), false), null);
     assert.equal(dbResultKey(ev("S", { shiftKey: true }), false), null);
+  });
+});
+
+describe("dbResultTabKey（文ごとの結果のタブを切り替えるキー）", () => {
+  it("] は次、[ は前", () => {
+    assert.equal(dbResultTabKey(ev("]"), false), 1);
+    assert.equal(dbResultTabKey(ev("["), false), -1);
+    assert.equal(dbResultTabKey(ev("]", { shiftKey: true }), false), 1);
+  });
+  it("→ ← はタブの列にキーがあるときだけ", () => {
+    assert.equal(dbResultTabKey(ev("ArrowRight"), true), 1);
+    assert.equal(dbResultTabKey(ev("ArrowLeft"), true), -1);
+    assert.equal(dbResultTabKey(ev("ArrowRight"), false), 0);
+    assert.equal(dbResultTabKey(ev("ArrowLeft", { shiftKey: true }), true), 0);
+  });
+  it("Option・AltGr（Ctrl と Alt が両方）で打った [ ] は受ける", () => {
+    assert.equal(dbResultTabKey(ev("[", { altKey: true }), false), -1);
+    assert.equal(
+      dbResultTabKey(ev("]", { ctrlKey: true, altKey: true }), false),
+      1,
+    );
+  });
+  it("修飾キーを重ねたもの・ほかのキー・かな漢字変換のキーは受けない", () => {
+    assert.equal(dbResultTabKey(ev("]", { ctrlKey: true }), false), 0);
+    assert.equal(dbResultTabKey(ev("[", { metaKey: true }), false), 0);
+    assert.equal(dbResultTabKey(ev("ArrowLeft", { altKey: true }), true), 0);
+    assert.equal(dbResultTabKey(ev("s"), true), 0);
+    assert.equal(dbResultTabKey(ev("]", { isComposing: true }), true), 0);
   });
 });
