@@ -28,16 +28,17 @@ database = "shop"
 read-only = true
 ```
 
-| Key         | Meaning                                                                                                                                                                                                                    |
-| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `name`      | What you call the connection. Required, up to 100 characters, and no two connections of a machine have the same name.                                                                                                      |
-| `kind`      | `"postgres"` or `"mysql"`. Required.                                                                                                                                                                                       |
-| `host`      | A host name or an address. `"localhost"` when left out. A value that starts with `/` is a Unix socket: the folder of the socket for PostgreSQL (`/run/postgresql`), the socket file for MySQL (`/run/mysqld/mysqld.sock`). |
-| `port`      | `5432` (PostgreSQL) or `3306` (MySQL) when left out.                                                                                                                                                                       |
-| `user`      | Who logs in. Required.                                                                                                                                                                                                     |
-| `database`  | The database to open. When left out, PostgreSQL opens the one named like the user, and MySQL selects none.                                                                                                                 |
-| `read-only` | `true` makes every statement run in a read-only transaction: the database refuses anything that writes. `false` when left out.                                                                                             |
-| `variants`  | The environments of the connection (below). Left out, the connection is one database.                                                                                                                                      |
+| Key                                    | Meaning                                                                                                                                                                                                                    |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`                                 | What you call the connection. Required, up to 100 characters, and no two connections of a machine have the same name.                                                                                                      |
+| `kind`                                 | `"postgres"` or `"mysql"`. Required.                                                                                                                                                                                       |
+| `host`                                 | A host name or an address. `"localhost"` when left out. A value that starts with `/` is a Unix socket: the folder of the socket for PostgreSQL (`/run/postgresql`), the socket file for MySQL (`/run/mysqld/mysqld.sock`). |
+| `port`                                 | `5432` (PostgreSQL) or `3306` (MySQL) when left out.                                                                                                                                                                       |
+| `user`                                 | Who logs in. Required.                                                                                                                                                                                                     |
+| `database`                             | The database to open. When left out, PostgreSQL opens the one named like the user, and MySQL selects none.                                                                                                                 |
+| `read-only`                            | `true` makes every statement run in a read-only transaction: the database refuses anything that writes. `false` when left out. It holds for everybody, whatever the permissions below say.                                 |
+| `human-permission`, `agent-permission` | The name of a permission (below) for you and for a coding agent. Left out, you do what `read-only` says, and an agent runs nothing.                                                                                        |
+| `variants`                             | The environments of the connection (below). Left out, the connection is one database.                                                                                                                                      |
 
 - A list in `config.local.toml` replaces the list of `config.toml` as a whole.
 - The settings are read each time the list is asked for, so a connection you add shows without restarting `kisui serve`.
@@ -69,10 +70,10 @@ user = "reader"
 read-only = true
 ```
 
-| Key of a variant                                | Meaning                                                                                                                           |
-| ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `name`                                          | What you call the variant. Required, up to 100 characters, without a `/`, and no two variants of a connection have the same name. |
-| `host`, `port`, `user`, `database`, `read-only` | As in the table above, for this variant.                                                                                          |
+| Key of a variant                                                                        | Meaning                                                                                                                           |
+| --------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `name`                                                                                  | What you call the variant. Required, up to 100 characters, without a `/`, and no two variants of a connection have the same name. |
+| `host`, `port`, `user`, `database`, `read-only`, `human-permission`, `agent-permission` | As in the table above, for this variant.                                                                                          |
 
 - A variant takes the keys it does not write from its connection, and the defaults of the table above when the connection does not write them either. Above, `local` is `app@localhost:5432/shop`, and `prod` is `reader@db.example.com:5432/shop`, read-only. `read-only = true` on the connection makes every variant read-only, except one that writes `read-only = false`.
 - `kind` is written on the connection only: the variants of a connection are the same kind of database.
@@ -81,6 +82,54 @@ read-only = true
 - A connection with variants is not a database by itself: only its variants are listed.
 - A mistake in one variant leaves the whole connection out of the list (all its variants), and is reported with it.
 - When you add variants to a connection you already use, its database tabs that are open stop working (they name no variant): close them and open the variant you want. The history and the keychain item of the connection are not carried over to a variant (see below).
+
+## Permissions: what you and a coding agent may do
+
+A permission has a name and says how far SQL is run. A connection (or each of its variants) names one for you, the person at the window, and one for a coding agent. So an agent can be free on your machine and only read in production, while you stay free in both:
+
+```toml
+[db.permissions.free]
+run = "free"
+propose = true
+
+[db.permissions.reader]
+run = "read"
+propose = true
+agent-user = "agent_ro"
+
+[[db.connections]]
+name = "shop"
+kind = "postgres"
+user = "app"
+database = "shop"
+
+[[db.connections.variants]]
+name = "local"
+agent-permission = "free"
+
+[[db.connections.variants]]
+name = "prod"
+host = "db.example.com"
+human-permission = "reader"
+agent-permission = "reader"
+```
+
+| Key of a permission | Meaning                                                                                                                                                                                                                                    |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `run`               | How far statements are run. Required. `"none"`: nothing is run. `"read"`: every statement runs in a read-only transaction, as with `read-only`, so the database itself refuses anything that writes. `"free"`: statements run as they are. |
+| `propose`           | `true` lets a coding agent write SQL into the input of a database tab, for you to read and run. `false` when left out. It says nothing for a person.                                                                                       |
+| `agent-user`        | The database user a coding agent logs in as, instead of the `user` of the connection. Left out, the agent logs in as the `user` of the connection. It says nothing for a person.                                                           |
+
+- **Who is who.** A request of the window is yours. A request of the `kisui db` commands, which a coding agent calls from a shell, is the agent's. (Those commands are not in this version yet; the permission of an agent is what they will follow.)
+- **Nothing named.** A connection without `human-permission` works as it always did: you run freely, or read only with `read-only = true`. A connection without `agent-permission` lets an agent run nothing, and lets it write into the input (so that you are the one who runs what it wrote).
+- **`read-only = true` wins.** With it, nobody is above `"read"` on that connection, whatever their permission says: naming a permission never makes a read-only connection writable.
+- **`"read"` with `propose`** is the mix for production: the agent runs the statements that read, and writes the ones that change something into the input for you to run.
+- **The list of schemas and tables** can be read at every level, `"none"` too: it has the names and types of tables and columns, not rows.
+- **Finer rights go in the database.** kisui-terminal does not read a statement to refuse it, so there is no "INSERT only" or "no DDL" here. Give the agent a user of its own (`agent-user`) and `GRANT` that user what it may do. The agent's user opens the same database as the connection (for PostgreSQL without `database`: the one named like the `user` of the connection).
+- A variant takes `human-permission` and `agent-permission` from its connection when it does not write them.
+- `[db.permissions]` in `config.local.toml` replaces the one of `config.toml` as a whole, apart from the list of connections: a file with only connections uses the permissions of the other file.
+- A connection that names a permission nobody wrote, or one with a mistake, is left out of the list and reported, so that it never runs with other rights than its settings show. A key of a permission that is not in the table above is a mistake too.
+- Like `read-only`, a permission is there to prevent accidents. It is checked by `kisui serve`, for requests that say who they are from. A program that runs as you on that machine can read your password files as well as you can, so for a database an agent must not write to, the rights of its database user are what holds.
 
 ## Passwords
 
@@ -104,12 +153,18 @@ A password is never written in `config.toml`; a `password` key is reported as a 
 
 A password found in the keychain or in a file is used before a typed one. When the database refuses it, fix it where it was found.
 
+**The password of an agent's user** (`agent-user` of a permission) is looked for in the same places, for that user, and the password of the connection's `user` is never tried for it:
+
+1. The keychain: the same account, in the service `kisui-terminal-db-agent` (`security add-generic-password -s kisui-terminal-db-agent -a "shop/prod" -w`).
+2. `~/.pgpass`: the line of that user. `~/.my.cnf`: the `password` of `[client]` only when `[client]` also has `user` with the agent's user (a password with no `user` beside it is taken as yours).
+3. A password sent with the agent's request; one that worked is kept in memory for that user.
+
 ## What a statement does
 
 - One request runs one statement. Several statements separated by `;` are refused by the database.
-- **Which statement runs.** `Cmd+Enter` / `Ctrl+Enter` (and the Run button) send the part of the SQL box you selected, as it is (when it is one statement, without its `;`). With nothing selected, they send the one statement the cursor is in: the statements of the box are separated by `;`, except that a `;` inside a string (`'...'`, `"..."`, `` `...` ``, `E'...'`), a comment (`--`, `/* */`) or a `$$ ... $$` (`$tag$ ... $tag$`) body does not separate. A cursor right after a `;` belongs to the statement before it; a cursor between two statements (a blank line) belongs to the one above. The box is not changed, and nothing marks the statement that runs. A backslash does not quote in an ordinary string, so a MySQL string with `\'` in it can be cut wrong; select the statement to run it. Selecting two or more statements still sends them as one request, which the database refuses.
+- **Which statement runs.** `Cmd+Enter` / `Ctrl+Enter` (and the Run button) send the part of the SQL box you selected (when it is one statement, without its `;`). With nothing selected, they send the one statement the cursor is in. The statements of the box are separated by `;`, except that a `;` inside a string, a quoted name or a comment does not separate; in PostgreSQL a `$$ ... $$` (`$tag$ ... $tag$`) body does not either. What counts as a string or a comment follows the kind of the connection: in MySQL a backslash quotes the next character in `'...'` and `"..."`, `#` and `-- ` start a comment, and `/* */` does not nest; in PostgreSQL a backslash quotes only inside `E'...'`, and `/* */` nests. A cursor right after a `;` belongs to the statement before it; a cursor between two statements (a blank line) belongs to the one above. The box is not changed, and nothing marks the statement that runs. Selecting two or more statements still sends them as one request, which the database refuses.
 - PostgreSQL's `COPY` is refused: there is nowhere to send its data to or take it from. `COPY` to or from a file of the server is refused with it.
-- Each statement logs in by itself and logs out when it is done. What a statement leaves in a session (`SET`, `USE`, a temporary table) is gone for the next one, and a transaction cannot span statements. Without `read-only`, each statement is committed by itself.
+- Each statement logs in by itself and logs out when it is done. What a statement leaves in a session (`SET`, `USE`, a temporary table) is gone for the next one, and a transaction cannot span statements. Without `read-only` (and with the level `"free"`), each statement is committed by itself.
 - A result holds up to 1000 rows (the window can ask for up to 10000) and 8 MiB; one value holds up to 1 MiB. The result says when it was cut.
 - **Pages.** When a `SELECT` (or `WITH ... SELECT`) gives more rows than one page (1000), the result shows "Previous" and "Next" under the table (or press `d` `j` and `d` `k` after the leader; the summary says which rows of the statement you see). A session is not kept between statements, so each page runs the statement again, wrapped: `SELECT * FROM (<your statement>) AS q LIMIT 1001 OFFSET <rows before the page>`. The first page is your statement as it is. The database skips the rows before a page (it still reads them, so a page far into a large result takes longer), and only the rows of the page come to the window. Changing pages is not written to the history.
   - If the data changes between pages, rows can move: a row may show on two pages or on none. Without an `ORDER BY` the database may also give the rows in another order each time, so add an `ORDER BY` (on columns that tell the rows apart) when the order matters.

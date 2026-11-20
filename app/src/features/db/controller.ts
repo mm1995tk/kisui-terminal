@@ -34,6 +34,7 @@ import {
   type DbRef,
   type TabRef,
 } from "../workspaces/model.ts";
+import { sqlToRun } from "./statements.ts";
 import { MACHINE_COLORS } from "../sessions/colors.ts";
 import {
   collectConnections,
@@ -226,6 +227,47 @@ export function createDbTabs(deps: {
     await execute(id, { sql: text, back: [] }, 0);
   }
 
+  /** タブ id の接続の種類（文の区切り方が違う。#375）。聞けなかったときは undefined（PostgreSQL の読み方を使う）。 */
+  const kinds = new Map<string, "postgres" | "mysql">();
+  async function kindOf(id: string) {
+    const known = kinds.get(id);
+    if (known) return known;
+    const ref = refOf(id);
+    if (!ref) return undefined;
+    try {
+      const { connections } = await sessionFor(ref).request(
+        "db.connections",
+        {},
+      );
+      const c = connections.find(
+        (c) =>
+          c.name === ref.connection &&
+          (c.variant ?? "") === (ref.variant ?? ""),
+      );
+      if (c) kinds.set(id, c.kind);
+      return c?.kind;
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
+   * タブ id の入力欄の text（選んでいる範囲が selStart から selEnd。選んでいなければ、どちらもカーソルの位置）から、
+   * 選んだ部分か、カーソルのある文を実行する（#375）。区切り方は接続の種類による。
+   */
+  async function runSelection(
+    id: string,
+    text: string,
+    selStart: number,
+    selEnd: number,
+  ) {
+    const kind = await kindOf(id);
+    await run(
+      id,
+      sqlToRun(text, selStart, selEnd, { mysql: kind === "mysql" }),
+    );
+  }
+
   /**
    * 実行している間に押したページ送りの向き（タブ id → 押した順）。結果が来たら、1 つずつその向きに送る
    * （リーダーの d j j j が、読み込みの速さによらず 3 ページ進むように）。実行が失敗した・取り消した・端に着いたら捨てる。
@@ -278,6 +320,7 @@ export function createDbTabs(deps: {
     } catch (e) {
       if (!mine()) return;
       queuedSteps.delete(id);
+      kinds.delete(id);
       if (e instanceof PasswordCancelled) {
         setRun(id, ({ running: _, ...r }) => r);
         return;
@@ -423,6 +466,7 @@ export function createDbTabs(deps: {
       const gone = Object.keys(all).filter((id) => !alive.has(id));
       for (const id of gone) {
         queuedSteps.delete(id);
+        kinds.delete(id);
         const q = all[id].running;
         if (q) cancelQuery(q);
       }
@@ -452,6 +496,7 @@ export function createDbTabs(deps: {
     /** タブ id の結果・実行中の印・間違い */
     runOf,
     run,
+    runSelection,
     stepPage,
     cancel,
     request,

@@ -2,11 +2,12 @@
 // 文字列・引用符で囲んだ名前・コメント・PostgreSQL の `$$`（`$タグ$`）で囲んだ中の `;` は、区切りにしない。
 // 文を 2 つ以上順に実行する機能（#380）は、splitStatements をそのまま使える（選んだ部分の字を渡す）。
 //
-// 知っている限界：MySQL の文字列の中の `\'`（バックスラッシュで引用符を打ち消す書き方）は読まない
-// （PostgreSQL の標準の文字列では `\` はただの字なので）。PostgreSQL の `E'...'` では読む。
-// コメントは `--`・`/* */`（入れ子も）。MySQL の `#` は PostgreSQL の演算子なので、コメントとは見ない。
+// DB の種類で読み方が違う（opts.mysql）。
+// - PostgreSQL（既定）：`\` はふつうの字（`E'...'` の中だけ次の字を打ち消す）・`/* */` は入れ子になる・`$$` で囲める。
+// - MySQL：`'...'` と `"..."` の中の `\` が次の字を打ち消す・`/* */` は入れ子にならない・
+//   `#` と、後ろに空白が続く `--` が行末までのコメント・`$$` は囲みではない。
 
-/** 区切った文 1 つ。from から to は、前後の空白とコメントだけの行を除いた文（`;` は含まない）の字の位置（to は含まない）。 */
+/** 区切った文 1 つ。from から to は、前後の空白を除いた文（`;` は含まない。文の前にあるコメントは含む）の字の位置（to は含まない）。 */
 export type Statement = {
   from: number;
   to: number;
@@ -25,8 +26,15 @@ function dollarTagLength(sql: string, i: number): number {
   return m ? m[0].length : 0;
 }
 
+/** 読み方を決める DB の種類の違い。 */
+export type SplitOptions = { mysql?: boolean };
+
 /** sql の `;` で区切った文を、上から順に返す。空の文と、コメントと空白だけの文は含めない。 */
-export function splitStatements(sql: string): Statement[] {
+export function splitStatements(
+  sql: string,
+  opts: SplitOptions = {},
+): Statement[] {
+  const mysql = opts.mysql === true;
   const out: Statement[] = [];
   let start = 0;
   let code = false; // 今の文に、空白とコメント以外の字があるか
@@ -48,22 +56,28 @@ export function splitStatements(sql: string): Statement[] {
   while (i < sql.length) {
     const c = sql[i]!;
     const next = sql[i + 1];
-    if (c === "-" && next === "-") {
+    if (
+      (c === "-" &&
+        next === "-" &&
+        (!mysql || /^\s?$/.test(sql[i + 2] ?? ""))) ||
+      (mysql && c === "#")
+    ) {
       const nl = sql.indexOf("\n", i);
       i = nl < 0 ? sql.length : nl + 1;
     } else if (c === "/" && next === "*") {
       let depth = 1;
       i += 2;
       while (i < sql.length && depth > 0) {
-        if (sql[i] === "/" && sql[i + 1] === "*") (depth++, (i += 2));
+        if (!mysql && sql[i] === "/" && sql[i + 1] === "*") (depth++, (i += 2));
         else if (sql[i] === "*" && sql[i + 1] === "/") (depth--, (i += 2));
         else i++;
       }
     } else if (c === "'" || c === '"' || c === "`") {
       mark();
-      // E'...' は、バックスラッシュで次の字を打ち消す
-      const escapes =
-        c === "'" && /[eE]/.test(sql[i - 1] ?? "") && !isIdent(sql[i - 2]);
+      // バックスラッシュで次の字を打ち消すのは、MySQL の ' と "、PostgreSQL の E'...'
+      const escapes = mysql
+        ? c !== "`"
+        : c === "'" && /[eE]/.test(sql[i - 1] ?? "") && !isIdent(sql[i - 2]);
       i++;
       while (i < sql.length) {
         if (escapes && sql[i] === "\\") i += 2;
@@ -74,7 +88,7 @@ export function splitStatements(sql: string): Statement[] {
         } else i++;
       }
       i++; // 閉じる引用符（閉じていなければ末尾）
-    } else if (c === "$" && dollarTagLength(sql, i) > 0) {
+    } else if (!mysql && c === "$" && dollarTagLength(sql, i) > 0) {
       mark();
       const tag = sql.slice(i, i + dollarTagLength(sql, i));
       const close = sql.indexOf(tag, i + tag.length);
@@ -96,8 +110,12 @@ export function splitStatements(sql: string): Statement[] {
  * カーソルが文と文の間（空行・`;` の後の空白）にあるときは、その上の文（無ければ下の文）。
  * 文の直後（`select 1;` の `;` の次）は、その文。
  */
-export function statementAt(sql: string, cursor: number): Statement | null {
-  const all = splitStatements(sql);
+export function statementAt(
+  sql: string,
+  cursor: number,
+  opts: SplitOptions = {},
+): Statement | null {
+  const all = splitStatements(sql, opts);
   return (
     all.find((s) => s.from <= cursor && cursor <= s.end) ??
     [...all].reverse().find((s) => s.end < cursor) ??
@@ -115,14 +133,15 @@ export function sqlToRun(
   sql: string,
   selStart: number,
   selEnd: number,
+  opts: SplitOptions = {},
 ): string {
   if (selStart !== selEnd) {
     const sel = sql.slice(
       Math.min(selStart, selEnd),
       Math.max(selStart, selEnd),
     );
-    const all = splitStatements(sel);
+    const all = splitStatements(sel, opts);
     return all.length === 1 ? all[0]!.text : sel.trim();
   }
-  return statementAt(sql, selStart)?.text ?? "";
+  return statementAt(sql, selStart, opts)?.text ?? "";
 }

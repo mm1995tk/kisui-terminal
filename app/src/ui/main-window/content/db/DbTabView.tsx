@@ -16,7 +16,6 @@ import {
 
 import type { DbRun } from "../../../../features/db/controller.ts";
 import { dbEditorKey, dbResultKey } from "../../../../features/db/keys.ts";
-import { sqlToRun } from "../../../../features/db/statements.ts";
 import { cellText, resultSummary } from "../../../../features/db/model.ts";
 import {
   canStep,
@@ -45,8 +44,8 @@ export function DbTabView(props: {
   sql: string;
   onSql: (sql: string) => void;
   run: DbRun;
-  /** 実行する。sql は、入力欄で選んだ部分か、カーソルのある文（#375） */
-  onRun: (sql: string) => void;
+  /** 実行する。入力欄の字と、選んでいる範囲（選んでいなければ、どちらもカーソルの位置）を渡す。何を実行するかは features/db/ が決める（#375） */
+  onRun: (text: string, selStart: number, selEnd: number) => void;
   /** 結果のページを切り替える（#373） */
   onPage: (step: PageStep) => void;
   onCancel: () => void;
@@ -67,9 +66,7 @@ export function DbTabView(props: {
 
   /** 入力欄で選んでいる部分か、選んでいなければカーソルのある文を実行する（#375） */
   function runSelected() {
-    props.onRun(
-      sqlToRun(input.value, input.selectionStart, input.selectionEnd),
-    );
+    props.onRun(input.value, input.selectionStart, input.selectionEnd);
   }
 
   function onKeyDown(e: KeyboardEvent) {

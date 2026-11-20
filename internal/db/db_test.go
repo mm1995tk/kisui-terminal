@@ -21,12 +21,12 @@ func TestMain(m *testing.M) {
 }
 
 // both runs a test on PostgreSQL and on MySQL.
-func both(t *testing.T, f func(t *testing.T, c config.DBConnection)) {
-	t.Run("postgres", func(t *testing.T) { f(t, dbtest.Postgres(t)) })
-	t.Run("mysql", func(t *testing.T) { f(t, dbtest.MySQL(t)) })
+func both(t *testing.T, f func(t *testing.T, c config.DBLogin)) {
+	t.Run("postgres", func(t *testing.T) { f(t, dbtest.Login(dbtest.Postgres(t))) })
+	t.Run("mysql", func(t *testing.T) { f(t, dbtest.Login(dbtest.MySQL(t))) })
 }
 
-func open(t *testing.T, c config.DBConnection) Session {
+func open(t *testing.T, c config.DBLogin) Session {
 	t.Helper()
 	s, err := Open(context.Background(), c, dbtest.Password)
 	if err != nil {
@@ -61,7 +61,7 @@ func cells(res *Result) [][]string {
 }
 
 // table makes an empty table of its own for a test and returns its name.
-func table(t *testing.T, c config.DBConnection, columns string) string {
+func table(t *testing.T, c config.DBLogin, columns string) string {
 	t.Helper()
 	name := "t_" + strings.ToLower(strings.NewReplacer("/", "_", "-", "_").Replace(t.Name()))
 	s := open(t, c)
@@ -71,7 +71,7 @@ func table(t *testing.T, c config.DBConnection, columns string) string {
 }
 
 func TestSelect(t *testing.T) {
-	both(t, func(t *testing.T, c config.DBConnection) {
+	both(t, func(t *testing.T, c config.DBLogin) {
 		s := open(t, c)
 		res := query(t, s, "SELECT 1 AS one, 'héllo' AS word, NULL AS nothing, 12345678901234567890.5 AS big")
 		var names []string
@@ -96,7 +96,7 @@ func TestSelect(t *testing.T) {
 
 func TestTypes(t *testing.T) {
 	t.Run("postgres", func(t *testing.T) {
-		s := open(t, dbtest.Postgres(t))
+		s := open(t, dbtest.Login(dbtest.Postgres(t)))
 		res := query(t, s, `SELECT true AS b, 'a'::varchar(20) AS v, 9223372036854775807::bigint AS i8,
 			'\xdead'::bytea AS raw, ARRAY['x','y'] AS arr, DATE '2024-02-29' AS d, '{"k": 1}'::jsonb AS j, 1.50::numeric(6,2) AS n`)
 		want := []Column{
@@ -112,7 +112,7 @@ func TestTypes(t *testing.T) {
 		}
 	})
 	t.Run("mysql", func(t *testing.T) {
-		c := dbtest.MySQL(t)
+		c := dbtest.Login(dbtest.MySQL(t))
 		name := table(t, c, "i INT UNSIGNED, v VARCHAR(20), b VARBINARY(4), d DATETIME, j JSON, n DECIMAL(6,2), u BIGINT UNSIGNED, f FLOAT")
 		s := open(t, c)
 		query(t, s, "INSERT INTO "+name+` VALUES (7, 'a', x'DEAD', '2024-02-29 01:02:03', '{"k": 1}', 1.50, 18446744073709551615, 0.1)`)
@@ -132,7 +132,7 @@ func TestTypes(t *testing.T) {
 }
 
 func TestWrite(t *testing.T) {
-	both(t, func(t *testing.T, c config.DBConnection) {
+	both(t, func(t *testing.T, c config.DBLogin) {
 		name := table(t, c, "id INT, word VARCHAR(10)")
 		s := open(t, c)
 		res := query(t, s, "INSERT INTO "+name+" VALUES (1, 'a'), (2, 'b'), (3, 'c')")
@@ -153,7 +153,7 @@ func TestWrite(t *testing.T) {
 // A read-only connection refuses a write, and the database is the one that
 // refuses it.
 func TestReadOnly(t *testing.T) {
-	both(t, func(t *testing.T, c config.DBConnection) {
+	both(t, func(t *testing.T, c config.DBLogin) {
 		name := table(t, c, "id INT")
 		query(t, open(t, c), "INSERT INTO "+name+" VALUES (1)")
 		ro := c
@@ -182,7 +182,7 @@ func TestReadOnly(t *testing.T) {
 }
 
 func TestQueryError(t *testing.T) {
-	both(t, func(t *testing.T, c config.DBConnection) {
+	both(t, func(t *testing.T, c config.DBLogin) {
 		s := open(t, c)
 		_, err := s.Query(context.Background(), "SELECT * FROM no_such_table_here", QueryOptions{})
 		e, ok := errors.AsType[*Error](err)
@@ -201,7 +201,7 @@ func TestQueryError(t *testing.T) {
 }
 
 // numbers is a SELECT that gives n rows.
-func numbers(c config.DBConnection, n int) string {
+func numbers(c config.DBLogin, n int) string {
 	if c.Kind == config.DBPostgres {
 		return fmt.Sprintf("SELECT g FROM generate_series(1, %d) AS g", n)
 	}
@@ -209,7 +209,7 @@ func numbers(c config.DBConnection, n int) string {
 }
 
 func TestRowLimit(t *testing.T) {
-	both(t, func(t *testing.T, c config.DBConnection) {
+	both(t, func(t *testing.T, c config.DBLogin) {
 		for _, readOnly := range []bool{false, true} {
 			c.ReadOnly = readOnly
 			s := open(t, c)
@@ -235,7 +235,7 @@ func TestRowLimit(t *testing.T) {
 
 // endless is a SELECT that gives its first rows at once and far more rows
 // than anyone reads.
-func endless(t *testing.T, c config.DBConnection) string {
+func endless(t *testing.T, c config.DBLogin) string {
 	if c.Kind == config.DBPostgres {
 		// In FROM, generate_series is built as a whole before its first row.
 		return "SELECT generate_series(1, 2000000000) AS g"
@@ -250,7 +250,7 @@ func endless(t *testing.T, c config.DBConnection) string {
 // A read-only session does not read a huge result to its end: it stops the
 // statement when the result is full.
 func TestRowLimitStopsReadOnly(t *testing.T) {
-	both(t, func(t *testing.T, c config.DBConnection) {
+	both(t, func(t *testing.T, c config.DBLogin) {
 		sql := endless(t, c)
 		c.ReadOnly = true
 		s := open(t, c)
@@ -273,7 +273,7 @@ func TestRowLimitStopsReadOnly(t *testing.T) {
 
 // A long cell is cut, and the result says so.
 func TestCellLimit(t *testing.T) {
-	both(t, func(t *testing.T, c config.DBConnection) {
+	both(t, func(t *testing.T, c config.DBLogin) {
 		s := open(t, c)
 		res := query(t, s, fmt.Sprintf("SELECT repeat('é', %d) AS long_one, 'short' AS short_one", maxCellBytes))
 		if !res.TruncatedCells || len(*res.Rows[0][0]) != maxCellBytes || *res.Rows[0][1] != "short" {
@@ -287,7 +287,7 @@ func TestCellLimit(t *testing.T) {
 
 // Ending the context stops the statement in the database, soon.
 func TestCancel(t *testing.T) {
-	both(t, func(t *testing.T, c config.DBConnection) {
+	both(t, func(t *testing.T, c config.DBLogin) {
 		s := open(t, c)
 		sleep := "SELECT pg_sleep(30)"
 		if c.Kind == config.DBMySQL {
@@ -317,7 +317,7 @@ func TestCancel(t *testing.T) {
 
 // A write that is cancelled is undone as a whole.
 func TestCancelWrite(t *testing.T) {
-	both(t, func(t *testing.T, c config.DBConnection) {
+	both(t, func(t *testing.T, c config.DBLogin) {
 		name := table(t, c, "id INT")
 		s := open(t, c)
 		slow := "INSERT INTO " + name + " SELECT g FROM generate_series(1, 3) AS g, pg_sleep(10)"
@@ -337,7 +337,7 @@ func TestCancelWrite(t *testing.T) {
 }
 
 func TestOpenErrors(t *testing.T) {
-	both(t, func(t *testing.T, c config.DBConnection) {
+	both(t, func(t *testing.T, c config.DBLogin) {
 		_, err := Open(context.Background(), c, "wrong")
 		if e, ok := errors.AsType[*Error](err); !ok || e.Kind != KindAuth {
 			t.Errorf("a wrong password: %v (%+v)", err, e)
@@ -358,7 +358,7 @@ func TestOpenErrors(t *testing.T) {
 // What one session leaves behind does not reach the next: each Open is a
 // login of its own.
 func TestSessionsAreApart(t *testing.T) {
-	both(t, func(t *testing.T, c config.DBConnection) {
+	both(t, func(t *testing.T, c config.DBLogin) {
 		a := open(t, c)
 		set, show := "SET application_name = 'mine'", "SHOW application_name"
 		if c.Kind == config.DBMySQL {
@@ -377,7 +377,7 @@ func TestSessionsAreApart(t *testing.T) {
 // COPY is refused before it reaches the server: `COPY ... FROM STDIN` would
 // wait for ever for data.
 func TestCopyIsRefused(t *testing.T) {
-	c := dbtest.Postgres(t)
+	c := dbtest.Login(dbtest.Postgres(t))
 	name := table(t, c, "id INT")
 	s := open(t, c)
 	for _, sql := range []string{

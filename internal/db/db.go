@@ -39,7 +39,7 @@ type Session interface {
 	// When ctx ends, the database is told to stop the statement and Query
 	// returns an *Error of kind KindCancelled.
 	//
-	// When the session is read-only (config.DBConnection.ReadOnly), the
+	// When the session is read-only (config.DBLogin.ReadOnly), the
 	// statement runs in a read-only transaction that is rolled back.
 	Query(ctx context.Context, sql string, o QueryOptions) (*Result, error)
 	// Close logs out. It is safe to call twice.
@@ -177,7 +177,7 @@ const connectTimeout = 10 * time.Second
 
 // Open logs in to c with password. The error is an *Error: of kind KindAuth
 // when the database refused the user or the password, else KindConnect.
-func Open(ctx context.Context, c config.DBConnection, password string) (Session, error) {
+func Open(ctx context.Context, c config.DBLogin, password string) (Session, error) {
 	switch c.Kind {
 	case config.DBPostgres:
 		return openPostgres(ctx, c, password)

@@ -176,8 +176,32 @@ export interface DbConnection {
   user: string;
   /** 設定に書いていなければ "" */
   database: string;
-  /** true の接続は、SQL を読み取り専用のトランザクションで実行する（書き込みは DB が断る） */
+  /** true の接続は、窓からの SQL を読み取り専用のトランザクションで実行する（書き込みは DB が断る）。人の実行の段階が "read"（human.run）ということ */
   readOnly: boolean;
+  /** 人（窓）がこの接続にしてよいこと（#381。権限を知らない古い kisui serve は付けない） */
+  human?: DbHumanAccess;
+  /** コーディングエージェント（kisui db のコマンド）がこの接続にしてよいこと（#381。権限を知らない古い kisui serve は付けない） */
+  agent?: DbAgentAccess;
+}
+
+/** SQL の実行の段階。none：実行しない、read：読み取り専用のトランザクションで実行する、free：そのまま実行する */
+export type DbRun = "none" | "read" | "free";
+
+/** 人がある接続にしてよいこと（設定の権限と read-only を合わせた結果） */
+export interface DbHumanAccess {
+  /** 使っている権限の名前（[db.permissions] のキー）。設定に書いていなければ "" */
+  permission: string;
+  run: DbRun;
+}
+
+/** コーディングエージェントがある接続にしてよいこと */
+export interface DbAgentAccess {
+  permission: string;
+  run: DbRun;
+  /** DB のタブの入力欄に SQL を書いてよいか */
+  propose: boolean;
+  /** エージェントがログインする DB のユーザー（権限に agent-user が無ければ、接続の user と同じ） */
+  user: string;
 }
 
 /** 列の値の読み方。number：数（文字のまま届く）、boolean："true" か "false"、binary："0x" と 16 進、text：それ以外 */
@@ -449,7 +473,8 @@ export interface Requests {
   /**
    * 接続に SQL を 1 つ実行する。variant は環境の変種の名前（変種の無い接続では省く。変種のある接続で省くと not_found）。password は画面で入力されたもの（省くのと "" は違う："" はパスワード無しでログインする）。
    * maxRows は rows の上限（省くと 1000、最大 10000）。queryId は db.cancel で取り消すための、窓が付ける名前。
-   * 断られ方：not_found（接続が無い）、password_required、db_error、busy（同時に動かせる数を超えた）
+   * 断られ方：not_found（接続が無い）、password_required、db_error、busy（同時に動かせる数を超えた）、denied（権限が実行を許していない。#381）。
+   * actor は誰の要求か（#381）：省くか "human" は人（窓）、"agent" はコーディングエージェント。窓は付けない（人として扱われる）
    */
   "db.query": {
     params: {
@@ -461,6 +486,7 @@ export interface Requests {
       /** 前に実行した結果の続きのページ（#373）：SQL を包んで（SELECT * FROM (sql) AS q LIMIT … OFFSET offset）、この行数の後から読む。result.wrappable の文だけ */
       offset?: number;
       queryId?: string;
+      actor?: "human" | "agent";
     };
     result: DbQueryResult;
   };
@@ -471,7 +497,8 @@ export interface Requests {
   };
   /**
    * 接続のスキーマ・テーブル（ビューを含む）・列の一覧を 1 回で全部返す。履歴には残らない。
-   * variant・password・queryId と断られ方は db.query と同じ（not_found、password_required、db_error、busy）
+   * variant・password・queryId・actor と断られ方は db.query と同じ（not_found、password_required、db_error、busy）。
+   * ただし denied は無い：一覧は、実行の段階に関わらず読める（#381）
    */
   "db.schema": {
     params: {
@@ -479,6 +506,7 @@ export interface Requests {
       variant?: string;
       password?: string;
       queryId?: string;
+      actor?: "human" | "agent";
     };
     result: DbCatalog;
   };

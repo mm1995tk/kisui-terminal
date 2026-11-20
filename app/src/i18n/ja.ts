@@ -684,6 +684,8 @@ export const ja: Record<Key, string> = {
     "{machine} の kisui serve は古く、DB を扱えません。つなぎ直すと新しい版になります。",
   "db.err.noDbShort": "この kisui serve は古く、DB を扱えません",
   "db.err.password": "パスワードが通りませんでした。",
+  "db.err.denied":
+    "この接続の権限では、ここから SQL を実行できません。権限は、そのマシンの設定（human-permission）で決まります。",
   "db.elapsed.ms": "{n} ms",
   "db.elapsed.s": "{n} 秒",
   "db.summary.rows": "{n} 行",

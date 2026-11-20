@@ -26,7 +26,7 @@ type mySession struct {
 	readOnly  bool
 }
 
-func openMySQL(ctx context.Context, c config.DBConnection, password string) (Session, error) {
+func openMySQL(ctx context.Context, c config.DBLogin, password string) (Session, error) {
 	cfg := mysql.NewConfig()
 	cfg.User, cfg.Passwd, cfg.DBName = c.User, password, c.Database
 	if strings.HasPrefix(c.Host, "/") {

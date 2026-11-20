@@ -29,7 +29,7 @@ func findTable(sc *CatalogSchema, name string) *CatalogTable {
 }
 
 func TestCatalog(t *testing.T) {
-	both(t, func(t *testing.T, c config.DBConnection) {
+	both(t, func(t *testing.T, c config.DBLogin) {
 		// MySQL's user of the tests may only use the database "kisui", which is
 		// its schema; PostgreSQL makes schemas of its own.
 		schema, empty := "kisui", ""
@@ -119,7 +119,7 @@ func TestCatalog(t *testing.T) {
 
 // The catalog is read on a read-only connection too.
 func TestCatalogReadOnly(t *testing.T) {
-	both(t, func(t *testing.T, c config.DBConnection) {
+	both(t, func(t *testing.T, c config.DBLogin) {
 		c.ReadOnly = true
 		cat, err := ReadCatalog(context.Background(), open(t, c), c.Kind)
 		if err != nil || len(cat.Schemas) == 0 {

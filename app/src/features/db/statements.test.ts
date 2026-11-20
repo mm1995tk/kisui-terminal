@@ -126,3 +126,67 @@ describe("sqlToRun", () => {
     assert.equal(sqlToRun("select 1;   \n", 9, 12), "");
   });
 });
+
+describe("MySQL の読み方（opts.mysql）", () => {
+  const my = { mysql: true };
+  const mtexts = (sql: string) => splitStatements(sql, my).map((s) => s.text);
+
+  it("文字列の中の \\' は打ち消し（後ろの文を巻き込まない）", () => {
+    const sql = "select 'it\\'s';\nselect 2;\nselect 3";
+    assert.deepEqual(mtexts(sql), ["select 'it\\'s'", "select 2", "select 3"]);
+    assert.equal(sqlToRun(sql, sql.length, sql.length, my), "select 3");
+    assert.deepEqual(mtexts(`select "a\\"b;c"; select 2`), [
+      `select "a\\"b;c"`,
+      "select 2",
+    ]);
+    assert.deepEqual(mtexts("select 'a\\\\'; select 2"), [
+      "select 'a\\\\'",
+      "select 2",
+    ]);
+  });
+
+  it("バッククォートの名前の中の \\ は字", () => {
+    assert.deepEqual(mtexts("select `a\\`; select 2"), [
+      "select `a\\`",
+      "select 2",
+    ]);
+  });
+
+  it("/* */ は入れ子にならない", () => {
+    assert.deepEqual(mtexts("/* a /* b */ select 1;\nselect 2"), [
+      "/* a /* b */ select 1",
+      "select 2",
+    ]);
+  });
+
+  it("# と、後ろに空白が続く -- はコメント。-- の直後に字が続くのは違う", () => {
+    assert.deepEqual(mtexts("select 1 # a;b\n; select 2 -- c;d\n; select 3"), [
+      "select 1 # a;b",
+      "select 2 -- c;d",
+      "select 3",
+    ]);
+    assert.deepEqual(mtexts("select 1--1; select 2"), [
+      "select 1--1",
+      "select 2",
+    ]);
+  });
+
+  it("$$ は囲みではない", () => {
+    assert.deepEqual(mtexts("select '$$'; select $$; select 3"), [
+      "select '$$'",
+      "select $$",
+      "select 3",
+    ]);
+  });
+
+  it("PostgreSQL では、同じ字が別の意味になる", () => {
+    assert.deepEqual(texts("select 'a\\'; select 2"), [
+      "select 'a\\'",
+      "select 2",
+    ]);
+    assert.deepEqual(texts("select 1 # 2; select 3"), [
+      "select 1 # 2",
+      "select 3",
+    ]);
+  });
+});

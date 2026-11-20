@@ -22,7 +22,7 @@ type pgSession struct {
 	readOnly bool
 }
 
-func openPostgres(ctx context.Context, c config.DBConnection, password string) (Session, error) {
+func openPostgres(ctx context.Context, c config.DBLogin, password string) (Session, error) {
 	// What a connection's settings say (and sslmode, the timeout and the
 	// application name) is written here, so that the environment of kisui
 	// serve does not replace it (PGHOST, PGPORT, PGUSER, PGDATABASE,

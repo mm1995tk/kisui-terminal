@@ -14,16 +14,16 @@ import (
 // password file, the password the window sent (now, then earlier), and the
 // error when there is none.
 func TestPasswordOrder(t *testing.T) {
-	c := config.DBConnection{Name: "dev", Kind: config.DBPostgres, Host: "h", Port: 5432, User: "u"}
+	c := config.DBLogin{Name: "dev", Kind: config.DBPostgres, Host: "h", Port: 5432, User: "u"}
 	inKeychain, inFile := true, true
 	p := &Passwords{
-		Keychain: func(_ context.Context, got config.DBConnection) (string, bool) {
+		Keychain: func(_ context.Context, got config.DBLogin) (string, bool) {
 			if got != c {
 				t.Errorf("keychain asked for %+v", got)
 			}
 			return "from-keychain", inKeychain
 		},
-		File: func(config.DBConnection) (string, bool) { return "from-file", inFile },
+		File: func(config.DBLogin) (string, bool) { return "from-file", inFile },
 	}
 	typed := "typed"
 	p.Remember(c, "remembered")
@@ -57,9 +57,9 @@ func TestPasswordOrder(t *testing.T) {
 // A remembered password belongs to the server and the user, not to the name
 // alone.
 func TestRememberedPasswordIsPerServer(t *testing.T) {
-	none := func(config.DBConnection) (string, bool) { return "", false }
-	p := &Passwords{Keychain: func(context.Context, config.DBConnection) (string, bool) { return "", false }, File: none}
-	c := config.DBConnection{Name: "dev", Kind: config.DBMySQL, Host: "a", Port: 3306, User: "u"}
+	none := func(config.DBLogin) (string, bool) { return "", false }
+	p := &Passwords{Keychain: func(context.Context, config.DBLogin) (string, bool) { return "", false }, File: none}
+	c := config.DBLogin{Name: "dev", Kind: config.DBMySQL, Host: "a", Port: 3306, User: "u"}
 	p.Remember(c, "pw")
 	moved := c
 	moved.Host = "b"
@@ -75,31 +75,31 @@ func TestPgpass(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "pgpass")
 	os.WriteFile(path, []byte("# comment\ndb.example.com:5432:shop:app:p1\nlocalhost:*:*:local:p2\n*:*:*:any:p\\:3\n"), 0o600)
 	for _, c := range []struct {
-		conn config.DBConnection
+		conn config.DBLogin
 		want string
 	}{
-		{config.DBConnection{Host: "db.example.com", Port: 5432, User: "app", Database: "shop"}, "p1"},
-		{config.DBConnection{Host: "db.example.com", Port: 5433, User: "app", Database: "shop"}, ""},
+		{config.DBLogin{Host: "db.example.com", Port: 5432, User: "app", Database: "shop"}, "p1"},
+		{config.DBLogin{Host: "db.example.com", Port: 5433, User: "app", Database: "shop"}, ""},
 		// No database: the one named like the user.
-		{config.DBConnection{Host: "localhost", Port: 1, User: "local"}, "p2"},
+		{config.DBLogin{Host: "localhost", Port: 1, User: "local"}, "p2"},
 		// A Unix socket matches localhost.
-		{config.DBConnection{Host: "/run/postgresql", Port: 5432, User: "local"}, "p2"},
-		{config.DBConnection{Host: "x", Port: 5432, User: "any"}, "p:3"},
-		{config.DBConnection{Host: "x", Port: 5432, User: "nobody"}, ""},
+		{config.DBLogin{Host: "/run/postgresql", Port: 5432, User: "local"}, "p2"},
+		{config.DBLogin{Host: "x", Port: 5432, User: "any"}, "p:3"},
+		{config.DBLogin{Host: "x", Port: 5432, User: "nobody"}, ""},
 	} {
 		got, ok := pgpassPassword(path, c.conn)
 		if got != c.want || ok != (c.want != "") {
 			t.Errorf("%+v: %q, %v; want %q", c.conn, got, ok, c.want)
 		}
 	}
-	if _, ok := pgpassPassword(filepath.Join(t.TempDir(), "missing"), config.DBConnection{}); ok {
+	if _, ok := pgpassPassword(filepath.Join(t.TempDir(), "missing"), config.DBLogin{}); ok {
 		t.Error("a missing file gave a password")
 	}
 }
 
 func TestMycnf(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "my.cnf")
-	conn := config.DBConnection{Host: "db", Port: 3306, User: "app"}
+	conn := config.DBLogin{Host: "db", Port: 3306, User: "app"}
 	for name, c := range map[string]struct {
 		file string
 		want string
@@ -127,6 +127,68 @@ func TestMycnf(t *testing.T) {
 	}
 }
 
+// A login as the agent's own user looks for the password of that user, and
+// never gets the password of the connection's user.
+func TestPasswordOfAgentUser(t *testing.T) {
+	human := config.DBLogin{Name: "shop", Variant: "prod", Kind: config.DBMySQL, Host: "db", Port: 3306, User: "app"}
+	agent := human
+	agent.User, agent.AgentUser = "bot", true
+	// The keychain item has the same account in a service of its own.
+	if s := keychainService(human); s != KeychainService {
+		t.Errorf("service of the connection: %q", s)
+	}
+	if s := keychainService(agent); s != KeychainAgentService || s == KeychainService {
+		t.Errorf("service of the agent: %q", s)
+	}
+	if KeychainAccount(agent) != KeychainAccount(human) {
+		t.Errorf("account of the agent: %q", KeychainAccount(agent))
+	}
+	// ~/.my.cnf: a password with no user beside it is the connection's.
+	path := filepath.Join(t.TempDir(), "my.cnf")
+	for name, c := range map[string]struct {
+		file             string
+		forHuman, forBot bool
+	}{
+		"no user":      {"[client]\npassword = p\n", true, false},
+		"the human":    {"[client]\nuser = app\npassword = p\n", true, false},
+		"the agent":    {"[client]\nuser = bot\npassword = p\n", false, true},
+		"another user": {"[client]\nuser = root\npassword = p\n", false, false},
+	} {
+		os.WriteFile(path, []byte(c.file), 0o600)
+		if _, ok := mycnfPassword(path, human); ok != c.forHuman {
+			t.Errorf("%s: for the connection's user: %v", name, ok)
+		}
+		if _, ok := mycnfPassword(path, agent); ok != c.forBot {
+			t.Errorf("%s: for the agent's user: %v", name, ok)
+		}
+	}
+	// ~/.pgpass is matched by the user.
+	pg, pgAgent := human, agent
+	pg.Kind, pgAgent.Kind = config.DBPostgres, config.DBPostgres
+	pgpass := filepath.Join(t.TempDir(), "pgpass")
+	os.WriteFile(pgpass, []byte("db:3306:*:app:human-pw\ndb:3306:*:bot:agent-pw\n"), 0o600)
+	if pw, _ := pgpassPassword(pgpass, pg); pw != "human-pw" {
+		t.Errorf("pgpass for the connection's user: %q", pw)
+	}
+	if pw, _ := pgpassPassword(pgpass, pgAgent); pw != "agent-pw" {
+		t.Errorf("pgpass for the agent's user: %q", pw)
+	}
+	// A typed password that worked is remembered for its user only.
+	none := func(config.DBLogin) (string, bool) { return "", false }
+	p := &Passwords{Keychain: func(context.Context, config.DBLogin) (string, bool) { return "", false }, File: none}
+	p.Remember(human, "human-secret")
+	if _, _, err := p.Find(context.Background(), agent, nil); !errors.Is(err, ErrPasswordRequired) {
+		t.Errorf("the agent got the password of the connection's user: %v", err)
+	}
+	p.Remember(agent, "agent-secret")
+	if pw, _, _ := p.Find(context.Background(), human, nil); pw != "human-secret" {
+		t.Errorf("the connection's user: %q", pw)
+	}
+	if pw, _, _ := p.Find(context.Background(), agent, nil); pw != "agent-secret" {
+		t.Errorf("the agent's user: %q", pw)
+	}
+}
+
 // The real files are the ones in the home directory.
 func TestFilePassword(t *testing.T) {
 	home := t.TempDir()
@@ -134,16 +196,16 @@ func TestFilePassword(t *testing.T) {
 	t.Setenv("PGPASSFILE", "")
 	os.WriteFile(filepath.Join(home, ".pgpass"), []byte("*:*:*:u:pg-pw\n"), 0o600)
 	os.WriteFile(filepath.Join(home, ".my.cnf"), []byte("[client]\npassword = my-pw\n"), 0o600)
-	if pw, ok := filePassword(config.DBConnection{Kind: config.DBPostgres, Host: "h", Port: 5432, User: "u"}); !ok || pw != "pg-pw" {
+	if pw, ok := filePassword(config.DBLogin{Kind: config.DBPostgres, Host: "h", Port: 5432, User: "u"}); !ok || pw != "pg-pw" {
 		t.Errorf("postgres: %q, %v", pw, ok)
 	}
-	if pw, ok := filePassword(config.DBConnection{Kind: config.DBMySQL, Host: "h", Port: 3306, User: "u"}); !ok || pw != "my-pw" {
+	if pw, ok := filePassword(config.DBLogin{Kind: config.DBMySQL, Host: "h", Port: 3306, User: "u"}); !ok || pw != "my-pw" {
 		t.Errorf("mysql: %q, %v", pw, ok)
 	}
 	// The zero Passwords uses them (the keychain has nothing outside macOS;
 	// on macOS the test connection is not in it).
 	var p Passwords
-	if pw, src, err := p.Find(context.Background(), config.DBConnection{Name: "kisui-test-not-in-keychain", Kind: config.DBMySQL, Host: "h", Port: 3306, User: "u"}, nil); err != nil || pw != "my-pw" || src != SourceFile {
+	if pw, src, err := p.Find(context.Background(), config.DBLogin{Name: "kisui-test-not-in-keychain", Kind: config.DBMySQL, Host: "h", Port: 3306, User: "u"}, nil); err != nil || pw != "my-pw" || src != SourceFile {
 		t.Errorf("zero Passwords: %q, %q, %v", pw, src, err)
 	}
 }
@@ -151,22 +213,22 @@ func TestFilePassword(t *testing.T) {
 // Each variant of a connection has a keychain item and a remembered password
 // of its own; a connection without variants keeps the account it had.
 func TestPasswordPerVariant(t *testing.T) {
-	plain := config.DBConnection{Name: "shop", Kind: config.DBPostgres, Host: "h", Port: 5432, User: "u"}
+	plain := config.DBLogin{Name: "shop", Kind: config.DBPostgres, Host: "h", Port: 5432, User: "u"}
 	local, prod := plain, plain
 	local.Variant, prod.Variant = "local", "prod"
-	for c, want := range map[config.DBConnection]string{plain: "shop", local: "shop/local", prod: "shop/prod"} {
+	for c, want := range map[config.DBLogin]string{plain: "shop", local: "shop/local", prod: "shop/prod"} {
 		if got := KeychainAccount(c); got != want {
 			t.Errorf("KeychainAccount(%+v) = %q, want %q", c, got, want)
 		}
 	}
-	none := func(config.DBConnection) (string, bool) { return "", false }
-	p := &Passwords{Keychain: func(context.Context, config.DBConnection) (string, bool) { return "", false }, File: none}
+	none := func(config.DBLogin) (string, bool) { return "", false }
+	p := &Passwords{Keychain: func(context.Context, config.DBLogin) (string, bool) { return "", false }, File: none}
 	p.Remember(prod, "prod-secret")
 	if pw, src, err := p.Find(context.Background(), prod, nil); err != nil || pw != "prod-secret" || src != SourceMemory {
 		t.Errorf("the variant itself: %q, %q, %v", pw, src, err)
 	}
 	// The same server and user, but another variant (or none): not sent.
-	for _, c := range []config.DBConnection{local, plain} {
+	for _, c := range []config.DBLogin{local, plain} {
 		if _, _, err := p.Find(context.Background(), c, nil); !errors.Is(err, ErrPasswordRequired) {
 			t.Errorf("%q got the password of prod: %v", c.Variant, err)
 		}
