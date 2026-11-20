@@ -17,6 +17,7 @@ import {
   addEmptyWorkspace,
   addTerm,
   gwsByName,
+  hiddenGws,
   nameErrorText,
   newGwsId,
   termKey,
@@ -33,16 +34,20 @@ export type PaneOpenPlan =
  * `--workspace name`（isNew は `--new`）から、タブを入れる先を決める。名前は、サイドバーに出ている名前（名前を付けていなければ「ws1」）。
  * --new が無ければ、その名前のワークスペースが 1 つだけあればそこ。無い・2 つ以上なら断る（どちらに入れるか決められない）。
  * --new なら、その名前のワークスペースがもうあれば断る（同じ名前が 2 つになると、後で名前で指せなくなる）。名前の決まりに合わなくても断る。
+ * browser は内蔵ブラウザを使うか。使わないとき、ブラウザのタブしか持たないワークスペース（hiddenGws）はサイドバーに出ないので、
+ * 入れ先には選ばない（--new の重なりには数える。内蔵ブラウザを有効に戻すと、同じ名前が 2 つ出てしまうため）。
  */
 export function planPaneOpen(
   s: GwsState,
   name: string,
   isNew: boolean,
+  browser = true,
 ): PaneOpenPlan {
   const n = name.trim();
-  const found = gwsByName(s, n);
+  const all = gwsByName(s, n);
+  const found = all.filter((g) => !hiddenGws(g, browser));
   if (isNew) {
-    if (found.length > 0)
+    if (all.length > 0)
       return { kind: "error", error: T("paneOpen.err.exists", { name: n }) };
     const bad = nameErrorText(n);
     return bad ? { kind: "error", error: bad } : { kind: "new", name: n };
@@ -94,6 +99,8 @@ export function createPaneOpen(deps: {
   sessions: Pick<Sessions, "sessions" | "states" | "workspaces" | "labelOf">;
   gws: Accessor<GwsState>;
   setGws: (f: (g: GwsState) => GwsState) => void;
+  /** 内蔵ブラウザを使うか（設定の [gui.browser] enabled。使わなければ、ブラウザのタブだけのワークスペースは入れ先にしない） */
+  browser: boolean;
   /** 作ったばかりで、マシンの一覧の知らせがまだ届いていないターミナルのタブ（reconcile が外さない） */
   justCreated: Set<string>;
 }) {
@@ -103,7 +110,12 @@ export function createPaneOpen(deps: {
     target: string,
     rq: PaneOpenRequest,
   ): Promise<PaneOpenReport> {
-    const plan = planPaneOpen(untrack(deps.gws), rq.workspace, rq.new === true);
+    const plan = planPaneOpen(
+      untrack(deps.gws),
+      rq.workspace,
+      rq.new === true,
+      deps.browser,
+    );
     if (plan.kind === "error") return { error: plan.error };
     const s = sessions()[target];
     if (!s || states()[target]?.kind !== "connected")

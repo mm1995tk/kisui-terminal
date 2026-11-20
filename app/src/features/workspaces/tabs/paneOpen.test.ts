@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 
 import type { PaneOpenRequest } from "../../../infrastructure/rpc/protocol.ts";
 import {
+  addBrowserWorkspace,
   addEmptyWorkspace,
   addWorkspace,
   EMPTY_GWS,
@@ -46,6 +47,19 @@ describe("kisui pane open の入れ先", () => {
       kind: "new",
       name: "new",
     });
+  });
+
+  it("内蔵ブラウザを使わないとき、サイドバーに出ないワークスペース（ブラウザのタブだけ）は入れ先にしない", () => {
+    const s = rename(addBrowserWorkspace(state(), "b1", "g5"), "g5", "review");
+    assert.deepEqual(planPaneOpen(s, "review", false, false), {
+      kind: "into",
+      gid: "g1",
+    });
+    assert.equal(planPaneOpen(s, "review", false, true).kind, "error");
+    // --new の重なりには数える（内蔵ブラウザを有効に戻すと出てくる）
+    const only = rename(addBrowserWorkspace(state(), "b1", "g5"), "g5", "b");
+    assert.equal(planPaneOpen(only, "b", false, false).kind, "error");
+    assert.equal(planPaneOpen(only, "b", true, false).kind, "error");
   });
 
   it("作ったタブを一番後ろに入れ、最後に使っていたタブは変えない", () => {
@@ -145,6 +159,7 @@ describe("kisui pane open の頼み", () => {
       setGws: (f) => {
         gws = f(gws);
       },
+      browser: true,
       justCreated,
     });
     return { open, calls, justCreated, gws: () => gws };

@@ -148,6 +148,7 @@ export function createFeatures(deps: {
     revealSidebar: () => ui.revealSidebar(),
   });
   const openTab = createPaneOpen({
+    browser,
     sessions,
     gws: workspaces.gws,
     setGws: workspaces.setGws,
