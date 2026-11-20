@@ -323,8 +323,13 @@ export interface Requests {
     result: { rev: number; termId?: TermId };
   };
   "workspace.create": {
-    /** dir は、プライマリターミナルのシェルを始めるフォルダ（絶対パス）。無い・フォルダでなければ start_dir。古い kisui serve は無視する */
-    params: { dir?: string };
+    /**
+     * dir は、プライマリターミナルのシェルを始めるフォルダ（絶対パス）。無い・フォルダでなければ start_dir。古い kisui serve は無視する。
+     * argv・env・name は `kisui pane open`（#343）：プライマリターミナルでシェルの代わりに動かすコマンド（最初の語は絶対パス）、
+     * その環境変数（"NAME=value"）、そのペインの名前（ほかのペインと重なれば作らずに断る）。hello の capabilities に
+     * "workspace.create.command" がある serve だけが受ける（古い serve は無視してシェルを始めるので、送る前に確かめる）
+     */
+    params: { dir?: string; argv?: string[]; env?: string[]; name?: string };
     result: { id: WorkspaceId; termId: TermId };
   };
   "workspace.close": {
@@ -424,6 +429,11 @@ export interface Notifications {
   "pane.hide": { workspaceId: WorkspaceId };
   /** `kisui update`（#94）。手元のアプリが新しい版を調べ直し、update.result で答える */
   "update.check": { id: string };
+  /**
+   * `kisui pane open`（#343）。GUI のワークスペース workspace（--new なら、その名前で新しく作る）の最後に、
+   * このマシンのターミナルのタブを足し（workspace.create の argv・env・name）、pane.opened で答える。フォーカスは移さない
+   */
+  "pane.open": PaneOpenRequest;
   /** プライマリの shj（`ctl.PaneRequest` の `kind: "browser"`）・`kisui open <URL>` が、URL を手元のブラウザで開くよう頼んだ（#96）。欄は作らない。内蔵ブラウザを有効にしていればそのワークスペースの新しいタブ、無効なら外部ブラウザで開く（#203）。リモートのマシンの localhost 系は、GUI が `kisui relay` の中継越しに開く */
   "browser.open": { workspaceId: WorkspaceId; url: string };
   /** プライマリの shj が、そのワークスペースのファイルエクスプローラにキーを向けるよう頼んだ（Space e）。Esc で端末に戻る。start は、shj が引数なしで起動した直後（ツリーが整うのを待つ）。 */
@@ -473,7 +483,29 @@ export interface GuiNotifications {
   "term.ack": { termId: TermId; seq: number };
   /** update.check への答え（`kisui update` に渡る。serve の panecmd.UpdateResult） */
   "update.result": { id: string } & UpdateReport;
+  /** pane.open への答え（`kisui pane open` に渡る）。作れたら termId、作れなければ error（そのまま kisui pane open が出す） */
+  "pane.opened": { id: string } & PaneOpenReport;
 }
+
+/** pane.open の中身（`kisui pane open`。#343）。 */
+export interface PaneOpenRequest {
+  id: string;
+  /** 足す先の GUI のワークスペースの名前（サイドバーに出ている名前） */
+  workspace: string;
+  /** その名前のワークスペースを新しく作る */
+  new?: boolean;
+  /** 新しいタブのペインの名前 */
+  name: string;
+  /** 始めるフォルダ（絶対パス） */
+  dir: string;
+  /** 動かすコマンド（無ければシェル。最初の語は絶対パス） */
+  argv?: string[];
+  /** コマンドの環境変数（"NAME=value"） */
+  env?: string[];
+}
+
+/** pane.open への答え（#343）。 */
+export type PaneOpenReport = { termId: TermId } | { error: string };
 
 /** 新しい版の調べ直しの答え（#94）。 */
 export type UpdateReport =

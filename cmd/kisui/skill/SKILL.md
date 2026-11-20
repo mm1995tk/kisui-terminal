@@ -1,6 +1,6 @@
 ---
 name: kisui-terminal
-description: Use the kisui commands from inside a pane of kisui-terminal - show a file or a web page in another pane (kisui open), split the pane (kisui pane split), name the pane (kisui pane title), list the panes of the machine (kisui pane list), send text or keys to a pane and close it (kisui pane send, kisui pane keys, kisui pane close), read the screen of a pane (kisui pane read), send a desktop notification when long work ends (kisui notify), and use the clipboard of the user's computer (kisui clipboard copy). Use it when you run in a kisui-terminal pane and the user wants to see a result, be told when something finishes, or get text onto their clipboard.
+description: Use the kisui commands from inside a pane of kisui-terminal - show a file or a web page in another pane (kisui open), split the pane (kisui pane split), name the pane (kisui pane title), list the panes of the machine (kisui pane list), open a terminal tab in a workspace and run an agent there (kisui pane open), send text or keys to a pane and close it (kisui pane send, kisui pane keys, kisui pane close), read the screen of a pane (kisui pane read), send a desktop notification when long work ends (kisui notify), and use the clipboard of the user's computer (kisui clipboard copy). Use it when you run in a kisui-terminal pane and the user wants to see a result, be told when something finishes, or get text onto their clipboard.
 ---
 
 # kisui-terminal
@@ -88,6 +88,15 @@ List the panes (terminals) of this machine, of every workspace and tab, not only
 ```sh
 kisui pane list
 kisui pane list --json
+```
+
+### kisui pane open --workspace <name> [--new] --name <name> [--cwd <folder>] [-- command ...]
+
+Add a terminal tab at the end of a workspace of the window (the workspaces in the sidebar; pointed at by the name shown there, such as `review` or `ws2`), and run the command in it (a shell when there is none). The tab is on this machine. `--name` (required) is the name of the pane of the new tab (the rules of `kisui pane title`; when the name is taken, no tab is made), so you can then point at it with `kisui pane send`, `kisui pane read` and the rest. `--cwd` is the folder to start in (the current folder by default). `--new` makes a new workspace of that name (refused when one has the name); without it, the workspace must exist, and it is refused when there is none, or more than one of that name. The focus does not move: the user keeps working where they are. The command runs in the primary pane of the tab: when it ends, the pane stays with its output, and `kisui pane close` refuses it (the user closes the tab). Put the command after `--`, so its own options are not read as the ones of `kisui pane open`. Use it to start another agent in a workspace of its own, then give it instructions with `kisui pane send` and read its answers with `kisui pane read`. Open tabs only when the user asks or the work needs it. It needs the window: it fails when the window is closed.
+
+```sh
+kisui pane open --workspace review --name reviewer -- claude
+kisui pane open --workspace experiment --new --name worker --cwd ~/src/app -- claude --model sonnet
 ```
 
 ### kisui pane send <name|id> <text>

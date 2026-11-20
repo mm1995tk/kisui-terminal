@@ -530,6 +530,46 @@ describe("プライマリの shj の欄（#553）", () => {
     await s.close();
   });
 
+  it("kisui pane open の pane.open を渡し、答えを pane.opened で送る（#343）", async () => {
+    const f = fakeShell({ serverIds: ["A"] });
+    const s = new Session(f.api, "h", fast);
+    const got: unknown[] = [];
+    s.onPane((e) => got.push(e));
+    s.start();
+    await waitFor(s, (st) => st.kind === "connected");
+    const id = connectedId(f);
+    const p = {
+      id: "o1",
+      workspace: "review",
+      new: true,
+      name: "reviewer",
+      dir: "/src",
+      argv: ["/bin/claude"],
+    };
+    f.emit(id, { jsonrpc: "2.0", method: "pane.open", params: p });
+    // 形の違うものは捨てる
+    f.emit(id, {
+      jsonrpc: "2.0",
+      method: "pane.open",
+      params: { ...p, argv: [1] },
+    });
+    f.emit(id, { jsonrpc: "2.0", method: "pane.open", params: { id: "o2" } });
+    await settle();
+    assert.deepEqual(got, [{ kind: "open-tab", ...p }]);
+    s.reportPaneOpened("o1", { termId: "t9" });
+    s.reportPaneOpened("o2", { error: "no" });
+    await settle();
+    const sent = f.sent.filter((x) => x.msg.method === "pane.opened");
+    assert.deepEqual(
+      sent.map((x) => x.msg.params),
+      [
+        { id: "o1", termId: "t9" },
+        { id: "o2", error: "no" },
+      ],
+    );
+    await s.close();
+  });
+
   it("プライマリの shj が欄を出した・隠した知らせを渡す（pane.show・pane.hide）", async () => {
     const f = fakeShell({ serverIds: ["A"] });
     const s = new Session(f.api, "h", fast);

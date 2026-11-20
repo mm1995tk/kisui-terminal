@@ -139,6 +139,12 @@ export function gwsOfTerm(
   return s.list.find((g) => g.tabs.some((r) => sameTerm(r, target, ws)));
 }
 
+/** 画面に出す名前（displayName）が name（前後の空白は落とす）のワークスペース（並びの順。`kisui pane open --workspace`）。 */
+export function gwsByName(s: GwsState, name: string): Gws[] {
+  const n = name.trim();
+  return n === "" ? [] : s.list.filter((g) => displayName(g) === n);
+}
+
 /** ブラウザのタブが入っているワークスペース。 */
 export function gwsOfBrowser(s: GwsState, id: string): Gws | undefined {
   return s.list.find((g) =>
@@ -484,7 +490,8 @@ export function addBrowser(s: GwsState, id: string, tab: string): GwsState {
 }
 
 /**
- * ターミナルのタブを、ワークスペース id の一番後ろに足す（「+」のメニューの「ターミナル」）。足したタブを最後に使っていたタブにする。
+ * ターミナルのタブを、ワークスペース id の一番後ろに足す（「+」のメニューの「ターミナル」）。足したタブを最後に使っていたタブにする
+ * （activate が false なら、最後に使っていたタブは変えない。ほかにターミナルのタブが無ければ、足したタブになる。`kisui pane open`）。
  * そのタブがもう同じワークスペースにあれば何もしない。作った直後にマシンの一覧の知らせが先に届いて、別のワークスペースとして入ってしまっていたら、
  * そこから外してこちらに入れる（そのワークスペースが空になれば、並びから外す）。
  */
@@ -494,6 +501,7 @@ export function addTerm(
   target: string,
   ws: WorkspaceId,
   title = "",
+  activate = true,
 ): GwsState {
   const home = s.list.find((g) => g.id === id);
   if (!home || sameGws(gwsOfTerm(s, target, ws), home)) return s;
@@ -508,7 +516,7 @@ export function addTerm(
         {
           ...g,
           tabs: [...g.tabs, { kind: "term", target, ws, title: name }],
-          term: { target, ws },
+          term: activate ? { target, ws } : (g.term ?? { target, ws }),
         },
       ];
     if (!g.tabs.some((r) => sameTerm(r, target, ws))) return [g];

@@ -18,6 +18,8 @@ import {
   type AttachInfo,
   type HelloResult,
   type Notifications,
+  type PaneOpenReport,
+  type PaneOpenRequest,
   type Requests,
   type TermId,
   type UpdateReport,
@@ -135,7 +137,9 @@ export type PaneEvent =
   | { kind: "explorer"; workspaceId: WorkspaceId; start?: boolean }
   | { kind: "changes"; workspaceId: WorkspaceId }
   /** `kisui update`（#94）。新しい版を調べ直して答える（reportUpdate）。欄の知らせではないが、serve からの欄の中のコマンドの知らせなので同じ道で渡す */
-  | { kind: "update-check"; id: string };
+  | { kind: "update-check"; id: string }
+  /** `kisui pane open`（#343）。ワークスペースにターミナルのタブを足して答える（reportPaneOpened）。同じく欄の中のコマンドの知らせ */
+  | ({ kind: "open-tab" } & PaneOpenRequest);
 
 /** 1, 2, 4, 8, 16, 30 秒…（最後の値を繰り返す）。10 回で待ちは合わせて 151 秒ほど（ssh の接続待ちは別）。 */
 export const DEFAULT_DELAYS = [1000, 2000, 4000, 8000, 16000, 30000];
@@ -257,10 +261,22 @@ export class Session {
    */
   async createWorkspace(
     dir?: string,
+    cmd?: { argv?: string[]; env?: string[]; name: string },
   ): Promise<{ id: WorkspaceId; termId: TermId }> {
     const conn = this.conn;
     if (!conn)
       throw new Error(T("err.session.notConnected", { machine: this.target }));
+    if (cmd) {
+      // 古い kisui serve は argv・name を知らずにシェルを始めるので、送らずに断る
+      if (!hasCapability(conn.hello, "workspace.create.command"))
+        throw new Error(T("err.session.tooOld", { machine: this.target }));
+      return conn.client.request("workspace.create", {
+        ...(dir ? { dir } : {}),
+        ...(cmd.argv?.length ? { argv: cmd.argv } : {}),
+        ...(cmd.env?.length ? { env: cmd.env } : {}),
+        name: cmd.name,
+      });
+    }
     return conn.client.request("workspace.create", dir ? { dir } : {});
   }
 
@@ -311,6 +327,11 @@ export class Session {
   /** `kisui update` への答え（update.result）を今の接続で送る。つながっていなければ何もしない（serve は時間切れで断る）。 */
   reportUpdate(id: string, outcome: UpdateReport): void {
     this.conn?.client.notify("update.result", { ...outcome, id });
+  }
+
+  /** `kisui pane open` への答え（pane.opened）を今の接続で送る。つながっていなければ何もしない（serve は時間切れで断る）。 */
+  reportPaneOpened(id: string, report: PaneOpenReport): void {
+    this.conn?.client.notify("pane.opened", { ...report, id });
   }
 
   /** tree.changed（開いているフォルダの中身が変わった）。つなぎ直しても外れない。 */
@@ -659,6 +680,12 @@ export class Session {
         for (const h of [...this.paneHandlers])
           h({ kind: "update-check", id: n.id });
       }),
+      conn.client.on("pane.open", (n) => {
+        if (gen !== this.generation || this.conn !== conn) return;
+        const ev = parsePaneOpen(n);
+        if (!ev) return;
+        for (const h of [...this.paneHandlers]) h({ kind: "open-tab", ...ev });
+      }),
       conn.client.on("changes.focus", (n) => {
         if (gen !== this.generation || this.conn !== conn) return;
         if (typeof n?.workspaceId !== "string") return;
@@ -755,6 +782,33 @@ export function needsHandover(
   if (!a || !hasCapability(conn.hello, "server.handover")) return false;
   const s = conn.hello.shj;
   return a.version !== s.version || a.commit !== s.commit;
+}
+
+/** pane.open の中身を確かめる。形が違えば undefined（答えようがないので捨てる。serve は時間切れで断る）。 */
+export function parsePaneOpen(n: unknown): PaneOpenRequest | undefined {
+  if (typeof n !== "object" || n === null) return undefined;
+  const p = n as Record<string, unknown>;
+  const strings = (v: unknown): v is string[] =>
+    Array.isArray(v) && v.every((x) => typeof x === "string");
+  if (
+    typeof p.id !== "string" ||
+    typeof p.workspace !== "string" ||
+    typeof p.name !== "string" ||
+    typeof p.dir !== "string" ||
+    (p.new !== undefined && typeof p.new !== "boolean") ||
+    (p.argv !== undefined && !strings(p.argv)) ||
+    (p.env !== undefined && !strings(p.env))
+  )
+    return undefined;
+  return {
+    id: p.id,
+    workspace: p.workspace,
+    name: p.name,
+    dir: p.dir,
+    ...(p.new === true ? { new: true } : {}),
+    ...(p.argv !== undefined ? { argv: p.argv as string[] } : {}),
+    ...(p.env !== undefined ? { env: p.env as string[] } : {}),
+  };
 }
 
 /** 引き継がれたあとの古い接続が要求したときのエラー（not_owner）か。 */

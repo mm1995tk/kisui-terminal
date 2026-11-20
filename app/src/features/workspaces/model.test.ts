@@ -25,6 +25,7 @@ import {
   GWS_KEY,
   gwsOfBrowser,
   gwsOfDb,
+  gwsByName,
   gwsOfTerm,
   hiddenGws,
   loadGws,
@@ -121,6 +122,40 @@ describe("ワークスペースの操作", () => {
     assert.deepEqual(s.list[1].term, { target: "b", ws: "w9" });
     assert.equal(addTerm(s, "g2", "b", "w9"), s); // もう入っている
     assert.equal(addTerm(s, "nope", "b", "w8"), s);
+  });
+
+  it("activate が false なら、最後に使っていたタブを変えない（ほかにターミナルのタブが無ければ、足したタブ。kisui pane open）", () => {
+    const s = addTerm(two(), "g2", "b", "w9", "", false);
+    assert.deepEqual(s.list[1].tabs, [term("a", "w3"), term("b", "w9", "")]);
+    assert.deepEqual(s.list[1].term, { target: "a", ws: "w3" });
+    const e = addTerm(
+      addEmptyWorkspace(two(), "", "g3"),
+      "g3",
+      "b",
+      "w9",
+      "",
+      false,
+    );
+    assert.deepEqual(e.list[2].term, { target: "b", ws: "w9" });
+  });
+
+  it("画面に出す名前でワークスペースを探す（kisui pane open --workspace）", () => {
+    let s = rename(two(), "g1", "review");
+    assert.deepEqual(
+      gwsByName(s, " review ").map((g) => g.id),
+      ["g1"],
+    );
+    assert.deepEqual(
+      gwsByName(s, "ws2").map((g) => g.id),
+      ["g2"],
+    );
+    assert.deepEqual(gwsByName(s, "ws1"), []);
+    assert.deepEqual(gwsByName(s, ""), []);
+    s = rename(s, "g2", "review");
+    assert.deepEqual(
+      gwsByName(s, "review").map((g) => g.id),
+      ["g1", "g2"],
+    );
   });
 
   it("作った直後に別のワークスペースとして入っていたら、そこから移す（空になれば並びから外す）", () => {

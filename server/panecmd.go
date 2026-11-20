@@ -93,8 +93,8 @@ func (s *Server) paneCmdConn(c net.Conn, line []byte) {
 		return
 	}
 	r, err := s.paneCmd(rq)
-	if w, ok := errors.AsType[*updateWaiting](err); ok {
-		// kisui update は GUI の答えを待つ。答え（update.result）も読みロックを取るので、待つ間は手放す
+	if w, ok := errors.AsType[*windowWaiting](err); ok {
+		// kisui update・kisui pane open は GUI の答えを待つ。答え（update.result・pane.opened）も読みロックを取るので、待つ間は手放す
 		// （引き継ぎの書きロックが待っていても詰まらないように）
 		s.opMu.RUnlock()
 		r, err = w.wait()
@@ -143,6 +143,8 @@ func (s *Server) paneCmd(rq panecmd.Request) (panecmd.Reply, error) {
 		}
 		id, err := s.ws.addExtra(wsID, nil, e)
 		return panecmd.Reply{ID: id}, err
+	case "open-tab":
+		return s.paneOpenStart(t, rq)
 	case "split":
 		id, err := s.ws.splitFrom(wsID, rq)
 		return panecmd.Reply{ID: id}, err
@@ -222,17 +224,9 @@ func (w *wsManager) splitFrom(wsID string, rq panecmd.Request) (string, error) {
 	if !validSplitDir(rq.Dir) {
 		return "", fmt.Errorf("%w: %q", errBadDir, rq.Dir)
 	}
-	env, err := validEnv(rq.Env)
+	env, err := validCommand(rq.Argv, rq.Env)
 	if err != nil {
 		return "", err
-	}
-	if len(rq.Argv) > 0 && !filepath.IsAbs(rq.Argv[0]) {
-		return "", fmt.Errorf("not an absolute path: %s", rq.Argv[0])
-	}
-	for _, a := range rq.Argv {
-		if strings.ContainsRune(a, 0) {
-			return "", errors.New("the command has a NUL character")
-		}
 	}
 	dir := ""
 	if fi, err := os.Stat(rq.Cwd); rq.Cwd != "" && err == nil && fi.IsDir() {
@@ -273,4 +267,22 @@ func (w *wsManager) splitFrom(wsID string, rq panecmd.Request) (string, error) {
 	w.recomputeLocked() // workspace.changed が先に届くので、GUI は欄を知っている
 	w.srv.notifyOwner("pane.show", map[string]any{"workspaceId": wsID, "termId": t.id})
 	return t.id, nil
+}
+
+// validCommand は、新しいペインで動かすコマンド argv（空ならシェル。最初の語は絶対パス）と環境変数 env（"NAME=value"）を
+// 確かめ、env を返す（kisui pane split・kisui pane open）。
+func validCommand(argv, env []string) ([]string, error) {
+	e, err := validEnv(env)
+	if err != nil {
+		return nil, err
+	}
+	if len(argv) > 0 && !filepath.IsAbs(argv[0]) {
+		return nil, fmt.Errorf("not an absolute path: %s", argv[0])
+	}
+	for _, a := range argv {
+		if strings.ContainsRune(a, 0) {
+			return nil, errors.New("the command has a NUL character")
+		}
+	}
+	return e, nil
 }
