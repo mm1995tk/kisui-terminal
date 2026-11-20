@@ -14,6 +14,8 @@ export interface DbPage {
   back: readonly number[];
   /** 並べ替えている列（無ければ元の順。ページを切り替えても続く。#377） */
   sort?: DbSort;
+  /** 実行したときのタブの既定のスキーマ（#378。db.query の schema）。ページを切り替えても、あとで木で選び直しても、この結果の続きは同じスキーマで読む */
+  schema?: string;
 }
 
 /** ページを切り替える向き。 */
@@ -125,4 +127,41 @@ export function ariaSort(
 ): "ascending" | "descending" | undefined {
   if (!cur || cur.column !== column) return undefined;
   return cur.desc ? "descending" : "ascending";
+}
+
+// ---- 送る SQL と、その続き ----
+
+/** 入力欄から実行した SQL の、先頭のページ。schema は、そのときのタブの既定のスキーマ（#378。無ければ付けない）。 */
+export function firstPage(sql: string, schema?: string): DbPage {
+  return { sql, back: [], ...(schema ? { schema } : {}) };
+}
+
+/** page の結果から、前のページの offset が back のページへ移ったときの DbPage（SQL・並べ替え・スキーマは引き継ぐ）。 */
+export function steppedPage(page: DbPage, back: readonly number[]): DbPage {
+  return { ...page, back };
+}
+
+/** page の結果を sort で並べ替え直したときの DbPage（先頭のページから。sort が無ければ元の順。SQL とスキーマは引き継ぐ）。 */
+export function sortedPage(page: DbPage, sort: DbSort | undefined): DbPage {
+  const { sort: _, ...rest } = page;
+  return { ...rest, back: [], ...(sort ? { sort } : {}) };
+}
+
+/**
+ * page を offset から読む db.query の引数のうち、ページの分（接続・queryId を除く）。rerun は、結果を出した SQL を読み直すだけの実行
+ * （履歴に残さない）。スキーマ（#378）は、ログインが文ごとなので毎回付ける。
+ */
+export function pageParams(page: DbPage, offset: number, rerun: boolean) {
+  return {
+    sql: page.sql,
+    ...(offset > 0 ? { offset } : {}),
+    ...(page.sort
+      ? {
+          orderBy: page.sort.column + 1,
+          ...(page.sort.desc ? { desc: true } : {}),
+        }
+      : {}),
+    ...(page.schema ? { schema: page.schema } : {}),
+    ...(rerun ? { rerun: true as const } : {}),
+  };
 }

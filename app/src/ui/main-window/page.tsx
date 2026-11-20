@@ -302,6 +302,10 @@ function MainWindow(props: {
             },
             onToggle: (node, open) => db.toggleNode(id, node, open),
             onPreview: (schema, table) => db.previewTable(id, schema, table),
+            get defaultSchema() {
+              return db.defaultSchemaOf(id);
+            },
+            onDefaultSchema: (schema) => db.setDefaultSchema(id, schema),
             onReload: () => void db.reloadCatalog(id),
             // Esc：キーを SQL の入力欄に戻す（DB のタブを出していれば、focusTerminal が入力欄に向ける）
             onLeave: focusTerminal,

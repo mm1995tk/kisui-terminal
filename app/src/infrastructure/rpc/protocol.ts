@@ -492,6 +492,8 @@ export interface Requests {
       desc?: boolean;
       /** 前に実行した SQL を読み直すだけの実行（ページ・並べ替え・並べ替えをやめる）：履歴に残さない（offset か orderBy があれば付けなくても残さない） */
       rerun?: boolean;
+      /** スキーマを書かない名前を先に探すスキーマ（#378）：PostgreSQL は search_path の先頭に足し、MySQL は USE する。省けば DB の既定のまま */
+      schema?: string;
       queryId?: string;
       actor?: "human" | "agent";
     };

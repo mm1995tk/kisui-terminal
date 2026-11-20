@@ -91,6 +91,13 @@ func (s *mySession) Query(ctx context.Context, query string, o QueryOptions) (*R
 	// qctx is ended only by the stopper's hard step (see stopper).
 	qctx, hard := context.WithCancel(context.Background())
 	defer hard()
+	if o.Schema != "" {
+		// USE (#378) takes no parameters, so the name is quoted: it is one
+		// database whatever its letters.
+		if _, err := s.conn.ExecContext(qctx, "USE "+myQuoteIdent(o.Schema)); err != nil {
+			return nil, myError(err)
+		}
+	}
 	if s.readOnly {
 		if err := s.beginReadOnly(qctx); err != nil {
 			return nil, myError(err)
@@ -121,6 +128,11 @@ func (s *mySession) Query(ctx context.Context, query string, o QueryOptions) (*R
 		col.res.RowsAffected = s.rowsAffected(qctx)
 	}
 	return finish(config.DBMySQL, given, o, col.res), nil
+}
+
+// myQuoteIdent quotes a name for MySQL (`…`, with ` inside doubled).
+func myQuoteIdent(name string) string {
+	return "`" + strings.ReplaceAll(name, "`", "``") + "`"
 }
 
 // myColumns describes the columns of a result.

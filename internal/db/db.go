@@ -64,6 +64,13 @@ type QueryOptions struct {
 	// order. It fails like Offset when the statement cannot be wrapped.
 	OrderBy int
 	Desc    bool
+	// Schema, when not "", is where the statement looks first for the names
+	// it does not qualify with a schema (#378): PostgreSQL puts it before the
+	// search_path of the login, MySQL runs USE with it. It is set before
+	// every statement, because each statement has a login of its own (see
+	// the package comment); what the statement itself sets (SET search_path,
+	// USE) still ends with its login.
+	Schema string
 	// rowLimit, when above 0, is the most rows instead of MaxRows, with no
 	// upper bound. Only the queries of this package set it (ReadCatalog),
 	// for lists that are long but small per row.

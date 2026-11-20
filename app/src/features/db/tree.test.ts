@@ -9,7 +9,9 @@ import {
   schemaId,
   tableId,
   treeStep,
+  keepDefaultSchema,
   visibleRows,
+  withDefaultSchema,
 } from "./tree.ts";
 
 const catalog: DbCatalog = {
@@ -129,12 +131,18 @@ describe("treeStep（木のキーの動き）", () => {
     assert.deepEqual(treeStep(rows, id("empty"), "collapse"), {});
   });
 
-  it("Enter：スキーマは開け閉め、テーブル・ビューは中身を見る、列は何もしない", () => {
+  it("Enter：スキーマは既定のスキーマにする、テーブル・ビューは中身を見る、列は何もしない", () => {
+    // 開いているスキーマは開いたまま、閉じているスキーマは開ける（#378）
     assert.deepEqual(treeStep(rows, id("public"), "enter"), {
-      toggle: { id: "public", open: false },
+      setDefaultSchema: "public",
     });
-    assert.deepEqual(treeStep(rows, id("empty"), "enter"), {
+    assert.deepEqual(treeStep(rows, id("empty"), "enter", "public"), {
+      setDefaultSchema: "empty",
       toggle: { id: "empty", open: true },
+    });
+    // もう既定のスキーマなら、既定をやめる（開け閉めはしない）
+    assert.deepEqual(treeStep(rows, id("public"), "enter", "public"), {
+      setDefaultSchema: null,
     });
     assert.deepEqual(treeStep(rows, id("users"), "enter"), {
       preview: { schema: "public", table: "users" },
@@ -167,5 +175,42 @@ describe("previewSql（テーブルを選んだときの SQL）", () => {
     assert.equal(quoteIdent("postgres", 'a"b'), '"a""b"');
     assert.equal(quoteIdent("mysql", "a`b"), "`a``b`");
     assert.equal(quoteIdent("mysql", 'a"b'), '`a"b`');
+  });
+});
+
+describe("withDefaultSchema（タブの既定のスキーマ。#378）", () => {
+  it("選んだタブの分だけを変え、ほかのタブの分は残す", () => {
+    const all = { a: "app", b: "public" };
+    assert.deepEqual(withDefaultSchema(all, "a", "audit"), {
+      a: "audit",
+      b: "public",
+    });
+    assert.deepEqual(withDefaultSchema(all, "c", "x"), {
+      a: "app",
+      b: "public",
+      c: "x",
+    });
+    assert.deepEqual(all, { a: "app", b: "public" });
+  });
+
+  it("null はそのタブの分を除く（DB の既定に戻す）", () => {
+    assert.deepEqual(withDefaultSchema({ a: "app", b: "x" }, "a", null), {
+      b: "x",
+    });
+    assert.deepEqual(withDefaultSchema({}, "a", null), {});
+  });
+});
+
+describe("keepDefaultSchema（読み直したあとも既定のスキーマを残すか。#378）", () => {
+  it("一覧にあれば残し、無ければ捨てる", () => {
+    assert.equal(keepDefaultSchema(catalog, "empty"), true);
+    assert.equal(keepDefaultSchema(catalog, "gone"), false);
+  });
+
+  it("一覧が途中で切れていれば、無くても残す（無いとは言えない）", () => {
+    assert.equal(
+      keepDefaultSchema({ ...catalog, truncated: true }, "gone"),
+      true,
+    );
   });
 });

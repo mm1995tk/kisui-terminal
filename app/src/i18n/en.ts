@@ -652,6 +652,9 @@ export const en = {
   "place.dbResult.sort":
     "Sort by the column of the selected cell (each press: ascending, descending, none)",
   "cannot.db.title": "Cannot open a database tab",
+  "cannot.dbSchema.title": "Cannot choose a default schema",
+  "cannot.dbSchema.oldServe":
+    "The kisui serve of this machine is an older version that does not know default schemas (it would ignore the choice and run in the default schema of the database). Choose it after it is replaced by the version of kisui-terminal.",
   "leader.db.tree": "Move the keys to the schema tree in the sidebar",
   "leader.db.refresh": "Reload the schema tree",
   "cannot.dbTree.title": "No database tab is shown",
@@ -661,7 +664,8 @@ export const en = {
     "Keys in the schema tree in the sidebar, which takes the place of the file tree while a database tab is shown. Choosing a table runs SELECT * on it (first 100 rows).",
   "place.dbTree.expand": "Open the branch (or go into it)",
   "place.dbTree.collapse": "Close the branch (or go up)",
-  "place.dbTree.enter": "Open or close a schema, show the rows of a table",
+  "place.dbTree.enter":
+    "Make a schema the default of the tab (or stop if it already is), show the rows of a table",
   "place.dbTree.back": "Back to the SQL input",
   "db.tree.title": "Schemas",
   "db.tree.label": "Schemas, tables and columns",
@@ -669,6 +673,10 @@ export const en = {
   "db.tree.loading": "Loading the schemas…",
   "db.tree.empty": "No schemas",
   "db.tree.view": "view",
+  "db.tree.defaultBadge": "default",
+  "db.tree.clearDefault": "Stop",
+  "db.tree.defaultSchema":
+    "Default schema: {schema} (tables named without a schema are looked for here)",
   "db.tree.truncated": "The list is cut because there are too many columns.",
   "db.tree.passwordCancelled":
     "The list was not loaded because the password was not given. Press Reload to try again.",

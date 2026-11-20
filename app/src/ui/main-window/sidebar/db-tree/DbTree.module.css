@@ -96,3 +96,16 @@
   color: var(--color-text-dim);
   font-size: var(--text-caption);
 }
+
+/* タブの既定のスキーマの印（#378） */
+.badge[data-default] {
+  color: var(--color-accent);
+}
+
+/* 既定のスキーマの行と、それをやめるボタン（#378） */
+.defaultSchema {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-8);
+}

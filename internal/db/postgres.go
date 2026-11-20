@@ -102,6 +102,11 @@ func (s *pgSession) Query(ctx context.Context, sql string, o QueryOptions) (*Res
 	// qctx is ended only by the stopper's hard step (see stopper).
 	qctx, hard := context.WithCancel(context.Background())
 	defer hard()
+	// Before BEGIN: a setting made in a transaction that is rolled back is
+	// undone with it.
+	if err := s.useSchema(qctx, o.Schema); err != nil {
+		return nil, pgError(err)
+	}
 	if s.readOnly {
 		if err := s.exec(qctx, "BEGIN READ ONLY"); err != nil {
 			return nil, pgError(err)
@@ -145,6 +150,39 @@ func (s *pgSession) Query(ctx context.Context, sql string, o QueryOptions) (*Res
 		}
 	}
 	return finish(config.DBPostgres, given, o, col.res), nil
+}
+
+// useSchema puts schema first in the search_path of the session (#378), so
+// that a name with no schema is looked for there first. The search_path the
+// login had stays after it, so that what is found through it (the functions
+// of an extension in public, for example) is still found. Nothing is done
+// when schema is "".
+func (s *pgSession) useSchema(ctx context.Context, schema string) error {
+	if schema == "" {
+		return nil
+	}
+	// The name is quoted, so that it is one schema whatever its letters, and
+	// is sent as a parameter, not written into the statement.
+	const q = `SELECT pg_catalog.set_config('search_path',
+		CASE WHEN pg_catalog.current_setting('search_path') = '' THEN $1
+		ELSE $1 || ', ' || pg_catalog.current_setting('search_path') END, false)`
+	return s.execParams(ctx, q, pgQuoteIdent(schema))
+}
+
+// execParams runs a statement of our own with text parameters and throws its
+// rows away.
+func (s *pgSession) execParams(ctx context.Context, sql string, params ...string) error {
+	values := make([][]byte, len(params))
+	for i, p := range params {
+		values[i] = []byte(p)
+	}
+	_, err := s.conn.ExecParams(ctx, sql, values, nil, nil, nil).Close()
+	return err
+}
+
+// pgQuoteIdent quotes a name for PostgreSQL ("…", with " inside doubled).
+func pgQuoteIdent(name string) string {
+	return `"` + strings.ReplaceAll(name, `"`, `""`) + `"`
 }
 
 // pgColumns describes the columns of a result, with the names of the types

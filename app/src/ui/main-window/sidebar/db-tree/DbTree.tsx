@@ -1,5 +1,5 @@
 // DB のタブ（#347）を出している間に、サイドバーのファイルツリーの場所に出す、そのタブの接続の木。
-// スキーマ → テーブル（ビューを含む）→ 列（名前と型）を出す。
+// スキーマ → テーブル（ビューを含む）→ 列（名前と型）を出す。スキーマを選ぶと、そのタブの既定のスキーマになる（#378）。
 // 一覧（db.schema の答え）と、開けている枝は features/db/controller.ts が持つ。ここは出すことと、木の中のキー・クリックだけ。
 // キーの判定は features/db/keys.ts の dbTreeKey、行き先は features/db/tree.ts の treeStep。
 import { T } from "../../../../i18n/index.ts";
@@ -19,6 +19,7 @@ import {
   treeStep,
   visibleRows,
   type TreeRow,
+  type TreeStep,
 } from "../../../../features/db/tree.ts";
 import { Button } from "../../../components/Button.tsx";
 import styles from "./DbTree.module.css";
@@ -31,6 +32,10 @@ export interface DbTreeProps {
   onToggle: (node: string, open: boolean) => void;
   /** テーブル（ビュー）を選んだ：その中身を見る */
   onPreview: (schema: string, table: string) => void;
+  /** タブの既定のスキーマ（#378。選んでいなければ undefined） */
+  defaultSchema: string | undefined;
+  /** スキーマを選んだ：タブの既定のスキーマにする（null なら、やめて DB の既定に戻す） */
+  onDefaultSchema: (schema: string | null) => void;
   onReload: () => void;
   /** キーを SQL の入力欄に戻す */
   onLeave: () => void;
@@ -63,10 +68,16 @@ export function DbTree(props: DbTreeProps): JSX.Element {
     el?.scrollIntoView?.({ block: "nearest" });
   });
 
-  function enter(r: TreeRow) {
-    const s = treeStep(rows(), r.id, "enter");
+  /** treeStep の結果のうち、行を動かす以外のこと（開け閉め・中身を見る・既定のスキーマ）を行う。 */
+  function apply(s: TreeStep) {
     if (s.toggle) props.onToggle(s.toggle.id, s.toggle.open);
     if (s.preview) props.onPreview(s.preview.schema, s.preview.table);
+    if (s.setDefaultSchema !== undefined)
+      props.onDefaultSchema(s.setDefaultSchema);
+  }
+
+  function enter(r: TreeRow) {
+    apply(treeStep(rows(), r.id, "enter", props.defaultSchema));
   }
 
   function onKeyDown(e: KeyboardEvent) {
@@ -76,11 +87,10 @@ export function DbTree(props: DbTreeProps): JSX.Element {
     if (!a) return;
     e.preventDefault();
     e.stopPropagation();
-    const s = treeStep(rows(), cursor(), a);
+    const s = treeStep(rows(), cursor(), a, props.defaultSchema);
     if (s.leave) props.onLeave();
     if (s.cursor !== undefined) setCursor(s.cursor);
-    if (s.toggle) props.onToggle(s.toggle.id, s.toggle.open);
-    if (s.preview) props.onPreview(s.preview.schema, s.preview.table);
+    apply(s);
   }
 
   return (
@@ -104,6 +114,18 @@ export function DbTree(props: DbTreeProps): JSX.Element {
           {T("db.tree.reload")}
         </Button>
       </div>
+      <Show when={props.defaultSchema}>
+        {(s) => (
+          <div class={styles.defaultSchema} data-default-schema>
+            <p class={styles.note}>
+              {T("db.tree.defaultSchema", { schema: s() })}
+            </p>
+            <Button onClick={() => props.onDefaultSchema(null)}>
+              {T("db.tree.clearDefault")}
+            </Button>
+          </div>
+        )}
+      </Show>
       <Show when={props.catalog.error}>
         {(m) => (
           <p class={styles.error} role="alert">
@@ -160,6 +182,15 @@ export function DbTree(props: DbTreeProps): JSX.Element {
                     <span class={styles.label}>{r.label}</span>
                     <Show when={r.type}>
                       {(t) => <span class={styles.type}>{t()}</span>}
+                    </Show>
+                    <Show
+                      when={
+                        r.kind === "schema" && r.schema === props.defaultSchema
+                      }
+                    >
+                      <span class={styles.badge} data-default>
+                        {T("db.tree.defaultBadge")}
+                      </span>
                     </Show>
                     <Show when={r.kind === "view"}>
                       <span class={styles.badge}>{T("db.tree.view")}</span>
