@@ -53,6 +53,10 @@ export function createDbTree(deps: {
   isRunning: (id: string) => boolean;
   /** 実行中の要求を db.cancel で取り消す */
   cancelQuery: (q: { queryId: string; target: string }) => void;
+  /** ref のマシンの kisui serve が、db.query の schema を読むか（capabilities の db-schema。#378） */
+  schemaSupported: (ref: Pick<DbRef, "target">) => boolean;
+  /** できないことを伝える（タイトルと理由） */
+  fail: (title: string, text: string) => void;
 }) {
   const { refOf, sessionFor, request, shownDbTab } = deps;
 
@@ -111,8 +115,17 @@ export function createDbTree(deps: {
   const [schemas, setSchemas] = createSignal<Readonly<Record<string, string>>>(
     {},
   );
-  /** タブ id の既定のスキーマを schema にする（null なら、やめて DB の既定に戻す）。 */
+  /**
+   * タブ id の既定のスキーマを schema にする（null なら、やめて DB の既定に戻す）。
+   * schema を知らない古い kisui serve は、それを黙って無視して DB の既定のスキーマで実行する（書き込む文も）ので、
+   * そのマシンのタブでは選ばせず、理由を伝える。
+   */
   function setDefaultSchema(id: string, schema: string | null) {
+    const ref = refOf(id);
+    if (schema !== null && (!ref || !deps.schemaSupported(ref))) {
+      deps.fail(T("cannot.dbSchema.title"), T("cannot.dbSchema.oldServe"));
+      return;
+    }
     setSchemas(({ [id]: _, ...rest }) =>
       schema === null ? rest : { ...rest, [id]: schema },
     );

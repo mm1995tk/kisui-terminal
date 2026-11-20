@@ -392,6 +392,11 @@ export function createDbTabs(deps: {
     run,
     isRunning: (id) => !!untrack(runs)[id]?.running,
     cancelQuery,
+    schemaSupported: (ref) => {
+      const st = untrack(states)[ref.target];
+      return st?.kind === "connected" && hasCapability(st.hello, "db-schema");
+    },
+    fail: cannot,
   });
 
   // ---- 結果の書き出しと、クエリの履歴（#349） ----

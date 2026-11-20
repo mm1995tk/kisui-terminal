@@ -652,6 +652,9 @@ export const en = {
   "place.dbResult.sort":
     "Sort by the column of the selected cell (each press: ascending, descending, none)",
   "cannot.db.title": "Cannot open a database tab",
+  "cannot.dbSchema.title": "Cannot choose a default schema",
+  "cannot.dbSchema.oldServe":
+    "The kisui serve of this machine is an older version that does not know default schemas (it would ignore the choice and run in the default schema of the database). Choose it after it is replaced by the version of kisui-terminal.",
   "leader.db.tree": "Move the keys to the schema tree in the sidebar",
   "leader.db.refresh": "Reload the schema tree",
   "cannot.dbTree.title": "No database tab is shown",

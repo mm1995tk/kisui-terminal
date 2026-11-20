@@ -647,6 +647,9 @@ export const ja: Record<Key, string> = {
   "place.dbResult.sort":
     "選んだセルの列で並べ替える（押すたびに 昇順 → 降順 → なし）",
   "cannot.db.title": "DB のタブを開けません",
+  "cannot.dbSchema.title": "既定のスキーマを選べません",
+  "cannot.dbSchema.oldServe":
+    "このマシンの kisui serve は既定のスキーマを知らない古い版です（選んでも無視され、DB の既定のスキーマで実行されます）。kisui-terminal と同じ版に入れ替わってから選んでください。",
   "leader.db.tree": "サイドバーのスキーマの木にキーを向ける",
   "leader.db.refresh": "スキーマの木を読み直す",
   "cannot.dbTree.title": "DB のタブを出していません",

@@ -22,6 +22,10 @@ const CapDB = "db"
 // エージェントとして頼む側（kisui db のコマンド）は、この印を確かめてから送る。
 const CapDBPermissions = "db-permissions"
 
+// CapDBSchema は capabilities に入れる、db.query の schema（タブの既定のスキーマ。#378）を読む印。この印の無い kisui serve は
+// schema を黙って無視し、DB の既定のスキーマで実行する（書き込む文も）ので、窓は印を確かめてから既定のスキーマを選ばせる。
+const CapDBSchema = "db-schema"
+
 // dbMaxRunning は同時に動かせる db.query の数。超えたら busy。
 const dbMaxRunning = 8
 
