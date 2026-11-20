@@ -250,8 +250,13 @@ function ResultTable(props: {
     );
     dragging = true;
   }
-  function enter(pos: CellPos) {
+  function enter(e: PointerEvent, pos: CellPos) {
     if (!dragging) return;
+    // 窓の外で離して pointerup が届かなかったときの備え：今ボタンが押されていなければ、ドラッグは終わっている
+    if ((e.buttons & 1) === 0) {
+      dragging = false;
+      return;
+    }
     setRange((cur) => (cur ? { anchor: cur.anchor, focus: pos } : cur));
   }
   function keydown(e: KeyboardEvent) {
@@ -303,7 +308,7 @@ function ResultTable(props: {
                           }
                           title={v !== null && v !== text ? v : undefined}
                           onPointerDown={(e) => down(e, pos())}
-                          onPointerEnter={() => enter(pos())}
+                          onPointerEnter={(e) => enter(e, pos())}
                         >
                           {text ?? "NULL"}
                         </td>
