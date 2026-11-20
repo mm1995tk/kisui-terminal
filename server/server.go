@@ -63,6 +63,8 @@ type Options struct {
 	DBConnections func() ([]config.DBConnection, []config.Problem)
 	// DBPasswords は DB の接続のパスワードを探すもの。nil なら OS のキーチェーンと ~/.pgpass・~/.my.cnf を見る。
 	DBPasswords *db.Passwords
+	// DBHistoryDir は DB の接続ごとの SQL の履歴を置くフォルダ（DBHistoryDir()）。"" なら履歴を残さない。
+	DBHistoryDir string
 }
 
 // Server は Unix ソケットで待ち受けるサーバー。
@@ -87,6 +89,7 @@ type Server struct {
 	primary    *primaryServer                    // プライマリの shj の知らせを受ける口（Serve で開く）
 	updates    windowWaits[panecmd.UpdateResult] // kisui update が GUI の答えを待っている（update.go）
 	opens      windowWaits[paneOpenResult]       // kisui pane open が GUI の答えを待っている（paneopen.go）
+	relays     windowWaits[paneRelayResult]      // kisui pane の --machine が GUI の答えを待っている（panerelay.go）
 	db         *dbManager                        // db.* の要求が使うもの（db.go）
 
 	// opMu は、状態を変える仕事（GUI の要求・shj の名乗りと欄の頼み・定期の見回り）を読みロックで、
@@ -141,6 +144,7 @@ func newServer(opts Options, ln *net.UnixListener) *Server {
 		sessions: map[*session]struct{}{},
 		updates:  windowWaits[panecmd.UpdateResult]{prefix: "u"},
 		opens:    windowWaits[paneOpenResult]{prefix: "o"},
+		relays:   windowWaits[paneRelayResult]{prefix: "r"},
 	}
 	srv.terms = newTermManager(srv)
 	srv.ws = newWSManager(srv)
@@ -366,6 +370,8 @@ func (ss *session) handle(ctx context.Context, req *rpc.Message) (any, error) {
 			ss.updateNotify(req.Params)
 		case "pane.opened":
 			ss.paneOpenedNotify(req.Params)
+		case "pane.relayed":
+			ss.paneRelayedNotify(req.Params)
 		}
 		return nil, nil // 知らない通知は無視する
 	}
@@ -390,6 +396,8 @@ func (ss *session) handle(ctx context.Context, req *rpc.Message) (any, error) {
 	switch req.Method {
 	case "session.hello":
 		return ss.helloReq(req)
+	case "pane.run":
+		return ss.paneRunReq(req)
 	case "session.ping":
 		return struct{}{}, nil
 	case "session.bye":
@@ -492,7 +500,7 @@ func (ss *session) helloReq(req *rpc.Message) (any, error) {
 		ServerID:     s.serverID,
 		StartedAt:    s.startedAt,
 		Supersedes:   sup,
-		Capabilities: []string{CapHandover, CapDB, CapCreateCommand},
+		Capabilities: []string{CapHandover, CapDB, CapCreateCommand, CapPaneRun},
 		Workspaces:   wsl,
 		Rev:          s.currentRev(),
 	}, nil

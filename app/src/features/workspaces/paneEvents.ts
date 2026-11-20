@@ -2,6 +2,8 @@
 import type {
   PaneOpenReport,
   PaneOpenRequest,
+  PaneRunReply,
+  PaneRunRequest,
   WorkspaceId,
 } from "../../infrastructure/rpc/protocol.ts";
 import type { PaneEvent, Session } from "../sessions/session.ts";
@@ -25,6 +27,8 @@ export interface PaneEventTargets {
   checkNow(): Promise<UpdateOutcome>;
   /** マシン target に、ワークスペースのターミナルのタブを開く（`kisui pane open`。投げずに、開けなければ理由を返す） */
   openTab(target: string, rq: PaneOpenRequest): Promise<PaneOpenReport>;
+  /** 別のマシン machine のペインへの頼みを中継する（`kisui pane … --machine`。投げずに、できなければ理由を返す） */
+  relay(machine: string, rq: PaneRunRequest): Promise<PaneRunReply>;
   /** プライマリ以外の欄を隠す・戻す */
   zoomWs(target: string, id: WorkspaceId, on: boolean | "toggle"): boolean;
 }
@@ -34,7 +38,7 @@ export function routePaneEvent(
   to: PaneEventTargets,
   target: string,
   ev: PaneEvent,
-  s: Pick<Session, "reportUpdate" | "reportPaneOpened">,
+  s: Pick<Session, "reportUpdate" | "reportPaneOpened" | "reportPaneRelayed">,
 ): void {
   if (ev.kind === "show") to.paneShow(target, ev.workspaceId, ev.termId);
   else if (ev.kind === "show-extra")
@@ -49,5 +53,9 @@ export function routePaneEvent(
     void to.checkNow().then((r) => s.reportUpdate(ev.id, r));
   else if (ev.kind === "open-tab")
     void to.openTab(target, ev).then((r) => s.reportPaneOpened(ev.id, r));
+  else if (ev.kind === "relay")
+    void to
+      .relay(ev.machine, ev.request)
+      .then((r) => s.reportPaneRelayed(ev.id, r));
   else to.zoomWs(target, ev.workspaceId, true);
 }

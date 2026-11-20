@@ -1,7 +1,7 @@
 // 場所のキー（docs/key-design.md の 5 章）の定義。ファイルツリー・変更一覧・動画のペイン・画像のペイン・窓（ダイアログ）の
 // キーを、リーダーの木（commands.ts）と同じ流儀で、ここ 1 か所に書く。`?` の一覧（KeyListDialog.tsx）はこの表から作る。
 // 実際にキーを受ける判定は、場所ごとのファイル（features/file-tree/keys.ts・features/changes/keys.ts・features/terminal/media.ts・ui/main-window/content/media/imageView.ts・
-// features/sessions/machineList.ts・features/browser/bookmarks.ts・features/clipboard/history.ts・ui/main-window/workspaces/switcherKey.ts）にあり、
+// features/sessions/machineList.ts・features/browser/bookmarks.ts・features/clipboard/history.ts・ui/main-window/workspaces/switcherKey.ts・features/db/keys.ts）にあり、
 // placeKeys.test.ts（切り替える窓は switcherKey.test.ts）が「表に書いたキーを、その場所の判定が受ける」ことを確かめる。だから案内と受けるキーはずれない。
 // 窓の下の段（共通フッタ）に出す基本操作の並びも、ここの basicHints が決める（docs/design/ui-ux-review.md の「ヒントとヘルプ」）。
 // 場所のキーはリーダーには載せない（その場所の中だけで効く）。キーを足すときは、判定と、ここの表と、docs/key-design.md を直す。
@@ -23,7 +23,10 @@ export type Place =
   | "picker"
   | "switcher"
   | "switcherTabs"
-  | "history";
+  | "history"
+  | "db"
+  | "dbTree"
+  | "dbHistory";
 
 /** 表の 1 行。keys は一覧に出す書き方、probes は、判定が受けるはずのキー（KeyboardEvent.key。テストで使う）。 */
 export interface PlaceKeyRow {
@@ -274,6 +277,54 @@ export const PLACE_KEYS: Record<Place, PlaceKeys> = {
       row("Esc", T("place.row.close"), []),
     ],
   },
+  // DB のタブの SQL の入力欄（#347）。判定は features/db/keys.ts の dbEditorKey（修飾キー付きのものは probes に書けないので、
+  // keys.test.ts で確かめる）。入力欄では `?` は字なので、この一覧はリーダーの `?` で出す
+  db: {
+    title: T("place.db.title"),
+    lead: T("place.db.lead"),
+    rows: [
+      row("Cmd+Enter / Ctrl+Enter", T("place.db.run"), []),
+      row("Esc", T("place.db.cancel"), ["Escape"]),
+    ],
+  },
+  // DB のタブの履歴の窓（リーダーの d h。#349）。判定は features/db/keys.ts の dbHistoryKey（修飾キー付きのものは probes に書けないので、
+  // keys.test.ts で確かめる）
+  dbHistory: {
+    title: T("place.dbHistory.title"),
+    lead: T("place.dbHistory.lead"),
+    rows: [
+      row("↓ ↑ / Ctrl+J Ctrl+K", T("place.list.step"), [
+        "ArrowDown",
+        "ArrowUp",
+      ]),
+      row("Enter", T("place.dbHistory.choose")),
+      row("?", T("place.bookmarks.help")),
+      row("Esc", T("place.row.close"), []),
+    ],
+  },
+  // DB のタブの左の木のペイン（#348）。判定は features/db/keys.ts の dbTreeKey
+  dbTree: {
+    title: T("place.dbTree.title"),
+    lead: T("place.dbTree.lead"),
+    rows: [
+      row("j k / ↓ ↑", T("place.row.nextPrev"), [
+        "j",
+        "k",
+        "ArrowDown",
+        "ArrowUp",
+      ]),
+      row("g G / Home End", T("place.row.firstLast"), [
+        "g",
+        "G",
+        "Home",
+        "End",
+      ]),
+      row("l / →", T("place.dbTree.expand"), ["l", "ArrowRight"]),
+      row("h / ←", T("place.dbTree.collapse"), ["h", "ArrowLeft"]),
+      row("Enter", T("place.dbTree.enter")),
+      row("Esc", T("place.dbTree.back"), ["Escape"]),
+    ],
+  },
 };
 
 /**
@@ -287,6 +338,7 @@ const WINDOW_PLACES = new Set<Place>([
   "switcher",
   "switcherTabs",
   "history",
+  "dbHistory",
 ]);
 
 /** 窓（ModalCard）の場所か。 */
@@ -354,6 +406,8 @@ const PLACES = new Set<string>([
   "video",
   "image",
   "machines",
+  "db",
+  "dbTree",
 ]);
 
 /**

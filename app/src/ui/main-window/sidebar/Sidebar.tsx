@@ -212,6 +212,10 @@ export function Sidebar(
                     },
                   ]
                 : []),
+              {
+                label: T("sidebar.addDb"),
+                run: () => props.onAddTab?.(m.gws, "db"),
+              },
             ]}
             onClose={() => setAddMenu(null)}
           />

@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 import {
   addTab,
   closeTab,
+  dropView,
   EMPTY_TABS,
   fromStored,
   moveView,
@@ -12,6 +13,7 @@ import {
   urlOrSearch,
   shownTab,
   showTab,
+  showView,
   tabTitle,
   toStored,
   updateTab,
@@ -359,5 +361,24 @@ describe("URL バー（#232）：URL か検索語か", () => {
       "https://user:pw@a.example/",
     ])
       assert.equal(urlOrSearch(bad), null, JSON.stringify(bad));
+  });
+});
+
+describe("DB のタブを出す views（#347）", () => {
+  it("showView はブラウザのタブでない id（DB のタブ）も書ける。showTab は書かない", () => {
+    const s = three();
+    assert.equal(showTab(s, "g1", "db1"), s);
+    const v = showView(s, "g1", "db1");
+    assert.equal(v.views.g1, "db1");
+    assert.equal(shownTab(v, "g1"), undefined);
+    assert.equal(showView(v, "g1", "db1"), v);
+  });
+
+  it("dropView は、その id を出しているワークスペースをターミナルのタブに戻す。出していなければそのまま", () => {
+    const s = showView(showView(three(), "g1", "db1"), "g2", "d");
+    const d = dropView(s, "db1");
+    assert.deepEqual(d.views, { g2: "d" });
+    assert.equal(dropView(d, "db1"), d);
+    assert.equal(d.tabs, s.tabs);
   });
 });

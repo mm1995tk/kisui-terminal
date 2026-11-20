@@ -39,9 +39,11 @@ app/src/
         ContentArea.tsx
         terminal/
         browser/            # URL バー、ページ内検索、ブックマーク、新しいタブのページ
+        db/                 # DB のタブの画面（SQL の入力欄と結果の表。#347）
         media/              # 画像、動画、PDF
       sessions/             # 接続先を足す・管理する・認証の窓
       workspaces/           # ワークスペースを切り替える窓、作る・閉じるときの窓
+      db/                   # DB の接続を選ぶ窓、DB のパスワードを聞く窓（#347）
       clipboard/            # メインウィンドウの中の履歴の窓・読み取りの許可の確認
       file-transfer/
       mascot/
@@ -58,8 +60,9 @@ app/src/
   features/
     sessions/               # 接続（Session）、マシンの記録、接続の状態の文
     workspaces/             # GUI のワークスペース、フォーカス、サイドバーの行の組み立て
-      tabs/                 # 中のタブ（ターミナルとブラウザ）の追加・削除・並び順・選択
+      tabs/                 # 中のタブ（ターミナル・ブラウザ・DB）の追加・削除・並び順・選択
     browser/                # ブラウザのタブ 1 つずつのページの操作、ブックマーク、ダウンロード
+    db/                     # DB のタブ（#347）の中身：書きかけの SQL、SQL の実行と結果、接続の一覧、パスワードを聞く
     terminal/               # ターミナルのペイン（分割の木、ペインの中身のつなぎ）
     file-tree/
     changes/
@@ -85,7 +88,7 @@ app/src/
 - `ui/main-window/` はメインウィンドウ全体。`ui/utilities/` は常駐ツールの画面で、今あるのはクリップボードの履歴だけ。メインウィンドウの中の窓（ダイアログ）は `utilities/` に置かない。
 - 画面全体の分け方の名前に、`workspace`（アプリのワークスペースと取り違える）・`workbench`・`global`・`popups`・`daemon`・`screens` は使わない。`ui/main-window/workspaces/` と `ui/main-window/sidebar/workspaces/` は、アプリのワークスペースそのものの部品なので、この名前でよい。
 - `layout.tsx` と `page.tsx` は置き方の決まりで、Next.js や自動のルーティングを入れたのではない。`layout.tsx` は割り付けだけ、`page.tsx` は何を出すかを持つ。
-- `features/workspaces/tabs/` は、ターミナルのタブとブラウザのタブを合わせたタブ全体の、追加・削除・並び順・選択を持つ。`features/browser/` は、ブラウザのタブ 1 つずつのページの操作・ブックマーク・ダウンロードを持つ。
+- `features/workspaces/tabs/` は、ターミナルのタブ・ブラウザのタブ・DB のタブを合わせたタブ全体の、追加・削除・並び順・選択を持つ。`features/browser/` は、ブラウザのタブ 1 つずつのページの操作・ブックマーク・ダウンロードを持つ。`features/db/` は、DB のタブ 1 つずつの中身（書きかけの SQL・結果）と SQL の実行を持つ。
 - `file-tree` と `file-transfer` は別のもの（サイドバーのツリーと、ターミナルのファイル転送）。
 
 ## 部品をどこに置くか
@@ -136,6 +139,7 @@ index.tsx ──▶ ui ──▶ features ◀── infrastructure
 | `features/workspaces/tabs/controller.ts`          | タブを足す・閉じる・選ぶ・並べ替える・名前を変える                           |
 | `features/browser/tabsStore.ts`・`pages.ts`       | ブラウザのタブの中身、URL を開く、ページが開いた・閉じた窓、ページ内検索     |
 | `features/browser/bookmarksStore.ts`・`downloads.ts` | ブックマーク、ダウンロード                                                |
+| `features/db/controller.ts`                       | DB のタブの中身（書きかけの SQL・結果）、接続を選ぶ窓、SQL の実行と取り消し、パスワードを聞く |
 | `features/terminal/controller.ts`                 | フォーカスしているワークスペースのペイン、隠す・分ける                       |
 | `features/file-tree/controller.ts`・`features/changes/controller.ts` | ツリーと CHANGES の中身と操作                              |
 | `features/commands/run.ts`                        | コマンドの表のコマンドを動かす（リーダーの葉と近道）                         |

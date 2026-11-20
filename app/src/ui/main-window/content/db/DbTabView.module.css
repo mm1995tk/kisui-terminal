@@ -1,0 +1,165 @@
+/* DB のタブ（#347。DbTabView.tsx）を出している間の、右のペインの中身。グリッドの場所すべてを覆う */
+.root {
+  position: absolute;
+  inset: 0;
+  /* ターミナルのグリッドより上、境界のつまみ（layout.css の .resizer、z-index 5）より下（空のワークスペースの画面と同じ） */
+  z-index: 4;
+  /* 左の木のペイン（#348。DbTree.module.css）と、右の入力欄・結果の表を横に並べる */
+  display: flex;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-ui);
+  font-size: var(--text-body);
+  line-height: var(--leading-text);
+}
+
+/* 木と右の入力欄・結果の境のつまみ。つまみで幅を変えられる */
+.separator {
+  flex: none;
+  width: 5px;
+  margin: 0 -2px;
+  z-index: 1;
+  cursor: col-resize;
+  background: var(--color-border);
+  background-clip: content-box;
+  padding: 0 2px;
+}
+.separator:hover,
+.separator[data-dragging] {
+  background-color: var(--color-accent);
+}
+
+/* 右の、SQL の入力欄と結果の表 */
+.query {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  padding: var(--space-12);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-12);
+}
+
+.title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text-muted);
+}
+
+/* SQL の入力欄。高さはつまみで変えられる（結果の表が残りを使う） */
+.sql {
+  flex: none;
+  height: 160px;
+  min-height: 64px;
+  max-height: 70%;
+  resize: vertical;
+  padding: var(--space-8);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-6);
+  background: var(--color-field);
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: var(--text-input);
+  line-height: var(--leading-text);
+  tab-size: 4;
+}
+.sql:focus-visible {
+  outline: var(--state-focus-ring-width) solid var(--state-focus-ring);
+  outline-offset: var(--state-focus-ring-offset);
+}
+
+/* 結果の表。はみ出したら、この中だけが縦にも横にもスクロールする */
+.result {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-6);
+}
+
+.note {
+  margin: 0;
+  padding: var(--space-12);
+  color: var(--color-text-muted);
+}
+
+.table {
+  border-collapse: separate;
+  border-spacing: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+}
+
+/* 見出しは、縦にスクロールしても上に残す */
+.th {
+  position: sticky;
+  top: 0;
+  padding: var(--space-4) var(--space-8);
+  border-bottom: 1px solid var(--color-border-strong);
+  background: var(--color-surface);
+  color: var(--color-text-strong);
+  font-weight: var(--weight-strong);
+  text-align: left;
+  white-space: nowrap;
+}
+
+/* 1 つの値は 1 行で、幅は 40 字まで。はみ出す分は「…」（全部はツールチップ） */
+.cell {
+  max-width: 40ch;
+  padding: var(--space-2) var(--space-8);
+  border-bottom: 1px solid var(--color-border);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: pre;
+  vertical-align: top;
+}
+.th[data-kind="number"],
+.cell[data-kind="number"] {
+  text-align: right;
+}
+/* NULL は、空の文字や "NULL" という文字と見分けがつくよう、薄い斜めの字で出す */
+.cell[data-null] {
+  color: var(--color-text-dim);
+  font-style: italic;
+}
+
+.error {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-12);
+  color: var(--state-danger);
+}
+
+.code {
+  font-size: var(--text-caption);
+}
+
+.message {
+  margin: 0;
+  font-family: var(--font-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* 結果の表の下の、件数とかかった時間 */
+.status {
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+
+/* 左の木のペインを入れる枠（幅は props.tree.width） */
+.treePane {
+  flex: none;
+  min-width: 0;
+  max-width: 70%;
+  display: flex;
+}

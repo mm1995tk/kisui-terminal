@@ -3,7 +3,7 @@ import { T } from "../../../../i18n/index.ts";
 import { createEffect, For, on, Show, type JSX } from "solid-js";
 
 import {
-  shownIsBrowser,
+  shownIsPage,
   tabToReveal,
   type Row,
   type TabsSnapshot,
@@ -62,7 +62,7 @@ export function BandItem(props: Handlers & { row: Row }): JSX.Element {
       style={{ "--machine-color": props.row.color }}
       data-focused={b().focused ? "" : undefined}
       data-sections={sections() ? "" : undefined}
-      data-panes-hidden={sections() && shownIsBrowser(tabs()) ? "" : undefined}
+      data-panes-hidden={sections() && shownIsPage(tabs()) ? "" : undefined}
       data-health={props.row.health}
     >
       <BandHeader {...props} editing={editing()} />

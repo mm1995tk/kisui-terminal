@@ -1,5 +1,5 @@
 // メインウィンドウの中で、キーの行き先を移す（表示用の状態）。
-// - 今使っているペイン（ターミナル。内蔵ブラウザのタブを出していればそのページ）へ。
+// - 今使っているペイン（ターミナル。内蔵ブラウザのタブを出していればそのページ、DB のタブなら SQL の入力欄）へ。
 // - サイドバーのファイルツリー・CHANGES へ（shj の Space e・Space E。閉じているサイドバーは先に開く）。
 // - 内蔵ブラウザのページにキーがあるときに押したリーダー・近道のあと、ページへ戻す。
 // 向ける先の要素は、描いた部品（TerminalGrid・BrowserArea・UrlBar・FindBar）が渡す関数で受け取る。
@@ -31,6 +31,8 @@ export function createFocus(deps: {
   treeVersion: Accessor<number>;
   /** 今のワークスペースで出しているブラウザのタブ（ターミナルのタブを出していれば undefined） */
   shownBrowserTab: Accessor<unknown>;
+  /** 今のワークスペースで出している DB のタブ（#347。出していなければ undefined） */
+  shownDbTab: Accessor<unknown>;
   /** 空のワークスペース（#307）を選んでいて、タブが無いことを伝える画面を出しているか */
   emptyShown: Accessor<boolean>;
   sidebarOpen: Accessor<boolean>;
@@ -55,6 +57,8 @@ export function createFocus(deps: {
   let focusFind: (() => void) | undefined;
   let focusUrlBar: (() => void) | undefined;
   let focusEmpty: (() => void) | undefined;
+  let focusDb: (() => void) | undefined;
+  let focusDbTree: (() => void) | undefined;
 
   /** shj の Space e：フォーカスしているワークスペースなら、サイドバーのファイルツリーにキーを向ける。 */
   function focusExplorer(target: string, id: WorkspaceId) {
@@ -146,6 +150,11 @@ export function createFocus(deps: {
       focusBrowserPage?.();
       return;
     }
+    // DB のタブ（#347）は、SQL の入力欄に置く（描かれるのを待つ。開いた直後は、まだ画面が出ていない）
+    if (untrack(deps.shownDbTab)) {
+      queueMicrotask(() => focusDb?.());
+      return;
+    }
     // 空のワークスペース（#307）には、キーを向けるペインもページも無い。タブが無いことを伝える画面に置く
     // （描かれるのを待つ。移った直後は、まだ画面が出ていない）
     if (untrack(deps.emptyShown)) {
@@ -226,6 +235,16 @@ export function createFocus(deps: {
     setEmptyFocus(f: (() => void) | undefined) {
       focusEmpty = f;
     },
+    /** DB のタブの SQL の入力欄にキーを向ける関数を受け取る（DbTabView。消えるときは undefined） */
+    setDbFocus(f: (() => void) | undefined) {
+      focusDb = f;
+    },
+    /** DB のタブの左の木のペイン（#348）にキーを向ける関数を受け取る（DbTree。消えるときは undefined） */
+    setDbTreeFocus(f: (() => void) | undefined) {
+      focusDbTree = f;
+    },
+    /** 木のペインにキーを向ける（描かれるのを待つ。開けた直後は、まだ画面が出ていない） */
+    focusDbTree: () => queueMicrotask(() => focusDbTree?.()),
     /** URL バー（新しいタブのページなら検索窓）にキーを向ける関数を受け取る（UrlBar・NewTabPage） */
     setUrlBarFocus(f: () => void) {
       focusUrlBar = f;

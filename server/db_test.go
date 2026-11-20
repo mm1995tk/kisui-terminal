@@ -399,3 +399,179 @@ func TestDBQueryDoesNotHoldTheLock(t *testing.T) {
 	}
 	<-done
 }
+
+// dbServerAt は dbServer に、SQL の履歴を置くフォルダを足したもの。パスワードは dbtest のものがファイルにあることにする。
+func dbServerAt(t *testing.T, historyDir string, conns ...config.DBConnection) *rpc.Conn {
+	t.Helper()
+	pw := &db.Passwords{
+		Keychain: func(context.Context, config.DBConnection) (string, bool) { return "", false },
+		File:     func(config.DBConnection) (string, bool) { return dbtest.Password, true },
+	}
+	_, sock := startWith(t, func(o *Options) {
+		o.DBConnections = func() ([]config.DBConnection, []config.Problem) { return conns, nil }
+		o.DBPasswords = pw
+		o.DBHistoryDir = historyDir
+	})
+	c := dial(t, sock)
+	if err := c.Call(context.Background(), "session.hello", hello(Protocol.Major), nil); err != nil {
+		t.Fatal(err)
+	}
+	return c
+}
+
+// db.schema は、スキーマ・テーブル（ビューを含む）・列の一覧を返す。パスワードの扱いは db.query と同じ。
+func TestDBSchema(t *testing.T) {
+	bothDB(t, func(t *testing.T, conn config.DBConnection) {
+		c := dbServer(t, nil, conn)
+		ctx := context.Background()
+		// パスワードが無ければ password_required。
+		err := c.Call(ctx, "db.schema", map[string]any{"connection": conn.Name}, nil)
+		if code, data := dbErr(t, err); code != rpc.CodePasswordRequired || data["reason"] != "missing" {
+			t.Errorf("without a password: %v", err)
+		}
+		for _, sql := range []string{"DROP VIEW IF EXISTS srv_schema_v", "DROP TABLE IF EXISTS srv_schema_t", "CREATE TABLE srv_schema_t (id INT, word VARCHAR(5))", "CREATE VIEW srv_schema_v AS SELECT id FROM srv_schema_t"} {
+			if err := c.Call(ctx, "db.query", map[string]any{"connection": conn.Name, "sql": sql, "password": dbtest.Password}, nil); err != nil {
+				t.Fatal(err)
+			}
+		}
+		var res struct {
+			Schemas []struct {
+				Name   string `json:"name"`
+				Tables []struct {
+					Name    string `json:"name"`
+					Kind    string `json:"kind"`
+					Columns []struct {
+						Name string `json:"name"`
+						Type string `json:"type"`
+					} `json:"columns"`
+				} `json:"tables"`
+			} `json:"schemas"`
+			Truncated *bool `json:"truncated"`
+		}
+		// 窓から渡されて通ったパスワードは覚えているので、password 無しで通る。
+		if err := c.Call(ctx, "db.schema", map[string]any{"connection": conn.Name}, &res); err != nil {
+			t.Fatal(err)
+		}
+		want := "public"
+		if conn.Kind == config.DBMySQL {
+			want = "kisui"
+		}
+		found := map[string]string{}
+		for _, s := range res.Schemas {
+			if s.Name != want {
+				continue
+			}
+			for _, tb := range s.Tables {
+				var cols []string
+				for _, col := range tb.Columns {
+					cols = append(cols, col.Name+" "+col.Type)
+				}
+				found[tb.Name] = tb.Kind + ": " + strings.Join(cols, ", ")
+			}
+		}
+		wantT, wantV := "table: id integer, word character varying(5)", "view: id integer"
+		if conn.Kind == config.DBMySQL {
+			wantT, wantV = "table: id int, word varchar(5)", "view: id int"
+		}
+		if found["srv_schema_t"] != wantT || found["srv_schema_v"] != wantV || res.Truncated == nil || *res.Truncated {
+			t.Errorf("schema %s: %v (%+v)", want, found, res)
+		}
+		// 設定に無い接続は not_found。
+		if err := c.Call(ctx, "db.schema", map[string]any{"connection": "nope"}, nil); err.(*rpc.Error).Code != rpc.CodeNotFound {
+			t.Errorf("unknown connection: %v", err)
+		}
+	})
+}
+
+// SQL を実行すると、その接続の履歴に足される。serve を起動し直しても残り、ほかの接続の履歴には出ない。
+func TestDBHistory(t *testing.T) {
+	bothDB(t, func(t *testing.T, conn config.DBConnection) {
+		dir := t.TempDir()
+		other := conn
+		other.Name = conn.Name + "-other"
+		ctx := context.Background()
+		type entry struct {
+			SQL string `json:"sql"`
+			At  string `json:"at"`
+			OK  bool   `json:"ok"`
+		}
+		history := func(c *rpc.Conn, name string, limit int) []entry {
+			t.Helper()
+			var res struct {
+				Entries []entry `json:"entries"`
+			}
+			if err := c.Call(ctx, "db.history", map[string]any{"connection": name, "limit": limit}, &res); err != nil {
+				t.Fatal(err)
+			}
+			return res.Entries
+		}
+
+		c := dbServerAt(t, dir, conn, other)
+		if got := history(c, conn.Name, 0); got == nil || len(got) != 0 {
+			t.Errorf("before any statement: %#v", got)
+		}
+		if err := c.Call(ctx, "db.query", map[string]any{"connection": conn.Name, "sql": "SELECT 1"}, nil); err != nil {
+			t.Fatal(err)
+		}
+		if err := c.Call(ctx, "db.query", map[string]any{"connection": conn.Name, "sql": "SELEC 2"}, nil); err == nil {
+			t.Fatal("a wrong statement passed")
+		}
+		if err := c.Call(ctx, "db.query", map[string]any{"connection": other.Name, "sql": "SELECT 3"}, nil); err != nil {
+			t.Fatal(err)
+		}
+		// db.schema は履歴に残らない。
+		if err := c.Call(ctx, "db.schema", map[string]any{"connection": conn.Name}, nil); err != nil {
+			t.Fatal(err)
+		}
+		c.Close()
+
+		// 起動し直した serve でも、同じ履歴が新しい順に返る。
+		c = dbServerAt(t, dir, conn, other)
+		got := history(c, conn.Name, 0)
+		if len(got) != 2 || got[0].SQL != "SELEC 2" || got[0].OK || got[1].SQL != "SELECT 1" || !got[1].OK {
+			t.Fatalf("history: %+v", got)
+		}
+		if _, err := time.Parse(time.RFC3339Nano, got[0].At); err != nil {
+			t.Errorf("at: %v", err)
+		}
+		if got := history(c, other.Name, 0); len(got) != 1 || got[0].SQL != "SELECT 3" {
+			t.Errorf("the other connection: %+v", got)
+		}
+		if got := history(c, conn.Name, 1); len(got) != 1 || got[0].SQL != "SELEC 2" {
+			t.Errorf("limit: %+v", got)
+		}
+		if err := c.Call(ctx, "db.history", map[string]any{"connection": "nope"}, nil); err.(*rpc.Error).Code != rpc.CodeNotFound {
+			t.Errorf("unknown connection: %v", err)
+		}
+		if err := c.Call(ctx, "db.history", map[string]any{"connection": conn.Name, "limit": -1}, nil); err.(*rpc.Error).Code != rpc.CodeInvalidParams {
+			t.Errorf("negative limit: %v", err)
+		}
+	})
+}
+
+// ログインできなかった SQL は実行していないので、履歴に残らない。
+func TestDBHistoryOnlyWhatRan(t *testing.T) {
+	conn := dbtest.Postgres(t)
+	dir := t.TempDir()
+	_, sock := startWith(t, func(o *Options) {
+		o.DBConnections = func() ([]config.DBConnection, []config.Problem) { return []config.DBConnection{conn}, nil }
+		o.DBPasswords = &db.Passwords{
+			Keychain: func(context.Context, config.DBConnection) (string, bool) { return "", false },
+			File:     func(config.DBConnection) (string, bool) { return "", false },
+		}
+		o.DBHistoryDir = dir
+	})
+	c := dial(t, sock)
+	ctx := context.Background()
+	if err := c.Call(ctx, "session.hello", hello(Protocol.Major), nil); err != nil {
+		t.Fatal(err)
+	}
+	_ = c.Call(ctx, "db.query", map[string]any{"connection": conn.Name, "sql": "SELECT 1"}, nil)
+	_ = c.Call(ctx, "db.query", map[string]any{"connection": conn.Name, "sql": "SELECT 2", "password": "wrong"}, nil)
+	var res struct {
+		Entries []json.RawMessage `json:"entries"`
+	}
+	if err := c.Call(ctx, "db.history", map[string]any{"connection": conn.Name}, &res); err != nil || len(res.Entries) != 0 {
+		t.Errorf("%s, %v", res.Entries, err)
+	}
+}

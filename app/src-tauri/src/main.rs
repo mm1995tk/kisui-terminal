@@ -11,6 +11,7 @@ mod clipboard_popup;
 mod config;
 mod connection;
 mod download;
+mod export;
 mod favicon;
 mod install;
 mod locate;
@@ -148,6 +149,8 @@ fn main() {
 
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_clipboard_manager::init())
+        // 結果の書き出しの保存のダイアログ（export.rs）。窓には許可を渡さない（capabilities に足さない）
+        .plugin(tauri_plugin_dialog::init())
         // クリップボードの履歴を kisui-terminal の外から開く全体のキー（clipboard_popup.rs）
         .plugin(tauri_plugin_global_shortcut::Builder::new().build());
     // 自動更新（AppImage と .dmg の版だけ。update.rs）
@@ -231,6 +234,7 @@ fn main() {
             bookmarks::browser_chrome_bookmarks_load,
             download::download_open,
             download::download_reveal,
+            export::export_save_text,
             clipboard_history::clipboard_history_list,
             clipboard_popup::clipboard_popup_copy,
             clipboard_popup::clipboard_popup_dismiss,

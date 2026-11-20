@@ -1,4 +1,4 @@
-// ワークスペースの中のタブの行（ターミナルのタブとブラウザのタブ）。サイドバーの帯と、ワークスペースを切り替える窓（ui/main-window/workspaces/SwitcherParts.tsx）が使う。
+// ワークスペースの中のタブの行（ターミナルのタブ・ブラウザのタブ・DB のタブ）。サイドバーの帯と、ワークスペースを切り替える窓（ui/main-window/workspaces/SwitcherParts.tsx）が使う。
 import { T } from "../../../../i18n/index.ts";
 import { Show, type JSX } from "solid-js";
 
@@ -61,7 +61,13 @@ function TabIcon(props: { t: TabItem }): JSX.Element {
       fallback={
         <Nf
           class="tab-icon"
-          c={props.t.kind === "term" ? ICON.terminal : ICON.globe}
+          c={
+            props.t.kind === "term"
+              ? ICON.terminal
+              : props.t.kind === "db"
+                ? ICON.database
+                : ICON.globe
+          }
         />
       }
     >
@@ -105,7 +111,15 @@ function TabLines(props: { t: TabItem }): JSX.Element {
       </span>
       <Show when={t().path}>
         <span class="tab-l2">
-          <Nf c={t().kind === "term" ? ICON.folder : ICON.link} />
+          <Nf
+            c={
+              t().kind === "term"
+                ? ICON.folder
+                : t().kind === "db"
+                  ? ICON.plug
+                  : ICON.link
+            }
+          />
           <span class="tab-text" {...titleIfClipped(t().path)}>
             {t().path}
           </span>

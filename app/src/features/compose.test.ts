@@ -82,7 +82,12 @@ function fakeShell(initial: Record<string, { ids: string[]; focus?: string }>) {
   };
   const api: ShellApi = {
     listSshHosts: async () => ["host1"],
-    configGui: async () => ({ machines: [], browser: false, shortcuts: [] }),
+    configGui: async () => ({
+      machines: [],
+      browser: false,
+      shortcuts: [],
+      passkeyRejected: [],
+    }),
     connect: async (id, target) => {
       connOf.set(id, target);
       serveOf(target);
@@ -259,6 +264,7 @@ function start(opts: {
     openMascotPicker: () => void ui.push("openMascotPicker"),
     openKeyList: () => void ui.push("openKeyList"),
     focusUrlBar: () => void ui.push("focusUrlBar"),
+    focusDbTree: () => void ui.push("focusDbTree"),
     forgetPageReturn: () => void ui.push("forgetPageReturn"),
     copyToClipboard: async (text) => void ui.push(`copy ${text}`),
     dismissLastNotice: () => void ui.push("dismissLastNotice"),
@@ -277,6 +283,7 @@ function start(opts: {
       select: async () => {},
       frameUrl: (id) => id,
     },
+    exportFile: async () => null,
     updates: {
       check: async () => null,
       checkNow: async () => ({ status: "latest", current: "1" }) as never,
