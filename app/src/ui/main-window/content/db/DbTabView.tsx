@@ -31,6 +31,7 @@ import {
   canStep,
   pageable,
   sortable,
+  type DbPage,
   type DbSort,
   type PageStep,
 } from "../../../../features/db/paging.ts";
@@ -207,53 +208,28 @@ function DataView(props: {
     const f = stmt()?.failure;
     return f?.kind === "error" ? f : undefined;
   };
-  /** 結果の表か結果のタブの列で押した `[` `]`（タブの列では ← → も）で、結果のタブを切り替える */
+  /** 結果の表で押した `[` `]` で、結果のタブを切り替える（タブの列で押したものは ResultTabs が受ける） */
   function keydown(e: KeyboardEvent) {
     if (props.run.statements.length < 2) return;
-    const target = e.target as HTMLElement;
-    const onTabs = target.closest("[role=tablist]") !== null;
-    const step = dbResultTabKey(e, onTabs);
+    const step = dbResultTabKey(e, false);
     if (step === 0) return;
     e.preventDefault();
     props.onStepResult(step);
-    // タブの列でキーを押したら、キーを選んだタブに移す（WAI-ARIA のタブの動き）。表で押して、次の文の結果に
-    // 表が無い（エラー・行が無い）ときも、キーを失わないよう選んだタブに移す
+    // 次の文の結果に表が無い（エラー・行が無い）ときは、キーを失わないよう選んだタブに移す
+    const target = e.target as HTMLElement;
     const root = e.currentTarget as HTMLElement;
     queueMicrotask(() => {
-      if (onTabs || !target.isConnected)
-        root
-          .querySelector<HTMLElement>('[role=tab][aria-selected="true"]')
-          ?.focus();
+      if (!target.isConnected) focusSelectedTab(root);
     });
   }
   return (
     <div class={styles.data} data-place="dbResult" onKeyDown={keydown}>
       <Show when={props.run.statements.length > 1}>
-        <div
-          class={styles.results}
-          role="tablist"
-          aria-label={T("db.view.results")}
-        >
-          <For each={props.run.statements}>
-            {(s, i) => (
-              <button
-                type="button"
-                role="tab"
-                class={styles.viewTab}
-                data-failed={s.failure?.kind === "error" ? "" : undefined}
-                aria-selected={props.run.active === i() ? "true" : "false"}
-                tabindex={props.run.active === i() ? 0 : -1}
-                title={s.sql}
-                onClick={() => props.onResult(i())}
-              >
-                {T("db.view.resultTab", {
-                  n: String(i() + 1),
-                  sql: resultTabLabel(s.sql),
-                })}
-              </button>
-            )}
-          </For>
-        </div>
+        <ResultTabs
+          run={props.run}
+          onResult={props.onResult}
+          onStepResult={props.onStepResult}
+        />
       </Show>
       <div
         class={styles.result}
@@ -297,33 +273,109 @@ function DataView(props: {
       </div>
       <Show when={stmt()?.result}>
         {(r) => (
-          <div class={styles.status}>
-            <span role="status">{running() ? "" : resultSummary(r())}</span>
-            {/* ページ送り（#373）。包める文で 2 ページ以上あるときだけ出す。実行している間は押せない */}
-            <Show
-              when={stmt()?.page && pageable(r()) ? stmt()?.page : undefined}
+          <ResultStatus
+            result={r()}
+            page={stmt()?.page}
+            running={running()}
+            busy={busy()}
+            onPage={props.onPage}
+          />
+        )}
+      </Show>
+    </div>
+  );
+}
+
+/** 結果のタブの列で、選んでいるタブにキーを向ける。 */
+function focusSelectedTab(root: HTMLElement) {
+  root.querySelector<HTMLElement>('[role=tab][aria-selected="true"]')?.focus();
+}
+
+/**
+ * 文を 2 つ以上実行したときの、文ごとの結果のタブの列（#380）。見出しは番号と文の先頭（全部はツールチップ）。失敗した文は赤い字。
+ * 列にキーがあるときは、`[` `]` と `←` `→` で切り替え、キーを選んだタブに移す（WAI-ARIA のタブの動き。ViewSwitch と同じ）。
+ */
+function ResultTabs(props: {
+  run: DbRun;
+  onResult: (index: number) => void;
+  onStepResult: (step: 1 | -1) => void;
+}): JSX.Element {
+  function keydown(e: KeyboardEvent) {
+    const step = dbResultTabKey(e, true);
+    if (step === 0) return;
+    e.preventDefault();
+    // 結果の表のキー（DataView）に、もう一度受けさせない
+    e.stopPropagation();
+    props.onStepResult(step);
+    const root = e.currentTarget as HTMLElement;
+    queueMicrotask(() => focusSelectedTab(root));
+  }
+  return (
+    <div
+      class={styles.results}
+      role="tablist"
+      aria-label={T("db.view.results")}
+      onKeyDown={keydown}
+    >
+      <For each={props.run.statements}>
+        {(s, i) => (
+          <button
+            type="button"
+            role="tab"
+            class={styles.viewTab}
+            data-failed={s.failure?.kind === "error" ? "" : undefined}
+            aria-selected={props.run.active === i() ? "true" : "false"}
+            tabindex={props.run.active === i() ? 0 : -1}
+            title={s.sql}
+            onClick={() => props.onResult(i())}
+          >
+            {T("db.view.resultTab", {
+              n: String(i() + 1),
+              sql: resultTabLabel(s.sql),
+            })}
+          </button>
+        )}
+      </For>
+    </div>
+  );
+}
+
+/** 結果の表の下の、件数とかかった時間と、ページ送り（#373。包める文で 2 ページ以上あるときだけ）。 */
+function ResultStatus(props: {
+  result: DbQueryResult;
+  page: DbPage | undefined;
+  /** 出している文を実行している（件数を出さない） */
+  running: boolean;
+  /** このタブで何かを実行している（ページ送りを押せない） */
+  busy: boolean;
+  onPage: (step: PageStep) => void;
+}): JSX.Element {
+  return (
+    <div class={styles.status}>
+      <span role="status">
+        {props.running ? "" : resultSummary(props.result)}
+      </span>
+      <Show
+        when={props.page && pageable(props.result) ? props.page : undefined}
+      >
+        {(page) => (
+          <div
+            class={styles.pager}
+            role="group"
+            aria-label={T("db.view.pages")}
+          >
+            <Button
+              disabled={props.busy || !canStep(props.result, page(), "prev")}
+              onClick={() => props.onPage("prev")}
             >
-              {(page) => (
-                <div
-                  class={styles.pager}
-                  role="group"
-                  aria-label={T("db.view.pages")}
-                >
-                  <Button
-                    disabled={busy() || !canStep(r(), page(), "prev")}
-                    onClick={() => props.onPage("prev")}
-                  >
-                    {T("db.view.prevPage")}
-                  </Button>
-                  <Button
-                    disabled={busy() || !canStep(r(), page(), "next")}
-                    onClick={() => props.onPage("next")}
-                  >
-                    {T("db.view.nextPage")}
-                  </Button>
-                </div>
-              )}
-            </Show>
+              {T("db.view.prevPage")}
+            </Button>
+            <Button
+              disabled={props.busy || !canStep(props.result, page(), "next")}
+              onClick={() => props.onPage("next")}
+            >
+              {T("db.view.nextPage")}
+            </Button>
           </div>
         )}
       </Show>
