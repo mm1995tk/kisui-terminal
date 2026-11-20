@@ -67,6 +67,7 @@ export function MainWindowPage(props: { ports: Ports }): JSX.Element {
         config: ConfigMachine[];
         browser: boolean;
         shortcutProblems: string[];
+        passkeyRejected: string[];
         tabsHeight?: number;
       }
     | { error: string }
@@ -83,6 +84,8 @@ export function MainWindowPage(props: { ports: Ports }): JSX.Element {
           config: g.machines,
           browser: g.browser,
           shortcutProblems,
+          // passkey_sites の公開サフィックスの項目（使わない）。内蔵ブラウザを使うときだけ知らせる
+          passkeyRejected: g.browser ? g.passkeyRejected : [],
           tabsHeight: g.sidebarTabsHeight ?? undefined,
         });
       },
@@ -103,6 +106,7 @@ export function MainWindowPage(props: { ports: Ports }): JSX.Element {
               browser={v.browser}
               tabsHeight={v.tabsHeight}
               shortcutProblems={v.shortcutProblems}
+              passkeyRejected={v.passkeyRejected}
             />
           );
         }}
@@ -119,6 +123,8 @@ function MainWindow(props: {
   browser: boolean;
   /** 設定の [gui.shortcuts] の間違い（あればお知らせに出す） */
   shortcutProblems: string[];
+  /** 設定の [gui.browser] passkey_sites の、公開サフィックスなので使わない項目（あればお知らせに出す） */
+  passkeyRejected: string[];
   /** タブの段の高さの上限の元の値（設定の [gui.sidebar] tabs-height。サイドバーの高さに対する %）。無ければ 40 */
   tabsHeight?: number;
 }): JSX.Element {
@@ -227,6 +233,7 @@ function MainWindow(props: {
   });
   const notices = createNotices({
     shortcutProblems: props.shortcutProblems,
+    passkeyRejected: props.passkeyRejected,
     focusError,
     setFocusError,
     sessions,

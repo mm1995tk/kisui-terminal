@@ -254,6 +254,9 @@ export const en = {
   "notice.localMachine.title": "The machine name local is reserved",
   "notice.localMachine.text":
     "In kisui pane --machine, local always means this computer, so --machine cannot choose {machines}. Give it another name: in [[gui.machines]] of the config file for a machine set there, or with n in the machine dialog ({leader} m) for one added in the window.",
+  "notice.passkeySites.title": "Some passkey_sites entries are not used",
+  "notice.passkeySites.text":
+    "These entries are public suffixes (names under which anyone can have a subdomain, such as .com or .github.io), so they would copy the cookies of other people's sites too. kisui-terminal does not use them; the other entries work.",
   "button.disconnect": "Disconnect",
   "notice.machine.keys":
     "{leader} m opens the machine dialog; select this machine with j / k, then r to reconnect or x to disconnect",

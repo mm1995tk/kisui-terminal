@@ -63,6 +63,8 @@ type Options struct {
 	DBConnections func() ([]config.DBConnection, []config.Problem)
 	// DBPasswords は DB の接続のパスワードを探すもの。nil なら OS のキーチェーンと ~/.pgpass・~/.my.cnf を見る。
 	DBPasswords *db.Passwords
+	// DBHistoryDir は DB の接続ごとの SQL の履歴を置くフォルダ（DBHistoryDir()）。"" なら履歴を残さない。
+	DBHistoryDir string
 }
 
 // Server は Unix ソケットで待ち受けるサーバー。

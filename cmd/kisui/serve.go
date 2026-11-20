@@ -78,13 +78,18 @@ func runServe(args []string) int {
 	if err != nil {
 		logger.Warn("workspaces file", "err", err) // 一覧を保存も復元もしない
 	}
+	historyDir, err := server.DBHistoryDir()
+	if err != nil {
+		logger.Warn("db history", "err", err) // DB の SQL の履歴を残さない
+	}
 	opts := server.Options{
-		StatePath:  statePath,
-		SocketPath: sock,
-		Shj:        server.Shj{Version: ver, Commit: commit, Channel: chName},
-		Logger:     logger,
-		IdleStop:   idle,
-		StartDir:   cfg.StartDir,
+		StatePath:    statePath,
+		DBHistoryDir: historyDir,
+		SocketPath:   sock,
+		Shj:          server.Shj{Version: ver, Commit: commit, Channel: chName},
+		Logger:       logger,
+		IdleStop:     idle,
+		StartDir:     cfg.StartDir,
 	}
 	var srv *server.Server
 	if handover != nil {

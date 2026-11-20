@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -20,7 +21,7 @@ const CapDB = "db"
 const dbMaxRunning = 8
 
 // dbManager は db.* の要求が使うもの。DB への接続そのものは internal/db が受け持ち、ここは
-// 「どの接続か」「パスワードはどれか」「動いている SQL はどれか」だけを持つ。
+// 「どの接続か」「パスワードはどれか」「動いている SQL はどれか」「どの SQL を実行したか（履歴）」だけを持つ。
 //
 // DB のログインは持ち続けない。db.query の 1 回ごとにログインし、終わったら切る（理由は internal/db の説明）。
 // 覚えるのは、窓から渡されて通ったパスワードだけ（passwords の中。メモリだけで、ファイルにも引き継ぎにも渡さない）。
@@ -28,6 +29,8 @@ type dbManager struct {
 	// load は設定の [[db.connections]] を読む。db.* の要求のたびに呼ぶ（serve を止めずに接続を足せるように）。
 	load      func() ([]config.DBConnection, []config.Problem)
 	passwords *db.Passwords
+	// history は接続ごとの SQL の履歴（ファイル。Options.DBHistoryDir が "" なら何も残さない）。
+	history *db.History
 
 	mu      sync.Mutex
 	running map[*dbRun]struct{}
@@ -40,7 +43,7 @@ type dbRun struct {
 }
 
 func newDBManager(opts Options) *dbManager {
-	m := &dbManager{load: opts.DBConnections, passwords: opts.DBPasswords, running: map[*dbRun]struct{}{}}
+	m := &dbManager{load: opts.DBConnections, passwords: opts.DBPasswords, history: &db.History{Dir: opts.DBHistoryDir}, running: map[*dbRun]struct{}{}}
 	if m.load == nil {
 		m.load = func() ([]config.DBConnection, []config.Problem) { return config.LoadDB(buildinfo.Suffix()) }
 	}
@@ -100,21 +103,55 @@ func (m *dbManager) cancel(id string) bool {
 	return false
 }
 
-// run は c に password でログインして sql を 1 つ実行する。src は password の出どころで、
+// run は c に password でログインして、そのログインで f を呼ぶ（終われば切る）。src は password の出どころで、
 // 窓から渡されて通ったものは覚え、覚えていて断られたものは忘れる。
-func (m *dbManager) run(ctx context.Context, c config.DBConnection, password string, src db.Source, sql string, o db.QueryOptions) (*db.Result, error) {
+func (m *dbManager) run(ctx context.Context, c config.DBConnection, password string, src db.Source, f func(db.Session) error) error {
 	sess, err := db.Open(ctx, c, password)
 	if err != nil {
 		if e, ok := errors.AsType[*db.Error](err); ok && e.Kind == db.KindAuth && src.Typed() {
 			m.passwords.Forget(c)
 		}
-		return nil, err
+		return err
 	}
 	defer sess.Close()
 	if src == db.SourceRequest {
 		m.passwords.Remember(c, password)
 	}
-	return sess.Query(ctx, sql, o)
+	return f(sess)
+}
+
+// dbLogin は db.query と db.schema の共通の引数。
+type dbLogin struct {
+	Connection string `json:"connection"`
+	// Password は窓で入力されたパスワード。省いたとき（nil）と空文字（パスワード無しでログインする）は違う。
+	Password *string `json:"password"`
+	QueryID  string  `json:"queryId"`
+}
+
+// dbWith は p の接続にログインして f を呼ぶ。接続を探す・動いているものに足す（db.cancel で止められる）・
+// パスワードを探す・間違いを窓への返事にする、は db.query と db.schema で同じ。what はログに書く要求の名前。
+func (ss *session) dbWith(ctx context.Context, p dbLogin, what string, f func(context.Context, config.DBConnection, db.Session) error) error {
+	m := ss.srv.db
+	c, ok := m.find(p.Connection)
+	if !ok {
+		return rpc.Errorf(rpc.CodeNotFound, "no such connection: %s", p.Connection)
+	}
+	ctx, done, err := m.begin(ctx, p.QueryID)
+	if err != nil {
+		return err
+	}
+	defer done()
+	password, src, err := m.passwords.Find(ctx, c, p.Password)
+	if err != nil {
+		return errPasswordRequired("missing", "a password is required for the connection "+c.Name)
+	}
+	err = m.run(ctx, c, password, src, func(s db.Session) error { return f(ctx, c, s) })
+	if err != nil {
+		// SQL とパスワードはログに書かない。
+		ss.srv.log.Info(what+" failed", "connection", c.Name)
+		return dbQueryError(ctx, err, src)
+	}
+	return nil
 }
 
 // isDBRequest は、method が db.* の要求か。
@@ -143,6 +180,10 @@ func (ss *session) dbRequest(ctx context.Context, req *rpc.Message) (any, error)
 		return ss.dbQueryReq(ctx, req)
 	case "db.cancel":
 		return ss.dbCancelReq(req)
+	case "db.schema":
+		return ss.dbSchemaReq(ctx, req)
+	case "db.history":
+		return ss.dbHistoryReq(req)
 	}
 	return nil, rpc.Errorf(rpc.CodeMethodNotFound, "method not found: %s", req.Method)
 }
@@ -183,12 +224,9 @@ func (ss *session) dbConnectionsReq() (any, error) {
 // dbQueryReq は db.query：接続に SQL を 1 つ実行して結果を返す。結果の形は db.Result。
 func (ss *session) dbQueryReq(ctx context.Context, req *rpc.Message) (any, error) {
 	var p struct {
-		Connection string `json:"connection"`
-		SQL        string `json:"sql"`
-		// Password は窓で入力されたパスワード。省いたとき（nil）と空文字（パスワード無しでログインする）は違う。
-		Password *string `json:"password"`
-		MaxRows  int     `json:"maxRows"`
-		QueryID  string  `json:"queryId"`
+		dbLogin
+		SQL     string `json:"sql"`
+		MaxRows int    `json:"maxRows"`
 	}
 	if err := json.Unmarshal(req.Params, &p); err != nil {
 		return nil, invalidParams(err)
@@ -199,27 +237,72 @@ func (ss *session) dbQueryReq(ctx context.Context, req *rpc.Message) (any, error
 	if p.MaxRows < 0 {
 		return nil, rpc.Errorf(rpc.CodeInvalidParams, "maxRows is negative")
 	}
+	var res *db.Result
+	err := ss.dbWith(ctx, p.dbLogin, "db.query", func(ctx context.Context, c config.DBConnection, s db.Session) error {
+		// 履歴に足すのは、ログインが通って SQL を DB に送ったものだけ。ログインできなかった SQL は実行していないうえ、
+		// password_required のあとに窓が送り直すと同じ SQL が 2 つ残ってしまう。
+		at := ss.srv.now()
+		var err error
+		res, err = s.Query(ctx, p.SQL, db.QueryOptions{MaxRows: p.MaxRows})
+		if herr := ss.srv.db.history.Add(c.Name, db.HistoryEntry{SQL: p.SQL, At: at, OK: err == nil}); herr != nil {
+			// 履歴に残せなくても、SQL の結果は返す。
+			ss.srv.log.Warn("db history", "connection", c.Name, "err", herr)
+		}
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
+// dbSchemaReq は db.schema：接続のスキーマ・テーブル（ビューを含む）・列の一覧。結果の形は db.Catalog。
+func (ss *session) dbSchemaReq(ctx context.Context, req *rpc.Message) (any, error) {
+	var p dbLogin
+	if err := json.Unmarshal(req.Params, &p); err != nil {
+		return nil, invalidParams(err)
+	}
+	var cat *db.Catalog
+	err := ss.dbWith(ctx, p, "db.schema", func(ctx context.Context, c config.DBConnection, s db.Session) error {
+		var err error
+		cat, err = db.ReadCatalog(ctx, s, c.Kind)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return cat, nil
+}
+
+// DBHistoryResult は db.history の結果。
+type DBHistoryResult struct {
+	// Entries は新しい順。
+	Entries []db.HistoryEntry `json:"entries"`
+}
+
+// dbHistoryReq は db.history：接続で実行した SQL の履歴（新しい順）。DB にはつながない。
+func (ss *session) dbHistoryReq(req *rpc.Message) (any, error) {
+	var p struct {
+		Connection string `json:"connection"`
+		Limit      int    `json:"limit"`
+	}
+	if err := json.Unmarshal(req.Params, &p); err != nil {
+		return nil, invalidParams(err)
+	}
+	if p.Limit < 0 {
+		return nil, rpc.Errorf(rpc.CodeInvalidParams, "limit is negative")
+	}
 	m := ss.srv.db
 	c, ok := m.find(p.Connection)
 	if !ok {
 		return nil, rpc.Errorf(rpc.CodeNotFound, "no such connection: %s", p.Connection)
 	}
-	ctx, done, err := m.begin(ctx, p.QueryID)
+	list, err := m.history.List(c.Name, p.Limit)
 	if err != nil {
-		return nil, err
+		ss.srv.log.Warn("db history", "connection", c.Name, "err", err)
+		return nil, rpc.Errorf(rpc.CodeInternalError, "the history could not be read: %v", err)
 	}
-	defer done()
-	password, src, err := m.passwords.Find(ctx, c, p.Password)
-	if err != nil {
-		return nil, errPasswordRequired("missing", "a password is required for the connection "+c.Name)
-	}
-	res, err := m.run(ctx, c, password, src, p.SQL, db.QueryOptions{MaxRows: p.MaxRows})
-	if err != nil {
-		// SQL とパスワードはログに書かない。
-		ss.srv.log.Info("db.query failed", "connection", c.Name)
-		return nil, dbQueryError(ctx, err, src)
-	}
-	return res, nil
+	return DBHistoryResult{Entries: list}, nil
 }
 
 // errPasswordRequired は password_required を作る。reason は "missing"（どこにも無い）か "rejected"（入力したものが断られた）。
@@ -269,4 +352,13 @@ func (ss *session) dbCancelReq(req *rpc.Message) (any, error) {
 		return nil, rpc.Errorf(rpc.CodeNotFound, "no such running statement: %s", p.QueryID)
 	}
 	return struct{}{}, nil
+}
+
+// DBHistoryDir は DB の SQL の履歴を置くフォルダ（serve.log と同じフォルダの db-history）。
+func DBHistoryDir() (string, error) {
+	dir, err := stateDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, "db-history"), nil
 }

@@ -82,7 +82,12 @@ function fakeShell(initial: Record<string, { ids: string[]; focus?: string }>) {
   };
   const api: ShellApi = {
     listSshHosts: async () => ["host1"],
-    configGui: async () => ({ machines: [], browser: false, shortcuts: [] }),
+    configGui: async () => ({
+      machines: [],
+      browser: false,
+      shortcuts: [],
+      passkeyRejected: [],
+    }),
     connect: async (id, target) => {
       connOf.set(id, target);
       serveOf(target);

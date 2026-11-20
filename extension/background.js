@@ -11,7 +11,7 @@
 if (typeof importScripts === "function") importScripts("lib.js");
 
 /**
- * kisui-terminal が開いたタブ（site は待っているサイトの host、host は native messaging の受け口）
+ * kisui-terminal が開いたタブ（site は待っている許可サイトの項目（`github.com` か `.google.com`）、host は native messaging の受け口）
  * @typedef {{ site: string, host: string }} Hit
  */
 /**
@@ -159,26 +159,32 @@ async function checkNewTab(tabId, url) {
   newTabs.delete(tabId);
   const st = await loadState();
   // 許可サイトでなければ聞かない（一覧が古ければ聞き直す）
-  if (!st.sites.includes(host) && Date.now() - st.sitesAt < SITES_TTL_MS)
+  if (!K.siteOf(host, st.sites) && Date.now() - st.sitesAt < SITES_TTL_MS)
     return;
-  const { waiting } = await refreshSites();
-  const hit = K.openedByKisui({ url, createdAt, now: Date.now(), waiting });
+  const { sites, waiting } = await refreshSites();
+  const hit = K.openedByKisui({
+    url,
+    createdAt,
+    now: Date.now(),
+    sites,
+    waiting,
+  });
   if (hit) await track(tabId, hit);
 }
 
 // ブラウザが動いていなかったとき、kisui-terminal はブラウザを URL 付きで起動する。
 // そのタブは拡張機能が動き出す前にできているので、待っている URL と同じページを開いているタブを探す
 async function checkExistingTabs() {
-  const { waiting } = await refreshSites();
+  const { sites, waiting } = await refreshSites();
   if (waiting.size === 0) return;
   const tabs = await api.tabs.query({});
   for (const tab of tabs) {
     // 起動した直後の Chrome では、url が空で pendingUrl にだけ入っていることがある
     const url = tab.pendingUrl || tab.url || "";
-    const host = K.hostOf(url);
-    const w = host && waiting.get(host);
-    if (w && K.sameUrl(url, w.url))
-      await track(/** @type {Tab} */ (tab).id, { site: host, host: w.host });
+    const site = K.waitingSiteOf(K.hostOf(url), sites, waiting);
+    const w = site && waiting.get(site);
+    if (site && w && K.sameUrl(url, w.url))
+      await track(/** @type {Tab} */ (tab).id, { site, host: w.host });
   }
 }
 
@@ -200,9 +206,9 @@ async function tracked(tabId) {
 /** @param {number} tabId @param {Hit} hit */
 async function track(tabId, hit) {
   await saveState({ [trackedKey(tabId)]: hit });
-  // 入れるのは、今のページがそのサイトのときだけ（聞いている間に別の host へリダイレクトしていれば入れない）
+  // 入れるのは、今のページがそのサイトのときだけ（聞いている間に別のサイトへリダイレクトしていれば入れない）
   const tab = await api.tabs.get(tabId).catch(() => null);
-  if (!tab || K.hostOf(tab.url ?? "") !== hit.site) return;
+  if (!tab || !urlInSite(tab.url, hit.site)) return;
   const target = { tabId };
   await api.scripting
     .executeScript({ target, files: ["page.js"], world: "MAIN" })
@@ -215,6 +221,13 @@ async function track(tabId, hit) {
 /** @param {number} tabId */
 async function untrack(tabId) {
   await api.storage.session.remove(trackedKey(tabId));
+}
+
+// ページの URL が許可サイトの項目 `site` に当たるか
+/** @param {string | undefined} url @param {string} site */
+function urlInSite(url, site) {
+  const host = K.hostOf(url ?? "");
+  return host !== null && K.inSite(host, site);
 }
 
 // ---- パスキーが通ったあと、落ち着くのを待つ
@@ -235,7 +248,7 @@ async function onMessage(message, sender) {
   if (!message || message.type !== "passkey-success" || !sender.tab) return;
   const tabId = /** @type {Tab} */ (sender.tab).id;
   const t = await tracked(tabId);
-  if (!t || K.hostOf(sender.url ?? sender.tab.url ?? "") !== t.site) return;
+  if (!t || !urlInSite(sender.url ?? sender.tab.url, t.site)) return;
   if (settling.has(tabId)) {
     /** @type {Settling} */ (settling.get(tabId)).successAt = Date.now();
     return;
@@ -266,8 +279,9 @@ async function waitAndSend(tabId) {
     });
     if (!done) continue;
     settling.delete(tabId);
-    // ページの移動で別のサイトに出ていたら送らない（手で戻るボタンは使える）
-    if (K.hostOf(tab.url ?? "") !== s.site) return;
+    // ページの移動で別のサイトに出ていたら送らない（手で戻るボタンは使える）。`.google.com` で待っていれば、
+    // accounts.google.com から myaccount.google.com に移っていても同じサイト
+    if (!urlInSite(tab.url, s.site)) return;
     // 読む前に、今も許可サイトで、今も待っているかを聞き直す（覚えた後に一覧から消えた・待ちが終わったサイトの
     // Cookie は読まない）。送る先も今の答えの受け口にする
     const { sites, waiting } = await refreshSites();
@@ -302,24 +316,28 @@ async function getAll(details) {
   }
 }
 
-// `site` のページに送られる Cookie だけを返す。url で引くと、path が `/` に当たらない Cookie（`/login` だけのものなど）が落ちるので、
+// `host`（今のタブの host）のページに送られる Cookie だけを返す。url で引くと、path が `/` に当たらない Cookie（`/login` だけのものなど）が落ちるので、
 // domain でも引いて合わせる（domain で引くと下のドメインのものも来るが、pickCookies が捨てる）
-/** @param {Tab} tab @param {string} site */
-async function readCookies(tab, site) {
+/** @param {Tab} tab @param {string} host */
+async function readCookies(tab, host) {
   const storeId = await storeIdOf(tab);
   const base = storeId ? { storeId } : {};
   const [byUrl, byDomain] = await Promise.all([
-    getAll({ ...base, url: `https://${site}/` }),
-    getAll({ ...base, domain: site }),
+    getAll({ ...base, url: `https://${host}/` }),
+    getAll({ ...base, domain: host }),
   ]);
-  return K.pickCookies([...byUrl, ...byDomain], site);
+  return K.pickCookies([...byUrl, ...byDomain], host);
 }
 
+// 今のタブのページに送られる Cookie を、許可サイトの項目 `site` の Cookie として、受け口 `host` に送る
 /** @param {Tab} tab @param {string} site @param {string} host */
 async function sendCookies(tab, site, host) {
+  // 呼ぶ側も確かめているが、念のため（項目に当たらないページの Cookie は読まない）
+  const page = K.hostOf(tab.url ?? "");
+  if (!page || !K.inSite(page, site)) return showError(tab.id, "not-allowed");
   let reply;
   try {
-    const cookies = await readCookies(tab, site);
+    const cookies = await readCookies(tab, page);
     reply = await ask(host, { type: "cookies", site, cookies });
   } catch (e) {
     console.warn("kisui-terminal: could not read cookies", e);
@@ -351,11 +369,13 @@ async function onActionClicked(tab) {
       .catch(() => false);
   }
   if (!granted) return showError(tab.id, "no-permission");
-  const site = K.hostOf(tab.url ?? "");
   const { sites, waiting } = await refreshSites();
-  if (!site || !sites.includes(site)) return showError(tab.id, "not-allowed");
-  const w = waiting.get(site);
-  if (!w) return showError(tab.id, "not-waiting");
+  // 当たる許可サイトの項目（`.google.com` で待っていれば、myaccount.google.com のタブからも送れる）
+  const host = K.hostOf(tab.url ?? "");
+  if (!K.siteOf(host, sites)) return showError(tab.id, "not-allowed");
+  const site = K.waitingSiteOf(host, sites, waiting);
+  const w = site && waiting.get(site);
+  if (!site || !w) return showError(tab.id, "not-waiting");
   await sendCookies(tab, site, w.host);
 }
 

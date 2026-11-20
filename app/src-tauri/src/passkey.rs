@@ -5,8 +5,8 @@
 //! 1. 内蔵ブラウザのページ（設定の `[gui.browser] passkey_sites` に書いたサイト）が `navigator.credentials.get` か `create` で
 //!    パスキーを求めると、ページに入れたスクリプト（browser_passkey.js）が `kisui-passkey:` の URL で殻に知らせる
 //!    （browser.rs の on_new_window が受ける。nonce が合うものだけ）。
-//! 2. 殻は、そのタブの今の URL（一番上のフレーム）の host が設定にあれば、その URL を外のブラウザで開き、
-//!    「そのサイトのログインを待っている」と覚える（`WAIT` の間）。ページには NotAllowedError を返す。
+//! 2. 殻は、そのタブの今の URL（一番上のフレーム）の host が設定の項目に当たれば（`site_matches`）、その URL を外のブラウザで開き、
+//!    「その項目のログインを待っている」と覚える（`WAIT` の間）。ページには NotAllowedError を返す。
 //! 3. 外のブラウザの拡張機能（#207）がログインした後の Cookie を native messaging で送る。ブラウザが起動する受け口
 //!    （この実行ファイルを `--native-messaging-host` で起動したもの。`run_host`）が、それを窓の Unix ソケットに渡す。
 //! 4. 窓は、待っているサイトの Cookie だけを、内蔵ブラウザの共有のデータに入れ、移る前のタブで同じ URL を開き直す。
@@ -48,8 +48,8 @@ pub const FIREFOX_EXTENSION_ID: &str = "kisui-terminal@mm1995tk.github.io";
 /// `extension/build.mjs` の `CHROME_PUBLIC_KEY` から計算した id と同じであること（`extension/extension.test.ts` が確かめる）。
 /// 空なら Chrome の登録のファイルを置かない。
 pub const CHROME_EXTENSION_IDS: &[&str] = &["ljfmfmfcicodilhhbmhkfkgjbcpphjel"];
-/// 取り決めの版（`sites` の答えに入れる）。
-pub const PROTOCOL_VERSION: u32 = 1;
+/// 取り決めの版（`sites` の答えに入れる）。2 で、`sites` に `.google.com` の書き方が入るようになった（#279）。
+pub const PROTOCOL_VERSION: u32 = 2;
 
 /// 外のブラウザに移ってから、Cookie を待つ長さ。
 const WAIT: Duration = Duration::from_secs(10 * 60);
@@ -84,7 +84,7 @@ pub struct Waiting {
 pub struct Passkey {
     sites: Vec<String>,
     browser: PasskeyBrowser,
-    /// サイト（host）ごとの待ち
+    /// 許可サイトの項目（`passkey_sites` に書いた形）ごとの待ち
     waiting: Mutex<HashMap<String, Waiting>>,
     /// タブごとの、最後に外のブラウザを開いた時刻
     last: Mutex<HashMap<String, Instant>>,
@@ -141,13 +141,29 @@ fn error(code: &str, message: &str) -> Value {
     json!({ "type": "error", "code": code, "message": message })
 }
 
-/// `u` が許可サイトのページなら、そのサイト（host）。http・https だけ。
+/// host `host` が許可サイトの項目 `site` に当たるか。`github.com` は host が完全に同じときだけ、
+/// `.google.com` は `google.com` とそのすべてのサブドメイン（`accounts.google.com`）に当たる。
+/// 拡張機能の `extension/lib.js` の `inSite` と、ページに入れる browser_passkey.js も同じ決まり。
+pub fn site_matches(host: &str, site: &str) -> bool {
+    match site.strip_prefix('.') {
+        Some(base) => host == base || host.ends_with(site),
+        None => host == site,
+    }
+}
+
+/// `u` が許可サイトのページなら、当たった項目（`passkey_sites` に書いた形）。http・https だけ。
+/// いくつも当たれば、host と完全に同じもの、次に `.` の後ろの長いもの（細かいもの）。
+/// 拡張機能の `extension/lib.js` の `siteOf` も同じ決まり。
 pub fn site_of(u: &Url, sites: &[String]) -> Option<String> {
     if !matches!(u.scheme(), "http" | "https") {
         return None;
     }
     let host = u.host_str()?;
-    sites.iter().find(|s| s.as_str() == host).cloned()
+    sites
+        .iter()
+        .filter(|s| site_matches(host, s))
+        .max_by_key(|s| (!s.starts_with('.'), s.len()))
+        .cloned()
 }
 
 /// ユーザーがリーダーの操作で外のブラウザでのログインを始めたとき（#276。`o s`）の答え。
@@ -216,9 +232,13 @@ pub fn script(nonce: &str, sites: &[String]) -> String {
         )
 }
 
-/// 送られた Cookie のうち、`site` のページに送られるものを、`site` だけの Cookie にして返す（入れられないものは数えて捨てる）。
+/// 送られた Cookie のうち、許可サイトの項目 `site` に入れてよいものを返す（入れられないものは数えて捨てる）。
+/// `site` が `github.com` の書き方なら、`site` のページに送られるものを、`site` だけの Cookie にする。
 /// `site` の上のドメインの Cookie（`.cloudflare.com` など）も、`site`（`dash.cloudflare.com`）だけのものにする
 /// （上のドメインに入れると、許可していないサイトにも送られるため）。`site` の下のドメインの Cookie は捨てる。
+/// `site` が `.google.com` の書き方なら、`google.com` とその下のドメインの Cookie は、そのドメインのまま入れる
+/// （どれも許可した範囲。host だけのものは host だけ、サブドメインにも送られるものはサブドメインにも送られるまま）。
+/// 上のドメインの Cookie は、`google.com` とそのサブドメインに送られるもの（`.google.com`）にする。
 /// 期限の切れたもの・名前や値に使えない文字のあるものも捨てる。同じ名前とパスなら、ドメインのより細かいものが勝つ。
 pub fn accept_cookies(
     cookies: &[WireCookie],
@@ -247,9 +267,16 @@ fn cookie_text(s: &str) -> bool {
 fn accept_cookie(c: &WireCookie, site: &str, now: f64) -> Option<(usize, Cookie<'static>)> {
     let host_only = c.host_only && !c.domain.starts_with('.');
     let domain = c.domain.trim_start_matches('.').to_ascii_lowercase();
-    let applies = domain == site
-        || (!host_only && domain.contains('.') && site.ends_with(&format!(".{domain}")));
-    if !applies
+    // `.google.com` なら base は `google.com`（その下のドメインもまとめる）
+    let (base, subdomains) = match site.strip_prefix('.') {
+        Some(b) => (b, true),
+        None => (site, false),
+    };
+    // 許可した範囲の中のドメイン（そのまま入れる）
+    let inside = domain == base || (subdomains && domain.ends_with(&format!(".{base}")));
+    // base のページに送られる、上のドメインのもの（base のものにする）
+    let above = !host_only && domain.contains('.') && base.ends_with(&format!(".{domain}"));
+    if !(inside || above)
         || c.name.is_empty()
         || c.name.contains('=')
         || !cookie_text(&c.name)
@@ -259,8 +286,22 @@ fn accept_cookie(c: &WireCookie, site: &str, now: f64) -> Option<(usize, Cookie<
     {
         return None;
     }
+    let to = if inside {
+        domain.clone()
+    } else {
+        base.to_string()
+    };
+    // WebView（wry の set_cookie）は `Cookie::domain()` の値をそのまま渡し、先頭に `.` の無い domain は host だけの Cookie になる。
+    // `github.com` の書き方は、どれも host だけにする（上の説明）。`.google.com` の書き方では、host だけでない Cookie と
+    // 上のドメインから寄せたものを、サブドメインにも送られる `.google.com` のままにする（host だけにすると、開き直す
+    // `accounts.google.com` に送られない）。`domain()` は先頭の `.` を 1 つ取るので、`..google.com` と入れて `.google.com` を渡す
+    let to = if subdomains && !(inside && host_only) {
+        format!("..{to}")
+    } else {
+        to
+    };
     let mut b = Cookie::build((c.name.clone(), c.value.clone()))
-        .domain(site.to_string())
+        .domain(to)
         .path(c.path.clone())
         .secure(c.secure)
         .http_only(c.http_only);
@@ -1116,7 +1157,7 @@ mod tests {
         let r = p.handle(&json!({"type": "sites"}), t0, 0.0, never);
         assert_eq!(
             r,
-            json!({"type": "sites", "version": 1, "sites": ["github.com", "dash.cloudflare.com"], "waiting": []})
+            json!({"type": "sites", "version": 2, "sites": ["github.com", "dash.cloudflare.com"], "waiting": []})
         );
         p.hand_off("t1", &url("https://github.com/login"), t0);
         let r = p.handle(&json!({"type": "sites"}), t0, 0.0, never);
@@ -1370,5 +1411,110 @@ mod tests {
             .concat()
             .chars()
             .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_' || c == '.'));
+    }
+
+    // .google.com の書き方（#279）。そのドメインとすべてのサブドメインに当たる
+    #[test]
+    fn a_dot_site_matches_the_domain_and_its_subdomains() {
+        let s: Vec<String> = vec![".google.com".into(), "github.com".into()];
+        for (u, want) in [
+            ("https://google.com/", Some(".google.com")),
+            ("https://accounts.google.com/v3/signin", Some(".google.com")),
+            ("https://myaccount.google.com/", Some(".google.com")),
+            ("https://a.b.google.com/", Some(".google.com")),
+            ("https://github.com/", Some("github.com")),
+            ("https://evilgoogle.com/", None),
+            ("https://google.com.evil.example/", None),
+            ("https://gist.github.com/", None),
+        ] {
+            assert_eq!(site_of(&url(u), &s).as_deref(), want, "{u}");
+        }
+        // いくつも当たれば、host と完全に同じもの、次に細かいもの
+        let s: Vec<String> = vec![
+            ".google.com".into(),
+            ".mail.google.com".into(),
+            "accounts.google.com".into(),
+        ];
+        assert_eq!(
+            site_of(&url("https://accounts.google.com/"), &s).as_deref(),
+            Some("accounts.google.com")
+        );
+        assert_eq!(
+            site_of(&url("https://x.mail.google.com/"), &s).as_deref(),
+            Some(".mail.google.com")
+        );
+        assert_eq!(
+            site_of(&url("https://myaccount.google.com/"), &s).as_deref(),
+            Some(".google.com")
+        );
+    }
+
+    #[test]
+    fn a_dot_site_takes_cookies_of_its_domain_as_they_are() {
+        let cs = vec![
+            wire("SID", ".google.com", false),
+            wire("ACCOUNT", "myaccount.google.com", true),
+            wire("host", "google.com", true),
+            wire("parent", ".com", false),
+            wire("other", "example.com", true),
+            wire("evil", "evilgoogle.com", true),
+        ];
+        let (ok, dropped) = accept_cookies(&cs, ".google.com", 0.0);
+        let got: Vec<_> = ok
+            .iter()
+            .map(|c| (c.name().to_string(), c.domain().unwrap().to_string()))
+            .collect();
+        // WebView には domain() をそのまま渡す。先頭の `.` があればサブドメインにも送られ、無ければ host だけ
+        assert_eq!(
+            got,
+            vec![
+                ("SID".to_string(), ".google.com".to_string()),
+                ("host".to_string(), "google.com".to_string()),
+                ("ACCOUNT".to_string(), "myaccount.google.com".to_string()),
+            ]
+        );
+        assert_eq!(dropped, 3);
+        // 上のドメインの Cookie は、許可したドメインとそのサブドメインに送られるものにする
+        let (ok, _) = accept_cookies(
+            &[wire("CF_Authorization", ".cloudflare.com", false)],
+            ".dash.cloudflare.com",
+            0.0,
+        );
+        assert_eq!(ok[0].domain(), Some(".dash.cloudflare.com"));
+    }
+
+    // 待つ単位は当たった項目。accounts.google.com で移っても、myaccount.google.com のタブの Cookie を受ける
+    #[test]
+    fn a_dot_site_waits_for_the_item() {
+        let p = Passkey::new(vec![".google.com".into()], PasskeyBrowser::Chrome);
+        let t0 = Instant::now();
+        let never = |_: &Waiting, _: Vec<Cookie<'static>>| -> Result<(), String> { panic!() };
+        let u = url("https://accounts.google.com/v3/signin");
+        assert_eq!(p.hand_off("t1", &u, t0), Some(u.clone()));
+        let r = p.handle(&json!({"type": "sites"}), t0, 0.0, never);
+        assert_eq!(r["sites"], json!([".google.com"]));
+        assert_eq!(
+            r["waiting"],
+            json!([{"site": ".google.com", "url": "https://accounts.google.com/v3/signin"}])
+        );
+        // 項目でなく host を送っても受けない
+        let msg = |site: &str| {
+            json!({"type": "cookies", "site": site, "cookies": [
+                { "name": "SID", "value": "s", "domain": ".google.com", "hostOnly": false },
+                { "name": "A", "value": "a", "domain": "myaccount.google.com", "hostOnly": true }
+            ]})
+        };
+        let r = p.handle(&msg("myaccount.google.com"), t0, 0.0, never);
+        assert_eq!(r["code"], "not-allowed");
+        let mut got = None;
+        let r = p.handle(&msg(".google.com"), t0, 0.0, |w, c| {
+            got = Some((w.url.to_string(), c.len()));
+            Ok(())
+        });
+        assert_eq!(r, json!({"type": "done", "accepted": 2, "dropped": 0}));
+        assert_eq!(
+            got,
+            Some(("https://accounts.google.com/v3/signin".into(), 2))
+        );
     }
 }

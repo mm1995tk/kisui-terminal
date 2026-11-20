@@ -1,4 +1,4 @@
-// 右下に積む知らせを組み立てる（文とボタン）。つながらない・別の GUI に移った・できなかったこと・近道の間違い・ダウンロード。
+// 右下に積む知らせを組み立てる（文とボタン）。つながらない・別の GUI に移った・できなかったこと・近道の間違い・使わない passkey_sites の項目・ダウンロード。
 // 描くのは Notices.tsx。
 import { T } from "../../../i18n/index.ts";
 import { createMemo, createSignal, type Accessor } from "solid-js";
@@ -21,6 +21,8 @@ import type { Notice } from "./Notices.tsx";
 export function createNotices(deps: {
   /** 設定の [gui.shortcuts] の間違い（あればお知らせに出す） */
   shortcutProblems: string[] | undefined;
+  /** 設定の [gui.browser] passkey_sites の、公開サフィックスなので使わない項目（あればお知らせに出す） */
+  passkeyRejected: string[] | undefined;
   /** できなかったこと（無ければ null） */
   focusError: Accessor<Problem | null>;
   setFocusError: ReportProblem;
@@ -112,6 +114,19 @@ export function createNotices(deps: {
     }
     return localCache.notice;
   }
+  const [passkeyDismissed, setPasskeyDismissed] = createSignal(false);
+  const passkeyNotice: Notice | undefined = deps.passkeyRejected?.length
+    ? {
+        title: T("notice.passkeySites.title"),
+        text: T("notice.passkeySites.text"),
+        error: deps.passkeyRejected.join("\n"),
+        primary: {
+          label: T("button.close"),
+          run: () => setPasskeyDismissed(true),
+        },
+        dismiss: () => setPasskeyDismissed(true),
+      }
+    : undefined;
   let focusNotice:
     { err: { title: string; error: string }; notice: Notice } | undefined;
 
@@ -121,6 +136,7 @@ export function createNotices(deps: {
     if (shortcutNotice && !shortcutDismissed()) out.push(shortcutNotice);
     const local = localNotice();
     if (local) out.push(local);
+    if (passkeyNotice && !passkeyDismissed()) out.push(passkeyNotice);
     const err = focusError();
     if (err) {
       if (focusNotice?.err !== err) {

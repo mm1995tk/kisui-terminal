@@ -46,6 +46,8 @@ export interface GuiConfig {
   browser: boolean;
   /** 設定で足した近道（[gui.shortcuts]。キーの順。書き方と使えるコマンドかは commands.ts の setUserShortcuts が確かめる） */
   shortcuts: { key: string; command: string; source: number }[];
+  /** [gui.browser] passkey_sites に書いたが、公開サフィックス（.com・.github.io）なので使わない項目（書いた形のまま。お知らせに出す） */
+  passkeyRejected: string[];
   /** タブの段の高さの上限の元の値（[gui.sidebar] tabs-height。サイドバーの高さに対する %）。書いていなければ無い */
   sidebarTabsHeight?: number | null;
 }
