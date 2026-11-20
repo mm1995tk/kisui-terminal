@@ -57,6 +57,13 @@ type QueryOptions struct {
 	// of the first run tells). A page holds as many rows as the limits here
 	// let in.
 	Offset int
+	// OrderBy, when above 0, sorts the rows of a SELECT by the column at that
+	// position (1 is the first column of the result), in descending order when
+	// Desc (#377). The statement is run wrapped with an ORDER BY (wrap.go), so
+	// the database sorts all its rows and the pages of Offset follow that
+	// order. It fails like Offset when the statement cannot be wrapped.
+	OrderBy int
+	Desc    bool
 	// rowLimit, when above 0, is the most rows instead of MaxRows, with no
 	// upper bound. Only the queries of this package set it (ReadCatalog),
 	// for lists that are long but small per row.
@@ -188,14 +195,14 @@ func Open(ctx context.Context, c config.DBLogin, password string) (Session, erro
 }
 
 // prepare gives the statement Query sends for sql: sql itself, or sql
-// wrapped when o asks for rows after the first. One row more than a page
+// wrapped when o asks for rows after the first or for a sorting. One row more than a page
 // holds is asked for, so that Result.Truncated tells whether there is
 // another page, and the database stops after it.
 func prepare(kind, sql string, o QueryOptions) (string, error) {
-	if o.Offset <= 0 {
+	if o.Offset <= 0 && o.OrderBy <= 0 {
 		return sql, nil
 	}
-	return wrapSQL(kind, sql, o.Offset, o.maxRows()+1)
+	return wrapSQL(kind, sql, max(o.Offset, 0), o.maxRows()+1, o.OrderBy, o.Desc)
 }
 
 // finish fills in what Query adds to the result of sql (the statement as

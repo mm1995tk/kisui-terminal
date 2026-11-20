@@ -293,7 +293,10 @@ export const PLACE_KEYS: Record<Place, PlaceKeys> = {
   dbResult: {
     title: T("place.dbResult.title"),
     lead: T("place.dbResult.lead"),
-    rows: [row("Cmd+C / Ctrl+C", T("place.dbResult.copy"), [])],
+    rows: [
+      row("Cmd+C / Ctrl+C", T("place.dbResult.copy"), []),
+      row("s", T("place.dbResult.sort"), ["s"]),
+    ],
   },
   // DB のタブの履歴の窓（リーダーの d h。#349）。判定は features/db/keys.ts の dbHistoryKey（修飾キー付きのものは probes に書けないので、
   // keys.test.ts で確かめる）

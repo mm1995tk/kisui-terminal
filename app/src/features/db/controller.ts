@@ -56,6 +56,8 @@ import {
   queueStep,
   sendQueued,
   type DbPage,
+  nextSort,
+  sortable,
   type PageStep,
 } from "./paging.ts";
 import { createDbExport } from "./exportController.ts";
@@ -226,7 +228,7 @@ export function createDbTabs(deps: {
     if (text.trim() === "") return;
     // 前の結果のために押したページ送りを、新しい SQL の結果に持ち越さない
     if (!untrack(runs)[id]?.running) queuedSteps.delete(id);
-    await execute(id, { sql: text, back: [] }, 0);
+    await execute(id, { sql: text, back: [] }, 0, false);
   }
 
   /** タブ id の接続の種類（文の区切り方が違う。#375）。聞けなかったときは undefined（PostgreSQL の読み方を使う）。 */
@@ -290,12 +292,36 @@ export function createDbTabs(deps: {
     if (!r?.result || !r.page || !pageable(r.result)) return "none";
     const t = pageTarget(r.result, r.page, step);
     if (!t) return "edge";
-    void execute(id, { sql: r.page.sql, back: t.back }, t.offset);
+    void execute(
+      id,
+      { sql: r.page.sql, back: t.back, sort: r.page.sort },
+      t.offset,
+      true,
+    );
     return null;
   }
 
-  /** タブ id に page.sql を送り（offset が 0 より大きければ、その行数の後のページ）、結果をそのタブに出す。 */
-  async function execute(id: string, page: DbPage, offset: number) {
+  /**
+   * タブ id の結果を、列 column（0 から数える）で並べ替える（#377）。結果を出した SQL を ORDER BY を付けてもう一度送り、先頭のページから出す。
+   * 同じ列を続けて押すと「昇順 → 降順 → 並べ替えなし」と進む。並べ替えられない（実行している間・結果が無い・包めない文）なら、送らずに false。
+   */
+  function sortBy(id: string, column: number): boolean {
+    const r = untrack(runs)[id];
+    if (r?.running || !r?.result || !r.page || !sortable(r.result))
+      return false;
+    if (column < 0 || column >= r.result.columns.length) return false;
+    const sort = nextSort(r.page.sort, column) ?? undefined;
+    void execute(id, { sql: r.page.sql, back: [], sort }, 0, true);
+    return true;
+  }
+
+  /** タブ id に page.sql を送り（offset が 0 より大きければ、その行数の後のページ。page.sort があれば、その列で並べ替えて）、結果をそのタブに出す。rerun は、結果を出した SQL を読み直すだけの実行（履歴に残さない）。 */
+  async function execute(
+    id: string,
+    page: DbPage,
+    offset: number,
+    rerun: boolean,
+  ) {
     const ref = refOf(id);
     if (!ref) return;
     if (untrack(runs)[id]?.running) return;
@@ -308,6 +334,14 @@ export function createDbTabs(deps: {
         sql: page.sql,
         queryId,
         ...(offset > 0 ? { offset } : {}),
+        ...(page.sort
+          ? {
+              orderBy: page.sort.column + 1,
+              ...(page.sort.desc ? { desc: true } : {}),
+            }
+          : {}),
+        // 最初の実行（run）でないものは履歴に残さない（同じ SQL を読み直すだけ）
+        ...(rerun ? { rerun: true } : {}),
       });
       if (!mine()) return;
       setRun(id, () => ({ result, page }));
@@ -516,6 +550,7 @@ export function createDbTabs(deps: {
     run,
     runSelection,
     stepPage,
+    sortBy,
     cancel,
     request,
     // サイドバーの木（#348・#374。treeController.ts）

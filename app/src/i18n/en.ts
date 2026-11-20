@@ -649,6 +649,8 @@ export const en = {
     "Keys while the result table has focus. Click a cell to select it, and extend the selection with Shift+click or by dragging.",
   "place.dbResult.copy":
     "Copy the selected cells (one cell as it is, more as TSV)",
+  "place.dbResult.sort":
+    "Sort by the column of the selected cell (each press: ascending, descending, none)",
   "cannot.db.title": "Cannot open a database tab",
   "leader.db.tree": "Move the keys to the schema tree in the sidebar",
   "leader.db.refresh": "Reload the schema tree",
