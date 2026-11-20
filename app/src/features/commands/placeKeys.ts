@@ -24,7 +24,8 @@ export type Place =
   | "switcher"
   | "switcherTabs"
   | "history"
-  | "db";
+  | "db"
+  | "dbTree";
 
 /** 表の 1 行。keys は一覧に出す書き方、probes は、判定が受けるはずのキー（KeyboardEvent.key。テストで使う）。 */
 export interface PlaceKeyRow {
@@ -285,6 +286,29 @@ export const PLACE_KEYS: Record<Place, PlaceKeys> = {
       row("Esc", T("place.db.cancel"), ["Escape"]),
     ],
   },
+  // DB のタブの左の木のペイン（#348）。判定は features/db/keys.ts の dbTreeKey
+  dbTree: {
+    title: T("place.dbTree.title"),
+    lead: T("place.dbTree.lead"),
+    rows: [
+      row("j k / ↓ ↑", T("place.row.nextPrev"), [
+        "j",
+        "k",
+        "ArrowDown",
+        "ArrowUp",
+      ]),
+      row("g G / Home End", T("place.row.firstLast"), [
+        "g",
+        "G",
+        "Home",
+        "End",
+      ]),
+      row("l / →", T("place.dbTree.expand"), ["l", "ArrowRight"]),
+      row("h / ←", T("place.dbTree.collapse"), ["h", "ArrowLeft"]),
+      row("Enter", T("place.dbTree.enter")),
+      row("Esc", T("place.dbTree.back"), ["Escape"]),
+    ],
+  },
 };
 
 /**
@@ -366,6 +390,7 @@ const PLACES = new Set<string>([
   "image",
   "machines",
   "db",
+  "dbTree",
 ]);
 
 /**

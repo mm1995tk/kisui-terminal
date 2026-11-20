@@ -60,7 +60,10 @@ export function createCommandRunner(deps: {
   terminals: Terminals;
   browserTabs: BrowserTabs;
   pages: Pages;
-  db: Pick<DbTabs, "shownDbTab" | "openPicker">;
+  db: Pick<
+    DbTabs,
+    "shownDbTab" | "openPicker" | "toggleTree" | "reloadCatalog"
+  >;
   bookmarks: Bookmarks;
   downloads: Downloads;
   updates: Updates;
@@ -292,6 +295,19 @@ export function createCommandRunner(deps: {
       case "db.open":
         deps.db.openPicker();
         break;
+      case "db.tree":
+      case "db.refresh": {
+        // 左の木のペイン（#348）の操作：DB のタブを出している間だけ
+        const tab = deps.db.shownDbTab();
+        if (!tab) {
+          cannot(T("cannot.dbTree.title"), T("cannot.dbTree.text"));
+          break;
+        }
+        if (c.id === "db.tree") deps.db.toggleTree();
+        else void deps.db.reloadCatalog(tab.id);
+        focusTerminal();
+        break;
+      }
       case "workspace.nth":
         // サイドバーの上から順に（1 列の並びで）。足りなければ何もしない
         deps.workspaces.goNth(c.arg as number);

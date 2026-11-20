@@ -1,0 +1,210 @@
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+
+import type { DbCatalog } from "../../infrastructure/rpc/protocol.ts";
+import {
+  clampTreeWidth,
+  DB_TREE_KEY,
+  DEFAULT_TREE_LAYOUT,
+  initialExpanded,
+  loadTreeLayout,
+  previewSql,
+  quoteIdent,
+  saveTreeLayout,
+  schemaId,
+  tableId,
+  treeStep,
+  visibleRows,
+} from "./tree.ts";
+
+const catalog: DbCatalog = {
+  truncated: false,
+  schemas: [
+    {
+      name: "public",
+      tables: [
+        {
+          name: "users",
+          kind: "table",
+          columns: [
+            { name: "id", type: "integer" },
+            { name: "name", type: "text" },
+          ],
+        },
+        { name: "active_users", kind: "view", columns: [] },
+      ],
+    },
+    { name: "empty", tables: [] },
+  ],
+};
+
+const mem = () => {
+  const m = new Map<string, string>();
+  return {
+    getItem: (k: string) => m.get(k) ?? null,
+    setItem: (k: string, v: string) => void m.set(k, v),
+  };
+};
+
+describe("visibleRows（木の見える行）", () => {
+  it("閉じていればスキーマだけ", () => {
+    const r = visibleRows(catalog, new Set());
+    assert.deepEqual(
+      r.map((x) => [x.kind, x.label, x.depth]),
+      [
+        ["schema", "public", 0],
+        ["schema", "empty", 0],
+      ],
+    );
+  });
+
+  it("開けた枝の下に、テーブル・ビュー・列が並ぶ", () => {
+    const r = visibleRows(
+      catalog,
+      new Set([schemaId("public"), tableId("public", "users")]),
+    );
+    assert.deepEqual(
+      r.map((x) => [x.kind, x.label, x.type]),
+      [
+        ["schema", "public", undefined],
+        ["table", "users", undefined],
+        ["column", "id", "integer"],
+        ["column", "name", "text"],
+        ["view", "active_users", undefined],
+        ["schema", "empty", undefined],
+      ],
+    );
+    const users = r.find((x) => x.label === "users")!;
+    assert.equal(users.expanded, true);
+    assert.equal(users.parent, "public");
+  });
+
+  it("列の無いテーブルは、開けられない", () => {
+    const r = visibleRows(catalog, new Set([schemaId("public")]));
+    assert.equal(r.find((x) => x.label === "active_users")!.expandable, false);
+    assert.equal(r.find((x) => x.label === "users")!.expandable, true);
+  });
+
+  it("スキーマが 1 つならそれを開けておく", () => {
+    assert.deepEqual(initialExpanded(catalog), []);
+    assert.deepEqual(
+      initialExpanded({ truncated: false, schemas: [catalog.schemas[0]!] }),
+      ["public"],
+    );
+  });
+});
+
+describe("treeStep（木のキーの動き）", () => {
+  const open = new Set([schemaId("public"), tableId("public", "users")]);
+  const rows = visibleRows(catalog, open);
+  const id = (label: string) => rows.find((r) => r.label === label)!.id;
+
+  it("上下は端で止まる。選んでいる行が無ければ先頭から", () => {
+    assert.deepEqual(treeStep(rows, undefined, "next"), {
+      cursor: rows[0]!.id,
+    });
+    assert.deepEqual(treeStep(rows, id("public"), "next"), {
+      cursor: id("users"),
+    });
+    assert.deepEqual(treeStep(rows, id("public"), "prev"), {
+      cursor: id("public"),
+    });
+    assert.deepEqual(treeStep(rows, id("empty"), "next"), {
+      cursor: id("empty"),
+    });
+    assert.deepEqual(treeStep(rows, id("id"), "last"), { cursor: id("empty") });
+    assert.deepEqual(treeStep(rows, id("id"), "first"), {
+      cursor: id("public"),
+    });
+  });
+
+  it("右：閉じていれば開け、開いていれば中へ。列は何もしない", () => {
+    const closed = visibleRows(catalog, new Set());
+    assert.deepEqual(treeStep(closed, closed[0]!.id, "expand"), {
+      toggle: { id: "public", open: true },
+    });
+    assert.deepEqual(treeStep(rows, id("public"), "expand"), {
+      cursor: id("users"),
+    });
+    assert.deepEqual(treeStep(rows, id("id"), "expand"), {});
+  });
+
+  it("左：開いていれば閉じ、閉じていれば上へ", () => {
+    assert.deepEqual(treeStep(rows, id("users"), "collapse"), {
+      toggle: { id: id("users"), open: false },
+    });
+    assert.deepEqual(treeStep(rows, id("id"), "collapse"), {
+      cursor: id("users"),
+    });
+    assert.deepEqual(treeStep(rows, id("active_users"), "collapse"), {
+      cursor: id("public"),
+    });
+    assert.deepEqual(treeStep(rows, id("empty"), "collapse"), {});
+  });
+
+  it("Enter：スキーマは開け閉め、テーブル・ビューは中身を見る、列は何もしない", () => {
+    assert.deepEqual(treeStep(rows, id("public"), "enter"), {
+      toggle: { id: "public", open: false },
+    });
+    assert.deepEqual(treeStep(rows, id("empty"), "enter"), {
+      toggle: { id: "empty", open: true },
+    });
+    assert.deepEqual(treeStep(rows, id("users"), "enter"), {
+      preview: { schema: "public", table: "users" },
+    });
+    assert.deepEqual(treeStep(rows, id("active_users"), "enter"), {
+      preview: { schema: "public", table: "active_users" },
+    });
+    assert.deepEqual(treeStep(rows, id("id"), "enter"), {});
+  });
+
+  it("Esc は入力欄に戻る。行が無くても戻れる", () => {
+    assert.deepEqual(treeStep([], undefined, "back"), { leave: true });
+    assert.deepEqual(treeStep([], undefined, "next"), {});
+  });
+});
+
+describe("previewSql（テーブルを選んだときの SQL）", () => {
+  it("PostgreSQL は二重引用符、MySQL はバッククォートで、スキーマも付ける", () => {
+    assert.equal(
+      previewSql("postgres", "public", "users"),
+      'SELECT * FROM "public"."users" LIMIT 100',
+    );
+    assert.equal(
+      previewSql("mysql", "shop", "users"),
+      "SELECT * FROM `shop`.`users` LIMIT 100",
+    );
+  });
+
+  it("名前の中の引用符は 2 つにする", () => {
+    assert.equal(quoteIdent("postgres", 'a"b'), '"a""b"');
+    assert.equal(quoteIdent("mysql", "a`b"), "`a``b`");
+    assert.equal(quoteIdent("mysql", 'a"b'), '`a"b`');
+  });
+});
+
+describe("木のペインの開け閉めと幅の記録", () => {
+  it("書いて読み直すと戻る。無い・壊れている・版が違うときは既定", () => {
+    const s = mem();
+    assert.deepEqual(loadTreeLayout(s), DEFAULT_TREE_LAYOUT);
+    saveTreeLayout(s, { open: false, width: 300 });
+    assert.deepEqual(loadTreeLayout(s), { open: false, width: 300 });
+    s.setItem(DB_TREE_KEY, "{");
+    assert.deepEqual(loadTreeLayout(s), DEFAULT_TREE_LAYOUT);
+    s.setItem(DB_TREE_KEY, JSON.stringify({ version: 2, open: false }));
+    assert.deepEqual(loadTreeLayout(s), DEFAULT_TREE_LAYOUT);
+    assert.deepEqual(loadTreeLayout(undefined), DEFAULT_TREE_LAYOUT);
+  });
+
+  it("幅は範囲に収める", () => {
+    assert.equal(clampTreeWidth(10), 160);
+    assert.equal(clampTreeWidth(9999), 640);
+    assert.equal(clampTreeWidth(Number.NaN), 240);
+    const s = mem();
+    s.setItem(
+      DB_TREE_KEY,
+      JSON.stringify({ version: 1, open: true, width: 1 }),
+    );
+    assert.equal(loadTreeLayout(s).width, 160);
+  });
+});

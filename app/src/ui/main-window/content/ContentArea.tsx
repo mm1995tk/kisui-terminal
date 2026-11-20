@@ -159,6 +159,17 @@ export function ContentArea(props: {
               run={db.runOf(id)}
               onRun={() => void db.run(id)}
               onCancel={() => db.cancel(id)}
+              tree={{
+                open: db.treeLayout().open,
+                width: db.treeLayout().width,
+                onWidth: db.setTreeWidth,
+                catalog: db.catalogOf(id),
+                expanded: db.expandedOf(id),
+                onToggle: (node, open) => db.toggleNode(id, node, open),
+                onPreview: (schema, table) =>
+                  db.previewTable(id, schema, table),
+                onReload: () => void db.reloadCatalog(id),
+              }}
               focusRef={(f) => props.focusUi.setDbFocus(f)}
             />
           );

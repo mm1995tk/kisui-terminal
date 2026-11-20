@@ -124,7 +124,8 @@ export type BlobMethod = "media.read";
 /** Session.request で送れる要求（プライマリの shj にファイルを開かせる）。 */
 export type ShjMethod = "shj.open" | "shj.diff" | "shj.changesKey";
 /** Session.request で送れる要求（DB。#345・#347。capabilities に "db" がある kisui serve だけが受ける）。 */
-export type DbMethod = "db.connections" | "db.query" | "db.cancel";
+export type DbMethod =
+  "db.connections" | "db.query" | "db.cancel" | "db.schema";
 /** ターミナルの通知（F1）。method で見分ける。 */
 export type TermEvent =
   | { method: "term.output"; params: Notifications["term.output"] }
