@@ -8,6 +8,7 @@ import type { DownloadDone } from "../../../features/browser/os.ts";
 import { leaderKeyName } from "../../../features/commands/commands.ts";
 import { IS_MAC } from "../../../features/commands/guiKeys.ts";
 import type { Problem, ReportProblem } from "../../../features/problem.ts";
+import { localNamed } from "../../../features/sessions/machines.ts";
 import type { Sessions } from "../../../features/sessions/controller.ts";
 import type { SessionState } from "../../../features/sessions/session.ts";
 import {
@@ -20,14 +21,12 @@ import type { Notice } from "./Notices.tsx";
 export function createNotices(deps: {
   /** 設定の [gui.shortcuts] の間違い（あればお知らせに出す） */
   shortcutProblems: string[] | undefined;
-  /** 設定ファイルの [[gui.machines]] のうち、名前が local のマシン（ssh の行き先。あればお知らせに出す。`--machine` で選べない） */
-  localNamed?: string[];
   /** できなかったこと（無ければ null） */
   focusError: Accessor<Problem | null>;
   setFocusError: ReportProblem;
   sessions: Pick<
     Sessions,
-    "states" | "targets" | "labelOf" | "connect" | "disconnect"
+    "states" | "targets" | "labelOf" | "connect" | "disconnect" | "machines"
   >;
   downloads: Pick<Downloads, "downloads" | "dropDownload" | "useDownload">;
 }) {
@@ -89,20 +88,30 @@ export function createNotices(deps: {
         dismiss: () => setShortcutDismissed(true),
       }
     : undefined;
-  const [localDismissed, setLocalDismissed] = createSignal(false);
-  const localNotice: Notice | undefined = deps.localNamed?.length
-    ? {
-        title: T("notice.localMachine.title"),
-        text: T("notice.localMachine.text", {
-          machines: deps.localNamed.join(", "),
-        }),
-        primary: {
-          label: T("button.close"),
-          run: () => setLocalDismissed(true),
+  // 名前が local のマシン（--machine で選べない）。閉じたら、同じ並びの間は出さない
+  const [localDismissed, setLocalDismissed] = createSignal("");
+  let localCache: { key: string; notice: Notice } | undefined;
+  function localNotice(): Notice | undefined {
+    const list = localNamed(deps.sessions.machines());
+    const key = list.join("\n");
+    if (list.length === 0 || localDismissed() === key) return undefined;
+    if (localCache?.key !== key) {
+      const close = () => setLocalDismissed(key);
+      localCache = {
+        key,
+        notice: {
+          title: T("notice.localMachine.title"),
+          text: T("notice.localMachine.text", {
+            machines: list.join(", "),
+            leader: leaderKeyName(IS_MAC),
+          }),
+          primary: { label: T("button.close"), run: close },
+          dismiss: close,
         },
-        dismiss: () => setLocalDismissed(true),
-      }
-    : undefined;
+      };
+    }
+    return localCache.notice;
+  }
   let focusNotice:
     { err: { title: string; error: string }; notice: Notice } | undefined;
 
@@ -110,7 +119,8 @@ export function createNotices(deps: {
   const notices = createMemo<Notice[]>(() => {
     const out: Notice[] = [];
     if (shortcutNotice && !shortcutDismissed()) out.push(shortcutNotice);
-    if (localNotice && !localDismissed()) out.push(localNotice);
+    const local = localNotice();
+    if (local) out.push(local);
     const err = focusError();
     if (err) {
       if (focusNotice?.err !== err) {

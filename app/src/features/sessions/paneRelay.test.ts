@@ -7,9 +7,10 @@ import type {
 } from "../../infrastructure/rpc/protocol.ts";
 import {
   addMachine,
-  localNamedConfig,
+  localNamed,
   machineNames,
   machineTarget,
+  mergeMachines,
   renameMachine,
   type Machine,
 } from "./machines.ts";
@@ -38,15 +39,22 @@ describe("--machine のマシンの名前", () => {
     assert.deepEqual(machineNames(list), ["local"]);
   });
 
-  it("設定ファイルの名前が local のマシンを知らせる（名前が無ければ ssh の行き先で見る）", () => {
+  it("名前が local のマシンを知らせる（名前が無ければ ssh の行き先で見る。設定ファイルのものも、GUI で足したものも）", () => {
     assert.deepEqual(
-      localNamedConfig([
-        { ssh: "a", name: "local" },
-        { ssh: "local" },
-        { ssh: "local", name: "other" },
-        { ssh: "b", name: null },
+      localNamed([
+        { target: "a", name: "local", fixed: true },
+        { target: "local" },
+        { target: "local2", name: "other" },
+        { target: "b" },
       ]),
       ["a", "local"],
+    );
+    // 設定ファイルのマシンの名前と同じ名前の足したマシンは出ない（mergeMachines）ので、知らせにも出ない
+    assert.deepEqual(
+      localNamed(
+        mergeMachines([{ ssh: "a", name: "local" }], [{ target: "local" }]),
+      ),
+      ["a"],
     );
   });
 

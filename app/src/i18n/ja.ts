@@ -254,7 +254,7 @@ export const ja: Record<Key, string> = {
   "notice.shortcuts.text": "間違いのある近道だけを使いません。ほかは効きます。",
   "notice.localMachine.title": "マシンの名前 local は予約語です",
   "notice.localMachine.text":
-    "kisui pane の --machine では、local は常に手元の PC を指すので、{machines} を --machine で選べません。設定ファイルの [[gui.machines]] で別の名前を付けてください。",
+    "kisui pane の --machine では、local は常に手元の PC を指すので、{machines} を --machine で選べません。別の名前を付けてください。設定ファイルで決めたマシンは [[gui.machines]] で、ウィンドウで足したマシンはマシンのダイアログ（{leader} m）の n で変えます。",
   "button.disconnect": "切る",
   "notice.machine.keys":
     "{leader} m でマシンのダイアログを開き、このマシンを j・k で選んで、r でつなぎ直す、x で切る",

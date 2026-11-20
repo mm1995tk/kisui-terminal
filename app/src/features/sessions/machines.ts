@@ -258,9 +258,10 @@ export function machineNames(list: Machine[]): string[] {
   ];
 }
 
-/** 設定ファイルのマシンのうち、名前（無ければ ssh の行き先）が local のものの ssh の行き先（`--machine` で選べない。お知らせに出す）。 */
-export function localNamedConfig(config: ConfigMachine[]): string[] {
-  return config
-    .filter((c) => (c.name ?? c.ssh) === LOCAL_MACHINE)
-    .map((c) => c.ssh);
+/**
+ * 名前（付けた名前、無ければ ssh の行き先）が local のマシンの ssh の行き先（`--machine` で選べない。お知らせに出す）。
+ * 設定ファイルのマシンも、GUI で足したマシン（足すときの確かめより前に足した記録）も。
+ */
+export function localNamed(list: Machine[]): string[] {
+  return list.filter((m) => nameOf(m) === LOCAL_MACHINE).map((m) => m.target);
 }

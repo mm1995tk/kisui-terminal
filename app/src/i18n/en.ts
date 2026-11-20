@@ -253,7 +253,7 @@ export const en = {
     "Only the shortcuts with mistakes are ignored. The others work.",
   "notice.localMachine.title": "The machine name local is reserved",
   "notice.localMachine.text":
-    "In kisui pane --machine, local always means this computer, so --machine cannot choose {machines}. Give it another name in [[gui.machines]] of the config file.",
+    "In kisui pane --machine, local always means this computer, so --machine cannot choose {machines}. Give it another name: in [[gui.machines]] of the config file for a machine set there, or with n in the machine dialog ({leader} m) for one added in the window.",
   "button.disconnect": "Disconnect",
   "notice.machine.keys":
     "{leader} m opens the machine dialog; select this machine with j / k, then r to reconnect or x to disconnect",

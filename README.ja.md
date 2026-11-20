@@ -76,7 +76,7 @@ kisui pane read build
 kisui pane read t5 --lines 200
 ```
 
-`--machine <マシン>` を付けると、`kisui pane list`・`send`・`keys`・`close`・`read`・`open` が別のマシンのペインに効きます。マシンは、`[[gui.machines]]` の名前（名前が無ければ ssh の行き先）で指すか、`local` と書きます。`local` は常に、ウィンドウの動く手元の PC です。ssh 先のマシンのペインのエージェントが手元の PC のペインに、その逆にも届きます（`kisui pane send --machine local foo 'echo hi'`・`kisui pane read --machine dev bar`）。マシンの serve は自分のペインしか知らないので、全部のマシンにつながっているウィンドウが頼みを中継します。ウィンドウが閉じているときや、そのマシンにつながっていないときは、理由を出して失敗します。`kisui pane open --machine` のタブは、そのマシンのターミナルです。`--cwd` とコマンドは、そのマシンの絶対パスで書きます（`--cwd` が無ければ、そのマシンの始めのフォルダで始まります）。または、シェルを開いて `kisui pane send` でコマンドを始めます。別のマシンへの操作でも、kisui-terminal は確認を出しません。どこで何をするかは全部コマンドの引数に出ているので、それを動かすエージェントの権限の決まりで判断できます。`[[gui.machines]]` の名前が `local` のマシンは `--machine` で選べず、別の名前を付けるようお知らせが出ます。
+`--machine <マシン>` を付けると、`kisui pane list`・`send`・`keys`・`close`・`read`・`open` が別のマシンのペインに効きます。マシンは、`[[gui.machines]]` の名前（名前が無ければ ssh の行き先）で指すか、`local` と書きます。`local` は常に、ウィンドウの動く手元の PC です。ssh 先のマシンのペインのエージェントが手元の PC のペインに、その逆にも届きます（`kisui pane send --machine local foo 'echo hi'`・`kisui pane read --machine dev bar`）。マシンの serve は自分のペインしか知らないので、全部のマシンにつながっているウィンドウが頼みを中継します。ウィンドウが閉じているときや、そのマシンにつながっていないときは、理由を出して失敗します。`kisui pane open --machine` のタブは、そのマシンのターミナルです。`--cwd` とコマンドは、そのマシンの絶対パスで書きます（`--cwd` が無ければ、そのマシンの始めのフォルダで始まります）。または、シェルを開いて `kisui pane send` でコマンドを始めます。別のマシンへの操作でも、kisui-terminal は確認を出しません。どこで何をするかは全部コマンドの引数に出ているので、それを動かすエージェントの権限の決まりで判断できます。名前が `local` のマシン（`[[gui.machines]]` のものか、この版より前にウィンドウで足したもの）は `--machine` で選べず、別の名前を付けるようお知らせが出ます。
 
 ```sh
 kisui pane list --machine dev
