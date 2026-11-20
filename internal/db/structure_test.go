@@ -23,6 +23,9 @@ func TestStructure(t *testing.T) {
 		// A name with both quotes, a backslash, upper case and letters that are not ASCII.
 		child := `st "C'\` + "`子`"
 		parent := "st_parent"
+		// A column that must be quoted (upper case and letters that are not
+		// ASCII): the indexes give its name unquoted, like the columns.
+		note := "Note名"
 		qs, qc, qp := quote(schema), quote(child), quote(parent)
 		if c.Kind == config.DBPostgres {
 			query(t, s, "DROP SCHEMA IF EXISTS st_s CASCADE")
@@ -36,10 +39,14 @@ func TestStructure(t *testing.T) {
   id INT NOT NULL PRIMARY KEY,
   pa INT NOT NULL,
   pb INT NOT NULL,
-  note VARCHAR(20) DEFAULT 'x',
+  `+quote(note)+` VARCHAR(20) DEFAULT 'x',
   CONSTRAINT st_fk FOREIGN KEY (pa, pb) REFERENCES `+qs+"."+qp+` (a, b) ON DELETE CASCADE
 )`)
-		query(t, s, "CREATE UNIQUE INDEX st_note ON "+qs+"."+qc+" (note, pb)")
+		query(t, s, "CREATE UNIQUE INDEX st_note ON "+qs+"."+qc+" ("+quote(note)+", pb)")
+		if c.Kind == config.DBPostgres {
+			// A key that is an expression gives the expression.
+			query(t, s, "CREATE INDEX st_expr ON "+qs+"."+qc+" (lower("+quote(note)+"), id)")
+		}
 
 		st, err := ReadStructure(context.Background(), s, c.Kind, schema, child)
 		if err != nil {
@@ -58,7 +65,7 @@ func TestStructure(t *testing.T) {
 		}
 		wantCols := []StructureColumn{
 			{Name: "id", Type: intType}, {Name: "pa", Type: intType}, {Name: "pb", Type: intType},
-			{Name: "note", Type: varchar, Nullable: true, Default: &x},
+			{Name: note, Type: varchar, Nullable: true, Default: &x},
 		}
 		if !reflect.DeepEqual(st.Columns, wantCols) {
 			t.Errorf("columns: %+v", st.Columns)
@@ -69,7 +76,10 @@ func TestStructure(t *testing.T) {
 		}
 		wantIx := []StructureIndex{
 			{Name: pk, Columns: []string{"id"}, Unique: true, Primary: true, Method: "btree"},
-			{Name: "st_note", Columns: []string{"note", "pb"}, Unique: true, Method: "btree"},
+			{Name: "st_note", Columns: []string{note, "pb"}, Unique: true, Method: "btree"},
+		}
+		if c.Kind == config.DBPostgres {
+			wantIx = []StructureIndex{wantIx[0], {Name: "st_expr", Columns: []string{"lower(\"Note名\"::text)", "id"}, Method: "btree"}, wantIx[1]}
 		}
 		got := st.Indexes
 		if c.Kind == config.DBMySQL {

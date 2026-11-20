@@ -86,8 +86,13 @@ LEFT JOIN pg_catalog.pg_attribute a ON a.attrelid = c.oid AND a.attnum > 0 AND N
 LEFT JOIN pg_catalog.pg_attrdef d ON d.adrelid = a.attrelid AND d.adnum = a.attnum
 WHERE c.oid IS NOT NULL
 ORDER BY a.attnum`
-	// One row per key of an index.
-	pgIndexesSQL = `SELECT i.relname, ix.indisunique::text, ix.indisprimary::text, am.amname, pg_get_indexdef(ix.indexrelid, k.n, true)
+	// One row per key of an index. A key that is a column gives the name of
+	// the column as it is (pg_get_indexdef would quote it: "userId"), and
+	// only a key that is an expression gives the expression. indkey is an
+	// int2vector, whose subscripts start at 0.
+	pgIndexesSQL = `SELECT i.relname, ix.indisunique::text, ix.indisprimary::text, am.amname,
+  COALESCE((SELECT a.attname FROM pg_catalog.pg_attribute a WHERE a.attrelid = ix.indrelid AND a.attnum = ix.indkey[k.n - 1] AND ix.indkey[k.n - 1] <> 0),
+    pg_get_indexdef(ix.indexrelid, k.n, true))
 FROM pg_catalog.pg_index ix
 JOIN pg_catalog.pg_class i ON i.oid = ix.indexrelid
 JOIN pg_catalog.pg_am am ON am.oid = i.relam
