@@ -37,6 +37,8 @@ import {
   collectConnections,
   loadDrafts,
   newQueryId,
+  PasswordCancelled,
+  withPassword,
   queryFailure,
   saveDrafts,
   type DbChoice,
@@ -76,14 +78,6 @@ export interface DbPasswordAsk {
   machine: string;
   /** missing：どこにも無い、rejected：入力したものを DB が断った */
   reason: "missing" | "rejected";
-}
-
-/** パスワードを聞く窓をやめた（要求は送らずに終える）。 */
-export class PasswordCancelled extends Error {
-  constructor() {
-    super("password cancelled");
-    this.name = "PasswordCancelled";
-  }
 }
 
 /** DB のタブの持ち物を作る。接続を選んでタブを開く・SQL を実行する・取り消す・パスワードを聞く・書きかけの SQL を覚えるを受け持つ。 */
@@ -186,24 +180,16 @@ export function createDbTabs(deps: {
     method: M,
     params: Requests[M]["params"],
   ): Promise<Requests[M]["result"]> {
-    let password: string | undefined;
-    for (;;) {
-      const s = sessionFor(ref);
-      try {
-        return await s.request(
+    return withPassword(
+      (password) =>
+        sessionFor(ref).request(
           method,
           password === undefined
             ? params
             : ({ ...params, password } as Requests[M]["params"]),
-        );
-      } catch (e) {
-        const f = queryFailure(e);
-        if (f.kind !== "password") throw e;
-        const p = await askPassword(ref, f.reason);
-        if (p === null) throw new PasswordCancelled();
-        password = p;
-      }
-    }
+        ),
+      (reason) => askPassword(ref, reason),
+    );
   }
 
   /**

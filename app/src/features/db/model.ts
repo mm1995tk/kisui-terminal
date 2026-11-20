@@ -205,3 +205,34 @@ export function newQueryId(random: () => number = Math.random): string {
   for (let i = 0; i < 12; i++) s += Math.floor(random() * 36).toString(36);
   return s;
 }
+
+/** パスワードを聞く窓をやめた（要求は送らずに終える）。 */
+export class PasswordCancelled extends Error {
+  constructor() {
+    super("password cancelled");
+    this.name = "PasswordCancelled";
+  }
+}
+
+/**
+ * send（password を付けて要求を送る。undefined なら付けない）を呼ぶ。kisui serve が password_required を返したら、
+ * ask でパスワードを聞いて、それを付けて送り直す（DB が断った rejected なら、また聞く）。ask が null（やめた）なら
+ * PasswordCancelled を投げる。ほかの断りは、そのまま投げる。聞いたパスワードは、この中の変数にだけ持つ。
+ */
+export async function withPassword<R>(
+  send: (password: string | undefined) => Promise<R>,
+  ask: (reason: DbPasswordRequiredData["reason"]) => Promise<string | null>,
+): Promise<R> {
+  let password: string | undefined;
+  for (;;) {
+    try {
+      return await send(password);
+    } catch (e) {
+      const f = queryFailure(e);
+      if (f.kind !== "password") throw e;
+      const p = await ask(f.reason);
+      if (p === null) throw new PasswordCancelled();
+      password = p;
+    }
+  }
+}

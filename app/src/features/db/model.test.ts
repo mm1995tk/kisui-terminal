@@ -16,9 +16,11 @@ import {
   elapsedText,
   loadDrafts,
   parseDrafts,
+  PasswordCancelled,
   queryFailure,
   resultSummary,
   saveDrafts,
+  withPassword,
 } from "./model.ts";
 
 setLang("en");
@@ -234,5 +236,76 @@ describe("結果を画面に出す", () => {
       "3 rows changed · 1.5 ms",
     );
     assert.equal(resultSummary(result({})), "done · 1.5 ms");
+  });
+});
+
+describe("withPassword（password_required なら聞いて送り直す）", () => {
+  const need = (reason: "missing" | "rejected") =>
+    new RpcError({
+      code: ErrorCode.PasswordRequired,
+      message: "password required",
+      data: { reason },
+    });
+
+  it("要らなければ、パスワードを付けずに 1 回送るだけ", async () => {
+    const sent: (string | undefined)[] = [];
+    const r = await withPassword(
+      async (p) => {
+        sent.push(p);
+        return "ok";
+      },
+      async () => assert.fail("聞かない"),
+    );
+    assert.equal(r, "ok");
+    assert.deepEqual(sent, [undefined]);
+  });
+
+  it("missing なら聞いて、それを付けて送り直す。rejected ならまた聞く", async () => {
+    const sent: (string | undefined)[] = [];
+    const asked: string[] = [];
+    const answers = ["wrong", "right"];
+    const r = await withPassword(
+      async (p) => {
+        sent.push(p);
+        if (p === undefined) throw need("missing");
+        if (p === "wrong") throw need("rejected");
+        return 42;
+      },
+      async (reason) => {
+        asked.push(reason);
+        return answers.shift()!;
+      },
+    );
+    assert.equal(r, 42);
+    assert.deepEqual(sent, [undefined, "wrong", "right"]);
+    assert.deepEqual(asked, ["missing", "rejected"]);
+  });
+
+  it("聞く窓をやめたら PasswordCancelled を投げ、送り直さない", async () => {
+    let n = 0;
+    await assert.rejects(
+      withPassword(
+        async () => {
+          n++;
+          throw need("missing");
+        },
+        async () => null,
+      ),
+      PasswordCancelled,
+    );
+    assert.equal(n, 1);
+  });
+
+  it("ほかの断りは、聞かずにそのまま投げる", async () => {
+    const err = new RpcError({ code: ErrorCode.DbError, message: "syntax" });
+    await assert.rejects(
+      withPassword(
+        async () => {
+          throw err;
+        },
+        async () => assert.fail("聞かない"),
+      ),
+      (e) => e === err,
+    );
   });
 });
