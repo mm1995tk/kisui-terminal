@@ -4,6 +4,7 @@
 // 左に、スキーマとテーブルの木のペイン（#348。db/DbTree.tsx）がある（閉じられる。幅はつまみで変えられる）。
 import { T } from "../../../../i18n/index.ts";
 import {
+  createEffect,
   createSignal,
   For,
   Match,
@@ -18,6 +19,13 @@ import type { DbCatalogState } from "../../../../features/db/treeController.ts";
 import { dbEditorKey } from "../../../../features/db/keys.ts";
 import { cellText, resultSummary } from "../../../../features/db/model.ts";
 import type { DbQueryResult } from "../../../../infrastructure/rpc/protocol.ts";
+import {
+  clampRange,
+  inRange,
+  rangeText,
+  type CellPos,
+  type CellRange,
+} from "../../../../features/db/selection.ts";
 import { clampTreeWidth } from "../../../../features/db/tree.ts";
 import { Button } from "../../../components/Button.tsx";
 import { DbTree } from "./DbTree.tsx";
@@ -36,6 +44,8 @@ export function DbTabView(props: {
   run: DbRun;
   onRun: () => void;
   onCancel: () => void;
+  /** 結果の表で選んだセルをコピーする（#372） */
+  onCopyCells: (text: string) => void;
   /** 左の木のペイン（#348） */
   tree: {
     open: boolean;
@@ -182,7 +192,13 @@ export function DbTabView(props: {
               )}
             </Match>
             <Match when={props.run.result}>
-              {(r) => <ResultTable result={r()} />}
+              {(r) => (
+                <ResultTable
+                  result={r()}
+                  mac={props.mac}
+                  onCopy={props.onCopyCells}
+                />
+              )}
             </Match>
           </Switch>
         </div>
@@ -198,8 +214,55 @@ export function DbTabView(props: {
   );
 }
 
-/** 結果の表。数の列は右に寄せ、NULL は印で出し、長い値は切る（全部はツールチップ）。 */
-function ResultTable(props: { result: DbQueryResult }): JSX.Element {
+/**
+ * 結果の表。数の列は右に寄せ、NULL は印で出し、長い値は切る（全部はツールチップ）。
+ * セルはクリックで選び、Shift+クリックかドラッグで矩形に広げ、Cmd+C / Ctrl+C でコピーする（#372。コピーする文字は
+ * features/db/selection.ts）。表にフォーカスがあるときだけキーを受ける。
+ */
+function ResultTable(props: {
+  result: DbQueryResult;
+  mac: boolean;
+  onCopy: (text: string) => void;
+}): JSX.Element {
+  const [range, setRange] = createSignal<CellRange | null>(null);
+  let dragging = false;
+  // 結果が入れ替わったら、選びを表の大きさに収める（収まるセルが無ければ外す）
+  createEffect(() => {
+    const r = props.result;
+    setRange((cur) => clampRange(cur, r));
+  });
+  const stopDrag = () => {
+    dragging = false;
+  };
+  window.addEventListener("pointerup", stopDrag);
+  onCleanup(() => window.removeEventListener("pointerup", stopDrag));
+
+  function down(e: PointerEvent, pos: CellPos) {
+    if (e.button !== 0) return;
+    // 文字の選びが走らないようにして、表にフォーカスを向ける
+    e.preventDefault();
+    (e.currentTarget as HTMLElement).closest("table")?.focus();
+    const cur = range();
+    setRange(
+      e.shiftKey && cur
+        ? { anchor: cur.anchor, focus: pos }
+        : { anchor: pos, focus: pos },
+    );
+    dragging = true;
+  }
+  function enter(pos: CellPos) {
+    if (!dragging) return;
+    setRange((cur) => (cur ? { anchor: cur.anchor, focus: pos } : cur));
+  }
+  function keydown(e: KeyboardEvent) {
+    const mod = props.mac ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey;
+    if (!mod || e.altKey || e.shiftKey || e.key.toLowerCase() !== "c") return;
+    const r = range();
+    if (r === null) return;
+    e.preventDefault();
+    props.onCopy(rangeText(props.result, r));
+  }
+
   return (
     <Show
       when={props.result.columns.length > 0}
@@ -216,21 +279,27 @@ function ResultTable(props: { result: DbQueryResult }): JSX.Element {
           </>
         }
       >
-        <table class={styles.table}>
+        <table class={styles.table} tabindex={0} onKeyDown={keydown}>
           <Head result={props.result} />
           <tbody>
             <For each={props.result.rows}>
-              {(row) => (
+              {(row, r) => (
                 <tr>
                   <For each={row}>
                     {(v, i) => {
                       const text = cellText(v);
+                      const pos = (): CellPos => ({ row: r(), col: i() });
                       return (
                         <td
                           class={styles.cell}
                           data-kind={props.result.columns[i()]?.kind}
                           data-null={text === null ? "" : undefined}
+                          data-selected={
+                            inRange(range(), pos()) ? "" : undefined
+                          }
                           title={v !== null && v !== text ? v : undefined}
+                          onPointerDown={(e) => down(e, pos())}
+                          onPointerEnter={() => enter(pos())}
                         >
                           {text ?? "NULL"}
                         </td>
