@@ -73,6 +73,7 @@ export type CommandId =
   | "db.export"
   | "db.history"
   | "db.page"
+  | "db.view"
   | "help.keys";
 
 /** コマンドと、その引数（向き・番号など）。 */
@@ -430,6 +431,8 @@ export const LEADER: Node[] = [
     // 結果の書き出しと、接続ごとのクエリの履歴（#349）。DB のタブを出している間だけ効く
     leaf("e", T("leader.db.export"), { id: "db.export" }),
     leaf("h", T("leader.db.history"), { id: "db.history" }),
+    // 結果の場所の「データ」と「Structure」の切り替え（#379）。木でテーブルを選んだ DB のタブを出している間だけ効く
+    leaf("s", T("leader.db.view"), { id: "db.view" }),
     // 結果のページ送り（#373）。DB のタブを出している間だけ効く。続けて押せる（d j j j）
     leaf(
       "j",

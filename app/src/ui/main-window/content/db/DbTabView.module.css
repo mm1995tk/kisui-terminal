@@ -172,3 +172,52 @@
   color: var(--color-accent);
   font-size: 0.8em;
 }
+
+/* 結果の場所の上の、「データ」と「Structure」の切り替え（#379）。木でテーブルを選んだときだけ出る */
+.views {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.viewTab {
+  padding: var(--space-2) var(--space-8);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-6);
+  background: transparent;
+  color: var(--color-text-muted);
+  font: inherit;
+  cursor: pointer;
+}
+.viewTab[aria-selected="true"] {
+  border-color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 15%, transparent);
+  color: var(--color-text-strong);
+}
+.viewTab:focus-visible {
+  outline: var(--state-focus-ring-width) solid var(--state-focus-ring);
+  outline-offset: var(--state-focus-ring-offset);
+}
+/* 切り替えの右の、選んだテーブルの名前 */
+.viewTable {
+  min-width: 0;
+  margin-left: var(--space-4);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+}
+
+/* テーブルの構造（#379）の、列・インデックス・外部キーの表の 1 つ */
+.section + .section {
+  margin-top: var(--space-12);
+}
+.sectionTitle {
+  margin: 0;
+  padding: var(--space-8) var(--space-8) var(--space-4);
+  color: var(--color-text-strong);
+  font-size: var(--text-label);
+  font-weight: var(--weight-strong);
+}

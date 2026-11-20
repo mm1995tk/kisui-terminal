@@ -34,6 +34,11 @@ function setup(tab: { id: string } | undefined) {
     db: stub({
       shownDbTab: () => tab,
       reloadCatalog: (id: string) => void seen.push(`reload ${id}`),
+      reloadStructure: (id: string) => void seen.push(`reloadStructure ${id}`),
+      showView: (id: string) => {
+        seen.push(`showView ${id}`);
+        return id === "t1";
+      },
     }),
     bookmarks: stub(),
     downloads: stub(),
@@ -66,6 +71,30 @@ describe("db.tree（サイドバーの木にキーを向ける。#374）", () =>
   it("db.refresh は木を読み直し、キーを入力欄に向ける（木にはキーを向けない）", () => {
     const { seen, runCommand } = setup({ id: "t1" });
     runCommand({ id: "db.refresh" });
-    assert.deepEqual(seen, ["reload t1", "focusTerminal"]);
+    assert.deepEqual(seen, [
+      "reload t1",
+      "reloadStructure t1",
+      "focusTerminal",
+    ]);
+  });
+});
+
+describe("db.view（結果の場所のデータと Structure の切り替え。#379）", () => {
+  it("DB のタブを出していなければ、切り替えず、その旨を伝える", () => {
+    const { seen, runCommand } = setup(undefined);
+    runCommand({ id: "db.view" });
+    assert.deepEqual(seen, ["cannot " + "No database tab is shown"]);
+  });
+
+  it("テーブルを選んだタブなら切り替える", () => {
+    const { seen, runCommand } = setup({ id: "t1" });
+    runCommand({ id: "db.view" });
+    assert.deepEqual(seen, ["showView t1"]);
+  });
+
+  it("テーブルを選んでいないタブ（切り替えが無い）なら、その旨を伝える", () => {
+    const { seen, runCommand } = setup({ id: "t2" });
+    runCommand({ id: "db.view" });
+    assert.deepEqual(seen, ["showView t2", "cannot " + "No table is chosen"]);
   });
 });

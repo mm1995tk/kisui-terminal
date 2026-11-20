@@ -267,6 +267,49 @@ export interface DbCatalogColumn {
   type: string;
 }
 
+/** db.structure の結果（#379）：1 つのテーブル（ビュー）の列・インデックス・外部キー */
+export interface DbStructure {
+  /** テーブルの中の順 */
+  columns: DbStructureColumn[];
+  /** 主キーが先、ほかは名前の順。ビューには無い */
+  indexes: DbStructureIndex[];
+  /** このテーブルから、ほかのテーブルを指す外部キー。名前の順 */
+  foreignKeys: DbStructureForeignKey[];
+  /** どれかの一覧が上限を超え、終わりが欠けている */
+  truncated: boolean;
+}
+
+export interface DbStructureColumn {
+  name: string;
+  /** DB の型の名前（DbCatalogColumn.type と同じ書き方） */
+  type: string;
+  nullable: boolean;
+  /** 既定値（DB が書いたまま。PostgreSQL は式、MySQL は COLUMN_DEFAULT で、文字列は引用符無し）。無ければ null */
+  default: string | null;
+}
+
+export interface DbStructureIndex {
+  name: string;
+  /** キーの並び：列の名前か、列でないキーの式（PostgreSQL。MySQL の式のキーは ""） */
+  columns: string[];
+  unique: boolean;
+  primary: boolean;
+  /** 作り方（小文字。"btree"、"hash"、"gin"、"fulltext" など） */
+  method: string;
+}
+
+export interface DbStructureForeignKey {
+  name: string;
+  /** このテーブルの列。refColumns は、それぞれが指す列（同じ順） */
+  columns: string[];
+  refSchema: string;
+  refTable: string;
+  refColumns: string[];
+  /** "NO ACTION"・"RESTRICT"・"CASCADE"・"SET NULL"・"SET DEFAULT" */
+  onUpdate: string;
+  onDelete: string;
+}
+
 /** db.history の 1 件：接続で実行した SQL。結果の行は残らない */
 export interface DbHistoryEntry {
   /** 送った SQL そのまま */
@@ -518,6 +561,23 @@ export interface Requests {
       actor?: "human" | "agent";
     };
     result: DbCatalog;
+  };
+  /**
+   * 1 つのテーブル（ビュー）の構造（列・インデックス・外部キー。#379）を返す。schema と table は db.schema の一覧の名前のまま。
+   * capabilities に "db-structure" のある kisui serve だけが受ける。履歴には残らない。
+   * variant・password・queryId・actor と断られ方は db.schema と同じ（denied は無い）。テーブルが無ければ db_error（kind は query）
+   */
+  "db.structure": {
+    params: {
+      connection: string;
+      variant?: string;
+      password?: string;
+      queryId?: string;
+      actor?: "human" | "agent";
+      schema: string;
+      table: string;
+    };
+    result: DbStructure;
   };
   /**
    * 接続で実行した SQL の履歴を新しい順に返す（kisui serve のマシンに、接続ごと・環境の変種ごとに最大 1000 件残る）。
