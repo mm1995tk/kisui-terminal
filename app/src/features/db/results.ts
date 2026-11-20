@@ -100,3 +100,31 @@ export function resultTabLabel(sql: string, max = RESULT_LABEL_MAX): string {
   const chars = [...one];
   return chars.length > max ? `${chars.slice(0, max).join("")}…` : one;
 }
+
+/** 文 1 つを実行した結果。ok：うまくいった、failed：失敗した・取り消した、gone：タブが閉じた・ほかの実行に替わった。 */
+export type StatementOutcome = "ok" | "failed" | "gone";
+
+/**
+ * 文 sqls を上から 1 つずつ runOne で実行する（#380）。前の文が終わってから次を送る。
+ * - 文が ok でなければ（failed・gone）、そこで止めて、その結果を返す（後の文は送らない）
+ * - 後に文が残っていて stopRequested が真なら（取り消しが届く前に文が終わっていた）、"stopped" を返す
+ * - 全部 ok なら "done"。最後の文の後では stopRequested を見ない（残りが無いので）
+ * runOne の more は、後に文が残っているか。
+ */
+export async function runInOrder(
+  sqls: readonly string[],
+  runOne: (
+    index: number,
+    sql: string,
+    more: boolean,
+  ) => Promise<StatementOutcome>,
+  stopRequested: () => boolean,
+): Promise<"done" | "stopped" | "failed" | "gone"> {
+  for (let i = 0; i < sqls.length; i++) {
+    const more = i < sqls.length - 1;
+    const out = await runOne(i, sqls[i]!, more);
+    if (out !== "ok") return out;
+    if (more && stopRequested()) return "stopped";
+  }
+  return "done";
+}

@@ -37,6 +37,7 @@ import { statementsToRun } from "./statements.ts";
 import {
   activeStatement,
   EMPTY_RUN,
+  runInOrder,
   startStatement,
   stepResult,
   updateStatement,
@@ -263,20 +264,17 @@ export function createDbTabs(deps: {
     stopped.delete(id);
     const schema = tree.defaultSchemaOf(id);
     setRun(id, () => EMPTY_RUN);
-    for (let i = 0; i < list.length; i++) {
-      const more = i < list.length - 1;
-      const out = await execute(id, i, firstPage(list[i]!, schema), 0, false, {
-        more,
-      });
-      // 失敗した・取り消した（execute が印を外した）か、タブが閉じた・ほかの実行に替わった
-      if (out !== "ok") return;
-      if (more && stopped.has(id)) {
-        // 送った文が取り消しより先に終わっていた：残りの文はやめる
-        stopped.delete(id);
-        setRun(id, ({ running: _, ...r }) => r);
-        flushQueued(id);
-        return;
-      }
+    const out = await runInOrder(
+      list,
+      (i, sql, more) =>
+        execute(id, i, firstPage(sql, schema), 0, false, { more }),
+      () => stopped.has(id),
+    );
+    // 送った文が取り消しより先に終わっていた：残りの文はやめる（失敗した・取り消したときは execute が印を外した）
+    if (out === "stopped") {
+      stopped.delete(id);
+      setRun(id, ({ running: _, ...r }) => r);
+      flushQueued(id);
     }
   }
 

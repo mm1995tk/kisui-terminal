@@ -6,10 +6,12 @@ import {
   activeStatement,
   EMPTY_RUN,
   resultTabLabel,
+  runInOrder,
   startStatement,
   stepResult,
   updateStatement,
   type DbRun,
+  type StatementOutcome,
 } from "./results.ts";
 
 const q = (queryId: string) => ({ queryId, target: "m" });
@@ -111,5 +113,57 @@ describe("resultTabLabel", () => {
   });
   it("字数はコードポイントで数える", () => {
     assert.equal(resultTabLabel("select '日本語'", 9), "select '日…");
+  });
+});
+
+describe("runInOrder（文を上から順に実行して、止める）", () => {
+  /** 文ごとの結果を outcomes で返す偽の runOne。呼ばれた文と more を calls に残す */
+  function fake(outcomes: StatementOutcome[]) {
+    const calls: [number, string, boolean][] = [];
+    const runOne = async (i: number, sql: string, more: boolean) => {
+      calls.push([i, sql, more]);
+      return outcomes[i] ?? "ok";
+    };
+    return { calls, runOne };
+  }
+  const sqls = ["select 1", "select 2", "select 3"];
+
+  it("全部 ok なら、上から順に全部送って done", async () => {
+    const f = fake([]);
+    assert.equal(await runInOrder(sqls, f.runOne, () => false), "done");
+    assert.deepEqual(f.calls, [
+      [0, "select 1", true],
+      [1, "select 2", true],
+      [2, "select 3", false],
+    ]);
+  });
+
+  it("2 つ目が failed なら、3 つ目を送らない", async () => {
+    const f = fake(["ok", "failed", "ok"]);
+    assert.equal(await runInOrder(sqls, f.runOne, () => false), "failed");
+    assert.deepEqual(
+      f.calls.map((c) => c[0]),
+      [0, 1],
+    );
+  });
+
+  it("gone で止まる", async () => {
+    const f = fake(["gone"]);
+    assert.equal(await runInOrder(sqls, f.runOne, () => false), "gone");
+    assert.equal(f.calls.length, 1);
+  });
+
+  it("1 つ目の後に取り消していたら、2 つ目を送らない", async () => {
+    const f = fake([]);
+    assert.equal(await runInOrder(sqls, f.runOne, () => true), "stopped");
+    assert.equal(f.calls.length, 1);
+  });
+
+  it("最後の文の後では、取り消しを見ない", async () => {
+    const f = fake([]);
+    let asked = 0;
+    const stop = () => (asked++, f.calls.length >= 3);
+    assert.equal(await runInOrder(sqls, f.runOne, stop), "done");
+    assert.equal(asked, 2);
   });
 });
