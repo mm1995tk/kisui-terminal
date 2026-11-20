@@ -101,3 +101,11 @@
 .badge[data-default] {
   color: var(--color-accent);
 }
+
+/* 既定のスキーマの行と、それをやめるボタン（#378） */
+.defaultSchema {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-8);
+}

@@ -17,7 +17,12 @@ import type {
 import type { DbMethod, Session } from "../sessions/session.ts";
 import { dbRefParams, type DbRef } from "../workspaces/model.ts";
 import { catalogError, connectionOf, newQueryId } from "./model.ts";
-import { initialExpanded, previewSql, withDefaultSchema } from "./tree.ts";
+import {
+  initialExpanded,
+  keepDefaultSchema,
+  previewSql,
+  withDefaultSchema,
+} from "./tree.ts";
 
 /** タブ 1 つの、サイドバーの木のスキーマの一覧。メモリだけに持つ（開き直したら、もう一度聞く）。 */
 export interface DbCatalogState {
@@ -97,6 +102,10 @@ export function createDbTree(deps: {
       const conn = connectionOf(list.connections, ref);
       if (!conn) throw new Error(T("db.err.noConnection"));
       setCatalog(id, () => ({ catalog, kind: conn.kind }));
+      // 一覧から消えたスキーマを既定のまま残さない（#378。読み直す（d r）で抜け出せるように）
+      const schema = untrack(schemas)[id];
+      if (schema !== undefined && !keepDefaultSchema(catalog, schema))
+        setSchemas((all) => withDefaultSchema(all, id, null));
       if (!(id in untrack(expanded)))
         setExpanded((all) => ({ ...all, [id]: initialExpanded(catalog) }));
     } catch (e) {

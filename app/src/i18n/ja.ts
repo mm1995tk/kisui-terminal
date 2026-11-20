@@ -669,6 +669,7 @@ export const ja: Record<Key, string> = {
   "db.tree.empty": "スキーマがありません",
   "db.tree.view": "ビュー",
   "db.tree.defaultBadge": "既定",
+  "db.tree.clearDefault": "やめる",
   "db.tree.defaultSchema":
     "既定のスキーマ：{schema}（スキーマを書かないテーブルはここで探します）",
   "db.tree.truncated": "列が多すぎるので、一覧を途中で切っています。",

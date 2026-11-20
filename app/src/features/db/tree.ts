@@ -186,6 +186,14 @@ export function withDefaultSchema(
   return schema === null ? rest : { ...rest, [id]: schema };
 }
 
+/**
+ * 一覧を読み直したあとも、既定のスキーマ schema を残すか：一覧にそのスキーマがある、か、一覧が途中で切れていて（truncated）、
+ * 無いとは言えない。消えたスキーマを残すと、MySQL では USE が失敗し続け、木にも出ないので選び直してやめることもできない。
+ */
+export function keepDefaultSchema(catalog: DbCatalog, schema: string): boolean {
+  return catalog.truncated || catalog.schemas.some((s) => s.name === schema);
+}
+
 // ---- テーブルを選んだときの SQL ----
 
 /** 一度に見る行数 */

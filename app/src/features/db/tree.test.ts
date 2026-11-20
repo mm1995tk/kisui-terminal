@@ -9,6 +9,7 @@ import {
   schemaId,
   tableId,
   treeStep,
+  keepDefaultSchema,
   visibleRows,
   withDefaultSchema,
 } from "./tree.ts";
@@ -197,5 +198,19 @@ describe("withDefaultSchema（タブの既定のスキーマ。#378）", () => {
       b: "x",
     });
     assert.deepEqual(withDefaultSchema({}, "a", null), {});
+  });
+});
+
+describe("keepDefaultSchema（読み直したあとも既定のスキーマを残すか。#378）", () => {
+  it("一覧にあれば残し、無ければ捨てる", () => {
+    assert.equal(keepDefaultSchema(catalog, "empty"), true);
+    assert.equal(keepDefaultSchema(catalog, "gone"), false);
+  });
+
+  it("一覧が途中で切れていれば、無くても残す（無いとは言えない）", () => {
+    assert.equal(
+      keepDefaultSchema({ ...catalog, truncated: true }, "gone"),
+      true,
+    );
   });
 });

@@ -116,9 +116,14 @@ export function DbTree(props: DbTreeProps): JSX.Element {
       </div>
       <Show when={props.defaultSchema}>
         {(s) => (
-          <p class={styles.note} data-default-schema>
-            {T("db.tree.defaultSchema", { schema: s() })}
-          </p>
+          <div class={styles.defaultSchema} data-default-schema>
+            <p class={styles.note}>
+              {T("db.tree.defaultSchema", { schema: s() })}
+            </p>
+            <Button onClick={() => props.onDefaultSchema(null)}>
+              {T("db.tree.clearDefault")}
+            </Button>
+          </div>
         )}
       </Show>
       <Show when={props.catalog.error}>

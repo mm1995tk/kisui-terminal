@@ -674,6 +674,7 @@ export const en = {
   "db.tree.empty": "No schemas",
   "db.tree.view": "view",
   "db.tree.defaultBadge": "default",
+  "db.tree.clearDefault": "Stop",
   "db.tree.defaultSchema":
     "Default schema: {schema} (tables named without a schema are looked for here)",
   "db.tree.truncated": "The list is cut because there are too many columns.",
