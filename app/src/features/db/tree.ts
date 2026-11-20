@@ -174,6 +174,18 @@ export function treeStep(
   }
 }
 
+// ---- タブの既定のスキーマ（#378） ----
+
+/** タブ id → 既定のスキーマ all の、タブ id の分だけを schema にしたもの（null なら除く）。ほかのタブの分は変えない。 */
+export function withDefaultSchema(
+  all: Readonly<Record<string, string>>,
+  id: string,
+  schema: string | null,
+): Readonly<Record<string, string>> {
+  const { [id]: _, ...rest } = all;
+  return schema === null ? rest : { ...rest, [id]: schema };
+}
+
 // ---- テーブルを選んだときの SQL ----
 
 /** 一度に見る行数 */

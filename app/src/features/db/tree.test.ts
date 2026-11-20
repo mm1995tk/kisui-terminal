@@ -10,6 +10,7 @@ import {
   tableId,
   treeStep,
   visibleRows,
+  withDefaultSchema,
 } from "./tree.ts";
 
 const catalog: DbCatalog = {
@@ -173,5 +174,28 @@ describe("previewSql（テーブルを選んだときの SQL）", () => {
     assert.equal(quoteIdent("postgres", 'a"b'), '"a""b"');
     assert.equal(quoteIdent("mysql", "a`b"), "`a``b`");
     assert.equal(quoteIdent("mysql", 'a"b'), '`a"b`');
+  });
+});
+
+describe("withDefaultSchema（タブの既定のスキーマ。#378）", () => {
+  it("選んだタブの分だけを変え、ほかのタブの分は残す", () => {
+    const all = { a: "app", b: "public" };
+    assert.deepEqual(withDefaultSchema(all, "a", "audit"), {
+      a: "audit",
+      b: "public",
+    });
+    assert.deepEqual(withDefaultSchema(all, "c", "x"), {
+      a: "app",
+      b: "public",
+      c: "x",
+    });
+    assert.deepEqual(all, { a: "app", b: "public" });
+  });
+
+  it("null はそのタブの分を除く（DB の既定に戻す）", () => {
+    assert.deepEqual(withDefaultSchema({ a: "app", b: "x" }, "a", null), {
+      b: "x",
+    });
+    assert.deepEqual(withDefaultSchema({}, "a", null), {});
   });
 });

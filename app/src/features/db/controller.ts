@@ -52,8 +52,12 @@ import {
 } from "./model.ts";
 import {
   pageable,
+  firstPage,
+  pageParams,
   pageTarget,
   queueStep,
+  sortedPage,
+  steppedPage,
   sendQueued,
   type DbPage,
   nextSort,
@@ -228,13 +232,7 @@ export function createDbTabs(deps: {
     if (text.trim() === "") return;
     // 前の結果のために押したページ送りを、新しい SQL の結果に持ち越さない
     if (!untrack(runs)[id]?.running) queuedSteps.delete(id);
-    const schema = tree.defaultSchemaOf(id);
-    await execute(
-      id,
-      { sql: text, back: [], ...(schema ? { schema } : {}) },
-      0,
-      false,
-    );
+    await execute(id, firstPage(text, tree.defaultSchemaOf(id)), 0, false);
   }
 
   /** タブ id の接続の種類（文の区切り方が違う。#375）。聞けなかったときは undefined（PostgreSQL の読み方を使う）。 */
@@ -298,7 +296,7 @@ export function createDbTabs(deps: {
     if (!r?.result || !r.page || !pageable(r.result)) return "none";
     const t = pageTarget(r.result, r.page, step);
     if (!t) return "edge";
-    void execute(id, { ...r.page, back: t.back }, t.offset, true);
+    void execute(id, steppedPage(r.page, t.back), t.offset, true);
     return null;
   }
 
@@ -312,7 +310,7 @@ export function createDbTabs(deps: {
       return false;
     if (column < 0 || column >= r.result.columns.length) return false;
     const sort = nextSort(r.page.sort, column) ?? undefined;
-    void execute(id, { ...r.page, back: [], sort }, 0, true);
+    void execute(id, sortedPage(r.page, sort), 0, true);
     return true;
   }
 
@@ -332,19 +330,8 @@ export function createDbTabs(deps: {
     try {
       const result = await request(ref, "db.query", {
         ...dbRefParams(ref),
-        sql: page.sql,
         queryId,
-        ...(offset > 0 ? { offset } : {}),
-        ...(page.sort
-          ? {
-              orderBy: page.sort.column + 1,
-              ...(page.sort.desc ? { desc: true } : {}),
-            }
-          : {}),
-        // タブの既定のスキーマ（#378）。kisui serve が実行のたびに設定する（ログインは文ごとなので）
-        ...(page.schema ? { schema: page.schema } : {}),
-        // 最初の実行（run）でないものは履歴に残さない（同じ SQL を読み直すだけ）
-        ...(rerun ? { rerun: true } : {}),
+        ...pageParams(page, offset, rerun),
       });
       if (!mine()) return;
       setRun(id, () => ({ result, page }));

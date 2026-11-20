@@ -5,14 +5,18 @@ import type { DbQueryResult } from "../../infrastructure/rpc/protocol.ts";
 import {
   ariaSort,
   canStep,
+  firstPage,
   MAX_QUEUED_STEPS,
   nextSort,
   pageable,
+  pageParams,
   pageTarget,
   queueStep,
   rowRange,
   sendQueued,
   sortable,
+  sortedPage,
+  steppedPage,
   type PageStep,
 } from "./paging.ts";
 
@@ -166,5 +170,55 @@ describe("sortable・ariaSort", () => {
     assert.equal(ariaSort({ column: 2, desc: false }, 2), "ascending");
     assert.equal(ariaSort(s, 1), undefined);
     assert.equal(ariaSort(undefined, 0), undefined);
+  });
+});
+
+describe("送る引数と、ページ・並べ替えの続き（#378 の既定のスキーマ）", () => {
+  it("入力欄からの実行は、そのときの既定のスキーマを付けて送る（無ければ付けない）", () => {
+    assert.deepEqual(pageParams(firstPage("SELECT 1", "app"), 0, false), {
+      sql: "SELECT 1",
+      schema: "app",
+    });
+    assert.deepEqual(pageParams(firstPage("SELECT 1"), 0, false), {
+      sql: "SELECT 1",
+    });
+    assert.deepEqual(firstPage("SELECT 1", ""), { sql: "SELECT 1", back: [] });
+  });
+
+  it("ページ送りは、最初の実行のスキーマと並べ替えを引き継ぐ", () => {
+    const first = firstPage("SELECT * FROM t", "app");
+    const r = result({ wrappable: true, truncated: true, rowCount: 1000 });
+    const t = pageTarget(r, first, "next")!;
+    const next = steppedPage(first, t.back);
+    assert.equal(next.schema, "app");
+    assert.deepEqual(pageParams(next, t.offset, true), {
+      sql: "SELECT * FROM t",
+      offset: 1000,
+      schema: "app",
+      rerun: true,
+    });
+    const sorted = sortedPage(next, { column: 1, desc: true });
+    assert.deepEqual(steppedPage(sorted, [0]), {
+      sql: "SELECT * FROM t",
+      back: [0],
+      sort: { column: 1, desc: true },
+      schema: "app",
+    });
+  });
+
+  it("並べ替えは先頭のページから、スキーマを引き継ぐ。並べ替えをやめると sort が無くなる", () => {
+    const page = steppedPage(firstPage("SELECT * FROM t", "app"), [0]);
+    const sorted = sortedPage(page, { column: 0, desc: false });
+    assert.deepEqual(pageParams(sorted, 0, true), {
+      sql: "SELECT * FROM t",
+      orderBy: 1,
+      schema: "app",
+      rerun: true,
+    });
+    assert.deepEqual(sortedPage(sorted, undefined), {
+      sql: "SELECT * FROM t",
+      back: [],
+      schema: "app",
+    });
   });
 });

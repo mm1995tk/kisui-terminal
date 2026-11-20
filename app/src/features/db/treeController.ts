@@ -17,7 +17,7 @@ import type {
 import type { DbMethod, Session } from "../sessions/session.ts";
 import { dbRefParams, type DbRef } from "../workspaces/model.ts";
 import { catalogError, connectionOf, newQueryId } from "./model.ts";
-import { initialExpanded, previewSql } from "./tree.ts";
+import { initialExpanded, previewSql, withDefaultSchema } from "./tree.ts";
 
 /** タブ 1 つの、サイドバーの木のスキーマの一覧。メモリだけに持つ（開き直したら、もう一度聞く）。 */
 export interface DbCatalogState {
@@ -126,9 +126,7 @@ export function createDbTree(deps: {
       deps.fail(T("cannot.dbSchema.title"), T("cannot.dbSchema.oldServe"));
       return;
     }
-    setSchemas(({ [id]: _, ...rest }) =>
-      schema === null ? rest : { ...rest, [id]: schema },
-    );
+    setSchemas((all) => withDefaultSchema(all, id, schema));
   }
 
   /** 木の枝 node を開ける・閉じる。 */
