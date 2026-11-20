@@ -58,8 +58,11 @@ describe("kisui pane open の入れ先", () => {
     assert.equal(planPaneOpen(s, "review", false, true).kind, "error");
     // --new の重なりには数える（内蔵ブラウザを有効に戻すと出てくる）
     const only = rename(addBrowserWorkspace(state(), "b1", "g5"), "g5", "b");
-    assert.equal(planPaneOpen(only, "b", false, false).kind, "error");
-    assert.equal(planPaneOpen(only, "b", true, false).kind, "error");
+    // 隠れたものとだけ重なるときは、--new の有無によらず、別の名前を勧める（互いを勧め合わない）
+    for (const isNew of [false, true]) {
+      const p = planPaneOpen(only, "b", isNew, false);
+      assert.match(p.kind === "error" ? p.error : "", /hidden/);
+    }
   });
 
   it("作ったタブを一番後ろに入れ、最後に使っていたタブは変えない", () => {

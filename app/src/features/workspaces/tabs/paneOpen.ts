@@ -46,6 +46,9 @@ export function planPaneOpen(
   const n = name.trim();
   const all = gwsByName(s, n);
   const found = all.filter((g) => !hiddenGws(g, browser));
+  // 隠れたワークスペースとだけ重なるときは、--new を付けても外しても開けないので、別の名前を勧める
+  if (found.length === 0 && all.length > 0)
+    return { kind: "error", error: T("paneOpen.err.hidden", { name: n }) };
   if (isNew) {
     if (all.length > 0)
       return { kind: "error", error: T("paneOpen.err.exists", { name: n }) };

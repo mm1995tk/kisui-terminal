@@ -510,6 +510,8 @@ export const ja: Record<Key, string> = {
     "「{name}」という名前のワークスペースがありません（--new を付けると作ります）",
   "paneOpen.err.ambiguous":
     "「{name}」という名前のワークスペースが {count} つあります。どれかの名前を変えてください",
+  "paneOpen.err.hidden":
+    "サイドバーに出ていないワークスペース（ブラウザのタブだけを持ち、内蔵ブラウザを使わない設定で隠れているもの）が「{name}」という名前です。別の名前にしてください",
   "paneOpen.err.exists":
     "「{name}」という名前のワークスペースがもうあります（そこにタブを足すなら --new を外します）",
   "err.session.noKisui": "kisui が {machine} にありません（入れませんでした）",
