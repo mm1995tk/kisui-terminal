@@ -6,6 +6,7 @@ import {
   For,
   Index,
   on,
+  onCleanup,
   Show,
   untrack,
   type JSX,
@@ -160,7 +161,7 @@ export function TerminalGrid(props: {
     hidden: boolean;
     active: boolean;
   };
-  // 最初の画面を描けた欄（TerminalView の onDrawn）
+  // 最初の画面を描けた欄（TerminalView の onDrawn）。欄の要素が消えたら外す（同じタブに戻ると、欄は作り直されて空から描くため）
   const [drawn, setDrawn] = createSignal<ReadonlySet<TermLink>>(new Set());
   const views = createMemo(
     () =>
@@ -191,13 +192,13 @@ export function TerminalGrid(props: {
     { views: new Map(), held: [] },
   );
   const held = () => holding().held;
-  function onDrawn(link: TermLink) {
-    // 今の欄と残している欄のほかは、もう覚えておかなくてよい
-    const keep = new Set([
-      ...untrack(views).keys(),
-      ...untrack(held).map((h) => h.link),
-    ]);
-    setDrawn(new Set([...untrack(drawn), link].filter((l) => keep.has(l))));
+  function markDrawn(link: TermLink, on: boolean) {
+    const d = untrack(drawn);
+    if (d.has(link) === on) return;
+    const next = new Set(d);
+    if (on) next.add(link);
+    else next.delete(link);
+    setDrawn(next);
   }
   const heldOf = (l: TermLink) => held().find((h) => h.link === l)?.view;
   // 描く欄。今のタブの欄（先頭から props.links と同じ順）のあとに、残している欄
@@ -226,24 +227,27 @@ export function TerminalGrid(props: {
       }}
     >
       <For each={cells()}>
-        {(link, i) => (
-          <TerminalView
-            link={link}
-            active={heldOf(link)?.active ?? link === props.active}
-            hidden={heldOf(link)?.hidden ?? !visible(i())}
-            leaving={!!heldOf(link)}
-            place={heldOf(link)?.place ?? place(link.id)}
-            name={props.titles?.[link.id]}
-            onFocus={() => {
-              if (!heldOf(link)) props.onActivate(i());
-            }}
-            onUrl={props.onUrl}
-            focusRef={(f) =>
-              f ? focusers.set(link, f) : focusers.delete(link)
-            }
-            onDrawn={() => onDrawn(link)}
-          />
-        )}
+        {(link, i) => {
+          onCleanup(() => markDrawn(link, false));
+          return (
+            <TerminalView
+              link={link}
+              active={heldOf(link)?.active ?? link === props.active}
+              hidden={heldOf(link)?.hidden ?? !visible(i())}
+              leaving={!!heldOf(link)}
+              place={heldOf(link)?.place ?? place(link.id)}
+              name={props.titles?.[link.id]}
+              onFocus={() => {
+                if (!heldOf(link)) props.onActivate(i());
+              }}
+              onUrl={props.onUrl}
+              focusRef={(f) =>
+                f ? focusers.set(link, f) : focusers.delete(link)
+              }
+              onDrawn={() => markDrawn(link, true)}
+            />
+          );
+        }}
       </For>
       <For each={extras()}>
         {(x) => (
