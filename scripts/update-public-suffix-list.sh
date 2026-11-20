@@ -15,7 +15,7 @@ trap 'rm -f "$tmp"' EXIT
 curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' --max-time 60 -o "$tmp" "$url"
 
 # 途中で切れたものや、別のページを置かないよう、一覧の形をしているかを確かめる
-for marker in "===BEGIN ICANN DOMAINS===" "===END ICANN DOMAINS===" "===BEGIN PRIVATE DOMAINS===" "===END PRIVATE DOMAINS==="; do
+for marker in "// VERSION:" "===BEGIN ICANN DOMAINS===" "===END ICANN DOMAINS===" "===BEGIN PRIVATE DOMAINS===" "===END PRIVATE DOMAINS==="; do
   if ! grep -qF -- "$marker" "$tmp"; then
     echo "update-public-suffix-list: $url に $marker がありません。置き換えません" >&2
     exit 1
