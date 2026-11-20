@@ -29,7 +29,7 @@ import (
 const dbDefaultRows = 100
 
 // dbMaxRows is the most rows "kisui serve" gives (db.query's maxRows).
-const dbMaxRows = 10000
+const dbMaxRows = db.MaxMaxRows
 
 // dbProposeTimeout is how long "kisui db propose" waits: a little longer than
 // "kisui serve" waits for the person at the window (server.dbProposeWait), so

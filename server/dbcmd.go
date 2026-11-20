@@ -25,6 +25,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/mm1995tk/kisui-terminal/config"
+	"github.com/mm1995tk/kisui-terminal/internal/db"
 	"github.com/mm1995tk/kisui-terminal/internal/panecmd"
 	"github.com/mm1995tk/kisui-terminal/rpc"
 )
@@ -34,8 +35,8 @@ import (
 // 変数なのは、テストで短くするため。
 var dbProposeWait = 90 * time.Second
 
-// maxProposeSQL は、入力欄に書く SQL の長さの上限（バイト）。履歴に残せる長さ（db の 64 KiB）と同じ。
-const maxProposeSQL = 64 << 10
+// maxProposeSQL は、入力欄に書く SQL の長さの上限（バイト）。履歴に残せる長さと同じ。
+const maxProposeSQL = db.MaxHistorySQL
 
 // dbProposeResult は GUI の db.proposed の中身。
 type dbProposeResult struct {
