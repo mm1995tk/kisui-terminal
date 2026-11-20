@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { dbEditorKey, dbHistoryKey, dbTreeKey } from "./keys.ts";
+import { dbEditorKey, dbHistoryKey, dbResultKey, dbTreeKey } from "./keys.ts";
 
 const ev = (key: string, extra: object = {}) => ({
   key,
@@ -116,6 +116,26 @@ describe("dbHistoryKey（履歴の窓のキー）", () => {
     assert.equal(dbHistoryKey(ev("Enter", { isComposing: true }), true), null);
     assert.equal(
       dbHistoryKey(ev("ArrowDown", { isComposing: true }), true),
+      null,
+    );
+  });
+});
+
+describe("dbResultKey（DB のタブの結果の表のキー）", () => {
+  it("macOS は Cmd+C、ほかは Ctrl+C でコピーする", () => {
+    assert.equal(dbResultKey(ev("c", { metaKey: true }), true), "copy");
+    assert.equal(dbResultKey(ev("c", { ctrlKey: true }), false), "copy");
+    assert.equal(dbResultKey(ev("c", { ctrlKey: true }), true), null);
+    assert.equal(dbResultKey(ev("c", { metaKey: true }), false), null);
+  });
+  it("C だけ・Shift や Alt を重ねたものは受けない", () => {
+    assert.equal(dbResultKey(ev("c"), true), null);
+    assert.equal(
+      dbResultKey(ev("C", { ctrlKey: true, shiftKey: true }), false),
+      null,
+    );
+    assert.equal(
+      dbResultKey(ev("c", { metaKey: true, altKey: true }), true),
       null,
     );
   });

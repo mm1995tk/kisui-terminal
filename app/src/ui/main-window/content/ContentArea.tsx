@@ -160,6 +160,7 @@ export function ContentArea(props: {
               run={db.runOf(id)}
               onRun={() => void db.run(id)}
               onCancel={() => db.cancel(id)}
+              onCopyCells={db.copyCells}
               tree={{
                 open: db.treeLayout().open,
                 width: db.treeLayout().width,

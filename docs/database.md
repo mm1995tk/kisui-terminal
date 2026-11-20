@@ -110,6 +110,7 @@ A password found in the keychain or in a file is used before a typed one. When t
 - PostgreSQL's `COPY` is refused: there is nowhere to send its data to or take it from. `COPY` to or from a file of the server is refused with it.
 - Each statement logs in by itself and logs out when it is done. What a statement leaves in a session (`SET`, `USE`, a temporary table) is gone for the next one, and a transaction cannot span statements. Without `read-only`, each statement is committed by itself.
 - A result holds up to 1000 rows (the window can ask for up to 10000) and 8 MiB; one value holds up to 1 MiB. The result says when it was cut.
+- In the result table, click a cell to select it, and extend the selection with Shift+click or by dragging. `Cmd+C` (macOS) or `Ctrl+C` copies the selected cells (the table must have focus). One cell is copied as its value; two or more are copied as TSV (tab between columns, a line break between rows; NULL is empty, and a value with a tab, a quote or a line break is quoted, as in the export). The header row is not copied.
 - A statement can be cancelled; the database is told to stop it.
 - When the database offers TLS it is used, without checking the certificate (what `psql` and `mysql` do by default).
 
