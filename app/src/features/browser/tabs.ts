@@ -50,7 +50,10 @@ export interface BrowserTab {
 export interface TabsState {
   /** 開いた順 */
   tabs: readonly BrowserTab[];
-  /** ワークスペースの id（features/workspaces/model.ts）→ 出しているブラウザのタブの id。無ければターミナルのタブを出している */
+  /**
+   * ワークスペースの id（features/workspaces/model.ts）→ 出しているページのタブの id。無ければターミナルのタブを出している。
+   * ページのタブは、ブラウザのタブか DB のタブ（#347。id は "db" で始まり、ブラウザのタブの id と重ならない）。DB のタブを出すときは showView で書く
+   */
   views: Readonly<Record<string, string>>;
 }
 
@@ -85,6 +88,18 @@ export function showTab(
   id: string | null,
 ): TabsState {
   if (id !== null && !s.tabs.some((t) => t.id === id)) return s;
+  return showView(s, gws, id);
+}
+
+/**
+ * ワークスペースで出すものを、ページのタブ id に替える（null はターミナルのタブ）。id がブラウザのタブかは確かめない
+ * （DB のタブ（#347）を出すときに使う。そのタブがあるかは、呼ぶ側が確かめる）。
+ */
+export function showView(
+  s: TabsState,
+  gws: string,
+  id: string | null,
+): TabsState {
   const views = { ...s.views };
   if (id === null) {
     if (!(gws in views)) return s;
@@ -105,6 +120,7 @@ export function showTab(
  *   ターミナルのタブを出していれば undefined）。それを覚えさせる。覚えさせないと、ブラウザのタブだけのワークスペースは
  *   「最初のブラウザのタブ」か、入ってきたターミナルのタブを出すので、先頭に入れたタブ・移したターミナルのタブに替わってしまう。
  * タブの中身（URL・開いたときのマシンとワークスペース）は変えない（リモートの localhost の中継元は、開いたときのマシンのまま）。
+ * DB のタブ（#347）も、tab にその id を渡せば同じに動く（tab と destShown は、記録にあるページのタブだと呼ぶ側が確かめたもの）。
  */
 export function moveView(
   s: TabsState,
@@ -117,9 +133,20 @@ export function moveView(
   },
 ): TabsState {
   const left =
-    p.tab !== null && s.views[p.from] === p.tab ? showTab(s, p.from, null) : s;
-  if (p.show) return showTab(left, p.to, p.tab);
-  return p.destShown === undefined ? left : showTab(left, p.to, p.destShown);
+    p.tab !== null && s.views[p.from] === p.tab ? showView(s, p.from, null) : s;
+  if (p.show) return showView(left, p.to, p.tab);
+  return p.destShown === undefined ? left : showView(left, p.to, p.destShown);
+}
+
+/** ページのタブ id を出しているワークスペースを、ターミナルのタブに戻す（DB のタブを閉じたとき。#347）。 */
+export function dropView(s: TabsState, id: string): TabsState {
+  if (!Object.values(s.views).includes(id)) return s;
+  return {
+    ...s,
+    views: Object.fromEntries(
+      Object.entries(s.views).filter(([, v]) => v !== id),
+    ),
+  };
 }
 
 /** タブを足し、ワークスペース gws でそれを出す（gws が分からなければ、足すだけ）。 */

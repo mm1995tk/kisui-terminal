@@ -16,7 +16,7 @@ import type { Bar } from "../../features/terminal/grid.ts";
 import type { TermGroup } from "../../features/terminal/group.ts";
 import {
   focusedRow,
-  shownIsBrowser,
+  shownIsPage,
   type Row,
   type WorkspaceFocus,
 } from "../../features/workspaces/rows.ts";
@@ -398,7 +398,7 @@ export function createPaneResize(deps: {
       sidebarOpen() &&
       r !== null &&
       r.row.band.showTree &&
-      !shownIsBrowser(r.row.tabs)
+      !shownIsPage(r.row.tabs)
     );
   }
 

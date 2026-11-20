@@ -20,13 +20,15 @@ import { tabTitle } from "../browser/tabs.ts";
 import {
   autoName,
   browserKey,
+  dbKey,
   displayName,
   refKey,
   repTerm,
-  shownBrowserId,
+  shownPage,
   termKey,
   gwsOfTerm,
   type BrowserRef,
+  type DbRef,
   type Gws,
   type GwsState,
   type TermRef,
@@ -275,26 +277,26 @@ export interface Row {
   tabs: BandTabs;
 }
 
-/** 帯の下に並べるタブの行（ターミナルのタブもブラウザのタブも）。 */
+/** 帯の下に並べるタブの行（ターミナルのタブもブラウザのタブも DB のタブも）。 */
 export interface TabItem {
   /** タブを指すキー（features/workspaces/model.ts の refKey） */
   key: string;
-  kind: "term" | "browser";
+  kind: "term" | "browser" | "db";
   /** タブの名前 */
   title: string;
-  /** 2 行目：ターミナルのタブはフォルダのパス（ホームは ~）、ブラウザのタブは URL。分からなければ "" */
+  /** 2 行目：ターミナルのタブはフォルダのパス（ホームは ~）、ブラウザのタブは URL、DB のタブは名前を付けたときの接続の名前。分からなければ "" */
   path: string;
   /** 3 行目（ターミナルのタブだけ）：「ブランチ (short sha)」。git が無いフォルダ・分からないときは ""（行を出さない） */
   git: string;
-  /** ツールチップ（ブラウザのタブは URL、ターミナルのタブはフォルダ） */
+  /** ツールチップ（ブラウザのタブは URL、ターミナルのタブはフォルダ、DB のタブは接続の名前とマシン） */
   tip: string;
   /** シークレットのタブか */
   incognito: boolean;
   /** ブラウザのタブのページの favicon（#237。PNG の data: URL）。無ければ地球のアイコン */
   favicon?: string;
-  /** ターミナルのタブのマシン（札に出す。ブラウザのタブは undefined） */
+  /** ターミナルのタブ・DB のタブのマシン（札に出す。ブラウザのタブは undefined） */
   machine?: { name: string; color: string; health: Health };
-  /** ターミナルのタブのマシンとのつながり（ブラウザのタブは undefined）。"down" の行は薄く出す */
+  /** ターミナルのタブ・DB のタブのマシンとのつながり（ブラウザのタブは undefined）。"down" の行は薄く出す */
   health?: Health;
   /** ブラウザのタブの id（ターミナルのタブは undefined） */
   tab?: string;
@@ -353,7 +355,12 @@ export function gwsRows(state: GwsState, ctx: RowContext): Row[] {
               r.ws === ctx.focus.id,
           );
     const items = g.tabs.flatMap((r) => {
-      const item = r.kind === "term" ? termItem(r, ctx) : browserItem(r, ctx);
+      const item =
+        r.kind === "term"
+          ? termItem(r, ctx)
+          : r.kind === "db"
+            ? dbItem(r, ctx)
+            : browserItem(r, ctx);
       return item ? [item] : [];
     });
     const tabs = (shown: string): BandTabs => ({
@@ -365,9 +372,7 @@ export function gwsRows(state: GwsState, ctx: RowContext): Row[] {
       // ターミナルのタブが無いワークスペース。ブラウザのタブはあるのに 1 つも出せなければ（内蔵ブラウザを無効にしている）、行を出さない
       // （記録は残すので、有効に戻せばまた出る）。タブが 1 つも無い空のワークスペース（#307）は出す
       if (items.length === 0 && g.tabs.length > 0) return [];
-      const shown = shownBrowserId(g, ctx.views[g.id], (id) =>
-        ctx.browser.has(id),
-      );
+      const shown = shownPage(g, ctx.views[g.id], (id) => ctx.browser.has(id));
       return [
         {
           gws: g.id,
@@ -376,7 +381,7 @@ export function gwsRows(state: GwsState, ctx: RowContext): Row[] {
           color: ctx.colorOf(""),
           health: "up",
           band: bandOfTermless(g, focused),
-          tabs: tabs(shown === undefined ? "" : browserKey(shown)),
+          tabs: tabs(shown === undefined ? "" : refKey(shown)),
         },
       ];
     }
@@ -495,15 +500,38 @@ function browserItem(r: BrowserRef, ctx: RowContext): TabItem | undefined {
   };
 }
 
-/** 出しているタブのキー。ブラウザのタブを出している（view）ならそれ、そうでなければ rep のターミナルのタブ。 */
+/**
+ * DB のタブの行（#347）。名前は、付けた名前、無ければ接続の名前。マシンの札は、接続を書いたマシン（そのマシンの kisui serve が DB につなぐ）。
+ * 名前を付けたときは、2 行目に接続の名前を出す。
+ */
+function dbItem(r: DbRef, ctx: RowContext): TabItem {
+  const health = ctx.healthOf(r.target);
+  const machine = ctx.labelOf(r.target);
+  return {
+    key: refKey(r),
+    kind: "db",
+    tab: r.id,
+    title: r.name || r.connection,
+    path: r.name ? r.connection : "",
+    git: "",
+    tip: T("dbTab.tip", { connection: r.connection, machine }),
+    incognito: false,
+    machine: { name: machine, color: ctx.colorOf(r.target), health },
+    health,
+    closable: true,
+  };
+}
+
+/** 出しているタブのキー。ページのタブを出している（view）ならそれ、そうでなければ rep のターミナルのタブ。 */
 function shownKey(
   rep: TermRef,
   view: string | undefined,
   items: readonly TabItem[],
 ): string {
-  return view !== undefined && items.some((i) => i.key === browserKey(view))
-    ? browserKey(view)
-    : termKey(rep.target, rep.ws);
+  if (view !== undefined)
+    for (const k of [browserKey(view), dbKey(view)])
+      if (items.some((i) => i.key === k)) return k;
+  return termKey(rep.target, rep.ws);
 }
 
 /**
@@ -544,9 +572,12 @@ export function stepRow(
   return rows[(i + (step === "next" ? 1 : n - 1)) % n].gws;
 }
 
-/** 出しているタブがブラウザのタブか。そうなら、ファイルツリーと CHANGES を隠す（#268）。出しているタブのキーが items に無ければ false。 */
-export function shownIsBrowser(tabs: BandTabs): boolean {
-  return tabs.items.some((i) => i.key === tabs.shown && i.kind === "browser");
+/**
+ * 出しているタブがページのタブ（ブラウザのタブか DB のタブ）か。そうなら、ファイルツリーと CHANGES を隠す（#268。DB のタブも、
+ * ターミナルのフォルダとは関わらないので同じ。#347）。出しているタブのキーが items に無ければ false。
+ */
+export function shownIsPage(tabs: BandTabs): boolean {
+  return tabs.items.some((i) => i.key === tabs.shown && i.kind !== "term");
 }
 
 /** タブの段が、見せるかどうかを決めるときの、ある時点のタブ（#284）。 */

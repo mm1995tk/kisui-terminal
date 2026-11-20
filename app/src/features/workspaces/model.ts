@@ -1,7 +1,10 @@
 // 手元の GUI が持つワークスペース（#231）。DOM も Tauri も Solid も使わない（node --test で確かめられる）。
 //
 // 各マシンの kisui serve が持つ「ワークスペース」（プライマリターミナル・分割したペイン・フォルダ・名前を持つもの）は、
-// ここでは「ターミナルのタブ」1 つになる。GUI のワークスペースは、マシンをまたいで、ターミナルのタブと内蔵ブラウザのタブを束ねる。
+// ここでは「ターミナルのタブ」1 つになる。GUI のワークスペースは、マシンをまたいで、ターミナルのタブと内蔵ブラウザのタブと
+// DB のタブ（#347）を束ねる。ターミナルのタブでないもの（ブラウザのタブと DB のタブ）を、ここでは「ページのタブ」と呼ぶ：
+// 選ぶと、グリッドの場所すべてがそのタブの画面になる。ワークスペースごとにどのページのタブを出しているかは、
+// features/browser/tabs.ts の views が、タブの id で持つ（ブラウザのタブと DB のタブの id は重ならない。newDbTabId）。
 // ターミナルのタブは 1 つも無くてよい（ブラウザのタブだけのワークスペース。#257）。タブが 1 つも無くてもよい（空のワークスペース。#307）。
 // 最後のタブを閉じても、ワークスペースは残す（名前・id・並び順を保つ）。並びから外すのは、ワークスペースを閉じる操作（removeGws）だけ。
 // 覚えるもの：名前、サイドバーでの並び順（list の順）、中のタブとその並び順。再起動しても残す（置き場は webview の localStorage）。
@@ -31,7 +34,25 @@ export interface BrowserRef {
   name?: string;
 }
 
-export type TabRef = TermRef | BrowserRef;
+/**
+ * DB のタブ 1 つ（#347）。どのマシンの kisui serve の、どの接続（そのマシンの設定の [[db.connections]] の name）か。
+ * 書きかけの SQL と結果は features/db/ が持つ。マシンと接続は、開いたときから変わらない。
+ */
+export interface DbRef {
+  kind: "db";
+  id: string;
+  /** 接続を書いたマシン（ssh の行き先か `@local`）。そのマシンの kisui serve が DB につなぐ */
+  target: string;
+  /** そのマシンの接続の名前 */
+  connection: string;
+  /** タブにつけた名前（無ければ省く。出すときはこれが接続の名前より先） */
+  name?: string;
+}
+
+export type TabRef = TermRef | BrowserRef | DbRef;
+
+/** ページのタブ（ターミナルのタブでないもの。選ぶとグリッドの場所すべてがその画面になる）。 */
+export type PageRef = BrowserRef | DbRef;
 
 /** ワークスペース 1 つ。 */
 export interface Gws {
@@ -71,11 +92,25 @@ export const termKey = (target: string, ws: WorkspaceId): string =>
 /** ブラウザのタブ（id）を指すキー。 */
 export const browserKey = (id: string): string => JSON.stringify(["b", id]);
 
-/** タブを指すキー（サイドバーの行・出しているタブの印）。termKey・browserKey と同じ形。 */
+/** DB のタブ（id）を指すキー。 */
+export const dbKey = (id: string): string => JSON.stringify(["d", id]);
+
+/** タブを指すキー（サイドバーの行・出しているタブの印）。termKey・browserKey・dbKey と同じ形。 */
 export const refKey = (r: TabRef): string =>
-  r.kind === "browser" ? browserKey(r.id) : termKey(r.target, r.ws);
+  r.kind === "browser"
+    ? browserKey(r.id)
+    : r.kind === "db"
+      ? dbKey(r.id)
+      : termKey(r.target, r.ws);
 
 const isTerm = (r: TabRef): r is TermRef => r.kind === "term";
+
+/** 新しい DB のタブの id（ブラウザのタブの id（newTabId。"t" で始まる）と重ならないよう、"db" で始める）。 */
+export function newDbTabId(random: () => number = Math.random): string {
+  let s = "db";
+  for (let i = 0; i < 12; i++) s += Math.floor(random() * 36).toString(36);
+  return s;
+}
 
 const sameTerm = (r: TabRef, target: string, ws: WorkspaceId) =>
   isTerm(r) && r.target === target && r.ws === ws;
@@ -109,6 +144,11 @@ export function gwsOfBrowser(s: GwsState, id: string): Gws | undefined {
   return s.list.find((g) =>
     g.tabs.some((r) => r.kind === "browser" && r.id === id),
   );
+}
+
+/** DB のタブが入っているワークスペース。 */
+export function gwsOfDb(s: GwsState, id: string): Gws | undefined {
+  return s.list.find((g) => g.tabs.some((r) => r.kind === "db" && r.id === id));
 }
 
 /** ワークスペースの、ターミナルのタブ。 */
@@ -285,29 +325,29 @@ export function moveTabTo(
 }
 
 /**
- * ワークスペース g が今出しているタブの key（refKey）。ブラウザのタブを出していればそれ（shownBrowserId）、
- * そうでなければ最後に使ったターミナルのタブ（repTerm）。タブが無ければ undefined。引数は shownBrowserId と同じ。
+ * ワークスペース g が今出しているタブの key（refKey）。ページのタブを出していればそれ（shownPage）、
+ * そうでなければ最後に使ったターミナルのタブ（repTerm）。タブが無ければ undefined。引数は shownPage と同じ。
  */
 export function shownTabKey(
   g: Gws,
   view: string | undefined,
   hasBrowser: (id: string) => boolean,
 ): string | undefined {
-  const b = shownBrowserId(g, view, hasBrowser);
-  if (b !== undefined) return browserKey(b);
+  const p = shownPage(g, view, hasBrowser);
+  if (p) return refKey(p);
   const t = repTerm(g);
   return t ? termKey(t.target, t.ws) : undefined;
 }
 
 /**
- * サイドバーに出ているタブ（t の操作が数える並び。t 1〜9・t J / t K）。ターミナルのタブは全部。
+ * サイドバーに出ているタブ（t の操作が数える並び。t 1〜9・t J / t K）。ターミナルのタブと DB のタブは全部。
  * ブラウザのタブは、タブがまだあるもの（hasBrowser）だけ（内蔵ブラウザを無効にしたあとも記録は残るが、サイドバーには出ない）。
  */
 export function visibleTabs(
   g: Gws,
   hasBrowser: (id: string) => boolean,
 ): TabRef[] {
-  return g.tabs.filter((r) => r.kind === "term" || hasBrowser(r.id));
+  return g.tabs.filter((r) => r.kind !== "browser" || hasBrowser(r.id));
 }
 
 /**
@@ -320,7 +360,7 @@ export function steppableTabs(
   cur: string,
 ): TabRef[] {
   return visible.filter(
-    (r) => r.kind === "browser" || up(r.target) || refKey(r) === cur,
+    (r) => r.kind !== "term" || up(r.target) || refKey(r) === cur,
   );
 }
 
@@ -362,22 +402,44 @@ export function setActiveTerm(
 }
 
 /**
- * ワークスペース g が今出しているブラウザのタブの id。view は、ワークスペースが出すと覚えているブラウザのタブ（features/browser/tabs.ts の views）。
- * ターミナルのタブを出していれば undefined。ターミナルのタブが無いワークスペースは、いつもブラウザのタブを出す
- * （view のタブが無ければ、最初のブラウザのタブ）。hasBrowser は、そのブラウザのタブがまだあるか。
- * 画面に出すページ（features/browser/pages.ts）とサイドバーで強調する行（features/workspaces/rows.ts）は、どちらもこれで決める。
+ * ワークスペース g が今出しているページのタブ（ブラウザのタブか DB のタブ）。view は、ワークスペースが出すと覚えているページのタブの id
+ * （features/browser/tabs.ts の views）。ターミナルのタブを出していれば undefined。ターミナルのタブが無いワークスペースは、いつもページのタブを出す
+ * （view のタブが無ければ、並びで最初のページのタブ）。hasBrowser は、そのブラウザのタブがまだあるか（DB のタブは、記録にあればある）。
+ * 画面に出すページ（features/browser/pages.ts・features/db/controller.ts）とサイドバーで強調する行（features/workspaces/rows.ts）は、どれもこれで決める。
  */
+export function shownPage(
+  g: Gws,
+  view: string | undefined,
+  hasBrowser: (id: string) => boolean,
+): PageRef | undefined {
+  const pages = g.tabs.filter(
+    (r): r is PageRef =>
+      r.kind === "db" || (r.kind === "browser" && hasBrowser(r.id)),
+  );
+  const v = view === undefined ? undefined : pages.find((r) => r.id === view);
+  if (v) return v;
+  if (termsOf(g).length > 0) return undefined;
+  return pages[0];
+}
+
+/** ワークスペース g が今出しているブラウザのタブの id（shownPage がブラウザのタブのとき）。引数は shownPage と同じ。 */
 export function shownBrowserId(
   g: Gws,
   view: string | undefined,
   hasBrowser: (id: string) => boolean,
 ): string | undefined {
-  const own = (id: string) =>
-    hasBrowser(id) && g.tabs.some((r) => r.kind === "browser" && r.id === id);
-  if (view !== undefined && own(view)) return view;
-  if (termsOf(g).length > 0) return undefined;
-  for (const r of g.tabs) if (r.kind === "browser" && own(r.id)) return r.id;
-  return undefined;
+  const p = shownPage(g, view, hasBrowser);
+  return p?.kind === "browser" ? p.id : undefined;
+}
+
+/** ワークスペース g が今出している DB のタブ（shownPage が DB のタブのとき）。引数は shownPage と同じ。 */
+export function shownDb(
+  g: Gws,
+  view: string | undefined,
+  hasBrowser: (id: string) => boolean,
+): DbRef | undefined {
+  const p = shownPage(g, view, hasBrowser);
+  return p?.kind === "db" ? p : undefined;
 }
 
 /**
@@ -459,6 +521,29 @@ export function addTerm(
 }
 
 const sameGws = (a: Gws | undefined, b: Gws): boolean => a?.id === b.id;
+
+/** DB のタブを、ワークスペース id の一番後ろに足す（その id のタブがすでにどこかにあれば何もしない）。 */
+export function addDb(s: GwsState, id: string, tab: DbRef): GwsState {
+  if (gwsOfDb(s, tab.id)) return s;
+  return update(s, id, (g) => ({ ...g, tabs: [...g.tabs, tab] }));
+}
+
+/** DB のタブを外す。ワークスペースの最後のタブだったら、ワークスペースは空のまま残る（#307）。 */
+export function removeDb(s: GwsState, tab: string): GwsState {
+  const g = gwsOfDb(s, tab);
+  if (!g) return s;
+  return update(s, g.id, (x) => ({
+    ...x,
+    tabs: x.tabs.filter((r) => !(r.kind === "db" && r.id === tab)),
+  }));
+}
+
+/** 記録にある DB のタブ全部（ワークスペースの並び・タブの並びの順）。 */
+export function dbTabsOf(s: GwsState): DbRef[] {
+  return s.list.flatMap((g) =>
+    g.tabs.filter((r): r is DbRef => r.kind === "db"),
+  );
+}
 
 /** ブラウザのタブを外す。ワークスペースの最後のタブだったら、ワークスペースは空のまま残る（#307）。 */
 export function removeBrowser(s: GwsState, tab: string): GwsState {
@@ -583,7 +668,8 @@ function pruneTabs(
           tabs.push(w.title === r.title ? r : { ...r, title: w.title });
           continue;
         }
-      } else if (browserIds && !browserIds.has(r.id)) continue;
+      } else if (r.kind === "browser" && browserIds && !browserIds.has(r.id))
+        continue;
       seen.add(k);
       tabs.push(r);
     }
@@ -747,6 +833,19 @@ export function parseGws(v: unknown): GwsState {
           id: r.id,
           ...(typeof r.name === "string" && r.name ? { name: r.name } : {}),
         };
+      else if (
+        r.kind === "db" &&
+        typeof r.id === "string" &&
+        typeof r.target === "string" &&
+        typeof r.connection === "string"
+      )
+        ref = {
+          kind: "db",
+          id: r.id,
+          target: r.target,
+          connection: r.connection,
+          ...(typeof r.name === "string" && r.name ? { name: r.name } : {}),
+        };
       if (!ref || seen.has(refKey(ref))) continue;
       seen.add(refKey(ref));
       tabs.push(ref);
@@ -786,13 +885,18 @@ export function renameBrowser(
   tab: string,
   name: string,
 ): GwsState {
-  const g = gwsOfBrowser(s, tab);
+  return renamePage(s, browserKey(tab), name);
+}
+
+/** ページのタブ（ブラウザのタブか DB のタブ。key は refKey）に名前を付ける。空にすると、自動の名前（ページの題・接続の名前）に戻る。 */
+export function renamePage(s: GwsState, key: string, name: string): GwsState {
+  const g = gwsOfTab(s, key);
   if (!g) return s;
   const n = name.trim();
   return update(s, g.id, (x) => ({
     ...x,
     tabs: x.tabs.map((r) => {
-      if (r.kind !== "browser" || r.id !== tab || (r.name ?? "") === n)
+      if (r.kind === "term" || refKey(r) !== key || (r.name ?? "") === n)
         return r;
       const { name: _, ...rest } = r;
       return n ? { ...rest, name: n } : rest;
@@ -864,14 +968,12 @@ export function browserOriginOf(
 }
 
 /**
- * サイドバーの行に出ないワークスペースか。内蔵ブラウザを使わない（browser が false）ときの、ターミナルのタブが無く、
+ * サイドバーの行に出ないワークスペースか。内蔵ブラウザを使わない（browser が false）ときの、ターミナルのタブも DB のタブも無く、
  * ブラウザのタブの記録を持つもの（記録は残し、有効に戻せばまた出る）。タブが 1 つも無い空のワークスペースは出る（#307）。
  * そこへは移らず、居る間にそうなったら（最後のターミナルのタブを閉じた）隣のワークスペースへ移る。
  */
 export function hiddenGws(g: Gws, browser: boolean): boolean {
   return (
-    !browser &&
-    termsOf(g).length === 0 &&
-    g.tabs.some((r) => r.kind === "browser")
+    !browser && g.tabs.length > 0 && g.tabs.every((r) => r.kind === "browser")
   );
 }

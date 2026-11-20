@@ -119,6 +119,8 @@ describe("メインウィンドウの CSS の並び", () => {
       "ui/styles/symbols-nerd-font.css",
       "ui/main-window/content/terminal/terminal.css",
       "ui/main-window/content/EmptyWorkspace.module.css",
+      // DB のタブの画面（#347。CSS Modules なので、クラス名はほかと重ならない）
+      "ui/main-window/content/db/DbTabView.module.css",
     ]);
   });
 

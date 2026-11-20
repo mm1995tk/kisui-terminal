@@ -55,6 +55,8 @@ export interface ErrorObject {
 export class RpcError extends Error {
   readonly code: number;
   readonly data?: unknown;
+  /** 相手が書いた message そのまま（message はコードを前に付けたもの。DB の間違いの文などを、そのまま見せるときに使う） */
+  readonly reason: string;
 
   constructor(e: ErrorObject) {
     const name = codeName(e.code);
@@ -66,6 +68,7 @@ export class RpcError extends Error {
     this.name = "RpcError";
     this.code = e.code;
     this.data = e.data;
+    this.reason = e.message;
   }
 
   /** エラーコードの名前（"not_owner" など）。知らないコードは "" */

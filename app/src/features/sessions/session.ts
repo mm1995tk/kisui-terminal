@@ -118,6 +118,8 @@ export type TermMethod =
 export type BlobMethod = "media.read";
 /** Session.request で送れる要求（プライマリの shj にファイルを開かせる）。 */
 export type ShjMethod = "shj.open" | "shj.diff" | "shj.changesKey";
+/** Session.request で送れる要求（DB。#345・#347。capabilities に "db" がある kisui serve だけが受ける）。 */
+export type DbMethod = "db.connections" | "db.query" | "db.cancel";
 /** ターミナルの通知（F1）。method で見分ける。 */
 export type TermEvent =
   | { method: "term.output"; params: Notifications["term.output"] }
@@ -291,10 +293,9 @@ export class Session {
    * ツリーと git（D2）・ターミナル（F1）・プライマリの shj（#551）の要求を今の接続で送る。つながっていないときは投げる。
    * つなぎ直したら、呼ぶ側が取り直す（onState の connected で知る）。
    */
-  async request<M extends TreeMethod | TermMethod | BlobMethod | ShjMethod>(
-    method: M,
-    params: Requests[M]["params"],
-  ): Promise<Requests[M]["result"]> {
+  async request<
+    M extends TreeMethod | TermMethod | BlobMethod | ShjMethod | DbMethod,
+  >(method: M, params: Requests[M]["params"]): Promise<Requests[M]["result"]> {
     const conn = this.conn;
     if (!conn)
       throw new Error(T("err.session.notConnected", { machine: this.target }));

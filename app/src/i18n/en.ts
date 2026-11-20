@@ -613,6 +613,64 @@ export const en = {
   "emptyWorkspace.closeWorkspace":
     "Close this workspace (from the workspace switcher; confirm with y)",
   "emptyWorkspace.plus": "You can also add a tab with the + in the sidebar.",
+  "emptyWorkspace.addDb": "Open a database tab",
+  // ---- DB のタブ（#347）----
+  "leader.db.group": "Database",
+  "leader.db.open": "Open a database tab",
+  "sidebar.addDb": "Database",
+  "dbTab.tip": "{connection} on {machine}",
+  "place.db.title": "Database tab",
+  "place.db.lead":
+    "Keys in the SQL input of a database tab. The result shows below it.",
+  "place.db.run": "Run the SQL",
+  "place.db.cancel": "Cancel the SQL that is running",
+  "cannot.db.title": "Cannot open a database tab",
+  "cannot.db.noWorkspace": "There is no workspace to open it in.",
+  "db.picker.label": "Database connections",
+  "db.picker.title": "Choose a connection",
+  "db.picker.loading": "Asking the machines…",
+  "db.picker.empty": "No connections",
+  "db.picker.emptyHint":
+    "Write them under [[db.connections]] in config.toml on the machine that should connect.",
+  "db.picker.readOnly": "read-only",
+  "db.picker.open": "open",
+  "db.picker.problem": "{machine}: {problem}",
+  "db.picker.failed": "{machine}: could not get the connections ({error})",
+  "db.err.noConnection":
+    "This connection is no longer in the settings of its machine.",
+  "db.err.busy":
+    "Too many statements are running on this machine. Run it again when one ends.",
+  "db.err.disconnected": "Not connected to {machine}.",
+  "db.err.noDb":
+    "kisui serve on {machine} is too old to use databases. Reconnect to update it.",
+  "db.err.noDbShort": "this kisui serve is too old to use databases",
+  "db.err.password": "The password was not accepted.",
+  "db.elapsed.ms": "{n} ms",
+  "db.elapsed.s": "{n} s",
+  "db.summary.rows": "{n} rows",
+  "db.summary.truncated": "the rows after these were not read",
+  "db.summary.affected": "{n} rows changed",
+  "db.summary.done": "done",
+  "db.summary.truncatedCells": "some long values are cut",
+  "db.view.label": "Database tab: {connection}",
+  "db.view.sql": "SQL",
+  "db.view.placeholder": "Type SQL and press {key} to run it",
+  "db.view.run": "Run",
+  "db.view.cancel": "Cancel",
+  "db.view.running": "Running…",
+  "db.view.cancelled": "Cancelled.",
+  "db.view.empty": "Run SQL to see the result here.",
+  "db.view.noRows": "No rows.",
+  "db.view.sqlState": "SQLSTATE {code}",
+  "db.view.result": "Result",
+  "db.password.label": "Database password",
+  "db.password.missing": "Password for {connection} on {machine}",
+  "db.password.rejected":
+    "The database refused the password for {connection} on {machine}. Type it again.",
+  "db.password.note":
+    "The window does not save it. After the login works, kisui serve on that machine keeps it in memory until it stops.",
+  "db.password.reveal": "Show the password",
+  "db.password.ok": "Run",
 } as const satisfies Record<string, string>;
 
 /** 表のキー。`T` に渡す。 */

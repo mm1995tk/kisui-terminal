@@ -10,6 +10,7 @@ import type { BrowserOs, PasskeyLogin } from "../browser/os.ts";
 import type { Pages } from "../browser/pages.ts";
 import { showTab } from "../browser/tabs.ts";
 import type { BrowserTabs } from "../browser/tabsStore.ts";
+import type { DbTabs } from "../db/controller.ts";
 import type { Failure, MascotStore } from "../mascot/mascotStore.ts";
 import type { ReportProblem } from "../problem.ts";
 import type { Scale } from "../scale/controller.ts";
@@ -59,6 +60,7 @@ export function createCommandRunner(deps: {
   terminals: Terminals;
   browserTabs: BrowserTabs;
   pages: Pages;
+  db: Pick<DbTabs, "shownDbTab" | "openPicker">;
   bookmarks: Bookmarks;
   downloads: Downloads;
   updates: Updates;
@@ -248,13 +250,13 @@ export function createCommandRunner(deps: {
       cannot(T("cannot.pane.none.title"), T("cannot.pane.none.text"));
       return;
     }
-    // ブラウザのタブを出している間のペインの操作は、まずグリッドに戻す（見えないペインは動かさない）。
+    // ページのタブ（ブラウザのタブ・DB のタブ）を出している間のペインの操作は、まずグリッドに戻す（見えないペインは動かさない）。
     // ペインを閉じる（p x）は、戻すだけで閉じない（どのペインが閉じるか見えないまま閉じないため）
     if (
       c.id.startsWith("pane.") &&
       c.id !== "pane.resize" &&
       f &&
-      shownBrowserTab()
+      (shownBrowserTab() || deps.db.shownDbTab())
     ) {
       const g = currentGws();
       if (g) setTabs((s) => showTab(s, g.id, null));
@@ -286,6 +288,9 @@ export function createCommandRunner(deps: {
       case "pane.resize":
         // 入る・出るの両方（Cmd+R / Ctrl+Shift+R）
         ui.toggleResizeMode();
+        break;
+      case "db.open":
+        deps.db.openPicker();
         break;
       case "workspace.nth":
         // サイドバーの上から順に（1 列の並びで）。足りなければ何もしない
