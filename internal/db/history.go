@@ -73,22 +73,23 @@ func HistoryKey(c config.DBConnection) string {
 	return c.Name + "\x00" + c.Variant
 }
 
-// historyFile is the file of the connection with the key name.
-func (h *History) historyFile(name string) string {
-	sum := sha256.Sum256([]byte(name))
+// historyFile is the file of the connection with this key (HistoryKey).
+func (h *History) historyFile(key string) string {
+	sum := sha256.Sum256([]byte(key))
 	return filepath.Join(h.Dir, hex.EncodeToString(sum[:])+".jsonl")
 }
 
-// Add keeps e as the newest statement of the connection with the key name. A statement
+// Add keeps e as the newest statement of the connection with this key
+// (HistoryKey). A statement
 // longer than MaxHistorySQL is not kept (and is no error).
-func (h *History) Add(name string, e HistoryEntry) error {
+func (h *History) Add(key string, e HistoryEntry) error {
 	if h == nil || h.Dir == "" || len(e.SQL) > MaxHistorySQL {
 		return nil
 	}
 	e.At = e.At.UTC().Truncate(time.Millisecond)
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	path := h.historyFile(name)
+	path := h.historyFile(key)
 	list, err := readHistory(path)
 	if err != nil {
 		return err
@@ -116,15 +117,16 @@ func (h *History) Add(name string, e HistoryEntry) error {
 	return writeAtomic(path, buf.Bytes())
 }
 
-// List gives the statements of the connection with the key name, newest first: at most
+// List gives the statements of the connection with this key (HistoryKey),
+// newest first: at most
 // limit of them, or all when limit is 0 or less.
-func (h *History) List(name string, limit int) ([]HistoryEntry, error) {
+func (h *History) List(key string, limit int) ([]HistoryEntry, error) {
 	out := []HistoryEntry{}
 	if h == nil || h.Dir == "" {
 		return out, nil
 	}
 	h.mu.Lock()
-	list, err := readHistory(h.historyFile(name))
+	list, err := readHistory(h.historyFile(key))
 	h.mu.Unlock()
 	if err != nil {
 		return out, err
