@@ -171,7 +171,7 @@ func (w *wsManager) restore() {
 			w.srv.log.Warn("workspace name is invalid; restored without a name", "workspace", x.ID, "err", err)
 			label = ""
 		}
-		if _, _, err := w.createLocked(x.ID, dir, label); err != nil {
+		if _, _, err := w.createLocked(x.ID, dir, label, tabCommand{}); err != nil {
 			w.srv.log.Warn("restore workspace", "workspace", x.ID, "err", err)
 		}
 	}

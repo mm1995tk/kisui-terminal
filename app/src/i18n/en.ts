@@ -505,6 +505,16 @@ export const en = {
   "rename.name": "Name",
   "rename.placeholder": "If empty: {fallback}",
   "err.session.notConnected": "Not connected to {machine}",
+  "err.session.tooOld":
+    "The kisui serve of {machine} is too old for this. Update kisui-terminal there.",
+  "paneOpen.err.noWorkspace":
+    'No workspace is named "{name}" (add --new to make one)',
+  "paneOpen.err.ambiguous":
+    '{count} workspaces are named "{name}"; give one of them another name',
+  "paneOpen.err.hidden":
+    'A workspace hidden from the sidebar (it has only browser tabs, and the built-in browser is off) is named "{name}"; use another name',
+  "paneOpen.err.exists":
+    'A workspace named "{name}" already exists (drop --new to add the tab to it)',
   "err.session.noKisui": "kisui is not on {machine} (it was not installed)",
   "file.pdfUnsupported": "This environment's WebView cannot show PDFs ({path})",
   "file.imageUnsupported":
