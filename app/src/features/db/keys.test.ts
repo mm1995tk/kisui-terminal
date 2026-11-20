@@ -172,10 +172,17 @@ describe("dbResultTabKey（文ごとの結果のタブを切り替えるキー�
     assert.equal(dbResultTabKey(ev("ArrowRight"), false), 0);
     assert.equal(dbResultTabKey(ev("ArrowLeft", { shiftKey: true }), true), 0);
   });
+  it("Option・AltGr（Ctrl と Alt が両方）で打った [ ] は受ける", () => {
+    assert.equal(dbResultTabKey(ev("[", { altKey: true }), false), -1);
+    assert.equal(
+      dbResultTabKey(ev("]", { ctrlKey: true, altKey: true }), false),
+      1,
+    );
+  });
   it("修飾キーを重ねたもの・ほかのキー・かな漢字変換のキーは受けない", () => {
     assert.equal(dbResultTabKey(ev("]", { ctrlKey: true }), false), 0);
     assert.equal(dbResultTabKey(ev("[", { metaKey: true }), false), 0);
-    assert.equal(dbResultTabKey(ev("[", { altKey: true }), false), 0);
+    assert.equal(dbResultTabKey(ev("ArrowLeft", { altKey: true }), true), 0);
     assert.equal(dbResultTabKey(ev("s"), true), 0);
     assert.equal(dbResultTabKey(ev("]", { isComposing: true }), true), 0);
   });
