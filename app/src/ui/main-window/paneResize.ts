@@ -376,7 +376,9 @@ export function createPaneResize(deps: {
 
   /** ファイルツリーをスクロールする要素（3 段のサイドバーのファイルツリーの段。#284）。出ていなければ undefined。 */
   function treeScroller(): HTMLElement | undefined {
-    return els.nav?.querySelector<HTMLElement>(".tree-section") ?? undefined;
+    return els.nav?.querySelector<HTMLElement>(
+        ".tree-section:not(.db-tree-section)",
+      ) ?? undefined;
   }
 
   function rememberScroll(e: Event) {
