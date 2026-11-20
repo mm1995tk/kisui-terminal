@@ -53,7 +53,7 @@ passkey_browser = "chrome"   # chrome（既定。無ければ Chromium）か fir
     ログインの後に別のサブドメインへ移るサイト（Google は `accounts.google.com` でログインすると `myaccount.google.com` に移る）に使う。
     公開サフィックス（[Public Suffix List](https://publicsuffix.org/) にある、`.com`・`.co.jp`・`.github.io` のように誰でもその下に
     サブドメインを持てる名前。一覧に無い最上位のドメインと、`.kobe.jp` のようにすぐ下の名前がどれも公開サフィックスになる名前も含む）は書けない。他人のサイトの Cookie まで写す対象になるため。
-    そう書いた項目は使わず、理由を右下のお知らせに出す（ほかの項目と設定は使う）。kisui-terminal は一覧を埋め込んで持つ（Rust の crate `psl`）。
+    そう書いた項目は使わず、理由を右下のお知らせに出す（ほかの項目と設定は使う）。kisui-terminal は一覧を同梱して埋め込み、自前のコードで読む（`app/src-tauri/assets/public_suffix_list.dat` と `app/src-tauri/src/public_suffix.rs`。更新の手順は CONTRIBUTING.md）。
   - 1 つの host に 2 つ以上の項目が当たれば、host と完全に同じもの、次に `.` の後ろの長いもの（細かいもの）を使う。
     kisui-terminal（外のブラウザに移るか・待っているサイトか）と拡張機能（スクリプトを入れるサイト・手で戻るボタン・自動で送るときのサイトの比べ方）は同じ決まりで当てる。
   外のブラウザに移るのも、Cookie を受け取るのも、ここに書いたサイトだけ。

@@ -20,6 +20,7 @@ mod menu;
 mod notify;
 mod open_url;
 mod passkey;
+mod public_suffix;
 mod relay;
 mod ssh_config;
 mod transfer;

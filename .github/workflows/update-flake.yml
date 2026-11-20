@@ -7,6 +7,8 @@ name: flake.lock を更新する
 # 更新後に整形も行う。nixpkgs が動くと treefmt / nixfmt の出力が変わりうるため。
 # emulator.wasm も作り直す。nixpkgs が動くと rustc が変わり、wasm のバイト列も変わるため
 # （作り直さないと checks.emulator-wasm が落ちる）。ランナーは x86_64-linux なので、決まりどおりの場所で作れる。
+# 殻に同梱した公開サフィックスの一覧（app/src-tauri/assets/public_suffix_list.dat）も取り直す（scripts/update-public-suffix-list.sh）。
+# crate に頼らず同梱しているので、ここで新しくしないと古いままになる。下の nix flake check（cargo test）が通ったときだけ入る。
 on:
   workflow_dispatch:
   schedule:
@@ -31,6 +33,9 @@ jobs:
 
       - name: flake.lock の nixpkgs と shijimi-editor を更新する
         run: nix flake update nixpkgs shijimi-editor shijimi-editor-nightly
+
+      - name: 公開サフィックスの一覧を取り直す
+        run: scripts/update-public-suffix-list.sh
 
       - name: emulator.wasm を作り直す
         run: scripts/build-emulator.sh
@@ -57,5 +62,9 @@ jobs:
             echo "no changes"
             exit 0
           fi
-          git commit -m "Update flake.lock"
+          msg="Update flake.lock"
+          if ! git diff --cached --quiet -- app/src-tauri/assets/public_suffix_list.dat; then
+            msg="Update flake.lock and the Public Suffix List"
+          fi
+          git commit -m "$msg"
           git push
