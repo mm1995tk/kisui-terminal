@@ -203,6 +203,44 @@ export interface DbQueryResult {
   elapsedMs: number;
 }
 
+/** db.schema の結果：接続のスキーマ → テーブル（ビューを含む）→ 列。システムのスキーマは入らない */
+export interface DbCatalog {
+  /** 名前の順。テーブルの無いスキーマも入る。MySQL ではスキーマは DB（ユーザーに見える全部） */
+  schemas: DbCatalogSchema[];
+  /** 列が上限（全体で 100000）を超え、その先のスキーマ・テーブルが無い（最後のテーブルの列が欠けることがある） */
+  truncated: boolean;
+}
+
+export interface DbCatalogSchema {
+  name: string;
+  /** 名前の順 */
+  tables: DbCatalogTable[];
+}
+
+export interface DbCatalogTable {
+  name: string;
+  /** table：テーブル（PostgreSQL の分割したテーブル・外部テーブルも）、view：ビュー（マテリアライズドビューも） */
+  kind: "table" | "view";
+  /** テーブルの中の順 */
+  columns: DbCatalogColumn[];
+}
+
+export interface DbCatalogColumn {
+  name: string;
+  /** DB の型の名前（小文字。"character varying(20)"、"varchar(20)"、"int unsigned" など）。見せるためのもの */
+  type: string;
+}
+
+/** db.history の 1 件：接続で実行した SQL。結果の行は残らない */
+export interface DbHistoryEntry {
+  /** 送った SQL そのまま */
+  sql: string;
+  /** 送った時刻（UTC、ミリ秒まで。RFC 3339。例 "2026-01-02T03:04:05.678Z"） */
+  at: string;
+  /** DB が間違いなく実行した。DB が断った・取り消したものは false */
+  ok: boolean;
+}
+
 /** password_required（-32006）の data。missing：どこにも無い、rejected：入力したものを DB が断った。どちらも窓はパスワードを聞く */
 export interface DbPasswordRequiredData {
   reason: "missing" | "rejected";
@@ -405,6 +443,22 @@ export interface Requests {
   "db.cancel": {
     params: { queryId: string };
     result: Record<string, never>;
+  };
+  /**
+   * 接続のスキーマ・テーブル（ビューを含む）・列の一覧を 1 回で全部返す。履歴には残らない。
+   * password・queryId と断られ方は db.query と同じ（not_found、password_required、db_error、busy）
+   */
+  "db.schema": {
+    params: { connection: string; password?: string; queryId?: string };
+    result: DbCatalog;
+  };
+  /**
+   * 接続で実行した SQL の履歴を新しい順に返す（kisui serve のマシンに、接続ごとに最大 1000 件残る）。
+   * ほかの接続の SQL は入らない。limit は返す数の上限（省くと全部）。DB にはつながない。断られ方：not_found（接続が無い）
+   */
+  "db.history": {
+    params: { connection: string; limit?: number };
+    result: { entries: DbHistoryEntry[] };
   };
 }
 

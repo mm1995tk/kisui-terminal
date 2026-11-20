@@ -8,6 +8,10 @@
 //   - Passwords finds the password of a connection (password.go).
 //   - Open logs in and gives a Session; Session.Query runs one statement and
 //     gives a Result (postgres.go, mysql.go).
+//   - ReadCatalog lists the schemas, tables and columns over a Session
+//     (catalog.go).
+//   - History keeps the statements run on each connection in files
+//     (history.go).
 //
 // A Session is one login of its own, used for a short while and closed. There
 // is no pool: what a statement leaves behind in a session (SET, USE, an open
@@ -45,6 +49,10 @@ type QueryOptions struct {
 	// MaxRows is the most rows Result.Rows holds. 0 means DefaultMaxRows;
 	// more than MaxMaxRows means MaxMaxRows.
 	MaxRows int
+	// rowLimit, when above 0, is the most rows instead of MaxRows, with no
+	// upper bound. Only the queries of this package set it (ReadCatalog),
+	// for lists that are long but small per row.
+	rowLimit int
 }
 
 // The limits of a result. A result goes to the window as one JSON-RPC
@@ -62,6 +70,8 @@ const (
 
 func (o QueryOptions) maxRows() int {
 	switch {
+	case o.rowLimit > 0:
+		return o.rowLimit
 	case o.MaxRows <= 0:
 		return DefaultMaxRows
 	case o.MaxRows > MaxMaxRows:
