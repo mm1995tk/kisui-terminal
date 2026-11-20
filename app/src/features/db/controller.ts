@@ -212,19 +212,34 @@ export function createDbTabs(deps: {
   async function run(id: string, sql?: string) {
     const text = sql ?? untrack(drafts)[id] ?? "";
     if (text.trim() === "") return;
+    // 前の結果のために押したページ送りを、新しい SQL の結果に持ち越さない
+    if (!untrack(runs)[id]?.running) queuedSteps.delete(id);
     await execute(id, { sql: text, back: [] }, 0);
   }
 
   /**
+   * 実行している間に押したページ送りの向き（タブ id → 押した順）。結果が来たら、1 つずつその向きに送る
+   * （リーダーの d j j j が、読み込みの速さによらず 3 ページ進むように）。実行が失敗した・取り消した・端に着いたら捨てる。
+   */
+  const queuedSteps = new Map<string, PageStep[]>();
+  /** 覚えておく向きの数の上限（押し続けても、要らない読み込みが長く続かないように） */
+  const MAX_QUEUED_STEPS = 10;
+
+  /**
    * タブ id の結果のページを切り替える（#373）。結果を出した SQL を、offset を付けてもう一度送る（入力欄の SQL ではない）。
-   * 切り替えられない（ページ送りの無い結果・端のページ・実行中）なら、送らずに理由を返す。送ったら null。
+   * 実行している間なら、向きを覚えて結果が来てから送り、"queued" を返す。切り替えられない（ページ送りの無い結果・
+   * 端のページ）なら、送らずに理由を返す。送ったら null。
    */
   function stepPage(
     id: string,
     step: PageStep,
-  ): "none" | "edge" | "running" | null {
+  ): "none" | "edge" | "queued" | null {
     const r = untrack(runs)[id];
-    if (r?.running) return "running";
+    if (r?.running) {
+      const q = queuedSteps.get(id) ?? [];
+      if (q.length < MAX_QUEUED_STEPS) queuedSteps.set(id, [...q, step]);
+      return "queued";
+    }
     if (!r?.result || !r.page || !pageable(r.result)) return "none";
     const t = pageTarget(r.result, r.page, step);
     if (!t) return "edge";
@@ -247,9 +262,16 @@ export function createDbTabs(deps: {
         queryId,
         ...(offset > 0 ? { offset } : {}),
       });
-      if (mine()) setRun(id, () => ({ result, page }));
+      if (!mine()) return;
+      setRun(id, () => ({ result, page }));
+      // 実行している間に押したページ送りを 1 つ送る（その結果が来たら、残りを続ける）。送れなければ残りも捨てる
+      const [step, ...rest] = queuedSteps.get(id) ?? [];
+      queuedSteps.delete(id);
+      if (step && stepPage(id, step) === null && rest.length > 0)
+        queuedSteps.set(id, rest);
     } catch (e) {
       if (!mine()) return;
+      queuedSteps.delete(id);
       if (e instanceof PasswordCancelled) {
         setRun(id, ({ running: _, ...r }) => r);
         return;
@@ -394,6 +416,7 @@ export function createDbTabs(deps: {
       const all = untrack(runs);
       const gone = Object.keys(all).filter((id) => !alive.has(id));
       for (const id of gone) {
+        queuedSteps.delete(id);
         const q = all[id].running;
         if (q) cancelQuery(q);
       }

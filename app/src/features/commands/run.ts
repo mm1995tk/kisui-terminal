@@ -337,7 +337,7 @@ export function createCommandRunner(deps: {
         break;
       }
       case "db.page": {
-        // 結果のページ送り（#373）：DB のタブを出している間だけ。実行している間は何もしない（続けて押したときに重ねて送らない）
+        // 結果のページ送り（#373）：DB のタブを出している間だけ。実行している間に押した分は、結果が来てから順に送る（controller.ts の queuedSteps）
         const tab = deps.db.shownDbTab();
         if (!tab) {
           cannot(T("cannot.dbTree.title"), T("cannot.dbTree.text"));
