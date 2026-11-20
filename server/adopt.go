@@ -193,6 +193,7 @@ func (s *Server) adoptTerms(st *handoverState, ft *fdTable) error {
 		t.acked = min(max(ht.Acked, t.base), t.total)
 		if len(ht.Screen) > 0 {
 			t.feed.write(ht.Screen)
+			t.modes.feed(ht.Screen) // 書き出しはモードを立てる列を含むので、送り方のモードも戻る
 		}
 		m.terms[t.id] = t // 失敗したときに dropAdopted が閉じられるよう、先に入れる
 		if !ht.Alive {
