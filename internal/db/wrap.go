@@ -119,7 +119,8 @@ func scan(kind, sql string) stmt {
 
 // nextToken reads the token of sql at or after i, as the database kind
 // would split it, skipping white space and comments. tok is a word in lower
-// case, quoted for a quoted string or name, or else one character; next is
+// case, quoted for a quoted string or name (or a MySQL /*! */, whose inside
+// runs), or else one character; next is
 // the index after it. ok is false when only white space and comments are
 // left.
 //
@@ -144,6 +145,11 @@ func nextToken(kind, sql string, i int) (tok string, next int, ok bool) {
 				i = n
 			}
 		case c == '/' && i+1 < n && sql[i+1] == '*':
+			// MySQL runs what is inside /*! */ (and /*!50700 */), so it is a
+			// part of the statement, not a comment.
+			if my && i+2 < n && sql[i+2] == '!' {
+				return quoted, skipComment(sql, i, false), true
+			}
 			i = skipComment(sql, i, !my)
 		case c == '\'':
 			return quoted, skipQuoted(sql, i, '\'', my), true

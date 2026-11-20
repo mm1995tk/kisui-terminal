@@ -30,6 +30,9 @@ func TestScan(t *testing.T) {
 		// In MySQL `--` needs white space after it, and /* */ does not nest.
 		{my, "SELECT 1--1", stmt{body: "SELECT 1--1", first: "select"}},
 		{my, "SELECT 1 /* a /* b */ ;", stmt{body: "SELECT 1", first: "select"}},
+		// MySQL runs what is inside /*! */: it stays in the statement.
+		{my, "SELECT a FROM t /*!50700 WHERE a > 0 */ ;", stmt{body: "SELECT a FROM t /*!50700 WHERE a > 0 */", first: "select"}},
+		{pg, "SELECT a FROM t /*! WHERE a > 0 */", stmt{body: "SELECT a FROM t", first: "select"}},
 		// In PostgreSQL # is an operator.
 		{pg, "SELECT 5 # 3", stmt{body: "SELECT 5 # 3", first: "select"}},
 		{pg, "WITH d AS (DELETE FROM t RETURNING *) SELECT * FROM d", stmt{body: "WITH d AS (DELETE FROM t RETURNING *) SELECT * FROM d", first: "with", modifying: true}},
