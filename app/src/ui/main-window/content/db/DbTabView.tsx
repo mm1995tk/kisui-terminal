@@ -266,6 +266,7 @@ function DataView(props: {
                 onCopy={props.onCopyCells}
                 sort={stmt()?.page?.sort}
                 onSort={busy() || !sortable(r()) ? undefined : props.onSort}
+                statement={props.run.active}
               />
             )}
           </Match>
@@ -395,13 +396,20 @@ function ResultTable(props: {
   /** 並べ替えている列と、列を押したときの動き（並べ替えられない結果・実行している間は undefined） */
   sort: DbSort | undefined;
   onSort: ((column: number) => void) | undefined;
+  /** 出している文の位置（#380）。替わったら、別の文の結果なので選びを外す */
+  statement: number;
 }): JSX.Element {
   const [range, setRange] = createSignal<CellRange | null>(null);
   let dragging = false;
-  // 結果が入れ替わったら、選びを表の大きさに収める（収まるセルが無ければ外す）
+  // 同じ文の結果が入れ替わったら（ページ送り・並べ替え）、選びを表の大きさに収める（収まるセルが無ければ外す）。
+  // 別の文の結果に替わったら、前の文で選んだ位置を持ち越さない
+  let shown = props.statement;
   createEffect(() => {
     const r = props.result;
-    setRange((cur) => clampRange(cur, r));
+    const s = props.statement;
+    const same = s === shown;
+    shown = s;
+    setRange((cur) => (same ? clampRange(cur, r) : null));
   });
   const stopDrag = () => {
     dragging = false;
