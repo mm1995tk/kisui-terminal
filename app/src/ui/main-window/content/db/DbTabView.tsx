@@ -363,22 +363,15 @@ function ResultTable(props: {
                 <tr>
                   <For each={row}>
                     {(v, i) => {
-                      const text = cellText(v);
                       const pos = (): CellPos => ({ row: r(), col: i() });
                       return (
-                        <td
-                          class={styles.cell}
-                          data-kind={props.result.columns[i()]?.kind}
-                          data-null={text === null ? "" : undefined}
-                          data-selected={
-                            inRange(range(), pos()) ? "" : undefined
-                          }
-                          title={v !== null && v !== text ? v : undefined}
+                        <Cell
+                          value={v}
+                          kind={props.result.columns[i()]?.kind}
+                          selected={inRange(range(), pos())}
                           onPointerDown={(e) => down(e, pos())}
                           onPointerEnter={(e) => enter(e, pos())}
-                        >
-                          {text ?? "NULL"}
-                        </td>
+                        />
                       );
                     }}
                   </For>
@@ -605,20 +598,7 @@ function Section(props: {
             <For each={props.rows}>
               {(row) => (
                 <tr>
-                  <For each={row}>
-                    {(v) => {
-                      const text = v === null ? null : cellText(v);
-                      return (
-                        <td
-                          class={styles.cell}
-                          data-null={text === null ? "" : undefined}
-                          title={v !== null && v !== text ? v : undefined}
-                        >
-                          {text ?? "NULL"}
-                        </td>
-                      );
-                    }}
-                  </For>
+                  <For each={row}>{(v) => <Cell value={v} />}</For>
                 </tr>
               )}
             </For>
@@ -626,5 +606,34 @@ function Section(props: {
         </table>
       </Show>
     </section>
+  );
+}
+
+/**
+ * 表のセル 1 つ（結果の表と構造の表で同じ）。長い値は切り（全部はツールチップ）、改行とタブは印にし、NULL は印で出す。
+ */
+function Cell(props: {
+  value: string | null;
+  /** 列の種類（数の列は右に寄せる） */
+  kind?: string;
+  selected?: boolean;
+  onPointerDown?: (e: PointerEvent) => void;
+  onPointerEnter?: (e: PointerEvent) => void;
+}): JSX.Element {
+  const text = () => cellText(props.value);
+  return (
+    <td
+      class={styles.cell}
+      data-kind={props.kind}
+      data-null={text() === null ? "" : undefined}
+      data-selected={props.selected ? "" : undefined}
+      title={
+        props.value !== null && props.value !== text() ? props.value : undefined
+      }
+      onPointerDown={(e) => props.onPointerDown?.(e)}
+      onPointerEnter={(e) => props.onPointerEnter?.(e)}
+    >
+      {text() ?? "NULL"}
+    </td>
   );
 }
