@@ -1,14 +1,12 @@
 import { T } from "../../../../i18n/index.ts";
 import {
   createEffect,
-  createMemo,
   createSignal,
   For,
   Index,
   on,
   onCleanup,
   Show,
-  untrack,
   type JSX,
 } from "solid-js";
 import type { UrlClick } from "coneko-term";
@@ -28,7 +26,7 @@ import {
 } from "../../../../features/terminal/grid.ts";
 import type { TermLink } from "../../../../features/terminal/link.ts";
 import type { MediaFetch } from "../../../../features/terminal/media.ts";
-import { heldCells, type Held } from "./hold.ts";
+import { createHold } from "./createHold.ts";
 import { TerminalView } from "./TerminalView.tsx";
 import { FileView } from "../media/FileView.tsx";
 import { VideoView } from "../media/VideoView.tsx";
@@ -154,55 +152,15 @@ export function TerminalGrid(props: {
     h.addEventListener("pointercancel", end);
   }
 
-  // タブを切り替えた直後、新しい欄が最初の画面を描けるまで、前のタブの欄を前の位置のまま残す（hold.ts）。
-  // 欄の要素を作り直すと、新しい coneko-term は kisui serve から画面の状態が届くまで空なので、それを見せないため
-  type CellView = {
-    place: Record<string, string>;
-    hidden: boolean;
-    active: boolean;
-  };
-  // 最初の画面を描けた欄（TerminalView の onDrawn）。欄の要素が消えたら外す（同じタブに戻ると、欄は作り直されて空から描くため）
-  const [drawn, setDrawn] = createSignal<ReadonlySet<TermLink>>(new Set());
-  const views = createMemo(
-    () =>
-      new Map(
-        props.links.map((l, i): [TermLink, CellView] => [
-          l,
-          {
-            place: place(l.id),
-            hidden: !visible(i),
-            active: l === props.active,
-          },
-        ]),
-      ),
-  );
-  // 残す欄は、並びと同じ計算の中で決める（効果で後から足すと、For が前の欄を先に消してしまう）
-  const holding = createMemo(
-    (prev: {
-      views: ReadonlyMap<TermLink, CellView>;
-      held: Held<TermLink, CellView>[];
-    }) => {
-      const next = views();
-      const d = drawn();
-      return {
-        views: next,
-        held: heldCells(prev.held, prev.views, next, (l) => d.has(l)),
-      };
-    },
-    { views: new Map(), held: [] },
-  );
-  const held = () => holding().held;
-  function markDrawn(link: TermLink, on: boolean) {
-    const d = untrack(drawn);
-    if (d.has(link) === on) return;
-    const next = new Set(d);
-    if (on) next.add(link);
-    else next.delete(link);
-    setDrawn(next);
-  }
-  const heldOf = (l: TermLink) => held().find((h) => h.link === l)?.view;
-  // 描く欄。今のタブの欄（先頭から props.links と同じ順）のあとに、残している欄
-  const cells = () => [...props.links, ...held().map((h) => h.link)];
+  // タブを切り替えた直後、新しいペインが描けるまで、前のタブのペインを前の位置・見た目のまま残す（createHold.ts）
+  const { cells, heldOf, markDrawn } = createHold({
+    links: () => props.links,
+    view: (l: TermLink, i) => ({
+      place: place(l.id),
+      hidden: !visible(i),
+      active: l === props.active,
+    }),
+  });
 
   createEffect(
     on(total, (n, prev) => {
