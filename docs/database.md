@@ -2,7 +2,7 @@
 
 `kisui serve` can connect to MySQL and PostgreSQL and run SQL for the window. This page is about the settings: which databases, and where their passwords come from.
 
-You use these connections in a database tab of the window (the leader, then `d` `n`; see the README). This page is about the part under it: the settings, and the requests `kisui serve` answers (`db.connections`, `db.query`, `db.cancel`; see [design/gui-protocol.md](design/gui-protocol.md)).
+You use these connections in a database tab of the window (the leader, then `d` `n`; see the README). This page is about the part under it: the settings, and the requests `kisui serve` answers (`db.connections`, `db.query`, `db.cancel`, `db.schema`, `db.history`; see [design/gui-protocol.md](design/gui-protocol.md)).
 
 `kisui serve` is the one that connects, not the window. On a remote machine (ssh), `kisui serve` runs on that machine, so a database that only that machine can reach works with no tunnel. Write a connection in the settings of the machine that should connect.
 
@@ -71,3 +71,13 @@ A password found in the keychain or in a file is used before a typed one. When t
 - A result holds up to 1000 rows (the window can ask for up to 10000) and 8 MiB; one value holds up to 1 MiB. The result says when it was cut.
 - A statement can be cancelled; the database is told to stop it.
 - When the database offers TLS it is used, without checking the certificate (what `psql` and `mysql` do by default).
+
+## History
+
+`kisui serve` keeps the statements it runs, for each connection apart: the statement, when it was sent, and whether it worked. The rows of the result are not kept. A statement for one connection never shows up in the history of another, so the SQL of production and of development do not mix.
+
+- The history is on the machine where `kisui serve` runs, in `db-history/` beside `serve.log` (`~/.local/state/shijimi-editor/db-history/`, or under `$XDG_STATE_HOME`). It stays when `kisui serve` starts again. The files are readable by you only, but the statements are kept as they are: a password written in a statement (`ALTER USER ... PASSWORD`) is kept with it.
+- A connection is told by its `name`. Renaming a connection starts a new history; pointing a name at another database keeps the old one.
+- Each connection keeps its newest 1000 statements (and up to 4 MiB). A statement longer than 64 KiB is not kept.
+- A statement that never ran, because the login failed, is not kept. Listing the schemas and tables is not kept either.
+- To forget the history, delete the folder or the files in it; this works while `kisui serve` runs too.
