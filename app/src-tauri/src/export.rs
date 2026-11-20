@@ -31,7 +31,8 @@ pub fn clean_name(name: &str) -> String {
 }
 
 /// 保存のダイアログを出して、選んだ場所に `text` を書く。やめたら `None`、書けたらそのパス。
-/// `extension` は拡張子（`csv` など。ダイアログの絞り込みと、選んだ名前に拡張子が無いときの補いに使う）。
+/// `extension` は拡張子（`csv` など。ダイアログの絞り込みにだけ使う）。選ばれたパスには、拡張子を足さず、そのまま書く
+/// （足した名前は、ダイアログが上書きを確かめた相手ではないため）。
 #[tauri::command]
 pub async fn export_save_text(
     app: AppHandle,
@@ -51,12 +52,9 @@ pub async fn export_save_text(
     let Some(picked) = dialog.blocking_save_file() else {
         return Ok(None);
     };
-    let mut path = picked
+    let path = picked
         .into_path()
         .map_err(|e| format!("could not use the chosen location: {e}"))?;
-    if path.extension().is_none() && !ext.is_empty() {
-        path.set_extension(&ext);
-    }
     write_text(&path, &text)?;
     Ok(Some(path.to_string_lossy().into_owned()))
 }
