@@ -34,9 +34,11 @@ import {
   type DbRef,
   type TabRef,
 } from "../workspaces/model.ts";
+import { sqlToRun } from "./statements.ts";
 import { MACHINE_COLORS } from "../sessions/colors.ts";
 import {
   collectConnections,
+  connectionOf,
   loadDrafts,
   newQueryId,
   PasswordCancelled,
@@ -224,6 +226,44 @@ export function createDbTabs(deps: {
     // 前の結果のために押したページ送りを、新しい SQL の結果に持ち越さない
     if (!untrack(runs)[id]?.running) queuedSteps.delete(id);
     await execute(id, { sql: text, back: [] }, 0);
+  }
+
+  /** タブ id の接続の種類（文の区切り方が違う。#375）。聞けなかったときは undefined（PostgreSQL の読み方を使う）。 */
+  // 覚えるのはタブが開いている間。接続の設定を書き換えたら、タブを開き直す（SQL の失敗では捨てない）
+  const kinds = new Map<string, "postgres" | "mysql">();
+  async function kindOf(id: string) {
+    const known = kinds.get(id);
+    if (known) return known;
+    const ref = refOf(id);
+    if (!ref) return undefined;
+    try {
+      const { connections } = await sessionFor(ref).request(
+        "db.connections",
+        {},
+      );
+      const c = connectionOf(connections, ref);
+      if (c) kinds.set(id, c.kind);
+      return c?.kind;
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
+   * タブ id の入力欄の text（選んでいる範囲が selStart から selEnd。選んでいなければ、どちらもカーソルの位置）から、
+   * 選んだ部分か、カーソルのある文を実行する（#375）。区切り方は接続の種類による。
+   */
+  async function runSelection(
+    id: string,
+    text: string,
+    selStart: number,
+    selEnd: number,
+  ) {
+    const kind = await kindOf(id);
+    await run(
+      id,
+      sqlToRun(text, selStart, selEnd, { mysql: kind === "mysql" }),
+    );
   }
 
   /**
@@ -423,6 +463,7 @@ export function createDbTabs(deps: {
       const gone = Object.keys(all).filter((id) => !alive.has(id));
       for (const id of gone) {
         queuedSteps.delete(id);
+        kinds.delete(id);
         const q = all[id].running;
         if (q) cancelQuery(q);
       }
@@ -452,6 +493,7 @@ export function createDbTabs(deps: {
     /** タブ id の結果・実行中の印・間違い */
     runOf,
     run,
+    runSelection,
     stepPage,
     cancel,
     request,

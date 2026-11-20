@@ -13,6 +13,7 @@ import {
   cellText,
   collectConnections,
   connectionDetail,
+  connectionOf,
   DB_TABS_KEY,
   elapsedText,
   loadDrafts,
@@ -355,6 +356,25 @@ describe("catalogError（木の一覧を聞けなかった理由の文）", () =
     assert.equal(
       catalogError(rpc(ErrorCode.DbError, "no route", { kind: "connect" })),
       "no route",
+    );
+  });
+});
+
+describe("connectionOf", () => {
+  const c = (name: string, variant?: string) =>
+    ({ name, kind: "mysql", ...(variant ? { variant } : {}) }) as DbConnection;
+  const list = [c("shop"), c("shop", "prod"), c("log")];
+
+  it("名前と変種が両方合うものを探す。変種が無ければ変種の無い接続", () => {
+    assert.equal(connectionOf(list, { connection: "shop" }), list[0]);
+    assert.equal(
+      connectionOf(list, { connection: "shop", variant: "prod" }),
+      list[1],
+    );
+    assert.equal(connectionOf(list, { connection: "x" }), undefined);
+    assert.equal(
+      connectionOf(list, { connection: "log", variant: "dev" }),
+      undefined,
     );
   });
 });
