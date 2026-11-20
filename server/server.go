@@ -21,6 +21,7 @@ import (
 
 	"github.com/mm1995tk/kisui-terminal/config"
 	"github.com/mm1995tk/kisui-terminal/internal/db"
+	"github.com/mm1995tk/kisui-terminal/internal/panecmd"
 	"github.com/mm1995tk/kisui-terminal/rpc"
 )
 
@@ -81,11 +82,12 @@ type Server struct {
 	terms      *termManager
 	ws         *wsManager
 	tree       *treeManager
-	rev        int64          // サーバー全体の版（mu で守る）
-	stopping   bool           // stop が始まった
-	primary    *primaryServer // プライマリの shj の知らせを受ける口（Serve で開く）
-	updates    updateWaits    // kisui update が GUI の答えを待っている（update.go）
-	db         *dbManager     // db.* の要求が使うもの（db.go）
+	rev        int64                             // サーバー全体の版（mu で守る）
+	stopping   bool                              // stop が始まった
+	primary    *primaryServer                    // プライマリの shj の知らせを受ける口（Serve で開く）
+	updates    windowWaits[panecmd.UpdateResult] // kisui update が GUI の答えを待っている（update.go）
+	opens      windowWaits[paneOpenResult]       // kisui pane open が GUI の答えを待っている（paneopen.go）
+	db         *dbManager                        // db.* の要求が使うもの（db.go）
 
 	// opMu は、状態を変える仕事（GUI の要求・shj の名乗りと欄の頼み・定期の見回り）を読みロックで、
 	// 引き継ぎ（handover.go）を書きロックで持つ。引き継ぐ間は、仕事を止めて状態を固める。
@@ -137,6 +139,8 @@ func newServer(opts Options, ln *net.UnixListener) *Server {
 		log:      log,
 		ln:       ln,
 		sessions: map[*session]struct{}{},
+		updates:  windowWaits[panecmd.UpdateResult]{prefix: "u"},
+		opens:    windowWaits[paneOpenResult]{prefix: "o"},
 	}
 	srv.terms = newTermManager(srv)
 	srv.ws = newWSManager(srv)
@@ -359,6 +363,8 @@ func (ss *session) handle(ctx context.Context, req *rpc.Message) (any, error) {
 		ss.termNotify(req)
 		if req.Method == "update.result" {
 			ss.updateNotify(req.Params)
+		} else if req.Method == "pane.opened" {
+			ss.paneOpenedNotify(req.Params)
 		}
 		return nil, nil // 知らない通知は無視する
 	}
@@ -485,7 +491,7 @@ func (ss *session) helloReq(req *rpc.Message) (any, error) {
 		ServerID:     s.serverID,
 		StartedAt:    s.startedAt,
 		Supersedes:   sup,
-		Capabilities: []string{CapHandover, CapDB},
+		Capabilities: []string{CapHandover, CapDB, CapCreateCommand},
 		Workspaces:   wsl,
 		Rev:          s.currentRev(),
 	}, nil

@@ -172,7 +172,24 @@ func (w *wsManager) folderOf(id string) (string, bool) {
 
 // create はワークスペースを作り、プライマリターミナルを dir（絶対パスのフォルダ）で始める。
 // dir が無い・フォルダでないときは start_dir。フォルダは始めたフォルダから決まる（プロジェクトの中ならそのルート、~ なら ~）。
-func (w *wsManager) create(dir string) (id, termID string, err error) {
+// cmd は、プライマリターミナルでシェルの代わりに動かすコマンドと、そのペインの名前（kisui pane open。#343）。
+// 名前はほかのペインと重なれば、ワークスペースを作らずに断る（kisui pane split --name と同じ決まり）。
+func (w *wsManager) create(dir string, cmd tabCommand) (id, termID string, err error) {
+	env, err := validCommand(cmd.argv, cmd.env)
+	if err != nil {
+		return "", "", rpc.Errorf(rpc.CodeInvalidParams, "%v", err)
+	}
+	name, err := cleanPaneName(cmd.name)
+	if err != nil {
+		return "", "", rpc.Errorf(rpc.CodeInvalidParams, "%v", err)
+	}
+	// 名前が重ならないことを確かめてから、その名前で作るまでの間、ほかのペインに名前を取らせない（nameMu は recomputeMu より先に取る）
+	terms := w.srv.terms
+	terms.nameMu.Lock()
+	defer terms.nameMu.Unlock()
+	if err := terms.checkNameLocked(name, ""); err != nil {
+		return "", "", rpc.Errorf(rpc.CodeBusy, "%v", err)
+	}
 	w.recomputeMu.Lock()
 	defer w.recomputeMu.Unlock()
 	// dir（GUI が、今のタブのフォルダを引き継ぐために送る）が絶対パスのフォルダなら、そこで始める。そうでなければ start_dir
@@ -184,11 +201,18 @@ func (w *wsManager) create(dir string) (id, termID string, err error) {
 	if dir == "" {
 		dir = w.startDir()
 	}
-	return w.createLocked(newWorkspaceID(), dir, "")
+	return w.createLocked(newWorkspaceID(), dir, "", tabCommand{argv: cmd.argv, env: env, name: name})
 }
 
-// createLocked は recomputeMu を持って呼ぶ。wsID のワークスペースを作り、プライマリターミナルを dir で始める。
-func (w *wsManager) createLocked(wsID, dir, label string) (id, termID string, err error) {
+// tabCommand は、新しいワークスペースのプライマリターミナルで動かすコマンド（空ならシェル）と、その環境変数（"NAME=value"）・名前。
+type tabCommand struct {
+	argv, env []string
+	name      string
+}
+
+// createLocked は recomputeMu を持って呼ぶ（cmd.name があれば nameMu も。名前は確かめておく）。wsID のワークスペースを作り、
+// プライマリターミナルを dir で始める。
+func (w *wsManager) createLocked(wsID, dir, label string, cmd tabCommand) (id, termID string, err error) {
 	w.mu.Lock()
 	w.next++
 	st := &wsState{id: wsID, seq: w.next, label: label}
@@ -196,7 +220,7 @@ func (w *wsManager) createLocked(wsID, dir, label string) (id, termID string, er
 		st.root, st.kind = root, kind
 	}
 	w.mu.Unlock()
-	t, err := w.srv.terms.start(termStart{cols: 80, rows: 24, dir: dir, wsID: st.id, primary: true})
+	t, err := w.srv.terms.start(termStart{cols: 80, rows: 24, dir: dir, env: cmd.env, wsID: st.id, primary: true, argv: cmd.argv, name: cmd.name})
 	if err != nil {
 		return "", "", err
 	}
@@ -604,11 +628,15 @@ func (ss *session) workspaceRequest(req *rpc.Message) (res any, err error, handl
 	case "workspace.create":
 		var cp struct {
 			Dir string `json:"dir"`
+			// Argv・Env・Name は kisui pane open（#343）：プライマリターミナルで動かすコマンドと、そのペインの名前
+			Argv []string `json:"argv"`
+			Env  []string `json:"env"`
+			Name string   `json:"name"`
 		}
 		if len(req.Params) > 0 {
 			_ = json.Unmarshal(req.Params, &cp) // 形が違えば dir 無し（start_dir）
 		}
-		id, termID, err := w.create(cp.Dir)
+		id, termID, err := w.create(cp.Dir, tabCommand{argv: cp.Argv, env: cp.Env, name: cp.Name})
 		if err != nil {
 			return nil, err, true
 		}

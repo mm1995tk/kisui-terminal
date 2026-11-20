@@ -29,6 +29,7 @@ import { createWorkspaces } from "./workspaces/controller.ts";
 import { routePaneEvent } from "./workspaces/paneEvents.ts";
 import { createPrimaryShj } from "./workspaces/primaryShj.ts";
 import { createTabs } from "./workspaces/tabs/controller.ts";
+import { createPaneOpen } from "./workspaces/tabs/paneOpen.ts";
 import type { WorkspaceId } from "../infrastructure/rpc/protocol.ts";
 
 /** 機能が外に頼むこと（本物は infrastructure/。index.tsx が組み立てる）。 */
@@ -118,6 +119,7 @@ export function createFeatures(deps: {
             focusChanges: (t, id) => ui.focusChanges(t, id),
             openUrlFor: pages.openUrlFor,
             checkNow: updates.checkNow,
+            openTab: (t, rq) => openTab(t, rq),
             zoomWs: terminals.zoomWs,
           },
           target,
@@ -144,6 +146,12 @@ export function createFeatures(deps: {
     focusTerminal,
     forgetPageReturn,
     revealSidebar: () => ui.revealSidebar(),
+  });
+  const openTab = createPaneOpen({
+    sessions,
+    gws: workspaces.gws,
+    setGws: workspaces.setGws,
+    justCreated: workspaces.justCreated,
   });
   const askPrimaryShj = createPrimaryShj({
     sessions: sessions.sessions,

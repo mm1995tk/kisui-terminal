@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
-	"path/filepath"
 	"strings"
 	"unicode"
 
@@ -40,18 +38,9 @@ func runPaneSplit(args []string) int {
 		rq.Cwd = ""
 	}
 	if len(sp.argv) > 0 {
-		// The server starts the command from its own environment, so it gets the full path and the PATH of this pane.
-		path, err := exec.LookPath(sp.argv[0])
-		if err == nil {
-			path, err = filepath.Abs(path)
-		}
-		if err != nil {
+		if rq.Argv, rq.Env, err = resolveCommand(sp.argv); err != nil {
 			fmt.Fprintf(os.Stderr, i18n.T("pane.split.notfound")+"\n", sp.argv[0])
 			return 1
-		}
-		rq.Argv = append([]string{path}, sp.argv[1:]...)
-		if p, ok := os.LookupEnv("PATH"); ok {
-			rq.Env = []string{"PATH=" + p}
 		}
 	}
 	if _, err := pane.Do(rq); err != nil {

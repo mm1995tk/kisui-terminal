@@ -57,6 +57,13 @@ const (
 //   - "read": the text on the screen of the terminal To (a name or an id of a
 //     terminal of this "kisui serve", of any workspace), with Lines lines of its
 //     scrollback above it (Reply.Text). No colors or other attributes.
+//   - "open-tab": add a terminal tab at the end of the workspace of the window
+//     named Workspace (with New, a new workspace of that name), and run its
+//     shell, or the command Argv (the rules of "split"), in Cwd (empty: the
+//     folder of the terminal that asks). Env is "NAME=value" entries for it. Name
+//     (not empty) is the name of its terminal (the rules of "title"). The focus
+//     does not move. The window owns its workspaces, so "kisui serve" asks the
+//     window to make the tab and waits for its answer.
 //   - "update": ask the window to look for a newer version of kisui-terminal now.
 //     The window shows its "a new version is available" notice when there is one,
 //     and answers (Reply.Update) for the command to print.
@@ -78,9 +85,12 @@ type Request struct {
 	Text   string   `json:"text,omitempty"`
 	Keys   []string `json:"keys,omitempty"`
 	Lines  int      `json:"lines,omitempty"`
+	// Workspace and New are for "open-tab".
+	Workspace string `json:"workspace,omitempty"`
+	New       bool   `json:"new,omitempty"`
 }
 
-// Reply answers a Request. ID is the pane that "open" (a file) or "split" made, or
+// Reply answers a Request. ID is the pane that "open" (a file), "split" or "open-tab" made, or
 // the one that "send", "keys", "close" or "read" found by its name or id. Code is
 // CodeNotInPane when the id and the secret are not the ones of a terminal of
 // that "kisui serve".

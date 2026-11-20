@@ -504,6 +504,14 @@ export const ja: Record<Key, string> = {
   "rename.name": "名前",
   "rename.placeholder": "空なら {fallback}",
   "err.session.notConnected": "{machine} につながっていません",
+  "err.session.tooOld":
+    "{machine} の kisui serve が古く、この操作に対応していません。そのマシンの kisui-terminal を新しくしてください",
+  "paneOpen.err.noWorkspace":
+    "「{name}」という名前のワークスペースがありません（--new を付けると作ります）",
+  "paneOpen.err.ambiguous":
+    "「{name}」という名前のワークスペースが {count} つあります。どれかの名前を変えてください",
+  "paneOpen.err.exists":
+    "「{name}」という名前のワークスペースがもうあります（そこにタブを足すなら --new を外します）",
   "err.session.noKisui": "kisui が {machine} にありません（入れませんでした）",
   "file.pdfUnsupported": "この環境の WebView は PDF を表示できません（{path}）",
   "file.imageUnsupported": "この画像は表示できません（形式に対応していません）",
