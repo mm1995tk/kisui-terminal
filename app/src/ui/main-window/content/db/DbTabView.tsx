@@ -25,7 +25,17 @@ import {
   type DbSort,
   type PageStep,
 } from "../../../../features/db/paging.ts";
-import type { DbQueryResult } from "../../../../infrastructure/rpc/protocol.ts";
+import type {
+  DbQueryResult,
+  DbStructure,
+} from "../../../../infrastructure/rpc/protocol.ts";
+import {
+  indexKindText,
+  keyColumnsText,
+  referenceText,
+  type DbResultView,
+  type DbStructureState,
+} from "../../../../features/db/structure.ts";
 import {
   clampRange,
   inRange,
@@ -56,6 +66,10 @@ export function DbTabView(props: {
   onCancel: () => void;
   /** 結果の表で選んだセルをコピーする（#372） */
   onCopyCells: (text: string) => void;
+  /** 木で選んだテーブルと、その構造・結果の場所に出している側（#379）。テーブルを選んでいなければ undefined（切り替えを出さない） */
+  structure: DbStructureState | undefined;
+  /** 結果の場所に view を出す（#379） */
+  onView: (view: DbResultView) => void;
   /** SQL の入力欄にキーを向ける関数を受け取る（消えるときは undefined） */
   focusRef?: (f: (() => void) | undefined) => void;
 }): JSX.Element {
@@ -83,6 +97,9 @@ export function DbTabView(props: {
     if (a === "run") runSelected();
     else props.onCancel();
   }
+
+  /** 結果の場所に出している側（#379）。テーブルを選んでいなければ、いつもデータ */
+  const view = (): DbResultView => props.structure?.view ?? "data";
 
   return (
     <div
@@ -126,89 +143,108 @@ export function DbTabView(props: {
           onInput={(e) => props.onSql(e.currentTarget.value)}
           onKeyDown={onKeyDown}
         />
-        <div
-          class={styles.result}
-          role="region"
-          aria-label={T("db.view.result")}
-          aria-busy={props.run.running ? "true" : undefined}
+        {/* 結果の場所の切り替え（#379）。木でテーブルを選んだときだけ出す */}
+        <Show when={props.structure}>
+          {(s) => (
+            <ViewSwitch
+              view={s().view}
+              table={`${s().table.schema}.${s().table.table}`}
+              onView={props.onView}
+            />
+          )}
+        </Show>
+        <Show
+          when={view() === "data"}
+          fallback={
+            <Show when={props.structure}>
+              {(s) => <StructureView state={s()} />}
+            </Show>
+          }
         >
-          <Switch fallback={<p class={styles.note}>{T("db.view.empty")}</p>}>
-            <Match when={props.run.running}>
-              <p class={styles.note}>{T("db.view.running")}</p>
-            </Match>
-            <Match when={props.run.failure?.kind === "cancelled"}>
-              <p class={styles.note}>{T("db.view.cancelled")}</p>
-            </Match>
-            <Match when={error()}>
-              {(err) => (
-                <div class={styles.error} role="alert">
-                  <Show when={err().sqlState}>
-                    {(code) => (
-                      <span class={styles.code}>
-                        {T("db.view.sqlState", { code: code() })}
-                      </span>
-                    )}
-                  </Show>
-                  <pre class={styles.message}>{err().message}</pre>
-                </div>
-              )}
-            </Match>
-            <Match when={props.run.result}>
-              {(r) => (
-                <ResultTable
-                  result={r()}
-                  mac={props.mac}
-                  onCopy={props.onCopyCells}
-                  sort={props.run.page?.sort}
-                  onSort={
-                    props.run.running || !sortable(r())
-                      ? undefined
-                      : props.onSort
-                  }
-                />
-              )}
-            </Match>
-          </Switch>
-        </div>
-        <Show when={props.run.result}>
-          {(r) => (
-            <div class={styles.status}>
-              <span role="status">
-                {props.run.running ? "" : resultSummary(r())}
-              </span>
-              {/* ページ送り（#373）。包める文で 2 ページ以上あるときだけ出す。実行している間は押せない */}
-              <Show
-                when={
-                  props.run.page && pageable(r()) ? props.run.page : undefined
-                }
-              >
-                {(page) => (
-                  <div
-                    class={styles.pager}
-                    role="group"
-                    aria-label={T("db.view.pages")}
-                  >
-                    <Button
-                      disabled={
-                        !!props.run.running || !canStep(r(), page(), "prev")
-                      }
-                      onClick={() => props.onPage("prev")}
-                    >
-                      {T("db.view.prevPage")}
-                    </Button>
-                    <Button
-                      disabled={
-                        !!props.run.running || !canStep(r(), page(), "next")
-                      }
-                      onClick={() => props.onPage("next")}
-                    >
-                      {T("db.view.nextPage")}
-                    </Button>
+          <div
+            class={styles.result}
+            role="region"
+            aria-label={T("db.view.result")}
+            aria-busy={props.run.running ? "true" : undefined}
+          >
+            <Switch fallback={<p class={styles.note}>{T("db.view.empty")}</p>}>
+              <Match when={props.run.running}>
+                <p class={styles.note}>{T("db.view.running")}</p>
+              </Match>
+              <Match when={props.run.failure?.kind === "cancelled"}>
+                <p class={styles.note}>{T("db.view.cancelled")}</p>
+              </Match>
+              <Match when={error()}>
+                {(err) => (
+                  <div class={styles.error} role="alert">
+                    <Show when={err().sqlState}>
+                      {(code) => (
+                        <span class={styles.code}>
+                          {T("db.view.sqlState", { code: code() })}
+                        </span>
+                      )}
+                    </Show>
+                    <pre class={styles.message}>{err().message}</pre>
                   </div>
                 )}
-              </Show>
-            </div>
-          )}
+              </Match>
+              <Match when={props.run.result}>
+                {(r) => (
+                  <ResultTable
+                    result={r()}
+                    mac={props.mac}
+                    onCopy={props.onCopyCells}
+                    sort={props.run.page?.sort}
+                    onSort={
+                      props.run.running || !sortable(r())
+                        ? undefined
+                        : props.onSort
+                    }
+                  />
+                )}
+              </Match>
+            </Switch>
+          </div>
+          <Show when={props.run.result}>
+            {(r) => (
+              <div class={styles.status}>
+                <span role="status">
+                  {props.run.running ? "" : resultSummary(r())}
+                </span>
+                {/* ページ送り（#373）。包める文で 2 ページ以上あるときだけ出す。実行している間は押せない */}
+                <Show
+                  when={
+                    props.run.page && pageable(r()) ? props.run.page : undefined
+                  }
+                >
+                  {(page) => (
+                    <div
+                      class={styles.pager}
+                      role="group"
+                      aria-label={T("db.view.pages")}
+                    >
+                      <Button
+                        disabled={
+                          !!props.run.running || !canStep(r(), page(), "prev")
+                        }
+                        onClick={() => props.onPage("prev")}
+                      >
+                        {T("db.view.prevPage")}
+                      </Button>
+                      <Button
+                        disabled={
+                          !!props.run.running || !canStep(r(), page(), "next")
+                        }
+                        onClick={() => props.onPage("next")}
+                      >
+                        {T("db.view.nextPage")}
+                      </Button>
+                    </div>
+                  )}
+                </Show>
+              </div>
+            )}
+          </Show>
         </Show>
       </div>
     </div>
@@ -369,5 +405,204 @@ function Head(props: {
         </For>
       </tr>
     </thead>
+  );
+}
+
+/**
+ * 結果の場所の上の切り替え（#379）：「データ」（SQL を実行した結果）と「Structure」（木で選んだテーブルの構造）。
+ * 左右のキーでも移れる。リーダーの d s でも切り替えられる。
+ */
+function ViewSwitch(props: {
+  view: DbResultView;
+  /** 選んだテーブル（"schema.table"。読み上げとツールチップ） */
+  table: string;
+  onView: (view: DbResultView) => void;
+}): JSX.Element {
+  const views: { view: DbResultView; label: () => string }[] = [
+    { view: "data", label: () => T("db.view.data") },
+    { view: "structure", label: () => T("db.view.structure") },
+  ];
+  function keydown(e: KeyboardEvent) {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    e.preventDefault();
+    const next: DbResultView = e.key === "ArrowLeft" ? "data" : "structure";
+    props.onView(next);
+    (e.currentTarget as HTMLElement)
+      .querySelector<HTMLElement>(`[data-view="${next}"]`)
+      ?.focus();
+  }
+  return (
+    <div
+      class={styles.views}
+      role="tablist"
+      aria-label={T("db.view.switch")}
+      title={props.table}
+      onKeyDown={keydown}
+    >
+      <For each={views}>
+        {(v) => (
+          <button
+            type="button"
+            role="tab"
+            class={styles.viewTab}
+            data-view={v.view}
+            aria-selected={props.view === v.view ? "true" : "false"}
+            tabindex={props.view === v.view ? 0 : -1}
+            onClick={() => props.onView(v.view)}
+          >
+            {v.label()}
+          </button>
+        )}
+      </For>
+      <span class={styles.viewTable}>{props.table}</span>
+    </div>
+  );
+}
+
+/** 木で選んだテーブルの構造（#379）：列・インデックス・外部キーの 3 つの表。 */
+function StructureView(props: { state: DbStructureState }): JSX.Element {
+  const table = () => `${props.state.table.schema}.${props.state.table.table}`;
+  return (
+    <div
+      class={styles.result}
+      role="tabpanel"
+      aria-label={T("db.structure.label", { table: table() })}
+      aria-busy={props.state.loading ? "true" : undefined}
+    >
+      <Switch>
+        <Match when={props.state.loading}>
+          <p class={styles.note}>{T("db.structure.loading")}</p>
+        </Match>
+        <Match when={props.state.error}>
+          {(err) => (
+            <div class={styles.error} role="alert">
+              <pre class={styles.message}>{err()}</pre>
+            </div>
+          )}
+        </Match>
+        <Match when={props.state.structure}>
+          {(s) => (
+            <StructureTables
+              structure={s()}
+              schema={props.state.table.schema}
+            />
+          )}
+        </Match>
+      </Switch>
+    </div>
+  );
+}
+
+/** 構造の 3 つの表。値は 1 行で、はみ出す分は「…」（全部はツールチップ）。 */
+function StructureTables(props: {
+  structure: DbStructure;
+  schema: string;
+}): JSX.Element {
+  const words = () => ({
+    primary: T("db.structure.primary"),
+    unique: T("db.structure.unique"),
+  });
+  return (
+    <>
+      <Show when={props.structure.truncated}>
+        <p class={styles.note}>{T("db.structure.truncated")}</p>
+      </Show>
+      <Section
+        title={T("db.structure.columns")}
+        heads={[
+          T("db.structure.name"),
+          T("db.structure.type"),
+          T("db.structure.nullable"),
+          T("db.structure.default"),
+        ]}
+        rows={props.structure.columns.map((c) => [
+          c.name,
+          c.type,
+          c.nullable ? T("db.structure.yes") : T("db.structure.no"),
+          c.default,
+        ])}
+      />
+      <Section
+        title={T("db.structure.indexes")}
+        heads={[
+          T("db.structure.name"),
+          T("db.structure.keys"),
+          T("db.structure.kind"),
+          T("db.structure.method"),
+        ]}
+        rows={props.structure.indexes.map((ix) => [
+          ix.name,
+          keyColumnsText(ix.columns),
+          indexKindText(ix, words()),
+          ix.method,
+        ])}
+      />
+      <Section
+        title={T("db.structure.foreignKeys")}
+        heads={[
+          T("db.structure.name"),
+          T("db.structure.keys"),
+          T("db.structure.references"),
+          T("db.structure.onUpdate"),
+          T("db.structure.onDelete"),
+        ]}
+        rows={props.structure.foreignKeys.map((fk) => [
+          fk.name,
+          keyColumnsText(fk.columns),
+          referenceText(fk, props.schema),
+          fk.onUpdate,
+          fk.onDelete,
+        ])}
+      />
+    </>
+  );
+}
+
+/** 構造の表の 1 つ（見出しと行）。null のセルは NULL の印で出す。 */
+function Section(props: {
+  title: string;
+  heads: string[];
+  rows: (string | null)[][];
+}): JSX.Element {
+  return (
+    <section class={styles.section} aria-label={props.title}>
+      <h3 class={styles.sectionTitle}>{props.title}</h3>
+      <Show
+        when={props.rows.length > 0}
+        fallback={<p class={styles.note}>{T("db.structure.none")}</p>}
+      >
+        <table class={styles.table}>
+          <thead>
+            <tr>
+              <For each={props.heads}>
+                {(h) => <th class={styles.th}>{h}</th>}
+              </For>
+            </tr>
+          </thead>
+          <tbody>
+            <For each={props.rows}>
+              {(row) => (
+                <tr>
+                  <For each={row}>
+                    {(v) => {
+                      const text = v === null ? null : cellText(v);
+                      return (
+                        <td
+                          class={styles.cell}
+                          data-null={text === null ? "" : undefined}
+                          title={v !== null && v !== text ? v : undefined}
+                        >
+                          {text ?? "NULL"}
+                        </td>
+                      );
+                    }}
+                  </For>
+                </tr>
+              )}
+            </For>
+          </tbody>
+        </table>
+      </Show>
+    </section>
   );
 }

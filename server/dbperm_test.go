@@ -58,9 +58,16 @@ func TestDBHumanPermission(t *testing.T) {
 		if code, data := dbErr(t, err); code != rpc.CodeDenied || data["actor"] != "human" || data["permission"] != "n" {
 			t.Errorf("none: SELECT: %v", err)
 		}
-		// スキーマの一覧は、実行の段階に関わらず読める。
+		// スキーマの一覧と、テーブルの構造（#379）は、実行の段階に関わらず読める。
 		if err := c.Call(ctx, "db.schema", map[string]any{"connection": conn.Name, "variant": "none", "password": dbtest.Password}, nil); err != nil {
 			t.Errorf("none: db.schema: %v", err)
+		}
+		schema := "public"
+		if conn.Kind == config.DBMySQL {
+			schema = "kisui"
+		}
+		if err := c.Call(ctx, "db.structure", map[string]any{"connection": conn.Name, "variant": "none", "password": dbtest.Password, "schema": schema, "table": table}, nil); err != nil {
+			t.Errorf("none: db.structure: %v", err)
 		}
 		// 一覧は、権限を合わせた結果を返す。readOnly は、人の実行が「読むだけ」か。
 		var list DBConnectionsResult

@@ -26,6 +26,10 @@ const CapDBPermissions = "db-permissions"
 // schema を黙って無視し、DB の既定のスキーマで実行する（書き込む文も）ので、窓は印を確かめてから既定のスキーマを選ばせる。
 const CapDBSchema = "db-schema"
 
+// CapDBStructure は capabilities に入れる、db.structure（1 つのテーブルの構造。#379）を受けられる印。窓は、この印の無い
+// kisui serve のタブでは、テーブルの構造を頼まずに理由を出す。
+const CapDBStructure = "db-structure"
+
 // dbMaxRunning は同時に動かせる db.query の数。超えたら busy。
 const dbMaxRunning = 8
 
@@ -238,6 +242,8 @@ func (ss *session) dbRequest(ctx context.Context, req *rpc.Message) (any, error)
 		return ss.dbCancelReq(req)
 	case "db.schema":
 		return ss.dbSchemaReq(ctx, req)
+	case "db.structure":
+		return ss.dbStructureReq(ctx, req)
 	case "db.history":
 		return ss.dbHistoryReq(req)
 	}
@@ -397,6 +403,41 @@ func (s *Server) dbSchema(ctx context.Context, p dbLogin) (*db.Catalog, error) {
 		return nil, err
 	}
 	return cat, nil
+}
+
+// dbStructureParams は db.structure の引数。
+type dbStructureParams struct {
+	dbLogin
+	// Schema と Table は、構造を見るテーブル（ビュー）。db.schema の一覧の名前のまま（引用符を付けない）。
+	Schema string `json:"schema"`
+	Table  string `json:"table"`
+}
+
+// dbStructureReq は db.structure：1 つのテーブル（ビュー）の構造（列・インデックス・外部キー。#379）。結果の形は db.Structure。
+func (ss *session) dbStructureReq(ctx context.Context, req *rpc.Message) (any, error) {
+	var p dbStructureParams
+	if err := json.Unmarshal(req.Params, &p); err != nil {
+		return nil, invalidParams(err)
+	}
+	return ss.srv.dbStructure(ctx, p)
+}
+
+// dbStructure は p の接続の、p のテーブルの構造を読む。権限は db.schema と同じで、実行の段階に関わらず通す
+// （データの行ではなく、列・インデックス・外部キーの定義だけなので）。間違いは *rpc.Error。
+func (s *Server) dbStructure(ctx context.Context, p dbStructureParams) (*db.Structure, error) {
+	if p.Table == "" {
+		return nil, rpc.Errorf(rpc.CodeInvalidParams, "table is empty")
+	}
+	var st *db.Structure
+	err := s.dbWith(ctx, p.dbLogin, "db.structure", false, func(ctx context.Context, c config.DBConnection, sess db.Session) error {
+		var err error
+		st, err = db.ReadStructure(ctx, sess, c.Kind, p.Schema, p.Table)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return st, nil
 }
 
 // DBHistoryResult は db.history の結果。

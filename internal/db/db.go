@@ -11,7 +11,8 @@
 //     after its first page, Query runs it wrapped in another SELECT
 //     (wrap.go).
 //   - ReadCatalog lists the schemas, tables and columns over a Session
-//     (catalog.go).
+//     (catalog.go), and ReadStructure the columns, indexes and foreign
+//     keys of one table (structure.go).
 //   - History keeps the statements run on each connection in files
 //     (history.go).
 //

@@ -53,6 +53,8 @@ export function createDbTree(deps: {
   /** 今のワークスペースで出している DB のタブ */
   shownDbTab: () => { id: string } | undefined;
   setDraft: (id: string, sql: string) => void;
+  /** 木でテーブルを選んだことを、テーブルの構造（#379。structureController.ts）に伝える */
+  chooseTable: (id: string, table: { schema: string; table: string }) => void;
   run: (id: string, sql?: string) => Promise<void>;
   /** タブ id が SQL を実行している最中か */
   isRunning: (id: string) => boolean;
@@ -155,6 +157,7 @@ export function createDbTree(deps: {
   function previewTable(id: string, schema: string, table: string) {
     const kind = untrack(catalogs)[id]?.kind;
     if (!kind || deps.isRunning(id)) return;
+    deps.chooseTable(id, { schema, table });
     const sql = previewSql(kind, schema, table);
     deps.setDraft(id, sql);
     void deps.run(id, sql);

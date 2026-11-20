@@ -92,7 +92,7 @@ func TestDBCapability(t *testing.T) {
 	if err := c.Call(context.Background(), "session.hello", hello(Protocol.Major), &h); err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Contains(h.Capabilities, CapDB) || !slices.Contains(h.Capabilities, CapDBPermissions) || !slices.Contains(h.Capabilities, CapDBSchema) {
+	if !slices.Contains(h.Capabilities, CapDB) || !slices.Contains(h.Capabilities, CapDBPermissions) || !slices.Contains(h.Capabilities, CapDBSchema) || !slices.Contains(h.Capabilities, CapDBStructure) {
 		t.Errorf("capabilities: %v", h.Capabilities)
 	}
 	err = c.Call(context.Background(), "db.nosuch", struct{}{}, nil)
@@ -527,6 +527,78 @@ func TestDBSchema(t *testing.T) {
 		}
 		// 設定に無い接続は not_found。
 		if err := c.Call(ctx, "db.schema", map[string]any{"connection": "nope"}, nil); err.(*rpc.Error).Code != rpc.CodeNotFound {
+			t.Errorf("unknown connection: %v", err)
+		}
+	})
+}
+
+// db.structure は、1 つのテーブルの列・インデックス・外部キーを返す（#379）。パスワードの扱いは db.query と同じ。
+func TestDBStructure(t *testing.T) {
+	bothDB(t, func(t *testing.T, conn config.DBConnection) {
+		c := dbServer(t, nil, conn)
+		ctx := context.Background()
+		schema := "public"
+		if conn.Kind == config.DBMySQL {
+			schema = "kisui"
+		}
+		params := map[string]any{"connection": conn.Name, "schema": schema, "table": "srv_st_c"}
+		// パスワードが無ければ password_required。
+		err := c.Call(ctx, "db.structure", params, nil)
+		if code, data := dbErr(t, err); code != rpc.CodePasswordRequired || data["reason"] != "missing" {
+			t.Errorf("without a password: %v", err)
+		}
+		for _, sql := range []string{
+			"DROP TABLE IF EXISTS srv_st_c", "DROP TABLE IF EXISTS srv_st_p",
+			"CREATE TABLE srv_st_p (id INT PRIMARY KEY)",
+			"CREATE TABLE srv_st_c (id INT NOT NULL PRIMARY KEY, p INT DEFAULT 1, CONSTRAINT srv_st_fk FOREIGN KEY (p) REFERENCES srv_st_p (id))",
+		} {
+			if err := c.Call(ctx, "db.query", map[string]any{"connection": conn.Name, "sql": sql, "password": dbtest.Password}, nil); err != nil {
+				t.Fatal(err)
+			}
+		}
+		var res struct {
+			Columns []struct {
+				Name     string  `json:"name"`
+				Nullable bool    `json:"nullable"`
+				Default  *string `json:"default"`
+			} `json:"columns"`
+			Indexes []struct {
+				Columns []string `json:"columns"`
+				Primary bool     `json:"primary"`
+			} `json:"indexes"`
+			ForeignKeys []struct {
+				Name       string   `json:"name"`
+				Columns    []string `json:"columns"`
+				RefTable   string   `json:"refTable"`
+				RefColumns []string `json:"refColumns"`
+			} `json:"foreignKeys"`
+			Truncated *bool `json:"truncated"`
+		}
+		// 窓から渡されて通ったパスワードは覚えているので、password 無しで通る。
+		if err := c.Call(ctx, "db.structure", params, &res); err != nil {
+			t.Fatal(err)
+		}
+		if len(res.Columns) != 2 || res.Columns[0].Name != "id" || res.Columns[0].Nullable || res.Columns[0].Default != nil ||
+			res.Columns[1].Name != "p" || !res.Columns[1].Nullable || res.Columns[1].Default == nil || res.Truncated == nil || *res.Truncated {
+			t.Errorf("columns: %+v", res)
+		}
+		if len(res.Indexes) == 0 || !res.Indexes[0].Primary || !reflect.DeepEqual(res.Indexes[0].Columns, []string{"id"}) {
+			t.Errorf("indexes: %+v", res.Indexes)
+		}
+		if len(res.ForeignKeys) != 1 || res.ForeignKeys[0].Name != "srv_st_fk" || res.ForeignKeys[0].RefTable != "srv_st_p" ||
+			!reflect.DeepEqual(res.ForeignKeys[0].Columns, []string{"p"}) || !reflect.DeepEqual(res.ForeignKeys[0].RefColumns, []string{"id"}) {
+			t.Errorf("foreign keys: %+v", res.ForeignKeys)
+		}
+		// 無いテーブルは db_error（kind は query）。
+		err = c.Call(ctx, "db.structure", map[string]any{"connection": conn.Name, "schema": schema, "table": "srv_st_nothing"}, nil)
+		if code, data := dbErr(t, err); code != rpc.CodeDBError || data["kind"] != "query" {
+			t.Errorf("no such table: %v", err)
+		}
+		// テーブルを省けば invalid_params、設定に無い接続は not_found。
+		if err := c.Call(ctx, "db.structure", map[string]any{"connection": conn.Name, "schema": schema}, nil); err.(*rpc.Error).Code != rpc.CodeInvalidParams {
+			t.Errorf("without a table: %v", err)
+		}
+		if err := c.Call(ctx, "db.structure", map[string]any{"connection": "nope", "schema": schema, "table": "srv_st_c"}, nil); err.(*rpc.Error).Code != rpc.CodeNotFound {
 			t.Errorf("unknown connection: %v", err)
 		}
 	})

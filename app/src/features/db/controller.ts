@@ -68,6 +68,7 @@ import { createDbExport } from "./exportController.ts";
 import type { SaveTextFile } from "./export.ts";
 import { createDbHistory } from "./historyController.ts";
 import { createDbPropose } from "./proposeController.ts";
+import { createDbStructure } from "./structureController.ts";
 import { createDbTree } from "./treeController.ts";
 
 /** createDbTabs が返す持ち物。 */
@@ -266,6 +267,8 @@ export function createDbTabs(deps: {
     selStart: number,
     selEnd: number,
   ) {
+    // 入力欄から実行したら、結果の場所はデータの側を出す（Structure を出していても。#379）
+    structures.showView(id, "data");
     const kind = await kindOf(id);
     await run(
       id,
@@ -369,8 +372,22 @@ export function createDbTabs(deps: {
     if (q) cancelQuery(q);
   }
 
+  // ---- テーブルの構造（#379） ----
+  const structures = createDbStructure({
+    refOf,
+    request,
+    supported: (ref) => {
+      const st = untrack(states)[ref.target];
+      return (
+        st?.kind === "connected" && hasCapability(st.hello, "db-structure")
+      );
+    },
+    cancelQuery,
+  });
+
   // ---- サイドバーの木（#348・#374） ----
   const tree = createDbTree({
+    chooseTable: structures.chooseTable,
     refOf,
     sessionFor,
     request,
@@ -524,6 +541,7 @@ export function createDbTabs(deps: {
           ),
         );
       tree.forget(alive);
+      structures.forgetStructures(alive);
       const d = untrack(drafts);
       if (Object.keys(d).some((id) => !alive.has(id)))
         writeDrafts(
@@ -550,6 +568,8 @@ export function createDbTabs(deps: {
     request,
     // サイドバーの木（#348・#374。treeController.ts）
     ...tree,
+    // テーブルの構造と、結果の場所の切り替え（#379。structureController.ts）
+    ...structures,
     // 結果の書き出し（#349。exportController.ts）と、クエリの履歴（historyController.ts）
     ...exporter,
     ...history,

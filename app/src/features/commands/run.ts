@@ -70,6 +70,8 @@ export function createCommandRunner(deps: {
     | "openExport"
     | "openHistory"
     | "stepPage"
+    | "reloadStructure"
+    | "showView"
   >;
   bookmarks: Bookmarks;
   downloads: Downloads;
@@ -315,7 +317,11 @@ export function createCommandRunner(deps: {
           ui.focusDbTree();
           break;
         }
-        if (c.id === "db.refresh") void deps.db.reloadCatalog(tab.id);
+        if (c.id === "db.refresh") {
+          void deps.db.reloadCatalog(tab.id);
+          // 選んだテーブルの構造（#379）も聞き直す
+          deps.db.reloadStructure(tab.id);
+        }
         focusTerminal();
         break;
       }
@@ -333,6 +339,17 @@ export function createCommandRunner(deps: {
         }
         if (!deps.db.openExport(tab.id))
           cannot(T("cannot.dbExport.title"), T("cannot.dbExport.text"));
+        break;
+      }
+      case "db.view": {
+        // 結果の場所の「データ」と「Structure」の切り替え（#379）：木でテーブルを選んだ DB のタブを出している間だけ
+        const tab = deps.db.shownDbTab();
+        if (!tab) {
+          cannot(T("cannot.dbTree.title"), T("cannot.dbTree.text"));
+          break;
+        }
+        if (!deps.db.showView(tab.id))
+          cannot(T("cannot.dbView.title"), T("cannot.dbView.text"));
         break;
       }
       case "db.page": {
