@@ -32,9 +32,12 @@ export interface TreeRow {
 }
 
 const SEP = "\u0001";
+/** スキーマの行の id（TreeRow.id）。 */
 export const schemaId = (schema: string) => schema;
+/** テーブル・ビューの行の id（TreeRow.id）。 */
 export const tableId = (schema: string, table: string) =>
   `${schema}${SEP}${table}`;
+/** 列の行の id（TreeRow.id）。 */
 export const columnId = (schema: string, table: string, column: string) =>
   `${schema}${SEP}${table}${SEP}${column}`;
 
@@ -195,8 +198,10 @@ export interface TreeLayout {
   width: number;
 }
 
+/** 木のペインの幅（px）の下限・上限・既定。 */
 export const TREE_WIDTH = { min: 160, max: 640, initial: 240 } as const;
 
+/** 記録が無い・壊れているときの木のペインの出し方（開いていて、既定の幅）。 */
 export const DEFAULT_TREE_LAYOUT: TreeLayout = {
   open: true,
   width: TREE_WIDTH.initial,
