@@ -232,6 +232,24 @@ describe("結果を画面に出す", () => {
       ),
       "1000 rows · the rows after these were not read · 1.5 ms",
     );
+    // ページ送りのある結果（#373）は、何行目から何行目か
+    assert.equal(
+      resultSummary(
+        result({
+          columns: [col],
+          rowCount: 1000,
+          truncated: true,
+          wrappable: true,
+        }),
+      ),
+      "rows 1–1000 · more rows on the next page · 1.5 ms",
+    );
+    assert.equal(
+      resultSummary(
+        result({ columns: [col], rowCount: 5, wrappable: true, offset: 1000 }),
+      ),
+      "rows 1001–1005 · 1.5 ms",
+    );
     assert.equal(
       resultSummary(result({ rowsAffected: 3 })),
       "3 rows changed · 1.5 ms",

@@ -162,8 +162,18 @@
 
 /* 結果の表の下の、件数とかかった時間 */
 .status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
   color: var(--color-text-muted);
   font-size: var(--text-caption);
+}
+
+/* 結果のページ送りのボタン（#373）。件数の右端に並べる */
+.pager {
+  margin-left: auto;
+  display: flex;
+  gap: var(--space-8);
 }
 
 /* 左の木のペインを入れる枠（幅は props.tree.width） */

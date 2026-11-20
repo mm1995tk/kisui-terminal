@@ -70,6 +70,7 @@ export function createCommandRunner(deps: {
     | "reloadCatalog"
     | "openExport"
     | "openHistory"
+    | "stepPage"
   >;
   bookmarks: Bookmarks;
   downloads: Downloads;
@@ -333,6 +334,26 @@ export function createCommandRunner(deps: {
         }
         if (!deps.db.openExport(tab.id))
           cannot(T("cannot.dbExport.title"), T("cannot.dbExport.text"));
+        break;
+      }
+      case "db.page": {
+        // 結果のページ送り（#373）：DB のタブを出している間だけ。実行している間に押した分は、結果が来てから順に送る（controller.ts の queuedSteps）
+        const tab = deps.db.shownDbTab();
+        if (!tab) {
+          cannot(T("cannot.dbTree.title"), T("cannot.dbTree.text"));
+          break;
+        }
+        const step = c.arg === "prev" ? "prev" : "next";
+        const why = deps.db.stepPage(tab.id, step);
+        if (why === "none")
+          cannot(T("cannot.dbPage.title"), T("cannot.dbPage.none"));
+        else if (why === "edge")
+          cannot(
+            T("cannot.dbPage.title"),
+            T(
+              step === "next" ? "cannot.dbPage.noNext" : "cannot.dbPage.noPrev",
+            ),
+          );
         break;
       }
       case "workspace.nth":

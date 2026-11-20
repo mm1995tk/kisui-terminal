@@ -697,6 +697,8 @@ export const en = {
   "db.summary.affected": "{n} rows changed",
   "db.summary.done": "done",
   "db.summary.truncatedCells": "some long values are cut",
+  "db.summary.range": "rows {from}–{to}",
+  "db.summary.more": "more rows on the next page",
   "db.view.label": "Database tab: {connection}",
   "db.view.sql": "SQL",
   "db.view.placeholder": "Type SQL and press {key} to run it",
@@ -709,6 +711,9 @@ export const en = {
   "db.view.sqlState": "SQLSTATE {code}",
   "db.view.result": "Result",
   "db.view.noTable": "This statement returns no rows.",
+  "db.view.pages": "Pages of the result",
+  "db.view.prevPage": "Previous",
+  "db.view.nextPage": "Next",
   "db.password.label": "Database password",
   "db.password.missing": "Password for {connection} on {machine}",
   "db.password.rejected":
@@ -720,6 +725,14 @@ export const en = {
   // ---- DB のタブの、結果の書き出しとクエリの履歴（#349）----
   "leader.db.export": "Export the result (CSV, TSV or JSON)",
   "leader.db.history": "Pick a SQL from this connection's history",
+  "leader.db.nextPage": "Next page of the result",
+  "leader.db.prevPage": "Previous page of the result",
+  "leader.db.page.range": "Move between pages of the result",
+  "cannot.dbPage.title": "Cannot change the page",
+  "cannot.dbPage.none":
+    "This result has no other pages. Only a SELECT that gives more rows than one page (1000) is paged.",
+  "cannot.dbPage.noNext": "This is the last page of the result.",
+  "cannot.dbPage.noPrev": "This is the first page of the result.",
   "cannot.dbExport.title": "Nothing to export",
   "cannot.dbExport.text":
     "Run SQL that returns rows in this database tab first.",

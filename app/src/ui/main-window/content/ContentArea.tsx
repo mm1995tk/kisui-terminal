@@ -158,6 +158,7 @@ export function ContentArea(props: {
               onSql={(sql) => db.setDraft(id, sql)}
               run={db.runOf(id)}
               onRun={() => void db.run(id)}
+              onPage={(step) => void db.stepPage(id, step)}
               onCancel={() => db.cancel(id)}
               onCopyCells={db.copyCells}
               tree={{
