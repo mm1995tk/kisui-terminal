@@ -14,6 +14,7 @@ import type {
   DbQueryResult,
 } from "../../infrastructure/rpc/protocol.ts";
 import type { KeyValueStore } from "../keyValueStore.ts";
+import { pageable, rowRange } from "./paging.ts";
 
 // ---- 書きかけの SQL の記録 ----
 
@@ -188,7 +189,12 @@ export function elapsedText(ms: number): string {
 /** 結果の表の下に出す、件数とかかった時間（行を返す文は行数、返さない文は変えた行数）。 */
 export function resultSummary(r: DbQueryResult): string {
   const parts: string[] = [];
-  if (r.columns.length > 0) {
+  const range = rowRange(r);
+  if (r.columns.length > 0 && pageable(r) && range) {
+    // ページ送りのある結果（#373）：文の何行目から何行目か
+    parts.push(T("db.summary.range", range));
+    if (r.truncated) parts.push(T("db.summary.more"));
+  } else if (r.columns.length > 0) {
     parts.push(T("db.summary.rows", { n: r.rowCount }));
     if (r.truncated) parts.push(T("db.summary.truncated"));
   } else if (r.rowsAffected !== undefined)

@@ -18,6 +18,11 @@ import type { DbRun } from "../../../../features/db/controller.ts";
 import type { DbCatalogState } from "../../../../features/db/treeController.ts";
 import { dbEditorKey, dbResultKey } from "../../../../features/db/keys.ts";
 import { cellText, resultSummary } from "../../../../features/db/model.ts";
+import {
+  canStep,
+  pageable,
+  type PageStep,
+} from "../../../../features/db/paging.ts";
 import type { DbQueryResult } from "../../../../infrastructure/rpc/protocol.ts";
 import {
   clampRange,
@@ -43,6 +48,8 @@ export function DbTabView(props: {
   onSql: (sql: string) => void;
   run: DbRun;
   onRun: () => void;
+  /** 結果のページを切り替える（#373） */
+  onPage: (step: PageStep) => void;
   onCancel: () => void;
   /** 結果の表で選んだセルをコピーする（#372） */
   onCopyCells: (text: string) => void;
@@ -202,10 +209,43 @@ export function DbTabView(props: {
             </Match>
           </Switch>
         </div>
-        <Show when={!props.run.running && props.run.result}>
+        <Show when={props.run.result}>
           {(r) => (
-            <div class={styles.status} role="status">
-              {resultSummary(r())}
+            <div class={styles.status}>
+              <span role="status">
+                {props.run.running ? "" : resultSummary(r())}
+              </span>
+              {/* ページ送り（#373）。包める文で 2 ページ以上あるときだけ出す。実行している間は押せない */}
+              <Show
+                when={
+                  props.run.page && pageable(r()) ? props.run.page : undefined
+                }
+              >
+                {(page) => (
+                  <div
+                    class={styles.pager}
+                    role="group"
+                    aria-label={T("db.view.pages")}
+                  >
+                    <Button
+                      disabled={
+                        !!props.run.running || !canStep(r(), page(), "prev")
+                      }
+                      onClick={() => props.onPage("prev")}
+                    >
+                      {T("db.view.prevPage")}
+                    </Button>
+                    <Button
+                      disabled={
+                        !!props.run.running || !canStep(r(), page(), "next")
+                      }
+                      onClick={() => props.onPage("next")}
+                    >
+                      {T("db.view.nextPage")}
+                    </Button>
+                  </div>
+                )}
+              </Show>
             </div>
           )}
         </Show>
