@@ -35,6 +35,15 @@ describe("heldCells", () => {
     ]);
   });
 
+  it("途中まで描けた分割のタブを挟んで続けて切り替えても、その描けた欄（まだ見せていない）は足さない", () => {
+    // A（a1）→ B（b1・b2。b1 だけ描けた）→ C
+    const held = heldCells([], map("a1"), map("b1", "b2"), drawnOf("a1"));
+    assert.deepEqual(
+      heldCells(held, map("b1", "b2"), map("c1"), drawnOf("a1", "b1")),
+      [{ link: "a1", view: "at-a1" }],
+    );
+  });
+
   it("残していた欄のタブに戻ったら、その欄は残すのをやめる（そのまま今の欄になる）", () => {
     const held = [{ link: "a1", view: "at-a1" }];
     assert.deepEqual(heldCells(held, map("b1"), map("a1"), drawnOf("a1")), []);
