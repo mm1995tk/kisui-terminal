@@ -45,7 +45,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: cachix/install-nix-action@v31.11.3
+      - uses: cachix/install-nix-action@v31.11.5
 
       - name: 版を決める
         id: ver
