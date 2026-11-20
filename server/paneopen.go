@@ -16,9 +16,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
-	"unicode"
-	"unicode/utf8"
 
 	"github.com/mm1995tk/kisui-terminal/internal/panecmd"
 )
@@ -45,15 +42,13 @@ var (
 // rq.Cwd で動かすタブを足すよう GUI に頼み、答えを待つ windowWaiting を返す（待つのは呼ぶ側）。
 // 名前・コマンド・フォルダは、GUI に頼む前にここで確かめる（作るときに serve がもう一度確かめる）。
 func (s *Server) paneOpenStart(t *terminal, rq panecmd.Request) (panecmd.Reply, error) {
-	ws := strings.TrimSpace(rq.Workspace)
+	// ワークスペースの名前の決まりは、ペインの名前と同じ（wsManager.rename と同じく cleanPaneName で確かめる）
+	ws, err := cleanPaneName(rq.Workspace)
+	if err != nil {
+		return panecmd.Reply{}, fmt.Errorf("the name of the workspace: %w", err)
+	}
 	if ws == "" {
 		return panecmd.Reply{}, errNoWorkspaceName
-	}
-	if strings.ContainsFunc(ws, unicode.IsControl) {
-		return panecmd.Reply{}, fmt.Errorf("the name of the workspace has a control character: %q", ws)
-	}
-	if utf8.RuneCountInString(ws) > maxPaneName {
-		return panecmd.Reply{}, fmt.Errorf("the name of the workspace is too long (at most %d characters)", maxPaneName)
 	}
 	env, err := validCommand(rq.Argv, rq.Env)
 	if err != nil {
