@@ -51,10 +51,13 @@ const (
 // termManager はサーバー全体のターミナル。
 // command-end（OSC 133;D）をサーバーで取り出さない理由は docs/design/gui-protocol.md の「ターミナル」を見る。
 type termManager struct {
-	srv    *Server
-	mu     sync.Mutex
-	next   int
-	terms  map[string]*terminal
+	srv   *Server
+	mu    sync.Mutex
+	next  int
+	terms map[string]*terminal
+	// nameMu は欄の名前を付ける操作を 1 つずつにする（名前が重ならないことを確かめてから付けるまでの間に、
+	// ほかの欄が同じ名前を取らないように。panename.go）。mu や terminal.mu を持ったまま取らない
+	nameMu sync.Mutex
 	wg     sync.WaitGroup
 	closed bool
 }
@@ -106,6 +109,8 @@ type terminal struct {
 
 	// sendMu は term.output の送り出しと term.attach を 1 つずつにする（順序と二重送りを防ぐ）。
 	sendMu sync.Mutex
+	// inputMu は kisui pane send / keys の入力を 1 つずつにする（2 つの頼みの文字とキーが混ざらないように）。
+	inputMu sync.Mutex
 
 	mu         sync.Mutex
 	cwd        string // シェルの今の cwd（workspace.go が更新）
@@ -121,6 +126,7 @@ type terminal struct {
 	sent       int64  // ここまで送った
 	acked      int64  // GUI が処理したと言ったところ
 	osc        oscScan
+	modes      modeScan    // 送り方に関わるモード（panesend.go）
 	feed       *screenFeed // 画面の状態を持つ coneko-term（screen.go）。term.attach はこの書き出しを返す
 	base       int64       // リングに入っている一番古い seq の下限（引き継いだときは、受け取ったリングの先頭）
 
@@ -217,6 +223,7 @@ type termStart struct {
 	wsID       string
 	primary    bool
 	argv       []string // 空でなければ、シェルの代わりに動かすコマンド（kisui pane split のコマンド）。終わると欄も閉じる
+	name       string   // 欄の名前（kisui pane split --name）。呼ぶ側が nameMu を持って、重ならないことを確かめておく
 }
 
 // start はシェルを始めてターミナルを足す。ワークスペースの一覧は作り直さない（呼ぶ側がする）。
@@ -272,7 +279,7 @@ func (m *termManager) start(a termStart) (*terminal, error) {
 	t := &terminal{
 		mgr: m, id: fmt.Sprintf("t%d", m.next), pid: sess.Pid(),
 		ptmx: ptmx, cmd: cmd, process: cmd.Process, cols: a.cols, rows: a.rows, alive: true,
-		ring: make([]byte, ringSize), wsID: a.wsID, primary: a.primary, token: token,
+		ring: make([]byte, ringSize), wsID: a.wsID, primary: a.primary, token: token, name: a.name,
 		feed: newScreenFeed(m.srv.log, a.rows, a.cols),
 	}
 	t.cwd = normalizePath(a.dir) // 以後 cwd の変化を見るので、読み取った値（実パス）に合わせる
@@ -430,6 +437,7 @@ func (t *terminal) pump(ptmx *os.File, cmd *exec.Cmd, p *os.Process) {
 			t.mu.Lock()
 			t.ringAppend(buf[:n])
 			t.feed.write(buf[:n]) // ring の seq と画面の状態の位置を合わせるため、同じロックの中で渡す（待たない）
+			t.modes.feed(buf[:n])
 			title, changed := t.osc.feed(buf[:n])
 			if changed {
 				t.title = title
@@ -731,7 +739,7 @@ func (ss *session) termRequest(req *rpc.Message) (res any, err error, handled bo
 			return nil, e, true
 		}
 		ptmx, _ := t.proc()
-		if _, err := ptmx.Write(cdInput(*p.Path)); err != nil {
+		if err := writeInput(ptmx, cdInput(*p.Path)); err != nil {
 			return nil, rpc.Errorf(rpc.CodeNotFound, "terminal has exited: %s", t.id), true
 		}
 		return struct{}{}, nil, true
@@ -741,7 +749,7 @@ func (ss *session) termRequest(req *rpc.Message) (res any, err error, handled bo
 			return nil, rpc.Errorf(rpc.CodeInvalidParams, "data is not base64: %v", err), true
 		}
 		ptmx, _ := t.proc()
-		if _, err := ptmx.Write(b); err != nil {
+		if err := writeInput(ptmx, b); err != nil {
 			return nil, rpc.Errorf(rpc.CodeNotFound, "terminal has exited: %s", t.id), true
 		}
 		return struct{}{}, nil, true
@@ -881,4 +889,18 @@ func (m *termManager) closeTerm(id string) {
 	t.mu.Lock()
 	t.alive = false
 	t.mu.Unlock()
+}
+
+// writeInput は GUI の入力（term.input・term.cd）を PTY に書く。書きの期限は *os.File に付くので、kisui pane send が
+// 詰まった PTY のために付けた期限（panesend.go の typeIn）に、GUI の書きも当たることがある。そのときは書けなかった残りを
+// 書き直し、前と同じく読まれるまで待つ（期限切れを「ターミナルが終わった」と取り違えない）。
+func writeInput(ptmx *os.File, b []byte) error {
+	for {
+		n, err := ptmx.Write(b)
+		if !errors.Is(err, os.ErrDeadlineExceeded) {
+			return err
+		}
+		b = b[n:]
+		time.Sleep(10 * time.Millisecond) // 期限が外れるまで（typeIn が書き終えるまで）回り続けないように
+	}
 }

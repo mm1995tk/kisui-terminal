@@ -5,7 +5,7 @@
 //! ここからは貼る操作を送らない（macOS のアクセシビリティの許可を要らないようにするため）。Esc は何もせずに隠す。
 //!
 //! - 窓はメイン窓とは別の窓（ラベル `LABEL`）。中身はメイン窓と同じ画面（index.html）で、画面側は窓のラベルを見て
-//!   履歴だけを出す（ClipboardHistoryPopup.tsx）。初めて開くときに作り、閉じても隠すだけで、次はそれを出し直す。
+//!   履歴だけを出す（app/src/ui/utilities/clipboard/page.tsx）。初めて開くときに作り、閉じても隠すだけで、次はそれを出し直す。
 //! - macOS では、窓を NSPanel（NonactivatingPanel）にする（#196）。アプリを前に出さずにキーの窓になれるので、
 //!   全画面のアプリの Space から離れずにその上に出て（collectionBehavior の FullScreenAuxiliary と、高い window level）、
 //!   メイン窓も前に出ない。前のアプリは前にいたまま（こちらはアプリを前に出していない）なので、隠すだけで戻る。
@@ -26,7 +26,7 @@ use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut,
 
 use crate::clipboard_history::ClipboardHistory;
 
-/// 窓のラベル（画面側の ClipboardHistoryPopup.tsx・capabilities/clipboard-history.json と同じ）。
+/// 窓のラベル（画面側の app/src/features/clipboard/history.ts の POPUP_LABEL・capabilities/clipboard-history.json と同じ）。
 pub const LABEL: &str = "clipboard-history";
 /// 窓を出し直したことを、窓の画面に知らせるイベント（画面は一覧を読み直し、絞り込みを空にする）。
 const EVENT_SHOWN: &str = "clipboard-history-shown";

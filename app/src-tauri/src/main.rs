@@ -4,6 +4,8 @@
 mod askpass;
 mod bookmarks;
 mod browser;
+#[cfg(target_os = "macos")]
+mod browser_proxy;
 mod clipboard_history;
 mod clipboard_popup;
 mod config;
@@ -223,6 +225,7 @@ fn main() {
             browser::browser_zoom,
             browser::browser_find,
             browser::browser_devtools,
+            browser::browser_passkey_login,
             bookmarks::browser_bookmarks_load,
             bookmarks::browser_bookmarks_save,
             bookmarks::browser_chrome_bookmarks_load,

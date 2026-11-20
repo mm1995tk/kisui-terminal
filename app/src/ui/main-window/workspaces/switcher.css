@@ -1,0 +1,356 @@
+/* ワークスペースを切り替える窓（WorkspaceSwitcher.tsx。リーダーの w）。カードは card.css。
+   左に全ワークスペース、右に選んでいる行のタブの一覧（サイドバーのタブの行 .tab-row を、sidebar.css のまま使う）。 */
+
+/* 窓の大きさは、メインのウィンドウの幅と高さの 60% に固定する（中身の数では伸び縮みしない）。
+   小さすぎ・大きすぎにならないよう、上限と下限を付ける（画面が小さければ、画面に収まる大きさまで縮む） */
+.card-modal:has(.switcher) {
+  box-sizing: border-box;
+  width: clamp(640px, 60vw, 1200px);
+  height: clamp(420px, 60vh, 900px);
+  max-height: calc(100vh - 2 * var(--space-16));
+  margin: auto;
+}
+/* 中身の高さは窓が決める。一覧のスクロールは、列の中でする */
+.card-modal:has(.switcher) .card-content {
+  overflow: hidden;
+}
+.switcher {
+  flex: 1;
+}
+
+/* 左右の 2 列を半分ずつにする。右の列は、余白を取らず、窓の右端・見出しの線・下の段の線までいっぱいに使い、左の線だけを残す。
+   左で選んでいる行は、右の列と同じ地の色・同じ枠の線にし、その所だけ右の列の左の線を消して、1 枚につながって見せる */
+.switcher-cols {
+  display: grid;
+  flex: 1;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  min-height: 0;
+}
+.switcher-cols:focus {
+  outline: none;
+}
+.switcher-left {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  /* 右の列の左の線の上に重ねる（選んでいる行の地の色で、その所の線を隠す） */
+  position: relative;
+  z-index: 1;
+}
+/* 一覧だけがスクロールし、「ワークスペースを作る」は左の列の下端に固定する */
+.switcher-left .card-rows {
+  flex: 1;
+  padding: 8px 0 4px 8px;
+  /* 行は右の列に届くまで伸ばすので、右の余白は取らない */
+}
+.switcher-right {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  margin-left: -1px;
+  overflow: hidden;
+  border-left: 1px solid var(--gh-border-strong);
+  background: var(--gh-bg-side);
+}
+
+/* 左の行：つかむ所・マシンの色の丸・名前・鉛筆と ✕（どの行にもいつも出す）。選んでいる行は、右の列とつなげる（下の「選んでいる行」） */
+.switch-row {
+  gap: 8px;
+  padding: 8px 8px 8px 2px;
+  border: 1px solid transparent;
+  border-right: 0;
+  border-radius: 8px 0 0 8px;
+  cursor: pointer;
+}
+.switch-row[data-dragging] {
+  position: relative;
+  z-index: 2;
+  background: var(--card-row-active);
+  box-shadow: var(--shadow-raised);
+  cursor: grabbing;
+}
+.switch-row[data-shift],
+.switch-row[data-dropping] {
+  transition: transform 150ms ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .switch-row[data-shift],
+  .switch-row[data-dropping] {
+    transition: none;
+  }
+}
+.switch-row .grip {
+  --sidebar-muted: var(--card-muted);
+  margin: 0 0 0 4px;
+}
+.switch-row:hover .grip {
+  opacity: 1;
+}
+/* マシンの色の丸。つながっていれば塗り、つないでいる間は薄い塗り、つながっていなければ枠だけ */
+.switch-dot {
+  flex: none;
+  box-sizing: border-box;
+  width: 10px;
+  height: 10px;
+  border-radius: 5px;
+  border: 1px solid var(--machine-color);
+  background: var(--machine-color);
+}
+.switch-dot[data-health="pending"] {
+  background: color-mix(in srgb, var(--machine-color) 40%, transparent);
+}
+.switch-dot[data-health="down"] {
+  background: transparent;
+}
+.switch-new {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-sizing: border-box;
+  flex: none;
+  width: calc(100% - 16px);
+  margin: 4px 0 8px 8px;
+  padding: 10px 8px;
+  border: 1px dashed var(--card-field-border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--card-muted);
+  text-align: left;
+  cursor: pointer;
+}
+.switch-new:hover {
+  background: var(--card-row-active);
+  color: var(--card-text);
+}
+
+/* 右：サイドバーのタブの行を使うので、サイドバーの色の変数をここで決める */
+.switch-tabs {
+  --sidebar-text: var(--gh-text);
+  --sidebar-muted: var(--gh-text-muted);
+  --band-hover: var(--gh-bg-hover);
+  --health-up: var(--gh-green);
+  --health-pending: var(--gh-yellow);
+  --health-down: var(--gh-text-dim);
+  --row-bg: var(--gh-bg-side);
+  --row-shown-bg: color-mix(
+    in srgb,
+    var(--gh-bg-raised) 70%,
+    var(--gh-bg-side)
+  );
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+.switch-tabs .card-empty {
+  color: var(--gh-text-muted);
+}
+/* 右の列の上：選んでいるワークスペースのタブの数と、右端のボタン（ブラウザのタブを開く・ターミナルのタブを作る） */
+.switch-tabs-head {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px 2px 12px;
+  color: var(--gh-text-muted);
+  font-size: 12px;
+}
+.switch-tabs-btns {
+  display: flex;
+  gap: 2px;
+}
+/* タブの行の一覧だけがスクロールする */
+.switch-tabs > .tab-rows {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* 行の名前を変える・閉じるボタン */
+.switch-btn {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--card-muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+.switch-btn:hover {
+  background: var(--card-row-active);
+  color: var(--card-text);
+}
+/* 閉じる確認の行のキー（y と n だけ） */
+.switch-confirm {
+  flex: none;
+  color: var(--card-muted);
+}
+
+/* 右のタブの行のドラッグ（tabMoveDrag.ts。#308）。つかんだ行の写しがポインタについて動き、入る位置に線を出す。
+   写しと線は窓（dialog）の中に置き、画面に固定する。ポインタは通す（下の行を調べるため） */
+.tab-drag-ghost {
+  position: fixed;
+  z-index: 3;
+  box-shadow: var(--shadow-raised);
+  pointer-events: none;
+}
+.tab-drag-line {
+  position: fixed;
+  z-index: 3;
+  height: 2px;
+  margin-top: -1px;
+  border-radius: 1px;
+  background: var(--card-accent);
+  pointer-events: none;
+}
+/* つかんだ行の元の場所は、薄くする */
+.switch-tabs .tab-row[data-drag-source] {
+  opacity: 0.4;
+}
+/* 落とすと入るワークスペースの行 */
+.switch-row[data-drop-target] {
+  background: var(--card-row-active);
+  box-shadow: inset 0 0 0 1px var(--card-accent);
+}
+
+/* 選んでいる行。左の行は、右の列と同じ地の色・同じ枠の線にして（右の枠は付けない）、右の列の左の線を隠し、1 枚につなげる。
+   card.css の選んだ行の見た目（地の色と outline）は使わない */
+.switcher .switch-row[aria-selected="true"] {
+  border-color: var(--gh-border-strong);
+  background: var(--gh-bg-side);
+  outline: none;
+}
+/* いまキーが効いている列の、選んでいる行の左端に、色の線を出す */
+.switcher-cols[data-col="ws"] .switch-row[aria-selected="true"] {
+  box-shadow: inset 3px 0 0 var(--card-accent);
+}
+.switcher-cols[data-col="tab"] .switch-tabs .tab-row[data-selected] {
+  box-shadow: inset 3px 0 0 var(--card-accent);
+}
+
+/* 左の列の一番下の、新しいワークスペースの名前の入力欄（n・「ワークスペースを作る」）。行と同じ枠の中で、入力欄が幅いっぱいを使う */
+.switch-create {
+  cursor: default;
+}
+.switch-create .inline-edit {
+  flex: 1;
+  min-width: 0;
+  margin-left: 8px;
+}
+
+/* 右の列の一番下の、ターミナルのタブを作る行（SwitcherNewTab.tsx）：名前の入力欄の右にマシン。マシンを押すか ↓ で、その下に一覧が開く。
+   一覧が行からはみ出すので、行は切らない（一覧は、タブの一覧のスクロールの中に出る） */
+.switch-tabs .tab-row.switch-newtab {
+  overflow: visible;
+}
+.switch-newtab .tab-line {
+  min-height: 0;
+}
+.switch-newtab-box {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding-left: 8px;
+}
+.switch-newtab-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.switch-newtab-line .inline-input {
+  flex: 1;
+  min-height: 24px;
+}
+.switch-newtab-machine {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border: 1px solid var(--gh-border-strong);
+  border-radius: 6px;
+  background: var(--gh-bg-raised);
+  color: var(--gh-text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.switch-newtab-machine:hover,
+.switch-newtab-machine[aria-expanded="true"] {
+  border-color: var(--card-accent);
+}
+.switch-newtab-caret {
+  color: var(--gh-text-muted);
+  font-size: 10px;
+}
+.switch-newtab-list {
+  position: absolute;
+  z-index: 4;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 160px;
+  max-height: 200px;
+  margin: 0;
+  padding: 4px;
+  overflow-y: auto;
+  list-style: none;
+  border: 1px solid var(--gh-border-strong);
+  border-radius: 6px;
+  background: var(--gh-bg-raised);
+  box-shadow: var(--shadow-raised);
+}
+.switch-newtab-list:focus {
+  outline: none;
+}
+.switch-newtab-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.switch-newtab-list li[data-cursor] {
+  background: var(--gh-bg-hover);
+  box-shadow: inset 2px 0 0 var(--card-accent);
+}
+
+/* キーでタブをつかんでいる間（m。switcherHold.ts）の見た目 */
+/* 右の見出しは、タブの数の代わりに、何を移しているかを出す */
+.switch-holding {
+  color: var(--card-accent);
+  font-weight: 600;
+}
+/* つかんだタブは、点線の枠と色の付いた地で、少し右に寄せて出す（幅は縮めて、横にはみ出さない）。ほかのタブは薄くする */
+.switch-tabs[data-holding] .tab-row[data-held] {
+  --row-bg: color-mix(in srgb, var(--card-accent) 18%, var(--gh-bg-side));
+  margin-left: 12px;
+  border-color: var(--card-accent);
+  border-style: dashed;
+}
+.switch-tabs[data-holding] .tab-row:not([data-held]) {
+  opacity: 0.5;
+}
+/* 移す先に選んでいる行の「ここの一番後ろに入る →」 */
+.switch-drop-here {
+  margin-left: 8px;
+  color: var(--card-accent);
+  font-size: 11px;
+  font-weight: 400;
+}
+/* つかんだときのワークスペースの行は、元の場所の印として点線で囲む */
+.switcher .switch-row[data-held-from] {
+  outline: 1px dashed var(--card-field-border);
+  outline-offset: -2px;
+}

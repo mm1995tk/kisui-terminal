@@ -24,7 +24,7 @@
     }
   },
   "permissions": ["cookies", "nativeMessaging", "scripting", "storage"],
-  "host_permissions": ["https://*/*"],
+  "host_permissions": ["https://*/*", "http://*/*"],
   "background": {
     "service_worker": "background.js",
     "scripts": ["lib.js", "background.js"]

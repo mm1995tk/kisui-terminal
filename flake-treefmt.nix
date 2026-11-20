@@ -14,6 +14,8 @@ _: {
       "package.json"
       "tsconfig.json"
       "vite.config.ts"
+      ".storybook/*.ts"
+      ".storybook/*.tsx"
       "app/**/*.ts"
       "app/**/*.tsx"
       "app/**/*.html"

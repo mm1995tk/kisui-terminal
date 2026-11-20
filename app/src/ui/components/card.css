@@ -1,0 +1,370 @@
+/* 窓のカード（Card.tsx）。モック Connect.dc.html の寸法（色は theme.css の GitHub Dark）:
+   幅 560px・角丸 12px、見出し 16px 太さ 600、
+   入力欄 高さ 40px・角丸 8px、行 padding 10px 8px・角丸 8px。
+   ボタンは Button.tsx（button.css）。値は ui/styles/tokens.css の役割から選ぶ（使い分けは docs/design/design-system.md）。 */
+
+.card {
+  /* カードの中の部品が使う色（switcher.css なども読む）。役割は tokens.css */
+  --card-bg: var(--color-surface);
+  --card-border: var(--color-border);
+  --card-divider: var(--color-border);
+  --card-text: var(--color-text-strong);
+  --card-muted: var(--color-text-muted);
+  --card-field-bg: var(--color-field);
+  --card-field-border: var(--color-border-strong);
+  --card-row-active: var(--state-hover-bg);
+  --card-accent: var(--color-accent);
+  --card-on-accent: var(--color-on-accent);
+  --card-warn: var(--state-warning);
+
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-12);
+  color: var(--card-text);
+  font-family: var(--font-ui);
+  font-size: var(--text-body);
+}
+:where(.card) :where(button, input) {
+  font: inherit;
+}
+
+/* 真ん中に出すもの。上から 120px（モック）、狭い画面では左右 16px あける */
+.card-modal {
+  width: 560px;
+  max-width: calc(100vw - 2 * var(--space-16));
+  max-height: calc(100vh - 160px);
+  margin: 120px auto auto;
+}
+.card-modal:focus {
+  outline: none;
+}
+.card-modal:not([open]) {
+  display: none;
+}
+.card-modal::backdrop {
+  background: var(--color-backdrop);
+}
+
+/* 右下に積むもの（Notices.tsx） */
+.card-notices {
+  position: fixed;
+  right: var(--space-16);
+  bottom: var(--space-16);
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
+  width: 400px;
+  max-width: calc(100vw - 2 * var(--space-16));
+  max-height: calc(100vh - 2 * var(--space-16));
+  overflow-y: auto;
+}
+.card-notice {
+  box-shadow: var(--shadow-raised);
+}
+
+/* 窓（ModalCard）の 3 つの段。見出しと下の段は動かず、中身だけがスクロールする。
+   段の境目には、カードの縁と同じ色の 1px の線を引く（GitHub の窓と同じ） */
+.card-header {
+  flex: none;
+  padding: var(--space-12) var(--space-16);
+  border-bottom: 1px solid var(--card-divider);
+}
+.card-content {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+}
+/* 中に押せるものが無いと、ブラウザがスクロールの段そのものにフォーカスを置く（キーでスクロールできるように）。
+   段の全体を囲む枠は出さない（窓を開いただけで枠が見えてしまう） */
+.card-content:focus {
+  outline: none;
+}
+.card-footer {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: var(--space-12);
+  /* 間は下の段が持つ（見出しと同じ上下 12px・左右 16px）。中の部品は間を持たない */
+  padding: var(--space-12) var(--space-16);
+  border-top: 1px solid var(--card-divider);
+}
+.card-footer > .card-actions,
+.card-footer > .card-body {
+  padding: 0;
+  border-top: 0;
+}
+
+.card-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  /* 上下の間は中身が持つ（窓の見出しの線・下の段の線からの間も、これで決まる） */
+  padding: var(--space-12) var(--space-16);
+}
+.card-title {
+  margin: 0;
+  font-size: var(--text-title);
+  font-weight: var(--weight-strong);
+}
+.card-text {
+  margin: 0;
+  line-height: var(--leading-text);
+}
+.card-text code,
+.card-mono {
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+}
+.card-error {
+  margin: 0;
+  padding: var(--space-8) var(--space-10);
+  max-height: 160px;
+  overflow: auto;
+  border-radius: var(--radius-8);
+  background: var(--card-field-bg);
+  color: var(--card-warn);
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.card-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  color: var(--card-muted);
+  font-size: var(--text-caption);
+}
+.card-input {
+  box-sizing: border-box;
+  height: 40px;
+  padding: 0 var(--space-12);
+  border: 1px solid var(--card-field-border);
+  border-radius: var(--radius-8);
+  background: var(--card-field-bg);
+  color: var(--card-text);
+  font-size: var(--text-input);
+}
+.card-input:focus {
+  outline: 1px solid var(--state-focus-ring);
+  outline-offset: -1px;
+}
+.card-check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  color: var(--card-muted);
+  font-size: var(--text-caption);
+}
+.card-check input {
+  accent-color: var(--card-accent);
+}
+
+/* 一覧の見出し（「ローカルと ~/.ssh/config から」）と行 */
+.card-section {
+  padding: var(--space-4) var(--space-16);
+  color: var(--card-muted);
+  font-size: var(--text-label);
+  font-weight: var(--weight-strong);
+  letter-spacing: 0.06em;
+}
+.card-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-height: 0;
+  margin: 0;
+  padding: var(--space-8);
+  overflow-y: auto;
+  /* 選んだ行の枠（outline 1px）は行の外に描く。scrollIntoView は行を入れ物の端いっぱいに寄せて枠を切るので、枠の分を空ける */
+  scroll-padding: var(--space-4) 0;
+  list-style: none;
+}
+.card-row {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: var(--space-10);
+  width: 100%;
+  padding: var(--space-10) var(--space-8);
+  border: 0;
+  border-radius: var(--radius-8);
+  background: transparent;
+  color: var(--card-text);
+  text-align: left;
+  cursor: pointer;
+}
+.card-row:hover {
+  background: var(--card-row-active);
+}
+.card-row[aria-selected="true"] {
+  background: var(--state-selected-bg);
+  outline: 1px solid var(--state-selected-outline);
+  font-weight: var(--weight-strong);
+}
+.card-row-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.card-row-state {
+  flex: none;
+  color: var(--card-muted);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-regular);
+}
+.card-empty {
+  margin: 0;
+  padding: var(--space-10) var(--space-8);
+  color: var(--card-muted);
+}
+
+/* 状態の丸（左の一覧の見出しと同じ）。接続中・再接続中は塗り、未接続は枠だけ。
+   接続の状態を表す。フォーカス・選択・マシンの色とは別の意味（docs/design/design-system.md の「状態」） */
+.state-dot {
+  flex: none;
+  box-sizing: border-box;
+  width: 8px;
+  height: 8px;
+  border-radius: 4px;
+  border: 1px solid var(--connection-down);
+}
+.state-dot[data-health="up"] {
+  border: 0;
+  background: var(--connection-up);
+}
+.state-dot[data-health="pending"] {
+  border: 0;
+  background: var(--connection-pending);
+}
+
+/* 下のボタン（Button.tsx）の並び（右寄せ。狭いと折り返す） */
+.card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-10);
+  padding: var(--space-12) var(--space-16) var(--space-16);
+  border-top: 1px solid var(--card-divider);
+}
+.card-body + .card-actions {
+  border-top: 0;
+  padding-top: 0;
+}
+.card-row:focus-visible {
+  outline: var(--state-focus-ring-width) solid var(--state-focus-ring);
+  outline-offset: var(--state-focus-ring-offset);
+}
+
+/* 入力欄の上の長い問い（ssh の質問）は、ラベルの小さい字ではなく本文の字で出す */
+.card-field > .card-text {
+  color: var(--card-text);
+  font-size: var(--text-body);
+}
+
+/* 設定ファイルの間違いの画面（ConfigError.tsx）。窓いっぱいに 1 枚のカードだけを出す */
+.config-error {
+  box-sizing: border-box;
+  display: flex;
+  height: 100%;
+  overflow-y: auto;
+  padding: 120px var(--space-16) var(--space-16);
+  justify-content: center;
+  align-items: flex-start;
+  background: var(--color-bg);
+}
+.config-error-card {
+  width: 560px;
+  max-width: 100%;
+}
+
+/* クリップボードの履歴の窓（ClipboardHistoryDialog.tsx） */
+.history-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-12);
+}
+.history-close {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-6);
+  background: transparent;
+  color: var(--card-muted);
+  cursor: pointer;
+}
+.history-close:hover {
+  background: var(--card-row-active);
+  color: var(--card-text);
+}
+.history-close:focus-visible {
+  outline: var(--state-focus-ring-width) solid var(--state-focus-ring);
+}
+.history-copied {
+  color: var(--card-accent);
+  font-weight: var(--weight-strong);
+}
+.history-rows {
+  max-height: 50vh;
+}
+/* 履歴の行はコピーした字そのもの。ターミナルからコピーした Nerd Font の字が豆腐にならないよう、ターミナルと同じ等幅の並びで出す */
+.history-rows .card-row-name {
+  font-family: var(--font-mono);
+}
+.history-empty {
+  padding: var(--space-10) var(--space-16) var(--space-12);
+}
+
+/* kisui-terminal の外から開く履歴の窓（ui/utilities/clipboard/page.tsx）。窓いっぱいに出し、一覧が残りの高さを使う */
+.history-popup {
+  position: fixed;
+  inset: 0;
+}
+.history-popup .history-rows {
+  flex: 1;
+  max-height: none;
+}
+/* 一覧が空でも、下の段（基本操作のヒント）は窓の下の端に置く */
+.history-popup .card-footer {
+  margin-top: auto;
+}
+
+/* マシンのダイアログ（MachineDialog.tsx）。行は card-row を使い、キーはダイアログ全体で受ける */
+.machine-dialog {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.machine-dialog .card-rows:focus {
+  outline: none;
+}
+.machine-row {
+  cursor: default;
+}
+.machine-row-mark {
+  margin-left: var(--space-6);
+  color: var(--card-muted);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-regular);
+}
+.machine-row-count {
+  min-width: 9em;
+  text-align: right;
+}

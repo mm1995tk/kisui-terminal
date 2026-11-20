@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/mm1995tk/kisui-terminal/internal/ctl"
+	"github.com/mm1995tk/kisui-terminal/internal/db/dbtest"
 	"github.com/mm1995tk/kisui-terminal/internal/term"
 	"github.com/mm1995tk/kisui-terminal/rpc"
 )
@@ -38,6 +39,7 @@ func TestMain(m *testing.M) {
 		os.Setenv("XDG_CACHE_HOME", cache)
 	}
 	code := m.Run()
+	dbtest.Stop() // db_test.go が立てた DB のサーバー
 	if cache != "" {
 		os.RemoveAll(cache)
 	}

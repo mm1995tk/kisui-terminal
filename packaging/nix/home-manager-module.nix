@@ -1,6 +1,6 @@
 # home-manager module: programs.kisui-terminal
 #
-# 設定（[server]・[[gui.machines]]・ui-language）は kisui-terminal 自身の設定のフォルダ
+# 設定（[server]・[[gui.machines]]・[[db.connections]]・ui-language）は kisui-terminal 自身の設定のフォルダ
 # （~/.config/kisui-terminal/。nightly のパッケージなら kisui-terminal-nightly/）にある。
 # programs.kisui-terminal.settings に書くと、そのフォルダの config.toml を（読み取り専用で）作る。
 # programs.kisui-terminal.package = null にすると、パッケージは入れず設定だけを置く（アプリを .dmg など別の方法で入れたとき用）。

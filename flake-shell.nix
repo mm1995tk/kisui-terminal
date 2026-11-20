@@ -19,6 +19,9 @@ in
       pkgs.gomod2nix
       pkgs.gopls
       pkgs.git
+      # DB に接続するテスト（internal/db/dbtest）が手元に立てるサーバー。無ければ、そのテストは飛ばされる
+      pkgs.postgresql
+      pkgs.mysql84
       # Web 画面（package.json はリポジトリの根）
       pkgs.nodejs_26
       # 殻（app/src-tauri。Cargo.toml の workspace はリポジトリの根）

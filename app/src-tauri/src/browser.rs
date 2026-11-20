@@ -2,7 +2,7 @@
 //!
 //! タブ 1 つにつき、メイン窓の上に重ねる子の webview を 1 つ持つ（OS の WebView。macOS は WKWebView、Linux は WebKitGTK）。
 //! 外のサイトの多くは `iframe` に出せない（X-Frame-Options・CSP の frame-ancestors）ので、`<iframe>` は使わない。
-//! どこに重ねるか・見せるか隠すかは画面（`app/src/browser/BrowserArea.tsx`）が決め、ここはその通りに置く。
+//! どこに重ねるか・見せるか隠すかは画面（`app/src/ui/main-window/content/browser/BrowserArea.tsx`）が決め、ここはその通りに置く。
 //!
 //! 外のページに Tauri の API を渡さない:
 //! - 子の webview は `WebviewUrl::External` で作る。外の URL からの IPC は、`remote` を持つ capability が無い限り tauri が断る。
@@ -30,9 +30,12 @@
 //! `browser/` に置く。macOS は WKWebView の既定の置き場（`~/Library/WebKit/<アプリの id>/` など。場所は OS が決める）を使う。
 //! シークレットのタブ（#204）は、タブごとに別の、ディスクに残さないデータを使う（tauri の `incognito`）。パスキーのスクリプトは入れない。
 //! 開いていたタブ（ワークスペースと URL）は、データのフォルダの `browser-tabs.json` に覚える（画面が書く。シークレットのタブは書かない）。
+//! macOS では、全部のタブ（シークレットのタブ・新しい窓のタブも）を、手元で動かす中継型のプロキシに通す（browser_proxy.rs。#294）。
+//! 初めてのタブを開く前に用意し（`browser_open`。証明書の信頼を聞くことがある）、データストアに当てる。
 //!
 //! #205：ページの表示の大きさ（`browser_zoom`。タブごとに、覚えるタブと一緒に覚える）、ページ内検索（`browser_find`）、
 //! DevTools（`browser_devtools`）。ブックマークは bookmarks.rs。
+//! #276：パスキーを待たずに、今のタブのサイトを外のブラウザで開いてログインを待つ（`browser_passkey_login`。passkey.rs）。
 //! ページの favicon（サイドバーのタブの行に出す。#237）は favicon.rs。
 
 use std::collections::HashMap;
@@ -215,6 +218,10 @@ enum Data {
     Shared,
     /// このタブだけの、ディスクに残さないデータ（シークレットのタブ）
     Incognito,
+    /// macOS で、内蔵ブラウザのプロキシ（browser_proxy.rs。#294）を使うシークレットのタブ。
+    /// このタブだけの、ディスクに残さないデータストアに、プロキシを当てた WebView の設定
+    #[cfg(target_os = "macos")]
+    ProxiedIncognito(crate::browser_proxy::PrivateConfiguration),
     /// ページが開いた新しい窓。開いた元の webview と同じデータ（WebKit が決める）。
     /// incognito は元のタブがシークレットか（パスキーのスクリプトを入れるかを決める）
     Opener {
@@ -229,6 +236,8 @@ impl Data {
         match self {
             Data::Shared => false,
             Data::Incognito => true,
+            #[cfg(target_os = "macos")]
+            Data::ProxiedIncognito(_) => true,
             Data::Opener { incognito, .. } => *incognito,
         }
     }
@@ -674,6 +683,8 @@ fn with_data(
             builder
         }
         Data::Incognito => builder.incognito(true),
+        #[cfg(target_os = "macos")]
+        Data::ProxiedIncognito(c) => builder.with_webview_configuration(c.0),
         // 開いた元の webview と同じデータ・同じ処理の中で作る（WebKit が求める）
         Data::Opener { features, .. } => {
             #[cfg(target_os = "linux")]
@@ -714,12 +725,14 @@ fn tab_builder(
 
 /// タブを作る（子の webview）。位置と大きさはメイン窓の左上からの論理ピクセル。作るだけで、キーは向けない（`browser_focus`）。
 /// `keys` はページにキーがある間も受けるキー（リーダーと近道）。`incognito` はシークレットのタブ（#204）。
-#[tauri::command(async)]
+/// macOS では、初めてのタブの前に内蔵ブラウザのプロキシを用意する（browser_proxy.rs。#294。証明書の信頼を聞くことがあり、
+/// 答えを待つ）。
+#[tauri::command]
 #[allow(clippy::too_many_arguments)]
-pub fn browser_open(
+pub async fn browser_open(
     app: AppHandle,
     webview: Webview,
-    tabs: State<Tabs>,
+    tabs: State<'_, Tabs>,
     tab: String,
     url: String,
     keys: Vec<KeySpec>,
@@ -737,17 +750,13 @@ pub fn browser_open(
         return Err("invalid keys".into());
     }
     let first = parse_url(&url)?;
+    let data = tab_data(&app, incognito).await;
     let win = app
         .get_window("main")
         .ok_or_else(|| "no main window".to_string())?;
     if app.get_webview(&label(&tab)).is_some() {
         return Err("the tab is already open".into());
     }
-    let data = if incognito {
-        Data::Incognito
-    } else {
-        Data::Shared
-    };
     let nonce = new_nonce()?;
     let builder = tab_builder(&app, &tab, first, nonce.clone(), &keys, data);
     let v = win
@@ -757,6 +766,7 @@ pub fn browser_open(
             LogicalSize::new(w.max(1.0), h.max(1.0)),
         )
         .map_err(|e| e.to_string())?;
+    align_to_main(&app, &v, x, y, w.max(1.0), h.max(1.0));
     tabs.set(
         &tab,
         TabInfo {
@@ -768,6 +778,35 @@ pub fn browser_open(
     );
     watch_native(&app, &v, &tab);
     Ok(())
+}
+
+/// 新しいタブ（ページが開いた新しい窓でないもの）のデータの置き場。
+/// macOS では、内蔵ブラウザのプロキシを用意する（共有のデータストアには、用意したときに当ててある）。
+/// シークレットのタブは、プロキシを当てたディスクに残さないデータストアを作る。プロキシが使えなければ、今までどおり。
+#[cfg(target_os = "macos")]
+async fn tab_data(app: &AppHandle, incognito: bool) -> Data {
+    let ports = crate::browser_proxy::ready(app).await;
+    if !incognito {
+        return Data::Shared;
+    }
+    if let Some(p) = ports {
+        match crate::browser_proxy::private_configuration(app, p).await {
+            Some(c) => return Data::ProxiedIncognito(c),
+            None => eprintln!(
+                "kisui-terminal: cannot set the proxy on a private tab; it goes without the proxy"
+            ),
+        }
+    }
+    Data::Incognito
+}
+
+#[cfg(not(target_os = "macos"))]
+async fn tab_data(_: &AppHandle, incognito: bool) -> Data {
+    if incognito {
+        Data::Incognito
+    } else {
+        Data::Shared
+    }
 }
 
 /// タブの位置と大きさを合わせる（論理ピクセル）。
@@ -786,7 +825,106 @@ pub fn browser_bounds(
     v.set_position(LogicalPosition::new(x, y))
         .map_err(|e| e.to_string())?;
     v.set_size(LogicalSize::new(w.max(1.0), h.max(1.0)))
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+    align_to_main(&app, &v, x, y, w.max(1.0), h.max(1.0));
+    Ok(())
+}
+
+/// 子の webview の枠を、メインの webview（画面）の枠から測り直して合わせる（macOS だけ。ほかの OS では何もしない）。
+///
+/// `x`・`y`・`w`・`h` は、画面（メインの webview）の左上からの論理ピクセル（画面の DOM で測った場所）。
+/// wry の子の webview は、置く場所を「親の view の高さ」から数える（`window_position`）ので、親の view の枠が画面の枠と
+/// 食い違うと（フルスクリーンでない窓で、タイトルバーの高さだけ）、ページが上にずれて URL バーを覆う（#326）。
+/// そこで、画面の枠を窓の座標に直し、そこから数え直した場所を、子の view の親の座標に直して当てる。
+/// どの view が親でも、画面と同じ場所に出る。メインの webview や子の view が見つからないときは、wry が置いたままにする。
+#[cfg(target_os = "macos")]
+fn align_to_main(app: &AppHandle, child: &Webview, x: f64, y: f64, w: f64, h: f64) {
+    use objc2_app_kit::NSView;
+    use objc2_foundation::{NSPoint, NSRect, NSSize};
+
+    let Some(main) = app.get_webview("main") else {
+        return;
+    };
+    // 画面の枠（窓の座標。原点は左下）。メインスレッドの閉包から、次の閉包へ渡す（閉包はメインスレッドで順に動く）
+    let main_rect: Arc<Mutex<Option<WindowRect>>> = Arc::new(Mutex::new(None));
+    let slot = main_rect.clone();
+    let r = main.with_webview(move |pv| {
+        let Some((mv, _)) = wk_webview(&pv) else {
+            return;
+        };
+        let view: &NSView = mv;
+        // SAFETY: メインスレッドで、生きている view の親を読むだけ
+        let Some(parent) = (unsafe { view.superview() }) else {
+            return;
+        };
+        let f = parent.convertRect_toView(view.frame(), None);
+        *slot.lock().unwrap() = Some(WindowRect {
+            x: f.origin.x,
+            y: f.origin.y,
+            w: f.size.width,
+            h: f.size.height,
+        });
+    });
+    if r.is_err() {
+        return;
+    }
+    let r = child.with_webview(move |pv| {
+        let Some((cv, _)) = wk_webview(&pv) else {
+            return;
+        };
+        let Some(m) = *main_rect.lock().unwrap() else {
+            return;
+        };
+        let view: &NSView = cv;
+        // SAFETY: メインスレッドで、生きている view の親を読むだけ
+        let Some(parent) = (unsafe { view.superview() }) else {
+            return;
+        };
+        let r = want_in_window(m, x, y, w, h);
+        let want = parent.convertRect_fromView(
+            NSRect::new(NSPoint::new(r.x, r.y), NSSize::new(r.w, r.h)),
+            None,
+        );
+        let now = view.frame();
+        // Mac で確かめる手がかり。補正が毎回要る状態でも、ログが出続けないよう、最初の 1 回だけ出す
+        static LOGGED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+        if ((now.origin.y - want.origin.y).abs() > 0.5 || (now.origin.x - want.origin.x).abs() > 0.5)
+            && !LOGGED.swap(true, std::sync::atomic::Ordering::Relaxed)
+        {
+            eprintln!(
+                "kisui-terminal: the page frame moved from ({}, {}) to ({}, {}) to match the screen",
+                now.origin.x, now.origin.y, want.origin.x, want.origin.y
+            );
+        }
+        view.setFrame(want);
+    });
+    if let Err(e) = r {
+        eprintln!("kisui-terminal: cannot align the page: {e}");
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn align_to_main(_: &AppHandle, _: &Webview, _: f64, _: f64, _: f64, _: f64) {}
+
+/// 窓の座標（原点は窓の左下、y は上向き）での枠。`x`・`y` は枠の左下。
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct WindowRect {
+    x: f64,
+    y: f64,
+    w: f64,
+    h: f64,
+}
+
+/// 画面の枠 `main` の左上から `(x, y)` 下がった所（画面の DOM で測った場所）に、`w`×`h` の枠を置いたときの、窓の座標での枠。
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+fn want_in_window(main: WindowRect, x: f64, y: f64, w: f64, h: f64) -> WindowRect {
+    WindowRect {
+        x: main.x + x,
+        y: main.y + main.h - y - h,
+        w,
+        h,
+    }
 }
 
 /// タブを見せる・隠す。隠すときは、キーをメインの webview に戻す（隠れたページにキーが残らないように）。
@@ -926,7 +1064,7 @@ pub fn browser_close(
     Ok(())
 }
 
-/// ページの表示の大きさの範囲（倍率。#205）。画面が選ぶ段（app/src/scale.ts の SCALES）より広く受ける。
+/// ページの表示の大きさの範囲（倍率。#205）。画面が選ぶ段（app/src/features/scale/scale.ts の SCALES）より広く受ける。
 const MIN_ZOOM: f64 = 0.25;
 const MAX_ZOOM: f64 = 5.0;
 
@@ -1004,12 +1142,110 @@ pub fn browser_find(
     Ok(r.trim() == "true")
 }
 
+/// パスキーを待たずに、今のタブのサイトを外のブラウザで開き、そのサイトのログインを待つ（#276。リーダーの `o s`）。
+/// 答えは `opened`（開いた。同じタブから続けて押したときは開き直さない）・`no-sites`（`passkey_sites` が無い）・
+/// `incognito`（シークレットのタブ）・`not-allowed`（今のページが許可サイトのものでない）。決めるのは passkey.rs の `start`。
+#[tauri::command]
+pub fn browser_passkey_login(
+    app: AppHandle,
+    webview: Webview,
+    tabs: State<Tabs>,
+    tab: String,
+) -> Result<String, String> {
+    from_main(&webview)?;
+    let v = child(&app, &tab)?;
+    let info = tabs
+        .get(&tab)
+        .ok_or_else(|| "no such browser tab".to_string())?;
+    // 外のブラウザで開く URL は、画面から受け取らず、タブの今の URL（一番上のフレーム）を読む
+    let page_url = v.url().map_err(|e| e.to_string())?;
+    let p = app.try_state::<Arc<Passkey>>();
+    let p = p.as_deref().map(Arc::as_ref);
+    let r = passkey::start(p, info.incognito, &tab, &page_url, Instant::now());
+    if let (passkey::Start::Opened(Some(to)), Some(p)) = (&r, p) {
+        passkey::open_external(p.browser(), to);
+    }
+    Ok(r.code().to_string())
+}
+
 /// タブのページの DevTools（Web Inspector）を開く（#205。リーダーの `o i`）。
+/// Linux（WebKitGTK）は、ページの webview の中にくっつく（ページの領域の外には出ない）。macOS は別の窓で開く（`open_devtools`）。
 #[tauri::command]
 pub fn browser_devtools(app: AppHandle, webview: Webview, tab: String) -> Result<(), String> {
     from_main(&webview)?;
-    child(&app, &tab)?.open_devtools();
+    open_devtools(&child(&app, &tab)?);
     Ok(())
+}
+
+#[cfg(not(target_os = "macos"))]
+fn open_devtools(v: &Webview) {
+    v.open_devtools();
+}
+
+/// macOS：`with_webview` の閉包に渡る webview から、ページの WKWebView と、メインスレッドの印を取り出す。
+/// 閉包の外（メインスレッドでない所）や、WKWebView が無いときは None。返す WKWebView は `pv` が生きている間だけ使う。
+#[cfg(target_os = "macos")]
+pub(crate) fn wk_webview(
+    pv: &tauri::webview::PlatformWebview,
+) -> Option<(&objc2_web_kit::WKWebView, objc2::MainThreadMarker)> {
+    // with_webview の中はメインスレッド
+    let mtm = objc2::MainThreadMarker::new()?;
+    let ptr = pv.inner() as *const objc2_web_kit::WKWebView;
+    if ptr.is_null() {
+        return None;
+    }
+    // SAFETY: tauri の PlatformWebview::inner は、生きている WKWebView を指す（with_webview の閉包の間。返す参照の
+    // 寿命は pv に縛る）
+    Some((unsafe { &*ptr }, mtm))
+}
+
+/// macOS：DevTools を別の窓で開き、窓にくっつけさせない。
+///
+/// WKWebView の Web Inspector は、くっつける先の view（`_inspectorAttachmentView`。既定はページの WKWebView 自身）の
+/// 「親の view」の大きさを基準に、くっつける先の枠を組み替える（WebKit の WebInspectorUIProxyMac.mm の
+/// `inspectedViewFrameDidChange`。下にくっつけるときは、横は親の幅いっぱい、縦は親の下から Inspector の高さを除いた所）。
+/// タブのページの WKWebView は、kisui-terminal の画面（メインの webview）と同じく窓の content view の子なので（wry の子の
+/// webview）、ページの枠が窓の幅いっぱいに広がってサイドバーにかぶさり、Inspector は窓の下に置かれる。
+/// そこで、くっつける先を、窓に置かない隠した view に替える。隠した view にはくっつけられない（`platformCanAttach` が断る）
+/// ので、Inspector は必ず別の窓で開き、Inspector の「くっつける」ボタンでもくっつかない。ページの枠には触らない。
+#[cfg(target_os = "macos")]
+fn open_devtools(v: &Webview) {
+    let r = v.with_webview(|pv| {
+        use objc2::rc::Retained;
+        use objc2::runtime::{AnyObject, NSObjectProtocol};
+        use objc2::{msg_send, sel};
+        use objc2_app_kit::NSView;
+
+        thread_local! {
+            /// くっつける先にする、窓に置かない隠した view（すべてのタブで 1 つ。アプリが終わるまで持つ）
+            static NOWHERE: std::cell::OnceCell<Retained<NSView>> = const { std::cell::OnceCell::new() };
+        }
+
+        let Some((w, mtm)) = wk_webview(&pv) else {
+            return;
+        };
+        // `_setInspectorAttachmentView:` は Apple の非公開の API（macOS 10.13.4 から）。無ければ替えずに開く
+        if w.respondsToSelector(sel!(_setInspectorAttachmentView:)) {
+            NOWHERE.with(|n| {
+                let nowhere = n.get_or_init(|| {
+                    let view = NSView::new(mtm);
+                    view.setHidden(true);
+                    view
+                });
+                // SAFETY: WKWebView の非公開の setter。引数は生きている NSView（こちらもアプリが終わるまで持つ）
+                let () = unsafe { msg_send![w, _setInspectorAttachmentView: &**nowhere] };
+            });
+        }
+        // wry の open_devtools と同じ（`_inspector` の `show`）。くっつける先を替えてから開くよう、同じ閉包で呼ぶ
+        // SAFETY: `_inspector` は _WKInspector を返す非公開の API（wry も同じものを使う）
+        let inspector: Option<Retained<AnyObject>> = unsafe { msg_send![w, _inspector] };
+        if let Some(i) = inspector {
+            let () = unsafe { msg_send![&i, show] };
+        }
+    });
+    if let Err(e) = r {
+        eprintln!("kisui-terminal: cannot open DevTools: {e}");
+    }
 }
 
 fn tabs_path(app: &AppHandle) -> Result<PathBuf, String> {
@@ -1101,6 +1337,24 @@ pub fn browser_tabs_save(app: AppHandle, webview: Webview, data: StoredTabs) -> 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn rect(x: f64, y: f64, w: f64, h: f64) -> WindowRect {
+        WindowRect { x, y, w, h }
+    }
+
+    #[test]
+    fn want_in_window_counts_down_from_the_top_of_the_screen() {
+        // 画面が窓の下から 0・高さ 600 のとき、上から 40 下がった高さ 100 の枠は、下から 460 の所
+        assert_eq!(
+            want_in_window(rect(0.0, 0.0, 800.0, 600.0), 10.0, 40.0, 300.0, 100.0),
+            rect(10.0, 460.0, 300.0, 100.0)
+        );
+        // 画面が窓の下から 33 浮いていれば、それに従う
+        assert_eq!(
+            want_in_window(rect(0.0, 33.0, 800.0, 600.0), 0.0, 0.0, 800.0, 600.0),
+            rect(0.0, 33.0, 800.0, 600.0)
+        );
+    }
 
     #[test]
     fn tab_ids() {

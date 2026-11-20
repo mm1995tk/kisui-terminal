@@ -6,3 +6,4 @@ result
 /app/src-tauri/gen
 /app/src-tauri/binaries
 /extension/dist
+/storybook-static

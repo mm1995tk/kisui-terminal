@@ -1,5 +1,20 @@
 {
   "nodes": {
+    "crane": {
+      "locked": {
+        "lastModified": 1794870543,
+        "narHash": "sha256-RQc417nQURjHvaUkVFLyvaQ6Px18G7ZHjRF9bYUkScg=",
+        "owner": "ipetkov",
+        "repo": "crane",
+        "rev": "dbd1288af7a7ec997cb912c034b1a1962938173e",
+        "type": "github"
+      },
+      "original": {
+        "owner": "ipetkov",
+        "repo": "crane",
+        "type": "github"
+      }
+    },
     "flake-utils": {
       "inputs": {
         "systems": "systems"
@@ -43,11 +58,11 @@
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1794386569,
-        "narHash": "sha256-x9sADJvoVG0L6RejZB+/BB4YiGZFBZrfTlhF4uBq1tQ=",
+        "lastModified": 1794890597,
+        "narHash": "sha256-lME2lHoDHAaSHP3/okgiVoJ0icVEvsQH8LeU3We7tcc=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "d4f25a3e562008648d45bcf2d70bcc7422cad84e",
+        "rev": "04906337b6d53e8bb0eaf0470ae9f070a4d4eb55",
         "type": "github"
       },
       "original": {
@@ -75,6 +90,7 @@
     },
     "root": {
       "inputs": {
+        "crane": "crane",
         "flake-utils": "flake-utils",
         "gomod2nix": "gomod2nix",
         "nixpkgs": "nixpkgs",
@@ -99,11 +115,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1794575570,
-        "narHash": "sha256-21HlGGahai6qAJpIEbpTyMaLoHDmgTPG72aT4VHx4rA=",
+        "lastModified": 1794857048,
+        "narHash": "sha256-+eKoGezUSCRCkAqHBzoDgvPXie833mNvfn9lJoIhfr8=",
         "owner": "mm1995tk",
         "repo": "shijimi-editor",
-        "rev": "3652e2f5fb5b73e6027de8d25d21e597f3a243f4",
+        "rev": "87f9c6ae787448aa79c60b0178cd41dc56afe988",
         "type": "github"
       },
       "original": {
@@ -129,11 +145,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1794681810,
-        "narHash": "sha256-+NXGE1qzQOrKs+ISZu/q2CBB8EAox+zY/IkwSvJ4q1c=",
+        "lastModified": 1794969865,
+        "narHash": "sha256-QoJrAO/Ed8YcuZUmTJWxm82e6ThfZS6priSAHUWyaRk=",
         "owner": "mm1995tk",
         "repo": "shijimi-editor",
-        "rev": "071eae20e6e695f5b722255a5471aba960f3316a",
+        "rev": "273f62b3203a4b511a78049ba689a8fbf89c5223",
         "type": "github"
       },
       "original": {

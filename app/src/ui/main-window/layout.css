@@ -1,0 +1,95 @@
+/* 画面全体の割り付け。左に一覧（sidebar.css）、右に残り。
+   右は全部ターミナル（F1。ui/main-window/content/terminal/terminal.css）。編集はプライマリの欄の中の shj が受け持つ。
+   接続の窓は sessions/、知らせは notifications/（カードの決まりは ui/components/card.css）。 */
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+/* ページ全体はスクロールさせない。スクロールはターミナル・ファイルツリー・CHANGES・窓など、中の要素だけで起こす。
+   overscroll-behavior は macOS の WebView の弾むスクロール（ラバーバンド）でページ全体が動くのも止める */
+html,
+body {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+/* ページ全体の土台。字と色はモックに合わせる（値は ui/styles/tokens.css の役割。字は fonts.ts で同梱したもの） */
+:root {
+  color-scheme: dark;
+}
+
+body {
+  font: var(--text-body) var(--font-ui);
+  color: var(--color-text);
+  background: var(--color-bg);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+a {
+  color: var(--gh-accent-text);
+}
+
+.app {
+  position: relative;
+  display: flex;
+  height: 100%;
+  /* サイドバーの幅。ドラッグ・リサイズモード（panes.ts）で変えた値は --sidebar-w に入る */
+  --sidebar-w-eff: clamp(200px, var(--sidebar-w, 300px), min(640px, 50vw));
+  /* サイドバーとの境目のつまみ（.resizer）の幅。サイドバーと右の欄の間に隙間は空けず、つまみは境目の真ん中に置く。
+     右の欄にかかる半分（2px）は端末の内側の余白（terminal.css の 4px）の上だけで、字にはかからない */
+  --resizer-w: 4px;
+}
+
+.main {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ターミナル（F1。ui/main-window/content/terminal/terminal.css）は右の欄いっぱいに広げる */
+.main > .terminal {
+  flex: 1;
+  min-height: 0;
+  border-top: none;
+}
+
+/* ブロックの境界（#526。panes.ts）。当たりは --resizer-w で、見える線は引かない（ブロックの縁の線のまま）。
+   ドラッグ中とリサイズモードで動かす境界は、マシンの色（--machine-color。layout.tsx が .app に入れる）で光らせる。
+   サイドバーとの境界は .app の左から数えて置く */
+.resizer {
+  position: absolute;
+  z-index: 5;
+  background: transparent;
+  touch-action: none;
+}
+
+.resizer[data-axis="x"] {
+  top: 0;
+  bottom: 0;
+  left: calc(var(--sidebar-w-eff) - var(--resizer-w) / 2);
+  width: var(--resizer-w);
+  cursor: col-resize;
+}
+
+/* サイドバーを閉じている間（リーダーの b）は、サイドバーと境界のつまみを出さず、右の欄を左端まで広げる。
+   display: none でも DOM には残るので、ツリーの開閉はそのまま（スクロールの位置は 0 に戻るので、paneResize.ts が開くときに戻す） */
+.app[data-sidebar="closed"] .sidebar-column,
+.app[data-sidebar="closed"] .resizer[data-border="sidebar"] {
+  display: none;
+}
+
+.resizer[data-lit] {
+  background: var(--machine-color, var(--gh-accent-text));
+}

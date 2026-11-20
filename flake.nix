@@ -4,6 +4,7 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
+    crane.url = "github:ipetkov/crane";
     gomod2nix.url = "github:nix-community/gomod2nix";
     gomod2nix.inputs.nixpkgs.follows = "nixpkgs";
     gomod2nix.inputs.flake-utils.follows = "flake-utils";
@@ -32,6 +33,7 @@
       self,
       nixpkgs,
       flake-utils,
+      crane,
       gomod2nix,
       treefmt-nix,
       shijimi-editor,
@@ -107,6 +109,8 @@
                 ./Cargo.lock
                 ./app/src-tauri
                 ./emulator
+                # workspace の member。wasm には使わないが、cargo は member の Cargo.toml を読む
+                ./masque-proxy
               ];
             };
             cargoDeps = pkgsX86.rustPlatform.importCargoLock { lockFile = ./Cargo.lock; };
@@ -133,12 +137,17 @@
           };
           # 外のブラウザの拡張機能（パスキーのログインの Cookie を送る。extension/）。ストアに上げる zip も作る
           extensionDrv = import ./packaging/nix/extension.nix { inherit pkgs; };
+          # 内蔵ブラウザに使わせる中継型のプロキシ（masque-proxy/）。cargo test も回る
+          masqueProxyDrv = import ./packaging/nix/masque-proxy.nix { inherit pkgs; };
           kisuiDrv = mkKisui { };
           kisuiNightlyDrv = mkKisui { channel = "nightly"; };
 
+          # Rust の依存を分けてビルドする（通常版と nightly 版で同じ依存の成果物を使う）
+          craneLib = crane.mkLib pkgs;
           # kisui-terminal（GUI）。Nix で作る版に自動更新は無い（nix flake update で進める）
           guiDrv = import ./packaging/nix/kisui-terminal.nix {
             inherit pkgs version;
+            inherit craneLib;
             kisui = "${kisuiDrv}/bin/kisui";
             shj = "${shj}/bin/shj";
           };
@@ -146,6 +155,7 @@
           guiNightlyDrv = import ./packaging/nix/kisui-terminal.nix {
             inherit pkgs;
             version = nightlyVersion;
+            inherit craneLib;
             kisui = "${kisuiNightlyDrv}/bin/kisui";
             shj = "${shjNightly}/bin/shj-nightly";
             channel = "nightly";
@@ -224,6 +234,8 @@
 
             # GUI の殻（cargo test も回る）と Web 画面のテスト（npm test）
             kisui-terminal = guiDrv;
+            # 中継型のプロキシのテスト（手元に立てたサーバーに、プロキシを通して TCP と UDP でつなぐ）
+            masque-proxy = masqueProxyDrv;
             web-test = guiDrv.web.overrideAttrs (_: {
               pname = "kisui-terminal-web-test";
               doCheck = true;
@@ -251,15 +263,20 @@
             go-test = kisuiDrv.overrideAttrs (_: {
               pname = "kisui-go-test";
               # bashInteractive は readline 付きの bash（シェルの包みの幅のテストが使う）。zsh は包みの PTY のテストが使う
+              # postgresql と mysql84 は、DB に接続するテスト（internal/db/dbtest）が手元に立てるサーバー
               nativeCheckInputs = [
                 pkgs.git
                 pkgs.bashInteractive
                 pkgs.zsh
+                pkgs.postgresql
+                pkgs.mysql84
               ];
               checkPhase = ''
                 runHook preCheck
                 export HOME="$TMPDIR/home"
                 mkdir -p "$HOME"
+                # DB のサーバーを立てられないときに、テストを飛ばさずに落とす
+                export KISUI_TEST_DB=1
                 go test ./...
                 runHook postCheck
               '';
