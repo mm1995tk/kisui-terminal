@@ -61,10 +61,56 @@ test("combine は両方の受け口の答えをまとめ、待っているサイ
   assert.equal(r.waiting.has("evil.example"), false);
 });
 
-test("matchPatterns は https のそのサイトだけ", () => {
+test("matchPatterns は https のそのサイトだけ。.google.com はサブドメインも", () => {
   assert.deepEqual(
-    [...K.matchPatterns(["github.com"])],
-    ["https://github.com/*"],
+    [...K.matchPatterns(["github.com", ".google.com"])],
+    ["https://github.com/*", "https://*.google.com/*"],
+  );
+});
+
+test("inSite と siteOf は kisui-terminal の passkey.rs と同じ決まり", () => {
+  assert.equal(K.inSite("github.com", "github.com"), true);
+  assert.equal(K.inSite("gist.github.com", "github.com"), false);
+  assert.equal(K.inSite("google.com", ".google.com"), true);
+  assert.equal(K.inSite("myaccount.google.com", ".google.com"), true);
+  assert.equal(K.inSite("a.b.google.com", ".google.com"), true);
+  assert.equal(K.inSite("evilgoogle.com", ".google.com"), false);
+  assert.equal(K.inSite("google.com.evil.example", ".google.com"), false);
+  const sites = [".google.com", ".mail.google.com", "accounts.google.com"];
+  // host と完全に同じもの、次に細かいもの
+  assert.equal(K.siteOf("accounts.google.com", sites), "accounts.google.com");
+  assert.equal(K.siteOf("x.mail.google.com", sites), ".mail.google.com");
+  assert.equal(K.siteOf("myaccount.google.com", sites), ".google.com");
+  assert.equal(K.siteOf("example.com", sites), null);
+  assert.equal(K.siteOf(null, sites), null);
+});
+
+test("waitingSiteOf は当たる項目のうち待っているものを選ぶ（2 つの版の passkey_sites が違うとき）", () => {
+  // 普通の版が .google.com で待ち、nightly 版の設定に accounts.google.com がある
+  const sites = [".google.com", "accounts.google.com"];
+  const waiting = new Map([
+    [".google.com", { host: "h", url: "https://accounts.google.com/" }],
+  ]);
+  assert.equal(K.siteOf("accounts.google.com", sites), "accounts.google.com");
+  assert.equal(
+    K.waitingSiteOf("accounts.google.com", sites, waiting),
+    ".google.com",
+  );
+  assert.equal(K.waitingSiteOf("example.com", sites, waiting), null);
+  assert.equal(K.waitingSiteOf("accounts.google.com", sites, new Map()), null);
+  assert.deepEqual(
+    JSON.parse(
+      JSON.stringify(
+        K.openedByKisui({
+          url: "https://accounts.google.com/v3/signin",
+          createdAt: 0,
+          now: 1000,
+          sites,
+          waiting,
+        }),
+      ),
+    ),
+    { site: ".google.com", host: "h" },
   );
 });
 
@@ -93,6 +139,22 @@ test("appliesTo は kisui-terminal が受けるのと同じ決まり", () => {
     false,
   );
   assert.equal(K.appliesTo({ domain: ".com", hostOnly: false }, site), false);
+  // .google.com の書き方は、google.com とその下のドメインのもの
+  const g = ".google.com";
+  assert.equal(
+    K.appliesTo({ domain: ".google.com", hostOnly: false }, g),
+    true,
+  );
+  assert.equal(K.appliesTo({ domain: "google.com", hostOnly: true }, g), true);
+  assert.equal(
+    K.appliesTo({ domain: "myaccount.google.com", hostOnly: true }, g),
+    true,
+  );
+  assert.equal(
+    K.appliesTo({ domain: "evilgoogle.com", hostOnly: true }, g),
+    false,
+  );
+  assert.equal(K.appliesTo({ domain: ".com", hostOnly: false }, g), false);
 });
 
 test("pickCookies はサイトに送られるものを、重ねずに取り決めの形にする", () => {
@@ -197,7 +259,7 @@ test("openedByKisui はできたばかりのタブが待っているサイトを
   const waiting = new Map([
     ["github.com", { host: "h", url: "https://github.com/login" }],
   ]);
-  const base = { createdAt: 0, waiting };
+  const base = { createdAt: 0, sites: ["github.com"], waiting };
   assert.deepEqual(
     JSON.parse(
       JSON.stringify(
@@ -248,6 +310,8 @@ function event() {
 function fakeBrowser(opts: {
   sites: string[];
   waiting: { site: string; url: string }[];
+  // ブラウザにある Cookie（省くと github.com などのもの）
+  cookies?: any[];
   // kisui-terminal が動いていない（どの受け口も答えない）
   down?: boolean;
 }) {
@@ -259,7 +323,7 @@ function fakeBrowser(opts: {
   const tabs = new Map<number, any>();
   const registered: any[] = [];
   const injected: any[] = [];
-  const allCookies = [
+  const allCookies = opts.cookies ?? [
     {
       name: "user_session",
       value: "v",
@@ -315,7 +379,7 @@ function fakeBrowser(opts: {
         if (message.type === "sites")
           return {
             type: "sites",
-            version: 1,
+            version: 2,
             sites: opts.sites,
             waiting: opts.waiting,
           };
@@ -355,7 +419,7 @@ function fakeBrowser(opts: {
       getAll: async (d: any) => {
         cookieQueries.push(d);
         if (d.url)
-          return allCookies.filter((c) => c.domain === K.hostOf(d.url));
+          return allCookies.filter((c) => K.appliesTo(c, K.hostOf(d.url)));
         return allCookies.filter(
           (c) => c.domain === d.domain || c.domain.endsWith(`.${d.domain}`),
         );
@@ -571,6 +635,92 @@ test("手で戻るボタンは、許可していないサイトの Cookie を読
   assert.equal(b.cookieQueries.length, 0);
   assert.equal(b.native.filter((n) => n.message.type === "cookies").length, 0);
   assert.deepEqual(b.removed, []);
+  assert.equal(b.badges.at(-1).text, "!");
+});
+
+// .google.com の書き方（#279）。ログインの後に別のサブドメインへ移っても送れる
+const GOOGLE = {
+  sites: [".google.com"],
+  waiting: [
+    { site: ".google.com", url: "https://accounts.google.com/v3/signin" },
+  ],
+  cookies: [
+    {
+      name: "SID",
+      value: "s",
+      domain: ".google.com",
+      hostOnly: false,
+      path: "/",
+    },
+    {
+      name: "ACCOUNT",
+      value: "a",
+      domain: "myaccount.google.com",
+      hostOnly: true,
+      path: "/",
+    },
+    {
+      name: "MAIL",
+      value: "m",
+      domain: "mail.google.com",
+      hostOnly: true,
+      path: "/",
+    },
+  ],
+};
+
+test(".google.com で待っていれば、myaccount.google.com に移っても今のタブの Cookie を送る", async () => {
+  const b = fakeBrowser(GOOGLE);
+  const tab = {
+    id: 70,
+    url: "https://accounts.google.com/v3/signin",
+    status: "complete",
+  };
+  b.tabs.set(70, tab);
+  b.ev.created.fire({ id: 70, pendingUrl: tab.url });
+  await settle();
+  assert.deepEqual(
+    { ...b.session["tracked:70"] },
+    { site: ".google.com", host: "dev.mm1995tk.kisui_terminal" },
+  );
+  b.ev.message.fire({ type: "passkey-success" }, { tab, url: tab.url });
+  // ログインが済むと myaccount.google.com に移る
+  tab.url = "https://myaccount.google.com/";
+  await settle();
+  const sent = b.native.filter((n) => n.message.type === "cookies");
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].message.site, ".google.com");
+  // 送るのは今のタブのページに送られるもの
+  assert.deepEqual(
+    [...sent[0].message.cookies.map((c: any) => c.name)].sort(),
+    ["ACCOUNT", "SID"],
+  );
+  assert.deepEqual(b.removed, [70]);
+  // スクリプトは google.com とすべてのサブドメインに入れる
+  assert.deepEqual([...b.registered[0].matches], ["https://*.google.com/*"]);
+});
+
+test(".google.com で待っていれば、手で戻るボタンは myaccount.google.com のタブからも送る", async () => {
+  const b = fakeBrowser(GOOGLE);
+  const tab = {
+    id: 71,
+    url: "https://myaccount.google.com/",
+    status: "complete",
+  };
+  b.tabs.set(71, tab);
+  b.ev.action.fire(tab);
+  await settle();
+  const sent = b.native.filter((n) => n.message.type === "cookies");
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].message.site, ".google.com");
+  assert.deepEqual(b.removed, [71]);
+  // 当たらないサイトでは読まない
+  const other = { id: 72, url: "https://evilgoogle.com/", status: "complete" };
+  b.tabs.set(72, other);
+  const before = b.cookieQueries.length;
+  b.ev.action.fire(other);
+  await settle();
+  assert.equal(b.cookieQueries.length, before);
   assert.equal(b.badges.at(-1).text, "!");
 });
 

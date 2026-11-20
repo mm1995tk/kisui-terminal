@@ -7,14 +7,18 @@
 // 書いていないサイトでは何も変えない。
 (() => {
   const nonce = __KISUI_NONCE__;
-  // ["github.com", ...]。ページの host と完全に同じものだけ
+  // ["github.com", ".google.com", ...]。`github.com` はページの host と完全に同じものだけ、`.google.com` は google.com と
+  // そのすべてのサブドメインに当たる（殻の passkey.rs の site_matches と同じ決まり）
   const sites = __KISUI_PASSKEY_SITES__;
   // 続けて知らせない間隔（ミリ秒。殻の MIN_INTERVAL と同じ値を殻が埋める）
   const interval = __KISUI_PASSKEY_INTERVAL__;
   const host = location.hostname;
   let allowed = false;
   for (let i = 0; i < sites.length; i++) {
-    if (sites[i] === host) allowed = true;
+    const s = sites[i];
+    if (s === host) allowed = true;
+    else if (s.charAt(0) === "." && (host === s.slice(1) || host.endsWith(s)))
+      allowed = true;
   }
   if (!allowed) return;
 

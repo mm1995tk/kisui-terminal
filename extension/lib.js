@@ -7,7 +7,7 @@
 // 型は JSDoc で書き、tsc -p extension（npm test）で検査する。ビルドはしない。
 
 /**
- * サイトを待っている受け口
+ * サイト（許可サイトの項目）を待っている受け口
  * @typedef {{ host: string, url: string }} Waiting
  */
 /**
@@ -56,6 +56,41 @@ var KisuiPasskey = (() => {
     return u.hostname.toLowerCase();
   }
 
+  // host が許可サイトの項目 `site` に当たるか。`github.com` は host が完全に同じときだけ、
+  // `.google.com` は google.com とそのすべてのサブドメインに当たる（kisui-terminal の passkey.rs の site_matches と同じ決まり）
+  /** @param {string} host @param {string} site @returns {boolean} */
+  function inSite(host, site) {
+    if (site.startsWith("."))
+      return host === site.slice(1) || host.endsWith(site);
+    return host === site;
+  }
+
+  // host に当たる許可サイトの項目（`sites` に書いた形）を、選ぶ順に並べたもの：host と完全に同じもの、次に細かい（長い）もの
+  /** @param {string | null | undefined} host @param {string[]} sites @returns {string[]} */
+  function sitesOf(host, sites) {
+    if (!host) return [];
+    const rank = (/** @type {string} */ s) =>
+      s === host ? Infinity : s.length;
+    return sites
+      .filter((s) => inSite(host, s))
+      .sort((a, b) => rank(b) - rank(a));
+  }
+
+  // host に当たる許可サイトの項目のうち、選ぶ順で最初のもの。当たらなければ null
+  // （kisui-terminal の passkey.rs の site_of と同じ決まり）
+  /** @param {string | null | undefined} host @param {string[]} sites @returns {string | null} */
+  function siteOf(host, sites) {
+    return sitesOf(host, sites)[0] ?? null;
+  }
+
+  // host に当たる許可サイトの項目のうち、kisui-terminal が待っているものを、選ぶ順で最初のもの。無ければ null。
+  // `sites` は普通の版と nightly 版の答えを合わせたものなので、2 つの版の passkey_sites が違うと、siteOf の選ぶ項目と、
+  // 待っている項目（その版の site_of が選んだもの）がずれることがある。待っているものを先に選んで合わせる
+  /** @param {string | null | undefined} host @param {string[]} sites @param {Map<string, Waiting>} waiting @returns {string | null} */
+  function waitingSiteOf(host, sites, waiting) {
+    return sitesOf(host, sites).find((s) => waiting.has(s)) ?? null;
+  }
+
   // `sites` の答えの形を確かめて、{ sites, waiting } にする。形が違えば null
   /** @param {any} reply 信用できない入力（形はここで確かめる） @returns {{ sites: string[], waiting: { site: string, url: string }[] } | null} */
   function parseSites(reply) {
@@ -91,24 +126,29 @@ var KisuiPasskey = (() => {
     return { sites: [...sites].sort(), waiting };
   }
 
-  // 許可サイトのページに入れるスクリプトの matches
+  // 許可サイトのページに入れるスクリプトの matches。`.google.com` は `*.google.com`（google.com とすべてのサブドメイン）
   /** @param {string[]} sites @returns {string[]} */
   function matchPatterns(sites) {
-    return sites.map((s) => `https://${s}/*`);
+    return sites.map((s) =>
+      s.startsWith(".") ? `https://*${s}/*` : `https://${s}/*`,
+    );
   }
 
-  // Cookie が `site` のページに送られるか（kisui-terminal が受けるのと同じ決まり）。
-  // ドメインが `site` と同じか、host だけでない上のドメインのもの
+  // Cookie が許可サイトの項目 `site` のものか（kisui-terminal が受けるのと同じ決まり）。
+  // `github.com` の書き方なら、そのページに送られるもの（ドメインが同じか、host だけでない上のドメインのもの）。
+  // `.google.com` の書き方なら、google.com とその下のドメインのものと、host だけでない上のドメインのもの
   /** @param {BrowserCookie | null | undefined} cookie @param {string} site @returns {boolean} */
   function appliesTo(cookie, site) {
     if (!cookie || typeof cookie.domain !== "string") return false;
     const hostOnly = cookie.hostOnly === true && !cookie.domain.startsWith(".");
     const domain = cookie.domain.replace(/^\.+/, "").toLowerCase();
-    if (domain === site) return true;
-    return !hostOnly && domain.includes(".") && site.endsWith(`.${domain}`);
+    const sub = site.startsWith(".");
+    const base = sub ? site.slice(1) : site;
+    if (domain === base || (sub && domain.endsWith(`.${base}`))) return true;
+    return !hostOnly && domain.includes(".") && base.endsWith(`.${domain}`);
   }
 
-  // 読んだ Cookie から `site` に送られるものだけを残し、同じもの（名前・ドメイン・パス）を 1 つにし、
+  // 読んだ Cookie から `site`（今のタブの host）に送られるものだけを残し、同じもの（名前・ドメイン・パス）を 1 つにし、
   // 取り決めの形にして返す（多ければ上限で切る）
   /** @param {BrowserCookie[]} cookies @param {string} site @returns {WireCookie[]} */
   function pickCookies(cookies, site) {
@@ -151,14 +191,14 @@ var KisuiPasskey = (() => {
 
   // 新しいタブの最初のページが、kisui-terminal が開いたものか。
   // できてから NEW_TAB_MS のうちに、待っているサイトのページを開いたタブを、kisui-terminal が開いたものと見る
-  // （サイトが最初にリダイレクトしても見分けられるよう、URL でなくサイトで比べる）
-  /** @param {{ url: string, createdAt: number, now: number, waiting: Map<string, Waiting> }} p @returns {{ site: string, host: string } | null} */
-  function openedByKisui({ url, createdAt, now, waiting }) {
+  // （サイトが最初にリダイレクトしても見分けられるよう、URL でなくサイト（当たった許可サイトの項目）で比べる）
+  /** @param {{ url: string, createdAt: number, now: number, sites: string[], waiting: Map<string, Waiting> }} p @returns {{ site: string, host: string } | null} */
+  function openedByKisui({ url, createdAt, now, sites, waiting }) {
     if (now - createdAt > NEW_TAB_MS) return null;
-    const host = hostOf(url);
-    if (!host) return null;
-    const w = waiting.get(host);
-    return w ? { site: host, host: w.host } : null;
+    const site = waitingSiteOf(hostOf(url), sites, waiting);
+    if (!site) return null;
+    const w = waiting.get(site);
+    return w ? { site, host: w.host } : null;
   }
 
   // 2 つの URL が同じページか（ブラウザが書き直す形の違いと、# の後ろは見ない）
@@ -183,6 +223,9 @@ var KisuiPasskey = (() => {
     SETTLE_QUIET_MS,
     SETTLE_MAX_MS,
     hostOf,
+    inSite,
+    siteOf,
+    waitingSiteOf,
     parseSites,
     combine,
     matchPatterns,
