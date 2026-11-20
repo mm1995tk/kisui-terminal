@@ -41,7 +41,7 @@ export function exportExtension(format: ExportFormat): string {
   return format;
 }
 
-/** 保存のダイアログの既定のファイル名：`接続の名前-年月日-時分秒.拡張子`（時刻はこの端末のもの）。 */
+/** 保存のダイアログの既定のファイル名：`接続の名前-年月日-時分秒.拡張子`（時刻はこの端末のもの）。環境の変種のある接続は、connection に `接続-変種` を渡す。 */
 export function exportFileName(
   connection: string,
   format: ExportFormat,

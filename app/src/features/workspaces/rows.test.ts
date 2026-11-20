@@ -878,17 +878,22 @@ describe("rowNear（行に出なくなった・閉じたワークスペースか
 
 describe("DB のタブの行（#347）", () => {
   const lists = { a: [ws({ id: "a1", root: "/a1" })] };
-  const db = (id: string, name?: string) =>
+  const db = (id: string, name?: string, variant?: string) =>
     ({
       kind: "db",
       id,
       target: "b",
       connection: "prod",
+      ...(variant ? { variant } : {}),
       ...(name ? { name } : {}),
     }) as const;
-  function rows(views: Record<string, string>, name?: string): Row[] {
+  function rows(
+    views: Record<string, string>,
+    name?: string,
+    variant?: string,
+  ): Row[] {
     let s = addWorkspace(EMPTY_GWS, "a", "a1", "a1", "g1");
-    s = addDb(s, "g1", db("d1", name));
+    s = addDb(s, "g1", db("d1", name, variant));
     s = addEmptyWorkspace(s, "", "g2");
     s = addDb(s, "g2", db("d2"));
     const groups = buildSidebar(["a", "b"], {}, lists, null, {});
@@ -914,6 +919,14 @@ describe("DB のタブの行（#347）", () => {
     assert.equal(item.tip, "M-b の prod");
     const named = rows({}, "main")[0].tabs.items[1];
     assert.deepEqual([named.title, named.path], ["main", "prod"]);
+  });
+
+  it("環境の変種のある接続は、名前が「接続 (変種)」", () => {
+    const item = rows({}, undefined, "stg")[0].tabs.items[1];
+    assert.equal(item.title, "prod (stg)");
+    assert.equal(item.tip, "M-b の prod (stg)");
+    const named = rows({}, "main", "stg")[0].tabs.items[1];
+    assert.deepEqual([named.title, named.path], ["main", "prod (stg)"]);
   });
 
   it("出しているタブ：views が DB のタブならそれ。ターミナルのタブが無いワークスペースは DB のタブ", () => {
