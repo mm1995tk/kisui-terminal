@@ -140,3 +140,16 @@ describe("dbResultKey（DB のタブの結果の表のキー）", () => {
     );
   });
 });
+
+describe("dbResultKey の s（並べ替え。#377）", () => {
+  it("s だけで並べ替える", () => {
+    assert.equal(dbResultKey(ev("s"), true), "sort");
+    assert.equal(dbResultKey(ev("s"), false), "sort");
+  });
+  it("修飾キーを重ねたもの（Cmd+S など）は受けない", () => {
+    assert.equal(dbResultKey(ev("s", { metaKey: true }), true), null);
+    assert.equal(dbResultKey(ev("s", { ctrlKey: true }), false), null);
+    assert.equal(dbResultKey(ev("s", { altKey: true }), false), null);
+    assert.equal(dbResultKey(ev("S", { shiftKey: true }), false), null);
+  });
+});

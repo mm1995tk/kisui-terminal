@@ -3,13 +3,16 @@ import { describe, it } from "node:test";
 
 import type { DbQueryResult } from "../../infrastructure/rpc/protocol.ts";
 import {
+  ariaSort,
   canStep,
   MAX_QUEUED_STEPS,
+  nextSort,
   pageable,
   pageTarget,
   queueStep,
   rowRange,
   sendQueued,
+  sortable,
   type PageStep,
 } from "./paging.ts";
 
@@ -130,5 +133,38 @@ describe("sendQueued（結果が来たら 1 つ送る）", () => {
       [],
     );
     assert.equal(called, false);
+  });
+});
+
+describe("nextSort（見出しを押したあとの並べ替え）", () => {
+  it("並べ替えていなければ昇順から、同じ列は 昇順 → 降順 → なし", () => {
+    assert.deepEqual(nextSort(undefined, 1), { column: 1, desc: false });
+    assert.deepEqual(nextSort({ column: 1, desc: false }, 1), {
+      column: 1,
+      desc: true,
+    });
+    assert.equal(nextSort({ column: 1, desc: true }, 1), null);
+  });
+  it("ほかの列を押すと、その列の昇順になる", () => {
+    assert.deepEqual(nextSort({ column: 1, desc: true }, 0), {
+      column: 0,
+      desc: false,
+    });
+  });
+});
+
+describe("sortable・ariaSort", () => {
+  it("包める文で列があるときだけ並べ替えられる", () => {
+    assert.equal(sortable(result({ wrappable: true })), true);
+    assert.equal(sortable(result({ wrappable: false })), false);
+    assert.equal(sortable(result({ wrappable: true, columns: [] })), false);
+    assert.equal(sortable(result({})), false);
+  });
+  it("aria-sort は、並べている列だけに付く", () => {
+    const s = { column: 2, desc: true };
+    assert.equal(ariaSort(s, 2), "descending");
+    assert.equal(ariaSort({ column: 2, desc: false }, 2), "ascending");
+    assert.equal(ariaSort(s, 1), undefined);
+    assert.equal(ariaSort(undefined, 0), undefined);
   });
 });

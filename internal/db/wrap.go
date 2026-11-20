@@ -14,6 +14,17 @@ import (
 //	<the statement>
 //	) AS q LIMIT <rows of a page + 1> OFFSET <rows before the page>
 //
+// To sort the rows by a column of the result (#377), the same wrapper takes an
+// ORDER BY, so the database sorts all the rows and the pages follow that order:
+//
+//	SELECT * FROM (
+//	<the statement>
+//	) AS q ORDER BY <the position of the column> [DESC] LIMIT ... OFFSET ...
+//
+// The column is given by its position (1 is the first), not by its name: no
+// quoting is needed for either database, and two columns of the same name
+// (which PostgreSQL lets a derived table have) cannot be mixed up.
+//
 // because a session is closed after each statement (see the package), so
 // there is no cursor to read on from. The database does the skipping, and
 // the extra row tells whether there is a page after.
@@ -66,15 +77,24 @@ func (s stmt) canWrap() bool {
 	return !s.multi && (s.first == "select" || (s.first == "with" && !s.modifying))
 }
 
-// wrapSQL gives sql wrapped to read limit rows after the first offset.
-func wrapSQL(kind, sql string, offset, limit int) (string, error) {
+// wrapSQL gives sql wrapped to read limit rows after the first offset, sorted
+// by the column at position orderBy (1 is the first; 0 is no sorting), in
+// descending order when desc.
+func wrapSQL(kind, sql string, offset, limit, orderBy int, desc bool) (string, error) {
 	s := scan(kind, sql)
 	if !s.canWrap() {
 		return "", &Error{Kind: KindQuery, Message: "only a SELECT can be paged"}
 	}
 	// The line breaks keep a `--` comment at the end of a line of the
 	// statement from swallowing the closing parenthesis.
-	return fmt.Sprintf("SELECT * FROM (\n%s\n) AS %s LIMIT %d OFFSET %d", s.body, wrapAlias, limit, offset), nil
+	order := ""
+	if orderBy > 0 {
+		order = fmt.Sprintf(" ORDER BY %d", orderBy)
+		if desc {
+			order += " DESC"
+		}
+	}
+	return fmt.Sprintf("SELECT * FROM (\n%s\n) AS %s%s LIMIT %d OFFSET %d", s.body, wrapAlias, order, limit, offset), nil
 }
 
 // quoted is the token nextToken gives for a quoted string or name.

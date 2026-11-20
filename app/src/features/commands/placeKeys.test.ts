@@ -18,7 +18,12 @@ import { setLang } from "../../i18n/index.ts";
 import { imageKey } from "../../ui/main-window/content/media/imageView.ts";
 import { videoKey } from "../terminal/media.ts";
 import { treeKey } from "../file-tree/keys.ts";
-import { dbEditorKey, dbHistoryKey, dbTreeKey } from "../db/keys.ts";
+import {
+  dbEditorKey,
+  dbHistoryKey,
+  dbResultKey,
+  dbTreeKey,
+} from "../db/keys.ts";
 
 const ev = (key: string, extra: object = {}) => ({
   key,
@@ -86,11 +91,13 @@ describe("場所のキーの表は、その場所の判定と合っている", (
     assert.equal(dbEditorKey(ev("Enter", { ctrlKey: true }), false), "run");
   });
 
-  it("DB のタブの結果の表（#372）：表のキーは、Cmd+C / Ctrl+C（判定は keys.test.ts）", () => {
+  it("DB のタブの結果の表（#372）：表のキーは、Cmd+C / Ctrl+C と s（判定は keys.test.ts）", () => {
     assert.deepEqual(
       PLACE_KEYS.dbResult.rows.map((r) => r.keys),
-      ["Cmd+C / Ctrl+C"],
+      ["Cmd+C / Ctrl+C", "s"],
     );
+    // s は修飾キー無しのキー（probes に書ける）。判定が受ける
+    assert.equal(dbResultKey(ev("s"), true), "sort");
   });
 
   it("サイドバーの DB のタブの木（#348・#374）：表のキーは、どれも判定が受ける", () => {

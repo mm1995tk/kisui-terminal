@@ -322,6 +322,22 @@ func TestDBQueryParams(t *testing.T) {
 		if code, data := dbErr(t, err); code != rpc.CodeDBError || data["kind"] != "query" {
 			t.Errorf("offset of a statement that cannot be wrapped: %v", err)
 		}
+		// orderBy は、結果の列の位置で全部の行を並べ替える。offset のページもその順の続き（#377）。
+		res, err = call(map[string]any{"connection": conn.Name, "sql": three, "maxRows": 2, "orderBy": 1, "desc": true})
+		if err != nil || res.RowCount != 2 || !res.Truncated || !res.Wrappable || *res.Rows[0][0] != "3" || *res.Rows[1][0] != "2" {
+			t.Errorf("orderBy: %+v, %v", res, err)
+		}
+		res, err = call(map[string]any{"connection": conn.Name, "sql": three, "maxRows": 2, "orderBy": 1, "desc": true, "offset": 2})
+		if err != nil || res.RowCount != 1 || *res.Rows[0][0] != "1" {
+			t.Errorf("orderBy with offset: %+v, %v", res, err)
+		}
+		if _, err := call(map[string]any{"connection": conn.Name, "sql": three, "orderBy": -1}); err.(*rpc.Error).Code != rpc.CodeInvalidParams {
+			t.Errorf("a negative orderBy: %v", err)
+		}
+		_, err = call(map[string]any{"connection": conn.Name, "sql": "SHOW TIME ZONE", "orderBy": 1})
+		if code, data := dbErr(t, err); code != rpc.CodeDBError || data["kind"] != "query" {
+			t.Errorf("orderBy of a statement that cannot be wrapped: %v", err)
+		}
 	})
 }
 
@@ -541,6 +557,13 @@ func TestDBHistory(t *testing.T) {
 		}
 		// ページを切り替えるための実行（offset あり）は履歴に残らない。
 		if err := c.Call(ctx, "db.query", map[string]any{"connection": conn.Name, "sql": "SELECT 4", "offset": 1}, nil); err != nil {
+			t.Fatal(err)
+		}
+		// 並べ替えのための実行（orderBy あり）と、読み直すだけの実行（rerun。並べ替えをやめる・先頭のページに戻る）も残らない（#377）。
+		if err := c.Call(ctx, "db.query", map[string]any{"connection": conn.Name, "sql": "SELECT 5", "orderBy": 1, "desc": true}, nil); err != nil {
+			t.Fatal(err)
+		}
+		if err := c.Call(ctx, "db.query", map[string]any{"connection": conn.Name, "sql": "SELECT 6", "rerun": true}, nil); err != nil {
 			t.Fatal(err)
 		}
 		// db.schema は履歴に残らない。

@@ -162,6 +162,7 @@ export function ContentArea(props: {
                 void db.runSelection(id, text, from, to)
               }
               onPage={(step) => void db.stepPage(id, step)}
+              onSort={(column) => void db.sortBy(id, column)}
               onCancel={() => db.cancel(id)}
               onCopyCells={db.copyCells}
               focusRef={(f) => props.focusUi.setDbFocus(f)}
