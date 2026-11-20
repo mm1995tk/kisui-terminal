@@ -77,11 +77,6 @@ export function DbTabView(props: {
   props.focusRef?.(() => input.focus());
   onCleanup(() => props.focusRef?.(undefined));
   const runKey = () => (props.mac ? "Cmd+Enter" : "Ctrl+Enter");
-  /** 最後の実行の間違い（取り消しは除く） */
-  const error = () => {
-    const f = props.run.failure;
-    return f?.kind === "error" ? f : undefined;
-  };
 
   /** 入力欄で選んでいる部分か、選んでいなければカーソルのある文を実行する（#375） */
   function runSelected() {
@@ -161,93 +156,120 @@ export function DbTabView(props: {
             </Show>
           }
         >
-          <div
-            class={styles.result}
-            role="region"
-            aria-label={T("db.view.result")}
-            aria-busy={props.run.running ? "true" : undefined}
-          >
-            <Switch fallback={<p class={styles.note}>{T("db.view.empty")}</p>}>
-              <Match when={props.run.running}>
-                <p class={styles.note}>{T("db.view.running")}</p>
-              </Match>
-              <Match when={props.run.failure?.kind === "cancelled"}>
-                <p class={styles.note}>{T("db.view.cancelled")}</p>
-              </Match>
-              <Match when={error()}>
-                {(err) => (
-                  <div class={styles.error} role="alert">
-                    <Show when={err().sqlState}>
-                      {(code) => (
-                        <span class={styles.code}>
-                          {T("db.view.sqlState", { code: code() })}
-                        </span>
-                      )}
-                    </Show>
-                    <pre class={styles.message}>{err().message}</pre>
-                  </div>
-                )}
-              </Match>
-              <Match when={props.run.result}>
-                {(r) => (
-                  <ResultTable
-                    result={r()}
-                    mac={props.mac}
-                    onCopy={props.onCopyCells}
-                    sort={props.run.page?.sort}
-                    onSort={
-                      props.run.running || !sortable(r())
-                        ? undefined
-                        : props.onSort
-                    }
-                  />
-                )}
-              </Match>
-            </Switch>
-          </div>
-          <Show when={props.run.result}>
-            {(r) => (
-              <div class={styles.status}>
-                <span role="status">
-                  {props.run.running ? "" : resultSummary(r())}
-                </span>
-                {/* ページ送り（#373）。包める文で 2 ページ以上あるときだけ出す。実行している間は押せない */}
-                <Show
-                  when={
-                    props.run.page && pageable(r()) ? props.run.page : undefined
-                  }
-                >
-                  {(page) => (
-                    <div
-                      class={styles.pager}
-                      role="group"
-                      aria-label={T("db.view.pages")}
-                    >
-                      <Button
-                        disabled={
-                          !!props.run.running || !canStep(r(), page(), "prev")
-                        }
-                        onClick={() => props.onPage("prev")}
-                      >
-                        {T("db.view.prevPage")}
-                      </Button>
-                      <Button
-                        disabled={
-                          !!props.run.running || !canStep(r(), page(), "next")
-                        }
-                        onClick={() => props.onPage("next")}
-                      >
-                        {T("db.view.nextPage")}
-                      </Button>
-                    </div>
-                  )}
-                </Show>
-              </div>
-            )}
-          </Show>
+          <DataView
+            run={props.run}
+            mac={props.mac}
+            onPage={props.onPage}
+            onSort={props.onSort}
+            onCopyCells={props.onCopyCells}
+          />
         </Show>
       </div>
     </div>
+  );
+}
+
+/**
+ * 結果の場所の「データ」の側：SQL を実行した結果（実行中・取り消し・間違い・結果の表）と、その下の件数・ページ送り。
+ * 文ごとの結果のタブ（#380）は、この中に置く。
+ */
+function DataView(props: {
+  run: DbRun;
+  mac: boolean;
+  onPage: (step: PageStep) => void;
+  onSort: (column: number) => void;
+  onCopyCells: (text: string) => void;
+}): JSX.Element {
+  /** 最後の実行の間違い（取り消しは除く） */
+  const error = () => {
+    const f = props.run.failure;
+    return f?.kind === "error" ? f : undefined;
+  };
+  return (
+    <>
+      <div
+        class={styles.result}
+        role="region"
+        aria-label={T("db.view.result")}
+        aria-busy={props.run.running ? "true" : undefined}
+      >
+        <Switch fallback={<p class={styles.note}>{T("db.view.empty")}</p>}>
+          <Match when={props.run.running}>
+            <p class={styles.note}>{T("db.view.running")}</p>
+          </Match>
+          <Match when={props.run.failure?.kind === "cancelled"}>
+            <p class={styles.note}>{T("db.view.cancelled")}</p>
+          </Match>
+          <Match when={error()}>
+            {(err) => (
+              <div class={styles.error} role="alert">
+                <Show when={err().sqlState}>
+                  {(code) => (
+                    <span class={styles.code}>
+                      {T("db.view.sqlState", { code: code() })}
+                    </span>
+                  )}
+                </Show>
+                <pre class={styles.message}>{err().message}</pre>
+              </div>
+            )}
+          </Match>
+          <Match when={props.run.result}>
+            {(r) => (
+              <ResultTable
+                result={r()}
+                mac={props.mac}
+                onCopy={props.onCopyCells}
+                sort={props.run.page?.sort}
+                onSort={
+                  props.run.running || !sortable(r()) ? undefined : props.onSort
+                }
+              />
+            )}
+          </Match>
+        </Switch>
+      </div>
+      <Show when={props.run.result}>
+        {(r) => (
+          <div class={styles.status}>
+            <span role="status">
+              {props.run.running ? "" : resultSummary(r())}
+            </span>
+            {/* ページ送り（#373）。包める文で 2 ページ以上あるときだけ出す。実行している間は押せない */}
+            <Show
+              when={
+                props.run.page && pageable(r()) ? props.run.page : undefined
+              }
+            >
+              {(page) => (
+                <div
+                  class={styles.pager}
+                  role="group"
+                  aria-label={T("db.view.pages")}
+                >
+                  <Button
+                    disabled={
+                      !!props.run.running || !canStep(r(), page(), "prev")
+                    }
+                    onClick={() => props.onPage("prev")}
+                  >
+                    {T("db.view.prevPage")}
+                  </Button>
+                  <Button
+                    disabled={
+                      !!props.run.running || !canStep(r(), page(), "next")
+                    }
+                    onClick={() => props.onPage("next")}
+                  >
+                    {T("db.view.nextPage")}
+                  </Button>
+                </div>
+              )}
+            </Show>
+          </div>
+        )}
+      </Show>
+    </>
   );
 }
 
