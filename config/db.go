@@ -24,6 +24,9 @@ const (
 //
 // It holds no password; a password is never written in the settings
 // (internal/db finds it).
+//
+// It is the settings, not a login: who logs in, and whether that login only
+// reads, depends on who asks (Access), and is a DBLogin (Login).
 type DBConnection struct {
 	// Name is what the user calls the connection (the entry).
 	Name string
@@ -44,20 +47,14 @@ type DBConnection struct {
 	// Database may be "": PostgreSQL then uses the database named like the
 	// user, MySQL selects none.
 	Database string
-	// ReadOnly makes every statement run in a read-only transaction. Of a
-	// connection from the settings it is the key `read-only`: it holds for
-	// everybody, whatever the permissions say (Access). Of a connection made
-	// by Login it is how that login runs.
+	// ReadOnly is the key `read-only`: with it every statement runs in a
+	// read-only transaction, for everybody, whatever the permissions say
+	// (Access).
 	ReadOnly bool
 	// Human and Agent are the permissions the settings name for a person and
 	// for a coding agent (`human-permission`, `agent-permission`). The zero
 	// value (Name "") is none named; Access says what holds then.
 	Human, Agent DBPermission
-	// AgentLogin is true when User is the agent's own user (the `agent-user`
-	// of its permission), not the user written for the connection. Only a
-	// connection made by Login has it. The password of such a login is looked
-	// for apart from the password of the connection (internal/db).
-	AgentLogin bool
 }
 
 // Label is the connection as it is shown to a person: the name, and the

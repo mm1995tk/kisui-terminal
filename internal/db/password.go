@@ -49,9 +49,9 @@ var ErrPasswordRequired = errors.New("a password is required")
 // A password found on the machine wins over a typed one, so a connection
 // whose password is in the keychain or a file never asks.
 //
-// The connection is the one that logs in (config.DBConnection.Login), so the
-// password is the one of its user. A login as the agent's own user
-// (AgentLogin) looks in the same places for the password of that user, and
+// What it is asked for is a login (config.DBLogin), so the password is the
+// one of the user that logs in. A login as the agent's own user (AgentUser)
+// looks in the same places for the password of that user, and
 // never gets the password of the connection's user: the keychain item is in
 // a service of its own (KeychainAgentService), the files are matched by the
 // user, and a remembered password belongs to its user.
@@ -60,10 +60,10 @@ var ErrPasswordRequired = errors.New("a password is required")
 type Passwords struct {
 	// Keychain looks a connection up in the keychain. nil means the keychain
 	// of the OS.
-	Keychain func(ctx context.Context, c config.DBConnection) (password string, ok bool)
+	Keychain func(ctx context.Context, c config.DBLogin) (password string, ok bool)
 	// File looks a connection up in the password file of its kind. nil means
 	// ~/.pgpass and ~/.my.cnf.
-	File func(c config.DBConnection) (password string, ok bool)
+	File func(c config.DBLogin) (password string, ok bool)
 
 	mu         sync.Mutex
 	remembered map[string]string // by identity
@@ -73,10 +73,10 @@ type Passwords struct {
 // password the window sent with this request, nil when it sent none (an
 // empty password is a password: a login without one). The error is
 // ErrPasswordRequired when there is none anywhere.
-func (p *Passwords) Find(ctx context.Context, c config.DBConnection, typed *string) (string, Source, error) {
+func (p *Passwords) Find(ctx context.Context, c config.DBLogin, typed *string) (string, Source, error) {
 	keychain, file := p.Keychain, p.File
 	if keychain == nil {
-		keychain = func(ctx context.Context, c config.DBConnection) (string, bool) {
+		keychain = func(ctx context.Context, c config.DBLogin) (string, bool) {
 			return keychainPassword(ctx, keychainService(c), KeychainAccount(c))
 		}
 	}
@@ -103,7 +103,7 @@ func (p *Passwords) Find(ctx context.Context, c config.DBConnection, typed *stri
 
 // Remember keeps a typed password that worked, until Forget or the end of
 // the process.
-func (p *Passwords) Remember(c config.DBConnection, password string) {
+func (p *Passwords) Remember(c config.DBLogin, password string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.remembered == nil {
@@ -113,7 +113,7 @@ func (p *Passwords) Remember(c config.DBConnection, password string) {
 }
 
 // Forget drops the remembered password of c.
-func (p *Passwords) Forget(c config.DBConnection) {
+func (p *Passwords) Forget(c config.DBLogin) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	delete(p.remembered, identity(c))
@@ -123,7 +123,7 @@ func (p *Passwords) Forget(c config.DBConnection) {
 // variant) alone but the server and the user too, so that a password is never
 // sent to another server after the settings were edited. Each variant of a
 // connection has its own.
-func identity(c config.DBConnection) string {
+func identity(c config.DBLogin) string {
 	return strings.Join([]string{c.Name, c.Variant, c.Kind, c.Host, strconv.Itoa(c.Port), c.User}, "\x00")
 }
 
@@ -140,8 +140,8 @@ const KeychainService = "kisui-terminal-db"
 const KeychainAgentService = "kisui-terminal-db-agent"
 
 // keychainService is the service of the keychain item of c.
-func keychainService(c config.DBConnection) string {
-	if c.AgentLogin {
+func keychainService(c config.DBLogin) string {
+	if c.AgentUser {
 		return KeychainAgentService
 	}
 	return KeychainService
@@ -156,7 +156,7 @@ func keychainService(c config.DBConnection) string {
 // have the same account. A connection without variants whose own name is
 // "shop/prod" does have the account of that variant; docs/database.md tells
 // the user not to name one so.
-func KeychainAccount(c config.DBConnection) string {
+func KeychainAccount(c config.DBLogin) string {
 	if c.Variant == "" {
 		return c.Name
 	}
@@ -165,7 +165,7 @@ func KeychainAccount(c config.DBConnection) string {
 
 // filePassword looks c up in the password file of its kind in the home
 // directory.
-func filePassword(c config.DBConnection) (string, bool) {
+func filePassword(c config.DBLogin) (string, bool) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", false
@@ -186,7 +186,7 @@ func filePassword(c config.DBConnection) (string, bool) {
 // pgpassPassword looks c up in a pgpass file, with the rules of libpq:
 // `host:port:database:user:password` lines, * for anything, the first match
 // wins. A connection over a Unix socket matches the host "localhost".
-func pgpassPassword(path string, c config.DBConnection) (string, bool) {
+func pgpassPassword(path string, c config.DBLogin) (string, bool) {
 	f, err := pgpassfile.ReadPassfile(path)
 	if err != nil {
 		return "", false
@@ -201,7 +201,7 @@ func pgpassPassword(path string, c config.DBConnection) (string, bool) {
 
 // postgresDatabase is the database a PostgreSQL connection opens: the one
 // named like the user when none is written.
-func postgresDatabase(c config.DBConnection) string {
+func postgresDatabase(c config.DBLogin) string {
 	if c.Database == "" {
 		return c.User
 	}
@@ -216,7 +216,7 @@ func postgresDatabase(c config.DBConnection) string {
 // For a login as the agent's own user, [client] has to name that user: a
 // password with no user beside it is taken as the one of the connection's
 // user, and is not tried for the agent's.
-func mycnfPassword(path string, c config.DBConnection) (string, bool) {
+func mycnfPassword(path string, c config.DBLogin) (string, bool) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return "", false
@@ -226,7 +226,7 @@ func mycnfPassword(path string, c config.DBConnection) (string, bool) {
 	if !ok {
 		return "", false
 	}
-	if u, has := client["user"]; has && u != c.User || !has && c.AgentLogin {
+	if u, has := client["user"]; has && u != c.User || !has && c.AgentUser {
 		return "", false
 	}
 	if h, has := client["host"]; has && h != c.Host {

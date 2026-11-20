@@ -101,7 +101,7 @@ func TestWrapSQL(t *testing.T) {
 // The pages of a SELECT, read with Offset on a real database, follow one
 // another; a statement that cannot be wrapped is refused before it is sent.
 func TestPages(t *testing.T) {
-	both(t, func(t *testing.T, c config.DBConnection) {
+	both(t, func(t *testing.T, c config.DBLogin) {
 		for _, readOnly := range []bool{false, true} {
 			c.ReadOnly = readOnly
 			s := open(t, c)

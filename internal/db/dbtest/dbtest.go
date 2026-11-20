@@ -74,6 +74,11 @@ func MySQL(t testing.TB) config.DBConnection {
 	return mysqlSrv.get(t, startMySQL)
 }
 
+// Login is c as a person logs in to it.
+func Login(c config.DBConnection) config.DBLogin {
+	return c.Login(c.Access(config.DBHuman))
+}
+
 func (s *server) get(t testing.TB, start func(*server)) config.DBConnection {
 	t.Helper()
 	s.once.Do(func() { start(s) })

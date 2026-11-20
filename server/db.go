@@ -108,10 +108,9 @@ func (m *dbManager) cancel(id string) bool {
 	return false
 }
 
-// run は c に password でログインして、そのログインで f を呼ぶ（終われば切る）。c は、ログインする人のもの
-// （config.DBConnection.Login。ユーザーと読むだけかが入っている）。src は password の出どころで、
+// run は c に password でログインして、そのログインで f を呼ぶ（終われば切る）。src は password の出どころで、
 // 窓から渡されて通ったものは覚え、覚えていて断られたものは忘れる。
-func (m *dbManager) run(ctx context.Context, c config.DBConnection, password string, src db.Source, f func(db.Session) error) error {
+func (m *dbManager) run(ctx context.Context, c config.DBLogin, password string, src db.Source, f func(db.Session) error) error {
 	sess, err := db.Open(ctx, c, password)
 	if err != nil {
 		if e, ok := errors.AsType[*db.Error](err); ok && e.Kind == db.KindAuth && src.Typed() {
@@ -192,10 +191,10 @@ func (ss *session) dbWith(ctx context.Context, p dbLogin, what string, run bool,
 	defer done()
 	password, src, err := m.passwords.Find(ctx, c, p.Password)
 	if err != nil {
-		if c.AgentLogin {
-			return errPasswordRequired("missing", "a password is required for the agent's user "+c.User+" of the connection "+c.Label())
+		if c.AgentUser {
+			return errPasswordRequired("missing", "a password is required for the agent's user "+c.User+" of the connection "+conf.Label())
 		}
-		return errPasswordRequired("missing", "a password is required for the connection "+c.Label())
+		return errPasswordRequired("missing", "a password is required for the connection "+conf.Label())
 	}
 	err = m.run(ctx, c, password, src, func(s db.Session) error { return f(ctx, conf, s) })
 	if err != nil {

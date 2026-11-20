@@ -109,6 +109,32 @@ func (c DBConnection) Access(actor DBActor) DBAccess {
 	return a
 }
 
+// DBLogin is one way to log in to a connection: where the database is, the
+// user that logs in, and whether the login only reads. DBConnection.Login
+// makes it from what an actor may do, and internal/db logs in with it. It is
+// a type apart from DBConnection because User and ReadOnly mean other things
+// there (the user written for the connection; the limit for everybody), so
+// that the settings are never logged in with as they are.
+type DBLogin struct {
+	// Name and Variant are those of the connection.
+	Name, Variant string
+	Kind          string
+	Host          string
+	Port          int
+	// User is the database user that logs in.
+	User string
+	// Database may be "", as in DBConnection.
+	Database string
+	// ReadOnly makes every statement of this login run in a read-only
+	// transaction.
+	ReadOnly bool
+	// AgentUser is true when User is the agent's own user (the `agent-user`
+	// of its permission), not the user written for the connection. The
+	// password of such a login is looked for apart from the password of the
+	// connection (internal/db).
+	AgentUser bool
+}
+
 // Login is c as a logs in to it: with the user of a, and read-only unless a
 // may run freely. A login that only lists the schema uses it too, so a
 // level that runs nothing still logs in read-only.
@@ -117,13 +143,16 @@ func (c DBConnection) Access(actor DBActor) DBAccess {
 // PostgreSQL connection that writes no `database` opens the one named like
 // its user; with the user changed that would be another database, so the
 // name is filled in here.
-func (c DBConnection) Login(a DBAccess) DBConnection {
-	if a.AgentUser && c.Kind == DBPostgres && c.Database == "" {
-		c.Database = c.User
+func (c DBConnection) Login(a DBAccess) DBLogin {
+	l := DBLogin{
+		Name: c.Name, Variant: c.Variant, Kind: c.Kind, Host: c.Host, Port: c.Port,
+		User: a.User, Database: c.Database,
+		ReadOnly: a.Run != DBRunFree, AgentUser: a.AgentUser,
 	}
-	c.User, c.AgentLogin = a.User, a.AgentUser
-	c.ReadOnly = a.Run != DBRunFree
-	return c
+	if a.AgentUser && c.Kind == DBPostgres && c.Database == "" {
+		l.Database = c.User
+	}
+	return l
 }
 
 // dbPermissions are the entries of [db.permissions] in use, by name. broken

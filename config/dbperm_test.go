@@ -210,14 +210,21 @@ func TestDBAccess(t *testing.T) {
 func TestDBLogin(t *testing.T) {
 	conn := DBConnection{Name: "shop", Variant: "prod", Kind: DBPostgres, Host: "h", Port: 5432, User: "app", Database: "d",
 		Agent: DBPermission{Name: "p", Run: DBRunRead, AgentUser: "bot"}}
-	got := conn.Login(conn.Access(DBAgent))
-	want := conn
-	want.User, want.AgentLogin, want.ReadOnly = "bot", true, true
-	if got != want {
+	human := DBLogin{Name: "shop", Variant: "prod", Kind: DBPostgres, Host: "h", Port: 5432, User: "app", Database: "d"}
+	agent := human
+	agent.User, agent.AgentUser, agent.ReadOnly = "bot", true, true
+	if got := conn.Login(conn.Access(DBAgent)); got != agent {
 		t.Errorf("agent: %+v", got)
 	}
-	if got := conn.Login(conn.Access(DBHuman)); got != conn {
+	if got := conn.Login(conn.Access(DBHuman)); got != human {
 		t.Errorf("human: %+v", got)
+	}
+	// read-only = true of the connection makes the login of a person
+	// read-only.
+	guarded := conn
+	guarded.ReadOnly = true
+	if got := guarded.Login(guarded.Access(DBHuman)); !got.ReadOnly {
+		t.Errorf("human on a read-only connection: %+v", got)
 	}
 	// The agent's own user opens the database of the connection's user:
 	// PostgreSQL would otherwise open the one named like the agent's user.
@@ -226,7 +233,7 @@ func TestDBLogin(t *testing.T) {
 	if got := noDB.Login(noDB.Access(DBAgent)); got.Database != "app" || got.User != "bot" {
 		t.Errorf("agent, postgres without a database: %+v", got)
 	}
-	if got := noDB.Login(noDB.Access(DBHuman)); got != noDB {
+	if got := noDB.Login(noDB.Access(DBHuman)); got.Database != "" || got.User != "app" {
 		t.Errorf("human, postgres without a database: %+v", got)
 	}
 	noDB.Kind = DBMySQL
@@ -235,7 +242,7 @@ func TestDBLogin(t *testing.T) {
 	}
 	// A level that runs nothing still logs in read-only (to list the schema).
 	conn.Agent = DBPermission{}
-	if got := conn.Login(conn.Access(DBAgent)); !got.ReadOnly || got.User != "app" || got.AgentLogin {
+	if got := conn.Login(conn.Access(DBAgent)); !got.ReadOnly || got.User != "app" || got.AgentUser {
 		t.Errorf("agent with no permission: %+v", got)
 	}
 	conn.Agent = DBPermission{Name: "f", Run: DBRunFree}
