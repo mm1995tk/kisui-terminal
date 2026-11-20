@@ -6,6 +6,7 @@ import type { KeyValueStore } from "../keyValueStore.ts";
 import {
   addBrowser,
   addBrowserWorkspace,
+  addDb,
   addEmptyWorkspace,
   addTerm,
   addWorkspace,
@@ -15,12 +16,15 @@ import {
   browserKey,
   browserOriginOf,
   cycleKey,
+  dbKey,
+  dbTabsOf,
   displayName,
   dropTerm,
   EMPTY_GWS,
   freeNum,
   GWS_KEY,
   gwsOfBrowser,
+  gwsOfDb,
   gwsByName,
   gwsOfTerm,
   hiddenGws,
@@ -37,15 +41,20 @@ import {
   refKey,
   nameError,
   nameErrorText,
+  newDbTabId,
   parseGws,
   reconcile,
   removeBrowser,
+  removeDb,
   removeGws,
   rename,
   renameBrowser,
+  renamePage,
   repTerm,
   saveGws,
   setActiveTerm,
+  shownDb,
+  shownPage,
   termKey,
   type Gws,
   type GwsState,
@@ -991,6 +1000,136 @@ describe("addEmptyWorkspace（切り替える窓の n。#330）", () => {
     assert.equal(
       displayName(addEmptyWorkspace(EMPTY_GWS, "  docs ").list[0]),
       "docs",
+    );
+  });
+});
+
+describe("DB のタブ（#347）", () => {
+  const db = (id: string, target = "a", connection = "prod") =>
+    ({ kind: "db", id, target, connection }) as const;
+  const none = () => false;
+  /** g1 に a の w1 と DB のタブ db1、g2 に DB のタブ db2 だけ。 */
+  function withDb(): GwsState {
+    let s = addWorkspace(EMPTY_GWS, "a", "w1", "w1", "g1");
+    s = addEmptyWorkspace(s, "", "g2");
+    s = addDb(s, "g1", db("db1"));
+    return addDb(s, "g2", db("db2", "b", "dev"));
+  }
+
+  it("id は db で始まり、ブラウザのタブの id（t で始まる）と重ならない", () => {
+    assert.match(
+      newDbTabId(() => 0.5),
+      /^db[0-9a-z]{12}$/,
+    );
+    assert.notEqual(dbKey("x"), browserKey("x"));
+  });
+
+  it("足す・外す。同じ id は 2 度足さない。外しても、ワークスペースは空のまま残る", () => {
+    let s = withDb();
+    assert.equal(gwsOfDb(s, "db1")?.id, "g1");
+    assert.equal(addDb(s, "g2", db("db1")), s);
+    assert.deepEqual(
+      dbTabsOf(s).map((r) => r.id),
+      ["db1", "db2"],
+    );
+    s = removeDb(s, "db2");
+    assert.equal(gwsOfDb(s, "db2"), undefined);
+    assert.deepEqual(ids(s), ["g1", "g2"]);
+    assert.equal(s.list[1].tabs.length, 0);
+  });
+
+  it("記録に書いて読み直すと、マシン・接続・名前・並びが戻る。形の違うものは捨てる", () => {
+    const s = renamePage(withDb(), dbKey("db1"), " main ");
+    const back = parseGws(JSON.parse(JSON.stringify(s)));
+    assert.deepEqual(back.list[0].tabs[1], {
+      kind: "db",
+      id: "db1",
+      target: "a",
+      connection: "prod",
+      name: "main",
+    });
+    assert.deepEqual(
+      parseGws({
+        list: [
+          {
+            id: "g",
+            num: 1,
+            tabs: [
+              { kind: "db", id: "x", target: "a" },
+              { kind: "db", id: "y", connection: "c" },
+            ],
+          },
+        ],
+      }).list[0].tabs,
+      [],
+    );
+  });
+
+  it("名前を空にすると、接続の名前に戻る（名前を外す）", () => {
+    let s = renamePage(withDb(), dbKey("db1"), "main");
+    s = renamePage(s, dbKey("db1"), "  ");
+    assert.equal("name" in s.list[0].tabs[1], false);
+  });
+
+  it("出しているタブ：views に DB のタブがあればそれ。ターミナルのタブが無ければ、並びで最初のページのタブ", () => {
+    const s = withDb();
+    const [g1, g2] = s.list;
+    assert.deepEqual(shownPage(g1, "db1", none), db("db1"));
+    assert.equal(shownPage(g1, undefined, none), undefined);
+    assert.deepEqual(shownPage(g2, undefined, none), db("db2", "b", "dev"));
+    assert.equal(shownTabKey(g1, "db1", none), dbKey("db1"));
+    assert.equal(shownTabKey(g1, undefined, none), termKey("a", "w1"));
+    // DB のタブを出しているときは、ブラウザのタブは出していない
+    assert.equal(shownBrowserId(g1, "db1", none), undefined);
+    assert.equal(shownDb(g1, "db1", none)?.id, "db1");
+  });
+
+  it("ブラウザのタブより前にある DB のタブは、ターミナルのタブが無いワークスペースで先に出る", () => {
+    let s = addEmptyWorkspace(EMPTY_GWS, "", "g");
+    s = addDb(s, "g", db("d"));
+    s = addBrowser(s, "g", "t1");
+    assert.equal(shownPage(s.list[0], undefined, () => true)?.id, "d");
+    assert.equal(shownPage(s.list[0], "t1", () => true)?.id, "t1");
+  });
+
+  it("サイドバーに出て、t j / t k で移れる（マシンにつながっていなくても、入力欄は見られる）", () => {
+    const g = withDb().list[0];
+    assert.deepEqual(visibleTabs(g, none).map(refKey), [
+      termKey("a", "w1"),
+      dbKey("db1"),
+    ]);
+    assert.deepEqual(
+      steppableTabs(visibleTabs(g, none), none, termKey("a", "w1")).map(refKey),
+      [termKey("a", "w1"), dbKey("db1")],
+    );
+  });
+
+  it("DB のタブがあるワークスペースは、内蔵ブラウザを使わなくても行に出る", () => {
+    let s = addEmptyWorkspace(EMPTY_GWS, "", "g");
+    s = addBrowser(s, "g", "t1");
+    assert.equal(hiddenGws(s.list[0], false), true);
+    s = addDb(s, "g", db("d"));
+    assert.equal(hiddenGws(s.list[0], false), false);
+  });
+
+  it("reconcile は DB のタブを外さない（ブラウザのタブの一覧に無くても）", () => {
+    const s = withDb();
+    const r = reconcile(s, { lists: { a: list("w1") }, browser: [] });
+    assert.deepEqual(
+      dbTabsOf(r.state).map((x) => x.id),
+      ["db1", "db2"],
+    );
+    assert.deepEqual(r.close, []);
+  });
+
+  it("別のワークスペースへ移せる。移す先で出すと、views は DB のタブの id になる", () => {
+    const s = withDb();
+    const next = moveTabTo(s, dbKey("db1"), "g2", null)!;
+    assert.equal(gwsOfDb(next, "db1")?.id, "g2");
+    const v: TabsState = { tabs: [], views: { g1: "db1" } };
+    assert.deepEqual(
+      moveView(v, { tab: "db1", from: "g1", to: "g2", show: true }).views,
+      { g2: "db1" },
     );
   });
 });

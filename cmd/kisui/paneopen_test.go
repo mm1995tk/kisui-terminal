@@ -23,10 +23,13 @@ func TestParseOpen(t *testing.T) {
 		{[]string{"--workspace", "w", "--workspace", "v", "--name", "r"}, open{}, false},
 		{[]string{"--workspace", "w", "--name", "r", "--new", "--new"}, open{}, false},
 		{[]string{"--workspace", "w", "--name", "r", "--new=yes"}, open{}, false},
-		{[]string{"--workspace", "w", "--name", "r", "--machine", "dev"}, open{}, false},
+		{[]string{"--workspace", "w", "--name", "r", "--machine", "dev", "/bin/sh"}, open{workspace: "w", name: "r", machine: "dev", argv: []string{"/bin/sh"}}, true},
+		{[]string{"--machine=", "--workspace", "w", "--name", "r"}, open{}, false},
+		{[]string{"--workspace", "w", "--name", "r", "--machine", "a", "--machine", "b"}, open{}, false},
+		{[]string{"--workspace", "w", "--name", "r", "--bogus"}, open{}, false},
 	} {
 		op, ok := parseOpen(tc.args)
-		if ok != tc.ok || (ok && (op.workspace != tc.want.workspace || op.name != tc.want.name || op.cwd != tc.want.cwd || op.new != tc.want.new || !slices.Equal(op.argv, tc.want.argv))) {
+		if ok != tc.ok || (ok && (op.workspace != tc.want.workspace || op.name != tc.want.name || op.cwd != tc.want.cwd || op.new != tc.want.new || op.machine != tc.want.machine || !slices.Equal(op.argv, tc.want.argv))) {
 			t.Errorf("parseOpen(%q) = %+v %v, want %+v %v", tc.args, op, ok, tc.want, tc.ok)
 		}
 	}

@@ -38,6 +38,8 @@ export function createGuiKeys(deps: {
   resizeKey: (key: string) => void;
   /** 今のワークスペースで出しているブラウザのタブ（ターミナルのタブを出していれば undefined） */
   shownBrowserTab: Accessor<unknown>;
+  /** 今のワークスペースで出している DB のタブ（#347。出していなければ undefined） */
+  shownDbTab: Accessor<unknown>;
   /** フォーカスしているワークスペースのターミナル */
   termGroup: () => TermGroup | undefined;
   runCommand: (c: Command) => void;
@@ -75,8 +77,10 @@ export function createGuiKeys(deps: {
       resizeMode: resizeMode(),
       // Cmd+W（Mac）は、キーがターミナルの欄（画像・動画・PDF の欄を含む）に向いているときか、どこにも向いていないときに、
       // 今の欄だけを閉じる。どちらでも、アプリの窓は閉じない（#83）
+      // ページのタブ（ブラウザのタブ・DB のタブ）を出している間は、見えないペインを閉じない
       inPane:
         !shownBrowserTab() &&
+        !deps.shownDbTab() &&
         closeTarget(e.target, card, !!termGroup()) === "pane",
       // 内蔵ブラウザのタブを出している間は、Cmd+R / Ctrl+Shift+R を読み込み直しにする
       browser: !!shownBrowserTab(),
@@ -150,8 +154,8 @@ export function createGuiKeys(deps: {
     if (api.onCloseRequest) {
       offs.push(
         await api.onCloseRequest(() => {
-          // 内蔵ブラウザのタブを出している間は、見えないペインも窓も閉じない
-          if (untrack(shownBrowserTab)) return;
+          // ページのタブ（内蔵ブラウザのタブ・DB のタブ）を出している間は、見えないペインも窓も閉じない
+          if (untrack(shownBrowserTab) || untrack(deps.shownDbTab)) return;
           const card = els.main?.querySelector(":scope > .terminal");
           if (
             closeTarget(document.activeElement, card, !!termGroup()) === "pane"

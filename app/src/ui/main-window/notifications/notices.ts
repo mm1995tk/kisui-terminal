@@ -1,4 +1,4 @@
-// 右下に積む知らせを組み立てる（文とボタン）。つながらない・別の GUI に移った・できなかったこと・近道の間違い・ダウンロード。
+// 右下に積む知らせを組み立てる（文とボタン）。つながらない・別の GUI に移った・できなかったこと・近道の間違い・使わない passkey_sites の項目・ダウンロード。
 // 描くのは Notices.tsx。
 import { T } from "../../../i18n/index.ts";
 import { createMemo, createSignal, type Accessor } from "solid-js";
@@ -8,6 +8,7 @@ import type { DownloadDone } from "../../../features/browser/os.ts";
 import { leaderKeyName } from "../../../features/commands/commands.ts";
 import { IS_MAC } from "../../../features/commands/guiKeys.ts";
 import type { Problem, ReportProblem } from "../../../features/problem.ts";
+import { localNamed } from "../../../features/sessions/machines.ts";
 import type { Sessions } from "../../../features/sessions/controller.ts";
 import type { SessionState } from "../../../features/sessions/session.ts";
 import {
@@ -20,12 +21,14 @@ import type { Notice } from "./Notices.tsx";
 export function createNotices(deps: {
   /** 設定の [gui.shortcuts] の間違い（あればお知らせに出す） */
   shortcutProblems: string[] | undefined;
+  /** 設定の [gui.browser] passkey_sites の、公開サフィックスなので使わない項目（あればお知らせに出す） */
+  passkeyRejected: string[] | undefined;
   /** できなかったこと（無ければ null） */
   focusError: Accessor<Problem | null>;
   setFocusError: ReportProblem;
   sessions: Pick<
     Sessions,
-    "states" | "targets" | "labelOf" | "connect" | "disconnect"
+    "states" | "targets" | "labelOf" | "connect" | "disconnect" | "machines"
   >;
   downloads: Pick<Downloads, "downloads" | "dropDownload" | "useDownload">;
 }) {
@@ -87,6 +90,43 @@ export function createNotices(deps: {
         dismiss: () => setShortcutDismissed(true),
       }
     : undefined;
+  // 名前が local のマシン（--machine で選べない）。閉じたら、同じ並びの間は出さない
+  const [localDismissed, setLocalDismissed] = createSignal("");
+  let localCache: { key: string; notice: Notice } | undefined;
+  function localNotice(): Notice | undefined {
+    const list = localNamed(deps.sessions.machines());
+    const key = list.join("\n");
+    if (list.length === 0 || localDismissed() === key) return undefined;
+    if (localCache?.key !== key) {
+      const close = () => setLocalDismissed(key);
+      localCache = {
+        key,
+        notice: {
+          title: T("notice.localMachine.title"),
+          text: T("notice.localMachine.text", {
+            machines: list.join(", "),
+            leader: leaderKeyName(IS_MAC),
+          }),
+          primary: { label: T("button.close"), run: close },
+          dismiss: close,
+        },
+      };
+    }
+    return localCache.notice;
+  }
+  const [passkeyDismissed, setPasskeyDismissed] = createSignal(false);
+  const passkeyNotice: Notice | undefined = deps.passkeyRejected?.length
+    ? {
+        title: T("notice.passkeySites.title"),
+        text: T("notice.passkeySites.text"),
+        error: deps.passkeyRejected.join("\n"),
+        primary: {
+          label: T("button.close"),
+          run: () => setPasskeyDismissed(true),
+        },
+        dismiss: () => setPasskeyDismissed(true),
+      }
+    : undefined;
   let focusNotice:
     { err: { title: string; error: string }; notice: Notice } | undefined;
 
@@ -94,6 +134,9 @@ export function createNotices(deps: {
   const notices = createMemo<Notice[]>(() => {
     const out: Notice[] = [];
     if (shortcutNotice && !shortcutDismissed()) out.push(shortcutNotice);
+    const local = localNotice();
+    if (local) out.push(local);
+    if (passkeyNotice && !passkeyDismissed()) out.push(passkeyNotice);
     const err = focusError();
     if (err) {
       if (focusNotice?.err !== err) {

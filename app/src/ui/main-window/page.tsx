@@ -5,7 +5,7 @@
 //
 // 画面の中身：
 // - 左のサイドバーに、ワークスペースの帯と中のタブ、フォーカスしているワークスペースのファイルツリーと CHANGES を出す（sidebar/）。
-// - 右のペインに、フォーカスしているワークスペースのターミナル（内蔵ブラウザのタブを出していればそのページ）を出す（content/）。
+// - 右のペインに、フォーカスしているワークスペースのターミナル（内蔵ブラウザのタブを出していればそのページ、DB のタブならその画面）を出す（content/）。
 // - 窓（接続・ワークスペース・ツリー・ブックマークなど）と、右下の知らせ・リーダーの案内を、上に重ねて出す。
 import { createSignal, onMount, Show, untrack, type JSX } from "solid-js";
 
@@ -20,7 +20,7 @@ import { createFeatures } from "../../features/compose.ts";
 import type { ConfigMachine } from "../../features/sessions/machines.ts";
 import { PortsContext, type Ports } from "../ports.ts";
 // ここから下の、CSS を持つ部品の import は、順を変えない。CSS の規則は import の順に並び、同じ強さの規則は後のものが勝つ。
-// 順は、キーの一覧 → トースト → サイドバー → 切り替える窓 → 割り付け → ブラウザ → リーダーの案内 → ターミナル（cssOrder.test.ts が見張る）。
+// 順は、キーの一覧 → トースト → サイドバー → 切り替える窓 → 割り付け → ブラウザ → リーダーの案内 → ターミナル → 空のワークスペース → DB のタブ（cssOrder.test.ts が見張る）。
 import { KeyListDialog, openKeyList } from "./commands/KeyListDialog.tsx";
 import {
   CopiedToast,
@@ -52,6 +52,7 @@ import { UpdateBar } from "./notifications/UpdateBar.tsx";
 import { createPaneResize } from "./paneResize.ts";
 import { sizeOf } from "./panes.ts";
 import { ConfigError } from "./sessions/ConfigError.tsx";
+import { DbDialogs } from "./db/DbDialogs.tsx";
 import { SessionDialogs } from "./sessions/SessionDialogs.tsx";
 import { FileTreeDialogs } from "./sidebar/file-tree/FileTreeDialogs.tsx";
 
@@ -67,6 +68,7 @@ export function MainWindowPage(props: { ports: Ports }): JSX.Element {
         config: ConfigMachine[];
         browser: boolean;
         shortcutProblems: string[];
+        passkeyRejected: string[];
         tabsHeight?: number;
       }
     | { error: string }
@@ -83,6 +85,8 @@ export function MainWindowPage(props: { ports: Ports }): JSX.Element {
           config: g.machines,
           browser: g.browser,
           shortcutProblems,
+          // passkey_sites の公開サフィックスの項目（使わない）。内蔵ブラウザを使うときだけ知らせる
+          passkeyRejected: g.browser ? g.passkeyRejected : [],
           tabsHeight: g.sidebarTabsHeight ?? undefined,
         });
       },
@@ -103,6 +107,7 @@ export function MainWindowPage(props: { ports: Ports }): JSX.Element {
               browser={v.browser}
               tabsHeight={v.tabsHeight}
               shortcutProblems={v.shortcutProblems}
+              passkeyRejected={v.passkeyRejected}
             />
           );
         }}
@@ -119,6 +124,8 @@ function MainWindow(props: {
   browser: boolean;
   /** 設定の [gui.shortcuts] の間違い（あればお知らせに出す） */
   shortcutProblems: string[];
+  /** 設定の [gui.browser] passkey_sites の、公開サフィックスなので使わない項目（あればお知らせに出す） */
+  passkeyRejected: string[];
   /** タブの段の高さの上限の元の値（設定の [gui.sidebar] tabs-height。サイドバーの高さに対する %）。無ければ 40 */
   tabsHeight?: number;
 }): JSX.Element {
@@ -156,6 +163,7 @@ function MainWindow(props: {
     fileTree,
     changes,
     pages,
+    db,
     bookmarks,
     downloads,
     tabs,
@@ -190,6 +198,7 @@ function MainWindow(props: {
       openMascotPicker: () => setMascotPicking(true),
       openKeyList: () => openKeyList(placeOf(document.activeElement)),
       focusUrlBar: () => focusUi.focusUrlBar(),
+      focusDbTree: () => focusUi.focusDbTree(),
       forgetPageReturn: () => focusUi.forgetPageReturn(),
       copyToClipboard,
       dismissLastNotice: () => notices().at(-1)?.dismiss?.(),
@@ -219,6 +228,7 @@ function MainWindow(props: {
     workspaces: sessions.workspaces,
     treeVersion: fileTree.treeVersion,
     shownBrowserTab: pages.shownBrowserTab,
+    shownDbTab: db.shownDbTab,
     emptyShown: workspaces.currentEmpty,
     sidebarOpen: resize.sidebarOpen,
     changeSidebarOpen: resize.changeSidebarOpen,
@@ -227,6 +237,7 @@ function MainWindow(props: {
   });
   const notices = createNotices({
     shortcutProblems: props.shortcutProblems,
+    passkeyRejected: props.passkeyRejected,
     focusError,
     setFocusError,
     sessions,
@@ -239,6 +250,7 @@ function MainWindow(props: {
     resizeMode: resize.resizeMode,
     resizeKey: resize.resizeKey,
     shownBrowserTab: pages.shownBrowserTab,
+    shownDbTab: db.shownDbTab,
     termGroup: terminals.termGroup,
     runCommand: commands.runCommand,
     endWalk: workspaces.endWalk,
@@ -324,6 +336,8 @@ function MainWindow(props: {
           terminals={terminals}
           browserTabs={browserTabs}
           pages={pages}
+          db={db}
+          labelOf={sessions.labelOf}
           bookmarks={bookmarks}
           focusUi={focusUi}
           litSplit={resize.litSplit()}
@@ -359,6 +373,7 @@ function MainWindow(props: {
         />
       </Show>
       <FileTreeDialogs fileTree={fileTree} />
+      <DbDialogs db={db} />
       <Show when={bookmarks.bookmarkDialog()}>
         <BookmarkDialog
           own={bookmarks.bookmarks()}

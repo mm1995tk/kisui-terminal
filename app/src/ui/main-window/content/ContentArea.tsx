@@ -1,11 +1,13 @@
 // 右のペイン。フォーカスしているワークスペースのターミナル（先頭がプライマリ）を、kisui serve が持つ分割の木の通りに並べる（terminal/）。
 // 内蔵ブラウザのタブを出していれば、その場所すべてがそのページになる（browser/。URL バー・新しいタブのページ・ページ内検索もここに重ねる）。
 // 空のワークスペース（#307）を選んでいる間は、タブが無いことを伝える画面（EmptyWorkspace.tsx）で覆う。
+// DB のタブ（#347）を出している間は、その画面（db/DbTabView.tsx）で覆う。
 import { Show, type JSX } from "solid-js";
 
 import type { Bookmarks } from "../../../features/browser/bookmarksStore.ts";
 import type { Pages } from "../../../features/browser/pages.ts";
 import type { BrowserTabs } from "../../../features/browser/tabsStore.ts";
+import type { DbTabs } from "../../../features/db/controller.ts";
 import {
   interceptKeys,
   leaderKeyName,
@@ -15,7 +17,7 @@ import type { ReportProblem } from "../../../features/problem.ts";
 import type { Terminals } from "../../../features/terminal/controller.ts";
 import type { FocusUi } from "../focus.ts";
 import { usePorts } from "../../ports.ts";
-// CSS を持つ部品の import は、この順（ブラウザ → リーダーの案内 → ターミナル → 空のワークスペース）を変えない（理由は page.tsx）
+// CSS を持つ部品の import は、この順（ブラウザ → リーダーの案内 → ターミナル → 空のワークスペース → DB のタブ）を変えない（理由は page.tsx）
 import { BrowserArea } from "./browser/BrowserArea.tsx";
 import { FindBar } from "./browser/FindBar.tsx";
 import { NewTabPage } from "./browser/NewTabPage.tsx";
@@ -23,6 +25,7 @@ import { UrlBar } from "./browser/UrlBar.tsx";
 import { leaderPath } from "../commands/LeaderMenu.tsx";
 import { TerminalGrid } from "./terminal/TerminalGrid.tsx";
 import { EmptyWorkspace } from "./EmptyWorkspace.tsx";
+import { DbTabView } from "./db/DbTabView.tsx";
 
 /** 右のペイン。ターミナルのグリッドと、内蔵ブラウザを使うときはブラウザのページ（URL バー・新しいタブのページ・ページ内検索）を出す。 */
 export function ContentArea(props: {
@@ -35,6 +38,9 @@ export function ContentArea(props: {
   terminals: Terminals;
   browserTabs: BrowserTabs;
   pages: Pages;
+  db: DbTabs;
+  /** マシンの名前 */
+  labelOf: (target: string) => string;
   bookmarks: Bookmarks;
   focusUi: FocusUi;
   /** リサイズモードで選んでいる、ペインどうしの境界 */
@@ -138,6 +144,37 @@ export function ContentArea(props: {
             )}
           </Show>
         </BrowserArea>
+      </Show>
+      <Show when={props.db.shownDbTab()?.id} keyed>
+        {(id) => {
+          const db = props.db;
+          const ref = () => db.refOf(id);
+          return (
+            <DbTabView
+              connection={ref()?.connection ?? ""}
+              machine={props.labelOf(ref()?.target ?? "")}
+              mac={IS_MAC}
+              sql={db.draftOf(id)}
+              onSql={(sql) => db.setDraft(id, sql)}
+              run={db.runOf(id)}
+              onRun={() => void db.run(id)}
+              onCancel={() => db.cancel(id)}
+              tree={{
+                open: db.treeLayout().open,
+                width: db.treeLayout().width,
+                onWidth: db.setTreeWidth,
+                catalog: db.catalogOf(id),
+                expanded: db.expandedOf(id),
+                onToggle: (node, open) => db.toggleNode(id, node, open),
+                onPreview: (schema, table) =>
+                  db.previewTable(id, schema, table),
+                onReload: () => void db.reloadCatalog(id),
+                focusRef: (f) => props.focusUi.setDbTreeFocus(f),
+              }}
+              focusRef={(f) => props.focusUi.setDbFocus(f)}
+            />
+          );
+        }}
       </Show>
       <Show when={props.empty}>
         <EmptyWorkspace

@@ -12,6 +12,8 @@ import { createPages } from "./browser/pages.ts";
 import { createBrowserTabs } from "./browser/tabsStore.ts";
 import { createChanges } from "./changes/controller.ts";
 import { createCommandRunner, type CommandUi } from "./commands/run.ts";
+import { createDbTabs } from "./db/controller.ts";
+import type { SaveTextFile } from "./db/export.ts";
 import { createFileTree } from "./file-tree/controller.ts";
 import type { KeyValueStore } from "./keyValueStore.ts";
 import type { MascotOs } from "./mascot/mascot.ts";
@@ -20,6 +22,7 @@ import type { Problem } from "./problem.ts";
 import { createScale } from "./scale/controller.ts";
 import type { ApplyScale } from "./scale/scale.ts";
 import { createSessions } from "./sessions/controller.ts";
+import { createPaneRelay } from "./sessions/paneRelay.ts";
 import type { ConfigMachine } from "./sessions/machines.ts";
 import type { ShellApi } from "./sessions/shell.ts";
 import { createTerminals } from "./terminal/controller.ts";
@@ -48,6 +51,8 @@ export interface FeaturePorts {
   mascot: MascotOs;
   /** 新しい版 */
   updates: UpdatesOs;
+  /** DB のタブの結果の、ファイルへの書き出し（保存のダイアログ。#349） */
+  exportFile: SaveTextFile;
 }
 
 /** 機能が、画面の側に頼むこと（キーを向ける・スクロールを戻す・短い知らせを出す）。 */
@@ -120,6 +125,7 @@ export function createFeatures(deps: {
             openUrlFor: pages.openUrlFor,
             checkNow: updates.checkNow,
             openTab: (t, rq) => openTab(t, rq),
+            relay: (m, rq) => relay(m, rq),
             zoomWs: terminals.zoomWs,
           },
           target,
@@ -147,6 +153,17 @@ export function createFeatures(deps: {
     forgetPageReturn,
     revealSidebar: () => ui.revealSidebar(),
   });
+  const db = createDbTabs({
+    store,
+    sessions,
+    workspaces,
+    browserTabs,
+    activateTab: (gid, ref) => tabs.activateTab(gid, ref),
+    focusTerminal,
+    saveFile: ports.exportFile,
+    copyToClipboard: (text) => ui.copyToClipboard(text),
+    showToast: (text) => ui.showToast(text),
+  });
   const openTab = createPaneOpen({
     browser,
     sessions,
@@ -154,6 +171,7 @@ export function createFeatures(deps: {
     setGws: workspaces.setGws,
     justCreated: workspaces.justCreated,
   });
+  const relay = createPaneRelay({ sessions, openTab });
   const askPrimaryShj = createPrimaryShj({
     sessions: sessions.sessions,
     workspaces: sessions.workspaces,
@@ -221,6 +239,7 @@ export function createFeatures(deps: {
     workspaces,
     browserTabs,
     pages,
+    db,
     setFocusError,
     focusTerminal,
     revealSidebar: () => ui.revealSidebar(),
@@ -236,6 +255,7 @@ export function createFeatures(deps: {
     terminals,
     browserTabs,
     pages,
+    db,
     bookmarks,
     downloads,
     updates,
@@ -261,6 +281,7 @@ export function createFeatures(deps: {
     fileTree,
     changes,
     pages,
+    db,
     bookmarks,
     downloads,
     tabs,

@@ -203,6 +203,44 @@ export interface DbQueryResult {
   elapsedMs: number;
 }
 
+/** db.schema の結果：接続のスキーマ → テーブル（ビューを含む）→ 列。システムのスキーマは入らない */
+export interface DbCatalog {
+  /** 名前の順。テーブルの無いスキーマも入る。MySQL ではスキーマは DB（ユーザーに見える全部） */
+  schemas: DbCatalogSchema[];
+  /** 列が上限（全体で 100000）を超え、その先のスキーマ・テーブルが無い（最後のテーブルの列が欠けることがある） */
+  truncated: boolean;
+}
+
+export interface DbCatalogSchema {
+  name: string;
+  /** 名前の順 */
+  tables: DbCatalogTable[];
+}
+
+export interface DbCatalogTable {
+  name: string;
+  /** table：テーブル（PostgreSQL の分割したテーブル・外部テーブルも）、view：ビュー（マテリアライズドビューも） */
+  kind: "table" | "view";
+  /** テーブルの中の順 */
+  columns: DbCatalogColumn[];
+}
+
+export interface DbCatalogColumn {
+  name: string;
+  /** DB の型の名前（DB が返したまま。"character varying(20)"、"varchar(20)"、"int unsigned"、"enum('A','b')"、引用符付きの "\"Mood\"" など）。見せるためのもの */
+  type: string;
+}
+
+/** db.history の 1 件：接続で実行した SQL。結果の行は残らない */
+export interface DbHistoryEntry {
+  /** 送った SQL そのまま */
+  sql: string;
+  /** 送った時刻（UTC、ミリ秒まで。RFC 3339。例 "2026-01-02T03:04:05.678Z"） */
+  at: string;
+  /** DB が間違いなく実行した。DB が断った・取り消したものは false */
+  ok: boolean;
+}
+
 /** password_required（-32006）の data。missing：どこにも無い、rejected：入力したものを DB が断った。どちらも窓はパスワードを聞く */
 export interface DbPasswordRequiredData {
   reason: "missing" | "rejected";
@@ -322,6 +360,11 @@ export interface Requests {
     params: { id: WorkspaceId };
     result: { rev: number; termId?: TermId };
   };
+  /**
+   * `kisui pane` の --machine（#344）。別のマシンのペインから手元の GUI が中継した頼み（list・send・keys・close・read）を、
+   * このマシンで行う。断るときも result の error で答える。hello の capabilities に "pane.run" がある serve だけが受ける
+   */
+  "pane.run": { params: PaneRunRequest; result: PaneRunReply };
   "workspace.create": {
     /**
      * dir は、プライマリターミナルのシェルを始めるフォルダ（絶対パス）。無い・フォルダでなければ start_dir。古い kisui serve は無視する。
@@ -411,6 +454,22 @@ export interface Requests {
     params: { queryId: string };
     result: Record<string, never>;
   };
+  /**
+   * 接続のスキーマ・テーブル（ビューを含む）・列の一覧を 1 回で全部返す。履歴には残らない。
+   * password・queryId と断られ方は db.query と同じ（not_found、password_required、db_error、busy）
+   */
+  "db.schema": {
+    params: { connection: string; password?: string; queryId?: string };
+    result: DbCatalog;
+  };
+  /**
+   * 接続で実行した SQL の履歴を新しい順に返す（kisui serve のマシンに、接続ごとに最大 1000 件残る）。
+   * ほかの接続の SQL は入らない。limit は返す数の上限（省くと全部）。DB にはつながない。断られ方：not_found（接続が無い）
+   */
+  "db.history": {
+    params: { connection: string; limit?: number };
+    result: { entries: DbHistoryEntry[] };
+  };
 }
 
 /** shj から GUI への通知（← GUI）。メソッド名 → パラメータ。 */
@@ -434,6 +493,11 @@ export interface Notifications {
    * このマシンのターミナルのタブを足し（workspace.create の argv・env・name）、pane.opened で答える。フォーカスは移さない
    */
   "pane.open": PaneOpenRequest;
+  /**
+   * `kisui pane` の --machine（#344）。machine（[[gui.machines]] の名前。local は手元の PC）のペインへの頼み request を、
+   * そのマシンの serve に pane.run で送り（open-tab は、pane.open と同じく GUI がそのマシンにタブを作る）、pane.relayed で答える
+   */
+  "pane.relay": PaneRelayRequest;
   /** プライマリの shj（`ctl.PaneRequest` の `kind: "browser"`）・`kisui open <URL>` が、URL を手元のブラウザで開くよう頼んだ（#96）。欄は作らない。内蔵ブラウザを有効にしていればそのワークスペースの新しいタブ、無効なら外部ブラウザで開く（#203）。リモートのマシンの localhost 系は、GUI が `kisui relay` の中継越しに開く */
   "browser.open": { workspaceId: WorkspaceId; url: string };
   /** プライマリの shj が、そのワークスペースのファイルエクスプローラにキーを向けるよう頼んだ（Space e）。Esc で端末に戻る。start は、shj が引数なしで起動した直後（ツリーが整うのを待つ）。 */
@@ -485,6 +549,8 @@ export interface GuiNotifications {
   "update.result": { id: string } & UpdateReport;
   /** pane.open への答え（`kisui pane open` に渡る）。作れたら termId、作れなければ error（そのまま kisui pane open が出す） */
   "pane.opened": { id: string } & PaneOpenReport;
+  /** pane.relay への答え（`kisui pane … --machine` に渡る。serve の panecmd.Reply の形） */
+  "pane.relayed": { id: string; reply: PaneRunReply };
 }
 
 /** pane.open の中身（`kisui pane open`。#343）。 */
@@ -506,6 +572,50 @@ export interface PaneOpenRequest {
 
 /** pane.open への答え（#343）。 */
 export type PaneOpenReport = { termId: TermId } | { error: string };
+
+/** pane.relay の中身（#344）。 */
+export interface PaneRelayRequest {
+  id: string;
+  /** 頼む先のマシンの名前（[[gui.machines]] の名前。local は GUI の動く手元の PC） */
+  machine: string;
+  request: PaneRunRequest;
+}
+
+/** 別のマシンのペインへの頼み（serve の panecmd.Request から、頼んだペインの id・秘密・マシンを除いたもの）。 */
+export interface PaneRunRequest {
+  /** list・send・keys・close・read・open-tab */
+  cmd: string;
+  /** 相手のペインの名前か id */
+  to?: string;
+  /** send の文字 */
+  text?: string;
+  /** keys のキー */
+  keys?: string[];
+  /** read の scrollback の行数 */
+  lines?: number;
+  /** open-tab のワークスペースの名前 */
+  workspace?: string;
+  /** open-tab で、その名前のワークスペースを新しく作る */
+  new?: boolean;
+  /** open-tab の新しいタブのペインの名前 */
+  name?: string;
+  /** open-tab で始めるフォルダ（そのマシンの絶対パス。無ければそのマシンの始めのフォルダ） */
+  cwd?: string;
+  /** open-tab で動かすコマンド（最初の語はそのマシンの絶対パス。無ければシェル） */
+  argv?: string[];
+}
+
+/** 別のマシンのペインへの頼みの答え（serve の panecmd.Reply）。中身は見ずに、頼んだマシンへそのまま渡す。 */
+export interface PaneRunReply {
+  ok?: boolean;
+  error?: string;
+  /** 頼みが指した・作ったペインの id */
+  id?: string;
+  /** list の答え */
+  panes?: unknown[];
+  /** read の答え */
+  text?: string;
+}
 
 /** 新しい版の調べ直しの答え（#94）。 */
 export type UpdateReport =

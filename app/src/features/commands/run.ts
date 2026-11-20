@@ -10,6 +10,7 @@ import type { BrowserOs, PasskeyLogin } from "../browser/os.ts";
 import type { Pages } from "../browser/pages.ts";
 import { showTab } from "../browser/tabs.ts";
 import type { BrowserTabs } from "../browser/tabsStore.ts";
+import type { DbTabs } from "../db/controller.ts";
 import type { Failure, MascotStore } from "../mascot/mascotStore.ts";
 import type { ReportProblem } from "../problem.ts";
 import type { Scale } from "../scale/controller.ts";
@@ -41,6 +42,8 @@ export interface CommandUi {
   openKeyList(): void;
   /** URL バー（新しいタブのページなら検索窓）にキーを向ける */
   focusUrlBar(): void;
+  /** DB のタブの左の木のペインにキーを向ける */
+  focusDbTree(): void;
   /** ページから押したときに覚えた「キーを戻す先」を捨てる */
   forgetPageReturn(): void;
   /** OS のクリップボードに入れ、書けたときだけ「コピーしました」を出す */
@@ -59,6 +62,15 @@ export function createCommandRunner(deps: {
   terminals: Terminals;
   browserTabs: BrowserTabs;
   pages: Pages;
+  db: Pick<
+    DbTabs,
+    | "shownDbTab"
+    | "openPicker"
+    | "toggleTree"
+    | "reloadCatalog"
+    | "openExport"
+    | "openHistory"
+  >;
   bookmarks: Bookmarks;
   downloads: Downloads;
   updates: Updates;
@@ -248,13 +260,13 @@ export function createCommandRunner(deps: {
       cannot(T("cannot.pane.none.title"), T("cannot.pane.none.text"));
       return;
     }
-    // ブラウザのタブを出している間のペインの操作は、まずグリッドに戻す（見えないペインは動かさない）。
+    // ページのタブ（ブラウザのタブ・DB のタブ）を出している間のペインの操作は、まずグリッドに戻す（見えないペインは動かさない）。
     // ペインを閉じる（p x）は、戻すだけで閉じない（どのペインが閉じるか見えないまま閉じないため）
     if (
       c.id.startsWith("pane.") &&
       c.id !== "pane.resize" &&
       f &&
-      shownBrowserTab()
+      (shownBrowserTab() || deps.db.shownDbTab())
     ) {
       const g = currentGws();
       if (g) setTabs((s) => showTab(s, g.id, null));
@@ -287,6 +299,42 @@ export function createCommandRunner(deps: {
         // 入る・出るの両方（Cmd+R / Ctrl+Shift+R）
         ui.toggleResizeMode();
         break;
+      case "db.open":
+        deps.db.openPicker();
+        break;
+      case "db.tree":
+      case "db.refresh": {
+        // 左の木のペイン（#348）の操作：DB のタブを出している間だけ
+        const tab = deps.db.shownDbTab();
+        if (!tab) {
+          cannot(T("cannot.dbTree.title"), T("cannot.dbTree.text"));
+          break;
+        }
+        // 木を出したら木にキーを向け（キーだけで j k と Enter に移れる）、隠したら入力欄に戻す
+        if (c.id === "db.tree" && deps.db.toggleTree()) {
+          ui.focusDbTree();
+          break;
+        }
+        if (c.id === "db.refresh") void deps.db.reloadCatalog(tab.id);
+        focusTerminal();
+        break;
+      }
+      case "db.export":
+      case "db.history": {
+        // 結果の書き出しと履歴の呼び出し（#349）：DB のタブを出している間だけ
+        const tab = deps.db.shownDbTab();
+        if (!tab) {
+          cannot(T("cannot.dbTree.title"), T("cannot.dbTree.text"));
+          break;
+        }
+        if (c.id === "db.history") {
+          void deps.db.openHistory(tab.id);
+          break;
+        }
+        if (!deps.db.openExport(tab.id))
+          cannot(T("cannot.dbExport.title"), T("cannot.dbExport.text"));
+        break;
+      }
       case "workspace.nth":
         // サイドバーの上から順に（1 列の並びで）。足りなければ何もしない
         deps.workspaces.goNth(c.arg as number);

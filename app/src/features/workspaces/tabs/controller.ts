@@ -1,5 +1,5 @@
-// ワークスペースの中のタブ（ターミナルのタブとブラウザのタブ）の、追加・削除・並び順・選択・名前の変更。
-// ターミナルのタブは、マシンの kisui serve のワークスペース 1 つ。ブラウザのタブのページの中身は features/browser/ が持つ。
+// ワークスペースの中のタブ（ターミナルのタブ・ブラウザのタブ・DB のタブ）の、追加・削除・並び順・選択・名前の変更。
+// ターミナルのタブは、マシンの kisui serve のワークスペース 1 つ。ブラウザのタブのページの中身は features/browser/、DB のタブの中身は features/db/ が持つ。
 // 画面にも Tauri にも触らない。
 import { T } from "../../../i18n/index.ts";
 import { batch, createSignal, untrack } from "solid-js";
@@ -9,11 +9,14 @@ import type { Pages } from "../../browser/pages.ts";
 import {
   addTab,
   closeTab,
+  dropView,
   moveView,
   newTabId,
   showTab,
+  showView,
 } from "../../browser/tabs.ts";
 import type { BrowserTabs } from "../../browser/tabsStore.ts";
+import type { DbTabs } from "../../db/controller.ts";
 import type { ReportProblem } from "../../problem.ts";
 import type { Sessions } from "../../sessions/controller.ts";
 import { LOCAL } from "../../sessions/shell.ts";
@@ -25,8 +28,10 @@ import {
   browserKey,
   browserOriginOf,
   cycleKey,
+  dbKey,
   dropTerm,
   gwsOfBrowser,
+  gwsOfDb,
   gwsOfTab,
   gwsOfTerm,
   moveTabStep,
@@ -34,10 +39,11 @@ import {
   nameErrorText,
   refKey,
   removeBrowser,
-  renameBrowser,
+  removeDb,
+  renamePage,
   repTerm,
   setActiveTerm,
-  shownBrowserId,
+  shownPage,
   shownTabKey,
   steppableTabs,
   termKey,
@@ -49,7 +55,7 @@ import {
 import { band, unsetTitle, type Step } from "../rows.ts";
 
 /** 「+」のメニューで選べるタブの種類。 */
-export type NewTabKind = "terminal" | "terminal.pick" | "browser";
+export type NewTabKind = "terminal" | "terminal.pick" | "browser" | "db";
 
 /** createTabs が返す持ち物。 */
 export type Tabs = ReturnType<typeof createTabs>;
@@ -60,6 +66,8 @@ export function createTabs(deps: {
   workspaces: Workspaces;
   browserTabs: BrowserTabs;
   pages: Pick<Pages, "shownBrowserTab" | "openNewTab">;
+  /** DB のタブ（#347） */
+  db: Pick<DbTabs, "shownDbTab" | "openPicker">;
   setFocusError: ReportProblem;
   /** 今使っているペイン（ブラウザのタブを出していればそのページ）にキーを向ける */
   focusTerminal: () => void;
@@ -102,12 +110,22 @@ export function createTabs(deps: {
     setGws((x) => removeBrowser(x, id));
     if (g && next) activateTab(g.id, next);
   }
-  /** ワークスペース g が今出しているブラウザのタブの id（ターミナルのタブを出していれば undefined。ターミナルのタブが無いワークスペースは、出している・無ければ最初のブラウザのタブ）。 */
+  /**
+   * DB のタブ（#347）を閉じる。出していたタブなら、ブラウザのタブと同じに、同じワークスペースの次のタブ（無ければ前のタブ）を出す。
+   * 書きかけの SQL を捨て、実行中の SQL を取り消すのは、記録から外れたのを見た features/db/controller.ts。
+   */
+  function removeDbTab(id: string) {
+    const g = gwsOfDb(untrack(gws), id);
+    const next = g && shownIdOf(g) === id ? after(g, dbKey(id)) : undefined;
+    setTabs((s) => dropView(s, id));
+    setGws((x) => removeDb(x, id));
+    if (g && next) activateTab(g.id, next);
+  }
+  /** ワークスペース g が今出しているページのタブ（ブラウザのタブか DB のタブ）の id（ターミナルのタブを出していれば undefined。model.ts の shownPage）。 */
   function shownIdOf(g: Gws): string | undefined {
     const t = untrack(tabs);
-    return shownBrowserId(g, t.views[g.id], (id) =>
-      t.tabs.some((x) => x.id === id),
-    );
+    return shownPage(g, t.views[g.id], (id) => t.tabs.some((x) => x.id === id))
+      ?.id;
   }
 
   /**
@@ -118,6 +136,7 @@ export function createTabs(deps: {
     const g = untrack(gws).list.find((x) => x.id === gid);
     if (!g) return;
     if (ref.kind === "browser") setTabs((s) => showTab(s, gid, ref.id));
+    else if (ref.kind === "db") setTabs((s) => showView(s, gid, ref.id));
     else setTabs((s) => showTab(s, gid, null));
     const f = untrack(focus);
     const inside = untrack(currentGws)?.id === gid;
@@ -146,6 +165,12 @@ export function createTabs(deps: {
     if (!ref) return;
     if (ref.kind === "term") {
       void closeTermTab(ref.target, ref.ws);
+      return;
+    }
+    if (ref.kind === "db") {
+      const shown = deps.db.shownDbTab()?.id === ref.id;
+      removeDbTab(ref.id);
+      if (shown) focusTerminal();
       return;
     }
     const shown = shownBrowserTab()?.id === ref.id;
@@ -242,6 +267,8 @@ export function createTabs(deps: {
         current: ref.name ?? "",
         auto: untrack(tabs).tabs.find((t) => t.id === ref.id)?.title ?? "",
       };
+    if (ref.kind === "db")
+      return { current: ref.name ?? "", auto: ref.connection };
     const w = untrack(workspaces)[ref.target]?.find((x) => x.id === ref.ws);
     return {
       current: w?.label ?? "",
@@ -277,8 +304,8 @@ export function createTabs(deps: {
     const ref = untrack(gws)
       .list.find((g) => g.id === gid)
       ?.tabs.find((x) => refKey(x) === key);
-    if (ref?.kind === "browser") {
-      setGws((g) => renameBrowser(g, ref.id, name));
+    if (ref && ref.kind !== "term") {
+      setGws((g) => renamePage(g, key, name));
     } else if (ref) {
       try {
         // ターミナルのタブの名前は、マシンのワークスペースの名前
@@ -333,6 +360,7 @@ export function createTabs(deps: {
       else showGws(gid);
     }
     if (what === "browser") newBrowserTab(g);
+    else if (what === "db") deps.db.openPicker(gid);
     // ターミナルのタブが無いワークスペースには、同じマシン・フォルダにする元のタブが無いので、マシンを選ぶ（t N と同じ）
     else if (what === "terminal.pick" || !rep) void newTerminalTab(gid);
     else {
@@ -447,6 +475,8 @@ export function createTabs(deps: {
   function currentTabKey(): string | undefined {
     const b = shownBrowserTab();
     if (b) return browserKey(b.id);
+    const d = deps.db.shownDbTab();
+    if (d) return dbKey(d.id);
     // キーで移っている途中（返事が返るまで focus() が前のまま）は、向かっている先から数える（続けて押せるように）
     const f = deps.workspaces.heading() ?? untrack(focus);
     return f ? termKey(f.target, f.id) : undefined;
@@ -515,8 +545,8 @@ export function createTabs(deps: {
     const has = (id: string) => t.tabs.some((x) => x.id === id);
     const show =
       mode === "go" || shownTabKey(from, t.views[from.id], has) === key;
-    // 移動先が出していたブラウザのタブ（ターミナルのタブが無くて、覚えずに出していたものも）。移したタブを出さないなら、これを出し続ける
-    const destBrowser = shownBrowserId(dest, t.views[to], has);
+    // 移動先が出していたページのタブ（ターミナルのタブが無くて、覚えずに出していたものも）。移したタブを出さないなら、これを出し続ける
+    const destPage = shownPage(dest, t.views[to], has)?.id;
     batch(() => {
       setGws(
         show && ref.kind === "term"
@@ -525,11 +555,11 @@ export function createTabs(deps: {
       );
       setTabs((v) =>
         moveView(v, {
-          tab: ref.kind === "browser" ? ref.id : null,
+          tab: ref.kind === "term" ? null : ref.id,
           from: from.id,
           to,
           show,
-          destShown: destBrowser,
+          destShown: destPage,
         }),
       );
       if (mode === "go")

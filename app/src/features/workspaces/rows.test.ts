@@ -4,7 +4,16 @@ import { describe, it } from "node:test";
 import type { Workspace } from "../../infrastructure/rpc/protocol.ts";
 import { LOCAL } from "../sessions/shell.ts";
 import { MACHINE_COLORS } from "../sessions/colors.ts";
-import { EMPTY_GWS, reconcile, type GwsState } from "./model.ts";
+import {
+  addDb,
+  addEmptyWorkspace,
+  addWorkspace,
+  dbKey,
+  EMPTY_GWS,
+  reconcile,
+  termKey,
+  type GwsState,
+} from "./model.ts";
 import type { SessionState } from "../sessions/session.ts";
 import {
   tabToReveal,
@@ -18,7 +27,7 @@ import {
   stepRow,
   rowNear,
   gwsOfShjFocus,
-  shownIsBrowser,
+  shownIsPage,
   focusedRow,
   unsetTitle,
   type BandTabs,
@@ -783,7 +792,7 @@ describe("stepRow（キーで移る）", () => {
   });
 });
 
-describe("shownIsBrowser（ファイルツリーと CHANGES を隠すか）", () => {
+describe("shownIsPage（ファイルツリーと CHANGES を隠すか）", () => {
   const item = (key: string, kind: "term" | "browser") =>
     ({ key, kind }) as unknown as BandTabs["items"][number];
   const tabs = (shown: string): BandTabs => ({
@@ -792,13 +801,13 @@ describe("shownIsBrowser（ファイルツリーと CHANGES を隠すか）", ()
     focused: true,
   });
   it("ターミナルのタブを出している間は隠さない", () => {
-    assert.equal(shownIsBrowser(tabs("t")), false);
+    assert.equal(shownIsPage(tabs("t")), false);
   });
   it("ブラウザのタブを出している間は隠す", () => {
-    assert.equal(shownIsBrowser(tabs("b")), true);
+    assert.equal(shownIsPage(tabs("b")), true);
   });
   it("出しているタブのキーが items に無ければ隠さない", () => {
-    assert.equal(shownIsBrowser(tabs("x")), false);
+    assert.equal(shownIsPage(tabs("x")), false);
   });
 });
 
@@ -864,5 +873,56 @@ describe("rowNear（行に出なくなった・閉じたワークスペースか
   it("ほかに行が無ければ undefined", () => {
     assert.equal(rowNear(list, [{ gws: "g2" }], "g2"), undefined);
     assert.equal(rowNear(list, [], "g2"), undefined);
+  });
+});
+
+describe("DB のタブの行（#347）", () => {
+  const lists = { a: [ws({ id: "a1", root: "/a1" })] };
+  const db = (id: string, name?: string) =>
+    ({
+      kind: "db",
+      id,
+      target: "b",
+      connection: "prod",
+      ...(name ? { name } : {}),
+    }) as const;
+  function rows(views: Record<string, string>, name?: string): Row[] {
+    let s = addWorkspace(EMPTY_GWS, "a", "a1", "a1", "g1");
+    s = addDb(s, "g1", db("d1", name));
+    s = addEmptyWorkspace(s, "", "g2");
+    s = addDb(s, "g2", db("d2"));
+    const groups = buildSidebar(["a", "b"], {}, lists, null, {});
+    return gwsRows(s, {
+      groups,
+      workspaces: lists,
+      focus: null,
+      browser: new Map(),
+      views,
+      labelOf: (t) => `M-${t}`,
+      colorOf: (t) => `#${t}`,
+      healthOf: (t) => (t === "b" ? "up" : "down"),
+    });
+  }
+
+  it("名前は接続の名前（付けた名前があればそれで、2 行目に接続の名前）。マシンの札は接続を書いたマシン", () => {
+    const item = rows({})[0].tabs.items[1];
+    assert.equal(item.kind, "db");
+    assert.equal(item.key, dbKey("d1"));
+    assert.equal(item.title, "prod");
+    assert.equal(item.path, "");
+    assert.deepEqual(item.machine, { name: "M-b", color: "#b", health: "up" });
+    assert.equal(item.tip, "M-b の prod");
+    const named = rows({}, "main")[0].tabs.items[1];
+    assert.deepEqual([named.title, named.path], ["main", "prod"]);
+  });
+
+  it("出しているタブ：views が DB のタブならそれ。ターミナルのタブが無いワークスペースは DB のタブ", () => {
+    const r = rows({ g1: "d1" });
+    assert.equal(r[0].tabs.shown, dbKey("d1"));
+    assert.equal(shownIsPage(r[0].tabs), true);
+    assert.equal(r[1].tabs.shown, dbKey("d2"));
+    const t = rows({})[0];
+    assert.equal(t.tabs.shown, termKey("a", "a1"));
+    assert.equal(shownIsPage(t.tabs), false);
   });
 });

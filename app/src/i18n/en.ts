@@ -251,6 +251,12 @@ export const en = {
   "notice.shortcuts.title": "The shortcut settings have mistakes",
   "notice.shortcuts.text":
     "Only the shortcuts with mistakes are ignored. The others work.",
+  "notice.localMachine.title": "The machine name local is reserved",
+  "notice.localMachine.text":
+    "In kisui pane --machine, local always means this computer, so --machine cannot choose {machines}. Give it another name: in [[gui.machines]] of the config file for a machine set there, or with n in the machine dialog ({leader} m) for one added in the window.",
+  "notice.passkeySites.title": "Some passkey_sites entries are not used",
+  "notice.passkeySites.text":
+    "These entries are public suffixes (names under which anyone can have a subdomain, such as .com or .github.io), so they would copy the cookies of other people's sites too. kisui-terminal does not use them; the other entries work.",
   "button.disconnect": "Disconnect",
   "notice.machine.keys":
     "{leader} m opens the machine dialog; select this machine with j / k, then r to reconnect or x to disconnect",
@@ -424,6 +430,8 @@ export const en = {
     "An ssh destination cannot contain whitespace or control characters",
   "machine.err.added": "{label} is already added",
   "machine.err.nameTaken": "The name {name} is used by another machine",
+  "machine.err.localName":
+    "The name local is reserved for this computer (kisui pane --machine local). Give the machine another name",
   "treeMenu.copy-name": "Copy the name",
   "treeMenu.copy-relative": "Copy the relative path",
   "treeMenu.copy-absolute": "Copy the absolute path",
@@ -507,6 +515,8 @@ export const en = {
   "err.session.notConnected": "Not connected to {machine}",
   "err.session.tooOld":
     "The kisui serve of {machine} is too old for this. Update kisui-terminal there.",
+  "paneRelay.err.noMachine":
+    'No machine is named "{machine}" (machines: {machines})',
   "paneOpen.err.noWorkspace":
     'No workspace is named "{name}" (add --new to make one)',
   "paneOpen.err.ambiguous":
@@ -623,6 +633,116 @@ export const en = {
   "emptyWorkspace.closeWorkspace":
     "Close this workspace (from the workspace switcher; confirm with y)",
   "emptyWorkspace.plus": "You can also add a tab with the + in the sidebar.",
+  "emptyWorkspace.addDb": "Open a database tab",
+  // ---- DB のタブ（#347）----
+  "leader.db.group": "Database",
+  "leader.db.open": "Open a database tab",
+  "sidebar.addDb": "Database",
+  "dbTab.tip": "{connection} on {machine}",
+  "place.db.title": "Database tab",
+  "place.db.lead":
+    "Keys in the SQL input of a database tab. The result shows below it.",
+  "place.db.run": "Run the SQL",
+  "place.db.cancel": "Cancel the SQL that is running",
+  "cannot.db.title": "Cannot open a database tab",
+  "leader.db.tree": "Show or hide the schema tree",
+  "leader.db.refresh": "Reload the schema tree",
+  "cannot.dbTree.title": "No database tab is shown",
+  "cannot.dbTree.text": "Show a database tab first.",
+  "place.dbTree.title": "Schema tree of a database tab",
+  "place.dbTree.lead":
+    "Keys in the tree on the left of a database tab. Choosing a table runs SELECT * on it (first 100 rows).",
+  "place.dbTree.expand": "Open the branch (or go into it)",
+  "place.dbTree.collapse": "Close the branch (or go up)",
+  "place.dbTree.enter": "Open or close a schema, show the rows of a table",
+  "place.dbTree.back": "Back to the SQL input",
+  "db.tree.title": "Schemas",
+  "db.tree.label": "Schemas, tables and columns",
+  "db.tree.reload": "Reload",
+  "db.tree.loading": "Loading the schemas…",
+  "db.tree.empty": "No schemas",
+  "db.tree.view": "view",
+  "db.tree.truncated": "The list is cut because there are too many columns.",
+  "db.tree.passwordCancelled":
+    "The list was not loaded because the password was not given. Press Reload to try again.",
+  "cannot.db.noWorkspace": "There is no workspace to open it in.",
+  "db.picker.label": "Database connections",
+  "db.picker.title": "Choose a connection",
+  "db.picker.loading": "Asking the machines…",
+  "db.picker.empty": "No connections",
+  "db.picker.emptyHint":
+    "Write them under [[db.connections]] in config.toml on the machine that should connect.",
+  "db.picker.readOnly": "read-only",
+  "db.picker.open": "open",
+  "db.picker.problem": "{machine}: {problem}",
+  "db.picker.failed": "{machine}: could not get the connections ({error})",
+  "db.err.noConnection":
+    "This connection is no longer in the settings of its machine.",
+  "db.err.busy":
+    "Too many statements are running on this machine. Run it again when one ends.",
+  "db.err.disconnected": "Not connected to {machine}.",
+  "db.err.noDb":
+    "kisui serve on {machine} is too old to use databases. Reconnect to update it.",
+  "db.err.noDbShort": "this kisui serve is too old to use databases",
+  "db.err.password": "The password was not accepted.",
+  "db.elapsed.ms": "{n} ms",
+  "db.elapsed.s": "{n} s",
+  "db.summary.rows": "{n} rows",
+  "db.summary.truncated": "the rows after these were not read",
+  "db.summary.affected": "{n} rows changed",
+  "db.summary.done": "done",
+  "db.summary.truncatedCells": "some long values are cut",
+  "db.view.label": "Database tab: {connection}",
+  "db.view.sql": "SQL",
+  "db.view.placeholder": "Type SQL and press {key} to run it",
+  "db.view.run": "Run",
+  "db.view.cancel": "Cancel",
+  "db.view.running": "Running…",
+  "db.view.cancelled": "Cancelled.",
+  "db.view.empty": "Run SQL to see the result here.",
+  "db.view.noRows": "No rows.",
+  "db.view.sqlState": "SQLSTATE {code}",
+  "db.view.result": "Result",
+  "db.view.noTable": "This statement returns no rows.",
+  "db.password.label": "Database password",
+  "db.password.missing": "Password for {connection} on {machine}",
+  "db.password.rejected":
+    "The database refused the password for {connection} on {machine}. Type it again.",
+  "db.password.note":
+    "The window does not save it. After the login works, kisui serve on that machine keeps it in memory until it stops.",
+  "db.password.reveal": "Show the password",
+  "db.password.ok": "Run",
+  // ---- DB のタブの、結果の書き出しとクエリの履歴（#349）----
+  "leader.db.export": "Export the result (CSV, TSV or JSON)",
+  "leader.db.history": "Pick a SQL from this connection's history",
+  "cannot.dbExport.title": "Nothing to export",
+  "cannot.dbExport.text":
+    "Run SQL that returns rows in this database tab first.",
+  "db.export.label": "Export the result",
+  "db.export.title": "Export the result ({n} rows)",
+  "db.export.clipboard": "Copy to the clipboard",
+  "db.export.file": "Save to a file…",
+  "db.export.do": "export",
+  "db.export.saved": "Saved to {path}",
+  "db.export.failed": "Could not save the file",
+  "db.export.truncated":
+    "The rows after these were not read, so they are not in the export.",
+  "db.export.truncatedCells": "Some long values are cut in the export.",
+  "place.dbHistory.title": "SQL history of a database tab",
+  "place.dbHistory.lead":
+    "Keys in the history window. Type to filter. Only this connection's history is shown.",
+  "place.dbHistory.choose": "Put the selected SQL in the input (it is not run)",
+  "db.history.label": "SQL history",
+  "db.history.title": "SQL history of {connection}",
+  "db.history.filter": "Filter the history",
+  "db.history.filterPlaceholder": "Type to filter",
+  "db.history.list": "History",
+  "db.history.use": "put in the input",
+  "db.history.failedMark": "failed",
+  "db.history.close": "Close",
+  "db.history.empty.loading": "Loading",
+  "db.history.empty.none": "There is no history for this connection yet",
+  "db.history.empty.noMatch": "Nothing matches",
 } as const satisfies Record<string, string>;
 
 /** 表のキー。`T` に渡す。 */
