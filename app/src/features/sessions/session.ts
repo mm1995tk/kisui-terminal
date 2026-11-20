@@ -839,6 +839,24 @@ export function parsePaneOpen(n: unknown): PaneOpenRequest | undefined {
   };
 }
 
+/**
+ * PaneRunRequest の cmd 以外の項目と、その型の確かめ方。pane.relay の確かめと写しは、この表だけから行う
+ * （serve の panecmd.Request に項目を足したら、ここと PaneRunRequest に足す）。
+ */
+const PANE_RUN_FIELDS: {
+  [K in Exclude<keyof PaneRunRequest, "cmd">]-?: (v: unknown) => boolean;
+} = {
+  to: (v) => typeof v === "string",
+  text: (v) => typeof v === "string",
+  keys: (v) => Array.isArray(v) && v.every((x) => typeof x === "string"),
+  lines: (v) => typeof v === "number",
+  workspace: (v) => typeof v === "string",
+  new: (v) => typeof v === "boolean",
+  name: (v) => typeof v === "string",
+  cwd: (v) => typeof v === "string",
+  argv: (v) => Array.isArray(v) && v.every((x) => typeof x === "string"),
+};
+
 /** pane.relay の中身を確かめる。形が違えば undefined（答えようがないので捨てる。serve は時間切れで断る）。 */
 export function parsePaneRelay(n: unknown): PaneRelayRequest | undefined {
   if (typeof n !== "object" || n === null) return undefined;
@@ -848,37 +866,18 @@ export function parsePaneRelay(n: unknown): PaneRelayRequest | undefined {
   const r = p.request;
   if (typeof r !== "object" || r === null) return undefined;
   const q = r as Record<string, unknown>;
-  const str = (v: unknown) => v === undefined || typeof v === "string";
-  const strings = (v: unknown) =>
-    v === undefined ||
-    (Array.isArray(v) && v.every((x) => typeof x === "string"));
-  if (
-    typeof q.cmd !== "string" ||
-    !str(q.to) ||
-    !str(q.text) ||
-    !strings(q.keys) ||
-    (q.lines !== undefined && typeof q.lines !== "number") ||
-    !str(q.workspace) ||
-    (q.new !== undefined && typeof q.new !== "boolean") ||
-    !str(q.name) ||
-    !str(q.cwd) ||
-    !strings(q.argv)
-  )
-    return undefined;
-  const request: PaneRunRequest = { cmd: q.cmd };
-  for (const k of [
-    "to",
-    "text",
-    "keys",
-    "lines",
-    "workspace",
-    "new",
-    "name",
-    "cwd",
-    "argv",
-  ] as const)
-    if (q[k] !== undefined) Object.assign(request, { [k]: q[k] });
-  return { id: p.id, machine: p.machine, request };
+  if (typeof q.cmd !== "string") return undefined;
+  const request: Record<string, unknown> = { cmd: q.cmd };
+  for (const [k, ok] of Object.entries(PANE_RUN_FIELDS)) {
+    if (q[k] === undefined) continue;
+    if (!ok(q[k])) return undefined;
+    request[k] = q[k];
+  }
+  return {
+    id: p.id,
+    machine: p.machine,
+    request: request as unknown as PaneRunRequest,
+  };
 }
 
 /** 引き継がれたあとの古い接続が要求したときのエラー（not_owner）か。 */
