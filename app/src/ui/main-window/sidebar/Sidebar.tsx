@@ -91,8 +91,10 @@ export function Sidebar(
         setTreeMenu({ target, id, row, x, y })
     : undefined;
   const focused = createMemo(() => focusedRow(props.rows));
-  // shj が動いているときは、タブ・ファイルツリー・CHANGES の 3 段に分ける（#284）
-  const sections = () => focused()?.row.band.showTree === true;
+  // shj が動いているとき（と DB のタブを出している間）は、タブ・ファイルツリー・CHANGES の 3 段に分ける（#284・#374）
+  const sections = () =>
+    focused()?.row.band.showTree === true ||
+    (props.dbTabId?.() !== undefined && !!props.dbTree);
   let nav!: HTMLElement;
 
   // 固定されているものに data-stuck を付ける（背景と影をモックに合わせる）。

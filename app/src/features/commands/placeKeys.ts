@@ -310,7 +310,7 @@ export const PLACE_KEYS: Record<Place, PlaceKeys> = {
       row("Esc", T("place.row.close"), []),
     ],
   },
-  // DB のタブの左の木のペイン（#348）。判定は features/db/keys.ts の dbTreeKey
+  // サイドバーの DB のタブの木（#348・#374）。判定は features/db/keys.ts の dbTreeKey
   dbTree: {
     title: T("place.dbTree.title"),
     lead: T("place.dbTree.lead"),

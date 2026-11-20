@@ -1,14 +1,12 @@
-// DB のタブ（#347）の左の木のペイン（#348）の、画面にも Solid にも依存しない部分（node --test で確かめられる）。
+// DB のタブ（#347）のスキーマの木（#348。サイドバーに出す。#374）の、画面にも Solid にも依存しない部分（node --test で確かめられる）。
 // - 一覧（db.schema の答え）を、開いている枝だけの「見える行」に並べる
 // - 木の中のキー（上下で動く・開け閉め・選ぶ）の動き
 // - テーブルを選んだときに実行する SQL
-// - 木のペインの開け閉めと幅の記録（KeyValueStore）
 
 import type {
   DbCatalog,
   DbConnection,
 } from "../../infrastructure/rpc/protocol.ts";
-import type { KeyValueStore } from "../keyValueStore.ts";
 
 // ---- 見える行 ----
 
@@ -184,66 +182,4 @@ export function previewSql(
   table: string,
 ): string {
   return `SELECT * FROM ${quoteIdent(kind, schema)}.${quoteIdent(kind, table)} LIMIT ${PREVIEW_LIMIT}`;
-}
-
-// ---- ペインの開け閉めと幅 ----
-
-/** localStorage のキー。 */
-export const DB_TREE_KEY = "kisui-terminal.dbTree";
-
-/** 木のペインの出し方。すべての DB のタブで共通（ウィンドウの設定）。 */
-export interface TreeLayout {
-  open: boolean;
-  /** 幅（px） */
-  width: number;
-}
-
-/** 木のペインの幅（px）の下限・上限・既定。 */
-export const TREE_WIDTH = { min: 160, max: 640, initial: 240 } as const;
-
-/** 記録が無い・壊れているときの木のペインの出し方（開いていて、既定の幅）。 */
-export const DEFAULT_TREE_LAYOUT: TreeLayout = {
-  open: true,
-  width: TREE_WIDTH.initial,
-};
-
-/** 幅を、決めた範囲に収める。 */
-export function clampTreeWidth(w: number): number {
-  if (!Number.isFinite(w)) return TREE_WIDTH.initial;
-  return Math.round(Math.min(TREE_WIDTH.max, Math.max(TREE_WIDTH.min, w)));
-}
-
-/** 記録を読む。無い・壊れているときは既定。 */
-export function loadTreeLayout(store: KeyValueStore | undefined): TreeLayout {
-  try {
-    const raw = store?.getItem(DB_TREE_KEY);
-    if (!raw) return DEFAULT_TREE_LAYOUT;
-    const o = JSON.parse(raw) as {
-      version?: unknown;
-      open?: unknown;
-      width?: unknown;
-    };
-    if (o.version !== 1) return DEFAULT_TREE_LAYOUT;
-    return {
-      open: typeof o.open === "boolean" ? o.open : DEFAULT_TREE_LAYOUT.open,
-      width:
-        typeof o.width === "number"
-          ? clampTreeWidth(o.width)
-          : DEFAULT_TREE_LAYOUT.width,
-    };
-  } catch {
-    return DEFAULT_TREE_LAYOUT;
-  }
-}
-
-/** 記録を書く。書けなくても、今回は使える。 */
-export function saveTreeLayout(
-  store: KeyValueStore | undefined,
-  l: TreeLayout,
-): void {
-  try {
-    store?.setItem(DB_TREE_KEY, JSON.stringify({ version: 1, ...l }));
-  } catch {
-    // 保存できなくても、今回は使える
-  }
 }

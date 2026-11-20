@@ -663,3 +663,15 @@ div.band-main {
 .tab-line:not(:has(.tab-l2)) .tab-actions {
   top: calc(var(--tab-pad-y) + (var(--tab-body-h) - var(--tab-l1-h)) / 2);
 }
+
+/* DB のタブを出している間（.panes[data-db]。#374）は、ファイルツリーの段と CHANGES を見えなくし（外さないので状態は残る）、
+   同じ場所に DB の木の段（.db-tree-section）を出す。木は段の中だけでスクロールする */
+.panes[data-db] > .tree-section:not(.db-tree-section),
+.panes[data-db] > .changes {
+  display: none;
+}
+.db-tree-section {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}

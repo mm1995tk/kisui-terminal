@@ -93,7 +93,7 @@ describe("場所のキーの表は、その場所の判定と合っている", (
     );
   });
 
-  it("DB のタブの左の木（#348）：表のキーは、どれも判定が受ける", () => {
+  it("サイドバーの DB のタブの木（#348・#374）：表のキーは、どれも判定が受ける", () => {
     for (const r of PLACE_KEYS.dbTree.rows)
       for (const p of r.probes)
         assert.notEqual(dbTreeKey(ev(p)), null, `${r.keys}: ${p}`);

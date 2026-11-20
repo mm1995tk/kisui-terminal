@@ -1,4 +1,5 @@
-// DB のタブ（#347）の左の木のペイン（#348）。スキーマ → テーブル（ビューを含む）→ 列（名前と型）を出す。
+// DB のタブ（#347）を出している間に、サイドバーのファイルツリーの場所に出す、そのタブの接続の木（#348。#374 でタブの中のペインから移した）。
+// スキーマ → テーブル（ビューを含む）→ 列（名前と型）を出す。
 // 一覧（db.schema の答え）と、開けている枝は features/db/controller.ts が持つ。ここは出すことと、木の中のキー・クリックだけ。
 // キーの判定は features/db/keys.ts の dbTreeKey、行き先は features/db/tree.ts の treeStep。
 import { T } from "../../../../i18n/index.ts";
@@ -8,7 +9,6 @@ import {
   createSignal,
   For,
   on,
-  onCleanup,
   Show,
   type JSX,
 } from "solid-js";
@@ -23,8 +23,8 @@ import {
 import { Button } from "../../../components/Button.tsx";
 import styles from "./DbTree.module.css";
 
-/** 木のペイン。 */
-export function DbTree(props: {
+/** サイドバーの木が外から受け取る値と、外へ頼むこと。 */
+export interface DbTreeProps {
   catalog: DbCatalogState;
   /** 開けている枝（tree.ts の行の id） */
   expanded: ReadonlySet<string>;
@@ -34,13 +34,11 @@ export function DbTree(props: {
   onReload: () => void;
   /** キーを SQL の入力欄に戻す */
   onLeave: () => void;
-  /** 木にキーを向ける関数を受け取る（消えるときは undefined） */
-  focusRef?: (f: (() => void) | undefined) => void;
-}): JSX.Element {
-  let root!: HTMLDivElement;
+}
+
+/** サイドバーの、DB のタブの接続の木。キーを向ける先は data-place="dbTree" の要素（ui/main-window/focus.ts が探す）。 */
+export function DbTree(props: DbTreeProps): JSX.Element {
   let list: HTMLDivElement | undefined;
-  props.focusRef?.(() => root.focus());
-  onCleanup(() => props.focusRef?.(undefined));
   const [cursor, setCursor] = createSignal<string | undefined>();
   const rows = createMemo(() =>
     props.catalog.catalog
@@ -87,7 +85,6 @@ export function DbTree(props: {
 
   return (
     <div
-      ref={root}
       class={styles.tree}
       role="group"
       aria-label={T("db.tree.label")}

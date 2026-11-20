@@ -6,6 +6,7 @@ import type {
 import type { TreeMenuAction } from "../../../features/file-tree/menu.ts";
 import type { TreeRow } from "../../../features/file-tree/model.ts";
 import type { TreeEditView } from "./file-tree/TreeView.tsx";
+import type { DbTreeProps } from "./db-tree/DbTree.tsx";
 import type { NewTabKind } from "../../../features/workspaces/tabs/controller.ts";
 import type {
   ChangesShjKey,
@@ -94,6 +95,10 @@ export interface Handlers {
   onTreeEditSubmit?: (value: string) => void;
   /** ツリーの入力欄で Esc を押した（byKey）・フォーカスが外れた */
   onTreeEditCancel?: (byKey: boolean) => void;
+  /** 今のワークスペースで出している DB のタブの id（#374。出していれば、ファイルツリーの場所にそのタブの接続の木を出す。無ければ undefined） */
+  dbTabId?: () => string | undefined;
+  /** DB のタブ id の木の値と頼み（dbTabId が返した id で呼ぶ。値は getter で渡す） */
+  dbTree?: (id: string) => DbTreeProps;
   /** ツリーの行を右クリックした（Sidebar が内側に渡す。呼ぶ側は onTreeAction を使う） */
   onTreeMenu?: (
     target: string,
@@ -148,6 +153,12 @@ export function handlers(
     },
     get onTabClose() {
       return props.onTabClose;
+    },
+    get dbTabId() {
+      return props.dbTabId;
+    },
+    get dbTree() {
+      return props.dbTree;
     },
     get treeOf() {
       return props.treeOf;

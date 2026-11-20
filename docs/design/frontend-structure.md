@@ -34,6 +34,7 @@ app/src/
         Sidebar.tsx
         workspaces/         # ワークスペースの帯と、中のタブの行
         file-tree/          # ツリー、メニュー、ファイル操作の窓
+        db-tree/            # DB のタブを出している間にファイルツリーの場所に出す、スキーマの木
         changes/
       content/
         ContentArea.tsx

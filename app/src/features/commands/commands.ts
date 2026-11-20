@@ -424,7 +424,7 @@ export const LEADER: Node[] = [
   // DB のタブ（#347。MySQL / PostgreSQL のクライアント）。SQL の実行のように DB のタブの中だけで使う操作は、場所のキー（placeKeys.ts の db）
   group("d", T("leader.db.group"), [
     leaf("n", T("leader.db.open"), { id: "db.open" }),
-    // 左の木のペイン（#348）。DB のタブを出している間だけ効く
+    // サイドバーの木（#348・#374）。DB のタブを出している間だけ効く
     leaf("t", T("leader.db.tree"), { id: "db.tree" }),
     leaf("r", T("leader.db.refresh"), { id: "db.refresh" }),
     // 結果の書き出しと、接続ごとのクエリの履歴（#349）。DB のタブを出している間だけ効く

@@ -302,9 +302,8 @@ export function createDbTabs(deps: {
     if (q) cancelQuery(q);
   }
 
-  // ---- 左の木のペイン（#348） ----
+  // ---- サイドバーの木（#348・#374） ----
   const tree = createDbTree({
-    store,
     refOf,
     sessionFor,
     request,
@@ -453,7 +452,7 @@ export function createDbTabs(deps: {
     stepPage,
     cancel,
     request,
-    // 左の木のペイン（#348。treeController.ts）
+    // サイドバーの木（#348・#374。treeController.ts）
     ...tree,
     // 結果の書き出し（#349。exportController.ts）と、クエリの履歴（historyController.ts）
     ...exporter,

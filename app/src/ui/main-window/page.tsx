@@ -217,6 +217,7 @@ function MainWindow(props: {
     termBars: terminals.termBars,
     changesOf: changes.changesOf,
     walking: workspaces.walking,
+    dbShown: () => db.shownDbTab() !== undefined,
     treeScrollTop: fileTree.scrollTop,
     rememberTreeScroll: fileTree.rememberScroll,
     focusTerminal,
@@ -291,6 +292,20 @@ function MainWindow(props: {
           browser={browser}
           onTabMove={tabs.moveTabBefore}
           treeOf={fileTree.treeOf}
+          dbTabId={() => db.shownDbTab()?.id}
+          dbTree={(id) => ({
+            get catalog() {
+              return db.catalogOf(id);
+            },
+            get expanded() {
+              return db.expandedOf(id);
+            },
+            onToggle: (node, open) => db.toggleNode(id, node, open),
+            onPreview: (schema, table) => db.previewTable(id, schema, table),
+            onReload: () => void db.reloadCatalog(id),
+            // Esc：キーを SQL の入力欄に戻す（DB のタブを出していれば、focusTerminal が入力欄に向ける）
+            onLeave: focusTerminal,
+          })}
           onToggle={fileTree.toggle}
           onClose={(gid) => void workspaces.closeWorkspace(gid)}
           onRenameWorkspace={workspaces.openWorkspaceRename}

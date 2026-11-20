@@ -53,6 +53,8 @@ export function createPaneResize(deps: {
   focus: Accessor<WorkspaceFocus | null>;
   /** サイドバーの行（ワークスペースの並び） */
   rows: Accessor<Row[]>;
+  /** DB のタブを出しているか（出している間は、サイドバーのファイルツリーの場所に DB の木が出る。#374） */
+  dbShown: () => boolean;
   /** フォーカスしているワークスペースのターミナル */
   termGroup: () => TermGroup | undefined;
   /** ペインどうしの境界（隠している間は無い） */
@@ -77,6 +79,7 @@ export function createPaneResize(deps: {
     termBars,
     changesOf,
     walking,
+    dbShown,
     focusTerminal,
   } = deps;
   // ブロックの境界の大きさ（panes.ts）。変えたら覚えておき、GUI を起動し直しても残す
@@ -387,18 +390,20 @@ export function createPaneResize(deps: {
   function changesShown(): boolean {
     const f = focus();
     return (
-      sidebarOpen() && f !== null && changesOf(f.target, f.id) !== undefined
+      sidebarOpen() &&
+      !dbShown() &&
+      f !== null &&
+      changesOf(f.target, f.id) !== undefined
     );
   }
 
-  /** サイドバーを 3 段（タブ・ファイルツリー・CHANGES）に分けて出しているか（タブの段との境目を動かせるか）。ブラウザのタブを出している間は出さない。 */
+  /** サイドバーを 3 段（タブ・ファイルツリー（DB のタブを出している間は DB の木）・CHANGES）に分けて出しているか（タブの段との境目を動かせるか）。ブラウザのタブを出している間は出さない。 */
   function tabsShown(): boolean {
     const r = focusedRow(rows());
     return (
       sidebarOpen() &&
       r !== null &&
-      r.row.band.showTree &&
-      !shownIsPage(r.row.tabs)
+      (dbShown() || (r.row.band.showTree && !shownIsPage(r.row.tabs)))
     );
   }
 

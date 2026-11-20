@@ -50,7 +50,7 @@ describe("dbEditorKey（DB のタブの SQL の入力欄のキー）", () => {
   });
 });
 
-describe("dbTreeKey（左の木のペインのキー）", () => {
+describe("dbTreeKey（サイドバーの木のキー）", () => {
   it("上下・開け閉め・先頭末尾・Enter・Esc", () => {
     const k = (key: string, extra: object = {}) => dbTreeKey(ev(key, extra));
     assert.equal(k("j"), "next");
