@@ -361,9 +361,10 @@ func (ss *session) handle(ctx context.Context, req *rpc.Message) (any, error) {
 	}
 	if req.IsNotification() {
 		ss.termNotify(req)
-		if req.Method == "update.result" {
+		switch req.Method {
+		case "update.result":
 			ss.updateNotify(req.Params)
-		} else if req.Method == "pane.opened" {
+		case "pane.opened":
 			ss.paneOpenedNotify(req.Params)
 		}
 		return nil, nil // 知らない通知は無視する
