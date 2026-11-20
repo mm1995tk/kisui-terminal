@@ -13,10 +13,8 @@ import {
   type JSX,
 } from "solid-js";
 
-import type {
-  DbCatalogState,
-  DbRun,
-} from "../../../../features/db/controller.ts";
+import type { DbRun } from "../../../../features/db/controller.ts";
+import type { DbCatalogState } from "../../../../features/db/treeController.ts";
 import { dbEditorKey } from "../../../../features/db/keys.ts";
 import { cellText, resultSummary } from "../../../../features/db/model.ts";
 import type { DbQueryResult } from "../../../../infrastructure/rpc/protocol.ts";
@@ -48,6 +46,8 @@ export function DbTabView(props: {
     onToggle: (node: string, open: boolean) => void;
     onPreview: (schema: string, table: string) => void;
     onReload: () => void;
+    /** 木にキーを向ける関数を受け取る（消えるときは undefined） */
+    focusRef?: (f: (() => void) | undefined) => void;
   };
   /** SQL の入力欄にキーを向ける関数を受け取る（消えるときは undefined） */
   focusRef?: (f: (() => void) | undefined) => void;
@@ -108,6 +108,7 @@ export function DbTabView(props: {
             onPreview={props.tree.onPreview}
             onReload={props.tree.onReload}
             onLeave={() => input.focus()}
+            focusRef={props.tree.focusRef}
           />
         </div>
         <div

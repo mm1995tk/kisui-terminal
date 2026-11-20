@@ -8,11 +8,12 @@ import {
   createSignal,
   For,
   on,
+  onCleanup,
   Show,
   type JSX,
 } from "solid-js";
 
-import type { DbCatalogState } from "../../../../features/db/controller.ts";
+import type { DbCatalogState } from "../../../../features/db/treeController.ts";
 import { dbTreeKey } from "../../../../features/db/keys.ts";
 import {
   treeStep,
@@ -33,15 +34,19 @@ export function DbTree(props: {
   onReload: () => void;
   /** キーを SQL の入力欄に戻す */
   onLeave: () => void;
+  /** 木にキーを向ける関数を受け取る（消えるときは undefined） */
+  focusRef?: (f: (() => void) | undefined) => void;
 }): JSX.Element {
+  let root!: HTMLDivElement;
   let list: HTMLDivElement | undefined;
+  props.focusRef?.(() => root.focus());
+  onCleanup(() => props.focusRef?.(undefined));
   const [cursor, setCursor] = createSignal<string | undefined>();
   const rows = createMemo(() =>
     props.catalog.catalog
       ? visibleRows(props.catalog.catalog, props.expanded)
       : [],
   );
-  const activeIndex = () => rows().findIndex((r) => r.id === cursor());
   // 選んでいる行が、閉じた枝の中に隠れた・一覧が替わって無くなったら、先頭に戻す
   createEffect(
     on(rows, (r) => {
@@ -78,7 +83,18 @@ export function DbTree(props: {
   }
 
   return (
-    <div class={styles.tree} data-place="dbTree">
+    <div
+      ref={root}
+      class={styles.tree}
+      role="group"
+      aria-label={T("db.tree.label")}
+      tabindex="0"
+      data-place="dbTree"
+      onKeyDown={onKeyDown}
+      onFocus={() => {
+        if (cursor() === undefined) setCursor(rows()[0]?.id);
+      }}
+    >
       <div class={styles.head}>
         <span class={styles.title}>{T("db.tree.title")}</span>
         <Button busy={!!props.catalog.loading} onClick={props.onReload}>
@@ -105,21 +121,12 @@ export function DbTree(props: {
               ref={list}
               class={styles.list}
               role="tree"
-              tabindex="0"
               aria-label={T("db.tree.label")}
               aria-busy={props.catalog.loading ? "true" : undefined}
-              aria-activedescendant={
-                activeIndex() >= 0 ? `dbtree-${activeIndex()}` : undefined
-              }
-              onKeyDown={onKeyDown}
-              onFocus={() => {
-                if (cursor() === undefined) setCursor(rows()[0]?.id);
-              }}
             >
               <For each={rows()}>
-                {(r, i) => (
+                {(r) => (
                   <div
-                    id={`dbtree-${i()}`}
                     class={styles.row}
                     role="treeitem"
                     aria-level={r.depth + 1}

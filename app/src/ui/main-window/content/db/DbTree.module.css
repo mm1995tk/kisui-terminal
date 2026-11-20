@@ -46,7 +46,7 @@
   font-family: var(--font-mono);
   font-size: var(--text-label);
 }
-.list:focus-visible {
+.tree:focus-visible {
   outline: var(--state-focus-ring-width) solid var(--state-focus-ring);
   outline-offset: calc(-1 * var(--state-focus-ring-width));
 }
@@ -66,7 +66,7 @@
 .row[aria-selected="true"] {
   background: var(--state-selected-bg);
 }
-.list:focus-visible .row[aria-selected="true"] {
+.tree:focus-visible .row[aria-selected="true"] {
   outline: 1px solid var(--state-selected-outline);
   outline-offset: -1px;
 }

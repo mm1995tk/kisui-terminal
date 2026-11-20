@@ -169,6 +169,7 @@ export function ContentArea(props: {
                 onPreview: (schema, table) =>
                   db.previewTable(id, schema, table),
                 onReload: () => void db.reloadCatalog(id),
+                focusRef: (f) => props.focusUi.setDbTreeFocus(f),
               }}
               focusRef={(f) => props.focusUi.setDbFocus(f)}
             />

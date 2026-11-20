@@ -42,6 +42,8 @@ export interface CommandUi {
   openKeyList(): void;
   /** URL バー（新しいタブのページなら検索窓）にキーを向ける */
   focusUrlBar(): void;
+  /** DB のタブの左の木のペインにキーを向ける */
+  focusDbTree(): void;
   /** ページから押したときに覚えた「キーを戻す先」を捨てる */
   forgetPageReturn(): void;
   /** OS のクリップボードに入れ、書けたときだけ「コピーしました」を出す */
@@ -303,8 +305,12 @@ export function createCommandRunner(deps: {
           cannot(T("cannot.dbTree.title"), T("cannot.dbTree.text"));
           break;
         }
-        if (c.id === "db.tree") deps.db.toggleTree();
-        else void deps.db.reloadCatalog(tab.id);
+        // 木を出したら木にキーを向け（キーだけで j k と Enter に移れる）、隠したら入力欄に戻す
+        if (c.id === "db.tree" && deps.db.toggleTree()) {
+          ui.focusDbTree();
+          break;
+        }
+        if (c.id === "db.refresh") void deps.db.reloadCatalog(tab.id);
         focusTerminal();
         break;
       }

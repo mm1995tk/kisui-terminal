@@ -58,6 +58,7 @@ export function createFocus(deps: {
   let focusUrlBar: (() => void) | undefined;
   let focusEmpty: (() => void) | undefined;
   let focusDb: (() => void) | undefined;
+  let focusDbTree: (() => void) | undefined;
 
   /** shj の Space e：フォーカスしているワークスペースなら、サイドバーのファイルツリーにキーを向ける。 */
   function focusExplorer(target: string, id: WorkspaceId) {
@@ -238,6 +239,12 @@ export function createFocus(deps: {
     setDbFocus(f: (() => void) | undefined) {
       focusDb = f;
     },
+    /** DB のタブの左の木のペイン（#348）にキーを向ける関数を受け取る（DbTree。消えるときは undefined） */
+    setDbTreeFocus(f: (() => void) | undefined) {
+      focusDbTree = f;
+    },
+    /** 木のペインにキーを向ける（描かれるのを待つ。開けた直後は、まだ画面が出ていない） */
+    focusDbTree: () => queueMicrotask(() => focusDbTree?.()),
     /** URL バー（新しいタブのページなら検索窓）にキーを向ける関数を受け取る（UrlBar・NewTabPage） */
     setUrlBarFocus(f: () => void) {
       focusUrlBar = f;
