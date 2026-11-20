@@ -71,8 +71,7 @@ type DBAccess struct {
 // Access is what actor may do on c, a connection as LoadDB gives it.
 //
 //   - A person with no permission named does what `read-only` says: read
-//     when it is true, free otherwise (what a connection did before
-//     permissions).
+//     when it is true, free otherwise.
 //   - An agent with no permission named runs nothing, and may write into
 //     the input.
 //   - `read-only = true` holds for everybody: with it, nobody is above
