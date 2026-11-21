@@ -79,3 +79,25 @@ export const Interactive: Story = { render: () => <List /> };
 
 /** つかんだ行（不透明。下の行の字が透けない） */
 export const HeldAfter: Story = { render: () => <List held /> };
+
+/** 行の色の見比べ（#395）。上から、今のタブ・出しているタブ・ふつうのタブ。今のタブにマウスを乗せても今のタブだと分かること、ほかのタブに乗せると今のタブと違う色になることを、乗せて確かめる */
+export const TabStates: Story = {
+  render: () => (
+    <div
+      class="sidebar-column band-item"
+      style={{ width: "280px", "border-right": "none" }}
+    >
+      <ul class="tab-rows" style={{ margin: "0" }}>
+        <li class="tab-row" data-current="" data-shown="">
+          <div class="tab-line">zsh ~/work/app（今のタブ）</div>
+        </li>
+        <li class="tab-row" data-shown="">
+          <div class="tab-line">shj README.md（出しているタブ）</div>
+        </li>
+        <li class="tab-row">
+          <div class="tab-line">zsh ~/work/server</div>
+        </li>
+      </ul>
+    </div>
+  ),
+};
