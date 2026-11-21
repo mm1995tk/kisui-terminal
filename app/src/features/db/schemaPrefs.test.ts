@@ -4,7 +4,6 @@ import { describe, it } from "node:test";
 import type { DbCatalog } from "../../infrastructure/rpc/protocol.ts";
 import type { KeyValueStore } from "../keyValueStore.ts";
 import {
-  canNarrow,
   chosenFor,
   connectionKey,
   DB_SCHEMA_PREFS_KEY,
@@ -66,31 +65,20 @@ describe("connectionKey（接続を見分ける名前）", () => {
 
 describe("withSchemaPref（接続 1 つの分を変える）", () => {
   it("渡したものだけを変え、ほかの接続の分は残す", () => {
-    const all = { a: { schema: "app" }, b: { all: true } };
-    assert.deepEqual(withSchemaPref(all, "a", { all: true }), {
-      a: { schema: "app", all: true },
-      b: { all: true },
-    });
+    const all = { a: { schema: "app" }, b: { schema: "x" } };
     assert.deepEqual(withSchemaPref(all, "b", { schema: "audit" }), {
       a: { schema: "app" },
-      b: { schema: "audit", all: true },
+      b: { schema: "audit" },
     });
-    assert.deepEqual(all, { a: { schema: "app" }, b: { all: true } });
+    assert.deepEqual(all, { a: { schema: "app" }, b: { schema: "x" } });
   });
 
-  it("schema の null と all の false は、その分を除く。何も残らない接続は除く", () => {
-    const all = { a: { schema: "app", all: true } };
-    assert.deepEqual(withSchemaPref(all, "a", { schema: null }), {
-      a: { all: true },
-    });
-    assert.deepEqual(withSchemaPref(all, "a", { all: false }), {
-      a: { schema: "app" },
-    });
+  it("schema の null は、その接続を除く", () => {
     assert.deepEqual(
       withSchemaPref({ a: { schema: "app" } }, "a", { schema: null }),
       {},
     );
-    assert.deepEqual(withSchemaPref({}, "a", { all: false }), {});
+    assert.deepEqual(withSchemaPref({}, "a", { schema: null }), {});
   });
 });
 
@@ -98,14 +86,14 @@ describe("loadSchemaPrefs・saveSchemaPrefs（接続ごとの記録）", () => {
   it("書いたものを読める（アプリを開き直しても残る）", () => {
     const store = memStore();
     const key = connectionKey({ target: "@local", connection: "shop" });
-    const prefs = withSchemaPref({}, key, { schema: "audit", all: true });
+    const prefs = withSchemaPref({}, key, { schema: "audit" });
     saveSchemaPrefs(store, prefs);
     assert.deepEqual(loadSchemaPrefs(store), {
-      [key]: { schema: "audit", all: true },
+      [key]: { schema: "audit" },
     });
     assert.deepEqual(JSON.parse(store.data.get(DB_SCHEMA_PREFS_KEY)!), {
       version: 1,
-      connections: { [key]: { schema: "audit", all: true } },
+      connections: { [key]: { schema: "audit" } },
     });
   });
 
@@ -134,7 +122,8 @@ describe("loadSchemaPrefs・saveSchemaPrefs（接続ごとの記録）", () => {
           d: { schema: "", all: true },
         },
       }),
-      { b: { schema: "x" }, d: { all: true } },
+      // 前の版が覚えていた「すべてのスキーマを表示」の印（all）は読まない
+      { b: { schema: "x" } },
     );
   });
 
@@ -145,8 +134,8 @@ describe("loadSchemaPrefs・saveSchemaPrefs（接続ごとの記録）", () => {
         throw new Error("full");
       },
     };
-    saveSchemaPrefs(store, { a: { all: true } });
-    saveSchemaPrefs(undefined, { a: { all: true } });
+    saveSchemaPrefs(store, { a: { schema: "x" } });
+    saveSchemaPrefs(undefined, { a: { schema: "x" } });
   });
 });
 
@@ -211,39 +200,22 @@ describe("chosenFor（ドロップダウンで選んだときに覚えるスキ�
 describe("onlySchema（木に出すスキーマ）", () => {
   const c = catalogOf(["audit", "public"], { defaultSchema: "public" });
 
-  it("印が無ければ、ドロップダウンが示すスキーマだけ（選んでいなければ DB の既定）", () => {
-    assert.equal(onlySchema(c, undefined, false), "public");
-    assert.equal(onlySchema(c, "audit", false), "audit");
+  it("木の上の欄が示すスキーマだけ（選んでいなければ DB の既定）", () => {
+    assert.equal(onlySchema(c, undefined), "public");
+    assert.equal(onlySchema(c, "audit"), "audit");
   });
 
-  it("印があれば、すべてのスキーマ", () => {
-    assert.equal(onlySchema(c, undefined, true), undefined);
-    assert.equal(onlySchema(c, "audit", true), undefined);
-  });
-
-  it("示すスキーマが無い・一覧に無いときは、印が無くてもすべてのスキーマ（木を空にしない）", () => {
+  it("示すスキーマが無い・一覧に無いときは、すべてのスキーマ（木を空にしない）", () => {
     // DB の既定のスキーマを返さない古い kisui serve
-    assert.equal(
-      onlySchema(catalogOf(["a", "b"]), undefined, false),
-      undefined,
-    );
+    assert.equal(onlySchema(catalogOf(["a", "b"]), undefined), undefined);
     // MySQL で DB を指定せずに接続した
     assert.equal(
-      onlySchema(catalogOf(["a"], { defaultSchema: null }), undefined, false),
+      onlySchema(catalogOf(["a"], { defaultSchema: null }), undefined),
       undefined,
     );
     // 選んだスキーマが、途中で切れた一覧に無い
-    assert.equal(
-      onlySchema({ ...c, truncated: true }, "zzz", false),
-      undefined,
-    );
+    assert.equal(onlySchema({ ...c, truncated: true }, "zzz"), undefined);
     // 古い kisui serve でも、選んだスキーマが一覧にあれば絞る
-    assert.equal(onlySchema(catalogOf(["a", "b"]), "b", false), "b");
-  });
-
-  it("canNarrow：絞る先のスキーマがあるときだけ、印を切り替えられる", () => {
-    assert.equal(canNarrow(c, undefined), true);
-    assert.equal(canNarrow(catalogOf(["a", "b"]), undefined), false);
-    assert.equal(canNarrow(catalogOf(["a", "b"]), "b"), true);
+    assert.equal(onlySchema(catalogOf(["a", "b"]), "b"), "b");
   });
 });

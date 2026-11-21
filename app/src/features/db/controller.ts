@@ -8,7 +8,7 @@
 // - どのワークスペースが DB のタブを出しているかは、ブラウザのタブと同じ views（features/browser/tabs.ts）。
 // - 入力欄の書きかけの SQL は、ここが KeyValueStore（webview の localStorage）に覚える（model.ts の loadDrafts・saveDrafts）。
 //   タブが閉じたら捨てる。アプリを開き直したら戻る。
-// - 選んだ既定のスキーマと「すべてのスキーマを表示」の印は、接続ごとに同じ KeyValueStore に覚える（#398。treeController.ts）。
+// - 選んだ既定のスキーマは、接続ごとに同じ KeyValueStore に覚える（#398。treeController.ts）。
 // - 結果・実行中の印・間違いは、メモリだけに持つ（開き直したら、もう一度実行する）。
 // - パスワードは持たない。kisui serve が password_required を返したら画面で聞き、その 1 回の要求に付けて送るだけ
 //   （ログインが通れば kisui serve が覚える。PR #354 の「資格情報の置き場」）。

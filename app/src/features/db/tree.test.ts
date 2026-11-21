@@ -224,13 +224,11 @@ describe("treeStep（木のキーの動き）", () => {
     assert.deepEqual(treeStep([], undefined, "filter"), { focusFilter: true });
   });
 
-  it("s はドロップダウンに移り、a は「すべてのスキーマを表示」を切り替える。行が無くてもできる（#398）", () => {
+  it("s は既定のスキーマを選ぶ一覧を開く。行が無くてもできる（#398）", () => {
     assert.deepEqual(treeStep(rows, id("users"), "schema"), {
       focusSchema: true,
     });
     assert.deepEqual(treeStep([], undefined, "schema"), { focusSchema: true });
-    assert.deepEqual(treeStep(rows, id("users"), "all"), { toggleAll: true });
-    assert.deepEqual(treeStep([], undefined, "all"), { toggleAll: true });
   });
 
   it("スキーマを 1 つに絞った木（#398）：テーブルの行だけを上下に動き、Enter で中身を見る。上の行は無い", () => {
@@ -287,7 +285,7 @@ describe("visibleRows（スキーマを 1 つに絞る。#398）", () => {
     assert.equal(r[0]!.id, tableId("public", "users"));
   });
 
-  it("テーブル名の絞り込みは、そのスキーマの中だけを探す", () => {
+  it("テーブル名の絞り込みは、そのスキーマを先に、ほかのスキーマの合うテーブルを「スキーマ.テーブル」で後ろに並べる", () => {
     const two: DbCatalog = {
       truncated: false,
       schemas: [
@@ -298,14 +296,23 @@ describe("visibleRows（スキーマを 1 つに絞る。#398）", () => {
         },
       ],
     };
+    const r = visibleRows(two, new Set(), "USERS", "public");
     assert.deepEqual(
-      visibleRows(two, new Set(), "USERS", "public").map((x) => x.label),
-      ["users", "active_users"],
+      r.map((x) => [x.label, x.schema, x.other]),
+      [
+        ["users", "public", undefined],
+        ["active_users", "public", undefined],
+        ["audit.users_log", "audit", true],
+      ],
     );
+    assert.equal(r[2]!.id, tableId("audit", "users_log"));
+    // 今のスキーマに合うものが無くても、ほかのスキーマの分は出る
     assert.deepEqual(
       visibleRows(two, new Set(), "log", "public").map((x) => x.label),
-      [],
+      ["audit.users_log"],
     );
+    // 絞り込みが空なら、ほかのスキーマは出さない
+    assert.ok(visibleRows(two, new Set(), "", "public").every((x) => !x.other));
     // 絞らなければ、すべてのスキーマから探す
     assert.deepEqual(
       visibleRows(two, new Set(), "log").map((x) => x.label),

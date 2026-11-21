@@ -58,6 +58,7 @@ Vite の設定は、根の `vite.config.ts` をそのまま読む（Solid の変
 | `ui/modules/clipboard-history/HistoryPanel.stories.tsx`     | 履歴の一覧（一覧・貼る欄あり・空・読み込み中・読めない）                   | 履歴を読む頼み `ListClipboardHistory`                                                                |
 | `ui/utilities/clipboard/page.stories.tsx`                   | kisui-terminal の外から開く履歴の窓                                        | 殻への頼み `ClipboardPopupOs`、`ListClipboardHistory`                                                |
 | `ui/main-window/sidebar/PaneBorder.stories.tsx` | サイドバーの段の境目（変える前・変えた後・並べて）。アプリと同じ CSS | — |
+| `ui/main-window/sidebar/db-tree/DbTree.stories.tsx` | DB のタブの木（既定のスキーマのテーブル・既定のスキーマが無い接続の 2 段・既定のスキーマを選ぶ一覧） | 一覧（`db.schema` の答え）は見本のデータ。操作は `fn()`、選んだスキーマは story の中で持つ |
 
 ## 外への頼みを差し替える
 
