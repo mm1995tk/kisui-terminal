@@ -642,7 +642,9 @@ export const en = {
   "place.db.title": "Database tab",
   "place.db.lead":
     "Keys in the SQL input of a database tab. The result shows below it.",
-  "place.db.run": "Run the SQL",
+  "place.db.run":
+    "Run the SQL (the result replaces the result tab that is shown; a tab is added when there is none)",
+  "place.db.runNew": "Run the SQL and show the result in a new result tab",
   "place.db.cancel": "Cancel the SQL that is running",
   "place.dbResult.title": "Result table of a database tab",
   "place.dbResult.lead":
@@ -652,7 +654,7 @@ export const en = {
   "place.dbResult.sort":
     "Sort by the column of the selected cell (each press: ascending, descending, none)",
   "place.dbResult.step":
-    "Show the result of the next or previous statement (after running two or more statements; also on the row of result tabs above the result, where ← → work too)",
+    "Show the next or previous result tab (also on the row of result tabs above the result, where ← → work too)",
   "cannot.db.title": "Cannot open a database tab",
   "cannot.dbSchema.title": "Cannot choose a default schema",
   "cannot.dbSchema.oldServe":
@@ -739,8 +741,8 @@ export const en = {
   "db.view.noRows": "No rows.",
   "db.view.sqlState": "SQLSTATE {code}",
   "db.view.result": "Result",
-  "db.view.results": "Results of the statements",
-  "db.view.resultTab": "{n} {sql}",
+  "db.view.results": "Result tabs",
+  "db.view.closeResult": "Close the result tab: {sql}",
   "db.view.noTable": "This statement returns no rows.",
   "db.view.pages": "Pages of the result",
   "db.view.prevPage": "Previous",
@@ -774,7 +776,7 @@ export const en = {
   "leader.db.view": "Switch the result area between Data and Structure",
   "cannot.dbView.title": "No table is chosen",
   "cannot.dbView.text":
-    "Choose a table in the schema tree in the sidebar first. Data and Structure are for that table.",
+    "The result tab that is shown was not opened by choosing a table. Choose a table in the schema tree in the sidebar first. Data and Structure are for that table.",
   "db.password.label": "Database password",
   "db.password.missing": "Password for {connection} on {machine}",
   "db.password.rejected":
@@ -804,6 +806,10 @@ export const en = {
   "leader.db.nextPage": "Next page of the result",
   "leader.db.prevPage": "Previous page of the result",
   "leader.db.page.range": "Move between pages of the result",
+  "leader.db.nextResult": "Next result tab",
+  "leader.db.prevResult": "Previous result tab",
+  "leader.db.result.range": "Move between result tabs",
+  "leader.db.closeResult": "Close the result tab that is shown",
   "cannot.dbPage.title": "Cannot change the page",
   "cannot.dbPage.none":
     "This result has no other pages. Only a SELECT that gives more rows than one page (1000) is paged.",

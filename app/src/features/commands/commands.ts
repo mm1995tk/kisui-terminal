@@ -74,6 +74,8 @@ export type CommandId =
   | "db.history"
   | "db.page"
   | "db.view"
+  | "db.result"
+  | "db.closeResult"
   | "help.keys";
 
 /** コマンドと、その引数（向き・番号など）。 */
@@ -452,6 +454,26 @@ export const LEADER: Node[] = [
         range: { keys: "j|k", label: T("leader.db.page.range") },
       },
     ),
+    // 結果のタブ（#404）の切り替え。DB のタブを出している間だけ効く。続けて押せる（d ] ] ]）
+    leaf(
+      "]",
+      T("leader.db.nextResult"),
+      { id: "db.result", arg: "next" },
+      {
+        repeat: true,
+        range: { keys: "]|[", label: T("leader.db.result.range") },
+      },
+    ),
+    leaf(
+      "[",
+      T("leader.db.prevResult"),
+      { id: "db.result", arg: "prev" },
+      {
+        repeat: true,
+        range: { keys: "]|[", label: T("leader.db.result.range") },
+      },
+    ),
+    leaf("x", T("leader.db.closeResult"), { id: "db.closeResult" }),
   ]),
   leaf("b", T("leader.sidebar"), { id: "sidebar.toggle" }),
   leaf(

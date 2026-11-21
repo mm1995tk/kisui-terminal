@@ -2,9 +2,10 @@
 // 構造は、接続を書いたマシンの kisui serve が返す（db.structure）。
 //
 // 持ち物の分け方：
-// - 木で選んだテーブル・結果の場所に出している側（データ／Structure）・聞いた構造は、タブごとにメモリだけに持つ。
-// - SQL を実行した結果（データの側）は controller.ts の DbRun が持ち、ここは触らない（文ごとの結果に変わっても（#380）、
-//   ここは変わらないように）。
+// - 木で選んだテーブル・結果の場所に出している側（データ／Structure）・聞いた構造は、結果のタブ（#404。results.ts）ごとに
+//   メモリだけに持つ。下の「タブ id」は、どれも結果のタブの id（DB のタブの id ではない。controller.ts が、DB のタブの
+//   出している結果のタブに読み替えて呼ぶ）。
+// - SQL を実行した結果（データの側）は controller.ts の DbRun が持ち、ここは触らない。
 import { T } from "../../i18n/index.ts";
 import { createEffect, createSignal, untrack } from "solid-js";
 
@@ -28,7 +29,7 @@ export type DbStructures = ReturnType<typeof createDbStructure>;
 
 /** テーブルの構造の持ち物を作る。選んだテーブル・出している側・構造を聞くを受け持つ。 */
 export function createDbStructure(deps: {
-  /** タブ id の記録（DbRef） */
+  /** 結果のタブ id を持つ DB のタブの記録（DbRef） */
   refOf: (id: string) => DbRef | undefined;
   /** パスワードを聞く流れつきで、DB の要求を送る（controller.ts の request） */
   request: <M extends DbMethod>(
@@ -103,7 +104,7 @@ export function createDbStructure(deps: {
       if (needsStructure(all[id])) untrack(() => void load(id));
   });
 
-  /** 木でテーブルを選んだ（その中身を見る SQL も実行される。tree の previewTable）。違うテーブルなら、聞いている最中のものはやめる。 */
+  /** 木で選んだテーブルを、その中身を見る SQL（tree の previewTable）の結果のタブ id に結び付ける。違うテーブルなら、聞いている最中のものはやめる。 */
   function choose(id: string, table: DbTableRef) {
     const cur = untrack(states)[id];
     if (cur?.loading && !sameTable(cur.table, table))
@@ -129,7 +130,7 @@ export function createDbStructure(deps: {
     setState(id, forgetStructure);
   }
 
-  /** タブが記録から無くなった：alive にない分を捨て、聞いている最中のものは取り消す。 */
+  /** 結果のタブが無くなった：alive にない分を捨て、聞いている最中のものは取り消す。 */
   function forget(alive: { has(id: string): boolean }) {
     const all = untrack(states);
     const gone = Object.keys(all).filter((id) => !alive.has(id));

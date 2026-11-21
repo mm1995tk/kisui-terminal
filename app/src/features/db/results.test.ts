@@ -3,95 +3,212 @@ import { describe, it } from "node:test";
 
 import {
   activeRunning,
-  activeStatement,
+  activeTab,
+  closeTab,
   EMPTY_RUN,
+  MAX_RESULT_TABS,
+  restartTab,
   resultTabLabel,
   runInOrder,
   startStatement,
-  stepResult,
-  updateStatement,
+  stepTab,
+  updateTab,
   type DbRun,
+  type RunInto,
   type StatementOutcome,
 } from "./results.ts";
 
 const q = (queryId: string) => ({ queryId, target: "m" });
+const ids = (r: DbRun) => r.tabs.map((t) => t.id);
 
-describe("startStatement", () => {
-  it("新しい文を足し、実行している印を付ける", () => {
-    const r = startStatement(EMPTY_RUN, 0, "select 1", q("a"));
-    assert.deepEqual(r.statements, [{ sql: "select 1" }]);
-    assert.equal(r.active, 0);
-    assert.deepEqual(r.running, { queryId: "a", target: "m", index: 0 });
-    assert.equal(activeRunning(r), true);
+/** r で、1 つ目の文 sql を into の先に実行し始める（新しいタブの名前は newId）。 */
+function first(r: DbRun, newId: string, sql: string, into: RunInto = "active") {
+  return startStatement(r, { sql, running: q(`q-${newId}`), newId, into });
+}
+/** r で、2 つ目からの文 sql を実行し始める（1 つ前の文のタブは prev）。 */
+function next(r: DbRun, newId: string, sql: string, prev: string) {
+  return startStatement(r, {
+    sql,
+    running: q(`q-${newId}`),
+    newId,
+    into: "active",
+    prev,
+  });
+}
+/** 結果のあるタブ a・b・c を持ち、b を出している状態。 */
+const three: DbRun = {
+  tabs: [
+    { id: "a", sql: "select 1" },
+    { id: "b", sql: "select 2", page: { sql: "select 2", back: [0] } },
+    { id: "c", sql: "select 3" },
+  ],
+  active: "b",
+};
+
+describe("startStatement（1 つ目の文）", () => {
+  it("タブが無ければ、足して出す", () => {
+    const { run, tab } = first(EMPTY_RUN, "r1", "select 1");
+    assert.equal(tab, "r1");
+    assert.deepEqual(run.tabs, [{ id: "r1", sql: "select 1" }]);
+    assert.equal(run.active, "r1");
+    assert.deepEqual(run.running, { queryId: "q-r1", target: "m", tab: "r1" });
+    assert.equal(activeRunning(run), true);
   });
 
-  it("出している結果は、実行している文に付いていく", () => {
-    let r = startStatement(EMPTY_RUN, 0, "select 1", q("a"));
-    r = startStatement(r, 1, "select 2", q("b"));
-    assert.equal(r.active, 1);
-    assert.equal(r.statements.length, 2);
+  it("ふつうの実行は、出しているタブに上書きする（タブは増えない。前の結果・ページは捨てる）", () => {
+    const { run, tab } = first(three, "r9", "select 2 where id = 3");
+    assert.equal(tab, "b");
+    assert.deepEqual(ids(run), ["a", "b", "c"]);
+    assert.deepEqual(run.tabs[1], { id: "b", sql: "select 2 where id = 3" });
+    assert.equal(run.active, "b");
+    assert.equal(run.running?.tab, "b");
+    // ほかのタブはそのまま
+    assert.equal(run.tabs[0], three.tabs[0]);
+    assert.equal(run.tabs[2], three.tabs[2]);
   });
 
-  it("前の文の結果に切り替えていたら、付いていかない", () => {
-    let r = startStatement(EMPTY_RUN, 0, "select 1", q("a"));
-    r = startStatement(r, 1, "select 2", q("b"));
-    r = { ...r, active: 0 };
-    r = startStatement(r, 2, "select 3", q("c"));
-    assert.equal(r.active, 0);
-    assert.equal(activeRunning(r), false);
-    assert.equal(r.running?.index, 2);
-  });
-
-  it("ある文（ページ送り・並べ替え）なら、足さずに印だけ付ける", () => {
-    let r: DbRun = {
-      statements: [{ sql: "select 1" }, { sql: "select 2" }],
-      active: 0,
-    };
-    r = startStatement(r, 0, "select 1", q("p"));
-    assert.equal(r.statements.length, 2);
-    assert.equal(r.active, 0);
-    assert.equal(r.running?.index, 0);
+  it("新しいタブへの実行は、出しているタブの右隣に足して、それを出す", () => {
+    const { run, tab } = first(three, "r9", "select 9", "new");
+    assert.equal(tab, "r9");
+    assert.deepEqual(ids(run), ["a", "b", "r9", "c"]);
+    assert.equal(run.active, "r9");
+    assert.equal(run.running?.tab, "r9");
+    // 出していたタブの結果・ページは残る
+    assert.equal(run.tabs[1], three.tabs[1]);
   });
 });
 
-describe("updateStatement", () => {
-  it("その文だけを替える", () => {
-    const r: DbRun = {
-      statements: [{ sql: "a" }, { sql: "b" }],
-      active: 1,
-    };
-    const next = updateStatement(r, 1, (s) => ({
-      ...s,
-      failure: { kind: "cancelled" },
-    }));
-    assert.deepEqual(next.statements, [
-      { sql: "a" },
-      { sql: "b", failure: { kind: "cancelled" } },
-    ]);
-    assert.equal(activeStatement(next)?.failure?.kind, "cancelled");
+describe("startStatement（2 つ目からの文）", () => {
+  it("1 つ前の文のタブの右隣に足し、出しているタブは付いていく", () => {
+    const a = first(three, "r1", "s1");
+    const b = next(a.run, "r2", "s2", a.tab);
+    const c = next(b.run, "r3", "s3", b.tab);
+    assert.deepEqual(ids(c.run), ["a", "b", "r2", "r3", "c"]);
+    assert.equal(c.run.active, "r3");
+    assert.equal(c.run.running?.tab, "r3");
+    // 1 つ目の文は、出していたタブに上書きした
+    assert.equal(c.run.tabs[1]?.sql, "s1");
   });
 
-  it("無い文なら、そのまま", () => {
+  it("新しいタブへの実行でも、文の順に並ぶ", () => {
+    const a = first(three, "r1", "s1", "new");
+    const b = next(a.run, "r2", "s2", a.tab);
+    assert.deepEqual(ids(b.run), ["a", "b", "r1", "r2", "c"]);
+    assert.equal(b.run.tabs[1], three.tabs[1]);
+  });
+
+  it("ほかのタブに切り替えていたら、付いていかない", () => {
+    const a = first(three, "r1", "s1");
+    const b = next({ ...a.run, active: "a" }, "r2", "s2", a.tab);
+    assert.equal(b.run.active, "a");
+    assert.equal(activeRunning(b.run), false);
+    assert.equal(b.run.running?.tab, "r2");
+  });
+
+  it("1 つ前の文のタブが無くなっていたら、列の後ろに足す", () => {
+    const b = next(three, "r2", "s2", "gone");
+    assert.deepEqual(ids(b.run), ["a", "b", "c", "r2"]);
+    assert.equal(b.run.active, "b");
+  });
+});
+
+describe("startStatement（タブの数の上限）", () => {
+  const full: DbRun = {
+    tabs: Array.from({ length: MAX_RESULT_TABS }, (_, i) => ({
+      id: `t${i}`,
+      sql: `select ${i}`,
+    })),
+    active: "t5",
+  };
+
+  it("上限を超えたら、左から閉じる", () => {
+    const { run } = first(full, "new", "select 99", "new");
+    assert.equal(run.tabs.length, MAX_RESULT_TABS);
+    assert.equal(run.tabs[0]?.id, "t1");
+    assert.equal(run.active, "new");
+  });
+
+  it("出しているタブと、足したタブは閉じない", () => {
+    // 2 つ目の文を、出しているタブ（左端）とは別のタブの隣に足す
+    const { run } = next({ ...full, active: "t0" }, "new", "s", "t3");
+    assert.equal(run.tabs.length, MAX_RESULT_TABS);
+    assert.deepEqual(ids(run).slice(0, 4), ["t0", "t2", "t3", "new"]);
+    assert.equal(run.active, "t0");
+  });
+
+  it("上書きでは増えないので、閉じない", () => {
+    const { run } = first(full, "new", "select 99");
+    assert.deepEqual(ids(run), ids(full));
+  });
+});
+
+describe("restartTab（ページ送り・並べ替えの読み直し）", () => {
+  it("前の結果を残したまま、実行している印だけ付ける", () => {
+    const r = restartTab(three, "b", q("p"));
+    assert.deepEqual(r?.tabs, three.tabs);
+    assert.equal(r?.active, "b");
+    assert.deepEqual(r?.running, { queryId: "p", target: "m", tab: "b" });
+  });
+  it("無いタブなら undefined", () => {
+    assert.equal(restartTab(three, "x", q("p")), undefined);
+  });
+});
+
+describe("updateTab", () => {
+  it("そのタブだけを替える", () => {
+    const r = updateTab(three, "b", (t) => ({
+      ...t,
+      failure: { kind: "cancelled" },
+    }));
+    assert.equal(r.tabs[0], three.tabs[0]);
+    assert.equal(activeTab(r)?.failure?.kind, "cancelled");
+    // ページ（と並べ替え）は、タブごとに残る
+    assert.deepEqual(activeTab(r)?.page, { sql: "select 2", back: [0] });
+  });
+  it("無いタブなら、そのまま", () => {
     assert.equal(
-      updateStatement(EMPTY_RUN, 0, (s) => s),
-      EMPTY_RUN,
+      updateTab(three, "x", (t) => t),
+      three,
     );
   });
 });
 
-describe("stepResult", () => {
-  const r: DbRun = {
-    statements: [{ sql: "a" }, { sql: "b" }, { sql: "c" }],
-    active: 1,
-  };
+describe("closeTab", () => {
+  it("出していないタブを閉じても、出しているタブは変わらない", () => {
+    const r = closeTab(three, "a");
+    assert.deepEqual(ids(r), ["b", "c"]);
+    assert.equal(r.active, "b");
+  });
+  it("出しているタブを閉じたら、右隣を出す。右が無ければ左隣", () => {
+    const r = closeTab(three, "b");
+    assert.deepEqual(ids(r), ["a", "c"]);
+    assert.equal(r.active, "c");
+    assert.equal(closeTab(r, "c").active, "a");
+  });
+  it("最後のタブを閉じたら、まだ実行していない状態に戻る", () => {
+    const r = closeTab({ tabs: [{ id: "a", sql: "s" }], active: "a" }, "a");
+    assert.deepEqual(r, EMPTY_RUN);
+    assert.equal(activeTab(r), undefined);
+  });
+  it("実行しているタブを閉じたら、実行中の印も外す。ほかのタブなら残す", () => {
+    const running = { ...three, running: { ...q("x"), tab: "c" } };
+    assert.equal(closeTab(running, "c").running, undefined);
+    assert.deepEqual(closeTab(running, "a").running, running.running);
+  });
+  it("無いタブなら、そのまま", () => {
+    assert.equal(closeTab(three, "x"), three);
+  });
+});
+
+describe("stepTab", () => {
   it("前・次へ動く", () => {
-    assert.equal(stepResult(r, 1), 2);
-    assert.equal(stepResult(r, -1), 0);
+    assert.equal(stepTab(three, 1), "c");
+    assert.equal(stepTab(three, -1), "a");
   });
   it("端では動かない", () => {
-    assert.equal(stepResult({ ...r, active: 2 }, 1), 2);
-    assert.equal(stepResult({ ...r, active: 0 }, -1), 0);
-    assert.equal(stepResult(EMPTY_RUN, 1), 0);
+    assert.equal(stepTab({ ...three, active: "c" }, 1), "c");
+    assert.equal(stepTab({ ...three, active: "a" }, -1), "a");
+    assert.equal(stepTab(EMPTY_RUN, 1), undefined);
   });
 });
 
