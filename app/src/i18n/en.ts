@@ -668,9 +668,14 @@ export const en = {
   "place.dbTree.collapse": "Close the branch (or go up)",
   "place.dbTree.enter":
     "Make a schema the default of the tab (or stop if it already is), show the rows of a table",
+  "place.dbTree.filter":
+    "Filter the tables by name (Enter, Esc or ↓ in the box goes back to the tree)",
   "place.dbTree.back": "Back to the SQL input",
   "db.tree.title": "Schemas",
-  "db.tree.label": "Schemas, tables and columns",
+  "db.tree.label": "Schemas and tables",
+  "db.tree.filter.placeholder": "Filter tables ( / )",
+  "db.tree.filter.label": "Filter the tables by name",
+  "db.tree.noMatch": "No tables match",
   "db.tree.reload": "Reload",
   "db.tree.loading": "Loading the schemas…",
   "db.tree.empty": "No schemas",

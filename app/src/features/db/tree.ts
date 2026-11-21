@@ -1,5 +1,5 @@
 // DB のタブ（#347）のスキーマの木（#348。サイドバーに出す。#374）の、画面にも Solid にも依存しない部分（node --test で確かめられる）。
-// - 一覧（db.schema の答え）を、開いている枝だけの「見える行」に並べる
+// - 一覧（db.schema の答え）を、開いている枝だけの「見える行」に並べる（テーブル名で絞り込める。列は木に出さない。列は Structure で見る）
 // - 木の中のキー（上下で動く・開け閉め・選ぶ・既定のスキーマにする）の動き
 // - テーブルを選んだときに実行する SQL
 
@@ -10,22 +10,20 @@ import type {
 
 // ---- 見える行 ----
 
-/** 木の 1 行。schema：スキーマ、table・view：テーブルとビュー、column：列。 */
+/** 木の 1 行。schema：スキーマ、table・view：テーブルとビュー。 */
 export interface TreeRow {
   /** 行の名前（開けているかを覚えるのと、動いた先を指すのに使う）。スキーマ・テーブルの名前に使えない字（\u0001）でつなぐ */
   id: string;
-  kind: "schema" | "table" | "view" | "column";
+  kind: "schema" | "table" | "view";
   depth: number;
   label: string;
-  /** 列の型（列の行だけ） */
-  type?: string;
-  /** 枝を開け閉めできる（スキーマと、列のあるテーブル） */
+  /** 枝を開け閉めできる（スキーマだけ） */
   expandable: boolean;
   expanded: boolean;
   /** 1 つ上の行（スキーマは無い） */
   parent?: string;
   schema: string;
-  /** テーブル・ビュー・列の行の、テーブルの名前 */
+  /** テーブル・ビューの行の、テーブルの名前 */
   table?: string;
 }
 
@@ -35,19 +33,28 @@ export const schemaId = (schema: string) => schema;
 /** テーブル・ビューの行の id（TreeRow.id）。 */
 export const tableId = (schema: string, table: string) =>
   `${schema}${SEP}${table}`;
-/** 列の行の id（TreeRow.id）。 */
-export const columnId = (schema: string, table: string, column: string) =>
-  `${schema}${SEP}${table}${SEP}${column}`;
 
-/** 一覧から、開いている枝（expanded の id）の下だけを、上から順に並べる。 */
+/**
+ * 一覧から、開いている枝（expanded の id）の下だけを、上から順に並べる。
+ * filter（テーブル名で絞る字。空白だけなら絞らない）があれば、名前にそれを含む（大文字と小文字を区別しない）テーブルだけを残し、
+ * 合うテーブルのあるスキーマは開いた状態で出す（合うものが無いスキーマは出さない）。開けている枝（expanded）は変えないので、
+ * filter を空に戻せば、絞る前の木に戻る。
+ */
 export function visibleRows(
   catalog: DbCatalog,
   expanded: ReadonlySet<string>,
+  filter = "",
 ): TreeRow[] {
+  const q = filter.trim().toLowerCase();
   const rows: TreeRow[] = [];
   for (const s of catalog.schemas) {
+    const tables =
+      q === ""
+        ? s.tables
+        : s.tables.filter((t) => t.name.toLowerCase().includes(q));
+    if (q !== "" && tables.length === 0) continue;
     const sid = schemaId(s.name);
-    const sOpen = expanded.has(sid);
+    const sOpen = q !== "" || expanded.has(sid);
     rows.push({
       id: sid,
       kind: "schema",
@@ -58,35 +65,18 @@ export function visibleRows(
       schema: s.name,
     });
     if (!sOpen) continue;
-    for (const t of s.tables) {
-      const tid = tableId(s.name, t.name);
-      const tOpen = expanded.has(tid);
+    for (const t of tables)
       rows.push({
-        id: tid,
+        id: tableId(s.name, t.name),
         kind: t.kind,
         depth: 1,
         label: t.name,
-        expandable: t.columns.length > 0,
-        expanded: tOpen && t.columns.length > 0,
+        expandable: false,
+        expanded: false,
         parent: sid,
         schema: s.name,
         table: t.name,
       });
-      if (!tOpen) continue;
-      for (const c of t.columns)
-        rows.push({
-          id: columnId(s.name, t.name, c.name),
-          kind: "column",
-          depth: 2,
-          label: c.name,
-          type: c.type,
-          expandable: false,
-          expanded: false,
-          parent: tid,
-          schema: s.name,
-          table: t.name,
-        });
-    }
   }
   return rows;
 }
@@ -102,7 +92,15 @@ export function initialExpanded(catalog: DbCatalog): string[] {
 
 /** 木のキーで行うこと。 */
 export type DbTreeAction =
-  "next" | "prev" | "first" | "last" | "expand" | "collapse" | "enter" | "back";
+  | "next"
+  | "prev"
+  | "first"
+  | "last"
+  | "expand"
+  | "collapse"
+  | "enter"
+  | "back"
+  | "filter";
 
 /** 木の中で、キーのあとに何が起きるか。 */
 export interface TreeStep {
@@ -116,6 +114,8 @@ export interface TreeStep {
   setDefaultSchema?: string | null;
   /** キーを SQL の入力欄に戻す（Esc） */
   leave?: boolean;
+  /** キーを、テーブル名で絞り込む入力欄に移す（/） */
+  focusFilter?: boolean;
 }
 
 /**
@@ -123,9 +123,10 @@ export interface TreeStep {
  * defaultSchema は、タブの今の既定のスキーマ（#378。選んでいなければ undefined）。
  * - 上下：見える行の中で 1 つ動く（端で止まる）
  * - 右：閉じている枝を開ける。開いていれば、1 つ下の行へ
- * - 左：開いている枝を閉じる。閉じている行・列は、1 つ上の行へ
+ * - 左：開いている枝を閉じる。閉じている行は、1 つ上の行へ
+ * - /：テーブル名で絞り込む入力欄にキーを移す
  * - Enter：スキーマはタブの既定のスキーマにする（閉じていれば開ける。もう既定なら、既定をやめる）、
- *   テーブル・ビューはその中身を見る SQL を実行する、列は何もしない
+ *   テーブル・ビューはその中身を見る SQL を実行する
  */
 export function treeStep(
   rows: readonly TreeRow[],
@@ -134,6 +135,7 @@ export function treeStep(
   defaultSchema?: string,
 ): TreeStep {
   if (action === "back") return { leave: true };
+  if (action === "filter") return { focusFilter: true };
   if (rows.length === 0) return {};
   const i = rows.findIndex((r) => r.id === cursor);
   const cur = i < 0 ? undefined : rows[i];

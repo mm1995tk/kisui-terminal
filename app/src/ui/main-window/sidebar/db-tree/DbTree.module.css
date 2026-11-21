@@ -86,10 +86,12 @@
   font-weight: var(--weight-strong);
 }
 
-/* 列の型 */
-.type {
-  color: var(--color-text-dim);
-  font-size: var(--text-caption);
+/* テーブル名の絞り込みの入力欄 */
+.filter {
+  flex: none;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .badge {

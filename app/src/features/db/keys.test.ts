@@ -6,6 +6,7 @@ import {
   dbHistoryKey,
   dbResultKey,
   dbResultTabKey,
+  dbTreeFilterKey,
   dbTreeKey,
 } from "./keys.ts";
 
@@ -68,6 +69,7 @@ describe("dbTreeKey（サイドバーの木のキー）", () => {
     assert.equal(k("G", { shiftKey: true }), "last");
     assert.equal(k("Enter"), "enter");
     assert.equal(k("Escape"), "back");
+    assert.equal(k("/"), "filter");
   });
 
   it("Ctrl・Cmd・Alt を重ねたものは受けない（リーダーなどに残す）", () => {
@@ -80,6 +82,26 @@ describe("dbTreeKey（サイドバーの木のキー）", () => {
     assert.equal(dbTreeKey(ev("Enter", { isComposing: true })), null);
     assert.equal(dbTreeKey(ev("Enter", { keyCode: 229 })), null);
     assert.equal(dbTreeKey(ev("Escape", { isComposing: true })), null);
+  });
+});
+
+describe("dbTreeFilterKey（木の絞り込みの入力欄のキー）", () => {
+  it("Enter・Esc・↓ で木に戻り、字は入力欄に入る", () => {
+    for (const key of ["Enter", "Escape", "ArrowDown"])
+      assert.equal(dbTreeFilterKey(ev(key)), "tree");
+    for (const key of ["a", "/", "j", " ", "ArrowUp"])
+      assert.equal(dbTreeFilterKey(ev(key)), null);
+  });
+
+  it("修飾キーを重ねたものは受けない", () => {
+    for (const m of ["ctrlKey", "metaKey", "altKey", "shiftKey"])
+      assert.equal(dbTreeFilterKey(ev("Enter", { [m]: true })), null);
+  });
+
+  it("かな漢字変換のキーは受けない", () => {
+    assert.equal(dbTreeFilterKey(ev("Enter", { isComposing: true })), null);
+    assert.equal(dbTreeFilterKey(ev("Enter", { keyCode: 229 })), null);
+    assert.equal(dbTreeFilterKey(ev("Escape", { isComposing: true })), null);
   });
 });
 
