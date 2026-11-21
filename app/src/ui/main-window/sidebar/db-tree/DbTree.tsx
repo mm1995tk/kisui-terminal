@@ -1,10 +1,10 @@
 // DB のタブ（#347）を出している間に、サイドバーのファイルツリーの場所に出す、そのタブの接続の木。
-// 木の上のドロップダウンで、その接続の既定のスキーマを選ぶ（#378・#398）。「すべてのスキーマを表示」に印が無ければ、
-// そのスキーマのテーブル（ビューを含む）だけを並べ、印があれば スキーマ → テーブル の 2 段を出す（列はテーブルの Structure で見る）。
-// 入力欄に打った字で、木に出ているテーブルを名前で絞り込める。
+// 上の 1 行に、その接続の既定のスキーマの欄（押すと、その場所に選ぶ一覧が開く。#378・#398）と、読み直すボタンを並べる。
+// 木には、そのスキーマのテーブル（ビューを含む）だけを並べる（列はテーブルの Structure で見る）。示すスキーマが無いときだけ、
+// スキーマ → テーブル の 2 段を出す。2 行目の入力欄に打った字でテーブルを名前で絞り込み、ほかのスキーマの合うテーブルも後ろに出す。
 // 一覧（db.schema の答え）・開けている枝・接続ごとに覚えるものは features/db/controller.ts が持つ。ここは出すことと、木の中のキー・クリックだけ。
 // キーの判定は features/db/keys.ts の dbTreeKey、行き先は features/db/tree.ts の treeStep、
-// ドロップダウンの中身と木に出すスキーマは features/db/schemaPrefs.ts。
+// 既定のスキーマを選ぶ一覧の中身と、木に出すスキーマは features/db/schemaPrefs.ts。
 import { T } from "../../../../i18n/index.ts";
 import {
   createEffect,
@@ -17,13 +17,8 @@ import {
 } from "solid-js";
 
 import type { DbCatalogState } from "../../../../features/db/treeController.ts";
+import { dbTreeFilterKey, dbTreeKey } from "../../../../features/db/keys.ts";
 import {
-  dbTreeFilterKey,
-  dbTreeKey,
-  dbTreeSchemaKey,
-} from "../../../../features/db/keys.ts";
-import {
-  canNarrow,
   onlySchema,
   schemaChoices,
 } from "../../../../features/db/schemaPrefs.ts";
@@ -33,8 +28,8 @@ import {
   type TreeRow,
   type TreeStep,
 } from "../../../../features/db/tree.ts";
-import { Button } from "../../../components/Button.tsx";
-import { Input } from "../../../components/Field.tsx";
+import { Kbd } from "../../../components/KeyHints.tsx";
+import { DbSchemaPicker, schemaOptionLabel } from "./DbSchemaPicker.tsx";
 import styles from "./DbTree.module.css";
 
 /** サイドバーの木が外から受け取る値と、外へ頼むこと。 */
@@ -45,13 +40,10 @@ export interface DbTreeProps {
   onToggle: (node: string, open: boolean) => void;
   /** テーブル（ビュー）を選んだ：その中身を見る */
   onPreview: (schema: string, table: string) => void;
-  /** その接続で選んだ既定のスキーマ（#378。選んでいなければ undefined：ドロップダウンは DB の既定を示す） */
+  /** その接続で選んだ既定のスキーマ（#378。選んでいなければ undefined：欄は DB の既定を示す） */
   chosenSchema: string | undefined;
-  /** ドロップダウンで選んだ：その接続の既定のスキーマにする（null は「DB の既定」） */
+  /** 既定のスキーマを選んだ：その接続の既定のスキーマにする（null は「DB の既定」） */
   onSchema: (option: string | null) => void;
-  /** 「すべてのスキーマを表示」の印（#398） */
-  showAll: boolean;
-  onShowAll: (all: boolean) => void;
   onReload: () => void;
   /** キーを SQL の入力欄に戻す */
   onLeave: () => void;
@@ -62,20 +54,15 @@ export function DbTree(props: DbTreeProps): JSX.Element {
   let list: HTMLDivElement | undefined;
   let treeEl: HTMLDivElement | undefined;
   let filterEl: HTMLInputElement | undefined;
-  let schemaEl: HTMLSelectElement | undefined;
   const [cursor, setCursor] = createSignal<string | undefined>();
   /** テーブル名の絞り込み（タブを出し直すと空に戻る。開けている枝は変えない） */
   const [filter, setFilter] = createSignal("");
-  /** ドロップダウンの選択肢と、今選ばれているもの（一覧がまだ無ければ undefined） */
+  /** 既定のスキーマの選択肢と、今選ばれているもの（一覧がまだ無ければ undefined） */
   const choices = createMemo(() =>
     props.catalog.catalog
       ? schemaChoices(props.catalog.catalog, props.chosenSchema)
       : undefined,
   );
-  /** 木を 1 つのスキーマに絞れるか（絞る先が無ければ、印に関わらずすべてを出す） */
-  const narrowable = () =>
-    !!props.catalog.catalog &&
-    canNarrow(props.catalog.catalog, props.chosenSchema);
   const rows = createMemo(() => {
     const c = props.catalog.catalog;
     if (!c) return [];
@@ -83,7 +70,7 @@ export function DbTree(props: DbTreeProps): JSX.Element {
       c,
       props.expanded,
       filter(),
-      onlySchema(c, props.chosenSchema, props.showAll),
+      onlySchema(c, props.chosenSchema),
     );
   });
   const activeIndex = () => rows().findIndex((r) => r.id === cursor());
@@ -114,11 +101,6 @@ export function DbTree(props: DbTreeProps): JSX.Element {
     apply(treeStep(rows(), r.id, "enter"));
   }
 
-  /** 「すべてのスキーマを表示」の印を切り替える（絞る先のスキーマが無ければ、切り替えない）。 */
-  function toggleAll() {
-    if (narrowable()) props.onShowAll(!props.showAll);
-  }
-
   function onKeyDown(e: KeyboardEvent) {
     // 木そのものにキーがあるときだけ受ける（中の「読み直す」ボタンの Enter などを奪わない。行はキーを持たない）
     if (e.target !== e.currentTarget) return;
@@ -129,8 +111,7 @@ export function DbTree(props: DbTreeProps): JSX.Element {
     const s = treeStep(rows(), cursor(), a);
     if (s.leave) props.onLeave();
     if (s.focusFilter) filterEl?.focus();
-    if (s.focusSchema) schemaEl?.focus();
-    if (s.toggleAll) toggleAll();
+    if (s.focusSchema) openPicker();
     if (s.cursor !== undefined) setCursor(s.cursor);
     apply(s);
   }
@@ -141,12 +122,6 @@ export function DbTree(props: DbTreeProps): JSX.Element {
     backToTree(e);
   }
 
-  /** ドロップダウンと「すべてのスキーマを表示」のキー：Enter・Esc で木に戻す（選んだものは残す） */
-  function onControlKeyDown(e: KeyboardEvent) {
-    if (dbTreeSchemaKey(e) !== "tree") return;
-    backToTree(e);
-  }
-
   function backToTree(e: KeyboardEvent) {
     e.preventDefault();
     e.stopPropagation();
@@ -154,13 +129,19 @@ export function DbTree(props: DbTreeProps): JSX.Element {
     treeEl?.focus();
   }
 
-  /** ドロップダウンで選んだ。断られたら（既定のスキーマを知らない古い kisui serve）、ドロップダウンを選ぶ前に戻す。 */
-  function onSchemaChange(el: HTMLSelectElement) {
-    const before = choices();
-    const option = before?.options[el.selectedIndex];
-    if (option !== undefined) props.onSchema(option);
-    const now = choices();
-    if (now) el.selectedIndex = now.options.indexOf(now.selected);
+  /** 既定のスキーマを選ぶ所（欄の場所に出す一覧）を開いているか */
+  const [picking, setPicking] = createSignal(false);
+  function openPicker() {
+    if (choices()) setPicking(true);
+  }
+  /** 閉じる。キーが選ぶ所の中にあったら（フォーカスが外れて閉じたのでなければ）、木に戻す */
+  function closePicker() {
+    const inside = treeEl?.contains(document.activeElement) ?? false;
+    setPicking(false);
+    if (inside) {
+      if (cursor() === undefined) setCursor(rows()[0]?.id);
+      treeEl?.focus();
+    }
   }
 
   return (
@@ -179,67 +160,78 @@ export function DbTree(props: DbTreeProps): JSX.Element {
         if (cursor() === undefined) setCursor(rows()[0]?.id);
       }}
     >
-      <div class={styles.head}>
-        <span class={styles.title}>{T("db.tree.title")}</span>
-        <Button busy={!!props.catalog.loading} onClick={props.onReload}>
-          {T("db.tree.reload")}
-        </Button>
+      <div class={styles.bar}>
+        <Show
+          when={picking() && choices()}
+          fallback={
+            <button
+              type="button"
+              class={`${styles.field} ${styles.schemaButton}`}
+              title={T("db.tree.schema.hint")}
+              aria-haspopup="listbox"
+              aria-label={T("db.tree.schema.label")}
+              disabled={!choices()}
+              onClick={openPicker}
+            >
+              <span class={styles.schemaName}>
+                {choices()
+                  ? schemaOptionLabel(choices()!.selected)
+                  : T("db.tree.loading")}
+              </span>
+              <span class={styles.schemaArrow} aria-hidden="true">
+                ▾
+              </span>
+            </button>
+          }
+        >
+          {(c) => (
+            <DbSchemaPicker
+              options={c().options}
+              selected={c().selected}
+              onChoose={(o) => {
+                closePicker();
+                props.onSchema(o);
+              }}
+              onCancel={closePicker}
+            />
+          )}
+        </Show>
+        {/* 読み直すボタンは、選ぶ一覧を開いている間も同じ場所に残す（消えたり出たりしてちらつかないように） */}
+        <button
+          type="button"
+          class={styles.iconButton}
+          title={T("db.tree.reload")}
+          aria-label={T("db.tree.reload")}
+          aria-busy={props.catalog.loading ? "true" : undefined}
+          disabled={!!props.catalog.loading}
+          onClick={props.onReload}
+        >
+          ↻
+        </button>
       </div>
-      <Show when={choices()}>
-        {(c) => (
-          <>
-            <label class={styles.schema}>
-              <span class={styles.note}>{T("db.tree.schema.label")}</span>
-              <select
-                ref={schemaEl}
-                class={`card-input ${styles.schemaSelect}`}
-                title={T("db.tree.schema.hint")}
-                onChange={(e) => onSchemaChange(e.currentTarget)}
-                onKeyDown={onControlKeyDown}
-              >
-                <For each={c().options}>
-                  {(o) => (
-                    <option selected={o === c().selected}>
-                      {o ?? T("db.tree.schema.dbDefault")}
-                    </option>
-                  )}
-                </For>
-              </select>
-            </label>
-            <label class={styles.all}>
-              <input
-                type="checkbox"
-                checked={props.showAll || !narrowable()}
-                disabled={!narrowable()}
-                onChange={(e) => props.onShowAll(e.currentTarget.checked)}
-                onKeyDown={onControlKeyDown}
-              />
-              {T("db.tree.allSchemas")}
-            </label>
-          </>
-        )}
-      </Show>
-      <Input
-        ref={filterEl}
-        class={styles.filter}
-        type="search"
-        value={filter()}
-        placeholder={T("db.tree.filter.placeholder")}
-        aria-label={T("db.tree.filter.label")}
-        autocomplete="off"
-        spellcheck={false}
-        onInput={(e) => setFilter(e.currentTarget.value)}
-        onKeyDown={onFilterKeyDown}
-      />
+      <div class={styles.filterBox}>
+        <input
+          ref={filterEl}
+          class={`${styles.field} ${styles.filter}`}
+          type="search"
+          placeholder={T("db.tree.filter.placeholder")}
+          aria-label={T("db.tree.filter.label")}
+          autocomplete="off"
+          spellcheck={false}
+          // value は渡さない：打つたびに value を入れ直すと、WebKit でかな漢字変換中の字が重なって増える
+          onInput={(e) => setFilter(e.currentTarget.value)}
+          onKeyDown={onFilterKeyDown}
+        />
+        <span class={styles.filterKey} aria-hidden="true">
+          <Kbd>/</Kbd>
+        </span>
+      </div>
       <Show when={props.catalog.error}>
         {(m) => (
           <p class={styles.error} role="alert">
             {m()}
           </p>
         )}
-      </Show>
-      <Show when={!props.catalog.catalog && props.catalog.loading}>
-        <p class={styles.note}>{T("db.tree.loading")}</p>
       </Show>
       <Show when={props.catalog.catalog}>
         {(c) => (
@@ -268,48 +260,56 @@ export function DbTree(props: DbTreeProps): JSX.Element {
             >
               <For each={rows()}>
                 {(r, i) => (
-                  <div
-                    id={`dbtree-${i()}`}
-                    class={styles.row}
-                    role="treeitem"
-                    aria-level={r.depth + 1}
-                    aria-expanded={r.expandable ? r.expanded : undefined}
-                    aria-selected={cursor() === r.id}
-                    data-id={r.id}
-                    data-kind={r.kind}
-                    style={{ "padding-left": `${r.depth * 14 + 6}px` }}
-                    title={r.label}
-                    onClick={() => {
-                      setCursor(r.id);
-                      enter(r);
-                    }}
-                  >
-                    <span
-                      class={styles.twist}
-                      aria-hidden="true"
-                      onClick={(e) => {
-                        if (!r.expandable) return;
-                        e.stopPropagation();
+                  <>
+                    <Show when={r.other && !rows()[i() - 1]?.other}>
+                      <p class={styles.otherHead} role="presentation">
+                        {T("db.tree.otherSchemas")}
+                      </p>
+                    </Show>
+                    <div
+                      id={`dbtree-${i()}`}
+                      class={styles.row}
+                      role="treeitem"
+                      aria-level={r.depth + 1}
+                      aria-expanded={r.expandable ? r.expanded : undefined}
+                      aria-selected={cursor() === r.id}
+                      data-id={r.id}
+                      data-kind={r.kind}
+                      style={{ "padding-left": `${r.depth * 14 + 6}px` }}
+                      title={r.label}
+                      onClick={() => {
                         setCursor(r.id);
-                        props.onToggle(r.id, !r.expanded);
+                        enter(r);
                       }}
                     >
-                      {r.expandable ? (r.expanded ? "▾" : "▸") : ""}
-                    </span>
-                    <span class={styles.label}>{r.label}</span>
-                    <Show
-                      when={
-                        r.kind === "schema" && r.schema === choices()?.selected
-                      }
-                    >
-                      <span class={styles.badge} data-default>
-                        {T("db.tree.defaultBadge")}
+                      <span
+                        class={styles.twist}
+                        aria-hidden="true"
+                        onClick={(e) => {
+                          if (!r.expandable) return;
+                          e.stopPropagation();
+                          setCursor(r.id);
+                          props.onToggle(r.id, !r.expanded);
+                        }}
+                      >
+                        {r.expandable ? (r.expanded ? "▾" : "▸") : ""}
                       </span>
-                    </Show>
-                    <Show when={r.kind === "view"}>
-                      <span class={styles.badge}>{T("db.tree.view")}</span>
-                    </Show>
-                  </div>
+                      <span class={styles.label}>{r.label}</span>
+                      <Show
+                        when={
+                          r.kind === "schema" &&
+                          r.schema === choices()?.selected
+                        }
+                      >
+                        <span class={styles.badge} data-default>
+                          {T("db.tree.defaultBadge")}
+                        </span>
+                      </Show>
+                      <Show when={r.kind === "view"}>
+                        <span class={styles.badge}>{T("db.tree.view")}</span>
+                      </Show>
+                    </div>
+                  </>
                 )}
               </For>
             </div>

@@ -1,7 +1,8 @@
 // DB のタブ（#347）のスキーマの木（#348。サイドバーに出す。#374）の、画面にも Solid にも依存しない部分（node --test で確かめられる）。
 // - 一覧（db.schema の答え）を、開いている枝だけの「見える行」に並べる（テーブル名で絞り込める。列は木に出さない。列は Structure で見る）。
-//   スキーマを 1 つに絞れば（#398。絞る先は schemaPrefs.ts の onlySchema が決める）、そのスキーマのテーブルだけを並べる
-// - 木の中のキー（上下で動く・開け閉め・選ぶ・ドロップダウンに移る・すべてのスキーマを出す）の動き
+//   スキーマを 1 つに絞れば（#398。絞る先は schemaPrefs.ts の onlySchema が決める）、そのスキーマのテーブルだけを並べ、
+//   絞り込み中は、ほかのスキーマの合うテーブルも後ろに並べる
+// - 木の中のキー（上下で動く・開け閉め・選ぶ・既定のスキーマを選ぶ一覧を開く）の動き
 // - テーブルを選んだときに実行する SQL
 
 import type {
@@ -26,6 +27,8 @@ export interface TreeRow {
   schema: string;
   /** テーブル・ビューの行の、テーブルの名前 */
   table?: string;
+  /** スキーマを 1 つに絞った木で、絞り込みに合った、ほかのスキーマのテーブル（label は「スキーマ.テーブル」） */
+  other?: true;
 }
 
 const SEP = "\u0001";
@@ -40,8 +43,9 @@ export const tableId = (schema: string, table: string) =>
  * filter（テーブル名で絞る字。空白だけなら絞らない）があれば、名前にそれを含む（大文字と小文字を区別しない）テーブルだけを残し、
  * 合うテーブルのあるスキーマは開いた状態で出す（合うものが無いスキーマは出さない）。開けている枝（expanded）は変えないので、
  * filter を空に戻せば、絞る前の木に戻る。
- * only（スキーマの名前。#398）があれば、そのスキーマのテーブルだけを、スキーマの行なしで並べる（開け閉めは無い。
- * filter もその中だけを探す）。一覧に無い名前なら、何も並ばない。
+ * only（スキーマの名前。#398）があれば、そのスキーマのテーブルだけを、スキーマの行なしで並べる（開け閉めは無い）。
+ * そのときの filter は、まず only の中を探し、その後ろに、ほかのスキーマの合うテーブルを「スキーマ.テーブル」の形で並べる
+ * （other の印を付ける。どのスキーマにあるか分からないテーブルを、既定のスキーマを変えずに探せるように）。
  */
 export function visibleRows(
   catalog: DbCatalog,
@@ -50,17 +54,28 @@ export function visibleRows(
   only?: string,
 ): TreeRow[] {
   const q = filter.trim().toLowerCase();
+  const matching = (s: DbCatalog["schemas"][number]) =>
+    q === ""
+      ? s.tables
+      : s.tables.filter((t) => t.name.toLowerCase().includes(q));
   const rows: TreeRow[] = [];
-  for (const s of catalog.schemas) {
-    if (only !== undefined && s.name !== only) continue;
-    const tables =
-      q === ""
-        ? s.tables
-        : s.tables.filter((t) => t.name.toLowerCase().includes(q));
-    if (only !== undefined) {
-      for (const t of tables) rows.push(tableRow(s.name, t));
-      continue;
+  if (only !== undefined) {
+    const mine = catalog.schemas.find((s) => s.name === only);
+    if (mine) for (const t of matching(mine)) rows.push(tableRow(only, t));
+    if (q === "") return rows;
+    for (const s of catalog.schemas) {
+      if (s.name === only) continue;
+      for (const t of matching(s))
+        rows.push({
+          ...tableRow(s.name, t),
+          label: `${s.name}.${t.name}`,
+          other: true,
+        });
     }
+    return rows;
+  }
+  for (const s of catalog.schemas) {
+    const tables = matching(s);
     if (q !== "" && tables.length === 0) continue;
     const sid = schemaId(s.name);
     const sOpen = q !== "" || expanded.has(sid);
@@ -119,8 +134,7 @@ export type DbTreeAction =
   | "enter"
   | "back"
   | "filter"
-  | "schema"
-  | "all";
+  | "schema";
 
 /** 木の中で、キーのあとに何が起きるか。 */
 export interface TreeStep {
@@ -134,10 +148,8 @@ export interface TreeStep {
   leave?: boolean;
   /** キーを、テーブル名で絞り込む入力欄に移す（/） */
   focusFilter?: boolean;
-  /** キーを、既定のスキーマを選ぶドロップダウンに移す（s。#398） */
+  /** 既定のスキーマを選ぶ一覧を開く（s。#398） */
   focusSchema?: boolean;
-  /** 「すべてのスキーマを表示」の印を切り替える（a。#398） */
-  toggleAll?: boolean;
 }
 
 /**
@@ -146,9 +158,9 @@ export interface TreeStep {
  * - 右：閉じている枝を開ける。開いていれば、1 つ下の行へ
  * - 左：開いている枝を閉じる。閉じている行は、1 つ上の行へ
  * - /：テーブル名で絞り込む入力欄にキーを移す
- * - s：既定のスキーマを選ぶドロップダウンにキーを移す、a：「すべてのスキーマを表示」の印を切り替える（#398）
+ * - s：既定のスキーマを選ぶ一覧を開く（#398）
  * - Enter：スキーマは開け閉めする、テーブル・ビューはその中身を見る SQL を実行する
- *   （既定のスキーマは、木の上のドロップダウンで選ぶ。スキーマの行では選ばない）
+ *   （既定のスキーマは、木の上の欄で選ぶ。スキーマの行では選ばない）
  */
 export function treeStep(
   rows: readonly TreeRow[],
@@ -158,7 +170,6 @@ export function treeStep(
   if (action === "back") return { leave: true };
   if (action === "filter") return { focusFilter: true };
   if (action === "schema") return { focusSchema: true };
-  if (action === "all") return { toggleAll: true };
   if (rows.length === 0) return {};
   const i = rows.findIndex((r) => r.id === cursor);
   const cur = i < 0 ? undefined : rows[i];
