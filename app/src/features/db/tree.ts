@@ -58,17 +58,7 @@ export function visibleRows(
         ? s.tables
         : s.tables.filter((t) => t.name.toLowerCase().includes(q));
     if (only !== undefined) {
-      for (const t of tables)
-        rows.push({
-          id: tableId(s.name, t.name),
-          kind: t.kind,
-          depth: 0,
-          label: t.name,
-          expandable: false,
-          expanded: false,
-          schema: s.name,
-          table: t.name,
-        });
+      for (const t of tables) rows.push(tableRow(s.name, t));
       continue;
     }
     if (q !== "" && tables.length === 0) continue;
@@ -85,20 +75,28 @@ export function visibleRows(
       schema: s.name,
     });
     if (!sOpen) continue;
-    for (const t of tables)
-      rows.push({
-        id: tableId(s.name, t.name),
-        kind: t.kind,
-        depth: 1,
-        label: t.name,
-        expandable: false,
-        expanded: false,
-        parent: sid,
-        schema: s.name,
-        table: t.name,
-      });
+    for (const t of tables) rows.push(tableRow(s.name, t, sid));
   }
   return rows;
+}
+
+/** テーブル・ビューの行。parent（スキーマの行の id）があればその 1 段下、無ければ（スキーマを 1 つに絞った木）一番上の段。 */
+function tableRow(
+  schema: string,
+  t: { name: string; kind: "table" | "view" },
+  parent?: string,
+): TreeRow {
+  return {
+    id: tableId(schema, t.name),
+    kind: t.kind,
+    depth: parent === undefined ? 0 : 1,
+    label: t.name,
+    expandable: false,
+    expanded: false,
+    ...(parent === undefined ? {} : { parent }),
+    schema,
+    table: t.name,
+  };
 }
 
 /** 一覧を初めて出すときに開けておく枝：スキーマが 1 つ（PostgreSQL では普通）なら、それを開ける。 */
