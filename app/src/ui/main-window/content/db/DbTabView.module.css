@@ -226,24 +226,68 @@
 .data {
   display: contents;
 }
-/* 文を 2 つ以上実行したときの、文ごとの結果のタブの列（#380）。見た目は「データ」と「Structure」の切り替えと同じ。
-   多ければ、この列だけが横にスクロールする */
+/* 結果のタブの列（#404）。色は「データ」と「Structure」の切り替えと同じ。多ければ、この列だけが横にスクロールする */
 .results {
+  flex: none;
   display: flex;
   gap: var(--space-4);
   min-width: 0;
   overflow-x: auto;
 }
-.results .viewTab {
+/* 結果のタブ 1 つ（見出しのボタンと、閉じる ×） */
+.resultTab {
   flex: none;
-  max-width: 32ch;
+  display: flex;
+  align-items: center;
+  max-width: 36ch;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-6);
+  color: var(--color-text-muted);
+}
+.resultTab[data-selected] {
+  border-color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 15%, transparent);
+  color: var(--color-text-strong);
+}
+/* 失敗した文のタブ */
+.resultTab[data-failed] {
+  color: var(--state-danger);
+}
+/* 実行している文のタブ */
+.resultTab[data-running] {
+  font-style: italic;
+}
+.resultLabel {
+  min-width: 0;
+  padding: var(--space-2) var(--space-4) var(--space-2) var(--space-8);
+  border: 0;
+  border-radius: var(--radius-6);
+  background: transparent;
+  color: inherit;
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  font-style: inherit;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-family: var(--font-mono);
-  font-size: var(--text-caption);
+  cursor: pointer;
 }
-/* 失敗した文のタブ */
-.viewTab[data-failed] {
-  color: var(--state-danger);
+.resultClose {
+  flex: none;
+  padding: var(--space-2) var(--space-4);
+  border: 0;
+  border-radius: var(--radius-6);
+  background: transparent;
+  color: var(--color-text-muted);
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+}
+.resultClose:hover {
+  color: var(--color-text-strong);
+}
+.resultLabel:focus-visible,
+.resultClose:focus-visible {
+  outline: var(--state-focus-ring-width) solid var(--state-focus-ring);
+  outline-offset: calc(-1 * var(--state-focus-ring-width));
 }
