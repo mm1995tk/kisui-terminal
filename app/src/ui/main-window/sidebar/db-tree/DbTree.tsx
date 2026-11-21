@@ -262,7 +262,7 @@ export function DbTree(props: DbTreeProps): JSX.Element {
                 {(r, i) => (
                   <>
                     <Show when={r.other && !rows()[i() - 1]?.other}>
-                      <p class={styles.otherHead}>
+                      <p class={styles.otherHead} role="presentation">
                         {T("db.tree.otherSchemas")}
                       </p>
                     </Show>
