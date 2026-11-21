@@ -2,10 +2,13 @@ package db
 
 import (
 	"context"
+	"encoding/json"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/mm1995tk/kisui-terminal/config"
+	"github.com/mm1995tk/kisui-terminal/internal/db/dbtest"
 )
 
 // findSchema is the schema named name in cat, or nil.
@@ -63,6 +66,15 @@ func TestCatalog(t *testing.T) {
 				t.Errorf("the system schema %s is listed", sys)
 			}
 		}
+		// The default schema is the one of the login: "public" for PostgreSQL,
+		// the database of the connection for MySQL.
+		wantDefault := "public"
+		if c.Kind == config.DBMySQL {
+			wantDefault = "kisui"
+		}
+		if cat.DefaultSchema == nil || *cat.DefaultSchema != wantDefault {
+			t.Errorf("default schema: %v, want %q", cat.DefaultSchema, wantDefault)
+		}
 		sc := findSchema(cat, schema)
 		if sc == nil {
 			t.Fatalf("no schema %s: %+v", schema, cat)
@@ -115,6 +127,27 @@ func TestCatalog(t *testing.T) {
 			}
 		}
 	})
+}
+
+// With no default schema, DefaultSchema is nil and the JSON has null: a
+// PostgreSQL login whose search_path names no schema that exists. (MySQL is
+// not tested: its user of the tests may only use "kisui", and a login that
+// names no database needs another user.)
+func TestCatalogNoDefaultSchema(t *testing.T) {
+	c := dbtest.Login(dbtest.Postgres(t))
+	s := open(t, c)
+	query(t, s, "SET search_path = kisui_no_such_schema")
+	cat, err := ReadCatalog(context.Background(), s, c.Kind)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cat.DefaultSchema != nil {
+		t.Errorf("default schema: %q", *cat.DefaultSchema)
+	}
+	b, err := json.Marshal(cat)
+	if err != nil || !strings.Contains(string(b), `"defaultSchema":null`) {
+		t.Errorf("%s, %v", b, err)
+	}
 }
 
 // The catalog is read on a read-only connection too.
