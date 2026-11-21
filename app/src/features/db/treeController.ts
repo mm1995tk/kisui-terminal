@@ -3,7 +3,7 @@
 //
 // 持ち物の分け方：
 // - 一覧・聞いている最中の印・失敗の理由・開けている枝は、タブごとにメモリだけに持つ（開き直したら、もう一度聞く）。
-// - 木の上のドロップダウンで選んだ既定のスキーマ（#378）と、「すべてのスキーマを表示」の印（#398）は、接続ごと
+// - 木の上の欄で選んだ既定のスキーマ（#378・#398）は、接続ごと
 //   （マシン・接続の名前・変種。タブごとではない）に持ち、KeyValueStore（webview の localStorage）に覚える
 //   （schemaPrefs.ts）。同じ接続のタブは同じものを使い、アプリを開き直しても残る。
 //   既定のスキーマは、SQL の実行（controller.ts）が、実行のたびに db.query の schema に付ける。
@@ -46,7 +46,7 @@ export type DbTree = ReturnType<typeof createDbTree>;
 
 /** 木の持ち物を作る。一覧を聞く・開けている枝・テーブルを選んだときの実行を受け持つ。 */
 export function createDbTree(deps: {
-  /** 接続ごとの既定のスキーマと「すべてのスキーマを表示」の印の置き場（使えない環境では undefined。そのときは覚えない） */
+  /** 接続ごとの既定のスキーマの置き場（使えない環境では undefined。そのときは覚えない） */
   store: KeyValueStore | undefined;
   /** タブ id の記録（DbRef） */
   refOf: (id: string) => DbRef | undefined;
@@ -132,7 +132,7 @@ export function createDbTree(deps: {
   }
 
   /**
-   * 接続ごとに覚えるもの（#398。schemaPrefs.ts）：選んだ既定のスキーマ（#378）と、「すべてのスキーマを表示」の印。
+   * 接続ごとに覚えるもの（#398。schemaPrefs.ts）：選んだ既定のスキーマ（#378）。
    * 既定のスキーマは、スキーマを書かない名前を、kisui serve が先にそこで探す（PostgreSQL は search_path の先頭、
    * MySQL は USE）。選んでいなければ DB の既定のまま。
    */
@@ -187,13 +187,6 @@ export function createDbTree(deps: {
     );
     return true;
   }
-  /** タブ id の接続の「すべてのスキーマを表示」の印を all にする。 */
-  function setShowAllSchemas(id: string, all: boolean) {
-    const ref = refOf(id);
-    if (!ref) return;
-    writePrefs(withSchemaPref(untrack(prefs), connectionKey(ref), { all }));
-  }
-
   /** 木の枝 node を開ける・閉じる。 */
   function toggleNode(id: string, node: string, open: boolean) {
     setExpanded((all) => {
@@ -240,7 +233,7 @@ export function createDbTree(deps: {
     setExpanded((all) =>
       Object.fromEntries(Object.entries(all).filter(([id]) => alive.has(id))),
     );
-    // 既定のスキーマと「すべてのスキーマを表示」の印は、接続ごとに覚えるので、タブを閉じても捨てない
+    // 既定のスキーマは、接続ごとに覚えるので、タブを閉じても捨てない
   }
 
   return {
@@ -255,9 +248,6 @@ export function createDbTree(deps: {
     defaultSchemaOf: (id: string): string | undefined => prefOf(id).schema,
     setDefaultSchema,
     dropUnreadSchema,
-    /** タブ id の接続の「すべてのスキーマを表示」の印（#398） */
-    showAllSchemasOf: (id: string): boolean => prefOf(id).all === true,
-    setShowAllSchemas,
     previewTable,
     forget,
   };

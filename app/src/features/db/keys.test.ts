@@ -8,7 +8,6 @@ import {
   dbResultTabKey,
   dbTreeFilterKey,
   dbTreeKey,
-  dbTreeSchemaKey,
 } from "./keys.ts";
 
 const ev = (key: string, extra: object = {}) => ({
@@ -101,9 +100,9 @@ describe("dbTreeKey（サイドバーの木のキー）", () => {
     assert.equal(k("/"), "filter");
   });
 
-  it("s はドロップダウンに移り、a は「すべてのスキーマを表示」を切り替える（#398）", () => {
+  it("s は既定のスキーマを選ぶ一覧を開く（#398）。a は受けない", () => {
     assert.equal(dbTreeKey(ev("s")), "schema");
-    assert.equal(dbTreeKey(ev("a")), "all");
+    assert.equal(dbTreeKey(ev("a")), null);
     assert.equal(dbTreeKey(ev("S", { shiftKey: true })), null);
     assert.equal(dbTreeKey(ev("a", { ctrlKey: true })), null);
   });
@@ -138,22 +137,6 @@ describe("dbTreeFilterKey（木の絞り込みの入力欄のキー）", () => {
     assert.equal(dbTreeFilterKey(ev("Enter", { isComposing: true })), null);
     assert.equal(dbTreeFilterKey(ev("Enter", { keyCode: 229 })), null);
     assert.equal(dbTreeFilterKey(ev("Escape", { isComposing: true })), null);
-  });
-});
-
-describe("dbTreeSchemaKey（木の上のドロップダウンとチェックボックスのキー。#398）", () => {
-  it("Enter・Esc で木に戻り、↓ ↑ と字はドロップダウンに残す", () => {
-    for (const key of ["Enter", "Escape"])
-      assert.equal(dbTreeSchemaKey(ev(key)), "tree");
-    for (const key of ["ArrowDown", "ArrowUp", "a", " "])
-      assert.equal(dbTreeSchemaKey(ev(key)), null);
-  });
-
-  it("修飾キーを重ねたもの・かな漢字変換のキーは受けない", () => {
-    for (const m of ["ctrlKey", "metaKey", "altKey", "shiftKey"])
-      assert.equal(dbTreeSchemaKey(ev("Enter", { [m]: true })), null);
-    assert.equal(dbTreeSchemaKey(ev("Enter", { isComposing: true })), null);
-    assert.equal(dbTreeSchemaKey(ev("Escape", { keyCode: 229 })), null);
   });
 });
 

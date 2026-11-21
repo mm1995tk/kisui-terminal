@@ -87,7 +87,7 @@ export function dbResultTabKey(e: KeyLike, onTabs: boolean): 1 | -1 | 0 {
  * - l / →：開ける（開いていれば中へ）、h / ←：閉じる（閉じていれば上へ）
  * - Enter：スキーマは開け閉め、テーブルはその中身を見る
  * - /：テーブル名で絞り込む入力欄に移る
- * - s：既定のスキーマを選ぶドロップダウンに移る、a：「すべてのスキーマを表示」の印を切り替える（#398）
+ * - s：既定のスキーマを選ぶ一覧を開く（#398）
  * - Esc：SQL の入力欄に戻る
  * 修飾キーを重ねたものは受けない（リーダーなど、ほかのキーに残す）。かな漢字変換のキーは受けない。
  */
@@ -120,8 +120,6 @@ export function dbTreeKey(e: KeyLike): DbTreeAction | null {
       return "filter";
     case "s":
       return e.shiftKey ? null : "schema";
-    case "a":
-      return e.shiftKey ? null : "all";
     case "Escape":
       return "back";
   }
@@ -135,17 +133,6 @@ export function dbTreeKey(e: KeyLike): DbTreeAction | null {
 export function dbTreeFilterKey(e: KeyLike): "tree" | null {
   if (isComposingKey(e)) return null;
   if (e.key === "Escape" || e.key === "Enter" || e.key === "ArrowDown")
-    return e.ctrlKey || e.metaKey || e.altKey || e.shiftKey ? null : "tree";
-  return null;
-}
-
-/**
- * 木の上の、既定のスキーマを選ぶドロップダウン（#398）で押したキー e の動き（無ければ null。ドロップダウンがそのまま受ける：
- * ↓ ↑ で選ぶ）。Enter・Esc：キーを木に戻す（選んだものは残す）。かな漢字変換の確定・取り消しのキーは受けない。
- */
-export function dbTreeSchemaKey(e: KeyLike): "tree" | null {
-  if (isComposingKey(e)) return null;
-  if (e.key === "Escape" || e.key === "Enter")
     return e.ctrlKey || e.metaKey || e.altKey || e.shiftKey ? null : "tree";
   return null;
 }

@@ -1,7 +1,7 @@
 // DB のタブ（#347）のサイドバーの木の、接続ごとに覚えるもの（#398）の、画面にも Solid にも依存しない部分（node --test で確かめられる）。
-// - 覚えるもの：木の上のドロップダウンで選んだ既定のスキーマと、「すべてのスキーマを表示」の印
+// - 覚えるもの：木の上の欄で選んだ既定のスキーマ
 // - その記録（KeyValueStore。本物は webview の localStorage）の読み書き
-// - ドロップダウンに並べる選択肢と、木に出すスキーマを決める
+// - 既定のスキーマを選ぶ一覧に並べる選択肢と、木に出すスキーマを決める
 // 持つのは treeController.ts。木の行を並べるのは tree.ts の visibleRows。
 
 import type { DbCatalog } from "../../infrastructure/rpc/protocol.ts";
@@ -11,10 +11,8 @@ import type { KeyValueStore } from "../keyValueStore.ts";
 
 /** 接続 1 つの分。 */
 export interface SchemaPref {
-  /** ドロップダウンで選んだ既定のスキーマ（db.query の schema に付ける）。無ければ DB の既定のまま */
+  /** 選んだ既定のスキーマ（db.query の schema に付ける）。無ければ DB の既定のまま */
   schema?: string;
-  /** 「すべてのスキーマを表示」の印。無ければ（false）、既定のスキーマのテーブルだけを木に出す */
-  all?: boolean;
 }
 
 /** 接続の名前（connectionKey）→ その接続の分。何も覚えていない接続は入れない。 */
@@ -36,15 +34,11 @@ export function connectionKey(ref: {
 export function withSchemaPref(
   all: SchemaPrefs,
   key: string,
-  change: { schema?: string | null; all?: boolean },
+  change: { schema?: string | null },
 ): SchemaPrefs {
   const { [key]: cur = {}, ...rest } = all;
   const schema = change.schema === undefined ? cur.schema : change.schema;
-  const showAll = change.all === undefined ? cur.all : change.all;
-  const next: SchemaPref = {
-    ...(schema ? { schema } : {}),
-    ...(showAll ? { all: true } : {}),
-  };
+  const next: SchemaPref = schema ? { schema } : {};
   return Object.keys(next).length === 0 ? rest : { ...rest, [key]: next };
 }
 
@@ -75,10 +69,10 @@ export function parseSchemaPrefs(v: unknown): SchemaPrefs {
   let out: SchemaPrefs = {};
   for (const [key, p] of Object.entries(o.connections)) {
     if (typeof p !== "object" || p === null) continue;
-    const { schema, all } = p as { schema?: unknown; all?: unknown };
+    // 前の版が覚えていた「すべてのスキーマを表示」の印（all）は読まない
+    const { schema } = p as { schema?: unknown };
     out = withSchemaPref(out, key, {
       schema: typeof schema === "string" ? schema : null,
-      all: all === true,
     });
   }
   return out;
@@ -99,9 +93,9 @@ export function saveSchemaPrefs(
   }
 }
 
-// ---- ドロップダウンと、木に出すスキーマ ----
+// ---- 既定のスキーマを選ぶ一覧と、木に出すスキーマ ----
 
-/** ドロップダウンの中身。null は「DB の既定」（スキーマを選ばない）。 */
+/** 既定のスキーマを選ぶ一覧の中身。null は「DB の既定」（スキーマを選ばない）。 */
 export interface SchemaChoices {
   /** 上から並べる選択肢 */
   options: readonly (string | null)[];
@@ -110,7 +104,7 @@ export interface SchemaChoices {
 }
 
 /**
- * ドロップダウンに並べる選択肢と、今選ばれているもの。chosen は、その接続で選んだスキーマ（無ければ undefined）。
+ * 既定のスキーマを選ぶ一覧に並べる選択肢と、今選ばれているもの。chosen は、その接続で選んだスキーマ（無ければ undefined）。
  * - 選んでいなければ、DB の既定のスキーマ（catalog.defaultSchema。#396）を示す。
  * - DB の既定のスキーマが一覧に無い（null・一覧に入っていない・それを返さない古い kisui serve）ときだけ、
  *   先頭に「DB の既定」（null）を置く。一覧にあるときは、そのスキーマの行が「DB の既定」を兼ねる（chosenFor）。
@@ -137,7 +131,7 @@ function dbDefaultIn(catalog: DbCatalog): string | undefined {
 }
 
 /**
- * ドロップダウンで option を選んだときに、接続に覚えるスキーマ（null は、覚えない＝DB の既定のまま）。
+ * 既定のスキーマを選ぶ一覧で option を選んだときに、接続に覚えるスキーマ（null は、覚えない＝DB の既定のまま）。
  * DB の既定のスキーマを選んだときは覚えない：db.query に schema を付けないのと同じ結果になり、
  * DB の側で既定が変わったときに、それに付いていける。
  */
@@ -150,26 +144,16 @@ export function chosenFor(
 
 /**
  * 木に出すスキーマを 1 つに絞るなら、その名前（すべてのスキーマを出すなら undefined）。
- * showAll（「すべてのスキーマを表示」の印）が無く、ドロップダウンが示すスキーマが一覧にあるときだけ絞る。
+ * 木の上の欄が示すスキーマが一覧にあれば、そこに絞る。
  * 示すスキーマが無い（MySQL で DB を指定せずに接続した、DB の既定のスキーマを返さない古い kisui serve）・
  * 一覧に無いときは、木が空にならないように、すべてのスキーマを出す。
  */
 export function onlySchema(
   catalog: DbCatalog,
   chosen: string | undefined,
-  showAll: boolean,
 ): string | undefined {
-  if (showAll) return undefined;
   const { selected } = schemaChoices(catalog, chosen);
   return selected !== null && catalog.schemas.some((s) => s.name === selected)
     ? selected
     : undefined;
-}
-
-/** 「すべてのスキーマを表示」を切り替えられるか：絞る先のスキーマがある（無ければ、いつもすべてを出す）。 */
-export function canNarrow(
-  catalog: DbCatalog,
-  chosen: string | undefined,
-): boolean {
-  return onlySchema(catalog, chosen, false) !== undefined;
 }
