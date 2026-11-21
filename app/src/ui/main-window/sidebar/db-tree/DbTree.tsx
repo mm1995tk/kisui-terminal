@@ -1,5 +1,5 @@
 // DB のタブ（#347）を出している間に、サイドバーのファイルツリーの場所に出す、そのタブの接続の木。
-// スキーマ → テーブル（ビューを含む）→ 列（名前と型）を出す。スキーマを選ぶと、そのタブの既定のスキーマになる（#378）。
+// スキーマ → テーブル（ビューを含む）の 2 段を出す（列はテーブルの Structure で見る）。上の入力欄に打った字で、テーブル名を絞り込める。スキーマを選ぶと、そのタブの既定のスキーマになる（#378）。
 // 一覧（db.schema の答え）と、開けている枝は features/db/controller.ts が持つ。ここは出すことと、木の中のキー・クリックだけ。
 // キーの判定は features/db/keys.ts の dbTreeKey、行き先は features/db/tree.ts の treeStep。
 import { T } from "../../../../i18n/index.ts";
@@ -14,7 +14,7 @@ import {
 } from "solid-js";
 
 import type { DbCatalogState } from "../../../../features/db/treeController.ts";
-import { dbTreeKey } from "../../../../features/db/keys.ts";
+import { dbTreeFilterKey, dbTreeKey } from "../../../../features/db/keys.ts";
 import {
   treeStep,
   visibleRows,
@@ -22,6 +22,7 @@ import {
   type TreeStep,
 } from "../../../../features/db/tree.ts";
 import { Button } from "../../../components/Button.tsx";
+import { Input } from "../../../components/Field.tsx";
 import styles from "./DbTree.module.css";
 
 /** サイドバーの木が外から受け取る値と、外へ頼むこと。 */
@@ -44,10 +45,14 @@ export interface DbTreeProps {
 /** サイドバーの、DB のタブの接続の木。キーを向ける先は data-place="dbTree" の要素（ui/main-window/focus.ts が探す）。 */
 export function DbTree(props: DbTreeProps): JSX.Element {
   let list: HTMLDivElement | undefined;
+  let treeEl: HTMLDivElement | undefined;
+  let filterEl: HTMLInputElement | undefined;
   const [cursor, setCursor] = createSignal<string | undefined>();
+  /** テーブル名の絞り込み（タブを出し直すと空に戻る。開けている枝は変えない） */
+  const [filter, setFilter] = createSignal("");
   const rows = createMemo(() =>
     props.catalog.catalog
-      ? visibleRows(props.catalog.catalog, props.expanded)
+      ? visibleRows(props.catalog.catalog, props.expanded, filter())
       : [],
   );
   const activeIndex = () => rows().findIndex((r) => r.id === cursor());
@@ -89,12 +94,23 @@ export function DbTree(props: DbTreeProps): JSX.Element {
     e.stopPropagation();
     const s = treeStep(rows(), cursor(), a, props.defaultSchema);
     if (s.leave) props.onLeave();
+    if (s.focusFilter) filterEl?.focus();
     if (s.cursor !== undefined) setCursor(s.cursor);
     apply(s);
   }
 
+  /** 絞り込みの入力欄のキー：Enter・Esc・↓ で木に戻す（絞り込みは残す） */
+  function onFilterKeyDown(e: KeyboardEvent) {
+    if (dbTreeFilterKey(e) !== "tree") return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (cursor() === undefined) setCursor(rows()[0]?.id);
+    treeEl?.focus();
+  }
+
   return (
     <div
+      ref={treeEl}
       class={styles.tree}
       role="group"
       aria-label={T("db.tree.label")}
@@ -114,6 +130,18 @@ export function DbTree(props: DbTreeProps): JSX.Element {
           {T("db.tree.reload")}
         </Button>
       </div>
+      <Input
+        ref={filterEl}
+        class={styles.filter}
+        type="search"
+        value={filter()}
+        placeholder={T("db.tree.filter.placeholder")}
+        aria-label={T("db.tree.filter.label")}
+        autocomplete="off"
+        spellcheck={false}
+        onInput={(e) => setFilter(e.currentTarget.value)}
+        onKeyDown={onFilterKeyDown}
+      />
       <Show when={props.defaultSchema}>
         {(s) => (
           <div class={styles.defaultSchema} data-default-schema>
@@ -142,6 +170,9 @@ export function DbTree(props: DbTreeProps): JSX.Element {
             <Show when={c().schemas.length === 0}>
               <p class={styles.note}>{T("db.tree.empty")}</p>
             </Show>
+            <Show when={filter().trim() !== "" && rows().length === 0}>
+              <p class={styles.note}>{T("db.tree.noMatch")}</p>
+            </Show>
             <div
               ref={list}
               class={styles.list}
@@ -161,7 +192,7 @@ export function DbTree(props: DbTreeProps): JSX.Element {
                     data-id={r.id}
                     data-kind={r.kind}
                     style={{ "padding-left": `${r.depth * 14 + 6}px` }}
-                    title={r.type ? `${r.label}: ${r.type}` : r.label}
+                    title={r.label}
                     onClick={() => {
                       setCursor(r.id);
                       enter(r);
@@ -180,9 +211,6 @@ export function DbTree(props: DbTreeProps): JSX.Element {
                       {r.expandable ? (r.expanded ? "▾" : "▸") : ""}
                     </span>
                     <span class={styles.label}>{r.label}</span>
-                    <Show when={r.type}>
-                      {(t) => <span class={styles.type}>{t()}</span>}
-                    </Show>
                     <Show
                       when={
                         r.kind === "schema" && r.schema === props.defaultSchema

@@ -663,9 +663,14 @@ export const ja: Record<Key, string> = {
   "place.dbTree.collapse": "枝を閉じる（閉じていれば上へ）",
   "place.dbTree.enter":
     "スキーマはタブの既定のスキーマにする（もう既定ならやめる）、テーブルは中身を見る",
+  "place.dbTree.filter":
+    "テーブル名で絞り込む入力欄に移る（入力欄の Enter・Esc・↓ で木に戻る）",
   "place.dbTree.back": "SQL の入力欄に戻る",
   "db.tree.title": "スキーマ",
-  "db.tree.label": "スキーマ・テーブル・列",
+  "db.tree.label": "スキーマ・テーブル",
+  "db.tree.filter.placeholder": "テーブルを絞り込む（ / ）",
+  "db.tree.filter.label": "テーブル名で絞り込む",
+  "db.tree.noMatch": "合うテーブルがありません",
   "db.tree.reload": "読み直す",
   "db.tree.loading": "スキーマを読んでいます…",
   "db.tree.empty": "スキーマがありません",

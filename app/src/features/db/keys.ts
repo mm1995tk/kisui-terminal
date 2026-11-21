@@ -77,6 +77,7 @@ export function dbResultTabKey(e: KeyLike, onTabs: boolean): 1 | -1 | 0 {
  * - j k / ↓ ↑：行を動く、g G / Home End：先頭・末尾
  * - l / →：開ける（開いていれば中へ）、h / ←：閉じる（閉じていれば上へ）
  * - Enter：スキーマは開け閉め、テーブルはその中身を見る
+ * - /：テーブル名で絞り込む入力欄に移る
  * - Esc：SQL の入力欄に戻る
  * 修飾キーを重ねたものは受けない（リーダーなど、ほかのキーに残す）。かな漢字変換のキーは受けない。
  */
@@ -104,12 +105,25 @@ export function dbTreeKey(e: KeyLike): DbTreeAction | null {
       return "last";
     case "Enter":
       return e.shiftKey ? null : "enter";
+    case "/":
+      // 配列によっては Shift で打つので、Shift は見ない
+      return "filter";
     case "Escape":
       return "back";
   }
   return null;
 }
 
+/**
+ * 木の上の、テーブル名で絞り込む入力欄で押したキー e の動き（無ければ null。入力欄にそのまま字が入る）。
+ * Enter・Esc・↓：キーを木に戻す（絞り込みは残す）。かな漢字変換の確定・取り消しのキーは受けない。
+ */
+export function dbTreeFilterKey(e: KeyLike): "tree" | null {
+  if (isComposingKey(e)) return null;
+  if (e.key === "Escape" || e.key === "Enter" || e.key === "ArrowDown")
+    return e.ctrlKey || e.metaKey || e.altKey || e.shiftKey ? null : "tree";
+  return null;
+}
 /** 履歴の窓（#349）のキーの動き。 */
 export type DbHistoryKey =
   { kind: "step"; step: 1 | -1 } | { kind: "choose" } | { kind: "help" };
