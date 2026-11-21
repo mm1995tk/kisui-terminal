@@ -362,15 +362,21 @@ function ResultTabs(props: {
       aria-label={T("db.view.results")}
       onKeyDown={keydown}
     >
-      <For each={props.run.tabs}>
-        {(t) => (
-          <ResultTab
-            tab={t}
-            selected={props.run.active === t.id}
-            running={props.run.running?.tab === t.id}
-            onShow={() => props.onResult(t.id)}
-            onClose={() => close(t.id)}
-          />
+      {/* 行は、タブの id で見分ける。タブの中身（結果・ページ）は届くたびに作り直されるので、中身で見分けると、
+          そのたびにタブの DOM が作り直され、タブの見出しにあったキーが場所を失う */}
+      <For each={props.run.tabs.map((t) => t.id)}>
+        {(id) => (
+          <Show when={props.run.tabs.find((t) => t.id === id)}>
+            {(t) => (
+              <ResultTab
+                tab={t()}
+                selected={props.run.active === id}
+                running={props.run.running?.tab === id}
+                onShow={() => props.onResult(id)}
+                onClose={() => close(id)}
+              />
+            )}
+          </Show>
         )}
       </For>
     </div>
