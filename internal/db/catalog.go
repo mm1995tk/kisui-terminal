@@ -20,6 +20,14 @@ type Catalog struct {
 	// Schemas are in the order of their names, as the database sorts them.
 	// A schema with no tables is there too.
 	Schemas []CatalogSchema `json:"schemas"`
+	// DefaultSchema is the schema a statement without a schema name uses on
+	// this login: PostgreSQL's current_schema() (the first schema of the
+	// search_path that exists), MySQL's DATABASE() (the database the
+	// connection was made to). It is nil (JSON null, never left out) when
+	// there is none: no database named in the MySQL connection, or no schema
+	// of the search_path exists. It may be a schema that Schemas does not
+	// list (a system schema, or one the user cannot see in MySQL).
+	DefaultSchema *string `json:"defaultSchema"`
 	// Truncated is true when the database had more columns than the limit
 	// (catalogRowLimit, and 8 MiB of text): the schemas and tables after
 	// that are missing, and the last table may lack some columns.
@@ -80,7 +88,10 @@ LEFT JOIN pg_catalog.pg_class c ON c.relnamespace = n.oid AND c.relkind IN ('r',
 LEFT JOIN pg_catalog.pg_attribute a ON a.attrelid = c.oid AND a.attnum > 0 AND NOT a.attisdropped
 WHERE n.nspname <> 'information_schema' AND left(n.nspname, 3) <> 'pg_'
 ORDER BY n.nspname, c.relname, a.attnum`
-	myCatalogSQL = `SELECT s.SCHEMA_NAME, t.TABLE_NAME, t.TABLE_TYPE, c.COLUMN_NAME, c.COLUMN_TYPE
+	// The default schema of the login: one row, one column, NULL when none.
+	pgDefaultSchemaSQL = `SELECT current_schema()`
+	myDefaultSchemaSQL = `SELECT DATABASE()`
+	myCatalogSQL       = `SELECT s.SCHEMA_NAME, t.TABLE_NAME, t.TABLE_TYPE, c.COLUMN_NAME, c.COLUMN_TYPE
 FROM information_schema.SCHEMATA s
 LEFT JOIN information_schema.TABLES t ON t.TABLE_SCHEMA = s.SCHEMA_NAME
 LEFT JOIN information_schema.COLUMNS c ON c.TABLE_SCHEMA = t.TABLE_SCHEMA AND c.TABLE_NAME = t.TABLE_NAME
@@ -90,14 +101,14 @@ ORDER BY CAST(s.SCHEMA_NAME AS BINARY), CAST(t.TABLE_NAME AS BINARY), c.ORDINAL_
 
 // ReadCatalog lists the schemas, tables and columns of the database s is
 // logged in to. kind is the kind of the connection (config.DBPostgres or
-// config.DBMySQL). It is one statement on s, so its errors are those of
-// Session.Query.
+// config.DBMySQL). It is two statements on s (the list, then the default
+// schema), so its errors are those of Session.Query.
 func ReadCatalog(ctx context.Context, s Session, kind string) (*Catalog, error) {
-	var sql string
+	var sql, defaultSQL string
 	var tableKind func(string) TableKind
 	switch kind {
 	case config.DBPostgres:
-		sql = pgCatalogSQL
+		sql, defaultSQL = pgCatalogSQL, pgDefaultSchemaSQL
 		tableKind = func(k string) TableKind {
 			if k == "v" || k == "m" {
 				return TableKindView
@@ -105,7 +116,7 @@ func ReadCatalog(ctx context.Context, s Session, kind string) (*Catalog, error) 
 			return TableKindTable
 		}
 	case config.DBMySQL:
-		sql = myCatalogSQL
+		sql, defaultSQL = myCatalogSQL, myDefaultSchemaSQL
 		tableKind = func(k string) TableKind {
 			if strings.HasSuffix(k, "VIEW") { // VIEW, SYSTEM VIEW
 				return TableKindView
@@ -119,7 +130,17 @@ func ReadCatalog(ctx context.Context, s Session, kind string) (*Catalog, error) 
 	if err != nil {
 		return nil, err
 	}
-	return catalogOf(res, tableKind), nil
+	cat := catalogOf(res, tableKind)
+	// A second statement on the same login, so that it is the default schema
+	// of the login the list was read on.
+	def, err := s.Query(ctx, defaultSQL, QueryOptions{MaxRows: 1})
+	if err != nil {
+		return nil, err
+	}
+	if len(def.Rows) == 1 && len(def.Rows[0]) == 1 && def.Rows[0][0] != nil && *def.Rows[0][0] != "" {
+		cat.DefaultSchema = def.Rows[0][0]
+	}
+	return cat, nil
 }
 
 // catalogOf groups the rows of a catalog query (see pgCatalogSQL).

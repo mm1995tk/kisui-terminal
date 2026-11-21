@@ -243,6 +243,12 @@ export interface DbQueryResult {
 export interface DbCatalog {
   /** 名前の順。テーブルの無いスキーマも入る。MySQL ではスキーマは DB（ユーザーに見える全部） */
   schemas: DbCatalogSchema[];
+  /**
+   * この接続で、スキーマ名の無い文が使うスキーマ（PostgreSQL は current_schema()、MySQL は接続先の DB）。
+   * 無ければ null（MySQL で DB を指定せずに接続した、PostgreSQL の search_path にあるスキーマが 1 つも無い）。
+   * schemas に入っていないことがある。フィールドが無い（undefined）のは、これを返さない古い kisui serve
+   */
+  defaultSchema?: string | null;
   /** 列が上限（全体で 100000）を超え、その先のスキーマ・テーブルが無い（最後のテーブルの列が欠けることがある） */
   truncated: boolean;
 }
