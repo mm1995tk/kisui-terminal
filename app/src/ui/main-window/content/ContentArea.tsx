@@ -168,6 +168,7 @@ export function ContentArea(props: {
               onResult={(tab) => db.showResult(id, tab)}
               onStepResult={(step) => db.stepResultTab(id, step)}
               onCloseResult={(tab) => void db.closeResult(id, tab)}
+              onKeepResult={(tab) => db.keepResult(id, tab)}
               structure={db.structureOf(id)}
               onView={(view) => void db.showView(id, view)}
               focusRef={(f) => props.focusUi.setDbFocus(f)}

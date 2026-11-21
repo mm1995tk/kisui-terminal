@@ -60,10 +60,10 @@ export function createDbTree(deps: {
   ) => Promise<Requests[M]["result"]>;
   /** 今のワークスペースで出している DB のタブ */
   shownDbTab: () => { id: string } | undefined;
-  setDraft: (id: string, sql: string) => void;
   /** 木でテーブルを選んだことを、テーブルの構造（#379。structureController.ts）に伝える */
   chooseTable: (id: string, table: { schema: string; table: string }) => void;
-  run: (id: string, sql?: string) => Promise<void>;
+  /** sql を、結果の仮のタブ（#405）に実行する。label は、そのタブの見出し（テーブルの名前） */
+  runPreview: (id: string, sql: string, label: string) => Promise<void>;
   /** タブ id が SQL を実行している最中か */
   isRunning: (id: string) => boolean;
   /** 実行中の要求を db.cancel で取り消す */
@@ -198,16 +198,15 @@ export function createDbTree(deps: {
   }
 
   /**
-   * 木でテーブル（ビュー）を選んだ：その中身を見る SQL を入力欄に入れて実行する（入れるのは、何を実行したかを見せ、
-   * 手直しして使えるようにするため）。一覧がまだ無い・別の SQL を実行している間は何もしない。
+   * 木でテーブル（ビュー）を選んだ：その中身を見る SQL を、結果の仮のタブ（#405）に実行する。入力欄は書き換えない
+   * （下書きの紙として残す）。一覧がまだ無い・別の SQL を実行している間は何もしない。
    */
   function previewTable(id: string, schema: string, table: string) {
     const kind = untrack(catalogs)[id]?.kind;
     if (!kind || deps.isRunning(id)) return;
     deps.chooseTable(id, { schema, table });
     const sql = previewSql(kind, schema, table);
-    deps.setDraft(id, sql);
-    void deps.run(id, sql);
+    void deps.runPreview(id, sql, table);
   }
 
   // DB のタブを出したら、まだ聞いていなければ一覧を聞く（失敗しても繰り返さない。聞き直しは操作で）

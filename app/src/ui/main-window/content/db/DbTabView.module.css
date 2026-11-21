@@ -257,6 +257,11 @@
 .resultTab[data-running] {
   font-style: italic;
 }
+/* 仮のタブ（木でテーブルを選んで出したもの。#405）：斜体で、枠を破線にする */
+.resultTab[data-preview] {
+  font-style: italic;
+  border-style: dashed;
+}
 .resultLabel {
   min-width: 0;
   padding: var(--space-2) var(--space-4) var(--space-2) var(--space-8);
