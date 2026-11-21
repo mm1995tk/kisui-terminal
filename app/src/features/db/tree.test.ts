@@ -11,7 +11,6 @@ import {
   treeStep,
   keepDefaultSchema,
   visibleRows,
-  withDefaultSchema,
 } from "./tree.ts";
 
 const catalog: DbCatalog = {
@@ -200,19 +199,16 @@ describe("treeStep（木のキーの動き）", () => {
     assert.deepEqual(treeStep(rows, id("empty"), "collapse"), {});
   });
 
-  it("Enter：スキーマは既定のスキーマにする、テーブル・ビューは中身を見る", () => {
-    // 開いているスキーマは開いたまま、閉じているスキーマは開ける（#378）
+  it("Enter：スキーマは開け閉めする（既定のスキーマにはしない。#398）、テーブル・ビューは中身を見る", () => {
     assert.deepEqual(treeStep(rows, id("public"), "enter"), {
-      setDefaultSchema: "public",
+      toggle: { id: "public", open: false },
     });
-    assert.deepEqual(treeStep(rows, id("empty"), "enter", "public"), {
-      setDefaultSchema: "empty",
+    assert.deepEqual(treeStep(rows, id("empty"), "enter"), {
       toggle: { id: "empty", open: true },
     });
-    // もう既定のスキーマなら、既定をやめる（開け閉めはしない）
-    assert.deepEqual(treeStep(rows, id("public"), "enter", "public"), {
-      setDefaultSchema: null,
-    });
+    // 絞り込み中のスキーマは開け閉めできない
+    const filtered = visibleRows(catalog, new Set(), "users");
+    assert.deepEqual(treeStep(filtered, id("public"), "enter"), {});
     assert.deepEqual(treeStep(rows, id("users"), "enter"), {
       preview: { schema: "public", table: "users" },
     });
@@ -226,6 +222,30 @@ describe("treeStep（木のキーの動き）", () => {
       focusFilter: true,
     });
     assert.deepEqual(treeStep([], undefined, "filter"), { focusFilter: true });
+  });
+
+  it("s はドロップダウンに移り、a は「すべてのスキーマを表示」を切り替える。行が無くてもできる（#398）", () => {
+    assert.deepEqual(treeStep(rows, id("users"), "schema"), {
+      focusSchema: true,
+    });
+    assert.deepEqual(treeStep([], undefined, "schema"), { focusSchema: true });
+    assert.deepEqual(treeStep(rows, id("users"), "all"), { toggleAll: true });
+    assert.deepEqual(treeStep([], undefined, "all"), { toggleAll: true });
+  });
+
+  it("スキーマを 1 つに絞った木（#398）：テーブルの行だけを上下に動き、Enter で中身を見る。上の行は無い", () => {
+    const flat = visibleRows(catalog, new Set(), "", "public");
+    assert.deepEqual(treeStep(flat, undefined, "next"), {
+      cursor: id("users"),
+    });
+    assert.deepEqual(treeStep(flat, id("users"), "next"), {
+      cursor: id("active_users"),
+    });
+    assert.deepEqual(treeStep(flat, id("users"), "collapse"), {});
+    assert.deepEqual(treeStep(flat, id("users"), "expand"), {});
+    assert.deepEqual(treeStep(flat, id("users"), "enter"), {
+      preview: { schema: "public", table: "users" },
+    });
   });
 
   it("Esc は入力欄に戻る。行が無くても戻れる", () => {
@@ -253,26 +273,49 @@ describe("previewSql（テーブルを選んだときの SQL）", () => {
   });
 });
 
-describe("withDefaultSchema（タブの既定のスキーマ。#378）", () => {
-  it("選んだタブの分だけを変え、ほかのタブの分は残す", () => {
-    const all = { a: "app", b: "public" };
-    assert.deepEqual(withDefaultSchema(all, "a", "audit"), {
-      a: "audit",
-      b: "public",
-    });
-    assert.deepEqual(withDefaultSchema(all, "c", "x"), {
-      a: "app",
-      b: "public",
-      c: "x",
-    });
-    assert.deepEqual(all, { a: "app", b: "public" });
+describe("visibleRows（スキーマを 1 つに絞る。#398）", () => {
+  it("そのスキーマのテーブル・ビューだけを、スキーマの行なしで並べる（開けている枝は見ない）", () => {
+    const r = visibleRows(catalog, new Set(), "", "public");
+    assert.deepEqual(
+      r.map((x) => [x.kind, x.label, x.depth, x.parent, x.schema]),
+      [
+        ["table", "users", 0, undefined, "public"],
+        ["view", "active_users", 0, undefined, "public"],
+      ],
+    );
+    assert.ok(r.every((x) => !x.expandable));
+    assert.equal(r[0]!.id, tableId("public", "users"));
   });
 
-  it("null はそのタブの分を除く（DB の既定に戻す）", () => {
-    assert.deepEqual(withDefaultSchema({ a: "app", b: "x" }, "a", null), {
-      b: "x",
-    });
-    assert.deepEqual(withDefaultSchema({}, "a", null), {});
+  it("テーブル名の絞り込みは、そのスキーマの中だけを探す", () => {
+    const two: DbCatalog = {
+      truncated: false,
+      schemas: [
+        ...catalog.schemas,
+        {
+          name: "audit",
+          tables: [{ name: "users_log", kind: "table", columns: [] }],
+        },
+      ],
+    };
+    assert.deepEqual(
+      visibleRows(two, new Set(), "USERS", "public").map((x) => x.label),
+      ["users", "active_users"],
+    );
+    assert.deepEqual(
+      visibleRows(two, new Set(), "log", "public").map((x) => x.label),
+      [],
+    );
+    // 絞らなければ、すべてのスキーマから探す
+    assert.deepEqual(
+      visibleRows(two, new Set(), "log").map((x) => x.label),
+      ["audit", "users_log"],
+    );
+  });
+
+  it("テーブルの無いスキーマ・一覧に無いスキーマは、何も並ばない", () => {
+    assert.deepEqual(visibleRows(catalog, new Set(), "", "empty"), []);
+    assert.deepEqual(visibleRows(catalog, new Set(), "", "gone"), []);
   });
 });
 

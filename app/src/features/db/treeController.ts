@@ -3,8 +3,10 @@
 //
 // 持ち物の分け方：
 // - 一覧・聞いている最中の印・失敗の理由・開けている枝は、タブごとにメモリだけに持つ（開き直したら、もう一度聞く）。
-// - 木で選んだ既定のスキーマ（#378）も、タブごとにメモリだけに持つ（開き直したら、DB の既定に戻る）。
-//   SQL の実行（controller.ts）が、実行のたびに db.query の schema に付ける。
+// - 木の上のドロップダウンで選んだ既定のスキーマ（#378）と、「すべてのスキーマを表示」の印（#398）は、接続ごと
+//   （マシン・接続の名前・変種。タブごとではない）に持ち、KeyValueStore（webview の localStorage）に覚える
+//   （schemaPrefs.ts）。同じ接続のタブは同じものを使い、アプリを開き直しても残る。
+//   既定のスキーマは、SQL の実行（controller.ts）が、実行のたびに db.query の schema に付ける。
 // DB のタブそのものと SQL の実行は controller.ts が持ち、ここはそこから必要な口だけを受け取る（createDbTabs が組み立てる）。
 import { T } from "../../i18n/index.ts";
 import { createEffect, createSignal, untrack } from "solid-js";
@@ -14,15 +16,19 @@ import type {
   DbConnection,
   Requests,
 } from "../../infrastructure/rpc/protocol.ts";
+import type { KeyValueStore } from "../keyValueStore.ts";
 import type { DbMethod, Session } from "../sessions/session.ts";
 import { dbRefParams, type DbRef } from "../workspaces/model.ts";
 import { catalogError, connectionOf, newQueryId } from "./model.ts";
 import {
-  initialExpanded,
-  keepDefaultSchema,
-  previewSql,
-  withDefaultSchema,
-} from "./tree.ts";
+  chosenFor,
+  connectionKey,
+  loadSchemaPrefs,
+  saveSchemaPrefs,
+  withSchemaPref,
+  type SchemaPrefs,
+} from "./schemaPrefs.ts";
+import { initialExpanded, keepDefaultSchema, previewSql } from "./tree.ts";
 
 /** タブ 1 つの、サイドバーの木のスキーマの一覧。メモリだけに持つ（開き直したら、もう一度聞く）。 */
 export interface DbCatalogState {
@@ -40,6 +46,8 @@ export type DbTree = ReturnType<typeof createDbTree>;
 
 /** 木の持ち物を作る。一覧を聞く・開けている枝・テーブルを選んだときの実行を受け持つ。 */
 export function createDbTree(deps: {
+  /** 接続ごとの既定のスキーマと「すべてのスキーマを表示」の印の置き場（使えない環境では undefined。そのときは覚えない） */
+  store: KeyValueStore | undefined;
   /** タブ id の記録（DbRef） */
   refOf: (id: string) => DbRef | undefined;
   /** ref のマシンの、DB を扱える接続（つながっていない・古い kisui serve なら、理由を投げる） */
@@ -62,6 +70,8 @@ export function createDbTree(deps: {
   cancelQuery: (q: { queryId: string; target: string }) => void;
   /** ref のマシンの kisui serve が、db.query の schema を読むか（capabilities の db-schema。#378） */
   schemaSupported: (ref: Pick<DbRef, "target">) => boolean;
+  /** ref のマシンの kisui serve が、db.query の schema を読まない古い版と分かっているか（つながっていて、印が無い） */
+  schemaUnsupported: (ref: Pick<DbRef, "target">) => boolean;
   /** できないことを伝える（タイトルと理由） */
   fail: (title: string, text: string) => void;
 }) {
@@ -105,9 +115,11 @@ export function createDbTree(deps: {
       if (!conn) throw new Error(T("db.err.noConnection"));
       setCatalog(id, () => ({ catalog, kind: conn.kind }));
       // 一覧から消えたスキーマを既定のまま残さない（#378。読み直す（d r）で抜け出せるように）
-      const schema = untrack(schemas)[id];
+      const key = connectionKey(ref);
+      const schema = untrack(prefs)[key]?.schema;
       if (schema !== undefined && !keepDefaultSchema(catalog, schema))
-        setSchemas((all) => withDefaultSchema(all, id, null));
+        writePrefs(withSchemaPref(untrack(prefs), key, { schema: null }));
+      dropUnreadSchema(id, false);
       if (!(id in untrack(expanded)))
         setExpanded((all) => ({ ...all, [id]: initialExpanded(catalog) }));
     } catch (e) {
@@ -120,24 +132,66 @@ export function createDbTree(deps: {
   }
 
   /**
-   * タブ id の既定のスキーマ（#378）。スキーマを書かない名前を、kisui serve が先にここで探す
-   * （PostgreSQL は search_path の先頭、MySQL は USE）。無ければ DB の既定のまま。
+   * 接続ごとに覚えるもの（#398。schemaPrefs.ts）：選んだ既定のスキーマ（#378）と、「すべてのスキーマを表示」の印。
+   * 既定のスキーマは、スキーマを書かない名前を、kisui serve が先にそこで探す（PostgreSQL は search_path の先頭、
+   * MySQL は USE）。選んでいなければ DB の既定のまま。
    */
-  const [schemas, setSchemas] = createSignal<Readonly<Record<string, string>>>(
-    {},
+  const [prefs, setPrefs] = createSignal<SchemaPrefs>(
+    loadSchemaPrefs(deps.store),
   );
+  function writePrefs(next: SchemaPrefs) {
+    setPrefs(next);
+    saveSchemaPrefs(deps.store, next);
+  }
+  /** タブ id の接続の分（タブが記録に無ければ空）。 */
+  function prefOf(id: string) {
+    const ref = refOf(id);
+    return (ref && prefs()[connectionKey(ref)]) ?? {};
+  }
   /**
-   * タブ id の既定のスキーマを schema にする（null なら、やめて DB の既定に戻す）。
+   * タブ id の接続の既定のスキーマを、ドロップダウンの選択肢 option にする（null は「DB の既定」）。
+   * DB の既定のスキーマを選んだときは、何も覚えない（DB の既定のまま。chosenFor）。
    * schema を知らない古い kisui serve は、それを黙って無視して DB の既定のスキーマで実行する（書き込む文も）ので、
    * そのマシンのタブでは選ばせず、理由を伝える。
    */
-  function setDefaultSchema(id: string, schema: string | null) {
+  function setDefaultSchema(id: string, option: string | null) {
     const ref = refOf(id);
-    if (schema !== null && (!ref || !deps.schemaSupported(ref))) {
+    const catalog = untrack(catalogs)[id]?.catalog;
+    if (!ref || !catalog) return;
+    const schema = chosenFor(catalog, option);
+    if (schema !== null && !deps.schemaSupported(ref)) {
       deps.fail(T("cannot.dbSchema.title"), T("cannot.dbSchema.oldServe"));
       return;
     }
-    setSchemas((all) => withDefaultSchema(all, id, schema));
+    writePrefs(withSchemaPref(untrack(prefs), connectionKey(ref), { schema }));
+  }
+  /**
+   * タブ id の接続に選んだ既定のスキーマがあるのに、kisui serve がそれを読まない古い版と分かったら、選んだものを捨てて
+   * 理由を伝え、true を返す（実行の前に呼ぶ側は、実行しない）。覚えたあとで kisui serve が古い版に替わるとこうなる：
+   * そのまま送ると黙って無視され、ドロップダウンが示すスキーマと違う DB の既定のスキーマで実行される（書き込む文も）。
+   * beforeRun は、SQL の実行の前に呼んだか（そのときだけ、実行しなかったことも伝える。一覧を読んだあとなら false）。
+   */
+  function dropUnreadSchema(id: string, beforeRun: boolean): boolean {
+    const ref = refOf(id);
+    if (!ref) return false;
+    const key = connectionKey(ref);
+    const schema = untrack(prefs)[key]?.schema;
+    if (schema === undefined || !deps.schemaUnsupported(ref)) return false;
+    writePrefs(withSchemaPref(untrack(prefs), key, { schema: null }));
+    deps.fail(
+      T("cannot.dbSchema.title"),
+      T(
+        beforeRun ? "cannot.dbSchema.droppedNotRun" : "cannot.dbSchema.dropped",
+        { schema },
+      ),
+    );
+    return true;
+  }
+  /** タブ id の接続の「すべてのスキーマを表示」の印を all にする。 */
+  function setShowAllSchemas(id: string, all: boolean) {
+    const ref = refOf(id);
+    if (!ref) return;
+    writePrefs(withSchemaPref(untrack(prefs), connectionKey(ref), { all }));
   }
 
   /** 木の枝 node を開ける・閉じる。 */
@@ -186,9 +240,7 @@ export function createDbTree(deps: {
     setExpanded((all) =>
       Object.fromEntries(Object.entries(all).filter(([id]) => alive.has(id))),
     );
-    setSchemas((all) =>
-      Object.fromEntries(Object.entries(all).filter(([id]) => alive.has(id))),
-    );
+    // 既定のスキーマと「すべてのスキーマを表示」の印は、接続ごとに覚えるので、タブを閉じても捨てない
   }
 
   return {
@@ -199,9 +251,13 @@ export function createDbTree(deps: {
     /** タブ id の木で開けている枝 */
     expandedOf: (id: string): ReadonlySet<string> => new Set(expanded()[id]),
     toggleNode,
-    /** タブ id の既定のスキーマ（#378。選んでいなければ undefined） */
-    defaultSchemaOf: (id: string): string | undefined => schemas()[id],
+    /** タブ id の接続で選んだ既定のスキーマ（#378。選んでいなければ undefined） */
+    defaultSchemaOf: (id: string): string | undefined => prefOf(id).schema,
     setDefaultSchema,
+    dropUnreadSchema,
+    /** タブ id の接続の「すべてのスキーマを表示」の印（#398） */
+    showAllSchemasOf: (id: string): boolean => prefOf(id).all === true,
+    setShowAllSchemas,
     previewTable,
     forget,
   };

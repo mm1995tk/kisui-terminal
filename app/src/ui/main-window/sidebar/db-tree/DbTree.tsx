@@ -1,7 +1,10 @@
 // DB のタブ（#347）を出している間に、サイドバーのファイルツリーの場所に出す、そのタブの接続の木。
-// スキーマ → テーブル（ビューを含む）の 2 段を出す（列はテーブルの Structure で見る）。上の入力欄に打った字で、テーブル名を絞り込める。スキーマを選ぶと、そのタブの既定のスキーマになる（#378）。
-// 一覧（db.schema の答え）と、開けている枝は features/db/controller.ts が持つ。ここは出すことと、木の中のキー・クリックだけ。
-// キーの判定は features/db/keys.ts の dbTreeKey、行き先は features/db/tree.ts の treeStep。
+// 木の上のドロップダウンで、その接続の既定のスキーマを選ぶ（#378・#398）。「すべてのスキーマを表示」に印が無ければ、
+// そのスキーマのテーブル（ビューを含む）だけを並べ、印があれば スキーマ → テーブル の 2 段を出す（列はテーブルの Structure で見る）。
+// 入力欄に打った字で、木に出ているテーブルを名前で絞り込める。
+// 一覧（db.schema の答え）・開けている枝・接続ごとに覚えるものは features/db/controller.ts が持つ。ここは出すことと、木の中のキー・クリックだけ。
+// キーの判定は features/db/keys.ts の dbTreeKey、行き先は features/db/tree.ts の treeStep、
+// ドロップダウンの中身と木に出すスキーマは features/db/schemaPrefs.ts。
 import { T } from "../../../../i18n/index.ts";
 import {
   createEffect,
@@ -14,7 +17,16 @@ import {
 } from "solid-js";
 
 import type { DbCatalogState } from "../../../../features/db/treeController.ts";
-import { dbTreeFilterKey, dbTreeKey } from "../../../../features/db/keys.ts";
+import {
+  dbTreeFilterKey,
+  dbTreeKey,
+  dbTreeSchemaKey,
+} from "../../../../features/db/keys.ts";
+import {
+  canNarrow,
+  onlySchema,
+  schemaChoices,
+} from "../../../../features/db/schemaPrefs.ts";
 import {
   treeStep,
   visibleRows,
@@ -33,10 +45,13 @@ export interface DbTreeProps {
   onToggle: (node: string, open: boolean) => void;
   /** テーブル（ビュー）を選んだ：その中身を見る */
   onPreview: (schema: string, table: string) => void;
-  /** タブの既定のスキーマ（#378。選んでいなければ undefined） */
-  defaultSchema: string | undefined;
-  /** スキーマを選んだ：タブの既定のスキーマにする（null なら、やめて DB の既定に戻す） */
-  onDefaultSchema: (schema: string | null) => void;
+  /** その接続で選んだ既定のスキーマ（#378。選んでいなければ undefined：ドロップダウンは DB の既定を示す） */
+  chosenSchema: string | undefined;
+  /** ドロップダウンで選んだ：その接続の既定のスキーマにする（null は「DB の既定」） */
+  onSchema: (option: string | null) => void;
+  /** 「すべてのスキーマを表示」の印（#398） */
+  showAll: boolean;
+  onShowAll: (all: boolean) => void;
   onReload: () => void;
   /** キーを SQL の入力欄に戻す */
   onLeave: () => void;
@@ -47,14 +62,30 @@ export function DbTree(props: DbTreeProps): JSX.Element {
   let list: HTMLDivElement | undefined;
   let treeEl: HTMLDivElement | undefined;
   let filterEl: HTMLInputElement | undefined;
+  let schemaEl: HTMLSelectElement | undefined;
   const [cursor, setCursor] = createSignal<string | undefined>();
   /** テーブル名の絞り込み（タブを出し直すと空に戻る。開けている枝は変えない） */
   const [filter, setFilter] = createSignal("");
-  const rows = createMemo(() =>
+  /** ドロップダウンの選択肢と、今選ばれているもの（一覧がまだ無ければ undefined） */
+  const choices = createMemo(() =>
     props.catalog.catalog
-      ? visibleRows(props.catalog.catalog, props.expanded, filter())
-      : [],
+      ? schemaChoices(props.catalog.catalog, props.chosenSchema)
+      : undefined,
   );
+  /** 木を 1 つのスキーマに絞れるか（絞る先が無ければ、印に関わらずすべてを出す） */
+  const narrowable = () =>
+    !!props.catalog.catalog &&
+    canNarrow(props.catalog.catalog, props.chosenSchema);
+  const rows = createMemo(() => {
+    const c = props.catalog.catalog;
+    if (!c) return [];
+    return visibleRows(
+      c,
+      props.expanded,
+      filter(),
+      onlySchema(c, props.chosenSchema, props.showAll),
+    );
+  });
   const activeIndex = () => rows().findIndex((r) => r.id === cursor());
   // 選んでいる行が、閉じた枝の中に隠れた・一覧が替わって無くなったら、先頭に戻す
   createEffect(
@@ -73,16 +104,19 @@ export function DbTree(props: DbTreeProps): JSX.Element {
     el?.scrollIntoView?.({ block: "nearest" });
   });
 
-  /** treeStep の結果のうち、行を動かす以外のこと（開け閉め・中身を見る・既定のスキーマ）を行う。 */
+  /** treeStep の結果のうち、行を動かす以外のこと（開け閉め・中身を見る）を行う。 */
   function apply(s: TreeStep) {
     if (s.toggle) props.onToggle(s.toggle.id, s.toggle.open);
     if (s.preview) props.onPreview(s.preview.schema, s.preview.table);
-    if (s.setDefaultSchema !== undefined)
-      props.onDefaultSchema(s.setDefaultSchema);
   }
 
   function enter(r: TreeRow) {
-    apply(treeStep(rows(), r.id, "enter", props.defaultSchema));
+    apply(treeStep(rows(), r.id, "enter"));
+  }
+
+  /** 「すべてのスキーマを表示」の印を切り替える（絞る先のスキーマが無ければ、切り替えない）。 */
+  function toggleAll() {
+    if (narrowable()) props.onShowAll(!props.showAll);
   }
 
   function onKeyDown(e: KeyboardEvent) {
@@ -92,9 +126,11 @@ export function DbTree(props: DbTreeProps): JSX.Element {
     if (!a) return;
     e.preventDefault();
     e.stopPropagation();
-    const s = treeStep(rows(), cursor(), a, props.defaultSchema);
+    const s = treeStep(rows(), cursor(), a);
     if (s.leave) props.onLeave();
     if (s.focusFilter) filterEl?.focus();
+    if (s.focusSchema) schemaEl?.focus();
+    if (s.toggleAll) toggleAll();
     if (s.cursor !== undefined) setCursor(s.cursor);
     apply(s);
   }
@@ -102,10 +138,29 @@ export function DbTree(props: DbTreeProps): JSX.Element {
   /** 絞り込みの入力欄のキー：Enter・Esc・↓ で木に戻す（絞り込みは残す） */
   function onFilterKeyDown(e: KeyboardEvent) {
     if (dbTreeFilterKey(e) !== "tree") return;
+    backToTree(e);
+  }
+
+  /** ドロップダウンと「すべてのスキーマを表示」のキー：Enter・Esc で木に戻す（選んだものは残す） */
+  function onControlKeyDown(e: KeyboardEvent) {
+    if (dbTreeSchemaKey(e) !== "tree") return;
+    backToTree(e);
+  }
+
+  function backToTree(e: KeyboardEvent) {
     e.preventDefault();
     e.stopPropagation();
     if (cursor() === undefined) setCursor(rows()[0]?.id);
     treeEl?.focus();
+  }
+
+  /** ドロップダウンで選んだ。断られたら（既定のスキーマを知らない古い kisui serve）、ドロップダウンを選ぶ前に戻す。 */
+  function onSchemaChange(el: HTMLSelectElement) {
+    const before = choices();
+    const option = before?.options[el.selectedIndex];
+    if (option !== undefined) props.onSchema(option);
+    const now = choices();
+    if (now) el.selectedIndex = now.options.indexOf(now.selected);
   }
 
   return (
@@ -130,6 +185,40 @@ export function DbTree(props: DbTreeProps): JSX.Element {
           {T("db.tree.reload")}
         </Button>
       </div>
+      <Show when={choices()}>
+        {(c) => (
+          <>
+            <label class={styles.schema}>
+              <span class={styles.note}>{T("db.tree.schema.label")}</span>
+              <select
+                ref={schemaEl}
+                class={`card-input ${styles.schemaSelect}`}
+                title={T("db.tree.schema.hint")}
+                onChange={(e) => onSchemaChange(e.currentTarget)}
+                onKeyDown={onControlKeyDown}
+              >
+                <For each={c().options}>
+                  {(o) => (
+                    <option selected={o === c().selected}>
+                      {o ?? T("db.tree.schema.dbDefault")}
+                    </option>
+                  )}
+                </For>
+              </select>
+            </label>
+            <label class={styles.all}>
+              <input
+                type="checkbox"
+                checked={props.showAll || !narrowable()}
+                disabled={!narrowable()}
+                onChange={(e) => props.onShowAll(e.currentTarget.checked)}
+                onKeyDown={onControlKeyDown}
+              />
+              {T("db.tree.allSchemas")}
+            </label>
+          </>
+        )}
+      </Show>
       <Input
         ref={filterEl}
         class={styles.filter}
@@ -142,18 +231,6 @@ export function DbTree(props: DbTreeProps): JSX.Element {
         onInput={(e) => setFilter(e.currentTarget.value)}
         onKeyDown={onFilterKeyDown}
       />
-      <Show when={props.defaultSchema}>
-        {(s) => (
-          <div class={styles.defaultSchema} data-default-schema>
-            <p class={styles.note}>
-              {T("db.tree.defaultSchema", { schema: s() })}
-            </p>
-            <Button onClick={() => props.onDefaultSchema(null)}>
-              {T("db.tree.clearDefault")}
-            </Button>
-          </div>
-        )}
-      </Show>
       <Show when={props.catalog.error}>
         {(m) => (
           <p class={styles.error} role="alert">
@@ -172,6 +249,15 @@ export function DbTree(props: DbTreeProps): JSX.Element {
             </Show>
             <Show when={filter().trim() !== "" && rows().length === 0}>
               <p class={styles.note}>{T("db.tree.noMatch")}</p>
+            </Show>
+            <Show
+              when={
+                filter().trim() === "" &&
+                rows().length === 0 &&
+                c().schemas.length > 0
+              }
+            >
+              <p class={styles.note}>{T("db.tree.noTables")}</p>
             </Show>
             <div
               ref={list}
@@ -213,7 +299,7 @@ export function DbTree(props: DbTreeProps): JSX.Element {
                     <span class={styles.label}>{r.label}</span>
                     <Show
                       when={
-                        r.kind === "schema" && r.schema === props.defaultSchema
+                        r.kind === "schema" && r.schema === choices()?.selected
                       }
                     >
                       <span class={styles.badge} data-default>

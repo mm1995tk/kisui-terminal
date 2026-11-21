@@ -8,6 +8,7 @@
 // - どのワークスペースが DB のタブを出しているかは、ブラウザのタブと同じ views（features/browser/tabs.ts）。
 // - 入力欄の書きかけの SQL は、ここが KeyValueStore（webview の localStorage）に覚える（model.ts の loadDrafts・saveDrafts）。
 //   タブが閉じたら捨てる。アプリを開き直したら戻る。
+// - 選んだ既定のスキーマと「すべてのスキーマを表示」の印は、接続ごとに同じ KeyValueStore に覚える（#398。treeController.ts）。
 // - 結果・実行中の印・間違いは、メモリだけに持つ（開き直したら、もう一度実行する）。
 // - パスワードは持たない。kisui serve が password_required を返したら画面で聞き、その 1 回の要求に付けて送るだけ
 //   （ログインが通れば kisui serve が覚える。PR #354 の「資格情報の置き場」）。
@@ -105,7 +106,7 @@ export interface DbPasswordAsk {
 
 /** DB のタブの持ち物を作る。接続を選んでタブを開く・SQL を実行する・取り消す・パスワードを聞く・書きかけの SQL を覚えるを受け持つ。 */
 export function createDbTabs(deps: {
-  /** 書きかけの SQL の置き場（使えない環境では undefined。そのときは覚えない） */
+  /** 書きかけの SQL と、接続ごとの既定のスキーマなどの置き場（使えない環境では undefined。そのときは覚えない） */
   store: KeyValueStore | undefined;
   sessions: Sessions;
   workspaces: Workspaces;
@@ -262,6 +263,8 @@ export function createDbTabs(deps: {
     // 前の結果のために押したページ送りを、新しい SQL の結果に持ち越さない
     queuedSteps.delete(id);
     stopped.delete(id);
+    // 選んだ既定のスキーマを読まない古い kisui serve に替わっていたら、実行せずに伝える（次からは DB の既定で実行する）
+    if (tree.dropUnreadSchema(id, true)) return;
     const schema = tree.defaultSchemaOf(id);
     setRun(id, () => EMPTY_RUN);
     const out = await runInOrder(
@@ -483,6 +486,7 @@ export function createDbTabs(deps: {
 
   // ---- サイドバーの木（#348・#374） ----
   const tree = createDbTree({
+    store,
     chooseTable: structures.chooseTable,
     refOf,
     sessionFor,
@@ -495,6 +499,7 @@ export function createDbTabs(deps: {
     // 既定のスキーマは、つながっていない（分からない）ときも選ばせない：つなぎ直した先が古い kisui serve なら、
     // 黙って無視されて DB の既定のスキーマで実行される（書き込む文も）ので
     schemaSupported: (ref) => capabilityOf(ref, "db-schema") === "yes",
+    schemaUnsupported: (ref) => capabilityOf(ref, "db-schema") === "no",
     fail: cannot,
   });
 

@@ -657,6 +657,10 @@ export const en = {
   "cannot.dbSchema.title": "Cannot choose a default schema",
   "cannot.dbSchema.oldServe":
     "The kisui serve of this machine is an older version that does not know default schemas (it would ignore the choice and run in the default schema of the database). Choose it after it is replaced by the version of kisui-terminal.",
+  "cannot.dbSchema.dropped":
+    "The default schema chosen for this connection ({schema}) was dropped, because the kisui serve of this machine is now an older version that does not know default schemas (it would ignore the choice and run in the default schema of the database).",
+  "cannot.dbSchema.droppedNotRun":
+    "The default schema chosen for this connection ({schema}) was dropped and the SQL was not run, because the kisui serve of this machine is now an older version that does not know default schemas (it would ignore the choice and run in the default schema of the database). Run again to run in the default schema of the database.",
   "leader.db.tree": "Move the keys to the schema tree in the sidebar",
   "leader.db.refresh": "Reload the schema tree",
   "cannot.dbTree.title": "No database tab is shown",
@@ -666,10 +670,12 @@ export const en = {
     "Keys in the schema tree in the sidebar, which takes the place of the file tree while a database tab is shown. Choosing a table runs SELECT * on it (first 100 rows).",
   "place.dbTree.expand": "Open the branch (or go into it)",
   "place.dbTree.collapse": "Close the branch (or go up)",
-  "place.dbTree.enter":
-    "Make a schema the default of the tab (or stop if it already is), show the rows of a table",
+  "place.dbTree.enter": "Open or close a schema, show the rows of a table",
   "place.dbTree.filter":
     "Filter the tables by name (Enter, Esc or ↓ in the box goes back to the tree)",
+  "place.dbTree.schema":
+    "Choose the default schema of the connection (moves to the list above the tree: ↓ ↑ choose, Enter or Esc goes back to the tree)",
+  "place.dbTree.all": "Show all schemas, or only the default schema",
   "place.dbTree.back": "Back to the SQL input",
   "db.tree.title": "Schemas",
   "db.tree.label": "Schemas and tables",
@@ -681,9 +687,12 @@ export const en = {
   "db.tree.empty": "No schemas",
   "db.tree.view": "view",
   "db.tree.defaultBadge": "default",
-  "db.tree.clearDefault": "Stop",
-  "db.tree.defaultSchema":
-    "Default schema: {schema} (tables named without a schema are looked for here)",
+  "db.tree.schema.label": "Default schema ( s )",
+  "db.tree.schema.hint":
+    "Tables named without a schema are looked for in this schema. Kept for this connection.",
+  "db.tree.schema.dbDefault": "(default of the database)",
+  "db.tree.allSchemas": "Show all schemas ( a )",
+  "db.tree.noTables": "No tables in this schema",
   "db.tree.truncated": "The list is cut because there are too many columns.",
   "db.tree.passwordCancelled":
     "The list was not loaded because the password was not given. Press Reload to try again.",

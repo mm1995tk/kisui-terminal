@@ -99,15 +99,34 @@
   font-size: var(--text-caption);
 }
 
-/* タブの既定のスキーマの印（#378） */
+/* すべてのスキーマを出しているときの、既定のスキーマの行の印（#378） */
 .badge[data-default] {
   color: var(--color-accent);
 }
 
-/* 既定のスキーマの行と、それをやめるボタン（#378） */
-.defaultSchema {
+/* 既定のスキーマを選ぶドロップダウン（#398）。見出しの字の下に置く */
+.schema {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.schemaSelect {
+  width: 100%;
+  min-width: 0;
+  font-family: var(--font-mono);
+}
+
+/* 「すべてのスキーマを表示」のチェックボックス（#398） */
+.all {
+  flex: none;
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: var(--space-8);
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+.all input {
+  accent-color: var(--color-accent);
 }
