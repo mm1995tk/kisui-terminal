@@ -306,10 +306,6 @@ function MainWindow(props: {
               return db.defaultSchemaOf(id);
             },
             onSchema: (option) => db.setDefaultSchema(id, option),
-            get showAll() {
-              return db.showAllSchemasOf(id);
-            },
-            onShowAll: (all) => db.setShowAllSchemas(id, all),
             onReload: () => void db.reloadCatalog(id),
             // Esc：キーを SQL の入力欄に戻す（DB のタブを出していれば、focusTerminal が入力欄に向ける）
             onLeave: focusTerminal,

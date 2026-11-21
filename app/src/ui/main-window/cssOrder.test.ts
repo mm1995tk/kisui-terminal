@@ -107,11 +107,11 @@ describe("メインウィンドウの CSS の並び", () => {
       // その場の入力欄（.inline-* の規則だけを持ち、置き場のツリー・サイドバー・切り替える窓の規則と重ならない）
       "ui/components/inline-input.css",
       "ui/main-window/sidebar/file-tree/tree.css",
+      // キー操作のヒント（.key-hint・.kbd の規則だけを持ち、置き場の窓の規則と重ならない）。サイドバーの DB のタブの木が先に読む
+      "ui/components/key-hints.css",
       // サイドバーの DB のタブの木（#374。CSS Modules なので、クラス名はほかと重ならない）
       "ui/main-window/sidebar/db-tree/DbTree.module.css",
       "ui/main-window/sidebar/sidebar.css",
-      // キー操作のヒント（.key-hint・.kbd の規則だけを持ち、置き場の窓の規則と重ならない）
-      "ui/components/key-hints.css",
       "ui/main-window/workspaces/switcher.css",
       "ui/main-window/layout.css",
       "ui/main-window/content/browser/browser.css",

@@ -11,21 +11,6 @@
   background: var(--color-surface);
 }
 
-.head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-8);
-}
-
-.title {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--color-text-muted);
-}
-
 .note {
   margin: 0;
   color: var(--color-text-muted);
@@ -44,8 +29,8 @@
   flex: 1;
   min-height: 0;
   overflow: auto;
-  font-family: var(--font-mono);
-  font-size: var(--text-label);
+  font-family: var(--font-ui);
+  font-size: var(--text-body);
 }
 .tree:focus-visible {
   outline: var(--state-focus-ring-width) solid var(--state-focus-ring);
@@ -56,10 +41,16 @@
   display: flex;
   align-items: baseline;
   gap: var(--space-4);
-  padding-block: var(--space-2);
+  padding-block: var(--space-4);
   padding-right: var(--space-4);
+  border-radius: var(--radius-4);
   white-space: nowrap;
   cursor: default;
+}
+/* テーブル（ビュー）は押すと中身を見るので、押せる印の指にする */
+.row[data-kind="table"],
+.row[data-kind="view"] {
+  cursor: pointer;
 }
 .row:hover {
   background: var(--state-hover-bg);
@@ -86,12 +77,88 @@
   font-weight: var(--weight-strong);
 }
 
-/* テーブル名の絞り込みの入力欄 */
-.filter {
+/* 上の 1 行：既定のスキーマの欄（広がる）と、読み直すボタン。選ぶ一覧を開いている間は、一覧がこの行を占める */
+.bar {
+  position: relative;
   flex: none;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.bar > * {
+  flex: 1;
+  min-width: 0;
+}
+/* 読み直すボタン（↻）。欄と同じ高さの四角 */
+.bar > .iconButton {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-8);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: var(--text-body);
+  cursor: pointer;
+}
+.iconButton:hover {
+  color: var(--color-text-strong);
+  border-color: var(--color-text-muted);
+}
+.iconButton[aria-busy="true"] {
+  cursor: progress;
+  opacity: 0.6;
+}
+.iconButton:focus-visible {
+  outline: 1px solid var(--state-focus-ring);
+  outline-offset: -1px;
+}
+
+/* 絞り込み中に、ほかのスキーマの合うテーブルを並べる前の見出し */
+.otherHead {
+  margin: var(--space-8) 0 var(--space-2);
+  padding-left: 6px;
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+
+/* サイドバーの入力欄と既定のスキーマの欄。窓の入力欄（card.css の .card-input）の色はカードの中でしか決まらないので、ここで決める。
+   枠と地の色で、押せる部品だと分かるようにする */
+.field {
+  box-sizing: border-box;
   width: 100%;
   min-width: 0;
-  box-sizing: border-box;
+  height: 30px;
+  padding: 0 var(--space-8);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-8);
+  background: var(--color-field);
+  color: var(--color-text-strong);
+  font-size: var(--text-caption);
+}
+.field:focus {
+  outline: 1px solid var(--state-focus-ring);
+  outline-offset: -1px;
+}
+
+/* テーブル名の絞り込みの入力欄。右の端に、移るキー（/）を出す */
+.filterBox {
+  position: relative;
+  flex: none;
+  min-width: 0;
+}
+.filter {
+  padding-right: calc(var(--space-8) * 3);
+}
+.filterKey {
+  position: absolute;
+  top: 50%;
+  right: var(--space-8);
+  transform: translateY(-50%);
+  display: flex;
+  pointer-events: none;
 }
 
 .badge {
@@ -99,34 +166,72 @@
   font-size: var(--text-caption);
 }
 
-/* すべてのスキーマを出しているときの、既定のスキーマの行の印（#378） */
+/* スキーマ → テーブル の 2 段を出しているときの、既定のスキーマの行の印（#378） */
 .badge[data-default] {
   color: var(--color-accent);
 }
 
-/* 既定のスキーマを選ぶドロップダウン（#398）。見出しの字の下に置く */
-.schema {
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  min-width: 0;
-}
-.schemaSelect {
-  width: 100%;
-  min-width: 0;
-  font-family: var(--font-mono);
-}
-
-/* 「すべてのスキーマを表示」のチェックボックス（#398） */
-.all {
-  flex: none;
+/* 既定のスキーマの欄（押すと、その場所に DbSchemaPicker.tsx の一覧が開く）。入力欄と同じ形で、右に ▾ を出す */
+.schemaButton {
   display: flex;
   align-items: center;
   gap: var(--space-8);
-  color: var(--color-text-muted);
-  font-size: var(--text-caption);
+  text-align: left;
+  cursor: pointer;
 }
-.all input {
-  accent-color: var(--color-accent);
+.schemaButton:hover {
+  border-color: var(--color-text-muted);
+}
+.schemaName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.schemaArrow {
+  flex: none;
+  color: var(--color-text-muted);
+}
+
+/* 既定のスキーマを選ぶ所（DbSchemaPicker.tsx）。欄が絞り込みの入力欄になり、一覧（合うものが無ければその知らせ）は
+   その下に、木の前に重ねて出す（下の行をずらさない） */
+/* 一覧は .bar を基準に置く（欄の幅ではなく、読み直すボタンの上まで行の幅いっぱいに出す） */
+.picker {
+  min-width: 0;
+}
+.pickerList,
+.picker > .note {
+  position: absolute;
+  top: calc(100% + var(--space-4));
+  left: 0;
+  right: 0;
+  z-index: 10;
+  box-sizing: border-box;
+  margin: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-8);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-raised);
+}
+.pickerList {
+  max-height: 240px;
+  overflow: auto;
+  list-style: none;
+  font-size: var(--text-body);
+}
+.picker > .note {
+  padding: var(--space-8);
+}
+.pickerRow {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-8);
+  padding: var(--space-4) var(--space-8);
+  border-radius: var(--radius-4);
+  cursor: pointer;
+}
+.pickerRow[aria-selected="true"] {
+  background: var(--state-selected-bg);
 }
