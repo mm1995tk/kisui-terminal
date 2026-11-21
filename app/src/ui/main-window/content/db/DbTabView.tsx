@@ -14,7 +14,11 @@ import {
   type JSX,
 } from "solid-js";
 
-import type { DbRun, RunInto } from "../../../../features/db/controller.ts";
+import type {
+  DbResultTab,
+  DbRun,
+  RunInto,
+} from "../../../../features/db/controller.ts";
 import {
   dbEditorKey,
   dbResultKey,
@@ -311,8 +315,7 @@ function focusSelectedTab(root: HTMLElement): boolean {
 }
 
 /**
- * 結果のタブの列（#404）。タブ 1 つが、実行した文 1 つとその結果。見出しは文の先頭（全部はツールチップ）で、失敗した文は赤い字、
- * 実行している文は斜体。右の × か、マウスの中ボタンで閉じる。多ければ、この列だけが横にスクロールする。
+ * 結果のタブの列（#404）。タブ 1 つ（ResultTab）が、実行した文 1 つとその結果。多ければ、この列だけが横にスクロールする。
  * 列にキーがあるときは、`[` `]` と `←` `→` で切り替え、キーを選んだタブに移す（WAI-ARIA のタブの動き。ViewSwitch と同じ）。
  */
 function ResultTabs(props: {
@@ -360,46 +363,67 @@ function ResultTabs(props: {
       onKeyDown={keydown}
     >
       <For each={props.run.tabs}>
-        {(t) => {
-          const selected = () => props.run.active === t.id;
-          const label = () => resultTabLabel(t.sql);
-          return (
-            <div
-              class={styles.resultTab}
-              role="presentation"
-              data-selected={selected() ? "" : undefined}
-              data-failed={t.failure?.kind === "error" ? "" : undefined}
-              data-running={props.run.running?.tab === t.id ? "" : undefined}
-              onAuxClick={(e) => {
-                if (e.button !== 1) return;
-                e.preventDefault();
-                close(t.id);
-              }}
-            >
-              <button
-                type="button"
-                role="tab"
-                class={styles.resultLabel}
-                aria-selected={selected() ? "true" : "false"}
-                tabindex={selected() ? 0 : -1}
-                title={t.sql}
-                onClick={() => props.onResult(t.id)}
-              >
-                {label()}
-              </button>
-              <button
-                type="button"
-                class={styles.resultClose}
-                tabindex={-1}
-                aria-label={T("db.view.closeResult", { sql: label() })}
-                onClick={() => close(t.id)}
-              >
-                ×
-              </button>
-            </div>
-          );
-        }}
+        {(t) => (
+          <ResultTab
+            tab={t}
+            selected={props.run.active === t.id}
+            running={props.run.running?.tab === t.id}
+            onShow={() => props.onResult(t.id)}
+            onClose={() => close(t.id)}
+          />
+        )}
       </For>
+    </div>
+  );
+}
+
+/**
+ * 結果のタブ 1 つ（#404）：見出しのボタンと、閉じる ×。見出しは文の先頭（全部はツールチップ）で、失敗した文は赤い字、
+ * 実行している文は斜体。× か、マウスの中ボタンで閉じる。
+ */
+function ResultTab(props: {
+  tab: DbResultTab;
+  /** 結果の場所に出しているタブか */
+  selected: boolean;
+  /** このタブの文を実行しているか */
+  running: boolean;
+  onShow: () => void;
+  onClose: () => void;
+}): JSX.Element {
+  const label = () => resultTabLabel(props.tab.sql);
+  return (
+    <div
+      class={styles.resultTab}
+      role="presentation"
+      data-selected={props.selected ? "" : undefined}
+      data-failed={props.tab.failure?.kind === "error" ? "" : undefined}
+      data-running={props.running ? "" : undefined}
+      onAuxClick={(e) => {
+        if (e.button !== 1) return;
+        e.preventDefault();
+        props.onClose();
+      }}
+    >
+      <button
+        type="button"
+        role="tab"
+        class={styles.resultLabel}
+        aria-selected={props.selected ? "true" : "false"}
+        tabindex={props.selected ? 0 : -1}
+        title={props.tab.sql}
+        onClick={props.onShow}
+      >
+        {label()}
+      </button>
+      <button
+        type="button"
+        class={styles.resultClose}
+        tabindex={-1}
+        aria-label={T("db.view.closeResult", { sql: label() })}
+        onClick={props.onClose}
+      >
+        ×
+      </button>
     </div>
   );
 }
