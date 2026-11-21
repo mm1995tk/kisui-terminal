@@ -106,17 +106,19 @@ export function startStatement(
         : undefined;
   if (over) {
     const { preview: _, ...rest } = r;
-    const preview = s.into === "preview" ? over.id : undefined;
+    // preview なら上書き先を仮のタブにする。active なら、上書き先が仮のタブだったときだけ印を外す
+    const preview =
+      s.into === "preview"
+        ? over.id
+        : r.preview === over.id
+          ? undefined
+          : r.preview;
     return {
       run: {
         ...rest,
         tabs: r.tabs.map((t) => (t.id === over.id ? fresh(t.id) : t)),
         active: over.id,
-        ...(preview !== undefined
-          ? { preview }
-          : r.preview !== undefined && r.preview !== over.id
-            ? { preview: r.preview }
-            : {}),
+        ...(preview !== undefined ? { preview } : {}),
         running: { ...s.running, tab: over.id },
       },
       tab: over.id,
