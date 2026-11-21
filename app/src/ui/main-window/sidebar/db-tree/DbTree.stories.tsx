@@ -33,7 +33,7 @@ const CATALOG: DbCatalog = {
   truncated: false,
 };
 
-/** サイドバーの段と同じ幅・高さの中に出す。選んだスキーマと印は、この story の中で持つ */
+/** サイドバーの段と同じ幅・高さの中に出す。選んだスキーマと開けている枝は、この story の中で持つ */
 function Frame(props: { catalog?: DbCatalog }): JSX.Element {
   const [chosen, setChosen] = createSignal<string | undefined>();
   const [expanded, setExpanded] = createSignal<ReadonlySet<string>>(
