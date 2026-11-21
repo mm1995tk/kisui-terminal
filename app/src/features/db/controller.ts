@@ -283,13 +283,11 @@ export function createDbTabs(deps: {
 
   /**
    * タブ id の SQL を 1 つの文として実行し、出している結果のタブに上書きする。sql を渡せばそれを、無ければ入力欄の SQL を
-   * （入力欄は変えない）。空なら何もしない。table は、その結果のタブに結び付けるテーブル（木で選んだもの。#379）。
+   * （入力欄は変えない）。空なら何もしない。
    * 同じタブで実行している間は、次を始めない（取り消してから）。結果が返る前にタブが閉じた・ほかの実行に替わったら、結果は捨てる。
    */
-  async function run(id: string, sql?: string, table?: DbTableRef) {
-    await runStatements(id, [sql ?? untrack(drafts)[id] ?? ""], {
-      ...(table ? { table } : {}),
-    });
+  async function run(id: string, sql?: string) {
+    await runStatements(id, [sql ?? untrack(drafts)[id] ?? ""]);
   }
 
   /** 順に実行している間に取り消した（Esc・結果のタブを閉じた）タブ。今の文の後の文を実行しない。 */
