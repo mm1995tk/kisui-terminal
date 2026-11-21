@@ -653,7 +653,9 @@ export const ja: Record<Key, string> = {
   "cannot.dbSchema.oldServe":
     "このマシンの kisui serve は既定のスキーマを知らない古い版です（選んでも無視され、DB の既定のスキーマで実行されます）。kisui-terminal と同じ版に入れ替わってから選んでください。",
   "cannot.dbSchema.dropped":
-    "この接続に選んでいた既定のスキーマ（{schema}）を外し、何も実行しませんでした。このマシンの kisui serve が、既定のスキーマを知らない古い版に替わっています（選んでも無視され、DB の既定のスキーマで実行されます）。もう一度実行すると、DB の既定のスキーマで実行します。",
+    "この接続に選んでいた既定のスキーマ（{schema}）を外しました。このマシンの kisui serve が、既定のスキーマを知らない古い版に替わっています（選んでも無視され、DB の既定のスキーマで実行されます）。",
+  "cannot.dbSchema.droppedNotRun":
+    "この接続に選んでいた既定のスキーマ（{schema}）を外し、SQL は実行しませんでした。このマシンの kisui serve が、既定のスキーマを知らない古い版に替わっています（選んでも無視され、DB の既定のスキーマで実行されます）。もう一度実行すると、DB の既定のスキーマで実行します。",
   "leader.db.tree": "サイドバーのスキーマの木にキーを向ける",
   "leader.db.refresh": "スキーマの木を読み直す",
   "cannot.dbTree.title": "DB のタブを出していません",

@@ -264,7 +264,7 @@ export function createDbTabs(deps: {
     queuedSteps.delete(id);
     stopped.delete(id);
     // 選んだ既定のスキーマを読まない古い kisui serve に替わっていたら、実行せずに伝える（次からは DB の既定で実行する）
-    if (tree.dropUnreadSchema(id)) return;
+    if (tree.dropUnreadSchema(id, true)) return;
     const schema = tree.defaultSchemaOf(id);
     setRun(id, () => EMPTY_RUN);
     const out = await runInOrder(

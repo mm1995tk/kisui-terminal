@@ -658,7 +658,9 @@ export const en = {
   "cannot.dbSchema.oldServe":
     "The kisui serve of this machine is an older version that does not know default schemas (it would ignore the choice and run in the default schema of the database). Choose it after it is replaced by the version of kisui-terminal.",
   "cannot.dbSchema.dropped":
-    "The default schema chosen for this connection ({schema}) was dropped and nothing was run, because the kisui serve of this machine is now an older version that does not know default schemas (it would run in the default schema of the database). Run again to run in the default schema of the database.",
+    "The default schema chosen for this connection ({schema}) was dropped, because the kisui serve of this machine is now an older version that does not know default schemas (it would ignore the choice and run in the default schema of the database).",
+  "cannot.dbSchema.droppedNotRun":
+    "The default schema chosen for this connection ({schema}) was dropped and the SQL was not run, because the kisui serve of this machine is now an older version that does not know default schemas (it would ignore the choice and run in the default schema of the database). Run again to run in the default schema of the database.",
   "leader.db.tree": "Move the keys to the schema tree in the sidebar",
   "leader.db.refresh": "Reload the schema tree",
   "cannot.dbTree.title": "No database tab is shown",

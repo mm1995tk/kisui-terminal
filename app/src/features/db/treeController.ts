@@ -119,7 +119,7 @@ export function createDbTree(deps: {
       const schema = untrack(prefs)[key]?.schema;
       if (schema !== undefined && !keepDefaultSchema(catalog, schema))
         writePrefs(withSchemaPref(untrack(prefs), key, { schema: null }));
-      dropUnreadSchema(id);
+      dropUnreadSchema(id, false);
       if (!(id in untrack(expanded)))
         setExpanded((all) => ({ ...all, [id]: initialExpanded(catalog) }));
     } catch (e) {
@@ -169,8 +169,9 @@ export function createDbTree(deps: {
    * タブ id の接続に選んだ既定のスキーマがあるのに、kisui serve がそれを読まない古い版と分かったら、選んだものを捨てて
    * 理由を伝え、true を返す（実行の前に呼ぶ側は、実行しない）。覚えたあとで kisui serve が古い版に替わるとこうなる：
    * そのまま送ると黙って無視され、ドロップダウンが示すスキーマと違う DB の既定のスキーマで実行される（書き込む文も）。
+   * beforeRun は、SQL の実行の前に呼んだか（そのときだけ、実行しなかったことも伝える。一覧を読んだあとなら false）。
    */
-  function dropUnreadSchema(id: string): boolean {
+  function dropUnreadSchema(id: string, beforeRun: boolean): boolean {
     const ref = refOf(id);
     if (!ref) return false;
     const key = connectionKey(ref);
@@ -179,7 +180,10 @@ export function createDbTree(deps: {
     writePrefs(withSchemaPref(untrack(prefs), key, { schema: null }));
     deps.fail(
       T("cannot.dbSchema.title"),
-      T("cannot.dbSchema.dropped", { schema }),
+      T(
+        beforeRun ? "cannot.dbSchema.droppedNotRun" : "cannot.dbSchema.dropped",
+        { schema },
+      ),
     );
     return true;
   }
