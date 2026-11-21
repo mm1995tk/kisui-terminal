@@ -6,10 +6,12 @@ import {
   activeTab,
   closeTab,
   EMPTY_RUN,
+  keepTab,
   MAX_RESULT_TABS,
   restartTab,
   resultTabLabel,
   runInOrder,
+  settleTab,
   startStatement,
   stepTab,
   updateTab,
@@ -75,6 +77,102 @@ describe("startStatement（1 つ目の文）", () => {
     assert.equal(run.running?.tab, "r9");
     // 出していたタブの結果・ページは残る
     assert.equal(run.tabs[1], three.tabs[1]);
+  });
+});
+
+describe("startStatement（仮のタブ。#405）", () => {
+  /** テーブルを選んで、仮のタブに実行し始める */
+  const pick = (r: DbRun, newId: string, label: string) =>
+    startStatement(r, {
+      sql: `select * from ${label}`,
+      running: q(`q-${newId}`),
+      newId,
+      into: "preview",
+      label,
+    });
+
+  it("仮のタブが無ければ、出しているタブの右隣に足して、仮のタブにする", () => {
+    const { run, tab } = pick(three, "r9", "users");
+    assert.equal(tab, "r9");
+    assert.deepEqual(ids(run), ["a", "b", "r9", "c"]);
+    assert.equal(run.active, "r9");
+    assert.equal(run.preview, "r9");
+    assert.equal(run.tabs[2]?.label, "users");
+    // 出していたタブはそのまま
+    assert.equal(run.tabs[1], three.tabs[1]);
+  });
+
+  it("別のテーブルを選ぶと、同じ仮のタブが置き換わる（出していなくても、出す）", () => {
+    const one = pick(three, "r9", "users").run;
+    const away = { ...one, active: "a" };
+    const { run, tab } = pick(away, "r10", "orders");
+    assert.equal(tab, "r9");
+    assert.deepEqual(ids(run), ["a", "b", "r9", "c"]);
+    assert.equal(run.active, "r9");
+    assert.equal(run.preview, "r9");
+    assert.deepEqual(run.tabs[2], {
+      id: "r9",
+      sql: "select * from orders",
+      label: "orders",
+    });
+  });
+
+  it("ふつうの実行（入力欄）で仮のタブを上書きすると、残るタブに変わる（見出しの字は外れる）", () => {
+    const one = pick(three, "r9", "users").run;
+    const { run, tab } = first(one, "r10", "select 1 from users");
+    assert.equal(tab, "r9");
+    assert.equal(run.preview, undefined);
+    assert.deepEqual(run.tabs[2], { id: "r9", sql: "select 1 from users" });
+  });
+
+  it("仮のタブでないタブへの上書き・新しいタブへの実行は、仮のタブをそのままにする", () => {
+    const one = pick(three, "r9", "users").run;
+    assert.equal(
+      first({ ...one, active: "a" }, "r10", "select 1").run.preview,
+      "r9",
+    );
+    assert.equal(first(one, "r10", "select 1", "new").run.preview, "r9");
+    // その新しいタブは仮のタブではないので、次にテーブルを選んでも置き換わらない
+    const after = first(one, "r10", "select 1", "new").run;
+    assert.equal(pick(after, "r11", "orders").tab, "r9");
+  });
+
+  it("上限で仮のタブが閉じたら、仮の印も外れる", () => {
+    const full: DbRun = {
+      tabs: Array.from({ length: MAX_RESULT_TABS }, (_, i) => ({
+        id: `t${i}`,
+        sql: "select 1",
+      })),
+      active: `t${MAX_RESULT_TABS - 1}`,
+      preview: "t0",
+    };
+    const { run } = first(full, "r99", "select 2", "new");
+    assert.equal(
+      run.tabs.some((t) => t.id === "t0"),
+      false,
+    );
+    assert.equal(run.preview, undefined);
+  });
+
+  it("keepTab は、仮のタブを残るタブに変える（ほかのタブなら何もしない）", () => {
+    const one = pick(three, "r9", "users").run;
+    assert.equal(keepTab(one, "a"), one);
+    assert.equal(keepTab(one, "r9").preview, undefined);
+    assert.equal(keepTab(three, "a"), three);
+  });
+
+  it("仮のタブを閉じたら、仮の印も外れる。ほかのタブを閉じても残る", () => {
+    const one = pick(three, "r9", "users").run;
+    assert.equal(closeTab(one, "r9").preview, undefined);
+    assert.equal(closeTab(one, "a").preview, "r9");
+  });
+
+  it("settleTab は、結果を入れても見出しの字を残す", () => {
+    const t = { id: "r9", sql: "select 1", label: "users" };
+    assert.deepEqual(settleTab(t, { failure: { kind: "cancelled" } }), {
+      ...t,
+      failure: { kind: "cancelled" },
+    });
   });
 });
 

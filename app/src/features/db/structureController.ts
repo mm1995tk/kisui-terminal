@@ -112,6 +112,17 @@ export function createDbStructure(deps: {
     setStates((all) => ({ ...all, [id]: selectTable(all[id], table) }));
   }
 
+  /** 結果のタブ id がテーブルに結び付いていたら外す（別の文の結果で上書きされた。聞いている最中のものはやめる）。 */
+  function unchoose(id: string) {
+    const cur = untrack(states)[id];
+    if (!cur) return;
+    if (cur.loading) deps.cancelQuery(cur.loading);
+    setStates((all) => {
+      const { [id]: _, ...rest } = all;
+      return rest;
+    });
+  }
+
   /**
    * タブ id の結果の場所に view を出す（省くと、今と違う方）。テーブルを選んでいなければ（切り替えが無い）false。
    */
@@ -148,6 +159,7 @@ export function createDbStructure(deps: {
     /** タブ id の、選んだテーブルと構造（テーブルを選んでいなければ undefined） */
     structureOf: (id: string): DbStructureState | undefined => states()[id],
     chooseTable: choose,
+    forgetTable: unchoose,
     showView,
     reloadStructure: reload,
     forgetStructures: forget,

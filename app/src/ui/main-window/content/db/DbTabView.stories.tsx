@@ -9,6 +9,7 @@ import { firstPage } from "../../../../features/db/paging.ts";
 import {
   closeTab,
   EMPTY_RUN,
+  keepTab,
   startStatement,
   stepTab,
   updateTab,
@@ -103,6 +104,7 @@ function Demo(props: { sql: string; first?: readonly string[] }): JSX.Element {
           })
         }
         onCloseResult={(tab) => setRun((r) => closeTab(r, tab))}
+        onKeepResult={(tab) => setRun((r) => keepTab(r, tab))}
         structure={undefined}
         onView={fn()}
       />

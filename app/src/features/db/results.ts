@@ -15,6 +15,8 @@ export interface DbResultTab {
   id: string;
   /** 実行した文（タブの見出しと、ツールチップ） */
   sql: string;
+  /** 見出しに文の先頭の代わりに出す字（木で選んだテーブルの名前。#405）。上書きで実行し直すと外れる */
+  label?: string;
   /** 文の結果 */
   result?: DbQueryResult;
   /** result がどの SQL のどのページか（ページ送り。#373）。result があれば入っている */
@@ -31,6 +33,8 @@ export interface DbRun {
   tabs: readonly DbResultTab[];
   /** 結果の場所に出しているタブ（tabs が空のときだけ undefined） */
   active?: string;
+  /** 仮のタブ（#405。木でテーブルを選ぶと、その中身が出るタブ。1 つだけ。残るタブに変わると undefined） */
+  preview?: string;
 }
 
 /** まだ実行していない DB のタブの状態。 */
@@ -39,8 +43,11 @@ export const EMPTY_RUN: DbRun = { tabs: [] };
 /** 結果のタブの数の上限。超えたら、左から（出しているタブ・実行しているタブは除いて）閉じる。 */
 export const MAX_RESULT_TABS = 20;
 
-/** 実行の結果を出す先。active：出しているタブに上書きする（無ければ足す）、new：新しいタブを足す。 */
-export type RunInto = "active" | "new";
+/**
+ * 実行の結果を出す先。active：出しているタブに上書きする（無ければ足す）、new：新しいタブを足す、
+ * preview：仮のタブに出す（木でテーブルを選んだとき。#405。仮のタブがあれば置き換え、無ければ足して仮のタブにする）。
+ */
+export type RunInto = "active" | "new" | "preview";
 
 /** 結果の場所に出しているタブ（まだ実行していなければ undefined）。 */
 export function activeTab(r: DbRun): DbResultTab | undefined {
@@ -59,6 +66,8 @@ export interface StatementStart {
   running: { queryId: string; target: string };
   /** 新しいタブを足すことになったときに付ける名前 */
   newId: string;
+  /** 1 つ目の文のタブの見出しに出す字（省くと、文の先頭） */
+  label?: string;
   /** 1 つ目の文を出す先（2 つ目からの文は、いつも新しいタブ） */
   into: RunInto;
   /** 2 つ目からの文なら、1 つ前の文を出したタブ（その右隣に足す） */
@@ -69,6 +78,8 @@ export interface StatementStart {
  * r で文を実行し始めた状態と、その結果を出すタブ。
  * - 1 つ目の文（prev が無い）で into が active なら、出しているタブを上書きする（前の結果は捨てる。タブが無ければ足す）
  * - 1 つ目の文で into が new なら、出しているタブの右隣に新しいタブを足して、それを出す
+ * - 1 つ目の文で into が preview なら、仮のタブ（#405）があれば置き換えて出し、無ければ出しているタブの右隣に足して、
+ *   それを仮のタブにする。active で仮のタブを上書きしたときは、仮の印を外す（残るタブに変わる）
  * - 2 つ目からの文は、1 つ前の文のタブの右隣に新しいタブを足す。出しているタブは、実行している文に付いていく。ただし、
  *   順に実行している間に利用者がほかのタブに切り替えていたら、そのまま（1 つ前の文のタブを出しているときだけ付いていく）
  * タブが上限（MAX_RESULT_TABS）を超えたら、左から閉じる（出しているタブ・実行しているタブは残す）。
@@ -79,31 +90,80 @@ export function startStatement(
 ): { run: DbRun; tab: string } {
   const first = s.prev === undefined;
   const cur = activeTab(r);
-  if (first && s.into === "active" && cur) {
+  const fresh = (id: string): DbResultTab => ({
+    id,
+    sql: s.sql,
+    ...(first && s.label !== undefined ? { label: s.label } : {}),
+  });
+  // 1 つ目の文が上書きするタブ：active なら出しているタブ、preview なら仮のタブ。
+  // 上書きするタブの仮の印は、preview なら付けたまま、active なら（残るタブに変わるので）外す。
+  const over = !first
+    ? undefined
+    : s.into === "active"
+      ? cur
+      : s.into === "preview"
+        ? r.tabs.find((t) => t.id === r.preview)
+        : undefined;
+  if (over) {
+    const { preview: _, ...rest } = r;
+    // preview なら上書き先を仮のタブにする。active なら、上書き先が仮のタブだったときだけ印を外す
+    const preview =
+      s.into === "preview"
+        ? over.id
+        : r.preview === over.id
+          ? undefined
+          : r.preview;
     return {
       run: {
-        ...r,
-        tabs: r.tabs.map((t) =>
-          t.id === cur.id ? { id: t.id, sql: s.sql } : t,
-        ),
-        running: { ...s.running, tab: cur.id },
+        ...rest,
+        tabs: r.tabs.map((t) => (t.id === over.id ? fresh(t.id) : t)),
+        active: over.id,
+        ...(preview !== undefined ? { preview } : {}),
+        running: { ...s.running, tab: over.id },
       },
-      tab: cur.id,
+      tab: over.id,
     };
   }
   const after = first ? r.active : s.prev;
   const at = r.tabs.findIndex((t) => t.id === after);
   const tabs = [...r.tabs];
-  tabs.splice(at < 0 ? tabs.length : at + 1, 0, { id: s.newId, sql: s.sql });
+  tabs.splice(at < 0 ? tabs.length : at + 1, 0, fresh(s.newId));
   const follow = first || cur === undefined || r.active === s.prev;
   const active = follow ? s.newId : r.active;
+  const trimmed = trimTabs(tabs, new Set([s.newId, active]));
+  const preview = first && s.into === "preview" ? s.newId : r.preview;
+  const { preview: _, ...rest } = r;
   return {
     run: {
-      tabs: trimTabs(tabs, new Set([s.newId, active])),
+      ...rest,
+      tabs: trimmed,
       active,
+      ...(preview !== undefined && trimmed.some((t) => t.id === preview)
+        ? { preview }
+        : {}),
       running: { ...s.running, tab: s.newId },
     },
     tab: s.newId,
+  };
+}
+
+/** r のタブ tab を、残るタブにした状態（仮のタブでなければ、そのまま）。並べ替え・ページ送り・ダブルクリックで呼ぶ。 */
+export function keepTab(r: DbRun, tab: string): DbRun {
+  if (r.preview !== tab) return r;
+  const { preview: _, ...rest } = r;
+  return rest;
+}
+
+/** 文の結果（result と page。失敗なら failure）を出した、タブ t の状態。文と見出しの字は残し、前の結果と失敗は捨てる。 */
+export function settleTab(
+  t: DbResultTab,
+  outcome: Pick<DbResultTab, "result" | "page" | "failure">,
+): DbResultTab {
+  return {
+    id: t.id,
+    sql: t.sql,
+    ...(t.label !== undefined ? { label: t.label } : {}),
+    ...outcome,
   };
 }
 
@@ -154,10 +214,11 @@ export function closeTab(r: DbRun, tab: string): DbRun {
   const tabs = r.tabs.filter((t) => t.id !== tab);
   const active =
     r.active === tab ? (tabs[at] ?? tabs[tabs.length - 1])?.id : r.active;
-  const { running, active: _, ...rest } = r;
+  const { running, active: _, preview, ...rest } = r;
   return {
     ...rest,
     tabs,
+    ...(preview !== undefined && preview !== tab ? { preview } : {}),
     ...(active !== undefined ? { active } : {}),
     ...(running && running.tab !== tab ? { running } : {}),
   };

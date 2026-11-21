@@ -39,8 +39,10 @@ import {
   activeTab,
   closeTab,
   EMPTY_RUN,
+  keepTab,
   restartTab,
   runInOrder,
+  settleTab,
   startStatement,
   stepTab,
   updateTab,
@@ -185,6 +187,14 @@ export function createDbTabs(deps: {
     queuedSteps.delete(id);
     setRun(id, (cur) => ({ ...cur, active: tab }));
   }
+  /**
+   * タブ id の結果のタブ tab が仮のタブ（木でテーブルを選んで出したもの。#405）なら、残るタブに変える（ダブルクリック・
+   * 並べ替え・ページ送り。別のテーブルを選んでも置き換わらなくなる）。
+   */
+  function keepResult(id: string, tab: string) {
+    if (untrack(runs)[id]?.preview !== tab) return;
+    setRun(id, (cur) => keepTab(cur, tab));
+  }
   /** 結果のタブを step（1 は次、-1 は前）だけ動かす。端では動かない。 */
   function stepResultTab(id: string, step: 1 | -1) {
     const to = stepTab(untrack(runs)[id] ?? EMPTY_RUN, step);
@@ -273,13 +283,11 @@ export function createDbTabs(deps: {
 
   /**
    * タブ id の SQL を 1 つの文として実行し、出している結果のタブに上書きする。sql を渡せばそれを、無ければ入力欄の SQL を
-   * （入力欄は変えない）。空なら何もしない。table は、その結果のタブに結び付けるテーブル（木で選んだもの。#379）。
+   * （入力欄は変えない）。空なら何もしない。
    * 同じタブで実行している間は、次を始めない（取り消してから）。結果が返る前にタブが閉じた・ほかの実行に替わったら、結果は捨てる。
    */
-  async function run(id: string, sql?: string, table?: DbTableRef) {
-    await runStatements(id, [sql ?? untrack(drafts)[id] ?? ""], {
-      ...(table ? { table } : {}),
-    });
+  async function run(id: string, sql?: string) {
+    await runStatements(id, [sql ?? untrack(drafts)[id] ?? ""]);
   }
 
   /** 順に実行している間に取り消した（Esc・結果のタブを閉じた）タブ。今の文の後の文を実行しない。 */
@@ -290,12 +298,19 @@ export function createDbTabs(deps: {
    * （文ごとにコミットされる）。1 つ目の文は opts.into の先（省くと、出している結果のタブに上書き）に出し、残りの文は
    * それぞれ新しい結果のタブに出す（#404）。失敗した・取り消したら、そこで止める（後の文は送らない）。
    * 空の文は除く。実行するものが無い・同じタブで実行している間は何もしない。
-   * opts.data：上書きする結果のタブが Structure を出していたら、データの側に戻す。opts.table：1 つ目の文の結果のタブに結び付けるテーブル。
+   * opts.data：上書きする結果のタブが Structure を出していたら、データの側に戻す。opts.table：1 つ目の文の結果のタブに結び付けるテーブル
+   * （無ければ、上書きするタブに結び付いていたテーブルは外す。違う文の結果に、そのテーブルの Structure の切り替えを残さない。#405）。
+   * opts.label：1 つ目の文のタブの見出しに出す字。
    */
   async function runStatements(
     id: string,
     sqls: readonly string[],
-    opts: { into?: RunInto; data?: boolean; table?: DbTableRef } = {},
+    opts: {
+      into?: RunInto;
+      data?: boolean;
+      table?: DbTableRef;
+      label?: string;
+    } = {},
   ) {
     const list = sqls.filter((s) => s.trim() !== "");
     if (list.length === 0 || !refOf(id)) return;
@@ -319,6 +334,7 @@ export function createDbTabs(deps: {
               sql,
               running,
               newId: newResultTabId(),
+              ...(opts.label !== undefined ? { label: opts.label } : {}),
               into,
               // 1 つ前の文のタブが分からなければ（無いはず）、列の後ろに足す
               ...(i > 0 ? { prev: prev ?? "" } : {}),
@@ -332,6 +348,7 @@ export function createDbTabs(deps: {
               prev = tab;
               if (i > 0) return;
               if (opts.table) structures.chooseTable(tab, opts.table);
+              else structures.forgetTable(tab);
               if (opts.data) structures.showView(tab, "data");
             },
           },
@@ -411,6 +428,7 @@ export function createDbTabs(deps: {
     if (!r || !s?.result || !s.page || !pageable(s.result)) return "none";
     const t = pageTarget(s.result, s.page, step);
     if (!t) return "edge";
+    keepResult(id, s.id);
     void execute(
       id,
       rerunOf(s.id),
@@ -432,6 +450,7 @@ export function createDbTabs(deps: {
       return false;
     if (column < 0 || column >= s.result.columns.length) return false;
     const sort = nextSort(s.page.sort, column) ?? undefined;
+    keepResult(id, s.id);
     void execute(id, rerunOf(s.id), sortedPage(s.page, sort), 0, true);
     return true;
   }
@@ -500,7 +519,7 @@ export function createDbTabs(deps: {
       });
       if (!mine()) return "gone";
       setRun(id, (r) =>
-        updateTab(r, tab, (t) => ({ id: t.id, sql: t.sql, result, page })),
+        updateTab(r, tab, (t) => settleTab(t, { result, page })),
       );
       if (!opts.more) finishRun(id);
       return "ok";
@@ -513,24 +532,22 @@ export function createDbTabs(deps: {
         setRun(id, ({ running: _, ...r }) =>
           rerun
             ? r
-            : updateTab(r, tab, (t) => ({
-                id: t.id,
-                sql: t.sql,
-                failure: { kind: "cancelled" },
-              })),
+            : updateTab(r, tab, (t) =>
+                settleTab(t, { failure: { kind: "cancelled" } }),
+              ),
         );
         return "failed";
       }
       const f = queryFailure(e);
       setRun(id, ({ running: _, ...r }) =>
-        updateTab(r, tab, (t) => ({
-          id: t.id,
-          sql: t.sql,
-          failure:
-            f.kind === "password"
-              ? { kind: "error", message: T("db.err.password") }
-              : f,
-        })),
+        updateTab(r, tab, (t) =>
+          settleTab(t, {
+            failure:
+              f.kind === "password"
+                ? { kind: "error", message: T("db.err.password") }
+                : f,
+          }),
+        ),
       );
       return "failed";
     }
@@ -607,8 +624,8 @@ export function createDbTabs(deps: {
   }
 
   // ---- サイドバーの木（#348・#374） ----
-  // 木は、テーブルを選ぶと chooseTable・run を続けて呼ぶ（treeController.ts の previewTable）。選んだテーブルは、
-  // その run が出す結果のタブに結び付ける（run が実行しなかったら、結び付けない）
+  // 木は、テーブルを選ぶと chooseTable・runPreview を続けて呼ぶ（treeController.ts の previewTable）。選んだテーブルは、
+  // その実行が出す結果のタブ（仮のタブ。#405）に結び付ける（実行しなかったら、結び付けない）。入力欄は変えない
   let chosen: { id: string; table: DbTableRef } | undefined;
   const tree = createDbTree({
     store,
@@ -619,11 +636,14 @@ export function createDbTabs(deps: {
     sessionFor,
     request,
     shownDbTab,
-    setDraft,
-    run: (id, sql) => {
+    runPreview: (id, sql, label) => {
       const table = chosen?.id === id ? chosen.table : undefined;
       chosen = undefined;
-      return run(id, sql, table);
+      return runStatements(id, [sql], {
+        into: "preview",
+        label,
+        ...(table ? { table } : {}),
+      });
     },
     isRunning: (id) => !!untrack(runs)[id]?.running,
     cancelQuery,
@@ -796,6 +816,7 @@ export function createDbTabs(deps: {
     stepPage,
     sortBy,
     showResult,
+    keepResult,
     stepResultTab,
     closeResult,
     cancel,

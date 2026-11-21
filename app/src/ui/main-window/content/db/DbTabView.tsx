@@ -92,6 +92,8 @@ export function DbTabView(props: {
   onResult: (tab: string) => void;
   onStepResult: (step: 1 | -1) => void;
   onCloseResult: (tab: string) => void;
+  /** 仮のタブ tab を、残るタブに変える（タブのダブルクリック。#405） */
+  onKeepResult: (tab: string) => void;
   /** 出している結果のタブのテーブル（木で選んだもの）と、その構造・結果の場所に出している側（#379）。テーブルが無ければ undefined（切り替えを出さない） */
   structure: DbStructureState | undefined;
   /** 結果の場所に view を出す（#379） */
@@ -190,6 +192,7 @@ export function DbTabView(props: {
               onResult={props.onResult}
               onStepResult={props.onStepResult}
               onClose={props.onCloseResult}
+              onKeep={props.onKeepResult}
               focusInput={() => input.focus()}
             />
           </Show>
@@ -323,6 +326,8 @@ function ResultTabs(props: {
   onResult: (tab: string) => void;
   onStepResult: (step: 1 | -1) => void;
   onClose: (tab: string) => void;
+  /** 仮のタブを、残るタブに変える（ダブルクリック） */
+  onKeep: (tab: string) => void;
   /** SQL の入力欄にキーを向ける（最後のタブを閉じて、キーを置く所が無くなったとき） */
   focusInput: () => void;
 }): JSX.Element {
@@ -372,6 +377,8 @@ function ResultTabs(props: {
                 tab={t()}
                 selected={props.run.active === id}
                 running={props.run.running?.tab === id}
+                preview={props.run.preview === id}
+                onKeep={() => props.onKeep(id)}
                 onShow={() => props.onResult(id)}
                 onClose={() => close(id)}
               />
@@ -393,10 +400,14 @@ function ResultTab(props: {
   selected: boolean;
   /** このタブの文を実行しているか */
   running: boolean;
+  /** 仮のタブか（木でテーブルを選んで出したもの。#405。斜体で見分ける。別のテーブルを選ぶと置き換わる） */
+  preview: boolean;
+  /** 仮のタブを、残るタブに変える（ダブルクリック） */
+  onKeep: () => void;
   onShow: () => void;
   onClose: () => void;
 }): JSX.Element {
-  const label = () => resultTabLabel(props.tab.sql);
+  const label = () => props.tab.label ?? resultTabLabel(props.tab.sql);
   return (
     <div
       class={styles.resultTab}
@@ -404,6 +415,8 @@ function ResultTab(props: {
       data-selected={props.selected ? "" : undefined}
       data-failed={props.tab.failure?.kind === "error" ? "" : undefined}
       data-running={props.running ? "" : undefined}
+      data-preview={props.preview ? "" : undefined}
+      onDblClick={props.onKeep}
       onAuxClick={(e) => {
         if (e.button !== 1) return;
         e.preventDefault();
