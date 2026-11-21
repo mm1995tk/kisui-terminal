@@ -638,7 +638,9 @@ export const ja: Record<Key, string> = {
   "place.db.title": "DB のタブ",
   "place.db.lead":
     "DB のタブの、SQL の入力欄のキー。結果は入力欄の下に出ます。",
-  "place.db.run": "SQL を実行する",
+  "place.db.run":
+    "SQL を実行する（結果は、出している結果のタブに上書きする。タブが無ければ足す）",
+  "place.db.runNew": "SQL を実行して、新しい結果のタブに出す",
   "place.db.cancel": "実行中の SQL を取り消す",
   "place.dbResult.title": "DB のタブの結果の表",
   "place.dbResult.lead":
@@ -647,7 +649,7 @@ export const ja: Record<Key, string> = {
   "place.dbResult.sort":
     "選んだセルの列で並べ替える（押すたびに 昇順 → 降順 → なし）",
   "place.dbResult.step":
-    "次・前の文の結果を出す（文を 2 つ以上実行したとき。結果の上の結果のタブの列でも効き、そこでは ← → でも）",
+    "次・前の結果のタブを出す（結果の上の結果のタブの列でも効き、そこでは ← → でも）",
   "cannot.db.title": "DB のタブを開けません",
   "cannot.dbSchema.title": "既定のスキーマを選べません",
   "cannot.dbSchema.oldServe":
@@ -735,8 +737,8 @@ export const ja: Record<Key, string> = {
   "db.view.noRows": "行はありません。",
   "db.view.sqlState": "SQLSTATE {code}",
   "db.view.result": "結果",
-  "db.view.results": "文ごとの結果",
-  "db.view.resultTab": "{n} {sql}",
+  "db.view.results": "結果のタブ",
+  "db.view.closeResult": "結果のタブを閉じる：{sql}",
   "db.view.noTable": "この文は行を返しません。",
   "db.view.pages": "結果のページ",
   "db.view.prevPage": "前へ",
@@ -770,7 +772,7 @@ export const ja: Record<Key, string> = {
   "leader.db.view": "結果の場所を「データ」と「Structure」で切り替える",
   "cannot.dbView.title": "テーブルを選んでいません",
   "cannot.dbView.text":
-    "先にサイドバーのスキーマの木でテーブルを選んでください。「データ」と「Structure」は、そのテーブルのものです。",
+    "出している結果のタブは、テーブルを選んで出したものではありません。先にサイドバーのスキーマの木でテーブルを選んでください。「データ」と「Structure」は、そのテーブルのものです。",
   "db.password.label": "DB のパスワード",
   "db.password.missing": "{machine} の {connection} のパスワード",
   "db.password.rejected":
@@ -799,6 +801,10 @@ export const ja: Record<Key, string> = {
   "leader.db.nextPage": "結果の次のページ",
   "leader.db.prevPage": "結果の前のページ",
   "leader.db.page.range": "結果のページを切り替え",
+  "leader.db.nextResult": "次の結果のタブ",
+  "leader.db.prevResult": "前の結果のタブ",
+  "leader.db.result.range": "結果のタブを切り替え",
+  "leader.db.closeResult": "出している結果のタブを閉じる",
   "cannot.dbPage.title": "ページを切り替えられません",
   "cannot.dbPage.none":
     "この結果にはほかのページがありません。ページを送れるのは、1 ページ（1000 行）より多くの行を返した SELECT だけです。",

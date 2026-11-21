@@ -9,7 +9,7 @@
 // - 入力欄の書きかけの SQL は、ここが KeyValueStore（webview の localStorage）に覚える（model.ts の loadDrafts・saveDrafts）。
 //   タブが閉じたら捨てる。アプリを開き直したら戻る。
 // - 選んだ既定のスキーマは、接続ごとに同じ KeyValueStore に覚える（#398。treeController.ts）。
-// - 結果・実行中の印・間違いは、メモリだけに持つ（開き直したら、もう一度実行する）。
+// - 結果のタブ（#404。結果・実行中の印・間違い）は、メモリだけに持つ（アプリを開き直したら残らない。もう一度実行する）。
 // - パスワードは持たない。kisui serve が password_required を返したら画面で聞き、その 1 回の要求に付けて送るだけ
 //   （ログインが通れば kisui serve が覚える。PR #354 の「資格情報の置き場」）。
 import { T } from "../../i18n/index.ts";
@@ -36,13 +36,16 @@ import {
 } from "../workspaces/model.ts";
 import { statementsToRun } from "./statements.ts";
 import {
-  activeStatement,
+  activeTab,
+  closeTab,
   EMPTY_RUN,
+  restartTab,
   runInOrder,
   startStatement,
-  stepResult,
-  updateStatement,
+  stepTab,
+  updateTab,
   type DbRun,
+  type RunInto,
 } from "./results.ts";
 import { MACHINE_COLORS } from "../sessions/colors.ts";
 import {
@@ -77,12 +80,13 @@ import type { SaveTextFile } from "./export.ts";
 import { createDbHistory } from "./historyController.ts";
 import { createDbPropose } from "./proposeController.ts";
 import { createDbStructure } from "./structureController.ts";
+import type { DbResultView, DbTableRef } from "./structure.ts";
 import { createDbTree } from "./treeController.ts";
 
 /** createDbTabs が返す持ち物。 */
 export type DbTabs = ReturnType<typeof createDbTabs>;
 
-export type { DbRun, DbStatementRun } from "./results.ts";
+export type { DbResultTab, DbRun, RunInto } from "./results.ts";
 
 /** 接続を選ぶ窓（リーダーの d n）に出すもの。 */
 export interface DbPicker {
@@ -153,29 +157,56 @@ export function createDbTabs(deps: {
     writeDrafts({ ...untrack(drafts), [id]: sql });
   }
 
-  // ---- 結果と実行中の印 ----
-  // 文を 2 つ以上順に実行したときは、文ごとの結果を持つ（#380。results.ts）
+  // ---- 結果のタブと実行中の印 ----
+  // DB のタブごとに、結果のタブの列を持つ（#404。results.ts）。結果のタブ 1 つが、実行した文 1 つとその結果
   const [runs, setRuns] = createSignal<Readonly<Record<string, DbRun>>>({});
   function setRun(id: string, f: (r: DbRun) => DbRun) {
     setRuns((all) => ({ ...all, [id]: f(all[id] ?? EMPTY_RUN) }));
   }
   const runOf = (id: string): DbRun => runs()[id] ?? EMPTY_RUN;
-  /** タブ id の結果の場所に出している文の結果（まだ実行していなければ undefined） */
-  const shownOf = (id: string) =>
-    activeStatement(untrack(runs)[id] ?? EMPTY_RUN);
+  /** タブ id の結果の場所に出している結果のタブ（まだ実行していなければ undefined） */
+  const shownOf = (id: string) => activeTab(untrack(runs)[id] ?? EMPTY_RUN);
+  /** 結果のタブの名前（窓の中で重ならない。テーブルの構造（structureController.ts）も、この名前ごとに持つ） */
+  let resultTabs = 0;
+  const newResultTabId = () => `r${++resultTabs}`;
+  /** 結果のタブ tab を持つ DB のタブの id（無ければ undefined）。 */
+  function dbTabOf(tab: string): string | undefined {
+    const all = untrack(runs);
+    return Object.keys(all).find((id) =>
+      all[id]!.tabs.some((t) => t.id === tab),
+    );
+  }
 
-  /** 結果のタブ（#380）で、タブ id の結果の場所に index の文の結果を出す。無い位置なら何もしない。 */
-  function showResult(id: string, index: number) {
+  /** タブ id の結果の場所に、結果のタブ tab を出す。無いタブなら何もしない。 */
+  function showResult(id: string, tab: string) {
     const r = untrack(runs)[id];
-    if (!r || index < 0 || index >= r.statements.length || index === r.active)
-      return;
-    // 前に出していた結果のために押したページ送りを、ほかの文の結果に持ち越さない
+    if (!r || tab === r.active || !r.tabs.some((t) => t.id === tab)) return;
+    // 前に出していた結果のために押したページ送りを、ほかのタブの結果に持ち越さない
     queuedSteps.delete(id);
-    setRun(id, (cur) => ({ ...cur, active: index }));
+    setRun(id, (cur) => ({ ...cur, active: tab }));
   }
   /** 結果のタブを step（1 は次、-1 は前）だけ動かす。端では動かない。 */
   function stepResultTab(id: string, step: 1 | -1) {
-    showResult(id, stepResult(untrack(runs)[id] ?? EMPTY_RUN, step));
+    const to = stepTab(untrack(runs)[id] ?? EMPTY_RUN, step);
+    if (to !== undefined) showResult(id, to);
+  }
+  /**
+   * タブ id の結果のタブ tab（省くと、出しているタブ）を閉じる。その文を実行している最中なら取り消し、順に実行している
+   * 残りの文もやめる。閉じるタブが無ければ false。
+   */
+  function closeResult(id: string, tab?: string): boolean {
+    const r = untrack(runs)[id];
+    const target = tab ?? r?.active;
+    if (!r || target === undefined || !r.tabs.some((t) => t.id === target))
+      return false;
+    if (r.running?.tab === target) {
+      stopped.add(id);
+      cancelQuery(r.running);
+    }
+    // 閉じるタブの結果のために押したページ送りを、次に出すタブの結果に持ち越さない
+    if (r.active === target) queuedSteps.delete(id);
+    setRun(id, (cur) => closeTab(cur, target));
+    return true;
   }
 
   // ---- パスワード ----
@@ -241,22 +272,31 @@ export function createDbTabs(deps: {
   }
 
   /**
-   * タブ id の SQL を 1 つの文として実行する。sql を渡せばそれを、無ければ入力欄の SQL を（入力欄は変えない）。空なら何もしない。
+   * タブ id の SQL を 1 つの文として実行し、出している結果のタブに上書きする。sql を渡せばそれを、無ければ入力欄の SQL を
+   * （入力欄は変えない）。空なら何もしない。table は、その結果のタブに結び付けるテーブル（木で選んだもの。#379）。
    * 同じタブで実行している間は、次を始めない（取り消してから）。結果が返る前にタブが閉じた・ほかの実行に替わったら、結果は捨てる。
    */
-  async function run(id: string, sql?: string) {
-    await runStatements(id, [sql ?? untrack(drafts)[id] ?? ""]);
+  async function run(id: string, sql?: string, table?: DbTableRef) {
+    await runStatements(id, [sql ?? untrack(drafts)[id] ?? ""], {
+      ...(table ? { table } : {}),
+    });
   }
 
-  /** 順に実行している間に取り消した（Esc）タブ。今の文の後の文を実行しない。 */
+  /** 順に実行している間に取り消した（Esc・結果のタブを閉じた）タブ。今の文の後の文を実行しない。 */
   const stopped = new Set<string>();
 
   /**
    * タブ id で、文 sqls を上から 1 つずつ実行する（#380）。文ごとに別の db.query を送り、1 つのトランザクションでは包まない
-   * （文ごとにコミットされる）。文ごとに結果のタブを 1 つ足す。失敗した・取り消したら、そこで止める（後の文は送らない）。
+   * （文ごとにコミットされる）。1 つ目の文は opts.into の先（省くと、出している結果のタブに上書き）に出し、残りの文は
+   * それぞれ新しい結果のタブに出す（#404）。失敗した・取り消したら、そこで止める（後の文は送らない）。
    * 空の文は除く。実行するものが無い・同じタブで実行している間は何もしない。
+   * opts.data：上書きする結果のタブが Structure を出していたら、データの側に戻す。opts.table：1 つ目の文の結果のタブに結び付けるテーブル。
    */
-  async function runStatements(id: string, sqls: readonly string[]) {
+  async function runStatements(
+    id: string,
+    sqls: readonly string[],
+    opts: { into?: RunInto; data?: boolean; table?: DbTableRef } = {},
+  ) {
     const list = sqls.filter((s) => s.trim() !== "");
     if (list.length === 0 || !refOf(id)) return;
     if (untrack(runs)[id]?.running) return;
@@ -266,11 +306,36 @@ export function createDbTabs(deps: {
     // 選んだ既定のスキーマを読まない古い kisui serve に替わっていたら、実行せずに伝える（次からは DB の既定で実行する）
     if (tree.dropUnreadSchema(id, true)) return;
     const schema = tree.defaultSchemaOf(id);
-    setRun(id, () => EMPTY_RUN);
+    const into = opts.into ?? "active";
+    /** 1 つ前の文を出した結果のタブ */
+    let prev: string | undefined;
     const out = await runInOrder(
       list,
       (i, sql, more) =>
-        execute(id, i, firstPage(sql, schema), 0, false, { more }),
+        execute(
+          id,
+          (r, running) =>
+            startStatement(r, {
+              sql,
+              running,
+              newId: newResultTabId(),
+              into,
+              // 1 つ前の文のタブが分からなければ（無いはず）、列の後ろに足す
+              ...(i > 0 ? { prev: prev ?? "" } : {}),
+            }),
+          firstPage(sql, schema),
+          0,
+          false,
+          {
+            more,
+            onStart: (tab) => {
+              prev = tab;
+              if (i > 0) return;
+              if (opts.table) structures.chooseTable(tab, opts.table);
+              if (opts.data) structures.showView(tab, "data");
+            },
+          },
+        ),
       () => stopped.has(id),
     );
     // 送った文が取り消しより先に終わっていた：残りの文はやめる（失敗した・取り消したときは execute が印を外した）
@@ -304,20 +369,21 @@ export function createDbTabs(deps: {
   /**
    * タブ id の入力欄の text（選んでいる範囲が selStart から selEnd。選んでいなければ、どちらもカーソルの位置）から、
    * 選んだ部分か、カーソルのある文を実行する（#375）。選んだ部分に文が 2 つ以上あれば、上から順に実行する（#380）。
-   * 区切り方は接続の種類による。
+   * 区切り方は接続の種類による。結果は、into の先に出す（省くと、出している結果のタブに上書き。new は新しい結果のタブ。#404）。
    */
   async function runSelection(
     id: string,
     text: string,
     selStart: number,
     selEnd: number,
+    into: RunInto = "active",
   ) {
-    // 入力欄から実行したら、結果の場所はデータの側を出す（Structure を出していても。#379）
-    structures.showView(id, "data");
     const kind = await kindOf(id);
     await runStatements(
       id,
       statementsToRun(text, selStart, selEnd, { mysql: kind === "mysql" }),
+      // 入力欄から実行したら、結果の場所はデータの側を出す（Structure を出していても。#379）
+      { into, data: true },
     );
   }
 
@@ -345,12 +411,18 @@ export function createDbTabs(deps: {
     if (!r || !s?.result || !s.page || !pageable(s.result)) return "none";
     const t = pageTarget(s.result, s.page, step);
     if (!t) return "edge";
-    void execute(id, r.active, steppedPage(s.page, t.back), t.offset, true);
+    void execute(
+      id,
+      rerunOf(s.id),
+      steppedPage(s.page, t.back),
+      t.offset,
+      true,
+    );
     return null;
   }
 
   /**
-   * タブ id の結果（出している文の結果）を、列 column（0 から数える）で並べ替える（#377）。結果を出した SQL を ORDER BY を付けてもう一度送り、先頭のページから出す。
+   * タブ id の結果（出している結果のタブの結果）を、列 column（0 から数える）で並べ替える（#377）。結果を出した SQL を ORDER BY を付けてもう一度送り、先頭のページから出す。
    * 同じ列を続けて押すと「昇順 → 降順 → 並べ替えなし」と進む。並べ替えられない（実行している間・結果が無い・包めない文）なら、送らずに false。
    */
   function sortBy(id: string, column: number): boolean {
@@ -360,7 +432,7 @@ export function createDbTabs(deps: {
       return false;
     if (column < 0 || column >= s.result.columns.length) return false;
     const sort = nextSort(s.page.sort, column) ?? undefined;
-    void execute(id, r.active, sortedPage(s.page, sort), 0, true);
+    void execute(id, rerunOf(s.id), sortedPage(s.page, sort), 0, true);
     return true;
   }
 
@@ -381,28 +453,45 @@ export function createDbTabs(deps: {
     if (rest.length > 0) queuedSteps.set(id, rest);
   }
 
+  /** 結果のタブ tab の結果を読み直す（ページ送り・並べ替え）ときの、execute の begin。 */
+  const rerunOf =
+    (tab: string) =>
+    (r: DbRun, running: { queryId: string; target: string }) => {
+      const run = restartTab(r, tab, running);
+      return run ? { run, tab } : undefined;
+    };
+
   /**
    * タブ id に page.sql を送り（offset が 0 より大きければ、その行数の後のページ。page.sort があれば、その列で並べ替えて）、
-   * 結果をそのタブの index の文の結果に出す（index が新しい位置なら、文の結果のタブを足す）。rerun は、結果を出した SQL を
+   * 結果を、begin が決めた結果のタブに出す。begin は、今の状態と送る db.query から、実行し始めた状態と結果を出すタブを返す
+   * （新しい文なら results.ts の startStatement、読み直しなら rerunOf。出す先が無ければ undefined）。rerun は、結果を出した SQL を
    * 読み直すだけの実行（履歴に残さない）。more は、順に実行していて後に文が残っている（#380）：うまくいっても実行中の印を外さない
-   * （次の文が付け替える）。呼ぶ側が、同じタブで実行していないことを確かめてから呼ぶ。
+   * （次の文が付け替える）。onStart は、結果を出すタブが決まったときに呼ぶ。呼ぶ側が、同じタブで実行していないことを確かめてから呼ぶ。
    * ok：うまくいった、failed：失敗した・取り消した（印は外した）、gone：タブが閉じた・ほかの実行に替わった。
    */
   async function execute(
     id: string,
-    index: number,
+    begin: (
+      r: DbRun,
+      running: { queryId: string; target: string },
+    ) => { run: DbRun; tab: string } | undefined,
     page: DbPage,
     offset: number,
     rerun: boolean,
-    opts: { more?: boolean } = {},
+    opts: { more?: boolean; onStart?: (tab: string) => void } = {},
   ): Promise<"ok" | "failed" | "gone"> {
     const ref = refOf(id);
     if (!ref) return "gone";
     const queryId = newQueryId();
     const mine = () => untrack(runs)[id]?.running?.queryId === queryId;
-    setRun(id, (r) =>
-      startStatement(r, index, page.sql, { queryId, target: ref.target }),
-    );
+    const begun = begin(untrack(runs)[id] ?? EMPTY_RUN, {
+      queryId,
+      target: ref.target,
+    });
+    if (!begun) return "gone";
+    const tab = begun.tab;
+    setRun(id, () => begun.run);
+    opts.onStart?.(tab);
     try {
       const result = await request(ref, "db.query", {
         ...dbRefParams(ref),
@@ -411,7 +500,7 @@ export function createDbTabs(deps: {
       });
       if (!mine()) return "gone";
       setRun(id, (r) =>
-        updateStatement(r, index, (s) => ({ sql: s.sql, result, page })),
+        updateTab(r, tab, (t) => ({ id: t.id, sql: t.sql, result, page })),
       );
       if (!opts.more) finishRun(id);
       return "ok";
@@ -424,8 +513,9 @@ export function createDbTabs(deps: {
         setRun(id, ({ running: _, ...r }) =>
           rerun
             ? r
-            : updateStatement(r, index, (s) => ({
-                sql: s.sql,
+            : updateTab(r, tab, (t) => ({
+                id: t.id,
+                sql: t.sql,
                 failure: { kind: "cancelled" },
               })),
         );
@@ -433,8 +523,9 @@ export function createDbTabs(deps: {
       }
       const f = queryFailure(e);
       setRun(id, ({ running: _, ...r }) =>
-        updateStatement(r, index, (s) => ({
-          sql: s.sql,
+        updateTab(r, tab, (t) => ({
+          id: t.id,
+          sql: t.sql,
           failure:
             f.kind === "password"
               ? { kind: "error", message: T("db.err.password") }
@@ -476,24 +567,64 @@ export function createDbTabs(deps: {
   }
 
   // ---- テーブルの構造（#379） ----
+  // 選んだテーブル・出している側（データ／Structure）・聞いた構造は、結果のタブごとに持つ（#404。名前は結果のタブの id）
   const structures = createDbStructure({
-    refOf,
+    refOf: (tab) => {
+      const id = dbTabOf(tab);
+      return id === undefined ? undefined : refOf(id);
+    },
     request,
     // 古いと言うのは、つながっていて印が無いときだけ。つながっていなければ送り、その失敗（つながっていない）を出す
     oldServe: (ref) => capabilityOf(ref, "db-structure") === "no",
     cancelQuery,
   });
+  // 結果のタブが無くなったら（閉じた・上限を超えて閉じた・DB のタブごと閉じた）、その構造も捨てる
+  createEffect(
+    on(runs, (all) => {
+      const alive = new Set<string>();
+      for (const r of Object.values(all))
+        for (const t of r.tabs) alive.add(t.id);
+      structures.forgetStructures(alive);
+    }),
+  );
+  /** タブ id の、出している結果のタブの構造（テーブルに結び付いていなければ undefined） */
+  const structureOf = (id: string) => {
+    const tab = runOf(id).active;
+    return tab === undefined ? undefined : structures.structureOf(tab);
+  };
+  /**
+   * タブ id の、出している結果のタブの結果の場所に view を出す（省くと、今と違う方）。そのタブがテーブルに結び付いて
+   * いなければ（切り替えが無い）false。
+   */
+  function showView(id: string, view?: DbResultView): boolean {
+    const tab = untrack(runs)[id]?.active;
+    return tab !== undefined && structures.showView(tab, view);
+  }
+  /** タブ id の結果のタブの構造を、全部聞き直す（Structure を出しているものは、すぐに聞く）。 */
+  function reloadStructure(id: string) {
+    for (const t of untrack(runs)[id]?.tabs ?? [])
+      structures.reloadStructure(t.id);
+  }
 
   // ---- サイドバーの木（#348・#374） ----
+  // 木は、テーブルを選ぶと chooseTable・run を続けて呼ぶ（treeController.ts の previewTable）。選んだテーブルは、
+  // その run が出す結果のタブに結び付ける（run が実行しなかったら、結び付けない）
+  let chosen: { id: string; table: DbTableRef } | undefined;
   const tree = createDbTree({
     store,
-    chooseTable: structures.chooseTable,
+    chooseTable: (id, table) => {
+      chosen = { id, table };
+    },
     refOf,
     sessionFor,
     request,
     shownDbTab,
     setDraft,
-    run,
+    run: (id, sql) => {
+      const table = chosen?.id === id ? chosen.table : undefined;
+      chosen = undefined;
+      return run(id, sql, table);
+    },
     isRunning: (id) => !!untrack(runs)[id]?.running,
     cancelQuery,
     // 既定のスキーマは、つながっていない（分からない）ときも選ばせない：つなぎ直した先が古い kisui serve なら、
@@ -642,7 +773,6 @@ export function createDbTabs(deps: {
           ),
         );
       tree.forget(alive);
-      structures.forgetStructures(alive);
       const d = untrack(drafts);
       if (Object.keys(d).some((id) => !alive.has(id)))
         writeDrafts(
@@ -659,7 +789,7 @@ export function createDbTabs(deps: {
     /** タブ id の入力欄の SQL */
     draftOf: (id: string): string => drafts()[id] ?? "",
     setDraft,
-    /** タブ id の結果・実行中の印・間違い */
+    /** タブ id の結果のタブ・実行中の印・間違い */
     runOf,
     run,
     runSelection,
@@ -667,12 +797,15 @@ export function createDbTabs(deps: {
     sortBy,
     showResult,
     stepResultTab,
+    closeResult,
     cancel,
     request,
     // サイドバーの木（#348・#374。treeController.ts）
     ...tree,
-    // テーブルの構造と、結果の場所の切り替え（#379。structureController.ts）
-    ...structures,
+    // テーブルの構造と、結果の場所の切り替え（#379。structureController.ts）。出している結果のタブのもの
+    structureOf,
+    showView,
+    reloadStructure,
     // 結果の書き出し（#349。exportController.ts）と、クエリの履歴（historyController.ts）
     ...exporter,
     ...history,

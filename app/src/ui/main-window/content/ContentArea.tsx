@@ -158,15 +158,16 @@ export function ContentArea(props: {
               sql={db.draftOf(id)}
               onSql={(sql) => db.setDraft(id, sql)}
               run={db.runOf(id)}
-              onRun={(text, from, to) =>
-                void db.runSelection(id, text, from, to)
+              onRun={(text, from, to, into) =>
+                void db.runSelection(id, text, from, to, into)
               }
               onPage={(step) => void db.stepPage(id, step)}
               onSort={(column) => void db.sortBy(id, column)}
               onCancel={() => db.cancel(id)}
               onCopyCells={db.copyCells}
-              onResult={(index) => db.showResult(id, index)}
+              onResult={(tab) => db.showResult(id, tab)}
               onStepResult={(step) => db.stepResultTab(id, step)}
+              onCloseResult={(tab) => void db.closeResult(id, tab)}
               structure={db.structureOf(id)}
               onView={(view) => void db.showView(id, view)}
               focusRef={(f) => props.focusUi.setDbFocus(f)}

@@ -70,6 +70,8 @@ export function createCommandRunner(deps: {
     | "openExport"
     | "openHistory"
     | "stepPage"
+    | "stepResultTab"
+    | "closeResult"
     | "reloadStructure"
     | "showView"
   >;
@@ -370,6 +372,19 @@ export function createCommandRunner(deps: {
               step === "next" ? "cannot.dbPage.noNext" : "cannot.dbPage.noPrev",
             ),
           );
+        break;
+      }
+      case "db.result":
+      case "db.closeResult": {
+        // 結果のタブ（#404）の切り替えと、閉じる：DB のタブを出している間だけ。端のタブ・タブが無いときは何もしない
+        const tab = deps.db.shownDbTab();
+        if (!tab) {
+          cannot(T("cannot.dbTree.title"), T("cannot.dbTree.text"));
+          break;
+        }
+        if (c.id === "db.result")
+          deps.db.stepResultTab(tab.id, c.arg === "prev" ? -1 : 1);
+        else deps.db.closeResult(tab.id);
         break;
       }
       case "workspace.nth":

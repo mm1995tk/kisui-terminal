@@ -90,6 +90,14 @@ describe("場所のキーの表は、その場所の判定と合っている", (
           assert.notEqual(dbEditorKey(ev(p), mac), null, `${r.keys}: ${p}`);
     assert.equal(dbEditorKey(ev("Enter", { metaKey: true }), true), "run");
     assert.equal(dbEditorKey(ev("Enter", { ctrlKey: true }), false), "run");
+    assert.equal(
+      dbEditorKey(ev("Enter", { metaKey: true, altKey: true }), true),
+      "runNew",
+    );
+    assert.equal(
+      dbEditorKey(ev("Enter", { ctrlKey: true, shiftKey: true }), false),
+      "runNew",
+    );
   });
 
   it("DB のタブの結果の表（#372・#380）：表のキーは、Cmd+C / Ctrl+C と s と [ / ]（判定は keys.test.ts）", () => {
@@ -99,7 +107,7 @@ describe("場所のキーの表は、その場所の判定と合っている", (
     );
     // s は修飾キー無しのキー（probes に書ける）。判定が受ける
     assert.equal(dbResultKey(ev("s"), true), "sort");
-    // [ ] は結果のタブの切り替え（#380）。表でもタブの列でも受ける
+    // [ ] は結果のタブの切り替え（#404）。表でもタブの列でも受ける
     for (const p of PLACE_KEYS.dbResult.rows[2]!.probes)
       for (const onTabs of [true, false])
         assert.notEqual(dbResultTabKey(ev(p), onTabs), 0, p);

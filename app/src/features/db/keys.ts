@@ -7,12 +7,17 @@ import { isComposingKey } from "../commands/ime.ts";
 import { listStep } from "../commands/placeKeys.ts";
 import type { DbTreeAction } from "./tree.ts";
 
-/** SQL の入力欄のキーで行うこと。run：入力欄の SQL を実行する、cancel：実行している SQL を取り消す。 */
-export type DbEditorAction = "run" | "cancel";
+/**
+ * SQL の入力欄のキーで行うこと。run：入力欄の SQL を実行して、出している結果のタブに上書きする、
+ * runNew：実行して、新しい結果のタブに出す（#404）、cancel：実行している SQL を取り消す。
+ */
+export type DbEditorAction = "run" | "runNew" | "cancel";
 
 /**
  * SQL の入力欄で押したキー e の動き（無ければ null。入力欄にそのまま字が入る）。
  * - Cmd+Enter（macOS）・Ctrl+Enter（ほか）：実行する（ほかのクライアントと同じ。Enter だけは改行）
+ * - Cmd+Option+Enter（macOS）・Ctrl+Shift+Enter（ほか）：実行して、新しい結果のタブに出す（#404）。macOS で Shift でないのは、
+ *   Cmd+Shift+Enter が、プライマリ以外のペインを隠す近道（リーダーの p z）で、入力欄に届く前に窓が受けるため
  * - Esc：実行している SQL を取り消す（実行していなければ何もしない。呼ぶ側が決める）
  * かな漢字変換の確定・取り消しのキーは受けない。
  */
@@ -21,7 +26,11 @@ export function dbEditorKey(e: KeyLike, mac: boolean): DbEditorAction | null {
   if (e.key === "Enter") {
     const mod = mac ? e.metaKey : e.ctrlKey;
     const other = mac ? e.ctrlKey : e.metaKey;
-    return mod && !other && !e.altKey && !e.shiftKey ? "run" : null;
+    if (!mod || other) return null;
+    if (!e.altKey && !e.shiftKey) return "run";
+    return (mac ? e.altKey && !e.shiftKey : e.shiftKey && !e.altKey)
+      ? "runNew"
+      : null;
   }
   if (e.key === "Escape" && !e.ctrlKey && !e.metaKey && !e.altKey)
     return "cancel";
@@ -52,8 +61,8 @@ export function dbResultKey(e: KeyLike, mac: boolean): DbResultAction | null {
 }
 
 /**
- * 文を 2 つ以上実行したときの、結果のタブ（#380）を切り替えるキー e の向き（1 は次、-1 は前。当たらなければ 0）。
- * - `]`：次の文の結果、`[`：前の文の結果（結果の表か、結果のタブの列にキーがあるとき）
+ * 結果のタブ（#404）を切り替えるキー e の向き（1 は次、-1 は前。当たらなければ 0）。
+ * - `]`：次の結果のタブ、`[`：前の結果のタブ（結果の表か、結果のタブの列にキーがあるとき）
  * - `→` `←`：onTabs（結果のタブの列にキーがある）ときだけ（表の中では、ほかの動きに残す）
  * かな漢字変換のキーは受けない。`[` `]` は、Shift・Option（macOS）・AltGr（ほかでは Ctrl と Alt が両方立つ）で打つ配列が
  * あるので、Cmd と、Alt を伴わない Ctrl だけを断る。`←` `→` は修飾キーを重ねたものを受けない。

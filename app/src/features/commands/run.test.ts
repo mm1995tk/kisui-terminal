@@ -35,6 +35,12 @@ function setup(tab: { id: string } | undefined) {
       shownDbTab: () => tab,
       reloadCatalog: (id: string) => void seen.push(`reload ${id}`),
       reloadStructure: (id: string) => void seen.push(`reloadStructure ${id}`),
+      stepResultTab: (id: string, step: number) =>
+        void seen.push(`stepResultTab ${id} ${step}`),
+      closeResult: (id: string) => {
+        seen.push(`closeResult ${id}`);
+        return true;
+      },
       showView: (id: string) => {
         seen.push(`showView ${id}`);
         return id === "t1";
@@ -96,5 +102,30 @@ describe("db.view（結果の場所のデータと Structure の切り替え。#
     const { seen, runCommand } = setup({ id: "t2" });
     runCommand({ id: "db.view" });
     assert.deepEqual(seen, ["showView t2", "cannot " + "No table is chosen"]);
+  });
+});
+
+describe("db.result・db.closeResult（結果のタブの切り替えと、閉じる。#404）", () => {
+  it("DB のタブを出していなければ、何もせず、その旨を伝える", () => {
+    const { seen, runCommand } = setup(undefined);
+    runCommand({ id: "db.result", arg: "next" });
+    runCommand({ id: "db.closeResult" });
+    assert.deepEqual(seen, [
+      "cannot " + "No database tab is shown",
+      "cannot " + "No database tab is shown",
+    ]);
+  });
+
+  it("d ] は次、d [ は前の結果のタブへ", () => {
+    const { seen, runCommand } = setup({ id: "t1" });
+    runCommand({ id: "db.result", arg: "next" });
+    runCommand({ id: "db.result", arg: "prev" });
+    assert.deepEqual(seen, ["stepResultTab t1 1", "stepResultTab t1 -1"]);
+  });
+
+  it("d x は、出している結果のタブを閉じる", () => {
+    const { seen, runCommand } = setup({ id: "t1" });
+    runCommand({ id: "db.closeResult" });
+    assert.deepEqual(seen, ["closeResult t1"]);
   });
 });

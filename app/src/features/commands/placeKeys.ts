@@ -285,12 +285,13 @@ export const PLACE_KEYS: Record<Place, PlaceKeys> = {
     lead: T("place.db.lead"),
     rows: [
       row("Cmd+Enter / Ctrl+Enter", T("place.db.run"), []),
+      row("Cmd+Option+Enter / Ctrl+Shift+Enter", T("place.db.runNew"), []),
       row("Esc", T("place.db.cancel"), ["Escape"]),
     ],
   },
   // DB のタブの結果の表（#372）。判定は features/db/keys.ts の dbResultKey（修飾キー付きのものは probes に書けないので、
-  // keys.test.ts で確かめる）。表をクリックするかフォーカスを向けたときだけ効く。`[` `]` は文ごとの結果のタブの切り替え
-  // （#380。dbResultTabKey）で、結果のタブの列にキーがあるときも効く
+  // keys.test.ts で確かめる）。表をクリックするかフォーカスを向けたときだけ効く。`[` `]` は結果のタブの切り替え
+  // （#404。dbResultTabKey）で、結果のタブの列にキーがあるときも効く
   dbResult: {
     title: T("place.dbResult.title"),
     lead: T("place.dbResult.lead"),

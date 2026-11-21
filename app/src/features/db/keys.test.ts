@@ -27,14 +27,42 @@ describe("dbEditorKey（DB のタブの SQL の入力欄のキー）", () => {
     assert.equal(dbEditorKey(ev("Enter", { metaKey: true }), false), null);
   });
 
-  it("Enter だけ・Shift や Alt を重ねたものは改行のまま", () => {
-    assert.equal(dbEditorKey(ev("Enter"), true), null);
+  it("macOS は Cmd+Option+Enter、ほかは Ctrl+Shift+Enter で、新しい結果のタブに実行する（#404）", () => {
+    assert.equal(
+      dbEditorKey(ev("Enter", { metaKey: true, altKey: true }), true),
+      "runNew",
+    );
     assert.equal(
       dbEditorKey(ev("Enter", { ctrlKey: true, shiftKey: true }), false),
+      "runNew",
+    );
+  });
+
+  it("Enter だけ・ほかの修飾キーを重ねたものは改行のまま", () => {
+    assert.equal(dbEditorKey(ev("Enter"), true), null);
+    assert.equal(dbEditorKey(ev("Enter", { shiftKey: true }), false), null);
+    assert.equal(dbEditorKey(ev("Enter", { altKey: true }), true), null);
+    // macOS の Cmd+Shift+Enter は、ペインを隠す近道（窓が先に受ける）
+    assert.equal(
+      dbEditorKey(ev("Enter", { metaKey: true, shiftKey: true }), true),
       null,
     );
     assert.equal(
-      dbEditorKey(ev("Enter", { metaKey: true, altKey: true }), true),
+      dbEditorKey(ev("Enter", { ctrlKey: true, altKey: true }), false),
+      null,
+    );
+    assert.equal(
+      dbEditorKey(
+        ev("Enter", { metaKey: true, altKey: true, shiftKey: true }),
+        true,
+      ),
+      null,
+    );
+    assert.equal(
+      dbEditorKey(
+        ev("Enter", { ctrlKey: true, metaKey: true, shiftKey: true }),
+        false,
+      ),
       null,
     );
   });
