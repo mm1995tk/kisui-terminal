@@ -60,7 +60,8 @@ export function visibleRows(
       kind: "schema",
       depth: 0,
       label: s.name,
-      expandable: true,
+      // 絞り込み中は開けたまま出すので、開け閉めはできない（h で開けている枝を、見えないまま書き換えない）
+      expandable: q === "",
       expanded: sOpen,
       schema: s.name,
     });
@@ -159,7 +160,8 @@ export function treeStep(
       return {};
     case "collapse":
       if (!cur) return {};
-      if (cur.expanded) return { toggle: { id: cur.id, open: false } };
+      if (cur.expandable && cur.expanded)
+        return { toggle: { id: cur.id, open: false } };
       return cur.parent ? { cursor: cur.parent } : {};
     case "enter":
       if (!cur) return {};

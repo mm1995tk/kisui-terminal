@@ -129,6 +129,19 @@ describe("visibleRows の絞り込み（テーブル名）", () => {
     ]);
   });
 
+  it("絞り込み中のスキーマは開け閉めできず、h は閉じずに動くだけ（開けている枝を書き換えない）", () => {
+    const r = visibleRows(two, new Set(), "users");
+    assert.ok(r.filter((x) => x.kind === "schema").every((x) => !x.expandable));
+    assert.deepEqual(treeStep(r, "public", "collapse"), {});
+    assert.deepEqual(treeStep(r, "audit", "collapse"), {});
+    assert.deepEqual(treeStep(r, "public", "expand"), {
+      cursor: tableId("public", "users"),
+    });
+    assert.deepEqual(treeStep(r, tableId("audit", "Log_Users"), "collapse"), {
+      cursor: "audit",
+    });
+  });
+
   it("前後の空白は無視する", () => {
     assert.deepEqual(
       visibleRows(two, new Set(), " log "),
