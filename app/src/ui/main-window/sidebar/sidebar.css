@@ -524,7 +524,8 @@ div.band-main {
   --row-bg: var(--row-shown-bg);
 }
 .tab-row[data-current] {
-  --row-bg: var(--gh-bg-hover);
+  --row-bg: var(--gh-bg-selected);
+  border-color: var(--gh-accent);
 }
 /* 行の高さは、ターミナルのタブもブラウザのタブも同じ（git のあるターミナルのタブの 3 行ぶん）。行が少ないタブは、真ん中にそろえる */
 .tab-line {
@@ -543,6 +544,10 @@ div.band-main {
 }
 .tab-line:hover {
   background: var(--band-hover);
+}
+/* 今のタブは、マウスを乗せても地の色を変えない（乗せただけのタブと同じ色になって、どれを選んでいるのか分からなくなるため） */
+.tab-row[data-current] .tab-line:hover {
+  background: transparent;
 }
 .tab-main {
   flex: 1;
