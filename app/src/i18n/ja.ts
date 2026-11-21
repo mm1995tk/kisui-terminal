@@ -652,6 +652,8 @@ export const ja: Record<Key, string> = {
   "cannot.dbSchema.title": "既定のスキーマを選べません",
   "cannot.dbSchema.oldServe":
     "このマシンの kisui serve は既定のスキーマを知らない古い版です（選んでも無視され、DB の既定のスキーマで実行されます）。kisui-terminal と同じ版に入れ替わってから選んでください。",
+  "cannot.dbSchema.dropped":
+    "この接続に選んでいた既定のスキーマ（{schema}）を外し、何も実行しませんでした。このマシンの kisui serve が、既定のスキーマを知らない古い版に替わっています（選んでも無視され、DB の既定のスキーマで実行されます）。もう一度実行すると、DB の既定のスキーマで実行します。",
   "leader.db.tree": "サイドバーのスキーマの木にキーを向ける",
   "leader.db.refresh": "スキーマの木を読み直す",
   "cannot.dbTree.title": "DB のタブを出していません",
@@ -661,10 +663,12 @@ export const ja: Record<Key, string> = {
     "サイドバーのスキーマの木（DB のタブを出している間、ファイルツリーの場所に出る）のキー。テーブルを選ぶと、その中身（先頭の 100 行）を SELECT * で見ます。",
   "place.dbTree.expand": "枝を開ける（開いていれば中へ）",
   "place.dbTree.collapse": "枝を閉じる（閉じていれば上へ）",
-  "place.dbTree.enter":
-    "スキーマはタブの既定のスキーマにする（もう既定ならやめる）、テーブルは中身を見る",
+  "place.dbTree.enter": "スキーマは開け閉めする、テーブルは中身を見る",
   "place.dbTree.filter":
     "テーブル名で絞り込む入力欄に移る（入力欄の Enter・Esc・↓ で木に戻る）",
+  "place.dbTree.schema":
+    "接続の既定のスキーマを選ぶ（木の上の一覧に移る。↓ ↑ で選び、Enter・Esc で木に戻る）",
+  "place.dbTree.all": "すべてのスキーマを出す・既定のスキーマだけを出す",
   "place.dbTree.back": "SQL の入力欄に戻る",
   "db.tree.title": "スキーマ",
   "db.tree.label": "スキーマ・テーブル",
@@ -676,9 +680,12 @@ export const ja: Record<Key, string> = {
   "db.tree.empty": "スキーマがありません",
   "db.tree.view": "ビュー",
   "db.tree.defaultBadge": "既定",
-  "db.tree.clearDefault": "やめる",
-  "db.tree.defaultSchema":
-    "既定のスキーマ：{schema}（スキーマを書かないテーブルはここで探します）",
+  "db.tree.schema.label": "既定のスキーマ（ s ）",
+  "db.tree.schema.hint":
+    "スキーマを書かないテーブルは、このスキーマで探します。この接続に覚えます。",
+  "db.tree.schema.dbDefault": "（DB の既定）",
+  "db.tree.allSchemas": "すべてのスキーマを表示（ a ）",
+  "db.tree.noTables": "このスキーマにテーブルがありません",
   "db.tree.truncated": "列が多すぎるので、一覧を途中で切っています。",
   "db.tree.passwordCancelled":
     "パスワードを入れなかったので、一覧を読んでいません。「読み直す」でもう一度試せます。",

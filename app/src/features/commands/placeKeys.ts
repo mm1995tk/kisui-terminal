@@ -336,6 +336,8 @@ export const PLACE_KEYS: Record<Place, PlaceKeys> = {
       row("h / ←", T("place.dbTree.collapse"), ["h", "ArrowLeft"]),
       row("Enter", T("place.dbTree.enter")),
       row("/", T("place.dbTree.filter")),
+      row("s", T("place.dbTree.schema")),
+      row("a", T("place.dbTree.all")),
       row("Esc", T("place.dbTree.back"), ["Escape"]),
     ],
   },
