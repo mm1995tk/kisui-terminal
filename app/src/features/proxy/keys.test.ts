@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { proxyPanelKey } from "./keys.ts";
+import { proxyEditKey, proxyPanelKey } from "./keys.ts";
 
 const key = (key: string, mods: Partial<KeyboardEventInit> = {}) => ({
   key,
@@ -23,6 +23,7 @@ describe("プロキシのパネルのキー", () => {
     assert.equal(proxyPanelKey(key("l")), "side");
     assert.equal(proxyPanelKey(key("Escape")), "back");
     assert.equal(proxyPanelKey(key("q")), "close");
+    assert.equal(proxyPanelKey(key("e")), "edit");
   });
 
   it("修飾キーつき・ほかのキーは受けない（リーダーや近道に残す）", () => {
@@ -30,5 +31,32 @@ describe("プロキシのパネルのキー", () => {
     assert.equal(proxyPanelKey(key("k", { metaKey: true })), null);
     assert.equal(proxyPanelKey(key("x")), null);
     assert.equal(proxyPanelKey(key("?", { shiftKey: true })), null);
+  });
+});
+
+describe("要求を書き換える欄のキー（#410）", () => {
+  it("Cmd+Enter（macOS）・Ctrl+Enter（ほか）で送り、Esc でやめる", () => {
+    assert.equal(proxyEditKey(key("Enter", { metaKey: true }), true), "send");
+    assert.equal(proxyEditKey(key("Enter", { ctrlKey: true }), false), "send");
+    assert.equal(proxyEditKey(key("Escape"), true), "cancel");
+  });
+
+  it("Enter だけ・ほかの修飾キー・字は欄に残す", () => {
+    assert.equal(proxyEditKey(key("Enter"), true), null);
+    assert.equal(proxyEditKey(key("Enter", { ctrlKey: true }), true), null);
+    assert.equal(proxyEditKey(key("Enter", { metaKey: true }), false), null);
+    assert.equal(
+      proxyEditKey(key("Enter", { metaKey: true, shiftKey: true }), true),
+      null,
+    );
+    assert.equal(proxyEditKey(key("e"), true), null);
+    assert.equal(proxyEditKey(key("q"), true), null);
+  });
+
+  it("かな漢字変換の確定は受けない", () => {
+    assert.equal(
+      proxyEditKey(key("Enter", { metaKey: true, isComposing: true }), true),
+      null,
+    );
   });
 });

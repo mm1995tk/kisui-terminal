@@ -893,4 +893,33 @@ export const ja: Record<Key, string> = {
   "proxy.body.truncated": "本文は {size} あり、先頭だけを残しています。",
   "proxy.hint.side": "要求 / 応答",
   "proxy.hint.back": "タブに戻る",
+  "proxy.hint.edit": "書き換えて送り直す",
+  "proxy.hint.send": "送る",
+  "proxy.hint.cancelEdit": "書き換えをやめる",
+  "place.proxy.edit": "選んだ通信の要求を書き換えて、送り直す",
+  "place.proxyEdit.title": "要求の書き換え",
+  "place.proxyEdit.lead":
+    "メソッド・URL・ヘッダー・本文を書き換えて、プロキシから送り直します。応答はパネルの一覧に出ます。ページやシェルには返りません。",
+  "place.proxyEdit.send": "要求を送る",
+  "place.proxyEdit.cancel": "書き換えをやめる（送らない）",
+  "cannot.proxy.noFlow": "先に、通信を選んでください。",
+  "cannot.proxy.noDetail":
+    "この通信は、プロキシがもう覚えていないので、書き換えられません。",
+  "proxy.resentFrom": "#{id} を送り直したもの",
+  "proxy.edit.title": "#{id} を書き換えて送り直す",
+  "proxy.edit.method": "メソッド",
+  "proxy.edit.url": "URL",
+  "proxy.edit.headersHint":
+    "1 行に 1 つ、「名前: 値」の形で書きます。Host は URL から、Content-Length は本文から決まります。",
+  "proxy.edit.body.binary":
+    "本文は字ではありません（{size}）。元のまま送ります。",
+  "proxy.edit.body.encoded":
+    "本文は圧縮されています（{size}）。元のまま送ります。",
+  "proxy.edit.body.cut":
+    "本文は先頭だけを残しているので（{size}）、元のままでは送れません。ここに書いた本文を送ります。",
+  "proxy.edit.send": "送る（{key}）",
+  "proxy.edit.sending": "送っています…",
+  "proxy.edit.cancel": "やめる",
+  "proxy.edit.badHeader":
+    "ヘッダーの {line} 行目が「名前: 値」の形ではありません。",
 };

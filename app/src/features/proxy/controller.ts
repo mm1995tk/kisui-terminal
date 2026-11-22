@@ -35,10 +35,13 @@ import { browserKey, termKey } from "../workspaces/model.ts";
 import {
   applyFlow,
   browserScope,
+  draftFrom,
   flowProgress,
+  parseHeaders,
   scopeKey,
   stepSelection,
   wsScope,
+  type ProxyDraft,
 } from "./model.ts";
 
 /** 通す相手のタブ。 */
@@ -75,6 +78,15 @@ export interface ProxyDetailState {
 /** 中身の、出している側。 */
 export type ProxySide = "request" | "response";
 
+/** 書き換えている要求（#410）。 */
+export interface ProxyEditState {
+  draft: ProxyDraft;
+  /** 送っている途中 */
+  sending: boolean;
+  /** 送れなかった理由（形が違う・kisui serve が断った） */
+  error?: string;
+}
+
 /** パネルに出すもの。 */
 export interface ProxyPanelState {
   subject: ProxySubject;
@@ -83,6 +95,8 @@ export interface ProxyPanelState {
   selected: number | undefined;
   detail: ProxyDetailState | undefined;
   side: ProxySide;
+  /** 選んでいる通信の要求を書き換えている（#410）。書き換えている間は、中身の代わりに書き換える欄を出す */
+  edit: ProxyEditState | undefined;
 }
 
 /** createProxy が返す持ち物。 */
@@ -117,6 +131,8 @@ export function createProxy(deps: {
     {},
   );
   const [side, setSide] = createSignal<ProxySide>("request");
+  // 単位ごとの、書き換えている要求（#410）
+  const [edits, setEdits] = createSignal<Record<string, ProxyEditState>>({});
   /** 通し始めている途中の単位（2 回始めない・途中の単位を「使っていない」と見て止めない） */
   const starting = new Set<string>();
   /**
@@ -174,6 +190,7 @@ export function createProxy(deps: {
       selected: selected()[key],
       detail: details()[key],
       side: side(),
+      edit: edits()[key],
     };
   });
 
@@ -197,6 +214,7 @@ export function createProxy(deps: {
       setScopes((s) => without(s, key));
       setSelected((s) => without(s, key));
       setDetails((s) => without(s, key));
+      setEdits((s) => without(s, key));
       if (target === LOCAL)
         for (const t of untrack(tabs).tabs)
           if (t.proxy?.scope === scope)
@@ -205,7 +223,7 @@ export function createProxy(deps: {
   }
 
   /** マシン target につながっていて、kisui serve がプロキシを持つなら、その接続。無ければ理由を知らせて undefined。 */
-  function sessionFor(target: string, quiet = false) {
+  function sessionFor(target: string, quiet = false, cap = "proxy") {
     const session = untrack(deps.sessions.sessions)[target];
     const st = untrack(deps.sessions.states)[target];
     const machine = deps.sessions.labelOf(target);
@@ -217,7 +235,7 @@ export function createProxy(deps: {
         );
       return undefined;
     }
-    if (!hasCapability(st.hello, "proxy")) {
+    if (!hasCapability(st.hello, cap)) {
       if (!quiet)
         cannot(T("cannot.proxy.title"), T("cannot.proxy.old", { machine }));
       return undefined;
@@ -339,7 +357,8 @@ export function createProxy(deps: {
     const p = untrack(panel);
     if (!p) return;
     const key = scopeKey(p.scope.target, p.scope.scope);
-    if (untrack(selected)[key] === id) return;
+    // 書き換えている間は、ほかの通信を選ばない（書いたものを失わないよう、送るかやめるまで）
+    if (untrack(selected)[key] === id || untrack(edits)[key]) return;
     setSelected((s) => ({ ...s, [key]: id }));
     void loadDetail(key, id);
   }
@@ -350,6 +369,125 @@ export function createProxy(deps: {
     if (!p) return;
     const id = stepSelection(p.scope.flows, p.selected, to);
     if (id !== undefined) select(id);
+  }
+
+  // ---- 書き換えて送り直す（#410）----
+
+  /** 今のパネルの単位のキーと、書き換えている要求。書き換えていなければ undefined。 */
+  function currentEdit() {
+    const p = untrack(panel);
+    if (!p) return undefined;
+    const key = scopeKey(p.scope.target, p.scope.scope);
+    const e = untrack(edits)[key];
+    return e ? { p, key, e } : undefined;
+  }
+
+  /**
+   * パネルで選んでいる通信の要求を書き換える欄を開く（パネルの `e`）。中身をまだ読んでいなければ読んでから開く。
+   * kisui serve が送り直しを知らなければ（古い版）、その旨を知らせる。
+   */
+  async function startEdit() {
+    const p = untrack(panel);
+    if (!p) return;
+    const key = scopeKey(p.scope.target, p.scope.scope);
+    if (untrack(edits)[key]) return;
+    const id = p.selected;
+    if (id === undefined) {
+      cannot(T("cannot.proxy.title"), T("cannot.proxy.noFlow"));
+      return;
+    }
+    if (!sessionFor(p.scope.target, false, "proxy.resend")) return;
+    const loaded = () => {
+      const d = untrack(details)[key];
+      return d?.id === id ? d.detail : undefined;
+    };
+    if (!loaded()) await loadDetail(key, id);
+    const d = loaded();
+    // 読めなかった（もう覚えていない）か、読んでいる間にほかの通信を選んだ・単位が無くなった
+    if (!d || untrack(selected)[key] !== id || !untrack(scopes)[key]) {
+      if (!d && untrack(selected)[key] === id)
+        cannot(T("cannot.proxy.title"), T("cannot.proxy.noDetail"));
+      return;
+    }
+    setEdits((all) => ({
+      ...all,
+      [key]: { draft: draftFrom(d), sending: false },
+    }));
+    deps.focusPanel();
+  }
+
+  /** 書き換えている要求を書き換える（欄に打ったもの）。 */
+  function editDraft(patch: Partial<Omit<ProxyDraft, "from">>) {
+    const c = currentEdit();
+    if (!c) return;
+    setEdits((all) => ({
+      ...all,
+      [c.key]: { ...c.e, draft: { ...c.e.draft, ...patch }, error: undefined },
+    }));
+  }
+
+  /** 書き換えをやめて、中身に戻る（欄の Esc）。 */
+  function cancelEdit() {
+    const c = currentEdit();
+    if (!c) return;
+    setEdits((all) => without(all, c.key));
+    deps.focusPanel();
+  }
+
+  /**
+   * 書き換えた要求を送り直す（欄の Cmd+Enter・Ctrl+Enter）。送り始めたら欄を閉じ、送った通信を選んで、応答の側を出す
+   * （応答は、届いたら知らせ（proxy.flow）で一覧と中身に入る）。送れなければ、欄に理由を出す。
+   */
+  async function sendEdit() {
+    const c = currentEdit();
+    if (!c || c.e.sending) return;
+    const { key, e, p } = c;
+    const setError = (error: string) =>
+      setEdits((all) =>
+        all[key]
+          ? { ...all, [key]: { ...all[key]!, sending: false, error } }
+          : all,
+      );
+    const parsed = parseHeaders(e.draft.headers);
+    if ("badLine" in parsed) {
+      setError(T("proxy.edit.badHeader", { line: parsed.badLine }));
+      return;
+    }
+    const session = sessionFor(p.scope.target, false, "proxy.resend");
+    if (!session) return;
+    setEdits((all) => ({
+      ...all,
+      [key]: { ...e, sending: true, error: undefined },
+    }));
+    let flow: ProxyFlow;
+    try {
+      ({ flow } = await session.request("proxy.resend", {
+        scope: p.scope.scope,
+        from: e.draft.from,
+        method: e.draft.method.trim(),
+        url: e.draft.url.trim(),
+        headers: parsed.headers,
+        ...(e.draft.body.text === undefined ? {} : { body: e.draft.body.text }),
+      }));
+    } catch (err) {
+      setError(message(err));
+      return;
+    }
+    // 送っている間に、単位が無くなった・書き換えをやめた
+    if (!untrack(scopes)[key] || !untrack(edits)[key]) return;
+    batch(() => {
+      setScopes((s) => {
+        const st = s[key];
+        return st
+          ? { ...s, [key]: { ...st, flows: applyFlow(st.flows, flow) } }
+          : s;
+      });
+      setEdits((all) => without(all, key));
+      setSelected((s) => ({ ...s, [key]: flow.id }));
+      setSide("response");
+    });
+    void loadDetail(key, flow.id);
+    deps.focusPanel();
   }
 
   // 接続ごとに、通信の知らせ（proxy.flow）を受ける
@@ -515,6 +653,10 @@ export function createProxy(deps: {
     stopCurrent,
     select,
     step,
+    startEdit,
+    editDraft,
+    cancelEdit,
+    sendEdit,
     /** 中身の「要求」と「応答」を切り替える（side を渡せばその側に） */
     toggleSide(to?: ProxySide) {
       setSide((s) => to ?? (s === "request" ? "response" : "request"));

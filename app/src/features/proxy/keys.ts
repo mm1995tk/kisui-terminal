@@ -6,9 +6,10 @@ import type { KeyLike } from "../commands/guiKeys.ts";
 /**
  * パネルのキーの動き。next・prev・first・last：一覧で選ぶ通信を動かす。side：中身の「要求」と「応答」を切り替える。
  * back：キーをタブ（ターミナル・ページ）に戻す（パネルは出したまま）。close：パネルを閉じる。
+ * edit：選んでいる通信の要求を書き換える欄を開く（#410）。
  */
 export type ProxyPanelKey =
-  "next" | "prev" | "first" | "last" | "side" | "back" | "close";
+  "next" | "prev" | "first" | "last" | "side" | "back" | "close" | "edit";
 
 /** パネルで押したキー e の動き（当たらなければ null）。修飾キー（Shift 以外）を押していれば受けない。 */
 export function proxyPanelKey(e: KeyLike): ProxyPanelKey | null {
@@ -36,6 +37,35 @@ export function proxyPanelKey(e: KeyLike): ProxyPanelKey | null {
       return "back";
     case "q":
       return e.shiftKey ? null : "close";
+    case "e":
+      return e.shiftKey ? null : "edit";
   }
+  return null;
+}
+
+/** 要求を書き換える欄（#410）のキーの動き。send：送り直す。cancel：書き換えをやめて、中身に戻る。 */
+export type ProxyEditKey = "send" | "cancel";
+
+/**
+ * 要求を書き換える欄で押したキー e の動き（当たらなければ null。欄にそのまま字が入る）。
+ * - Cmd+Enter（macOS）・Ctrl+Enter（ほか）：送り直す（DB のタブの SQL の実行と同じ。Enter だけは改行）
+ * - Esc：書き換えをやめる
+ * かな漢字変換の確定・取り消しのキーは受けない。
+ */
+export function proxyEditKey(e: KeyLike, mac: boolean): ProxyEditKey | null {
+  if (isComposingKey(e)) return null;
+  if (e.key === "Enter") {
+    const mod = mac ? e.metaKey : e.ctrlKey;
+    const other = mac ? e.ctrlKey : e.metaKey;
+    return mod && !other && !e.altKey && !e.shiftKey ? "send" : null;
+  }
+  if (
+    e.key === "Escape" &&
+    !e.ctrlKey &&
+    !e.metaKey &&
+    !e.altKey &&
+    !e.shiftKey
+  )
+    return "cancel";
   return null;
 }

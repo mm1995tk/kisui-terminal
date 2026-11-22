@@ -29,6 +29,9 @@ import (
 // CapProxy は session.hello の capabilities に入れる、proxy.* を受けられる印。
 const CapProxy = "proxy"
 
+// CapProxyResend は capabilities に入れる、proxy.resend（記録した通信の要求を書き換えて送り直す。#410）を受けられる印。
+const CapProxyResend = "proxy.resend"
+
 // maxProxyScopes は同時に通せる単位の数。
 const maxProxyScopes = 64
 
@@ -232,6 +235,12 @@ func (ss *session) proxyRequest(req *rpc.Message) (res any, err error, handled b
 		Scope       string `json:"scope"`
 		WorkspaceID string `json:"workspaceId"`
 		ID          int64  `json:"id"`
+		// proxy.resend（#410）
+		From    int64       `json:"from"`
+		Method  string      `json:"method"`
+		URL     string      `json:"url"`
+		Headers [][2]string `json:"headers"`
+		Body    *string     `json:"body"`
 	}
 	if len(req.Params) > 0 {
 		if err := json.Unmarshal(req.Params, &p); err != nil {
@@ -288,6 +297,21 @@ func (ss *session) proxyRequest(req *rpc.Message) (res any, err error, handled b
 			return nil, rpc.Errorf(rpc.CodeNotFound, "no such flow: %d", p.ID), true
 		}
 		return d, nil, true
+	case "proxy.resend":
+		sc := m.get(p.Scope)
+		if sc == nil {
+			return nil, noScope(), true
+		}
+		r := proxy.Resend{From: p.From, Method: p.Method, URL: p.URL, Header: p.Headers}
+		if p.Body != nil {
+			b := []byte(*p.Body)
+			r.Body = &b
+		}
+		sum, err := sc.px.Resend(r)
+		if err != nil {
+			return nil, resendError(err, p.From), true
+		}
+		return map[string]any{"flow": sum}, nil, true
 	}
 	return nil, rpc.Errorf(rpc.CodeMethodNotFound, "method not found: %s", req.Method), true
 }
@@ -360,4 +384,18 @@ func (s *Server) startAdoptedProxy() {
 	for _, sc := range m.scopes {
 		m.serve(sc)
 	}
+}
+
+// resendError は proxy.resend の断り方。
+func resendError(err error, from int64) error {
+	var bad *proxy.InvalidRequestError
+	switch {
+	case errors.Is(err, proxy.ErrNoFlow):
+		return rpc.Errorf(rpc.CodeNotFound, "no such flow: %d", from)
+	case errors.Is(err, proxy.ErrBusy):
+		return rpc.Errorf(rpc.CodeBusy, "%v", err)
+	case errors.Is(err, proxy.ErrBodyCut), errors.As(err, &bad):
+		return rpc.Errorf(rpc.CodeInvalidParams, "%v", err)
+	}
+	return rpc.Errorf(rpc.CodeInternalError, "%v", err)
 }

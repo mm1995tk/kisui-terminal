@@ -61,6 +61,8 @@ type flow struct {
 	respHeader http.Header
 	reqBody    Body
 	respBody   Body
+	// resentFrom は、パネルで書き換えて送り直した通信（Resend。#410）のとき、元の通信の id。ほかは 0
+	resentFrom int64
 }
 
 // Summary は一覧の 1 行（JSON は窓との取り決め。docs/design/gui-protocol.md の「プロキシ」）。
@@ -78,6 +80,8 @@ type Summary struct {
 	RespSize   int64  `json:"respSize"`
 	DurationMs int64  `json:"durationMs"`
 	MIME       string `json:"mime,omitempty"` // 応答の Content-Type の種類（text/html など）
+	// ResentFrom は、送り直した通信（Resend。#410）のとき、元の通信の id。クライアントから来た通信は 0
+	ResentFrom int64 `json:"resentFrom,omitempty"`
 }
 
 // BodyView は本文の見せ方。字として読めれば Text、読めなければ Binary。
@@ -150,6 +154,7 @@ func (f *flow) summary() Summary {
 		ID: f.id, Time: f.start.UnixMilli(), Method: f.method, Scheme: f.scheme, Host: f.host, Path: f.path,
 		Status: f.status, State: f.state, Error: f.err,
 		ReqSize: f.reqBody.Size, RespSize: f.respBody.Size, DurationMs: f.duration.Milliseconds(),
+		ResentFrom: f.resentFrom,
 	}
 	if ct := f.respHeader.Get("Content-Type"); ct != "" {
 		if mt, _, err := mime.ParseMediaType(ct); err == nil {
@@ -159,8 +164,34 @@ func (f *flow) summary() Summary {
 	return sum
 }
 
+// sentRequest は、覚えている通信の要求の写し（送り直すときの元。#410）。
+type sentRequest struct {
+	method string
+	header http.Header
+	body   Body
+}
+
+// request は id の通信の要求の写し。もう覚えていなければ false。
+func (s *Store) request(id int64) (sentRequest, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, f := range s.flows {
+		if f.id == id {
+			b := f.reqBody
+			b.Data = slices.Clone(b.Data)
+			return sentRequest{method: f.method, header: f.reqHeader.Clone(), body: b}, true
+		}
+	}
+	return sentRequest{}, false
+}
+
 // begin は始まった通信を足す。
 func (s *Store) begin(r *http.Request, scheme, host string) *flow {
+	return s.beginFrom(r, scheme, host, 0)
+}
+
+// beginFrom は始まった通信を足す。resentFrom は、送り直した通信のとき、元の通信の id（クライアントから来たものは 0）。
+func (s *Store) beginFrom(r *http.Request, scheme, host string, resentFrom int64) *flow {
 	header := r.Header.Clone()
 	if header == nil {
 		header = http.Header{}
@@ -170,7 +201,7 @@ func (s *Store) begin(r *http.Request, scheme, host string) *flow {
 	}
 	f := &flow{
 		start: time.Now(), method: r.Method, scheme: scheme, host: host, path: r.URL.RequestURI(),
-		proto: r.Proto, state: StatePending, reqHeader: header,
+		proto: r.Proto, state: StatePending, reqHeader: header, resentFrom: resentFrom,
 	}
 	s.mu.Lock()
 	s.next++
@@ -337,4 +368,11 @@ func (c *capture) finish(err error) {
 		c.mu.Unlock()
 		c.done(b, err)
 	})
+}
+
+// summaryOf は f の一覧の行。
+func (s *Store) summaryOf(f *flow) Summary {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return f.summary()
 }

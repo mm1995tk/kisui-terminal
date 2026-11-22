@@ -60,6 +60,10 @@ type Proxy struct {
 	targets   sync.Map    // inner に渡した接続（net.Conn）→ tunnel
 	intercept atomic.Bool // false の間は、間に入らず・記録もせずに中継だけする
 	addr      atomic.Value
+	// resending は送り直している（Resend）通信の数。closing は Close で終わる（送り直している通信を切る）
+	resending   counter
+	closing     context.Context
+	stopClosing context.CancelFunc
 }
 
 type ctxKey int
@@ -87,6 +91,8 @@ type exchange struct {
 // New はプロキシを作る。Serve で待ち受けを始める。
 func New(o Options) *Proxy {
 	p := &Proxy{ca: o.CA, store: o.Store, conns: make(chan net.Conn), done: make(chan struct{})}
+	p.resending = newCounter(MaxResending)
+	p.closing, p.stopClosing = context.WithCancel(context.Background())
 	p.intercept.Store(true)
 	dialer := &net.Dialer{Timeout: dialTimeout, KeepAlive: 30 * time.Second}
 	p.pinned = &http.Transport{
@@ -151,6 +157,7 @@ func (p *Proxy) Serve(ln net.Listener) error {
 func (p *Proxy) Close() {
 	p.closeOnce.Do(func() {
 		close(p.done)
+		p.stopClosing()
 		_ = p.outer.Close()
 		_ = p.inner.Close()
 		p.transport.CloseIdleConnections()

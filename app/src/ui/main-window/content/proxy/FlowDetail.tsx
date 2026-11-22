@@ -119,6 +119,11 @@ export function FlowDetail(props: {
         />
       </div>
       <div class={styles.content}>
+        <Show when={props.side === "request" && f().resentFrom !== undefined}>
+          <p class={`${styles.line} ${styles.resent}`}>
+            {T("proxy.resentFrom", { id: f().resentFrom ?? 0 })}
+          </p>
+        </Show>
         <p class={styles.line}>
           {props.side === "request"
             ? `${f().method} ${flowUrl(f())}`

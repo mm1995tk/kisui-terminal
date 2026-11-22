@@ -627,6 +627,25 @@ export interface Requests {
     params: { scope: string; id: number };
     result: ProxyFlowDetail;
   };
+  /**
+   * 記録した通信 from の要求を書き換えて、プロキシから送り直す（#410）。capabilities に "proxy.resend" がある kisui serve だけが受ける。
+   * 送った通信は、同じ scope の記録に新しい通信（resentFrom が from）として足し、応答もそこに入る（proxy.flow で知らせる）。応答は
+   * ページ・シェルには返さない。headers の Host は、url のホストの代わりに Host として送る。Content-Length・Transfer-Encoding は
+   * 本文から決めるので見ない。body を省くと、元の通信の本文をそのまま送る（字でない本文・圧縮した本文もそのまま）。
+   * 断られ方：not_found（scope・通信が無い）、invalid_params（メソッド・URL・ヘッダーの形が違う・この待ち受け口自身を指す・
+   * body を省いたが元の本文が記録の上限で切れている）、busy（同時に送り直している数が上限）
+   */
+  "proxy.resend": {
+    params: {
+      scope: string;
+      from: number;
+      method: string;
+      url: string;
+      headers: [string, string][];
+      body?: string;
+    };
+    result: { flow: ProxyFlow };
+  };
 }
 
 /** プロキシに通している単位（#409）。 */
@@ -663,6 +682,8 @@ export interface ProxyFlow {
   durationMs: number;
   /** 応答の Content-Type の種類（text/html など） */
   mime?: string;
+  /** 送り直した通信（proxy.resend。#410）なら、元の通信の id */
+  resentFrom?: number;
 }
 
 /** 通信の本文（#409）。字として読めれば text、読めなければ binary。gzip・deflate は展開してある。 */

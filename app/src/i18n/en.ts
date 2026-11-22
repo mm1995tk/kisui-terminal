@@ -899,6 +899,36 @@ export const en = {
   "proxy.body.truncated": "The body is {size}; only its beginning is kept.",
   "proxy.hint.side": "request / response",
   "proxy.hint.back": "back to the tab",
+  "proxy.hint.edit": "edit and resend",
+  "proxy.hint.send": "send",
+  "proxy.hint.cancelEdit": "stop editing",
+  "place.proxy.edit":
+    "Edit the request of the selected exchange and send it again",
+  "place.proxyEdit.title": "Editing a request",
+  "place.proxyEdit.lead":
+    "Change the method, the URL, the headers and the body, and send it again through the proxy. The response shows up in the list of the panel; the page and the shell do not get it.",
+  "place.proxyEdit.send": "Send the request",
+  "place.proxyEdit.cancel": "Stop editing (nothing is sent)",
+  "cannot.proxy.noFlow": "Select an exchange first.",
+  "cannot.proxy.noDetail":
+    "The proxy no longer keeps this exchange, so it cannot be edited.",
+  "proxy.resentFrom": "Resent from #{id}",
+  "proxy.edit.title": "Edit and resend #{id}",
+  "proxy.edit.method": "Method",
+  "proxy.edit.url": "URL",
+  "proxy.edit.headersHint":
+    "One header on each line, as Name: value. Host comes from the URL, and Content-Length from the body.",
+  "proxy.edit.body.binary":
+    "The body is not text ({size}); it is sent as it was.",
+  "proxy.edit.body.encoded":
+    "The body is compressed ({size}); it is sent as it was.",
+  "proxy.edit.body.cut":
+    "Only the beginning of the body ({size}) was kept, so it cannot be sent as it was. The body you write here is sent.",
+  "proxy.edit.send": "Send ({key})",
+  "proxy.edit.sending": "Sending…",
+  "proxy.edit.cancel": "Cancel",
+  "proxy.edit.badHeader":
+    "Line {line} of the headers is not in the form Name: value.",
 } as const satisfies Record<string, string>;
 
 /** 表のキー。`T` に渡す。 */

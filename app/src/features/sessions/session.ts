@@ -133,9 +133,17 @@ export type DbMethod =
   | "db.schema"
   | "db.structure"
   | "db.history";
-/** Session.request で送れる要求（プロキシ。#409。capabilities に "proxy" がある kisui serve だけが受ける）。 */
+/**
+ * Session.request で送れる要求（プロキシ。#409。capabilities に "proxy" がある kisui serve だけが受ける。proxy.resend（#410）は
+ * "proxy.resend" がある kisui serve だけ）。
+ */
 export type ProxyMethod =
-  "proxy.start" | "proxy.stop" | "proxy.list" | "proxy.flows" | "proxy.detail";
+  | "proxy.start"
+  | "proxy.stop"
+  | "proxy.list"
+  | "proxy.flows"
+  | "proxy.detail"
+  | "proxy.resend";
 /** ターミナルの通知（F1）。method で見分ける。 */
 export type TermEvent =
   | { method: "term.output"; params: Notifications["term.output"] }

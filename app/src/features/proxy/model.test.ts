@@ -1,13 +1,18 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import type { ProxyFlow } from "../../infrastructure/rpc/protocol.ts";
+import type {
+  ProxyFlow,
+  ProxyFlowDetail,
+} from "../../infrastructure/rpc/protocol.ts";
 import {
   applyFlow,
   browserScope,
+  draftFrom,
   flowUrl,
   formatDuration,
   formatSize,
+  parseHeaders,
   scopeKey,
   statusKind,
   statusText,
@@ -104,5 +109,86 @@ describe("プロキシの通信の一覧", () => {
     assert.equal(wsScope("w3"), "ws:w3");
     assert.equal(browserScope("tabc"), "browser:tabc");
     assert.notEqual(scopeKey("@local", "ws:w1"), scopeKey("host", "ws:w1"));
+  });
+});
+
+describe("書き換えて送り直す（#410）", () => {
+  const detail = (over: Partial<ProxyFlowDetail> = {}): ProxyFlowDetail => ({
+    ...flow(3, {
+      method: "POST",
+      host: "api.example.com:8443",
+      path: "/v1?x=1",
+    }),
+    protocol: "HTTP/1.1",
+    reqHeaders: [
+      ["Accept", "*/*"],
+      ["Content-Length", "7"],
+      ["Content-Type", "application/json"],
+      ["Host", "api.example.com:8443"],
+    ],
+    respHeaders: [],
+    reqBody: { size: 7, text: '{"a":1}' },
+    respBody: { size: 0 },
+    ...over,
+  });
+
+  it("draftFrom：URL とヘッダーと字の本文を下書きにする。URL と同じ Host と Content-Length は出さない", () => {
+    assert.deepEqual(draftFrom(detail()), {
+      from: 3,
+      method: "POST",
+      url: "https://api.example.com:8443/v1?x=1",
+      headers: "Accept: */*\nContent-Type: application/json",
+      body: { text: '{"a":1}', size: 7 },
+    });
+  });
+
+  it("draftFrom：URL と違う Host は残す", () => {
+    const d = draftFrom(detail({ reqHeaders: [["Host", "other.example"]] }));
+    assert.equal(d.headers, "Host: other.example");
+  });
+
+  it("draftFrom：字でない・圧縮した本文は元のまま送り、切れた本文は書いたものを送る", () => {
+    assert.deepEqual(
+      draftFrom(detail({ reqBody: { size: 9, binary: true } })).body,
+      { text: undefined, note: "binary", size: 9 },
+    );
+    assert.deepEqual(
+      draftFrom(
+        detail({
+          reqHeaders: [["Content-Encoding", "gzip"]],
+          reqBody: { size: 30, text: "decoded" },
+        }),
+      ).body,
+      { text: undefined, note: "encoded", size: 30 },
+    );
+    assert.deepEqual(
+      draftFrom(
+        detail({ reqBody: { size: 300000, text: "abc", truncated: true } }),
+      ).body,
+      { text: "", note: "cut", size: 300000 },
+    );
+    assert.deepEqual(draftFrom(detail({ reqBody: { size: 0 } })).body, {
+      text: "",
+      size: 0,
+    });
+  });
+
+  it("parseHeaders：1 行に 1 つ。空の行は飛ばし、値の中の : は残す", () => {
+    assert.deepEqual(
+      parseHeaders("Accept: */*\n\n  X-Url :  http://a:1/  \r\nEmpty:"),
+      {
+        headers: [
+          ["Accept", "*/*"],
+          ["X-Url", "http://a:1/"],
+          ["Empty", ""],
+        ],
+      },
+    );
+  });
+
+  it("parseHeaders：名前の無い・空白を含む行は、その行の番号", () => {
+    assert.deepEqual(parseHeaders("Accept: */*\nno colon"), { badLine: 2 });
+    assert.deepEqual(parseHeaders(": v"), { badLine: 1 });
+    assert.deepEqual(parseHeaders("Bad Name: v"), { badLine: 1 });
   });
 });

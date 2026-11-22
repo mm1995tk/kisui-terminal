@@ -5,6 +5,7 @@
 // "ws:<ワークスペースの id>"、ブラウザのタブは窓が決める "browser:<タブの id>"。
 import type {
   ProxyFlow,
+  ProxyFlowDetail,
   WorkspaceId,
 } from "../../infrastructure/rpc/protocol.ts";
 
@@ -106,4 +107,84 @@ export function stepSelection(
 export function flowProgress(f: Pick<ProxyFlow, "status" | "state">): number {
   if (f.state !== "pending") return 2;
   return f.status > 0 ? 1 : 0;
+}
+
+// ---- 書き換えて送り直す（#410）----
+
+/**
+ * 書き換える要求の本文。text が字の本文（書き換えて送る）。text が undefined なら、元の本文をそのまま送る（kisui serve が
+ * 覚えたもの）。note は、字で書き換えられない理由：binary（字でない）・encoded（要求が圧縮してある）は元の本文をそのまま送る、
+ * cut（記録の上限で切れている）は、そのままでは送れないので、書いた本文（空で始まる）を送る。
+ */
+export interface ProxyDraftBody {
+  text: string | undefined;
+  note?: "binary" | "encoded" | "cut";
+  /** 元の本文の大きさ */
+  size: number;
+}
+
+/** 書き換えている要求。headers は 1 行に 1 つ（`名前: 値`）。 */
+export interface ProxyDraft {
+  /** 元の通信の id */
+  from: number;
+  method: string;
+  url: string;
+  headers: string;
+  body: ProxyDraftBody;
+}
+
+/** 書き換える欄に出さないヘッダー（本文から決まる・URL から決まる）。 */
+const DERIVED_HEADERS = new Set(["content-length", "transfer-encoding"]);
+
+/**
+ * 記録した通信の中身 d から、書き換える要求の下書きを作る。Host は、URL のホストと同じなら出さない（URL から決まる）。
+ * Content-Length・Transfer-Encoding は出さない（本文から決まる）。
+ */
+export function draftFrom(d: ProxyFlowDetail): ProxyDraft {
+  const headers = d.reqHeaders.filter(([name, value]) => {
+    const n = name.toLowerCase();
+    if (DERIVED_HEADERS.has(n)) return false;
+    return !(n === "host" && value === d.host);
+  });
+  const enc = d.reqHeaders.find(
+    ([n]) => n.toLowerCase() === "content-encoding",
+  );
+  const encoded =
+    enc !== undefined &&
+    enc[1].trim() !== "" &&
+    enc[1].trim().toLowerCase() !== "identity";
+  const b = d.reqBody;
+  let body: ProxyDraftBody;
+  if (b.truncated) body = { text: "", note: "cut", size: b.size };
+  else if (b.size === 0) body = { text: "", size: 0 };
+  else if (encoded) body = { text: undefined, note: "encoded", size: b.size };
+  else if (b.text === undefined)
+    body = { text: undefined, note: "binary", size: b.size };
+  else body = { text: b.text, size: b.size };
+  return {
+    from: d.id,
+    method: d.method,
+    url: flowUrl(d),
+    headers: headers.map(([n, v]) => `${n}: ${v}`).join("\n"),
+    body,
+  };
+}
+
+/**
+ * 欄に書いたヘッダー text を、名前と値の並びにする。空の行は飛ばす。`名前: 値` の形でない行があれば、その行の番号（1 から）。
+ */
+export function parseHeaders(
+  text: string,
+): { headers: [string, string][] } | { badLine: number } {
+  const headers: [string, string][] = [];
+  const lines = text.split(/\r?\n/);
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!;
+    if (line.trim() === "") continue;
+    const at = line.indexOf(":");
+    const name = at < 0 ? "" : line.slice(0, at).trim();
+    if (name === "" || /\s/.test(name)) return { badLine: i + 1 };
+    headers.push([name, line.slice(at + 1).trim()]);
+  }
+  return { headers };
 }
