@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"bufio"
 	"bytes"
 	"compress/gzip"
 	"crypto/tls"
@@ -382,5 +383,79 @@ func TestEnvPointsAtTheProxyAndTheCA(t *testing.T) {
 		if !strings.Contains(env, want) {
 			t.Errorf("env lacks %s", want)
 		}
+	}
+}
+
+// CONNECT の中に HTTP をそのまま書くクライアント（macOS の WebView の http://）も記録する。HTTP でないものは中継だけする。
+func TestConnectWithPlainHTTPInside(t *testing.T) {
+	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.WriteString(w, "plain inside")
+	}))
+	defer up.Close()
+	_, store, _, addr := startProxy(t, nil)
+	host := strings.TrimPrefix(up.URL, "http://")
+	conn, err := net.Dial("tcp", addr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	_ = conn.SetDeadline(time.Now().Add(10 * time.Second))
+	fmt.Fprintf(conn, "CONNECT %s HTTP/1.1\r\nHost: %s\r\n\r\n", host, host)
+	br := bufio.NewReader(conn)
+	resp, err := http.ReadResponse(br, nil)
+	if err != nil || resp.StatusCode != 200 {
+		t.Fatalf("CONNECT: %v %v", resp, err)
+	}
+	fmt.Fprintf(conn, "GET /inside HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", host)
+	resp, err = http.ReadResponse(br, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	if string(body) != "plain inside" {
+		t.Fatalf("body = %q", body)
+	}
+	list := waitDone(t, store, 1)
+	if list[0].Scheme != "http" || list[0].Host != host || list[0].Path != "/inside" || list[0].Status != 200 {
+		t.Errorf("flow = %+v", list[0])
+	}
+}
+
+func TestConnectWithAnotherProtocolIsOnlyRelayed(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	go func() {
+		c, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		defer c.Close()
+		buf := make([]byte, 8)
+		if _, err := io.ReadFull(c, buf); err == nil {
+			_, _ = c.Write(append([]byte("echo:"), buf...))
+		}
+	}()
+	_, store, _, addr := startProxy(t, nil)
+	conn, err := net.Dial("tcp", addr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	_ = conn.SetDeadline(time.Now().Add(10 * time.Second))
+	fmt.Fprintf(conn, "CONNECT %s HTTP/1.1\r\nHost: %s\r\n\r\n", ln.Addr(), ln.Addr())
+	br := bufio.NewReader(conn)
+	if resp, err := http.ReadResponse(br, nil); err != nil || resp.StatusCode != 200 {
+		t.Fatalf("CONNECT: %v %v", resp, err)
+	}
+	_, _ = conn.Write([]byte("SSH-2.0-"))
+	got := make([]byte, 13)
+	if _, err := io.ReadFull(br, got); err != nil || string(got) != "echo:SSH-2.0-" {
+		t.Fatalf("relayed: %q %v", got, err)
+	}
+	if n := len(store.Summaries()); n != 0 {
+		t.Errorf("recorded %d flows for a protocol that is not HTTP", n)
 	}
 }

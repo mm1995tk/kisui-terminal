@@ -8,6 +8,7 @@ package proxy
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -52,7 +53,7 @@ type Proxy struct {
 	conns     chan net.Conn // 間に入った TLS の接続を inner に渡す
 	done      chan struct{}
 	closeOnce sync.Once
-	targets   sync.Map    // 間に入った接続（net.Conn）→ CONNECT の行き先（host:port）
+	targets   sync.Map    // inner に渡した接続（net.Conn）→ tunnel
 	intercept atomic.Bool // false の間は、間に入らず・記録もせずに中継だけする
 	addr      atomic.Value
 }
@@ -63,6 +64,12 @@ const (
 	targetKey ctxKey = iota
 	exchangeKey
 )
+
+// tunnel は CONNECT の中の接続 1 本。target は CONNECT の行き先（host:port）、plain は TLS でなく HTTP がそのまま書かれているか。
+type tunnel struct {
+	target string
+	plain  bool
+}
 
 // exchange は 1 往復の、行き先と記録。
 type exchange struct {
@@ -149,17 +156,22 @@ func (p *Proxy) serveOuter(w http.ResponseWriter, r *http.Request) {
 	p.forward(w, r, "http", r.URL.Host)
 }
 
-// serveInner は、間に入った TLS の中の要求。
+// serveInner は、CONNECT の中の要求（間に入った TLS の中か、CONNECT の中にそのまま書かれた HTTP）。
 func (p *Proxy) serveInner(w http.ResponseWriter, r *http.Request) {
+	t, _ := r.Context().Value(targetKey).(tunnel)
+	scheme := "https"
+	if t.plain {
+		scheme = "http"
+	}
 	host := r.Host
 	if host == "" {
-		host, _ = r.Context().Value(targetKey).(string)
+		host = t.target
 	}
 	if host == "" {
 		http.Error(w, "kisui proxy: no host", http.StatusBadRequest)
 		return
 	}
-	p.forward(w, r, "https", host)
+	p.forward(w, r, scheme, host)
 }
 
 // forward は要求を行き先に送り、応答を返す。記録していれば Flow を足す。
@@ -334,6 +346,11 @@ func (p *Proxy) connect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil || first[0] != 0x16 { // 0x16 は TLS の handshake
+		if err == nil && p.startsWithHTTP(conn, brw.Reader) {
+			// CONNECT の中に、そのまま HTTP を書くクライアント（macOS の WebView は、http:// も CONNECT で送る）
+			p.serveTunnel(client, tunnel{target: target, plain: true})
+			return
+		}
 		up, err := net.DialTimeout("tcp", target, dialTimeout)
 		if err != nil {
 			conn.Close()
@@ -361,13 +378,35 @@ func (p *Proxy) connect(w http.ResponseWriter, r *http.Request) {
 		tc.Close()
 		return
 	}
-	p.targets.Store(net.Conn(tc), target)
+	p.serveTunnel(tc, tunnel{target: target})
+}
+
+// serveTunnel は、CONNECT の中の接続 c を、中の要求を読むサーバー（inner）に渡す。
+func (p *Proxy) serveTunnel(c net.Conn, t tunnel) {
+	p.targets.Store(c, t)
 	select {
-	case p.conns <- tc:
+	case p.conns <- c:
 	case <-p.done:
-		p.targets.Delete(net.Conn(tc))
-		tc.Close()
+		p.targets.Delete(c)
+		c.Close()
 	}
+}
+
+// httpMethods は、CONNECT の中の最初の字が HTTP の要求かを見分けるための、メソッドの名前（後ろに空白）。
+var httpMethods = [][]byte{[]byte("GET "), []byte("HEAD "), []byte("POST "), []byte("PUT "), []byte("PATCH "), []byte("DELETE "), []byte("OPTIONS ")}
+
+// startsWithHTTP は、クライアントが送ってきた最初の字が HTTP の要求の頭か（r に届いている分を、少しだけ待って見る）。
+// SSH のように、同じく英字で始まる別のプロトコルは、中身を見ずに中継する。
+func (p *Proxy) startsWithHTTP(conn net.Conn, r *bufio.Reader) bool {
+	_ = conn.SetReadDeadline(time.Now().Add(peekWait))
+	head, _ := r.Peek(8)
+	_ = conn.SetReadDeadline(time.Time{})
+	for _, m := range httpMethods {
+		if bytes.HasPrefix(head, m) {
+			return true
+		}
+	}
+	return false
 }
 
 func isTimeout(err error) bool {
