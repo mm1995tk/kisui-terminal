@@ -784,9 +784,9 @@ export const en = {
   "db.password.rejected":
     "The database refused the password for {connection} on {machine}. Type it again.",
   "db.password.rejectedKeychain":
-    "The database refused the password for {connection} on {machine} found in the keychain. Type the password to use instead.",
+    "The database refused the password found in the keychain for {connection} on {machine}. Type the password to use instead.",
   "db.password.rejectedFile":
-    "The database refused the password for {connection} on {machine} found in ~/.pgpass or ~/.my.cnf. Type the password to use instead.",
+    "The database refused the password found in ~/.pgpass or ~/.my.cnf for {connection} on {machine}. Type the password to use instead.",
   "db.password.note":
     "The window does not save it. After the login works, kisui serve on that machine keeps it in memory until it stops.",
   "db.password.reveal": "Show the password",
