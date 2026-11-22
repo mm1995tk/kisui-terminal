@@ -194,6 +194,16 @@ impl Tabs {
         ok
     }
 
+    /// tab が、その元のタブ（root）の下に残った最後のタブなら、root を返す。
+    #[cfg(target_os = "macos")]
+    fn last_of_root(&self, tab: &str) -> Option<String> {
+        let m = self.tabs.lock().unwrap_or_else(|e| e.into_inner());
+        let root = &m.get(tab)?.root;
+        m.iter()
+            .all(|(id, info)| id == tab || info.root != *root)
+            .then(|| root.clone())
+    }
+
     fn remove(&self, tab: &str) {
         self.tabs
             .lock()
@@ -222,6 +232,12 @@ enum Data {
     /// このタブだけの、ディスクに残さないデータストアに、プロキシを当てた WebView の設定
     #[cfg(target_os = "macos")]
     ProxiedIncognito(crate::browser_proxy::PrivateConfiguration),
+    /// 通信を記録するプロキシ（browser_capture.rs。#409）に通すタブ。このタブだけの、ディスクに残さないデータに、
+    /// プロキシを当てる（Linux はプロキシの URL、macOS はプロキシを当てた WebView の設定）
+    #[cfg(target_os = "linux")]
+    Captured(Url),
+    #[cfg(target_os = "macos")]
+    Captured(crate::browser_capture::Configuration),
     /// ページが開いた新しい窓。開いた元の webview と同じデータ（WebKit が決める）。
     /// incognito は元のタブがシークレットか（パスキーのスクリプトを入れるかを決める）
     Opener {
@@ -238,6 +254,9 @@ impl Data {
             Data::Incognito => true,
             #[cfg(target_os = "macos")]
             Data::ProxiedIncognito(_) => true,
+            // 共有のログインを使わないので、シークレットと同じに扱う（パスキーのスクリプトを入れない）
+            #[cfg(any(target_os = "linux", target_os = "macos"))]
+            Data::Captured(_) => true,
             Data::Opener { incognito, .. } => *incognito,
         }
     }
@@ -685,6 +704,10 @@ fn with_data(
         Data::Incognito => builder.incognito(true),
         #[cfg(target_os = "macos")]
         Data::ProxiedIncognito(c) => builder.with_webview_configuration(c.0),
+        #[cfg(target_os = "linux")]
+        Data::Captured(proxy) => crate::browser_capture::with_proxy(builder, proxy),
+        #[cfg(target_os = "macos")]
+        Data::Captured(c) => builder.with_webview_configuration(c.0),
         // 開いた元の webview と同じデータ・同じ処理の中で作る（WebKit が求める）
         Data::Opener { features, .. } => {
             #[cfg(target_os = "linux")]
@@ -727,6 +750,8 @@ fn tab_builder(
 /// `keys` はページにキーがある間も受けるキー（リーダーと近道）。`incognito` はシークレットのタブ（#204）。
 /// macOS では、初めてのタブの前に内蔵ブラウザのプロキシを用意する（browser_proxy.rs。#294。証明書の信頼を聞くことがあり、
 /// 答えを待つ）。
+/// `proxy` があれば、通信を記録するプロキシ（127.0.0.1 のそのポート。#409）に通すタブにする（browser_capture.rs）。
+/// そのタブだけの、ディスクに残さないデータを使う。通せなければ（macOS 13 以前など）、作らずに理由を返す。
 #[tauri::command]
 #[allow(clippy::too_many_arguments)]
 pub async fn browser_open(
@@ -737,6 +762,7 @@ pub async fn browser_open(
     url: String,
     keys: Vec<KeySpec>,
     incognito: bool,
+    proxy: Option<u16>,
     x: f64,
     y: f64,
     w: f64,
@@ -750,7 +776,19 @@ pub async fn browser_open(
         return Err("invalid keys".into());
     }
     let first = parse_url(&url)?;
-    let data = tab_data(&app, incognito).await;
+    let data = match proxy {
+        Some(port) => captured_data(&app, &tab, port).await?,
+        None => tab_data(&app, incognito).await,
+    };
+    // Linux の通すタブは、証明書の扱いを決めてから読み込む（browser_capture.rs の trust_and_load）。それまでは空のページ
+    #[cfg(target_os = "linux")]
+    let (first, load_later) = match proxy {
+        Some(_) => (
+            Url::parse("about:blank").map_err(|e| e.to_string())?,
+            Some(first),
+        ),
+        None => (first, None),
+    };
     let win = app
         .get_window("main")
         .ok_or_else(|| "no main window".to_string())?;
@@ -777,7 +815,30 @@ pub async fn browser_open(
         },
     );
     watch_native(&app, &v, &tab);
+    #[cfg(target_os = "linux")]
+    if let Some(url) = load_later {
+        crate::browser_capture::trust_and_load(&v, url)?;
+    }
     Ok(())
+}
+
+/// 通信を記録するプロキシ（127.0.0.1 の port。#409）に通すタブのデータの置き場。
+#[cfg(target_os = "linux")]
+async fn captured_data(_: &AppHandle, _: &str, port: u16) -> Result<Data, String> {
+    Ok(Data::Captured(crate::browser_capture::proxy_url(port)?))
+}
+
+#[cfg(target_os = "macos")]
+async fn captured_data(app: &AppHandle, tab: &str, port: u16) -> Result<Data, String> {
+    crate::browser_capture::proxy_url(port)?;
+    Ok(Data::Captured(
+        crate::browser_capture::configuration(app, tab.to_string(), port).await?,
+    ))
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "macos")))]
+async fn captured_data(_: &AppHandle, _: &str, _: u16) -> Result<Data, String> {
+    Err("the proxy is not supported on this OS".into())
 }
 
 /// 新しいタブ（ページが開いた新しい窓でないもの）のデータの置き場。
@@ -1055,6 +1116,11 @@ pub fn browser_close(
     from_main(&webview)?;
     if !valid_tab(&tab) {
         return Err("invalid tab id".into());
+    }
+    // macOS：通していたタブ（browser_capture.rs）の下のタブが全部閉じたら、そのデータストアを忘れる
+    #[cfg(target_os = "macos")]
+    if let Some(root) = tabs.last_of_root(&tab) {
+        crate::browser_capture::forget(&app, &root);
     }
     tabs.remove(&tab);
     if let Some(v) = app.get_webview(&label(&tab)) {
