@@ -198,6 +198,11 @@ export function ContentArea(props: {
             onBack={() => focusTerminal()}
             onClose={props.proxy.closePanel}
             onHelp={() => openKeyList("proxy")}
+            mac={IS_MAC}
+            onEdit={() => void props.proxy.startEdit()}
+            onDraft={props.proxy.editDraft}
+            onSend={() => void props.proxy.sendEdit()}
+            onCancelEdit={props.proxy.cancelEdit}
             focusRef={(f) => props.focusUi.setProxyFocus(f)}
           />
         )}

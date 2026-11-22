@@ -28,7 +28,8 @@ export type Place =
   | "dbResult"
   | "dbTree"
   | "dbHistory"
-  | "proxy";
+  | "proxy"
+  | "proxyEdit";
 
 /** 表の 1 行。keys は一覧に出す書き方、probes は、判定が受けるはずのキー（KeyboardEvent.key。テストで使う）。 */
 export interface PlaceKeyRow {
@@ -341,8 +342,19 @@ export const PLACE_KEYS: Record<Place, PlaceKeys> = {
         "ArrowLeft",
         "ArrowRight",
       ]),
+      row("e", T("place.proxy.edit")),
       row("Esc", T("place.proxy.back"), ["Escape"]),
       row("q", T("place.proxy.close")),
+    ],
+  },
+  // プロキシのパネルの、要求を書き換える欄（#410。パネルの e）。判定は features/proxy/keys.ts の proxyEditKey（修飾キー付きのものは
+  // probes に書けないので、keys.test.ts で確かめる）
+  proxyEdit: {
+    title: T("place.proxyEdit.title"),
+    lead: T("place.proxyEdit.lead"),
+    rows: [
+      row("Cmd+Enter / Ctrl+Enter", T("place.proxyEdit.send"), []),
+      row("Esc", T("place.proxyEdit.cancel"), ["Escape"]),
     ],
   },
   // サイドバーの DB のタブの木（#348・#374）。判定は features/db/keys.ts の dbTreeKey
@@ -455,6 +467,7 @@ const PLACES = new Set<string>([
   "dbResult",
   "dbTree",
   "proxy",
+  "proxyEdit",
 ]);
 
 /**

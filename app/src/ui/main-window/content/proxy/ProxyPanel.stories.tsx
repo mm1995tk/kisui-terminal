@@ -2,6 +2,8 @@
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
 
 import type { ProxyPanelState } from "../../../../features/proxy/controller.ts";
+import { draftFrom } from "../../../../features/proxy/model.ts";
+import { T } from "../../../../i18n/index.ts";
 import type {
   ProxyFlow,
   ProxyFlowDetail,
@@ -35,6 +37,7 @@ const flows: ProxyFlow[] = [
   }),
   flow(5, { status: 0, state: "failed", error: "dial tcp: no such host" }),
   flow(6, { status: 0, state: "pending" }),
+  flow(7, { method: "POST", status: 200, reqSize: 12, resentFrom: 2 }),
 ];
 
 const detail: ProxyFlowDetail = {
@@ -65,6 +68,7 @@ const panel = (over: Partial<ProxyPanelState> = {}): ProxyPanelState => ({
   selected: 2,
   detail: { id: 2, detail },
   side: "request",
+  edit: undefined,
   ...over,
 });
 
@@ -80,6 +84,11 @@ const meta = {
     onBack: () => {},
     onClose: () => {},
     onHelp: () => {},
+    mac: true,
+    onEdit: () => {},
+    onDraft: () => {},
+    onSend: () => {},
+    onCancelEdit: () => {},
     focusRef: () => {},
   },
   decorators: [
@@ -139,6 +148,26 @@ export const Browser: Story = {
         },
       },
       side: "response",
+    }),
+  },
+};
+
+/** 選んだ通信の要求を書き換えている（#410。パネルの e）。 */
+export const Editing: Story = {
+  args: {
+    panel: panel({ edit: { draft: draftFrom(detail), sending: false } }),
+  },
+};
+
+/** 書き換えた要求を送れなかった（ヘッダーの形が違う）。 */
+export const EditingWithError: Story = {
+  args: {
+    panel: panel({
+      edit: {
+        draft: { ...draftFrom(detail), headers: "Accept application/json" },
+        sending: false,
+        error: T("proxy.edit.badHeader", { line: 1 }),
+      },
     }),
   },
 };

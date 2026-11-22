@@ -60,6 +60,10 @@ type Proxy struct {
 	targets   sync.Map    // inner に渡した接続（net.Conn）→ tunnel
 	intercept atomic.Bool // false の間は、間に入らず・記録もせずに中継だけする
 	addr      atomic.Value
+	// resending は送り直している（Resend）通信の数。closing は Close で終わる（送り直している通信を切る）
+	resending   counter
+	closing     context.Context
+	stopClosing context.CancelFunc
 }
 
 type ctxKey int
@@ -87,6 +91,8 @@ type exchange struct {
 // New はプロキシを作る。Serve で待ち受けを始める。
 func New(o Options) *Proxy {
 	p := &Proxy{ca: o.CA, store: o.Store, conns: make(chan net.Conn), done: make(chan struct{})}
+	p.resending = newCounter(MaxResending)
+	p.closing, p.stopClosing = context.WithCancel(context.Background())
 	p.intercept.Store(true)
 	dialer := &net.Dialer{Timeout: dialTimeout, KeepAlive: 30 * time.Second}
 	p.pinned = &http.Transport{
@@ -151,6 +157,7 @@ func (p *Proxy) Serve(ln net.Listener) error {
 func (p *Proxy) Close() {
 	p.closeOnce.Do(func() {
 		close(p.done)
+		p.stopClosing()
 		_ = p.outer.Close()
 		_ = p.inner.Close()
 		p.transport.CloseIdleConnections()
@@ -207,14 +214,7 @@ func (p *Proxy) serveInner(w http.ResponseWriter, r *http.Request) {
 
 // sameAuthority は、Host ヘッダーの値 host（ポートは省ける）と、行き先 target（host:port）が同じ所か。
 func sameAuthority(host, target, scheme string) bool {
-	if _, _, err := net.SplitHostPort(host); err != nil {
-		port := "443"
-		if scheme == "http" {
-			port = "80"
-		}
-		host = net.JoinHostPort(strings.Trim(host, "[]"), port)
-	}
-	return strings.EqualFold(host, target)
+	return strings.EqualFold(withPortOf(host, scheme), target)
 }
 
 // forward は要求を行き先に送り、応答を返す。記録していれば Flow を足す。dial は、host と違う所につなぐときの行き先。
@@ -225,7 +225,7 @@ func (p *Proxy) forward(w http.ResponseWriter, r *http.Request, scheme, host, di
 	}
 	ex := &exchange{scheme: scheme, host: host, dial: dial}
 	if p.store != nil && p.intercept.Load() {
-		ex.flow = p.store.begin(r, scheme, host)
+		ex.flow = p.store.begin(r, scheme, host, dial)
 	}
 	p.rp.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), exchangeKey, ex)))
 }

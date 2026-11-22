@@ -98,7 +98,7 @@ func TestHelloAdvertisesProxy(t *testing.T) {
 	if err := c.Call(context.Background(), "session.hello", hello(Protocol.Major), &r); err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Contains(r.Capabilities, CapProxy) {
+	if !slices.Contains(r.Capabilities, CapProxy) || !slices.Contains(r.Capabilities, CapProxyResend) {
 		t.Fatalf("capabilities = %v", r.Capabilities)
 	}
 }
@@ -333,4 +333,69 @@ func TestHandoverKeepsProxyPorts(t *testing.T) {
 		}
 		return len(flows.Flows) >= 1
 	})
+}
+
+// proxy.resend：記録した通信の要求を書き換えて送ると、新しい通信として一覧に出て、応答を読める。
+func TestProxyResend(t *testing.T) {
+	up, roots := proxyUpstream(t)
+	_, sock, dir := startProxyServe(t, roots)
+	c, _ := termClient(t, sock)
+	ctx := context.Background()
+	st := proxyStart(t, c, map[string]any{"scope": "browser:tab1"})
+	resp, err := viaProxy(t, st.Port, dir).Get(up.URL + "/first")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = io.ReadAll(resp.Body)
+	resp.Body.Close()
+	var flows struct {
+		Flows []proxy.Summary `json:"flows"`
+	}
+	listFlows := func() []proxy.Summary {
+		if err := c.Call(ctx, "proxy.flows", map[string]any{"scope": st.Scope}, &flows); err != nil {
+			t.Fatal(err)
+		}
+		return flows.Flows
+	}
+	waitFor(t, "the first flow", func() bool {
+		l := listFlows()
+		return len(l) == 1 && l[0].State == proxy.StateDone
+	})
+	from := flows.Flows[0].ID
+
+	var r struct {
+		Flow proxy.Summary `json:"flow"`
+	}
+	params := map[string]any{"scope": st.Scope, "from": from, "method": "POST", "url": up.URL + "/second", "headers": [][2]string{{"X-A", "1"}}, "body": "edited"}
+	if err := c.Call(ctx, "proxy.resend", params, &r); err != nil {
+		t.Fatal(err)
+	}
+	if r.Flow.ResentFrom != from || r.Flow.Method != "POST" || r.Flow.Path != "/second" {
+		t.Fatalf("proxy.resend: %+v", r.Flow)
+	}
+	waitFor(t, "the resent flow", func() bool {
+		l := listFlows()
+		return len(l) == 2 && l[1].State == proxy.StateDone
+	})
+	var d proxy.Detail
+	if err := c.Call(ctx, "proxy.detail", map[string]any{"scope": st.Scope, "id": r.Flow.ID}, &d); err != nil {
+		t.Fatal(err)
+	}
+	if d.RespBody.Text == nil || *d.RespBody.Text != "hello from /second" || d.ReqBody.Text == nil || *d.ReqBody.Text != "edited" {
+		t.Fatalf("detail of the resent flow: %+v", d)
+	}
+
+	bad := []struct {
+		params map[string]any
+		code   int
+	}{
+		{map[string]any{"scope": "browser:none", "from": from, "method": "GET", "url": up.URL}, rpc.CodeNotFound},
+		{map[string]any{"scope": st.Scope, "from": 999, "method": "GET", "url": up.URL}, rpc.CodeNotFound},
+		{map[string]any{"scope": st.Scope, "from": from, "method": "GET", "url": "not a url"}, rpc.CodeInvalidParams},
+	}
+	for _, b := range bad {
+		if err := c.Call(ctx, "proxy.resend", b.params, nil); !isCode(err, b.code) {
+			t.Errorf("proxy.resend %v: %v", b.params, err)
+		}
+	}
 }
