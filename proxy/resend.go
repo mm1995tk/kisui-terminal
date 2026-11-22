@@ -63,15 +63,25 @@ func (p *Proxy) Resend(r Resend) (Summary, error) {
 	if !ok {
 		return Summary{}, ErrNoFlow
 	}
+	req, err := p.prepare(r, orig.body)
+	if err != nil {
+		return Summary{}, err
+	}
+	return p.sendRecorded(req, r.From)
+}
+
+// prepare は、r を確かめて、送る要求を作る（記録に残す形。ヘッダーは書いたまま）。orig は元の通信の覚えた本文
+// （r.Body が nil のときに送る）。形が違えば InvalidRequestError、元の本文が切れていれば ErrBodyCut。
+func (p *Proxy) prepare(r Resend, orig Body) (*http.Request, error) {
 	if !isToken(r.Method) {
-		return Summary{}, invalid("invalid method %q", r.Method)
+		return nil, invalid("invalid method %q", r.Method)
 	}
 	u, err := url.Parse(strings.TrimSpace(r.URL))
 	if err != nil {
-		return Summary{}, invalid("invalid URL: %v", err)
+		return nil, invalid("invalid URL: %v", err)
 	}
 	if (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
-		return Summary{}, invalid("the URL must start with http:// or https:// and have a host")
+		return nil, invalid("the URL must start with http:// or https:// and have a host")
 	}
 	u.Fragment, u.RawFragment = "", ""
 	header := http.Header{}
@@ -79,10 +89,10 @@ func (p *Proxy) Resend(r Resend) (Summary, error) {
 	for _, kv := range r.Header {
 		name, value := strings.TrimSpace(kv[0]), strings.TrimSpace(kv[1])
 		if !isToken(name) {
-			return Summary{}, invalid("invalid header name %q", name)
+			return nil, invalid("invalid header name %q", name)
 		}
 		if strings.ContainsAny(value, "\r\n\x00") {
-			return Summary{}, invalid("invalid value of the header %s", name)
+			return nil, invalid("invalid value of the header %s", name)
 		}
 		switch http.CanonicalHeaderKey(name) {
 		case "Host":
@@ -93,27 +103,17 @@ func (p *Proxy) Resend(r Resend) (Summary, error) {
 		}
 	}
 	if p.isSelf(withPort(u)) || (host != "" && p.isSelf(withPortOf(host, u.Scheme))) {
-		return Summary{}, invalid("the request points at this proxy itself")
+		return nil, invalid("the request points at this proxy itself")
 	}
-	var body []byte
+	body := orig.Data
 	if r.Body != nil {
 		body = *r.Body
-	} else {
-		if orig.body.Truncated {
-			return Summary{}, ErrBodyCut
-		}
-		body = orig.body.Data
+	} else if orig.Truncated {
+		return nil, ErrBodyCut
 	}
-
-	if !p.resending.tryAcquire() {
-		return Summary{}, ErrBusy
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	req, err := http.NewRequestWithContext(ctx, r.Method, u.String(), bytes.NewReader(body))
+	req, err := http.NewRequest(r.Method, u.String(), bytes.NewReader(body))
 	if err != nil {
-		cancel()
-		p.resending.release()
-		return Summary{}, invalid("%v", err)
+		return nil, invalid("%v", err)
 	}
 	req.Header = header
 	if host != "" {
@@ -123,10 +123,20 @@ func (p *Proxy) Resend(r Resend) (Summary, error) {
 		// 本文の無い要求（GET など）に Content-Length: 0 を付けない
 		req.Body, req.GetBody, req.ContentLength = http.NoBody, nil, 0
 	}
-	f := p.store.beginFrom(req, u.Scheme, u.Host, r.From)
+	return req, nil
+}
+
+// sendRecorded は、prepare で作った req を記録に足して（resentFrom が from）、行き先へ送り始める。応答は、別の goroutine で
+// 最後まで読んで記録する。同時に送っている数が MaxResending なら ErrBusy。プロキシを閉じると、受けている途中の応答も切る。
+func (p *Proxy) sendRecorded(req *http.Request, from int64) (Summary, error) {
+	if !p.resending.tryAcquire() {
+		return Summary{}, ErrBusy
+	}
+	f := p.store.beginFrom(req, req.URL.Scheme, req.URL.Host, from)
+	sum := p.store.summaryOf(f)
 	// 記録には書いたままのヘッダーを残し、送るヘッダーだけを整える（クライアントの通信を記録するときと同じ）
+	ctx, cancel := context.WithCancel(context.Background())
 	out := req.Clone(ctx)
-	out.Header = header.Clone()
 	if ae := out.Header.Get("Accept-Encoding"); ae != "" {
 		out.Header.Set("Accept-Encoding", narrowEncoding(ae))
 	}
@@ -134,13 +144,11 @@ func (p *Proxy) Resend(r Resend) (Summary, error) {
 		// 書いていない User-Agent を、Go の既定（Go-http-client）で足さない
 		out.Header["User-Agent"] = []string{""}
 	}
-	ex := &exchange{scheme: u.Scheme, host: u.Host, flow: f}
+	ex := &exchange{scheme: req.URL.Scheme, host: req.URL.Host, flow: f}
 	out = out.WithContext(context.WithValue(ctx, exchangeKey, ex))
-	sum := p.store.summaryOf(f)
 	go func() {
 		defer p.resending.release()
 		defer cancel()
-		// プロキシを閉じたら、受けている途中の応答も切る
 		stop := context.AfterFunc(p.closing, cancel)
 		defer stop()
 		resp, err := recorder{p}.RoundTrip(out)
