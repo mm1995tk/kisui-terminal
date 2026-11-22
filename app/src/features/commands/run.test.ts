@@ -53,6 +53,7 @@ function setup(tab: { id: string } | undefined) {
     updates: stub(),
     mascot: stub(),
     scale: stub(),
+    proxy: stub(),
     os: stub(),
     setFocusError: () => undefined,
     showToast: () => undefined,

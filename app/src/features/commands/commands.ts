@@ -78,6 +78,9 @@ export type CommandId =
   | "db.closeResult"
   | "db.elevate"
   | "db.elevateEnd"
+  | "proxy.panel"
+  | "proxy.close"
+  | "proxy.stop"
   | "help.keys";
 
 /** コマンドと、その引数（向き・番号など）。 */
@@ -479,6 +482,12 @@ export const LEADER: Node[] = [
     // 権限を、時間を決めて強める・時間の前に戻す（#383。permission の p。戻すのは Shift を足した P）
     leaf("p", T("leader.db.elevate"), { id: "db.elevate" }),
     leaf("P", T("leader.db.elevateEnd"), { id: "db.elevateEnd" }),
+  ]),
+  // プロキシ（#409。今のタブの HTTP・HTTPS の通信を記録して見る。pro**x**y の x。p はペイン）。パネルの中だけで使う操作は、場所のキー（placeKeys.ts の proxy）
+  group("x", T("leader.proxy.group"), [
+    leaf("p", T("leader.proxy.panel"), { id: "proxy.panel" }),
+    leaf("c", T("leader.proxy.close"), { id: "proxy.close" }),
+    leaf("s", T("leader.proxy.stop"), { id: "proxy.stop" }),
   ]),
   leaf("b", T("leader.sidebar"), { id: "sidebar.toggle" }),
   leaf(

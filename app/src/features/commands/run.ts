@@ -13,6 +13,7 @@ import type { BrowserTabs } from "../browser/tabsStore.ts";
 import type { DbTabs } from "../db/controller.ts";
 import type { Failure, MascotStore } from "../mascot/mascotStore.ts";
 import type { ReportProblem } from "../problem.ts";
+import type { Proxy } from "../proxy/controller.ts";
 import type { Scale } from "../scale/controller.ts";
 import type { ScaleAction } from "../scale/scale.ts";
 import type { Terminals } from "../terminal/controller.ts";
@@ -82,6 +83,7 @@ export function createCommandRunner(deps: {
   updates: Updates;
   mascot: MascotStore;
   scale: Scale;
+  proxy: Pick<Proxy, "openPanel" | "closePanel" | "stopCurrent">;
   os: Pick<BrowserOs, "navTab" | "openTabDevtools" | "startPasskeyLogin">;
   setFocusError: ReportProblem;
   /** 少しの間だけ出る短い知らせ */
@@ -494,6 +496,16 @@ export function createCommandRunner(deps: {
       }
       case "notice.focusNotified":
         focusLastNotified();
+        break;
+      case "proxy.panel":
+        // パネルを開く（まだなら、今のタブをプロキシに通し始める）。もう開いていれば、キーをパネルに向ける
+        void deps.proxy.openPanel();
+        break;
+      case "proxy.close":
+        deps.proxy.closePanel();
+        break;
+      case "proxy.stop":
+        void deps.proxy.stopCurrent();
         break;
       case "mascot.select":
         ui.openMascotPicker();

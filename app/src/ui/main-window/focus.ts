@@ -58,6 +58,7 @@ export function createFocus(deps: {
   let focusUrlBar: (() => void) | undefined;
   let focusEmpty: (() => void) | undefined;
   let focusDb: (() => void) | undefined;
+  let focusProxy: (() => void) | undefined;
 
   /** shj の Space e：フォーカスしているワークスペースなら、サイドバーのファイルツリーにキーを向ける。 */
   function focusExplorer(target: string, id: WorkspaceId) {
@@ -237,6 +238,17 @@ export function createFocus(deps: {
     /** DB のタブの SQL の入力欄にキーを向ける関数を受け取る（DbTabView。消えるときは undefined） */
     setDbFocus(f: (() => void) | undefined) {
       focusDb = f;
+    },
+    /** プロキシのパネル（#409）にキーを向ける関数を受け取る（ProxyPanel。消えるときは undefined） */
+    setProxyFocus(f: (() => void) | undefined) {
+      focusProxy = f;
+    },
+    /** プロキシのパネルにキーを向ける（開いた直後は、まだ描かれていないので、描かれるのを待つ） */
+    focusProxyPanel() {
+      queueMicrotask(() => {
+        if (focusProxy) focusProxy();
+        else requestAnimationFrame(() => focusProxy?.());
+      });
     },
     /** サイドバーの DB のタブの木（#348・#374）にキーを向ける。閉じているサイドバーは先に開く。木は DB のタブを出している間ずっとサイドバーに描かれている */
     focusDbTree: () =>

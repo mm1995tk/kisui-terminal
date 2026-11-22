@@ -135,6 +135,9 @@ export type DbMethod =
   | "db.history"
   | "db.elevate"
   | "db.elevateEnd";
+/** Session.request で送れる要求（プロキシ。#409。capabilities に "proxy" がある kisui serve だけが受ける）。 */
+export type ProxyMethod =
+  "proxy.start" | "proxy.stop" | "proxy.list" | "proxy.flows" | "proxy.detail";
 /** ターミナルの通知（F1）。method で見分ける。 */
 export type TermEvent =
   | { method: "term.output"; params: Notifications["term.output"] }
@@ -213,6 +216,9 @@ export class Session {
   private readonly termHandlers = new Set<(e: TermEvent) => void>();
 
   private readonly paneHandlers = new Set<(e: PaneEvent) => void>();
+  private readonly proxyHandlers = new Set<
+    (n: Notifications["proxy.flow"]) => void
+  >();
 
   constructor(api: ShellApi, target: string, opts: SessionOptions = {}) {
     this.api = api;
@@ -329,7 +335,8 @@ export class Session {
    * つなぎ直したら、呼ぶ側が取り直す（onState の connected で知る）。
    */
   async request<
-    M extends TreeMethod | TermMethod | BlobMethod | ShjMethod | DbMethod,
+    M extends
+      TreeMethod | TermMethod | BlobMethod | ShjMethod | DbMethod | ProxyMethod,
   >(method: M, params: Requests[M]["params"]): Promise<Requests[M]["result"]> {
     const conn = this.conn;
     if (!conn)
@@ -341,6 +348,12 @@ export class Session {
   onPane(h: (e: PaneEvent) => void): () => void {
     this.paneHandlers.add(h);
     return () => this.paneHandlers.delete(h);
+  }
+
+  /** proxy.flow（プロキシを通った通信が始まった・変わった。#409）。つなぎ直しても外れない。 */
+  onProxyFlow(h: (n: Notifications["proxy.flow"]) => void): () => void {
+    this.proxyHandlers.add(h);
+    return () => this.proxyHandlers.delete(h);
   }
 
   /** `kisui update` への答え（update.result）を今の接続で送る。つながっていなければ何もしない（serve は時間切れで断る）。 */
@@ -752,6 +765,12 @@ export class Session {
         if (typeof n?.workspaceId !== "string") return;
         for (const h of [...this.paneHandlers])
           h({ kind: "changes", workspaceId: n.workspaceId });
+      }),
+      conn.client.on("proxy.flow", (n) => {
+        if (gen !== this.generation || this.conn !== conn) return;
+        if (typeof n?.scope !== "string" || typeof n.flow?.id !== "number")
+          return;
+        for (const h of [...this.proxyHandlers]) h(n);
       }),
       ...(["term.output", "term.exit", "term.title"] as const).map((method) =>
         conn.client.on(method, (params) => {

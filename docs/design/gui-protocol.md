@@ -606,6 +606,31 @@ GUI は複数のワークスペースのツリーを（開閉の状態を持っ�
 - **TLS**：接続の `tls`（`config/db.go`）に従う。`"prefer"`（既定）は DB が TLS を出せば使い、証明書は確かめない（PostgreSQL の `sslmode=prefer`、MySQL の `tls=preferred`。どちらも標準のクライアントの既定）。`"disable"` は使わない（`sslmode=disable`・`tls=false`）。`"require"` は必ず使い、証明書は確かめない（`sslmode=require`・`tls=skip-verify`）。`"verify"` は必ず使い、証明書と、証明書のホスト名が `host` と合うかを確かめる（`sslmode=verify-full`・`tls.Config{ServerName: host}`）。確かめる認証局は `tls-ca`（PEM のファイル。絶対パスか `~` で始まるパス）で、無ければ OS の認証局（PostgreSQL は `sslrootcert=system`）。PostgreSQL では `sslrootcert` を必ず書き（確かめないときは空）、`PGSSLROOTCERT` や `~/.postgresql/root.crt` が `require` を認証局の確認に変えたり、`verify` の認証局を差し替えたりしないようにする。`tls-ca` のファイルはログインのたびに読む。Unix ソケット（`host` が `/` で始まる）では TLS を使わないので、設定で `"require"`・`"verify"` を間違いにする（書いても使われないのに、守られているように見えるため）。`tls-ca` も `"verify"` でなければ間違い（変種が受け継いだものも）。クライアントの証明書は設定に無い。
 - **ログ**：`serve.log` には、失敗した接続の名前だけを書く。SQL とパスワードは書かない。
 
+### プロキシ（HTTP・HTTPS の通信の記録。#409）
+
+窓が選んだタブの HTTP・HTTPS の通信を、`kisui serve` が動かすプロキシ（Go の `proxy` パッケージ）に通して記録し、窓のパネルに一覧と中身を出す。`session.hello` の `capabilities` に `"proxy"` がある `kisui serve` だけが受ける。作りと、決めたことの理由は `docs/design/browser-and-proxy.md` の「通信を記録するプロキシ（#409）」。
+
+- **通す単位（scope）**：単位ごとに、待ち受け口（そのマシンの `127.0.0.1` の空いているポート）と記録を 1 つずつ持つ。同時に 64 まで。
+  - ターミナルのタブ（このサーバーのワークスペース）：`proxy.start` に `workspaceId` を渡す。scope は `"ws:<ワークスペースの id>"`。通している間に開いたペイン（`term.create`・`kisui pane split`・プライマリターミナルの `term.restart`）に、プロキシと認証局の環境変数を渡す。先に開いていたペインには渡らない。
+  - 内蔵ブラウザのタブ：`proxy.start` に `scope`（窓が決めた名前。窓は `"browser:<タブの id>"` を使う）を渡す。窓が、返ったポートをプロキシにした webview を作る（手元のマシンの `kisui serve` に頼む）。
+- **記録**：単位ごとに 1000 件まで。本文は 1 つにつき先頭の 256 KiB まで（超えた分は捨てて `truncated`。通信そのものは切らない）、単位の本文の合計は 64 MiB まで。超えたら古い通信から捨てる。メモリーにだけ持ち、`kisui serve` を止める・引き継ぐと消える。
+- **引き継ぎ（`server.handover`）**：待ち受け口は fd ごと次の serve に渡す（環境変数にポートを持つペインが、引き継いだあとも通信できる）。記録と、通している最中の接続は渡さない。
+
+| メソッド | 向き | パラメータ → 結果 |
+| --- | --- | --- |
+| `proxy.start` | → shj | `{scope?, workspaceId?}`（どちらか 1 つ）→ `{scope, workspaceId?, port, recording, flows: [Flow]}`。通し始める。もう通していれば、同じ待ち受け口のまま答える（やめていたワークスペースは、記録を始め直す）。`flows` はそれまでの記録（古い順）。ワークスペースが無ければ `not_found`、`scope` も `workspaceId` も無い・`scope` の形が違う（英数字と `_` `.` `:` `-` で 64 字まで。`ws:` では始めない）なら `invalid_params`、通している数が上限なら `busy`、認証局・待ち受けを作れなければ `internal_error` |
+| `proxy.stop` | → shj | `{scope}` → `{}`。内蔵ブラウザのタブの scope は、待ち受け口を閉じて記録を捨てる。ワークスペースの scope は、新しいペインに環境変数を渡すのをやめ、待ち受け口は中身を見ず・記録もせずに中継だけを続ける（環境変数を持ったままのペインのプログラムが通信できるように。閉じるのは `workspace.close`）。scope が無ければ `not_found` |
+| `proxy.list` | → shj | `{}` → `{scopes: [{scope, workspaceId?, port, recording}]}`。`recording` が false なのは、やめたあと中継だけしているワークスペース。窓は、つないだときにこれで合わせる（ターミナルのタブは通したまま戻る。使っていない内蔵ブラウザのタブの scope は止める） |
+| `proxy.flows` | → shj | `{scope}` → `{flows: [Flow]}`（古い順）。scope が無ければ `not_found` |
+| `proxy.detail` | → shj | `{scope, id}` → `Flow` に `{protocol, reqHeaders: [[名前, 値]], respHeaders, reqBody: Body, respBody: Body}` を足したもの。ヘッダーは名前の順。その通信をもう覚えていなければ `not_found` |
+| `proxy.flow` | ← GUI | `{scope, flow: Flow}`。通信が始まった・変わった（要求の本文を送り終えた・応答のヘッダーが来た・終わった）。同じ `id` の行を置き換える |
+
+- `Flow`：`{id, time, method, scheme, host, path, status, state, error?, reqSize, respSize, durationMs, mime?}`。`id` は scope の中の通し番号（1 から）、`time` は始まった時刻（Unix のミリ秒）、`path` はパスとクエリ、`status` は応答のステータス（まだ・無いときは 0）、`state` は `pending`（応答を待っている・本文を受けている）・`done`・`failed`（行き先につながらない・行き先の証明書が正しくない・途中で切れた。理由は `error`）、`reqSize`・`respSize` は本文の通ったままの大きさ（圧縮されていれば圧縮後）、`mime` は応答の `Content-Type` の種類。
+- `Body`：`{size, truncated?, text?, binary?, encoding?}`。UTF-8 の字として読めれば `text`、読めなければ `binary: true`。`gzip`・`deflate` は展開してから見る（展開は 1 MiB まで）。展開できない圧縮（`br`・`zstd`）は `binary: true` と `encoding`。ただし、記録している間は、行き先に `gzip` だけを頼む（クライアントの `Accept-Encoding` に `gzip` があれば `gzip`、無ければ `identity` に書き換えて送る）ので、ふつうは展開できる。応答はクライアントに書き換えずに返す。記録に残す要求のヘッダーは、クライアントが送ったままのもの。
+- **プロキシの動き**：HTTP のプロキシとして待ち受ける。`CONNECT` は、最初のバイトが TLS なら、認証局で行き先の名前の証明書を作って間に入る（HTTP/2 も話す）。HTTP の要求がそのまま書かれていれば（macOS の WebView は `http://` も `CONNECT` で送る）、それも記録する。どちらでもなければ、中身を見ずに中継する。行き先へは直接つなぎ（`kisui serve` のプロセスの `HTTPS_PROXY` などは見ない）、行き先の証明書は OS の認証局で確かめる（正しくなければ 502 を返し、`state` は `failed`）。WebSocket などへの切り替え（101）は、切り替えたあとの中身を記録しない。
+- **認証局**：マシンごとに 1 つ。初めて `proxy.start` を受けたときに作り、`kisui serve` の状態のフォルダに置く：`proxy-ca-key.pem`（秘密鍵と証明書。0600。ほかの人に読める権限なら使わない）・`proxy-ca.pem`（証明書だけ）・`proxy-ca-bundle.pem`（OS の認証局の束に足したもの。束を丸ごと置き換える変数に渡す）。OS には入れない。`kisui proxy` も同じものを使う。
+- **ペインに渡す環境変数**：`HTTPS_PROXY`・`HTTP_PROXY`・`https_proxy`・`http_proxy`（`http://127.0.0.1:<ポート>`）、`SSL_CERT_FILE`・`NIX_SSL_CERT_FILE`・`CURL_CA_BUNDLE`・`REQUESTS_CA_BUNDLE`・`GIT_SSL_CAINFO`・`AWS_CA_BUNDLE`・`CARGO_HTTP_CAINFO`（束）、`NODE_EXTRA_CA_CERTS`・`DENO_CERT`（証明書だけ）。`term.create` の `env` に同じ名前があれば、そちらが勝つ。
+
 ### ssh 越しに kisui を起動する
 
 GUI はシステムの `ssh` を子プロセスとして起動する（`~/.ssh/config` と ssh-agent をそのまま使うため）。ssh がパスワードや 2 段階認証を求めるときは `SSH_ASKPASS` で GUI の窓に出す。

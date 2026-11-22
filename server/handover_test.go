@@ -56,6 +56,7 @@ func handoverChild(sock string) int {
 	srv, err := Adopt(Options{
 		SocketPath: sock, Shj: Shj{Version: "v2", Commit: "def", Channel: "stable"},
 		CwdInterval: 20 * time.Millisecond, TreeInterval: 20 * time.Millisecond, GitInterval: 50 * time.Millisecond,
+		ProxyCADir: os.Getenv(handoverProxyDirEnv),
 	}, f)
 	if err != nil {
 		return 1

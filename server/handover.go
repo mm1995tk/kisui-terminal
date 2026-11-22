@@ -81,26 +81,28 @@ type handoverMsg struct {
 
 // handoverState は古い serve から新しい serve へ渡す状態（版 1）。fd は、state の後に送る fd の並びの位置。
 type handoverState struct {
-	Version       int                          `json:"version"`
-	SocketPath    string                       `json:"socketPath"`
-	FDs           int                          `json:"fds"`      // state のあとに送る fd の数
-	Listener      int                          `json:"listener"` // serve.rpc の待ち受け
-	PrimaryPath   string                       `json:"primaryPath,omitempty"`
-	PrimaryLn     int                          `json:"primaryListener"` // serve-primary.rpc の待ち受け。無ければ -1
-	ServerID      string                       `json:"serverId"`
-	StartedAt     time.Time                    `json:"startedAt"`
-	LastClient    time.Time                    `json:"lastClient"`
-	Rev           int64                        `json:"rev"`
-	NextTerm      int                          `json:"nextTerm"`
-	NextWorkspace int                          `json:"nextWorkspace"`
-	NextExtra     int                          `json:"nextExtra"`
-	Focus         string                       `json:"focus,omitempty"`
-	Terms         []handoverTerm               `json:"terms"`
-	Workspaces    []handoverWS                 `json:"workspaces"`
-	Links         []handoverLink               `json:"links"`
-	Tree          map[string]map[string]string `json:"tree,omitempty"`
-	TreeRev       int64                        `json:"treeRev"`
-	GitRev        int64                        `json:"gitRev"`
+	Version       int            `json:"version"`
+	SocketPath    string         `json:"socketPath"`
+	FDs           int            `json:"fds"`      // state のあとに送る fd の数
+	Listener      int            `json:"listener"` // serve.rpc の待ち受け
+	PrimaryPath   string         `json:"primaryPath,omitempty"`
+	PrimaryLn     int            `json:"primaryListener"` // serve-primary.rpc の待ち受け。無ければ -1
+	ServerID      string         `json:"serverId"`
+	StartedAt     time.Time      `json:"startedAt"`
+	LastClient    time.Time      `json:"lastClient"`
+	Rev           int64          `json:"rev"`
+	NextTerm      int            `json:"nextTerm"`
+	NextWorkspace int            `json:"nextWorkspace"`
+	NextExtra     int            `json:"nextExtra"`
+	Focus         string         `json:"focus,omitempty"`
+	Terms         []handoverTerm `json:"terms"`
+	Workspaces    []handoverWS   `json:"workspaces"`
+	Links         []handoverLink `json:"links"`
+	// Proxy はプロキシの待ち受け口（#409）。足した項目で、版は上げない（無ければ、プロキシを動かしていない）
+	Proxy   []handoverProxy              `json:"proxy,omitempty"`
+	Tree    map[string]map[string]string `json:"tree,omitempty"`
+	TreeRev int64                        `json:"treeRev"`
+	GitRev  int64                        `json:"gitRev"`
 }
 
 type handoverTerm struct {
@@ -209,6 +211,7 @@ func (s *Server) leave() {
 				ptmx.Close()
 			}
 		}
+		s.proxy.shutdown() // 待ち受け口は次の serve が持っている（fd を渡した）。こちらの分だけ閉じる
 		s.wg.Wait()
 		s.log.Info("handed over")
 	})

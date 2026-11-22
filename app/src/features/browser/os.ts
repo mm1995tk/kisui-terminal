@@ -43,6 +43,8 @@ export interface BrowserOs {
   /**
    * タブ（子の webview）を作る。作るだけで、キーは向けない。keys は、ページにキーがあっても受けるキー（リーダーと近道）。
    * incognito はシークレットのタブ（#204。タブだけの、ディスクに残さないデータを使う）。
+   * proxy は、通信を記録するプロキシ（#409）の待ち受け口（手元のマシンの 127.0.0.1 のポート）。あれば、そのタブだけの、
+   * ディスクに残さないデータを使い、そのプロキシに通す webview を作る（通せなければ失敗する。macOS は 14 以降）。
    */
   openTab(
     tab: string,
@@ -50,6 +52,7 @@ export interface BrowserOs {
     keys: InterceptKey[],
     incognito: boolean,
     b: Bounds,
+    proxy?: number,
   ): Promise<void>;
   /**
    * タブで url を開くときに、ページに実際に開かせる URL（#203。殻の open_url.rs の browser_resolve_url）。

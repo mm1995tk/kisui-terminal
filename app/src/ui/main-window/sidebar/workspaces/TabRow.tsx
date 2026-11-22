@@ -86,6 +86,11 @@ function TabLines(props: { t: TabItem }): JSX.Element {
         <Show when={t().incognito}>
           <span class="tab-incognito">{T("sidebar.incognito")}</span>
         </Show>
+        <Show when={t().proxied}>
+          <span class="tab-proxied" title={T("sidebar.proxied.tip")}>
+            {T("sidebar.proxied")}
+          </span>
+        </Show>
         <span class="tab-title">{t().title}</span>
         <Show when={t().machine}>
           {(m) => (

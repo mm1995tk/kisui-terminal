@@ -240,7 +240,9 @@ func (m *termManager) start(a termStart) (*terminal, error) {
 		m.mu.Unlock()
 		return nil, rpc.Errorf(rpc.CodeBusy, "server is shutting down")
 	}
-	env := a.env
+	// プロキシに通しているワークスペース（proxy.go。#409）の新しいペインには、プロキシと認証局の環境変数を渡す
+	// （頼まれた env を後ろに置くので、同じ名前は頼まれた方が勝つ）
+	env := append(m.srv.proxy.envFor(a.wsID), a.env...)
 	// 起動する shj が自分で名乗れるように、すべての欄に渡す（値はその欄の id。KISUI_PANE と同じ。この下で振る番号）。
 	// 分割した欄は、プライマリのシェルが終わって昇格したあとに名乗れるように。昇格の前は claimShj が断る。
 	env = append(slices.Clone(env), ctl.EnvGUIPrimary+"="+fmt.Sprintf("t%d", m.next+1))
@@ -385,7 +387,7 @@ func (m *termManager) restart(t *terminal) (any, error) {
 		return nil, rpc.Errorf(rpc.CodeNotFound, "no such terminal: %s", t.id)
 	}
 	sh := term.DefaultShell()
-	args, env := bundledShell(sh, []string{ctl.EnvGUIPrimary + "=" + t.id, ctl.EnvGUIWorkspace + "=" + wsID})
+	args, env := bundledShell(sh, append(m.srv.proxy.envFor(wsID), ctl.EnvGUIPrimary+"="+t.id, ctl.EnvGUIWorkspace+"="+wsID))
 	sess, err := term.Start(term.Options{Shell: sh, Args: args, Dir: dir, Env: env, Cols: cols, Rows: rows})
 	if err != nil {
 		m.mu.Unlock()

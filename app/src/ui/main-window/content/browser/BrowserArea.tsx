@@ -45,7 +45,13 @@ interface View {
   url: string;
   /** 今見せている四角（論理ピクセル）。隠していれば null */
   shown: Bounds | null;
+  /** 作ったときのプロキシの待ち受け口（#409。通していなければ undefined）。タブのものと違ったら、作り直す */
+  proxy: number | undefined;
 }
+
+/** 殻が「まだ前の webview が残っている」と断ったときに、待って作り直す回数と間隔（プロキシを替えて作り直すとき）。 */
+const REOPEN_TRIES = 20;
+const REOPEN_WAIT_MS = 50;
 
 /** 上の端に出ていて、ページの上の端を下げるもの（URL バー。#232） */
 const TOP_SELECTOR = "[data-overlay-top]";
@@ -193,8 +199,9 @@ export function BrowserArea(props: {
     void focusTab(id).catch(() => {});
   }
 
-  async function create(tab: BrowserTab, b: Bounds | null) {
-    const v: View = { state: "opening", url: tab.url, shown: null };
+  async function create(tab: BrowserTab, b: Bounds | null, reopen = false) {
+    const proxy = tab.proxy?.port;
+    const v: View = { state: "opening", url: tab.url, shown: null, proxy };
     views.set(tab.id, v);
     refreshStatus();
     // 隠すときも、いったん場所の四角で作る（次の見回りで隠す）
@@ -202,7 +209,17 @@ export function BrowserArea(props: {
     try {
       const url = await props.resolve(tab, tab.url);
       if (disposed || views.get(tab.id) !== v) return;
-      await openTab(tab.id, url, props.keys(), !!tab.incognito, at);
+      for (let tries = 1; ; tries++) {
+        try {
+          await openTab(tab.id, url, props.keys(), !!tab.incognito, at, proxy);
+          break;
+        } catch (e) {
+          // 作り直すとき、殻が前の webview を壊し終えるまで少しかかる。その間は「もう開いている」と断られるので、待って試し直す
+          if (!reopen || tries >= REOPEN_TRIES) throw e;
+          await new Promise((r) => setTimeout(r, REOPEN_WAIT_MS));
+          if (disposed || views.get(tab.id) !== v) return;
+        }
+      }
     } catch (e) {
       if (views.get(tab.id) !== v) return;
       v.state = "failed";
@@ -231,12 +248,36 @@ export function BrowserArea(props: {
     refreshStatus();
   }
 
+  /**
+   * タブのプロキシ（#409）が替わった（通し始めた・やめた）。webview を壊して、新しいプロキシで作り直す（ページを読み直す）。
+   * プロキシは webview を作るときにしか決められない。
+   */
+  async function recreate(tab: BrowserTab, b: Bounds | null) {
+    // 壊している間、見回り（tick）が触らないよう、先に「開いている途中」にする（create が自分の View に置き換える）
+    const closing: View = {
+      state: "opening",
+      url: tab.url,
+      shown: null,
+      proxy: tab.proxy?.port,
+    };
+    views.set(tab.id, closing);
+    refreshStatus();
+    await closeTabView(tab.id).catch(() => {});
+    if (disposed || views.get(tab.id) !== closing) return;
+    await create(tab, b, true);
+  }
+
   // 閉じたタブの webview を壊す。殻がもう作ってあるタブ（ページが開いた新しい窓。#204）は、作らずにそのまま使う
   // （殻は隠して渡すので、出すタブなら見回り（tick）が置いて見せる）
   createEffect(() => {
     for (const t of props.tabs)
       if (t.made && !views.has(t.id))
-        views.set(t.id, { state: "open", url: t.url, shown: null });
+        views.set(t.id, {
+          state: "open",
+          url: t.url,
+          shown: null,
+          proxy: t.proxy?.port,
+        });
     refreshStatus();
     const alive = new Set(props.tabs.map((t) => t.id));
     for (const [id, v] of [...views]) {
@@ -298,12 +339,22 @@ export function BrowserArea(props: {
       floatingNow = floating;
       setHidden(b === null);
       const v = views.get(tab.id);
-      // 開けなかったタブは、URL を書き換えたら（o u）作り直す
-      if (!v || (v.state === "failed" && v.url !== tab.url)) {
+      // 開けなかったタブは、URL を書き換えたら（o u）・プロキシを替えたら、作り直す
+      if (
+        !v ||
+        (v.state === "failed" &&
+          (v.url !== tab.url || v.proxy !== tab.proxy?.port))
+      ) {
         void create(tab, b);
         return;
       }
       if (v.state !== "open") return;
+      // プロキシ（#409）を替えたら、作り直す
+      if (v.proxy !== tab.proxy?.port) {
+        releaseLayer();
+        void recreate(tab, b);
+        return;
+      }
       if (b === null) {
         releaseLayer();
         hide(tab.id, v);

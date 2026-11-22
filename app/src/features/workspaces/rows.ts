@@ -293,6 +293,8 @@ export interface TabItem {
   tip: string;
   /** シークレットのタブか */
   incognito: boolean;
+  /** プロキシ（#409）に通しているタブか（通していれば true。題の前に札を出す） */
+  proxied?: boolean;
   /** ブラウザのタブのページの favicon（#237。PNG の data: URL）。無ければ地球のアイコン */
   favicon?: string;
   /** ターミナルのタブ・DB のタブのマシン（札に出す。ブラウザのタブは undefined） */
@@ -335,6 +337,8 @@ export interface RowContext {
   labelOf: (target: string) => string;
   colorOf: (target: string) => string;
   healthOf: (target: string) => Health;
+  /** ターミナルのタブ（マシンのワークスペース）を、プロキシ（#409）に通しているか。省くと、通していない */
+  proxiedTerm?: (target: string, ws: WorkspaceId) => boolean;
 }
 
 /**
@@ -471,6 +475,7 @@ function termItem(r: TermRef, ctx: RowContext): TabItem {
     git,
     tip: tw?.folder ?? "",
     incognito: false,
+    ...(ctx.proxiedTerm?.(r.target, r.ws) ? { proxied: true } : {}),
     machine: {
       name: ctx.labelOf(r.target),
       color: ctx.colorOf(r.target),
@@ -496,6 +501,7 @@ function browserItem(r: BrowserRef, ctx: RowContext): TabItem | undefined {
     git: "",
     tip: t.url,
     incognito: !!t.incognito,
+    ...(t.proxy ? { proxied: true } : {}),
     ...(t.favicon ? { favicon: t.favicon } : {}),
     closable: true,
   };
