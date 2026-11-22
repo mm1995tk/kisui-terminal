@@ -54,6 +54,8 @@ function Body(props: { body: ProxyBody }): JSX.Element {
 function Side(props: {
   headers: [string, string][];
   body: ProxyBody;
+  /** 止めている要求の本文を、kisui serve が読んでいない（#411） */
+  unread?: boolean;
 }): JSX.Element {
   return (
     <>
@@ -69,7 +71,12 @@ function Side(props: {
         </For>
       </dl>
       <h3 class={styles.section}>{T("proxy.body")}</h3>
-      <Body body={props.body} />
+      <Show
+        when={!props.unread}
+        fallback={<p class={styles.note}>{T("proxy.body.unread")}</p>}
+      >
+        <Body body={props.body} />
+      </Show>
     </>
   );
 }
@@ -124,11 +131,14 @@ export function FlowDetail(props: {
             {T("proxy.resentFrom", { id: f().resentFrom ?? 0 })}
           </p>
         </Show>
+        <Show when={props.side === "request" && f().edited}>
+          <p class={`${styles.line} ${styles.resent}`}>{T("proxy.edited")}</p>
+        </Show>
         <p class={styles.line}>
           {props.side === "request"
             ? `${f().method} ${flowUrl(f())}`
             : `${statusText(f())} · ${formatTime(f().time)}${
-                f().state === "pending"
+                f().state === "pending" || f().state === "held"
                   ? ""
                   : ` · ${formatDuration(f().durationMs)}`
               }`}
@@ -152,7 +162,11 @@ export function FlowDetail(props: {
               when={props.side === "request"}
               fallback={<Side headers={d().respHeaders} body={d().respBody} />}
             >
-              <Side headers={d().reqHeaders} body={d().reqBody} />
+              <Side
+                headers={d().reqHeaders}
+                body={d().reqBody}
+                unread={d().state === "held" && d().reqBodyUnread}
+              />
             </Show>
           )}
         </Show>

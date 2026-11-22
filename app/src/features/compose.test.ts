@@ -51,8 +51,12 @@ interface Serve {
       recording: boolean;
       workspaceId?: string;
       flows: ProxyFlow[];
+      /** 要求を止めるのを入れているか（#411） */
+      holding?: boolean;
     }
   >;
+  /** 受けた proxy.release のパラメータ（#411。届いた順） */
+  released: Record<string, unknown>[];
 }
 
 /** 偽の殻。つなぎ先（target）ごとに Serve を 1 つ持ち、JSON-RPC の要求に答える。 */
@@ -93,6 +97,7 @@ function fakeShell(
         methods: [],
         notify: (method, params) => emit({ jsonrpc: "2.0", method, params }),
         proxy: new Map(),
+        released: [],
       };
       serves.set(target, s);
     }
@@ -171,6 +176,7 @@ function fakeShell(
               port: p.port,
               recording: p.recording,
               workspaceId: p.workspaceId,
+              holding: p.holding ?? false,
             })),
           });
           break;
@@ -208,6 +214,38 @@ function fakeShell(
         case "proxy.flows":
           reply({ flows: s.proxy.get(msg.params.scope)?.flows ?? [] });
           break;
+        case "proxy.hold": {
+          const p = s.proxy.get(msg.params.scope);
+          if (!p) fail(`no such proxy: ${msg.params.scope}`);
+          else {
+            p.holding = msg.params.on;
+            reply({ holding: p.holding });
+          }
+          break;
+        }
+        case "proxy.release": {
+          const f = s.proxy
+            .get(msg.params.scope)
+            ?.flows.find((x) => x.id === msg.params.id);
+          if (!f || f.state !== "held")
+            fail(`the request is not held: ${msg.params.id}`);
+          else {
+            s.released.push(msg.params);
+            // 流した・捨てた通信は、知らせで進む
+            Object.assign(
+              f,
+              msg.params.action === "drop"
+                ? { state: "failed", error: "dropped in the proxy panel" }
+                : { state: "pending", edited: msg.params.action === "edit" },
+            );
+            s.notify("proxy.flow", {
+              scope: msg.params.scope,
+              flow: { ...f },
+            });
+            reply({});
+          }
+          break;
+        }
         case "proxy.detail": {
           const f = s.proxy
             .get(msg.params.scope)
@@ -765,6 +803,101 @@ describe("機能の持ち物のつなぎ（compose.ts）", () => {
     f.commands.runCommand({ id: "proxy.stop" });
     await settle();
     assert.notEqual(f.focusError(), null);
+  });
+
+  it("プロキシ：要求を止めるのを入れると、止まった要求が選ばれ、流す・書き換えて流す・捨てるを kisui serve に頼む。パネルを閉じると、止めるのをやめる（#411）", async () => {
+    const { f, ui, serve } = start({
+      serves: {
+        [LOCAL]: {
+          ids: ["a"],
+          focus: "a",
+          capabilities: ["proxy", "proxy.resend", "proxy.hold"],
+        },
+      },
+    });
+    await settle();
+    // 通していないタブでは、できないと知らせる
+    f.commands.runCommand({ id: "proxy.hold" });
+    await settle();
+    assert.notEqual(f.focusError(), null);
+    assert.ok(!serve(LOCAL).methods.includes("proxy.hold"));
+
+    f.commands.runCommand({ id: "proxy.panel" });
+    await settle();
+    f.commands.runCommand({ id: "proxy.close" });
+    assert.equal(f.proxy.panel(), undefined);
+    // パネルを閉じていても、リーダーから入れられる。入れると、パネルが開く
+    ui.length = 0;
+    f.commands.runCommand({ id: "proxy.hold" });
+    await settle();
+    const sc = serve(LOCAL).proxy.get("ws:a")!;
+    assert.equal(sc.holding, true);
+    assert.equal(f.proxy.panel()?.scope.holding, true);
+    assert.ok(ui.includes("focusProxyPanel"));
+
+    // 止まった要求が届くと、それが選ばれる
+    const held = (id: number) => flow(id, { status: 0, state: "held" });
+    const arrive = (id: number) => {
+      sc.flows.push(held(id));
+      serve(LOCAL).notify("proxy.flow", { scope: "ws:a", flow: held(id) });
+    };
+    arrive(1);
+    await settle();
+    assert.equal(f.proxy.panel()?.selected, 1);
+    // 止めている要求を選んでいる間は、次に止まった要求に選び直さない
+    arrive(2);
+    arrive(3);
+    await settle();
+    assert.equal(f.proxy.panel()?.selected, 1);
+
+    // そのまま流す。次に古い、止めている要求が選ばれる
+    await f.proxy.releaseHeld("forward");
+    await settle();
+    assert.deepEqual(serve(LOCAL).released, [
+      { scope: "ws:a", id: 1, action: "forward" },
+    ]);
+    assert.equal(f.proxy.panel()?.scope.flows[0]?.state, "pending");
+    assert.equal(f.proxy.panel()?.selected, 2);
+
+    // 書き換えて流す：欄を開いて送ると、送り直すのではなく、止めた要求を書き換えて流す
+    await f.proxy.startEdit();
+    assert.equal(f.proxy.panel()?.edit?.held, true);
+    f.proxy.editDraft({ url: "https://example.com/edited" });
+    await f.proxy.sendEdit();
+    await settle();
+    assert.deepEqual(serve(LOCAL).released[1], {
+      scope: "ws:a",
+      id: 2,
+      action: "edit",
+      method: "GET",
+      url: "https://example.com/edited",
+      headers: [["Accept", "*/*"]],
+      body: "",
+    });
+    assert.ok(!serve(LOCAL).methods.includes("proxy.resend"));
+    assert.equal(f.proxy.panel()?.edit, undefined);
+    assert.equal(f.proxy.panel()?.scope.flows[1]?.edited, true);
+    assert.equal(f.proxy.panel()?.selected, 3);
+
+    // 捨てる。ほかに止めている要求が無ければ、選んだまま
+    await f.proxy.releaseHeld("drop");
+    await settle();
+    assert.equal(serve(LOCAL).released[2]?.action, "drop");
+    assert.equal(f.proxy.panel()?.selected, 3);
+    assert.equal(f.proxy.panel()?.scope.flows[2]?.state, "failed");
+    // 止めていない通信は、流せないと知らせる
+    const before = f.focusError();
+    await f.proxy.releaseHeld("forward");
+    assert.notDeepEqual(f.focusError(), before);
+    assert.equal(serve(LOCAL).released.length, 3);
+
+    // パネルを閉じると、止めるのをやめる
+    f.commands.runCommand({ id: "proxy.close" });
+    await settle();
+    assert.equal(sc.holding, false);
+    f.commands.runCommand({ id: "proxy.panel" });
+    await settle();
+    assert.equal(f.proxy.panel()?.scope.holding, false);
   });
 
   it("プロキシ：ブラウザのタブでパネルを開くと、そのタブに待ち受け口が付く（画面が webview を作り直す）。タブを閉じると止める", async () => {

@@ -202,6 +202,8 @@ export function ContentArea(props: {
             onDraft={props.proxy.editDraft}
             onSend={() => void props.proxy.sendEdit()}
             onCancelEdit={props.proxy.cancelEdit}
+            onHold={() => void props.proxy.toggleHold()}
+            onRelease={(action) => void props.proxy.releaseHeld(action)}
             focusRef={(f) => props.focusUi.setProxyFocus(f)}
           />
         )}

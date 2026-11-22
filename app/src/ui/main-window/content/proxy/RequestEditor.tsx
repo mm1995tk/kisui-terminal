@@ -1,4 +1,4 @@
-// プロキシのパネル（#409）の下の段で、選んだ通信の要求を書き換えて送り直す欄（#410）。メソッド・URL・ヘッダー・本文を書き換え、
+// プロキシのパネル（#409）の下の段で、選んだ通信の要求を書き換えて送り直す欄（#410）。止めている要求（#411）なら、書き換えて流す。メソッド・URL・ヘッダー・本文を書き換え、
 // Cmd+Enter（macOS）・Ctrl+Enter（ほか）で送る。何を送るか・送ったあとのことは features/proxy/controller.ts。
 // 欄の中のキーは場所のキー（features/proxy/keys.ts の proxyEditKey。`?` の一覧は placeKeys.ts の proxyEdit）。
 import { onCleanup, Show, type JSX } from "solid-js";
@@ -28,6 +28,11 @@ export function RequestEditor(props: {
   onCleanup(() => props.focusRef(undefined));
 
   const draft = () => props.edit.draft;
+  /** 欄の題。止めている要求（#411）は、送り直すのではなく、書き換えて流す */
+  const title = () =>
+    props.edit.held
+      ? T("proxy.edit.heldTitle", { id: draft().from })
+      : T("proxy.edit.title", { id: draft().from });
   const sendKey = () => (props.mac ? "Cmd+Enter" : "Ctrl+Enter");
 
   function onKeyDown(e: KeyboardEvent) {
@@ -49,6 +54,8 @@ export function RequestEditor(props: {
         return T("proxy.edit.body.encoded", { size: formatSize(b.size) });
       case "cut":
         return T("proxy.edit.body.cut", { size: formatSize(b.size) });
+      case "unread":
+        return T("proxy.edit.body.unread");
     }
     return undefined;
   };
@@ -58,13 +65,11 @@ export function RequestEditor(props: {
       class={styles.editor}
       data-place="proxyEdit"
       role="form"
-      aria-label={T("proxy.edit.title", { id: draft().from })}
+      aria-label={title()}
       onKeyDown={onKeyDown}
     >
       <div class={styles.editHead}>
-        <span class={styles.section}>
-          {T("proxy.edit.title", { id: draft().from })}
-        </span>
+        <span class={styles.section}>{title()}</span>
         <span class={styles.editActions}>
           <Button onClick={props.onCancel}>{T("proxy.edit.cancel")}</Button>
           <Button
@@ -74,7 +79,9 @@ export function RequestEditor(props: {
           >
             {props.edit.sending
               ? T("proxy.edit.sending")
-              : T("proxy.edit.send", { key: sendKey() })}
+              : props.edit.held
+                ? T("proxy.edit.forward", { key: sendKey() })
+                : T("proxy.edit.send", { key: sendKey() })}
           </Button>
         </span>
       </div>

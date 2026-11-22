@@ -135,7 +135,7 @@ export type DbMethod =
   | "db.history";
 /**
  * Session.request で送れる要求（プロキシ。#409。capabilities に "proxy" がある kisui serve だけが受ける。proxy.resend（#410）は
- * "proxy.resend" がある kisui serve だけ）。
+ * "proxy.resend"、proxy.hold・proxy.release（#411）は "proxy.hold" がある kisui serve だけ）。
  */
 export type ProxyMethod =
   | "proxy.start"
@@ -143,7 +143,9 @@ export type ProxyMethod =
   | "proxy.list"
   | "proxy.flows"
   | "proxy.detail"
-  | "proxy.resend";
+  | "proxy.resend"
+  | "proxy.hold"
+  | "proxy.release";
 /** ターミナルの通知（F1）。method で見分ける。 */
 export type TermEvent =
   | { method: "term.output"; params: Notifications["term.output"] }

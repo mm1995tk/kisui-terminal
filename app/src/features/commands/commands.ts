@@ -79,6 +79,7 @@ export type CommandId =
   | "proxy.panel"
   | "proxy.close"
   | "proxy.stop"
+  | "proxy.hold"
   | "help.keys";
 
 /** コマンドと、その引数（向き・番号など）。 */
@@ -483,6 +484,8 @@ export const LEADER: Node[] = [
     leaf("p", T("leader.proxy.panel"), { id: "proxy.panel" }),
     leaf("c", T("leader.proxy.close"), { id: "proxy.close" }),
     leaf("s", T("leader.proxy.stop"), { id: "proxy.stop" }),
+    // 要求を、行き先に送る前に止める・止めるのをやめる（#411。intercept の i）
+    leaf("i", T("leader.proxy.hold"), { id: "proxy.hold" }),
   ]),
   leaf("b", T("leader.sidebar"), { id: "sidebar.toggle" }),
   leaf(
