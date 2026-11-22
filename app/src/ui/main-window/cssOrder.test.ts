@@ -123,6 +123,8 @@ describe("メインウィンドウの CSS の並び", () => {
       "ui/main-window/content/EmptyWorkspace.module.css",
       // DB のタブの画面（#347。CSS Modules なので、クラス名はほかと重ならない）
       "ui/main-window/content/db/DbTabView.module.css",
+      // プロキシのパネル（#409。CSS Modules なので、クラス名はほかと重ならない）
+      "ui/main-window/content/proxy/ProxyPanel.module.css",
       // エージェントの SQL で上書きしてよいかを聞く窓（#382。CSS Modules なので、クラス名はほかと重ならない）
       "ui/main-window/db/DbProposeDialog.module.css",
     ]);

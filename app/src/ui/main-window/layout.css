@@ -93,3 +93,13 @@ a {
 .resizer[data-lit] {
   background: var(--machine-color, var(--gh-accent-text));
 }
+
+/* プロキシのパネル（#409。content/proxy/ProxyPanel.module.css）を開いている間は、右のペインを左右に分ける：
+   パネルが右の --proxy-panel-w を使い、ターミナルは左に縮む（内蔵ブラウザのページは browser.css） */
+.main[data-proxy-panel] {
+  --proxy-panel-w: clamp(280px, 45%, 70%);
+}
+
+.main[data-proxy-panel] > .terminal {
+  margin-right: var(--proxy-panel-w);
+}

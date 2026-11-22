@@ -13,8 +13,15 @@ import type {
 
 /** BrowserOs の本物。殻の `browser_*`・`download_*` の命令と `browser-*` の知らせを呼ぶ。 */
 export const tauriBrowser: BrowserOs = {
-  openTab: (tab, url, keys, incognito, b) =>
-    invoke("browser_open", { tab, url, keys, incognito, ...b }),
+  openTab: (tab, url, keys, incognito, b, proxy) =>
+    invoke("browser_open", {
+      tab,
+      url,
+      keys,
+      incognito,
+      proxy: proxy ?? null,
+      ...b,
+    }),
   resolveTabUrl: (target, url) =>
     invoke("browser_resolve_url", { target, url }),
   moveTab: (tab, b) => invoke("browser_bounds", { tab, ...b }),

@@ -18,6 +18,7 @@ import { setLang } from "../../i18n/index.ts";
 import { imageKey } from "../../ui/main-window/content/media/imageView.ts";
 import { videoKey } from "../terminal/media.ts";
 import { treeKey } from "../file-tree/keys.ts";
+import { proxyPanelKey } from "../proxy/keys.ts";
 import {
   dbEditorKey,
   dbHistoryKey,
@@ -117,6 +118,12 @@ describe("場所のキーの表は、その場所の判定と合っている", (
     for (const r of PLACE_KEYS.dbTree.rows)
       for (const p of r.probes)
         assert.notEqual(dbTreeKey(ev(p)), null, `${r.keys}: ${p}`);
+  });
+
+  it("プロキシのパネル（#409）：表のキーは、どれも判定が受ける", () => {
+    for (const r of PLACE_KEYS.proxy.rows)
+      for (const p of r.probes)
+        assert.notEqual(proxyPanelKey(ev(p)), null, `${r.keys}: ${p}`);
   });
 
   it("DB のタブの履歴の窓（#349）：表のキーは、絞り込みが空のとき、どれも判定が受ける", () => {

@@ -168,6 +168,7 @@ function MainWindow(props: {
     downloads,
     tabs,
     scale,
+    proxy,
     commands,
   } = createFeatures({
     ports,
@@ -188,6 +189,7 @@ function MainWindow(props: {
       copyToClipboard,
       showScale,
       showToast,
+      focusProxyPanel: () => focusUi.focusProxyPanel(),
     },
     commandUi: {
       toggleResizeMode: () => resize.setResizeMode(!resize.resizeMode()),
@@ -356,6 +358,7 @@ function MainWindow(props: {
           browserTabs={browserTabs}
           pages={pages}
           db={db}
+          proxy={proxy}
           labelOf={sessions.labelOf}
           bookmarks={bookmarks}
           focusUi={focusUi}

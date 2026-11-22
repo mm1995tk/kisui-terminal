@@ -76,6 +76,9 @@ export type CommandId =
   | "db.view"
   | "db.result"
   | "db.closeResult"
+  | "proxy.panel"
+  | "proxy.close"
+  | "proxy.stop"
   | "help.keys";
 
 /** コマンドと、その引数（向き・番号など）。 */
@@ -474,6 +477,12 @@ export const LEADER: Node[] = [
       },
     ),
     leaf("x", T("leader.db.closeResult"), { id: "db.closeResult" }),
+  ]),
+  // プロキシ（#409。今のタブの HTTP・HTTPS の通信を記録して見る。pro**x**y の x。p はペイン）。パネルの中だけで使う操作は、場所のキー（placeKeys.ts の proxy）
+  group("x", T("leader.proxy.group"), [
+    leaf("p", T("leader.proxy.panel"), { id: "proxy.panel" }),
+    leaf("c", T("leader.proxy.close"), { id: "proxy.close" }),
+    leaf("s", T("leader.proxy.stop"), { id: "proxy.stop" }),
   ]),
   leaf("b", T("leader.sidebar"), { id: "sidebar.toggle" }),
   leaf(

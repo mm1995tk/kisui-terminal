@@ -2,6 +2,7 @@
 // 内蔵ブラウザのタブを出していれば、その場所すべてがそのページになる（browser/。URL バー・新しいタブのページ・ページ内検索もここに重ねる）。
 // 空のワークスペース（#307）を選んでいる間は、タブが無いことを伝える画面（EmptyWorkspace.tsx）で覆う。
 // DB のタブ（#347）を出している間は、その画面（db/DbTabView.tsx）で覆う。
+// プロキシのパネル（#409）を開いているタブでは、場所を左右に分け、右にパネル（proxy/ProxyPanel.tsx）を出す（左のターミナル・ページは縮む）。
 import { Show, type JSX } from "solid-js";
 
 import type { Bookmarks } from "../../../features/browser/bookmarksStore.ts";
@@ -15,10 +16,11 @@ import {
 } from "../../../features/commands/commands.ts";
 import { IS_MAC } from "../../../features/commands/guiKeys.ts";
 import type { ReportProblem } from "../../../features/problem.ts";
+import type { Proxy } from "../../../features/proxy/controller.ts";
 import type { Terminals } from "../../../features/terminal/controller.ts";
 import type { FocusUi } from "../focus.ts";
 import { usePorts } from "../../ports.ts";
-// CSS を持つ部品の import は、この順（ブラウザ → リーダーの案内 → ターミナル → 空のワークスペース → DB のタブ）を変えない（理由は page.tsx）
+// CSS を持つ部品の import は、この順（ブラウザ → リーダーの案内 → ターミナル → 空のワークスペース → DB のタブ → プロキシのパネル）を変えない（理由は page.tsx）
 import { BrowserArea } from "./browser/BrowserArea.tsx";
 import { FindBar } from "./browser/FindBar.tsx";
 import { NewTabPage } from "./browser/NewTabPage.tsx";
@@ -27,6 +29,8 @@ import { leaderPath } from "../commands/LeaderMenu.tsx";
 import { TerminalGrid } from "./terminal/TerminalGrid.tsx";
 import { EmptyWorkspace } from "./EmptyWorkspace.tsx";
 import { DbTabView } from "./db/DbTabView.tsx";
+import { openKeyList } from "../commands/KeyListDialog.tsx";
+import { ProxyPanel } from "./proxy/ProxyPanel.tsx";
 
 /** 右のペイン。ターミナルのグリッドと、内蔵ブラウザを使うときはブラウザのページ（URL バー・新しいタブのページ・ページ内検索）を出す。 */
 export function ContentArea(props: {
@@ -40,6 +44,8 @@ export function ContentArea(props: {
   browserTabs: BrowserTabs;
   pages: Pages;
   db: DbTabs;
+  /** プロキシのパネル（#409） */
+  proxy: Proxy;
   /** マシンの名前 */
   labelOf: (target: string) => string;
   bookmarks: Bookmarks;
@@ -78,7 +84,11 @@ export function ContentArea(props: {
   const { bookmarks, chromeBookmarks } = props.bookmarks;
   const { focusTerminal } = props.focusUi;
   return (
-    <div class="main" ref={props.ref}>
+    <div
+      class="main"
+      ref={props.ref}
+      data-proxy-panel={props.proxy.panel() ? "" : undefined}
+    >
       <TerminalGrid
         links={termList()}
         layout={termLayout()}
@@ -175,6 +185,21 @@ export function ContentArea(props: {
             />
           );
         }}
+      </Show>
+      <Show when={props.proxy.panel()}>
+        {(panel) => (
+          <ProxyPanel
+            panel={panel()}
+            machine={props.labelOf(panel().scope.target)}
+            onSelect={props.proxy.select}
+            onStep={props.proxy.step}
+            onSide={props.proxy.toggleSide}
+            onBack={() => focusTerminal()}
+            onClose={props.proxy.closePanel}
+            onHelp={() => openKeyList("proxy")}
+            focusRef={(f) => props.focusUi.setProxyFocus(f)}
+          />
+        )}
       </Show>
       <Show when={props.empty}>
         <EmptyWorkspace

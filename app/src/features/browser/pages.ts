@@ -199,6 +199,8 @@ export function createPages(deps: {
       url: unrelay(e.url, r),
       title: "",
       incognito: from.incognito,
+      // 開いた元と同じデータを使うので、元がプロキシ（#409）に通していれば、同じプロキシに通る
+      proxy: from.proxy,
       opener: from.id,
       made: true,
     };
