@@ -653,7 +653,9 @@ export interface Requests {
    * scope の要求を、行き先に送る前に止めるかを切り替える（#411）。capabilities に "proxy.hold" がある kisui serve だけが受ける。
    * 入れている間、クライアント（ページ・シェルのプログラム）の要求は、state が held の通信として記録に出て（proxy.flow で知らせる）、
    * proxy.release を待つ。止めるのは要求だけ（応答と、proxy.resend の要求は止めない）。on を false にすると、止めていた要求は
-   * そのまま流れる。窓の接続が切れたとき・通すのをやめたとき（proxy.stop）も、同じように流れて、止めるのをやめる。
+   * そのまま流れる。窓の接続が切れたとき・ワークスペースの scope を通すのをやめたとき（proxy.stop）も、同じように流れて、止めるのをやめる。
+   * 待ち受け口を閉じるとき（内蔵ブラウザのタブの scope の proxy.stop・ワークスペースを閉じる・kisui serve の終了と引き継ぎ）は、
+   * 流さずに接続ごと切る（その通信は failed）。
    * 断られ方：not_found（scope が無い・やめたあと中継だけしている）
    */
   "proxy.hold": {

@@ -197,7 +197,9 @@ func (p *Proxy) holdRequest(w http.ResponseWriter, r *http.Request, ex *exchange
 
 // readHeldBody は、止める要求 r の本文を、大きさが分かっていて MaxBody までなら、先に読む（パネルで見て書き換えられる
 // ように。r.Body は、読んだものを読み直せるものに替える）。大きさが分からない（終わらないかもしれない）・大きい本文は
-// 読まない（unread。そのまま流す）。読めなければ、400 を答えて false。
+// 読まない（unread。そのまま流す）。HTTP/1.1 では、本文を読み終えるまで net/http が接続の切れたのを見張らないので、
+// 読まずに止めた要求は、クライアントが待つのをやめても held のまま残る（流す・捨てる・止めるのをやめると片付く）。
+// 読めなければ、400 を答えて false。
 func readHeldBody(w http.ResponseWriter, r *http.Request) (*heldRequest, bool) {
 	hr := &heldRequest{decide: make(chan decision, 1)}
 	switch {
