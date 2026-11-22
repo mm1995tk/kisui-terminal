@@ -146,26 +146,59 @@ func (p *Proxy) holdRequest(w http.ResponseWriter, r *http.Request, ex *exchange
 	h.mu.Lock()
 	on, off := h.on, h.off
 	h.mu.Unlock()
-	if !on {
+	begin := func() (*http.Request, bool) {
 		ex.flow = p.store.begin(r, ex.scheme, ex.host, ex.dial)
 		return r, true
 	}
-	ctx := r.Context()
+	if !on {
+		return begin()
+	}
 	// 止めている数が上限なら、空くまで待つ
 	select {
 	case h.slots.ch <- struct{}{}:
 	case <-off:
-		ex.flow = p.store.begin(r, ex.scheme, ex.host, ex.dial)
-		return r, true
-	case <-ctx.Done():
+		return begin()
+	case <-r.Context().Done():
 		return nil, false
 	case <-p.done:
 		panic(http.ErrAbortHandler)
 	}
 	defer h.slots.release()
 
-	// 本文は、大きさが分かっていて MaxBody までなら、先に読む（パネルで見て書き換えられるように）。
-	// 大きさが分からない（終わらないかもしれない）・大きい本文は読まずに止め、そのまま流す
+	hr, ok := readHeldBody(w, r)
+	if !ok {
+		return nil, false
+	}
+	f, held := p.beginHeld(r, ex, hr, off)
+	ex.flow = f
+	if !held {
+		return r, true // 本文を読んでいる間に、止めるのをやめた
+	}
+	ex.bodyKept = !hr.unread
+
+	d, end := p.awaitDecision(r, hr, f.id, off)
+	switch {
+	case end == errClosed:
+		p.endHeld(f, errClosed)
+		panic(http.ErrAbortHandler)
+	case end != "":
+		p.endHeld(f, end)
+		return nil, false
+	case d.drop:
+		p.endHeld(f, errDropped)
+		http.Error(w, "kisui proxy: the request was dropped in the proxy panel", http.StatusBadGateway)
+		return nil, false
+	case d.edit == nil:
+		p.store.update(f, func(f *flow) { f.state = StatePending })
+		return r, true
+	}
+	return p.applyEdit(r, ex, d.edit), true
+}
+
+// readHeldBody は、止める要求 r の本文を、大きさが分かっていて MaxBody までなら、先に読む（パネルで見て書き換えられる
+// ように。r.Body は、読んだものを読み直せるものに替える）。大きさが分からない（終わらないかもしれない）・大きい本文は
+// 読まない（unread。そのまま流す）。読めなければ、400 を答えて false。
+func readHeldBody(w http.ResponseWriter, r *http.Request) (*heldRequest, bool) {
 	hr := &heldRequest{decide: make(chan decision, 1)}
 	switch {
 	case r.ContentLength == 0 || r.Body == nil || r.Body == http.NoBody:
@@ -180,62 +213,52 @@ func (p *Proxy) holdRequest(w http.ResponseWriter, r *http.Request, ex *exchange
 	default:
 		hr.unread = true
 	}
+	return hr, true
+}
 
-	// 記録に足すのと、止めている要求として覚えるのを、同時にする（知らせを受けた窓が、すぐに Release できるように）
+// beginHeld は、要求 r を記録に足し、止めている要求 hr として覚える。この 2 つを同時にする（知らせを受けた窓が、
+// すぐに Release できるように）。off は、止め始めたときの holder.off。もう止めるのをやめていたら、覚えずに、
+// ふつうの通信として足して false。
+func (p *Proxy) beginHeld(r *http.Request, ex *exchange, hr *heldRequest, off chan struct{}) (*flow, bool) {
+	h := &p.hold
 	held := false
 	f := p.store.beginWith(r, ex.scheme, ex.host, ex.dial, func(f *flow) {
 		h.mu.Lock()
 		defer h.mu.Unlock()
 		if h.off != off {
-			return // 本文を読んでいる間に、止めるのをやめた
+			return
 		}
 		f.state, f.reqBody, f.bodyUnread = StateHeld, hr.body, hr.unread
 		h.held[f.id] = hr
 		held = true
 	})
-	ex.flow = f
-	if !held {
-		return r, true
-	}
-	ex.bodyKept = !hr.unread
+	return f, held
+}
 
-	var d decision
-	decided, gone, closed := false, false, false
+// awaitDecision は、止めている要求 hr（通信 id）の決まったことを待ち、止めている要求から外す。止めるのをやめたら
+// （off）、そのまま流す決まり（空の decision）を返す。end は、決まる前に終わった理由（errClientGone：クライアントが
+// 待つのをやめた、errClosed：プロキシを閉じた）で、"" なら決まった。Release が同時に決めていたら、そちらを受け取る
+// （Release に「流した」と答えたものを、落とさない）。
+func (p *Proxy) awaitDecision(r *http.Request, hr *heldRequest, id int64, off chan struct{}) (d decision, end string) {
+	h := &p.hold
 	select {
 	case d = <-hr.decide:
-		decided = true
+		return d, ""
 	case <-off:
-	case <-ctx.Done():
-		gone = true
+	case <-r.Context().Done():
+		end = errClientGone
 	case <-p.done:
-		closed = true
+		end = errClosed
 	}
-	if !decided {
-		h.mu.Lock()
-		taken := h.held[f.id] != hr
-		delete(h.held, f.id)
-		h.mu.Unlock()
-		if taken {
-			// Release が同時に決めていた（決まったことは、必ず届く）
-			d = <-hr.decide
-		}
+	h.mu.Lock()
+	taken := h.held[id] != hr
+	delete(h.held, id)
+	h.mu.Unlock()
+	if taken {
+		// Release が外していた。決まったことは、必ず届く
+		d = <-hr.decide
 	}
-	switch {
-	case closed:
-		p.endHeld(f, errClosed)
-		panic(http.ErrAbortHandler)
-	case gone:
-		p.endHeld(f, errClientGone)
-		return nil, false
-	case d.drop:
-		p.endHeld(f, errDropped)
-		http.Error(w, "kisui proxy: the request was dropped in the proxy panel", http.StatusBadGateway)
-		return nil, false
-	case d.edit == nil:
-		p.store.update(f, func(f *flow) { f.state = StatePending })
-		return r, true
-	}
-	return p.applyEdit(r, ex, d.edit), true
+	return d, end
 }
 
 // endHeld は、止めた要求を、行き先に送らずに終える（記録は failed）。
