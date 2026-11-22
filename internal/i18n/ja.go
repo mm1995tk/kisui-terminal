@@ -118,4 +118,6 @@ var ja = map[string]string{
 	"config.err.unknownperm":    "権限のキーではありません。使えるキー: %s",
 	"config.err.noperm":         "[db.permissions] に %q という名前の権限がありません",
 	"config.err.brokenperm":     "権限 %q に間違いがあるので（別に出しています）、使えません",
+	"config.err.tlssocket":      "Unix ソケット（/ で始まる host）では TLS を使わないので、次のどれかで書いてください: %s",
+	"config.err.tlsca":          "証明書を確かめるときにだけ使います。tls = \"%s\" と一緒に書いてください",
 }

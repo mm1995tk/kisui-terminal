@@ -2,11 +2,15 @@ package db
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"database/sql"
 	"database/sql/driver"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"net"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -33,10 +37,9 @@ func openMySQL(ctx context.Context, c config.DBLogin, password string) (Session,
 		cfg.Net, cfg.Addr = "unix", c.Host
 	} else {
 		cfg.Net, cfg.Addr = "tcp", net.JoinHostPort(c.Host, strconv.Itoa(c.Port))
-		// TLS when the server offers it, without checking the certificate:
-		// what the mysql client does by default, and what sslmode=prefer is
-		// for PostgreSQL.
-		cfg.TLSConfig = "preferred"
+		if err := myTLS(cfg, c); err != nil {
+			return nil, &Error{Kind: KindConnect, Message: err.Error()}
+		}
 	}
 	cfg.Timeout = connectTimeout
 	// The driver writes broken connections to stderr by default; they come
@@ -64,6 +67,40 @@ func openMySQL(ctx context.Context, c config.DBLogin, password string) (Session,
 		return nil, e
 	}
 	return s, nil
+}
+
+// myTLS sets in cfg what the key `tls` of c says. A Unix socket uses no TLS
+// (the settings allow only prefer and disable there), so it is not called for
+// one.
+func myTLS(cfg *mysql.Config, c config.DBLogin) error {
+	switch c.TLS {
+	case config.DBTLSDisable:
+		cfg.TLSConfig = "false"
+	case config.DBTLSRequire:
+		// TLS or no login, without checking the certificate.
+		cfg.TLSConfig = "skip-verify"
+	case config.DBTLSVerify:
+		// RootCAs nil is the certificate authorities of the OS. ServerName is
+		// what the certificate must be for: the host of the connection.
+		t := &tls.Config{ServerName: c.Host}
+		if c.TLSCA != "" {
+			pem, err := os.ReadFile(c.TLSCA)
+			if err != nil {
+				return fmt.Errorf("cannot read the certificate authority of tls-ca: %w", err)
+			}
+			t.RootCAs = x509.NewCertPool()
+			if !t.RootCAs.AppendCertsFromPEM(pem) {
+				return fmt.Errorf("no certificate (PEM) in the file of tls-ca: %s", c.TLSCA)
+			}
+		}
+		cfg.TLS = t
+	default:
+		// prefer: TLS when the server offers it, without checking the
+		// certificate: what the mysql client does by default, and what
+		// sslmode=prefer is for PostgreSQL.
+		cfg.TLSConfig = "preferred"
+	}
+	return nil
 }
 
 func (s *mySession) Close() {

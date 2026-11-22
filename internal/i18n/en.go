@@ -118,4 +118,6 @@ var en = map[string]string{
 	"config.err.unknownperm":    "is not a key of a permission. The keys are: %s",
 	"config.err.noperm":         "no permission is named %q in [db.permissions]",
 	"config.err.brokenperm":     "the permission %q has a mistake (reported apart), so it cannot be used",
+	"config.err.tlssocket":      "a Unix socket (a host that starts with /) carries no TLS, so this must be one of: %s",
+	"config.err.tlsca":          "is only used to check the certificate: write it with tls = \"%s\"",
 }
