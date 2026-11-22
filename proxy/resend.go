@@ -66,25 +66,26 @@ func (p *Proxy) Resend(r Resend) (Summary, error) {
 	if !ok {
 		return Summary{}, ErrNoFlow
 	}
-	req, err := p.prepare(r, orig)
+	req, dial, err := p.prepare(r, orig)
 	if err != nil {
 		return Summary{}, err
 	}
-	return p.sendRecorded(req, strings.TrimSpace(r.ConnectTo), r.From)
+	return p.sendRecorded(req, dial, r.From)
 }
 
 // prepare は、r を確かめて、送る要求を作る（記録に残す形。ヘッダーは書いたまま）。orig は元の通信の覚えた本文
-// （r.Body が nil のときに送る）。形が違えば InvalidRequestError、元の本文が切れていれば ErrBodyCut。
-func (p *Proxy) prepare(r Resend, orig Body) (*http.Request, error) {
+// （r.Body が nil のときに送る）。dial は、確かめた r.ConnectTo（"" なら URL のホストにつなぐ）。形が違えば InvalidRequestError、
+// 元の本文が切れていれば ErrBodyCut。
+func (p *Proxy) prepare(r Resend, orig Body) (*http.Request, string, error) {
 	if !isToken(r.Method) {
-		return nil, invalid("invalid method %q", r.Method)
+		return nil, "", invalid("invalid method %q", r.Method)
 	}
 	u, err := url.Parse(strings.TrimSpace(r.URL))
 	if err != nil {
-		return nil, invalid("invalid URL: %v", err)
+		return nil, "", invalid("invalid URL: %v", err)
 	}
 	if (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
-		return nil, invalid("the URL must start with http:// or https:// and have a host")
+		return nil, "", invalid("the URL must start with http:// or https:// and have a host")
 	}
 	u.Fragment, u.RawFragment = "", ""
 	header := http.Header{}
@@ -92,10 +93,10 @@ func (p *Proxy) prepare(r Resend, orig Body) (*http.Request, error) {
 	for _, kv := range r.Header {
 		name, value := strings.TrimSpace(kv[0]), strings.TrimSpace(kv[1])
 		if !isToken(name) {
-			return nil, invalid("invalid header name %q", name)
+			return nil, "", invalid("invalid header name %q", name)
 		}
 		if strings.ContainsAny(value, "\r\n\x00") {
-			return nil, invalid("invalid value of the header %s", name)
+			return nil, "", invalid("invalid value of the header %s", name)
 		}
 		switch http.CanonicalHeaderKey(name) {
 		case "Host":
@@ -108,24 +109,24 @@ func (p *Proxy) prepare(r Resend, orig Body) (*http.Request, error) {
 	dial := strings.TrimSpace(r.ConnectTo)
 	if dial != "" {
 		if h, port, err := net.SplitHostPort(dial); err != nil || h == "" || port == "" {
-			return nil, invalid("the place to connect to must be host:port")
+			return nil, "", invalid("the place to connect to must be host:port")
 		}
 	}
 	if p.isSelf(withPort(u)) || (host != "" && p.isSelf(withPortOf(host, u.Scheme))) {
-		return nil, invalid("the request points at this proxy itself")
+		return nil, "", invalid("the request points at this proxy itself")
 	}
 	if dial != "" && p.isSelf(dial) {
-		return nil, invalid("the request points at this proxy itself")
+		return nil, "", invalid("the request points at this proxy itself")
 	}
 	body := orig.Data
 	if r.Body != nil {
 		body = *r.Body
 	} else if orig.Truncated {
-		return nil, ErrBodyCut
+		return nil, "", ErrBodyCut
 	}
 	req, err := http.NewRequest(r.Method, u.String(), bytes.NewReader(body))
 	if err != nil {
-		return nil, invalid("%v", err)
+		return nil, "", invalid("%v", err)
 	}
 	req.Header = header
 	if host != "" {
@@ -135,11 +136,12 @@ func (p *Proxy) prepare(r Resend, orig Body) (*http.Request, error) {
 		// 本文の無い要求（GET など）に Content-Length: 0 を付けない
 		req.Body, req.GetBody, req.ContentLength = http.NoBody, nil, 0
 	}
-	return req, nil
+	return req, dial, nil
 }
 
-// sendRecorded は、prepare で作った req を記録に足して（dial は、URL のホストと違う所につなぐときの、つなぐ先）（resentFrom が from）、行き先へ送り始める。応答は、別の goroutine で
-// 最後まで読んで記録する。同時に送っている数が MaxResending なら ErrBusy。プロキシを閉じると、受けている途中の応答も切る。
+// sendRecorded は、prepare で作った req を、from を送り直したものとして記録に足し、行き先へ送り始める。
+// dial は、URL のホストと違う所につなぐときのつなぐ先（"" なら URL のホスト）。応答は、別の goroutine で最後まで読んで記録する。
+// 同時に送っている数が MaxResending なら ErrBusy。プロキシを閉じると、受けている途中の応答も切る。
 func (p *Proxy) sendRecorded(req *http.Request, dial string, from int64) (Summary, error) {
 	if !p.resending.tryAcquire() {
 		return Summary{}, ErrBusy
