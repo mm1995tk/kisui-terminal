@@ -8,6 +8,7 @@ import type { DbConnection } from "../../infrastructure/rpc/protocol.ts";
 import type { Session } from "../sessions/session.ts";
 import { dbRefLabel, dbRefParams, type DbRef } from "../workspaces/model.ts";
 import {
+  ACTORS,
   actorText,
   durationText,
   elevateFailure,
@@ -252,9 +253,7 @@ export function createDbElevate(deps: {
     if (!ref || oldServe(ref)) return;
     try {
       let c = await ask(ref);
-      const actors = (["human", "agent"] as const).filter(
-        (actor) => c?.[actor]?.elevated,
-      );
+      const actors = ACTORS.filter((actor) => c?.[actor]?.elevated);
       if (actors.length === 0) {
         note(ref, c);
         deps.fail(

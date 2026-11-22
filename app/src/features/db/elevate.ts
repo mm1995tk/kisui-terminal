@@ -12,7 +12,8 @@ import type {
 /** 誰の権限か：人（窓）か、コーディングエージェント（kisui db のコマンド）。 */
 export type DbActor = "human" | "agent";
 
-const ACTORS: readonly DbActor[] = ["human", "agent"];
+/** 権限を持つ相手の全部（窓に並べる順：人・エージェント）。 */
+export const ACTORS: readonly DbActor[] = ["human", "agent"];
 
 /** 強める窓の 1 行：強められる権限 1 つ。 */
 export interface ElevateRow {
