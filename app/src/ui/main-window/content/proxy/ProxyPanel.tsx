@@ -8,11 +8,16 @@ import type {
   ProxyPanelState,
   ProxySide,
 } from "../../../../features/proxy/controller.ts";
-import { proxyPanelKey } from "../../../../features/proxy/keys.ts";
+import {
+  proxyEditKey,
+  proxyPanelKey,
+} from "../../../../features/proxy/keys.ts";
+import type { ProxyDraft } from "../../../../features/proxy/model.ts";
 import { T } from "../../../../i18n/index.ts";
 import { KeyHints } from "../../../components/KeyHints.tsx";
 import { FlowDetail } from "./FlowDetail.tsx";
 import { FlowList } from "./FlowList.tsx";
+import { RequestEditor } from "./RequestEditor.tsx";
 import styles from "./ProxyPanel.module.css";
 
 /** プロキシのパネル。 */
@@ -28,11 +33,20 @@ export function ProxyPanel(props: {
   onClose: () => void;
   /** キーの一覧（`?`）を出す */
   onHelp: () => void;
+  /** macOS か（書き換える欄の送るキーの字） */
+  mac: boolean;
+  /** 選んでいる通信の要求を書き換える欄を開く（#410） */
+  onEdit: () => void;
+  onDraft: (patch: Partial<Omit<ProxyDraft, "from">>) => void;
+  onSend: () => void;
+  onCancelEdit: () => void;
   /** パネルにキーを向ける関数を受け取る（消えるときは undefined） */
   focusRef: (focus: (() => void) | undefined) => void;
 }): JSX.Element {
   let root!: HTMLDivElement;
-  props.focusRef(() => root?.focus());
+  // 書き換える欄を出している間は、キーをその欄に向ける
+  let editorFocus: (() => void) | undefined;
+  props.focusRef(() => (editorFocus ? editorFocus() : root?.focus()));
   onCleanup(() => props.focusRef(undefined));
 
   const term = () => props.panel.subject.kind === "term";
@@ -45,6 +59,17 @@ export function ProxyPanel(props: {
   };
 
   function onKeyDown(e: KeyboardEvent) {
+    // 書き換えている間：欄の中のキーは、その欄が受ける（RequestEditor）。一覧を押してキーがパネルに移っていても、
+    // 欄と同じく送る・やめるだけを受ける（足もとの案内のとおりに効くように）
+    if (props.panel.edit) {
+      const k = proxyEditKey(e, props.mac);
+      if (k === null) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (k === "send") props.onSend();
+      else props.onCancelEdit();
+      return;
+    }
     if (isHelpKey(e)) {
       e.preventDefault();
       props.onHelp();
@@ -57,6 +82,7 @@ export function ProxyPanel(props: {
     if (k === "back") props.onBack();
     else if (k === "close") props.onClose();
     else if (k === "side") props.onSide();
+    else if (k === "edit") props.onEdit();
     else props.onStep(k);
   }
 
@@ -89,28 +115,55 @@ export function ProxyPanel(props: {
       />
       <div class={styles.detail}>
         <Show
-          when={selectedFlow()}
-          fallback={<p class={styles.note}>{T("proxy.detail.none")}</p>}
+          when={props.panel.edit}
+          fallback={
+            <Show
+              when={selectedFlow()}
+              fallback={<p class={styles.note}>{T("proxy.detail.none")}</p>}
+            >
+              {(f) => (
+                <FlowDetail
+                  flow={f()}
+                  detail={detail()}
+                  side={props.panel.side}
+                  onSide={props.onSide}
+                />
+              )}
+            </Show>
+          }
         >
-          {(f) => (
-            <FlowDetail
-              flow={f()}
-              detail={detail()}
-              side={props.panel.side}
-              onSide={props.onSide}
+          {(edit) => (
+            <RequestEditor
+              edit={edit()}
+              mac={props.mac}
+              onDraft={props.onDraft}
+              onSend={props.onSend}
+              onCancel={props.onCancelEdit}
+              focusRef={(f) => (editorFocus = f)}
             />
           )}
         </Show>
       </div>
       <div class={styles.foot}>
         <KeyHints
-          items={[
-            { keys: ["j", "k"], label: T("basic.select") },
-            { keys: ["Tab"], label: T("proxy.hint.side") },
-            { keys: ["?"], label: T("basic.help") },
-            { keys: ["Esc"], label: T("proxy.hint.back") },
-            { keys: ["q"], label: T("basic.close") },
-          ]}
+          items={
+            props.panel.edit
+              ? [
+                  {
+                    keys: [props.mac ? "Cmd+Enter" : "Ctrl+Enter"],
+                    label: T("proxy.hint.send"),
+                  },
+                  { keys: ["Esc"], label: T("proxy.hint.cancelEdit") },
+                ]
+              : [
+                  { keys: ["j", "k"], label: T("basic.select") },
+                  { keys: ["Tab"], label: T("proxy.hint.side") },
+                  { keys: ["e"], label: T("proxy.hint.edit") },
+                  { keys: ["?"], label: T("basic.help") },
+                  { keys: ["Esc"], label: T("proxy.hint.back") },
+                  { keys: ["q"], label: T("basic.close") },
+                ]
+          }
         />
       </div>
     </div>

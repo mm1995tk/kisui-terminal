@@ -183,6 +183,7 @@
 }
 
 .section {
+  display: block;
   margin: var(--space-8) 0 var(--space-4);
   font-size: var(--text-caption);
   font-weight: var(--weight-strong);
@@ -222,4 +223,77 @@
   border-top: 1px solid var(--color-border);
   font-size: var(--text-caption);
   color: var(--color-text-muted);
+}
+
+/* 送り直した通信（#410）の印（一覧のメソッドの欄と、中身の要求の行） */
+.resent {
+  color: var(--color-text-dim);
+}
+
+/* 要求を書き換える欄（#410。RequestEditor.tsx）。中身の代わりに、下の段に出す */
+.editor {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.editHead {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-8);
+  padding: var(--space-4) var(--space-12);
+  border-bottom: 1px solid var(--color-border);
+}
+.editHead .section {
+  margin: 0;
+}
+
+.editActions {
+  display: flex;
+  gap: var(--space-6);
+}
+
+.requestLine {
+  display: flex;
+  gap: var(--space-6);
+}
+
+.input {
+  box-sizing: border-box;
+  min-width: 0;
+  padding: var(--space-4) var(--space-6);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-4);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+}
+.input:focus {
+  outline: none;
+  border-color: var(--state-focus-ring);
+}
+
+.method {
+  flex: none;
+  width: 9ch;
+}
+
+.url {
+  flex: 1;
+}
+
+.area {
+  display: block;
+  width: 100%;
+  resize: vertical;
+}
+
+.editNote {
+  margin: 0 0 var(--space-4);
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
 }

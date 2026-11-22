@@ -143,7 +143,7 @@ index.tsx ──▶ ui ──▶ features ◀── infrastructure
 | `features/browser/tabsStore.ts`・`pages.ts`       | ブラウザのタブの中身、URL を開く、ページが開いた・閉じた窓、ページ内検索     |
 | `features/browser/bookmarksStore.ts`・`downloads.ts` | ブックマーク、ダウンロード                                                |
 | `features/db/controller.ts`                       | DB のタブの中身（書きかけの SQL・結果）、接続を選ぶ窓、SQL の実行と取り消し、パスワードを聞く |
-| `features/proxy/controller.ts`                   | 今のタブをプロキシに通す・やめる、パネルの開閉、通信の一覧と選んだ通信の中身（#409） |
+| `features/proxy/controller.ts`                   | 今のタブをプロキシに通す・やめる、パネルの開閉、通信の一覧と選んだ通信の中身（#409）、要求を書き換えて送り直す（#410） |
 | `features/terminal/controller.ts`                 | フォーカスしているワークスペースのペイン、隠す・分ける                       |
 | `features/file-tree/controller.ts`・`features/changes/controller.ts` | ツリーと CHANGES の中身と操作                              |
 | `features/commands/run.ts`                        | コマンドの表のコマンドを動かす（リーダーの葉と近道）                         |

@@ -627,6 +627,28 @@ export interface Requests {
     params: { scope: string; id: number };
     result: ProxyFlowDetail;
   };
+  /**
+   * 記録した通信 from の要求を書き換えて、プロキシから送り直す（#410）。capabilities に "proxy.resend" がある kisui serve だけが受ける。
+   * 送った通信は、同じ scope の記録に新しい通信（resentFrom が from）として足し、応答もそこに入る（proxy.flow で知らせる）。応答は
+   * ページ・シェルには返さない。headers の Host は、url のホストの代わりに Host として送る。Content-Length・Transfer-Encoding は
+   * 本文から決めるので見ない。body を省くと、元の通信の本文をそのまま送る（字でない本文・圧縮した本文もそのまま）。
+   * connectTo を渡すと、url のホストではなく、そこにつなぐ（ProxyFlowDetail.connectTo の通信を、同じ所に送り直すため）。
+   * 断られ方：not_found（scope・通信が無い）、invalid_params（メソッド・URL・ヘッダーの形が違う・connectTo が host:port でない・この待ち受け口自身を指す・
+   * body を省いたが元の本文が記録の上限で切れている）、busy（同時に送り直している数が上限）
+   */
+  "proxy.resend": {
+    params: {
+      scope: string;
+      from: number;
+      method: string;
+      url: string;
+      headers: [string, string][];
+      body?: string;
+      /** url のホストと違う所につなぐときの、つなぐ先（host:port）。証明書は url のホストの名前で確かめる */
+      connectTo?: string;
+    };
+    result: { flow: ProxyFlow };
+  };
 }
 
 /** プロキシに通している単位（#409）。 */
@@ -663,6 +685,8 @@ export interface ProxyFlow {
   durationMs: number;
   /** 応答の Content-Type の種類（text/html など） */
   mime?: string;
+  /** 送り直した通信（proxy.resend。#410）なら、元の通信の id */
+  resentFrom?: number;
 }
 
 /** 通信の本文（#409）。字として読めれば text、読めなければ binary。gzip・deflate は展開してある。 */
@@ -680,6 +704,11 @@ export interface ProxyBody {
 export interface ProxyFlowDetail extends ProxyFlow {
   /** 要求の HTTP の版（HTTP/1.1・HTTP/2.0） */
   protocol: string;
+  /**
+   * Host と違う所につないだ通信（curl --connect-to など。CONNECT で頼まれた行き先が Host と違う）の、つないだ先（host:port）。
+   * proxy.resend の connectTo に渡すと、同じ所に送る（#410）
+   */
+  connectTo?: string;
   reqHeaders: [string, string][];
   respHeaders: [string, string][];
   reqBody: ProxyBody;

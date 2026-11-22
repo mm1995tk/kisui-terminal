@@ -55,7 +55,17 @@ export function FlowList(props: {
       title={f.error ? `${flowUrl(f)}\n${f.error}` : flowUrl(f)}
       onClick={() => props.onSelect(f.id)}
     >
-      <td class={styles.cell}>{f.method}</td>
+      <td class={styles.cell}>
+        {f.method}
+        <Show when={f.resentFrom !== undefined}>
+          <span
+            class={styles.resent}
+            title={T("proxy.resentFrom", { id: f.resentFrom ?? 0 })}
+          >
+            {" ↻"}
+          </span>
+        </Show>
+      </td>
       <td class={`${styles.cell} ${styles.status}`} data-kind={statusKind(f)}>
         {statusText(f)}
       </td>

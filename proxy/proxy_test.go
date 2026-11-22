@@ -305,7 +305,7 @@ func TestStoreDropsTheOldest(t *testing.T) {
 	s := NewStore(func(sum Summary) { seen = append(seen, sum.ID) })
 	r := httptest.NewRequest("GET", "http://example.com/a", nil)
 	for range MaxFlows + 5 {
-		s.begin(r, "http", "example.com")
+		s.begin(r, "http", "example.com", "")
 	}
 	list := s.Summaries()
 	if len(list) != MaxFlows || list[0].ID != 6 || list[len(list)-1].ID != MaxFlows+5 {
@@ -325,7 +325,7 @@ func TestStoreDropsByTotalBodySize(t *testing.T) {
 	big := make([]byte, MaxBody)
 	n := MaxStoreBytes/MaxBody + 3
 	for range n {
-		f := s.begin(r, "http", "example.com")
+		f := s.begin(r, "http", "example.com", "")
 		s.update(f, func(f *flow) { f.respBody = Body{Data: big, Size: int64(len(big))} })
 	}
 	if got := len(s.Summaries()); got != MaxStoreBytes/MaxBody {
