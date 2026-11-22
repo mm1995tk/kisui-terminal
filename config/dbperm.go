@@ -289,11 +289,17 @@ func readDBPermissions(v any, path string) (perms dbPermissions, probs []Problem
 		}
 		perms.byName[name] = p
 	}
-	// `elevate-to` names another permission, so it is checked when all are
-	// read. A permission whose `elevate-to` cannot be used is itself broken (a
-	// connection that names it is left out): it would otherwise look as if it
-	// could be strengthened. Marking one broken can break another that names
-	// it, so this goes on until nothing changes.
+	return perms, append(probs, perms.checkElevateTargets(path)...)
+}
+
+// checkElevateTargets checks the `elevate-to` of every permission, which can
+// only be done when all are read: it names another permission. A permission
+// whose `elevate-to` cannot be used (it names itself, nobody, or a permission
+// with a mistake) becomes one with a mistake itself, so that a connection
+// that names it is left out: it would otherwise look as if it could be
+// strengthened. Marking one broken can break another that names it, so this
+// goes on until nothing changes.
+func (perms dbPermissions) checkElevateTargets(path string) (probs []Problem) {
 	for changed := true; changed; {
 		changed = false
 		for _, name := range slices.Sorted(maps.Keys(perms.byName)) {
@@ -319,7 +325,7 @@ func readDBPermissions(v any, path string) (perms dbPermissions, probs []Problem
 			changed = true
 		}
 	}
-	return perms, probs
+	return probs
 }
 
 // dbPermission reads one [db.permissions.<name>] entry. The Key of a problem
