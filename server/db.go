@@ -201,9 +201,9 @@ func (s *Server) dbWith(ctx context.Context, p dbLogin, what string, run bool, f
 	password, src, err := m.passwords.Find(ctx, c, p.Password)
 	if err != nil {
 		if c.AgentUser {
-			return errPasswordRequired("missing", "a password is required for the agent's user "+c.User+" of the connection "+conf.Label())
+			return errPasswordRequired("missing", "", "a password is required for the agent's user "+c.User+" of the connection "+conf.Label())
 		}
-		return errPasswordRequired("missing", "a password is required for the connection "+conf.Label())
+		return errPasswordRequired("missing", "", "a password is required for the connection "+conf.Label())
 	}
 	err = m.run(ctx, c, password, src, func(sess db.Session) error { return f(ctx, conf, sess) })
 	if err != nil {
@@ -472,18 +472,24 @@ func (ss *session) dbHistoryReq(req *rpc.Message) (any, error) {
 	return DBHistoryResult{Entries: list}, nil
 }
 
-// errPasswordRequired は password_required を作る。reason は "missing"（どこにも無い）か "rejected"（入力したものが断られた）。
-func errPasswordRequired(reason, message string) *rpc.Error {
+// errPasswordRequired は password_required を作る。reason は "missing"（どこにも無い）か "rejected"（DB が断った）。
+// source は、断られたパスワードを見つけた場所（db.SourceKeychain か db.SourceFile）。入力したものが断られたときと
+// "missing" では ""（data に付けない）。
+func errPasswordRequired(reason string, source db.Source, message string) *rpc.Error {
 	e := rpc.Errorf(rpc.CodePasswordRequired, "%s", message)
-	e.Data, _ = json.Marshal(map[string]any{"reason": reason})
+	data := map[string]any{"reason": reason}
+	if source != "" {
+		data["passwordSource"] = source
+	}
+	e.Data, _ = json.Marshal(data)
 	return e
 }
 
 // dbQueryError は db.Open・Session.Query の間違いを、窓への返事にする。
-//   - 入力したパスワードを DB が断った：password_required（reason は "rejected"）。窓は聞き直す。
-//   - それ以外：db_error。data は {kind, sqlState?, passwordSource?}。kind は db.ErrorKind。
-//     passwordSource は kind が "auth" のときだけで、断られたパスワードを見つけた場所（"keychain" か "file"）。
-//     これは聞き直しても直らない（見つけた場所のものが先に使われる）ので、利用者がその場所を直す。
+//   - パスワードを DB が断った：password_required（reason は "rejected"）。窓は聞き直す。入力されたものは、次から
+//     キーチェーン・ファイルで見つけたものより先に使う（db.Passwords）。見つけたものが断られたなら、data の
+//     passwordSource にその場所（"keychain" か "file"）を付け、窓は聞く画面に出す。
+//   - それ以外：db_error。data は {kind, sqlState?}。kind は db.ErrorKind。
 func dbQueryError(ctx context.Context, err error, src db.Source) *rpc.Error {
 	e, ok := errors.AsType[*db.Error](err)
 	if !ok {
@@ -491,13 +497,14 @@ func dbQueryError(ctx context.Context, err error, src db.Source) *rpc.Error {
 	}
 	// ログインの途中で取り消されたものも、取り消しとして返す。
 	e = db.Cancelled(ctx, e)
-	data := map[string]any{"kind": e.Kind}
-	switch {
-	case e.Kind == db.KindAuth && src.Typed():
-		return errPasswordRequired("rejected", e.Message)
-	case e.Kind == db.KindAuth:
-		data["passwordSource"] = src
+	if e.Kind == db.KindAuth {
+		var found db.Source
+		if !src.Typed() {
+			found = src
+		}
+		return errPasswordRequired("rejected", found, e.Message)
 	}
+	data := map[string]any{"kind": e.Kind}
 	if e.SQLState != "" {
 		data["sqlState"] = e.SQLState
 	}

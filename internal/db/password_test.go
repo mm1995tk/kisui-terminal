@@ -10,9 +10,9 @@ import (
 	"github.com/mm1995tk/kisui-terminal/config"
 )
 
-// The order of the places a password is looked for: the keychain, the
-// password file, the password the window sent (now, then earlier), and the
-// error when there is none.
+// The order of the places a password is looked for: the password the window
+// sent (now, then earlier), the keychain, the password file, and the error
+// when there is none.
 func TestPasswordOrder(t *testing.T) {
 	c := config.DBLogin{Name: "dev", Kind: config.DBPostgres, Host: "h", Port: 5432, User: "u"}
 	inKeychain, inFile := true, true
@@ -29,16 +29,8 @@ func TestPasswordOrder(t *testing.T) {
 	p.Remember(c, "remembered")
 	find := func(typed *string) (string, Source, error) { return p.Find(context.Background(), c, typed) }
 
-	if pw, src, err := find(&typed); err != nil || pw != "from-keychain" || src != SourceKeychain {
-		t.Errorf("with everything: %q, %q, %v", pw, src, err)
-	}
-	inKeychain = false
-	if pw, src, err := find(&typed); err != nil || pw != "from-file" || src != SourceFile {
-		t.Errorf("without the keychain: %q, %q, %v", pw, src, err)
-	}
-	inFile = false
 	if pw, src, err := find(&typed); err != nil || pw != "typed" || src != SourceRequest {
-		t.Errorf("without the file: %q, %q, %v", pw, src, err)
+		t.Errorf("with everything: %q, %q, %v", pw, src, err)
 	}
 	// An empty password is a password.
 	empty := ""
@@ -49,6 +41,14 @@ func TestPasswordOrder(t *testing.T) {
 		t.Errorf("without a typed one: %q, %q, %v", pw, src, err)
 	}
 	p.Forget(c)
+	if pw, src, err := find(nil); err != nil || pw != "from-keychain" || src != SourceKeychain {
+		t.Errorf("without a remembered one: %q, %q, %v", pw, src, err)
+	}
+	inKeychain = false
+	if pw, src, err := find(nil); err != nil || pw != "from-file" || src != SourceFile {
+		t.Errorf("without the keychain: %q, %q, %v", pw, src, err)
+	}
+	inFile = false
 	if _, _, err := find(nil); !errors.Is(err, ErrPasswordRequired) {
 		t.Errorf("with nothing: %v", err)
 	}

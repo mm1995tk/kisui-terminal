@@ -217,7 +217,8 @@ const (
 	// CodeDeclined: the person at the window said no ("db-propose").
 	CodeDeclined = "declined"
 	// CodePasswordRequired: the password of the connection is found nowhere
-	// "kisui serve" looks, or the one it remembers was refused.
+	// "kisui serve" looks, or the database refused the one it found or
+	// remembers.
 	CodePasswordRequired = "password-required"
 	// CodeNotFound: the settings have no such connection (or variant).
 	CodeNotFound = "not-found"

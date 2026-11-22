@@ -144,7 +144,7 @@ export function connectionDetail(c: DbConnection): string {
 /** SQL を実行できなかった理由（画面に出す形）。 */
 export type QueryFailure =
   /** パスワードが要る（どこにも無い・入力したものを DB が断った）。聞いて送り直す */
-  | { kind: "password"; reason: DbPasswordRequiredData["reason"] }
+  | ({ kind: "password" } & DbPasswordRequiredData)
   /** 取り消した */
   | { kind: "cancelled" }
   /** それ以外。message をそのまま出す */
@@ -155,9 +155,13 @@ export function queryFailure(e: unknown): QueryFailure {
   if (e instanceof RpcError) {
     if (e.code === ErrorCode.PasswordRequired) {
       const d = e.data as Partial<DbPasswordRequiredData> | undefined;
+      const source = d?.passwordSource;
       return {
         kind: "password",
         reason: d?.reason === "rejected" ? "rejected" : "missing",
+        ...(source === "keychain" || source === "file"
+          ? { passwordSource: source }
+          : {}),
       };
     }
     if (e.code === ErrorCode.DbError) {
@@ -236,12 +240,16 @@ export class PasswordCancelled extends Error {
 
 /**
  * send（password を付けて要求を送る。undefined なら付けない）を呼ぶ。kisui serve が password_required を返したら、
- * ask でパスワードを聞いて、それを付けて送り直す（DB が断った rejected なら、また聞く）。ask が null（やめた）なら
+ * ask でパスワードを聞いて、それを付けて送り直す（DB が断った rejected なら、また聞く）。ask の第 2 引数は、キーチェーンか
+ * ファイルで見つけたパスワードが断られたときの、その場所。ask が null（やめた）なら
  * PasswordCancelled を投げる。ほかの断りは、そのまま投げる。聞いたパスワードは、この中の変数にだけ持つ。
  */
 export async function withPassword<R>(
   send: (password: string | undefined) => Promise<R>,
-  ask: (reason: DbPasswordRequiredData["reason"]) => Promise<string | null>,
+  ask: (
+    reason: DbPasswordRequiredData["reason"],
+    passwordSource?: DbPasswordRequiredData["passwordSource"],
+  ) => Promise<string | null>,
 ): Promise<R> {
   let password: string | undefined;
   for (;;) {
@@ -250,7 +258,7 @@ export async function withPassword<R>(
     } catch (e) {
       const f = queryFailure(e);
       if (f.kind !== "password") throw e;
-      const p = await ask(f.reason);
+      const p = await ask(f.reason, f.passwordSource);
       if (p === null) throw new PasswordCancelled();
       password = p;
     }

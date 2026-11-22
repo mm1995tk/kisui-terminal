@@ -328,19 +328,25 @@ export interface DbHistoryEntry {
   actor?: string;
 }
 
-/** password_required（-32006）の data。missing：どこにも無い、rejected：入力したものを DB が断った。どちらも窓はパスワードを聞く */
+/** password_required（-32006）の data。missing：どこにも無い、rejected：DB が断った。どちらも窓はパスワードを聞く */
 export interface DbPasswordRequiredData {
   reason: "missing" | "rejected";
+  /**
+   * rejected のとき、断られたパスワードを見つけた場所（キーチェーンか ~/.pgpass・~/.my.cnf）。入力したものが断られたときは無い。
+   * 入力したパスワードは、次から見つけたものより先に使われる（#356）
+   */
+  passwordSource?: "keychain" | "file";
 }
 
 /** db_error（-32007）の data。message は DB の言葉そのまま */
 export interface DbErrorData {
-  /** connect：つながらない、auth：キーチェーンかファイルのパスワードを DB が断った、query：DB が SQL を断った、cancelled：取り消された */
+  /**
+   * connect：つながらない、auth：キーチェーンかファイルのパスワードを DB が断った（古い kisui serve だけ。今は password_required）、
+   * query：DB が SQL を断った、cancelled：取り消された
+   */
   kind: "connect" | "auth" | "query" | "cancelled";
   /** DB が返した 5 文字（SQLSTATE） */
   sqlState?: string;
-  /** kind が auth のとき、断られたパスワードを見つけた場所。聞き直しても直らない（見つけた場所のものが先に使われる） */
-  passwordSource?: "keychain" | "file";
 }
 
 // ---- ターミナル ----

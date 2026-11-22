@@ -58,9 +58,13 @@ export function DbPasswordDialog(props: {
         <CardBody>
           <Field>
             <span class="card-text">
-              {props.ask.reason === "rejected"
-                ? T("db.password.rejected", vars())
-                : T("db.password.missing", vars())}
+              {props.ask.reason === "missing"
+                ? T("db.password.missing", vars())
+                : props.ask.passwordSource === "keychain"
+                  ? T("db.password.rejectedKeychain", vars())
+                  : props.ask.passwordSource === "file"
+                    ? T("db.password.rejectedFile", vars())
+                    : T("db.password.rejected", vars())}
             </span>
             <Input
               type={reveal() ? "text" : "password"}
