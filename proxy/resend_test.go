@@ -164,8 +164,7 @@ func TestResendRefusesBadRequests(t *testing.T) {
 		r := ok
 		tc.edit(&r)
 		_, err := p.Resend(r)
-		var bad *InvalidRequestError
-		if !errors.As(err, &bad) {
+		if _, ok := errors.AsType[*InvalidRequestError](err); !ok {
 			t.Errorf("%s: err = %v, want InvalidRequestError", tc.name, err)
 		}
 	}
