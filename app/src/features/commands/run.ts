@@ -83,7 +83,7 @@ export function createCommandRunner(deps: {
   updates: Updates;
   mascot: MascotStore;
   scale: Scale;
-  proxy: Pick<Proxy, "openPanel" | "closePanel" | "stopCurrent">;
+  proxy: Pick<Proxy, "openPanel" | "closePanel" | "stopCurrent" | "toggleHold">;
   os: Pick<BrowserOs, "navTab" | "openTabDevtools" | "startPasskeyLogin">;
   setFocusError: ReportProblem;
   /** 少しの間だけ出る短い知らせ */
@@ -506,6 +506,10 @@ export function createCommandRunner(deps: {
         break;
       case "proxy.stop":
         void deps.proxy.stopCurrent();
+        break;
+      case "proxy.hold":
+        // 今のタブの要求を、行き先に送る前に止める・止めるのをやめる（#411）
+        void deps.proxy.toggleHold();
         break;
       case "mascot.select":
         ui.openMascotPicker();

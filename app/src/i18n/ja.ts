@@ -886,6 +886,7 @@ export const ja: Record<Key, string> = {
     "プロキシのパネルを開く（今のタブをプロキシに通し始める）",
   "leader.proxy.close": "プロキシのパネルを閉じる（タブは通したまま）",
   "leader.proxy.stop": "今のタブをプロキシに通すのをやめる",
+  "leader.proxy.hold": "今のタブの要求を、送る前に止める・止めるのをやめる",
   "place.proxy.title": "プロキシのパネル",
   "place.proxy.lead":
     "今のタブの HTTP・HTTPS の通信の一覧と、選んだ通信の要求と応答。",
@@ -930,13 +931,45 @@ export const ja: Record<Key, string> = {
   "proxy.hint.edit": "書き換えて送り直す",
   "proxy.hint.send": "送る",
   "proxy.hint.cancelEdit": "書き換えをやめる",
-  "place.proxy.edit": "選んだ通信の要求を書き換えて、送り直す",
+  "place.proxy.edit":
+    "選んだ通信の要求を書き換えて、送り直す（止めている要求は、書き換えて流す）",
+  "place.proxy.hold":
+    "このタブの要求を、送る前に止める・止めるのをやめる（やめると、止めていた要求はそのまま流れる）",
+  "place.proxy.forward": "選んだ、止めている要求を、そのまま流す",
+  "place.proxy.drop":
+    "選んだ、止めている要求を捨てる（送らない。ページやプログラムには 502 が返る）",
   "place.proxyEdit.title": "要求の書き換え",
   "place.proxyEdit.lead":
-    "メソッド・URL・ヘッダー・本文を書き換えて、プロキシから送り直します。応答はパネルの一覧に出ます。ページやシェルには返りません。",
-  "place.proxyEdit.send": "要求を送る",
+    "メソッド・URL・ヘッダー・本文を書き換えて、プロキシから送り直します。応答はパネルの一覧に出ます。ページやシェルには返りません。止めている要求のときは、ここで送ったものが元の要求の代わりに流れ、応答はページやシェルに返ります。",
+  "place.proxyEdit.send":
+    "要求を送る（止めている要求は、書き換えたものが流れる）",
   "place.proxyEdit.cancel": "書き換えをやめる（送らない）",
   "cannot.proxy.noFlow": "先に、通信を選んでください。",
+  "cannot.proxy.notHeld":
+    "先に、止めている要求（状態が || の行）を選んでください。",
+  "err.proxy.hold": "要求を止めるかを切り替えられませんでした",
+  "err.proxy.release": "止めている要求を流せませんでした",
+  "proxy.hold.start": "要求を止める",
+  "proxy.hold.stop": "止めるのをやめる",
+  "proxy.hold.hint":
+    "このタブの要求を、送る前に止めて、1 つずつ流す・書き換える・捨てる（i）",
+  "proxy.hold.count": "要求を止めています · {count} 件",
+  "proxy.held.note": "止めています。この要求は、まだ送っていません。",
+  "proxy.held.forward": "流す（f）",
+  "proxy.held.edit": "書き換える（e）",
+  "proxy.held.drop": "捨てる（d）",
+  "proxy.edited": "送る前に、パネルで書き換えたもの",
+  "proxy.body.unread":
+    "止めている間、本文は読んでいません（大きさが分からないか、記録に残せる大きさを超えています）。そのまま送ります。",
+  "proxy.hint.hold": "要求を止める",
+  "proxy.hint.holdOff": "止めるのをやめる",
+  "proxy.hint.forward": "流す",
+  "proxy.hint.editHeld": "書き換えて流す",
+  "proxy.hint.drop": "捨てる",
+  "proxy.edit.heldTitle": "#{id} を書き換えて流す",
+  "proxy.edit.forward": "流す（{key}）",
+  "proxy.edit.body.unread":
+    "止めている要求の本文は読んでいない（大きさが分からないか、記録に残せる大きさを超えています）ので、ここでは書き換えられません。そのまま送ります。",
   "cannot.proxy.noDetail":
     "この通信は、プロキシがもう覚えていないので、書き換えられません。",
   "proxy.resentFrom": "#{id} を送り直したもの",

@@ -6,10 +6,21 @@ import type { KeyLike } from "../commands/guiKeys.ts";
 /**
  * パネルのキーの動き。next・prev・first・last：一覧で選ぶ通信を動かす。side：中身の「要求」と「応答」を切り替える。
  * back：キーをタブ（ターミナル・ページ）に戻す（パネルは出したまま）。close：パネルを閉じる。
- * edit：選んでいる通信の要求を書き換える欄を開く（#410）。
+ * edit：選んでいる通信の要求を書き換える欄を開く（#410。止めている要求なら、書き換えて流す）。
+ * hold：要求を行き先に送る前に止めるのを切り替える（#411）。forward・drop：選んでいる、止めている要求を、そのまま流す・捨てる。
  */
 export type ProxyPanelKey =
-  "next" | "prev" | "first" | "last" | "side" | "back" | "close" | "edit";
+  | "next"
+  | "prev"
+  | "first"
+  | "last"
+  | "side"
+  | "back"
+  | "close"
+  | "edit"
+  | "hold"
+  | "forward"
+  | "drop";
 
 /** パネルで押したキー e の動き（当たらなければ null）。修飾キー（Shift 以外）を押していれば受けない。 */
 export function proxyPanelKey(e: KeyLike): ProxyPanelKey | null {
@@ -39,6 +50,12 @@ export function proxyPanelKey(e: KeyLike): ProxyPanelKey | null {
       return e.shiftKey ? null : "close";
     case "e":
       return e.shiftKey ? null : "edit";
+    case "i":
+      return e.shiftKey ? null : "hold";
+    case "f":
+      return e.shiftKey ? null : "forward";
+    case "d":
+      return e.shiftKey ? null : "drop";
   }
   return null;
 }

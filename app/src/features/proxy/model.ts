@@ -64,16 +64,18 @@ export function formatTime(ms: number): string {
   return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 }
 
-/** 一覧のステータスの欄に出す字。応答がまだなら "…"、応答の無い失敗は "!"。 */
+/** 一覧のステータスの欄に出す字。応答がまだなら "…"、応答の無い失敗は "!"、止めている要求（#411）は "||"。 */
 export function statusText(f: Pick<ProxyFlow, "status" | "state">): string {
+  if (f.state === "held") return "||";
   if (f.status > 0) return String(f.status);
   return f.state === "failed" ? "!" : "…";
 }
 
-/** ステータスの色分け（ok：2xx・3xx、warn：4xx、error：5xx と失敗、pending：まだ）。 */
+/** ステータスの色分け（ok：2xx・3xx、warn：4xx、error：5xx と失敗、pending：まだ、held：止めている）。 */
 export function statusKind(
   f: Pick<ProxyFlow, "status" | "state">,
-): "ok" | "warn" | "error" | "pending" {
+): "ok" | "warn" | "error" | "pending" | "held" {
+  if (f.state === "held") return "held";
   if (f.state === "failed" || f.status >= 500) return "error";
   if (f.status >= 400) return "warn";
   if (f.status > 0) return "ok";
@@ -101,12 +103,24 @@ export function stepSelection(
 }
 
 /**
- * 通信の進み具合（0：応答を待っている、1：応答のヘッダーが来た、2：終わった・失敗した）。
+ * 通信の進み具合（0：行き先に送る前に止めている、1：応答を待っている、2：応答のヘッダーが来た、3：終わった・失敗した）。
  * 同じ通信の 2 つの知らせのうち、どちらが新しいかを比べるのに使う（通信は進む方向にしか変わらない）。
  */
 export function flowProgress(f: Pick<ProxyFlow, "status" | "state">): number {
-  if (f.state !== "pending") return 2;
-  return f.status > 0 ? 1 : 0;
+  if (f.state === "held") return 0;
+  if (f.state !== "pending") return 3;
+  return f.status > 0 ? 2 : 1;
+}
+
+/**
+ * 止めている要求（#411）のうち、いちばん古いものの id（except は数えない）。無ければ undefined。
+ * 止めた順に 1 つずつ決めていけるよう、パネルが次に選ぶ通信。
+ */
+export function oldestHeld(
+  flows: readonly ProxyFlow[],
+  except?: number,
+): number | undefined {
+  return flows.find((f) => f.state === "held" && f.id !== except)?.id;
 }
 
 // ---- 書き換えて送り直す（#410）----
@@ -115,10 +129,11 @@ export function flowProgress(f: Pick<ProxyFlow, "status" | "state">): number {
  * 書き換える要求の本文。text が字の本文（書き換えて送る）。text が undefined なら、元の本文をそのまま送る（kisui serve が
  * 覚えたもの）。note は、字で書き換えられない理由：binary（字でない）・encoded（要求が圧縮してある）は元の本文をそのまま送る、
  * cut（記録の上限で切れている）は、そのままでは送れないので、書いた本文（空で始まる）を送る。
+ * unread は、止めている要求（#411）の本文を kisui serve が読んでいない（大きさが分からない・大きい）。元の本文をそのまま送る。
  */
 export interface ProxyDraftBody {
   text: string | undefined;
-  note?: "binary" | "encoded" | "cut";
+  note?: "binary" | "encoded" | "cut" | "unread";
   /** 元の本文の大きさ */
   size: number;
 }
@@ -161,7 +176,9 @@ export function draftFrom(d: ProxyFlowDetail): ProxyDraft {
     enc[1].trim().toLowerCase() !== "identity";
   const b = d.reqBody;
   let body: ProxyDraftBody;
-  if (b.truncated) body = { text: "", note: "cut", size: b.size };
+  if (d.state === "held" && d.reqBodyUnread)
+    body = { text: undefined, note: "unread", size: 0 };
+  else if (b.truncated) body = { text: "", note: "cut", size: b.size };
   else if (b.size === 0) body = { text: "", size: 0 };
   else if (encoded) body = { text: undefined, note: "encoded", size: b.size };
   else if (b.text === undefined)

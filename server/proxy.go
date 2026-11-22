@@ -32,6 +32,10 @@ const CapProxy = "proxy"
 // CapProxyResend は capabilities に入れる、proxy.resend（記録した通信の要求を書き換えて送り直す。#410）を受けられる印。
 const CapProxyResend = "proxy.resend"
 
+// CapProxyHold は capabilities に入れる、proxy.hold・proxy.release（要求を行き先に送る前に止めて、流す・書き換える・捨てる。#411）を
+// 受けられる印。
+const CapProxyHold = "proxy.hold"
+
 // maxProxyScopes は同時に通せる単位の数。
 const maxProxyScopes = 64
 
@@ -65,10 +69,12 @@ type proxyScopeInfo struct {
 	Port        int    `json:"port"`
 	// Recording は、間に入って記録しているか。false は、やめたあと中継だけしているワークスペースの scope。
 	Recording bool `json:"recording"`
+	// Holding は、要求を行き先に送る前に止めるのを入れているか（#411）。
+	Holding bool `json:"holding"`
 }
 
 func (sc *proxyScope) info() proxyScopeInfo {
-	return proxyScopeInfo{Scope: sc.key, WorkspaceID: sc.wsID, Port: sc.port(), Recording: sc.px.Intercepting()}
+	return proxyScopeInfo{Scope: sc.key, WorkspaceID: sc.wsID, Port: sc.port(), Recording: sc.px.Intercepting(), Holding: sc.px.Holding()}
 }
 
 type proxyManager struct {
@@ -191,6 +197,16 @@ func (m *proxyManager) shutdown() {
 	}
 }
 
+// releaseHolds は、全部の scope で、要求を止めるのをやめる（止めている要求は、そのまま流れる）。窓がいなくなったときに呼ぶ：
+// 流す・捨てるを決める相手がいないまま、ページやコマンドを待たせ続けないように。
+func (m *proxyManager) releaseHolds() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, sc := range m.scopes {
+		sc.px.SetHold(false)
+	}
+}
+
 func (m *proxyManager) get(key string) *proxyScope {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -242,6 +258,9 @@ func (ss *session) proxyRequest(req *rpc.Message) (res any, err error, handled b
 		Headers   [][2]string `json:"headers"`
 		Body      *string     `json:"body"`
 		ConnectTo string      `json:"connectTo"`
+		// proxy.hold・proxy.release（#411）
+		On     bool   `json:"on"`
+		Action string `json:"action"`
 	}
 	if len(req.Params) > 0 {
 		if err := json.Unmarshal(req.Params, &p); err != nil {
@@ -313,13 +332,47 @@ func (ss *session) proxyRequest(req *rpc.Message) (res any, err error, handled b
 			return nil, resendError(err, p.From), true
 		}
 		return map[string]any{"flow": sum}, nil, true
+	case "proxy.hold":
+		sc := m.get(p.Scope)
+		// やめたあと中継だけしているワークスペースは、通していないのと同じに扱う
+		if sc == nil || !sc.px.Intercepting() {
+			return nil, noScope(), true
+		}
+		sc.px.SetHold(p.On)
+		ss.srv.log.Info("proxy hold", "scope", p.Scope, "on", p.On)
+		return map[string]any{"holding": sc.px.Holding()}, nil, true
+	case "proxy.release":
+		sc := m.get(p.Scope)
+		if sc == nil {
+			return nil, noScope(), true
+		}
+		r := proxy.Release{ID: p.ID}
+		switch p.Action {
+		case "forward":
+		case "drop":
+			r.Drop = true
+		case "edit":
+			e := proxy.Resend{Method: p.Method, URL: p.URL, Header: p.Headers, ConnectTo: p.ConnectTo}
+			if p.Body != nil {
+				b := []byte(*p.Body)
+				e.Body = &b
+			}
+			r.Edit = &e
+		default:
+			return nil, rpc.Errorf(rpc.CodeInvalidParams, "action must be forward, edit or drop"), true
+		}
+		if err := sc.px.Release(r); err != nil {
+			return nil, releaseError(err, p.ID), true
+		}
+		return struct{}{}, nil, true
 	}
 	return nil, rpc.Errorf(rpc.CodeMethodNotFound, "method not found: %s", req.Method), true
 }
 
 // ---- 引き継ぎ（handover.go）----
 // 待ち受け口は fd ごと次の serve に渡す（環境変数にポートを持つペインが、引き継いだあとも通信できるように）。
-// 記録と、通している最中の接続は渡さない（古い serve が終わると切れる）。
+// 記録と、通している最中の接続は渡さない（古い serve が終わると切れる）。要求を止めるのを入れていたこと（#411）も渡さない
+// （止めていた要求は接続ごと切れる。次の serve は、止めない所から始まる）。
 
 // handoverProxy は引き継ぐ scope 1 つ。
 type handoverProxy struct {
@@ -385,6 +438,18 @@ func (s *Server) startAdoptedProxy() {
 	for _, sc := range m.scopes {
 		m.serve(sc)
 	}
+}
+
+// releaseError は proxy.release の断り方。
+func releaseError(err error, id int64) error {
+	var bad *proxy.InvalidRequestError
+	switch {
+	case errors.Is(err, proxy.ErrNotHeld):
+		return rpc.Errorf(rpc.CodeNotFound, "the request is not held: %d", id)
+	case errors.As(err, &bad):
+		return rpc.Errorf(rpc.CodeInvalidParams, "%v", err)
+	}
+	return rpc.Errorf(rpc.CodeInternalError, "%v", err)
 }
 
 // resendError は proxy.resend の断り方。

@@ -894,6 +894,8 @@ export const en = {
     "Open the proxy panel (starts sending this tab through the proxy)",
   "leader.proxy.close": "Close the proxy panel (the tab stays on the proxy)",
   "leader.proxy.stop": "Stop sending this tab through the proxy",
+  "leader.proxy.hold":
+    "Hold the requests of this tab before they are sent, or stop holding them",
   "place.proxy.title": "Proxy panel",
   "place.proxy.lead":
     "The HTTP and HTTPS exchanges of this tab, and the request and the response of the selected one.",
@@ -938,13 +940,44 @@ export const en = {
   "proxy.hint.send": "send",
   "proxy.hint.cancelEdit": "stop editing",
   "place.proxy.edit":
-    "Edit the request of the selected exchange and send it again",
+    "Edit the request of the selected exchange and send it again (a held request: edit it and forward it)",
+  "place.proxy.hold":
+    "Hold the requests of this tab before they are sent, or stop holding them (the held requests then go on as they are)",
+  "place.proxy.forward": "Forward the selected held request as it is",
+  "place.proxy.drop":
+    "Drop the selected held request (it is not sent; the page or the program gets 502)",
   "place.proxyEdit.title": "Editing a request",
   "place.proxyEdit.lead":
-    "Change the method, the URL, the headers and the body, and send it again through the proxy. The response shows up in the list of the panel; the page and the shell do not get it.",
-  "place.proxyEdit.send": "Send the request",
+    "Change the method, the URL, the headers and the body, and send it again through the proxy. The response shows up in the list of the panel; the page and the shell do not get it. For a held request, what you send here goes on in its place, and the page or the shell gets the response.",
+  "place.proxyEdit.send":
+    "Send the request (a held request goes on with your changes)",
   "place.proxyEdit.cancel": "Stop editing (nothing is sent)",
   "cannot.proxy.noFlow": "Select an exchange first.",
+  "cannot.proxy.notHeld":
+    "Select a held request first (a row whose status is ||).",
+  "err.proxy.hold": "Could not change whether requests are held",
+  "err.proxy.release": "Could not release the held request",
+  "proxy.hold.start": "Hold requests",
+  "proxy.hold.stop": "Stop holding",
+  "proxy.hold.hint":
+    "Hold the requests of this tab before they are sent, to forward, edit or drop each one (i)",
+  "proxy.hold.count": "Holding requests · {count} held",
+  "proxy.held.note": "Held: this request has not been sent yet.",
+  "proxy.held.forward": "Forward (f)",
+  "proxy.held.edit": "Edit (e)",
+  "proxy.held.drop": "Drop (d)",
+  "proxy.edited": "Edited in the panel before it was sent",
+  "proxy.body.unread":
+    "The body has not been read while the request is held (its size is unknown, or it is larger than the record keeps). It is sent as it is.",
+  "proxy.hint.hold": "hold requests",
+  "proxy.hint.holdOff": "stop holding",
+  "proxy.hint.forward": "forward",
+  "proxy.hint.editHeld": "edit and forward",
+  "proxy.hint.drop": "drop",
+  "proxy.edit.heldTitle": "Edit and forward #{id}",
+  "proxy.edit.forward": "Forward ({key})",
+  "proxy.edit.body.unread":
+    "The body of the held request has not been read (its size is unknown, or it is larger than the record keeps), so it cannot be edited here. It is sent as it is.",
   "cannot.proxy.noDetail":
     "The proxy no longer keeps this exchange, so it cannot be edited.",
   "proxy.resentFrom": "Resent from #{id}",

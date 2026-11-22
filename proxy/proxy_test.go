@@ -66,7 +66,7 @@ func waitDone(t *testing.T, s *Store, n int) []Summary {
 		list := s.Summaries()
 		done := 0
 		for _, f := range list {
-			if f.State != StatePending {
+			if f.State == StateDone || f.State == StateFailed {
 				done++
 			}
 		}

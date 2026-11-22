@@ -21,6 +21,7 @@ import {
   hasCapability,
   type ProxyFlow,
   type ProxyFlowDetail,
+  type Requests,
   type WorkspaceId,
 } from "../../infrastructure/rpc/protocol.ts";
 import type { Pages } from "../browser/pages.ts";
@@ -37,6 +38,7 @@ import {
   browserScope,
   draftFrom,
   flowProgress,
+  oldestHeld,
   parseHeaders,
   scopeKey,
   stepSelection,
@@ -66,6 +68,8 @@ export interface ProxyScopeState {
   port: number;
   /** 記録した通信（id の順） */
   flows: readonly ProxyFlow[];
+  /** 要求を行き先に送る前に止めるのを入れているか（#411） */
+  holding: boolean;
 }
 
 /** 選んだ通信の中身。読んでいる間は detail も error も無い（前に読んだものがあれば、それを出したまま読み直す）。 */
@@ -81,6 +85,8 @@ export type ProxySide = "request" | "response";
 /** 書き換えている要求（#410）。 */
 export interface ProxyEditState {
   draft: ProxyDraft;
+  /** 止めている要求を書き換えている（#411）。送ると、送り直すのではなく、止めた要求を書き換えて流す */
+  held: boolean;
   /** 送っている途中 */
   sending: boolean;
   /** 送れなかった理由（形が違う・kisui serve が断った） */
@@ -264,6 +270,7 @@ export function createProxy(deps: {
             scope: r.scope,
             port: r.port,
             flows: mergeLate(key, r.flows),
+            holding: r.holding ?? false,
           },
         }));
         if (s.browserTab !== undefined)
@@ -301,11 +308,16 @@ export function createProxy(deps: {
     deps.focusPanel();
   }
 
-  /** 今出しているタブのパネルを閉じる（リーダーの `x c`・パネルの `q`）。通したまま、記録は続ける。 */
+  /**
+   * 今出しているタブのパネルを閉じる（リーダーの `x c`・パネルの `q`）。通したまま、記録は続ける。
+   * 要求を止めるのを入れていたら、やめる（止めた要求を流す・捨てる場所が見えなくなるので。止めていた要求はそのまま流れる）。
+   */
   function closePanel() {
     const s = untrack(subject);
     if (!s || !untrack(open)[s.tab]) return;
     setOpen((o) => without(o, s.tab));
+    const key = scopeKey(s.target, s.scope);
+    if (untrack(scopes)[key]?.holding) void setHold(key, false, true);
     deps.focusTerminal();
   }
 
@@ -396,7 +408,12 @@ export function createProxy(deps: {
       cannot(T("cannot.proxy.title"), T("cannot.proxy.noFlow"));
       return;
     }
-    if (!sessionFor(p.scope.target, false, "proxy.resend")) return;
+    // 止めている要求は、書き換えて流す（#411）。ほかは、書き換えて送り直す
+    const held = p.scope.flows.find((f) => f.id === id)?.state === "held";
+    if (
+      !sessionFor(p.scope.target, false, held ? "proxy.hold" : "proxy.resend")
+    )
+      return;
     const loaded = () => {
       const d = untrack(details)[key];
       return d?.id === id ? d.detail : undefined;
@@ -411,7 +428,7 @@ export function createProxy(deps: {
     }
     setEdits((all) => ({
       ...all,
-      [key]: { draft: draftFrom(d), sending: false },
+      [key]: { draft: draftFrom(d), held, sending: false },
     }));
     deps.focusPanel();
   }
@@ -437,6 +454,7 @@ export function createProxy(deps: {
   /**
    * 書き換えた要求を送り直す（欄の Cmd+Enter・Ctrl+Enter）。送り始めたら欄を閉じ、送った通信を選んで、応答の側を出す
    * （応答は、届いたら知らせ（proxy.flow）で一覧と中身に入る）。送れなければ、欄に理由を出す。
+   * 止めている要求を書き換えていたら（#411）、送り直すのではなく、止めた要求を書き換えて流す。
    */
   async function sendEdit() {
     const c = currentEdit();
@@ -453,31 +471,60 @@ export function createProxy(deps: {
       setError(T("proxy.edit.badHeader", { line: parsed.badLine }));
       return;
     }
-    const session = sessionFor(p.scope.target, false, "proxy.resend");
+    const session = sessionFor(
+      p.scope.target,
+      false,
+      e.held ? "proxy.hold" : "proxy.resend",
+    );
     if (!session) return;
     setEdits((all) => ({
       ...all,
       [key]: { ...e, sending: true, error: undefined },
     }));
-    let flow: ProxyFlow;
+    const request = {
+      method: e.draft.method.trim(),
+      url: e.draft.url.trim(),
+      headers: parsed.headers,
+      ...(e.draft.body.text === undefined ? {} : { body: e.draft.body.text }),
+      ...(e.draft.connectTo?.trim()
+        ? { connectTo: e.draft.connectTo.trim() }
+        : {}),
+    };
+    const send = e.held ? forwardEdited : resendEdited;
     try {
-      ({ flow } = await session.request("proxy.resend", {
-        scope: p.scope.scope,
-        from: e.draft.from,
-        method: e.draft.method.trim(),
-        url: e.draft.url.trim(),
-        headers: parsed.headers,
-        ...(e.draft.body.text === undefined ? {} : { body: e.draft.body.text }),
-        ...(e.draft.connectTo?.trim()
-          ? { connectTo: e.draft.connectTo.trim() }
-          : {}),
-      }));
+      await send(session, key, p.scope.scope, e.draft.from, request);
     } catch (err) {
       setError(message(err));
-      return;
     }
-    // 送っている間に、単位が無くなった・書き換えをやめた
-    if (!untrack(scopes)[key] || !untrack(edits)[key]) return;
+  }
+
+  /** 書き換える欄から送る要求（proxy.resend と、proxy.release の edit で同じ形）。 */
+  type EditedRequest = Pick<
+    Requests["proxy.resend"]["params"],
+    "method" | "url" | "headers" | "body" | "connectTo"
+  >;
+
+  /** 送っている間に、単位が無くなった・書き換えをやめた。 */
+  const editGone = (key: string) =>
+    !untrack(scopes)[key] || !untrack(edits)[key];
+
+  /**
+   * 書き換えた要求 request を、通信 from を送り直したものとして送る（#410）。送り始めたら欄を閉じ、送った通信を選んで、
+   * 応答の側を出す。kisui serve が断ったら投げる。
+   */
+  async function resendEdited(
+    session: NonNullable<ReturnType<typeof sessionFor>>,
+    key: string,
+    scope: string,
+    from: number,
+    request: EditedRequest,
+  ) {
+    const { flow } = await session.request("proxy.resend", {
+      scope,
+      from,
+      ...request,
+    });
+    if (editGone(key)) return;
     batch(() => {
       setScopes((s) => {
         const st = s[key];
@@ -491,6 +538,121 @@ export function createProxy(deps: {
     });
     void loadDetail(key, flow.id);
     deps.focusPanel();
+  }
+
+  /**
+   * 止めている要求 id を、書き換えた要求 request にして流す（#411）。流したら欄を閉じ、次の止めている要求を選ぶ
+   * （afterRelease）。kisui serve が断ったら投げる（要求は止めたまま）。
+   */
+  async function forwardEdited(
+    session: NonNullable<ReturnType<typeof sessionFor>>,
+    key: string,
+    scope: string,
+    id: number,
+    request: EditedRequest,
+  ) {
+    await session.request("proxy.release", {
+      scope,
+      id,
+      action: "edit",
+      ...request,
+    });
+    if (editGone(key)) return;
+    setEdits((all) => without(all, key));
+    afterRelease(key, id, true);
+    deps.focusPanel();
+  }
+
+  // ---- 途中で止める（#411）----
+
+  /**
+   * 単位 key の、要求を止めるのを入れる・やめる。quiet なら、できなくても知らせない（パネルを閉じたときの後始末）。
+   * 入れられた・やめられたら true。
+   */
+  async function setHold(key: string, on: boolean, quiet = false) {
+    const st = untrack(scopes)[key];
+    const session = st && sessionFor(st.target, quiet, "proxy.hold");
+    if (!st || !session) return false;
+    let holding: boolean;
+    try {
+      ({ holding } = await session.request("proxy.hold", {
+        scope: st.scope,
+        on,
+      }));
+    } catch (e) {
+      if (!quiet)
+        deps.setFocusError({ title: T("err.proxy.hold"), error: message(e) });
+      return false;
+    }
+    setScopes((s) => (s[key] ? { ...s, [key]: { ...s[key]!, holding } } : s));
+    return true;
+  }
+
+  /**
+   * 今出しているタブの、要求を止めるのを切り替える（リーダーの `x i`・パネルの `i`）。通していないタブでは、できないと知らせる。
+   * 入れたとき、パネルが閉じていれば開く（止めた要求を流す・捨てる場所なので）。
+   */
+  async function toggleHold() {
+    const s = untrack(subject);
+    const key = s && scopeKey(s.target, s.scope);
+    const st = key === undefined ? undefined : untrack(scopes)[key];
+    if (!s || key === undefined || !st) {
+      cannot(T("cannot.proxy.title"), T("cannot.proxy.notOn"));
+      return;
+    }
+    if (!(await setHold(key, !st.holding))) return;
+    if (!untrack(scopes)[key]?.holding || untrack(open)[s.tab]) return;
+    setOpen((o) => ({ ...o, [s.tab]: true }));
+    if (untrack(subject)?.tab !== s.tab) return;
+    deps.forgetPageReturn();
+    deps.focusPanel();
+  }
+
+  /**
+   * 止めていた要求 id を流した・捨てたあとの、パネルの選び方。ほかに止めている要求があれば、いちばん古いものを選ぶ
+   * （止めた順に 1 つずつ決めていけるように）。無ければ、そのままにして、流したものは応答の側を出す。
+   */
+  function afterRelease(key: string, id: number, forwarded: boolean) {
+    const st = untrack(scopes)[key];
+    if (!st) return;
+    const next = oldestHeld(st.flows, id);
+    if (next === undefined) {
+      if (forwarded && untrack(selected)[key] === id) setSide("response");
+      return;
+    }
+    setSelected((s) => ({ ...s, [key]: next }));
+    void loadDetail(key, next);
+  }
+
+  /**
+   * パネルで選んでいる、止めている要求を、そのまま流す（パネルの `f`）・捨てる（`d`）。止めている要求を選んでいなければ、
+   * できないと知らせる。書き換えて流すのは、書き換える欄から（startEdit・sendEdit）。
+   */
+  async function releaseHeld(action: "forward" | "drop") {
+    const p = untrack(panel);
+    if (!p || p.edit) return;
+    const key = scopeKey(p.scope.target, p.scope.scope);
+    const id = p.selected;
+    if (
+      id === undefined ||
+      p.scope.flows.find((f) => f.id === id)?.state !== "held"
+    ) {
+      cannot(T("cannot.proxy.title"), T("cannot.proxy.notHeld"));
+      return;
+    }
+    const session = sessionFor(p.scope.target, false, "proxy.hold");
+    if (!session) return;
+    try {
+      await session.request("proxy.release", {
+        scope: p.scope.scope,
+        id,
+        action,
+      });
+    } catch (e) {
+      deps.setFocusError({ title: T("err.proxy.release"), error: message(e) });
+      return;
+    }
+    afterRelease(key, id, action === "forward");
   }
 
   // 接続ごとに、通信の知らせ（proxy.flow）を受ける
@@ -517,8 +679,18 @@ export function createProxy(deps: {
               : s;
           });
           // 選んでいる通信が進んだら（応答が来た・終わった）、中身を読み直す
-          if (untrack(selected)[key] === n.flow.id)
+          const sel = untrack(selected)[key];
+          if (sel === n.flow.id) void loadDetail(key, n.flow.id);
+          else if (
+            n.flow.state === "held" &&
+            !untrack(edits)[key] &&
+            untrack(scopes)[key]?.flows.find((f) => f.id === sel)?.state !==
+              "held"
+          ) {
+            // 要求が止まった（#411）。止めている要求を選んでいなければ、これを選ぶ（すぐに流す・捨てるを決められるように）
+            setSelected((s) => ({ ...s, [key]: n.flow.id }));
             void loadDetail(key, n.flow.id);
+          }
         }),
       );
     }
@@ -576,6 +748,7 @@ export function createProxy(deps: {
             scope: sc.scope,
             port: sc.port,
             flows: mergeLate(key, flows),
+            holding: sc.holding ?? false,
           },
         }));
       } catch {
@@ -660,6 +833,8 @@ export function createProxy(deps: {
     editDraft,
     cancelEdit,
     sendEdit,
+    toggleHold,
+    releaseHeld,
     /** 中身の「要求」と「応答」を切り替える（side を渡せばその側に） */
     toggleSide(to?: ProxySide) {
       setSide((s) => to ?? (s === "request" ? "response" : "request"));

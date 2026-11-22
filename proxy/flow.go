@@ -33,6 +33,7 @@ const (
 // 通信の状態。
 const (
 	StatePending = "pending" // 応答を待っている・本文を受けている
+	StateHeld    = "held"    // 行き先に送る前に止めている（#411。Proxy.Release で流す・捨てる）
 	StateDone    = "done"
 	StateFailed  = "failed" // 行き先につながらない・証明書が正しくない・途中で切れた
 )
@@ -65,6 +66,10 @@ type flow struct {
 	resentFrom int64
 	// dial は、Host と違う所につないだときの、つないだ先（host:port。CONNECT で頼まれた行き先。curl --connect-to など）。ほかは ""
 	dial string
+	// edited は、止めて書き換えてから流した通信（#411）。記録は、書き換えたあとの要求
+	edited bool
+	// bodyUnread は、止めている要求の本文を読んでいない（大きさが分からない・大きい。#411）
+	bodyUnread bool
 }
 
 // Summary は一覧の 1 行（JSON は窓との取り決め。docs/design/gui-protocol.md の「プロキシ」）。
@@ -84,6 +89,8 @@ type Summary struct {
 	MIME       string `json:"mime,omitempty"` // 応答の Content-Type の種類（text/html など）
 	// ResentFrom は、送り直した通信（Resend。#410）のとき、元の通信の id。クライアントから来た通信は 0
 	ResentFrom int64 `json:"resentFrom,omitempty"`
+	// Edited は、止めて書き換えてから流した通信（#411）
+	Edited bool `json:"edited,omitempty"`
 }
 
 // BodyView は本文の見せ方。字として読めれば Text、読めなければ Binary。
@@ -101,11 +108,14 @@ type Detail struct {
 	Summary
 	Protocol string `json:"protocol"`
 	// ConnectTo は、Host と違う所につないだ通信の、つないだ先（host:port）。送り直すとき、同じ所につなぐため（#410）
-	ConnectTo   string      `json:"connectTo,omitempty"`
-	ReqHeaders  [][2]string `json:"reqHeaders"`
-	RespHeaders [][2]string `json:"respHeaders"`
-	ReqBody     BodyView    `json:"reqBody"`
-	RespBody    BodyView    `json:"respBody"`
+	ConnectTo string `json:"connectTo,omitempty"`
+	// ReqBodyUnread は、止めている（StateHeld）要求の本文を、読んでいない（大きさが分からない・記録の上限より大きい。#411）。
+	// ReqBody は空で、流すと、本文はそのまま行き先に送られる
+	ReqBodyUnread bool        `json:"reqBodyUnread,omitempty"`
+	ReqHeaders    [][2]string `json:"reqHeaders"`
+	RespHeaders   [][2]string `json:"respHeaders"`
+	ReqBody       BodyView    `json:"reqBody"`
+	RespBody      BodyView    `json:"respBody"`
 }
 
 // Store は通信の記録。
@@ -141,13 +151,14 @@ func (s *Store) Detail(id int64) (Detail, bool) {
 	for _, f := range s.flows {
 		if f.id == id {
 			return Detail{
-				Summary:     f.summary(),
-				Protocol:    f.proto,
-				ConnectTo:   f.dial,
-				ReqHeaders:  headerList(f.reqHeader),
-				RespHeaders: headerList(f.respHeader),
-				ReqBody:     viewBody(f.reqBody, f.reqHeader),
-				RespBody:    viewBody(f.respBody, f.respHeader),
+				Summary:       f.summary(),
+				Protocol:      f.proto,
+				ConnectTo:     f.dial,
+				ReqBodyUnread: f.state == StateHeld && f.bodyUnread,
+				ReqHeaders:    headerList(f.reqHeader),
+				RespHeaders:   headerList(f.respHeader),
+				ReqBody:       viewBody(f.reqBody, f.reqHeader),
+				RespBody:      viewBody(f.respBody, f.respHeader),
 			}, true
 		}
 	}
@@ -159,7 +170,7 @@ func (f *flow) summary() Summary {
 		ID: f.id, Time: f.start.UnixMilli(), Method: f.method, Scheme: f.scheme, Host: f.host, Path: f.path,
 		Status: f.status, State: f.state, Error: f.err,
 		ReqSize: f.reqBody.Size, RespSize: f.respBody.Size, DurationMs: f.duration.Milliseconds(),
-		ResentFrom: f.resentFrom,
+		ResentFrom: f.resentFrom, Edited: f.edited,
 	}
 	if ct := f.respHeader.Get("Content-Type"); ct != "" {
 		if mt, _, err := mime.ParseMediaType(ct); err == nil {
@@ -191,6 +202,11 @@ func (s *Store) begin(r *http.Request, scheme, host, dial string) *flow {
 
 // beginFrom は始まった通信を足す。resentFrom は、送り直した通信のとき、元の通信の id（クライアントから来たものは 0）。
 func (s *Store) beginFrom(r *http.Request, scheme, host, dial string, resentFrom int64) *flow {
+	return s.beginWith(r, scheme, host, dial, func(f *flow) { f.resentFrom = resentFrom })
+}
+
+// beginWith は始まった通信を足す。init は、id を決めたあと・一覧に足す前に、通信を整える（mu を持って呼ぶ）。
+func (s *Store) beginWith(r *http.Request, scheme, host, dial string, init func(f *flow)) *flow {
 	header := r.Header.Clone()
 	if header == nil {
 		header = http.Header{}
@@ -200,11 +216,13 @@ func (s *Store) beginFrom(r *http.Request, scheme, host, dial string, resentFrom
 	}
 	f := &flow{
 		start: time.Now(), method: r.Method, scheme: scheme, host: host, path: r.URL.RequestURI(),
-		proto: r.Proto, state: StatePending, reqHeader: header, resentFrom: resentFrom, dial: dial,
+		proto: r.Proto, state: StatePending, reqHeader: header, dial: dial,
 	}
 	s.mu.Lock()
 	s.next++
 	f.id = s.next
+	init(f)
+	s.bytes += int64(len(f.reqBody.Data))
 	s.flows = append(s.flows, f)
 	s.trim()
 	sum := f.summary()
@@ -229,13 +247,22 @@ func (s *Store) update(f *flow, change func(f *flow)) {
 	s.changed(sum)
 }
 
-// trim は上限を超えた分を、古いものから捨てる（いちばん新しい 1 つは残す）。
+// trim は上限を超えた分を、古いものから捨てる（いちばん新しい 1 つは残す）。止めている通信（StateHeld）は捨てない
+// （パネルから流す・捨てるができなくなるので。止めている数は MaxHeld まで）。
 func (s *Store) trim() {
 	for len(s.flows) > 1 && (len(s.flows) > MaxFlows || s.bytes > MaxStoreBytes) {
-		old := s.flows[0]
+		i := slices.IndexFunc(s.flows[:len(s.flows)-1], func(f *flow) bool { return f.state != StateHeld })
+		if i < 0 {
+			return
+		}
+		old := s.flows[i]
 		s.bytes -= int64(len(old.reqBody.Data) + len(old.respBody.Data))
-		s.flows[0] = nil
-		s.flows = s.flows[1:]
+		if i == 0 {
+			s.flows[0] = nil
+			s.flows = s.flows[1:]
+		} else {
+			s.flows = slices.Delete(s.flows, i, i+1)
+		}
 	}
 }
 

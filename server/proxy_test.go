@@ -399,3 +399,109 @@ func TestProxyResend(t *testing.T) {
 		}
 	}
 }
+
+// 止めるのを入れた scope の要求は、行き先に届く前に止まり（一覧に held で出る）、書き換えて流すと、書き換えた要求が届く。
+// 窓がいなくなると、止めるのをやめて、止めていた要求をそのまま流す。
+func TestProxyHoldAndRelease(t *testing.T) {
+	up, roots := proxyUpstream(t)
+	srv, sock, dir := startProxyServe(t, roots)
+	c, _ := termClient(t, sock)
+	ctx := context.Background()
+	var hr HelloResult
+	if err := c.Call(ctx, "session.hello", hello(Protocol.Major), &hr); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(hr.Capabilities, CapProxyHold) {
+		t.Fatalf("capabilities = %v", hr.Capabilities)
+	}
+	st := proxyStart(t, c, map[string]any{"scope": "browser:tab1"})
+	var held struct {
+		Holding bool `json:"holding"`
+	}
+	if err := c.Call(ctx, "proxy.hold", map[string]any{"scope": st.Scope, "on": true}, &held); err != nil || !held.Holding {
+		t.Fatalf("proxy.hold: %+v %v", held, err)
+	}
+	if l := proxyScopes(t, c); len(l) != 1 || !l[0].Holding {
+		t.Fatalf("proxy.list: %+v", l)
+	}
+	client := viaProxy(t, st.Port, dir)
+	get := func(path string) <-chan string {
+		ch := make(chan string, 1)
+		go func() {
+			resp, err := client.Get(up.URL + path)
+			if err != nil {
+				ch <- "error: " + err.Error()
+				return
+			}
+			b, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			ch <- fmt.Sprintf("%d %s", resp.StatusCode, b)
+		}()
+		return ch
+	}
+	var flows struct {
+		Flows []proxy.Summary `json:"flows"`
+	}
+	waitHeld := func(n int) proxy.Summary {
+		t.Helper()
+		waitFor(t, "a held flow", func() bool {
+			if err := c.Call(ctx, "proxy.flows", map[string]any{"scope": st.Scope}, &flows); err != nil {
+				t.Fatal(err)
+			}
+			return len(flows.Flows) == n && flows.Flows[n-1].State == proxy.StateHeld
+		})
+		return flows.Flows[n-1]
+	}
+	answer := func(ch <-chan string) string {
+		t.Helper()
+		select {
+		case a := <-ch:
+			return a
+		case <-time.After(5 * time.Second):
+			t.Fatal("the client got no answer")
+			return ""
+		}
+	}
+
+	ch := get("/first")
+	f := waitHeld(1)
+	release := func(params map[string]any) error {
+		params["scope"] = st.Scope
+		return c.Call(ctx, "proxy.release", params, nil)
+	}
+	if err := release(map[string]any{"id": f.ID, "action": "edit", "method": "GET", "url": "not a url"}); !isCode(err, rpc.CodeInvalidParams) {
+		t.Errorf("a bad edit: %v", err)
+	}
+	if err := release(map[string]any{"id": f.ID, "action": "bogus"}); !isCode(err, rpc.CodeInvalidParams) {
+		t.Errorf("a bad action: %v", err)
+	}
+	if err := release(map[string]any{"id": 999, "action": "forward"}); !isCode(err, rpc.CodeNotFound) {
+		t.Errorf("a flow that is not held: %v", err)
+	}
+	if err := release(map[string]any{"id": f.ID, "action": "edit", "method": "GET", "url": up.URL + "/edited", "headers": [][2]string{}}); err != nil {
+		t.Fatal(err)
+	}
+	if a := answer(ch); a != "200 hello from /edited" {
+		t.Errorf("the client got %q", a)
+	}
+
+	ch = get("/dropped")
+	f = waitHeld(2)
+	if err := release(map[string]any{"id": f.ID, "action": "drop"}); err != nil {
+		t.Fatal(err)
+	}
+	if a := answer(ch); !strings.HasPrefix(a, "502 ") {
+		t.Errorf("the client of a dropped request got %q", a)
+	}
+
+	// 窓がいなくなったら、止めていた要求はそのまま流れる
+	ch = get("/left")
+	waitHeld(3)
+	c.Close()
+	if a := answer(ch); a != "200 hello from /left" {
+		t.Errorf("after the window left, the client got %q", a)
+	}
+	if sc := srv.proxy.get(st.Scope); sc == nil || sc.px.Holding() {
+		t.Error("still holding after the window left")
+	}
+}

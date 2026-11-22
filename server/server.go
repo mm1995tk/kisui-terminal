@@ -259,11 +259,16 @@ func (s *Server) accept(c net.Conn) {
 		<-ss.conn.Done()
 		s.mu.Lock()
 		delete(s.sessions, ss)
-		if s.owner == ss {
+		ownerGone := s.owner == ss
+		if ownerGone {
 			s.owner = nil
 		}
 		s.lastClient = s.now()
 		s.mu.Unlock()
+		if ownerGone {
+			// プロキシで止めている要求（#411）を流す・捨てる相手がいなくなった
+			s.proxy.releaseHolds()
+		}
 		// 状態（ワークスペース・ターミナル）はそのまま残す。
 		s.log.Info("client gone", "reason", fmt.Sprint(ss.conn.Err()))
 		ss.conn.Close() // fd と Handler の終わりを待つ。Done のあとなので詰まらない
@@ -515,7 +520,7 @@ func (ss *session) helloReq(req *rpc.Message) (any, error) {
 		ServerID:     s.serverID,
 		StartedAt:    s.startedAt,
 		Supersedes:   sup,
-		Capabilities: []string{CapHandover, CapDB, CapDBPermissions, CapDBSchema, CapDBStructure, CapDBElevate, CapCreateCommand, CapPaneRun, CapProxy, CapProxyResend},
+		Capabilities: []string{CapHandover, CapDB, CapDBPermissions, CapDBSchema, CapDBStructure, CapDBElevate, CapCreateCommand, CapPaneRun, CapProxy, CapProxyResend, CapProxyHold},
 		Workspaces:   wsl,
 		Rev:          s.currentRev(),
 	}, nil
