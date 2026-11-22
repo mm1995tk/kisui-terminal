@@ -300,7 +300,8 @@ func (rec recorder) RoundTrip(req *http.Request) (*http.Response, error) {
 	return resp, nil
 }
 
-// connect は CONNECT。TLS なら間に入り、そうでなければ中身を見ずに中継する。
+// connect は CONNECT。行き先を確かめ、中身の種類で振り分ける：TLS なら間に入り、HTTP ならそのまま読み、
+// どちらでもなければ（間に入らない設定のときも）中身を見ずに中継する。
 func (p *Proxy) connect(w http.ResponseWriter, r *http.Request) {
 	target := r.Host
 	if _, _, err := net.SplitHostPort(target); err != nil {
@@ -311,57 +312,110 @@ func (p *Proxy) connect(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "kisui proxy: the request points at this proxy itself", http.StatusBadRequest)
 		return
 	}
+	if !p.intercept.Load() {
+		p.relayOnly(w, target)
+		return
+	}
+	client := accept(w, nil)
+	if client == nil {
+		return
+	}
+	switch sniff(client) {
+	case kindTLS:
+		p.interceptTLS(client, target)
+	case kindHTTP:
+		// CONNECT の中に、そのまま HTTP を書くクライアント（macOS の WebView は、http:// も CONNECT で送る）
+		p.serveTunnel(client, tunnel{target: target, plain: true})
+	case kindOther:
+		if up, err := net.DialTimeout("tcp", target, dialTimeout); err == nil {
+			relay(client, up)
+		} else {
+			client.Close()
+		}
+	case kindGone:
+		client.Close()
+	}
+}
+
+// accept は CONNECT に「つながった」と答えて、クライアントの接続を受け取る。受け取れなければ nil
+// （up があれば閉じる）。
+func accept(w http.ResponseWriter, up net.Conn) *bufConn {
+	fail := func() *bufConn {
+		if up != nil {
+			up.Close()
+		}
+		return nil
+	}
 	hj, ok := w.(http.Hijacker)
 	if !ok {
 		http.Error(w, "kisui proxy: cannot take over the connection", http.StatusInternalServerError)
-		return
-	}
-	if !p.intercept.Load() {
-		// 中継だけのときは、行き先につないでから答える（つながらなければ 502 を返せる）
-		up, err := net.DialTimeout("tcp", target, dialTimeout)
-		if err != nil {
-			http.Error(w, "kisui proxy: cannot reach "+target+": "+err.Error(), http.StatusBadGateway)
-			return
-		}
-		conn, brw, err := hj.Hijack()
-		if err != nil {
-			up.Close()
-			return
-		}
-		_, _ = io.WriteString(conn, "HTTP/1.1 200 Connection Established\r\n\r\n")
-		relay(&bufConn{Conn: conn, r: brw.Reader}, up)
-		return
+		return fail()
 	}
 	conn, brw, err := hj.Hijack()
 	if err != nil {
-		return
+		return fail()
 	}
 	if _, err := io.WriteString(conn, "HTTP/1.1 200 Connection Established\r\n\r\n"); err != nil {
 		conn.Close()
+		return fail()
+	}
+	return &bufConn{Conn: conn, r: brw.Reader}
+}
+
+// relayOnly は、間に入らない設定のときの CONNECT。行き先につないでから答える（つながらなければ 502 を返せる）。
+func (p *Proxy) relayOnly(w http.ResponseWriter, target string) {
+	up, err := net.DialTimeout("tcp", target, dialTimeout)
+	if err != nil {
+		http.Error(w, "kisui proxy: cannot reach "+target+": "+err.Error(), http.StatusBadGateway)
 		return
 	}
-	client := &bufConn{Conn: conn, r: brw.Reader}
-	_ = conn.SetReadDeadline(time.Now().Add(peekWait))
-	first, err := brw.Reader.Peek(1)
-	_ = conn.SetReadDeadline(time.Time{})
-	if err != nil && !errors.Is(err, context.DeadlineExceeded) && !isTimeout(err) {
-		conn.Close()
-		return
-	}
-	if err != nil || first[0] != 0x16 { // 0x16 は TLS の handshake
-		if err == nil && p.startsWithHTTP(conn, brw.Reader) {
-			// CONNECT の中に、そのまま HTTP を書くクライアント（macOS の WebView は、http:// も CONNECT で送る）
-			p.serveTunnel(client, tunnel{target: target, plain: true})
-			return
-		}
-		up, err := net.DialTimeout("tcp", target, dialTimeout)
-		if err != nil {
-			conn.Close()
-			return
-		}
+	if client := accept(w, up); client != nil {
 		relay(client, up)
-		return
 	}
+}
+
+// CONNECT の中身の種類。
+type tunnelKind int
+
+const (
+	kindTLS   tunnelKind = iota // TLS の handshake で始まる
+	kindHTTP                    // HTTP の要求がそのまま書かれている
+	kindOther                   // どちらでもない・クライアントが先に話さない（サーバーが先に話すプロトコルなど）
+	kindGone                    // クライアントが切った
+)
+
+// httpMethods は、CONNECT の中の最初の字が HTTP の要求かを見分けるための、メソッドの名前（後ろに空白）。
+var httpMethods = [][]byte{[]byte("GET "), []byte("HEAD "), []byte("POST "), []byte("PUT "), []byte("PATCH "), []byte("DELETE "), []byte("OPTIONS ")}
+
+// sniff は、クライアントが最初に送ってきたバイトを、読み進めずに見て、中身の種類を返す（peekWait まで待つ）。
+// SSH のように、HTTP と同じく英字で始まる別のプロトコルは kindOther。
+func sniff(c *bufConn) tunnelKind {
+	peek := func(n int) ([]byte, error) {
+		_ = c.Conn.SetReadDeadline(time.Now().Add(peekWait))
+		defer func() { _ = c.Conn.SetReadDeadline(time.Time{}) }()
+		return c.r.Peek(n)
+	}
+	first, err := peek(1)
+	switch {
+	case err != nil && isTimeout(err):
+		return kindOther
+	case err != nil:
+		return kindGone
+	case first[0] == 0x16: // TLS の handshake
+		return kindTLS
+	}
+	head, _ := peek(8)
+	for _, m := range httpMethods {
+		if bytes.HasPrefix(head, m) {
+			return kindHTTP
+		}
+	}
+	return kindOther
+}
+
+// interceptTLS は、クライアントの TLS の間に入る：クライアントが言った名前（SNI。無ければ CONNECT の行き先）の
+// 証明書を作って handshake し、中の要求を読むサーバーに渡す。
+func (p *Proxy) interceptTLS(client net.Conn, target string) {
 	hostOnly, _, _ := net.SplitHostPort(target)
 	tc := tls.Server(client, &tls.Config{
 		GetCertificate: func(h *tls.ClientHelloInfo) (*tls.Certificate, error) {
@@ -374,9 +428,8 @@ func (p *Proxy) connect(w http.ResponseWriter, r *http.Request) {
 		NextProtos: []string{"h2", "http/1.1"},
 	})
 	ctx, cancel := context.WithTimeout(context.Background(), handshakeTimeout)
-	err = tc.HandshakeContext(ctx)
-	cancel()
-	if err != nil {
+	defer cancel()
+	if err := tc.HandshakeContext(ctx); err != nil {
 		// クライアントが認証局を信じていないと、ここで切られる
 		tc.Close()
 		return
@@ -393,23 +446,6 @@ func (p *Proxy) serveTunnel(c net.Conn, t tunnel) {
 		p.targets.Delete(c)
 		c.Close()
 	}
-}
-
-// httpMethods は、CONNECT の中の最初の字が HTTP の要求かを見分けるための、メソッドの名前（後ろに空白）。
-var httpMethods = [][]byte{[]byte("GET "), []byte("HEAD "), []byte("POST "), []byte("PUT "), []byte("PATCH "), []byte("DELETE "), []byte("OPTIONS ")}
-
-// startsWithHTTP は、クライアントが送ってきた最初の字が HTTP の要求の頭か（r に届いている分を、少しだけ待って見る）。
-// SSH のように、同じく英字で始まる別のプロトコルは、中身を見ずに中継する。
-func (p *Proxy) startsWithHTTP(conn net.Conn, r *bufio.Reader) bool {
-	_ = conn.SetReadDeadline(time.Now().Add(peekWait))
-	head, _ := r.Peek(8)
-	_ = conn.SetReadDeadline(time.Time{})
-	for _, m := range httpMethods {
-		if bytes.HasPrefix(head, m) {
-			return true
-		}
-	}
-	return false
 }
 
 func isTimeout(err error) bool {
