@@ -98,3 +98,12 @@ export function stepSelection(
   else to = Math.min(last, Math.max(0, at + (step === "next" ? 1 : -1)));
   return flows[to]!.id;
 }
+
+/**
+ * 通信の進み具合（0：応答を待っている、1：応答のヘッダーが来た、2：終わった・失敗した）。
+ * 同じ通信の 2 つの知らせのうち、どちらが新しいかを比べるのに使う（通信は進む方向にしか変わらない）。
+ */
+export function flowProgress(f: Pick<ProxyFlow, "status" | "state">): number {
+  if (f.state !== "pending") return 2;
+  return f.status > 0 ? 1 : 0;
+}

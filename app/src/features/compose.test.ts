@@ -41,6 +41,8 @@ interface Serve {
   methods: string[];
   /** GUI へ知らせを送る */
   notify(method: string, params: unknown): void;
+  /** proxy.start の答えより先に送る知らせ（答えの一覧を作ったあとに変わった通信。#409） */
+  lateFlow?: ProxyFlow;
   /** プロキシに通している単位（#409。scope → 待ち受け口・記録しているか・ワークスペース・通信） */
   proxy: Map<
     string,
@@ -183,6 +185,7 @@ function fakeShell(
           };
           p.recording = true;
           s.proxy.set(scope, p);
+          if (s.lateFlow) s.notify("proxy.flow", { scope, flow: s.lateFlow });
           reply({
             scope,
             workspaceId: ws,
@@ -798,5 +801,58 @@ describe("機能の持ち物のつなぎ（compose.ts）", () => {
       f.proxy.panel()?.scope.flows.map((x) => x.id),
       [3],
     );
+  });
+
+  it("プロキシ：記録を読んでいる間に届いた知らせは、答えの一覧より進んでいれば当てる", async () => {
+    const { f, serve } = start({
+      serves: { [LOCAL]: { ids: ["a"], focus: "a", capabilities: ["proxy"] } },
+    });
+    await settle();
+    // 答えの一覧では「待っている」通信が、答えより先に届く知らせでは終わっている
+    serve(LOCAL).proxy.set("ws:a", {
+      port: 41000,
+      recording: false,
+      workspaceId: "a",
+      flows: [flow(1, { state: "pending", status: 0 }), flow(2)],
+    });
+    serve(LOCAL).lateFlow = flow(1);
+    f.commands.runCommand({ id: "proxy.panel" });
+    await settle();
+    assert.deepEqual(
+      f.proxy.panel()?.scope.flows.map((x) => [x.id, x.state]),
+      [
+        [1, "done"],
+        [2, "done"],
+      ],
+    );
+    // 一覧より古い知らせ（答えより先に届いた「待っている」）では、戻さない
+    f.commands.runCommand({ id: "proxy.stop" });
+    await settle();
+    serve(LOCAL).proxy.get("ws:a")!.flows = [flow(1)];
+    serve(LOCAL).lateFlow = flow(1, { state: "pending", status: 0 });
+    f.commands.runCommand({ id: "proxy.panel" });
+    await settle();
+    assert.deepEqual(
+      f.proxy.panel()?.scope.flows.map((x) => [x.id, x.state]),
+      [[1, "done"]],
+    );
+  });
+
+  it("プロキシ：手元の kisui serve との接続が切れたら、通しているブラウザのタブをプロキシ無しに戻す", async () => {
+    const { f } = start({
+      serves: { [LOCAL]: { ids: ["a"], focus: "a", capabilities: ["proxy"] } },
+      browser: true,
+    });
+    await settle();
+    f.commands.runCommand({ id: "browser.new" });
+    await settle();
+    f.commands.runCommand({ id: "proxy.panel" });
+    await settle();
+    assert.ok(f.pages.shownBrowserTab()?.proxy);
+    await f.sessions.disconnect(LOCAL);
+    await settle();
+    assert.notEqual(f.sessions.states()[LOCAL]?.kind, "connected");
+    assert.equal(f.pages.shownBrowserTab()?.proxy, undefined);
+    assert.equal(f.proxy.panel(), undefined);
   });
 });

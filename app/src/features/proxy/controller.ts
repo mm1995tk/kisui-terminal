@@ -35,6 +35,7 @@ import { browserKey, termKey } from "../workspaces/model.ts";
 import {
   applyFlow,
   browserScope,
+  flowProgress,
   scopeKey,
   stepSelection,
   wsScope,
@@ -118,6 +119,22 @@ export function createProxy(deps: {
   const [side, setSide] = createSignal<ProxySide>("request");
   /** 通し始めている途中の単位（2 回始めない・途中の単位を「使っていない」と見て止めない） */
   const starting = new Set<string>();
+  /**
+   * 記録を読んでいる途中の単位（scopeKey → その間に届いた知らせ）。kisui serve は、答えの一覧を作ったあとに変わった通信の
+   * 知らせを、答えより先に送ることがある。読んでいる間の知らせはためておき、答えを入れたあとに当てる（mergeLate）
+   */
+  const arriving = new Map<string, ProxyFlow[]>();
+  /** 読み終えた一覧 flows に、読んでいる間に届いた知らせを当てる（一覧より進んでいるものだけ）。 */
+  function mergeLate(key: string, flows: readonly ProxyFlow[]) {
+    const late = arriving.get(key) ?? [];
+    arriving.delete(key);
+    return late.reduce<readonly ProxyFlow[]>((out, f) => {
+      const cur = out.find((x) => x.id === f.id);
+      return !cur || flowProgress(f) >= flowProgress(cur)
+        ? applyFlow(out, f)
+        : out;
+    }, flows);
+  }
 
   /** 今出しているタブ。通せるタブ（ターミナルのタブ・ブラウザのタブ）を出していなければ undefined。 */
   const subject = createMemo<ProxySubject | undefined>(() => {
@@ -215,6 +232,7 @@ export function createProxy(deps: {
     const session = sessionFor(s.target);
     if (!session) return false;
     starting.add(key);
+    arriving.set(key, []);
     try {
       const r = await session.request(
         "proxy.start",
@@ -227,7 +245,7 @@ export function createProxy(deps: {
             target: s.target,
             scope: r.scope,
             port: r.port,
-            flows: r.flows,
+            flows: mergeLate(key, r.flows),
           },
         }));
         if (s.browserTab !== undefined)
@@ -243,6 +261,7 @@ export function createProxy(deps: {
       return false;
     } finally {
       starting.delete(key);
+      arriving.delete(key);
     }
   }
 
@@ -348,6 +367,7 @@ export function createProxy(deps: {
         target,
         session.onProxyFlow((n) => {
           const key = scopeKey(target, n.scope);
+          arriving.get(key)?.push(n.flow);
           if (!untrack(scopes)[key]) return;
           setScopes((s) => {
             const st = s[key];
@@ -403,28 +423,47 @@ export function createProxy(deps: {
         void session.request("proxy.stop", { scope: sc.scope }).catch(() => {});
         continue;
       }
+      arriving.set(key, []);
       try {
         const { flows } = await session.request("proxy.flows", {
           scope: sc.scope,
         });
         setScopes((s) => ({
           ...s,
-          [key]: { target, scope: sc.scope, port: sc.port, flows },
+          [key]: {
+            target,
+            scope: sc.scope,
+            port: sc.port,
+            flows: mergeLate(key, flows),
+          },
         }));
       } catch {
         // 読めなければ、次につないだときに合わせる
+        arriving.delete(key);
       }
     }
   }
   const connected = new Set<string>();
   createEffect(() => {
     const states = deps.sessions.states();
-    for (const [target, st] of Object.entries(states)) {
-      const up = st.kind === "connected";
-      if (up && !connected.has(target)) {
+    for (const [target, st] of Object.entries(states))
+      if (st.kind === "connected" && !connected.has(target)) {
         connected.add(target);
         void untrack(() => sync(target));
-      } else if (!up) connected.delete(target);
+      }
+    // 切れた接続（切ったマシンは、一覧からも無くなる）
+    for (const target of [...connected]) {
+      if (states[target]?.kind === "connected") continue;
+      connected.delete(target);
+      if (target !== LOCAL) continue;
+      // 手元の kisui serve との接続が切れた。プロキシが動いているか分からないので、通しているブラウザのタブを、
+      // つなぎ直しを待たずにプロキシ無しに戻す。webview は、そのポートをプロキシにして、証明書を確かめない設定の
+      // まま残る。kisui serve が落ちていると、空いたポートで別のプロセスが待ち受けられる
+      untrack(() => {
+        for (const st of Object.values(scopes()))
+          if (st.target === LOCAL && !st.scope.startsWith("ws:"))
+            dropScope(LOCAL, st.scope);
+      });
     }
   });
 
