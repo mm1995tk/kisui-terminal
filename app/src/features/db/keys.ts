@@ -157,3 +157,15 @@ export function dbHistoryKey(e: KeyLike, helpOn: boolean): DbHistoryKey | null {
     return { kind: "help" };
   return null;
 }
+
+/**
+ * 権限を強める窓（#383。時間の入力欄にキーがある）で押したキー e の動き（当たらなければ null。入力欄に字を打つ）。
+ * ↓ ↑・Ctrl+J / Ctrl+K で強める権限を選び（入力欄に字を打つので、j k は使えない）、Enter で強める。Esc は窓が受ける。
+ * 入力欄にはいつも時間が入っているので、`?` の一覧は無い（キーは窓の下の段に全部出ている）。
+ */
+export function dbElevateKey(
+  e: KeyLike,
+): Exclude<DbHistoryKey, { kind: "help" }> | null {
+  const k = dbHistoryKey(e, false);
+  return k?.kind === "help" ? null : k;
+}

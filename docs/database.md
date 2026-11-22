@@ -2,7 +2,7 @@
 
 `kisui serve` can connect to MySQL and PostgreSQL and run SQL for the window. This page is about the settings: which databases, and where their passwords come from.
 
-You use these connections in a database tab of the window (the leader, then `d` `n`; see the README), and a coding agent uses them with the `kisui db` commands (below). This page is about the part under it: the settings, and the requests `kisui serve` answers (`db.connections`, `db.query`, `db.cancel`, `db.schema`, `db.history`; see [design/gui-protocol.md](design/gui-protocol.md)).
+You use these connections in a database tab of the window (the leader, then `d` `n`; see the README), and a coding agent uses them with the `kisui db` commands (below). This page is about the part under it: the settings, and the requests `kisui serve` answers (`db.connections`, `db.query`, `db.cancel`, `db.schema`, `db.history`, `db.elevate`; see [design/gui-protocol.md](design/gui-protocol.md)).
 
 `kisui serve` is the one that connects, not the window. On a remote machine (ssh), `kisui serve` runs on that machine, so a database that only that machine can reach works with no tunnel. Write a connection in the settings of the machine that should connect.
 
@@ -122,6 +122,8 @@ agent-permission = "reader"
 | `run`               | How far statements are run. Required. `"none"`: nothing is run. `"read"`: every statement runs in a read-only transaction, as with `read-only`, so the database itself refuses anything that writes. `"free"`: statements run as they are. |
 | `propose`           | `true` lets a coding agent write SQL into the input of a database tab, for you to read and run. `false` when left out. It says nothing for a person.                                                                                       |
 | `agent-user`        | The database user a coding agent logs in as, instead of the `user` of the connection. Left out, the agent logs in as the `user` of the connection. It says nothing for a person.                                                           |
+| `elevate-to`        | The name of another permission: the one to use while this permission is elevated for a time (below). Left out, the permission cannot be elevated. Written together with `elevate-max`.                                                     |
+| `elevate-max`       | The longest time this permission can be elevated for at once: whole numbers with `h`, `m` and `s`, in that order and each at most once (`"30m"`, `"1h"`, `"1h30m"`). Written together with `elevate-to`.                                                                         |
 
 - **Who is who.** A request of the window is yours. A request of the `kisui db` commands, which a coding agent calls from a shell, is the agent's (see [For a coding agent](#for-a-coding-agent-the-kisui-db-commands) below).
 - **Nothing named.** A connection without `human-permission` works as it always did: you run freely, or read only with `read-only = true`. A connection without `agent-permission` lets an agent run nothing, and lets it write into the input (so that you are the one who runs what it wrote).
@@ -133,6 +135,44 @@ agent-permission = "reader"
 - `[db.permissions]` in `config.local.toml` replaces the one of `config.toml` as a whole, apart from the list of connections: a file with only connections uses the permissions of the other file.
 - A connection that names a permission nobody wrote, or one with a mistake, is left out of the list and reported, so that it never runs with other rights than its settings show. A key of a permission that is not in the table above is a mistake too.
 - Like `read-only`, a permission is there to prevent accidents. It is checked by `kisui serve`, for requests that say who they are from. A program that runs as you on that machine can read your password files as well as you can, so for a database an agent must not write to, the rights of its database user are what holds.
+
+### Elevating a permission for a time
+
+You can work with a weak permission every day (read only in production, say) and make it stronger only when you need to, for a time you choose. When the time is over, the permission goes back by itself.
+
+```toml
+[db.permissions.free]
+run = "free"
+
+[db.permissions.reader]
+run = "read"
+propose = true
+elevate-to = "free"   # while elevated, this permission is "free"
+elevate-max = "30m"   # for at most 30 minutes at a time
+
+[[db.connections]]
+name = "shop"
+kind = "postgres"
+user = "app"
+
+[[db.connections.variants]]
+name = "prod"
+host = "db.example.com"
+human-permission = "reader"
+agent-permission = "reader"
+```
+
+- **Elevate** with the leader, then `d` `p`, while a database tab of the connection is shown. A window lists the permissions of that connection that can be elevated, yours and the coding agent's (choose with `↓` `↑` or Ctrl+J / Ctrl+K). Type the time (`30m`, `1h`, `1h30m`; the box starts with the longest time allowed) and press `Enter`. A time longer than `elevate-max` is refused. Elevating a permission that is already elevated sets its time again, counted from now.
+- **End it before the time** with the leader, then `d` `P`: every elevated permission of that connection goes back at once, yours and the agent's.
+- **Only you elevate.** It is done in the window, for your own permission or for the agent's. The `kisui db` commands have no command for it, so a coding agent cannot elevate its own permission. Like the permissions themselves, this is there to prevent accidents (see the last point of the list above): what holds against a program that runs as you is the rights of the database user.
+- **What is elevated** is one permission of one connection: of one variant, and either yours or the agent's. Elevating yours on `shop (prod)` changes nothing for the agent, and nothing on `shop (dev)`.
+- **While it is elevated**, the database tab shows whose permission is elevated, to what, and the time left; `kisui db connections` shows the time left for the agent's permission (`ELEVATED`).
+- **`read-only = true` still wins.** On such a connection an elevated permission is not above `"read"` either.
+- **One step only.** While a permission is elevated, the `elevate-to` of the permission it became is not followed.
+- **When `kisui serve` stops**, or is replaced by a new version, every permission is back to what the settings say: what is elevated is kept in the memory of `kisui serve` only, never in a file.
+- **A statement that is running when the time is over** is not stopped. The permission is checked when a statement starts, so the first statement that starts after the time runs with the permission of the settings.
+- **When you change the settings while a permission is elevated**: if the connection now names another permission, or the permission it is elevated to is another one or was changed itself (its `run`, say), the permission goes back at once, so that it is never elevated to something you did not see when you elevated it; if `elevate-max` is now shorter, the elevation ends at the new limit, counted from when it started.
+- **Mistakes.** `elevate-to` without `elevate-max` (or the other way round), an `elevate-to` that names no permission, one that names the permission itself, or an `elevate-max` that is not a time: the permission is reported as a mistake, and the connections that name it are left out of the list, like any other mistake in a permission.
 
 ## For a coding agent: the `kisui db` commands
 
@@ -148,7 +188,7 @@ kisui db propose --variant prod shop "UPDATE orders SET status = 'cancelled' WHE
 
 | Command | What it does | Permission |
 | --- | --- | --- |
-| `kisui db connections [--json]` | Lists the connections of this machine, a line for each variant, with `RUN` (`none`, `read` or `free`) and `PROPOSE` (`yes` or `no`) of the agent. | Always allowed. |
+| `kisui db connections [--json]` | Lists the connections of this machine, a line for each variant, with `RUN` (`none`, `read` or `free`) and `PROPOSE` (`yes` or `no`) of the agent, and `ELEVATED`: the time left while you have elevated the agent's permission (`12m left`), `-` otherwise. | Always allowed. |
 | `kisui db schema [--variant <variant>] [--json] <connection> [<table>]` | Lists the tables and views; with a table (`users` or `public.users`), its columns and their types. | Always allowed (names and types, not rows). |
 | `kisui db query [--variant <variant>] [--max-rows <n>] [--json] <connection> <sql\|->` | Runs one statement and prints its rows as a table: up to 100 rows, or `--max-rows` (at most 10000). `-` reads the SQL from stdin. | `run`: refused with `"none"` (and when no permission is named); with `"read"` the database refuses what writes. |
 | `kisui db propose [--variant <variant>] <connection> <sql\|->` | Writes the SQL into the input of a database tab of the window. It does not run it: you read it and run it, with your own permission. | `propose` (allowed when no permission is named). |

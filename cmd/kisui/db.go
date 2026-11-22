@@ -202,6 +202,11 @@ type dbConnections struct {
 		Agent    struct {
 			Run     string `json:"run"`
 			Propose bool   `json:"propose"`
+			// Elevated is there while the user has strengthened the permission
+			// of the agent for a time.
+			Elevated *struct {
+				RemainingSeconds int64 `json:"remainingSeconds"`
+			} `json:"elevated"`
 		} `json:"agent"`
 	} `json:"connections"`
 	Problems []string `json:"problems"`
@@ -227,10 +232,30 @@ func writeDBConnections(w, errw io.Writer, res dbConnections) error {
 		if c.Agent.Propose {
 			propose = "yes"
 		}
-		rows = append(rows, []string{dbCell(c.Name), dbCell(c.Variant), c.Kind, dbCell(host), dbCell(c.Database), c.Agent.Run, propose})
+		elevated := "-"
+		if e := c.Agent.Elevated; e != nil {
+			elevated = fmt.Sprintf(i18n.T("db.connections.elevated"), dbRemaining(e.RemainingSeconds))
+		}
+		rows = append(rows, []string{dbCell(c.Name), dbCell(c.Variant), c.Kind, dbCell(host), dbCell(c.Database), c.Agent.Run, propose, elevated})
 	}
 	_, err := io.WriteString(w, alignColumns(rows))
 	return err
+}
+
+// dbRemaining is a number of seconds as the time that is left: "45s" under a
+// minute, else in minutes, rounded up ("12m", "1h5m").
+func dbRemaining(seconds int64) string {
+	if seconds < 60 {
+		return strconv.FormatInt(max(seconds, 0), 10) + "s"
+	}
+	m := (seconds + 59) / 60
+	if m < 60 {
+		return strconv.FormatInt(m, 10) + "m"
+	}
+	if m%60 == 0 {
+		return strconv.FormatInt(m/60, 10) + "h"
+	}
+	return strconv.FormatInt(m/60, 10) + "h" + strconv.FormatInt(m%60, 10) + "m"
 }
 
 // runDBSchema is "kisui db schema [--variant <variant>] [--json] <connection>

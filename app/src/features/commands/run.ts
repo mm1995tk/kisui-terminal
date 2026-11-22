@@ -75,6 +75,8 @@ export function createCommandRunner(deps: {
     | "closeResult"
     | "reloadStructure"
     | "showView"
+    | "openElevate"
+    | "endElevation"
   >;
   bookmarks: Bookmarks;
   downloads: Downloads;
@@ -354,6 +356,18 @@ export function createCommandRunner(deps: {
         }
         if (!deps.db.showView(tab.id))
           cannot(T("cannot.dbView.title"), T("cannot.dbView.text"));
+        break;
+      }
+      case "db.elevate":
+      case "db.elevateEnd": {
+        // 権限を、時間を決めて強める・時間の前に戻す（#383）：DB のタブを出している間だけ。その接続（の変種）の権限に行う
+        const tab = deps.db.shownDbTab();
+        if (!tab) {
+          cannot(T("cannot.dbTree.title"), T("cannot.dbTree.text"));
+          break;
+        }
+        if (c.id === "db.elevate") void deps.db.openElevate(tab.id);
+        else void deps.db.endElevation(tab.id);
         break;
       }
       case "db.page": {

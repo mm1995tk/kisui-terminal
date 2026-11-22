@@ -84,6 +84,11 @@ type DBConnection struct {
 	// for a coding agent (`human-permission`, `agent-permission`). The zero
 	// value (Name "") is none named; Access says what holds then.
 	Human, Agent DBPermission
+	// HumanElevate and AgentElevate are the permissions that Human and Agent
+	// name with `elevate-to`: what a person and a coding agent have while
+	// their permission is strengthened for a time (Elevated). The zero value
+	// is "cannot be strengthened".
+	HumanElevate, AgentElevate DBPermission
 }
 
 // Label is the connection as it is shown to a person: the name, and the
@@ -309,12 +314,19 @@ type dbWhere struct {
 	// tlsWrong is true when `tls` is written but wrong (and reported).
 	tlsWrong     bool
 	human, agent *DBPermission
+	// humanElevate and agentElevate are what human and agent are
+	// strengthened to. They go with human and agent (over, fill).
+	humanElevate, agentElevate DBPermission
 }
 
 // where reads the dbWhereKeys. perms are the permissions it can name.
 func (d *dbEntry) where(perms dbPermissions) (w dbWhere) {
-	w.human = d.permission("human-permission", perms)
-	w.agent = d.permission("agent-permission", perms)
+	if w.human = d.permission("human-permission", perms); w.human != nil {
+		w.humanElevate = perms.elevateTarget(*w.human)
+	}
+	if w.agent = d.permission("agent-permission", perms); w.agent != nil {
+		w.agentElevate = perms.elevateTarget(*w.agent)
+	}
 	if s, ok := d.str("host", false); ok && s != "" {
 		w.host = &s
 	}
@@ -390,10 +402,10 @@ func (w dbWhere) over(v dbWhere) dbWhere {
 		w.tlsCA = v.tlsCA
 	}
 	if v.human != nil {
-		w.human = v.human
+		w.human, w.humanElevate = v.human, v.humanElevate
 	}
 	if v.agent != nil {
-		w.agent = v.agent
+		w.agent, w.agentElevate = v.agent, v.agentElevate
 	}
 	return w
 }
@@ -426,10 +438,10 @@ func (w dbWhere) fill(c *DBConnection) (ok bool) {
 		c.TLSCA = *w.tlsCA
 	}
 	if w.human != nil {
-		c.Human = *w.human
+		c.Human, c.HumanElevate = *w.human, w.humanElevate
 	}
 	if w.agent != nil {
-		c.Agent = *w.agent
+		c.Agent, c.AgentElevate = *w.agent, w.agentElevate
 	}
 	if w.user == nil {
 		return false

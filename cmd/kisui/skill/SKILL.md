@@ -156,7 +156,7 @@ A connection can have variants, one for each environment (`local`, `dev`, `prod`
 
 ### kisui db connections [--json]
 
-List the connections, a line for each (for each variant): `NAME`, `VARIANT` (`-` for none), `KIND` (`postgres` or `mysql`), `HOST`, `DATABASE`, and what you may do there. `RUN` is how far `kisui db query` goes: `none` (nothing is run), `read` (the database refuses every statement that writes) or `free`. `PROPOSE` is whether `kisui db propose` may write into the input of a database tab. Run it first, before the other `kisui db` commands. `--json` prints `{"connections": [{"name", "variant", "kind", "host", "port", "user", "database", "agent": {"permission", "run", "propose", "user"}, ...}], "problems": [...]}`.
+List the connections, a line for each (for each variant): `NAME`, `VARIANT` (`-` for none), `KIND` (`postgres` or `mysql`), `HOST`, `DATABASE`, and what you may do there. `RUN` is how far `kisui db query` goes: `none` (nothing is run), `read` (the database refuses every statement that writes) or `free`. `PROPOSE` is whether `kisui db propose` may write into the input of a database tab. `ELEVATED` is `-`, or the time left (`12m left`) while the user has made your permission on that connection stronger for a time: `RUN` and `PROPOSE` already show the stronger permission, and go back when the time is over. Only the user can do this, in the window; there is no command for it, so do not look for one. Run it first, before the other `kisui db` commands. `--json` prints `{"connections": [{"name", "variant", "kind", "host", "port", "user", "database", "agent": {"permission", "run", "propose", "user", "elevated"?: {"from", "until", "remainingSeconds"}}, ...}], "problems": [...]}`.
 
 ```sh
 kisui db connections

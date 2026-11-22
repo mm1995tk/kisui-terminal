@@ -819,6 +819,41 @@ export const en = {
   "leader.db.prevResult": "Previous result tab",
   "leader.db.result.range": "Move between result tabs",
   "leader.db.closeResult": "Close the result tab that is shown",
+  "leader.db.elevate": "Elevate a permission for a time",
+  "leader.db.elevateEnd": "End the elevated permissions now",
+  "cannot.dbElevate.title": "Cannot elevate the permission",
+  "cannot.dbElevate.old":
+    "The kisui serve of this machine is older and cannot elevate a permission. Reconnecting brings the new version.",
+  "cannot.dbElevate.none":
+    "No permission of this connection can be elevated. To allow it, write elevate-to and elevate-max in the permission ([db.permissions]) in the settings of its machine.",
+  "cannot.dbElevateEnd.title": "Nothing to end",
+  "cannot.dbElevateEnd.none":
+    "No permission of this connection is elevated now.",
+  "db.elevate.label": "Elevate a permission",
+  "db.elevate.title": "Elevate a permission of {connection} for a time",
+  "db.elevate.text":
+    "After the time, the permission goes back to what the settings say. It also goes back when kisui serve stops or is replaced by a new version.",
+  "db.elevate.loading": "Loading",
+  "db.elevate.list": "The permission to elevate",
+  "db.elevate.row.human": "Your permission",
+  "db.elevate.row.agent": "The coding agent's permission",
+  "db.elevate.row.detail": "{from} → {to} (runs: {run})",
+  "db.elevate.row.on": "elevated ({time} left)",
+  "db.elevate.row.max": "at most {max}",
+  "db.elevate.time": "For how long (written like 30m, 1h or 1h30m)",
+  "db.elevate.timePlaceholder": "30m",
+  "db.elevate.do": "Elevate",
+  "db.elevate.human": "your permission",
+  "db.elevate.agent": "the agent's permission",
+  "db.elevate.and": " and ",
+  "db.elevate.badge": "Elevated: {who} → {permission} ({time} left)",
+  "db.elevate.done": "Elevated {who} to {permission} for {time}",
+  "db.elevate.ended": "Ended the elevation of {who}",
+  "db.elevate.err.overMax": "At most {max} at a time.",
+  "db.elevate.err.notElevatable":
+    "The settings do not allow elevating this permission.",
+  "db.elevate.err.time":
+    "Write the time with numbers and h, m, s: 30m, 1h or 1h30m.",
   "cannot.dbPage.title": "Cannot change the page",
   "cannot.dbPage.none":
     "This result has no other pages. Only a SELECT that gives more rows than one page (1000) is paged.",

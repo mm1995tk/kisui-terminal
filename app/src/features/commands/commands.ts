@@ -76,6 +76,8 @@ export type CommandId =
   | "db.view"
   | "db.result"
   | "db.closeResult"
+  | "db.elevate"
+  | "db.elevateEnd"
   | "proxy.panel"
   | "proxy.close"
   | "proxy.stop"
@@ -478,6 +480,9 @@ export const LEADER: Node[] = [
       },
     ),
     leaf("x", T("leader.db.closeResult"), { id: "db.closeResult" }),
+    // 権限を、時間を決めて強める・時間の前に戻す（#383。permission の p。戻すのは Shift を足した P）
+    leaf("p", T("leader.db.elevate"), { id: "db.elevate" }),
+    leaf("P", T("leader.db.elevateEnd"), { id: "db.elevateEnd" }),
   ]),
   // プロキシ（#409。今のタブの HTTP・HTTPS の通信を記録して見る。pro**x**y の x。p はペイン）。パネルの中だけで使う操作は、場所のキー（placeKeys.ts の proxy）
   group("x", T("leader.proxy.group"), [

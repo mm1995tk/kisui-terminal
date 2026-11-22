@@ -92,7 +92,7 @@ func TestDBCapability(t *testing.T) {
 	if err := c.Call(context.Background(), "session.hello", hello(Protocol.Major), &h); err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Contains(h.Capabilities, CapDB) || !slices.Contains(h.Capabilities, CapDBPermissions) || !slices.Contains(h.Capabilities, CapDBSchema) || !slices.Contains(h.Capabilities, CapDBStructure) {
+	if !slices.Contains(h.Capabilities, CapDB) || !slices.Contains(h.Capabilities, CapDBPermissions) || !slices.Contains(h.Capabilities, CapDBSchema) || !slices.Contains(h.Capabilities, CapDBStructure) || !slices.Contains(h.Capabilities, CapDBElevate) {
 		t.Errorf("capabilities: %v", h.Capabilities)
 	}
 	err = c.Call(context.Background(), "db.nosuch", struct{}{}, nil)

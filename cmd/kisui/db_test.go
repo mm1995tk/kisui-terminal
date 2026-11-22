@@ -85,7 +85,7 @@ func TestWriteDBConnections(t *testing.T) {
 	i18n.SetLang("en")
 	var res dbConnections
 	if err := json.Unmarshal([]byte(`{"connections": [
-		{"name": "shop", "variant": "prod", "kind": "postgres", "host": "db.example.com", "port": 5432, "user": "app", "database": "shop", "agent": {"run": "read", "propose": true}},
+		{"name": "shop", "variant": "prod", "kind": "postgres", "host": "db.example.com", "port": 5432, "user": "app", "database": "shop", "agent": {"run": "free", "propose": true, "elevated": {"from": "reader", "until": "2026-01-01T00:00:00Z", "remainingSeconds": 725}}},
 		{"name": "local", "variant": "", "kind": "mysql", "host": "/run/mysqld/mysqld.sock", "port": 3306, "user": "me", "database": "", "agent": {"run": "none", "propose": false}}
 	], "problems": ["config.toml: db.connections[2].kind: must be one of postgres, mysql"]}`), &res); err != nil {
 		t.Fatal(err)
@@ -95,9 +95,9 @@ func TestWriteDBConnections(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := "" +
-		"NAME   VARIANT  KIND      HOST                     DATABASE  RUN   PROPOSE\n" +
-		"shop   prod     postgres  db.example.com:5432      shop      read  yes\n" +
-		"local  -        mysql     /run/mysqld/mysqld.sock  -         none  no\n"
+		"NAME   VARIANT  KIND      HOST                     DATABASE  RUN   PROPOSE  ELEVATED\n" +
+		"shop   prod     postgres  db.example.com:5432      shop      free  yes      13m left\n" +
+		"local  -        mysql     /run/mysqld/mysqld.sock  -         none  no       -\n"
 	if out.String() != want {
 		t.Errorf("got:\n%s\nwant:\n%s", out.String(), want)
 	}
@@ -223,5 +223,13 @@ func TestDBError(t *testing.T) {
 	}
 	if got := dbError("query", "", panecmd.ErrNotInPane); got != i18n.T("pane.outside") {
 		t.Errorf("outside a pane: %q", got)
+	}
+}
+
+func TestDBRemaining(t *testing.T) {
+	for seconds, want := range map[int64]string{-3: "0s", 0: "0s", 45: "45s", 60: "1m", 61: "2m", 725: "13m", 3600: "1h", 3601: "1h1m", 5400: "1h30m"} {
+		if got := dbRemaining(seconds); got != want {
+			t.Errorf("%d: %q, want %q", seconds, got, want)
+		}
 	}
 }

@@ -78,6 +78,7 @@ import {
   sortable,
   type PageStep,
 } from "./paging.ts";
+import { createDbElevate } from "./elevateController.ts";
 import { createDbExport } from "./exportController.ts";
 import type { SaveTextFile } from "./export.ts";
 import { createDbHistory } from "./historyController.ts";
@@ -675,6 +676,34 @@ export function createDbTabs(deps: {
     focusTerminal,
   });
 
+  // ---- 権限を、時間を決めて強める（#383） ----
+  const elevator = createDbElevate({
+    refOf,
+    sessionFor,
+    supported: (ref) => capabilityOf(ref, "db-elevate"),
+    showToast: deps.showToast,
+    fail: cannot,
+    focusTerminal,
+  });
+  // 出している DB のタブの接続で、今強めている権限を kisui serve に聞く：出す接続が替わったときと、そのマシンに
+  // つながった・切れたとき（kisui serve が止まる・引き継がれると、強めた状態は無くなる）
+  const shownConnection = createMemo(() => {
+    const t = shownDbTab();
+    if (!t) return undefined;
+    return JSON.stringify([
+      t.target,
+      t.connection,
+      t.variant ?? "",
+      states()[t.target]?.kind === "connected",
+    ]);
+  });
+  createEffect(
+    on(shownConnection, () => {
+      const t = untrack(shownDbTab);
+      if (t) void elevator.refreshElevation(t);
+    }),
+  );
+
   // ---- コーディングエージェントが入力欄に SQL を書く頼み（kisui db propose。#382） ----
   const proposer = createDbPropose({
     currentGws,
@@ -797,6 +826,15 @@ export function createDbTabs(deps: {
           ),
         );
       tree.forget(alive);
+      const tabs = [...alive.values()];
+      elevator.forgetElevations((c) =>
+        tabs.some(
+          (t) =>
+            t.target === c.target &&
+            t.connection === c.connection &&
+            (t.variant ?? "") === (c.variant ?? ""),
+        ),
+      );
       const d = untrack(drafts);
       if (Object.keys(d).some((id) => !alive.has(id)))
         writeDrafts(
@@ -834,6 +872,8 @@ export function createDbTabs(deps: {
     // 結果の書き出し（#349。exportController.ts）と、クエリの履歴（historyController.ts）
     ...exporter,
     ...history,
+    // 権限を、時間を決めて強める（#383。elevateController.ts）
+    ...elevator,
     // コーディングエージェントが入力欄に SQL を書く頼み（#382。proposeController.ts）
     ...proposer,
     /** 結果の表で選んだセルの文字をクリップボードに入れる（#372） */
