@@ -236,11 +236,12 @@ func (ss *session) proxyRequest(req *rpc.Message) (res any, err error, handled b
 		WorkspaceID string `json:"workspaceId"`
 		ID          int64  `json:"id"`
 		// proxy.resend（#410）
-		From    int64       `json:"from"`
-		Method  string      `json:"method"`
-		URL     string      `json:"url"`
-		Headers [][2]string `json:"headers"`
-		Body    *string     `json:"body"`
+		From      int64       `json:"from"`
+		Method    string      `json:"method"`
+		URL       string      `json:"url"`
+		Headers   [][2]string `json:"headers"`
+		Body      *string     `json:"body"`
+		ConnectTo string      `json:"connectTo"`
 	}
 	if len(req.Params) > 0 {
 		if err := json.Unmarshal(req.Params, &p); err != nil {
@@ -302,7 +303,7 @@ func (ss *session) proxyRequest(req *rpc.Message) (res any, err error, handled b
 		if sc == nil {
 			return nil, noScope(), true
 		}
-		r := proxy.Resend{From: p.From, Method: p.Method, URL: p.URL, Header: p.Headers}
+		r := proxy.Resend{From: p.From, Method: p.Method, URL: p.URL, Header: p.Headers, ConnectTo: p.ConnectTo}
 		if p.Body != nil {
 			b := []byte(*p.Body)
 			r.Body = &b

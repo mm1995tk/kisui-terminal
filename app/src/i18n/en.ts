@@ -916,6 +916,9 @@ export const en = {
   "proxy.edit.title": "Edit and resend #{id}",
   "proxy.edit.method": "Method",
   "proxy.edit.url": "URL",
+  "proxy.edit.connectTo": "Connect to",
+  "proxy.edit.connectToHint":
+    "The original exchange connected here (host:port) instead of the host of the URL, as curl --connect-to does. The request is sent here, with the name in the URL as Host. Clear it to send to the host of the URL.",
   "proxy.edit.headersHint":
     "One header on each line, as Name: value. Host comes from the URL, and Content-Length from the body.",
   "proxy.edit.body.binary":

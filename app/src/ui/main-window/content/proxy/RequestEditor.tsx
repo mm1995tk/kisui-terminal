@@ -105,6 +105,21 @@ export function RequestEditor(props: {
             onInput={(e) => props.onDraft({ url: e.currentTarget.value })}
           />
         </div>
+        <Show when={draft().connectTo !== undefined}>
+          <label class={styles.section} for="proxy-edit-connect-to">
+            {T("proxy.edit.connectTo")}
+          </label>
+          <p class={styles.editNote}>{T("proxy.edit.connectToHint")}</p>
+          <input
+            id="proxy-edit-connect-to"
+            class={styles.input}
+            value={draft().connectTo ?? ""}
+            spellcheck={false}
+            autocapitalize="off"
+            autocomplete="off"
+            onInput={(e) => props.onDraft({ connectTo: e.currentTarget.value })}
+          />
+        </Show>
         <label class={styles.section} for="proxy-edit-headers">
           {T("proxy.headers")}
         </label>

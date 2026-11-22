@@ -468,6 +468,9 @@ export function createProxy(deps: {
         url: e.draft.url.trim(),
         headers: parsed.headers,
         ...(e.draft.body.text === undefined ? {} : { body: e.draft.body.text }),
+        ...(e.draft.connectTo?.trim()
+          ? { connectTo: e.draft.connectTo.trim() }
+          : {}),
       }));
     } catch (err) {
       setError(message(err));

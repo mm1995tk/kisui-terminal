@@ -63,6 +63,8 @@ type flow struct {
 	respBody   Body
 	// resentFrom は、パネルで書き換えて送り直した通信（Resend。#410）のとき、元の通信の id。ほかは 0
 	resentFrom int64
+	// dial は、Host と違う所につないだときの、つないだ先（host:port。CONNECT で頼まれた行き先。curl --connect-to など）。ほかは ""
+	dial string
 }
 
 // Summary は一覧の 1 行（JSON は窓との取り決め。docs/design/gui-protocol.md の「プロキシ」）。
@@ -97,7 +99,9 @@ type BodyView struct {
 // Detail は通信 1 つの中身。ヘッダーは名前の順。
 type Detail struct {
 	Summary
-	Protocol    string      `json:"protocol"`
+	Protocol string `json:"protocol"`
+	// ConnectTo は、Host と違う所につないだ通信の、つないだ先（host:port）。送り直すとき、同じ所につなぐため（#410）
+	ConnectTo   string      `json:"connectTo,omitempty"`
 	ReqHeaders  [][2]string `json:"reqHeaders"`
 	RespHeaders [][2]string `json:"respHeaders"`
 	ReqBody     BodyView    `json:"reqBody"`
@@ -139,6 +143,7 @@ func (s *Store) Detail(id int64) (Detail, bool) {
 			return Detail{
 				Summary:     f.summary(),
 				Protocol:    f.proto,
+				ConnectTo:   f.dial,
 				ReqHeaders:  headerList(f.reqHeader),
 				RespHeaders: headerList(f.respHeader),
 				ReqBody:     viewBody(f.reqBody, f.reqHeader),
@@ -186,12 +191,13 @@ func (s *Store) request(id int64) (sentRequest, bool) {
 }
 
 // begin は始まった通信を足す。
-func (s *Store) begin(r *http.Request, scheme, host string) *flow {
-	return s.beginFrom(r, scheme, host, 0)
+// dial は、host と違う所につなぐときの、つなぐ先（"" なら host）。
+func (s *Store) begin(r *http.Request, scheme, host, dial string) *flow {
+	return s.beginFrom(r, scheme, host, dial, 0)
 }
 
 // beginFrom は始まった通信を足す。resentFrom は、送り直した通信のとき、元の通信の id（クライアントから来たものは 0）。
-func (s *Store) beginFrom(r *http.Request, scheme, host string, resentFrom int64) *flow {
+func (s *Store) beginFrom(r *http.Request, scheme, host, dial string, resentFrom int64) *flow {
 	header := r.Header.Clone()
 	if header == nil {
 		header = http.Header{}
@@ -201,7 +207,7 @@ func (s *Store) beginFrom(r *http.Request, scheme, host string, resentFrom int64
 	}
 	f := &flow{
 		start: time.Now(), method: r.Method, scheme: scheme, host: host, path: r.URL.RequestURI(),
-		proto: r.Proto, state: StatePending, reqHeader: header, resentFrom: resentFrom,
+		proto: r.Proto, state: StatePending, reqHeader: header, resentFrom: resentFrom, dial: dial,
 	}
 	s.mu.Lock()
 	s.next++

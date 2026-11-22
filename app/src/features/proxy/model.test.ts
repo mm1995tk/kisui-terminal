@@ -142,6 +142,14 @@ describe("書き換えて送り直す（#410）", () => {
     });
   });
 
+  it("draftFrom：Host と違う所につないだ通信は、つないだ先を持つ（curl --connect-to）", () => {
+    assert.equal(
+      draftFrom(detail({ connectTo: "127.0.0.1:8443" })).connectTo,
+      "127.0.0.1:8443",
+    );
+    assert.equal(draftFrom(detail()).connectTo, undefined);
+  });
+
   it("draftFrom：URL と違う Host は残す", () => {
     const d = draftFrom(detail({ reqHeaders: [["Host", "other.example"]] }));
     assert.equal(d.headers, "Host: other.example");

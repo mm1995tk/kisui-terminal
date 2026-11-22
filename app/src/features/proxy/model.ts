@@ -131,13 +131,19 @@ export interface ProxyDraft {
   url: string;
   headers: string;
   body: ProxyDraftBody;
+  /**
+   * URL のホストと違う所につなぐときの、つなぐ先（host:port）。元の通信が Host と違う所につないでいた（curl --connect-to など）
+   * ときだけ持つ（空にすると URL のホストにつなぐ）。無ければ undefined
+   */
+  connectTo?: string;
 }
 
 /** 書き換える欄に出さないヘッダー（本文から決まる・URL から決まる）。 */
 const DERIVED_HEADERS = new Set(["content-length", "transfer-encoding"]);
 
 /**
- * 記録した通信の中身 d から、書き換える要求の下書きを作る。Host は、URL のホストと同じなら出さない（URL から決まる）。
+ * 記録した通信の中身 d から、書き換える要求の下書きを作る。Host は、URL のホストと同じなら出さない（URL から決まる。違うのは、
+ * プロキシに絶対 URL で送った要求の Host が、URL と違うとき）。Host と違う所につないだ通信は、つないだ先を connectTo に持つ。
  * Content-Length・Transfer-Encoding は出さない（本文から決まる）。
  */
 export function draftFrom(d: ProxyFlowDetail): ProxyDraft {
@@ -167,6 +173,7 @@ export function draftFrom(d: ProxyFlowDetail): ProxyDraft {
     url: flowUrl(d),
     headers: headers.map(([n, v]) => `${n}: ${v}`).join("\n"),
     body,
+    ...(d.connectTo ? { connectTo: d.connectTo } : {}),
   };
 }
 

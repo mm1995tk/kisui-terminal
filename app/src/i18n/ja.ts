@@ -909,6 +909,9 @@ export const ja: Record<Key, string> = {
   "proxy.edit.title": "#{id} を書き換えて送り直す",
   "proxy.edit.method": "メソッド",
   "proxy.edit.url": "URL",
+  "proxy.edit.connectTo": "つなぐ先",
+  "proxy.edit.connectToHint":
+    "元の通信は、URL のホストではなく、ここ（host:port）につないでいました（curl --connect-to と同じ）。要求はここに送り、URL の名前を Host にします。空にすると、URL のホストに送ります。",
   "proxy.edit.headersHint":
     "1 行に 1 つ、「名前: 値」の形で書きます。Host は URL から、Content-Length は本文から決まります。",
   "proxy.edit.body.binary":

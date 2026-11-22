@@ -1,13 +1,16 @@
 package proxy
 
 import (
+	"crypto/tls"
 	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 // got は、行き先が受けた要求。
@@ -232,5 +235,50 @@ func TestResendWithoutAStore(t *testing.T) {
 	defer p.Close()
 	if _, err := p.Resend(Resend{From: 1, Method: "GET", URL: "http://example.com/"}); !errors.Is(err, ErrNoRecord) {
 		t.Errorf("err = %v", err)
+	}
+}
+
+// Host と違う所につないだ通信（curl --connect-to など）は、つないだ先を記録し、送り直すときも同じ所につなぐ。
+func TestResendConnectsWhereTheOriginalConnected(t *testing.T) {
+	var gotHost string
+	up := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotHost = r.Host
+		_, _ = io.WriteString(w, "from the target")
+	}))
+	up.StartTLS()
+	defer up.Close()
+	p, store, ca, addr := startProxy(t, upstreamPool(up))
+	target := strings.TrimPrefix(up.URL, "https://")
+	tr := &http.Transport{
+		Proxy:           http.ProxyURL(&url.URL{Scheme: "http", Host: addr}),
+		TLSClientConfig: &tls.Config{RootCAs: ca.Pool(), ServerName: "example.com"},
+	}
+	defer tr.CloseIdleConnections()
+	req, _ := http.NewRequest("GET", "https://"+target+"/pinned", nil)
+	req.Host = "example.com"
+	orig := recordOne(t, &http.Client{Transport: tr, Timeout: 10 * time.Second}, store, req)
+	d, _ := store.Detail(orig.ID)
+	if d.ConnectTo != target || d.Host != "example.com" {
+		t.Fatalf("detail: connectTo %q host %q", d.ConnectTo, d.Host)
+	}
+
+	gotHost = ""
+	if _, err := p.Resend(Resend{From: orig.ID, Method: "GET", URL: "https://example.com/pinned", ConnectTo: d.ConnectTo}); err != nil {
+		t.Fatal(err)
+	}
+	list := waitDone(t, store, 2)
+	r := list[1]
+	if r.Status != 200 || r.State != StateDone || gotHost != "example.com" {
+		t.Fatalf("the resent flow: %+v, upstream Host %q", r, gotHost)
+	}
+	if rd, _ := store.Detail(r.ID); rd.ConnectTo != target || rd.RespBody.Text == nil || *rd.RespBody.Text != "from the target" {
+		t.Errorf("detail of the resent flow: %+v", rd)
+	}
+
+	for _, bad := range []string{"no-port", "127.0.0.1:", addr} {
+		_, err := p.Resend(Resend{From: orig.ID, Method: "GET", URL: "https://example.com/", ConnectTo: bad})
+		if _, ok := errors.AsType[*InvalidRequestError](err); !ok {
+			t.Errorf("connectTo %q: %v", bad, err)
+		}
 	}
 }

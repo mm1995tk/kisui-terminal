@@ -49,6 +49,9 @@ type Resend struct {
 	Method string
 	URL    string
 	Header [][2]string
+	// ConnectTo は、URL のホストと違う所につなぐときの、つなぐ先（host:port）。"" なら URL のホストにつなぐ。元の通信が
+	// Host と違う所につないでいた（Detail.ConnectTo。curl --connect-to など）とき、同じ所に送るため。証明書は URL のホストの名前で確かめる
+	ConnectTo string
 	// Body は送る本文。nil なら、元の通信の本文を覚えたまま送る（字でない本文・圧縮した本文もそのまま送れる）。
 	Body *[]byte
 }
@@ -67,7 +70,7 @@ func (p *Proxy) Resend(r Resend) (Summary, error) {
 	if err != nil {
 		return Summary{}, err
 	}
-	return p.sendRecorded(req, r.From)
+	return p.sendRecorded(req, strings.TrimSpace(r.ConnectTo), r.From)
 }
 
 // prepare は、r を確かめて、送る要求を作る（記録に残す形。ヘッダーは書いたまま）。orig は元の通信の覚えた本文
@@ -102,7 +105,16 @@ func (p *Proxy) prepare(r Resend, orig Body) (*http.Request, error) {
 			header.Add(name, value)
 		}
 	}
+	dial := strings.TrimSpace(r.ConnectTo)
+	if dial != "" {
+		if h, port, err := net.SplitHostPort(dial); err != nil || h == "" || port == "" {
+			return nil, invalid("the place to connect to must be host:port")
+		}
+	}
 	if p.isSelf(withPort(u)) || (host != "" && p.isSelf(withPortOf(host, u.Scheme))) {
+		return nil, invalid("the request points at this proxy itself")
+	}
+	if dial != "" && p.isSelf(dial) {
 		return nil, invalid("the request points at this proxy itself")
 	}
 	body := orig.Data
@@ -126,13 +138,13 @@ func (p *Proxy) prepare(r Resend, orig Body) (*http.Request, error) {
 	return req, nil
 }
 
-// sendRecorded は、prepare で作った req を記録に足して（resentFrom が from）、行き先へ送り始める。応答は、別の goroutine で
+// sendRecorded は、prepare で作った req を記録に足して（dial は、URL のホストと違う所につなぐときの、つなぐ先）（resentFrom が from）、行き先へ送り始める。応答は、別の goroutine で
 // 最後まで読んで記録する。同時に送っている数が MaxResending なら ErrBusy。プロキシを閉じると、受けている途中の応答も切る。
-func (p *Proxy) sendRecorded(req *http.Request, from int64) (Summary, error) {
+func (p *Proxy) sendRecorded(req *http.Request, dial string, from int64) (Summary, error) {
 	if !p.resending.tryAcquire() {
 		return Summary{}, ErrBusy
 	}
-	f := p.store.beginFrom(req, req.URL.Scheme, req.URL.Host, from)
+	f := p.store.beginFrom(req, req.URL.Scheme, req.URL.Host, dial, from)
 	sum := p.store.summaryOf(f)
 	// 記録には書いたままのヘッダーを残し、送るヘッダーだけを整える（クライアントの通信を記録するときと同じ）
 	ctx, cancel := context.WithCancel(context.Background())
@@ -144,7 +156,7 @@ func (p *Proxy) sendRecorded(req *http.Request, from int64) (Summary, error) {
 		// 書いていない User-Agent を、Go の既定（Go-http-client）で足さない
 		out.Header["User-Agent"] = []string{""}
 	}
-	ex := &exchange{scheme: req.URL.Scheme, host: req.URL.Host, flow: f}
+	ex := &exchange{scheme: req.URL.Scheme, host: req.URL.Host, dial: dial, flow: f}
 	out = out.WithContext(context.WithValue(ctx, exchangeKey, ex))
 	go func() {
 		defer p.resending.release()

@@ -232,7 +232,7 @@ func (p *Proxy) forward(w http.ResponseWriter, r *http.Request, scheme, host, di
 	}
 	ex := &exchange{scheme: scheme, host: host, dial: dial}
 	if p.store != nil && p.intercept.Load() {
-		ex.flow = p.store.begin(r, scheme, host)
+		ex.flow = p.store.begin(r, scheme, host, dial)
 	}
 	p.rp.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), exchangeKey, ex)))
 }
