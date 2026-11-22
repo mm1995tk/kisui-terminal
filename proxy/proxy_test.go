@@ -485,3 +485,77 @@ func TestQueryReachesTheUpstreamAsSent(t *testing.T) {
 		}
 	}
 }
+
+// CONNECT の中の HTTPS の要求は、Host が別の名前でも、CONNECT で頼まれた行き先につなぐ（curl --connect-to の形）。
+// Host はそのまま行き先に届く。
+func TestConnectTargetWinsOverTheHostHeader(t *testing.T) {
+	var gotHost string
+	up := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotHost = r.Host
+		_, _ = io.WriteString(w, "from the target")
+	}))
+	up.StartTLS()
+	defer up.Close()
+	// 行き先の証明書（httptest。example.com 用でもある）を信じる
+	_, store, ca, addr := startProxy(t, upstreamPool(up))
+	target := strings.TrimPrefix(up.URL, "https://")
+	tr := &http.Transport{
+		Proxy:           http.ProxyURL(&url.URL{Scheme: "http", Host: addr}),
+		TLSClientConfig: &tls.Config{RootCAs: ca.Pool(), ServerName: "example.com"},
+	}
+	defer tr.CloseIdleConnections()
+	req, _ := http.NewRequest("GET", "https://"+target+"/pinned", nil)
+	req.Host = "example.com"
+	resp, err := (&http.Client{Transport: tr, Timeout: 10 * time.Second}).Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != 200 || string(body) != "from the target" || gotHost != "example.com" {
+		t.Fatalf("response = %d %q, upstream Host = %q", resp.StatusCode, body, gotHost)
+	}
+	if list := waitDone(t, store, 1); list[0].Host != "example.com" || list[0].Path != "/pinned" {
+		t.Errorf("flow = %+v", list[0])
+	}
+}
+
+// Close は、中身を見ずに中継している接続も切る。
+func TestCloseEndsRelayedConnections(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			go func() { _, _ = io.Copy(c, c) }()
+		}
+	}()
+	p, _, _, addr := startProxy(t, nil)
+	p.SetIntercept(false)
+	conn, err := net.Dial("tcp", addr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	_ = conn.SetDeadline(time.Now().Add(10 * time.Second))
+	fmt.Fprintf(conn, "CONNECT %s HTTP/1.1\r\nHost: %s\r\n\r\n", ln.Addr(), ln.Addr())
+	br := bufio.NewReader(conn)
+	if resp, err := http.ReadResponse(br, nil); err != nil || resp.StatusCode != 200 {
+		t.Fatalf("CONNECT: %v %v", resp, err)
+	}
+	_, _ = conn.Write([]byte("ping"))
+	got := make([]byte, 4)
+	if _, err := io.ReadFull(br, got); err != nil || string(got) != "ping" {
+		t.Fatalf("relayed: %q %v", got, err)
+	}
+	p.Close()
+	if _, err := br.ReadByte(); err == nil {
+		t.Fatal("the relayed connection is still open after Close")
+	}
+}

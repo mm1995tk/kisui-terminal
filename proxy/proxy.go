@@ -47,6 +47,10 @@ type Proxy struct {
 	ca        *CA
 	store     *Store
 	transport *http.Transport
+	// pinned は、Host と違う所につなぐ要求（exchange.dial）用。接続を使い回さない（Transport は接続を Host の
+	// 名前で覚えるので、使い回すと、同じ Host で別の行き先の要求に、前の行き先の接続が使われる）
+	pinned    *http.Transport
+	relays    sync.Map // 中身を見ずに中継している接続（net.Conn）。Close で閉じる
 	rp        *httputil.ReverseProxy
 	outer     *http.Server
 	inner     *http.Server
@@ -74,7 +78,10 @@ type tunnel struct {
 // exchange は 1 往復の、行き先と記録。
 type exchange struct {
 	scheme, host string
-	flow         *flow // 記録しないときは nil
+	// dial は、host と違う所につなぐときの行き先（host:port）。CONNECT で頼まれた行き先と、中の要求の Host が
+	// 違うとき（curl --connect-to など）。"" なら host につなぐ
+	dial string
+	flow *flow // 記録しないときは nil
 }
 
 // New はプロキシを作る。Serve で待ち受けを始める。
@@ -82,6 +89,20 @@ func New(o Options) *Proxy {
 	p := &Proxy{ca: o.CA, store: o.Store, conns: make(chan net.Conn), done: make(chan struct{})}
 	p.intercept.Store(true)
 	dialer := &net.Dialer{Timeout: dialTimeout, KeepAlive: 30 * time.Second}
+	p.pinned = &http.Transport{
+		Proxy: nil,
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			if ex, _ := ctx.Value(exchangeKey).(*exchange); ex != nil && ex.dial != "" {
+				addr = ex.dial
+			}
+			return dialer.DialContext(ctx, network, addr)
+		},
+		ForceAttemptHTTP2:   true,
+		DisableCompression:  true,
+		DisableKeepAlives:   true,
+		TLSHandshakeTimeout: handshakeTimeout,
+		TLSClientConfig:     &tls.Config{RootCAs: o.RootCAs},
+	}
 	p.transport = &http.Transport{
 		Proxy:               nil,
 		DialContext:         dialer.DialContext,
@@ -126,13 +147,17 @@ func (p *Proxy) Serve(ln net.Listener) error {
 	return err
 }
 
-// Close は待ち受けをやめ、通している接続も切る。
+// Close は待ち受けをやめ、通している接続（中身を見ずに中継しているものも）を切る。
 func (p *Proxy) Close() {
 	p.closeOnce.Do(func() {
 		close(p.done)
 		_ = p.outer.Close()
 		_ = p.inner.Close()
 		p.transport.CloseIdleConnections()
+		p.relays.Range(func(c, _ any) bool {
+			_ = c.(net.Conn).Close()
+			return true
+		})
 	})
 }
 
@@ -153,7 +178,7 @@ func (p *Proxy) serveOuter(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "kisui proxy: this is an HTTP proxy; set it as the proxy of your program (HTTPS_PROXY, HTTP_PROXY)", http.StatusBadRequest)
 		return
 	}
-	p.forward(w, r, "http", r.URL.Host)
+	p.forward(w, r, "http", r.URL.Host, "")
 }
 
 // serveInner は、CONNECT の中の要求（間に入った TLS の中か、CONNECT の中にそのまま書かれた HTTP）。
@@ -171,16 +196,34 @@ func (p *Proxy) serveInner(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "kisui proxy: no host", http.StatusBadRequest)
 		return
 	}
-	p.forward(w, r, scheme, host)
+	// つなぐ先は、CONNECT で頼まれた行き先。Host が別の名前でも、そこへは行かない（Host はそのまま送り、
+	// 証明書はその名前で確かめる。プロキシ無しでクライアントがするのと同じ）
+	dial := ""
+	if t.target != "" && !sameAuthority(host, t.target, scheme) {
+		dial = t.target
+	}
+	p.forward(w, r, scheme, host, dial)
 }
 
-// forward は要求を行き先に送り、応答を返す。記録していれば Flow を足す。
-func (p *Proxy) forward(w http.ResponseWriter, r *http.Request, scheme, host string) {
-	if p.isSelf(host) {
+// sameAuthority は、Host ヘッダーの値 host（ポートは省ける）と、行き先 target（host:port）が同じ所か。
+func sameAuthority(host, target, scheme string) bool {
+	if _, _, err := net.SplitHostPort(host); err != nil {
+		port := "443"
+		if scheme == "http" {
+			port = "80"
+		}
+		host = net.JoinHostPort(strings.Trim(host, "[]"), port)
+	}
+	return strings.EqualFold(host, target)
+}
+
+// forward は要求を行き先に送り、応答を返す。記録していれば Flow を足す。dial は、host と違う所につなぐときの行き先。
+func (p *Proxy) forward(w http.ResponseWriter, r *http.Request, scheme, host, dial string) {
+	if p.isSelf(host) || (dial != "" && p.isSelf(dial)) {
 		http.Error(w, "kisui proxy: the request points at this proxy itself", http.StatusBadRequest)
 		return
 	}
-	ex := &exchange{scheme: scheme, host: host}
+	ex := &exchange{scheme: scheme, host: host, dial: dial}
 	if p.store != nil && p.intercept.Load() {
 		ex.flow = p.store.begin(r, scheme, host)
 	}
@@ -262,8 +305,12 @@ type recorder struct{ p *Proxy }
 func (rec recorder) RoundTrip(req *http.Request) (*http.Response, error) {
 	p := rec.p
 	ex, _ := req.Context().Value(exchangeKey).(*exchange)
+	var tr http.RoundTripper = p.transport
+	if ex != nil && ex.dial != "" {
+		tr = p.pinned
+	}
 	if ex == nil || ex.flow == nil {
-		return p.transport.RoundTrip(req)
+		return tr.RoundTrip(req)
 	}
 	f := ex.flow
 	if req.Body != nil && req.Body != http.NoBody {
@@ -273,7 +320,7 @@ func (rec recorder) RoundTrip(req *http.Request) (*http.Response, error) {
 		}}
 		req = &r2
 	}
-	resp, err := p.transport.RoundTrip(req)
+	resp, err := tr.RoundTrip(req)
 	if err != nil {
 		p.store.update(f, func(f *flow) {
 			f.state, f.err, f.duration = StateFailed, err.Error(), time.Since(f.start)
@@ -328,7 +375,7 @@ func (p *Proxy) connect(w http.ResponseWriter, r *http.Request) {
 		p.serveTunnel(client, tunnel{target: target, plain: true})
 	case kindOther:
 		if up, err := net.DialTimeout("tcp", target, dialTimeout); err == nil {
-			relay(client, up)
+			p.relay(client, up)
 		} else {
 			client.Close()
 		}
@@ -370,7 +417,7 @@ func (p *Proxy) relayOnly(w http.ResponseWriter, target string) {
 		return
 	}
 	if client := accept(w, up); client != nil {
-		relay(client, up)
+		p.relay(client, up)
 	}
 }
 
@@ -453,8 +500,19 @@ func isTimeout(err error) bool {
 	return errors.As(err, &ne) && ne.Timeout()
 }
 
-// relay は 2 つの接続の間を、どちらかが閉じるまで運ぶ。
-func relay(a, b net.Conn) {
+// relay は 2 つの接続の間を、どちらかが閉じる・プロキシが Close されるまで運ぶ。
+func (p *Proxy) relay(a, b net.Conn) {
+	p.relays.Store(a, nil)
+	p.relays.Store(b, nil)
+	defer p.relays.Delete(a)
+	defer p.relays.Delete(b)
+	select {
+	case <-p.done: // 覚える前に Close されていた
+		a.Close()
+		b.Close()
+		return
+	default:
+	}
 	done := make(chan struct{}, 2)
 	cp := func(dst, src net.Conn) {
 		_, _ = io.Copy(dst, src)
