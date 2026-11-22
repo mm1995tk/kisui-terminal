@@ -8,7 +8,10 @@ import type {
   ProxyPanelState,
   ProxySide,
 } from "../../../../features/proxy/controller.ts";
-import { proxyPanelKey } from "../../../../features/proxy/keys.ts";
+import {
+  proxyEditKey,
+  proxyPanelKey,
+} from "../../../../features/proxy/keys.ts";
 import type { ProxyDraft } from "../../../../features/proxy/model.ts";
 import { T } from "../../../../i18n/index.ts";
 import { KeyHints } from "../../../components/KeyHints.tsx";
@@ -56,8 +59,17 @@ export function ProxyPanel(props: {
   };
 
   function onKeyDown(e: KeyboardEvent) {
-    // 書き換える欄の中のキーは、その欄が受ける（RequestEditor）
-    if (props.panel.edit) return;
+    // 書き換えている間：欄の中のキーは、その欄が受ける（RequestEditor）。一覧を押してキーがパネルに移っていても、
+    // 欄と同じく送る・やめるだけを受ける（足もとの案内のとおりに効くように）
+    if (props.panel.edit) {
+      const k = proxyEditKey(e, props.mac);
+      if (k === null) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (k === "send") props.onSend();
+      else props.onCancelEdit();
+      return;
+    }
     if (isHelpKey(e)) {
       e.preventDefault();
       props.onHelp();
