@@ -107,13 +107,13 @@ func TestLoadDBElevateMistakes(t *testing.T) {
 
 func TestParseDBDuration(t *testing.T) {
 	for s, want := range map[string]time.Duration{
-		"30m": 30 * time.Minute, "1h": time.Hour, "1h30m": 90 * time.Minute, "90s": 90 * time.Second, "2h0m5s": 2*time.Hour + 5*time.Second,
+		"30m": 30 * time.Minute, "1h": time.Hour, "1h30m": 90 * time.Minute, "90s": 90 * time.Second, "2h0m5s": 2*time.Hour + 5*time.Second, "1h5s": time.Hour + 5*time.Second, "999999h999999m999999s": 999999 * (time.Hour + time.Minute + time.Second),
 	} {
 		if got, ok := ParseDBDuration(s); !ok || got != want {
 			t.Errorf("%q: %v, %v", s, got, ok)
 		}
 	}
-	for _, s := range []string{"", "30", "m", "1.5h", "-5m", "5 m", "5d", "0m", "0h0s", "30M", "1h30", "1234567h", "３０m"} {
+	for _, s := range []string{"", "30", "m", "1.5h", "-5m", "5 m", "5d", "0m", "0h0s", "30M", "1h30", "1234567h", "1h1h", "30m1h", "5s5m", "999999h999999h999999h999999h999999h999999h", "３０m"} {
 		if got, ok := ParseDBDuration(s); ok {
 			t.Errorf("%q: %v", s, got)
 		}

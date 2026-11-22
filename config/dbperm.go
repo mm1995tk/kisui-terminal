@@ -154,21 +154,26 @@ func (c DBConnection) Elevated(actor DBActor) (_ DBConnection, ok bool) {
 }
 
 // ParseDBDuration reads a length of time as `elevate-max` writes it and as
-// the window sends it when a person strengthens a permission: one or more
-// whole numbers, each followed by h, m or s ("30m", "1h", "1h30m", "90s").
-// It must be more than zero. There are no fractions, no signs and no spaces,
-// so that what is written is what is meant.
+// the window sends it when a person strengthens a permission: whole numbers,
+// each followed by h, m or s, in that order and each unit at most once
+// ("30m", "1h", "1h30m", "90s", "1h5s"). It must be more than zero. There
+// are no fractions, no signs and no spaces, and "1h1h" or "30m1h" is not a
+// time, so that what is written is what is meant.
 func ParseDBDuration(s string) (time.Duration, bool) {
-	if s == "" {
-		return 0, false
-	}
+	units := []struct {
+		letter byte
+		length time.Duration
+	}{{'h', time.Hour}, {'m', time.Minute}, {'s', time.Second}}
 	var total time.Duration
+	// next is the first unit that may still come.
+	next := 0
 	for s != "" {
 		i := 0
 		for i < len(s) && s[i] >= '0' && s[i] <= '9' {
 			i++
 		}
-		// At most 6 digits: nothing overflows, and nobody means more.
+		// At most 6 digits, and each unit at most once: the sum cannot
+		// overflow, and nobody means more.
 		if i == 0 || i > 6 || i == len(s) {
 			return 0, false
 		}
@@ -176,18 +181,15 @@ func ParseDBDuration(s string) (time.Duration, bool) {
 		for _, d := range s[:i] {
 			n = n*10 + int(d-'0')
 		}
-		var unit time.Duration
-		switch s[i] {
-		case 'h':
-			unit = time.Hour
-		case 'm':
-			unit = time.Minute
-		case 's':
-			unit = time.Second
-		default:
+		u := next
+		for u < len(units) && units[u].letter != s[i] {
+			u++
+		}
+		if u == len(units) {
 			return 0, false
 		}
-		total += time.Duration(n) * unit
+		total += time.Duration(n) * units[u].length
+		next = u + 1
 		s = s[i+1:]
 	}
 	return total, total > 0
