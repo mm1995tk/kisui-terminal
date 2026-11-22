@@ -4,6 +4,7 @@ import (
 	"maps"
 	"slices"
 	"strings"
+	"time"
 )
 
 // DBActor is who asks for something on a database connection.
@@ -49,6 +50,14 @@ type DBPermission struct {
 	// may do in the database (GRANT) is the fine control: kisui does not read
 	// a statement to refuse it.
 	AgentUser string
+	// ElevateTo and ElevateMax let a person strengthen this permission for a
+	// while (`elevate-to`, `elevate-max`): for at most ElevateMax at a time,
+	// the one it is given to has the permission named ElevateTo instead.
+	// Both are written or neither is; "" and 0 mean it cannot be strengthened.
+	// The settings only allow it: `kisui serve` keeps who is strengthened
+	// until when, in memory (server/dbelevate.go).
+	ElevateTo  string
+	ElevateMax time.Duration
 }
 
 // DBAccess is what one actor may do on one connection, after the settings
@@ -79,8 +88,8 @@ type DBAccess struct {
 //     read-only cannot become writable by naming a permission.
 //
 // It is the one place that decides. server/db.go asks it for every request;
-// what changes a permission for a while (a later feature) changes c.Human or
-// c.Agent before asking.
+// while a permission is strengthened for a time, it asks the connection
+// Elevated gives instead.
 func (c DBConnection) Access(actor DBActor) DBAccess {
 	a := DBAccess{Actor: actor, User: c.User}
 	switch actor {
@@ -106,6 +115,94 @@ func (c DBConnection) Access(actor DBActor) DBAccess {
 		a.Run = DBRunRead
 	}
 	return a
+}
+
+// ElevateTarget is the permission actor has on c while its permission is
+// strengthened: the one its permission names with `elevate-to`. ok is false
+// when the permission of actor cannot be strengthened (none is named, or it
+// does not write `elevate-to`).
+func (c DBConnection) ElevateTarget(actor DBActor) (target DBPermission, ok bool) {
+	switch actor {
+	case DBHuman:
+		target = c.HumanElevate
+	case DBAgent:
+		target = c.AgentElevate
+	}
+	return target, target.Name != ""
+}
+
+// Elevated is c with the permission of actor replaced by the one it is
+// strengthened to. The result cannot be strengthened again: a time of
+// strengthening never leads further than one `elevate-to`. Everything else
+// stays, `read-only` too, so Access of the result still keeps a read-only
+// connection at DBRunRead. ok is false (and c comes back as it is) when the
+// permission of actor cannot be strengthened.
+func (c DBConnection) Elevated(actor DBActor) (_ DBConnection, ok bool) {
+	target, ok := c.ElevateTarget(actor)
+	if !ok {
+		return c, false
+	}
+	// The target's own elevate-to is not followed.
+	target.ElevateTo, target.ElevateMax = "", 0
+	switch actor {
+	case DBHuman:
+		c.Human, c.HumanElevate = target, DBPermission{}
+	case DBAgent:
+		c.Agent, c.AgentElevate = target, DBPermission{}
+	}
+	return c, true
+}
+
+// ParseDBDuration reads a length of time as `elevate-max` writes it and as
+// the window sends it when a person strengthens a permission: one or more
+// whole numbers, each followed by h, m or s ("30m", "1h", "1h30m", "90s").
+// It must be more than zero. There are no fractions, no signs and no spaces,
+// so that what is written is what is meant.
+func ParseDBDuration(s string) (time.Duration, bool) {
+	if s == "" {
+		return 0, false
+	}
+	var total time.Duration
+	for s != "" {
+		i := 0
+		for i < len(s) && s[i] >= '0' && s[i] <= '9' {
+			i++
+		}
+		// At most 6 digits: nothing overflows, and nobody means more.
+		if i == 0 || i > 6 || i == len(s) {
+			return 0, false
+		}
+		n := 0
+		for _, d := range s[:i] {
+			n = n*10 + int(d-'0')
+		}
+		var unit time.Duration
+		switch s[i] {
+		case 'h':
+			unit = time.Hour
+		case 'm':
+			unit = time.Minute
+		case 's':
+			unit = time.Second
+		default:
+			return 0, false
+		}
+		total += time.Duration(n) * unit
+		s = s[i+1:]
+	}
+	return total, total > 0
+}
+
+// Permission is the permission the settings name for actor on c (the zero
+// value when none is named).
+func (c DBConnection) Permission(actor DBActor) DBPermission {
+	switch actor {
+	case DBHuman:
+		return c.Human
+	case DBAgent:
+		return c.Agent
+	}
+	return DBPermission{}
 }
 
 // DBLogin is one way to log in to a connection: where the database is, the
@@ -166,7 +263,7 @@ type dbPermissions struct {
 }
 
 // dbPermissionKeys are the keys of a [db.permissions.<name>] entry.
-var dbPermissionKeys = []string{"run", "propose", "agent-user"}
+var dbPermissionKeys = []string{"run", "propose", "agent-user", "elevate-to", "elevate-max"}
 
 // readDBPermissions reads the value of `db.permissions` of the file at path.
 func readDBPermissions(v any, path string) (perms dbPermissions, probs []Problem) {
@@ -189,6 +286,36 @@ func readDBPermissions(v any, path string) (perms dbPermissions, probs []Problem
 			continue
 		}
 		perms.byName[name] = p
+	}
+	// `elevate-to` names another permission, so it is checked when all are
+	// read. A permission whose `elevate-to` cannot be used is itself broken (a
+	// connection that names it is left out): it would otherwise look as if it
+	// could be strengthened. Marking one broken can break another that names
+	// it, so this goes on until nothing changes.
+	for changed := true; changed; {
+		changed = false
+		for _, name := range slices.Sorted(maps.Keys(perms.byName)) {
+			to := perms.byName[name].ElevateTo
+			if to == "" {
+				continue
+			}
+			code := ""
+			switch _, ok := perms.byName[to]; {
+			case to == name:
+				code = "config.err.elevateself"
+			case perms.broken[to]:
+				code = "config.err.brokenperm"
+			case !ok:
+				code = "config.err.noperm"
+			}
+			if code == "" {
+				continue
+			}
+			probs = append(probs, Problem{File: path, Key: "db.permissions." + name + ".elevate-to", Code: code, Args: []any{to}})
+			delete(perms.byName, name)
+			perms.broken[name] = true
+			changed = true
+		}
 	}
 	return perms, probs
 }
@@ -234,7 +361,41 @@ func dbPermission(name string, v any) (DBPermission, []Problem) {
 			p.AgentUser = s
 		}
 	}
+	// `elevate-to` and `elevate-max` go together: one without the other
+	// would be a permission that looks as if it could be strengthened (or as
+	// if it had a limit) and is not.
+	_, hasTo := e["elevate-to"]
+	_, hasMax := e["elevate-max"]
+	if hasTo {
+		if s, ok := d.str("elevate-to", true); ok {
+			p.ElevateTo = s
+		}
+		if !hasMax {
+			d.bad("elevate-max", "config.err.elevatepair", "elevate-to")
+		}
+	}
+	if hasMax {
+		if s, ok := d.str("elevate-max", true); ok {
+			if dur, ok := ParseDBDuration(s); ok {
+				p.ElevateMax = dur
+			} else {
+				d.bad("elevate-max", "config.err.duration")
+			}
+		}
+		if !hasTo {
+			d.bad("elevate-to", "config.err.elevatepair", "elevate-max")
+		}
+	}
 	return p, d.probs
+}
+
+// elevateTarget is the permission p is strengthened to (the zero value when
+// p cannot be strengthened). readDBPermissions made sure it is there.
+func (perms dbPermissions) elevateTarget(p DBPermission) DBPermission {
+	if p.ElevateTo == "" {
+		return DBPermission{}
+	}
+	return perms.byName[p.ElevateTo]
 }
 
 // permission reads a key that names a permission (`human-permission`,

@@ -76,6 +76,8 @@ export type CommandId =
   | "db.view"
   | "db.result"
   | "db.closeResult"
+  | "db.elevate"
+  | "db.elevateEnd"
   | "help.keys";
 
 /** コマンドと、その引数（向き・番号など）。 */
@@ -474,6 +476,9 @@ export const LEADER: Node[] = [
       },
     ),
     leaf("x", T("leader.db.closeResult"), { id: "db.closeResult" }),
+    // 権限を、時間を決めて強める・時間の前に戻す（#383。permission の p。戻すのは Shift を足した P）
+    leaf("p", T("leader.db.elevate"), { id: "db.elevate" }),
+    leaf("P", T("leader.db.elevateEnd"), { id: "db.elevateEnd" }),
   ]),
   leaf("b", T("leader.sidebar"), { id: "sidebar.toggle" }),
   leaf(

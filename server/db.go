@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/mm1995tk/kisui-terminal/config"
 	"github.com/mm1995tk/kisui-terminal/internal/buildinfo"
@@ -45,8 +46,13 @@ type dbManager struct {
 	// history は接続ごとの SQL の履歴（ファイル。Options.DBHistoryDir が "" なら何も残さない）。
 	history *db.History
 
+	// now は今の時刻（Options.Now。テストで時計を進めるため）。
+	now func() time.Time
+
 	mu      sync.Mutex
 	running map[*dbRun]struct{}
+	// elevations は、時間を決めて強めている権限（#383。dbelevate.go）。メモリだけに持つ。
+	elevations map[dbElevKey]dbElevation
 }
 
 // dbRun は動いている db.query の 1 つ。
@@ -56,7 +62,10 @@ type dbRun struct {
 }
 
 func newDBManager(opts Options) *dbManager {
-	m := &dbManager{load: opts.DBConnections, passwords: opts.DBPasswords, history: &db.History{Dir: opts.DBHistoryDir}, running: map[*dbRun]struct{}{}}
+	m := &dbManager{load: opts.DBConnections, passwords: opts.DBPasswords, history: &db.History{Dir: opts.DBHistoryDir}, running: map[*dbRun]struct{}{}, elevations: map[dbElevKey]dbElevation{}, now: opts.Now}
+	if m.now == nil {
+		m.now = time.Now
+	}
 	if m.load == nil {
 		m.load = func() ([]config.DBConnection, []config.Problem) { return config.LoadDB(buildinfo.Suffix()) }
 	}
@@ -157,10 +166,10 @@ func dbActor(s string) (config.DBActor, error) {
 	return "", rpc.Errorf(rpc.CodeInvalidParams, "actor must be %q or %q: %q", config.DBHuman, config.DBAgent, s)
 }
 
-// access は、actor が c にしてよいこと。権限の判定はここだけを通る（一時的に権限を変える仕組みを足すなら、ここで
-// c の権限を差し替えてから聞く）。
+// access は、actor が c にしてよいこと。権限の判定はここだけを通る。actor の権限を時間を決めて強めている間（#383。
+// dbelevate.go）は、c の権限を強めた先に差し替えてから聞く。
 func (m *dbManager) access(c config.DBConnection, actor config.DBActor) config.DBAccess {
-	return c.Access(actor)
+	return m.elevated(c, actor).Access(actor)
 }
 
 // errDBDenied は、権限が実行を許さないときの denied。data は {actor, permission}（permission は使った権限の名前。
@@ -246,6 +255,10 @@ func (ss *session) dbRequest(ctx context.Context, req *rpc.Message) (any, error)
 		return ss.dbStructureReq(ctx, req)
 	case "db.history":
 		return ss.dbHistoryReq(req)
+	case "db.elevate":
+		return ss.dbElevateReq(req)
+	case "db.elevateEnd":
+		return ss.dbElevateEndReq(req)
 	}
 	return nil, rpc.Errorf(rpc.CodeMethodNotFound, "method not found: %s", req.Method)
 }
@@ -272,6 +285,10 @@ type DBConnectionInfo struct {
 type DBHumanAccess struct {
 	Permission string       `json:"permission"` // 使っている権限の名前。設定に書いていなければ ""
 	Run        config.DBRun `json:"run"`        // "none"・"read"・"free"
+	// Elevate は、この権限を時間を決めて強められること（#383。強められなければ無い）。Elevated は、今強めていること
+	// （強めていなければ無い）。強めている間、Permission と Run は強めた先のもの。
+	Elevate  *DBElevate  `json:"elevate,omitempty"`
+	Elevated *DBElevated `json:"elevated,omitempty"`
 }
 
 // DBAgentAccess は、コーディングエージェントがある接続にしてよいこと。
@@ -282,6 +299,9 @@ type DBAgentAccess struct {
 	Propose bool `json:"propose"`
 	// User は、エージェントがログインする DB のユーザー（権限に agent-user が無ければ、接続の user と同じ）。
 	User string `json:"user"`
+	// Elevate と Elevated は DBHumanAccess と同じ。
+	Elevate  *DBElevate  `json:"elevate,omitempty"`
+	Elevated *DBElevated `json:"elevated,omitempty"`
 }
 
 // DBConnectionsResult は db.connections の結果。
@@ -297,18 +317,26 @@ func (s *Server) dbConnections() DBConnectionsResult {
 	conns, probs := s.db.load()
 	res := DBConnectionsResult{Connections: make([]DBConnectionInfo, len(conns)), Problems: make([]string, len(probs))}
 	for i, c := range conns {
-		h, a := s.db.access(c, config.DBHuman), s.db.access(c, config.DBAgent)
-		res.Connections[i] = DBConnectionInfo{
-			Name: c.Name, Variant: c.Variant, Kind: c.Kind, Host: c.Host, Port: c.Port, User: c.User, Database: c.Database,
-			ReadOnly: h.Run == config.DBRunRead,
-			Human:    DBHumanAccess{Permission: h.Permission, Run: h.Run},
-			Agent:    DBAgentAccess{Permission: a.Permission, Run: a.Run, Propose: a.Propose, User: a.User},
-		}
+		res.Connections[i] = s.dbConnectionInfo(c)
 	}
 	for i, p := range probs {
 		res.Problems[i] = p.Text()
 	}
 	return res
+}
+
+// dbConnectionInfo は、設定の接続 c を、db.connections に入れる形にする（権限を合わせた結果と、強めている状態）。
+func (s *Server) dbConnectionInfo(c config.DBConnection) DBConnectionInfo {
+	h, a := s.db.access(c, config.DBHuman), s.db.access(c, config.DBAgent)
+	info := DBConnectionInfo{
+		Name: c.Name, Variant: c.Variant, Kind: c.Kind, Host: c.Host, Port: c.Port, User: c.User, Database: c.Database,
+		ReadOnly: h.Run == config.DBRunRead,
+		Human:    DBHumanAccess{Permission: h.Permission, Run: h.Run},
+		Agent:    DBAgentAccess{Permission: a.Permission, Run: a.Run, Propose: a.Propose, User: a.User},
+	}
+	info.Human.Elevate, info.Human.Elevated = s.db.elevateInfo(c, config.DBHuman)
+	info.Agent.Elevate, info.Agent.Elevated = s.db.elevateInfo(c, config.DBAgent)
+	return info
 }
 
 // dbQueryParams は db.query の引数。

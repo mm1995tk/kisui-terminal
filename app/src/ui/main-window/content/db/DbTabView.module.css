@@ -37,6 +37,18 @@
   color: var(--color-text-muted);
 }
 
+/* 権限を時間を決めて強めている間の印（#383。誰の権限を、何に、残りどれだけ）。見落とさないよう、注意の色で出す */
+.elevated {
+  flex: none;
+  margin-left: auto;
+  padding: var(--space-2) var(--space-8);
+  border: 1px solid var(--state-warning);
+  border-radius: var(--radius-4);
+  color: var(--state-warning);
+  font-size: var(--text-caption);
+  white-space: nowrap;
+}
+
 /* SQL の入力欄。高さはつまみで変えられる（結果の表が残りを使う） */
 .sql {
   flex: none;

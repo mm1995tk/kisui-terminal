@@ -192,6 +192,36 @@ export interface DbHumanAccess {
   /** 使っている権限の名前（[db.permissions] のキー）。設定に書いていなければ "" */
   permission: string;
   run: DbRun;
+  /** この権限を、時間を決めて強められること（#383。強められなければ無い） */
+  elevate?: DbElevate;
+  /** 今強めていること（強めていなければ無い）。強めている間、permission と run は強めた先のもの */
+  elevated?: DbElevated;
+}
+
+/** 権限を時間を決めて強められること（設定の elevate-to・elevate-max。#383） */
+export interface DbElevate {
+  /** 強めた間に使う権限の名前 */
+  to: string;
+  /** 強めた間の実行の段階（read-only = true の接続では、to が "free" でも "read"） */
+  run: DbRun;
+  /** 一度に強められる時間の上限（秒） */
+  maxSeconds: number;
+}
+
+/** 権限を今強めていること（#383） */
+export interface DbElevated {
+  /** 元の権限の名前（時間が過ぎると、これに戻る） */
+  from: string;
+  /** 元に戻る時刻（kisui serve のマシンの時計。RFC 3339） */
+  until: string;
+  /** 答えたときの残りの時間（秒）。窓は、マシンの時計のずれに関わらず、これで残りを数える */
+  remainingSeconds: number;
+}
+
+/** db.elevate が断ったとき（denied）の data。not_elevatable：その権限は強められない、over_max：時間が上限（maxSeconds）を超える */
+export interface DbElevateDeniedData {
+  reason: "not_elevatable" | "over_max";
+  maxSeconds?: number;
 }
 
 /** コーディングエージェントがある接続にしてよいこと */
@@ -202,6 +232,9 @@ export interface DbAgentAccess {
   propose: boolean;
   /** エージェントがログインする DB のユーザー（権限に agent-user が無ければ、接続の user と同じ） */
   user: string;
+  /** DbHumanAccess の elevate・elevated と同じ（#383） */
+  elevate?: DbElevate;
+  elevated?: DbElevated;
 }
 
 /** 列の値の読み方。number：数（文字のまま届く）、boolean："true" か "false"、binary："0x" と 16 進、text：それ以外 */
@@ -598,6 +631,25 @@ export interface Requests {
   "db.history": {
     params: { connection: string; variant?: string; limit?: number };
     result: { entries: DbHistoryEntry[] };
+  };
+  /**
+   * 接続（の変種）の、人（actor が "human"）かコーディングエージェント（"agent"）の権限を、duration（"30m"・"1h"・"1h30m"）の間だけ
+   * 強める（#383）。もう強めていれば、今から duration の間に決め直す。capabilities に "db-elevate" のある kisui serve だけが受ける。
+   * 結果は、強めた後のその接続。断られ方：denied（data は DbElevateDeniedData）、invalid_params（duration の書き方）、not_found
+   */
+  "db.elevate": {
+    params: {
+      connection: string;
+      variant?: string;
+      actor: "human" | "agent";
+      duration: string;
+    };
+    result: { connection: DbConnection };
+  };
+  /** 強めた権限を、時間の前に元に戻す（#383）。強めていなければ何も変えない。結果は、戻した後のその接続 */
+  "db.elevateEnd": {
+    params: { connection: string; variant?: string; actor: "human" | "agent" };
+    result: { connection: DbConnection };
   };
 }
 

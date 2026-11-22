@@ -98,6 +98,8 @@ export function DbTabView(props: {
   structure: DbStructureState | undefined;
   /** 結果の場所に view を出す（#379） */
   onView: (view: DbResultView) => void;
+  /** この接続で今強めている権限の字（#383。「誰の権限を、何に、残りどれだけ」。強めていなければ空か、渡さない） */
+  elevated?: readonly string[];
   /** SQL の入力欄にキーを向ける関数を受け取る（消えるときは undefined） */
   focusRef?: (f: (() => void) | undefined) => void;
 }): JSX.Element {
@@ -154,6 +156,11 @@ export function DbTabView(props: {
               machine: props.machine,
             })}
           </span>
+          <Show when={(props.elevated ?? []).length > 0}>
+            <span class={styles.elevated} role="status">
+              {(props.elevated ?? []).join(" · ")}
+            </span>
+          </Show>
           <Show
             when={props.run.running}
             fallback={

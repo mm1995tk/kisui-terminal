@@ -132,7 +132,9 @@ export type DbMethod =
   | "db.cancel"
   | "db.schema"
   | "db.structure"
-  | "db.history";
+  | "db.history"
+  | "db.elevate"
+  | "db.elevateEnd";
 /** ターミナルの通知（F1）。method で見分ける。 */
 export type TermEvent =
   | { method: "term.output"; params: Notifications["term.output"] }

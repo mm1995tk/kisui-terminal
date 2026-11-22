@@ -41,6 +41,8 @@ function setup(tab: { id: string } | undefined) {
         seen.push(`closeResult ${id}`);
         return true;
       },
+      openElevate: (id: string) => void seen.push(`openElevate ${id}`),
+      endElevation: (id: string) => void seen.push(`endElevation ${id}`),
       showView: (id: string) => {
         seen.push(`showView ${id}`);
         return id === "t1";
@@ -127,5 +129,24 @@ describe("db.result・db.closeResult（結果のタブの切り替えと、閉�
     const { seen, runCommand } = setup({ id: "t1" });
     runCommand({ id: "db.closeResult" });
     assert.deepEqual(seen, ["closeResult t1"]);
+  });
+});
+
+describe("db.elevate・db.elevateEnd（権限を時間を決めて強める・元に戻す。#383）", () => {
+  it("DB のタブを出していなければ、何もせず、その旨を伝える", () => {
+    const { seen, runCommand } = setup(undefined);
+    runCommand({ id: "db.elevate" });
+    runCommand({ id: "db.elevateEnd" });
+    assert.deepEqual(seen, [
+      "cannot " + "No database tab is shown",
+      "cannot " + "No database tab is shown",
+    ]);
+  });
+
+  it("d p は出している DB のタブの接続の強める窓を出し、d P は元に戻す", () => {
+    const { seen, runCommand } = setup({ id: "t1" });
+    runCommand({ id: "db.elevate" });
+    runCommand({ id: "db.elevateEnd" });
+    assert.deepEqual(seen, ["openElevate t1", "endElevation t1"]);
   });
 });
