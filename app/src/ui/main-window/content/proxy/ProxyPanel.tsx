@@ -204,8 +204,8 @@ export function ProxyPanel(props: {
         >
           <table class={styles.table} role="grid">
             <colgroup>
-              <col style={{ width: "7ch" }} />
-              <col style={{ width: "5ch" }} />
+              <col style={{ width: "8ch" }} />
+              <col style={{ width: "8ch" }} />
               <col />
               <col style={{ width: "9ch" }} />
               <col style={{ width: "8ch" }} />
