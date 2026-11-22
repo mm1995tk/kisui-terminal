@@ -21,6 +21,7 @@ import {
   hasCapability,
   type ProxyFlow,
   type ProxyFlowDetail,
+  type Requests,
   type WorkspaceId,
 } from "../../infrastructure/rpc/protocol.ts";
 import type { Pages } from "../browser/pages.ts";
@@ -489,37 +490,41 @@ export function createProxy(deps: {
         ? { connectTo: e.draft.connectTo.trim() }
         : {}),
     };
-    if (e.held) {
-      try {
-        await session.request("proxy.release", {
-          scope: p.scope.scope,
-          id: e.draft.from,
-          action: "edit",
-          ...request,
-        });
-      } catch (err) {
-        setError(message(err));
-        return;
-      }
-      if (!untrack(scopes)[key] || !untrack(edits)[key]) return;
-      setEdits((all) => without(all, key));
-      afterRelease(key, e.draft.from, true);
-      deps.focusPanel();
-      return;
-    }
-    let flow: ProxyFlow;
+    const send = e.held ? forwardEdited : resendEdited;
     try {
-      ({ flow } = await session.request("proxy.resend", {
-        scope: p.scope.scope,
-        from: e.draft.from,
-        ...request,
-      }));
+      await send(session, key, p.scope.scope, e.draft.from, request);
     } catch (err) {
       setError(message(err));
-      return;
     }
-    // 送っている間に、単位が無くなった・書き換えをやめた
-    if (!untrack(scopes)[key] || !untrack(edits)[key]) return;
+  }
+
+  /** 書き換える欄から送る要求（proxy.resend と、proxy.release の edit で同じ形）。 */
+  type EditedRequest = Pick<
+    Requests["proxy.resend"]["params"],
+    "method" | "url" | "headers" | "body" | "connectTo"
+  >;
+
+  /** 送っている間に、単位が無くなった・書き換えをやめた。 */
+  const editGone = (key: string) =>
+    !untrack(scopes)[key] || !untrack(edits)[key];
+
+  /**
+   * 書き換えた要求 request を、通信 from を送り直したものとして送る（#410）。送り始めたら欄を閉じ、送った通信を選んで、
+   * 応答の側を出す。kisui serve が断ったら投げる。
+   */
+  async function resendEdited(
+    session: NonNullable<ReturnType<typeof sessionFor>>,
+    key: string,
+    scope: string,
+    from: number,
+    request: EditedRequest,
+  ) {
+    const { flow } = await session.request("proxy.resend", {
+      scope,
+      from,
+      ...request,
+    });
+    if (editGone(key)) return;
     batch(() => {
       setScopes((s) => {
         const st = s[key];
@@ -532,6 +537,29 @@ export function createProxy(deps: {
       setSide("response");
     });
     void loadDetail(key, flow.id);
+    deps.focusPanel();
+  }
+
+  /**
+   * 止めている要求 id を、書き換えた要求 request にして流す（#411）。流したら欄を閉じ、次の止めている要求を選ぶ
+   * （afterRelease）。kisui serve が断ったら投げる（要求は止めたまま）。
+   */
+  async function forwardEdited(
+    session: NonNullable<ReturnType<typeof sessionFor>>,
+    key: string,
+    scope: string,
+    id: number,
+    request: EditedRequest,
+  ) {
+    await session.request("proxy.release", {
+      scope,
+      id,
+      action: "edit",
+      ...request,
+    });
+    if (editGone(key)) return;
+    setEdits((all) => without(all, key));
+    afterRelease(key, id, true);
     deps.focusPanel();
   }
 
