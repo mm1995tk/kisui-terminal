@@ -1,6 +1,7 @@
 // Command kisui is the server of kisui-terminal: "kisui serve" is the headless
 // server the GUI talks to, "kisui attach" the bridge to it, and "kisui relay"
-// relays the GUI's connections to the localhost ports of a remote machine. The
+// relays the GUI's connections to the localhost ports of a remote machine.
+// "kisui proxy" runs the recording proxy by itself. The
 // other commands run in a pane: "kisui open" asks the "kisui serve" of the pane for
 // something (internal/panecmd), and "kisui notify" and "kisui clipboard" talk
 // to the terminal of the pane (internal/kittyterm).
@@ -34,6 +35,7 @@ var commands = []command{
 	{name: "serve", help: "help.serve", run: runServe},
 	{name: "attach", help: "help.attach", run: runAttach},
 	{name: "relay", help: "help.relay", run: runRelay},
+	{name: "proxy", args: "[--listen <addr>] [-v]", help: "help.proxy", run: runProxy},
 	{name: "open", args: "<file|url>", help: "help.open", run: runOpen},
 	{name: "update", help: "help.update", run: runUpdate},
 	{name: "notify", args: "<text>", help: "help.notify", run: runNotify},

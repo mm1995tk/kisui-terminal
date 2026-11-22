@@ -40,6 +40,12 @@ export interface BrowserTab {
    */
   zoom?: number;
   /**
+   * 通信を記録するプロキシ（#409。features/proxy/）に通しているタブの、プロキシの単位（scope）と待ち受け口（手元のマシンの
+   * 127.0.0.1 のポート）。あれば、画面はそのポートをプロキシにして webview を作る（このタブだけの、ディスクに残さないデータを使う）。
+   * 書き換わったら、webview を作り直す。覚えない（再起動したら、通していないタブに戻る）
+   */
+  proxy?: { scope: string; port: number };
+  /**
    * ページの favicon（#237。殻が読んだ 32×32 の PNG の data: URL）。無ければ・読み込み中は無し（サイドバーは地球のアイコンを出す）。
    * 覚えない（シークレットのタブの favicon をディスクに残さないため。どのタブも、ページを読み込めばまた取れる）
    */
@@ -164,11 +170,17 @@ export function closeTab(s: TabsState, id: string): TabsState {
   return { ...dropView(s, id), tabs: s.tabs.filter((t) => t.id !== id) };
 }
 
-/** タブの URL・題・表示の大きさ・favicon を書き換える（ページが変わった）。同じなら s をそのまま返す。 */
+/** タブの URL・題・表示の大きさ・favicon・プロキシを書き換える（ページが変わった・通し始めた・やめた）。同じなら s をそのまま返す。 */
 export function updateTab(
   s: TabsState,
   id: string,
-  patch: { url?: string; title?: string; zoom?: number; favicon?: string },
+  patch: {
+    url?: string;
+    title?: string;
+    zoom?: number;
+    favicon?: string;
+    proxy?: BrowserTab["proxy"];
+  },
 ): TabsState {
   const i = s.tabs.findIndex((t) => t.id === id);
   if (i < 0) return s;
@@ -178,7 +190,9 @@ export function updateTab(
     next.url === t.url &&
     next.title === t.title &&
     next.zoom === t.zoom &&
-    next.favicon === t.favicon
+    next.favicon === t.favicon &&
+    next.proxy?.scope === t.proxy?.scope &&
+    next.proxy?.port === t.proxy?.port
   )
     return s;
   const tabs = [...s.tabs];

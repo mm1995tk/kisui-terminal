@@ -306,3 +306,9 @@ html[data-page-overlay] .browser-area {
 .newtab-folder[aria-current="true"] {
   outline: 1px solid var(--gh-accent);
 }
+
+/* プロキシのパネル（#409）を開いている間は、ページの場所を左に縮める（パネルの幅は layout.css の --proxy-panel-w）。
+   ページ（子の webview）は、この場所の四角に合わせて置かれる（BrowserArea.tsx） */
+.main[data-proxy-panel] > .browser-area {
+  right: var(--proxy-panel-w);
+}

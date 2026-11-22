@@ -599,6 +599,91 @@ export interface Requests {
     params: { connection: string; variant?: string; limit?: number };
     result: { entries: DbHistoryEntry[] };
   };
+  /**
+   * 通信をプロキシに通し始める（#409）。capabilities に "proxy" がある kisui serve だけが受ける。workspaceId はターミナルのタブ
+   * （そのあとに開いたペインに、プロキシと認証局の環境変数が渡る。scope は "ws:<id>" になる）、scope は内蔵ブラウザのタブ
+   * （窓が決めた名前。英数字と _ . : - で 64 字まで。"ws:" では始めない）。どちらか 1 つを渡す。もう通していれば、
+   * 同じ待ち受け口のまま答える（やめていたワークスペースは、記録を始め直す）。flows は、それまでに記録した通信（古い順）。
+   * 断られ方：not_found（ワークスペースが無い）、busy（通している数が上限）、internal_error（認証局・待ち受けを作れない）
+   */
+  "proxy.start": {
+    params: { scope?: string; workspaceId?: WorkspaceId };
+    result: ProxyScope & { flows: ProxyFlow[] };
+  };
+  /**
+   * 通すのをやめる。内蔵ブラウザのタブの scope は、待ち受け口を閉じて記録を捨てる。ワークスペースの scope は、新しいペインに
+   * 環境変数を渡すのをやめ、待ち受け口は中継だけを続ける（環境変数を持ったままのペインのため。閉じるのはワークスペースを閉じたとき）
+   */
+  "proxy.stop": { params: { scope: string }; result: Record<string, never> };
+  /** 通している単位の一覧（やめたあと中継だけしているワークスペースは recording が false）。 */
+  "proxy.list": {
+    params: Record<string, never>;
+    result: { scopes: ProxyScope[] };
+  };
+  /** scope が記録した通信の一覧（古い順。1000 件まで）。 */
+  "proxy.flows": { params: { scope: string }; result: { flows: ProxyFlow[] } };
+  /** 通信 1 つの中身（要求と応答のヘッダーと本文）。もう覚えていなければ not_found。 */
+  "proxy.detail": {
+    params: { scope: string; id: number };
+    result: ProxyFlowDetail;
+  };
+}
+
+/** プロキシに通している単位（#409）。 */
+export interface ProxyScope {
+  scope: string;
+  /** ターミナルのタブの scope なら、そのワークスペース */
+  workspaceId?: WorkspaceId;
+  /** 待ち受け口（そのマシンの 127.0.0.1 のポート） */
+  port: number;
+  /** 間に入って記録しているか */
+  recording: boolean;
+}
+
+/** プロキシを通った通信 1 つの、一覧の 1 行（#409。Go の proxy.Summary）。 */
+export interface ProxyFlow {
+  /** scope の中の通し番号（1 から） */
+  id: number;
+  /** 始まった時刻（Unix のミリ秒） */
+  time: number;
+  method: string;
+  scheme: string;
+  /** 行き先（既定のポートでなければ host:port） */
+  host: string;
+  /** パスとクエリ */
+  path: string;
+  /** 応答のステータス（まだ・無いときは 0） */
+  status: number;
+  /** pending：応答を待っている・本文を受けている。failed：つながらない・証明書が正しくない・途中で切れた */
+  state: "pending" | "done" | "failed";
+  error?: string;
+  /** 要求・応答の本文の大きさ（通ったままの大きさ。圧縮されていれば圧縮後） */
+  reqSize: number;
+  respSize: number;
+  durationMs: number;
+  /** 応答の Content-Type の種類（text/html など） */
+  mime?: string;
+}
+
+/** 通信の本文（#409）。字として読めれば text、読めなければ binary。gzip・deflate は展開してある。 */
+export interface ProxyBody {
+  size: number;
+  /** 覚える上限（256 KiB）を超えて、続きを捨てた */
+  truncated?: boolean;
+  text?: string;
+  binary?: boolean;
+  /** 展開できなかった圧縮の種類（Content-Encoding） */
+  encoding?: string;
+}
+
+/** 通信 1 つの中身（#409。Go の proxy.Detail）。ヘッダーは名前の順。 */
+export interface ProxyFlowDetail extends ProxyFlow {
+  /** 要求の HTTP の版（HTTP/1.1・HTTP/2.0） */
+  protocol: string;
+  reqHeaders: [string, string][];
+  respHeaders: [string, string][];
+  reqBody: ProxyBody;
+  respBody: ProxyBody;
 }
 
 /** shj から GUI への通知（← GUI）。メソッド名 → パラメータ。 */
@@ -646,6 +731,8 @@ export interface Notifications {
   /** `code` は、`kisui serve` が引き継いだシェル（その子でない）では分からないので無い。 */
   "term.exit": { termId: TermId; code?: number; signal?: string };
   "term.title": { termId: TermId; title: string };
+  /** プロキシを通った通信が始まった・変わった（#409。同じ id の行を置き換える） */
+  "proxy.flow": { scope: string; flow: ProxyFlow };
   "workspace.changed": {
     added?: Workspace[];
     removed?: WorkspaceId[];

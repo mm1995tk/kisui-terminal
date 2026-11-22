@@ -315,6 +315,9 @@ export const ja: Record<Key, string> = {
   "sidebar.noFocus": "ワークスペースを選んでいません",
   "sidebar.tabsOf": "{title} のタブ",
   "sidebar.incognito": "シークレット",
+  "sidebar.proxied": "プロキシ",
+  "sidebar.proxied.tip":
+    "このタブの HTTP・HTTPS は、記録するプロキシを通っています（リーダーの x s でやめる）",
   "sidebar.closeTabLabel": "{title} のタブを閉じる",
   "sidebar.closeTabLabelIncognito": "シークレットの {title} のタブを閉じる",
   "sidebar.closeTab": "タブを閉じる",
@@ -843,4 +846,51 @@ export const ja: Record<Key, string> = {
   "db.history.empty.loading": "読み込み中",
   "db.history.empty.none": "この接続の履歴はまだありません",
   "db.history.empty.noMatch": "当てはまるものがありません",
+  // プロキシのパネル（#409）
+  "leader.proxy.group": "プロキシ",
+  "leader.proxy.panel":
+    "プロキシのパネルを開く（今のタブをプロキシに通し始める）",
+  "leader.proxy.close": "プロキシのパネルを閉じる（タブは通したまま）",
+  "leader.proxy.stop": "今のタブをプロキシに通すのをやめる",
+  "place.proxy.title": "プロキシのパネル",
+  "place.proxy.lead":
+    "今のタブの HTTP・HTTPS の通信の一覧と、選んだ通信の要求と応答。",
+  "place.proxy.side": "要求と応答を切り替える",
+  "place.proxy.back": "タブに戻る（パネルは出したまま）",
+  "place.proxy.close": "パネルを閉じる（タブは通したまま）",
+  "cannot.proxy.title": "ここではプロキシを使えません",
+  "cannot.proxy.noTab":
+    "先に、ターミナルのタブかブラウザのタブを出してください。",
+  "cannot.proxy.disconnected":
+    "プロキシは {machine} の kisui serve が動かしますが、つながっていません。",
+  "cannot.proxy.old":
+    "{machine} の kisui serve は、プロキシの無い古い版です。先に更新してください。",
+  "cannot.proxy.notOn": "このタブは、プロキシに通していません。",
+  "err.proxy.start": "プロキシを始められませんでした",
+  "err.proxy.stop": "プロキシを止められませんでした",
+  "proxy.title": "プロキシ",
+  "proxy.where.term": "{machine} · 127.0.0.1:{port} · このタブの新しいペイン",
+  "proxy.where.browser": "127.0.0.1:{port} · このタブ（ログインは別）",
+  "proxy.empty.term":
+    "まだ何も通っていません。これからこのタブで開くペインに、HTTPS_PROXY とプロキシの認証局の変数が渡ります。ペインを分けて、そこで curl などを動かしてください。先に開いていたペインと、変数を読まないプログラムは通りません。",
+  "proxy.empty.browser":
+    "まだ何も通っていません。ページは、このタブだけのデータで、プロキシを通して読み直しました。ほかのタブのログインは、ここでは見えません。ページを開くか、読み込み直してください。",
+  "proxy.col.method": "メソッド",
+  "proxy.col.status": "状態",
+  "proxy.col.url": "ホストとパス",
+  "proxy.col.size": "大きさ",
+  "proxy.col.time": "時間",
+  "proxy.detail.none": "通信を選ぶと、要求と応答が出ます。",
+  "proxy.detail.loading": "読んでいます…",
+  "proxy.side.request": "要求",
+  "proxy.side.response": "応答",
+  "proxy.headers": "ヘッダー",
+  "proxy.body": "本文",
+  "proxy.body.empty": "本文はありません。",
+  "proxy.body.binary": "本文は字ではありません（{size}）。",
+  "proxy.body.encoded":
+    "本文は {encoding} で圧縮されていて、出せません（{size}）。",
+  "proxy.body.truncated": "本文は {size} あり、先頭だけを残しています。",
+  "proxy.hint.side": "要求 / 応答",
+  "proxy.hint.back": "タブに戻る",
 };

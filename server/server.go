@@ -1,13 +1,14 @@
 // Package server は画面を持たない常駐プロセス「kisui serve」の中身。
 // Unix ソケットで JSON-RPC を話す。設計は docs/design/gui-protocol.md の 3 章。
 //
-// 今あるメソッドは session.* / server.info / server.handover（handover.go）/ term.*（term.go）/ workspace.*（workspace.go）/ tree.*・git.status（tree.go、treewatch.go、gitstat.go）/
+// 今あるメソッドは session.* / server.info / server.handover（handover.go）/ term.*（term.go）/ proxy.*（proxy.go）/ workspace.*（workspace.go）/ tree.*・git.status（tree.go、treewatch.go、gitstat.go）/
 // shj.*・pane.*（primary.go、pane.go）/ db.*（db.go）。編集は GUI のターミナルの欄の中の shj が受け持つので、画面や入力のメソッドは無い。
 package server
 
 import (
 	"context"
 	"crypto/rand"
+	"crypto/x509"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -65,6 +66,10 @@ type Options struct {
 	DBPasswords *db.Passwords
 	// DBHistoryDir は DB の接続ごとの SQL の履歴を置くフォルダ（DBHistoryDir()）。"" なら履歴を残さない。
 	DBHistoryDir string
+	// ProxyCADir はプロキシ（proxy.*）の認証局を置くフォルダ（ProxyCADir()）。"" ならプロキシを動かせない。
+	ProxyCADir string
+	// ProxyRootCAs は、プロキシが行き先の証明書を確かめる認証局。nil なら OS のもの（テストで差し替える）。
+	ProxyRootCAs *x509.CertPool
 }
 
 // Server は Unix ソケットで待ち受けるサーバー。
@@ -92,6 +97,7 @@ type Server struct {
 	relays     windowWaits[paneRelayResult]      // kisui pane の --machine が GUI の答えを待っている（panerelay.go）
 	proposes   windowWaits[dbProposeResult]      // kisui db propose が GUI の答えを待っている（dbcmd.go）
 	db         *dbManager                        // db.* の要求が使うもの（db.go）
+	proxy      *proxyManager                     // proxy.* の要求が使うもの（proxy.go）
 
 	// opMu は、状態を変える仕事（GUI の要求・shj の名乗りと欄の頼み・定期の見回り）を読みロックで、
 	// 引き継ぎ（handover.go）を書きロックで持つ。引き継ぐ間は、仕事を止めて状態を固める。
@@ -152,6 +158,7 @@ func newServer(opts Options, ln *net.UnixListener) *Server {
 	srv.ws = newWSManager(srv)
 	srv.tree = newTreeManager(srv)
 	srv.db = newDBManager(opts)
+	srv.proxy = newProxyManager(srv)
 	return srv
 }
 
@@ -229,6 +236,7 @@ func (s *Server) shutdown() {
 	for _, ss := range open {
 		ss.conn.Close()
 	}
+	s.proxy.shutdown()
 	s.stopPrimary()
 	s.terms.shutdown()
 	s.wg.Wait()
@@ -397,6 +405,9 @@ func (ss *session) handle(ctx context.Context, req *rpc.Message) (any, error) {
 	if res, err, ok := ss.mediaRequest(req); ok {
 		return res, err
 	}
+	if res, err, ok := ss.proxyRequest(req); ok {
+		return res, err
+	}
 	switch req.Method {
 	case "session.hello":
 		return ss.helloReq(req)
@@ -504,7 +515,7 @@ func (ss *session) helloReq(req *rpc.Message) (any, error) {
 		ServerID:     s.serverID,
 		StartedAt:    s.startedAt,
 		Supersedes:   sup,
-		Capabilities: []string{CapHandover, CapDB, CapDBPermissions, CapDBSchema, CapDBStructure, CapCreateCommand, CapPaneRun},
+		Capabilities: []string{CapHandover, CapDB, CapDBPermissions, CapDBSchema, CapDBStructure, CapCreateCommand, CapPaneRun, CapProxy},
 		Workspaces:   wsl,
 		Rev:          s.currentRev(),
 	}, nil

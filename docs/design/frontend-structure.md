@@ -41,6 +41,7 @@ app/src/
         terminal/
         browser/            # URL バー、ページ内検索、ブックマーク、新しいタブのページ
         db/                 # DB のタブの画面（SQL の入力欄と結果の表。#347）
+        proxy/              # プロキシのパネル（通信の一覧と中身。#409）
         media/              # 画像、動画、PDF
       sessions/             # 接続先を足す・管理する・認証の窓
       workspaces/           # ワークスペースを切り替える窓、作る・閉じるときの窓
@@ -64,6 +65,7 @@ app/src/
       tabs/                 # 中のタブ（ターミナル・ブラウザ・DB）の追加・削除・並び順・選択
     browser/                # ブラウザのタブ 1 つずつのページの操作、ブックマーク、ダウンロード
     db/                     # DB のタブ（#347）の中身：書きかけの SQL、SQL の実行と結果、接続の一覧、パスワードを聞く
+    proxy/                  # プロキシのパネル（#409）：タブの通信を kisui serve のプロキシに通す、一覧と中身
     terminal/               # ターミナルのペイン（分割の木、ペインの中身のつなぎ）
     file-tree/
     changes/
@@ -141,6 +143,7 @@ index.tsx ──▶ ui ──▶ features ◀── infrastructure
 | `features/browser/tabsStore.ts`・`pages.ts`       | ブラウザのタブの中身、URL を開く、ページが開いた・閉じた窓、ページ内検索     |
 | `features/browser/bookmarksStore.ts`・`downloads.ts` | ブックマーク、ダウンロード                                                |
 | `features/db/controller.ts`                       | DB のタブの中身（書きかけの SQL・結果）、接続を選ぶ窓、SQL の実行と取り消し、パスワードを聞く |
+| `features/proxy/controller.ts`                   | 今のタブをプロキシに通す・やめる、パネルの開閉、通信の一覧と選んだ通信の中身（#409） |
 | `features/terminal/controller.ts`                 | フォーカスしているワークスペースのペイン、隠す・分ける                       |
 | `features/file-tree/controller.ts`・`features/changes/controller.ts` | ツリーと CHANGES の中身と操作                              |
 | `features/commands/run.ts`                        | コマンドの表のコマンドを動かす（リーダーの葉と近道）                         |
@@ -156,6 +159,7 @@ index.tsx ──▶ ui ──▶ features ◀── infrastructure
 | CHANGES                      | `sidebar/changes/`                          | `changes/`                                      | `ShellApi`                         |
 | ターミナルのペイン           | `content/terminal/`・`content/media/`       | `terminal/`・`clipboard/`・`file-transfer/`     | `ClipboardOs`・`TransferOs`・`ShowOsNotification` |
 | ブラウザのページ             | `content/browser/`                          | `browser/`                                      | `BrowserOs`                        |
+| プロキシのパネル             | `content/proxy/`                            | `proxy/`                                        | `ShellApi`（kisui serve へ）・`BrowserOs` |
 | マシンのダイアログ・足す窓   | `sessions/`                                 | `sessions/`                                     | `ShellApi`                         |
 | ワークスペースを切り替える窓 | `workspaces/`                               | `workspaces/`                                   | `KeyValueStore`                    |
 | リーダーの案内・キーの一覧   | `commands/`、キーを受けるのは `keys.ts`     | `commands/`                                     | —                                  |

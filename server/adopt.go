@@ -171,6 +171,7 @@ func adoptState(opts Options, st *handoverState, fds []int) (_ *Server, err erro
 		return nil, err
 	}
 	srv.adoptTree(st)
+	srv.adoptProxy(st, ft)
 	return srv, nil
 }
 
@@ -291,6 +292,7 @@ func (s *Server) startAdopted(ad *adoption) {
 		s.startPrimary()
 	}
 	s.ws.recompute()
+	s.startAdoptedProxy()
 	for _, claim := range ad.gone {
 		s.ws.releaseShj(claim)
 	}
@@ -306,6 +308,7 @@ func (s *Server) dropAdopted() {
 	}
 	s.ln.SetUnlinkOnClose(false)
 	s.ln.Close()
+	s.proxy.shutdown()
 	if ad := s.adopted; ad != nil {
 		if ad.primaryLn != nil {
 			ad.primaryLn.SetUnlinkOnClose(false)

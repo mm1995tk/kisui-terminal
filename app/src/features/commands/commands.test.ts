@@ -175,6 +175,10 @@ describe("コマンドの表", () => {
       "d ]",
       "d [",
       "d x",
+      "x",
+      "x p",
+      "x c",
+      "x s",
       "b",
       "y",
       "v",
@@ -316,14 +320,14 @@ describe("リーダー", () => {
 
     it(`${os}：最後のキーを押しっぱなしにした繰り返しは、ターミナルに送らない。離すと解ける`, () => {
       let s: RouterState = IDLE;
-      for (const k of [L, key("x")]) s = route(s, k, env(mac)).state;
-      // L のあとは [] の位置なので x は一覧に無い。出て、swallow になる
-      const rep = route(s, { ...key("x"), repeat: true }, env(mac));
+      for (const k of [L, key("q")]) s = route(s, k, env(mac)).state;
+      // L のあとは [] の位置なので q は一覧に無い。出て、swallow になる
+      const rep = route(s, { ...key("q"), repeat: true }, env(mac));
       assert.equal(rep.consume, true);
       const up = afterKeyUp(rep.state);
-      assert.equal(route(up, key("x"), env(mac)).consume, false);
+      assert.equal(route(up, key("q"), env(mac)).consume, false);
       // 押し直せば（repeat でない）、keyup が無くても解ける
-      assert.equal(route(rep.state, key("x"), env(mac)).consume, false);
+      assert.equal(route(rep.state, key("q"), env(mac)).consume, false);
     });
   }
 

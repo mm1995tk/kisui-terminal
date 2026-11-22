@@ -314,6 +314,9 @@ export const en = {
   "sidebar.noFocus": "No workspace selected",
   "sidebar.tabsOf": "Tabs of {title}",
   "sidebar.incognito": "Private",
+  "sidebar.proxied": "Proxy",
+  "sidebar.proxied.tip":
+    "The HTTP and HTTPS of this tab go through the recording proxy (leader x s stops it)",
   "sidebar.closeTabLabel": "Close the tab {title}",
   "sidebar.closeTabLabelIncognito": "Close the private tab {title}",
   "sidebar.closeTab": "Close tab",
@@ -850,6 +853,52 @@ export const en = {
   "db.history.empty.loading": "Loading",
   "db.history.empty.none": "There is no history for this connection yet",
   "db.history.empty.noMatch": "Nothing matches",
+  // プロキシのパネル（#409）
+  "leader.proxy.group": "Proxy",
+  "leader.proxy.panel":
+    "Open the proxy panel (starts sending this tab through the proxy)",
+  "leader.proxy.close": "Close the proxy panel (the tab stays on the proxy)",
+  "leader.proxy.stop": "Stop sending this tab through the proxy",
+  "place.proxy.title": "Proxy panel",
+  "place.proxy.lead":
+    "The HTTP and HTTPS exchanges of this tab, and the request and the response of the selected one.",
+  "place.proxy.side": "Switch between the request and the response",
+  "place.proxy.back": "Back to the tab (the panel stays open)",
+  "place.proxy.close": "Close the panel (the tab stays on the proxy)",
+  "cannot.proxy.title": "Cannot use the proxy here",
+  "cannot.proxy.noTab": "Show a terminal tab or a browser tab first.",
+  "cannot.proxy.disconnected":
+    "The proxy runs in kisui serve of {machine}, and it is not connected.",
+  "cannot.proxy.old":
+    "kisui serve of {machine} is an older version without the proxy. Update it first.",
+  "cannot.proxy.notOn": "This tab is not sent through the proxy.",
+  "err.proxy.start": "Could not start the proxy",
+  "err.proxy.stop": "Could not stop the proxy",
+  "proxy.title": "Proxy",
+  "proxy.where.term": "{machine} · 127.0.0.1:{port} · new panes of this tab",
+  "proxy.where.browser": "127.0.0.1:{port} · this tab, with its own logins",
+  "proxy.empty.term":
+    "Nothing has passed yet. Panes opened in this tab from now on get HTTPS_PROXY and the certificate authority of the proxy: split a pane and run a command such as curl there. Panes that were already open, and programs that do not read the variables, do not pass.",
+  "proxy.empty.browser":
+    "Nothing has passed yet. The page was reloaded through the proxy with data of its own, so the logins of the other tabs are not visible here. Open a page or reload it.",
+  "proxy.col.method": "Method",
+  "proxy.col.status": "Status",
+  "proxy.col.url": "Host and path",
+  "proxy.col.size": "Size",
+  "proxy.col.time": "Time",
+  "proxy.detail.none": "Select an exchange to see its request and response.",
+  "proxy.detail.loading": "Reading…",
+  "proxy.side.request": "Request",
+  "proxy.side.response": "Response",
+  "proxy.headers": "Headers",
+  "proxy.body": "Body",
+  "proxy.body.empty": "No body.",
+  "proxy.body.binary": "The body is not text ({size}).",
+  "proxy.body.encoded":
+    "The body is compressed with {encoding}, which cannot be shown ({size}).",
+  "proxy.body.truncated": "The body is {size}; only its beginning is kept.",
+  "proxy.hint.side": "request / response",
+  "proxy.hint.back": "back to the tab",
 } as const satisfies Record<string, string>;
 
 /** 表のキー。`T` に渡す。 */

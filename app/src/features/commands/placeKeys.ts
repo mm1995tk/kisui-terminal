@@ -27,7 +27,8 @@ export type Place =
   | "db"
   | "dbResult"
   | "dbTree"
-  | "dbHistory";
+  | "dbHistory"
+  | "proxy";
 
 /** 表の 1 行。keys は一覧に出す書き方、probes は、判定が受けるはずのキー（KeyboardEvent.key。テストで使う）。 */
 export interface PlaceKeyRow {
@@ -316,6 +317,34 @@ export const PLACE_KEYS: Record<Place, PlaceKeys> = {
       row("Esc", T("place.row.close"), []),
     ],
   },
+  // プロキシのパネル（#409）。判定は features/proxy/keys.ts の proxyPanelKey
+  proxy: {
+    title: T("place.proxy.title"),
+    lead: T("place.proxy.lead"),
+    rows: [
+      row("j k / ↓ ↑", T("place.row.nextPrev"), [
+        "j",
+        "k",
+        "ArrowDown",
+        "ArrowUp",
+      ]),
+      row("g G / Home End", T("place.row.firstLast"), [
+        "g",
+        "G",
+        "Home",
+        "End",
+      ]),
+      row("Tab / h l / ← →", T("place.proxy.side"), [
+        "Tab",
+        "h",
+        "l",
+        "ArrowLeft",
+        "ArrowRight",
+      ]),
+      row("Esc", T("place.proxy.back"), ["Escape"]),
+      row("q", T("place.proxy.close")),
+    ],
+  },
   // サイドバーの DB のタブの木（#348・#374）。判定は features/db/keys.ts の dbTreeKey
   dbTree: {
     title: T("place.dbTree.title"),
@@ -425,6 +454,7 @@ const PLACES = new Set<string>([
   "db",
   "dbResult",
   "dbTree",
+  "proxy",
 ]);
 
 /**

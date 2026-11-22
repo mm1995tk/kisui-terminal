@@ -680,3 +680,13 @@ div.band-main {
   flex-direction: column;
   overflow: hidden;
 }
+/* プロキシ（#409）に通しているタブの印。パネルを閉じていても、通している間は出す。題の前に置く小さな札 */
+.tab-proxied {
+  flex: none;
+  padding: 0 4px;
+  border: 1px solid var(--state-warning);
+  border-radius: 3px;
+  color: var(--state-warning);
+  font-size: 9px;
+  line-height: 13px;
+}

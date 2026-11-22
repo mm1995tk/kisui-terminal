@@ -94,6 +94,8 @@ export function createWorkspaces(deps: {
   forgetPageReturn: () => void;
   /** 閉じているサイドバーを開ける（帯の中の入力欄は、閉じたままでは見えず、フォーカスも取れない） */
   revealSidebar: () => void;
+  /** ターミナルのタブ（マシンのワークスペース）を、プロキシ（#409）に通しているか（タブの行に札を出す） */
+  proxiedTerm: (target: string, ws: WorkspaceId) => boolean;
 }) {
   const { store, setFocusError, focusTerminal, closeTabView } = deps;
   const {
@@ -465,6 +467,7 @@ export function createWorkspaces(deps: {
       labelOf,
       colorOf: (t) => colors()[t] ?? MACHINE_COLORS[0],
       healthOf: (t) => health(states()[t]),
+      proxiedTerm: deps.proxiedTerm,
     }),
   );
   /** つながって一覧が分かっているマシンの、ワークスペース（ターミナルのタブ）の一覧（reconcile に渡す形）。 */

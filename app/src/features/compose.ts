@@ -31,6 +31,7 @@ import { createUpdates, type UpdatesOs } from "./updates/store.ts";
 import { createWorkspaces } from "./workspaces/controller.ts";
 import { routePaneEvent } from "./workspaces/paneEvents.ts";
 import { createPrimaryShj } from "./workspaces/primaryShj.ts";
+import { createProxy, type Proxy } from "./proxy/controller.ts";
 import { createTabs } from "./workspaces/tabs/controller.ts";
 import { createPaneOpen } from "./workspaces/tabs/paneOpen.ts";
 import type { WorkspaceId } from "../infrastructure/rpc/protocol.ts";
@@ -79,6 +80,8 @@ export interface FeatureUi {
   showScale(v: number): void;
   /** 少しの間だけ出る短い知らせ */
   showToast(text: string): void;
+  /** プロキシのパネル（#409）にキーを向ける */
+  focusProxyPanel(): void;
 }
 
 /** createFeatures が返す、メインウィンドウの機能の持ち物の全部。 */
@@ -103,6 +106,8 @@ export function createFeatures(deps: {
   const focusTerminal = () => ui.focusTerminal();
   const forgetPageReturn = () => ui.forgetPageReturn();
 
+  // プロキシの持ち物（下で作る）。サイドバーの行は、作る前から引かれるので、作ったあとに知らせる
+  const [proxyMade, setProxyMade] = createSignal<Proxy | undefined>();
   const updates = createUpdates(ports.updates);
   const mascot = createMascotStore(ports.mascot);
   const sessions = createSessions({
@@ -154,6 +159,8 @@ export function createFeatures(deps: {
     focusTerminal,
     forgetPageReturn,
     revealSidebar: () => ui.revealSidebar(),
+    proxiedTerm: (target, ws) =>
+      proxyMade()?.isProxiedTerm(target, ws) ?? false,
   });
   const db = createDbTabs({
     store,
@@ -246,6 +253,18 @@ export function createFeatures(deps: {
     focusTerminal,
     revealSidebar: () => ui.revealSidebar(),
   });
+  const proxy = createProxy({
+    sessions,
+    workspaces,
+    pages,
+    db,
+    browserTabs,
+    setFocusError,
+    focusTerminal,
+    forgetPageReturn,
+    focusPanel: () => ui.focusProxyPanel(),
+  });
+  setProxyMade(proxy);
   const scale = createScale({
     store,
     applyScale: ports.applyScale,
@@ -263,6 +282,7 @@ export function createFeatures(deps: {
     updates,
     mascot,
     scale,
+    proxy,
     os: ports.browser,
     setFocusError,
     showToast: (text) => ui.showToast(text),
@@ -288,6 +308,7 @@ export function createFeatures(deps: {
     downloads,
     tabs,
     scale,
+    proxy,
     commands,
   };
 }

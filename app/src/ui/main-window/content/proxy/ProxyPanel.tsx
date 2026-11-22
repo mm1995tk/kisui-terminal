@@ -1,0 +1,118 @@
+// プロキシのパネル（#409）。今出しているタブ（ターミナルのタブ・内蔵ブラウザのタブ）の通信の一覧（FlowList.tsx）と、
+// 選んだ通信の中身（FlowDetail.tsx）を、グリッドの場所の右側に出す。何を出すか・操作の中身は features/proxy/controller.ts。
+// ここは、枠と、キーの受け口を持つ。キーがパネルにある間のキーは、場所のキー（features/proxy/keys.ts。`?` の一覧は placeKeys.ts の proxy）。
+import { onCleanup, Show, type JSX } from "solid-js";
+
+import { isHelpKey } from "../../../../features/commands/placeKeys.ts";
+import type {
+  ProxyPanelState,
+  ProxySide,
+} from "../../../../features/proxy/controller.ts";
+import { proxyPanelKey } from "../../../../features/proxy/keys.ts";
+import { T } from "../../../../i18n/index.ts";
+import { KeyHints } from "../../../components/KeyHints.tsx";
+import { FlowDetail } from "./FlowDetail.tsx";
+import { FlowList } from "./FlowList.tsx";
+import styles from "./ProxyPanel.module.css";
+
+/** プロキシのパネル。 */
+export function ProxyPanel(props: {
+  panel: ProxyPanelState;
+  /** タブのマシンの名前（ターミナルのタブのとき、どのマシンのプロキシかを出す） */
+  machine: string;
+  onSelect: (id: number) => void;
+  onStep: (to: "next" | "prev" | "first" | "last") => void;
+  onSide: (side?: ProxySide) => void;
+  /** キーをタブ（ターミナル・ページ）に戻す */
+  onBack: () => void;
+  onClose: () => void;
+  /** キーの一覧（`?`）を出す */
+  onHelp: () => void;
+  /** パネルにキーを向ける関数を受け取る（消えるときは undefined） */
+  focusRef: (focus: (() => void) | undefined) => void;
+}): JSX.Element {
+  let root!: HTMLDivElement;
+  props.focusRef(() => root?.focus());
+  onCleanup(() => props.focusRef(undefined));
+
+  const term = () => props.panel.subject.kind === "term";
+  const selectedFlow = () =>
+    props.panel.scope.flows.find((f) => f.id === props.panel.selected);
+  /** 選んでいる通信の中身（読んだものが、ほかの通信のものなら出さない） */
+  const detail = () => {
+    const d = props.panel.detail;
+    return d && d.id === props.panel.selected ? d : undefined;
+  };
+
+  function onKeyDown(e: KeyboardEvent) {
+    if (isHelpKey(e)) {
+      e.preventDefault();
+      props.onHelp();
+      return;
+    }
+    const k = proxyPanelKey(e);
+    if (k === null) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (k === "back") props.onBack();
+    else if (k === "close") props.onClose();
+    else if (k === "side") props.onSide();
+    else props.onStep(k);
+  }
+
+  return (
+    <div
+      class={styles.root}
+      ref={root}
+      tabIndex={0}
+      data-place="proxy"
+      role="region"
+      aria-label={T("proxy.title")}
+      onKeyDown={onKeyDown}
+    >
+      <div class={styles.head}>
+        <h2 class={styles.title}>{T("proxy.title")}</h2>
+        <span class={styles.where}>
+          {term()
+            ? T("proxy.where.term", {
+                machine: props.machine,
+                port: props.panel.scope.port,
+              })
+            : T("proxy.where.browser", { port: props.panel.scope.port })}
+        </span>
+      </div>
+      <FlowList
+        flows={props.panel.scope.flows}
+        selected={props.panel.selected}
+        empty={term() ? T("proxy.empty.term") : T("proxy.empty.browser")}
+        onSelect={props.onSelect}
+      />
+      <div class={styles.detail}>
+        <Show
+          when={selectedFlow()}
+          fallback={<p class={styles.note}>{T("proxy.detail.none")}</p>}
+        >
+          {(f) => (
+            <FlowDetail
+              flow={f()}
+              detail={detail()}
+              side={props.panel.side}
+              onSide={props.onSide}
+            />
+          )}
+        </Show>
+      </div>
+      <div class={styles.foot}>
+        <KeyHints
+          items={[
+            { keys: ["j", "k"], label: T("basic.select") },
+            { keys: ["Tab"], label: T("proxy.hint.side") },
+            { keys: ["?"], label: T("basic.help") },
+            { keys: ["Esc"], label: T("proxy.hint.back") },
+            { keys: ["q"], label: T("basic.close") },
+          ]}
+        />
+      </div>
+    </div>
+  );
+}
