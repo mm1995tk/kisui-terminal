@@ -35,9 +35,11 @@ type dbElevKey struct {
 
 // dbElevation は、強めた状態の 1 つ。
 type dbElevation struct {
-	// from と to は、強めたときの、元の権限と強めた先の権限の名前。設定が書き換わって、どちらかが違う名前になったら、
-	// 強めた状態を捨てる（人が許したのと違う権限を、強めたことにしない）。
-	from, to string
+	// from は、強めたときの元の権限の名前。target は、強めた先の権限（名前だけでなく、run・agent-user などの中身も）。
+	// 設定が書き換わって、元の権限が違う名前になったら、または強めた先が名前か中身の違うものになったら、強めた状態を
+	// 捨てる（人が見て許したのと違う権限を、強めたことにしない）。
+	from   string
+	target config.DBPermission
 	// start は強めた時刻、until は元に戻る時刻。
 	start, until time.Time
 }
@@ -63,7 +65,7 @@ type DBElevated struct {
 }
 
 // elevation は、c の actor の権限を今強めているなら、その状態。時間が過ぎたもの・設定が変わって合わなくなったものは、
-// ここで捨てる（時計で消すのではなく、聞かれたときに確かめる）。設定の elevate-max が強めた後に短く書き換わったら、
+// ここで捨てる（時計で消すのではなく、聞かれたときに確かめる）。合うかどうかは、元の権限は名前で、強めた先は中身まで見る。設定の elevate-max が強めた後に短く書き換わったら、
 // 強めた時刻から数えた新しい上限までで終える。
 func (m *dbManager) elevation(c config.DBConnection, actor config.DBActor) (dbElevation, bool) {
 	m.mu.Lock()
@@ -75,7 +77,7 @@ func (m *dbManager) elevation(c config.DBConnection, actor config.DBActor) (dbEl
 	}
 	perm := c.Permission(actor)
 	target, can := c.ElevateTarget(actor)
-	if !can || perm.Name != e.from || target.Name != e.to {
+	if !can || perm.Name != e.from || target != e.target {
 		delete(m.elevations, k)
 		return dbElevation{}, false
 	}
@@ -181,7 +183,7 @@ func (ss *session) dbElevateReq(req *rpc.Message) (any, error) {
 			delete(m.elevations, k)
 		}
 	}
-	m.elevations[dbElevKey{c.Name, c.Variant, actor}] = dbElevation{from: perm.Name, to: target.Name, start: now, until: now.Add(d)}
+	m.elevations[dbElevKey{c.Name, c.Variant, actor}] = dbElevation{from: perm.Name, target: target, start: now, until: now.Add(d)}
 	m.mu.Unlock()
 	s.log.Info("db.elevate", "connection", c.Name, "variant", c.Variant, "actor", actor, "from", perm.Name, "to", target.Name, "duration", d.String())
 	return DBElevateResult{Connection: s.dbConnectionInfo(c)}, nil

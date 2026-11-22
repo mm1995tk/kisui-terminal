@@ -171,7 +171,7 @@ agent-permission = "reader"
 - **One step only.** While a permission is elevated, the `elevate-to` of the permission it became is not followed.
 - **When `kisui serve` stops**, or is replaced by a new version, every permission is back to what the settings say: what is elevated is kept in the memory of `kisui serve` only, never in a file.
 - **A statement that is running when the time is over** is not stopped. The permission is checked when a statement starts, so the first statement that starts after the time runs with the permission of the settings.
-- **When you change the settings while a permission is elevated**: if the permission of the connection or its `elevate-to` is now another one, the permission goes back at once; if `elevate-max` is now shorter, the elevation ends at the new limit, counted from when it started.
+- **When you change the settings while a permission is elevated**: if the connection now names another permission, or the permission it is elevated to is another one or was changed itself (its `run`, say), the permission goes back at once, so that it is never elevated to something you did not see when you elevated it; if `elevate-max` is now shorter, the elevation ends at the new limit, counted from when it started.
 - **Mistakes.** `elevate-to` without `elevate-max` (or the other way round), an `elevate-to` that names no permission, one that names the permission itself, or an `elevate-max` that is not a time: the permission is reported as a mistake, and the connections that name it are left out of the list, like any other mistake in a permission.
 
 ## For a coding agent: the `kisui db` commands

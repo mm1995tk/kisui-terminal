@@ -254,7 +254,7 @@ func TestDBElevateReadOnly(t *testing.T) {
 	}
 }
 
-// 設定が強めた後で書き換わったら：権限の名前か強めた先が変われば元に戻し、上限が短くなれば新しい上限までで終える。
+// 設定が強めた後で書き換わったら：権限の名前か、強めた先（名前か中身）が変われば元に戻し、上限が短くなれば新しい上限までで終える。
 func TestDBElevateSettingsChange(t *testing.T) {
 	e := newElevateEnv(t, elevConn("prod"))
 	elevate := func() {
@@ -276,6 +276,15 @@ func TestDBElevateSettingsChange(t *testing.T) {
 	if e.humanMay("prod") {
 		t.Error("the elevation came back with the old settings")
 	}
+	// 強めた先の名前はそのままで、中身（run）が変わった。
+	elevate()
+	c = elevConn("prod")
+	c.HumanElevate.Run = config.DBRunFree
+	e.setConns(c)
+	if i := e.info("prod"); i.Human.Elevated != nil || i.Human.Permission != "off" {
+		t.Errorf("the target was rewritten: %+v", i.Human)
+	}
+	e.setConns(elevConn("prod"))
 	// 強められなくなった。
 	elevate()
 	c = elevConn("prod")
