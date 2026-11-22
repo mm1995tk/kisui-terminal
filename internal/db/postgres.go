@@ -23,34 +23,13 @@ type pgSession struct {
 }
 
 func openPostgres(ctx context.Context, c config.DBLogin, password string) (Session, error) {
-	// What a connection's settings say (and sslmode, the timeout and the
-	// application name) is written here, so that the environment of kisui
-	// serve does not replace it (PGHOST, PGPORT, PGUSER, PGDATABASE,
-	// PGSSLMODE, PGCONNECT_TIMEOUT, PGAPPNAME). pgconn still reads the
-	// variables for what is not written: PGSERVICE and PGSERVICEFILE,
-	// PGOPTIONS, PGTARGETSESSIONATTRS, PGREQUIREAUTH, PGSSLCERT, PGSSLKEY,
-	// PGSSLROOTCERT and so on. A PGSERVICE that names a service that is not
-	// in the service file makes ParseConfig fail, for every connection.
-	// sslmode=prefer is the default of libpq: TLS when
-	// the server offers it, without checking the certificate.
-	cfg, err := pgconn.ParseConfig(pgKeywords(
-		"host", c.Host,
-		"port", strconv.Itoa(c.Port),
-		"user", c.User,
-		"dbname", postgresDatabase(c),
-		"sslmode", "prefer",
-		"connect_timeout", strconv.Itoa(int(connectTimeout/time.Second)),
-		"application_name", "kisui-terminal",
-	))
+	cfg, err := pgConfig(c)
 	if err != nil {
 		return nil, &Error{Kind: KindConnect, Message: err.Error()}
 	}
 	// Set after parsing, so that it is the password Passwords found and not
 	// one pgconn read from PGPASSWORD or a pgpass file by itself.
 	cfg.Password = password
-	// Binary values come as \x and hexadecimal digits, whatever the server's
-	// default is.
-	cfg.RuntimeParams["bytea_output"] = "hex"
 	ctx, cancel := context.WithTimeout(ctx, connectTimeout)
 	defer cancel()
 	conn, err := pgconn.ConnectConfig(ctx, cfg)
@@ -66,6 +45,62 @@ func openPostgres(ctx context.Context, c config.DBLogin, password string) (Sessi
 		return nil, e
 	}
 	return &pgSession{conn: conn, readOnly: c.ReadOnly}, nil
+}
+
+// pgConfig is the configuration of pgconn for a login to c, without the
+// password.
+func pgConfig(c config.DBLogin) (*pgconn.Config, error) {
+	sslmode, sslrootcert := pgTLS(c)
+	// What a connection's settings say (and TLS, the timeout and the
+	// application name) is written here, so that the environment of kisui
+	// serve does not replace it (PGHOST, PGPORT, PGUSER, PGDATABASE,
+	// PGSSLMODE, PGSSLROOTCERT, PGCONNECT_TIMEOUT, PGAPPNAME). pgconn still
+	// reads the variables for what is not written: PGSERVICE and
+	// PGSERVICEFILE, PGOPTIONS, PGTARGETSESSIONATTRS, PGREQUIREAUTH,
+	// PGSSLCERT, PGSSLKEY and so on. A PGSERVICE that names a service that is not
+	// in the service file makes ParseConfig fail, for every connection.
+	// sslmode and sslrootcert are what the key `tls` says (pgTLS).
+	cfg, err := pgconn.ParseConfig(pgKeywords(
+		"host", c.Host,
+		"port", strconv.Itoa(c.Port),
+		"user", c.User,
+		"dbname", postgresDatabase(c),
+		"sslmode", sslmode,
+		"sslrootcert", sslrootcert,
+		"connect_timeout", strconv.Itoa(int(connectTimeout/time.Second)),
+		"application_name", "kisui-terminal",
+	))
+	if err != nil {
+		return nil, err
+	}
+	// Binary values come as \x and hexadecimal digits, whatever the server's
+	// default is.
+	cfg.RuntimeParams["bytea_output"] = "hex"
+	return cfg, nil
+}
+
+// pgTLS is the sslmode and the sslrootcert of the key `tls` of c. sslrootcert
+// is always written, "" when no certificate is checked, so that PGSSLROOTCERT
+// in the environment of kisui serve, or a ~/.postgresql/root.crt, does not change
+// what the settings say: with a root certificate, pgconn (like libpq) makes
+// sslmode=require check the certificate authority, and verify-full would use
+// that file and not the one of `tls-ca` or the OS.
+func pgTLS(c config.DBLogin) (sslmode, sslrootcert string) {
+	switch c.TLS {
+	case config.DBTLSDisable:
+		return "disable", ""
+	case config.DBTLSRequire:
+		return "require", ""
+	case config.DBTLSVerify:
+		// "system" is pgconn's word for the certificate authorities of the OS.
+		if c.TLSCA == "" {
+			return "verify-full", "system"
+		}
+		return "verify-full", c.TLSCA
+	}
+	// prefer, the default of libpq: TLS when the server offers it, without
+	// checking the certificate.
+	return "prefer", ""
 }
 
 // pgKeywords writes a connection string of `keyword='value'` pairs.

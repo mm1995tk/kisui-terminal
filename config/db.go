@@ -15,6 +15,26 @@ const (
 	DBMySQL    = "mysql"
 )
 
+// The values of the key `tls`: how a connection uses TLS.
+const (
+	// DBTLSPrefer uses TLS when the database offers it, without checking the
+	// certificate (PostgreSQL's sslmode=prefer, MySQL's tls=preferred). It is
+	// the default, what psql and mysql do.
+	DBTLSPrefer = "prefer"
+	// DBTLSDisable never uses TLS.
+	DBTLSDisable = "disable"
+	// DBTLSRequire always uses TLS, without checking the certificate: a
+	// database that offers no TLS is not logged in to.
+	DBTLSRequire = "require"
+	// DBTLSVerify always uses TLS and checks the certificate, and that its
+	// host name is the Host of the connection (PostgreSQL's
+	// sslmode=verify-full).
+	DBTLSVerify = "verify"
+)
+
+// dbTLSModes are the values of `tls`, in the order a message lists them.
+var dbTLSModes = []string{DBTLSPrefer, DBTLSDisable, DBTLSRequire, DBTLSVerify}
+
 // DBConnection is one database to log in to: where it is and who logs in. A
 // [[db.connections]] entry without variants gives one; an entry with
 // [[db.connections.variants]] gives one for each variant (the same database
@@ -51,6 +71,15 @@ type DBConnection struct {
 	// read-only transaction, for everybody, whatever the permissions say
 	// (Access).
 	ReadOnly bool
+	// TLS is the key `tls`, one of the DBTLS values (DBTLSPrefer when it is
+	// not written). A Unix socket uses no TLS, so on one it is DBTLSPrefer or
+	// DBTLSDisable.
+	TLS string
+	// TLSCA is the key `tls-ca`, as an absolute path: the file (PEM) of the
+	// certificate authority that DBTLSVerify checks the certificate with.
+	// "" is the certificate authorities of the OS. It is only written with
+	// DBTLSVerify.
+	TLSCA string
 	// Human and Agent are the permissions the settings name for a person and
 	// for a coding agent (`human-permission`, `agent-permission`). The zero
 	// value (Name "") is none named; Access says what holds then.
@@ -188,7 +217,7 @@ func tables(v any) ([]map[string]any, bool) {
 // dbWhereKeys are the keys that say where a database is, who logs in and
 // what they may do. An entry and a variant can both have them: a variant
 // takes the ones it does not write from its entry.
-var dbWhereKeys = []string{"host", "port", "user", "database", "read-only", "human-permission", "agent-permission"}
+var dbWhereKeys = []string{"host", "port", "user", "database", "read-only", "tls", "tls-ca", "human-permission", "agent-permission"}
 
 // dbKeys are the keys of a [[db.connections]] entry, and dbVariantKeys the
 // keys of a [[db.connections.variants]] entry.
@@ -276,6 +305,7 @@ type dbWhere struct {
 	host, user, database *string
 	port                 *int
 	readOnly             *bool
+	tls, tlsCA           *string
 	human, agent         *DBPermission
 }
 
@@ -312,6 +342,22 @@ func (d *dbEntry) where(perms dbPermissions) (w dbWhere) {
 			w.readOnly = &b
 		}
 	}
+	if s, ok := d.str("tls", false); ok {
+		if !slices.Contains(dbTLSModes, s) {
+			d.bad("tls", "config.err.oneof", strings.Join(dbTLSModes, ", "))
+		} else {
+			w.tls = &s
+		}
+	}
+	// An absolute path or one under ~, as [server] start_dir: a relative path
+	// would depend on the folder kisui serve was started in.
+	if s, ok := d.str("tls-ca", false); ok {
+		if p, ok := ExpandHome(s); !ok {
+			d.bad("tls-ca", "config.err.abspath")
+		} else {
+			w.tlsCA = &p
+		}
+	}
 	return w
 }
 
@@ -331,6 +377,12 @@ func (w dbWhere) over(v dbWhere) dbWhere {
 	}
 	if v.readOnly != nil {
 		w.readOnly = v.readOnly
+	}
+	if v.tls != nil {
+		w.tls = v.tls
+	}
+	if v.tlsCA != nil {
+		w.tlsCA = v.tlsCA
 	}
 	if v.human != nil {
 		w.human = v.human
@@ -360,6 +412,13 @@ func (w dbWhere) fill(c *DBConnection) (ok bool) {
 	}
 	if w.readOnly != nil {
 		c.ReadOnly = *w.readOnly
+	}
+	c.TLS = DBTLSPrefer
+	if w.tls != nil {
+		c.TLS = *w.tls
+	}
+	if w.tlsCA != nil {
+		c.TLSCA = *w.tlsCA
 	}
 	if w.human != nil {
 		c.Human = *w.human
@@ -403,6 +462,7 @@ func dbConnection(e map[string]any, perms dbPermissions) (conns []DBConnection, 
 		if !w.fill(&base) && e["user"] == nil {
 			d.bad("user", "config.err.required")
 		}
+		d.checkTLS(base, w)
 		return []DBConnection{base}, d.probs
 	}
 	seen := map[string]bool{}
@@ -424,13 +484,33 @@ func dbConnection(e map[string]any, perms dbPermissions) (conns []DBConnection, 
 		// The user may be written in the entry, in the variant, or in both.
 		// When a written one is wrong, that is the problem to report, not that
 		// it is missing.
-		if !w.over(vd.where(perms)).fill(&c) && e["user"] == nil && ve["user"] == nil {
+		vw := w.over(vd.where(perms))
+		if !vw.fill(&c) && e["user"] == nil && ve["user"] == nil {
 			vd.bad("user", "config.err.required")
 		}
+		vd.checkTLS(c, vw)
 		for _, p := range vd.probs {
 			d.bad(fmt.Sprintf("variants[%d].%s", i, p.Key), p.Code, p.Args...)
 		}
 		conns = append(conns, c)
 	}
 	return conns, d.probs
+}
+
+// checkTLS reports what c, filled from w, says about TLS that cannot hold. It
+// looks at the connection as it ends up, so a variant is checked with the
+// keys it takes from its entry. A key that was wrong (and so reported) is
+// not in w, and is not reported again here.
+func (d *dbEntry) checkTLS(c DBConnection, w dbWhere) {
+	// A Unix socket carries no TLS (neither pgconn nor the MySQL driver tries
+	// it there): a connection that asks for TLS on one would look protected
+	// and not be.
+	if strings.HasPrefix(c.Host, "/") && (c.TLS == DBTLSRequire || c.TLS == DBTLSVerify) {
+		d.bad("tls", "config.err.tlssocket", DBTLSPrefer+", "+DBTLSDisable)
+	}
+	// A certificate authority is only used to check a certificate: written
+	// with another mode, it would look like checking and not be.
+	if w.tlsCA != nil && c.TLS != DBTLSVerify {
+		d.bad("tls-ca", "config.err.tlsca", DBTLSVerify)
+	}
 }

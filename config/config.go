@@ -201,6 +201,13 @@ func integer(v any) (int64, bool) {
 // are the home directory. ok is false when it is neither that nor an absolute
 // path.
 func ExpandStartDir(v string) (dir string, ok bool) {
+	return ExpandHome(v)
+}
+
+// ExpandHome turns a path of the settings into an absolute path: ~ and ~/x
+// are the home directory. ok is false when it is neither that nor an
+// absolute path.
+func ExpandHome(v string) (path string, ok bool) {
 	switch {
 	case v == "~" || strings.HasPrefix(v, "~/"):
 		home, err := os.UserHomeDir()

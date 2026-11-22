@@ -594,7 +594,7 @@ GUI は複数のワークスペースのツリーを（開閉の状態を持っ�
   - **上限**：接続ごとに新しいものから 1000 件、ファイルで 4 MiB まで。64 KiB を超える SQL は残さない（貼り付けたダンプなどで、ほかの履歴を押し出さないためと、切った SQL を実行し直させないため）。
   - 履歴に書けなくても `db.query` の結果は返し、`serve.log` に書けなかったことだけを書く。
 - **ロック**：`db.*` は、ほかの要求と違って `kisui serve` の読みロック（`opMu`）の外で動く。SQL は長くかかることがあり、ロックを持つと、その間 `server.handover`（書きロックを待つ）と、それを待つ全部の要求が止まる。`db.*` はワークスペースやターミナルの状態に触らないので、ロックは要らない。
-- **TLS**：DB が TLS を出せば使い、証明書は確かめない（PostgreSQL の `sslmode=prefer`、MySQL の `tls=preferred`。どちらも標準のクライアントの既定）。Unix ソケット（`host` が `/` で始まる）では使わない。
+- **TLS**：接続の `tls`（`config/db.go`）に従う。`"prefer"`（既定）は DB が TLS を出せば使い、証明書は確かめない（PostgreSQL の `sslmode=prefer`、MySQL の `tls=preferred`。どちらも標準のクライアントの既定）。`"disable"` は使わない（`sslmode=disable`・`tls=false`）。`"require"` は必ず使い、証明書は確かめない（`sslmode=require`・`tls=skip-verify`）。`"verify"` は必ず使い、証明書と、証明書のホスト名が `host` と合うかを確かめる（`sslmode=verify-full`・`tls.Config{ServerName: host}`）。確かめる認証局は `tls-ca`（PEM のファイル。絶対パスか `~` で始まるパス）で、無ければ OS の認証局（PostgreSQL は `sslrootcert=system`）。PostgreSQL では `sslrootcert` を必ず書き（確かめないときは空）、`PGSSLROOTCERT` や `~/.postgresql/root.crt` が `require` を認証局の確認に変えたり、`verify` の認証局を差し替えたりしないようにする。`tls-ca` のファイルはログインのたびに読む。Unix ソケット（`host` が `/` で始まる）では TLS を使わないので、設定で `"require"`・`"verify"` を間違いにする（書いても使われないのに、守られているように見えるため）。`tls-ca` も `"verify"` でなければ間違い（変種が受け継いだものも）。クライアントの証明書は設定に無い。
 - **ログ**：`serve.log` には、失敗した接続の名前だけを書く。SQL とパスワードは書かない。
 
 ### ssh 越しに kisui を起動する

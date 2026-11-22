@@ -127,6 +127,8 @@ type DBLogin struct {
 	// ReadOnly makes every statement of this login run in a read-only
 	// transaction.
 	ReadOnly bool
+	// TLS and TLSCA are those of the connection.
+	TLS, TLSCA string
 	// AgentUser is true when User is the agent's own user (the `agent-user`
 	// of its permission), not the user written for the connection. The
 	// password of such a login is looked for apart from the password of the
@@ -147,6 +149,7 @@ func (c DBConnection) Login(a DBAccess) DBLogin {
 		Name: c.Name, Variant: c.Variant, Kind: c.Kind, Host: c.Host, Port: c.Port,
 		User: a.User, Database: c.Database,
 		ReadOnly: a.Run != DBRunFree, AgentUser: a.AgentUser,
+		TLS: c.TLS, TLSCA: c.TLSCA,
 	}
 	if a.AgentUser && c.Kind == DBPostgres && c.Database == "" {
 		l.Database = c.User

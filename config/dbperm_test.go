@@ -56,10 +56,10 @@ read-only = true
 	off := DBPermission{Name: "off", Run: DBRunNone}
 	got, probs := LoadDB("")
 	want := []DBConnection{
-		{Name: "shop", Variant: "local", Kind: DBPostgres, Host: "localhost", Port: 5432, User: "app", Human: all, Agent: reader},
-		{Name: "shop", Variant: "prod", Kind: DBPostgres, Host: "localhost", Port: 5432, User: "app", Human: reader, Agent: off},
-		{Name: "plain", Kind: DBMySQL, Host: "localhost", Port: 3306, User: "u", Agent: all},
-		{Name: "old", Kind: DBMySQL, Host: "localhost", Port: 3306, User: "u", ReadOnly: true},
+		{Name: "shop", Variant: "local", Kind: DBPostgres, Host: "localhost", Port: 5432, TLS: DBTLSPrefer, User: "app", Human: all, Agent: reader},
+		{Name: "shop", Variant: "prod", Kind: DBPostgres, Host: "localhost", Port: 5432, TLS: DBTLSPrefer, User: "app", Human: reader, Agent: off},
+		{Name: "plain", Kind: DBMySQL, Host: "localhost", Port: 3306, TLS: DBTLSPrefer, User: "u", Agent: all},
+		{Name: "old", Kind: DBMySQL, Host: "localhost", Port: 3306, TLS: DBTLSPrefer, User: "u", ReadOnly: true},
 	}
 	if len(probs) != 0 || !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %+v, %v", got, probs)

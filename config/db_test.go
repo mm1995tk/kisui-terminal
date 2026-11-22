@@ -30,8 +30,8 @@ read-only = true
 `), 0o644)
 	got, probs := LoadDB("")
 	want := []DBConnection{
-		{Name: "dev", Kind: DBPostgres, Host: "localhost", Port: 5432, User: "app"},
-		{Name: "prod", Kind: DBMySQL, Host: "db.example.com", Port: 3307, User: "reader", Database: "shop", ReadOnly: true},
+		{Name: "dev", Kind: DBPostgres, Host: "localhost", Port: 5432, User: "app", TLS: DBTLSPrefer},
+		{Name: "prod", Kind: DBMySQL, Host: "db.example.com", Port: 3307, User: "reader", Database: "shop", ReadOnly: true, TLS: DBTLSPrefer},
 	}
 	if len(probs) != 0 || !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %+v, %v", got, probs)
@@ -164,14 +164,14 @@ variants = [{name = "a", user = "ua"}, {name = "b", user = "ub", read-only = fal
 `), 0o644)
 	got, probs := LoadDB("")
 	want := []DBConnection{
-		{Name: "shop", Variant: "local", Kind: DBPostgres, Host: "localhost", Port: 5433, User: "app", Database: "shop"},
-		{Name: "shop", Variant: "dev", Kind: DBPostgres, Host: "dev.example.com", Port: 5432, User: "app", Database: "shop"},
-		{Name: "shop", Variant: "prod", Kind: DBPostgres, Host: "db.example.com", Port: 5433, User: "reader", Database: "shop_prod", ReadOnly: true},
-		{Name: "plain", Kind: DBMySQL, Host: "localhost", Port: 3306, User: "u"},
+		{Name: "shop", Variant: "local", Kind: DBPostgres, Host: "localhost", Port: 5433, TLS: DBTLSPrefer, User: "app", Database: "shop"},
+		{Name: "shop", Variant: "dev", Kind: DBPostgres, Host: "dev.example.com", Port: 5432, TLS: DBTLSPrefer, User: "app", Database: "shop"},
+		{Name: "shop", Variant: "prod", Kind: DBPostgres, Host: "db.example.com", Port: 5433, TLS: DBTLSPrefer, User: "reader", Database: "shop_prod", ReadOnly: true},
+		{Name: "plain", Kind: DBMySQL, Host: "localhost", Port: 3306, TLS: DBTLSPrefer, User: "u"},
 		// The entry has no user (each variant has one), and its read-only is
 		// what a variant gets unless it says otherwise.
-		{Name: "guarded", Variant: "a", Kind: DBMySQL, Host: "localhost", Port: 3306, User: "ua", ReadOnly: true},
-		{Name: "guarded", Variant: "b", Kind: DBMySQL, Host: "localhost", Port: 3306, User: "ub"},
+		{Name: "guarded", Variant: "a", Kind: DBMySQL, Host: "localhost", Port: 3306, TLS: DBTLSPrefer, User: "ua", ReadOnly: true},
+		{Name: "guarded", Variant: "b", Kind: DBMySQL, Host: "localhost", Port: 3306, TLS: DBTLSPrefer, User: "ub"},
 	}
 	if len(probs) != 0 || !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %+v, %v", got, probs)
@@ -238,6 +238,135 @@ func TestLoadDBVariantMistakes(t *testing.T) {
 		// `kind` is a key of a connection.
 		if name == "kind in variant" && (len(probs) != 1 || probs[0].Code != "config.err.unknownvariant") {
 			t.Errorf("%s: problems %+v", name, probs)
+		}
+	}
+}
+
+// `tls` and `tls-ca`: prefer when not written, tls-ca as an absolute path,
+// and a variant takes them from its entry.
+func TestLoadDBTLS(t *testing.T) {
+	dir := userDir(t)
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Skip(err)
+	}
+	os.WriteFile(filepath.Join(dir, "config.toml"), []byte(`
+[[db.connections]]
+name = "a"
+kind = "postgres"
+user = "u"
+
+[[db.connections]]
+name = "b"
+kind = "mysql"
+user = "u"
+tls = "verify"
+tls-ca = "~/ca.pem"
+
+[[db.connections.variants]]
+name = "inherits"
+
+[[db.connections.variants]]
+name = "own"
+tls-ca = "/etc/../etc/ca.pem"
+
+[[db.connections.variants]]
+name = "socket"
+host = "/run/mysqld/mysqld.sock"
+tls = "disable"
+tls-ca = "/etc/ca.pem"
+`), 0o644)
+	// The variant "socket" writes tls-ca without verify: a mistake, so the
+	// connection b is left out.
+	got, probs := LoadDB("")
+	if len(got) != 1 || got[0].Name != "a" || got[0].TLS != DBTLSPrefer || got[0].TLSCA != "" {
+		t.Fatalf("got %+v", got)
+	}
+	if len(probs) != 1 || probs[0].Key != "db.connections[1].variants[2].tls-ca" {
+		t.Fatalf("problems %v", probs)
+	}
+	// Without its own tls-ca, it still takes the one of its entry, which is
+	// not used with disable: a mistake too.
+	os.WriteFile(filepath.Join(dir, "config.toml"), []byte(`
+[[db.connections]]
+name = "b"
+kind = "mysql"
+user = "u"
+tls = "verify"
+tls-ca = "~/ca.pem"
+
+[[db.connections.variants]]
+name = "socket"
+host = "/run/mysqld/mysqld.sock"
+tls = "disable"
+`), 0o644)
+	if got, probs := LoadDB(""); len(got) != 0 || len(probs) != 1 || probs[0].Key != "db.connections[0].variants[0].tls-ca" {
+		t.Fatalf("an inherited tls-ca: %+v, %v", got, probs)
+	}
+	os.WriteFile(filepath.Join(dir, "config.toml"), []byte(`
+[[db.connections]]
+name = "b"
+kind = "mysql"
+user = "u"
+tls = "verify"
+
+[[db.connections.variants]]
+name = "inherits"
+tls-ca = "~/ca.pem"
+
+[[db.connections.variants]]
+name = "own"
+tls-ca = "/etc/../etc/ca.pem"
+
+[[db.connections.variants]]
+name = "os"
+host = "db.example.com"
+
+[[db.connections.variants]]
+name = "local"
+host = "/run/mysqld/mysqld.sock"
+tls = "disable"
+`), 0o644)
+	got, probs = LoadDB("")
+	want := []DBConnection{
+		{Name: "b", Variant: "inherits", Kind: DBMySQL, Host: "localhost", Port: 3306, User: "u", TLS: DBTLSVerify, TLSCA: filepath.Join(home, "ca.pem")},
+		{Name: "b", Variant: "own", Kind: DBMySQL, Host: "localhost", Port: 3306, User: "u", TLS: DBTLSVerify, TLSCA: "/etc/ca.pem"},
+		{Name: "b", Variant: "os", Kind: DBMySQL, Host: "db.example.com", Port: 3306, User: "u", TLS: DBTLSVerify},
+		{Name: "b", Variant: "local", Kind: DBMySQL, Host: "/run/mysqld/mysqld.sock", Port: 3306, User: "u", TLS: DBTLSDisable},
+	}
+	if len(probs) != 0 || !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %+v, %v", got, probs)
+	}
+	// The login takes them.
+	if l := got[1].Login(got[1].Access(DBHuman)); l.TLS != DBTLSVerify || l.TLSCA != "/etc/ca.pem" {
+		t.Errorf("login %+v", l)
+	}
+}
+
+func TestLoadDBTLSMistakes(t *testing.T) {
+	dir := userDir(t)
+	for name, c := range map[string]struct{ body, key string }{
+		"unknown tls":         {"tls = \"yes\"\n", "db.connections[0].tls"},
+		"tls not a string":    {"tls = true\n", "db.connections[0].tls"},
+		"relative tls-ca":     {"tls = \"verify\"\ntls-ca = \"ca.pem\"\n", "db.connections[0].tls-ca"},
+		"empty tls-ca":        {"tls = \"verify\"\ntls-ca = \"\"\n", "db.connections[0].tls-ca"},
+		"tls-ca with prefer":  {"tls-ca = \"/etc/ca.pem\"\n", "db.connections[0].tls-ca"},
+		"tls-ca with require": {"tls = \"require\"\ntls-ca = \"/etc/ca.pem\"\n", "db.connections[0].tls-ca"},
+		"socket and require":  {"host = \"/run/postgresql\"\ntls = \"require\"\n", "db.connections[0].tls"},
+		"socket and verify":   {"host = \"/run/postgresql\"\ntls = \"verify\"\n", "db.connections[0].tls"},
+		"variant on a socket": {"tls = \"verify\"\n[[db.connections.variants]]\nname = \"a\"\nhost = \"/run/postgresql\"\n", "db.connections[0].variants[0].tls"},
+	} {
+		os.WriteFile(filepath.Join(dir, "config.toml"), []byte("[[db.connections]]\nname = \"x\"\nkind = \"postgres\"\nuser = \"u\"\n"+c.body), 0o644)
+		got, probs := LoadDB("")
+		if len(got) != 0 || len(probs) != 1 || probs[0].Key != c.key {
+			t.Errorf("%s: %+v, %v", name, got, probs)
+		}
+	}
+	// On a socket, prefer and disable are fine.
+	for _, mode := range []string{DBTLSPrefer, DBTLSDisable} {
+		os.WriteFile(filepath.Join(dir, "config.toml"), []byte("[[db.connections]]\nname = \"x\"\nkind = \"postgres\"\nuser = \"u\"\nhost = \"/run/postgresql\"\ntls = \""+mode+"\"\n"), 0o644)
+		if got, probs := LoadDB(""); len(got) != 1 || len(probs) != 0 || got[0].TLS != mode {
+			t.Errorf("%s on a socket: %+v, %v", mode, got, probs)
 		}
 	}
 }
