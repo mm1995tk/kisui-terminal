@@ -62,11 +62,11 @@ func (p *Proxy) Resend(r Resend) (Summary, error) {
 	if p.store == nil {
 		return Summary{}, ErrNoRecord
 	}
-	orig, ok := p.store.request(r.From)
+	orig, ok := p.store.requestBody(r.From)
 	if !ok {
 		return Summary{}, ErrNoFlow
 	}
-	req, err := p.prepare(r, orig.body)
+	req, err := p.prepare(r, orig)
 	if err != nil {
 		return Summary{}, err
 	}

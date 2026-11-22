@@ -169,25 +169,18 @@ func (f *flow) summary() Summary {
 	return sum
 }
 
-// sentRequest は、覚えている通信の要求の写し（送り直すときの元。#410）。
-type sentRequest struct {
-	method string
-	header http.Header
-	body   Body
-}
-
-// request は id の通信の要求の写し。もう覚えていなければ false。
-func (s *Store) request(id int64) (sentRequest, bool) {
+// requestBody は id の通信の要求の本文の写し（送り直すときに、元のまま送る本文。#410）。もう覚えていなければ false。
+func (s *Store) requestBody(id int64) (Body, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, f := range s.flows {
 		if f.id == id {
 			b := f.reqBody
 			b.Data = slices.Clone(b.Data)
-			return sentRequest{method: f.method, header: f.reqHeader.Clone(), body: b}, true
+			return b, true
 		}
 	}
-	return sentRequest{}, false
+	return Body{}, false
 }
 
 // begin は始まった通信を足す。
