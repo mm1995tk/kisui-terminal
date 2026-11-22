@@ -306,7 +306,9 @@ type dbWhere struct {
 	port                 *int
 	readOnly             *bool
 	tls, tlsCA           *string
-	human, agent         *DBPermission
+	// tlsWrong is true when `tls` is written but wrong (and reported).
+	tlsWrong     bool
+	human, agent *DBPermission
 }
 
 // where reads the dbWhereKeys. perms are the permissions it can name.
@@ -349,6 +351,9 @@ func (d *dbEntry) where(perms dbPermissions) (w dbWhere) {
 			w.tls = &s
 		}
 	}
+	if _, has := d.e["tls"]; has && w.tls == nil {
+		w.tlsWrong = true
+	}
 	// An absolute path or one under ~, as [server] start_dir: a relative path
 	// would depend on the folder kisui serve was started in.
 	if s, ok := d.str("tls-ca", false); ok {
@@ -378,8 +383,8 @@ func (w dbWhere) over(v dbWhere) dbWhere {
 	if v.readOnly != nil {
 		w.readOnly = v.readOnly
 	}
-	if v.tls != nil {
-		w.tls = v.tls
+	if v.tls != nil || v.tlsWrong {
+		w.tls, w.tlsWrong = v.tls, v.tlsWrong
 	}
 	if v.tlsCA != nil {
 		w.tlsCA = v.tlsCA
@@ -510,7 +515,9 @@ func (d *dbEntry) checkTLS(c DBConnection, w dbWhere) {
 	}
 	// A certificate authority is only used to check a certificate: written
 	// with another mode, it would look like checking and not be.
-	if w.tlsCA != nil && c.TLS != DBTLSVerify {
+	// When `tls` itself is wrong, that is the mistake to fix: c.TLS is then the
+	// default, not what was meant.
+	if w.tlsCA != nil && !w.tlsWrong && c.TLS != DBTLSVerify {
 		d.bad("tls-ca", "config.err.tlsca", DBTLSVerify)
 	}
 }

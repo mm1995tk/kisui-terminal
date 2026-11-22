@@ -346,15 +346,19 @@ tls = "disable"
 func TestLoadDBTLSMistakes(t *testing.T) {
 	dir := userDir(t)
 	for name, c := range map[string]struct{ body, key string }{
-		"unknown tls":         {"tls = \"yes\"\n", "db.connections[0].tls"},
-		"tls not a string":    {"tls = true\n", "db.connections[0].tls"},
-		"relative tls-ca":     {"tls = \"verify\"\ntls-ca = \"ca.pem\"\n", "db.connections[0].tls-ca"},
-		"empty tls-ca":        {"tls = \"verify\"\ntls-ca = \"\"\n", "db.connections[0].tls-ca"},
-		"tls-ca with prefer":  {"tls-ca = \"/etc/ca.pem\"\n", "db.connections[0].tls-ca"},
-		"tls-ca with require": {"tls = \"require\"\ntls-ca = \"/etc/ca.pem\"\n", "db.connections[0].tls-ca"},
-		"socket and require":  {"host = \"/run/postgresql\"\ntls = \"require\"\n", "db.connections[0].tls"},
-		"socket and verify":   {"host = \"/run/postgresql\"\ntls = \"verify\"\n", "db.connections[0].tls"},
-		"variant on a socket": {"tls = \"verify\"\n[[db.connections.variants]]\nname = \"a\"\nhost = \"/run/postgresql\"\n", "db.connections[0].variants[0].tls"},
+		"unknown tls":      {"tls = \"yes\"\n", "db.connections[0].tls"},
+		"tls not a string": {"tls = true\n", "db.connections[0].tls"},
+		// Only the wrong tls is reported, not the tls-ca that goes with it.
+		"unknown tls, tls-ca":       {"tls = \"verfy\"\ntls-ca = \"/etc/ca.pem\"\n", "db.connections[0].tls"},
+		"tls not a string, tls-ca":  {"tls = true\ntls-ca = \"/etc/ca.pem\"\n", "db.connections[0].tls"},
+		"variant tls wrong, tls-ca": {"tls = \"verify\"\ntls-ca = \"/etc/ca.pem\"\n[[db.connections.variants]]\nname = \"a\"\ntls = \"verfy\"\n", "db.connections[0].variants[0].tls"},
+		"relative tls-ca":           {"tls = \"verify\"\ntls-ca = \"ca.pem\"\n", "db.connections[0].tls-ca"},
+		"empty tls-ca":              {"tls = \"verify\"\ntls-ca = \"\"\n", "db.connections[0].tls-ca"},
+		"tls-ca with prefer":        {"tls-ca = \"/etc/ca.pem\"\n", "db.connections[0].tls-ca"},
+		"tls-ca with require":       {"tls = \"require\"\ntls-ca = \"/etc/ca.pem\"\n", "db.connections[0].tls-ca"},
+		"socket and require":        {"host = \"/run/postgresql\"\ntls = \"require\"\n", "db.connections[0].tls"},
+		"socket and verify":         {"host = \"/run/postgresql\"\ntls = \"verify\"\n", "db.connections[0].tls"},
+		"variant on a socket":       {"tls = \"verify\"\n[[db.connections.variants]]\nname = \"a\"\nhost = \"/run/postgresql\"\n", "db.connections[0].variants[0].tls"},
 	} {
 		os.WriteFile(filepath.Join(dir, "config.toml"), []byte("[[db.connections]]\nname = \"x\"\nkind = \"postgres\"\nuser = \"u\"\n"+c.body), 0o644)
 		got, probs := LoadDB("")
