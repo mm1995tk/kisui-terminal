@@ -307,3 +307,29 @@ func TestResendIsNotHeld(t *testing.T) {
 		t.Errorf("the resent flow: %+v", list[1])
 	}
 }
+
+// 止めている間にプロキシを閉じたら、クライアントは成功の応答を受けない（行き先に送っていないのに、中身の無い 200 が
+// 返らない）。記録には、閉じたことが残る。
+func TestClosingTheProxyDoesNotAnswerHeldRequests(t *testing.T) {
+	for range 20 {
+		var g got
+		up := httptest.NewServer(http.HandlerFunc(g.handler))
+		p, store, ca, addr := startProxy(t, nil)
+		c := clientVia(t, addr, ca.Pool())
+		p.SetHold(true)
+		req, _ := http.NewRequest("POST", up.URL+"/a", strings.NewReader("one"))
+		ch := send(c, req)
+		held := waitHeld(t, store, 1)[0]
+		p.Close()
+		if a := recv(t, ch); a.err == nil {
+			t.Fatalf("the client of a held request got an answer when the proxy was closed: %+v", a)
+		}
+		if f := waitDone(t, store, 1)[0]; f.ID != held.ID || f.State != StateFailed || f.Error != errClosed {
+			t.Fatalf("the flow: %+v", f)
+		}
+		if n := g.snapshot().n; n != 0 {
+			t.Fatalf("the upstream got %d requests", n)
+		}
+		up.Close()
+	}
+}

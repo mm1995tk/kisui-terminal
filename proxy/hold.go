@@ -24,6 +24,7 @@ var ErrNotHeld = errors.New("the request is not held")
 const (
 	errDropped    = "dropped in the proxy panel"
 	errClientGone = "the client stopped waiting while the request was held"
+	errClosed     = "the proxy was closed while the request was held"
 )
 
 // Release は、止めている要求をどうするか。
@@ -138,6 +139,8 @@ func (p *Proxy) Release(r Release) error {
 
 // holdRequest は、止めるのを入れていれば、要求 r を止めて、決まるまで待つ。記録（ex.flow）も始める。
 // 行き先に送る要求（書き換えたものか、r）を返す。false は、もう答えた・クライアントがいない（送らない）。
+// 待っている間にプロキシが閉じたら（Close）、応答を書かずに接続を切る（http.ErrAbortHandler の panic）。何も書かずに
+// 戻ると、net/http が中身の無い 200 を返し、行き先に送っていない要求が、クライアントからは成功に見えるため。
 func (p *Proxy) holdRequest(w http.ResponseWriter, r *http.Request, ex *exchange) (*http.Request, bool) {
 	h := &p.hold
 	h.mu.Lock()
@@ -157,7 +160,7 @@ func (p *Proxy) holdRequest(w http.ResponseWriter, r *http.Request, ex *exchange
 	case <-ctx.Done():
 		return nil, false
 	case <-p.done:
-		return nil, false
+		panic(http.ErrAbortHandler)
 	}
 	defer h.slots.release()
 
@@ -197,7 +200,7 @@ func (p *Proxy) holdRequest(w http.ResponseWriter, r *http.Request, ex *exchange
 	ex.bodyKept = !hr.unread
 
 	var d decision
-	decided, gone := false, false
+	decided, gone, closed := false, false, false
 	select {
 	case d = <-hr.decide:
 		decided = true
@@ -205,7 +208,7 @@ func (p *Proxy) holdRequest(w http.ResponseWriter, r *http.Request, ex *exchange
 	case <-ctx.Done():
 		gone = true
 	case <-p.done:
-		gone = true
+		closed = true
 	}
 	if !decided {
 		h.mu.Lock()
@@ -218,6 +221,9 @@ func (p *Proxy) holdRequest(w http.ResponseWriter, r *http.Request, ex *exchange
 		}
 	}
 	switch {
+	case closed:
+		p.endHeld(f, errClosed)
+		panic(http.ErrAbortHandler)
 	case gone:
 		p.endHeld(f, errClientGone)
 		return nil, false
