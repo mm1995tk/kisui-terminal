@@ -6,6 +6,7 @@
 import { T } from "../../i18n/index.ts";
 import type { UrlClick } from "coneko-term";
 import {
+  batch,
   createEffect,
   createMemo,
   createSignal,
@@ -133,8 +134,11 @@ export function createPages(deps: {
       () => {
         // 持ち主は、そのターミナルのタブがあるワークスペース（無ければ、分かったときに reconcile が入れる）
         const gid = gwsOfTerm(untrack(gws), target, ws)?.id;
-        setTabs((s) => addTab(s, tab, gid));
-        if (gid) setGws((g) => addBrowser(g, gid, tab.id));
+        // tabs と gws は batch でまとめて書き換える（#416。openNewTab の注を見る）
+        batch(() => {
+          setTabs((s) => addTab(s, tab, gid));
+          if (gid) setGws((g) => addBrowser(g, gid, tab.id));
+        });
         const f = untrack(focus);
         if (gid && f && gwsOfTerm(untrack(gws), f.target, f.id)?.id === gid)
           focusTerminal();
@@ -160,21 +164,25 @@ export function createPages(deps: {
     const gid = owner ?? gwsOfTerm(untrack(gws), target, ws)?.id;
     // ページから押したときに覚えた「戻す先」を捨てる（検索窓にキーを向けるのを、ページに戻させない。openFind と同じ）
     deps.forgetPageReturn();
-    setTabs((s) =>
-      addTab(
-        s,
-        {
-          id,
-          target,
-          workspace: ws,
-          url: NEW_TAB_URL,
-          title: "",
-          ...(incognito ? { incognito: true } : {}),
-        },
-        gid,
-      ),
-    );
-    if (gid) setGws((g) => addBrowser(g, gid, id));
+    // batch で囲む。囲まないと、setTabs の直後に整理（reconcile）の effect が走り、まだどのワークスペースにも入っていないタブを
+    // 「持ち主の無いタブ」として新しいワークスペースに入れてしまう（ターミナルのタブが無いワークスペースでは workspace が空。#416）
+    batch(() => {
+      setTabs((s) =>
+        addTab(
+          s,
+          {
+            id,
+            target,
+            workspace: ws,
+            url: NEW_TAB_URL,
+            title: "",
+            ...(incognito ? { incognito: true } : {}),
+          },
+          gid,
+        ),
+      );
+      if (gid) setGws((g) => addBrowser(g, gid, id));
+    });
     return id;
   }
   /**
@@ -205,8 +213,10 @@ export function createPages(deps: {
       made: true,
     };
     const gid = gwsOfBrowser(untrack(gws), from.id)?.id;
-    setTabs((s) => addTab(s, tab, gid));
-    if (gid) setGws((g) => addBrowser(g, gid, tab.id));
+    batch(() => {
+      setTabs((s) => addTab(s, tab, gid));
+      if (gid) setGws((g) => addBrowser(g, gid, tab.id));
+    });
     if (gid && untrack(currentGws)?.id === gid) focusTerminal();
   }
   /**
