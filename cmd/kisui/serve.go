@@ -82,9 +82,14 @@ func runServe(args []string) int {
 	if err != nil {
 		logger.Warn("db history", "err", err) // DB の SQL の履歴を残さない
 	}
+	proxyDir, err := server.ProxyCADir()
+	if err != nil {
+		logger.Warn("proxy", "err", err) // プロキシ（proxy.*）を動かせない
+	}
 	opts := server.Options{
 		StatePath:    statePath,
 		DBHistoryDir: historyDir,
+		ProxyCADir:   proxyDir,
 		SocketPath:   sock,
 		Shj:          server.Shj{Version: ver, Commit: commit, Channel: chName},
 		Logger:       logger,

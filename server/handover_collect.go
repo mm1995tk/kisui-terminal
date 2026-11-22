@@ -43,6 +43,9 @@ func (s *Server) collect(ver int) (*handoverState, []int, error) {
 		return nil, nil, err
 	}
 	s.collectTree(st)
+	if err := s.collectProxy(st, &fds); err != nil {
+		return nil, nil, err
+	}
 	st.FDs = len(fds)
 	return st, fds, nil
 }

@@ -563,6 +563,7 @@ func (w *wsManager) closeWorkspace(id string, force bool) error {
 		return busyError("running")
 	}
 	w.srv.terms.closeWorkspace(id)
+	w.srv.proxy.closeWorkspace(id)
 	w.mu.Lock()
 	delete(w.reg, id)
 	w.mu.Unlock()
