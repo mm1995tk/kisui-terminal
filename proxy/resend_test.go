@@ -282,3 +282,51 @@ func TestResendConnectsWhereTheOriginalConnected(t *testing.T) {
 		}
 	}
 }
+
+// 同時に送り直すのは MaxResending まで（超えたら ErrBusy）。プロキシを閉じると、受けている途中の応答も切る。
+func TestResendLimitAndClose(t *testing.T) {
+	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/endless" {
+			// 終わらない応答（SSE など）：ヘッダーを送って、要求が切られるまで待つ
+			w.WriteHeader(http.StatusOK)
+			w.(http.Flusher).Flush()
+			<-r.Context().Done()
+			return
+		}
+		_, _ = io.WriteString(w, "ok")
+	}))
+	defer up.Close()
+	p, store, ca, addr := startProxy(t, nil)
+	c := clientVia(t, addr, ca.Pool())
+	req, _ := http.NewRequest("GET", up.URL+"/", nil)
+	orig := recordOne(t, c, store, req)
+
+	endless := Resend{From: orig.ID, Method: "GET", URL: up.URL + "/endless"}
+	for i := range MaxResending {
+		if _, err := p.Resend(endless); err != nil {
+			t.Fatalf("resend %d: %v", i+1, err)
+		}
+	}
+	if _, err := p.Resend(endless); !errors.Is(err, ErrBusy) {
+		t.Fatalf("resend over the limit: %v", err)
+	}
+	// 応答のヘッダーが届く（受けている途中になる）まで待ってから閉じる
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		n := 0
+		for _, f := range store.Summaries() {
+			if f.Status == http.StatusOK {
+				n++
+			}
+		}
+		if n == MaxResending+1 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("responses did not start: %+v", store.Summaries())
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	p.Close()
+	waitDone(t, store, MaxResending+1)
+}
