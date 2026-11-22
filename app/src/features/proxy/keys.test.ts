@@ -24,6 +24,9 @@ describe("プロキシのパネルのキー", () => {
     assert.equal(proxyPanelKey(key("Escape")), "back");
     assert.equal(proxyPanelKey(key("q")), "close");
     assert.equal(proxyPanelKey(key("e")), "edit");
+    assert.equal(proxyPanelKey(key("i")), "hold");
+    assert.equal(proxyPanelKey(key("f")), "forward");
+    assert.equal(proxyPanelKey(key("d")), "drop");
   });
 
   it("修飾キーつき・ほかのキーは受けない（リーダーや近道に残す）", () => {

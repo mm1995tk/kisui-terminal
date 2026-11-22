@@ -64,6 +64,8 @@ type Proxy struct {
 	resending   counter
 	closing     context.Context
 	stopClosing context.CancelFunc
+	// hold は、要求を行き先に送る前に止める（#411。hold.go）
+	hold holder
 }
 
 type ctxKey int
@@ -86,12 +88,15 @@ type exchange struct {
 	// 違うとき（curl --connect-to など）。"" なら host につなぐ
 	dial string
 	flow *flow // 記録しないときは nil
+	// bodyKept は、要求の本文をもう記録に入れてある（止めるときに先に読んだ・書き換えた。#411）。送るときに記録し直さない
+	bodyKept bool
 }
 
 // New はプロキシを作る。Serve で待ち受けを始める。
 func New(o Options) *Proxy {
 	p := &Proxy{ca: o.CA, store: o.Store, conns: make(chan net.Conn), done: make(chan struct{})}
 	p.resending = newCounter(MaxResending)
+	p.hold = newHolder()
 	p.closing, p.stopClosing = context.WithCancel(context.Background())
 	p.intercept.Store(true)
 	dialer := &net.Dialer{Timeout: dialTimeout, KeepAlive: 30 * time.Second}
@@ -169,8 +174,14 @@ func (p *Proxy) Close() {
 }
 
 // SetIntercept は、間に入って記録するかを切り替える。false の間は、HTTPS の中身を見ずに中継だけする
-// （この待ち受け口を環境変数に持つプログラムが、記録をやめたあとも通信できるように）。
-func (p *Proxy) SetIntercept(on bool) { p.intercept.Store(on) }
+// （この待ち受け口を環境変数に持つプログラムが、記録をやめたあとも通信できるように）。false にすると、
+// 要求を止める（#411）のもやめる（止めている要求は、そのまま流れる）。
+func (p *Proxy) SetIntercept(on bool) {
+	p.intercept.Store(on)
+	if !on {
+		p.SetHold(false)
+	}
+}
 
 // Intercepting は、間に入って記録しているか。
 func (p *Proxy) Intercepting() bool { return p.intercept.Load() }
@@ -225,7 +236,11 @@ func (p *Proxy) forward(w http.ResponseWriter, r *http.Request, scheme, host, di
 	}
 	ex := &exchange{scheme: scheme, host: host, dial: dial}
 	if p.store != nil && p.intercept.Load() {
-		ex.flow = p.store.begin(r, scheme, host, dial)
+		// 止めるのを入れていれば、ここで決まるまで待つ（#411）
+		var ok bool
+		if r, ok = p.holdRequest(w, r, ex); !ok {
+			return
+		}
 	}
 	p.rp.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), exchangeKey, ex)))
 }
@@ -313,7 +328,7 @@ func (rec recorder) RoundTrip(req *http.Request) (*http.Response, error) {
 		return tr.RoundTrip(req)
 	}
 	f := ex.flow
-	if req.Body != nil && req.Body != http.NoBody {
+	if !ex.bodyKept && req.Body != nil && req.Body != http.NoBody {
 		r2 := *req
 		r2.Body = &capture{rc: req.Body, done: func(b Body, _ error) {
 			p.store.update(f, func(f *flow) { f.reqBody = b })

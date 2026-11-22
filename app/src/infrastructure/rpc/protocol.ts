@@ -649,6 +649,38 @@ export interface Requests {
     };
     result: { flow: ProxyFlow };
   };
+  /**
+   * scope の要求を、行き先に送る前に止めるかを切り替える（#411）。capabilities に "proxy.hold" がある kisui serve だけが受ける。
+   * 入れている間、クライアント（ページ・シェルのプログラム）の要求は、state が held の通信として記録に出て（proxy.flow で知らせる）、
+   * proxy.release を待つ。止めるのは要求だけ（応答と、proxy.resend の要求は止めない）。on を false にすると、止めていた要求は
+   * そのまま流れる。窓の接続が切れたとき・ワークスペースの scope を通すのをやめたとき（proxy.stop）も、同じように流れて、止めるのをやめる。
+   * 待ち受け口を閉じるとき（内蔵ブラウザのタブの scope の proxy.stop・ワークスペースを閉じる・kisui serve の終了と引き継ぎ）は、
+   * 流さずに接続ごと切る（その通信は failed）。
+   * 断られ方：not_found（scope が無い・やめたあと中継だけしている）
+   */
+  "proxy.hold": {
+    params: { scope: string; on: boolean };
+    result: { holding: boolean };
+  };
+  /**
+   * 止めている要求 id を、そのまま流す（forward）・書き換えて流す（edit）・捨てる（drop。行き先に送らず、クライアントに 502 を返す）。
+   * edit のときは、proxy.resend と同じ形の method・url・headers・body?・connectTo? を渡す（body を省くと、元の本文をそのまま送る）。
+   * 流した通信は、同じ行のまま進む（書き換えたものは edited が付き、記録は書き換えたあとの要求になる）。
+   * 断られ方：not_found（scope が無い・その通信を止めていない）、invalid_params（action・メソッド・URL・ヘッダーの形が違う。要求は止めたまま）
+   */
+  "proxy.release": {
+    params: {
+      scope: string;
+      id: number;
+      action: "forward" | "edit" | "drop";
+      method?: string;
+      url?: string;
+      headers?: [string, string][];
+      body?: string;
+      connectTo?: string;
+    };
+    result: Record<string, never>;
+  };
 }
 
 /** プロキシに通している単位（#409）。 */
@@ -660,6 +692,8 @@ export interface ProxyScope {
   port: number;
   /** 間に入って記録しているか */
   recording: boolean;
+  /** 要求を行き先に送る前に止めるのを入れているか（#411。知らない kisui serve は返さない） */
+  holding?: boolean;
 }
 
 /** プロキシを通った通信 1 つの、一覧の 1 行（#409。Go の proxy.Summary）。 */
@@ -676,8 +710,11 @@ export interface ProxyFlow {
   path: string;
   /** 応答のステータス（まだ・無いときは 0） */
   status: number;
-  /** pending：応答を待っている・本文を受けている。failed：つながらない・証明書が正しくない・途中で切れた */
-  state: "pending" | "done" | "failed";
+  /**
+   * pending：応答を待っている・本文を受けている。failed：つながらない・証明書が正しくない・途中で切れた・止めたあと捨てた。
+   * held：行き先に送る前に止めている（#411。proxy.release で流す・捨てる）
+   */
+  state: "pending" | "held" | "done" | "failed";
   error?: string;
   /** 要求・応答の本文の大きさ（通ったままの大きさ。圧縮されていれば圧縮後） */
   reqSize: number;
@@ -687,6 +724,8 @@ export interface ProxyFlow {
   mime?: string;
   /** 送り直した通信（proxy.resend。#410）なら、元の通信の id */
   resentFrom?: number;
+  /** 止めて書き換えてから流した通信（proxy.release の edit。#411） */
+  edited?: boolean;
 }
 
 /** 通信の本文（#409）。字として読めれば text、読めなければ binary。gzip・deflate は展開してある。 */
@@ -709,6 +748,11 @@ export interface ProxyFlowDetail extends ProxyFlow {
    * proxy.resend の connectTo に渡すと、同じ所に送る（#410）
    */
   connectTo?: string;
+  /**
+   * 止めている（state が held）要求の本文を、kisui serve が読んでいない（大きさが分からない・記録の上限より大きい。#411）。
+   * reqBody は空で、流すと、本文はそのまま行き先に送られる
+   */
+  reqBodyUnread?: boolean;
   reqHeaders: [string, string][];
   respHeaders: [string, string][];
   reqBody: ProxyBody;

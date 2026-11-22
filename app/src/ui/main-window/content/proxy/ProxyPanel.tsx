@@ -1,5 +1,6 @@
 // プロキシのパネル（#409）。今出しているタブ（ターミナルのタブ・内蔵ブラウザのタブ）の通信の一覧（FlowList.tsx）と、
 // 選んだ通信の中身（FlowDetail.tsx）を、グリッドの場所の右側に出す。何を出すか・操作の中身は features/proxy/controller.ts。
+// 要求を止めるのを入れていれば（#411）、止めている要求を選んだときに、流す・書き換える・捨てるの並びを中身の上に出す。
 // ここは、枠と、キーの受け口を持つ。キーがパネルにある間のキーは、場所のキー（features/proxy/keys.ts。`?` の一覧は placeKeys.ts の proxy）。
 import { onCleanup, Show, type JSX } from "solid-js";
 
@@ -14,6 +15,7 @@ import {
 } from "../../../../features/proxy/keys.ts";
 import type { ProxyDraft } from "../../../../features/proxy/model.ts";
 import { T } from "../../../../i18n/index.ts";
+import { Button } from "../../../components/Button.tsx";
 import { KeyHints } from "../../../components/KeyHints.tsx";
 import { FlowDetail } from "./FlowDetail.tsx";
 import { FlowList } from "./FlowList.tsx";
@@ -40,6 +42,10 @@ export function ProxyPanel(props: {
   onDraft: (patch: Partial<Omit<ProxyDraft, "from">>) => void;
   onSend: () => void;
   onCancelEdit: () => void;
+  /** 要求を行き先に送る前に止めるのを切り替える（#411） */
+  onHold: () => void;
+  /** 選んでいる、止めている要求を、そのまま流す・捨てる（#411） */
+  onRelease: (action: "forward" | "drop") => void;
   /** パネルにキーを向ける関数を受け取る（消えるときは undefined） */
   focusRef: (focus: (() => void) | undefined) => void;
 }): JSX.Element {
@@ -57,6 +63,11 @@ export function ProxyPanel(props: {
     const d = props.panel.detail;
     return d && d.id === props.panel.selected ? d : undefined;
   };
+  /** 止めている要求の数 */
+  const heldCount = () =>
+    props.panel.scope.flows.filter((f) => f.state === "held").length;
+  /** 止めている要求を選んでいるか */
+  const heldSelected = () => selectedFlow()?.state === "held";
 
   function onKeyDown(e: KeyboardEvent) {
     // 書き換えている間：欄の中のキーは、その欄が受ける（RequestEditor）。一覧を押してキーがパネルに移っていても、
@@ -83,6 +94,8 @@ export function ProxyPanel(props: {
     else if (k === "close") props.onClose();
     else if (k === "side") props.onSide();
     else if (k === "edit") props.onEdit();
+    else if (k === "hold") props.onHold();
+    else if (k === "forward" || k === "drop") props.onRelease(k);
     else props.onStep(k);
   }
 
@@ -106,6 +119,25 @@ export function ProxyPanel(props: {
               })
             : T("proxy.where.browser", { port: props.panel.scope.port })}
         </span>
+        <span class={styles.hold}>
+          <Show when={props.panel.scope.holding}>
+            <span class={styles.holding} role="status">
+              {T("proxy.hold.count", { count: heldCount() })}
+            </span>
+          </Show>
+          <button
+            type="button"
+            class={styles.holdButton}
+            tabIndex={-1}
+            aria-pressed={props.panel.scope.holding}
+            title={T("proxy.hold.hint")}
+            onClick={() => props.onHold()}
+          >
+            {props.panel.scope.holding
+              ? T("proxy.hold.stop")
+              : T("proxy.hold.start")}
+          </button>
+        </span>
       </div>
       <FlowList
         flows={props.panel.scope.flows}
@@ -122,12 +154,36 @@ export function ProxyPanel(props: {
               fallback={<p class={styles.note}>{T("proxy.detail.none")}</p>}
             >
               {(f) => (
-                <FlowDetail
-                  flow={f()}
-                  detail={detail()}
-                  side={props.panel.side}
-                  onSide={props.onSide}
-                />
+                <>
+                  <Show when={f().state === "held"}>
+                    <div class={styles.heldBar}>
+                      <span class={styles.heldNote}>
+                        {T("proxy.held.note")}
+                      </span>
+                      <span class={styles.editActions}>
+                        <Button onClick={() => props.onRelease("drop")}>
+                          {T("proxy.held.drop")}
+                        </Button>
+                        <Button onClick={props.onEdit}>
+                          {T("proxy.held.edit")}
+                        </Button>
+                        <Button
+                          variant="primary"
+                          onClick={() => props.onRelease("forward")}
+                        >
+                          {T("proxy.held.forward")}
+                        </Button>
+                      </span>
+                    </div>
+                  </Show>
+                  <FlowDetail
+                    flow={f()}
+                    detail={detail()}
+                    // 止めている要求には、まだ応答が無い
+                    side={f().state === "held" ? "request" : props.panel.side}
+                    onSide={props.onSide}
+                  />
+                </>
               )}
             </Show>
           }
@@ -151,18 +207,36 @@ export function ProxyPanel(props: {
               ? [
                   {
                     keys: [props.mac ? "Cmd+Enter" : "Ctrl+Enter"],
-                    label: T("proxy.hint.send"),
+                    label: props.panel.edit.held
+                      ? T("proxy.hint.forward")
+                      : T("proxy.hint.send"),
                   },
                   { keys: ["Esc"], label: T("proxy.hint.cancelEdit") },
                 ]
-              : [
-                  { keys: ["j", "k"], label: T("basic.select") },
-                  { keys: ["Tab"], label: T("proxy.hint.side") },
-                  { keys: ["e"], label: T("proxy.hint.edit") },
-                  { keys: ["?"], label: T("basic.help") },
-                  { keys: ["Esc"], label: T("proxy.hint.back") },
-                  { keys: ["q"], label: T("basic.close") },
-                ]
+              : heldSelected()
+                ? [
+                    { keys: ["f"], label: T("proxy.hint.forward") },
+                    { keys: ["e"], label: T("proxy.hint.editHeld") },
+                    { keys: ["d"], label: T("proxy.hint.drop") },
+                    { keys: ["j", "k"], label: T("basic.select") },
+                    { keys: ["i"], label: T("proxy.hint.holdOff") },
+                    { keys: ["?"], label: T("basic.help") },
+                    { keys: ["Esc"], label: T("proxy.hint.back") },
+                  ]
+                : [
+                    { keys: ["j", "k"], label: T("basic.select") },
+                    { keys: ["Tab"], label: T("proxy.hint.side") },
+                    { keys: ["e"], label: T("proxy.hint.edit") },
+                    {
+                      keys: ["i"],
+                      label: props.panel.scope.holding
+                        ? T("proxy.hint.holdOff")
+                        : T("proxy.hint.hold"),
+                    },
+                    { keys: ["?"], label: T("basic.help") },
+                    { keys: ["Esc"], label: T("proxy.hint.back") },
+                    { keys: ["q"], label: T("basic.close") },
+                  ]
           }
         />
       </div>

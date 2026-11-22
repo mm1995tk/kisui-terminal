@@ -64,7 +64,13 @@ const panel = (over: Partial<ProxyPanelState> = {}): ProxyPanelState => ({
     tab: "t",
     ws: "w1",
   },
-  scope: { target: "@local", scope: "ws:w1", port: 41234, flows },
+  scope: {
+    target: "@local",
+    scope: "ws:w1",
+    port: 41234,
+    flows,
+    holding: false,
+  },
   selected: 2,
   detail: { id: 2, detail },
   side: "request",
@@ -89,6 +95,8 @@ const meta = {
     onDraft: () => {},
     onSend: () => {},
     onCancelEdit: () => {},
+    onHold: () => {},
+    onRelease: () => {},
     focusRef: () => {},
   },
   decorators: [
@@ -120,7 +128,13 @@ export const Response: Story = { args: { panel: panel({ side: "response" }) } };
 export const EmptyTerminal: Story = {
   args: {
     panel: panel({
-      scope: { target: "@local", scope: "ws:w1", port: 41234, flows: [] },
+      scope: {
+        target: "@local",
+        scope: "ws:w1",
+        port: 41234,
+        flows: [],
+        holding: false,
+      },
       selected: undefined,
       detail: undefined,
     }),
@@ -155,7 +169,9 @@ export const Browser: Story = {
 /** 選んだ通信の要求を書き換えている（#410。パネルの e）。 */
 export const Editing: Story = {
   args: {
-    panel: panel({ edit: { draft: draftFrom(detail), sending: false } }),
+    panel: panel({
+      edit: { draft: draftFrom(detail), held: false, sending: false },
+    }),
   },
 };
 
@@ -165,8 +181,65 @@ export const EditingWithError: Story = {
     panel: panel({
       edit: {
         draft: { ...draftFrom(detail), headers: "Accept application/json" },
+        held: false,
         sending: false,
         error: T("proxy.edit.badHeader", { line: 1 }),
+      },
+    }),
+  },
+};
+
+const heldFlow = flow(8, {
+  method: "POST",
+  status: 0,
+  state: "held",
+  reqSize: 240,
+  respSize: 0,
+  durationMs: 0,
+  mime: undefined,
+});
+
+/** 要求を止めるのを入れていて（#411。パネルの i）、止めている要求を選んでいる。流す・書き換える・捨てるを決める。 */
+export const Holding: Story = {
+  args: {
+    panel: panel({
+      scope: {
+        target: "@local",
+        scope: "ws:w1",
+        port: 41234,
+        flows: [...flows, heldFlow, { ...heldFlow, id: 9, method: "GET" }],
+        holding: true,
+      },
+      selected: 8,
+      detail: {
+        id: 8,
+        detail: {
+          ...detail,
+          ...heldFlow,
+          respHeaders: [],
+          respBody: { size: 0 },
+        },
+      },
+    }),
+  },
+};
+
+/** 止めている要求を書き換えている（#411）。送ると、書き換えたものが元の要求の代わりに流れる。 */
+export const EditingHeld: Story = {
+  args: {
+    panel: panel({
+      scope: {
+        target: "@local",
+        scope: "ws:w1",
+        port: 41234,
+        flows: [...flows, heldFlow],
+        holding: true,
+      },
+      selected: 8,
+      edit: {
+        draft: draftFrom({ ...detail, ...heldFlow }),
+        held: true,
+        sending: false,
       },
     }),
   },

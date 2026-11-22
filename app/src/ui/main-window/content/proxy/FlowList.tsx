@@ -46,13 +46,23 @@ export function FlowList(props: {
     ),
   );
 
+  /** まだ終わっていない（応答の大きさと時間を出さない） */
+  const waiting = (f: ProxyFlow) => f.state === "pending" || f.state === "held";
+
   const row = (f: ProxyFlow) => (
     <tr
       class={styles.row}
       role="row"
       aria-selected={f.id === props.selected}
       data-flow={f.id}
-      title={f.error ? `${flowUrl(f)}\n${f.error}` : flowUrl(f)}
+      data-held={f.state === "held" ? "" : undefined}
+      title={
+        f.state === "held"
+          ? `${flowUrl(f)}\n${T("proxy.held.note")}`
+          : f.error
+            ? `${flowUrl(f)}\n${f.error}`
+            : flowUrl(f)
+      }
       onClick={() => props.onSelect(f.id)}
     >
       <td class={styles.cell}>
@@ -65,6 +75,11 @@ export function FlowList(props: {
             {" ↻"}
           </span>
         </Show>
+        <Show when={f.edited}>
+          <span class={styles.resent} title={T("proxy.edited")}>
+            {" ✎"}
+          </span>
+        </Show>
       </td>
       <td class={`${styles.cell} ${styles.status}`} data-kind={statusKind(f)}>
         {statusText(f)}
@@ -74,10 +89,10 @@ export function FlowList(props: {
         <span class={styles.path}>{f.path}</span>
       </td>
       <td class={styles.cell} data-kind="number">
-        {f.state === "pending" ? "" : formatSize(f.respSize)}
+        {waiting(f) ? "" : formatSize(f.respSize)}
       </td>
       <td class={styles.cell} data-kind="number">
-        {f.state === "pending" ? "" : formatDuration(f.durationMs)}
+        {waiting(f) ? "" : formatDuration(f.durationMs)}
       </td>
     </tr>
   );

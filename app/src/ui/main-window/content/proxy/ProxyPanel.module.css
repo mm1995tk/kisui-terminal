@@ -120,6 +120,11 @@
 .status[data-kind="pending"] {
   color: var(--color-text-dim);
 }
+/* 行き先に送る前に止めている要求（#411） */
+.status[data-kind="held"] {
+  color: var(--state-warning);
+  font-weight: var(--weight-strong);
+}
 
 .host {
   color: var(--color-text-strong);
@@ -225,7 +230,52 @@
   color: var(--color-text-muted);
 }
 
-/* 送り直した通信（#410）の印（一覧のメソッドの欄と、中身の要求の行） */
+/* 要求を止める切り替え（#411。パネルの頭の右端）と、止めている数 */
+.hold {
+  flex: none;
+  margin-left: auto;
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-8);
+}
+.holding {
+  font-size: var(--text-caption);
+  color: var(--state-warning);
+  white-space: nowrap;
+}
+.holdButton {
+  padding: 0 var(--space-6);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-4);
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-caption);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.holdButton[aria-pressed="true"] {
+  border-color: var(--state-warning);
+  color: var(--state-warning);
+}
+
+/* 止めている要求を選んだときの、流す・書き換える・捨てるの並び（#411。中身の上） */
+.heldBar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-8);
+  padding: var(--space-4) var(--space-12);
+  border-bottom: 1px solid var(--color-border);
+}
+.heldNote {
+  min-width: 0;
+  color: var(--state-warning);
+  overflow-wrap: anywhere;
+}
+
+/* 送り直した通信（#410）・書き換えて流した通信（#411）の印（一覧のメソッドの欄と、中身の要求の行） */
 .resent {
   color: var(--color-text-dim);
 }

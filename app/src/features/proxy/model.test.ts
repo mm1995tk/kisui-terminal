@@ -9,9 +9,11 @@ import {
   applyFlow,
   browserScope,
   draftFrom,
+  flowProgress,
   flowUrl,
   formatDuration,
   formatSize,
+  oldestHeld,
   parseHeaders,
   scopeKey,
   statusKind,
@@ -105,6 +107,36 @@ describe("プロキシの通信の一覧", () => {
     );
   });
 
+  it("止めている要求（#411）は、状態の欄に || と出て、進み具合はいちばん手前", () => {
+    const held = flow(1, { status: 0, state: "held" });
+    assert.equal(statusText(held), "||");
+    assert.equal(statusKind(held), "held");
+    const pending = flow(1, { status: 0, state: "pending" });
+    assert.ok(flowProgress(held) < flowProgress(pending));
+    assert.ok(
+      flowProgress(pending) < flowProgress(flow(1, { state: "pending" })),
+    );
+    assert.ok(
+      flowProgress(flow(1, { state: "pending" })) < flowProgress(flow(1)),
+    );
+    assert.equal(
+      flowProgress(flow(1, { status: 0, state: "failed" })),
+      flowProgress(flow(1)),
+    );
+  });
+
+  it("oldestHeld：止めている要求のうち、いちばん古いもの（除くものは数えない）", () => {
+    const list = [
+      flow(1),
+      flow(2, { status: 0, state: "held" }),
+      flow(3, { status: 0, state: "held" }),
+    ];
+    assert.equal(oldestHeld(list), 2);
+    assert.equal(oldestHeld(list, 2), 3);
+    assert.equal(oldestHeld(list.slice(0, 2), 2), undefined);
+    assert.equal(oldestHeld([]), undefined);
+  });
+
   it("scope の名前は、kisui serve との取り決めの形", () => {
     assert.equal(wsScope("w3"), "ws:w3");
     assert.equal(browserScope("tabc"), "browser:tabc");
@@ -140,6 +172,17 @@ describe("書き換えて送り直す（#410）", () => {
       headers: "Accept: */*\nContent-Type: application/json",
       body: { text: '{"a":1}', size: 7 },
     });
+  });
+
+  it("draftFrom：止めている要求の、読んでいない本文は、元のまま送る（#411）", () => {
+    assert.deepEqual(
+      draftFrom(
+        detail({ state: "held", reqBodyUnread: true, reqBody: { size: 0 } }),
+      ).body,
+      { text: undefined, note: "unread", size: 0 },
+    );
+    // 読んである本文は、ふつうに書き換えられる
+    assert.equal(draftFrom(detail({ state: "held" })).body.text, '{"a":1}');
   });
 
   it("draftFrom：Host と違う所につないだ通信は、つないだ先を持つ（curl --connect-to）", () => {
