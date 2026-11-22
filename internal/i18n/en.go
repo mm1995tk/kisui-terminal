@@ -61,7 +61,7 @@ var en = map[string]string{
 	"db.failed":                 "kisui db %s: %s",
 	"db.hint.denied":            "Do not try another way to run it. See RUN and PROPOSE of kisui db connections: when PROPOSE is yes, kisui db propose writes the SQL into the input of a database tab for the user to run.",
 	"db.hint.deniedPropose":     "Do not try another way. Show the SQL to the user in your answer instead.",
-	"db.hint.password":          "kisui db does not ask for a password. Tell the user: the password must be where kisui serve looks for it (the keychain, ~/.pgpass or ~/.my.cnf; see docs/database.md). When the coding agent logs in as the user of the connection, running a statement once in a database tab of the window is also enough, until kisui serve stops.",
+	"db.hint.password":          "kisui db does not ask for a password. Tell the user: the password must be where kisui serve looks for it (the keychain, ~/.pgpass or ~/.my.cnf; see docs/database.md). When the database refused the one already there, fix the password in that place. When the coding agent logs in as the user of the connection, running a statement once in a database tab of the window is also enough, until kisui serve stops.",
 	"db.hint.notFound":          "See the names and the variants with kisui db connections (a connection with variants needs --variant).",
 	"db.connections.header":     "NAME\tVARIANT\tKIND\tHOST\tDATABASE\tRUN\tPROPOSE",
 	"db.connections.none":       "No database connection is in the settings of this machine (see docs/database.md).",

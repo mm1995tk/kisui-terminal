@@ -61,7 +61,7 @@ var ja = map[string]string{
 	"db.failed":                 "kisui db %s: %s",
 	"db.hint.denied":            "ほかの方法で実行しようとしないでください。kisui db connections の RUN と PROPOSE を見てください：PROPOSE が yes なら、kisui db propose で DB のタブの入力欄に SQL を書けます（実行するのは利用者）。",
 	"db.hint.deniedPropose":     "ほかの方法を試さないでください。代わりに、返答の中で SQL を利用者に見せてください。",
-	"db.hint.password":          "kisui db はパスワードを聞きません。利用者に伝えてください：パスワードは、kisui serve が探す場所（キーチェーン・~/.pgpass・~/.my.cnf。docs/database.md）に置きます。コーディングエージェントが接続の user でログインするなら、窓の DB のタブで文を 1 回実行するだけでも通ります（kisui serve が止まるまで）。",
+	"db.hint.password":          "kisui db はパスワードを聞きません。利用者に伝えてください：パスワードは、kisui serve が探す場所（キーチェーン・~/.pgpass・~/.my.cnf。docs/database.md）に置きます。そこに置いてあるものを DB が断ったなら、その場所のパスワードを直します。コーディングエージェントが接続の user でログインするなら、窓の DB のタブで文を 1 回実行するだけでも通ります（kisui serve が止まるまで）。",
 	"db.hint.notFound":          "名前と変種は kisui db connections で分かります（変種のある接続には --variant が要ります）。",
 	"db.connections.header":     "名前\t変種\t種類\tホスト\tDB\tRUN\tPROPOSE",
 	"db.connections.none":       "このマシンの設定に DB の接続がありません（docs/database.md）。",
