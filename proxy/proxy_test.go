@@ -459,3 +459,29 @@ func TestConnectWithAnotherProtocolIsOnlyRelayed(t *testing.T) {
 		t.Errorf("recorded %d flows for a protocol that is not HTTP", n)
 	}
 }
+
+// クエリは、解釈できない形（`;`・正しくない `%`）でも、クライアントが送ったまま行き先に届く。
+func TestQueryReachesTheUpstreamAsSent(t *testing.T) {
+	var got string
+	up := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = r.URL.RawQuery
+	}))
+	defer up.Close()
+	_, store, ca, addr := startProxy(t, upstreamPool(up))
+	c := clientVia(t, addr, ca.Pool())
+	for i, q := range []string{"b=2&a=1", "b=2;a=1", "z=1&q=100%&a=2", "z=1&a=%zz"} {
+		req, _ := http.NewRequest("GET", up.URL+"/x", nil)
+		req.URL.RawQuery = q
+		resp, err := c.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if got != q {
+			t.Errorf("query %q reached the upstream as %q", q, got)
+		}
+		if list := waitDone(t, store, i+1); list[i].Path != "/x?"+q {
+			t.Errorf("recorded path = %q, want %q", list[i].Path, "/x?"+q)
+		}
+	}
+}

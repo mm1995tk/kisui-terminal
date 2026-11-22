@@ -213,6 +213,9 @@ func (p *Proxy) rewrite(pr *httputil.ProxyRequest) {
 	pr.Out.URL.Scheme = ex.scheme
 	pr.Out.URL.Host = ex.host
 	pr.Out.Host = pr.In.Host
+	// ReverseProxy は Rewrite の前に、解釈できないクエリ（`;` を含む・`%` の書き方が違う）を消して並べ直す。
+	// クライアントが送ったままのクエリを送る
+	pr.Out.URL.RawQuery = pr.In.URL.RawQuery
 	for _, h := range forwardedHeaders {
 		if v, ok := pr.In.Header[h]; ok {
 			pr.Out.Header[h] = v
