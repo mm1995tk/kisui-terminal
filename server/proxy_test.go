@@ -217,7 +217,7 @@ func TestProxyEnvForNewPanesOfAWorkspace(t *testing.T) {
 		var line string
 		waitFor(t, "env of "+term, func() bool {
 			d, _ := nt.output(t, term)
-			for _, l := range strings.Split(string(d), "\n") {
+			for l := range strings.SplitSeq(string(d), "\n") {
 				if i := strings.Index(l, mark+"["); i >= 0 && strings.HasSuffix(strings.TrimRight(l, "\r"), "]") {
 					line = strings.TrimRight(l[i+len(mark):], "\r")
 					return true

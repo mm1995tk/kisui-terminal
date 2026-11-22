@@ -46,7 +46,7 @@ func TestProxyIntroExportsTheProxyAndTheCA(t *testing.T) {
 			t.Errorf("the intro lacks %q:\n%s", want, s)
 		}
 	}
-	for _, l := range strings.Split(strings.TrimSpace(s), "\n") {
+	for l := range strings.SplitSeq(strings.TrimSpace(s), "\n") {
 		if !strings.HasPrefix(l, "# ") && !strings.HasPrefix(l, "export ") {
 			t.Errorf("a line that a shell cannot run: %q", l)
 		}

@@ -194,7 +194,7 @@ func flowDetail(d proxy.Detail) string {
 		switch {
 		case body.Size == 0:
 		case body.Text != nil:
-			for _, l := range strings.Split(strings.TrimRight(*body.Text, "\n"), "\n") {
+			for l := range strings.SplitSeq(strings.TrimRight(*body.Text, "\n"), "\n") {
 				fmt.Fprintf(&b, "%s %s\n", mark, l)
 			}
 			if body.Truncated {
