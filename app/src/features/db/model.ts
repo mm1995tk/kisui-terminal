@@ -143,7 +143,7 @@ export function connectionDetail(c: DbConnection): string {
 
 /** SQL を実行できなかった理由（画面に出す形）。 */
 export type QueryFailure =
-  /** パスワードが要る（どこにも無い・入力したものを DB が断った）。聞いて送り直す */
+  /** パスワードが要る（どこにも無い・DB が断った）。聞いて送り直す */
   | ({ kind: "password" } & DbPasswordRequiredData)
   /** 取り消した */
   | { kind: "cancelled" }

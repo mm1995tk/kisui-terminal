@@ -98,8 +98,9 @@ const (
 //
 // The four "db-" requests are always the coding agent's (the actor "agent" of
 // docs/design/gui-protocol.md), never the person's, and never carry a
-// password: one that is found nowhere is CodePasswordRequired. They do not
-// take a Machine: the connections are the ones of this "kisui serve".
+// password: one that is found nowhere, or that the database refuses, is
+// CodePasswordRequired. They do not take a Machine: the connections are the
+// ones of this "kisui serve".
 //
 // Machine, when not empty, is the name of another machine for "list", "send",
 // "keys", "close", "read" and "open-tab": a name of [[gui.machines]] of the
