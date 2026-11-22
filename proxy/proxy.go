@@ -214,14 +214,7 @@ func (p *Proxy) serveInner(w http.ResponseWriter, r *http.Request) {
 
 // sameAuthority は、Host ヘッダーの値 host（ポートは省ける）と、行き先 target（host:port）が同じ所か。
 func sameAuthority(host, target, scheme string) bool {
-	if _, _, err := net.SplitHostPort(host); err != nil {
-		port := "443"
-		if scheme == "http" {
-			port = "80"
-		}
-		host = net.JoinHostPort(strings.Trim(host, "[]"), port)
-	}
-	return strings.EqualFold(host, target)
+	return strings.EqualFold(withPortOf(host, scheme), target)
 }
 
 // forward は要求を行き先に送り、応答を返す。記録していれば Flow を足す。dial は、host と違う所につなぐときの行き先。

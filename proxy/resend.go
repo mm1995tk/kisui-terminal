@@ -178,6 +178,7 @@ func withPort(u *url.URL) string {
 	return withPortOf(u.Host, u.Scheme)
 }
 
+// withPortOf は host（ポートは省ける）の host:port。省いていれば、scheme の既定のポート（http は 80、ほかは 443）を付ける。
 func withPortOf(host, scheme string) string {
 	if _, _, err := net.SplitHostPort(host); err == nil {
 		return host
