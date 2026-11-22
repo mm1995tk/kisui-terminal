@@ -529,6 +529,64 @@ describe("機能の持ち物のつなぎ（compose.ts）", () => {
     assert.ok(ui.includes("focusTerminal"));
   });
 
+  it("内蔵ブラウザ：タブの無いワークスペースで o n を押すと、そのワークスペースにタブが入り、ワークスペースは増えない (#416)", async () => {
+    const { f } = start({
+      serves: { [LOCAL]: { ids: ["a"], focus: "a" } },
+      browser: true,
+    });
+    await settle();
+    const made = f.workspaces.createEmptyWorkspace("empty");
+    assert.ok("id" in made);
+    f.workspaces.showGws(made.id);
+    await settle();
+    assert.equal(f.workspaces.currentId(), made.id);
+    const before = f.workspaces.gws().list.length;
+    f.commands.runCommand({ id: "browser.new" });
+    await settle();
+    const list = f.workspaces.gws().list;
+    assert.equal(list.length, before);
+    const g = list.find((x) => x.id === made.id)!;
+    assert.equal(g.tabs.length, 1);
+    assert.equal(g.tabs[0]!.kind, "browser");
+    assert.equal(f.workspaces.currentId(), made.id);
+  });
+
+  it("内蔵ブラウザ：ブラウザのタブだけのワークスペースで o n を押しても、そのワークスペースにタブが入り、増えない (#416)", async () => {
+    const { f } = start({
+      serves: { [LOCAL]: { ids: ["a"], focus: "a" } },
+      browser: true,
+    });
+    await settle();
+    f.workspaces.createBrowserWorkspace();
+    await settle();
+    const gid = f.workspaces.currentId()!;
+    const before = f.workspaces.gws().list.length;
+    f.commands.runCommand({ id: "browser.new" });
+    await settle();
+    const list = f.workspaces.gws().list;
+    assert.equal(list.length, before);
+    assert.equal(list.find((x) => x.id === gid)!.tabs.length, 2);
+    assert.equal(f.workspaces.currentId(), gid);
+  });
+
+  it("内蔵ブラウザ：w n のブラウザは、ブラウザのタブ 1 つのワークスペースを 1 つだけ作ってそこへ移る (#416)", async () => {
+    const { f } = start({
+      serves: { [LOCAL]: { ids: ["a"], focus: "a" } },
+      browser: true,
+    });
+    await settle();
+    const before = f.workspaces.gws().list.length;
+    f.workspaces.createBrowserWorkspace();
+    await settle();
+    const list = f.workspaces.gws().list;
+    assert.equal(list.length, before + 1);
+    const gid = f.workspaces.currentId()!;
+    const g = list.find((x) => x.id === gid);
+    assert.ok(g, "移った先のワークスペースが記録に無い");
+    assert.equal(g.tabs.length, 1);
+    assert.equal(g.tabs[0]!.kind, "browser");
+  });
+
   it("内蔵ブラウザを使わないときは、ブラウザのタブを読まず、URL は外部ブラウザで開く", async () => {
     const { f, ui } = start({
       serves: { [LOCAL]: { ids: ["a"], focus: "a" } },

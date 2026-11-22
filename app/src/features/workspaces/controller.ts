@@ -617,20 +617,23 @@ export function createWorkspaces(deps: {
     const gid = newGwsId();
     const id = newTabId();
     deps.forgetPageReturn();
-    setTabs((s) =>
-      addTab(
-        s,
-        {
-          id,
-          target: untrack(currentTarget) ?? LOCAL,
-          workspace: "",
-          url: NEW_TAB_URL,
-          title: "",
-        },
-        gid,
-      ),
-    );
-    setGws((g) => addBrowserWorkspace(g, id, gid));
+    // batch で囲む（囲まないと、setTabs の直後に整理の effect が別の id でワークスペースを作る。#416）
+    batch(() => {
+      setTabs((s) =>
+        addTab(
+          s,
+          {
+            id,
+            target: untrack(currentTarget) ?? LOCAL,
+            workspace: "",
+            url: NEW_TAB_URL,
+            title: "",
+          },
+          gid,
+        ),
+      );
+      setGws((g) => addBrowserWorkspace(g, id, gid));
+    });
     showGws(gid);
   }
 
