@@ -170,7 +170,7 @@ func (s *Settings) merge(raw map[string]any, path string) []Problem {
 		str, ok := v.(string)
 		if !ok {
 			bad("server.start_dir", "config.err.string")
-		} else if dir, ok := ExpandStartDir(str); !ok {
+		} else if dir, ok := ExpandHome(str); !ok {
 			bad("server.start_dir", "config.err.abspath")
 		} else if fi, err := os.Stat(dir); err != nil || !fi.IsDir() {
 			bad("server.start_dir", "config.err.notdir", dir)
@@ -197,14 +197,8 @@ func integer(v any) (int64, bool) {
 	return 0, false
 }
 
-// ExpandStartDir turns a [server] start_dir into an absolute path: ~ and ~/x
-// are the home directory. ok is false when it is neither that nor an absolute
-// path.
-func ExpandStartDir(v string) (dir string, ok bool) {
-	return ExpandHome(v)
-}
-
-// ExpandHome turns a path of the settings into an absolute path: ~ and ~/x
+// ExpandHome turns a path of the settings ([server] start_dir, the tls-ca of
+// a database connection) into an absolute path: ~ and ~/x
 // are the home directory. ok is false when it is neither that nor an
 // absolute path.
 func ExpandHome(v string) (path string, ok bool) {
