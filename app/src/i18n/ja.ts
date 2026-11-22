@@ -777,6 +777,10 @@ export const ja: Record<Key, string> = {
   "db.password.missing": "{machine} の {connection} のパスワード",
   "db.password.rejected":
     "{machine} の {connection} のパスワードを DB が断りました。もう一度入れてください。",
+  "db.password.rejectedKeychain":
+    "{machine} の {connection} の、キーチェーンにあったパスワードを DB が断りました。代わりに使うパスワードを入れてください。",
+  "db.password.rejectedFile":
+    "{machine} の {connection} の、~/.pgpass か ~/.my.cnf にあったパスワードを DB が断りました。代わりに使うパスワードを入れてください。",
   "db.password.note":
     "窓はパスワードを保存しません。ログインが通ると、そのマシンの kisui serve が、止まるまでメモリに覚えます。",
   "db.password.reveal": "表示する",

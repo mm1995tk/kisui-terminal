@@ -98,8 +98,9 @@ const (
 //
 // The four "db-" requests are always the coding agent's (the actor "agent" of
 // docs/design/gui-protocol.md), never the person's, and never carry a
-// password: one that is found nowhere is CodePasswordRequired. They do not
-// take a Machine: the connections are the ones of this "kisui serve".
+// password: one that is found nowhere, or that the database refuses, is
+// CodePasswordRequired. They do not take a Machine: the connections are the
+// ones of this "kisui serve".
 //
 // Machine, when not empty, is the name of another machine for "list", "send",
 // "keys", "close", "read" and "open-tab": a name of [[gui.machines]] of the
@@ -217,7 +218,8 @@ const (
 	// CodeDeclined: the person at the window said no ("db-propose").
 	CodeDeclined = "declined"
 	// CodePasswordRequired: the password of the connection is found nowhere
-	// "kisui serve" looks, or the one it remembers was refused.
+	// "kisui serve" looks, or the database refused the one it found or
+	// remembers.
 	CodePasswordRequired = "password-required"
 	// CodeNotFound: the settings have no such connection (or variant).
 	CodeNotFound = "not-found"

@@ -215,8 +215,8 @@ func TestDBPasswordFromWindow(t *testing.T) {
 	})
 }
 
-// キーチェーン・ファイルのパスワードは、窓が渡したものより先に使う。それが断られたら、聞き直しても直らないので
-// password_required ではなく db_error（kind は auth）で、見つけた場所を返す。
+// キーチェーン・ファイルで見つけたパスワードが通れば、何も聞かない。それを DB が断ったら password_required（rejected）で、
+// 見つけた場所を返す。窓が聞いて渡したものが通れば覚え、次からは見つけたものより先に使う。
 func TestDBPasswordFromMachine(t *testing.T) {
 	bothDB(t, func(t *testing.T, conn config.DBConnection) {
 		ctx := context.Background()
@@ -230,14 +230,28 @@ func TestDBPasswordFromMachine(t *testing.T) {
 				pw.File = func(config.DBLogin) (string, bool) { return find() }
 			}
 			c := dbServer(t, pw, conn)
-			// 窓が違うパスワードを渡しても、見つけたものでつながる。
-			if err := c.Call(ctx, "db.query", map[string]any{"connection": conn.Name, "sql": "SELECT 1", "password": "wrong"}, nil); err != nil {
+			query := func(extra map[string]any) error {
+				p := map[string]any{"connection": conn.Name, "sql": "SELECT 1"}
+				maps.Copy(p, extra)
+				return c.Call(ctx, "db.query", p, nil)
+			}
+			if err := query(nil); err != nil {
 				t.Errorf("%s: %v", src, err)
 			}
 			found = "wrong"
-			err := c.Call(ctx, "db.query", map[string]any{"connection": conn.Name, "sql": "SELECT 1", "password": dbtest.Password}, nil)
-			if code, data := dbErr(t, err); code != rpc.CodeDBError || data["kind"] != "auth" || data["passwordSource"] != src {
+			if code, data := dbErr(t, query(nil)); code != rpc.CodePasswordRequired || data["reason"] != "rejected" || data["passwordSource"] != src {
 				t.Errorf("%s with a wrong password: %d %v", src, code, data)
+			}
+			// 入力したものが断られたら、見つけた場所は付けない。
+			if code, data := dbErr(t, query(map[string]any{"password": "also-wrong"})); code != rpc.CodePasswordRequired || data["reason"] != "rejected" || data["passwordSource"] != nil {
+				t.Errorf("%s, a wrong typed password: %d %v", src, code, data)
+			}
+			if err := query(map[string]any{"password": dbtest.Password}); err != nil {
+				t.Errorf("%s, the right typed password: %v", src, err)
+			}
+			// 覚えたものが、断られる見つけたものより先に使われる。
+			if err := query(nil); err != nil {
+				t.Errorf("%s, the remembered password: %v", src, err)
 			}
 		}
 	})

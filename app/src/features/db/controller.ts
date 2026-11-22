@@ -17,6 +17,7 @@ import { createEffect, createMemo, createSignal, on, untrack } from "solid-js";
 
 import {
   hasCapability,
+  type DbPasswordRequiredData,
   type Requests,
 } from "../../infrastructure/rpc/protocol.ts";
 import type { BrowserTabs } from "../browser/tabsStore.ts";
@@ -101,14 +102,12 @@ export interface DbPicker {
   notes: string[];
 }
 
-/** パスワードを聞いている窓に出すもの。 */
-export interface DbPasswordAsk {
+/** パスワードを聞いている窓に出すもの。reason と passwordSource は kisui serve の password_required の data のまま。 */
+export type DbPasswordAsk = {
   tab: string;
   connection: string;
   machine: string;
-  /** missing：どこにも無い、rejected：入力したものを DB が断った */
-  reason: "missing" | "rejected";
-}
+} & DbPasswordRequiredData;
 
 /** DB のタブの持ち物を作る。接続を選んでタブを開く・SQL を実行する・取り消す・パスワードを聞く・書きかけの SQL を覚えるを受け持つ。 */
 export function createDbTabs(deps: {
@@ -225,7 +224,11 @@ export function createDbTabs(deps: {
   );
   let answer: ((p: string | null) => void) | undefined;
   /** パスワードを聞く窓を出し、答え（やめたら null）を待つ。前に聞いていたものは、やめたことにする。 */
-  function askPassword(ref: DbRef, reason: "missing" | "rejected") {
+  function askPassword(
+    ref: DbRef,
+    reason: DbPasswordAsk["reason"],
+    passwordSource?: DbPasswordAsk["passwordSource"],
+  ) {
     replyPassword(null, false);
     return new Promise<string | null>((resolve) => {
       answer = resolve;
@@ -234,6 +237,7 @@ export function createDbTabs(deps: {
         connection: dbRefLabel(ref),
         machine: labelOf(ref.target),
         reason,
+        ...(passwordSource ? { passwordSource } : {}),
       });
     });
   }
@@ -277,7 +281,7 @@ export function createDbTabs(deps: {
             ? params
             : ({ ...params, password } as Requests[M]["params"]),
         ),
-      (reason) => askPassword(ref, reason),
+      (reason, source) => askPassword(ref, reason, source),
     );
   }
 

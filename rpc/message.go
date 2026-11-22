@@ -29,7 +29,7 @@ const (
 	CodeNotFound             = -32003 // not_found: ワークスペース・ターミナル・ファイルが無い
 	CodeDenied               = -32004 // denied: 権限が無い、またはワークスペースの外
 	CodeBusy                 = -32005 // busy: 上限を超えた、またはターミナルが動いている
-	CodePasswordRequired     = -32006 // password_required: DB の接続のパスワードがどこにも無い、または入力したものが断られた
+	CodePasswordRequired     = -32006 // password_required: DB の接続のパスワードがどこにも無い、または DB が断った
 	CodeDBError              = -32007 // db_error: DB がログインか SQL を断った、または取り消された
 )
 

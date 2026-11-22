@@ -30,9 +30,8 @@ const (
 )
 
 // Typed is true for a password the user typed in the window (now or
-// earlier), false for one found on this machine. When the database refuses a
-// typed one, asking again helps; when it refuses a found one, the user has
-// to fix the place it was found.
+// earlier), false for one found on this machine. A remembered one that the
+// database refuses is forgotten.
 func (s Source) Typed() bool { return s == SourceRequest || s == SourceMemory }
 
 // ErrPasswordRequired is what Passwords.Find returns when there is no
@@ -41,13 +40,18 @@ var ErrPasswordRequired = errors.New("a password is required")
 
 // Passwords finds the password of a connection, in this order:
 //
-//  1. the keychain of the OS (macOS);
-//  2. ~/.pgpass (PostgreSQL) or ~/.my.cnf (MySQL);
-//  3. the password the window sent with the request, or with an earlier
-//     request (remembered in memory only, never written to a file).
+//  1. the password the window sent with this request;
+//  2. a password the window sent with an earlier request and that worked
+//     (remembered in memory only, never written to a file);
+//  3. the keychain of the OS (macOS);
+//  4. ~/.pgpass (PostgreSQL) or ~/.my.cnf (MySQL).
 //
-// A password found on the machine wins over a typed one, so a connection
-// whose password is in the keychain or a file never asks.
+// The window sends a password only after "kisui serve" asked for one
+// (password_required), so a connection whose password is in the keychain or
+// a file never asks. When the database refuses a found one, "kisui serve"
+// asks, and the password typed then is used before the found one from then
+// on: a password of ~/.my.cnf written for another server does not keep a
+// connection from working.
 //
 // What it is asked for is a login (config.DBLogin), so the password is the
 // one of the user that logs in. A login as the agent's own user (AgentUser)
@@ -83,12 +87,6 @@ func (p *Passwords) Find(ctx context.Context, c config.DBLogin, typed *string) (
 	if file == nil {
 		file = filePassword
 	}
-	if pw, ok := keychain(ctx, c); ok {
-		return pw, SourceKeychain, nil
-	}
-	if pw, ok := file(c); ok {
-		return pw, SourceFile, nil
-	}
 	if typed != nil {
 		return *typed, SourceRequest, nil
 	}
@@ -97,6 +95,12 @@ func (p *Passwords) Find(ctx context.Context, c config.DBLogin, typed *string) (
 	p.mu.Unlock()
 	if ok {
 		return pw, SourceMemory, nil
+	}
+	if pw, ok := keychain(ctx, c); ok {
+		return pw, SourceKeychain, nil
+	}
+	if pw, ok := file(c); ok {
+		return pw, SourceFile, nil
 	}
 	return "", "", ErrPasswordRequired
 }

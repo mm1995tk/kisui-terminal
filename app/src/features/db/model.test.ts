@@ -159,6 +159,25 @@ describe("kisui serve の断り", () => {
       ),
       { kind: "password", reason: "rejected" },
     );
+    // キーチェーンかファイルで見つけたものが断られたら、その場所も（#356）。知らない値は捨てる。
+    assert.deepEqual(
+      queryFailure(
+        rpc(ErrorCode.PasswordRequired, "x", {
+          reason: "rejected",
+          passwordSource: "file",
+        }),
+      ),
+      { kind: "password", reason: "rejected", passwordSource: "file" },
+    );
+    assert.deepEqual(
+      queryFailure(
+        rpc(ErrorCode.PasswordRequired, "x", {
+          reason: "rejected",
+          passwordSource: "nope",
+        }),
+      ),
+      { kind: "password", reason: "rejected" },
+    );
   });
 
   it("db_error は DB の言葉そのまま（コードを前に付けない）と SQLSTATE。取り消しは cancelled", () => {
@@ -303,6 +322,26 @@ describe("withPassword（password_required なら聞いて送り直す）", () =
     assert.equal(r, 42);
     assert.deepEqual(sent, [undefined, "wrong", "right"]);
     assert.deepEqual(asked, ["missing", "rejected"]);
+  });
+
+  it("見つけたパスワードが断られたら、その場所を ask に渡す", async () => {
+    const asked: unknown[] = [];
+    await withPassword(
+      async (p) => {
+        if (p === undefined)
+          throw new RpcError({
+            code: ErrorCode.PasswordRequired,
+            message: "refused",
+            data: { reason: "rejected", passwordSource: "keychain" },
+          });
+        return 1;
+      },
+      async (reason, source) => {
+        asked.push([reason, source]);
+        return "typed";
+      },
+    );
+    assert.deepEqual(asked, [["rejected", "keychain"]]);
   });
 
   it("聞く窓をやめたら PasswordCancelled を投げ、送り直さない", async () => {

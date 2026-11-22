@@ -165,7 +165,9 @@ kisui db propose --variant prod shop "UPDATE orders SET status = 'cancelled' WHE
 
 A password is never written in `config.toml`; a `password` key is reported as a mistake. `kisui serve` looks for the password of a connection in this order, on the machine where it runs:
 
-1. **The keychain (macOS).** A generic password with the service `kisui-terminal-db` and the name of the connection as the account. Add one with:
+1. **A password you typed in the window that worked.** `kisui serve` keeps it in memory until it stops; it is not written to any file or to the keychain. Each variant is asked for by itself: a password typed for one variant is not sent to another.
+
+2. **The keychain (macOS).** A generic password with the service `kisui-terminal-db` and the name of the connection as the account. Add one with:
 
    ```sh
    security add-generic-password -s kisui-terminal-db -a "shop (production)" -w
@@ -175,13 +177,11 @@ A password is never written in `config.toml`; a `password` key is reported as a 
 
    Use a password of ASCII characters here (`security` cannot hand others back). In a login over ssh the keychain is usually locked; then the next places are used. On Linux there is no keychain step.
 
-2. **`~/.pgpass` (PostgreSQL) or `~/.my.cnf` (MySQL)**, the files the clients of the databases read.
+3. **`~/.pgpass` (PostgreSQL) or `~/.my.cnf` (MySQL)**, the files the clients of the databases read.
    - `~/.pgpass` (or the file `PGPASSFILE` names): lines of `host:port:database:user:password`, where `*` matches anything. A connection over a Unix socket matches the host `localhost`.
    - `~/.my.cnf`: the `password` of the `[client]` group. When `[client]` also has `user`, `host` or `port`, the password is used only for a connection with the same ones.
 
-3. **The password you type.** When neither place has one, the window asks. `kisui serve` keeps a password that worked in memory until it stops, so you are asked once; it is not written to any file. Each variant is asked for by itself: a password typed for one variant is not sent to another.
-
-A password found in the keychain or in a file is used before a typed one. When the database refuses it, fix it where it was found.
+The window asks for a password when none of these has one, and when the database refuses the one found in the keychain or in a file (the window says where it was found). The password you type then is tried, and once it works it is used before the one found, so you are asked once until `kisui serve` stops. This is how a connection works when `~/.my.cnf` has a `password` written for another server. When the database refuses a password you typed, `kisui serve` forgets it and the window asks again. A connection whose password is found and works never asks.
 
 **The password of an agent's user** (`agent-user` of a permission) is looked for in the same places, for that user, and the password of the connection's `user` is never tried for it:
 
