@@ -86,6 +86,22 @@ mod mac {
         /// 通しているタブのデータストア（元のタブの id → データストア）。証明書の確認の問い合わせで、通しているタブの
         /// webview かを見分ける。メインスレッドだけが触る。
         static STORES: RefCell<Vec<(String, Retained<WKWebsiteDataStore>)>> = const { RefCell::new(Vec::new()) };
+        /// 「この証明書を使う」と答えたことを、もうログに書いたデータストア（アドレス）。データストアごとに最初の 1 回だけ
+        /// 書く（見たサイトの名前が、通している間ずっとログに溜まらないように）。メインスレッドだけが触る。
+        static ANSWERED: RefCell<Vec<usize>> = const { RefCell::new(Vec::new()) };
+    }
+
+    /// データストア store で、初めて「この証明書を使う」と答えたか（初めてなら覚える）。
+    fn first_answer(store: &WKWebsiteDataStore) -> bool {
+        let addr = std::ptr::from_ref(store) as usize;
+        ANSWERED.with(|a| {
+            let mut a = a.borrow_mut();
+            if a.contains(&addr) {
+                return false;
+            }
+            a.push(addr);
+            true
+        })
     }
 
     type NwObject = *mut NSObject;
@@ -184,6 +200,9 @@ mod mac {
                 "made a data store {:p} that goes through 127.0.0.1:{port}",
                 Retained::as_ptr(&store)
             ));
+            // 前に閉じたデータストアと同じアドレスに作られることがあるので、新しいデータストアとして書き直す
+            let addr = Retained::as_ptr(&store) as usize;
+            ANSWERED.with(|a| a.borrow_mut().retain(|x| *x != addr));
             STORES.with(|s| {
                 let mut s = s.borrow_mut();
                 s.retain(|(r, _)| *r != root);
@@ -267,7 +286,11 @@ mod mac {
                 let credential: Option<Retained<AnyObject>> =
                     msg_send![class!(NSURLCredential), credentialForTrust: trust];
                 if let Some(c) = credential {
-                    note(&format!("server trust for {host}; answered use-credential"));
+                    if first_answer(&store) {
+                        note(&format!(
+                            "server trust for {host}; answered use-credential (written once per data store)"
+                        ));
+                    }
                     handler.call((USE_CREDENTIAL, Retained::as_ptr(&c).cast_mut()));
                     return;
                 }
