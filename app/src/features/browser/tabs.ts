@@ -53,7 +53,7 @@ export interface BrowserTab {
   favicon?: string;
   /**
    * ページの読み込みが、ページが出る前に失敗した（#432。loadError.ts）。あれば、画面はそのタブのページを隠して理由を出す。
-   * 次に読み込みが始まったら消える。覚えない
+   * 次の読み込みを頼んだ・ページが替わったら消える（殻の onTabLoadCleared）。覚えない
    */
   loadError?: LoadError;
 }

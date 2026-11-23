@@ -103,8 +103,9 @@ export interface BrowserOs {
   ): Promise<Off>;
   /**
    * ページの読み込みが、ページが出る前に失敗した（#432。証明書が信頼できない・名前が引けない・つながらないなど）。
+   * プロキシ（#409）に通したタブで、プロキシが行き先につながらなかったときも、これが来る。
    * ページは替わらず、前のページが残る。画面は、そのタブのページを隠して、url（開こうとした URL）と理由を出す。
-   * 次に読み込みが始まったら（onTabPage の loading）、画面は片付ける。reason は殻の分類（loadError.ts の LoadReason）。
+   * 片付けるのは onTabLoadCleared が来たとき。reason は殻の分類（loadError.ts の LoadReason）。
    */
   onTabLoadFailed(
     h: (e: {
@@ -114,6 +115,11 @@ export interface BrowserOs {
       detail: string;
     }) => void,
   ): Promise<Off>;
+  /**
+   * 読み込みの失敗が終わった（#432）。次の読み込みを頼んだ（URL を開く・読み込み直す）か、ページが替わった（戻る・進むは、ページが替わったときに来る）。
+   * 画面は、そのタブの失敗の表示を片付ける（頼んだ読み込みがまた失敗すれば、onTabLoadFailed が出直す）。
+   */
+  onTabLoadCleared(h: (e: { tab: string }) => void): Promise<Off>;
   /** ページの題が変わった。 */
   onTabTitle(h: (e: { tab: string; title: string }) => void): Promise<Off>;
   /**

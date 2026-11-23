@@ -156,6 +156,9 @@ struct TabInfo {
     /// 新しい窓の数を数える元のタブ（ふつうのタブは自分。ページが開いた新しい窓のタブは、開いた元の root を引き継ぐ。
     /// 新しいタブがそれぞれ自分の上限を持つと、開いた窓がまた開く、を繰り返して増え続けるため）
     root: String,
+    /// 通信を記録するプロキシ（#409）に通したタブか。ページが開いた新しい窓のタブは、開いた元と同じデータを使うので、
+    /// 開いた元のものを引き継ぐ（browser_load.rs が、プロキシの失敗の応答を、読み込みの失敗として扱う）
+    proxied: bool,
 }
 
 /// 開いているタブ（id → 覚えること）。
@@ -546,8 +549,9 @@ fn open_popup(
         return Err("cannot find the new webview".into());
     };
     // 開いた元と同じ root で数える
+    let proxied = info.proxied;
     tabs.set(&id, info);
-    watch_native(app, &v, &id);
+    watch_native(app, &v, &id, proxied);
     let (app, opener, url) = (app.clone(), opener.to_string(), u.to_string());
     std::thread::spawn(move || {
         // WebKit が webview を受け取ってから（この関数から戻ってから）移す
@@ -577,8 +581,9 @@ fn open_popup(
 /// Linux：WebKitGTK から直接受けるもの（ページの window.close()・ダウンロード・読み込みの失敗）を足す。
 /// wry は window.close() で webview を壊すだけで殻に知らせないので、画面に知らせてタブを閉じさせる。
 /// 読み込みの失敗（証明書・名前・接続）も wry は知らせないので、画面に知らせる（browser_load.rs。#432）。
+/// `proxied` は、プロキシ（#409）に通したタブか（プロキシの失敗の応答も、読み込みの失敗として知らせる）。
 #[cfg(target_os = "linux")]
-fn watch_native(app: &AppHandle, v: &Webview, tab: &str) {
+fn watch_native(app: &AppHandle, v: &Webview, tab: &str, proxied: bool) {
     let (app, tab) = (app.clone(), tab.to_string());
     let _ = v.with_webview(move |pv| {
         use webkit2gtk::WebViewExt;
@@ -586,24 +591,24 @@ fn watch_native(app: &AppHandle, v: &Webview, tab: &str) {
         if let Some(ctx) = w.context() {
             crate::download::watch(&app, &ctx);
         }
-        crate::browser_load::watch(&app, &w, &tab);
+        crate::browser_load::watch(&app, &w, &tab, proxied);
         w.connect_close(move |_| tell_closed(&app, &tab));
     });
 }
 
 /// macOS：読み込みの失敗（証明書・名前・接続）を知らせる先として、タブの WKWebView を覚える（browser_load.rs。#432）。
 #[cfg(target_os = "macos")]
-fn watch_native(app: &AppHandle, v: &Webview, tab: &str) {
+fn watch_native(app: &AppHandle, v: &Webview, tab: &str, proxied: bool) {
     let (app, tab) = (app.clone(), tab.to_string());
     let _ = v.with_webview(move |pv| {
         if let Some((w, _)) = wk_webview(&pv) {
-            crate::browser_load::register(&app, w, &tab);
+            crate::browser_load::register(&app, w, &tab, proxied);
         }
     });
 }
 
 #[cfg(not(any(target_os = "linux", target_os = "macos")))]
-fn watch_native(_: &AppHandle, _: &Webview, _: &str) {}
+fn watch_native(_: &AppHandle, _: &Webview, _: &str, _: bool) {}
 
 /// ページに入れるスクリプト 1 つ。
 struct PageScript {
@@ -672,8 +677,8 @@ fn with_handlers(
                 PageLoadEvent::Finished => false,
             };
             if loading {
-                // 前の読み込みの失敗は、もう無い（画面も、この知らせで失敗の表示を片付ける。browser_load.rs）
-                crate::browser_load::started(&load_app, &load_tab);
+                // ページが替わった。前の読み込みの失敗は、もう無い（画面に片付けさせる。browser_load.rs）
+                crate::browser_load::clear_failure(&load_app, &load_tab);
                 page.started();
             } else {
                 page.finished();
@@ -838,9 +843,10 @@ pub async fn browser_open(
             incognito,
             nonce,
             root: tab.clone(),
+            proxied: proxy.is_some(),
         },
     );
-    watch_native(&app, &v, &tab);
+    watch_native(&app, &v, &tab, proxy.is_some());
     #[cfg(target_os = "linux")]
     if let Some(url) = load_later {
         crate::browser_capture::trust_and_load(&v, url)?;
@@ -1109,7 +1115,10 @@ pub fn browser_go(
 ) -> Result<(), String> {
     from_main(&webview)?;
     let v = child(&app, &tab)?;
-    v.navigate(parse_url(&url)?).map_err(|e| e.to_string())
+    let u = parse_url(&url)?;
+    // 次の読み込みを頼んだので、前の失敗の表示は片付ける（また失敗すれば出直す。browser_load.rs）
+    crate::browser_load::clear_failure(&app, &tab);
+    v.navigate(u).map_err(|e| e.to_string())
 }
 
 /// 戻る・進む・読み込み直す。
@@ -1123,18 +1132,25 @@ pub fn browser_nav(
     from_main(&webview)?;
     let v = child(&app, &tab)?;
     match action.as_str() {
+        // 戻る・進むは、頼んだ時点では失敗の表示を片付けない。行き先の履歴が無ければ何も起きず、片付けると、
+        // 開けなかった URL が URL バーに残ったまま、失敗の前のページが出てしまう。履歴があれば別の項目に移るので、
+        // ページが替わった知らせ（browser-page の loading）で片付く
         "back" => v.eval("history.back()"),
         "forward" => v.eval("history.forward()"),
-        // 読み込みが失敗したままのタブ（画面が失敗の表示を出している）は、前のページでなく、開けなかった URL をもう一度開く
-        "reload" => match app
-            .try_state::<crate::browser_load::Failures>()
-            .and_then(|f| f.get(&tab))
-            .and_then(|u| Url::parse(&u).ok())
-            .filter(may_navigate)
-        {
-            Some(u) => v.navigate(u),
-            None => v.reload(),
-        },
+        "reload" => {
+            // 読み込みが失敗したままのタブ（画面が失敗の表示を出している）は、前のページでなく、開けなかった URL をもう一度開く
+            let failed = app
+                .try_state::<crate::browser_load::Failures>()
+                .and_then(|f| f.get(&tab))
+                .and_then(|u| Url::parse(&u).ok())
+                .filter(may_navigate);
+            // 次の読み込みを頼んだので、前の失敗の表示は片付ける（読み込みは必ず始まり、また失敗すれば出直す。browser_load.rs）
+            crate::browser_load::clear_failure(&app, &tab);
+            match failed {
+                Some(u) => v.navigate(u),
+                None => v.reload(),
+            }
+        }
         _ => return Err(format!("unknown action: {action:?}")),
     }
     .map_err(|e| e.to_string())

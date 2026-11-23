@@ -142,7 +142,12 @@ func New(o Options) *Proxy {
 		Transport:     recorder{p},
 		FlushInterval: -1, // ストリーム（SSE など）を溜めずに流す
 		ErrorHandler:  p.upstreamError,
-		ErrorLog:      quiet,
+		ModifyResponse: func(resp *http.Response) error {
+			// 行き先が、プロキシの失敗のヘッダーを名乗っても渡さない（failure.go）
+			stripFailureHeaders(resp.Header)
+			return nil
+		},
+		ErrorLog: quiet,
 	}
 	p.outer = &http.Server{Handler: http.HandlerFunc(p.serveOuter), ReadHeaderTimeout: 30 * time.Second, ErrorLog: quiet}
 	p.inner = &http.Server{
@@ -322,6 +327,8 @@ func (p *Proxy) upstreamError(w http.ResponseWriter, r *http.Request, err error)
 		host = ex.host
 	}
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	// 内蔵ブラウザのタブが、この応答をページとして出さず、「開けなかった」画面を出せるよう、理由を付ける（failure.go。#432）
+	setFailure(w.Header(), err)
 	w.WriteHeader(http.StatusBadGateway)
 	fmt.Fprintf(w, "kisui proxy: cannot reach %s: %v\n", host, err)
 }
