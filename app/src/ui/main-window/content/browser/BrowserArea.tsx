@@ -369,12 +369,6 @@ export function BrowserArea(props: {
         return;
       }
       if (v.state !== "open") return;
-      // プロキシ（#409）を替えたら、作り直す（ふつうは上の createEffect が先に作り直している）
-      if (v.proxy !== tab.proxy?.port) {
-        releaseLayer();
-        void recreate(tab, b);
-        return;
-      }
       if (b === null) {
         releaseLayer();
         hide(tab.id, v);
