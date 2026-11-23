@@ -244,3 +244,22 @@ export const EditingHeld: Story = {
     }),
   },
 };
+
+/** 狭い幅（右のペインが 800px、パネルが 360px）。大きさと時間の列をやめ、ホストとパスに幅を回す。 */
+export const Narrow: Story = {
+  args: { panel: panel({ selected: undefined, detail: undefined }) },
+  decorators: [
+    (Story) => (
+      <div
+        style={{
+          position: "relative",
+          width: "800px",
+          height: "560px",
+          "--proxy-panel-w": "360px",
+        }}
+      >
+        <Story />
+      </div>
+    ),
+  ],
+};
