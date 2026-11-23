@@ -329,12 +329,14 @@ mod mac {
         }
         let info: Option<Retained<AnyObject>> = msg_send![error, userInfo];
         let value = |key: &str| -> Option<Retained<AnyObject>> {
-            let info = info.as_deref()?;
+            let info = info
+                .as_deref()
+                .filter(|i| is_kind(i, class!(NSDictionary)))?;
             let key = NSString::from_str(key);
             msg_send![info, objectForKey: &*key]
         };
         let number = |key: &str| -> String {
-            match value(key) {
+            match value(key).filter(|n| is_kind(n, class!(NSNumber))) {
                 Some(n) => {
                     let n: isize = msg_send![&*n, integerValue];
                     n.to_string()
@@ -342,11 +344,12 @@ mod mac {
                 None => "-".into(),
             }
         };
-        let underlying = match value("NSUnderlyingError") {
+        let underlying = match value("NSUnderlyingError").filter(|u| is_kind(u, class!(NSError))) {
             Some(u) => domain_and_code(&u),
             None => "-".into(),
         };
         let host = value("NSErrorFailingURLKey")
+            .filter(|u| is_kind(u, class!(NSURL)))
             .and_then(|u| -> Option<Retained<NSString>> { msg_send![&*u, host] })
             .map(|h| h.to_string())
             .unwrap_or_else(|| "-".into());
@@ -365,9 +368,17 @@ mod mac {
         ));
     }
 
+    /// obj が cls（かその子のクラス）のオブジェクトか。`userInfo` の値は決まりの型でないこともあり得るので、メッセージを
+    /// 送る前に確かめる（受け口の無いメッセージを送ると例外になり、ログのために窓が落ちる）。
+    unsafe fn is_kind(obj: &AnyObject, cls: &objc2::runtime::AnyClass) -> bool {
+        msg_send![obj, isKindOfClass: cls]
+    }
+
     /// NSError の `domain code`。
     unsafe fn domain_and_code(error: &AnyObject) -> String {
-        let domain: Option<Retained<NSString>> = msg_send![error, domain];
+        let domain: Option<Retained<AnyObject>> = msg_send![error, domain];
+        let domain: Option<Retained<NSString>> =
+            domain.and_then(|d| is_kind(&d, class!(NSString)).then(|| Retained::cast_unchecked(d)));
         let code: isize = msg_send![error, code];
         format!(
             "{} {code}",
