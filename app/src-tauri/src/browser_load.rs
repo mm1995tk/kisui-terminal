@@ -10,7 +10,8 @@
 //! （BrowserArea.tsx）。
 //!
 //! - **失敗の表示を片付ける**のは、次の読み込みを頼んだとき（`browser_go`・`browser_nav`）と、ページが替わったとき
-//!   （`browser-page` の `loading`）。どちらも `clear_failure` を通り、失敗していたタブなら `browser-load-cleared` を送る。
+//!   （`browser-page` の `loading`）。どちらも `clear_failure` を通り、いつも `browser-load-cleared` を送る（殻が失敗を
+//!   覚えているかでは決めない。タブを作り直すと殻は覚えをなくすが、画面には失敗の表示が残っているため）。
 //!   ページが替わった知らせだけに頼らない：macOS の WebView は、失敗の前に最後に開けたページと同じ URL に移っても、
 //!   この知らせを出さないことがある（#432 の macOS での確認）。頼んだ読み込みがまた失敗すれば、失敗の表示が出直す。
 //! - **証明書の確認は緩めない**：ここは失敗を「知らせる」だけで、証明書のエラーを無視して開く道は作らない。
@@ -164,16 +165,20 @@ pub fn report(app: &AppHandle, tab: &str, url: &str, reason: Reason, detail: &st
     );
 }
 
-/// 前の失敗は、もう無い（次の読み込みを頼んだ・ページが替わった）。失敗していたタブなら、画面に片付けさせる。
+/// 前の失敗は、もう無い（次の読み込みを頼んだ・ページが替わった）。殻の覚えを忘れ、画面に片付けさせる。
+/// 画面への知らせは、殻が覚えていなくても送る：タブを作り直す（`browser_close` のあと `browser_open`）と殻の覚えは
+/// 消えるが、画面は失敗の表示を持ったままなので、作り直したページが替わったときに片付ける必要がある。
+/// 画面は、失敗の表示が無ければ何もしない（ページが替わるたびに来ても変わらない）。
 pub fn clear_failure(app: &AppHandle, tab: &str) {
-    if app.try_state::<Failures>().is_some_and(|f| f.clear(tab)) {
-        let _ = app.emit(
-            EVENT_LOAD_CLEARED,
-            LoadCleared {
-                tab: tab.to_string(),
-            },
-        );
+    if let Some(f) = app.try_state::<Failures>() {
+        f.clear(tab);
     }
+    let _ = app.emit(
+        EVENT_LOAD_CLEARED,
+        LoadCleared {
+            tab: tab.to_string(),
+        },
+    );
 }
 
 /// TLS（証明書）の問題の印から、いちばん知らせたい理由を選ぶ。
