@@ -92,6 +92,7 @@ zip の中身は `extension/` のファイルそのもの（`manifest.json` も�
 0.2.0 で、`passkey_sites` の `.google.com` の書き方（取り決めの版 2）を読めるようにした（#279）。
 0.2.1 で、Chrome のためのコード（`importScripts`・`chrome` の API・`pendingUrl`・Chrome の manifest の作り分け）を外した（#433。Firefox での動きは変えていない）。
 0.2.2 で、host の権限から `http://*/*` を外した（#286）。
+0.2.3 で、`cookies` にタブの今の URL（`url`）を入れて送るようにした（#276。kisui-terminal は、内蔵ブラウザのタブでその URL を開き直す）。
 取り決め（`docs/passkey-extension.md`）を変えるときは、kisui-terminal と拡張機能を合わせて変える。
 
 ### ストアの説明
