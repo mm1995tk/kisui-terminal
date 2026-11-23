@@ -8,6 +8,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -15,6 +16,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -558,4 +560,55 @@ func TestCloseEndsRelayedConnections(t *testing.T) {
 	if _, err := br.ReadByte(); err == nil {
 		t.Fatal("the relayed connection is still open after Close")
 	}
+}
+
+// クライアントが証明書を断ったとき、ログに理由が残る（macOS の内蔵ブラウザで、通したタブのページが出ないときに見分ける。#409）。
+func TestLogsAClientThatRejectsTheCertificate(t *testing.T) {
+	up := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	defer up.Close()
+	ca, err := LoadOrCreateCA(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var buf syncBuffer
+	p := New(Options{CA: ca, Store: NewStore(nil), RootCAs: upstreamPool(up), Log: slog.New(slog.NewTextHandler(&buf, nil))})
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	go func() { _ = p.Serve(ln) }()
+	t.Cleanup(p.Close)
+	c := clientVia(t, ln.Addr().String(), x509.NewCertPool())
+	if resp, err := c.Get(up.URL); err == nil {
+		resp.Body.Close()
+		t.Fatal("a client that does not trust the CA got a response")
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for !strings.Contains(buf.String(), "TLS handshake with the client failed") {
+		if time.Now().After(deadline) {
+			t.Fatalf("no log of the failed handshake: %q", buf.String())
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if !strings.Contains(buf.String(), "the first CONNECT") {
+		t.Errorf("no log of the first CONNECT: %q", buf.String())
+	}
+}
+
+// syncBuffer は、ほかの goroutine が書くログを読むための bytes.Buffer。
+type syncBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *syncBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *syncBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
 }

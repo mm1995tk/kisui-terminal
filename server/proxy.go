@@ -113,7 +113,7 @@ func (m *proxyManager) newScope(key, wsID string, ln net.Listener, ca *proxy.CA)
 	sc.store = proxy.NewStore(func(sum proxy.Summary) {
 		m.srv.notifyOwner("proxy.flow", map[string]any{"scope": key, "flow": sum})
 	})
-	sc.px = proxy.New(proxy.Options{CA: ca, Store: sc.store, RootCAs: m.srv.opts.ProxyRootCAs})
+	sc.px = proxy.New(proxy.Options{CA: ca, Store: sc.store, RootCAs: m.srv.opts.ProxyRootCAs, Log: m.srv.log.With("scope", key)})
 	m.scopes[key] = sc
 	return sc
 }
