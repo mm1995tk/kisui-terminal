@@ -3,7 +3,6 @@
 内蔵ブラウザでパスキーが要るとき、kisui-terminal は同じ URL を Firefox で開く（`docs/passkey-extension.md`）。
 この拡張機能は、Firefox でパスキーのログインが済んだら、そのサイトの Cookie を native messaging で kisui-terminal に送り、タブを閉じる。
 コードは `extension/`。Firefox の拡張機能（Manifest V3。background は `background.scripts`）として書いてある。
-Chrome の拡張機能もあったが、オーナーが Firefox だけを使うと決めたので外した（#433）。
 
 ## 動き
 
