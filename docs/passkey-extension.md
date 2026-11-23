@@ -78,6 +78,9 @@ passkey_sites = ["github.com", "dash.cloudflare.com", ".google.com"]
   | Firefox  | `~/Library/Application Support/Mozilla/NativeMessagingHosts/`            | `~/.mozilla/native-messaging-hosts/`（`~/.config/mozilla/` があれば `~/.config/mozilla/native-messaging-hosts/` にも） |
 
   Linux の `~/.config` は、`$XDG_CONFIG_HOME` が絶対パスならそれ。
+  前の版（#433 より前）は、Chrome と Chromium にも登録のファイルを置いていた（macOS は `~/Library/Application Support/Google/Chrome/NativeMessagingHosts/`・`~/Library/Application Support/Chromium/NativeMessagingHosts/`、
+  Linux は `~/.config/google-chrome/NativeMessagingHosts/`・`~/.config/chromium/NativeMessagingHosts/` の `<名前>.json`）。今の版はそれを消さないので、要らなければ手で消す。
+  残っていると、前の版の拡張機能の id に受け口へつなぐ許可を与え続ける。
 - つないでよい拡張機能：`kisui-terminal@mm1995tk.github.io`（拡張機能の `browser_specific_settings.gecko.id`。`passkey.rs` の `FIREFOX_EXTENSION_ID`）。
 - 受け口は、受けたメッセージを、動いている kisui-terminal の窓に渡し、窓の答えをそのまま返す。窓が動いていなければ `not-running` を返す。
 
