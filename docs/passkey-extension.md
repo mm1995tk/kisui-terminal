@@ -2,7 +2,7 @@
 
 内蔵ブラウザ（`[gui.browser] enabled = true`）のページは OS の WebView（macOS は WKWebView、Linux は WebKitGTK）で、
 iCloud キーチェーンや 1Password のパスキーを使えない（macOS は Apple の権限が要り、Linux は OS がパスキーをアプリに渡す仕組みを持たない）。
-そこで、パスキーが要る場面だけ外のブラウザ（Chrome か Firefox）に移ってログインし、ログインした後の Cookie を内蔵ブラウザに写して戻る。
+そこで、パスキーが要る場面だけ外のブラウザ（Firefox）に移ってログインし、ログインした後の Cookie を内蔵ブラウザに写して戻る。
 パスキーを使わないサイトでも、ユーザーが手で始めれば、同じように外のブラウザ（1Password などの拡張機能が使える）でログインして戻れる（#276。下の「手で始める」）。
 
 この文書は、kisui-terminal（#206。`app/src-tauri/src/passkey.rs`）と、外のブラウザに入れる拡張機能（#207。`extension/`。作りとストアに出す手順は `docs/browser-extension.md`）の間の取り決めを書く。
@@ -44,8 +44,9 @@ GUI の設定ファイル（`~/.config/kisui-terminal/config.toml`。`config.loc
 [gui.browser]
 enabled = true
 passkey_sites = ["github.com", "dash.cloudflare.com", ".google.com"]
-passkey_browser = "chrome"   # chrome（既定。無ければ Chromium）か firefox
 ```
+
+外のブラウザは Firefox（macOS は `open -a Firefox`、Linux は `firefox`）。前の版の `passkey_browser`（移る先のブラウザを選んだ。#433 で外した）は、書いてあっても読み飛ばす。
 
 - `passkey_sites`：host を小文字で書く（`https://`・ポート・パス・`*` は書けない）。書き方は 2 つ。
   - `github.com`：ページの host と完全に同じものだけが当たる（`github.com` は `gist.github.com` に当たらない）。
@@ -70,17 +71,14 @@ passkey_browser = "chrome"   # chrome（既定。無ければ Chromium）か fir
 - 起動するもの：データのフォルダ（nightly 版は `dev.mm1995tk.kisui-terminal-nightly` のフォルダ。macOS は `~/Library/Application Support/dev.mm1995tk.kisui-terminal`、Linux は
   `~/.local/share/dev.mm1995tk.kisui-terminal`）の `passkey/native-host`。kisui-terminal 自身の実行ファイルを
   `--native-messaging-host <ソケット>` 付きで起動する sh のスクリプトで、kisui-terminal が起動するたびに書き直す（実行ファイルが動いても追う）。
-- 登録のファイル（`<名前>.json`）を置く場所（そのブラウザの印のフォルダがあるときだけ置く）：
+- 登録のファイル（`<名前>.json`）を置く場所（Firefox の印のフォルダがあるときだけ置く）：
 
-  | ブラウザ | macOS                                                                    | Linux                                                                                                   |
-  | -------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------- |
-  | Chrome   | `~/Library/Application Support/Google/Chrome/NativeMessagingHosts/`      | `~/.config/google-chrome/NativeMessagingHosts/`                                                         |
-  | Chromium | `~/Library/Application Support/Chromium/NativeMessagingHosts/`           | `~/.config/chromium/NativeMessagingHosts/`                                                              |
+  | ブラウザ | macOS | Linux |
+  | --- | --- | --- |
   | Firefox  | `~/Library/Application Support/Mozilla/NativeMessagingHosts/`            | `~/.mozilla/native-messaging-hosts/`（`~/.config/mozilla/` があれば `~/.config/mozilla/native-messaging-hosts/` にも） |
 
   Linux の `~/.config` は、`$XDG_CONFIG_HOME` が絶対パスならそれ。
-- つないでよい拡張機能：Firefox は `kisui-terminal@mm1995tk.github.io`（拡張機能の `browser_specific_settings.gecko.id`）。
-  Chrome は、Chrome ウェブストアのアイテム ID `ljfmfmfcicodilhhbmhkfkgjbcpphjel`（`passkey.rs` の `CHROME_EXTENSION_IDS`。`docs/browser-extension.md` の「ストアに出す」）。
+- つないでよい拡張機能：`kisui-terminal@mm1995tk.github.io`（拡張機能の `browser_specific_settings.gecko.id`。`passkey.rs` の `FIREFOX_EXTENSION_ID`）。
 - 受け口は、受けたメッセージを、動いている kisui-terminal の窓に渡し、窓の答えをそのまま返す。窓が動いていなければ `not-running` を返す。
 
 ## メッセージ
@@ -137,7 +135,7 @@ native messaging の決まりどおり、1 つのメッセージは JSON 1 つ�
 ```
 
 - `site`：`sites` の 1 つ（今のタブの host に当たる項目。`.google.com` なら、`myaccount.google.com` のタブからでも `.google.com`）。
-- `cookies`：Chrome と Firefox の `cookies.Cookie` をそのまま入れてよい（`storeId` などほかの項目は読み飛ばす）。
+- `cookies`：Firefox の `cookies.Cookie` をそのまま入れてよい（`storeId` などほかの項目は読み飛ばす）。
   `name`・`value`・`domain` は要る。ほかは省ける（`hostOnly`・`secure`・`httpOnly`・`session` は false、`path` は `/`）。
   `sameSite` は `no_restriction`・`lax`・`strict`（ほかの値は指定なし）。`expirationDate` は 1970 年からの秒（`session` が true なら見ない）。
   1 回に 1000 個まで。

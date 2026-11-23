@@ -1,7 +1,7 @@
 // 内蔵ブラウザのタブ（browser.rs）のページに入れるスクリプト（#206）。パスキーを求められたら、外のブラウザに移る。
 // OS の WebView では iCloud キーチェーンや 1Password のパスキーを使えないので、設定の `[gui.browser] passkey_sites` に書いた
 // サイトのページが navigator.credentials.get / create でパスキー（publicKey）を求めたら、それを捕まえて殻に知らせる。
-// 殻は同じ URL を外のブラウザ（Chrome か Firefox）で開き、ログインした後の Cookie を受け取って戻る（passkey.rs）。
+// 殻は同じ URL を外のブラウザ（Firefox）で開き、ログインした後の Cookie を受け取って戻る（passkey.rs）。
 // 知らせ方は browser_keys.js と同じ。`kisui-passkey:` の URL を window.open で開こうとし、殻の on_new_window が受けて断る。
 // nonce とサイトの一覧は、殻が下の 2 つの印に埋める。nonce はこの関数の中にだけ置き、ページのスクリプトからは読めない。
 // 書いていないサイトでは何も変えない。

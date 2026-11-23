@@ -1,4 +1,4 @@
-//! 内蔵ブラウザのパスキー（#206）。パスキーが要る場面だけ外のブラウザ（Chrome か Firefox）に移ってログインし、
+//! 内蔵ブラウザのパスキー（#206）。パスキーが要る場面だけ外のブラウザ（Firefox）に移ってログインし、
 //! ログインした後の Cookie を内蔵ブラウザに写して戻る。取り決めは `docs/passkey-extension.md`。
 //!
 //! 流れ:
@@ -34,7 +34,7 @@ use serde_json::{json, Value};
 use tauri::webview::cookie::{time::OffsetDateTime, Cookie, SameSite};
 use tauri::{AppHandle, Manager, Url};
 
-use crate::config::{GuiConfig, PasskeyBrowser};
+use crate::config::GuiConfig;
 
 /// ページのスクリプトが殻に知らせる URL の scheme。
 pub const SCHEME: &str = "kisui-passkey";
@@ -44,10 +44,6 @@ const SCRIPT: &str = include_str!("browser_passkey.js");
 pub const HOST_FLAG: &str = "--native-messaging-host";
 /// 受け口につないでよい Firefox の拡張機能（#207 の拡張機能の `browser_specific_settings.gecko.id`）。
 pub const FIREFOX_EXTENSION_ID: &str = "kisui-terminal@mm1995tk.github.io";
-/// 受け口につないでよい Chrome の拡張機能の id（Chrome ウェブストアのアイテム ID。docs/browser-extension.md）。
-/// `extension/build.mjs` の `CHROME_PUBLIC_KEY` から計算した id と同じであること（`extension/extension.test.ts` が確かめる）。
-/// 空なら Chrome の登録のファイルを置かない。
-pub const CHROME_EXTENSION_IDS: &[&str] = &["ljfmfmfcicodilhhbmhkfkgjbcpphjel"];
 /// 取り決めの版（`sites` の答えに入れる）。2 で、`sites` に `.google.com` の書き方が入るようになった（#279）。
 pub const PROTOCOL_VERSION: u32 = 2;
 
@@ -83,7 +79,6 @@ pub struct Waiting {
 /// パスキーのときに外のブラウザへ移る仕組みの状態。設定に `passkey_sites` があるときだけ作る（起動したときの設定を使う）。
 pub struct Passkey {
     sites: Vec<String>,
-    browser: PasskeyBrowser,
     /// 許可サイトの項目（`passkey_sites` に書いた形）ごとの待ち
     waiting: Mutex<HashMap<String, Waiting>>,
     /// タブごとの、最後に外のブラウザを開いた時刻
@@ -103,7 +98,7 @@ enum Request {
     },
 }
 
-/// 拡張機能が送る Cookie 1 つ（Chrome と Firefox の `cookies.Cookie` の形。知らない項目は読み飛ばす）。
+/// 拡張機能が送る Cookie 1 つ（Firefox の `cookies.Cookie` の形。知らない項目は読み飛ばす）。
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WireCookie {
@@ -335,11 +330,10 @@ fn now_secs() -> f64 {
 }
 
 impl Passkey {
-    /// 許可サイト `sites` と、移る先のブラウザ `browser` で作る（待ちは空）。
-    pub fn new(sites: Vec<String>, browser: PasskeyBrowser) -> Self {
+    /// 許可サイト `sites` で作る（待ちは空）。
+    pub fn new(sites: Vec<String>) -> Self {
         Self {
             sites,
-            browser,
             waiting: Mutex::default(),
             last: Mutex::default(),
         }
@@ -347,18 +341,12 @@ impl Passkey {
 
     /// 設定から作る。内蔵ブラウザを使わない・サイトが無いときは None。
     pub fn from_config(c: &GuiConfig) -> Option<Self> {
-        (c.browser && !c.passkey_sites.is_empty())
-            .then(|| Self::new(c.passkey_sites.clone(), c.passkey_browser))
+        (c.browser && !c.passkey_sites.is_empty()).then(|| Self::new(c.passkey_sites.clone()))
     }
 
     /// 許可サイト（設定の `passkey_sites`）。
     pub fn sites(&self) -> &[String] {
         &self.sites
-    }
-
-    /// 移る先のブラウザ（設定の `passkey_browser`）。
-    pub fn browser(&self) -> PasskeyBrowser {
-        self.browser
     }
 
     /// タブ `tab`（今 `url` を出している）のページがパスキーを求めた。許可サイトなら待ちを覚え、外のブラウザで開く URL を返す。
@@ -476,50 +464,38 @@ impl Passkey {
     }
 }
 
-/// 外のブラウザで `u` を開く。見つからなければ次の候補を試す。
-pub fn open_external(browser: PasskeyBrowser, u: &Url) {
+/// 外のブラウザ（Firefox）で `u` を開く。
+pub fn open_external(u: &Url) {
     let url = u.to_string();
     std::thread::spawn(move || {
-        for (prog, args) in candidates(browser) {
-            let child = Command::new(prog)
-                .args(args)
-                .arg(&url)
-                .stdin(Stdio::null())
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .spawn();
-            let Ok(mut child) = child else { continue };
-            let status = child.wait();
-            // macOS の open は、アプリが無いと失敗で終わる。Linux はブラウザそのものなので、起動できれば終わり
-            if cfg!(target_os = "macos") && !status.map(|s| s.success()).unwrap_or(false) {
-                continue;
+        let (prog, args) = command();
+        let child = Command::new(prog)
+            .args(args)
+            .arg(&url)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn();
+        // macOS の open は、アプリが無いと失敗で終わる。Linux はブラウザそのものなので、起動できれば終わり
+        let ok = match child {
+            Ok(mut c) => {
+                let status = c.wait();
+                !cfg!(target_os = "macos") || status.map(|s| s.success()).unwrap_or(false)
             }
-            return;
+            Err(_) => false,
+        };
+        if !ok {
+            eprintln!("kisui-terminal: cannot start Firefox for passkeys");
         }
-        eprintln!("kisui-terminal: cannot start the browser for passkeys ({browser:?})");
     });
 }
 
-/// 外のブラウザを起動するコマンドの候補（前のものから試す）。
-fn candidates(browser: PasskeyBrowser) -> Vec<(&'static str, Vec<&'static str>)> {
+/// 外のブラウザ（Firefox）を起動するコマンド。
+fn command() -> (&'static str, Vec<&'static str>) {
     if cfg!(target_os = "macos") {
-        match browser {
-            PasskeyBrowser::Chrome => vec![
-                ("open", vec!["-a", "Google Chrome"]),
-                ("open", vec!["-a", "Chromium"]),
-            ],
-            PasskeyBrowser::Firefox => vec![("open", vec!["-a", "Firefox"])],
-        }
+        ("open", vec!["-a", "Firefox"])
     } else {
-        match browser {
-            PasskeyBrowser::Chrome => vec![
-                ("google-chrome-stable", vec![]),
-                ("google-chrome", vec![]),
-                ("chromium", vec![]),
-                ("chromium-browser", vec![]),
-            ],
-            PasskeyBrowser::Firefox => vec![("firefox", vec![])],
-        }
+        ("firefox", vec![])
     }
 }
 
@@ -733,54 +709,24 @@ pub fn run_host(sock: &Path) -> i32 {
 
 // ---- 登録のファイル ----
 
-/// 登録のファイルを置くブラウザの種類。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Kind {
-    Chromium,
-    Firefox,
-}
-
-/// 登録のファイルを置くフォルダ。（ブラウザが入っている印のフォルダ, 置くフォルダ, 種類）。
-/// 印のフォルダが無ければ（そのブラウザを使っていなければ）置かない。
-fn manifest_dirs(home: &Path, config_home: Option<&Path>) -> Vec<(PathBuf, PathBuf, Kind)> {
+/// Firefox の登録のファイルを置くフォルダ。（Firefox が入っている印のフォルダ, 置くフォルダ）。
+/// 印のフォルダが無ければ（その場所の Firefox を使っていなければ）置かない。
+fn manifest_dirs(home: &Path, config_home: Option<&Path>) -> Vec<(PathBuf, PathBuf)> {
     if cfg!(target_os = "macos") {
         let a = home.join("Library/Application Support");
-        let mut v: Vec<_> = ["Google/Chrome", "Chromium"]
-            .iter()
-            .map(|b| {
-                (
-                    a.join(b),
-                    a.join(b).join("NativeMessagingHosts"),
-                    Kind::Chromium,
-                )
-            })
-            .collect();
-        v.push((
-            a.join("Firefox"),
-            a.join("Mozilla/NativeMessagingHosts"),
-            Kind::Firefox,
-        ));
-        v
+        vec![(a.join("Firefox"), a.join("Mozilla/NativeMessagingHosts"))]
     } else {
         let cfg = match config_home {
             Some(d) if d.is_absolute() => d.to_path_buf(),
             _ => home.join(".config"),
         };
-        let mut v: Vec<_> = ["google-chrome", "chromium"]
-            .iter()
-            .map(|b| {
-                (
-                    cfg.join(b),
-                    cfg.join(b).join("NativeMessagingHosts"),
-                    Kind::Chromium,
-                )
+        [home.join(".mozilla"), cfg.join("mozilla")]
+            .into_iter()
+            .map(|m| {
+                let to = m.join("native-messaging-hosts");
+                (m, to)
             })
-            .collect();
-        for m in [home.join(".mozilla"), cfg.join("mozilla")] {
-            let to = m.join("native-messaging-hosts");
-            v.push((m, to, Kind::Firefox));
-        }
-        v
+            .collect()
     }
 }
 
@@ -802,24 +748,14 @@ pub fn host_name(identifier: &str) -> String {
 }
 
 /// 登録のファイルの中身。
-fn manifest(name: &str, kind: Kind, script: &Path) -> Value {
-    let mut m = json!({
+fn manifest(name: &str, script: &Path) -> Value {
+    json!({
         "name": name,
         "description": "kisui-terminal: copies the login of passkey sites to its built-in browser",
         "path": script.to_string_lossy(),
         "type": "stdio",
-    });
-    match kind {
-        Kind::Chromium => {
-            let o: Vec<String> = CHROME_EXTENSION_IDS
-                .iter()
-                .map(|id| format!("chrome-extension://{id}/"))
-                .collect();
-            m["allowed_origins"] = json!(o);
-        }
-        Kind::Firefox => m["allowed_extensions"] = json!([FIREFOX_EXTENSION_ID]),
-    }
-    m
+        "allowed_extensions": [FIREFOX_EXTENSION_ID],
+    })
 }
 
 /// sh の 1 つの引数として書く。
@@ -863,14 +799,14 @@ fn install(
     );
     write_file(&script, body.as_bytes(), 0o700)?;
     let mut written = Vec::new();
-    for (marker, to, kind) in manifest_dirs(home, config_home) {
-        if !marker.is_dir() || (kind == Kind::Chromium && CHROME_EXTENSION_IDS.is_empty()) {
+    for (marker, to) in manifest_dirs(home, config_home) {
+        if !marker.is_dir() {
             continue;
         }
         fs::create_dir_all(&to)?;
         let path = to.join(format!("{name}.json"));
-        let body = serde_json::to_vec_pretty(&manifest(name, kind, &script))
-            .map_err(std::io::Error::other)?;
+        let body =
+            serde_json::to_vec_pretty(&manifest(name, &script)).map_err(std::io::Error::other)?;
         write_file(&path, &body, 0o644)?;
         written.push(path);
     }
@@ -879,7 +815,7 @@ fn install(
 
 /// 置いた登録のファイル（`<name>.json`。この版のものだけ）を消す（サイトを書かなくなったとき）。
 fn uninstall(name: &str, home: &Path, config_home: Option<&Path>) {
-    for (_, to, _) in manifest_dirs(home, config_home) {
+    for (_, to) in manifest_dirs(home, config_home) {
         let _ = fs::remove_file(to.join(format!("{name}.json")));
     }
 }
@@ -982,7 +918,7 @@ mod tests {
 
     #[test]
     fn hand_off_only_for_sites_and_not_too_often() {
-        let p = Passkey::new(sites(), PasskeyBrowser::Chrome);
+        let p = Passkey::new(sites());
         let t0 = Instant::now();
         let u = url("https://github.com/login?return_to=%2F");
         assert_eq!(p.hand_off("t1", &u, t0), Some(u.clone()));
@@ -996,7 +932,7 @@ mod tests {
     // リーダーの操作で始める（#276）。許可サイトの見方と待ちは hand_off と同じ
     #[test]
     fn start_by_hand_only_for_sites_and_not_in_incognito() {
-        let p = Passkey::new(sites(), PasskeyBrowser::Chrome);
+        let p = Passkey::new(sites());
         let t0 = Instant::now();
         let u = url("https://github.com/login");
         assert_eq!(start(None, false, "t1", &u, t0), Start::NoSites);
@@ -1151,7 +1087,7 @@ mod tests {
 
     #[test]
     fn answers_the_sites_and_what_it_waits_for() {
-        let p = Passkey::new(sites(), PasskeyBrowser::Chrome);
+        let p = Passkey::new(sites());
         let t0 = Instant::now();
         let never = |_: &Waiting, _: Vec<Cookie<'static>>| -> Result<(), String> { panic!() };
         let r = p.handle(&json!({"type": "sites"}), t0, 0.0, never);
@@ -1174,7 +1110,7 @@ mod tests {
 
     #[test]
     fn takes_cookies_once_and_only_while_waiting() {
-        let p = Passkey::new(sites(), PasskeyBrowser::Chrome);
+        let p = Passkey::new(sites());
         let t0 = Instant::now();
         let never = |_: &Waiting, _: Vec<Cookie<'static>>| -> Result<(), String> { panic!() };
         // 許可していないサイト
@@ -1211,7 +1147,7 @@ mod tests {
     // 同時に届いても、受けるのは 1 つだけ
     #[test]
     fn takes_cookies_once_even_when_sent_at_the_same_time() {
-        let p = Arc::new(Passkey::new(sites(), PasskeyBrowser::Chrome));
+        let p = Arc::new(Passkey::new(sites()));
         let t0 = Instant::now();
         p.hand_off("t1", &url("https://github.com/login"), t0);
         let applied = Arc::new(std::sync::atomic::AtomicUsize::new(0));
@@ -1295,44 +1231,30 @@ mod tests {
         private_dir(&dir).unwrap();
         let sock = dir.join(SOCK);
         let exe = PathBuf::from("/opt/it's/kisui-terminal");
-        // 使っているブラウザ（印のフォルダがあるもの）にだけ置く（Chrome と Firefox は使っていて、Chromium は使っていない）
-        let (chrome, chromium, firefox) = if cfg!(target_os = "macos") {
+        // 使っている Firefox（印のフォルダがあるもの）にだけ置く（Linux は ~/.mozilla を使っていて、$XDG_CONFIG_HOME/mozilla は使っていない）
+        let (firefox, unused) = if cfg!(target_os = "macos") {
             let a = home.join("Library/Application Support");
-            fs::create_dir_all(a.join("Google/Chrome")).unwrap();
             fs::create_dir_all(a.join("Firefox")).unwrap();
-            (
-                a.join("Google/Chrome/NativeMessagingHosts"),
-                a.join("Chromium"),
-                a.join("Mozilla/NativeMessagingHosts"),
-            )
+            (a.join("Mozilla/NativeMessagingHosts"), None)
         } else {
-            fs::create_dir_all(home.join(".config/google-chrome")).unwrap();
             fs::create_dir_all(home.join(".mozilla")).unwrap();
             (
-                home.join(".config/google-chrome/NativeMessagingHosts"),
-                home.join(".config/chromium"),
                 home.join(".mozilla/native-messaging-hosts"),
+                Some(home.join(".config/mozilla")),
             )
         };
         let name = STABLE;
         let written = install(name, &dir, &sock, &exe, &home, None).unwrap();
-        let c = chrome.join(format!("{name}.json"));
         let m = firefox.join(format!("{name}.json"));
-        assert_eq!(written, vec![c.clone(), m.clone()]);
-        // Chrome には CHROME_EXTENSION_IDS の id だけをつないでよいと書く
-        let cv: Value = serde_json::from_slice(&fs::read(&c).unwrap()).unwrap();
-        let origins: Vec<Value> = CHROME_EXTENSION_IDS
-            .iter()
-            .map(|id| json!(format!("chrome-extension://{id}/")))
-            .collect();
-        assert!(!origins.is_empty());
-        assert_eq!(cv["allowed_origins"], Value::Array(origins));
-        assert_eq!(cv["allowed_extensions"], Value::Null);
-        assert!(!chromium.exists());
+        assert_eq!(written, vec![m.clone()]);
+        if let Some(u) = unused {
+            assert!(!u.exists());
+        }
         let v: Value = serde_json::from_slice(&fs::read(&m).unwrap()).unwrap();
         assert_eq!(v["name"], name);
         assert_eq!(v["type"], "stdio");
         assert_eq!(v["allowed_extensions"], json!([FIREFOX_EXTENSION_ID]));
+        assert_eq!(v["allowed_origins"], Value::Null);
         let script = dir.join(SCRIPT_FILE);
         assert_eq!(v["path"], script.to_str().unwrap());
         let body = fs::read_to_string(&script).unwrap();
@@ -1347,7 +1269,6 @@ mod tests {
         let mode = fs::metadata(&script).unwrap().permissions().mode() & 0o777;
         assert_eq!(mode, 0o700);
         uninstall(name, &home, None);
-        assert!(!c.exists());
         assert!(!m.exists());
         let _ = fs::remove_dir_all(&d);
     }
@@ -1405,8 +1326,8 @@ mod tests {
     }
 
     #[test]
-    fn host_name_is_valid_for_browsers() {
-        // Chrome：小文字の英数字・`_`・`.` だけ
+    fn host_name_is_valid_for_firefox() {
+        // Firefox：英数字・`_`・`.` だけ（小文字に揃える）
         assert!([STABLE, NIGHTLY]
             .concat()
             .chars()
@@ -1486,7 +1407,7 @@ mod tests {
     // 待つ単位は当たった項目。accounts.google.com で移っても、myaccount.google.com のタブの Cookie を受ける
     #[test]
     fn a_dot_site_waits_for_the_item() {
-        let p = Passkey::new(vec![".google.com".into()], PasskeyBrowser::Chrome);
+        let p = Passkey::new(vec![".google.com".into()]);
         let t0 = Instant::now();
         let never = |_: &Waiting, _: Vec<Cookie<'static>>| -> Result<(), String> { panic!() };
         let u = url("https://accounts.google.com/v3/signin");

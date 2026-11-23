@@ -5,7 +5,7 @@
   // 登録したものと、タブを覚えたときに入れたもの（background.js の track）の 2 回入ることがある
   if (globalThis.__kisuiRelay) return;
   globalThis.__kisuiRelay = true;
-  const api = globalThis.browser ?? globalThis.chrome;
+  const api = browser;
   document.addEventListener("kisui-terminal-passkey-success", () => {
     api.runtime.sendMessage({ type: "passkey-success" }).catch(() => {});
   });
