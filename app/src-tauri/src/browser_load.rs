@@ -203,22 +203,17 @@ pub fn tls_reason(
     }
 }
 
-/// 行き先の証明書（DER。並びの順は問わない）の有効期間から、期限切れ・まだ有効でないを見分ける。`now` は UNIX 時刻（秒）。
-/// どれかが期限切れなら期限切れ、そうでなくどれかがまだ有効でなければ「まだ有効でない」。どちらでもない・読めないなら None。
-/// macOS は、期限切れでも「信頼できない」（-1202）を返すので、エラーに付いてくる証明書で見分ける（tls_reason と同じく、
-/// 期限切れを先に知らせる）。
+/// 行き先自身の証明書（並びの先頭。DER）の有効期間から、期限切れ・まだ有効でないを見分ける。`now` は UNIX 時刻（秒）。
+/// 期限切れなら期限切れ、まだ有効でなければ「まだ有効でない」。どちらでもない・読めないなら None。
+/// macOS は、期限切れでも「信頼できない」（-1202）を返すので、エラーに付いてくる証明書で見分ける。
+/// 中間の証明書は見ない：サーバーが、古い発行元への橋渡しの期限切れの証明書を並びに残していることがあり、
+/// 本当の理由（発行元が分からない・名前が合わない）を「期限切れ」と取り違えるため。
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
-pub fn reason_by_dates<'a>(certs: impl IntoIterator<Item = &'a [u8]>, now: i64) -> Option<Reason> {
-    let (mut expired, mut early) = (false, false);
-    for der in certs {
-        if let Some((not_before, not_after)) = cert_validity(der) {
-            expired |= now > not_after;
-            early |= now < not_before;
-        }
-    }
-    if expired {
+pub fn reason_by_dates(leaf: &[u8], now: i64) -> Option<Reason> {
+    let (not_before, not_after) = cert_validity(leaf)?;
+    if now > not_after {
         Some(Reason::CertExpired)
-    } else if early {
+    } else if now < not_before {
         Some(Reason::CertNotYetValid)
     } else {
         None
@@ -587,41 +582,32 @@ mod mac {
         unsafe { CFGetTypeID(std::ptr::from_ref(obj).cast()) == type_id }
     }
 
-    /// エラーに付いてくる、行き先の証明書（DER）。WebKit は、行き先の信頼の結果（`NSURLErrorFailingURLPeerTrustErrorKey`
-    /// の SecTrust）か、証明書の並び（`NSErrorPeerCertificateChainKey`）を付ける。どちらも無ければ空。
-    unsafe fn peer_certificates(info: Option<&AnyObject>) -> Vec<Vec<u8>> {
+    /// エラーに付いてくる、行き先自身の証明書（並びの先頭。DER）。WebKit は、証明書の並び（`NSErrorPeerCertificateChainKey`。
+    /// TLS で届いた順で、先頭が行き先自身）か、行き先の信頼の結果（`NSURLErrorFailingURLPeerTrustErrorKey` の SecTrust。
+    /// 0 番が行き先自身）を付ける。どちらも無ければ None。
+    unsafe fn peer_leaf(info: Option<&AnyObject>) -> Option<Vec<u8>> {
         if let Some(chain) =
             value_of(info, "NSErrorPeerCertificateChainKey").filter(|c| is_kind(c, class!(NSArray)))
         {
             let n: usize = msg_send![&*chain, count];
-            let mut out = Vec::new();
-            for i in 0..n {
-                let c: Option<Retained<AnyObject>> = msg_send![&*chain, objectAtIndex: i];
+            if n > 0 {
+                let c: Option<Retained<AnyObject>> = msg_send![&*chain, objectAtIndex: 0usize];
                 if let Some(c) = c.filter(|c| is_cf(c, SecCertificate::type_id())) {
                     // SAFETY: 型を確かめた SecCertificateRef。get の決まりで包む（数を足して、手放すときに引く）
                     let cert =
                         SecCertificate::wrap_under_get_rule(Retained::as_ptr(&c).cast_mut().cast());
-                    out.push(cert.to_der());
+                    return Some(cert.to_der());
                 }
             }
-            if !out.is_empty() {
-                return out;
-            }
         }
-        let Some(trust) = value_of(info, "NSURLErrorFailingURLPeerTrustErrorKey")
-            .filter(|t| is_cf(t, SecTrust::type_id()))
-        else {
-            return Vec::new();
-        };
+        let trust = value_of(info, "NSURLErrorFailingURLPeerTrustErrorKey")
+            .filter(|t| is_cf(t, SecTrust::type_id()))?;
         // SAFETY: 型を確かめた SecTrustRef
         let trust = SecTrust::wrap_under_get_rule(Retained::as_ptr(&trust).cast_mut().cast());
-        // 並びを丸ごと返す SecTrustCopyCertificateChain は macOS 12 から。古い macOS でも動くよう、1 枚ずつ読む
+        // 並びを丸ごと返す SecTrustCopyCertificateChain は macOS 12 から。古い macOS でも動くよう、0 番を読む
         #[allow(deprecated)]
-        let certs = (0..trust.certificate_count())
-            .filter_map(|i| trust.certificate_at_index(i))
-            .map(|c| c.to_der())
-            .collect();
-        certs
+        let leaf = trust.certificate_at_index(0);
+        leaf.map(|c| c.to_der())
     }
 
     fn now() -> i64 {
@@ -653,8 +639,7 @@ mod mac {
         let info: Option<Retained<AnyObject>> = msg_send![error, userInfo];
         // 期限切れ・まだ有効でないも「信頼できない」で来るので、行き先の証明書の有効期間で見分ける
         if matches!(reason, Reason::CertUntrusted | Reason::CertOther) {
-            let certs = peer_certificates(info.as_deref());
-            if let Some(r) = reason_by_dates(certs.iter().map(Vec::as_slice), now()) {
+            if let Some(r) = peer_leaf(info.as_deref()).and_then(|c| reason_by_dates(&c, now())) {
                 reason = r;
             }
         }
@@ -950,11 +935,11 @@ mod tests {
     #[test]
     fn dates_tell_expired_and_not_yet_valid_apart() {
         let c = hex(CERT);
-        let one = |now| reason_by_dates([c.as_slice()], now);
+        let one = |now| reason_by_dates(&c, now);
         assert_eq!(one(T2051 + 1), Some(Reason::CertExpired));
         assert_eq!(one(T2020 - 1), Some(Reason::CertNotYetValid));
         assert_eq!(one(T2020 + 1), None);
-        assert_eq!(reason_by_dates(std::iter::empty(), T2051 + 1), None);
+        assert_eq!(reason_by_dates(&[], T2051 + 1), None);
     }
 
     /// 期間だけを入れた、形だけの証明書（version 無し）。
