@@ -5,6 +5,9 @@
    置き場所は app.css が決める（右の欄いっぱい）。 */
 .terminal {
   position: relative;
+  /* 自分だけの重なりの順をつくる。境界のつまみ（.terminal-bar、z-index 5）が外の順に混ざると、DB のタブ・ブラウザのページ・
+     空のワークスペースの画面（z-index 4）の上に、分割の線が窓の端まで突き出る（#420） */
+  isolation: isolate;
   box-sizing: border-box;
   min-height: 0;
   background: var(--gh-bg);
