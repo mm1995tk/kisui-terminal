@@ -1,5 +1,7 @@
 /* プロキシのパネル（#409。ProxyPanel.tsx）。グリッドの場所の右側に出し、タブの画面（ターミナル・ページ）は左に縮む
-   （縮める規則は layout.css と browser.css の .main[data-proxy-panel]）。上に通信の一覧、下に選んだ通信の中身 */
+   （縮める規則は layout.css と browser.css の .main[data-proxy-panel]）。上に通信の一覧、下に選んだ通信の中身。
+   見た目（#425）は、窓のカード（card.css）とボタン（button.css）の決まりに寄せる。パネルを地から浮かせた面（surface）にし、
+   見出しはカードの見出しの大きさ、一覧と中身は角の丸い枠に入れる。値は ui/styles/tokens.css の役割だけを使う。 */
 .root {
   position: absolute;
   top: 0;
@@ -10,9 +12,13 @@
   z-index: 4;
   display: flex;
   flex-direction: column;
+  gap: var(--space-8);
   min-width: 0;
+  /* 一覧の列を狭いときにやめる（下の @container）ための、パネルの幅の測り元 */
+  container-type: inline-size;
   border-left: 1px solid var(--color-border-strong);
-  background: var(--color-bg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-raised);
   color: var(--color-text);
   font-family: var(--font-ui);
   font-size: var(--text-body);
@@ -26,18 +32,20 @@
   border-left-color: var(--state-focus-ring);
 }
 
+/* 頭：カードの見出し（.card-header）と同じ間と字 */
 .head {
   flex: none;
   display: flex;
-  align-items: baseline;
-  gap: var(--space-8);
-  padding: var(--space-6) var(--space-12);
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4) var(--space-8);
+  padding: var(--space-12) var(--space-16);
   border-bottom: 1px solid var(--color-border);
 }
 
 .title {
   margin: 0;
-  font-size: var(--text-body);
+  font-size: var(--text-title);
   font-weight: var(--weight-strong);
   color: var(--color-text-strong);
 }
@@ -47,6 +55,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-family: var(--font-mono);
   font-size: var(--text-caption);
   color: var(--color-text-muted);
 }
@@ -58,47 +67,73 @@
   overflow-wrap: anywhere;
 }
 
-/* 通信の一覧。はみ出したら、この中だけがスクロールする */
+/* 通信の一覧と選んだ通信の中身は、角の丸い枠（入力欄の地）に入れる。はみ出したら、一覧の中だけがスクロールする */
+.list,
+.detail {
+  margin: 0 var(--space-12);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-8);
+  background: var(--color-bg);
+}
 .list {
   flex: 2;
   min-height: 0;
   overflow: auto;
 }
 
+/* 一覧：画面の字で、行を高くする */
 .table {
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
   table-layout: fixed;
-  font-family: var(--font-mono);
-  font-size: var(--text-label);
+  font-family: var(--font-ui);
+  font-size: var(--text-body);
+}
+
+/* 列の幅（FlowList.tsx の colgroup）。大きさと時間は、狭いとき（パネルが 420px 以下）にやめる */
+.colMethod {
+  width: 10ch;
+}
+.colStatus {
+  width: 8ch;
+}
+.colSize {
+  width: 9ch;
+}
+.colTime {
+  width: 8ch;
 }
 
 .th {
   position: sticky;
   top: 0;
-  padding: var(--space-2) var(--space-6);
-  border-bottom: 1px solid var(--color-border-strong);
+  padding: var(--space-6) var(--space-10);
+  border-bottom: 1px solid var(--color-border);
   background: var(--color-surface);
   color: var(--color-text-muted);
-  font-weight: var(--weight-regular);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-strong);
   text-align: left;
   white-space: nowrap;
 }
 
 .row {
-  cursor: default;
+  cursor: pointer;
 }
 .row:hover {
   background: var(--state-hover-bg);
 }
+/* 選んだ行は、窓の一覧（.card-row）と同じ印 */
 .row[aria-selected="true"] {
   background: var(--state-selected-bg);
+  outline: 1px solid var(--state-selected-outline);
+  outline-offset: -1px;
+  font-weight: var(--weight-strong);
 }
 
 .cell {
-  padding: var(--space-2) var(--space-6);
-  border-bottom: 1px solid var(--color-border);
+  padding: var(--space-6) var(--space-10);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -108,6 +143,9 @@
   text-align: right;
 }
 
+.status {
+  font-weight: var(--weight-strong);
+}
 .status[data-kind="ok"] {
   color: var(--state-success);
 }
@@ -123,7 +161,6 @@
 /* 行き先に送る前に止めている要求（#411） */
 .status[data-kind="held"] {
   color: var(--state-warning);
-  font-weight: var(--weight-strong);
 }
 
 .host {
@@ -131,6 +168,8 @@
 }
 .path {
   color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
 }
 
 /* 選んだ通信の中身 */
@@ -139,37 +178,50 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  border-top: 1px solid var(--color-border-strong);
+  overflow: hidden;
 }
 
+/* 要求・応答の切り替え：ボタンが 2 つ並んだ切り替え（選んだ方を押し込んだ形） */
 .tabs {
   flex: none;
   display: flex;
-  gap: var(--space-4);
-  padding: var(--space-4) var(--space-8) 0;
+  padding: var(--space-8) var(--space-12);
   border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
 }
 
 .tab {
-  padding: var(--space-4) var(--space-10);
-  border: 1px solid transparent;
-  border-bottom: none;
-  border-radius: var(--radius-4) var(--radius-4) 0 0;
-  background: transparent;
-  color: var(--color-text-muted);
+  height: 28px;
+  padding: 0 var(--space-12);
+  border: 1px solid var(--button-border);
+  border-radius: 0;
+  background: var(--button-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-weight: var(--button-weight);
   cursor: pointer;
 }
+.tab:first-child {
+  border-radius: var(--radius-6) 0 0 var(--radius-6);
+}
+.tab:last-child {
+  border-left: 0;
+  border-radius: 0 var(--radius-6) var(--radius-6) 0;
+}
 .tab[aria-selected="true"] {
-  border-color: var(--color-border);
-  background: var(--color-surface);
+  border-color: var(--state-focus-ring);
+  background: var(--state-selected-bg);
   color: var(--color-text-strong);
+}
+.tab:last-child[aria-selected="true"] {
+  border-left: 1px solid var(--state-focus-ring);
 }
 
 .content {
   flex: 1;
   min-height: 0;
   overflow: auto;
-  padding: var(--space-8) var(--space-12);
+  padding: var(--space-12) var(--space-16);
   user-select: text;
 }
 
@@ -187,26 +239,41 @@
   overflow-wrap: anywhere;
 }
 
+/* 段の見出し：窓の一覧の見出し（.card-section）と同じ */
 .section {
   display: block;
-  margin: var(--space-8) 0 var(--space-4);
-  font-size: var(--text-caption);
+  margin: var(--space-12) 0 var(--space-6);
+  font-size: var(--text-label);
   font-weight: var(--weight-strong);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   color: var(--color-text-muted);
 }
 
+/* ヘッダー：名前を画面の字で、値は等幅。行ごとに区切る */
 .headers {
   margin: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-6);
   font-family: var(--font-mono);
   font-size: var(--text-label);
 }
 .header {
   display: flex;
   gap: var(--space-6);
+  padding: var(--space-4) var(--space-8);
+}
+.header + .header {
+  border-top: 1px solid var(--color-border);
 }
 .name {
   flex: none;
+  width: 14ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
   color: var(--color-text-muted);
+  font-family: var(--font-ui);
+  font-size: var(--text-caption);
 }
 .value {
   margin: 0;
@@ -214,17 +281,23 @@
   overflow-wrap: anywhere;
 }
 
+/* 本文：長いエラーと同じ、入力欄の地の角の丸い枠 */
 .body {
   margin: 0;
+  padding: var(--space-8) var(--space-10);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-6);
+  background: var(--color-field);
   font-family: var(--font-mono);
   font-size: var(--text-label);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 
+/* 足もと：カードの下の段（.card-footer）と同じ */
 .foot {
   flex: none;
-  padding: var(--space-4) var(--space-12);
+  padding: var(--space-10) var(--space-16);
   border-top: 1px solid var(--color-border);
   font-size: var(--text-caption);
   color: var(--color-text-muted);
@@ -235,7 +308,7 @@
   flex: none;
   margin-left: auto;
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: var(--space-8);
 }
 .holding {
@@ -243,35 +316,45 @@
   color: var(--state-warning);
   white-space: nowrap;
 }
+/* ボタン（.button）と同じ形を小さく */
 .holdButton {
-  padding: 0 var(--space-6);
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-4);
-  background: transparent;
+  height: 28px;
+  padding: 0 var(--space-12);
+  border: 1px solid var(--button-border);
+  border-radius: var(--radius-6);
+  background: var(--button-bg);
   color: var(--color-text);
   font: inherit;
-  font-size: var(--text-caption);
+  font-weight: var(--button-weight);
   white-space: nowrap;
   cursor: pointer;
+}
+.holdButton:hover {
+  background: var(--button-bg-hover);
+  border-color: var(--button-border-hover);
 }
 .holdButton[aria-pressed="true"] {
   border-color: var(--state-warning);
   color: var(--state-warning);
 }
 
-/* 止めている要求を選んだときの、流す・書き換える・捨てるの並び（#411。中身の上） */
+/* 止めている要求を選んだときの、流す・書き換える・捨てるの並び（#411。中身の上）。注意の色の帯（左に太い線） */
 .heldBar {
   flex: none;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-8);
-  padding: var(--space-4) var(--space-12);
+  padding: var(--space-10) var(--space-12);
   border-bottom: 1px solid var(--color-border);
+  border-left: 3px solid var(--state-warning);
+  background: color-mix(in srgb, var(--state-warning) 10%, transparent);
 }
 .heldNote {
   min-width: 0;
   color: var(--state-warning);
+  font-weight: var(--weight-strong);
   overflow-wrap: anywhere;
 }
 
@@ -291,14 +374,20 @@
 .editHead {
   flex: none;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-8);
-  padding: var(--space-4) var(--space-12);
+  padding: var(--space-10) var(--space-12);
   border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
 }
 .editHead .section {
   margin: 0;
+  color: var(--color-text-strong);
+  font-size: var(--text-body);
+  letter-spacing: normal;
+  text-transform: none;
 }
 
 .editActions {
@@ -309,18 +398,20 @@
 .requestLine {
   display: flex;
   gap: var(--space-6);
+  margin-bottom: var(--space-4);
 }
 
+/* 入力欄は窓の入力欄（.card-input）の地と縁 */
 .input {
   box-sizing: border-box;
   min-width: 0;
-  padding: var(--space-4) var(--space-6);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-4);
-  background: var(--color-surface);
+  padding: var(--space-6) var(--space-8);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-6);
+  background: var(--color-field);
   color: var(--color-text);
   font-family: var(--font-mono);
-  font-size: var(--text-label);
+  font-size: var(--text-caption);
 }
 .input:focus {
   outline: none;
@@ -346,4 +437,22 @@
   margin: 0 0 var(--space-4);
   color: var(--color-text-muted);
   overflow-wrap: anywhere;
+}
+
+/* 狭いとき（パネルが 420px 以下）：大きさと時間の列をやめ、ホストとパスに幅を回す */
+@container (max-width: 420px) {
+  .colSize,
+  .colTime {
+    width: 0;
+  }
+  .colMethod {
+    width: 11ch;
+  }
+  .colStatus {
+    width: 7ch;
+  }
+  .optional {
+    padding: 0;
+    font-size: 0;
+  }
 }

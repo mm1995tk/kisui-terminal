@@ -88,10 +88,10 @@ export function FlowList(props: {
         <span class={styles.host}>{f.host}</span>
         <span class={styles.path}>{f.path}</span>
       </td>
-      <td class={styles.cell} data-kind="number">
+      <td class={`${styles.cell} ${styles.optional}`} data-kind="number">
         {waiting(f) ? "" : formatSize(f.respSize)}
       </td>
-      <td class={styles.cell} data-kind="number">
+      <td class={`${styles.cell} ${styles.optional}`} data-kind="number">
         {waiting(f) ? "" : formatDuration(f.durationMs)}
       </td>
     </tr>
@@ -105,21 +105,21 @@ export function FlowList(props: {
       >
         <table class={styles.table} role="grid">
           <colgroup>
-            <col style={{ width: "8ch" }} />
-            <col style={{ width: "8ch" }} />
+            <col class={styles.colMethod} />
+            <col class={styles.colStatus} />
             <col />
-            <col style={{ width: "9ch" }} />
-            <col style={{ width: "8ch" }} />
+            <col class={styles.colSize} />
+            <col class={styles.colTime} />
           </colgroup>
           <thead>
             <tr>
               <th class={styles.th}>{T("proxy.col.method")}</th>
               <th class={styles.th}>{T("proxy.col.status")}</th>
               <th class={styles.th}>{T("proxy.col.url")}</th>
-              <th class={styles.th} data-kind="number">
+              <th class={`${styles.th} ${styles.optional}`} data-kind="number">
                 {T("proxy.col.size")}
               </th>
-              <th class={styles.th} data-kind="number">
+              <th class={`${styles.th} ${styles.optional}`} data-kind="number">
                 {T("proxy.col.time")}
               </th>
             </tr>
