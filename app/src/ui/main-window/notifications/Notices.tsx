@@ -1,5 +1,6 @@
 // 右下に積む知らせのカード。後ろの画面は触れたまま、閉じるまで残す。
-// 内蔵ブラウザのページの上では、浮かべるもの（data-overlay。ui/main-window/content/browser/overlay.ts）として重ねる（#439）。
+// ただし内蔵ブラウザのページの上では、浮かべるもの（data-overlay。ui/main-window/content/browser/overlay.ts）として重ねる。
+// macOS では、閉じるまでページを操作できない（#439）。
 // つながらない（failed）・別の GUI に移った（C7）・ワークスペースに移れなかった、と、
 // 新しい版の知らせ（C8。ui/main-window/notifications/UpdateBar.tsx。children で受ける）。
 import { For, Show, type JSX } from "solid-js";
