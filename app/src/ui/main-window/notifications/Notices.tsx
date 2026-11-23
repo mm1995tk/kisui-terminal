@@ -1,4 +1,5 @@
 // 右下に積む知らせのカード。後ろの画面は触れたまま、閉じるまで残す。
+// 内蔵ブラウザのページの上では、浮かべるもの（data-overlay。ui/main-window/content/browser/overlay.ts）として重ねる（#439）。
 // つながらない（failed）・別の GUI に移った（C7）・ワークスペースに移れなかった、と、
 // 新しい版の知らせ（C8。ui/main-window/notifications/UpdateBar.tsx。children で受ける）。
 import { For, Show, type JSX } from "solid-js";
@@ -37,7 +38,7 @@ export function Notices(props: {
   children?: JSX.Element;
 }): JSX.Element {
   return (
-    <div class="card-notices">
+    <div class="card-notices" data-overlay="">
       <For each={props.notices}>
         {(n) => (
           <aside class="card card-notice" role="alert" aria-label={n.title}>
