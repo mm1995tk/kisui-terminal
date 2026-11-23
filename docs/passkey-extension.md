@@ -197,11 +197,40 @@ Cookie をほかのプログラムに持ち出す動きは、ログイン情報�
 ## 使えないサイトと場面
 
 - ログインを Cookie でなく localStorage などに置くサイトでは、写せない（Cookie だけを写す）。
-- Device Bound Session Credentials でログインを端末（ブラウザ）に結び付けるサイト（Google など）では、写した Cookie が使えない。
+- Google（`.google.com`）で、Firefox から写したログインが内蔵ブラウザで続くかは、確かめていない。
+  下の「Device Bound Session Credentials（DBSC）と Google」に、分かっていることと確かめていないことを分けて書く。
 - 重要な操作の前に、その操作の画面の中でパスキーを求めるサイトでは、その操作は外のブラウザで行う。
   本人の確認をサーバーが覚える作り（GitHub の sudo mode）なら、外のブラウザで確認して Cookie を写したあと、内蔵ブラウザで続けられる。
 - 認証アプリのコードやパスワードでのログインは、外のブラウザに移らずに内蔵ブラウザで入力できる。
   外のブラウザの 1Password などの拡張機能でパスワードを入れたいときは、リーダーの `o s` で外のブラウザに移れる（上の「手で始める」）。
+
+## Device Bound Session Credentials（DBSC）と Google
+
+DBSC は、ログインの Cookie を、端末の中の鍵（Windows は TPM、macOS は Secure Enclave）に結び付ける仕組み。
+Cookie だけを別の端末やブラウザに持ち出しても、鍵が無いので使えなくなるように作られている。
+この文書は前に「DBSC のサイト（Google など）では写した Cookie が使えない」と言い切っていたが、それを確かめた記録は無かった（Issue #206 の「制約」の記述だけ）。
+外のブラウザが Firefox だけになった（#433）ので、分かっていることと確かめていないことを分けて書き直した。
+
+分かっていること（公開の文書で確かめた。2026-11 時点）：
+
+- Google は、DBSC を Chrome 146 の Windows で出し、macOS には「次の Chrome で広げる」と書いている（[Google のブログ](https://blog.google/security/protecting-cookies-with-device-bound-session-credentials/)）。
+  このブログに、Linux と Firefox のことは書いていない。DBSC が使えない端末（安全な鍵の置き場が無い端末）でログインがどうなるかも、書いていない。
+- DBSC は W3C の作業中の仕様（[W3C](https://www.w3.org/TR/dbsc/)）。
+- Mozilla の標準の立場を決める場（[mozilla/standards-positions の #912](https://github.com/mozilla/standards-positions/issues/912)）で、DBSC には `position: negative` のラベルが付いている。
+  ただし、そのページに、正式な声明とラベルを付けた日付は無い。Mozilla の人は、設計は直せる（"could be (greatly) improved"）と書いている。
+  Firefox が DBSC を実装したという公開の文書は、見つけられなかった。
+
+確かめていないこと（この文書では言い切らない）：
+
+- Firefox が今、DBSC を実装していないこと。実装していないという Firefox 側の文書（リリースノート・MDN）は読んでいない。上は「見つけられなかった」まで。
+- Google が、Firefox でしたログインに DBSC の鍵を結び付けるか。結び付けないなら、写した Cookie は今までの Cookie と同じに使えるはずだが、実機で試していない。
+- 内蔵ブラウザ（macOS は WKWebView、Linux は WebKitGTK）が DBSC を実装しているか、Google がそれを DBSC に対応したブラウザと見なすか。
+- Google が、別の場所（IP アドレス・端末の特徴）から使われた Cookie を、DBSC と関係なく止めるか。
+- `passkey_sites = [".google.com"]` で、内蔵ブラウザから Google にパスキーでログインし、Firefox でログインした後に Cookie が戻り、タブがログインした状態で開き直り、そのまま続くか（#279 で、まだ試していないと書いた）。
+
+つまり、Google で使えるか使えないかは、どちらとも言えない。試して分かったら、Issue で知らせてほしい。
+Cookie が戻ったあと、しばらくしてログインが切れるなら、DBSC か Google の別の仕組みが働いている可能性がある。
+その場合、kisui-terminal の側でできることは無い（鍵は外のブラウザの中にあり、持ち出せない）。
 
 ## 拡張機能なしで試す
 
