@@ -263,3 +263,9 @@ export const Narrow: Story = {
     ),
   ],
 };
+
+/** 狭い幅で、止めている要求を選んでいる（#422）。ボタンの字は 1 行、頭の待ち受け口は読め、説明は細かく折り返さない。 */
+export const HoldingNarrow: Story = {
+  args: Holding.args,
+  decorators: Narrow.decorators,
+};

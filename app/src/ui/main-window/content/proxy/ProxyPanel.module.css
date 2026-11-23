@@ -392,7 +392,12 @@
 
 .editActions {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--space-6);
+}
+/* 狭い幅では、ボタンを縮めず、ボタンごと次の行に移す（#422。字を折り返さない決まりは button.css） */
+.editActions > * {
+  flex: none;
 }
 
 .requestLine {
