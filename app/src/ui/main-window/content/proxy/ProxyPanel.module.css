@@ -392,7 +392,13 @@
 
 .editActions {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--space-6);
+}
+/* 狭い幅（特に日本語の字）で、ボタンの字が 2 行に折れない。足りなければ、ボタンごと次の行に移す（#422） */
+.editActions :global(.button) {
+  flex: none;
+  white-space: nowrap;
 }
 
 .requestLine {
