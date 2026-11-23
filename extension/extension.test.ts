@@ -733,9 +733,9 @@ test("Firefox の id は kisui-terminal の受け口が許すものと同じ", (
   assert.equal(base.browser_specific_settings.gecko.id, id);
 });
 
-test("host の権限は http も持ち、頼み直す権限（background.js の ORIGINS）と同じ", () => {
-  // http は、Secure の付かない Cookie を読むため（background.js の ORIGINS の説明）
-  assert.deepEqual(base.host_permissions, ["https://*/*", "http://*/*"]);
+test("host の権限は https だけで、頼み直す権限（background.js の ORIGINS）と同じ", () => {
+  // http は持たない。Secure の付かない Cookie も https の権限で読める（background.js の ORIGINS の説明）
+  assert.deepEqual(base.host_permissions, ["https://*/*"]);
   const origins = read("background.js").match(/const ORIGINS = (\[[^\]]*\]);/);
   assert.ok(origins);
   assert.deepEqual(JSON.parse(origins[1]), base.host_permissions);

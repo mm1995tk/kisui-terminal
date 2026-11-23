@@ -26,9 +26,9 @@ const api = browser;
 const K = KisuiPasskey;
 
 // 入れるときにもらう権限（manifest.json の host_permissions。extension.test.ts が同じことを確かめる）。
-// http://*/* は http のサイトのためではない。https のサイトの Cookie でも Secure の付かないもの（Google の SID など）を読むため
-// （Chromium では、http:// の host の権限が無いと cookies.getAll で返さなかった。Firefox で要るかは確かめていないので外さない）
-const ORIGINS = ["https://*/*", "http://*/*"];
+// http://*/* は持たない。Firefox では https://*/* だけで、https のサイトの Secure の付かない Cookie（Google の SID など）にも当たる
+// （Firefox の toolkit/components/extensions/parent/ext-cookies.js の query() と MatchPattern.cpp の MatchPatternCore::MatchesCookie。Issue #286）
+const ORIGINS = ["https://*/*"];
 // 許可サイトの一覧を聞き直すまでの長さ
 const SITES_TTL_MS = 60 * 1000;
 // 落ち着いたかを見る間隔
