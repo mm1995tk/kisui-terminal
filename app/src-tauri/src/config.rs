@@ -6,8 +6,9 @@
 //! 無ければ `config.toml` の一覧を使う。どちらのファイルも無くてよい。
 //! `[gui.browser] enabled`（内蔵ブラウザのタブを使うか。#202）は、書いてあるファイルのものを使い、両方にあれば `config.local.toml` が勝つ。
 //! どちらにも無ければ使わない。
-//! `[gui.browser] passkey_sites`（パスキーのときに外のブラウザへ移り、Cookie を写して戻ってよいサイト。#206）と
-//! `passkey_browser`（移る先のブラウザ）も、`enabled` と同じく、書いてあるファイルのものを使い、両方にあれば `config.local.toml` が勝つ。
+//! `[gui.browser] passkey_sites`（パスキーのときに外のブラウザ（Firefox）へ移り、Cookie を写して戻ってよいサイト。#206）も、
+//! `enabled` と同じく、書いてあるファイルのものを使い、両方にあれば `config.local.toml` が勝つ。
+//! 前の版の `passkey_browser`（移る先のブラウザを選んだ。#433 で Firefox だけにして外した）は、ほかの知らない項目と同じく読み飛ばす。
 //! `passkey_sites` に `.google.com`（先頭に `.`）の書き方で公開サフィックス（`.com`・`.github.io`）を書いた項目は、間違いにせず使わない
 //! （`passkey_rejected` に入れ、画面がお知らせに出す。ほかの項目は使う）。
 //! `[gui.sidebar] tabs-height`（タブの段の高さの上限。サイドバーの高さに対する %。10〜90 の整数。#284）も、書いてあるファイルのものを使い、両方にあれば `config.local.toml` が勝つ。
@@ -77,17 +78,6 @@ struct Browser {
     enabled: Option<bool>,
     /// パスキーのときに外のブラウザへ移り、Cookie を写して戻ってよいサイト（host。#206）
     passkey_sites: Option<Vec<Spanned<String>>>,
-    /// 移る先のブラウザ（`chrome` か `firefox`。書いていなければ `chrome`）
-    passkey_browser: Option<Spanned<String>>,
-}
-
-/// パスキーのときに移る外のブラウザ（#206）。
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub enum PasskeyBrowser {
-    /// Google Chrome（無ければ Chromium）
-    #[default]
-    Chrome,
-    Firefox,
 }
 
 /// 設定ファイルの GUI の節（`[gui]`）のうち、画面が使うもの。
@@ -99,9 +89,6 @@ pub struct GuiConfig {
     /// パスキーのときに外のブラウザへ移ってよいサイト（`[gui.browser] passkey_sites`。殻だけが使う）
     #[serde(skip)]
     pub passkey_sites: Vec<String>,
-    /// 移る先のブラウザ（`[gui.browser] passkey_browser`。殻だけが使う）
-    #[serde(skip)]
-    pub passkey_browser: PasskeyBrowser,
     /// `passkey_sites` に書いたが、公開サフィックスなので使わない項目（`.com` など。書いた形のまま。画面がお知らせに出す）
     #[serde(rename = "passkeyRejected")]
     pub passkey_rejected: Vec<String>,
@@ -129,7 +116,6 @@ struct Parsed {
     machines: Option<Vec<ConfigMachine>>,
     browser: Option<bool>,
     passkey_sites: Option<PasskeySites>,
-    passkey_browser: Option<PasskeyBrowser>,
     shortcuts: Option<BTreeMap<String, String>>,
     sidebar_tabs_height: Option<u8>,
 }
@@ -222,9 +208,6 @@ pub fn load_gui(dir: &Path) -> Result<GuiConfig, String> {
                 if let Some(s) = p.passkey_sites {
                     out.passkey_sites = s.used;
                     out.passkey_rejected = s.rejected;
-                }
-                if let Some(b) = p.passkey_browser {
-                    out.passkey_browser = b;
                 }
                 if let Some(h) = p.sidebar_tabs_height {
                     out.sidebar_tabs_height = Some(h);
@@ -436,15 +419,12 @@ fn parse_all(text: &str) -> Result<Parsed, (Option<usize>, String)> {
     let Some(gui) = file.gui else {
         return Ok(Parsed::default());
     };
-    let (browser, passkey_sites, passkey_browser) = match gui.browser {
+    let (browser, passkey_sites) = match gui.browser {
         Some(b) => (
             b.enabled,
             b.passkey_sites.map(|s| check_sites(text, &s)).transpose()?,
-            b.passkey_browser
-                .map(|s| check_passkey_browser(text, &s))
-                .transpose()?,
         ),
-        None => (None, None, None),
+        None => (None, None),
     };
     let shortcuts = gui.shortcuts;
     let sidebar_tabs_height = match gui.sidebar.and_then(|s| s.tabs_height) {
@@ -459,7 +439,6 @@ fn parse_all(text: &str) -> Result<Parsed, (Option<usize>, String)> {
         machines,
         browser,
         passkey_sites,
-        passkey_browser,
         shortcuts,
         sidebar_tabs_height,
     })
@@ -525,21 +504,6 @@ fn check_sites(
         }
     }
     Ok(PasskeySites { used, rejected })
-}
-
-/// `[gui.browser] passkey_browser` を確かめる。
-fn check_passkey_browser(
-    text: &str,
-    s: &Spanned<String>,
-) -> Result<PasskeyBrowser, (Option<usize>, String)> {
-    match s.get_ref().as_str() {
-        "chrome" => Ok(PasskeyBrowser::Chrome),
-        "firefox" => Ok(PasskeyBrowser::Firefox),
-        _ => Err((
-            Some(line_of(text, s.span().start)),
-            "gui.browser.passkey_browser: chrome か firefox を書きます".to_string(),
-        )),
-    }
 }
 
 /// `[gui.sidebar] tabs-height` を確かめる（範囲外は間違いにする）。
@@ -1084,13 +1048,13 @@ mod tests {
         let _ = fs::remove_dir_all(&d);
     }
 
-    // [gui.browser] passkey_sites・passkey_browser（#206）。書いてあるファイルのものを使い、config.local.toml が勝つ
+    // [gui.browser] passkey_sites（#206）。書いてあるファイルのものを使い、config.local.toml が勝つ。
+    // 前の版の passkey_browser（#433 で外した）は、何を書いても読み飛ばす
     #[test]
-    fn passkey_sites_and_browser() {
+    fn passkey_sites() {
         let d = temp_dir("passkey");
         let g = load_gui(&d).unwrap();
         assert!(g.passkey_sites.is_empty());
-        assert_eq!(g.passkey_browser, PasskeyBrowser::Chrome);
         fs::write(
             d.join("config.toml"),
             "[gui.browser]\nenabled = true\npasskey_sites = [\"github.com\", \"dash.cloudflare.com\", \"github.com\"]\npasskey_browser = \"firefox\"\n",
@@ -1098,7 +1062,6 @@ mod tests {
         .unwrap();
         let g = load_gui(&d).unwrap();
         assert_eq!(g.passkey_sites, vec!["github.com", "dash.cloudflare.com"]);
-        assert_eq!(g.passkey_browser, PasskeyBrowser::Firefox);
         // 書いていない config.local.toml は変えない。書けば勝つ（空の一覧も）
         fs::write(
             d.join("config.local.toml"),
@@ -1108,13 +1071,12 @@ mod tests {
         assert_eq!(load_gui(&d).unwrap().passkey_sites.len(), 2);
         fs::write(
             d.join("config.local.toml"),
-            "[gui.browser]\npasskey_sites = []\npasskey_browser = \"chrome\"\n",
+            "[gui.browser]\npasskey_sites = []\npasskey_browser = \"safari\"\n",
         )
         .unwrap();
         let g = load_gui(&d).unwrap();
         assert!(g.passkey_sites.is_empty());
-        assert_eq!(g.passkey_browser, PasskeyBrowser::Chrome);
-        // 使えない名前とブラウザは間違い
+        // 使えない名前は間違い
         for bad in [
             "passkey_sites = [\"https://github.com\"]",
             "passkey_sites = [\"GitHub.com\"]",
@@ -1124,7 +1086,6 @@ mod tests {
             "passkey_sites = [\".\"]",
             "passkey_sites = [\"github.com.\"]",
             "passkey_sites = [\"github.com:443\"]",
-            "passkey_browser = \"safari\"",
         ] {
             fs::write(
                 d.join("config.local.toml"),

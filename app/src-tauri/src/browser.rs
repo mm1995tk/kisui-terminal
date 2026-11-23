@@ -467,7 +467,7 @@ fn on_new_window(
             };
             let Ok(now) = v.url() else { return };
             if let Some(to) = p.hand_off(&tab, &now, Instant::now()) {
-                passkey::open_external(p.browser(), &to);
+                passkey::open_external(&to);
             }
         });
     } else if is_close_request(&u, nonce) {
@@ -1269,8 +1269,8 @@ pub fn browser_passkey_login(
     let p = app.try_state::<Arc<Passkey>>();
     let p = p.as_deref().map(Arc::as_ref);
     let r = passkey::start(p, info.incognito, &tab, &page_url, Instant::now());
-    if let (passkey::Start::Opened(Some(to)), Some(p)) = (&r, p) {
-        passkey::open_external(p.browser(), to);
+    if let passkey::Start::Opened(Some(to)) = &r {
+        passkey::open_external(to);
     }
     Ok(r.code().to_string())
 }

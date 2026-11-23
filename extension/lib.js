@@ -1,7 +1,7 @@
 // kisui-terminal の拡張機能の、ブラウザの API に触れない部分（background.js が使う。テストは extension.test.ts）。
 // 取り決めは docs/passkey-extension.md。
 //
-// Chrome の service worker（importScripts）と Firefox の background の scripts の両方で読めるよう、
+// Firefox の background の scripts（manifest.json の background.scripts。lib.js を先に読む）で読めるよう、
 // ES module にせず、大域の KisuiPasskey に入れる。
 //
 // 型は JSDoc で書き、tsc -p extension（npm test）で検査する。ビルドはしない。
@@ -19,7 +19,7 @@
  * @typedef {{ name: string, value: string, domain: string, hostOnly: boolean, path: string, secure: boolean, httpOnly: boolean, session: boolean, sameSite?: string, expirationDate?: number }} WireCookie
  */
 /**
- * ブラウザが返す Cookie（chrome.cookies.Cookie の、ここで使う部分。Firefox も同じ名前）
+ * ブラウザが返す Cookie（cookies.Cookie の、ここで使う部分）
  * @typedef {{ name: string, value: string, domain: string, hostOnly?: boolean, path?: string, secure?: boolean, httpOnly?: boolean, session?: boolean, sameSite?: string, expirationDate?: number }} BrowserCookie
  */
 

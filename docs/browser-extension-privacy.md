@@ -2,7 +2,7 @@
 
 (日本語は下にあります。)
 
-The kisui-terminal extension for Chrome and Firefox ("the extension") hands a login made with a passkey in your browser back to kisui-terminal, a desktop app on the same computer.
+The kisui-terminal extension for Firefox ("the extension") hands a login made with a passkey in your browser back to kisui-terminal, a desktop app on the same computer.
 
 ## What it reads
 
@@ -32,7 +32,7 @@ https://github.com/mm1995tk/kisui-terminal/issues
 
 # kisui-terminal の拡張機能のプライバシーポリシー
 
-Chrome と Firefox の kisui-terminal の拡張機能（以下「拡張機能」）は、ブラウザでパスキーでしたログインを、同じコンピューターのデスクトップアプリ kisui-terminal に戻します。
+Firefox の kisui-terminal の拡張機能（以下「拡張機能」）は、ブラウザでパスキーでしたログインを、同じコンピューターのデスクトップアプリ kisui-terminal に戻します。
 
 ## 読むもの
 

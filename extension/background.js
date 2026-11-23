@@ -8,8 +8,6 @@
 //
 // Cookie を読むのは、kisui-terminal の答えの sites にあるサイトのものだけ。
 
-if (typeof importScripts === "function") importScripts("lib.js");
-
 /**
  * kisui-terminal が開いたタブ（site は待っている許可サイトの項目（`github.com` か `.google.com`）、host は native messaging の受け口）
  * @typedef {{ site: string, host: string }} Hit
@@ -23,13 +21,13 @@ if (typeof importScripts === "function") importScripts("lib.js");
  * @typedef {Hit & { successAt: number, lastCookieChange: number }} Settling
  */
 
-// Chrome の chrome と Firefox の browser は、ここで使う範囲では同じ形（どちらも promise を返す）。型は chrome のものを使う
-const api = globalThis.browser ?? globalThis.chrome;
+// Firefox の browser（promise を返す）。型は @types/chrome のものを使う（globals.d.ts）
+const api = browser;
 const K = KisuiPasskey;
 
 // 入れるときにもらう権限（manifest.json の host_permissions。extension.test.ts が同じことを確かめる）。
-// http://*/* は http のサイトのためではない。Chromium は、https のサイトの Cookie でも、Secure の付かないもの
-// （Google の SID など）は、http:// の host の権限が無いと cookies.getAll で返さない。Firefox で要るかは確かめていない
+// http://*/* は http のサイトのためではない。https のサイトの Cookie でも Secure の付かないもの（Google の SID など）を読むため
+// （Chromium では、http:// の host の権限が無いと cookies.getAll で返さなかった。Firefox で要るかは確かめていないので外さない）
 const ORIGINS = ["https://*/*", "http://*/*"];
 // 許可サイトの一覧を聞き直すまでの長さ
 const SITES_TTL_MS = 60 * 1000;
@@ -37,7 +35,7 @@ const SITES_TTL_MS = 60 * 1000;
 const SETTLE_POLL_MS = 500;
 const SCRIPT_IDS = ["kisui-page", "kisui-relay"];
 
-// ---- 覚えておくもの（service worker が止まっても残るよう storage.session に置く）
+// ---- 覚えておくもの（background のスクリプトが止まっても残るよう storage.session に置く）
 
 async function loadState() {
   /** @type {{ sites?: string[], sitesAt?: number }} */
@@ -133,14 +131,14 @@ async function syncScripts(sites) {
 // ---- kisui-terminal が開いたタブを見分ける
 
 // できたばかりで、まだ http(s) のページを開いていないタブ（tabId → できた時刻）。
-// タブができてから最初のページまでは短く、その間は service worker が止まらないので、メモリに置く
+// タブができてから最初のページまでは短く、その間は background のスクリプトが止まらないので、メモリに置く
 /** @type {Map<number, number>} */
 const newTabs = new Map();
 
 /** @param {Tab} tab */
 async function onTabCreated(tab) {
   newTabs.set(tab.id, Date.now());
-  const url = tab.pendingUrl || tab.url;
+  const url = tab.url;
   if (url && K.hostOf(url)) await checkNewTab(tab.id, url);
 }
 
@@ -179,8 +177,7 @@ async function checkExistingTabs() {
   if (waiting.size === 0) return;
   const tabs = await api.tabs.query({});
   for (const tab of tabs) {
-    // 起動した直後の Chrome では、url が空で pendingUrl にだけ入っていることがある
-    const url = tab.pendingUrl || tab.url || "";
+    const url = tab.url ?? "";
     const site = K.waitingSiteOf(K.hostOf(url), sites, waiting);
     const w = site && waiting.get(site);
     if (site && w && K.sameUrl(url, w.url))
@@ -307,12 +304,9 @@ async function storeIdOf(tab) {
 async function getAll(details) {
   try {
     return await api.cookies.getAll(details);
-  } catch (e) {
-    // Firefox で first-party isolation を入れていると firstPartyDomain が要る
-    if (typeof browser !== "undefined") {
-      return await api.cookies.getAll({ ...details, firstPartyDomain: null });
-    }
-    throw e;
+  } catch {
+    // first-party isolation を入れていると firstPartyDomain が要る
+    return await api.cookies.getAll({ ...details, firstPartyDomain: null });
   }
 }
 
@@ -404,7 +398,7 @@ async function showError(tabId, code) {
     .catch(() => {});
 }
 
-// ---- つなぐ（service worker が起き直すたびに、同期で登録する）
+// ---- つなぐ（background のスクリプトが起き直すたびに、同期で登録する）
 
 api.tabs.onCreated.addListener(
   (tab) => void onTabCreated(/** @type {Tab} */ (tab)),

@@ -1,5 +1,5 @@
 # 外のブラウザの拡張機能（extension/。パスキーのログインの Cookie を kisui-terminal に送る）。
-# 出力は Chrome と Firefox のフォルダと、ストアに上げる zip（node extension/build.mjs と同じもの）。
+# 出力は Firefox のフォルダと、addons.mozilla.org に上げる zip（node extension/build.mjs と同じもの）。
 # テスト（npm run test:extension と同じ）も回す。依存は Node だけ（npm の依存は使わない）
 { pkgs }:
 let

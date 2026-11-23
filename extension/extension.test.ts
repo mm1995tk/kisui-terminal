@@ -4,12 +4,11 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, mkdtempSync, rmSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { inflateRawSync } from "node:zlib";
-import { createHash } from "node:crypto";
 import vm from "node:vm";
 // @ts-ignore 型の無い Node のスクリプト
-import { build, manifestFor, zip } from "./build.mjs";
+import { build, zip } from "./build.mjs";
 
 const dir = import.meta.dirname;
 const read = (p: string) => readFileSync(join(dir, p), "utf8");
@@ -27,7 +26,7 @@ test("hostOf は http(s) の host だけを小文字で返す", () => {
   assert.equal(K.hostOf("https://GitHub.com/login"), "github.com");
   assert.equal(K.hostOf("http://localhost:3000/"), "localhost");
   assert.equal(K.hostOf("about:blank"), null);
-  assert.equal(K.hostOf("chrome://newtab/"), null);
+  assert.equal(K.hostOf("about:newtab"), null);
   assert.equal(K.hostOf("not a url"), null);
 });
 
@@ -440,7 +439,7 @@ function fakeBrowser(opts: {
     }
   }
   const ctx: any = {
-    chrome: api,
+    browser: api,
     URL,
     Date: FakeDate,
     console,
@@ -495,7 +494,7 @@ test("kisui-terminal が開いたタブでパスキーが通ると、Cookie を�
   const b = fakeBrowser(GH);
   const tab = { id: 7, url: "https://github.com/login", status: "complete" };
   b.tabs.set(7, tab);
-  b.ev.created.fire({ id: 7, pendingUrl: "https://github.com/login" });
+  b.ev.created.fire({ id: 7, url: "https://github.com/login" });
   await settle();
   b.ev.message.fire(
     { type: "passkey-success" },
@@ -525,7 +524,7 @@ test("タブを覚えるのと、別のタブが閉じるのが重なっても�
   const b = fakeBrowser(GH);
   const tab = { id: 30, url: "https://github.com/login", status: "complete" };
   b.tabs.set(30, tab);
-  b.ev.created.fire({ id: 30, pendingUrl: tab.url });
+  b.ev.created.fire({ id: 30, url: tab.url });
   b.ev.removedTab.fire(31);
   await settle();
   assert.deepEqual(
@@ -537,9 +536,9 @@ test("タブを覚えるのと、別のタブが閉じるのが重なっても�
   );
 });
 
-test("ブラウザを起動したとき、待っている URL を読み込み中（pendingUrl だけ）のタブも覚える", async () => {
+test("ブラウザを起動したとき、待っている URL を開いているタブを覚える", async () => {
   const b = fakeBrowser(GH);
-  b.tabs.set(40, { id: 40, url: "", pendingUrl: "https://github.com/login" });
+  b.tabs.set(40, { id: 40, url: "https://github.com/login" });
   b.tabs.set(41, { id: 41, url: "https://github.com/" });
   b.ev.startup.fire();
   await settle();
@@ -554,7 +553,7 @@ test("覚えたタブが別の host にリダイレクトしていたら、ス�
     url: "https://sso.example.com/",
     status: "complete",
   });
-  b.ev.created.fire({ id: 60, pendingUrl: "https://github.com/login" });
+  b.ev.created.fire({ id: 60, url: "https://github.com/login" });
   await settle();
   assert.ok(b.session["tracked:60"]);
   assert.equal(b.injected.length, 0);
@@ -565,7 +564,7 @@ test("覚えた後に待ちが終わったサイトの Cookie は、パスキー
   const b = fakeBrowser(opts);
   const tab = { id: 50, url: "https://github.com/login", status: "complete" };
   b.tabs.set(50, tab);
-  b.ev.created.fire({ id: 50, pendingUrl: tab.url });
+  b.ev.created.fire({ id: 50, url: tab.url });
   await settle();
   assert.ok(b.session["tracked:50"]);
   opts.waiting = [];
@@ -590,13 +589,13 @@ test("kisui-terminal が開いていないタブの知らせは使わない", as
 test("kisui-terminal が答えないときも、聞いてから 1 分は新しいタブで聞き直さない", async () => {
   const b = fakeBrowser({ ...GH, down: true });
   for (const id of [20, 21]) {
-    b.ev.created.fire({ id, pendingUrl: "https://example.com/" });
+    b.ev.created.fire({ id, url: "https://example.com/" });
     await settle();
   }
   // 1 つ目のタブで 2 つの受け口に 1 回ずつ聞き、2 つ目では聞かない
   assert.equal(b.native.length, 2);
   b.advance(60 * 1000);
-  b.ev.created.fire({ id: 22, pendingUrl: "https://example.com/" });
+  b.ev.created.fire({ id: 22, url: "https://example.com/" });
   await settle();
   assert.equal(b.native.length, 4);
 });
@@ -605,7 +604,7 @@ test("待っていないサイトのタブは覚えない", async () => {
   const b = fakeBrowser({ sites: ["github.com"], waiting: [] });
   const tab = { id: 9, url: "https://github.com/", status: "complete" };
   b.tabs.set(9, tab);
-  b.ev.created.fire({ id: 9, pendingUrl: tab.url });
+  b.ev.created.fire({ id: 9, url: tab.url });
   await settle();
   b.ev.message.fire({ type: "passkey-success" }, { tab, url: tab.url });
   await settle();
@@ -677,7 +676,7 @@ test(".google.com で待っていれば、myaccount.google.com に移っても�
     status: "complete",
   };
   b.tabs.set(70, tab);
-  b.ev.created.fire({ id: 70, pendingUrl: tab.url });
+  b.ev.created.fire({ id: 70, url: tab.url });
   await settle();
   assert.deepEqual(
     { ...b.session["tracked:70"] },
@@ -731,21 +730,12 @@ const base = JSON.parse(read("manifest.json"));
 test("Firefox の id は kisui-terminal の受け口が許すものと同じ", () => {
   const rs = readFileSync(join(dir, "../app/src-tauri/src/passkey.rs"), "utf8");
   const id = rs.match(/FIREFOX_EXTENSION_ID: &str = "([^"]+)"/)![1];
-  assert.equal(
-    manifestFor("firefox", base).browser_specific_settings.gecko.id,
-    id,
-  );
+  assert.equal(base.browser_specific_settings.gecko.id, id);
 });
 
 test("host の権限は http も持ち、頼み直す権限（background.js の ORIGINS）と同じ", () => {
-  // Chromium は、Secure の付かない Cookie を、http:// の host の権限が無いと cookies.getAll で返さない
+  // http は、Secure の付かない Cookie を読むため（background.js の ORIGINS の説明）
   assert.deepEqual(base.host_permissions, ["https://*/*", "http://*/*"]);
-  for (const browser of ["chrome", "firefox"]) {
-    assert.deepEqual(
-      manifestFor(browser, base).host_permissions,
-      base.host_permissions,
-    );
-  }
   const origins = read("background.js").match(/const ORIGINS = (\[[^\]]*\]);/);
   assert.ok(origins);
   assert.deepEqual(JSON.parse(origins[1]), base.host_permissions);
@@ -758,15 +748,11 @@ test("受け口の名前は kisui-terminal のものと同じ", () => {
   );
 });
 
-test("Chrome の manifest には Firefox だけの項目を入れない", () => {
-  const m = manifestFor("chrome", base);
-  assert.deepEqual(m.background, { service_worker: "background.js" });
-  assert.equal(m.browser_specific_settings, undefined);
-  assert.equal(m.key, undefined);
-  assert.equal(manifestFor("chrome", base, { chromeKey: "k" }).key, "k");
-  assert.deepEqual(manifestFor("firefox", base).background, {
+test("manifest は Firefox の形（background は scripts で、lib.js を先に読む）", () => {
+  assert.deepEqual(base.background, {
     scripts: ["lib.js", "background.js"],
   });
+  assert.equal(base.key, undefined);
 });
 
 test("訳は en と ja で同じ鍵を持ち、使う鍵がすべてある", () => {
@@ -782,7 +768,7 @@ test("訳は en と ja で同じ鍵を持ち、使う鍵がすべてある", () 
     if (/^(error|action)/.test(m[1])) used.add(m[1]);
   }
   for (const k of used) assert.ok(k in en, k);
-  // Chrome ウェブストアの上限
+  // 名前と短い説明の長さの上限（長すぎるとストアが断る）
   for (const t of [en, ja]) {
     assert.ok([...t.extensionName.message].length <= 75);
     assert.ok(
@@ -817,87 +803,39 @@ test("zip は読み戻せる", () => {
   assert.equal(f.get("d/b.json")!.toString(), "{}");
 });
 
-test("build は両方のブラウザのフォルダと zip を作り、manifest の指すファイルがそろう", () => {
+test("build は firefox/ と zip を作り、manifest の指すファイルがそろう", () => {
   const out = mkdtempSync(join(tmpdir(), "kisui-ext-"));
   try {
     const made = build(out);
-    assert.equal(made.length, 2);
-    for (const browser of ["chrome", "firefox"]) {
-      const files = unzip(
-        readFileSync(
-          join(out, `kisui-terminal-${browser}-${base.version}.zip`),
-        ),
-      );
-      const m = JSON.parse(files.get("manifest.json")!.toString());
-      const refs = [
-        ...Object.values(m.icons as Record<string, string>),
-        ...Object.values(m.action.default_icon as Record<string, string>),
-        ...(m.background.scripts ?? [m.background.service_worker]),
-        "page.js",
-        "relay.js",
-        "_locales/en/messages.json",
-        "_locales/ja/messages.json",
-      ];
-      for (const r of refs) assert.ok(files.has(r), `${browser}: ${r}`);
-      assert.ok(readdirSync(join(out, browser)).includes("manifest.json"));
+    const name = `kisui-terminal-firefox-${base.version}.zip`;
+    assert.equal(made, join(out, name));
+    assert.deepEqual(readdirSync(out).sort(), ["firefox", name]);
+    const files = unzip(readFileSync(made));
+    const m = JSON.parse(files.get("manifest.json")!.toString());
+    assert.deepEqual(m, base);
+    const refs = [
+      ...Object.values(m.icons as Record<string, string>),
+      ...Object.values(m.action.default_icon as Record<string, string>),
+      ...m.background.scripts,
+      "page.js",
+      "relay.js",
+      "_locales/en/messages.json",
+      "_locales/ja/messages.json",
+    ];
+    for (const r of refs) {
+      assert.ok(files.has(r), r);
+      assert.ok(readdirSync(join(out, "firefox", dirname(r))).length > 0, r);
     }
+    // zip の中身は extension/ のファイルそのもの
+    for (const [f, data] of files)
+      assert.deepEqual(data, readFileSync(join(dir, f)), f);
     // 同じソースからは同じ zip
     const again = mkdtempSync(join(tmpdir(), "kisui-ext-"));
     try {
-      build(again);
-      for (const browser of ["chrome", "firefox"]) {
-        const name = `kisui-terminal-${browser}-${base.version}.zip`;
-        assert.deepEqual(
-          readFileSync(join(out, name)),
-          readFileSync(join(again, name)),
-        );
-      }
+      assert.deepEqual(readFileSync(made), readFileSync(build(again)));
     } finally {
       rmSync(again, { recursive: true, force: true });
     }
-  } finally {
-    rmSync(out, { recursive: true, force: true });
-  }
-});
-
-// Chrome の拡張機能の id：manifest の key（公開鍵の DER を base64 にしたもの）の SHA-256 の先頭 16 バイトを、16 進の 0〜f を a〜p に置き換えて書いたもの
-function chromeId(key: string): string {
-  return [
-    ...createHash("sha256")
-      .update(Buffer.from(key, "base64"))
-      .digest("hex")
-      .slice(0, 32),
-  ]
-    .map((c) => String.fromCharCode(97 + parseInt(c, 16)))
-    .join("");
-}
-
-test("手で入れる chrome/ の id は、受け口がつないでよいストアの id と同じで、zip には key を入れない", () => {
-  const rs = readFileSync(join(dir, "../app/src-tauri/src/passkey.rs"), "utf8");
-  const ids = rs.match(/CHROME_EXTENSION_IDS: &\[&str\] = &\[([^\]]*)\]/);
-  assert.ok(ids, "CHROME_EXTENSION_IDS が passkey.rs に無い");
-  const allowed = [...ids[1].matchAll(/"([a-p]{32})"/g)].map((m) => m[1]);
-  assert.ok(allowed.length > 0, "CHROME_EXTENSION_IDS が空");
-  const out = mkdtempSync(join(tmpdir(), "kisui-ext-"));
-  try {
-    build(out);
-    const m = JSON.parse(
-      readFileSync(join(out, "chrome", "manifest.json"), "utf8"),
-    );
-    assert.ok(allowed.includes(chromeId(m.key)), chromeId(m.key));
-    for (const browser of ["chrome", "firefox"]) {
-      const files = unzip(
-        readFileSync(
-          join(out, `kisui-terminal-${browser}-${base.version}.zip`),
-        ),
-      );
-      const zm = JSON.parse(files.get("manifest.json")!.toString());
-      assert.equal(zm.key, undefined, browser);
-    }
-    const fm = JSON.parse(
-      readFileSync(join(out, "firefox", "manifest.json"), "utf8"),
-    );
-    assert.equal(fm.key, undefined);
   } finally {
     rmSync(out, { recursive: true, force: true });
   }
