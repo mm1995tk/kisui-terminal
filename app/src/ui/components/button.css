@@ -6,6 +6,8 @@
   align-items: center;
   gap: var(--space-8);
   height: 32px;
+  /* 高さが決まっているので、字は折り返さない（狭い幅で 2 行になるとはみ出す） */
+  white-space: nowrap;
   padding: 0 var(--space-16);
   border: 1px solid var(--button-border);
   border-radius: var(--radius-6);
