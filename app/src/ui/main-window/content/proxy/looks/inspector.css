@@ -1,0 +1,242 @@
+/* 案 C「2 段の行の一覧」（ProxyPanelLooks.stories.tsx）。一覧の 1 行を、ホスト（太字）とパス（等幅）の 2 段にし、
+   ステータスを右に札で出す（ブラウザの開発者ツールやメールの一覧のような、選ぶための行）。列の見出しは出さない。
+   中身は、名前と値の 2 列のヘッダーと、段の見出しの小さい大文字で、読み物として並べる。
+   クラスの名前は ProxyPanel.module.css のもの（stories が、読み込んだ CSS モジュールの名前に置き換える）。
+   値は ui/styles/tokens.css の役割だけを使う。 */
+
+[data-look="inspector"] .root {
+  border-left: 1px solid var(--color-border-strong);
+  background: var(--color-surface);
+}
+
+[data-look="inspector"] .head {
+  flex-wrap: wrap;
+  align-items: center;
+  row-gap: var(--space-2);
+  padding: var(--space-10) var(--space-12);
+}
+[data-look="inspector"] .title {
+  font-size: var(--text-title);
+}
+[data-look="inspector"] .hold {
+  align-items: center;
+}
+/* 止める切り替え：丸いスイッチのような札 */
+[data-look="inspector"] .holdButton {
+  height: 24px;
+  padding: 0 var(--space-10);
+  border-radius: 12px;
+  border-color: var(--color-border-strong);
+  font-weight: var(--weight-strong);
+}
+[data-look="inspector"] .holdButton[aria-pressed="true"] {
+  border-color: var(--state-warning);
+  background: color-mix(in srgb, var(--state-warning) 16%, transparent);
+}
+
+/* 一覧：表をやめ、行をグリッドの 2 段にする */
+[data-look="inspector"] .list {
+  flex: 1 1 50%;
+  padding: var(--space-4) var(--space-8);
+  background: var(--color-surface);
+}
+[data-look="inspector"] .table,
+[data-look="inspector"] .table tbody {
+  display: block;
+  font-family: var(--font-ui);
+  font-size: var(--text-body);
+}
+[data-look="inspector"] .table colgroup,
+[data-look="inspector"] .table thead {
+  display: none;
+}
+[data-look="inspector"] .row {
+  display: grid;
+  grid-template-columns: 6ch minmax(0, 1fr) auto auto;
+  grid-template-areas:
+    "method url status status"
+    "method url size time";
+  column-gap: var(--space-8);
+  margin-bottom: var(--space-2);
+  padding: var(--space-6) var(--space-8);
+  border-radius: var(--radius-8);
+  cursor: pointer;
+}
+[data-look="inspector"] .row[aria-selected="true"] {
+  background: var(--state-selected-bg);
+  outline: 1px solid var(--state-selected-outline);
+  outline-offset: -1px;
+}
+[data-look="inspector"] .row[data-held] {
+  box-shadow: inset 3px 0 0 var(--state-warning);
+}
+[data-look="inspector"] .cell {
+  display: block;
+  padding: 0;
+  border: 0;
+}
+[data-look="inspector"] .cell:nth-child(1) {
+  grid-area: method;
+  align-self: center;
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  font-weight: var(--weight-strong);
+  color: var(--color-text-muted);
+}
+[data-look="inspector"] .cell:nth-child(2) {
+  grid-area: status;
+  justify-self: end;
+  align-self: start;
+}
+[data-look="inspector"] .cell:nth-child(3) {
+  grid-area: url;
+}
+[data-look="inspector"] .cell:nth-child(4) {
+  grid-area: size;
+}
+[data-look="inspector"] .cell:nth-child(5) {
+  grid-area: time;
+}
+[data-look="inspector"] .cell:nth-child(4),
+[data-look="inspector"] .cell:nth-child(5) {
+  color: var(--color-text-dim);
+  font-size: var(--text-label);
+}
+[data-look="inspector"] .host,
+[data-look="inspector"] .path {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+[data-look="inspector"] .host {
+  font-weight: var(--weight-strong);
+}
+[data-look="inspector"] .path {
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+}
+/* ステータス：丸い札 */
+[data-look="inspector"] .status {
+  padding: 0 var(--space-6);
+  border-radius: var(--radius-8);
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  font-weight: var(--weight-strong);
+  line-height: 1.6;
+}
+[data-look="inspector"] .status[data-kind="ok"] {
+  background: color-mix(in srgb, var(--state-success) 16%, transparent);
+}
+[data-look="inspector"] .status[data-kind="warn"],
+[data-look="inspector"] .status[data-kind="held"] {
+  background: color-mix(in srgb, var(--state-warning) 16%, transparent);
+}
+[data-look="inspector"] .status[data-kind="error"] {
+  background: color-mix(in srgb, var(--state-danger) 16%, transparent);
+}
+[data-look="inspector"] .status[data-kind="pending"] {
+  background: var(--state-hover-bg);
+}
+
+/* 中身：地の色を変え、要求・応答は下線のタブ */
+[data-look="inspector"] .detail {
+  border-top: 1px solid var(--color-border-strong);
+  background: var(--color-bg);
+}
+[data-look="inspector"] .tabs {
+  gap: var(--space-16);
+  padding: 0 var(--space-12);
+  background: var(--color-surface);
+}
+[data-look="inspector"] .tab {
+  padding: var(--space-8) 0;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  font: inherit;
+  font-weight: var(--weight-strong);
+}
+[data-look="inspector"] .tab[aria-selected="true"] {
+  border-bottom-color: var(--state-focus-ring);
+  background: transparent;
+}
+[data-look="inspector"] .content {
+  padding: var(--space-12) var(--space-16);
+}
+[data-look="inspector"] .line {
+  padding: var(--space-8) var(--space-10);
+  border-radius: var(--radius-6);
+  background: var(--color-surface);
+}
+/* 段の見出し：小さい大文字（窓の一覧の見出し .card-section と同じ字の間） */
+[data-look="inspector"] .section {
+  margin: var(--space-16) 0 var(--space-6);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+  font-size: var(--text-label);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+/* ヘッダー：名前（右寄せ、画面の字）と値の 2 列 */
+[data-look="inspector"] .headers {
+  display: grid;
+  grid-template-columns: minmax(8ch, max-content) minmax(0, 1fr);
+  gap: var(--space-2) var(--space-10);
+}
+[data-look="inspector"] .header {
+  display: contents;
+}
+[data-look="inspector"] .name {
+  font-family: var(--font-ui);
+  font-size: var(--text-caption);
+  text-align: right;
+}
+[data-look="inspector"] .body {
+  padding: var(--space-8) var(--space-10);
+  border-radius: var(--radius-6);
+  background: var(--color-surface);
+}
+
+/* 止めている要求：注意の色の枠のカード */
+[data-look="inspector"] .heldBar {
+  flex-wrap: wrap;
+  margin: var(--space-8) var(--space-12) 0;
+  padding: var(--space-8) var(--space-12);
+  border: 1px solid var(--state-warning);
+  border-radius: var(--radius-8);
+  background: color-mix(in srgb, var(--state-warning) 8%, transparent);
+}
+[data-look="inspector"] .heldNote {
+  font-weight: var(--weight-strong);
+}
+
+/* 書き換える欄 */
+[data-look="inspector"] .editHead {
+  flex-wrap: wrap;
+  padding: var(--space-8) var(--space-12);
+  background: var(--color-surface);
+}
+[data-look="inspector"] .editHead .section {
+  border: 0;
+  padding: 0;
+  color: var(--color-text-strong);
+  font-size: var(--text-body);
+  letter-spacing: normal;
+  text-transform: none;
+}
+[data-look="inspector"] .input {
+  padding: var(--space-6) var(--space-8);
+  border-color: var(--color-border-strong);
+  border-radius: var(--radius-6);
+  background: var(--color-surface);
+  font-size: var(--text-caption);
+}
+
+[data-look="inspector"] .foot {
+  padding: var(--space-8) var(--space-12);
+  background: var(--color-surface);
+}
+/* 2 段の行は高いので、一覧と中身を半分ずつにする */
+[data-look="inspector"] .detail {
+  flex: 1 1 50%;
+}

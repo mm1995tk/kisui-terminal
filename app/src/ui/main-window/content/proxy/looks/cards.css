@@ -1,0 +1,230 @@
+/* 案 A「部品に寄せる」（ProxyPanelLooks.stories.tsx）。窓のカード（card.css）とボタン（button.css）の決まりに寄せる。
+   パネルを地から浮かせた面（surface）にし、見出しはカードの見出しの大きさ、一覧と中身は角の丸い枠に入れる。
+   クラスの名前は ProxyPanel.module.css のもの（stories が、読み込んだ CSS モジュールの名前に置き換える）。
+   値は ui/styles/tokens.css の役割だけを使う。 */
+
+[data-look="cards"] .root {
+  gap: var(--space-8);
+  padding-bottom: 0;
+  border-left: 1px solid var(--color-border-strong);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-raised);
+}
+
+/* 頭：カードの見出し（.card-header）と同じ間と字 */
+[data-look="cards"] .head {
+  flex-wrap: wrap;
+  align-items: center;
+  row-gap: var(--space-4);
+  padding: var(--space-12) var(--space-16);
+  border-bottom: 1px solid var(--color-border);
+}
+[data-look="cards"] .title {
+  font-size: var(--text-title);
+}
+[data-look="cards"] .where {
+  font-family: var(--font-mono);
+}
+/* 止める切り替え：ボタン（.button）と同じ形を小さく */
+[data-look="cards"] .holdButton {
+  height: 28px;
+  padding: 0 var(--space-12);
+  border: 1px solid var(--button-border);
+  border-radius: var(--radius-6);
+  background: var(--button-bg);
+  color: var(--color-text);
+  font-size: var(--text-body);
+  font-weight: var(--button-weight);
+}
+[data-look="cards"] .holdButton:hover {
+  background: var(--button-bg-hover);
+  border-color: var(--button-border-hover);
+}
+[data-look="cards"] .holdButton[aria-pressed="true"] {
+  border-color: var(--state-warning);
+  color: var(--state-warning);
+}
+[data-look="cards"] .hold {
+  align-items: center;
+}
+
+/* 一覧と中身は、角の丸い枠（入力欄の地）に入れる */
+[data-look="cards"] .list,
+[data-look="cards"] .detail {
+  margin: 0 var(--space-12);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-8);
+  background: var(--color-bg);
+}
+[data-look="cards"] .detail {
+  overflow: hidden;
+}
+
+/* 一覧：画面の字で、行を高くし、選んだ行は窓の一覧（.card-row）と同じ印 */
+[data-look="cards"] .table {
+  font-family: var(--font-ui);
+  font-size: var(--text-body);
+}
+[data-look="cards"] .th {
+  padding: var(--space-6) var(--space-10);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-strong);
+}
+[data-look="cards"] .cell {
+  padding: var(--space-6) var(--space-10);
+  border-bottom: 0;
+}
+[data-look="cards"] .row {
+  cursor: pointer;
+}
+[data-look="cards"] .row[aria-selected="true"] {
+  background: var(--state-selected-bg);
+  outline: 1px solid var(--state-selected-outline);
+  outline-offset: -1px;
+  font-weight: var(--weight-strong);
+}
+[data-look="cards"] .path {
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+}
+[data-look="cards"] .status {
+  font-weight: var(--weight-strong);
+}
+
+/* 要求・応答の切り替え：ボタンが 2 つ並んだ切り替え（選んだ方を押し込んだ形） */
+[data-look="cards"] .tabs {
+  gap: 0;
+  padding: var(--space-8) var(--space-12);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+[data-look="cards"] .tab {
+  height: 28px;
+  padding: 0 var(--space-12);
+  border: 1px solid var(--button-border);
+  border-radius: 0;
+  background: var(--button-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-weight: var(--button-weight);
+}
+[data-look="cards"] .tab:first-child {
+  border-radius: var(--radius-6) 0 0 var(--radius-6);
+}
+[data-look="cards"] .tab:last-child {
+  border-left: 0;
+  border-radius: 0 var(--radius-6) var(--radius-6) 0;
+}
+[data-look="cards"] .tab[aria-selected="true"] {
+  border-color: var(--state-focus-ring);
+  background: var(--state-selected-bg);
+  color: var(--color-text-strong);
+}
+[data-look="cards"] .tab:last-child[aria-selected="true"] {
+  border-left: 1px solid var(--state-focus-ring);
+}
+
+[data-look="cards"] .content {
+  padding: var(--space-12) var(--space-16);
+}
+/* 段の見出し：窓の一覧の見出し（.card-section）と同じ */
+[data-look="cards"] .section {
+  margin: var(--space-12) 0 var(--space-6);
+  font-size: var(--text-label);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+/* ヘッダー：名前を画面の字で、値は等幅。行ごとに区切る */
+[data-look="cards"] .headers {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-6);
+}
+[data-look="cards"] .header {
+  padding: var(--space-4) var(--space-8);
+}
+[data-look="cards"] .header + .header {
+  border-top: 1px solid var(--color-border);
+}
+[data-look="cards"] .name {
+  width: 14ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: var(--font-ui);
+  font-size: var(--text-caption);
+}
+/* 本文：長いエラーと同じ、入力欄の地の角の丸い枠 */
+[data-look="cards"] .body {
+  padding: var(--space-8) var(--space-10);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-6);
+  background: var(--color-field);
+}
+
+/* 止めている要求：注意の色の帯（左に太い線） */
+[data-look="cards"] .heldBar {
+  flex-wrap: wrap;
+  padding: var(--space-10) var(--space-12);
+  border-left: 3px solid var(--state-warning);
+  background: color-mix(in srgb, var(--state-warning) 10%, transparent);
+}
+[data-look="cards"] .heldNote {
+  font-weight: var(--weight-strong);
+}
+
+/* 書き換える欄：入力欄は窓の入力欄（.card-input）の地と縁 */
+[data-look="cards"] .editHead {
+  flex-wrap: wrap;
+  padding: var(--space-10) var(--space-12);
+  background: var(--color-surface);
+}
+[data-look="cards"] .editHead .section {
+  color: var(--color-text-strong);
+  font-size: var(--text-body);
+  letter-spacing: normal;
+  text-transform: none;
+}
+[data-look="cards"] .input {
+  padding: var(--space-6) var(--space-8);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-6);
+  background: var(--color-field);
+  font-size: var(--text-caption);
+}
+[data-look="cards"] .input:focus {
+  outline: 1px solid var(--state-focus-ring);
+  outline-offset: -1px;
+}
+[data-look="cards"] .requestLine {
+  margin-bottom: var(--space-4);
+}
+
+/* 足もと：カードの下の段（.card-footer）と同じ */
+[data-look="cards"] .foot {
+  padding: var(--space-10) var(--space-16);
+  border-top: 1px solid var(--color-border);
+}
+
+/* 狭いとき（パネルが 420px 以下）：大きさと時間の列をやめ、ホストとパスに幅を回す。
+   列の幅は FlowList.tsx の colgroup が style で決めているので、!important で上書きする */
+[data-look="cards"] .root {
+  container-type: inline-size;
+}
+@container (max-width: 420px) {
+  [data-look="cards"] .table col:nth-child(4),
+  [data-look="cards"] .table col:nth-child(5) {
+    width: 0 !important;
+  }
+  [data-look="cards"] .th:nth-child(n + 4),
+  [data-look="cards"] .cell:nth-child(n + 4) {
+    padding: 0;
+    font-size: 0;
+  }
+  [data-look="cards"] .table col:nth-child(1) {
+    width: 9ch !important;
+  }
+  [data-look="cards"] .table col:nth-child(2) {
+    width: 7ch !important;
+  }
+}

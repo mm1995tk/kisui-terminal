@@ -1,0 +1,224 @@
+/* 案 B「表として見せる」（ProxyPanelLooks.stories.tsx）。DB のタブの結果の表（DbTabView.module.css）に寄せる。
+   一覧は見出しの太い、縦線のある表にし、ステータスは字の前に色の丸を付け、メソッドは等幅の太字にする。中身のヘッダーも 2 列の表にする。
+   頭と足もとは浮かせた面（surface）の帯にして、ターミナルの地と分ける。
+   クラスの名前は ProxyPanel.module.css のもの（stories が、読み込んだ CSS モジュールの名前に置き換える）。
+   値は ui/styles/tokens.css の役割だけを使う。 */
+
+[data-look="table"] .root {
+  border-left: 1px solid var(--color-border-strong);
+}
+
+/* 頭：浮かせた面の帯 */
+[data-look="table"] .head {
+  flex-wrap: wrap;
+  align-items: center;
+  row-gap: var(--space-4);
+  padding: var(--space-8) var(--space-12);
+  border-bottom: 1px solid var(--color-border-strong);
+  background: var(--color-surface);
+}
+[data-look="table"] .hold {
+  align-items: center;
+}
+[data-look="table"] .holdButton {
+  height: 24px;
+  border-color: var(--button-border);
+  border-radius: var(--radius-6);
+  background: var(--button-bg);
+  font-weight: var(--button-weight);
+}
+[data-look="table"] .holdButton:hover {
+  background: var(--button-bg-hover);
+}
+[data-look="table"] .holding {
+  padding: 0 var(--space-6);
+  border: 1px solid var(--state-warning);
+  border-radius: var(--radius-4);
+}
+
+/* 一覧：DB のタブの結果の表と同じ枠・見出し・縦線 */
+[data-look="table"] .list {
+  margin: var(--space-8) var(--space-12);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-6);
+}
+[data-look="table"] .table {
+  font-family: var(--font-ui);
+  font-size: var(--text-caption);
+}
+[data-look="table"] .th {
+  padding: var(--space-4) var(--space-8);
+  color: var(--color-text-strong);
+  font-weight: var(--weight-strong);
+}
+[data-look="table"] .th:not(:last-child),
+[data-look="table"] .cell:not(:last-child) {
+  border-right: 1px solid var(--color-border);
+}
+[data-look="table"] .cell {
+  padding: var(--space-4) var(--space-8);
+}
+/* 1 行おきに地を変える（行を目で追いやすく） */
+[data-look="table"] .row:nth-child(even) {
+  background: color-mix(in srgb, var(--color-surface) 60%, transparent);
+}
+[data-look="table"] .row:hover {
+  background: var(--state-hover-bg);
+}
+[data-look="table"] .row[aria-selected="true"] {
+  background: color-mix(in srgb, var(--color-accent) 30%, transparent);
+}
+/* メソッドは等幅の太字、パスは等幅 */
+[data-look="table"] .cell:first-child {
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  font-weight: var(--weight-strong);
+  color: var(--color-text-strong);
+}
+[data-look="table"] .path {
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+}
+[data-look="table"] .host::after {
+  content: " ";
+}
+[data-look="table"] .status {
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  font-weight: var(--weight-strong);
+}
+/* ステータス：字の前に、状態の丸（card.css の .state-dot と同じ大きさ）を字の前に出す */
+[data-look="table"] .status[data-kind]::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: var(--space-6);
+  border-radius: 4px;
+  background: currentColor;
+  vertical-align: 0.05em;
+}
+[data-look="table"] .row[data-held] {
+  box-shadow: inset 3px 0 0 var(--state-warning);
+}
+
+/* 中身：要求・応答の切り替えは下線の付くタブ */
+[data-look="table"] .detail {
+  border-top: 1px solid var(--color-border-strong);
+}
+[data-look="table"] .tabs {
+  gap: var(--space-16);
+  padding: 0 var(--space-12);
+  background: var(--color-surface);
+}
+[data-look="table"] .tab {
+  padding: var(--space-8) 0;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  font: inherit;
+  font-weight: var(--weight-strong);
+}
+[data-look="table"] .tab[aria-selected="true"] {
+  border-bottom-color: var(--state-focus-ring);
+  background: transparent;
+}
+
+[data-look="table"] .section {
+  color: var(--color-text-strong);
+}
+/* ヘッダー：2 列の表（名前の列は幅を決める） */
+[data-look="table"] .headers {
+  display: table;
+  width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-6);
+  border-spacing: 0;
+}
+[data-look="table"] .header {
+  display: table-row;
+}
+[data-look="table"] .header:nth-child(even) {
+  background: color-mix(in srgb, var(--color-surface) 60%, transparent);
+}
+[data-look="table"] .name,
+[data-look="table"] .value {
+  display: table-cell;
+  padding: var(--space-2) var(--space-8);
+}
+[data-look="table"] .name {
+  width: 30%;
+  border-right: 1px solid var(--color-border);
+  font-family: var(--font-ui);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-strong);
+}
+[data-look="table"] .header + .header .name,
+[data-look="table"] .header + .header .value {
+  border-top: 1px solid var(--color-border);
+}
+[data-look="table"] .body {
+  padding: var(--space-8);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-6);
+  background: var(--color-field);
+}
+
+/* 止めている要求：注意の色の帯 */
+[data-look="table"] .heldBar {
+  flex-wrap: wrap;
+  padding: var(--space-8) var(--space-12);
+  background: color-mix(in srgb, var(--state-warning) 12%, transparent);
+  border-bottom: 1px solid var(--state-warning);
+}
+
+/* 書き換える欄：浮かせた面の頭、入力欄は DB のタブの SQL の欄と同じ */
+[data-look="table"] .editHead {
+  flex-wrap: wrap;
+  padding: var(--space-8) var(--space-12);
+  background: var(--color-surface);
+}
+[data-look="table"] .editHead .section {
+  font-size: var(--text-body);
+}
+[data-look="table"] .input {
+  padding: var(--space-6) var(--space-8);
+  border-radius: var(--radius-6);
+  background: var(--color-field);
+  font-size: var(--text-caption);
+}
+[data-look="table"] .input:focus-visible {
+  outline: var(--state-focus-ring-width) solid var(--state-focus-ring);
+  outline-offset: var(--state-focus-ring-offset);
+}
+
+/* 足もと：浮かせた面の帯 */
+[data-look="table"] .foot {
+  padding: var(--space-6) var(--space-12);
+  border-top: 1px solid var(--color-border-strong);
+  background: var(--color-surface);
+}
+
+/* 狭いとき（パネルが 420px 以下）：時間の列をやめ、ホストとパスに幅を回す。
+   列の幅は FlowList.tsx の colgroup が style で決めているので、!important で上書きする */
+[data-look="table"] .root {
+  container-type: inline-size;
+}
+@container (max-width: 420px) {
+  [data-look="table"] .table col:nth-child(5) {
+    width: 0 !important;
+  }
+  [data-look="table"] .th:nth-child(5),
+  [data-look="table"] .cell:nth-child(5) {
+    padding: 0;
+    border: 0;
+    font-size: 0;
+  }
+  [data-look="table"] .th:nth-child(4),
+  [data-look="table"] .cell:nth-child(4) {
+    border-right: 0;
+  }
+  [data-look="table"] .table col:nth-child(2) {
+    width: 7ch !important;
+  }
+}

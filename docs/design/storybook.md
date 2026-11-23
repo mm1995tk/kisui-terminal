@@ -59,6 +59,7 @@ Vite の設定は、根の `vite.config.ts` をそのまま読む（Solid の変
 | `ui/utilities/clipboard/page.stories.tsx`                   | kisui-terminal の外から開く履歴の窓                                        | 殻への頼み `ClipboardPopupOs`、`ListClipboardHistory`                                                |
 | `ui/main-window/sidebar/PaneBorder.stories.tsx` | サイドバーの段の境目（変える前・変えた後・並べて）。アプリと同じ CSS | — |
 | `ui/main-window/sidebar/db-tree/DbTree.stories.tsx` | DB のタブの木（既定のスキーマのテーブル・既定のスキーマが無い接続の 2 段・既定のスキーマを選ぶ一覧） | 一覧（`db.schema` の答え）は見本のデータ。操作は `fn()`、選んだスキーマは story の中で持つ |
+| `ui/main-window/content/proxy/ProxyPanelLooks.stories.tsx` | プロキシのパネルの見た目の案（今・A 部品に寄せる・B 表・C 2 段の行）を、一覧・中身・止めている要求・書き換える欄と狭い幅で並べる。案を選んだら消す | 案ごとの CSS（`looks/*.css`）を、部品の CSS モジュールの名前に置き換えて重ねる。パネルの中身は見本のデータ |
 
 ## 外への頼みを差し替える
 
