@@ -9,7 +9,7 @@
 //! 受けたら、タブごとに `browser-load-failed` を画面に送る。画面は、そのタブのページを隠して、開こうとした URL と理由を出す
 //! （BrowserArea.tsx）。
 //!
-//! - **失敗の表示を片付ける**のは、次の読み込みを頼んだとき（`browser_go`・`browser_nav`）と、ページが替わったとき
+//! - **失敗の表示を片付ける**のは、次の読み込みを頼んだとき（`browser_go`・`browser_nav` の reload）と、ページが替わったとき
 //!   （`browser-page` の `loading`）。どちらも `clear_failure` を通り、いつも `browser-load-cleared` を送る（殻が失敗を
 //!   覚えているかでは決めない。タブを作り直すと殻は覚えをなくすが、画面には失敗の表示が残っているため）。
 //!   ページが替わった知らせだけに頼らない：macOS の WebView は、失敗の前に最後に開けたページと同じ URL に移っても、

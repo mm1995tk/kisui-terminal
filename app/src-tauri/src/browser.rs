@@ -1131,24 +1131,27 @@ pub fn browser_nav(
 ) -> Result<(), String> {
     from_main(&webview)?;
     let v = child(&app, &tab)?;
-    if !matches!(action.as_str(), "back" | "forward" | "reload") {
-        return Err(format!("unknown action: {action:?}"));
-    }
-    // 読み込みが失敗したままのタブ（画面が失敗の表示を出している）は、前のページでなく、開けなかった URL をもう一度開く
-    let failed = app
-        .try_state::<crate::browser_load::Failures>()
-        .and_then(|f| f.get(&tab))
-        .and_then(|u| Url::parse(&u).ok())
-        .filter(may_navigate);
-    // 次の読み込みを頼んだので、前の失敗の表示は片付ける（また失敗すれば出直す。browser_load.rs）
-    crate::browser_load::clear_failure(&app, &tab);
     match action.as_str() {
+        // 戻る・進むは、頼んだ時点では失敗の表示を片付けない。行き先の履歴が無ければ何も起きず、片付けると、
+        // 開けなかった URL が URL バーに残ったまま、失敗の前のページが出てしまう。履歴があれば別の項目に移るので、
+        // ページが替わった知らせ（browser-page の loading）で片付く
         "back" => v.eval("history.back()"),
         "forward" => v.eval("history.forward()"),
-        _ => match failed {
-            Some(u) => v.navigate(u),
-            None => v.reload(),
-        },
+        "reload" => {
+            // 読み込みが失敗したままのタブ（画面が失敗の表示を出している）は、前のページでなく、開けなかった URL をもう一度開く
+            let failed = app
+                .try_state::<crate::browser_load::Failures>()
+                .and_then(|f| f.get(&tab))
+                .and_then(|u| Url::parse(&u).ok())
+                .filter(may_navigate);
+            // 次の読み込みを頼んだので、前の失敗の表示は片付ける（読み込みは必ず始まり、また失敗すれば出直す。browser_load.rs）
+            crate::browser_load::clear_failure(&app, &tab);
+            match failed {
+                Some(u) => v.navigate(u),
+                None => v.reload(),
+            }
+        }
+        _ => return Err(format!("unknown action: {action:?}")),
     }
     .map_err(|e| e.to_string())
 }

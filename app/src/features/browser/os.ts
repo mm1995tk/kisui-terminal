@@ -116,7 +116,7 @@ export interface BrowserOs {
     }) => void,
   ): Promise<Off>;
   /**
-   * 読み込みの失敗が終わった（#432）。次の読み込みを頼んだ（URL を開く・戻る・進む・読み込み直す）か、ページが替わった。
+   * 読み込みの失敗が終わった（#432）。次の読み込みを頼んだ（URL を開く・読み込み直す）か、ページが替わった（戻る・進むは、ページが替わったときに来る）。
    * 画面は、そのタブの失敗の表示を片付ける（頼んだ読み込みがまた失敗すれば、onTabLoadFailed が出直す）。
    */
   onTabLoadCleared(h: (e: { tab: string }) => void): Promise<Off>;
