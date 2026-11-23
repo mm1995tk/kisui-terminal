@@ -67,6 +67,7 @@ struct LoadFailed {
 pub struct Failures(Mutex<HashMap<String, String>>);
 
 impl Failures {
+    /// 失敗したままのタブの、開けなかった URL（切らない元の URL）。失敗していなければ None。「読み込み直す」が使う。
     pub fn get(&self, tab: &str) -> Option<String> {
         self.0.lock().ok()?.get(tab).cloned()
     }
@@ -77,6 +78,7 @@ impl Failures {
         }
     }
 
+    /// タブの失敗を忘れる（読み込みが始まったとき・タブを閉じるとき）。
     pub fn clear(&self, tab: &str) {
         if let Ok(mut m) = self.0.lock() {
             m.remove(tab);
@@ -90,10 +92,11 @@ fn cut(s: &str, max: usize) -> String {
 
 /// 失敗を画面に知らせ、「読み込み直す」のために覚える。
 pub fn report(app: &AppHandle, tab: &str, url: &str, reason: Reason, detail: &str) {
-    let url = cut(url, MAX_URL);
+    // 覚えるのは切る前の URL（「読み込み直す」が別の URL を開かないように。殻の中だけにあり、画面にもログにも出ない）
     if let Some(f) = app.try_state::<Failures>() {
-        f.set(tab, url.clone());
+        f.set(tab, url.to_string());
     }
+    let url = cut(url, MAX_URL);
     let _ = app.emit(
         EVENT_LOAD_FAILED,
         LoadFailed {
