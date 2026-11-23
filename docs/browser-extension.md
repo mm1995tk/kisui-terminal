@@ -41,12 +41,18 @@ Cookie を読むのは、kisui-terminal の答えの `sites` にある項目に�
 | `scripting`                     | 許可サイトのページに、パスキーが通ったことを知る小さなスクリプトを入れる                           |
 | `storage`                       | kisui-terminal が開いたタブと許可サイトの一覧を、ブラウザを閉じるまで覚える（`storage.session`）   |
 | `https://*/*`（host の権限）    | 許可サイトは利用者が kisui-terminal の設定で決めるので、どのサイトでも読めるよう入れるときに 1 回だけもらう |
-| `http://*/*`（host の権限）     | Secure の付かない Cookie（Google の `SID` など）を読む。前にあった Chrome の版では、https のサイトの Cookie でも、Secure の付かないものは `http://` の host の権限が無いと拡張機能に渡されなかった（Issue #286 で確かめた）。Firefox で要るかは確かめていないので外さない（入れた形で読めることは確かめた） |
+
+`http://*/*` は持たない。https のサイトの Cookie のうち Secure の付かないもの（Google の `SID` など）も、Firefox では
+`https://*/*` だけで読める（Firefox のソースの `toolkit/components/extensions/parent/ext-cookies.js` の `query()` と
+`MatchPattern.cpp` の `MatchPatternCore::MatchesCookie`。Issue #286）。0.1.1 から 0.2.1 までは持っていたが、0.2.2 で外した。
+外したのは新しく入れる人にだけ効く。Firefox はもらった host の権限を拡張機能の id ごとに覚えていて、更新で manifest から
+消えても取り消さない（消えるのは拡張機能を削除したとき）ので、0.2.1 以前から更新した人には `http://*/*` が残る。
+0.2.2 を確かめるときは、前の版を入れたことの無いプロファイルで入れるか、前の版を削除してから入れ、
+背景のコンソールで `await browser.permissions.getAll()` の `origins` に `http://*/*` が無いことを見てから試す。
 
 Firefox は、入れるときに host の権限を断れる。断ったときは、拡張機能のボタンを押すと頼み直す。
-版を上げて host の権限が増えたとき（0.1.1 の `http://*/*`）も、更新で新しい権限をもらえていなければ、パスキーの後に自動で送る道は
+版を上げて host の権限が増えたときも、更新で新しい権限をもらえていなければ、パスキーの後に自動で送る道は
 権限を確かめないので、足りない Cookie を欠いたまま送る。そのときも、拡張機能のボタンを 1 回押すと頼み直す。
-更新で権限がもらえるかは確かめていないので、出し直す前に 0.1.0 からの更新で確かめる。
 
 ## 作る・試す
 
@@ -85,6 +91,7 @@ zip の中身は `extension/` のファイルそのもの（`manifest.json` も�
 `extension/manifest.json` の `version` を上げて zip を作り直し、addons.mozilla.org に上げる。kisui-terminal の版とは別に数える。
 0.2.0 で、`passkey_sites` の `.google.com` の書き方（取り決めの版 2）を読めるようにした（#279）。
 0.2.1 で、Chrome のためのコード（`importScripts`・`chrome` の API・`pendingUrl`・Chrome の manifest の作り分け）を外した（#433。Firefox での動きは変えていない）。
+0.2.2 で、host の権限から `http://*/*` を外した（#286）。
 取り決め（`docs/passkey-extension.md`）を変えるときは、kisui-terminal と拡張機能を合わせて変える。
 
 ### ストアの説明
@@ -121,7 +128,7 @@ zip の中身は `extension/` のファイルそのもの（`manifest.json` も�
   - `nativeMessaging`: Talks to kisui-terminal on the same computer: asks it for the list of allowed sites and sends it the cookies of the site the user logged in to.
   - `scripting`: Adds a small script to the pages of the allowed sites only, to notice that a passkey login succeeded (it does not read the credential).
   - `storage`: Remembers, until the browser closes, which tab kisui-terminal opened and the list of allowed sites.
-  - Host permission (`https://*/*`, `http://*/*`): The user chooses the sites in kisui-terminal's settings, so the extension cannot know them in advance. It reads cookies only of the sites in that list. `http://*/*` is there to read the cookies without the Secure attribute (such as Google's `SID`) of an https site; without them the login does not carry over.
+  - Host permission (`https://*/*`): The user chooses the sites in kisui-terminal's settings, so the extension cannot know them in advance. It reads cookies only of the sites in that list.
 - リモートのコード：使わない（拡張機能の中のスクリプトだけ）。
 - 扱うデータ：「認証情報」（Cookie）。使うのは上の用途のためだけで、同じコンピューターの kisui-terminal にだけ渡し、拡張機能の作者やほかの誰にも送らない・売らない・
   用途と関係のない目的に使わない。

@@ -3,7 +3,7 @@
   "name": "__MSG_extensionName__",
   "short_name": "kisui-terminal",
   "description": "__MSG_extensionDescription__",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "default_locale": "en",
   "homepage_url": "https://github.com/mm1995tk/kisui-terminal",
   "icons": {
@@ -24,7 +24,7 @@
     }
   },
   "permissions": ["cookies", "nativeMessaging", "scripting", "storage"],
-  "host_permissions": ["https://*/*", "http://*/*"],
+  "host_permissions": ["https://*/*"],
   "background": {
     "scripts": ["lib.js", "background.js"]
   },
