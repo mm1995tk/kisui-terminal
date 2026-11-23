@@ -196,6 +196,13 @@ jobs:
             cp "$(one "$bundle/appimage/*.AppImage")" "$out/$name-$PLATFORM.AppImage"
             cp "$(one "$bundle/appimage/*.AppImage.sig")" "$out/$name-$PLATFORM.AppImage.sig"
           else
+            # WebView の ATS の例外（app/src-tauri/Info.plist。#409）が .app に入ったかを確かめる。
+            # Tauri の版を上げて Info.plist の重ね方が変わったら、ここで気付く
+            app="$(one "$bundle/macos/*.app")"
+            if ! /usr/libexec/PlistBuddy -c 'Print :NSAppTransportSecurity:NSAllowsArbitraryLoadsInWebContent' "$app/Contents/Info.plist" | grep -qx true; then
+              echo "::error::$app の Info.plist に NSAllowsArbitraryLoadsInWebContent がありません（app/src-tauri/Info.plist が重なっていない）"
+              exit 1
+            fi
             cp "$(one "$bundle/dmg/*.dmg")" "$out/$name-$PLATFORM.dmg"
             cp "$(one "$bundle/macos/*.app.tar.gz")" "$out/$name-$PLATFORM.app.tar.gz"
             cp "$(one "$bundle/macos/*.app.tar.gz.sig")" "$out/$name-$PLATFORM.app.tar.gz.sig"
