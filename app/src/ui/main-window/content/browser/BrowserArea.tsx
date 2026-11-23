@@ -294,8 +294,7 @@ export function BrowserArea(props: {
 
   // タブのプロキシ（#409）が替わった（通し始めた・やめた・kisui serve が止まった）ら、すぐに作り直す（ページを読み直す）。
   // 出していないタブも作り直す（作ったあと隠す）。見回り（tick）に任せると、作り直すのは今出しているタブだけで、しかも
-  // 窓が隠れている間は WebView が requestAnimationFrame を止めて、見回りが動かない。そのため kisui serve が止まったあとも、
-  // 止まったポートをプロキシにして証明書を確かめない webview が、タブを出すまで・窓が見えるまで残っていた
+  // 窓が隠れている間は WebView が requestAnimationFrame を止めて、見回りが動かない
   createEffect(() => {
     for (const t of props.tabs) {
       const v = views.get(t.id);
