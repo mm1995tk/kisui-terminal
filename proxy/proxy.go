@@ -66,7 +66,9 @@ type Proxy struct {
 	intercept atomic.Bool // false の間は、間に入らず・記録もせずに中継だけする
 	// sawConnect は、CONNECT を 1 度でも受けたか（最初の 1 度だけログに書く。クライアントがこのプロキシに来ているかを見るため）
 	sawConnect atomic.Bool
-	addr       atomic.Value
+	// sawGone は、CONNECT のあと何も送らずに閉じた接続（ブラウザの先回りの接続など）を、1 度でもログに書いたか（最初の 1 度だけ書く）
+	sawGone atomic.Bool
+	addr    atomic.Value
 	// resending は送り直している（Resend）通信の数。closing は Close で終わる（送り直している通信を切る）
 	resending   counter
 	closing     context.Context
@@ -410,7 +412,9 @@ func (p *Proxy) connect(w http.ResponseWriter, r *http.Request) {
 			client.Close()
 		}
 	case kindGone:
-		p.log.Info("proxy: the client closed the tunnel without sending anything", "target", target)
+		if !p.sawGone.Swap(true) {
+			p.log.Info("proxy: the client closed the tunnel without sending anything (written only the first time)", "target", target)
+		}
 		client.Close()
 	}
 }
