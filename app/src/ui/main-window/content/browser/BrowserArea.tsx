@@ -343,6 +343,23 @@ export function BrowserArea(props: {
   // 出している間は毎フレーム見て、変わったときだけ殻に送る
   onMount(() => {
     let raf = 0;
+    // 窓の大きさ・フルスクリーンが変わったら、場所が同じでも殻に送り直す（#326）。殻（macOS）は、ページの view を
+    // 画面の枠に合わせ直すのが、送られたときだけ。窓の形が変わった直後は、view の枠がまだ落ち着いていないことがあるので、
+    // 変わりが止まって少し待ってから、もう一度送る
+    let resend = false;
+    let settle: number[] = [];
+    const onResize = () => {
+      resend = true;
+      for (const t of settle) clearTimeout(t);
+      settle = [150, 500].map((ms) =>
+        window.setTimeout(() => (resend = true), ms),
+      );
+    };
+    window.addEventListener("resize", onResize);
+    onCleanup(() => {
+      window.removeEventListener("resize", onResize);
+      for (const t of settle) clearTimeout(t);
+    });
     // 浮かべるものを縮めずに重ねられるか。答えが来るまで、また重ねられない OS では、これまでどおり縮めて避ける
     void enableOverlay()
       .then((ok) => (native = ok && !disposed))
@@ -386,7 +403,8 @@ export function BrowserArea(props: {
         return;
       }
       const wasHidden = v.shown === null;
-      if (!sameBounds(v.shown, b)) {
+      if (resend || !sameBounds(v.shown, b)) {
+        resend = false;
         void moveTab(tab.id, b).catch(() => {});
         v.shown = b;
       }

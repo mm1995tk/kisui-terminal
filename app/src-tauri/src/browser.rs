@@ -973,15 +973,25 @@ fn align_to_main(app: &AppHandle, child: &Webview, x: f64, y: f64, w: f64, h: f6
             None,
         );
         let now = view.frame();
-        // Mac で確かめる手がかり。補正が毎回要る状態でも、ログが出続けないよう、最初の 1 回だけ出す
-        static LOGGED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-        if ((now.origin.y - want.origin.y).abs() > 0.5 || (now.origin.x - want.origin.x).abs() > 0.5)
-            && !LOGGED.swap(true, std::sync::atomic::Ordering::Relaxed)
-        {
-            eprintln!(
-                "kisui-terminal: the page frame moved from ({}, {}) to ({}, {}) to match the screen",
-                now.origin.x, now.origin.y, want.origin.x, want.origin.y
-            );
+        // Mac で確かめる手がかり。ずれの大きさ（now と want の差）が前に出したものと違うときだけ出す（補正が毎回要る状態で
+        // ログが出続けないように、同じずれは出さない。出す数にも上限がある）。窓の形が変わったあとにずれが残るかも、ここで分かる
+        static LOGS: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+        static LAST: Mutex<Option<(f64, f64)>> = Mutex::new(None);
+        let (dx, dy) = (want.origin.x - now.origin.x, want.origin.y - now.origin.y);
+        if dx.abs() > 0.5 || dy.abs() > 0.5 {
+            let mut last = LAST.lock().unwrap();
+            let seen = last.is_some_and(|(lx, ly)| (lx - dx).abs() <= 0.5 && (ly - dy).abs() <= 0.5);
+            if !seen && LOGS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 30 {
+                *last = Some((dx, dy));
+                let pf = parent.frame();
+                eprintln!(
+                    "kisui-terminal: the page frame moved from ({}, {}) to ({}, {}) to match the screen \
+                     [moved by ({dx}, {dy}); the screen in the window: x={} y={} w={} h={}; \
+                     the screen asked: x={x} y={y} w={w} h={h}; the page's parent: w={} h={}]",
+                    now.origin.x, now.origin.y, want.origin.x, want.origin.y,
+                    m.x, m.y, m.w, m.h, pf.size.width, pf.size.height
+                );
+            }
         }
         view.setFrame(want);
     });
