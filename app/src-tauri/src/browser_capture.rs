@@ -288,8 +288,11 @@ mod mac {
     }
 
     /// `webView:didFailProvisionalNavigation:withError:`。通しているタブの読み込みが、ページが出る前に失敗した。
-    /// wry はこの受け口を持たず、失敗を殻に知らせない（ページは白いまま）。エラー（下の層のエラーと、TLS のエラーの番号を
-    /// 含む）をログに書く。
+    /// wry はこの受け口を持たず、失敗を殻に知らせない（ページは白いまま）。エラーの種類と番号だけをログに書く：
+    /// エラーの domain と code、下の層のエラー（`NSUnderlyingError`）の domain と code、TLS のエラーの番号
+    /// （`_kCFStreamErrorDomainKey`・`_kCFStreamErrorCodeKey`）、行き先のホストの名前、行き先の証明書が届いていたか
+    /// （`NSErrorPeerCertificateChainKey`）。エラーの `description` は書かない（失敗した URL の全体が入り、クエリに
+    /// 載るトークンなどが、ディスクに残るログに出るため）。
     unsafe extern "C-unwind" fn did_fail_provisional(
         _this: &AnyObject,
         _cmd: Sel,
@@ -301,12 +304,52 @@ mod mac {
         if !proxied {
             return;
         }
-        let text: Option<Retained<NSString>> = msg_send![error, description];
+        let info: Option<Retained<AnyObject>> = msg_send![error, userInfo];
+        let value = |key: &str| -> Option<Retained<AnyObject>> {
+            let info = info.as_deref()?;
+            let key = NSString::from_str(key);
+            msg_send![info, objectForKey: &*key]
+        };
+        let number = |key: &str| -> String {
+            match value(key) {
+                Some(n) => {
+                    let n: isize = msg_send![&*n, integerValue];
+                    n.to_string()
+                }
+                None => "-".into(),
+            }
+        };
+        let underlying = match value("NSUnderlyingError") {
+            Some(u) => domain_and_code(&u),
+            None => "-".into(),
+        };
+        let host = value("NSErrorFailingURLKey")
+            .and_then(|u| -> Option<Retained<NSString>> { msg_send![&*u, host] })
+            .map(|h| h.to_string())
+            .unwrap_or_else(|| "-".into());
+        let chain = if value("NSErrorPeerCertificateChainKey").is_some() {
+            "yes"
+        } else {
+            "no"
+        };
         note(&format!(
-            "loading failed (data store {:p}): {}",
+            "loading failed (data store {:p}): error {} underlying {} stream {}/{} host {host} peer certificates {chain}",
             Retained::as_ptr(&store),
-            text.map(|t| t.to_string()).unwrap_or_default()
+            domain_and_code(error),
+            underlying,
+            number("_kCFStreamErrorDomainKey"),
+            number("_kCFStreamErrorCodeKey"),
         ));
+    }
+
+    /// NSError の `domain code`。
+    unsafe fn domain_and_code(error: &AnyObject) -> String {
+        let domain: Option<Retained<NSString>> = msg_send![error, domain];
+        let code: isize = msg_send![error, code];
+        format!(
+            "{} {code}",
+            domain.map(|d| d.to_string()).unwrap_or_default()
+        )
     }
 
     /// cls に、受け口 sel を足す。もう持っていれば足さずに false（上書きしない）。
