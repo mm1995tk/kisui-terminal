@@ -35,7 +35,7 @@ const SITES_TTL_MS = 60 * 1000;
 const SETTLE_POLL_MS = 500;
 const SCRIPT_IDS = ["kisui-page", "kisui-relay"];
 
-// ---- 覚えておくもの（service worker が止まっても残るよう storage.session に置く）
+// ---- 覚えておくもの（background のスクリプトが止まっても残るよう storage.session に置く）
 
 async function loadState() {
   /** @type {{ sites?: string[], sitesAt?: number }} */
@@ -131,7 +131,7 @@ async function syncScripts(sites) {
 // ---- kisui-terminal が開いたタブを見分ける
 
 // できたばかりで、まだ http(s) のページを開いていないタブ（tabId → できた時刻）。
-// タブができてから最初のページまでは短く、その間は service worker が止まらないので、メモリに置く
+// タブができてから最初のページまでは短く、その間は background のスクリプトが止まらないので、メモリに置く
 /** @type {Map<number, number>} */
 const newTabs = new Map();
 
@@ -398,7 +398,7 @@ async function showError(tabId, code) {
     .catch(() => {});
 }
 
-// ---- つなぐ（service worker が起き直すたびに、同期で登録する）
+// ---- つなぐ（background のスクリプトが起き直すたびに、同期で登録する）
 
 api.tabs.onCreated.addListener(
   (tab) => void onTabCreated(/** @type {Tab} */ (tab)),
