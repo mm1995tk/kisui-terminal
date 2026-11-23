@@ -136,7 +136,7 @@ export function DbElevateDialog(props: {
       <CardFooter>
         <KeyHints
           items={basicHints({
-            select: ["↓", "↑"],
+            select: ["↓", "↑", "Ctrl+J", "Ctrl+K"],
             decide: T("db.elevate.do"),
             help: false,
             end: "cancel",
