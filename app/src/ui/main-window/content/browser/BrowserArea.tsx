@@ -27,6 +27,7 @@ import {
   toLogical,
   type Bounds,
 } from "./overlay.ts";
+import { watchResize } from "./resizeWatch.ts";
 import {
   isCertReason,
   reasonKey,
@@ -343,6 +344,9 @@ export function BrowserArea(props: {
   // 出している間は毎フレーム見て、変わったときだけ殻に送る
   onMount(() => {
     let raf = 0;
+    // 窓の形が変わったら、場所が同じでも殻に送り直す（resizeWatch.ts。#326）
+    const resize = watchResize();
+    onCleanup(resize.stop);
     // 浮かべるものを縮めずに重ねられるか。答えが来るまで、また重ねられない OS では、これまでどおり縮めて避ける
     void enableOverlay()
       .then((ok) => (native = ok && !disposed))
@@ -386,7 +390,7 @@ export function BrowserArea(props: {
         return;
       }
       const wasHidden = v.shown === null;
-      if (!sameBounds(v.shown, b)) {
+      if (resize.take() || !sameBounds(v.shown, b)) {
         void moveTab(tab.id, b).catch(() => {});
         v.shown = b;
       }
