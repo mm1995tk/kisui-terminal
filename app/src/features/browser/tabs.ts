@@ -12,6 +12,7 @@
 import { T } from "../../i18n/index.ts";
 import type { WorkspaceId } from "../../infrastructure/rpc/protocol.ts";
 import { SCALES } from "../scale/scale.ts";
+import type { LoadError } from "./loadError.ts";
 import { isNewTab } from "./newTab.ts";
 
 /** タブ 1 つ。 */
@@ -50,6 +51,11 @@ export interface BrowserTab {
    * 覚えない（シークレットのタブの favicon をディスクに残さないため。どのタブも、ページを読み込めばまた取れる）
    */
   favicon?: string;
+  /**
+   * ページの読み込みが、ページが出る前に失敗した（#432。loadError.ts）。あれば、画面はそのタブのページを隠して理由を出す。
+   * 次に読み込みが始まったら消える。覚えない
+   */
+  loadError?: LoadError;
 }
 
 /** タブ全部と、ワークスペースごとの表示。 */
@@ -179,6 +185,7 @@ export function updateTab(
     title?: string;
     zoom?: number;
     favicon?: string;
+    loadError?: LoadError;
     proxy?: BrowserTab["proxy"];
   },
 ): TabsState {
@@ -191,6 +198,7 @@ export function updateTab(
     next.title === t.title &&
     next.zoom === t.zoom &&
     next.favicon === t.favicon &&
+    next.loadError === t.loadError &&
     next.proxy?.scope === t.proxy?.scope &&
     next.proxy?.port === t.proxy?.port
   )

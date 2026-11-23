@@ -574,8 +574,9 @@ fn open_popup(
     Ok(NewWindowResponse::Create { window })
 }
 
-/// Linux：WebKitGTK から直接受けるもの（ページの window.close() と、ダウンロード）を足す。
+/// Linux：WebKitGTK から直接受けるもの（ページの window.close()・ダウンロード・読み込みの失敗）を足す。
 /// wry は window.close() で webview を壊すだけで殻に知らせないので、画面に知らせてタブを閉じさせる。
+/// 読み込みの失敗（証明書・名前・接続）も wry は知らせないので、画面に知らせる（browser_load.rs。#432）。
 #[cfg(target_os = "linux")]
 fn watch_native(app: &AppHandle, v: &Webview, tab: &str) {
     let (app, tab) = (app.clone(), tab.to_string());
@@ -585,11 +586,23 @@ fn watch_native(app: &AppHandle, v: &Webview, tab: &str) {
         if let Some(ctx) = w.context() {
             crate::download::watch(&app, &ctx);
         }
+        crate::browser_load::watch(&app, &w, &tab);
         w.connect_close(move |_| tell_closed(&app, &tab));
     });
 }
 
-#[cfg(not(target_os = "linux"))]
+/// macOS：読み込みの失敗（証明書・名前・接続）を知らせる先として、タブの WKWebView を覚える（browser_load.rs。#432）。
+#[cfg(target_os = "macos")]
+fn watch_native(app: &AppHandle, v: &Webview, tab: &str) {
+    let (app, tab) = (app.clone(), tab.to_string());
+    let _ = v.with_webview(move |pv| {
+        if let Some((w, _)) = wk_webview(&pv) {
+            crate::browser_load::register(&app, w, &tab);
+        }
+    });
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "macos")))]
 fn watch_native(_: &AppHandle, _: &Webview, _: &str) {}
 
 /// ページに入れるスクリプト 1 つ。
@@ -659,6 +672,8 @@ fn with_handlers(
                 PageLoadEvent::Finished => false,
             };
             if loading {
+                // 前の読み込みの失敗は、もう無い（画面も、この知らせで失敗の表示を片付ける。browser_load.rs）
+                crate::browser_load::started(&load_app, &load_tab);
                 page.started();
             } else {
                 page.finished();
@@ -783,6 +798,10 @@ pub async fn browser_open(
     if proxy.is_none() {
         crate::browser_capture::forget(&app, &tab);
     }
+    // macOS：読み込みの失敗の受け口を、タブの webview を作る前に足す（WebKit は、delegate を付けたときに受け口を調べて覚える。
+    // browser_load.rs。#432）
+    #[cfg(target_os = "macos")]
+    crate::browser_load::install(&app).await;
     let data = match proxy {
         Some(port) => captured_data(&app, &tab, port).await?,
         None => tab_data(&app, incognito).await,
@@ -1106,7 +1125,16 @@ pub fn browser_nav(
     match action.as_str() {
         "back" => v.eval("history.back()"),
         "forward" => v.eval("history.forward()"),
-        "reload" => v.reload(),
+        // 読み込みが失敗したままのタブ（画面が失敗の表示を出している）は、前のページでなく、開けなかった URL をもう一度開く
+        "reload" => match app
+            .try_state::<crate::browser_load::Failures>()
+            .and_then(|f| f.get(&tab))
+            .and_then(|u| Url::parse(&u).ok())
+            .filter(may_navigate)
+        {
+            Some(u) => v.navigate(u),
+            None => v.reload(),
+        },
         _ => return Err(format!("unknown action: {action:?}")),
     }
     .map_err(|e| e.to_string())
@@ -1130,6 +1158,12 @@ pub fn browser_close(
         crate::browser_capture::forget(&app, &root);
     }
     tabs.remove(&tab);
+    // 読み込みの失敗の覚え（「読み込み直す」の行き先）と、macOS の知らせの先を忘れる（browser_load.rs）
+    if let Some(f) = app.try_state::<crate::browser_load::Failures>() {
+        f.clear(&tab);
+    }
+    #[cfg(target_os = "macos")]
+    crate::browser_load::unregister(&app, &tab);
     if let Some(v) = app.get_webview(&label(&tab)) {
         let _ = v.close();
         focus_main(&app);

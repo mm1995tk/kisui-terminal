@@ -561,6 +561,26 @@ export const ja: Record<Key, string> = {
     "{url} を開けませんでした。リーダーの o u で URL を書き換えられます",
   "browser.hidden":
     "ダイアログ・お知らせ・案内を出している間は、ページを隠しています",
+  "browser.loadFailed.title": "このページを開けませんでした",
+  "browser.loadFailed.retry": "もう一度開く",
+  "browser.loadFailed.certNote":
+    "kisui-terminal は、証明書を信頼できないページは開きません。エラーを無視して開く方法もありません。",
+  "browser.loadFailed.cert-untrusted":
+    "サイトの証明書を信頼できません（自己署名・知らない発行元・別の名前に出した証明書など）。",
+  "browser.loadFailed.cert-expired": "サイトの証明書の期限が切れています。",
+  "browser.loadFailed.cert-not-yet-valid":
+    "サイトの証明書は、まだ有効になっていません。このコンピューターの時計を確かめてください。",
+  "browser.loadFailed.cert-name":
+    "サイトの証明書は、開こうとした名前とは別の名前に出されています。",
+  "browser.loadFailed.cert-other":
+    "サイトとの安全な接続を作れませんでした（証明書の問題）。",
+  "browser.loadFailed.host-not-found": "サーバーの名前が見つかりません。",
+  "browser.loadFailed.refused": "サーバーが接続を断りました。",
+  "browser.loadFailed.timed-out": "サーバーが時間内に答えませんでした。",
+  "browser.loadFailed.offline":
+    "このコンピューターはネットワークにつながっていません。",
+  "browser.loadFailed.lost": "読み込みの途中で接続が切れました。",
+  "browser.loadFailed.other": "ページを読み込めませんでした。",
   "mascot.err.noneTitle": "キャラクターを選んでいません",
   "mascot.err.noneText":
     "リーダーの c → s で、使うキャラクターを選んでください。",

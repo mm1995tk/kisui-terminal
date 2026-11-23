@@ -322,6 +322,7 @@ function fakeBrowser(
     onTabKey: off,
     onTabPopup: off,
     onTabClosed: off,
+    onTabLoadFailed: off,
     onDownload: off,
     openDownload: async () => {},
     revealDownload: async () => {},

@@ -565,6 +565,26 @@ export const en = {
     "Could not open {url}. You can edit the URL with o u in the leader.",
   "browser.hidden":
     "The page is hidden while a dialog, notice or guide is shown",
+  "browser.loadFailed.title": "Could not open this page",
+  "browser.loadFailed.retry": "Try again",
+  "browser.loadFailed.certNote":
+    "kisui-terminal does not open a page whose certificate it cannot trust, and there is no way to open it anyway.",
+  "browser.loadFailed.cert-untrusted":
+    "The certificate of the site is not trusted (self-signed, issued by an unknown authority, or issued for another name).",
+  "browser.loadFailed.cert-expired": "The certificate of the site has expired.",
+  "browser.loadFailed.cert-not-yet-valid":
+    "The certificate of the site is not valid yet. Check the clock of this computer.",
+  "browser.loadFailed.cert-name":
+    "The certificate of the site was issued for a different name than the one you opened.",
+  "browser.loadFailed.cert-other":
+    "A secure connection to the site could not be made (a problem with its certificate).",
+  "browser.loadFailed.host-not-found": "The name of the server was not found.",
+  "browser.loadFailed.refused": "The server refused the connection.",
+  "browser.loadFailed.timed-out": "The server did not answer in time.",
+  "browser.loadFailed.offline":
+    "This computer is not connected to the network.",
+  "browser.loadFailed.lost": "The connection was cut while loading.",
+  "browser.loadFailed.other": "The page could not be loaded.",
   "mascot.err.noneTitle": "No character is chosen",
   "mascot.err.noneText":
     "Choose the character to use with c → s in the leader.",
