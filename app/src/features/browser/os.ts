@@ -143,7 +143,7 @@ export interface BrowserOs {
   /** ダウンロードしたファイルのフォルダを表示する。 */
   revealDownload(id: number): Promise<void>;
   /**
-   * 重なりもの（リーダーの案内・キャラクター・メニュー）を、ページを縮めずにページの上に重ねられるかを殻に聞く（macOS だけ true）。
+   * 重なりもの（お知らせ・リーダーの案内・キャラクター・メニュー）を、ページを縮めずにページの上に重ねられるかを殻に聞く（macOS だけ true）。
    * true のとき、殻は画面（メインの webview）の背景を透明にする。
    */
   enableOverlay(): Promise<boolean>;

@@ -1,5 +1,5 @@
 // 内蔵ブラウザのページ内検索の欄（#205。リーダーの o /、ブラウザを出している間は Cmd+F / Ctrl+F でも）。
-// ブラウザを出す場所の下の端に置き、ページはその上まで縮む（data-overlay-shrink。BrowserArea.tsx の SHRINK_SELECTOR）。
+// ブラウザを出す場所の下の端に置き、ページはその上まで縮む（data-overlay-shrink。overlay.ts の OVERLAY_SELECTORS）。
 // 字を打つたびに探し（今の所から探し直す）、Enter で次、Shift+Enter で前へ。端では折り返す。Esc か × で閉じ、キーをページに戻す。
 // 探すのは殻（browser.rs の browser_find。WebKit の window.find）で、見つけた所はページの選択になる。
 import { isComposingKey } from "../../../../features/commands/ime.ts";

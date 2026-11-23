@@ -1,7 +1,8 @@
 // 内蔵ブラウザのタブ（#202）を出す場所。グリッドの場所すべてを覆い、今のワークスペースで選んでいるタブのページを出す。
 // ページそのものは、この場所に Tauri の子の webview を重ねて出す（browser.rs。外のサイトの多くは iframe に出せないため）。
-// 子の webview は画面（DOM）より上に重なるので、ダイアログを出している間は隠し、お知らせ・リーダーの案内などが重なるときは
-// ページの下の端を上げる（overlay.ts）。macOS は、リーダーの案内・メニューをページを縮めずに重ねる
+// 子の webview は画面（DOM）より上に重なるので、ダイアログを出している間は隠し、ほかの重なるものは、それぞれが自分に付けた印
+// （data-overlay・data-overlay-shrink・data-overlay-top。overlay.ts の OVERLAY_SELECTORS）のとおりに避ける。
+// macOS は、浮かべるもの（お知らせ・リーダーの案内・メニュー。data-overlay）をページを縮めずに重ねる
 // （画面をページより前に出し、ページはすりガラス越しに見える。操作はできない。殻の browser_layer）。
 // 子の webview はタブごとに 1 つで、初めて出すときに作る。ほかのワークスペースに移る・グリッドに戻るときは隠すだけで、
 // ページはそのまま残す（戻ったときに、読んでいた所から続けられる）。タブを閉じたら壊す。
@@ -22,6 +23,7 @@ import { usePorts } from "../../../ports.ts";
 import {
   floatsOver,
   mayFocusPage,
+  OVERLAY_SELECTORS,
   pageBounds,
   sameBounds,
   toLogical,
@@ -35,14 +37,6 @@ import {
 import { isNewTab } from "../../../../features/browser/newTab.ts";
 import type { BrowserTab } from "../../../../features/browser/tabs.ts";
 import "./browser.css";
-
-/** ページを縮めて避けさせるもの（右下のお知らせ・ページ内検索の欄・トースト。お知らせは閉じるまで残り、後ろの画面を触れたままにするので、重ねない。ほかは data-overlay-shrink を付ける） */
-const SHRINK_SELECTOR = ".card-notices > *, [data-overlay-shrink]";
-/**
- * ページの上に浮かべるもの（リーダーの案内とキャラクター・右クリックのメニュー）。
- * macOS はページを縮めず、画面をページより前に出して重ねる。ほかの OS は、縮めて避ける
- */
-const FLOAT_SELECTOR = "[data-overlay], .machine-menu, [role='menu']";
 
 /** 子の webview 1 つの様子。 */
 interface View {
@@ -58,9 +52,6 @@ interface View {
 /** 殻が「まだ前の webview が残っている」と断ったときに、待って作り直す回数と間隔（プロキシを替えて作り直すとき）。 */
 const REOPEN_TRIES = 20;
 const REOPEN_WAIT_MS = 50;
-
-/** 上の端に出ていて、ページの上の端を下げるもの（URL バー。#232） */
-const TOP_SELECTOR = "[data-overlay-top]";
 
 function rectOf(el: Element): Bounds {
   const r = el.getBoundingClientRect();
@@ -136,11 +127,15 @@ export function BrowserArea(props: {
    * 重ねられる OS では、浮かべるものでページを縮めない（重なっているかだけ返す）。
    */
   function bounds(): { b: Bounds | null; floating: boolean } {
-    const shrink = [...document.querySelectorAll(SHRINK_SELECTOR)].map(rectOf);
-    const floats = [...document.querySelectorAll(FLOAT_SELECTOR)].map(rectOf);
+    const shrink = [...document.querySelectorAll(OVERLAY_SELECTORS.shrink)].map(
+      rectOf,
+    );
+    const floats = [...document.querySelectorAll(OVERLAY_SELECTORS.float)].map(
+      rectOf,
+    );
     const modal = document.querySelector("dialog[open]") !== null;
     const areaRect = rectOf(area);
-    const bar = document.querySelector(TOP_SELECTOR);
+    const bar = document.querySelector(OVERLAY_SELECTORS.top);
     const barRect = bar ? rectOf(bar) : null;
     const top = barRect ? barRect.y + barRect.h - areaRect.y : 0;
     const b = pageBounds(

@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 import {
   floatsOver,
   mayFocusPage,
+  OVERLAY_SELECTORS,
   MIN_HEIGHT,
   OVERLAY_GAP,
   pageBounds,
@@ -103,5 +105,25 @@ describe("ページにキーを向けてよいとき", () => {
     assert.equal(mayFocusPage(false, true), false);
     assert.equal(mayFocusPage(true, false), false);
     assert.equal(mayFocusPage(true, true), false);
+  });
+});
+
+describe("重なるものの印（#439）", () => {
+  const read = (rel: string) =>
+    readFileSync(new URL(rel, import.meta.url), "utf8");
+
+  it("避け方は印（属性）だけで選ぶ。物の種類のクラス名では選ばない", () => {
+    for (const s of Object.values(OVERLAY_SELECTORS))
+      assert.match(s, /^\[data-overlay(-[a-z]+)?\]$/);
+  });
+
+  it("お知らせ・右クリックのメニュー・リーダーの案内は、浮かべるもの（data-overlay）の印を付ける", () => {
+    for (const rel of [
+      "../../notifications/Notices.tsx",
+      "../../sidebar/PopupMenu.tsx",
+      "../../sidebar/file-tree/TreeMenu.tsx",
+      "../../commands/LeaderMenu.tsx",
+    ])
+      assert.match(read(rel), /\sdata-overlay=""/, rel);
   });
 });

@@ -69,6 +69,7 @@ export function TreeMenu(props: {
     <div
       class="machine-menu"
       role="menu"
+      data-overlay=""
       aria-label={props.label}
       ref={el}
       style={{ left: `${props.x}px`, top: `${props.y}px` }}
