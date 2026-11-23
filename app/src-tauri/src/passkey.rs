@@ -72,7 +72,7 @@ const SCRIPT_FILE: &str = "native-host";
 pub struct Waiting {
     /// 移る前のタブ（画面が付けた id）
     pub tab: String,
-    /// 移る前のタブの URL（外のブラウザで開いた URL）。Cookie を受けたあと `apply` に渡すときは、開き直す URL（`reopen_url`）
+    /// 移る前のタブの URL（外のブラウザで開いた URL）
     pub url: Url,
     at: Instant,
 }
@@ -388,13 +388,13 @@ impl Passkey {
         w.retain(|_, x| now.saturating_duration_since(x.at) < WAIT);
     }
 
-    /// 拡張機能からのメッセージ 1 つに答える。Cookie を入れるのは `apply`（待っていたタブと、入れる Cookie を受ける）。
+    /// 拡張機能からのメッセージ 1 つに答える。Cookie を入れるのは `apply`（待っていたタブと、開き直す URL と、入れる Cookie を受ける）。
     pub fn handle(
         &self,
         msg: &Value,
         now: Instant,
         now_secs: f64,
-        apply: impl FnOnce(&Waiting, Vec<Cookie<'static>>) -> Result<(), String>,
+        apply: impl FnOnce(&Waiting, &Url, Vec<Cookie<'static>>) -> Result<(), String>,
     ) -> Value {
         let req = match serde_json::from_value::<Request>(msg.clone()) {
             Ok(r) => r,
@@ -429,7 +429,7 @@ impl Passkey {
     }
 
     /// `cookies` を受ける。待っているサイトの分だけを `apply` に渡し、待ちを終える。
-    /// `apply` に渡す待ちの `url` は、開き直す URL（`reopen_url`。外のブラウザのタブの `landed` か、移る前の URL）。
+    /// `apply` には、待ちと、開き直す URL（`reopen_url`。外のブラウザのタブの `landed` か、移る前の URL）を渡す。
     fn take_cookies(
         &self,
         site: &str,
@@ -437,7 +437,7 @@ impl Passkey {
         landed: Option<&str>,
         now: Instant,
         now_secs: f64,
-        apply: impl FnOnce(&Waiting, Vec<Cookie<'static>>) -> Result<(), String>,
+        apply: impl FnOnce(&Waiting, &Url, Vec<Cookie<'static>>) -> Result<(), String>,
     ) -> Value {
         if !self.sites.iter().any(|s| s == site) {
             return error("not-allowed", "the site is not in passkey_sites");
@@ -462,12 +462,9 @@ impl Passkey {
             }
             e.remove()
         };
-        let waiting = Waiting {
-            url: reopen_url(&waiting.url, landed, site),
-            ..waiting
-        };
+        let reopen = reopen_url(&waiting.url, landed, site);
         let accepted = ok.len();
-        match apply(&waiting, ok) {
+        match apply(&waiting, &reopen, ok) {
             Ok(()) => json!({ "type": "done", "accepted": accepted, "dropped": dropped }),
             Err(e) => error("failed", &e),
         }
@@ -622,8 +619,8 @@ fn serve_one(app: &AppHandle, p: &Passkey, stream: UnixStream) {
         .ok()
         .and_then(|b| serde_json::from_slice::<Value>(&b).ok())
     {
-        Some(msg) => p.handle(&msg, Instant::now(), now_secs(), |w, cookies| {
-            apply_cookies(app, w, cookies)
+        Some(msg) => p.handle(&msg, Instant::now(), now_secs(), |w, reopen, cookies| {
+            apply_cookies(app, w, reopen, cookies)
         }),
         None => error("bad-request", "not a JSON line"),
     };
@@ -631,10 +628,11 @@ fn serve_one(app: &AppHandle, p: &Passkey, stream: UnixStream) {
     let _ = writeln!(w, "{reply}");
 }
 
-/// Cookie を内蔵ブラウザの共有のデータに入れ、移る前のタブで `w.url`（開き直す URL。`reopen_url`）を開き、窓を前に出す。
+/// Cookie を内蔵ブラウザの共有のデータに入れ、移る前のタブで `reopen`（開き直す URL。`reopen_url`）を開き、窓を前に出す。
 fn apply_cookies(
     app: &AppHandle,
     w: &Waiting,
+    reopen: &Url,
     cookies: Vec<Cookie<'static>>,
 ) -> Result<(), String> {
     let tab = app.get_webview(&crate::browser::label(&w.tab));
@@ -652,7 +650,7 @@ fn apply_cookies(
         v.set_cookie(c).map_err(|e| e.to_string())?;
     }
     if let Some(t) = tab {
-        t.navigate(w.url.clone()).map_err(|e| e.to_string())?;
+        t.navigate(reopen.clone()).map_err(|e| e.to_string())?;
     }
     if let Some(win) = app.get_window("main") {
         let _ = win.set_focus();
@@ -979,7 +977,7 @@ mod tests {
             &json!({"type": "sites"}),
             t0,
             0.0,
-            |_: &Waiting, _: Vec<Cookie<'static>>| -> Result<(), String> { panic!() },
+            |_: &Waiting, _: &Url, _: Vec<Cookie<'static>>| -> Result<(), String> { panic!() },
         );
         assert_eq!(
             r["waiting"],
@@ -1111,7 +1109,8 @@ mod tests {
     fn answers_the_sites_and_what_it_waits_for() {
         let p = Passkey::new(sites());
         let t0 = Instant::now();
-        let never = |_: &Waiting, _: Vec<Cookie<'static>>| -> Result<(), String> { panic!() };
+        let never =
+            |_: &Waiting, _: &Url, _: Vec<Cookie<'static>>| -> Result<(), String> { panic!() };
         let r = p.handle(&json!({"type": "sites"}), t0, 0.0, never);
         assert_eq!(
             r,
@@ -1134,7 +1133,8 @@ mod tests {
     fn takes_cookies_once_and_only_while_waiting() {
         let p = Passkey::new(sites());
         let t0 = Instant::now();
-        let never = |_: &Waiting, _: Vec<Cookie<'static>>| -> Result<(), String> { panic!() };
+        let never =
+            |_: &Waiting, _: &Url, _: Vec<Cookie<'static>>| -> Result<(), String> { panic!() };
         // 許可していないサイト
         let r = p.handle(&cookies_msg("example.com"), t0, 0.0, never);
         assert_eq!(r["code"], "not-allowed");
@@ -1143,8 +1143,8 @@ mod tests {
         assert_eq!(r["code"], "not-waiting");
         p.hand_off("t1", &url("https://github.com/login"), t0);
         let mut got = None;
-        let r = p.handle(&cookies_msg("github.com"), t0, 0.0, |w, c| {
-            got = Some((w.tab.clone(), w.url.to_string(), c.len()));
+        let r = p.handle(&cookies_msg("github.com"), t0, 0.0, |w, reopen, c| {
+            got = Some((w.tab.clone(), reopen.to_string(), c.len()));
             Ok(())
         });
         assert_eq!(r, json!({"type": "done", "accepted": 1, "dropped": 1}));
@@ -1177,7 +1177,7 @@ mod tests {
             .map(|_| {
                 let (p, applied) = (Arc::clone(&p), Arc::clone(&applied));
                 std::thread::spawn(move || {
-                    p.handle(&cookies_msg("github.com"), t0, 0.0, |_, _| {
+                    p.handle(&cookies_msg("github.com"), t0, 0.0, |_, _, _| {
                         applied.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                         std::thread::sleep(Duration::from_millis(20));
                         Ok(())
@@ -1431,7 +1431,8 @@ mod tests {
     fn a_dot_site_waits_for_the_item() {
         let p = Passkey::new(vec![".google.com".into()]);
         let t0 = Instant::now();
-        let never = |_: &Waiting, _: Vec<Cookie<'static>>| -> Result<(), String> { panic!() };
+        let never =
+            |_: &Waiting, _: &Url, _: Vec<Cookie<'static>>| -> Result<(), String> { panic!() };
         let u = url("https://accounts.google.com/v3/signin");
         assert_eq!(p.hand_off("t1", &u, t0), Some(u.clone()));
         let r = p.handle(&json!({"type": "sites"}), t0, 0.0, never);
@@ -1450,8 +1451,8 @@ mod tests {
         let r = p.handle(&msg("myaccount.google.com"), t0, 0.0, never);
         assert_eq!(r["code"], "not-allowed");
         let mut got = None;
-        let r = p.handle(&msg(".google.com"), t0, 0.0, |w, c| {
-            got = Some((w.url.to_string(), c.len()));
+        let r = p.handle(&msg(".google.com"), t0, 0.0, |_, reopen, c| {
+            got = Some((reopen.to_string(), c.len()));
             Ok(())
         });
         assert_eq!(r, json!({"type": "done", "accepted": 2, "dropped": 0}));
@@ -1492,7 +1493,7 @@ mod tests {
             "https://github.com/login"
         );
 
-        // cookies の url を、apply に渡す待ちの url にする
+        // cookies の url を、apply に渡す開き直す URL にする
         let p = Passkey::new(vec![".google.com".into()]);
         let t0 = Instant::now();
         p.hand_off("t1", &before, t0);
@@ -1502,8 +1503,8 @@ mod tests {
                 "cookies": [{ "name": "SID", "value": "s", "domain": ".google.com" }]}),
             t0,
             0.0,
-            |w, _| {
-                got = Some((w.tab.clone(), w.url.to_string()));
+            |w, reopen, _| {
+                got = Some((w.tab.clone(), reopen.to_string()));
                 Ok(())
             },
         );
