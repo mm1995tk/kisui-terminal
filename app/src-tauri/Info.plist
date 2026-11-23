@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  macOS の .app の Info.plist に足す鍵。tauri build（tauri-cli）が、生成する Info.plist にこのファイルを重ねる
+  （tauri dev では、tauri-codegen が実行ファイルに埋め込む）。
+
+  NSAllowsArbitraryLoadsInWebContent：WebView（WKWebView）の通信に限って、App Transport Security（ATS）を外す（#409）。
+  通信を記録するプロキシに通したタブは、プロキシが自前の認証局で作った証明書を受け取る。認証局は OS に入れないので、
+  窓は証明書の確認の問い合わせに「この証明書を使う」と答える（browser_capture.rs）。ところが ATS が掛かっている間は、
+  この答えで信頼の確認を緩められず、TLS が errSSLATSViolation（-9880）で失敗する（ページが白いまま）。
+  外れるのは ATS の上乗せの確認（TLS 1.2 以上・前方秘匿・鍵と署名の強さ）と、外の http:// を止める動きだけ。
+  通していないタブとメインの画面の証明書の確認（OS の認証局で確かめる）は変わらない。WebView の外の、ATS の掛かる通信（URLSession など）には ATS が残る。
+  この鍵があると、NSAllowsArbitraryLoads は無視される（書かない）。
+-->
+<plist version="1.0">
+<dict>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoadsInWebContent</key>
+		<true/>
+	</dict>
+</dict>
+</plist>

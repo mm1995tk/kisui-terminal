@@ -15,6 +15,10 @@
 //!   このタブの通信は、すべて 127.0.0.1 のプロキシに行き、行き先の証明書はプロキシが OS の認証局で確かめる
 //!   （正しくなければ、プロキシが 502 を返す）。確かめる役が、WebView からプロキシに移るだけで、確かめない通信は無い。
 //!   ほかのタブ・メインの画面の確かめ方は変えない。
+//! - **macOS の ATS**：App Transport Security が掛かっている間は、「使う」と答えても信頼の確認を緩められず、TLS が
+//!   errSSLATSViolation（-9880）で失敗する。そこで、Info.plist（app/src-tauri/Info.plist）の
+//!   `NSAllowsArbitraryLoadsInWebContent` で、WebView の通信に限って ATS を外している。外れるのは ATS の上乗せの確認
+//!   （TLS 1.2 以上など）と外の `http://` を止める動きだけで、通していないタブの証明書の確認は変わらない。
 //! - macOS は 14 以降（データごとのプロキシの設定 `proxyConfigurations` が要る）。13 以前では、通せないと答える。
 //!   通すタブは、#294 の中継型のプロキシ（browser_proxy.rs）には通らない（プロキシを 2 つ重ねない）。
 
