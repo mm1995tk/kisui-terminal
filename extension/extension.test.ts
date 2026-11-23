@@ -536,6 +536,16 @@ test("タブを覚えるのと、別のタブが閉じるのが重なっても�
   );
 });
 
+test("ブラウザを起動したとき、待っている URL を開いているタブを覚える", async () => {
+  const b = fakeBrowser(GH);
+  b.tabs.set(40, { id: 40, url: "https://github.com/login" });
+  b.tabs.set(41, { id: 41, url: "https://github.com/" });
+  b.ev.startup.fire();
+  await settle();
+  assert.ok(b.session["tracked:40"]);
+  assert.equal(b.session["tracked:41"], undefined);
+});
+
 test("覚えたタブが別の host にリダイレクトしていたら、スクリプトを入れない", async () => {
   const b = fakeBrowser(GH);
   b.tabs.set(60, {
