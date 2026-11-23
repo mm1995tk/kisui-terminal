@@ -64,7 +64,7 @@ pub use mac::{configuration, forget, Configuration};
 #[cfg(target_os = "macos")]
 mod mac {
     use std::cell::RefCell;
-    use std::ffi::{c_char, c_void, CString};
+    use std::ffi::{c_char, c_void, CStr, CString};
     use std::sync::OnceLock;
 
     use block2::Block;
@@ -93,6 +93,20 @@ mod mac {
     #[link(name = "Network", kind = "framework")]
     extern "C" {
         fn nw_endpoint_create_host(hostname: *const c_char, port: *const c_char) -> NwObject;
+    }
+
+    #[link(name = "Foundation", kind = "framework")]
+    extern "C" {
+        fn NSLog(format: &NSString, ...);
+    }
+
+    /// 通すタブのことを、macOS のログ（`log stream` で見える。プロセスは kisui-terminal）に 1 行書く。
+    /// 通したタブのページが出ないとき（#409）、証明書の確認の問い合わせが来たか・どう答えたか・読み込みがどう失敗したかを、
+    /// 後から見分けるため。
+    fn note(msg: &str) {
+        let line = NSString::from_str(&format!("kisui-terminal: proxied tab: {msg}"));
+        // SAFETY: 書式は %@ 1 つで、渡すのは生きている NSString
+        unsafe { NSLog(objc2_foundation::ns_string!("%@"), &*line) };
     }
 
     /// `nw_proxy_config_create_http_connect`（macOS 14 から）。古い macOS でも起動できるよう、リンクせずに探す。
@@ -157,7 +171,8 @@ mod mac {
                 return Err("the proxy needs macOS 14 or later".into());
             }
             let proxy = http_connect_config(port).ok_or("the proxy needs macOS 14 or later")?;
-            if !install_trust_handler(main) {
+            if !install_handlers(main) {
+                note("cannot add the handler of certificate checks to the navigation delegate");
                 return Err("cannot make the page trust the proxy".into());
             }
             let configs = NSArray::from_retained_slice(&[proxy]);
@@ -165,6 +180,10 @@ mod mac {
             let _: () = msg_send![&store, setProxyConfigurations: &*configs];
             let config = WKWebViewConfiguration::new(mtm);
             config.setWebsiteDataStore(&store);
+            note(&format!(
+                "made a data store {:p} that goes through 127.0.0.1:{port}",
+                Retained::as_ptr(&store)
+            ));
             STORES.with(|s| {
                 let mut s = s.borrow_mut();
                 s.retain(|(r, _)| *r != root);
@@ -182,15 +201,21 @@ mod mac {
         });
     }
 
-    /// webview が、通しているタブのもの（覚えたデータストアを使っている）か。
-    fn is_proxied(webview: &WKWebView) -> bool {
+    /// webview のデータストアと、それが通しているタブのもの（覚えたデータストア）か。
+    fn proxied_store(webview: &WKWebView) -> (Retained<WKWebsiteDataStore>, bool) {
         // SAFETY: メインスレッドで呼ばれる（WKNavigationDelegate の受け口の中）
         let store = unsafe { webview.configuration().websiteDataStore() };
-        STORES.with(|s| {
+        let proxied = STORES.with(|s| {
             s.borrow()
                 .iter()
                 .any(|(_, kept)| std::ptr::eq(Retained::as_ptr(kept), Retained::as_ptr(&store)))
-        })
+        });
+        (store, proxied)
+    }
+
+    /// 通しているタブがあるか（無ければ、ほかのタブの問い合わせをログに書かない）。
+    fn any_proxied() -> bool {
+        STORES.with(|s| !s.borrow().is_empty())
     }
 
     /// SecTrustRef の指す先（中は見ない）。
@@ -210,6 +235,7 @@ mod mac {
 
     /// `webView:didReceiveAuthenticationChallenge:completionHandler:`。通しているタブの、サーバーの証明書の確認にだけ
     /// 「この証明書を使う」と答える（確かめるのはプロキシ）。ほかは、何も足さなかったときと同じ既定の扱いにする。
+    /// 通しているタブがある間は、問い合わせが来たことと答えをログに書く（ほかのタブの問い合わせは、行き先の名前を書かない）。
     unsafe extern "C-unwind" fn did_receive_challenge(
         _this: &AnyObject,
         _cmd: Sel,
@@ -218,69 +244,146 @@ mod mac {
         handler: &Block<dyn Fn(isize, *mut AnyObject)>,
     ) {
         let space: Option<Retained<AnyObject>> = msg_send![challenge, protectionSpace];
-        if let Some(space) = space {
-            let method: Option<Retained<NSString>> = msg_send![&*space, authenticationMethod];
-            let server_trust =
-                method.is_some_and(|m| m.to_string() == "NSURLAuthenticationMethodServerTrust");
-            if server_trust && is_proxied(webview) {
-                let trust: *mut SecTrust = msg_send![&*space, serverTrust];
-                if !trust.is_null() {
-                    let credential: Option<Retained<AnyObject>> =
-                        msg_send![class!(NSURLCredential), credentialForTrust: trust];
-                    if let Some(c) = credential {
-                        handler.call((USE_CREDENTIAL, Retained::as_ptr(&c).cast_mut()));
-                        return;
-                    }
-                }
+        let Some(space) = space else {
+            if any_proxied() {
+                note("a challenge without a protection space; default handling");
             }
+            handler.call((DEFAULT_HANDLING, std::ptr::null_mut()));
+            return;
+        };
+        let method: Option<Retained<NSString>> = msg_send![&*space, authenticationMethod];
+        let method = method.map(|m| m.to_string()).unwrap_or_default();
+        let (store, proxied) = proxied_store(webview);
+        let server_trust = method == "NSURLAuthenticationMethodServerTrust";
+        if proxied && server_trust {
+            let host: Option<Retained<NSString>> = msg_send![&*space, host];
+            let host = host.map(|h| h.to_string()).unwrap_or_default();
+            let trust: *mut SecTrust = msg_send![&*space, serverTrust];
+            if trust.is_null() {
+                note(&format!(
+                    "server trust for {host} without a trust object; default handling"
+                ));
+            } else {
+                let credential: Option<Retained<AnyObject>> =
+                    msg_send![class!(NSURLCredential), credentialForTrust: trust];
+                if let Some(c) = credential {
+                    note(&format!("server trust for {host}; answered use-credential"));
+                    handler.call((USE_CREDENTIAL, Retained::as_ptr(&c).cast_mut()));
+                    return;
+                }
+                note(&format!(
+                    "server trust for {host}; cannot make a credential; default handling"
+                ));
+            }
+        } else if proxied {
+            note(&format!("challenge {method}; default handling"));
+        } else if any_proxied() {
+            // 通しているタブのはずが、データストアで見分けられていないときに気付けるよう、データストアを書く
+            note(&format!(
+                "challenge {method} for a tab that is not proxied (data store {:p}); default handling",
+                Retained::as_ptr(&store)
+            ));
         }
         handler.call((DEFAULT_HANDLING, std::ptr::null_mut()));
     }
 
-    /// 証明書の確認の受け口を、wry が webview に付ける WKNavigationDelegate のクラスに足す（1 度だけ）。足せたら true。
+    /// `webView:didFailProvisionalNavigation:withError:`。通しているタブの読み込みが、ページが出る前に失敗した。
+    /// wry はこの受け口を持たず、失敗を殻に知らせない（ページは白いまま）。エラー（下の層のエラーと、TLS のエラーの番号を
+    /// 含む）をログに書く。
+    unsafe extern "C-unwind" fn did_fail_provisional(
+        _this: &AnyObject,
+        _cmd: Sel,
+        webview: &WKWebView,
+        _navigation: *mut AnyObject,
+        error: &AnyObject,
+    ) {
+        let (store, proxied) = proxied_store(webview);
+        if !proxied {
+            return;
+        }
+        let text: Option<Retained<NSString>> = msg_send![error, description];
+        note(&format!(
+            "loading failed (data store {:p}): {}",
+            Retained::as_ptr(&store),
+            text.map(|t| t.to_string()).unwrap_or_default()
+        ));
+    }
+
+    /// cls に、受け口 sel を足す。もう持っていれば足さずに false（上書きしない）。
     ///
-    /// wry はこの受け口を持たず、外から足す口も無い。WebKit は、delegate を webview に付けたときに、受け口があるかを
+    /// # Safety
+    /// imp は types の型の関数で、メインスレッドで呼ぶ。
+    unsafe fn add_method(cls: &objc2::runtime::AnyClass, sel: Sel, imp: Imp, types: &CStr) -> bool {
+        if cls.instance_method(sel).is_some() {
+            return false;
+        }
+        objc2::ffi::class_addMethod(std::ptr::from_ref(cls).cast_mut(), sel, imp, types.as_ptr())
+            .as_bool()
+    }
+
+    /// 証明書の確認の受け口と、読み込みの失敗の受け口を、wry が webview に付ける WKNavigationDelegate のクラスに足す
+    /// （1 度だけ）。証明書の確認の受け口を足せたら true。
+    ///
+    /// wry はどちらの受け口も持たず、外から足す口も無い。WebKit は、delegate を webview に付けたときに、受け口があるかを
     /// 調べて覚えるので、通すタブの webview を作る前に足す。それより前に作った webview（メインの画面・ほかのタブ）は
     /// 「無い」と覚えたままで、今までどおり既定の扱いになる。あとから作る webview では呼ばれるが、通しているタブで
-    /// なければ既定の扱いを返す。
-    /// wry がこの受け口を持つようになっていたら、足さずに false を返す（上書きしない）。
-    fn install_trust_handler(main: &WKWebView) -> bool {
+    /// なければ既定の扱いを返す（読み込みの失敗は、何もしない）。
+    /// wry が証明書の確認の受け口を持つようになっていたら、足さずに false を返す（上書きしない）。読み込みの失敗の受け口は
+    /// ログのためだけなので、wry が持っていれば足さないだけにする。
+    fn install_handlers(main: &WKWebView) -> bool {
         thread_local! {
             static INSTALLED: std::cell::Cell<Option<bool>> = const { std::cell::Cell::new(None) };
         }
         if let Some(done) = INSTALLED.with(|i| i.get()) {
             return done;
         }
-        // SAFETY: メインスレッドで呼ぶ。navigationDelegate は、wry が付けた delegate（無ければ None）
+        // SAFETY: メインスレッドで呼ぶ。navigationDelegate は、wry が付けた delegate（無ければ None）。
+        // 足す関数の型は、それぞれの受け口の型（types）と同じ
         let done = unsafe {
             let delegate: Option<Retained<AnyObject>> = msg_send![main, navigationDelegate];
             match delegate {
                 None => false,
                 Some(d) => {
                     let cls = d.class();
-                    let sel = sel!(webView:didReceiveAuthenticationChallenge:completionHandler:);
-                    if cls.instance_method(sel).is_some() {
-                        false
-                    } else {
-                        // 型は v@:@@@?（戻り値なし・self・_cmd・webview・challenge・completionHandler の block）
-                        let imp: Imp = std::mem::transmute::<
+                    // 型は v@:@@@?（戻り値なし・self・_cmd・webview・challenge・completionHandler の block）
+                    let trust: Imp = std::mem::transmute::<
+                        unsafe extern "C-unwind" fn(
+                            &AnyObject,
+                            Sel,
+                            &WKWebView,
+                            &AnyObject,
+                            &Block<dyn Fn(isize, *mut AnyObject)>,
+                        ),
+                        Imp,
+                    >(did_receive_challenge);
+                    let done = add_method(
+                        cls,
+                        sel!(webView:didReceiveAuthenticationChallenge:completionHandler:),
+                        trust,
+                        c"v@:@@@?",
+                    );
+                    if done {
+                        // 型は v@:@@@（戻り値なし・self・_cmd・webview・navigation・error）
+                        let fail: Imp = std::mem::transmute::<
                             unsafe extern "C-unwind" fn(
                                 &AnyObject,
                                 Sel,
                                 &WKWebView,
+                                *mut AnyObject,
                                 &AnyObject,
-                                &Block<dyn Fn(isize, *mut AnyObject)>,
                             ),
                             Imp,
-                        >(did_receive_challenge);
-                        objc2::ffi::class_addMethod(
-                            std::ptr::from_ref(cls).cast_mut(),
-                            sel,
-                            imp,
-                            c"v@:@@@?".as_ptr(),
-                        )
-                        .as_bool()
+                        >(did_fail_provisional);
+                        if !add_method(
+                            cls,
+                            sel!(webView:didFailProvisionalNavigation:withError:),
+                            fail,
+                            c"v@:@@@",
+                        ) {
+                            note("the navigation delegate already handles failed loads; not logging them");
+                        }
                     }
+                    done
                 }
             }
         };

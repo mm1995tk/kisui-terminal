@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -40,11 +41,15 @@ type Options struct {
 	Store *Store
 	// RootCAs は行き先の証明書を確かめる認証局。nil なら OS のもの（テストで差し替える）。
 	RootCAs *x509.CertPool
+	// Log は、クライアントとの間でうまくいかなかったこと（CONNECT を断った・TLS の handshake が切れた）を書く先。
+	// nil なら書かない。うまくいった通信は書かない（記録は Store にある）。
+	Log *slog.Logger
 }
 
 // Proxy は 1 つの待ち受け口のプロキシ。
 type Proxy struct {
 	ca        *CA
+	log       *slog.Logger
 	store     *Store
 	transport *http.Transport
 	// pinned は、Host と違う所につなぐ要求（exchange.dial）用。接続を使い回さない（Transport は接続を Host の
@@ -59,7 +64,9 @@ type Proxy struct {
 	closeOnce sync.Once
 	targets   sync.Map    // inner に渡した接続（net.Conn）→ tunnel
 	intercept atomic.Bool // false の間は、間に入らず・記録もせずに中継だけする
-	addr      atomic.Value
+	// sawConnect は、CONNECT を 1 度でも受けたか（最初の 1 度だけログに書く。クライアントがこのプロキシに来ているかを見るため）
+	sawConnect atomic.Bool
+	addr       atomic.Value
 	// resending は送り直している（Resend）通信の数。closing は Close で終わる（送り直している通信を切る）
 	resending   counter
 	closing     context.Context
@@ -94,7 +101,10 @@ type exchange struct {
 
 // New はプロキシを作る。Serve で待ち受けを始める。
 func New(o Options) *Proxy {
-	p := &Proxy{ca: o.CA, store: o.Store, conns: make(chan net.Conn), done: make(chan struct{})}
+	p := &Proxy{ca: o.CA, store: o.Store, log: o.Log, conns: make(chan net.Conn), done: make(chan struct{})}
+	if p.log == nil {
+		p.log = slog.New(slog.DiscardHandler)
+	}
 	p.resending = newCounter(MaxResending)
 	p.hold = newHolder()
 	p.closing, p.stopClosing = context.WithCancel(context.Background())
@@ -366,11 +376,16 @@ func (rec recorder) RoundTrip(req *http.Request) (*http.Response, error) {
 // どちらでもなければ（間に入らない設定のときも）中身を見ずに中継する。
 func (p *Proxy) connect(w http.ResponseWriter, r *http.Request) {
 	target := r.Host
+	if !p.sawConnect.Swap(true) {
+		p.log.Info("proxy: the first CONNECT", "target", target)
+	}
 	if _, _, err := net.SplitHostPort(target); err != nil {
+		p.log.Warn("proxy: refused a CONNECT without host:port", "target", target)
 		http.Error(w, "kisui proxy: CONNECT needs host:port", http.StatusBadRequest)
 		return
 	}
 	if p.isSelf(target) {
+		p.log.Warn("proxy: refused a CONNECT to the proxy itself", "target", target)
 		http.Error(w, "kisui proxy: the request points at this proxy itself", http.StatusBadRequest)
 		return
 	}
@@ -395,6 +410,7 @@ func (p *Proxy) connect(w http.ResponseWriter, r *http.Request) {
 			client.Close()
 		}
 	case kindGone:
+		p.log.Info("proxy: the client closed the tunnel without sending anything", "target", target)
 		client.Close()
 	}
 }
@@ -485,14 +501,20 @@ func (p *Proxy) interceptTLS(client net.Conn, target string) {
 			if name == "" {
 				name = hostOnly
 			}
-			return p.ca.leaf(name)
+			l, err := p.ca.leaf(name)
+			if err != nil {
+				p.log.Warn("proxy: cannot make a certificate", "name", name, "err", err)
+			}
+			return l, err
 		},
 		NextProtos: []string{"h2", "http/1.1"},
 	})
 	ctx, cancel := context.WithTimeout(context.Background(), handshakeTimeout)
 	defer cancel()
 	if err := tc.HandshakeContext(ctx); err != nil {
-		// クライアントが認証局を信じていないと、ここで切られる
+		// クライアントが認証局を信じていないと、ここで切られる。クライアントが証明書を断ったのか（bad certificate・
+		// unknown certificate authority）、ほかの理由かを後から見分けられるよう書く（macOS の内蔵ブラウザ。#409）
+		p.log.Warn("proxy: TLS handshake with the client failed", "target", target, "sni", tc.ConnectionState().ServerName, "err", err)
 		tc.Close()
 		return
 	}
