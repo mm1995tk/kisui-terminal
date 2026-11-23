@@ -217,7 +217,8 @@ Cookie だけを別の端末やブラウザに持ち出しても、鍵が無い�
   このブログに、Linux と Firefox のことは書いていない。DBSC が使えない端末（安全な鍵の置き場が無い端末）でログインがどうなるかも、書いていない。
 - DBSC は W3C の作業中の仕様（[W3C](https://www.w3.org/TR/dbsc/)）。
 - Mozilla の標準の立場を決める場（[mozilla/standards-positions の #912](https://github.com/mozilla/standards-positions/issues/912)）で、DBSC には `position: negative` のラベルが付いている。
-  ただし、そのページに、正式な声明とラベルを付けた日付は無い。Mozilla の人は、設計は直せる（"could be (greatly) improved"）と書いている。
+  2026-06-30 に Mozilla の人が negative の立場を提案し、2026-08-05 にラベルが付いて Issue は閉じられた。理由は、盗まれた Cookie を使える時間が残ること、再認証に独自の仕組みが要ること、TPM があることを前提にしたくないこと。
+  同じコメントに「negative は、実装しないとは限らない」（"A negative position does not necessarily mean that we will not implement a proposal."）とある。
   Firefox が DBSC を実装したという公開の文書は、見つけられなかった。
 
 確かめていないこと（この文書では言い切らない）：
