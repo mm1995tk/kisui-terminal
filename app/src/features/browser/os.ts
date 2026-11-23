@@ -101,6 +101,19 @@ export interface BrowserOs {
   onTabPage(
     h: (e: { tab: string; url: string; loading: boolean }) => void,
   ): Promise<Off>;
+  /**
+   * ページの読み込みが、ページが出る前に失敗した（#432。証明書が信頼できない・名前が引けない・つながらないなど）。
+   * ページは替わらず、前のページが残る。画面は、そのタブのページを隠して、url（開こうとした URL）と理由を出す。
+   * 次に読み込みが始まったら（onTabPage の loading）、画面は片付ける。reason は殻の分類（loadError.ts の LoadReason）。
+   */
+  onTabLoadFailed(
+    h: (e: {
+      tab: string;
+      url: string;
+      reason: string;
+      detail: string;
+    }) => void,
+  ): Promise<Off>;
   /** ページの題が変わった。 */
   onTabTitle(h: (e: { tab: string; title: string }) => void): Promise<Off>;
   /**

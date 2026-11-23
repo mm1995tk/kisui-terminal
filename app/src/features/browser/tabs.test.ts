@@ -157,6 +157,22 @@ describe("内蔵ブラウザのタブ", () => {
     assert.ok(!JSON.stringify(toStored(t)).includes(icon));
   });
 
+  it("読み込みの失敗を持たせ、消す。覚える形には書かない（#432）", () => {
+    const error = {
+      url: "https://bad.example/secret?token=1",
+      reason: "cert-untrusted" as const,
+      detail: "x",
+    };
+    const t = updateTab(three(), "a", { loadError: error });
+    assert.equal(t.tabs[0].loadError, error);
+    assert.equal(updateTab(t, "a", { loadError: error }), t);
+    assert.equal(
+      updateTab(t, "a", { loadError: undefined }).tabs[0].loadError,
+      undefined,
+    );
+    assert.ok(!JSON.stringify(toStored(t)).includes("secret"));
+  });
+
   it("タブの名前は、つけた名前、無ければページの題、それも無ければ host", () => {
     const t = { ...tab("a"), title: "Page" };
     assert.equal(tabTitle(t, "Mine"), "Mine");

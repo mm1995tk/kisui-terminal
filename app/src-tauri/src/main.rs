@@ -5,6 +5,7 @@ mod askpass;
 mod bookmarks;
 mod browser;
 mod browser_capture;
+mod browser_load;
 #[cfg(target_os = "macos")]
 mod browser_proxy;
 mod clipboard_history;
@@ -174,6 +175,7 @@ fn main() {
         .manage(update::Updates::default())
         .manage(transfer::Transfers::default())
         .manage(browser::Tabs::default())
+        .manage(browser_load::Failures::default())
         .manage(download::Downloads::default())
         .setup(|app| {
             version::init(app.package_info().version.to_string());

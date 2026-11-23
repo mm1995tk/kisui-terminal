@@ -23,6 +23,29 @@
   overflow-wrap: anywhere;
 }
 
+/* ページの読み込みが、ページが出る前に失敗したときの表示（#432。BrowserArea.tsx）。ページは隠してあり、この箱が出る */
+.browser-load-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  max-width: 40em;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.browser-load-error h2 {
+  margin: 0;
+  font-size: 16px;
+}
+.browser-load-error p {
+  margin: 0;
+}
+.browser-load-error-url {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--gh-text-muted);
+}
+
 /* ブックマークの一覧（#205。BookmarkDialog.tsx）。行は題と、右に薄く URL */
 .bookmark-rows {
   max-height: 50vh;

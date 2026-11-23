@@ -17,6 +17,7 @@ import {
 } from "solid-js";
 
 import type { InterceptKey } from "../../../../features/commands/commands.ts";
+import { Button } from "../../../components/Button.tsx";
 import { usePorts } from "../../../ports.ts";
 import {
   floatsOver,
@@ -26,6 +27,10 @@ import {
   toLogical,
   type Bounds,
 } from "./overlay.ts";
+import {
+  isCertReason,
+  reasonKey,
+} from "../../../../features/browser/loadError.ts";
 import { isNewTab } from "../../../../features/browser/newTab.ts";
 import type { BrowserTab } from "../../../../features/browser/tabs.ts";
 import "./browser.css";
@@ -97,6 +102,7 @@ export function BrowserArea(props: {
     focusTab,
     layerTab,
     moveTab,
+    navTab,
     openTab,
     showTabView,
     zoomTab,
@@ -368,6 +374,12 @@ export function BrowserArea(props: {
         return;
       }
       if (v.state !== "open") return;
+      // 読み込みが、ページが出る前に失敗したタブ（#432）は、ページを隠して、失敗の表示（下）を見せる。前のページが残って見えない
+      if (tab.loadError) {
+        releaseLayer();
+        hide(tab.id, v);
+        return;
+      }
       if (b === null) {
         releaseLayer();
         hide(tab.id, v);
@@ -405,15 +417,42 @@ export function BrowserArea(props: {
     <div class="browser-area" ref={area} hidden={!props.shown}>
       <Show when={props.shown}>
         {(t) => (
-          <p class="browser-note" role="status">
-            {status() === "opening"
-              ? T("browser.opening", { url: t().url })
-              : status() === "failed"
-                ? T("browser.failed", { url: t().url })
-                : hidden()
-                  ? T("browser.hidden")
-                  : ""}
-          </p>
+          <Show
+            when={t().loadError}
+            fallback={
+              <p class="browser-note" role="status">
+                {status() === "opening"
+                  ? T("browser.opening", { url: t().url })
+                  : status() === "failed"
+                    ? T("browser.failed", { url: t().url })
+                    : hidden()
+                      ? T("browser.hidden")
+                      : ""}
+              </p>
+            }
+          >
+            {(e) => (
+              // 読み込みが、ページが出る前に失敗した（#432）。ページ（子の webview）は隠してあり、開こうとした URL と理由を出す。
+              // 文字は、そのまま文字として出す（URL・OS の説明に、ページが選んだ文字が入ることがあるため）
+              <div class="browser-load-error" role="alert">
+                <h2>{T("browser.loadFailed.title")}</h2>
+                <p class="browser-load-error-url">{e().url}</p>
+                <p>{T(reasonKey(e().reason))}</p>
+                <Show when={isCertReason(e().reason)}>
+                  <p class="browser-note">{T("browser.loadFailed.certNote")}</p>
+                </Show>
+                <Show when={e().detail}>
+                  <p class="browser-note">{e().detail}</p>
+                </Show>
+                <Button
+                  variant="primary"
+                  onClick={() => void navTab(t().id, "reload").catch(() => {})}
+                >
+                  {T("browser.loadFailed.retry")}
+                </Button>
+              </div>
+            )}
+          </Show>
         )}
       </Show>
       {props.children}

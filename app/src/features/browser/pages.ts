@@ -31,6 +31,7 @@ import {
   gwsOfTerm,
   shownBrowserId,
 } from "../workspaces/model.ts";
+import { toLoadError } from "./loadError.ts";
 import { isNewTab, NEW_TAB_URL } from "./newTab.ts";
 import type { BrowserOs, TabPopup } from "./os.ts";
 import { addRelayed, relayedOf, unrelay, type Relayed } from "./relay.ts";
@@ -71,6 +72,7 @@ export function createPages(deps: {
     zoomTab,
     onTabPage,
     onTabTitle,
+    onTabLoadFailed,
     onTabFavicon,
     onTabPopup,
     onTabClosed,
@@ -336,11 +338,31 @@ export function createPages(deps: {
         await onTabPage((e) => {
           // 中継で開いているタブは、元の URL に戻して覚える（入力欄にも元の URL を出す）
           const url = unrelay(e.url, relays.get(e.tab));
-          if (isOpenableUrl(url)) setTabs((t) => updateTab(t, e.tab, { url }));
-          // 読み込み中は地球のアイコン（#237。読み込みが終われば、殻が新しいページの favicon を知らせる）
+          // 読み込みが失敗したまま終わった知らせ（Linux の WebKitGTK は、失敗のあとに前のページの URL で「終わった」を知らせる）は、
+          // タブの URL を書き換えない
+          const failed =
+            !e.loading &&
+            untrack(tabs).tabs.some((t) => t.id === e.tab && t.loadError);
+          if (!failed && isOpenableUrl(url))
+            setTabs((t) => updateTab(t, e.tab, { url }));
+          // 読み込みが始まったら、前の失敗の表示は片付ける（#432）。読み込み中は地球のアイコン（#237。読み込みが終われば、殻が新しいページの favicon を知らせる）
           if (e.loading)
-            setTabs((t) => updateTab(t, e.tab, { favicon: undefined }));
+            setTabs((t) =>
+              updateTab(t, e.tab, { favicon: undefined, loadError: undefined }),
+            );
         }),
+        // ページが出る前の読み込みの失敗（証明書・名前・接続。#432）。そのタブに失敗を持たせ、画面（BrowserArea）が理由を出す
+        await onTabLoadFailed((e) =>
+          setTabs((t) =>
+            updateTab(t, e.tab, {
+              loadError: toLoadError(
+                // 中継で開いているタブは、元の URL で出す
+                { ...e, url: unrelay(e.url, relays.get(e.tab)) },
+                t.tabs.find((x) => x.id === e.tab)?.url ?? "",
+              ),
+            }),
+          ),
+        ),
         await onTabFavicon((e) =>
           setTabs((t) => updateTab(t, e.tab, { favicon: e.icon || undefined })),
         ),

@@ -63,7 +63,7 @@ pub fn trust_and_load(v: &tauri::Webview, url: Url) -> Result<(), String> {
 }
 
 #[cfg(target_os = "macos")]
-pub use mac::{configuration, forget, Configuration};
+pub use mac::{add_method, configuration, forget, log_failure, Configuration};
 
 #[cfg(target_os = "macos")]
 mod mac {
@@ -315,19 +315,13 @@ mod mac {
         handler.call((DEFAULT_HANDLING, std::ptr::null_mut()));
     }
 
-    /// `webView:didFailProvisionalNavigation:withError:`。通しているタブの読み込みが、ページが出る前に失敗した。
-    /// wry はこの受け口を持たず、失敗を殻に知らせない（ページは白いまま）。エラーの種類と番号だけをログに書く：
-    /// エラーの domain と code、下の層のエラー（`NSUnderlyingError`）の domain と code、TLS のエラーの番号
-    /// （`_kCFStreamErrorDomainKey`・`_kCFStreamErrorCodeKey`）、行き先のホストの名前、行き先の証明書が届いていたか
-    /// （`NSErrorPeerCertificateChainKey`）。エラーの `description` は書かない（失敗した URL の全体が入り、クエリに
-    /// 載るトークンなどが、ディスクに残るログに出るため）。
-    unsafe extern "C-unwind" fn did_fail_provisional(
-        _this: &AnyObject,
-        _cmd: Sel,
-        webview: &WKWebView,
-        _navigation: *mut AnyObject,
-        error: &AnyObject,
-    ) {
+    /// 通しているタブの読み込みが、ページが出る前に失敗したときの、原因を調べるためのログ（`webView:didFailProvisionalNavigation:withError:`
+    /// の受け口は browser_load.rs が足し、そこから呼ぶ）。
+    /// エラーの種類と番号だけをログに書く：エラーの domain と code、下の層のエラー（`NSUnderlyingError`）の domain と code、
+    /// TLS のエラーの番号（`_kCFStreamErrorDomainKey`・`_kCFStreamErrorCodeKey`）、行き先のホストの名前、行き先の証明書が
+    /// 届いていたか（`NSErrorPeerCertificateChainKey`）。エラーの `description` は書かない（失敗した URL の全体が入り、クエリに
+    /// 載るトークンなどが、ディスクに残るログに出るため）。通していないタブは何も書かない。
+    pub unsafe fn log_failure(webview: &WKWebView, error: &AnyObject) {
         let (store, proxied) = proxied_store(webview);
         if !proxied {
             return;
@@ -395,7 +389,12 @@ mod mac {
     ///
     /// # Safety
     /// imp は types の型の関数で、メインスレッドで呼ぶ。
-    unsafe fn add_method(cls: &objc2::runtime::AnyClass, sel: Sel, imp: Imp, types: &CStr) -> bool {
+    pub unsafe fn add_method(
+        cls: &objc2::runtime::AnyClass,
+        sel: Sel,
+        imp: Imp,
+        types: &CStr,
+    ) -> bool {
         if cls.instance_method(sel).is_some() {
             return false;
         }
@@ -403,15 +402,15 @@ mod mac {
             .as_bool()
     }
 
-    /// 証明書の確認の受け口と、読み込みの失敗の受け口を、wry が webview に付ける WKNavigationDelegate のクラスに足す
+    /// 証明書の確認の受け口を、wry が webview に付ける WKNavigationDelegate のクラスに足す
     /// （1 度だけ）。証明書の確認の受け口を足せたら true。
     ///
-    /// wry はどちらの受け口も持たず、外から足す口も無い。WebKit は、delegate を webview に付けたときに、受け口があるかを
+    /// wry はこの受け口を持たず、外から足す口も無い。WebKit は、delegate を webview に付けたときに、受け口があるかを
     /// 調べて覚えるので、通すタブの webview を作る前に足す。それより前に作った webview（メインの画面・ほかのタブ）は
     /// 「無い」と覚えたままで、今までどおり既定の扱いになる。あとから作る webview では呼ばれるが、通しているタブで
-    /// なければ既定の扱いを返す（読み込みの失敗は、何もしない）。
+    /// なければ既定の扱いを返す。
     /// wry が証明書の確認の受け口を持つようになっていたら、足さずに false を返す（上書きしない）。読み込みの失敗の受け口は
-    /// ログのためだけなので、wry が持っていれば足さないだけにする。
+    /// browser_load.rs が足す（すべてのタブに）。
     fn install_handlers(main: &WKWebView) -> bool {
         thread_local! {
             static INSTALLED: std::cell::Cell<Option<bool>> = const { std::cell::Cell::new(None) };
@@ -444,27 +443,6 @@ mod mac {
                         trust,
                         c"v@:@@@?",
                     );
-                    if done {
-                        // 型は v@:@@@（戻り値なし・self・_cmd・webview・navigation・error）
-                        let fail: Imp = std::mem::transmute::<
-                            unsafe extern "C-unwind" fn(
-                                &AnyObject,
-                                Sel,
-                                &WKWebView,
-                                *mut AnyObject,
-                                &AnyObject,
-                            ),
-                            Imp,
-                        >(did_fail_provisional);
-                        if !add_method(
-                            cls,
-                            sel!(webView:didFailProvisionalNavigation:withError:),
-                            fail,
-                            c"v@:@@@",
-                        ) {
-                            note("the navigation delegate already handles failed loads; not logging them");
-                        }
-                    }
                     done
                 }
             }

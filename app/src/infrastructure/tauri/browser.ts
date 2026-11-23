@@ -44,6 +44,11 @@ export const tauriBrowser: BrowserOs = {
       "browser-page",
       (e) => h(e.payload),
     ),
+  onTabLoadFailed: (h) =>
+    listen<{ tab: string; url: string; reason: string; detail: string }>(
+      "browser-load-failed",
+      (e) => h(e.payload),
+    ),
   onTabTitle: (h) =>
     listen<{ tab: string; title: string }>("browser-title", (e) =>
       h(e.payload),
