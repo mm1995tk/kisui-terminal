@@ -216,7 +216,8 @@ mod mac {
         }
     }
 
-    /// 元のタブ root の下のタブが全部閉じた。データストアを忘れる（どのスレッドから呼んでもよい）。
+    /// 元のタブ root の下のタブが全部閉じた、または root を通さずに作り直す。データストアを忘れる
+    /// （どのスレッドから呼んでもよい）。忘れたデータストアは、通しているタブのものとみなさない（証明書の確認は既定の扱い）。
     pub fn forget(app: &AppHandle, root: &str) {
         let root = root.to_string();
         let _ = app.run_on_main_thread(move || {
