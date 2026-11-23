@@ -776,6 +776,13 @@ pub async fn browser_open(
         return Err("invalid keys".into());
     }
     let first = parse_url(&url)?;
+    // macOS：通していたタブを、通さずに作り直す（通すのをやめた・kisui serve が止まった）なら、そのタブを元にした
+    // データストアを忘れる（browser_capture.rs）。閉じたときに忘れるのは下のタブが全部閉じたときだけなので、そこから
+    // 開いた新しい窓のタブが残っていると、通しているタブがあることになったまま残る
+    #[cfg(target_os = "macos")]
+    if proxy.is_none() {
+        crate::browser_capture::forget(&app, &tab);
+    }
     let data = match proxy {
         Some(port) => captured_data(&app, &tab, port).await?,
         None => tab_data(&app, incognito).await,

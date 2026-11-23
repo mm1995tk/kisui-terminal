@@ -246,6 +246,10 @@ export function BrowserArea(props: {
     // 子の webview は見える状態で作られ、見回り（tick）は今出しているタブしか見ないので、ここで隠さないとグリッドを覆ったまま残る
     if (untrack(() => props.shown?.id) !== tab.id) hide(tab.id, v);
     refreshStatus();
+    // 作っている間に、タブのプロキシ（#409）が替わった（通すのをやめた・kisui serve が止まった）。下の作り直しの
+    // createEffect は、作っている途中のタブを飛ばすので、ここで作り直す
+    const now = untrack(() => props.tabs.find((t) => t.id === tab.id));
+    if (now && now.proxy?.port !== proxy) void recreate(now, v.shown);
   }
 
   /**
@@ -285,6 +289,22 @@ export function BrowserArea(props: {
       views.delete(id);
       if (v.state === "open") void closeTabView(id).catch(() => {});
       if (wantFocus === id) wantFocus = null;
+    }
+  });
+
+  // タブのプロキシ（#409）が替わった（通し始めた・やめた・kisui serve が止まった）ら、すぐに作り直す（ページを読み直す）。
+  // 出していないタブも作り直す（作ったあと隠す）。見回り（tick）に任せると、作り直すのは今出しているタブだけで、しかも
+  // 窓が隠れている間は WebView が requestAnimationFrame を止めて、見回りが動かない。そのため kisui serve が止まったあとも、
+  // 止まったポートをプロキシにして証明書を確かめない webview が、タブを出すまで・窓が見えるまで残っていた
+  createEffect(() => {
+    for (const t of props.tabs) {
+      const v = views.get(t.id);
+      if (v?.state !== "open" || v.proxy === t.proxy?.port) continue;
+      untrack(() => {
+        const shown = props.shown?.id === t.id;
+        if (shown) releaseLayer();
+        void recreate(t, shown ? bounds().b : null);
+      });
     }
   });
 
@@ -349,7 +369,7 @@ export function BrowserArea(props: {
         return;
       }
       if (v.state !== "open") return;
-      // プロキシ（#409）を替えたら、作り直す
+      // プロキシ（#409）を替えたら、作り直す（ふつうは上の createEffect が先に作り直している）
       if (v.proxy !== tab.proxy?.port) {
         releaseLayer();
         void recreate(tab, b);
