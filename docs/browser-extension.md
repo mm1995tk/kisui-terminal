@@ -45,6 +45,10 @@ Cookie を読むのは、kisui-terminal の答えの `sites` にある項目に�
 `http://*/*` は持たない。https のサイトの Cookie のうち Secure の付かないもの（Google の `SID` など）も、Firefox では
 `https://*/*` だけで読める（Firefox のソースの `toolkit/components/extensions/parent/ext-cookies.js` の `query()` と
 `MatchPattern.cpp` の `MatchPatternCore::MatchesCookie`。Issue #286）。0.1.1 から 0.2.1 までは持っていたが、0.2.2 で外した。
+外したのは新しく入れる人にだけ効く。Firefox はもらった host の権限を拡張機能の id ごとに覚えていて、更新で manifest から
+消えても取り消さない（消えるのは拡張機能を削除したとき）ので、0.2.1 以前から更新した人には `http://*/*` が残る。
+0.2.2 を確かめるときは、前の版を入れたことの無いプロファイルで入れるか、前の版を削除してから入れ、
+背景のコンソールで `await browser.permissions.getAll()` の `origins` に `http://*/*` が無いことを見てから試す。
 
 Firefox は、入れるときに host の権限を断れる。断ったときは、拡張機能のボタンを押すと頼み直す。
 版を上げて host の権限が増えたときも、更新で新しい権限をもらえていなければ、パスキーの後に自動で送る道は
