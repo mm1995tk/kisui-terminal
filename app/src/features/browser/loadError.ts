@@ -18,7 +18,7 @@ export type LoadReason =
   | "lost"
   | "other";
 
-/** タブの読み込みの失敗。次に読み込みが始まるまで、そのタブにはこれを出す（覚えない）。 */
+/** タブの読み込みの失敗。次の読み込みを頼む・ページが替わるまで、そのタブにはこれを出す（覚えない）。 */
 export interface LoadError {
   /** 開こうとした URL */
   url: string;

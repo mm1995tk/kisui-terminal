@@ -73,6 +73,7 @@ export function createPages(deps: {
     onTabPage,
     onTabTitle,
     onTabLoadFailed,
+    onTabLoadCleared,
     onTabFavicon,
     onTabPopup,
     onTabClosed,
@@ -345,13 +346,13 @@ export function createPages(deps: {
             untrack(tabs).tabs.some((t) => t.id === e.tab && t.loadError);
           if (!failed && isOpenableUrl(url))
             setTabs((t) => updateTab(t, e.tab, { url }));
-          // 読み込みが始まったら、前の失敗の表示は片付ける（#432）。読み込み中は地球のアイコン（#237。読み込みが終われば、殻が新しいページの favicon を知らせる）
+          // 読み込み中は地球のアイコン（#237。読み込みが終われば、殻が新しいページの favicon を知らせる）。
+          // 前の失敗の表示は、殻が onTabLoadCleared で片付けさせる（ページが替わったときも、そちらで来る）
           if (e.loading)
-            setTabs((t) =>
-              updateTab(t, e.tab, { favicon: undefined, loadError: undefined }),
-            );
+            setTabs((t) => updateTab(t, e.tab, { favicon: undefined }));
         }),
-        // ページが出る前の読み込みの失敗（証明書・名前・接続。#432）。そのタブに失敗を持たせ、画面（BrowserArea）が理由を出す
+        // ページが出る前の読み込みの失敗（証明書・名前・接続、プロキシに通したタブではプロキシが行き先につながらなかった。#432）。
+        // そのタブに失敗を持たせ、画面（BrowserArea）が理由を出す
         await onTabLoadFailed((e) =>
           setTabs((t) =>
             updateTab(t, e.tab, {
@@ -362,6 +363,10 @@ export function createPages(deps: {
               ),
             }),
           ),
+        ),
+        // 失敗が終わった（次の読み込みを頼んだ・ページが替わった。#432）。失敗の表示を片付け、ページを出す
+        await onTabLoadCleared((e) =>
+          setTabs((t) => updateTab(t, e.tab, { loadError: undefined })),
         ),
         await onTabFavicon((e) =>
           setTabs((t) => updateTab(t, e.tab, { favicon: e.icon || undefined })),
