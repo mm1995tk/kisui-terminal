@@ -42,9 +42,11 @@ const EVENT_LOAD_FAILED: &str = "browser-load-failed";
 const EVENT_LOAD_CLEARED: &str = "browser-load-cleared";
 
 /// 通信を記録するプロキシ（`kisui serve` の proxy.*。Go の proxy パッケージ。#409）が、行き先につながらなかったときの
-/// 502 に付けるヘッダー（proxy/failure.go の FailureHeader・FailureDetailHeader）。値は Reason の名前（kebab-case）。
+/// 502 に付ける、理由のヘッダー（proxy/failure.go の FailureHeader）。値は Reason の名前（kebab-case）。
 #[cfg_attr(not(any(target_os = "linux", target_os = "macos")), allow(dead_code))]
 pub const PROXY_FAILURE_HEADER: &str = "X-Kisui-Proxy-Error";
+/// 同じ 502 に付ける、詳しい文のヘッダー（proxy/failure.go の FailureDetailHeader）。値は Go のエラーの文で、
+/// 表示できる ASCII だけ・長さは proxy/failure.go の maxFailureDetail（300 バイト）まで。画面に出す説明に使う。
 #[cfg_attr(not(any(target_os = "linux", target_os = "macos")), allow(dead_code))]
 pub const PROXY_FAILURE_DETAIL_HEADER: &str = "X-Kisui-Proxy-Error-Detail";
 
