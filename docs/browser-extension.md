@@ -1,7 +1,7 @@
 # 外のブラウザの拡張機能（パスキーのログインを kisui-terminal に戻す）
 
 内蔵ブラウザでパスキーが要るとき、kisui-terminal は同じ URL を Firefox で開く（`docs/passkey-extension.md`）。
-この拡張機能は、Firefox でパスキーのログインが済んだら、そのサイトの Cookie を native messaging で kisui-terminal に送り、タブを閉じる。
+この拡張機能は、Firefox でログインが済んだら（パスキーが通った、またはタブがログインを終えて着いたらしいページに移った）、そのサイトの Cookie を native messaging で kisui-terminal に送り、タブを閉じる。
 コードは `extension/`。Firefox の拡張機能（Manifest V3。background は `background.scripts`）として書いてある。
 
 ## 動き
@@ -23,13 +23,24 @@
    そのため `page.js` は、拡張機能が入る順によらず、ページが呼ぶ関数がいつも `page.js` の包みになるようにする：`navigator.credentials` を
    読むたびに、返す入れ物の `get` / `create` を `page.js` の accessor にし直し、その accessor は読まれたときの関数（ほかの拡張機能が
    代入・`Object.defineProperty` したもの、prototype のもの）を包んで返す（#433）。
-4. 落ち着くのを待つ：パスキーが通ってから 2 秒は待ち、そのあと、タブの読み込みが済み、そのサイトに送られる Cookie が 1.5 秒変わらなければ
+4. URL が変わったら送る（#438）：Firefox でログイン済みのときや、パスワードでログインしたときは、パスキーが通らない。そこで、そのタブの URL が、
+   kisui-terminal が開いた URL（`waiting` の `url`。タブの最初のページはリダイレクトの後のことがあるので、こちらと比べる）から、
+   ログインを終えて着いたらしいページに変わったら、5 と同じに落ち着くのを待って送る。着いたらしいページは、待っている項目に当たり、
+   ログインの途中らしくない URL（`lib.js` の `loginLike`：path の区切りに `login`・`session`・`signin`・`twofactor`・`2fa`・`mfa`・`otp`・
+   `challenge`・`verif`・`auth` などを含むもの、host の最初のラベルが `accounts`・`login`・`signin`・`auth`・`sso` のもの。広めに取る）。
+   開いた URL のままでも、そのあとログインの途中らしいページを通っていれば（`o s` で開いたページがログインのページへリダイレクトし、
+   済むと元のページに戻るサイト）、着いたと見る。落ち着くのを待つ間に別のページに移ったら、移った先から待ち直し、ログインの途中らしいページ・
+   サイトの外・開いた URL に移ったら待つのをやめる。送る直前にも今の URL を見直す。URL は `tabs.onUpdated` で知る（host の権限 `https://*/*` で
+   URL が見えるので、`tabs` の権限は要らない）。パスキーが通れば、URL で待っていたときもパスキーの待ち方に替える。
+   送る直前に kisui-terminal が待っていなければ（ログインをやめてタブを残し、待ちが終わった後にサイトの中を移動したなど）、`!` を出さずにタブを忘れる。
+   URL を使うのは kisui-terminal が開いたタブ（覚えたタブ）のものだけで、覚えるのは開いた URL（kisui-terminal の答えのもの）と、ログインの途中らしいページを通ったかだけ。
+5. 落ち着くのを待つ：パスキーが通ってから（4 では着いたらしいページに移ってから）2 秒は待ち、そのあと、タブの読み込みが済み、そのサイトに送られる Cookie が 1.5 秒変わらなければ
    落ち着いたと見る。15 秒を過ぎたら、落ち着かなくても送る。そのときタブが別のサイトに移っていれば送らない（手で戻るボタンを使う）。
    サイトは待っている項目で比べるので、`.google.com` で待っていれば、`accounts.google.com` から `myaccount.google.com` に移っていても送る。
-5. 今のタブのページに送られる Cookie だけを読み（`cookies.getAll` を、タブの host の URL と、その host のドメインで。タブの Cookie の置き場から）、
+6. 今のタブのページに送られる Cookie だけを読み（`cookies.getAll` を、タブの host の URL と、その host のドメインで。タブの Cookie の置き場から）、
    取り決めの `cookies` で、その項目を `waiting` に挙げた受け口に送る。`done` が返ったらタブを閉じる。断られたら、拡張機能のボタンに
    `!` を付け、ボタンの説明（マウスを乗せると出る）に理由を書く。
-6. 手で戻るボタン（拡張機能のボタン）：パスキーの後にまだ手順が続くサイトのため。押すと、今のタブの host が許可サイトの項目に当たり、kisui-terminal が
+7. 手で戻るボタン（拡張機能のボタン）：パスキーの後にまだ手順が続くサイトと、URL が変わらない・ログインの途中らしい URL に着くサイトのため。押すと、今のタブの host が許可サイトの項目に当たり、kisui-terminal が
    その項目を待っていれば、今のタブのページに送られる Cookie を送り、タブを閉じる（`.google.com` で待っていれば、`myaccount.google.com` のタブからも送れる）。キーは、Firefox の
    アドオンの管理の「拡張機能のショートカットキーの管理」で付けられる（既定では付けない。ブラウザやページのキーとぶつけないため）。
 
@@ -98,6 +109,7 @@ zip の中身は `extension/` のファイルそのもの（`manifest.json` も�
 0.2.2 で、host の権限から `http://*/*` を外した（#286）。
 0.2.3 で、`cookies` にタブの今の URL（`url`）を入れて送るようにした（#276。kisui-terminal は、内蔵ブラウザのタブでその URL を開き直す）。
 0.2.4 で、パスキーの管理の拡張機能（1Password など）が `navigator.credentials` を置き換えていても、パスキーが通ったことを知れるようにした（#433）。
+0.2.5 で、kisui-terminal が開いたタブの URL が、開いた URL からログインを終えて着いたらしいページに変わったら、パスキーが通らなくても送るようにした（#438。Firefox でログイン済みのとき・パスワードでログインしたとき）。
 取り決め（`docs/passkey-extension.md`）を変えるときは、kisui-terminal と拡張機能を合わせて変える。
 
 ### ストアの説明
@@ -110,7 +122,7 @@ zip の中身は `extension/` のファイルそのもの（`manifest.json` も�
 
 > kisui-terminal is a terminal-centered workspace with a built-in browser. The built-in browser is the WebView of the OS, so it cannot use the passkeys of iCloud Keychain or 1Password, nor browser extensions such as 1Password. When a page there asks for a passkey, kisui-terminal opens the same page in this browser instead. You can also move a site to this browser yourself from kisui-terminal, to log in with a password (for example with the 1Password extension).
 >
-> This extension finishes the round trip: after you log in with your passkey here, it sends the cookies of that site to kisui-terminal on the same computer (through native messaging), closes the tab, and kisui-terminal reloads its tab, logged in. When you log in with a password, or the site asks for more steps after the passkey, press the extension's button when you are done.
+> This extension finishes the round trip: after you log in with your passkey here, it sends the cookies of that site to kisui-terminal on the same computer (through native messaging), closes the tab, and kisui-terminal reloads its tab, logged in. When you log in with a password, or are already logged in here, it does the same once the tab moves on to a page of the site that is not a step of the login. If the tab does not come back by itself (for example the site asks for more steps after the passkey), press the extension's button when you are done.
 >
 > It reads cookies only of the sites you list in the kisui-terminal settings (`passkey_sites`), and sends them only to kisui-terminal on your computer. Nothing is sent over the network. It needs kisui-terminal: https://github.com/mm1995tk/kisui-terminal
 
@@ -118,7 +130,7 @@ zip の中身は `extension/` のファイルそのもの（`manifest.json` も�
 
 > kisui-terminal は、内蔵ブラウザを持つ、ターミナルを中心にした作業場です。内蔵ブラウザは OS の WebView なので、iCloud キーチェーンや 1Password のパスキーも、1Password などのブラウザの拡張機能も使えません。そこでページがパスキーを求めると、kisui-terminal は同じページをこのブラウザで開きます。パスワードで（1Password の拡張機能などで）ログインしたいときは、kisui-terminal から手でサイトをこのブラウザに移すこともできます。
 >
-> この拡張機能は、その続きを受け持ちます。このブラウザでパスキーでログインすると、そのサイトの Cookie を同じコンピューターの kisui-terminal に（native messaging で）送ってタブを閉じ、kisui-terminal はタブをログインした状態で開き直します。パスワードでログインしたときや、パスキーの後にまだ手順が続くサイトでは、済んだら拡張機能のボタンを押してください。
+> この拡張機能は、その続きを受け持ちます。このブラウザでパスキーでログインすると、そのサイトの Cookie を同じコンピューターの kisui-terminal に（native messaging で）送ってタブを閉じ、kisui-terminal はタブをログインした状態で開き直します。パスワードでログインしたときや、このブラウザでログイン済みのときも、タブがそのサイトのログインの途中でないページに移れば同じようにします。自動で戻らないとき（パスキーの後にまだ手順が続くサイトなど）は、済んだら拡張機能のボタンを押してください。
 >
 > Cookie を読むのは、kisui-terminal の設定（`passkey_sites`）に書いたサイトのものだけで、送る先はあなたのコンピューターの kisui-terminal だけです。ネットワークには何も送りません。kisui-terminal が要ります：https://github.com/mm1995tk/kisui-terminal
 
