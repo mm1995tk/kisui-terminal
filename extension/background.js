@@ -370,8 +370,11 @@ async function waitAndSend(tabId) {
     // 読む前に、今も許可サイトで、今も待っているかを聞き直す（覚えた後に一覧から消えた・待ちが終わったサイトの
     // Cookie は読まない）。送る先も今の答えの受け口にする
     const { sites, waiting } = await refreshSites();
+    const w = sites.includes(s.site) ? waiting.get(s.site) : undefined;
+    // URL で待っていたときは、ユーザーは何も頼んでいない（ログインをやめてタブを残し、待ちが終わった後にサイトの中を
+    // 移動しただけのことがある）ので、!を出さずにタブを忘れる。忘れれば、移動のたびに kisui-terminal に聞くことも無くなる
+    if (!w && s.reason === "url") return untrack(tabId);
     if (!sites.includes(s.site)) return showError(tabId, "not-allowed");
-    const w = waiting.get(s.site);
     if (!w) return showError(tabId, "not-waiting");
     await sendCookies(/** @type {Tab} */ (tab), s.site, w.host);
     return;

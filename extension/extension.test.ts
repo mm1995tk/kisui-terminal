@@ -777,6 +777,23 @@ test("着いたらしいページから、落ち着く前に 2 段階認証の�
   assert.deepEqual(b.removed, []);
 });
 
+test("待ちが終わった後に、覚えたタブでサイトの中を移っても、! を出さずにタブを忘れる", async () => {
+  const opts = { ...GH };
+  const b = fakeBrowser(opts);
+  const tab = { id: 91, url: "https://github.com/login", status: "complete" };
+  b.tabs.set(91, tab);
+  b.ev.created.fire({ id: 91, url: tab.url });
+  await settle();
+  assert.ok(b.session["tracked:91"]);
+  opts.waiting = [];
+  go(b, tab, "https://github.com/mm1995tk");
+  await settle();
+  assert.equal(b.cookieQueries.length, 0);
+  assert.deepEqual(b.badges, []);
+  assert.deepEqual(b.removed, []);
+  assert.equal(b.session["tracked:91"], undefined);
+});
+
 test("待っていないサイトに移ったら送らない", async () => {
   const b = fakeBrowser(GH);
   const tab = { id: 83, url: "https://github.com/login", status: "complete" };
