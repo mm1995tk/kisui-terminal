@@ -72,35 +72,52 @@
 
   // accessor は入れ物ごとに作り、入れ物をクロージャで持つ。置く前にあった持ち物を引くのも、prototype をたどるのも
   // その入れ物から（受け手 this が入れ物でないとき（Object.create(入れ物)・Proxy）も、入れ物に置いた関数を返すため）。
-  // 関数や getter を呼ぶときの受け手だけ this のまま
+  // 関数や getter を呼ぶときの受け手だけ this のまま。
+  // 置く前にあった持ち物は、置き直すたびに積む（古いものが先）。ほかの拡張機能の accessor が、前にあったこちらの
+  // getter を呼び戻すと、こちらの getter に入り直す。そのときは 1 つ前の持ち物を使い、同じ所を回らないようにする
   /** @type {WeakSet<Function>} こちらの accessor の getter */
   const getters = new WeakSet();
-  /** @type {WeakMap<object, { saved: Partial<Record<Name, PropertyDescriptor>>, accessors: Record<Name, { get: () => unknown, set: (v: unknown) => void }> }>} */
+  /** @type {WeakMap<object, { saved: Record<Name, PropertyDescriptor[]>, accessors: Record<Name, { get: () => unknown, set: (v: unknown) => void }> }>} */
   const containers = new WeakMap();
 
   /** @param {object} obj */
   function stateOf(obj) {
     const known = containers.get(obj);
     if (known) return known;
-    /** @type {Partial<Record<Name, PropertyDescriptor>>} 置く前にあった持ち物（無ければ prototype のものを使う）。代入されたら、その値 */
-    const saved = {};
+    /** @type {Record<Name, PropertyDescriptor[]>} 置く前にあった持ち物（空なら prototype のものを使う）。代入されたら、いちばん上をその値にする */
+    const saved = { get: [], create: [] };
     /** @param {Name} name */
     const accessor = (name) => {
+      const chain = saved[name];
+      // getter に入り直している深さ（0 ならいちばん上の持ち物を使う）
+      let level = 0;
       /** @this {object} */
       const get = function () {
-        const desc = saved[name];
-        const cur = desc
-          ? desc.get
-            ? desc.get.call(this)
-            : desc.value
-          : Reflect.get(Object.getPrototypeOf(obj) ?? {}, name, this);
+        const desc = chain[chain.length - 1 - level];
+        level++;
+        let cur;
+        try {
+          cur = desc
+            ? desc.get
+              ? desc.get.call(this)
+              : desc.value
+            : Reflect.get(Object.getPrototypeOf(obj) ?? {}, name, this);
+        } finally {
+          level--;
+        }
         return typeof cur === "function" ? wrap(cur) : cur;
       };
       /** @this {object} @param {unknown} v */
       const set = function (v) {
-        const desc = saved[name];
+        const i = chain.length - 1 - level;
+        const desc = chain[i];
         if (desc && desc.set) {
-          desc.set.call(this, v);
+          level++;
+          try {
+            desc.set.call(this, v);
+          } finally {
+            level--;
+          }
         } else if (this !== obj) {
           // 入れ物を prototype に持つもの・Proxy への代入は、ふつうのデータの持ち物と同じく、受け手に置く
           Object.defineProperty(this, name, {
@@ -110,7 +127,11 @@
             configurable: true,
           });
         } else {
-          saved[name] = { value: v, writable: true, configurable: true };
+          chain[Math.max(i, 0)] = {
+            value: v,
+            writable: true,
+            configurable: true,
+          };
         }
       };
       getters.add(get);
@@ -133,9 +154,11 @@
       const desc = Object.getOwnPropertyDescriptor(obj, name);
       if (desc && desc.get && getters.has(desc.get)) continue;
       const { saved, accessors } = stateOf(obj);
-      const prev = saved[name];
-      if (desc) saved[name] = desc;
-      else delete saved[name];
+      const chain = saved[name];
+      const prev = chain.slice();
+      // 持ち物が消されていたら（delete）、前に積んだものは使わず prototype のものを使う
+      if (desc) chain.push(desc);
+      else chain.length = 0;
       try {
         Object.defineProperty(obj, name, {
           ...accessors[name],
@@ -144,8 +167,7 @@
         });
       } catch {
         // 置き換えられない入れ物（configurable でない持ち物）では、手で戻るボタンを使う
-        if (prev) saved[name] = prev;
-        else delete saved[name];
+        chain.splice(0, chain.length, ...prev);
       }
     }
   }

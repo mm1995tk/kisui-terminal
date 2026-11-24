@@ -836,6 +836,21 @@ test("page.js は、受け手が入れ物そのものでない呼び方（Object
   assert.equal(w.events(), 2);
 });
 
+test("page.js は、ほかの拡張機能の accessor がこちらの getter を呼び戻しても止まる", async () => {
+  const w = pageWorld();
+  w.loadPage();
+  w.run(`{ const c = navigator.credentials;
+           const d = Object.getOwnPropertyDescriptor(c, "get");
+           Object.defineProperty(c, "get", {
+             get() { const prev = d.get.call(this); return function (o) { return prev.call(this, o); }; },
+             configurable: true,
+           }); }`);
+  const cred = await w.run(`navigator.credentials.get({ publicKey: {} })`);
+  await flush();
+  assert.equal(cred.id, "native");
+  assert.equal(w.events(), 1);
+});
+
 test("page.js は、ほかの拡張機能がこちらの包みを呼び戻しても 1 回だけ知らせる", async () => {
   const w = pageWorld();
   w.loadPage();
