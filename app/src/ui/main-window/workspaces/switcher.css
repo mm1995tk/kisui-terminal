@@ -14,8 +14,10 @@
 .card-modal:has(.switcher) .card-content {
   overflow: hidden;
 }
+/* 高さを決めた窓（上）に収め、左右の列の中でスクロールする。.machine-dialog は縮まない形（card.css）なので、ここで縮めてよいと書く */
 .switcher {
   flex: 1;
+  min-height: 0;
 }
 
 /* 左右の 2 列を半分ずつにする。右の列は、余白を取らず、窓の右端・見出しの線・下の段の線までいっぱいに使い、左の線だけを残す。

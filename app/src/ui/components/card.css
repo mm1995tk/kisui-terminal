@@ -346,11 +346,20 @@
   margin-top: auto;
 }
 
-/* マシンのダイアログ（MachineDialog.tsx）。行は card-row を使い、キーはダイアログ全体で受ける */
+/* マシンのダイアログ（MachineDialog.tsx）と、同じ形で一覧を出す窓。行は card-row を使い、キーはダイアログ全体で受ける。
+   窓は高さを決めず max-height だけなので、一覧を縮めてよい（min-height: 0）にすると、WebView によっては一覧の高さが 0 と
+   計算されて行が 1 つも見えなくなる。一覧は縮めず、窓に収まらない分は .card-content がスクロールする */
 .machine-dialog {
   display: flex;
+  flex: none;
   flex-direction: column;
-  min-height: 0;
+}
+.machine-dialog .card-rows {
+  flex: none;
+}
+/* スクロールするのは .card-content なので、選んだ行の枠を切らない間（.card-rows の scroll-padding と同じ）をここにも付ける */
+.card-content:has(> .machine-dialog) {
+  scroll-padding: var(--space-4) 0;
 }
 .machine-dialog .card-rows:focus {
   outline: none;
