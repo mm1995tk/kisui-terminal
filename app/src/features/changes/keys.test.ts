@@ -69,8 +69,8 @@ describe("changesKey: TUI の CHANGES と同じキー（Issue #45 の表）", ()
     }
   });
 
-  it("s・r・R は shj に渡す", () => {
-    for (const key of ["s", "r", "R"] as const) {
+  it("s・r・R・x は shj に渡す", () => {
+    for (const key of ["s", "r", "R", "x"] as const) {
       assert.deepEqual(changesKey(file, k(key)), { kind: "shj", key });
     }
   });
@@ -109,7 +109,7 @@ describe("changesKey: TUI の CHANGES と同じキー（Issue #45 の表）", ()
       assert.equal(changesKey(file, k("j", { [m]: true })), null, m);
       assert.equal(changesKey(file, k("Escape", { [m]: true })), null, m);
     }
-    assert.equal(changesKey(file, k("x")), null);
+    assert.equal(changesKey(file, k("z")), null);
   });
 
   // TUI の handleChangesKey に case が増えたら TUI_CHANGES_KEYS に足す。足すとここで、サイドバーの割り当てが無いと分かる。

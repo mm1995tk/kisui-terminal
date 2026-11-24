@@ -115,6 +115,8 @@ export const en = {
   "place.changes.lead": "Keys that work only inside CHANGES.",
   "place.changes.layout": "Switch between side by side and one column",
   "place.changes.reload": "Reload",
+  "place.changes.sides":
+    "Switch what is compared (PR base ← working tree, PR base ← HEAD, HEAD ← working tree)",
   "place.changes.toTree": "Move to the file tree",
   "place.video.title": "Video",
   "place.video.lead": "Keys that work only inside a video.",

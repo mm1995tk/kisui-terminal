@@ -45,7 +45,7 @@ const (
 type Request struct {
 	Cmd  string `json:"cmd"`            // diff | exec | command-end | open | changes-key
 	Path string `json:"path,omitempty"` // diff, open: an absolute path (diff: also the Path of a DiffFile, which may be deleted)
-	Line string `json:"line,omitempty"` // exec: the ":" command to run; command-end: the exit code; changes-key: the key ("s", "r", "R", "space" or ":")
+	Line string `json:"line,omitempty"` // exec: the ":" command to run; command-end: the exit code; changes-key: the key ("s", "r", "R", "x", "space" or ":")
 }
 
 // Response is the editor's reply.
@@ -198,18 +198,28 @@ type PrimaryFile struct {
 // sidebar under the file explorer, and the shj shows no list of its own.
 // Files are in the order the shj shows them. Selected is the absolute path of
 // the file whose diff the shj shows now, or "" when none is shown. Base says
-// what the diff compares with: BaseHead ("head", also when empty) or BasePR
-// ("pr", the pull request of the branch; Space g).
+// what the diff compares with, its left side: BaseHead ("head", also when
+// empty) or BasePR ("pr", the base of the pull request of the branch; Space
+// g). Right is its right side: RightWork (the working tree, also when empty)
+// or RightHead ("head", the commit HEAD; only with Base "pr"). A kisui that
+// does not know Right takes every list as one of the working tree.
 type PrimaryDiff struct {
 	Files    []DiffFile `json:"files"`
 	Selected string     `json:"selected,omitempty"`
 	Base     string     `json:"base,omitempty"`
+	Right    string     `json:"right,omitempty"`
 }
 
 // Values of PrimaryDiff.Base. Any other value is taken as BaseHead.
 const (
 	BaseHead = "head"
 	BasePR   = "pr"
+)
+
+// Values of PrimaryDiff.Right. Any other value is taken as RightWork.
+const (
+	RightWork = "work"
+	RightHead = "head"
 )
 
 // DiffFile is a changed file of PrimaryDiff. Path is absolute (a deleted file
