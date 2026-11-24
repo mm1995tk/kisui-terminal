@@ -332,7 +332,9 @@ async function sendCookies(tab, site, host) {
   let reply;
   try {
     const cookies = await readCookies(tab, page);
-    reply = await ask(host, { type: "cookies", site, cookies });
+    // url は、ログインを終えたページ。kisui-terminal は、内蔵ブラウザのタブでこれを開き直す（移る前の URL は、
+    // Google の accounts.google.com/v3/signin/challenge/pk のようなログインの途中のページのことがあるため。#276）
+    reply = await ask(host, { type: "cookies", site, cookies, url: tab.url });
   } catch (e) {
     console.warn("kisui-terminal: could not read cookies", e);
     reply = null;

@@ -505,6 +505,8 @@ test("kisui-terminal が開いたタブでパスキーが通ると、Cookie を�
   assert.equal(sent.length, 1);
   assert.equal(sent[0].host, "dev.mm1995tk.kisui_terminal");
   assert.equal(sent[0].message.site, "github.com");
+  // ログインを終えたページの URL も送る（kisui-terminal はそれを開き直す。#276）
+  assert.equal(sent[0].message.url, "https://github.com/login");
   // 送るのはサイトのものだけ
   assert.deepEqual(
     [...sent[0].message.cookies.map((c: any) => c.name)],
@@ -689,6 +691,8 @@ test(".google.com で待っていれば、myaccount.google.com に移っても�
   const sent = b.native.filter((n) => n.message.type === "cookies");
   assert.equal(sent.length, 1);
   assert.equal(sent[0].message.site, ".google.com");
+  // 開き直すのは、移った先の myaccount.google.com（#276）
+  assert.equal(sent[0].message.url, "https://myaccount.google.com/");
   // 送るのは今のタブのページに送られるもの
   assert.deepEqual(
     [...sent[0].message.cookies.map((c: any) => c.name)].sort(),
@@ -712,6 +716,7 @@ test(".google.com で待っていれば、手で戻るボタンは myaccount.goo
   const sent = b.native.filter((n) => n.message.type === "cookies");
   assert.equal(sent.length, 1);
   assert.equal(sent[0].message.site, ".google.com");
+  assert.equal(sent[0].message.url, "https://myaccount.google.com/");
   assert.deepEqual(b.removed, [71]);
   // 当たらないサイトでは読まない
   const other = { id: 72, url: "https://evilgoogle.com/", status: "complete" };

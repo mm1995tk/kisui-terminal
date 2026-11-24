@@ -9,7 +9,8 @@
 //!    「その項目のログインを待っている」と覚える（`WAIT` の間）。ページには NotAllowedError を返す。
 //! 3. 外のブラウザの拡張機能（#207）がログインした後の Cookie を native messaging で送る。ブラウザが起動する受け口
 //!    （この実行ファイルを `--native-messaging-host` で起動したもの。`run_host`）が、それを窓の Unix ソケットに渡す。
-//! 4. 窓は、待っているサイトの Cookie だけを、内蔵ブラウザの共有のデータに入れ、移る前のタブで同じ URL を開き直す。
+//! 4. 窓は、待っているサイトの Cookie だけを、内蔵ブラウザの共有のデータに入れ、移る前のタブを開き直す。開くのは、外のブラウザの
+//!    タブがログインを終えた URL（拡張機能が `url` で送る。待っているサイトのものだけ）。無ければ移る前の URL（`reopen_url`）。
 //!
 //! 受け口から窓への経路（Unix ソケット）は、データのフォルダの `passkey/`（自分だけが入れる 0700 のフォルダ）に置き、
 //! つないだ相手のユーザーが自分と同じかも確かめる（ほかのユーザーは Cookie を差し込めず、一覧も読めない）。
@@ -71,7 +72,7 @@ const SCRIPT_FILE: &str = "native-host";
 pub struct Waiting {
     /// 移る前のタブ（画面が付けた id）
     pub tab: String,
-    /// 移る前のタブの URL（Cookie を入れたあとに開き直す）
+    /// 移る前のタブの URL（外のブラウザで開いた URL）
     pub url: Url,
     at: Instant,
 }
@@ -95,6 +96,9 @@ enum Request {
     Cookies {
         site: String,
         cookies: Vec<WireCookie>,
+        /// 外のブラウザのタブの今の URL（ログインを終えたページ）。拡張機能の 0.2.2 までは送らない
+        #[serde(default)]
+        url: Option<String>,
     },
 }
 
@@ -384,13 +388,13 @@ impl Passkey {
         w.retain(|_, x| now.saturating_duration_since(x.at) < WAIT);
     }
 
-    /// 拡張機能からのメッセージ 1 つに答える。Cookie を入れるのは `apply`（待っていたタブと、入れる Cookie を受ける）。
+    /// 拡張機能からのメッセージ 1 つに答える。Cookie を入れるのは `apply`（待っていたタブと、開き直す URL と、入れる Cookie を受ける）。
     pub fn handle(
         &self,
         msg: &Value,
         now: Instant,
         now_secs: f64,
-        apply: impl FnOnce(&Waiting, Vec<Cookie<'static>>) -> Result<(), String>,
+        apply: impl FnOnce(&Waiting, &Url, Vec<Cookie<'static>>) -> Result<(), String>,
     ) -> Value {
         let req = match serde_json::from_value::<Request>(msg.clone()) {
             Ok(r) => r,
@@ -398,8 +402,8 @@ impl Passkey {
         };
         match req {
             Request::Sites => self.answer_sites(now),
-            Request::Cookies { site, cookies } => {
-                self.take_cookies(&site, &cookies, now, now_secs, apply)
+            Request::Cookies { site, cookies, url } => {
+                self.take_cookies(&site, &cookies, url.as_deref(), now, now_secs, apply)
             }
         }
     }
@@ -425,13 +429,15 @@ impl Passkey {
     }
 
     /// `cookies` を受ける。待っているサイトの分だけを `apply` に渡し、待ちを終える。
+    /// `apply` には、待ちと、開き直す URL（`reopen_url`。外のブラウザのタブの `landed` か、移る前の URL）を渡す。
     fn take_cookies(
         &self,
         site: &str,
         cookies: &[WireCookie],
+        landed: Option<&str>,
         now: Instant,
         now_secs: f64,
-        apply: impl FnOnce(&Waiting, Vec<Cookie<'static>>) -> Result<(), String>,
+        apply: impl FnOnce(&Waiting, &Url, Vec<Cookie<'static>>) -> Result<(), String>,
     ) -> Value {
         if !self.sites.iter().any(|s| s == site) {
             return error("not-allowed", "the site is not in passkey_sites");
@@ -456,12 +462,25 @@ impl Passkey {
             }
             e.remove()
         };
+        let reopen = reopen_url(&waiting.url, landed, site);
         let accepted = ok.len();
-        match apply(&waiting, ok) {
+        match apply(&waiting, &reopen, ok) {
             Ok(()) => json!({ "type": "done", "accepted": accepted, "dropped": dropped }),
             Err(e) => error("failed", &e),
         }
     }
+}
+
+/// Cookie を入れたあと、移る前のタブで開く URL。外のブラウザのタブの今の URL（`landed`。ログインを終えたページ）が、
+/// 待っていたサイトの項目 `site` に当たる http(s) の URL ならそれ、そうでなければ移る前の URL（`before`）。
+/// 移る前の URL は、ログインの途中のページ（Google の `accounts.google.com/v3/signin/challenge/pk`）のことがある。
+/// それを開き直すと、ログインした状態にならず、ページがまたパスキーを求めて外のブラウザに移り直す（#276）。
+pub fn reopen_url(before: &Url, landed: Option<&str>, site: &str) -> Url {
+    landed
+        .and_then(|s| Url::parse(s).ok())
+        .filter(|u| matches!(u.scheme(), "http" | "https"))
+        .filter(|u| u.host_str().is_some_and(|h| site_matches(h, site)))
+        .unwrap_or_else(|| before.clone())
 }
 
 /// 外のブラウザ（Firefox）で `u` を開く。
@@ -600,8 +619,8 @@ fn serve_one(app: &AppHandle, p: &Passkey, stream: UnixStream) {
         .ok()
         .and_then(|b| serde_json::from_slice::<Value>(&b).ok())
     {
-        Some(msg) => p.handle(&msg, Instant::now(), now_secs(), |w, cookies| {
-            apply_cookies(app, w, cookies)
+        Some(msg) => p.handle(&msg, Instant::now(), now_secs(), |w, reopen, cookies| {
+            apply_cookies(app, w, reopen, cookies)
         }),
         None => error("bad-request", "not a JSON line"),
     };
@@ -609,10 +628,11 @@ fn serve_one(app: &AppHandle, p: &Passkey, stream: UnixStream) {
     let _ = writeln!(w, "{reply}");
 }
 
-/// Cookie を内蔵ブラウザの共有のデータに入れ、移る前のタブで同じ URL を開き直し、窓を前に出す。
+/// Cookie を内蔵ブラウザの共有のデータに入れ、移る前のタブで `reopen`（開き直す URL。`reopen_url`）を開き、窓を前に出す。
 fn apply_cookies(
     app: &AppHandle,
     w: &Waiting,
+    reopen: &Url,
     cookies: Vec<Cookie<'static>>,
 ) -> Result<(), String> {
     let tab = app.get_webview(&crate::browser::label(&w.tab));
@@ -630,7 +650,7 @@ fn apply_cookies(
         v.set_cookie(c).map_err(|e| e.to_string())?;
     }
     if let Some(t) = tab {
-        t.navigate(w.url.clone()).map_err(|e| e.to_string())?;
+        t.navigate(reopen.clone()).map_err(|e| e.to_string())?;
     }
     if let Some(win) = app.get_window("main") {
         let _ = win.set_focus();
@@ -957,7 +977,7 @@ mod tests {
             &json!({"type": "sites"}),
             t0,
             0.0,
-            |_: &Waiting, _: Vec<Cookie<'static>>| -> Result<(), String> { panic!() },
+            |_: &Waiting, _: &Url, _: Vec<Cookie<'static>>| -> Result<(), String> { panic!() },
         );
         assert_eq!(
             r["waiting"],
@@ -1089,7 +1109,8 @@ mod tests {
     fn answers_the_sites_and_what_it_waits_for() {
         let p = Passkey::new(sites());
         let t0 = Instant::now();
-        let never = |_: &Waiting, _: Vec<Cookie<'static>>| -> Result<(), String> { panic!() };
+        let never =
+            |_: &Waiting, _: &Url, _: Vec<Cookie<'static>>| -> Result<(), String> { panic!() };
         let r = p.handle(&json!({"type": "sites"}), t0, 0.0, never);
         assert_eq!(
             r,
@@ -1112,7 +1133,8 @@ mod tests {
     fn takes_cookies_once_and_only_while_waiting() {
         let p = Passkey::new(sites());
         let t0 = Instant::now();
-        let never = |_: &Waiting, _: Vec<Cookie<'static>>| -> Result<(), String> { panic!() };
+        let never =
+            |_: &Waiting, _: &Url, _: Vec<Cookie<'static>>| -> Result<(), String> { panic!() };
         // 許可していないサイト
         let r = p.handle(&cookies_msg("example.com"), t0, 0.0, never);
         assert_eq!(r["code"], "not-allowed");
@@ -1121,8 +1143,8 @@ mod tests {
         assert_eq!(r["code"], "not-waiting");
         p.hand_off("t1", &url("https://github.com/login"), t0);
         let mut got = None;
-        let r = p.handle(&cookies_msg("github.com"), t0, 0.0, |w, c| {
-            got = Some((w.tab.clone(), w.url.to_string(), c.len()));
+        let r = p.handle(&cookies_msg("github.com"), t0, 0.0, |w, reopen, c| {
+            got = Some((w.tab.clone(), reopen.to_string(), c.len()));
             Ok(())
         });
         assert_eq!(r, json!({"type": "done", "accepted": 1, "dropped": 1}));
@@ -1155,7 +1177,7 @@ mod tests {
             .map(|_| {
                 let (p, applied) = (Arc::clone(&p), Arc::clone(&applied));
                 std::thread::spawn(move || {
-                    p.handle(&cookies_msg("github.com"), t0, 0.0, |_, _| {
+                    p.handle(&cookies_msg("github.com"), t0, 0.0, |_, _, _| {
                         applied.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                         std::thread::sleep(Duration::from_millis(20));
                         Ok(())
@@ -1409,7 +1431,8 @@ mod tests {
     fn a_dot_site_waits_for_the_item() {
         let p = Passkey::new(vec![".google.com".into()]);
         let t0 = Instant::now();
-        let never = |_: &Waiting, _: Vec<Cookie<'static>>| -> Result<(), String> { panic!() };
+        let never =
+            |_: &Waiting, _: &Url, _: Vec<Cookie<'static>>| -> Result<(), String> { panic!() };
         let u = url("https://accounts.google.com/v3/signin");
         assert_eq!(p.hand_off("t1", &u, t0), Some(u.clone()));
         let r = p.handle(&json!({"type": "sites"}), t0, 0.0, never);
@@ -1428,14 +1451,67 @@ mod tests {
         let r = p.handle(&msg("myaccount.google.com"), t0, 0.0, never);
         assert_eq!(r["code"], "not-allowed");
         let mut got = None;
-        let r = p.handle(&msg(".google.com"), t0, 0.0, |w, c| {
-            got = Some((w.url.to_string(), c.len()));
+        let r = p.handle(&msg(".google.com"), t0, 0.0, |_, reopen, c| {
+            got = Some((reopen.to_string(), c.len()));
             Ok(())
         });
         assert_eq!(r, json!({"type": "done", "accepted": 2, "dropped": 0}));
         assert_eq!(
             got,
             Some(("https://accounts.google.com/v3/signin".into(), 2))
+        );
+    }
+
+    // 開き直すのは、外のブラウザのタブがログインを終えた URL（待っていたサイトのものだけ）。無ければ移る前の URL（#276）
+    #[test]
+    fn reopens_where_the_login_ended_in_the_site() {
+        let before = url("https://accounts.google.com/v3/signin/challenge/pk?TL=x");
+        let r = |landed: Option<&str>| reopen_url(&before, landed, ".google.com").to_string();
+        assert_eq!(
+            r(Some("https://myaccount.google.com/?pli=1")),
+            "https://myaccount.google.com/?pli=1"
+        );
+        // 前の版の拡張機能（送らない）・読めない URL・サイトの外・http(s) でないものは、移る前の URL
+        for landed in [
+            None,
+            Some("not a url"),
+            Some("https://example.com/"),
+            Some("https://notgoogle.com/"),
+            Some("javascript:alert(1)"),
+            Some("file:///etc/passwd"),
+        ] {
+            assert_eq!(r(landed), before.to_string(), "{landed:?}");
+        }
+        // `github.com` の書き方は host が完全に同じときだけ
+        let gh = url("https://github.com/login");
+        assert_eq!(
+            reopen_url(&gh, Some("https://github.com/settings"), "github.com").to_string(),
+            "https://github.com/settings"
+        );
+        assert_eq!(
+            reopen_url(&gh, Some("https://gist.github.com/"), "github.com").to_string(),
+            "https://github.com/login"
+        );
+
+        // cookies の url を、apply に渡す開き直す URL にする
+        let p = Passkey::new(vec![".google.com".into()]);
+        let t0 = Instant::now();
+        p.hand_off("t1", &before, t0);
+        let mut got = None;
+        let r = p.handle(
+            &json!({"type": "cookies", "site": ".google.com", "url": "https://myaccount.google.com/",
+                "cookies": [{ "name": "SID", "value": "s", "domain": ".google.com" }]}),
+            t0,
+            0.0,
+            |w, reopen, _| {
+                got = Some((w.tab.clone(), reopen.to_string()));
+                Ok(())
+            },
+        );
+        assert_eq!(r["type"], "done");
+        assert_eq!(
+            got,
+            Some(("t1".into(), "https://myaccount.google.com/".into()))
         );
     }
 }

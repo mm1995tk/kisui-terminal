@@ -18,7 +18,8 @@ iCloud キーチェーンや 1Password のパスキーを使えない（macOS �
    移るのは、URL の host が設定のサイトの項目に当たるときだけ（下の「設定」）。待つ単位は、当たった項目（`.google.com` で当たれば `.google.com`）。
 4. ユーザーが外のブラウザでパスキーでログインする。
 5. 拡張機能が、そのタブの今のページに送られる Cookie を native messaging で kisui-terminal に送る（kisui-terminal が開いたタブでパスキーが通り、ページの移動と Cookie の書き換えが落ち着いたとき。または、拡張機能のボタンを押したとき。`docs/browser-extension.md`）。
-6. kisui-terminal は、待っているサイトの Cookie だけを内蔵ブラウザの共有のデータに入れ、移る前のタブで同じ URL を開き直し、窓を前に出す。
+6. kisui-terminal は、待っているサイトの Cookie だけを内蔵ブラウザの共有のデータに入れ、移る前のタブを開き直し、窓を前に出す。
+   開くのは、外のブラウザのタブがログインを終えた URL（`cookies` の `url`。待っているサイトのものだけ）。無ければ移る前の URL。
    1 回受けたら待ちを終える。
 
 シークレットのタブ（#204）では、この仕組みを使わない（写した Cookie が外のブラウザに残り、「残さない」と食い違うため）。
@@ -120,6 +121,7 @@ native messaging の決まりどおり、1 つのメッセージは JSON 1 つ�
 {
   "type": "cookies",
   "site": "github.com",
+  "url": "https://github.com/",
   "cookies": [
     {
       "name": "user_session",
@@ -138,6 +140,9 @@ native messaging の決まりどおり、1 つのメッセージは JSON 1 つ�
 ```
 
 - `site`：`sites` の 1 つ（今のタブの host に当たる項目。`.google.com` なら、`myaccount.google.com` のタブからでも `.google.com`）。
+- `url`（省ける。拡張機能は 0.2.3 から送る）：外のブラウザのタブの今の URL（ログインを終えたページ）。kisui-terminal は、これが `site` に当たる http(s) の URL なら、
+  Cookie を入れたあと内蔵ブラウザのタブでこれを開く。無い・当たらないときは、移る前の URL（`waiting` の `url`）を開く。
+  移る前の URL は、ログインの途中のページ（Google の `accounts.google.com/v3/signin/challenge/pk`）のことがあり、開き直してもログインした状態にならない（#276）。
 - `cookies`：Firefox の `cookies.Cookie` をそのまま入れてよい（`storeId` などほかの項目は読み飛ばす）。
   `name`・`value`・`domain` は要る。ほかは省ける（`hostOnly`・`secure`・`httpOnly`・`session` は false、`path` は `/`）。
   `sameSite` は `no_restriction`・`lax`・`strict`（ほかの値は指定なし）。`expirationDate` は 1970 年からの秒（`session` が true なら見ない）。
@@ -161,7 +166,7 @@ native messaging の決まりどおり、1 つのメッセージは JSON 1 つ�
 { "type": "done", "accepted": 12, "dropped": 3 }
 ```
 
-`accepted` は入れた数、`dropped` は捨てた数。入れたあと、kisui-terminal は移る前のタブで同じ URL を開き直し、窓を前に出す。
+`accepted` は入れた数、`dropped` は捨てた数。入れたあと、kisui-terminal は移る前のタブを開き直し（開く URL は上の `url`）、窓を前に出す。
 
 ### 断るとき
 
