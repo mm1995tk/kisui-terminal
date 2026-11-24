@@ -26,7 +26,7 @@
   try {
     Object.defineProperty(g, MARK, { value: true });
   } catch {
-    // 印が付けられなくても、同じ関数を 2 回包まない（wrap が見分ける）
+    // 印が付けられないと 2 回目も包み、知らせが 2 回出る。background.js は 2 回目で待ちの時刻を更新するだけなので害は無い
   }
 
   // ---- 包み
