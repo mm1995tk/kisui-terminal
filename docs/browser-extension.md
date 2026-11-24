@@ -19,6 +19,10 @@
    一覧は 1 分のあいだ聞き直さないことがある（kisui-terminal が答えなかったときも）ので、`passkey_sites` を変えて kisui-terminal を起動し直した直後と、
    ブラウザを開いてから kisui-terminal が 1 回も答えていない（kisui-terminal を起動した直後）ときは、自動で戻らないことがある。そのときは手で戻るボタンを使う。
 3. そのタブで `navigator.credentials.get` か `create` がパスキー（`publicKey`）で成功すると、`page.js` が知らせる（資格情報そのものは渡さない）。
+   パスキーの管理の拡張機能（1Password など）も同じ関数を自分のものに置き換え、パスキーを自分で出すときはもとの関数を呼ばない。
+   そのため `page.js` は、拡張機能が入る順によらず、ページが呼ぶ関数がいつも `page.js` の包みになるようにする：`navigator.credentials` を
+   読むたびに、返す入れ物の `get` / `create` を `page.js` の accessor にし直し、その accessor は読まれたときの関数（ほかの拡張機能が
+   代入・`Object.defineProperty` したもの、prototype のもの）を包んで返す（#433）。
 4. 落ち着くのを待つ：パスキーが通ってから 2 秒は待ち、そのあと、タブの読み込みが済み、そのサイトに送られる Cookie が 1.5 秒変わらなければ
    落ち着いたと見る。15 秒を過ぎたら、落ち着かなくても送る。そのときタブが別のサイトに移っていれば送らない（手で戻るボタンを使う）。
    サイトは待っている項目で比べるので、`.google.com` で待っていれば、`accounts.google.com` から `myaccount.google.com` に移っていても送る。
@@ -93,6 +97,7 @@ zip の中身は `extension/` のファイルそのもの（`manifest.json` も�
 0.2.1 で、Chrome のためのコード（`importScripts`・`chrome` の API・`pendingUrl`・Chrome の manifest の作り分け）を外した（#433。Firefox での動きは変えていない）。
 0.2.2 で、host の権限から `http://*/*` を外した（#286）。
 0.2.3 で、`cookies` にタブの今の URL（`url`）を入れて送るようにした（#276。kisui-terminal は、内蔵ブラウザのタブでその URL を開き直す）。
+0.2.4 で、パスキーの管理の拡張機能（1Password など）が `navigator.credentials` を置き換えていても、パスキーが通ったことを知れるようにした（#433）。
 取り決め（`docs/passkey-extension.md`）を変えるときは、kisui-terminal と拡張機能を合わせて変える。
 
 ### ストアの説明
