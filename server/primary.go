@@ -398,6 +398,9 @@ func cleanDiff(d *ctl.PrimaryDiff) *ctl.PrimaryDiff {
 	out := &ctl.PrimaryDiff{Files: make([]ctl.DiffFile, 0, len(d.Files))}
 	if d.Base == ctl.BasePR {
 		out.Base = ctl.BasePR // 知らない値は HEAD（空）にする
+		if d.Right == ctl.RightHead {
+			out.Right = ctl.RightHead // 右側が HEAD。知らない値は作業ツリー（空）にする。HEAD ← HEAD は無い
+		}
 	}
 	for _, f := range d.Files {
 		if !filepath.IsAbs(f.Path) {
@@ -419,7 +422,7 @@ func diffEq(a, b *ctl.PrimaryDiff) bool {
 	if a == nil || b == nil {
 		return a == b
 	}
-	return a.Selected == b.Selected && a.Base == b.Base && slices.Equal(a.Files, b.Files)
+	return a.Selected == b.Selected && a.Base == b.Base && a.Right == b.Right && slices.Equal(a.Files, b.Files)
 }
 
 // setShjState は claim の shj が出しているファイルと、差分モードの一覧（diff。差分モードでなければ nil）を覚え、
@@ -534,18 +537,18 @@ func (ss *session) shjDiff(req *rpc.Message) (any, error) {
 	return struct{}{}, nil
 }
 
-// validChangesKey は shj.changesKey で shj に渡せるキーか：TUI の CHANGES の s（split / unified）・r・R（読み直す）・
+// validChangesKey は shj.changesKey で shj に渡せるキーか：TUI の CHANGES の s（split / unified）・r・R（読み直す）・x（比べるものを切り替える）・
 // space（Space メニュー）・:（コマンド行）。続きのキーは端末から shj に届く。
 // 動き・開閉などのキーは GUI が受け持つので、ここには無い。
 func validChangesKey(k string) bool {
 	switch k {
-	case "s", "r", "R", "space", ":":
+	case "s", "r", "R", "x", "space", ":":
 		return true
 	}
 	return false
 }
 
-// shjChangesKey は shj.changesKey。サイドバーの CHANGES で押した s・r・R・Space・: を、プライマリの shj に
+// shjChangesKey は shj.changesKey。サイドバーの CHANGES で押した s・r・R・x・Space・: を、プライマリの shj に
 // 「CHANGES にフォーカスがあるときに押した」ものとして受けさせる（ctl の changes-key。動きは shj の handleChangesKey が決める）。
 // 差分モードでなければ not_found。
 func (ss *session) shjChangesKey(req *rpc.Message) (any, error) {

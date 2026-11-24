@@ -42,7 +42,7 @@ export interface ChangesKey extends ComposingKeyLike {
  * TUI の割り当て（表は Issue #45）：
  * - k ↑ / j ↓ で上下、g Home / G End で最初・最後、h ← でフォルダを閉じる（閉じていれば親へ）、l → でフォルダを開く・変更を開く、
  *   Enter・o でフォルダの開け閉め・変更を開く。
- * - s は split / unified、r・R は読み直す（shj が行う）。Space は Space メニュー、: はコマンド行（どれも shj に渡し、続きのキーは端末から shj に届く）。
+ * - s は split / unified、r・R は読み直す、x は比べるものを切り替える（どれも shj が行う。x は shijimi-editor#654）。Space は Space メニュー、: はコマンド行（どれも shj に渡し、続きのキーは端末から shj に届く）。
  * - Tab でエクスプローラへ、Esc・q・Ctrl+E で端末（エディタ）へ戻る。
  * - ? でこの場所のキーの一覧（kisui の案内。shj には渡さない）。
  */
@@ -83,6 +83,7 @@ export function changesKey(
     case "s":
     case "r":
     case "R":
+    case "x":
     case ":":
       return { kind: "shj", key: e.key };
     case " ":
@@ -118,6 +119,7 @@ export const TUI_CHANGES_KEYS: readonly string[] = [
   "enter",
   "o",
   "s",
+  "x",
   "r",
   "R",
   "space",

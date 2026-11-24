@@ -142,7 +142,8 @@
   font-weight: 400;
   color: var(--gh-text-dim);
 }
-.changes-base[data-base="pr"] {
+.changes-base[data-base="pr"],
+.changes-base[data-base="pr-head"] {
   color: var(--sidebar-muted, var(--gh-text-muted));
   font-weight: 600;
 }

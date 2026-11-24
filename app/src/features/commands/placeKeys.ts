@@ -108,6 +108,7 @@ export const PLACE_KEYS: Record<Place, PlaceKeys> = {
       row("h / ←", T("place.row.closeParent"), ["h", "ArrowLeft"]),
       row("Enter o", T("place.row.openToggle"), ["Enter", "o"]),
       row("s", T("place.changes.layout"), ["s"]),
+      row("x", T("place.changes.sides"), ["x"]),
       row("r R", T("place.changes.reload"), ["r", "R"]),
       row("Tab", T("place.changes.toTree"), ["Tab"]),
       row("Esc q", T("place.row.backEditor"), ["Escape", "q"]),

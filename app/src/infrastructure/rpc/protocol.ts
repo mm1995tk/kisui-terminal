@@ -107,10 +107,10 @@ export interface ExtraPane {
 }
 
 /**
- * shj の CHANGES に渡すキー（shj.changesKey）：s（split / unified）・r・R（読み直す）・space（Space メニュー）・:（コマンド行）。
+ * shj の CHANGES に渡すキー（shj.changesKey）：s（split / unified）・r・R（読み直す）・x（比べるものを切り替える。shijimi-editor#654）・space（Space メニュー）・:（コマンド行）。
  * space と : のあと、GUI はプライマリの端末にキーを向ける。続きのキー（space w の w など）は端末から shj に届き、shj が CHANGES の続きとして扱う。
  */
-export type ChangesShjKey = "s" | "r" | "R" | "space" | ":";
+export type ChangesShjKey = "s" | "r" | "R" | "x" | "space" | ":";
 
 export interface PrimaryShj {
   /** その shj の制御用ソケット（core/ctl）の場所 */
@@ -127,8 +127,10 @@ export interface PrimaryDiff {
   files: DiffFile[];
   /** shj が今差分を出しているファイルの絶対パス。無ければ省く */
   selected?: string;
-  /** 比べている相手：'head'（HEAD。無いときも）か 'pr'（PR。Space g）。知らない値は HEAD */
+  /** 比べている相手（左側）：'head'（HEAD。無いときも）か 'pr'（PR の base。Space g）。知らない値は HEAD */
   base?: "head" | "pr";
+  /** 右側：'work'（作業ツリー。無いときも）か 'head'（HEAD。base が 'pr' のときだけ。shijimi-editor#654）。知らない値は作業ツリー */
+  right?: "work" | "head";
 }
 
 /** 変更したファイル 1 つ（Go の ctl.DiffFile）。added と deleted は増えた行・減った行の数（バイナリは 0 か省く） */

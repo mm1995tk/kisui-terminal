@@ -116,6 +116,8 @@ export const ja: Record<Key, string> = {
   "place.changes.lead": "CHANGES の中だけで効くキーです。",
   "place.changes.layout": "左右に並べる・1 列にするを切り替える",
   "place.changes.reload": "読み直す",
+  "place.changes.sides":
+    "比べるものを切り替える（PR の base ← 作業ツリー、PR の base ← HEAD、HEAD ← 作業ツリー）",
   "place.changes.toTree": "ファイルツリーへ移る",
   "place.video.title": "動画",
   "place.video.lead": "動画の中だけで効くキーです。",

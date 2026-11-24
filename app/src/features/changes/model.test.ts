@@ -63,6 +63,12 @@ describe("changeRows", () => {
       [true, false, false],
     );
     assert.deepEqual(
+      changeRows({ files, base: "pr", right: "head" }, "/w").map(
+        (r) => r.viewed,
+      ),
+      [true, false, false],
+    );
+    assert.deepEqual(
       changeRows({ files, base: "head" }, "/w").map((r) => r.viewed),
       [undefined, undefined, undefined],
     );
@@ -191,5 +197,13 @@ describe("changesBaseOf（比べている相手。Issue #46）", () => {
     assert.equal(changesBaseOf({ base: "x" as never }), "head");
     assert.equal(changesBaseLabel("pr"), "PR");
     assert.equal(changesBaseLabel("head"), "HEAD");
+  });
+
+  it("base が pr で right が head なら PR の base ← HEAD（shijimi-editor#654）。base が pr でなければ right は見ない", () => {
+    assert.equal(changesBaseOf({ base: "pr", right: "head" }), "pr-head");
+    assert.equal(changesBaseOf({ base: "pr", right: "work" }), "pr");
+    assert.equal(changesBaseOf({ base: "pr", right: "x" as never }), "pr");
+    assert.equal(changesBaseOf({ right: "head" }), "head");
+    assert.equal(changesBaseLabel("pr-head"), "PR ← HEAD");
   });
 });

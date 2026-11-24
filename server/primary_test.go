@@ -347,11 +347,11 @@ func TestPrimaryShjDiffList(t *testing.T) {
 	default:
 	}
 
-	// s・r・R だけを、差分モードのあいだ shj に頼む
+	// s・r・R・x・space・: だけを、差分モードのあいだ shj に頼む
 	changesKey := func(k string) error {
 		return c.Call(context.Background(), "shj.changesKey", map[string]any{"workspaceId": id, "key": k}, nil)
 	}
-	for _, k := range []string{"s", "r", "R", "space", ":"} {
+	for _, k := range []string{"s", "r", "R", "x", "space", ":"} {
 		if err := changesKey(k); err != nil {
 			t.Fatalf("changesKey(%q): %v", k, err)
 		}
@@ -359,7 +359,7 @@ func TestPrimaryShjDiffList(t *testing.T) {
 			t.Errorf("asked: %+v", got)
 		}
 	}
-	for _, bad := range []string{"j", "x", "", "sr", "space w", "space ", "Space"} {
+	for _, bad := range []string{"j", "X", "", "sr", "space w", "space ", "Space"} {
 		if err := changesKey(bad); err == nil {
 			t.Errorf("changesKey(%q) must be refused", bad)
 		}
@@ -399,6 +399,19 @@ func TestPrimaryShjDiffList(t *testing.T) {
 		}
 		return v
 	}
+	// 右側が HEAD（PR の base ← HEAD。shijimi-editor#654）は right "head" で届く。知らない right と、base が HEAD のときの right は捨てる
+	rightOf := func() string {
+		if p := primaryShjOf(t, c, id); p != nil && p.Diff != nil {
+			return p.Diff.Base + "/" + p.Diff.Right
+		}
+		return ""
+	}
+	send(`{"file":"/x/a.go","diff":{"files":[{"path":"/x/a.go"}],"base":"pr","right":"head"}}`)
+	waitFor(t, "right head", func() bool { return rightOf() == "pr/head" })
+	send(`{"file":"/x/a.go","diff":{"files":[{"path":"/x/a.go"}],"base":"pr","right":"other"}}`)
+	waitFor(t, "unknown right is the working tree", func() bool { return rightOf() == "pr/" })
+	send(`{"file":"/x/a.go","diff":{"files":[{"path":"/x/a.go"}],"right":"head"}}`)
+	waitFor(t, "no right with base head", func() bool { return rightOf() == "/" })
 	send(`{"file":"/x/a.go","diff":{"files":[{"path":"/x/a.go","viewed":true},{"path":"/x/b.go"}],"base":"pr"}}`)
 	waitFor(t, "viewed in the PR mode", func() bool { return slices.Equal(viewedOf(), []bool{true, false}) })
 	send(`{"file":"/x/a.go","diff":{"files":[{"path":"/x/a.go","viewed":true},{"path":"/x/b.go","viewed":true}],"base":"pr"}}`)

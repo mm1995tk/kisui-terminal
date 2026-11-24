@@ -52,7 +52,7 @@ export function changeRows(
   root: string | undefined,
 ): ChangeRow[] {
   const base = root ? (root.endsWith("/") ? root : `${root}/`) : undefined;
-  const pr = changesBaseOf(diff) === "pr";
+  const pr = changesBaseOf(diff) !== "head";
   return diff.files.map((f: DiffFile) => {
     const shown =
       base && f.path.startsWith(base) ? f.path.slice(base.length) : f.path;
@@ -72,16 +72,20 @@ export function changeRows(
   });
 }
 
-/** 比べている相手。 */
-export type ChangesBase = "head" | "pr";
+/** 比べている 2 つ：head は HEAD ← 作業ツリー、pr は PR の base ← 作業ツリー、pr-head は PR の base ← HEAD（shijimi-editor#654）。 */
+export type ChangesBase = "head" | "pr" | "pr-head";
 
-/** 一覧が比べている相手。pr 以外（無いときも）は HEAD。 */
-export function changesBaseOf(diff: Pick<PrimaryDiff, "base">): ChangesBase {
-  return diff.base === "pr" ? "pr" : "head";
+/** 一覧が比べている 2 つ。base が pr 以外（無いときも）は HEAD ← 作業ツリー。right が head 以外（無いときも）は作業ツリー。 */
+export function changesBaseOf(
+  diff: Pick<PrimaryDiff, "base" | "right">,
+): ChangesBase {
+  if (diff.base !== "pr") return "head";
+  return diff.right === "head" ? "pr-head" : "pr";
 }
 
-/** 見出しに出す、比べている相手の名前。 */
+/** 見出しに出す、比べている 2 つの名前（左 ← 右。右が作業ツリーなら左だけ）。 */
 export function changesBaseLabel(base: ChangesBase): string {
+  if (base === "pr-head") return "PR ← HEAD";
   return base === "pr" ? "PR" : "HEAD";
 }
 
