@@ -80,66 +80,72 @@
   /** @type {WeakMap<object, { saved: Record<Name, PropertyDescriptor[]>, accessors: Record<Name, { get: () => unknown, set: (v: unknown) => void }> }>} */
   const containers = new WeakMap();
 
+  // 入れ物 obj の get / create の accessor。chain は置く前にあった持ち物（古いものが先。空なら prototype のものを使う）。
+  // 代入されたら、使っている持ち物をその値にする
+  /** @param {object} obj @param {PropertyDescriptor[]} chain @param {Name} name */
+  function accessorFor(obj, chain, name) {
+    // getter に入り直している深さ（0 ならいちばん上の持ち物を使う）
+    let level = 0;
+    /** @this {object} */
+    const get = function () {
+      const desc = chain[chain.length - 1 - level];
+      level++;
+      let cur;
+      try {
+        cur = desc
+          ? desc.get
+            ? desc.get.call(this)
+            : desc.value
+          : Reflect.get(Object.getPrototypeOf(obj) ?? {}, name, this);
+      } finally {
+        level--;
+      }
+      return typeof cur === "function" ? wrap(cur) : cur;
+    };
+    /** @this {object} @param {unknown} v */
+    const set = function (v) {
+      const i = chain.length - 1 - level;
+      const desc = chain[i];
+      if (desc && desc.set) {
+        level++;
+        try {
+          desc.set.call(this, v);
+        } finally {
+          level--;
+        }
+      } else if (this !== obj) {
+        // 入れ物を prototype に持つもの・Proxy への代入は、ふつうのデータの持ち物と同じく、受け手に置く
+        Object.defineProperty(this, name, {
+          value: v,
+          writable: true,
+          enumerable: true,
+          configurable: true,
+        });
+      } else {
+        chain[Math.max(i, 0)] = {
+          value: v,
+          writable: true,
+          configurable: true,
+        };
+      }
+    };
+    getters.add(get);
+    return { get, set };
+  }
+
+  // 入れ物の状態（積んだ持ち物と accessor）。無ければ作って覚える
   /** @param {object} obj */
   function stateOf(obj) {
     const known = containers.get(obj);
     if (known) return known;
-    /** @type {Record<Name, PropertyDescriptor[]>} 置く前にあった持ち物（空なら prototype のものを使う）。代入されたら、いちばん上をその値にする */
+    /** @type {Record<Name, PropertyDescriptor[]>} */
     const saved = { get: [], create: [] };
-    /** @param {Name} name */
-    const accessor = (name) => {
-      const chain = saved[name];
-      // getter に入り直している深さ（0 ならいちばん上の持ち物を使う）
-      let level = 0;
-      /** @this {object} */
-      const get = function () {
-        const desc = chain[chain.length - 1 - level];
-        level++;
-        let cur;
-        try {
-          cur = desc
-            ? desc.get
-              ? desc.get.call(this)
-              : desc.value
-            : Reflect.get(Object.getPrototypeOf(obj) ?? {}, name, this);
-        } finally {
-          level--;
-        }
-        return typeof cur === "function" ? wrap(cur) : cur;
-      };
-      /** @this {object} @param {unknown} v */
-      const set = function (v) {
-        const i = chain.length - 1 - level;
-        const desc = chain[i];
-        if (desc && desc.set) {
-          level++;
-          try {
-            desc.set.call(this, v);
-          } finally {
-            level--;
-          }
-        } else if (this !== obj) {
-          // 入れ物を prototype に持つもの・Proxy への代入は、ふつうのデータの持ち物と同じく、受け手に置く
-          Object.defineProperty(this, name, {
-            value: v,
-            writable: true,
-            enumerable: true,
-            configurable: true,
-          });
-        } else {
-          chain[Math.max(i, 0)] = {
-            value: v,
-            writable: true,
-            configurable: true,
-          };
-        }
-      };
-      getters.add(get);
-      return { get, set };
-    };
     const state = {
       saved,
-      accessors: { get: accessor("get"), create: accessor("create") },
+      accessors: {
+        get: accessorFor(obj, saved.get, "get"),
+        create: accessorFor(obj, saved.create, "create"),
+      },
     };
     containers.set(obj, state);
     return state;
