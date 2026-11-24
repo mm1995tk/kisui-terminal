@@ -109,7 +109,7 @@ test("waitingSiteOf は当たる項目のうち待っているものを選ぶ（
         }),
       ),
     ),
-    { site: ".google.com", host: "h" },
+    { site: ".google.com", host: "h", url: "https://accounts.google.com/" },
   );
 });
 
@@ -269,7 +269,7 @@ test("openedByKisui はできたばかりのタブが待っているサイトを
         }),
       ),
     ),
-    { site: "github.com", host: "h" },
+    { site: "github.com", host: "h", url: "https://github.com/login" },
   );
   assert.equal(
     K.openedByKisui({ ...base, url: "https://gist.github.com/", now: 1000 }),
@@ -282,6 +282,68 @@ test("openedByKisui はできたばかりのタブが待っているサイトを
       now: K.NEW_TAB_MS + 1,
     }),
     null,
+  );
+});
+
+test("loginLike はログインの途中らしいページを見分ける（#438）", () => {
+  for (const url of [
+    "https://github.com/login",
+    "https://github.com/login?return_to=%2Fsettings",
+    "https://github.com/session",
+    "https://github.com/sessions/two-factor/app",
+    "https://github.com/sessions/verified-device",
+    "https://accounts.google.com/v3/signin/challenge/totp",
+    "https://accounts.google.com/CheckCookie",
+    "https://dash.cloudflare.com/two-factor",
+    "https://example.com/u/mfa-otp-challenge",
+    "https://example.com/oauth/authorize",
+    "not a url",
+  ])
+    assert.equal(K.loginLike(url), true, url);
+  for (const url of [
+    "https://github.com/",
+    "https://github.com/settings/profile",
+    "https://github.com/mm1995tk/kisui-terminal",
+    "https://myaccount.google.com/",
+    "https://mail.google.com/mail/u/0/",
+    "https://dash.cloudflare.com/0123abcd/home",
+  ])
+    assert.equal(K.loginLike(url), false, url);
+});
+
+test("landing は、ログインを終えて着いたらしいページだけを landed にする（#438）", () => {
+  const p = {
+    openedUrl: "https://github.com/login",
+    site: "github.com",
+    passedLogin: false,
+  };
+  assert.equal(K.landing({ ...p, url: "https://github.com/" }), "landed");
+  assert.equal(K.landing({ ...p, url: "https://github.com/login" }), "login");
+  assert.equal(
+    K.landing({ ...p, url: "https://github.com/sessions/two-factor/app" }),
+    "login",
+  );
+  assert.equal(K.landing({ ...p, url: "https://gist.github.com/" }), "outside");
+  assert.equal(K.landing({ ...p, url: "https://example.com/" }), "outside");
+  // 開いた URL のまま（リーダーの `o s` で開いたページ）は送らない。ログインのページを通って戻ってきたら送る
+  const os = { ...p, openedUrl: "https://github.com/settings" };
+  assert.equal(
+    K.landing({ ...os, url: "https://github.com/settings#x" }),
+    "opened",
+  );
+  assert.equal(
+    K.landing({ ...os, url: "https://github.com/settings", passedLogin: true }),
+    "landed",
+  );
+  // .google.com で待っていれば、myaccount.google.com に着いたら送る
+  assert.equal(
+    K.landing({
+      url: "https://myaccount.google.com/",
+      openedUrl: "https://accounts.google.com/v3/signin/identifier",
+      site: ".google.com",
+      passedLogin: true,
+    }),
+    "landed",
   );
 });
 
@@ -534,6 +596,9 @@ test("タブを覚えるのと、別のタブが閉じるのが重なっても�
     {
       site: "github.com",
       host: "dev.mm1995tk.kisui_terminal",
+      url: "https://github.com/login",
+      // ログインのページを開いたので、ログインの途中らしいページを通ったと覚える
+      passedLogin: true,
     },
   );
 });
@@ -639,6 +704,116 @@ test("手で戻るボタンは、許可していないサイトの Cookie を読
   assert.equal(b.badges.at(-1).text, "!");
 });
 
+// ---- URL が変わったら送る（#438。Firefox でログイン済みのとき・パスワードでログインしたとき）
+
+function go(b: any, tab: any, url: string) {
+  tab.url = url;
+  b.ev.updated.fire(tab.id, { url });
+}
+const sentCookies = (b: any) =>
+  b.native.filter((n: any) => n.message.type === "cookies");
+
+test("Firefox でログイン済みで、ログインのページがすぐ移ったら、ボタンを押さずに送る", async () => {
+  const b = fakeBrowser(GH);
+  // kisui-terminal は github.com/login を開いたが、ログイン済みなので github.com/ にリダイレクトした
+  const tab = { id: 80, url: "https://github.com/", status: "complete" };
+  b.tabs.set(80, tab);
+  b.ev.created.fire({ id: 80 });
+  b.ev.updated.fire(80, { url: tab.url });
+  await settle();
+  const sent = sentCookies(b);
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].message.site, "github.com");
+  assert.equal(sent[0].message.url, "https://github.com/");
+  assert.deepEqual(
+    [...sent[0].message.cookies.map((c: any) => c.name)],
+    ["user_session"],
+  );
+  assert.deepEqual(b.removed, [80]);
+});
+
+test("パスワードでログインすると、2 段階認証の途中では送らず、済んでから送る", async () => {
+  const b = fakeBrowser(GH);
+  const tab = { id: 81, url: "https://github.com/login", status: "complete" };
+  b.tabs.set(81, tab);
+  b.ev.created.fire({ id: 81, url: tab.url });
+  await settle();
+  go(b, tab, "https://github.com/session");
+  await settle();
+  go(b, tab, "https://github.com/sessions/two-factor/app");
+  await settle();
+  assert.equal(sentCookies(b).length, 0);
+  assert.deepEqual(b.removed, []);
+  go(b, tab, "https://github.com/");
+  await settle();
+  assert.equal(sentCookies(b).length, 1);
+  assert.equal(sentCookies(b)[0].message.url, "https://github.com/");
+  assert.deepEqual(b.removed, [81]);
+});
+
+test("着いたらしいページから、落ち着く前に 2 段階認証のページへ移ったら送らない", async () => {
+  const b = fakeBrowser(GH);
+  const tab = { id: 82, url: "https://github.com/login", status: "complete" };
+  b.tabs.set(82, tab);
+  b.ev.created.fire({ id: 82, url: tab.url });
+  await settle();
+  go(b, tab, "https://github.com/dashboard");
+  go(b, tab, "https://github.com/sessions/two-factor/app");
+  await settle();
+  assert.equal(sentCookies(b).length, 0);
+  assert.deepEqual(b.removed, []);
+});
+
+test("待っていないサイトに移ったら送らない", async () => {
+  const b = fakeBrowser(GH);
+  const tab = { id: 83, url: "https://github.com/login", status: "complete" };
+  b.tabs.set(83, tab);
+  b.ev.created.fire({ id: 83, url: tab.url });
+  await settle();
+  go(b, tab, "https://example.com/");
+  await settle();
+  go(b, tab, "https://gist.github.com/");
+  await settle();
+  assert.equal(b.cookieQueries.length, 0);
+  assert.equal(sentCookies(b).length, 0);
+  assert.deepEqual(b.removed, []);
+});
+
+test("開いた URL のままなら送らず、ログインのページを通って戻ってきたら送る（リーダーの o s）", async () => {
+  const b = fakeBrowser({
+    sites: ["github.com"],
+    waiting: [{ site: "github.com", url: "https://github.com/settings" }],
+  });
+  const tab = {
+    id: 84,
+    url: "https://github.com/settings",
+    status: "complete",
+  };
+  b.tabs.set(84, tab);
+  b.ev.created.fire({ id: 84, url: tab.url });
+  await settle();
+  assert.equal(sentCookies(b).length, 0);
+  go(b, tab, "https://github.com/login?return_to=%2Fsettings");
+  await settle();
+  go(b, tab, "https://github.com/settings");
+  await settle();
+  assert.equal(sentCookies(b).length, 1);
+  assert.deepEqual(b.removed, [84]);
+});
+
+test("覚えたのが 0.2.4 までのタブ（開いた URL が無い）は、URL では送らない", async () => {
+  const b = fakeBrowser(GH);
+  const tab = { id: 85, url: "https://github.com/login", status: "complete" };
+  b.tabs.set(85, tab);
+  b.session["tracked:85"] = {
+    site: "github.com",
+    host: "dev.mm1995tk.kisui_terminal",
+  };
+  go(b, tab, "https://github.com/");
+  await settle();
+  assert.equal(sentCookies(b).length, 0);
+});
+
 // .google.com の書き方（#279）。ログインの後に別のサブドメインへ移っても送れる
 const GOOGLE = {
   sites: [".google.com"],
@@ -682,7 +857,12 @@ test(".google.com で待っていれば、myaccount.google.com に移っても�
   await settle();
   assert.deepEqual(
     { ...b.session["tracked:70"] },
-    { site: ".google.com", host: "dev.mm1995tk.kisui_terminal" },
+    {
+      site: ".google.com",
+      host: "dev.mm1995tk.kisui_terminal",
+      url: "https://accounts.google.com/v3/signin",
+      passedLogin: true,
+    },
   );
   b.ev.message.fire({ type: "passkey-success" }, { tab, url: tab.url });
   // ログインが済むと myaccount.google.com に移る

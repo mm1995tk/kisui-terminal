@@ -191,14 +191,90 @@ var KisuiPasskey = (() => {
 
   // 新しいタブの最初のページが、kisui-terminal が開いたものか。
   // できてから NEW_TAB_MS のうちに、待っているサイトのページを開いたタブを、kisui-terminal が開いたものと見る
-  // （サイトが最初にリダイレクトしても見分けられるよう、URL でなくサイト（当たった許可サイトの項目）で比べる）
-  /** @param {{ url: string, createdAt: number, now: number, sites: string[], waiting: Map<string, Waiting> }} p @returns {{ site: string, host: string } | null} */
+  // （サイトが最初にリダイレクトしても見分けられるよう、URL でなくサイト（当たった許可サイトの項目）で比べる）。
+  // 返す url は、kisui-terminal が開いた URL（`waiting` の url。タブの最初のページはリダイレクトの後のことがあるので、こちらを使う）
+  /** @param {{ url: string, createdAt: number, now: number, sites: string[], waiting: Map<string, Waiting> }} p @returns {{ site: string, host: string, url: string } | null} */
   function openedByKisui({ url, createdAt, now, sites, waiting }) {
     if (now - createdAt > NEW_TAB_MS) return null;
     const site = waitingSiteOf(hostOf(url), sites, waiting);
     if (!site) return null;
     const w = waiting.get(site);
-    return w ? { site, host: w.host } : null;
+    return w ? { site, host: w.host, url: w.url } : null;
+  }
+
+  // ログインの途中らしいページ（ログイン・2 段階認証・確認・アカウントの選択など）を見分ける語。
+  // URL の path の区切り（`/`）ごとに、小文字にして英数字だけを残したものに、どれかが含まれていればログインの途中と見る
+  // （`/sessions/two-factor/app` は `sessions` と `twofactor`、`/v3/signin/challenge/totp` は `signin` と `challenge`）。
+  // 外れて、ログインの途中でないページを途中と見ても、自動で送らないだけ（手で戻るボタンは使える）なので、広めに取る
+  const LOGIN_WORDS = [
+    "login",
+    "logon",
+    "signin",
+    "signon",
+    "signup",
+    "session",
+    "auth",
+    "sso",
+    "saml",
+    "twofactor",
+    "2fa",
+    "mfa",
+    "otp",
+    "u2f",
+    "challenge",
+    "verif",
+    "confirm",
+    "checkpoint",
+    "passkey",
+    "webauthn",
+    "password",
+    "recover",
+    "consent",
+    "captcha",
+    "accountchooser",
+    "selectaccount",
+  ];
+  // ログインのためだけの host の最初のラベル（`accounts.google.com`・`login.microsoftonline.com` など）。
+  // 語を含むかでなく、ラベル全体で比べる（`myaccount.google.com` はログインを終えて着くページ）
+  const LOGIN_HOST_LABELS = ["accounts", "login", "signin", "auth", "sso"];
+
+  // URL がログインの途中らしいページか（LOGIN_WORDS と LOGIN_HOST_LABELS）。URL として読めなければ true（送らない側に倒す）
+  /** @param {string} url @returns {boolean} */
+  function loginLike(url) {
+    let u;
+    try {
+      u = new URL(url);
+    } catch {
+      return true;
+    }
+    if (LOGIN_HOST_LABELS.includes(u.hostname.toLowerCase().split(".")[0]))
+      return true;
+    return u.pathname.split("/").some((part) => {
+      let d = part;
+      try {
+        d = decodeURIComponent(part);
+      } catch {
+        // そのまま見る
+      }
+      const p = d.toLowerCase().replace(/[^a-z0-9]/g, "");
+      return p !== "" && LOGIN_WORDS.some((w) => p.includes(w));
+    });
+  }
+
+  // kisui-terminal が開いたタブの今の URL が、ログインを終えて着いたページらしいか（#438）。
+  // - "outside"：待っている項目 `site` に当たらない（送らない）
+  // - "login"：ログインの途中らしいページ（loginLike。送らない）
+  // - "opened"：開いた URL（`openedUrl`）のまま（送らない）。ただし、そのあとログインの途中らしいページを通っていれば（`passedLogin`）、
+  //   ログインを済ませて元のページに戻ったと見て "landed" にする（リーダーの `o s` で開いたページが、ログインのページへ
+  //   リダイレクトし、済むと元のページに戻るサイト）
+  // - "landed"：そのほか。落ち着いたら Cookie を送る
+  /** @param {{ url: string, openedUrl: string, site: string, passedLogin: boolean }} p @returns {"outside" | "login" | "opened" | "landed"} */
+  function landing({ url, openedUrl, site, passedLogin }) {
+    const host = hostOf(url);
+    if (!host || !inSite(host, site)) return "outside";
+    if (loginLike(url)) return "login";
+    if (sameUrl(url, openedUrl) && !passedLogin) return "opened";
+    return "landed";
   }
 
   // 2 つの URL が同じページか（ブラウザが書き直す形の違いと、# の後ろは見ない）
@@ -233,6 +309,8 @@ var KisuiPasskey = (() => {
     pickCookies,
     settled,
     openedByKisui,
+    loginLike,
+    landing,
     sameUrl,
   };
 })();

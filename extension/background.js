@@ -4,21 +4,25 @@
 // 2. kisui-terminal がパスキーのために開いたタブ（できてすぐ、ログインを待っているサイトのページを開いたタブ）を覚える。
 // 3. そのタブでパスキーが通ったら（page.js が知らせる）、ページの移動と Cookie の書き換えが落ち着くのを待ち、
 //    そのサイトの Cookie を kisui-terminal に送り、タブを閉じる。
-// 4. 拡張機能のボタンを押すと、今のタブのサイトの Cookie を、そのサイトを待っている kisui-terminal に送り、タブを閉じる。
+// 4. そのタブの URL が、開いた URL から、ログインを終えて着いたらしいページ（待っているサイトの中で、ログインの途中らしくない URL）に
+//    変わったら、同じように落ち着くのを待って送る（Firefox でログイン済みのときと、パスワードでログインしたとき。#438）。
+// 5. 拡張機能のボタンを押すと、今のタブのサイトの Cookie を、そのサイトを待っている kisui-terminal に送り、タブを閉じる。
 //
 // Cookie を読むのは、kisui-terminal の答えの sites にあるサイトのものだけ。
 
 /**
- * kisui-terminal が開いたタブ（site は待っている許可サイトの項目（`github.com` か `.google.com`）、host は native messaging の受け口）
- * @typedef {{ site: string, host: string }} Hit
+ * kisui-terminal が開いたタブ（site は待っている許可サイトの項目（`github.com` か `.google.com`）、host は native messaging の受け口、
+ * url は kisui-terminal が開いた URL、passedLogin はそのタブがログインの途中らしいページを通ったか。url と passedLogin は 0.2.5 から）
+ * @typedef {{ site: string, host: string, url?: string, passedLogin?: boolean }} Hit
  */
 /**
  * タブ。id は、ここで扱うタブ（ウィンドウのあるもの）では必ずある。cookieStoreId は Firefox のもの
  * @typedef {chrome.tabs.Tab & { id: number, cookieStoreId?: string }} Tab
  */
 /**
- * パスキーが通ったあと、落ち着くのを待っているタブ
- * @typedef {Hit & { successAt: number, lastCookieChange: number }} Settling
+ * 落ち着くのを待っているタブ。reason は待ち始めたわけ（"passkey" はパスキーが通った、"url" はログインを終えて着いたらしいページに
+ * 移った）。successAt はそのときの時刻（"url" ではページを移るたびに更新する）。landedUrl は "url" のときの着いたページ
+ * @typedef {Hit & { reason: "passkey" | "url", successAt: number, lastCookieChange: number, landedUrl?: string }} Settling
  */
 
 // Firefox の browser（promise を返す）。型は @types/chrome のものを使う（globals.d.ts）
@@ -144,7 +148,9 @@ async function onTabCreated(tab) {
 
 /** @param {number} tabId @param {{ url?: string }} changeInfo */
 async function onTabUpdated(tabId, changeInfo) {
-  if (changeInfo.url) await checkNewTab(tabId, changeInfo.url);
+  if (!changeInfo.url) return;
+  await checkNewTab(tabId, changeInfo.url);
+  await watchUrl(tabId, changeInfo.url);
 }
 
 // できたばかりのタブの最初の http(s) のページを見る（見るのは 1 回だけ）
@@ -181,7 +187,11 @@ async function checkExistingTabs() {
     const site = K.waitingSiteOf(K.hostOf(url), sites, waiting);
     const w = site && waiting.get(site);
     if (site && w && K.sameUrl(url, w.url))
-      await track(/** @type {Tab} */ (tab).id, { site, host: w.host });
+      await track(/** @type {Tab} */ (tab).id, {
+        site,
+        host: w.host,
+        url: w.url,
+      });
   }
 }
 
@@ -205,6 +215,8 @@ async function track(tabId, hit) {
   await saveState({ [trackedKey(tabId)]: hit });
   // 入れるのは、今のページがそのサイトのときだけ（聞いている間に別のサイトへリダイレクトしていれば入れない）
   const tab = await api.tabs.get(tabId).catch(() => null);
+  // 覚えるまでの間にもうページが移っている（Firefox でログイン済みで、ログインのページがすぐリダイレクトした）ことがあるので、今の URL も見る
+  if (tab && tab.url) await watchUrl(tabId, tab.url);
   if (!tab || !urlInSite(tab.url, hit.site)) return;
   const target = { tabId };
   await api.scripting
@@ -227,9 +239,9 @@ function urlInSite(url, site) {
   return host !== null && K.inSite(host, site);
 }
 
-// ---- パスキーが通ったあと、落ち着くのを待つ
+// ---- パスキーが通ったあと・ログインを終えて着いたらしいページに移ったあと、落ち着くのを待つ
 
-// 落ち着くのを待っているタブ（tabId → { site, host, successAt, lastCookieChange }）
+// 落ち着くのを待っているタブ（tabId → Settling）
 /** @type {Map<number, Settling>} */
 const settling = new Map();
 
@@ -246,11 +258,59 @@ async function onMessage(message, sender) {
   const tabId = /** @type {Tab} */ (sender.tab).id;
   const t = await tracked(tabId);
   if (!t || !urlInSite(sender.url ?? sender.tab.url, t.site)) return;
-  if (settling.has(tabId)) {
-    /** @type {Settling} */ (settling.get(tabId)).successAt = Date.now();
+  const s = settling.get(tabId);
+  if (s) {
+    // URL で待っていたときも、パスキーが通ったら、パスキーの待ち方にする（送る前に URL を見るのは、サイトの中かだけ）
+    s.reason = "passkey";
+    s.successAt = Date.now();
     return;
   }
-  settling.set(tabId, { ...t, successAt: Date.now(), lastCookieChange: 0 });
+  settling.set(tabId, {
+    ...t,
+    reason: "passkey",
+    successAt: Date.now(),
+    lastCookieChange: 0,
+  });
+  waitAndSend(tabId);
+}
+
+// kisui-terminal が開いたタブの URL が変わったとき（覚えたときの今の URL も）。ログインを終えて着いたらしいページ（K.landing が
+// "landed"）なら、落ち着くのを待って送る。ログインの途中らしいページを通ったことは覚えておく（background のスクリプトが止まっても
+// 残るよう、覚えたタブと同じ所に置く）。着いたらしいページから、別のページに移ったら待ち直し、ログインの途中らしいページ・
+// 開いた URL・サイトの外に移ったら待つのをやめる
+/** @param {number} tabId @param {string} url */
+async function watchUrl(tabId, url) {
+  const t = await tracked(tabId);
+  // 0.2.4 までに覚えたタブは、開いた URL を持たないので見ない（パスキーと手で戻るボタンで戻る）
+  if (!t || !t.url) return;
+  const where = K.landing({
+    url,
+    openedUrl: t.url,
+    site: t.site,
+    passedLogin: t.passedLogin === true,
+  });
+  if (where === "login" && !t.passedLogin)
+    await saveState({ [trackedKey(tabId)]: { ...t, passedLogin: true } });
+  // 待っているかは、待つ（await）のが済んでから見る
+  const s = settling.get(tabId);
+  if (s && s.reason === "passkey") return;
+  if (where !== "landed") {
+    if (s) settling.delete(tabId);
+    return;
+  }
+  if (s && s.landedUrl && K.sameUrl(s.landedUrl, url)) return;
+  if (s) {
+    s.landedUrl = url;
+    s.successAt = Date.now();
+    return;
+  }
+  settling.set(tabId, {
+    ...t,
+    reason: "url",
+    landedUrl: url,
+    successAt: Date.now(),
+    lastCookieChange: 0,
+  });
   waitAndSend(tabId);
 }
 
@@ -268,6 +328,14 @@ async function waitAndSend(tabId) {
       settling.delete(tabId);
       return;
     }
+    // 待つ間に待ち直した（別のページに移った）・やめた
+    if (settling.get(tabId) !== s) continue;
+    // URL の知らせより先に、タブが別のページに移っていたら、そこから待ち直す（送るかは、着いたページで決める）
+    if (s.reason === "url" && !K.sameUrl(tab.url ?? "", s.landedUrl ?? "")) {
+      s.landedUrl = tab.url;
+      s.successAt = Date.now();
+      continue;
+    }
     const done = K.settled({
       now: Date.now(),
       successAt: s.successAt,
@@ -276,6 +344,21 @@ async function waitAndSend(tabId) {
     });
     if (!done) continue;
     settling.delete(tabId);
+    if (s.reason === "url") {
+      // 待つ間に、ログインの途中らしいページやサイトの外に移っていたら送らない（URL の知らせが遅れたとき）
+      const t = await tracked(tabId);
+      if (
+        !t ||
+        !t.url ||
+        K.landing({
+          url: tab.url ?? "",
+          openedUrl: t.url,
+          site: t.site,
+          passedLogin: t.passedLogin === true,
+        }) !== "landed"
+      )
+        return;
+    }
     // ページの移動で別のサイトに出ていたら送らない（手で戻るボタンは使える）。`.google.com` で待っていれば、
     // accounts.google.com から myaccount.google.com に移っていても同じサイト
     if (!urlInSite(tab.url, s.site)) return;
