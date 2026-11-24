@@ -150,7 +150,7 @@ async function onTabCreated(tab) {
 async function onTabUpdated(tabId, changeInfo) {
   if (!changeInfo.url) return;
   await checkNewTab(tabId, changeInfo.url);
-  await watchUrl(tabId, changeInfo.url);
+  await watchUrl(tabId);
 }
 
 // できたばかりのタブの最初の http(s) のページを見る（見るのは 1 回だけ）
@@ -216,7 +216,7 @@ async function track(tabId, hit) {
   // 入れるのは、今のページがそのサイトのときだけ（聞いている間に別のサイトへリダイレクトしていれば入れない）
   const tab = await api.tabs.get(tabId).catch(() => null);
   // 覚えるまでの間にもうページが移っている（Firefox でログイン済みで、ログインのページがすぐリダイレクトした）ことがあるので、今の URL も見る
-  if (tab && tab.url) await watchUrl(tabId, tab.url);
+  if (tab) await watchUrl(tabId);
   if (!tab || !urlInSite(tab.url, hit.site)) return;
   const target = { tabId };
   await api.scripting
@@ -277,12 +277,17 @@ async function onMessage(message, sender) {
 // kisui-terminal が開いたタブの URL が変わったとき（覚えたときの今の URL も）。ログインを終えて着いたらしいページ（K.landing が
 // "landed"）なら、落ち着くのを待って送る。ログインの途中らしいページを通ったことは覚えておく（background のスクリプトが止まっても
 // 残るよう、覚えたタブと同じ所に置く）。着いたらしいページから、別のページに移ったら待ち直し、ログインの途中らしいページ・
-// 開いた URL・サイトの外に移ったら待つのをやめる
-/** @param {number} tabId @param {string} url */
-async function watchUrl(tabId, url) {
+// 開いた URL・サイトの外に移ったら待つのをやめる。
+// 分けるのは、知らせの URL でなく、タブの今の URL（知らせは「変わった」という合図にだけ使う）。覚えるまでの間（kisui-terminal に
+// 聞いている間）にタブが先のページへ移っていると、前の知らせの処理が、後のページで始めた待ちを古い URL で取り消してしまうため
+/** @param {number} tabId */
+async function watchUrl(tabId) {
   const t = await tracked(tabId);
   // 0.2.4 までに覚えたタブは、開いた URL を持たないので見ない（パスキーと手で戻るボタンで戻る）
   if (!t || !t.url) return;
+  const tab = await api.tabs.get(tabId).catch(() => null);
+  const url = tab && tab.url;
+  if (!url) return;
   const where = K.landing({
     url,
     openedUrl: t.url,

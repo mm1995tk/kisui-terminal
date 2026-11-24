@@ -732,6 +732,19 @@ test("Firefox でログイン済みで、ログインのページがすぐ移っ
   assert.deepEqual(b.removed, [80]);
 });
 
+test("覚えるまでの間にタブが先のページへ移っても、前の知らせの古い URL で待ちを取り消さない", async () => {
+  const b = fakeBrowser(GH);
+  const tab = { id: 90, url: "https://github.com/login", status: "complete" };
+  b.tabs.set(90, tab);
+  b.ev.created.fire({ id: 90 });
+  // ログインのページを一度出してから、スクリプトで github.com/ に移る（kisui-terminal に聞いている間に移る）
+  b.ev.updated.fire(90, { url: "https://github.com/login" });
+  go(b, tab, "https://github.com/");
+  await settle();
+  assert.equal(sentCookies(b).length, 1);
+  assert.deepEqual(b.removed, [90]);
+});
+
 test("パスワードでログインすると、2 段階認証の途中では送らず、済んでから送る", async () => {
   const b = fakeBrowser(GH);
   const tab = { id: 81, url: "https://github.com/login", status: "complete" };
