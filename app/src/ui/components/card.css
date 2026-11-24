@@ -357,6 +357,10 @@
 .machine-dialog .card-rows {
   flex: none;
 }
+/* スクロールするのは .card-content なので、選んだ行の枠を切らない間（.card-rows の scroll-padding と同じ）をここにも付ける */
+.card-content:has(> .machine-dialog) {
+  scroll-padding: var(--space-4) 0;
+}
 .machine-dialog .card-rows:focus {
   outline: none;
 }
