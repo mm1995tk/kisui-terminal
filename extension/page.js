@@ -70,36 +70,59 @@
 
   // ---- 入れ物の get / create
 
-  // 入れ物ごとの、こちらの accessor を置く前にあった持ち物（無ければ prototype のものを使う）。
-  // 代入されたら、その値に置き換える
-  /** @type {WeakMap<object, Partial<Record<Name, PropertyDescriptor>>>} */
-  const before = new WeakMap();
+  // accessor は入れ物ごとに作り、入れ物をクロージャで持つ。置く前にあった持ち物を引くのも、prototype をたどるのも
+  // その入れ物から（受け手 this が入れ物でないとき（Object.create(入れ物)・Proxy）も、入れ物に置いた関数を返すため）。
+  // 関数や getter を呼ぶときの受け手だけ this のまま
+  /** @type {WeakSet<Function>} こちらの accessor の getter */
+  const getters = new WeakSet();
+  /** @type {WeakMap<object, { saved: Partial<Record<Name, PropertyDescriptor>>, accessors: Record<Name, { get: () => unknown, set: (v: unknown) => void }> }>} */
+  const containers = new WeakMap();
 
-  /** @param {object} obj @param {PropertyDescriptor | undefined} desc @param {Name} name */
-  function resolve(obj, desc, name) {
-    if (!desc) return Reflect.get(Object.getPrototypeOf(obj) ?? {}, name, obj);
-    return desc.get ? desc.get.call(obj) : desc.value;
-  }
-
-  /** @param {Name} name */
-  function accessor(name) {
-    return {
+  /** @param {object} obj */
+  function stateOf(obj) {
+    const known = containers.get(obj);
+    if (known) return known;
+    /** @type {Partial<Record<Name, PropertyDescriptor>>} 置く前にあった持ち物（無ければ prototype のものを使う）。代入されたら、その値 */
+    const saved = {};
+    /** @param {Name} name */
+    const accessor = (name) => {
       /** @this {object} */
-      get() {
-        const cur = resolve(this, before.get(this)?.[name], name);
-        return typeof cur === "function" ? wrap(cur) : cur;
-      },
-      /** @this {object} @param {unknown} v */
-      set(v) {
-        const saved = before.get(this) ?? {};
+      const get = function () {
         const desc = saved[name];
-        if (desc && desc.set) desc.set.call(this, v);
-        else saved[name] = { value: v, writable: true, configurable: true };
-        before.set(this, saved);
-      },
+        const cur = desc
+          ? desc.get
+            ? desc.get.call(this)
+            : desc.value
+          : Reflect.get(Object.getPrototypeOf(obj) ?? {}, name, this);
+        return typeof cur === "function" ? wrap(cur) : cur;
+      };
+      /** @this {object} @param {unknown} v */
+      const set = function (v) {
+        const desc = saved[name];
+        if (desc && desc.set) {
+          desc.set.call(this, v);
+        } else if (this !== obj) {
+          // 入れ物を prototype に持つもの・Proxy への代入は、ふつうのデータの持ち物と同じく、受け手に置く
+          Object.defineProperty(this, name, {
+            value: v,
+            writable: true,
+            enumerable: true,
+            configurable: true,
+          });
+        } else {
+          saved[name] = { value: v, writable: true, configurable: true };
+        }
+      };
+      getters.add(get);
+      return { get, set };
     };
+    const state = {
+      saved,
+      accessors: { get: accessor("get"), create: accessor("create") },
+    };
+    containers.set(obj, state);
+    return state;
   }
-  const ACCESSORS = { get: accessor("get"), create: accessor("create") };
 
   // 入れ物の get / create を、こちらの accessor にする（もうそうなら何もしない）
   /** @param {unknown} c */
@@ -108,20 +131,21 @@
     const obj = /** @type {object} */ (c);
     for (const name of NAMES) {
       const desc = Object.getOwnPropertyDescriptor(obj, name);
-      if (desc && desc.get === ACCESSORS[name].get) continue;
-      const saved = before.get(obj) ?? {};
+      if (desc && desc.get && getters.has(desc.get)) continue;
+      const { saved, accessors } = stateOf(obj);
+      const prev = saved[name];
       if (desc) saved[name] = desc;
       else delete saved[name];
-      before.set(obj, saved);
       try {
         Object.defineProperty(obj, name, {
-          get: ACCESSORS[name].get,
-          set: ACCESSORS[name].set,
+          ...accessors[name],
           configurable: true,
           enumerable: desc ? desc.enumerable : false,
         });
       } catch {
-        // 置き換えられない入れ物では、手で戻るボタンを使う
+        // 置き換えられない入れ物（configurable でない持ち物）では、手で戻るボタンを使う
+        if (prev) saved[name] = prev;
+        else delete saved[name];
       }
     }
   }

@@ -819,6 +819,23 @@ for (const [name, install] of [
   });
 }
 
+test("page.js は、受け手が入れ物そのものでない呼び方（Object.create・Proxy）も今までどおり動かす", async () => {
+  const w = pageWorld();
+  w.loadPage();
+  const inherited = await w.run(
+    `Object.create(navigator.credentials).get({ publicKey: {} })`,
+  );
+  assert.equal(inherited.id, "native");
+  // ほかの拡張機能が代入した後も、Proxy から読むと代入された関数が呼ばれる
+  w.run(`navigator.credentials.get = ${manager};`);
+  const proxied = await w.run(
+    `new Proxy(navigator.credentials, {}).get({ publicKey: {} })`,
+  );
+  assert.equal(proxied.id, "manager");
+  await flush();
+  assert.equal(w.events(), 2);
+});
+
 test("page.js は、ほかの拡張機能がこちらの包みを呼び戻しても 1 回だけ知らせる", async () => {
   const w = pageWorld();
   w.loadPage();
