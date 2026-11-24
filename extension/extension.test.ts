@@ -1,5 +1,5 @@
 // 拡張機能（extension/）のテスト。npm run test:extension で回す。
-// lib.js と background.js はブラウザの大域のスクリプトなので、vm の中で読む。background.js にはブラウザの API の偽物を渡す。
+// lib.js・background.js・page.js はブラウザの大域のスクリプトなので、vm の中で読む。background.js にはブラウザの API の偽物を、page.js にはページの navigator の偽物を渡す。
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, mkdtempSync, rmSync, readdirSync } from "node:fs";
@@ -731,6 +731,138 @@ test(".google.com で待っていれば、手で戻るボタンは myaccount.goo
 // ---- manifest と組み立て
 
 const base = JSON.parse(read("manifest.json"));
+
+// ---- page.js（ページの中で動く）。ページと、パスキーの管理の拡張機能（1Password など）が navigator.credentials を置き換えるのを真似る
+
+// Firefox の Navigator と CredentialsContainer の形（navigator.credentials は Navigator.prototype の getter、get / create は prototype の関数）
+function pageWorld() {
+  const ctx: any = { events: 0 };
+  vm.createContext(ctx);
+  vm.runInContext(
+    `
+    class CredentialsContainer {}
+    CredentialsContainer.prototype.get = function (o) {
+      return o && o.fail ? Promise.reject(new Error("NotAllowed")) : Promise.resolve({ id: "native" });
+    };
+    CredentialsContainer.prototype.create = function () { return Promise.resolve({ id: "native" }); };
+    const container = new CredentialsContainer();
+    class Navigator {}
+    Object.defineProperty(Navigator.prototype, "credentials", { get() { return container; }, configurable: true, enumerable: true });
+    var navigator = new Navigator();
+    class CustomEvent { constructor(type) { this.type = type; } }
+    var document = { dispatchEvent(e) { if (e.type === "kisui-terminal-passkey-success") events++; } };
+    `,
+    ctx,
+  );
+  return {
+    run: (code: string) => vm.runInContext(code, ctx),
+    loadPage: () => vm.runInContext(read("page.js"), ctx),
+    events: () => ctx.events as number,
+  };
+}
+
+// パスキーの管理の拡張機能：自分でパスキーを出し、もとの関数を呼ばない
+const manager = `(o) => Promise.resolve({ id: "manager" })`;
+
+test("page.js はパスキーが通ったときだけ知らせ、ページから見える値は変えない", async () => {
+  const w = pageWorld();
+  w.loadPage();
+  await w.run(`navigator.credentials.get({ publicKey: {} })`);
+  await w.run(`navigator.credentials.create({ publicKey: {} })`);
+  await flush();
+  assert.equal(w.events(), 2);
+  // パスキーでない・断られた
+  await w.run(`navigator.credentials.get({ password: true })`);
+  await w
+    .run(`navigator.credentials.get({ publicKey: {}, fail: true })`)
+    .catch(() => {});
+  await flush();
+  assert.equal(w.events(), 2);
+  assert.equal(
+    (await w.run(`navigator.credentials.get({ publicKey: {} })`)).id,
+    "native",
+  );
+  assert.equal(
+    w.run(`navigator.credentials.get === navigator.credentials.get`),
+    true,
+  );
+  assert.equal(w.run(`navigator.credentials === navigator.credentials`), true);
+});
+
+for (const [name, install] of [
+  ["代入", `navigator.credentials.get = ${manager};`],
+  [
+    "入れ物への Object.defineProperty",
+    `Object.defineProperty(navigator.credentials, "get", { value: ${manager}, configurable: true, writable: true });`,
+  ],
+  [
+    "CredentialsContainer.prototype の置き換え",
+    `Object.getPrototypeOf(navigator.credentials).get = ${manager};`,
+  ],
+  [
+    "Navigator.prototype.credentials の置き換え",
+    `{ const own = { get: ${manager}, create: ${manager} };
+       Object.defineProperty(Object.getPrototypeOf(navigator), "credentials", { get() { return own; }, configurable: true }); }`,
+  ],
+]) {
+  test(`page.js は、パスキーの管理の拡張機能が先に入っても後から入っても知らせる（${name}）`, async () => {
+    for (const order of ["before", "after"]) {
+      const w = pageWorld();
+      if (order === "before") w.run(install);
+      w.loadPage();
+      if (order === "after") w.run(install);
+      const cred = await w.run(`navigator.credentials.get({ publicKey: {} })`);
+      await flush();
+      assert.equal(cred.id, "manager", `${name} ${order}`);
+      assert.equal(w.events(), 1, `${name} ${order}`);
+    }
+  });
+}
+
+test("page.js は、受け手が入れ物そのものでない呼び方（Object.create・Proxy）も今までどおり動かす", async () => {
+  const w = pageWorld();
+  w.loadPage();
+  const inherited = await w.run(
+    `Object.create(navigator.credentials).get({ publicKey: {} })`,
+  );
+  assert.equal(inherited.id, "native");
+  // ほかの拡張機能が代入した後も、Proxy から読むと代入された関数が呼ばれる
+  w.run(`navigator.credentials.get = ${manager};`);
+  const proxied = await w.run(
+    `new Proxy(navigator.credentials, {}).get({ publicKey: {} })`,
+  );
+  assert.equal(proxied.id, "manager");
+  await flush();
+  assert.equal(w.events(), 2);
+});
+
+test("page.js は、ほかの拡張機能の accessor がこちらの getter を呼び戻しても止まる", async () => {
+  const w = pageWorld();
+  w.loadPage();
+  w.run(`{ const c = navigator.credentials;
+           const d = Object.getOwnPropertyDescriptor(c, "get");
+           Object.defineProperty(c, "get", {
+             get() { const prev = d.get.call(this); return function (o) { return prev.call(this, o); }; },
+             configurable: true,
+           }); }`);
+  const cred = await w.run(`navigator.credentials.get({ publicKey: {} })`);
+  await flush();
+  assert.equal(cred.id, "native");
+  assert.equal(w.events(), 1);
+});
+
+test("page.js は、ほかの拡張機能がこちらの包みを呼び戻しても 1 回だけ知らせる", async () => {
+  const w = pageWorld();
+  w.loadPage();
+  w.run(`{ const prev = navigator.credentials.get;
+           navigator.credentials.get = function (o) { return prev.call(this, o); }; }`);
+  // 2 回入っても同じ
+  w.loadPage();
+  const cred = await w.run(`navigator.credentials.get({ publicKey: {} })`);
+  await flush();
+  assert.equal(cred.id, "native");
+  assert.equal(w.events(), 1);
+});
 
 test("Firefox の id は kisui-terminal の受け口が許すものと同じ", () => {
   const rs = readFileSync(join(dir, "../app/src-tauri/src/passkey.rs"), "utf8");
