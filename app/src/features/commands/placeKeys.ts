@@ -10,7 +10,7 @@
 
 import { isComposingKey } from "./ime.ts";
 import type { KeyLike } from "./guiKeys.ts";
-import { T } from "../../i18n/index.ts";
+import { lang, T, type Lang } from "../../i18n/index.ts";
 
 /** キーがそれぞれに決まっている場所。 */
 export type Place =
@@ -59,7 +59,7 @@ const row = (
  * 場所ごとの、`?` の一覧に出す行の表。キーを実際に受けるのは各場所の判定（features/file-tree/keys.ts など）で、
  * placeKeys.test.ts が、表のキーを判定が受けることを確かめる。
  */
-export const PLACE_KEYS: Record<Place, PlaceKeys> = {
+const buildPlaceKeys = (): Record<Place, PlaceKeys> => ({
   tree: {
     title: T("place.tree.title"),
     lead: T("place.tree.lead"),
@@ -476,7 +476,33 @@ export const PLACE_KEYS: Record<Place, PlaceKeys> = {
       row("Esc", T("place.dbTree.back"), ["Escape"]),
     ],
   },
-};
+});
+
+let built: { lang: Lang; keys: Record<Place, PlaceKeys> } | undefined;
+
+/**
+ * 場所ごとの表（PLACE_KEYS）を、今の言語で作る。言語を決める前に、この表を読み込む import（index.tsx の履歴の窓の
+ * 部品からの import など）が通っても英語に固まらないよう、読み込んだときには作らず、使うときに作る（言語が変われば作り直す）。
+ */
+function placeKeysNow(): Record<Place, PlaceKeys> {
+  const l = lang();
+  if (built?.lang !== l) built = { lang: l, keys: buildPlaceKeys() };
+  return built.keys;
+}
+
+export const PLACE_KEYS: Record<Place, PlaceKeys> = new Proxy(
+  {} as Record<Place, PlaceKeys>,
+  {
+    get: (_, place: string) => placeKeysNow()[place as Place],
+    // Object.entries などで数え上げられるように
+    ownKeys: () => Reflect.ownKeys(placeKeysNow()),
+    getOwnPropertyDescriptor: (_, place: string) => ({
+      value: placeKeysNow()[place as Place],
+      enumerable: true,
+      configurable: true,
+    }),
+  },
+);
 
 /**
  * 真ん中に出す窓（ModalCard）の場所。窓が出ている間はリーダーに入れないので、

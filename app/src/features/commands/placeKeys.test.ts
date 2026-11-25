@@ -36,6 +36,23 @@ const ev = (key: string, extra: object = {}) => ({
   ...extra,
 });
 
+describe("場所のキーの表は、使うときの言語で出る", () => {
+  it("読み込んだあとに言語を日本語にすると、説明文（lead）が日本語で出る（読み込みの時点で英語に固めない）", () => {
+    try {
+      setLang("ja");
+      assert.equal(
+        PLACE_KEYS.machines.lead,
+        "リーダーの m で開くマシンのダイアログの中だけで効くキーです。",
+      );
+      // 操作の名前は、日本語の窓でも英語のまま
+      assert.equal(PLACE_KEYS.machines.title, "Machine dialog");
+    } finally {
+      setLang("en");
+    }
+    assert.match(PLACE_KEYS.machines.lead ?? "", /^Keys that work only/);
+  });
+});
+
 describe("場所のキーの表は、その場所の判定と合っている", () => {
   it("ファイルツリー：表のキーは、どれも判定が受ける", () => {
     const closedDir = { dir: true, expanded: false };

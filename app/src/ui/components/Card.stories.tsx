@@ -7,13 +7,7 @@ import type { Meta, StoryObj } from "storybook-solidjs-vite";
 import { fn } from "storybook/test";
 
 import { T } from "../../i18n/index.ts";
-import {
-  ModalCard,
-  CardBody,
-  CardTitle,
-  CardText,
-  CardFooter,
-} from "./Card.tsx";
+import { ModalCard, CardBody, CardTitle, CardText } from "./Card.tsx";
 import { KeyHints } from "./KeyHints.tsx";
 
 /** label と中身は翻訳の表から render の中で引くので、引数からは外す */
@@ -41,9 +35,7 @@ const meta = {
       header={<CardTitle>{T("keys.label")}</CardTitle>}
       footer={
         args.noFooter ? undefined : (
-          <CardFooter>
-            <KeyHints items={[{ keys: ["Esc"], label: T("basic.close") }]} />
-          </CardFooter>
+          <KeyHints items={[{ keys: ["Esc"], label: T("basic.close") }]} />
         )
       }
     >

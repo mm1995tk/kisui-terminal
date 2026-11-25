@@ -2,11 +2,13 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import type { KeyLike } from "../../../features/commands/guiKeys.ts";
+import { newTabInputKey } from "./newTabKey.ts";
 import { PLACE_KEYS } from "../../../features/commands/placeKeys.ts";
 import {
   confirmKey,
   holdHints,
   holdKey,
+  newTabInputHints,
   switcherHints,
   switcherKey,
 } from "./switcherKey.ts";
@@ -127,6 +129,13 @@ describe("窓の下の段（共通フッタ）の基本操作", () => {
       for (const k of keys(col, true))
         if (k !== "Esc")
           assert.notEqual(switcherKey(key(k)), null, `${col}: ${k}`);
+  });
+
+  it("タブ名の入力欄にいる間は、欄の中で効くキー（Tab・Enter・Esc）だけを出し、j k や `?` は出さない。どれも欄の判定が受ける", () => {
+    const keys = newTabInputHints().flatMap((h) => h.keys);
+    assert.deepEqual(keys, ["Tab", "Enter", "Esc"]);
+    for (const k of keys)
+      assert.notEqual(newTabInputKey(key(k === "Esc" ? "Escape" : k)), null, k);
   });
 
   it("つかんでいる間は、つかんでいる間のキーだけを出し（`?` は出さない）、どれも判定が受ける", () => {

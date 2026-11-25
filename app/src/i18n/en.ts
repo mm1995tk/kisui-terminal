@@ -491,6 +491,8 @@ export const en = {
     "{machine} is no longer connected. Choose another machine with Tab, or reconnect it.",
   "switcher.keys.go": "go",
   "switcher.keys.showTab": "show tab",
+  "switcher.keys.machine": "machine",
+  "switcher.keys.create": "create",
   "switcher.keys.toTabs": "tabs",
   "switcher.keys.toWorkspaces": "workspaces",
   "switcher.confirmClose": "Close {title}? y: close, n: cancel",

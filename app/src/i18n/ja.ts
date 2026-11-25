@@ -491,6 +491,8 @@ export const ja: Record<Key, string> = {
     "{machine} の接続が切れました。Tab でほかのマシンを選ぶか、つなぎ直してください。",
   "switcher.keys.go": "go",
   "switcher.keys.showTab": "show tab",
+  "switcher.keys.machine": "machine",
+  "switcher.keys.create": "create",
   "switcher.keys.toTabs": "tabs",
   "switcher.keys.toWorkspaces": "workspaces",
   "switcher.confirmClose": "{title} を閉じますか。y：閉じる、n：やめる",
