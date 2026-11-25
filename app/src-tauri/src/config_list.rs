@@ -853,12 +853,12 @@ mod tests {
         let base = "[[gui.machines]]\nssh = \"a\"\nname = \"x\"\n";
         fs::write(d.join("config.toml"), base).unwrap();
         let local = d.join("config.local.toml");
-        let ssh_of = || -> Vec<(String, u8)> {
+        let ssh_of = || -> Vec<(String, bool)> {
             load_gui(&d)
                 .unwrap()
                 .machines
                 .into_iter()
-                .map(|m| (m.ssh, m.source))
+                .map(|m| (m.ssh, m.local))
                 .collect()
         };
         // ファイルが無ければ作る
@@ -867,7 +867,7 @@ mod tests {
             fs::read_to_string(&local).unwrap(),
             "[[gui.machines]]\nssh = \"b\"\n"
         );
-        assert_eq!(ssh_of(), [("a".into(), 0), ("b".into(), 1)]);
+        assert_eq!(ssh_of(), [("a".into(), false), ("b".into(), true)]);
         // 確かめを通らない書き込みは、ファイルを変えない：使えない行き先、config.toml のマシンと同じ名前
         for bad in [
             add("ssh = \"-oProxyCommand\""),
@@ -894,11 +894,11 @@ mod tests {
         );
         // 同じ行き先を足すと、config.toml の項目に代わる
         edit_machines(&d, add("ssh = \"a\"\nname = \"mine\"")).unwrap();
-        assert_eq!(ssh_of(), [("a".into(), 1), ("b".into(), 1)]);
+        assert_eq!(ssh_of(), [("a".into(), true), ("b".into(), true)]);
         // 消すと、config.toml の項目に戻る
         edit_machines(&d, remove("a")).unwrap();
         edit_machines(&d, remove("b")).unwrap();
-        assert_eq!(ssh_of(), [("a".into(), 0)]);
+        assert_eq!(ssh_of(), [("a".into(), false)]);
         assert_eq!(fs::read_to_string(&local).unwrap(), "");
         assert_eq!(fs::read_to_string(d.join("config.toml")).unwrap(), base);
         // 壊れたファイルは上書きしない

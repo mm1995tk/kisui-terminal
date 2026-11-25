@@ -45,9 +45,9 @@ pub struct ConfigMachine {
     pub ssh: String,
     /// サイドバーに出す名前。省くと ssh の行き先
     pub name: Option<String>,
-    /// どのファイルの項目か（0 が `config.toml`、1 が `config.local.toml`）。両方にあれば 1（`config.local.toml` の項目が代わっている）。
-    /// 窓が書き換えられるのは 1 のマシンだけ（`config.toml` には書かない）
-    pub source: u8,
+    /// `config.local.toml` の項目か（両方のファイルにあれば true。`config.local.toml` の項目が代わっている）。
+    /// 窓が書き換えられるのは、これが true のマシンだけ（`config.toml` には書かない）
+    pub local: bool,
 }
 
 /// 1 つのファイルから読んだマシン 1 台と、間違いを指すための場所。
@@ -243,7 +243,7 @@ fn overlay(dir: &Path, files: [Result<Parsed, String>; 2]) -> Result<GuiConfig, 
                 // マシンの一覧は ssh の行き先ごとに重ねる（同じ行き先は後のファイルの項目が代わる）
                 if let Some(m) = p.machines {
                     if let Err(e) =
-                        overlay_machines(&mut out.machines, m, source as u8, &dir.join(name))
+                        overlay_machines(&mut out.machines, m, name == FILES[1], &dir.join(name))
                     {
                         errs.push(e);
                     }
@@ -282,20 +282,20 @@ fn overlay(dir: &Path, files: [Result<Parsed, String>; 2]) -> Result<GuiConfig, 
     }
 }
 
-/// 前のファイルまでのマシンの一覧 `base` に、`path` のファイル（`source` 番目）の一覧 `over` を重ねる。
+/// 前のファイルまでのマシンの一覧 `base` に、`path` のファイル（`local`：`config.local.toml` か）の一覧 `over` を重ねる。
 /// ssh の行き先が同じ項目は、その場所で `over` の項目に代える。`base` に無い項目は、後ろに足す。
 /// 重ねたあとに名前が重なったら Err（`over` の項目の行を指す。1 つのファイルの中の重なりは `check_machines` が先に断っている）。
 fn overlay_machines(
     base: &mut Vec<ConfigMachine>,
     over: Vec<ParsedMachine>,
-    source: u8,
+    local: bool,
     path: &Path,
 ) -> Result<(), String> {
     for m in &over {
         let machine = ConfigMachine {
             ssh: m.ssh.clone(),
             name: m.name.clone(),
-            source,
+            local,
         };
         match base.iter_mut().find(|b| b.ssh == m.ssh) {
             Some(b) => *b = machine,
@@ -519,7 +519,7 @@ fn parse_file(text: &str) -> Result<Option<Vec<ConfigMachine>>, (Option<usize>, 
             .map(|m| ConfigMachine {
                 ssh: m.ssh,
                 name: m.name,
-                source: 0,
+                local: false,
             })
             .collect()
     };
@@ -731,12 +731,12 @@ mod tests {
                 ConfigMachine {
                     ssh: "dev-vm".into(),
                     name: Some("dev".into()),
-                    source: 0,
+                    local: false,
                 },
                 ConfigMachine {
                     ssh: "build".into(),
                     name: None,
-                    source: 0,
+                    local: false,
                 },
             ]
         );
@@ -854,7 +854,7 @@ mod tests {
         ConfigMachine {
             ssh: ssh.into(),
             name: None,
-            source: 0,
+            local: false,
         }
     }
 
@@ -863,7 +863,7 @@ mod tests {
         ConfigMachine {
             ssh: ssh.into(),
             name: name.map(str::to_string),
-            source: 1,
+            local: true,
         }
     }
 
