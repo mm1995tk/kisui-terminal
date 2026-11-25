@@ -1009,22 +1009,23 @@ describe("設定で足す近道（[gui.shortcuts]）", () => {
     assert.deepEqual(
       setUserShortcuts(
         [
-          { key: "Ctrl+Shift+D", command: "tab.new" },
+          { key: "Ctrl+Shift+D", command: "pane.close" },
           { key: "Ctrl+Shift+E", command: "none" },
         ],
         LINUX,
       ),
       [],
     );
-    assert.deepEqual(press(LINUX, [key("D", "cs")]).runs, [{ id: "tab.new" }]);
+    assert.deepEqual(press(LINUX, [key("D", "cs")]).runs, [
+      { id: "pane.close" },
+    ]);
     assert.equal(press(LINUX, [key("E", "cs")]).passed.length, 1);
     // `?` の一覧：消した・奪われた既定の近道は出ず、足した近道は最初の行に出る
     const rows = helpRows(LINUX);
     const at = (p: string) => rows.find((r) => r.path.join(" ") === p);
     assert.equal(at("p s l")?.shortcut, undefined);
     assert.equal(at("p s j")?.shortcut, undefined);
-    // tab.new は木に載らない（#454）ので、足した近道も一覧には出ない
-    assert.equal(at("t n"), undefined);
+    assert.equal(at("p x")?.shortcut, "Ctrl+Shift+D");
   });
 
   it("間違いは理由を返し、ほかの近道は使う", () => {
