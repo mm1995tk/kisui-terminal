@@ -202,11 +202,19 @@ impl<'a> Entries<'a> {
 /// 足す。一覧が無ければ作る。
 fn add(doc: &mut DocumentMut, list: &List, entry: &toml::Table) -> Result<(), EditError> {
     let key = key_in(list, entry)?;
-    // 何か書いてあるファイルに 1 件目を足すときは、前との間を 1 行空ける
-    let prefix = if doc.to_string().trim().is_empty() {
-        ""
+    // 1 件目を足すとき、見出しの前に書くもの。何か書いてあるファイルでは、前との間を 1 行空ける。
+    // 表もキーも無いファイルのコメントは、toml_edit が「ファイルの終わりに書くもの」として持っているので、
+    // そのままでは足した 1 件の下に出る。見出しの前に移す
+    let prefix = if doc.as_table().is_empty() {
+        let comments = doc.trailing().as_str().unwrap_or("").trim_end().to_string();
+        doc.set_trailing("");
+        if comments.is_empty() {
+            comments
+        } else {
+            format!("{comments}\n\n")
+        }
     } else {
-        "\n"
+        "\n".to_string()
     };
     if doc.as_table().get(list.table).is_none() {
         // 見出し（`[gui]`）は出さず、`[[gui.machines]]` だけを書く
@@ -229,7 +237,7 @@ fn add(doc: &mut DocumentMut, list: &List, entry: &toml::Table) -> Result<(), Ed
     }
     let new = if in_table {
         let mut a = ArrayOfTables::new();
-        a.push(new_table(list, entry, prefix));
+        a.push(new_table(list, entry, &prefix));
         Item::ArrayOfTables(a)
     } else {
         let mut a = Array::new();
@@ -802,6 +810,21 @@ mod tests {
         assert_eq!(rm(&format!("{entry}\n{rest}")), rest);
         // 次の表が無ければ、コメントはファイルの終わりに残る
         assert_eq!(rm(&format!("# header\n\n{entry}")), "# header\n");
+    }
+
+    // コメントだけのファイルに足すと、コメントは足した 1 件の上に残る。「消す → 足す」で元の中身に戻る
+    #[test]
+    fn add_to_a_file_of_comments_only() {
+        let src = "# 手元だけの設定\n\n[[gui.machines]]\nssh = \"a\"\n";
+        assert_eq!(machines("# 手元だけの設定\n", add("ssh = \"a\"")), src);
+        let emptied = machines(src, remove("a"));
+        assert_eq!(emptied, "# 手元だけの設定\n");
+        assert_eq!(machines(&emptied, add("ssh = \"a\"")), src);
+        // 空の行だけのファイルは、空のファイルと同じ
+        assert_eq!(
+            machines("\n\n", add("ssh = \"a\"")),
+            "[[gui.machines]]\nssh = \"a\"\n"
+        );
     }
 
     // 一覧の形でないものには書かない
