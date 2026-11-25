@@ -40,7 +40,12 @@
 .browser-load-error p {
   margin: 0;
 }
+/* 長い URL（殻は切らずに送る。「もう一度開く」がそのまま開き直すため）で画面が埋まらないように、4 行までにする */
 .browser-load-error-url {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  overflow: hidden;
   font-family: var(--font-mono);
   font-size: 12px;
   color: var(--gh-text-muted);

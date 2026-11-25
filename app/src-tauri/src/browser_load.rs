@@ -10,8 +10,8 @@
 //! （BrowserArea.tsx）。
 //!
 //! - **失敗の表示を片付ける**のは、次の読み込みを頼んだとき（`browser_go`・`browser_nav` の reload）と、ページが替わったとき
-//!   （`browser-page` の `loading`）。どちらも `clear_failure` を通り、いつも `browser-load-cleared` を送る（殻が失敗を
-//!   覚えているかでは決めない。タブを作り直すと殻は覚えをなくすが、画面には失敗の表示が残っているため）。
+//!   （`browser-page` の `loading`）。どちらも `clear_failure` を通り、いつも `browser-load-cleared` を送る（殻は失敗を
+//!   覚えず、頼んだ・替わったら必ず送る。画面は、失敗の表示が無ければ何もしない）。
 //!   ページが替わった知らせだけに頼らない：macOS の WebView は、失敗の前に最後に開けたページと同じ URL に移っても、
 //!   この知らせを出さないことがある（#432 の macOS での確認）。頼んだ読み込みがまた失敗すれば、失敗の表示が出直す。
 //! - **証明書の確認は緩めない**：ここは失敗を「知らせる」だけで、証明書のエラーを無視して開く道は作らない。
@@ -30,11 +30,8 @@
 //! - 失敗の URL とエラーの説明の文は、画面に出すだけで、ログには書かない（クエリに載るトークンなどが、ディスクに残るログに
 //!   出ないように。browser_capture.rs の失敗のログと同じ方針）。
 
-use std::collections::HashMap;
-use std::sync::Mutex;
-
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter};
 
 /// 読み込みが失敗した知らせ（画面へ）。
 const EVENT_LOAD_FAILED: &str = "browser-load-failed";
@@ -50,8 +47,8 @@ pub const PROXY_FAILURE_HEADER: &str = "X-Kisui-Proxy-Error";
 #[cfg_attr(not(any(target_os = "linux", target_os = "macos")), allow(dead_code))]
 pub const PROXY_FAILURE_DETAIL_HEADER: &str = "X-Kisui-Proxy-Error-Detail";
 
-/// 画面に出す URL・説明の長さの上限（字）。ページが長い URL を作って画面を埋めないように。
-const MAX_URL: usize = 2048;
+/// 画面に出す説明の長さの上限（字）。URL は切らない：画面の「もう一度開く」が、この URL をそのまま開き直すため
+/// （切ると別の URL を開く）。長い URL で画面が埋まらないようにするのは、画面の側（browser.css）。
 const MAX_DETAIL: usize = 300;
 
 /// 失敗の理由の分類。画面は、これで言葉を選ぶ（app/src/features/browser/loadError.ts と同じ名前）。
@@ -122,59 +119,27 @@ struct LoadCleared {
     tab: String,
 }
 
-/// 読み込みが失敗しているタブ → 開こうとした URL。「読み込み直す」（`browser_nav` の reload）が、前のページでなく、
-/// 開けなかった URL をもう一度開くために覚える。次の読み込みを頼んだとき・ページが替わったときに忘れる。
-#[derive(Default)]
-pub struct Failures(Mutex<HashMap<String, String>>);
-
-impl Failures {
-    /// 失敗したままのタブの、開けなかった URL（切らない元の URL）。失敗していなければ None。「読み込み直す」が使う。
-    pub fn get(&self, tab: &str) -> Option<String> {
-        self.0.lock().ok()?.get(tab).cloned()
-    }
-
-    fn set(&self, tab: &str, url: String) {
-        if let Ok(mut m) = self.0.lock() {
-            m.insert(tab.to_string(), url);
-        }
-    }
-
-    /// タブの失敗を忘れる（次の読み込み・タブを閉じるとき）。失敗していたなら true。
-    pub fn clear(&self, tab: &str) -> bool {
-        self.0.lock().is_ok_and(|mut m| m.remove(tab).is_some())
-    }
-}
-
 fn cut(s: &str, max: usize) -> String {
     s.chars().take(max).collect()
 }
 
-/// 失敗を画面に知らせ、「読み込み直す」のために覚える。
+/// 失敗を画面に知らせる。殻は失敗を覚えない：「もう一度開く」（読み込み直す）が開き直す URL は、画面が出している
+/// 失敗の表示のものだけ（app/src/features/browser/pages.ts の navPage）。
 pub fn report(app: &AppHandle, tab: &str, url: &str, reason: Reason, detail: &str) {
-    // 覚えるのは切る前の URL（「読み込み直す」が別の URL を開かないように。殻の中だけにあり、画面にもログにも出ない）
-    if let Some(f) = app.try_state::<Failures>() {
-        f.set(tab, url.to_string());
-    }
-    let url = cut(url, MAX_URL);
     let _ = app.emit(
         EVENT_LOAD_FAILED,
         LoadFailed {
             tab: tab.to_string(),
-            url,
+            url: url.to_string(),
             reason,
             detail: cut(detail, MAX_DETAIL),
         },
     );
 }
 
-/// 前の失敗は、もう無い（次の読み込みを頼んだ・ページが替わった）。殻の覚えを忘れ、画面に片付けさせる。
-/// 画面への知らせは、殻が覚えていなくても送る：タブを作り直す（`browser_close` のあと `browser_open`）と殻の覚えは
-/// 消えるが、画面は失敗の表示を持ったままなので、作り直したページが替わったときに片付ける必要がある。
+/// 前の失敗は、もう無い（次の読み込みを頼んだ・ページが替わった）。画面に片付けさせる。
 /// 画面は、失敗の表示が無ければ何もしない（ページが替わるたびに来ても変わらない）。
 pub fn clear_failure(app: &AppHandle, tab: &str) {
-    if let Some(f) = app.try_state::<Failures>() {
-        f.clear(tab);
-    }
     let _ = app.emit(
         EVENT_LOAD_CLEARED,
         LoadCleared {
@@ -645,8 +610,16 @@ mod mac {
                 reason = r;
             }
         }
-        let url =
-            string_of(value_of(info.as_deref(), "NSErrorFailingURLStringKey")).unwrap_or_default();
+        // 文字の URL（NSErrorFailingURLStringKey）が無いエラーもあり得るので、NSURL（NSErrorFailingURLKey）も見る。
+        // 空のまま送ると、画面はタブの今の URL（ページのリンクから移ったときは失敗の前のページ）を出して開き直してしまう
+        let url = string_of(value_of(info.as_deref(), "NSErrorFailingURLStringKey"))
+            .or_else(|| {
+                let u = value_of(info.as_deref(), "NSErrorFailingURLKey")
+                    .filter(|u| is_kind(u, class!(NSURL)))?;
+                let s: Option<Retained<AnyObject>> = msg_send![&*u, absoluteString];
+                string_of(s)
+            })
+            .unwrap_or_default();
         let detail = string_of(msg_send![error, localizedDescription]).unwrap_or_default();
         report(
             &app,
@@ -899,20 +872,11 @@ mod tests {
     }
 
     #[test]
-    fn failures_are_kept_until_cleared() {
-        let f = Failures::default();
-        assert_eq!(f.get("a"), None);
-        assert!(!f.clear("a"));
-        f.set("a", "https://x.test/".into());
-        assert_eq!(f.get("a").as_deref(), Some("https://x.test/"));
-        assert!(f.clear("a"));
-        assert_eq!(f.get("a"), None);
-        assert!(!f.clear("a"));
-    }
-
-    #[test]
     fn long_text_is_cut() {
-        assert_eq!(cut(&"a".repeat(5000), MAX_URL).chars().count(), MAX_URL);
+        assert_eq!(
+            cut(&"a".repeat(5000), MAX_DETAIL).chars().count(),
+            MAX_DETAIL
+        );
         assert_eq!(cut("日本語", 2), "日本");
     }
 

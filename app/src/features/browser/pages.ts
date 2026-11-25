@@ -69,6 +69,7 @@ export function createPages(deps: {
     resolveTabUrl,
     closeTabView,
     goTab,
+    navTab,
     zoomTab,
     onTabPage,
     onTabTitle,
@@ -257,6 +258,26 @@ export function createPages(deps: {
   // ---- 内蔵ブラウザの URL バー（#232）。出しているタブのページの上の端 ----
   /** URL バーで決めた。今のタブで開く。 */
   function submitUrlBar(tab: string, url: string) {
+    goTo(tab, url);
+    focusTerminal();
+  }
+  /**
+   * 戻る・進む・読み込み直す（リーダーの o h・o l・o r と Cmd+R、URL バーのボタン、失敗の表示の「もう一度開く」）。
+   * 読み込みが失敗したままのタブ（#432）の「読み込み直す」は、WebView の読み込み直しでなく、失敗の表示に出している URL を
+   * URL バーと同じ道（goTo）で開き直す。WebView は失敗した読み込みを覚えない（履歴にも今の URL にも入らない）ので、
+   * 読み込み直すと失敗の前のページを読み直してしまう。開き直す URL は、利用者が見ている失敗の表示のもの（タブの loadError）
+   * だけから取り、殻に別に覚えさせない（2 つの覚えがずれると、見えている URL と違うページを開く）
+   */
+  function navPage(tab: string, action: "back" | "forward" | "reload") {
+    const failed =
+      action === "reload"
+        ? untrack(tabs).tabs.find((x) => x.id === tab)?.loadError?.url
+        : undefined;
+    if (failed && isOpenableUrl(failed)) goTo(tab, failed);
+    else void navTab(tab, action).catch(() => {});
+  }
+  /** タブ tab で url を開く（URL バー・「もう一度開く」）。 */
+  function goTo(tab: string, url: string) {
     // 中継を用意できてから（リモートのマシンの localhost 系）タブの URL を書き換える。用意できなければ、ページも URL も前のまま。
     // まだ作っていない・開けなかったタブは、BrowserArea が書き換えた URL で作る（goTab は失敗する）
     const t = untrack(tabs).tabs.find((x) => x.id === tab);
@@ -272,7 +293,6 @@ export function createPages(deps: {
             error: e instanceof Error ? e.message : String(e),
           }),
       );
-    focusTerminal();
   }
 
   /** 検索の欄を閉じ、キーをページに戻す。 */
@@ -411,6 +431,7 @@ export function createPages(deps: {
     openFind,
     closeFind,
     submitUrlBar,
+    navPage,
     changePageZoom,
     openUrlFor,
     openUrl,

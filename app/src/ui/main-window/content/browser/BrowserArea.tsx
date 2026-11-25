@@ -79,6 +79,8 @@ export function BrowserArea(props: {
    * タブの URL（元の URL）から、ページに実際に開かせる URL を得る（リモートのマシンの localhost 系は `kisui relay` の中継の URL。#203）
    */
   resolve: (tab: BrowserTab, url: string) => Promise<string>;
+  /** 読み込みが失敗したタブの「もう一度開く」（#432。開けなかった URL を開き直す。features/browser/pages.ts の navPage） */
+  onRetry: (tab: string) => void;
   /** ページを開けなかった */
   onError: (title: string, error: string) => void;
   /** 今出しているタブのページにキーを向ける関数を受け取る */
@@ -94,7 +96,6 @@ export function BrowserArea(props: {
     focusTab,
     layerTab,
     moveTab,
-    navTab,
     openTab,
     showTabView,
     zoomTab,
@@ -443,10 +444,7 @@ export function BrowserArea(props: {
                 <Show when={e().detail}>
                   <p class="browser-note">{e().detail}</p>
                 </Show>
-                <Button
-                  variant="primary"
-                  onClick={() => void navTab(t().id, "reload").catch(() => {})}
-                >
+                <Button variant="primary" onClick={() => props.onRetry(t().id)}>
                   {T("browser.loadFailed.retry")}
                 </Button>
               </div>
