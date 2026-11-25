@@ -109,8 +109,8 @@ export function MachineDialog(props: {
   initial?: string;
   /** 足す（窓は呼んだ側が出す） */
   onAdd: () => void;
-  /** 今のワークスペースがあるか（無ければ Enter のタブ作成は始めず、理由を出す。省くと、あるものとする） */
-  hasWorkspace?: boolean;
+  /** 今のワークスペースがあるか（無ければ Enter のタブ作成は始めず、理由を出す） */
+  hasWorkspace: boolean;
   /** 選んだマシンへの操作。できると確かめたあとで呼ぶ */
   onAct: (action: Exclude<MachineAction, "add">, row: MachineRow) => void;
   /** 名前を変えている行（無ければ null か undefined） */
@@ -156,7 +156,7 @@ export function MachineDialog(props: {
     } else {
       const r = sel.selected();
       if (!r) return;
-      const why = canDo(r, k.action, props.hasWorkspace ?? true);
+      const why = canDo(r, k.action, props.hasWorkspace);
       if (why) {
         setNote(why);
         return;

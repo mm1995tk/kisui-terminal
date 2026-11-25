@@ -159,40 +159,48 @@ describe("moveRow・keepRow", () => {
 describe("canDo", () => {
   it("設定ファイルで決めたマシンと「ローカル」は、名前を変えられず外せない", () => {
     for (const a of ["rename", "remove"] as const) {
-      assert.match(canDo(row({ fixed: true }), a) ?? "", /設定ファイル/);
-      assert.match(canDo(row({ removable: false }), a) ?? "", /ローカル/);
-      assert.equal(canDo(row(), a), null);
+      assert.match(canDo(row({ fixed: true }), a, true) ?? "", /設定ファイル/);
+      assert.match(canDo(row({ removable: false }), a, true) ?? "", /ローカル/);
+      assert.equal(canDo(row(), a, true), null);
     }
   });
 
   it("設定ファイルで決めたマシンでも、切る・つなぎ直すはできる", () => {
-    assert.equal(canDo(row({ fixed: true }), "disconnect"), null);
+    assert.equal(canDo(row({ fixed: true }), "disconnect", true), null);
     assert.equal(
-      canDo(row({ fixed: true, health: "down", retry: "again" }), "reconnect"),
+      canDo(
+        row({ fixed: true, health: "down", retry: "again" }),
+        "reconnect",
+        true,
+      ),
       null,
     );
   });
 
   it("切れるのは、足したマシンで、つないでいるものだけ", () => {
-    assert.ok(canDo(row({ removable: false }), "disconnect"));
-    assert.ok(canDo(row({ hasSession: false }), "disconnect"));
+    assert.ok(canDo(row({ removable: false }), "disconnect", true));
+    assert.ok(canDo(row({ hasSession: false }), "disconnect", true));
   });
 
   it("タブ作成を始められるのは、つながっているマシンで、今のワークスペースがあるときだけ（#461）", () => {
-    assert.equal(canDo(row(), "newTab"), null);
-    assert.equal(canDo(row({ removable: false, fixed: true }), "newTab"), null);
+    assert.equal(canDo(row(), "newTab", true), null);
+    assert.equal(
+      canDo(row({ removable: false, fixed: true }), "newTab", true),
+      null,
+    );
     // r でつなぎ直せるときは r を案内する
     for (const retry of ["now", "again"] as const) {
       const why = canDo(
         row({ health: "down", retry, label: "devbox" }),
         "newTab",
+        true,
       );
       assert.match(why ?? "", /devbox はつながっていない/);
       assert.match(why ?? "", /r でつなぎ直せます/);
     }
     // つないでいる最中・待つだけのとき（r も断られる）は、r を案内しない
     for (const health of ["down", "pending"] as const) {
-      const why = canDo(row({ health, label: "devbox" }), "newTab");
+      const why = canDo(row({ health, label: "devbox" }), "newTab", true);
       assert.match(why ?? "", /devbox は今つないでいる最中/);
       assert.doesNotMatch(why ?? "", /r で/);
     }
@@ -208,8 +216,8 @@ describe("canDo", () => {
   });
 
   it("つなぎ直すのは、待ち時間中・失敗・引き継がれたあとだけ", () => {
-    assert.ok(canDo(row(), "reconnect"));
-    assert.equal(canDo(row({ retry: "now" }), "reconnect"), null);
+    assert.ok(canDo(row(), "reconnect", true));
+    assert.equal(canDo(row({ retry: "now" }), "reconnect", true), null);
   });
 });
 

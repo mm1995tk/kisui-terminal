@@ -141,12 +141,13 @@ export function keepRow(
 
 /**
  * 選んだマシンに操作ができるか。できなければ、その理由（ダイアログに出す）。
- * hasWorkspace は、今のワークスペースがあるか（newTab だけが見る。タブは今のワークスペースに作るので、無ければ作れない）。
+ * hasWorkspace は、今のワークスペースがあるか（newTab だけが見る。タブは今のワークスペースに作るので、無ければ作れない。
+ * 渡し忘れて「ある」側に倒れないよう、既定値は置かない）。
  */
 export function canDo(
   row: MachineRow,
   action: Exclude<MachineAction, "add">,
-  hasWorkspace = true,
+  hasWorkspace: boolean,
 ): string | null {
   switch (action) {
     case "newTab":

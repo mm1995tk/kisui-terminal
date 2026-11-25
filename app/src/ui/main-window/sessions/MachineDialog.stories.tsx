@@ -72,6 +72,7 @@ const meta = {
     <MachineDialog
       rows={rows()}
       initial="dev@build.example.com"
+      hasWorkspace
       renaming={
         args.renamingTarget
           ? {
