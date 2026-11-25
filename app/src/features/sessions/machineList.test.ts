@@ -181,18 +181,28 @@ describe("canDo", () => {
   it("タブ作成を始められるのは、つながっているマシンで、今のワークスペースがあるときだけ（#461）", () => {
     assert.equal(canDo(row(), "newTab"), null);
     assert.equal(canDo(row({ removable: false, fixed: true }), "newTab"), null);
-    for (const health of ["down", "pending"] as const)
-      assert.match(
-        canDo(row({ health, label: "devbox" }), "newTab") ?? "",
-        /devbox はつながっていない/,
+    // r でつなぎ直せるときは r を案内する
+    for (const retry of ["now", "again"] as const) {
+      const why = canDo(
+        row({ health: "down", retry, label: "devbox" }),
+        "newTab",
       );
+      assert.match(why ?? "", /devbox はつながっていない/);
+      assert.match(why ?? "", /r でつなぎ直せます/);
+    }
+    // つないでいる最中・待つだけのとき（r も断られる）は、r を案内しない
+    for (const health of ["down", "pending"] as const) {
+      const why = canDo(row({ health, label: "devbox" }), "newTab");
+      assert.match(why ?? "", /devbox は今つないでいる最中/);
+      assert.doesNotMatch(why ?? "", /r で/);
+    }
     assert.match(
       canDo(row(), "newTab", false) ?? "",
       /ワークスペースがありません/,
     );
     // つながっていないことを先に出す（つながっても、ワークスペースが無ければ次の理由が出る）
     assert.match(
-      canDo(row({ health: "down" }), "newTab", false) ?? "",
+      canDo(row({ health: "down", retry: "again" }), "newTab", false) ?? "",
       /つながっていない/,
     );
   });

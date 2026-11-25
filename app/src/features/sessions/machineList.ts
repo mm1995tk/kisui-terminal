@@ -151,8 +151,11 @@ export function canDo(
   switch (action) {
     case "newTab":
       // つながっていないマシンを、黙ってほかのマシンに替えない（タブを作る行の候補は、つながっているマシンだけ）
+      // r でつなぎ直せるときだけ r を案内する（つないでいる最中・待つだけのときは、r も断られる）
       if (row.health !== "up")
-        return T("machine.cant.newTab.down", { label: row.label });
+        return row.retry
+          ? T("machine.cant.newTab.down", { label: row.label })
+          : T("machine.cant.newTab.pending", { label: row.label });
       if (!hasWorkspace) return T("machine.cant.newTab.noWorkspace");
       return null;
     case "rename":

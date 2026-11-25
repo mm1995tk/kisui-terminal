@@ -429,6 +429,8 @@ export const ja: Record<Key, string> = {
   "machine.cant.reconnect.pending": "{label} は今つないでいる最中です",
   "machine.cant.newTab.down":
     "{label} はつながっていないので、タブを作れません（r でつなぎ直せます）",
+  "machine.cant.newTab.pending":
+    "{label} は今つないでいる最中なので、まだタブを作れません。つながってから Enter を押してください",
   "machine.cant.newTab.noWorkspace":
     "タブを作るワークスペースがありません。ワークスペースの窓（リーダーの w）の n で作れます。",
   "machineDialog.keys.newTab": "new tab",

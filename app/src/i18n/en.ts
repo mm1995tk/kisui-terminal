@@ -428,6 +428,8 @@ export const en = {
   "machine.cant.reconnect.pending": "{label} is connecting right now",
   "machine.cant.newTab.down":
     "{label} is not connected, so a tab cannot be created on it. Reconnect it with r",
+  "machine.cant.newTab.pending":
+    "{label} is connecting right now, so a tab cannot be created on it yet. Press Enter once it is connected",
   "machine.cant.newTab.noWorkspace":
     "There is no workspace to create the tab in. Create one with n in the workspace window (leader w).",
   "machineDialog.keys.newTab": "new tab",
