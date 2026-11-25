@@ -92,7 +92,7 @@ export type DbTabs = ReturnType<typeof createDbTabs>;
 
 export type { DbResultTab, DbRun, RunInto } from "./results.ts";
 
-/** 接続を選ぶ窓（リーダーの d n）に出すもの。 */
+/** 接続を選ぶ窓（ワークスペースの窓の種類を選ぶ一覧の「DB」）に出すもの。 */
 export interface DbPicker {
   /** 開いたタブを足すワークスペース */
   gws: string;
@@ -729,7 +729,7 @@ export function createDbTabs(deps: {
   let pickerGen = 0;
 
   /**
-   * 接続を選ぶ窓を出す（リーダーの d n・サイドバーの「+」のメニューの「DB」）。選んだ接続のタブを、ワークスペース gid
+   * 接続を選ぶ窓を出す（ワークスペースの窓の種類を選ぶ一覧（リーダーの n）の「DB」・サイドバーの「+」のメニューの「DB」）。選んだ接続のタブを、ワークスペース gid
    * （省くと今のワークスペース）に足す。窓がつないでいる全部のマシンの kisui serve に一覧を聞き、答えた順に足していく。
    */
   function openPicker(gid?: string) {

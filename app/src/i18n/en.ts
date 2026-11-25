@@ -20,6 +20,7 @@ export const en = {
   "leader.ws.rename": "Rename",
   "leader.tab.switch":
     "Open the workspace window on the tabs of this workspace",
+  "leader.tab.create": "New tab",
   "leader.tab.new": "New terminal tab (same machine and folder)",
   "leader.tab.newPick": "New terminal tab on another machine",
   "leader.tab.close": "Close this tab",
@@ -32,7 +33,7 @@ export const en = {
   "leader.tab.moveTo": "Move this tab to another workspace",
   "cannot.pane.none.title": "No panes here",
   "cannot.pane.none.text":
-    "This workspace has no terminal tabs, so it has no panes. Open a terminal tab with t n or t N.",
+    "This workspace has no terminal tabs, so it has no panes. Open a terminal tab with n in the leader.",
   "leader.machine": "Open the machine list",
   "leader.pane.group": "Panes",
   "leader.pane.split": "Split pane",
@@ -173,8 +174,8 @@ export const en = {
   "place.switcher.toTabs": "Move to the tab column (when there are tabs)",
   "place.switcher.go": "Switch to the selected workspace and close the window",
   "place.switcher.new": "Create a workspace",
-  "place.switcher.newBrowser":
-    "Open a browser tab in the selected workspace (when the built-in browser is enabled)",
+  "place.switcher.newTab":
+    "Create a tab in the selected workspace (shows the list of kinds to choose from)",
   "place.switcher.close":
     "Close the selected workspace (y closes, n or Esc cancels)",
   "place.switcher.reorder": "Move the selected workspace down / up by one",
@@ -184,7 +185,8 @@ export const en = {
   "place.switcherTabs.nextPrev": "Select the next / previous tab",
   "place.switcherTabs.toWorkspaces": "Move to the workspace column",
   "place.switcherTabs.show": "Show the selected tab and close the window",
-  "place.switcherTabs.new": "Create a terminal tab",
+  "place.switcherTabs.new":
+    "Create a tab (shows the list of kinds to choose from)",
   "place.switcherTabs.close": "Close the selected tab",
   "place.switcherTabs.reorder": "Move the selected tab down / up by one",
   "place.switcherTabs.hold":
@@ -211,13 +213,13 @@ export const en = {
   "button.close": "Close",
   "download.done.title": "Downloaded",
   "download.done.text":
-    "{name} ({dir}). {leader} n o to open it, n f to show the folder",
+    "{name} ({dir}). {leader} i o to open it, i f to show the folder",
   "download.reveal": "Show the folder",
   "download.open": "Open",
   "download.failed.title": "Could not download",
   "cannot.browser.noTab.title": "No browser tab is shown",
   "cannot.browser.noTab.text":
-    "Show a tab with t j or t k in the leader, or open a new one with o n.",
+    "Show a tab with t in the leader, or open a new one with n.",
   "cannot.browser.newTab.title": "No page is open in this tab",
   "cannot.browser.newTab.text":
     "This tab is still the new tab page. Open a page first.",
@@ -475,6 +477,8 @@ export const en = {
   "switcher.empty": "No workspaces",
   "switcher.new": "New workspace",
   "switcher.newTab": "New tab",
+  "switcher.newTabKind": "New tab: choose the kind",
+  "switcher.newTab.incognito": "Private browser",
   "switcher.newTabPlaceholder": "Tab name (empty: folder name)",
   "switcher.keys.go": "go",
   "switcher.keys.showTab": "show tab",
@@ -550,7 +554,7 @@ export const en = {
   "update.label": "New version",
   "update.title": "Version {version} is available",
   "update.text":
-    "You are on {current}. Updating replaces the app and restarts it ({leader} n u also updates).",
+    "You are on {current}. Updating replaces the app and restarts it ({leader} i u also updates).",
   "update.later": "Later",
   "update.busy": "Updating…",
   "update.install": "Update and restart",

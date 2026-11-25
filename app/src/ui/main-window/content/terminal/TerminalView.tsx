@@ -147,7 +147,7 @@ export function TerminalView(props: {
           },
         );
         notifyCancels.add(cancel);
-        // リーダーの n g で、この欄を前に出せるようにする（欄が無くなったら忘れる）
+        // リーダーの i g で、この欄を前に出せるようにする（欄が無くなったら忘れる）
         const forget = rememberNotified(() => {
           props.onFocus?.();
           term.focus();

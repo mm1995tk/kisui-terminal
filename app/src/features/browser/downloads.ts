@@ -39,7 +39,7 @@ export function createDownloads(deps: {
         }),
     );
   }
-  /** いちばん新しい、保存できたダウンロード（リーダーの n o・n f が使う）。 */
+  /** いちばん新しい、保存できたダウンロード（リーダーの i o・i f が使う）。 */
   const lastDownload = () => [...downloads()].reverse().find((d) => d.ok);
 
   if (deps.browser) {

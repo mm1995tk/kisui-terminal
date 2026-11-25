@@ -25,6 +25,12 @@ import type { Step } from "../workspaces/rows.ts";
 import type { Tabs } from "../workspaces/tabs/controller.ts";
 import type { Command } from "./commands.ts";
 
+/**
+ * ワークスペースの窓を開いたときの初めの状態。ws は左のワークスペースの列にキーを置く（リーダーの w）。tab は右のタブの列（t）。
+ * newTab は、tab と同じ列で、タブの種類を選ぶ一覧を出しておく（n。#456）。
+ */
+export type SwitcherStart = "ws" | "tab" | "newTab";
+
 /** コマンドが、画面の側に頼むこと（窓を出す・キーを向ける）。 */
 export interface CommandUi {
   /** リサイズモードに入る・出る（Cmd+R / Ctrl+Shift+R） */
@@ -33,8 +39,8 @@ export interface CommandUi {
   toggleSidebar(): void;
   /** マシンのダイアログ（リーダーの m）を出す */
   openMachines(): void;
-  /** ワークスペースの窓を出す（リーダーの w は左のワークスペースの列、t は右のタブの列にキーを置いて） */
-  openWorkspaceSwitcher(col: "ws" | "tab"): void;
+  /** ワークスペースの窓を出す（リーダーの w は ws、t は tab、n は newTab） */
+  openWorkspaceSwitcher(start: SwitcherStart): void;
   /** クリップボードの履歴の窓を出す */
   openClipboardHistory(): void;
   /** キャラクターを選ぶ窓（リーダーの c s）を出す */
@@ -157,7 +163,7 @@ export function createCommandRunner(deps: {
     );
   }
 
-  /** 内蔵ブラウザのコマンド（リーダーの o）。 */
+  /** 内蔵ブラウザのコマンド（リーダーの o と、設定の近道だけの browser.new・browser.incognito）。 */
   function runBrowser(c: Command) {
     switch (c.id) {
       case "browser.new":
@@ -428,7 +434,9 @@ export function createCommandRunner(deps: {
         newWorkspace();
         break;
       case "workspace.switch":
-        ui.openWorkspaceSwitcher(c.arg === "tab" ? "tab" : "ws");
+        ui.openWorkspaceSwitcher(
+          c.arg === "tab" || c.arg === "newTab" ? c.arg : "ws",
+        );
         break;
       case "workspace.close": {
         const g = currentGws();
