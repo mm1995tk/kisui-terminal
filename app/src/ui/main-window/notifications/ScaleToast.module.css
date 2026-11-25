@@ -14,7 +14,7 @@
   z-index: 1000;
 }
 
-/* 内蔵ブラウザのページを出している間は、画面の下の中央に出す（ページが下の端を上げて避ける。ScaleToast.tsx） */
+/* 内蔵ブラウザのページを出している間は、画面の下の中央に出す（ページの上に重なる。ScaleToast.tsx） */
 .overPage {
   top: auto;
   right: auto;

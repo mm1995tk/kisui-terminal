@@ -15,8 +15,9 @@ export function showScale(v: number): void {
 
 /**
  * 画面の右上に出る今の大きさ。showScale() で出て、自分で消える。
- * overPage のときは、内蔵ブラウザのページ（子の webview）の下に隠れないよう、画面の下の中央に出し、ページが避ける印
- * （data-overlay-shrink）を付ける。ページは下の端だけを上げて避けるので、右上のままではページが丸ごと隠れる（ui/main-window/content/browser/overlay.ts）。
+ * overPage のときは、内蔵ブラウザのページ（子の webview）の下に隠れないよう、画面の下の中央に出し、ページの上に重なる印
+ * （data-overlay）を付ける（ui/main-window/content/browser/overlay.ts）。macOS 以外では、ページは下の端だけを上げて避けるので、
+ * 右上のままではページが丸ごと隠れる。
  */
 export function ScaleToast(props: {
   /** 内蔵ブラウザのページを出しているか */
@@ -29,7 +30,7 @@ export function ScaleToast(props: {
           props.overPage ? `${styles.toast} ${styles.overPage}` : styles.toast
         }
         role="status"
-        data-overlay-shrink={props.overPage ? "" : undefined}
+        data-overlay={props.overPage ? "" : undefined}
       >
         {percent()}%
       </div>
