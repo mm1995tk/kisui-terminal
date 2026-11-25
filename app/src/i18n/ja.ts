@@ -213,6 +213,8 @@ export const ja: Record<Key, string> = {
   "err.url.open": "URL を開けませんでした",
   "err.download.open": "{name} を開けませんでした",
   "err.download.reveal": "{name} のフォルダを表示できませんでした",
+  "err.browser.cookieMismatch":
+    "外のブラウザから写した Cookie の一部が、届いたとおりの属性で内蔵ブラウザに入りませんでした",
   "button.close": "Close",
   "download.done.title": "ダウンロードしました",
   "download.done.text":

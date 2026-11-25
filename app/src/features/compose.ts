@@ -6,6 +6,7 @@
 import { createSignal } from "solid-js";
 
 import { createBookmarks } from "./browser/bookmarksStore.ts";
+import { watchCookieMismatch } from "./browser/cookieMismatch.ts";
 import { createDownloads } from "./browser/downloads.ts";
 import type { BrowserOs } from "./browser/os.ts";
 import { createPages } from "./browser/pages.ts";
@@ -243,6 +244,7 @@ export function createFeatures(deps: {
     browser,
     setFocusError,
   });
+  watchCookieMismatch({ os: ports.browser, browser, setFocusError });
   const tabs = createTabs({
     sessions,
     workspaces,
