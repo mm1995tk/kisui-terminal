@@ -292,7 +292,7 @@ const SHORTCUT_ONLY: Leaf[] = [
   leaf("", T("leader.tab.moveTo"), { id: "tab.moveTo" }),
   // DB のタブを作る。リーダーの `n` で開くワークスペースの窓の、種類を選ぶ一覧からするので、木には載せない（#456）
   leaf("", T("leader.db.open"), { id: "db.open" }),
-  // DB のタブの操作。リーダーの `a` で開く DB のタブの窓（DbWindow.tsx）の中のキーでするので、木には載せない（#458。#458 までは `d` のグループ）。
+  // DB のタブの操作。リーダーの `a` で開く DB のタブの窓（DbWindow.tsx）の中のキーでするので、木には載せない（#458）。
   // 設定の近道に書いている人の設定を壊さないよう、また窓を開かずに 1 回で動かしたい人のために残す。DB のタブを出していなければ動かない（run.ts）
   leaf("", T("leader.db.tree"), { id: "db.tree" }),
   leaf("", T("leader.db.refresh"), { id: "db.refresh" }),
