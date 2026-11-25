@@ -729,7 +729,7 @@ export const ja: Record<Key, string> = {
   "db.picker.emptyHint":
     "接続するマシンの config.toml の [[db.connections]] に書きます。",
   "db.picker.readOnly": "読み取り専用",
-  "db.picker.open": "開く",
+  "db.picker.open": "open",
   "db.picker.problem": "{machine}：{problem}",
   "db.picker.failed": "{machine}：接続の一覧を取れませんでした（{error}）",
   "db.err.noConnection": "この接続は、そのマシンの設定にもうありません。",
@@ -881,7 +881,7 @@ export const ja: Record<Key, string> = {
   "db.export.title": "Export the result ({n} rows)",
   "db.export.clipboard": "Copy to the clipboard",
   "db.export.file": "Save to a file…",
-  "db.export.do": "書き出す",
+  "db.export.do": "export",
   "db.export.saved": "{path} に保存しました",
   "db.export.failed": "ファイルを保存できませんでした",
   "db.export.truncated":
