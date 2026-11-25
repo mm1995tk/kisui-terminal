@@ -58,7 +58,6 @@ const SWAP: Readonly<Record<string, Direction>> = {
 /**
  * 窓の中のキー（字を打つ入力欄は無いので、字をそのまま使える。Esc は ModalCard が閉じるのに使う）。
  * 選ぶ向きは、リーダーの 1 段目・ワークスペースの窓と同じ h j k l（矢印も）。入れ替えは、ワークスペースの窓の並べ替え（J K）と同じく Shift を足した H J K L。
- * 分ける（s）・閉じる（x）・隠す（z）・リサイズモード（r）の字は、もとのリーダーの「ペイン」のグループと同じ。
  * Alt・Cmd・Ctrl を重ねたものと、変換中のキーは受けない。
  */
 export function terminalWindowKey(e: KeyLike): TerminalWindowKey | null {
