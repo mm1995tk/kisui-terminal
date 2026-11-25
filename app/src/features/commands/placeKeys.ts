@@ -1,8 +1,9 @@
 // 場所のキー（docs/key-design.md の 5 章）の定義。ファイルツリー・変更一覧・動画のペイン・画像のペイン・窓（ダイアログ）の
 // キーを、リーダーの木（commands.ts）と同じ流儀で、ここ 1 か所に書く。`?` の一覧（KeyListDialog.tsx）はこの表から作る。
 // 実際にキーを受ける判定は、場所ごとのファイル（features/file-tree/keys.ts・features/changes/keys.ts・features/terminal/media.ts・ui/main-window/content/media/imageView.ts・
-// features/sessions/machineList.ts・features/browser/bookmarks.ts・features/clipboard/history.ts・ui/main-window/workspaces/switcherKey.ts・features/db/keys.ts）にあり、
-// placeKeys.test.ts（切り替える窓は switcherKey.test.ts）が「表に書いたキーを、その場所の判定が受ける」ことを確かめる。だから案内と受けるキーはずれない。
+// features/sessions/machineList.ts・features/browser/bookmarks.ts・features/clipboard/history.ts・ui/main-window/workspaces/switcherKey.ts・
+// ui/main-window/tab-window/terminalWindowKey.ts・features/db/keys.ts）にあり、
+// placeKeys.test.ts（切り替える窓は switcherKey.test.ts、ターミナルのタブの窓は terminalWindowKey.test.ts）が「表に書いたキーを、その場所の判定が受ける」ことを確かめる。だから案内と受けるキーはずれない。
 // 窓の下の段（共通フッタ）に出す基本操作の並びも、ここの basicHints が決める（docs/design/ui-ux-review.md の「ヒントとヘルプ」）。
 // 場所のキーはリーダーには載せない（その場所の中だけで効く）。キーを足すときは、判定と、ここの表と、docs/key-design.md を直す。
 // DOM には触らない（node --test で確かめられる）。
@@ -23,6 +24,7 @@ export type Place =
   | "picker"
   | "switcher"
   | "switcherTabs"
+  | "termWindow"
   | "history"
   | "db"
   | "dbResult"
@@ -264,6 +266,32 @@ export const PLACE_KEYS: Record<Place, PlaceKeys> = {
       row("Esc", T("place.row.close"), []),
     ],
   },
+  // ターミナルのタブの窓（リーダーの a。#457）。判定は ui/main-window/tab-window/terminalWindowKey.ts の terminalWindowKey
+  // （表のキーを判定が受けることは、terminalWindowKey.test.ts が確かめる）
+  termWindow: {
+    title: T("place.termWindow.title"),
+    lead: T("place.termWindow.lead"),
+    rows: [
+      row("h j k l / ← ↓ ↑ →", T("place.termWindow.select"), [
+        "h",
+        "j",
+        "k",
+        "l",
+        "ArrowLeft",
+        "ArrowDown",
+        "ArrowUp",
+        "ArrowRight",
+      ]),
+      row("Enter", T("place.termWindow.focus")),
+      row("s", T("place.termWindow.split")),
+      row("H J K L", T("place.termWindow.swap"), ["H", "J", "K", "L"]),
+      row("x", T("place.termWindow.close")),
+      row("z", T("place.termWindow.zoom")),
+      row("r", T("place.termWindow.resize")),
+      row("?", T("place.row.keyList")),
+      row("Esc", T("place.row.close"), []),
+    ],
+  },
   // クリップボードの履歴の窓（リーダーの y）。判定は features/clipboard/history.ts の historyKey（修飾キー付きのものは probes に書けないので、
   // history.test.ts で確かめる）
   history: {
@@ -397,6 +425,7 @@ const WINDOW_PLACES = new Set<Place>([
   "picker",
   "switcher",
   "switcherTabs",
+  "termWindow",
   "history",
   "dbHistory",
 ]);

@@ -42,6 +42,7 @@ export type CommandId =
   | "tab.nth"
   | "tab.rename"
   | "tab.moveTo"
+  | "tab.window"
   | "machine.dialog"
   | "clipboard.history"
   | "scale"
@@ -99,7 +100,6 @@ export interface Shortcut {
 
 interface Common {
   label: string;
-  shortcut?: Shortcut;
   /** リーダーの案内（LeaderMenu.tsx）に出さない OS。`?` の一覧には、どの OS でも出す */
   hideInMenuOn?: "mac";
 }
@@ -110,6 +110,8 @@ export interface Leaf extends Common {
   /** 押すキー（どれでも同じ。`+` と `=` のように並べる） */
   keys: string[];
   run: Command;
+  /** リーダーを通さず 1 回で押せる近道（既定のもの） */
+  shortcut?: Shortcut;
   /** 行ったあともリーダーを出ず、同じ一覧のまま次のキーを待つ（ペインを `j` `j` `l` と続けて移れる） */
   repeat?: boolean;
   /**
@@ -125,7 +127,7 @@ export interface Leaf extends Common {
   shortcutInBrowser?: boolean;
 }
 
-/** 一段下の一覧に入る 1 つ。shortcut は、そのグループに 1 回で入る近道。 */
+/** 一段下の一覧に入る 1 つ。 */
 export interface Group extends Common {
   type: "group";
   key: string;
@@ -159,7 +161,6 @@ function group(
   key: string,
   label: string,
   children: Node[],
-  shortcut?: Shortcut,
   hideInMenuOn?: "mac",
   feature?: "browser",
 ): Group {
@@ -168,7 +169,6 @@ function group(
     key,
     label,
     children,
-    shortcut,
     hideInMenuOn,
     feature,
   };
@@ -180,7 +180,7 @@ export const LEADER_SHORTCUT: Shortcut = {
   other: "Ctrl+Shift+K",
 };
 
-/** 向きの葉。1 段目と、ペインのグループ（入口の近道から入ったとき）の両方に置く。 */
+/** ペインを移る向きの葉（1 段目）。 */
 const paneMoves = (): Leaf[] =>
   (
     [
@@ -204,7 +204,9 @@ const paneMoves = (): Leaf[] =>
 /**
  * リーダーの木に載せず、設定の `[gui.shortcuts]` からだけ使えるコマンド（#296）。
  * ワークスペースの操作は、リーダーの `w` で開く窓（WorkspaceSwitcher.tsx）に集めた。ここのコマンドは、窓を開かずに 1 回で動かしたい人が、自分で近道を足すために残す。
- * 木の外なので、案内にも `?` の一覧にも、既定の近道にも出ない。
+ * ペインの操作（分ける・入れ替える・閉じる・隠す・リサイズモード）は、リーダーの `a` で開くターミナルのタブの窓（TerminalWindow.tsx）に集めた（#457）。
+ * そのうち、よく使う直接の操作は、既定の近道を持ったままここに残す（Cmd+D など。shortcut）。
+ * 木の外なので、リーダーの案内には出ない。`?` の一覧には、近道（既定か、設定で足したもの）があるものだけを、木のあとに並べる（helpRows）。
  */
 const SHORTCUT_ONLY: Leaf[] = [
   leaf("", T("leader.ws.next"), { id: "workspace.step", arg: "next" }),
@@ -218,6 +220,43 @@ const SHORTCUT_ONLY: Leaf[] = [
   leaf("", T("leader.ws.new"), { id: "workspace.new" }),
   leaf("", T("leader.ws.close"), { id: "workspace.close" }),
   leaf("", T("leader.ws.rename"), { id: "workspace.rename" }),
+  // ペインの操作。ターミナルのタブの窓（リーダーの `a`）の中のキーでするので、木には載せない（#457）。
+  // 分ける（右・下）・閉じる・隠す・リサイズモードは、ターミナルの習慣に合わせた既定の近道を残す
+  leaf(
+    "",
+    T("leader.pane.split.right"),
+    { id: "pane.split", arg: "right" },
+    { shortcut: { mac: "Cmd+D", other: "Ctrl+Shift+D" } },
+  ),
+  leaf(
+    "",
+    T("leader.pane.split.down"),
+    { id: "pane.split", arg: "down" },
+    { shortcut: { mac: "Cmd+Shift+D", other: "Ctrl+Shift+E" } },
+  ),
+  leaf("", T("leader.pane.split.left"), { id: "pane.split", arg: "left" }),
+  leaf("", T("leader.pane.split.up"), { id: "pane.split", arg: "up" }),
+  ...(["left", "down", "up", "right"] as const).map((dir) =>
+    leaf("", T(`leader.pane.swap.${dir}`), { id: "pane.swap", arg: dir }),
+  ),
+  leaf(
+    "",
+    T("leader.pane.close"),
+    { id: "pane.close" },
+    { shortcut: { mac: "Cmd+W" }, shortcutInPane: true },
+  ),
+  leaf(
+    "",
+    T("leader.pane.zoom"),
+    { id: "pane.zoom" },
+    { shortcut: { mac: "Cmd+Shift+Enter", other: "Ctrl+Shift+M" } },
+  ),
+  leaf(
+    "",
+    T("leader.pane.resize"),
+    { id: "pane.resize" },
+    { shortcut: { mac: "Cmd+R", other: "Ctrl+Shift+R" } },
+  ),
   // タブの操作。ワークスペースの窓（リーダーの `t`）の中のキーでするので、木には載せない（#454）
   leaf("", T("leader.tab.new"), { id: "tab.new" }),
   leaf("", T("leader.tab.newPick"), { id: "tab.newPick" }),
@@ -295,87 +334,9 @@ export const LEADER: Node[] = [
     arg: "newTab",
   }),
   leaf("m", T("leader.machine"), { id: "machine.dialog" }),
-  group(
-    "p",
-    T("leader.pane.group"),
-    [
-      ...paneMoves(),
-      group("s", T("leader.pane.split"), [
-        leaf(
-          "h",
-          T("leader.pane.split.left"),
-          { id: "pane.split", arg: "left" },
-          {
-            range: { keys: "h|j|k|l", label: T("leader.pane.split.range") },
-          },
-        ),
-        leaf(
-          "j",
-          T("leader.pane.split.down"),
-          { id: "pane.split", arg: "down" },
-          {
-            shortcut: { mac: "Cmd+Shift+D", other: "Ctrl+Shift+E" },
-            range: { keys: "h|j|k|l", label: T("leader.pane.split.range") },
-          },
-        ),
-        leaf(
-          "k",
-          T("leader.pane.split.up"),
-          { id: "pane.split", arg: "up" },
-          {
-            range: { keys: "h|j|k|l", label: T("leader.pane.split.range") },
-          },
-        ),
-        leaf(
-          "l",
-          T("leader.pane.split.right"),
-          { id: "pane.split", arg: "right" },
-          {
-            shortcut: { mac: "Cmd+D", other: "Ctrl+Shift+D" },
-            range: { keys: "h|j|k|l", label: T("leader.pane.split.range") },
-          },
-        ),
-      ]),
-      group(
-        "m",
-        T("leader.pane.swap"),
-        (
-          [
-            ["h", "left"],
-            ["j", "down"],
-            ["k", "up"],
-            ["l", "right"],
-          ] as const
-        ).map(([k, dir]) =>
-          leaf(
-            k,
-            T(`leader.pane.swap.${dir}`),
-            { id: "pane.swap", arg: dir },
-            { range: { keys: "h|j|k|l", label: T("leader.pane.swap.range") } },
-          ),
-        ),
-      ),
-      leaf(
-        "x",
-        T("leader.pane.close"),
-        { id: "pane.close" },
-        { shortcut: { mac: "Cmd+W" }, shortcutInPane: true },
-      ),
-      leaf(
-        "z",
-        T("leader.pane.zoom"),
-        { id: "pane.zoom" },
-        { shortcut: { mac: "Cmd+Shift+Enter", other: "Ctrl+Shift+M" } },
-      ),
-      leaf(
-        "r",
-        T("leader.pane.resize"),
-        { id: "pane.resize" },
-        { shortcut: { mac: "Cmd+R", other: "Ctrl+Shift+R" } },
-      ),
-    ],
-    { mac: "Cmd+Shift+P", other: "Ctrl+Shift+P" },
-  ),
+  // 今出しているタブの種類ごとの窓を開く（#457。ターミナルのタブなら、ペインを選んで操作する窓）。
+  // どの種類の窓を開くかは、押したときに出しているタブで決まる（tabWindow.ts の shownTabKind）。DB・ブラウザの窓も、この葉に乗る
+  leaf("a", T("leader.tab.window"), { id: "tab.window" }),
   // 内蔵ブラウザ（#202）。設定（[gui.browser] enabled）で有効にしたときだけ出す（setBrowserEnabled）
   group(
     "o",
@@ -426,7 +387,6 @@ export const LEADER: Node[] = [
       leaf("s", T("leader.browser.login"), { id: "browser.login" }),
       leaf("R", T("leader.browser.rename"), { id: "browser.rename" }),
     ],
-    undefined,
     undefined,
     "browser",
   ),
@@ -524,7 +484,6 @@ export const LEADER: Node[] = [
         { shortcut: { mac: "Cmd+0", other: "Ctrl+0" } },
       ),
     ],
-    undefined,
     "mac",
   ),
   // お知らせ（info の `i`）
@@ -564,6 +523,13 @@ export function activeLeader(): Node[] {
     (n) => n.type !== "group" || !n.feature || browserEnabled,
   );
   return activeCache;
+}
+
+/** 木の外の葉（設定の近道から使えるコマンド。既定の近道を持つものもある）。内蔵ブラウザのものは、有効にしたときだけ。 */
+export function outsideLeaves(): Leaf[] {
+  return browserEnabled
+    ? [...SHORTCUT_ONLY, ...SHORTCUT_ONLY_BROWSER]
+    : SHORTCUT_ONLY;
 }
 
 /** リーダーの木の中の位置（リーダーを押してから押したキー）。[] はリーダーを押した直後の 1 段目。 */
@@ -674,9 +640,7 @@ export function shortcutOf(
 
 interface ShortcutEntry {
   spec: string;
-  /** 葉なら動かすコマンド、グループなら入る先の path */
-  command?: Command;
-  into?: Path;
+  command: Command;
   inPane: boolean;
   /** 内蔵ブラウザのタブを出しているときだけ受ける（葉の shortcutInBrowser） */
   inBrowser: boolean;
@@ -684,34 +648,26 @@ interface ShortcutEntry {
   repeat: boolean;
 }
 
+/** 葉の既定の近道（この OS のもの）を集める。 */
 function collect(
   list: Node[],
   mac: boolean,
-  path: Path,
   out: ShortcutEntry[],
 ): ShortcutEntry[] {
   for (const n of list) {
-    const spec = shortcutOf(n.shortcut, mac);
-    if (n.type === "leaf") {
-      if (spec)
-        out.push({
-          spec,
-          command: n.run,
-          inPane: !!n.shortcutInPane,
-          inBrowser: !!n.shortcutInBrowser,
-          repeat: !!n.repeat,
-        });
-    } else {
-      if (spec)
-        out.push({
-          spec,
-          into: [...path, n.key],
-          inPane: false,
-          inBrowser: false,
-          repeat: false,
-        });
-      collect(n.children, mac, [...path, n.key], out);
+    if (n.type === "group") {
+      collect(n.children, mac, out);
+      continue;
     }
+    const spec = shortcutOf(n.shortcut, mac);
+    if (spec)
+      out.push({
+        spec,
+        command: n.run,
+        inPane: !!n.shortcutInPane,
+        inBrowser: !!n.shortcutInBrowser,
+        repeat: !!n.repeat,
+      });
   }
   return out;
 }
@@ -726,7 +682,8 @@ function shortcuts(mac: boolean) {
   let v = shortcutCache.get(mac);
   if (!v) {
     // 同じキーは、設定で足した近道が既定のものに勝つ
-    const all = collect(activeLeader(), mac, [], [])
+    // 木の葉と、木の外の葉（ペインの直接の操作など）の両方
+    const all = collect([...activeLeader(), ...outsideLeaves()], mac, [])
       .map((entry) => ({ spec: parseSpec(entry.spec), entry }))
       .filter(({ spec }) => !userEntries.some((u) => sameSpec(u.spec, spec)));
     const user = userEntries.flatMap((u) =>
@@ -757,19 +714,16 @@ function shortcuts(mac: boolean) {
 
 /** 内蔵ブラウザのページに渡す、ページにキーがあっても受けるキー（browser.rs の KeySpec）。 */
 export interface InterceptKey extends KeySpec {
-  /** リーダーとグループの入口（押したあとのキーも続けて受ける） */
+  /** リーダー（押したあとのキーも続けて受ける） */
   enter: boolean;
 }
 
-/** ページにキーがある間も受けるキー：リーダーと、すべての近道（グループの入口を含む）。 */
+/** ページにキーがある間も受けるキー：リーダーと、すべての近道。 */
 export function interceptKeys(mac: boolean): InterceptKey[] {
   const leader = shortcutOf(LEADER_SHORTCUT, mac);
   return [
     ...(leader ? [{ ...parseSpec(leader), enter: true }] : []),
-    ...shortcuts(mac).map(({ spec, entry }) => ({
-      ...spec,
-      enter: !!entry.into,
-    })),
+    ...shortcuts(mac).map(({ spec }) => ({ ...spec, enter: false })),
   ];
 }
 
@@ -780,13 +734,12 @@ export function isLeaderKey(e: KeyLike, mac: boolean): boolean {
 }
 
 /**
- * e が当たる、リーダーを通さない近道のコマンド。無ければ null。グループの入口の近道は null（route が受ける）。
+ * e が当たる、リーダーを通さない近道のコマンド。無ければ null。
  * ブラウザを出しているときだけの近道（shortcutInBrowser）は見ない（route が受ける）。
  */
 export function shortcutCommand(e: KeyLike, mac: boolean): Command | null {
   for (const { spec, entry } of shortcuts(mac))
-    if (entry.command && !entry.inBrowser && matchSpec(e, spec))
-      return entry.command;
+    if (!entry.inBrowser && matchSpec(e, spec)) return entry.command;
   return null;
 }
 
@@ -902,11 +855,7 @@ function sameSpec(a: KeySpec, b: KeySpec): boolean {
  */
 export function setUserShortcuts(list: UserShortcut[], mac: boolean): string[] {
   const problems: string[] = [];
-  const leaves = leavesByName([
-    ...activeLeader(),
-    ...SHORTCUT_ONLY,
-    ...(browserEnabled ? SHORTCUT_ONLY_BROWSER : []),
-  ]);
+  const leaves = leavesByName([...activeLeader(), ...outsideLeaves()]);
   const out: UserEntry[] = [];
   const leader = parseSpec(shortcutOf(LEADER_SHORTCUT, mac) ?? "Ctrl+Shift+K");
   for (const { key, command, source = 0 } of list) {
@@ -1009,12 +958,6 @@ export function route(state: RouterState, e: KeyLike, env: Env): Routed {
   for (const { spec, entry } of shortcuts(env.mac)) {
     if (!matchSpec(e, spec)) continue;
     if (entry.inBrowser && (!env.browser || env.resizeMode)) continue;
-    if (entry.into) {
-      if (!canEnter) return { consume: false, state };
-      return e.repeat
-        ? { consume: true, state }
-        : { consume: true, state: { leader: entry.into, swallow: false } };
-    }
     if (entry.inPane && !env.inPane) return { consume: false, state };
     return {
       consume: true,
@@ -1073,7 +1016,7 @@ export function afterKeyUp(state: RouterState): RouterState {
 
 /** 一覧の 1 行。 */
 export interface HelpRow {
-  /** リーダーを押してから押すキー（"p" "v"） */
+  /** リーダーを押してから押すキー（"v" "+ ="）。木の外の操作（近道だけの操作）の行は [] */
   path: string[];
   label: string;
   group: boolean;
@@ -1085,10 +1028,25 @@ export interface HelpRow {
 /**
  * 木を上から順に平らにした一覧。設定で足した近道は、そのコマンドの最初の行に添える。
  * 案内（menuRows）と同じく、range が同じ葉の並び（`h` `j` `k` `l` など）は 1 行にまとめる（キーは `h|j|k|l`）。
- * まとめた行の近道は、葉ごとの近道に、どのキーのものかを添えて並べる（`Ctrl+Shift+E (j), Ctrl+Shift+D (l)`）。
+ * まとめた行の近道は、葉ごとの近道に、どのキーのものかを添えて並べる。
+ * 木のあとに、木の外の操作のうち近道（既定か、設定で足したもの）があるものを、見出しの行を付けて並べる
+ * （ペインを分ける Cmd+D など。リーダーのあとに押すキーは無いので、path は []）。
  */
 export function helpRows(mac: boolean): HelpRow[] {
-  return rowsOf(mac, activeLeader(), [], new Set());
+  const used = new Set<string>();
+  const out = rowsOf(mac, activeLeader(), [], used);
+  const outside = outsideLeaves().flatMap((n): HelpRow[] => {
+    const shortcut = shortcutsFor(n, mac, used).join(", ");
+    return shortcut
+      ? [{ path: [], label: n.label, group: false, shortcut, depth: 1 }]
+      : [];
+  });
+  if (outside.length > 0)
+    out.push(
+      { path: [], label: T("leader.direct.group"), group: true, depth: 0 },
+      ...outside,
+    );
+  return out;
 }
 
 /**
@@ -1098,7 +1056,7 @@ export function helpRows(mac: boolean): HelpRow[] {
  */
 function shortcutsFor(n: Node, mac: boolean, used: Set<string>): string[] {
   const out: string[] = [];
-  const own = shortcutOf(n.shortcut, mac);
+  const own = n.type === "leaf" ? shortcutOf(n.shortcut, mac) : undefined;
   if (own && !userEntries.some((u) => sameSpec(u.spec, parseSpec(own))))
     out.push(own);
   if (n.type === "leaf") {

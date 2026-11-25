@@ -151,3 +151,84 @@ describe("db.elevate・db.elevateEnd（権限を時間を決めて強める・�
     assert.deepEqual(seen, ["openElevate t1", "endElevation t1"]);
   });
 });
+
+describe("tab.window（今出しているタブの種類の窓を開く。リーダーの a。#457）", () => {
+  /** 出しているタブ（shown）と、窓がある種類（windows）を決めて、コマンドを動かす道具を作る。 */
+  function setupTabWindow(
+    shown: { browser?: boolean; db?: boolean; terminal?: boolean },
+    windows: string[] = ["terminal"],
+  ) {
+    const seen: string[] = [];
+    const run = createCommandRunner({
+      workspaces: stub({
+        focus: () => (shown.terminal ? { target: "local", id: "w1" } : null),
+        cannot: (title: string, text: string) =>
+          void seen.push(`cannot ${title} / ${text}`),
+      }),
+      tabs: stub(),
+      terminals: stub(),
+      browserTabs: stub(),
+      pages: stub({
+        shownBrowserTab: () => (shown.browser ? "b1" : undefined),
+      }),
+      db: stub({ shownDbTab: () => (shown.db ? { id: "d1" } : undefined) }),
+      bookmarks: stub(),
+      downloads: stub(),
+      updates: stub(),
+      mascot: stub(),
+      scale: stub(),
+      proxy: stub(),
+      os: stub(),
+      setFocusError: () => undefined,
+      showToast: () => undefined,
+      focusTerminal: () => undefined,
+      ui: stub({
+        openTabWindow: (kind: string) => {
+          if (!windows.includes(kind)) return false;
+          seen.push(`open ${kind}`);
+          return true;
+        },
+      }),
+    });
+    return { seen, runCommand: run.runCommand };
+  }
+  const noWindow =
+    "cannot This tab has no window / " +
+    "Only terminal tabs have a window of their own for now.";
+
+  it("ターミナルのタブを出していれば、ターミナルのタブの窓を開く", () => {
+    const { seen, runCommand } = setupTabWindow({ terminal: true });
+    runCommand({ id: "tab.window" });
+    assert.deepEqual(seen, ["open terminal"]);
+  });
+
+  it("DB・ブラウザのタブを出している間は、裏にターミナルのタブがあっても、ターミナルのタブの窓を開かず、その旨を伝える", () => {
+    for (const shown of [
+      { db: true, terminal: true },
+      { browser: true, terminal: true },
+      { browser: true },
+    ]) {
+      const { seen, runCommand } = setupTabWindow(shown);
+      runCommand({ id: "tab.window" });
+      assert.deepEqual(seen, [noWindow]);
+    }
+  });
+
+  it("種類の窓があれば（あとから足す DB・ブラウザの窓）、その種類の窓を開く", () => {
+    const { seen, runCommand } = setupTabWindow({ db: true, terminal: true }, [
+      "terminal",
+      "db",
+    ]);
+    runCommand({ id: "tab.window" });
+    assert.deepEqual(seen, ["open db"]);
+  });
+
+  it("タブを出していなければ、窓を開かず、その旨を伝える", () => {
+    const { seen, runCommand } = setupTabWindow({});
+    runCommand({ id: "tab.window" });
+    assert.deepEqual(seen, [
+      "cannot This tab has no window / " +
+        "No tab is shown. Press n after the leader to create one.",
+    ]);
+  });
+});

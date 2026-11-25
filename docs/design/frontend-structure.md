@@ -45,6 +45,7 @@ app/src/
         media/              # 画像、動画、PDF
       sessions/             # 接続先を足す・管理する・認証の窓
       workspaces/           # ワークスペースを切り替える窓、作る・閉じるときの窓
+      tab-window/           # 今出しているタブの種類ごとの窓（リーダーの a）。種類の出し分けと、ターミナルのタブの窓（#457）
       db/                   # DB の接続を選ぶ窓、DB のパスワードを聞く窓（#347）
       clipboard/            # メインウィンドウの中の履歴の窓・読み取りの許可の確認
       file-transfer/
@@ -163,6 +164,7 @@ index.tsx ──▶ ui ──▶ features ◀── infrastructure
 | マシンのダイアログ・足す窓   | `sessions/`                                 | `sessions/`                                     | `ShellApi`                         |
 | ワークスペースを切り替える窓 | `workspaces/`                               | `workspaces/`                                   | `KeyValueStore`                    |
 | リーダーの案内・キーの一覧   | `commands/`、キーを受けるのは `keys.ts`     | `commands/`                                     | —                                  |
+| タブの種類ごとの窓（ターミナルのタブの窓） | `tab-window/`                 | `commands/`（種類の決め方）・`terminal/`（ペインの地図と操作） | `ShellApi`（kisui serve へ）       |
 | クリップボードの履歴         | `clipboard/`、常駐ツールは `ui/utilities/clipboard/` | `clipboard/`                           | `ListClipboardHistory`・`ClipboardPopupOs` |
 
 ## CSS の並び
