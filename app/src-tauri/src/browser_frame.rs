@@ -265,6 +265,7 @@ mod mac {
         });
     }
 
+    /// 閉じたタブのページを忘れる（view を放し、もう置き直さない）。
     pub fn forget(tab: &str) {
         PLACED.with(|p| p.borrow_mut().pages.remove(tab));
     }
