@@ -13,9 +13,10 @@
 //!   ならなければ、何も知らせずにやめる。
 //! - 止めるのは WebView の `stopLoading`（Linux は `stop_loading`）。打ち切りは、失敗として知らせない
 //!   （browser_load.rs が `NSURLErrorCancelled`・`IOErrorEnum::Cancelled` を知らせない）。ページは前のまま残る。
-//! - 同じ読みで「戻る先・進む先があるか」（Linux は `can_go_back`・`can_go_forward`、macOS は `canGoBack`・`canGoForward`）も読み、
-//!   変わったときだけ `browser-history` を送る（#450。URL バーの ←・→ を押せない見た目にする）。ページが読み込み中でなくても、
-//!   読み込みの始まり・終わり・題の変化のたびに、一度だけ読んで知らせる（`watch_history`）。
+//! - 戻る先・進む先があるか（Linux は `can_go_back`・`can_go_forward`、macOS は `canGoBack`・`canGoForward`）は、タブごとに 1 本の
+//!   スレッド（`poll_history`。`watch_history` が始める）が一定の間隔で読み、変わったときだけ `browser-history` を送る（#450。URL バーの
+//!   ←・→ を押せない見た目にする）。読み込みを見る間だけでなく、`pushState` のように読み込みも題の変化も伴わない履歴の変化にも
+//!   追いつくため。タブごとに 1 本なので、読んだ順に送る。WebView が無くなったらやめる。
 //! - ページの Esc は、ページのスクリプトが「Esc が押された」とだけ殻に知らせる（browser_keys.js）。殻はそれを画面に
 //!   そのまま渡し、止めるかどうかは画面が決める（読み込み中のタブだけ止める）。
 
