@@ -35,6 +35,8 @@ pub const EVENT_ESCAPE: &str = "browser-escape";
 
 /// 読み込みの状態を読む間隔。
 const POLL: Duration = Duration::from_millis(120);
+/// 戻る先・進む先を読む間隔。
+const HISTORY_POLL: Duration = Duration::from_millis(250);
 /// 遷移が始まってから、読み込み中にならなければやめるまでの間。
 const GRACE: Duration = Duration::from_millis(2500);
 /// 1 回の読み取りを待つ上限（メインスレッドが詰まっているとき）。
@@ -132,7 +134,6 @@ fn poll(app: &AppHandle, tab: &str) {
     let mut started = Instant::now();
     let mut seen = false;
     let mut last: Option<(bool, u8)> = None;
-    let mut last_history: Option<(bool, bool)> = None;
     loop {
         std::thread::sleep(POLL);
         let over = match sample(app, tab) {
@@ -140,15 +141,8 @@ fn poll(app: &AppHandle, tab: &str) {
             Sample::Missing => seen || started.elapsed() > GRACE,
             Sample::Busy => false,
             Sample::Read {
-                loading,
-                progress,
-                back,
-                forward,
+                loading, progress, ..
             } => {
-                if last_history != Some((back, forward)) {
-                    last_history = Some((back, forward));
-                    emit_history(app, tab, back, forward);
-                }
                 let now = (loading, if loading { progress } else { 0 });
                 if loading {
                     seen = true;
@@ -189,15 +183,40 @@ fn emit_history(app: &AppHandle, tab: &str, back: bool, forward: bool) {
     );
 }
 
-/// 戻る先・進む先があるかを一度だけ読んで、画面に知らせる（読み込み中でなくても。読み込みの始まり・終わり・題の変化のとき）。
-/// 画面は同じ値を無視するので、変わったかは調べない。どのスレッドから呼んでもよい。
+/// 履歴を見ているタブ。同じタブを 2 つ見ない（見張りが 2 本あると、読んだ順に送れない）。
+fn history_watched() -> &'static Mutex<std::collections::HashSet<String>> {
+    static W: OnceLock<Mutex<std::collections::HashSet<String>>> = OnceLock::new();
+    W.get_or_init(|| Mutex::new(std::collections::HashSet::new()))
+}
+
+/// 戻る先・進む先があるかを見始める（#450）。もう見ていれば何もしない。どのスレッドから呼んでもよい。
+/// 見張りは、タブの webview が無くなったらやめる（作る前に呼ばないこと）。
 pub fn sync_history(app: &AppHandle, tab: &str) {
+    if !lock(history_watched()).insert(tab.to_string()) {
+        return;
+    }
     let (app, tab) = (app.clone(), tab.to_string());
-    std::thread::spawn(move || {
-        if let Sample::Read { back, forward, .. } = sample(&app, &tab) {
-            emit_history(&app, &tab, back, forward);
+    std::thread::spawn(move || watch_history(&app, &tab));
+}
+
+fn watch_history(app: &AppHandle, tab: &str) {
+    let mut last: Option<(bool, bool)> = None;
+    loop {
+        match sample(app, tab) {
+            Sample::Missing => {
+                lock(history_watched()).remove(tab);
+                return;
+            }
+            Sample::Busy => {}
+            Sample::Read { back, forward, .. } => {
+                if last != Some((back, forward)) {
+                    last = Some((back, forward));
+                    emit_history(app, tab, back, forward);
+                }
+            }
         }
-    });
+        std::thread::sleep(HISTORY_POLL);
+    }
 }
 
 fn sample(app: &AppHandle, tab: &str) -> Sample {

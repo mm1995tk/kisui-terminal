@@ -710,7 +710,7 @@ fn with_handlers(
             } else {
                 page.finished();
             }
-            // 戻る先・進む先の有無（#450）。読み込みの始まりと終わりのたびに読む
+            // 戻る先・進む先の有無を見始める（#450。browser_progress.rs。タブごとに 1 本）
             crate::browser_progress::sync_history(&load_app, &load_tab);
             let _ = load_app.emit(
                 EVENT_PAGE,
@@ -726,8 +726,6 @@ fn with_handlers(
         })
         .on_document_title_changed(move |w, title| {
             crate::favicon::request(&title_app, &w, &title_tab, &title_page);
-            // ページの中の履歴の操作（pushState など）は読み込みを伴わないので、題の変化でも読む（#450）
-            crate::browser_progress::sync_history(&title_app, &title_tab);
             let _ = title_app.emit(
                 EVENT_TITLE,
                 TitleEvent {
