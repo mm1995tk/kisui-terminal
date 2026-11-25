@@ -780,7 +780,7 @@ fn tab_builder(
     keys: &[KeySpec],
     data: Data,
 ) -> WebviewBuilder<tauri::Wry> {
-    // DevTools（`o i`。#205）はタブのページで使う（メインの webview は、release では main.rs で切る）
+    // DevTools（ブラウザのタブの窓の `i`。#205）はタブのページで使う（メインの webview は、release では main.rs で切る）
     let mut builder = WebviewBuilder::new(label(tab), WebviewUrl::External(first))
         .focused(false)
         .devtools(true);
@@ -1045,7 +1045,7 @@ pub fn browser_focus(app: AppHandle, webview: Webview, tab: String) -> Result<()
     child(&app, &tab)?.set_focus().map_err(|e| e.to_string())
 }
 
-/// タブで URL を開く（`o u`）。
+/// タブで URL を開く（URL バー。ブラウザのタブの窓の `u` でキーが向く）。
 #[tauri::command]
 pub fn browser_go(
     app: AppHandle,
@@ -1062,7 +1062,7 @@ pub fn browser_go(
     v.navigate(u).map_err(|e| e.to_string())
 }
 
-/// 読み込みを止める（URL バーの「×」・読み込み中の Esc・リーダーの `o c`）。ページは前のまま残る。
+/// 読み込みを止める（URL バーの「×」・読み込み中の Esc・ブラウザのタブの窓の `c`）。ページは前のまま残る。
 #[tauri::command]
 pub fn browser_stop(app: AppHandle, webview: Webview, tab: String) -> Result<(), String> {
     from_main(&webview)?;
@@ -1173,7 +1173,7 @@ fn find_script(text: &str, again: bool, back: bool) -> String {
     )
 }
 
-/// ページ内を探す（#205。リーダーの `o /`）。mode は `first`（探す字を変えた）・`next`・`prev`。見つかったかを返す。
+/// ページ内を探す（#205。ブラウザのタブの窓の `/`・Cmd+F / Ctrl+F）。mode は `first`（探す字を変えた）・`next`・`prev`。見つかったかを返す。
 /// 見つけた所はページの選択になり、そこまでスクロールする。
 #[tauri::command(async)]
 pub fn browser_find(
@@ -1205,7 +1205,7 @@ pub fn browser_find(
     Ok(r.trim() == "true")
 }
 
-/// パスキーを待たずに、今のタブのサイトを外のブラウザで開き、そのサイトのログインを待つ（#276。リーダーの `o s`）。
+/// パスキーを待たずに、今のタブのサイトを外のブラウザで開き、そのサイトのログインを待つ（#276。ブラウザのタブの窓の `s`）。
 /// 答えは `opened`（開いた。同じタブから続けて押したときは開き直さない）・`no-sites`（`passkey_sites` が無い）・
 /// `incognito`（シークレットのタブ）・`not-allowed`（今のページが許可サイトのものでない）。決めるのは passkey.rs の `start`。
 #[tauri::command]
@@ -1231,7 +1231,7 @@ pub fn browser_passkey_login(
     Ok(r.code().to_string())
 }
 
-/// タブのページの DevTools（Web Inspector）を開く（#205。リーダーの `o i`）。
+/// タブのページの DevTools（Web Inspector）を開く（#205。ブラウザのタブの窓の `i`）。
 /// Linux（WebKitGTK）は、ページの webview の中にくっつく（ページの領域の外には出ない）。macOS は別の窓で開く（`open_devtools`）。
 #[tauri::command]
 pub fn browser_devtools(app: AppHandle, webview: Webview, tab: String) -> Result<(), String> {

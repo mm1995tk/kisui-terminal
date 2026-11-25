@@ -45,7 +45,7 @@ app/src/
         media/              # 画像、動画、PDF
       sessions/             # 接続先を足す・管理する・認証の窓
       workspaces/           # ワークスペースを切り替える窓、作る・閉じるときの窓
-      tab-window/           # 今出しているタブの種類ごとの窓（リーダーの a）。種類の出し分けと、ターミナルのタブの窓（#457）・DB のタブの窓（#458）
+      tab-window/           # 今出しているタブの種類ごとの窓（リーダーの a）。種類の出し分けと、ターミナルのタブの窓（#457）・DB のタブの窓（#458）・ブラウザのタブの窓（#459）
       db/                   # DB の接続を選ぶ窓、DB のパスワードを聞く窓（#347）
       clipboard/            # メインウィンドウの中の履歴の窓・読み取りの許可の確認
       file-transfer/
@@ -166,6 +166,7 @@ index.tsx ──▶ ui ──▶ features ◀── infrastructure
 | リーダーの案内・キーの一覧   | `commands/`、キーを受けるのは `keys.ts`     | `commands/`                                     | —                                  |
 | タブの種類ごとの窓（ターミナルのタブの窓） | `tab-window/`                 | `commands/`（種類の決め方）・`terminal/`（ペインの地図と操作） | `ShellApi`（kisui serve へ）       |
 | タブの種類ごとの窓（DB のタブの窓）           | `tab-window/`                 | `commands/`（種類の決め方）・`db/`（結果のタブの行と、タブの操作） | `ShellApi`（kisui serve へ）       |
+| タブの種類ごとの窓（ブラウザのタブの窓）     | `tab-window/`                 | `commands/`（種類の決め方と、ページへの操作 `runBrowserOn`）・`browser/`（操作の行と、今できない理由） | `BrowserOs`                        |
 | クリップボードの履歴         | `clipboard/`、常駐ツールは `ui/utilities/clipboard/` | `clipboard/`                           | `ListClipboardHistory`・`ClipboardPopupOs` |
 
 ## CSS の並び

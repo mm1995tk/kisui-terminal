@@ -67,7 +67,7 @@ export function createBookmarks(deps: {
   >();
   /** Chrome のブックマークの数（自身のものが読めなかったときの案内に使う） */
   const chromeCount = createMemo(() => countChrome(chromeBookmarks() ?? []));
-  /** ブックマークの一覧のダイアログ（リーダーの o B）を出しているか */
+  /** ブックマークの一覧のダイアログ（ブラウザのタブの窓の B）を出しているか */
   const [bookmarkDialog, setBookmarkDialog] = createSignal(false);
   /** 最後に知らせた、Chrome のブックマークを読めなかった理由（#265。同じ理由を開くたびに知らせない。読めたら忘れる） */
   let lastChromeProblem: string | undefined;
@@ -145,7 +145,7 @@ export function createBookmarks(deps: {
       },
     );
   }
-  /** 今のページをブックマークに足す（リーダーの o b）。読む前なら、先に読んでから足す（覚えていたものを消さないため）。 */
+  /** 今のページをブックマークに足す（ブラウザのタブの窓の b）。読む前なら、先に読んでから足す（覚えていたものを消さないため）。 */
   function bookmarkPage(t: BrowserTab) {
     const add = (list: Bookmark[]) =>
       changeBookmarks(addBookmark(list, { url: t.url, title: t.title }), () =>
@@ -189,7 +189,7 @@ export function createBookmarks(deps: {
     chromeBookmarks,
     /** 自分のブックマークも Chrome のものも出せないか（読めなかったと出す） */
     failed: () => bookmarksFailed() && chromeCount() === 0,
-    /** ブックマークの一覧のダイアログ（リーダーの o B）を出しているか */
+    /** ブックマークの一覧のダイアログ（ブラウザのタブの窓の B）を出しているか */
     bookmarkDialog,
     /** 一覧のダイアログを出す。開くたびに読み直す（読めなければ、前に読んだものを出す） */
     openDialog() {

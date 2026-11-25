@@ -454,7 +454,7 @@ export function createTabs(deps: {
   }
 
   /**
-   * 今いるワークスペースに、ページ url のブラウザのタブを足して出す（ブックマークを開く。リーダーの o B）。
+   * 今いるワークスペースに、ページ url のブラウザのタブを足して出す（ブックマークの一覧で開く）。
    * 開いたところは browserOrigin（ターミナルのタブが無いワークスペースでも、ほかのワークスペースのタブを元にしない）。
    * 今いるワークスペースが無ければ、開かずに false。
    */
@@ -623,11 +623,6 @@ export function createTabs(deps: {
     renameTabRow,
     tabRenameInit,
     renameTab,
-    /** ブラウザのタブ id の名前をその場で変え始める（browser.rename） */
-    renameBrowserTab(id: string) {
-      const g = gwsOfBrowser(untrack(gws), id);
-      if (g) renameTabRow(g.id, browserKey(id));
-    },
     /** 名前をその場で変えているタブ（無ければ null） */
     renamingTab,
     tabRenameError,

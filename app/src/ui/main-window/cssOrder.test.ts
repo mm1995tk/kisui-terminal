@@ -130,6 +130,8 @@ describe("メインウィンドウの CSS の並び", () => {
       // ターミナルのタブの窓（#457）と DB のタブの窓（#458）。CSS Modules なので、クラス名はほかと重ならない
       "ui/main-window/tab-window/TerminalWindow.module.css",
       "ui/main-window/tab-window/DbWindow.module.css",
+      // ブラウザのタブの窓（#459）。CSS Modules なので、クラス名はほかと重ならない
+      "ui/main-window/tab-window/BrowserWindow.module.css",
     ]);
   });
 

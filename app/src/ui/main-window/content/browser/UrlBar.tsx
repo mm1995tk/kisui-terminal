@@ -1,5 +1,5 @@
 // 内蔵ブラウザのページの上の端の URL バー（#232）。ブラウザのタブを出している間、今のページの URL（中継しているタブは中継前の元の URL）を出す。
-// 押すか、リーダーの o u で書き換えられる。Enter で開き（URL でなければ Google で検索する。tabs.ts の urlOrSearch）、Esc か、ほかへキーが移ると元の URL に戻す。
+// 押すか、ブラウザのタブの窓（リーダーの a）の u で書き換えられる。Enter で開き（URL でなければ Google で検索する。tabs.ts の urlOrSearch）、Esc か、ほかへキーが移ると元の URL に戻す。
 // 上の端に置き、ページはその下に下がる（data-overlay-top。overlay.ts の OVERLAY_SELECTORS）。
 import { isComposingKey } from "../../../../features/commands/ime.ts";
 import { T } from "../../../../i18n/index.ts";
@@ -20,16 +20,16 @@ export function UrlBar(props: {
   onSubmit: (url: string) => void;
   /** 書き換えをやめた（呼んだ側が、キーをページに戻す） */
   onCancel: () => void;
-  /** 戻る・進む・読み込み直す（リーダーの o h・o l・o r と同じ） */
+  /** 戻る・進む・読み込み直す（ブラウザのタブの窓の h・l・r と同じ） */
   onNav: (action: "back" | "forward" | "reload") => void;
   /** 戻る先・進む先があるか（#450）。無い方のボタンは押せない見た目にし、押しても何もしない */
   canGoBack: boolean;
   canGoForward: boolean;
   /** 読み込み中の進み具合（0〜100。#449）。読み込み中でなければ undefined */
   loading: number | undefined;
-  /** 読み込みを止める（リーダーの o c と同じ。読み込み中は、↻ が「×」になる） */
+  /** 読み込みを止める（ブラウザのタブの窓の c と同じ。読み込み中は、↻ が「×」になる） */
   onStop: () => void;
-  /** 入力欄にキーを向ける関数を受け取る（リーダーの o u） */
+  /** 入力欄にキーを向ける関数を受け取る（ブラウザのタブの窓の u） */
   focusRef: (focus: () => void) => void;
 }): JSX.Element {
   let input!: HTMLInputElement;

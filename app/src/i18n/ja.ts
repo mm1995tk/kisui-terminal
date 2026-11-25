@@ -38,8 +38,6 @@ export const ja: Record<Key, string> = {
   "cannot.tabWindow.title": "このタブの窓はありません",
   "cannot.tabWindow.noTab":
     "タブを出していません。タブは、リーダーの n で作れます。",
-  "cannot.tabWindow.noWindow":
-    "専用の窓があるのは、今はターミナルのタブと DB のタブだけです。",
   "cannot.pane.none.title": "ここにはペインがありません",
   "cannot.pane.none.text":
     "このワークスペースにはターミナルのタブが無いので、ペインがありません。ターミナルのタブは、リーダーの n で作れます。",
@@ -55,7 +53,6 @@ export const ja: Record<Key, string> = {
   "leader.pane.close": "Close pane",
   "leader.pane.zoom": "Show only the primary pane / restore",
   "leader.pane.resize": "Resize mode",
-  "leader.browser.group": "Browser",
   "leader.browser.new": "Open a new tab",
   "leader.browser.incognito": "Open a private tab",
   "leader.browser.url": "Edit the URL",
@@ -152,7 +149,7 @@ export const ja: Record<Key, string> = {
   "place.list.step": "Select the next / previous row",
   "place.bookmarks.title": "Bookmarks",
   "place.bookmarks.lead":
-    "ブックマークの一覧（リーダーの o B）の中で効くキーです。字を打つと、題か URL で絞り込みます。",
+    "ブックマークの一覧（ブラウザのタブでリーダーの a → B）の中で効くキーです。字を打つと、題か URL で絞り込みます。",
   "place.bookmarks.open":
     "Open the bookmark in a new tab of this workspace, or open / close the folder",
   "place.bookmarks.delete": "Delete the selected bookmark",
@@ -556,6 +553,26 @@ export const ja: Record<Key, string> = {
   "place.dbWindow.history": "Pick a SQL from this connection's history",
   "place.dbWindow.elevate": "Elevate a permission for a time",
   "place.dbWindow.elevateEnd": "End the elevated permissions now",
+  "browserWindow.label": "このブラウザのタブ",
+  "browserWindow.list": "このページへの操作",
+  "browserWindow.keys.run": "run",
+  "browserWindow.newTabTitle": "新しいタブ",
+  "browserWindow.incognito": "シークレット",
+  "browserWindow.loading": "読み込み中 {percent}%",
+  "browserWindow.loadFailed": "読み込めませんでした",
+  "browserWindow.proxy": "通信を記録中",
+  "browserWindow.zoom": "表示 {percent}%",
+  "browserWindow.why.noPage": "まだページがありません",
+  "browserWindow.why.noBack": "戻る先がありません",
+  "browserWindow.why.noForward": "進む先がありません",
+  "browserWindow.why.notLoading": "読み込み中ではありません",
+  "place.browserWindow.title": "Browser tab window",
+  "place.browserWindow.lead":
+    "ブラウザのタブを出しているときに、リーダーの a で開きます。ページの状態を見て、操作を選んで Enter を押すか、その字を押します。",
+  "place.browserWindow.select":
+    "Select the next or previous action (skips the ones that cannot be done now)",
+  "place.browserWindow.run": "Do the selected action",
+  "place.browserWindow.history": "Back / forward (the window stays open)",
   "tabMove.label": "タブを移すワークスペース",
   "tabMove.title": "Move “{title}” to which workspace?",
   "tabMove.keys.move": "Move",
@@ -578,7 +595,7 @@ export const ja: Record<Key, string> = {
     "Enter で開く（URL か、Google の検索。フォルダは開け閉め）· ↓ ↑（Ctrl+J/K）でブックマークを選ぶ · 打つとブックマークを絞り込む",
   "newTab.bookmarks": "ブックマーク",
   "newTab.empty.none":
-    "ブックマークはまだありません。見ているページを {leader} o b で足せます。",
+    "ブックマークはまだありません。見ているページを {leader} a b で足せます。",
   "urlBar.label": "アドレスバー",
   "urlBar.loading": "読み込み中",
   "urlBar.placeholder": "検索語か URL を入力",
@@ -630,7 +647,7 @@ export const ja: Record<Key, string> = {
   "askpass.cancel": "Cancel",
   "browser.opening": "{url} を開いています…",
   "browser.failed":
-    "{url} を開けませんでした。リーダーの o u で URL を書き換えられます",
+    "{url} を開けませんでした。リーダーの a u で URL を書き換えられます",
   "browser.hidden":
     "ダイアログ・お知らせ・案内を出している間は、ページを隠しています",
   "browser.loadFailed.title": "このページを開けませんでした",
@@ -696,7 +713,7 @@ export const ja: Record<Key, string> = {
   "bookmarks.empty.loading": "読み込んでいます…",
   "bookmarks.empty.failed": "ブックマークを読めませんでした",
   "bookmarks.empty.none":
-    "ブックマークはまだありません。見ているページを {leader} o b で足せます。",
+    "ブックマークはまだありません。見ているページを {leader} a b で足せます。",
   "bookmarks.empty.noMatch": "当てはまるものがありません",
   "err.bookmarks.read": "kisui-terminal のブックマークを読めませんでした",
   "err.bookmarks.chrome":
@@ -719,7 +736,7 @@ export const ja: Record<Key, string> = {
   "emptyWorkspace.title": "このワークスペースにはタブがありません",
   "emptyWorkspace.text":
     "ワークスペースを閉じるまで、名前と並び順は残ります。タブを足すと、ここで作業を始められます。",
-  "emptyWorkspace.addTerminal": "New terminal tab (pick the machine)",
+  "emptyWorkspace.addTerminal": "New terminal tab",
   "emptyWorkspace.addBrowser": "New browser tab",
   "emptyWorkspace.closeWorkspace":
     "Close this workspace (from the workspace switcher; confirm with y)",

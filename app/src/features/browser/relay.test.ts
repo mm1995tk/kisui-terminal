@@ -47,8 +47,8 @@ describe("unrelay", () => {
       "http://127.0.0.1:23456/",
     );
   });
-  it("o u でほかの URL に替えたあと戻っても、前の中継の URL を元に戻せる", () => {
-    // localhost:3000 を中継で開き、o u で localhost:4000（別の中継）に替え、さらに example.com（中継しない）に替える
+  it("URL バーでほかの URL に替えたあと戻っても、前の中継の URL を元に戻せる", () => {
+    // localhost:3000 を中継で開き、URL バーで localhost:4000（別の中継）に替え、さらに example.com（中継しない）に替える
     let list: readonly Relayed[] = [];
     for (const [orig, opened] of [
       ["http://localhost:3000/", "http://127.0.0.1:23456/"],

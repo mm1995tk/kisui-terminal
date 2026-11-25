@@ -127,7 +127,7 @@ export function NewTabPage(props: {
   failed: boolean;
   /** 開く URL を渡す（検索窓に打ったものを直した URL か、ブックマークの URL） */
   onOpen: (url: string) => void;
-  /** 検索窓にキーを向ける関数を受け取る（リーダーの o u） */
+  /** 検索窓にキーを向ける関数を受け取る（ブラウザのタブの窓の u） */
   focusRef: (focus: () => void) => void;
 }): JSX.Element {
   let input!: HTMLInputElement;

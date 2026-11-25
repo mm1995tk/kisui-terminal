@@ -606,6 +606,63 @@ describe("機能の持ち物のつなぎ（compose.ts）", () => {
     assert.ok(ui.includes("focusTerminal"));
   });
 
+  it("内蔵ブラウザ：ブラウザのタブの窓の操作（runBrowserOn）は、指したタブに行う。無いタブ・ページの無いタブには何もしない (#459)", async () => {
+    const { f, browserCalls } = start({
+      serves: { [LOCAL]: { ids: ["a"], focus: "a" } },
+      browser: true,
+    });
+    await settle();
+    f.commands.runCommand({ id: "browser.new" });
+    await settle();
+    const first = f.pages.shownBrowserTab()!;
+    f.pages.submitUrlBar(first.id, "https://example.com/");
+    await settle();
+    f.commands.runCommand({ id: "browser.new" });
+    await settle();
+    const second = f.pages.shownBrowserTab()!;
+    assert.notEqual(second.id, first.id);
+    // 出しているのは 2 つ目（新しいタブのページ）。指した 1 つ目に行う
+    browserCalls.length = 0;
+    f.commands.runBrowserOn(first.id, "reload");
+    f.commands.runBrowserOn(first.id, "back");
+    await settle();
+    assert.deepEqual(browserCalls, [
+      `nav ${first.id} reload`,
+      `nav ${first.id} back`,
+    ]);
+    // ページの無いタブ（新しいタブのページ）と、無いタブには何もしない
+    browserCalls.length = 0;
+    f.commands.runBrowserOn(second.id, "reload");
+    f.commands.runBrowserOn("gone", "reload");
+    await settle();
+    assert.deepEqual(browserCalls, []);
+  });
+
+  it("内蔵ブラウザ：browser.rename・browser.close（設定の近道。#459 で木から外した）は、タブ共通の処理で、ブラウザのタブを出しているときだけ動く", async () => {
+    const { f } = start({
+      serves: { [LOCAL]: { ids: ["a"], focus: "a" } },
+      browser: true,
+    });
+    await settle();
+    // ターミナルのタブを出している間は、名前を変えない・閉じない
+    f.commands.runCommand({ id: "browser.rename" });
+    f.commands.runCommand({ id: "browser.close" });
+    await settle();
+    assert.equal(f.tabs.renamingTab(), null);
+    assert.equal(f.workspaces.gws().list[0]!.tabs.length, 1);
+    f.commands.runCommand({ id: "browser.new" });
+    await settle();
+    const tab = f.pages.shownBrowserTab()!;
+    f.commands.runCommand({ id: "browser.rename" });
+    await settle();
+    assert.ok(f.tabs.renamingTab()?.key.includes(tab.id));
+    f.tabs.cancelTabRename();
+    f.commands.runCommand({ id: "browser.close" });
+    await settle();
+    assert.equal(f.browserTabs.tabs().tabs.length, 0);
+    assert.equal(f.workspaces.gws().list[0]!.tabs.length, 1);
+  });
+
   it("内蔵ブラウザ：読み込みが失敗したままのタブの「読み込み直す」は、前のページでなく、開けなかった URL を開き直す (#432)", async () => {
     const { f, browserCalls, loadFailed } = start({
       serves: { [LOCAL]: { ids: ["a"], focus: "a" } },
@@ -628,7 +685,7 @@ describe("機能の持ち物のつなぎ（compose.ts）", () => {
       h({ tab: tab.id, url: failed, reason: "cert-untrusted", detail: "" });
     await settle();
     assert.equal(f.pages.shownBrowserTab()?.loadError?.url, failed);
-    // リーダーの o r・Cmd+R も、失敗の表示の「もう一度開く」（navPage）も、開けなかった URL を開く
+    // ブラウザのタブの窓の r・Cmd+R も、失敗の表示の「もう一度開く」（navPage）も、開けなかった URL を開く
     browserCalls.length = 0;
     f.commands.runCommand({ id: "browser.reload" });
     f.pages.navPage(tab.id, "reload");
@@ -644,7 +701,7 @@ describe("機能の持ち物のつなぎ（compose.ts）", () => {
     assert.deepEqual(browserCalls, [`nav ${tab.id} back`]);
   });
 
-  it("内蔵ブラウザ：読み込み中は、リーダーの o c・URL バーの「×」・ページの Esc のどれでも止まる。読み込み中でなければ何もしない (#449)", async () => {
+  it("内蔵ブラウザ：読み込み中は、ブラウザのタブの窓の c・URL バーの「×」・ページの Esc のどれでも止まる。読み込み中でなければ何もしない (#449)", async () => {
     const { f, browserCalls, loading, escape } = start({
       serves: { [LOCAL]: { ids: ["a"], focus: "a" } },
       browser: true,
@@ -658,7 +715,7 @@ describe("機能の持ち物のつなぎ（compose.ts）", () => {
     const send = (l: boolean, progress = 0) => {
       for (const h of loading) h({ tab: tab.id, loading: l, progress });
     };
-    // 読み込み中でなければ、o c も Esc も何もしない（Esc はページが受けるだけ）
+    // 読み込み中でなければ、browser.stop も Esc も何もしない（Esc はページが受けるだけ）
     browserCalls.length = 0;
     f.commands.runCommand({ id: "browser.stop" });
     for (const h of escape) h({ tab: tab.id });
