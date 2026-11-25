@@ -20,6 +20,14 @@ describe("ワークスペースの窓の初めの列（#454）", () => {
     assert.equal(c.selectedTab()?.key, "b");
   });
 
+  it("tab を指して、タブの無いワークスペースで開いたら、あとでタブのあるワークスペースを選んでも、左の列のまま", () => {
+    let cur = row(undefined);
+    const c = createSwitcherColumns(() => cur, "tab");
+    assert.equal(c.activeCol(), "ws");
+    cur = row("b", "a", "b");
+    assert.equal(c.activeCol(), "ws");
+  });
+
   it("tab を指しても、タブが無いワークスペースでは左のまま（操作できなくならない）", () => {
     const c = createSwitcherColumns(() => row(undefined), "tab");
     assert.equal(c.activeCol(), "ws");

@@ -1,5 +1,5 @@
 // ワークスペースを切り替える窓（WorkspaceSwitcher.tsx）の 2 つの列：キーが効いている列と、右の列で選んでいるタブ。
-import { createMemo, createSignal } from "solid-js";
+import { createMemo, createSignal, untrack } from "solid-js";
 
 import type { Row, TabItem } from "../../../features/workspaces/rows.ts";
 import { moveRow } from "../../../features/sessions/machineList.ts";
@@ -16,9 +16,12 @@ export function createSwitcherColumns(
   selected: () => Row | undefined,
   initial: Col = "ws",
 ) {
-  const [col, setCol] = createSignal<Col>(initial);
   const [tabSel, setTabSel] = createSignal<string | undefined>();
   const tabs = (): readonly TabItem[] => selected()?.tabs.items ?? [];
+  // 初めの列は、開いた時点でタブがあるときだけ右にする。タブが無いのに "tab" で始めると、あとで左の列で、タブのあるワークスペースを選んだ瞬間に、キーが右の列へ勝手に移る
+  const [col, setCol] = createSignal<Col>(
+    initial === "tab" && untrack(tabs).length > 0 ? "tab" : "ws",
+  );
   /** いまキーが効いている列 */
   const activeCol = (): Col =>
     col() === "tab" && tabs().length > 0 ? "tab" : "ws";
