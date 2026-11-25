@@ -25,7 +25,7 @@ import { tauriTransferOs } from "./infrastructure/tauri/transfer.ts";
 import { tauriUpdates } from "./infrastructure/tauri/updates.ts";
 import { uiLanguage, windowLabel } from "./infrastructure/tauri/window.ts";
 import type { Ports } from "./ui/ports.ts";
-import { watchTextInputs } from "./ui/styles/textInputDefaults.ts";
+import { watchTextInputs } from "./ui/components/textInputDefaults.ts";
 
 // dragDropEnabled: false なので、OS からのドロップは WebView に届く。受け付けた欄（TerminalView）が止めなかった
 // ドロップは、既定の動き（落とされた URL に画面が置き換わる）にならないよう、ここで断る
