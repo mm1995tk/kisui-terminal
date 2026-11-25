@@ -343,13 +343,13 @@ P13-09（#385）で `Core` を `core` に移し、分割を終えた。`ui/tui` 
 | `term.exit` | ← GUI | 通知 `{termId, code?, signal?}`。シェルが終わった。プライマリターミナルのシェルが終わったときは、ワークスペースを閉じる（か、分割したターミナルを昇格させる）のが先で、そのあとに届く（このとき `termId` のターミナルはもう無く、`term.attach` は `not_found`）。`code` は、`kisui serve` が引き継いだシェル（前の `kisui serve` が始めたもの。子ではないので終了コードが分からない）では無い。送り残した `term.output` より先に届くことがある（GUI は `term.exit` のあとも `term.attach` で画面を取り直して残りを受ける）。溢れて捨てられた分は `term.output` の `seq` が飛んで届くので、欠けは `seq` の連続性で分かる |
 | `term.title` | ← GUI | 通知 `{termId, title}` |
 
-- 終わったプライマリターミナルは `alive: false` のまま残り、ワークスペースを消さない（「ワークスペース」の節の 11）。
+- 終わったプライマリターミナルが `alive: false` のまま残るのは、`kisui pane open` のコマンドが終わったときだけ（ワークスペースは消さない）。シェルが終わったときは、ワークスペースごと閉じるか、分割したターミナルが昇格して元のペインが閉じるので、ターミナルは残らない（「ワークスペース」の節の 11）。
 - JSON では base64 にするので出力が約 1.33 倍になる。MessagePack に変えれば生のバイト列で送れる。「速さが足りなければ MessagePack に」が一番効くのはここ。
 - ターミナルの中身を読む `ui/tui/vt` は TUI だけで使う。GUI ではサーバーは PTY のバイト列をそのまま中継する（ふだんの `term.output`）。画面の状態はペインごとの coneko-term（`internal/emulator`、wasm）が別に持ち、`term.attach` で取り直すときだけ使う。コマンドの終了を知らせる印（`command-end`、`shellint`）は、サーバーでは取り出さない（B6 で確かめた）。バイト列は coneko-term にそのまま届くので、印が要る機能は GUI の側（coneko-term の `registerOscHandler`）で拾う。サーバーが出力から読むのはタイトル（OSC 0 / 2）だけ。
 - GUI の側（F1）で決めた細部（`app/src/features/terminal/link.ts`）：
   - `term.output` の `seq` は、そのかたまりの終わりのバイト数の累計。GUI は書いた分の `seq` を覚え、かたまりの始め（`seq` − 長さ）がそれより先なら欠けとみなして `term.attach` で取り直す。重なる分は捨てる。
   - `term.ack` は coneko-term が書き終えた（`write` のコールバックが来た）ときに返す。画面が遅れると shj が送るのを待つので、大量の出力でも WebView が詰まらない。
-  - `term.attach` の返事を受け取ったら、画面を `reset` してから `snapshot` を書き、`seq` を覚える。取り直した分は ack の窓の外なので、coneko-term が書き終えるまでは次の `term.attach` を送らず、その間の欠けは書き終えてから 1 回だけ取り直す（coneko-term に積まれる量を「書き出し 1 回分 + ack の窓」までにする）。書き出しは画面を置き換えるので、終わったプライマリの「Enter で作り直す」の知らせは取り直したあとにもう一度出す。
+  - `term.attach` の返事を受け取ったら、画面を `reset` してから `snapshot` を書き、`seq` を覚える。取り直した分は ack の窓の外なので、coneko-term が書き終えるまでは次の `term.attach` を送らず、その間の欠けは書き終えてから 1 回だけ取り直す（coneko-term に積まれる量を「書き出し 1 回分 + ack の窓」までにする）。書き出しは画面を置き換えるので、終わっても残ったプライマリのペイン（`kisui pane open` のコマンド）の「Enter でシェルを開く」の知らせは、取り直したあとにもう一度出す。
   - `term.attach` の返事を待つ間に届いた `term.output` は取っておき、返事のあとに `seq` でつなぐ（`seq` までの分は書き出しに入っているので捨て、それより先の分を書く。欠けがあれば取り直す）。`kisui serve` は、`term.attach` を受けた時点で `seq` までを送った・ack したものとして続きを流すので、返事より先に `seq` より先の `term.output` が届くことがある。キー入力はその間も送る（`yes` を止める Ctrl+C を落とさない）。`term.create` の返事より先に `term.output` が届くことがあるので、作ったら `term.attach` で取り直す。
   - 右のペインに出すのは、フォーカスしているワークスペース（無ければ最初につながったマシンの最初のワークスペース）のターミナル。プライマリのシェルが終わったら、`kisui serve` がターミナルのタブごと閉じる（`workspace.changed` の `removed`）ので、GUI は知らせを出さず、Enter も待たない（ターミナルが `kisui serve` に無い = `term.attach` が `not_found`・`term.list` に無いときは、作り直せないので何も出さない）。終わってもプライマリのペインが残るのは `kisui pane open` のコマンドが終わったときで、このときだけ知らせを出し、Enter で `term.restart` する。画面を外している間や切れている間に終わると `term.exit` が届かないので、付け直し・つなぎ直しのあとに `term.list` で生きているかを確かめ、`term.input`・`term.resize` が `not_found` のときも `term.list` で確かめる。
 - GUI の側（F2）：帯を押して `workspace.focus` が受け付けられたら、そのワークスペースのプライマリターミナル（返事の `termId`）に切り替え、画面の状態を取り直して描く（前のシェルは止めない）。どのワークスペースにも必ずプライマリターミナルがあるので、ターミナルを探して作る処理は要らない。切り替えたターミナルの大きさが画面と違えば `term.resize` で合わせる。
