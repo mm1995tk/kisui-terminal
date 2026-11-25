@@ -16,7 +16,7 @@
 //! - ページの Esc は、ページのスクリプトが「Esc が押された」とだけ殻に知らせる（browser_keys.js）。殻はそれを画面に
 //!   そのまま渡し、止めるかどうかは画面が決める（読み込み中のタブだけ止める）。
 
-use std::collections::HashSet;
+use std::collections::HashMap;
 use std::sync::{mpsc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
@@ -43,6 +43,7 @@ struct Loading {
     progress: u8,
 }
 
+/// ページで Esc が押された知らせ（`browser-escape`）の中身。どのタブで押されたか。
 #[derive(Serialize, Clone, Debug)]
 pub struct Escape {
     pub tab: String,
@@ -53,16 +54,19 @@ pub struct Escape {
 enum Sample {
     /// タブの webview が無い（作る前・閉じた）
     Missing,
+    /// メインスレッドが詰まっていて、時間内に読めなかった（また読む）
+    Busy,
     Read {
         loading: bool,
         progress: u8,
     },
 }
 
-/// 状態を見ているタブ。同じタブを 2 つ見ない。
-fn running() -> &'static Mutex<HashSet<String>> {
-    static RUNNING: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
-    RUNNING.get_or_init(|| Mutex::new(HashSet::new()))
+/// 状態を見ているタブ → 見張りへの「遷移が始まった」の数。同じタブを 2 つ見ない。
+/// 見張りが終わりかけているところに次の遷移が重なったときは、数が変わるので、見張りは終わらずに数え直す。
+fn running() -> &'static Mutex<HashMap<String, u64>> {
+    static RUNNING: OnceLock<Mutex<HashMap<String, u64>>> = OnceLock::new();
+    RUNNING.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
 fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
@@ -77,37 +81,52 @@ fn percent(p: f64) -> u8 {
     (p.clamp(0.0, 1.0) * 100.0).round() as u8
 }
 
-/// タブの読み込みの状態を見始める（遷移が始まった）。もう見ていれば何もしない。どのスレッドから呼んでもよい。
+/// タブの読み込みの状態を見始める（遷移が始まった）。もう見ていれば、見張りに遷移が増えたことを伝える。
+/// どのスレッドから呼んでもよい。
 pub fn watch(app: &AppHandle, tab: &str) {
-    if !lock(running()).insert(tab.to_string()) {
-        return;
+    {
+        let mut m = lock(running());
+        if let Some(n) = m.get_mut(tab) {
+            *n += 1;
+            return;
+        }
+        m.insert(tab.to_string(), 0);
     }
     let (app, tab) = (app.clone(), tab.to_string());
-    std::thread::spawn(move || {
-        poll(&app, &tab);
-        lock(running()).remove(&tab);
-    });
+    std::thread::spawn(move || poll(&app, &tab));
+}
+
+/// 見張りをやめてよいか。見張りが最後に見た遷移の数（`seen_count`）から増えていなければ、やめる（タブを外す）。
+/// 増えていれば、やめずに数を更新して false を返す（次の遷移を、はじめから見る）。
+fn finish(tab: &str, seen_count: &mut u64) -> bool {
+    let mut m = lock(running());
+    match m.get(tab) {
+        Some(n) if n != seen_count => {
+            *seen_count = *n;
+            false
+        }
+        _ => {
+            m.remove(tab);
+            true
+        }
+    }
 }
 
 fn poll(app: &AppHandle, tab: &str) {
-    let started = Instant::now();
+    let mut count = 0u64;
+    let mut started = Instant::now();
     let mut seen = false;
     let mut last: Option<(bool, u8)> = None;
     loop {
         std::thread::sleep(POLL);
-        match sample(app, tab) {
-            Sample::Missing => {
-                // 作る前なら待つ。閉じたなら、何も知らせずにやめる
-                if seen || started.elapsed() > GRACE {
-                    return;
-                }
-            }
+        let over = match sample(app, tab) {
+            // 作る前なら待つ。閉じたなら、何も知らせずにやめる
+            Sample::Missing => seen || started.elapsed() > GRACE,
+            Sample::Busy => false,
             Sample::Read { loading, progress } => {
                 let now = (loading, if loading { progress } else { 0 });
                 if loading {
                     seen = true;
-                } else if !seen && started.elapsed() > GRACE {
-                    return;
                 }
                 if (loading || seen) && last != Some(now) {
                     last = Some(now);
@@ -120,10 +139,16 @@ fn poll(app: &AppHandle, tab: &str) {
                         },
                     );
                 }
-                if seen && !loading {
-                    return;
-                }
+                !loading && (seen || started.elapsed() > GRACE)
             }
+        };
+        if over {
+            if finish(tab, &mut count) {
+                return;
+            }
+            // やめる前に次の遷移が来た。はじめから見る
+            started = Instant::now();
+            seen = false;
         }
     }
 }
@@ -140,7 +165,7 @@ fn sample(app: &AppHandle, tab: &str) -> Sample {
     {
         return Sample::Missing;
     }
-    rx.recv_timeout(SAMPLE_TIMEOUT).unwrap_or(Sample::Missing)
+    rx.recv_timeout(SAMPLE_TIMEOUT).unwrap_or(Sample::Busy)
 }
 
 #[cfg(target_os = "linux")]
