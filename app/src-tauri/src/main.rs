@@ -14,6 +14,7 @@ mod clipboard_history;
 mod clipboard_popup;
 mod config;
 mod connection;
+mod cookie_check;
 mod download;
 mod export;
 mod favicon;

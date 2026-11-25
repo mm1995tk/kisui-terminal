@@ -164,6 +164,10 @@ native messaging の決まりどおり、1 つのメッセージは JSON 1 つ�
   - Secure・HttpOnly は、送られたとおりに入れる（false のものに印を付けない。macOS の WebView は、wry に false と渡しても
     Secure・HttpOnly にするので、false のときは渡さない。HttpOnly になると、Google のページのスクリプトが `SAPISID` などを読めず、
     ログインした状態にならない。#276）。
+  - 入れた後に内蔵ブラウザの Cookie を読み戻し、Secure・HttpOnly・SameSite・期限・path が渡したとおりかを確かめる（#476）。
+    食い違えば、入れたものはそのままにして、ログに出し、窓の右下の「できなかったこと」で知らせる（Cookie の値は出さない）。
+    答え（`done`）は変わらない。domain が host だけかサブドメインにも送られるかは、読み戻しでは分からない
+    （wry が読み戻した domain の先頭の `.` を落とすため）。
 
 答え（入れた）：
 

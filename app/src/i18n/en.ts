@@ -211,6 +211,8 @@ export const en = {
   "err.url.open": "Could not open the URL",
   "err.download.open": "Could not open {name}",
   "err.download.reveal": "Could not show the folder of {name}",
+  "err.browser.cookieMismatch":
+    "Some cookies copied from the external browser were not stored in the built-in browser as sent",
   "button.close": "Close",
   "download.done.title": "Downloaded",
   "download.done.text":
