@@ -23,6 +23,7 @@ import {
   confirmKey,
   holdHints,
   holdKey,
+  newTabInputHints,
   newTabKindHints,
   switcherHints,
   switcherKey,
@@ -565,9 +566,11 @@ export function WorkspaceSwitcher(props: {
   const hints = () =>
     hold.held()
       ? holdHints()
-      : newTab.choosing()
-        ? newTabKindHints()
-        : switcherHints(activeCol(), tabs().length > 0);
+      : newTab.creating()
+        ? newTabInputHints()
+        : newTab.choosing()
+          ? newTabKindHints()
+          : switcherHints(activeCol(), tabs().length > 0);
 
   return (
     <ModalCard

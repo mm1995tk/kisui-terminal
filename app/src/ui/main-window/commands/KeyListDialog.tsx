@@ -11,11 +11,11 @@ import {
   leaderKeyName,
 } from "../../../features/commands/commands.ts";
 import { KeyHints } from "../../components/KeyHints.tsx";
-import { ModalCard, CardFooter } from "../../components/Card.tsx";
+import { ModalCard } from "../../components/Card.tsx";
 import { IS_MAC } from "../../../features/commands/guiKeys.ts";
 import {
   isWindowPlace,
-  PLACE_KEYS,
+  placeKeys,
   type Place,
 } from "../../../features/commands/placeKeys.ts";
 import styles from "./KeyListDialog.module.css";
@@ -37,7 +37,7 @@ export function openKeyList(first?: Place | readonly Place[]): void {
 
 /** 場所 1 つのキーの表。 */
 function PlaceSection(props: { place: Place }): JSX.Element {
-  const pl = () => PLACE_KEYS[props.place];
+  const pl = () => placeKeys()[props.place];
   return (
     <section class={`${styles.part} ${styles.first}`}>
       <h2 class={styles.subtitle}>{pl().title}</h2>
@@ -75,9 +75,8 @@ export function KeyListDialog(): JSX.Element {
         focusSelf
         header={<h1 class={styles.title}>{T("keys.label")}</h1>}
         footer={
-          <CardFooter>
-            <KeyHints items={[{ keys: ["Esc"], label: T("basic.close") }]} />
-          </CardFooter>
+          // ModalCard が footer を CardFooter（上に線）に入れるので、ここでは入れない（入れると線が 2 本になる）
+          <KeyHints items={[{ keys: ["Esc"], label: T("basic.close") }]} />
         }
       >
         <div class={styles.body}>

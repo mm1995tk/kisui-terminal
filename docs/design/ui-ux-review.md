@@ -54,7 +54,7 @@ kisui-terminal の窓（`app/src/`）の表示と操作を、画面をまたい�
 - **再現する操作**：リーダー `m`・`w`・`o B`（#459 からは、ブラウザのタブでリーダー `a` → `B`）・`y`・`t m`（#454 からはリーダーに無い。設定の近道の `tab.moveTo`）・`c s` で、それぞれの窓を開いて下の段を見比べる。
 - **利用者への影響**：同じ「選ぶ・決める・やめる」が、窓ごとに違う場所・違う字・違う順で出る。操作の多い窓ではヒントが 2〜3 行になり、基本の操作が埋もれる。
 - **そろえ方**（4.7 の決まり）：下の段（共通フッタ）には基本操作だけを、どの窓でも同じ順・同じ字で出す。詳しい操作は `?` で出す。`?` の一覧は、その窓のキーだけを出す。
-- **根拠**：`ui/components/KeyFooter.tsx`、`features/commands/placeKeys.ts` の `basicHints` と `PLACE_KEYS`、`ui/main-window/commands/KeyListDialog.tsx`。
+- **根拠**：`ui/components/KeyFooter.tsx`、`features/commands/placeKeys.ts` の `basicHints` と `placeKeys()`、`ui/main-window/commands/KeyListDialog.tsx`。
 - **優先度**：中。
 
 まだ文のままのヒント（そろえていない。5 章の案 G）：

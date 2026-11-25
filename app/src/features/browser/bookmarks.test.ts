@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { PLACE_KEYS } from "../commands/placeKeys.ts";
+import { placeKeys } from "../commands/placeKeys.ts";
 import { chromeTreeFromLoaded } from "./bookmarkTree.ts";
 import {
   addBookmark,
@@ -121,7 +121,7 @@ describe("ブックマークの一覧のキー（bookmarkKey）", () => {
   });
 
   it("`?` の一覧の表のキーは、どれも判定が受ける", () => {
-    for (const r of PLACE_KEYS.bookmarks.rows)
+    for (const r of placeKeys().bookmarks.rows)
       for (const p of r.probes)
         assert.notEqual(
           bookmarkKey(ev(p, p === "?" ? "s" : ""), true),

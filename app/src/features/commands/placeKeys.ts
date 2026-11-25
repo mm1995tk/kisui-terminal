@@ -10,7 +10,7 @@
 
 import { isComposingKey } from "./ime.ts";
 import type { KeyLike } from "./guiKeys.ts";
-import { T } from "../../i18n/index.ts";
+import { lang, T, type Lang } from "../../i18n/index.ts";
 
 /** キーがそれぞれに決まっている場所。 */
 export type Place =
@@ -59,7 +59,7 @@ const row = (
  * 場所ごとの、`?` の一覧に出す行の表。キーを実際に受けるのは各場所の判定（features/file-tree/keys.ts など）で、
  * placeKeys.test.ts が、表のキーを判定が受けることを確かめる。
  */
-export const PLACE_KEYS: Record<Place, PlaceKeys> = {
+const buildPlaceKeys = (): Record<Place, PlaceKeys> => ({
   tree: {
     title: T("place.tree.title"),
     lead: T("place.tree.lead"),
@@ -476,7 +476,19 @@ export const PLACE_KEYS: Record<Place, PlaceKeys> = {
       row("Esc", T("place.dbTree.back"), ["Escape"]),
     ],
   },
-};
+});
+
+let built: { lang: Lang; keys: Record<Place, PlaceKeys> } | undefined;
+
+/**
+ * 場所ごとの表を、今の言語で作る（呼ぶたびに引き直す。言語が変わらなければ同じものを返す）。言語を決める前に、この表を読み込む import（index.tsx の履歴の窓の
+ * 部品からの import など）が通っても英語に固まらないよう、読み込んだときには作らず、使うときに作る（言語が変われば作り直す）。
+ */
+export function placeKeys(): Record<Place, PlaceKeys> {
+  const l = lang();
+  if (built?.lang !== l) built = { lang: l, keys: buildPlaceKeys() };
+  return built.keys;
+}
 
 /**
  * 真ん中に出す窓（ModalCard）の場所。窓が出ている間はリーダーに入れないので、
@@ -508,7 +520,7 @@ export interface BasicHint {
 
 /**
  * 窓の下の段（共通フッタ）に出す基本操作。どの窓でも「選ぶ → 移る → 決める → `?` → やめる・閉じる」の順に並べ、
- * 同じ役割には同じ字を使う。これより詳しい操作（作る・名前を変える・並べ替えるなど）は、`?` の一覧（PLACE_KEYS）にだけ出す。
+ * 同じ役割には同じ字を使う。これより詳しい操作（作る・名前を変える・並べ替えるなど）は、`?` の一覧（placeKeys()）にだけ出す。
  * - select：選ぶ行を動かすキー。省くと j k（入力欄に字を打つ窓は ↓ ↑ を渡す）
  * - move：選ぶ以外の移るキー（切り替える窓の列を移る h・l）
  * - decide：Enter で決める操作の字。省くと Enter を出さない（Enter で決めるものが無い窓）

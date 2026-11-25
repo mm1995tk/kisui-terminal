@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import type { KeyLike } from "../../../features/commands/guiKeys.ts";
-import { PLACE_KEYS } from "../../../features/commands/placeKeys.ts";
+import { placeKeys } from "../../../features/commands/placeKeys.ts";
 import {
   splitDirKey,
   terminalWindowHints,
@@ -71,7 +71,7 @@ describe("ターミナルのタブの窓のキー", () => {
   });
 
   it("`?` の一覧の表（placeKeys.ts の termWindow）のキーを、判定が受ける", () => {
-    for (const r of PLACE_KEYS.termWindow.rows)
+    for (const r of placeKeys().termWindow.rows)
       for (const p of r.probes)
         assert.notEqual(
           terminalWindowKey(key(p, { shiftKey: /^[A-Z?]$/.test(p) })),

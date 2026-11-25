@@ -164,6 +164,18 @@ export function newTabKindHints(): BasicHint[] {
 }
 
 /**
+ * ターミナルのタブを作る名前の入力欄にフォーカスがある間に、窓の下に出すキーの説明（欄の中で効くキーだけ。
+ * 欄には字を打つので、j k と `?` は効かない。Tab はマシンを替え、Enter は作り、Esc は作らずにやめる。判定は newTabKey.ts の newTabInputKey）。
+ */
+export function newTabInputHints(): BasicHint[] {
+  return [
+    { keys: ["Tab"], label: T("switcher.keys.machine") },
+    { keys: ["Enter"], label: T("switcher.keys.create") },
+    { keys: ["Esc"], label: T("basic.cancel") },
+  ];
+}
+
+/**
  * タブをつかんでいる間に、窓の下に出すキーの説明（つかんでいる間のキーだけ。どれも基本操作で、`?` は効かないので出さない）。
  * 並びはほかの窓と同じ（選ぶ → 移る → 決める → やめる）。
  */

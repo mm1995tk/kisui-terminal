@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 
 import { browserWindowRows } from "../../../features/browser/window.ts";
 import type { KeyLike } from "../../../features/commands/guiKeys.ts";
-import { PLACE_KEYS } from "../../../features/commands/placeKeys.ts";
+import { placeKeys } from "../../../features/commands/placeKeys.ts";
 import { browserWindowHints, browserWindowKey } from "./browserWindowKey.ts";
 
 const key = (k: string, mods: Partial<KeyLike> = {}): KeyLike => ({
@@ -66,7 +66,7 @@ describe("ブラウザのタブの窓のキー（#459）", () => {
   });
 
   it("`?` の一覧の表（placeKeys.ts の browserWindow）のキーを、判定が受ける", () => {
-    for (const r of PLACE_KEYS.browserWindow.rows)
+    for (const r of placeKeys().browserWindow.rows)
       for (const p of r.probes)
         assert.notEqual(
           browserWindowKey(key(p, { shiftKey: /^[A-Z?]$/.test(p) })),

@@ -2,11 +2,13 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import type { KeyLike } from "../../../features/commands/guiKeys.ts";
-import { PLACE_KEYS } from "../../../features/commands/placeKeys.ts";
+import { newTabInputKey } from "./newTabKey.ts";
+import { placeKeys } from "../../../features/commands/placeKeys.ts";
 import {
   confirmKey,
   holdHints,
   holdKey,
+  newTabInputHints,
   switcherHints,
   switcherKey,
 } from "./switcherKey.ts";
@@ -129,6 +131,13 @@ describe("窓の下の段（共通フッタ）の基本操作", () => {
           assert.notEqual(switcherKey(key(k)), null, `${col}: ${k}`);
   });
 
+  it("タブ名の入力欄にいる間は、欄の中で効くキー（Tab・Enter・Esc）だけを出し、j k や `?` は出さない。どれも欄の判定が受ける", () => {
+    const keys = newTabInputHints().flatMap((h) => h.keys);
+    assert.deepEqual(keys, ["Tab", "Enter", "Esc"]);
+    for (const k of keys)
+      assert.notEqual(newTabInputKey(key(k === "Esc" ? "Escape" : k)), null, k);
+  });
+
   it("つかんでいる間は、つかんでいる間のキーだけを出し（`?` は出さない）、どれも判定が受ける", () => {
     const held = holdHints().flatMap((h) => h.keys);
     assert.deepEqual(held, ["j", "k", "h", "l", "Enter", "Esc"]);
@@ -149,7 +158,7 @@ describe("`?` の一覧の表（placeKeys.ts の switcher・switcherTabs）", ()
 
   it("表のキーは、どれも判定が受ける", () => {
     for (const place of ["switcher", "switcherTabs"] as const)
-      for (const r of PLACE_KEYS[place].rows)
+      for (const r of placeKeys()[place].rows)
         for (const p of r.probes)
           assert.notEqual(
             switcherKey(key(p)),
@@ -161,7 +170,7 @@ describe("`?` の一覧の表（placeKeys.ts の switcher・switcherTabs）", ()
   it("判定が受ける字のキーは、どちらかの列の表にある（表から漏れた操作が無い）", () => {
     const listed = new Set(
       (["switcher", "switcherTabs"] as const).flatMap((place) =>
-        PLACE_KEYS[place].rows.flatMap((r) => r.probes),
+        placeKeys()[place].rows.flatMap((r) => r.probes),
       ),
     );
     for (const k of "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ?")
@@ -170,7 +179,7 @@ describe("`?` の一覧の表（placeKeys.ts の switcher・switcherTabs）", ()
 
   it("下の段に出すキーは、その列の表にもある（下の段は表の一部）", () => {
     const of = (place: "switcher" | "switcherTabs") =>
-      new Set(PLACE_KEYS[place].rows.flatMap((r) => r.keys.split(/[ /]+/)));
+      new Set(placeKeys()[place].rows.flatMap((r) => r.keys.split(/[ /]+/)));
     for (const k of switcherHints("ws", true).flatMap((h) => h.keys))
       assert.ok(of("switcher").has(k), `ws: ${k}`);
     for (const k of switcherHints("tab", true).flatMap((h) => h.keys))
