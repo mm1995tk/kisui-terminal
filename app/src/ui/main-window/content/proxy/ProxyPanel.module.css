@@ -32,13 +32,52 @@
   border-left-color: var(--state-focus-ring);
 }
 
-/* 頭：カードの見出し（.card-header）と同じ間と字 */
-.head {
-  flex: none;
+/* 左に見出しや説明、右に状態とボタンを寄せた並び（PanelBar.tsx。#422）。パネルの頭・止めている要求の帯・書き換える欄の頭が使う。
+   狭い幅・字の長い言語でどう折り返し、どこを縮め、どこを折らないかは、この段だけで決める。並びの場所ごとの規則（.head・.heldBar・.editHead）は、
+   間・線・地だけを書き、並べ方（display・flex・wrap・white-space）を書かない。
+   - 左（.barLead）は縮む。字は折り返す（省く字は、その字の規則で ellipsis にし、title で全体を読めるようにする）。
+     ただし 16em より狭くなるなら、右を次の行に移して左に幅を回す（説明が細かく折り返さないように）。
+   - 右（.barActions）は右に寄せる。中の 1 つずつ（状態・ボタン）は縮めず字も折らず、入りきらなければ 1 つずつ次の行に移る。
+     1 つずつは、パネルのいちばん狭い幅（layout.css の --proxy-panel-w の 280px）に収まる長さの字にする。 */
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-6) var(--space-8);
+  min-width: 0;
+}
+.barLead {
+  flex: 1 1 16em;
+  min-width: 0;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-4) var(--space-8);
+  overflow-wrap: anywhere;
+}
+.barLead > * {
+  min-width: 0;
+  max-width: 100%;
+}
+.barActions {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  margin-left: auto;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--space-6);
+}
+.barActions > * {
+  flex: none;
+  white-space: nowrap;
+}
+
+/* 頭：カードの見出し（.card-header）と同じ間と字。並べ方は .bar */
+.head {
+  flex: none;
   padding: var(--space-12) var(--space-16);
   border-bottom: 1px solid var(--color-border);
 }
@@ -303,18 +342,10 @@
   color: var(--color-text-muted);
 }
 
-/* 要求を止める切り替え（#411。パネルの頭の右端）と、止めている数 */
-.hold {
-  flex: none;
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: var(--space-8);
-}
+/* 要求を止める切り替え（#411。パネルの頭の右）と、止めている数。並べ方は .bar */
 .holding {
   font-size: var(--text-caption);
   color: var(--state-warning);
-  white-space: nowrap;
 }
 /* ボタン（.button）と同じ形を小さく */
 .holdButton {
@@ -326,7 +357,6 @@
   color: var(--color-text);
   font: inherit;
   font-weight: var(--button-weight);
-  white-space: nowrap;
   cursor: pointer;
 }
 .holdButton:hover {
@@ -338,24 +368,17 @@
   color: var(--state-warning);
 }
 
-/* 止めている要求を選んだときの、流す・書き換える・捨てるの並び（#411。中身の上）。注意の色の帯（左に太い線） */
+/* 止めている要求を選んだときの、流す・書き換える・捨てるの並び（#411。中身の上）。注意の色の帯（左に太い線）。並べ方は .bar */
 .heldBar {
   flex: none;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-8);
   padding: var(--space-10) var(--space-12);
   border-bottom: 1px solid var(--color-border);
   border-left: 3px solid var(--state-warning);
   background: color-mix(in srgb, var(--state-warning) 10%, transparent);
 }
 .heldNote {
-  min-width: 0;
   color: var(--state-warning);
   font-weight: var(--weight-strong);
-  overflow-wrap: anywhere;
 }
 
 /* 送り直した通信（#410）・書き換えて流した通信（#411）の印（一覧のメソッドの欄と、中身の要求の行） */
@@ -371,13 +394,9 @@
   flex-direction: column;
 }
 
+/* 書き換える欄の頭。並べ方は .bar */
 .editHead {
   flex: none;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-8);
   padding: var(--space-10) var(--space-12);
   border-bottom: 1px solid var(--color-border);
   background: var(--color-surface);
@@ -388,16 +407,6 @@
   font-size: var(--text-body);
   letter-spacing: normal;
   text-transform: none;
-}
-
-.editActions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-6);
-}
-/* 狭い幅では、ボタンを縮めず、ボタンごと次の行に移す（#422。字を折り返さない決まりは button.css） */
-.editActions > * {
-  flex: none;
 }
 
 .requestLine {

@@ -1,4 +1,5 @@
 // プロキシのパネル（#409。ProxyPanel.tsx）を、アプリと同じ部品・CSS・字・翻訳で出す。
+import type { JSX } from "solid-js";
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
 
 import type { ProxyPanelState } from "../../../../features/proxy/controller.ts";
@@ -8,6 +9,7 @@ import type {
   ProxyFlow,
   ProxyFlowDetail,
 } from "../../../../infrastructure/rpc/protocol.ts";
+import { barProblems } from "./barCheck.ts";
 import { ProxyPanel } from "./ProxyPanel.tsx";
 
 const flow = (id: number, over: Partial<ProxyFlow> = {}): ProxyFlow => ({
@@ -245,27 +247,56 @@ export const EditingHeld: Story = {
   },
 };
 
-/** 狭い幅（右のペインが 800px、パネルが 360px）。大きさと時間の列をやめ、ホストとパスに幅を回す。 */
+/** パネルを width の幅にして出す（右のペインは 800px）。 */
+const narrow = (width: string) => [
+  (Story: () => JSX.Element) => (
+    <div
+      style={{
+        position: "relative",
+        width: "800px",
+        height: "560px",
+        "--proxy-panel-w": width,
+      }}
+    >
+      <Story />
+    </div>
+  ),
+];
+
+/**
+ * 並び（PanelBar.tsx）が崩れていないかを、出したあとに確かめる（#422。barCheck.ts）。崩れていれば、story が失敗する。
+ * パネルのいちばん狭い幅（layout.css の --proxy-panel-w の 280px）で、字の長い日本語と英語の両方で出す。
+ */
+const narrowest: Pick<Story, "decorators" | "play"> = {
+  decorators: narrow("280px"),
+  play: async ({ canvasElement }) => {
+    await document.fonts.ready;
+    const problems = barProblems(canvasElement);
+    if (problems.length > 0) throw new Error(problems.join("\n"));
+  },
+};
+const ja = { globals: { lang: "ja" } };
+
+/** 狭い幅（パネルが 360px）。大きさと時間の列をやめ、ホストとパスに幅を回す。 */
 export const Narrow: Story = {
   args: { panel: panel({ selected: undefined, detail: undefined }) },
-  decorators: [
-    (Story) => (
-      <div
-        style={{
-          position: "relative",
-          width: "800px",
-          height: "560px",
-          "--proxy-panel-w": "360px",
-        }}
-      >
-        <Story />
-      </div>
-    ),
-  ],
+  decorators: narrow("360px"),
 };
 
-/** 狭い幅で、止めている要求を選んでいる（#422）。ボタンの字は 1 行、頭の待ち受け口は読め、説明は細かく折り返さない。 */
-export const HoldingNarrow: Story = {
-  args: Holding.args,
-  decorators: Narrow.decorators,
+/** いちばん狭い幅で、止めている要求を選んでいる（#422）。頭の止めるボタン・帯のボタンは窓に収まり字は 1 行、頭の待ち受け口は title で読め、説明は細かく折り返さない。 */
+export const HoldingNarrowest: Story = { args: Holding.args, ...narrowest };
+export const HoldingNarrowestJa: Story = { ...HoldingNarrowest, ...ja };
+
+/** いちばん狭い幅で、要求を書き換えている（#422。書き換える欄の頭）。 */
+export const EditingNarrowest: Story = { args: Editing.args, ...narrowest };
+export const EditingNarrowestJa: Story = { ...EditingNarrowest, ...ja };
+
+/** いちばん狭い幅で、止めている要求を書き換えている（#422。止めている間の頭と、書き換える欄の頭）。 */
+export const EditingHeldNarrowest: Story = {
+  args: EditingHeld.args,
+  ...narrowest,
+};
+export const EditingHeldNarrowestJa: Story = {
+  ...EditingHeldNarrowest,
+  ...ja,
 };
