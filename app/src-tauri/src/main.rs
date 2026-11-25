@@ -127,7 +127,7 @@ fn askpass_reply(state: State<AppState>, request_id: u64, value: Option<String>)
     state.askpass.reply(request_id, value);
 }
 
-/// tauri の設定（tauri.conf.json）。内蔵ブラウザの DevTools（リーダーの `o i`。#205）のために tauri の feature `devtools` を入れて
+/// tauri の設定（tauri.conf.json）。内蔵ブラウザの DevTools（ブラウザのタブの窓の `i`。#205）のために tauri の feature `devtools` を入れて
 /// いるので、release では、メイン窓（kisui-terminal の画面）の DevTools を切る（タブのページだけで使う。browser.rs の tab_builder）。
 fn context() -> tauri::Context<tauri::Wry> {
     #[allow(unused_mut)]
