@@ -307,6 +307,10 @@ fn remove(doc: &mut DocumentMut, list: &List, key: &str) -> Result<(), EditError
             let t = a.get(at).expect("上で見つけた");
             let kept = kept_comments(t.decor().prefix().and_then(|p| p.as_str()));
             removed = t.position().map(|p| (p, kept));
+            // 消す 1 件の配下の表（`[[db.connections.variants]]`）は一緒に消えるので、付け替える先にしない
+            let mut inner = Vec::new();
+            table_positions(t, &mut inner);
+            positions.retain(|p| !inner.contains(p));
             a.remove(at);
             if a.is_empty() {
                 parent.remove(list.name);
@@ -782,6 +786,22 @@ mod tests {
             after(&DB_CONNECTIONS, &out2, remove("store")).unwrap(),
             "[db.permissions.r]\nrun = \"read\"\n"
         );
+    }
+
+    // 配下の表（variants）を持つ 1 件を消しても、残すコメントは次の表の前に残り、ファイルは空の行で始まらない
+    #[test]
+    fn remove_entry_with_nested_tables() {
+        let entry = "[[db.connections]]\nname = \"a\"\n[[db.connections.variants]]\nname = \"dev\"\n\n[[db.connections.variants]]\nname = \"prod\"\n";
+        let rest = "[[db.connections]]\nname = \"b\"\n";
+        let rm = |src: &str| after(&DB_CONNECTIONS, src, remove("a")).unwrap();
+        assert_eq!(
+            rm(&format!("# header\n\n{entry}\n{rest}")),
+            format!("# header\n\n{rest}")
+        );
+        // コメントの無いファイルの頭の 1 件
+        assert_eq!(rm(&format!("{entry}\n{rest}")), rest);
+        // 次の表が無ければ、コメントはファイルの終わりに残る
+        assert_eq!(rm(&format!("# header\n\n{entry}")), "# header\n");
     }
 
     // 一覧の形でないものには書かない
