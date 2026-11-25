@@ -112,17 +112,20 @@ type handoverTerm struct {
 	Cwd       string `json:"cwd"`
 	Workspace string `json:"workspace"`
 	Primary   bool   `json:"primary"`
-	Token     string `json:"token,omitempty"` // 欄の中のコマンドの秘密（panecmd）。無ければその欄から kisui open は使えない
-	Cols      int    `json:"cols"`
-	Rows      int    `json:"rows"`
-	Title     string `json:"title"`
-	Name      string `json:"name,omitempty"` // 欄の名前（kisui pane title）
-	Alive     bool   `json:"alive"`
-	RingStart int64  `json:"ringStart"` // Ring の先頭の seq
-	Ring      []byte `json:"ring"`      // リングに残っている出力（seq は RingStart から）
-	Sent      int64  `json:"sent"`
-	Acked     int64  `json:"acked"`
-	Screen    []byte `json:"screen"` // 画面の状態の書き出し（seq は RingStart+len(Ring) まで）
+	// KeepOnExit は terminal.keepOnExit（kisui pane open のコマンド。終わってもタブを閉じない）。足した項目で、版は上げない。
+	// 古い serve は送らないので、引き継いだコマンドが終わるとタブが閉じる
+	KeepOnExit bool   `json:"keepOnExit,omitempty"`
+	Token      string `json:"token,omitempty"` // 欄の中のコマンドの秘密（panecmd）。無ければその欄から kisui open は使えない
+	Cols       int    `json:"cols"`
+	Rows       int    `json:"rows"`
+	Title      string `json:"title"`
+	Name       string `json:"name,omitempty"` // 欄の名前（kisui pane title）
+	Alive      bool   `json:"alive"`
+	RingStart  int64  `json:"ringStart"` // Ring の先頭の seq
+	Ring       []byte `json:"ring"`      // リングに残っている出力（seq は RingStart から）
+	Sent       int64  `json:"sent"`
+	Acked      int64  `json:"acked"`
+	Screen     []byte `json:"screen"` // 画面の状態の書き出し（seq は RingStart+len(Ring) まで）
 }
 
 type handoverWS struct {

@@ -2,8 +2,8 @@ package server
 
 // ワークスペース。設計は docs/design/gui-protocol.md の「ワークスペース」。
 //
-// ワークスペースは作業の単位で、フォルダとは 1 対 1 ではない。workspace.create で作り、
-// workspace.close でしか消えない。フォルダは、プライマリターミナルのシェルの cwd だけから決める。
+// ワークスペースは作業の単位で、フォルダとは 1 対 1 ではない。workspace.create で作り、workspace.close か、
+// 最後のターミナルのシェルが終わったとき（primaryExited）に消える。フォルダは、プライマリターミナルのシェルの cwd だけから決める。
 // シェルの cwd を 1 秒に 1 回読み、別のフォルダに変わったら、そのワークスペースのフォルダを切り替える
 // （開いているファイルを保存または捨てて閉じ、core を作り直す）。
 // 開いているファイルはワークスペースごとの core（Cores）が持つ。
@@ -232,31 +232,42 @@ func (w *wsManager) createLocked(wsID, dir, label string, cmd tabCommand) (id, t
 	return st.id, t.id, nil
 }
 
-// promote は、プライマリターミナル old のシェルが終わったとき、同じワークスペースに生きている分割した
-// ターミナルがあれば、その 1 つをプライマリにして、元のプライマリの欄を閉じる（term.close と同じ）。
-// 選ぶのは、いちばん前に作った（id の番号が小さい）もの。分割したターミナルが無ければ何もしない
-// （欄は残り、term.restart で新しいシェルを始める）。分割した欄のシェルにも環境変数
-// SHIJIMI_GUI_PRIMARY（値はその欄の id）を渡してあるので、昇格したあとに起動した shj は名乗れる
-// （昇格の前は claimShj がプライマリでないと断る）。
-func (w *wsManager) promote(old *terminal) bool {
+// primaryExited は、ターミナル old のプロセスが終わったときに呼ぶ。old がプライマリなら、次のどれかをする。
+//
+//   - 同じワークスペースに生きている分割したターミナルがあれば、その 1 つをプライマリにして、元のプライマリの
+//     欄を閉じる（term.close と同じ）。選ぶのは、いちばん前に作った（id の番号が小さい）もの。分割した欄の
+//     シェルにも環境変数 SHIJIMI_GUI_PRIMARY（値はその欄の id）を渡してあるので、昇格したあとに起動した shj は
+//     名乗れる（昇格の前は claimShj がプライマリでないと断る）。
+//   - 昇格させるものが無ければ、ワークスペースを閉じる（workspace.close と同じ。画面ではターミナルのタブが
+//     閉じる。#453）。GUI がつながっていない間に終わっても serve が閉じるので、つなぎ直した GUI にも、
+//     起動し直した serve（workspaces.json）にも、終わったタブは戻らない。
+//   - ただし、kisui pane open のコマンド（terminal.keepOnExit）が終わったときは閉じない。欄は出力と一緒に残り、
+//     term.restart でシェルを始められる（エージェントが kisui pane read で結果を読めるように）。
+func (w *wsManager) primaryExited(old *terminal) {
 	w.recomputeMu.Lock()
 	defer w.recomputeMu.Unlock()
 	old.mu.Lock()
-	primary, wsID := old.primary, old.wsID
+	primary, wsID, alive, keep := old.primary, old.wsID, old.alive, old.keepOnExit
 	old.mu.Unlock()
-	if !primary {
-		return false
+	// alive: 終わったあと、ここに来る前に term.restart で新しいシェルが始まっていた
+	if !primary || alive {
+		return
 	}
-	// ワークスペースやサーバーを閉じている途中で、すでに外されたターミナルのときは何もしない
+	// serve を止めている途中（shutdown がシェルを終わらせた）なら何もしない。ここで閉じると、次の起動で作り直す
+	// ワークスペースの一覧（workspaces.json）から消えてしまう
+	if w.srv.terms.stopping() {
+		return
+	}
+	// ワークスペースを閉じている途中で、すでに外されたターミナルのときは何もしない
 	if t, err := w.srv.terms.get(old.id); err != nil || t != old {
-		return false
+		return
 	}
 	w.mu.Lock()
 	st := w.reg[wsID]
 	ok := st != nil && st.primary == old.id
 	w.mu.Unlock()
 	if !ok {
-		return false
+		return
 	}
 	var next *terminal
 	for _, t := range w.srv.terms.all() { // all は作った順ではないので、番号の小さいものを選ぶ
@@ -274,7 +285,12 @@ func (w *wsManager) promote(old *terminal) bool {
 		}
 	}
 	if next == nil {
-		return false
+		if keep {
+			return
+		}
+		w.closeLocked(wsID)
+		w.srv.log.Info("workspace closed: its last shell exited", "workspace", wsID, "termId", old.id)
+		return
 	}
 	next.mu.Lock()
 	next.primary = true
@@ -285,10 +301,9 @@ func (w *wsManager) promote(old *terminal) bool {
 	w.srv.terms.closeTerm(old.id)
 	w.srv.log.Info("primary promoted", "workspace", wsID, "from", old.id, "to", next.id)
 	w.recomputeLocked()
-	return true
 }
 
-// closeSplit は分割したターミナル id を閉じる。プライマリなら閉じず false。promote と同じ recomputeMu の中で
+// closeSplit は分割したターミナル id を閉じる。プライマリなら閉じず false。primaryExited と同じ recomputeMu の中で
 // 確かめて閉じるので、確かめたあとに昇格したターミナルを閉じてしまうことがない。
 func (w *wsManager) closeSplit(id string) bool {
 	w.recomputeMu.Lock()
@@ -562,13 +577,18 @@ func (w *wsManager) closeWorkspace(id string, force bool) error {
 	if !force && len(w.running(id)) > 0 {
 		return busyError("running")
 	}
+	w.closeLocked(id)
+	return nil
+}
+
+// closeLocked は recomputeMu を持って呼ぶ。id のワークスペースのターミナルを全部終わらせ、ワークスペースを忘れて知らせる。
+func (w *wsManager) closeLocked(id string) {
 	w.srv.terms.closeWorkspace(id)
 	w.srv.proxy.closeWorkspace(id)
 	w.mu.Lock()
 	delete(w.reg, id)
 	w.mu.Unlock()
 	w.recomputeLocked()
-	return nil
 }
 
 // rename は id のワークスペースにユーザーの名前をつける。空（前後の空白を除いて）なら外して、自動の名前に戻す。

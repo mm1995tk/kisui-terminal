@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"maps"
 	"net"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -415,13 +417,28 @@ func TestTermSplitTree(t *testing.T) {
 	}
 }
 
-// プライマリターミナルは term.close で閉じられない。終わったら term.restart で新しいシェルが始まり、
-// termId はそのまま。分割したターミナルに term.restart は送れない。動いているシェルにも送れない。
+// プライマリターミナルは term.close で閉じられない。kisui pane open のコマンド（workspace.create の argv）が
+// 終わっても、ワークスペースは閉じず、欄は出力と一緒に残る。term.restart で新しいシェルが始まり、termId はそのまま。
+// 始めたシェルが終わると、今度はワークスペースが閉じる。分割したターミナルに term.restart は送れない。
+// 動いているプロセスにも送れない。
 func TestTermPrimaryCloseAndRestart(t *testing.T) {
 	_, sock := start(t)
 	c, nt := termClient(t, sock)
 	ctx := context.Background()
-	id, primary := createWS(t, c)
+	hold := filepath.Join(t.TempDir(), "hold")
+	if err := os.WriteFile(hold, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var created struct {
+		ID     string `json:"id"`
+		TermID string `json:"termId"`
+	}
+	// hold のファイルがある間は終わらないコマンド
+	argv := []string{"/bin/sh", "-c", `while [ -e "$0" ]; do sleep 0.05; done; printf cmd-done`, hold}
+	if err := c.Call(ctx, "workspace.create", map[string]any{"argv": argv, "name": "worker"}, &created); err != nil {
+		t.Fatal(err)
+	}
+	id, primary := created.ID, created.TermID
 	split := createTerm(t, c, map[string]any{"workspaceId": id})
 
 	if err := c.Call(ctx, "term.close", map[string]any{"termId": primary}, nil); !isCode(err, rpc.CodeDenied) {
@@ -438,7 +455,9 @@ func TestTermPrimaryCloseAndRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	c.Call(ctx, "term.input", map[string]any{"termId": primary, "data": b64("exit\n")}, nil)
+	if err := os.Remove(hold); err != nil {
+		t.Fatal(err)
+	}
 	waitFor(t, "exit", func() bool {
 		for _, raw := range nt.all("term.exit") {
 			var e struct {
@@ -451,10 +470,17 @@ func TestTermPrimaryCloseAndRestart(t *testing.T) {
 		}
 		return false
 	})
-	// シェルが終わってもワークスペースは残る。
+	// コマンドが終わってもワークスペースは残り、出力を読める（kisui pane read）。
+	time.Sleep(100 * time.Millisecond)
 	var l wsList
 	if err := c.Call(ctx, "workspace.list", map[string]any{}, &l); err != nil || len(l.Workspaces) != 1 || l.Workspaces[0].Primary != primary {
 		t.Fatalf("list: %+v %v", l, err)
+	}
+	if err := c.Call(ctx, "term.attach", map[string]any{"termId": primary}, nil); err != nil {
+		t.Errorf("attach to the ended command: %v", err)
+	}
+	if out, _ := nt.output(t, primary); !bytes.Contains(out, []byte("cmd-done")) {
+		t.Errorf("output of the command: %q", out)
 	}
 	var r struct {
 		PID int    `json:"pid"`
@@ -478,10 +504,15 @@ func TestTermPrimaryCloseAndRestart(t *testing.T) {
 	if out, _ := nt.output(t, primary); !bytes.Contains(out, []byte("again-ok")) {
 		t.Errorf("output after restart: %q", out)
 	}
+	// term.restart で始めたのはシェルなので、終わるとワークスペースが閉じる
+	waitFor(t, "closed with the shell", func() bool {
+		var l wsList
+		return c.Call(ctx, "workspace.list", map[string]any{}, &l) == nil && len(l.Workspaces) == 0
+	})
 }
 
 // プライマリのシェルが終わったとき、分割したターミナルがあれば、その 1 つがプライマリになり、
-// 元のプライマリは閉じる。新しいプライマリのシェルが終わると、今度は term.restart で開き直せる。
+// 元のプライマリは閉じる。新しいプライマリのシェルも終わると、ワークスペースが閉じる。
 func TestTermPrimaryExitPromotesSplit(t *testing.T) {
 	_, sock := start(t)
 	c, _ := termClient(t, sock)
@@ -500,13 +531,14 @@ func TestTermPrimaryExitPromotesSplit(t *testing.T) {
 	if err := c.Call(ctx, "term.attach", map[string]any{"termId": primary}, nil); !isCode(err, rpc.CodeNotFound) {
 		t.Errorf("old primary should be closed: %v", err)
 	}
-	// 昇格したので term.close は断られ、終われば term.restart できる
+	// 昇格したので term.close は断られ、終わればワークスペースが閉じる（もう昇格させるものが無い）
 	if err := c.Call(ctx, "term.close", map[string]any{"termId": split}, nil); !isCode(err, rpc.CodeDenied) {
 		t.Errorf("close promoted: %v", err)
 	}
 	c.Call(ctx, "term.input", map[string]any{"termId": split, "data": b64("exit\n")}, nil)
-	waitFor(t, "restartable", func() bool {
-		return c.Call(ctx, "term.restart", map[string]any{"termId": split}, nil) == nil
+	waitFor(t, "closed with the last shell", func() bool {
+		var l wsList
+		return c.Call(ctx, "workspace.list", map[string]any{}, &l) == nil && len(l.Workspaces) == 0
 	})
 }
 

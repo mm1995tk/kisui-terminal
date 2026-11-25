@@ -124,7 +124,7 @@ func (s *Server) collectTerms(st *handoverState, fds *fdList) error {
 	s.terms.mu.Unlock()
 	for _, t := range s.terms.all() {
 		t.mu.Lock()
-		ht := handoverTerm{ID: t.id, PID: t.pid, FD: -1, Cwd: t.cwd, Workspace: t.wsID, Primary: t.primary, Token: t.token,
+		ht := handoverTerm{ID: t.id, PID: t.pid, FD: -1, Cwd: t.cwd, Workspace: t.wsID, Primary: t.primary, KeepOnExit: t.keepOnExit, Token: t.token,
 			Cols: t.cols, Rows: t.rows, Title: t.title, Name: t.name, Alive: t.alive, Sent: t.sent, Acked: t.acked}
 		ht.RingStart, ht.Ring = t.ringBytes(t.oldest(), t.total)
 		ptmx := t.ptmx

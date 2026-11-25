@@ -928,8 +928,7 @@ pub fn browser_bounds(
 /// `x`・`y`・`w`・`h` は、画面（メインの webview）の左上からの論理ピクセル（画面の DOM で測った場所）。
 /// wry の子の webview は、置く場所を「親の view の高さ」から数える（`window_position`）ので、親の view の枠が画面の枠と
 /// 食い違うと（フルスクリーンでない窓で、タイトルバーの高さだけ）、ページが上にずれて URL バーを覆う（#326）。
-/// そこで、画面の枠を窓の座標に直し（`screen_frame_in_window`。安全な領域の分だけ内側に縮めた枠）、そこから数え直した場所を、
-/// 子の view の親の座標に直して当てる。
+/// そこで、画面の枠を窓の座標に直し、そこから数え直した場所を、子の view の親の座標に直して当てる。
 /// どの view が親でも、画面と同じ場所に出る。メインの webview や子の view が見つからないときは、wry が置いたままにする。
 #[cfg(target_os = "macos")]
 fn align_to_main(app: &AppHandle, child: &Webview, x: f64, y: f64, w: f64, h: f64) {
@@ -940,28 +939,38 @@ fn align_to_main(app: &AppHandle, child: &Webview, x: f64, y: f64, w: f64, h: f6
         return;
     };
     // 画面の枠（窓の座標。原点は左下）。メインスレッドの閉包から、次の閉包へ渡す（閉包はメインスレッドで順に動く）
-    let main_rect: Arc<Mutex<Option<(WindowRect, Insets)>>> = Arc::new(Mutex::new(None));
+    let main_rect: Arc<Mutex<Option<WindowRect>>> = Arc::new(Mutex::new(None));
     let slot = main_rect.clone();
     let r = main.with_webview(move |pv| {
-        *slot.lock().unwrap() = screen_frame_in_window(&pv);
+        let Some((mv, _)) = wk_webview(&pv) else {
+            return;
+        };
+        let view: &NSView = mv;
+        // SAFETY: メインスレッドで、生きている view の親を読むだけ
+        let Some(parent) = (unsafe { view.superview() }) else {
+            return;
+        };
+        let f = parent.convertRect_toView(view.frame(), None);
+        *slot.lock().unwrap() = Some(WindowRect {
+            x: f.origin.x,
+            y: f.origin.y,
+            w: f.size.width,
+            h: f.size.height,
+        });
     });
-    if let Err(e) = r {
-        eprintln!("kisui-terminal: cannot read the screen's frame: {e}");
+    if r.is_err() {
         return;
     }
     let r = child.with_webview(move |pv| {
         let Some((cv, _)) = wk_webview(&pv) else {
-            log_skipped("the page's view was not found");
             return;
         };
-        let Some((m, ins)) = *main_rect.lock().unwrap() else {
-            log_skipped("the screen's frame was not read");
+        let Some(m) = *main_rect.lock().unwrap() else {
             return;
         };
         let view: &NSView = cv;
         // SAFETY: メインスレッドで、生きている view の親を読むだけ
         let Some(parent) = (unsafe { view.superview() }) else {
-            log_skipped("the page's view has no parent");
             return;
         };
         let r = want_in_window(m, x, y, w, h);
@@ -970,42 +979,12 @@ fn align_to_main(app: &AppHandle, child: &Webview, x: f64, y: f64, w: f64, h: f6
             None,
         );
         let now = view.frame();
-        log_moved(now, want, m, ins, (x, y, w, h), parent.frame().size);
+        log_moved(now, want, m, (x, y, w, h), parent.frame().size);
         view.setFrame(want);
     });
     if let Err(e) = r {
         eprintln!("kisui-terminal: cannot align the page: {e}");
     }
-}
-
-/// 画面（メインの webview）の、窓の座標での枠（原点は左下）と、その view の安全な領域の余白。読めなければ理由をログに出して None。
-///
-/// 窓のタイトルバーの下まで広がった view では、WebKit がページの中身を安全な領域（`safeAreaInsets`）の分だけ内側へ下げる。
-/// DOM で測った場所はその内側の左上からなので、枠ではなく内側から数える（#326。フルスクリーンでは余白が 0）。
-/// `with_webview` の閉包（メインスレッド）の中で呼ぶ。
-#[cfg(target_os = "macos")]
-fn screen_frame_in_window(pv: &tauri::webview::PlatformWebview) -> Option<(WindowRect, Insets)> {
-    use objc2_app_kit::NSView;
-
-    let Some((mv, _)) = wk_webview(pv) else {
-        log_skipped("the screen's view was not found");
-        return None;
-    };
-    let view: &NSView = mv;
-    // SAFETY: メインスレッドで、生きている view の親を読むだけ
-    let Some(parent) = (unsafe { view.superview() }) else {
-        log_skipped("the screen's view has no parent");
-        return None;
-    };
-    let f = parent.convertRect_toView(view.frame(), None);
-    let ins = safe_insets(view);
-    let frame = WindowRect {
-        x: f.origin.x,
-        y: f.origin.y,
-        w: f.size.width,
-        h: f.size.height,
-    };
-    Some((inset_rect(frame, ins), ins))
 }
 
 /// Mac で確かめる手がかり：補正した量をログに出す。ずれの大きさ（now と want の差）が前に出したものと違うときだけ出す
@@ -1016,22 +995,18 @@ fn log_moved(
     now: objc2_foundation::NSRect,
     want: objc2_foundation::NSRect,
     m: WindowRect,
-    ins: Insets,
     asked: (f64, f64, f64, f64),
     parent: objc2_foundation::NSSize,
 ) {
     static LOGS: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
     static LAST: Mutex<Option<(f64, f64)>> = Mutex::new(None);
     let (dx, dy) = (want.origin.x - now.origin.x, want.origin.y - now.origin.y);
-    // 最初の 3 回は、ずれが無くても出す（ずれを 0 と見ているのか、補正まで来ていないのかを、ログから分けるため。#326）
-    static FIRST: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
-    let first = FIRST.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 3;
-    if !first && dx.abs() <= 0.5 && dy.abs() <= 0.5 {
+    if dx.abs() <= 0.5 && dy.abs() <= 0.5 {
         return;
     }
     let mut last = LAST.lock().unwrap();
     let seen = last.is_some_and(|(lx, ly)| (lx - dx).abs() <= 0.5 && (ly - dy).abs() <= 0.5);
-    if (seen && !first) || LOGS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) >= 30 {
+    if seen || LOGS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) >= 30 {
         return;
     }
     *last = Some((dx, dy));
@@ -1039,7 +1014,7 @@ fn log_moved(
     eprintln!(
         "kisui-terminal: the page frame moved from ({}, {}) to ({}, {}) to match the screen \
          [moved by ({dx}, {dy}); the screen in the window: x={} y={} w={} h={}; \
-         the screen's safe area: top={} left={} bottom={} right={}; the screen asked: x={x} y={y} w={w} h={h}; the page's parent: w={} h={}]",
+         the screen asked: x={x} y={y} w={w} h={h}; the page's parent: w={} h={}]",
         now.origin.x,
         now.origin.y,
         want.origin.x,
@@ -1048,61 +1023,9 @@ fn log_moved(
         m.y,
         m.w,
         m.h,
-        ins.top,
-        ins.left,
-        ins.bottom,
-        ins.right,
         parent.width,
         parent.height
     );
-}
-
-/// macOS：view の安全な領域の内側の余白（上・左・下・右）。`safeAreaInsets` は macOS 11 から。無ければ 0。
-#[cfg(target_os = "macos")]
-fn safe_insets(view: &objc2_app_kit::NSView) -> Insets {
-    use objc2::runtime::NSObjectProtocol;
-    if !view.respondsToSelector(objc2::sel!(safeAreaInsets)) {
-        return Insets::default();
-    }
-    let i = view.safeAreaInsets();
-    Insets {
-        top: i.top,
-        left: i.left,
-        bottom: i.bottom,
-        right: i.right,
-    }
-}
-
-/// 補正できなかった理由を、理由ごとに 1 回だけログに出す（黙って戻ると、補正が動いていないのかが分からない）。
-#[cfg(target_os = "macos")]
-fn log_skipped(why: &'static str) {
-    static SEEN: Mutex<Vec<&'static str>> = Mutex::new(Vec::new());
-    let mut seen = SEEN.lock().unwrap();
-    if !seen.contains(&why) {
-        seen.push(why);
-        eprintln!("kisui-terminal: the page was not aligned to the screen: {why}");
-    }
-}
-
-/// view の内側の余白（安全な領域。点）。
-#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
-struct Insets {
-    top: f64,
-    left: f64,
-    bottom: f64,
-    right: f64,
-}
-
-/// 窓の座標の枠 `r`（原点は左下）から、余白の分を内側へ縮めた枠。
-#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
-fn inset_rect(r: WindowRect, i: Insets) -> WindowRect {
-    WindowRect {
-        x: r.x + i.left,
-        y: r.y + i.bottom,
-        w: (r.w - i.left - i.right).max(0.0),
-        h: (r.h - i.top - i.bottom).max(0.0),
-    }
 }
 
 #[cfg(not(target_os = "macos"))]
@@ -1572,24 +1495,6 @@ mod tests {
 
     fn rect(x: f64, y: f64, w: f64, h: f64) -> WindowRect {
         WindowRect { x, y, w, h }
-    }
-
-    #[test]
-    fn inset_rect_shrinks_from_the_top_and_the_other_edges() {
-        let i = Insets {
-            top: 28.0,
-            left: 2.0,
-            bottom: 1.0,
-            right: 3.0,
-        };
-        assert_eq!(
-            inset_rect(rect(0.0, 0.0, 800.0, 600.0), i),
-            rect(2.0, 1.0, 795.0, 571.0)
-        );
-        assert_eq!(
-            inset_rect(rect(0.0, 0.0, 800.0, 600.0), Insets::default()),
-            rect(0.0, 0.0, 800.0, 600.0)
-        );
     }
 
     #[test]

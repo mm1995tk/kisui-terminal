@@ -244,7 +244,74 @@ describe("TermLink", () => {
     assert.deepEqual(f.calls, []);
   });
 
-  it("プライマリターミナルのシェルが終わっても欄を閉じず、知らせを出して Enter で term.restart する", async () => {
+  it("プライマリターミナルのシェルが終わってタブが閉じたら（serve にターミナルがもう無い）、知らせを出さず、Enter にも応えない", async () => {
+    const f = fakePort();
+    const s = fakeSink();
+    const errors: string[] = [];
+    const link = new TermLink(f.port, "t1", (m) => errors.push(m), {
+      primary: true,
+    });
+    let exits = 0;
+    link.onExit = () => exits++;
+    link.bind(s.sink);
+    await tick();
+    // serve は、シェルが終わるとワークスペースごとターミナルを閉じてから term.exit を送る
+    f.handlers["term.attach"] = () =>
+      new RpcError({ code: ErrorCode.NotFound, message: "no such terminal" });
+    link.handle(exitOf("t1"));
+    await tick();
+    assert.equal(s.text(), "", "作り直しの案内を出さない");
+    assert.equal(exits, 0);
+    assert.equal(link.hasExited, true);
+    f.calls.length = 0;
+    link.input(enc.encode("\r"));
+    link.input(enc.encode("a"));
+    await tick();
+    assert.deepEqual(
+      f.calls,
+      [],
+      "Enter を待たない（term.restart を送らない）",
+    );
+    assert.deepEqual(errors, []);
+  });
+
+  it("外している間にプライマリのシェルが終わってタブが閉じていたら、付け直しても知らせを出さず、Enter にも応えない", async () => {
+    const f = fakePort();
+    const link = new TermLink(f.port, "t1", undefined, { primary: true });
+    link.bind(fakeSink().sink);
+    await tick();
+    link.unbind();
+    f.handlers["term.attach"] = () =>
+      new RpcError({ code: ErrorCode.NotFound, message: "no such terminal" });
+    const s = fakeSink();
+    link.bind(s.sink);
+    await tick();
+    assert.equal(s.text(), "");
+    assert.equal(link.hasExited, true);
+    f.calls.length = 0;
+    link.input(enc.encode("\r"));
+    await tick();
+    assert.deepEqual(f.calls, []);
+  });
+
+  it("付け直したとき、term.list にターミナルが無ければ（タブが閉じた）、知らせを出さない", async () => {
+    const f = fakePort();
+    const link = new TermLink(f.port, "t1", undefined, { primary: true });
+    link.bind(fakeSink().sink);
+    await tick();
+    link.unbind();
+    f.handlers["term.list"] = () => ({ terms: [] });
+    const s = fakeSink();
+    link.bind(s.sink);
+    await tick();
+    assert.equal(s.text(), "");
+    f.calls.length = 0;
+    link.input(enc.encode("\r"));
+    await tick();
+    assert.deepEqual(f.calls, []);
+  });
+
+  it("終わってもプライマリの欄が残ったら（kisui pane open のコマンド）、知らせを出して Enter で term.restart する", async () => {
     const f = fakePort();
     const s = fakeSink();
     const link = new TermLink(f.port, "t1", undefined, { primary: true });
@@ -389,7 +456,7 @@ describe("TermLink", () => {
     answer();
   });
 
-  it("外している間に終わったシェルは、付け直したときに知らせて Enter で作り直せる（プライマリ）", async () => {
+  it("外している間に終わったコマンドの欄が残っていれば、付け直したときに知らせて Enter で作り直せる（プライマリ）", async () => {
     const f = fakePort();
     const link = new TermLink(f.port, "t1", undefined, { primary: true });
     link.bind(fakeSink().sink);
@@ -408,7 +475,29 @@ describe("TermLink", () => {
     assert.equal(f.calls[0]!.method, "term.restart");
   });
 
-  it("term.input が not_found なら、シェルが終わったものとして扱う", async () => {
+  it("term.input が not_found で、ターミナルがもう無ければ、シェルが終わってタブが閉じたものとして扱う（知らせは出さない）", async () => {
+    const f = fakePort();
+    const s = fakeSink();
+    const link = new TermLink(f.port, "t1", undefined, { primary: true });
+    link.bind(s.sink);
+    await tick();
+    f.handlers["term.input"] = () =>
+      new RpcError({
+        code: ErrorCode.NotFound,
+        message: "no such terminal",
+      });
+    f.handlers["term.list"] = () => ({ terms: [] });
+    link.input(enc.encode("a"));
+    await tick();
+    assert.equal(s.text(), "");
+    assert.equal(link.hasExited, true);
+    f.calls.length = 0;
+    link.input(enc.encode("\r"));
+    await tick();
+    assert.deepEqual(f.calls, []);
+  });
+
+  it("term.input が not_found で、終わったターミナルが残っていれば（kisui pane open のコマンド）、知らせて Enter で作り直せる", async () => {
     const f = fakePort();
     const s = fakeSink();
     const link = new TermLink(f.port, "t1", undefined, { primary: true });
@@ -419,9 +508,14 @@ describe("TermLink", () => {
         code: ErrorCode.NotFound,
         message: "terminal has exited",
       });
+    f.handlers["term.list"] = () => ({ terms: [alive("t1", false)] });
     link.input(enc.encode("a"));
     await tick();
     assert.ok(s.text().endsWith(exitedNotice()));
+    f.calls.length = 0;
+    link.input(enc.encode("\r"));
+    await tick();
+    assert.equal(f.calls[0]!.method, "term.restart");
   });
 
   it("shj にターミナルが無ければ（shj が作り直された）、分割したターミナルは欄を閉じさせる", async () => {
