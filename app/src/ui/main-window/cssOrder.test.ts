@@ -127,8 +127,9 @@ describe("メインウィンドウの CSS の並び", () => {
       "ui/main-window/content/proxy/ProxyPanel.module.css",
       // エージェントの SQL で上書きしてよいかを聞く窓（#382。CSS Modules なので、クラス名はほかと重ならない）
       "ui/main-window/db/DbProposeDialog.module.css",
-      // ターミナルのタブの窓（#457。CSS Modules なので、クラス名はほかと重ならない）
+      // ターミナルのタブの窓（#457）と DB のタブの窓（#458）。CSS Modules なので、クラス名はほかと重ならない
       "ui/main-window/tab-window/TerminalWindow.module.css",
+      "ui/main-window/tab-window/DbWindow.module.css",
     ]);
   });
 

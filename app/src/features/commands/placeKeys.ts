@@ -2,8 +2,8 @@
 // キーを、リーダーの木（commands.ts）と同じ流儀で、ここ 1 か所に書く。`?` の一覧（KeyListDialog.tsx）はこの表から作る。
 // 実際にキーを受ける判定は、場所ごとのファイル（features/file-tree/keys.ts・features/changes/keys.ts・features/terminal/media.ts・ui/main-window/content/media/imageView.ts・
 // features/sessions/machineList.ts・features/browser/bookmarks.ts・features/clipboard/history.ts・ui/main-window/workspaces/switcherKey.ts・
-// ui/main-window/tab-window/terminalWindowKey.ts・features/db/keys.ts）にあり、
-// placeKeys.test.ts（切り替える窓は switcherKey.test.ts、ターミナルのタブの窓は terminalWindowKey.test.ts）が「表に書いたキーを、その場所の判定が受ける」ことを確かめる。だから案内と受けるキーはずれない。
+// ui/main-window/tab-window/terminalWindowKey.ts・ui/main-window/tab-window/dbWindowKey.ts・features/db/keys.ts）にあり、
+// placeKeys.test.ts（切り替える窓は switcherKey.test.ts、ターミナルのタブの窓は terminalWindowKey.test.ts、DB のタブの窓は dbWindowKey.test.ts）が「表に書いたキーを、その場所の判定が受ける」ことを確かめる。だから案内と受けるキーはずれない。
 // 窓の下の段（共通フッタ）に出す基本操作の並びも、ここの basicHints が決める（docs/design/ui-ux-review.md の「ヒントとヘルプ」）。
 // 場所のキーはリーダーには載せない（その場所の中だけで効く）。キーを足すときは、判定と、ここの表と、docs/key-design.md を直す。
 // DOM には触らない（node --test で確かめられる）。
@@ -25,6 +25,7 @@ export type Place =
   | "switcher"
   | "switcherTabs"
   | "termWindow"
+  | "dbWindow"
   | "history"
   | "db"
   | "dbResult"
@@ -292,6 +293,33 @@ export const PLACE_KEYS: Record<Place, PlaceKeys> = {
       row("Esc", T("place.row.close"), []),
     ],
   },
+  // DB のタブの窓（リーダーの a。#458）。判定は ui/main-window/tab-window/dbWindowKey.ts の dbWindowKey
+  // （表のキーを判定が受けることは、dbWindowKey.test.ts が確かめる）
+  dbWindow: {
+    title: T("place.dbWindow.title"),
+    lead: T("place.dbWindow.lead"),
+    rows: [
+      row("j k / ↓ ↑", T("place.dbWindow.select"), [
+        "j",
+        "k",
+        "ArrowDown",
+        "ArrowUp",
+      ]),
+      row("Enter", T("place.dbWindow.show")),
+      row("x", T("place.dbWindow.close")),
+      row("s", T("place.dbWindow.view")),
+      row("f b", T("place.dbWindow.page"), ["f", "b"]),
+      row("c", T("place.dbWindow.cancel")),
+      row("e", T("place.dbWindow.export")),
+      row("t", T("place.dbWindow.tree")),
+      row("r", T("place.dbWindow.refresh")),
+      row("h", T("place.dbWindow.history")),
+      row("p", T("place.dbWindow.elevate")),
+      row("P", T("place.dbWindow.elevateEnd")),
+      row("?", T("place.row.keyList")),
+      row("Esc", T("place.row.close"), []),
+    ],
+  },
   // クリップボードの履歴の窓（リーダーの y）。判定は features/clipboard/history.ts の historyKey（修飾キー付きのものは probes に書けないので、
   // history.test.ts で確かめる）
   history: {
@@ -331,7 +359,7 @@ export const PLACE_KEYS: Record<Place, PlaceKeys> = {
       row("[ / ]", T("place.dbResult.step"), ["[", "]"]),
     ],
   },
-  // DB のタブの履歴の窓（リーダーの d h。#349）。判定は features/db/keys.ts の dbHistoryKey（修飾キー付きのものは probes に書けないので、
+  // DB のタブの履歴の窓（DB のタブの窓の h。#349・#458）。判定は features/db/keys.ts の dbHistoryKey（修飾キー付きのものは probes に書けないので、
   // keys.test.ts で確かめる）
   dbHistory: {
     title: T("place.dbHistory.title"),
@@ -426,6 +454,7 @@ const WINDOW_PLACES = new Set<Place>([
   "switcher",
   "switcherTabs",
   "termWindow",
+  "dbWindow",
   "history",
   "dbHistory",
 ]);

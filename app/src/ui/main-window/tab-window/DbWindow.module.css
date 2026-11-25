@@ -1,0 +1,57 @@
+/* DB のタブの窓（DbWindow.tsx。リーダーの a。#458）。カードと一覧の行（.card-rows・.card-row）は card.css。
+   上にそのタブの状態の印、中に結果のタブの一覧を出す。 */
+
+/* 見出しと、その下の状態の印 */
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  min-width: 0;
+}
+.status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+/* 一覧の入れ物。キーはここで受ける（選んでいる行は aria-activedescendant） */
+.list:focus {
+  outline: none;
+}
+
+/* 行の名前の側：見出しと、その後ろの印 */
+.name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+.title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.marks {
+  display: flex;
+  flex: none;
+  gap: var(--space-4);
+}
+.mark {
+  padding: 0 var(--space-6);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-4);
+  color: var(--card-muted);
+  font-size: var(--text-label);
+  font-weight: var(--weight-regular);
+  white-space: nowrap;
+}
+/* 結果の場所に出している結果のタブの印は、アクセントの色の枠 */
+.mark[data-shown] {
+  border-color: var(--card-accent);
+  color: var(--card-text);
+}
+/* つながっていない：知らせの色 */
+.mark[data-alert],
+.failed {
+  color: var(--state-danger);
+}

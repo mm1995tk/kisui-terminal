@@ -292,6 +292,20 @@ const SHORTCUT_ONLY: Leaf[] = [
   leaf("", T("leader.tab.moveTo"), { id: "tab.moveTo" }),
   // DB のタブを作る。リーダーの `n` で開くワークスペースの窓の、種類を選ぶ一覧からするので、木には載せない（#456）
   leaf("", T("leader.db.open"), { id: "db.open" }),
+  // DB のタブの操作。リーダーの `a` で開く DB のタブの窓（DbWindow.tsx）の中のキーでするので、木には載せない（#458）。
+  // 設定の近道に書いている人の設定を壊さないよう、また窓を開かずに 1 回で動かしたい人のために残す。DB のタブを出していなければ動かない（run.ts）
+  leaf("", T("leader.db.tree"), { id: "db.tree" }),
+  leaf("", T("leader.db.refresh"), { id: "db.refresh" }),
+  leaf("", T("leader.db.export"), { id: "db.export" }),
+  leaf("", T("leader.db.history"), { id: "db.history" }),
+  leaf("", T("leader.db.view"), { id: "db.view" }),
+  leaf("", T("leader.db.nextPage"), { id: "db.page", arg: "next" }),
+  leaf("", T("leader.db.prevPage"), { id: "db.page", arg: "prev" }),
+  leaf("", T("leader.db.nextResult"), { id: "db.result", arg: "next" }),
+  leaf("", T("leader.db.prevResult"), { id: "db.result", arg: "prev" }),
+  leaf("", T("leader.db.closeResult"), { id: "db.closeResult" }),
+  leaf("", T("leader.db.elevate"), { id: "db.elevate" }),
+  leaf("", T("leader.db.elevateEnd"), { id: "db.elevateEnd" }),
 ];
 
 /**
@@ -334,8 +348,8 @@ export const LEADER: Node[] = [
     arg: "newTab",
   }),
   leaf("m", T("leader.machine"), { id: "machine.dialog" }),
-  // 今出しているタブの種類ごとの窓を開く（#457。ターミナルのタブなら、ペインを選んで操作する窓）。
-  // どの種類の窓を開くかは、押したときに出しているタブで決まる（tabWindow.ts の shownTabKind）。DB・ブラウザの窓も、この葉に乗る
+  // 今出しているタブの種類ごとの窓を開く（#457。ターミナルのタブなら、ペインを選んで操作する窓。DB のタブなら、結果のタブを選んで操作する窓（#458））。
+  // どの種類の窓を開くかは、押したときに出しているタブで決まる（tabWindow.ts の shownTabKind）。ブラウザの窓も、この葉に乗る
   leaf("a", T("leader.tab.window"), { id: "tab.window" }),
   // 内蔵ブラウザ（#202）。設定（[gui.browser] enabled）で有効にしたときだけ出す（setBrowserEnabled）
   group(
@@ -390,59 +404,6 @@ export const LEADER: Node[] = [
     undefined,
     "browser",
   ),
-  // DB のタブ（#347。MySQL / PostgreSQL のクライアント）。SQL の実行のように DB のタブの中だけで使う操作は、場所のキー（placeKeys.ts の db）
-  group("d", T("leader.db.group"), [
-    // サイドバーの木（#348・#374）。DB のタブを出している間だけ効く
-    leaf("t", T("leader.db.tree"), { id: "db.tree" }),
-    leaf("r", T("leader.db.refresh"), { id: "db.refresh" }),
-    // 結果の書き出しと、接続ごとのクエリの履歴（#349）。DB のタブを出している間だけ効く
-    leaf("e", T("leader.db.export"), { id: "db.export" }),
-    leaf("h", T("leader.db.history"), { id: "db.history" }),
-    // 結果の場所の「データ」と「Structure」の切り替え（#379）。木でテーブルを選んだ DB のタブを出している間だけ効く
-    leaf("s", T("leader.db.view"), { id: "db.view" }),
-    // 結果のページ送り（#373）。DB のタブを出している間だけ効く。続けて押せる（d j j j）
-    leaf(
-      "j",
-      T("leader.db.nextPage"),
-      { id: "db.page", arg: "next" },
-      {
-        repeat: true,
-        range: { keys: "j|k", label: T("leader.db.page.range") },
-      },
-    ),
-    leaf(
-      "k",
-      T("leader.db.prevPage"),
-      { id: "db.page", arg: "prev" },
-      {
-        repeat: true,
-        range: { keys: "j|k", label: T("leader.db.page.range") },
-      },
-    ),
-    // 結果のタブ（#404）の切り替え。DB のタブを出している間だけ効く。続けて押せる（d ] ] ]）
-    leaf(
-      "]",
-      T("leader.db.nextResult"),
-      { id: "db.result", arg: "next" },
-      {
-        repeat: true,
-        range: { keys: "]|[", label: T("leader.db.result.range") },
-      },
-    ),
-    leaf(
-      "[",
-      T("leader.db.prevResult"),
-      { id: "db.result", arg: "prev" },
-      {
-        repeat: true,
-        range: { keys: "]|[", label: T("leader.db.result.range") },
-      },
-    ),
-    leaf("x", T("leader.db.closeResult"), { id: "db.closeResult" }),
-    // 権限を、時間を決めて強める・時間の前に戻す（#383。permission の p。戻すのは Shift を足した P）
-    leaf("p", T("leader.db.elevate"), { id: "db.elevate" }),
-    leaf("P", T("leader.db.elevateEnd"), { id: "db.elevateEnd" }),
-  ]),
   // プロキシ（#409。今のタブの HTTP・HTTPS の通信を記録して見る。pro**x**y の x。p はペイン）。パネルの中だけで使う操作は、場所のキー（placeKeys.ts の proxy）
   group("x", T("leader.proxy.group"), [
     leaf("p", T("leader.proxy.panel"), { id: "proxy.panel" }),

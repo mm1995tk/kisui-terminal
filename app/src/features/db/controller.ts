@@ -84,7 +84,11 @@ import type { SaveTextFile } from "./export.ts";
 import { createDbHistory } from "./historyController.ts";
 import { createDbPropose } from "./proposeController.ts";
 import { createDbStructure } from "./structureController.ts";
-import type { DbResultView, DbTableRef } from "./structure.ts";
+import type {
+  DbResultView,
+  DbStructureState,
+  DbTableRef,
+} from "./structure.ts";
 import { createDbTree } from "./treeController.ts";
 
 /** createDbTabs が返す持ち物。 */
@@ -411,7 +415,7 @@ export function createDbTabs(deps: {
 
   /**
    * 実行している間に押したページ送りの向き（タブ id → 押した順）。結果が来たら、1 つずつその向きに送る
-   * （リーダーの d j j j が、読み込みの速さによらず 3 ページ進むように）。実行が失敗した・取り消した・端に着いたら捨てる。
+   * （DB のタブの窓の f f f が、読み込みの速さによらず 3 ページ進むように）。実行が失敗した・取り消した・端に着いたら捨てる。
    */
   const queuedSteps = new Map<string, readonly PageStep[]>();
 
@@ -867,6 +871,9 @@ export function createDbTabs(deps: {
     ...tree,
     // テーブルの構造と、結果の場所の切り替え（#379。structureController.ts）。出している結果のタブのもの
     structureOf,
+    /** 結果のタブ tab の構造（テーブルに結び付いていなければ undefined）。出していない結果のタブのものも読める（DB のタブの窓。#458） */
+    resultStructureOf: (tab: string): DbStructureState | undefined =>
+      structures.structureOf(tab),
     showView,
     reloadStructure,
     // 結果の書き出し（#349。exportController.ts）と、クエリの履歴（historyController.ts）

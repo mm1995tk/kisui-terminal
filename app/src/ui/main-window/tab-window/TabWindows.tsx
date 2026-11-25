@@ -2,15 +2,18 @@
 // リーダーの `a` は 1 つで、開く窓だけがタブの種類で変わる。種類を決めるのは features/commands/tabWindow.ts の shownTabKind、
 // 開く・閉じるの状態を持つのは page.tsx で、ここは「どの種類に窓があるか」と「その種類の窓」だけを持つ。
 // 種類の窓を足すときは、TAB_WINDOW_KINDS に種類を足し、下の出し分けに窓を 1 つ足す（リーダーの定義とコマンドは変えない）。
+// 今あるのは、ターミナルのタブの窓（#457）と DB のタブの窓（#458）。
 import { createEffect, Match, Switch, type JSX } from "solid-js";
 
 import type { TabKind } from "../../../features/commands/tabWindow.ts";
 import type { Terminals } from "../../../features/terminal/controller.ts";
 import { TerminalWindow } from "./TerminalWindow.tsx";
+import { DbWindow } from "./DbWindow.tsx";
 
 /** 窓がある種類。ここに無い種類のタブでリーダーの `a` を押すと、窓を開かずに、その旨を伝える（features/commands/run.ts）。 */
 export const TAB_WINDOW_KINDS: ReadonlySet<TabKind> = new Set<TabKind>([
   "terminal",
+  "db",
 ]);
 
 /** タブの種類ごとの窓を出す。出していなければ（open が undefined）何も描かない。 */
@@ -19,15 +22,26 @@ export function TabWindows(props: {
   open: TabKind | undefined;
   /** 今出しているタブの種類（窓を出している間に変わったら、窓を閉じる） */
   shown: TabKind | undefined;
-  /** 窓を閉じる。refocus なら、閉じたあと、今のタブの今の場所（ペイン）にキーを向け直す */
+  /** 窓を閉じる。refocus なら、閉じたあと、今のタブの今の場所（ペイン・SQL の入力欄）にキーを向け直す */
   onClose: (refocus: boolean) => void;
   terminals: Terminals;
   /** 今のターミナルのタブのマシンの色 */
   accent?: string;
   /** リサイズモードに入る */
   onResizeMode: () => void;
+  /** DB のタブ（DB のタブの窓が使う持ち物） */
+  db: Parameters<typeof DbWindow>[0]["db"];
+  /** マシンの名前 */
+  labelOf: (target: string) => string;
+  /** マシンにつながっているか */
+  connected: (target: string) => boolean;
+  /** macOS か */
+  mac: boolean;
+  /** サイドバーの DB のタブの木にキーを向ける */
+  onFocusDbTree: () => void;
 }): JSX.Element {
   // 窓の相手のタブが無くなった・別の種類のタブに替わった（タブが閉じた、など）ら、窓を閉じる。別の種類のタブに、開いていた窓の操作をしない
+  // （同じ DB の種類で別のタブに替わったときは、DB のタブの窓が自分で閉じる）
   createEffect(() => {
     if (props.open !== undefined && props.shown !== props.open)
       props.onClose(true);
@@ -48,6 +62,16 @@ export function TabWindows(props: {
             props.onResizeMode();
           }}
           onCancel={(acted) => props.onClose(acted)}
+        />
+      </Match>
+      <Match when={props.open === "db"}>
+        <DbWindow
+          db={props.db}
+          labelOf={props.labelOf}
+          connected={props.connected}
+          mac={props.mac}
+          onFocusTree={props.onFocusDbTree}
+          onClose={props.onClose}
         />
       </Match>
     </Switch>
