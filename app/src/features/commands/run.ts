@@ -33,8 +33,8 @@ export interface CommandUi {
   toggleSidebar(): void;
   /** マシンのダイアログ（リーダーの m）を出す */
   openMachines(): void;
-  /** ワークスペースを切り替える窓（リーダーの w）を出す */
-  openWorkspaceSwitcher(): void;
+  /** ワークスペースの窓を出す（リーダーの w は左のワークスペースの列、t は右のタブの列にキーを置いて） */
+  openWorkspaceSwitcher(col: "ws" | "tab"): void;
   /** クリップボードの履歴の窓を出す */
   openClipboardHistory(): void;
   /** キャラクターを選ぶ窓（リーダーの c s）を出す */
@@ -421,7 +421,7 @@ export function createCommandRunner(deps: {
         newWorkspace();
         break;
       case "workspace.switch":
-        ui.openWorkspaceSwitcher();
+        ui.openWorkspaceSwitcher(c.arg === "tab" ? "tab" : "ws");
         break;
       case "workspace.close": {
         const g = currentGws();

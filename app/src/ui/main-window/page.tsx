@@ -148,7 +148,7 @@ function MainWindow(props: {
   // キャラクターを選ぶ窓（リーダーの c s）を出しているか
   const [mascotPicking, setMascotPicking] = createSignal(false);
   // ワークスペースを切り替える窓（リーダーの w）を出しているか（サイドバーの見出しからも開く）
-  const [wsSwitcher, setWsSwitcher] = createSignal(false);
+  const [wsSwitcher, setWsSwitcher] = createSignal<"ws" | "tab" | undefined>();
 
   // ---- 機能の持ち物（features/）。画面の側ですること（下で作る resize・focusUi・notices）は、呼ばれたときに引く ----
   const {
@@ -195,7 +195,7 @@ function MainWindow(props: {
       toggleResizeMode: () => resize.setResizeMode(!resize.resizeMode()),
       toggleSidebar: () => resize.toggleSidebar(),
       openMachines: () => setMachinesOpen(true),
-      openWorkspaceSwitcher: () => setWsSwitcher(true),
+      openWorkspaceSwitcher: (col) => setWsSwitcher(col),
       openClipboardHistory,
       openMascotPicker: () => setMascotPicking(true),
       openKeyList: () => openKeyList(placeOf(document.activeElement)),
@@ -279,7 +279,7 @@ function MainWindow(props: {
           rows={workspaces.rows()}
           onNew={workspaces.newWorkspace}
           // ヘッダーの名前を押すと、ワークスペースを切り替えるポップアップ（リーダーの w）を開く
-          onSwitch={() => setWsSwitcher(true)}
+          onSwitch={() => setWsSwitcher("ws")}
           onTab={tabs.selectTab}
           onTabClose={tabs.closeTabRow}
           onTabRename={tabs.renameTabRow}
@@ -380,7 +380,7 @@ function MainWindow(props: {
         workspaces={workspaces}
         tabs={tabs}
         switcherOpen={wsSwitcher()}
-        onCloseSwitcher={() => setWsSwitcher(false)}
+        onCloseSwitcher={() => setWsSwitcher(undefined)}
         colors={sessions.colors()}
         browser={props.browser}
       />

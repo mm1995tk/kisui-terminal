@@ -112,7 +112,7 @@ export interface Leaf extends Common {
   /** 行ったあともリーダーを出ず、同じ一覧のまま次のキーを待つ（ペインを `j` `j` `l` と続けて移れる） */
   repeat?: boolean;
   /**
-   * 案内では、同じ range.keys が続く葉を 1 行にまとめて出す（`1–9  上から N 番目へ`、`h|j|k|l  ペインを移動`）。`?` の一覧は 1 つずつ出す。
+   * 案内では、同じ range.keys が続く葉を 1 行にまとめて出す（`h|j|k|l  ペインを移動`、`j|k  結果の次・前のページ`）。`?` の一覧は 1 つずつ出す。
    */
   range?: { keys: string; label: string };
   /** 近道は、キーがペインに向いているときか、どこにも向いていないときだけ受ける（Cmd+W が、窓を閉じるのを防ぐため） */
@@ -217,6 +217,39 @@ const SHORTCUT_ONLY: Leaf[] = [
   leaf("", T("leader.ws.new"), { id: "workspace.new" }),
   leaf("", T("leader.ws.close"), { id: "workspace.close" }),
   leaf("", T("leader.ws.rename"), { id: "workspace.rename" }),
+  // タブの操作。ワークスペースの窓（リーダーの `t`）の中のキーでするので、木には載せない（#454）
+  leaf("", T("leader.tab.new"), { id: "tab.new" }),
+  leaf("", T("leader.tab.newPick"), { id: "tab.newPick" }),
+  leaf("", T("leader.tab.close"), { id: "tab.close" }),
+  leaf(
+    "",
+    T("leader.tab.next"),
+    { id: "tab.step", arg: "next" },
+    { repeat: true },
+  ),
+  leaf(
+    "",
+    T("leader.tab.prev"),
+    { id: "tab.step", arg: "prev" },
+    { repeat: true },
+  ),
+  leaf(
+    "",
+    T("leader.tab.moveDown"),
+    { id: "tab.move", arg: "down" },
+    { repeat: true },
+  ),
+  leaf(
+    "",
+    T("leader.tab.moveUp"),
+    { id: "tab.move", arg: "up" },
+    { repeat: true },
+  ),
+  ...Array.from({ length: 9 }, (_, i) =>
+    leaf("", T("leader.tab.nth", { n: i + 1 }), { id: "tab.nth", arg: i }),
+  ),
+  leaf("", T("leader.tab.rename"), { id: "tab.rename" }),
+  leaf("", T("leader.tab.moveTo"), { id: "tab.moveTo" }),
 ];
 
 /**
@@ -242,58 +275,8 @@ export const LEADER: Node[] = [
     { id: "workspace.switch" },
     { shortcut: { mac: "Cmd+Shift+W", other: "Ctrl+Shift+W" } },
   ),
-  // ワークスペースの中のタブ（ターミナルのタブとブラウザのタブ。#235）。ブラウザのタブが無ければ、ターミナルのタブだけ
-  group("t", T("leader.tab.group"), [
-    leaf("n", T("leader.tab.new"), { id: "tab.new" }),
-    leaf("N", T("leader.tab.newPick"), { id: "tab.newPick" }),
-    leaf("x", T("leader.tab.close"), { id: "tab.close" }),
-    leaf(
-      "j",
-      T("leader.tab.next"),
-      { id: "tab.step", arg: "next" },
-      {
-        repeat: true,
-        range: { keys: "j|k", label: T("leader.tab.step.range") },
-      },
-    ),
-    leaf(
-      "k",
-      T("leader.tab.prev"),
-      { id: "tab.step", arg: "prev" },
-      {
-        repeat: true,
-        range: { keys: "j|k", label: T("leader.tab.step.range") },
-      },
-    ),
-    leaf(
-      "J",
-      T("leader.tab.moveDown"),
-      { id: "tab.move", arg: "down" },
-      {
-        repeat: true,
-        range: { keys: "J|K", label: T("leader.tab.move.range") },
-      },
-    ),
-    leaf(
-      "K",
-      T("leader.tab.moveUp"),
-      { id: "tab.move", arg: "up" },
-      {
-        repeat: true,
-        range: { keys: "J|K", label: T("leader.tab.move.range") },
-      },
-    ),
-    ...Array.from({ length: 9 }, (_, i) =>
-      leaf(
-        String(i + 1),
-        T("leader.tab.nth", { n: i + 1 }),
-        { id: "tab.nth", arg: i },
-        { range: { keys: "1–9", label: T("leader.tab.nth.range") } },
-      ),
-    ),
-    leaf("r", T("leader.tab.rename"), { id: "tab.rename" }),
-    leaf("m", T("leader.tab.moveTo"), { id: "tab.moveTo" }),
-  ]),
+  // ワークスペースの窓を、右のタブの列にキーを置いて開く。タブの操作（移る・作る・閉じる・並べ替える・名前を変える・別のワークスペースへ移す）は、この窓の中のキーでする（#454）
+  leaf("t", T("leader.tab.switch"), { id: "workspace.switch", arg: "tab" }),
   leaf("m", T("leader.machine"), { id: "machine.dialog" }),
   group(
     "p",

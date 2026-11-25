@@ -26,7 +26,7 @@ import {
   switcherHints,
   switcherKey,
 } from "./switcherKey.ts";
-import { createSwitcherColumns } from "./switcherColumns.ts";
+import { createSwitcherColumns, type Col } from "./switcherColumns.ts";
 import { createSwitcherTabActions } from "./switcherTabActions.ts";
 import { createSwitcherNewTab } from "./switcherNewTab.ts";
 import {
@@ -61,6 +61,8 @@ const tabId = (key: string) => `switcher-tab-${key}`;
  * 名前を変えるのは、行の中の入力欄（サイドバーの帯と同じ。変換を確定する Enter では決めない）。閉じるのは、y / n で確かめてから。
  */
 export function WorkspaceSwitcher(props: {
+  /** 開いたときにキーを置く列（既定は左のワークスペース。タブが無いワークスペースでは左のまま） */
+  initialCol?: Col;
   /** サイドバーの行（GUI のワークスペース 1 つが 1 行）。並びは、ユーザーが並べた順 */
   rows: readonly Row[];
   /** 左の行を開いた（ワークスペースの列の Enter・選んでいる行をもう 1 回押した） */
@@ -131,7 +133,7 @@ export function WorkspaceSwitcher(props: {
   >();
   // キーが効いている列と、右の列で選んでいるタブ（switcherColumns.ts）
   const { tabs, activeCol, selectedTab, toWs, toTabs, moveTab, pickTab } =
-    createSwitcherColumns(selected);
+    createSwitcherColumns(selected, props.initialCol);
   // キーでつかんでいるタブ（m）と、入る位置（switcherHold.ts）
   const hold = createSwitcherHold();
   // つかんでいるタブが、窓の外の理由（閉じた・移したなど）でつかんだときのワークスペースから消えたら、やめる

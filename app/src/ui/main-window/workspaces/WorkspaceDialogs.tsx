@@ -16,8 +16,8 @@ import { TabMovePicker } from "./TabMovePicker.tsx";
 export function WorkspaceDialogs(props: {
   workspaces: Workspaces;
   tabs: Tabs;
-  /** ワークスペースを切り替える窓（リーダーの w）を出しているか */
-  switcherOpen: boolean;
+  /** ワークスペースの窓を出しているか（出していれば、キーを置く列。リーダーの w は ws、t は tab） */
+  switcherOpen: "ws" | "tab" | undefined;
   onCloseSwitcher: () => void;
   /** マシンの色（マシンの名前 → 色。タブを作る行のマシンに付ける） */
   colors: Record<string, string>;
@@ -86,6 +86,7 @@ export function WorkspaceDialogs(props: {
       </Show>
       <Show when={props.switcherOpen}>
         <WorkspaceSwitcher
+          initialCol={props.switcherOpen}
           rows={rows()}
           onGo={(r) => {
             closeSwitcher();
