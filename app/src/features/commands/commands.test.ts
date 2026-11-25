@@ -151,17 +151,6 @@ describe("コマンドの表", () => {
       "n",
       "m",
       "a",
-      "d",
-      "d t",
-      "d r",
-      "d e",
-      "d h",
-      "d s",
-      "d j|k",
-      "d ]|[",
-      "d x",
-      "d p",
-      "d P",
       "x",
       "x p",
       "x c",
@@ -191,6 +180,40 @@ describe("コマンドの表", () => {
       "",
       "",
     ]);
+  });
+
+  it("旧 d のグループ（DB のタブの操作）は木に無い（#458）。d は何も動かさずリーダーを出る。DB のタブの操作のコマンドは木の外に残り、設定の近道で使える", () => {
+    for (const mac of [MAC, LINUX]) {
+      for (const k of ["t", "r", "e", "h", "s", "j", "]", "x", "p"]) {
+        const r = press(mac, [LEADER_KEY(mac), key("d"), key(k)]);
+        assert.deepEqual(r.runs, [], k);
+        assert.equal(r.state.leader, null);
+      }
+    }
+    const ids = (list: Node[]): string[] =>
+      list.flatMap((n) => (n.type === "leaf" ? [n.run.id] : ids(n.children)));
+    const tree = ids(LEADER);
+    const outside = outsideLeaves().map((l) => l.run.id);
+    for (const id of [
+      "db.tree",
+      "db.refresh",
+      "db.export",
+      "db.history",
+      "db.view",
+      "db.page",
+      "db.result",
+      "db.closeResult",
+      "db.elevate",
+      "db.elevateEnd",
+    ] as const) {
+      assert.equal(tree.includes(id), false, id);
+      assert.equal(outside.includes(id), true, id);
+    }
+    // 既定の近道は無いので、`?` の一覧にも出ない
+    assert.equal(
+      helpRows(MAC).some((r) => r.label === T("leader.db.history")),
+      false,
+    );
   });
 
   it("a は、今出しているタブの種類の窓を開く 1 つの葉（#457）。既定の近道は無く、その下にほかの操作は無い", () => {
@@ -654,13 +677,13 @@ describe("keyspec", () => {
 describe("リーダーの中の字の当たり方", () => {
   const L = LEADER_KEY(LINUX);
 
-  it("打った字（key）で探す。AZERTY の q（物理キーは KeyA）は、n の葉に当たらない", () => {
-    const r = press(LINUX, [L, key("d"), key("q", "", "KeyA")]);
+  it("打った字（key）で探す。AZERTY の q（物理キーは KeyA）は、a の葉に当たらない", () => {
+    const r = press(LINUX, [L, key("q", "", "KeyA")]);
     assert.deepEqual(r.runs, []);
     assert.equal(r.state.leader, null);
-    // 同じ配列で、字が x なら（物理キーは KeyQ）x の葉
-    assert.deepEqual(press(LINUX, [L, key("d"), key("x", "", "KeyQ")]).runs, [
-      { id: "db.closeResult" },
+    // 同じ配列で、字が a なら（物理キーは KeyQ）a の葉
+    assert.deepEqual(press(LINUX, [L, key("a", "", "KeyQ")]).runs, [
+      { id: "tab.window" },
     ]);
   });
 
@@ -669,8 +692,8 @@ describe("リーダーの中の字の当たり方", () => {
       ...key("Process", "", code),
       isComposing: true,
     });
-    assert.deepEqual(press(LINUX, [L, key("d"), ime("KeyX")]).runs, [
-      { id: "db.closeResult" },
+    assert.deepEqual(press(LINUX, [L, key("i"), ime("KeyD")]).runs, [
+      { id: "notice.dismiss" },
     ]);
     assert.deepEqual(press(LINUX, [L, ime("Digit1")]).runs, []);
   });
@@ -762,7 +785,7 @@ describe("リーダーの案内（menuRows）", () => {
     // 番号指定（1–9）の行は、#454 で t の下から無くなり、木のどこにも無い
     assert.ok(!paths.some((p) => /(^| )[1-9]$/.test(p)));
     // 案内（menuRows）と一覧（helpRows）で、まとめる行は同じ
-    for (const p of [[], ["d"]]) {
+    for (const p of [[], ["x"]]) {
       const menu = menuRows(p, MAC)
         .filter((r) => !r.group && /[|]/.test(r.keys))
         .map((r) => [...p, r.keys].join(" "));
@@ -771,10 +794,6 @@ describe("リーダーの案内（menuRows）", () => {
     assert.deepEqual(press(LINUX, [LEADER_KEY(LINUX), key("j")]).runs, [
       { id: "pane.focus", arg: "down" },
     ]);
-    assert.deepEqual(
-      press(LINUX, [LEADER_KEY(LINUX), key("d"), key("k")]).runs,
-      [{ id: "db.page", arg: "prev" }],
-    );
   });
 
   it("t は、ワークスペースの窓を、右のタブの列にキーを置いて開く葉（#454）。後に押したキーは、リーダーでは受けない", () => {

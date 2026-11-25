@@ -114,7 +114,7 @@ export function createDbTree(deps: {
       const conn = connectionOf(list.connections, ref);
       if (!conn) throw new Error(T("db.err.noConnection"));
       setCatalog(id, () => ({ catalog, kind: conn.kind }));
-      // 一覧から消えたスキーマを既定のまま残さない（#378。読み直す（d r）で抜け出せるように）
+      // 一覧から消えたスキーマを既定のまま残さない（#378。読み直す（DB のタブの窓の r）で抜け出せるように）
       const key = connectionKey(ref);
       const schema = untrack(prefs)[key]?.schema;
       if (schema !== undefined && !keepDefaultSchema(catalog, schema))

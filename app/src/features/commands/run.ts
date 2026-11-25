@@ -349,7 +349,7 @@ export function createCommandRunner(deps: {
           cannot(T("cannot.dbTree.title"), T("cannot.dbTree.text"));
           break;
         }
-        // d t は木にキーを向ける（キーだけで j k と Enter に移れる。閉じているサイドバーは開く）。入力欄へは木の Esc で戻る
+        // db.tree は木にキーを向ける（キーだけで j k と Enter に移れる。閉じているサイドバーは開く）。入力欄へは木の Esc で戻る
         if (c.id === "db.tree") {
           ui.focusDbTree();
           break;

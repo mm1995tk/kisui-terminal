@@ -404,6 +404,11 @@ function MainWindow(props: {
         terminals={terminals}
         accent={sessions.colors()[terminals.termTarget() ?? ""]}
         onResizeMode={() => resize.setResizeMode(true)}
+        db={db}
+        labelOf={sessions.labelOf}
+        connected={(t) => sessions.states()[t]?.kind === "connected"}
+        mac={IS_MAC}
+        onFocusDbTree={() => focusUi.focusDbTree()}
       />
       <Show when={mascotPicking()}>
         <MascotDialog
