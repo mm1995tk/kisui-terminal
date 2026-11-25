@@ -266,7 +266,7 @@ export function createPages(deps: {
     focusTerminal();
   }
   /**
-   * 戻る・進む・読み込み直す（リーダーの o h・o l・o r と Cmd+R、URL バーのボタン、失敗の表示の「もう一度開く」）。
+   * 戻る・進む・読み込み直す（ブラウザのタブの窓の h・l・r と Cmd+R、URL バーのボタン、失敗の表示の「もう一度開く」）。
    * 読み込みが失敗したままのタブ（#432）の「読み込み直す」は、WebView の読み込み直しでなく、失敗の表示に出している URL を
    * URL バーと同じ道（goTo）で開き直す。WebView は失敗した読み込みを覚えない（履歴にも今の URL にも入らない）ので、
    * 読み込み直すと失敗の前のページを読み直してしまう。開き直す URL は、利用者が見ている失敗の表示のもの（タブの loadError）
@@ -280,7 +280,7 @@ export function createPages(deps: {
     if (failed && isOpenableUrl(failed)) goTo(tab, failed);
     else void navTab(tab, action).catch(() => {});
   }
-  /** 読み込みを止める（URL バーの「×」・読み込み中の Esc・リーダーの o c）。読み込み中でなければ何もしない。 */
+  /** 読み込みを止める（URL バーの「×」・読み込み中の Esc・ブラウザのタブの窓の c）。読み込み中でなければ何もしない。 */
   function stopPage(tab: string) {
     if (!untrack(tabs).tabs.find((x) => x.id === tab)?.loading) return;
     // 殻の知らせを待たずに印を消す（読み込みが終われば、殻が「読み込み中でない」を知らせる）

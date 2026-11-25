@@ -2,8 +2,8 @@
 // キーを、リーダーの木（commands.ts）と同じ流儀で、ここ 1 か所に書く。`?` の一覧（KeyListDialog.tsx）はこの表から作る。
 // 実際にキーを受ける判定は、場所ごとのファイル（features/file-tree/keys.ts・features/changes/keys.ts・features/terminal/media.ts・ui/main-window/content/media/imageView.ts・
 // features/sessions/machineList.ts・features/browser/bookmarks.ts・features/clipboard/history.ts・ui/main-window/workspaces/switcherKey.ts・
-// ui/main-window/tab-window/terminalWindowKey.ts・ui/main-window/tab-window/dbWindowKey.ts・features/db/keys.ts）にあり、
-// placeKeys.test.ts（切り替える窓は switcherKey.test.ts、ターミナルのタブの窓は terminalWindowKey.test.ts、DB のタブの窓は dbWindowKey.test.ts）が「表に書いたキーを、その場所の判定が受ける」ことを確かめる。だから案内と受けるキーはずれない。
+// ui/main-window/tab-window/terminalWindowKey.ts・ui/main-window/tab-window/dbWindowKey.ts・ui/main-window/tab-window/browserWindowKey.ts・features/db/keys.ts）にあり、
+// placeKeys.test.ts（切り替える窓は switcherKey.test.ts、ターミナルのタブの窓は terminalWindowKey.test.ts、DB のタブの窓は dbWindowKey.test.ts、ブラウザのタブの窓は browserWindowKey.test.ts）が「表に書いたキーを、その場所の判定が受ける」ことを確かめる。だから案内と受けるキーはずれない。
 // 窓の下の段（共通フッタ）に出す基本操作の並びも、ここの basicHints が決める（docs/design/ui-ux-review.md の「ヒントとヘルプ」）。
 // 場所のキーはリーダーには載せない（その場所の中だけで効く）。キーを足すときは、判定と、ここの表と、docs/key-design.md を直す。
 // DOM には触らない（node --test で確かめられる）。
@@ -26,6 +26,7 @@ export type Place =
   | "switcherTabs"
   | "termWindow"
   | "dbWindow"
+  | "browserWindow"
   | "history"
   | "db"
   | "dbResult"
@@ -183,7 +184,7 @@ export const PLACE_KEYS: Record<Place, PlaceKeys> = {
       row("↓ ↑", T("place.list.step"), []),
     ],
   },
-  // 内蔵ブラウザのブックマークの一覧（リーダーの o B。#205）。判定は features/browser/bookmarks.ts の bookmarkKey（修飾キー付きのものは probes に書けないので、
+  // 内蔵ブラウザのブックマークの一覧（ブラウザのタブの窓の B。#205）。判定は features/browser/bookmarks.ts の bookmarkKey（修飾キー付きのものは probes に書けないので、
   // bookmarks.test.ts で確かめる）
   bookmarks: {
     title: T("place.bookmarks.title"),
@@ -316,6 +317,39 @@ export const PLACE_KEYS: Record<Place, PlaceKeys> = {
       row("h", T("place.dbWindow.history")),
       row("p", T("place.dbWindow.elevate")),
       row("P", T("place.dbWindow.elevateEnd")),
+      row("?", T("place.row.keyList")),
+      row("Esc", T("place.row.close"), []),
+    ],
+  },
+  // ブラウザのタブの窓（リーダーの a。#459）。判定は ui/main-window/tab-window/browserWindowKey.ts の browserWindowKey
+  // （表のキーを判定が受けることは、browserWindowKey.test.ts が確かめる）。字ごとの操作の名前は、窓の行と同じ（features/browser/window.ts）
+  browserWindow: {
+    title: T("place.browserWindow.title"),
+    lead: T("place.browserWindow.lead"),
+    rows: [
+      row("j k / ↓ ↑", T("place.browserWindow.select"), [
+        "j",
+        "k",
+        "ArrowDown",
+        "ArrowUp",
+      ]),
+      row("Enter", T("place.browserWindow.run")),
+      row("h l / ← →", T("place.browserWindow.history"), [
+        "h",
+        "l",
+        "ArrowLeft",
+        "ArrowRight",
+      ]),
+      row("r", T("leader.browser.reload")),
+      row("c", T("leader.browser.stop")),
+      row("u", T("leader.browser.url")),
+      row("y", T("leader.browser.copyUrl")),
+      row("e", T("leader.browser.external")),
+      row("s", T("leader.browser.login")),
+      row("/", T("leader.browser.find")),
+      row("b", T("leader.browser.bookmark")),
+      row("B", T("leader.browser.bookmarks")),
+      row("i", T("leader.browser.devtools")),
       row("?", T("place.row.keyList")),
       row("Esc", T("place.row.close"), []),
     ],
@@ -455,6 +489,7 @@ const WINDOW_PLACES = new Set<Place>([
   "switcherTabs",
   "termWindow",
   "dbWindow",
+  "browserWindow",
   "history",
   "dbHistory",
 ]);

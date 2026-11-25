@@ -1,6 +1,6 @@
 // 内蔵ブラウザのブックマーク（#205）。すべてのワークスペースで共有し、殻がデータのフォルダの `browser-bookmarks.json` に覚える
 // （src-tauri/src/bookmarks.rs。形は Bookmark と同じ）。並びは新しく足したものが先。同じ URL は 1 つだけ持つ。
-// リーダーの `o b` で今のページを足し、`o B` で一覧のダイアログ（BookmarkDialog.tsx）を開く。
+// ブラウザのタブの窓（リーダーの `a`）の `b` で今のページを足し、`B` で一覧のダイアログ（BookmarkDialog.tsx）を開く。
 // DOM も Tauri も使わない（node --test で確かめられる）。
 
 import { isComposingKey } from "../commands/ime.ts";

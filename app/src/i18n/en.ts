@@ -36,8 +36,6 @@ export const en = {
   "cannot.tabWindow.title": "This tab has no window",
   "cannot.tabWindow.noTab":
     "No tab is shown. Press n after the leader to create one.",
-  "cannot.tabWindow.noWindow":
-    "Only terminal tabs and database tabs have a window of their own for now.",
   "cannot.pane.none.title": "No panes here",
   "cannot.pane.none.text":
     "This workspace has no terminal tabs, so it has no panes. Open a terminal tab with n in the leader.",
@@ -53,7 +51,6 @@ export const en = {
   "leader.pane.close": "Close pane",
   "leader.pane.zoom": "Show only the primary pane / restore",
   "leader.pane.resize": "Resize mode",
-  "leader.browser.group": "Browser",
   "leader.browser.new": "Open a new tab",
   "leader.browser.incognito": "Open a private tab",
   "leader.browser.url": "Edit the URL",
@@ -151,7 +148,7 @@ export const en = {
   "place.list.step": "Select the next / previous row",
   "place.bookmarks.title": "Bookmarks",
   "place.bookmarks.lead":
-    "Keys in the bookmark list (leader o B). Type to filter by title or URL.",
+    "Keys in the bookmark list (B in the window of a in the leader, on a browser tab). Type to filter by title or URL.",
   "place.bookmarks.open":
     "Open the bookmark in a new tab of this workspace, or open / close the folder",
   "place.bookmarks.delete": "Delete the selected bookmark",
@@ -556,6 +553,26 @@ export const en = {
   "place.dbWindow.history": "Pick a SQL from this connection's history",
   "place.dbWindow.elevate": "Elevate a permission for a time",
   "place.dbWindow.elevateEnd": "End the elevated permissions now",
+  "browserWindow.label": "This browser tab",
+  "browserWindow.list": "Actions on this page",
+  "browserWindow.keys.run": "run",
+  "browserWindow.newTabTitle": "New tab",
+  "browserWindow.incognito": "Private",
+  "browserWindow.loading": "Loading {percent}%",
+  "browserWindow.loadFailed": "Could not load",
+  "browserWindow.proxy": "Recording traffic",
+  "browserWindow.zoom": "Zoom {percent}%",
+  "browserWindow.why.noPage": "No page is open in this tab yet",
+  "browserWindow.why.noBack": "Nothing to go back to",
+  "browserWindow.why.noForward": "Nothing to go forward to",
+  "browserWindow.why.notLoading": "The page is not loading",
+  "place.browserWindow.title": "Browser tab window",
+  "place.browserWindow.lead":
+    "Opened with a in the leader while a browser tab is shown. Shows the state of the page; select an action and press Enter, or press its key.",
+  "place.browserWindow.select":
+    "Select the next or previous action (skips the ones that cannot be done now)",
+  "place.browserWindow.run": "Do the selected action",
+  "place.browserWindow.history": "Back / forward (the window stays open)",
   "tabMove.label": "Workspace to move the tab to",
   "tabMove.title": "Move “{title}” to which workspace?",
   "tabMove.keys.move": "Move",
@@ -579,7 +596,7 @@ export const en = {
     "Enter opens (a URL, or a Google search), or opens / closes a folder · ↓ ↑ (Ctrl+J/K) pick a bookmark · typing filters bookmarks",
   "newTab.bookmarks": "Bookmarks",
   "newTab.empty.none":
-    "No bookmarks yet. Add a page you are viewing with {leader} o b.",
+    "No bookmarks yet. Add a page you are viewing with {leader} a b.",
   "urlBar.label": "Address bar",
   "urlBar.loading": "Loading",
   "urlBar.placeholder": "Search or type a URL",
@@ -634,7 +651,7 @@ export const en = {
   "askpass.cancel": "Cancel",
   "browser.opening": "Opening {url}…",
   "browser.failed":
-    "Could not open {url}. You can edit the URL with o u in the leader.",
+    "Could not open {url}. You can edit the URL with a u in the leader.",
   "browser.hidden":
     "The page is hidden while a dialog, notice or guide is shown",
   "browser.loadFailed.title": "Could not open this page",
@@ -701,7 +718,7 @@ export const en = {
   "bookmarks.empty.loading": "Loading…",
   "bookmarks.empty.failed": "Could not read the bookmarks",
   "bookmarks.empty.none":
-    "No bookmarks yet. Add the page you are viewing with {leader} o b.",
+    "No bookmarks yet. Add the page you are viewing with {leader} a b.",
   "bookmarks.empty.noMatch": "Nothing matches",
   "err.bookmarks.read": "Could not read your own bookmarks",
   "err.bookmarks.chrome":
@@ -723,7 +740,7 @@ export const en = {
   "emptyWorkspace.title": "This workspace has no tabs",
   "emptyWorkspace.text":
     "Its name and place in the list stay until you close the workspace. Add a tab to start working here.",
-  "emptyWorkspace.addTerminal": "New terminal tab (pick the machine)",
+  "emptyWorkspace.addTerminal": "New terminal tab",
   "emptyWorkspace.addBrowser": "New browser tab",
   "emptyWorkspace.closeWorkspace":
     "Close this workspace (from the workspace switcher; confirm with y)",

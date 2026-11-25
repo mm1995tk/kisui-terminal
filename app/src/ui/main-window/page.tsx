@@ -57,7 +57,7 @@ import { ConfigError } from "./sessions/ConfigError.tsx";
 import { DbDialogs } from "./db/DbDialogs.tsx";
 import { SessionDialogs } from "./sessions/SessionDialogs.tsx";
 import { FileTreeDialogs } from "./sidebar/file-tree/FileTreeDialogs.tsx";
-import { TAB_WINDOW_KINDS, TabWindows } from "./tab-window/TabWindows.tsx";
+import { TabWindows } from "./tab-window/TabWindows.tsx";
 
 /**
  * 起動したら、先に手元の設定ファイルの [[gui.machines]] を読む。間違いがあれば、場所・行・理由だけを出して、ほかは何もしない
@@ -80,7 +80,7 @@ export function MainWindowPage(props: { ports: Ports }): JSX.Element {
   onMount(() => {
     api.configGui().then(
       (g) => {
-        // 内蔵ブラウザ（#202）は、設定で有効にしたときだけ、リーダーの o のグループを出す
+        // 内蔵ブラウザ（#202）は、設定で有効にしたときだけ、ブラウザの操作（ブラウザのタブの窓と、設定の近道の browser.*）を使えるようにする
         setBrowserEnabled(g.browser);
         // 近道の間違い（読めないキー・知らないコマンド）では止めず、お知らせで知らせる
         const shortcutProblems = setUserShortcuts(g.shortcuts, IS_MAC);
@@ -201,11 +201,7 @@ function MainWindow(props: {
       toggleSidebar: () => resize.toggleSidebar(),
       openMachines: () => setMachinesOpen(true),
       openWorkspaceSwitcher: (start) => setWsSwitcher(start),
-      openTabWindow: (kind) => {
-        if (!TAB_WINDOW_KINDS.has(kind)) return false;
-        setTabWindow(kind);
-        return true;
-      },
+      openTabWindow: (kind) => setTabWindow(kind),
       openClipboardHistory,
       openMascotPicker: () => setMascotPicking(true),
       openKeyList: () => openKeyList(placeOf(document.activeElement)),
@@ -409,6 +405,8 @@ function MainWindow(props: {
         connected={(t) => sessions.states()[t]?.kind === "connected"}
         mac={IS_MAC}
         onFocusDbTree={() => focusUi.focusDbTree()}
+        shownBrowserTab={pages.shownBrowserTab}
+        runBrowser={commands.runBrowserOn}
       />
       <Show when={mascotPicking()}>
         <MascotDialog

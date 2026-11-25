@@ -1,20 +1,15 @@
 // 今出しているタブの種類ごとの窓（リーダーの `a`。#457）を出し分ける。
 // リーダーの `a` は 1 つで、開く窓だけがタブの種類で変わる。種類を決めるのは features/commands/tabWindow.ts の shownTabKind、
-// 開く・閉じるの状態を持つのは page.tsx で、ここは「どの種類に窓があるか」と「その種類の窓」だけを持つ。
-// 種類の窓を足すときは、TAB_WINDOW_KINDS に種類を足し、下の出し分けに窓を 1 つ足す（リーダーの定義とコマンドは変えない）。
-// 今あるのは、ターミナルのタブの窓（#457）と DB のタブの窓（#458）。
+// 開く・閉じるの状態を持つのは page.tsx で、ここは種類ごとの窓の出し分けだけを持つ。
+// ターミナルのタブの窓（#457）・DB のタブの窓（#458）・ブラウザのタブの窓（#459）で、タブの種類（TabKind）の全部に窓がある。
+// 種類を足すときは、下の出し分けに窓を 1 つ足す（リーダーの定義とコマンドは変えない）。
 import { createEffect, Match, Switch, type JSX } from "solid-js";
 
 import type { TabKind } from "../../../features/commands/tabWindow.ts";
 import type { Terminals } from "../../../features/terminal/controller.ts";
 import { TerminalWindow } from "./TerminalWindow.tsx";
 import { DbWindow } from "./DbWindow.tsx";
-
-/** 窓がある種類。ここに無い種類のタブでリーダーの `a` を押すと、窓を開かずに、その旨を伝える（features/commands/run.ts）。 */
-export const TAB_WINDOW_KINDS: ReadonlySet<TabKind> = new Set<TabKind>([
-  "terminal",
-  "db",
-]);
+import { BrowserWindow } from "./BrowserWindow.tsx";
 
 /** タブの種類ごとの窓を出す。出していなければ（open が undefined）何も描かない。 */
 export function TabWindows(props: {
@@ -39,9 +34,13 @@ export function TabWindows(props: {
   mac: boolean;
   /** サイドバーの DB のタブの木にキーを向ける */
   onFocusDbTree: () => void;
+  /** 今出しているブラウザのタブ（ブラウザのタブの窓の相手） */
+  shownBrowserTab: Parameters<typeof BrowserWindow>[0]["shown"];
+  /** ブラウザのタブのページに操作を行う（features/commands/run.ts の runBrowserOn） */
+  runBrowser: Parameters<typeof BrowserWindow>[0]["run"];
 }): JSX.Element {
   // 窓の相手のタブが無くなった・別の種類のタブに替わった（タブが閉じた、など）ら、窓を閉じる。別の種類のタブに、開いていた窓の操作をしない
-  // （同じ DB の種類で別のタブに替わったときは、DB のタブの窓が自分で閉じる）
+  // （同じ種類で別のタブに替わったときは、DB・ブラウザのタブの窓が自分で閉じる）
   createEffect(() => {
     if (props.open !== undefined && props.shown !== props.open)
       props.onClose(true);
@@ -71,6 +70,13 @@ export function TabWindows(props: {
           connected={props.connected}
           mac={props.mac}
           onFocusTree={props.onFocusDbTree}
+          onClose={props.onClose}
+        />
+      </Match>
+      <Match when={props.open === "browser"}>
+        <BrowserWindow
+          shown={props.shownBrowserTab}
+          run={props.runBrowser}
           onClose={props.onClose}
         />
       </Match>

@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
 
 import {
-  activeLeader,
   afterKeyUp,
   childrenAt,
   helpRows,
@@ -80,7 +79,7 @@ function treeLeaves(
 /** 今使う木の葉とグループと、木の外の葉（近道だけの操作。path は ["(近道だけ)"]）。 */
 function leaves(): { path: string[]; node: Node }[] {
   return [
-    ...treeLeaves(activeLeader()),
+    ...treeLeaves(LEADER),
     ...outsideLeaves().map((node) => ({ path: ["(近道だけ)"], node })),
   ];
 }
@@ -646,7 +645,7 @@ describe("案内の一覧（`?`）", () => {
 
   it("案内に出るキーは、すべて実際に受ける（表から作るので、ずれない）", () => {
     const L = LEADER_KEY(MAC);
-    for (const { path, node } of treeLeaves(activeLeader())) {
+    for (const { path, node } of treeLeaves(LEADER)) {
       if (node.type !== "leaf") continue;
       const first = node.keys[0];
       // 葉の最初のキーで動くか。`+` と大文字は Shift を伴う
@@ -838,50 +837,121 @@ describe("リーダーの閉じ方（キャラクターが案内を押してい�
 });
 
 describe("内蔵ブラウザ（#202。設定で有効にしたときだけ）", () => {
-  it("有効にしていなければ、o のグループは案内にも `?` の一覧にも無く、キーも受けない", () => {
+  /** 木の外の、ブラウザのコマンドの id（並べた順） */
+  const browserIds = () =>
+    outsideLeaves()
+      .filter((n) => n.run.id.startsWith("browser."))
+      .map((n) => n.run.id);
+
+  it("有効にしていなければ、ブラウザのコマンドは近道にも `?` の一覧にも無く、設定の近道にも書けない", () => {
     setBrowserEnabled(false);
-    assert.equal(childrenAt(["o"]), undefined);
-    assert.ok(!helpRows(MAC).some((r) => r.path[0] === "o"));
-    assert.ok(!menuRows([], MAC).some((r) => r.keys === "o"));
-    const r = press(MAC, [LEADER_KEY(MAC), key("o")]);
-    assert.equal(r.state.leader, null);
+    assert.deepEqual(browserIds(), []);
+    assert.ok(
+      !helpRows(MAC).some((r) => r.label === T("leader.browser.reload")),
+    );
     // Cmd+R はリサイズモードのまま
     assert.deepEqual(
       press(MAC, [key("r", "m", "KeyR")], { browser: true }).runs,
       [{ id: "pane.resize" }],
     );
+    assert.deepEqual(
+      setUserShortcuts([{ key: "Ctrl+Alt+B", command: "browser.back" }], MAC),
+      [
+        `gui.shortcuts."Ctrl+Alt+B": ${T("shortcut.err.noCommand", { command: "browser.back" })}`,
+      ],
+    );
+    setUserShortcuts([], MAC);
+  });
+
+  it("リーダーの o のグループは無い（#459。ページへの操作は、リーダーの a で開くブラウザのタブの窓の中のキー）", () => {
+    for (const on of [false, true]) {
+      setBrowserEnabled(on);
+      assert.equal(childrenAt(["o"]), undefined);
+      assert.ok(!helpRows(MAC).some((r) => r.path[0] === "o"));
+      assert.ok(!menuRows([], MAC).some((r) => r.keys === "o"));
+      for (const k of ["u", "h", "b", "B", "x", "R", "j"]) {
+        const r = press(MAC, [
+          LEADER_KEY(MAC),
+          key("o"),
+          key(k, /^[A-Z]$/.test(k) ? "s" : ""),
+        ]);
+        assert.deepEqual(r.runs, [], `o ${k}`);
+        assert.equal(r.state.leader, null);
+      }
+    }
+    setBrowserEnabled(false);
   });
 
   describe("有効にしたとき", () => {
     before(() => setBrowserEnabled(true));
     after(() => setBrowserEnabled(false));
 
-    it("o のグループの葉は、Issue の表のとおり", () => {
-      const rows = helpRows(MAC)
-        .filter((r) => r.path[0] === "o")
-        .map((r) => [r.path.join(" "), r.shortcut ?? ""]);
-      assert.deepEqual(rows, [
-        ["o", ""],
-        ["o u", ""],
-        ["o h", ""],
-        ["o l", ""],
-        ["o r", "Cmd+R"],
-        ["o c", ""],
-        ["o x", ""],
-        ["o e", ""],
-        ["o b", ""],
-        ["o B", ""],
-        ["o /", "Cmd+F"],
-        ["o y", ""],
-        ["o i", ""],
-        ["o s", ""],
-        ["o R", ""],
+    it("ブラウザのコマンドは、全部木の外（設定の近道だけ）にある。#459 までのリーダーの o の葉と、#456 までの o n・o N", () => {
+      assert.deepEqual(browserIds(), [
+        "browser.new",
+        "browser.incognito",
+        "browser.url",
+        "browser.back",
+        "browser.forward",
+        "browser.reload",
+        "browser.stop",
+        "browser.close",
+        "browser.external",
+        "browser.bookmark",
+        "browser.bookmarks",
+        "browser.find",
+        "browser.copyUrl",
+        "browser.devtools",
+        "browser.login",
+        "browser.rename",
       ]);
-      // 続けて押せるのは、戻る・進む（タブを回るのは t j / t k）
-      const repeat = (childrenAt(["o"]) ?? [])
-        .filter((n) => n.type === "leaf" && n.repeat)
-        .map((n) => (n.type === "leaf" ? n.keys[0] : ""));
-      assert.deepEqual(repeat.sort(), ["h", "l"]);
+      // 続けて押せるのは、戻る・進む
+      const repeat = outsideLeaves()
+        .filter((n) => n.run.id.startsWith("browser.") && n.repeat)
+        .map((n) => n.run.id);
+      assert.deepEqual(repeat, ["browser.back", "browser.forward"]);
+      // `?` の一覧では、既定の近道を持つ読み込み直す・ページ内検索だけが、木のあとの「近道だけ」の行に出る
+      const outside = helpRows(MAC).filter((r) => r.path.length === 0);
+      for (const [label, shortcut] of [
+        [T("leader.browser.reload"), "Cmd+R"],
+        [T("leader.browser.find"), "Cmd+F"],
+      ])
+        assert.equal(
+          outside.find((r) => r.label === label)?.shortcut,
+          shortcut,
+          label,
+        );
+      assert.ok(!outside.some((r) => r.label === T("leader.browser.back")));
+    });
+
+    it("設定の近道に、ブラウザのコマンド（閉じる・名前を変えるも）を書ける（#459 で木から外しても、書いた設定は壊れない）", () => {
+      assert.deepEqual(
+        setUserShortcuts(
+          [
+            { key: "Ctrl+Alt+B", command: "browser.bookmark" },
+            { key: "Ctrl+Alt+H", command: "browser.back" },
+            { key: "Ctrl+Alt+X", command: "browser.close" },
+            { key: "Ctrl+Alt+R", command: "browser.rename" },
+          ],
+          LINUX,
+        ),
+        [],
+      );
+      assert.deepEqual(
+        press(LINUX, [
+          key("b", "ca"),
+          key("h", "ca"),
+          key("x", "ca"),
+          key("r", "ca"),
+        ]).runs,
+        [
+          { id: "browser.bookmark" },
+          { id: "browser.back" },
+          { id: "browser.close" },
+          { id: "browser.rename" },
+        ],
+      );
+      setUserShortcuts([], LINUX);
     });
 
     for (const mac of [MAC, LINUX]) {
@@ -923,26 +993,6 @@ describe("内蔵ブラウザ（#202。設定で有効にしたときだけ）", 
           ),
         );
       });
-
-      it(`${os}：o b は今のページを足し、o B（Shift+b）は一覧を開く（#205）`, () => {
-        const L = LEADER_KEY(mac);
-        assert.deepEqual(press(mac, [L, key("o"), key("b")]).runs, [
-          { id: "browser.bookmark" },
-        ]);
-        assert.deepEqual(
-          press(mac, [L, key("o"), key("B", "s", "KeyB")]).runs,
-          [{ id: "browser.bookmarks" }],
-        );
-        assert.deepEqual(
-          press(mac, [L, key("o"), key("/", "", "Slash")]).runs,
-          [{ id: "browser.find" }],
-        );
-      });
-
-      it(`${os}：o j・o k は無い（タブを回るのは t j / t k）`, () => {
-        const r = press(mac, [LEADER_KEY(mac), key("o"), key("j")]);
-        assert.deepEqual(r.runs, []);
-      });
     }
 
     it("近道は、ブラウザを出しているときだけのものを除いて OS ごとに重ならない（ブラウザだけのものどうしも重ならない）", () => {
@@ -974,17 +1024,6 @@ describe("内蔵ブラウザ（#202。設定で有効にしたときだけ）", 
           continue;
         assert.equal(s, "Ctrl+F");
         assert.ok(node.type === "leaf" && node.shortcutInBrowser);
-      }
-    });
-
-    it("案内に出るキーは、すべて実際に受ける", () => {
-      const L = LEADER_KEY(LINUX);
-      for (const { path, node } of leaves()) {
-        if (node.type !== "leaf" || path[0] !== "o") continue;
-        const k = node.keys[0];
-        const shift = /^[A-Z]$/.test(k) ? "s" : "";
-        const r = press(LINUX, [L, key("o"), key(k, shift)]);
-        assert.deepEqual(r.runs, [node.run], path.join(" "));
       }
     });
 

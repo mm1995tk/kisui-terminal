@@ -132,8 +132,6 @@ export interface Group extends Common {
   type: "group";
   key: string;
   children: Node[];
-  /** 設定で有効にしたときだけ出すグループ（内蔵ブラウザ。setBrowserEnabled） */
-  feature?: "browser";
 }
 
 /** リーダーの木の 1 つ。動きを行う葉か、一段下の一覧に入るグループ。 */
@@ -162,7 +160,6 @@ function group(
   label: string,
   children: Node[],
   hideInMenuOn?: "mac",
-  feature?: "browser",
 ): Group {
   return {
     type: "group",
@@ -170,7 +167,6 @@ function group(
     label,
     children,
     hideInMenuOn,
-    feature,
   };
 }
 
@@ -309,12 +305,53 @@ const SHORTCUT_ONLY: Leaf[] = [
 ];
 
 /**
- * SHORTCUT_ONLY と同じ扱いで、内蔵ブラウザを有効にしたときだけ使えるコマンド（#456）。
- * ブラウザのタブを作るのも、ワークスペースの窓の、種類を選ぶ一覧からする。
+ * SHORTCUT_ONLY と同じ扱いで、内蔵ブラウザを有効にしたときだけ使えるコマンド（設定の [gui.browser] enabled。setBrowserEnabled）。
+ * ブラウザのタブを作るのは、ワークスペースの窓の、種類を選ぶ一覧からする（#456）。
+ * ページへの操作は、リーダーの `a` で開くブラウザのタブの窓（BrowserWindow.tsx）の中のキーでするので、木には載せない（#459。#459 までは `o` のグループ）。
+ * 閉じる・名前を変えるは、ワークスペースの窓（リーダーの `t`）のタブ共通の操作。browser.close・browser.rename は、設定の近道に書いた人の設定を壊さないよう残す。
+ * 読み込み直す・ページ内検索は、ブラウザを出している間だけ効く既定の近道を持ったまま残す（ターミナルにキーが無い間だけなので、シェル・shj とぶつからない）。
  */
 const SHORTCUT_ONLY_BROWSER: Leaf[] = [
   leaf("", T("leader.browser.new"), { id: "browser.new" }),
   leaf("", T("leader.browser.incognito"), { id: "browser.incognito" }),
+  leaf("", T("leader.browser.url"), { id: "browser.url" }),
+  leaf("", T("leader.browser.back"), { id: "browser.back" }, { repeat: true }),
+  leaf(
+    "",
+    T("leader.browser.forward"),
+    { id: "browser.forward" },
+    { repeat: true },
+  ),
+  leaf(
+    "",
+    T("leader.browser.reload"),
+    { id: "browser.reload" },
+    {
+      shortcut: { mac: "Cmd+R", other: "Ctrl+Shift+R" },
+      shortcutInBrowser: true,
+    },
+  ),
+  // #449。読み込み中のときだけ働く。ページにキーがある間の Esc も同じ
+  leaf("", T("leader.browser.stop"), { id: "browser.stop" }),
+  leaf("", T("leader.browser.close"), { id: "browser.close" }),
+  leaf("", T("leader.browser.external"), { id: "browser.external" }),
+  leaf("", T("leader.browser.bookmark"), { id: "browser.bookmark" }),
+  leaf("", T("leader.browser.bookmarks"), { id: "browser.bookmarks" }),
+  // ページ内検索。ブラウザを出している間は Cmd+F / Ctrl+F（ターミナルが見えていないので、シェルや shj のキーとぶつからない）
+  leaf(
+    "",
+    T("leader.browser.find"),
+    { id: "browser.find" },
+    {
+      shortcut: { mac: "Cmd+F", other: "Ctrl+F" },
+      shortcutInBrowser: true,
+    },
+  ),
+  leaf("", T("leader.browser.copyUrl"), { id: "browser.copyUrl" }),
+  leaf("", T("leader.browser.devtools"), { id: "browser.devtools" }),
+  // #276。パスキーを待たずに、外のブラウザでログインして Cookie を戻す
+  leaf("", T("leader.browser.login"), { id: "browser.login" }),
+  leaf("", T("leader.browser.rename"), { id: "browser.rename" }),
 ];
 
 /**
@@ -348,63 +385,10 @@ export const LEADER: Node[] = [
     arg: "newTab",
   }),
   leaf("m", T("leader.machine"), { id: "machine.dialog" }),
-  // 今出しているタブの種類ごとの窓を開く（#457。ターミナルのタブなら、ペインを選んで操作する窓。DB のタブなら、結果のタブを選んで操作する窓（#458））。
-  // どの種類の窓を開くかは、押したときに出しているタブで決まる（tabWindow.ts の shownTabKind）。ブラウザの窓も、この葉に乗る
+  // 今出しているタブの種類ごとの窓を開く（#457。ターミナルのタブなら、ペインを選んで操作する窓。DB のタブなら、結果のタブを選んで操作する窓（#458）。
+  // ブラウザのタブなら、ページの状態を見て、ページへの操作を選ぶ窓（#459））。どの種類の窓を開くかは、押したときに出しているタブで決まる（tabWindow.ts の shownTabKind）
   leaf("a", T("leader.tab.window"), { id: "tab.window" }),
-  // 内蔵ブラウザ（#202）。設定（[gui.browser] enabled）で有効にしたときだけ出す（setBrowserEnabled）
-  group(
-    "o",
-    T("leader.browser.group"),
-    [
-      leaf("u", T("leader.browser.url"), { id: "browser.url" }),
-      leaf(
-        "h",
-        T("leader.browser.back"),
-        { id: "browser.back" },
-        { repeat: true },
-      ),
-      leaf(
-        "l",
-        T("leader.browser.forward"),
-        { id: "browser.forward" },
-        { repeat: true },
-      ),
-      leaf(
-        "r",
-        T("leader.browser.reload"),
-        { id: "browser.reload" },
-        {
-          shortcut: { mac: "Cmd+R", other: "Ctrl+Shift+R" },
-          shortcutInBrowser: true,
-        },
-      ),
-      // #449。読み込み中のときだけ働く（cancel の `c`）。ページにキーがある間の Esc も同じ
-      leaf("c", T("leader.browser.stop"), { id: "browser.stop" }),
-      leaf("x", T("leader.browser.close"), { id: "browser.close" }),
-      leaf("e", T("leader.browser.external"), { id: "browser.external" }),
-      // #205
-      leaf("b", T("leader.browser.bookmark"), { id: "browser.bookmark" }),
-      leaf("B", T("leader.browser.bookmarks"), { id: "browser.bookmarks" }),
-      // ページ内検索。ブラウザを出している間は Cmd+F / Ctrl+F でも（ターミナルが見えていないので、シェルや shj のキーとぶつからない）
-      leaf(
-        "/",
-        T("leader.browser.find"),
-        { id: "browser.find" },
-        {
-          shortcut: { mac: "Cmd+F", other: "Ctrl+F" },
-          shortcutInBrowser: true,
-        },
-      ),
-      leaf("y", T("leader.browser.copyUrl"), { id: "browser.copyUrl" }),
-      leaf("i", T("leader.browser.devtools"), { id: "browser.devtools" }),
-      // #276。パスキーを待たずに、外のブラウザでログインして Cookie を戻す（sign in の `s`）
-      leaf("s", T("leader.browser.login"), { id: "browser.login" }),
-      leaf("R", T("leader.browser.rename"), { id: "browser.rename" }),
-    ],
-    undefined,
-    "browser",
-  ),
-  // プロキシ（#409。今のタブの HTTP・HTTPS の通信を記録して見る。pro**x**y の x。p はペイン）。パネルの中だけで使う操作は、場所のキー（placeKeys.ts の proxy）
+  // プロキシ（#409。今のタブの HTTP・HTTPS の通信を記録して見る。pro**x**y の x。p は #457 までペインのグループだった字）。パネルの中だけで使う操作は、場所のキー（placeKeys.ts の proxy）
   group("x", T("leader.proxy.group"), [
     leaf("p", T("leader.proxy.panel"), { id: "proxy.panel" }),
     leaf("c", T("leader.proxy.close"), { id: "proxy.close" }),
@@ -466,24 +450,14 @@ export const LEADER: Node[] = [
   leaf("?", T("help.keys"), { id: "help.keys" }),
 ];
 
-/** 内蔵ブラウザ（`o` のグループ）を出すか。設定で有効にしたときだけ、画面（ui/main-window/page.tsx）が true にする。 */
+/** 内蔵ブラウザのコマンド（SHORTCUT_ONLY_BROWSER）を使えるか。設定で有効にしたときだけ、画面（ui/main-window/page.tsx）が true にする。 */
 let browserEnabled = false;
-let activeCache: Node[] | undefined;
 
-/** 内蔵ブラウザのグループ（feature: "browser"）を、リーダーの木・案内・`?` の一覧・近道に入れるか（設定の [gui.browser] enabled）。 */
+/** 内蔵ブラウザのコマンド（SHORTCUT_ONLY_BROWSER）を、近道・設定の近道・`?` の一覧で使えるようにするか（設定の [gui.browser] enabled）。 */
 export function setBrowserEnabled(on: boolean): void {
   if (on === browserEnabled) return;
   browserEnabled = on;
-  activeCache = undefined;
   shortcutCache.clear();
-}
-
-/** 今使うリーダーの木（設定で有効にしていないグループを除いたもの）。 */
-export function activeLeader(): Node[] {
-  activeCache ??= LEADER.filter(
-    (n) => n.type !== "group" || !n.feature || browserEnabled,
-  );
-  return activeCache;
 }
 
 /** 木の外の葉（設定の近道から使えるコマンド。既定の近道を持つものもある）。内蔵ブラウザのものは、有効にしたときだけ。 */
@@ -499,7 +473,7 @@ export type Path = readonly string[];
 /** path の一覧（そのグループの children）。path が葉や無い所を指すなら undefined。 */
 export function childrenAt(
   path: Path,
-  root: Node[] = activeLeader(),
+  root: Node[] = LEADER,
 ): Node[] | undefined {
   let list = root;
   for (const k of path) {
@@ -644,7 +618,7 @@ function shortcuts(mac: boolean) {
   if (!v) {
     // 同じキーは、設定で足した近道が既定のものに勝つ
     // 木の葉と、木の外の葉（ペインの直接の操作など）の両方
-    const all = collect([...activeLeader(), ...outsideLeaves()], mac, [])
+    const all = collect([...LEADER, ...outsideLeaves()], mac, [])
       .map((entry) => ({ spec: parseSpec(entry.spec), entry }))
       .filter(({ spec }) => !userEntries.some((u) => sameSpec(u.spec, spec)));
     const user = userEntries.flatMap((u) =>
@@ -816,7 +790,7 @@ function sameSpec(a: KeySpec, b: KeySpec): boolean {
  */
 export function setUserShortcuts(list: UserShortcut[], mac: boolean): string[] {
   const problems: string[] = [];
-  const leaves = leavesByName([...activeLeader(), ...outsideLeaves()]);
+  const leaves = leavesByName([...LEADER, ...outsideLeaves()]);
   const out: UserEntry[] = [];
   const leader = parseSpec(shortcutOf(LEADER_SHORTCUT, mac) ?? "Ctrl+Shift+K");
   for (const { key, command, source = 0 } of list) {
@@ -995,7 +969,7 @@ export interface HelpRow {
  */
 export function helpRows(mac: boolean): HelpRow[] {
   const used = new Set<string>();
-  const out = rowsOf(mac, activeLeader(), [], used);
+  const out = rowsOf(mac, LEADER, [], used);
   const outside = outsideLeaves().flatMap((n): HelpRow[] => {
     const shortcut = shortcutsFor(n, mac, used).join(", ");
     return shortcut

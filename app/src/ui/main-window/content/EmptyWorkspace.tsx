@@ -1,5 +1,6 @@
 // 空のワークスペース（タブが 1 つも無い。#307）を選んでいる間に、右のペインに出す画面。
-// タブが無いことと、タブを足す・ワークスペースを閉じるキー（どれもリーダーの木にある操作）を伝える。
+// タブが無いことと、タブを足す・ワークスペースを閉じるキーを伝える。タブを足すキーは、リーダーの `n` で開くワークスペースの窓の、
+// 種類を選ぶ一覧の字（`t` ターミナル・`b` ブラウザ・`d` DB。#456）。閉じるのは、リーダーの `w` で開く窓の `x`。
 // ほかのワークスペースのターミナルは出さず、キーも送らない。キーはこの画面そのものに置く（リーダーと近道は窓が受ける）。
 import { T } from "../../../i18n/index.ts";
 import { onCleanup, type JSX } from "solid-js";
@@ -31,16 +32,16 @@ export function EmptyWorkspace(props: {
         <p class={styles.text}>{T("emptyWorkspace.text")}</p>
         <KeyHints
           items={[
-            { keys: keys("t", "n"), label: T("emptyWorkspace.addTerminal") },
+            { keys: keys("n", "t"), label: T("emptyWorkspace.addTerminal") },
             ...(props.browser
               ? [
                   {
-                    keys: keys("o", "n"),
+                    keys: keys("n", "b"),
                     label: T("emptyWorkspace.addBrowser"),
                   },
                 ]
               : []),
-            { keys: keys("d", "n"), label: T("emptyWorkspace.addDb") },
+            { keys: keys("n", "d"), label: T("emptyWorkspace.addDb") },
             {
               keys: keys("w", "x"),
               label: T("emptyWorkspace.closeWorkspace"),

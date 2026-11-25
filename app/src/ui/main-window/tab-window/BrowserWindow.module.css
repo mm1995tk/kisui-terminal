@@ -1,0 +1,66 @@
+/* ブラウザのタブの窓（BrowserWindow.tsx。リーダーの a。#459）。カードと一覧の行（.card-rows・.card-row）は card.css。
+   上にそのタブのページの題・URL・状態の印、中にページへの操作の行を出す。 */
+
+/* 見出し（題）と、その下の URL・状態の印 */
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  min-width: 0;
+}
+/* 題と URL は 1 行に収め、長ければ末尾を省く（全部は title に出す） */
+.title,
+.url {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.url {
+  margin: 0;
+  color: var(--card-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+}
+.status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+.mark {
+  padding: 0 var(--space-6);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-4);
+  color: var(--card-muted);
+  font-size: var(--text-label);
+  font-weight: var(--weight-regular);
+  white-space: nowrap;
+}
+/* 読み込めなかった：知らせの色 */
+.mark[data-alert] {
+  color: var(--state-danger);
+}
+
+/* 一覧の入れ物。キーはここで受ける（選んでいる行は aria-activedescendant） */
+.list:focus {
+  outline: none;
+}
+
+/* 行の名前の側：押す字と、操作の名前 */
+.name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+/* 押す字の幅をそろえて、操作の名前の頭をそろえる */
+.key {
+  display: inline-flex;
+  flex: none;
+  justify-content: center;
+  min-width: 1.75em;
+}
+/* 今できない操作は薄くする（理由は行の右に出る） */
+.disabled {
+  color: var(--card-muted);
+}

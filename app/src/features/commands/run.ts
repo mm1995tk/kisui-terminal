@@ -8,8 +8,10 @@ import type { Bookmarks } from "../browser/bookmarksStore.ts";
 import type { Downloads } from "../browser/downloads.ts";
 import type { BrowserOs, PasskeyLogin } from "../browser/os.ts";
 import type { Pages } from "../browser/pages.ts";
-import { showTab } from "../browser/tabs.ts";
+import { isNewTab } from "../browser/newTab.ts";
+import { showTab, type BrowserTab } from "../browser/tabs.ts";
 import type { BrowserTabs } from "../browser/tabsStore.ts";
+import { NEEDS_PAGE, type BrowserOp } from "../browser/window.ts";
 import type { DbTabs } from "../db/controller.ts";
 import type { Failure, MascotStore } from "../mascot/mascotStore.ts";
 import type { ReportProblem } from "../problem.ts";
@@ -42,11 +44,8 @@ export interface CommandUi {
   openMachines(): void;
   /** ワークスペースの窓を出す（リーダーの w は ws、t は tab、n は newTab） */
   openWorkspaceSwitcher(start: SwitcherStart): void;
-  /**
-   * 今出しているタブの種類 kind の窓を出す（リーダーの a。#457）。その種類の窓がまだ無ければ、出さずに false を返す
-   * （どの種類に窓があるかは、窓を出し分ける画面の側が知っている。ui/main-window/tab-window/TabWindows.tsx）。
-   */
-  openTabWindow(kind: TabKind): boolean;
+  /** 今出しているタブの種類 kind の窓を出す（リーダーの a。#457。窓を出し分けるのは ui/main-window/tab-window/TabWindows.tsx） */
+  openTabWindow(kind: TabKind): void;
   /** クリップボードの履歴の窓を出す */
   openClipboardHistory(): void;
   /** キャラクターを選ぶ窓（リーダーの c s）を出す */
@@ -126,13 +125,8 @@ export function createCommandRunner(deps: {
     stopPage,
   } = deps.pages;
   const { zoomed, termGroup, newTerminal, setZoom } = deps.terminals;
-  const {
-    newBrowserTab,
-    removeTab,
-    addWorkspaceTab,
-    closeCurrentTab,
-    stepTab,
-  } = deps.tabs;
+  const { newBrowserTab, addWorkspaceTab, closeCurrentTab, stepTab } =
+    deps.tabs;
   const { setTabs } = deps.browserTabs;
   const { openTabDevtools, startPasskeyLogin } = deps.os;
   const { bookmarkPage } = deps.bookmarks;
@@ -140,7 +134,7 @@ export function createCommandRunner(deps: {
   const { changeScale } = deps.scale;
 
   /**
-   * パスキーを待たずに、タブのサイトを外のブラウザで開き、そのサイトのログインを待つ（#276。リーダーの `o s`）。
+   * パスキーを待たずに、タブのサイトを外のブラウザで開き、そのサイトのログインを待つ（#276。ブラウザのタブの窓の `s`・設定の近道の browser.login）。
    * 許可サイト（passkey_sites）か・シークレットのタブかは殻が決め、使えなければ理由をお知らせに出す。
    */
   function loginExternally(tab: string, url: string) {
@@ -169,7 +163,67 @@ export function createCommandRunner(deps: {
     );
   }
 
-  /** 内蔵ブラウザのコマンド（リーダーの o と、設定の近道だけの browser.new・browser.incognito）。 */
+  /**
+   * ブラウザのタブ t のページに、操作 op を行う。設定の近道（browser.*）と、ブラウザのタブの窓（リーダーの a。#459）の両方がここを通る
+   * （処理を 2 か所に書かない）。t を決めるのは呼ぶ側：近道は今出しているタブ、窓は開いたときのタブ。
+   * ページが要る操作（NEEDS_PAGE）を新しいタブのページに頼まれたら、何もしない（近道は currentPage が先に断り、窓は行に理由を出している）。
+   */
+  function browserOn(t: BrowserTab, op: BrowserOp) {
+    if (NEEDS_PAGE.has(op) && isNewTab(t)) return;
+    switch (op) {
+      case "url":
+        // ページから押したときに覚えた「戻す先」を捨てる（検索の欄と同じ。openFind）
+        ui.forgetPageReturn();
+        ui.focusUrlBar();
+        break;
+      case "back":
+      case "forward":
+      case "reload":
+        navPage(t.id, op);
+        break;
+      case "stop":
+        // 読み込み中でなければ何もしない（ページの Esc と同じ）
+        stopPage(t.id);
+        break;
+      case "external":
+        openUrlFor(t.target, t.url);
+        break;
+      case "bookmark":
+        bookmarkPage(t);
+        break;
+      case "bookmarks":
+        deps.bookmarks.openDialog();
+        break;
+      case "find":
+        openFind(t);
+        break;
+      case "copyUrl":
+        void ui.copyToClipboard(t.url);
+        break;
+      case "devtools":
+        openTabDevtools(t.id).catch((e: unknown) =>
+          setFocusError({
+            title: T("err.devtools"),
+            error: e instanceof Error ? e.message : String(e),
+          }),
+        );
+        break;
+      case "login":
+        loginExternally(t.id, t.url);
+        break;
+    }
+  }
+
+  /** ブラウザのタブ tab（id）のページに、操作 op を行う（ブラウザのタブの窓。#459）。タブがもう無ければ何もしない。 */
+  function runBrowserOn(tab: string, op: BrowserOp) {
+    const t = deps.browserTabs.tabs().tabs.find((x) => x.id === tab);
+    if (t) browserOn(t, op);
+  }
+
+  /**
+   * 内蔵ブラウザのコマンド（設定の近道だけで使う browser.*。#459 までのリーダーの o のグループと、#456 までの o n・o N）。
+   * 今出しているブラウザのタブに行う。
+   */
   function runBrowser(c: Command) {
     switch (c.id) {
       case "browser.new":
@@ -178,89 +232,25 @@ export function createCommandRunner(deps: {
         if (!g)
           cannot(T("cannot.browser.open.title"), T("cannot.browser.open.text"));
         else newBrowserTab(g, c.id === "browser.incognito");
-        break;
+        return;
       }
-      case "browser.url": {
-        const t = currentTab();
-        if (t) {
-          // ページから押したときに覚えた「戻す先」を捨てる（検索の欄と同じ。openFind）
-          ui.forgetPageReturn();
-          ui.focusUrlBar();
-        }
-        break;
-      }
-      case "browser.back":
-      case "browser.forward":
-      case "browser.reload": {
-        const t = currentTab();
-        const action =
-          c.id === "browser.back"
-            ? "back"
-            : c.id === "browser.forward"
-              ? "forward"
-              : "reload";
-        if (t) navPage(t.id, action);
-        break;
-      }
-      case "browser.stop": {
-        // 読み込み中でなければ何もしない（ページの Esc と同じ）
-        const t = currentTab();
-        if (t) stopPage(t.id);
-        break;
-      }
-      case "browser.close": {
-        const t = currentTab();
-        if (t) {
-          removeTab(t.id);
-          focusTerminal();
-        }
-        break;
-      }
-      case "browser.external": {
-        const t = currentPage();
-        if (t) openUrlFor(t.target, t.url);
-        break;
-      }
-      case "browser.rename": {
-        const t = currentTab();
-        if (t) deps.tabs.renameBrowserTab(t.id);
-        break;
-      }
-      case "browser.bookmark": {
-        const t = currentPage();
-        if (t) bookmarkPage(t);
-        break;
-      }
+      // 閉じる・名前を変えるは、タブ共通の処理（tab.close・tab.rename と同じ）。ブラウザのタブを出しているときだけ動かす
+      // （設定の近道に書いた人の設定を壊さないために残したコマンド。#459）
+      case "browser.close":
+        // 出していたタブを閉じたら、キーをターミナル（次に出すタブ）に向ける（closeTabRow）
+        if (currentTab()) closeCurrentTab();
+        return;
+      case "browser.rename":
+        if (currentTab()) deps.tabs.renameCurrentTab();
+        return;
+      // ブックマークの一覧は、今のタブが無くても開ける（開くと、今のワークスペースの新しいタブに出る）
       case "browser.bookmarks":
         deps.bookmarks.openDialog();
-        break;
-      case "browser.find": {
-        const t = currentPage();
-        if (t) openFind(t);
-        break;
-      }
-      case "browser.copyUrl": {
-        const t = currentPage();
-        if (t) void ui.copyToClipboard(t.url);
-        break;
-      }
-      case "browser.devtools": {
-        const t = currentPage();
-        if (t)
-          openTabDevtools(t.id).catch((e: unknown) =>
-            setFocusError({
-              title: T("err.devtools"),
-              error: e instanceof Error ? e.message : String(e),
-            }),
-          );
-        break;
-      }
-      case "browser.login": {
-        const t = currentPage();
-        if (t) loginExternally(t.id, t.url);
-        break;
-      }
+        return;
     }
+    const op = c.id.slice("browser.".length) as BrowserOp;
+    const t = NEEDS_PAGE.has(op) ? currentPage() : currentTab();
+    if (t) browserOn(t, op);
   }
 
   /**
@@ -495,12 +485,11 @@ export function createCommandRunner(deps: {
         deps.tabs.openTabMove();
         break;
       case "tab.window": {
-        // 今出しているタブの種類の窓を開く。ターミナルのタブの窓を、DB・ブラウザのタブやタブの無い所で開かない
+        // 今出しているタブの種類の窓を開く。ターミナルのタブの窓を、DB・ブラウザのタブやタブの無い所で開かない（種類ごとに、その種類の窓だけ）
         const kind = shownKind();
         if (!kind)
           cannot(T("cannot.tabWindow.title"), T("cannot.tabWindow.noTab"));
-        else if (!ui.openTabWindow(kind))
-          cannot(T("cannot.tabWindow.title"), T("cannot.tabWindow.noWindow"));
+        else ui.openTabWindow(kind);
         break;
       }
       case "machine.dialog":
@@ -565,5 +554,5 @@ export function createCommandRunner(deps: {
     }
   }
 
-  return { runCommand, chooseMascot, shownTabKind: shownKind };
+  return { runCommand, runBrowserOn, chooseMascot, shownTabKind: shownKind };
 }

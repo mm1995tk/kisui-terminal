@@ -359,7 +359,7 @@ export function BrowserArea(props: {
       floatingNow = floating;
       setHidden(b === null);
       const v = views.get(tab.id);
-      // 開けなかったタブは、URL を書き換えたら（o u）・プロキシを替えたら、作り直す
+      // 開けなかったタブは、URL を書き換えたら（URL バー）・プロキシを替えたら、作り直す
       if (
         !v ||
         (v.state === "failed" &&

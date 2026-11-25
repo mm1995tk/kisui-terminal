@@ -152,12 +152,13 @@ describe("db.elevate・db.elevateEnd（権限を時間を決めて強める・�
   });
 });
 
-describe("tab.window（今出しているタブの種類の窓を開く。リーダーの a。#457・#458）", () => {
-  /** 出しているタブ（shown）と、窓がある種類（windows）を決めて、コマンドを動かす道具を作る。 */
-  function setupTabWindow(
-    shown: { browser?: boolean; db?: boolean; terminal?: boolean },
-    windows: string[] = ["terminal", "db"],
-  ) {
+describe("tab.window（今出しているタブの種類の窓を開く。リーダーの a。#457・#458・#459）", () => {
+  /** 出しているタブ（shown）を決めて、コマンドを動かす道具を作る。 */
+  function setupTabWindow(shown: {
+    browser?: boolean;
+    db?: boolean;
+    terminal?: boolean;
+  }) {
     const seen: string[] = [];
     const run = createCommandRunner({
       workspaces: stub({
@@ -183,19 +184,11 @@ describe("tab.window（今出しているタブの種類の窓を開く。リー
       showToast: () => undefined,
       focusTerminal: () => undefined,
       ui: stub({
-        openTabWindow: (kind: string) => {
-          if (!windows.includes(kind)) return false;
-          seen.push(`open ${kind}`);
-          return true;
-        },
+        openTabWindow: (kind: string) => void seen.push(`open ${kind}`),
       }),
     });
     return { seen, runCommand: run.runCommand };
   }
-  const noWindow =
-    "cannot This tab has no window / " +
-    "Only terminal tabs and database tabs have a window of their own for now.";
-
   it("ターミナルのタブを出していれば、ターミナルのタブの窓を開く", () => {
     const { seen, runCommand } = setupTabWindow({ terminal: true });
     runCommand({ id: "tab.window" });
@@ -210,7 +203,7 @@ describe("tab.window（今出しているタブの種類の窓を開く。リー
     }
   });
 
-  it("ブラウザのタブを出している間は、裏にターミナルのタブがあっても、ターミナルのタブの窓を開かず、その旨を伝える", () => {
+  it("ブラウザのタブを出している間は、裏にターミナル・DB のタブがあっても、ブラウザのタブの窓を開く（#459）", () => {
     for (const shown of [
       { browser: true, terminal: true },
       { browser: true, db: true },
@@ -218,17 +211,8 @@ describe("tab.window（今出しているタブの種類の窓を開く。リー
     ]) {
       const { seen, runCommand } = setupTabWindow(shown);
       runCommand({ id: "tab.window" });
-      assert.deepEqual(seen, [noWindow]);
+      assert.deepEqual(seen, ["open browser"]);
     }
-  });
-
-  it("種類の窓があれば（あとから足すブラウザの窓）、その種類の窓を開く", () => {
-    const { seen, runCommand } = setupTabWindow(
-      { browser: true, terminal: true },
-      ["terminal", "db", "browser"],
-    );
-    runCommand({ id: "tab.window" });
-    assert.deepEqual(seen, ["open browser"]);
   });
 
   it("タブを出していなければ、窓を開かず、その旨を伝える", () => {
