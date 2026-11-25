@@ -167,6 +167,7 @@ export const PLACE_KEYS: Record<Place, PlaceKeys> = {
         "Home",
         "End",
       ]),
+      row("Enter", T("place.machines.newTab")),
       row("a", T("place.machines.add"), ["a"]),
       row("n", T("place.machines.rename"), ["n"]),
       row("d", T("place.machines.remove"), ["d"]),

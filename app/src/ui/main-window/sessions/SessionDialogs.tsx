@@ -1,4 +1,4 @@
-// 接続にかかわる窓。kisui を入れるかの確認・マシンのダイアログ（リーダーの m。マシンの名前は、この中の行で変える）・リモートを足す窓・ssh の質問（パスワードなど）。
+// 接続にかかわる窓。kisui を入れるかの確認・マシンのダイアログ（リーダーの m。マシンの名前は、この中の行で変える。Enter でワークスペースの窓のタブ作成へ）・リモートを足す窓・ssh の質問（パスワードなど）。
 // 何を出すかは features/sessions/controller.ts の状態で決まる。
 import { Show, type JSX } from "solid-js";
 
@@ -20,6 +20,10 @@ export function SessionDialogs(props: {
   /** マシンのダイアログ（リーダーの m）を出しているか */
   machinesOpen: boolean;
   onCloseMachines: () => void;
+  /** 今のワークスペースがあるか（マシンのダイアログの Enter で、タブ作成を始められるか） */
+  hasWorkspace: () => boolean;
+  /** マシンのダイアログの Enter：マシン target を設定したターミナルのタブ作成を、ワークスペースの窓で始める（マシンのダイアログを閉じるのも呼んだ側） */
+  onNewTab: (target: string) => void;
 }): JSX.Element {
   // 部品は作り直さないので、持ち物は 1 回だけ取り出す
   const {
@@ -62,6 +66,7 @@ export function SessionDialogs(props: {
         <MachineDialog
           rows={machineList()}
           initial={currentTarget() ?? undefined}
+          hasWorkspace={props.hasWorkspace()}
           onAdd={() => props.sessions.openAdd()}
           onAct={(action, row) => {
             switch (action) {
@@ -76,6 +81,10 @@ export function SessionDialogs(props: {
                 break;
               case "reconnect":
                 retry(row.target);
+                break;
+              case "newTab":
+                props.sessions.closeRename();
+                props.onNewTab(row.target);
                 break;
             }
           }}

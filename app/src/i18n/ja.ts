@@ -143,6 +143,8 @@ export const ja: Record<Key, string> = {
     "Remove from the list (a machine from the config file cannot be removed)",
   "place.machines.disconnect": "Disconnect",
   "place.machines.reconnect": "Reconnect / connect now",
+  "place.machines.newTab":
+    "Start a terminal tab on the selected machine in the current workspace (opens the workspace window; the tab is created when you confirm its name)",
   "place.row.close": "Close",
   "place.list.title": "Candidate / history list",
   "place.list.lead": "候補・履歴の一覧の中だけで効くキーです。",
@@ -425,6 +427,11 @@ export const ja: Record<Key, string> = {
   "machine.cant.disconnect.none": "{label} はつながっていません",
   "machine.cant.reconnect.up": "{label} はつながっています",
   "machine.cant.reconnect.pending": "{label} は今つないでいる最中です",
+  "machine.cant.newTab.down":
+    "{label} はつながっていないので、タブを作れません（r でつなぎ直せます）",
+  "machine.cant.newTab.noWorkspace":
+    "タブを作るワークスペースがありません。ワークスペースの窓（リーダーの w）の n で作れます。",
+  "machineDialog.keys.newTab": "new tab",
   "machine.local": "ローカル",
   "machine.fixedReason":
     "設定ファイル（config.toml か config.local.toml の [[gui.machines]]）で決めたマシンです。変えるには設定ファイルを直してください",
@@ -479,6 +486,8 @@ export const ja: Record<Key, string> = {
   "switcher.newTabKind": "作るタブの種類を選ぶ",
   "switcher.newTab.incognito": "Private browser",
   "switcher.newTabPlaceholder": "タブの名前（空ならフォルダ名）",
+  "switcher.newTab.machineGone":
+    "{machine} の接続が切れました。Tab でほかのマシンを選ぶか、つなぎ直してください。",
   "switcher.keys.go": "go",
   "switcher.keys.showTab": "show tab",
   "switcher.keys.toTabs": "tabs",

@@ -142,6 +142,8 @@ export const en = {
     "Remove from the list (a machine from the config file cannot be removed)",
   "place.machines.disconnect": "Disconnect",
   "place.machines.reconnect": "Reconnect / connect now",
+  "place.machines.newTab":
+    "Start a terminal tab on the selected machine in the current workspace (opens the workspace window; the tab is created when you confirm its name)",
   "place.row.close": "Close",
   "place.list.title": "Candidate / history list",
   "place.list.lead": "Keys that work only inside a candidate or history list.",
@@ -424,6 +426,11 @@ export const en = {
   "machine.cant.disconnect.none": "{label} is not connected",
   "machine.cant.reconnect.up": "{label} is connected",
   "machine.cant.reconnect.pending": "{label} is connecting right now",
+  "machine.cant.newTab.down":
+    "{label} is not connected, so a tab cannot be created on it. Reconnect it with r",
+  "machine.cant.newTab.noWorkspace":
+    "There is no workspace to create the tab in. Create one with n in the workspace window (leader w).",
+  "machineDialog.keys.newTab": "new tab",
   "machine.local": "Local",
   "machine.fixedReason":
     "This machine is set in the config file ([[gui.machines]] in config.toml or config.local.toml). To change it, edit the config file.",
@@ -479,6 +486,8 @@ export const en = {
   "switcher.newTabKind": "New tab: choose the kind",
   "switcher.newTab.incognito": "Private browser",
   "switcher.newTabPlaceholder": "Tab name (empty: folder name)",
+  "switcher.newTab.machineGone":
+    "{machine} is no longer connected. Choose another machine with Tab, or reconnect it.",
   "switcher.keys.go": "go",
   "switcher.keys.showTab": "show tab",
   "switcher.keys.toTabs": "tabs",

@@ -59,6 +59,7 @@ const kindId = (kind: NewTabChoice) => `switcher-newtab-${kind}`;
  * 右の列がそのワークスペースのタブに替わり、落とした位置に入る（左の行の上で落とすと、一番後ろに入る。空のワークスペースにも落とせる）。
  * 右の列の上の「＋」か、タブの列の n か、N（どちらの列でも）で、右の列の一番下に、作るタブの種類を選ぶ一覧を出す（#456。SwitcherNewTabKinds.tsx。リーダーの n は、この一覧を出した状態で窓を開く）。
  * ターミナルに決めると、同じ所に、名前の入力欄とマシンを 1 行で出し、Enter でそのワークスペースのそのマシンにターミナルのタブを作る（#331。SwitcherNewTab.tsx）。
+ * マシンのダイアログ（リーダーの m）の Enter は、種類の一覧を飛ばして、この行を、そこで選んだマシンを選んでおいて出した状態で窓を開く（#461。initialTerminal）。
  * ブラウザ・シークレットに決めると、そのワークスペースに新しいタブのページのブラウザのタブを開く（内蔵ブラウザが有効なときだけ一覧に出る）。どちらも窓は閉じず、作ったタブを右の列で選ぶ。
  * DB に決めると、窓を閉じて、接続を選ぶ窓を出す（呼んだ側）。一覧を出している間は、一覧のキーだけを受ける（Esc は一覧だけを閉じる）。
  * タブの列の m で、選んでいるタブをキーでつかみ、別のワークスペースへ移す（#332。switcherHold.ts）。つかむとキーは左の列へ移り、j k で移す先を選ぶと、右の列がそのワークスペースのタブに替わって、つかんだタブが一番後ろに出る。
@@ -70,6 +71,11 @@ export function WorkspaceSwitcher(props: {
   initialCol?: Col;
   /** 開いたときに、選んでいるワークスペースについて、作るタブの種類を選ぶ一覧を出しておく（リーダーの n。ワークスペースが無ければ出さない） */
   initialNewTab?: boolean;
+  /**
+   * 開いたときに、選んでいるワークスペースについて、このマシンを選んでおいたターミナルのタブを作る行を出しておく
+   * （マシンのダイアログの Enter。#461。種類の一覧は飛ばす。ワークスペースが無ければ出さない）
+   */
+  initialTerminal?: string;
   /** サイドバーの行（GUI のワークスペース 1 つが 1 行）。並びは、ユーザーが並べた順 */
   rows: readonly Row[];
   /** 左の行を開いた（ワークスペースの列の Enter・選んでいる行をもう 1 回押した） */
@@ -249,8 +255,11 @@ export function WorkspaceSwitcher(props: {
     focusList,
     clearOthers: resetInputs,
   });
-  // リーダーの n で開いたときは、種類を選ぶ一覧を出しておく（選ぶワークスペースが無ければ、何も出さない）
+  // リーダーの n で開いたときは、種類を選ぶ一覧を出しておく（選ぶワークスペースが無ければ、何も出さない）。
+  // マシンのダイアログの Enter で開いたときは、そのマシンを選んでおいたターミナルのタブを作る行を出しておく
   if (props.initialNewTab) newTab.start();
+  else if (props.initialTerminal !== undefined)
+    newTab.startTerminalOn(props.initialTerminal);
 
   /** ワークスペースの行を押した：選んでいる行（キーが左の列で効いているとき）をもう 1 回押すと開く。それ以外は選ぶだけ。 */
   function pressRow(r: Row) {
@@ -694,7 +703,7 @@ export function WorkspaceSwitcher(props: {
                     newTab.creating()?.gws === r().gws
                       ? {
                           machines: props.machines,
-                          initial: r().target,
+                          initial: newTab.creating()?.machine ?? r().target,
                           error: newTab.creating()?.error,
                           onSubmit: newTab.submit,
                           onCancel: (byKey) => {

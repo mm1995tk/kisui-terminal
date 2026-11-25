@@ -109,6 +109,23 @@ describe("machineKey", () => {
     });
   });
 
+  it("Enter はタブ作成を始める（#461）。修飾キーを重ねた Enter と、変換を確定する Enter は受けない", () => {
+    assert.deepEqual(machineKey(ev("Enter")), {
+      kind: "action",
+      action: "newTab",
+    });
+    for (const extra of [
+      { ctrlKey: true },
+      { metaKey: true },
+      { altKey: true },
+      { shiftKey: true },
+      { isComposing: true },
+      // macOS で変換を確定する Enter（isComposing が false で keyCode が 229）
+      { keyCode: 229 },
+    ])
+      assert.equal(machineKey(ev("Enter", extra)), null);
+  });
+
   it("? は一覧。修飾キーを重ねたもの・変換中は受けない", () => {
     assert.deepEqual(machineKey(ev("?", { shiftKey: true })), { kind: "help" });
     for (const extra of [
@@ -159,6 +176,25 @@ describe("canDo", () => {
   it("切れるのは、足したマシンで、つないでいるものだけ", () => {
     assert.ok(canDo(row({ removable: false }), "disconnect"));
     assert.ok(canDo(row({ hasSession: false }), "disconnect"));
+  });
+
+  it("タブ作成を始められるのは、つながっているマシンで、今のワークスペースがあるときだけ（#461）", () => {
+    assert.equal(canDo(row(), "newTab"), null);
+    assert.equal(canDo(row({ removable: false, fixed: true }), "newTab"), null);
+    for (const health of ["down", "pending"] as const)
+      assert.match(
+        canDo(row({ health, label: "devbox" }), "newTab") ?? "",
+        /devbox はつながっていない/,
+      );
+    assert.match(
+      canDo(row(), "newTab", false) ?? "",
+      /ワークスペースがありません/,
+    );
+    // つながっていないことを先に出す（つながっても、ワークスペースが無ければ次の理由が出る）
+    assert.match(
+      canDo(row({ health: "down" }), "newTab", false) ?? "",
+      /つながっていない/,
+    );
   });
 
   it("つなぎ直すのは、待ち時間中・失敗・引き継がれたあとだけ", () => {

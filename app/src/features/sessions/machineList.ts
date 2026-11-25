@@ -60,9 +60,12 @@ export function machineRows(
   });
 }
 
-/** ダイアログの中の操作。 */
+/**
+ * ダイアログの中の操作。newTab は、選んだマシンを設定したターミナルのタブ作成を、ワークスペースの窓で始める（Enter。#461）。
+ * ここではタブを作らない。名前を打って決めるのは、ワークスペースの窓のタブを作る行（#456 と同じ行）。
+ */
 export type MachineAction =
-  "add" | "rename" | "remove" | "disconnect" | "reconnect";
+  "add" | "rename" | "remove" | "disconnect" | "reconnect" | "newTab";
 
 /** ダイアログの中のキーが表す動き。 */
 export type MachineKey =
@@ -73,9 +76,14 @@ export type MachineKey =
 /**
  * ダイアログの中のキー（入力欄が無いので、字をそのまま使える。Esc は ModalCard が取り消しに使う）。
  * Alt・Cmd・Ctrl を重ねたものは受けない（Shift は、G と ? の字が出るので受ける。Ctrl+J・Ctrl+K は、ほかの一覧と同じく次・前の行）。
+ * Enter は、修飾キーを何も重ねないときだけ受ける（Shift+Enter も受けない）。変換を確定する Enter は受けない（isComposingKey）。
  */
 export function machineKey(e: KeyLike): MachineKey | null {
   if (isComposingKey(e)) return null;
+  if (e.key === "Enter")
+    return e.ctrlKey || e.metaKey || e.altKey || e.shiftKey
+      ? null
+      : { kind: "action", action: "newTab" };
   const step = listStep(e);
   if (step !== 0) return { kind: "move", to: step === 1 ? "next" : "prev" };
   if (e.ctrlKey || e.metaKey || e.altKey) return null;
@@ -131,12 +139,22 @@ export function keepRow(
   return Math.min(Math.max(0, index), Math.max(0, rows.length - 1));
 }
 
-/** 選んだマシンに操作ができるか。できなければ、その理由（ダイアログに出す）。 */
+/**
+ * 選んだマシンに操作ができるか。できなければ、その理由（ダイアログに出す）。
+ * hasWorkspace は、今のワークスペースがあるか（newTab だけが見る。タブは今のワークスペースに作るので、無ければ作れない）。
+ */
 export function canDo(
   row: MachineRow,
   action: Exclude<MachineAction, "add">,
+  hasWorkspace = true,
 ): string | null {
   switch (action) {
+    case "newTab":
+      // つながっていないマシンを、黙ってほかのマシンに替えない（タブを作る行の候補は、つながっているマシンだけ）
+      if (row.health !== "up")
+        return T("machine.cant.newTab.down", { label: row.label });
+      if (!hasWorkspace) return T("machine.cant.newTab.noWorkspace");
+      return null;
     case "rename":
     case "remove": {
       if (!row.removable)

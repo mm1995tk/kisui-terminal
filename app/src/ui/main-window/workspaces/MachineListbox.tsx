@@ -1,9 +1,9 @@
 // 切り替える窓の「タブを作る」行（SwitcherNewTab.tsx）の、マシンの一覧。
 import { T } from "../../../i18n/index.ts";
-import { createSignal, For, type JSX } from "solid-js";
+import { createSignal, For, untrack, type JSX } from "solid-js";
 
 import type { MachineChoice } from "./SwitcherNewTab.tsx";
-import { machineIndex, stepMachine } from "./newTabMachine.ts";
+import { firstMachine, machineIndex, stepMachine } from "./newTabMachine.ts";
 import { newTabListKey } from "./newTabKey.ts";
 
 /**
@@ -17,8 +17,11 @@ export function MachineListbox(props: {
   onChoose: (target: string) => void;
   onClose: () => void;
 }): JSX.Element {
-  const [cursor, setCursor] = createSignal(props.selected);
   const targets = () => props.machines.map((m) => m.target);
+  // 選んでいたマシンが切れて候補に無ければ、先頭から
+  const [cursor, setCursor] = createSignal(
+    firstMachine(untrack(targets), props.selected),
+  );
   const at = () => machineIndex(targets(), cursor());
 
   function onKey(e: KeyboardEvent) {

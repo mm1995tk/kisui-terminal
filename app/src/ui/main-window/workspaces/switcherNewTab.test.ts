@@ -118,6 +118,29 @@ describe("ワークスペースの窓の、タブを作る操作（#456）", () 
     assert.deepEqual(log, ["clearOthers", "db g1"]);
   });
 
+  it("マシンを決めて始めると（マシンのダイアログの Enter。#461）、種類の一覧を飛ばして、そのマシンを選んでおいた行を出す。タブはまだ作らない", () => {
+    const { newTab, log } = setup({});
+    newTab.startTerminalOn("devbox");
+    assert.equal(newTab.choosing(), undefined);
+    assert.deepEqual(newTab.creating(), { gws: "g1", machine: "devbox" });
+    assert.deepEqual(log, ["clearOthers"]);
+    // 確定は、ふつうのタブ作成と同じ
+    newTab.submit("api", "devbox");
+    assert.equal(newTab.creating(), undefined);
+    assert.deepEqual(log, ["clearOthers", "create g1 devbox api", "focusList"]);
+  });
+
+  it("マシンを決めて始めても、ワークスペースが無ければ何も出さず、つながっているマシンが無ければ伝える", () => {
+    const none = setup({ row: null });
+    none.newTab.startTerminalOn("devbox");
+    assert.equal(none.newTab.creating(), undefined);
+    assert.deepEqual(none.log, []);
+    const down = setup({ machines: 0 });
+    down.newTab.startTerminalOn("devbox");
+    assert.equal(down.newTab.creating(), undefined);
+    assert.deepEqual(down.log, ["clearOthers", "noMachine"]);
+  });
+
   it("やめると、一覧だけを閉じて、キーを窓に戻す", () => {
     const { newTab, log } = setup({});
     newTab.start();

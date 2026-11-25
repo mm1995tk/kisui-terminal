@@ -15,7 +15,6 @@ import {
   setUserShortcuts,
 } from "../../features/commands/commands.ts";
 import { IS_MAC } from "../../features/commands/guiKeys.ts";
-import type { SwitcherStart } from "../../features/commands/run.ts";
 import type { TabKind } from "../../features/commands/tabWindow.ts";
 import { placeOf } from "../../features/commands/placeKeys.ts";
 import { createFeatures } from "../../features/compose.ts";
@@ -31,7 +30,10 @@ import {
 } from "./notifications/CopiedToast.tsx";
 import { ScaleToast, showScale } from "./notifications/ScaleToast.tsx";
 import { Sidebar } from "./sidebar/Sidebar.tsx";
-import { WorkspaceDialogs } from "./workspaces/WorkspaceDialogs.tsx";
+import {
+  WorkspaceDialogs,
+  type SwitcherOpen,
+} from "./workspaces/WorkspaceDialogs.tsx";
 import { MainWindowLayout } from "./layout.tsx";
 import { ContentArea } from "./content/ContentArea.tsx";
 // ここまで
@@ -150,8 +152,8 @@ function MainWindow(props: {
   const [machinesOpen, setMachinesOpen] = createSignal(false);
   // キャラクターを選ぶ窓（リーダーの c s）を出しているか
   const [mascotPicking, setMascotPicking] = createSignal(false);
-  // ワークスペースを切り替える窓（リーダーの w・t・n）を出しているか（出していれば、開いたときの初めの状態。サイドバーの見出しからも開く）
-  const [wsSwitcher, setWsSwitcher] = createSignal<SwitcherStart | undefined>();
+  // ワークスペースを切り替える窓（リーダーの w・t・n）を出しているか（出していれば、開いたときの初めの状態。サイドバーの見出しからも、マシンのダイアログの Enter からも開く）
+  const [wsSwitcher, setWsSwitcher] = createSignal<SwitcherOpen | undefined>();
   // 今出しているタブの種類ごとの窓（リーダーの a）を出しているか（出していれば、その種類）
   const [tabWindow, setTabWindow] = createSignal<TabKind | undefined>();
 
@@ -381,6 +383,12 @@ function MainWindow(props: {
         currentTarget={workspaces.currentTarget}
         machinesOpen={machinesOpen()}
         onCloseMachines={() => setMachinesOpen(false)}
+        hasWorkspace={() => !!workspaces.currentGws()}
+        onNewTab={(target) => {
+          // 先にマシンのダイアログを閉じる（閉じたときにフォーカスを戻す先が、ワークスペースの窓を閉じたときの戻り先になる）
+          setMachinesOpen(false);
+          setWsSwitcher({ terminalOn: target });
+        }}
       />
       <WorkspaceDialogs
         workspaces={workspaces}

@@ -41,9 +41,9 @@ export function createSwitcherNewTab(args: {
   const [choosing, setChoosing] = createSignal<
     { gws: string; kind: NewTabChoice } | undefined
   >();
-  // ターミナルのタブを作る行を出している間（gws はそのワークスペースの id、error は断られた理由）
+  // ターミナルのタブを作る行を出している間（gws はそのワークスペースの id、machine は初めに選んでおくマシン（無ければワークスペースのマシン）、error は断られた理由）
   const [creating, setCreating] = createSignal<
-    { gws: string; error?: string } | undefined
+    { gws: string; machine?: string; error?: string } | undefined
   >();
   const stop = () => {
     setChoosing(undefined);
@@ -57,14 +57,14 @@ export function createSwitcherNewTab(args: {
     if (g !== undefined && !args.has(g)) stop();
   });
 
-  /** ターミナルのタブを作る行を出す。マシンが 1 つも無ければ、出さずに伝える（一覧は開けたまま。ほかの種類を選べる） */
-  function startTerminal(gws: string) {
+  /** ターミナルのタブを作る行を出す（machine は初めに選んでおくマシン）。マシンが 1 つも無ければ、出さずに伝える（一覧は開けたまま。ほかの種類を選べる） */
+  function startTerminal(gws: string, machine?: string) {
     if (args.machineCount() === 0) {
       args.noMachine();
       return;
     }
     stop();
-    setCreating({ gws });
+    setCreating(machine === undefined ? { gws } : { gws, machine });
   }
 
   /** 種類 what に決めた。ワークスペース gws に、その種類のタブを作る操作へ進む */
@@ -97,6 +97,16 @@ export function createSwitcherNewTab(args: {
       if (!r) return;
       args.clearOthers();
       setChoosing({ gws: r.gws, kind: kinds()[0] });
+    },
+    /**
+     * 種類の一覧を飛ばして、選んでいるワークスペースに、マシン machine を選んでおいたターミナルのタブを作る行を出す
+     * （マシンのダイアログの Enter で開いたとき。#461）。ほかの入力欄・確認はやめる。ワークスペースを選んでいなければ何もしない
+     */
+    startTerminalOn(machine: string) {
+      const r = args.selected();
+      if (!r) return;
+      args.clearOthers();
+      startTerminal(r.gws, machine);
     },
     /** 一覧で、選ぶ行を動かす（端では止まる） */
     move(to: "next" | "prev") {
