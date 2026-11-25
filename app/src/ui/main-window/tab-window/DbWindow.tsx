@@ -127,17 +127,27 @@ export function DbWindow(props: {
   const [note, setNote] = createSignal<string>();
   let acted = false;
 
-  /** 選んでいる結果のタブを出してから f を行う（選んだタブに効かせるため）。結果のタブが無ければ、その旨を出す */
-  function onSelected(f: (tab: string, dbTab: string) => void) {
+  /** 選んでいる結果のタブ。無ければ（結果のタブが 1 つも無い）、その旨を窓の下に出して undefined */
+  function pick(): string | undefined {
     const tab = selected();
+    if (tab === undefined) setNote(T("dbWindow.note.noResult"));
+    return tab;
+  }
+
+  /** 結果のタブ tab を出して、窓を閉じる（Enter・ダブルクリック。キーは SQL の入力欄へ） */
+  function showAndClose(tab: string) {
     if (id === undefined) return;
-    if (tab === undefined) {
-      setNote(T("dbWindow.note.noResult"));
-      return;
-    }
+    props.db.showResult(id, tab);
+    props.onClose(true);
+  }
+
+  /** 選んでいる結果のタブを出してから f を行う（選んだタブに効かせるため）。結果のタブが無ければ、その旨を出す */
+  function onSelected(f: (dbTab: string) => void) {
+    const tab = pick();
+    if (id === undefined || tab === undefined) return;
     props.db.showResult(id, tab);
     acted = true;
-    f(tab, id);
+    f(id);
   }
 
   /** 窓を閉じてから f を行う（ほかの窓を開く・木にキーを向ける。閉じるとキーが開く前の所に戻るので、そのあとで動かす） */
@@ -157,28 +167,22 @@ export function DbWindow(props: {
         setWant(stepResult(rows(), selected(), k.step));
         break;
       case "show": {
-        const tab = selected();
-        if (tab === undefined) {
-          setNote(T("dbWindow.note.noResult"));
-          break;
-        }
-        props.db.showResult(id, tab);
-        props.onClose(true);
+        const tab = pick();
+        if (tab !== undefined) showAndClose(tab);
         break;
       }
       case "close": {
-        const tab = selected();
-        if (tab === undefined) setNote(T("dbWindow.note.noResult"));
-        else if (props.db.closeResult(id, tab)) acted = true;
+        const tab = pick();
+        if (tab !== undefined && props.db.closeResult(id, tab)) acted = true;
         break;
       }
       case "view":
-        onSelected((_, d) => {
+        onSelected((d) => {
           if (!props.db.showView(d)) setNote(T("cannot.dbView.text"));
         });
         break;
       case "page":
-        onSelected((_, d) => {
+        onSelected((d) => {
           const why = props.db.stepPage(d, k.step);
           if (why === "none") setNote(T("cannot.dbPage.none"));
           else if (why === "edge")
@@ -200,10 +204,10 @@ export function DbWindow(props: {
         break;
       case "export": {
         // 書き出せるか（行を返した結果があるか）を先に見る。書き出せなければ、窓を開いたまま理由を出す
-        const tab = selected();
+        const tab = pick();
+        if (tab === undefined) break;
         const t = run().tabs.find((x) => x.id === tab);
-        if (tab === undefined) setNote(T("dbWindow.note.noResult"));
-        else if (!isExportable(t?.result)) setNote(T("cannot.dbExport.text"));
+        if (!isExportable(t?.result)) setNote(T("cannot.dbExport.text"));
         else {
           props.db.showResult(id, tab);
           closeThen((d) => props.db.openExport(d));
@@ -331,11 +335,7 @@ export function DbWindow(props: {
                         setNote(undefined);
                         setWant(tab);
                       }}
-                      onDblClick={() => {
-                        if (id === undefined) return;
-                        props.db.showResult(id, tab);
-                        props.onClose(true);
-                      }}
+                      onDblClick={() => showAndClose(tab)}
                     >
                       <span class={`card-row-name ${styles.name}`}>
                         <span class={styles.title}>{r().name}</span>
