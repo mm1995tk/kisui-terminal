@@ -57,11 +57,14 @@ pub fn check(sent: &[Cookie<'_>], stored: &[Cookie<'_>]) -> Vec<Mismatch> {
         let domain = want.domain().unwrap_or_default();
         let path = want.path().unwrap_or("/");
         // 読み戻しの domain は先頭の `.` が取れている（上の説明）。host だけのものとサブドメインにも送られるものは
-        // 見分けられないので、どちらかが渡したとおりなら良しとする
+        // 見分けられないので、どちらかが渡したとおりなら良しとする。値も比べる（前のログインで入った同じ名前の
+        // Cookie が残っていると、今回のものが入らなくても、名前・domain・path だけでは入ったように見えるため）。
+        // 値は比べるだけで、ログとお知らせには出さない
         let candidates: Vec<&Cookie<'_>> = stored
             .iter()
             .filter(|s| {
                 s.name() == want.name()
+                    && s.value() == want.value()
                     && s.path().unwrap_or("/") == path
                     && bare(s.domain().unwrap_or_default()) == bare(domain)
             })
@@ -276,7 +279,12 @@ mod tests {
     fn finds_cookies_not_stored() {
         let want = sent("a", "github.com");
         let other = read_back(&sent("a", "example.com"));
-        let m = check(&[want], &[other]);
+        let m = check(&[want.clone()], &[other]);
+        assert_eq!(m[0].problems, vec!["not stored"]);
+        // 前のログインの同じ名前の Cookie（値が違う）だけが残っていれば、入っていない
+        let mut stale = read_back(&want);
+        stale.set_value("old");
+        let m = check(&[want], &[stale]);
         assert_eq!(m[0].problems, vec!["not stored"]);
     }
 
