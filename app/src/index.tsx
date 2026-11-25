@@ -25,6 +25,7 @@ import { tauriTransferOs } from "./infrastructure/tauri/transfer.ts";
 import { tauriUpdates } from "./infrastructure/tauri/updates.ts";
 import { uiLanguage, windowLabel } from "./infrastructure/tauri/window.ts";
 import type { Ports } from "./ui/ports.ts";
+import { watchTextInputs } from "./ui/styles/textInputDefaults.ts";
 
 // dragDropEnabled: false なので、OS からのドロップは WebView に届く。受け付けた欄（TerminalView）が止めなかった
 // ドロップは、既定の動き（落とされた URL に画面が置き換わる）にならないよう、ここで断る
@@ -36,6 +37,9 @@ for (const type of ["dragover", "drop"]) {
     if (dt) dt.dropEffect = "none";
   });
 }
+
+// すべての入力欄で、先頭の字の大文字化・自動修正・スペルチェックを切る（#481）
+watchTextInputs(document);
 
 const root = document.getElementById("root")!;
 
