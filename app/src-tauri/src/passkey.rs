@@ -282,6 +282,9 @@ fn accept_cookie(c: &WireCookie, site: &str, now: f64) -> Option<(usize, Cookie<
         || !cookie_text(&c.value)
         || !c.path.starts_with('/')
         || !cookie_text(&c.path)
+        // ブラウザは `__Secure-`・`__Host-` で始まる名前の Cookie を Secure 無しでは受け取らない。`set_cookie` で直に入れる
+        // ときに WebView が同じ確認をするかは分からないので、ここで捨てる
+        || (!c.secure && (c.name.starts_with("__Secure-") || c.name.starts_with("__Host-")))
     {
         return None;
     }
@@ -1067,6 +1070,23 @@ mod tests {
         let (ok, _) = accept_cookies(&[wire("SID", ".google.com", false)], ".google.com", 0.0);
         assert_eq!(ok[0].secure(), Some(true));
         assert_eq!(ok[0].http_only(), Some(true));
+    }
+
+    #[test]
+    fn drops_prefixed_cookies_without_secure() {
+        let mut a = wire("__Secure-1PSID", ".google.com", false);
+        a.secure = false;
+        let mut b = wire("__Host-GAPS", "accounts.google.com", true);
+        b.secure = false;
+        let (ok, dropped) = accept_cookies(&[a, b], ".google.com", 0.0);
+        assert!(ok.is_empty());
+        assert_eq!(dropped, 2);
+        let (ok, _) = accept_cookies(
+            &[wire("__Secure-1PSID", ".google.com", false)],
+            ".google.com",
+            0.0,
+        );
+        assert_eq!(ok.len(), 1);
     }
 
     #[test]
