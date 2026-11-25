@@ -34,6 +34,7 @@ const OPERATION_NAME_KEYS: readonly Key[] = [
   // ダイアログ・ポップアップの見出し
   "picker.title",
   "switcher.title",
+  "termWindow.title",
   "tabMove.title",
   "kindPicker.title",
   "deleteDialog.title",

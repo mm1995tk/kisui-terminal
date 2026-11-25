@@ -24,6 +24,7 @@ import type { Workspaces } from "../workspaces/controller.ts";
 import type { Step } from "../workspaces/rows.ts";
 import type { Tabs } from "../workspaces/tabs/controller.ts";
 import type { Command } from "./commands.ts";
+import { shownTabKind, type TabKind } from "./tabWindow.ts";
 
 /**
  * ワークスペースの窓を開いたときの初めの状態。ws は左のワークスペースの列にキーを置く（リーダーの w）。tab は右のタブの列（t）。
@@ -41,6 +42,11 @@ export interface CommandUi {
   openMachines(): void;
   /** ワークスペースの窓を出す（リーダーの w は ws、t は tab、n は newTab） */
   openWorkspaceSwitcher(start: SwitcherStart): void;
+  /**
+   * 今出しているタブの種類 kind の窓を出す（リーダーの a。#457）。その種類の窓がまだ無ければ、出さずに false を返す
+   * （どの種類に窓があるかは、窓を出し分ける画面の側が知っている。ui/main-window/tab-window/TabWindows.tsx）。
+   */
+  openTabWindow(kind: TabKind): boolean;
   /** クリップボードの履歴の窓を出す */
   openClipboardHistory(): void;
   /** キャラクターを選ぶ窓（リーダーの c s）を出す */
@@ -276,7 +282,7 @@ export function createCommandRunner(deps: {
       return;
     }
     // ページのタブ（ブラウザのタブ・DB のタブ）を出している間のペインの操作は、まずグリッドに戻す（見えないペインは動かさない）。
-    // ペインを閉じる（p x）は、戻すだけで閉じない（どのペインが閉じるか見えないまま閉じないため）
+    // ペインを閉じる（Cmd+W・設定の近道の pane.close）は、戻すだけで閉じない（どのペインが閉じるか見えないまま閉じないため）
     if (
       c.id.startsWith("pane.") &&
       c.id !== "pane.resize" &&
@@ -470,6 +476,19 @@ export function createCommandRunner(deps: {
       case "tab.moveTo":
         deps.tabs.openTabMove();
         break;
+      case "tab.window": {
+        // 今出しているタブの種類の窓を開く。ターミナルのタブの窓を、DB・ブラウザのタブやタブの無い所で開かない
+        const kind = shownTabKind({
+          browser: !!shownBrowserTab(),
+          db: !!deps.db.shownDbTab(),
+          terminal: !!f,
+        });
+        if (!kind)
+          cannot(T("cannot.tabWindow.title"), T("cannot.tabWindow.noTab"));
+        else if (!ui.openTabWindow(kind))
+          cannot(T("cannot.tabWindow.title"), T("cannot.tabWindow.noWindow"));
+        break;
+      }
       case "machine.dialog":
         ui.openMachines();
         break;

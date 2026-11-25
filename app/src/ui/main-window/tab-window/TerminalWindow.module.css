@@ -1,0 +1,86 @@
+/* ターミナルのタブの窓（TerminalWindow.tsx。リーダーの a。#457）。カードは card.css。
+   今のターミナルのタブのペインを、画面と同じ配置の小さな地図として並べる。 */
+
+/* 地図。高さを決め、中のペインは割合（%）で置く（タブの場所の縦横の比には合わせず、配置だけを写す） */
+.map {
+  position: relative;
+  height: clamp(220px, 40vh, 420px);
+  margin: var(--space-12) var(--space-16);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-8);
+  background: var(--color-bg);
+}
+.map:focus {
+  outline: none;
+}
+
+/* ペイン 1 つの場所。隣とのすき間を padding で空け、中身（.pane）を枠にする */
+.cell {
+  position: absolute;
+  box-sizing: border-box;
+  padding: var(--space-4);
+}
+.pane {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  align-items: flex-start;
+  width: 100%;
+  height: 100%;
+  padding: var(--space-8);
+  overflow: hidden;
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-6);
+  background: var(--color-surface);
+  color: var(--card-text);
+  cursor: pointer;
+}
+.cell:hover > .pane {
+  background: var(--card-row-active);
+}
+/* 選んでいるペイン：一覧の選んでいる行（.card-row）と同じ色の枠 */
+.cell[aria-selected="true"] > .pane {
+  border-color: var(--state-selected-outline);
+  outline: 1px solid var(--state-selected-outline);
+  background: var(--state-selected-bg);
+}
+/* 隠しているペインは薄くする（選んだら、枠は選んでいるペインのもの） */
+.cell[data-hidden] > .pane {
+  border-style: dashed;
+  color: var(--card-muted);
+}
+
+.name {
+  max-width: 100%;
+  overflow: hidden;
+  font-weight: var(--weight-strong);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kind {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--card-muted);
+  font-size: var(--text-caption);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.marks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+.mark {
+  padding: 0 var(--space-6);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-4);
+  color: var(--card-muted);
+  font-size: var(--text-label);
+  white-space: nowrap;
+}
+/* 今フォーカスがあるペインの印は、マシンの色（無ければアクセントの色） */
+.mark[data-focused] {
+  border-color: var(--pane-accent, var(--card-accent));
+  color: var(--card-text);
+}

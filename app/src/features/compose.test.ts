@@ -388,6 +388,10 @@ function start(opts: {
     openMachines: () => void ui.push("openMachines"),
     openWorkspaceSwitcher: (start) =>
       void ui.push(`openWorkspaceSwitcher ${start}`),
+    openTabWindow: (kind) => {
+      ui.push(`openTabWindow ${kind}`);
+      return true;
+    },
     openClipboardHistory: () => void ui.push("openClipboardHistory"),
     openMascotPicker: () => void ui.push("openMascotPicker"),
     openKeyList: () => void ui.push("openKeyList"),

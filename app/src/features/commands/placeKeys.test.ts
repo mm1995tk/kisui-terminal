@@ -245,6 +245,7 @@ describe("isWindowPlace（`?` の一覧に、その窓のキーだけを出す�
       "picker",
       "switcher",
       "switcherTabs",
+      "termWindow",
       "history",
       "dbHistory",
     ] as const)

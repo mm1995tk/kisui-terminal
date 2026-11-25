@@ -16,6 +16,10 @@ import {
 } from "../../features/commands/commands.ts";
 import { IS_MAC } from "../../features/commands/guiKeys.ts";
 import type { SwitcherStart } from "../../features/commands/run.ts";
+import {
+  shownTabKind,
+  type TabKind,
+} from "../../features/commands/tabWindow.ts";
 import { placeOf } from "../../features/commands/placeKeys.ts";
 import { createFeatures } from "../../features/compose.ts";
 import type { ConfigMachine } from "../../features/sessions/machines.ts";
@@ -56,6 +60,7 @@ import { ConfigError } from "./sessions/ConfigError.tsx";
 import { DbDialogs } from "./db/DbDialogs.tsx";
 import { SessionDialogs } from "./sessions/SessionDialogs.tsx";
 import { FileTreeDialogs } from "./sidebar/file-tree/FileTreeDialogs.tsx";
+import { TAB_WINDOW_KINDS, TabWindows } from "./tab-window/TabWindows.tsx";
 
 /**
  * 起動したら、先に手元の設定ファイルの [[gui.machines]] を読む。間違いがあれば、場所・行・理由だけを出して、ほかは何もしない
@@ -150,6 +155,8 @@ function MainWindow(props: {
   const [mascotPicking, setMascotPicking] = createSignal(false);
   // ワークスペースを切り替える窓（リーダーの w・t・n）を出しているか（出していれば、開いたときの初めの状態。サイドバーの見出しからも開く）
   const [wsSwitcher, setWsSwitcher] = createSignal<SwitcherStart | undefined>();
+  // 今出しているタブの種類ごとの窓（リーダーの a）を出しているか（出していれば、その種類）
+  const [tabWindow, setTabWindow] = createSignal<TabKind | undefined>();
 
   // ---- 機能の持ち物（features/）。画面の側ですること（下で作る resize・focusUi・notices）は、呼ばれたときに引く ----
   const {
@@ -197,6 +204,11 @@ function MainWindow(props: {
       toggleSidebar: () => resize.toggleSidebar(),
       openMachines: () => setMachinesOpen(true),
       openWorkspaceSwitcher: (start) => setWsSwitcher(start),
+      openTabWindow: (kind) => {
+        if (!TAB_WINDOW_KINDS.has(kind)) return false;
+        setTabWindow(kind);
+        return true;
+      },
       openClipboardHistory,
       openMascotPicker: () => setMascotPicking(true),
       openKeyList: () => openKeyList(placeOf(document.activeElement)),
@@ -384,6 +396,21 @@ function MainWindow(props: {
         onCloseSwitcher={() => setWsSwitcher(undefined)}
         colors={sessions.colors()}
         browser={props.browser}
+      />
+      <TabWindows
+        open={tabWindow()}
+        shown={shownTabKind({
+          browser: !!pages.shownBrowserTab(),
+          db: !!db.shownDbTab(),
+          terminal: !!workspaces.focus(),
+        })}
+        onClose={(refocus) => {
+          setTabWindow(undefined);
+          if (refocus) focusTerminal();
+        }}
+        terminals={terminals}
+        accent={sessions.colors()[terminals.termTarget() ?? ""]}
+        onResizeMode={() => resize.setResizeMode(true)}
       />
       <Show when={mascotPicking()}>
         <MascotDialog

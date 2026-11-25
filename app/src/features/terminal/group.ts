@@ -246,12 +246,14 @@ export class TermGroup {
   }
 
   /**
-   * 今使っている欄を dir（右・下・左・上）に分けて、新しいターミナルを足して active にする（Cmd+D・Cmd+Shift+D
-   * ・Ctrl+Shift+D・Ctrl+Shift+E）。フォルダは shj が決める（ワークスペースのフォルダ。未定なら start_dir）。
+   * 欄 target（省くと今使っている欄）を dir（右・下・左・上）に分けて、新しいターミナルを足して active にする（Cmd+D・Cmd+Shift+D
+   * ・Ctrl+Shift+D・Ctrl+Shift+E、ターミナルのタブの窓の s）。フォルダは shj が決める（ワークスペースのフォルダ。未定なら start_dir）。
    * 小さすぎて分けられなければ、serve が断った理由を onError に出して false。足したら true。
    */
-  async add(dir: SplitDir = "right"): Promise<boolean> {
-    const target = this.activeId;
+  async add(
+    dir: SplitDir = "right",
+    target: string | undefined = this.activeId,
+  ): Promise<boolean> {
     try {
       const r = await this.port.request("term.create", {
         workspaceId: this.wsId,
@@ -315,9 +317,19 @@ export class TermGroup {
     return true;
   }
 
-  /** active の欄と、dir の向きの隣の欄（移る・入れ替えるときの「隣」の決め方はここだけ）。隣が無ければ undefined。 */
-  private neighborOf(dir: Direction): { from: string; to: string } | undefined {
-    const from = this.activeId;
+  /** id の欄（ターミナルでも、ターミナルでない欄でも）を active にする（ターミナルのタブの窓の Enter）。無ければ false。 */
+  activatePane(id: string): boolean {
+    return this.activate(id) || this.activateExtra(id);
+  }
+
+  /**
+   * 欄 from（省くと active の欄）と、dir の向きの隣の欄（移る・入れ替える・ターミナルのタブの窓で選ぶときの「隣」の決め方はここだけ）。
+   * 隣が無ければ undefined。
+   */
+  neighborOf(
+    dir: Direction,
+    from: string | undefined = this.activeId,
+  ): { from: string; to: string } | undefined {
     if (!from) return undefined;
     const to = neighbor(layoutRects(this.layout), from, dir);
     return to ? { from, to } : undefined;
@@ -338,12 +350,12 @@ export class TermGroup {
   }
 
   /**
-   * active の欄と、dir の向きの隣の欄の場所を入れ替える（リーダーの p m のあとの h j k l）。入れ替えるのは場所だけで、
+   * 欄 pane（省くと active の欄）と、dir の向きの隣の欄の場所を入れ替える（ターミナルのタブの窓の H J K L、設定の近道の pane.swap）。入れ替えるのは場所だけで、
    * フォーカスは今の欄についていく（キーを向けている欄の id は変わらない）。隣が無ければ何もせず false。
    * 隣は move と同じ規則で決め、serve に layout.swap を送る。木は serve が持つので、画面は workspace.changed で入れ替わる。
    */
-  swap(dir: Direction): boolean {
-    const n = this.neighborOf(dir);
+  swap(dir: Direction, pane: string | undefined = this.activeId): boolean {
+    const n = this.neighborOf(dir, pane);
     if (!n) return false;
     this.port
       .request("layout.swap", {
@@ -410,13 +422,18 @@ export class TermGroup {
 
   /** 今使っている分割したターミナル（か、ターミナルでない欄）を閉じる（Cmd+W）。プライマリターミナルは閉じず false。閉じたら true。 */
   closeActive(): boolean {
-    const x = this.activeExtra;
-    if (x) {
-      this.closeExtra(x.id);
+    const id = this.activeId;
+    return id !== undefined && this.closePane(id);
+  }
+
+  /** id の欄（分割したターミナルか、ターミナルでない欄）を閉じる（ターミナルのタブの窓の x）。プライマリターミナルは閉じず false。閉じたら true。 */
+  closePane(id: string): boolean {
+    if (this.extraList.some((x) => x.id === id)) {
+      this.closeExtra(id);
       return true;
     }
-    const l = this.current;
-    if (!l || l.primary || !this.links.includes(l)) return false;
+    const l = this.links.find((x) => x.id === id);
+    if (!l || l.primary) return false;
     this.exited(l);
     return true;
   }

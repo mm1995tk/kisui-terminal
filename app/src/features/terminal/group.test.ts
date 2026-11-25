@@ -402,6 +402,68 @@ describe("TermGroup", () => {
     assert.ok(!f.calls.some((c) => c.method === "term.close"));
   });
 
+  // ターミナルのタブの窓（リーダーの a。#457）は、今使っている欄ではなく、窓で選んだ欄に操作する
+  it("欄を id で指して操作する：隣を調べる・active にする・分ける・入れ替える・閉じる。今使っている欄は、指した操作のほかでは動かない", async () => {
+    const f = fakePort();
+    const video = {
+      id: "x1",
+      kind: "video" as const,
+      path: "/w/a.mp4",
+      mime: "video/mp4",
+      size: 1,
+    };
+    // t1 | t2 | x1 と横に並ぶ
+    const tree = {
+      ...layout(["t2"]),
+      extras: [video],
+      layout: {
+        dir: "right" as const,
+        ratio: 0.3,
+        a: { pane: "t1" },
+        b: {
+          dir: "right" as const,
+          ratio: 0.5,
+          a: { pane: "t2" },
+          b: { pane: "x1" },
+        },
+      },
+    };
+    const g = new TermGroup(f.port, tree, () => {});
+    assert.equal(g.active?.id, "t1");
+    // 隣は、指した欄から数える
+    assert.deepEqual(g.neighborOf("right", "t2"), { from: "t2", to: "x1" });
+    assert.equal(g.neighborOf("right", "x1"), undefined);
+    assert.equal(g.active?.id, "t1");
+    // 入れ替え：指した欄と、その隣
+    assert.equal(g.swap("left", "x1"), true);
+    assert.deepEqual(f.calls.at(-1), {
+      method: "layout.swap",
+      params: { workspaceId: "w1", pane: "x1", other: "t2" },
+    });
+    assert.equal(g.active?.id, "t1");
+    // 分ける：指した欄を分け、新しい欄が active になる
+    assert.equal(await g.add("down", "t2"), true);
+    assert.deepEqual(f.calls.at(-1)!.params.split, {
+      target: "t2",
+      dir: "down",
+    });
+    assert.equal(g.active?.id, "t10");
+    // active にする：ターミナルでも、ターミナルでない欄でも
+    assert.equal(g.activatePane("t2"), true);
+    assert.equal(g.activeId, "t2");
+    assert.equal(g.activatePane("x1"), true);
+    assert.equal(g.activeId, "x1");
+    assert.equal(g.activatePane("nope"), false);
+    // 閉じる：プライマリは閉じない。今使っていない欄を閉じても、今使っている欄は変わらない
+    assert.equal(g.closePane("t1"), false);
+    assert.equal(g.closePane("t2"), true);
+    assert.deepEqual(ids(g), ["t1", "t10"]);
+    assert.equal(g.activeId, "x1");
+    assert.equal(g.closePane("x1"), true);
+    assert.deepEqual(extraIds(g), []);
+    assert.equal(g.closePane("nope"), false);
+  });
+
   it("プライマリターミナルのコマンド（kisui pane open）が終わって欄が残ったら、Enter で作り直せる", async () => {
     const f = fakePort();
     const g = new TermGroup(f.port, layout(["t2"]), () => {});

@@ -17,7 +17,7 @@ export type DbEditorAction = "run" | "runNew" | "cancel";
  * SQL の入力欄で押したキー e の動き（無ければ null。入力欄にそのまま字が入る）。
  * - Cmd+Enter（macOS）・Ctrl+Enter（ほか）：実行する（ほかのクライアントと同じ。Enter だけは改行）
  * - Cmd+Option+Enter（macOS）・Ctrl+Shift+Enter（ほか）：実行して、新しい結果のタブに出す（#404）。macOS で Shift でないのは、
- *   Cmd+Shift+Enter が、プライマリ以外のペインを隠す近道（リーダーの p z）で、入力欄に届く前に窓が受けるため
+ *   Cmd+Shift+Enter が、プライマリ以外のペインを隠す近道で、入力欄に届く前に窓が受けるため
  * - Esc：実行している SQL を取り消す（実行していなければ何もしない。呼ぶ側が決める）
  * かな漢字変換の確定・取り消しのキーは受けない。
  */

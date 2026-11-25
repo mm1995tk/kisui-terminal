@@ -13,8 +13,10 @@ import type {
 } from "../../infrastructure/rpc/protocol.ts";
 import type { Session } from "../sessions/session.ts";
 import type { WorkspaceFocus } from "../workspaces/rows.ts";
+import type { Direction } from "./grid.ts";
 import type { TermGroup, TermGroups } from "./group.ts";
 import type { MediaFetch } from "./media.ts";
+import { paneCells } from "./paneMap.ts";
 
 /** createTerminals が返す持ち物。 */
 export type Terminals = ReturnType<typeof createTerminals>;
@@ -132,17 +134,61 @@ export function createTerminals(deps: {
     };
   }
 
-  /** 今の欄を右・下・左・上に分けてターミナルを足し、キーを向ける（Cmd+D・Ctrl+Shift+D など。F4）。フォーカスしているワークスペースに属する。 */
-  function newTerminal(dir: SplitDir) {
+  /**
+   * 欄 target（省くと今の欄）を右・下・左・上に分けてターミナルを足し、キーを向ける。フォーカスしているワークスペースに属する。
+   * 足せたら、足した欄の id。足せなければ（小さすぎる・つながっていない）undefined。
+   */
+  async function splitPane(
+    dir: SplitDir,
+    target?: string,
+  ): Promise<string | undefined> {
     // 隠している欄があれば先に戻す（足した欄が見えないままになるため）
     setZoom(false);
+    const g = termGroup();
     // フォルダは shj が決める（ワークスペースのフォルダ。未定なら start_dir）
-    void termGroup()
-      ?.add(dir)
-      .then((added) => {
-        if (added) focusTerminal();
-      });
+    if (!g || !(await g.add(dir, target))) return undefined;
+    focusTerminal();
+    return g.activeId;
   }
+
+  /** 今の欄を右・下・左・上に分けてターミナルを足し、キーを向ける（Cmd+D・Ctrl+Shift+D など。F4）。 */
+  function newTerminal(dir: SplitDir) {
+    void splitPane(dir);
+  }
+
+  // ---- ターミナルのタブの窓（リーダーの a。#457）。窓で選んだ欄（id）に操作する ----
+
+  /** 窓に出す、今のターミナルのタブのペインの地図（paneMap.ts）。 */
+  const panes = () => paneCells(termGroup(), zoomed());
+
+  /** 欄 id から dir の向きの隣の欄の id（窓で選ぶ欄を動かす）。隣が無ければ undefined。 */
+  const paneNeighbor = (id: string, dir: Direction): string | undefined =>
+    termGroup()?.neighborOf(dir, id)?.to;
+
+  /** 欄 id を、dir の向きの隣の欄と入れ替える。隣が無ければ false。 */
+  const swapPane = (id: string, dir: Direction): boolean =>
+    termGroup()?.swap(dir, id) ?? false;
+
+  /** 欄 id を閉じる。プライマリターミナルは閉じず false。 */
+  const closePane = (id: string): boolean =>
+    termGroup()?.closePane(id) ?? false;
+
+  /** 欄 id にキーを向ける。隠している欄なら、先に戻す。欄が無ければ false。 */
+  function focusPane(id: string): boolean {
+    const f = focus();
+    const g = termGroup();
+    if (!f || !g) return false;
+    if (g.list[0]?.id !== id) zoomWs(f.target, f.id, false);
+    if (!g.activatePane(id)) return false;
+    focusTerminal();
+    return true;
+  }
+
+  /** プライマリ以外の欄を隠せるか（フォーカスしているワークスペースのプライマリで shj が動いているときだけ）。 */
+  const canZoom = () => {
+    const f = focus();
+    return !!f && primaryShjOn(f.target, f.id);
+  };
 
   return {
     /** ターミナルの並びが変わった（描き直す） */
@@ -164,5 +210,12 @@ export function createTerminals(deps: {
     extraShown: () => extraShown,
     readExtra,
     newTerminal,
+    splitPane,
+    panes,
+    paneNeighbor,
+    swapPane,
+    closePane,
+    focusPane,
+    canZoom,
   };
 }
