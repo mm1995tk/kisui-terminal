@@ -25,11 +25,11 @@ import {
   mayFocusPage,
   OVERLAY_SELECTORS,
   pageBounds,
-  sameBounds,
-  toLogical,
+  placeIn,
+  samePlace,
   type Bounds,
+  type Placement,
 } from "./overlay.ts";
-import { watchResize } from "./resizeWatch.ts";
 import {
   isCertReason,
   reasonKey,
@@ -43,8 +43,8 @@ interface View {
   state: "opening" | "open" | "failed";
   /** 作ったときの URL（開けなかったタブは、URL が変わったら作り直す） */
   url: string;
-  /** 今見せている四角（論理ピクセル）。隠していれば null */
-  shown: Bounds | null;
+  /** 今見せている場所（殻に渡したもの）。隠していれば null */
+  shown: Placement | null;
   /** 作ったときのプロキシの待ち受け口（#409。通していなければ undefined）。タブのものと違ったら、作り直す */
   proxy: number | undefined;
 }
@@ -56,6 +56,11 @@ const REOPEN_WAIT_MS = 50;
 function rectOf(el: Element): Bounds {
   const r = el.getBoundingClientRect();
   return { x: r.left, y: r.top, w: r.width, h: r.height };
+}
+
+/** 四角（rectOf で測ったもの）を、殻に渡す場所にする。四角を数えた viewport の、今の大きさを添える */
+function placeOf(b: Bounds, zoom: number): Placement {
+  return placeIn(b, { w: window.innerWidth, h: window.innerHeight }, zoom);
 }
 
 /** 画面（メインの webview）のどこにもキーが無いか。 */
@@ -124,10 +129,10 @@ export function BrowserArea(props: {
   let layerGen = 0;
 
   /**
-   * 今の様子で、ページを置く四角（論理ピクセル。隠すなら null）と、浮かべるものがページに重なっているか。
+   * 今の様子で、ページを置く場所（殻に渡す形。隠すなら null）と、浮かべるものがページに重なっているか。
    * 重ねられる OS では、浮かべるものでページを縮めない（重なっているかだけ返す）。
    */
-  function bounds(): { b: Bounds | null; floating: boolean } {
+  function bounds(): { b: Placement | null; floating: boolean } {
     const floats = [...document.querySelectorAll(OVERLAY_SELECTORS.float)].map(
       rectOf,
     );
@@ -138,7 +143,7 @@ export function BrowserArea(props: {
     const top = barRect ? barRect.y + barRect.h - areaRect.y : 0;
     const b = pageBounds(areaRect, native ? [] : floats, modal, top);
     return {
-      b: b && toLogical(b, props.zoom()),
+      b: b && placeOf(b, props.zoom()),
       floating: native && b !== null && floatsOver(areaRect, floats),
     };
   }
@@ -194,13 +199,13 @@ export function BrowserArea(props: {
     void focusTab(id).catch(() => {});
   }
 
-  async function create(tab: BrowserTab, b: Bounds | null, reopen = false) {
+  async function create(tab: BrowserTab, b: Placement | null, reopen = false) {
     const proxy = tab.proxy?.port;
     const v: View = { state: "opening", url: tab.url, shown: null, proxy };
     views.set(tab.id, v);
     refreshStatus();
     // 隠すときも、いったん場所の四角で作る（次の見回りで隠す）
-    const at = b ?? toLogical(rectOf(area), props.zoom());
+    const at = b ?? placeOf(rectOf(area), props.zoom());
     try {
       const url = await props.resolve(tab, tab.url);
       if (disposed || views.get(tab.id) !== v) return;
@@ -251,7 +256,7 @@ export function BrowserArea(props: {
    * タブのプロキシ（#409）が替わった（通し始めた・やめた）。webview を壊して、新しいプロキシで作り直す（ページを読み直す）。
    * プロキシは webview を作るときにしか決められない。
    */
-  async function recreate(tab: BrowserTab, b: Bounds | null) {
+  async function recreate(tab: BrowserTab, b: Placement | null) {
     // 壊している間、見回り（tick）が触らないよう、先に「開いている途中」にする（create が自分の View に置き換える）
     const closing: View = {
       state: "opening",
@@ -329,12 +334,10 @@ export function BrowserArea(props: {
   });
 
   // 位置が変わるのは、大きさの変化のほかに、サイドバーの幅の変更・お知らせの出し入れなどもある。
-  // 出している間は毎フレーム見て、変わったときだけ殻に送る
+  // 出している間は毎フレーム見て、変わったときだけ殻に送る。窓の形だけが変わったとき（測った場所は同じ）は、
+  // 殻（macOS）が自分でページを追従させるので、送り直さない（#442。src-tauri/src/browser_frame.rs）
   onMount(() => {
     let raf = 0;
-    // 窓の形が変わったら、場所が同じでも殻に送り直す（resizeWatch.ts。#326）
-    const resize = watchResize();
-    onCleanup(resize.stop);
     // 浮かべるものを縮めずに重ねられるか。答えが来るまで、また重ねられない OS では、これまでどおり縮めて避ける
     void enableOverlay()
       .then((ok) => (native = ok && !disposed))
@@ -378,7 +381,7 @@ export function BrowserArea(props: {
         return;
       }
       const wasHidden = v.shown === null;
-      if (resize.take() || !sameBounds(v.shown, b)) {
+      if (!samePlace(v.shown, b)) {
         void moveTab(tab.id, b).catch(() => {});
         v.shown = b;
       }

@@ -12,9 +12,9 @@
 //     変わり、読んでいた所を見失うため）。縮めると低くなりすぎる（MIN_HEIGHT より低い）ときは隠す。
 //   - 上の端のもの（data-overlay-top。URL バー。#232）：ページの上の端を下げる。
 
-import type { Bounds } from "../../../../features/browser/os.ts";
+import type { Bounds, Placement } from "../../../../features/browser/os.ts";
 
-export type { Bounds };
+export type { Bounds, Placement };
 
 /** 重なるものが自分に付ける印（属性）。BrowserArea.tsx は、この印でだけ重なるものを探す。 */
 export const OVERLAY_SELECTORS = {
@@ -66,10 +66,33 @@ export function toLogical(b: Bounds, zoom: number): Bounds {
   };
 }
 
-/** 同じ四角か（変わったときだけ殻に送る）。 */
-export function sameBounds(a: Bounds | null, b: Bounds | null): boolean {
+/**
+ * 殻に渡す、ページを置く場所。四角 `b`（CSS ピクセル）と、それを測ったときの viewport の大きさ（CSS ピクセル）を、
+ * 窓の論理ピクセルにする。viewport の大きさも渡すのは、殻が、viewport が窓のどこにあるかを決めるため（#442）。
+ */
+export function placeIn(
+  b: Bounds,
+  viewport: { w: number; h: number },
+  zoom: number,
+): Placement {
+  return {
+    ...toLogical(b, zoom),
+    vw: Math.round(viewport.w * zoom),
+    vh: Math.round(viewport.h * zoom),
+  };
+}
+
+/** 同じ場所か（変わったときだけ殻に送る）。viewport の大きさが変わったときも、殻が決め直せるように送る。 */
+export function samePlace(a: Placement | null, b: Placement | null): boolean {
   if (a === null || b === null) return a === b;
-  return a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
+  return (
+    a.x === b.x &&
+    a.y === b.y &&
+    a.w === b.w &&
+    a.h === b.h &&
+    a.vw === b.vw &&
+    a.vh === b.vh
+  );
 }
 
 /**

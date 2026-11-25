@@ -14,6 +14,16 @@ export interface Bounds {
   h: number;
 }
 
+/**
+ * タブのページを置く場所。殻に渡す形（論理ピクセル。画面の viewport の左上が原点）。
+ * `vw`・`vh` は、四角を測ったときの viewport の大きさ。殻（macOS）は、これと画面の view の枠から、viewport が窓の
+ * どこにあるかを決める（src-tauri/src/browser_frame.rs。#442）。
+ */
+export interface Placement extends Bounds {
+  vw: number;
+  vh: number;
+}
+
 /** ページが新しい窓を開いた知らせ（#204）。tab は殻が付けた新しいタブの id、opener は開いた元のタブ。 */
 export interface TabPopup {
   opener: string;
@@ -51,7 +61,7 @@ export interface BrowserOs {
     url: string,
     keys: InterceptKey[],
     incognito: boolean,
-    b: Bounds,
+    b: Placement,
     proxy?: number,
   ): Promise<void>;
   /**
@@ -60,8 +70,11 @@ export interface BrowserOs {
    * 手元の待ち受けの URL を返す（そのポートで誰も待っていなければ失敗する）。ほかはそのまま返す。
    */
   resolveTabUrl(target: string, url: string): Promise<string>;
-  /** タブの位置と大きさを合わせる（論理ピクセル）。 */
-  moveTab(tab: string, b: Bounds): Promise<void>;
+  /**
+   * タブの位置と大きさを合わせる。窓の形が変わったときは、殻（macOS）が、次にこれを呼ぶまで、自分でページを追従させる
+   * （同じ場所を送り直さなくてよい。#442）。
+   */
+  moveTab(tab: string, b: Placement): Promise<void>;
   /** タブを見せる・隠す（隠すと、キーは kisui-terminal の画面に戻る）。 */
   showTabView(tab: string, visible: boolean): Promise<void>;
   /** タブのページにキーを向ける。 */

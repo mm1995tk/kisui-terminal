@@ -63,6 +63,10 @@ objc2-foundation = { version = "=0.3.2", default-features = false, features = [
   "NSDictionary",
   "NSError",
   "NSString",
+  # 内蔵ブラウザのページの場所（browser_frame.rs。#442）：画面の view の枠が変わった知らせを、ブロックで受ける
+  "block2",
+  "NSNotification",
+  "NSOperation",
 ] }
 # 内蔵ブラウザのタブの favicon（favicon.rs。#237）。ページの外の世界（WKContentWorld）でスクリプトを動かし、答えを受ける。
 # 版は Cargo.lock にすでにある（wry が使っている）ものに合わせる
