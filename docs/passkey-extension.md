@@ -159,7 +159,11 @@ native messaging の決まりどおり、1 つのメッセージは JSON 1 つ�
   - `hostOnly` でない上のドメインのものは、`.google.com`（`google.com` とそのサブドメインに送られるもの）にする。ほかのサイトのものは捨てる。
 - どちらの書き方でも：
   - 期限の切れたもの、名前や値に制御文字か `;` のあるもの、名前が空か `=` を含むもの、`path` が `/` で始まらないものは捨てる。
+  - 名前が `__Secure-`・`__Host-` で始まるのに Secure でないものは捨てる（ブラウザもこの名前の Cookie を Secure 無しでは受け取らない）。
   - HttpOnly の Cookie も入れる。
+  - Secure・HttpOnly は、送られたとおりに入れる（false のものに印を付けない。macOS の WebView は、wry に false と渡しても
+    Secure・HttpOnly にするので、false のときは渡さない。HttpOnly になると、Google のページのスクリプトが `SAPISID` などを読めず、
+    ログインした状態にならない。#276）。
 
 答え（入れた）：
 

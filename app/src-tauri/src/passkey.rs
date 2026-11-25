@@ -282,6 +282,9 @@ fn accept_cookie(c: &WireCookie, site: &str, now: f64) -> Option<(usize, Cookie<
         || !cookie_text(&c.value)
         || !c.path.starts_with('/')
         || !cookie_text(&c.path)
+        // ブラウザは `__Secure-`・`__Host-` で始まる名前の Cookie を Secure 無しでは受け取らない。`set_cookie` で直に入れる
+        // ときに WebView が同じ確認をするかは分からないので、ここで捨てる
+        || (!c.secure && (c.name.starts_with("__Secure-") || c.name.starts_with("__Host-")))
     {
         return None;
     }
@@ -301,9 +304,16 @@ fn accept_cookie(c: &WireCookie, site: &str, now: f64) -> Option<(usize, Cookie<
     };
     let mut b = Cookie::build((c.name.clone(), c.value.clone()))
         .domain(to)
-        .path(c.path.clone())
-        .secure(c.secure)
-        .http_only(c.http_only);
+        .path(c.path.clone());
+    // Secure・HttpOnly は true のときだけ付ける。macOS の wry は `Some(false)` でも `NSHTTPCookieSecure`・`HttpOnly` の
+    // 項目を "FALSE" で作り、NSHTTPCookie は項目があれば値を見ずに Secure・HttpOnly にする（ページのスクリプトが
+    // 読む Google の `SAPISID` などが読めなくなる）。付けなければ（`None`）、どの WebView でも false になる
+    if c.secure {
+        b = b.secure(true);
+    }
+    if c.http_only {
+        b = b.http_only(true);
+    }
     if let Some(s) = c.same_site.as_deref() {
         b = match s {
             "lax" => b.same_site(SameSite::Lax),
@@ -1046,6 +1056,37 @@ mod tests {
         );
         assert!(ok.is_empty());
         assert_eq!(dropped, 1);
+    }
+
+    #[test]
+    fn leaves_secure_and_http_only_unset_when_false() {
+        // false を `Some(false)` で渡すと、macOS の WebView では Secure・HttpOnly になる。付けずに `None` にする
+        let mut w = wire("SAPISID", ".google.com", false);
+        w.secure = false;
+        w.http_only = false;
+        let (ok, _) = accept_cookies(&[w], ".google.com", 0.0);
+        assert_eq!(ok[0].secure(), None);
+        assert_eq!(ok[0].http_only(), None);
+        let (ok, _) = accept_cookies(&[wire("SID", ".google.com", false)], ".google.com", 0.0);
+        assert_eq!(ok[0].secure(), Some(true));
+        assert_eq!(ok[0].http_only(), Some(true));
+    }
+
+    #[test]
+    fn drops_prefixed_cookies_without_secure() {
+        let mut a = wire("__Secure-1PSID", ".google.com", false);
+        a.secure = false;
+        let mut b = wire("__Host-GAPS", "accounts.google.com", true);
+        b.secure = false;
+        let (ok, dropped) = accept_cookies(&[a, b], ".google.com", 0.0);
+        assert!(ok.is_empty());
+        assert_eq!(dropped, 2);
+        let (ok, _) = accept_cookies(
+            &[wire("__Secure-1PSID", ".google.com", false)],
+            ".google.com",
+            0.0,
+        );
+        assert_eq!(ok.len(), 1);
     }
 
     #[test]
