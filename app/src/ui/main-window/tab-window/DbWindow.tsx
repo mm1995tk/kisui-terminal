@@ -107,8 +107,11 @@ export function DbWindow(props: {
   const rows = createMemo(() =>
     dbWindowRows(run(), (tab) => props.db.resultStructureOf(tab)),
   );
-  // 選んでいる結果のタブ。選んでいたタブが無くなったら（閉じた・上限で閉じた）、出しているタブを選び直す
-  const [want, setWant] = createSignal<string>();
+  // 選んでいる結果のタブ。開いたときは、そのとき出していたタブに決めておく（開いている間に出しているタブが替わっても、
+  // 選択は付いて動かない。何もしていないのに x が別のタブを閉じないため）。選んでいたタブが無くなったら（閉じた・上限で閉じた）、出しているタブを選び直す
+  const [want, setWant] = createSignal<string | undefined>(
+    untrack(() => run().active),
+  );
   const selected = () => selectedResult(rows(), want());
   // 選んでいる行を見える所へ（結果のタブは 20 個まで増え、窓に収まらないと中身がスクロールする）。開いたときも、出しているタブが見えるように
   createEffect(() => {
