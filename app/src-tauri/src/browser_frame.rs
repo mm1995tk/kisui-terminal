@@ -15,6 +15,8 @@
 //!   viewport も同じだけ変わるものとして、余白を保ったまま置き直す。置き直すのは、画面の view の枠が変わったという AppKit の
 //!   知らせ（`NSViewFrameDidChangeNotification`）を受けたとき。画面からの送り直しも、待ち時間も要らない。
 //!   画面が測り直した場所は、そのあとで届いて、同じ決まりで置き直される。
+//!   窓の端をドラッグしている間に届いた場所では、余白を決め直さない（測ってから届くまでに view が大きくなった分を、
+//!   余白と取り違えないように）。
 //! - ページの view は、AppKit に動かさせない（自動リサイズを切る）。ページを動かすのは、ここだけ。
 //!
 //! ほかの OS は、wry の数え方（窓の中身の左上から）がそのまま画面の測り方と合うので、wry に渡すだけ。
@@ -240,7 +242,15 @@ mod mac {
             log_skipped("the screen's view has no parent");
             return;
         };
-        let e = excess(area.w, area.h, &p);
+        // 窓の端をドラッグしている間は、余白を決め直さない。画面が測った viewport の大きさは、殻に届くまでに古くなるので、
+        // その間に view が大きくなった分を、上の余白と取り違える（ページと URL バーの間にすき間が空く）。
+        // ドラッグでは余白（タイトルバーの分など）は変わらないので、覚えている余白を使う
+        let kept = if screen.inLiveResize() {
+            PLACED.with(|pl| pl.borrow().pages.get(tab).map(|page| page.excess))
+        } else {
+            None
+        };
+        let e = kept.unwrap_or_else(|| excess(area.w, area.h, &p));
         log_place(area, &p, e, &screen);
         apply(view, area, e, &p);
         PLACED.with(|pl| {
