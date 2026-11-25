@@ -1,5 +1,6 @@
 // プロキシのパネルの並び（PanelBar.tsx）が、狭い幅で崩れていないかを確かめる（#422）。
 // ProxyPanel.stories.tsx の狭い幅の stories が、出したあとに呼ぶ（play）。崩れていれば、その story は Storybook で失敗として出る。
+// play は Storybook で story を開いたときだけ動き、CI（npm test・nix flake check）では動かない。
 
 /** 測るときの誤差（px） */
 const slack = 1;

@@ -1,7 +1,9 @@
 // プロキシのパネル（#409）の、左に見出しや説明、右に状態とボタンを寄せた並び（#422）。
 // パネルの頭・止めている要求の帯・書き換える欄の頭は、どれもこの部品で並べる。
 // 狭い幅・字の長い言語（日本語）でどう折り返し、どこを縮め、どこを折らないかは、ProxyPanel.module.css の .bar の段だけで決める。
-// 並びを足すときは、ここを使う（並びごとに折り返しを手で書かない）。崩れないことは、ProxyPanel.stories.tsx の狭い幅の stories が確かめる。
+// 並びを足すときは、ここを使う（並びごとに折り返しを手で書かない）。並べ方を場所ごとの規則に書き足すと panelBar.test.ts が落ちる。
+// 崩れないことは CI では確かめない。並びを足したら、Storybook で ProxyPanel の `…Narrowest` の stories（英語と日本語）を開き、
+// Interactions に失敗（barCheck.ts）が出ないことを、人の手で確かめる。
 import type { JSX } from "solid-js";
 
 import styles from "./ProxyPanel.module.css";
