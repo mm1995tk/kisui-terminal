@@ -290,33 +290,6 @@
 }
 
 /* クリップボードの履歴の窓（ClipboardHistoryDialog.tsx） */
-.history-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-12);
-}
-.history-close {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border: 0;
-  border-radius: var(--radius-6);
-  background: transparent;
-  color: var(--card-muted);
-  cursor: pointer;
-}
-.history-close:hover {
-  background: var(--card-row-active);
-  color: var(--card-text);
-}
-.history-close:focus-visible {
-  outline: var(--state-focus-ring-width) solid var(--state-focus-ring);
-}
 .history-copied {
   color: var(--card-accent);
   font-weight: var(--weight-strong);

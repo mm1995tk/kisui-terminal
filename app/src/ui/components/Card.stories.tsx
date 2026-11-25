@@ -1,5 +1,5 @@
 // 真ん中に出す窓の枠（Card.tsx の ModalCard）を、アプリと同じ部品・CSS・字・翻訳で出す（#315）。
-// 中は窓の 3 つの段（header の見出し・中身・footer のボタン）だけ。中身のある窓の例は、
+// 中は窓の 3 つの段（header の見出し・中身・footer の基本操作のキー）だけ。中身のある窓の例は、
 // main-window/ の窓の stories（CloseWorkspaceCard・InstallCard）。
 // 使い方の決まりは docs/design/design-system.md の「窓の枠」。
 import { For, type ComponentProps } from "solid-js";
@@ -7,14 +7,14 @@ import type { Meta, StoryObj } from "storybook-solidjs-vite";
 import { fn } from "storybook/test";
 
 import { T } from "../../i18n/index.ts";
-import { Button } from "./Button.tsx";
 import {
   ModalCard,
   CardBody,
   CardTitle,
   CardText,
-  CardActions,
+  CardFooter,
 } from "./Card.tsx";
+import { KeyHints } from "./KeyHints.tsx";
 
 /** label と中身は翻訳の表から render の中で引くので、引数からは外す */
 type Args = Omit<
@@ -41,11 +41,9 @@ const meta = {
       header={<CardTitle>{T("keys.label")}</CardTitle>}
       footer={
         args.noFooter ? undefined : (
-          <CardActions>
-            <Button variant="primary" onClick={args.onCancel}>
-              {T("button.close")}
-            </Button>
-          </CardActions>
+          <CardFooter>
+            <KeyHints items={[{ keys: ["Esc"], label: T("basic.close") }]} />
+          </CardFooter>
         )
       }
     >

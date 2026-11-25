@@ -22,7 +22,6 @@ import {
 import { dbHistoryKey } from "../../../features/db/keys.ts";
 import type { DbHistoryEntry } from "../../../infrastructure/rpc/protocol.ts";
 import "../../components/card.css";
-import { Button } from "../../components/Button.tsx";
 import {
   CardBody,
   CardFooter,
@@ -71,12 +70,9 @@ export function DbHistoryDialog(props: {
       onCancel={props.onCancel}
     >
       <CardBody>
-        <div class="history-head">
-          <CardTitle>
-            {T("db.history.title", { connection: props.ask.connection })}
-          </CardTitle>
-          <Button onClick={props.onCancel}>{T("db.history.close")}</Button>
-        </div>
+        <CardTitle>
+          {T("db.history.title", { connection: props.ask.connection })}
+        </CardTitle>
         <Input
           type="text"
           placeholder={T("db.history.filterPlaceholder")}

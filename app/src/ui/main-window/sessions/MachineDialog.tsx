@@ -15,7 +15,6 @@ import {
 } from "solid-js";
 
 import { openKeyList } from "../commands/KeyListDialog.tsx";
-import { Button } from "../../components/Button.tsx";
 import { KeyFooter } from "../../components/KeyFooter.tsx";
 import { ModalCard, CardTitle, CardText } from "../../components/Card.tsx";
 import { basicHints } from "../../../features/commands/placeKeys.ts";
@@ -184,9 +183,6 @@ export function MachineDialog(props: {
             decide: T("machineDialog.keys.newTab"),
             end: "close",
           })}
-          actions={
-            <Button onClick={props.onCancel}>{T("button.close")}</Button>
-          }
         />
       }
       header={<CardTitle>{T("machineDialog.label")}</CardTitle>}

@@ -11,7 +11,6 @@ import {
   type JSX,
 } from "solid-js";
 
-import { Button } from "../../components/Button.tsx";
 import { KeyFooter } from "../../components/KeyFooter.tsx";
 import {
   ModalCard,
@@ -103,9 +102,6 @@ export function MascotDialog(props: {
             </Show>
           }
           items={basicHints({ decide: T("basic.decide"), end: "cancel" })}
-          actions={
-            <Button onClick={props.onCancel}>{T("button.cancelAlt")}</Button>
-          }
         />
       }
       header={<CardTitle>{T("mascot.title")}</CardTitle>}

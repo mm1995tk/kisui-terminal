@@ -96,8 +96,8 @@ describe("メインウィンドウの CSS の並び", () => {
 
   it("page.tsx からたどった CSS の順は、決めた並びのとおり", () => {
     assert.deepEqual(cssOrder("ui/main-window/page.tsx"), [
-      // ボタン（.button の規則だけを持ち、ほかの CSS と規則が重ならないので、カードとの前後は見た目に関わらない）
-      "ui/components/button.css",
+      // キー操作のヒント（.key-hint・.kbd の規則だけを持ち、置き場の窓の規則と重ならない）。キーの一覧の下の段が先に読む
+      "ui/components/key-hints.css",
       // カードの決まり（窓・知らせ）。常駐ツールの画面と共に使うので、ビルドでは別のファイルになる
       "ui/components/card.css",
       "ui/main-window/commands/KeyListDialog.module.css",
@@ -107,11 +107,11 @@ describe("メインウィンドウの CSS の並び", () => {
       // その場の入力欄（.inline-* の規則だけを持ち、置き場のツリー・サイドバー・切り替える窓の規則と重ならない）
       "ui/components/inline-input.css",
       "ui/main-window/sidebar/file-tree/tree.css",
-      // キー操作のヒント（.key-hint・.kbd の規則だけを持ち、置き場の窓の規則と重ならない）。サイドバーの DB のタブの木が先に読む
-      "ui/components/key-hints.css",
       // サイドバーの DB のタブの木（#374。CSS Modules なので、クラス名はほかと重ならない）
       "ui/main-window/sidebar/db-tree/DbTree.module.css",
       "ui/main-window/sidebar/sidebar.css",
+      // ボタン（.button の規則だけを持ち、ほかの CSS と規則が重ならないので、カードとの前後は見た目に関わらない）。サイドバーの次に、窓が読む
+      "ui/components/button.css",
       "ui/main-window/workspaces/switcher.css",
       "ui/main-window/layout.css",
       "ui/main-window/content/browser/browser.css",

@@ -10,8 +10,8 @@ import {
   helpRows,
   leaderKeyName,
 } from "../../../features/commands/commands.ts";
-import { Button } from "../../components/Button.tsx";
-import { ModalCard, CardActions } from "../../components/Card.tsx";
+import { KeyHints } from "../../components/KeyHints.tsx";
+import { ModalCard, CardFooter } from "../../components/Card.tsx";
 import { IS_MAC } from "../../../features/commands/guiKeys.ts";
 import {
   isWindowPlace,
@@ -75,11 +75,9 @@ export function KeyListDialog(): JSX.Element {
         focusSelf
         header={<h1 class={styles.title}>{T("keys.label")}</h1>}
         footer={
-          <CardActions>
-            <Button variant="primary" onClick={() => setOpened(false)}>
-              {T("button.close")}
-            </Button>
-          </CardActions>
+          <CardFooter>
+            <KeyHints items={[{ keys: ["Esc"], label: T("basic.close") }]} />
+          </CardFooter>
         }
       >
         <div class={styles.body}>

@@ -3,7 +3,6 @@ import { createSignal, For, type JSX } from "solid-js";
 
 import { moveRow, pickerKey } from "../../../features/sessions/machineList.ts";
 import type { Row } from "../../../features/workspaces/rows.ts";
-import { Button } from "../../components/Button.tsx";
 import { ModalCard, CardTitle } from "../../components/Card.tsx";
 import { KeyFooter } from "../../components/KeyFooter.tsx";
 import { basicHints } from "../../../features/commands/placeKeys.ts";
@@ -51,9 +50,6 @@ export function TabMovePicker(props: {
       footer={
         <KeyFooter
           items={basicHints({ decide: T("tabMove.keys.move"), end: "cancel" })}
-          actions={
-            <Button onClick={props.onCancel}>{T("button.cancelAlt")}</Button>
-          }
         />
       }
     >

@@ -10,7 +10,6 @@ import type { DbPicker } from "../../../features/db/controller.ts";
 import { connectionDetail, type DbChoice } from "../../../features/db/model.ts";
 import { dbLabel } from "../../../features/workspaces/model.ts";
 import { moveRow, pickerKey } from "../../../features/sessions/machineList.ts";
-import { Button } from "../../components/Button.tsx";
 import { CardBody, CardTitle, ModalCard } from "../../components/Card.tsx";
 import { KeyFooter } from "../../components/KeyFooter.tsx";
 import { openKeyList } from "../commands/KeyListDialog.tsx";
@@ -49,9 +48,6 @@ export function DbConnectionPicker(props: {
       footer={
         <KeyFooter
           items={basicHints({ decide: T("db.picker.open"), end: "cancel" })}
-          actions={
-            <Button onClick={props.onCancel}>{T("button.cancelAlt")}</Button>
-          }
         />
       }
     >

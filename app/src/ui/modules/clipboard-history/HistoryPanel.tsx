@@ -129,28 +129,7 @@ export function HistoryPanel(props: {
   return (
     <>
       <CardBody>
-        <div class="history-head">
-          <CardTitle>{T("history.label")}</CardTitle>
-          <button
-            type="button"
-            class="history-close"
-            aria-label={T("history.close")}
-            title={T("history.close")}
-            // 入力欄からフォーカスを動かさない（押したあとも↑↓と Enter が効くように）
-            onMouseDown={(ev) => ev.preventDefault()}
-            onClick={props.onClose}
-          >
-            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-              <path
-                d="M3 3l10 10M13 3L3 13"
-                stroke="currentColor"
-                stroke-width="1.6"
-                stroke-linecap="round"
-                fill="none"
-              />
-            </svg>
-          </button>
-        </div>
+        <CardTitle>{T("history.label")}</CardTitle>
         <Input
           type="text"
           placeholder={T("history.filterPlaceholder")}
