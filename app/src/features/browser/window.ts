@@ -46,8 +46,15 @@ export interface BrowserWindowRow {
   why?: string;
 }
 
-/** 窓に並べる順と、押す字。字は、#459 までのリーダーの `o` のグループの字を引き継ぐ。 */
-const ORDER: readonly { op: BrowserOp; key: string; label: Key }[] = [
+/**
+ * 窓に並べる順と、押す字。字は、#459 までのリーダーの `o` のグループの字を引き継ぐ。
+ * 窓の中のキーの判定（ui/main-window/tab-window/browserWindowKey.ts）も、この字から作る（字を書くのはここだけ）。
+ */
+export const BROWSER_WINDOW_ORDER: readonly {
+  op: BrowserOp;
+  key: string;
+  label: Key;
+}[] = [
   { op: "back", key: "h", label: "leader.browser.back" },
   { op: "forward", key: "l", label: "leader.browser.forward" },
   { op: "reload", key: "r", label: "leader.browser.reload" },
@@ -81,7 +88,7 @@ export function whyNot(t: BrowserTab, op: BrowserOp): string | undefined {
 
 /** タブ t の窓に並べる行（上から順）。 */
 export function browserWindowRows(t: BrowserTab): BrowserWindowRow[] {
-  return ORDER.map(({ op, key, label }) => {
+  return BROWSER_WINDOW_ORDER.map(({ op, key, label }) => {
     const why = whyNot(t, op);
     return { op, key, label: T(label), ...(why ? { why } : {}) };
   });

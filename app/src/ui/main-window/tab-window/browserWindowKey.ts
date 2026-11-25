@@ -1,7 +1,10 @@
 // ブラウザのタブの窓（リーダーの `a`。BrowserWindow.tsx。#459）の中のキー。
 // 画面の仕組み（Solid）に依らないので、node --test で確かめる。決まりは docs/key-design.md。
 
-import type { BrowserOp } from "../../../features/browser/window.ts";
+import {
+  BROWSER_WINDOW_ORDER,
+  type BrowserOp,
+} from "../../../features/browser/window.ts";
 import { isComposingKey } from "../../../features/commands/ime.ts";
 import type { KeyLike } from "../../../features/commands/guiKeys.ts";
 import {
@@ -21,22 +24,11 @@ export type BrowserWindowKey =
   /** この窓のキーの一覧を出す（`?`） */
   | { kind: "help" };
 
-/** 字 → 操作。字は、#459 までのリーダーの `o` のグループの字を引き継ぐ（窓の行の字。features/browser/window.ts と同じ）。 */
+/** 字 → 操作。字は窓の行の字（features/browser/window.ts の BROWSER_WINDOW_ORDER）から作り、戻る・進むに矢印を足す（URL バーのボタンと同じ向き）。 */
 const OPS: Readonly<Record<string, BrowserOp>> = {
-  h: "back",
+  ...Object.fromEntries(BROWSER_WINDOW_ORDER.map((r) => [r.key, r.op])),
   ArrowLeft: "back",
-  l: "forward",
   ArrowRight: "forward",
-  r: "reload",
-  c: "stop",
-  u: "url",
-  y: "copyUrl",
-  e: "external",
-  s: "login",
-  "/": "find",
-  b: "bookmark",
-  B: "bookmarks",
-  i: "devtools",
 };
 
 /**
