@@ -948,6 +948,24 @@ describe("内蔵ブラウザ（#202。設定で有効にしたときだけ）", 
 describe("設定で足す近道（[gui.shortcuts]）", () => {
   after(() => setUserShortcuts([], LINUX));
 
+  it("まとめた行（p s h|j|k|l）に設定の近道を足すと、近道 1 つずつに、どのキーのものかが付く", () => {
+    assert.deepEqual(
+      setUserShortcuts(
+        [
+          { key: "Ctrl+Alt+J", command: "pane.split:down" },
+          { key: "Ctrl+Alt+H", command: "pane.split:left" },
+        ],
+        LINUX,
+      ),
+      [],
+    );
+    const row = helpRows(LINUX).find((r) => r.path.join(" ") === "p s h|j|k|l");
+    assert.equal(
+      row?.shortcut,
+      "Ctrl+Alt+H (h), Ctrl+Shift+E (j), Ctrl+Alt+J (j), Ctrl+Shift+D (l)",
+    );
+  });
+
   it("書いたキーでコマンドを動かし、引数も渡せる。ターミナルに届かない", () => {
     const problems = setUserShortcuts(
       [
