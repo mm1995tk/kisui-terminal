@@ -112,7 +112,7 @@ export interface Leaf extends Common {
   /** 行ったあともリーダーを出ず、同じ一覧のまま次のキーを待つ（ペインを `j` `j` `l` と続けて移れる） */
   repeat?: boolean;
   /**
-   * 案内では、同じ range.keys が続く葉を 1 行にまとめて出す（`1–9  上から N 番目へ`、`h|j|k|l  ペインを移動`）。`?` の一覧は 1 つずつ出す。
+   * 案内では、同じ range.keys が続く葉を 1 行にまとめて出す（`h|j|k|l  ペインを移動`、`j|k  結果の次・前のページ`）。`?` の一覧は 1 つずつ出す。
    */
   range?: { keys: string; label: string };
   /** 近道は、キーがペインに向いているときか、どこにも向いていないときだけ受ける（Cmd+W が、窓を閉じるのを防ぐため） */
@@ -217,7 +217,7 @@ const SHORTCUT_ONLY: Leaf[] = [
   leaf("", T("leader.ws.new"), { id: "workspace.new" }),
   leaf("", T("leader.ws.close"), { id: "workspace.close" }),
   leaf("", T("leader.ws.rename"), { id: "workspace.rename" }),
-  // タブの操作。リーダーの `t` の下にあったもの（#235）。いまは `t` でワークスペースの窓を開き、窓の中のキーでする（#454）ので、木には載せない
+  // タブの操作。ワークスペースの窓（リーダーの `t`）の中のキーでするので、木には載せない（#454）
   leaf("", T("leader.tab.new"), { id: "tab.new" }),
   leaf("", T("leader.tab.newPick"), { id: "tab.newPick" }),
   leaf("", T("leader.tab.close"), { id: "tab.close" }),
