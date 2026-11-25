@@ -13,6 +13,9 @@
 //!   ならなければ、何も知らせずにやめる。
 //! - 止めるのは WebView の `stopLoading`（Linux は `stop_loading`）。打ち切りは、失敗として知らせない
 //!   （browser_load.rs が `NSURLErrorCancelled`・`IOErrorEnum::Cancelled` を知らせない）。ページは前のまま残る。
+//! - 同じ読みで「戻る先・進む先があるか」（Linux は `can_go_back`・`can_go_forward`、macOS は `canGoBack`・`canGoForward`）も読み、
+//!   変わったときだけ `browser-history` を送る（#450。URL バーの ←・→ を押せない見た目にする）。ページが読み込み中でなくても、
+//!   読み込みの始まり・終わり・題の変化のたびに、一度だけ読んで知らせる（`sync_history`）。
 //! - ページの Esc は、ページのスクリプトが「Esc が押された」とだけ殻に知らせる（browser_keys.js）。殻はそれを画面に
 //!   そのまま渡し、止めるかどうかは画面が決める（読み込み中のタブだけ止める）。
 
@@ -25,6 +28,8 @@ use tauri::{AppHandle, Emitter, Manager, Webview};
 
 /// 読み込み中か・進み具合が変わった知らせ（画面へ）。
 const EVENT_LOADING: &str = "browser-loading";
+/// 戻る先・進む先があるかの知らせ（画面へ）。
+const EVENT_HISTORY: &str = "browser-history";
 /// ページで Esc が押された知らせ（画面へ）。
 pub const EVENT_ESCAPE: &str = "browser-escape";
 
@@ -43,6 +48,14 @@ struct Loading {
     progress: u8,
 }
 
+/// 戻る先・進む先があるかの知らせ（`browser-history`）の中身。
+#[derive(Serialize, Clone, Debug, PartialEq, Eq)]
+struct History {
+    tab: String,
+    back: bool,
+    forward: bool,
+}
+
 /// ページで Esc が押された知らせ（`browser-escape`）の中身。どのタブで押されたか。
 #[derive(Serialize, Clone, Debug)]
 pub struct Escape {
@@ -59,6 +72,8 @@ enum Sample {
     Read {
         loading: bool,
         progress: u8,
+        back: bool,
+        forward: bool,
     },
 }
 
@@ -117,13 +132,23 @@ fn poll(app: &AppHandle, tab: &str) {
     let mut started = Instant::now();
     let mut seen = false;
     let mut last: Option<(bool, u8)> = None;
+    let mut last_history: Option<(bool, bool)> = None;
     loop {
         std::thread::sleep(POLL);
         let over = match sample(app, tab) {
             // 作る前なら待つ。閉じたなら、何も知らせずにやめる
             Sample::Missing => seen || started.elapsed() > GRACE,
             Sample::Busy => false,
-            Sample::Read { loading, progress } => {
+            Sample::Read {
+                loading,
+                progress,
+                back,
+                forward,
+            } => {
+                if last_history != Some((back, forward)) {
+                    last_history = Some((back, forward));
+                    emit_history(app, tab, back, forward);
+                }
                 let now = (loading, if loading { progress } else { 0 });
                 if loading {
                     seen = true;
@@ -153,6 +178,28 @@ fn poll(app: &AppHandle, tab: &str) {
     }
 }
 
+fn emit_history(app: &AppHandle, tab: &str, back: bool, forward: bool) {
+    let _ = app.emit(
+        EVENT_HISTORY,
+        History {
+            tab: tab.to_string(),
+            back,
+            forward,
+        },
+    );
+}
+
+/// 戻る先・進む先があるかを一度だけ読んで、画面に知らせる（読み込み中でなくても。読み込みの始まり・終わり・題の変化のとき）。
+/// 画面は同じ値を無視するので、変わったかは調べない。どのスレッドから呼んでもよい。
+pub fn sync_history(app: &AppHandle, tab: &str) {
+    let (app, tab) = (app.clone(), tab.to_string());
+    std::thread::spawn(move || {
+        if let Sample::Read { back, forward, .. } = sample(&app, &tab) {
+            emit_history(&app, &tab, back, forward);
+        }
+    });
+}
+
 fn sample(app: &AppHandle, tab: &str) -> Sample {
     let Some(v) = app.get_webview(&crate::browser::label(tab)) else {
         return Sample::Missing;
@@ -175,6 +222,8 @@ fn read(pv: &tauri::webview::PlatformWebview) -> Sample {
     Sample::Read {
         loading: w.is_loading(),
         progress: percent(w.estimated_load_progress()),
+        back: w.can_go_back(),
+        forward: w.can_go_forward(),
     }
 }
 
@@ -184,12 +233,20 @@ fn read(pv: &tauri::webview::PlatformWebview) -> Sample {
     let Some((w, _)) = crate::browser::wk_webview(pv) else {
         return Sample::Missing;
     };
-    // SAFETY: WKWebView の isLoading（BOOL）・estimatedProgress（double）。with_webview の中＝メインスレッド
-    let (loading, progress): (bool, f64) =
-        unsafe { (msg_send![w, isLoading], msg_send![w, estimatedProgress]) };
+    // SAFETY: WKWebView の isLoading・canGoBack・canGoForward（BOOL）・estimatedProgress（double）。with_webview の中＝メインスレッド
+    let (loading, progress, back, forward): (bool, f64, bool, bool) = unsafe {
+        (
+            msg_send![w, isLoading],
+            msg_send![w, estimatedProgress],
+            msg_send![w, canGoBack],
+            msg_send![w, canGoForward],
+        )
+    };
     Sample::Read {
         loading,
         progress: percent(progress),
+        back,
+        forward,
     }
 }
 

@@ -61,6 +61,11 @@ export interface BrowserTab {
    * 画面は URL バーの下の端に線を出し、↻ を「×」に替える。覚えない
    */
   loading?: { progress: number };
+  /**
+   * 戻る先・進む先があるか（#450）。無ければ、どちらも無い（開いた直後）。殻が OS の WebView の履歴を読んで知らせる（onTabHistory）。
+   * 画面は URL バーの ←・→ を、先が無いときは押せない見た目にする。覚えない
+   */
+  history?: { back: boolean; forward: boolean };
 }
 
 /** タブ全部と、ワークスペースごとの表示。 */
@@ -192,6 +197,7 @@ export function updateTab(
     favicon?: string;
     loadError?: LoadError;
     loading?: BrowserTab["loading"];
+    history?: BrowserTab["history"];
     proxy?: BrowserTab["proxy"];
   },
 ): TabsState {
@@ -206,6 +212,8 @@ export function updateTab(
     next.favicon === t.favicon &&
     next.loadError === t.loadError &&
     next.loading?.progress === t.loading?.progress &&
+    next.history?.back === t.history?.back &&
+    next.history?.forward === t.history?.forward &&
     next.proxy?.scope === t.proxy?.scope &&
     next.proxy?.port === t.proxy?.port
   )

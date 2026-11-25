@@ -57,6 +57,11 @@ export const tauriBrowser: BrowserOs = {
       "browser-loading",
       (e) => h(e.payload),
     ),
+  onTabHistory: (h) =>
+    listen<{ tab: string; back: boolean; forward: boolean }>(
+      "browser-history",
+      (e) => h(e.payload),
+    ),
   onTabEscape: (h) =>
     listen<{ tab: string }>("browser-escape", (e) => h(e.payload)),
   onTabTitle: (h) =>

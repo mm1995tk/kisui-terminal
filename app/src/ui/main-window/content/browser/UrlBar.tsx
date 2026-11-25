@@ -22,6 +22,9 @@ export function UrlBar(props: {
   onCancel: () => void;
   /** 戻る・進む・読み込み直す（リーダーの o h・o l・o r と同じ） */
   onNav: (action: "back" | "forward" | "reload") => void;
+  /** 戻る先・進む先があるか（#450）。無い方のボタンは押せない見た目にし、押しても何もしない */
+  canGoBack: boolean;
+  canGoForward: boolean;
   /** 読み込み中の進み具合（0〜100。#449）。読み込み中でなければ undefined */
   loading: number | undefined;
   /** 読み込みを止める（リーダーの o c と同じ。読み込み中は、↻ が「×」になる） */
@@ -46,10 +49,16 @@ export function UrlBar(props: {
     props.onSubmit(u);
   }
 
-  const navButton = (label: string, glyph: string, onClick: () => void) => (
+  const navButton = (
+    label: string,
+    glyph: string,
+    onClick: () => void,
+    enabled = true,
+  ) => (
     <button
       type="button"
       class="url-bar-button"
+      disabled={!enabled}
       aria-label={label}
       title={label}
       // ボタンを押してもキーを入力欄から奪わない（押したあとは呼んだ側がページにキーを戻す）
@@ -62,9 +71,17 @@ export function UrlBar(props: {
 
   return (
     <div class="url-bar" data-overlay-top role="search">
-      {navButton(T("leader.browser.back"), "←", () => props.onNav("back"))}
-      {navButton(T("leader.browser.forward"), "→", () =>
-        props.onNav("forward"),
+      {navButton(
+        T("leader.browser.back"),
+        "←",
+        () => props.onNav("back"),
+        props.canGoBack,
+      )}
+      {navButton(
+        T("leader.browser.forward"),
+        "→",
+        () => props.onNav("forward"),
+        props.canGoForward,
       )}
       {props.loading === undefined
         ? navButton(T("leader.browser.reload"), "↻", () =>
