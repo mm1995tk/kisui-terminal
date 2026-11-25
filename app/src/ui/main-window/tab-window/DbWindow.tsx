@@ -326,49 +326,15 @@ export function DbWindow(props: {
               {(tab) => (
                 <Show when={rows().find((r) => r.id === tab)}>
                   {(r) => (
-                    <li
-                      id={rowId(tab)}
-                      class="card-row"
-                      role="option"
-                      aria-selected={selected() === tab ? "true" : "false"}
-                      onClick={() => {
+                    <ResultRow
+                      row={r()}
+                      selected={selected() === tab}
+                      onPick={() => {
                         setNote(undefined);
                         setWant(tab);
                       }}
-                      onDblClick={() => showAndClose(tab)}
-                    >
-                      <span class={`card-row-name ${styles.name}`}>
-                        <span class={styles.title}>{r().name}</span>
-                        <span class={styles.marks}>
-                          <Show when={r().shown}>
-                            <span class={styles.mark} data-shown="">
-                              {T("dbWindow.shown")}
-                            </span>
-                          </Show>
-                          <Show when={r().preview}>
-                            <span class={styles.mark}>
-                              {T("dbWindow.preview")}
-                            </span>
-                          </Show>
-                          <Show when={r().table}>
-                            {(t) => <span class={styles.mark}>{t()}</span>}
-                          </Show>
-                          <Show when={r().structure}>
-                            <span class={styles.mark}>
-                              {T("db.view.structure")}
-                            </span>
-                          </Show>
-                        </span>
-                      </span>
-                      <span
-                        class="card-row-state"
-                        classList={{
-                          [styles.failed]: r().state.kind === "error",
-                        }}
-                      >
-                        {stateText(r().state)}
-                      </span>
-                    </li>
+                      onShow={() => showAndClose(tab)}
+                    />
                   )}
                 </Show>
               )}
@@ -377,5 +343,50 @@ export function DbWindow(props: {
         </Show>
       </div>
     </ModalCard>
+  );
+}
+
+/** 結果のタブ 1 行。見出しと印（出している・仮・テーブル・Structure）と状態。1 回押すと選び（onPick）、ダブルクリックで出す（onShow）。 */
+function ResultRow(props: {
+  row: DbWindowRow;
+  selected: boolean;
+  onPick: () => void;
+  onShow: () => void;
+}): JSX.Element {
+  return (
+    <li
+      id={rowId(props.row.id)}
+      class="card-row"
+      role="option"
+      aria-selected={props.selected ? "true" : "false"}
+      onClick={() => props.onPick()}
+      onDblClick={() => props.onShow()}
+    >
+      <span class={`card-row-name ${styles.name}`}>
+        <span class={styles.title}>{props.row.name}</span>
+        <span class={styles.marks}>
+          <Show when={props.row.shown}>
+            <span class={styles.mark} data-shown="">
+              {T("dbWindow.shown")}
+            </span>
+          </Show>
+          <Show when={props.row.preview}>
+            <span class={styles.mark}>{T("dbWindow.preview")}</span>
+          </Show>
+          <Show when={props.row.table}>
+            {(t) => <span class={styles.mark}>{t()}</span>}
+          </Show>
+          <Show when={props.row.structure}>
+            <span class={styles.mark}>{T("db.view.structure")}</span>
+          </Show>
+        </span>
+      </span>
+      <span
+        class="card-row-state"
+        classList={{ [styles.failed]: props.row.state.kind === "error" }}
+      >
+        {stateText(props.row.state)}
+      </span>
+    </li>
   );
 }
