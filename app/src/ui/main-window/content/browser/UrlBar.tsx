@@ -46,11 +46,7 @@ export function UrlBar(props: {
     props.onSubmit(u);
   }
 
-  const navButton = (
-    action: "back" | "forward" | "reload",
-    label: string,
-    glyph: string,
-  ) => (
+  const navButton = (label: string, glyph: string, onClick: () => void) => (
     <button
       type="button"
       class="url-bar-button"
@@ -58,7 +54,7 @@ export function UrlBar(props: {
       title={label}
       // ボタンを押してもキーを入力欄から奪わない（押したあとは呼んだ側がページにキーを戻す）
       onMouseDown={(ev) => ev.preventDefault()}
-      onClick={() => props.onNav(action)}
+      onClick={onClick}
     >
       {glyph}
     </button>
@@ -66,22 +62,15 @@ export function UrlBar(props: {
 
   return (
     <div class="url-bar" data-overlay-top role="search">
-      {navButton("back", T("leader.browser.back"), "←")}
-      {navButton("forward", T("leader.browser.forward"), "→")}
-      {props.loading === undefined ? (
-        navButton("reload", T("leader.browser.reload"), "↻")
-      ) : (
-        <button
-          type="button"
-          class="url-bar-button"
-          aria-label={T("leader.browser.stop")}
-          title={T("leader.browser.stop")}
-          onMouseDown={(ev) => ev.preventDefault()}
-          onClick={props.onStop}
-        >
-          ×
-        </button>
+      {navButton(T("leader.browser.back"), "←", () => props.onNav("back"))}
+      {navButton(T("leader.browser.forward"), "→", () =>
+        props.onNav("forward"),
       )}
+      {props.loading === undefined
+        ? navButton(T("leader.browser.reload"), "↻", () =>
+            props.onNav("reload"),
+          )
+        : navButton(T("leader.browser.stop"), "×", props.onStop)}
       <input
         ref={input}
         class="url-bar-input"
