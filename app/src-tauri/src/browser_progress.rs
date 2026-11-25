@@ -15,7 +15,7 @@
 //!   （browser_load.rs が `NSURLErrorCancelled`・`IOErrorEnum::Cancelled` を知らせない）。ページは前のまま残る。
 //! - 同じ読みで「戻る先・進む先があるか」（Linux は `can_go_back`・`can_go_forward`、macOS は `canGoBack`・`canGoForward`）も読み、
 //!   変わったときだけ `browser-history` を送る（#450。URL バーの ←・→ を押せない見た目にする）。ページが読み込み中でなくても、
-//!   読み込みの始まり・終わり・題の変化のたびに、一度だけ読んで知らせる（`sync_history`）。
+//!   読み込みの始まり・終わり・題の変化のたびに、一度だけ読んで知らせる（`watch_history`）。
 //! - ページの Esc は、ページのスクリプトが「Esc が押された」とだけ殻に知らせる（browser_keys.js）。殻はそれを画面に
 //!   そのまま渡し、止めるかどうかは画面が決める（読み込み中のタブだけ止める）。
 
@@ -191,15 +191,15 @@ fn history_watched() -> &'static Mutex<std::collections::HashSet<String>> {
 
 /// 戻る先・進む先があるかを見始める（#450）。もう見ていれば何もしない。どのスレッドから呼んでもよい。
 /// 見張りは、タブの webview が無くなったらやめる（作る前に呼ばないこと）。
-pub fn sync_history(app: &AppHandle, tab: &str) {
+pub fn watch_history(app: &AppHandle, tab: &str) {
     if !lock(history_watched()).insert(tab.to_string()) {
         return;
     }
     let (app, tab) = (app.clone(), tab.to_string());
-    std::thread::spawn(move || watch_history(&app, &tab));
+    std::thread::spawn(move || poll_history(&app, &tab));
 }
 
-fn watch_history(app: &AppHandle, tab: &str) {
+fn poll_history(app: &AppHandle, tab: &str) {
     let mut last: Option<(bool, bool)> = None;
     loop {
         match sample(app, tab) {

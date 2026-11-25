@@ -711,7 +711,7 @@ fn with_handlers(
                 page.finished();
             }
             // 戻る先・進む先の有無を見始める（#450。browser_progress.rs。タブごとに 1 本）
-            crate::browser_progress::sync_history(&load_app, &load_tab);
+            crate::browser_progress::watch_history(&load_app, &load_tab);
             let _ = load_app.emit(
                 EVENT_PAGE,
                 PageEvent {
