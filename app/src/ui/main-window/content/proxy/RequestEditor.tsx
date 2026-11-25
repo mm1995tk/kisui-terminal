@@ -11,6 +11,7 @@ import {
 } from "../../../../features/proxy/model.ts";
 import { T } from "../../../../i18n/index.ts";
 import { Button } from "../../../components/Button.tsx";
+import { PanelBar } from "./PanelBar.tsx";
 import styles from "./ProxyPanel.module.css";
 
 /** 要求を書き換える欄。 */
@@ -68,23 +69,26 @@ export function RequestEditor(props: {
       aria-label={title()}
       onKeyDown={onKeyDown}
     >
-      <div class={styles.editHead}>
-        <span class={styles.section}>{title()}</span>
-        <span class={styles.editActions}>
-          <Button onClick={props.onCancel}>{T("proxy.edit.cancel")}</Button>
-          <Button
-            variant="primary"
-            busy={props.edit.sending}
-            onClick={props.onSend}
-          >
-            {props.edit.sending
-              ? T("proxy.edit.sending")
-              : props.edit.held
-                ? T("proxy.edit.forward", { key: sendKey() })
-                : T("proxy.edit.send", { key: sendKey() })}
-          </Button>
-        </span>
-      </div>
+      <PanelBar
+        class={styles.editHead}
+        lead={<span class={styles.section}>{title()}</span>}
+        actions={
+          <>
+            <Button onClick={props.onCancel}>{T("proxy.edit.cancel")}</Button>
+            <Button
+              variant="primary"
+              busy={props.edit.sending}
+              onClick={props.onSend}
+            >
+              {props.edit.sending
+                ? T("proxy.edit.sending")
+                : props.edit.held
+                  ? T("proxy.edit.forward", { key: sendKey() })
+                  : T("proxy.edit.send", { key: sendKey() })}
+            </Button>
+          </>
+        }
+      />
       <div class={styles.content}>
         <Show when={props.edit.error}>
           <p class={styles.error} role="alert">

@@ -19,6 +19,7 @@ import { Button } from "../../../components/Button.tsx";
 import { KeyHints } from "../../../components/KeyHints.tsx";
 import { FlowDetail } from "./FlowDetail.tsx";
 import { FlowList } from "./FlowList.tsx";
+import { PanelBar } from "./PanelBar.tsx";
 import { RequestEditor } from "./RequestEditor.tsx";
 import styles from "./ProxyPanel.module.css";
 
@@ -66,6 +67,14 @@ export function ProxyPanel(props: {
   /** 止めている要求の数 */
   const heldCount = () =>
     props.panel.scope.flows.filter((f) => f.state === "held").length;
+  /** 頭の待ち受け口と、どこの通信か（狭い幅で省いたときは、title で全体を読む） */
+  const where = () =>
+    term()
+      ? T("proxy.where.term", {
+          machine: props.machine,
+          port: props.panel.scope.port,
+        })
+      : T("proxy.where.browser", { port: props.panel.scope.port });
   /** 止めている要求を選んでいるか */
   const heldSelected = () => selectedFlow()?.state === "held";
 
@@ -109,36 +118,38 @@ export function ProxyPanel(props: {
       aria-label={T("proxy.title")}
       onKeyDown={onKeyDown}
     >
-      <div class={styles.head}>
-        <h2 class={styles.title}>{T("proxy.title")}</h2>
-        <span class={styles.where}>
-          {term()
-            ? T("proxy.where.term", {
-                machine: props.machine,
-                port: props.panel.scope.port,
-              })
-            : T("proxy.where.browser", { port: props.panel.scope.port })}
-        </span>
-        <span class={styles.hold}>
-          <Show when={props.panel.scope.holding}>
-            <span class={styles.holding} role="status">
-              {T("proxy.hold.count", { count: heldCount() })}
+      <PanelBar
+        class={styles.head}
+        lead={
+          <>
+            <h2 class={styles.title}>{T("proxy.title")}</h2>
+            <span class={styles.where} title={where()}>
+              {where()}
             </span>
-          </Show>
-          <button
-            type="button"
-            class={styles.holdButton}
-            tabIndex={-1}
-            aria-pressed={props.panel.scope.holding}
-            title={T("proxy.hold.hint")}
-            onClick={() => props.onHold()}
-          >
-            {props.panel.scope.holding
-              ? T("proxy.hold.stop")
-              : T("proxy.hold.start")}
-          </button>
-        </span>
-      </div>
+          </>
+        }
+        actions={
+          <>
+            <Show when={props.panel.scope.holding}>
+              <span class={styles.holding} role="status">
+                {T("proxy.hold.count", { count: heldCount() })}
+              </span>
+            </Show>
+            <button
+              type="button"
+              class={styles.holdButton}
+              tabIndex={-1}
+              aria-pressed={props.panel.scope.holding}
+              title={T("proxy.hold.hint")}
+              onClick={() => props.onHold()}
+            >
+              {props.panel.scope.holding
+                ? T("proxy.hold.stop")
+                : T("proxy.hold.start")}
+            </button>
+          </>
+        }
+      />
       <FlowList
         flows={props.panel.scope.flows}
         selected={props.panel.selected}
@@ -156,25 +167,30 @@ export function ProxyPanel(props: {
               {(f) => (
                 <>
                   <Show when={f().state === "held"}>
-                    <div class={styles.heldBar}>
-                      <span class={styles.heldNote}>
-                        {T("proxy.held.note")}
-                      </span>
-                      <span class={styles.editActions}>
-                        <Button onClick={() => props.onRelease("drop")}>
-                          {T("proxy.held.drop")}
-                        </Button>
-                        <Button onClick={props.onEdit}>
-                          {T("proxy.held.edit")}
-                        </Button>
-                        <Button
-                          variant="primary"
-                          onClick={() => props.onRelease("forward")}
-                        >
-                          {T("proxy.held.forward")}
-                        </Button>
-                      </span>
-                    </div>
+                    <PanelBar
+                      class={styles.heldBar}
+                      lead={
+                        <span class={styles.heldNote}>
+                          {T("proxy.held.note")}
+                        </span>
+                      }
+                      actions={
+                        <>
+                          <Button onClick={() => props.onRelease("drop")}>
+                            {T("proxy.held.drop")}
+                          </Button>
+                          <Button onClick={props.onEdit}>
+                            {T("proxy.held.edit")}
+                          </Button>
+                          <Button
+                            variant="primary"
+                            onClick={() => props.onRelease("forward")}
+                          >
+                            {T("proxy.held.forward")}
+                          </Button>
+                        </>
+                      }
+                    />
                   </Show>
                   <FlowDetail
                     flow={f()}
