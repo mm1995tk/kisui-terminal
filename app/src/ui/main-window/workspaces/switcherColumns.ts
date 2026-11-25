@@ -12,8 +12,11 @@ export type Col = "ws" | "tab";
  * タブの列に移れるのは、そのワークスペースにタブがあるときだけ（col が "tab" のままでも、タブが無ければ左にいるものとして扱う）。
  * 右の列で選んでいるタブは、そのワークスペースに無い key なら、出しているタブ、それも無ければ先頭を選んでいるものとする。
  */
-export function createSwitcherColumns(selected: () => Row | undefined) {
-  const [col, setCol] = createSignal<Col>("ws");
+export function createSwitcherColumns(
+  selected: () => Row | undefined,
+  initial: Col = "ws",
+) {
+  const [col, setCol] = createSignal<Col>(initial);
   const [tabSel, setTabSel] = createSignal<string | undefined>();
   const tabs = (): readonly TabItem[] => selected()?.tabs.items ?? [];
   /** いまキーが効いている列 */

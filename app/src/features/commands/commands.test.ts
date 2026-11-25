@@ -134,16 +134,6 @@ describe("コマンドの表", () => {
       "Tab",
       "w",
       "t",
-      "t n",
-      "t N",
-      "t x",
-      "t j",
-      "t k",
-      "t J",
-      "t K",
-      ...Array.from({ length: 9 }, (_, i) => `t ${i + 1}`),
-      "t r",
-      "t m",
       "m",
       "p",
       "p h",
@@ -247,14 +237,14 @@ describe("リーダー", () => {
 
     it(`${os}：グループに入ると、案内の位置が一段下がる`, () => {
       assert.deepEqual(press(mac, [L]).state.leader, []);
-      assert.deepEqual(press(mac, [L, key("t")]).state.leader, ["t"]);
-      assert.deepEqual(press(mac, [L, key("t"), key("n")]).runs, [
-        { id: "tab.new" },
-      ]);
-      // w はグループではなく、窓を開く葉（入った先は無く、リーダーを出る）
+      assert.deepEqual(press(mac, [L, key("p")]).state.leader, ["p"]);
+      // w と t はグループではなく、窓を開く葉（入った先は無く、リーダーを出る）。t は右のタブの列にキーを置いて開く（#454）
       const w = press(mac, [L, key("w")]);
       assert.deepEqual(w.runs, [{ id: "workspace.switch" }]);
       assert.equal(w.state.leader, null);
+      const t = press(mac, [L, key("t")]);
+      assert.deepEqual(t.runs, [{ id: "workspace.switch", arg: "tab" }]);
+      assert.equal(t.state.leader, null);
     });
 
     it(`${os}：続けて押せる葉は、行ってもリーダーを出ない`, () => {
@@ -639,12 +629,12 @@ describe("リーダーの中の字の当たり方", () => {
   const L = LEADER_KEY(LINUX);
 
   it("打った字（key）で探す。AZERTY の q（物理キーは KeyA）は、n の葉に当たらない", () => {
-    const r = press(LINUX, [L, key("t"), key("q", "", "KeyA")]);
+    const r = press(LINUX, [L, key("p"), key("q", "", "KeyA")]);
     assert.deepEqual(r.runs, []);
     assert.equal(r.state.leader, null);
-    // 同じ配列で、字が n なら（物理キーは KeyQ）n の葉
-    assert.deepEqual(press(LINUX, [L, key("t"), key("n", "", "KeyQ")]).runs, [
-      { id: "tab.new" },
+    // 同じ配列で、字が x なら（物理キーは KeyQ）x の葉
+    assert.deepEqual(press(LINUX, [L, key("p"), key("x", "", "KeyQ")]).runs, [
+      { id: "pane.close" },
     ]);
   });
 
@@ -653,13 +643,10 @@ describe("リーダーの中の字の当たり方", () => {
       ...key("Process", "", code),
       isComposing: true,
     });
-    assert.deepEqual(press(LINUX, [L, key("t"), ime("KeyN")]).runs, [
-      { id: "tab.new" },
+    assert.deepEqual(press(LINUX, [L, key("p"), ime("KeyX")]).runs, [
+      { id: "pane.close" },
     ]);
     assert.deepEqual(press(LINUX, [L, ime("Digit1")]).runs, []);
-    assert.deepEqual(press(LINUX, [L, key("t"), ime("Digit1")]).runs, [
-      { id: "tab.nth", arg: 0 },
-    ]);
   });
 });
 
@@ -691,15 +678,11 @@ describe("リーダーの案内（menuRows）", () => {
     }
   });
 
-  it("t の中の 1〜9 は、案内では 1 行にまとまり、`?` の一覧では 9 行ある", () => {
-    const rows = menuRows(["t"], LINUX);
-    assert.deepEqual(
-      rows.filter((r) => /^[1-9]/.test(r.keys)),
-      [{ keys: "1–9", label: T("leader.tab.nth.range"), group: false }],
-    );
+  it("t は、案内の板を持たない葉（#454）。旧 t の下のキーは、木にも `?` の一覧にも無い", () => {
+    assert.equal(childrenAt(["t"]), undefined);
     assert.equal(
-      helpRows(LINUX).filter((r) => /^t [1-9]$/.test(r.path.join(" "))).length,
-      9,
+      helpRows(LINUX).some((r) => r.path[0] === "t" && r.path.length > 1),
+      false,
     );
   });
 
@@ -744,30 +727,15 @@ describe("リーダーの案内（menuRows）", () => {
     );
   });
 
-  it("t のグループ（#235）：作る・閉じる・移る・並べ替える・名前を変える。j k J K は続けて押せて、小文字と大文字は別の葉", () => {
-    const t = (...ks: [string, string?][]) =>
-      press(LINUX, [
-        LEADER_KEY(LINUX),
-        key("t"),
-        ...ks.map(([k, m]) => key(k, m ?? "")),
-      ]);
-    assert.deepEqual(t(["n"]).runs, [{ id: "tab.new" }]);
-    assert.deepEqual(t(["N", "s"]).runs, [{ id: "tab.newPick" }]);
-    assert.deepEqual(t(["x"]).runs, [{ id: "tab.close" }]);
-    assert.deepEqual(t(["r"]).runs, [{ id: "tab.rename" }]);
-    assert.deepEqual(t(["m"]).runs, [{ id: "tab.moveTo" }]);
-    assert.deepEqual(t(["3"]).runs, [{ id: "tab.nth", arg: 2 }]);
-    assert.deepEqual(t(["j"]).runs, [{ id: "tab.step", arg: "next" }]);
-    assert.deepEqual(t(["k"]).runs, [{ id: "tab.step", arg: "prev" }]);
-    assert.deepEqual(t(["J", "s"]).runs, [{ id: "tab.move", arg: "down" }]);
-    assert.deepEqual(t(["K", "s"]).runs, [{ id: "tab.move", arg: "up" }]);
-    const r = t(["j"], ["j"], ["J", "s"]);
-    assert.equal(r.runs.length, 3);
-    assert.deepEqual(r.state.leader, ["t"]);
-    // 続けて押せない葉は出る
-    assert.equal(t(["x"]).state.leader, null);
-    // 内蔵ブラウザを無効にしていても、t のグループは出る（ターミナルのタブだけでも使う）
-    assert.ok(childrenAt(["t"]));
+  it("t は、ワークスペースの窓を、右のタブの列にキーを置いて開く葉（#454）。後に押したキーは、リーダーでは受けない", () => {
+    const r = press(LINUX, [LEADER_KEY(LINUX), key("t")]);
+    assert.deepEqual(r.runs, [{ id: "workspace.switch", arg: "tab" }]);
+    assert.equal(r.state.leader, null);
+    // リーダーを出たあとの n は、リーダーの葉には当たらない（窓の中のキーとして扱われる）
+    assert.deepEqual(
+      press(LINUX, [LEADER_KEY(LINUX), key("t"), key("n")]).runs,
+      [{ id: "workspace.switch", arg: "tab" }],
+    );
   });
 
   it("m は、グループではなくマシンのダイアログを開く葉（中の操作はダイアログのキー）", () => {
@@ -1055,7 +1023,8 @@ describe("設定で足す近道（[gui.shortcuts]）", () => {
     const at = (p: string) => rows.find((r) => r.path.join(" ") === p);
     assert.equal(at("p s l")?.shortcut, undefined);
     assert.equal(at("p s j")?.shortcut, undefined);
-    assert.equal(at("t n")?.shortcut, "Ctrl+Shift+D");
+    // tab.new は木に載らない（#454）ので、足した近道も一覧には出ない
+    assert.equal(at("t n"), undefined);
   });
 
   it("間違いは理由を返し、ほかの近道は使う", () => {
