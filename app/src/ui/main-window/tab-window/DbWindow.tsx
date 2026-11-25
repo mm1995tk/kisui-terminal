@@ -110,6 +110,16 @@ export function DbWindow(props: {
   // 選んでいる結果のタブ。選んでいたタブが無くなったら（閉じた・上限で閉じた）、出しているタブを選び直す
   const [want, setWant] = createSignal<string>();
   const selected = () => selectedResult(rows(), want());
+  // 選んでいる行を見える所へ（結果のタブは 20 個まで増え、窓に収まらないと中身がスクロールする）。開いたときも、出しているタブが見えるように
+  createEffect(() => {
+    const tab = selected();
+    if (tab === undefined) return;
+    queueMicrotask(() =>
+      document
+        .getElementById(rowId(tab))
+        ?.scrollIntoView?.({ block: "nearest" }),
+    );
+  });
   // できなかった理由。次のキーで消す
   const [note, setNote] = createSignal<string>();
   let acted = false;
