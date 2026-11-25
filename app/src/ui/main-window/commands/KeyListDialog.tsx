@@ -85,31 +85,50 @@ export function KeyListDialog(): JSX.Element {
         <div class={styles.body}>
           <For each={places()}>{(p) => <PlaceSection place={p} />}</For>
           <Show when={!windowOnly()}>
-            <section class={styles.part}>
-              <p class={styles.lead}>{T("keys.lead", { leader })}</p>
-              <table class={styles.table}>
-                <thead>
-                  <tr>
-                    <th>{T("keys.col.after", { leader })}</th>
-                    <th>{T("keys.col.action")}</th>
-                    <th>{T("keys.col.shortcut")}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <For each={helpRows(IS_MAC)}>
-                    {(r) => (
-                      <tr classList={{ [styles.groupRow]: r.group }}>
-                        <td class={styles.keys}>{r.path.join(" ")}</td>
-                        <td style={{ "padding-left": `${8 + r.depth * 12}px` }}>
-                          {r.label}
-                          {r.group ? " ›" : ""}
-                        </td>
-                        <td class={styles.shortcut}>{r.shortcut ?? ""}</td>
-                      </tr>
-                    )}
-                  </For>
-                </tbody>
-              </table>
+            <section
+              class={styles.part}
+              role="table"
+              aria-label={T("keys.label")}
+              aria-describedby="key-list-lead"
+            >
+              {/* 説明文と列見出しは、下の一覧をスクロールしても上に残す（sticky）。見出しと行は同じ 3 列の grid で、幅がそろう */}
+              <div class={styles.stick}>
+                <p id="key-list-lead" class={styles.lead}>
+                  {T("keys.lead", { leader })}
+                </p>
+                <div class={`${styles.row} ${styles.head}`} role="row">
+                  <span role="columnheader">
+                    {T("keys.col.after", { leader })}
+                  </span>
+                  <span role="columnheader">{T("keys.col.action")}</span>
+                  <span role="columnheader">{T("keys.col.shortcut")}</span>
+                </div>
+              </div>
+              <div role="rowgroup">
+                <For each={helpRows(IS_MAC)}>
+                  {(r) => (
+                    <div
+                      class={styles.row}
+                      classList={{ [styles.groupRow]: r.group }}
+                      role="row"
+                    >
+                      <span class={styles.keys} role="cell">
+                        {r.path.join(" ")}
+                      </span>
+                      <span
+                        role="cell"
+                        style={{ "padding-left": `${r.depth * 12}px` }}
+                      >
+                        {r.label}
+                        {r.group ? " ›" : ""}
+                      </span>
+                      <span class={styles.shortcut} role="cell">
+                        {r.shortcut ?? ""}
+                      </span>
+                    </div>
+                  )}
+                </For>
+              </div>
             </section>
             <p class={styles.outside}>{T("keys.outside", { key: outside })}</p>
           </Show>

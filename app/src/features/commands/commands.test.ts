@@ -127,29 +127,17 @@ describe("コマンドの表", () => {
   it("キーの定義の、docs/key-design.md の表のとおりの並び（#51 のキーはまだ無い。#93 は場所のキーで、ここには足さない）", () => {
     const rows = helpRows(MAC).map((r) => r.path.join(" "));
     assert.deepEqual(rows, [
-      "h",
-      "j",
-      "k",
-      "l",
+      "h|j|k|l",
       "Tab",
       "w",
       "t",
       "m",
       "p",
-      "p h",
-      "p j",
-      "p k",
-      "p l",
+      "p h|j|k|l",
       "p s",
-      "p s h",
-      "p s j",
-      "p s k",
-      "p s l",
+      "p s h|j|k|l",
       "p m",
-      "p m h",
-      "p m j",
-      "p m k",
-      "p m l",
+      "p m h|j|k|l",
       "p x",
       "p z",
       "p r",
@@ -160,10 +148,8 @@ describe("コマンドの表", () => {
       "d e",
       "d h",
       "d s",
-      "d j",
-      "d k",
-      "d ]",
-      "d [",
+      "d j|k",
+      "d ]|[",
       "d x",
       "d p",
       "d P",
@@ -574,12 +560,12 @@ describe("案内の一覧（`?`）", () => {
     const mac = helpRows(MAC);
     const lin = helpRows(LINUX);
     assert.equal(
-      mac.find((r) => r.path.join(" ") === "p s l")?.shortcut,
-      "Cmd+D",
+      mac.find((r) => r.path.join(" ") === "p s h|j|k|l")?.shortcut,
+      "Cmd+Shift+D (j), Cmd+D (l)",
     );
     assert.equal(
-      lin.find((r) => r.path.join(" ") === "p s l")?.shortcut,
-      "Ctrl+Shift+D",
+      lin.find((r) => r.path.join(" ") === "p s h|j|k|l")?.shortcut,
+      "Ctrl+Shift+E (j), Ctrl+Shift+D (l)",
     );
     assert.equal(
       lin.find((r) => r.path.join(" ") === "p x")?.shortcut,
@@ -707,16 +693,28 @@ describe("リーダーの案内（menuRows）", () => {
     ]);
   });
 
-  it("まとめても、`?` の一覧と近道には hjkl が 1 つずつ残り、押したときの動きは変わらない", () => {
+  it("`?` の一覧でも、向きと番号の同種の操作は 1 行にまとまり、近道はどのキーのものかを添えて残る。押したときの動きは葉ごとで変わらない", () => {
     const rows = helpRows(MAC);
     const paths = rows.map((r) => r.path.join(" "));
-    for (const g of ["", "p ", "p s ", "p m "])
+    for (const g of ["", "p ", "p s ", "p m "]) {
+      assert.ok(paths.includes(g + "h|j|k|l"), g);
       for (const k of ["h", "j", "k", "l"])
-        assert.ok(paths.includes(g + k), g + k);
+        assert.ok(!paths.includes(g + k), g + k);
+    }
+    // 番号指定（1–9）の行は、#454 で t の下から無くなり、木のどこにも無い
+    assert.ok(!paths.some((p) => /(^| )[1-9]$/.test(p)));
+    // まとめた行の近道は、どのキーのものかが分かる
     assert.match(
-      JSON.stringify(rows.find((r) => r.path.join(" ") === "p s l")),
-      /Cmd\+D/,
+      JSON.stringify(rows.find((r) => r.path.join(" ") === "p s h|j|k|l")),
+      /Cmd\+D \(l\)/,
     );
+    // 案内（menuRows）と一覧（helpRows）で、まとめる行は同じ
+    for (const p of [[], ["p"], ["p", "s"], ["p", "m"], ["d"]]) {
+      const menu = menuRows(p, MAC)
+        .filter((r) => !r.group && /[|]/.test(r.keys))
+        .map((r) => [...p, r.keys].join(" "));
+      for (const m of menu) assert.ok(paths.includes(m), m);
+    }
     assert.deepEqual(
       press(LINUX, [LEADER_KEY(LINUX), key("p"), key("s"), key("j")]).runs,
       [{ id: "pane.split", arg: "down" }],
@@ -950,6 +948,24 @@ describe("内蔵ブラウザ（#202。設定で有効にしたときだけ）", 
 describe("設定で足す近道（[gui.shortcuts]）", () => {
   after(() => setUserShortcuts([], LINUX));
 
+  it("まとめた行（p s h|j|k|l）に設定の近道を足すと、近道 1 つずつに、どのキーのものかが付く", () => {
+    assert.deepEqual(
+      setUserShortcuts(
+        [
+          { key: "Ctrl+Alt+J", command: "pane.split:down" },
+          { key: "Ctrl+Alt+H", command: "pane.split:left" },
+        ],
+        LINUX,
+      ),
+      [],
+    );
+    const row = helpRows(LINUX).find((r) => r.path.join(" ") === "p s h|j|k|l");
+    assert.equal(
+      row?.shortcut,
+      "Ctrl+Alt+H (h), Ctrl+Shift+E (j), Ctrl+Alt+J (j), Ctrl+Shift+D (l)",
+    );
+  });
+
   it("書いたキーでコマンドを動かし、引数も渡せる。ターミナルに届かない", () => {
     const problems = setUserShortcuts(
       [
@@ -1023,8 +1039,7 @@ describe("設定で足す近道（[gui.shortcuts]）", () => {
     // `?` の一覧：消した・奪われた既定の近道は出ず、足した近道は最初の行に出る
     const rows = helpRows(LINUX);
     const at = (p: string) => rows.find((r) => r.path.join(" ") === p);
-    assert.equal(at("p s l")?.shortcut, undefined);
-    assert.equal(at("p s j")?.shortcut, undefined);
+    assert.equal(at("p s h|j|k|l")?.shortcut, undefined);
     assert.equal(at("p x")?.shortcut, "Ctrl+Shift+D");
   });
 

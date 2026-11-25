@@ -112,7 +112,7 @@ export interface Leaf extends Common {
   /** 行ったあともリーダーを出ず、同じ一覧のまま次のキーを待つ（ペインを `j` `j` `l` と続けて移れる） */
   repeat?: boolean;
   /**
-   * 案内では、同じ range.keys が続く葉を 1 行にまとめて出す（`h|j|k|l  ペインを移動`、`j|k  結果の次・前のページ`）。`?` の一覧は 1 つずつ出す。
+   * 案内（menuRows）と `?` の一覧（helpRows）では、同じ range.keys が続く葉を 1 行にまとめて出す（`h|j|k|l  ペインを移動`、`j|k  結果の次・前のページ`）。キーを押したときの動きは葉ごと。
    */
   range?: { keys: string; label: string };
   /** 近道は、キーがペインに向いているときか、どこにも向いていないときだけ受ける（Cmd+W が、窓を閉じるのを防ぐため） */
@@ -620,7 +620,7 @@ export interface MenuRow {
 
 /**
  * 案内に出す行。この OS で出さないもの（hideInMenuOn）は除き、range が同じ葉の並びは 1 行にまとめる。
- * `?` の一覧（helpRows）は、これを通さず全部出す。
+ * `?` の一覧（helpRows）は、この OS で出さないものも含めて全部出す（range のまとめ方は同じ）。
  */
 export function menuRows(path: Path, mac: boolean): MenuRow[] {
   const out: MenuRow[] = [];
@@ -1061,9 +1061,35 @@ export interface HelpRow {
   depth: number;
 }
 
-/** 木を上から順に平らにした一覧。設定で足した近道は、そのコマンドの最初の行に添える。 */
+/**
+ * 木を上から順に平らにした一覧。設定で足した近道は、そのコマンドの最初の行に添える。
+ * 案内（menuRows）と同じく、range が同じ葉の並び（`h` `j` `k` `l` など）は 1 行にまとめる（キーは `h|j|k|l`）。
+ * まとめた行の近道は、葉ごとの近道に、どのキーのものかを添えて並べる（`Ctrl+Shift+E (j), Ctrl+Shift+D (l)`）。
+ */
 export function helpRows(mac: boolean): HelpRow[] {
   return rowsOf(mac, activeLeader(), [], new Set());
+}
+
+/**
+ * 1 つのノードの近道（この OS のもの）の並び。
+ * 設定で同じキーを別のコマンドに割り当てた既定の近道は、もう効かないので出さない。
+ * 設定で足した近道は、そのコマンドの最初の 1 回（used に無いとき）だけ、既定の近道のあとに添える。
+ */
+function shortcutsFor(n: Node, mac: boolean, used: Set<string>): string[] {
+  const out: string[] = [];
+  const own = shortcutOf(n.shortcut, mac);
+  if (own && !userEntries.some((u) => sameSpec(u.spec, parseSpec(own))))
+    out.push(own);
+  if (n.type === "leaf") {
+    const name = commandName(n.run);
+    if (!used.has(name)) {
+      used.add(name);
+      out.push(
+        ...userEntries.filter((u) => u.name === name).map((u) => u.text),
+      );
+    }
+  }
+  return out;
 }
 
 function rowsOf(
@@ -1073,35 +1099,42 @@ function rowsOf(
   used: Set<string>,
 ): HelpRow[] {
   const out: HelpRow[] = [];
+  /** いま 1 行にまとめている range（連続する葉だけをまとめる）。近道は 1 つずつ、どのキーのものかを添える */
+  let merging: { keys: string; row: HelpRow; shortcuts: string[] } | undefined;
+  const flush = () => {
+    if (merging)
+      merging.row.shortcut = merging.shortcuts.join(", ") || undefined;
+    merging = undefined;
+  };
   for (const n of list) {
-    const p = [...path, nodeKeys(n)];
-    let shortcut = shortcutOf(n.shortcut, mac);
-    // 設定で同じキーを別のコマンドに割り当てた既定の近道は、もう効かないので出さない
-    if (shortcut) {
-      const spec = parseSpec(shortcut);
-      if (userEntries.some((u) => sameSpec(u.spec, spec))) shortcut = undefined;
-    }
-    if (n.type === "leaf") {
-      const name = commandName(n.run);
-      if (!used.has(name)) {
-        used.add(name);
-        const own = userEntries
-          .filter((u) => u.name === name)
-          .map((u) => u.text);
-        if (own.length)
-          shortcut = [shortcut, ...own].filter(Boolean).join(", ");
+    const shortcuts = shortcutsFor(n, mac, used);
+    if (n.type === "leaf" && n.range) {
+      if (merging?.keys !== n.range.keys) {
+        flush();
+        const row: HelpRow = {
+          path: [...path, n.range.keys],
+          label: n.range.label,
+          group: false,
+          depth: path.length,
+        };
+        out.push(row);
+        merging = { keys: n.range.keys, row, shortcuts: [] };
       }
+      merging.shortcuts.push(...shortcuts.map((s) => `${s} (${nodeKeys(n)})`));
+      continue;
     }
+    flush();
     out.push({
-      path: p,
+      path: [...path, nodeKeys(n)],
       label: n.label,
       group: n.type === "group",
-      shortcut,
+      shortcut: shortcuts.join(", ") || undefined,
       depth: path.length,
     });
     if (n.type === "group")
       out.push(...rowsOf(mac, n.children, [...path, n.key], used));
   }
+  flush();
   return out;
 }
 

@@ -3,7 +3,7 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 20px 20px 8px;
+  padding: 0 20px 8px;
   overflow-y: auto;
 }
 .title {
@@ -32,6 +32,29 @@
   padding: 3px 8px;
   vertical-align: top;
 }
+/* リーダーの一覧：見出しと行は同じ 3 列（幅をそろえる）。説明文と見出しの塊は、スクロールしても上に残る */
+.stick {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 4px;
+  background: var(--card-bg);
+}
+.row {
+  display: grid;
+  grid-template-columns: 130px minmax(0, 1fr) minmax(0, 190px);
+  column-gap: 8px;
+  padding: 3px 8px;
+}
+.head {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--gh-border);
+  color: var(--gh-text-muted);
+  font-size: 12px;
+}
 .keys {
   white-space: nowrap;
   color: var(--gh-accent-text);
@@ -39,12 +62,12 @@
   font-size: 12px;
 }
 .shortcut {
-  white-space: nowrap;
+  overflow-wrap: anywhere;
   color: var(--gh-text-muted);
   font-family: var(--gh-mono);
   font-size: 12px;
 }
-.groupRow td {
+.groupRow {
   padding-top: 10px;
   font-weight: 600;
 }
@@ -66,4 +89,8 @@
 /* 場所のキーの `?` から開いたとき、その場所のキーを先に出す */
 .first {
   order: -1;
+}
+/* 本文の上の余白。padding にすると、固定した見出しの上をスクロールする行が透けるので、先頭の要素の margin にする */
+.body > :first-child {
+  margin-top: 20px;
 }
