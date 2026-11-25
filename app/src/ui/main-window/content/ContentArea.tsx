@@ -77,6 +77,7 @@ export function ContentArea(props: {
     resolveFor,
     submitUrlBar,
     navPage,
+    stopPage,
     closeFind,
     openUrl,
   } = props.pages;
@@ -127,6 +128,11 @@ export function ContentArea(props: {
                 onCancel={() => focusTerminal()}
                 onNav={(action) => {
                   navPage(id, action);
+                  focusTerminal();
+                }}
+                loading={shownBrowserTab()?.loading?.progress}
+                onStop={() => {
+                  stopPage(id);
                   focusTerminal();
                 }}
                 focusRef={(f) => props.focusUi.setUrlBarFocus(f)}

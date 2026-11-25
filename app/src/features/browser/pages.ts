@@ -70,11 +70,14 @@ export function createPages(deps: {
     closeTabView,
     goTab,
     navTab,
+    stopTab,
     zoomTab,
     onTabPage,
     onTabTitle,
     onTabLoadFailed,
     onTabLoadCleared,
+    onTabLoading,
+    onTabEscape,
     onTabFavicon,
     onTabPopup,
     onTabClosed,
@@ -276,6 +279,13 @@ export function createPages(deps: {
     if (failed && isOpenableUrl(failed)) goTo(tab, failed);
     else void navTab(tab, action).catch(() => {});
   }
+  /** 読み込みを止める（URL バーの「×」・読み込み中の Esc・リーダーの o c）。読み込み中でなければ何もしない。 */
+  function stopPage(tab: string) {
+    if (!untrack(tabs).tabs.find((x) => x.id === tab)?.loading) return;
+    // 殻の知らせを待たずに印を消す（読み込みが終われば、殻が「読み込み中でない」を知らせる）
+    setTabs((s) => updateTab(s, tab, { loading: undefined }));
+    void stopTab(tab).catch(() => {});
+  }
   /** タブ tab で url を開く（URL バー・「もう一度開く」）。 */
   function goTo(tab: string, url: string) {
     // 中継を用意できてから（リモートのマシンの localhost 系）タブの URL を書き換える。用意できなければ、ページも URL も前のまま。
@@ -388,6 +398,16 @@ export function createPages(deps: {
         await onTabLoadCleared((e) =>
           setTabs((t) => updateTab(t, e.tab, { loadError: undefined })),
         ),
+        // 読み込み中か・進み具合（#449）。URL バーの線とボタンに出す
+        await onTabLoading((e) =>
+          setTabs((t) =>
+            updateTab(t, e.tab, {
+              loading: e.loading ? { progress: e.progress } : undefined,
+            }),
+          ),
+        ),
+        // ページで Esc が押された（#449）。読み込み中なら止める。読み込み中でなければ、ページが受けるだけ
+        await onTabEscape((e) => stopPage(e.tab)),
         await onTabFavicon((e) =>
           setTabs((t) => updateTab(t, e.tab, { favicon: e.icon || undefined })),
         ),
@@ -432,6 +452,7 @@ export function createPages(deps: {
     closeFind,
     submitUrlBar,
     navPage,
+    stopPage,
     changePageZoom,
     openUrlFor,
     openUrl,

@@ -56,6 +56,11 @@ export interface BrowserTab {
    * 次の読み込みを頼んだ・ページが替わったら消える（殻の onTabLoadCleared）。覚えない
    */
   loadError?: LoadError;
+  /**
+   * ページを読み込み中で、進み具合（0〜100。#449）。無ければ読み込み中でない。殻が OS の WebView の状態を読んで知らせる（onTabLoading）。
+   * 画面は URL バーの下の端に線を出し、↻ を「×」に替える。覚えない
+   */
+  loading?: { progress: number };
 }
 
 /** タブ全部と、ワークスペースごとの表示。 */
@@ -186,6 +191,7 @@ export function updateTab(
     zoom?: number;
     favicon?: string;
     loadError?: LoadError;
+    loading?: BrowserTab["loading"];
     proxy?: BrowserTab["proxy"];
   },
 ): TabsState {
@@ -199,6 +205,7 @@ export function updateTab(
     next.zoom === t.zoom &&
     next.favicon === t.favicon &&
     next.loadError === t.loadError &&
+    next.loading?.progress === t.loading?.progress &&
     next.proxy?.scope === t.proxy?.scope &&
     next.proxy?.port === t.proxy?.port
   )

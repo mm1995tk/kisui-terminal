@@ -111,6 +111,7 @@ export function createCommandRunner(deps: {
     openFind,
     changePageZoom,
     navPage,
+    stopPage,
   } = deps.pages;
   const { zoomed, termGroup, newTerminal, setZoom } = deps.terminals;
   const {
@@ -187,6 +188,12 @@ export function createCommandRunner(deps: {
               ? "forward"
               : "reload";
         if (t) navPage(t.id, action);
+        break;
+      }
+      case "browser.stop": {
+        // 読み込み中でなければ何もしない（ページの Esc と同じ）
+        const t = currentTab();
+        if (t) stopPage(t.id);
         break;
       }
       case "browser.close": {

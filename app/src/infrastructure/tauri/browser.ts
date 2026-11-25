@@ -29,6 +29,7 @@ export const tauriBrowser: BrowserOs = {
   focusTab: (tab) => invoke("browser_focus", { tab }),
   goTab: (tab, url) => invoke("browser_go", { tab, url }),
   navTab: (tab, action) => invoke("browser_nav", { tab, action }),
+  stopTab: (tab) => invoke("browser_stop", { tab }),
   zoomTab: (tab, zoom) => invoke("browser_zoom", { tab, zoom }),
   findInTab: (tab, text, mode) => invoke("browser_find", { tab, text, mode }),
   openTabDevtools: (tab) => invoke("browser_devtools", { tab }),
@@ -51,6 +52,13 @@ export const tauriBrowser: BrowserOs = {
     ),
   onTabLoadCleared: (h) =>
     listen<{ tab: string }>("browser-load-cleared", (e) => h(e.payload)),
+  onTabLoading: (h) =>
+    listen<{ tab: string; loading: boolean; progress: number }>(
+      "browser-loading",
+      (e) => h(e.payload),
+    ),
+  onTabEscape: (h) =>
+    listen<{ tab: string }>("browser-escape", (e) => h(e.payload)),
   onTabTitle: (h) =>
     listen<{ tab: string; title: string }>("browser-title", (e) =>
       h(e.payload),

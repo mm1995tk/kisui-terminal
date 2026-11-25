@@ -3,7 +3,7 @@
 // 上の端に置き、ページはその下に下がる（data-overlay-top。overlay.ts の OVERLAY_SELECTORS）。
 import { isComposingKey } from "../../../../features/commands/ime.ts";
 import { T } from "../../../../i18n/index.ts";
-import { createSignal, type JSX } from "solid-js";
+import { createSignal, Show, type JSX } from "solid-js";
 
 import { isCancelKey } from "../../../components/cancelKey.ts";
 import { urlOrSearch } from "../../../../features/browser/tabs.ts";
@@ -22,6 +22,10 @@ export function UrlBar(props: {
   onCancel: () => void;
   /** 戻る・進む・読み込み直す（リーダーの o h・o l・o r と同じ） */
   onNav: (action: "back" | "forward" | "reload") => void;
+  /** 読み込み中の進み具合（0〜100。#449）。読み込み中でなければ undefined */
+  loading: number | undefined;
+  /** 読み込みを止める（リーダーの o c と同じ。読み込み中は、↻ が「×」になる） */
+  onStop: () => void;
   /** 入力欄にキーを向ける関数を受け取る（リーダーの o u） */
   focusRef: (focus: () => void) => void;
 }): JSX.Element {
@@ -64,7 +68,20 @@ export function UrlBar(props: {
     <div class="url-bar" data-overlay-top role="search">
       {navButton("back", T("leader.browser.back"), "←")}
       {navButton("forward", T("leader.browser.forward"), "→")}
-      {navButton("reload", T("leader.browser.reload"), "↻")}
+      {props.loading === undefined ? (
+        navButton("reload", T("leader.browser.reload"), "↻")
+      ) : (
+        <button
+          type="button"
+          class="url-bar-button"
+          aria-label={T("leader.browser.stop")}
+          title={T("leader.browser.stop")}
+          onMouseDown={(ev) => ev.preventDefault()}
+          onClick={props.onStop}
+        >
+          ×
+        </button>
+      )}
       <input
         ref={input}
         class="url-bar-input"
@@ -99,6 +116,18 @@ export function UrlBar(props: {
           }
         }}
       />
+      <Show when={props.loading !== undefined}>
+        {/* URL バーの下の端の線（ページには重ねず、バーの中に収める） */}
+        <div
+          class="url-bar-progress"
+          role="progressbar"
+          aria-label={T("urlBar.loading")}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={props.loading}
+          style={{ width: `${Math.max(props.loading ?? 0, 8)}%` }}
+        />
+      </Show>
     </div>
   );
 }

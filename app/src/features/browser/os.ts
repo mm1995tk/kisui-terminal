@@ -83,6 +83,8 @@ export interface BrowserOs {
   goTab(tab: string, url: string): Promise<void>;
   /** 戻る・進む・読み込み直す。 */
   navTab(tab: string, action: "back" | "forward" | "reload"): Promise<void>;
+  /** 読み込みを止める（#449）。ページは前のまま残る。 */
+  stopTab(tab: string): Promise<void>;
   /** ページの表示の大きさを変える（1 が元の大きさ。#205）。 */
   zoomTab(tab: string, zoom: number): Promise<void>;
   /**
@@ -133,6 +135,15 @@ export interface BrowserOs {
    * 画面は、そのタブの失敗の表示を片付ける（頼んだ読み込みがまた失敗すれば、onTabLoadFailed が出直す）。
    */
   onTabLoadCleared(h: (e: { tab: string }) => void): Promise<Off>;
+  /**
+   * ページを読み込み中か・進み具合が変わった（#449。殻が OS の WebView の状態を読む。ページが出る前の、つながるまでの間も来る）。
+   * progress は 0〜100。画面は、URL バーの下の端に進み具合の線を出し、↻ を「×」に替える。
+   */
+  onTabLoading(
+    h: (e: { tab: string; loading: boolean; progress: number }) => void,
+  ): Promise<Off>;
+  /** ページにキーがある間に、修飾キーの無い Esc が押された（#449）。ページにも届く。読み込み中なら止めるのは画面が決める。 */
+  onTabEscape(h: (e: { tab: string }) => void): Promise<Off>;
   /** ページの題が変わった。 */
   onTabTitle(h: (e: { tab: string; title: string }) => void): Promise<Off>;
   /**
