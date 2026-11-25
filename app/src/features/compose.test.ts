@@ -386,7 +386,8 @@ function start(opts: {
     toggleResizeMode: () => void ui.push("toggleResizeMode"),
     toggleSidebar: () => void ui.push("toggleSidebar"),
     openMachines: () => void ui.push("openMachines"),
-    openWorkspaceSwitcher: () => void ui.push("openWorkspaceSwitcher"),
+    openWorkspaceSwitcher: (start) =>
+      void ui.push(`openWorkspaceSwitcher ${start}`),
     openClipboardHistory: () => void ui.push("openClipboardHistory"),
     openMascotPicker: () => void ui.push("openMascotPicker"),
     openKeyList: () => void ui.push("openKeyList"),
@@ -762,12 +763,16 @@ describe("機能の持ち物のつなぎ（compose.ts）", () => {
     ui.length = 0;
     f.commands.runCommand({ id: "machine.dialog" });
     f.commands.runCommand({ id: "workspace.switch" });
+    f.commands.runCommand({ id: "workspace.switch", arg: "tab" });
+    f.commands.runCommand({ id: "workspace.switch", arg: "newTab" });
     f.commands.runCommand({ id: "sidebar.toggle" });
     f.commands.runCommand({ id: "pane.resize" });
     f.commands.runCommand({ id: "help.keys" });
     assert.deepEqual(ui, [
       "openMachines",
-      "openWorkspaceSwitcher",
+      "openWorkspaceSwitcher ws",
+      "openWorkspaceSwitcher tab",
+      "openWorkspaceSwitcher newTab",
       "toggleSidebar",
       "toggleResizeMode",
       "openKeyList",

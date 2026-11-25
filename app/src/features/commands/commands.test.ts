@@ -131,6 +131,7 @@ describe("コマンドの表", () => {
       "Tab",
       "w",
       "t",
+      "n",
       "m",
       "p",
       "p h|j|k|l",
@@ -142,7 +143,6 @@ describe("コマンドの表", () => {
       "p z",
       "p r",
       "d",
-      "d n",
       "d t",
       "d r",
       "d e",
@@ -164,12 +164,12 @@ describe("コマンドの表", () => {
       "v + =",
       "v -",
       "v 0",
-      "n",
-      "n u",
-      "n d",
-      "n g",
-      "n o",
-      "n f",
+      "i",
+      "i u",
+      "i d",
+      "i g",
+      "i o",
+      "i f",
       "c",
       "c s",
       "c r",
@@ -672,8 +672,34 @@ describe("リーダーの案内（menuRows）", () => {
     );
   });
 
-  it("お知らせの n に a は無く、新しい版に更新する u がある", () => {
-    assert.deepEqual(keysOf(["n"], MAC), ["u", "d", "g", "o", "f"]);
+  it("お知らせは i のグループ（#456）。a は無く、新しい版に更新する u がある。n の下には無い", () => {
+    assert.deepEqual(keysOf(["i"], MAC), ["u", "d", "g", "o", "f"]);
+    assert.equal(childrenAt(["n"]), undefined);
+    for (const mac of [MAC, LINUX]) {
+      // 旧 n u は、お知らせの操作を動かさない（n で窓を開いてリーダーを出るので、u はリーダーでは受けない）
+      assert.deepEqual(press(mac, [LEADER_KEY(mac), key("n"), key("u")]).runs, [
+        { id: "workspace.switch", arg: "newTab" },
+      ]);
+      assert.deepEqual(press(mac, [LEADER_KEY(mac), key("i"), key("u")]).runs, [
+        { id: "notice.update" },
+      ]);
+    }
+  });
+
+  it("n は、ワークスペースの窓を、タブの種類を選ぶ一覧を出して開く葉（#456）。種類ごとの作るキー（旧 o n・o N・d n）は木に無い", () => {
+    for (const mac of [MAC, LINUX]) {
+      const r = press(mac, [LEADER_KEY(mac), key("n")]);
+      assert.deepEqual(r.runs, [{ id: "workspace.switch", arg: "newTab" }]);
+      assert.equal(r.state.leader, null);
+      // d n は何も動かさず、リーダーを出る
+      const d = press(mac, [LEADER_KEY(mac), key("d"), key("n")]);
+      assert.deepEqual(d.runs, []);
+      assert.equal(d.state.leader, null);
+    }
+    const ids = (list: Node[]): string[] =>
+      list.flatMap((n) => (n.type === "leaf" ? [n.run.id] : ids(n.children)));
+    for (const id of ["browser.new", "browser.incognito", "db.open", "tab.new"])
+      assert.equal(ids(LEADER).includes(id), false, id);
   });
 
   it("向きの hjkl は、案内では 1 行にまとまる", () => {
@@ -791,8 +817,6 @@ describe("内蔵ブラウザ（#202。設定で有効にしたときだけ）", 
         .map((r) => [r.path.join(" "), r.shortcut ?? ""]);
       assert.deepEqual(rows, [
         ["o", ""],
-        ["o n", ""],
-        ["o N", ""],
         ["o u", ""],
         ["o h", ""],
         ["o l", ""],
@@ -1101,6 +1125,33 @@ describe("設定で足す近道（[gui.shortcuts]）", () => {
     assert.deepEqual(press(LINUX, [key("m", "ca")]).runs, [
       { id: "workspace.new" },
     ]);
+  });
+
+  it("木から外したタブを作るコマンド（#456。旧 o n・o N・d n）も、近道に足せる。browser.* は、内蔵ブラウザが有効なときだけ", () => {
+    const list = [
+      { key: "Ctrl+Alt+D", command: "db.open" },
+      { key: "Ctrl+Alt+B", command: "browser.new" },
+      { key: "Ctrl+Alt+I", command: "browser.incognito" },
+      { key: "Ctrl+Alt+N", command: "workspace.switch:newTab" },
+    ];
+    const off = setUserShortcuts(list, LINUX);
+    assert.equal(off.length, 2);
+    assert.match(off[0], /browser\.new/);
+    assert.match(off[1], /browser\.incognito/);
+    assert.deepEqual(press(LINUX, [key("d", "ca"), key("n", "ca")]).runs, [
+      { id: "db.open" },
+      { id: "workspace.switch", arg: "newTab" },
+    ]);
+    setBrowserEnabled(true);
+    try {
+      assert.deepEqual(setUserShortcuts(list, LINUX), []);
+      assert.deepEqual(press(LINUX, [key("b", "ca"), key("i", "ca")]).runs, [
+        { id: "browser.new" },
+        { id: "browser.incognito" },
+      ]);
+    } finally {
+      setBrowserEnabled(false);
+    }
   });
 
   it("ページに渡すキーに入る", () => {

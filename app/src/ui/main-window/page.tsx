@@ -15,6 +15,7 @@ import {
   setUserShortcuts,
 } from "../../features/commands/commands.ts";
 import { IS_MAC } from "../../features/commands/guiKeys.ts";
+import type { SwitcherStart } from "../../features/commands/run.ts";
 import { placeOf } from "../../features/commands/placeKeys.ts";
 import { createFeatures } from "../../features/compose.ts";
 import type { ConfigMachine } from "../../features/sessions/machines.ts";
@@ -147,8 +148,8 @@ function MainWindow(props: {
   const [machinesOpen, setMachinesOpen] = createSignal(false);
   // キャラクターを選ぶ窓（リーダーの c s）を出しているか
   const [mascotPicking, setMascotPicking] = createSignal(false);
-  // ワークスペースを切り替える窓（リーダーの w）を出しているか（サイドバーの見出しからも開く）
-  const [wsSwitcher, setWsSwitcher] = createSignal<"ws" | "tab" | undefined>();
+  // ワークスペースを切り替える窓（リーダーの w・t・n）を出しているか（出していれば、開いたときの初めの状態。サイドバーの見出しからも開く）
+  const [wsSwitcher, setWsSwitcher] = createSignal<SwitcherStart | undefined>();
 
   // ---- 機能の持ち物（features/）。画面の側ですること（下で作る resize・focusUi・notices）は、呼ばれたときに引く ----
   const {
@@ -195,7 +196,7 @@ function MainWindow(props: {
       toggleResizeMode: () => resize.setResizeMode(!resize.resizeMode()),
       toggleSidebar: () => resize.toggleSidebar(),
       openMachines: () => setMachinesOpen(true),
-      openWorkspaceSwitcher: (col) => setWsSwitcher(col),
+      openWorkspaceSwitcher: (start) => setWsSwitcher(start),
       openClipboardHistory,
       openMascotPicker: () => setMascotPicking(true),
       openKeyList: () => openKeyList(placeOf(document.activeElement)),

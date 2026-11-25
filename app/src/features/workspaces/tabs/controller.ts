@@ -362,7 +362,7 @@ export function createTabs(deps: {
     }
     if (what === "browser") newBrowserTab(g);
     else if (what === "db") deps.db.openPicker(gid);
-    // ターミナルのタブが無いワークスペースには、同じマシン・フォルダにする元のタブが無いので、マシンを選ぶ（t N と同じ）
+    // ターミナルのタブが無いワークスペースには、同じマシン・フォルダにする元のタブが無いので、マシンを選ぶ（tab.newPick と同じ）
     else if (what === "terminal.pick" || !rep) void newTerminalTab(gid);
     else {
       // 今のターミナルのタブと同じマシン・同じフォルダ（フォルダが未定なら、start_dir）
@@ -426,16 +426,19 @@ export function createTabs(deps: {
   }
 
   /**
-   * 切り替える窓の地球儀・N：ワークスペース gid に、新しいタブのページのブラウザのタブを開く（今いるワークスペースは変えない）。
+   * 切り替える窓の種類を選ぶ一覧の「ブラウザ」「シークレット」：ワークスペース gid に、新しいタブのページのブラウザのタブ（incognito ならシークレットのタブ）を開く（今いるワークスペースは変えない）。
    * 開いたタブの key を返す（ワークスペースが無ければ undefined）。
    */
-  function openNewBrowserTabIn(gid: string): string | undefined {
+  function openNewBrowserTabIn(
+    gid: string,
+    incognito = false,
+  ): string | undefined {
     const g = untrack(gws).list.find((x) => x.id === gid);
     if (!g) return undefined;
-    return browserKey(newBrowserTab(g));
+    return browserKey(newBrowserTab(g, incognito));
   }
 
-  /** ワークスペース g にブラウザのタブを足す（新しいタブのページを出す。リーダーの o n と同じ）。 */
+  /** ワークスペース g にブラウザのタブを足す（新しいタブのページを出す。incognito ならシークレットのタブ。browser.new・browser.incognito と同じ）。 */
   function newBrowserTab(g: Gws, incognito = false): string {
     const o = browserOrigin(g);
     return openNewTab(o.target, o.ws, incognito, g.id);
@@ -637,6 +640,8 @@ export function createTabs(deps: {
     newTerminalTab,
     createNamedTerminalTab,
     openNewBrowserTabIn,
+    /** 切り替える窓の種類を選ぶ一覧の「DB」：接続を選ぶ窓を出す。選んだ接続のタブは、ワークスペース gid に入る（今いるワークスペースは、選ぶまで変えない） */
+    openDbPickerIn: (gid: string) => deps.db.openPicker(gid),
     newBrowserTab,
     openBrowserTab,
     currentTabKey,

@@ -22,6 +22,7 @@ export const ja: Record<Key, string> = {
   "leader.ws.rename": "Rename",
   "leader.tab.switch":
     "Open the workspace window on the tabs of this workspace",
+  "leader.tab.create": "New tab",
   "leader.tab.new": "New terminal tab (same machine and folder)",
   "leader.tab.newPick": "New terminal tab on another machine",
   "leader.tab.close": "Close this tab",
@@ -34,7 +35,7 @@ export const ja: Record<Key, string> = {
   "leader.tab.moveTo": "Move this tab to another workspace",
   "cannot.pane.none.title": "ここにはペインがありません",
   "cannot.pane.none.text":
-    "このワークスペースにはターミナルのタブが無いので、ペインがありません。ターミナルのタブは t n・t N で作れます。",
+    "このワークスペースにはターミナルのタブが無いので、ペインがありません。ターミナルのタブは、リーダーの n で作れます。",
   "leader.machine": "Open the machine list",
   "leader.pane.group": "Panes",
   "leader.pane.split": "Split pane",
@@ -173,8 +174,8 @@ export const ja: Record<Key, string> = {
   "place.switcher.toTabs": "Move to the tab column (when there are tabs)",
   "place.switcher.go": "Switch to the selected workspace and close the window",
   "place.switcher.new": "Create a workspace",
-  "place.switcher.newBrowser":
-    "Open a browser tab in the selected workspace (when the built-in browser is enabled)",
+  "place.switcher.newTab":
+    "Create a tab in the selected workspace (shows the list of kinds to choose from)",
   "place.switcher.close":
     "Close the selected workspace (y closes, n or Esc cancels)",
   "place.switcher.reorder": "Move the selected workspace down / up by one",
@@ -184,7 +185,8 @@ export const ja: Record<Key, string> = {
   "place.switcherTabs.nextPrev": "Select the next / previous tab",
   "place.switcherTabs.toWorkspaces": "Move to the workspace column",
   "place.switcherTabs.show": "Show the selected tab and close the window",
-  "place.switcherTabs.new": "Create a terminal tab",
+  "place.switcherTabs.new":
+    "Create a tab (shows the list of kinds to choose from)",
   "place.switcherTabs.close": "Close the selected tab",
   "place.switcherTabs.reorder": "Move the selected tab down / up by one",
   "place.switcherTabs.hold":
@@ -212,13 +214,13 @@ export const ja: Record<Key, string> = {
   "button.close": "Close",
   "download.done.title": "ダウンロードしました",
   "download.done.text":
-    "{name}（{dir}）。{leader} n o で開く、n f でフォルダを表示",
+    "{name}（{dir}）。{leader} i o で開く、i f でフォルダを表示",
   "download.reveal": "Show the folder",
   "download.open": "Open",
   "download.failed.title": "ダウンロードできませんでした",
   "cannot.browser.noTab.title": "ブラウザのタブを出していません",
   "cannot.browser.noTab.text":
-    "リーダーの t j・t k でタブを出すか、o n で新しいタブを開いてください。",
+    "リーダーの t でタブを出すか、n で新しいタブを開いてください。",
   "cannot.browser.newTab.title": "このタブにはまだページがありません",
   "cannot.browser.newTab.text":
     "新しいタブのページのままです。先にページを開いてください。",
@@ -474,6 +476,8 @@ export const ja: Record<Key, string> = {
   "switcher.empty": "ワークスペースはありません",
   "switcher.new": "New workspace",
   "switcher.newTab": "New tab",
+  "switcher.newTabKind": "作るタブの種類を選ぶ",
+  "switcher.newTab.incognito": "Private browser",
   "switcher.newTabPlaceholder": "タブの名前（空ならフォルダ名）",
   "switcher.keys.go": "go",
   "switcher.keys.showTab": "show tab",
@@ -544,7 +548,7 @@ export const ja: Record<Key, string> = {
   "update.label": "新しい版",
   "update.title": "新しい版 {version} があります",
   "update.text":
-    "今は {current} です。更新すると、入れ替えて起動し直します（{leader} n u でも更新できます）。",
+    "今は {current} です。更新すると、入れ替えて起動し直します（{leader} i u でも更新できます）。",
   "update.later": "Later",
   "update.busy": "更新しています…",
   "update.install": "Update and restart",

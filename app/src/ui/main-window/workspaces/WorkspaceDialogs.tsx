@@ -4,6 +4,7 @@
 import { Show, type JSX } from "solid-js";
 
 import { T } from "../../../i18n/index.ts";
+import type { SwitcherStart } from "../../../features/commands/run.ts";
 import type { Workspaces } from "../../../features/workspaces/controller.ts";
 import type { Tabs } from "../../../features/workspaces/tabs/controller.ts";
 import { MachinePicker } from "../sessions/MachinePicker.tsx";
@@ -16,12 +17,12 @@ import { TabMovePicker } from "./TabMovePicker.tsx";
 export function WorkspaceDialogs(props: {
   workspaces: Workspaces;
   tabs: Tabs;
-  /** ワークスペースの窓を出しているか（出していれば、キーを置く列。リーダーの w は ws、t は tab） */
-  switcherOpen: "ws" | "tab" | undefined;
+  /** ワークスペースの窓を出しているか（出していれば、開いたときの初めの状態。リーダーの w は ws、t は tab、n は newTab） */
+  switcherOpen: SwitcherStart | undefined;
   onCloseSwitcher: () => void;
   /** マシンの色（マシンの名前 → 色。タブを作る行のマシンに付ける） */
   colors: Record<string, string>;
-  /** 内蔵ブラウザが有効か（無効なら、切り替える窓に地球儀も N も無い） */
+  /** 内蔵ブラウザが有効か（無効なら、切り替える窓の種類を選ぶ一覧に、ブラウザとシークレットが無い） */
   browser: boolean;
 }): JSX.Element {
   // 部品は作り直さないので、持ち物は 1 回だけ取り出す
@@ -56,6 +57,7 @@ export function WorkspaceDialogs(props: {
     newTerminalTab,
     createNamedTerminalTab,
     openNewBrowserTabIn,
+    openDbPickerIn,
     confirmCloseTab,
     cancelCloseTab,
     closeTermTab,
@@ -86,7 +88,8 @@ export function WorkspaceDialogs(props: {
       </Show>
       <Show when={props.switcherOpen}>
         <WorkspaceSwitcher
-          initialCol={props.switcherOpen}
+          initialCol={props.switcherOpen === "ws" ? "ws" : "tab"}
+          initialNewTab={props.switcherOpen === "newTab"}
           rows={rows()}
           onGo={(r) => {
             closeSwitcher();
@@ -115,6 +118,11 @@ export function WorkspaceDialogs(props: {
           }))}
           onCreateTab={createNamedTerminalTab}
           onNewBrowserTab={openNewBrowserTabIn}
+          onNewDbTab={(gid) => {
+            // 接続を選ぶ窓は別の窓なので、切り替える窓は閉じる（選んだ接続のタブは、選んでいたワークスペースに入る）
+            closeSwitcher();
+            openDbPickerIn(gid);
+          }}
           browser={props.browser}
           onNoMachine={() =>
             cannot(T("cannot.workspace.title"), T("cannot.workspace.text"))
