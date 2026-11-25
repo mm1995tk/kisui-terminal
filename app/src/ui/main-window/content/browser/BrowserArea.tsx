@@ -1,8 +1,8 @@
 // 内蔵ブラウザのタブ（#202）を出す場所。グリッドの場所すべてを覆い、今のワークスペースで選んでいるタブのページを出す。
 // ページそのものは、この場所に Tauri の子の webview を重ねて出す（browser.rs。外のサイトの多くは iframe に出せないため）。
 // 子の webview は画面（DOM）より上に重なるので、ダイアログを出している間は隠し、ほかの重なるものは、それぞれが自分に付けた印
-// （data-overlay・data-overlay-shrink・data-overlay-top。overlay.ts の OVERLAY_SELECTORS）のとおりに避ける。
-// macOS は、浮かべるもの（お知らせ・リーダーの案内・メニュー。data-overlay）をページを縮めずに重ねる
+// （data-overlay・data-overlay-top。overlay.ts の OVERLAY_SELECTORS）のとおりに避ける。
+// macOS は、浮かべるもの（お知らせ・リーダーの案内・メニュー・ページ内検索の欄・トースト。data-overlay）をページを縮めずに重ねる
 // （画面をページより前に出し、ページはすりガラス越しに見える。操作はできない。殻の browser_layer）。
 // 子の webview はタブごとに 1 つで、初めて出すときに作る。ほかのワークスペースに移る・グリッドに戻るときは隠すだけで、
 // ページはそのまま残す（戻ったときに、読んでいた所から続けられる）。タブを閉じたら壊す。
@@ -87,7 +87,7 @@ export function BrowserArea(props: {
   focusRef: (focus: () => void) => void;
   /** リーダーに入っているか。入っている間は、ページにキーを向けない（向けると画面がキーを失い、リーダーが閉じる。#256）。出たら向ける */
   leaderOpen: () => boolean;
-  /** ページの上に重ねて出すもの（ページ内検索の欄。#205）。data-overlay-shrink を付ければ、ページはその上まで縮む */
+  /** ページの上に重ねて出すもの（ページ内検索の欄。#205）。data-overlay を付ければ、浮かべるものとして重なる */
   children?: JSX.Element;
 }): JSX.Element {
   const {
@@ -128,9 +128,6 @@ export function BrowserArea(props: {
    * 重ねられる OS では、浮かべるものでページを縮めない（重なっているかだけ返す）。
    */
   function bounds(): { b: Bounds | null; floating: boolean } {
-    const shrink = [...document.querySelectorAll(OVERLAY_SELECTORS.shrink)].map(
-      rectOf,
-    );
     const floats = [...document.querySelectorAll(OVERLAY_SELECTORS.float)].map(
       rectOf,
     );
@@ -139,12 +136,7 @@ export function BrowserArea(props: {
     const bar = document.querySelector(OVERLAY_SELECTORS.top);
     const barRect = bar ? rectOf(bar) : null;
     const top = barRect ? barRect.y + barRect.h - areaRect.y : 0;
-    const b = pageBounds(
-      areaRect,
-      native ? shrink : [...shrink, ...floats],
-      modal,
-      top,
-    );
+    const b = pageBounds(areaRect, native ? [] : floats, modal, top);
     return {
       b: b && toLogical(b, props.zoom()),
       floating: native && b !== null && floatsOver(areaRect, floats),

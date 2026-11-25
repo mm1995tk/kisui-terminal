@@ -117,13 +117,16 @@ describe("重なるものの印（#439）", () => {
       assert.match(s, /^\[data-overlay(-[a-z]+)?\]$/);
   });
 
-  it("お知らせ・右クリックのメニュー・リーダーの案内は、浮かべるもの（data-overlay）の印を付ける", () => {
+  it("お知らせ・右クリックのメニュー・リーダーの案内・ページ内検索の欄・トーストは、浮かべるもの（data-overlay）の印を付ける", () => {
     for (const rel of [
       "../../notifications/Notices.tsx",
       "../../sidebar/PopupMenu.tsx",
       "../../sidebar/file-tree/TreeMenu.tsx",
       "../../commands/LeaderMenu.tsx",
+      "FindBar.tsx",
+      "../../notifications/CopiedToast.tsx",
+      "../../notifications/ScaleToast.tsx",
     ])
-      assert.match(read(rel), /\sdata-overlay=""/, rel);
+      assert.match(read(rel), /\sdata-overlay=/, rel);
   });
 });
