@@ -25,7 +25,7 @@ import type { Updates } from "../updates/store.ts";
 import type { Workspaces } from "../workspaces/controller.ts";
 import type { Step } from "../workspaces/rows.ts";
 import type { Tabs } from "../workspaces/tabs/controller.ts";
-import type { Command } from "./commands.ts";
+import type { Command, CommandId } from "./commands.ts";
 import { shownTabKind, type TabKind } from "./tabWindow.ts";
 
 /**
@@ -63,6 +63,42 @@ export interface CommandUi {
   /** 右下の知らせのうち、いちばん新しいものを閉じる */
   dismissLastNotice(): void;
 }
+
+/** 内蔵ブラウザのコマンドの名前（browser.*）。 */
+type BrowserCommandId = Extract<CommandId, `browser.${string}`>;
+
+/**
+ * 今出しているブラウザのタブのページに行うコマンドと、その操作（ブラウザのタブの窓の操作と同じ）。
+ * 作る・閉じる・名前を変える・ブックマークの一覧は、ページに行う操作ではないので、runBrowser が先に受ける。
+ * browser.* のコマンドを足したら、ここか runBrowser の先に受ける側に足す（どちらにも無ければ型で分かる）。
+ */
+const PAGE_OPS: Record<
+  Exclude<
+    BrowserCommandId,
+    | "browser.new"
+    | "browser.incognito"
+    | "browser.close"
+    | "browser.rename"
+    | "browser.bookmarks"
+  >,
+  BrowserOp
+> = {
+  "browser.url": "url",
+  "browser.back": "back",
+  "browser.forward": "forward",
+  "browser.reload": "reload",
+  "browser.stop": "stop",
+  "browser.external": "external",
+  "browser.bookmark": "bookmark",
+  "browser.find": "find",
+  "browser.copyUrl": "copyUrl",
+  "browser.devtools": "devtools",
+  "browser.login": "login",
+};
+
+/** 内蔵ブラウザのコマンドか。 */
+const isBrowserCommand = (id: CommandId): id is BrowserCommandId =>
+  id.startsWith("browser.");
 
 /** createCommandRunner が返す持ち物。 */
 export type CommandRunner = ReturnType<typeof createCommandRunner>;
@@ -221,17 +257,17 @@ export function createCommandRunner(deps: {
   }
 
   /**
-   * 内蔵ブラウザのコマンド（設定の近道だけで使う browser.*。#459 までのリーダーの o のグループと、#456 までの o n・o N）。
-   * 今出しているブラウザのタブに行う。
+   * 内蔵ブラウザのコマンド（リーダーの木の外の browser.*。既定の近道（読み込み直す・ページ内検索）と設定の近道から来る。
+   * #459 までのリーダーの o のグループと、#456 までの o n・o N）。今出しているブラウザのタブに行う。
    */
-  function runBrowser(c: Command) {
-    switch (c.id) {
+  function runBrowser(id: BrowserCommandId) {
+    switch (id) {
       case "browser.new":
       case "browser.incognito": {
         const g = currentGws();
         if (!g)
           cannot(T("cannot.browser.open.title"), T("cannot.browser.open.text"));
-        else newBrowserTab(g, c.id === "browser.incognito");
+        else newBrowserTab(g, id === "browser.incognito");
         return;
       }
       // 閉じる・名前を変えるは、タブ共通の処理（tab.close・tab.rename と同じ）。ブラウザのタブを出しているときだけ動かす
@@ -248,7 +284,7 @@ export function createCommandRunner(deps: {
         deps.bookmarks.openDialog();
         return;
     }
-    const op = c.id.slice("browser.".length) as BrowserOp;
+    const op = PAGE_OPS[id];
     const t = NEEDS_PAGE.has(op) ? currentPage() : currentTab();
     if (t) browserOn(t, op);
   }
@@ -280,8 +316,8 @@ export function createCommandRunner(deps: {
    */
   function runCommand(c: Command) {
     const f = focus();
-    if (c.id.startsWith("browser.")) {
-      runBrowser(c);
+    if (isBrowserCommand(c.id)) {
+      runBrowser(c.id);
       return;
     }
     // ターミナルのタブが無いワークスペース（ブラウザのタブだけ・空）には、ペインが無い（focus が null）
