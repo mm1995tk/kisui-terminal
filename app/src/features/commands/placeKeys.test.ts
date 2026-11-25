@@ -10,7 +10,7 @@ import {
   isHelpKey,
   isWindowPlace,
   listStep,
-  PLACE_KEYS,
+  placeKeys,
   placeOf,
   type Place,
 } from "./placeKeys.ts";
@@ -41,68 +41,68 @@ describe("場所のキーの表は、使うときの言語で出る", () => {
     try {
       setLang("ja");
       assert.equal(
-        PLACE_KEYS.machines.lead,
+        placeKeys().machines.lead,
         "リーダーの m で開くマシンのダイアログの中だけで効くキーです。",
       );
       // 操作の名前は、日本語の窓でも英語のまま
-      assert.equal(PLACE_KEYS.machines.title, "Machine dialog");
+      assert.equal(placeKeys().machines.title, "Machine dialog");
     } finally {
       setLang("en");
     }
-    assert.match(PLACE_KEYS.machines.lead ?? "", /^Keys that work only/);
+    assert.match(placeKeys().machines.lead ?? "", /^Keys that work only/);
   });
 });
 
 describe("場所のキーの表は、その場所の判定と合っている", () => {
   it("ファイルツリー：表のキーは、どれも判定が受ける", () => {
     const closedDir = { dir: true, expanded: false };
-    for (const r of PLACE_KEYS.tree.rows)
+    for (const r of placeKeys().tree.rows)
       for (const p of r.probes)
         assert.notEqual(treeKey(closedDir, ev(p)), null, `${r.keys}: ${p}`);
   });
 
   it("変更一覧：表のキーは、どれも判定が受ける", () => {
     const dir = { kind: "dir", expanded: false } as const;
-    for (const r of PLACE_KEYS.changes.rows)
+    for (const r of placeKeys().changes.rows)
       for (const p of r.probes)
         assert.notEqual(changesKey(dir, ev(p)), null, `${r.keys}: ${p}`);
   });
 
   it("動画のペイン：表のキーは、どれも判定が受ける", () => {
-    for (const r of PLACE_KEYS.video.rows)
+    for (const r of placeKeys().video.rows)
       for (const p of r.probes)
         assert.notEqual(videoKey(ev(p)), null, `${r.keys}: ${p}`);
   });
 
   it("画像のペイン：表のキーは、どれも判定が受ける", () => {
-    for (const r of PLACE_KEYS.image.rows)
+    for (const r of placeKeys().image.rows)
       for (const p of r.probes)
         assert.notEqual(imageKey(ev(p)), null, `${r.keys}: ${p}`);
   });
 
   it("マシンのダイアログ：表のキーは、どれも判定が受ける", () => {
-    for (const r of PLACE_KEYS.machines.rows)
+    for (const r of placeKeys().machines.rows)
       for (const p of r.probes)
         assert.notEqual(machineKey(ev(p)), null, `${r.keys}: ${p}`);
   });
 
   it("一覧から選ぶ窓：表のキーは、どれも判定が受ける", () => {
-    for (const r of PLACE_KEYS.picker.rows)
+    for (const r of placeKeys().picker.rows)
       for (const p of r.probes)
         assert.notEqual(pickerKey(ev(p)), null, `${r.keys}: ${p}`);
   });
 
   it("ブックマークの一覧・クリップボードの履歴：表のキーは、絞り込みが空のとき、どれも判定が受ける", () => {
-    for (const r of PLACE_KEYS.bookmarks.rows)
+    for (const r of placeKeys().bookmarks.rows)
       for (const p of r.probes)
         assert.notEqual(bookmarkKey(ev(p), true), null, `${r.keys}: ${p}`);
-    for (const r of PLACE_KEYS.history.rows)
+    for (const r of placeKeys().history.rows)
       for (const p of r.probes)
         assert.notEqual(historyKey(ev(p), true), null, `${r.keys}: ${p}`);
   });
 
   it("DB のタブ（#347）：表のキーは、どれも判定が受ける（Cmd+Enter / Ctrl+Enter は keys.test.ts）", () => {
-    for (const r of PLACE_KEYS.db.rows)
+    for (const r of placeKeys().db.rows)
       for (const p of r.probes)
         for (const mac of [true, false])
           assert.notEqual(dbEditorKey(ev(p), mac), null, `${r.keys}: ${p}`);
@@ -120,44 +120,44 @@ describe("場所のキーの表は、その場所の判定と合っている", (
 
   it("DB のタブの結果の表（#372・#380）：表のキーは、Cmd+C / Ctrl+C と s と [ / ]（判定は keys.test.ts）", () => {
     assert.deepEqual(
-      PLACE_KEYS.dbResult.rows.map((r) => r.keys),
+      placeKeys().dbResult.rows.map((r) => r.keys),
       ["Cmd+C / Ctrl+C", "s", "[ / ]"],
     );
     // s は修飾キー無しのキー（probes に書ける）。判定が受ける
     assert.equal(dbResultKey(ev("s"), true), "sort");
     // [ ] は結果のタブの切り替え（#404）。表でもタブの列でも受ける
-    for (const p of PLACE_KEYS.dbResult.rows[2]!.probes)
+    for (const p of placeKeys().dbResult.rows[2]!.probes)
       for (const onTabs of [true, false])
         assert.notEqual(dbResultTabKey(ev(p), onTabs), 0, p);
   });
 
   it("サイドバーの DB のタブの木（#348・#374）：表のキーは、どれも判定が受ける", () => {
-    for (const r of PLACE_KEYS.dbTree.rows)
+    for (const r of placeKeys().dbTree.rows)
       for (const p of r.probes)
         assert.notEqual(dbTreeKey(ev(p)), null, `${r.keys}: ${p}`);
   });
 
   it("プロキシのパネル（#409）：表のキーは、どれも判定が受ける", () => {
-    for (const r of PLACE_KEYS.proxy.rows)
+    for (const r of placeKeys().proxy.rows)
       for (const p of r.probes)
         assert.notEqual(proxyPanelKey(ev(p)), null, `${r.keys}: ${p}`);
   });
 
   it("プロキシの要求を書き換える欄（#410）：表のキーは、どれも判定が受ける", () => {
-    for (const r of PLACE_KEYS.proxyEdit.rows)
+    for (const r of placeKeys().proxyEdit.rows)
       for (const p of r.probes)
         for (const mac of [true, false])
           assert.notEqual(proxyEditKey(ev(p), mac), null, `${r.keys}: ${p}`);
   });
 
   it("DB のタブの履歴の窓（#349）：表のキーは、絞り込みが空のとき、どれも判定が受ける", () => {
-    for (const r of PLACE_KEYS.dbHistory.rows)
+    for (const r of placeKeys().dbHistory.rows)
       for (const p of r.probes)
         assert.notEqual(dbHistoryKey(ev(p), true), null, `${r.keys}: ${p}`);
   });
 
   it("窓の表には、`?`（キーの一覧）と Esc の行がある", () => {
-    for (const [place, t] of Object.entries(PLACE_KEYS))
+    for (const [place, t] of Object.entries(placeKeys()))
       if (isWindowPlace(place as Place)) {
         assert.ok(
           t.rows.some((r) => r.keys === "?"),

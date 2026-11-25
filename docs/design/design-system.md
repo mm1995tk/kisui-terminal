@@ -166,7 +166,7 @@ kisui-terminal の窓（`app/src/`）の、共通の色・余白・字・状態�
 - **引数**：
   - `items`：基本操作のヒント。`features/commands/placeKeys.ts` の `basicHints` で作る（選ぶ → 移る → 決める → `?` → やめる・閉じる の順と、共通の字をそろえる）。今効くキーだけを渡す。
   - `note`：ヒントの上に出す知らせ（操作できない理由など。`role` を付けた `CardText`）。
-- **`?` の一覧**：窓のキーの表は `placeKeys.ts` の `PLACE_KEYS` に書き、窓のキーの判定が `?` を受けて `openKeyList(場所)` を呼ぶ。窓の場所（`isWindowPlace`）は、その窓のキーだけを出す。閉じると、下の窓の、`?` を押す前にフォーカスがあった所へ戻る（`ModalCard` が戻す）。
+- **`?` の一覧**：窓のキーの表は `placeKeys.ts` の表（`placeKeys()`。使うときに今の言語で作る）に書き、窓のキーの判定が `?` を受けて `openKeyList(場所)` を呼ぶ。窓の場所（`isWindowPlace`）は、その窓のキーだけを出す。閉じると、下の窓の、`?` を押す前にフォーカスがあった所へ戻る（`ModalCard` が戻す）。
 - **窓の枠を自分で持つ中身**（履歴の一覧 `HistoryPanel`。外から開く小さな窓にも出る）は、`CardFooter` の中に `KeyHints` を自分で置く（「コピーしました」の知らせの入れ物と一緒に）。
 - **組み合わせの例**：`main-window/sessions/MachineDialog`（知らせ・ヒント）、`main-window/workspaces/WorkspaceSwitcher`（ヒントだけ。効いている列で替わる）。
 

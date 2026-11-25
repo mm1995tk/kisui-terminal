@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import type { KeyLike } from "../../../features/commands/guiKeys.ts";
-import { PLACE_KEYS } from "../../../features/commands/placeKeys.ts";
+import { placeKeys } from "../../../features/commands/placeKeys.ts";
 import { dbWindowHints, dbWindowKey } from "./dbWindowKey.ts";
 
 const key = (k: string, mods: Partial<KeyLike> = {}): KeyLike => ({
@@ -64,7 +64,7 @@ describe("DB のタブの窓のキー", () => {
   });
 
   it("`?` の一覧の表（placeKeys.ts の dbWindow）のキーを、判定が受ける", () => {
-    for (const r of PLACE_KEYS.dbWindow.rows)
+    for (const r of placeKeys().dbWindow.rows)
       for (const p of r.probes)
         assert.notEqual(
           dbWindowKey(key(p, { shiftKey: /^[A-Z?]$/.test(p) })),

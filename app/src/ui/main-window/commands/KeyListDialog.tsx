@@ -15,7 +15,7 @@ import { ModalCard } from "../../components/Card.tsx";
 import { IS_MAC } from "../../../features/commands/guiKeys.ts";
 import {
   isWindowPlace,
-  PLACE_KEYS,
+  placeKeys,
   type Place,
 } from "../../../features/commands/placeKeys.ts";
 import styles from "./KeyListDialog.module.css";
@@ -37,7 +37,7 @@ export function openKeyList(first?: Place | readonly Place[]): void {
 
 /** 場所 1 つのキーの表。 */
 function PlaceSection(props: { place: Place }): JSX.Element {
-  const pl = () => PLACE_KEYS[props.place];
+  const pl = () => placeKeys()[props.place];
   return (
     <section class={`${styles.part} ${styles.first}`}>
       <h2 class={styles.subtitle}>{pl().title}</h2>
