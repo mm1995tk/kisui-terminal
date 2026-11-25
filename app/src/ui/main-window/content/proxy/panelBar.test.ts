@@ -10,12 +10,12 @@ const css = readFileSync(
   "utf8",
 ).replace(/\/\*[\s\S]*?\*\//g, "");
 
-/** 規則（セレクタと中身）を、書いた順に。@ の規則の中も、1 段だけ開いて数える。 */
+/** 規則（セレクタと中身）を、書いた順に。@ の規則の中の規則も、`{` をまたがない一致で 1 つずつ拾う。 */
 function rules(text: string): { selector: string; body: string }[] {
   const out: { selector: string; body: string }[] = [];
   for (const m of text.matchAll(/([^{}]+)\{([^{}]*)\}/g))
     out.push({
-      selector: m[1]!.trim().replace(/^@[^{]*\{\s*/, ""),
+      selector: m[1]!.trim(),
       body: m[2]!,
     });
   return out;
