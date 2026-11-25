@@ -291,7 +291,13 @@ export function SwitcherTabs(props: {
         <Show when={props.newTabKinds}>
           {(c) => (
             <li class="tab-row switch-newtab">
-              <SwitcherNewTabKinds {...c()} />
+              <SwitcherNewTabKinds
+                kinds={c().kinds}
+                selected={c().selected}
+                optionId={c().optionId}
+                onHover={c().onHover}
+                onPick={c().onPick}
+              />
             </li>
           )}
         </Show>
