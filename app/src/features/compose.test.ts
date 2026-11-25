@@ -300,6 +300,9 @@ function fakeBrowser(
   const off = async () => () => {};
   /** 殻からの「読み込みが失敗した」の受け手（テストが知らせを送る） */
   const loadFailed: Parameters<BrowserOs["onTabLoadFailed"]>[0][] = [];
+  /** 殻からの「読み込み中」「Esc が押された」の受け手 */
+  const loading: Parameters<BrowserOs["onTabLoading"]>[0][] = [];
+  const escape: Parameters<BrowserOs["onTabEscape"]>[0][] = [];
   const os: BrowserOs = {
     openTab: async () => {},
     resolveTabUrl: async (_target, url) => url,
@@ -308,6 +311,7 @@ function fakeBrowser(
     focusTab: async () => {},
     goTab: async (tab, url) => void calls.push(`go ${tab} ${url}`),
     navTab: async (tab, action) => void calls.push(`nav ${tab} ${action}`),
+    stopTab: async (tab) => void calls.push(`stop ${tab}`),
     zoomTab: async () => {},
     findInTab: async () => false,
     openTabDevtools: async () => {},
@@ -329,13 +333,21 @@ function fakeBrowser(
       return () => void loadFailed.splice(loadFailed.indexOf(h), 1);
     },
     onTabLoadCleared: off,
+    onTabLoading: async (h) => {
+      loading.push(h);
+      return () => void loading.splice(loading.indexOf(h), 1);
+    },
+    onTabEscape: async (h) => {
+      escape.push(h);
+      return () => void escape.splice(escape.indexOf(h), 1);
+    },
     onDownload: off,
     openDownload: async () => {},
     revealDownload: async () => {},
     enableOverlay: async () => false,
     layerTab: async () => {},
   };
-  return { os, calls, loadFailed };
+  return { os, calls, loadFailed, loading, escape };
 }
 
 function memoryStore(): KeyValueStore & { map: Map<string, string> } {
@@ -437,6 +449,8 @@ function start(opts: {
     serve: shell.serveOf,
     browserCalls: browser.calls,
     loadFailed: browser.loadFailed,
+    loading: browser.loading,
+    escape: browser.escape,
   };
 }
 
@@ -618,6 +632,51 @@ describe("機能の持ち物のつなぎ（compose.ts）", () => {
     f.pages.navPage(tab.id, "back");
     await settle();
     assert.deepEqual(browserCalls, [`nav ${tab.id} back`]);
+  });
+
+  it("内蔵ブラウザ：読み込み中は、リーダーの o c・URL バーの「×」・ページの Esc のどれでも止まる。読み込み中でなければ何もしない (#449)", async () => {
+    const { f, browserCalls, loading, escape } = start({
+      serves: { [LOCAL]: { ids: ["a"], focus: "a" } },
+      browser: true,
+    });
+    await settle();
+    f.commands.runCommand({ id: "browser.new" });
+    await settle();
+    const tab = f.pages.shownBrowserTab()!;
+    f.pages.submitUrlBar(tab.id, "https://example.com/");
+    await settle();
+    const send = (l: boolean, progress = 0) => {
+      for (const h of loading) h({ tab: tab.id, loading: l, progress });
+    };
+    // 読み込み中でなければ、o c も Esc も何もしない（Esc はページが受けるだけ）
+    browserCalls.length = 0;
+    f.commands.runCommand({ id: "browser.stop" });
+    for (const h of escape) h({ tab: tab.id });
+    await settle();
+    assert.deepEqual(browserCalls, []);
+    // 読み込み中は進み具合が入り、止めるとすぐ印が消える
+    send(true, 30);
+    await settle();
+    assert.deepEqual(f.pages.shownBrowserTab()?.loading, { progress: 30 });
+    f.commands.runCommand({ id: "browser.stop" });
+    await settle();
+    assert.deepEqual(browserCalls, [`stop ${tab.id}`]);
+    assert.equal(f.pages.shownBrowserTab()?.loading, undefined);
+    // 「×」（stopPage）と Esc も同じ
+    for (const via of ["button", "escape"]) {
+      browserCalls.length = 0;
+      send(true, 50);
+      await settle();
+      if (via === "button") f.pages.stopPage(tab.id);
+      else for (const h of escape) h({ tab: tab.id });
+      await settle();
+      assert.deepEqual(browserCalls, [`stop ${tab.id}`], via);
+    }
+    // 読み込みが終われば印が消える
+    send(true, 80);
+    send(false);
+    await settle();
+    assert.equal(f.pages.shownBrowserTab()?.loading, undefined);
   });
 
   it("内蔵ブラウザ：タブの無いワークスペースで o n を押すと、そのワークスペースにタブが入り、ワークスペースは増えない (#416)", async () => {

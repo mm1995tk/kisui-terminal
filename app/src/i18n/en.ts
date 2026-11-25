@@ -58,6 +58,7 @@ export const en = {
   "leader.browser.back": "Back",
   "leader.browser.forward": "Forward",
   "leader.browser.reload": "Reload",
+  "leader.browser.stop": "Stop loading",
   "leader.browser.close": "Close tab",
   "leader.browser.external": "Open in the external browser",
   "leader.browser.bookmark": "Bookmark this page",
@@ -514,6 +515,7 @@ export const en = {
   "newTab.empty.none":
     "No bookmarks yet. Add a page you are viewing with {leader} o b.",
   "urlBar.label": "Address bar",
+  "urlBar.loading": "Loading",
   "urlBar.placeholder": "Search or type a URL",
   "urlBar.invalid":
     "Only http and https URLs can be opened (not ones with a user name or password)",

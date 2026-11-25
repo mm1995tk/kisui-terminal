@@ -7,6 +7,7 @@ mod browser;
 mod browser_capture;
 mod browser_frame;
 mod browser_load;
+mod browser_progress;
 #[cfg(target_os = "macos")]
 mod browser_proxy;
 mod clipboard_history;
@@ -226,6 +227,7 @@ fn main() {
             browser::browser_focus,
             browser::browser_go,
             browser::browser_nav,
+            browser::browser_stop,
             browser::browser_close,
             browser::browser_tabs_load,
             browser::browser_tabs_save,

@@ -58,6 +58,7 @@ export type CommandId =
   | "browser.back"
   | "browser.forward"
   | "browser.reload"
+  | "browser.stop"
   | "browser.close"
   | "browser.external"
   | "browser.bookmark"
@@ -402,6 +403,8 @@ export const LEADER: Node[] = [
           shortcutInBrowser: true,
         },
       ),
+      // #449。読み込み中のときだけ働く（cancel の `c`）。ページにキーがある間の Esc も同じ
+      leaf("c", T("leader.browser.stop"), { id: "browser.stop" }),
       leaf("x", T("leader.browser.close"), { id: "browser.close" }),
       leaf("e", T("leader.browser.external"), { id: "browser.external" }),
       // #205

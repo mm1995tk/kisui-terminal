@@ -126,6 +126,19 @@
           break;
         }
       }
+      // 修飾キーの無い Esc は、止めずに「押された」とだけ殻に知らせる（読み込み中なら、画面が読み込みを止める。#449）。
+      // ページにも届く（ページ側のダイアログを閉じるなどは今までどおり）。リーダーの続きのキーとして送るときは知らせない
+      if (
+        !hit &&
+        now() > followUntil &&
+        e.key === "Escape" &&
+        !e.ctrl &&
+        !e.shift &&
+        !e.alt &&
+        !e.meta
+      ) {
+        open(window, "kisui-key://esc?n=" + nonce, "_blank");
+      }
       if (!hit && now() > followUntil) return;
       if (!hit && modifierOnly(e.key)) return;
       preventDefault(ev);
