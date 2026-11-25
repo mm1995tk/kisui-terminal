@@ -174,7 +174,7 @@ export const en = {
   "place.switcher.go": "Switch to the selected workspace and close the window",
   "place.switcher.new": "Create a workspace",
   "place.switcher.newTab":
-    "Create a tab in the selected workspace (choose the kind: t terminal, b browser, B private browser, d database)",
+    "Create a tab in the selected workspace (shows the list of kinds to choose from)",
   "place.switcher.close":
     "Close the selected workspace (y closes, n or Esc cancels)",
   "place.switcher.reorder": "Move the selected workspace down / up by one",
@@ -185,7 +185,7 @@ export const en = {
   "place.switcherTabs.toWorkspaces": "Move to the workspace column",
   "place.switcherTabs.show": "Show the selected tab and close the window",
   "place.switcherTabs.new":
-    "Create a tab (choose the kind: t terminal, b browser, B private browser, d database)",
+    "Create a tab (shows the list of kinds to choose from)",
   "place.switcherTabs.close": "Close the selected tab",
   "place.switcherTabs.reorder": "Move the selected tab down / up by one",
   "place.switcherTabs.hold":
