@@ -1,7 +1,6 @@
 import { T } from "../../../i18n/index.ts";
 import { For, type JSX } from "solid-js";
 
-import { Button } from "../../components/Button.tsx";
 import { KeyFooter } from "../../components/KeyFooter.tsx";
 import { ModalCard, CardTitle } from "../../components/Card.tsx";
 import { basicHints } from "../../../features/commands/placeKeys.ts";
@@ -48,9 +47,6 @@ export function MachinePicker(props: {
       footer={
         <KeyFooter
           items={basicHints({ decide: T("picker.keys.create"), end: "cancel" })}
-          actions={
-            <Button onClick={props.onCancel}>{T("button.cancelAlt")}</Button>
-          }
         />
       }
       header={<CardTitle>{T("picker.title")}</CardTitle>}

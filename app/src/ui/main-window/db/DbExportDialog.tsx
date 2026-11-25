@@ -11,7 +11,6 @@ import {
   type ExportChoice,
 } from "../../../features/db/export.ts";
 import { moveRow, pickerKey } from "../../../features/sessions/machineList.ts";
-import { Button } from "../../components/Button.tsx";
 import { CardText, CardTitle, ModalCard } from "../../components/Card.tsx";
 import { KeyFooter } from "../../components/KeyFooter.tsx";
 import { openKeyList } from "../commands/KeyListDialog.tsx";
@@ -47,9 +46,6 @@ export function DbExportDialog(props: {
       footer={
         <KeyFooter
           items={basicHints({ decide: T("db.export.do"), end: "cancel" })}
-          actions={
-            <Button onClick={props.onCancel}>{T("button.cancelAlt")}</Button>
-          }
         />
       }
     >

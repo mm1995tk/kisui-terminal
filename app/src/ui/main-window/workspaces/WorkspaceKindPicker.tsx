@@ -1,7 +1,6 @@
 import { T } from "../../../i18n/index.ts";
 import { createSignal, For, type JSX } from "solid-js";
 
-import { Button } from "../../components/Button.tsx";
 import { KeyFooter } from "../../components/KeyFooter.tsx";
 import { ModalCard, CardTitle } from "../../components/Card.tsx";
 import { basicHints } from "../../../features/commands/placeKeys.ts";
@@ -44,9 +43,6 @@ export function WorkspaceKindPicker(props: {
       footer={
         <KeyFooter
           items={basicHints({ decide: T("basic.decide"), end: "cancel" })}
-          actions={
-            <Button onClick={props.onCancel}>{T("button.cancelAlt")}</Button>
-          }
         />
       }
       header={<CardTitle>{T("kindPicker.title")}</CardTitle>}

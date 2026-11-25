@@ -115,19 +115,6 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.find-close {
-  flex: none;
-  padding: 2px 6px;
-  border: none;
-  border-radius: 4px;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-}
-.find-close:hover {
-  background: var(--gh-bg);
-  color: var(--gh-text-strong);
-}
 
 /* ページの上の端の URL バー（#232。UrlBar.tsx）。ページはその下まで下がる（BrowserArea の data-overlay-top） */
 .url-bar {
