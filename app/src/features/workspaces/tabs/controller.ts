@@ -187,7 +187,7 @@ export function createTabs(deps: {
   } | null>(null);
 
   /**
-   * ターミナルのタブ 1 つを閉じる（サイドバーのタブの行の ✕。#235 の t x もこれを使う）。ワークスペースの最後のターミナルのタブも閉じられる
+   * ターミナルのタブ 1 つを閉じる（サイドバーのタブの行の ✕。コマンド tab.close もこれを使う）。ワークスペースの最後のターミナルのタブも閉じられる
    * （ワークスペースの最後のタブでも、ワークスペースは空になって残る。#307）。
    * プログラムが動いていれば断られるので、確認の窓を出す（force は窓で「終わらせて閉じる」を押したとき）。
    * マシンにつながっていないタブは、閉じられないので記録から外すだけ。
@@ -483,7 +483,7 @@ export function createTabs(deps: {
     return f ? termKey(f.target, f.id) : undefined;
   }
 
-  /** リーダーの t j / t k。今のワークスペースのタブ（ターミナルのタブもブラウザのタブも、並びの順）を順に回る。端では反対の端へ回る。 */
+  /** コマンド tab.step。今のワークスペースのタブ（ターミナルのタブもブラウザのタブも、並びの順）を順に回る。端では反対の端へ回る。 */
   function stepTab(step: Step) {
     const g = currentGws();
     const key = currentTabKey();
@@ -503,7 +503,7 @@ export function createTabs(deps: {
   }
 
   /**
-   * リーダーの t x。今出しているタブを閉じる。ブラウザのタブはそのページを閉じ、ターミナルのタブはそのターミナルを終わらせる
+   * コマンド tab.close。今出しているタブを閉じる。ブラウザのタブはそのページを閉じ、ターミナルのタブはそのターミナルを終わらせる
    * （プログラムが動いていれば確認を出す。closeTermTab）。ワークスペースの最後のタブを閉じても、ワークスペースは空になって残る（#307）。
    */
   function closeCurrentTab() {
@@ -573,7 +573,7 @@ export function createTabs(deps: {
     return true;
   }
 
-  // 別のワークスペースへ移すタブ（移動先を選ぶ窓を出している。リーダーの t m）。key は refKey、from は今のワークスペースの id
+  // 別のワークスペースへ移すタブ（移動先を選ぶ窓を出している。コマンド tab.moveTo）。key は refKey、from は今のワークスペースの id
   const [movingTab, setMovingTab] = createSignal<{
     key: string;
     from: string;
@@ -594,7 +594,7 @@ export function createTabs(deps: {
     setMovingTab({ key, from: g.id });
   }
 
-  /** ワークスペース gid のタブ key を 1 つ下・上へ動かす（t J / t K・切り替える窓の J K）。端では動かさない。数えるのはサイドバーに出ているタブだけ */
+  /** ワークスペース gid のタブ key を 1 つ下・上へ動かす（コマンド tab.move・切り替える窓の J K）。端では動かさない。数えるのはサイドバーに出ているタブだけ */
   function moveTabByStep(gid: string, key: string, dir: "up" | "down") {
     const g = untrack(gws).list.find((x) => x.id === gid);
     if (!g) return;

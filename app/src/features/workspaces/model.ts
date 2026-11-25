@@ -368,7 +368,7 @@ export function shownTabKey(
 }
 
 /**
- * サイドバーに出ているタブ（t の操作が数える並び。t 1〜9・t J / t K）。ターミナルのタブと DB のタブは全部。
+ * サイドバーに出ているタブ（タブの操作のコマンドが数える並び。tab.nth・tab.move）。ターミナルのタブと DB のタブは全部。
  * ブラウザのタブは、タブがまだあるもの（hasBrowser）だけ（内蔵ブラウザを無効にしたあとも記録は残るが、サイドバーには出ない）。
  */
 export function visibleTabs(
@@ -379,7 +379,7 @@ export function visibleTabs(
 }
 
 /**
- * t j / t k で移れるタブ。visibleTabs のうち、つながっていないマシンのターミナルのタブ（移れず、止まってしまう）を除く。
+ * tab.step で移れるタブ。visibleTabs のうち、つながっていないマシンのターミナルのタブ（移れず、止まってしまう）を除く。
  * 今のタブ cur は、つながっていなくても残す（そこから数えるため）。
  */
 export function steppableTabs(
@@ -394,7 +394,7 @@ export function steppableTabs(
 
 /**
  * ワークスペースの中のタブ（key は refKey）を、サイドバーに出ている並び visible の 1 つ下（dir が "down"）・上（"up"）の隣と入れ替える
- * （リーダーの t J / t K）。出ていないタブは飛び越える。端では回らず、動かさない（動かさなかったときは null）。
+ * （コマンド tab.move）。出ていないタブは飛び越える。端では回らず、動かさない（動かさなかったときは null）。
  */
 export function moveTabStep(
   s: GwsState,
