@@ -121,8 +121,6 @@ export function BrowserWindow(props: {
         break;
       }
       case "op":
-        // 戻る・進むのほかは、押しっぱなしの繰り返しを受けない（閉じたあと、ページへ字が漏れないように）
-        if (e.repeat && !STAYS.has(k.op)) break;
         run(k.op);
         break;
       case "help":
