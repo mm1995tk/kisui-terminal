@@ -19,7 +19,6 @@ import type { ReportProblem } from "../../../features/problem.ts";
 import type { Proxy } from "../../../features/proxy/controller.ts";
 import type { Terminals } from "../../../features/terminal/controller.ts";
 import type { FocusUi } from "../focus.ts";
-import { usePorts } from "../../ports.ts";
 // CSS を持つ部品の import は、この順（ブラウザ → リーダーの案内 → ターミナル → 空のワークスペース → DB のタブ → プロキシのパネル）を変えない（理由は page.tsx）
 import { BrowserArea } from "./browser/BrowserArea.tsx";
 import { FindBar } from "./browser/FindBar.tsx";
@@ -58,7 +57,6 @@ export function ContentArea(props: {
   scale: () => number;
   setFocusError: ReportProblem;
 }): JSX.Element {
-  const { navTab } = usePorts().browser;
   // 部品は作り直さないので、持ち物は 1 回だけ取り出す
   const {
     termList,
@@ -78,6 +76,7 @@ export function ContentArea(props: {
     findTab,
     resolveFor,
     submitUrlBar,
+    navPage,
     closeFind,
     openUrl,
   } = props.pages;
@@ -115,6 +114,7 @@ export function ContentArea(props: {
           zoom={props.scale}
           keys={() => interceptKeys(IS_MAC)}
           resolve={resolveFor}
+          onRetry={(id) => navPage(id, "reload")}
           onError={(title, error) => props.setFocusError({ title, error })}
           focusRef={(f) => props.focusUi.setBrowserPageFocus(f)}
           leaderOpen={() => leaderPath() !== null}
@@ -126,7 +126,7 @@ export function ContentArea(props: {
                 onSubmit={(url) => submitUrlBar(id, url)}
                 onCancel={() => focusTerminal()}
                 onNav={(action) => {
-                  void navTab(id, action).catch(() => {});
+                  navPage(id, action);
                   focusTerminal();
                 }}
                 focusRef={(f) => props.focusUi.setUrlBarFocus(f)}

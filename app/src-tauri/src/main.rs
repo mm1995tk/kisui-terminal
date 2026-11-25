@@ -175,7 +175,6 @@ fn main() {
         .manage(update::Updates::default())
         .manage(transfer::Transfers::default())
         .manage(browser::Tabs::default())
-        .manage(browser_load::Failures::default())
         .manage(download::Downloads::default())
         .setup(|app| {
             version::init(app.package_info().version.to_string());

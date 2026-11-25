@@ -298,6 +298,8 @@ function fakeBrowser(
 ) {
   const calls: string[] = [];
   const off = async () => () => {};
+  /** 殻からの「読み込みが失敗した」の受け手（テストが知らせを送る） */
+  const loadFailed: Parameters<BrowserOs["onTabLoadFailed"]>[0][] = [];
   const os: BrowserOs = {
     openTab: async () => {},
     resolveTabUrl: async (_target, url) => url,
@@ -322,7 +324,10 @@ function fakeBrowser(
     onTabKey: off,
     onTabPopup: off,
     onTabClosed: off,
-    onTabLoadFailed: off,
+    onTabLoadFailed: async (h) => {
+      loadFailed.push(h);
+      return () => void loadFailed.splice(loadFailed.indexOf(h), 1);
+    },
     onTabLoadCleared: off,
     onDownload: off,
     openDownload: async () => {},
@@ -330,7 +335,7 @@ function fakeBrowser(
     enableOverlay: async () => false,
     layerTab: async () => {},
   };
-  return { os, calls };
+  return { os, calls, loadFailed };
 }
 
 function memoryStore(): KeyValueStore & { map: Map<string, string> } {
@@ -424,7 +429,14 @@ function start(opts: {
       commandUi,
     });
   });
-  return { f, ui, store, serve: shell.serveOf, browserCalls: browser.calls };
+  return {
+    f,
+    ui,
+    store,
+    serve: shell.serveOf,
+    browserCalls: browser.calls,
+    loadFailed: browser.loadFailed,
+  };
 }
 
 describe("機能の持ち物のつなぎ（compose.ts）", () => {
@@ -567,6 +579,44 @@ describe("機能の持ち物のつなぎ（compose.ts）", () => {
     assert.equal(f.browserTabs.tabs().tabs.length, 0);
     assert.equal(f.workspaces.gws().list[0]!.tabs.length, 1);
     assert.ok(ui.includes("focusTerminal"));
+  });
+
+  it("内蔵ブラウザ：読み込みが失敗したままのタブの「読み込み直す」は、前のページでなく、開けなかった URL を開き直す (#432)", async () => {
+    const { f, browserCalls, loadFailed } = start({
+      serves: { [LOCAL]: { ids: ["a"], focus: "a" } },
+      browser: true,
+    });
+    await settle();
+    f.commands.runCommand({ id: "browser.new" });
+    await settle();
+    const tab = f.pages.shownBrowserTab()!;
+    f.pages.submitUrlBar(tab.id, "https://example.com/");
+    await settle();
+    // 失敗していなければ、WebView の読み込み直し
+    browserCalls.length = 0;
+    f.commands.runCommand({ id: "browser.reload" });
+    await settle();
+    assert.deepEqual(browserCalls, [`nav ${tab.id} reload`]);
+    // 別の URL がページの出る前に失敗した（WebView には example.com が残っている）
+    const failed = "https://self-signed.badssl.com/";
+    for (const h of loadFailed)
+      h({ tab: tab.id, url: failed, reason: "cert-untrusted", detail: "" });
+    await settle();
+    assert.equal(f.pages.shownBrowserTab()?.loadError?.url, failed);
+    // リーダーの o r・Cmd+R も、失敗の表示の「もう一度開く」（navPage）も、開けなかった URL を開く
+    browserCalls.length = 0;
+    f.commands.runCommand({ id: "browser.reload" });
+    f.pages.navPage(tab.id, "reload");
+    await settle();
+    assert.deepEqual(browserCalls, [
+      `go ${tab.id} ${failed}`,
+      `go ${tab.id} ${failed}`,
+    ]);
+    // 戻る・進むは、失敗していてもそのまま WebView に頼む
+    browserCalls.length = 0;
+    f.pages.navPage(tab.id, "back");
+    await settle();
+    assert.deepEqual(browserCalls, [`nav ${tab.id} back`]);
   });
 
   it("内蔵ブラウザ：タブの無いワークスペースで o n を押すと、そのワークスペースにタブが入り、ワークスペースは増えない (#416)", async () => {

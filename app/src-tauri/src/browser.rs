@@ -1246,19 +1246,12 @@ pub fn browser_nav(
         // ページが替わった知らせ（browser-page の loading）で片付く
         "back" => v.eval("history.back()"),
         "forward" => v.eval("history.forward()"),
+        // 読み込みが失敗したままのタブの「読み込み直す」は、画面が開けなかった URL を browser_go で開き直す
+        // （WebView の読み込み直しは、失敗の前のページを読み直す。app/src/features/browser/pages.ts の navPage）
         "reload" => {
-            // 読み込みが失敗したままのタブ（画面が失敗の表示を出している）は、前のページでなく、開けなかった URL をもう一度開く
-            let failed = app
-                .try_state::<crate::browser_load::Failures>()
-                .and_then(|f| f.get(&tab))
-                .and_then(|u| Url::parse(&u).ok())
-                .filter(may_navigate);
-            // 次の読み込みを頼んだので、前の失敗の表示は片付ける（読み込みは必ず始まり、また失敗すれば出直す。browser_load.rs）
+            // 次の読み込みを頼んだので、前の失敗の表示は片付ける（また失敗すれば出直す。browser_load.rs）
             crate::browser_load::clear_failure(&app, &tab);
-            match failed {
-                Some(u) => v.navigate(u),
-                None => v.reload(),
-            }
+            v.reload()
         }
         _ => return Err(format!("unknown action: {action:?}")),
     }
@@ -1283,10 +1276,7 @@ pub fn browser_close(
         crate::browser_capture::forget(&app, &root);
     }
     tabs.remove(&tab);
-    // 読み込みの失敗の覚え（「読み込み直す」の行き先）と、macOS の知らせの先を忘れる（browser_load.rs）
-    if let Some(f) = app.try_state::<crate::browser_load::Failures>() {
-        f.clear(&tab);
-    }
+    // macOS の、読み込みの失敗の知らせの先を忘れる（browser_load.rs）
     #[cfg(target_os = "macos")]
     crate::browser_load::unregister(&app, &tab);
     if let Some(v) = app.get_webview(&label(&tab)) {

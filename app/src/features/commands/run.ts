@@ -84,7 +84,7 @@ export function createCommandRunner(deps: {
   mascot: MascotStore;
   scale: Scale;
   proxy: Pick<Proxy, "openPanel" | "closePanel" | "stopCurrent" | "toggleHold">;
-  os: Pick<BrowserOs, "navTab" | "openTabDevtools" | "startPasskeyLogin">;
+  os: Pick<BrowserOs, "openTabDevtools" | "startPasskeyLogin">;
   setFocusError: ReportProblem;
   /** 少しの間だけ出る短い知らせ */
   showToast: (text: string) => void;
@@ -110,6 +110,7 @@ export function createCommandRunner(deps: {
     openUrlFor,
     openFind,
     changePageZoom,
+    navPage,
   } = deps.pages;
   const { zoomed, termGroup, newTerminal, setZoom } = deps.terminals;
   const {
@@ -120,7 +121,7 @@ export function createCommandRunner(deps: {
     stepTab,
   } = deps.tabs;
   const { setTabs } = deps.browserTabs;
-  const { navTab, openTabDevtools, startPasskeyLogin } = deps.os;
+  const { openTabDevtools, startPasskeyLogin } = deps.os;
   const { bookmarkPage } = deps.bookmarks;
   const { lastDownload, useDownload } = deps.downloads;
   const { changeScale } = deps.scale;
@@ -185,7 +186,7 @@ export function createCommandRunner(deps: {
             : c.id === "browser.forward"
               ? "forward"
               : "reload";
-        if (t) void navTab(t.id, action).catch(() => {});
+        if (t) navPage(t.id, action);
         break;
       }
       case "browser.close": {
