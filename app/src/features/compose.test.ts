@@ -303,6 +303,7 @@ function fakeBrowser(
   /** 殻からの「読み込み中」「Esc が押された」の受け手 */
   const loading: Parameters<BrowserOs["onTabLoading"]>[0][] = [];
   const escape: Parameters<BrowserOs["onTabEscape"]>[0][] = [];
+  const history: Parameters<BrowserOs["onTabHistory"]>[0][] = [];
   const os: BrowserOs = {
     openTab: async () => {},
     resolveTabUrl: async (_target, url) => url,
@@ -337,6 +338,10 @@ function fakeBrowser(
       loading.push(h);
       return () => void loading.splice(loading.indexOf(h), 1);
     },
+    onTabHistory: async (h) => {
+      history.push(h);
+      return () => void history.splice(history.indexOf(h), 1);
+    },
     onTabEscape: async (h) => {
       escape.push(h);
       return () => void escape.splice(escape.indexOf(h), 1);
@@ -347,7 +352,7 @@ function fakeBrowser(
     enableOverlay: async () => false,
     layerTab: async () => {},
   };
-  return { os, calls, loadFailed, loading, escape };
+  return { os, calls, loadFailed, loading, escape, history };
 }
 
 function memoryStore(): KeyValueStore & { map: Map<string, string> } {
@@ -455,6 +460,7 @@ function start(opts: {
     loadFailed: browser.loadFailed,
     loading: browser.loading,
     escape: browser.escape,
+    history: browser.history,
   };
 }
 
@@ -681,6 +687,41 @@ describe("機能の持ち物のつなぎ（compose.ts）", () => {
     send(false);
     await settle();
     assert.equal(f.pages.shownBrowserTab()?.loading, undefined);
+  });
+
+  it("内蔵ブラウザ：戻る先・進む先の有無は、殻の知らせのとおりにタブに入る。開いた直後はどちらも無い (#450)", async () => {
+    const { f, history } = start({
+      serves: { [LOCAL]: { ids: ["a"], focus: "a" } },
+      browser: true,
+    });
+    await settle();
+    f.commands.runCommand({ id: "browser.new" });
+    await settle();
+    const tab = f.pages.shownBrowserTab()!;
+    f.pages.submitUrlBar(tab.id, "https://example.com/");
+    await settle();
+    assert.equal(f.pages.shownBrowserTab()?.history, undefined);
+    const send = (back: boolean, forward: boolean) => {
+      for (const h of history) h({ tab: tab.id, back, forward });
+    };
+    send(true, false);
+    await settle();
+    assert.deepEqual(f.pages.shownBrowserTab()?.history, {
+      back: true,
+      forward: false,
+    });
+    send(true, true);
+    await settle();
+    assert.deepEqual(f.pages.shownBrowserTab()?.history, {
+      back: true,
+      forward: true,
+    });
+    send(false, true);
+    await settle();
+    assert.deepEqual(f.pages.shownBrowserTab()?.history, {
+      back: false,
+      forward: true,
+    });
   });
 
   it("内蔵ブラウザ：タブの無いワークスペースで o n を押すと、そのワークスペースにタブが入り、ワークスペースは増えない (#416)", async () => {

@@ -77,6 +77,7 @@ export function createPages(deps: {
     onTabLoadFailed,
     onTabLoadCleared,
     onTabLoading,
+    onTabHistory,
     onTabEscape,
     onTabFavicon,
     onTabPopup,
@@ -403,6 +404,14 @@ export function createPages(deps: {
           setTabs((t) =>
             updateTab(t, e.tab, {
               loading: e.loading ? { progress: e.progress } : undefined,
+            }),
+          ),
+        ),
+        // 戻る先・進む先があるか（#450）。URL バーの ←・→ の見た目に出す
+        await onTabHistory((e) =>
+          setTabs((t) =>
+            updateTab(t, e.tab, {
+              history: { back: e.back, forward: e.forward },
             }),
           ),
         ),

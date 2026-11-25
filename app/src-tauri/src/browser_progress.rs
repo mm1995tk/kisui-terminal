@@ -13,6 +13,10 @@
 //!   ならなければ、何も知らせずにやめる。
 //! - 止めるのは WebView の `stopLoading`（Linux は `stop_loading`）。打ち切りは、失敗として知らせない
 //!   （browser_load.rs が `NSURLErrorCancelled`・`IOErrorEnum::Cancelled` を知らせない）。ページは前のまま残る。
+//! - 戻る先・進む先があるか（Linux は `can_go_back`・`can_go_forward`、macOS は `canGoBack`・`canGoForward`）は、タブごとに 1 本の
+//!   スレッド（`poll_history`。`watch_history` が始める）が一定の間隔で読み、変わったときだけ `browser-history` を送る（#450。URL バーの
+//!   ←・→ を押せない見た目にする）。読み込みを見る間だけでなく、`pushState` のように読み込みも題の変化も伴わない履歴の変化にも
+//!   追いつくため。タブごとに 1 本なので、読んだ順に送る。WebView が無くなったらやめる。
 //! - ページの Esc は、ページのスクリプトが「Esc が押された」とだけ殻に知らせる（browser_keys.js）。殻はそれを画面に
 //!   そのまま渡し、止めるかどうかは画面が決める（読み込み中のタブだけ止める）。
 
@@ -25,11 +29,15 @@ use tauri::{AppHandle, Emitter, Manager, Webview};
 
 /// 読み込み中か・進み具合が変わった知らせ（画面へ）。
 const EVENT_LOADING: &str = "browser-loading";
+/// 戻る先・進む先があるかの知らせ（画面へ）。
+const EVENT_HISTORY: &str = "browser-history";
 /// ページで Esc が押された知らせ（画面へ）。
 pub const EVENT_ESCAPE: &str = "browser-escape";
 
 /// 読み込みの状態を読む間隔。
 const POLL: Duration = Duration::from_millis(120);
+/// 戻る先・進む先を読む間隔。
+const HISTORY_POLL: Duration = Duration::from_millis(250);
 /// 遷移が始まってから、読み込み中にならなければやめるまでの間。
 const GRACE: Duration = Duration::from_millis(2500);
 /// 1 回の読み取りを待つ上限（メインスレッドが詰まっているとき）。
@@ -41,6 +49,14 @@ struct Loading {
     loading: bool,
     /// 進み具合（0〜100）。読み込み中でなければ 0
     progress: u8,
+}
+
+/// 戻る先・進む先があるかの知らせ（`browser-history`）の中身。
+#[derive(Serialize, Clone, Debug, PartialEq, Eq)]
+struct History {
+    tab: String,
+    back: bool,
+    forward: bool,
 }
 
 /// ページで Esc が押された知らせ（`browser-escape`）の中身。どのタブで押されたか。
@@ -59,6 +75,8 @@ enum Sample {
     Read {
         loading: bool,
         progress: u8,
+        back: bool,
+        forward: bool,
     },
 }
 
@@ -123,7 +141,9 @@ fn poll(app: &AppHandle, tab: &str) {
             // 作る前なら待つ。閉じたなら、何も知らせずにやめる
             Sample::Missing => seen || started.elapsed() > GRACE,
             Sample::Busy => false,
-            Sample::Read { loading, progress } => {
+            Sample::Read {
+                loading, progress, ..
+            } => {
                 let now = (loading, if loading { progress } else { 0 });
                 if loading {
                     seen = true;
@@ -153,6 +173,53 @@ fn poll(app: &AppHandle, tab: &str) {
     }
 }
 
+fn emit_history(app: &AppHandle, tab: &str, back: bool, forward: bool) {
+    let _ = app.emit(
+        EVENT_HISTORY,
+        History {
+            tab: tab.to_string(),
+            back,
+            forward,
+        },
+    );
+}
+
+/// 履歴を見ているタブ。同じタブを 2 つ見ない（見張りが 2 本あると、読んだ順に送れない）。
+fn history_watched() -> &'static Mutex<std::collections::HashSet<String>> {
+    static W: OnceLock<Mutex<std::collections::HashSet<String>>> = OnceLock::new();
+    W.get_or_init(|| Mutex::new(std::collections::HashSet::new()))
+}
+
+/// 戻る先・進む先があるかを見始める（#450）。もう見ていれば何もしない。どのスレッドから呼んでもよい。
+/// 見張りは、タブの webview が無くなったらやめる（作る前に呼ばないこと）。
+pub fn watch_history(app: &AppHandle, tab: &str) {
+    if !lock(history_watched()).insert(tab.to_string()) {
+        return;
+    }
+    let (app, tab) = (app.clone(), tab.to_string());
+    std::thread::spawn(move || poll_history(&app, &tab));
+}
+
+fn poll_history(app: &AppHandle, tab: &str) {
+    let mut last: Option<(bool, bool)> = None;
+    loop {
+        match sample(app, tab) {
+            Sample::Missing => {
+                lock(history_watched()).remove(tab);
+                return;
+            }
+            Sample::Busy => {}
+            Sample::Read { back, forward, .. } => {
+                if last != Some((back, forward)) {
+                    last = Some((back, forward));
+                    emit_history(app, tab, back, forward);
+                }
+            }
+        }
+        std::thread::sleep(HISTORY_POLL);
+    }
+}
+
 fn sample(app: &AppHandle, tab: &str) -> Sample {
     let Some(v) = app.get_webview(&crate::browser::label(tab)) else {
         return Sample::Missing;
@@ -175,6 +242,8 @@ fn read(pv: &tauri::webview::PlatformWebview) -> Sample {
     Sample::Read {
         loading: w.is_loading(),
         progress: percent(w.estimated_load_progress()),
+        back: w.can_go_back(),
+        forward: w.can_go_forward(),
     }
 }
 
@@ -184,12 +253,20 @@ fn read(pv: &tauri::webview::PlatformWebview) -> Sample {
     let Some((w, _)) = crate::browser::wk_webview(pv) else {
         return Sample::Missing;
     };
-    // SAFETY: WKWebView の isLoading（BOOL）・estimatedProgress（double）。with_webview の中＝メインスレッド
-    let (loading, progress): (bool, f64) =
-        unsafe { (msg_send![w, isLoading], msg_send![w, estimatedProgress]) };
+    // SAFETY: WKWebView の isLoading・canGoBack・canGoForward（BOOL）・estimatedProgress（double）。with_webview の中＝メインスレッド
+    let (loading, progress, back, forward): (bool, f64, bool, bool) = unsafe {
+        (
+            msg_send![w, isLoading],
+            msg_send![w, estimatedProgress],
+            msg_send![w, canGoBack],
+            msg_send![w, canGoForward],
+        )
+    };
     Sample::Read {
         loading,
         progress: percent(progress),
+        back,
+        forward,
     }
 }
 

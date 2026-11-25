@@ -130,6 +130,8 @@ export function ContentArea(props: {
                   navPage(id, action);
                   focusTerminal();
                 }}
+                canGoBack={shownBrowserTab()?.history?.back ?? false}
+                canGoForward={shownBrowserTab()?.history?.forward ?? false}
                 loading={shownBrowserTab()?.loading?.progress}
                 onStop={() => {
                   stopPage(id);

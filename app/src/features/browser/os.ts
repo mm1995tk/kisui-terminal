@@ -142,6 +142,10 @@ export interface BrowserOs {
   onTabLoading(
     h: (e: { tab: string; loading: boolean; progress: number }) => void,
   ): Promise<Off>;
+  /** 戻る先・進む先があるかが変わった（#450。殻が OS の WebView の履歴を読む）。画面は URL バーの ←・→ の見た目に使う。 */
+  onTabHistory(
+    h: (e: { tab: string; back: boolean; forward: boolean }) => void,
+  ): Promise<Off>;
   /** ページにキーがある間に、修飾キーの無い Esc が押された（#449）。ページにも届く。読み込み中なら止めるのは画面が決める。 */
   onTabEscape(h: (e: { tab: string }) => void): Promise<Off>;
   /** ページの題が変わった。 */
