@@ -10,7 +10,8 @@
 //! - **変える**（[`Edit::Update`]）：渡したキーだけを書き換え、`unset` のキーを消す。渡していないキーは残す
 //!   （窓が知らないキー、たとえば新しい版や手で書いたキーを、窓の書き込みで消さないため）。見分けるキー自身も変えられる。
 //! - **消す**（[`Edit::Remove`]）：`config.local.toml` の項目を消す。`config.toml` の項目は消せない（`config.local.toml` に無いので [`EditError::Missing`]）。
-//! - **残すもの**：ほかの表・ほかの項目・コメント・並び。`[[gui.machines]]` の書き方にも、`machines = [{ ssh = "a" }]` の書き方にも書く。
+//! - **残すもの**：ほかの表・ほかの項目・コメント・並び。`[[gui.machines]]` の書き方にも、`machines = [{ ssh = "a" }]` の書き方（空の `machines = []` も）にも、
+//!   書いてある形のまま書く。一覧が無ければ `[[gui.machines]]` の形で作る。
 //!   項目を消すと、見出しのすぐ上に続けて書いたコメントは項目と一緒に消える。空の行で離したコメントは残す。
 //! - **書く前の確かめ**：書き換えたあとの中身を `check` に渡し、Err なら書かない。マシンは [`edit_machines`] が、窓の読み込み（config.rs）と
 //!   同じ確かめを通す（間違いのある設定を書くと、次の起動で窓が出ないため）。DB の接続の中身を確かめるのは kisui（`config/db.go`）なので、
@@ -136,9 +137,156 @@ fn key_in(list: &List, entry: &toml::Table) -> Result<String, EditError> {
 
 /// 読んだ中身 `doc` の一覧に `edit` を行う。
 fn apply(doc: &mut DocumentMut, list: &List, edit: Edit) -> Result<(), EditError> {
-    let shape = |what: &str| EditError::File(format!("{what} ではありません"));
-    // 何か書いてあるファイルに項目を足すときは、前との間を 1 行空ける
-    let fresh = doc.to_string().trim().is_empty();
+    match edit {
+        Edit::Add(entry) => add(doc, list, &entry),
+        Edit::Update { key, set, unset } => update(doc, list, &key, &set, &unset),
+        Edit::Remove { key } => remove(doc, list, &key),
+    }
+}
+
+/// 形が違うときの理由（`what` ではありません）。
+fn shape(what: &str) -> EditError {
+    EditError::File(format!("{what} ではありません"))
+}
+
+/// 一覧を持つ表（`[gui]`）。無ければ None。表でなければ Err。
+fn parent_of<'a>(doc: &'a mut DocumentMut, list: &List) -> Result<Option<&'a mut Item>, EditError> {
+    match doc.as_table_mut().get_mut(list.table) {
+        None => Ok(None),
+        Some(item) if item.is_table_like() => Ok(Some(item)),
+        Some(_) => Err(shape(&format!("[{}] が表", list.table))),
+    }
+}
+
+/// 一覧の 2 つの書き方。
+enum Entries<'a> {
+    /// `[[gui.machines]]`
+    Tables(&'a mut ArrayOfTables),
+    /// `machines = [{ ssh = "a" }]`（1 行の表の配列。空の配列も）
+    Inline(&'a mut Array),
+}
+
+impl<'a> Entries<'a> {
+    /// 表 `parent` の中の一覧。無ければ None。表の一覧でなければ Err。
+    fn of(parent: &'a mut dyn TableLike, list: &List) -> Result<Option<Self>, EditError> {
+        match parent.get_mut(list.name) {
+            None => Ok(None),
+            Some(Item::ArrayOfTables(a)) => Ok(Some(Entries::Tables(a))),
+            Some(Item::Value(Value::Array(a))) if a.iter().all(Value::is_inline_table) => {
+                Ok(Some(Entries::Inline(a)))
+            }
+            Some(_) => Err(shape(&format!("{}.{} が表の一覧", list.table, list.name))),
+        }
+    }
+
+    /// 見分けるキーが `key` の項目の番号（前後の空白を除いて比べる）。
+    fn find(&self, list: &List, key: &str) -> Option<usize> {
+        let is = |t: &dyn TableLike| key_of(t, list.key).as_deref() == Some(key.trim());
+        match self {
+            Entries::Tables(a) => a.iter().position(|t| is(t)),
+            Entries::Inline(a) => a
+                .iter()
+                .position(|v| v.as_inline_table().is_some_and(|t| is(t))),
+        }
+    }
+
+    /// 後ろに 1 件足す（書いてある形のまま）。
+    fn push(&mut self, list: &List, entry: &toml::Table) {
+        match self {
+            Entries::Tables(a) => a.push(new_table(list, entry, "\n")),
+            Entries::Inline(a) => a.push(Value::InlineTable(new_inline(list, entry))),
+        }
+    }
+}
+
+/// 足す。一覧が無ければ作る。
+fn add(doc: &mut DocumentMut, list: &List, entry: &toml::Table) -> Result<(), EditError> {
+    let key = key_in(list, entry)?;
+    // 何か書いてあるファイルに 1 件目を足すときは、前との間を 1 行空ける
+    let prefix = if doc.to_string().trim().is_empty() {
+        ""
+    } else {
+        "\n"
+    };
+    if doc.as_table().get(list.table).is_none() {
+        // 見出し（`[gui]`）は出さず、`[[gui.machines]]` だけを書く
+        let mut t = Table::new();
+        t.set_implicit(true);
+        doc.as_table_mut().insert(list.table, Item::Table(t));
+    }
+    let parent_item = parent_of(doc, list)?.expect("上で足した");
+    // 表（`[gui]`）の中なら `[[gui.machines]]` の形で、1 行の表（`gui = { … }`）の中なら 1 行の配列で書く
+    let in_table = parent_item.is_table();
+    let parent = parent_item
+        .as_table_like_mut()
+        .expect("parent_of が確かめた");
+    if let Some(mut entries) = Entries::of(parent, list)? {
+        if entries.find(list, &key).is_some() {
+            return Err(EditError::Exists(key));
+        }
+        entries.push(list, entry);
+        return Ok(());
+    }
+    let new = if in_table {
+        let mut a = ArrayOfTables::new();
+        a.push(new_table(list, entry, prefix));
+        Item::ArrayOfTables(a)
+    } else {
+        let mut a = Array::new();
+        a.push(Value::InlineTable(new_inline(list, entry)));
+        Item::Value(Value::Array(a))
+    };
+    parent.insert(list.name, new);
+    Ok(())
+}
+
+/// 変える。`key` の項目の、`set` のキーを書き換え、`unset` のキーを消す。
+fn update(
+    doc: &mut DocumentMut,
+    list: &List,
+    key: &str,
+    set: &toml::Table,
+    unset: &[String],
+) -> Result<(), EditError> {
+    let missing = || EditError::Missing(key.to_string());
+    let parent = parent_of(doc, list)?
+        .and_then(Item::as_table_like_mut)
+        .ok_or_else(missing)?;
+    let entries = Entries::of(parent, list)?.ok_or_else(missing)?;
+    let at = entries.find(list, key).ok_or_else(missing)?;
+    if set.contains_key(list.key) {
+        let new_key = key_in(list, set)?;
+        if entries.find(list, &new_key).is_some_and(|i| i != at) {
+            return Err(EditError::Exists(new_key));
+        }
+    }
+    if unset.iter().any(|k| k == list.key) {
+        return Err(EditError::Entry(format!(
+            "{}.{}: {} は消せません",
+            list.table, list.name, list.key
+        )));
+    }
+    let (entry, as_table): (&mut dyn TableLike, bool) = match entries {
+        Entries::Tables(a) => (a.get_mut(at).expect("上で見つけた"), true),
+        Entries::Inline(a) => (
+            a.get_mut(at)
+                .and_then(Value::as_inline_table_mut)
+                .expect("上で見つけた"),
+            false,
+        ),
+    };
+    for (k, v) in set {
+        set_value(entry, k, v, as_table);
+    }
+    for k in unset {
+        entry.remove(k);
+    }
+    Ok(())
+}
+
+/// 消す。最後の 1 件を消したら、`[[…]]` の一覧は一覧ごと無くす。
+fn remove(doc: &mut DocumentMut, list: &List, key: &str) -> Result<(), EditError> {
+    let missing = || EditError::Missing(key.to_string());
     // 消したあとに、残すコメントを付け替える先を探すため、先に全部の表の場所を見ておく
     let mut positions = Vec::new();
     table_positions(doc.as_table(), &mut positions);
@@ -148,145 +296,36 @@ fn apply(doc: &mut DocumentMut, list: &List, edit: Edit) -> Result<(), EditError
         .iter()
         .any(|(_, i)| i.is_value() || i.as_table().is_some_and(Table::is_dotted));
 
-    let root = doc.as_table_mut();
-    if root.get(list.table).is_none() {
-        let Edit::Add(_) = edit else {
-            return Err(missing(edit));
-        };
-        // 見出し（`[gui]`）は出さず、`[[gui.machines]]` だけを書く
-        let mut t = Table::new();
-        t.set_implicit(true);
-        root.insert(list.table, Item::Table(t));
-    }
-    let parent_item = root.get_mut(list.table).expect("上で足した");
-    // 表（`[gui]`）の中なら `[[gui.machines]]` の形で、1 行の表（`gui = { … }`）の中なら 1 行の配列で書く
-    let in_table = parent_item.is_table();
-    let parent = parent_item
-        .as_table_like_mut()
-        .ok_or_else(|| shape(&format!("[{}] が表", list.table)))?;
-
-    // 空の配列（`machines = []`）は、まだ一覧が無いのと同じに扱う（`[[…]]` の形で書き始められるように）
-    let empty_array =
-        matches!(parent.get(list.name), Some(Item::Value(Value::Array(a))) if a.is_empty());
-    if parent.get(list.name).is_none() || (empty_array && in_table) {
-        let Edit::Add(entry) = edit else {
-            return Err(missing(edit));
-        };
-        key_in(list, &entry)?;
-        let new = if in_table {
-            let mut a = ArrayOfTables::new();
-            a.push(new_table(list, &entry, fresh));
-            Item::ArrayOfTables(a)
-        } else {
-            let mut a = Array::new();
-            a.push(Value::InlineTable(new_inline(list, &entry)));
-            Item::Value(Value::Array(a))
-        };
-        parent.remove(list.name);
-        parent.insert(list.name, new);
-        return Ok(());
-    }
-
-    let whole = format!("{}.{} が表の一覧", list.table, list.name);
-    let item = parent.get_mut(list.name).expect("上で確かめた");
-    let keys: Vec<Option<String>> = match item {
-        Item::ArrayOfTables(a) => a.iter().map(|t| key_of(t, list.key)).collect(),
-        Item::Value(Value::Array(a)) => a
-            .iter()
-            .map(|v| match v.as_inline_table() {
-                Some(t) => Ok(key_of(t, list.key)),
-                None => Err(shape(&whole)),
-            })
-            .collect::<Result<_, _>>()?,
-        _ => return Err(shape(&whole)),
-    };
-    let find = |key: &str| keys.iter().position(|k| k.as_deref() == Some(key.trim()));
-
-    match edit {
-        Edit::Add(entry) => {
-            let key = key_in(list, &entry)?;
-            if find(&key).is_some() {
-                return Err(EditError::Exists(key));
-            }
-            match item {
-                Item::ArrayOfTables(a) => a.push(new_table(list, &entry, false)),
-                Item::Value(Value::Array(a)) => {
-                    a.push(Value::InlineTable(new_inline(list, &entry)))
-                }
-                _ => unreachable!("上で形を確かめた"),
-            }
-        }
-        Edit::Update { key, set, unset } => {
-            let at = find(&key).ok_or_else(|| EditError::Missing(key.clone()))?;
-            if set.contains_key(list.key) {
-                let new_key = key_in(list, &set)?;
-                if find(&new_key).is_some_and(|i| i != at) {
-                    return Err(EditError::Exists(new_key));
-                }
-            }
-            if unset.iter().any(|k| k == list.key) {
-                return Err(EditError::Entry(format!(
-                    "{}.{}: {} は消せません",
-                    list.table, list.name, list.key
-                )));
-            }
-            let (entry, as_table): (&mut dyn TableLike, bool) = match item {
-                Item::ArrayOfTables(a) => (a.get_mut(at).expect("上で見つけた"), true),
-                Item::Value(Value::Array(a)) => (
-                    a.get_mut(at)
-                        .and_then(Value::as_inline_table_mut)
-                        .expect("上で見つけた"),
-                    false,
-                ),
-                _ => unreachable!("上で形を確かめた"),
-            };
-            for (k, v) in &set {
-                set_value(entry, k, v, as_table);
-            }
-            for k in &unset {
-                entry.remove(k);
-            }
-        }
-        Edit::Remove { key } => {
-            let at = find(&key).ok_or_else(|| EditError::Missing(key.clone()))?;
-            let mut removed = None;
-            let now_empty = match item {
-                Item::ArrayOfTables(a) => {
-                    let t = a.get(at).expect("上で見つけた");
-                    let kept = kept_comments(t.decor().prefix().and_then(|p| p.as_str()));
-                    removed = t.position().map(|p| (p, kept));
-                    a.remove(at);
-                    a.is_empty()
-                }
-                Item::Value(Value::Array(a)) => {
-                    // 消した項目の前の空白（改行と字下げ）は、その場所に詰めてくる項目が引き継ぐ
-                    let gone = a.remove(at);
-                    if let (Some(next), Some(prefix)) = (a.get_mut(at), gone.decor().prefix()) {
-                        next.decor_mut().set_prefix(prefix.clone());
-                    }
-                    // 書いた人の `machines = [ … ]` の形は、空になっても残す（空の一覧は、読むときに何もしない）
-                    false
-                }
-                _ => unreachable!("上で形を確かめた"),
-            };
-            if now_empty {
+    let parent = parent_of(doc, list)?
+        .and_then(Item::as_table_like_mut)
+        .ok_or_else(missing)?;
+    let entries = Entries::of(parent, list)?.ok_or_else(missing)?;
+    let at = entries.find(list, key).ok_or_else(missing)?;
+    let mut removed = None;
+    match entries {
+        Entries::Tables(a) => {
+            let t = a.get(at).expect("上で見つけた");
+            let kept = kept_comments(t.decor().prefix().and_then(|p| p.as_str()));
+            removed = t.position().map(|p| (p, kept));
+            a.remove(at);
+            if a.is_empty() {
                 parent.remove(list.name);
             }
-            if let Some((position, kept)) = removed {
-                let at_start = !top_values && positions.iter().all(|&p| p >= position);
-                mend_after_remove(doc, &positions, position, &kept, at_start);
+        }
+        Entries::Inline(a) => {
+            // 消した項目の前の空白（改行と字下げ）は、その場所に詰めてくる項目が引き継ぐ。
+            // 書いた人の `machines = [ … ]` の形は、空になっても残す（空の一覧は、読むときに何もしない）
+            let gone = a.remove(at);
+            if let (Some(next), Some(prefix)) = (a.get_mut(at), gone.decor().prefix()) {
+                next.decor_mut().set_prefix(prefix.clone());
             }
         }
     }
-    Ok(())
-}
-
-/// 一覧が無い（または項目が無い）ときの、変える・消すの答え。
-fn missing(edit: Edit) -> EditError {
-    match edit {
-        Edit::Update { key, .. } | Edit::Remove { key } => EditError::Missing(key),
-        Edit::Add(_) => unreachable!("足すときは一覧を作る"),
+    if let Some((position, kept)) = removed {
+        let at_start = !top_values && positions.iter().all(|&p| p >= position);
+        mend_after_remove(doc, &positions, position, &kept, at_start);
     }
+    Ok(())
 }
 
 /// 項目のキー `key` を `value` にする。前の値があれば、その前後の空白と行末のコメントを残す。
@@ -302,16 +341,14 @@ fn set_value(entry: &mut dyn TableLike, key: &str, value: &toml::Value, as_table
     entry.insert(key, new);
 }
 
-/// 足す項目を、`[[…]]` の 1 件にする。見分けるキーを先頭に書く。前に書いてあるものとの間を 1 行空ける
-/// （`first_in_empty_file`：何も書いていないファイルの 1 件目なら、空けない）。
-fn new_table(list: &List, entry: &toml::Table, first_in_empty_file: bool) -> Table {
+/// 足す項目を、`[[…]]` の 1 件にする。見分けるキーを先頭に書く。`prefix` は、見出しの前に書くもの
+/// （前に書いてあるものとの間を空ける空の行）。
+fn new_table(list: &List, entry: &toml::Table, prefix: &str) -> Table {
     let mut t = Table::new();
     for (k, v) in ordered(list, entry) {
         t.insert(k, to_item(v));
     }
-    if !first_in_empty_file {
-        t.decor_mut().set_prefix("\n");
-    }
+    t.decor_mut().set_prefix(prefix);
     t
 }
 
@@ -552,13 +589,13 @@ mod tests {
             machines(src, add("ssh = \"b\"\nname = \"bee\"")),
             "[[gui.machines]]\nssh = \"a\" # 1 台目\n\n[[gui.machines]]\nssh = \"b\"\nname = \"bee\"\n\n# サーバー\n[server]\nidle_stop_days = 1\n"
         );
-        // 空の配列（machines = []）は、[[…]] の形に書き換えて足す
+        // 空の配列（machines = []）にも、書いた人の形（1 行の配列）のまま足す。行の終わりのコメントも残る
         assert_eq!(
             machines(
-                "[gui]\nmachines = []\nmascot = \"neko\"\n",
+                "[gui]\nmachines = [] # 今は無し\nmascot = \"neko\"\n",
                 add("ssh = \"a\"")
             ),
-            "[gui]\nmascot = \"neko\"\n\n[[gui.machines]]\nssh = \"a\"\n"
+            "[gui]\nmachines = [{ ssh = \"a\" }] # 今は無し\nmascot = \"neko\"\n"
         );
         // 1 行の配列で書いた一覧には、同じ形で足す
         assert_eq!(
