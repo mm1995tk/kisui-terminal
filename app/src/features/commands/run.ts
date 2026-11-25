@@ -256,6 +256,17 @@ export function createCommandRunner(deps: {
     }
   }
 
+  /**
+   * 今出しているタブの種類（無ければ undefined）。リーダーの a で開く窓の種類を決めるのも、
+   * 出している窓を閉じるか（タブの種類が変わったか）を画面が決めるのも、これを使う（決め方を 2 か所に書かない）。
+   */
+  const shownKind = (): TabKind | undefined =>
+    shownTabKind({
+      browser: !!shownBrowserTab(),
+      db: !!deps.db.shownDbTab(),
+      terminal: !!focus(),
+    });
+
   /** キャラクターの読み直し・選び直しの結果。できなかったときは、その理由を伝える */
   function failed(f: Failure) {
     if (f) cannot(f.title, f.error);
@@ -478,11 +489,7 @@ export function createCommandRunner(deps: {
         break;
       case "tab.window": {
         // 今出しているタブの種類の窓を開く。ターミナルのタブの窓を、DB・ブラウザのタブやタブの無い所で開かない
-        const kind = shownTabKind({
-          browser: !!shownBrowserTab(),
-          db: !!deps.db.shownDbTab(),
-          terminal: !!f,
-        });
+        const kind = shownKind();
         if (!kind)
           cannot(T("cannot.tabWindow.title"), T("cannot.tabWindow.noTab"));
         else if (!ui.openTabWindow(kind))
@@ -551,5 +558,5 @@ export function createCommandRunner(deps: {
     }
   }
 
-  return { runCommand, chooseMascot };
+  return { runCommand, chooseMascot, shownTabKind: shownKind };
 }

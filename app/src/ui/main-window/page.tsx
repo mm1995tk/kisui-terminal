@@ -16,10 +16,7 @@ import {
 } from "../../features/commands/commands.ts";
 import { IS_MAC } from "../../features/commands/guiKeys.ts";
 import type { SwitcherStart } from "../../features/commands/run.ts";
-import {
-  shownTabKind,
-  type TabKind,
-} from "../../features/commands/tabWindow.ts";
+import type { TabKind } from "../../features/commands/tabWindow.ts";
 import { placeOf } from "../../features/commands/placeKeys.ts";
 import { createFeatures } from "../../features/compose.ts";
 import type { ConfigMachine } from "../../features/sessions/machines.ts";
@@ -399,11 +396,7 @@ function MainWindow(props: {
       />
       <TabWindows
         open={tabWindow()}
-        shown={shownTabKind({
-          browser: !!pages.shownBrowserTab(),
-          db: !!db.shownDbTab(),
-          terminal: !!workspaces.focus(),
-        })}
+        shown={commands.shownTabKind()}
         onClose={(refocus) => {
           setTabWindow(undefined);
           if (refocus) focusTerminal();
