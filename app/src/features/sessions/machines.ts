@@ -190,6 +190,8 @@ export function filterCandidates(
 export interface ConfigMachine {
   ssh: string;
   name?: string | null;
+  /** どのファイルの項目か（0 が config.toml、1 が config.local.toml。両方にあれば 1）。窓が書き換えられるのは 1 だけ */
+  source?: number;
 }
 
 /**

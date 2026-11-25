@@ -13,6 +13,7 @@ mod browser_proxy;
 mod clipboard_history;
 mod clipboard_popup;
 mod config;
+mod config_list;
 mod connection;
 mod download;
 mod export;
