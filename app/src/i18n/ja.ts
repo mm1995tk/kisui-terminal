@@ -404,7 +404,7 @@ export const ja: Record<Key, string> = {
   "tree.mark.ignored": "無視",
   "tree.truncated": "…（5000 件より先は出していません）",
   "tree.symlink": "シンボリックリンク",
-  "history.label": "クリップボードの履歴",
+  "history.label": "Clipboard history",
   "history.close": "Close",
   "history.filterPlaceholder": "文字を打って絞り込む",
   "history.filter": "絞り込み",
@@ -412,7 +412,7 @@ export const ja: Record<Key, string> = {
   "history.list": "履歴",
   "machineDialog.fixed": "（設定ファイル）",
   "machineDialog.terminalTabs": "ターミナルのタブ {n}",
-  "machineDialog.label": "マシン",
+  "machineDialog.label": "Machines",
   "machineDialog.list": "マシンの一覧",
   "machine.cant.rename.local":
     "{label} は名前を変えられません（「ローカル」です）",
@@ -555,7 +555,7 @@ export const ja: Record<Key, string> = {
   "closeWorkspace.text":
     "{name} のターミナルでプログラムが動いています。閉じると、ターミナルを全部終わらせます。開いているファイルは保存してから閉じます。",
   "closeWorkspace.yes": "End them and close",
-  "askpass.label": "ssh の質問",
+  "askpass.label": "ssh question",
   "askpass.reveal": "表示する（host key の確認は yes / no と打つ）",
   "askpass.cancel": "Cancel",
   "browser.opening": "{url} を開いています…",
@@ -799,7 +799,7 @@ export const ja: Record<Key, string> = {
   "cannot.dbView.title": "テーブルを選んでいません",
   "cannot.dbView.text":
     "出している結果のタブは、テーブルを選んで出したものではありません。先にサイドバーのスキーマの木でテーブルを選んでください。「データ」と「Structure」は、そのテーブルのものです。",
-  "db.password.label": "DB のパスワード",
+  "db.password.label": "Database password",
   "db.password.missing": "{machine} の {connection} のパスワード",
   "db.password.rejected":
     "{machine} の {connection} のパスワードを DB が断りました。もう一度入れてください。",

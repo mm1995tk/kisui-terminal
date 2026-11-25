@@ -113,6 +113,10 @@ const OPERATION_NAME_KEYS: readonly Key[] = [
   "proxy.edit.send",
   "proxy.edit.forward",
   "proxy.edit.cancel",
+  "history.label",
+  "machineDialog.label",
+  "askpass.label",
+  "db.password.label",
 ];
 
 const names = new Set<string>(OPERATION_NAME_KEYS);
