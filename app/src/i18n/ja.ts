@@ -62,6 +62,7 @@ export const ja: Record<Key, string> = {
   "leader.browser.back": "Back",
   "leader.browser.forward": "Forward",
   "leader.browser.reload": "Reload",
+  "leader.browser.stop": "Stop loading",
   "leader.browser.close": "Close tab",
   "leader.browser.external": "Open in the external browser",
   "leader.browser.bookmark": "Bookmark this page",
@@ -543,6 +544,7 @@ export const ja: Record<Key, string> = {
   "newTab.empty.none":
     "ブックマークはまだありません。見ているページを {leader} o b で足せます。",
   "urlBar.label": "アドレスバー",
+  "urlBar.loading": "読み込み中",
   "urlBar.placeholder": "検索語か URL を入力",
   "urlBar.invalid":
     "開けるのは http と https の URL だけです（ユーザー名やパスワードを含むものは開けません）",

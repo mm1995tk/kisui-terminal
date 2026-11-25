@@ -397,6 +397,14 @@ pub fn parse_key(u: &Url, nonce: &str, tab: &str) -> Option<KeyEvent> {
     })
 }
 
+/// ページのスクリプトが知らせた「Esc が押された」（`kisui-key://esc`。nonce が合うもの）か（browser_keys.js）。
+fn is_escape_notice(u: &Url, nonce: &str) -> bool {
+    u.scheme() == KEY_SCHEME
+        && u.host_str() == Some("esc")
+        && !nonce.is_empty()
+        && u.query_pairs().any(|(k, v)| k == "n" && v == nonce)
+}
+
 /// メインの webview にキーを向ける（子の webview にあったキーを、kisui-terminal の画面に戻す）。
 fn focus_main(app: &AppHandle) {
     if let Some(m) = app.get_webview("main") {
@@ -459,6 +467,15 @@ fn on_new_window(
             // 先に知らせてからキーを移す（移したあとに画面に届くキーより前に、このキーを届ける）
             let _ = app.emit(EVENT_KEY, ev);
             focus_main(&app);
+        });
+    } else if is_escape_notice(&u, nonce) {
+        // ページで Esc が押された（browser_keys.js）。止めるかは画面が決める。キーは移さない（ページも Esc を受ける）
+        let tab = tab.to_string();
+        std::thread::spawn(move || {
+            let _ = app.emit(
+                crate::browser_progress::EVENT_ESCAPE,
+                crate::browser_progress::Escape { tab },
+            );
         });
     } else if passkey::is_request(&u, nonce) {
         // ページがパスキーを求めた（browser_passkey.js）。今の URL が許可サイトなら、外のブラウザで開く（passkey.rs）
@@ -659,6 +676,7 @@ fn with_handlers(
     nonce: String,
 ) -> WebviewBuilder<tauri::Wry> {
     let (win_app, win_tab) = (app.clone(), tab.to_string());
+    let (nav_app, nav_tab) = (app.clone(), tab.to_string());
     let (load_app, load_tab) = (app.clone(), tab.to_string());
     let (title_app, title_tab) = (app.clone(), tab.to_string());
     // favicon（#237）：読み込みの終わりと、読み込みの後の題の変化のたびに読みに行く（読み込み中は頼まない）。読み込みが始まったら、それまでの答えを捨てる
@@ -670,7 +688,14 @@ fn with_handlers(
         builder.on_download(move |_, ev| crate::download::on_download(&dl_app, ev))
     };
     builder
-        .on_navigation(may_navigate)
+        .on_navigation(move |u| {
+            let ok = may_navigate(u);
+            if ok {
+                // 遷移が始まった。読み込み中かと進み具合を見始める（browser_progress.rs）
+                crate::browser_progress::watch(&nav_app, &nav_tab);
+            }
+            ok
+        })
         .on_new_window(move |u, f| on_new_window(&win_app, &win_tab, &nonce, u, f))
         .on_page_load(move |w, p| {
             let loading = match p.event() {
@@ -678,6 +703,7 @@ fn with_handlers(
                 PageLoadEvent::Finished => false,
             };
             if loading {
+                crate::browser_progress::watch(&load_app, &load_tab);
                 // ページが替わった。前の読み込みの失敗は、もう無い（画面に片付けさせる。browser_load.rs）
                 crate::browser_load::clear_failure(&load_app, &load_tab);
                 page.started();
@@ -1030,7 +1056,15 @@ pub fn browser_go(
     let u = parse_url(&url)?;
     // 次の読み込みを頼んだので、前の失敗の表示は片付ける（また失敗すれば出直す。browser_load.rs）
     crate::browser_load::clear_failure(&app, &tab);
+    crate::browser_progress::watch(&app, &tab);
     v.navigate(u).map_err(|e| e.to_string())
+}
+
+/// 読み込みを止める（URL バーの「×」・読み込み中の Esc・リーダーの `o c`）。ページは前のまま残る。
+#[tauri::command]
+pub fn browser_stop(app: AppHandle, webview: Webview, tab: String) -> Result<(), String> {
+    from_main(&webview)?;
+    crate::browser_progress::stop(&child(&app, &tab)?)
 }
 
 /// 戻る・進む・読み込み直す。
@@ -1054,6 +1088,7 @@ pub fn browser_nav(
         "reload" => {
             // 次の読み込みを頼んだので、前の失敗の表示は片付ける（また失敗すれば出直す。browser_load.rs）
             crate::browser_load::clear_failure(&app, &tab);
+            crate::browser_progress::watch(&app, &tab);
             v.reload()
         }
         _ => return Err(format!("unknown action: {action:?}")),
@@ -1621,6 +1656,21 @@ mod tests {
         // 時間が経った元のタブは忘れる
         assert!(tabs.allow_popup("t2", t0 + POPUP_WINDOW));
         assert!(!tabs.popups.lock().unwrap().contains_key("t1"));
+    }
+
+    // ページの Esc の知らせ（#449）は、nonce が合うものだけ受ける。キーの知らせ（host が key）とは別
+    #[test]
+    fn escape_notices_need_the_nonce() {
+        let u = |s: &str| Url::parse(s).unwrap();
+        assert!(is_escape_notice(&u("kisui-key://esc?n=abc"), "abc"));
+        assert!(!is_escape_notice(&u("kisui-key://esc?n=abd"), "abc"));
+        assert!(!is_escape_notice(&u("kisui-key://esc"), "abc"));
+        assert!(!is_escape_notice(&u("kisui-key://esc?n="), ""));
+        assert!(!is_escape_notice(
+            &u("kisui-key://key?n=abc&k=a&m=0"),
+            "abc"
+        ));
+        assert!(!is_escape_notice(&u("https://esc/?n=abc"), "abc"));
     }
 
     // ページが自分を閉じた知らせは、nonce が合うものだけ受ける

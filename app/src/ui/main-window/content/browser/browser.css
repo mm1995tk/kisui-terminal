@@ -142,6 +142,16 @@
   background: var(--gh-bg-raised);
   border-bottom: 1px solid var(--gh-border);
 }
+/* 読み込み中の進み具合の線（#449）。バーの下の端に、バーの中だけで出す（ページはずらさず、重ねもしない） */
+.url-bar-progress {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--gh-accent);
+  transition: width 0.2s ease-out;
+  pointer-events: none;
+}
 .url-bar-button {
   flex: none;
   padding: 2px 8px;
