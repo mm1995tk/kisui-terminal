@@ -13,12 +13,21 @@ import { WorkspaceKindPicker } from "./WorkspaceKindPicker.tsx";
 import { WorkspaceSwitcher } from "./WorkspaceSwitcher.tsx";
 import { TabMovePicker } from "./TabMovePicker.tsx";
 
+/**
+ * ワークスペースの窓を開いたときの初めの状態。リーダーの w・t・n（SwitcherStart）と、
+ * マシンのダイアログの Enter（terminalOn。今のワークスペースで、そのマシンを設定したターミナルのタブを作る行を出しておく。#461）。
+ */
+export type SwitcherOpen = SwitcherStart | { terminalOn: string };
+
+const terminalOn = (o: SwitcherOpen | undefined): string | undefined =>
+  typeof o === "object" ? o.terminalOn : undefined;
+
 /** ワークスペースとタブにかかわる窓をまとめて出す。出していない窓は何も描かない。 */
 export function WorkspaceDialogs(props: {
   workspaces: Workspaces;
   tabs: Tabs;
-  /** ワークスペースの窓を出しているか（出していれば、開いたときの初めの状態。リーダーの w は ws、t は tab、n は newTab） */
-  switcherOpen: SwitcherStart | undefined;
+  /** ワークスペースの窓を出しているか（出していれば、開いたときの初めの状態。リーダーの w は ws、t は tab、n は newTab。マシンのダイアログの Enter は terminalOn） */
+  switcherOpen: SwitcherOpen | undefined;
   onCloseSwitcher: () => void;
   /** マシンの色（マシンの名前 → 色。タブを作る行のマシンに付ける） */
   colors: Record<string, string>;
@@ -90,6 +99,7 @@ export function WorkspaceDialogs(props: {
         <WorkspaceSwitcher
           initialCol={props.switcherOpen === "ws" ? "ws" : "tab"}
           initialNewTab={props.switcherOpen === "newTab"}
+          initialTerminal={terminalOn(props.switcherOpen)}
           rows={rows()}
           onGo={(r) => {
             closeSwitcher();

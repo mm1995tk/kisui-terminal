@@ -26,9 +26,11 @@ export type NewTabListKey =
 /**
  * 名前の入力欄のキー。変換中のキー（変換を確定する Enter・取り消す Esc・変換候補を選ぶ Tab と ↓ を含む）は何もしない。
  * Ctrl・Cmd・Alt を重ねたものは受けない（Tab は Shift だけ重ねてよい）。
+ * 押したままのリピートの Enter では決めない（行を出した Enter（種類の一覧・マシンのダイアログ）を押したままにして、空の名前で作らないように）。
  */
 export function newTabInputKey(e: KeyLike): NewTabInputKey | null {
   if (isComposingKey(e)) return null;
+  if (e.key === "Enter" && e.repeat) return null;
   if (e.ctrlKey || e.metaKey || e.altKey) return null;
   if (e.key === "Tab")
     return { kind: "machine", to: e.shiftKey ? "prev" : "next" };

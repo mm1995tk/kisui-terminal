@@ -38,6 +38,13 @@ describe("タブを作る行の、名前の入力欄のキー", () => {
     assert.deepEqual(newTabInputKey(key("Escape")), { kind: "cancel" });
   });
 
+  it("押したままのリピートの Enter では作らない（行を出した Enter を押したままでも、空の名前で作らない。#461）", () => {
+    assert.equal(newTabInputKey(key("Enter", { repeat: true })), null);
+    assert.deepEqual(newTabInputKey(key("Enter", { repeat: false })), {
+      kind: "submit",
+    });
+  });
+
   it("字（j n N など）は受けない（入力欄にそのまま打てる）", () => {
     for (const k of ["j", "n", "N", "x", " "])
       assert.equal(newTabInputKey(key(k)), null);

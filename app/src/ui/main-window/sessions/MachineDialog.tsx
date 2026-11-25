@@ -1,5 +1,6 @@
 // マシンのダイアログ（リーダーの `m`）。すべてのマシンを、つながりの状態とワークスペースの数と一緒に並べ、
 // マシンを足す・名前を変える・外す・切る・つなぎ直す（今すぐつなぐ）を、キーで行う。
+// Enter は、選んだマシンを設定したターミナルのタブ作成を、ワークスペースの窓で始める（#461。窓を開くのは呼んだ側）。
 // 足す窓は、これを出したまま、その上に出す（呼んだ側。SessionDialogs.tsx）。名前は、選んだ行をその場で入力欄にして変える。
 // キーの決まりは machineList.ts と docs/key-design.md。
 import { T } from "../../../i18n/index.ts";
@@ -108,6 +109,8 @@ export function MachineDialog(props: {
   initial?: string;
   /** 足す（窓は呼んだ側が出す） */
   onAdd: () => void;
+  /** 今のワークスペースがあるか（無ければ Enter のタブ作成は始めず、理由を出す） */
+  hasWorkspace: boolean;
   /** 選んだマシンへの操作。できると確かめたあとで呼ぶ */
   onAct: (action: Exclude<MachineAction, "add">, row: MachineRow) => void;
   /** 名前を変えている行（無ければ null か undefined） */
@@ -153,9 +156,14 @@ export function MachineDialog(props: {
     } else {
       const r = sel.selected();
       if (!r) return;
-      const why = canDo(r, k.action);
-      if (why) setNote(why);
-      else props.onAct(k.action, r);
+      const why = canDo(r, k.action, props.hasWorkspace);
+      if (why) {
+        setNote(why);
+        return;
+      }
+      // ワークスペースの窓を開く Enter を、ほかのキーの受け手に届かせない（開いた窓の作成の確定まで伝わらないように）
+      if (k.action === "newTab") e.stopPropagation();
+      props.onAct(k.action, r);
     }
   }
 
@@ -165,14 +173,17 @@ export function MachineDialog(props: {
       width={640}
       onCancel={props.onCancel}
       footer={
-        // 足す・名前を変える・外す・切る・つなぎ直す（a n d x r）は、`?` の一覧に出す
+        // 足す・名前を変える・外す・切る・つなぎ直す（a n d x r）は、`?` の一覧に出す。Enter（タブを作る）は下の段にも出す
         <KeyFooter
           note={
             <Show when={note()}>
               {(n) => <CardText role="alert">{n()}</CardText>}
             </Show>
           }
-          items={basicHints({ end: "close" })}
+          items={basicHints({
+            decide: T("machineDialog.keys.newTab"),
+            end: "close",
+          })}
           actions={
             <Button onClick={props.onCancel}>{T("button.close")}</Button>
           }
