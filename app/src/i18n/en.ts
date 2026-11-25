@@ -615,8 +615,8 @@ export const en = {
   "configError.hint": "Fix it, then start kisui-terminal again.",
   "sidebar.noFolder": "(no folder yet)",
   "sidebar.noGit": "no git",
-  "terminal.shellExited":
-    "[The shell has exited. Press Enter to open a new shell]",
+  "terminal.commandExited":
+    "[The command has exited. Press Enter to open a shell]",
   "toast.copied": "Copied",
   "toast.bookmarked": "Bookmarked",
   "toast.browser.login":

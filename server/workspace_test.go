@@ -1,10 +1,12 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
 	"time"
 
@@ -327,16 +329,77 @@ func TestWorkspaceCloseBusyWhenProgramRuns(t *testing.T) {
 	}
 }
 
-// ワークスペースは、シェルがいなくなっても消えない。
-func TestWorkspaceStaysWhenPrimaryExits(t *testing.T) {
-	_, sock := startFast(t)
-	c, nt := termClient(t, sock)
+// ターミナルがプライマリしか無いワークスペースは、そのシェルが終わると閉じる（#453。画面ではターミナルのタブが閉じる）。
+// exit でも Ctrl+D（EOF）でも同じ。ほかのワークスペースは残り、保存した一覧（次の起動で作り直すもの）からも消える。
+func TestWorkspaceClosesWhenPrimaryShellExits(t *testing.T) {
+	for name, input := range map[string]string{"exit": "exit\n", "ctrl+d": "\x04"} {
+		t.Run(name, func(t *testing.T) {
+			t.Setenv("HOME", normalizePath(t.TempDir()))
+			state := filepath.Join(t.TempDir(), "workspaces.json")
+			srv, sock := startFastWith(t, func(o *Options) { o.StatePath = state })
+			c, nt := termClient(t, sock)
+			ctx := context.Background()
+			id, primary := createWS(t, c)
+			other, _ := createWS(t, c)
+			waitFor(t, "two saved", func() bool {
+				l, err := loadState(state)
+				return err == nil && len(l) == 2
+			})
+			// シェルがプロンプトを出して入力を読むようになってから送る（Ctrl+D は、読む前に届くと EOF にならない）
+			c.Call(ctx, "term.input", map[string]any{"termId": primary, "data": b64("printf 'rea''dy\\n'\n")}, nil)
+			waitFor(t, "shell reads", func() bool {
+				out, _ := nt.output(t, primary)
+				return bytes.Contains(out, []byte("ready"))
+			})
+			c.Call(ctx, "term.input", map[string]any{"termId": primary, "data": b64(input)}, nil)
+			waitFor(t, "removed", func() bool {
+				for _, raw := range nt.all("workspace.changed") {
+					var m struct{ Removed []string }
+					if json.Unmarshal(*raw, &m); len(m.Removed) == 1 && m.Removed[0] == id {
+						return true
+					}
+				}
+				return false
+			})
+			l := listWS(t, c)
+			if l.find(id) != nil || l.find(other) == nil {
+				t.Errorf("list: %+v", l)
+			}
+			if _, err := srv.terms.get(primary); err == nil {
+				t.Error("the terminal of the closed workspace is still there")
+			}
+			// 終わったターミナルは開き直せない（タブはもう無い）
+			if err := c.Call(ctx, "term.restart", map[string]any{"termId": primary}, nil); !isCode(err, rpc.CodeNotFound) {
+				t.Errorf("restart after the tab closed: %v", err)
+			}
+			waitFor(t, "one saved", func() bool {
+				l, err := loadState(state)
+				return err == nil && len(l) == 1 && l[0].ID == other
+			})
+		})
+	}
+}
+
+// つながっている GUI が無い間にシェルが終わっても、serve がワークスペースを閉じる。あとからつないだ GUI の一覧に、
+// 終わったタブは出ない。
+func TestWorkspaceClosesWhileNoClient(t *testing.T) {
+	srv, sock := startFast(t)
+	c, _ := termClient(t, sock)
 	id, primary := createWS(t, c)
-	c.Call(context.Background(), "term.input", map[string]any{"termId": primary, "data": b64("exit\n")}, nil)
-	waitFor(t, "exit", func() bool { return nt.find("term.exit") != nil })
-	time.Sleep(100 * time.Millisecond)
-	if listWS(t, c).find(id) == nil {
-		t.Error("the workspace went with its shell")
+	other, _ := createWS(t, c)
+	tm, err := srv.terms.get(primary)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Close()
+	_, p := tm.proc()
+	if err := p.Signal(syscall.SIGHUP); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "closed without a client", func() bool { return srv.ws.count() == 1 })
+	c2, _ := termClient(t, sock)
+	if l := listWS(t, c2); l.find(id) != nil || l.find(other) == nil {
+		t.Errorf("list after reconnecting: %+v", l)
 	}
 }
 

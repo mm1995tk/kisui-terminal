@@ -452,3 +452,48 @@ func TestAdoptedShellExitForgetsProcess(t *testing.T) {
 		return !tm.isAlive() && proc == nil
 	})
 }
+
+// 引き継いだあとも、プライマリのシェルが終わるとワークスペースが閉じ、kisui pane open のコマンドが終わったワークスペースは
+// 残る（terminal.keepOnExit を引き継ぐ。#453）。
+func TestHandoverKeepsExitRule(t *testing.T) {
+	t.Setenv("HOME", normalizePath(t.TempDir()))
+	_, sock := startFast(t)
+	c, _ := termClient(t, sock)
+	ctx := context.Background()
+	shellWS, shellTerm := createWS(t, c)
+	hold := filepath.Join(t.TempDir(), "hold")
+	if err := os.WriteFile(hold, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var cmd struct {
+		ID     string `json:"id"`
+		TermID string `json:"termId"`
+	}
+	argv := []string{"/bin/sh", "-c", `while [ -e "$0" ]; do sleep 0.05; done`, hold}
+	if err := c.Call(ctx, "workspace.create", map[string]any{"argv": argv, "name": "worker"}, &cmd); err != nil {
+		t.Fatal(err)
+	}
+	handOver(t, c, sock)
+	c2, nt2 := termClient(t, sock)
+	if err := os.Remove(hold); err != nil {
+		t.Fatal(err)
+	}
+	if err := c2.Call(ctx, "term.input", map[string]any{"termId": shellTerm, "data": b64("exit\n")}, nil); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "the workspace of the shell closes", func() bool { return listWS(t, c2).find(shellWS) == nil })
+	waitFor(t, "the command ends", func() bool {
+		for _, m := range nt2.all("term.exit") {
+			var p map[string]any
+			json.Unmarshal(*m, &p)
+			if p["termId"] == cmd.TermID {
+				return true
+			}
+		}
+		return false
+	})
+	time.Sleep(100 * time.Millisecond)
+	if w := listWS(t, c2).find(cmd.ID); w == nil || w.Primary != cmd.TermID {
+		t.Errorf("the workspace of the ended command: %+v", w)
+	}
+}

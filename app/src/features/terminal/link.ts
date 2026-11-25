@@ -14,9 +14,14 @@
 //   つなぐ（seq 以前の分は書き出しに入っているので捨てる）。
 // - bind した画面は、最初の書き出しを書き終えるまで中身が空（カーソルだけ）。書き終えたら（取り直せなかったときも）
 //   TermSink.drawn で知らせる。画面はそれまで見せない（タブを切り替えた直後に空のペインが見えないように。TerminalGrid）。
-// - プライマリターミナルのシェルが終わっても欄は閉じず、知らせを出して Enter で term.restart する
-//   （ワークスペースのフォルダ、未定なら start_dir で始まる。termId はそのまま）。分割したターミナルのシェルが
-//   終わったら、onExit で知らせる（並べた欄から外すため。F4）。
+// - プライマリターミナルのシェルが終わったら、serve がターミナルのタブ（serve のワークスペース）ごと閉じるので
+//   （分割したターミナルがあれば、その 1 つをプライマリにする。#453）、ここでは知らせも出さず、何も待たない。
+//   ターミナルが serve から無くなったと分かったら（term.attach などが not_found）、Enter にも応えない。
+//   欄は、ワークスペースの一覧から消えたときに TermGroup が外す。
+// - 終わってもプライマリの欄が残るのは、kisui pane open のコマンドが終わったとき（出力を読めるように残す）と、
+//   古い serve のとき。このときだけ知らせを出して、Enter で term.restart する（ワークスペースのフォルダ、
+//   未定なら start_dir でシェルが始まる。termId はそのまま）。
+// - 分割したターミナルのシェルが終わったら、onExit で知らせる（並べた欄から外すため。F4）。
 //
 // DOM を使わないので node --test で確かめられる。画面は TermSink、shj は TermPort で差し替える。
 
@@ -52,9 +57,9 @@ export interface TermSink {
 /** 大きさが分からないうちの大きさ。 */
 export const DEFAULT_SIZE = { cols: 80, rows: 24 };
 
-/** シェルが終わったときに画面に出す知らせ。 */
+/** 終わってもプライマリの欄が残ったとき（kisui pane open のコマンドが終わった）に画面に出す知らせ。 */
 export const exitedNotice = (): string =>
-  `\r\n${T("terminal.shellExited")}\r\n`;
+  `\r\n${T("terminal.commandExited")}\r\n`;
 
 /**
  * ターミナル 1 つと、それを描く画面をつなぐ。ターミナル 1 つにつき 1 つ作り（並びは TermGroup が持つ）、
@@ -66,7 +71,7 @@ export class TermLink {
   private readonly onError: (message: string) => void;
   private sink?: TermSink;
   private readonly termId: TermId;
-  /** ワークスペースのプライマリターミナルか（終わっても欄を閉じず、Enter で作り直す）。分割したターミナルが昇格すると true になる */
+  /** ワークスペースのプライマリターミナルか（終わったあとの始末は serve がする。分割したターミナルは onExit で外す）。分割したターミナルが昇格すると true になる */
   primary: boolean;
   /** 画面に渡した分の seq（バイト数の累計） */
   private received = 0;
@@ -79,6 +84,8 @@ export class TermLink {
   /** restoring の間に欠けを見つけた。書き終えたら 1 回だけ取り直す */
   private gapPending = false;
   private exited = false;
+  /** serve にこのターミナルがもう無い（タブごと閉じた）。作り直せないので、知らせも出さず Enter にも応えない */
+  private gone = false;
   /** term.restart の返事待ち（Enter を続けて押しても 1 回だけ送る） */
   private restarting = false;
   private cols = DEFAULT_SIZE.cols;
@@ -102,7 +109,7 @@ export class TermLink {
     this.primary = opts.primary ?? false;
   }
 
-  /** シェルが終わったか（Enter で作り直す前）。 */
+  /** プロセスが終わったか（残った欄を Enter で作り直す前）。 */
   get hasExited(): boolean {
     return this.exited;
   }
@@ -155,7 +162,8 @@ export class TermLink {
   input(data: Uint8Array): void {
     const id = this.termId;
     if (this.exited) {
-      if (this.primary && data.includes(13)) void this.restart();
+      // 残った欄（kisui pane open のコマンドが終わった）だけ、Enter で新しいシェルを開く
+      if (this.primary && !this.gone && data.includes(13)) void this.restart();
       return;
     }
     // 取り直しの最中でも送る（PTY に書くだけで取り直しとは関係ない。`yes` を止める Ctrl+C を落とさない）
@@ -176,6 +184,8 @@ export class TermLink {
         this.exited = true;
         void this.attach(this.op).then((r) => {
           if (!this.exited) return;
+          // serve がタブごと閉じたら、ターミナルはもう無い（not_found）。残っているときだけ作り直せる
+          if (r === "missing") this.gone = true;
           if (r === "ok" && this.primary) this.sink?.notice(exitedNotice());
           if (!this.primary) this.onExit?.();
         });
@@ -220,14 +230,16 @@ export class TermLink {
     const r = await this.attach(op);
     if (op !== this.op) return;
     const wasExited = this.exited;
+    if (r === "ok") this.gone = false;
     // 外している間・切れている間に終わったシェルは term.exit が届かないので、生きているかを確かめる
     if (r === "ok" && !wasExited) await this.checkAlive(op);
     if (op !== this.op) return;
     // 前から終わっていたものは、取り直して描き直した画面にもう一度出す（checkAlive で知ったときはそちらが出す）
     if (r === "ok" && wasExited && this.primary)
       this.sink?.notice(exitedNotice());
-    // shj にターミナルが無い（shj が作り直された）。欄は、ワークスペースが一覧から消えるまで残る
-    if (r === "missing") this.markExited();
+    // serve にターミナルが無い（外している間・切れている間にシェルが終わってタブが閉じた。serve が作り直された）。
+    // 欄は、ワークスペースが一覧から消えるまで残る
+    if (r === "missing") this.markExited(true);
   }
 
   /** シェルが終わったあと。プライマリターミナルは term.restart で同じ termId に新しいシェルを始める。 */
@@ -313,12 +325,16 @@ export class TermLink {
     return ++this.op;
   }
 
-  /** シェルが終わったことにして知らせる（もう知っていれば何もしない）。 */
-  private markExited(): void {
+  /**
+   * プロセスが終わったことにして知らせる（もう知っていれば何もしない）。gone は、serve にターミナルがもう無い
+   * （作り直せないので、プライマリでも知らせを出さない）。
+   */
+  private markExited(gone = false): void {
+    if (gone) this.gone = true;
     if (this.exited) return;
     this.exited = true;
-    if (this.primary) this.sink?.notice(exitedNotice());
-    else this.onExit?.();
+    if (!this.primary) this.onExit?.();
+    else if (!gone) this.sink?.notice(exitedNotice());
   }
 
   /** つないだターミナルが term.list で生きているかを確かめ、終わっていれば知らせる。 */
@@ -327,8 +343,8 @@ export class TermLink {
     try {
       const { terms } = await this.port.request("term.list", {});
       if (op !== this.op) return;
-      const t = terms.find((t) => t.termId === id && t.alive);
-      if (!t) this.markExited();
+      const t = terms.find((t) => t.termId === id);
+      if (!t?.alive) this.markExited(!t);
       // 別の大きさの画面で使っていたターミナルに切り替えたときは、こちらの大きさに合わせる
       else this.sendSize(t.cols, t.rows);
     } catch (e) {
@@ -336,10 +352,14 @@ export class TermLink {
     }
   }
 
-  /** term.input・term.resize が失敗した。not_found はシェルが終わったもの（term.exit を受け損ねた）。 */
+  /**
+   * term.input・term.resize が失敗した。not_found はプロセスが終わったもの（term.exit を受け損ねた）。serve は、
+   * ターミナルが無いときも、終わったターミナルが残っているときも not_found を返すので、term.list で確かめる
+   * （残っていれば作り直せる）。
+   */
   private failed(method: string, id: TermId, e: unknown): void {
     if (e instanceof RpcError && e.code === ErrorCode.NotFound) {
-      this.markExited();
+      if (!this.exited) void this.checkAlive(this.op);
       return;
     }
     this.onError(`${method}: ${message(e)}`);

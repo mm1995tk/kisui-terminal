@@ -402,7 +402,7 @@ describe("TermGroup", () => {
     assert.ok(!f.calls.some((c) => c.method === "term.close"));
   });
 
-  it("プライマリターミナルのシェルが終わっても欄を閉じず、Enter で作り直せる", async () => {
+  it("プライマリターミナルのコマンド（kisui pane open）が終わって欄が残ったら、Enter で作り直せる", async () => {
     const f = fakePort();
     const g = new TermGroup(f.port, layout(["t2"]), () => {});
     const sinks = bindAll(g) as Map<unknown, TermSink & { text: string }>;

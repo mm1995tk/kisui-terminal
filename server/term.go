@@ -98,6 +98,13 @@ func (m *termManager) shutdown() {
 	m.wg.Wait()
 }
 
+// stopping は shutdown が始まったか（以後に終わるシェルは、shutdown が終わらせたもの）。
+func (m *termManager) stopping() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.closed
+}
+
 type terminal struct {
 	mgr  *termManager
 	id   string
@@ -112,10 +119,13 @@ type terminal struct {
 	// inputMu は kisui pane send / keys の入力を 1 つずつにする（2 つの頼みの文字とキーが混ざらないように）。
 	inputMu sync.Mutex
 
-	mu         sync.Mutex
-	cwd        string // シェルの今の cwd（workspace.go が更新）
-	wsID       string // 属するワークスペース（作るときに決まり、cwd が変わっても変わらない）
-	primary    bool   // ワークスペースのプライマリターミナル
+	mu      sync.Mutex
+	cwd     string // シェルの今の cwd（workspace.go が更新）
+	wsID    string // 属するワークスペース（作るときに決まり、cwd が変わっても変わらない）
+	primary bool   // ワークスペースのプライマリターミナル
+	// keepOnExit は、プライマリで動いているのが kisui pane open のコマンド（シェルではない）。終わっても欄を閉じず、
+	// 出力を残す（wsManager.primaryExited）。term.restart でシェルを始めたら false
+	keepOnExit bool
 	token      string // 欄の中のコマンド（kisui open など）が名乗る秘密（panecmd.EnvToken）。古い版から引き継いだターミナルでは空
 	cols, rows int
 	title      string
@@ -222,7 +232,7 @@ type termStart struct {
 	env        []string
 	wsID       string
 	primary    bool
-	argv       []string // 空でなければ、シェルの代わりに動かすコマンド（kisui pane split のコマンド）。終わると欄も閉じる
+	argv       []string // 空でなければ、シェルの代わりに動かすコマンド（kisui pane split・kisui pane open のコマンド）。分割した欄は終わると閉じ、プライマリは残る（keepOnExit）
 	name       string   // 欄の名前（kisui pane split --name）。呼ぶ側が nameMu を持って、重ならないことを確かめておく
 }
 
@@ -281,7 +291,7 @@ func (m *termManager) start(a termStart) (*terminal, error) {
 	t := &terminal{
 		mgr: m, id: fmt.Sprintf("t%d", m.next), pid: sess.Pid(),
 		ptmx: ptmx, cmd: cmd, process: cmd.Process, cols: a.cols, rows: a.rows, alive: true,
-		ring: make([]byte, ringSize), wsID: a.wsID, primary: a.primary, token: token, name: a.name,
+		ring: make([]byte, ringSize), wsID: a.wsID, primary: a.primary, keepOnExit: a.primary && len(a.argv) > 0, token: token, name: a.name,
 		feed: newScreenFeed(m.srv.log, a.rows, a.cols),
 	}
 	t.cwd = normalizePath(a.dir) // 以後 cwd の変化を見るので、読み取った値（実パス）に合わせる
@@ -396,6 +406,7 @@ func (m *termManager) restart(t *terminal) (any, error) {
 	ptmx, cmd := pollable(sess.File(), m.srv.log), sess.Cmd()
 	t.mu.Lock()
 	t.ptmx, t.cmd, t.process, t.pid, t.alive = ptmx, cmd, cmd.Process, sess.Pid(), true
+	t.keepOnExit = false // 始めたのはシェル。終わればタブを閉じる
 	t.cwd = normalizePath(dir)
 	t.osc = oscScan{}
 	cwd, pid := t.cwd, t.pid
@@ -482,8 +493,9 @@ func (t *terminal) pump(ptmx *os.File, cmd *exec.Cmd, p *os.Process) {
 	}
 	t.mu.Unlock()
 	t.flush() // 最後の出力が先に届くように
-	// プライマリのシェルが終わり、分割したターミナルがあれば、その 1 つをプライマリにして元の欄を閉じる
-	t.mgr.srv.ws.promote(t)
+	// プライマリのシェルが終わったら、分割したターミナルの 1 つをプライマリにして元の欄を閉じる。
+	// 分割したターミナルが無ければ、ワークスペース（画面ではターミナルのタブ）を閉じる（kisui pane open のコマンドは残す）
+	t.mgr.srv.ws.primaryExited(t)
 	t.mgr.srv.notifyOwner("term.exit", exit)
 	t.mgr.srv.ws.recompute()
 	t.mgr.srv.log.Info("term exited", "termId", t.id, "code", exit["code"])

@@ -610,8 +610,8 @@ export const ja: Record<Key, string> = {
   "configError.hint": "直してから、kisui-terminal を起動し直してください。",
   "sidebar.noFolder": "（フォルダ未定）",
   "sidebar.noGit": "git なし",
-  "terminal.shellExited":
-    "[シェルが終わりました。Enter で新しいシェルを開きます]",
+  "terminal.commandExited":
+    "[コマンドが終わりました。Enter でシェルを開きます]",
   "toast.copied": "コピーしました",
   "toast.bookmarked": "ブックマークに足しました",
   "toast.browser.login":
