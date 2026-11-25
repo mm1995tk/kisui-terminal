@@ -928,7 +928,8 @@ pub fn browser_bounds(
 /// `x`・`y`・`w`・`h` は、画面（メインの webview）の左上からの論理ピクセル（画面の DOM で測った場所）。
 /// wry の子の webview は、置く場所を「親の view の高さ」から数える（`window_position`）ので、親の view の枠が画面の枠と
 /// 食い違うと（フルスクリーンでない窓で、タイトルバーの高さだけ）、ページが上にずれて URL バーを覆う（#326）。
-/// そこで、画面の枠を窓の座標に直し、そこから数え直した場所を、子の view の親の座標に直して当てる。
+/// そこで、画面の枠を窓の座標に直し（`screen_frame_in_window`。安全な領域の分だけ内側に縮めた枠）、そこから数え直した場所を、
+/// 子の view の親の座標に直して当てる。
 /// どの view が親でも、画面と同じ場所に出る。メインの webview や子の view が見つからないときは、wry が置いたままにする。
 #[cfg(target_os = "macos")]
 fn align_to_main(app: &AppHandle, child: &Webview, x: f64, y: f64, w: f64, h: f64) {
@@ -942,27 +943,7 @@ fn align_to_main(app: &AppHandle, child: &Webview, x: f64, y: f64, w: f64, h: f6
     let main_rect: Arc<Mutex<Option<(WindowRect, Insets)>>> = Arc::new(Mutex::new(None));
     let slot = main_rect.clone();
     let r = main.with_webview(move |pv| {
-        let Some((mv, _)) = wk_webview(&pv) else {
-            log_skipped("the screen's view was not found");
-            return;
-        };
-        let view: &NSView = mv;
-        // SAFETY: メインスレッドで、生きている view の親を読むだけ
-        let Some(parent) = (unsafe { view.superview() }) else {
-            log_skipped("the screen's view has no parent");
-            return;
-        };
-        let f = parent.convertRect_toView(view.frame(), None);
-        // 窓のタイトルバーの下まで広がった view では、WebKit がページの中身を安全な領域（safeAreaInsets）の分だけ内側へ
-        // 下げる。DOM で測った場所はその内側の左上からなので、枠ではなく内側から数える（#326。フルスクリーンでは 0）
-        let ins = safe_insets(view);
-        let frame = WindowRect {
-            x: f.origin.x,
-            y: f.origin.y,
-            w: f.size.width,
-            h: f.size.height,
-        };
-        *slot.lock().unwrap() = Some((inset_rect(frame, ins), ins));
+        *slot.lock().unwrap() = screen_frame_in_window(&pv);
     });
     if let Err(e) = r {
         eprintln!("kisui-terminal: cannot read the screen's frame: {e}");
@@ -995,6 +976,36 @@ fn align_to_main(app: &AppHandle, child: &Webview, x: f64, y: f64, w: f64, h: f6
     if let Err(e) = r {
         eprintln!("kisui-terminal: cannot align the page: {e}");
     }
+}
+
+/// 画面（メインの webview）の、窓の座標での枠（原点は左下）と、その view の安全な領域の余白。読めなければ理由をログに出して None。
+///
+/// 窓のタイトルバーの下まで広がった view では、WebKit がページの中身を安全な領域（`safeAreaInsets`）の分だけ内側へ下げる。
+/// DOM で測った場所はその内側の左上からなので、枠ではなく内側から数える（#326。フルスクリーンでは余白が 0）。
+/// `with_webview` の閉包（メインスレッド）の中で呼ぶ。
+#[cfg(target_os = "macos")]
+fn screen_frame_in_window(pv: &tauri::webview::PlatformWebview) -> Option<(WindowRect, Insets)> {
+    use objc2_app_kit::NSView;
+
+    let Some((mv, _)) = wk_webview(pv) else {
+        log_skipped("the screen's view was not found");
+        return None;
+    };
+    let view: &NSView = mv;
+    // SAFETY: メインスレッドで、生きている view の親を読むだけ
+    let Some(parent) = (unsafe { view.superview() }) else {
+        log_skipped("the screen's view has no parent");
+        return None;
+    };
+    let f = parent.convertRect_toView(view.frame(), None);
+    let ins = safe_insets(view);
+    let frame = WindowRect {
+        x: f.origin.x,
+        y: f.origin.y,
+        w: f.size.width,
+        h: f.size.height,
+    };
+    Some((inset_rect(frame, ins), ins))
 }
 
 /// Mac で確かめる手がかり：補正した量をログに出す。ずれの大きさ（now と want の差）が前に出したものと違うときだけ出す
