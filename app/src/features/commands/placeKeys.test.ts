@@ -286,10 +286,10 @@ describe("basicHints（窓の下の段の基本操作）", () => {
     setLang("ja");
     const label = (o: Parameters<typeof basicHints>[0], key: string) =>
       basicHints(o).find((h) => h.keys[0] === key)?.label;
-    assert.equal(label({ end: "cancel" }, "j"), "選ぶ");
-    assert.equal(label({ end: "cancel" }, "?"), "キーの一覧");
-    assert.equal(label({ end: "cancel" }, "Esc"), "やめる");
-    assert.equal(label({ end: "close" }, "Esc"), "閉じる");
+    assert.equal(label({ end: "cancel" }, "j"), "select");
+    assert.equal(label({ end: "cancel" }, "?"), "key list");
+    assert.equal(label({ end: "cancel" }, "Esc"), "cancel");
+    assert.equal(label({ end: "close" }, "Esc"), "close");
     setLang("en");
   });
 });

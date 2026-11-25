@@ -1,6 +1,7 @@
 import { afterEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { DEFAULT_LANG, lang, setLang, T, tableOf } from "./index.ts";
+import { isOperationNameKey } from "./operationNames.ts";
 
 afterEach(() => setLang(undefined));
 
@@ -43,6 +44,25 @@ describe("画面の文の表", () => {
     for (const [k, v] of Object.entries(tableOf("en"))) {
       assert.doesNotMatch(v, /[぀-ヿ一-鿿]/, k);
     }
+  });
+
+  it("操作の名前のキーは、日本語の表でも英語の表と同じ文（英語のまま）", () => {
+    const en = tableOf("en");
+    const ja = tableOf("ja");
+    const names = Object.keys(en).filter(isOperationNameKey);
+    assert.ok(names.length > 100, "操作の名前のキーが見つからない");
+    for (const k of names) {
+      assert.equal(ja[k], en[k], `${k}: 操作の名前は ja.ts でも英語のまま`);
+    }
+  });
+
+  it("操作の名前でないキーの文（ヒント・お知らせ・エラーなど）は、日本語の表では日本語", () => {
+    const en = tableOf("en");
+    const ja = tableOf("ja");
+    const sentences = Object.keys(en).filter(
+      (k) => !isOperationNameKey(k) && /[ぁ-ヿ一-鿿]/.test(ja[k]),
+    );
+    assert.ok(sentences.length > 300, "説明の文が日本語になっていない");
   });
 
   it("言語が無い・分からない値は英語、ja で日本語", () => {
