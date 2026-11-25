@@ -5,6 +5,7 @@ mod askpass;
 mod bookmarks;
 mod browser;
 mod browser_capture;
+mod browser_frame;
 mod browser_load;
 #[cfg(target_os = "macos")]
 mod browser_proxy;

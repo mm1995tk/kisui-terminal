@@ -9,7 +9,8 @@ import {
   MIN_HEIGHT,
   OVERLAY_GAP,
   pageBounds,
-  sameBounds,
+  placeIn,
+  samePlace,
   toLogical,
 } from "./overlay.ts";
 
@@ -79,11 +80,25 @@ describe("内蔵ブラウザのページを置く場所", () => {
     });
   });
 
-  it("同じ四角か", () => {
-    assert.ok(sameBounds(null, null));
-    assert.ok(!sameBounds(area, null));
-    assert.ok(sameBounds(area, { ...area }));
-    assert.ok(!sameBounds(area, { ...area, h: 1 }));
+  it("殻に渡す場所は、四角と viewport の大きさ（どちらも論理ピクセル）", () => {
+    assert.deepEqual(placeIn(area, { w: 1200, h: 800 }, 1), {
+      ...area,
+      vw: 1200,
+      vh: 800,
+    });
+    assert.deepEqual(
+      placeIn({ x: 100, y: 10, w: 200, h: 100 }, { w: 960, h: 640 }, 1.25),
+      { x: 125, y: 13, w: 250, h: 125, vw: 1200, vh: 800 },
+    );
+  });
+
+  it("同じ場所か（viewport の大きさが変わっても、違う場所）", () => {
+    const place = placeIn(area, { w: 1200, h: 800 }, 1);
+    assert.ok(samePlace(null, null));
+    assert.ok(!samePlace(place, null));
+    assert.ok(samePlace(place, { ...place }));
+    assert.ok(!samePlace(place, { ...place, h: 1 }));
+    assert.ok(!samePlace(place, { ...place, vh: 828 }));
   });
 });
 
