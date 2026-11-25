@@ -12,22 +12,20 @@ import { startDrag } from "../sidebar/drag.ts";
 import type { Row } from "../../../features/workspaces/rows.ts";
 import { type RowEdit, SwitcherRow, SwitcherTabs } from "./SwitcherParts.tsx";
 import { ModalCard, CardTitle } from "../../components/Card.tsx";
-import { KeyFooter } from "../../components/KeyFooter.tsx";
+import { KeyFooter, type ActionGroup } from "../../components/KeyFooter.tsx";
 import { openKeyList } from "../commands/KeyListDialog.tsx";
 import { InlineInput } from "../../components/InlineInput.tsx";
 import type { MachineChoice } from "./SwitcherNewTab.tsx";
 import { Kbd } from "../../components/KeyHints.tsx";
 import { isCancelKey } from "../../components/cancelKey.ts";
 import { moveRow } from "../../../features/sessions/machineList.ts";
+import { confirmKey, holdKey, switcherKey } from "./switcherKey.ts";
 import {
-  confirmKey,
-  holdHints,
-  holdKey,
-  newTabKindHints,
-  switcherHints,
-  switcherKey,
-} from "./switcherKey.ts";
-import { newTabKindKey, type NewTabChoice } from "./newTabKey.ts";
+  NEW_TAB_KIND_KEYS,
+  newTabKindKey,
+  type NewTabChoice,
+} from "./newTabKey.ts";
+import { kindLabel } from "./SwitcherNewTabKinds.tsx";
 import { createSwitcherColumns, type Col } from "./switcherColumns.ts";
 import { createSwitcherTabActions } from "./switcherTabActions.ts";
 import { createSwitcherNewTab } from "./switcherNewTab.ts";
@@ -45,7 +43,6 @@ import "./switcher.css";
 
 const rowId = (i: number) => `switcher-row-${i}`;
 const tabId = (key: string) => `switcher-tab-${key}`;
-const kindId = (kind: NewTabChoice) => `switcher-newtab-${kind}`;
 
 /**
  * ワークスペースを切り替える窓（リーダーの `w`。#282・#296）。ワークスペースの操作（移る・作る・名前を変える・閉じる・並べ替える）は、すべてここでする。
@@ -561,13 +558,72 @@ export function WorkspaceSwitcher(props: {
     });
   }
 
-  /** いまキーが効いている列で効く基本操作だけを、下に出す（ほかの操作は `?` の一覧） */
-  const hints = () =>
-    hold.held()
-      ? holdHints()
-      : newTab.choosing()
-        ? newTabKindHints()
-        : switcherHints(activeCol(), tabs().length > 0);
+  /** 下の段に出す、今効く操作（列と選んでいる行に合わせて変わる。見本）。どの窓でも同じキー（Enter・Esc・h j k l）は出さない。つかんでいる間だけは意味が変わるので出す */
+  const actions = (): ActionGroup[] => {
+    const h = hold.held();
+    if (h)
+      return [
+        {
+          title: T("actions.sw.holdTitle"),
+          items: [
+            { keys: ["j", "k"], label: T("actions.sw.holdMove") },
+            { keys: ["h", "l"], label: T("actions.sw.holdCols") },
+            { keys: ["Enter"], label: T("actions.sw.holdDrop") },
+            { keys: ["Esc"], label: T("actions.sw.holdCancel") },
+          ],
+        },
+      ];
+    if (newTab.choosing())
+      return [
+        {
+          title: T("actions.sw.kindTitle"),
+          // 種類は一覧を出さず、下の段の押せるヒントにする（字を押すか、ボタンを押す）。Esc は窓でなくこの選択だけをやめるので出す
+          items: [
+            ...newTab.kinds().map((k) => ({
+              keys: [NEW_TAB_KIND_KEYS[k]],
+              label: kindLabel(k),
+              onPress: () => newTab.pick(k),
+            })),
+            { keys: ["Esc"], label: T("actions.cancel") },
+          ],
+        },
+      ];
+    // 名前の入力中は、決める（Enter）・やめる（Esc）だけ。どちらも、どの窓でも同じキーなので、見出しだけを出す
+    if (editing() || creating() || tabActions.editing())
+      return [{ title: T("actions.sw.typing"), items: [] }];
+    const r = selected();
+    const t = selectedTab();
+    if (activeCol() === "tab" && t)
+      return [
+        {
+          title: T("actions.sw.tab"),
+          items: [
+            { keys: ["r"], label: T("actions.sw.rename") },
+            { keys: ["x"], label: T("actions.sw.closeTab") },
+            { keys: ["J", "K"], label: T("actions.sw.reorder") },
+            { keys: ["m"], label: T("actions.sw.hold") },
+            { keys: ["n"], label: T("actions.sw.newTab") },
+          ],
+        },
+      ];
+    return [
+      {
+        title: T("actions.sw.ws"),
+        items: r
+          ? [
+              { keys: ["N"], label: T("actions.sw.newTab") },
+              { keys: ["r"], label: T("actions.sw.rename") },
+              { keys: ["x"], label: T("actions.sw.closeWs") },
+              { keys: ["J", "K"], label: T("actions.sw.reorder") },
+            ]
+          : [],
+      },
+      {
+        title: T("actions.window"),
+        items: [{ keys: ["n"], label: T("actions.sw.new") }],
+      },
+    ];
+  };
 
   return (
     <ModalCard
@@ -575,7 +631,7 @@ export function WorkspaceSwitcher(props: {
       closeOnOutside
       onCancel={props.onCancel}
       header={<CardTitle>{T("switcher.title")}</CardTitle>}
-      footer={<KeyFooter items={hints()} />}
+      footer={<KeyFooter groups={actions()} />}
     >
       <div class="machine-dialog switcher">
         <div
@@ -585,7 +641,7 @@ export function WorkspaceSwitcher(props: {
           data-holding={hold.held() ? "" : undefined}
           aria-activedescendant={
             newTab.choosing()
-              ? kindId(newTab.choosing()!.kind)
+              ? undefined
               : activeCol() === "tab"
                 ? tabId(hold.held()?.tab.key ?? selectedTab()?.key ?? "")
                 : selected()
@@ -688,17 +744,6 @@ export function WorkspaceSwitcher(props: {
                     if (byKey) focusList();
                   }}
                   onNewTab={newTab.start}
-                  newTabKinds={
-                    newTab.choosing()?.gws === r().gws
-                      ? {
-                          kinds: newTab.kinds(),
-                          selected: newTab.choosing()!.kind,
-                          optionId: kindId,
-                          onHover: newTab.hover,
-                          onPick: newTab.pick,
-                        }
-                      : undefined
-                  }
                   newTab={
                     newTab.creating()?.gws === r().gws
                       ? {

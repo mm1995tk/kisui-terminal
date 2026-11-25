@@ -26,9 +26,9 @@ import {
   CardTitle,
   ModalCard,
 } from "../../components/Card.tsx";
-import { KeyFooter } from "../../components/KeyFooter.tsx";
+import { KeyFooter, type ActionGroup } from "../../components/KeyFooter.tsx";
 import { openKeyList } from "../commands/KeyListDialog.tsx";
-import { dbWindowHints, dbWindowKey } from "./dbWindowKey.ts";
+import { dbWindowKey } from "./dbWindowKey.ts";
 import styles from "./DbWindow.module.css";
 
 const rowId = (id: string) => `db-window-result-${id}`;
@@ -255,6 +255,51 @@ export function DbWindow(props: {
     return out;
   });
 
+  /** 下の段に出す、今効く操作（選んでいる結果のタブに合わせて変わる。見本）。どの窓でも同じキー（Enter・Esc・h j k l）は出さない */
+  const actions = createMemo((): ActionGroup[] => {
+    const r = rows().find((x) => x.id === selected());
+    const t = run().tabs.find((x) => x.id === r?.id);
+    const elevated = id === undefined ? [] : props.db.elevatedOf(id);
+    return [
+      {
+        title: T("actions.db.selected"),
+        items: [
+          { keys: ["x"], label: T("actions.db.closeTab"), off: !r },
+          {
+            keys: ["s"],
+            label: T("actions.db.view"),
+            off: r?.table === undefined,
+          },
+          {
+            keys: ["f", "b"],
+            label: T("actions.db.page"),
+            off: r?.state.kind !== "done",
+          },
+          {
+            keys: ["e"],
+            label: T("actions.db.export"),
+            off: !isExportable(t?.result),
+          },
+        ],
+      },
+      {
+        title: T("actions.db.tab"),
+        items: [
+          { keys: ["c"], label: T("actions.db.cancel"), off: !run().running },
+          { keys: ["t"], label: T("actions.db.tree") },
+          { keys: ["r"], label: T("actions.db.refresh") },
+          { keys: ["h"], label: T("actions.db.history") },
+          { keys: ["p"], label: T("actions.db.elevate") },
+          {
+            keys: ["P"],
+            label: T("actions.db.elevateEnd"),
+            off: elevated.length === 0,
+          },
+        ],
+      },
+    ];
+  });
+
   return (
     <ModalCard
       label={T("dbWindow.label")}
@@ -292,7 +337,7 @@ export function DbWindow(props: {
               {(n) => <CardText role="alert">{n()}</CardText>}
             </Show>
           }
-          items={dbWindowHints({ empty: rows().length === 0 })}
+          groups={actions()}
         />
       }
     >

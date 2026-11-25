@@ -1,0 +1,19 @@
+/* 窓の下の段の、操作のまとまり（KeyFooter.tsx）。まとまりごとに 1 行。行の頭に何に効くかの見出しを置き、ヒントは右に流す */
+.key-footer-groups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+.key-footer-group {
+  display: grid;
+  grid-template-columns: 8em 1fr;
+  gap: var(--space-12);
+  align-items: baseline;
+}
+.key-footer-title {
+  overflow: hidden;
+  color: var(--color-text-dim);
+  font-size: var(--text-label);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

@@ -5,7 +5,7 @@ import { Kbd } from "../../components/KeyHints.tsx";
 import { NEW_TAB_KIND_KEYS, type NewTabChoice } from "./newTabKey.ts";
 
 /** 種類の名前（サイドバーの「+」のメニューと同じ言葉）。 */
-function kindLabel(kind: NewTabChoice): string {
+export function kindLabel(kind: NewTabChoice): string {
   switch (kind) {
     case "terminal":
       return T("sidebar.addTerminal");
