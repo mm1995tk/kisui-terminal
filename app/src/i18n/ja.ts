@@ -658,7 +658,7 @@ export const ja: Record<Key, string> = {
   // ---- DB のタブ（#347）----
   "leader.db.group": "Database",
   "leader.db.open": "Open a database tab",
-  "sidebar.addDb": "DB",
+  "sidebar.addDb": "Database",
   "dbTab.tip": "{machine} の {connection}",
   "place.db.title": "Database tab",
   "place.db.lead":
