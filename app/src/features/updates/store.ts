@@ -44,7 +44,7 @@ export interface Updates {
   checkNow(): Promise<UpdateOutcome>;
   /**
    * 「更新して再起動」。入れ替えて起動し直す。失敗したら理由を error に出す。
-   * 知らせのボタン（UpdateBar.tsx）と、リーダーの `n u`（features/commands/run.ts）が同じものを呼ぶ。
+   * 知らせのボタン（UpdateBar.tsx）と、リーダーの `i u`（features/commands/run.ts）が同じものを呼ぶ。
    */
   install(): Promise<void>;
   /** 「あとで」。知らせを閉じる（入れ替えている最中は閉じない）。 */

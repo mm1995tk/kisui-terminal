@@ -250,6 +250,17 @@ const SHORTCUT_ONLY: Leaf[] = [
   ),
   leaf("", T("leader.tab.rename"), { id: "tab.rename" }),
   leaf("", T("leader.tab.moveTo"), { id: "tab.moveTo" }),
+  // DB のタブを作る。リーダーの `n` で開くワークスペースの窓の、種類を選ぶ一覧からするので、木には載せない（#456。旧 `d n`）
+  leaf("", T("leader.db.open"), { id: "db.open" }),
+];
+
+/**
+ * SHORTCUT_ONLY と同じ扱いで、内蔵ブラウザを有効にしたときだけ使えるコマンド（#456。旧 `o n` `o N`）。
+ * ブラウザのタブを作るのも、ワークスペースの窓の、種類を選ぶ一覧からする。
+ */
+const SHORTCUT_ONLY_BROWSER: Leaf[] = [
+  leaf("", T("leader.browser.new"), { id: "browser.new" }),
+  leaf("", T("leader.browser.incognito"), { id: "browser.incognito" }),
 ];
 
 /**
@@ -277,6 +288,11 @@ export const LEADER: Node[] = [
   ),
   // ワークスペースの窓を、右のタブの列にキーを置いて開く。タブの操作（移る・作る・閉じる・並べ替える・名前を変える・別のワークスペースへ移す）は、この窓の中のキーでする（#454）
   leaf("t", T("leader.tab.switch"), { id: "workspace.switch", arg: "tab" }),
+  // ワークスペースの窓を、タブの種類を選ぶ一覧を出して開く。ターミナル・ブラウザ・DB のどのタブを作るのも、ここから（#456）
+  leaf("n", T("leader.tab.create"), {
+    id: "workspace.switch",
+    arg: "newTab",
+  }),
   leaf("m", T("leader.machine"), { id: "machine.dialog" }),
   group(
     "p",
@@ -364,8 +380,6 @@ export const LEADER: Node[] = [
     "o",
     T("leader.browser.group"),
     [
-      leaf("n", T("leader.browser.new"), { id: "browser.new" }),
-      leaf("N", T("leader.browser.incognito"), { id: "browser.incognito" }),
       leaf("u", T("leader.browser.url"), { id: "browser.url" }),
       leaf(
         "h",
@@ -415,7 +429,6 @@ export const LEADER: Node[] = [
   ),
   // DB のタブ（#347。MySQL / PostgreSQL のクライアント）。SQL の実行のように DB のタブの中だけで使う操作は、場所のキー（placeKeys.ts の db）
   group("d", T("leader.db.group"), [
-    leaf("n", T("leader.db.open"), { id: "db.open" }),
     // サイドバーの木（#348・#374）。DB のタブを出している間だけ効く
     leaf("t", T("leader.db.tree"), { id: "db.tree" }),
     leaf("r", T("leader.db.refresh"), { id: "db.refresh" }),
@@ -511,7 +524,8 @@ export const LEADER: Node[] = [
     undefined,
     "mac",
   ),
-  group("n", T("leader.notice.group"), [
+  // お知らせ（info の `i`。`n` は、タブを作る入口に譲った。#456）
+  group("i", T("leader.notice.group"), [
     leaf("u", T("leader.notice.update"), { id: "notice.update" }),
     leaf("d", T("leader.notice.dismiss"), { id: "notice.dismiss" }),
     leaf("g", T("leader.notice.focusNotified"), {
@@ -885,7 +899,11 @@ function sameSpec(a: KeySpec, b: KeySpec): boolean {
  */
 export function setUserShortcuts(list: UserShortcut[], mac: boolean): string[] {
   const problems: string[] = [];
-  const leaves = leavesByName([...activeLeader(), ...SHORTCUT_ONLY]);
+  const leaves = leavesByName([
+    ...activeLeader(),
+    ...SHORTCUT_ONLY,
+    ...(browserEnabled ? SHORTCUT_ONLY_BROWSER : []),
+  ]);
   const out: UserEntry[] = [];
   const leader = parseSpec(shortcutOf(LEADER_SHORTCUT, mac) ?? "Ctrl+Shift+K");
   for (const { key, command, source = 0 } of list) {

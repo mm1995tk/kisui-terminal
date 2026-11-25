@@ -23,9 +23,11 @@ import {
   confirmKey,
   holdHints,
   holdKey,
+  newTabKindHints,
   switcherHints,
   switcherKey,
 } from "./switcherKey.ts";
+import { newTabKindKey, type NewTabChoice } from "./newTabKey.ts";
 import { createSwitcherColumns, type Col } from "./switcherColumns.ts";
 import { createSwitcherTabActions } from "./switcherTabActions.ts";
 import { createSwitcherNewTab } from "./switcherNewTab.ts";
@@ -43,6 +45,7 @@ import "./switcher.css";
 
 const rowId = (i: number) => `switcher-row-${i}`;
 const tabId = (key: string) => `switcher-tab-${key}`;
+const kindId = (kind: NewTabChoice) => `switcher-newtab-${kind}`;
 
 /**
  * ワークスペースを切り替える窓（リーダーの `w`。#282・#296）。ワークスペースの操作（移る・作る・名前を変える・閉じる・並べ替える）は、すべてここでする。
@@ -54,8 +57,10 @@ const tabId = (key: string) => `switcher-tab-${key}`;
  * 右のタブの行を開くと、そのワークスペースのそのタブへ移る。移ったあとに窓を閉じるのは、呼んだ側（出すのをやめる）。
  * 右のタブの行のつかむ所からのドラッグで、タブを並べ替える・別のワークスペースへ移す（#308。tabMoveDrag.ts）。ドラッグ中に左の行の上へ来ると、
  * 右の列がそのワークスペースのタブに替わり、落とした位置に入る（左の行の上で落とすと、一番後ろに入る。空のワークスペースにも落とせる）。
- * 右の列の上の「＋」か n で、右の列の一番下に、名前の入力欄とマシンを 1 行で出し、Enter でそのワークスペースのそのマシンにターミナルのタブを作る（#331。SwitcherNewTab.tsx）。
- * 地球儀か N（どちらの列でも）で、そのワークスペースに新しいタブのページのブラウザのタブを開く（内蔵ブラウザが有効なときだけ）。どちらも窓は閉じず、作ったタブを右の列で選ぶ。
+ * 右の列の上の「＋」か、タブの列の n か、N（どちらの列でも）で、右の列の一番下に、作るタブの種類を選ぶ一覧を出す（#456。SwitcherNewTabKinds.tsx。リーダーの n は、この一覧を出した状態で窓を開く）。
+ * ターミナルに決めると、同じ所に、名前の入力欄とマシンを 1 行で出し、Enter でそのワークスペースのそのマシンにターミナルのタブを作る（#331。SwitcherNewTab.tsx）。
+ * ブラウザ・シークレットに決めると、そのワークスペースに新しいタブのページのブラウザのタブを開く（内蔵ブラウザが有効なときだけ一覧に出る）。どちらも窓は閉じず、作ったタブを右の列で選ぶ。
+ * DB に決めると、窓を閉じて、接続を選ぶ窓を出す（呼んだ側）。一覧を出している間は、一覧のキーだけを受ける（Esc は一覧だけを閉じる）。
  * タブの列の m で、選んでいるタブをキーでつかみ、別のワークスペースへ移す（#332。switcherHold.ts）。つかむとキーは左の列へ移り、j k で移す先を選ぶと、右の列がそのワークスペースのタブに替わって、つかんだタブが一番後ろに出る。
  * 右の列で j k を押すと入る位置を 1 つずつ動かし、Enter か m で、見えている位置に落とす（onTabMove。ドラッグと同じ）。Esc で、つかんだときのワークスペースと位置に戻す（窓は閉じない）。つかんでいる間は、ほかのキーは効かない。
  * 名前を変えるのは、行の中の入力欄（サイドバーの帯と同じ。変換を確定する Enter では決めない）。閉じるのは、y / n で確かめてから。
@@ -63,6 +68,8 @@ const tabId = (key: string) => `switcher-tab-${key}`;
 export function WorkspaceSwitcher(props: {
   /** 開いたときにキーを置く列（既定は左のワークスペース。タブが無いワークスペースでは左のまま） */
   initialCol?: Col;
+  /** 開いたときに、選んでいるワークスペースについて、作るタブの種類を選ぶ一覧を出しておく（リーダーの n。ワークスペースが無ければ出さない） */
+  initialNewTab?: boolean;
   /** サイドバーの行（GUI のワークスペース 1 つが 1 行）。並びは、ユーザーが並べた順 */
   rows: readonly Row[];
   /** 左の行を開いた（ワークスペースの列の Enter・選んでいる行をもう 1 回押した） */
@@ -104,9 +111,11 @@ export function WorkspaceSwitcher(props: {
     machine: string,
     name: string,
   ) => { error: string } | { key: Promise<string | undefined> };
-  /** ブラウザのタブを開く（地球儀・N）。開いたタブの key を返す。窓は閉じない */
-  onNewBrowserTab: (gws: string) => string | undefined;
-  /** 内蔵ブラウザが有効か（無効なら、地球儀も N も無い） */
+  /** ブラウザのタブ（incognito ならシークレットのタブ）を開く。開いたタブの key を返す。窓は閉じない */
+  onNewBrowserTab: (gws: string, incognito: boolean) => string | undefined;
+  /** DB のタブを作る（窓を閉じて、接続を選ぶ窓を出すのは、呼んだ側） */
+  onNewDbTab: (gws: string) => void;
+  /** 内蔵ブラウザが有効か（無効なら、種類を選ぶ一覧にブラウザとシークレットが無い） */
   browser: boolean;
   /** タブを作ろうとしたが、つながっているマシンが 1 つも無い（できないことを、呼んだ側が伝える） */
   onNoMachine: () => void;
@@ -163,6 +172,15 @@ export function WorkspaceSwitcher(props: {
     right
       .querySelector(".tab-row[data-selected]")
       ?.scrollIntoView?.({ block: "nearest" });
+  });
+  // 種類を選ぶ一覧を出したら、一覧が見える所へ（タブの行の一番下に出るので、タブが多いと隠れる）
+  createEffect(() => {
+    if (!newTab.choosing()) return;
+    queueMicrotask(() =>
+      right.querySelector(".switch-newkind")?.scrollIntoView?.({
+        block: "nearest",
+      }),
+    );
   });
   // つかんでいる間は、つかんだタブ（入る位置）が見える所へ（移す先や入る位置を動かしたとき）
   createEffect(() => {
@@ -225,11 +243,14 @@ export function WorkspaceSwitcher(props: {
     browser: () => props.browser,
     create: props.onCreateTab,
     openBrowser: props.onNewBrowserTab,
+    openDb: props.onNewDbTab,
     noMachine: props.onNoMachine,
     pickTab,
     focusList,
     clearOthers: resetInputs,
   });
+  // リーダーの n で開いたときは、種類を選ぶ一覧を出しておく（選ぶワークスペースが無ければ、何も出さない）
+  if (props.initialNewTab) newTab.start();
 
   /** ワークスペースの行を押した：選んでいる行（キーが左の列で効いているとき）をもう 1 回押すと開く。それ以外は選ぶだけ。 */
   function pressRow(r: Row) {
@@ -375,12 +396,42 @@ export function WorkspaceSwitcher(props: {
     }
   }
 
+  /** 種類を選ぶ一覧を出している間のキー。一覧のキーだけを受け、ほかのキーは何もしない（窓も閉じない） */
+  function onNewTabKindKey(e: KeyboardEvent) {
+    const k = newTabKindKey(e, newTab.kinds());
+    if (!k) {
+      // Tab と、修飾キー付きのキーは、そのまま通す
+      if (e.key !== "Tab" && !e.metaKey && !e.ctrlKey && !e.altKey)
+        e.preventDefault();
+      return;
+    }
+    e.preventDefault();
+    switch (k.kind) {
+      case "move":
+        newTab.move(k.to);
+        break;
+      case "choose":
+        newTab.choose();
+        break;
+      case "pick":
+        newTab.pick(k.what);
+        break;
+      case "cancel":
+        newTab.cancel();
+        break;
+    }
+  }
+
   function onKeyDown(e: KeyboardEvent) {
     // 名前を変える入力欄の中のキーは、入力欄が受ける（j や n を打てるように）
     if (e.target instanceof HTMLInputElement) return;
     const h = hold.held();
     if (h) {
       onHoldKey(e, h);
+      return;
+    }
+    if (newTab.choosing()) {
+      onNewTabKindKey(e);
       return;
     }
     const c = confirming();
@@ -418,7 +469,7 @@ export function WorkspaceSwitcher(props: {
         else if (!inTabs) props.onGo(r);
         break;
       }
-      // 並べ替える・名前を変える・閉じる・作る（n）は、効いている列の行に効く（ワークスペースの列ならワークスペース、タブの列ならタブ）。ブラウザのタブを開く（N）は、どちらの列でも
+      // 並べ替える・名前を変える・閉じる・作る（n）は、効いている列の行に効く（ワークスペースの列ならワークスペース、タブの列ならタブ）。タブを作る（N）は、どちらの列でも
       case "reorder": {
         const r = selected();
         const t = selectedTab();
@@ -430,8 +481,8 @@ export function WorkspaceSwitcher(props: {
         if (inTabs) newTab.start();
         else startCreate();
         break;
-      case "newBrowser":
-        newTab.openBrowser();
+      case "newTab":
+        newTab.start();
         break;
       case "rename": {
         const r = selected();
@@ -503,7 +554,11 @@ export function WorkspaceSwitcher(props: {
 
   /** いまキーが効いている列で効く基本操作だけを、下に出す（ほかの操作は `?` の一覧） */
   const hints = () =>
-    hold.held() ? holdHints() : switcherHints(activeCol(), tabs().length > 0);
+    hold.held()
+      ? holdHints()
+      : newTab.choosing()
+        ? newTabKindHints()
+        : switcherHints(activeCol(), tabs().length > 0);
 
   return (
     <ModalCard
@@ -520,11 +575,13 @@ export function WorkspaceSwitcher(props: {
           aria-label={T("switcher.title")}
           data-holding={hold.held() ? "" : undefined}
           aria-activedescendant={
-            activeCol() === "tab"
-              ? tabId(hold.held()?.tab.key ?? selectedTab()?.key ?? "")
-              : selected()
-                ? rowId(index())
-                : undefined
+            newTab.choosing()
+              ? kindId(newTab.choosing()!.kind)
+              : activeCol() === "tab"
+                ? tabId(hold.held()?.tab.key ?? selectedTab()?.key ?? "")
+                : selected()
+                  ? rowId(index())
+                  : undefined
           }
           data-col={activeCol()}
           tabIndex={0}
@@ -621,9 +678,18 @@ export function WorkspaceSwitcher(props: {
                     tabActions.stop();
                     if (byKey) focusList();
                   }}
-                  browser={props.browser}
-                  onNewBrowser={newTab.openBrowser}
                   onNewTab={newTab.start}
+                  newTabKinds={
+                    newTab.choosing()?.gws === r().gws
+                      ? {
+                          kinds: newTab.kinds(),
+                          selected: newTab.choosing()!.kind,
+                          optionId: kindId,
+                          onHover: newTab.hover,
+                          onPick: newTab.pick,
+                        }
+                      : undefined
+                  }
                   newTab={
                     newTab.creating()?.gws === r().gws
                       ? {

@@ -163,7 +163,7 @@ export function createNotices(deps: {
       const n = noticeOf.get(st);
       if (n) out.push(n);
     }
-    // ダウンロード（#204）は最後に積む（リーダーの n d で、いちばん新しいものから閉じる）
+    // ダウンロード（#204）は最後に積む（リーダーの i d で、いちばん新しいものから閉じる）
     for (const d of downloads()) out.push(downloadNotice(d));
     return out;
   });
