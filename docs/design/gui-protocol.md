@@ -413,7 +413,7 @@ GUI のワークスペース（`app/src/features/workspaces/model.ts`）：
 12. **リモートを足す**：サイドバーの一番下は「+ リモートを足す」（herdr の `machine add` のような形）。カードの窓で ssh の行き先（`~/.ssh/config` の候補）と名前（空なら ssh の行き先）を入れる。足すときに ssh でつなぎ（「ssh 越しに shj を起動する」）、`shj` が無ければ確認してから送り、`kisui serve` を起動できたらマシンを保存して見出しを出す。つなげなければ理由を出して保存しない（実装は #451）。マシンの一覧は GUI の側（手元）が持つ。shj のプロトコルには出ない。
 13. **サイドバーに出るマシン**は「ローカル」と足したマシンだけ。`~/.ssh/config` のホストを全部並べない（候補に出すだけ）。
 14. **マシンの見出しを右クリック**して「名前を変える」「外す」。外しても、そのマシンの `kisui serve` は止めない。
-15. **既定のマシン**：手元（GUI を動かしているマシン）の `~/.config/kisui-terminal/` の `config.toml` か `config.local.toml` の `[[gui.machines]]` に書ける（`config.local.toml` にあれば、`config.toml` の一覧を丸ごと置き換える。shijimi-editor の設定は読まない）。設定ファイルに書いたマシンは、GUI の「外す」「名前を変える」では変えられない（設定ファイルを直す。実装は #453）。
+15. **既定のマシン**：手元（GUI を動かしているマシン）の `~/.config/kisui-terminal/` の `config.toml` か `config.local.toml` の `[[gui.machines]]` に書ける（2 つのファイルの一覧は、ssh の行き先ごとに重ねる。同じ行き先のマシンは `config.local.toml` の 1 件に丸ごと代わり、片方にしかないマシンはどちらも残る。`config.local.toml` の空の一覧は何も消さず、`config.toml` のマシンを `config.local.toml` から消す書き方は無い。重ねたあとに名前が重なれば間違い。shijimi-editor の設定は読まない）。設定ファイルに書いたマシンは、GUI の「外す」「名前を変える」では変えられない（設定ファイルを直す。実装は #453）。
 
     ```toml
     [[gui.machines]]
@@ -549,7 +549,7 @@ GUI は複数のワークスペースのツリーを（開閉の状態を持っ�
 | `db.proposed` | → shj（通知） | `{id, status?: "written"\|"declined", error?}`。`db.propose` への答え。`written`：入力欄に書いた。`declined`：入力欄に SQL があり、人が上書きを断った。`error`：書けなかった理由（GUI の言葉の文。そのまま `kisui db propose` が出す） |
 | `db.proposeCancel` | ← shj（通知） | `{id}`。`db.propose` の取り下げ：`kisui serve` が答えを待つのをやめた（時間切れ・コマンドが止められた）。GUI は、人に聞いている途中なら聞くのをやめ、書かない |
 
-- **設定**：接続（名前・種類・ホスト・ポート・ユーザー・DB 名・`read-only`・権限の名前）は、`kisui serve` が動くマシンの `config.toml`・`config.local.toml` の `[[db.connections]]`。`config.local.toml` に一覧があれば、`config.toml` の一覧を丸ごと置き換える（`[[gui.machines]]` と同じ）。`[server]` と違い、起動のときではなく **`db.*` の要求のたびに読む**：`kisui serve` は長く動き続け、止めるとターミナルが終わるので、止めずに接続を足せるようにする。同じ理由で、ここの間違いは `kisui serve` の起動を止めず、`db.connections` の `problems` で返す。接続の中の知らないキーも間違いにする（`read-only` を書き間違えた接続が、守られているように見えて書き込める、ということが起きないように）。
+- **設定**：接続（名前・種類・ホスト・ポート・ユーザー・DB 名・`read-only`・権限の名前）は、`kisui serve` が動くマシンの `config.toml`・`config.local.toml` の `[[db.connections]]`。2 つのファイルの一覧は、名前（`name`）ごとに重ねる：同じ名前の接続は `config.local.toml` の 1 件に（変種ごと）丸ごと代わり、片方にしかない接続はどちらも残る（`[[gui.machines]]` が ssh の行き先ごとに重なるのと同じ。窓が `config.local.toml` に 1 件書いても、`config.toml` の一覧が隠れないようにするため）。`config.local.toml` の 1 件に間違いがあっても、同じ名前の `config.toml` の接続は出さない（直そうとした設定のまま動かさない）。`[db.permissions]` は一覧ではないので、今までどおり `config.local.toml` のものが丸ごと代わる。`[server]` と違い、起動のときではなく **`db.*` の要求のたびに読む**：`kisui serve` は長く動き続け、止めるとターミナルが終わるので、止めずに接続を足せるようにする。同じ理由で、ここの間違いは `kisui serve` の起動を止めず、`db.connections` の `problems` で返す。接続の中の知らないキーも間違いにする（`read-only` を書き間違えた接続が、守られているように見えて書き込める、ということが起きないように）。
 - **環境の変種**（#376）：1 つの接続に `[[db.connections.variants]]` で、同じ DB の環境ごとの行き先（`local`・`dev`・`prod` など）を書ける。変種のキーは `name` と `host`・`port`・`user`・`database`・`read-only` で、書いていないものは接続のものを引き継ぐ（`kind` は接続にだけ書く）。`config/db.go` は、変種を「引き継ぎを済ませた 1 つの接続」（`config.DBConnection`。`Name` と `Variant` の組で見分ける）にして返すので、`internal/db` と `server/db.go` は、変種の無い接続と同じに扱う。
   - **指し方**：`db.*` の要求は `connection` と `variant` の組で接続を指す。変種のある接続を `variant` 無しで指す・無い変種を指すと `not_found`（どの環境かを決めずに、どれかにつなぐことはしない）。変種を知らない古い `kisui serve` は `variant` を読まないが、その `kisui serve` の一覧には変種のある接続が無いので、窓が `variant` を付けて送ることもない。
   - **窓**：接続を選ぶ窓は、変種ごとに 1 行（`接続 (変種)`）を出す。選ぶのは DB のタブを開くときの 1 回だけで、タブの記録（`DbRef` の `variant`）に残り、タブの中では切り替えない。

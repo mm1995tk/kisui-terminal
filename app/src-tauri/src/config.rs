@@ -2,8 +2,13 @@
 //!
 //! 読むのは設定のフォルダの `config.toml` と `config.local.toml` の 2 つ。`config.toml` が土台で、
 //! `config.local.toml` を上に重ねる（kisui の `config/config.go` と同じファイルを同じ順で読む）。
-//! `config.local.toml` に `[[gui.machines]]`（`[gui] machines = []` も）があれば、`config.toml` の一覧を丸ごと置き換える。
-//! 無ければ `config.toml` の一覧を使う。どちらのファイルも無くてよい。
+//! `[[gui.machines]]` の一覧は、項目（マシン）ごとに重ねる。ssh の行き先（`ssh`）が同じ項目が両方にあれば、`config.local.toml` の項目が
+//! `config.toml` の項目に丸ごと代わる（項目の中のキーごとには重ねない。`config.toml` にだけ書いた `name` は引き継がない）。
+//! 片方にしかない項目は、どちらも残る。並びは `config.toml` の順で、そのあとに `config.local.toml` にだけある項目が続く。
+//! 窓が `config.local.toml` に 1 件足しても、`config.toml` の一覧が隠れないようにするため（kisui の `config/db.go` の `[[db.connections]]` も、
+//! 名前（`name`）ごとに同じように重ねる）。
+//! `config.local.toml` の空の一覧（`[gui] machines = []`）は、何も足さず、何も消さない。`config.toml` の項目を `config.local.toml` から消す書き方は無い。
+//! 重ねたあとの一覧で名前が重なったら、間違いにする（`config.local.toml` の行を指す）。どちらのファイルも無くてよい。
 //! `[gui.browser] enabled`（内蔵ブラウザのタブを使うか。#202）は、書いてあるファイルのものを使い、両方にあれば `config.local.toml` が勝つ。
 //! どちらにも無ければ使わない。
 //! `[gui.browser] passkey_sites`（パスキーのときに外のブラウザ（Firefox）へ移り、Cookie を写して戻ってよいサイト。#206）も、
@@ -40,6 +45,26 @@ pub struct ConfigMachine {
     pub ssh: String,
     /// サイドバーに出す名前。省くと ssh の行き先
     pub name: Option<String>,
+    /// `config.local.toml` の項目か（両方のファイルにあれば true。`config.local.toml` の項目が代わっている）。
+    /// 窓が書き換えられるのは、これが true のマシンだけ（`config.toml` には書かない）
+    pub local: bool,
+}
+
+/// 1 つのファイルから読んだマシン 1 台と、間違いを指すための場所。
+struct ParsedMachine {
+    ssh: String,
+    name: Option<String>,
+    /// 一覧の中の番号（0 始まり）
+    index: usize,
+    /// 名前（無ければ ssh の行き先）を書いた行
+    line: usize,
+}
+
+impl ParsedMachine {
+    /// 出す名前（付けた名前、無ければ ssh の行き先）。
+    fn label(&self) -> &str {
+        self.name.as_deref().unwrap_or(&self.ssh)
+    }
 }
 
 #[derive(Deserialize)]
@@ -50,7 +75,6 @@ struct File {
 
 #[derive(Deserialize)]
 struct Gui {
-    // 書いていない（None）と書いて空（Some(空)）を分ける。config.local.toml の空の一覧は、config.toml の一覧を消す
     machines: Option<Vec<Entry>>,
     /// 内蔵ブラウザ（#202）
     browser: Option<Browser>,
@@ -113,7 +137,7 @@ pub struct ConfigShortcut {
 /// 1 つのファイルから読んだもの（書いていない項目は None）。
 #[derive(Default)]
 struct Parsed {
-    machines: Option<Vec<ConfigMachine>>,
+    machines: Option<Vec<ParsedMachine>>,
     browser: Option<bool>,
     passkey_sites: Option<PasskeySites>,
     shortcuts: Option<BTreeMap<String, String>>,
@@ -191,15 +215,38 @@ pub fn load_default() -> Result<GuiConfig, String> {
 
 /// 設定のフォルダの 2 つのファイルを読んで重ねる。どちらかに間違いがあれば、全部の間違いを改行でつないで返す。
 pub fn load_gui(dir: &Path) -> Result<GuiConfig, String> {
+    overlay(dir, FILES.map(|name| load(&dir.join(name))))
+}
+
+/// `config.local.toml` の中身を `local_text` にしたら、設定が間違いなく読めるか。窓が `config.local.toml` を書く前に確かめる
+/// （間違いのある設定を書くと、次の起動で窓が出ない）。`config.toml` は今あるものを読む。
+pub(crate) fn check_local(dir: &Path, local_text: &str) -> Result<(), String> {
+    let [base, local] = FILES;
+    overlay(
+        dir,
+        [
+            load(&dir.join(base)),
+            parse_at(&dir.join(local), local_text),
+        ],
+    )
+    .map(|_| ())
+}
+
+/// 2 つのファイルから読んだもの（`FILES` の順）を重ねる。
+fn overlay(dir: &Path, files: [Result<Parsed, String>; 2]) -> Result<GuiConfig, String> {
     let mut out = GuiConfig::default();
     let mut errs = Vec::new();
     let mut shortcuts: BTreeMap<String, (String, u8)> = BTreeMap::new();
-    for (source, name) in FILES.into_iter().enumerate() {
-        match load(&dir.join(name)) {
+    for (source, (name, file)) in FILES.into_iter().zip(files).enumerate() {
+        match file {
             Ok(p) => {
-                // 一覧があるファイルが、前のファイルの一覧を丸ごと置き換える
+                // マシンの一覧は ssh の行き先ごとに重ねる（同じ行き先は後のファイルの項目が代わる）
                 if let Some(m) = p.machines {
-                    out.machines = m;
+                    if let Err(e) =
+                        overlay_machines(&mut out.machines, m, name == FILES[1], &dir.join(name))
+                    {
+                        errs.push(e);
+                    }
                 }
                 // 書いてあるファイルが、前のファイルのものに勝つ
                 if let Some(b) = p.browser {
@@ -235,6 +282,44 @@ pub fn load_gui(dir: &Path) -> Result<GuiConfig, String> {
     }
 }
 
+/// 前のファイルまでのマシンの一覧 `base` に、`path` のファイル（`local`：`config.local.toml` か）の一覧 `over` を重ねる。
+/// ssh の行き先が同じ項目は、その場所で `over` の項目に代える。`base` に無い項目は、後ろに足す。
+/// 重ねたあとに名前が重なったら Err（`over` の項目の行を指す。1 つのファイルの中の重なりは `check_machines` が先に断っている）。
+fn overlay_machines(
+    base: &mut Vec<ConfigMachine>,
+    over: Vec<ParsedMachine>,
+    local: bool,
+    path: &Path,
+) -> Result<(), String> {
+    for m in &over {
+        let machine = ConfigMachine {
+            ssh: m.ssh.clone(),
+            name: m.name.clone(),
+            local,
+        };
+        match base.iter_mut().find(|b| b.ssh == m.ssh) {
+            Some(b) => *b = machine,
+            None => base.push(machine),
+        }
+    }
+    for m in &over {
+        let taken = base
+            .iter()
+            .any(|b| b.ssh != m.ssh && b.name.as_deref().unwrap_or(&b.ssh) == m.label());
+        if taken {
+            return Err(format!(
+                "{}:{}: gui.machines[{}]: 名前 {} は {} のマシンで使っています",
+                path.display(),
+                m.line,
+                m.index,
+                m.label(),
+                FILES[0]
+            ));
+        }
+    }
+    Ok(())
+}
+
 /// `load_gui` のマシンの一覧だけ。
 #[cfg(test)]
 fn load_dir(dir: &Path) -> Result<Vec<ConfigMachine>, String> {
@@ -243,14 +328,26 @@ fn load_dir(dir: &Path) -> Result<Vec<ConfigMachine>, String> {
 
 /// 設定ファイルを 1 つ読む。無ければ何も書いていないものとする。
 fn load(path: &Path) -> Result<Parsed, String> {
-    let text = match fs::read(path) {
-        Ok(b) => {
-            String::from_utf8(b).map_err(|_| format!("{}: UTF-8 で読めません", path.display()))?
-        }
-        Err(e) if e.kind() == ErrorKind::NotFound => return Ok(Parsed::default()),
-        Err(e) => return Err(format!("{}: 読めません（{e}）", path.display())),
-    };
-    parse_all(&text).map_err(|(line, why)| match line {
+    match read_text(path)? {
+        Some(text) => parse_at(path, &text),
+        None => Ok(Parsed::default()),
+    }
+}
+
+/// ファイルの中身。無ければ None。
+fn read_text(path: &Path) -> Result<Option<String>, String> {
+    match fs::read(path) {
+        Ok(b) => String::from_utf8(b)
+            .map(Some)
+            .map_err(|_| format!("{}: UTF-8 で読めません", path.display())),
+        Err(e) if e.kind() == ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(format!("{}: 読めません（{e}）", path.display())),
+    }
+}
+
+/// `path` のファイルの中身 `text` を読む。間違いは「ファイル:行: 理由」にする。
+fn parse_at(path: &Path, text: &str) -> Result<Parsed, String> {
+    parse_all(text).map_err(|(line, why)| match line {
         Some(l) => format!("{}:{l}: {why}", path.display()),
         None => format!("{}: {why}", path.display()),
     })
@@ -312,43 +409,55 @@ pub fn mascot_name(dir: &Path) -> Option<String> {
 /// 読み取り専用のファイルのことがあるため）。ほかの項目・コメント・並びは変えない。ファイルが無ければ作る。
 /// 読めない・TOML として壊れているファイルは、上書きせずに Err を返す。
 pub fn write_mascot_name(dir: &Path, name: &str) -> Result<(), String> {
-    use toml_edit::{DocumentMut, Item, Table, Value};
-    let path = dir.join("config.local.toml");
-    let text = match fs::read(&path) {
-        Ok(b) => {
-            String::from_utf8(b).map_err(|_| format!("{}: UTF-8 で読めません", path.display()))?
+    use toml_edit::{Item, Table, Value};
+    edit_local(dir, |doc, path| {
+        let gui = doc
+            .entry("gui")
+            .or_insert_with(|| Item::Table(Table::new()));
+        if let Some(t) = gui.as_table_mut() {
+            // `[gui.browser]` だけを書いたファイルでは `[gui]` の見出しは省かれているので、`mascot` を書くために出す
+            t.set_implicit(false);
         }
-        Err(e) if e.kind() == ErrorKind::NotFound => String::new(),
-        Err(e) => return Err(format!("{}: 読めません（{e}）", path.display())),
-    };
-    let mut doc: DocumentMut = text
+        let table = gui
+            .as_table_like_mut()
+            .ok_or_else(|| format!("{}: [gui] が表ではありません", path.display()))?;
+        match table.get_mut("mascot").and_then(|i| i.as_value_mut()) {
+            // 前の値の前後の空白と、行末のコメントを残す
+            Some(v) => {
+                let decor = v.decor().clone();
+                let mut nv = Value::from(name);
+                *nv.decor_mut() = decor;
+                *v = nv;
+            }
+            None => {
+                table.insert("mascot", Item::Value(Value::from(name)));
+            }
+        }
+        Ok(())
+    })
+}
+
+/// `config.local.toml` を読み、`edit` で書き換えて、書き戻す（窓が設定を書く処理は、どれもここを通す）。
+/// `edit` には、読んだ中身（コメント・並びを持ったまま）と、ファイルのパス（間違いの文に使う）を渡す。
+/// ファイルが無ければ空の中身から始め、設定のフォルダごと作る。読めない・TOML として壊れているファイルは、上書きせずに Err を返す。
+/// `edit` が Err を返したら、何も書かない。
+/// 読んでから書くまでの間に、この窓のほかの書き込みが挟まらないよう、1 つずつ行う。
+pub(crate) fn edit_local<E: From<String>>(
+    dir: &Path,
+    edit: impl FnOnce(&mut toml_edit::DocumentMut, &Path) -> Result<(), E>,
+) -> Result<(), E> {
+    static WRITING: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let _one_at_a_time = WRITING.lock().unwrap_or_else(|e| e.into_inner());
+    let path = dir.join(FILES[1]);
+    let text = read_text(&path)?.unwrap_or_default();
+    let mut doc: toml_edit::DocumentMut = text
         .parse()
         .map_err(|e| format!("{}: TOML として読めません（{e}）", path.display()))?;
-    let gui = doc
-        .entry("gui")
-        .or_insert_with(|| Item::Table(Table::new()));
-    if let Some(t) = gui.as_table_mut() {
-        // `[gui.browser]` だけを書いたファイルでは `[gui]` の見出しは省かれているので、`mascot` を書くために出す
-        t.set_implicit(false);
-    }
-    let table = gui
-        .as_table_like_mut()
-        .ok_or_else(|| format!("{}: [gui] が表ではありません", path.display()))?;
-    match table.get_mut("mascot").and_then(|i| i.as_value_mut()) {
-        // 前の値の前後の空白と、行末のコメントを残す
-        Some(v) => {
-            let decor = v.decor().clone();
-            let mut nv = Value::from(name);
-            *nv.decor_mut() = decor;
-            *v = nv;
-        }
-        None => {
-            table.insert("mascot", Item::Value(Value::from(name)));
-        }
-    }
+    edit(&mut doc, &path)?;
     fs::create_dir_all(dir).map_err(|e| format!("{}: 作れません（{e}）", dir.display()))?;
     replace_file(&path, doc.to_string().as_bytes())
-        .map_err(|e| format!("{}: 書けません（{e}）", path.display()))
+        .map_err(|e| format!("{}: 書けません（{e}）", path.display()))?;
+    Ok(())
 }
 
 /// `path` の中身を `bytes` に置き換える。同じフォルダの一時ファイルに書いてから名前を付け替えるので、途中で落ちても、
@@ -405,7 +514,16 @@ fn line_of(text: &str, offset: usize) -> usize {
 /// 1 つのファイルの `[[gui.machines]]`。書いていなければ None。
 #[cfg(test)]
 fn parse_file(text: &str) -> Result<Option<Vec<ConfigMachine>>, (Option<usize>, String)> {
-    parse_all(text).map(|p| p.machines)
+    let machines = |list: Vec<ParsedMachine>| {
+        list.into_iter()
+            .map(|m| ConfigMachine {
+                ssh: m.ssh,
+                name: m.name,
+                local: false,
+            })
+            .collect()
+    };
+    parse_all(text).map(|p| p.machines.map(machines))
 }
 
 /// 1 つのファイルの `[gui]` の、画面が使う項目。
@@ -523,12 +641,12 @@ fn check_tabs_height(text: &str, h: &Spanned<i64>) -> Result<u8, (Option<usize>,
     }
 }
 
-/// `[[gui.machines]]` を確かめる。
+/// 1 つのファイルの `[[gui.machines]]` を確かめる（2 つのファイルを重ねたあとの名前の重なりは `overlay_machines` が見る）。
 fn check_machines(
     text: &str,
     entries: Vec<Entry>,
-) -> Result<Vec<ConfigMachine>, (Option<usize>, String)> {
-    let mut out: Vec<ConfigMachine> = Vec::new();
+) -> Result<Vec<ParsedMachine>, (Option<usize>, String)> {
+    let mut out: Vec<ParsedMachine> = Vec::new();
     let mut targets = HashSet::new();
     let mut labels = HashSet::new();
     for (i, e) in entries.into_iter().enumerate() {
@@ -571,7 +689,13 @@ fn check_machines(
                 format!("gui.machines[{i}]: 名前 {label} はほかのマシンで使っています"),
             ));
         }
-        out.push(ConfigMachine { ssh, name });
+        let line = line_of(text, e.name.as_ref().unwrap_or(&e.ssh).span().start);
+        out.push(ParsedMachine {
+            ssh,
+            name,
+            index: i,
+            line,
+        });
     }
     Ok(out)
 }
@@ -606,11 +730,13 @@ mod tests {
             vec![
                 ConfigMachine {
                     ssh: "dev-vm".into(),
-                    name: Some("dev".into())
+                    name: Some("dev".into()),
+                    local: false,
                 },
                 ConfigMachine {
                     ssh: "build".into(),
-                    name: None
+                    name: None,
+                    local: false,
                 },
             ]
         );
@@ -728,43 +854,126 @@ mod tests {
         ConfigMachine {
             ssh: ssh.into(),
             name: None,
+            local: false,
         }
     }
 
-    // config.local.toml の一覧は、config.toml の一覧を丸ごと置き換える
+    /// config.local.toml のマシン。
+    fn local(ssh: &str, name: Option<&str>) -> ConfigMachine {
+        ConfigMachine {
+            ssh: ssh.into(),
+            name: name.map(str::to_string),
+            local: true,
+        }
+    }
+
+    // 2 つのファイルの一覧は、ssh の行き先ごとに重ねる。同じ行き先は config.local.toml の項目が代わり、片方にしかない項目は残る
     #[test]
-    fn local_replaces_machines() {
-        let d = temp_dir("local-wins");
+    fn local_merges_machines_by_ssh() {
+        let d = temp_dir("local-merges");
         fs::write(
             d.join("config.toml"),
-            "[[gui.machines]]\nssh = \"a\"\n[[gui.machines]]\nssh = \"b\"\n",
+            "[[gui.machines]]\nssh = \"a\"\n[[gui.machines]]\nssh = \"b\"\nname = \"bee\"\n[[gui.machines]]\nssh = \"c\"\n",
         )
         .unwrap();
-        assert_eq!(load_dir(&d).unwrap(), vec![machine("a"), machine("b")]);
+        let named = |ssh: &str, name: &str| ConfigMachine {
+            name: Some(name.into()),
+            ..machine(ssh)
+        };
+        let base = vec![machine("a"), named("b", "bee"), machine("c")];
+        assert_eq!(load_dir(&d).unwrap(), base);
         // 一覧の無い config.local.toml は、config.toml の一覧を変えない
         fs::write(
             d.join("config.local.toml"),
             "[server]\nidle_stop_days = 1\n",
         )
         .unwrap();
-        assert_eq!(load_dir(&d).unwrap(), vec![machine("a"), machine("b")]);
+        assert_eq!(load_dir(&d).unwrap(), base);
+        // 空の一覧も、何も足さず、何も消さない
+        fs::write(d.join("config.local.toml"), "[gui]\nmachines = []\n").unwrap();
+        assert_eq!(load_dir(&d).unwrap(), base);
+        // config.toml の順のまま、同じ行き先（b）はその場所で代わり、config.local.toml にだけある項目（d）は後ろに続く
         fs::write(
             d.join("config.local.toml"),
-            "[[gui.machines]]\nssh = \"c\"\n",
+            "[[gui.machines]]\nssh = \"d\"\n[[gui.machines]]\nssh = \"b\"\nname = \"B\"\n",
         )
         .unwrap();
-        assert_eq!(load_dir(&d).unwrap(), vec![machine("c")]);
-        // 空の一覧も置き換える
-        fs::write(d.join("config.local.toml"), "[gui]\nmachines = []\n").unwrap();
-        assert_eq!(load_dir(&d).unwrap(), vec![]);
+        assert_eq!(
+            load_dir(&d).unwrap(),
+            vec![
+                machine("a"),
+                local("b", Some("B")),
+                machine("c"),
+                local("d", None)
+            ]
+        );
+        // 項目は丸ごと代わる。config.toml にだけ書いた名前は引き継がない
+        fs::write(
+            d.join("config.local.toml"),
+            "[[gui.machines]]\nssh = \"b\"\n",
+        )
+        .unwrap();
+        assert_eq!(
+            load_dir(&d).unwrap(),
+            vec![machine("a"), local("b", None), machine("c")]
+        );
         // config.local.toml だけでもよい
         fs::remove_file(d.join("config.toml")).unwrap();
+        assert_eq!(load_dir(&d).unwrap(), vec![local("b", None)]);
+        let _ = fs::remove_dir_all(&d);
+    }
+
+    // 重ねたあとに名前が重なったら、config.local.toml の行を指して間違いにする。代わった項目の前の名前とは重ならない
+    #[test]
+    fn merged_machine_names_must_differ() {
+        let d = temp_dir("local-names");
         fs::write(
-            d.join("config.local.toml"),
-            "[[gui.machines]]\nssh = \"c\"\n",
+            d.join("config.toml"),
+            "[[gui.machines]]\nssh = \"a\"\nname = \"x\"\n[[gui.machines]]\nssh = \"b\"\n",
         )
         .unwrap();
-        assert_eq!(load_dir(&d).unwrap(), vec![machine("c")]);
+        let local_path = d.join("config.local.toml");
+        // 名前が config.toml のマシンの名前と同じ
+        fs::write(&local_path, "[[gui.machines]]\nssh = \"c\"\nname = \"x\"\n").unwrap();
+        let e = load_dir(&d).unwrap_err();
+        assert!(
+            e.starts_with(&format!("{}:3: gui.machines[0]: ", local_path.display())),
+            "{e}"
+        );
+        // 名前を省いた項目の ssh の行き先が、config.toml のマシンの名前と同じ
+        fs::write(
+            &local_path,
+            "[[gui.machines]]\nssh = \"z\"\n[[gui.machines]]\nssh = \"x\"\n",
+        )
+        .unwrap();
+        let e = load_dir(&d).unwrap_err();
+        assert!(
+            e.starts_with(&format!("{}:4: gui.machines[1]: ", local_path.display())),
+            "{e}"
+        );
+        // 名前が config.toml のマシンの ssh の行き先と同じ
+        fs::write(&local_path, "[[gui.machines]]\nssh = \"c\"\nname = \"b\"\n").unwrap();
+        assert!(load_dir(&d).is_err());
+        // a を代えた項目は、a の前の名前（x）を使える。a が手放した名前は、ほかの項目が使える
+        fs::write(&local_path, "[[gui.machines]]\nssh = \"a\"\nname = \"x\"\n").unwrap();
+        assert_eq!(
+            load_dir(&d).unwrap(),
+            vec![local("a", Some("x")), machine("b")]
+        );
+        fs::write(
+            &local_path,
+            "[[gui.machines]]\nssh = \"a\"\nname = \"y\"\n[[gui.machines]]\nssh = \"c\"\nname = \"x\"\n",
+        )
+        .unwrap();
+        assert_eq!(
+            load_dir(&d).unwrap(),
+            vec![local("a", Some("y")), machine("b"), local("c", Some("x"))]
+        );
+        // 書く前の確かめ（check_local）も同じ結果になる。ファイルは変えない
+        assert!(check_local(&d, "[[gui.machines]]\nssh = \"c\"\nname = \"x\"\n").is_err());
+        assert!(check_local(&d, "[[gui.machines]]\nssh = \"c\"\n").is_ok());
+        assert!(check_local(&d, "[[gui.machines]]\nssh = \"-o\"\n").is_err());
+        assert_eq!(load_dir(&d).unwrap().len(), 3);
         let _ = fs::remove_dir_all(&d);
     }
 

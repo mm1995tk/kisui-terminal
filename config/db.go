@@ -89,6 +89,10 @@ type DBConnection struct {
 	// their permission is strengthened for a time (Elevated). The zero value
 	// is "cannot be strengthened".
 	HumanElevate, AgentElevate DBPermission
+	// Local is true for a connection whose entry is written in
+	// config.local.toml, the file the window writes, and false for one of
+	// config.toml, which the window never changes.
+	Local bool
 }
 
 // Label is the connection as it is shown to a person: the name, and the
@@ -116,11 +120,23 @@ func FindDB(list []DBConnection, name, variant string) (DBConnection, bool) {
 const dbNameMax = 100
 
 // LoadDB reads [[db.connections]] and [db.permissions] from kisui-terminal's
-// configuration directory. The list of config.local.toml, when that file has
-// one, replaces the list of config.toml as a whole, as [[gui.machines]] does:
-// entries are not merged one by one. The same holds for [db.permissions],
-// apart from the list: a file can keep its connections and take the
-// permissions of the other.
+// configuration directory.
+//
+// The lists of the two files are merged entry by entry, by name, as
+// [[gui.machines]] is by ssh destination (app/src-tauri/src/config.rs): an
+// entry of config.local.toml takes the place of the entry of config.toml
+// with the same name, and an entry that only one file has stays. The order
+// is the one of config.toml, then the entries only config.local.toml has.
+// So the window can add one connection to config.local.toml (the only file
+// it writes) without hiding the ones written in config.toml. An empty list
+// (`connections = []`) adds nothing and takes nothing away, and there is no
+// way to remove an entry of config.toml from config.local.toml.
+//
+// An entry with variants is one entry: it is replaced with all its variants.
+//
+// [db.permissions] is not a list of entries and is not merged this way: the
+// one of config.local.toml replaces the one of config.toml as a whole. A file
+// can keep its connections and take the permissions of the other.
 //
 // It is apart from Load because it is read each time the list is asked for,
 // not once at startup, so that a connection can be added without stopping
@@ -132,11 +148,16 @@ func LoadDB(suffix string) (conns []DBConnection, probs []Problem) {
 	if !ok {
 		return nil, nil
 	}
-	// The list and the permissions in use, each with the file it is from and
-	// its mistakes. One that was replaced takes its mistakes with it.
+	// The list of each file that has one, and the permissions in use with
+	// their mistakes. Permissions that were replaced take their mistakes with
+	// them.
+	type fileList struct {
+		path  string
+		local bool
+		list  []map[string]any
+	}
 	var (
-		list      []map[string]any
-		listPath  string
+		lists     []fileList
 		perms     dbPermissions
 		permProbs []Problem
 	)
@@ -154,14 +175,77 @@ func LoadDB(suffix string) (conns []DBConnection, probs []Problem) {
 		}
 		if v, has := t["connections"]; has {
 			if l, ok := tables(v); ok {
-				list, listPath = l, path
+				lists = append(lists, fileList{path, name == localFile, l})
 			} else {
 				probs = append(probs, Problem{File: path, Key: "db.connections", Code: "config.err.tables"})
 			}
 		}
 	}
-	conns, listProbs := dbConnections(list, listPath, perms)
-	return conns, append(append(probs, permProbs...), listProbs...)
+	// The entries are read after the loop, with the permissions in use: an
+	// entry of config.toml can name a permission of config.local.toml.
+	var entries []dbListEntry
+	for _, l := range lists {
+		entries = overlayDBEntries(entries, dbConnections(l.list, l.path, l.local, perms))
+	}
+	probs = append(probs, permProbs...)
+	for _, e := range entries {
+		probs = append(probs, e.probs...)
+		if len(e.probs) == 0 {
+			conns = append(conns, e.conns...)
+		}
+	}
+	return conns, probs
+}
+
+// dbListEntry is one [[db.connections]] entry as it was read from one file.
+type dbListEntry struct {
+	// name is the name the entry is merged by: "" when the entry has no name
+	// that can be read (it then replaces nothing and is replaced by nothing).
+	name string
+	// conns are the connections of the entry. They are not used when the
+	// entry has a mistake.
+	conns []DBConnection
+	// probs are the mistakes of the entry, with the file and the full key.
+	probs []Problem
+}
+
+// overlayDBEntries puts the entries of a later file over the entries of the
+// files before it. An entry of over takes the place of the entries of base
+// with its name, and their mistakes go away with them; the others of over
+// follow, in their order.
+//
+// An entry of over with a mistake still takes the entry of base away: the
+// user meant to change that connection, and the one of config.toml showing
+// through (without, say, the `read-only` that was written with a mistake
+// next to it) would look like the change.
+func overlayDBEntries(base, over []dbListEntry) []dbListEntry {
+	out := make([]dbListEntry, 0, len(base)+len(over))
+	placed := make([]bool, len(over))
+	for _, b := range base {
+		at := -1
+		if b.name != "" {
+			at = slices.IndexFunc(over, func(o dbListEntry) bool { return o.name == b.name })
+		}
+		switch {
+		case at < 0:
+			out = append(out, b)
+		case !placed[at]:
+			// Every entry of over with this name goes here (a second one is
+			// the mistake "same name", which has to be reported).
+			for i, o := range over {
+				if o.name == b.name {
+					out = append(out, o)
+					placed[i] = true
+				}
+			}
+		}
+	}
+	for i, o := range over {
+		if !placed[i] {
+			out = append(out, o)
+		}
+	}
+	return out
 }
 
 // dbTable takes the table [db] out of a decoded file: nil when the file has
@@ -178,25 +262,34 @@ func dbTable(raw map[string]any, path string) (map[string]any, []Problem) {
 	return t, nil
 }
 
-// dbConnections reads the entries of [[db.connections]] of the file at path.
-// perms are the permissions an entry can name.
-func dbConnections(list []map[string]any, path string, perms dbPermissions) (conns []DBConnection, probs []Problem) {
+// dbConnections reads the entries of [[db.connections]] of the file at path,
+// one dbListEntry for each, in order. local says that the file is
+// config.local.toml, and perms are the permissions an entry can name. Two
+// entries of one file with the same name are a mistake of the second.
+func dbConnections(list []map[string]any, path string, local bool, perms dbPermissions) []dbListEntry {
 	seen := map[string]bool{}
+	out := make([]dbListEntry, 0, len(list))
 	for i, e := range list {
 		key := fmt.Sprintf("db.connections[%d]", i)
 		cs, ps := dbConnection(e, perms)
-		if len(ps) == 0 && seen[cs[0].Name] {
-			ps = append(ps, Problem{Key: "name", Code: "config.err.dupname", Args: []any{cs[0].Name}})
+		name := cs[0].Name
+		if len(ps) == 0 && seen[name] {
+			ps = append(ps, Problem{Key: "name", Code: "config.err.dupname", Args: []any{name}})
 		}
+		entry := dbListEntry{name: name}
 		for _, p := range ps {
-			probs = append(probs, Problem{File: path, Key: key + "." + p.Key, Code: p.Code, Args: p.Args})
+			entry.probs = append(entry.probs, Problem{File: path, Key: key + "." + p.Key, Code: p.Code, Args: p.Args})
 		}
 		if len(ps) == 0 {
-			seen[cs[0].Name] = true
-			conns = append(conns, cs...)
+			seen[name] = true
+			for j := range cs {
+				cs[j].Local = local
+			}
+			entry.conns = cs
 		}
+		out = append(out, entry)
 	}
-	return conns, probs
+	return out
 }
 
 // tables is v as an array of tables. BurntSushi/toml decodes one as

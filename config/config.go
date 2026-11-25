@@ -106,7 +106,11 @@ func UserDir(suffix string) (dir string, ok bool) { return dirOf("kisui-terminal
 // applied: config.toml, then config.local.toml on top of it. A key in
 // config.local.toml wins over the same key in config.toml; the keys of a
 // table such as [server] are taken one by one. Either file may be missing.
-var files = []string{"config.toml", "config.local.toml"}
+var files = []string{"config.toml", localFile}
+
+// localFile is the file that is read on top of config.toml, and the only one
+// kisui-terminal writes.
+const localFile = "config.local.toml"
 
 // Load reads kisui's settings from kisui-terminal's configuration directory
 // (UserDir), applying files in their order. The Settings are returned even

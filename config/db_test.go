@@ -55,23 +55,118 @@ func TestLoadDBNothing(t *testing.T) {
 	}
 }
 
-// The list of config.local.toml replaces the list of config.toml as a whole,
-// and takes the mistakes of the replaced list away.
-func TestLoadDBLocalReplaces(t *testing.T) {
+// dbNames are the labels of the connections, each with "+" when it is from
+// config.local.toml.
+func dbNames(list []DBConnection) string {
+	var out []string
+	for _, c := range list {
+		l := c.Label()
+		if c.Local {
+			l += "+"
+		}
+		out = append(out, l)
+	}
+	return strings.Join(out, " ")
+}
+
+// The lists of the two files are merged by name: an entry of
+// config.local.toml takes the place of the one of config.toml with its name,
+// and the entries only one file has stay.
+func TestLoadDBLocalMergesByName(t *testing.T) {
 	dir := userDir(t)
-	os.WriteFile(filepath.Join(dir, "config.toml"), []byte("[[db.connections]]\nname = \"a\"\nkind = \"postgres\"\nuser = \"u\"\n[[db.connections]]\nname = \"broken\"\n"), 0o644)
-	if got, probs := LoadDB(""); len(got) != 1 || len(probs) == 0 {
-		t.Fatalf("before: %+v, %v", got, probs)
+	base := filepath.Join(dir, "config.toml")
+	local := filepath.Join(dir, "config.local.toml")
+	entry := func(name, rest string) string {
+		return "[[db.connections]]\nname = \"" + name + "\"\nkind = \"postgres\"\nuser = \"u\"\n" + rest
 	}
-	os.WriteFile(filepath.Join(dir, "config.local.toml"), []byte("[[db.connections]]\nname = \"b\"\nkind = \"mysql\"\nuser = \"u\"\n"), 0o644)
+	os.WriteFile(base, []byte(entry("a", "")+entry("b", "port = 1\n")+entry("c", "")), 0o644)
+	os.WriteFile(local, []byte(entry("d", "")+entry("b", "port = 2\n")), 0o644)
 	got, probs := LoadDB("")
-	if len(probs) != 0 || len(got) != 1 || got[0].Name != "b" {
-		t.Fatalf("got %+v, %v", got, probs)
+	// The order of config.toml, with b replaced where it was, then d.
+	if len(probs) != 0 || dbNames(got) != "a b+ c d+" || got[1].Port != 2 {
+		t.Fatalf("got %s (%+v), %v", dbNames(got), got, probs)
 	}
-	// A local file without a list leaves the list of config.toml.
-	os.WriteFile(filepath.Join(dir, "config.local.toml"), []byte("ui-language = \"ja\"\n"), 0o644)
-	if got, _ := LoadDB(""); len(got) != 1 || got[0].Name != "a" {
-		t.Fatalf("got %+v", got)
+	// The whole entry is replaced: a key only the entry of config.toml has
+	// is not taken over.
+	os.WriteFile(local, []byte(entry("b", "")), 0o644)
+	if got, _ := LoadDB(""); dbNames(got) != "a b+ c" || got[1].Port != 5432 {
+		t.Fatalf("got %s (%+v)", dbNames(got), got)
+	}
+	// An entry with variants is replaced with all of them.
+	os.WriteFile(base, []byte(entry("a", "[[db.connections.variants]]\nname = \"dev\"\n[[db.connections.variants]]\nname = \"prod\"\n")+entry("c", "")), 0o644)
+	os.WriteFile(local, []byte(entry("a", "[[db.connections.variants]]\nname = \"local\"\n")), 0o644)
+	if got, probs := LoadDB(""); len(probs) != 0 || dbNames(got) != "a (local)+ c" {
+		t.Fatalf("got %s, %v", dbNames(got), probs)
+	}
+	// A local file without a list, or with an empty one, leaves the list of
+	// config.toml: an empty list takes nothing away.
+	for _, text := range []string{"ui-language = \"ja\"\n", "[db]\nconnections = []\n"} {
+		os.WriteFile(local, []byte(text), 0o644)
+		if got, probs := LoadDB(""); len(probs) != 0 || dbNames(got) != "a (dev) a (prod) c" {
+			t.Fatalf("%q: got %s, %v", text, dbNames(got), probs)
+		}
+	}
+	// config.local.toml alone.
+	os.Remove(base)
+	os.WriteFile(local, []byte(entry("z", "")), 0o644)
+	if got, probs := LoadDB(""); len(probs) != 0 || dbNames(got) != "z+" {
+		t.Fatalf("got %s, %v", dbNames(got), probs)
+	}
+}
+
+// The mistakes of an entry go away with it when it is replaced, and an entry
+// of config.local.toml with a mistake still takes away the one of config.toml
+// it has the name of.
+func TestLoadDBLocalMergeMistakes(t *testing.T) {
+	dir := userDir(t)
+	base := filepath.Join(dir, "config.toml")
+	local := filepath.Join(dir, "config.local.toml")
+	ok := func(name string) string {
+		return "[[db.connections]]\nname = \"" + name + "\"\nkind = \"postgres\"\nuser = \"u\"\n"
+	}
+	broken := func(name string) string { return "[[db.connections]]\nname = \"" + name + "\"\n" }
+	keys := func(probs []Problem) string {
+		var out []string
+		for _, p := range probs {
+			out = append(out, filepath.Base(p.File)+":"+p.Key)
+		}
+		return strings.Join(out, " ")
+	}
+	// A mistake in an entry of config.toml that is not replaced stays.
+	os.WriteFile(base, []byte(ok("a")+broken("b")), 0o644)
+	os.WriteFile(local, []byte(ok("c")), 0o644)
+	got, probs := LoadDB("")
+	if dbNames(got) != "a c+" || keys(probs) != "config.toml:db.connections[1].kind config.toml:db.connections[1].user" {
+		t.Fatalf("got %s, %s", dbNames(got), keys(probs))
+	}
+	// Replaced, its mistakes are gone.
+	os.WriteFile(local, []byte(ok("b")), 0o644)
+	if got, probs := LoadDB(""); dbNames(got) != "a b+" || len(probs) != 0 {
+		t.Fatalf("got %s, %s", dbNames(got), keys(probs))
+	}
+	// A local entry with a mistake hides the entry of config.toml: the
+	// connection is left out, not shown as config.toml has it.
+	os.WriteFile(base, []byte(ok("a")+ok("b")), 0o644)
+	os.WriteFile(local, []byte("[[db.connections]]\nname = \"a\"\nkind = \"postgres\"\nuser = \"u\"\nreadonly = true\n"), 0o644)
+	if got, probs := LoadDB(""); dbNames(got) != "b" || keys(probs) != "config.local.toml:db.connections[0].readonly" {
+		t.Fatalf("got %s, %s", dbNames(got), keys(probs))
+	}
+	// The same name twice in config.local.toml is a mistake of the second;
+	// the first replaces the one of config.toml.
+	os.WriteFile(local, []byte(ok("a")+ok("a")), 0o644)
+	if got, probs := LoadDB(""); dbNames(got) != "a+ b" || keys(probs) != "config.local.toml:db.connections[1].name" {
+		t.Fatalf("got %s, %s", dbNames(got), keys(probs))
+	}
+	// A list that is not a list of tables is a mistake of its file; the list
+	// of the other file is used.
+	os.WriteFile(local, []byte("[db]\nconnections = 1\n"), 0o644)
+	if got, probs := LoadDB(""); dbNames(got) != "a b" || keys(probs) != "config.local.toml:db.connections" {
+		t.Fatalf("got %s, %s", dbNames(got), keys(probs))
+	}
+	// An entry without a name replaces nothing.
+	os.WriteFile(local, []byte("[[db.connections]]\nkind = \"postgres\"\nuser = \"u\"\n"), 0o644)
+	if got, probs := LoadDB(""); dbNames(got) != "a b" || keys(probs) != "config.local.toml:db.connections[0].name" {
+		t.Fatalf("got %s, %s", dbNames(got), keys(probs))
 	}
 }
 

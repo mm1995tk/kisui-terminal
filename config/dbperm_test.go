@@ -90,7 +90,7 @@ agent-permission = "b"
 	// permissions of config.toml.
 	os.WriteFile(filepath.Join(dir, "config.local.toml"), []byte("[[db.connections]]\nname = \"l\"\nkind = \"mysql\"\nuser = \"u\"\nagent-permission = \"a\"\n"), 0o644)
 	got, probs := LoadDB("")
-	if len(probs) != 0 || len(got) != 1 || got[0].Name != "l" || got[0].Agent.Run != DBRunFree {
+	if len(probs) != 0 || len(got) != 3 || got[2].Name != "l" || got[2].Agent.Run != DBRunFree {
 		t.Fatalf("the permissions of config.toml: %+v, %v", got, probs)
 	}
 	// With one, the permissions of config.toml are gone: `a` is the local
