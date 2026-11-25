@@ -250,12 +250,12 @@ const SHORTCUT_ONLY: Leaf[] = [
   ),
   leaf("", T("leader.tab.rename"), { id: "tab.rename" }),
   leaf("", T("leader.tab.moveTo"), { id: "tab.moveTo" }),
-  // DB のタブを作る。リーダーの `n` で開くワークスペースの窓の、種類を選ぶ一覧からするので、木には載せない（#456。旧 `d n`）
+  // DB のタブを作る。リーダーの `n` で開くワークスペースの窓の、種類を選ぶ一覧からするので、木には載せない（#456）
   leaf("", T("leader.db.open"), { id: "db.open" }),
 ];
 
 /**
- * SHORTCUT_ONLY と同じ扱いで、内蔵ブラウザを有効にしたときだけ使えるコマンド（#456。旧 `o n` `o N`）。
+ * SHORTCUT_ONLY と同じ扱いで、内蔵ブラウザを有効にしたときだけ使えるコマンド（#456）。
  * ブラウザのタブを作るのも、ワークスペースの窓の、種類を選ぶ一覧からする。
  */
 const SHORTCUT_ONLY_BROWSER: Leaf[] = [
@@ -524,7 +524,7 @@ export const LEADER: Node[] = [
     undefined,
     "mac",
   ),
-  // お知らせ（info の `i`。`n` は、タブを作る入口に譲った。#456）
+  // お知らせ（info の `i`）
   group("i", T("leader.notice.group"), [
     leaf("u", T("leader.notice.update"), { id: "notice.update" }),
     leaf("d", T("leader.notice.dismiss"), { id: "notice.dismiss" }),
