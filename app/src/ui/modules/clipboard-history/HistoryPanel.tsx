@@ -38,7 +38,7 @@ import { KeyHints } from "../../components/KeyHints.tsx";
 const COPIED_MS = 600;
 
 /**
- * 履歴の一覧の中身（見出し・✕・絞り込み・一覧・下の段の基本操作のヒント）。出すたびに履歴を読む。
+ * 履歴の一覧の中身（見出し・絞り込み・一覧・下の段の基本操作のヒント）。出すたびに履歴を読む。
  * onPaste が無ければ貼れない（Enter はクリップボードに戻す）。窓を閉じるのは、onPaste・onClose を渡した側。
  * onPutBack はクリップボードに書くだけで、書けたかを返す。書けたら「コピーしました」を COPIED_MS だけ出してから onClose を呼ぶ。
  * outside は kisui-terminal の外から開いた窓（貼る操作は無い）。
