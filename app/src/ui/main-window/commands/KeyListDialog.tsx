@@ -85,10 +85,17 @@ export function KeyListDialog(): JSX.Element {
         <div class={styles.body}>
           <For each={places()}>{(p) => <PlaceSection place={p} />}</For>
           <Show when={!windowOnly()}>
-            <section class={styles.part}>
+            <section
+              class={styles.part}
+              role="table"
+              aria-label={T("keys.label")}
+              aria-describedby="key-list-lead"
+            >
               {/* 説明文と列見出しは、下の一覧をスクロールしても上に残す（sticky）。見出しと行は同じ 3 列の grid で、幅がそろう */}
               <div class={styles.stick}>
-                <p class={styles.lead}>{T("keys.lead", { leader })}</p>
+                <p id="key-list-lead" class={styles.lead}>
+                  {T("keys.lead", { leader })}
+                </p>
                 <div class={`${styles.row} ${styles.head}`} role="row">
                   <span role="columnheader">
                     {T("keys.col.after", { leader })}
@@ -97,7 +104,7 @@ export function KeyListDialog(): JSX.Element {
                   <span role="columnheader">{T("keys.col.shortcut")}</span>
                 </div>
               </div>
-              <div role="table" aria-label={T("keys.label")}>
+              <div role="rowgroup">
                 <For each={helpRows(IS_MAC)}>
                   {(r) => (
                     <div
