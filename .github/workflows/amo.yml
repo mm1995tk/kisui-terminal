@@ -40,6 +40,7 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       publish: ${{ steps.ver.outputs.publish }}
       version: ${{ steps.ver.outputs.version }}
@@ -78,6 +79,8 @@ jobs:
     needs: check
     if: needs.check.outputs.publish == 'true'
     runs-on: ubuntu-latest
+    # web-ext sign は AMO の検証の終わりを待つ（審査は待たない）。AMO が応えないとき、API キーを持ったまま残らないように
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7.0.1
         with:
