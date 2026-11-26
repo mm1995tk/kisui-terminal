@@ -1,0 +1,8 @@
+# new-check-vm.sh が確認用 VM に入れる config.local.toml（--config で別のファイルにできる）。
+# 内蔵ブラウザとパスキーの受け渡しを使えるようにしておく。passkey_sites があるときだけ、kisui-terminal は
+# Firefox の拡張の受け口の登録を置く。
+ui-language = "ja"
+
+[gui.browser]
+enabled = true
+passkey_sites = ["github.com", ".google.com"]
