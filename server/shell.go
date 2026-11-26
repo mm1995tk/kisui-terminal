@@ -16,12 +16,15 @@ package server
 //   - 覚えていたシェルが使えなくなっていたら（消された、など）、断らずにこのマシンの既定で始める（ワークスペースを失わないため）。
 //
 // このマシンの既定は、[server] shell（このマシンの設定ファイル）、無ければ $SHELL、それも無ければ /bin/sh。
+// [server] の start_dir と shell は、使うたびに読み直す（machineDefaults）。手元のマシンでは、窓の設定と同じファイルなので、
+// 窓が空（「このマシンの既定」）を渡したときに、起動のときの値でなく、今の設定で決まるようにするため。
 
 import (
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"slices"
+	"sync"
 
 	"github.com/mm1995tk/kisui-terminal/config"
 	"github.com/mm1995tk/kisui-terminal/internal/term"
@@ -33,10 +36,35 @@ import (
 // 窓はこれを見てから送る。
 const CapCreateShell = "workspace.create.shell"
 
+// defaults は、最後に読めた [server] の start_dir と shell（machineDefaults が持つ）。
+type defaults struct {
+	mu              sync.Mutex
+	read            bool // 1 度でも読めたか（読めるまでは、起動のときの Options.StartDir・Shell）
+	startDir, shell string
+}
+
+// machineDefaults は、今の設定ファイルの [server] の start_dir と shell（書いていなければ ""）。
+// 使うたびに読み直す（Options.ReadDefaults）。serve は長く動き続け、止めるとターミナルが終わるので、起動のときに読んだ値を
+// 持ち続けると、設定から消した値が止めるまで残る。読めない・間違いがある間は、最後に読めた値。
+func (s *Server) machineDefaults() (startDir, shell string) {
+	d := &s.defaults
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if !d.read {
+		d.startDir, d.shell = s.opts.StartDir, s.opts.Shell
+	}
+	if s.opts.ReadDefaults != nil {
+		if dir, sh, ok := s.opts.ReadDefaults(); ok {
+			d.startDir, d.shell, d.read = dir, sh, true
+		}
+	}
+	return d.startDir, d.shell
+}
+
 // defaultShell は、このマシンの既定のシェル。
 func (s *Server) defaultShell() string {
-	if s.opts.Shell != "" {
-		return s.opts.Shell
+	if _, sh := s.machineDefaults(); sh != "" {
+		return sh
 	}
 	return term.DefaultShell()
 }

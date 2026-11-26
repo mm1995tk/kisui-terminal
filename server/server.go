@@ -54,6 +54,10 @@ type Options struct {
 	StartDir string
 	// Shell はこのマシンの既定のシェル（[server] shell、実行できるファイルの絶対パス）。"" なら $SHELL（shell.go）。
 	Shell string
+	// ReadDefaults は、設定ファイルの [server] の start_dir と shell を読み直す（StartDir・Shell と同じ形）。
+	// serve は、このマシンの既定を使うたびに呼ぶ（shell.go の machineDefaults。設定を変えた次のターミナルから、serve を止めずに効かせる）。
+	// 読めない・間違いがある間は ok == false を返す（serve は最後に読めた値を使う）。nil なら読み直さず、StartDir・Shell のまま。
+	ReadDefaults func() (startDir, shell string, ok bool)
 	// StatePath はワークスペースの一覧を保存するファイル。"" なら保存も復元もしない。
 	StatePath string
 	// CwdInterval はシェルの cwd を読む間隔。0 なら 1 秒。
@@ -77,6 +81,7 @@ type Options struct {
 // Server は Unix ソケットで待ち受けるサーバー。
 type Server struct {
 	opts      Options
+	defaults  defaults // 最後に読めた [server] の start_dir と shell（shell.go）
 	log       *slog.Logger
 	ln        *net.UnixListener
 	serverID  string

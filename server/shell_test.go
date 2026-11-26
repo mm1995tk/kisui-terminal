@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/mm1995tk/kisui-terminal/rpc"
@@ -257,5 +258,61 @@ func TestShellRestoredAfterShutdown(t *testing.T) {
 		if path, _ := shellOfTerm(t, srv2, x.Primary); path != want {
 			t.Errorf("workspace %s runs %q, want %q", id, path, want)
 		}
+	}
+}
+
+// このマシンの既定（[server] の start_dir と shell）は、使うたびに設定を読み直す。設定から消せば、serve を止めずに、
+// 次のターミナルから $SHELL とホームに戻る（窓は、書いていない項目を空で渡す）。読めない間は、最後に読めた値。
+func TestMachineDefaultsAreReadAgain(t *testing.T) {
+	home := normalizePath(t.TempDir())
+	t.Setenv("HOME", home)
+	own := fakeShell(t, filepath.Join(home, "bin"), "own")
+	work := filepath.Join(home, "work")
+	if err := os.Mkdir(work, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	var mu sync.Mutex
+	dir, sh, ok := work, own, true // 今の設定ファイルの [server]
+	set := func(d, s string, readable bool) {
+		mu.Lock()
+		defer mu.Unlock()
+		dir, sh, ok = d, s, readable
+	}
+	srv, sock := startFastWith(t, func(o *Options) {
+		o.StartDir, o.Shell = work, own
+		o.ReadDefaults = func() (string, string, bool) {
+			mu.Lock()
+			defer mu.Unlock()
+			return dir, sh, ok
+		}
+	})
+	c, _ := termClient(t, sock)
+	// 窓が空を渡したときの、始まるフォルダとシェル
+	started := func() (folder, shell string) {
+		t.Helper()
+		id, primary, err := createWith(t, c, map[string]any{"startDir": "", "shell": ""})
+		if err != nil {
+			t.Fatal(err)
+		}
+		shell, _ = shellOfTerm(t, srv, primary)
+		return folderOfWS(t, c, id), shell
+	}
+	if f, s := started(); f != work || s != own {
+		t.Errorf("with [server]: %q %q", f, s)
+	}
+	// 設定に間違いがある間は、最後に読めた値
+	set("", "", false)
+	if f, s := started(); f != work || s != own {
+		t.Errorf("while the settings cannot be read: %q %q", f, s)
+	}
+	// 設定から消した：serve は止めていない
+	set("", "", true)
+	if f, s := started(); f != home || s != "/bin/sh" {
+		t.Errorf("after the keys are removed: %q %q, want %q /bin/sh", f, s, home)
+	}
+	// 書き直した
+	set("", own, true)
+	if f, s := started(); f != home || s != own {
+		t.Errorf("after shell is written again: %q %q", f, s)
 	}
 }

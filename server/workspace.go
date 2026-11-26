@@ -98,8 +98,9 @@ func (w *wsManager) resolve(cwd string) (root, kind string, ok bool) {
 }
 
 // startDir は新しいワークスペースのプライマリターミナルが始まるフォルダ（[server] start_dir、無ければ ~）。
+// [server] は、呼ばれるたびに読み直す（shell.go の machineDefaults）。
 func (w *wsManager) startDir() string {
-	if d := w.srv.opts.StartDir; d != "" {
+	if d, _ := w.srv.machineDefaults(); d != "" {
 		return d
 	}
 	if w.home != "" {

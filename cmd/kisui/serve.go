@@ -96,6 +96,12 @@ func runServe(args []string) int {
 		IdleStop:     idle,
 		StartDir:     cfg.StartDir,
 		Shell:        cfg.Shell,
+		// [server] の start_dir と shell は、使うたびに読み直す（設定を変えた次のターミナルから、serve を止めずに効く）。
+		// 間違いのある間は、最後に読めた値のまま
+		ReadDefaults: func() (string, string, bool) {
+			c, err := config.Load(buildinfo.Suffix())
+			return c.StartDir, c.Shell, err == nil
+		},
 	}
 	var srv *server.Server
 	if handover != nil {
