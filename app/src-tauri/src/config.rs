@@ -510,7 +510,7 @@ pub(crate) fn edit_local<E: From<String>>(
     let text = read_text(&path)?.unwrap_or_default();
     let mut doc: toml_edit::DocumentMut = text
         .parse()
-        .map_err(|e| format!("{}: TOML として読めません（{e}）", path.display()))?;
+        .map_err(|e: toml_edit::TomlError| unreadable(&path, &text, e.span()))?;
     edit(&mut doc, &path)?;
     fs::create_dir_all(dir).map_err(|e| format!("{}: 作れません（{e}）", dir.display()))?;
     replace_file(&path, doc.to_string().as_bytes())
@@ -560,7 +560,19 @@ fn replace_file(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
 }
 
 /// 1 始まりの行番号。
-fn line_of(text: &str, offset: usize) -> usize {
+/// TOML として読めないときの理由。場所（行）だけを言い、間違いの文は入れない（その行の中身、たとえば手で書いたパスワードを含むため）。
+pub(crate) fn unreadable(path: &Path, text: &str, span: Option<std::ops::Range<usize>>) -> String {
+    match span {
+        Some(r) => format!(
+            "{}:{}: TOML として読めません",
+            path.display(),
+            line_of(text, r.start)
+        ),
+        None => format!("{}: TOML として読めません", path.display()),
+    }
+}
+
+pub(crate) fn line_of(text: &str, offset: usize) -> usize {
     let end = offset.min(text.len());
     text.as_bytes()[..end]
         .iter()

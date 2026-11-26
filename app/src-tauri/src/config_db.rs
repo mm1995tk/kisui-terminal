@@ -173,11 +173,13 @@ pub struct DbConnections {
     pub fixed: Vec<String>,
 }
 
-/// TOML の文字列から、`[[db.connections]]` の項目（表）の並び。読めない・形が違えば空。
+/// TOML の文字列から、`[[db.connections]]` の項目（表）の並び。形が違えば空。
+/// 読めなければ「行: 理由」（呼んだ側がファイルの場所を前に付ける）。間違いの行の中身は入れない（手で書いたパスワードを含むことがある）。
 fn entries_of(text: &str) -> Result<Vec<toml::Table>, String> {
-    let doc: toml::Table = text
-        .parse()
-        .map_err(|e| format!("TOML として読めません（{e}）"))?;
+    let doc: toml::Table = text.parse().map_err(|e: toml::de::Error| {
+        let line = e.span().map_or(0, |r| config::line_of(text, r.start));
+        format!("{line}: TOML として読めません")
+    })?;
     let list = doc
         .get(DB_CONNECTIONS.table)
         .and_then(|v| v.get(DB_CONNECTIONS.name))
@@ -256,7 +258,7 @@ fn base(dir: &Path) -> Result<(String, Vec<String>), EditError> {
     let path = dir.join(config::FILES[0]);
     let text = read(dir, config::FILES[0])?;
     let names = entries_of(&text)
-        .map_err(|e| EditError::File(format!("{}: {e}", path.display())))?
+        .map_err(|e| EditError::File(format!("{}:{e}", path.display())))?
         .iter()
         .filter_map(name_of)
         .collect();
@@ -269,7 +271,7 @@ pub fn list(dir: &Path) -> Result<DbConnections, EditError> {
     let local_path = dir.join(config::FILES[1]);
     let local_text = read(dir, config::FILES[1])?;
     view(&base_text, &local_text)
-        .map_err(|e| EditError::File(format!("{}: {e}", local_path.display())))
+        .map_err(|e| EditError::File(format!("{}:{e}", local_path.display())))
 }
 
 /// 設定のフォルダ `dir` の `config.local.toml` の `[[db.connections]]` に、窓の書き込み `e` を行い、書いたあとの手元の DB の接続を返す。
@@ -791,6 +793,33 @@ mod tests {
         );
         edit(&d, DbEdit::Remove { name: "b".into() }).unwrap();
         assert_eq!(list(&d).unwrap().local.len(), 1);
+    }
+
+    // 読めないファイルの理由は場所だけで、間違いの行の中身（パスワードを含むことがある）を出さない
+    #[test]
+    fn unreadable_file_hides_the_line() {
+        let d = temp_dir("broken");
+        fs::write(
+            d.join("config.local.toml"),
+            "[[db.connections]]\nname = \"a\"\npassword = \"hunter2\n",
+        )
+        .unwrap();
+        let Err(EditError::File(why)) = list(&d) else {
+            panic!()
+        };
+        assert!(
+            why.ends_with("config.local.toml:3: TOML として読めません"),
+            "{why}"
+        );
+        let Err(EditError::File(why)) = edit(
+            &d,
+            DbEdit::Add {
+                connection: fields("b"),
+            },
+        ) else {
+            panic!()
+        };
+        assert!(!why.contains("hunter2"), "{why}");
     }
 
     // 新しく作る config.local.toml は、持ち主だけが読み書きできる
