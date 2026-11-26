@@ -6,7 +6,8 @@
 # - 元イメージ（既定 kisui-vm-golden）は make-golden.sh で作る。Firefox（中身は Developer Edition）と
 #   cua-driver が入っていて、署名の無い拡張を入れたままにできる。
 # - 確認用 VM（既定 kisui-vm）は、あれば消して作り直す。中に残した設定やスクリーンショットも消える。
-# - 確認用 VM の MAC アドレスを固定するので、IP アドレスは毎回同じになる（cua-driver の MCP の接続先が変わらない）。
+# - 確認用 VM の MAC アドレスを固定するので、同じホストでは IP アドレスが毎回同じになる（ホストの DHCP が
+#   MAC アドレスごとに貸し出しを覚えているため）。何になるかは最後に出す。
 # - TAG は GitHub の Release のタグ（既定 nightly）。その Release の .dmg を入れる。
 # - 拡張は、指定が無ければ extension/dist の一番新しい zip を入れる（npm run build:extension で作る）。
 # - 設定は、指定が無ければ同じフォルダの config.local.toml を、VM の config.local.toml として入れる。
@@ -15,7 +16,7 @@ set -euo pipefail
 REPO=mm1995tk/kisui-terminal
 GOLDEN=${GOLDEN:-kisui-vm-golden}
 VM=${VM:-kisui-vm}
-# 確認用 VM の MAC アドレス。lume の DHCP はこれで IP アドレスを決める（192.168.64.2）
+# 確認用 VM の MAC アドレス。ホストの DHCP は、前にこの MAC アドレスに貸した IP アドレスを、また貸す
 MAC=${MAC:-a6:91:68:b7:6a:5c}
 EXT_ID=kisui-terminal@mm1995tk.github.io
 
@@ -31,7 +32,7 @@ while [ $# -gt 0 ]; do
   --extension) ext=$2; shift ;;
   --no-extension) no_ext=1 ;;
   --config) cfg=$2; shift ;;
-  -h | --help) sed -n '2,12p' "$0"; exit 0 ;;
+  -h | --help) sed -n '2,13p' "$0"; exit 0 ;;
   *) echo "知らない引数: $1" >&2; exit 2 ;;
   esac
   shift
