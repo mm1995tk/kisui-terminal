@@ -30,10 +30,10 @@ type gwsRef struct {
 
 var errNoGwsID = errors.New("the id of the workspace of the window is empty")
 
-// cleanGwsRef は、窓が知らせた（または保存していた）窓のワークスペースを確かめる。id は、空・長すぎる・制御文字があるなら断る
-// （cleanPaneName）。名前は、長すぎれば断り、制御文字は空白に替える：名前の決まりは窓が持ち、窓の決まりは serve の
-// unicode.IsControl より狭い（C1 の制御文字を通す）ので、ここで断ると、その名前が 1 つあるだけで、このマシンの知らせが
-// 丸ごと通らなくなる。
+// cleanGwsRef は、窓が知らせた（または保存していた）窓のワークスペースを、覚えられる形にする。id が使えない（空・長すぎる・
+// 制御文字がある。cleanPaneName）ときだけ断る。名前は断らずに直す：制御文字は空白に替え、長すぎれば maxPaneName 文字で切る。
+// 名前の決まりは窓が持ち、窓の決まりは serve の unicode.IsControl より狭く（C1 の制御文字を通す）、窓は保存してあった記録を
+// 読むときに長さを確かめ直さないので、ここで断ると、窓からは直せないまま、そのワークスペースが出なくなる。
 func cleanGwsRef(g gwsRef) (gwsRef, error) {
 	id, err := cleanPaneName(g.ID)
 	if err != nil {
@@ -42,14 +42,14 @@ func cleanGwsRef(g gwsRef) (gwsRef, error) {
 	if id == "" {
 		return gwsRef{}, errNoGwsID
 	}
-	name, err := cleanPaneName(strings.Map(func(r rune) rune {
+	name := strings.TrimSpace(strings.Map(func(r rune) rune {
 		if unicode.IsControl(r) {
 			return ' '
 		}
 		return r
 	}, g.Name))
-	if err != nil {
-		return gwsRef{}, err
+	if r := []rune(name); len(r) > maxPaneName {
+		name = strings.TrimSpace(string(r[:maxPaneName]))
 	}
 	return gwsRef{ID: id, Name: name}, nil
 }
@@ -73,9 +73,12 @@ func (ss *session) gwsSetReq(req *rpc.Message) (any, error) {
 		if x.WorkspaceID == "" {
 			return nil, rpc.Errorf(rpc.CodeInvalidParams, "a tab has no workspaceId")
 		}
+		// id が使えないタブは、その 1 つだけ対応を空にする（知らせを丸ごと断ると、その 1 つのために、このマシンのほかのタブの
+		// ワークスペースも出なくなり、窓には何も出ないので気づけない）
 		g, err := cleanGwsRef(x.gwsRef)
 		if err != nil {
-			return nil, rpc.Errorf(rpc.CodeInvalidParams, "invalid tab %q: %v", x.WorkspaceID, err)
+			ss.srv.log.Warn("gws.set: a tab is left without a workspace", "workspace", x.WorkspaceID, "err", err)
+			continue
 		}
 		tabs[x.WorkspaceID] = g
 	}

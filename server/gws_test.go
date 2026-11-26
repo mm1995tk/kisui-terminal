@@ -72,20 +72,36 @@ func TestGwsSetShownInPaneListAndRestored(t *testing.T) {
 	if p := byID(r.Panes)[ta]; p.Workspace != "gaaaaaaaaaa" || p.WorkspaceName != "作業用" {
 		t.Errorf("pane.run list: %+v", p)
 	}
-	// 形の違う知らせは丸ごと断り、前の対応は残る
-	for _, bad := range []map[string]any{
-		{"workspaceId": a, "id": "", "name": "x"},
-		{"workspaceId": "", "id": "gaaaaaaaaaa", "name": "x"},
-		{"workspaceId": a, "id": "g\naaaaaaaaa", "name": "x"},
-		{"workspaceId": a, "id": "gaaaaaaaaaa", "name": strings.Repeat("あ", maxPaneName+1)},
-	} {
-		var re *rpc.Error
-		if err := set(c1, bad); !errors.As(err, &re) || re.Code != rpc.CodeInvalidParams {
-			t.Errorf("gws.set %v: %v", bad, err)
-		}
+	// workspaceId の無い知らせは、何も変えずに断る
+	var re *rpc.Error
+	if err := set(c1, map[string]any{"workspaceId": "", "id": "gaaaaaaaaaa", "name": "x"}); !errors.As(err, &re) || re.Code != rpc.CodeInvalidParams {
+		t.Errorf("gws.set without a workspaceId: %v", err)
 	}
 	if p := byID(srv1.paneList(""))[ta]; p.Workspace != "gaaaaaaaaaa" {
 		t.Errorf("after refused gws.set: %+v", p)
+	}
+	// id が使えないタブは、その 1 つだけ対応を空にして、残りは受ける。長すぎる名前は切り、制御文字は空白に替える
+	// （名前の決まりは窓が持つ。丸ごと断ると、1 つのために、このマシンのほかのタブのワークスペースも出なくなる）
+	for _, badID := range []string{"", "g\naaaaaaaaa", strings.Repeat("g", maxPaneName+1)} {
+		if err := set(c1,
+			map[string]any{"workspaceId": a, "id": badID, "name": "x"},
+			map[string]any{"workspaceId": b, "id": "gbbbbbbbbbb", "name": strings.Repeat("あ", maxPaneName+1)},
+		); err != nil {
+			t.Fatalf("gws.set with the id %q: %v", badID, err)
+		}
+		got := byID(srv1.paneList(""))
+		if p := got[ta]; p.Workspace != "" || p.WorkspaceName != "" {
+			t.Errorf("the tab of the id %q: %+v", badID, p)
+		}
+		if p := got[tb]; p.Workspace != "gbbbbbbbbbb" || p.WorkspaceName != strings.Repeat("あ", maxPaneName) {
+			t.Errorf("the other tab, beside the id %q: %+v", badID, p)
+		}
+	}
+	if err := set(c1, map[string]any{"workspaceId": a, "id": "gaaaaaaaaaa", "name": "a\nb"}); err != nil {
+		t.Fatal(err)
+	}
+	if p := byID(srv1.paneList(""))[ta]; p.WorkspaceName != "a b" {
+		t.Errorf("a control character in the name: %+v", p)
 	}
 	// 載っていないタブ（b）の対応は消える
 	// 名前の制御文字は空白に替える（名前の決まりは窓が持つ。断ると、このマシンの知らせが丸ごと通らなくなる）
