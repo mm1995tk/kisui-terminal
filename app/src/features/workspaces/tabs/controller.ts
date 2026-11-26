@@ -89,7 +89,6 @@ export function createTabs(deps: {
     switchWorkspace,
     goWorkspace,
     createMachineWorkspace,
-    runClose,
     justCreated,
     creatable,
     cannot,
@@ -201,37 +200,26 @@ export function createTabs(deps: {
     const terms = termsOf(g);
     const i = terms.findIndex((r) => r.target === target && r.ws === ws);
     if (i < 0) return;
-    justCreated.delete(termKey(target, ws)); // 閉じたタブを、整理で守り続けない
     const tw = untrack(workspaces)[target]?.find((w) => w.id === ws);
     const name = tw ? band(tw, false).title : terms[i].title || unsetTitle();
-    const s = sessions()[target];
-    if (!s || states()[target]?.kind !== "connected") {
-      setGws(dropTerm(untrack(gws), target, ws));
-      return;
+    setFocusError(null);
+    try {
+      if ((await closeTermTabNow(target, ws, force)) === "running")
+        setConfirmCloseTab({ target, ws, name });
+    } catch (e) {
+      setFocusError({
+        title: T("err.workspace.close", { name }),
+        error: e instanceof Error ? e.message : String(e),
+      });
     }
-    // 出しているタブを閉じたら、閉じたあとに出るもの（隣のターミナルのタブ・ブラウザのタブ・空の画面）にキーを向ける。
-    // 今いるワークスペースは変わらず、出るものは記録から決まる（model.ts の passActiveTerm と shownBrowserId）
-    const f = untrack(focus);
-    const shown = f?.target === target && f.id === ws;
-    await runClose(
-      name,
-      force,
-      async () => {
-        await s.closeWorkspace(ws, force);
-        // マシンの一覧の知らせが遅れても、すぐ隣のタブを出すように、先に記録から外す
-        setGws((x) => dropTerm(x, target, ws));
-      },
-      () => setConfirmCloseTab({ target, ws, name }),
-      () => {
-        if (shown) focusTerminal();
-      },
-    );
   }
 
   /**
-   * Terminal tab 1 つを、確認の Dialog を出さずに閉じる（CLI の `kisui tab close`。#511）。結果は closeTermTab と同じで、違いは、
-   * プログラムが動いていて force でないときに Dialog を出さず "running" を返すことと、ほかの失敗を投げること。
-   * Machine につながっていない Tab は、closeTermTab と同じく記録から外すだけ。Tab がもう無ければ "gone"。
+   * Terminal tab 1 つを、確認の Dialog を出さずに閉じる。閉じる手順の本体で、closeTermTab（Sidebar の ✕・Command tab.close）と
+   * CLI の `kisui tab close`（#511）が使う。プログラムが動いていて force でなければ、閉じずに "running" を返す（Dialog を出すかは
+   * 呼ぶ側が決める）。ほかの失敗は投げる。Machine につながっていない Tab は、閉じられないので記録から外すだけ。Tab がもう無ければ "gone"。
+   * 出している Tab を閉じたら、閉じたあとに出るもの（隣の Terminal tab・Browser tab・空の画面）にキーを向ける。今いる Workspace は
+   * 変わらず、出るものは記録から決まる（model.ts の passActiveTerm と shownBrowserId）。
    */
   async function closeTermTabNow(
     target: string,
@@ -239,7 +227,7 @@ export function createTabs(deps: {
     force: boolean,
   ): Promise<"closed" | "running" | "gone"> {
     if (!gwsOfTerm(untrack(gws), target, ws)) return "gone";
-    justCreated.delete(termKey(target, ws));
+    justCreated.delete(termKey(target, ws)); // 閉じたタブを、整理で守り続けない
     const s = sessions()[target];
     if (!s || states()[target]?.kind !== "connected") {
       setGws(dropTerm(untrack(gws), target, ws));
@@ -257,6 +245,7 @@ export function createTabs(deps: {
       if (d?.reason === "running" && !force) return "running";
       throw e;
     }
+    // Machine の一覧の知らせが遅れても、すぐ隣の Tab を出すように、先に記録から外す
     setGws((x) => dropTerm(x, target, ws));
     if (shown) focusTerminal();
     return "closed";
