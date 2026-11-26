@@ -116,6 +116,12 @@ func (s *Server) paneList(caller paneOrigin, self string) []panecmd.PaneInfo {
 		t.mu.Lock()
 		p := panecmd.PaneInfo{ID: t.id, Name: t.name, Tab: t.wsID, Cwd: t.cwd, Title: t.title, Primary: t.primary, Alive: t.alive, Self: t.id == self}
 		t.mu.Unlock()
+		// このマシンのペインのうち、このペインを作った側（系譜。panereach.go）
+		for _, o := range t.ancestors {
+			if o.Server == "" {
+				p.OpenedFrom = append(p.OpenedFrom, o.Pane)
+			}
+		}
 		p.TabName = tabs[p.Tab].name
 		out = append(out, p)
 	}

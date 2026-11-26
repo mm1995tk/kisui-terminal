@@ -190,6 +190,11 @@ type PaneInfo struct {
 	Alive bool `json:"alive"`
 	// Self is the terminal that asked.
 	Self bool `json:"self,omitempty"`
+	// OpenedFrom is the ids of the panes of this machine that this pane was
+	// opened from, the oldest first: the pane that opened it, the pane that
+	// opened that one, and so on. Empty for a pane the user opened in the
+	// window, and for one opened from a pane of another machine alone.
+	OpenedFrom []string `json:"openedFrom,omitempty"`
 }
 
 // The Status of an UpdateResult.
@@ -262,12 +267,22 @@ func FromEnv() (Pane, error) {
 // Timeout is how long Do waits for "kisui serve".
 const Timeout = 10 * time.Second
 
+// RelayTimeout is how long Do waits for a request for another machine
+// (Request.Machine). The window may ask the person in front of it whether to
+// let the request through, so "kisui serve" waits for the window much longer
+// than for a request of its own machine (server.paneRelayWait); this is a
+// little longer than that, so that the reason of "kisui serve" arrives.
+const RelayTimeout = 100 * time.Second
+
 // Do sends rq (with the pane's id and secret) and reads the reply, waiting up
-// to Timeout. A reply that is not OK is returned as an error with its text
+// to Timeout (RelayTimeout for a request for another machine). A reply that is not OK is returned as an error with its text
 // (ErrNotInPane for CodeNotInPane), beside the reply (for its Code). Nothing
 // is sent when the directory of the socket is not a private one of this user
 // (ctl.CheckSocketDir): the error is then a *ctl.SocketDirError.
 func (p Pane) Do(rq Request) (Reply, error) {
+	if rq.Machine != "" {
+		return p.DoWithin(rq, RelayTimeout)
+	}
 	return p.DoWithin(rq, Timeout)
 }
 

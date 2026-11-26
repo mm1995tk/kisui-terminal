@@ -38,9 +38,11 @@ export interface PaneEventTargets {
     from: string,
     machine: string,
     rq: PaneRunRequest,
-    /** 頼んだペインの id（from の serve でのもの）と、open-tab で作るタブに持たせる系譜 */
-    by: { pane?: string; ancestry?: PaneOrigin[] },
+    /** 待ちの id（取り下げで使う）・頼んだペインの id（from の serve でのもの）・open-tab で作るタブに持たせる系譜 */
+    by: { id?: string; pane?: string; ancestry?: PaneOrigin[] },
   ): Promise<PaneRunReply>;
+  /** マシン from の serve が、頼み id を取り下げた（人に聞いている途中なら、聞くのをやめる） */
+  relayCancel(from: string, id: string): void;
   /** マシン target の接続の DB のタブの入力欄に、SQL を書く（`kisui db propose`。投げずに、書けなければ理由を返す） */
   dbPropose(target: string, rq: DbProposeRequest): Promise<DbProposeReport>;
   /** マシン target の `kisui db propose` の取り下げ（人に聞いている途中なら、聞くのをやめる） */
@@ -78,10 +80,12 @@ export function routePaneEvent(
   else if (ev.kind === "relay")
     void to
       .relay(target, ev.machine, ev.request, {
+        id: ev.id,
         pane: ev.pane,
         ancestry: ev.ancestry,
       })
       .then((r) => s.reportPaneRelayed(ev.id, r));
+  else if (ev.kind === "relay-cancel") to.relayCancel(target, ev.id);
   else if (ev.kind === "db-propose")
     void to.dbPropose(target, ev).then((r) => s.reportDbProposed(ev.id, r));
   else if (ev.kind === "db-propose-cancel") to.dbProposeCancel(target, ev.id);

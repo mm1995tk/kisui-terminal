@@ -885,6 +885,11 @@ export interface Notifications {
    */
   "pane.relay": PaneRelayRequest;
   /**
+   * serve が、pane.relay の頼み id の答えを待つのをやめた（頼んだコマンドが止められた・時間切れ）。その頼みを人に聞いている
+   * 途中なら、聞くのをやめる（断ったことにする）。capabilities に "pane.relay.wait" がある serve だけが送る
+   */
+  "pane.relayCancel": { id: string };
+  /**
    * `kisui db propose`（#382）。コーディングエージェントが、このマシンの接続 connection（と variant）の DB のタブの入力欄に
    * sql を書くよう頼んだ。今のワークスペースのそのタブ（無ければ開く）に書き、db.proposed で答える。入力欄に SQL があれば、
    * 上書きの前に人に聞く

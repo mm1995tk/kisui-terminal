@@ -349,6 +349,33 @@
   outline-offset: var(--state-focus-ring-offset);
 }
 
+/* 別のマシンからの頼みを許すかを聞く窓（PaneApprovalDialog.tsx）の、頼みの中身。中身は、そのマシンが決めた字なので、
+   画面の字（見出し）と見分けられるよう、等幅で枠の中に出す。長くても切らずに折り返し、多ければこの中でスクロールする */
+.approval-items {
+  flex: none;
+  max-height: 40vh;
+  margin: 0;
+  padding: var(--space-8) var(--space-10);
+  overflow-y: auto;
+  border-radius: var(--radius-8);
+  background: var(--card-field-bg);
+}
+.approval-items > dt {
+  color: var(--card-muted);
+  font-size: var(--text-caption);
+}
+.approval-items > dd {
+  margin: 0 0 var(--space-8);
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  line-height: var(--leading-text);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.approval-items > dd:last-child {
+  margin-bottom: 0;
+}
+
 /* マシンのダイアログ（MachineDialog.tsx）と、同じ形で一覧を出す窓。行は card-row を使い、キーはダイアログ全体で受ける。
    窓は高さを決めず max-height だけなので、一覧を縮めてよい（min-height: 0）にすると、WebView によっては一覧の高さが 0 と
    計算されて行が 1 つも見えなくなる。一覧は縮めず、窓に収まらない分は .card-content がスクロールする */
@@ -379,4 +406,8 @@
 .machine-row-count {
   min-width: 9em;
   text-align: right;
+}
+/* 手元の PC のペインの操作を許している間の印（続けられるが気をつける、の色） */
+.machine-row-grant {
+  color: var(--state-warning);
 }

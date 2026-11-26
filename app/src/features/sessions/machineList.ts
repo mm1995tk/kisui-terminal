@@ -29,6 +29,8 @@ export interface MachineRow {
   hasSession: boolean;
   /** つなぎ直す・今すぐつなぐができるか（無ければ、今は待つだけ） */
   retry?: "now" | "again";
+  /** 手元の PC のペインの操作を、時間を決めて許している間の、残りの時間の字（paneGrant.ts。許していなければ無い） */
+  grant?: string;
 }
 
 const healthText = (h: Health): string => T(`health.${h}`);
@@ -41,6 +43,7 @@ export function machineRows(
   groups: readonly MachineGroup[],
   statusOf: (target: string) => MachineStatus,
   hasSession: (target: string) => boolean,
+  grantOf: (target: string) => string | undefined = () => undefined,
 ): MachineRow[] {
   return groups.map((g) => {
     const st = statusOf(g.target);
@@ -56,6 +59,7 @@ export function machineRows(
       fixed: g.fixed,
       hasSession: hasSession(g.target),
       retry: st.retry,
+      ...(grantOf(g.target) !== undefined ? { grant: grantOf(g.target) } : {}),
     };
   });
 }
@@ -64,6 +68,8 @@ export function machineRows(
  * ダイアログの中の操作。newTab は、選んだマシンを設定したターミナルのタブ作成を、ワークスペースの窓で始める（Enter。#461）。
  * ここではタブを作らない。名前を打って決めるのは、ワークスペースの窓のタブを作る行（#456 と同じ行）。
  * terminal は、選んだマシンの新しいターミナルが始まるフォルダとシェルを変える窓を出す（t。#485。termDefaults.ts）。
+ * grant は、選んだマシンのペインに、手元の PC のペインの操作を、時間を決めて許す窓を出す（p。paneGrant.ts）。
+ * grantEnd は、その許可を時間の前に終える（P）。DB の権限の引き上げ（DB のタブの窓の p と P）と同じキー。
  */
 export type MachineAction =
   | "add"
@@ -72,7 +78,9 @@ export type MachineAction =
   | "disconnect"
   | "reconnect"
   | "newTab"
-  | "terminal";
+  | "terminal"
+  | "grant"
+  | "grantEnd";
 
 /** ダイアログの中のキーが表す動き。 */
 export type MachineKey =
@@ -119,6 +127,10 @@ export function machineKey(e: KeyLike): MachineKey | null {
       return { kind: "action", action: "reconnect" };
     case "t":
       return { kind: "action", action: "terminal" };
+    case "p":
+      return { kind: "action", action: "grant" };
+    case "P":
+      return { kind: "action", action: "grantEnd" };
     case "?":
       return { kind: "help" };
   }
@@ -180,6 +192,15 @@ export function canDo(
       // 「ローカル」は [server] に書けるので、変えられる。config.toml にだけあるマシンは、窓からは書けない
       if (row.fixed)
         return T("machine.cant.terminal.fixed", { label: row.label });
+      return null;
+    case "grant":
+      // 許す相手は ssh 先のマシン（手元の PC のペインは、何も許さなくても手元の PC に届く）
+      if (!row.removable)
+        return T("machine.cant.grant.local", { label: row.label });
+      return null;
+    case "grantEnd":
+      if (row.grant === undefined)
+        return T("machine.cant.grantEnd.none", { label: row.label });
       return null;
     case "disconnect":
       if (!row.removable)

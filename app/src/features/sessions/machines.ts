@@ -275,16 +275,30 @@ export function localNamed(list: Machine[]): string[] {
  * マシン from（ssh の行き先。手元の PC は LOCAL）のペインの `kisui pane … --machine` を、マシン to に中継してよいか。
  * 手元の PC からは、どのマシンにも中継する（そのマシンには、窓がもう ssh でつないでいる）。自分のマシンを指したものも通す。
  * ssh 先のマシンからは、そのマシンの `allow_pane_to`（設定ファイル）に名前のある先にだけ中継する。書いていなければ、どこにも中継しない。
+ * 手元の PC（local）は、設定ファイルでは許せない（書いてあっても数えない）。窓の前の人が時間を決めて許している間（granted。
+ * paneGrant.ts）だけ中継する：手元の PC にペインを作らせると、そのマシンは手元の PC でコマンドを動かせるので、
+ * 書いたまま忘れられる設定には任せない。
  * 中継を頼む通知は ssh 先の serve が作るので、頼んだ serve の言うことではなく、手元の設定で決める。
  */
 export function paneRelayAllowed(
   list: Machine[],
   from: string,
   to: string,
+  granted = false,
 ): boolean {
   if (from === LOCAL || from === to) return true;
+  if (to === LOCAL) return granted;
   const allowed = list.find((m) => m.target === from)?.allowPaneTo ?? [];
-  return allowed.some((name) => machineTarget(list, name) === to);
+  return allowed.some(
+    (name) => name !== LOCAL_MACHINE && machineTarget(list, name) === to,
+  );
+}
+
+/**
+ * `allow_pane_to` に `local` を書いているマシンの名前（効かないので、お知らせに出す）。
+ */
+export function localInAllowPaneTo(list: Machine[]): string[] {
+  return list.filter((m) => m.allowPaneTo?.includes(LOCAL_MACHINE)).map(nameOf);
 }
 
 /**

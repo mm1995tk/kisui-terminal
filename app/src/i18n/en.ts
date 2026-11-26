@@ -728,6 +728,60 @@ export const en = {
     "The kisui serve of {machine} is too old for this. Update kisui-terminal there.",
   "paneRelay.err.noMachine":
     'No machine is named "{machine}" (machines: {machines})',
+  "paneRelay.err.timeout":
+    "{machine} did not answer in time (the request may still be done there)",
+  "paneRelay.err.localNotGranted":
+    "The panes of {from} may not reach this computer (local) now. Only the person at the window can allow it, and only for a time: in the machine dialog, choose {from} and press p. Ask the user to do that.",
+  "paneRelay.err.refused": "The person at the window did not allow it.",
+  "paneGrant.err.format": "Write a time such as 30m, 1h or 1h30m.",
+  "paneGrant.err.max": "At most 8h.",
+  "paneGrant.title": "Allow panes on this computer",
+  "paneGrant.lead":
+    "For the time below, the commands in the panes of {machine} (kisui pane … --machine local) may work on panes of this computer. Each time they ask to open a pane here, you are asked. When the time is over, this ends by itself; P in the machine dialog ends it earlier. It is kept only while this window is open.",
+  "paneGrant.time": "Time (30m, 1h, 1h30m; at most 8h)",
+  "paneGrant.allow": "Allow",
+  "paneGrant.end": "End now",
+  "machineDialog.granted": "may work on panes of this computer: {time} left",
+  "machineDialog.keys.grant": "allow panes here",
+  "machineDialog.keys.grantEnd": "end allowing",
+  "place.machines.grant":
+    "Allow the panes of the machine to work on panes of this computer, for a time",
+  "place.machines.grantEnd": "End that before the time",
+  "machine.cant.grant.local":
+    "{label} is this computer. Choose a remote machine to allow.",
+  "machine.cant.grantEnd.none":
+    "{label} is not allowed to work on panes of this computer now.",
+  "paneApproval.label": "A request from another machine",
+  "paneApproval.title.open": "Open a pane on this computer?",
+  "paneApproval.title.op": "Let this through to a pane of this computer?",
+  "paneApproval.lead.open":
+    "A command in a pane of {machine} asks to open a terminal tab on this computer. What it runs, and what is sent to it later, runs on this computer as you.",
+  "paneApproval.lead.op":
+    "A command in a pane of {machine} asks this for the pane {pane} of this computer.",
+  "paneApproval.field.workspace": "Workspace",
+  "paneApproval.field.workspaceNew": "Workspace (new)",
+  "paneApproval.field.name": "Name of the pane",
+  "paneApproval.field.cwd": "Folder",
+  "paneApproval.field.command": "Command",
+  "paneApproval.shell": "(a shell)",
+  "paneApproval.startDir": "(the start folder of this computer)",
+  "paneApproval.op.send": "Type this text and press Enter",
+  "paneApproval.op.keys": "Press these keys",
+  "paneApproval.op.read": "Read what its screen shows",
+  "paneApproval.op.close": "Close it (what runs in it ends)",
+  "paneApproval.note":
+    "The command, the names and the text were chosen on that machine. The name of the machine above is the one this window knows.",
+  "paneApproval.deny": "Deny",
+  "paneApproval.allow": "Allow",
+  "paneApproval.allowQuiet": "Allow, do not ask for this pane",
+  "paneApproval.allowAsk": "Allow, ask each time",
+  "notice.paneGrant.title":
+    "{machine} may work on panes of this computer until {until}",
+  "notice.paneGrant.text":
+    "You are asked each time it asks to open a pane here. It ends by itself at that time.",
+  "notice.allowPaneToLocal.title": "local in allow_pane_to has no effect",
+  "notice.allowPaneToLocal.text":
+    "Working on panes of this computer cannot be allowed in the config file. Allow it for a time instead: choose the machine in the machine dialog ({leader} m) and press p.",
   "paneRelay.err.notAllowed":
     'The panes of {from} may not reach the machine "{machine}" with --machine. To allow it, write allow_pane_to = ["{machine}"] in the [[gui.machines]] entry of {from}, in the config file of the computer the window runs on, and start kisui-terminal again.',
   "paneOpen.err.noWorkspace":
