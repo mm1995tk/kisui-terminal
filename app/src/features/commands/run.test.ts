@@ -219,7 +219,7 @@ describe("tab.window（今出しているタブの種類の窓を開く。リー
     const { seen, runCommand } = setupTabWindow({});
     runCommand({ id: "tab.window" });
     assert.deepEqual(seen, [
-      "cannot This tab has no window / " +
+      "cannot This tab has no dialog / " +
         "No tab is shown. Press n after the leader to create one.",
     ]);
   });
