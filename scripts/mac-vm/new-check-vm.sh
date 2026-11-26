@@ -75,13 +75,7 @@ if [ "$(vm_status "$VM")" != missing ]; then
   lume delete "$VM" --force
 fi
 lume clone "$GOLDEN" "$VM"
-python3 - "$HOME/.lume/$VM/config.json" "$MAC" <<'EOF'
-import json, sys
-p, mac = sys.argv[1], sys.argv[2]
-d = json.load(open(p))
-d["macAddress"] = mac
-json.dump(d, open(p, "w"), indent=2)
-EOF
+lume set "$VM" --mac-address "$MAC"
 lume run "$VM" --detach --display none
 
 echo "== $VM の起動を待ちます"
