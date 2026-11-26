@@ -9,6 +9,8 @@ package server
 // pane.run {request} を送り（open-tab は、kisui pane open と同じく GUI がそのマシンにタブを作る）、その返事を reply にして答える。
 // 頼んだペインの秘密は、頼まれた serve が確かめる（paneCmd）。相手のマシンの serve は、owner の GUI の pane.run を
 // ほかの GUI の頼み（term.input など）と同じく受ける。kisui-terminal は確認を出さない（何をするかはコマンドの引数に出ている）。
+// 中継してよいかは GUI が決める：手元の PC の serve の頼みはどのマシンにも、ssh 先の serve の頼みは、手元の設定
+// （そのマシンの [[gui.machines]] の allow_pane_to）で許した先にだけ中継する。許していなければ、理由を reply の error で返す。
 
 import (
 	"encoding/json"
@@ -50,8 +52,10 @@ var (
 	errNoMachineName = errors.New("the name of the machine is empty")
 )
 
-// paneRelayStart は --machine の付いた rq を GUI に中継させ、答えを待つ paneCmdLater を返す（待つのは呼ぶ側）。
-func (s *Server) paneRelayStart(rq panecmd.Request) (panecmd.Reply, error) {
+// paneRelayStart は、ペイン t の --machine の付いた rq を GUI に中継させ、答えを待つ paneCmdLater を返す（待つのは呼ぶ側）。
+// GUI には、頼んだペインの id（pane）と、open-tab なら作るタブに持たせる系譜（ancestry）も渡す。相手のマシンの serve は、
+// それで届く範囲を決める（panereach.go）。どのマシンのペインかは、GUI がこの接続の serverId から決める（ここで言う値は信じない）。
+func (s *Server) paneRelayStart(t *terminal, rq panecmd.Request) (panecmd.Reply, error) {
 	machine := strings.TrimSpace(rq.Machine)
 	if machine == "" {
 		return panecmd.Reply{}, errNoMachineName
@@ -75,7 +79,10 @@ func (s *Server) paneRelayStart(rq panecmd.Request) (panecmd.Reply, error) {
 	default:
 		return panecmd.Reply{}, fmt.Errorf("%q does not take a machine", rq.Cmd)
 	}
-	params := map[string]any{"machine": machine, "request": out}
+	params := map[string]any{"machine": machine, "request": out, "pane": t.id}
+	if rq.Cmd == "open-tab" {
+		params["ancestry"] = s.lineage(t)
+	}
 	return askWindow(s, &s.relays, "pane.relay", params, errRelayTimeout, func(r paneRelayResult) (panecmd.Reply, error) {
 		if r.Reply.Error != "" {
 			return panecmd.Reply{}, errors.New(r.Reply.Error)
@@ -119,16 +126,23 @@ func (ss *session) paneRelayedNotify(params json.RawMessage) {
 }
 
 // paneRunReq は GUI の pane.run：別のマシンのペインから中継された頼み（read・list・send・keys・close）を、このマシンで行う。
+// 届くのは、頼んだペイン（from）が作ったペインの先だけ（panereach.go）。
 // 断るとき（ペインが無いなど）も、返事の error に理由を入れて返す（GUI はそのまま頼んだマシンに渡す）。
 func (ss *session) paneRunReq(req *rpc.Message) (any, error) {
 	if err := ss.needHello(); err != nil {
 		return nil, err
 	}
-	var rq panecmd.Request
-	if err := json.Unmarshal(req.Params, &rq); err != nil {
+	var p struct {
+		panecmd.Request
+		// From は、頼んだペイン（別のマシンのペイン。GUI が、頼みを送ってきた serve の serverId を付ける）。
+		// 無ければ（古い GUI）、だれが作ったペインにも届かない
+		From paneOrigin `json:"from"`
+	}
+	if err := json.Unmarshal(req.Params, &p); err != nil {
 		return nil, rpc.Errorf(rpc.CodeInvalidParams, "invalid params: %v", err)
 	}
-	r, err, ok := ss.srv.paneOther(rq, "")
+	rq := p.Request
+	r, err, ok := ss.srv.paneOther(rq, p.From, "")
 	if !ok {
 		err = fmt.Errorf("%q cannot be done from another machine", rq.Cmd)
 	}

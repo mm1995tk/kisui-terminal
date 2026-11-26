@@ -101,8 +101,6 @@ export type AskTransfer = (info: TransferInfo) => {
 export const MAX_SESSIONS = 4;
 /** 受け取りの頼みで受け付けるパスの数の上限。 */
 const MAX_PATHS = 64;
-/** 許可の画面に並べる項目の数。 */
-export const SHOWN_ITEMS = 12;
 /** 大きさが分からないファイルを書くときの上限（バイト）。 */
 const DEFAULT_LIMIT = 2 * 1024 ** 3;
 /** 手元のファイルを読んで送るときの 1 回の大きさ。 */
@@ -152,10 +150,13 @@ export function formatBytes(n: number): string {
   return `${v.toFixed(v < 10 ? 1 : 0)} ${units[i]}`;
 }
 
-/** 並べた一覧を、許可の画面に見せる形にする。 */
+/**
+ * 並べた一覧を、許可の画面に見せる形にする。項目は省かない：許すと、ここに並んだファイルが全部読まれるので、
+ * ユーザーが見ていないファイルを残さない（数の上限は Rust 側が一覧を作るときに掛ける。transfer.rs の MAX_FILES）。
+ */
 export function readInfo(list: Listing): TransferInfo {
   const kinds = new Set(["regular", "directory", "symlink"]);
-  const all: ReadItem[] = list.entries
+  const items: ReadItem[] = list.entries
     .filter((e) => kinds.has(e.fileType))
     .map((e) => ({
       path: e.name,
@@ -164,9 +165,8 @@ export function readInfo(list: Listing): TransferInfo {
     }));
   return {
     direction: "read",
-    items: all.slice(0, SHOWN_ITEMS),
-    more: Math.max(0, all.length - SHOWN_ITEMS),
-    files: all.filter((i) => i.kind === "regular").length,
+    items,
+    files: items.filter((i) => i.kind === "regular").length,
     totalSize: list.totalSize,
   };
 }

@@ -92,7 +92,7 @@ fn ssh_command_with(
         .args(opts)
         .args([target, "--"])
         .arg(remote_command);
-    with_ssh_env(&mut c, ask, id)?;
+    with_ssh_env(&mut c, ask, id, target)?;
     Ok(c)
 }
 
@@ -108,7 +108,13 @@ const RELAY_SSH_OPTS: &[&str] = &[
 
 /// ssh の環境変数を付ける。askpass（質問を GUI の窓に出させる）と PATH。
 /// PATH は `~/.ssh/config` の `ProxyCommand` や `Match exec` のコマンドを見つけられるよう、ログインシェルのものを足す（`locate::launch_path`）。
-fn with_ssh_env(c: &mut Command, ask: &AskpassServer, id: &str) -> Result<(), String> {
+/// `target` は ssh の行き先。askpass の質問に添えて窓へ渡り、窓がどのマシンへの接続の質問かを出すのに使う。
+fn with_ssh_env(
+    c: &mut Command,
+    ask: &AskpassServer,
+    id: &str,
+    target: &str,
+) -> Result<(), String> {
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
     c.env("PATH", locate::launch_path())
         .env("SSH_ASKPASS", exe)
@@ -116,7 +122,8 @@ fn with_ssh_env(c: &mut Command, ask: &AskpassServer, id: &str) -> Result<(), St
         .env("SSH_ASKPASS_REQUIRE", "force")
         .env(askpass::ENV_SOCK, &ask.sock)
         .env(askpass::ENV_TOKEN, &ask.token)
-        .env(askpass::ENV_CONN, id);
+        .env(askpass::ENV_CONN, id)
+        .env(askpass::ENV_TARGET, target);
     Ok(())
 }
 
@@ -359,6 +366,23 @@ mod tests {
         assert!(!valid_host("a b"));
         assert!(!valid_host(""));
         assert!(!valid_host(LOCAL));
+    }
+
+    /// ssh には、askpass の質問の宛先（接続の id）と、その接続の行き先を環境変数で渡す
+    /// （行き先は、窓が質問の文とは別に出す）。
+    #[test]
+    fn ssh_gets_the_connection_and_its_target_for_askpass() {
+        let ask = AskpassServer::for_test("secret");
+        let c = ssh_command("user@web1", &ask, "c1", "true").unwrap();
+        let env = |name: &str| {
+            c.get_envs()
+                .find(|(k, _)| *k == name)
+                .and_then(|(_, v)| v)
+                .map(|v| v.to_string_lossy().into_owned())
+        };
+        assert_eq!(env(askpass::ENV_CONN).as_deref(), Some("c1"));
+        assert_eq!(env(askpass::ENV_TARGET).as_deref(), Some("user@web1"));
+        assert_eq!(env(askpass::ENV_TOKEN).as_deref(), Some("secret"));
     }
 
     #[test]

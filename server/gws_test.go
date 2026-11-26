@@ -18,7 +18,7 @@ import (
 func TestGwsSetShownInPaneListAndRestored(t *testing.T) {
 	t.Setenv("HOME", normalizePath(t.TempDir()))
 	state := filepath.Join(t.TempDir(), "workspaces.json")
-	withState := func(o *Options) { o.StatePath = state }
+	withState := func(o *Options) { o.StatePath, o.PaneReachAll = state, func() bool { return true } }
 	srv1, sock1 := startFastWith(t, withState)
 	c1, _ := termClient(t, sock1)
 	ctx := context.Background()
@@ -47,7 +47,7 @@ func TestGwsSetShownInPaneListAndRestored(t *testing.T) {
 		return m
 	}
 	// 知らされる前は空
-	if p := byID(srv1.paneList(""))[ta]; p.Workspace != "" || p.WorkspaceName != "" {
+	if p := byID(srv1.paneList(paneOrigin{}, ""))[ta]; p.Workspace != "" || p.WorkspaceName != "" {
 		t.Errorf("before gws.set: %+v", p)
 	}
 	if err := set(c1,
@@ -57,7 +57,7 @@ func TestGwsSetShownInPaneListAndRestored(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	got := byID(srv1.paneList(""))
+	got := byID(srv1.paneList(paneOrigin{}, ""))
 	if p := got[ta]; p.Workspace != "gaaaaaaaaaa" || p.WorkspaceName != "作業用" || p.Tab != a {
 		t.Errorf("pane of a: %+v", p)
 	}
@@ -77,7 +77,7 @@ func TestGwsSetShownInPaneListAndRestored(t *testing.T) {
 	if err := set(c1, map[string]any{"workspaceId": "", "id": "gaaaaaaaaaa", "name": "x"}); !errors.As(err, &re) || re.Code != rpc.CodeInvalidParams {
 		t.Errorf("gws.set without a workspaceId: %v", err)
 	}
-	if p := byID(srv1.paneList(""))[ta]; p.Workspace != "gaaaaaaaaaa" {
+	if p := byID(srv1.paneList(paneOrigin{}, ""))[ta]; p.Workspace != "gaaaaaaaaaa" {
 		t.Errorf("after refused gws.set: %+v", p)
 	}
 	// id が使えないタブは、その 1 つだけ対応を空にして、残りは受ける。長すぎる名前は切り、制御文字は空白に替える
@@ -89,7 +89,7 @@ func TestGwsSetShownInPaneListAndRestored(t *testing.T) {
 		); err != nil {
 			t.Fatalf("gws.set with the id %q: %v", badID, err)
 		}
-		got := byID(srv1.paneList(""))
+		got := byID(srv1.paneList(paneOrigin{}, ""))
 		if p := got[ta]; p.Workspace != "" || p.WorkspaceName != "" {
 			t.Errorf("the tab of the id %q: %+v", badID, p)
 		}
@@ -100,14 +100,14 @@ func TestGwsSetShownInPaneListAndRestored(t *testing.T) {
 	if err := set(c1, map[string]any{"workspaceId": a, "id": "gaaaaaaaaaa", "name": "a\nb"}); err != nil {
 		t.Fatal(err)
 	}
-	if p := byID(srv1.paneList(""))[ta]; p.WorkspaceName != "a b" {
+	if p := byID(srv1.paneList(paneOrigin{}, ""))[ta]; p.WorkspaceName != "a b" {
 		t.Errorf("a control character in the name: %+v", p)
 	}
 	// 載っていないタブ（b）の対応は消える
 	if err := set(c1, map[string]any{"workspaceId": a, "id": "gaaaaaaaaaa", "name": "名前を変えた"}); err != nil {
 		t.Fatal(err)
 	}
-	got = byID(srv1.paneList(""))
+	got = byID(srv1.paneList(paneOrigin{}, ""))
 	if p := got[ta]; p.WorkspaceName != "名前を変えた" {
 		t.Errorf("renamed: %+v", p)
 	}
@@ -126,7 +126,7 @@ func TestGwsSetShownInPaneListAndRestored(t *testing.T) {
 	// 起動し直すと、窓がつながる前（gws.set の前）でも、最後に知らされたものが出る
 	srv2, _ := startFastWith(t, withState)
 	waitFor(t, "restored", func() bool {
-		for _, p := range srv2.paneList("") {
+		for _, p := range srv2.paneList(paneOrigin{}, "") {
 			if p.Tab == a {
 				return p.Workspace == "gaaaaaaaaaa" && p.WorkspaceName == "名前を変えた"
 			}

@@ -138,6 +138,8 @@ export function createPaneOpen(deps: {
         argv: rq.argv,
         env: rq.env,
         name: rq.name,
+        // 頼んだペインの系譜（作ったタブに、頼んだペインから届くように。serve が決めて渡したものを、そのまま返す）
+        ...(rq.ancestry?.length ? { ancestry: rq.ancestry } : {}),
       });
     } catch (e) {
       return { error: e instanceof Error ? e.message : String(e) };

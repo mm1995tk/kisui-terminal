@@ -173,7 +173,7 @@ func TestHandoverKeepsShellsRunning(t *testing.T) {
 		t.Errorf("label after handover: %q", got)
 	}
 	var listed panecmd.Reply
-	if err := c2.Call(ctx, "pane.run", map[string]any{"cmd": "list"}, &listed); err != nil {
+	if err := c2.Call(ctx, "pane.run", map[string]any{"cmd": "list", "from": map[string]any{"pane": primary}}, &listed); err != nil {
 		t.Fatal(err)
 	}
 	if len(listed.Panes) == 0 || listed.Panes[0].Workspace != "gaaaaaaaaaa" || listed.Panes[0].WorkspaceName != "窓の名前" {
@@ -481,11 +481,20 @@ func TestHandoverKeepsExitRule(t *testing.T) {
 		TermID string `json:"termId"`
 	}
 	argv := []string{"/bin/sh", "-c", `while [ -e "$0" ]; do sleep 0.05; done`, hold}
-	if err := c.Call(ctx, "workspace.create", map[string]any{"argv": argv, "name": "worker"}, &cmd); err != nil {
+	// ペインを作ったペインの系譜（panereach.go）も、次の serve に渡る
+	ancestry := []map[string]any{{"server": "other", "pane": "t7"}}
+	if err := c.Call(ctx, "workspace.create", map[string]any{"argv": argv, "name": "worker", "ancestry": ancestry}, &cmd); err != nil {
 		t.Fatal(err)
 	}
 	handOver(t, c, sock)
 	c2, nt2 := termClient(t, sock)
+	var read panecmd.Reply
+	if err := c2.Call(ctx, "pane.run", map[string]any{"cmd": "read", "to": "worker", "from": ancestry[0]}, &read); err != nil || !read.OK {
+		t.Fatalf("the maker reads the pane after the handover: %v %+v", err, read)
+	}
+	if err := c2.Call(ctx, "pane.run", map[string]any{"cmd": "read", "to": "worker", "from": map[string]any{"server": "other", "pane": "t8"}}, &read); err != nil || read.OK {
+		t.Fatalf("another pane reads the pane after the handover: %v %+v", err, read)
+	}
 	if err := os.Remove(hold); err != nil {
 		t.Fatal(err)
 	}

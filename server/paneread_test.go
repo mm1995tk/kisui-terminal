@@ -12,7 +12,7 @@ import (
 // --lines で scrollback を遡る。
 func TestPaneCmdRead(t *testing.T) {
 	t.Setenv("HOME", normalizePath(t.TempDir()))
-	srv, sock := startFast(t)
+	srv, sock := startFastAll(t)
 	c, _ := termClient(t, sock)
 	_, p1 := createWS(t, c)
 	_, p2 := createWS(t, c)

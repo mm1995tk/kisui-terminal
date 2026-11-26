@@ -8,7 +8,10 @@ import type { DownloadDone } from "../../../features/browser/os.ts";
 import { leaderKeyName } from "../../../features/commands/commands.ts";
 import { IS_MAC } from "../../../features/commands/guiKeys.ts";
 import type { Problem, ReportProblem } from "../../../features/problem.ts";
-import { localNamed } from "../../../features/sessions/machines.ts";
+import {
+  localNamed,
+  unknownAllowPaneTo,
+} from "../../../features/sessions/machines.ts";
 import type { Sessions } from "../../../features/sessions/controller.ts";
 import type { SessionState } from "../../../features/sessions/session.ts";
 import {
@@ -114,6 +117,30 @@ export function createNotices(deps: {
     }
     return localCache.notice;
   }
+  // allow_pane_to に書いた、どのマシンの名前でもない語（書き間違い）。閉じたら、同じ並びの間は出さない
+  const [allowPaneToDismissed, setAllowPaneToDismissed] = createSignal("");
+  let allowPaneToCache: { key: string; notice: Notice } | undefined;
+  function allowPaneToNotice(): Notice | undefined {
+    const lines = unknownAllowPaneTo(deps.sessions.machines()).map(
+      (u) => `${u.machine}: ${u.names.join(", ")}`,
+    );
+    const key = lines.join("\n");
+    if (lines.length === 0 || allowPaneToDismissed() === key) return undefined;
+    if (allowPaneToCache?.key !== key) {
+      const close = () => setAllowPaneToDismissed(key);
+      allowPaneToCache = {
+        key,
+        notice: {
+          title: T("notice.allowPaneTo.title"),
+          text: T("notice.allowPaneTo.text"),
+          error: key,
+          primary: { label: T("button.close"), run: close },
+          dismiss: close,
+        },
+      };
+    }
+    return allowPaneToCache.notice;
+  }
   const [passkeyDismissed, setPasskeyDismissed] = createSignal(false);
   const passkeyNotice: Notice | undefined = deps.passkeyRejected?.length
     ? {
@@ -136,6 +163,8 @@ export function createNotices(deps: {
     if (shortcutNotice && !shortcutDismissed()) out.push(shortcutNotice);
     const local = localNotice();
     if (local) out.push(local);
+    const allowPaneTo = allowPaneToNotice();
+    if (allowPaneTo) out.push(allowPaneTo);
     if (passkeyNotice && !passkeyDismissed()) out.push(passkeyNotice);
     const err = focusError();
     if (err) {

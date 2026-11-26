@@ -14,7 +14,10 @@ import (
 // kind, add one entry to fileKinds, the kind to ExtraPane in app/src/infrastructure/rpc/protocol.ts
 // and a view in app/src/terminal (see docs/design/gui-protocol.md).
 type fileKind struct {
-	// mime maps a lower-case extension (with the dot) to the media type.
+	// mime maps a lower-case extension (with the dot) to the media type. The GUI
+	// has its own copy and decides the type it shows a file as from that copy
+	// (FILE_MIME in app/src/features/terminal/media.ts; its test fails when the
+	// two differ).
 	mime map[string]string
 	// maxSize is the largest file the pane opens, in bytes (0: no limit here;
 	// the GUI has its own limit, MAX_BYTES in app/src/features/terminal/media.ts: keep them equal).

@@ -187,6 +187,7 @@ kisui-terminal の窓（`app/src/`）の、共通の色・余白・字・状態�
 | ---------------------------------------------------- | ------------------------------------------------------------------ | ----------------------------------------------- |
 | ワークスペースを閉じる確認（`main-window/workspaces/CloseWorkspaceCard.tsx`） | `focusSelf` の窓・見出しと本文・やめると主ボタン | `main-window/workspaces/CloseWorkspaceCard`     |
 | kisui を入れるかの確認（`main-window/sessions/InstallCard.tsx`） | `focusSelf` の窓・本文・前に失敗した理由・ボタン         | `main-window/sessions/InstallCard`              |
+| ファイルの転送を許すかの確認（`main-window/file-transfer/TransferDialog.tsx`） | `focusSelf` の窓・本文・許すと読まれるものの一覧（`.transfer-list`。項目を省かず、多いときは一覧の中だけがスクロールする。Tab で一覧にフォーカスを移すと、ブラウザのふつうのキーで動く）・許さないと主ボタン | `main-window/file-transfer/TransferDialog` |
 | 新しい版の知らせ（`main-window/notifications/UpdateBar.tsx`） | 右下の知らせ・本文・失敗の理由・処理中の主ボタン          | `main-window/notifications/UpdateBar`           |
 
 ## #306 との対応

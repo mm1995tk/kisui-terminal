@@ -398,7 +398,7 @@ func TestPaneCmdUpdate(t *testing.T) {
 // list は全部のワークスペースのペインを出し、find は名前か id でペインを 1 つに決める。
 func TestPaneCmdNamesAndList(t *testing.T) {
 	t.Setenv("HOME", normalizePath(t.TempDir()))
-	srv, sock := startFast(t)
+	srv, sock := startFastAll(t)
 	c, _ := termClient(t, sock)
 	ws1, p1 := createWS(t, c)
 	ws2, p2 := createWS(t, c)

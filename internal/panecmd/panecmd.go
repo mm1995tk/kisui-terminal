@@ -14,10 +14,14 @@ package panecmd
 import (
 	"encoding/json"
 	"errors"
+	"io/fs"
 	"net"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/mm1995tk/kisui-terminal/internal/ctl"
 )
 
 // The environment variables "kisui serve" sets in every terminal it starts.
@@ -270,7 +274,9 @@ const Timeout = 10 * time.Second
 
 // Do sends rq (with the pane's id and secret) and reads the reply, waiting up
 // to Timeout. A reply that is not OK is returned as an error with its text
-// (ErrNotInPane for CodeNotInPane), beside the reply (for its Code).
+// (ErrNotInPane for CodeNotInPane), beside the reply (for its Code). Nothing
+// is sent when the directory of the socket is not a private one of this user
+// (ctl.CheckSocketDir): the error is then a *ctl.SocketDirError.
 func (p Pane) Do(rq Request) (Reply, error) {
 	return p.DoWithin(rq, Timeout)
 }
@@ -281,6 +287,15 @@ func (p Pane) Do(rq Request) (Reply, error) {
 // the socket, which tells "kisui serve" to stop what it was doing for it.
 func (p Pane) DoWithin(rq Request, wait time.Duration) (Reply, error) {
 	rq.Pane, rq.Token = p.ID, p.Token
+	// The socket is trusted for the directory it is in. That directory is
+	// checked here again: a pane lives long, and its variables keep naming
+	// the path whatever becomes of the directory.
+	if err := ctl.CheckSocketDir(filepath.Dir(p.Socket)); err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return Reply{}, noServerError{err}
+		}
+		return Reply{}, err
+	}
 	c, err := net.DialTimeout("unix", p.Socket, Timeout)
 	if err != nil {
 		return Reply{}, noServerError{err}

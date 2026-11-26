@@ -35,12 +35,24 @@ type Settings struct {
 	// ~ is expanded). "" means $SHELL. The file may be missing or not
 	// runnable: Load does not look (see ShellPath).
 	Shell string
+	// PaneReach is which panes of this machine a command in a pane (kisui pane
+	// send, keys, read, close, list) reaches: PaneReachOwn (the pane itself and
+	// the panes opened from it) or PaneReachAll (every pane of this machine).
+	PaneReach string
 	// UILanguage is the language of kisui's own messages: "en" or "ja".
 	UILanguage string
 }
 
 // Default is the settings of a config that says nothing.
-func Default() *Settings { return &Settings{IdleStopDays: 7, UILanguage: i18n.Default} }
+// The values of [server] pane_reach.
+const (
+	PaneReachOwn = "own"
+	PaneReachAll = "all"
+)
+
+func Default() *Settings {
+	return &Settings{IdleStopDays: 7, UILanguage: i18n.Default, PaneReach: PaneReachOwn}
+}
 
 // Problem is one mistake in a file.
 type Problem struct {
@@ -197,6 +209,15 @@ func (s *Settings) merge(raw map[string]any, path string) []Problem {
 			// the file: `kisui serve` must still start (it warns and runs
 			// $SHELL instead, each time it starts a terminal).
 			s.Shell = sh
+		}
+	}
+	if v, ok := t["pane_reach"]; ok {
+		if str, ok := v.(string); !ok {
+			bad("server.pane_reach", "config.err.string")
+		} else if str != PaneReachOwn && str != PaneReachAll {
+			bad("server.pane_reach", "config.err.oneof", PaneReachOwn+", "+PaneReachAll)
+		} else {
+			s.PaneReach = str
 		}
 	}
 	return probs

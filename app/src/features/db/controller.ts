@@ -10,14 +10,16 @@
 //   タブが閉じたら捨てる。アプリを開き直したら戻る。
 // - 選んだ既定のスキーマは、接続ごとに同じ KeyValueStore に覚える（#398。treeController.ts）。
 // - 結果のタブ（#404。結果・実行中の印・間違い）は、メモリだけに持つ（アプリを開き直したら残らない。もう一度実行する）。
-// - パスワードは持たない。kisui serve が password_required を返したら画面で聞き、その 1 回の要求に付けて送るだけ
-//   （ログインが通れば kisui serve が覚える。PR #354 の「資格情報の置き場」）。
+// - パスワードは、kisui serve が password_required を返したら画面で聞き、その要求に付けて送る。ログインが通ったものは、
+//   kisui serve が覚え（窓がつながっている間だけ）、窓も、閉じるまでメモリにだけ覚える（passwords.ts。localStorage などには
+//   書かない）。つなぎ直したら、覚えているものを kisui serve に渡し直す（db.remember）。
 import { T } from "../../i18n/index.ts";
 import { createEffect, createMemo, createSignal, on, untrack } from "solid-js";
 
 import {
   hasCapability,
   type DbPasswordRequiredData,
+  type HelloResult,
   type Requests,
 } from "../../infrastructure/rpc/protocol.ts";
 import type { BrowserTabs } from "../browser/tabsStore.ts";
@@ -84,6 +86,16 @@ import { createDbElevate } from "./elevateController.ts";
 import { createDbExport } from "./exportController.ts";
 import type { SaveTextFile } from "./export.ts";
 import { createDbHistory } from "./historyController.ts";
+import {
+  DB_REMEMBER_CAPABILITY,
+  handBackAll,
+  newlyConnected,
+  passwordKeeper,
+  passwordOwner,
+  PasswordMemory,
+  type PasswordKeeper,
+  type SendRemember,
+} from "./passwords.ts";
 import { createDbPropose } from "./proposeController.ts";
 import { createDbStructure } from "./structureController.ts";
 import type {
@@ -250,7 +262,7 @@ export function createDbTabs(deps: {
       });
     });
   }
-  /** パスワードを聞く窓の答え（null はやめた）。答えは覚えない。refocus なら、キーを今のタブ（SQL の入力欄）に戻す。 */
+  /** パスワードを聞く窓の答え（null はやめた）。refocus なら、キーを今のタブ（SQL の入力欄）に戻す。 */
   function replyPassword(password: string | null, refocus = true) {
     const a = answer;
     answer = undefined;
@@ -272,9 +284,48 @@ export function createDbTabs(deps: {
     return s;
   }
 
+  // ---- 打って通ったパスワードを覚える（passwords.ts） ----
+  // 窓を閉じるまで、メモリにだけ持つ。kisui serve は、窓の接続が切れると覚えたものを忘れるので、つなぎ直したら渡し直す
+  const passwords = new PasswordMemory();
+  /** マシン target の kisui serve に db.remember を送る。 */
+  const sendRemember =
+    (target: string): SendRemember =>
+    async (params) =>
+      sessionFor({ target }).request("db.remember", params);
+  /**
+   * タブ ref の接続の、覚えたパスワードの扱い。db.remember を受けない kisui serve（古い版。つながっていないときも）には
+   * 渡さない：覚えも渡し直しもせず、前と同じに聞くだけ。
+   */
+  function keeperOf(ref: DbRef): PasswordKeeper | undefined {
+    const st = untrack(states)[ref.target];
+    if (st?.kind !== "connected") return undefined;
+    if (!hasCapability(st.hello, DB_REMEMBER_CAPABILITY)) return undefined;
+    return passwordKeeper(passwords, ref, {
+      owner: async () => {
+        const { connections } = await sessionFor(ref).request(
+          "db.connections",
+          {},
+        );
+        const c = connectionOf(connections, ref);
+        return c && passwordOwner(ref.target, c);
+      },
+      send: sendRemember(ref.target),
+    });
+  }
+  // つながった・つなぎ直した（session.hello が通った）マシンに、覚えているパスワードを渡し直す。コーディングエージェントの
+  // kisui db のコマンドが、人の操作を待たずにまた使えるように
+  const helloSeen = new Map<string, HelloResult>();
+  createEffect(
+    on(states, (st) => {
+      for (const target of newlyConnected(helloSeen, st))
+        void handBackAll(passwords, target, sendRemember(target));
+    }),
+  );
+
   /**
    * タブ ref の接続に、DB の要求を送る。kisui serve が password_required を返したら、パスワードを聞いて、
    * それを付けて送り直す（DB が断ったら、また聞く）。聞く窓をやめたら PasswordCancelled を投げる。
+   * 前に打って通ったパスワードを覚えていれば、聞かずに 1 度だけ、kisui serve に渡し直して送り直す（model.ts の withPassword）。
    * SQL の実行（run）が使う。スキーマの一覧（#348）のような、ほかの db.* の要求も、これで送れば同じ流れになる。
    */
   async function request<M extends DbMethod>(
@@ -291,6 +342,7 @@ export function createDbTabs(deps: {
             : ({ ...params, password } as Requests[M]["params"]),
         ),
       (reason, source) => askPassword(ref, reason, source),
+      keeperOf(ref),
     );
   }
 

@@ -271,6 +271,10 @@ export const ja: Record<Key, string> = {
   "notice.localMachine.title": "マシンの名前 local は予約語です",
   "notice.localMachine.text":
     "kisui pane の --machine では、local は常に手元の PC を指すので、{machines} を --machine で選べません。別の名前を付けてください。config.toml で決めたマシンは config.toml の [[gui.machines]] で、ほかのマシンはマシンのダイアログ（{leader} m）の n で変えます。",
+  "notice.allowPaneTo.title":
+    "allow_pane_to に、どのマシンの名前でもない項目があります",
+  "notice.allowPaneTo.text":
+    "この名前のマシンが無いので、何も許しません。マシンの名前（[[gui.machines]] の name、無ければ ssh の行き先）か、手元の PC を指す local を書いてください。",
   "notice.passkeySites.title": "passkey_sites に使えない項目があります",
   "notice.passkeySites.text":
     "次の項目は公開サフィックス（.com・.github.io のように、誰でもその下にサブドメインを持てる名前）で、他人のサイトの Cookie まで写す対象になるため使いません。ほかの項目は使います。",
@@ -368,7 +372,7 @@ export const ja: Record<Key, string> = {
     "ターミナルの中のプログラムが、手元の次のファイルを読もうとしています。ssh 先のプログラムでも同じ頼みができます。心当たりがなければ許さないでください。",
   "transfer.read.item": "{path}（{kind}）",
   "transfer.read.itemSize": "{path}（{kind}、{size}）",
-  "transfer.read.more": "ほか {n} 件",
+  "transfer.read.list": "送るファイルの一覧",
   "transfer.read.total": "ファイル {files} 件、合計 {size}",
   "transfer.deny": "Do not allow",
   "transfer.allow": "Allow",
@@ -723,6 +727,8 @@ export const ja: Record<Key, string> = {
     "{machine} の kisui serve が古く、この操作に対応していません。そのマシンの kisui-terminal を新しくしてください",
   "paneRelay.err.noMachine":
     "「{machine}」という名前のマシンがありません（マシン: {machines}）",
+  "paneRelay.err.notAllowed":
+    '{from} のペインは、--machine でマシン「{machine}」に届けません。許すには、ウィンドウの動く PC の設定ファイルで、{from} の [[gui.machines]] に allow_pane_to = ["{machine}"] と書き、kisui-terminal を起動し直してください。',
   "paneOpen.err.noWorkspace":
     "「{name}」という名前か id のワークスペースがありません（--new を付けると、その名前で作ります）",
   "paneOpen.err.ambiguous":
@@ -742,6 +748,8 @@ export const ja: Record<Key, string> = {
   "file.loading": "{what}を取っています… {percent}%",
   "file.tooLarge": "{what}が大きすぎて開けません（{size}。上限は {max}）",
   "file.fetchFailed": "{what}を取れませんでした：{reason}",
+  "file.wrongType":
+    "{what}を開けません：このペインが扱う形式のファイルではありません（{path}）",
   "video.closePane": "動画のペインを閉じる",
   "video.unsupported": "この動画は再生できません（形式に対応していません）",
   "video.loading": "動画を取っています… {percent}%",
@@ -758,6 +766,8 @@ export const ja: Record<Key, string> = {
     "{name} のターミナルでプログラムが動いています。閉じると、ターミナルを全部終わらせます。開いているファイルは保存してから閉じます。",
   "closeWorkspace.yes": "End them and close",
   "askpass.label": "ssh question",
+  "askpass.machine": "接続の行き先",
+  "askpass.prompt": "ssh が出した文（つなぎ先のサーバーが決められます）",
   "askpass.reveal": "表示する（host key の確認は yes / no と打つ）",
   "askpass.cancel": "Cancel",
   "browser.opening": "{url} を開いています…",
@@ -1078,7 +1088,7 @@ export const ja: Record<Key, string> = {
   "db.password.rejectedFile":
     "{machine} の {connection} の、~/.pgpass か ~/.my.cnf にあったパスワードを DB が断りました。代わりに使うパスワードを入れてください。",
   "db.password.note":
-    "窓はパスワードを保存しません。ログインが通ると、そのマシンの kisui serve が、止まるまでメモリに覚えます。",
+    "パスワードはファイルに書きません。ログインが通ると、この窓と、そのマシンの kisui serve が、窓を閉じるまでメモリに覚えます。",
   "db.password.reveal": "表示する",
   "db.password.ok": "Run",
   // ---- コーディングエージェントが入力欄に SQL を書く頼み（kisui db propose。#382）----

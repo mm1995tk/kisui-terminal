@@ -54,6 +54,7 @@ Vite の設定は、根の `vite.config.ts` をそのまま読む（Solid の変
 | `ui/main-window/workspaces/WorkspaceKindPicker.stories.tsx` | ワークスペースの種類（ターミナル・ブラウザ）を選ぶ窓                       | 選んだ・やめた（`fn()`）                                                                             |
 | `ui/main-window/sessions/InstallCard.stories.tsx`           | kisui を入れるかの確認の窓（初めて・失敗のあと）                           | 入れる・入れない（`fn()`）                                                                           |
 | `ui/main-window/sessions/MachineDialog.stories.tsx` | マシンのダイアログ（並び・名前をその場で変えている・断られたとき） | 行は見本のデータ（アプリでは `machineList.ts` が作る）。操作は `fn()` |
+| `ui/main-window/file-transfer/TransferDialog.stories.tsx` | ファイルの転送を許すかを聞く窓（手元のファイルを読む頼み：少ない・多い・ディレクトリと長いパス。手元に書く頼み） | 聞く中身は見本のデータ（聞く仕組みは本物の `askTransfer`） |
 | `ui/main-window/notifications/UpdateBar.stories.tsx`        | 新しい版の知らせ（ある・入れ替え中・失敗）                                 | 殻への頼み `UpdatesOs`（持ち物は本物の `createUpdates`）                                             |
 | `ui/modules/clipboard-history/HistoryPanel.stories.tsx`     | 履歴の一覧（一覧・貼る欄あり・空・読み込み中・読めない）                   | 履歴を読む頼み `ListClipboardHistory`                                                                |
 | `ui/utilities/clipboard/page.stories.tsx`                   | kisui-terminal の外から開く履歴の窓                                        | 殻への頼み `ClipboardPopupOs`、`ListClipboardHistory`                                                |

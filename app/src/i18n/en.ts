@@ -270,6 +270,9 @@ export const en = {
   "notice.localMachine.title": "The machine name local is reserved",
   "notice.localMachine.text":
     "In kisui pane --machine, local always means this computer, so --machine cannot choose {machines}. Give it another name: in [[gui.machines]] of config.toml for a machine set there, or with n in the machine dialog ({leader} m) for the others.",
+  "notice.allowPaneTo.title": "Some allow_pane_to entries name no machine",
+  "notice.allowPaneTo.text":
+    "No machine has these names, so they allow nothing. Write the name of a machine ([[gui.machines]] name, or the ssh destination when it has no name), or local for this computer.",
   "notice.passkeySites.title": "Some passkey_sites entries are not used",
   "notice.passkeySites.text":
     "These entries are public suffixes (names under which anyone can have a subdomain, such as .com or .github.io), so they would copy the cookies of other people's sites too. kisui-terminal does not use them; the other entries work.",
@@ -367,7 +370,7 @@ export const en = {
     "A program in the terminal is trying to read the following files on this machine. A program on an ssh host can make the same request. If you do not recognize it, do not allow it.",
   "transfer.read.item": "{path} ({kind})",
   "transfer.read.itemSize": "{path} ({kind}, {size})",
-  "transfer.read.more": "and {n} more",
+  "transfer.read.list": "Files to send",
   "transfer.read.total": "{files} files, {size} in total",
   "transfer.deny": "Do not allow",
   "transfer.allow": "Allow",
@@ -725,6 +728,8 @@ export const en = {
     "The kisui serve of {machine} is too old for this. Update kisui-terminal there.",
   "paneRelay.err.noMachine":
     'No machine is named "{machine}" (machines: {machines})',
+  "paneRelay.err.notAllowed":
+    'The panes of {from} may not reach the machine "{machine}" with --machine. To allow it, write allow_pane_to = ["{machine}"] in the [[gui.machines]] entry of {from}, in the config file of the computer the window runs on, and start kisui-terminal again.',
   "paneOpen.err.noWorkspace":
     'No workspace has the name or id "{name}" (add --new to make one of that name)',
   "paneOpen.err.ambiguous":
@@ -746,6 +751,8 @@ export const en = {
   "file.tooLarge":
     "The {what} is too large to open ({size}; the limit is {max})",
   "file.fetchFailed": "Could not fetch the {what}: {reason}",
+  "file.wrongType":
+    "Cannot open the {what}: the file is not of a type this pane shows ({path})",
   "video.closePane": "Close the video pane",
   "video.unsupported":
     "This video cannot be played (the format is not supported)",
@@ -763,6 +770,8 @@ export const en = {
     "A program is running in a terminal of {name}. Closing ends all its terminals. Open files are saved before closing.",
   "closeWorkspace.yes": "End them and close",
   "askpass.label": "ssh question",
+  "askpass.machine": "Connecting to",
+  "askpass.prompt": "Text from ssh (the server you connect to can choose it)",
   "askpass.reveal": "Show what you type (type yes / no for the host key check)",
   "askpass.cancel": "Cancel",
   "browser.opening": "Opening {url}…",
@@ -1086,7 +1095,7 @@ export const en = {
   "db.password.rejectedFile":
     "The database refused the password found in ~/.pgpass or ~/.my.cnf for {connection} on {machine}. Type the password to use instead.",
   "db.password.note":
-    "The window does not save it. After the login works, kisui serve on that machine keeps it in memory until it stops.",
+    "It is not written to any file. After the login works, this window and kisui serve on that machine keep it in memory until you close the window.",
   "db.password.reveal": "Show the password",
   "db.password.ok": "Run",
   // ---- コーディングエージェントが入力欄に SQL を書く頼み（kisui db propose。#382）----
