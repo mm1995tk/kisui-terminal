@@ -787,6 +787,8 @@ export const en = {
   "windowRun.err.unknown":
     "This version of the window cannot do {command}. Update kisui-terminal.",
   "windowRun.err.arg": "The request has no usable argument {name}.",
+  "windowRun.err.localOnly":
+    "{command} can be asked only from a pane of the computer the window runs on, not from a pane of a remote machine.",
   "tabCli.err.noTab":
     'No tab has the id or the name "{tab}" (kisui tab list prints the tabs)',
   "tabCli.err.noTabReach":

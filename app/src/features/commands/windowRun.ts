@@ -8,9 +8,11 @@
 //
 // CLI を足すとき：機能の側に WindowCommandTable（名前 → 受け持ち）を作り、compose.ts で createWindowRun に渡す。serve は変えない。
 // window.run は頼んだ Machine の serve が作る通知なので、リモートの Machine を自由にできる者は、kisui を通さずにどんな中身でも
-// 送れる。受け持ちは、caller.from（通知を送ってきた serve の Machine。Window が接続から決める）と手元の設定だけで、
-// 届いてよいかを決める（sessions/machines.ts の windowReachAllowed）。args は、型を確かめてから使う（argString など）。
+// 送れる。だから受け持ちは、既定では手元の PC の Pane の頼みだけを受ける（ほかは createWindowRun が断る）。リモートの Machine の
+// Pane の頼みも受ける受け持ちは remote: true を書き、caller.from（通知を送ってきた serve の Machine。Window が接続から決める）と
+// 手元の設定だけで、届いてよいかを決める（sessions/machines.ts の windowReachAllowed）。args は、型を確かめてから使う（argString など）。
 import { T } from "../../i18n/index.ts";
+import { LOCAL } from "../sessions/shell.ts";
 import type {
   WindowRunReport,
   WindowRunRequest,
@@ -47,8 +49,19 @@ export type WindowCommandHandler = (
   caller: WindowCaller,
 ) => unknown;
 
+/** 名前 1 つの受け持ちと、どの Machine の Pane の頼みを受けるか。 */
+export interface WindowCommand {
+  run: WindowCommandHandler;
+  /**
+   * true なら、リモートの Machine の Pane の頼みも run に渡す。run は caller.from で、届いてよいかを自分で確かめる。
+   * 書かなければ、手元の PC の Pane の頼みだけを受け、ほかは createWindowRun が断る（確かめ忘れた受け持ちが、
+   * リモートの Machine に開かないよう、既定で閉じる）。
+   */
+  remote?: true;
+}
+
 /** 名前（"tab.rename"）→ 受け持ち。 */
-export type WindowCommandTable = Readonly<Record<string, WindowCommandHandler>>;
+export type WindowCommandTable = Readonly<Record<string, WindowCommand>>;
 
 /** args の文字の引数 name。無い・文字でなければ断る。 */
 export function argString(args: Record<string, unknown>, name: string): string {
@@ -76,7 +89,7 @@ export function argFlag(args: Record<string, unknown>, name: string): boolean {
 
 /** window.run を受けて行う関数を作る。tables は、機能ごとの受け持ちの表（同じ名前が 2 つの表にあれば、作るときに投げる）。 */
 export function createWindowRun(tables: readonly WindowCommandTable[]) {
-  const handlers = new Map<string, WindowCommandHandler>();
+  const handlers = new Map<string, WindowCommand>();
   for (const t of tables)
     for (const [name, h] of Object.entries(t)) {
       if (handlers.has(name))
@@ -93,11 +106,15 @@ export function createWindowRun(tables: readonly WindowCommandTable[]) {
       const h = handlers.get(rq.command);
       if (!h)
         return { error: T("windowRun.err.unknown", { command: rq.command }) };
+      if (from !== LOCAL && !h.remote)
+        return {
+          error: T("windowRun.err.localOnly", { command: rq.command }),
+        };
       const abort = new AbortController();
       const key = keyOf(from, rq.id);
       running.set(key, abort);
       try {
-        const result = await h(rq.args, {
+        const result = await h.run(rq.args, {
           from,
           pane: rq.pane,
           tab: rq.tab,

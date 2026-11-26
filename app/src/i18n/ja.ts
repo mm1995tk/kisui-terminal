@@ -786,6 +786,8 @@ export const ja: Record<Key, string> = {
   "windowRun.err.unknown":
     "この版の Window は {command} を行えません。kisui-terminal を更新してください。",
   "windowRun.err.arg": "頼みに、使える引数 {name} がありません。",
+  "windowRun.err.localOnly":
+    "{command} は、Window の動く PC の Pane からだけ頼めます。リモートの Machine の Pane からは頼めません。",
   "tabCli.err.noTab":
     "「{tab}」という id か名前の Tab がありません（Tab は kisui tab list に出ます）",
   "tabCli.err.noTabReach":

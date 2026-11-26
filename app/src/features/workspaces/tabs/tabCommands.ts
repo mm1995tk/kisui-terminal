@@ -183,90 +183,112 @@ export function createTabCommands(deps: {
   }
 
   return {
-    "tab.list": (args, c): { tabs: TabInfo[] } => {
-      const ws = argOptionalString(args, "workspace");
-      const only = ws === undefined ? undefined : workspaceOf(ws).id;
-      const list = untrack(machines);
-      return {
-        tabs: reachable(c.from)
-          .filter((e) => only === undefined || e.gws.id === only)
-          .map((e) => ({
-            id: e.id,
-            name: e.name,
-            kind: KIND[e.ref.kind],
-            workspace: e.gws.id,
-            workspaceName: displayName(e.gws),
-            machine: machineCliName(list, e.target),
-            ...(e.shown ? { shown: true as const } : {}),
-            ...(e.ref.kind === "term" &&
-            e.target === c.from &&
-            e.ref.ws === c.tab
-              ? { self: true as const }
-              : {}),
-          })),
-      };
+    "tab.list": {
+      remote: true,
+      run: (args, c): { tabs: TabInfo[] } => {
+        const ws = argOptionalString(args, "workspace");
+        const only = ws === undefined ? undefined : workspaceOf(ws).id;
+        const list = untrack(machines);
+        return {
+          tabs: reachable(c.from)
+            .filter((e) => only === undefined || e.gws.id === only)
+            .map((e) => ({
+              id: e.id,
+              name: e.name,
+              kind: KIND[e.ref.kind],
+              workspace: e.gws.id,
+              workspaceName: displayName(e.gws),
+              machine: machineCliName(list, e.target),
+              ...(e.shown ? { shown: true as const } : {}),
+              ...(e.ref.kind === "term" &&
+              e.target === c.from &&
+              e.ref.ws === c.tab
+                ? { self: true as const }
+                : {}),
+            })),
+        };
+      },
     },
 
-    "tab.rename": async (args, c) => {
-      const e = resolve(args, c);
-      const name = argString(args, "name");
-      const bad = nameErrorText(name);
-      if (bad) throw new WindowCommandError(bad);
-      needConnected(e);
-      await deps.tabs.setTabName(e.gws.id, refKey(e.ref), name);
-      return { id: e.id };
-    },
-
-    "tab.close": async (args, c) => {
-      const e = resolve(args, c);
-      const force = argFlag(args, "force");
-      if (e.ref.kind !== "term") {
-        deps.tabs.closeTabRow(e.gws.id, refKey(e.ref));
+    "tab.rename": {
+      remote: true,
+      run: async (args, c) => {
+        const e = resolve(args, c);
+        const name = argString(args, "name");
+        const bad = nameErrorText(name);
+        if (bad) throw new WindowCommandError(bad);
+        needConnected(e);
+        await deps.tabs.setTabName(e.gws.id, refKey(e.ref), name);
         return { id: e.id };
-      }
-      // 人が「操作のたびに聞く」と決めた Pane があるうちは、リモートの Machine に、手元の PC の Terminal tab を、聞かずに閉じさせない
-      if (c.from !== LOCAL && e.target === LOCAL && deps.anyAskEach())
-        throw new WindowCommandError(T("tabCli.err.askEach"));
-      const r = await deps.tabs.closeTermTabNow(e.ref.target, e.ref.ws, force);
-      if (r === "running")
-        throw new WindowCommandError(
-          T("tabCli.err.running", { tab: e.name }),
-          CODE_BUSY,
+      },
+    },
+
+    "tab.close": {
+      remote: true,
+      run: async (args, c) => {
+        const e = resolve(args, c);
+        const force = argFlag(args, "force");
+        if (e.ref.kind !== "term") {
+          deps.tabs.closeTabRow(e.gws.id, refKey(e.ref));
+          return { id: e.id };
+        }
+        // 人が「操作のたびに聞く」と決めた Pane があるうちは、リモートの Machine に、手元の PC の Terminal tab を、聞かずに閉じさせない
+        if (c.from !== LOCAL && e.target === LOCAL && deps.anyAskEach())
+          throw new WindowCommandError(T("tabCli.err.askEach"));
+        const r = await deps.tabs.closeTermTabNow(
+          e.ref.target,
+          e.ref.ws,
+          force,
         );
-      return { id: e.id };
+        if (r === "running")
+          throw new WindowCommandError(
+            T("tabCli.err.running", { tab: e.name }),
+            CODE_BUSY,
+          );
+        return { id: e.id };
+      },
     },
 
-    "tab.move": (args, c) => {
-      const e = resolve(args, c);
-      const dir = argString(args, "dir");
-      if (dir !== "up" && dir !== "down")
-        throw new WindowCommandError(T("windowRun.err.arg", { name: "dir" }));
-      return {
-        id: e.id,
-        moved: deps.tabs.moveTabByStep(e.gws.id, refKey(e.ref), dir),
-      };
+    "tab.move": {
+      remote: true,
+      run: (args, c) => {
+        const e = resolve(args, c);
+        const dir = argString(args, "dir");
+        if (dir !== "up" && dir !== "down")
+          throw new WindowCommandError(T("windowRun.err.arg", { name: "dir" }));
+        return {
+          id: e.id,
+          moved: deps.tabs.moveTabByStep(e.gws.id, refKey(e.ref), dir),
+        };
+      },
     },
 
-    "tab.moveTo": (args, c) => {
-      const e = resolve(args, c);
-      const to = workspaceOf(argString(args, "workspace"));
-      if (to.id === e.gws.id)
-        throw new WindowCommandError(
-          T("tabCli.err.sameWorkspace", {
-            tab: e.name,
-            workspace: displayName(to),
-          }),
-        );
-      if (!deps.tabs.moveTabToWorkspace(refKey(e.ref), to.id))
-        throw new WindowCommandError(T("tabCli.err.noTab", { tab: e.name }));
-      return { id: e.id, workspace: to.id };
+    "tab.moveTo": {
+      remote: true,
+      run: (args, c) => {
+        const e = resolve(args, c);
+        const to = workspaceOf(argString(args, "workspace"));
+        if (to.id === e.gws.id)
+          throw new WindowCommandError(
+            T("tabCli.err.sameWorkspace", {
+              tab: e.name,
+              workspace: displayName(to),
+            }),
+          );
+        if (!deps.tabs.moveTabToWorkspace(refKey(e.ref), to.id))
+          throw new WindowCommandError(T("tabCli.err.noTab", { tab: e.name }));
+        return { id: e.id, workspace: to.id };
+      },
     },
 
-    "tab.show": (args, c) => {
-      const e = resolve(args, c);
-      needConnected(e);
-      deps.tabs.activateTab(e.gws.id, e.ref);
-      return { id: e.id };
+    "tab.show": {
+      remote: true,
+      run: (args, c) => {
+        const e = resolve(args, c);
+        needConnected(e);
+        deps.tabs.activateTab(e.gws.id, e.ref);
+        return { id: e.id };
+      },
     },
   };
 }

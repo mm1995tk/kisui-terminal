@@ -119,7 +119,7 @@ function setup(
     args: Record<string, unknown>,
     from = LOCAL,
     tab = "",
-  ) => table[command](args, caller(from, tab));
+  ) => table[command].run(args, caller(from, tab));
   return { calls, run };
 }
 
