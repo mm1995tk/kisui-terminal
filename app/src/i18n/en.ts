@@ -728,7 +728,7 @@ export const en = {
   "paneOpen.err.noWorkspace":
     'No workspace has the name or id "{name}" (add --new to make one of that name)',
   "paneOpen.err.ambiguous":
-    '{count} workspaces are named "{name}"; give one of them another name',
+    '{count} workspaces are named "{name}"; point at one of them by its id (kisui pane list prints it), or give one of them another name',
   "paneOpen.err.hidden":
     'A workspace hidden from the sidebar (it has only browser tabs, and the built-in browser is off) is named "{name}"; use another name',
   "paneOpen.err.exists":
