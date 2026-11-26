@@ -559,7 +559,6 @@ fn replace_file(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     }
 }
 
-/// 1 始まりの行番号。
 /// TOML として読めないときの理由。場所（行）だけを言い、間違いの文は入れない（その行の中身、たとえば手で書いたパスワードを含むため）。
 pub(crate) fn unreadable(path: &Path, text: &str, span: Option<std::ops::Range<usize>>) -> String {
     match span {
@@ -572,6 +571,7 @@ pub(crate) fn unreadable(path: &Path, text: &str, span: Option<std::ops::Range<u
     }
 }
 
+/// 1 始まりの行番号。
 pub(crate) fn line_of(text: &str, offset: usize) -> usize {
     let end = offset.min(text.len());
     text.as_bytes()[..end]
