@@ -26,7 +26,7 @@ import {
   switcherKey,
   type SwitcherState,
 } from "./switcherKey.ts";
-import { newTabKindKey, type NewTabChoice } from "./newTabKey.ts";
+import { newTabKindKey } from "./newTabKey.ts";
 import { createSwitcherColumns, type Col } from "./switcherColumns.ts";
 import { createSwitcherTabActions } from "./switcherTabActions.ts";
 import { createSwitcherNewTab } from "./switcherNewTab.ts";
@@ -566,7 +566,7 @@ export function WorkspaceSwitcher(props: {
         <KeyFooter
           rows={switcherFooter(footerState())}
           // 作るタブの種類のボタン（字を押したのと同じ）
-          onPress={(kind) => newTab.pick(kind as NewTabChoice)}
+          onPress={newTab.pick}
         />
       }
     >

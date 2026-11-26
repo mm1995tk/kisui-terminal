@@ -516,22 +516,22 @@ export function isWindowPlace(p: Place): boolean {
 /**
  * 窓の下の段（共通フッタ）の 1 項目（今効く操作 1 つ）。keys は出すキー、label は操作の名前（日本語の窓でも英語。
  * i18n のキーは `<窓>.keys.<名前>`）。probes は、その操作で窓の判定が受けるはずのキー（KeyboardEvent.key。テストで使う）。
- * act は、押せるボタンにする項目の印（呼んだ側が、押したときの動きに結ぶ。作るタブの種類など）。
+ * act は、押せるボタンにする項目の印（呼んだ側が、押したときの動きに結ぶ。作るタブの種類など）。A は act の型（押せる項目が無ければ never）。
  */
-export interface FooterItem {
+export interface FooterItem<A extends string = never> {
   keys: string[];
   label: string;
   probes: readonly string[];
-  act?: string;
+  act?: A;
 }
 
 /**
  * 窓の下の段の 1 行。title は、その行の操作が何に効くか（「選んでいるタブ」など。説明の文なので、日本語の窓では日本語）。
  * items が空でも行は出す（見出しだけ。下の段が出たり消えたりしないように）。決まりは docs/design/ui-ux-review.md の「ヒントとヘルプ」。
  */
-export interface FooterRow {
+export interface FooterRow<A extends string = never> {
   title: string;
-  items: FooterItem[];
+  items: FooterItem<A>[];
 }
 
 /**

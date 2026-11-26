@@ -142,7 +142,7 @@ describe("窓の下の段（共通フッタ）の今効く操作（#487）", () 
         return switcherKey(k);
     }
   };
-  const shown = (rows: FooterRow[]) =>
+  const shown = (rows: FooterRow<string>[]) =>
     rows.map((r) => [r.title, r.items.map((i) => i.keys.join(" "))]);
 
   it("下の段に出す操作は、どの状態でも、その状態の判定が受ける（案内と受けるキーがずれない）", () => {

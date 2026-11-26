@@ -162,7 +162,7 @@ export type SwitcherState =
  * 作るタブの種類の項目は、押せるボタンにする（act に種類を入れる。窓が、押したら決めるように結ぶ）。
  * switcherKey.test.ts が、出す操作をその状態の判定が受けることと、表の操作がどれも、どこかの状態で下の段に出ることを確かめる。
  */
-export function switcherFooter(s: SwitcherState): FooterRow[] {
+export function switcherFooter(s: SwitcherState): FooterRow<NewTabChoice>[] {
   const ws = (keys: string, label: Parameters<typeof T>[0]) =>
     placeItem("switcher", keys, T(label));
   const tab = (keys: string, label: Parameters<typeof T>[0]) =>

@@ -10,25 +10,25 @@ import { KeyHints, type KeyHint } from "./KeyHints.tsx";
 import "./key-footer.css";
 
 /** 下の段の 1 行（features/commands/placeKeys.ts の FooterRow と同じ形。部品は機能の知識を持たないので、形だけを書く）。 */
-export interface FooterRow {
+export interface FooterRow<A extends string = never> {
   /** 何に効くか（説明の文） */
   title: string;
   /** 今効く操作。act のある項目は押せるボタンにする */
-  items: readonly { keys: string[]; label: string; act?: string }[];
+  items: readonly { keys: string[]; label: string; act?: A }[];
 }
 
 /** 窓の下の段の中身。rows か items のどちらかを渡す。 */
-export function KeyFooter(props: {
+export function KeyFooter<A extends string = never>(props: {
   /** 今効く操作の行（何に効くかの見出し付き） */
-  rows?: readonly FooterRow[];
+  rows?: readonly FooterRow<A>[];
   /** 押せるボタンにする項目（act の付いた項目）を押した */
-  onPress?: (act: string) => void;
+  onPress?: (act: A) => void;
   /** 基本操作のヒント（まだ行の形にしていない窓） */
   items?: KeyHint[];
   /** ヒントの上に出す知らせ（できなかった理由など。ふつうは role を付けた CardText） */
   note?: JSX.Element;
 }): JSX.Element {
-  const hints = (r: FooterRow): KeyHint[] =>
+  const hints = (r: FooterRow<A>): KeyHint[] =>
     r.items.map((i) => {
       const act = i.act;
       return {
