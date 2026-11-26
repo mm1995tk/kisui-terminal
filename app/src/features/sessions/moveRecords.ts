@@ -14,6 +14,7 @@ import { T } from "../../i18n/index.ts";
 import type { KeyValueStore } from "../keyValueStore.ts";
 import type { Problem } from "../problem.ts";
 import {
+  isMachineEditError,
   loadMachines,
   machineEditError,
   type ConfigMachine,
@@ -102,7 +103,8 @@ export async function moveMachineRecords(deps: {
 
 /** その 1 台だけが断られた（ファイルは書ける）。 */
 function isRefusedEntry(e: unknown): boolean {
-  if (typeof e !== "object" || e === null || !("kind" in e)) return false;
-  const kind = (e as { kind: unknown }).kind;
-  return kind === "exists" || kind === "entry" || kind === "rejected";
+  return (
+    isMachineEditError(e) &&
+    (e.kind === "exists" || e.kind === "entry" || e.kind === "rejected")
+  );
 }

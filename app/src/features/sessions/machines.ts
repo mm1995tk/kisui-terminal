@@ -199,10 +199,21 @@ export interface MachineEditError {
   detail: string;
 }
 
+/** 殻から来た、書けなかった理由（MachineEditError の形）か。 */
+export function isMachineEditError(e: unknown): e is MachineEditError {
+  return (
+    typeof e === "object" &&
+    e !== null &&
+    "kind" in e &&
+    typeof e.kind === "string" &&
+    "detail" in e
+  );
+}
+
 /** 殻が config.local.toml に書けなかった理由を、画面に出す 1 文にする（殻から来たもの以外も受ける）。 */
 export function machineEditError(e: unknown): string {
-  if (typeof e === "object" && e !== null && "kind" in e && "detail" in e) {
-    const { kind, detail } = e as MachineEditError;
+  if (isMachineEditError(e)) {
+    const { kind, detail } = e;
     if (kind === "exists") return T("machine.edit.exists", { ssh: detail });
     if (kind === "missing") return T("machine.edit.missing", { ssh: detail });
     return T("machine.edit.failed", { error: String(detail) });
