@@ -2,6 +2,7 @@
 // 動かす・決める・`?` は、ほかの一覧から選ぶ窓と同じ（machineList.ts の pickerKey）。足す・直す・消すは、この窓だけの字（a e d）。
 // 画面の仕組み（Solid）に依らないので、node --test で確かめる。決まりは docs/key-design.md。
 import type { KeyLike } from "../commands/guiKeys.ts";
+import { isComposingKey } from "../commands/ime.ts";
 import { placeItem, type FooterRow } from "../commands/placeKeys.ts";
 import { pickerKey, type PickerKey } from "../sessions/machineList.ts";
 import { T } from "../../i18n/index.ts";
@@ -10,8 +11,9 @@ import { T } from "../../i18n/index.ts";
 export type DbPickerKey =
   PickerKey | { kind: "add" } | { kind: "edit" } | { kind: "remove" };
 
-/** 窓の中のキー。入力欄は無いので字をそのまま使う。Alt・Cmd・Ctrl・Shift を重ねた字と、変換中のキーは受けない（pickerKey の分は pickerKey の決まり）。 */
+/** 窓の中のキー。入力欄は無いので字をそのまま使う。変換中のキーと、Alt・Cmd・Ctrl・Shift を重ねた字は受けない（動かす・決めるキーは pickerKey の決まり）。 */
 export function dbPickerKey(e: KeyLike): DbPickerKey | null {
+  if (isComposingKey(e)) return null;
   const k = pickerKey(e);
   if (k) return k;
   if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return null;

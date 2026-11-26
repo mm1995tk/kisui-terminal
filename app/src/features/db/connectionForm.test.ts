@@ -128,6 +128,13 @@ describe("dbPickerKey・dbPickerFooter（接続を選ぶ窓のキーと下の段
     assert.deepEqual(dbPickerKey(ev("Enter")), { kind: "choose" });
   });
 
+  it("変換中の a e d は受けない", () => {
+    for (const key of ["a", "e", "d"]) {
+      assert.equal(dbPickerKey(ev(key, { isComposing: true })), null, key);
+      assert.equal(dbPickerKey(ev(key, { keyCode: 229 })), null, key);
+    }
+  });
+
   it("直せない行では edit・remove を出さない（行の見出しは出す）", () => {
     const keys = (o: { editable: boolean; removable: boolean }) =>
       dbPickerFooter(o).map((r) => r.items.map((i) => i.keys.join(" ")));
