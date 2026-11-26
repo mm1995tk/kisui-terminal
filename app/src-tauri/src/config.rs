@@ -204,10 +204,15 @@ pub(crate) fn env() -> (Option<PathBuf>, Option<PathBuf>, bool) {
     (xdg, home, nightly)
 }
 
+/// 環境から決めた設定のフォルダ。`$HOME` も `$XDG_CONFIG_HOME` も無ければ None。
+pub fn default_dir() -> Option<PathBuf> {
+    let (xdg, home, nightly) = env();
+    config_dir(xdg.as_deref(), home.as_deref(), nightly)
+}
+
 /// 環境から設定のフォルダを決めて読む。
 pub fn load_default() -> Result<GuiConfig, String> {
-    let (xdg, home, nightly) = env();
-    match config_dir(xdg.as_deref(), home.as_deref(), nightly) {
+    match default_dir() {
         Some(d) => load_gui(&d),
         None => Ok(GuiConfig::default()),
     }

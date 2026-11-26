@@ -257,7 +257,7 @@ export const en = {
     "Only the shortcuts with mistakes are ignored. The others work.",
   "notice.localMachine.title": "The machine name local is reserved",
   "notice.localMachine.text":
-    "In kisui pane --machine, local always means this computer, so --machine cannot choose {machines}. Give it another name: in [[gui.machines]] of the config file for a machine set there, or with n in the machine dialog ({leader} m) for one added in the window.",
+    "In kisui pane --machine, local always means this computer, so --machine cannot choose {machines}. Give it another name: in [[gui.machines]] of config.toml for a machine set there, or with n in the machine dialog ({leader} m) for the others.",
   "notice.passkeySites.title": "Some passkey_sites entries are not used",
   "notice.passkeySites.text":
     "These entries are public suffixes (names under which anyone can have a subdomain, such as .com or .github.io), so they would copy the cookies of other people's sites too. kisui-terminal does not use them; the other entries work.",
@@ -410,16 +410,16 @@ export const en = {
   "history.filter": "Filter",
   "history.copied": "Copied",
   "history.list": "History",
-  "machineDialog.fixed": "(config file)",
+  "machineDialog.fixed": "(config.toml)",
   "machineDialog.terminalTabs": "Terminal tabs {n}",
   "machineDialog.label": "Machines",
   "machineDialog.list": "Machine list",
   "machine.cant.rename.local": "{label} cannot be renamed (it is Local)",
   "machine.cant.rename.fixed":
-    "{label} cannot be renamed (it is set in [[gui.machines]] of the config file)",
+    "{label} cannot be renamed (it is set in [[gui.machines]] of config.toml)",
   "machine.cant.remove.local": "{label} cannot be removed (it is Local)",
   "machine.cant.remove.fixed":
-    "{label} cannot be removed (it is set in [[gui.machines]] of the config file)",
+    "{label} cannot be removed (it is set in [[gui.machines]] of config.toml)",
   "machine.cant.disconnect.local":
     "{label} cannot be disconnected (it is Local)",
   "machine.cant.disconnect.none": "{label} is not connected",
@@ -434,7 +434,7 @@ export const en = {
   "machineDialog.keys.newTab": "new tab",
   "machine.local": "Local",
   "machine.fixedReason":
-    "This machine is set in the config file ([[gui.machines]] in config.toml or config.local.toml). To change it, edit the config file.",
+    "This machine is set in [[gui.machines]] of config.toml, which the window does not write. To change it, edit config.toml.",
   "machine.err.empty": "Enter an ssh destination",
   "machine.err.reserved": "That destination cannot be used",
   "machine.err.long": "The ssh destination is too long",
@@ -445,6 +445,17 @@ export const en = {
   "machine.err.nameTaken": "The name {name} is used by another machine",
   "machine.err.localName":
     "The name local is reserved for this computer (kisui pane --machine local). Give the machine another name",
+  "machine.edit.exists": "{ssh} is already in config.local.toml",
+  "machine.edit.missing":
+    "{ssh} is not in config.local.toml (a machine only in config.toml cannot be changed from the window)",
+  "machine.edit.failed": "Could not write config.local.toml: {error}",
+  "machine.remove.failed": "Could not remove {label}",
+  "machine.move.failed.title":
+    "Could not move the machines added in the window to config.local.toml",
+  "machine.move.failed.left":
+    "Not shown this time: {machines}. kisui-terminal tries again at the next start. You can also write them in [[gui.machines]] of config.local.toml yourself.",
+  "machine.move.skipped.title":
+    "Some machines added in the window were not moved to config.local.toml",
   "treeMenu.copy-name": "Copy the name",
   "treeMenu.copy-relative": "Copy the relative path",
   "treeMenu.copy-absolute": "Copy the absolute path",

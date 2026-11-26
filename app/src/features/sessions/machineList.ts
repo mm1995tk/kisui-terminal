@@ -23,7 +23,7 @@ export interface MachineRow {
   terminalTabs: number;
   /** 名前を変えたり外したり切ったりできるか（「ローカル」はできない） */
   removable: boolean;
-  /** 設定ファイルで決めたマシンか。外せず、名前も変えられない */
+  /** config.toml にだけ書いたマシンか。窓からは外せず、名前も変えられない */
   fixed: boolean;
   /** 接続（セッション）があるか。切れるのは、あるときだけ */
   hasSession: boolean;
@@ -65,7 +65,12 @@ export function machineRows(
  * ここではタブを作らない。名前を打って決めるのは、ワークスペースの窓のタブを作る行（#456 と同じ行）。
  */
 export type MachineAction =
-  "add" | "rename" | "remove" | "disconnect" | "reconnect" | "newTab";
+  | "add"
+  | "rename"
+  | "remove"
+  | "disconnect"
+  | "reconnect"
+  | "newTab";
 
 /** ダイアログの中のキーが表す動き。 */
 export type MachineKey =

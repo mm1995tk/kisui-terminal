@@ -17,15 +17,20 @@
 //!   同じ確かめを通す（間違いのある設定を書くと、次の起動で窓が出ないため）。DB の接続の中身を確かめるのは kisui（`config/db.go`）なので、
 //!   窓から DB の接続を書く側（#486）が、同じ結果になる確かめを `check` に渡す。
 //!
-//! 呼ぶのは、窓でマシンを足す・変える・消す処理（#484）と、DB の接続を登録する処理（#486）。この 2 つが入るまで、テストのほかに呼ぶ所は無い。
-#![allow(dead_code)]
+//! 呼ぶのは、窓でマシンを足す・名前を変える・外す処理（[`edit_machine`]。Tauri のコマンド `config_machine_edit`）と、
+//! DB の接続を登録する処理（#486）。
+//!
+//! 窓のマシンの一覧は、設定ファイルだけが持つ（webview の localStorage には置かない。前の版が置いた記録は、
+//! 窓が起動したときに 1 度だけ `config.local.toml` に移す。app/src/features/sessions/moveRecords.ts）。
+//! 窓が書き換えられるのは `config.local.toml` の項目だけで、`config.toml` にだけあるマシンは変えない（[`EditError::Missing`]）。
 
 use std::fmt;
 use std::path::Path;
 
+use serde::{Deserialize, Serialize, Serializer};
 use toml_edit::{Array, ArrayOfTables, DocumentMut, InlineTable, Item, Table, TableLike, Value};
 
-use crate::config;
+use crate::config::{self, ConfigMachine};
 
 /// 設定の一覧 1 つ（`[[<table>.<name>]]`）と、その項目を見分けるキー。
 pub struct List {
@@ -45,6 +50,8 @@ pub const MACHINES: List = List {
 };
 
 /// `[[db.connections]]`。名前で見分ける。
+// DB の接続を窓から書く処理（#486）が入るまで、テストのほかに使う所は無い
+#[allow(dead_code)]
 pub const DB_CONNECTIONS: List = List {
     table: "db",
     name: "connections",
@@ -94,6 +101,79 @@ impl fmt::Display for EditError {
             EditError::Entry(s) | EditError::File(s) | EditError::Rejected(s) => f.write_str(s),
         }
     }
+}
+
+/// 書けなかった理由を、画面へ `{ kind, detail }` の形で渡す（画面が `kind` で言葉を選び、`detail` を添える）。
+impl Serialize for EditError {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeStruct;
+        let (kind, detail) = match self {
+            EditError::Exists(d) => ("exists", d),
+            EditError::Missing(d) => ("missing", d),
+            EditError::Entry(d) => ("entry", d),
+            EditError::File(d) => ("file", d),
+            EditError::Rejected(d) => ("rejected", d),
+        };
+        let mut st = s.serialize_struct("EditError", 2)?;
+        st.serialize_field("kind", kind)?;
+        st.serialize_field("detail", detail)?;
+        st.end()
+    }
+}
+
+/// 窓のマシンの書き込み 1 つ（画面の `MachineEdit`。app/src/features/sessions/shell.ts）。
+/// `name` は付けた名前で、空白だけ・無いなら名前を付けない（ssh の行き先を出す）。
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum MachineEdit {
+    /// 足す（「リモートを足す」でつながったとき）
+    Add { ssh: String, name: Option<String> },
+    /// 名前を変える
+    Rename { ssh: String, name: Option<String> },
+    /// 外す
+    Remove { ssh: String },
+}
+
+impl MachineEdit {
+    fn into_edit(self) -> Edit {
+        let name = |n: Option<String>| {
+            n.map(|n| n.trim().to_string())
+                .filter(|n| !n.is_empty())
+                .map(toml::Value::String)
+        };
+        match self {
+            MachineEdit::Add { ssh, name: n } => {
+                let mut t = toml::Table::new();
+                t.insert("ssh".into(), toml::Value::String(ssh.trim().to_string()));
+                if let Some(n) = name(n) {
+                    t.insert("name".into(), n);
+                }
+                Edit::Add(t)
+            }
+            MachineEdit::Rename { ssh, name: n } => match name(n) {
+                Some(n) => Edit::Update {
+                    key: ssh,
+                    set: toml::Table::from_iter([("name".to_string(), n)]),
+                    unset: vec![],
+                },
+                None => Edit::Update {
+                    key: ssh,
+                    set: toml::Table::new(),
+                    unset: vec!["name".into()],
+                },
+            },
+            MachineEdit::Remove { ssh } => Edit::Remove { key: ssh },
+        }
+    }
+}
+
+/// 設定のフォルダ `dir` の `config.local.toml` の `[[gui.machines]]` に、窓のマシンの書き込み `e` を行い、
+/// 書いたあとの（2 つのファイルを重ねた）マシンの一覧を返す。画面はこの一覧で、サイドバーを描き直す。
+pub fn edit_machine(dir: &Path, e: MachineEdit) -> Result<Vec<ConfigMachine>, EditError> {
+    edit_machines(dir, e.into_edit())?;
+    config::load_gui(dir)
+        .map(|g| g.machines)
+        .map_err(EditError::File)
 }
 
 /// 設定のフォルダ `dir` の `config.local.toml` の一覧 `list` に、`edit` を行う。
@@ -929,5 +1009,104 @@ mod tests {
         })
         .unwrap();
         let _ = fs::remove_dir_all(&d);
+    }
+
+    // 窓のマシンの書き込み：足す・名前を変える・外すを config.local.toml に書き、重ねたあとの一覧を返す
+    #[test]
+    fn edit_machine_from_the_window() {
+        let d = temp_dir("window");
+        fs::write(d.join("config.toml"), "[[gui.machines]]\nssh = \"a\"\n").unwrap();
+        let local = d.join("config.local.toml");
+        let row = |ssh: &str, name: Option<&str>, local: bool| ConfigMachine {
+            ssh: ssh.into(),
+            name: name.map(Into::into),
+            local,
+        };
+        let got = edit_machine(
+            &d,
+            MachineEdit::Add {
+                ssh: " b ".into(),
+                name: Some(" bee ".into()),
+            },
+        )
+        .unwrap();
+        assert_eq!(got, [row("a", None, false), row("b", Some("bee"), true)]);
+        // 名前の無いマシンは name を書かない
+        edit_machine(
+            &d,
+            MachineEdit::Add {
+                ssh: "c".into(),
+                name: Some("  ".into()),
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            fs::read_to_string(&local).unwrap(),
+            "[[gui.machines]]\nssh = \"b\"\nname = \"bee\"\n\n[[gui.machines]]\nssh = \"c\"\n"
+        );
+        // 名前を変える。空にすると name を消す
+        edit_machine(
+            &d,
+            MachineEdit::Rename {
+                ssh: "c".into(),
+                name: Some("sea".into()),
+            },
+        )
+        .unwrap();
+        let got = edit_machine(
+            &d,
+            MachineEdit::Rename {
+                ssh: "b".into(),
+                name: None,
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            got,
+            [
+                row("a", None, false),
+                row("b", None, true),
+                row("c", Some("sea"), true)
+            ]
+        );
+        // config.toml のマシンは変えられない
+        assert_eq!(
+            edit_machine(
+                &d,
+                MachineEdit::Rename {
+                    ssh: "a".into(),
+                    name: Some("x".into())
+                }
+            ),
+            Err(EditError::Missing("a".into()))
+        );
+        // 外す
+        let got = edit_machine(&d, MachineEdit::Remove { ssh: "b".into() }).unwrap();
+        assert_eq!(got, [row("a", None, false), row("c", Some("sea"), true)]);
+        assert_eq!(
+            fs::read_to_string(&local).unwrap(),
+            "[[gui.machines]]\nssh = \"c\"\nname = \"sea\"\n"
+        );
+        let _ = fs::remove_dir_all(&d);
+    }
+
+    // 画面が受ける形
+    #[test]
+    fn machine_edit_and_error_wire_format() {
+        let e: MachineEdit =
+            serde_json::from_str(r#"{"kind":"add","ssh":"a","name":null}"#).unwrap();
+        assert_eq!(
+            e,
+            MachineEdit::Add {
+                ssh: "a".into(),
+                name: None
+            }
+        );
+        let e: MachineEdit = serde_json::from_str(r#"{"kind":"remove","ssh":"a"}"#).unwrap();
+        assert_eq!(e, MachineEdit::Remove { ssh: "a".into() });
+        assert_eq!(
+            serde_json::to_string(&EditError::Missing("a".into())).unwrap(),
+            r#"{"kind":"missing","detail":"a"}"#
+        );
     }
 }

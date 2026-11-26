@@ -10,7 +10,7 @@ import {
   localNamed,
   machineNames,
   machineTarget,
-  mergeMachines,
+  fromConfig,
   renameMachine,
   type Machine,
 } from "./machines.ts";
@@ -49,12 +49,15 @@ describe("--machine のマシンの名前", () => {
       ]),
       ["a", "local"],
     );
-    // 設定ファイルのマシンの名前と同じ名前の足したマシンは出ない（mergeMachines）ので、知らせにも出ない
+    // 設定ファイルの一覧から作ったものも
     assert.deepEqual(
       localNamed(
-        mergeMachines([{ ssh: "a", name: "local" }], [{ target: "local" }]),
+        fromConfig([
+          { ssh: "a", name: "local" },
+          { ssh: "local", local: true },
+        ]),
       ),
-      ["a"],
+      ["a", "local"],
     );
   });
 

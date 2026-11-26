@@ -11,6 +11,7 @@ import type { StoredTabs } from "./browser/tabs.ts";
 import type { CommandUi } from "./commands/run.ts";
 import type { FeaturePorts, Features, FeatureUi } from "./compose.ts";
 import type { KeyValueStore } from "./keyValueStore.ts";
+import type { ConfigMachine } from "./sessions/machines.ts";
 import type { ClosedEvent, ShellApi } from "./sessions/shell.ts";
 import type { ProxyFlow, Workspace } from "../infrastructure/rpc/protocol.ts";
 
@@ -103,6 +104,8 @@ function fakeShell(
     }
     return s;
   };
+  // config.local.toml のマシン（窓で足す・名前を変える・外すと書き換わる）
+  const machines: ConfigMachine[] = [];
   const api: ShellApi = {
     listSshHosts: async () => ["host1"],
     configGui: async () => ({
@@ -111,6 +114,15 @@ function fakeShell(
       shortcuts: [],
       passkeyRejected: [],
     }),
+    editMachine: async (e) => {
+      const at = machines.findIndex((m) => m.ssh === e.ssh);
+      if (e.kind === "add")
+        machines.push({ ssh: e.ssh, name: e.name, local: true });
+      else if (e.kind === "rename")
+        machines[at] = { ...machines[at], name: e.name };
+      else machines.splice(at, 1);
+      return machines.map((m) => ({ ...m }));
+    },
     connect: async (id, target) => {
       connOf.set(id, target);
       serveOf(target);
@@ -289,7 +301,7 @@ function fakeShell(
     onAskpass: async () => () => {},
     onAskpassDone: async () => () => {},
   };
-  return { api, serveOf };
+  return { api, serveOf, machines };
 }
 
 /** 偽のブラウザの殻。覚えているタブを返し、頼まれたことを覚える。 */
@@ -455,6 +467,7 @@ function start(opts: {
     f,
     ui,
     store,
+    machines: shell.machines,
     serve: shell.serveOf,
     browserCalls: browser.calls,
     loadFailed: browser.loadFailed,
@@ -878,8 +891,8 @@ describe("機能の持ち物のつなぎ（compose.ts）", () => {
     assert.equal(f.pages.shownBrowserTab()?.url, "https://example.com/x");
   });
 
-  it("リモートを足すと、つながってからマシンを記録し、窓を閉じる。外すと接続を切る", async () => {
-    const { f, serve, store } = start({
+  it("リモートを足すと、つながってから config.local.toml に書き、窓を閉じる。外すと config.local.toml から消し、接続を切る", async () => {
+    const { f, serve, machines } = start({
       serves: {
         [LOCAL]: { ids: ["a"], focus: "a" },
         host1: { ids: ["r"], focus: "r" },
@@ -899,11 +912,8 @@ describe("機能の持ち物のつなぎ（compose.ts）", () => {
     );
     assert.deepEqual(f.sessions.targets(), [LOCAL, "host1"]);
     assert.equal(f.sessions.states().host1?.kind, "connected");
-    assert.ok(
-      [...(store as ReturnType<typeof memoryStore>).map.values()].some((v) =>
-        v.includes("host1"),
-      ),
-    );
+    // localStorage でなく config.local.toml に書いた
+    assert.deepEqual(machines, [{ ssh: "host1", name: null, local: true }]);
     // リモートのワークスペースも並ぶ。フォーカスは「ローカル」のまま
     assert.equal(f.workspaces.rows().length, 2);
     assert.deepEqual(f.workspaces.focus(), { target: LOCAL, id: "a" });
@@ -911,6 +921,7 @@ describe("機能の持ち物のつなぎ（compose.ts）", () => {
 
     f.sessions.removeFromSidebar("host1");
     await settle();
+    assert.deepEqual(machines, []);
     assert.deepEqual(f.sessions.targets(), [LOCAL]);
     assert.equal(f.sessions.sessions().host1, undefined);
     assert.deepEqual(f.workspaces.focus(), { target: LOCAL, id: "a" });

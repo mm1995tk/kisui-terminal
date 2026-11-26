@@ -157,15 +157,15 @@ describe("moveRow・keepRow", () => {
 });
 
 describe("canDo", () => {
-  it("設定ファイルで決めたマシンと「ローカル」は、名前を変えられず外せない", () => {
+  it("config.toml で決めたマシンと「ローカル」は、名前を変えられず外せない", () => {
     for (const a of ["rename", "remove"] as const) {
-      assert.match(canDo(row({ fixed: true }), a, true) ?? "", /設定ファイル/);
+      assert.match(canDo(row({ fixed: true }), a, true) ?? "", /config\.toml/);
       assert.match(canDo(row({ removable: false }), a, true) ?? "", /ローカル/);
       assert.equal(canDo(row(), a, true), null);
     }
   });
 
-  it("設定ファイルで決めたマシンでも、切る・つなぎ直すはできる", () => {
+  it("config.toml で決めたマシンでも、切る・つなぎ直すはできる", () => {
     assert.equal(canDo(row({ fixed: true }), "disconnect", true), null);
     assert.equal(
       canDo(

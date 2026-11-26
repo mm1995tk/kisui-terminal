@@ -92,6 +92,8 @@ export function createFeatures(deps: {
   ports: FeaturePorts;
   /** 手元の設定ファイルで決めたマシン */
   config: ConfigMachine[];
+  /** 起動のときから出しておく、できなかったこと（前の版の、窓で足したマシンの記録を移せなかった、など） */
+  startupProblem?: Problem;
   /** 内蔵ブラウザのタブを使うか（設定の [gui.browser] enabled。#202） */
   browser: boolean;
   /** macOS か */
@@ -102,7 +104,9 @@ export function createFeatures(deps: {
   const { ports, browser, ui } = deps;
   const store = ports.store;
   // ワークスペースに移れなかった・ファイルを開けなかったなど、できなかったことの知らせ（見出しと本文）。無ければ null
-  const [focusError, setFocusError] = createSignal<Problem | null>(null);
+  const [focusError, setFocusError] = createSignal<Problem | null>(
+    deps.startupProblem ?? null,
+  );
   const focusTerminal = () => ui.focusTerminal();
   const forgetPageReturn = () => ui.forgetPageReturn();
 
@@ -114,6 +118,7 @@ export function createFeatures(deps: {
     api: ports.shell,
     store,
     config: deps.config,
+    report: (p) => setFocusError(p),
     hooks: {
       treeChanged: () => fileTree.changed(),
       termChanged: () => terminals.changed(),

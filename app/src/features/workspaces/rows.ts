@@ -86,7 +86,7 @@ export interface MachineGroup {
   label: string;
   /** 名前を変えたり外したり切ったりできるか（「ローカル」はできない） */
   removable: boolean;
-  /** 設定ファイル（config.toml か config.local.toml の [[gui.machines]]）で決めたマシンか。外せず、名前も変えられない */
+  /** config.toml にだけ書いたマシンか（窓は config.toml に書かない）。外せず、名前も変えられない */
   fixed: boolean;
   /** マシンの色（D4）。見出しと帯の左端の線などに使う */
   color: string;
@@ -208,7 +208,7 @@ function autoBand(w: Workspace, focused: boolean, nth: number): Band {
  * 帯は shj の workspace.list と同じく作った順。
  * colors はつなぎ先 → 色（colors.ts の machineColors）。無いつなぎ先は候補の最初の色にする。
  * labelOf は見出しの文字（省くと machineLabel）。
- * fixedOf は設定ファイルで決めたマシンか（省くと全部 false）。
+ * fixedOf は config.toml にだけ書いたマシンか（省くと全部 false）。
  */
 export function buildSidebar(
   targets: string[],

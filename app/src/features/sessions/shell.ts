@@ -52,6 +52,15 @@ export interface GuiConfig {
   sidebarTabsHeight?: number | null;
 }
 
+/**
+ * 窓のマシンの書き込み 1 つ（殻の config_list.rs の MachineEdit）。name は付けた名前で、null・空なら名前を付けない。
+ * 書く先は config.local.toml の [[gui.machines]]（config.toml には書かない）。
+ */
+export type MachineEdit =
+  | { kind: "add"; ssh: string; name: string | null }
+  | { kind: "rename"; ssh: string; name: string | null }
+  | { kind: "remove"; ssh: string };
+
 export interface ShellApi {
   listSshHosts(): Promise<string[]>;
   /**
@@ -59,6 +68,11 @@ export interface ShellApi {
    * （そのときは何もつながずに理由だけを出す）。
    */
   configGui(): Promise<GuiConfig>;
+  /**
+   * 窓でマシンを足す・名前を変える・外す。config.local.toml に書き、書いたあとのマシンの一覧（configGui の machines と同じ形）を返す。
+   * 書けなければ MachineEditError（machines.ts）で reject する。
+   */
+  editMachine(edit: MachineEdit): Promise<ConfigMachine[]>;
   /** target は ssh のホスト名か LOCAL。id は呼ぶ側が決める（イベントの宛先） */
   connect(id: string, target: string): Promise<void>;
   send(id: string, text: string): Promise<void>;

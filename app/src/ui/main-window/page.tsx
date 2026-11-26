@@ -18,7 +18,9 @@ import { IS_MAC } from "../../features/commands/guiKeys.ts";
 import type { TabKind } from "../../features/commands/tabWindow.ts";
 import { placeOf } from "../../features/commands/placeKeys.ts";
 import { createFeatures } from "../../features/compose.ts";
+import type { Problem } from "../../features/problem.ts";
 import type { ConfigMachine } from "../../features/sessions/machines.ts";
+import { moveMachineRecords } from "../../features/sessions/moveRecords.ts";
 import { PortsContext, type Ports } from "../ports.ts";
 // ここから下の、CSS を持つ部品の import は、順を変えない。CSS の規則は import の順に並び、同じ強さの規則は後のものが勝つ。
 // 順は、キーの一覧 → トースト → サイドバー → 切り替える窓 → 割り付け → ブラウザ → リーダーの案内 → ターミナル → 空のワークスペース → DB のタブ（cssOrder.test.ts が見張る）。
@@ -63,7 +65,8 @@ import { TabWindows } from "./tab-window/TabWindows.tsx";
 
 /**
  * 起動したら、先に手元の設定ファイルの [[gui.machines]] を読む。間違いがあれば、場所・行・理由だけを出して、ほかは何もしない
- * （どこにもつながない）。読めたら本体（MainWindow）を出す。
+ * （どこにもつながない）。読めたら、前の版が localStorage に記録した「窓で足したマシン」を config.local.toml に移し（初めの 1 度だけ）、
+ * 本体（MainWindow）を出す。
  * ports は外（Tauri の殻・記録）への頼みの本物で、index.tsx が組み立てて渡す。
  */
 export function MainWindowPage(props: { ports: Ports }): JSX.Element {
@@ -75,19 +78,27 @@ export function MainWindowPage(props: { ports: Ports }): JSX.Element {
         shortcutProblems: string[];
         passkeyRejected: string[];
         tabsHeight?: number;
+        startupProblem?: Problem;
       }
     | { error: string }
     | null
   >(null);
   onMount(() => {
     api.configGui().then(
-      (g) => {
+      async (g) => {
+        // 前の版の記録を移す。移せなかったマシンは、知らせに出す（起動は止めない）
+        const moved = await moveMachineRecords({
+          api,
+          store: props.ports.store,
+          config: g.machines,
+        });
         // 内蔵ブラウザ（#202）は、設定で有効にしたときだけ、ブラウザの操作（ブラウザのタブの窓と、設定の近道の browser.*）を使えるようにする
         setBrowserEnabled(g.browser);
         // 近道の間違い（読めないキー・知らないコマンド）では止めず、お知らせで知らせる
         const shortcutProblems = setUserShortcuts(g.shortcuts, IS_MAC);
         setLoaded({
-          config: g.machines,
+          config: moved.machines,
+          startupProblem: moved.problem,
           browser: g.browser,
           shortcutProblems,
           // passkey_sites の公開サフィックスの項目（使わない）。内蔵ブラウザを使うときだけ知らせる
@@ -113,6 +124,7 @@ export function MainWindowPage(props: { ports: Ports }): JSX.Element {
               tabsHeight={v.tabsHeight}
               shortcutProblems={v.shortcutProblems}
               passkeyRejected={v.passkeyRejected}
+              startupProblem={v.startupProblem}
             />
           );
         }}
@@ -133,6 +145,8 @@ function MainWindow(props: {
   passkeyRejected: string[];
   /** タブの段の高さの上限の元の値（設定の [gui.sidebar] tabs-height。サイドバーの高さに対する %）。無ければ 40 */
   tabsHeight?: number;
+  /** 起動のときから右下に出しておく、できなかったこと（前の版のマシンの記録を移せなかった） */
+  startupProblem?: Problem;
 }): JSX.Element {
   // 設定は起動のときに 1 回読んだもので、出している間は変わらない
   const { ports, browser } = props;
@@ -180,6 +194,7 @@ function MainWindow(props: {
   } = createFeatures({
     ports,
     config: props.config,
+    startupProblem: props.startupProblem,
     browser,
     mac: IS_MAC,
     ui: {
