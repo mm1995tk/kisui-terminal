@@ -2,7 +2,7 @@
 // ペインの並びは見本のデータ（下の panes）で、分ける・入れ替える・閉じるなどの操作は Actions に出るだけ（地図は変わらない）。
 // 選ぶ（h j k l・クリック）・分ける向きを待つ（s）・理由の表示（プライマリを x）・`?` は、そのまま動く。
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
-import { fn } from "storybook/test";
+import { fn, userEvent, waitFor } from "storybook/test";
 
 import { paneCells } from "../../../features/terminal/paneMap.ts";
 import type { PaneSource } from "../../../features/terminal/paneMap.ts";
@@ -91,6 +91,28 @@ export const Hidden: Story = {
 /** プライマリで shijimi-editor が動いていない（z を押すと、隠せない理由が出る）。 */
 export const CannotHide: Story = {
   args: { terminals: terminals(false, false) },
+};
+
+/** 分ける向きを待つ間（s を押したあと）。下の段は、向きと、やめる Esc だけになる。 */
+export const Splitting: Story = {
+  play: async ({ canvasElement }) => {
+    const map = canvasElement.querySelector<HTMLElement>("[role=listbox]");
+    await waitFor(() => {
+      if (!map || document.activeElement !== map)
+        throw new Error("the map has no focus yet");
+    });
+    await userEvent.keyboard("s");
+  },
+};
+
+/** 下の段の確かめ：プライマリを選んでいる間は、閉じる x を出さない（効かないので）。 */
+export const PrimarySelected: Story = {
+  args: {
+    terminals: {
+      ...terminals(false),
+      panes: () => paneCells({ ...source, activeId: "t1" }, false),
+    },
+  },
 };
 
 /** ペインを出せない（そのタブのマシンにつながっていない）。Esc で閉じるだけ。 */

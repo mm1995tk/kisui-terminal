@@ -5,6 +5,7 @@ import {
   selectedPane,
   type PaneCell,
 } from "../../../features/terminal/paneMap.ts";
+import type { Direction } from "../../../features/terminal/grid.ts";
 import { T } from "../../../i18n/index.ts";
 import {
   ModalCard,
@@ -16,11 +17,12 @@ import { KeyFooter } from "../../components/KeyFooter.tsx";
 import { openKeyList } from "../commands/KeyListDialog.tsx";
 import {
   splitDirKey,
-  terminalWindowHints,
+  terminalWindowFooter,
   terminalWindowKey,
 } from "./terminalWindowKey.ts";
 import styles from "./TerminalWindow.module.css";
 
+const DIRECTIONS: readonly Direction[] = ["left", "right", "up", "down"];
 const cellId = (id: string) => `terminal-window-pane-${id}`;
 const pct = (v: number) => `${v * 100}%`;
 
@@ -77,6 +79,23 @@ export function TerminalWindow(props: {
   // できなかった理由（プライマリは閉じられない、など）。次のキーで消す
   const [note, setNote] = createSignal<string>();
   let acted = false;
+
+  /** 下の段に出す、今効く操作（terminalWindowKey.ts の terminalWindowFooter） */
+  const footer = createMemo(() => {
+    const id = selected();
+    const c = cells().find((x) => x.id === id);
+    return terminalWindowFooter({
+      splitting: splitting(),
+      empty: cells().length === 0,
+      primary: c?.primary ?? false,
+      swappable:
+        id !== undefined &&
+        DIRECTIONS.some(
+          (d) => props.terminals.paneNeighbor(id, d) !== undefined,
+        ),
+      canZoom: props.terminals.canZoom(),
+    });
+  });
 
   function close(id: string) {
     const c = cells().find((x) => x.id === id);
@@ -166,10 +185,7 @@ export function TerminalWindow(props: {
               )}
             </Show>
           }
-          items={terminalWindowHints({
-            splitting: splitting(),
-            empty: cells().length === 0,
-          })}
+          rows={footer()}
         />
       }
     >
