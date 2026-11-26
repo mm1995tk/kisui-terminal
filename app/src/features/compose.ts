@@ -35,6 +35,7 @@ import {
 } from "./sessions/paneApproval.ts";
 import { onPaneGrantEnd, paneGrantActive } from "./sessions/paneGrant.ts";
 import { createPaneRelay } from "./sessions/paneRelay.ts";
+import { createWindowRun } from "./commands/windowRun.ts";
 import type { ConfigMachine } from "./sessions/machines.ts";
 import type { TermDefaults } from "./sessions/termDefaults.ts";
 import type { ShellApi } from "./sessions/shell.ts";
@@ -47,6 +48,7 @@ import { createPrimaryShj } from "./workspaces/primaryShj.ts";
 import { createProxy, type Proxy } from "./proxy/controller.ts";
 import { createTabs } from "./workspaces/tabs/controller.ts";
 import { createPaneOpen } from "./workspaces/tabs/paneOpen.ts";
+import { createTabCommands } from "./workspaces/tabs/tabCommands.ts";
 import type { WorkspaceId } from "../infrastructure/rpc/protocol.ts";
 
 /** 機能が外に頼むこと（本物は infrastructure/。index.tsx が組み立てる）。 */
@@ -157,6 +159,8 @@ export function createFeatures(deps: {
             relayCancel: cancelPaneApproval,
             dbPropose: (t, rq) => db.propose(t, rq),
             dbProposeCancel: (t, id) => db.cancelPropose(t, id),
+            windowRun: (from, rq) => windowRun.run(from, rq),
+            windowRunCancel: (from, id) => windowRun.cancel(from, id),
             zoomWs: terminals.zoomWs,
           },
           target,
@@ -293,6 +297,18 @@ export function createFeatures(deps: {
     focusTerminal,
     revealSidebar: () => ui.revealSidebar(),
   });
+  // Window に頼む、Pane の中のコマンド（`kisui tab` など。#511）。CLI を足すときは、受け持ちの表をここに足す
+  const windowRun = createWindowRun([
+    createTabCommands({
+      sessions,
+      gws: workspaces.gws,
+      rows: workspaces.rows,
+      tabs,
+      browser,
+      granted: paneGrantActive,
+      anyAskEach,
+    }),
+  ]);
   const proxy = createProxy({
     sessions,
     workspaces,

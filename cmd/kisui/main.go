@@ -3,8 +3,9 @@
 // relays the GUI's connections to the localhost ports of a remote machine.
 // "kisui proxy" runs the recording proxy by itself. The
 // other commands run in a pane: "kisui open" asks the "kisui serve" of the pane for
-// something (internal/panecmd), and "kisui notify" and "kisui clipboard" talk
-// to the terminal of the pane (internal/kittyterm).
+// something (internal/panecmd), "kisui tab" asks the window through it
+// (window.go), and "kisui notify" and "kisui clipboard" talk to the terminal
+// of the pane (internal/kittyterm).
 package main
 
 import (
@@ -52,6 +53,13 @@ var commands = []command{
 		{name: "send", args: "[--machine <machine>] <name|id> <text>", help: "help.pane.send", run: runPaneSend},
 		{name: "keys", args: "[--machine <machine>] <name|id> <key>...", help: "help.pane.keys", run: runPaneKeys},
 		{name: "close", args: "[--machine <machine>] <name|id>", help: "help.pane.close", run: runPaneClose},
+	}},
+	{name: "tab", sub: []command{
+		{name: "list", args: "[--json] [--workspace <name|id>]", help: "help.tab.list", run: runTabList},
+		{name: "rename", args: "<tab> <name>", help: "help.tab.rename", run: runTabRename},
+		{name: "close", args: "[--force] <tab>", help: "help.tab.close", run: runTabClose},
+		{name: "move", args: "<tab> --up|--down|--workspace <name|id>", help: "help.tab.move", run: runTabMove},
+		{name: "show", args: "<tab>", help: "help.tab.show", run: runTabShow},
 	}},
 	{name: "db", sub: []command{
 		{name: "connections", args: "[--json]", help: "help.db.connections", run: runDBConnections},

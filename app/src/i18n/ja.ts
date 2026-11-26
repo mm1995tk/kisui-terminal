@@ -783,6 +783,23 @@ export const ja: Record<Key, string> = {
     "手元の PC のペインの操作は、設定ファイルでは許せません。代わりに、時間を決めて許します。マシンのダイアログ（{leader} m）でマシンを選び、p を押します。",
   "paneRelay.err.notAllowed":
     '{from} のペインは、--machine でマシン「{machine}」に届けません。許すには、ウィンドウの動く PC の設定ファイルで、{from} の [[gui.machines]] に allow_pane_to = ["{machine}"] と書き、kisui-terminal を起動し直してください。',
+  "windowRun.err.unknown":
+    "この版の Window は {command} を行えません。kisui-terminal を更新してください。",
+  "windowRun.err.arg": "頼みに、使える引数 {name} がありません。",
+  "tabCli.err.noTab":
+    "「{tab}」という id か名前の Tab がありません（Tab は kisui tab list に出ます）",
+  "tabCli.err.noTabReach":
+    "{from} の Pane から届く Tab の中に、「{tab}」という id か名前の Tab がありません（届く Tab は kisui tab list に出ます）。届くのは、{from} の Tab と、{from} の [[gui.machines]] の allow_pane_to に書いた Machine の Tab です。Window の動く PC の Tab（その Terminal tab と、Browser tab・Database tab の全部）には、Window の前の人が許している間だけ届きます。Machine の Dialog で {from} を選び、p を押します。",
+  "tabCli.err.ambiguous":
+    "「{tab}」という名前か id の Tab が {count} つあります。id で指してください（{ids}。kisui tab list に出ます）",
+  "tabCli.err.noWorkspace":
+    "「{name}」という名前か id の Workspace がありません",
+  "tabCli.err.running":
+    "Tab「{tab}」でプログラムが動いているので、閉じませんでした。kisui tab close --force で、プログラムを終わらせて閉じます。",
+  "tabCli.err.askEach":
+    "この PC に、操作のたびに人に聞くと決めた Pane があるので、リモートの Machine からは、この PC の Terminal tab を閉じられません。Window で閉じるよう、ユーザーに頼んでください。",
+  "tabCli.err.sameWorkspace":
+    "Tab「{tab}」は、もう Workspace「{workspace}」にあります",
   "paneOpen.err.noWorkspace":
     "「{name}」という名前か id のワークスペースがありません（--new を付けると、その名前で作ります）",
   "paneOpen.err.ambiguous":

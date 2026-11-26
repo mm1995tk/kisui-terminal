@@ -13,13 +13,15 @@ import {
   machineTarget,
   fromConfig,
   localInAllowPaneTo,
+  machineCliName,
   paneRelayAllowed,
   renameMachine,
   unknownAllowPaneTo,
+  windowReachAllowed,
   type Machine,
 } from "./machines.ts";
 import { callerOrigin, createPaneRelay, type LocalGate } from "./paneRelay.ts";
-import { parsePaneRelay } from "./session.ts";
+import { parsePaneRelay, parseWindowRun } from "./session.ts";
 import { LOCAL } from "./shell.ts";
 
 const machines: Machine[] = [
@@ -720,5 +722,72 @@ describe("ssh 先のマシンから手元の PC への頼み（時間を決め�
     const t = setup({ hang: true, waitMs: 5 });
     const r = await t.relay(LOCAL, "dev", { cmd: "read", to: "x" }, by);
     assert.match(r.error ?? "", /did not answer in time/);
+  });
+});
+
+describe("Window に頼むコマンド（kisui tab など）", () => {
+  const list: Machine[] = [
+    { target: "dev-vm", name: "dev", allowPaneTo: ["build", "local"] },
+    { target: "build" },
+  ];
+
+  it("届く Machine は --machine と同じ：手元の PC からは全部、リモートからは自分と allow_pane_to の先", () => {
+    for (const to of [LOCAL, "dev-vm", "build"])
+      assert.equal(windowReachAllowed(list, LOCAL, to, false), true);
+    assert.equal(windowReachAllowed(list, "dev-vm", "dev-vm", false), true);
+    assert.equal(windowReachAllowed(list, "dev-vm", "build", false), true);
+    assert.equal(windowReachAllowed(list, "build", "dev-vm", false), false);
+  });
+
+  it("手元の PC の Tab には、人が時間を決めて許している間だけ届く（allow_pane_to の local は数えない）", () => {
+    assert.equal(windowReachAllowed(list, "dev-vm", LOCAL, false), false);
+    assert.equal(windowReachAllowed(list, "dev-vm", LOCAL, true), true);
+    assert.equal(windowReachAllowed(list, "build", LOCAL, true), true);
+  });
+
+  it("Machine の CLI での名前は、--machine で選ぶ名前", () => {
+    assert.equal(machineCliName(list, LOCAL), "local");
+    assert.equal(machineCliName(list, "dev-vm"), "dev");
+    assert.equal(machineCliName(list, "build"), "build");
+  });
+
+  it("window.run の中身を確かめる（形が違えば捨てる）", () => {
+    assert.deepEqual(
+      parseWindowRun({
+        id: "x1",
+        pane: "t1",
+        tab: "w1",
+        command: "tab.rename",
+        args: { tab: "a" },
+        extra: 1,
+      }),
+      {
+        id: "x1",
+        pane: "t1",
+        tab: "w1",
+        command: "tab.rename",
+        args: { tab: "a" },
+      },
+    );
+    // pane と tab は、無ければ空
+    assert.deepEqual(
+      parseWindowRun({ id: "x1", command: "tab.list", args: {} }),
+      {
+        id: "x1",
+        pane: "",
+        tab: "",
+        command: "tab.list",
+        args: {},
+      },
+    );
+    for (const bad of [
+      null,
+      { command: "tab.list", args: {} },
+      { id: "x1", args: {} },
+      { id: "x1", command: "tab.list" },
+      { id: "x1", command: "tab.list", args: [] },
+      { id: "x1", command: "tab.list", args: "a" },
+    ])
+      assert.equal(parseWindowRun(bad), undefined);
   });
 });

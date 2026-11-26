@@ -4,6 +4,7 @@
 import { T } from "../../../i18n/index.ts";
 import { batch, createSignal, untrack } from "solid-js";
 
+import { ErrorCode, RpcError } from "../../../infrastructure/rpc/message.ts";
 import type { WorkspaceId } from "../../../infrastructure/rpc/protocol.ts";
 import type { Pages } from "../../browser/pages.ts";
 import {
@@ -227,6 +228,40 @@ export function createTabs(deps: {
     );
   }
 
+  /**
+   * Terminal tab 1 つを、確認の Dialog を出さずに閉じる（CLI の `kisui tab close`。#511）。結果は closeTermTab と同じで、違いは、
+   * プログラムが動いていて force でないときに Dialog を出さず "running" を返すことと、ほかの失敗を投げること。
+   * Machine につながっていない Tab は、closeTermTab と同じく記録から外すだけ。Tab がもう無ければ "gone"。
+   */
+  async function closeTermTabNow(
+    target: string,
+    ws: WorkspaceId,
+    force: boolean,
+  ): Promise<"closed" | "running" | "gone"> {
+    if (!gwsOfTerm(untrack(gws), target, ws)) return "gone";
+    justCreated.delete(termKey(target, ws));
+    const s = sessions()[target];
+    if (!s || states()[target]?.kind !== "connected") {
+      setGws(dropTerm(untrack(gws), target, ws));
+      return "closed";
+    }
+    const f = untrack(focus);
+    const shown = f?.target === target && f.id === ws;
+    try {
+      await s.closeWorkspace(ws, force);
+    } catch (e) {
+      const d =
+        e instanceof RpcError && e.code === ErrorCode.Busy
+          ? (e.data as { reason?: string } | undefined)
+          : undefined;
+      if (d?.reason === "running" && !force) return "running";
+      throw e;
+    }
+    setGws((x) => dropTerm(x, target, ws));
+    if (shown) focusTerminal();
+    return "closed";
+  }
+
   // 名前をその場で変えているタブ（サイドバーのタブの行が入力欄になる。current は入力欄の初めの値、auto は空にしたときの名前）と、断られた理由
   const [renamingTab, setRenamingTab] = createSignal<{
     gws: string;
@@ -300,24 +335,34 @@ export function createTabs(deps: {
     return nameErrorText(name) ?? applyTabRename(gid, key, name);
   }
 
-  /** タブ key の名前を name にする。名前の検査は済んでいるものとする。 */
+  /** Tab key の名前を name にする。名前の検査は済んでいるものとする。Terminal tab の Machine が断ったら、フォーカスのある Pane にエラーを出す。 */
   async function applyTabRename(gid: string, key: string, name: string) {
     const ref = untrack(gws)
       .list.find((g) => g.id === gid)
       ?.tabs.find((x) => refKey(x) === key);
-    if (ref && ref.kind !== "term") {
-      setGws((g) => renamePage(g, key, name));
-    } else if (ref) {
-      try {
-        // ターミナルのタブの名前は、マシンのワークスペースの名前
-        await sessions()[ref.target]?.renameWorkspace(ref.ws, name.trim());
-      } catch (e) {
-        setFocusError({
-          title: T("err.workspace.rename", { machine: labelOf(ref.target) }),
-          error: e instanceof Error ? e.message : String(e),
-        });
-      }
+    try {
+      await setTabName(gid, key, name);
+    } catch (e) {
+      setFocusError({
+        title: T("err.workspace.rename", {
+          machine: ref?.kind === "term" ? labelOf(ref.target) : "",
+        }),
+        error: e instanceof Error ? e.message : String(e),
+      });
     }
+  }
+
+  /**
+   * Tab key の名前を name にする（空なら自動の名前に戻す）。名前の検査は済んでいるものとする。Terminal tab の名前は、Machine の
+   * kisui serve が持つ名前なので、Machine が断ったら投げる（CLI の `kisui tab rename` は、その理由を返す。#511）。
+   */
+  async function setTabName(gid: string, key: string, name: string) {
+    const ref = untrack(gws)
+      .list.find((g) => g.id === gid)
+      ?.tabs.find((x) => refKey(x) === key);
+    if (ref && ref.kind !== "term") setGws((g) => renamePage(g, key, name));
+    else if (ref)
+      await sessions()[ref.target]?.renameWorkspace(ref.ws, name.trim());
   }
 
   /** 入力欄の Enter。断られたら入力欄の下に理由を出し、入力欄は開けておく。 */
@@ -597,10 +642,17 @@ export function createTabs(deps: {
     setMovingTab({ key, from: g.id });
   }
 
-  /** ワークスペース gid のタブ key を 1 つ下・上へ動かす（コマンド tab.move・切り替える窓の J K）。端では動かさない。数えるのはサイドバーに出ているタブだけ */
-  function moveTabByStep(gid: string, key: string, dir: "up" | "down") {
+  /**
+   * ワークスペース gid のタブ key を 1 つ下・上へ動かす（コマンド tab.move・切り替える窓の J K）。端では動かさない。数えるのはサイドバーに出ているタブだけ。
+   * 動かしたら true。
+   */
+  function moveTabByStep(
+    gid: string,
+    key: string,
+    dir: "up" | "down",
+  ): boolean {
     const g = untrack(gws).list.find((x) => x.id === gid);
-    if (!g) return;
+    if (!g) return false;
     const next = moveTabStep(
       untrack(gws),
       gid,
@@ -609,6 +661,7 @@ export function createTabs(deps: {
       visibleTabs(g, hasBrowserTab),
     );
     if (next) setGws(next);
+    return next !== null;
   }
 
   return {
@@ -620,6 +673,8 @@ export function createTabs(deps: {
     confirmCloseTab,
     cancelCloseTab: () => setConfirmCloseTab(null),
     closeTermTab,
+    closeTermTabNow,
+    setTabName,
     renameTabRow,
     tabRenameInit,
     renameTab,
@@ -654,6 +709,12 @@ export function createTabs(deps: {
       setMovingTab(null);
       focusTerminal();
     },
+    /**
+     * Tab key を、Workspace gid の一番後ろへ移し、そこへ移って、その Tab を表示する（移動先を選ぶ Dialog で決めたときと同じ。
+     * CLI の `kisui tab move --workspace`。#511）。動かせなかった（Tab か移動先が無い・もうそこにある）ら false
+     */
+    moveTabToWorkspace: (key: string, gid: string) =>
+      moveTab(key, gid, null, "go"),
     /** 移動先を選ぶ窓で決めた。タブ key を、ワークスペース gid の一番後ろへ移し、そこへ移って、そのタブを出す */
     submitTabMove(key: string, gid: string) {
       setMovingTab(null);

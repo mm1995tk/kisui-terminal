@@ -30,6 +30,8 @@ import {
   type Requests,
   type TermId,
   type UpdateReport,
+  type WindowRunReport,
+  type WindowRunRequest,
   type WorkspaceId,
 } from "../../infrastructure/rpc/protocol.ts";
 import type { InstallPlan, ShellApi } from "./shell.ts";
@@ -184,6 +186,10 @@ export type PaneEvent =
   | ({ kind: "relay" } & PaneRelayRequest)
   /** 頼んだ serve が、pane.relay の頼み id を取り下げた（コマンドが止められた・時間切れ）。人に聞いている窓を閉じる */
   | { kind: "relay-cancel"; id: string }
+  /** Window に頼む、Pane の中のコマンド（`kisui tab` など。#511）。行って答える（reportWindowRan） */
+  | ({ kind: "window-run" } & WindowRunRequest)
+  /** 頼んだ serve が、window.run の頼み id を取り下げた（コマンドが止められた・時間切れ） */
+  | { kind: "window-run-cancel"; id: string }
   /** `kisui db propose`（#382）。DB のタブの入力欄に SQL を書いて答える（reportDbProposed）。同じくペインの中のコマンドの知らせ */
   | ({ kind: "db-propose" } & DbProposeRequest)
   /** db.propose の取り下げ（serve が答えを待つのをやめた）。人に聞いている途中なら、聞くのをやめる */
@@ -489,6 +495,11 @@ export class Session {
   /** `kisui pane … --machine` への答え（pane.relayed）を今の接続で送る。つながっていなければ何もしない（serve は時間切れで断る）。 */
   reportPaneRelayed(id: string, reply: PaneRunReply): void {
     this.conn?.client.notify("pane.relayed", { id, reply });
+  }
+
+  /** window.run への答え（window.ran）を今の接続で送る。つながっていなければ何もしない（serve は時間切れで断る）。 */
+  reportWindowRan(id: string, report: WindowRunReport): void {
+    this.conn?.client.notify("window.ran", { ...report, id });
   }
 
   /** `kisui db propose` への答え（db.proposed）を今の接続で送る。つながっていなければ何もしない（serve は時間切れで断る）。 */
@@ -860,6 +871,19 @@ export class Session {
         for (const h of [...this.paneHandlers])
           h({ kind: "relay-cancel", id: n.id });
       }),
+      conn.client.on("window.run", (n) => {
+        if (gen !== this.generation || this.conn !== conn) return;
+        const ev = parseWindowRun(n);
+        if (!ev) return;
+        for (const h of [...this.paneHandlers])
+          h({ kind: "window-run", ...ev });
+      }),
+      conn.client.on("window.runCancel", (n) => {
+        if (gen !== this.generation || this.conn !== conn) return;
+        if (typeof n?.id !== "string") return;
+        for (const h of [...this.paneHandlers])
+          h({ kind: "window-run-cancel", id: n.id });
+      }),
       conn.client.on("db.propose", (n) => {
         if (gen !== this.generation || this.conn !== conn) return;
         const ev = parseDbPropose(n);
@@ -1012,6 +1036,27 @@ function ancestryOf(v: unknown): { ancestry?: PaneOrigin[] } {
     );
   }
   return list.length > 0 ? { ancestry: list } : {};
+}
+
+/** window.run の中身を確かめる。形が違えば undefined（答えようがないので捨てる。serve は時間切れで断る）。 */
+export function parseWindowRun(n: unknown): WindowRunRequest | undefined {
+  if (typeof n !== "object" || n === null) return undefined;
+  const p = n as Record<string, unknown>;
+  if (
+    typeof p.id !== "string" ||
+    typeof p.command !== "string" ||
+    typeof p.args !== "object" ||
+    p.args === null ||
+    Array.isArray(p.args)
+  )
+    return undefined;
+  return {
+    id: p.id,
+    pane: typeof p.pane === "string" ? p.pane : "",
+    tab: typeof p.tab === "string" ? p.tab : "",
+    command: p.command,
+    args: p.args as Record<string, unknown>,
+  };
 }
 
 /** pane.open の中身を確かめる。形が違えば undefined（答えようがないので捨てる。serve は時間切れで断る）。 */

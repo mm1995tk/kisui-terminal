@@ -63,7 +63,7 @@ app/src/
   features/
     sessions/               # 接続（Session）、マシンの記録、接続の状態の文
     workspaces/             # GUI のワークスペース、フォーカス、サイドバーの行の組み立て
-      tabs/                 # 中のタブ（ターミナル・ブラウザ・DB）の追加・削除・並び順・選択
+      tabs/                 # 中のタブ（ターミナル・ブラウザ・DB）の追加・削除・並び順・選択、CLI の `kisui tab` の受け持ち（`tabCommands.ts`）
     browser/                # ブラウザのタブ 1 つずつのページの操作、ブックマーク、ダウンロード
     db/                     # DB のタブ（#347）の中身：書きかけの SQL、SQL の実行と結果、接続の一覧、パスワードを聞く
     proxy/                  # プロキシのパネル（#409）：タブの通信を kisui serve のプロキシに通す、一覧と中身
@@ -75,7 +75,7 @@ app/src/
     mascot/
     updates/
     scale/                  # 表示の大きさ
-    commands/               # コマンドの表（リーダーと近道）、キーの書き方、コマンドを動かす
+    commands/               # コマンドの表（リーダーと近道）、キーの書き方、コマンドを動かす、Window に頼む CLI の受け口（`windowRun.ts`。#511）
     compose.ts              # 機能の持ち物（各 controller）を作って、互いをつなぐ
     keyValueStore.ts        # 小さな記録の読み書きの窓口（機能をまたいで使う）
     problem.ts              # 「できなかったこと」の知らせの形（機能をまたいで使う）
@@ -148,6 +148,7 @@ index.tsx ──▶ ui ──▶ features ◀── infrastructure
 | `features/terminal/controller.ts`                 | フォーカスしているワークスペースのペイン、隠す・分ける                       |
 | `features/file-tree/controller.ts`・`features/changes/controller.ts` | ツリーと CHANGES の中身と操作                              |
 | `features/commands/run.ts`                        | コマンドの表のコマンドを動かす（リーダーの葉と近道）                         |
+| `features/commands/windowRun.ts`                  | Window に頼む CLI（`kisui tab` など）を、名前ごとの受け持ちに渡す（#511）    |
 
 持ち物どうしは互いを呼ぶ（接続の知らせでフォーカスを直す、など）。先に作る側には、後で作る側を呼ぶ関数を渡す（`compose.ts` の `hooks` や `() => …`）。機能が画面の側に頼むこと（キーを向ける・スクロールを戻す・窓を出す）は、`FeatureUi`・`CommandUi` の形で `page.tsx` が渡す。
 

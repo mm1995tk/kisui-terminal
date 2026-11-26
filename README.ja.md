@@ -87,6 +87,18 @@ kisui pane send --machine dev reviewer claude
 kisui pane read --machine dev reviewer
 ```
 
+`kisui tab` は、Pane の中から Window の Tab（Terminal tab・Browser tab・Database tab）を操作します。Tab のキー操作でできることを、エージェントからもできます。`kisui tab list` は Tab の一覧を出します。それぞれの id・名前・種類（`terminal`・`browser`・`database`）・Workspace（id と名前）・Machine が出ます。`*` は打った Pane の Tab、`表示中`（英語では `shown`）は、その Workspace が今表示している Tab です。`--workspace <名前|id>` で 1 つの Workspace に絞り、`--json` でプログラム向けに `{"tabs": [...]}` を出します。ほかのコマンドは、Tab を id か名前で指します（`<tab>`）。名前が 2 つ以上の Tab に当たるときは断り、代わりに使う id を出します。`kisui tab rename <tab> <名前>` は Tab に名前を付けます（空の名前 `""` で、自動の名前に戻します）。`kisui tab close <tab>` は Tab を閉じます。プログラムが動いている Terminal tab は、Window で確認せずに断ります。`--force` を付けると、プログラムを終わらせて閉じます。`kisui tab move <tab> --up` / `--down` は、Workspace の中で 1 つ動かします。`kisui tab move <tab> --workspace <名前|id>` は、別の Workspace の最後へ移します。キー操作と同じく、Window はその Workspace へ移って、その Tab を表示します。`kisui tab show <tab>` は Tab を表示します。Window はその Tab の Workspace へ移り、キーをその Tab に向けます。新しい Tab は作りません。Terminal tab は `kisui pane open`、Browser tab は `kisui open <url>` で開きます。
+
+```sh
+kisui tab list
+kisui tab rename w3k2n8q1x0ab "api server"
+kisui tab move "api server" --workspace review
+kisui tab show "api server"
+kisui tab close --force "api server"
+```
+
+**これらのコマンドが届く Tab。** Tab は Window のものなので、`kisui tab` は `pane_reach` に関係なく、どの Workspace の Tab にも届きます。`--machine` は付けません。どの Machine の Tab に届くかは、`--machine` と同じ決まりです。手元の PC の Pane からは、全部の Tab に届きます。リモートの Machine の Pane からは、その Machine の Terminal tab と、その Machine の `allow_pane_to` に書いた Machine の Terminal tab に届きます。手元の PC の Tab（手元の PC の Terminal tab と、Browser tab・Database tab の全部。Browser tab と Database tab は、手元の PC の Tab として扱います）にリモートの Machine から届くのは、Window でその Machine に許している間だけです（Machine の Dialog の `p`。上の `--machine` を参照）。`allow_pane_to` の `local` は、ここでも効きません。許している間は、`kisui tab` のコマンドごとに Window で聞くことはしません。ただし、手元の PC に「操作のたびに聞く」と決めた Pane がある間は、リモートの Machine から手元の PC の Terminal tab を閉じられません。届かない Tab は `kisui tab list` に出ず、指すと、その名前の Tab が無いときと同じに失敗します。これらのコマンドは Window が行うので、Window が閉じているときは、理由を出して失敗します。kisui-terminal は確認を出しません。どの Tab に何をするかは、全部コマンドの引数に出ています。
+
 `kisui db` は、ペインの中のコーディングエージェントが、設定の DB の接続（`[[db.connections]]`。下）を使うためのコマンドです。`kisui db connections` は接続の一覧と、それぞれでエージェントがしてよいことを出します。`kisui db schema <接続> [<テーブル>]` はテーブルの一覧か、テーブル 1 つの列を出します。`kisui db query <接続> <SQL>` は文を 1 つ実行して行を出します。`kisui db propose <接続> <SQL>` は、DB のタブの入力欄に SQL を書きます（読んで実行するのはあなたです）。`--variant <変種>` で変種のある接続の環境を選び、`--json` でプログラム向けの結果を出します。DB につないでログインするのは、ペインのマシンの `kisui serve` なので、エージェントはクライアントを要らず、パスワードも見ません。どの頼みもエージェントのものとして扱い、エージェントに付けた権限（`agent-permission`）に従います：権限を書いていなければ、`kisui db query` は断られ、`kisui db propose` は許されます。`run = "read"` なら、書き込みは DB が断ります。`kisui db propose` は何も実行しません。タブの入力欄に SQL があるときは、上書きの前に窓が聞きます（`Enter` で上書き、`Esc` でやめる。やめるとコマンドは失敗します）。コマンドはパスワードを聞きません：キーチェーンか `~/.pgpass`・`~/.my.cnf` に置きます（DB のタブで入力済みなら、その窓を開いている間は、それも使われます）。エージェントが実行した文は、その接続の SQL の履歴に「エージェント」の札を付けて残ります。詳しくは [docs/database.md](docs/database.md#for-a-coding-agent-the-kisui-db-commands)。
 
 ```sh
@@ -98,7 +110,7 @@ kisui db propose --variant prod shop "UPDATE orders SET status = 'cancelled' WHE
 
 `kisui update` は、アプリに新しい版を今すぐ調べ直させます。アプリを閉じて開き直さなくてすみます（何もしなければ、調べるのは起動したときの 1 回だけです）。新しい版があれば、起動したときと同じ「新しい版があります」の知らせを出します（「あとで」で閉じていても、出し直します）。「更新して再起動」の動きは、その知らせと同じで、ペインのシェルは残ります（serve が引き継ぎます）。`kisui update` は、アプリが見つけたことを出します。新しい版がある、最新である、この版は自動更新を持たない（Nix で入れた版と、AppImage でない Linux。`nix flake update` で更新するか、新しい版を入れ直す）のどれかです。ssh 先のマシンのペインでも使えます。調べて知らせを出すのは手元のアプリです。使い方は `kisui update --help` で出ます。
 
-`kisui skill install [フォルダ]` は、Claude Code などのコーディングエージェントに、ペインの中での `kisui open`・`kisui notify`・`kisui clipboard`・`kisui pane`・`kisui db` の使い方を教える skill（`SKILL.md`）を書き出します。フォルダを省くと `~/.claude/skills/kisui-terminal/` に書きます。skill は `kisui` のバイナリに入っているので、入れた版に合った内容になります。`kisui clipboard paste` は勝手に呼ばないよう、skill に書いてあります。
+`kisui skill install [フォルダ]` は、Claude Code などのコーディングエージェントに、ペインの中での `kisui open`・`kisui notify`・`kisui clipboard`・`kisui pane`・`kisui tab`・`kisui db` の使い方を教える skill（`SKILL.md`）を書き出します。フォルダを省くと `~/.claude/skills/kisui-terminal/` に書きます。skill は `kisui` のバイナリに入っているので、入れた版に合った内容になります。`kisui clipboard paste` は勝手に呼ばないよう、skill に書いてあります。
 
 ```sh
 kisui skill install

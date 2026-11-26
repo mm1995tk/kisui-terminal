@@ -7,6 +7,8 @@ import type {
   PaneOrigin,
   PaneRunReply,
   PaneRunRequest,
+  WindowRunReport,
+  WindowRunRequest,
   WorkspaceId,
 } from "../../infrastructure/rpc/protocol.ts";
 import type { PaneEvent, Session } from "../sessions/session.ts";
@@ -47,6 +49,10 @@ export interface PaneEventTargets {
   dbPropose(target: string, rq: DbProposeRequest): Promise<DbProposeReport>;
   /** マシン target の `kisui db propose` の取り下げ（人に聞いている途中なら、聞くのをやめる） */
   dbProposeCancel(target: string, id: string): void;
+  /** Machine from の Pane が Window に頼んだコマンドを行う（`kisui tab` など。投げずに、行えなければ理由を返す） */
+  windowRun(from: string, rq: WindowRunRequest): Promise<WindowRunReport>;
+  /** Machine from の serve が、window.run の頼み id を取り下げた */
+  windowRunCancel(from: string, id: string): void;
   /** プライマリ以外の欄を隠す・戻す */
   zoomWs(target: string, id: WorkspaceId, on: boolean | "toggle"): boolean;
 }
@@ -62,6 +68,7 @@ export function routePaneEvent(
     | "reportPaneOpened"
     | "reportPaneRelayed"
     | "reportDbProposed"
+    | "reportWindowRan"
   >,
 ): void {
   if (ev.kind === "show") to.paneShow(target, ev.workspaceId, ev.termId);
@@ -89,5 +96,8 @@ export function routePaneEvent(
   else if (ev.kind === "db-propose")
     void to.dbPropose(target, ev).then((r) => s.reportDbProposed(ev.id, r));
   else if (ev.kind === "db-propose-cancel") to.dbProposeCancel(target, ev.id);
+  else if (ev.kind === "window-run")
+    void to.windowRun(target, ev).then((r) => s.reportWindowRan(ev.id, r));
+  else if (ev.kind === "window-run-cancel") to.windowRunCancel(target, ev.id);
   else to.zoomWs(target, ev.workspaceId, true);
 }
