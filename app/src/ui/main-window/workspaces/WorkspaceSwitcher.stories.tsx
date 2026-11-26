@@ -183,7 +183,7 @@ const meta = {
       { target: "local", label: "local", color: MACHINES.local.color },
       { target: "devbox", label: "devbox", color: MACHINES.devbox.color },
     ],
-    // n か右の列の「＋」で種類を選ぶ一覧を出し、ターミナルに決めて、名前とマシンを入れて Enter。アプリと同じ決まりで名前を確かめ、作れたら新しいタブの key を返す（rows は呼んだ側のものなので、窓には足されない）
+    // n か右の列の「＋」で作るタブの種類を選ぶ間にし、ターミナルに決めて、名前とマシンを入れて Enter。アプリと同じ決まりで名前を確かめ、作れたら新しいタブの key を返す（rows は呼んだ側のものなので、窓には足されない）
     onCreateTab: fn((_gws: string, _machine: string, name: string) => {
       const error = nameErrorText(name);
       return error ? { error } : { key: Promise.resolve(undefined) };
@@ -207,12 +207,12 @@ export const NoTabs: Story = {
   args: { rows: [row("g1", "scratch", MACHINES.local, [], { focused: true })] },
 };
 
-/** 内蔵ブラウザが無効のとき。種類を選ぶ一覧（n・N・「＋」）に、ブラウザとシークレットの行が無い。 */
+/** 内蔵ブラウザが無効のとき。作るタブの種類（n・N・「＋」）の、下の段のボタンに、ブラウザとシークレットが無い（t・d だけ）。 */
 export const BrowserDisabled: Story = {
   args: { browser: false, initialNewTab: true },
 };
 
-/** リーダーの n で開いたとき。右の列にキーを置き、作るタブの種類を選ぶ一覧を出している。j / k で選んで Enter か、行の字（t・b・B・d）で決める。Esc は一覧だけを閉じる。 */
+/** リーダーの n で開いたとき。右の列にキーを置き、作るタブの種類を選ぶ間にしている。種類は下の段の t・b・B・d のボタンで出し、字を押すか、ボタンを押して決める。Esc は種類を選ぶのだけをやめる。 */
 export const NewTab: Story = {
   args: { initialCol: "tab", initialNewTab: true },
 };

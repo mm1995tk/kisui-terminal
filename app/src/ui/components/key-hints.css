@@ -30,3 +30,20 @@
   font-size: var(--text-label);
   line-height: var(--leading-text);
 }
+
+/* 押せるヒント（作るタブの種類など）。ボタンの形にし、キーと字はふつうのヒントと同じ */
+.key-hint-button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-6);
+  padding: 0 var(--space-10);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-8);
+  background: var(--color-field);
+  color: var(--color-text-strong);
+  font: inherit;
+  cursor: pointer;
+}
+.key-hint-button:hover {
+  background: var(--state-hover-bg);
+}

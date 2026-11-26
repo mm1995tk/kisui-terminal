@@ -748,7 +748,7 @@ describe("リーダーの案内（menuRows）", () => {
     }
   });
 
-  it("n は、ワークスペースの窓を、タブの種類を選ぶ一覧を出して開く葉（#456）。種類ごとの作るキー（旧 o n・o N・d n）は木に無い", () => {
+  it("n は、ワークスペースの窓を、作るタブの種類を選ぶ間にして開く葉（#456）。種類ごとの作るキー（旧 o n・o N・d n）は木に無い", () => {
     for (const mac of [MAC, LINUX]) {
       const r = press(mac, [LEADER_KEY(mac), key("n")]);
       assert.deepEqual(r.runs, [{ id: "workspace.switch", arg: "newTab" }]);

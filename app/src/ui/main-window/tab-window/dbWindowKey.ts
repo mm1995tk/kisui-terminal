@@ -4,8 +4,8 @@
 import { isComposingKey } from "../../../features/commands/ime.ts";
 import type { KeyLike } from "../../../features/commands/guiKeys.ts";
 import {
-  basicHints,
-  type BasicHint,
+  placeItem,
+  type FooterRow,
 } from "../../../features/commands/placeKeys.ts";
 import { T } from "../../../i18n/index.ts";
 
@@ -84,16 +84,52 @@ export function dbWindowKey(e: KeyLike): DbWindowKey | null {
   return null;
 }
 
+/** 窓の下の段を決める、窓の今の状態。 */
+export interface DbWindowState {
+  /** 結果のタブを選んでいるか（結果のタブが 1 つも無ければ false） */
+  selected: boolean;
+  /** 選んでいる結果のタブが、木で選んだテーブルのものか（データと Structure を切り替えられる） */
+  table: boolean;
+  /** 選んでいる結果のタブの SQL が終わって結果があるか（ページを送れる） */
+  done: boolean;
+  /** 選んでいる結果のタブに、書き出せる行があるか */
+  exportable: boolean;
+  /** SQL を実行している最中か（取り消せる） */
+  running: boolean;
+  /** 強めている権限があるか（元に戻せる） */
+  elevated: boolean;
+}
+
 /**
- * 窓の下の段（共通フッタ）に出す基本操作。ほかの窓と同じ順（basicHints）で返す。
- * 結果のタブとタブ全体への操作（x s f b c e t r h p P）は出さない（`?` の一覧に出す。表は placeKeys.ts の dbWindow）。
- * - empty：結果のタブが無い間。選ぶ・Enter は効かないので、`?` と閉じる Esc だけ
+ * 窓の下の段（共通フッタ）に出す、今効く操作。「選んでいるタブ」と「この DB のタブ」の 2 行。
+ * 効かない操作は出さない。どの窓でも同じ意味のキー（j k・Enter・Esc・`?`）は出さない（h は、この窓では履歴なので出す）。
+ * キーと probes は `?` の一覧の表（placeKeys.ts の dbWindow）から引く（placeItem）。dbWindowKey.test.ts が、出す操作を判定が受けることと、
+ * 表の操作がどれも、どこかの状態で下の段に出ることを確かめる。
  */
-export function dbWindowHints(state: { empty: boolean }): BasicHint[] {
-  if (state.empty)
-    return [
-      { keys: ["?"], label: T("basic.help") },
-      { keys: ["Esc"], label: T("basic.close") },
-    ];
-  return basicHints({ decide: T("dbWindow.keys.show"), end: "close" });
+export function dbWindowFooter(s: DbWindowState): FooterRow[] {
+  const item = (keys: string, label: Parameters<typeof T>[0]) =>
+    placeItem("dbWindow", keys, T(label));
+  const on = <V>(cond: boolean, v: V): V[] => (cond ? [v] : []);
+  return [
+    {
+      title: T("dbWindow.foot.selected"),
+      items: [
+        ...on(s.selected, item("x", "dbWindow.keys.close")),
+        ...on(s.selected && s.table, item("s", "dbWindow.keys.view")),
+        ...on(s.selected && s.done, item("f b", "dbWindow.keys.page")),
+        ...on(s.selected && s.exportable, item("e", "dbWindow.keys.export")),
+      ],
+    },
+    {
+      title: T("dbWindow.foot.tab"),
+      items: [
+        ...on(s.running, item("c", "dbWindow.keys.cancel")),
+        item("t", "dbWindow.keys.tree"),
+        item("r", "dbWindow.keys.refresh"),
+        item("h", "dbWindow.keys.history"),
+        item("p", "dbWindow.keys.elevate"),
+        ...on(s.elevated, item("P", "dbWindow.keys.elevateEnd")),
+      ],
+    },
+  ];
 }

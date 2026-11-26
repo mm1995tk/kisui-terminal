@@ -356,39 +356,3 @@
   outline: 1px dashed var(--card-field-border);
   outline-offset: -2px;
 }
-
-/* 右の列の一番下の、作るタブの種類を選ぶ一覧（SwitcherNewTabKinds.tsx）：見出しの下に、種類を 1 行ずつ。行の左に、その種類に決める字 */
-.switch-newkind {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-  padding: 2px 0 2px 8px;
-  cursor: default;
-}
-.switch-newkind-title {
-  color: var(--gh-text-muted);
-  font-size: 12px;
-}
-.switch-newkind-list {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.switch-newkind-list li {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  cursor: pointer;
-}
-.switch-newkind-list li[data-cursor] {
-  background: var(--gh-bg-hover);
-  box-shadow: inset 2px 0 0 var(--card-accent);
-}

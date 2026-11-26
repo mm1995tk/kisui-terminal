@@ -31,7 +31,7 @@ export function WorkspaceDialogs(props: {
   onCloseSwitcher: () => void;
   /** マシンの色（マシンの名前 → 色。タブを作る行のマシンに付ける） */
   colors: Record<string, string>;
-  /** 内蔵ブラウザが有効か（無効なら、切り替える窓の種類を選ぶ一覧に、ブラウザとシークレットが無い） */
+  /** 内蔵ブラウザが有効か（無効なら、切り替える窓の、作るタブの種類に、ブラウザとシークレットが無い） */
   browser: boolean;
 }): JSX.Element {
   // 部品は作り直さないので、持ち物は 1 回だけ取り出す

@@ -426,7 +426,7 @@ export function createTabs(deps: {
   }
 
   /**
-   * 切り替える窓の種類を選ぶ一覧の「ブラウザ」「シークレット」：ワークスペース gid に、新しいタブのページのブラウザのタブ（incognito ならシークレットのタブ）を開く（今いるワークスペースは変えない）。
+   * 切り替える窓の、作るタブの種類の「ブラウザ」「シークレット」：ワークスペース gid に、新しいタブのページのブラウザのタブ（incognito ならシークレットのタブ）を開く（今いるワークスペースは変えない）。
    * 開いたタブの key を返す（ワークスペースが無ければ undefined）。
    */
   function openNewBrowserTabIn(
@@ -635,7 +635,7 @@ export function createTabs(deps: {
     newTerminalTab,
     createNamedTerminalTab,
     openNewBrowserTabIn,
-    /** 切り替える窓の種類を選ぶ一覧の「DB」：接続を選ぶ窓を出す。選んだ接続のタブは、ワークスペース gid に入る（今いるワークスペースは、選ぶまで変えない） */
+    /** 切り替える窓の、作るタブの種類の「DB」：接続を選ぶ窓を出す。選んだ接続のタブは、ワークスペース gid に入る（今いるワークスペースは、選ぶまで変えない） */
     openDbPickerIn: (gid: string) => deps.db.openPicker(gid),
     newBrowserTab,
     openBrowserTab,

@@ -11,9 +11,7 @@ import type {
 import { InlineInput } from "../../components/InlineInput.tsx";
 import { Kbd } from "../../components/KeyHints.tsx";
 import { TabRow } from "../sidebar/workspaces/TabRow.tsx";
-import type { NewTabChoice } from "./newTabKey.ts";
 import { type MachineChoice, SwitcherNewTab } from "./SwitcherNewTab.tsx";
-import { SwitcherNewTabKinds } from "./SwitcherNewTabKinds.tsx";
 
 const healthLabel = (h: Health): string => T(`health.${h}`);
 
@@ -185,7 +183,7 @@ export function SwitcherRow(props: {
 /**
  * 右の列：上に選んでいるワークスペースのタブの数、その下にタブの行（サイドバーの TabRow）。行のつかむ所からのドラッグで、タブを移す（tabMoveDrag.ts）。
  * 余白は取らず、列いっぱいに使う（枠と地の色は、列の入れ物 .switcher-right が持つ）。
- * 上の右端に、タブを作る「＋」を置く。押すと、タブの行の一番下に、種類を選ぶ一覧（newTabKinds）が出る。ターミナルに決めると、同じ所にタブを作る行（newTab）が出る。
+ * 上の右端に、タブを作る「＋」を置く。押すと、作るタブの種類を選ぶ間になる（種類は窓の下の段のボタン）。ターミナルに決めると、タブの行の一番下に、タブを作る行（newTab）が出る。
  */
 export function SwitcherTabs(props: {
   row: Row;
@@ -211,14 +209,6 @@ export function SwitcherTabs(props: {
   onRenameCancel?: (byKey: boolean) => void;
   /** 「＋」（n と同じ）を押した */
   onNewTab?: () => void;
-  /** 種類を選ぶ一覧（SwitcherNewTabKinds）。出している間だけ渡す */
-  newTabKinds?: {
-    kinds: readonly NewTabChoice[];
-    selected: NewTabChoice;
-    optionId: (kind: NewTabChoice) => string;
-    onHover: (kind: NewTabChoice) => void;
-    onPick: (kind: NewTabChoice) => void;
-  };
   /** タブを作る行（SwitcherNewTab）。出している間だけ渡す */
   newTab?: {
     machines: readonly MachineChoice[];
@@ -288,19 +278,6 @@ export function SwitcherTabs(props: {
             />
           )}
         </For>
-        <Show when={props.newTabKinds}>
-          {(c) => (
-            <li class="tab-row switch-newtab">
-              <SwitcherNewTabKinds
-                kinds={c().kinds}
-                selected={c().selected}
-                optionId={c().optionId}
-                onHover={c().onHover}
-                onPick={c().onPick}
-              />
-            </li>
-          )}
-        </Show>
         <Show when={props.newTab}>
           {(c) => (
             <li class="tab-row switch-newtab">
@@ -318,11 +295,7 @@ export function SwitcherTabs(props: {
           )}
         </Show>
       </ul>
-      <Show
-        when={
-          r().tabs.items.length === 0 && !props.newTab && !props.newTabKinds
-        }
-      >
+      <Show when={r().tabs.items.length === 0 && !props.newTab}>
         <p class="card-empty">{T("switcher.noTabs")}</p>
       </Show>
     </div>

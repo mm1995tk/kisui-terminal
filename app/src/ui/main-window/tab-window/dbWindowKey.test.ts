@@ -2,8 +2,16 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import type { KeyLike } from "../../../features/commands/guiKeys.ts";
-import { placeKeys } from "../../../features/commands/placeKeys.ts";
-import { dbWindowHints, dbWindowKey } from "./dbWindowKey.ts";
+import {
+  COMMON_KEYS,
+  placeKeys,
+  type FooterRow,
+} from "../../../features/commands/placeKeys.ts";
+import {
+  dbWindowFooter,
+  dbWindowKey,
+  type DbWindowState,
+} from "./dbWindowKey.ts";
 
 const key = (k: string, mods: Partial<KeyLike> = {}): KeyLike => ({
   key: k,
@@ -74,15 +82,72 @@ describe("DB のタブの窓のキー", () => {
   });
 });
 
-describe("dbWindowHints（窓の下の段の基本操作）", () => {
-  const keys = (s: Parameters<typeof dbWindowHints>[0]) =>
-    dbWindowHints(s).map((h) => h.keys.join(" "));
+describe("dbWindowFooter（窓の下の段の今効く操作。#487）", () => {
+  const all: DbWindowState = {
+    selected: true,
+    table: true,
+    done: true,
+    exportable: true,
+    running: true,
+    elevated: true,
+  };
+  const none: DbWindowState = {
+    selected: false,
+    table: false,
+    done: false,
+    exportable: false,
+    running: false,
+    elevated: false,
+  };
+  const shown = (rows: FooterRow[]) =>
+    rows.map((r) => [r.title, r.items.map((i) => i.keys.join(" "))]);
 
-  it("ふだんは、選ぶ → 決める → `?` → 閉じる", () => {
-    assert.deepEqual(keys({ empty: false }), ["j k", "Enter", "?", "Esc"]);
+  it("全部効くときは、選んでいるタブの行と、この DB のタブの行に、全部の操作を出す", () => {
+    assert.deepEqual(shown(dbWindowFooter(all)), [
+      ["Selected", ["x", "s", "f b", "e"]],
+      ["This DB tab", ["c", "t", "r", "h", "p", "P"]],
+    ]);
   });
 
-  it("結果のタブが無い間は、`?` と閉じる Esc だけ", () => {
-    assert.deepEqual(keys({ empty: true }), ["?", "Esc"]);
+  it("結果のタブが無く、何も実行しておらず、権限も強めていなければ、選んでいるタブの行は見出しだけで、効く操作だけを出す", () => {
+    assert.deepEqual(shown(dbWindowFooter(none)), [
+      ["Selected", []],
+      ["This DB tab", ["t", "r", "h", "p"]],
+    ]);
+  });
+
+  it("選んでいる結果のタブの状態に合わせて変わる（テーブルでなければ s、終わっていなければ f b、行が無ければ e を出さない）", () => {
+    assert.deepEqual(
+      shown(dbWindowFooter({ ...none, selected: true, done: true }))[0],
+      ["Selected", ["x", "f b"]],
+    );
+    // 選んでいなければ、ほかの印があっても出さない
+    assert.deepEqual(shown(dbWindowFooter({ ...all, selected: false }))[0], [
+      "Selected",
+      [],
+    ]);
+  });
+
+  it("下の段に出す操作は、どれも判定が受ける（案内と受けるキーがずれない）", () => {
+    for (const r of dbWindowFooter(all))
+      for (const i of r.items)
+        for (const p of i.probes)
+          assert.notEqual(
+            dbWindowKey(key(p, { shiftKey: /^[A-Z?]$/.test(p) })),
+            null,
+            `${i.keys}: ${p}`,
+          );
+  });
+
+  it("`?` の一覧の表の操作は、どこでも同じキー（j k・Enter・Esc・`?`）を除き、どれも下の段に出る。下の段には、どこでも同じキーを出さない", () => {
+    const probes = dbWindowFooter(all).flatMap((r) =>
+      r.items.flatMap((i) => i.probes),
+    );
+    for (const r of placeKeys().dbWindow.rows)
+      for (const p of r.probes)
+        if (!COMMON_KEYS.has(p) || p === "h")
+          assert.ok(probes.includes(p), `${r.keys}: ${p}`);
+    // h は、この窓では履歴（列を移るのではない）なので出す。ほかのどこでも同じキーは出さない
+    for (const p of probes) assert.ok(!COMMON_KEYS.has(p) || p === "h", p);
   });
 });
