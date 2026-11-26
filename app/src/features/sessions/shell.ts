@@ -85,7 +85,7 @@ export interface ShellApi {
   editMachine(edit: MachineEdit): Promise<ConfigMachine[]>;
   /**
    * 窓で、手元のマシンの新しいターミナルが始まるフォルダとシェルを変える。config.local.toml の [server] に書き（null・空の項目は消す）、
-   * 書いたあとの手元のマシンの分（configGui の localTerminal と同じ形）を返す。書く前に、kisui serve が起動しなくなる値
+   * 書いたあとの手元のマシンの分（configGui の localTerminal と同じ形）を返す。書く前に、使えない値
    * （無いフォルダ・実行できないシェル）でないことを殻が確かめる。書けなければ MachineEditError（machines.ts）で reject する。
    */
   editLocalTerminal(edit: {

@@ -4,9 +4,10 @@
 //! リモートのマシンの分は `[[gui.machines]]` の項目に書く（config_list.rs の [`crate::config_list::MachineEdit::Terminal`]）。
 //! 手元のマシンは `[[gui.machines]]` に項目が無く、手元の `kisui serve` が同じファイルの `[server]` を読むので、そこに書く。
 //!
-//! `[server]` に間違いがあると、手元の `kisui serve` は起動しない（`config/config.go`）。そこで、書く前に kisui と同じことを確かめる：
-//! `start_dir` は、有るフォルダ。`shell` は、実行できるファイル（どちらも絶対パスか `~` で始まるパス。`~` は `$HOME`）。
-//! 通らなければ書かない。空（None・空白だけ）の項目は、`config.local.toml` から消す（`config.toml` に書いてあれば、そちらに戻る）。
+//! 書く前に確かめる：`start_dir` は、有るフォルダ。`shell` は、実行できるファイル（どちらも絶対パスか `~` で始まるパス。`~` は `$HOME`）。
+//! 通らなければ書かない。`start_dir` のフォルダが無いと、手元の `kisui serve` は起動しない（`config/config.go`）。
+//! `shell` は kisui より厳しい（kisui は形だけを確かめ、実行できなければ `$SHELL` で始める）：窓で入れた値は、その場で理由を
+//! 出せるので、使えない値を書かせない。空（None・空白だけ）の項目は、`config.local.toml` から消す（`config.toml` に書いてあれば、そちらに戻る）。
 //! ほかの項目・コメント・並びは変えない。
 
 use std::path::{Path, PathBuf};
