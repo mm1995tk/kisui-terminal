@@ -944,7 +944,8 @@ export const en = {
     "Read only: run every statement in a read-only transaction",
   "dbConn.placeholder.host": "localhost, or a socket such as /run/postgresql",
   "dbConn.placeholder.port": "the default of the kind (5432 / 3306)",
-  "dbConn.placeholder.database": "the default of the database",
+  "dbConn.placeholder.database":
+    "empty: PostgreSQL opens the one named like the user, MySQL selects none",
   "dbConn.placeholder.tlsCa":
     "an absolute path or ~/…; empty: the authorities of the OS",
   "dbConn.tls.prefer":

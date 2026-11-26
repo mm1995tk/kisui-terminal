@@ -939,7 +939,8 @@ export const ja: Record<Key, string> = {
     "読み取り専用：すべての文を読み取り専用のトランザクションで実行する",
   "dbConn.placeholder.host": "localhost か、/run/postgresql のようなソケット",
   "dbConn.placeholder.port": "種類の既定（5432 / 3306）",
-  "dbConn.placeholder.database": "DB の既定",
+  "dbConn.placeholder.database":
+    "空なら、PostgreSQL はユーザーと同じ名前のもの、MySQL は選ばない",
   "dbConn.placeholder.tlsCa": "絶対パスか ~/…。空なら OS の認証局",
   "dbConn.tls.prefer": "prefer：DB が出せば TLS。証明書は確かめない",
   "dbConn.tls.disable": "disable：TLS を使わない",
