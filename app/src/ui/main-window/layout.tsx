@@ -4,6 +4,8 @@
 // 何を出すかは決めない（決めるのは page.tsx）。
 import type { JSX } from "solid-js";
 
+import type { PaneLayout } from "../../infrastructure/rpc/protocol.ts";
+
 import {
   PROXY_PANEL_MIN_WIDTH,
   PROXY_PANEL_RATIO,
@@ -26,8 +28,8 @@ export function MainWindowLayout(props: {
   sidebarWidth: number;
   /** CHANGES の一覧の高さ（px） */
   changesHeight: number;
-  /** ペインが左右に並ぶ列の数（サイドバーの幅の上限で、ペイン 1 つずつに 20 列残す） */
-  termColumns: number;
+  /** 右の欄の配置（サイドバーの幅の上限で、どのペインにも 20 列残す。分けていなければ undefined） */
+  termLayout: PaneLayout | undefined;
   /** タブの段の高さの上限（サイドバーの高さに対する %） */
   tabsPct: number;
   /** サイドバーの境界を光らせるか */
@@ -59,10 +61,10 @@ export function MainWindowLayout(props: {
       style={{
         "--sidebar-w": `${props.sidebarWidth}px`,
         "--changes-h": `${props.changesHeight}px`,
-        "--term-min-w": `${termMinWidth(termCellWidth(), props.termColumns)}px`,
+        "--term-min-w": `${termMinWidth(termCellWidth(), props.termLayout)}px`,
         "--proxy-panel-min-w": `${PROXY_PANEL_MIN_WIDTH}px`,
         "--proxy-panel-ratio": String(PROXY_PANEL_RATIO),
-        "--right-min-w-proxy": `${rightMinWidth(termCellWidth(), true, props.termColumns)}px`,
+        "--right-min-w-proxy": `${rightMinWidth(termCellWidth(), true, props.termLayout)}px`,
         "--tree-reserve-h": `${TREE_RESERVE_HEIGHT}px`,
         "--tabs-h": String(props.tabsPct),
         ...(props.machineColor

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
+import type { PaneLayout } from "../../infrastructure/rpc/protocol.ts";
 import {
   applyMove,
   changesMax,
@@ -282,17 +283,34 @@ describe("窓の大きさで決まる上限（#501）", () => {
     assert.equal(sidebarMax(300, 7, true), 200);
   });
 
-  it("右の欄を左右に分けているときは、ペイン 1 つずつに 20 列残す", () => {
-    // 1 列は 152px。2 列は 152 × 2 に、ペインの間の隙間（6px）を足す
-    assert.equal(termMinWidth(7, 1), 152);
-    assert.equal(termMinWidth(7, 2), 152 * 2 + 6);
-    assert.equal(termMinWidth(7, 3), 152 * 3 + 12);
-    assert.equal(sidebarMax(2000, 7, false, 2), 2000 - (152 * 2 + 6));
-    assert.ok(sidebarMax(2000, 7, false, 3) < sidebarMax(2000, 7, false, 2));
+  it("右の欄を左右に分けているときは、どのペインにも 20 列残す", () => {
+    const pane = (id: string): PaneLayout => ({ pane: id });
+    const split = (ratio: number): PaneLayout => ({
+      dir: "right",
+      ratio,
+      a: pane("a"),
+      b: pane("b"),
+    });
+    // 1 ペインは 152px。均等な 2 ペインは 152 × 2 に、ペインの間の隙間（6px）を足す
+    assert.equal(termMinWidth(7), 152);
+    assert.equal(termMinWidth(7, split(0.5)), 152 * 2 + 6);
+    assert.equal(sidebarMax(2000, 7, false, split(0.5)), 2000 - (152 * 2 + 6));
+    // 0.7 : 0.3 は、狭い 0.3 の側で決まる
+    assert.equal(termMinWidth(7, split(0.7)), Math.ceil((152 + 3) / 0.3));
+    assert.ok(termMinWidth(7, split(0.7)) > termMinWidth(7, split(0.5)));
+    assert.ok(sidebarMax(2000, 7, false, split(0.7)) < 2000 - 152 * 2 - 6);
+    // 上下に分けるだけなら、幅は 1 ペインぶん
+    assert.equal(
+      termMinWidth(7, { dir: "down", ratio: 0.5, a: pane("a"), b: pane("b") }),
+      152,
+    );
     // プロキシのパネルの分は、今の決まりのまま足す（パネルは 280px 以上で、残るのは右の欄の 55% 以下）
-    assert.equal(rightMinWidth(7, true, 2), 152 * 2 + 6 + 280);
-    assert.equal(rightMinWidth(7, true, 4), Math.ceil((152 * 4 + 18) / 0.55));
-    assert.equal(rightMinWidth(7, true, 1), 432);
+    assert.equal(rightMinWidth(7, true, split(0.5)), 152 * 2 + 6 + 280);
+    assert.equal(rightMinWidth(7, true), 432);
+    assert.equal(
+      rightMinWidth(7, true, split(0.3)),
+      Math.ceil(termMinWidth(7, split(0.3)) / 0.55),
+    );
   });
 
   it("窓が狭くても、下限（200px）より狭くならない", () => {

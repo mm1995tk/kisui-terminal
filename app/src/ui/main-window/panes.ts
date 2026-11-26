@@ -7,7 +7,8 @@
 // - 右の欄の中の、欄どうしの境界（#18）：割合は kisui serve が分割の木に持つ（features/terminal/grid.ts）。ここは動かすキーだけを決める。
 // キー：Tab / Shift+Tab で動かす境界を替え、←→（h l）か↑↓（k j）で動かす。縦の境界は左右、横の境界は上下だけ効く。
 
-import { GAP } from "../../features/terminal/grid.ts";
+import { widthForPanes } from "../../features/terminal/grid.ts";
+import type { PaneLayout } from "../../infrastructure/rpc/protocol.ts";
 import type { KeyValueStore } from "../../features/keyValueStore.ts";
 import { shortcutCommand } from "../../features/commands/commands.ts";
 import type { KeyLike } from "../../features/commands/guiKeys.ts";
@@ -51,14 +52,15 @@ export const TERM_CHROME_WIDTH = 12;
 export const TREE_RESERVE_HEIGHT = 240;
 
 /**
- * 右のターミナルのペインが 1 つずつ MIN_TERM_COLS 列になる幅（px）。cellWidth は字 1 つの幅、columns は欄が左右に並ぶ列の数
- * （features/terminal/grid.ts の paneColumns。分けていなければ 1）。ペインの間の隙間（GAP）も足す。
+ * 右のターミナルの、どのペインも MIN_TERM_COLS 列以上になる幅（px）。cellWidth は字 1 つの幅、tree は欄の配置（分けていなければ undefined）。
+ * 左右の割合が均等でなければ、いちばん狭いペインで決まる（features/terminal/grid.ts の widthForPanes。ペインの間の隙間も引く）。
  */
-export function termMinWidth(cellWidth: number, columns = 1): number {
-  const n = Math.max(1, columns);
-  return (
-    n * (Math.ceil(MIN_TERM_COLS * cellWidth) + TERM_CHROME_WIDTH) +
-    (n - 1) * GAP
+export function termMinWidth(cellWidth: number, tree?: PaneLayout): number {
+  return Math.ceil(
+    widthForPanes(
+      tree,
+      Math.ceil(MIN_TERM_COLS * cellWidth) + TERM_CHROME_WIDTH,
+    ),
   );
 }
 
@@ -74,9 +76,9 @@ export const PROXY_PANEL_RATIO = 0.45;
 export function rightMinWidth(
   cellWidth: number,
   proxyPanel: boolean,
-  columns = 1,
+  tree?: PaneLayout,
 ): number {
-  const term = termMinWidth(cellWidth, columns);
+  const term = termMinWidth(cellWidth, tree);
   return proxyPanel
     ? Math.max(
         term + PROXY_PANEL_MIN_WIDTH,
@@ -87,17 +89,17 @@ export function rightMinWidth(
 
 /**
  * 窓の幅 windowWidth で、サイドバーの幅の上限。右のターミナルが MIN_TERM_COLS 列残る幅まで（下限より狭くはならない）。
- * proxyPanel は、プロキシのパネルを開いているか。columns は、欄が左右に並ぶ列の数（ペイン 1 つずつで 20 列残す）。
+ * proxyPanel は、プロキシのパネルを開いているか。tree は、欄の配置（どのペインも 20 列残す）。
  */
 export function sidebarMax(
   windowWidth: number,
   cellWidth: number,
   proxyPanel = false,
-  columns = 1,
+  tree?: PaneLayout,
 ): number {
   return Math.max(
     LIMITS.sidebar[0],
-    Math.floor(windowWidth - rightMinWidth(cellWidth, proxyPanel, columns)),
+    Math.floor(windowWidth - rightMinWidth(cellWidth, proxyPanel, tree)),
   );
 }
 
