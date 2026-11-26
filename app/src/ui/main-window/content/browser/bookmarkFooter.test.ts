@@ -6,7 +6,7 @@ import {
   placeKeys,
 } from "../../../../features/commands/placeKeys.ts";
 import { bookmarkKey } from "../../../../features/browser/bookmarks.ts";
-import { bookmarkDialogFooter } from "./bookmarkFooter.ts";
+import { bookmarkDialogFooter, canDeleteRow } from "./bookmarkFooter.ts";
 
 const ev = (key: string, ctrlKey = false) => ({
   key,
@@ -24,6 +24,30 @@ describe("bookmarkDialogFooter（ブックマークの一覧の下の段の今�
       [["Selected bookmark", ["Ctrl+D"]]],
     );
     assert.deepEqual(bookmarkKey(ev("d", true), false), { kind: "delete" });
+  });
+
+  it("消せるのは kisui-terminal 自身のブックマークだけ（Chrome のブックマーク・フォルダ・行なしは見出しだけ）", () => {
+    const own = { url: "https://a.example/", title: "A" };
+    const chrome = { ...own, source: "chrome" as const };
+    assert.equal(
+      canDeleteRow({ kind: "bookmark", bookmark: own, depth: 0 }),
+      true,
+    );
+    assert.equal(
+      canDeleteRow({ kind: "bookmark", bookmark: chrome, depth: 0 }),
+      false,
+    );
+    assert.equal(
+      canDeleteRow({
+        kind: "folder",
+        key: "0",
+        name: "f",
+        depth: 0,
+        open: true,
+      }),
+      false,
+    );
+    assert.equal(canDeleteRow(undefined), false);
   });
 
   it("フォルダや、行が無いときは、効く操作が無いので見出しだけ", () => {

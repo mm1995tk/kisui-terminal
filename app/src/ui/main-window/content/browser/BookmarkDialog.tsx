@@ -14,7 +14,7 @@ import {
 import { leaderKeyName } from "../../../../features/commands/commands.ts";
 import { ModalCard, CardBody, CardTitle } from "../../../components/Card.tsx";
 import { KeyFooter } from "../../../components/KeyFooter.tsx";
-import { bookmarkDialogFooter } from "./bookmarkFooter.ts";
+import { bookmarkDialogFooter, canDeleteRow } from "./bookmarkFooter.ts";
 import { moveSelection } from "../../../../features/clipboard/history.ts";
 import { IS_MAC } from "../../../../features/commands/guiKeys.ts";
 import { openKeyList } from "../../commands/KeyListDialog.tsx";
@@ -150,9 +150,7 @@ export function BookmarkDialog(props: {
       header={<CardTitle>{T("bookmarks.title")}</CardTitle>}
       footer={
         // 今効く操作は、選んでいるブックマークを消す（Ctrl+D）だけ（bookmarkFooter.ts）
-        <KeyFooter
-          rows={bookmarkDialogFooter(selected()?.kind === "bookmark")}
-        />
+        <KeyFooter rows={bookmarkDialogFooter(canDeleteRow(selected()))} />
       }
     >
       <CardBody>

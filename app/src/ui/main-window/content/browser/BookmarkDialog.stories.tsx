@@ -39,5 +39,5 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** 開いたところ（最初の行はブックマークなので、下の段に delete を出す）。↓ でフォルダへ移すと、見出しだけになる。 */
+/** 開いたところ（最初の行は自分のブックマークなので、下の段に delete を出す）。Chrome のブックマークやフォルダへ移すと、見出しだけになる。 */
 export const Default: Story = {};

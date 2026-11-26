@@ -6,14 +6,20 @@ import {
   placeItem,
   type FooterRow,
 } from "../../../../features/commands/placeKeys.ts";
+import type { BookmarkRow } from "../../../../features/browser/bookmarkTree.ts";
 import { T } from "../../../../i18n/index.ts";
 
-/** 窓の下の段。bookmarkSelected は、選んでいる行がブックマークか（フォルダ・行なしは false） */
-export function bookmarkDialogFooter(bookmarkSelected: boolean): FooterRow[] {
+/** 選んでいる行を消せるか。消せるのは kisui-terminal 自身のブックマークだけ（Chrome のブックマーク・フォルダ・行が無いときは消せない） */
+export function canDeleteRow(row: BookmarkRow | undefined): boolean {
+  return row?.kind === "bookmark" && row.bookmark.source !== "chrome";
+}
+
+/** 窓の下の段。deletable は、選んでいる行を消せるか（canDeleteRow）。消せなければ見出しだけ */
+export function bookmarkDialogFooter(deletable: boolean): FooterRow[] {
   return [
     {
       title: T("bookmarks.foot.selected"),
-      items: bookmarkSelected
+      items: deletable
         ? [placeItem("bookmarks", "Ctrl+D", T("bookmarks.keys.delete"))]
         : [],
     },
