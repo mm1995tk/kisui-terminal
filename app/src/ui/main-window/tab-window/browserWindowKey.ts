@@ -4,12 +4,13 @@
 import {
   BROWSER_WINDOW_ORDER,
   type BrowserOp,
+  type BrowserWindowRow,
 } from "../../../features/browser/window.ts";
 import { isComposingKey } from "../../../features/commands/ime.ts";
 import type { KeyLike } from "../../../features/commands/guiKeys.ts";
 import {
-  basicHints,
-  type BasicHint,
+  placeItem,
+  type FooterRow,
 } from "../../../features/commands/placeKeys.ts";
 import { T } from "../../../i18n/index.ts";
 
@@ -59,9 +60,58 @@ export function browserWindowKey(e: KeyLike): BrowserWindowKey | null {
 }
 
 /**
- * 窓の下の段（共通フッタ）に出す基本操作。ほかの窓と同じ順（basicHints）で返す。
- * 操作の字は行に出ているので、ここには並べない（`?` の一覧にも出す。表は placeKeys.ts の browserWindow）。
+ * 窓の下の段（共通フッタ）に出す、今効く操作。「移動」と「このページ」の 2 行（ほかの窓の「選んでいるタブ」「この DB のタブ」と同じ形）。
+ * 今できない行（窓の行で薄くなっているもの。why がある）は出さない。どの窓でも同じ意味のキー（j k・Enter・Esc・`?`）は出さない
+ * （h l は、この窓では戻る・進むなので出す）。キーと probes は `?` の一覧の表（placeKeys.ts の browserWindow）から引く（placeItem）。
+ * 操作の名前は短い英語（`browserWindow.keys.<op>`。窓の行の名前はリーダーの browser.* と同じで長い）。browserWindowKey.test.ts が、出す操作を判定が受けることと、
+ * 表の操作がどれも、どこかの状態で下の段に出ることを確かめる。
  */
-export function browserWindowHints(): BasicHint[] {
-  return basicHints({ decide: T("browserWindow.keys.run"), end: "close" });
+export function browserWindowFooter(
+  rows: readonly BrowserWindowRow[],
+): FooterRow[] {
+  const items = (ops: readonly BrowserOp[]) =>
+    rows
+      .filter((r) => ops.includes(r.op) && !r.why)
+      .map((r) =>
+        placeItem(
+          "browserWindow",
+          FOOTER_KEYS[r.op],
+          T(`browserWindow.keys.${r.op}`),
+          [r.key],
+        ),
+      );
+  return [
+    {
+      title: T("browserWindow.foot.nav"),
+      items: items(["back", "forward", "reload", "stop", "url"]),
+    },
+    {
+      title: T("browserWindow.foot.page"),
+      items: items([
+        "copyUrl",
+        "external",
+        "login",
+        "find",
+        "bookmark",
+        "bookmarks",
+        "devtools",
+      ]),
+    },
+  ];
 }
+
+/** 操作 → `?` の一覧の表（placeKeys.ts の browserWindow）の行の keys。 */
+const FOOTER_KEYS: Readonly<Record<BrowserOp, string>> = {
+  back: "h / ←",
+  forward: "l / →",
+  reload: "r",
+  stop: "c",
+  url: "u",
+  copyUrl: "y",
+  external: "e",
+  login: "s",
+  find: "/",
+  bookmark: "b",
+  bookmarks: "B",
+  devtools: "i",
+};

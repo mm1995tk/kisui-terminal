@@ -25,7 +25,7 @@ import { CardText, CardTitle, ModalCard } from "../../components/Card.tsx";
 import { KeyFooter } from "../../components/KeyFooter.tsx";
 import { Kbd } from "../../components/KeyHints.tsx";
 import { openKeyList } from "../commands/KeyListDialog.tsx";
-import { browserWindowHints, browserWindowKey } from "./browserWindowKey.ts";
+import { browserWindowFooter, browserWindowKey } from "./browserWindowKey.ts";
 import styles from "./BrowserWindow.module.css";
 
 const rowId = (op: BrowserOp) => `browser-window-op-${op}`;
@@ -171,7 +171,7 @@ export function BrowserWindow(props: {
               {(n) => <CardText role="alert">{n()}</CardText>}
             </Show>
           }
-          items={browserWindowHints()}
+          rows={browserWindowFooter(rows())}
         />
       }
     >

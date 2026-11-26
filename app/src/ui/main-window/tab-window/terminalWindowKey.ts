@@ -4,8 +4,8 @@
 import { isComposingKey } from "../../../features/commands/ime.ts";
 import type { KeyLike } from "../../../features/commands/guiKeys.ts";
 import {
-  basicHints,
-  type BasicHint,
+  placeItem,
+  type FooterRow,
 } from "../../../features/commands/placeKeys.ts";
 import type { Direction } from "../../../features/terminal/grid.ts";
 import { T } from "../../../i18n/index.ts";
@@ -103,25 +103,66 @@ export function splitDirKey(e: KeyLike): SplitDirKey | null {
   return dir ? { kind: "dir", dir } : null;
 }
 
-/**
- * 窓の下の段（共通フッタ）に出す基本操作。ほかの窓と同じ順（basicHints）で返す。
- * 分ける・入れ替える・閉じる・隠す・リサイズモード（s H J K L x z r）は出さない（`?` の一覧に出す。表は placeKeys.ts の termWindow）。
- * - splitting：分ける向きを待っている間。向きと、やめる Esc だけ（`?` は効かないので出さない）
- * - empty：ペインを出せない間。閉じる Esc だけ
- */
-export function terminalWindowHints(state: {
+/** 窓の下の段を決める、窓の今の状態。 */
+export interface TerminalWindowState {
+  /** 分ける向きを待っているか（`s` のあと） */
   splitting: boolean;
+  /** ペインを出せない間か */
   empty: boolean;
-}): BasicHint[] {
-  if (state.empty) return [{ keys: ["Esc"], label: T("basic.close") }];
-  if (state.splitting)
+  /** 選んでいるペインがプライマリか（プライマリは閉じられない） */
+  primary: boolean;
+  /** 選んでいるペインに、入れ替えられる隣があるか */
+  swappable: boolean;
+  /** プライマリ以外のペインを隠す・戻すことができるか */
+  canZoom: boolean;
+}
+
+/**
+ * 窓の下の段（共通フッタ）に出す、今効く操作。「選んでいるペイン」と「このタブ」の 2 行。
+ * 効かない操作は出さない。どの窓でも同じ意味のキー（h j k l・Enter・Esc・`?`）は出さない（意味が変わる、分ける向きを待つ間を除く）。
+ * - splitting：分ける向きを待っている間。向きと、やめる Esc だけ（`?` は効かないので出さない）
+ * - empty：ペインを出せない間。効く操作は無いので、見出しだけ
+ * ふだんの操作のキーと probes は `?` の一覧の表（placeKeys.ts の termWindow）から引く（placeItem）。terminalWindowKey.test.ts が、出す操作を判定が受けることと、
+ * 表の操作がどれも、どこかの状態で下の段に出ることを確かめる。
+ */
+export function terminalWindowFooter(s: TerminalWindowState): FooterRow[] {
+  if (!s.empty && s.splitting)
     return [
-      { keys: ["h", "j", "k", "l"], label: T("termWindow.keys.splitDir") },
-      { keys: ["Esc"], label: T("basic.cancel") },
+      {
+        title: T("termWindow.foot.split"),
+        items: [
+          {
+            keys: ["h", "j", "k", "l"],
+            label: T("termWindow.keys.splitDir"),
+            probes: ["h", "j", "k", "l"],
+          },
+          {
+            keys: ["Esc"],
+            label: T("termWindow.keys.splitCancel"),
+            probes: ["Escape"],
+          },
+        ],
+      },
     ];
-  return basicHints({
-    select: ["h", "j", "k", "l"],
-    decide: T("termWindow.keys.focus"),
-    end: "close",
-  });
+  const item = (keys: string, label: Parameters<typeof T>[0]) =>
+    placeItem("termWindow", keys, T(label));
+  const on = <V>(cond: boolean, v: V): V[] => (cond ? [v] : []);
+  const live = !s.empty;
+  return [
+    {
+      title: T("termWindow.foot.pane"),
+      items: [
+        ...on(live, item("s", "termWindow.keys.split")),
+        ...on(live && s.swappable, item("H J K L", "termWindow.keys.swap")),
+        ...on(live && !s.primary, item("x", "termWindow.keys.close")),
+      ],
+    },
+    {
+      title: T("termWindow.foot.tab"),
+      items: [
+        ...on(live && s.canZoom, item("z", "termWindow.keys.zoom")),
+        ...on(live, item("r", "termWindow.keys.resize")),
+      ],
+    },
+  ];
 }

@@ -2,11 +2,16 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import type { KeyLike } from "../../../features/commands/guiKeys.ts";
-import { placeKeys } from "../../../features/commands/placeKeys.ts";
+import {
+  COMMON_KEYS,
+  placeKeys,
+  type FooterRow,
+} from "../../../features/commands/placeKeys.ts";
 import {
   splitDirKey,
-  terminalWindowHints,
+  terminalWindowFooter,
   terminalWindowKey,
+  type TerminalWindowState,
 } from "./terminalWindowKey.ts";
 
 const key = (k: string, mods: Partial<KeyLike> = {}): KeyLike => ({
@@ -102,28 +107,81 @@ describe("分ける向きを待つ間のキー（s のあと）", () => {
   });
 });
 
-describe("terminalWindowHints（窓の下の段の基本操作）", () => {
-  const keys = (s: Parameters<typeof terminalWindowHints>[0]) =>
-    terminalWindowHints(s).map((h) => h.keys.join(" "));
+describe("terminalWindowFooter（窓の下の段の今効く操作。#488）", () => {
+  const all: TerminalWindowState = {
+    splitting: false,
+    empty: false,
+    primary: false,
+    swappable: true,
+    canZoom: true,
+  };
+  const shown = (rows: FooterRow[]) =>
+    rows.map((r) => [r.title, r.items.map((i) => i.keys.join(" "))]);
 
-  it("ふだんは、選ぶ → 決める → `?` → 閉じる", () => {
-    assert.deepEqual(keys({ splitting: false, empty: false }), [
-      "h j k l",
-      "Enter",
-      "?",
-      "Esc",
+  it("全部効くときは、選んでいるペインの行と、このターミナルのタブの行に、全部の操作を出す", () => {
+    assert.deepEqual(shown(terminalWindowFooter(all)), [
+      ["Selected pane", ["s", "H J K L", "x"]],
+      ["This terminal tab", ["z", "r"]],
     ]);
+  });
+
+  it("プライマリは x を、隣が無ければ H J K L を、隠せなければ z を出さない", () => {
+    assert.deepEqual(
+      shown(
+        terminalWindowFooter({
+          ...all,
+          primary: true,
+          swappable: false,
+          canZoom: false,
+        }),
+      ),
+      [
+        ["Selected pane", ["s"]],
+        ["This terminal tab", ["r"]],
+      ],
+    );
   });
 
   it("分ける向きを待つ間は、向きと、やめる Esc だけ", () => {
-    assert.deepEqual(keys({ splitting: true, empty: false }), [
-      "h j k l",
-      "Esc",
+    assert.deepEqual(shown(terminalWindowFooter({ ...all, splitting: true })), [
+      ["Split direction", ["h j k l", "Esc"]],
     ]);
   });
 
-  it("ペインを出せない間は、閉じる Esc だけ", () => {
-    assert.deepEqual(keys({ splitting: false, empty: true }), ["Esc"]);
-    assert.deepEqual(keys({ splitting: true, empty: true }), ["Esc"]);
+  it("ペインを出せない間は、効く操作が無いので、見出しだけ", () => {
+    for (const splitting of [false, true])
+      assert.deepEqual(
+        shown(terminalWindowFooter({ ...all, empty: true, splitting })),
+        [
+          ["Selected pane", []],
+          ["This terminal tab", []],
+        ],
+      );
+  });
+
+  it("下の段に出す操作は、どれも判定が受ける（案内と受けるキーがずれない）", () => {
+    for (const r of terminalWindowFooter(all))
+      for (const i of r.items)
+        for (const p of i.probes)
+          assert.notEqual(
+            terminalWindowKey(key(p, { shiftKey: /^[A-Z?]$/.test(p) })),
+            null,
+            `${i.keys}: ${p}`,
+          );
+    for (const r of terminalWindowFooter({ ...all, splitting: true }))
+      for (const i of r.items)
+        for (const p of i.probes)
+          assert.notEqual(splitDirKey(key(p)), null, `${i.keys}: ${p}`);
+  });
+
+  it("`?` の一覧の表の操作は、どこでも同じキー（h j k l・Enter・Esc・`?`）を除き、どれも下の段に出る。ふだんの下の段には、どこでも同じキーを出さない", () => {
+    const probes = terminalWindowFooter(all).flatMap((r) =>
+      r.items.flatMap((i) => i.probes),
+    );
+    for (const r of placeKeys().termWindow.rows)
+      for (const p of r.probes)
+        if (!COMMON_KEYS.has(p))
+          assert.ok(probes.includes(p), `${r.keys}: ${p}`);
+    for (const p of probes) assert.ok(!COMMON_KEYS.has(p), p);
   });
 });
