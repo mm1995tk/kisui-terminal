@@ -178,6 +178,15 @@ test("殻が書けなかった理由を 1 文にする", () => {
     machineEditError({ kind: "file", detail: "/x: 書けません" }),
     "config.local.toml に書けませんでした：/x: 書けません",
   );
+  // 手元のマシンに書こうとした値が、この PC に無い
+  assert.equal(
+    machineEditError({ kind: "notdir", detail: "~/none" }),
+    "~/none というフォルダは、この PC にありません",
+  );
+  assert.equal(
+    machineEditError({ kind: "notexec", detail: "~/bin/none" }),
+    "~/bin/none は、この PC で実行できるファイルではありません",
+  );
   assert.equal(
     machineEditError("boom"),
     "config.local.toml に書けませんでした：boom",

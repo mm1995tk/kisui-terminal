@@ -25,6 +25,47 @@ func TestDefaults(t *testing.T) {
 	}
 }
 
+func TestShell(t *testing.T) {
+	dir := userDir(t)
+	home, _ := os.UserHomeDir()
+	sh := filepath.Join(home, "bin", "mysh")
+	os.MkdirAll(filepath.Dir(sh), 0o755)
+	os.WriteFile(sh, []byte("#!/bin/sh\n"), 0o755)
+	write := func(v string) {
+		os.WriteFile(filepath.Join(dir, "config.toml"), []byte("[server]\nshell = "+v+"\n"), 0o644)
+	}
+	if s, err := Load(""); err != nil || s.Shell != "" {
+		t.Fatalf("no shell: %q, %v", s.Shell, err)
+	}
+	for _, v := range []string{`"~/bin/mysh"`, `"` + sh + `"`} {
+		write(v)
+		if s, err := Load(""); err != nil || s.Shell != sh {
+			t.Errorf("shell = %s: %q, %v", v, s.Shell, err)
+		}
+	}
+	// 無いファイル・実行できないファイルは、設定の間違いにしない（kisui serve は起動し、始めるときに $SHELL に替える）
+	os.WriteFile(filepath.Join(home, "bin", "plain"), []byte("x"), 0o644)
+	for _, name := range []string{"none", "plain"} {
+		write(`"~/bin/` + name + `"`)
+		if s, err := Load(""); err != nil || s.Shell != filepath.Join(home, "bin", name) {
+			t.Errorf("shell = ~/bin/%s: %q, %v", name, s.Shell, err)
+		}
+	}
+	// 書けない形は、設定の間違い（kisui serve は起動しない）
+	for v, want := range map[string]string{
+		`"bash"`:  "absolute path",    // PATH からは探さない
+		`"sh -l"`: "absolute path",    // 引数は書けない
+		`""`:      "absolute path",    // 空
+		`1`:       "must be a string", // 型
+	} {
+		write(v)
+		_, err := Load("")
+		if err == nil || !strings.Contains(err.Error(), "server.shell") || !strings.Contains(err.Error(), want) {
+			t.Errorf("shell = %s: %v", v, err)
+		}
+	}
+}
+
 func TestStartDir(t *testing.T) {
 	dir := userDir(t)
 	work := filepath.Join(os.Getenv("HOME"), "work")

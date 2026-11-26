@@ -52,6 +52,12 @@ type Options struct {
 	IdleCheck time.Duration // 止まる時刻を調べる間隔。0 なら 1 分
 	// StartDir は新しいワークスペースのプライマリターミナルが始まるフォルダ（[server] start_dir、絶対パス）。"" なら ~。
 	StartDir string
+	// Shell はこのマシンの既定のシェル（[server] shell、絶対パス）。"" なら $SHELL。実行できるファイルかは、使うたびに確かめる（shell.go）。
+	Shell string
+	// ReadDefaults は、設定ファイルの [server] の start_dir と shell を読み直す（StartDir・Shell と同じ形）。
+	// serve は、このマシンの既定を使うたびに呼ぶ（shell.go の machineDefaults。設定を変えた次のターミナルから、serve を止めずに効かせる）。
+	// 読めない・間違いがある間は ok == false を返す（serve は最後に読めた値を使う）。nil なら読み直さず、StartDir・Shell のまま。
+	ReadDefaults func() (startDir, shell string, ok bool)
 	// StatePath はワークスペースの一覧を保存するファイル。"" なら保存も復元もしない。
 	StatePath string
 	// CwdInterval はシェルの cwd を読む間隔。0 なら 1 秒。
@@ -75,6 +81,7 @@ type Options struct {
 // Server は Unix ソケットで待ち受けるサーバー。
 type Server struct {
 	opts      Options
+	defaults  defaults // 最後に読めた [server] の start_dir と shell（shell.go）
 	log       *slog.Logger
 	ln        *net.UnixListener
 	serverID  string
@@ -520,7 +527,7 @@ func (ss *session) helloReq(req *rpc.Message) (any, error) {
 		ServerID:     s.serverID,
 		StartedAt:    s.startedAt,
 		Supersedes:   sup,
-		Capabilities: []string{CapHandover, CapDB, CapDBPermissions, CapDBSchema, CapDBStructure, CapDBElevate, CapCreateCommand, CapPaneRun, CapProxy, CapProxyResend, CapProxyHold},
+		Capabilities: []string{CapHandover, CapDB, CapDBPermissions, CapDBSchema, CapDBStructure, CapDBElevate, CapCreateCommand, CapCreateShell, CapPaneRun, CapProxy, CapProxyResend, CapProxyHold},
 		Workspaces:   wsl,
 		Rev:          s.currentRev(),
 	}, nil

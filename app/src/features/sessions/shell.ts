@@ -1,6 +1,7 @@
 // Tauri の殻（src-tauri）とのやりとり。テストで差し替えられるよう、窓口は ShellApi にまとめる。
 
 import type { ConfigMachine } from "./machines.ts";
+import type { TermDefaults } from "./termDefaults.ts";
 
 export interface AskpassRequest {
   requestId: number;
@@ -50,6 +51,8 @@ export interface GuiConfig {
   passkeyRejected: string[];
   /** タブの段の高さの上限の元の値（[gui.sidebar] tabs-height。サイドバーの高さに対する %）。書いていなければ無い */
   sidebarTabsHeight?: number | null;
+  /** 手元のマシンの、新しいターミナルが始まるフォルダとシェル（[server] start_dir・shell。termDefaults.ts） */
+  localTerminal?: TermDefaults | null;
 }
 
 /**
@@ -59,7 +62,14 @@ export interface GuiConfig {
 export type MachineEdit =
   | { kind: "add"; ssh: string; name: string | null }
   | { kind: "rename"; ssh: string; name: string | null }
-  | { kind: "remove"; ssh: string };
+  | { kind: "remove"; ssh: string }
+  /** 新しいターミナルが始まるフォルダとシェルを変える（termDefaults.ts）。null・空の項目は消す */
+  | {
+      kind: "terminal";
+      ssh: string;
+      startDir: string | null;
+      shell: string | null;
+    };
 
 export interface ShellApi {
   listSshHosts(): Promise<string[]>;
@@ -73,6 +83,15 @@ export interface ShellApi {
    * 書けなければ MachineEditError（machines.ts）で reject する。
    */
   editMachine(edit: MachineEdit): Promise<ConfigMachine[]>;
+  /**
+   * 窓で、手元のマシンの新しいターミナルが始まるフォルダとシェルを変える。config.local.toml の [server] に書き（null・空の項目は消す）、
+   * 書いたあとの手元のマシンの分（configGui の localTerminal と同じ形）を返す。書く前に、使えない値
+   * （無いフォルダ・実行できないシェル）でないことを殻が確かめる。書けなければ MachineEditError（machines.ts）で reject する。
+   */
+  editLocalTerminal(edit: {
+    startDir: string | null;
+    shell: string | null;
+  }): Promise<TermDefaults>;
   /** target は ssh のホスト名か LOCAL。id は呼ぶ側が決める（イベントの宛先） */
   connect(id: string, target: string): Promise<void>;
   send(id: string, text: string): Promise<void>;

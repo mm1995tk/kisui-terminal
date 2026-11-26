@@ -20,7 +20,13 @@
 //! `[gui.shortcuts]`（近道。`"Ctrl+Shift+N" = "workspace.new"` のように、キー = コマンドの名前）は、キーごとに重ね、同じキーは `config.local.toml` が勝つ。
 //! キーの書き方とコマンドの名前が使えるかは、画面側が確かめる（間違いはお知らせに出し、起動は止めない）。
 //! 窓が設定を書くときは `config.local.toml` に書く（`config.toml` は home-manager が読み取り専用で置くことがある）。
-//! GUI が読むのはこの節と `[gui] mascot`（リーダーの案内を運ぶキャラクターの名前。mascot.rs）だけ。ほかの節（`kisui serve` の `[server]` など）は kisui が読む。
+//! `[[gui.machines]]` の項目の `start_dir` と `shell`（そのマシンの新しいターミナルが始まるフォルダとシェル。#485）は、そのマシンでのパスで、
+//! 手元では有るかを確かめられないので、形だけを確かめる（`start_dir` は絶対パスか `~`・`~/…`、`shell` は絶対パスか `~/…`。制御文字は書けない）。
+//! 手元のマシンの分は `[server] start_dir` と `[server] shell`（kisui と同じ項目。`[server]` はキーごとに重ね、`config.local.toml` が勝つ）。
+//! 窓は、新しいターミナルを作るたびに設定を読み直し、そのマシンの `kisui serve` に渡す（app/src/features/sessions/termDefaults.ts）。
+//! `[server]` を確かめるのは kisui（`config/config.go`。間違いがあれば `kisui serve` が起動せず、理由を出す）なので、ここでは
+//! 文字列でない値・形の違う値を、書いていないのと同じに扱う（間違いにしない）。
+//! GUI が読むのはこの節と `[gui] mascot`（リーダーの案内を運ぶキャラクターの名前。mascot.rs）、`[server]` の上の 2 つだけ。ほかの節と `[server]` のほかの項目は kisui が読む。
 //! 知らない項目は間違いにしない（新しい版用に書いた項目があっても起動する）。読み飛ばす。
 //! 間違い（TOML の書き方・型の違い・使えない ssh の行き先・重なり）は、
 //! 「ファイル:行: 理由」の 1 行の文字列にして返す（2 つのファイルにあれば改行でつなぐ）。画面側はそれを出して、ほかは何もしない（起動しない）。
@@ -48,12 +54,27 @@ pub struct ConfigMachine {
     /// `config.local.toml` の項目か（両方のファイルにあれば true。`config.local.toml` の項目が代わっている）。
     /// 窓が書き換えられるのは、これが true のマシンだけ（`config.toml` には書かない）
     pub local: bool,
+    /// このマシンの新しいターミナルが始まるフォルダとシェル（`start_dir`・`shell`）
+    #[serde(flatten)]
+    pub terminal: TermDefaults,
+}
+
+/// マシン 1 台の、新しいターミナルが始まるフォルダとシェル（#485）。書いていない項目は None（そのマシンの設定のまま）。
+/// どちらも、そのマシンでのパス（`~` は、そのマシンのホーム）。
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+pub struct TermDefaults {
+    /// 始めるフォルダ（`start_dir`）
+    #[serde(rename = "startDir")]
+    pub start_dir: Option<String>,
+    /// シェル（`shell`。実行できるファイルのパス。引数は書けない）
+    pub shell: Option<String>,
 }
 
 /// 1 つのファイルから読んだマシン 1 台と、間違いを指すための場所。
 struct ParsedMachine {
     ssh: String,
     name: Option<String>,
+    terminal: TermDefaults,
     /// 一覧の中の番号（0 始まり）
     index: usize,
     /// 名前（無ければ ssh の行き先）を書いた行
@@ -69,8 +90,9 @@ impl ParsedMachine {
 
 #[derive(Deserialize)]
 struct File {
-    // ほかの節は kisui（`[server]`）などが読む
     gui: Option<Gui>,
+    /// `[server]`。読むのは `start_dir` と `shell` だけ。確かめるのは kisui なので、型を決めずに受ける（表でなくても間違いにしない）
+    server: Option<toml::Value>,
 }
 
 #[derive(Deserialize)]
@@ -121,6 +143,9 @@ pub struct GuiConfig {
     /// タブの段の高さの上限の元の値（`[gui.sidebar] tabs-height`。サイドバーの高さに対する %）。書いていなければ None（画面が 40 にする）
     #[serde(rename = "sidebarTabsHeight")]
     pub sidebar_tabs_height: Option<u8>,
+    /// 手元のマシンの、新しいターミナルが始まるフォルダとシェル（`[server] start_dir`・`[server] shell`）
+    #[serde(rename = "localTerminal")]
+    pub local_terminal: TermDefaults,
 }
 
 /// 設定ファイルに書いた近道 1 つ。
@@ -142,6 +167,8 @@ struct Parsed {
     passkey_sites: Option<PasskeySites>,
     shortcuts: Option<BTreeMap<String, String>>,
     sidebar_tabs_height: Option<u8>,
+    /// `[server]` の `start_dir` と `shell`（使える形のものだけ）
+    local_terminal: TermDefaults,
 }
 
 /// 1 つのファイルの `[gui.browser] passkey_sites`（`check_sites` が分けたもの）。
@@ -156,6 +183,24 @@ struct PasskeySites {
 struct Entry {
     ssh: Spanned<String>,
     name: Option<Spanned<String>>,
+    start_dir: Option<Spanned<String>>,
+    shell: Option<Spanned<String>>,
+}
+
+/// 制御文字が無く、長すぎないか（パスの形の確かめの共通の部分）。
+fn plain_path(s: &str) -> bool {
+    s.len() <= 4096 && !s.chars().any(|c| c.is_control())
+}
+
+/// `start_dir` に書ける形か：絶対パスか、`~`・`~/…`（そのマシンのホーム）。有るかは見ない（リモートのパスは手元で確かめられない）。
+pub fn valid_start_dir(s: &str) -> bool {
+    plain_path(s) && (s == "~" || s.starts_with("~/") || s.starts_with('/'))
+}
+
+/// `shell` に書ける形か：絶対パスか `~/…` の、ファイルのパス。引数は書けない（空白を含むパスは、その名前のファイルとして扱う）。
+/// 有るか・実行できるかは見ない（そのマシンの `kisui serve` が、始めるときに確かめる）。
+pub fn valid_shell(s: &str) -> bool {
+    plain_path(s) && (s.starts_with("~/") || s.starts_with('/')) && !s.ends_with('/')
 }
 
 /// 「ローカル」の名前（画面の言葉ごとの、GUI の localLabel。どちらの名前のマシンも出せない）。
@@ -263,6 +308,14 @@ fn overlay(dir: &Path, files: [Result<Parsed, String>; 2]) -> Result<GuiConfig, 
                 if let Some(h) = p.sidebar_tabs_height {
                     out.sidebar_tabs_height = Some(h);
                 }
+                // `[server]` はキーごとに重ねる（kisui の config/config.go と同じ）
+                let t = p.local_terminal;
+                if t.start_dir.is_some() {
+                    out.local_terminal.start_dir = t.start_dir;
+                }
+                if t.shell.is_some() {
+                    out.local_terminal.shell = t.shell;
+                }
                 // 近道はキーごとに重ねる（同じキーは後のファイルが勝つ）
                 if let Some(m) = p.shortcuts {
                     shortcuts.extend(m.into_iter().map(|(k, c)| (k, (c, source as u8))));
@@ -300,6 +353,7 @@ fn overlay_machines(
             ssh: m.ssh.clone(),
             name: m.name.clone(),
             local,
+            terminal: m.terminal.clone(),
         };
         match base.iter_mut().find(|b| b.ssh == m.ssh) {
             Some(b) => *b = machine,
@@ -524,6 +578,7 @@ fn parse_file(text: &str) -> Result<Option<Vec<ConfigMachine>>, (Option<usize>, 
                 ssh: m.ssh,
                 name: m.name,
                 local: false,
+                terminal: m.terminal,
             })
             .collect()
     };
@@ -538,8 +593,19 @@ fn parse_all(text: &str) -> Result<Parsed, (Option<usize>, String)> {
             e.message().to_string(),
         )
     })?;
+    let server_text = |key: &str, valid: fn(&str) -> bool| {
+        let v = file.server.as_ref()?.get(key)?.as_str()?;
+        valid(v).then(|| v.to_string())
+    };
+    let local_terminal = TermDefaults {
+        start_dir: server_text("start_dir", valid_start_dir),
+        shell: server_text("shell", valid_shell),
+    };
     let Some(gui) = file.gui else {
-        return Ok(Parsed::default());
+        return Ok(Parsed {
+            local_terminal,
+            ..Parsed::default()
+        });
     };
     let (browser, passkey_sites) = match gui.browser {
         Some(b) => (
@@ -563,6 +629,7 @@ fn parse_all(text: &str) -> Result<Parsed, (Option<usize>, String)> {
         passkey_sites,
         shortcuts,
         sidebar_tabs_height,
+        local_terminal,
     })
 }
 
@@ -693,10 +760,37 @@ fn check_machines(
                 format!("gui.machines[{i}]: 名前 {label} はほかのマシンで使っています"),
             ));
         }
+        let path = |key: &str, v: &Option<Spanned<String>>, valid: fn(&str) -> bool, form: &str| {
+            match v {
+            None => Ok(None),
+            Some(s) if valid(s.get_ref()) => Ok(Some(s.get_ref().clone())),
+            Some(s) => Err((
+                at(s),
+                format!(
+                    "gui.machines[{i}].{key}: {form}を書きます（そのマシンでのパス。制御文字は書けません。省くと、そのマシンの設定のまま）"
+                ),
+            )),
+        }
+        };
+        let terminal = TermDefaults {
+            start_dir: path(
+                "start_dir",
+                &e.start_dir,
+                valid_start_dir,
+                "絶対パスか、~ で始まるパス",
+            )?,
+            shell: path(
+                "shell",
+                &e.shell,
+                valid_shell,
+                "シェルのファイルの絶対パスか、~/ で始まるパス（引数は書けません）",
+            )?,
+        };
         let line = line_of(text, e.name.as_ref().unwrap_or(&e.ssh).span().start);
         out.push(ParsedMachine {
             ssh,
             name,
+            terminal,
             index: i,
             line,
         });
@@ -736,11 +830,13 @@ mod tests {
                     ssh: "dev-vm".into(),
                     name: Some("dev".into()),
                     local: false,
+                    terminal: TermDefaults::default(),
                 },
                 ConfigMachine {
                     ssh: "build".into(),
                     name: None,
                     local: false,
+                    terminal: TermDefaults::default(),
                 },
             ]
         );
@@ -859,6 +955,7 @@ mod tests {
             ssh: ssh.into(),
             name: None,
             local: false,
+            terminal: TermDefaults::default(),
         }
     }
 
@@ -868,6 +965,7 @@ mod tests {
             ssh: ssh.into(),
             name: name.map(str::to_string),
             local: true,
+            terminal: TermDefaults::default(),
         }
     }
 
@@ -1386,5 +1484,89 @@ mod tests {
         ] {
             assert!(!public_suffix_site(s), "{s}");
         }
+    }
+
+    // マシンごとの start_dir と shell。そのマシンでのパスなので、形だけを確かめる
+    #[test]
+    fn machine_start_dir_and_shell() {
+        let got = parse(
+            "[[gui.machines]]\nssh = \"a\"\nstart_dir = \"~/work\"\nshell = \"/usr/bin/fish\"\n\n[[gui.machines]]\nssh = \"b\"\nshell = \"~/.nix-profile/bin/zsh\"\n",
+        )
+        .unwrap();
+        assert_eq!(
+            got[0].terminal,
+            TermDefaults {
+                start_dir: Some("~/work".into()),
+                shell: Some("/usr/bin/fish".into()),
+            }
+        );
+        assert_eq!(
+            got[1].terminal,
+            TermDefaults {
+                start_dir: None,
+                shell: Some("~/.nix-profile/bin/zsh".into()),
+            }
+        );
+        // 画面へは startDir・shell の名前で、マシンの項目に並べて渡す
+        assert_eq!(
+            serde_json::to_string(&got[0]).unwrap(),
+            r#"{"ssh":"a","name":null,"local":false,"startDir":"~/work","shell":"/usr/bin/fish"}"#
+        );
+        for (text, key, line) in [
+            ("start_dir = \"work\"", "start_dir", 3),
+            ("start_dir = \"\"", "start_dir", 3),
+            ("start_dir = \"~user/x\"", "start_dir", 3),
+            ("shell = \"fish\"", "shell", 3),
+            ("shell = \"~\"", "shell", 3),
+            ("shell = \"/bin/\"", "shell", 3),
+            ("shell = \"/bin/sh\\n-l\"", "shell", 3),
+        ] {
+            let (l, why) = err(&format!("[[gui.machines]]\nssh = \"a\"\n{text}\n"));
+            assert_eq!(l, Some(line), "{text}");
+            assert!(why.contains(&format!("gui.machines[0].{key}")), "{why}");
+        }
+        assert_eq!(err("[[gui.machines]]\nssh = \"a\"\nshell = 1\n").0, Some(3));
+    }
+
+    // 手元のマシンの分は [server]。キーごとに重ね、使えない値は書いていないのと同じ（確かめるのは kisui）
+    #[test]
+    fn local_terminal_from_server_table() {
+        let d = temp_dir("local-terminal");
+        assert_eq!(
+            load_gui(&d).unwrap().local_terminal,
+            TermDefaults::default()
+        );
+        fs::write(
+            d.join("config.toml"),
+            "[server]\nidle_stop_days = 3\nstart_dir = \"~/work\"\nshell = \"/bin/zsh\"\n",
+        )
+        .unwrap();
+        fs::write(
+            d.join("config.local.toml"),
+            "[server]\nshell = \"~/bin/fish\"\n",
+        )
+        .unwrap();
+        assert_eq!(
+            load_gui(&d).unwrap().local_terminal,
+            TermDefaults {
+                start_dir: Some("~/work".into()),
+                shell: Some("~/bin/fish".into()),
+            }
+        );
+        for bad in [
+            "[server]\nshell = 5\nstart_dir = \"work\"\n",
+            "server = 1\n",
+        ] {
+            fs::write(d.join("config.local.toml"), bad).unwrap();
+            assert_eq!(
+                load_gui(&d).unwrap().local_terminal,
+                TermDefaults {
+                    start_dir: Some("~/work".into()),
+                    shell: Some("/bin/zsh".into()),
+                },
+                "{bad}"
+            );
+        }
+        let _ = fs::remove_dir_all(&d);
     }
 }

@@ -32,6 +32,12 @@ import {
 } from "../../infrastructure/rpc/protocol.ts";
 import type { InstallPlan, ShellApi } from "./shell.ts";
 import {
+  createParams,
+  shellParam,
+  TERM_DEFAULTS_CAPABILITY,
+  type TermDefaults,
+} from "./termDefaults.ts";
+import {
   connectShj,
   newId,
   ShjMissingError,
@@ -98,6 +104,11 @@ export interface SessionOptions {
   handoverTimeoutMs?: number;
   /** 読めなかった行などの報告先（ログ用） */
   onDiscard?: (reason: string, line: string) => void;
+  /**
+   * このマシンの、新しいターミナルが始まるフォルダとシェル（手元の設定。termDefaults.ts）。ターミナルを始める要求のたびに呼ぶ
+   * （設定を変えた次のターミナルから効くように）。無ければ、何も付けない。
+   */
+  termDefaults?: () => Promise<TermDefaults>;
 }
 
 /** Session.request で送れる要求（ツリーと git。tree.create・tree.rename・tree.delete は右クリックのメニューから）。 */
@@ -191,8 +202,11 @@ export const HANDOVER_TIMEOUT_MS = 120000;
 export class Session {
   readonly target: string;
   private readonly api: ShellApi;
-  private readonly opts: Required<Omit<SessionOptions, "onDiscard">> &
+  private readonly opts: Required<
+    Omit<SessionOptions, "onDiscard" | "termDefaults">
+  > &
     Pick<SessionOptions, "onDiscard">;
+  private readonly termDefaults?: () => Promise<TermDefaults>;
   private _state: SessionState = { kind: "connecting", attempt: 0, max: 0 };
   private conn?: Connection;
   /** 最後につながった shj の serverId と、その hello の版 */
@@ -241,6 +255,17 @@ export class Session {
       handoverTimeoutMs: opts.handoverTimeoutMs ?? HANDOVER_TIMEOUT_MS,
       onDiscard: opts.onDiscard,
     };
+    this.termDefaults = opts.termDefaults;
+  }
+
+  /**
+   * conn の先の kisui serve に渡す、このマシンのターミナルの始め方（手元の設定）。渡せない（設定を受け取っていない・
+   * 古い serve）なら undefined。
+   */
+  private defaultsFor(conn: Connection): Promise<TermDefaults> | undefined {
+    if (!this.termDefaults) return undefined;
+    if (!hasCapability(conn.hello, TERM_DEFAULTS_CAPABILITY)) return undefined;
+    return this.termDefaults();
   }
 
   get state(): SessionState {
@@ -292,6 +317,7 @@ export class Session {
   /**
    * workspace.create を送る。ワークスペースとそのプライマリターミナルができる。
    * dir（絶対パス）があれば、そのフォルダでシェルを始める（無い・フォルダでなければ start_dir。古い kisui serve は dir を無視する）。
+   * 手元の設定の、このマシンの始めのフォルダとシェルを付ける（termDefaults.ts。dir があれば、フォルダは dir が勝つ）。
    * つながっていないとき・shj が断ったときは投げる。
    */
   async createWorkspace(
@@ -301,10 +327,14 @@ export class Session {
     const conn = this.conn;
     if (!conn)
       throw new Error(T("err.session.notConnected", { machine: this.target }));
-    if (cmd) {
-      // 古い kisui serve は argv・name を知らずにシェルを始めるので、送らずに断る
-      if (!hasCapability(conn.hello, "workspace.create.command"))
-        throw new Error(T("err.session.tooOld", { machine: this.target }));
+    // 古い kisui serve は argv・name を知らずにシェルを始めるので、送らずに断る
+    if (cmd && !hasCapability(conn.hello, "workspace.create.command"))
+      throw new Error(T("err.session.tooOld", { machine: this.target }));
+    // 渡すものが無いときは、待たずにそのまま送る
+    const defaults = this.defaultsFor(conn);
+    if (!defaults) {
+      if (!cmd)
+        return conn.client.request("workspace.create", dir ? { dir } : {});
       return conn.client.request("workspace.create", {
         ...(dir ? { dir } : {}),
         ...(cmd.argv?.length ? { argv: cmd.argv } : {}),
@@ -312,7 +342,16 @@ export class Session {
         name: cmd.name,
       });
     }
-    return conn.client.request("workspace.create", dir ? { dir } : {});
+    const start = createParams(await defaults);
+    return shellChecked(
+      conn.client.request("workspace.create", {
+        ...start,
+        ...(dir ? { dir } : {}),
+        ...(cmd?.argv?.length ? { argv: cmd.argv } : {}),
+        ...(cmd?.env?.length ? { env: cmd.env } : {}),
+        ...(cmd ? { name: cmd.name } : {}),
+      }),
+    );
   }
 
   /**
@@ -351,6 +390,17 @@ export class Session {
     const conn = this.conn;
     if (!conn)
       throw new Error(T("err.session.notConnected", { machine: this.target }));
+    // このマシンでシェルを始める要求には、手元の設定のシェルを付ける（termDefaults.ts）
+    if (method === "term.create" || method === "term.restart") {
+      const defaults = this.defaultsFor(conn);
+      if (defaults)
+        return shellChecked(
+          conn.client.request(method, {
+            ...shellParam(await defaults),
+            ...params,
+          }),
+        );
+    }
     return conn.client.request(method, params);
   }
 
@@ -995,4 +1045,21 @@ export function startPing(
       });
   }, intervalMs);
   return () => clearInterval(timer);
+}
+
+/**
+ * シェルを付けた要求の返事。kisui serve がシェルを断った（そのマシンで実行できるファイルでない。invalid_params の data.reason が "shell"）
+ * ときは、設定の直し方を添えた文にして投げ直す。
+ */
+async function shellChecked<R>(reply: Promise<R>): Promise<R> {
+  try {
+    return await reply;
+  } catch (e) {
+    if (e instanceof RpcError && e.code === ErrorCode.InvalidParams) {
+      const d = e.data as { reason?: unknown; shell?: unknown } | undefined;
+      if (d?.reason === "shell")
+        throw new Error(T("err.term.shell", { shell: String(d.shell ?? "") }));
+    }
+    throw e;
+  }
 }

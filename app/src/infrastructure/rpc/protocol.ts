@@ -450,6 +450,11 @@ export interface Requests {
       workspaceId: WorkspaceId;
       cols: number;
       rows: number;
+      /**
+       * 始めるシェル（そのマシンでの、実行できるファイルのパス。~/x も書ける）。serve はワークスペースごとに覚え、無ければ覚えているもの、
+       * 空の文字列ならそのマシンの既定で始める。実行できなければ invalid_params（data.reason は "shell"）。
+       * 窓は、hello の capabilities に "workspace.create.shell" がある serve にだけ送る（features/sessions/termDefaults.ts）
+       */
       shell?: string;
       env?: Record<string, string>;
       /** 足す場所：欄 target（Workspace.layout の葉）を dir に分ける。無ければ自動。小さすぎる欄は busy で断られる */
@@ -464,7 +469,8 @@ export interface Requests {
   };
   "term.close": { params: { termId: TermId }; result: Record<string, never> };
   "term.restart": {
-    params: { termId: TermId };
+    /** shell は term.create と同じ（"workspace.create.shell" がある serve だけが受ける。古い serve は無視する） */
+    params: { termId: TermId; shell?: string };
     result: { pid: number; cwd: string };
   };
   "term.resize": {
@@ -499,8 +505,18 @@ export interface Requests {
      * argv・env・name は `kisui pane open`（#343）：プライマリターミナルでシェルの代わりに動かすコマンド（最初の語は絶対パス）、
      * その環境変数（"NAME=value"）、そのペインの名前（ほかのペインと重なれば作らずに断る）。hello の capabilities に
      * "workspace.create.command" がある serve だけが受ける（古い serve は無視してシェルを始めるので、送る前に確かめる）
+     * startDir・shell は、窓が手元の設定から渡す、そのマシンの始めのフォルダとシェル（features/sessions/termDefaults.ts）。
+     * startDir は dir が無い・使えないときに使い（~ と ~/x は、そのマシンのホーム）、これも使えなければ start_dir。
+     * shell は term.create と同じ。capabilities に "workspace.create.shell" がある serve だけが受ける（古い serve は無視するので、送らない）
      */
-    params: { dir?: string; argv?: string[]; env?: string[]; name?: string };
+    params: {
+      dir?: string;
+      startDir?: string;
+      shell?: string;
+      argv?: string[];
+      env?: string[];
+      name?: string;
+    };
     result: { id: WorkspaceId; termId: TermId };
   };
   "workspace.close": {

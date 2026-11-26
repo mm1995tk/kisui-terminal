@@ -17,7 +17,7 @@
 //!   同じ確かめを通す（間違いのある設定を書くと、次の起動で窓が出ないため）。DB の接続の中身を確かめるのは kisui（`config/db.go`）なので、
 //!   窓から DB の接続を書く側（#486）が、同じ結果になる確かめを `check` に渡す。
 //!
-//! 呼ぶのは、窓でマシンを足す・名前を変える・外す処理（[`edit_machine`]。Tauri のコマンド `config_machine_edit`）と、
+//! 呼ぶのは、窓でマシンを足す・名前を変える・外す・ターミナルの始め方（`start_dir`・`shell`。#485）を変える処理（[`edit_machine`]。Tauri のコマンド `config_machine_edit`）と、
 //! DB の接続を登録する処理（#486）。
 //!
 //! 窓のマシンの一覧は、設定ファイルだけが持つ（webview の localStorage には置かない。前の版が置いた記録は、
@@ -30,6 +30,8 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 use toml_edit::{Array, ArrayOfTables, DocumentMut, InlineTable, Item, Table, TableLike, Value};
 
+#[cfg(test)]
+use crate::config::TermDefaults;
 use crate::config::{self, ConfigMachine};
 
 /// 設定の一覧 1 つ（`[[<table>.<name>]]`）と、その項目を見分けるキー。
@@ -87,6 +89,10 @@ pub enum EditError {
     File(String),
     /// 書き換えたあとの設定が、確かめを通らない
     Rejected(String),
+    /// 手元のマシンの `start_dir` が、有るフォルダでない（中身は書こうとした値。config_terminal.rs）
+    NotDir(String),
+    /// 手元のマシンの `shell` が、実行できるファイルでない（中身は書こうとした値。config_terminal.rs）
+    NotExec(String),
 }
 
 impl From<String> for EditError {
@@ -101,6 +107,8 @@ impl fmt::Display for EditError {
             EditError::Exists(k) => write!(f, "{k} は config.local.toml にもうあります"),
             EditError::Missing(k) => write!(f, "{k} は config.local.toml にありません"),
             EditError::Entry(s) | EditError::File(s) | EditError::Rejected(s) => f.write_str(s),
+            EditError::NotDir(v) => write!(f, "{v} というフォルダはありません"),
+            EditError::NotExec(v) => write!(f, "{v} は実行できるファイルではありません"),
         }
     }
 }
@@ -116,10 +124,18 @@ pub enum MachineEdit {
     Rename { ssh: String, name: Option<String> },
     /// 外す
     Remove { ssh: String },
+    /// 新しいターミナルが始まるフォルダとシェルを変える（#485）。空白だけ・無い項目は消す（そのマシンの設定のままになる）
+    Terminal {
+        ssh: String,
+        #[serde(rename = "startDir")]
+        start_dir: Option<String>,
+        shell: Option<String>,
+    },
 }
 
 impl MachineEdit {
     fn into_edit(self) -> Edit {
+        // 前後の空白を除いた値。空なら無し（その項目を書かない・消す）
         let name = |n: Option<String>| {
             n.map(|n| n.trim().to_string())
                 .filter(|n| !n.is_empty())
@@ -147,6 +163,26 @@ impl MachineEdit {
                 },
             },
             MachineEdit::Remove { ssh } => Edit::Remove { key: ssh },
+            MachineEdit::Terminal {
+                ssh,
+                start_dir,
+                shell,
+            } => {
+                let (mut set, mut unset) = (toml::Table::new(), Vec::new());
+                for (key, value) in [("start_dir", start_dir), ("shell", shell)] {
+                    match name(value) {
+                        Some(v) => {
+                            set.insert(key.into(), v);
+                        }
+                        None => unset.push(key.into()),
+                    }
+                }
+                Edit::Update {
+                    key: ssh,
+                    set,
+                    unset,
+                }
+            }
         }
     }
 }
@@ -1009,6 +1045,7 @@ mod tests {
             ssh: ssh.into(),
             name: name.map(Into::into),
             local,
+            terminal: TermDefaults::default(),
         };
         let got = edit_machine(
             &d,
@@ -1078,6 +1115,60 @@ mod tests {
         let _ = fs::remove_dir_all(&d);
     }
 
+    // ターミナルの始め方（start_dir・shell）だけを書き換える。名前や、窓が知らないキーは残す
+    #[test]
+    fn edit_machine_terminal() {
+        let d = temp_dir("terminal");
+        fs::write(d.join("config.toml"), "[[gui.machines]]\nssh = \"a\"\n").unwrap();
+        let local = d.join("config.local.toml");
+        fs::write(
+            &local,
+            "[[gui.machines]]\nssh = \"b\"\nname = \"bee\" # mine\nfuture = 1\n",
+        )
+        .unwrap();
+        let terminal =
+            |ssh: &str, start_dir: Option<&str>, shell: Option<&str>| MachineEdit::Terminal {
+                ssh: ssh.into(),
+                start_dir: start_dir.map(Into::into),
+                shell: shell.map(Into::into),
+            };
+        let got = edit_machine(&d, terminal("b", Some(" ~/work "), Some("/usr/bin/fish"))).unwrap();
+        assert_eq!(
+            got[1].terminal,
+            TermDefaults {
+                start_dir: Some("~/work".into()),
+                shell: Some("/usr/bin/fish".into()),
+            }
+        );
+        assert_eq!(got[1].name.as_deref(), Some("bee"));
+        assert_eq!(
+            fs::read_to_string(&local).unwrap(),
+            "[[gui.machines]]\nssh = \"b\"\nname = \"bee\" # mine\nfuture = 1\nshell = \"/usr/bin/fish\"\nstart_dir = \"~/work\"\n"
+        );
+        // 空にした項目は消す
+        let got = edit_machine(&d, terminal("b", None, Some("  "))).unwrap();
+        assert_eq!(got[1].terminal, TermDefaults::default());
+        assert_eq!(
+            fs::read_to_string(&local).unwrap(),
+            "[[gui.machines]]\nssh = \"b\"\nname = \"bee\" # mine\nfuture = 1\n"
+        );
+        // 形の違う値は書かない
+        assert!(matches!(
+            edit_machine(&d, terminal("b", Some("work"), None)),
+            Err(EditError::Rejected(_))
+        ));
+        assert!(matches!(
+            edit_machine(&d, terminal("b", None, Some("fish -l"))),
+            Err(EditError::Rejected(_))
+        ));
+        // config.toml のマシンは変えられない
+        assert_eq!(
+            edit_machine(&d, terminal("a", Some("~"), None)),
+            Err(EditError::Missing("a".into()))
+        );
+        let _ = fs::remove_dir_all(&d);
+    }
+
     // 画面が受ける形
     #[test]
     fn machine_edit_and_error_wire_format() {
@@ -1092,6 +1183,22 @@ mod tests {
         );
         let e: MachineEdit = serde_json::from_str(r#"{"kind":"remove","ssh":"a"}"#).unwrap();
         assert_eq!(e, MachineEdit::Remove { ssh: "a".into() });
+        let e: MachineEdit = serde_json::from_str(
+            r#"{"kind":"terminal","ssh":"a","startDir":"~/work","shell":null}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            e,
+            MachineEdit::Terminal {
+                ssh: "a".into(),
+                start_dir: Some("~/work".into()),
+                shell: None
+            }
+        );
+        assert_eq!(
+            serde_json::to_string(&EditError::NotExec("~/x".into())).unwrap(),
+            r#"{"kind":"notexec","detail":"~/x"}"#
+        );
         assert_eq!(
             serde_json::to_string(&EditError::Missing("a".into())).unwrap(),
             r#"{"kind":"missing","detail":"a"}"#

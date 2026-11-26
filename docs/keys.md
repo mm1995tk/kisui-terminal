@@ -171,7 +171,9 @@ shj を引数なしで起動した直後は、kisui が同じ `explorer` の通�
 | 同上 | `a` | `a` | マシンを足す（リモートを足す窓を、このダイアログの上に出す） | 同上 |
 | 同上 | `n` `d` | `n` `d` | 選んでいるマシンの名前を変える・一覧から外す。設定ファイルで決めたマシンと「ローカル」には使えず、理由をダイアログに出す | 同上 |
 | 同上 | `x` `r` | `x` `r` | 選んでいるマシンを切る・つなぎ直す（待ち時間中は今すぐつなぐ）。つながっていない・つなぐ必要が無いときは、理由をダイアログに出す | 同上 |
-| 同上 | `?` | `?` | このダイアログのキーの一覧を出す（リーダーの木は出さない）。下の段には `j` `k`・`Enter`・`?`・`Esc` だけを出し、`a` `n` `d` `x` `r` はこの一覧に出す（#306） | 同上・`features/commands/placeKeys.ts` |
+| 同上 | `t` | `t` | 選んでいるマシンのターミナルの始め方（新しいターミナルが始まるフォルダとシェル。#485）を変える窓を、このダイアログの上に出す。「ローカル」にも使える（`config.local.toml` の `[server]` に書く）。設定ファイル（`config.toml`）で決めたマシンには使えず、理由をダイアログに出す | 同上・`ui/main-window/sessions/TerminalSettings.tsx` |
+| 同上 | `?` | `?` | このダイアログのキーの一覧を出す（リーダーの木は出さない）。下の段には `j` `k`・`Enter`・`?`・`Esc` だけを出し、`a` `n` `d` `x` `r` `t` はこの一覧に出す（#306） | 同上・`features/commands/placeKeys.ts` |
+| ターミナルの始め方を変える窓（マシンのダイアログの `t`）の入力欄 | `Enter` | `Enter` | 保存する（`config.local.toml` に書き、窓を閉じる。書けなければ理由を窓に出す）。`Esc` はやめる | `ui/main-window/sessions/TerminalSettings.tsx` |
 | リモートを足す窓の「行き先」のペイン                                | `↓` / `↑`・`Ctrl+J` / `Ctrl+K`                    | `↓` / `↑`・`Ctrl+J` / `Ctrl+K`                    | `~/.ssh/config` の候補を選ぶ（Ctrl+J が次、Ctrl+K が前）                                                                          | `ui/main-window/sessions/AddMachine.tsx:83`                                                        |
 | 同上                                                            | `Enter`                      | `Enter`                      | 選んだ候補を入れる。選んでいなければ足す                                                              | `ui/main-window/sessions/AddMachine.tsx:88`                                                        |
 | リモートを足す窓の「名前」のペイン                                  | `Enter`                      | `Enter`                      | 足す                                                                                                  | `ui/main-window/sessions/AddMachine.tsx:139`                                                       |
@@ -254,7 +256,7 @@ shj を引数なしで起動した直後は、kisui が同じ `explorer` の通�
 | どこで                                   | 操作                              | 動き                                                       | 定義の場所                                                        |
 | ---------------------------------------- | --------------------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------- |
 | クリップボードの履歴の窓の行             | クリック / ダブルクリック         | 行を選ぶ / 選んで貼る（なければ戻す）                      | `ui/main-window/clipboard/ClipboardHistoryDialog.tsx:253`・`ui/main-window/clipboard/ClipboardHistoryDialog.tsx:254` |
-| マシンのダイアログの行 | クリック | その行のマシンを選ぶ（操作はキーで。`Enter` `a` `n` `d` `x` `r`） | `ui/main-window/sessions/MachineDialog.tsx` |
+| マシンのダイアログの行 | クリック | その行のマシンを選ぶ（操作はキーで。`Enter` `a` `n` `d` `x` `r` `t`） | `ui/main-window/sessions/MachineDialog.tsx` |
 | キャラクターを選ぶ窓の行 | クリック / ダブルクリック | 行を選ぶ / 選んで決める（キーでは `j` `k` と `Enter`） | `ui/main-window/mascot/MascotDialog.tsx` |
 | 窓（リモートを足す・ツリーの削除の確認・確認・ssh の質問・クリップボードや転送の許可・ワークスペースを閉じる・kisui を入れる） | ボタンをクリック | 決める・やめる（キーでは入力欄の Enter と Esc だけ）。確認の窓のボタンは、キーでは Tab でフォーカスを動かして Enter で押す | `ui/main-window/sessions/AddMachine.tsx:162`・`ui/main-window/sidebar/file-tree/TreeDialogs.tsx:53`・`ui/main-window/workspaces/CloseWorkspaceCard.tsx:34`・`ui/main-window/sessions/InstallCard.tsx:49`・`ui/main-window/sessions/AskpassDialog.tsx:66`・`ui/main-window/clipboard/ClipboardDialog.tsx:34`・`ui/main-window/file-transfer/TransferDialog.tsx:91` |
 | リモートを足す窓の候補                   | クリック                          | 候補の行き先を入れる                                       | `ui/main-window/sessions/AddMachine.tsx:120`                                      |

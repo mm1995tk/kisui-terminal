@@ -20,6 +20,7 @@ import { placeOf } from "../../features/commands/placeKeys.ts";
 import { createFeatures } from "../../features/compose.ts";
 import type { Problem } from "../../features/problem.ts";
 import type { ConfigMachine } from "../../features/sessions/machines.ts";
+import type { TermDefaults } from "../../features/sessions/termDefaults.ts";
 import { moveMachineRecords } from "../../features/sessions/moveRecords.ts";
 import { PortsContext, type Ports } from "../ports.ts";
 // ここから下の、CSS を持つ部品の import は、順を変えない。CSS の規則は import の順に並び、同じ強さの規則は後のものが勝つ。
@@ -74,6 +75,7 @@ export function MainWindowPage(props: { ports: Ports }): JSX.Element {
   const [loaded, setLoaded] = createSignal<
     | {
         config: ConfigMachine[];
+        localTerminal?: TermDefaults | null;
         browser: boolean;
         shortcutProblems: string[];
         passkeyRejected: string[];
@@ -98,6 +100,7 @@ export function MainWindowPage(props: { ports: Ports }): JSX.Element {
         const shortcutProblems = setUserShortcuts(g.shortcuts, IS_MAC);
         setLoaded({
           config: moved.machines,
+          localTerminal: g.localTerminal,
           startupProblem: moved.problem,
           browser: g.browser,
           shortcutProblems,
@@ -120,6 +123,7 @@ export function MainWindowPage(props: { ports: Ports }): JSX.Element {
             <MainWindow
               ports={props.ports}
               config={v.config}
+              localTerminal={v.localTerminal}
               browser={v.browser}
               tabsHeight={v.tabsHeight}
               shortcutProblems={v.shortcutProblems}
@@ -137,6 +141,8 @@ function MainWindow(props: {
   ports: Ports;
   /** 手元の設定ファイルで決めたマシン */
   config: ConfigMachine[];
+  /** 手元のマシンの、新しいターミナルが始まるフォルダとシェル（設定の [server] start_dir・shell。#485） */
+  localTerminal?: TermDefaults | null;
   /** 内蔵ブラウザのタブを使うか（設定の [gui.browser] enabled。#202） */
   browser: boolean;
   /** 設定の [gui.shortcuts] の間違い（あればお知らせに出す） */
@@ -194,6 +200,7 @@ function MainWindow(props: {
   } = createFeatures({
     ports,
     config: props.config,
+    localTerminal: props.localTerminal,
     startupProblem: props.startupProblem,
     browser,
     mac: IS_MAC,

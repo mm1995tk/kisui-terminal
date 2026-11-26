@@ -228,7 +228,7 @@ func (t *terminal) busy() bool {
 type termStart struct {
 	cols, rows int
 	dir        string // 始めるフォルダ
-	shell      string
+	shell      string // 始めるシェル（実行できるファイルの絶対パス）。空なら、ワークスペースが覚えているシェル（shell.go）
 	env        []string
 	wsID       string
 	primary    bool
@@ -243,7 +243,7 @@ func (m *termManager) start(a termStart) (*terminal, error) {
 	}
 	sh := a.shell
 	if sh == "" {
-		sh = term.DefaultShell()
+		sh = m.srv.ws.rememberedShell(a.wsID)
 	}
 	m.mu.Lock()
 	if m.closed {
@@ -279,7 +279,7 @@ func (m *termManager) start(a termStart) (*terminal, error) {
 		sh, args = a.argv[0], a.argv[1:]
 		env = withKisuiPath(env, dirs)
 	} else {
-		args, env = bundledShellWith(sh, env, dirs)
+		args, env = bundledShellWith(sh, shellEnv(sh, env), dirs)
 	}
 	sess, err := term.Start(term.Options{Shell: sh, Args: args, Dir: a.dir, Env: env, Cols: a.cols, Rows: a.rows})
 	if err != nil {
@@ -339,10 +339,15 @@ func (m *termManager) create(p termCreateParams) (any, error) {
 		}
 		return nil, rpc.Errorf(code, "%v", perr)
 	}
-	t, err := m.start(termStart{cols: p.Cols, rows: p.Rows, dir: dir, shell: p.Shell, env: env, wsID: p.WorkspaceID})
+	sh, serr := m.srv.ws.shellFor(p.WorkspaceID, p.Shell)
+	if serr != nil {
+		return nil, serr
+	}
+	t, err := m.start(termStart{cols: p.Cols, rows: p.Rows, dir: dir, shell: sh, env: env, wsID: p.WorkspaceID})
 	if err != nil {
 		return nil, err
 	}
+	m.srv.ws.rememberShell(p.WorkspaceID, p.Shell)
 	m.srv.ws.placePane(p.WorkspaceID, target, sdir, t.id)
 	m.srv.ws.recomputeLocked()
 	t.mu.Lock()
@@ -373,7 +378,8 @@ func (m *termManager) closeWorkspace(wsID string) {
 }
 
 // restart は終わったプライマリターミナルに新しいシェルを始める（termId はそのまま）。
-func (m *termManager) restart(t *terminal) (any, error) {
+// shell は窓が渡したシェル（nil なら渡していない。shell.go）。
+func (m *termManager) restart(t *terminal, shell *string) (any, error) {
 	t.mu.Lock()
 	primary, alive, wsID, cols, rows := t.primary, t.alive, t.wsID, t.cols, t.rows
 	t.mu.Unlock()
@@ -391,13 +397,16 @@ func (m *termManager) restart(t *terminal) (any, error) {
 		// フォルダが無くなっていたら、start_dir（それも無ければ ~）で始める。
 		dir = m.srv.ws.startDir()
 	}
+	sh, serr := m.srv.ws.shellFor(wsID, shell)
+	if serr != nil {
+		return nil, serr
+	}
 	m.mu.Lock()
 	if m.closed || m.terms[t.id] != t {
 		m.mu.Unlock()
 		return nil, rpc.Errorf(rpc.CodeNotFound, "no such terminal: %s", t.id)
 	}
-	sh := term.DefaultShell()
-	args, env := bundledShell(sh, append(m.srv.proxy.envFor(wsID), ctl.EnvGUIPrimary+"="+t.id, ctl.EnvGUIWorkspace+"="+wsID))
+	args, env := bundledShell(sh, shellEnv(sh, append(m.srv.proxy.envFor(wsID), ctl.EnvGUIPrimary+"="+t.id, ctl.EnvGUIWorkspace+"="+wsID)))
 	sess, err := term.Start(term.Options{Shell: sh, Args: args, Dir: dir, Env: env, Cols: cols, Rows: rows})
 	if err != nil {
 		m.mu.Unlock()
@@ -413,6 +422,9 @@ func (m *termManager) restart(t *terminal) (any, error) {
 	t.mu.Unlock()
 	t.startPump()
 	m.mu.Unlock()
+	m.srv.ws.recomputeMu.Lock()
+	m.srv.ws.rememberShell(wsID, shell)
+	m.srv.ws.recomputeMu.Unlock()
 	m.srv.log.Info("term restarted", "termId", t.id, "pid", pid, "cwd", dir)
 	return map[string]any{"pid": pid, "cwd": cwd}, nil
 }
@@ -638,11 +650,12 @@ func (t *terminal) attach() (any, error) {
 }
 
 type termCreateParams struct {
-	WorkspaceID string            `json:"workspaceId"`
-	Cols        int               `json:"cols"`
-	Rows        int               `json:"rows"`
-	Shell       string            `json:"shell"`
-	Env         map[string]string `json:"env"`
+	WorkspaceID string `json:"workspaceId"`
+	Cols        int    `json:"cols"`
+	Rows        int    `json:"rows"`
+	// Shell は始めるシェル（shell.go）。無ければ、ワークスペースが覚えているシェル
+	Shell *string           `json:"shell"`
+	Env   map[string]string `json:"env"`
 	// Split は足す場所。無ければ自動（layout.go の autoTarget）
 	Split *splitParams `json:"split,omitempty"`
 }
@@ -703,6 +716,7 @@ func (ss *session) termRequest(req *rpc.Message) (res any, err error, handled bo
 		Rows   int     `json:"rows"`
 		Data   string  `json:"data"`
 		Path   *string `json:"path"`
+		Shell  *string `json:"shell"` // term.restart：始めるシェル（shell.go）
 	}
 	if err := json.Unmarshal(req.Params, &p); err != nil {
 		return nil, rpc.Errorf(rpc.CodeInvalidParams, "invalid params: %v", err), true
@@ -716,7 +730,7 @@ func (ss *session) termRequest(req *rpc.Message) (res any, err error, handled bo
 		res, err = t.attach()
 		return res, err, true
 	case "term.restart":
-		res, err = m.restart(t)
+		res, err = m.restart(t, p.Shell)
 		return res, err, true
 	case "term.close":
 		if !ss.srv.ws.closeSplit(t.id) {

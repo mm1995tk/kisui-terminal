@@ -63,9 +63,16 @@ export function machineRows(
 /**
  * ダイアログの中の操作。newTab は、選んだマシンを設定したターミナルのタブ作成を、ワークスペースの窓で始める（Enter。#461）。
  * ここではタブを作らない。名前を打って決めるのは、ワークスペースの窓のタブを作る行（#456 と同じ行）。
+ * terminal は、選んだマシンの新しいターミナルが始まるフォルダとシェルを変える窓を出す（t。#485。termDefaults.ts）。
  */
 export type MachineAction =
-  "add" | "rename" | "remove" | "disconnect" | "reconnect" | "newTab";
+  | "add"
+  | "rename"
+  | "remove"
+  | "disconnect"
+  | "reconnect"
+  | "newTab"
+  | "terminal";
 
 /** ダイアログの中のキーが表す動き。 */
 export type MachineKey =
@@ -110,6 +117,8 @@ export function machineKey(e: KeyLike): MachineKey | null {
       return { kind: "action", action: "disconnect" };
     case "r":
       return { kind: "action", action: "reconnect" };
+    case "t":
+      return { kind: "action", action: "terminal" };
     case "?":
       return { kind: "help" };
   }
@@ -167,6 +176,11 @@ export function canDo(
         return T(`machine.cant.${action}.fixed`, { label: row.label });
       return null;
     }
+    case "terminal":
+      // 「ローカル」は [server] に書けるので、変えられる。config.toml にだけあるマシンは、窓からは書けない
+      if (row.fixed)
+        return T("machine.cant.terminal.fixed", { label: row.label });
+      return null;
     case "disconnect":
       if (!row.removable)
         return T("machine.cant.disconnect.local", { label: row.label });
@@ -191,7 +205,7 @@ export type PickerKey =
 /**
  * 選ぶ窓の中のキー（入力欄が無いので、字をそのまま使える。Esc は ModalCard が取り消しに使う）。
  * マシンのダイアログの動かし方（j k g G・矢印・Ctrl+J / Ctrl+K）と `?`（キーの一覧）に、決める Enter を足したもの。
- * 足す・名前を変えるなどの操作のキー（a n d x r）は受けない。
+ * 足す・名前を変えるなどの操作のキー（a n d x r t）は受けない。
  */
 export function pickerKey(e: KeyLike): PickerKey | null {
   if (isComposingKey(e)) return null;

@@ -91,6 +91,7 @@ describe("machineKey", () => {
       ["d", "remove"],
       ["x", "disconnect"],
       ["r", "reconnect"],
+      ["t", "terminal"],
     ] as const)
       assert.deepEqual(machineKey(ev(k)), { kind: "action", action });
   });
@@ -163,6 +164,17 @@ describe("canDo", () => {
       assert.match(canDo(row({ removable: false }), a, true) ?? "", /ローカル/);
       assert.equal(canDo(row(), a, true), null);
     }
+  });
+
+  it("ターミナルの始め方は、「ローカル」でも変えられる（[server] に書く）。config.toml で決めたマシンは変えられない", () => {
+    assert.equal(canDo(row(), "terminal", true), null);
+    assert.equal(canDo(row({ removable: false }), "terminal", true), null);
+    // つながっていなくても、設定は変えられる
+    assert.equal(canDo(row({ health: "down" }), "terminal", false), null);
+    assert.match(
+      canDo(row({ fixed: true }), "terminal", true) ?? "",
+      /config\.toml/,
+    );
   });
 
   it("config.toml で決めたマシンでも、切る・つなぎ直すはできる", () => {

@@ -175,6 +175,10 @@ export interface ConfigMachine {
   name?: string | null;
   /** config.local.toml の項目か（両方のファイルにあれば true）。窓が書き換えられるのは true のマシンだけ */
   local?: boolean;
+  /** このマシンの新しいターミナルが始まるフォルダ（start_dir。termDefaults.ts）。書いていなければ無い */
+  startDir?: string | null;
+  /** このマシンの新しいターミナルのシェル（shell。termDefaults.ts）。書いていなければ無い */
+  shell?: string | null;
 }
 
 /** サイドバーに出すマシンの一覧（設定ファイルの順）。config.toml にだけ書いたマシンは fixed（窓から変えない）。 */
@@ -189,8 +193,12 @@ export function fromConfig(config: ConfigMachine[]): Machine[] {
 
 /** 殻が config.local.toml に書けなかった理由（config_list.rs の EditError）。 */
 export interface MachineEditError {
-  kind: "exists" | "missing" | "entry" | "file" | "rejected";
-  /** 足す・変える・外す相手の ssh の行き先（exists・missing）か、設定の間違いと同じ形の説明（ほか） */
+  kind:
+    "exists" | "missing" | "entry" | "file" | "rejected" | "notdir" | "notexec";
+  /**
+   * 足す・変える・外す相手の ssh の行き先（exists・missing）、手元のマシンに書こうとした start_dir（notdir）・shell（notexec）、
+   * 設定の間違いと同じ形の説明（ほか）
+   */
   detail: string;
 }
 
@@ -211,6 +219,10 @@ export function machineEditError(e: unknown): string {
     const { kind, detail } = e;
     if (kind === "exists") return T("machine.edit.exists", { ssh: detail });
     if (kind === "missing") return T("machine.edit.missing", { ssh: detail });
+    if (kind === "notdir")
+      return T("termSettings.err.notDir", { path: detail });
+    if (kind === "notexec")
+      return T("termSettings.err.notExec", { path: detail });
     return T("machine.edit.failed", { error: String(detail) });
   }
   return T("machine.edit.failed", { error: String(e) });

@@ -1,5 +1,6 @@
 // マシンへの接続の持ち物と操作（C3〜C7）。サイドバーに出るのは「ローカル」と、設定ファイルの [[gui.machines]] のマシンだけ。起動時は、そのどれにも自動でつなぐ（C5）。
-// マシンを足す・名前を変える・外す（殻が config.local.toml に書く）、つなぐ・切る・つなぎ直す、ssh の質問（パスワードなど）への答えを受け持つ。
+// マシンを足す・名前を変える・外す・ターミナルの始め方（始めるフォルダとシェル。termDefaults.ts）を変える（殻が config.local.toml に書く）、
+// つなぐ・切る・つなぎ直す、ssh の質問（パスワードなど）への答えを受け持つ。
 // つないだマシンごとに、接続（Session）・ツリー（WorkspaceTrees）・ターミナル（TermGroups）を 1 組ずつ持つ。
 // 一覧やフォーカスの知らせを受けたあとにワークスペースの側ですること（フォーカスを直す・最初のワークスペースを作る・ペインの頼み）は hooks で外へ渡す。
 // 画面にも Tauri にも触らない。殻への頼み（設定ファイルへの書き込みも）は ShellApi（shell.ts）、色の記録は KeyValueStore で受け取る。
@@ -39,6 +40,12 @@ import {
   type ShellApi,
 } from "./shell.ts";
 import { statusLine, type MachineStatus } from "./status.ts";
+import {
+  shellProblem,
+  startDirProblem,
+  termDefaultsByTarget,
+  type TermDefaults,
+} from "./termDefaults.ts";
 
 /** 接続の知らせを受けたあとに、ワークスペースの側ですること。 */
 export interface SessionHooks {
@@ -64,6 +71,8 @@ export function createSessions(deps: {
   store: KeyValueStore | undefined;
   /** 手元の設定ファイルのマシン（起動のときに読んだもの） */
   config: ConfigMachine[];
+  /** 手元のマシンの、新しいターミナルが始まるフォルダとシェル（起動のときに読んだもの） */
+  localTerminal?: TermDefaults | null;
   hooks: SessionHooks;
   /** できなかったこと（マシンを外せなかった）の知らせ */
   report?: ReportProblem;
@@ -88,6 +97,27 @@ export function createSessions(deps: {
       return machineEditError(e);
     }
   }
+  // マシンごとの、新しいターミナルが始まるフォルダとシェル（最後に読めた設定のもの。termDefaults.ts）
+  const [termDefaults, setTermDefaults] = createSignal<
+    Record<string, TermDefaults>
+  >(
+    termDefaultsByTarget({
+      machines: deps.config,
+      localTerminal: deps.localTerminal,
+    }),
+  );
+  /**
+   * マシン target の、新しいターミナルが始まるフォルダとシェル。設定ファイルを読み直して答える（ターミナルを始める要求のたびに呼ばれる。
+   * 設定を変えた次のターミナルから効く）。読めない（書きかけで間違いがある、など）間は、最後に読めたものを答える。
+   */
+  async function readTermDefaults(target: string): Promise<TermDefaults> {
+    try {
+      setTermDefaults(termDefaultsByTarget(await api.configGui()));
+    } catch {
+      // 最後に読めたもののまま
+    }
+    return termDefaults()[target] ?? {};
+  }
   const [sessions, setSessions] = createSignal<Record<string, Session>>({});
   const [states, setStates] = createSignal<Record<string, SessionState>>({});
   const [workspaces, setWorkspaces] = createSignal<Record<string, Workspace[]>>(
@@ -108,6 +138,14 @@ export function createSessions(deps: {
   // 名前を変えているマシン（マシンのダイアログの行が入力欄になる）、変えられなかった理由
   const [renaming, setRenaming] = createSignal<string | null>(null);
   const [renameError, setRenameError] = createSignal<string | undefined>();
+  // ターミナルの始め方を変えているマシンと、窓に初めに入れる値（今の設定）、変えられなかった理由
+  const [termEditing, setTermEditing] = createSignal<{
+    target: string;
+    values: TermDefaults;
+  } | null>(null);
+  const [termEditError, setTermEditError] = createSignal<string | undefined>();
+  // 書いている最中か（「保存」を続けて押しても 1 回だけ書く）
+  const [termEditBusy, setTermEditBusy] = createSignal(false);
   // 「あと何秒」を動かす
   const [now, setNow] = createSignal(Date.now());
   const tick = setInterval(() => setNow(Date.now()), 1000);
@@ -155,7 +193,9 @@ export function createSessions(deps: {
       }
       return; // つないでいる最中、またはつながっている
     }
-    const s = new Session(api, target);
+    const s = new Session(api, target, {
+      termDefaults: () => readTermDefaults(target),
+    });
     const tr = new WorkspaceTrees({
       request: (method, params) => s.request(method, params),
       onChange: () => hooks.treeChanged(),
@@ -308,6 +348,58 @@ export function createSessions(deps: {
     });
   }
 
+  /** マシン target のターミナルの始め方を変える窓を出す（今の設定を読み直して、入力欄に入れる）。 */
+  async function openTermEdit(target: string) {
+    setTermEditError(undefined);
+    const values = await readTermDefaults(target);
+    setTermEditing({ target, values });
+  }
+
+  /**
+   * ターミナルの始め方を変える窓の「保存」。形を確かめてから config.local.toml に書き、書けたら窓を閉じる（書けなければ理由を窓に出す）。
+   * 空の欄は、その項目を消す（そのマシンの設定のままになる）。リモートのマシンは [[gui.machines]] の項目に、
+   * 「ローカル」は [server] に書く。次に作るターミナルから効く（kisui serve は止めない）。
+   */
+  function submitTermEdit(startDirText: string, shellText: string) {
+    const editing = termEditing();
+    if (!editing || termEditBusy()) return;
+    const { target } = editing;
+    const [startDir, shell] = [startDirText.trim(), shellText.trim()];
+    const problem = startDirProblem(startDir) ?? shellProblem(shell);
+    if (problem) {
+      setTermEditError(problem);
+      return;
+    }
+    const edit = { startDir: startDir || null, shell: shell || null };
+    setTermEditBusy(true);
+    const written =
+      target === LOCAL
+        ? api
+            .editLocalTerminal(edit)
+            .then((d) => setTermDefaults((m) => ({ ...m, [LOCAL]: d })))
+        : api
+            .editMachine({ kind: "terminal", ssh: target, ...edit })
+            .then((list) => {
+              setMachines(fromConfig(list));
+              setTermDefaults((m) => ({
+                ...termDefaultsByTarget({ machines: list }),
+                [LOCAL]: m[LOCAL] ?? {},
+              }));
+            });
+    void written
+      .then(
+        () => undefined,
+        (e: unknown) => machineEditError(e),
+      )
+      .then((err) => {
+        setTermEditBusy(false);
+        // 書いている間にやめた（Esc）なら、窓は閉じてある
+        if (termEditing() !== editing) return;
+        if (err === undefined) setTermEditing(null);
+        else setTermEditError(err);
+      });
+  }
+
   /**
    * 見出しのメニューの「外す」。config.local.toml から消し、GUI の接続を切る（そのマシンの kisui serve は止めない）。
    * config.toml にもあるマシン（config.local.toml の項目が代わっていたもの）は、config.toml のものに戻って一覧に残るので、切らない。
@@ -409,6 +501,13 @@ export function createSessions(deps: {
     renameError,
     submitRename,
     removeFromSidebar,
+    /** ターミナルの始め方（始めるフォルダとシェル）を変えているマシンと、今の設定の値 */
+    termEditing,
+    openTermEdit,
+    closeTermEdit: () => setTermEditing(null),
+    termEditError,
+    termEditBusy,
+    submitTermEdit,
     /** kisui を入れるかを聞くマシン（一度に 1 台。答えたら次のマシン） */
     installing,
   };

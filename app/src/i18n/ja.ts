@@ -143,6 +143,8 @@ export const ja: Record<Key, string> = {
     "Remove from the list (a machine from the config file cannot be removed)",
   "place.machines.disconnect": "Disconnect",
   "place.machines.reconnect": "Reconnect / connect now",
+  "place.machines.terminal":
+    "Terminal settings: the start folder and the shell of new terminals (a machine from the config file cannot be changed)",
   "place.machines.newTab":
     "Start a terminal tab on the selected machine in the current workspace (opens the workspace window; the tab is created when you confirm its name)",
   "place.row.close": "Close",
@@ -428,6 +430,28 @@ export const ja: Record<Key, string> = {
   "machine.cant.disconnect.none": "{label} はつながっていません",
   "machine.cant.reconnect.up": "{label} はつながっています",
   "machine.cant.reconnect.pending": "{label} は今つないでいる最中です",
+  "machine.cant.terminal.fixed":
+    "{label} の始めるフォルダとシェルは、ここでは変えられません（config.toml の [[gui.machines]] で決めたマシンです。そこに start_dir と shell を書いてください）",
+  "termSettings.title": "Terminal settings",
+  "termSettings.save": "Save",
+  "termSettings.lead":
+    "{machine} の新しいターミナルが始まるフォルダと、そのシェルです。どちらも、そのマシンでのパスを書きます（~ は、そのマシンのホーム）。空の欄は、そのマシン自身の設定のままにします。次に開くターミナルから使います。",
+  "termSettings.startDir": "始めるフォルダ",
+  "termSettings.startDirPlaceholder":
+    "~/work（空なら、そのマシンの start_dir。無ければホーム）",
+  "termSettings.shell": "シェル",
+  "termSettings.shellPlaceholder":
+    "/usr/bin/fish（空なら、そのマシンのシェル。$SHELL）",
+  "termSettings.err.startDir":
+    "始めるフォルダは、絶対パスか、~ で始まるパスで書いてください",
+  "termSettings.err.shell":
+    "シェルは、そのファイルの絶対パスか、~/ で始まるパスで書いてください（引数は書けません）",
+  "termSettings.err.control": "パスに制御文字は書けません",
+  "termSettings.err.notDir": "{path} というフォルダは、この PC にありません",
+  "termSettings.err.notExec":
+    "{path} は、この PC で実行できるファイルではありません",
+  "err.term.shell":
+    "シェル {shell} は、そのマシンで実行できるファイルではありません。マシンのダイアログ（t）か設定ファイル（shell）で、そのマシンのシェルを直してください。",
   "machine.cant.newTab.down":
     "{label} はつながっていないので、タブを作れません（r でつなぎ直せます）",
   "machine.cant.newTab.pending":

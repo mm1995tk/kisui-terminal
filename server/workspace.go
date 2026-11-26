@@ -62,6 +62,7 @@ type wsState struct {
 	root    string // 正規化済み。未定なら ""
 	kind    string
 	label   string // ユーザーがつけた名前（workspace.rename）。無ければ ""。w.mu で守る
+	shell   string // 窓が最後に渡したシェル（書いた形のまま。shell.go）。無ければ ""。w.mu で守る
 	primary string // プライマリターミナルの id
 	shj     *primaryShj
 	extras  []extraPane // 欄の中から（kisui open で）開いた、ターミナルでない欄。w.mu で守る。閉じるまで残る（shj が終わっても消えない）
@@ -97,8 +98,9 @@ func (w *wsManager) resolve(cwd string) (root, kind string, ok bool) {
 }
 
 // startDir は新しいワークスペースのプライマリターミナルが始まるフォルダ（[server] start_dir、無ければ ~）。
+// [server] は、呼ばれるたびに読み直す（shell.go の machineDefaults）。
 func (w *wsManager) startDir() string {
-	if d := w.srv.opts.StartDir; d != "" {
+	if d, _ := w.srv.machineDefaults(); d != "" {
 		return d
 	}
 	if w.home != "" {
@@ -171,13 +173,20 @@ func (w *wsManager) folderOf(id string) (string, bool) {
 }
 
 // create はワークスペースを作り、プライマリターミナルを dir（絶対パスのフォルダ）で始める。
-// dir が無い・フォルダでないときは start_dir。フォルダは始めたフォルダから決まる（プロジェクトの中ならそのルート、~ なら ~）。
-// cmd は、プライマリターミナルでシェルの代わりに動かすコマンドと、そのペインの名前（kisui pane open。#343）。
+// dir が無い・フォルダでないときは、窓が渡したマシンの始めのフォルダ startDir（shell.go）、それも使えなければ start_dir。
+// フォルダは始めたフォルダから決まる（プロジェクトの中ならそのルート、~ なら ~）。
+// cmd は、プライマリターミナルでシェルの代わりに動かすコマンドと、そのペインの名前（kisui pane open。#343）、窓が渡したシェル。
 // 名前はほかのペインと重なれば、ワークスペースを作らずに断る（kisui pane split --name と同じ決まり）。
-func (w *wsManager) create(dir string, cmd tabCommand) (id, termID string, err error) {
+// シェルが使えなければ、ワークスペースを作らずに断る。
+func (w *wsManager) create(dir, startDir string, cmd tabCommand) (id, termID string, err error) {
 	env, err := validCommand(cmd.argv, cmd.env)
 	if err != nil {
 		return "", "", rpc.Errorf(rpc.CodeInvalidParams, "%v", err)
+	}
+	if cmd.shell != "" {
+		if _, err := w.checkShell(cmd.shell); err != nil {
+			return "", "", err
+		}
 	}
 	name, err := cleanPaneName(cmd.name)
 	if err != nil {
@@ -199,15 +208,20 @@ func (w *wsManager) create(dir string, cmd tabCommand) (id, termID string, err e
 		dir = ""
 	}
 	if dir == "" {
+		dir = usableDir(startDir)
+	}
+	if dir == "" {
 		dir = w.startDir()
 	}
-	return w.createLocked(newWorkspaceID(), dir, "", tabCommand{argv: cmd.argv, env: env, name: name})
+	return w.createLocked(newWorkspaceID(), dir, "", tabCommand{argv: cmd.argv, env: env, name: name, shell: cmd.shell})
 }
 
-// tabCommand は、新しいワークスペースのプライマリターミナルで動かすコマンド（空ならシェル）と、その環境変数（"NAME=value"）・名前。
+// tabCommand は、新しいワークスペースのプライマリターミナルで動かすコマンド（空ならシェル）と、その環境変数（"NAME=value"）・名前、
+// ワークスペースが覚えるシェル（窓が渡したもの。書いた形のまま。空なら無し）。
 type tabCommand struct {
 	argv, env []string
 	name      string
+	shell     string
 }
 
 // createLocked は recomputeMu を持って呼ぶ（cmd.name があれば nameMu も。名前は確かめておく）。wsID のワークスペースを作り、
@@ -215,12 +229,12 @@ type tabCommand struct {
 func (w *wsManager) createLocked(wsID, dir, label string, cmd tabCommand) (id, termID string, err error) {
 	w.mu.Lock()
 	w.next++
-	st := &wsState{id: wsID, seq: w.next, label: label}
+	st := &wsState{id: wsID, seq: w.next, label: label, shell: cmd.shell}
 	if root, kind, ok := w.resolve(dir); ok {
 		st.root, st.kind = root, kind
 	}
 	w.mu.Unlock()
-	t, err := w.srv.terms.start(termStart{cols: 80, rows: 24, dir: dir, env: cmd.env, wsID: st.id, primary: true, argv: cmd.argv, name: cmd.name})
+	t, err := w.srv.terms.start(termStart{cols: 80, rows: 24, dir: dir, shell: w.usableShell(cmd.shell), env: cmd.env, wsID: st.id, primary: true, argv: cmd.argv, name: cmd.name})
 	if err != nil {
 		return "", "", err
 	}
@@ -649,6 +663,9 @@ func (ss *session) workspaceRequest(req *rpc.Message) (res any, err error, handl
 	case "workspace.create":
 		var cp struct {
 			Dir string `json:"dir"`
+			// StartDir・Shell は、窓が手元の設定から渡す、マシンの始めのフォルダとシェル（shell.go。#485）
+			StartDir string `json:"startDir"`
+			Shell    string `json:"shell"`
 			// Argv・Env・Name は kisui pane open（#343）：プライマリターミナルで動かすコマンドと、そのペインの名前
 			Argv []string `json:"argv"`
 			Env  []string `json:"env"`
@@ -657,7 +674,7 @@ func (ss *session) workspaceRequest(req *rpc.Message) (res any, err error, handl
 		if len(req.Params) > 0 {
 			_ = json.Unmarshal(req.Params, &cp) // 形が違えば dir 無し（start_dir）
 		}
-		id, termID, err := w.create(cp.Dir, tabCommand{argv: cp.Argv, env: cp.Env, name: cp.Name})
+		id, termID, err := w.create(cp.Dir, cp.StartDir, tabCommand{argv: cp.Argv, env: cp.Env, name: cp.Name, shell: cp.Shell})
 		if err != nil {
 			return nil, err, true
 		}

@@ -2,7 +2,7 @@ package server
 
 // ワークスペースの一覧の保存と復元（#450。設計は docs/design/gui-protocol.md の「ワークスペース」9）。
 //
-// 保存するのは、ワークスペースの id・フォルダ（未定なら無し）・つけた名前（あれば）・並び順だけ。分割したターミナルと
+// 保存するのは、ワークスペースの id・フォルダ（未定なら無し）・つけた名前（あれば）・窓が渡したシェル（あれば）・並び順だけ。分割したターミナルと
 // 開いていたファイルは保存しない。ワークスペースが変わるたび（recompute のたび）に、前に書いた内容と
 // 違えば書く。起動のときに読み、同じ id でワークスペースを作り直す。
 
@@ -31,6 +31,8 @@ type savedWS struct {
 	// Label はユーザーがつけた名前（workspace.rename）。つけていなければ省く。
 	// 足した項目で、版は上げない（名前をつけていない保存は、前の形と同じ内容）
 	Label string `json:"label,omitempty"`
+	// Shell は窓が最後に渡したシェル（wsState.shell。shell.go）。渡していなければ省く。これも足した項目で、版は上げない
+	Shell string `json:"shell,omitempty"`
 }
 
 type savedState struct {
@@ -57,7 +59,7 @@ func (w *wsManager) persist() {
 	out := savedState{Version: stateVersion, Workspaces: []savedWS{}}
 	sortStates(sts)
 	for _, st := range sts {
-		out.Workspaces = append(out.Workspaces, savedWS{ID: st.id, Folder: st.root, Label: st.label})
+		out.Workspaces = append(out.Workspaces, savedWS{ID: st.id, Folder: st.root, Label: st.label, Shell: st.shell})
 	}
 	w.mu.Unlock()
 	data, err := json.MarshalIndent(out, "", "  ")
@@ -136,7 +138,7 @@ func loadState(path string) ([]savedWS, error) {
 }
 
 // restore は保存していたワークスペースを同じ id で作り直す。Serve が接続を受ける前に 1 回だけ呼ぶ。
-// プライマリターミナルは、保存したフォルダ（もう無ければフォルダ未定として start_dir）で始める。
+// プライマリターミナルは、保存したフォルダ（もう無ければフォルダ未定として start_dir）で、保存したシェル（無ければこのマシンの既定）で始める。
 func (w *wsManager) restore() {
 	path := w.srv.opts.StatePath
 	if path == "" {
@@ -171,7 +173,7 @@ func (w *wsManager) restore() {
 			w.srv.log.Warn("workspace name is invalid; restored without a name", "workspace", x.ID, "err", err)
 			label = ""
 		}
-		if _, _, err := w.createLocked(x.ID, dir, label, tabCommand{}); err != nil {
+		if _, _, err := w.createLocked(x.ID, dir, label, tabCommand{shell: x.Shell}); err != nil {
 			w.srv.log.Warn("restore workspace", "workspace", x.ID, "err", err)
 		}
 	}
