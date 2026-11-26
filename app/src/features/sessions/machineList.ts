@@ -65,12 +65,7 @@ export function machineRows(
  * ここではタブを作らない。名前を打って決めるのは、ワークスペースの窓のタブを作る行（#456 と同じ行）。
  */
 export type MachineAction =
-  | "add"
-  | "rename"
-  | "remove"
-  | "disconnect"
-  | "reconnect"
-  | "newTab";
+  "add" | "rename" | "remove" | "disconnect" | "reconnect" | "newTab";
 
 /** ダイアログの中のキーが表す動き。 */
 export type MachineKey =
