@@ -41,6 +41,8 @@ let
       ../../app/src-tauri/src/browser_favicon.js
       # infrastructure/tauri/arrowTofu.test.ts が、ページに入れるキーのスクリプトの、豆腐を止める処理を確かめる（#285）
       ../../app/src-tauri/src/browser_keys.js
+      # features/terminal/media.test.ts が、ペインに出すファイルの種類の表（FILE_MIME）が kisui の表（fileKinds）と同じことを確かめる
+      ../../server/filekind.go
     ];
   };
   shellSrc = fs.toSource {
