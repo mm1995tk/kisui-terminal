@@ -11,6 +11,7 @@ import {
   resizeKeyName,
   saveSidebarOpen,
   saveSizes,
+  rightMinWidth,
   sidebarMax,
   sizeOf,
   termMinWidth,
@@ -269,6 +270,16 @@ describe("窓の大きさで決まる上限（#501）", () => {
     assert.equal(sidebarMax(2000, 8), 2000 - termMinWidth(8));
     // 窓の幅の半分の制限は無い
     assert.ok(sidebarMax(1000, 7) > 500);
+  });
+
+  it("プロキシのパネルを開いている間は、パネルを引いたあとのターミナルが 20 列残る", () => {
+    // 20 列 152px。パネルは右の欄の 45%（いちばん狭くて 280px）
+    assert.equal(rightMinWidth(7, false), 152);
+    assert.equal(rightMinWidth(7, true), 432);
+    assert.equal(sidebarMax(2000, 7, true), 2000 - 432);
+    // 広い欄では 45% のほうが効き、残る 55% が 20 列以上になる
+    assert.ok(rightMinWidth(30, true) * 0.55 >= termMinWidth(30));
+    assert.equal(sidebarMax(300, 7, true), 200);
   });
 
   it("窓が狭くても、下限（200px）より狭くならない", () => {

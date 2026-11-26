@@ -45,14 +45,20 @@ a {
   /* サイドバーの幅。ドラッグ・リサイズモード（panes.ts）で変えた値は --sidebar-w に入る。
      上限は、右のターミナルが 20 列残る幅まで（--term-min-w は layout.tsx が字の幅から入れる。panes.ts の sidebarMax と同じ決まり）。
      窓を小さくしたときは、覚えた幅がその窓の上限に収まる */
+  --right-min-w: var(--term-min-w, 144px);
   --sidebar-w-eff: clamp(
     200px,
     var(--sidebar-w, 300px),
-    calc(100vw - var(--term-min-w, 144px))
+    calc(100vw - var(--right-min-w, 144px))
   );
   /* サイドバーとの境目のつまみ（.resizer）の幅。サイドバーと右の欄の間に隙間は空けず、つまみは境目の真ん中に置く。
      右の欄にかかる半分（2px）は端末の内側の余白（terminal.css の 4px）の上だけで、字にはかからない */
   --resizer-w: 4px;
+}
+
+/* プロキシのパネルを開いている間は、パネルの分も右の欄に残す（panes.ts の rightMinWidth） */
+.app:has(> .main[data-proxy-panel]) {
+  --right-min-w: var(--right-min-w-proxy, 424px);
 }
 
 .main {

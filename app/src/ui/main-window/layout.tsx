@@ -4,7 +4,7 @@
 // 何を出すかは決めない（決めるのは page.tsx）。
 import type { JSX } from "solid-js";
 
-import { TREE_RESERVE_HEIGHT, termMinWidth } from "./panes.ts";
+import { TREE_RESERVE_HEIGHT, rightMinWidth, termMinWidth } from "./panes.ts";
 import { termCellWidth } from "./termCell.ts";
 import "./layout.css";
 
@@ -52,6 +52,7 @@ export function MainWindowLayout(props: {
         "--sidebar-w": `${props.sidebarWidth}px`,
         "--changes-h": `${props.changesHeight}px`,
         "--term-min-w": `${termMinWidth(termCellWidth())}px`,
+        "--right-min-w-proxy": `${rightMinWidth(termCellWidth(), true)}px`,
         "--tree-reserve-h": `${TREE_RESERVE_HEIGHT}px`,
         "--tabs-h": String(props.tabsPct),
         ...(props.machineColor

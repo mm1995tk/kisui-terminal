@@ -167,7 +167,12 @@ export function createPaneResize(deps: {
     if (b === "tabs") return LIMITS.tabs[1];
     return b === "changes"
       ? changesMax(window.innerHeight)
-      : sidebarMax(window.innerWidth, termCellWidth());
+      : sidebarMax(
+          window.innerWidth,
+          termCellWidth(),
+          // プロキシのパネルを開いている間は、パネルの分も右の欄に残す（layout.css の --right-min-w）
+          !!els.app?.querySelector(".main[data-proxy-panel]"),
+        );
   }
 
   /** タブの段の高さの上限の今の値（%）。決めていなければ設定の [gui.sidebar] tabs-height、それも無ければ 40。 */

@@ -54,11 +54,37 @@ export function termMinWidth(cellWidth: number): number {
   return Math.ceil(MIN_TERM_COLS * cellWidth) + TERM_CHROME_WIDTH;
 }
 
-/** 窓の幅 windowWidth で、サイドバーの幅の上限。右のターミナルが MIN_TERM_COLS 列残る幅まで（下限より狭くはならない）。 */
-export function sidebarMax(windowWidth: number, cellWidth: number): number {
+/** プロキシのパネルを開いている間、パネルが右の欄から取る幅（content/proxy/ProxyPanel.module.css・layout.css の --proxy-panel-w: clamp(280px, 45%, 70%)）の、いちばん狭い幅（px）。 */
+export const PROXY_PANEL_MIN_WIDTH = 280;
+/** 同じく、パネルが右の欄の幅に対して取る割合（ターミナルに残る割合は 1 から引く）。 */
+export const PROXY_PANEL_RATIO = 0.45;
+
+/**
+ * 右の欄の、残したい幅（px）。ターミナルが 20 列残る幅（termMinWidth）。
+ * プロキシのパネルを開いている間は、パネルが右の欄の右を取るので、パネルを引いたあとのターミナルが 20 列残る幅にする。
+ */
+export function rightMinWidth(cellWidth: number, proxyPanel: boolean): number {
+  const term = termMinWidth(cellWidth);
+  return proxyPanel
+    ? Math.max(
+        term + PROXY_PANEL_MIN_WIDTH,
+        Math.ceil(term / (1 - PROXY_PANEL_RATIO)),
+      )
+    : term;
+}
+
+/**
+ * 窓の幅 windowWidth で、サイドバーの幅の上限。右のターミナルが MIN_TERM_COLS 列残る幅まで（下限より狭くはならない）。
+ * proxyPanel は、プロキシのパネルを開いているか。
+ */
+export function sidebarMax(
+  windowWidth: number,
+  cellWidth: number,
+  proxyPanel = false,
+): number {
   return Math.max(
     LIMITS.sidebar[0],
-    Math.floor(windowWidth - termMinWidth(cellWidth)),
+    Math.floor(windowWidth - rightMinWidth(cellWidth, proxyPanel)),
   );
 }
 
