@@ -106,6 +106,8 @@ function fakeShell(
   };
   // config.local.toml のマシン（窓で足す・名前を変える・外すと書き換わる）
   const machines: ConfigMachine[] = [];
+  // config.local.toml に書けない（読み取り専用など）ふりをするか
+  const edit = { fail: false };
   const api: ShellApi = {
     listSshHosts: async () => ["host1"],
     configGui: async () => ({
@@ -115,6 +117,8 @@ function fakeShell(
       passkeyRejected: [],
     }),
     editMachine: async (e) => {
+      if (edit.fail)
+        throw { kind: "file", detail: "/c/config.local.toml: 書けません" };
       const at = machines.findIndex((m) => m.ssh === e.ssh);
       if (e.kind === "add")
         machines.push({ ssh: e.ssh, name: e.name, local: true });
@@ -301,7 +305,7 @@ function fakeShell(
     onAskpass: async () => () => {},
     onAskpassDone: async () => () => {},
   };
-  return { api, serveOf, machines };
+  return { api, serveOf, machines, edit };
 }
 
 /** 偽のブラウザの殻。覚えているタブを返し、頼まれたことを覚える。 */
@@ -468,6 +472,7 @@ function start(opts: {
     ui,
     store,
     machines: shell.machines,
+    edit: shell.edit,
     serve: shell.serveOf,
     browserCalls: browser.calls,
     loadFailed: browser.loadFailed,
@@ -925,6 +930,63 @@ describe("機能の持ち物のつなぎ（compose.ts）", () => {
     assert.deepEqual(f.sessions.targets(), [LOCAL]);
     assert.equal(f.sessions.sessions().host1, undefined);
     assert.deepEqual(f.workspaces.focus(), { target: LOCAL, id: "a" });
+  });
+
+  it("config.local.toml に書けなければ、足す窓に理由を出して切る。名前を変える・外すも、理由を出して変えない", async () => {
+    const { f, machines, edit } = start({
+      serves: {
+        [LOCAL]: { ids: ["a"], focus: "a" },
+        host1: { ids: ["r"], focus: "r" },
+      },
+    });
+    await settle();
+    // 足す：書けなければ、窓は開いたまま理由を出し、一覧に入れず、接続を切る
+    edit.fail = true;
+    f.sessions.openAdd();
+    f.sessions.submitAdd("host1", "");
+    await settle();
+    assert.equal(f.sessions.adding(), true);
+    assert.equal(f.sessions.addPending(), null);
+    assert.equal(
+      f.sessions.addError(),
+      "Could not write config.local.toml: /c/config.local.toml: 書けません",
+    );
+    assert.deepEqual(f.sessions.targets(), [LOCAL]);
+    assert.equal(f.sessions.sessions().host1, undefined);
+    assert.deepEqual(machines, []);
+
+    // 書けるようになれば足せる
+    edit.fail = false;
+    f.sessions.submitAdd("host1", "");
+    await settle();
+    assert.equal(f.sessions.adding(), false);
+    assert.deepEqual(f.sessions.targets(), [LOCAL, "host1"]);
+
+    // 名前を変える：config.local.toml の名前が変わり、入力欄を閉じる
+    f.sessions.openRename("host1");
+    f.sessions.submitRename("host1", "ホスト");
+    await settle();
+    assert.equal(f.sessions.renaming(), null);
+    assert.deepEqual(machines, [{ ssh: "host1", name: "ホスト", local: true }]);
+    assert.equal(f.sessions.labelOf("host1"), "ホスト");
+    // 書けなければ、入力欄に理由を出し、名前は変えない
+    edit.fail = true;
+    f.sessions.openRename("host1");
+    f.sessions.submitRename("host1", "別");
+    await settle();
+    assert.equal(f.sessions.renaming(), "host1");
+    assert.match(f.sessions.renameError() ?? "", /書けません/);
+    assert.equal(f.sessions.labelOf("host1"), "ホスト");
+    f.sessions.closeRename();
+
+    // 外す：書けなければ、右下の知らせに理由を出し、一覧にも残し、接続も切らない
+    f.sessions.removeFromSidebar("host1");
+    await settle();
+    assert.equal(f.focusError()?.title, "Could not remove ホスト");
+    assert.match(f.focusError()?.error ?? "", /書けません/);
+    assert.deepEqual(f.sessions.targets(), [LOCAL, "host1"]);
+    assert.equal(f.sessions.states().host1?.kind, "connected");
+    assert.equal(machines.length, 1);
   });
 
   it("コマンドは、画面の側ですること（窓を出す・サイドバーの開閉）を CommandUi に頼む", async () => {
