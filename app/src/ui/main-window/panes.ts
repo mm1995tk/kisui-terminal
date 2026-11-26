@@ -7,6 +7,7 @@
 // - 右の欄の中の、欄どうしの境界（#18）：割合は kisui serve が分割の木に持つ（features/terminal/grid.ts）。ここは動かすキーだけを決める。
 // キー：Tab / Shift+Tab で動かす境界を替え、←→（h l）か↑↓（k j）で動かす。縦の境界は左右、横の境界は上下だけ効く。
 
+import { GAP } from "../../features/terminal/grid.ts";
 import type { KeyValueStore } from "../../features/keyValueStore.ts";
 import { shortcutCommand } from "../../features/commands/commands.ts";
 import type { KeyLike } from "../../features/commands/guiKeys.ts";
@@ -49,9 +50,16 @@ export const TERM_CHROME_WIDTH = 12;
 /** サイドバーの中で、CHANGES の一覧のほかに残す高さ（px）。タブの段・見出し・ファイルツリーの数行ぶん（ファイルツリーが最低限見える高さ）。 */
 export const TREE_RESERVE_HEIGHT = 240;
 
-/** 右のターミナルが MIN_TERM_COLS 列になる幅（px）。cellWidth は字 1 つの幅。 */
-export function termMinWidth(cellWidth: number): number {
-  return Math.ceil(MIN_TERM_COLS * cellWidth) + TERM_CHROME_WIDTH;
+/**
+ * 右のターミナルのペインが 1 つずつ MIN_TERM_COLS 列になる幅（px）。cellWidth は字 1 つの幅、columns は欄が左右に並ぶ列の数
+ * （features/terminal/grid.ts の paneColumns。分けていなければ 1）。ペインの間の隙間（GAP）も足す。
+ */
+export function termMinWidth(cellWidth: number, columns = 1): number {
+  const n = Math.max(1, columns);
+  return (
+    n * (Math.ceil(MIN_TERM_COLS * cellWidth) + TERM_CHROME_WIDTH) +
+    (n - 1) * GAP
+  );
 }
 
 /** プロキシのパネルを開いている間、パネルが右の欄から取る幅（content/proxy/ProxyPanel.module.css・layout.css の --proxy-panel-w: clamp(280px, 45%, 70%)）の、いちばん狭い幅（px）。 */
@@ -60,11 +68,15 @@ export const PROXY_PANEL_MIN_WIDTH = 280;
 export const PROXY_PANEL_RATIO = 0.45;
 
 /**
- * 右の欄の、残したい幅（px）。ターミナルが 20 列残る幅（termMinWidth）。
+ * 右の欄の、残したい幅（px）。ペイン 1 つずつが 20 列残る幅（termMinWidth）。
  * プロキシのパネルを開いている間は、パネルが右の欄の右を取るので、パネルを引いたあとのターミナルが 20 列残る幅にする。
  */
-export function rightMinWidth(cellWidth: number, proxyPanel: boolean): number {
-  const term = termMinWidth(cellWidth);
+export function rightMinWidth(
+  cellWidth: number,
+  proxyPanel: boolean,
+  columns = 1,
+): number {
+  const term = termMinWidth(cellWidth, columns);
   return proxyPanel
     ? Math.max(
         term + PROXY_PANEL_MIN_WIDTH,
@@ -75,16 +87,17 @@ export function rightMinWidth(cellWidth: number, proxyPanel: boolean): number {
 
 /**
  * 窓の幅 windowWidth で、サイドバーの幅の上限。右のターミナルが MIN_TERM_COLS 列残る幅まで（下限より狭くはならない）。
- * proxyPanel は、プロキシのパネルを開いているか。
+ * proxyPanel は、プロキシのパネルを開いているか。columns は、欄が左右に並ぶ列の数（ペイン 1 つずつで 20 列残す）。
  */
 export function sidebarMax(
   windowWidth: number,
   cellWidth: number,
   proxyPanel = false,
+  columns = 1,
 ): number {
   return Math.max(
     LIMITS.sidebar[0],
-    Math.floor(windowWidth - rightMinWidth(cellWidth, proxyPanel)),
+    Math.floor(windowWidth - rightMinWidth(cellWidth, proxyPanel, columns)),
   );
 }
 

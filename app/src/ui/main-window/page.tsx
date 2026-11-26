@@ -56,6 +56,7 @@ import { copyAndNotify } from "./notifications/copiedNotice.ts";
 import { Notices } from "./notifications/Notices.tsx";
 import { createNotices } from "./notifications/notices.ts";
 import { UpdateBar } from "./notifications/UpdateBar.tsx";
+import { paneColumns } from "../../features/terminal/grid.ts";
 import { createPaneResize } from "./paneResize.ts";
 import { sizeOf } from "./panes.ts";
 import { ConfigError } from "./sessions/ConfigError.tsx";
@@ -239,6 +240,9 @@ function MainWindow(props: {
 
   // ---- この画面の表示用の状態（境界の大きさ・キーの行き先・知らせ・キーの入力）----
   const focusTerminal = () => focusUi.focusTerminal();
+  // ペインが左右に並ぶ列の数（隠している間は 1 つだけ出る）
+  const termColumns = () =>
+    terminals.zoomed() ? 1 : paneColumns(terminals.termLayout());
   const resize = createPaneResize({
     store: ports.store,
     tabsHeight: props.tabsHeight,
@@ -246,6 +250,7 @@ function MainWindow(props: {
     focus: workspaces.focus,
     rows: workspaces.rows,
     termGroup: terminals.termGroup,
+    termColumns,
     termBars: terminals.termBars,
     changesOf: changes.changesOf,
     walking: workspaces.walking,
@@ -297,6 +302,7 @@ function MainWindow(props: {
       sidebarOpen={resize.sidebarOpen()}
       sidebarWidth={sizeOf(resize.sizes(), "sidebar")}
       changesHeight={sizeOf(resize.sizes(), "changes")}
+      termColumns={termColumns()}
       tabsPct={resize.tabsPct()}
       litSidebar={resize.lit("sidebar")}
       litChanges={resize.lit("changes")}

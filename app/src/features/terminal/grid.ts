@@ -247,6 +247,14 @@ function extent(
   return b === undefined ? undefined : a + b;
 }
 
+/** 欄が左右に並ぶ列の数（いちばん多く横に並ぶ欄の数）。分けていなければ 1。 */
+export function paneColumns(n: PaneLayout | undefined): number {
+  if (!n || "pane" in n) return 1;
+  const a = paneColumns(n.a);
+  const b = paneColumns(n.b);
+  return n.dir === "right" ? a + b : Math.max(a, b);
+}
+
 function minExtent(n: PaneLayout, horiz: boolean): number {
   if ("pane" in n) return horiz ? MIN_COLS : MIN_ROWS;
   const a = minExtent(n.a, horiz);

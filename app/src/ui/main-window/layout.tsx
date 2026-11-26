@@ -26,6 +26,8 @@ export function MainWindowLayout(props: {
   sidebarWidth: number;
   /** CHANGES の一覧の高さ（px） */
   changesHeight: number;
+  /** ペインが左右に並ぶ列の数（サイドバーの幅の上限で、ペイン 1 つずつに 20 列残す） */
+  termColumns: number;
   /** タブの段の高さの上限（サイドバーの高さに対する %） */
   tabsPct: number;
   /** サイドバーの境界を光らせるか */
@@ -57,10 +59,10 @@ export function MainWindowLayout(props: {
       style={{
         "--sidebar-w": `${props.sidebarWidth}px`,
         "--changes-h": `${props.changesHeight}px`,
-        "--term-min-w": `${termMinWidth(termCellWidth())}px`,
+        "--term-min-w": `${termMinWidth(termCellWidth(), props.termColumns)}px`,
         "--proxy-panel-min-w": `${PROXY_PANEL_MIN_WIDTH}px`,
         "--proxy-panel-ratio": String(PROXY_PANEL_RATIO),
-        "--right-min-w-proxy": `${rightMinWidth(termCellWidth(), true)}px`,
+        "--right-min-w-proxy": `${rightMinWidth(termCellWidth(), true, props.termColumns)}px`,
         "--tree-reserve-h": `${TREE_RESERVE_HEIGHT}px`,
         "--tabs-h": String(props.tabsPct),
         ...(props.machineColor

@@ -10,6 +10,7 @@ import {
   layoutRects,
   limitedRatio,
   neighbor,
+  paneColumns,
   ratioLimits,
   reconcileLayout,
   withRatio,
@@ -177,5 +178,23 @@ describe("欄どうしの境界（#18）", () => {
     assert.equal(clampRatio(0.12345, 0.1, 0.9), 0.123);
     assert.equal(clampRatio(0, 0.1234, 0.9), 0.124);
     assert.equal(clampRatio(1, 0.1, 0.8765), 0.876);
+  });
+});
+
+describe("paneColumns", () => {
+  it("欄が左右に並ぶ列の数（いちばん多く横に並ぶ欄の数）を数える", () => {
+    assert.equal(paneColumns(undefined), 1);
+    assert.equal(paneColumns(leaf("a")), 1);
+    assert.equal(paneColumns(right(leaf("a"), leaf("b"))), 2);
+    assert.equal(paneColumns(down(leaf("a"), leaf("b"))), 1);
+    // 上は 3 列、下は 1 列：多いほう
+    assert.equal(
+      paneColumns(
+        down(right(leaf("a"), right(leaf("b"), leaf("c"))), leaf("d")),
+      ),
+      3,
+    );
+    // 左の欄の右に、上下に分けた 2 つ：2 列
+    assert.equal(paneColumns(right(leaf("a"), down(leaf("b"), leaf("c")))), 2);
   });
 });

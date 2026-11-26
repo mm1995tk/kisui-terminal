@@ -60,6 +60,8 @@ export function createPaneResize(deps: {
   dbShown: () => boolean;
   /** フォーカスしているワークスペースのターミナル */
   termGroup: () => TermGroup | undefined;
+  /** ペインが左右に並ぶ列の数（分けていなければ 1。隠している間も 1）。サイドバーの幅の上限で、ペイン 1 つずつに 20 列残すのに使う */
+  termColumns: () => number;
   /** ペインどうしの境界（隠している間は無い） */
   termBars: () => readonly Bar[];
   /** ワークスペースの CHANGES の一覧（出していなければ undefined） */
@@ -172,6 +174,7 @@ export function createPaneResize(deps: {
           termCellWidth(),
           // プロキシのパネルを開いている間は、パネルの分も右の欄に残す（layout.css の --right-min-w）
           !!els.app?.querySelector(".main[data-proxy-panel]"),
+          deps.termColumns(),
         );
   }
 

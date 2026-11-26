@@ -282,6 +282,19 @@ describe("窓の大きさで決まる上限（#501）", () => {
     assert.equal(sidebarMax(300, 7, true), 200);
   });
 
+  it("右の欄を左右に分けているときは、ペイン 1 つずつに 20 列残す", () => {
+    // 1 列は 152px。2 列は 152 × 2 に、ペインの間の隙間（6px）を足す
+    assert.equal(termMinWidth(7, 1), 152);
+    assert.equal(termMinWidth(7, 2), 152 * 2 + 6);
+    assert.equal(termMinWidth(7, 3), 152 * 3 + 12);
+    assert.equal(sidebarMax(2000, 7, false, 2), 2000 - (152 * 2 + 6));
+    assert.ok(sidebarMax(2000, 7, false, 3) < sidebarMax(2000, 7, false, 2));
+    // プロキシのパネルの分は、今の決まりのまま足す（パネルは 280px 以上で、残るのは右の欄の 55% 以下）
+    assert.equal(rightMinWidth(7, true, 2), 152 * 2 + 6 + 280);
+    assert.equal(rightMinWidth(7, true, 4), Math.ceil((152 * 4 + 18) / 0.55));
+    assert.equal(rightMinWidth(7, true, 1), 432);
+  });
+
   it("窓が狭くても、下限（200px）より狭くならない", () => {
     assert.equal(sidebarMax(300, 7), 200);
     assert.equal(sidebarMax(0, 7), 200);
