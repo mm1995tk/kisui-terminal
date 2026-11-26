@@ -14,6 +14,7 @@ import { createBrowserTabs } from "./browser/tabsStore.ts";
 import { createChanges } from "./changes/controller.ts";
 import { createCommandRunner, type CommandUi } from "./commands/run.ts";
 import { createDbTabs } from "./db/controller.ts";
+import type { DbConfigFiles } from "./db/connectionForm.ts";
 import type { SaveTextFile } from "./db/export.ts";
 import { createFileTree } from "./file-tree/controller.ts";
 import type { KeyValueStore } from "./keyValueStore.ts";
@@ -56,6 +57,8 @@ export interface FeaturePorts {
   updates: UpdatesOs;
   /** DB のタブの結果の、ファイルへの書き出し（保存のダイアログ。#349） */
   exportFile: SaveTextFile;
+  /** 手元の PC の config.local.toml の DB の接続を読む・書く（#486） */
+  dbConfig: DbConfigFiles;
 }
 
 /** 機能が、画面の側に頼むこと（キーを向ける・スクロールを戻す・短い知らせを出す）。 */
@@ -182,6 +185,7 @@ export function createFeatures(deps: {
     saveFile: ports.exportFile,
     copyToClipboard: (text) => ui.copyToClipboard(text),
     showToast: (text) => ui.showToast(text),
+    configDb: ports.dbConfig,
   });
   const openTab = createPaneOpen({
     browser,

@@ -207,7 +207,7 @@ pub fn valid_shell(s: &str) -> bool {
 const LOCAL_LABELS: [&str; 2] = ["Local", "ローカル"];
 
 /// 設定のフォルダで読むファイル。重ねる順（後のものが勝つ）。
-const FILES: [&str; 2] = ["config.toml", "config.local.toml"];
+pub(crate) const FILES: [&str; 2] = ["config.toml", "config.local.toml"];
 
 /// 設定の置き場所の土台（`$XDG_CONFIG_HOME` が絶対パスならそれ、なければ `~/.config`）。
 fn base_dir(config_home: Option<&Path>, home: Option<&Path>) -> Option<PathBuf> {
@@ -393,7 +393,7 @@ fn load(path: &Path) -> Result<Parsed, String> {
 }
 
 /// ファイルの中身。無ければ None。
-fn read_text(path: &Path) -> Result<Option<String>, String> {
+pub(crate) fn read_text(path: &Path) -> Result<Option<String>, String> {
     match fs::read(path) {
         Ok(b) => String::from_utf8(b)
             .map(Some)

@@ -13,6 +13,7 @@ mod browser_proxy;
 mod clipboard_history;
 mod clipboard_popup;
 mod config;
+mod config_db;
 mod config_list;
 mod config_terminal;
 mod connection;
@@ -73,6 +74,27 @@ fn config_machine_edit(
         config_list::EditError::File("設定のフォルダが分かりません（$HOME がありません）".into())
     })?;
     config_list::edit_machine(&dir, edit)
+}
+
+/// 窓が知る、手元の DB の接続（`config.local.toml` の `[[db.connections]]` と、`config.toml` の接続の名前）。config_db.rs。
+#[tauri::command(async)]
+fn config_db_connections() -> Result<config_db::DbConnections, config_list::EditError> {
+    let dir = config::default_dir().ok_or_else(|| {
+        config_list::EditError::File("設定のフォルダが分かりません（$HOME がありません）".into())
+    })?;
+    config_db::list(&dir)
+}
+
+/// 窓で手元の DB の接続を足す・直す・消す。`config.local.toml` の `[[db.connections]]` に書き（`config.toml` には書かない。パスワードは書かない）、
+/// 書いたあとの `config_db_connections` と同じ形を返す。書けなければ `{ kind, detail }`（config_list.rs の EditError）。
+#[tauri::command(async)]
+fn config_db_connection_edit(
+    edit: config_db::DbEdit,
+) -> Result<config_db::DbConnections, config_list::EditError> {
+    let dir = config::default_dir().ok_or_else(|| {
+        config_list::EditError::File("設定のフォルダが分かりません（$HOME がありません）".into())
+    })?;
+    config_db::edit(&dir, edit)
 }
 
 /// 窓で、手元のマシンの新しいターミナルが始まるフォルダとシェルを変える。`config.local.toml` の `[server]` に書き（無い項目は消す）、
@@ -240,6 +262,8 @@ fn main() {
             config_gui,
             config_machine_edit,
             config_local_terminal_edit,
+            config_db_connections,
+            config_db_connection_edit,
             connect,
             send,
             disconnect,

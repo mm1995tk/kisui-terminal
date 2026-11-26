@@ -1,0 +1,144 @@
+[
+  {
+    "entry": "name = \"a\"\nkind = \"postgres\"\nuser = \"u\"\n",
+    "problems": []
+  },
+  {
+    "entry": "name = \"a\"\nkind = \"mysql\"\nuser = \"u\"\nhost = \"db.example\"\nport = 3307\ndatabase = \"shop\"\nread-only = true\ntls = \"verify\"\ntls-ca = \"~/ca.pem\"\n",
+    "problems": []
+  },
+  {
+    "entry": "",
+    "problems": [
+      ["name", "config.err.required"],
+      ["kind", "config.err.required"],
+      ["user", "config.err.required"]
+    ]
+  },
+  {
+    "entry": "name = \"  \"\nkind = \"postgres\"\nuser = \"u\"\n",
+    "problems": [["name", "config.err.required"]]
+  },
+  {
+    "entry": "name = \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"\nkind = \"postgres\"\nuser = \"u\"\n",
+    "problems": [["name", "config.err.toolong", "100"]]
+  },
+  {
+    "entry": "name = \"ああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああああ\"\nkind = \"postgres\"\nuser = \"u\"\n",
+    "problems": []
+  },
+  {
+    "entry": "name = \"a\\tb\"\nkind = \"postgres\"\nuser = \"u\"\n",
+    "problems": [["name", "config.err.control"]]
+  },
+  {
+    "entry": "name = 1\nkind = \"postgres\"\nuser = \"u\"\n",
+    "problems": [["name", "config.err.string"]]
+  },
+  {
+    "entry": "name = \"a\"\nkind = \"sqlite\"\nuser = \"u\"\n",
+    "problems": [["kind", "config.err.oneof", "postgres, mysql"]]
+  },
+  {
+    "entry": "name = \"a\"\nkind = \"postgres\"\nuser = \"u\"\nport = 0\n",
+    "problems": [["port", "config.err.port"]]
+  },
+  {
+    "entry": "name = \"a\"\nkind = \"postgres\"\nuser = \"u\"\nport = 65536\n",
+    "problems": [["port", "config.err.port"]]
+  },
+  {
+    "entry": "name = \"a\"\nkind = \"postgres\"\nuser = \"u\"\nport = 65535\n",
+    "problems": []
+  },
+  {
+    "entry": "name = \"a\"\nkind = \"postgres\"\nuser = \"u\"\nport = \"5432\"\n",
+    "problems": [["port", "config.err.int"]]
+  },
+  {
+    "entry": "name = \"a\"\nkind = \"postgres\"\nuser = \"u\"\nport = 5432.0\n",
+    "problems": []
+  },
+  {
+    "entry": "name = \"a\"\nkind = \"postgres\"\nuser = \"u\"\nport = 5.5\n",
+    "problems": [["port", "config.err.int"]]
+  },
+  {
+    "entry": "name = \"a\"\nkind = \"postgres\"\nuser = \"\"\n",
+    "problems": [["user", "config.err.required"]]
+  },
+  {
+    "entry": "name = \"a\"\nkind = \"postgres\"\nuser = 1\n",
+    "problems": [["user", "config.err.string"]]
+  },
+  {
+    "entry": "name = \"a\"\nkind = \"postgres\"\nuser = \"u\"\nhost = \"\"\n",
+    "problems": []
+  },
+  {
+    "entry": "name = \"a\"\nkind = \"postgres\"\nuser = \"u\"\nhost = \"/var/run/postgresql\"\ntls = \"require\"\n",
+    "problems": [["tls", "config.err.tlssocket", "prefer, disable"]]
+  },
+  {
+    "entry": "name = \"a\"\nkind = \"postgres\"\nuser = \"u\"\nhost = \"/var/run/postgresql\"\ntls = \"disable\"\n",
+    "problems": []
+  },
+  {
+    "entry": "name = \"a\"\nkind = \"postgres\"\nuser = \"u\"\nhost = \"/s\"\ntls = \"verify\"\ntls-ca = \"/ca.pem\"\n",
+    "problems": [["tls", "config.err.tlssocket", "prefer, disable"]]
+  },
+  {
+    "entry": "name = \"a\"\nkind = \"postgres\"\nuser = \"u\"\ntls = \"strict\"\n",
+    "problems": [
+      ["tls", "config.err.oneof", "prefer, disable, require, verify"]
+    ]
+  },
+  {
+    "entry": "name = \"a\"\nkind = \"postgres\"\nuser = \"u\"\ntls = \"strict\"\ntls-ca = \"/ca.pem\"\n",
+    "problems": [
+      ["tls", "config.err.oneof", "prefer, disable, require, verify"]
+    ]
+  },
+  {
+    "entry": "name = \"a\"\nkind = \"postgres\"\nuser = \"u\"\ntls-ca = \"certs/ca.pem\"\ntls = \"verify\"\n",
+    "problems": [["tls-ca", "config.err.abspath"]]
+  },
+  {
+    "entry": "name = \"a\"\nkind = \"postgres\"\nuser = \"u\"\ntls-ca = \"/etc/ca.pem\"\n",
+    "problems": [["tls-ca", "config.err.tlsca", "verify"]]
+  },
+  {
+    "entry": "name = \"a\"\nkind = \"postgres\"\nuser = \"u\"\ntls-ca = \"/etc/ca.pem\"\ntls = \"require\"\n",
+    "problems": [["tls-ca", "config.err.tlsca", "verify"]]
+  },
+  {
+    "entry": "name = \"a\"\nkind = \"postgres\"\nuser = \"u\"\npassword = \"hunter2\"\n",
+    "problems": [["password", "config.err.password"]]
+  },
+  {
+    "entry": "name = \"a\"\nkind = \"postgres\"\nuser = \"u\"\npasword = \"hunter2\"\n",
+    "problems": [
+      [
+        "pasword",
+        "config.err.unknown",
+        "name, kind, host, port, user, database, read-only, tls, tls-ca, human-permission, agent-permission, variants"
+      ]
+    ]
+  },
+  {
+    "entry": "name = \"a\"\nkind = \"postgres\"\nuser = \"u\"\nread-only = \"yes\"\n",
+    "problems": [["read-only", "config.err.bool"]]
+  },
+  {
+    "entry": "name = \"a\"\nkind = \"postgres\"\nuser = \"u\"\ndatabase = \"a\\u0001\"\n",
+    "problems": [["database", "config.err.control"]]
+  },
+  {
+    "entry": "name = \"a\"\nkind = \"postgres\"\nuser = \"u\"\ndatabase = \"\"\n",
+    "problems": []
+  },
+  {
+    "entry": "name = \"a\"\nkind = \"postgres\"\nuser = \"u\"\nhost = \"db\\u007f\"\n",
+    "problems": [["host", "config.err.control"]]
+  }
+]

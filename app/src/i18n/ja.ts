@@ -171,6 +171,13 @@ export const ja: Record<Key, string> = {
     "一覧から 1 つ選ぶ窓（マシン・ワークスペース・種類・キャラクター）の中で効くキーです。",
   "place.picker.choose": "Choose the selected row",
   "place.picker.cancel": "Cancel without choosing",
+  "place.dbPicker.title": "DB connection window",
+  "place.dbPicker.lead":
+    "つないでいる全部のマシンの DB の接続を並べる窓のキー。足す・直す・消すは、この PC の config.local.toml に書きます。",
+  "place.dbPicker.open": "Open a DB tab on the selected connection",
+  "place.dbPicker.add": "Add a connection to this PC",
+  "place.dbPicker.edit": "Edit the selected connection",
+  "place.dbPicker.remove": "Remove the selected connection",
   "place.switcher.title": "Workspace switcher: workspace column",
   "place.switcher.lead":
     "左のワークスペースの列にキーがある間に効くキーです。行の左端のつかむ所をドラッグしても並べ替えられます。",
@@ -590,6 +597,11 @@ export const ja: Record<Key, string> = {
   "dbWindow.keys.elevateEnd": "end elevation",
   "dbWindow.foot.selected": "選んでいるタブ",
   "dbWindow.foot.tab": "この DB のタブ",
+  "dbPicker.keys.add": "add",
+  "dbPicker.keys.edit": "edit",
+  "dbPicker.keys.remove": "remove",
+  "dbPicker.foot.selected": "選んでいる接続",
+  "dbPicker.foot.list": "この PC の接続",
   "dbWindow.offline": "つながっていません",
   "dbWindow.running": "SQL を実行しています",
   "dbWindow.treeLoading": "スキーマの木を読み込んでいます…",
@@ -884,9 +896,71 @@ export const ja: Record<Key, string> = {
   "db.picker.emptyHint":
     "接続するマシンの config.toml の [[db.connections]] に書きます。",
   "db.picker.readOnly": "読み取り専用",
-  "db.picker.open": "open",
   "db.picker.problem": "{machine}：{problem}",
   "db.picker.failed": "{machine}：接続の一覧を取れませんでした（{error}）",
+  "dbConn.title.add": "Add a connection",
+  "dbConn.title.edit": "Edit connection",
+  "dbConn.title.remove": "Remove connection",
+  "dbConn.save": "Save",
+  "dbConn.remove": "Remove",
+  "dbConn.lead":
+    "この PC の config.local.toml に書きます（config.toml には書きません）。パスワードは書きません。つなぐときに聞きます。環境の変種と権限は、設定ファイルに書きます。",
+  "dbConn.removeLead":
+    "{name} を、この PC の config.local.toml から消しますか。この接続で開いている DB のタブは、SQL を実行できなくなります。",
+  "dbConn.field.name": "名前",
+  "dbConn.field.kind": "種類",
+  "dbConn.field.host": "ホスト",
+  "dbConn.field.port": "ポート",
+  "dbConn.field.user": "ユーザー",
+  "dbConn.field.database": "データベース",
+  "dbConn.field.tls": "TLS",
+  "dbConn.field.tlsCa": "証明書の認証局（PEM のファイル）",
+  "dbConn.field.readOnly":
+    "読み取り専用：すべての文を読み取り専用のトランザクションで実行する",
+  "dbConn.placeholder.host": "localhost か、/run/postgresql のようなソケット",
+  "dbConn.placeholder.port": "種類の既定（5432 / 3306）",
+  "dbConn.placeholder.database": "DB の既定",
+  "dbConn.placeholder.tlsCa": "絶対パスか ~/…。空なら OS の認証局",
+  "dbConn.tls.prefer": "prefer：DB が出せば TLS。証明書は確かめない",
+  "dbConn.tls.disable": "disable：TLS を使わない",
+  "dbConn.tls.require": "require：いつも TLS。証明書は確かめない",
+  "dbConn.tls.verify": "verify：いつも TLS。証明書を確かめる",
+  "dbConn.note.fileOnly":
+    "この接続には、窓で直さないキー（環境の変種・権限）があります。config.local.toml で直してください（消すことはここでできます）。",
+  "dbConn.note.fixed":
+    "この接続は config.toml に書いてあり、窓からは変えません。config.toml で直してください。",
+  "dbConn.note.remote":
+    "この接続は、そのマシンの設定にあります。窓が書くのはこの PC の設定だけです。そのマシンの config.local.toml で直してください。",
+  "dbConn.note.unknown":
+    "この PC の設定を読めなかったので、この接続はここでは変えられません。",
+  "dbConn.note.listFailed": "この PC の設定を読めませんでした：{error}",
+  "dbConn.err.problem": "{key}：{why}",
+  "dbConn.err.required": "省けません",
+  "dbConn.err.string": "文字列で書いてください",
+  "dbConn.err.int": "整数で書いてください",
+  "dbConn.err.bool": "true か false で書いてください",
+  "dbConn.err.control": "制御文字は使えません",
+  "dbConn.err.toolong": "{arg} 文字までで書いてください",
+  "dbConn.err.port": "1 から 65535 までで書いてください",
+  "dbConn.err.oneof":
+    "値が正しくないか、この版の kisui では使えない値です。次のどれかで書いてください: {arg}",
+  "dbConn.err.abspath": "絶対パスか、~ で始めて書いてください",
+  "dbConn.err.tlssocket":
+    "Unix ソケット（/ で始まる host）では TLS を使わないので、次のどれかで書いてください: {arg}",
+  "dbConn.err.tlsca":
+    "証明書を確かめるときにだけ使います。TLS の「{arg}」と一緒に入れてください",
+  "dbConn.err.password":
+    "パスワードは設定に書きません。config.local.toml でこのキーを消し、パスワードは聞かれたときに入力してください",
+  "dbConn.err.unknown": "接続のキーではありません。使えるキー: {arg}",
+  "dbConn.err.fileonly":
+    "窓では直さないキーです。この接続は config.local.toml で直してください",
+  "dbConn.err.hosturl":
+    "ホスト名・アドレス・ソケットだけを書きます。URL や user@host は書けません（中のパスワードがファイルに書かれるため）",
+  "dbConn.err.exists": "{name} は config.local.toml にもうあります",
+  "dbConn.err.missing": "{name} は config.local.toml にありません",
+  "dbConn.err.fixed":
+    "{name} は config.toml の接続で、窓からは変えません。ほかの名前にするか、config.toml で直してください",
+  "dbConn.err.failed": "config.local.toml に書けませんでした：{error}",
   "db.err.noConnection": "この接続は、そのマシンの設定にもうありません。",
   "db.err.busy":
     "このマシンで実行中の SQL が多すぎます。どれかが終わってから、もう一度実行してください。",

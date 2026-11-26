@@ -469,6 +469,10 @@ function start(opts: {
       frameUrl: (id) => id,
     },
     exportFile: async () => null,
+    dbConfig: {
+      list: async () => ({ local: [], fixed: [] }),
+      edit: async () => ({ local: [], fixed: [] }),
+    },
     updates: {
       check: async () => null,
       checkNow: async () => ({ status: "latest", current: "1" }) as never,

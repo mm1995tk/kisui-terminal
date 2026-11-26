@@ -5,6 +5,7 @@ import { changesKey } from "../changes/keys.ts";
 import { bookmarkKey } from "../browser/bookmarks.ts";
 import { historyKey } from "../clipboard/history.ts";
 import { machineKey, pickerKey } from "../sessions/machineList.ts";
+import { dbPickerKey } from "../db/pickerKeys.ts";
 import {
   basicHints,
   isHelpKey,
@@ -90,6 +91,12 @@ describe("場所のキーの表は、その場所の判定と合っている", (
     for (const r of placeKeys().picker.rows)
       for (const p of r.probes)
         assert.notEqual(pickerKey(ev(p)), null, `${r.keys}: ${p}`);
+  });
+
+  it("DB の接続を選ぶ窓：表のキーは、どれも判定が受ける", () => {
+    for (const r of placeKeys().dbPicker.rows)
+      for (const p of r.probes)
+        assert.notEqual(dbPickerKey(ev(p)), null, `${r.keys}: ${p}`);
   });
 
   it("ブックマークの一覧・クリップボードの履歴：表のキーは、絞り込みが空のとき、どれも判定が受ける", () => {
@@ -260,6 +267,7 @@ describe("isWindowPlace（`?` の一覧に、その窓のキーだけを出す�
       "machines",
       "bookmarks",
       "picker",
+      "dbPicker",
       "switcher",
       "switcherTabs",
       "termWindow",
