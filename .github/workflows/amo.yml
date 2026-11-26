@@ -55,10 +55,16 @@ jobs:
       - name: manifest の版と AMO で公開中の版を比べる
         id: ver
         run: |
-          version=$(jq -r .version extension/manifest.json)
-          id=$(jq -r .browser_specific_settings.gecko.id extension/manifest.json)
-          # 公開の API（認証は要らない）。審査待ちの版は current_version に出ない
-          current=$(curl -fsS --retry 3 "https://addons.mozilla.org/api/v5/addons/addon/$id/" | jq -r .current_version.version)
+          set -o pipefail
+          version=$(jq -er .version extension/manifest.json)
+          id=$(jq -er .browser_specific_settings.gecko.id extension/manifest.json)
+          # 公開の API（認証は要らない）。審査待ちの版は current_version に出ない。
+          # 聞けなかったとき（障害・404・公開中の版が無い）は、出さずに落とす（版が同じでも違うと見て、キーを読まないように）
+          if ! current=$(curl -fsS --retry 3 "https://addons.mozilla.org/api/v5/addons/addon/$id/" | jq -er .current_version.version) \
+            || [ -z "$current" ]; then
+            echo "::error::AMO で公開中の版を取れませんでした（https://addons.mozilla.org/api/v5/addons/addon/$id/ の current_version.version）"
+            exit 1
+          fi
           echo "manifest: $version / AMO: $current"
           echo "version=$version" >> "$GITHUB_OUTPUT"
           if [ "$version" = "$current" ]; then
