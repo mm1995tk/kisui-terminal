@@ -23,7 +23,7 @@ export interface MachineRow {
   terminalTabs: number;
   /** 名前を変えたり外したり切ったりできるか（「ローカル」はできない） */
   removable: boolean;
-  /** 設定ファイルで決めたマシンか。外せず、名前も変えられない */
+  /** config.toml にだけ書いたマシンか。窓からは外せず、名前も変えられない */
   fixed: boolean;
   /** 接続（セッション）があるか。切れるのは、あるときだけ */
   hasSession: boolean;

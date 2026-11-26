@@ -1,15 +1,15 @@
-// 足したマシンの記録。サイドバーに出るのは「ローカル」と、ここに記録したマシンだけ。
-// 記録の形は、{ target, name? } の配列を JSON にしたもの（target は ssh の行き先。name は付けた名前）。
-// 置き場所は webview の localStorage（Tauri のアプリごとに残る。消えたらマシンを足し直す）。
+// 窓のマシンの一覧と、その決まり。サイドバーに出るのは「ローカル」と、設定ファイルの [[gui.machines]] のマシンだけ。
+// 一覧を持つのは設定ファイル（config.toml に config.local.toml を重ねたもの）で、窓で足す・名前を変える・外すと、
+// 殻が config.local.toml を書き換える（config_list.rs。config.toml には書かない）。ここは、書く前の確かめと、一覧の組み立てを持つ。
 //
-// 以前は「前回ワークスペースがあったマシン」だけを記録していた（キー shijimi-editor.lastTargets）。
-// 足したマシンの記録がまだ無いときだけ、その記録を引き継ぐ。
+// 前の版は、窓で足したマシンを webview の localStorage（キー shijimi-editor.machines。その前は shijimi-editor.lastTargets）に
+// 記録していた。その記録は、この版で最初に起動したときに config.local.toml に移す（moveRecords.ts）。ここの loadMachines は、そのときだけ読む。
 
 import type { KeyValueStore } from "../keyValueStore.ts";
 import { LOCAL } from "./shell.ts";
 import { T, inAllLangs } from "../../i18n/index.ts";
 
-/** 設定ファイルで決めたマシンを変えようとしたときの理由。 */
+/** config.toml にだけ書いたマシンを変えようとしたときの理由。 */
 export const fixedReason = (): string => T("machine.fixedReason");
 
 /** 「ローカル」の表示名。 */
@@ -18,19 +18,19 @@ export const localLabel = (): string => T("machine.local");
 /** 「ローカル」の名前（どの言語のものも。言語を切り替えたあとで、名前が重ならないようにする）。 */
 const localLabels = (): string[] => inAllLangs("machine.local");
 
-/** 足したマシン 1 台。 */
+/** 窓のマシン 1 台。 */
 export interface Machine {
   /** ssh の行き先（~/.ssh/config のホスト名など） */
   target: string;
   /** 付けた名前。無ければ target を出す */
   name?: string;
-  /** 設定ファイルで決めたマシン。外せず、名前も変えられない（保存もしない） */
+  /** config.toml にだけ書いたマシン。窓からは外せず、名前も変えられない（窓は config.toml に書かない） */
   fixed?: boolean;
 }
 
-/** localStorage のキー。値は Machine の JSON 配列。 */
+/** 前の版の、窓で足したマシンの記録（localStorage のキー。値は Machine の JSON 配列）。config.local.toml に移すときだけ読む。 */
 export const MACHINES_KEY = "shijimi-editor.machines";
-/** 以前の記録のキー（つなぎ先の JSON 配列）。引き継ぐときだけ読む。 */
+/** もっと前の版の記録のキー（つなぎ先の JSON 配列）。MACHINES_KEY が無いときだけ、移すために読む。 */
 export const LEGACY_KEY = "shijimi-editor.lastTargets";
 
 /** ssh の引数に渡してよい行き先か（殻の valid_host と同じ決まり）。理由を返す。よければ undefined。 */
@@ -69,7 +69,7 @@ function parseList(v: unknown[]): Machine[] {
   return out;
 }
 
-/** 記録を読む。無い・壊れている・読めないときは空（以前の記録があれば、そこから引き継ぐ）。 */
+/** 前の版の記録を読む。無い・壊れている・読めないときは空（MACHINES_KEY が無ければ、LEGACY_KEY の記録を読む）。 */
 export function loadMachines(store: KeyValueStore | undefined): Machine[] {
   try {
     const cur = parse(store?.getItem(MACHINES_KEY));
@@ -89,18 +89,6 @@ export function loadMachines(store: KeyValueStore | undefined): Machine[] {
     // 読めなければ空
   }
   return [];
-}
-
-/** 記録を書く。保存できなくても動く（次の起動で消えるだけ）。 */
-export function saveMachines(
-  store: KeyValueStore | undefined,
-  machines: Machine[],
-): void {
-  try {
-    store?.setItem(MACHINES_KEY, JSON.stringify(machines));
-  } catch {
-    // 保存できなくても動く
-  }
 }
 
 /** 名前の前後の空白を除く。空なら名前なし。 */
@@ -159,11 +147,6 @@ export function renameMachine(
   };
 }
 
-/** マシンを外す。 */
-export function removeMachine(list: Machine[], target: string): Machine[] {
-  return list.filter((m) => m.target !== target || m.fixed);
-}
-
 /** サイドバーに出す名前。付けた名前、無ければ ssh の行き先。「ローカル」はそのまま。 */
 export function labelOf(list: Machine[], target: string): string {
   if (target === LOCAL) return localLabel();
@@ -194,43 +177,43 @@ export interface ConfigMachine {
   local?: boolean;
 }
 
-/**
- * サイドバーに出すマシンの一覧。設定ファイルのマシン（fixed）が先で、そのあとに GUI で足したマシン。
- * GUI で足したマシンのうち、設定ファイルと同じ ssh の行き先のものは、設定ファイルのほうを出す。
- * 名前が設定ファイルのマシンと重なる足したマシンは、表示の取り違えを避けるため出さない（記録は消さない）。
- */
-export function mergeMachines(
-  config: ConfigMachine[],
-  saved: Machine[],
-): Machine[] {
-  const fixed: Machine[] = config.map((c) =>
-    c.name
-      ? { target: c.ssh, name: c.name, fixed: true }
-      : { target: c.ssh, fixed: true },
-  );
-  const names = new Set(fixed.map((m) => m.name ?? m.target));
-  const rest = saved.filter(
-    (m) =>
-      !fixed.some((f) => f.target === m.target) &&
-      !names.has(m.name ?? m.target),
-  );
-  return [...fixed, ...rest];
+/** サイドバーに出すマシンの一覧（設定ファイルの順）。config.toml にだけ書いたマシンは fixed（窓から変えない）。 */
+export function fromConfig(config: ConfigMachine[]): Machine[] {
+  return config.map((c) => {
+    const m: Machine = c.name
+      ? { target: c.ssh, name: c.name }
+      : { target: c.ssh };
+    return c.local ? m : { ...m, fixed: true };
+  });
 }
 
-/**
- * localStorage に書く記録。設定ファイルのマシンは書かない（設定ファイルが持つ）。
- * 設定ファイルと重なって出ていない足したマシンの記録は、設定ファイルから消したときに戻るよう残す。
- */
-export function recordToSave(
-  next: Machine[],
-  saved: Machine[],
-  config: ConfigMachine[],
-): Machine[] {
-  const shown = mergeMachines(config, saved);
-  const hidden = saved.filter(
-    (m) => !shown.some((s) => s.target === m.target && !s.fixed),
+/** 殻が config.local.toml に書けなかった理由（config_list.rs の EditError）。 */
+export interface MachineEditError {
+  kind: "exists" | "missing" | "entry" | "file" | "rejected";
+  /** 足す・変える・外す相手の ssh の行き先（exists・missing）か、設定の間違いと同じ形の説明（ほか） */
+  detail: string;
+}
+
+/** 殻から来た、書けなかった理由（MachineEditError の形）か。 */
+export function isMachineEditError(e: unknown): e is MachineEditError {
+  return (
+    typeof e === "object" &&
+    e !== null &&
+    "kind" in e &&
+    typeof e.kind === "string" &&
+    "detail" in e
   );
-  return [...next.filter((m) => !m.fixed), ...hidden];
+}
+
+/** 殻が config.local.toml に書けなかった理由を、画面に出す 1 文にする（殻から来たもの以外も受ける）。 */
+export function machineEditError(e: unknown): string {
+  if (isMachineEditError(e)) {
+    const { kind, detail } = e;
+    if (kind === "exists") return T("machine.edit.exists", { ssh: detail });
+    if (kind === "missing") return T("machine.edit.missing", { ssh: detail });
+    return T("machine.edit.failed", { error: String(detail) });
+  }
+  return T("machine.edit.failed", { error: String(e) });
 }
 
 /** `kisui pane … --machine` で、GUI の動く手元の PC を指す名前（予約語。#344）。 */
@@ -262,7 +245,7 @@ export function machineNames(list: Machine[]): string[] {
 
 /**
  * 名前（付けた名前、無ければ ssh の行き先）が local のマシンの ssh の行き先（`--machine` で選べない。お知らせに出す）。
- * 設定ファイルのマシンも、GUI で足したマシン（足すときの確かめより前に足した記録）も。
+ * 窓で足したマシンも、設定ファイルに手で書いたマシンも。
  */
 export function localNamed(list: Machine[]): string[] {
   return list.filter((m) => nameOf(m) === LOCAL_MACHINE).map((m) => m.target);

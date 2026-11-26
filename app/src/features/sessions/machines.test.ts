@@ -5,15 +5,13 @@ import { LOCAL } from "./shell.ts";
 import {
   addMachine,
   filterCandidates,
+  fromConfig,
   labelOf,
   LEGACY_KEY,
   loadMachines,
-  mergeMachines,
-  recordToSave,
+  machineEditError,
   MACHINES_KEY,
-  removeMachine,
   renameMachine,
-  saveMachines,
   targetProblem,
   type Machine,
 } from "./machines.ts";
@@ -41,9 +39,13 @@ test("記録が無い・壊れている・store が無いときは空", () => {
   assert.deepEqual(loadMachines(undefined), []);
 });
 
-test("保存して読み戻せる。使えない行き先と重なりは捨てる", () => {
-  const s = mem();
-  saveMachines(s, [{ target: "dev", name: "開発" }, { target: "db" }]);
+test("前の版の記録を読める。使えない行き先と重なりは捨てる", () => {
+  const s = mem({
+    [MACHINES_KEY]: JSON.stringify([
+      { target: "dev", name: "開発" },
+      { target: "db" },
+    ]),
+  });
   assert.deepEqual(loadMachines(s), [
     { target: "dev", name: "開発" },
     { target: "db" },
@@ -125,64 +127,59 @@ test("候補を入力で絞る（大文字小文字は区別しない）", () =>
   assert.deepEqual(filterCandidates(c, "zzz"), []);
 });
 
-test("外す・表示名", () => {
+test("表示名", () => {
   const list: Machine[] = [{ target: "dev", name: "開発" }, { target: "db" }];
-  assert.deepEqual(removeMachine(list, "dev"), [{ target: "db" }]);
   assert.equal(labelOf(list, LOCAL), "ローカル");
   assert.equal(labelOf(list, "dev"), "開発");
   assert.equal(labelOf(list, "db"), "db");
   assert.equal(labelOf(list, "unknown"), "unknown");
 });
-const config = [{ ssh: "dev-vm", name: "dev" }, { ssh: "build" }];
+const config = [
+  { ssh: "dev-vm", name: "dev" },
+  { ssh: "build" },
+  { ssh: "mine", name: "my", local: true },
+];
 
-test("設定ファイルのマシンが先で、足したマシンが後。同じ行き先は設定ファイルのほう", () => {
-  const saved = [{ target: "dev-vm", name: "古い名前" }, { target: "other" }];
-  assert.deepEqual(mergeMachines(config, saved), [
+test("設定ファイルの順に並べ、config.toml にだけあるマシンは fixed", () => {
+  assert.deepEqual(fromConfig(config), [
     { target: "dev-vm", name: "dev", fixed: true },
     { target: "build", fixed: true },
-    { target: "other" },
+    { target: "mine", name: "my" },
+  ]);
+  assert.deepEqual(fromConfig([{ ssh: "a", name: null, local: true }]), [
+    { target: "a" },
   ]);
 });
 
-test("名前が設定ファイルのマシンと重なる足したマシンは出さない", () => {
-  const saved = [
-    { target: "x", name: "dev" },
-    { target: "build2", name: "build" },
-  ];
-  assert.deepEqual(
-    mergeMachines(config, saved).map((m) => m.target),
-    ["dev-vm", "build"],
-  );
-});
-
-test("外せず、名前も変えられない", () => {
-  const list = mergeMachines(config, [{ target: "other" }]);
-  assert.deepEqual(removeMachine(list, "dev-vm"), list);
-  assert.deepEqual(
-    removeMachine(list, "other").map((m) => m.target),
-    ["dev-vm", "build"],
-  );
+test("config.toml にだけあるマシンは名前を変えられない。config.local.toml のマシンは変えられる", () => {
+  const list = fromConfig(config);
   assert.ok("error" in renameMachine(list, "dev-vm", "新しい"));
-  assert.ok("machines" in renameMachine(list, "other", "新しい"));
+  assert.ok("machines" in renameMachine(list, "mine", "新しい"));
 });
 
 test("足すときは、設定ファイルの行き先も名前も重ねられない", () => {
-  const list = mergeMachines(config, []);
+  const list = fromConfig(config);
   assert.ok("error" in addMachine(list, "dev-vm"));
   assert.ok("error" in addMachine(list, "z", "dev"));
+  assert.ok("error" in addMachine(list, "z", "my"));
   assert.ok("machines" in addMachine(list, "z", "zed"));
 });
 
-test("保存するのは足したマシンだけ。重なって出ていない記録は残し、外したものは残さない", () => {
-  const saved = [
-    { target: "dev-vm", name: "古い名前" },
-    { target: "other" },
-    { target: "gone" },
-  ];
-  // gone を外した
-  const next = mergeMachines(config, saved).filter((m) => m.target !== "gone");
-  assert.deepEqual(recordToSave(next, saved, config), [
-    { target: "other" },
-    { target: "dev-vm", name: "古い名前" },
-  ]);
+test("殻が書けなかった理由を 1 文にする", () => {
+  assert.equal(
+    machineEditError({ kind: "exists", detail: "a" }),
+    "a は config.local.toml にもうあります",
+  );
+  assert.match(
+    machineEditError({ kind: "missing", detail: "a" }),
+    /^a は config.local.toml にありません/,
+  );
+  assert.equal(
+    machineEditError({ kind: "file", detail: "/x: 書けません" }),
+    "config.local.toml に書けませんでした：/x: 書けません",
+  );
+  assert.equal(
+    machineEditError("boom"),
+    "config.local.toml に書けませんでした：boom",
+  );
 });

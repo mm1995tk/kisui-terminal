@@ -61,6 +61,7 @@ function fakeShell(opts: {
       shortcuts: [],
       passkeyRejected: [],
     }),
+    editMachine: async () => [],
     connect: async (id) => {
       const sid = opts.serverIds[Math.min(n, opts.serverIds.length - 1)];
       n++;

@@ -62,6 +62,18 @@ fn config_gui() -> Result<config::GuiConfig, String> {
     config::load_default()
 }
 
+/// 窓でマシンを足す・名前を変える・外す。`config.local.toml` の `[[gui.machines]]` に書き（`config.toml` には書かない）、
+/// 書いたあとのマシンの一覧（`config_gui` の `machines` と同じ形）を返す。書けなければ `{ kind, detail }`（config_list.rs の EditError）。
+#[tauri::command(async)]
+fn config_machine_edit(
+    edit: config_list::MachineEdit,
+) -> Result<Vec<config::ConfigMachine>, config_list::EditError> {
+    let dir = config::default_dir().ok_or_else(|| {
+        config_list::EditError::File("設定のフォルダが分かりません（$HOME がありません）".into())
+    })?;
+    config_list::edit_machine(&dir, edit)
+}
+
 /// 画面の言葉（設定ファイルの `ui-language`。`"en"` か `"ja"`。無い・分からない値は `"en"`）。画面は起動時に 1 度だけ読む。
 #[tauri::command]
 fn ui_language() -> &'static str {
@@ -211,6 +223,7 @@ fn main() {
             mascot::mascot_list,
             mascot::mascot_select,
             config_gui,
+            config_machine_edit,
             connect,
             send,
             disconnect,

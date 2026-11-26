@@ -1,8 +1,8 @@
-// マシンへの接続の持ち物と操作（C3〜C7）。サイドバーに出るのは「ローカル」と、足したマシンだけ。起動時は、そのどれにも自動でつなぐ（C5）。
-// マシンを足す・名前を変える・外す、つなぐ・切る・つなぎ直す、ssh の質問（パスワードなど）への答えを受け持つ。
+// マシンへの接続の持ち物と操作（C3〜C7）。サイドバーに出るのは「ローカル」と、設定ファイルの [[gui.machines]] のマシンだけ。起動時は、そのどれにも自動でつなぐ（C5）。
+// マシンを足す・名前を変える・外す（殻が config.local.toml に書く）、つなぐ・切る・つなぎ直す、ssh の質問（パスワードなど）への答えを受け持つ。
 // つないだマシンごとに、接続（Session）・ツリー（WorkspaceTrees）・ターミナル（TermGroups）を 1 組ずつ持つ。
 // 一覧やフォーカスの知らせを受けたあとにワークスペースの側ですること（フォーカスを直す・最初のワークスペースを作る・ペインの頼み）は hooks で外へ渡す。
-// 画面にも Tauri にも触らない。殻への頼みは ShellApi（shell.ts）、記録は KeyValueStore で受け取る。
+// 画面にも Tauri にも触らない。殻への頼み（設定ファイルへの書き込みも）は ShellApi（shell.ts）、色の記録は KeyValueStore で受け取る。
 import { T } from "../../i18n/index.ts";
 import {
   createEffect,
@@ -19,22 +19,25 @@ import type {
 } from "../../infrastructure/rpc/protocol.ts";
 import { WorkspaceTrees } from "../file-tree/trees.ts";
 import type { KeyValueStore } from "../keyValueStore.ts";
+import type { ReportProblem } from "../problem.ts";
 import { TermGroups } from "../terminal/group.ts";
 import { machineColors } from "./colors.ts";
 import {
   addMachine,
+  fromConfig,
   labelOf as machineLabelOf,
-  loadMachines,
-  mergeMachines,
-  recordToSave,
-  removeMachine,
+  machineEditError,
   renameMachine,
-  saveMachines,
   type ConfigMachine,
   type Machine,
 } from "./machines.ts";
 import { Session, type PaneEvent, type SessionState } from "./session.ts";
-import { LOCAL, type AskpassRequest, type ShellApi } from "./shell.ts";
+import {
+  LOCAL,
+  type AskpassRequest,
+  type MachineEdit,
+  type ShellApi,
+} from "./shell.ts";
 import { statusLine, type MachineStatus } from "./status.ts";
 
 /** 接続の知らせを受けたあとに、ワークスペースの側ですること。 */
@@ -54,33 +57,36 @@ export interface SessionHooks {
 /** createSessions が返す持ち物。 */
 export type Sessions = ReturnType<typeof createSessions>;
 
-/** 接続の持ち物を作る。足したマシンの記録を読み、起動したら「ローカル」と足したマシンにつなぎ、マシンごとの接続・状態・ワークスペースの一覧を持つ。 */
+/** 接続の持ち物を作る。起動したら「ローカル」と設定ファイルのマシンにつなぎ、マシンごとの接続・状態・ワークスペースの一覧を持つ。 */
 export function createSessions(deps: {
   api: ShellApi;
-  /** 足したマシンなどの記録の置き場 */
+  /** マシンの色などの記録の置き場 */
   store: KeyValueStore | undefined;
-  /** 手元の設定ファイルで決めたマシン */
+  /** 手元の設定ファイルのマシン（起動のときに読んだもの） */
   config: ConfigMachine[];
   hooks: SessionHooks;
+  /** できなかったこと（マシンを外せなかった）の知らせ */
+  report?: ReportProblem;
 }) {
   const { api, store, hooks } = deps;
   // ~/.ssh/config のホスト（マシンを足すときの候補）
   const [hosts, setHosts] = createSignal<string[]>([]);
-  // 足したマシン（サイドバーには、これと「ローカル」だけを出す）
-  // GUI で足したマシンの記録（設定ファイルと重なって出ていないものも含む）
-  let saved = loadMachines(store);
-  // 設定ファイルのマシン（fixed）が先、そのあとに足したマシン
+  // 設定ファイルのマシン（サイドバーには、これと「ローカル」だけを出す）。窓で書き換えるたびに、殻が返す一覧に置き換える
   const [machines, setMachines] = createSignal<Machine[]>(
-    mergeMachines(deps.config, saved),
+    fromConfig(deps.config),
   );
   const targets = createMemo(() => [LOCAL, ...machines().map((m) => m.target)]);
   const labelOf = (t: string) => machineLabelOf(machines(), t);
   const fixedOf = (t: string) =>
     machines().some((m) => m.target === t && m.fixed);
-  function updateMachines(next: Machine[]) {
-    setMachines(next);
-    saved = recordToSave(next, saved, deps.config);
-    saveMachines(store, saved);
+  /** config.local.toml に書き、書いたあとの一覧にする。書けなければ理由を返す（一覧は変えない）。 */
+  async function writeMachine(edit: MachineEdit): Promise<string | undefined> {
+    try {
+      setMachines(fromConfig(await api.editMachine(edit)));
+      return undefined;
+    } catch (e) {
+      return machineEditError(e);
+    }
   }
   const [sessions, setSessions] = createSignal<Record<string, Session>>({});
   const [states, setStates] = createSignal<Record<string, SessionState>>({});
@@ -122,7 +128,7 @@ export function createSessions(deps: {
         setAsks((a) => a.filter((x) => x.requestId !== id)),
       ),
     );
-    // 質問の窓口を用意してから、「ローカル」と足したマシンにつなぐ
+    // 質問の窓口を用意してから、「ローカル」と設定ファイルのマシンにつなぐ
     for (const t of targets()) connect(t);
   });
 
@@ -218,7 +224,7 @@ export function createSessions(deps: {
     await s.close();
   }
 
-  /** 「足す」を押した。ssh でつなぎ（kisui が無ければ確認して送り）、つながったら保存する（下の effect）。 */
+  /** 「足す」を押した。ssh でつなぎ（kisui が無ければ確認して送り）、つながったら config.local.toml に書く（下の effect）。 */
   function submitAdd(target: string, name: string) {
     const r = addMachine(machines(), target, name);
     if ("error" in r) {
@@ -231,7 +237,10 @@ export function createSessions(deps: {
     connect(m.target);
   }
 
-  // 足すためにつないだマシンの結果を待つ。つながったら保存して窓を閉じ、つなげなければ理由を窓に出して保存しない
+  // config.local.toml に書いている最中の、足すマシン（書き終わるまで、つながりの知らせで書き直さない）
+  let addWriting: Machine | null = null;
+  // 足すためにつないだマシンの結果を待つ。つながったら config.local.toml に書いて窓を閉じ、
+  // つなげない・書けなければ理由を窓に出して、書かずに切る
   createEffect(() => {
     const p = addPending();
     if (!p) return;
@@ -239,10 +248,24 @@ export function createSessions(deps: {
     if (!st) return;
     untrack(() => {
       if (st.kind === "connected") {
-        const r = addMachine(machines(), p.target, p.name);
-        if ("machines" in r) updateMachines(r.machines);
-        setAddPending(null);
-        setAdding(false);
+        if (addWriting === p) return;
+        addWriting = p;
+        void writeMachine({
+          kind: "add",
+          ssh: p.target,
+          name: p.name ?? null,
+        }).then((err) => {
+          addWriting = null;
+          // 書いている間にやめた（キャンセル・Esc）なら、窓は閉じてある
+          if (addPending() !== p) return;
+          setAddPending(null);
+          if (err === undefined) {
+            setAdding(false);
+          } else {
+            setAddError(err);
+            void disconnect(p.target);
+          }
+        });
       } else if (st.kind === "failed" || st.kind === "superseded") {
         setAddError(
           st.kind === "failed"
@@ -266,20 +289,43 @@ export function createSessions(deps: {
     if (p) void disconnect(p.target);
   }
 
+  /** 名前を変える。確かめてから config.local.toml に書き、書けたら入力欄を閉じる（書けなければ理由を入力欄に出す）。 */
   function submitRename(target: string, name: string) {
     const r = renameMachine(machines(), target, name);
     if ("error" in r) {
       setRenameError(r.error);
       return;
     }
-    updateMachines(r.machines);
-    setRenaming(null);
+    const next = r.machines.find((m) => m.target === target);
+    void writeMachine({
+      kind: "rename",
+      ssh: target,
+      name: next?.name ?? null,
+    }).then((err) => {
+      if (renaming() !== target) return;
+      if (err === undefined) setRenaming(null);
+      else setRenameError(err);
+    });
   }
 
-  /** 見出しのメニューの「外す」。記録から外し、GUI の接続を切る（そのマシンの kisui serve は止めない）。 */
+  /**
+   * 見出しのメニューの「外す」。config.local.toml から消し、GUI の接続を切る（そのマシンの kisui serve は止めない）。
+   * config.toml にもあるマシン（config.local.toml の項目が代わっていたもの）は、config.toml のものに戻って一覧に残るので、切らない。
+   * 書けなければ、知らせに理由を出す。config.toml にだけあるマシン（fixed）は外さない（呼ぶ側が先に断る）。
+   */
   function removeFromSidebar(target: string) {
-    updateMachines(removeMachine(machines(), target));
-    void disconnect(target);
+    if (fixedOf(target)) return;
+    const label = labelOf(target);
+    void writeMachine({ kind: "remove", ssh: target }).then((err) => {
+      if (err !== undefined) {
+        deps.report?.({
+          title: T("machine.remove.failed", { label }),
+          error: err,
+        });
+        return;
+      }
+      if (!targets().includes(target)) void disconnect(target);
+    });
   }
 
   /** 見出しのそばのボタン。待ち時間中なら今すぐ、使い切った・引き継がれたあとならつなぎ直す。 */
@@ -316,9 +362,9 @@ export function createSessions(deps: {
   return {
     /** ~/.ssh/config のホスト（マシンを足すときの候補） */
     hosts,
-    /** 設定ファイルのマシン（fixed）が先、そのあとに足したマシン */
+    /** 設定ファイルのマシン（config.toml の順、そのあとに config.local.toml にだけあるもの） */
     machines,
-    /** 「ローカル」と、足したマシンのつなぎ先 */
+    /** 「ローカル」と、設定ファイルのマシンのつなぎ先 */
     targets,
     labelOf,
     fixedOf,

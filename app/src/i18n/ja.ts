@@ -260,7 +260,7 @@ export const ja: Record<Key, string> = {
   "notice.shortcuts.text": "間違いのある近道だけを使いません。ほかは効きます。",
   "notice.localMachine.title": "マシンの名前 local は予約語です",
   "notice.localMachine.text":
-    "kisui pane の --machine では、local は常に手元の PC を指すので、{machines} を --machine で選べません。別の名前を付けてください。設定ファイルで決めたマシンは [[gui.machines]] で、ウィンドウで足したマシンはマシンのダイアログ（{leader} m）の n で変えます。",
+    "kisui pane の --machine では、local は常に手元の PC を指すので、{machines} を --machine で選べません。別の名前を付けてください。config.toml で決めたマシンは config.toml の [[gui.machines]] で、ほかのマシンはマシンのダイアログ（{leader} m）の n で変えます。",
   "notice.passkeySites.title": "passkey_sites に使えない項目があります",
   "notice.passkeySites.text":
     "次の項目は公開サフィックス（.com・.github.io のように、誰でもその下にサブドメインを持てる名前）で、他人のサイトの Cookie まで写す対象になるため使いません。ほかの項目は使います。",
@@ -413,17 +413,17 @@ export const ja: Record<Key, string> = {
   "history.filter": "絞り込み",
   "history.copied": "コピーしました",
   "history.list": "履歴",
-  "machineDialog.fixed": "（設定ファイル）",
+  "machineDialog.fixed": "（config.toml）",
   "machineDialog.terminalTabs": "ターミナルのタブ {n}",
   "machineDialog.label": "Machines",
   "machineDialog.list": "マシンの一覧",
   "machine.cant.rename.local":
     "{label} は名前を変えられません（「ローカル」です）",
   "machine.cant.rename.fixed":
-    "{label} は名前を変えられません（設定ファイルの [[gui.machines]] で決めたマシンです）",
+    "{label} は名前を変えられません（config.toml の [[gui.machines]] で決めたマシンです）",
   "machine.cant.remove.local": "{label} は外せません（「ローカル」です）",
   "machine.cant.remove.fixed":
-    "{label} は外せません（設定ファイルの [[gui.machines]] で決めたマシンです）",
+    "{label} は外せません（config.toml の [[gui.machines]] で決めたマシンです）",
   "machine.cant.disconnect.local": "{label} は切れません（「ローカル」です）",
   "machine.cant.disconnect.none": "{label} はつながっていません",
   "machine.cant.reconnect.up": "{label} はつながっています",
@@ -437,7 +437,7 @@ export const ja: Record<Key, string> = {
   "machineDialog.keys.newTab": "new tab",
   "machine.local": "ローカル",
   "machine.fixedReason":
-    "設定ファイル（config.toml か config.local.toml の [[gui.machines]]）で決めたマシンです。変えるには設定ファイルを直してください",
+    "config.toml の [[gui.machines]] で決めたマシンです。ウィンドウは config.toml に書かないので、変えるには config.toml を直してください",
   "machine.err.empty": "ssh の行き先を入れてください",
   "machine.err.reserved": "その行き先は使えません",
   "machine.err.long": "ssh の行き先が長すぎます",
@@ -447,6 +447,17 @@ export const ja: Record<Key, string> = {
   "machine.err.nameTaken": "名前 {name} はほかのマシンで使っています",
   "machine.err.localName":
     "名前 local は手元の PC を指す予約語です（kisui pane --machine local）。別の名前を付けてください",
+  "machine.edit.exists": "{ssh} は config.local.toml にもうあります",
+  "machine.edit.missing":
+    "{ssh} は config.local.toml にありません（config.toml にだけあるマシンは、ウィンドウからは変えられません）",
+  "machine.edit.failed": "config.local.toml に書けませんでした：{error}",
+  "machine.remove.failed": "{label} を外せませんでした",
+  "machine.move.failed.title":
+    "ウィンドウで足したマシンを config.local.toml に移せませんでした",
+  "machine.move.failed.left":
+    "今回は出していません：{machines}。次に起動したときに、また移します。config.local.toml の [[gui.machines]] に自分で書いてもかまいません。",
+  "machine.move.skipped.title":
+    "ウィンドウで足したマシンのうち、config.local.toml に移さなかったものがあります",
   "treeMenu.copy-name": "Copy the name",
   "treeMenu.copy-relative": "Copy the relative path",
   "treeMenu.copy-absolute": "Copy the absolute path",

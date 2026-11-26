@@ -410,10 +410,10 @@ GUI のワークスペース（`app/src/features/workspaces/model.ts`）：
     - **閉じないとき**：serve を止めるとき（9。serve が終わらせたシェル）と、`kisui pane open` のコマンド（`workspace.create` の `argv`）が終わったとき。コマンドのペインは出力と一緒に残り、GUI は「Enter でシェルを開く」を出して、Enter でワークスペースのフォルダ（フォルダ未定なら `start_dir`）でシェルを始める（`term.restart`）。そのシェルが終われば、上の決まりで閉じる。分割したターミナルから昇格したペインは、コマンド（`kisui pane split` のコマンド）でも、終わればシェルと同じに扱う（分割したままなら閉じたはずのペインなので）。
     - 分割したターミナルの `exit` は、ペインを閉じて並び直す。
     - 理由は「5. 決めたことと理由」の「ワークスペースの消え方」。
-12. **リモートを足す**：サイドバーの一番下は「+ リモートを足す」（herdr の `machine add` のような形）。カードの窓で ssh の行き先（`~/.ssh/config` の候補）と名前（空なら ssh の行き先）を入れる。足すときに ssh でつなぎ（「ssh 越しに shj を起動する」）、`shj` が無ければ確認してから送り、`kisui serve` を起動できたらマシンを保存して見出しを出す。つなげなければ理由を出して保存しない（実装は #451）。マシンの一覧は GUI の側（手元）が持つ。shj のプロトコルには出ない。
+12. **リモートを足す**：サイドバーの一番下は「+ リモートを足す」（herdr の `machine add` のような形）。カードの窓で ssh の行き先（`~/.ssh/config` の候補）と名前（空なら ssh の行き先）を入れる。足すときに ssh でつなぎ（「ssh 越しに shj を起動する」）、`shj` が無ければ確認してから送り、`kisui serve` を起動できたらマシンを保存して見出しを出す。つなげなければ理由を出して保存しない（実装は #451）。マシンの一覧は GUI の側（手元）が持つ。shj のプロトコルには出ない。保存する先は手元の `config.local.toml` の `[[gui.machines]]`（#484。殻の `config_list.rs` が書く。`config.toml` には書かない）。#484 より前は webview の localStorage（`shijimi-editor.machines`）に記録していて、その記録は #484 の版を初めて起動したときに `config.local.toml` に移す（`app/src/features/sessions/moveRecords.ts`。設定ファイルに同じ ssh の行き先か同じ名前のマシンがある記録は移さない。移したあとは読まないが、消しはしない）。
 13. **サイドバーに出るマシン**は「ローカル」と足したマシンだけ。`~/.ssh/config` のホストを全部並べない（候補に出すだけ）。
-14. **マシンの見出しを右クリック**して「名前を変える」「外す」。外しても、そのマシンの `kisui serve` は止めない。
-15. **既定のマシン**：手元（GUI を動かしているマシン）の `~/.config/kisui-terminal/` の `config.toml` か `config.local.toml` の `[[gui.machines]]` に書ける（2 つのファイルの一覧は、ssh の行き先ごとに重ねる。同じ行き先のマシンは `config.local.toml` の 1 件に丸ごと代わり、片方にしかないマシンはどちらも残る。`config.local.toml` の空の一覧は何も消さず、`config.toml` のマシンを `config.local.toml` から消す書き方は無い。重ねたあとに名前が重なれば間違い。shijimi-editor の設定は読まない）。設定ファイルに書いたマシンは、GUI の「外す」「名前を変える」では変えられない（設定ファイルを直す。実装は #453）。
+14. **マシンの見出しを右クリック**して「名前を変える」「外す」。外しても、そのマシンの `kisui serve` は止めない。どちらも `config.local.toml` の項目を書き換える。
+15. **既定のマシン**：手元（GUI を動かしているマシン）の `~/.config/kisui-terminal/` の `config.toml` か `config.local.toml` の `[[gui.machines]]` に書ける（2 つのファイルの一覧は、ssh の行き先ごとに重ねる。同じ行き先のマシンは `config.local.toml` の 1 件に丸ごと代わり、片方にしかないマシンはどちらも残る。`config.local.toml` の空の一覧は何も消さず、`config.toml` のマシンを `config.local.toml` から消す書き方は無い。重ねたあとに名前が重なれば間違い。shijimi-editor の設定は読まない）。`config.toml` にだけ書いたマシンは、GUI の「外す」「名前を変える」では変えられない（`config.toml` を直す。実装は #453）。`config.local.toml` のマシンは、手で書いたものも GUI で変えられる（#484）。`config.toml` にもあるマシンを外すと、`config.toml` のものに戻る。
 
     ```toml
     [[gui.machines]]
