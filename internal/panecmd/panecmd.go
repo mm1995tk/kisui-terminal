@@ -70,7 +70,9 @@ const (
 //     scrollback above it (Reply.Text). No colors or other attributes.
 //
 //   - "open-tab": add a terminal tab at the end of the workspace of the window
-//     named Workspace (with New, a new workspace of that name), and run its
+//     Workspace (its id, PaneInfo.Workspace, when Workspace is written like one,
+//     "g" and ten letters or digits; otherwise its name; with New, a new
+//     workspace of that name), and run its
 //     shell, or the command Argv (the rules of "split"), in Cwd (empty: the
 //     folder of the terminal that asks). Env is "NAME=value" entries for it. Name
 //     (not empty) is the name of its terminal (the rules of "title"). The focus
@@ -175,12 +177,20 @@ type Reply struct {
 // terminal tab in the window (a workspace of the window holds tabs, and "kisui
 // serve" does not know those). TabName is the name of the tab: the one the user
 // gave it, or else the name of its folder.
+//
+// Workspace and WorkspaceName are the id and the name (the one in the sidebar)
+// of the workspace of the window that holds the tab. The window tells them to
+// "kisui serve", which remembers what it was told last (also while the window
+// is closed, and after "kisui serve" starts again). They are empty when no
+// window told them yet. "kisui pane open --workspace" takes either.
 type PaneInfo struct {
-	ID      string `json:"id"`
-	Name    string `json:"name,omitempty"`
-	Tab     string `json:"tab"`
-	TabName string `json:"tabName,omitempty"`
-	Cwd     string `json:"cwd"`
+	ID            string `json:"id"`
+	Name          string `json:"name,omitempty"`
+	Workspace     string `json:"workspace,omitempty"`
+	WorkspaceName string `json:"workspaceName,omitempty"`
+	Tab           string `json:"tab"`
+	TabName       string `json:"tabName,omitempty"`
+	Cwd           string `json:"cwd"`
 	// Title is what the program in the terminal set as its title (OSC 0/2),
 	// which often tells what runs there. It is not the name.
 	Title string `json:"title,omitempty"`

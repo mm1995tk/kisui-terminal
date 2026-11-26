@@ -162,6 +162,7 @@ function fakeShell(opts: {
           break;
         }
         case "tree.watch":
+        case "gws.set":
           reply({});
           break;
         case "workspace.create":
@@ -599,6 +600,42 @@ describe("プライマリの shj の欄（#553）", () => {
         { id: "o2", error: "no" },
       ],
     );
+    await s.close();
+  });
+
+  it("syncGws は gws.set で知らせ、同じ接続に同じ中身は送らず、つなぎ直したら送り直す（#502）", async () => {
+    const f = fakeShell({ serverIds: ["A", "A"], capabilities: ["gws.set"] });
+    const s = new Session(f.api, "h", fast);
+    s.start();
+    await waitFor(s, (st) => st.kind === "connected");
+    const tabs = [{ workspaceId: "w-A", id: "gaaaaaaaaaa", name: "ws1" }];
+    const sets = () =>
+      f.sent.filter((x) => x.msg.method === "gws.set").map((x) => x.msg.params);
+    s.syncGws(tabs);
+    s.syncGws([...tabs]);
+    await settle();
+    assert.deepEqual(sets(), [{ tabs }]);
+    const renamed = [{ ...tabs[0], name: "review" }];
+    s.syncGws(renamed);
+    await settle();
+    assert.deepEqual(sets(), [{ tabs }, { tabs: renamed }]);
+    f.drop(connectedId(f));
+    await waitFor(s, (st) => st.kind === "reconnecting");
+    await waitFor(s, (st) => st.kind === "connected");
+    s.syncGws(renamed);
+    await settle();
+    assert.deepEqual(sets(), [{ tabs }, { tabs: renamed }, { tabs: renamed }]);
+    await s.close();
+  });
+
+  it("gws.set の印の無い古い serve には、syncGws は何も送らない（#502）", async () => {
+    const f = fakeShell({ serverIds: ["A"] });
+    const s = new Session(f.api, "h", fast);
+    s.start();
+    await waitFor(s, (st) => st.kind === "connected");
+    s.syncGws([{ workspaceId: "w-A", id: "gaaaaaaaaaa", name: "ws1" }]);
+    await settle();
+    assert.equal(f.sent.filter((x) => x.msg.method === "gws.set").length, 0);
     await s.close();
   });
 

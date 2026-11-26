@@ -43,7 +43,8 @@ import {
   loadGws,
   move as moveGws,
   moveBefore,
-  nameErrorText,
+  gwsNameErrorText,
+  gwsTabsOf,
   newGwsId,
   freeNum,
   reconcile,
@@ -499,6 +500,22 @@ export function createWorkspaces(deps: {
       setTabs((t) => closeTab(t, id));
     }
   });
+  // つながっているマシンそれぞれの kisui serve に、そのマシンのタブが入っているワークスペースの id と名前を知らせる（gws.set。
+  // `kisui pane list` が出す。#502）。ワークスペースの記録（作る・名前を変える・タブを移す・閉じる）か、マシンのタブの一覧か、
+  // つながりが変わるたびに、そのマシンの全部の分を渡す。前と同じ中身を同じ接続に送らないのは Session（syncGws）
+  createEffect(() => {
+    const s = gws();
+    const all = sessions();
+    for (const [t, ws] of Object.entries(workspaces()))
+      if (states()[t]?.kind === "connected")
+        all[t]?.syncGws(
+          gwsTabsOf(
+            s,
+            t,
+            ws.map((w) => w.id),
+          ),
+        );
+  });
   /**
    * 今のワークスペースが無いとき（起動した直後・閉じて移り先も無いとき）は、shj のフォーカスのターミナルのタブを持つワークスペースに入る。
    * 記録が読めた・一覧の知らせで整理が済んだ（gws が変わった）・shj のフォーカスが分かった（shjFocusChanged）たびに試す。
@@ -678,7 +695,7 @@ export function createWorkspaces(deps: {
 
   /** ワークスペースの名前を決める（空なら、つけた名前を外して番号の名前に戻る）。名前の決まりに合わなければ、断る理由を返す（サイドバーの帯と切り替える窓の共通の部分）。 */
   function renameWorkspace(gid: string, name: string): string | undefined {
-    const bad = nameErrorText(name);
+    const bad = gwsNameErrorText(name);
     if (bad) return bad;
     setGws((g) => renameGws(g, gid, name));
     return undefined;
@@ -691,7 +708,7 @@ export function createWorkspaces(deps: {
   function createEmptyWorkspace(
     name: string,
   ): { id: string } | { error: string } {
-    const bad = nameErrorText(name);
+    const bad = gwsNameErrorText(name);
     if (bad) return { error: bad };
     const id = newGwsId();
     setGws((g) => addEmptyWorkspace(g, name, id));

@@ -784,9 +784,9 @@ export const ja: Record<Key, string> = {
   "paneRelay.err.notAllowed":
     '{from} のペインは、--machine でマシン「{machine}」に届けません。許すには、ウィンドウの動く PC の設定ファイルで、{from} の [[gui.machines]] に allow_pane_to = ["{machine}"] と書き、kisui-terminal を起動し直してください。',
   "paneOpen.err.noWorkspace":
-    "「{name}」という名前のワークスペースがありません（--new を付けると作ります）",
+    "「{name}」という名前か id のワークスペースがありません（--new を付けると、その名前で作ります）",
   "paneOpen.err.ambiguous":
-    "「{name}」という名前のワークスペースが {count} つあります。どれかの名前を変えてください",
+    "「{name}」という名前のワークスペースが {count} つあります。id（kisui pane list に出ます）で指すか、どれかの名前を変えてください",
   "paneOpen.err.hidden":
     "サイドバーに出ていないワークスペース（ブラウザのタブだけを持ち、内蔵ブラウザを使わない設定で隠れているもの）が「{name}」という名前です。別の名前にしてください",
   "paneOpen.err.exists":
@@ -867,6 +867,8 @@ export const ja: Record<Key, string> = {
   "rename.err.tooLongMax": "名前が長すぎます（{max} 文字まで）",
   "rename.err.tooLong": "名前が長すぎます",
   "rename.err.control": "名前に改行などの制御文字は使えません",
+  "rename.err.likeWorkspaceId":
+    "「{name}」はワークスペースの id の形（g と英数字 10 字）なので、ワークスペースの名前には使えません",
   "terminal.label": "ターミナル",
   "terminal.others": "ほかに {n} つを隠している（{key} で戻す）",
   "leader.label": "Leader",

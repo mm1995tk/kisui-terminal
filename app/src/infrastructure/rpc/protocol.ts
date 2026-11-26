@@ -506,6 +506,13 @@ export interface Requests {
     params: PaneRunRequest & { from?: PaneOrigin };
     result: PaneRunReply;
   };
+  /**
+   * このマシンのターミナルのタブ（kisui serve のワークスペース）それぞれが入っている、窓のワークスペースの id と名前を知らせる
+   * （#502。`kisui pane list` が出す）。いつもこのマシンの全部のタブの分を送り、serve は覚えていた対応を丸ごと置き換える
+   * （載っていないタブの対応は消える）。serve は覚えた対応を保存し、窓が閉じていても出す。
+   * hello の capabilities に "gws.set" がある serve だけが受ける（古い serve には送らない）
+   */
+  "gws.set": { params: { tabs: GwsTab[] }; result: Record<string, never> };
   "workspace.create": {
     /**
      * dir は、プライマリターミナルのシェルを始めるフォルダ（絶対パス）。無い・フォルダでなければ start_dir。古い kisui serve は無視する。
@@ -974,6 +981,13 @@ export interface DbProposeRequest {
 export type DbProposeReport =
   { status: "written" | "declined" } | { error: string };
 
+/** gws.set の 1 つ：ターミナルのタブ workspaceId が入っている、窓のワークスペースの id と、サイドバーに出ている名前。 */
+export interface GwsTab {
+  workspaceId: WorkspaceId;
+  id: string;
+  name: string;
+}
+
 /**
  * ペイン 1 つを、マシンをまたいで見分ける名前（serve の paneOrigin）。ペインの中のコマンドが届くペインの範囲を、serve が
  * これで決める（頼んだペインが作ったペインと、その先。server/panereach.go）。
@@ -988,7 +1002,7 @@ export interface PaneOrigin {
 /** pane.open の中身（`kisui pane open`。#343）。 */
 export interface PaneOpenRequest {
   id: string;
-  /** 足す先の GUI のワークスペースの名前（サイドバーに出ている名前） */
+  /** 足す先の GUI のワークスペースの名前（サイドバーに出ている名前）か、その id（id の形の値は、先に id として探す） */
   workspace: string;
   /** その名前のワークスペースを新しく作る */
   new?: boolean;
@@ -1031,7 +1045,7 @@ export interface PaneRunRequest {
   keys?: string[];
   /** read の scrollback の行数 */
   lines?: number;
-  /** open-tab のワークスペースの名前 */
+  /** open-tab のワークスペースの名前か id */
   workspace?: string;
   /** open-tab で、その名前のワークスペースを新しく作る */
   new?: boolean;
@@ -1049,7 +1063,7 @@ export interface PaneRunReply {
   error?: string;
   /** 頼みが指した・作ったペインの id */
   id?: string;
-  /** list の答え */
+  /** list の答え（そのマシンの serve が覚えている窓のワークスペースの id と名前も入っている） */
   panes?: unknown[];
   /** read の答え */
   text?: string;

@@ -44,6 +44,11 @@ import {
   refKey,
   nameError,
   nameErrorText,
+  gwsByRef,
+  gwsNameErrorText,
+  gwsTabsOf,
+  isGwsIdLike,
+  newGwsId,
   newDbTabId,
   parseGws,
   reconcile,
@@ -714,6 +719,52 @@ describe("nameErrorText", () => {
     assert.ok(nameErrorText("a".repeat(101)));
     assert.ok(nameErrorText("a\nb"));
     assert.notEqual(nameErrorText("a".repeat(101)), nameErrorText("a\nb"));
+  });
+});
+
+describe("ワークスペースの id の形と、kisui serve への知らせ（#502）", () => {
+  it("newGwsId の id は id の形。ワークスペースの名前には使えない（タブの名前には使える）", () => {
+    const id = newGwsId();
+    assert.ok(isGwsIdLike(id));
+    assert.ok(
+      !isGwsIdLike("ws1") &&
+        !isGwsIdLike("g123") &&
+        !isGwsIdLike("gABCDEFGHIJ"),
+    );
+    assert.match(gwsNameErrorText(` ${id} `) ?? "", new RegExp(id));
+    assert.equal(nameErrorText(id), undefined);
+    assert.equal(gwsNameErrorText("review"), undefined);
+    assert.equal(gwsNameErrorText(""), undefined);
+    assert.ok(gwsNameErrorText("a".repeat(101)));
+  });
+
+  it("gwsByRef は、id の形の値を id として探し、無ければ名前で探す", () => {
+    let s = addEmptyWorkspace(EMPTY_GWS, "dup", "gaaaaaaaaaa");
+    s = addEmptyWorkspace(s, "dup", "gbbbbbbbbbb");
+    assert.deepEqual(
+      gwsByRef(s, "dup").map((g) => g.id),
+      ["gaaaaaaaaaa", "gbbbbbbbbbb"],
+    );
+    assert.deepEqual(
+      gwsByRef(s, "gbbbbbbbbbb").map((g) => g.id),
+      ["gbbbbbbbbbb"],
+    );
+    assert.deepEqual(gwsByRef(s, "gcccccccccc"), []);
+  });
+
+  it("gwsTabsOf は、そのマシンのタブごとに、入っているワークスペースの id と画面に出す名前を返す", () => {
+    let s = addWorkspace(EMPTY_GWS, "a", "w1", "w1", "g1");
+    s = addWorkspace(s, "b", "w1", "w1", "g2");
+    s = addTerm(s, "g1", "a", "w2", "w2");
+    s = rename(s, "g1", "review");
+    assert.deepEqual(gwsTabsOf(s, "a", ["w2", "w1", "w9"]), [
+      { workspaceId: "w2", id: "g1", name: "review" },
+      { workspaceId: "w1", id: "g1", name: "review" },
+    ]);
+    // 名前を付けていなければ番号の名前
+    assert.deepEqual(gwsTabsOf(s, "b", ["w1"]), [
+      { workspaceId: "w1", id: "g2", name: "ws2" },
+    ]);
   });
 });
 

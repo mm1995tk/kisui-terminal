@@ -17,8 +17,10 @@ import {
   addEmptyWorkspace,
   addTerm,
   gwsByName,
+  gwsByRef,
+  gwsNameErrorText,
   hiddenGws,
-  nameErrorText,
+  isGwsIdLike,
   newGwsId,
   termKey,
   type GwsState,
@@ -31,9 +33,12 @@ export type PaneOpenPlan =
   | { kind: "error"; error: string };
 
 /**
- * `--workspace name`（isNew は `--new`）から、タブを入れる先を決める。名前は、サイドバーに出ている名前（名前を付けていなければ「ws1」）。
+ * `--workspace name`（isNew は `--new`）から、タブを入れる先を決める。name は、サイドバーに出ている名前（名前を付けていなければ「ws1」）か、
+ * ワークスペースの id（`kisui pane list` に出る。id の形の値は、先に id として探す。gwsByRef）。
  * --new が無ければ、その名前のワークスペースが 1 つだけあればそこ。無い・2 つ以上なら断る（どちらに入れるか決められない）。
- * --new なら、その名前のワークスペースがもうあれば断る（同じ名前が 2 つになると、後で名前で指せなくなる）。名前の決まりに合わなくても断る。
+ * id で指せば、同じ名前のワークスペースが 2 つあっても 1 つに決まる。
+ * --new なら、その名前のワークスペースがもうあれば断る（同じ名前が 2 つになると、後で名前で指せなくなる）。名前の決まりに合わなくても断る
+ * （id の形の名前も。gwsNameErrorText）。
  * browser は内蔵ブラウザを使うか。使わないとき、ブラウザのタブしか持たないワークスペース（hiddenGws）はサイドバーに出ないので、
  * 入れ先には選ばない（--new の重なりには数える。内蔵ブラウザを有効に戻すと、同じ名前が 2 つ出てしまうため）。
  */
@@ -44,7 +49,8 @@ export function planPaneOpen(
   browser = true,
 ): PaneOpenPlan {
   const n = name.trim();
-  const all = gwsByName(s, n);
+  // --new の name は作る名前なので、id としては探さない
+  const all = isNew ? gwsByName(s, n) : gwsByRef(s, n);
   const found = all.filter((g) => !hiddenGws(g, browser));
   // 隠れたワークスペースとだけ重なるときは、--new を付けても外しても開けないので、別の名前を勧める
   if (found.length === 0 && all.length > 0)
@@ -52,7 +58,7 @@ export function planPaneOpen(
   if (isNew) {
     if (all.length > 0)
       return { kind: "error", error: T("paneOpen.err.exists", { name: n }) };
-    const bad = nameErrorText(n);
+    const bad = gwsNameErrorText(n);
     return bad ? { kind: "error", error: bad } : { kind: "new", name: n };
   }
   if (found.length === 0)
@@ -67,8 +73,8 @@ export function planPaneOpen(
 
 /**
  * 作ったタブ（target のマシンのワークスペース ws）を、plan の先の一番後ろに入れる（最後に使っていたタブは変えない）。
- * 作るのを待つ間に、入れる先のワークスペースが閉じられていたら、その名前で作り直す。--new で、待つ間に同じ名前のものが
- * 1 つできていたら、そこに入れる。
+ * 作るのを待つ間に、入れる先のワークスペースが閉じられていたら、その名前で作り直す（id で指していたら、同じ id では作り直せず、
+ * id の形の名前も付けられないので、番号の名前で作る）。--new で、待つ間に同じ名前のものが 1 つできていたら、そこに入れる。
  */
 export function placeOpenedTab(
   s: GwsState,
@@ -88,9 +94,10 @@ export function placeOpenedTab(
   let next = s;
   if (gid === undefined) {
     gid = id;
+    const asked = workspace.trim();
     next = addEmptyWorkspace(
       s,
-      plan.kind === "new" ? plan.name : workspace.trim(),
+      plan.kind === "new" ? plan.name : isGwsIdLike(asked) ? "" : asked,
       gid,
     );
   }

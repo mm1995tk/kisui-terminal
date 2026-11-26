@@ -109,7 +109,7 @@ func TestParseSplitName(t *testing.T) {
 
 func TestWritePaneList(t *testing.T) {
 	panes := []panecmd.PaneInfo{
-		{ID: "t1", Tab: "w1", TabName: "repo", Cwd: "/src/repo", Primary: true, Alive: true, Self: true},
+		{ID: "t1", Workspace: "gabcdefghij", WorkspaceName: "作業用", Tab: "w1", TabName: "repo", Cwd: "/src/repo", Primary: true, Alive: true, Self: true},
 		{ID: "t2", Name: "reviewer", Tab: "w1", TabName: "repo", Cwd: "/src/repo", Title: "a\tb", Alive: false},
 	}
 	var b strings.Builder
@@ -119,6 +119,10 @@ func TestWritePaneList(t *testing.T) {
 	lines := strings.Split(strings.TrimRight(b.String(), "\n"), "\n")
 	if len(lines) != 3 {
 		t.Fatalf("a header and a line for each pane:\n%s", b.String())
+	}
+	// ワークスペース（窓が知らせた id と名前）はタブの前の列。知らされていなければ "-"
+	if !strings.Contains(lines[1], "gabcdefghij 作業用  w1 repo") || !strings.Contains(lines[2], "reviewer  -") {
+		t.Errorf("the workspace column:\n%s", b.String())
 	}
 	if !strings.HasPrefix(lines[1], "* t1") || !strings.Contains(lines[1], "w1 repo") || !strings.Contains(lines[1], i18n.T("pane.list.primary")) {
 		t.Errorf("the line of the own pane: %q", lines[1])

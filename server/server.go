@@ -431,6 +431,8 @@ func (ss *session) handle(ctx context.Context, req *rpc.Message) (any, error) {
 		return ss.helloReq(req)
 	case "pane.run":
 		return ss.paneRunReq(req)
+	case "gws.set":
+		return ss.gwsSetReq(req)
 	case "session.ping":
 		return struct{}{}, nil
 	case "session.bye":
@@ -536,7 +538,7 @@ func (ss *session) helloReq(req *rpc.Message) (any, error) {
 		ServerID:     s.serverID,
 		StartedAt:    s.startedAt,
 		Supersedes:   sup,
-		Capabilities: []string{CapHandover, CapDB, CapDBPermissions, CapDBSchema, CapDBStructure, CapDBElevate, CapDBRemember, CapCreateCommand, CapCreateShell, CapPaneRun, CapPaneRelayWait, CapProxy, CapProxyResend, CapProxyHold},
+		Capabilities: []string{CapHandover, CapDB, CapDBPermissions, CapDBSchema, CapDBStructure, CapDBElevate, CapDBRemember, CapCreateCommand, CapCreateShell, CapPaneRun, CapPaneRelayWait, CapGwsSet, CapProxy, CapProxyResend, CapProxyHold},
 		Workspaces:   wsl,
 		Rev:          s.currentRev(),
 	}, nil

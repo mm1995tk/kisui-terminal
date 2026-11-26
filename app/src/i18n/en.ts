@@ -785,9 +785,9 @@ export const en = {
   "paneRelay.err.notAllowed":
     'The panes of {from} may not reach the machine "{machine}" with --machine. To allow it, write allow_pane_to = ["{machine}"] in the [[gui.machines]] entry of {from}, in the config file of the computer the window runs on, and start kisui-terminal again.',
   "paneOpen.err.noWorkspace":
-    'No workspace is named "{name}" (add --new to make one)',
+    'No workspace has the name or id "{name}" (add --new to make one of that name)',
   "paneOpen.err.ambiguous":
-    '{count} workspaces are named "{name}"; give one of them another name',
+    '{count} workspaces are named "{name}"; point at one of them by its id (kisui pane list prints it), or give one of them another name',
   "paneOpen.err.hidden":
     'A workspace hidden from the sidebar (it has only browser tabs, and the built-in browser is off) is named "{name}"; use another name',
   "paneOpen.err.exists":
@@ -872,6 +872,8 @@ export const en = {
   "rename.err.tooLong": "The name is too long",
   "rename.err.control":
     "A name cannot contain control characters such as a line break",
+  "rename.err.likeWorkspaceId":
+    'A workspace cannot be named "{name}": it looks like the id of a workspace (g and 10 letters or digits)',
   "terminal.label": "Terminal",
   "terminal.others": "{n} more hidden ({key} to restore)",
   "leader.label": "Leader",
