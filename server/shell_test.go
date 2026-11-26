@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"maps"
 	"os"
 	"path/filepath"
@@ -319,5 +320,81 @@ func TestMachineDefaultsAreReadAgain(t *testing.T) {
 	set("", own, true)
 	if f, s := started(); f != home || s != own {
 		t.Errorf("after shell is written again: %q %q", f, s)
+	}
+}
+
+// [server] shell が無いファイル・実行できないファイルでも、serve は断らずに、警告を出して $SHELL で始める。
+// 起動のときの値でも、読み直した値でも、窓がその値をそのまま渡したとき（手元のマシン）でも同じ。
+func TestServerShellThatCannotRun(t *testing.T) {
+	home := normalizePath(t.TempDir())
+	t.Setenv("HOME", home)
+	none := filepath.Join(home, "bin", "none") // 無い
+	plain := filepath.Join(home, "bin", "plain")
+	own := fakeShell(t, filepath.Join(home, "bin"), "own")
+	if err := os.WriteFile(plain, []byte("x"), 0o644); err != nil { // 実行できない
+		t.Fatal(err)
+	}
+	var mu sync.Mutex
+	sh := none // 今の設定ファイルの [server] shell
+	set := func(s string) {
+		mu.Lock()
+		defer mu.Unlock()
+		sh = s
+	}
+	var logs lockedBuf
+	srv, sock := startFastWith(t, func(o *Options) {
+		o.Shell = none // 起動のときから使えない
+		o.Logger = slog.New(slog.NewTextHandler(&logs, nil))
+		o.ReadDefaults = func() (string, string, bool) {
+			mu.Lock()
+			defer mu.Unlock()
+			return "", sh, true
+		}
+	})
+	c, _ := termClient(t, sock)
+	started := func(asked string) string {
+		t.Helper()
+		_, primary, err := createWith(t, c, map[string]any{"shell": asked})
+		if err != nil {
+			t.Fatalf("shell %q: %v", asked, err)
+		}
+		got, _ := shellOfTerm(t, srv, primary)
+		return got
+	}
+	warnings := func(path string) int {
+		return strings.Count(logs.String(), "[server] shell cannot be run; starting $SHELL instead\" shell="+path)
+	}
+	if s := started(""); s != "/bin/sh" {
+		t.Errorf("a missing file: started %q", s)
+	}
+	if s := started(""); s != "/bin/sh" {
+		t.Errorf("a missing file, again: started %q", s)
+	}
+	if n := warnings(none); n != 1 { // 同じ間違いは 1 度だけ
+		t.Errorf("%d warnings of %s: %s", n, none, logs.String())
+	}
+	// 窓が [server] shell をそのまま渡した（手元のマシン）：断らない
+	if s := started(none); s != "/bin/sh" {
+		t.Errorf("the window passed [server] shell: started %q", s)
+	}
+	if s := started("~/bin/none"); s != "/bin/sh" {
+		t.Errorf("the window passed [server] shell with ~: started %q", s)
+	}
+	// 読み直した値が実行できないファイル
+	set(plain)
+	if s := started(""); s != "/bin/sh" {
+		t.Errorf("a file that cannot be run: started %q", s)
+	}
+	if n := warnings(plain); n != 1 {
+		t.Errorf("%d warnings of %s: %s", n, plain, logs.String())
+	}
+	// [server] shell と別の、使えないシェルを窓が渡したら、今までどおり断る
+	if _, _, err := createWith(t, c, map[string]any{"shell": none}); err == nil {
+		t.Error("a shell that is not [server] shell and cannot be run was started")
+	}
+	// 直したら、そのシェル
+	set(own)
+	if s := started(""); s != own {
+		t.Errorf("after [server] shell is fixed: started %q", s)
 	}
 }

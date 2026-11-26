@@ -31,8 +31,9 @@ type Settings struct {
 	// StartDir is the folder a new workspace's shell starts in, as an absolute
 	// path (a leading ~ is expanded). "" means the home directory.
 	StartDir string
-	// Shell is the shell a new terminal runs, as the absolute path of a file
-	// that can be run (a leading ~ is expanded). "" means $SHELL.
+	// Shell is the shell a new terminal runs, as an absolute path (a leading
+	// ~ is expanded). "" means $SHELL. The file may be missing or not
+	// runnable: Load does not look (see ShellPath).
 	Shell string
 	// UILanguage is the language of kisui's own messages: "en" or "ja".
 	UILanguage string
@@ -189,11 +190,12 @@ func (s *Settings) merge(raw map[string]any, path string) []Problem {
 	if v, ok := t["shell"]; ok {
 		if str, ok := v.(string); !ok {
 			bad("server.shell", "config.err.string")
-		} else if sh, code := ShellPath(str); code == "config.err.notexec" {
-			bad("server.shell", code, sh)
-		} else if code != "" {
+		} else if sh, code := ShellPath(str); code == "config.err.abspath" {
 			bad("server.shell", code)
 		} else {
+			// A file that is missing or cannot be run is not a mistake of
+			// the file: `kisui serve` must still start (it warns and runs
+			// $SHELL instead, each time it starts a terminal).
 			s.Shell = sh
 		}
 	}
@@ -204,15 +206,16 @@ func (s *Settings) merge(raw map[string]any, path string) []Problem {
 // window passes for a machine) into the absolute path of the file to run: ~/x
 // is under the home directory of this machine. The value is the path alone;
 // it carries no arguments. code is the i18n key of the reason when it cannot
-// be used ("" when it can): it is not an absolute path, or it is not a file
-// that can be run. path is what was looked at, for the message.
+// be used ("" when it can): "config.err.abspath" when it is not an absolute
+// path, or "notexec" (not an i18n key: no message of the settings uses it)
+// when it is not a file that can be run. path is what was looked at.
 func ShellPath(v string) (path, code string) {
 	p, ok := ExpandHome(v)
 	if !ok || p == "" {
 		return v, "config.err.abspath"
 	}
 	if fi, err := os.Stat(p); err != nil || !fi.Mode().IsRegular() || fi.Mode().Perm()&0o111 == 0 {
-		return p, "config.err.notexec"
+		return p, "notexec"
 	}
 	return p, ""
 }

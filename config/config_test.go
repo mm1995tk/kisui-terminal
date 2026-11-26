@@ -43,16 +43,20 @@ func TestShell(t *testing.T) {
 			t.Errorf("shell = %s: %q, %v", v, s.Shell, err)
 		}
 	}
-	// 使えない値は、どれも設定の間違い（kisui serve は起動しない）
+	// 無いファイル・実行できないファイルは、設定の間違いにしない（kisui serve は起動し、始めるときに $SHELL に替える）
 	os.WriteFile(filepath.Join(home, "bin", "plain"), []byte("x"), 0o644)
+	for _, name := range []string{"none", "plain"} {
+		write(`"~/bin/` + name + `"`)
+		if s, err := Load(""); err != nil || s.Shell != filepath.Join(home, "bin", name) {
+			t.Errorf("shell = ~/bin/%s: %q, %v", name, s.Shell, err)
+		}
+	}
+	// 書けない形は、設定の間違い（kisui serve は起動しない）
 	for v, want := range map[string]string{
-		`"bash"`:        "absolute path",    // PATH からは探さない
-		`"/bin/sh -l"`:  "not a file",       // 引数は書けない
-		`"~/bin/none"`:  "not a file",       // 無い
-		`"~/bin/plain"`: "not a file",       // 実行できない
-		`"~/bin"`:       "not a file",       // フォルダ
-		`""`:            "absolute path",    // 空
-		`1`:             "must be a string", // 型
+		`"bash"`:  "absolute path",    // PATH からは探さない
+		`"sh -l"`: "absolute path",    // 引数は書けない
+		`""`:      "absolute path",    // 空
+		`1`:       "must be a string", // 型
 	} {
 		write(v)
 		_, err := Load("")

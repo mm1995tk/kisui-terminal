@@ -184,7 +184,7 @@ func (w *wsManager) create(dir, startDir string, cmd tabCommand) (id, termID str
 		return "", "", rpc.Errorf(rpc.CodeInvalidParams, "%v", err)
 	}
 	if cmd.shell != "" {
-		if _, err := checkShell(cmd.shell); err != nil {
+		if _, err := w.checkShell(cmd.shell); err != nil {
 			return "", "", err
 		}
 	}

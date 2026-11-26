@@ -112,7 +112,6 @@ var ja = map[string]string{
 	"config.err.nonneg":         "0 以上で書いてください",
 	"config.err.abspath":        "絶対パスか、~ で始めて書いてください",
 	"config.err.notdir":         "%s というフォルダはありません",
-	"config.err.notexec":        "%s は実行できるファイルではありません",
 	"config.err.oneof":          "値が正しくないか、この版の kisui では使えない値です。次のどれかで書いてください: %s",
 	"config.err.bool":           "true か false で書いてください",
 	"config.err.tables":         "テーブルの配列で書いてください",

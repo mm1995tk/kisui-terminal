@@ -112,7 +112,6 @@ var en = map[string]string{
 	"config.err.nonneg":         "must be 0 or more",
 	"config.err.abspath":        "must be an absolute path, or start with ~",
 	"config.err.notdir":         "%s is not a folder that exists",
-	"config.err.notexec":        "%s is not a file that can be run",
 	"config.err.oneof":          "is not valid, or this version of kisui cannot use it. It must be one of: %s",
 	"config.err.bool":           "must be true or false",
 	"config.err.tables":         "must be an array of tables",
