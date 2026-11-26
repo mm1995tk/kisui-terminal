@@ -92,6 +92,13 @@ export type RowEditState =
   | { kind: "remote" }
   | { kind: "unknown" };
 
+/**
+ * 接続を選ぶ窓の行 c を、窓から変えられるかを、次の順で決める。行が無ければ unknown。
+ * 1. 行のマシンが手元（LOCAL）でなければ remote（窓が書けるのは手元の設定だけ）。
+ * 2. 手元の設定 local がまだ読めていない・読めなかった（undefined）なら unknown。
+ * 3. config.local.toml に同じ名前の項目があれば、窓で直せる項目（editable）で変種の行でもなければ edit、そうでなければ removeOnly。
+ * 4. config.toml の接続の名前なら fixed。どれでもなければ unknown。
+ */
 export function rowEditState(
   c: DbChoice | undefined,
   local: LocalDbConnections | undefined,
