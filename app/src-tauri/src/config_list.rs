@@ -153,15 +153,8 @@ impl MachineEdit {
 
 /// 設定のフォルダ `dir` の `config.local.toml` の `[[gui.machines]]` に、窓のマシンの書き込み `e` を行い、
 /// 書いたあとの（2 つのファイルを重ねた）マシンの一覧を返す。画面はこの一覧で、サイドバーを描き直す。
-/// 返す一覧は、書く前の確かめ（窓の読み込みと同じもの）で、書く中身から作る。確かめは書き込みと同じ排他（`config::edit_local`）の中で
-/// 行うので、書き込みが続けて走っても、返す一覧はその書き込みの直後のものになる（書いたあとに読み直すと、次の書き込みと入れ違う）。
 pub fn edit_machine(dir: &Path, e: MachineEdit) -> Result<Vec<ConfigMachine>, EditError> {
-    let mut machines = Vec::new();
-    edit(dir, &MACHINES, e.into_edit(), |text| {
-        machines = config::load_with_local(dir, text)?.machines;
-        Ok(())
-    })?;
-    Ok(machines)
+    edit_machines(dir, e.into_edit())
 }
 
 /// 設定のフォルダ `dir` の `config.local.toml` の一覧 `list` に、`edit` を行う。
@@ -181,10 +174,17 @@ pub fn edit(
     })
 }
 
-/// `[[gui.machines]]` に `edit` を行う。書き換えたあとの設定を、窓の読み込みと同じに確かめる
-/// （使えない ssh の行き先、`config.toml` のマシンとの名前の重なり、など）。
-pub fn edit_machines(dir: &Path, e: Edit) -> Result<(), EditError> {
-    edit(dir, &MACHINES, e, |text| config::check_local(dir, text))
+/// `[[gui.machines]]` に `edit` を行い、書いたあとの（2 つのファイルを重ねた）マシンの一覧を返す。
+/// 書き換えたあとの設定を、窓の読み込みと同じに確かめる（使えない ssh の行き先、`config.toml` のマシンとの名前の重なり、など）。
+/// 返す一覧は、その確かめで書く中身から作る。確かめは書き込みと同じ排他（`config::edit_local`）の中で行うので、
+/// 書き込みが続けて走っても、返す一覧はその書き込みの直後のものになる（書いたあとに読み直すと、次の書き込みと入れ違う）。
+pub fn edit_machines(dir: &Path, e: Edit) -> Result<Vec<ConfigMachine>, EditError> {
+    let mut machines = Vec::new();
+    edit(dir, &MACHINES, e, |text| {
+        machines = config::load_with_local(dir, text)?.machines;
+        Ok(())
+    })?;
+    Ok(machines)
 }
 
 /// 項目の、見分けるキーの値（前後の空白を除く）。無い・文字列でないなら None。

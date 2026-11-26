@@ -223,13 +223,8 @@ pub fn load_gui(dir: &Path) -> Result<GuiConfig, String> {
     overlay(dir, FILES.map(|name| load(&dir.join(name))))
 }
 
-/// `config.local.toml` の中身を `local_text` にしたら、設定が間違いなく読めるか。窓が `config.local.toml` を書く前に確かめる
-/// （間違いのある設定を書くと、次の起動で窓が出ない）。`config.toml` は今あるものを読む。
-pub(crate) fn check_local(dir: &Path, local_text: &str) -> Result<(), String> {
-    load_with_local(dir, local_text).map(|_| ())
-}
-
 /// `config.local.toml` の中身を `local_text` にしたときの、重ねたあとの設定。`config.toml` は今あるものを読む。
+/// 窓が `config.local.toml` を書く前に、これで確かめる（間違いのある設定を書くと、次の起動で窓が出ない）。
 pub(crate) fn load_with_local(dir: &Path, local_text: &str) -> Result<GuiConfig, String> {
     let [base, local] = FILES;
     overlay(
@@ -978,10 +973,10 @@ mod tests {
             load_dir(&d).unwrap(),
             vec![local("a", Some("y")), machine("b"), local("c", Some("x"))]
         );
-        // 書く前の確かめ（check_local）も同じ結果になる。ファイルは変えない
-        assert!(check_local(&d, "[[gui.machines]]\nssh = \"c\"\nname = \"x\"\n").is_err());
-        assert!(check_local(&d, "[[gui.machines]]\nssh = \"c\"\n").is_ok());
-        assert!(check_local(&d, "[[gui.machines]]\nssh = \"-o\"\n").is_err());
+        // 書く前の確かめ（load_with_local）も同じ結果になる。ファイルは変えない
+        assert!(load_with_local(&d, "[[gui.machines]]\nssh = \"c\"\nname = \"x\"\n").is_err());
+        assert!(load_with_local(&d, "[[gui.machines]]\nssh = \"c\"\n").is_ok());
+        assert!(load_with_local(&d, "[[gui.machines]]\nssh = \"-o\"\n").is_err());
         assert_eq!(load_dir(&d).unwrap().len(), 3);
         let _ = fs::remove_dir_all(&d);
     }
