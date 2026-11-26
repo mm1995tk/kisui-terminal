@@ -953,7 +953,7 @@ export const en = {
   "dbConn.tls.require": "require: always TLS, without checking the certificate",
   "dbConn.tls.verify": "verify: always TLS, and check the certificate",
   "dbConn.note.fileOnly":
-    "This connection has keys the window does not edit (variants or permissions). Edit it in config.local.toml; you can remove it here.",
+    "This connection has keys or values the window does not edit (variants, permissions, a password, a key the window does not know, or a value of another type). Edit it in config.local.toml; you can remove it here.",
   "dbConn.note.fixed":
     "This connection is written in config.toml, which the window does not change. Edit config.toml.",
   "dbConn.note.remote":

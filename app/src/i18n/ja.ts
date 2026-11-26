@@ -946,7 +946,7 @@ export const ja: Record<Key, string> = {
   "dbConn.tls.require": "require：いつも TLS。証明書は確かめない",
   "dbConn.tls.verify": "verify：いつも TLS。証明書を確かめる",
   "dbConn.note.fileOnly":
-    "この接続には、窓で直さないキー（環境の変種・権限）があります。config.local.toml で直してください（消すことはここでできます）。",
+    "この接続には、窓で直さないキーか値（環境の変種・権限・パスワード・窓の知らないキー・型の違う値）があります。config.local.toml で直してください（消すことはここでできます）。",
   "dbConn.note.fixed":
     "この接続は config.toml に書いてあり、窓からは変えません。config.toml で直してください。",
   "dbConn.note.remote":
