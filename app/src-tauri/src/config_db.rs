@@ -442,13 +442,11 @@ pub fn check_entry(e: &toml::Table) -> Vec<Problem> {
     if e.contains_key("password") {
         d.bad("password", "config.err.password", &[]);
     }
-    // name
     if let Some(s) = d.str("name", true) {
         if s.chars().count() > NAME_MAX {
             d.bad("name", "config.err.toolong", &[&NAME_MAX.to_string()]);
         }
     }
-    // kind
     if let Some(s) = d.str("kind", true) {
         if s != "postgres" && s != "mysql" {
             d.bad("kind", "config.err.oneof", &["postgres, mysql"]);
