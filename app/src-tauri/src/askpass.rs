@@ -6,6 +6,10 @@
 //!
 //! 中継は Unix ソケット（自分のユーザーだけが入れるフォルダの中）で、1 回ごとに 1 行の JSON を往復する。
 //! 質問の持ち主を確かめるため、接続ごとの使い捨ての合言葉（token）を付ける。
+//!
+//! 質問の文は、つなぎ先のサーバーが決められる（keyboard-interactive）。どのマシンへの接続の質問かを窓が
+//! 質問の文とは別に出せるよう、ssh を起こすときに決めた行き先（`SHIJIMI_ASKPASS_TARGET`）を質問に添えて窓へ渡す。
+//! 行き先の無い質問は、窓に出さずに断る。
 
 use std::io::{BufRead, BufReader, Write};
 use std::os::unix::fs::DirBuilderExt;
@@ -24,6 +28,8 @@ pub const ENV_SOCK: &str = "SHIJIMI_ASKPASS_SOCK";
 pub const ENV_TOKEN: &str = "SHIJIMI_ASKPASS_TOKEN";
 /// どの接続の質問か（接続を閉じたとき待ちを取り消すため）。
 pub const ENV_CONN: &str = "SHIJIMI_ASKPASS_CONN";
+/// どのマシンへの接続の質問か（ssh の行き先。ssh を起こす側が付ける。窓が質問の文とは別に出す）。
+pub const ENV_TARGET: &str = "SHIJIMI_ASKPASS_TARGET";
 
 /// ユーザーが答えないまま待つ上限。過ぎたら取り消し扱いにする。
 const ANSWER_TIMEOUT: Duration = Duration::from_secs(180);
@@ -32,6 +38,9 @@ const ANSWER_TIMEOUT: Duration = Duration::from_secs(180);
 struct Ask {
     token: String,
     conn: String,
+    /// ssh の行き先（`ENV_TARGET`）。無ければ空で、その質問は断る
+    #[serde(default)]
+    target: String,
     prompt: String,
 }
 
@@ -47,6 +56,9 @@ struct AskEvent {
     #[serde(rename = "requestId")]
     request_id: u64,
     conn: String,
+    /// ssh の行き先。ssh を起こした側が決めた値で、つなぎ先のサーバーは変えられない
+    target: String,
+    /// ssh が出した質問の文。つなぎ先のサーバーが決められる
     prompt: String,
 }
 
@@ -87,6 +99,17 @@ pub fn random_token() -> std::io::Result<String> {
 }
 
 impl AskpassServer {
+    /// テスト用の受け口（待ち受けない）。
+    #[cfg(test)]
+    pub fn for_test(token: &str) -> Self {
+        Self {
+            sock: PathBuf::from("/nonexistent/askpass.sock"),
+            token: token.to_string(),
+            pending: Arc::new(Mutex::new(Vec::new())),
+            aborted: Mutex::default(),
+        }
+    }
+
     /// ソケットのフォルダを消す（終了時）。
     pub fn cleanup(&self) {
         if let Some(dir) = self.sock.parent() {
@@ -129,7 +152,7 @@ impl AskpassServer {
         let Ok(ask) = serde_json::from_str::<Ask>(&line) else {
             return;
         };
-        let answer = if ask.token == self.token && !self.is_aborted(&ask.conn) {
+        let answer = if self.accepts(&ask) {
             let (tx, rx) = channel();
             self.pending.lock().unwrap().push((
                 id,
@@ -143,6 +166,7 @@ impl AskpassServer {
                 AskEvent {
                     request_id: id,
                     conn: ask.conn,
+                    target: ask.target,
                     prompt: ask.prompt,
                 },
             );
@@ -166,6 +190,12 @@ impl AskpassServer {
         if let Ok(s) = serde_json::to_string(&answer) {
             let _ = writeln!(w, "{s}");
         }
+    }
+
+    /// 窓に出してよい質問か。合言葉が合い、取り消されていない接続の、行き先のある質問だけを出す
+    /// （行き先が無いと、どのマシンへの接続の質問かを窓が出せない）。
+    fn accepts(&self, ask: &Ask) -> bool {
+        ask.token == self.token && !ask.target.is_empty() && !self.is_aborted(&ask.conn)
     }
 
     /// 窓で答えた（`None` は取り消し）。
@@ -225,10 +255,11 @@ impl<R: BufRead> TakeLine for R {
 
 /// `SSH_ASKPASS` として起動されたときの本体。ssh に答えを標準出力で返す。終了コードをそのまま返す。
 pub fn run_helper(prompt: &str) -> i32 {
-    let (Some(sock), Some(token), Some(conn)) = (
+    let (Some(sock), Some(token), Some(conn), Some(target)) = (
         std::env::var_os(ENV_SOCK),
         std::env::var(ENV_TOKEN).ok(),
         std::env::var(ENV_CONN).ok(),
+        std::env::var(ENV_TARGET).ok(),
     ) else {
         return 2;
     };
@@ -238,6 +269,7 @@ pub fn run_helper(prompt: &str) -> i32 {
     let ask = Ask {
         token,
         conn,
+        target,
         prompt: prompt.to_string(),
     };
     let Ok(text) = serde_json::to_string(&ask) else {
@@ -256,5 +288,61 @@ pub fn run_helper(prompt: &str) -> i32 {
             0
         }
         _ => 1, // 取り消し。ssh は認証を諦める
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn ask(token: &str, conn: &str, target: &str) -> Ask {
+        Ask {
+            token: token.into(),
+            conn: conn.into(),
+            target: target.into(),
+            prompt: "Password:".into(),
+        }
+    }
+
+    #[test]
+    fn shows_only_questions_with_the_token_and_a_target() {
+        let s = AskpassServer::for_test("secret");
+        assert!(s.accepts(&ask("secret", "c1", "web1")));
+        assert!(!s.accepts(&ask("other", "c1", "web1")));
+        // 行き先の無い質問は、どのマシンへの接続のものかを窓が出せないので断る
+        assert!(!s.accepts(&ask("secret", "c1", "")));
+        s.abort_conn("c1");
+        assert!(!s.accepts(&ask("secret", "c1", "web1")));
+        assert!(s.accepts(&ask("secret", "c2", "web1")));
+    }
+
+    /// 行き先を付けない質問（`target` の無い JSON）は、空の行き先として読み、断る。
+    #[test]
+    fn a_question_without_a_target_is_refused() {
+        let a: Ask =
+            serde_json::from_str(r#"{"token":"secret","conn":"c1","prompt":"Password:"}"#).unwrap();
+        assert_eq!(a.target, "");
+        assert!(!AskpassServer::for_test("secret").accepts(&a));
+    }
+
+    /// 窓へ渡す知らせに、行き先が質問の文とは別の項目で入る。
+    #[test]
+    fn the_event_carries_the_target_apart_from_the_prompt() {
+        let v = serde_json::to_value(AskEvent {
+            request_id: 7,
+            conn: "c1".into(),
+            target: "web1".into(),
+            prompt: "(other-host) Password:".into(),
+        })
+        .unwrap();
+        assert_eq!(
+            v,
+            serde_json::json!({
+                "requestId": 7,
+                "conn": "c1",
+                "target": "web1",
+                "prompt": "(other-host) Password:",
+            })
+        );
     }
 }

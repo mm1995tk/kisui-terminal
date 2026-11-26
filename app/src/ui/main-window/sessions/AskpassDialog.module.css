@@ -1,0 +1,58 @@
+/* ssh の質問の窓（AskpassDialog.tsx）。
+   窓が出すもの（どのマシンへの接続の質問か）は見出しの段に、画面の字とマシンの色の丸で出す。
+   ssh が出した文（つなぎ先のサーバーが決められる）は中身の段の枠の中に、等幅で出す。
+   枠の中の字は丸も画面の字も出せないので、質問の文がマシンの名前のふりをしても見分けられる。 */
+
+/* 見出しの段：窓の見出しの下に、マシンの行 */
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+/* マシンの行：説明・マシンの色の丸・名前・ssh の行き先。長い名前は折り返す */
+.machine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4) var(--space-8);
+}
+.caption {
+  color: var(--card-muted);
+  font-size: var(--text-caption);
+}
+/* マシンの色の丸（切り替える窓の丸と同じ形）。色の無いマシン（サイドバーにまだ無い）は枠だけ */
+.dot {
+  flex: none;
+  box-sizing: border-box;
+  width: 10px;
+  height: 10px;
+  border: 1px solid var(--machine-color, var(--card-muted));
+  border-radius: 50%;
+  background: var(--machine-color, transparent);
+}
+.name {
+  font-weight: var(--weight-strong);
+  overflow-wrap: anywhere;
+}
+/* ssh の行き先（名前を付けたマシンだけ）。ssh に渡す字なので等幅 */
+.target {
+  color: var(--card-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  overflow-wrap: anywhere;
+}
+
+/* ssh が出した文。枠で囲み、等幅で出す。長ければ、この中だけがスクロールする */
+.prompt {
+  padding: var(--space-8) var(--space-10);
+  max-height: 160px;
+  overflow: auto;
+  border: 1px solid var(--card-field-border);
+  border-radius: var(--radius-8);
+  background: var(--card-field-bg);
+  color: var(--card-text);
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  white-space: pre-wrap;
+  word-break: break-word;
+}

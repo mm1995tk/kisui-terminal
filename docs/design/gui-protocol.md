@@ -651,7 +651,7 @@ GUI は複数のワークスペースのツリーを（開閉の状態を持っ�
 
 ### ssh 越しに kisui を起動する
 
-GUI はシステムの `ssh` を子プロセスとして起動する（`~/.ssh/config` と ssh-agent をそのまま使うため）。ssh がパスワードや 2 段階認証を求めるときは `SSH_ASKPASS` で GUI の窓に出す。
+GUI はシステムの `ssh` を子プロセスとして起動する（`~/.ssh/config` と ssh-agent をそのまま使うため）。ssh がパスワードや 2 段階認証を求めるときは `SSH_ASKPASS` で GUI の窓に出す。質問の文はつなぎ先のサーバーが決められるので、窓は、どのマシンへの接続の質問か（サイドバーに出る名前と、名前を付けていれば ssh の行き先。マシンの色の丸を添える）を見出しの段に出し、質問の文は「ssh が出した文」と断った枠の中に出す。行き先は、GUI が ssh を起こすときに環境変数 `SHIJIMI_ASKPASS_TARGET` で askpass に渡した値で、行き先の無い質問は窓に出さずに断る（`askpass.rs`）。
 
 1. **kisui の場所**：`~/.cache/kisui-terminal/<GUI の版>/kisui` だけ。リモートの PATH の `kisui` は使わない（GUI と同じ版しか使わないため。`SHIJIMI_REMOTE_KISUI` で場所を手で指定したときを除く）。無ければ、ユーザーに聞いてから GUI が転送する。PATH の `kisui` には触らない。リモートの OS とアーキテクチャは `uname -sm` で調べ、合う実行ファイルを GitHub Releases から GUI が取って送る。取ったら送る前に、GitHub Releases の checksums（GUI の Release に上げる `SHA256SUMS`。`sha256sum` の形式）にある SHA-256 と、取得した実行ファイルを比べる（取得の段階の確認。合わなければ ssh を起動する前に捨てる）。リモートに置いたファイルも同じ値かを確かめる（転送の壊れの確認。リモートで一時ファイルの SHA-256 を計り、合ったときだけ `kisui` の名前にする）。kisui が無いことは、2 のコマンドの終了コード 97 で知る（`ssh` 自身の失敗は 255）。取り先は shj のリリースではなく GUI の Release（#581）で、普通の版はタグ `kisui-terminal-v<GUI の版>` の `kisui-<os>-<cpu>`、nightly 版の GUI は動くタグ `kisui-terminal-nightly` の `kisui-nightly-<os>-<cpu>` を取る。
 2. **つなぐ**：`ssh -T host -- sh -c '<1 の場所に kisui があれば exec <kisui> attach、無ければ exit 97>'`（ログインシェルが fish などでも動くよう `sh -c` で包む。環境変数 `SHIJIMI_REMOTE_KISUI` で場所を指定したときは、その場所だけを見て `command -v <kisui> >/dev/null 2>&1 || exit 97; <kisui> attach`）（`-T` は端末を割り当てない）。ユーザーの `ssh_config`（`ControlMaster` など）はそのまま効く。

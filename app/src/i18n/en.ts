@@ -770,6 +770,8 @@ export const en = {
     "A program is running in a terminal of {name}. Closing ends all its terminals. Open files are saved before closing.",
   "closeWorkspace.yes": "End them and close",
   "askpass.label": "ssh question",
+  "askpass.machine": "Connecting to",
+  "askpass.prompt": "Text from ssh (the server you connect to can choose it)",
   "askpass.reveal": "Show what you type (type yes / no for the host key check)",
   "askpass.cancel": "Cancel",
   "browser.opening": "Opening {url}…",

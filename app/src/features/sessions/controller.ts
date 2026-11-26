@@ -22,6 +22,7 @@ import { WorkspaceTrees } from "../file-tree/trees.ts";
 import type { KeyValueStore } from "../keyValueStore.ts";
 import type { ReportProblem } from "../problem.ts";
 import { TermGroups } from "../terminal/group.ts";
+import { askpassMachine, type AskpassMachine } from "./askpass.ts";
 import { machineColors } from "./colors.ts";
 import {
   addMachine,
@@ -477,6 +478,9 @@ export function createSessions(deps: {
     retry,
     /** 答えを待っている ssh の質問（先頭から順に聞く） */
     asks,
+    /** ssh の質問の窓に出す、質問を出した接続の行き先（target）のマシン（名前・ssh の行き先・色） */
+    askMachine: (target: string): AskpassMachine =>
+      askpassMachine(machines(), colors(), target),
     reply,
     /** リモートを足す窓を出しているか */
     adding,

@@ -12,7 +12,11 @@ import type { CommandUi } from "./commands/run.ts";
 import type { FeaturePorts, Features, FeatureUi } from "./compose.ts";
 import type { KeyValueStore } from "./keyValueStore.ts";
 import type { ConfigMachine } from "./sessions/machines.ts";
-import type { ClosedEvent, ShellApi } from "./sessions/shell.ts";
+import type {
+  AskpassRequest,
+  ClosedEvent,
+  ShellApi,
+} from "./sessions/shell.ts";
 import type { TermDefaults } from "./sessions/termDefaults.ts";
 import type { ProxyFlow, Workspace } from "../infrastructure/rpc/protocol.ts";
 
@@ -73,6 +77,8 @@ function fakeShell(
   type Line = (e: { id: string; line: string }) => void;
   const lines: Line[] = [];
   const closeds: ((e: ClosedEvent) => void)[] = [];
+  // ssh の質問の受け手（テストが質問を送る）
+  const askeds: ((e: AskpassRequest) => void)[] = [];
   const serves = new Map<string, Serve>();
   const connOf = new Map<string, string>(); // 接続の id -> target
   let seq = 0;
@@ -321,10 +327,15 @@ function fakeShell(
       closeds.push(f);
       return () => void closeds.splice(closeds.indexOf(f), 1);
     },
-    onAskpass: async () => () => {},
+    onAskpass: async (f) => {
+      askeds.push(f);
+      return () => void askeds.splice(askeds.indexOf(f), 1);
+    },
     onAskpassDone: async () => () => {},
   };
-  return { api, serveOf, machines, edit, local };
+  /** 殻が ssh の質問を窓へ渡したふりをする。 */
+  const ask = (e: AskpassRequest) => askeds.forEach((f) => f(e));
+  return { api, serveOf, machines, edit, local, ask };
 }
 
 /** 偽のブラウザの殻。覚えているタブを返し、頼まれたことを覚える。 */
@@ -498,6 +509,7 @@ function start(opts: {
     machines: shell.machines,
     edit: shell.edit,
     local: shell.local,
+    ask: shell.ask,
     serve: shell.serveOf,
     browserCalls: browser.calls,
     loadFailed: browser.loadFailed,
@@ -1012,6 +1024,42 @@ describe("機能の持ち物のつなぎ（compose.ts）", () => {
     assert.deepEqual(f.sessions.targets(), [LOCAL, "host1"]);
     assert.equal(f.sessions.states().host1?.kind, "connected");
     assert.equal(machines.length, 1);
+  });
+
+  it("ssh の質問の窓に出すマシンは、その質問を出した接続の行き先のマシン（サイドバーの名前・ssh の行き先・色）", async () => {
+    const { f, ask } = start({
+      serves: {
+        [LOCAL]: { ids: ["a"], focus: "a" },
+        host1: { ids: ["r"], focus: "r" },
+      },
+    });
+    await settle();
+    f.sessions.openAdd();
+    f.sessions.submitAdd("host1", "本番");
+    await settle();
+    assert.deepEqual(f.sessions.targets(), [LOCAL, "host1"]);
+
+    // 質問の文は、つなぎ先のサーバーが決められる（別のマシンの名前も書ける）。窓に出すマシンは、殻が渡した行き先で決まる
+    ask({
+      requestId: 1,
+      conn: "c1",
+      target: "host1",
+      prompt: "(other-host) Password:",
+    });
+    const asked = f.sessions.asks()[0];
+    assert.equal(asked?.prompt, "(other-host) Password:");
+    assert.deepEqual(f.sessions.askMachine(asked!.target), {
+      label: "本番",
+      target: "host1",
+      color: f.sessions.colors().host1,
+    });
+    assert.notEqual(f.sessions.colors().host1, undefined);
+
+    // サイドバーにまだ無いマシン（足すためにつないでいる最中）の質問は、行き先をそのまま出す
+    ask({ requestId: 2, conn: "c2", target: "host2", prompt: "Password:" });
+    assert.deepEqual(f.sessions.askMachine(f.sessions.asks()[1]!.target), {
+      label: "host2",
+    });
   });
 
   it("マシンのターミナルの始め方を変えると config.local.toml に書き、次に作るターミナルから kisui serve に渡す（設定は作るたびに読み直す）", async () => {

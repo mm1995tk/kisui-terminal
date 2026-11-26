@@ -3,9 +3,16 @@
 import type { ConfigMachine } from "./machines.ts";
 import type { TermDefaults } from "./termDefaults.ts";
 
+/** ssh の質問 1 つ（殻の askpass.rs の AskEvent）。 */
 export interface AskpassRequest {
   requestId: number;
   conn: string;
+  /**
+   * 質問を出した接続の ssh の行き先。殻が ssh を起こすときに決めた値で、つなぎ先のサーバーは変えられない。
+   * 窓は、これでどのマシンへの接続の質問かを出す（askpass.ts）。殻は、行き先の無い質問を窓に渡さない。
+   */
+  target: string;
+  /** ssh が出した質問の文。つなぎ先のサーバーが決められるので、窓が出す文（マシンの名前など）とは分けて出す */
   prompt: string;
 }
 

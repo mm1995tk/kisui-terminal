@@ -52,6 +52,7 @@ export function SessionDialogs(props: {
     submitTermEdit,
     closeTermEdit,
     asks,
+    askMachine,
     reply,
   } = props.sessions;
   const { machineList, currentTarget } = props;
@@ -132,7 +133,7 @@ export function SessionDialogs(props: {
           onCancel={cancelAdd}
         />
       </Show>
-      <AskpassDialog ask={asks()[0]} onReply={reply} />
+      <AskpassDialog ask={asks()[0]} machineOf={askMachine} onReply={reply} />
     </>
   );
 }

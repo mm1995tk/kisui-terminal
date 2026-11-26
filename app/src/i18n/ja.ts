@@ -766,6 +766,8 @@ export const ja: Record<Key, string> = {
     "{name} のターミナルでプログラムが動いています。閉じると、ターミナルを全部終わらせます。開いているファイルは保存してから閉じます。",
   "closeWorkspace.yes": "End them and close",
   "askpass.label": "ssh question",
+  "askpass.machine": "接続の行き先",
+  "askpass.prompt": "ssh が出した文（つなぎ先のサーバーが決められます）",
   "askpass.reveal": "表示する（host key の確認は yes / no と打つ）",
   "askpass.cancel": "Cancel",
   "browser.opening": "{url} を開いています…",
