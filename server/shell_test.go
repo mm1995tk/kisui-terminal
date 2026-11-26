@@ -176,6 +176,11 @@ func TestShellOfWorkspace(t *testing.T) {
 		}
 	}
 	is("split after the refusals", split(map[string]any{"workspaceId": id}), own)
+	// 始められなかった要求（分ける先の欄が無い）のシェルも、覚えない
+	if err := c.Call(ctx, "term.create", map[string]any{"workspaceId": id, "cols": 80, "rows": 24, "shell": two, "split": map[string]any{"target": "none", "dir": "right"}}, nil); err == nil {
+		t.Error("a split of a pane that is not there was accepted")
+	}
+	is("split after the failed request", split(map[string]any{"workspaceId": id}), own)
 	before := len(listWS(t, c).Workspaces)
 	if _, _, err := createWith(t, c, map[string]any{"shell": "~/bin/none"}); !isCode(err, rpc.CodeInvalidParams) {
 		t.Errorf("workspace.create with a shell that is not there: %v", err)

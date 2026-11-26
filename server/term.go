@@ -347,6 +347,7 @@ func (m *termManager) create(p termCreateParams) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+	m.srv.ws.rememberShell(p.WorkspaceID, p.Shell)
 	m.srv.ws.placePane(p.WorkspaceID, target, sdir, t.id)
 	m.srv.ws.recomputeLocked()
 	t.mu.Lock()
@@ -396,9 +397,7 @@ func (m *termManager) restart(t *terminal, shell *string) (any, error) {
 		// フォルダが無くなっていたら、start_dir（それも無ければ ~）で始める。
 		dir = m.srv.ws.startDir()
 	}
-	m.srv.ws.recomputeMu.Lock()
 	sh, serr := m.srv.ws.shellFor(wsID, shell)
-	m.srv.ws.recomputeMu.Unlock()
 	if serr != nil {
 		return nil, serr
 	}
@@ -423,6 +422,9 @@ func (m *termManager) restart(t *terminal, shell *string) (any, error) {
 	t.mu.Unlock()
 	t.startPump()
 	m.mu.Unlock()
+	m.srv.ws.recomputeMu.Lock()
+	m.srv.ws.rememberShell(wsID, shell)
+	m.srv.ws.recomputeMu.Unlock()
 	m.srv.log.Info("term restarted", "termId", t.id, "pid", pid, "cwd", dir)
 	return map[string]any{"pid": pid, "cwd": cwd}, nil
 }

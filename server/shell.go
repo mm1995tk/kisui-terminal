@@ -109,18 +109,23 @@ func (w *wsManager) rememberedShell(wsID string) string {
 	return w.usableShell(sh)
 }
 
-// shellFor は、要求に付いた shell（asked。nil なら付いていない）から、ワークスペース wsID で始めるシェルを決め、
-// 付いていれば覚え直す（workspaces.json にも書く）。recomputeMu を持って呼ぶ。
+// shellFor は、要求に付いた shell（asked。nil なら付いていない）から、ワークスペース wsID で始めるシェルを決める。
+// 覚えるのは、そのシェルを始められたあと（rememberShell）。
 func (w *wsManager) shellFor(wsID string, asked *string) (string, *rpc.Error) {
 	if asked == nil {
 		return w.rememberedShell(wsID), nil
 	}
-	sh := w.srv.defaultShell()
-	if *asked != "" {
-		var err *rpc.Error
-		if sh, err = checkShell(*asked); err != nil {
-			return "", err
-		}
+	if *asked == "" {
+		return w.srv.defaultShell(), nil
+	}
+	return checkShell(*asked)
+}
+
+// rememberShell は、要求に付いた shell（asked。nil なら何もしない）で始められたあとに、ワークスペース wsID のシェルとして
+// 覚え直す（workspaces.json にも書く）。始められなかった要求のシェルは覚えない。recomputeMu を持って呼ぶ。
+func (w *wsManager) rememberShell(wsID string, asked *string) {
+	if asked == nil {
+		return
 	}
 	w.mu.Lock()
 	st := w.reg[wsID]
@@ -132,7 +137,6 @@ func (w *wsManager) shellFor(wsID string, asked *string) (string, *rpc.Error) {
 	if changed {
 		w.persist()
 	}
-	return sh, nil
 }
 
 // usableDir は、窓が渡した startDir（~ と ~/x は、このマシンのホーム）のフォルダ。絶対パスのフォルダでなければ ""。
