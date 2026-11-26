@@ -27,7 +27,7 @@
 use std::fmt;
 use std::path::Path;
 
-use serde::{Deserialize, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 use toml_edit::{Array, ArrayOfTables, DocumentMut, InlineTable, Item, Table, TableLike, Value};
 
 use crate::config::{self, ConfigMachine};
@@ -73,7 +73,9 @@ pub enum Edit {
 }
 
 /// 書けなかった理由。画面が言葉を選べるよう、種類で分ける。中の文字列は、設定の間違いと同じ形の説明（ファイルの場所を含む）。
-#[derive(Debug, PartialEq, Eq)]
+/// 画面へは `{ kind, detail }` の形で渡す（画面が `kind` で言葉を選び、`detail` を添える）。
+#[derive(Debug, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", content = "detail", rename_all = "lowercase")]
 pub enum EditError {
     /// 同じキーの項目が `config.local.toml` にもうある（中身はそのキー）
     Exists(String),
@@ -100,24 +102,6 @@ impl fmt::Display for EditError {
             EditError::Missing(k) => write!(f, "{k} は config.local.toml にありません"),
             EditError::Entry(s) | EditError::File(s) | EditError::Rejected(s) => f.write_str(s),
         }
-    }
-}
-
-/// 書けなかった理由を、画面へ `{ kind, detail }` の形で渡す（画面が `kind` で言葉を選び、`detail` を添える）。
-impl Serialize for EditError {
-    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        use serde::ser::SerializeStruct;
-        let (kind, detail) = match self {
-            EditError::Exists(d) => ("exists", d),
-            EditError::Missing(d) => ("missing", d),
-            EditError::Entry(d) => ("entry", d),
-            EditError::File(d) => ("file", d),
-            EditError::Rejected(d) => ("rejected", d),
-        };
-        let mut st = s.serialize_struct("EditError", 2)?;
-        st.serialize_field("kind", kind)?;
-        st.serialize_field("detail", detail)?;
-        st.end()
     }
 }
 
