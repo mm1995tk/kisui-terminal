@@ -3,8 +3,10 @@
 //!
 //! 流れ:
 //! 1. 内蔵ブラウザのページ（設定の `[gui.browser] passkey_sites` に書いたサイト）が `navigator.credentials.get` か `create` で
-//!    パスキーを求めると、ページに入れたスクリプト（browser_passkey.js）が `kisui-passkey:` の URL で殻に知らせる
-//!    （browser.rs の on_new_window が受ける。nonce が合うものだけ）。
+//!    パスキーを求めると、ページに入れたスクリプトが `kisui-passkey:` の URL で殻に知らせる
+//!    （browser.rs の on_new_window が受ける。nonce が合うものだけ）。スクリプトは 2 つ。ページの世界で動く
+//!    browser_passkey.js が求めを捕まえ、ページの外の世界で動く browser_passkey_tell.js（nonce を持つ）が殻に知らせる
+//!    （nonce をページのスクリプトに読ませないため。browser.rs の頭の説明）。
 //! 2. 殻は、そのタブの今の URL（一番上のフレーム）の host が設定の項目に当たれば（`site_matches`）、その URL を外のブラウザで開き、
 //!    「その項目のログインを待っている」と覚える（`WAIT` の間）。ページには NotAllowedError を返す。
 //! 3. 外のブラウザの拡張機能（#207）がログインした後の Cookie を native messaging で送る。ブラウザが起動する受け口
@@ -39,8 +41,10 @@ use crate::config::GuiConfig;
 
 /// ページのスクリプトが殻に知らせる URL の scheme。
 pub const SCHEME: &str = "kisui-passkey";
-/// ページに入れるスクリプト。
-const SCRIPT: &str = include_str!("browser_passkey.js");
+/// ページに入れるスクリプト（ページの世界で動かす。パスキーの求めを捕まえる。nonce は持たない）。
+const PAGE_SCRIPT: &str = include_str!("browser_passkey.js");
+/// ページに入れるスクリプト（ページの外の世界で動かす。捕まえた求めを殻に知らせる）。
+const TELL_SCRIPT: &str = include_str!("browser_passkey_tell.js");
 /// ブラウザが受け口として起動したとき（登録のファイルの指すスクリプトが付ける）の引数。続けてソケットのパス。
 pub const HOST_FLAG: &str = "--native-messaging-host";
 /// 受け口につないでよい Firefox の拡張機能（#207 の拡張機能の `browser_specific_settings.gecko.id`）。
@@ -218,11 +222,19 @@ pub fn is_request(u: &Url, nonce: &str) -> bool {
             .any(|(k, v)| k == "n" && v.as_ref() == nonce)
 }
 
-/// ページに入れるスクリプト（nonce・サイトの一覧・続けて知らせない間隔を埋めたもの）。
-pub fn script(nonce: &str, sites: &[String]) -> String {
+/// ページの世界で動かすスクリプト（サイトの一覧を埋めたもの）。パスキーの求めを捕まえ、`tell_script` に知らせる。
+/// ページのスクリプトから中身を読めるので、nonce は入れない。
+pub fn page_script(sites: &[String]) -> String {
+    let s = serde_json::to_string(sites).unwrap_or_else(|_| "[]".into());
+    PAGE_SCRIPT.replace("__KISUI_PASSKEY_SITES__", &s)
+}
+
+/// ページの外の世界で動かすスクリプト（nonce・サイトの一覧・続けて知らせない間隔を埋めたもの）。`page_script` が捕まえた
+/// 求めを、殻に知らせる。
+pub fn tell_script(nonce: &str, sites: &[String]) -> String {
     let n = serde_json::to_string(nonce).unwrap_or_else(|_| "\"\"".into());
     let s = serde_json::to_string(sites).unwrap_or_else(|_| "[]".into());
-    SCRIPT
+    TELL_SCRIPT
         .replace("__KISUI_NONCE__", &n)
         .replace("__KISUI_PASSKEY_SITES__", &s)
         .replace(
@@ -953,15 +965,29 @@ mod tests {
     }
 
     #[test]
-    fn script_has_the_nonce_and_sites() {
-        let s = script("abc\"</script>", &sites());
+    fn tell_script_has_the_nonce_and_sites() {
+        let s = tell_script("abc\"</script>", &sites());
         assert!(!s.contains("__KISUI_"));
         assert!(s.contains(r#"const nonce = "abc\"</script>";"#), "{s}");
         assert!(s.contains(r#"const sites = ["github.com","dash.cloudflare.com"];"#));
         assert!(s.contains("const interval = 3000;"), "{s}");
         // 殻の受ける URL の形で知らせる
-        assert!(SCRIPT.contains("\"kisui-passkey://passkey?n=\""));
-        assert!(!SCRIPT.contains("location.href"));
+        assert!(TELL_SCRIPT.contains("\"kisui-passkey://passkey?n=\""));
+        assert!(!TELL_SCRIPT.contains("location.href"));
+    }
+
+    // ページの世界で動かすスクリプトは、ページのスクリプトから中身を読めるので、nonce を持たず、殻にも直接は知らせない。
+    // 外の世界のスクリプトが受けるのと同じ名前のイベントで知らせる
+    #[test]
+    fn page_script_has_the_sites_but_no_nonce() {
+        let s = page_script(&sites());
+        assert!(!s.contains("__KISUI_"), "{s}");
+        assert!(s.contains(r#"const sites = ["github.com","dash.cloudflare.com"];"#));
+        assert!(!PAGE_SCRIPT.contains("__KISUI_NONCE__"));
+        assert!(!PAGE_SCRIPT.contains("kisui-passkey://"));
+        assert!(!PAGE_SCRIPT.contains("window.open"));
+        assert!(PAGE_SCRIPT.contains(r#"new Ev("kisui-passkey")"#));
+        assert!(TELL_SCRIPT.contains(r#""kisui-passkey","#));
     }
 
     #[test]
