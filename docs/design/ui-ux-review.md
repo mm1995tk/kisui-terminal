@@ -266,10 +266,10 @@ kisui-terminal の窓（`app/src/`）の表示と操作を、画面をまたい�
 | 同上 | 名前を打っている間 | 名前を入力中（見出しだけ。ターミナルのタブを作る欄では `Tab` machine・`↓` machine list） |
 | 同上 | ワークスペースを閉じるか確かめる間 | ワークスペース：`y` close・`n` keep |
 | DB のタブの窓（DB のタブでリーダー `a`） | いつも | 選んでいるタブ：`x` close・`s` data / structure（木で選んだテーブル）・`f` `b` page（結果が出たとき）・`e` export（書き出せる行があるとき）。結果のタブが無ければ見出しだけ／この DB のタブ：`c` cancel SQL（実行中）・`t` schema tree・`r` reload・`h` history・`p` elevate・`P` end elevation（強めているとき） |
-| ターミナルのタブの窓（ターミナルのタブでリーダー `a`） | いつも | 選んでいるペイン：`s` split・`H` `J` `K` `L` swap（入れ替えられる隣があるとき）・`x` close（プライマリ以外）／このタブ：`z` zoom（隠せるとき）・`r` resize |
+| ターミナルのタブの窓（ターミナルのタブでリーダー `a`） | いつも | 選んでいるペイン：`s` split・`H` `J` `K` `L` swap（入れ替えられる隣があるとき）・`x` close（プライマリ以外）／このターミナルのタブ：`z` zoom（隠せるとき）・`r` resize |
 | 同上 | 分ける向きを待つ間 | 分ける向き：`h` `j` `k` `l` split direction・`Esc` cancel（意味が変わるので出す） |
-| 同上 | ペインを出せない間 | 見出しだけ（選んでいるペイン・このタブ） |
-| ブラウザのタブの窓（ブラウザのタブでリーダー `a`） | いつも | 移動：`h` back・`l` forward（行き先があるとき。この窓では `h` `l` は列でなく戻る・進む）・`r` reload・`c` stop loading（読み込み中）・`u` edit URL／このページ：`y` copy URL・`e` external browser・`s` login・`/` find・`b` bookmark・`B` bookmarks・`i` DevTools（今できる操作だけ。新しいタブのページでは `u` と `B` だけ。操作の名前はリーダーの `browser.*` と同じ） |
+| 同上 | ペインを出せない間 | 見出しだけ（選んでいるペイン・このターミナルのタブ） |
+| ブラウザのタブの窓（ブラウザのタブでリーダー `a`） | いつも | 移動：`h` back・`l` forward（行き先があるとき。この窓では `h` `l` は列でなく戻る・進む）・`r` reload・`c` stop loading（読み込み中）・`u` edit URL／このページ：`y` copy URL・`e` external browser・`s` login・`/` find・`b` bookmark・`B` bookmarks・`i` DevTools（今できる操作だけ。新しいタブのページでは `u` と `B` だけ） |
 
 窓ごとの下の段（まだ前の決まりの窓）：
 

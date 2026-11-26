@@ -106,6 +106,26 @@ describe("browserWindowFooter（窓の下の段の今効く操作。#488）", ()
     ]);
   });
 
+  it("操作の名前は、短い英語（ほかの窓の下の段と同じ。窓の行の長い名前ではない）", () => {
+    assert.deepEqual(
+      footer(full).flatMap((r) => r.items.map((i) => i.label)),
+      [
+        "back",
+        "forward",
+        "reload",
+        "stop loading",
+        "edit URL",
+        "copy URL",
+        "external browser",
+        "login",
+        "find",
+        "bookmark",
+        "bookmarks",
+        "DevTools",
+      ],
+    );
+  });
+
   it("今できない操作は出さない（履歴が無ければ h l、読み込み中でなければ c、シークレットなら s）", () => {
     assert.deepEqual(shown(footer(tab({ incognito: true }))), [
       ["Navigate", ["r", "u"]],

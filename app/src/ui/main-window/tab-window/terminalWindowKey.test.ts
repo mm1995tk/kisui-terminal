@@ -118,10 +118,10 @@ describe("terminalWindowFooter（窓の下の段の今効く操作。#488）", (
   const shown = (rows: FooterRow[]) =>
     rows.map((r) => [r.title, r.items.map((i) => i.keys.join(" "))]);
 
-  it("全部効くときは、選んでいるペインの行と、このタブの行に、全部の操作を出す", () => {
+  it("全部効くときは、選んでいるペインの行と、このターミナルのタブの行に、全部の操作を出す", () => {
     assert.deepEqual(shown(terminalWindowFooter(all)), [
       ["Selected pane", ["s", "H J K L", "x"]],
-      ["This tab", ["z", "r"]],
+      ["This terminal tab", ["z", "r"]],
     ]);
   });
 
@@ -137,7 +137,7 @@ describe("terminalWindowFooter（窓の下の段の今効く操作。#488）", (
       ),
       [
         ["Selected pane", ["s"]],
-        ["This tab", ["r"]],
+        ["This terminal tab", ["r"]],
       ],
     );
   });
@@ -154,7 +154,7 @@ describe("terminalWindowFooter（窓の下の段の今効く操作。#488）", (
         shown(terminalWindowFooter({ ...all, empty: true, splitting })),
         [
           ["Selected pane", []],
-          ["This tab", []],
+          ["This terminal tab", []],
         ],
       );
   });

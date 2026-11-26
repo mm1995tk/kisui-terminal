@@ -63,7 +63,7 @@ export function browserWindowKey(e: KeyLike): BrowserWindowKey | null {
  * 窓の下の段（共通フッタ）に出す、今効く操作。「移動」と「このページ」の 2 行（ほかの窓の「選んでいるタブ」「この DB のタブ」と同じ形）。
  * 今できない行（窓の行で薄くなっているもの。why がある）は出さない。どの窓でも同じ意味のキー（j k・Enter・Esc・`?`）は出さない
  * （h l は、この窓では戻る・進むなので出す）。キーと probes は `?` の一覧の表（placeKeys.ts の browserWindow）から引く（placeItem）。
- * 操作の名前は、窓の行と同じ（rows の label。リーダーの browser.* と同じ英語）。browserWindowKey.test.ts が、出す操作を判定が受けることと、
+ * 操作の名前は短い英語（`browserWindow.keys.<op>`。窓の行の名前はリーダーの browser.* と同じで長い）。browserWindowKey.test.ts が、出す操作を判定が受けることと、
  * 表の操作がどれも、どこかの状態で下の段に出ることを確かめる。
  */
 export function browserWindowFooter(
@@ -73,7 +73,12 @@ export function browserWindowFooter(
     rows
       .filter((r) => ops.includes(r.op) && !r.why)
       .map((r) =>
-        placeItem("browserWindow", FOOTER_KEYS[r.op], r.label, [r.key]),
+        placeItem(
+          "browserWindow",
+          FOOTER_KEYS[r.op],
+          T(`browserWindow.keys.${r.op}`),
+          [r.key],
+        ),
       );
   return [
     {
