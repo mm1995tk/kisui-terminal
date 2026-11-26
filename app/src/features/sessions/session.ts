@@ -146,7 +146,8 @@ export type DbMethod =
   | "db.structure"
   | "db.history"
   | "db.elevate"
-  | "db.elevateEnd";
+  | "db.elevateEnd"
+  | "db.remember";
 /**
  * Session.request で送れる要求（プロキシ。#409。capabilities に "proxy" がある kisui serve だけが受ける。proxy.resend（#410）は
  * "proxy.resend"、proxy.hold・proxy.release（#411）は "proxy.hold" がある kisui serve だけ）。

@@ -679,6 +679,26 @@ export interface Requests {
     result: { connection: DbConnection };
   };
   /**
+   * 窓が覚えている、前に打って通ったパスワードを渡し直す。capabilities に "db-remember" のある kisui serve だけが受ける。
+   * その kisui serve は、窓で打って覚えたパスワードを、窓の接続が切れたとき・別の窓が持ち主になったときに全部忘れるので、
+   * 窓はつなぎ直した直後に送る（コーディングエージェントの kisui db のコマンドが、人の操作を待たずにまた使えるように）。
+   * kind・host・port・user は、パスワードを打ったときの、その接続の行き先（db.connections が返していたもの）。今の設定の
+   * 接続と同じなら覚えて remembered は true。接続が無い・行き先が違えば、覚えずに false（窓は、覚えていたものを捨てる）。
+   * DB にはつながない。password を省くと invalid_params（"" はパスワード無しのログイン）
+   */
+  "db.remember": {
+    params: {
+      connection: string;
+      variant?: string;
+      kind: "postgres" | "mysql";
+      host: string;
+      port: number;
+      user: string;
+      password: string;
+    };
+    result: { remembered: boolean };
+  };
+  /**
    * 通信をプロキシに通し始める（#409）。capabilities に "proxy" がある kisui serve だけが受ける。workspaceId はターミナルのタブ
    * （そのあとに開いたペインに、プロキシと認証局の環境変数が渡る。scope は "ws:<id>" になる）、scope は内蔵ブラウザのタブ
    * （窓が決めた名前。英数字と _ . : - で 64 字まで。"ws:" では始めない）。どちらか 1 つを渡す。もう通していれば、

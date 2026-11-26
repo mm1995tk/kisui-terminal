@@ -273,6 +273,8 @@ func (s *Server) accept(c net.Conn) {
 		ownerGone := s.owner == ss
 		if ownerGone {
 			s.owner = nil
+			// 窓で打って覚えた DB のパスワードは、その窓がつながっている間だけのもの（db.go）
+			s.forgetDBPasswords()
 		}
 		s.lastClient = s.now()
 		s.mu.Unlock()
@@ -507,6 +509,9 @@ func (ss *session) helloReq(req *rpc.Message) (any, error) {
 	if prev != nil {
 		sup = &Peer{Client: prev.client, ConnectedAt: prev.connectedAt}
 		prev.superseded = true
+		// 前の持ち主の窓で打って覚えた DB のパスワードを、新しい持ち主に使わせない（db.go）。この接続が要求を出せるように
+		// なる（下の ss.hello）より前に忘れる。
+		s.forgetDBPasswords()
 	}
 	ss.client, ss.connectedAt = p.Client, now
 	s.owner = ss
@@ -531,7 +536,7 @@ func (ss *session) helloReq(req *rpc.Message) (any, error) {
 		ServerID:     s.serverID,
 		StartedAt:    s.startedAt,
 		Supersedes:   sup,
-		Capabilities: []string{CapHandover, CapDB, CapDBPermissions, CapDBSchema, CapDBStructure, CapDBElevate, CapCreateCommand, CapCreateShell, CapPaneRun, CapProxy, CapProxyResend, CapProxyHold},
+		Capabilities: []string{CapHandover, CapDB, CapDBPermissions, CapDBSchema, CapDBStructure, CapDBElevate, CapDBRemember, CapCreateCommand, CapCreateShell, CapPaneRun, CapProxy, CapProxyResend, CapProxyHold},
 		Workspaces:   wsl,
 		Rev:          s.currentRev(),
 	}, nil

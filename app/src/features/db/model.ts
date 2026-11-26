@@ -15,6 +15,7 @@ import type {
 } from "../../infrastructure/rpc/protocol.ts";
 import type { KeyValueStore } from "../keyValueStore.ts";
 import { pageable, rowRange } from "./paging.ts";
+import type { PasswordKeeper } from "./passwords.ts";
 
 // ---- 書きかけの SQL の記録 ----
 
@@ -242,7 +243,14 @@ export class PasswordCancelled extends Error {
  * send（password を付けて要求を送る。undefined なら付けない）を呼ぶ。kisui serve が password_required を返したら、
  * ask でパスワードを聞いて、それを付けて送り直す（DB が断った rejected なら、また聞く）。ask の第 2 引数は、キーチェーンか
  * ファイルで見つけたパスワードが断られたときの、その場所。ask が null（やめた）なら
- * PasswordCancelled を投げる。ほかの断りは、そのまま投げる。聞いたパスワードは、この中の変数にだけ持つ。
+ * PasswordCancelled を投げる。ほかの断りは、そのまま投げる。
+ *
+ * keeper（passwords.ts）は、窓が覚えているパスワードの扱い。渡さなければ、聞いたパスワードはこの中の変数にだけ持つ。渡すと：
+ * - 聞いたパスワードでログインが通ったら、覚える（ログインのあとで DB が文を断ったときも。ログインは通っている）。
+ * - パスワードを付けない要求が、kisui serve が窓で打ったパスワードを持っていないために断られたら（どこにも無い missing・
+ *   キーチェーンかファイルのものを使って断られた rejected）、覚えているものを kisui serve に渡し直し（db.remember）、
+ *   聞かずに送り直す。これは 1 度だけ。渡せなければ（覚えていない・行き先が変わった）、聞く。
+ * - 覚えていたものを DB が断ったら（passwordSource の無い rejected）、覚えたものを捨てて、聞く。
  */
 export async function withPassword<R>(
   send: (password: string | undefined) => Promise<R>,
@@ -250,19 +258,43 @@ export async function withPassword<R>(
     reason: DbPasswordRequiredData["reason"],
     passwordSource?: DbPasswordRequiredData["passwordSource"],
   ) => Promise<string | null>,
+  keeper?: PasswordKeeper,
 ): Promise<R> {
   let password: string | undefined;
+  let handedBack = false;
   for (;;) {
+    let worked: (() => void) | undefined;
     try {
-      return await send(password);
+      if (password !== undefined) worked = await keeper?.typed(password);
+      const result = await send(password);
+      worked?.();
+      return result;
     } catch (e) {
       const f = queryFailure(e);
-      if (f.kind !== "password") throw e;
+      if (f.kind !== "password") {
+        // DB が文を断ったのは、ログインが通ったあと：kisui serve は付けたパスワードを覚えたので、窓も覚える
+        if (failedAfterLogin(e)) worked?.();
+        throw e;
+      }
+      if (keeper && password === undefined) {
+        if (f.reason === "rejected" && f.passwordSource === undefined) {
+          keeper.forget();
+        } else if (!handedBack) {
+          handedBack = true;
+          if (await keeper.handBack()) continue;
+        }
+      }
       const p = await ask(f.reason, f.passwordSource);
       if (p === null) throw new PasswordCancelled();
       password = p;
     }
   }
+}
+
+/** 要求が投げたものが、ログインが通ったあとの断り（DB が文を断った。db_error の query）か。 */
+function failedAfterLogin(e: unknown): boolean {
+  if (!(e instanceof RpcError) || e.code !== ErrorCode.DbError) return false;
+  return (e.data as Partial<DbErrorData> | undefined)?.kind === "query";
 }
 
 /** 木のペインの一覧を聞けなかった理由の文（PasswordCancelled はパスワードを入れなかった、それ以外は queryFailure の分け方）。 */
