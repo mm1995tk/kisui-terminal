@@ -659,7 +659,11 @@ fn apply_cookies(
     let Some(v) = any else {
         return Err("no browser tab is open".into());
     };
+    // 入れる前に、同じ名前・domain・path の Cookie を消す。macOS の WebView（`WKHTTPCookieStore`）は、同じ値の Cookie が
+    // 既にあると、入れ直しても Secure・HttpOnly を変えない。#276 を直す前の版が誤って Secure・HttpOnly で入れた
+    // Google の `SAPISID` などは、ログインを写し直しても残り、ページのスクリプトが読めないままになる（#476）
     for c in &cookies {
+        v.delete_cookie(c.clone()).map_err(|e| e.to_string())?;
         v.set_cookie(c.clone()).map_err(|e| e.to_string())?;
     }
     // 渡したとおりの属性で入ったかを、読み戻して確かめる（cookie_check.rs）。食い違っても入れたものはそのままにし、
