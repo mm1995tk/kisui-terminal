@@ -177,13 +177,12 @@ pub struct DbConnections {
     pub fixed: Vec<String>,
 }
 
-/// TOML の文字列から、`[[db.connections]]` の項目（表）の並び。形が違えば空。
-/// 読めなければ「行: 理由」（呼んだ側がファイルの場所を前に付ける）。間違いの行の中身は入れない（手で書いたパスワードを含むことがある）。
-fn entries_of(text: &str) -> Result<Vec<toml::Table>, String> {
-    let doc: toml::Table = text.parse().map_err(|e: toml::de::Error| {
-        let line = e.span().map_or(0, |r| config::line_of(text, r.start));
-        format!("{line}: TOML として読めません")
-    })?;
+/// ファイル `path` の中身 `text` から、`[[db.connections]]` の項目（表）の並び。形が違えば空。
+/// 読めなければ、場所だけの理由（`config::unreadable`。間違いの行の中身は、手で書いたパスワードを含むことがあるので入れない）。
+fn entries_of(path: &Path, text: &str) -> Result<Vec<toml::Table>, String> {
+    let doc: toml::Table = text
+        .parse()
+        .map_err(|e: toml::de::Error| config::unreadable(path, text, e.span()))?;
     let list = doc
         .get(DB_CONNECTIONS.table)
         .and_then(|v| v.get(DB_CONNECTIONS.name))
@@ -237,10 +236,13 @@ fn entry_view(e: &toml::Table) -> DbEntry {
     }
 }
 
-/// 2 つのファイルの中身から、窓が知る手元の DB の接続を作る。
-fn view(base_text: &str, local_text: &str) -> Result<DbConnections, String> {
-    let base: Vec<String> = entries_of(base_text)?.iter().filter_map(name_of).collect();
-    let local: Vec<DbEntry> = entries_of(local_text)?
+/// 設定のフォルダ `dir` の 2 つのファイルの中身から、窓が知る手元の DB の接続を作る。
+fn view(dir: &Path, base_text: &str, local_text: &str) -> Result<DbConnections, String> {
+    let base: Vec<String> = entries_of(&dir.join(config::FILES[0]), base_text)?
+        .iter()
+        .filter_map(name_of)
+        .collect();
+    let local: Vec<DbEntry> = entries_of(&dir.join(config::FILES[1]), local_text)?
         .iter()
         .filter(|e| name_of(e).is_some())
         .map(|e| {
@@ -266,8 +268,8 @@ fn read(dir: &Path, file: &str) -> Result<String, EditError> {
 fn base(dir: &Path) -> Result<(String, Vec<String>), EditError> {
     let path = dir.join(config::FILES[0]);
     let text = read(dir, config::FILES[0])?;
-    let names = entries_of(&text)
-        .map_err(|e| EditError::File(format!("{}:{e}", path.display())))?
+    let names = entries_of(&path, &text)
+        .map_err(EditError::File)?
         .iter()
         .filter_map(name_of)
         .collect();
@@ -277,10 +279,8 @@ fn base(dir: &Path) -> Result<(String, Vec<String>), EditError> {
 /// 設定のフォルダ `dir` の、窓が知る手元の DB の接続。
 pub fn list(dir: &Path) -> Result<DbConnections, EditError> {
     let (base_text, _) = base(dir)?;
-    let local_path = dir.join(config::FILES[1]);
     let local_text = read(dir, config::FILES[1])?;
-    view(&base_text, &local_text)
-        .map_err(|e| EditError::File(format!("{}:{e}", local_path.display())))
+    view(dir, &base_text, &local_text).map_err(EditError::File)
 }
 
 /// 設定のフォルダ `dir` の `config.local.toml` の `[[db.connections]]` に、窓の書き込み `e` を行い、書いたあとの手元の DB の接続を返す。
@@ -297,7 +297,7 @@ pub fn edit(dir: &Path, e: DbEdit) -> Result<DbConnections, EditError> {
     let mut found = Vec::new();
     let r = config_list::edit(dir, &DB_CONNECTIONS, edit, |text| {
         if let Some(name) = &target {
-            let entry = entries_of(text)?
+            let entry = entries_of(&dir.join(config::FILES[1]), text)?
                 .into_iter()
                 .find(|e| name_of(e).as_deref() == Some(name.as_str()));
             if let Some(entry) = entry {
@@ -307,7 +307,7 @@ pub fn edit(dir: &Path, e: DbEdit) -> Result<DbConnections, EditError> {
                 }
             }
         }
-        after = Some(view(&base_text, text)?);
+        after = Some(view(dir, &base_text, text)?);
         Ok(())
     });
     match r {
