@@ -3,11 +3,13 @@
 // 環境の変種のある接続は、変種ごとに 1 行（`接続 (変種)`）：接続と変種を、この一覧で 1 回で選ぶ。
 // 選ぶと、その接続の DB のタブを開く。動かす・決めるキーは、ほかの一覧から選ぶ窓と同じ（machineList.ts の pickerKey）。
 // a・e・d で、この PC の config.local.toml の接続を足す・直す・消す（#486。features/db/pickerKeys.ts）。直せない行では、理由を下の段に出す。
+// config.local.toml で登録している行には印を付ける（上書きを消すと config.toml の接続に戻り、印が外れる）。
 // 決まりは docs/key-design.md。
 import { T } from "../../../i18n/index.ts";
 import { createEffect, createSignal, For, on, Show, type JSX } from "solid-js";
 
 import {
+  localMark,
   rowEditNote,
   rowEditState,
   type LocalDbConnections,
@@ -129,6 +131,11 @@ export function DbConnectionPicker(props: {
                   <span class="machine-row-mark">
                     {connectionDetail(c.connection)}
                   </span>
+                  <Show when={localMark(c, props.local)}>
+                    <span class="machine-row-mark">
+                      {T("dbConn.mark.local")}
+                    </span>
+                  </Show>
                   <Show when={c.connection.readOnly}>
                     <span class="machine-row-mark">
                       {T("db.picker.readOnly")}

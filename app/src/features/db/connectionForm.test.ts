@@ -8,6 +8,7 @@ import { createDbConnections } from "./connectionController.ts";
 import {
   editErrorLines,
   emptyFields,
+  localMark,
   rowEditNote,
   rowEditState,
   type DbConnectionEdit,
@@ -33,14 +34,19 @@ const choice = (name: string, target = LOCAL, variant = ""): DbChoice => ({
   color: "#000",
   connection: conn(name, variant),
 });
-const entry = (name: string, editable = true): LocalDbEntry => ({
+const entry = (
+  name: string,
+  editable = true,
+  overrides = false,
+): LocalDbEntry => ({
   ...emptyFields(),
   name,
   user: "app",
   editable,
+  overrides,
 });
 const local: LocalDbConnections = {
-  local: [entry("dev"), entry("hand", false)],
+  local: [entry("dev"), entry("hand", false), entry("shop", true, true)],
   fixed: ["prod"],
 };
 
@@ -70,6 +76,16 @@ describe("rowEditState（接続を選ぶ窓の行を、窓から変えられる�
     );
     assert.equal(rowEditState(choice("dev", "dev-vm"), local).kind, "remote");
     assert.equal(rowEditState(choice("dev"), undefined).kind, "unknown");
+  });
+});
+
+describe("localMark（config.local.toml で登録している行の印）", () => {
+  it("手元の config.local.toml の接続（上書きも）に付け、config.toml の接続・リモートの接続には付けない", () => {
+    assert.equal(localMark(choice("dev"), local), true);
+    assert.equal(localMark(choice("shop"), local), true);
+    assert.equal(localMark(choice("prod"), local), false);
+    assert.equal(localMark(choice("dev", "dev-vm"), local), false);
+    assert.equal(localMark(choice("dev"), undefined), false);
   });
 });
 
@@ -217,5 +233,14 @@ describe("createDbConnections（足す・直す・消すの流れ）", () => {
     assert.equal(c.connForm(), null);
     c.openConnFor("remove", choice("hand"));
     assert.equal(c.connForm()?.mode, "remove");
+    assert.equal(c.connForm()?.overrides, false);
+  });
+
+  it("上書きは断らずに直す・消す窓を開き、上書きであることを窓に渡す", async () => {
+    const { c } = setup(async () => local);
+    await c.loadLocal();
+    c.openConnFor("remove", choice("shop"));
+    assert.equal(c.connForm()?.mode, "remove");
+    assert.equal(c.connForm()?.overrides, true);
   });
 });

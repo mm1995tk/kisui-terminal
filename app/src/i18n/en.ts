@@ -932,6 +932,9 @@ export const en = {
     "This is written to config.local.toml of this PC (not to config.toml). The password is not written: it is asked when you connect. Write variants and permissions in the settings file.",
   "dbConn.removeLead":
     "Remove {name} from config.local.toml of this PC? DB tabs open on it can no longer run SQL.",
+  "dbConn.removeLeadOverride":
+    "Remove {name} from config.local.toml of this PC? It goes back to the connection of the same name in config.toml.",
+  "dbConn.mark.local": "in config.local.toml",
   "dbConn.field.name": "Name",
   "dbConn.field.kind": "Kind",
   "dbConn.field.host": "Host",

@@ -110,7 +110,13 @@ export function DbConnectionEditor(props: {
               ref={(el) => queueMicrotask(() => el.focus())}
             >
               <CardText>
-                {T("dbConn.removeLead", { name: props.form.name ?? "" })}
+                {/* 上書きを消すと、接続は消えずに config.toml の接続に戻る */}
+                {T(
+                  props.form.overrides
+                    ? "dbConn.removeLeadOverride"
+                    : "dbConn.removeLead",
+                  { name: props.form.name ?? "" },
+                )}
               </CardText>
             </div>
           }

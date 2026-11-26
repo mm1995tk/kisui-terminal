@@ -28,6 +28,8 @@ export interface DbConnectionFields {
 export interface LocalDbEntry extends DbConnectionFields {
   /** 窓で直せるか（変種・権限など、窓で入れないキーを書いた項目は false。消すことはできる） */
   editable: boolean;
+  /** config.toml の同じ名前の接続に代わっている（上書き）。消すと config.toml の接続に戻る */
+  overrides: boolean;
 }
 
 /** 窓が知る、手元の DB の接続（殻の DbConnections）。 */
@@ -113,6 +115,20 @@ export function rowEditState(
       : { kind: "removeOnly", entry };
   if (local.fixed.includes(c.connection.name)) return { kind: "fixed" };
   return { kind: "unknown" };
+}
+
+/**
+ * 行に付ける「config.local.toml で登録している」印（手元のマシンの、config.local.toml にある接続だけ）。
+ * 上書きを消すと、行は config.toml の接続に戻って印が外れるので、どちらの接続かが目で分かる。
+ */
+export function localMark(
+  c: DbChoice,
+  local: LocalDbConnections | undefined,
+): boolean {
+  return (
+    c.target === LOCAL &&
+    (local?.local.some((e) => e.name === c.connection.name) ?? false)
+  );
 }
 
 /** 行を直せない・消せない理由（直せるなら undefined）。 */

@@ -927,6 +927,9 @@ export const ja: Record<Key, string> = {
     "この PC の config.local.toml に書きます（config.toml には書きません）。パスワードは書きません。つなぐときに聞きます。環境の変種と権限は、設定ファイルに書きます。",
   "dbConn.removeLead":
     "{name} を、この PC の config.local.toml から消しますか。この接続で開いている DB のタブは、SQL を実行できなくなります。",
+  "dbConn.removeLeadOverride":
+    "{name} を、この PC の config.local.toml から消しますか。config.toml の同じ名前の接続に戻ります。",
+  "dbConn.mark.local": "config.local.toml で登録",
   "dbConn.field.name": "名前",
   "dbConn.field.kind": "種類",
   "dbConn.field.host": "ホスト",

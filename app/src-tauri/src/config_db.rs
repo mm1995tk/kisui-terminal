@@ -11,6 +11,8 @@
 //!   （手で書いた項目を直すとき）。パスワードは今までどおり、つなぐときに聞く（kisui serve のメモリだけ）か、キーチェーン・`~/.pgpass`・`~/.my.cnf`。
 //! - **`config.toml` の接続は変えない**：同じ名前の項目を `config.local.toml` に足すと、読むときに `config.toml` の項目に代わる
 //!   （項目ごとの重ね方。#483）。それは `config.toml` の接続を窓から変えることなので、断る（[`EditError::Fixed`]）。
+//!   ただし、手で書いてある上書き（`config.local.toml` の、`config.toml` と同じ名前の項目）は `config.local.toml` の項目なので、窓で直す・消すことができる
+//!   （断らない。[`DbEntry::overrides`] で印を付け、画面は消す確かめで「`config.toml` の接続に戻る」と言う）。
 //! - **確かめ**：[`check_entry`] は kisui の `config/db.go` の `dbConnection`（変種の無い項目）と同じ間違いを、同じキーとコード（`config.err.*`）で返す。
 //!   同じ結果になることは、両方のテストが同じ例（`config_db_cases.json`）で確かめる。ほかに窓だけの確かめが 2 つある：変種・権限のキー
 //!   （`gui.db.fileonly`。窓では確かめられない）と、`host` に URL・`@`・接続の文字列を書くこと（`gui.db.hosturl`）と、ほかの欄に URL を書くこと（`gui.db.url`）。`user:password@host` のように資格情報を
@@ -162,6 +164,8 @@ pub struct DbEntry {
     pub tls_ca: String,
     /// 窓で直せるか（[`FORM_KEYS`] だけを、kisui の読む型で書いた項目）。false でも消すことはできる
     pub editable: bool,
+    /// `config.toml` の同じ名前の接続に代わっている（上書き）。消すと `config.toml` の接続に戻る
+    pub overrides: bool,
 }
 
 /// 窓が知る、手元の DB の接続。画面は、接続を選ぶ窓で手元のマシンの接続が直せるかを、これで決める。
@@ -229,19 +233,24 @@ fn entry_view(e: &toml::Table) -> DbEntry {
         tls: s("tls"),
         tls_ca: s("tls-ca"),
         editable: typed,
+        overrides: false,
     }
 }
 
 /// 2 つのファイルの中身から、窓が知る手元の DB の接続を作る。
 fn view(base_text: &str, local_text: &str) -> Result<DbConnections, String> {
+    let base: Vec<String> = entries_of(base_text)?.iter().filter_map(name_of).collect();
     let local: Vec<DbEntry> = entries_of(local_text)?
         .iter()
         .filter(|e| name_of(e).is_some())
-        .map(entry_view)
+        .map(|e| {
+            let mut v = entry_view(e);
+            v.overrides = base.contains(&v.name);
+            v
+        })
         .collect();
-    let fixed = entries_of(base_text)?
-        .iter()
-        .filter_map(name_of)
+    let fixed = base
+        .into_iter()
         .filter(|n| !local.iter().any(|l| &l.name == n))
         .collect();
     Ok(DbConnections { local, fixed })
@@ -726,6 +735,22 @@ mod tests {
             ),
             Err(EditError::Fixed("prod".into()))
         );
+        // 手で書いた上書き：印が付き、消すと config.toml の接続に戻る（断らない）
+        let mut local = fs::read_to_string(d.join("config.local.toml")).unwrap();
+        local.push_str("\n[[db.connections]]\nname = \"prod\"\nkind = \"mysql\"\nuser = \"r\"\nread-only = true\n");
+        fs::write(d.join("config.local.toml"), local).unwrap();
+        let v = list(&d).unwrap();
+        assert!(v.local.iter().any(|e| e.name == "prod" && e.overrides));
+        assert!(v.local.iter().any(|e| e.name == "dev" && !e.overrides));
+        assert!(v.fixed.is_empty());
+        let v = edit(
+            &d,
+            DbEdit::Remove {
+                name: "prod".into(),
+            },
+        )
+        .unwrap();
+        assert_eq!(v.fixed, vec!["prod".to_string()]);
         // config.toml は読むだけ
         assert_eq!(
             fs::read_to_string(d.join("config.toml")).unwrap(),

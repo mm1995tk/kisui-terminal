@@ -20,6 +20,8 @@ export interface DbConnForm {
   mode: "add" | "edit" | "remove";
   /** 直す・消す接続の、今の名前 */
   name?: string;
+  /** 直す・消す接続が、config.toml の同じ名前の接続に代わっている（消すと config.toml の接続に戻る） */
+  overrides?: boolean;
   /** 入力欄の初めの中身（消すときは使わない） */
   fields: DbConnectionFields;
   /** 書いている最中 */
@@ -64,6 +66,7 @@ export function createDbConnections(deps: {
     setForm({
       mode,
       name: s.entry.name,
+      overrides: s.entry.overrides,
       fields: fieldsOf(s.entry),
       busy: false,
       errors: [],
