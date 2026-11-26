@@ -91,11 +91,13 @@ func (m *termManager) find(target string) (*terminal, error) {
 }
 
 // paneList は kisui pane list。この serve の全部のターミナル（どのワークスペースのものでも）を、ワークスペースを作った順に、
-// それぞれのプライマリターミナルを先にして返す。self は頼んだターミナル。
+// それぞれのプライマリターミナルを先にして返す。self は頼んだターミナル。窓のワークスペース（Workspace・WorkspaceName）は、
+// 窓が最後に知らせたもの（gws.go。窓が閉じていても出す。知らされていなければ空）。
 func (s *Server) paneList(self string) []panecmd.PaneInfo {
 	type tab struct {
 		seq  int
 		name string
+		gws  gwsRef
 	}
 	tabs := map[string]tab{}
 	s.ws.mu.Lock()
@@ -104,7 +106,7 @@ func (s *Server) paneList(self string) []panecmd.PaneInfo {
 		if name == "" && st.root != "" {
 			name = filepath.Base(st.root)
 		}
-		tabs[id] = tab{seq: st.seq, name: name}
+		tabs[id] = tab{seq: st.seq, name: name, gws: st.gws}
 	}
 	s.ws.mu.Unlock()
 	out := []panecmd.PaneInfo{}
@@ -112,7 +114,8 @@ func (s *Server) paneList(self string) []panecmd.PaneInfo {
 		t.mu.Lock()
 		p := panecmd.PaneInfo{ID: t.id, Name: t.name, Tab: t.wsID, Cwd: t.cwd, Title: t.title, Primary: t.primary, Alive: t.alive, Self: t.id == self}
 		t.mu.Unlock()
-		p.TabName = tabs[p.Tab].name
+		tab := tabs[p.Tab]
+		p.TabName, p.Workspace, p.WorkspaceName = tab.name, tab.gws.ID, tab.gws.Name
 		out = append(out, p)
 	}
 	seq := func(p panecmd.PaneInfo) int {

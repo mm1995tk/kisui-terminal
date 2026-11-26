@@ -724,7 +724,7 @@ export const ja: Record<Key, string> = {
   "paneRelay.err.noMachine":
     "「{machine}」という名前のマシンがありません（マシン: {machines}）",
   "paneOpen.err.noWorkspace":
-    "「{name}」という名前のワークスペースがありません（--new を付けると作ります）",
+    "「{name}」という名前か id のワークスペースがありません（--new を付けると、その名前で作ります）",
   "paneOpen.err.ambiguous":
     "「{name}」という名前のワークスペースが {count} つあります。どれかの名前を変えてください",
   "paneOpen.err.hidden":
@@ -803,6 +803,8 @@ export const ja: Record<Key, string> = {
   "rename.err.tooLongMax": "名前が長すぎます（{max} 文字まで）",
   "rename.err.tooLong": "名前が長すぎます",
   "rename.err.control": "名前に改行などの制御文字は使えません",
+  "rename.err.likeWorkspaceId":
+    "「{name}」はワークスペースの id の形（g と英数字 10 字）なので、ワークスペースの名前には使えません",
   "terminal.label": "ターミナル",
   "terminal.others": "ほかに {n} つを隠している（{key} で戻す）",
   "leader.label": "Leader",

@@ -49,6 +49,52 @@ describe("kisui pane open の入れ先", () => {
     });
   });
 
+  it("id の形の値は id として探す。同じ名前が 2 つあっても、id なら 1 つに決まる（#502）", () => {
+    // 「dup」が 2 つ（gaaaaaaaaaa・gbbbbbbbbbb）
+    let s = addEmptyWorkspace(EMPTY_GWS, "dup", "gaaaaaaaaaa");
+    s = addEmptyWorkspace(s, "dup", "gbbbbbbbbbb");
+    assert.equal(planPaneOpen(s, "dup", false).kind, "error");
+    assert.deepEqual(planPaneOpen(s, " gbbbbbbbbbb ", false), {
+      kind: "into",
+      gid: "gbbbbbbbbbb",
+    });
+    // 無い id は断る（--new を付けても、id の形の名前では作らない）
+    const err = (p: ReturnType<typeof planPaneOpen>) =>
+      p.kind === "error" ? p.error : "";
+    assert.match(err(planPaneOpen(s, "gcccccccccc", false)), /gcccccccccc/);
+    assert.match(err(planPaneOpen(s, "gcccccccccc", true)), /id/);
+    // id の形の名前を付けられなくする前に付けた名前は、今までどおり名前で指せる（その id のワークスペースがあれば、id が先）
+    const old = rename(s, "gaaaaaaaaaa", "gzzzzzzzzzz");
+    assert.deepEqual(planPaneOpen(old, "gzzzzzzzzzz", false), {
+      kind: "into",
+      gid: "gaaaaaaaaaa",
+    });
+    assert.deepEqual(
+      planPaneOpen(
+        rename(s, "gaaaaaaaaaa", "gbbbbbbbbbb"),
+        "gbbbbbbbbbb",
+        false,
+      ),
+      {
+        kind: "into",
+        gid: "gbbbbbbbbbb",
+      },
+    );
+  });
+
+  it("id で指したワークスペースが待つ間に閉じられていたら、番号の名前で作り直す（id の形の名前にしない）", () => {
+    const s = placeOpenedTab(
+      state(),
+      { kind: "into", gid: "ggggggggggg" },
+      "ggggggggggg",
+      "a",
+      "w9",
+      "g5",
+    );
+    assert.equal(s.list.at(-1)?.id, "g5");
+    assert.equal(s.list.at(-1)?.name, "");
+  });
+
   it("内蔵ブラウザを使わないとき、サイドバーに出ないワークスペース（ブラウザのタブだけ）は入れ先にしない", () => {
     const s = rename(addBrowserWorkspace(state(), "b1", "g5"), "g5", "review");
     assert.deepEqual(planPaneOpen(s, "review", false, false), {

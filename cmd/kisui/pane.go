@@ -128,7 +128,8 @@ func runPaneTitle(args []string) int {
 
 // runPaneList is "kisui pane list [--json] [--machine <machine>]": the panes
 // (terminals) of the machine of the pane it runs in (with --machine, of that
-// machine), of every workspace and tab. --json prints them as JSON ({"panes":
+// machine), of every workspace and tab, each with the workspace of the window
+// (its id and name) and the tab it is in. --json prints them as JSON ({"panes":
 // [panecmd.PaneInfo...]}) for a program to read.
 func runPaneList(args []string) int {
 	if len(args) == 1 && (args[0] == "-h" || args[0] == "--help") {
@@ -244,7 +245,7 @@ func writePaneList(w io.Writer, panes []panecmd.PaneInfo) error {
 		if !p.Alive {
 			notes = append(notes, i18n.T("pane.list.ended"))
 		}
-		rows = append(rows, []string{mark, cell(p.ID), cell(p.Name), cell(p.Tab + " " + p.TabName), cell(p.Cwd), cell(p.Title), cell(strings.Join(notes, ","))})
+		rows = append(rows, []string{mark, cell(p.ID), cell(p.Name), cell(p.Workspace + " " + p.WorkspaceName), cell(p.Tab + " " + p.TabName), cell(p.Cwd), cell(p.Title), cell(strings.Join(notes, ","))})
 	}
 	// the mark and the id are one space apart, the other columns two
 	_, err := io.WriteString(w, alignColumns(rows, 1))

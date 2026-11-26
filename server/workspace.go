@@ -63,6 +63,7 @@ type wsState struct {
 	kind    string
 	label   string // ユーザーがつけた名前（workspace.rename）。無ければ ""。w.mu で守る
 	shell   string // 窓が最後に渡したシェル（書いた形のまま。shell.go）。無ければ ""。w.mu で守る
+	gws     gwsRef // このタブが入っている、窓のワークスペース（窓が最後に知らせたもの。gws.go）。知らされていなければ空。w.mu で守る
 	primary string // プライマリターミナルの id
 	shj     *primaryShj
 	extras  []extraPane // 欄の中から（kisui open で）開いた、ターミナルでない欄。w.mu で守る。閉じるまで残る（shj が終わっても消えない）

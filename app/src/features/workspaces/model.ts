@@ -14,7 +14,7 @@
 // 1 つにつき新しいワークスペースを 1 つ作って入れる（reconcile）。
 
 import { T } from "../../i18n/index.ts";
-import type { WorkspaceId } from "../../infrastructure/rpc/protocol.ts";
+import type { GwsTab, WorkspaceId } from "../../infrastructure/rpc/protocol.ts";
 import type { KeyValueStore } from "../keyValueStore.ts";
 
 /** ターミナルのタブ 1 つ（どのマシンの、どのワークスペースか）。 */
@@ -152,6 +152,12 @@ export function newGwsId(random: () => number = Math.random): string {
   return s;
 }
 
+/**
+ * ワークスペースの id の形（newGwsId が振る、"g" と英数字 10 字）か。`kisui pane open --workspace` は、この形の値を id として
+ * 探すので、ワークスペースの名前には使えない（gwsNameErrorText）。
+ */
+export const isGwsIdLike = (s: string): boolean => /^g[0-9a-z]{10}$/.test(s);
+
 /** ターミナルのタブが入っているワークスペース。 */
 export function gwsOfTerm(
   s: GwsState,
@@ -165,6 +171,34 @@ export function gwsOfTerm(
 export function gwsByName(s: GwsState, name: string): Gws[] {
   const n = name.trim();
   return n === "" ? [] : s.list.filter((g) => displayName(g) === n);
+}
+
+/**
+ * `kisui pane open --workspace` の値 ref（前後の空白は落とす）が指すワークスペース（並びの順）。id の形（isGwsIdLike）で、
+ * その id のワークスペースがあれば、それ 1 つ。そうでなければ、画面に出す名前が ref のもの（gwsByName）：id の形の名前を
+ * 付けられなくする前（#502）に付けた名前のワークスペースも、今までどおり名前で指せる。
+ */
+export function gwsByRef(s: GwsState, ref: string): Gws[] {
+  const r = ref.trim();
+  const byId = isGwsIdLike(r) ? s.list.find((g) => g.id === r) : undefined;
+  return byId ? [byId] : gwsByName(s, r);
+}
+
+/**
+ * マシン target のターミナルのタブ ids（そのマシンの kisui serve のワークスペース）それぞれが入っているワークスペースの
+ * id と画面に出す名前（gws.set でそのマシンに知らせる中身。ids の順）。どのワークスペースにも入っていないタブは載せない。
+ */
+export function gwsTabsOf(
+  s: GwsState,
+  target: string,
+  ids: readonly WorkspaceId[],
+): GwsTab[] {
+  const out: GwsTab[] = [];
+  for (const ws of ids) {
+    const g = gwsOfTerm(s, target, ws);
+    if (g) out.push({ workspaceId: ws, id: g.id, name: displayName(g) });
+  }
+  return out;
 }
 
 /** ブラウザのタブが入っているワークスペース。 */
@@ -959,6 +993,19 @@ export function nameErrorText(name: string): string | undefined {
     default:
       return undefined;
   }
+}
+
+/**
+ * ワークスペースの名前を付けられない理由を、名前の入力欄に出す文にする。付けられる名前なら undefined。
+ * タブの名前の決まり（nameErrorText）に加えて、ワークスペースの id の形（isGwsIdLike）を断る：`kisui pane open --workspace` が
+ * id として探す形なので、名前に使うと、名前で指せなくなる（kisui serve がペインの名前に id の形を断るのと同じ）。
+ */
+export function gwsNameErrorText(name: string): string | undefined {
+  const n = name.trim();
+  return (
+    nameErrorText(n) ??
+    (isGwsIdLike(n) ? T("rename.err.likeWorkspaceId", { name: n }) : undefined)
+  );
 }
 
 /**

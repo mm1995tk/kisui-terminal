@@ -23,6 +23,7 @@ import {
   type PaneOpenReport,
   type PaneOpenRequest,
   type PaneRelayRequest,
+  type GwsTab,
   type PaneRunReply,
   type PaneRunRequest,
   type Requests,
@@ -226,6 +227,8 @@ export class Session {
   /** 切り替えを頼んでから、つなぎ直し終わるまで（connecting・reconnecting に switching を付ける） */
   private switching = false;
   private generation = 0;
+  /** 最後に gws.set で知らせた中身と、その接続（syncGws） */
+  private gwsSent?: { conn: Connection; body: string };
   private readonly stateHandlers = new Set<(s: SessionState) => void>();
   private readonly workspaceHandlers = new Set<
     (w: HelloResult["workspaces"]) => void
@@ -437,6 +440,23 @@ export class Session {
     if (!hasCapability(conn.hello, "pane.run"))
       throw new Error(T("err.session.tooOld", { machine: this.target }));
     return conn.client.request("pane.run", rq);
+  }
+
+  /**
+   * このマシンのターミナルのタブそれぞれが入っている、窓のワークスペースの id と名前を、今の接続の serve に知らせる（gws.set。#502）。
+   * つながっていない・古い serve（gws.set を知らない）なら何もしない（`kisui pane list` にワークスペースが出ないだけ）。
+   * 同じ接続に、前と同じ中身は送らない（つなぎ直したら送り直す）。送れなかったら忘れて、次に呼ばれたときに送り直す。
+   */
+  syncGws(tabs: GwsTab[]): void {
+    const conn = this.conn;
+    if (!conn || !hasCapability(conn.hello, "gws.set")) return;
+    const body = JSON.stringify(tabs);
+    if (this.gwsSent?.conn === conn && this.gwsSent.body === body) return;
+    const sent = { conn, body };
+    this.gwsSent = sent;
+    conn.client.request("gws.set", { tabs }).catch(() => {
+      if (this.gwsSent === sent) this.gwsSent = undefined;
+    });
   }
 
   /** `kisui pane … --machine` への答え（pane.relayed）を今の接続で送る。つながっていなければ何もしない（serve は時間切れで断る）。 */
