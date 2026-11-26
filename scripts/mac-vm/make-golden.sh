@@ -3,7 +3,7 @@
 #
 #   scripts/mac-vm/make-golden.sh
 #
-# 素の VM には、ユーザー lume への ssh の鍵と cua-driver を入れておく（入れ方は README.md）。
+# 素の VM には、ユーザー lume への ssh の鍵と cua-driver を入れておく（中身は README.md の「3 つの VM」）。
 # 元イメージには次を入れる。
 # - Firefox Developer Edition を /Applications/Firefox.app という名前で入れる。kisui-terminal は
 #   `open -a Firefox` で開くので、この名前でないと開けない。手元で作った拡張には署名が無い。
