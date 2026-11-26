@@ -16,7 +16,8 @@ set -euo pipefail
 BASE=${BASE:-kisui-vm-base}
 GOLDEN=${GOLDEN:-kisui-vm-golden}
 
-vm_ip() { lume get "$1" --format json 2>/dev/null | python3 -c 'import sys,json;d=json.load(sys.stdin);print((d[0] if isinstance(d,list) else d).get("ipAddress") or "")' 2>/dev/null || true; }
+# shellcheck source=lib.sh
+. "$(cd "$(dirname "$0")" && pwd)/lib.sh"
 
 if lume get "$GOLDEN" >/dev/null 2>&1; then
   echo "$GOLDEN は既にあります。作り直すなら先に lume delete $GOLDEN で消してください。" >&2
@@ -25,18 +26,9 @@ fi
 lume clone "$BASE" "$GOLDEN"
 lume run "$GOLDEN" --detach --display none
 
-ip=""
-for _ in $(seq 1 60); do
-  ip=$(vm_ip "$GOLDEN")
-  if [ -n "$ip" ] && ssh -T -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR "lume@$ip" true 2>/dev/null; then
-    break
-  fi
-  ip=""
-  sleep 5
-done
-[ -n "$ip" ] || { echo "$GOLDEN に ssh でつながりません。" >&2; exit 1; }
+ip=$(wait_ssh "$GOLDEN")
 
-ssh -T -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR "lume@$ip" 'set -e
+ssh "${VM_SSH_OPTS[@]}" "lume@$ip" 'set -e
 cd /tmp
 curl -sSL -o ffdev.dmg "https://download.mozilla.org/?product=firefox-devedition-latest-ssl&os=osx&lang=en-US"
 hdiutil attach -nobrowse -quiet ffdev.dmg -mountpoint /tmp/ffdev

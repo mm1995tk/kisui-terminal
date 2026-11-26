@@ -49,8 +49,8 @@ if [ "$no_ext" = 0 ] && [ -z "$ext" ]; then
   fi
 fi
 
-vm_status() { lume get "$1" --format json 2>/dev/null | python3 -c 'import sys,json;d=json.load(sys.stdin);print((d[0] if isinstance(d,list) else d)["status"])' 2>/dev/null || echo missing; }
-vm_ip() { lume get "$1" --format json 2>/dev/null | python3 -c 'import sys,json;d=json.load(sys.stdin);print((d[0] if isinstance(d,list) else d).get("ipAddress") or "")' 2>/dev/null || true; }
+# shellcheck source=lib.sh
+. "$here/lib.sh"
 
 [ "$(vm_status "$GOLDEN")" = stopped ] || { echo "元イメージ $GOLDEN が無いか、止まっていません。" >&2; exit 1; }
 
@@ -79,18 +79,8 @@ lume set "$VM" --mac-address "$MAC"
 lume run "$VM" --detach --display none
 
 echo "== $VM の起動を待ちます"
-ip=""
-for _ in $(seq 1 60); do
-  ip=$(vm_ip "$VM")
-  if [ -n "$ip" ] && ssh -T -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR "lume@$ip" true 2>/dev/null; then
-    break
-  fi
-  ip=""
-  sleep 5
-done
-[ -n "$ip" ] || { echo "$VM に ssh でつながりません。" >&2; exit 1; }
-# 作り直した VM は前の VM と鍵が同じとは限らないので、このローカルの VM に限って known_hosts を使わない
-vssh() { ssh -T -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR "lume@$ip" "$@"; }
+ip=$(wait_ssh "$VM")
+vssh() { ssh "${VM_SSH_OPTS[@]}" "lume@$ip" "$@"; }
 
 # 3. kisui-terminal を入れ替える
 echo "== $(basename "$dmg") を入れます"
