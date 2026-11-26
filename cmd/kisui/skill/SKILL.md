@@ -200,7 +200,7 @@ kisui tab show 'api server'
 
 ### Which tabs you can reach
 
-`kisui tab` reaches the tabs of every workspace (`pane_reach` does not matter here), and takes no `--machine`. From a pane on the user's computer it reaches every tab. From a pane on a remote machine it reaches the terminal tabs of that machine, and of the machines the user allowed for it (`allow_pane_to`). The tabs of the user's own computer (its terminal tabs, and every browser tab and database tab) are reached from a remote machine only while the user allows it at the window, for a time (`p` in the machine dialog). A tab you cannot reach is not in `kisui tab list`, and pointing at one fails as a name that no tab has does. Do not work around that: tell the user, who decides whether to allow it.
+`kisui tab` reaches the tabs of every workspace (`pane_reach` does not matter here), and takes no `--machine`. From a pane on the user's computer it reaches every tab. From a pane on a remote machine it reaches the terminal tabs of that machine, and of the machines the user allowed for it (`allow_pane_to`). The tabs of the user's own computer (its terminal tabs, and every browser tab and database tab) are reached from a remote machine only while the user allows it at the window, for a time (`p` in the machine dialog). While a pane of the user's computer is set to ask the user every time, `kisui tab close` from a remote machine is refused for the terminal tabs of the user's computer: ask the user to close the tab. A tab you cannot reach is not in `kisui tab list`, and pointing at one fails as a name that no tab has does. Do not work around that: tell the user, who decides whether to allow it.
 
 ### kisui db: the databases of the user
 
