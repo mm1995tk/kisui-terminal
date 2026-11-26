@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/mm1995tk/kisui-terminal/internal/i18n"
@@ -85,12 +86,7 @@ type flags struct {
 func parseFlags(args []string, value, toggle []string) (flags, bool) {
 	f := flags{value: map[string]string{}, on: map[string]bool{}}
 	has := func(list []string, s string) bool {
-		for _, x := range list {
-			if x == s {
-				return true
-			}
-		}
-		return false
+		return slices.Contains(list, s)
 	}
 	for i := 0; i < len(args); i++ {
 		a := args[i]
