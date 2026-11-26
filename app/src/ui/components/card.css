@@ -319,6 +319,36 @@
   margin-top: auto;
 }
 
+/* ファイルの送り出しの確認の窓（TransferDialog.tsx）の、許すと読まれるものの一覧。項目は省かずに全部並べ、
+   多いときはこの一覧の中でスクロールする（見出し・合計・ボタンは見えたまま）。パスは等幅で、長くても切らずに折り返す。
+   .card-body の中で縮めない（flex: none）。縮めてよいと、WebView によっては高さが 0 と計算される（下の .machine-dialog と同じ） */
+.transfer-list {
+  flex: none;
+  max-height: 40vh;
+  margin: 0;
+  padding: var(--space-8) var(--space-10);
+  overflow-y: auto;
+  border-radius: var(--radius-8);
+  background: var(--card-field-bg);
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  line-height: var(--leading-text);
+  list-style: none;
+  overflow-wrap: anywhere;
+}
+/* 折り返した 2 行目からを下げて、次の項目の始まりが分かるようにする */
+.transfer-list > li {
+  padding-left: 2ch;
+  text-indent: -2ch;
+}
+.transfer-list:focus {
+  outline: none;
+}
+.transfer-list:focus-visible {
+  outline: var(--state-focus-ring-width) solid var(--state-focus-ring);
+  outline-offset: var(--state-focus-ring-offset);
+}
+
 /* マシンのダイアログ（MachineDialog.tsx）と、同じ形で一覧を出す窓。行は card-row を使い、キーはダイアログ全体で受ける。
    窓は高さを決めず max-height だけなので、一覧を縮めてよい（min-height: 0）にすると、WebView によっては一覧の高さが 0 と
    計算されて行が 1 つも見えなくなる。一覧は縮めず、窓に収まらない分は .card-content がスクロールする */

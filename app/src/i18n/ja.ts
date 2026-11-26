@@ -372,7 +372,7 @@ export const ja: Record<Key, string> = {
     "ターミナルの中のプログラムが、手元の次のファイルを読もうとしています。ssh 先のプログラムでも同じ頼みができます。心当たりがなければ許さないでください。",
   "transfer.read.item": "{path}（{kind}）",
   "transfer.read.itemSize": "{path}（{kind}、{size}）",
-  "transfer.read.more": "ほか {n} 件",
+  "transfer.read.list": "送るファイルの一覧",
   "transfer.read.total": "ファイル {files} 件、合計 {size}",
   "transfer.deny": "Do not allow",
   "transfer.allow": "Allow",

@@ -10,6 +10,8 @@
 //!   すでにあるファイルは上書きしない。シンボリックリンクとハードリンクは作らない（画面側で断る）。
 //! - 読むのは、画面がユーザーに見せて許した一覧の中のファイルだけ。一覧はここで作り（`lstat` で、
 //!   シンボリックリンクは辿らない）、許す前は読めない。開くときは `O_NOFOLLOW` で、普通のファイルかを開いた fd で確かめる。
+//!   ディレクトリは中まで下りて、ファイル・ディレクトリ・シンボリックリンクを 1 つずつ項目にする。画面はその項目を
+//!   省かずに全部見せるので、項目の数はセッションの全部で `MAX_FILES` まで（超えた分は並べず、読めない）。
 //!
 //! データは Tauri の IPC の生のバイト列で受け渡す（base64 にしない）。セッションの鍵は画面側が欄ごとに決める。
 
@@ -521,6 +523,7 @@ fn meta_entry(
 
 struct Lister<'a> {
     request_id: &'a str,
+    /// このセッションでここまでに並べた項目の数（頼みをまたいで数える。項目の id の番号にも使う）。
     next: usize,
     entries: Vec<ListEntry>,
     index: &'a mut HashMap<String, ReadEntry>,
@@ -529,7 +532,9 @@ struct Lister<'a> {
 
 impl Lister<'_> {
     fn add(&mut self, path: &Path, parent: Option<String>, depth: usize) -> R<()> {
-        if self.entries.len() >= MAX_FILES || depth > MAX_DEPTH {
+        // 数の上限は、頼み 1 つごとではなくセッションの全部で数える。画面は並べた項目を省かずに全部
+        // ユーザーに見せるので、頼みの数を増やしても、見せる一覧が上限より長くならないようにする
+        if self.next >= MAX_FILES || depth > MAX_DEPTH {
             return Err(coded("EFBIG", "too many files"));
         }
         let meta = fs::symlink_metadata(path).map_err(|e| err(&e))?;
@@ -823,5 +828,39 @@ mod tests {
         assert!(!l.entries.iter().any(|e| e.name.ends_with("secret")));
         fs::remove_dir_all(&root).unwrap();
         fs::remove_dir_all(&outside).unwrap();
+    }
+
+    #[test]
+    fn listing_limit_counts_the_whole_session() {
+        let root = tmp("limit");
+        fs::create_dir(root.join("d")).unwrap();
+        fs::write(root.join("d/a"), b"a").unwrap();
+        fs::write(root.join("d/b"), b"b").unwrap();
+        let mut index = HashMap::new();
+        // 前の頼みまでで上限の 1 つ手前まで並べてある：ディレクトリそのものは並び、中のファイルは並ばない
+        let mut l = Lister {
+            request_id: "f2",
+            next: MAX_FILES - 1,
+            entries: Vec::new(),
+            index: &mut index,
+            total: 0,
+        };
+        l.add(&root.join("d"), None, 0).unwrap();
+        let types: Vec<_> = l.entries.iter().map(|e| e.file_type).collect();
+        assert_eq!(types, ["directory"]);
+        assert_eq!(l.next, MAX_FILES);
+        // 上限まで並べたあとの頼みは、1 つも並べずに断る
+        let mut l = Lister {
+            request_id: "f3",
+            next: MAX_FILES,
+            entries: Vec::new(),
+            index: &mut index,
+            total: 0,
+        };
+        assert!(l.add(&root.join("d/a"), None, 0).is_err());
+        assert!(l.entries.is_empty());
+        // 並ばなかったものは、許したあとも読めない（読めるのは index にあるものだけ）
+        assert_eq!(index.len(), 1);
+        fs::remove_dir_all(&root).unwrap();
     }
 }

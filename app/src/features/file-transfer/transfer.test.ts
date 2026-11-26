@@ -292,6 +292,18 @@ const listing: Listing = {
   home: "/home/u",
   totalSize: 5,
 };
+/** 普通のファイル n 個の一覧（`/home/u/f1.txt` から。どれも 5 バイト）。 */
+const manyFiles = (n: number): Listing => ({
+  entries: Array.from({ length: n }, (_, i) => ({
+    ...listing.entries[0]!,
+    requestId: `f${i + 1}`,
+    entryId: `e${i + 1}`,
+    name: `/home/u/f${i + 1}.txt`,
+  })),
+  errors: [],
+  home: "/home/u",
+  totalSize: n * 5,
+});
 const receive = (paths: number | null = 2): FileTransferEvent => ({
   type: "receive",
   id: "r1",
@@ -318,7 +330,6 @@ describe("read (手元 → プログラム)", () => {
       {
         direction: "read",
         items: [{ path: "/home/u/a.txt", kind: "regular", size: 5 }],
-        more: 0,
         files: 1,
         totalSize: 5,
       },
@@ -427,22 +438,82 @@ describe("helpers", () => {
     assert.equal(formatBytes(5 * 1024 ** 2), "5.0 MiB");
     assert.equal(formatBytes(300 * 1024 ** 3), "300 GiB");
   });
-  it("readInfo は見せる数を絞り、残りを数える", () => {
-    const many: Listing = {
-      ...listing,
-      entries: Array.from({ length: 15 }, (_, i) => ({
-        ...listing.entries[0]!,
-        entryId: `e${i}`,
-      })),
-      totalSize: 75,
-    };
-    const info = readInfo(many);
-    assert.equal(info.direction, "read");
-    if (info.direction === "read") {
-      assert.equal(info.items.length, 12);
-      assert.equal(info.more, 3);
-      assert.equal(info.files, 15);
+  it("readInfo は、数が多くても項目を省かず、並べた順に全部を見せる", () => {
+    for (const n of [13, 15, 500]) {
+      const many = manyFiles(n);
+      const info = readInfo(many);
+      assert.equal(info.direction, "read");
+      if (info.direction !== "read") continue;
+      assert.deepEqual(
+        info.items.map((i) => i.path),
+        many.entries.map((e) => e.name),
+      );
+      assert.equal(info.files, n);
+      assert.equal(info.totalSize, n * 5);
     }
+  });
+  it("readInfo は、ディレクトリの中のファイル・ディレクトリ・リンクも 1 つずつ見せる", () => {
+    const entry = (
+      entryId: string,
+      name: string,
+      fileType: "regular" | "directory" | "symlink",
+      parent: string | null,
+    ) => ({
+      ...listing.entries[0]!,
+      entryId,
+      name,
+      fileType,
+      size: fileType === "regular" ? 5 : null,
+      parent,
+    });
+    const info = readInfo({
+      ...listing,
+      entries: [
+        entry("e1", "/home/u/d", "directory", null),
+        entry("e2", "/home/u/d/a.txt", "regular", "e1"),
+        entry("e3", "/home/u/d/sub", "directory", "e1"),
+        entry("e4", "/home/u/d/sub/key", "regular", "e3"),
+        entry("e5", "/home/u/d/link", "symlink", "e1"),
+      ],
+      totalSize: 10,
+    });
+    assert.deepEqual(info, {
+      direction: "read",
+      items: [
+        { path: "/home/u/d", kind: "directory", size: undefined },
+        { path: "/home/u/d/a.txt", kind: "regular", size: 5 },
+        { path: "/home/u/d/sub", kind: "directory", size: undefined },
+        { path: "/home/u/d/sub/key", kind: "regular", size: 5 },
+        { path: "/home/u/d/link", kind: "symlink", size: undefined },
+      ],
+      files: 2,
+      totalSize: 10,
+    });
+  });
+});
+
+describe("13 件以上の頼み", () => {
+  it("聞くときに、頼まれた全部のパスを見せる（後ろの項目を「ほか N 件」にまとめない）", async () => {
+    const n = 20;
+    const many = manyFiles(n);
+    const { term, calls } = fakeTerm();
+    const { os } = fakeOs({ list: many });
+    const a = fakeAsk(true);
+    const t = createTransfer(term, os, a.ask, "v1");
+    t.handle(receive(n));
+    for (let i = 0; i < n; i++) t.handle(req(`f${i + 1}`, `~/f${i + 1}.txt`));
+    await settle();
+    assert.equal(a.asked.length, 1);
+    const info = a.asked[0]!;
+    assert.equal(info.direction, "read");
+    if (info.direction !== "read") return;
+    const shown = info.items.map((i) => i.path);
+    assert.equal(shown.length, n);
+    assert.ok(shown.includes("/home/u/f13.txt"));
+    assert.ok(shown.includes("/home/u/f20.txt"));
+    // 相手に返す一覧（許すと読めるもの）は、見せたものと同じ
+    const listed = calls.filter((c) => c[0] === "listing").map((c) => c[3]);
+    assert.deepEqual(listed, shown);
   });
 });
 

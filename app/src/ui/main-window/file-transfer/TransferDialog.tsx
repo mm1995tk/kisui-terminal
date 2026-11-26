@@ -1,5 +1,6 @@
 // ターミナルのプログラムが手元のファイルを書く・読もうとしたとき、許すかをユーザーに聞く窓（kitty の OSC 5113）。
 // ssh 先のプログラムでも同じ頼みができるので、そのたびに聞く。
+// 手元のファイルを読む頼みでは、許すと読まれるものを省かずに全部並べる（一覧の行は transferRows.ts）。
 import { For, Show, type JSX } from "solid-js";
 
 import { T } from "../../../i18n/index.ts";
@@ -13,9 +14,7 @@ import {
 } from "../../components/Card.tsx";
 import { formatBytes } from "../../../features/file-transfer/transfer.ts";
 import { currentTransferPrompt } from "../../../features/file-transfer/transferPrompt.ts";
-
-const kindLabel = (k: "regular" | "directory" | "symlink"): string =>
-  T(`transfer.kind.${k}`);
+import { readRows } from "./transferRows.ts";
 
 /** 頼みが無ければ何も出さない。Esc と「許さない」は断り。 */
 export function TransferDialog(): JSX.Element {
@@ -70,33 +69,23 @@ export function TransferDialog(): JSX.Element {
                 <>
                   <CardText>{T("transfer.read.direction")}</CardText>
                   <CardText>{T("transfer.read.ask")}</CardText>
-                  <ul class="card-text">
-                    <For each={read.items}>
-                      {(item) => (
-                        <li>
-                          {item.size !== undefined
-                            ? T("transfer.read.itemSize", {
-                                path: item.path,
-                                kind: kindLabel(item.kind),
-                                size: formatBytes(item.size),
-                              })
-                            : T("transfer.read.item", {
-                                path: item.path,
-                                kind: kindLabel(item.kind),
-                              })}
-                        </li>
-                      )}
-                    </For>
-                    <Show when={read.more > 0}>
-                      <li>{T("transfer.read.more", { n: read.more })}</li>
-                    </Show>
-                  </ul>
                   <CardText>
                     {T("transfer.read.total", {
                       files: read.files,
                       size: formatBytes(read.totalSize),
                     })}
                   </CardText>
+                  {/* 許すと読まれるものの全部。多いときは、この一覧の中でスクロールする
+                      （Tab で一覧にフォーカスを移すと、矢印・PageDown などブラウザのふつうのキーで動く） */}
+                  <ul
+                    class="transfer-list"
+                    tabIndex={0}
+                    aria-label={T("transfer.read.list")}
+                  >
+                    <For each={readRows(read.items)}>
+                      {(row) => <li>{row}</li>}
+                    </For>
+                  </ul>
                 </>
               )}
             </Show>

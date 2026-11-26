@@ -370,7 +370,7 @@ export const en = {
     "A program in the terminal is trying to read the following files on this machine. A program on an ssh host can make the same request. If you do not recognize it, do not allow it.",
   "transfer.read.item": "{path} ({kind})",
   "transfer.read.itemSize": "{path} ({kind}, {size})",
-  "transfer.read.more": "and {n} more",
+  "transfer.read.list": "Files to send",
   "transfer.read.total": "{files} files, {size} in total",
   "transfer.deny": "Do not allow",
   "transfer.allow": "Allow",
