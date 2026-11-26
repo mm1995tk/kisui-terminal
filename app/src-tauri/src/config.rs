@@ -226,6 +226,11 @@ pub fn load_gui(dir: &Path) -> Result<GuiConfig, String> {
 /// `config.local.toml` の中身を `local_text` にしたら、設定が間違いなく読めるか。窓が `config.local.toml` を書く前に確かめる
 /// （間違いのある設定を書くと、次の起動で窓が出ない）。`config.toml` は今あるものを読む。
 pub(crate) fn check_local(dir: &Path, local_text: &str) -> Result<(), String> {
+    load_with_local(dir, local_text).map(|_| ())
+}
+
+/// `config.local.toml` の中身を `local_text` にしたときの、重ねたあとの設定。`config.toml` は今あるものを読む。
+pub(crate) fn load_with_local(dir: &Path, local_text: &str) -> Result<GuiConfig, String> {
     let [base, local] = FILES;
     overlay(
         dir,
@@ -234,7 +239,6 @@ pub(crate) fn check_local(dir: &Path, local_text: &str) -> Result<(), String> {
             parse_at(&dir.join(local), local_text),
         ],
     )
-    .map(|_| ())
 }
 
 /// 2 つのファイルから読んだもの（`FILES` の順）を重ねる。

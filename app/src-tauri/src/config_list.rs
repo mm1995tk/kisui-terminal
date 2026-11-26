@@ -153,11 +153,15 @@ impl MachineEdit {
 
 /// 設定のフォルダ `dir` の `config.local.toml` の `[[gui.machines]]` に、窓のマシンの書き込み `e` を行い、
 /// 書いたあとの（2 つのファイルを重ねた）マシンの一覧を返す。画面はこの一覧で、サイドバーを描き直す。
+/// 返す一覧は、書く前の確かめ（窓の読み込みと同じもの）で、書く中身から作る。確かめは書き込みと同じ排他（`config::edit_local`）の中で
+/// 行うので、書き込みが続けて走っても、返す一覧はその書き込みの直後のものになる（書いたあとに読み直すと、次の書き込みと入れ違う）。
 pub fn edit_machine(dir: &Path, e: MachineEdit) -> Result<Vec<ConfigMachine>, EditError> {
-    edit_machines(dir, e.into_edit())?;
-    config::load_gui(dir)
-        .map(|g| g.machines)
-        .map_err(EditError::File)
+    let mut machines = Vec::new();
+    edit(dir, &MACHINES, e.into_edit(), |text| {
+        machines = config::load_with_local(dir, text)?.machines;
+        Ok(())
+    })?;
+    Ok(machines)
 }
 
 /// 設定のフォルダ `dir` の `config.local.toml` の一覧 `list` に、`edit` を行う。
