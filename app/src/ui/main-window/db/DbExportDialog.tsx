@@ -3,7 +3,7 @@
 import { T } from "../../../i18n/index.ts";
 import { createSignal, For, type JSX } from "solid-js";
 
-import { basicHints } from "../../../features/commands/placeKeys.ts";
+import { pickOnlyRows } from "../../../features/commands/placeKeys.ts";
 import type { DbExportAsk } from "../../../features/db/exportController.ts";
 import {
   EXPORT_CHOICES,
@@ -43,11 +43,7 @@ export function DbExportDialog(props: {
       header={
         <CardTitle>{T("db.export.title", { n: props.ask.rows })}</CardTitle>
       }
-      footer={
-        <KeyFooter
-          items={basicHints({ decide: T("db.export.do"), end: "cancel" })}
-        />
-      }
+      footer={<KeyFooter rows={pickOnlyRows(T("db.export.foot.format"))} />}
     >
       <div class="machine-dialog">
         <For each={exportNoteKeys(props.ask)}>

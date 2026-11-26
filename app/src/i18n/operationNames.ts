@@ -122,7 +122,6 @@ const OPERATION_NAME_KEYS: readonly Key[] = [
   "proxy.edit.forward",
   "proxy.edit.cancel",
   "sidebar.addDb",
-  "db.export.do",
   "history.label",
   "machineDialog.label",
   "askpass.label",

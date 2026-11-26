@@ -1,7 +1,7 @@
 // 窓の下の段（共通フッタ）。ModalCard の footer に渡す。上から、理由などの知らせ（あれば）・今効く操作の行。
 // 行（rows）は、何に効くかでまとめた今効く操作（作るのは features/commands/placeKeys.ts の placeItem を使う各窓）。行の頭に見出しを置き、操作は右に流す。
 // 効かない操作と、どの窓でも同じ意味のキー（Enter・Esc・h j k l・`?`）は、渡す側が入れない。操作が無い行も見出しは出す（下の段は出たり消えたりしない）。
-// まだ行の形にしていない窓（#488・#489 で直す）は、基本操作の並び（items。placeKeys.ts の basicHints）を渡す。
+// まだ行の形にしていない窓（クリップボードの履歴・DB の履歴・DB の権限を強める窓）は、基本操作の並び（items。placeKeys.ts の basicHints）を渡す。
 // 決まりは docs/design/design-system.md の「共通フッタ」と docs/design/ui-ux-review.md の「ヒントとヘルプ」。
 import { For, Show, type JSX } from "solid-js";
 

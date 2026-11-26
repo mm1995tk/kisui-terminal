@@ -154,7 +154,7 @@ kisui-terminal の窓（`app/src/`）の、共通の色・余白・字・状態�
 - **3 つの段**：`header`（見出し。ふつうは `CardTitle`）・中身（`children`）・`footer`（ふつうは `CardActions`。キーの案内も置ける）。見出しと `footer` は動かず、窓の高さに収まらないときは中身だけがスクロールする。段の境目には、カードの縁と同じ色（`--color-border`）の 1px の線を、いつも引く。`footer` は省ける。`header` を省けるのは、中身が自分で見出しを描く窓（履歴の一覧 `HistoryPanel`）だけ。
 - **段の中身**：中身は `CardBody`（本文 `CardText`・入力欄 `Field`・理由 `CardError`）や一覧。`CardActions` は `Button` を右寄せにし、主ボタンが右端。狭いとボタンは折り返す。窓の中で `.card-body` などの class を手で書かない。右下の知らせも同じ部分を使う（見出しは `CardTitle level={2}`）。
 - **送るボタン**：form の送るボタンは `footer`（form の外）に置くので、`Button` の `form` に form の id を渡す（`AskpassDialog`）。
-- **閉じ方**：Esc で閉じる窓には、閉じるだけの「閉じる」「やめる」ボタンも右上の ✕ も置かない（閉じ方は、どの窓でも `Esc`。下の段には出さない。まだ前の決まりの窓（#489 で直す）は、下の段に `Esc` を出す）。ボタンを置くのは、決める・許す・送る操作と、それとやめるを選ぶ確認の窓（`CardActions`）だけ。キーで一覧を動かす窓は、`footer` に `KeyFooter` を置く（下の「共通フッタ」）。
+- **閉じ方**：Esc で閉じる窓には、閉じるだけの「閉じる」「やめる」ボタンも右上の ✕ も置かない（閉じ方は、どの窓でも `Esc`。下の段には出さない。まだ前の決まりの窓（クリップボードの履歴・DB の履歴・DB の権限を強める窓）は、下の段に `Esc` を出す）。ボタンを置くのは、決める・許す・送る操作と、それとやめるを選ぶ確認の窓（`CardActions`）だけ。キーで一覧を動かす窓は、`footer` に `KeyFooter` を置く（下の「共通フッタ」）。
 - **操作とフォーカス**：開くと中の最初の押せるもの（`focusSelf` なら窓そのもの）にフォーカスが移る。Esc で `onCancel`（macOS の全画面が解けないよう、Esc の既定の動きは止める）。閉じると、開く前にフォーカスがあった所へ戻す。決める（Enter）は窓ごとに決める（入力欄の Enter で決める窓は、入力欄が `isComposingKey` で変換の Enter を除く）。
 - **組み合わせの例**：下の表。
 
@@ -171,13 +171,13 @@ kisui-terminal の窓（`app/src/`）の、共通の色・余白・字・状態�
   - 下の段はいつも出す。操作が無い行も、見出しは出す。
   - 選ぶ間の選択肢（作るタブの種類）は、押せるボタンにする（項目の `act`。押すと `onPress(act)`。字を押したのと同じ）。
 - **引数**：
-  - `rows`：今効く操作の行（`placeKeys.ts` の `FooterRow`）。窓ごとのキーのファイル（`dbWindowKey.ts` の `dbWindowFooter`・`switcherKey.ts` の `switcherFooter`・`terminalWindowKey.ts` の `terminalWindowFooter`・`browserWindowKey.ts` の `browserWindowFooter`・`features/db/pickerKeys.ts` の `dbPickerFooter`）が、窓の状態から作る。ふだんの操作の項目は `placeItem(場所, キー, 名前)` で `?` の一覧の表の行から引くので、下の段・`?` の一覧・判定のキーがずれない。
+  - `rows`：今効く操作の行（`placeKeys.ts` の `FooterRow`）。窓ごとのキーのファイル（`dbWindowKey.ts` の `dbWindowFooter`・`switcherKey.ts` の `switcherFooter`・`terminalWindowKey.ts` の `terminalWindowFooter`・`browserWindowKey.ts` の `browserWindowFooter`・`machineFooter.ts` の `machineDialogFooter`・`bookmarkFooter.ts` の `bookmarkDialogFooter`・`features/db/pickerKeys.ts` の `dbPickerFooter`）が、窓の状態から作る。選ぶだけの小さな窓は、`pickOnlyRows(見出し)` で見出しだけの 1 行にする。ふだんの操作の項目は `placeItem(場所, キー, 名前)` で `?` の一覧の表の行から引くので、下の段・`?` の一覧・判定のキーがずれない。
   - `onPress`：押せる項目を押した。
-  - `items`：まだ行の形にしていない窓（#489 で直す）の基本操作のヒント（`basicHints`）。使う窓が無くなったら消す。
+  - `items`：まだ行の形にしていない窓（クリップボードの履歴・DB の履歴・DB の権限を強める窓）の基本操作のヒント（`basicHints`）。使う窓が無くなったら消す。
   - `note`：行の上に出す知らせ（操作できない理由など。`role` を付けた `CardText`）。
 - **`?` の一覧**：窓のキーの全部の表（今効かない操作・どの窓でも同じキー・別のキーを含む）。`placeKeys.ts` の表（`placeKeys()`。使うときに今の言語で作る）に書き、窓のキーの判定が `?` を受けて `openKeyList(場所)` を呼ぶ。窓の場所（`isWindowPlace`）は、その窓のキーだけを出す。閉じると、下の窓の、`?` を押す前にフォーカスがあった所へ戻る（`ModalCard` が戻す）。
 - **窓の枠を自分で持つ中身**（履歴の一覧 `HistoryPanel`。外から開く小さな窓にも出る）は、`CardFooter` の中に `KeyHints` を自分で置く（「コピーしました」の知らせの入れ物と一緒に）。
-- **組み合わせの例**：`main-window/workspaces/WorkspaceSwitcher`（行。列と状態で替わる。作るタブの種類はボタン）、`main-window/tab-window/DbWindow`・`BrowserWindow`・`TerminalWindow`（知らせと 2 行。ターミナルのタブの窓は、分ける向きを待つ間だけ別の 1 行）、`main-window/sessions/MachineDialog`（知らせ・前の決まりのヒント）。
+- **組み合わせの例**：`main-window/workspaces/WorkspaceSwitcher`（行。列と状態で替わる。作るタブの種類はボタン）、`main-window/tab-window/DbWindow`・`BrowserWindow`・`TerminalWindow`（知らせと 2 行。ターミナルのタブの窓は、分ける向きを待つ間だけ別の 1 行）、`main-window/sessions/MachineDialog`（知らせと 2 行。名前を打つ間は見出しだけ）、`main-window/content/browser/BookmarkDialog`（1 行）、選ぶだけの小さな窓（`MachinePicker`・`TabMovePicker`・`WorkspaceKindPicker`・`MascotDialog`・`DbConnectionPicker`・`DbExportDialog`。見出しだけの 1 行）。
 
 ## 組み合わせの例
 

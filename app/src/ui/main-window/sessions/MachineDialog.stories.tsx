@@ -48,6 +48,8 @@ function rows(): MachineRow[] {
 }
 
 type Args = {
+  /** 開いたときに選んでおくマシンの ssh の行き先 */
+  initial?: string;
   /** 名前を変えている行の ssh の行き先（無ければ変えていない） */
   renamingTarget?: string;
   /** 名前を断られた理由を出す */
@@ -71,7 +73,7 @@ const meta = {
   render: (args) => (
     <MachineDialog
       rows={rows()}
-      initial="dev@build.example.com"
+      initial={args.initial ?? "dev@build.example.com"}
       hasWorkspace
       renaming={
         args.renamingTarget
@@ -106,4 +108,14 @@ export const Renaming: Story = {
 /** 名前を断られた理由を、入力欄の下に出している。 */
 export const RenameRejected: Story = {
   args: { renamingTarget: "dev@build.example.com", rejected: true },
+};
+
+/** config.toml にだけあって、つながっていないマシンを選んでいる。下の段には、今できる操作（r だけ）が出る。 */
+export const FixedDisconnected: Story = {
+  args: { initial: "devbox" },
+};
+
+/** 「ローカル」を選んでいる。外す・名前を変える・切るは出ない。 */
+export const Local: Story = {
+  args: { initial: "local" },
 };

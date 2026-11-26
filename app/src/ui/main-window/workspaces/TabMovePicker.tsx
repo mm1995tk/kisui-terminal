@@ -5,7 +5,7 @@ import { moveRow, pickerKey } from "../../../features/sessions/machineList.ts";
 import type { Row } from "../../../features/workspaces/rows.ts";
 import { ModalCard, CardTitle } from "../../components/Card.tsx";
 import { KeyFooter } from "../../components/KeyFooter.tsx";
-import { basicHints } from "../../../features/commands/placeKeys.ts";
+import { pickOnlyRows } from "../../../features/commands/placeKeys.ts";
 import { openKeyList } from "../commands/KeyListDialog.tsx";
 
 const rowId = (i: number) => `tab-move-row-${i}`;
@@ -47,11 +47,7 @@ export function TabMovePicker(props: {
       header={
         <CardTitle>{T("tabMove.title", { title: props.title })}</CardTitle>
       }
-      footer={
-        <KeyFooter
-          items={basicHints({ decide: T("tabMove.keys.move"), end: "cancel" })}
-        />
-      }
+      footer={<KeyFooter rows={pickOnlyRows(T("tabMove.foot.to"))} />}
     >
       <div class="machine-dialog">
         <ul

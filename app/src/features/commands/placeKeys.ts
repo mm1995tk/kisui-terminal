@@ -5,7 +5,7 @@
 // ui/main-window/tab-window/terminalWindowKey.ts・ui/main-window/tab-window/dbWindowKey.ts・ui/main-window/tab-window/browserWindowKey.ts・features/db/keys.ts）にあり、
 // placeKeys.test.ts（切り替える窓は switcherKey.test.ts、ターミナルのタブの窓は terminalWindowKey.test.ts、DB のタブの窓は dbWindowKey.test.ts、ブラウザのタブの窓は browserWindowKey.test.ts）が「表に書いたキーを、その場所の判定が受ける」ことを確かめる。だから案内と受けるキーはずれない。
 // 窓の下の段（共通フッタ）に出す今効く操作も、ここの表の行から作る（placeItem。決まりは docs/design/ui-ux-review.md の「ヒントとヘルプ」）。
-// まだ新しい形にしていない窓（#488・#489 で直す）は、基本操作の並びを basicHints で出す。
+// まだ新しい形にしていない窓（クリップボードの履歴・DB の履歴・DB の権限を強める窓）は、基本操作の並びを basicHints で出す。
 // 場所のキーはリーダーには載せない（その場所の中だけで効く）。キーを足すときは、判定と、ここの表と、docs/key-design.md を直す。
 // DOM には触らない（node --test で確かめられる）。
 
@@ -592,6 +592,14 @@ export function placeItem(
   return { keys: show ?? keys.split(" "), label, probes: r.probes };
 }
 
+/**
+ * 選ぶだけの小さな窓（一覧から 1 つ選ぶ窓）の下の段。窓だけの操作は無い（選ぶ・決める・やめるは、どの窓でも同じキー）ので、
+ * 何を選ぶかの見出しだけの 1 行を出す（下の段はいつも出す。決まりは docs/design/ui-ux-review.md の「ヒントとヘルプ」の 11）。
+ */
+export function pickOnlyRows(title: string): FooterRow[] {
+  return [{ title, items: [] }];
+}
+
 /** 窓の下の段（共通フッタ）に出すヒントの 1 項目（ui/components/KeyHints.tsx の KeyHint と同じ形）。 */
 export interface BasicHint {
   keys: string[];
@@ -599,7 +607,7 @@ export interface BasicHint {
 }
 
 /**
- * 窓の下の段（共通フッタ）に出す基本操作（まだ今効く操作の行の形（FooterRow）にしていない窓が使う。#488・#489 で、使う窓が無くなったら消す）。どの窓でも「選ぶ → 移る → 決める → `?` → やめる・閉じる」の順に並べ、
+ * 窓の下の段（共通フッタ）に出す基本操作（まだ今効く操作の行の形（FooterRow）にしていない窓が使う。使う窓が無くなったら消す）。どの窓でも「選ぶ → 移る → 決める → `?` → やめる・閉じる」の順に並べ、
  * 同じ役割には同じ字を使う。これより詳しい操作（作る・名前を変える・並べ替えるなど）は、`?` の一覧（placeKeys()）にだけ出す。
  * - select：選ぶ行を動かすキー。省くと j k（入力欄に字を打つ窓は ↓ ↑ を渡す）
  * - move：選ぶ以外の移るキー（切り替える窓の列を移る h・l）
