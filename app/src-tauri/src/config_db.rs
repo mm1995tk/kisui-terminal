@@ -13,7 +13,7 @@
 //!   （項目ごとの重ね方。#483）。それは `config.toml` の接続を窓から変えることなので、断る（[`EditError::Fixed`]）。
 //! - **確かめ**：[`check_entry`] は kisui の `config/db.go` の `dbConnection`（変種の無い項目）と同じ間違いを、同じキーとコード（`config.err.*`）で返す。
 //!   同じ結果になることは、両方のテストが同じ例（`config_db_cases.json`）で確かめる。ほかに窓だけの確かめが 2 つある：変種・権限のキー
-//!   （`gui.db.fileonly`。窓では確かめられない）と、`host` に URL・`@` を書くこと（`gui.db.hosturl`。`user:password@host` のように資格情報を
+//!   （`gui.db.fileonly`。窓では確かめられない）と、`host` に URL・`@`・接続の文字列を書くこと（`gui.db.hosturl`）と、ほかの欄に URL を書くこと（`gui.db.url`）。`user:password@host` のように資格情報を
 //!   書いてしまうのを防ぐ）。間違いは書かずに返し、画面が自分の言葉で出す。
 //!
 //! 返す値・間違いには、入れた値（名前とキーのほか）を入れない。パスワードはもともと通らない。
@@ -371,13 +371,31 @@ pub fn check_all(e: &toml::Table) -> Vec<Problem> {
         return out;
     }
     out.extend(check_entry(e));
-    // ホストに URL や user@host を書くと、資格情報まで平文で書いてしまうことがある（kisui は形を確かめないので、窓で断る）
+    // 接続の URL や接続の文字列を貼ると、中のパスワードまで平文で書いてしまう（kisui は形を確かめないので、窓で断る）。
+    // host は通す形を決める：/ で始まるソケットのパスか、空白・=・@ を含まないホスト名・アドレス（`host=db password=…` の形も止める）
     if let Some(h) = e.get("host").and_then(toml::Value::as_str) {
-        if h.contains("://") || h.contains('@') {
+        if !host_shape(h) {
             out.push(problem("host", "gui.db.hosturl", &[]));
         }
     }
+    // ほかの字の欄は、URL（`postgres://user:pass@db/shop`）だけを断る。`@` は user@server の形のユーザー名にありうる
+    for k in ["name", "user", "database"] {
+        if e.get(k)
+            .and_then(toml::Value::as_str)
+            .is_some_and(|v| v.contains("://"))
+        {
+            out.push(problem(k, "gui.db.url", &[]));
+        }
+    }
     out
+}
+
+/// 窓が書いてよい host の形か：`/` で始まるソケットのパス（URL・`@` を含まない）か、空白・`=`・`@`・`/` を含まないホスト名・アドレス。
+fn host_shape(h: &str) -> bool {
+    if h.contains("://") || h.contains('@') {
+        return false;
+    }
+    h.starts_with('/') || !h.chars().any(|c| c.is_whitespace() || c == '=' || c == '/')
 }
 
 /// 1 つの表の値を読む（kisui の `dbEntry`）。
@@ -711,6 +729,23 @@ mod tests {
             panic!()
         };
         assert_eq!(p, vec![problem("host", "gui.db.hosturl", &[])]);
+        // 接続の文字列・ほかの欄の URL も断る。ソケットのパス・IPv6 のアドレスは通す
+        let mut f = fields("x");
+        f.host = "db password=secret".into();
+        f.database = "postgres://app:secret@db/shop".into();
+        let Err(EditError::Invalid(p)) = edit(&d, DbEdit::Add { connection: f }) else {
+            panic!()
+        };
+        assert_eq!(
+            p,
+            vec![
+                problem("host", "gui.db.hosturl", &[]),
+                problem("database", "gui.db.url", &[])
+            ]
+        );
+        for h in ["/run/postgresql", "::1", "db-1.example.com", "10.0.0.1"] {
+            assert!(host_shape(h), "{h}");
+        }
         // 間違いの中に、入れた値（パスワードになりうる host の中身）は入れない
         assert!(!format!("{p:?}").contains("secret"));
         assert!(!d.join("config.local.toml").exists());

@@ -975,7 +975,9 @@ export const ja: Record<Key, string> = {
   "dbConn.err.fileonly":
     "窓では直さないキーです。この接続は config.local.toml で直してください",
   "dbConn.err.hosturl":
-    "ホスト名・アドレス・ソケットだけを書きます。URL や user@host は書けません（中のパスワードがファイルに書かれるため）",
+    "ホスト名・アドレス・ソケットだけを書きます。URL・user@host・接続の文字列は書けません（中のパスワードがファイルに書かれるため）",
+  "dbConn.err.url":
+    "値だけを書きます。URL は書けません（中のパスワードがファイルに書かれるため）",
   "dbConn.err.exists": "{name} は config.local.toml にもうあります",
   "dbConn.err.missing": "{name} は config.local.toml にありません",
   "dbConn.err.fixed":

@@ -982,7 +982,9 @@ export const en = {
   "dbConn.err.fileonly":
     "the window does not edit this key. Edit this connection in config.local.toml",
   "dbConn.err.hosturl":
-    "write only a host name, an address or a socket here, not a URL or user@host (a password in it would be written to the file)",
+    "write only a host name, an address or a socket here, not a URL, user@host or a connection string (a password in it would be written to the file)",
+  "dbConn.err.url":
+    "write the value itself here, not a URL (a password in it would be written to the file)",
   "dbConn.err.exists": "{name} is already in config.local.toml",
   "dbConn.err.missing": "{name} is not in config.local.toml",
   "dbConn.err.fixed":

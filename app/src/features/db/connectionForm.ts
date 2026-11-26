@@ -171,6 +171,7 @@ const PROBLEM_KEYS: Record<string, Key> = {
   "config.err.unknown": "dbConn.err.unknown",
   "gui.db.fileonly": "dbConn.err.fileonly",
   "gui.db.hosturl": "dbConn.err.hosturl",
+  "gui.db.url": "dbConn.err.url",
 };
 
 /** 間違い 1 つを、画面に出す 1 文にする（「キー：理由」）。 */
