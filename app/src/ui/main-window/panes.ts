@@ -25,10 +25,13 @@ export const DEFAULT_SIZES: Readonly<Record<Border, number>> = {
   tabs: 40, // サイドバーの高さの %（設定の [gui.sidebar] tabs-height で変えられる）
 };
 
-/** 境界ごとの下限と上限。 */
+/**
+ * 境界ごとの下限と上限。サイドバーの幅と CHANGES の高さの上限は固定の値を持たず（無限）、
+ * 窓の大きさで決まる上限（sidebarMax・changesMax）だけが効く（#501）。
+ */
 export const LIMITS: Readonly<Record<Border, readonly [number, number]>> = {
-  sidebar: [200, 640],
-  changes: [44, 640], // 下限は 2 行
+  sidebar: [200, Number.POSITIVE_INFINITY],
+  changes: [44, Number.POSITIVE_INFINITY], // 下限は 2 行
   tabs: [10, 90], // %。src-tauri/src/config.rs の TABS_HEIGHT_RANGE と同じ
 };
 
@@ -38,6 +41,34 @@ export const KEY_STEP: Readonly<Record<Border, number>> = {
   changes: 22, // 1 行（行の高さ）
   tabs: 5, // %
 };
+
+/** 右のターミナルに最低限残す列の数（ペインを分けるときの最小の幅。features/terminal/grid.ts の MIN_COLS・server/layout.go の minSplitCols と同じ）。 */
+export const MIN_TERM_COLS = 20;
+/** 右のターミナルの、字の列の外側の幅（左右の余白 4px ずつと、スクロールバーの 4px。terminal.css・TerminalView.tsx）。 */
+export const TERM_CHROME_WIDTH = 12;
+/** サイドバーの中で、CHANGES の一覧のほかに残す高さ（px）。タブの段・見出し・ファイルツリーの数行ぶん（ファイルツリーが最低限見える高さ）。 */
+export const TREE_RESERVE_HEIGHT = 240;
+
+/** 右のターミナルが MIN_TERM_COLS 列になる幅（px）。cellWidth は字 1 つの幅。 */
+export function termMinWidth(cellWidth: number): number {
+  return Math.ceil(MIN_TERM_COLS * cellWidth) + TERM_CHROME_WIDTH;
+}
+
+/** 窓の幅 windowWidth で、サイドバーの幅の上限。右のターミナルが MIN_TERM_COLS 列残る幅まで（下限より狭くはならない）。 */
+export function sidebarMax(windowWidth: number, cellWidth: number): number {
+  return Math.max(
+    LIMITS.sidebar[0],
+    Math.floor(windowWidth - termMinWidth(cellWidth)),
+  );
+}
+
+/** 窓の高さ windowHeight で、CHANGES の一覧の高さの上限。ファイルツリーなどに TREE_RESERVE_HEIGHT 残る高さまで（下限より低くはならない）。 */
+export function changesMax(windowHeight: number): number {
+  return Math.max(
+    LIMITS.changes[0],
+    Math.floor(windowHeight - TREE_RESERVE_HEIGHT),
+  );
+}
 
 const STORAGE_KEY = "shijimi.paneSizes";
 

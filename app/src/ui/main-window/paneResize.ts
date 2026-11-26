@@ -22,8 +22,10 @@ import {
 } from "../../features/workspaces/rows.ts";
 import type { WorkspaceId } from "../../infrastructure/rpc/protocol.ts";
 import type { WindowEls } from "./els.ts";
+import { termCellWidth } from "./termCell.ts";
 import {
   applyMove,
+  changesMax,
   CHANGES_BORDER,
   KEY_STEP,
   LIMITS,
@@ -32,6 +34,7 @@ import {
   resizeAction,
   saveSidebarOpen,
   saveSizes,
+  sidebarMax,
   SPLIT_KEY_STEP,
   sizeOf,
   TABS_BORDER,
@@ -159,12 +162,12 @@ export function createPaneResize(deps: {
     }),
   );
 
-  /** 今の窓で効く境界の上限（app.css の clamp・changes.css の max-height と同じ）。 */
+  /** 今の窓で効く境界の上限（layout.css の clamp・changes.css の max-height と同じ決まり。panes.ts の sidebarMax・changesMax）。 */
   function maxOf(b: Border = "sidebar"): number {
     if (b === "tabs") return LIMITS.tabs[1];
     return b === "changes"
-      ? Math.min(640, window.innerHeight / 2)
-      : Math.min(640, window.innerWidth / 2);
+      ? changesMax(window.innerHeight)
+      : sidebarMax(window.innerWidth, termCellWidth());
   }
 
   /** タブの段の高さの上限の今の値（%）。決めていなければ設定の [gui.sidebar] tabs-height、それも無ければ 40。 */

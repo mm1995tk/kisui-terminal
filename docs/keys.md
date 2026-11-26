@@ -215,11 +215,11 @@ shj を引数なしで起動した直後は、kisui が同じ `explorer` の通�
 
 | どこで                         | 操作                         | 動き                                                          | 定義の場所                                    |
 | ------------------------------ | ---------------------------- | ------------------------------------------------------------- | --------------------------------------------- |
-| サイドバーとターミナルの境界   | ドラッグ                     | サイドバーの幅を変える（200〜640px。覚えておく）              | `ui/main-window/paneResize.ts` の `dragBorder`・`ui/main-window/layout.tsx`・`ui/main-window/panes.ts:23`  |
+| サイドバーとターミナルの境界   | ドラッグ                     | サイドバーの幅を変える（200px から、右のターミナルが 20 列残るところまで。覚えておく）              | `ui/main-window/paneResize.ts` の `dragBorder`・`ui/main-window/layout.tsx`・`ui/main-window/panes.ts:23`  |
 | 同上                           | ダブルクリック               | 幅を元（300px）に戻す                                         | `ui/main-window/layout.tsx`                                |
 | タブの段とファイルツリーの境目 | ドラッグ                     | タブの段の高さの上限を変える。下へ動かすと高くなる（サイドバーの高さの 10〜90%。覚えておく）。`shj` が動いていて、ブラウザのタブを出していないときだけある | `ui/main-window/paneResize.ts` の `dragTabs`・`ui/main-window/sidebar/Sidebar.tsx`・`ui/main-window/panes.ts` |
 | 同上                           | ダブルクリック               | 上限を設定 `[gui.sidebar] tabs-height` の値（無ければ 40%）に戻す | `ui/main-window/paneResize.ts` の `resetSize`・`ui/main-window/sidebar/Sidebar.tsx`              |
-| ファイルツリーと CHANGES の境目（CHANGES の上の縁） | ドラッグ                     | CHANGES の一覧の高さを変える。上へ動かすと高くなる（44〜640px で、窓の高さの半分まで。覚えておく） | `ui/main-window/paneResize.ts` の `dragChanges`・`ui/main-window/sidebar/changes/ChangesView.tsx`・`ui/main-window/panes.ts` |
+| ファイルツリーと CHANGES の境目（CHANGES の上の縁） | ドラッグ                     | CHANGES の一覧の高さを変える。上へ動かすと高くなる（44px から、ファイルツリーなどに 240px 残るところまで。覚えておく） | `ui/main-window/paneResize.ts` の `dragChanges`・`ui/main-window/sidebar/changes/ChangesView.tsx`・`ui/main-window/panes.ts` |
 | 同上                           | ダブルクリック               | 高さを元（143px）に戻す                                       | `ui/main-window/paneResize.ts` の `resetSize`・`ui/main-window/sidebar/changes/ChangesView.tsx`          |
 | ペインどうしの境界（隙間のつまみ） | ドラッグ                     | 境界の割合を変える（両側の最小の大きさまで）                  | `ui/main-window/content/terminal/TerminalGrid.tsx:123`・`ui/main-window/content/terminal/TerminalGrid.tsx:252` |
 | 同上                           | ダブルクリック               | 割合を 50% に戻す                                             | `ui/main-window/content/terminal/TerminalGrid.tsx:253`               |
