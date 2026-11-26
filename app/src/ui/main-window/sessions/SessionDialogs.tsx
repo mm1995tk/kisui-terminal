@@ -1,4 +1,5 @@
-// 接続にかかわる窓。kisui を入れるかの確認・マシンのダイアログ（リーダーの m。マシンの名前は、この中の行で変える。Enter でワークスペースの窓のタブ作成へ）・リモートを足す窓・ssh の質問（パスワードなど）。
+// 接続にかかわる窓。kisui を入れるかの確認・マシンのダイアログ（リーダーの m。マシンの名前は、この中の行で変える。Enter でワークスペースの窓のタブ作成へ）・リモートを足す窓・
+// マシンのターミナルの始め方（始めるフォルダとシェル）を変える窓・ssh の質問（パスワードなど）。
 // 何を出すかは features/sessions/controller.ts の状態で決まる。
 import { Show, type JSX } from "solid-js";
 
@@ -9,6 +10,7 @@ import { AddMachine } from "./AddMachine.tsx";
 import { AskpassDialog } from "./AskpassDialog.tsx";
 import { InstallCard } from "./InstallCard.tsx";
 import { MachineDialog } from "./MachineDialog.tsx";
+import { TerminalSettings } from "./TerminalSettings.tsx";
 
 /** 接続にかかわる窓をまとめて出す。出していない窓は何も描かない。 */
 export function SessionDialogs(props: {
@@ -44,6 +46,11 @@ export function SessionDialogs(props: {
     renaming,
     renameError,
     submitRename,
+    termEditing,
+    termEditError,
+    termEditBusy,
+    submitTermEdit,
+    closeTermEdit,
     asks,
     reply,
   } = props.sessions;
@@ -82,6 +89,10 @@ export function SessionDialogs(props: {
               case "reconnect":
                 retry(row.target);
                 break;
+              case "terminal":
+                props.sessions.closeRename();
+                void props.sessions.openTermEdit(row.target);
+                break;
               case "newTab":
                 props.sessions.closeRename();
                 props.onNewTab(row.target);
@@ -98,6 +109,18 @@ export function SessionDialogs(props: {
             props.onCloseMachines();
           }}
         />
+      </Show>
+      <Show when={termEditing()} keyed>
+        {(editing) => (
+          <TerminalSettings
+            machine={labelOf(editing.target)}
+            values={editing.values}
+            busy={termEditBusy()}
+            error={termEditError()}
+            onSubmit={submitTermEdit}
+            onCancel={closeTermEdit}
+          />
+        )}
       </Show>
       <Show when={adding()}>
         <AddMachine

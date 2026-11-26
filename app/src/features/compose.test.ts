@@ -13,6 +13,7 @@ import type { FeaturePorts, Features, FeatureUi } from "./compose.ts";
 import type { KeyValueStore } from "./keyValueStore.ts";
 import type { ConfigMachine } from "./sessions/machines.ts";
 import type { ClosedEvent, ShellApi } from "./sessions/shell.ts";
+import type { TermDefaults } from "./sessions/termDefaults.ts";
 import type { ProxyFlow, Workspace } from "../infrastructure/rpc/protocol.ts";
 
 // node では solid-js がサーバー用（反応しない作り）に解決されるので、ブラウザー用に向け直す
@@ -58,6 +59,8 @@ interface Serve {
   >;
   /** 受けた proxy.release のパラメータ（#411。届いた順） */
   released: Record<string, unknown>[];
+  /** 受けた workspace.create のパラメータ（届いた順） */
+  created: Record<string, unknown>[];
 }
 
 /** 偽の殻。つなぎ先（target）ごとに Serve を 1 つ持ち、JSON-RPC の要求に答える。 */
@@ -99,6 +102,7 @@ function fakeShell(
         notify: (method, params) => emit({ jsonrpc: "2.0", method, params }),
         proxy: new Map(),
         released: [],
+        created: [],
       };
       serves.set(target, s);
     }
@@ -108,13 +112,16 @@ function fakeShell(
   const machines: ConfigMachine[] = [];
   // config.local.toml に書けない（読み取り専用など）ふりをするか
   const edit = { fail: false };
+  // 設定ファイルの [server] の start_dir と shell（窓で変えると書き換わる。手で書き換えるふりもできる）
+  const local: { terminal: TermDefaults } = { terminal: {} };
   const api: ShellApi = {
     listSshHosts: async () => ["host1"],
     configGui: async () => ({
-      machines: [],
+      machines: machines.map((m) => ({ ...m })),
       browser: false,
       shortcuts: [],
       passkeyRejected: [],
+      localTerminal: { ...local.terminal },
     }),
     editMachine: async (e) => {
       if (edit.fail)
@@ -124,8 +131,19 @@ function fakeShell(
         machines.push({ ssh: e.ssh, name: e.name, local: true });
       else if (e.kind === "rename")
         machines[at] = { ...machines[at], name: e.name };
+      else if (e.kind === "terminal")
+        machines[at] = {
+          ...machines[at],
+          startDir: e.startDir,
+          shell: e.shell,
+        };
       else machines.splice(at, 1);
       return machines.map((m) => ({ ...m }));
+    },
+    editLocalTerminal: async (e) => {
+      if (edit.fail) throw { kind: "notexec", detail: e.shell };
+      local.terminal = { ...e };
+      return { ...e };
     },
     connect: async (id, target) => {
       connOf.set(id, target);
@@ -164,6 +182,7 @@ function fakeShell(
           reply({ workspaces: s.workspaces, focus: s.focus });
           break;
         case "workspace.create": {
+          s.created.push(msg.params);
           const w = workspace(`w${++seq}`);
           s.workspaces = [...s.workspaces, w];
           // 本物と同じく、一覧の知らせは返事と前後しうる。ここでは知らせを先に送る
@@ -305,7 +324,7 @@ function fakeShell(
     onAskpass: async () => () => {},
     onAskpassDone: async () => () => {},
   };
-  return { api, serveOf, machines, edit };
+  return { api, serveOf, machines, edit, local };
 }
 
 /** 偽のブラウザの殻。覚えているタブを返し、頼まれたことを覚える。 */
@@ -474,6 +493,7 @@ function start(opts: {
     store,
     machines: shell.machines,
     edit: shell.edit,
+    local: shell.local,
     serve: shell.serveOf,
     browserCalls: browser.calls,
     loadFailed: browser.loadFailed,
@@ -988,6 +1008,97 @@ describe("機能の持ち物のつなぎ（compose.ts）", () => {
     assert.deepEqual(f.sessions.targets(), [LOCAL, "host1"]);
     assert.equal(f.sessions.states().host1?.kind, "connected");
     assert.equal(machines.length, 1);
+  });
+
+  it("マシンのターミナルの始め方を変えると config.local.toml に書き、次に作るターミナルから kisui serve に渡す（設定は作るたびに読み直す）", async () => {
+    const cap = ["workspace.create.shell"];
+    const { f, serve, machines, local, edit } = start({
+      serves: {
+        [LOCAL]: { ids: ["a"], focus: "a", capabilities: cap },
+        host1: { ids: ["r"], focus: "r", capabilities: cap },
+        old: { ids: ["o"], focus: "o" },
+      },
+    });
+    await settle();
+    for (const t of ["host1", "old"]) {
+      f.sessions.openAdd();
+      f.sessions.submitAdd(t, "");
+      await settle();
+    }
+    // 何も書いていなければ、空で渡す（そのマシンの設定のまま）
+    await f.workspaces.createWorkspace("host1");
+    assert.deepEqual(serve("host1").created, [{ startDir: "", shell: "" }]);
+
+    // リモート：[[gui.machines]] の項目に書く。前後の空白は除く
+    await f.sessions.openTermEdit("host1");
+    assert.deepEqual(f.sessions.termEditing(), { target: "host1", values: {} });
+    f.sessions.submitTermEdit(" ~/work ", "/usr/bin/fish");
+    await settle();
+    assert.equal(f.sessions.termEditing(), null);
+    assert.deepEqual(machines[0], {
+      ssh: "host1",
+      name: null,
+      local: true,
+      startDir: "~/work",
+      shell: "/usr/bin/fish",
+    });
+    await f.workspaces.createWorkspace("host1");
+    assert.deepEqual(serve("host1").created[1], {
+      startDir: "~/work",
+      shell: "/usr/bin/fish",
+    });
+    // 開き直すと、今の値が入っている。形の違う値は書かずに、理由を出す
+    await f.sessions.openTermEdit("host1");
+    assert.deepEqual(f.sessions.termEditing()?.values, {
+      startDir: "~/work",
+      shell: "/usr/bin/fish",
+    });
+    f.sessions.submitTermEdit("work", "");
+    assert.match(f.sessions.termEditError() ?? "", /absolute path/);
+    f.sessions.submitTermEdit("", "fish -l");
+    assert.match(f.sessions.termEditError() ?? "", /absolute path/);
+    assert.equal(machines[0].startDir, "~/work");
+    // 空にすると消す
+    f.sessions.submitTermEdit("", "");
+    await settle();
+    assert.equal(f.sessions.termEditing(), null);
+    assert.deepEqual([machines[0].startDir, machines[0].shell], [null, null]);
+
+    // ローカル：[server] に書く。殻が断れば（この PC で実行できない）、理由を出して窓を閉じない
+    await f.sessions.openTermEdit(LOCAL);
+    edit.fail = true;
+    f.sessions.submitTermEdit("", "~/bin/none");
+    await settle();
+    assert.equal(f.sessions.termEditing()?.target, LOCAL);
+    assert.equal(
+      f.sessions.termEditError(),
+      "~/bin/none is not a file that can be run on this computer",
+    );
+    edit.fail = false;
+    f.sessions.submitTermEdit("~/src", "/bin/zsh");
+    await settle();
+    assert.equal(f.sessions.termEditing(), null);
+    assert.deepEqual(local.terminal, { startDir: "~/src", shell: "/bin/zsh" });
+    await f.workspaces.createWorkspace(LOCAL);
+    assert.deepEqual(serve(LOCAL).created.at(-1), {
+      startDir: "~/src",
+      shell: "/bin/zsh",
+    });
+    // 設定ファイルを手で書き換えても、kisui serve を止めずに、次のターミナルから効く
+    local.terminal = { shell: "/bin/bash" };
+    await f.workspaces.createWorkspace(LOCAL);
+    assert.deepEqual(serve(LOCAL).created.at(-1), {
+      startDir: "",
+      shell: "/bin/bash",
+    });
+
+    // 印の無い古い kisui serve には、設定があっても送らない
+    await f.sessions.openTermEdit("old");
+    f.sessions.submitTermEdit("~/work", "/bin/zsh");
+    await settle();
+    assert.equal(machines[1].shell, "/bin/zsh");
+    await f.workspaces.createWorkspace("old");
+    assert.deepEqual(serve("old").created, [{}]);
   });
 
   it("コマンドは、画面の側ですること（窓を出す・サイドバーの開閉）を CommandUi に頼む", async () => {

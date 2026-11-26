@@ -52,6 +52,8 @@ type Options struct {
 	IdleCheck time.Duration // 止まる時刻を調べる間隔。0 なら 1 分
 	// StartDir は新しいワークスペースのプライマリターミナルが始まるフォルダ（[server] start_dir、絶対パス）。"" なら ~。
 	StartDir string
+	// Shell はこのマシンの既定のシェル（[server] shell、実行できるファイルの絶対パス）。"" なら $SHELL（shell.go）。
+	Shell string
 	// StatePath はワークスペースの一覧を保存するファイル。"" なら保存も復元もしない。
 	StatePath string
 	// CwdInterval はシェルの cwd を読む間隔。0 なら 1 秒。
@@ -520,7 +522,7 @@ func (ss *session) helloReq(req *rpc.Message) (any, error) {
 		ServerID:     s.serverID,
 		StartedAt:    s.startedAt,
 		Supersedes:   sup,
-		Capabilities: []string{CapHandover, CapDB, CapDBPermissions, CapDBSchema, CapDBStructure, CapDBElevate, CapCreateCommand, CapPaneRun, CapProxy, CapProxyResend, CapProxyHold},
+		Capabilities: []string{CapHandover, CapDB, CapDBPermissions, CapDBSchema, CapDBStructure, CapDBElevate, CapCreateCommand, CapCreateShell, CapPaneRun, CapProxy, CapProxyResend, CapProxyHold},
 		Workspaces:   wsl,
 		Rev:          s.currentRev(),
 	}, nil

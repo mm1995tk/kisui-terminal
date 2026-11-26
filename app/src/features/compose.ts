@@ -25,6 +25,7 @@ import type { ApplyScale } from "./scale/scale.ts";
 import { createSessions } from "./sessions/controller.ts";
 import { createPaneRelay } from "./sessions/paneRelay.ts";
 import type { ConfigMachine } from "./sessions/machines.ts";
+import type { TermDefaults } from "./sessions/termDefaults.ts";
 import type { ShellApi } from "./sessions/shell.ts";
 import { createTerminals } from "./terminal/controller.ts";
 import type { OpenUrlExternally } from "./terminal/urlOpen.ts";
@@ -93,6 +94,8 @@ export function createFeatures(deps: {
   ports: FeaturePorts;
   /** 手元の設定ファイルで決めたマシン */
   config: ConfigMachine[];
+  /** 手元のマシンの、新しいターミナルが始まるフォルダとシェル（設定の [server] start_dir・shell。#485） */
+  localTerminal?: TermDefaults | null;
   /** 起動のときから出しておく、できなかったこと（前の版の、窓で足したマシンの記録を移せなかった、など） */
   startupProblem?: Problem;
   /** 内蔵ブラウザのタブを使うか（設定の [gui.browser] enabled。#202） */
@@ -119,6 +122,7 @@ export function createFeatures(deps: {
     api: ports.shell,
     store,
     config: deps.config,
+    localTerminal: deps.localTerminal,
     report: (p) => setFocusError(p),
     hooks: {
       treeChanged: () => fileTree.changed(),

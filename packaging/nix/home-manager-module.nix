@@ -58,8 +58,12 @@ in
       example = lib.literalExpression ''
         {
           server.idle_stop_days = 7;
+          # The shell of a new terminal on this computer.
+          server.shell = "/run/current-system/sw/bin/fish";
           gui.machines = [
-            { ssh = "dev-vm"; name = "dev"; }
+            # start_dir and shell: where a new terminal of that machine
+            # starts, and its shell (paths on that machine).
+            { ssh = "dev-vm"; name = "dev"; start_dir = "~/work"; shell = "/usr/bin/zsh"; }
           ];
         }
       '';

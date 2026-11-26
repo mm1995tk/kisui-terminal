@@ -10,6 +10,8 @@ export const tauriShell: ShellApi = {
   configGui: () => invoke<GuiConfig>("config_gui"),
   editMachine: (edit) =>
     invoke<ConfigMachine[]>("config_machine_edit", { edit }),
+  editLocalTerminal: ({ startDir, shell }) =>
+    invoke("config_local_terminal_edit", { startDir, shell }),
   connect: (id, target) => invoke("connect", { id, target }),
   send: (id, text) => invoke("send", { id, text }),
   disconnect: (id) => invoke("disconnect", { id }),

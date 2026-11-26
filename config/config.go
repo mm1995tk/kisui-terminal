@@ -3,7 +3,8 @@
 // nightly kisui), from the files listed in files. kisui reads only its own
 // keys: [server] and ui-language (Load), and [[db.connections]] (LoadDB, in
 // db.go). The window reads [[gui.machines]] from the same files in the same
-// order (app/src-tauri/src/config.rs). What the window
+// order (app/src-tauri/src/config.rs), and [server] start_dir and shell too,
+// to pass them to `kisui serve` with each new terminal. What the window
 // writes goes to config.local.toml, never to config.toml, so that config.toml
 // can be a read-only file (such as the one home-manager makes). The settings
 // of shj (`~/.config/shijimi-editor/`) are not read.
@@ -30,6 +31,9 @@ type Settings struct {
 	// StartDir is the folder a new workspace's shell starts in, as an absolute
 	// path (a leading ~ is expanded). "" means the home directory.
 	StartDir string
+	// Shell is the shell a new terminal runs, as the absolute path of a file
+	// that can be run (a leading ~ is expanded). "" means $SHELL.
+	Shell string
 	// UILanguage is the language of kisui's own messages: "en" or "ja".
 	UILanguage string
 }
@@ -182,7 +186,35 @@ func (s *Settings) merge(raw map[string]any, path string) []Problem {
 			s.StartDir = dir
 		}
 	}
+	if v, ok := t["shell"]; ok {
+		if str, ok := v.(string); !ok {
+			bad("server.shell", "config.err.string")
+		} else if sh, code := ShellPath(str); code == "config.err.notexec" {
+			bad("server.shell", code, sh)
+		} else if code != "" {
+			bad("server.shell", code)
+		} else {
+			s.Shell = sh
+		}
+	}
 	return probs
+}
+
+// ShellPath turns a shell of the settings ([server] shell, or the shell the
+// window passes for a machine) into the absolute path of the file to run: ~/x
+// is under the home directory of this machine. The value is the path alone;
+// it carries no arguments. code is the i18n key of the reason when it cannot
+// be used ("" when it can): it is not an absolute path, or it is not a file
+// that can be run. path is what was looked at, for the message.
+func ShellPath(v string) (path, code string) {
+	p, ok := ExpandHome(v)
+	if !ok || p == "" {
+		return v, "config.err.abspath"
+	}
+	if fi, err := os.Stat(p); err != nil || !fi.Mode().IsRegular() || fi.Mode().Perm()&0o111 == 0 {
+		return p, "config.err.notexec"
+	}
+	return p, ""
 }
 
 // integer is v as an integer: TOML decodes one as int64. A float64 with
@@ -201,8 +233,8 @@ func integer(v any) (int64, bool) {
 	return 0, false
 }
 
-// ExpandHome turns a path of the settings ([server] start_dir, the tls-ca of
-// a database connection) into an absolute path: ~ and ~/x
+// ExpandHome turns a path of the settings ([server] start_dir and shell, the
+// tls-ca of a database connection) into an absolute path: ~ and ~/x
 // are the home directory. ok is false when it is neither that nor an
 // absolute path.
 func ExpandHome(v string) (path string, ok bool) {

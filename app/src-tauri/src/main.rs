@@ -14,6 +14,7 @@ mod clipboard_history;
 mod clipboard_popup;
 mod config;
 mod config_list;
+mod config_terminal;
 mod connection;
 mod cookie_check;
 mod download;
@@ -72,6 +73,20 @@ fn config_machine_edit(
         config_list::EditError::File("設定のフォルダが分かりません（$HOME がありません）".into())
     })?;
     config_list::edit_machine(&dir, edit)
+}
+
+/// 窓で、手元のマシンの新しいターミナルが始まるフォルダとシェルを変える。`config.local.toml` の `[server]` に書き（無い項目は消す）、
+/// 書いたあとの手元のマシンの分（`config_gui` の `localTerminal` と同じ形）を返す。書けなければ `{ kind, detail }`（config_list.rs の EditError）。
+#[tauri::command(async)]
+fn config_local_terminal_edit(
+    start_dir: Option<String>,
+    shell: Option<String>,
+) -> Result<config::TermDefaults, config_list::EditError> {
+    let dir = config::default_dir().ok_or_else(|| {
+        config_list::EditError::File("設定のフォルダが分かりません（$HOME がありません）".into())
+    })?;
+    let (_, home, _) = config::env();
+    config_terminal::edit_local(&dir, home.as_deref(), start_dir, shell)
 }
 
 /// 画面の言葉（設定ファイルの `ui-language`。`"en"` か `"ja"`。無い・分からない値は `"en"`）。画面は起動時に 1 度だけ読む。
@@ -224,6 +239,7 @@ fn main() {
             mascot::mascot_select,
             config_gui,
             config_machine_edit,
+            config_local_terminal_edit,
             connect,
             send,
             disconnect,

@@ -40,6 +40,8 @@ function fakeShell(opts: {
    * エラーなら断る（serve の版は変わらない）。"drop" なら返事をせずに接続を閉じる、"silent" なら何も返さない
    */
   handover?: "ok" | "drop" | "silent" | { code: number; message: string };
+  /** workspace.create・term.create・term.restart を、このシェルは実行できないと断る（invalid_params。data.reason は "shell"） */
+  refuseShell?: string;
 }) {
   const lines: Line[] = [];
   const closeds: ((e: ClosedEvent) => void)[] = [];
@@ -62,6 +64,7 @@ function fakeShell(opts: {
       passkeyRejected: [],
     }),
     editMachine: async () => [],
+    editLocalTerminal: async () => ({}),
     connect: async (id) => {
       const sid = opts.serverIds[Math.min(n, opts.serverIds.length - 1)];
       n++;
@@ -160,6 +163,29 @@ function fakeShell(opts: {
         }
         case "tree.watch":
           reply({});
+          break;
+        case "workspace.create":
+        case "term.create":
+        case "term.restart":
+          if (opts.refuseShell !== undefined) {
+            queueMicrotask(() =>
+              emit(id, {
+                jsonrpc: "2.0",
+                id: msg.id,
+                error: {
+                  code: -32602,
+                  message: `the shell is not a file that can be run: ${opts.refuseShell}`,
+                  data: { reason: "shell", shell: opts.refuseShell },
+                },
+              }),
+            );
+            break;
+          }
+          reply(
+            msg.method === "workspace.create"
+              ? { id: "w-new", termId: "t-new" }
+              : { termId: "t-new", pid: 1, cwd: "/" },
+          );
           break;
         case "session.bye":
           reply({});
@@ -1054,5 +1080,153 @@ describe("needsHandover", () => {
       false,
     );
     assert.equal(needsHandover({ hello: hello("0.1.0", "abc") }), false);
+  });
+});
+
+describe("Session：マシンのターミナルの始め方（始めるフォルダとシェル）", () => {
+  const cap = "workspace.create.shell";
+  /** つないだ Session と、ターミナルを始める要求で送った引数。 */
+  async function connected(
+    capabilities: string[],
+    defaults: { startDir?: string; shell?: string } | undefined,
+    refuseShell?: string,
+  ) {
+    const f = fakeShell({ serverIds: ["A"], capabilities, refuseShell });
+    let reads = 0;
+    const s = new Session(f.api, "h", {
+      ...fast,
+      ...(defaults
+        ? {
+            termDefaults: async () => {
+              reads++;
+              return defaults;
+            },
+          }
+        : {}),
+    });
+    s.start();
+    await waitFor(s, (st) => st.kind === "connected");
+    const params = (method: string) =>
+      f.sent.filter((x) => x.msg.method === method).map((x) => x.msg.params);
+    return { s, params, reads: () => reads };
+  }
+
+  it("workspace.create に、設定の startDir と shell を付ける", async () => {
+    const c = await connected([cap], {
+      startDir: "~/work",
+      shell: "/bin/fish",
+    });
+    await c.s.createWorkspace();
+    assert.deepEqual(c.params("workspace.create"), [
+      { startDir: "~/work", shell: "/bin/fish" },
+    ]);
+    await c.s.close();
+  });
+
+  it("フォルダを明示したら dir も送り、startDir はそのまま付ける（serve は dir を先に使う）", async () => {
+    const c = await connected([cap, "workspace.create.command"], {
+      startDir: "~/work",
+      shell: "/bin/fish",
+    });
+    await c.s.createWorkspace("/src");
+    await c.s.createWorkspace("/src", { argv: ["/bin/ls"], name: "ls" });
+    assert.deepEqual(c.params("workspace.create"), [
+      { startDir: "~/work", shell: "/bin/fish", dir: "/src" },
+      {
+        startDir: "~/work",
+        shell: "/bin/fish",
+        dir: "/src",
+        argv: ["/bin/ls"],
+        name: "ls",
+      },
+    ]);
+    await c.s.close();
+  });
+
+  it("書いていない項目は空の文字列で送る（serve が、前に渡したシェルを覚えたままにしない）", async () => {
+    const c = await connected([cap], {});
+    await c.s.createWorkspace();
+    await c.s.request("term.create", { workspaceId: "w", cols: 80, rows: 24 });
+    assert.deepEqual(c.params("workspace.create"), [
+      { startDir: "", shell: "" },
+    ]);
+    assert.deepEqual(c.params("term.create"), [
+      { shell: "", workspaceId: "w", cols: 80, rows: 24 },
+    ]);
+    await c.s.close();
+  });
+
+  it("term.create と term.restart には shell だけを付ける", async () => {
+    const c = await connected([cap], {
+      startDir: "~/work",
+      shell: "/bin/fish",
+    });
+    await c.s.request("term.create", { workspaceId: "w", cols: 80, rows: 24 });
+    await c.s.request("term.restart", { termId: "t1" });
+    // シェルを始めない要求には付けない（返事は待たない。偽の殻は tree.watch に答える）
+    await c.s.request("tree.watch", { workspaceId: "w", paths: [] } as never);
+    assert.deepEqual(c.params("term.create"), [
+      { shell: "/bin/fish", workspaceId: "w", cols: 80, rows: 24 },
+    ]);
+    assert.deepEqual(c.params("term.restart"), [
+      { shell: "/bin/fish", termId: "t1" },
+    ]);
+    assert.deepEqual(c.params("tree.watch"), [{ workspaceId: "w", paths: [] }]);
+    await c.s.close();
+  });
+
+  it("要求のたびに設定を読み直す（設定を変えた次のターミナルから効く）", async () => {
+    const c = await connected([cap], { shell: "/bin/fish" });
+    await c.s.createWorkspace();
+    await c.s.createWorkspace();
+    await c.s.request("term.create", { workspaceId: "w", cols: 80, rows: 24 });
+    assert.equal(c.reads(), 3);
+    await c.s.close();
+  });
+
+  it("印の無い古い kisui serve には、startDir も shell も送らず、設定も読まない", async () => {
+    const c = await connected(["workspace.create.command"], {
+      startDir: "~/work",
+      shell: "/bin/fish",
+    });
+    await c.s.createWorkspace();
+    await c.s.createWorkspace("/src", { argv: ["/bin/ls"], name: "ls" });
+    await c.s.request("term.create", { workspaceId: "w", cols: 80, rows: 24 });
+    await c.s.request("term.restart", { termId: "t1" });
+    assert.deepEqual(c.params("workspace.create"), [
+      {},
+      { dir: "/src", argv: ["/bin/ls"], name: "ls" },
+    ]);
+    assert.deepEqual(c.params("term.create"), [
+      { workspaceId: "w", cols: 80, rows: 24 },
+    ]);
+    assert.deepEqual(c.params("term.restart"), [{ termId: "t1" }]);
+    assert.equal(c.reads(), 0);
+    await c.s.close();
+  });
+
+  it("設定を受け取っていない Session は、印があっても何も付けない", async () => {
+    const c = await connected([cap], undefined);
+    await c.s.createWorkspace();
+    assert.deepEqual(c.params("workspace.create"), [{}]);
+    await c.s.close();
+  });
+
+  it("kisui serve がシェルを断ったら、直し方を添えた文で投げる", async () => {
+    const c = await connected(
+      [cap],
+      { shell: "~/bin/none" },
+      "/home/u/bin/none",
+    );
+    await assert.rejects(c.s.createWorkspace(), /\/home\/u\/bin\/none/);
+    await assert.rejects(
+      c.s.createWorkspace(),
+      (e: Error) => !e.message.includes("rpc error"),
+    );
+    await assert.rejects(
+      c.s.request("term.create", { workspaceId: "w", cols: 80, rows: 24 }),
+      /\/home\/u\/bin\/none/,
+    );
+    await c.s.close();
   });
 });

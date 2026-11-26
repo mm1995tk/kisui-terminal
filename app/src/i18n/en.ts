@@ -142,6 +142,8 @@ export const en = {
     "Remove from the list (a machine from the config file cannot be removed)",
   "place.machines.disconnect": "Disconnect",
   "place.machines.reconnect": "Reconnect / connect now",
+  "place.machines.terminal":
+    "Terminal settings: the start folder and the shell of new terminals (a machine from the config file cannot be changed)",
   "place.machines.newTab":
     "Start a terminal tab on the selected machine in the current workspace (opens the workspace window; the tab is created when you confirm its name)",
   "place.row.close": "Close",
@@ -427,6 +429,29 @@ export const en = {
   "machine.cant.disconnect.none": "{label} is not connected",
   "machine.cant.reconnect.up": "{label} is connected",
   "machine.cant.reconnect.pending": "{label} is connecting right now",
+  "machine.cant.terminal.fixed":
+    "The start folder and the shell of {label} cannot be changed here (it is a machine set in [[gui.machines]] of config.toml; write start_dir and shell there)",
+  "termSettings.title": "Terminal settings",
+  "termSettings.save": "Save",
+  "termSettings.lead":
+    "The folder a new terminal of {machine} starts in, and its shell. Both are paths on that machine (~ is its home folder). An empty field keeps the setting of that machine itself. It is used from the next terminal you open.",
+  "termSettings.startDir": "Start folder",
+  "termSettings.startDirPlaceholder":
+    "~/work (if empty: start_dir of that machine, or its home folder)",
+  "termSettings.shell": "Shell",
+  "termSettings.shellPlaceholder":
+    "/usr/bin/fish (if empty: the shell of that machine, $SHELL)",
+  "termSettings.err.startDir":
+    "Write the start folder as an absolute path, or as a path that starts with ~",
+  "termSettings.err.shell":
+    "Write the shell as the absolute path of its file, or as a path that starts with ~/ (arguments cannot be written)",
+  "termSettings.err.control": "A path cannot have a control character",
+  "termSettings.err.notDir":
+    "{path} is not a folder that exists on this computer",
+  "termSettings.err.notExec":
+    "{path} is not a file that can be run on this computer",
+  "err.term.shell":
+    "The shell {shell} is not a file that can be run on that machine. Fix the shell of that machine in the machine dialog (t), or in the config file (shell).",
   "machine.cant.newTab.down":
     "{label} is not connected, so a tab cannot be created on it. Reconnect it with r",
   "machine.cant.newTab.pending":

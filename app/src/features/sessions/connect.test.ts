@@ -30,6 +30,7 @@ function fakeApi(onConnect: (h: Handlers, id: string, target: string) => void) {
       passkeyRejected: [],
     }),
     editMachine: async () => [],
+    editLocalTerminal: async () => ({}),
     connect: async (id, target) => {
       connects.push({ id, target });
       onConnect(h, id, target);

@@ -25,6 +25,43 @@ func TestDefaults(t *testing.T) {
 	}
 }
 
+func TestShell(t *testing.T) {
+	dir := userDir(t)
+	home, _ := os.UserHomeDir()
+	sh := filepath.Join(home, "bin", "mysh")
+	os.MkdirAll(filepath.Dir(sh), 0o755)
+	os.WriteFile(sh, []byte("#!/bin/sh\n"), 0o755)
+	write := func(v string) {
+		os.WriteFile(filepath.Join(dir, "config.toml"), []byte("[server]\nshell = "+v+"\n"), 0o644)
+	}
+	if s, err := Load(""); err != nil || s.Shell != "" {
+		t.Fatalf("no shell: %q, %v", s.Shell, err)
+	}
+	for _, v := range []string{`"~/bin/mysh"`, `"` + sh + `"`} {
+		write(v)
+		if s, err := Load(""); err != nil || s.Shell != sh {
+			t.Errorf("shell = %s: %q, %v", v, s.Shell, err)
+		}
+	}
+	// 使えない値は、どれも設定の間違い（kisui serve は起動しない）
+	os.WriteFile(filepath.Join(home, "bin", "plain"), []byte("x"), 0o644)
+	for v, want := range map[string]string{
+		`"bash"`:        "absolute path",    // PATH からは探さない
+		`"/bin/sh -l"`:  "not a file",       // 引数は書けない
+		`"~/bin/none"`:  "not a file",       // 無い
+		`"~/bin/plain"`: "not a file",       // 実行できない
+		`"~/bin"`:       "not a file",       // フォルダ
+		`""`:            "absolute path",    // 空
+		`1`:             "must be a string", // 型
+	} {
+		write(v)
+		_, err := Load("")
+		if err == nil || !strings.Contains(err.Error(), "server.shell") || !strings.Contains(err.Error(), want) {
+			t.Errorf("shell = %s: %v", v, err)
+		}
+	}
+}
+
 func TestStartDir(t *testing.T) {
 	dir := userDir(t)
 	work := filepath.Join(os.Getenv("HOME"), "work")

@@ -95,6 +95,7 @@ func runServe(args []string) int {
 		Logger:       logger,
 		IdleStop:     idle,
 		StartDir:     cfg.StartDir,
+		Shell:        cfg.Shell,
 	}
 	var srv *server.Server
 	if handover != nil {
