@@ -33,10 +33,10 @@ function setup(o: { row?: Row | null; machines?: number; browser?: boolean }) {
 }
 
 describe("ワークスペースの窓の、タブを作る操作（#456）", () => {
-  it("始めると、ほかの入力欄をやめて、種類を選ぶ一覧を出す。一番上のターミナルを選んでいる", () => {
+  it("始めると、ほかの入力欄をやめて、種類を選んでいる間になる", () => {
     const { newTab, log } = setup({});
     newTab.start();
-    assert.deepEqual(newTab.choosing(), { gws: "g1", kind: "terminal" });
+    assert.deepEqual(newTab.choosing(), { gws: "g1" });
     assert.equal(newTab.creating(), undefined);
     assert.deepEqual(log, ["clearOthers"]);
   });
@@ -48,46 +48,31 @@ describe("ワークスペースの窓の、タブを作る操作（#456）", () 
     assert.deepEqual(log, []);
   });
 
-  it("選ぶ行は、一覧の種類の順に動き、端で止まる", () => {
-    const { newTab } = setup({});
-    newTab.start();
-    newTab.move("prev");
-    assert.equal(newTab.choosing()?.kind, "terminal");
-    const seen: (string | undefined)[] = [];
-    for (let i = 0; i < 4; i++) {
-      newTab.move("next");
-      seen.push(newTab.choosing()?.kind);
-    }
-    assert.deepEqual(seen, ["browser", "incognito", "db", "db"]);
-  });
-
   it("内蔵ブラウザが無効なら、ブラウザとシークレットには決められない", () => {
     const { newTab, log } = setup({ browser: false });
     newTab.start();
     assert.deepEqual(newTab.kinds(), ["terminal", "db"]);
     newTab.pick("browser");
     newTab.pick("incognito");
-    assert.deepEqual(newTab.choosing(), { gws: "g1", kind: "terminal" });
+    assert.deepEqual(newTab.choosing(), { gws: "g1" });
     assert.deepEqual(log, ["clearOthers"]);
-    newTab.move("next");
-    assert.equal(newTab.choosing()?.kind, "db");
   });
 
-  it("ターミナルに決めると、一覧を閉じて、名前とマシンの行を出す", () => {
+  it("ターミナルに決めると、種類を選ぶのを終えて、名前とマシンの行を出す", () => {
     const { newTab } = setup({});
     newTab.start();
-    newTab.choose();
+    newTab.pick("terminal");
     assert.equal(newTab.choosing(), undefined);
     assert.deepEqual(newTab.creating(), { gws: "g1" });
     newTab.submit("api", "local");
     assert.equal(newTab.creating(), undefined);
   });
 
-  it("つながっているマシンが無いと、ターミナルには進まず、できないことを伝える。一覧は開けたまま", () => {
+  it("つながっているマシンが無いと、ターミナルには進まず、できないことを伝える。種類を選んでいる間のまま", () => {
     const { newTab, log } = setup({ machines: 0 });
     newTab.start();
     newTab.pick("terminal");
-    assert.deepEqual(newTab.choosing(), { gws: "g1", kind: "terminal" });
+    assert.deepEqual(newTab.choosing(), { gws: "g1" });
     assert.equal(newTab.creating(), undefined);
     assert.deepEqual(log, ["clearOthers", "noMachine"]);
   });
@@ -110,7 +95,7 @@ describe("ワークスペースの窓の、タブを作る操作（#456）", () 
     }
   });
 
-  it("DB に決めると、一覧を閉じて、そのワークスペースを作成先にして呼んだ側に任せる", () => {
+  it("DB に決めると、種類を選ぶのを終えて、そのワークスペースを作成先にして呼んだ側に任せる", () => {
     const { newTab, log } = setup({});
     newTab.start();
     newTab.pick("db");
@@ -118,7 +103,7 @@ describe("ワークスペースの窓の、タブを作る操作（#456）", () 
     assert.deepEqual(log, ["clearOthers", "db g1"]);
   });
 
-  it("マシンを決めて始めると（マシンのダイアログの Enter。#461）、種類の一覧を飛ばして、そのマシンを選んでおいた行を出す。タブはまだ作らない", () => {
+  it("マシンを決めて始めると（マシンのダイアログの Enter。#461）、種類を選ぶのを飛ばして、そのマシンを選んでおいた行を出す。タブはまだ作らない", () => {
     const { newTab, log } = setup({});
     newTab.startTerminalOn("devbox");
     assert.equal(newTab.choosing(), undefined);
@@ -141,7 +126,7 @@ describe("ワークスペースの窓の、タブを作る操作（#456）", () 
     assert.deepEqual(down.log, ["clearOthers", "noMachine"]);
   });
 
-  it("やめると、一覧だけを閉じて、キーを窓に戻す", () => {
+  it("やめると、種類を選ぶのだけをやめて、キーを窓に戻す", () => {
     const { newTab, log } = setup({});
     newTab.start();
     newTab.cancel();

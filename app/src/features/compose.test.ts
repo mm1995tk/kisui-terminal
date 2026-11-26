@@ -363,6 +363,7 @@ function fakeBrowser(
       return () => void escape.splice(escape.indexOf(h), 1);
     },
     onDownload: off,
+    onCookieMismatch: off,
     openDownload: async () => {},
     revealDownload: async () => {},
     enableOverlay: async () => false,

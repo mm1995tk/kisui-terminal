@@ -33,7 +33,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tauri::webview::cookie::{time::OffsetDateTime, Cookie, SameSite};
-use tauri::{AppHandle, Manager, Url};
+use tauri::{AppHandle, Emitter, Manager, Url};
 
 use crate::config::GuiConfig;
 
@@ -638,6 +638,9 @@ fn serve_one(app: &AppHandle, p: &Passkey, stream: UnixStream) {
     let _ = writeln!(w, "{reply}");
 }
 
+/// 内蔵ブラウザに入れた Cookie が、渡したとおりの属性で入らなかった知らせ（中身は食い違いの行の並び。Cookie の値は含まない）。
+const EVENT_COOKIE_MISMATCH: &str = "browser-cookie-mismatch";
+
 /// Cookie を内蔵ブラウザの共有のデータに入れ、移る前のタブで `reopen`（開き直す URL。`reopen_url`）を開き、窓を前に出す。
 fn apply_cookies(
     app: &AppHandle,
@@ -656,8 +659,23 @@ fn apply_cookies(
     let Some(v) = any else {
         return Err("no browser tab is open".into());
     };
-    for c in cookies {
-        v.set_cookie(c).map_err(|e| e.to_string())?;
+    for c in &cookies {
+        v.set_cookie(c.clone()).map_err(|e| e.to_string())?;
+    }
+    // 渡したとおりの属性で入ったかを、読み戻して確かめる（cookie_check.rs）。食い違っても入れたものはそのままにし、
+    // ログとお知らせに出す（ログインは続ける。直すには wry の写し方を見直す）
+    let problems = match v.cookies() {
+        Ok(stored) => crate::cookie_check::check(&cookies, &stored)
+            .iter()
+            .map(crate::cookie_check::Mismatch::line)
+            .collect(),
+        Err(e) => vec![format!("could not read the cookies back: {e}")],
+    };
+    if !problems.is_empty() {
+        for p in &problems {
+            eprintln!("kisui-terminal: passkey: cookie not stored as sent: {p}");
+        }
+        let _ = app.emit_to("main", EVENT_COOKIE_MISMATCH, &problems);
     }
     if let Some(t) = tab {
         t.navigate(reopen.clone()).map_err(|e| e.to_string())?;

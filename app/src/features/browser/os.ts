@@ -166,6 +166,11 @@ export interface BrowserOs {
   onTabClosed(h: (e: { tab: string }) => void): Promise<Off>;
   /** ダウンロードが終わった。 */
   onDownload(h: (e: DownloadDone) => void): Promise<Off>;
+  /**
+   * 外のブラウザから写した Cookie（パスキー。#206）が、渡したとおりの属性で内蔵ブラウザに入らなかった（#476）。
+   * problems は食い違い 1 つごとの行（Cookie の名前・domain・path と、どの属性がどう違うか。値は含まない）。
+   */
+  onCookieMismatch(h: (problems: string[]) => void): Promise<Off>;
   /** ダウンロードしたファイルを、OS の既定のアプリで開く。 */
   openDownload(id: number): Promise<void>;
   /** ダウンロードしたファイルのフォルダを表示する。 */

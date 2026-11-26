@@ -2,15 +2,18 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import type { KeyLike } from "../../../features/commands/guiKeys.ts";
-import { newTabInputKey } from "./newTabKey.ts";
-import { placeKeys } from "../../../features/commands/placeKeys.ts";
+import { newTabInputKey, newTabKindKey, newTabKinds } from "./newTabKey.ts";
+import {
+  COMMON_KEYS,
+  placeKeys,
+  type FooterRow,
+} from "../../../features/commands/placeKeys.ts";
 import {
   confirmKey,
-  holdHints,
   holdKey,
-  newTabInputHints,
-  switcherHints,
+  switcherFooter,
   switcherKey,
+  type SwitcherState,
 } from "./switcherKey.ts";
 
 const key = (k: string, mods: Partial<KeyLike> = {}): KeyLike => ({
@@ -65,7 +68,7 @@ describe("ワークスペースを切り替える窓のキー", () => {
     assert.equal(switcherKey(key("n", { metaKey: true })), null);
   });
 
-  it("N（Shift+n）は、どちらの列でもタブを作る（種類を選ぶ一覧を出す）。Cmd・Ctrl・Alt を重ねたものと変換中のキーは受けない", () => {
+  it("N（Shift+n）は、どちらの列でもタブを作る（作るタブの種類を選ぶ間にする）。Cmd・Ctrl・Alt を重ねたものと変換中のキーは受けない", () => {
     assert.deepEqual(switcherKey(key("N", { shiftKey: true })), {
       kind: "newTab",
     });
@@ -111,39 +114,132 @@ describe("閉じる確認のキー", () => {
   });
 });
 
-describe("窓の下の段（共通フッタ）の基本操作", () => {
-  const keys = (col: "ws" | "tab", hasTabs: boolean) =>
-    switcherHints(col, hasTabs).flatMap((h) => h.keys);
+describe("窓の下の段（共通フッタ）の今効く操作（#487）", () => {
+  const all = newTabKinds(true);
+  const states: SwitcherState[] = [
+    { mode: "hold" },
+    { mode: "kinds", kinds: all },
+    { mode: "kinds", kinds: newTabKinds(false) },
+    { mode: "typing", newTab: true },
+    { mode: "typing", newTab: false },
+    { mode: "confirm" },
+    { mode: "tab" },
+    { mode: "ws", hasWs: true },
+    { mode: "ws", hasWs: false },
+  ];
+  /** その状態でキーを受ける判定 */
+  const judge = (s: SwitcherState) => (k: KeyLike) => {
+    switch (s.mode) {
+      case "hold":
+        return holdKey(k);
+      case "kinds":
+        return newTabKindKey(k, s.kinds);
+      case "typing":
+        return newTabInputKey(k);
+      case "confirm":
+        return confirmKey(k);
+      default:
+        return switcherKey(k);
+    }
+  };
+  const shown = (rows: FooterRow<string>[]) =>
+    rows.map((r) => [r.title, r.items.map((i) => i.keys.join(" "))]);
 
-  it("ワークスペースの列では、選ぶ・タブの列へ・移る・`?`・閉じるだけを、この順に出す。タブが無ければ l は出さない", () => {
-    assert.deepEqual(keys("ws", true), ["j", "k", "l", "Enter", "?", "Esc"]);
-    assert.deepEqual(keys("ws", false), ["j", "k", "Enter", "?", "Esc"]);
+  it("下の段に出す操作は、どの状態でも、その状態の判定が受ける（案内と受けるキーがずれない）", () => {
+    for (const s of states)
+      for (const r of switcherFooter(s))
+        for (const i of r.items) {
+          assert.ok(i.probes.length > 0, `${s.mode}: ${i.keys}`);
+          for (const p of i.probes)
+            assert.notEqual(
+              judge(s)(key(p, { shiftKey: /^[A-Z?]$/.test(p) })),
+              null,
+              `${s.mode}: ${i.keys} ${p}`,
+            );
+        }
   });
 
-  it("タブの列では、選ぶ・ワークスペースの列へ・タブを出す・`?`・閉じるだけを、この順に出す", () => {
-    assert.deepEqual(keys("tab", true), ["j", "k", "h", "Enter", "?", "Esc"]);
+  it("`?` の一覧の表の操作は、どれも、ワークスペースの列かタブの列の下の段に出る（`?` を開かなくても分かる）。どこでも同じキーは除く", () => {
+    const onFooter = new Set(
+      (
+        [{ mode: "tab" }, { mode: "ws", hasWs: true }] as SwitcherState[]
+      ).flatMap((s) =>
+        switcherFooter(s).flatMap((r) => r.items.flatMap((i) => i.probes)),
+      ),
+    );
+    for (const place of ["switcher", "switcherTabs"] as const)
+      for (const r of placeKeys()[place].rows)
+        for (const p of r.probes)
+          if (!COMMON_KEYS.has(p)) assert.ok(onFooter.has(p), `${place}: ${p}`);
   });
 
-  it("下の段に出すキーは、どれも判定が受ける（Esc は窓が受ける）", () => {
-    for (const col of ["ws", "tab"] as const)
-      for (const k of keys(col, true))
-        if (k !== "Esc")
-          assert.notEqual(switcherKey(key(k)), null, `${col}: ${k}`);
+  it("ふだんは、どこでも同じキー（Enter・Esc・h j k l・矢印・`?`）を出さない（意味が変わる間：つかんでいる間・種類を選ぶ間・マシンの一覧を開く ↓ を除く）", () => {
+    for (const s of states.filter(
+      (s) =>
+        s.mode !== "hold" &&
+        s.mode !== "kinds" &&
+        !(s.mode === "typing" && s.newTab),
+    ))
+      for (const r of switcherFooter(s))
+        for (const i of r.items)
+          for (const p of i.probes)
+            assert.ok(!COMMON_KEYS.has(p), `${s.mode}: ${p}`);
   });
 
-  it("タブ名の入力欄にいる間は、欄の中で効くキー（Tab・Enter・Esc）だけを出し、j k や `?` は出さない。どれも欄の判定が受ける", () => {
-    const keys = newTabInputHints().flatMap((h) => h.keys);
-    assert.deepEqual(keys, ["Tab", "Enter", "Esc"]);
-    for (const k of keys)
-      assert.notEqual(newTabInputKey(key(k === "Esc" ? "Escape" : k)), null, k);
+  it("ワークスペースの列：ワークスペースへの操作と、この窓の操作（ワークスペースを作る）の 2 行。ワークスペースが無ければ、1 行目は見出しだけ", () => {
+    assert.deepEqual(shown(switcherFooter({ mode: "ws", hasWs: true })), [
+      ["Workspace", ["N", "r", "x", "J K"]],
+      ["Window", ["n"]],
+    ]);
+    assert.deepEqual(shown(switcherFooter({ mode: "ws", hasWs: false })), [
+      ["Workspace", []],
+      ["Window", ["n"]],
+    ]);
   });
 
-  it("つかんでいる間は、つかんでいる間のキーだけを出し（`?` は出さない）、どれも判定が受ける", () => {
-    const held = holdHints().flatMap((h) => h.keys);
-    assert.deepEqual(held, ["j", "k", "h", "l", "Enter", "Esc"]);
-    for (const k of held)
-      assert.notEqual(holdKey(key(k === "Esc" ? "Escape" : k)), null, k);
+  it("タブの列：選んでいるタブへの操作の 1 行", () => {
+    assert.deepEqual(shown(switcherFooter({ mode: "tab" })), [
+      ["Tab", ["r", "x", "J K", "m", "n"]],
+    ]);
+  });
+
+  it("つかんでいる間は、意味が変わるので j k・h l・Enter・Esc を出す（`?` は出さない）", () => {
+    assert.deepEqual(shown(switcherFooter({ mode: "hold" })), [
+      ["Moving a tab", ["j k", "h l", "Enter", "Esc"]],
+    ]);
     assert.equal(holdKey(key("?", { shiftKey: true })), null);
+  });
+
+  it("作るタブの種類を選ぶ間は、選べる種類を押せるボタン（act に種類）にし、選ぶのをやめる Esc を出す", () => {
+    const [r] = switcherFooter({ mode: "kinds", kinds: all });
+    assert.deepEqual(
+      r.items.map((i) => [i.keys.join(" "), i.act]),
+      [
+        ["t", "terminal"],
+        ["b", "browser"],
+        ["B", "incognito"],
+        ["d", "db"],
+        ["Esc", undefined],
+      ],
+    );
+    const [off] = switcherFooter({ mode: "kinds", kinds: newTabKinds(false) });
+    assert.deepEqual(
+      off.items.map((i) => i.keys.join(" ")),
+      ["t", "d", "Esc"],
+    );
+  });
+
+  it("名前を打っている間は見出しだけ。ターミナルのタブを作る欄では、マシンを替える Tab・↓ を出す", () => {
+    assert.deepEqual(shown(switcherFooter({ mode: "typing", newTab: false })), [
+      ["Typing a name", []],
+    ]);
+    assert.deepEqual(shown(switcherFooter({ mode: "typing", newTab: true })), [
+      ["Typing a name", ["Tab", "↓"]],
+    ]);
+  });
+
+  it("どの状態でも、少なくとも 1 行を出す（下の段は出たり消えたりしない）", () => {
+    for (const s of states) assert.ok(switcherFooter(s).length > 0, s.mode);
   });
 });
 
@@ -175,15 +271,6 @@ describe("`?` の一覧の表（placeKeys.ts の switcher・switcherTabs）", ()
     );
     for (const k of "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ?")
       if (switcherKey(key(k)) !== null) assert.ok(listed.has(k), k);
-  });
-
-  it("下の段に出すキーは、その列の表にもある（下の段は表の一部）", () => {
-    const of = (place: "switcher" | "switcherTabs") =>
-      new Set(placeKeys()[place].rows.flatMap((r) => r.keys.split(/[ /]+/)));
-    for (const k of switcherHints("ws", true).flatMap((h) => h.keys))
-      assert.ok(of("switcher").has(k), `ws: ${k}`);
-    for (const k of switcherHints("tab", true).flatMap((h) => h.keys))
-      assert.ok(of("switcherTabs").has(k), `tab: ${k}`);
   });
 });
 
