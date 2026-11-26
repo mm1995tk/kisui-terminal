@@ -110,6 +110,8 @@ describe("メインウィンドウの CSS の並び", () => {
       // サイドバーの DB のタブの木（#374。CSS Modules なので、クラス名はほかと重ならない）
       "ui/main-window/sidebar/db-tree/DbTree.module.css",
       "ui/main-window/sidebar/sidebar.css",
+      // 窓の下の段の、今効く操作の行（.key-footer-* の規則だけを持ち、ほかの CSS と規則が重ならない）。窓が読む KeyFooter から
+      "ui/components/key-footer.css",
       // ボタン（.button の規則だけを持ち、ほかの CSS と規則が重ならないので、カードとの前後は見た目に関わらない）。サイドバーの次に、窓が読む
       "ui/components/button.css",
       "ui/main-window/workspaces/switcher.css",

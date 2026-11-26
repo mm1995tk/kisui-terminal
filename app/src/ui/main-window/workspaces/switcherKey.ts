@@ -4,11 +4,17 @@
 import { isComposingKey } from "../../../features/commands/ime.ts";
 import type { KeyLike } from "../../../features/commands/guiKeys.ts";
 import {
-  basicHints,
   listStep,
-  type BasicHint,
+  placeItem,
+  type FooterItem,
+  type FooterRow,
 } from "../../../features/commands/placeKeys.ts";
 import { T } from "../../../i18n/index.ts";
+import {
+  kindLabel,
+  NEW_TAB_KIND_KEYS,
+  type NewTabChoice,
+} from "./newTabKey.ts";
 
 /** 窓の中のキーが表す動き。 */
 export type SwitcherKey =
@@ -134,56 +140,124 @@ export function confirmKey(e: KeyLike): "yes" | "no" | null {
   return null;
 }
 
-/**
- * 窓の下の段（共通フッタ）に出す基本操作。いまキーが効いている列（col）で効くものだけを、ほかの窓と同じ順（basicHints）で返す。
- * 作る・名前を変える・閉じる・並べ替える・タブをつかむ（n N r x J K m）は出さない（`?` の一覧に出す。表は placeKeys.ts の switcher・switcherTabs）。
- * hasTabs は、選んでいるワークスペースにタブがあるか（無ければ、左の列から `l` でタブの列には移れないので出さない）。
- */
-export function switcherHints(
-  col: "ws" | "tab",
-  hasTabs: boolean,
-): BasicHint[] {
-  if (col === "tab")
-    return basicHints({
-      move: [{ keys: ["h"], label: T("switcher.keys.toWorkspaces") }],
-      decide: T("switcher.keys.showTab"),
-      end: "close",
-    });
-  return basicHints({
-    move: hasTabs ? [{ keys: ["l"], label: T("switcher.keys.toTabs") }] : [],
-    decide: T("switcher.keys.go"),
-    end: "close",
-  });
-}
+/** 窓の下の段を決める、窓の今の状態（上ほど先に見る）。 */
+export type SwitcherState =
+  /** タブをつかんでいる（m のあと） */
+  | { mode: "hold" }
+  /** 作るタブの種類を選んでいる。kinds は選べる種類 */
+  | { mode: "kinds"; kinds: readonly NewTabChoice[] }
+  /** 名前を打っている。newTab はターミナルのタブを作る欄か（マシンを替えられる。ほかはワークスペース・タブの名前） */
+  | { mode: "typing"; newTab: boolean }
+  /** ワークスペースを閉じるか確かめている（y / n） */
+  | { mode: "confirm" }
+  /** タブの列にキーがあり、タブを選んでいる */
+  | { mode: "tab" }
+  /** ワークスペースの列にキーがある。hasWs は、選んでいるワークスペースがあるか */
+  | { mode: "ws"; hasWs: boolean };
 
 /**
- * タブの種類を選ぶ一覧を出している間に、窓の下に出すキーの説明（一覧のキーだけ。種類の字は一覧の行に出す。`?` は効かないので出さない）。
+ * 窓の下の段（共通フッタ）に出す、今効く操作。何に効くか（ワークスペース・タブ・この窓など）で行を分ける。
+ * どの窓でも同じ意味のキー（j k h l・矢印・Enter・Esc・`?`）は出さない。意味が変わる間（タブをつかんでいる間・作るタブの種類を選ぶ間の Esc）だけ出す。
+ * ふだんの操作のキーと probes は `?` の一覧の表（placeKeys.ts の switcher・switcherTabs）から引く（placeItem）。
+ * 作るタブの種類の項目は、押せるボタンにする（act に種類を入れる。窓が、押したら決めるように結ぶ）。
+ * switcherKey.test.ts が、出す操作をその状態の判定が受けることと、表の操作がどれも、どこかの状態で下の段に出ることを確かめる。
  */
-export function newTabKindHints(): BasicHint[] {
-  return basicHints({ decide: T("basic.decide"), help: false, end: "cancel" });
+export function switcherFooter(s: SwitcherState): FooterRow[] {
+  const ws = (keys: string, label: Parameters<typeof T>[0]) =>
+    placeItem("switcher", keys, T(label));
+  const tab = (keys: string, label: Parameters<typeof T>[0]) =>
+    placeItem("switcherTabs", keys, T(label));
+  switch (s.mode) {
+    case "hold":
+      return [
+        {
+          title: T("switcher.foot.hold"),
+          items: [
+            item(["j", "k"], "switcher.keys.holdMove", ["j", "k"]),
+            item(["h", "l"], "switcher.keys.holdCols", ["h", "l"]),
+            item(["Enter"], "switcher.keys.holdDrop", ["Enter"]),
+            item(["Esc"], "switcher.keys.holdCancel", ["Escape"]),
+          ],
+        },
+      ];
+    case "kinds":
+      return [
+        {
+          title: T("switcher.foot.kinds"),
+          items: [
+            ...s.kinds.map((k) => ({
+              keys: [NEW_TAB_KIND_KEYS[k]],
+              label: kindLabel(k),
+              probes: [NEW_TAB_KIND_KEYS[k]],
+              act: k,
+            })),
+            // 窓ではなく、種類を選ぶのだけをやめる（意味が変わるので出す）
+            item(["Esc"], "basic.cancel", ["Escape"]),
+          ],
+        },
+      ];
+    case "typing":
+      // 決める Enter・やめる Esc は、どの窓の入力欄でも同じなので出さない。ターミナルのタブを作る欄だけ、マシンを替えられる
+      return [
+        {
+          title: T("switcher.foot.typing"),
+          items: s.newTab
+            ? [
+                item(["Tab"], "switcher.keys.machine", ["Tab"]),
+                item(["↓"], "switcher.keys.machineList", ["ArrowDown"]),
+              ]
+            : [],
+        },
+      ];
+    case "confirm":
+      return [
+        {
+          title: T("switcher.foot.ws"),
+          items: [
+            item(["y"], "switcher.keys.confirmYes", ["y"]),
+            item(["n"], "switcher.keys.confirmNo", ["n"]),
+          ],
+        },
+      ];
+    case "tab":
+      return [
+        {
+          title: T("switcher.foot.tab"),
+          items: [
+            tab("r", "switcher.keys.rename"),
+            tab("x", "switcher.keys.close"),
+            tab("J K", "switcher.keys.reorder"),
+            tab("m", "switcher.keys.hold"),
+            tab("n", "switcher.keys.newTab"),
+          ],
+        },
+      ];
+    case "ws":
+      return [
+        {
+          title: T("switcher.foot.ws"),
+          items: s.hasWs
+            ? [
+                ws("N", "switcher.keys.newTab"),
+                ws("r", "switcher.keys.rename"),
+                ws("x", "switcher.keys.close"),
+                ws("J K", "switcher.keys.reorder"),
+              ]
+            : [],
+        },
+        {
+          title: T("switcher.foot.window"),
+          items: [ws("n", "switcher.keys.new")],
+        },
+      ];
+  }
 }
 
-/**
- * ターミナルのタブを作る名前の入力欄にフォーカスがある間に、窓の下に出すキーの説明（欄の中で効くキーだけ。
- * 欄には字を打つので、j k と `?` は効かない。Tab はマシンを替え、Enter は作り、Esc は作らずにやめる。判定は newTabKey.ts の newTabInputKey）。
- */
-export function newTabInputHints(): BasicHint[] {
-  return [
-    { keys: ["Tab"], label: T("switcher.keys.machine") },
-    { keys: ["Enter"], label: T("switcher.keys.create") },
-    { keys: ["Esc"], label: T("basic.cancel") },
-  ];
-}
-
-/**
- * タブをつかんでいる間に、窓の下に出すキーの説明（つかんでいる間のキーだけ。どれも基本操作で、`?` は効かないので出さない）。
- * 並びはほかの窓と同じ（選ぶ → 移る → 決める → やめる）。
- */
-export function holdHints(): BasicHint[] {
-  return [
-    { keys: ["j", "k"], label: T("switcher.keys.holdMove") },
-    { keys: ["h", "l"], label: T("switcher.keys.holdCols") },
-    { keys: ["Enter"], label: T("switcher.keys.holdDrop") },
-    { keys: ["Esc"], label: T("basic.cancel") },
-  ];
+/** `?` の一覧の表に無い状態（つかんでいる間・確かめている間・入力欄）の項目。probes はその状態の判定が受けるはずのキー */
+function item(
+  keys: string[],
+  label: Parameters<typeof T>[0],
+  probes: readonly string[],
+): FooterItem {
+  return { keys, label: T(label), probes };
 }

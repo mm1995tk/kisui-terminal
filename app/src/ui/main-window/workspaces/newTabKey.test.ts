@@ -84,27 +84,12 @@ describe("作るタブの種類を選ぶ一覧のキー（#456）", () => {
     assert.deepEqual(newTabKinds(false), ["terminal", "db"]);
   });
 
-  it("j k・↓ ↑・Ctrl+J / Ctrl+K で選ぶ行を動かし、Enter で決め、Esc で一覧を閉じる", () => {
-    for (const k of ["j", "ArrowDown"])
-      assert.deepEqual(newTabKindKey(key(k), all), {
-        kind: "move",
-        to: "next",
-      });
-    for (const k of ["k", "ArrowUp"])
-      assert.deepEqual(newTabKindKey(key(k), all), {
-        kind: "move",
-        to: "prev",
-      });
-    assert.deepEqual(newTabKindKey(key("j", { ctrlKey: true }), all), {
-      kind: "move",
-      to: "next",
-    });
-    assert.deepEqual(newTabKindKey(key("k", { ctrlKey: true }), all), {
-      kind: "move",
-      to: "prev",
-    });
-    assert.deepEqual(newTabKindKey(key("Enter"), all), { kind: "choose" });
+  it("Esc で種類を選ぶのをやめる。選ぶ行は出さないので、j k・矢印・Ctrl+J / Ctrl+K・Enter は受けない", () => {
     assert.deepEqual(newTabKindKey(key("Escape"), all), { kind: "cancel" });
+    for (const k of ["j", "k", "ArrowDown", "ArrowUp", "Enter"])
+      assert.equal(newTabKindKey(key(k), all), null, k);
+    for (const k of ["j", "k"])
+      assert.equal(newTabKindKey(key(k, { ctrlKey: true }), all), null, k);
   });
 
   it("行の字（t・b・B・d）で、その種類に決める", () => {
@@ -140,10 +125,9 @@ describe("作るタブの種類を選ぶ一覧のキー（#456）", () => {
     });
   });
 
-  it("種類の字は、選ぶ行を動かす字（j k）と重ならず、種類どうしでも重ならない", () => {
+  it("種類の字は、種類どうしで重ならない", () => {
     const keys = all.map((k) => NEW_TAB_KIND_KEYS[k]);
     assert.equal(new Set(keys).size, keys.length);
-    for (const k of keys) assert.ok(!["j", "k"].includes(k), k);
   });
 
   it("ほかの字・Cmd・Ctrl・Alt を重ねたもの・変換中のキーは受けない", () => {

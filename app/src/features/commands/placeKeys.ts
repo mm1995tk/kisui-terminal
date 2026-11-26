@@ -4,7 +4,8 @@
 // features/sessions/machineList.ts・features/browser/bookmarks.ts・features/clipboard/history.ts・ui/main-window/workspaces/switcherKey.ts・
 // ui/main-window/tab-window/terminalWindowKey.ts・ui/main-window/tab-window/dbWindowKey.ts・ui/main-window/tab-window/browserWindowKey.ts・features/db/keys.ts）にあり、
 // placeKeys.test.ts（切り替える窓は switcherKey.test.ts、ターミナルのタブの窓は terminalWindowKey.test.ts、DB のタブの窓は dbWindowKey.test.ts、ブラウザのタブの窓は browserWindowKey.test.ts）が「表に書いたキーを、その場所の判定が受ける」ことを確かめる。だから案内と受けるキーはずれない。
-// 窓の下の段（共通フッタ）に出す基本操作の並びも、ここの basicHints が決める（docs/design/ui-ux-review.md の「ヒントとヘルプ」）。
+// 窓の下の段（共通フッタ）に出す今効く操作も、ここの表の行から作る（placeItem。決まりは docs/design/ui-ux-review.md の「ヒントとヘルプ」）。
+// まだ新しい形にしていない窓（#488・#489 で直す）は、基本操作の並びを basicHints で出す。
 // 場所のキーはリーダーには載せない（その場所の中だけで効く）。キーを足すときは、判定と、ここの表と、docs/key-design.md を直す。
 // DOM には触らない（node --test で確かめられる）。
 
@@ -512,6 +513,59 @@ export function isWindowPlace(p: Place): boolean {
   return WINDOW_PLACES.has(p);
 }
 
+/**
+ * 窓の下の段（共通フッタ）の 1 項目（今効く操作 1 つ）。keys は出すキー、label は操作の名前（日本語の窓でも英語。
+ * i18n のキーは `<窓>.keys.<名前>`）。probes は、その操作で窓の判定が受けるはずのキー（KeyboardEvent.key。テストで使う）。
+ * act は、押せるボタンにする項目の印（呼んだ側が、押したときの動きに結ぶ。作るタブの種類など）。
+ */
+export interface FooterItem {
+  keys: string[];
+  label: string;
+  probes: readonly string[];
+  act?: string;
+}
+
+/**
+ * 窓の下の段の 1 行。title は、その行の操作が何に効くか（「選んでいるタブ」など。説明の文なので、日本語の窓では日本語）。
+ * items が空でも行は出す（見出しだけ。下の段が出たり消えたりしないように）。決まりは docs/design/ui-ux-review.md の「ヒントとヘルプ」。
+ */
+export interface FooterRow {
+  title: string;
+  items: FooterItem[];
+}
+
+/**
+ * どの窓でも同じ意味のキー（選ぶ j k・列を移る h l・矢印・決める Enter・やめる／閉じる Esc・`?` の一覧・Ctrl+J / Ctrl+K）。
+ * 窓の下の段には出さない（意味が変わる間を除く）。`?` の一覧（placeKeys()）には出す。
+ */
+export const COMMON_KEYS: ReadonlySet<string> = new Set([
+  "j",
+  "k",
+  "h",
+  "l",
+  "ArrowDown",
+  "ArrowUp",
+  "ArrowLeft",
+  "ArrowRight",
+  "Enter",
+  "Escape",
+  "?",
+]);
+
+/**
+ * 場所 place の `?` の一覧の表から、keys の行（書き方が同じ行）を引いて、窓の下の段の 1 項目にする。
+ * 出すキーと、テストで判定に通すキー（probes）は表の行のものを使うので、下の段・`?` の一覧・判定がずれない。表に無ければ投げる（書き間違い）。
+ */
+export function placeItem(
+  place: Place,
+  keys: string,
+  label: string,
+): FooterItem {
+  const r = placeKeys()[place].rows.find((x) => x.keys === keys);
+  if (!r) throw new Error(`placeKeys().${place} has no row "${keys}"`);
+  return { keys: keys.split(" "), label, probes: r.probes };
+}
+
 /** 窓の下の段（共通フッタ）に出すヒントの 1 項目（ui/components/KeyHints.tsx の KeyHint と同じ形）。 */
 export interface BasicHint {
   keys: string[];
@@ -519,7 +573,7 @@ export interface BasicHint {
 }
 
 /**
- * 窓の下の段（共通フッタ）に出す基本操作。どの窓でも「選ぶ → 移る → 決める → `?` → やめる・閉じる」の順に並べ、
+ * 窓の下の段（共通フッタ）に出す基本操作（まだ今効く操作の行の形（FooterRow）にしていない窓が使う。#488・#489 で、使う窓が無くなったら消す）。どの窓でも「選ぶ → 移る → 決める → `?` → やめる・閉じる」の順に並べ、
  * 同じ役割には同じ字を使う。これより詳しい操作（作る・名前を変える・並べ替えるなど）は、`?` の一覧（placeKeys()）にだけ出す。
  * - select：選ぶ行を動かすキー。省くと j k（入力欄に字を打つ窓は ↓ ↑ を渡す）
  * - move：選ぶ以外の移るキー（切り替える窓の列を移る h・l）

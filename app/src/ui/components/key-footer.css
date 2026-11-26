@@ -1,0 +1,19 @@
+/* 窓の下の段の、今効く操作の行（KeyFooter.tsx）。行ごとに、頭に何に効くかの見出しを置き、操作は右に流す */
+.key-footer-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+.key-footer-row {
+  display: grid;
+  grid-template-columns: 8em 1fr;
+  gap: var(--space-12);
+  align-items: baseline;
+}
+.key-footer-title {
+  overflow: hidden;
+  color: var(--color-text-dim);
+  font-size: var(--text-label);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

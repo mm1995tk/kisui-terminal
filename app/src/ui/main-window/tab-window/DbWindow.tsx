@@ -28,7 +28,7 @@ import {
 } from "../../components/Card.tsx";
 import { KeyFooter } from "../../components/KeyFooter.tsx";
 import { openKeyList } from "../commands/KeyListDialog.tsx";
-import { dbWindowHints, dbWindowKey } from "./dbWindowKey.ts";
+import { dbWindowFooter, dbWindowKey } from "./dbWindowKey.ts";
 import styles from "./DbWindow.module.css";
 
 const rowId = (id: string) => `db-window-result-${id}`;
@@ -238,6 +238,20 @@ export function DbWindow(props: {
     }
   }
 
+  /** 下の段に出す、今効く操作（選んでいる結果のタブと、このタブの状態に合わせて変わる。dbWindowKey.ts の dbWindowFooter） */
+  const footer = createMemo(() => {
+    const r = rows().find((x) => x.id === selected());
+    const t = run().tabs.find((x) => x.id === r?.id);
+    return dbWindowFooter({
+      selected: r !== undefined,
+      table: r?.table !== undefined,
+      done: r?.state.kind === "done",
+      exportable: isExportable(t?.result),
+      running: run().running !== undefined,
+      elevated: id !== undefined && props.db.elevatedOf(id).length > 0,
+    });
+  });
+
   /** 上に出す、このタブの状態（つながり・実行中・強めている権限・木） */
   const status = createMemo(() => {
     const r = ref();
@@ -292,7 +306,7 @@ export function DbWindow(props: {
               {(n) => <CardText role="alert">{n()}</CardText>}
             </Show>
           }
-          items={dbWindowHints({ empty: rows().length === 0 })}
+          rows={footer()}
         />
       }
     >
