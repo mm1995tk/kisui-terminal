@@ -385,12 +385,7 @@ export class Session {
    */
   async request<
     M extends
-      | TreeMethod
-      | TermMethod
-      | BlobMethod
-      | ShjMethod
-      | DbMethod
-      | ProxyMethod,
+      TreeMethod | TermMethod | BlobMethod | ShjMethod | DbMethod | ProxyMethod,
   >(method: M, params: Requests[M]["params"]): Promise<Requests[M]["result"]> {
     const conn = this.conn;
     if (!conn)

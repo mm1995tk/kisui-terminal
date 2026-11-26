@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -127,9 +128,7 @@ func TestShellOfWorkspace(t *testing.T) {
 			TermID string `json:"termId"`
 		}
 		p := map[string]any{"cols": 80, "rows": 24}
-		for k, v := range params {
-			p[k] = v
-		}
+		maps.Copy(p, params)
 		if err := c.Call(ctx, "term.create", p, &r); err != nil {
 			t.Fatal(err)
 		}

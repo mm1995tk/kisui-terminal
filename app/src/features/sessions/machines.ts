@@ -194,13 +194,7 @@ export function fromConfig(config: ConfigMachine[]): Machine[] {
 /** 殻が config.local.toml に書けなかった理由（config_list.rs の EditError）。 */
 export interface MachineEditError {
   kind:
-    | "exists"
-    | "missing"
-    | "entry"
-    | "file"
-    | "rejected"
-    | "notdir"
-    | "notexec";
+    "exists" | "missing" | "entry" | "file" | "rejected" | "notdir" | "notexec";
   /**
    * 足す・変える・外す相手の ssh の行き先（exists・missing）、手元のマシンに書こうとした start_dir（notdir）・shell（notexec）、
    * 設定の間違いと同じ形の説明（ほか）

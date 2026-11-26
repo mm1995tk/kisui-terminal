@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/mm1995tk/kisui-terminal/config"
 	"github.com/mm1995tk/kisui-terminal/internal/term"
@@ -127,5 +128,5 @@ func shellEnv(sh string, env []string) []string {
 	if sh == term.DefaultShell() {
 		return env
 	}
-	return append(env[:len(env):len(env)], "SHELL="+sh)
+	return append(slices.Clip(env), "SHELL="+sh)
 }

@@ -938,8 +938,7 @@ export interface DbProposeRequest {
  * error：書けなかった理由（そのまま kisui db propose が出す）。
  */
 export type DbProposeReport =
-  | { status: "written" | "declined" }
-  | { error: string };
+  { status: "written" | "declined" } | { error: string };
 
 /** pane.open の中身（`kisui pane open`。#343）。 */
 export interface PaneOpenRequest {
