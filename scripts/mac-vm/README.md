@@ -31,8 +31,9 @@ lume attach kisui-vm                  # 画面を見る
 
 ## Firefox を Developer Edition にする理由
 
-- kisui-terminal の拡張は署名していない。普通の Firefox は、署名の無い拡張を about:debugging から一時的にしか
-  入れられず、Firefox を閉じると消える。
+- 確かめるのは、`npm run build:extension` で手元に作った拡張（まだ addons.mozilla.org に出していない版）で、
+  これには署名が無い。普通の Firefox は、署名の無い拡張を about:debugging から一時的にしか入れられず、
+  Firefox を閉じると消える。
 - Developer Edition は `xpinstall.signatures.required` を false にでき、プロファイルの `extensions` に置いた
   拡張を入れたままにできる。
 - kisui-terminal は `open -a Firefox` で Firefox を開くので、`Firefox.app` という名前で入れる。

@@ -6,8 +6,8 @@
 # 素の VM には、ユーザー lume への ssh の鍵と cua-driver を入れておく（入れ方は README.md）。
 # 元イメージには次を入れる。
 # - Firefox Developer Edition を /Applications/Firefox.app という名前で入れる。kisui-terminal は
-#   `open -a Firefox` で開くので、この名前でないと開けない。普通の Firefox は署名の無い拡張を
-#   再起動までしか入れておけないが、Developer Edition は設定で入れたままにできる。
+#   `open -a Firefox` で開くので、この名前でないと開けない。手元で作った拡張には署名が無い。
+#   普通の Firefox は署名の無い拡張を再起動までしか入れておけないが、Developer Edition は設定で入れたままにできる。
 # - Firefox の設定（署名の無い拡張を許す・初回の案内を出さない）。
 # - ~/Library/Application Support/Mozilla/NativeMessagingHosts（kisui-terminal は、ここがあるときだけ
 #   拡張の受け口の登録を置く）。
