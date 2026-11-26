@@ -11,7 +11,6 @@ import {
   loadMachines,
   machineEditError,
   MACHINES_KEY,
-  removeMachine,
   renameMachine,
   targetProblem,
   type Machine,
@@ -128,9 +127,8 @@ test("候補を入力で絞る（大文字小文字は区別しない）", () =>
   assert.deepEqual(filterCandidates(c, "zzz"), []);
 });
 
-test("外す・表示名", () => {
+test("表示名", () => {
   const list: Machine[] = [{ target: "dev", name: "開発" }, { target: "db" }];
-  assert.deepEqual(removeMachine(list, "dev"), [{ target: "db" }]);
   assert.equal(labelOf(list, LOCAL), "ローカル");
   assert.equal(labelOf(list, "dev"), "開発");
   assert.equal(labelOf(list, "db"), "db");
@@ -153,13 +151,8 @@ test("設定ファイルの順に並べ、config.toml にだけあるマシン�
   ]);
 });
 
-test("config.toml にだけあるマシンは外せず、名前も変えられない。config.local.toml のマシンは変えられる", () => {
+test("config.toml にだけあるマシンは名前を変えられない。config.local.toml のマシンは変えられる", () => {
   const list = fromConfig(config);
-  assert.deepEqual(removeMachine(list, "dev-vm"), list);
-  assert.deepEqual(
-    removeMachine(list, "mine").map((m) => m.target),
-    ["dev-vm", "build"],
-  );
   assert.ok("error" in renameMachine(list, "dev-vm", "新しい"));
   assert.ok("machines" in renameMachine(list, "mine", "新しい"));
 });

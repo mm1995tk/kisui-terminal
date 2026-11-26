@@ -147,11 +147,6 @@ export function renameMachine(
   };
 }
 
-/** マシンを外す。 */
-export function removeMachine(list: Machine[], target: string): Machine[] {
-  return list.filter((m) => m.target !== target || m.fixed);
-}
-
 /** サイドバーに出す名前。付けた名前、無ければ ssh の行き先。「ローカル」はそのまま。 */
 export function labelOf(list: Machine[], target: string): string {
   if (target === LOCAL) return localLabel();
