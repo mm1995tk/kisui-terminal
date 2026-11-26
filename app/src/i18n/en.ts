@@ -171,6 +171,13 @@ export const en = {
     "Keys in a window that asks you to choose one row (a machine, a workspace, a kind, a character).",
   "place.picker.choose": "Choose the selected row",
   "place.picker.cancel": "Cancel without choosing",
+  "place.dbPicker.title": "DB connection window",
+  "place.dbPicker.lead":
+    "Keys in the window that lists the DB connections of every connected machine. Adding, editing and removing write config.local.toml of this PC.",
+  "place.dbPicker.open": "Open a DB tab on the selected connection",
+  "place.dbPicker.add": "Add a connection to this PC",
+  "place.dbPicker.edit": "Edit the selected connection",
+  "place.dbPicker.remove": "Remove the selected connection",
   "place.switcher.title": "Workspace switcher: workspace column",
   "place.switcher.lead":
     "Keys that work while the left (workspace) column has the keys. You can also reorder by dragging the grip at the left of a row.",
@@ -528,7 +535,6 @@ export const en = {
   "kindPicker.foot.kind": "Kind of workspace",
   "tabMove.foot.to": "Workspace to move the tab to",
   "mascot.foot.mascot": "Mascot",
-  "db.picker.foot.connection": "Connection to open",
   "db.export.foot.format": "Format and destination",
   "switcher.label": "Switch workspace",
   "switcher.title": "Workspaces",
@@ -614,6 +620,11 @@ export const en = {
   "dbWindow.keys.elevateEnd": "end elevation",
   "dbWindow.foot.selected": "Selected",
   "dbWindow.foot.tab": "This DB tab",
+  "dbPicker.keys.add": "add",
+  "dbPicker.keys.edit": "edit",
+  "dbPicker.keys.remove": "remove",
+  "dbPicker.foot.selected": "Selected connection",
+  "dbPicker.foot.list": "Connections of this PC",
   "dbWindow.offline": "Not connected",
   "dbWindow.running": "Running a SQL",
   "dbWindow.treeLoading": "Loading the schema tree…",
@@ -925,6 +936,77 @@ export const en = {
   "db.picker.readOnly": "read-only",
   "db.picker.problem": "{machine}: {problem}",
   "db.picker.failed": "{machine}: could not get the connections ({error})",
+  "dbConn.title.add": "Add a connection",
+  "dbConn.title.edit": "Edit connection",
+  "dbConn.title.remove": "Remove connection",
+  "dbConn.save": "Save",
+  "dbConn.remove": "Remove",
+  "dbConn.lead":
+    "This is written to config.local.toml of this PC (not to config.toml). The password is not written: it is asked when you connect. Write variants and permissions in the settings file.",
+  "dbConn.removeLead":
+    "Remove {name} from config.local.toml of this PC? DB tabs open on it can no longer run SQL.",
+  "dbConn.removeLeadOverride":
+    "Remove {name} from config.local.toml of this PC? It goes back to the connection of the same name in config.toml.",
+  "dbConn.mark.local": "in config.local.toml",
+  "dbConn.field.name": "Name",
+  "dbConn.field.kind": "Kind",
+  "dbConn.field.host": "Host",
+  "dbConn.field.port": "Port",
+  "dbConn.field.user": "User",
+  "dbConn.field.database": "Database",
+  "dbConn.field.tls": "TLS",
+  "dbConn.field.tlsCa": "Certificate authority (PEM file)",
+  "dbConn.field.readOnly":
+    "Read only: run every statement in a read-only transaction",
+  "dbConn.placeholder.host": "localhost, or a socket such as /run/postgresql",
+  "dbConn.placeholder.port": "the default of the kind (5432 / 3306)",
+  "dbConn.placeholder.database":
+    "empty: PostgreSQL opens the one named like the user, MySQL selects none",
+  "dbConn.placeholder.tlsCa":
+    "an absolute path or ~/…; empty: the authorities of the OS",
+  "dbConn.tls.prefer":
+    "prefer: TLS when offered, without checking the certificate",
+  "dbConn.tls.disable": "disable: never TLS",
+  "dbConn.tls.require": "require: always TLS, without checking the certificate",
+  "dbConn.tls.verify": "verify: always TLS, and check the certificate",
+  "dbConn.note.fileOnly":
+    "This connection has keys or values the window does not edit (variants, permissions, a password, a key the window does not know, or a value of another type). Edit it in config.local.toml; you can remove it here.",
+  "dbConn.note.fixed":
+    "This connection is written in config.toml, which the window does not change. Edit config.toml.",
+  "dbConn.note.remote":
+    "This connection is in the settings of that machine. The window only writes the settings of this PC: edit config.local.toml on that machine.",
+  "dbConn.note.unknown":
+    "The settings of this PC could not be read, so this connection cannot be changed here.",
+  "dbConn.note.listFailed": "Could not read the settings of this PC: {error}",
+  "dbConn.err.problem": "{key}: {why}",
+  "dbConn.err.required": "is required",
+  "dbConn.err.string": "must be a string",
+  "dbConn.err.int": "must be an integer",
+  "dbConn.err.bool": "must be true or false",
+  "dbConn.err.control": "must not have a control character",
+  "dbConn.err.toolong": "must be {arg} characters or fewer",
+  "dbConn.err.port": "must be from 1 to 65535",
+  "dbConn.err.oneof":
+    "is not valid, or this version of kisui cannot use it. It must be one of: {arg}",
+  "dbConn.err.abspath": "must be an absolute path, or start with ~",
+  "dbConn.err.tlssocket":
+    "a Unix socket (a host that starts with /) carries no TLS, so this must be one of: {arg}",
+  "dbConn.err.tlsca":
+    'is only used to check the certificate: choose the TLS "{arg}"',
+  "dbConn.err.password":
+    "a password is not written in the settings. Remove this key in config.local.toml, and type the password when asked",
+  "dbConn.err.unknown": "is not a key of a connection. The keys are: {arg}",
+  "dbConn.err.fileonly":
+    "the window does not edit this key. Edit this connection in config.local.toml",
+  "dbConn.err.hosturl":
+    "write only a host name, an address or a socket here, not a URL, user@host or a connection string (a password in it would be written to the file)",
+  "dbConn.err.url":
+    "write the value itself here, not a URL (a password in it would be written to the file)",
+  "dbConn.err.exists": "{name} is already in config.local.toml",
+  "dbConn.err.missing": "{name} is not in config.local.toml",
+  "dbConn.err.fixed":
+    "{name} is a connection of config.toml, which the window does not change. Choose another name, or edit config.toml",
+  "dbConn.err.failed": "Could not write config.local.toml: {error}",
   "db.err.noConnection":
     "This connection is no longer in the settings of its machine.",
   "db.err.busy":

@@ -78,6 +78,8 @@ import {
   sortable,
   type PageStep,
 } from "./paging.ts";
+import { createDbConnections } from "./connectionController.ts";
+import type { DbConfigFiles } from "./connectionForm.ts";
 import { createDbElevate } from "./elevateController.ts";
 import { createDbExport } from "./exportController.ts";
 import type { SaveTextFile } from "./export.ts";
@@ -131,6 +133,8 @@ export function createDbTabs(deps: {
   copyToClipboard: (text: string) => Promise<void>;
   /** 少しの間だけ出る短い知らせ */
   showToast: (text: string) => void;
+  /** 手元の PC の config.local.toml の DB の接続を読む・書く（#486。殻の config_db.rs） */
+  configDb: DbConfigFiles;
 }) {
   const { store, focusTerminal } = deps;
   const { sessions, states, targets, labelOf, colors } = deps.sessions;
@@ -742,6 +746,8 @@ export function createDbTabs(deps: {
       cannot(T("cannot.db.title"), T("cannot.db.noWorkspace"));
       return;
     }
+    // 手元の PC の接続を、窓から直せるか（#486）。kisui serve の一覧と並べて読む
+    void connections.loadLocal();
     const gen = ++pickerGen;
     const list: MachineConnections[] = [];
     const pending = new Set<string>();
@@ -786,6 +792,15 @@ export function createDbTabs(deps: {
     }
     show();
   }
+
+  // 接続を選ぶ窓から、手元の PC の接続を足す・直す・消す（#486。connectionController.ts）。書けたら一覧を聞き直す
+  const connections = createDbConnections({
+    config: deps.configDb,
+    refresh: () => {
+      const p = untrack(picker);
+      if (p) openPicker(p.gws);
+    },
+  });
 
   /** 接続を選ぶ窓で決めた：その接続の DB のタブを開いて出し、入力欄にキーを向ける。 */
   function choose(c: DbChoice) {
@@ -893,6 +908,8 @@ export function createDbTabs(deps: {
     openPicker,
     choose,
     closePicker,
+    // 接続を選ぶ窓から、手元の PC の接続を足す・直す・消す（#486）
+    ...connections,
   };
 }
 

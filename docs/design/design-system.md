@@ -171,7 +171,7 @@ kisui-terminal の窓（`app/src/`）の、共通の色・余白・字・状態�
   - 下の段はいつも出す。操作が無い行も、見出しは出す。
   - 選ぶ間の選択肢（作るタブの種類）は、押せるボタンにする（項目の `act`。押すと `onPress(act)`。字を押したのと同じ）。
 - **引数**：
-  - `rows`：今効く操作の行（`placeKeys.ts` の `FooterRow`）。窓ごとのキーのファイル（`dbWindowKey.ts` の `dbWindowFooter`・`switcherKey.ts` の `switcherFooter`・`terminalWindowKey.ts` の `terminalWindowFooter`・`browserWindowKey.ts` の `browserWindowFooter`・`machineFooter.ts` の `machineDialogFooter`・`bookmarkFooter.ts` の `bookmarkDialogFooter`）が、窓の状態から作る。選ぶだけの小さな窓は、`pickOnlyRows(見出し)` で見出しだけの 1 行にする。ふだんの操作の項目は `placeItem(場所, キー, 名前)` で `?` の一覧の表の行から引くので、下の段・`?` の一覧・判定のキーがずれない。
+  - `rows`：今効く操作の行（`placeKeys.ts` の `FooterRow`）。窓ごとのキーのファイル（`dbWindowKey.ts` の `dbWindowFooter`・`switcherKey.ts` の `switcherFooter`・`terminalWindowKey.ts` の `terminalWindowFooter`・`browserWindowKey.ts` の `browserWindowFooter`・`machineFooter.ts` の `machineDialogFooter`・`bookmarkFooter.ts` の `bookmarkDialogFooter`・`features/db/pickerKeys.ts` の `dbPickerFooter`）が、窓の状態から作る。選ぶだけの小さな窓は、`pickOnlyRows(見出し)` で見出しだけの 1 行にする。ふだんの操作の項目は `placeItem(場所, キー, 名前)` で `?` の一覧の表の行から引くので、下の段・`?` の一覧・判定のキーがずれない。
   - `onPress`：押せる項目を押した。
   - `items`：まだ行の形にしていない窓（クリップボードの履歴・DB の履歴・DB の権限を強める窓）の基本操作のヒント（`basicHints`）。使う窓が無くなったら消す。
   - `note`：行の上に出す知らせ（操作できない理由など。`role` を付けた `CardText`）。
@@ -211,4 +211,4 @@ kisui-terminal の窓（`app/src/`）の、共通の色・余白・字・状態�
 | ----------------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | `app/src/ui/styles/tokens.test.ts`  | `tokens.css` のどの値にも説明と見出しがあり、名前が重ならず、読む名前がある。`card.css`・`button.css` が色を直に書かず、パレットを直に読まず、無い名前を読まない |
 | `app/src/ui/main-window/cssOrder.test.ts` | メインウィンドウの CSS の並び（`button.css` を足した）                                                  |
-| `app/src/features/commands/placeKeys.test.ts`・`app/src/ui/main-window/workspaces/switcherKey.test.ts`・`app/src/ui/main-window/tab-window/dbWindowKey.test.ts` | 共通フッタの中身（`switcherFooter`・`dbWindowFooter`。前の決まりの窓は `basicHints`）。下の段に出す項目と `?` の一覧の表のキーを、その状態の窓のキーの判定が受けること。表の操作が、どこかの状態で下の段に出ること |
+| `app/src/features/commands/placeKeys.test.ts`・`app/src/ui/main-window/workspaces/switcherKey.test.ts`・`app/src/ui/main-window/tab-window/dbWindowKey.test.ts`・`app/src/features/db/connectionForm.test.ts` | 共通フッタの中身（`switcherFooter`・`dbWindowFooter`・`dbPickerFooter`。前の決まりの窓は `basicHints`）。下の段に出す項目と `?` の一覧の表のキーを、その状態の窓のキーの判定が受けること。表の操作が、どこかの状態で下の段に出ること |

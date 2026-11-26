@@ -15,10 +15,10 @@
 //!   項目を消すと、見出しのすぐ上に続けて書いたコメントは項目と一緒に消える。空の行で離したコメントは残す。
 //! - **書く前の確かめ**：書き換えたあとの中身を `check` に渡し、Err なら書かない。マシンは [`edit_machines`] が、窓の読み込み（config.rs）と
 //!   同じ確かめを通す（間違いのある設定を書くと、次の起動で窓が出ないため）。DB の接続の中身を確かめるのは kisui（`config/db.go`）なので、
-//!   窓から DB の接続を書く側（#486）が、同じ結果になる確かめを `check` に渡す。
+//!   窓から DB の接続を書く側（config_db.rs）が、同じ結果になる確かめを `check` に渡す。
 //!
 //! 呼ぶのは、窓でマシンを足す・名前を変える・外す・ターミナルの始め方（`start_dir`・`shell`。#485）を変える処理（[`edit_machine`]。Tauri のコマンド `config_machine_edit`）と、
-//! DB の接続を登録する処理（#486）。
+//! DB の接続を足す・直す・消す処理（config_db.rs の [`crate::config_db::edit`]。Tauri のコマンド `config_db_connection_edit`）。
 //!
 //! 窓のマシンの一覧は、設定ファイルだけが持つ（webview の localStorage には置かない。前の版が置いた記録は、
 //! 窓が起動したときに 1 度だけ `config.local.toml` に移す。app/src/features/sessions/moveRecords.ts）。
@@ -51,9 +51,7 @@ pub const MACHINES: List = List {
     key: "ssh",
 };
 
-/// `[[db.connections]]`。名前で見分ける。
-// DB の接続を窓から書く処理（#486）が入るまで、テストのほかに使う所は無い
-#[allow(dead_code)]
+/// `[[db.connections]]`。名前で見分ける（窓から書くのは config_db.rs）。
 pub const DB_CONNECTIONS: List = List {
     table: "db",
     name: "connections",
@@ -89,6 +87,10 @@ pub enum EditError {
     File(String),
     /// 書き換えたあとの設定が、確かめを通らない
     Rejected(String),
+    /// その名前の DB の接続は `config.toml` にある（中身は名前）。窓からは変えられない（config_db.rs）
+    Fixed(String),
+    /// 窓で入れた DB の接続に間違いがある（kisui と同じキーとコード。config_db.rs）
+    Invalid(Vec<crate::config_db::Problem>),
     /// 手元のマシンの `start_dir` が、有るフォルダでない（中身は書こうとした値。config_terminal.rs）
     NotDir(String),
     /// 手元のマシンの `shell` が、実行できるファイルでない（中身は書こうとした値。config_terminal.rs）
@@ -107,6 +109,11 @@ impl fmt::Display for EditError {
             EditError::Exists(k) => write!(f, "{k} は config.local.toml にもうあります"),
             EditError::Missing(k) => write!(f, "{k} は config.local.toml にありません"),
             EditError::Entry(s) | EditError::File(s) | EditError::Rejected(s) => f.write_str(s),
+            EditError::Fixed(k) => write!(f, "{k} は config.toml の接続です"),
+            EditError::Invalid(ps) => {
+                let keys: Vec<&str> = ps.iter().map(|p| p.key.as_str()).collect();
+                write!(f, "db.connections: 間違いがあります（{}）", keys.join(", "))
+            }
             EditError::NotDir(v) => write!(f, "{v} というフォルダはありません"),
             EditError::NotExec(v) => write!(f, "{v} は実行できるファイルではありません"),
         }

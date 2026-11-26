@@ -23,6 +23,7 @@ export type Place =
   | "list"
   | "bookmarks"
   | "picker"
+  | "dbPicker"
   | "switcher"
   | "switcherTabs"
   | "termWindow"
@@ -222,6 +223,32 @@ const buildPlaceKeys = (): Record<Place, PlaceKeys> => ({
       ]),
       row("Ctrl+J / Ctrl+K", T("place.row.nextPrev"), []),
       row("Enter", T("place.picker.choose")),
+      row("?", T("place.row.keyList")),
+      row("Esc", T("place.picker.cancel"), []),
+    ],
+  },
+  // DB の接続を選ぶ窓（#347。足す・直す・消すは #486）。判定は features/db/pickerKeys.ts の dbPickerKey
+  dbPicker: {
+    title: T("place.dbPicker.title"),
+    lead: T("place.dbPicker.lead"),
+    rows: [
+      row("j k / ↓ ↑", T("place.row.nextPrev"), [
+        "j",
+        "k",
+        "ArrowDown",
+        "ArrowUp",
+      ]),
+      row("g G / Home End", T("place.row.firstLast"), [
+        "g",
+        "G",
+        "Home",
+        "End",
+      ]),
+      row("Ctrl+J / Ctrl+K", T("place.row.nextPrev"), []),
+      row("Enter", T("place.dbPicker.open")),
+      row("a", T("place.dbPicker.add")),
+      row("e", T("place.dbPicker.edit")),
+      row("d", T("place.dbPicker.remove")),
       row("?", T("place.row.keyList")),
       row("Esc", T("place.picker.cancel"), []),
     ],
@@ -496,6 +523,7 @@ const WINDOW_PLACES = new Set<Place>([
   "machines",
   "bookmarks",
   "picker",
+  "dbPicker",
   "switcher",
   "switcherTabs",
   "termWindow",

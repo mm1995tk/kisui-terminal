@@ -207,7 +207,7 @@ pub fn valid_shell(s: &str) -> bool {
 const LOCAL_LABELS: [&str; 2] = ["Local", "ローカル"];
 
 /// 設定のフォルダで読むファイル。重ねる順（後のものが勝つ）。
-const FILES: [&str; 2] = ["config.toml", "config.local.toml"];
+pub(crate) const FILES: [&str; 2] = ["config.toml", "config.local.toml"];
 
 /// 設定の置き場所の土台（`$XDG_CONFIG_HOME` が絶対パスならそれ、なければ `~/.config`）。
 fn base_dir(config_home: Option<&Path>, home: Option<&Path>) -> Option<PathBuf> {
@@ -393,7 +393,7 @@ fn load(path: &Path) -> Result<Parsed, String> {
 }
 
 /// ファイルの中身。無ければ None。
-fn read_text(path: &Path) -> Result<Option<String>, String> {
+pub(crate) fn read_text(path: &Path) -> Result<Option<String>, String> {
     match fs::read(path) {
         Ok(b) => String::from_utf8(b)
             .map(Some)
@@ -510,7 +510,7 @@ pub(crate) fn edit_local<E: From<String>>(
     let text = read_text(&path)?.unwrap_or_default();
     let mut doc: toml_edit::DocumentMut = text
         .parse()
-        .map_err(|e| format!("{}: TOML として読めません（{e}）", path.display()))?;
+        .map_err(|e: toml_edit::TomlError| unreadable(&path, &text, e.span()))?;
     edit(&mut doc, &path)?;
     fs::create_dir_all(dir).map_err(|e| format!("{}: 作れません（{e}）", dir.display()))?;
     replace_file(&path, doc.to_string().as_bytes())
@@ -559,8 +559,20 @@ fn replace_file(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     }
 }
 
+/// TOML として読めないときの理由。場所（行）だけを言い、間違いの文は入れない（その行の中身、たとえば手で書いたパスワードを含むため）。
+pub(crate) fn unreadable(path: &Path, text: &str, span: Option<std::ops::Range<usize>>) -> String {
+    match span {
+        Some(r) => format!(
+            "{}:{}: TOML として読めません",
+            path.display(),
+            line_of(text, r.start)
+        ),
+        None => format!("{}: TOML として読めません", path.display()),
+    }
+}
+
 /// 1 始まりの行番号。
-fn line_of(text: &str, offset: usize) -> usize {
+pub(crate) fn line_of(text: &str, offset: usize) -> usize {
     let end = offset.min(text.len());
     text.as_bytes()[..end]
         .iter()

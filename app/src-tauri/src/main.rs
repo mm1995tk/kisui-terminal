@@ -13,6 +13,7 @@ mod browser_proxy;
 mod clipboard_history;
 mod clipboard_popup;
 mod config;
+mod config_db;
 mod config_list;
 mod config_terminal;
 mod connection;
@@ -63,16 +64,38 @@ fn config_gui() -> Result<config::GuiConfig, String> {
     config::load_default()
 }
 
+/// 窓が設定を書く・読むコマンドの、設定のフォルダ。決まらなければ（`$HOME` が無い）、画面に返す理由。
+fn config_dir_or_err() -> Result<std::path::PathBuf, config_list::EditError> {
+    config::default_dir().ok_or_else(|| {
+        config_list::EditError::File("設定のフォルダが分かりません（$HOME がありません）".into())
+    })
+}
+
 /// 窓でマシンを足す・名前を変える・外す。`config.local.toml` の `[[gui.machines]]` に書き（`config.toml` には書かない）、
 /// 書いたあとのマシンの一覧（`config_gui` の `machines` と同じ形）を返す。書けなければ `{ kind, detail }`（config_list.rs の EditError）。
 #[tauri::command(async)]
 fn config_machine_edit(
     edit: config_list::MachineEdit,
 ) -> Result<Vec<config::ConfigMachine>, config_list::EditError> {
-    let dir = config::default_dir().ok_or_else(|| {
-        config_list::EditError::File("設定のフォルダが分かりません（$HOME がありません）".into())
-    })?;
+    let dir = config_dir_or_err()?;
     config_list::edit_machine(&dir, edit)
+}
+
+/// 窓が知る、手元の DB の接続（`config.local.toml` の `[[db.connections]]` と、`config.toml` の接続の名前）。config_db.rs。
+#[tauri::command(async)]
+fn config_db_connections() -> Result<config_db::DbConnections, config_list::EditError> {
+    let dir = config_dir_or_err()?;
+    config_db::list(&dir)
+}
+
+/// 窓で手元の DB の接続を足す・直す・消す。`config.local.toml` の `[[db.connections]]` に書き（`config.toml` には書かない。パスワードは書かない）、
+/// 書いたあとの `config_db_connections` と同じ形を返す。書けなければ `{ kind, detail }`（config_list.rs の EditError）。
+#[tauri::command(async)]
+fn config_db_connection_edit(
+    edit: config_db::DbEdit,
+) -> Result<config_db::DbConnections, config_list::EditError> {
+    let dir = config_dir_or_err()?;
+    config_db::edit(&dir, edit)
 }
 
 /// 窓で、手元のマシンの新しいターミナルが始まるフォルダとシェルを変える。`config.local.toml` の `[server]` に書き（無い項目は消す）、
@@ -82,9 +105,7 @@ fn config_local_terminal_edit(
     start_dir: Option<String>,
     shell: Option<String>,
 ) -> Result<config::TermDefaults, config_list::EditError> {
-    let dir = config::default_dir().ok_or_else(|| {
-        config_list::EditError::File("設定のフォルダが分かりません（$HOME がありません）".into())
-    })?;
+    let dir = config_dir_or_err()?;
     let (_, home, _) = config::env();
     config_terminal::edit_local(&dir, home.as_deref(), start_dir, shell)
 }
@@ -240,6 +261,8 @@ fn main() {
             config_gui,
             config_machine_edit,
             config_local_terminal_edit,
+            config_db_connections,
+            config_db_connection_edit,
             connect,
             send,
             disconnect,
