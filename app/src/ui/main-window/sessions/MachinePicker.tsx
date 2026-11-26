@@ -3,7 +3,7 @@ import { For, type JSX } from "solid-js";
 
 import { KeyFooter } from "../../components/KeyFooter.tsx";
 import { ModalCard, CardTitle } from "../../components/Card.tsx";
-import { basicHints } from "../../../features/commands/placeKeys.ts";
+import { pickOnlyRows } from "../../../features/commands/placeKeys.ts";
 import { openKeyList } from "../commands/KeyListDialog.tsx";
 import {
   pickerKey,
@@ -44,11 +44,7 @@ export function MachinePicker(props: {
       label={T("picker.label")}
       width={560}
       onCancel={props.onCancel}
-      footer={
-        <KeyFooter
-          items={basicHints({ decide: T("picker.keys.create"), end: "cancel" })}
-        />
-      }
+      footer={<KeyFooter rows={pickOnlyRows(T("picker.foot.machine"))} />}
       header={<CardTitle>{T("picker.title")}</CardTitle>}
     >
       <div class="machine-dialog">

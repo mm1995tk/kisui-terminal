@@ -18,7 +18,7 @@ import {
 import { openKeyList } from "../commands/KeyListDialog.tsx";
 import { KeyFooter } from "../../components/KeyFooter.tsx";
 import { ModalCard, CardTitle, CardText } from "../../components/Card.tsx";
-import { basicHints } from "../../../features/commands/placeKeys.ts";
+import { machineDialogFooter } from "./machineFooter.ts";
 import {
   canDo,
   keepRow,
@@ -173,16 +173,17 @@ export function MachineDialog(props: {
       width={640}
       onCancel={props.onCancel}
       footer={
-        // 足す・名前を変える・外す・切る・つなぎ直す・ターミナルの始め方（a n d x r t）は、`?` の一覧に出す。Enter（タブを作る）は下の段にも出す
+        // 今効く操作（Enter a n d x r t のうち、選んでいるマシンにできるもの。machineFooter.ts）
         <KeyFooter
           note={
             <Show when={note()}>
               {(n) => <CardText role="alert">{n()}</CardText>}
             </Show>
           }
-          items={basicHints({
-            decide: T("machineDialog.keys.newTab"),
-            end: "close",
+          rows={machineDialogFooter({
+            renaming: !!props.renaming,
+            selected: sel.selected(),
+            hasWorkspace: props.hasWorkspace,
           })}
         />
       }

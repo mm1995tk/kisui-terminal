@@ -18,7 +18,7 @@ import {
   CardTitle,
   CardText,
 } from "../../components/Card.tsx";
-import { basicHints } from "../../../features/commands/placeKeys.ts";
+import { pickOnlyRows } from "../../../features/commands/placeKeys.ts";
 import { openKeyList } from "../commands/KeyListDialog.tsx";
 import { moveRow, pickerKey } from "../../../features/sessions/machineList.ts";
 import type { MascotListing } from "../../../features/mascot/mascot.ts";
@@ -101,7 +101,7 @@ export function MascotDialog(props: {
               {(n) => <CardText role="alert">{n()}</CardText>}
             </Show>
           }
-          items={basicHints({ decide: T("basic.decide"), end: "cancel" })}
+          rows={pickOnlyRows(T("mascot.foot.mascot"))}
         />
       }
       header={<CardTitle>{T("mascot.title")}</CardTitle>}

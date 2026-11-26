@@ -11,6 +11,7 @@ import {
   isWindowPlace,
   listStep,
   placeKeys,
+  pickOnlyRows,
   placeOf,
   type Place,
 } from "./placeKeys.ts";
@@ -347,5 +348,25 @@ describe("placeOf", () => {
     assert.equal(placeOf(el("other")), undefined);
     assert.equal(placeOf(el("list")), undefined);
     assert.equal(placeOf(null), undefined);
+  });
+});
+
+describe("pickOnlyRows（選ぶだけの小さな窓の下の段。#489）", () => {
+  it("見出しだけの 1 行を返す（下の段はいつも出す）", () => {
+    assert.deepEqual(pickOnlyRows("Mascot"), [{ title: "Mascot", items: [] }]);
+  });
+
+  it("選ぶ窓の表（picker）のキーは、どの窓でも同じキーか、その別のキー（g G Home End・Ctrl+J / Ctrl+K）だけ。だから下の段には操作が無い", () => {
+    // probes が空の行（Ctrl+J / Ctrl+K・Esc）も見るので、行の書き方（keys）で比べる
+    const same = new Set([
+      "j k / ↓ ↑",
+      "g G / Home End",
+      "Ctrl+J / Ctrl+K",
+      "Enter",
+      "?",
+      "Esc",
+    ]);
+    for (const r of placeKeys().picker.rows)
+      assert.ok(same.has(r.keys), r.keys);
   });
 });
