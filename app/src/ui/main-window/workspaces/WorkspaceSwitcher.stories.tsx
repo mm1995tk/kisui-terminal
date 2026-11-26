@@ -183,7 +183,7 @@ const meta = {
       { target: "local", label: "local", color: MACHINES.local.color },
       { target: "devbox", label: "devbox", color: MACHINES.devbox.color },
     ],
-    // n か右の列の「＋」で種類を選ぶ一覧を出し、ターミナルに決めて、名前とマシンを入れて Enter。アプリと同じ決まりで名前を確かめ、作れたら新しいタブの key を返す（rows は呼んだ側のものなので、窓には足されない）
+    // n か右の列の「＋」で作るタブの種類を選ぶ間にし、ターミナルに決めて、名前とマシンを入れて Enter。アプリと同じ決まりで名前を確かめ、作れたら新しいタブの key を返す（rows は呼んだ側のものなので、窓には足されない）
     onCreateTab: fn((_gws: string, _machine: string, name: string) => {
       const error = nameErrorText(name);
       return error ? { error } : { key: Promise.resolve(undefined) };

@@ -30,7 +30,7 @@ import { shownTabKind, type TabKind } from "./tabWindow.ts";
 
 /**
  * ワークスペースの窓を開いたときの初めの状態。ws は左のワークスペースの列にキーを置く（リーダーの w）。tab は右のタブの列（t）。
- * newTab は、tab と同じ列で、タブの種類を選ぶ一覧を出しておく（n。#456）。
+ * newTab は、tab と同じ列で、作るタブの種類を選ぶ間にしておく（n。#456）。
  */
 export type SwitcherStart = "ws" | "tab" | "newTab";
 

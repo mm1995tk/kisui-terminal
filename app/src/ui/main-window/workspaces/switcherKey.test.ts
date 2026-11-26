@@ -68,7 +68,7 @@ describe("ワークスペースを切り替える窓のキー", () => {
     assert.equal(switcherKey(key("n", { metaKey: true })), null);
   });
 
-  it("N（Shift+n）は、どちらの列でもタブを作る（種類を選ぶ一覧を出す）。Cmd・Ctrl・Alt を重ねたものと変換中のキーは受けない", () => {
+  it("N（Shift+n）は、どちらの列でもタブを作る（作るタブの種類を選ぶ間にする）。Cmd・Ctrl・Alt を重ねたものと変換中のキーは受けない", () => {
     assert.deepEqual(switcherKey(key("N", { shiftKey: true })), {
       kind: "newTab",
     });

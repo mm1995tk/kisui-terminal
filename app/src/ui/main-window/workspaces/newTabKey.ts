@@ -1,4 +1,4 @@
-// 切り替える窓の「タブを作る」操作のキー：種類を選ぶ一覧と、ターミナルのタブを作る行（SwitcherNewTab.tsx）。画面の仕組み（Solid）に依らないので、node --test で確かめる。決まりは docs/key-design.md。
+// 切り替える窓の「タブを作る」操作のキー：作るタブの種類を選ぶ間と、ターミナルのタブを作る行（SwitcherNewTab.tsx）。画面の仕組み（Solid）に依らないので、node --test で確かめる。決まりは docs/key-design.md。
 import { isComposingKey } from "../../../features/commands/ime.ts";
 import type { KeyLike } from "../../../features/commands/guiKeys.ts";
 import { inlineKeyAction } from "../../components/inlineInputKeys.ts";
@@ -26,7 +26,7 @@ export type NewTabListKey =
 /**
  * 名前の入力欄のキー。変換中のキー（変換を確定する Enter・取り消す Esc・変換候補を選ぶ Tab と ↓ を含む）は何もしない。
  * Ctrl・Cmd・Alt を重ねたものは受けない（Tab は Shift だけ重ねてよい）。
- * 押したままのリピートの Enter では決めない（行を出した Enter（種類の一覧・マシンのダイアログ）を押したままにして、空の名前で作らないように）。
+ * 押したままのリピートの Enter では決めない（行を出した Enter（作るタブの種類・マシンのダイアログ）を押したままにして、空の名前で作らないように）。
  */
 export function newTabInputKey(e: KeyLike): NewTabInputKey | null {
   if (isComposingKey(e)) return null;
@@ -58,7 +58,7 @@ export function newTabListKey(e: KeyLike): NewTabListKey | null {
   return null;
 }
 
-/** 切り替える窓から作れるタブの種類（種類を選ぶ一覧の行。#456）。incognito は、シークレットのブラウザのタブ */
+/** 切り替える窓から作れるタブの種類（下の段のボタン。#456）。incognito は、シークレットのブラウザのタブ */
 export type NewTabChoice = "terminal" | "browser" | "incognito" | "db";
 
 /** 作るタブの種類に決める字（窓の下の段のボタンに出す）。 */
