@@ -1,10 +1,8 @@
 // ターミナルの字 1 つの幅（px）。サイドバーの幅の上限（右のターミナルが 20 列残るところまで。panes.ts の sidebarMax）を、ピクセルに直すのに使う。
 // 字は TerminalView.tsx の xterm と同じ字体・大きさ（MONO_FONT_FAMILY・11px）で、canvas に測らせる。
 
-import { MONO_FONT_FAMILY } from "../styles/monoFont.ts";
+import { MONO_FONT_FAMILY, TERM_FONT_SIZE } from "../styles/monoFont.ts";
 
-/** TerminalView.tsx の xterm の fontSize と同じ。 */
-const TERM_FONT_SIZE = 11;
 /** 測れないとき（canvas が無い環境・字体がまだ読めていない）の、11px の等幅の字のおよその幅。 */
 const FALLBACK_CELL_WIDTH = 6.6;
 

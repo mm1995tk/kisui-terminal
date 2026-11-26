@@ -6,3 +6,6 @@
  */
 export const MONO_FONT_FAMILY =
   "'JetBrains Mono', 'Symbols Nerd Font Mono', ui-monospace, Menlo, Consolas, 'DejaVu Sans Mono', monospace";
+
+/** ターミナルの字の大きさ（px）。TerminalView.tsx の xterm と、サイドバーの幅の上限の計算（main-window/termCell.ts）が同じ値を使う。 */
+export const TERM_FONT_SIZE = 11;
