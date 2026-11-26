@@ -3,7 +3,7 @@ import { createSignal, For, type JSX } from "solid-js";
 
 import { KeyFooter } from "../../components/KeyFooter.tsx";
 import { ModalCard, CardTitle } from "../../components/Card.tsx";
-import { basicHints } from "../../../features/commands/placeKeys.ts";
+import { pickOnlyRows } from "../../../features/commands/placeKeys.ts";
 import { openKeyList } from "../commands/KeyListDialog.tsx";
 import { moveRow, pickerKey } from "../../../features/sessions/machineList.ts";
 
@@ -40,11 +40,7 @@ export function WorkspaceKindPicker(props: {
       label={T("kindPicker.label")}
       width={560}
       onCancel={props.onCancel}
-      footer={
-        <KeyFooter
-          items={basicHints({ decide: T("basic.decide"), end: "cancel" })}
-        />
-      }
+      footer={<KeyFooter rows={pickOnlyRows(T("kindPicker.foot.kind"))} />}
       header={<CardTitle>{T("kindPicker.title")}</CardTitle>}
     >
       <div class="machine-dialog">

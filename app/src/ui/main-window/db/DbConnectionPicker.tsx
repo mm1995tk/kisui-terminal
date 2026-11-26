@@ -5,7 +5,7 @@
 import { T } from "../../../i18n/index.ts";
 import { createSignal, For, Show, type JSX } from "solid-js";
 
-import { basicHints } from "../../../features/commands/placeKeys.ts";
+import { pickOnlyRows } from "../../../features/commands/placeKeys.ts";
 import type { DbPicker } from "../../../features/db/controller.ts";
 import { connectionDetail, type DbChoice } from "../../../features/db/model.ts";
 import { dbLabel } from "../../../features/workspaces/model.ts";
@@ -45,11 +45,7 @@ export function DbConnectionPicker(props: {
       width={640}
       onCancel={props.onCancel}
       header={<CardTitle>{T("db.picker.title")}</CardTitle>}
-      footer={
-        <KeyFooter
-          items={basicHints({ decide: T("db.picker.open"), end: "cancel" })}
-        />
-      }
+      footer={<KeyFooter rows={pickOnlyRows(T("db.picker.foot.connection"))} />}
     >
       <div class="machine-dialog">
         <ul
