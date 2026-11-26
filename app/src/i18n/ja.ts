@@ -800,6 +800,8 @@ export const ja: Record<Key, string> = {
     "Tab「{tab}」でプログラムが動いているので、閉じませんでした。kisui tab close --force で、プログラムを終わらせて閉じます。",
   "tabCli.err.askEach":
     "この PC に、操作のたびに人に聞くと決めた Pane があるので、リモートの Machine からは、この PC の Terminal tab を閉じられません。Window で閉じるよう、ユーザーに頼んでください。",
+  "tabCli.err.focus":
+    "{from} の Pane が Tab を表示する・別の Workspace へ移すのは、Window のキーが今 {from} の Terminal tab に向いているときか、Window の前の人が {from} に許している間（Machine の Dialog で {from} を選び、p を押す）だけです。そうでないと、人が打っているキーの行き先が変わってしまいます。Tab を表示するよう、ユーザーに頼んでください。",
   "tabCli.err.sameWorkspace":
     "Tab「{tab}」は、もう Workspace「{workspace}」にあります",
   "paneOpen.err.noWorkspace":

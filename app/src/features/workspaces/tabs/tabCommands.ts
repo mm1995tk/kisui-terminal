@@ -63,6 +63,8 @@ export interface TabEntry {
   ref: TabRef;
   /** その Workspace が今表示している Tab か */
   shown: boolean;
+  /** 人のキーが今この Tab に向いているか（今いる Workspace が表示している Tab） */
+  focused: boolean;
 }
 
 const KIND = {
@@ -87,6 +89,7 @@ export function tabEntries(s: GwsState, rows: readonly Row[]): TabEntry[] {
         target: ref.kind === "term" ? ref.target : LOCAL,
         ref,
         shown: row.tabs.shown === item.key,
+        focused: row.tabs.focused && row.tabs.shown === item.key,
       });
     }
   }
@@ -171,6 +174,24 @@ export function createTabCommands(deps: {
             name: ref.trim(),
             count: found.length,
           }),
+    );
+  }
+
+  /**
+   * Machine from の Pane が、人のキーの行き先を変えてよいか。変えてはいけなければ断る（tab.show・tab.moveTo。どちらも、その Tab へ
+   * 移ってキーを向ける）。
+   * 手元の PC の Pane と、Window の前の人が時間を決めて許している Machine（paneGrant.ts）の Pane は、いつでもよい。
+   * ほかのリモートの Machine の Pane は、キーが今その Machine の Terminal tab に向いているときだけ（キーの行き先が同じ Machine の
+   * 中でしか変わらないので、手元の PC やほかの Machine で打っているキーを、その Machine に向けられない）。
+   */
+  function needKeysOn(c: WindowCaller) {
+    if (c.from === LOCAL || deps.granted(c.from)) return;
+    const now = tabEntries(untrack(deps.gws), untrack(deps.rows)).find(
+      (e) => e.focused,
+    );
+    if (now?.ref.kind === "term" && now.target === c.from) return;
+    throw new WindowCommandError(
+      T("tabCli.err.focus", { from: labelOf(c.from) }),
     );
   }
 
@@ -267,6 +288,7 @@ export function createTabCommands(deps: {
       remote: true,
       run: (args, c) => {
         const e = resolve(args, c);
+        needKeysOn(c);
         const to = workspaceOf(argString(args, "workspace"));
         if (to.id === e.gws.id)
           throw new WindowCommandError(
@@ -285,6 +307,7 @@ export function createTabCommands(deps: {
       remote: true,
       run: (args, c) => {
         const e = resolve(args, c);
+        needKeysOn(c);
         needConnected(e);
         deps.tabs.activateTab(e.gws.id, e.ref);
         return { id: e.id };

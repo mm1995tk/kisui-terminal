@@ -37,23 +37,40 @@ const state: GwsState = {
 };
 
 /** Sidebar の行の、ここで使う分だけ。 */
-const row = (gws: string, shown: string, items: [string, string][]): Row =>
+const row = (
+  gws: string,
+  shown: string,
+  items: [string, string][],
+  focused = false,
+): Row =>
   ({
     gws,
-    tabs: { shown, items: items.map(([key, title]) => ({ key, title })) },
+    tabs: {
+      shown,
+      focused,
+      items: items.map(([key, title]) => ({ key, title })),
+    },
   }) as unknown as Row;
 
-const rows: Row[] = [
-  row("gaaaaaaaaaa", termKey(LOCAL, "wlocal"), [
-    [termKey(LOCAL, "wlocal"), "repo"],
-    [termKey("dev-vm", "wdev"), "repo"],
-    [browserKey("tpage"), "Docs"],
-  ]),
+/** 今いるのは ws1 で、表示している（キーが向いている）のは shown1 の Tab。 */
+const rowsOn = (shown1: string): Row[] => [
+  row(
+    "gaaaaaaaaaa",
+    shown1,
+    [
+      [termKey(LOCAL, "wlocal"), "repo"],
+      [termKey("dev-vm", "wdev"), "repo"],
+      [browserKey("tpage"), "Docs"],
+    ],
+    true,
+  ),
   row("gbbbbbbbbbb", dbKey("dbmain"), [
     [termKey("build", "wbuild"), "ci"],
     [dbKey("dbmain"), "main"],
   ]),
 ];
+
+const rows: Row[] = rowsOn(termKey(LOCAL, "wlocal"));
 
 const machines: Machine[] = [
   { target: "dev-vm", name: "dev", allowPaneTo: ["build"] },
@@ -66,6 +83,7 @@ function setup(
     askEach?: boolean;
     down?: string[];
     close?: "closed" | "running";
+    rows?: Row[];
   } = {},
 ) {
   const calls: unknown[][] = [];
@@ -84,7 +102,7 @@ function setup(
       labelOf: (t) => (t === LOCAL ? "Local" : t),
     },
     gws: () => state,
-    rows: () => rows,
+    rows: () => opts.rows ?? rows,
     browser: true,
     granted: () => opts.granted === true,
     anyAskEach: () => opts.askEach === true,
@@ -140,13 +158,19 @@ const ids = (r: unknown) =>
 describe("kisui tab の、指せる Tab", () => {
   it("Sidebar の行から、id・名前・Machine を並びの順に作る（Browser tab と Database tab は手元の PC の Tab）", () => {
     assert.deepEqual(
-      tabEntries(state, rows).map((e) => [e.id, e.name, e.target, e.shown]),
+      tabEntries(state, rows).map((e) => [
+        e.id,
+        e.name,
+        e.target,
+        e.shown,
+        e.focused,
+      ]),
       [
-        ["wlocal", "repo", LOCAL, true],
-        ["wdev", "repo", "dev-vm", false],
-        ["tpage", "Docs", LOCAL, false],
-        ["wbuild", "ci", "build", false],
-        ["dbmain", "main", LOCAL, true],
+        ["wlocal", "repo", LOCAL, true, true],
+        ["wdev", "repo", "dev-vm", false, false],
+        ["tpage", "Docs", LOCAL, false, false],
+        ["wbuild", "ci", "build", false, false],
+        ["dbmain", "main", LOCAL, true, false],
       ],
     );
   });
@@ -371,5 +395,69 @@ describe("kisui tab の操作", () => {
     const { run, calls } = setup();
     assert.deepEqual(await run("tab.show", { tab: "main" }), { id: "dbmain" });
     assert.deepEqual(calls, [["show", "gbbbbbbbbbb", "db"]]);
+  });
+
+  it("show・moveTo：リモートの Machine の Pane は、許可なしでは、キーが今その Machine の Terminal tab に向いているときだけ", async () => {
+    // キーは手元の PC の Terminal tab に向いている。dev の Pane は、自分の Tab でも表示・移動できない
+    const onLocal = setup();
+    const e1 = await refusal(() =>
+      onLocal.run("tab.show", { tab: "wdev" }, "dev-vm"),
+    );
+    assert.match(e1.message, /dev-vm/);
+    await refusal(() =>
+      onLocal.run("tab.moveTo", { tab: "wdev", workspace: "review" }, "dev-vm"),
+    );
+    // キーが別の Machine（build）の Terminal tab や、Browser tab に向いていても同じ
+    const onBuild = setup({
+      rows: [
+        row("gaaaaaaaaaa", termKey(LOCAL, "wlocal"), [
+          [termKey(LOCAL, "wlocal"), "repo"],
+          [termKey("dev-vm", "wdev"), "repo"],
+          [browserKey("tpage"), "Docs"],
+        ]),
+        row(
+          "gbbbbbbbbbb",
+          termKey("build", "wbuild"),
+          [
+            [termKey("build", "wbuild"), "ci"],
+            [dbKey("dbmain"), "main"],
+          ],
+          true,
+        ),
+      ],
+    });
+    await refusal(() => onBuild.run("tab.show", { tab: "wdev" }, "dev-vm"));
+    const onPage = setup({ rows: rowsOn(browserKey("tpage")) });
+    await refusal(() => onPage.run("tab.show", { tab: "wdev" }, "dev-vm"));
+    assert.deepEqual(
+      [...onLocal.calls, ...onBuild.calls, ...onPage.calls],
+      [],
+      "nothing was shown or moved",
+    );
+
+    // キーが dev の Terminal tab に向いていれば、dev の Pane は、届く Tab を表示・移動できる
+    const onDev = setup({ rows: rowsOn(termKey("dev-vm", "wdev")) });
+    assert.deepEqual(await onDev.run("tab.show", { tab: "ci" }, "dev-vm"), {
+      id: "wbuild",
+    });
+    assert.deepEqual(
+      await onDev.run(
+        "tab.moveTo",
+        { tab: "wdev", workspace: "review" },
+        "dev-vm",
+      ),
+      { id: "wdev", workspace: "gbbbbbbbbbb" },
+    );
+
+    // Window の前の人が dev に許している間は、キーがどこに向いていてもよい
+    const granted = setup({ granted: true });
+    assert.deepEqual(await granted.run("tab.show", { tab: "wdev" }, "dev-vm"), {
+      id: "wdev",
+    });
+    // 名前を変える・並べ替えるのは、キーの行き先を変えないので、キーがどこに向いていてもよい
+    assert.deepEqual(
+      await onLocal.run("tab.rename", { tab: "wdev", name: "x" }, "dev-vm"),
+      { id: "wdev" },
+    );
   });
 });

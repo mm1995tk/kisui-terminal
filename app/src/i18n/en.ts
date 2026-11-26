@@ -800,6 +800,8 @@ export const en = {
     'A program is running in the tab "{tab}", so it was not closed. kisui tab close --force ends the program and closes the tab.',
   "tabCli.err.askEach":
     "A pane of this computer is set to ask the person every time, so a remote machine may not close terminal tabs of this computer. Ask the user to close the tab in the window.",
+  "tabCli.err.focus":
+    "A pane of {from} may show a tab, or move one to another workspace, only while the keys of the window are on a terminal tab of {from}, or while the person at the window allows {from} (in the machine dialog, choose {from} and press p). Otherwise the keys the person is typing would go to another place. Ask the user to show the tab.",
   "tabCli.err.sameWorkspace":
     'The tab "{tab}" is already in the workspace "{workspace}"',
   "paneOpen.err.noWorkspace":
