@@ -1,0 +1,6 @@
+{
+  "0.2.5": {
+    "en-US": "When you are already logged in to the site in Firefox, or log in with a password, the login now goes back to kisui-terminal by itself once the tab moves on from the page kisui-terminal opened to a page of the site that is not a step of the login.",
+    "ja": "Firefox でログイン済みのときや、パスワードでログインしたときも、タブが kisui-terminal の開いたページからそのサイトのログインの途中でないページに移れば、ログインを kisui-terminal に自動で戻すようにしました。"
+  }
+}

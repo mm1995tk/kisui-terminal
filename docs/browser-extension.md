@@ -84,26 +84,60 @@ zip の中身は `extension/` のファイルそのもの（`manifest.json` も�
   （Firefox を閉じると外れる。署名の無い拡張機能を残しておけるのは Developer Edition・Nightly・ESR だけ）。
   id（`kisui-terminal@mm1995tk.github.io`）が決まっているので、kisui-terminal の受け口にそのままつながる。
 
-## ストアに出す（オーナーの作業）
-
-ストアのアカウントの登録・提出・公開は、オーナーのアカウントで行う。このリポジトリが用意するのは、上げる zip と、下の説明文・権限の理由・
-プライバシーの説明まで。
+## ストアに出す
 
 公開しているのは addons.mozilla.org（https://addons.mozilla.org/addon/kisui-terminal-passkey-login/ ）。
+版を出すのは CI（`.github/workflows/amo.yml`）。説明文・プライバシーの欄・スクリーンショットなど、アドオンのページの中身は
+CI では触らず、オーナーが AMO の画面で直す（下の「ストアの説明」と「プライバシー」が、その案）。
 
 ### addons.mozilla.org（AMO）
 
-1. https://addons.mozilla.org/developers/ に Firefox アカウントでログインし、開発者の同意をする（登録料は無い）。
-2. 「新しいアドオンを提出」で「このサイトで公開する」を選び、`extension/dist/kisui-terminal-firefox-<版>.zip` を上げる。
-   id は manifest の `kisui-terminal@mm1995tk.github.io` に決まっている（AMO は id を付けない）。
-3. ソースコードの提出を聞かれたら「いいえ」：zip の中は `extension/` のファイルそのもの（まとめも縮めもしていない）。
-4. 下の「ストアの説明」と「プライバシー」を入れ、審査に出す。
+`main` への push（`extension/` などが変わったとき）と手での起動（`gh workflow run amo.yml --ref main`）で、
+`.github/workflows/amo.yml` が次のことをする。
 
-済み：版 0.1.0 が自動の審査を通り、公開された（2026-11-18）。
+1. `extension/manifest.json` の `version` と、AMO で公開中の版（公開の API `https://addons.mozilla.org/api/v5/addons/addon/<id>/` の
+   `current_version`）を比べる。同じなら何もしない。この段は API キーを使わない。
+2. 違えば、`nix build .#kisui-terminal-extension` の `firefox/`（`extension/` のファイルそのもの。まとめも縮めもしない）を、
+   nixpkgs の `web-ext sign --channel listed --approval-timeout 0` で AMO に上げる。送るのは版と、
+   `extension/release-notes.json` のその版のリリースノート（英語 `en-US` と日本語 `ja`）だけ。
+3. 審査は待たない。結果は AMO からメールで届く。
+
+`main` 以外のブランチでは動かさない（手で起動しても止まる）。PR では動かない。
+
+審査待ちの版は公開中の版（`current_version`）に出ないので、審査が済む前に `extension/` を変えた PR を `main` に入れると、
+同じ版をもう一度上げようとして公開のジョブが落ちる（AMO が同じ版を断る）。審査が済めば、次からは落ちない。
+
+手で上げる（CI が使えないとき）：https://addons.mozilla.org/developers/ の「マイアドオン」で kisui-terminal を開き、
+「新しいバージョンをアップロード」で `extension/dist/kisui-terminal-firefox-<版>.zip`（`npm run build:extension`）を上げる。
+ソースコードの提出を聞かれたら「いいえ」（zip の中は `extension/` のファイルそのもの）。
+
+済み：版 0.1.0 が自動の審査を通り、公開された（2026-11-18）。0.2.5 までは手で上げた。
+
+### CI が使う API キー
+
+AMO の API キー（JWT の issuer と secret）は、1Password の vault `shijimi-editor-release` の item `kisui-terminal-amo-api-key` に置く。
+
+| フィールド   | 中身                                 |
+| ------------ | ------------------------------------ |
+| `jwt-issuer` | JWT issuer（`user:12345:67` の形）   |
+| `jwt-secret` | JWT secret（パスワードの種類にする） |
+
+CI はサービスアカウント（GitHub の Secret `OP_SERVICE_ACCOUNT_TOKEN_RELEASE`。`build.yml` の署名鍵と同じもの）で、
+上げる step の直前に読む。item が無い・読めないときは、公開のジョブだけが「item が無いか、読めない」というエラーで落ちる
+（版が同じ push では読まないので、`main` のほかの CI には響かない）。
+
+作り方（オーナーの作業）：https://addons.mozilla.org/developers/addon/api/key/ （開発者ハブの「ツール」→「API キーの管理」）に
+ログインし、「新しい認証情報を生成」で作る。出た JWT issuer と JWT secret を上の 2 つのフィールドに入れる。
+secret はこの画面でしか見えない。キーを作り直す（「認証情報を無効にして新たに生成」）と古いキーは使えなくなるので、item も入れ替える。
 
 ### 版を上げるとき
 
-`extension/manifest.json` の `version` を上げて zip を作り直し、addons.mozilla.org に上げる。kisui-terminal の版とは別に数える。
+1. `extension/manifest.json` の `version` を上げる。kisui-terminal の版とは別に数える。
+2. `extension/release-notes.json` に、その版のリリースノートを英語（`en-US`）と日本語（`ja`）で足す。AMO の版の一覧に、
+   利用者向けに出る。無いと `npm run test:extension` が落ちる。
+3. 下の履歴に 1 行足す。
+4. PR を `main` に入れると、CI が AMO に出す。
+
 0.2.0 で、`passkey_sites` の `.google.com` の書き方（取り決めの版 2）を読めるようにした（#279）。
 0.2.1 で、Chrome のためのコード（`importScripts`・`chrome` の API・`pendingUrl`・Chrome の manifest の作り分け）を外した（#433。Firefox での動きは変えていない）。
 0.2.2 で、host の権限から `http://*/*` を外した（#286）。
