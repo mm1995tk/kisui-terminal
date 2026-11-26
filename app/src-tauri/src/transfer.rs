@@ -13,7 +13,7 @@
 //!
 //! データは Tauri の IPC の生のバイト列で受け渡す（base64 にしない）。セッションの鍵は画面側が欄ごとに決める。
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::ffi::{CString, OsStr, OsString};
 use std::fs::{self, File};
 use std::io::{self, Read, Write};
@@ -53,6 +53,8 @@ struct WriteSession {
     files: HashMap<String, WriteFile>,
     /// 作ったファイルの相対パス（取り消しで消す）。
     created: Vec<(Vec<OsString>, bool)>,
+    /// このセッションが作ったディレクトリの相対パス。下りてよいのは、ここにあるディレクトリだけ（`walk_made`）。
+    dirs: HashSet<Vec<OsString>>,
 }
 
 struct WriteFile {
@@ -195,6 +197,34 @@ fn walk(root: &File, parents: &[OsString], create: bool) -> io::Result<File> {
     Ok(cur)
 }
 
+/// 書き込みのセッションが、ディレクトリを 1 段ずつ（シンボリックリンクを辿らずに）下りた先。下りてよいのは、このセッションが
+/// 作ったディレクトリ（`made`）だけ。無いディレクトリは作って `made` に足す。書き込み先に前からあるディレクトリ（ファイルと
+/// シンボリックリンクも）には、下りずに断る。ファイルの名前は、利用者が許したあとに相手が決めるので、前からあるフォルダ
+/// （たとえば git のリポジトリ）の中には、何も置かせない。
+fn walk_made(root: &File, parents: &[OsString], made: &mut HashSet<Vec<OsString>>) -> R<File> {
+    let mut cur = root.try_clone().map_err(|e| err(&e))?;
+    for (i, p) in parents.iter().enumerate() {
+        let path = parents[..=i].to_vec();
+        if !made.contains(&path) {
+            if made.len() >= MAX_FILES {
+                return Err(coded("EFBIG", "too many directories"));
+            }
+            let c = cstr(p).map_err(|e| err(&e))?;
+            // SAFETY: c は NUL 終端、cur は開いている fd
+            if unsafe { libc::mkdirat(cur.as_raw_fd(), c.as_ptr(), 0o755) } < 0 {
+                let e = io::Error::last_os_error();
+                if e.raw_os_error() == Some(libc::EEXIST) {
+                    return Err(coded("EPERM", "the folder was there before this transfer"));
+                }
+                return Err(err(&e));
+            }
+            made.insert(path);
+        }
+        cur = open_dir_at(&cur, p, false).map_err(|e| err(&e))?;
+    }
+    Ok(cur)
+}
+
 fn unlink_at(dir: &File, name: &OsStr, is_dir: bool) {
     if let Ok(c) = cstr(name) {
         let flag = if is_dir { libc::AT_REMOVEDIR } else { 0 };
@@ -232,6 +262,7 @@ pub fn transfer_write_begin(state: State<Transfers>, key: String) -> R<String> {
             root,
             files: HashMap::new(),
             created: Vec::new(),
+            dirs: HashSet::new(),
         }),
     )?;
     Ok(dir.to_string_lossy().into_owned())
@@ -271,14 +302,13 @@ pub fn transfer_write_open(state: State<Transfers>, key: String, open: WriteOpen
         .to_string_lossy()
         .into_owned();
     if open.directory {
-        let parent = walk(&w.root, parents, true).map_err(|e| err(&e))?;
-        open_dir_at(&parent, leaf, true).map_err(|e| err(&e))?;
+        walk_made(&w.root, &rel, &mut w.dirs)?;
         return Ok(shown);
     }
     if w.files.contains_key(&open.file_id) {
         return Err(coded("EINVAL", "duplicate file id"));
     }
-    let parent = walk(&w.root, parents, true).map_err(|e| err(&e))?;
+    let parent = walk_made(&w.root, parents, &mut w.dirs)?;
     let c = cstr(leaf).map_err(|e| err(&e))?;
     let flags = libc::O_WRONLY | libc::O_CREAT | libc::O_EXCL | libc::O_NOFOLLOW | libc::O_CLOEXEC;
     // SAFETY: c は NUL 終端、parent は開いている fd
@@ -707,6 +737,44 @@ mod tests {
         // ふつうのディレクトリは作って下りる
         walk(&rf, &os(&["a", "b"]), true).unwrap();
         assert!(root.join("a/b").is_dir());
+        fs::remove_dir_all(&root).unwrap();
+        fs::remove_dir_all(&outside).unwrap();
+    }
+
+    // 受け取りは、前からあるディレクトリには下りない。このセッションが作ったディレクトリには、何度でも下りる
+    #[test]
+    fn walk_made_stays_out_of_existing_directories() {
+        let root = tmp("made");
+        fs::create_dir_all(root.join("repo/.git/hooks")).unwrap();
+        fs::write(root.join("file"), b"keep").unwrap();
+        let outside = tmp("made-outside");
+        std::os::unix::fs::symlink(&outside, root.join("link")).unwrap();
+        let rf = File::open(&root).unwrap();
+        let mut made = HashSet::new();
+        // 前からあるディレクトリ・ファイル・シンボリックリンクの下には下りない
+        for p in [
+            os(&["repo"]),
+            os(&["repo", ".git", "hooks"]),
+            os(&["repo", "new"]),
+            os(&["file", "x"]),
+            os(&["link", "x"]),
+        ] {
+            let e = walk_made(&rf, &p, &mut made).unwrap_err();
+            assert!(e.starts_with("EPERM:"), "{p:?}: {e}");
+        }
+        assert!(made.is_empty());
+        assert!(!root.join("repo/new").exists());
+        assert!(!outside.join("x").exists());
+        // 書き込み先の直下（parents が空）は、そのまま使える
+        walk_made(&rf, &[], &mut made).unwrap();
+        // 無いディレクトリは作り、次からは下りられる
+        walk_made(&rf, &os(&["a", "b"]), &mut made).unwrap();
+        assert!(root.join("a/b").is_dir());
+        walk_made(&rf, &os(&["a", "b"]), &mut made).unwrap();
+        walk_made(&rf, &os(&["a", "c"]), &mut made).unwrap();
+        assert_eq!(made.len(), 3);
+        // 別のセッション（made が空）からは、さっき作ったディレクトリも「前からある」
+        assert!(walk_made(&rf, &os(&["a"]), &mut HashSet::new()).is_err());
         fs::remove_dir_all(&root).unwrap();
         fs::remove_dir_all(&outside).unwrap();
     }
