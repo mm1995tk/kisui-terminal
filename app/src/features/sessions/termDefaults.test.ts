@@ -52,26 +52,13 @@ describe("マシンのターミナルの始め方（termDefaults）", () => {
       assert.notEqual(shellProblem(bad), undefined, bad);
   });
 
-  it("印のある kisui serve には、書いていない項目も空の文字列で渡す", () => {
-    assert.deepEqual(
-      createParams({ startDir: "~/w", shell: "/bin/zsh" }, true),
-      {
-        startDir: "~/w",
-        shell: "/bin/zsh",
-      },
-    );
-    assert.deepEqual(createParams({}, true), { startDir: "", shell: "" });
-    assert.deepEqual(shellParam({ startDir: "~/w" }, true), { shell: "" });
-    assert.deepEqual(shellParam({ shell: "/bin/zsh" }, true), {
+  it("書いていない項目も、空の文字列で渡す（serve が、前に渡したシェルを覚えたままにしない）", () => {
+    assert.deepEqual(createParams({ startDir: "~/w", shell: "/bin/zsh" }), {
+      startDir: "~/w",
       shell: "/bin/zsh",
     });
-  });
-
-  it("印の無い kisui serve には、何も渡さない", () => {
-    assert.deepEqual(
-      createParams({ startDir: "~/w", shell: "/bin/zsh" }, false),
-      {},
-    );
-    assert.deepEqual(shellParam({ shell: "/bin/zsh" }, false), {});
+    assert.deepEqual(createParams({}), { startDir: "", shell: "" });
+    assert.deepEqual(shellParam({ startDir: "~/w" }), { shell: "" });
+    assert.deepEqual(shellParam({ shell: "/bin/zsh" }), { shell: "/bin/zsh" });
   });
 });

@@ -342,7 +342,7 @@ export class Session {
         name: cmd.name,
       });
     }
-    const start = createParams(await defaults, true);
+    const start = createParams(await defaults);
     return shellChecked(
       conn.client.request("workspace.create", {
         ...start,
@@ -401,7 +401,7 @@ export class Session {
       if (defaults)
         return shellChecked(
           conn.client.request(method, {
-            ...shellParam(await defaults, true),
+            ...shellParam(await defaults),
             ...params,
           }),
         );

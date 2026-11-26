@@ -69,20 +69,17 @@ export function shellProblem(v: string): string | undefined {
 }
 
 /**
- * workspace.create に付ける引数。capable は、相手の kisui serve に TERM_DEFAULTS_CAPABILITY があるか（無ければ何も付けない）。
+ * workspace.create に付ける引数（TERM_DEFAULTS_CAPABILITY のある kisui serve にだけ送る。確かめるのは session.ts）。
  * 書いていない項目は、空の文字列で送る（「そのマシンの既定」。前に渡したシェルを、serve が覚えたままにしないように）。
  */
-export function createParams(
-  d: TermDefaults,
-  capable: boolean,
-): { startDir?: string; shell?: string } {
-  return capable ? { startDir: d.startDir ?? "", shell: d.shell ?? "" } : {};
+export function createParams(d: TermDefaults): {
+  startDir: string;
+  shell: string;
+} {
+  return { startDir: d.startDir ?? "", shell: d.shell ?? "" };
 }
 
-/** term.create・term.restart に付ける引数（シェルだけ。フォルダは、ワークスペースのフォルダ）。 */
-export function shellParam(
-  d: TermDefaults,
-  capable: boolean,
-): { shell?: string } {
-  return capable ? { shell: d.shell ?? "" } : {};
+/** term.create・term.restart に付ける引数（シェルだけ。フォルダは、ワークスペースのフォルダ）。送る相手は createParams と同じ。 */
+export function shellParam(d: TermDefaults): { shell: string } {
+  return { shell: d.shell ?? "" };
 }
