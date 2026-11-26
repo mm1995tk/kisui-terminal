@@ -104,13 +104,6 @@ func TestGwsSetShownInPaneListAndRestored(t *testing.T) {
 		t.Errorf("a control character in the name: %+v", p)
 	}
 	// 載っていないタブ（b）の対応は消える
-	// 名前の制御文字は空白に替える（名前の決まりは窓が持つ。断ると、このマシンの知らせが丸ごと通らなくなる）
-	if err := set(c1, map[string]any{"workspaceId": a, "id": "gaaaaaaaaaa", "name": "a\nb"}); err != nil {
-		t.Fatal(err)
-	}
-	if p := byID(srv1.paneList(""))[ta]; p.WorkspaceName != "a b" {
-		t.Errorf("a control character in the name: %+v", p)
-	}
 	if err := set(c1, map[string]any{"workspaceId": a, "id": "gaaaaaaaaaa", "name": "名前を変えた"}); err != nil {
 		t.Fatal(err)
 	}
