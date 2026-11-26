@@ -13,14 +13,15 @@ import (
 	"github.com/mm1995tk/kisui-terminal/rpc"
 )
 
-// fakeShell は、/bin/sh を指す、name という名前のシェル（どのシェルで始まったかを、パスで見分ける）。
+// fakeShell は、/bin/sh を動かす、name という名前のシェル（どのシェルで始まったかを、パスで見分ける）。
+// /bin/sh へのリンクにはしない：busybox の sh は、呼ばれた名前で動きを決めるので、別の名前では動かない。
 func fakeShell(t *testing.T, dir, name string) string {
 	t.Helper()
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
 	p := filepath.Join(dir, name)
-	if err := os.Symlink("/bin/sh", p); err != nil {
+	if err := os.WriteFile(p, []byte("#!/bin/sh\nexec /bin/sh \"$@\"\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	return p
