@@ -337,12 +337,8 @@ const buildPlaceKeys = (): Record<Place, PlaceKeys> => ({
         "ArrowUp",
       ]),
       row("Enter", T("place.browserWindow.run")),
-      row("h l / ← →", T("place.browserWindow.history"), [
-        "h",
-        "l",
-        "ArrowLeft",
-        "ArrowRight",
-      ]),
+      row("h / ←", T("leader.browser.back"), ["h", "ArrowLeft"]),
+      row("l / →", T("leader.browser.forward"), ["l", "ArrowRight"]),
       row("r", T("leader.browser.reload")),
       row("c", T("leader.browser.stop")),
       row("u", T("leader.browser.url")),
@@ -555,16 +551,17 @@ export const COMMON_KEYS: ReadonlySet<string> = new Set([
 
 /**
  * 場所 place の `?` の一覧の表から、keys の行（書き方が同じ行）を引いて、窓の下の段の 1 項目にする。
- * 出すキーと、テストで判定に通すキー（probes）は表の行のものを使うので、下の段・`?` の一覧・判定がずれない。表に無ければ投げる（書き間違い）。
+ * 出すキーと、テストで判定に通すキー（probes）は表の行のものを使うので（行が「h / ←」のように 1 つの操作に複数の書き方を持つときは、show で出すキーを選ぶ）、下の段・`?` の一覧・判定がずれない。表に無ければ投げる（書き間違い）。
  */
 export function placeItem(
   place: Place,
   keys: string,
   label: string,
+  show?: string[],
 ): FooterItem {
   const r = placeKeys()[place].rows.find((x) => x.keys === keys);
   if (!r) throw new Error(`placeKeys().${place} has no row "${keys}"`);
-  return { keys: keys.split(" "), label, probes: r.probes };
+  return { keys: show ?? keys.split(" "), label, probes: r.probes };
 }
 
 /** 窓の下の段（共通フッタ）に出すヒントの 1 項目（ui/components/KeyHints.tsx の KeyHint と同じ形）。 */
