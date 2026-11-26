@@ -751,6 +751,8 @@ export const en = {
   "file.tooLarge":
     "The {what} is too large to open ({size}; the limit is {max})",
   "file.fetchFailed": "Could not fetch the {what}: {reason}",
+  "file.wrongType":
+    "Cannot open the {what}: the file is not of a type this pane shows ({path})",
   "video.closePane": "Close the video pane",
   "video.unsupported":
     "This video cannot be played (the format is not supported)",

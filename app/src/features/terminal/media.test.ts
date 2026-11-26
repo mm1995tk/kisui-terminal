@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 import {
   baseName,
+  FILE_MIME,
+  fileMime,
   loadFile,
   MAX_BYTES,
   MAX_VIDEO_BYTES,
@@ -31,12 +34,36 @@ describe("loadFile", () => {
         };
       },
       new AbortController().signal,
+      "video/webm",
       (r) => seen.push(r),
     );
     assert.deepEqual(calls, [undefined, 4, 8]);
     assert.equal(blob.type, "video/webm");
     assert.equal(await blob.text(), body);
     assert.deepEqual(seen, [0.4, 0.8, 1]);
+  });
+
+  it("Blob の type は渡したもので、media.read の返事の mime は使わない", async () => {
+    const body = "<p>x</p>";
+    const served = async () => ({
+      mime: "text/html",
+      size: body.length,
+      data: b64(body),
+      eof: true,
+    });
+    const signal = new AbortController().signal;
+    const pdf = fileMime("pdf", "/a/doc.pdf", "text/html");
+    assert.equal(pdf, "application/pdf");
+    assert.equal(
+      (await loadFile(served, signal, pdf!)).type,
+      "application/pdf",
+    );
+    const png = fileMime("image", "/a/pic.png", "text/html");
+    assert.equal(png, "image/png");
+    assert.equal((await loadFile(served, signal, png!)).type, "image/png");
+    const mp4 = fileMime("video", "/a/clip.mp4", "text/html");
+    assert.equal(mp4, "video/mp4");
+    assert.equal((await loadFile(served, signal, mp4!)).type, "video/mp4");
   });
 
   it("大きすぎる動画は取らない", async () => {
@@ -49,6 +76,7 @@ describe("loadFile", () => {
           eof: false,
         }),
         new AbortController().signal,
+        "video/mp4",
       ),
       /too large/,
     );
@@ -62,7 +90,7 @@ describe("loadFile", () => {
       eof: false,
     });
     await assert.rejects(
-      loadFile(r, new AbortController().signal, () => {}, 10),
+      loadFile(r, new AbortController().signal, "image/png", () => {}, 10),
       /too large/,
     );
     assert.equal(tooLarge("image", MAX_BYTES.image! + 1), true);
@@ -76,6 +104,7 @@ describe("loadFile", () => {
       loadFile(
         async () => ({ mime: "video/mp4", size: 10, data: "", eof: false }),
         new AbortController().signal,
+        "video/mp4",
       ),
       /empty chunk/,
     );
@@ -85,13 +114,76 @@ describe("loadFile", () => {
     const ac = new AbortController();
     let n = 0;
     await assert.rejects(
-      loadFile(async () => {
-        n++;
-        ac.abort();
-        return { mime: "video/mp4", size: 10, data: b64("ab"), eof: false };
-      }, ac.signal),
+      loadFile(
+        async () => {
+          n++;
+          ac.abort();
+          return { mime: "video/mp4", size: 10, data: b64("ab"), eof: false };
+        },
+        ac.signal,
+        "video/mp4",
+      ),
     );
     assert.equal(n, 1);
+  });
+});
+
+describe("fileMime", () => {
+  it("ペインの種類と拡張子で決める（serve の言う型より先）", () => {
+    assert.equal(fileMime("pdf", "/a/b.PDF", "text/html"), "application/pdf");
+    assert.equal(fileMime("image", "/a/b.JPG", "text/html"), "image/jpeg");
+    assert.equal(fileMime("image", "/a/b.svg", "image/png"), "image/svg+xml");
+    assert.equal(
+      fileMime("video", "/a.b/c.mov", "text/html"),
+      "video/quicktime",
+    );
+    assert.equal(fileMime("video", "C:\\a\\c.webm", ""), "video/webm");
+  });
+
+  it("拡張子がその種類のものでなければ、serve の言う型がその種類の型のときだけ使う", () => {
+    // kisui open が中身から種類を決めたファイル（拡張子が無い・違う）
+    assert.equal(fileMime("image", "/a/photo", "image/png"), "image/png");
+    assert.equal(
+      fileMime("pdf", "/a/doc.bin", "application/pdf"),
+      "application/pdf",
+    );
+    assert.equal(fileMime("video", "/a.mp4/clip", "video/webm"), "video/webm");
+    // ほかの種類の型・HTML・空は使わない
+    assert.equal(fileMime("pdf", "/a/doc", "text/html"), undefined);
+    assert.equal(fileMime("pdf", "/a/doc.html", "text/html"), undefined);
+    assert.equal(fileMime("pdf", "/a/doc.png", "image/png"), undefined);
+    assert.equal(fileMime("image", "/a/photo", "application/pdf"), undefined);
+    assert.equal(fileMime("image", "/a/photo.pdf", ""), undefined);
+    assert.equal(fileMime("video", "/a/clip", "image/svg+xml"), undefined);
+  });
+
+  it("知らない種類は決めない", () => {
+    assert.equal(fileMime("html", "/a/b.html", "text/html"), undefined);
+    assert.equal(fileMime("constructor", "/a/b.png", "image/png"), undefined);
+    assert.equal(fileMime("", "/a/b.pdf", "application/pdf"), undefined);
+  });
+
+  it("拡張子の表は server/filekind.go の fileKinds と同じ", () => {
+    const go = readFileSync(
+      new URL("../../../../server/filekind.go", import.meta.url),
+      "utf8",
+    );
+    const start = go.indexOf("var fileKinds");
+    const table = go.slice(start, go.indexOf("\n}\n", start));
+    const want = new Map<string, Map<string, string>>();
+    let kind: Map<string, string> | undefined;
+    for (const line of table.split("\n")) {
+      const k = /^\t"([a-z]+)": \{/.exec(line);
+      if (k) want.set(k[1]!, (kind = new Map()));
+      for (const m of line.matchAll(/"(\.[a-z0-9]+)":\s*"([^"]+)"/g))
+        kind!.set(m[1]!, m[2]!);
+    }
+    const sorted = (t: ReadonlyMap<string, ReadonlyMap<string, string>>) =>
+      [...t]
+        .map(([k, v]) => [k, [...v].sort()] as const)
+        .sort(([a], [b]) => a.localeCompare(b));
+    assert.equal(want.size, 3);
+    assert.deepEqual(sorted(FILE_MIME), sorted(want));
   });
 });
 

@@ -748,6 +748,8 @@ export const ja: Record<Key, string> = {
   "file.loading": "{what}を取っています… {percent}%",
   "file.tooLarge": "{what}が大きすぎて開けません（{size}。上限は {max}）",
   "file.fetchFailed": "{what}を取れませんでした：{reason}",
+  "file.wrongType":
+    "{what}を開けません：このペインが扱う形式のファイルではありません（{path}）",
   "video.closePane": "動画のペインを閉じる",
   "video.unsupported": "この動画は再生できません（形式に対応していません）",
   "video.loading": "動画を取っています… {percent}%",

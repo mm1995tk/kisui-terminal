@@ -5,6 +5,7 @@ import type { ExtraPane } from "../../../../infrastructure/rpc/protocol.ts";
 import { formatBytes } from "../../../../features/file-transfer/transfer.ts";
 import {
   fileLabel,
+  fileMime,
   loadFile,
   maxBytes,
   tooLarge,
@@ -50,9 +51,19 @@ export function createFileSource(
           });
           return;
         }
+        // Blob の type は serve の返事をそのまま使わず、ペインの種類と拡張子から決める（fileMime）。決まらなければ取らない
+        const type = fileMime(p.kind, p.path, p.mime);
+        if (!type) {
+          setLoad({
+            kind: "error",
+            text: T("file.wrongType", { what, path: p.path }),
+          });
+          return;
+        }
         loadFile(
           read(),
           ac.signal,
+          type,
           (ratio) => setLoad({ kind: "loading", ratio }),
           maxBytes(p.kind),
         ).then(
