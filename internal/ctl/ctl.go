@@ -6,7 +6,9 @@
 package ctl
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -59,8 +61,14 @@ type Response struct {
 // this user's editors: $XDG_RUNTIME_DIR/shijimi<suffix>-<uid>. The build says
 // the suffix: "-nightly" for a nightly build, so that shj and shj-nightly do
 // not touch each other's sockets, and "" for the stable one. Without
-// XDG_RUNTIME_DIR it is under the temporary directory. With create, the
-// directory is made and its mode is enforced.
+// XDG_RUNTIME_DIR it is under the temporary directory.
+//
+// With create, the directory is made (0700) when it is not there, and checked
+// with CheckSocketDir whether it was there or not: the temporary directory is
+// one that every user can write to, so a directory of that name is not
+// trusted for being there. One that does not pass is an error
+// (*SocketDirError); its owner and permission are not changed. Without
+// create, the path is returned unchecked.
 func SocketDir(suffix string, create bool) (string, error) {
 	base := os.Getenv("XDG_RUNTIME_DIR")
 	if base == "" {
@@ -70,10 +78,17 @@ func SocketDir(suffix string, create bool) (string, error) {
 	if !create {
 		return dir, nil
 	}
-	if err := os.MkdirAll(dir, 0o700); err != nil {
+	// The directory above is the one the environment names. It is made when
+	// it is missing.
+	if err := os.MkdirAll(base, 0o700); err != nil {
 		return "", err
 	}
-	if err := os.Chmod(dir, 0o700); err != nil {
+	// Mkdir does not follow a symbolic link at dir, and fails when anything
+	// is there. Whatever is there after it is checked.
+	if err := os.Mkdir(dir, 0o700); err != nil && !errors.Is(err, fs.ErrExist) {
+		return "", err
+	}
+	if err := CheckSocketDir(dir); err != nil {
 		return "", err
 	}
 	return dir, nil

@@ -40,7 +40,7 @@ Issue #270 の設計書（親は #271）。決めるのは次の 2 つ。
 
 - `kisui serve`：画面を持たない（headless）常駐プロセス。編集はせず、ワークスペース・ターミナル・ファイルツリー・プライマリの `shj` との連携だけを持つ。ユーザーごと・チャンネルごと（nightly は別）に 1 つ。
 - `kisui attach`：ssh の先で動く小さな橋渡し。標準入出力と `kisui serve` の Unix ソケットをつなぐ。ssh が切れると終わるが、`kisui serve` は残る。
-- ソケットの置き場所は今の制御用ソケットと同じ作り（`$XDG_RUNTIME_DIR/shijimi-<uid>/`、0700。nightly は `shijimi-nightly-<uid>`）。
+- ソケットの置き場所は今の制御用ソケットと同じ作り（`$XDG_RUNTIME_DIR/shijimi-<uid>/`、0700。nightly は `shijimi-nightly-<uid>`）。`XDG_RUNTIME_DIR` が無いときは一時フォルダの下で、そこはほかのユーザーも書けることがある。だから `kisui serve` と `kisui attach` は使う前に、ペインの中のコマンド（`kisui open` など）はつなぐ前に、置き場が「シンボリックリンクでないディレクトリ・持ち主が自分・権限が 0700」であることを確かめる（`ctl.CheckSocketDir`）。合わなければ、理由を出して使わない（持ち主も権限も直さない）。無ければ 0700 で作ってから同じに確かめる。
 
 ## 1. 中身と TUI の描画の境目
 
@@ -665,7 +665,7 @@ GUI はシステムの `ssh` を子プロセスとして起動する（`~/.ssh/c
    - **版によらないフォルダ**（#166）：PATH に足すのは、上のフォルダそのものではなく `<キャッシュ>/kisui-terminal/current<チャンネル>/`（Linux は `~/.cache/kisui-terminal/current/`、macOS は `~/Library/Caches/kisui-terminal/current/`。nightly は `current-nightly`）。中の `shj` と `kisui` は、上の `shj` と serve 自身の実行ファイルへのシンボリックリンクで、serve が始まるとき（引き継いだときも）とターミナルを始めるたびに向け直す。シェルの `KISUI_EXE`（`pbcopy`・`pbpaste` が呼ぶ kisui）と `KISUI_SHJ_PATH_DIR` もこのフォルダを指す。版を上げて serve が引き継いでも、前から開いているシェルの環境変数は変わらないので、版ごとのフォルダを渡すと古い版を起動し続ける（古い版のフォルダが消されると動かなくなる）。そのための仕組み。向け直しは一時的な名前でリンクを作ってから rename する（途中で起動しても、前か今の版のどちらかの完全なリンクが見える）。フォルダは 0700 で作り、キャッシュのフォルダ・`kisui-terminal`・`current` のどれかをほかのユーザーが書き換えられる（持ち主が本人でない、グループかほかの人が書ける、`kisui-terminal` か `current` がシンボリックリンク）ときは使わず、版ごとのフォルダを渡す。ただし `kisui-terminal` と `current` が本人のフォルダ（シンボリックリンクでない）なら、グループとほかの人の書き込みは落としてから確かめる（umask 002 のホストでは、グループに書ける許可で作られるため。GUI もリモートに入れるとき `chmod go-w` する）。同梱の shj が無ければ `shj` のリンクを消す。実行ファイルの名前が `kisui` でないとき（`go test`・`go run`）は触らない。
 5. **版が違う `kisui serve` が動いていたら**：`attach` は版が違っても動いているサーバーにつなぐ（`attach` は入れ替えない）。GUI が `session.hello` の結果と `attach.info` を比べて気づき、ユーザーに聞かずに、`server.handover` に `kisui attach` 自身の実行ファイル（ローカルならアプリに同梱した kisui、リモートなら 1 の場所。`attach.info` の `executable`）を渡して入れ替えさせる（前の節の「版が違うとき」、「`kisui serve` の引き継ぎ」の節）。リモートに GUI の版の kisui が無ければ、今までどおり 1 で入れるかを聞いてから入れ、入れた kisui の `attach` が名乗ったところで入れ替える。
 
-セキュリティ：Unix ソケットは 0700 のフォルダの中（自分のユーザーだけ）。`kisui serve` はネットワークに待ち受けない。リモートの認証は ssh に任せる。`kisui attach` の段階で追加の認証はしない（同じユーザーなら元々シェルを開ける）。
+セキュリティ：Unix ソケットは 0700 のフォルダの中（自分のユーザーだけ）。そのフォルダは、使う前に持ち主と権限を確かめる（上の「ソケットの置き場所」）。`kisui serve` はネットワークに待ち受けない。リモートの認証は ssh に任せる。`kisui attach` の段階で追加の認証はしない（同じユーザーなら元々シェルを開ける）。
 
 ### サーバーモード（`kisui serve`）の中身
 
