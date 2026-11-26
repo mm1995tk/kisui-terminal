@@ -174,12 +174,12 @@ func (s *Server) paneCmd(rq panecmd.Request) (panecmd.Reply, error) {
 		return panecmd.Reply{}, errNotAPane
 	}
 	if rq.Machine != "" { // 別のマシンのペイン（--machine）は、手元の GUI に中継させる（panerelay.go）
-		return s.paneRelayStart(rq)
+		return s.paneRelayStart(t, rq)
 	}
 	if isDBCmd(rq) { // kisui db（dbcmd.go）
 		return s.dbCmd(rq)
 	}
-	if r, err, ok := s.paneOther(rq, t.id); ok {
+	if r, err, ok := s.paneOther(rq, paneOrigin{Pane: t.id}, t.id); ok {
 		return r, err
 	}
 	switch rq.Cmd {
@@ -216,26 +216,35 @@ func (s *Server) paneCmd(rq panecmd.Request) (panecmd.Reply, error) {
 }
 
 // paneOther は、名前か id で指したこのマシンのペインへの頼み（read・list・send・keys・close）を行う。
-// 頼んだペインによらないので、ほかのマシンから GUI が中継した頼み（pane.run）にも使う。self は list の Self に印を付ける
-// ペイン（中継なら空）。ほかの頼みなら ok は false。
-func (s *Server) paneOther(rq panecmd.Request, self string) (r panecmd.Reply, err error, ok bool) {
+// ほかのマシンから GUI が中継した頼み（pane.run）にも使う。caller は頼んだペイン（中継なら、別のマシンのペイン）で、
+// 届くのは caller と、caller が作ったペインの先だけ（panereach.go）。self は list の Self に印を付けるペイン（中継なら空）。
+// ほかの頼みなら ok は false。
+func (s *Server) paneOther(rq panecmd.Request, caller paneOrigin, self string) (r panecmd.Reply, err error, ok bool) {
+	switch rq.Cmd {
+	case "list":
+		return panecmd.Reply{Panes: s.paneList(caller, self)}, nil, true
+	case "read", "send", "keys", "close":
+	default:
+		return panecmd.Reply{}, nil, false
+	}
+	// 相手を先に引いて、届いてよいかを確かめる。あとは id で指す（id の形の名前は付けられないので、同じペインに当たる）
+	t, err := s.reachable(caller, rq.To)
+	if err != nil {
+		return panecmd.Reply{}, err, true
+	}
 	switch rq.Cmd {
 	case "read":
-		text, id, err := s.terms.readScreen(rq.To, rq.Lines)
+		text, id, err := s.terms.readScreen(t.id, rq.Lines)
 		return panecmd.Reply{ID: id, Text: text}, err, true
-	case "list":
-		return panecmd.Reply{Panes: s.paneList(self)}, nil, true
 	case "send":
-		id, err := s.terms.sendText(rq.To, rq.Text)
+		id, err := s.terms.sendText(t.id, rq.Text)
 		return panecmd.Reply{ID: id}, err, true
 	case "keys":
-		id, err := s.terms.sendKeys(rq.To, rq.Keys)
-		return panecmd.Reply{ID: id}, err, true
-	case "close":
-		id, err := s.ws.closeByName(rq.To)
+		id, err := s.terms.sendKeys(t.id, rq.Keys)
 		return panecmd.Reply{ID: id}, err, true
 	}
-	return panecmd.Reply{}, nil, false
+	id, err := s.ws.closeByName(t.id)
+	return panecmd.Reply{ID: id}, err, true
 }
 
 // paneTarget は kisui open の相手（URL でないもの）から欄を作る（ID は付けない）。絶対パスのファイルとして、
@@ -319,7 +328,12 @@ func (w *wsManager) splitFrom(wsID string, rq panecmd.Request) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	t, err := terms.start(termStart{cols: 80, rows: 24, dir: dir, env: env, wsID: wsID, argv: rq.Argv, name: name})
+	// 作ったペインには、打ったペインの系譜を持たせる（打ったペインから届くように。panereach.go）
+	var ancestors []paneOrigin
+	if from, err := terms.get(rq.Pane); err == nil {
+		ancestors = w.srv.childAncestors(from)
+	}
+	t, err := terms.start(termStart{cols: 80, rows: 24, dir: dir, env: env, wsID: wsID, argv: rq.Argv, name: name, ancestors: ancestors})
 	if err != nil {
 		return "", err
 	}

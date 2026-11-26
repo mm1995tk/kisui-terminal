@@ -130,15 +130,18 @@ type terminal struct {
 	cols, rows int
 	title      string
 	name       string // 欄の名前（kisui pane title。空なら無い）。OSC のタイトル（title）とは別
-	alive      bool
-	ring       []byte // 循環バッファ。直近 ringSize バイトが入っている
-	total      int64  // これまでに読んだバイト数（seq）
-	sent       int64  // ここまで送った
-	acked      int64  // GUI が処理したと言ったところ
-	osc        oscScan
-	modes      modeScan    // 送り方に関わるモード（panesend.go）
-	feed       *screenFeed // 画面の状態を持つ coneko-term（screen.go）。term.attach はこの書き出しを返す
-	base       int64       // リングに入っている一番古い seq の下限（引き継いだときは、受け取ったリングの先頭）
+	// ancestors は、このペインを作ったペインの系譜（古いほうから。panereach.go）。作るときに決まり、変わらない。
+	// この serve のペインは Server が空。人が窓で開いたペインは空
+	ancestors []paneOrigin
+	alive     bool
+	ring      []byte // 循環バッファ。直近 ringSize バイトが入っている
+	total     int64  // これまでに読んだバイト数（seq）
+	sent      int64  // ここまで送った
+	acked     int64  // GUI が処理したと言ったところ
+	osc       oscScan
+	modes     modeScan    // 送り方に関わるモード（panesend.go）
+	feed      *screenFeed // 画面の状態を持つ coneko-term（screen.go）。term.attach はこの書き出しを返す
+	base      int64       // リングに入っている一番古い seq の下限（引き継いだときは、受け取ったリングの先頭）
 
 	pumpDone chan struct{} // 今の pump が終わると閉じる。pump が無ければ nil（mu で守る）
 	pause    pauser        // 引き継ぎ（handover.go）のために pump を止める
@@ -234,6 +237,8 @@ type termStart struct {
 	primary    bool
 	argv       []string // 空でなければ、シェルの代わりに動かすコマンド（kisui pane split・kisui pane open のコマンド）。分割した欄は終わると閉じ、プライマリは残る（keepOnExit）
 	name       string   // 欄の名前（kisui pane split --name）。呼ぶ側が nameMu を持って、重ならないことを確かめておく
+	// ancestors は、このペインを作ったペインの系譜（panereach.go。人が窓で開いたペインは空）
+	ancestors []paneOrigin
 }
 
 // start はシェルを始めてターミナルを足す。ワークスペースの一覧は作り直さない（呼ぶ側がする）。
@@ -291,7 +296,7 @@ func (m *termManager) start(a termStart) (*terminal, error) {
 	t := &terminal{
 		mgr: m, id: fmt.Sprintf("t%d", m.next), pid: sess.Pid(),
 		ptmx: ptmx, cmd: cmd, process: cmd.Process, cols: a.cols, rows: a.rows, alive: true,
-		ring: make([]byte, ringSize), wsID: a.wsID, primary: a.primary, keepOnExit: a.primary && len(a.argv) > 0, token: token, name: a.name,
+		ring: make([]byte, ringSize), wsID: a.wsID, primary: a.primary, keepOnExit: a.primary && len(a.argv) > 0, token: token, name: a.name, ancestors: a.ancestors,
 		feed: newScreenFeed(m.srv.log, a.rows, a.cols),
 	}
 	t.cwd = normalizePath(a.dir) // 以後 cwd の変化を見るので、読み取った値（実パス）に合わせる

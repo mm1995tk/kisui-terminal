@@ -58,6 +58,10 @@ type Options struct {
 	// serve は、このマシンの既定を使うたびに呼ぶ（shell.go の machineDefaults。設定を変えた次のターミナルから、serve を止めずに効かせる）。
 	// 読めない・間違いがある間は ok == false を返す（serve は最後に読めた値を使う）。nil なら読み直さず、StartDir・Shell のまま。
 	ReadDefaults func() (startDir, shell string, ok bool)
+	// PaneReachAll は、設定ファイルの [server] pane_reach が "all" か（ペインの中のコマンドが、このマシンの全部のペインに届いてよいか。
+	// panereach.go）。serve は使うたびに呼ぶ（設定を変えたら、serve を止めずに効く）。読めない・間違いがある間は false を返す。
+	// nil なら、いつも false（自分が作ったペインだけ）。
+	PaneReachAll func() bool
 	// StatePath はワークスペースの一覧を保存するファイル。"" なら保存も復元もしない。
 	StatePath string
 	// CwdInterval はシェルの cwd を読む間隔。0 なら 1 秒。

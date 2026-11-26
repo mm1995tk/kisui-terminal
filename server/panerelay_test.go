@@ -126,7 +126,7 @@ func TestPaneCmdRelay(t *testing.T) {
 // pane.run は、別のマシンから GUI が中継した頼みを、このマシンで行う。断るときも返事の error で答える。
 func TestPaneRun(t *testing.T) {
 	t.Setenv("HOME", normalizePath(t.TempDir()))
-	srv, sock := startFast(t)
+	srv, sock := startFastAll(t)
 	c, _ := termClient(t, sock)
 	_, primary := createWS(t, c)
 	tm, err := srv.terms.get(primary)

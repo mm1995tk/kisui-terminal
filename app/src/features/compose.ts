@@ -143,7 +143,7 @@ export function createFeatures(deps: {
             openUrlFor: pages.openUrlFor,
             checkNow: updates.checkNow,
             openTab: (t, rq) => openTab(t, rq),
-            relay: (from, m, rq) => relay(from, m, rq),
+            relay: (from, m, rq, by) => relay(from, m, rq, by),
             dbPropose: (t, rq) => db.propose(t, rq),
             dbProposeCancel: (t, id) => db.cancelPropose(t, id),
             zoomWs: terminals.zoomWs,

@@ -175,7 +175,8 @@ func (w *wsManager) splitPane(claim *primaryShj, wsID string, rq ctl.PaneRequest
 	if err != nil {
 		return "", err
 	}
-	t, err := w.srv.terms.start(termStart{cols: 80, rows: 24, dir: dir, env: env, wsID: wsID})
+	// shj が足すペインは、プライマリターミナル（shj が動いている所）が作ったペインとして数える（panereach.go）
+	t, err := w.srv.terms.start(termStart{cols: 80, rows: 24, dir: dir, env: env, wsID: wsID, ancestors: w.srv.primaryAncestors(wsID)})
 	if err != nil {
 		return "", err
 	}

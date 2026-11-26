@@ -446,3 +446,10 @@ func TestWorkspaceCreateWithDir(t *testing.T) {
 		}
 	}
 }
+
+// startFastAll は、ペインの中のコマンドが全部のペインに届く設定（[server] pane_reach = "all"）の startFast。
+// 届く範囲によらない動き（送る・読む・名前）を、別のワークスペースのペインどうしで確かめるテストが使う。
+func startFastAll(t *testing.T) (*Server, string) {
+	t.Helper()
+	return startFastWith(t, func(o *Options) { o.PaneReachAll = func() bool { return true } })
+}

@@ -90,9 +90,10 @@ func (m *termManager) find(target string) (*terminal, error) {
 	return nil, fmt.Errorf("%w: %q", errPaneAmbiguous, target)
 }
 
-// paneList は kisui pane list。この serve の全部のターミナル（どのワークスペースのものでも）を、ワークスペースを作った順に、
+// paneList は kisui pane list。この serve のターミナル（どのワークスペースのものでも）のうち、caller のペインから届くもの
+// （panereach.go。自分と、自分が作ったペインの先。設定で広げていれば全部）を、ワークスペースを作った順に、
 // それぞれのプライマリターミナルを先にして返す。self は頼んだターミナル。
-func (s *Server) paneList(self string) []panecmd.PaneInfo {
+func (s *Server) paneList(caller paneOrigin, self string) []panecmd.PaneInfo {
 	type tab struct {
 		seq  int
 		name string
@@ -109,6 +110,9 @@ func (s *Server) paneList(self string) []panecmd.PaneInfo {
 	s.ws.mu.Unlock()
 	out := []panecmd.PaneInfo{}
 	for _, t := range s.terms.all() {
+		if !s.canReach(caller, t) {
+			continue
+		}
 		t.mu.Lock()
 		p := panecmd.PaneInfo{ID: t.id, Name: t.name, Tab: t.wsID, Cwd: t.cwd, Title: t.title, Primary: t.primary, Alive: t.alive, Self: t.id == self}
 		t.mu.Unlock()

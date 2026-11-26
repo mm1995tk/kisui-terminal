@@ -19,7 +19,7 @@ import (
 // kisui pane send / keys / close は、名前か id で指したほかのペイン（別のワークスペースのものでも）に効く。
 func TestPaneCmdSendKeysClose(t *testing.T) {
 	t.Setenv("HOME", normalizePath(t.TempDir()))
-	srv, sock := startFast(t)
+	srv, sock := startFastAll(t)
 	c, nt := termClient(t, sock)
 	_, p1 := createWS(t, c)
 	ws2, p2 := createWS(t, c)
