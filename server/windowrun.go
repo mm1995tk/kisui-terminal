@@ -7,7 +7,7 @@ package server
 // Window の window.ran {id, result?, error?, code?} を待って、result をそのままコマンドに返す。command は、行うことの名前
 // （Command の id と同じ形。"tab.rename" など）、args はその引数（JSON のオブジェクト）。何ができるか・その頼みを通してよいかは
 // Window が決める：window.run は頼んだ Machine の serve が作る通知なので、Window は、通知を送ってきた serve の Machine と手元の設定だけで
-// 届く範囲を決める（app/src/features/sessions/windowReach.ts）。CLI を足すときは、serve は変えずに、コマンドと Window の受け口を足す。
+// 届く範囲を決める（app/src/features/sessions/machines.ts の windowReachAllowed）。CLI を足すときは、serve は変えずに、コマンドと Window の受け口を足す。
 //
 // Window は session.hello の capabilities に "window.run" を入れて、受けられることを知らせる。入れていない古い Window には送らずに断る。
 // 待つのは windowWait まで。頼みの long が true なら（Window が人に聞くことがある頼み）windowRunLongWait まで。待つのをやめたら
