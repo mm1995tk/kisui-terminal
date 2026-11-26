@@ -26,6 +26,11 @@ export interface Machine {
   name?: string;
   /** config.toml にだけ書いたマシン。窓からは外せず、名前も変えられない（窓は config.toml に書かない） */
   fixed?: boolean;
+  /**
+   * このマシンのペインが `kisui pane … --machine` で指してよいマシンの名前（設定ファイルの `allow_pane_to`）。
+   * 設定ファイルの一覧（fromConfig）だけが付ける。窓からは書かない。
+   */
+  allowPaneTo?: string[];
 }
 
 /** 前の版の、窓で足したマシンの記録（localStorage のキー。値は Machine の JSON 配列）。config.local.toml に移すときだけ読む。 */
@@ -179,6 +184,8 @@ export interface ConfigMachine {
   startDir?: string | null;
   /** このマシンの新しいターミナルのシェル（shell。termDefaults.ts）。書いていなければ無い */
   shell?: string | null;
+  /** allow_pane_to：このマシンのペインが `--machine` で指してよいマシンの名前（省くと空） */
+  allowPaneTo?: string[] | null;
 }
 
 /** サイドバーに出すマシンの一覧（設定ファイルの順）。config.toml にだけ書いたマシンは fixed（窓から変えない）。 */
@@ -187,6 +194,7 @@ export function fromConfig(config: ConfigMachine[]): Machine[] {
     const m: Machine = c.name
       ? { target: c.ssh, name: c.name }
       : { target: c.ssh };
+    if (c.allowPaneTo?.length) m.allowPaneTo = c.allowPaneTo;
     return c.local ? m : { ...m, fixed: true };
   });
 }
@@ -261,4 +269,35 @@ export function machineNames(list: Machine[]): string[] {
  */
 export function localNamed(list: Machine[]): string[] {
   return list.filter((m) => nameOf(m) === LOCAL_MACHINE).map((m) => m.target);
+}
+
+/**
+ * マシン from（ssh の行き先。手元の PC は LOCAL）のペインの `kisui pane … --machine` を、マシン to に中継してよいか。
+ * 手元の PC からは、どのマシンにも中継する（そのマシンには、窓がもう ssh でつないでいる）。自分のマシンを指したものも通す。
+ * ssh 先のマシンからは、そのマシンの `allow_pane_to`（設定ファイル）に名前のある先にだけ中継する。書いていなければ、どこにも中継しない。
+ * 中継を頼む通知は ssh 先の serve が作るので、頼んだ serve の言うことではなく、手元の設定で決める。
+ */
+export function paneRelayAllowed(
+  list: Machine[],
+  from: string,
+  to: string,
+): boolean {
+  if (from === LOCAL || from === to) return true;
+  const allowed = list.find((m) => m.target === from)?.allowPaneTo ?? [];
+  return allowed.some((name) => machineTarget(list, name) === to);
+}
+
+/**
+ * `allow_pane_to` に書いてあるが、その名前のマシンが無いもの（書き間違い。お知らせに出す）。
+ * マシンごとに、そのマシンの名前と、無い名前の一覧。
+ */
+export function unknownAllowPaneTo(
+  list: Machine[],
+): { machine: string; names: string[] }[] {
+  return list.flatMap((m) => {
+    const names = (m.allowPaneTo ?? []).filter(
+      (n) => machineTarget(list, n) === undefined,
+    );
+    return names.length > 0 ? [{ machine: nameOf(m), names }] : [];
+  });
 }

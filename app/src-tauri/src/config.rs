@@ -23,6 +23,10 @@
 //! `[[gui.machines]]` の項目の `start_dir` と `shell`（そのマシンの新しいターミナルが始まるフォルダとシェル。#485）は、そのマシンでのパスで、
 //! 手元では有るかを確かめられないので、形だけを確かめる（`start_dir` は絶対パスか `~`・`~/…`、`shell` は絶対パスか `~/…`。制御文字は書けない）。
 //! 手元のマシンの分は `[server] start_dir` と `[server] shell`（kisui と同じ項目。`[server]` はキーごとに重ね、`config.local.toml` が勝つ）。
+//! `[[gui.machines]]` の項目の `allow_pane_to`（そのマシンのペインが `kisui pane --machine` で指してよいマシンの名前。`local` は手元の PC）は、
+//! 名前の一覧で、省くと空（そのマシンからは、ほかのどのマシンにも届かない）。ここでは空の名前だけを断り、その名前のマシンがあるかは画面が見る
+//! （app/src/features/sessions/machines.ts の `paneRelayAllowed`・`unknownAllowPaneTo`）。項目は丸ごと代わるので、`config.toml` にだけ書いた
+//! `allow_pane_to` は、`config.local.toml` に同じ ssh の行き先の項目があれば引き継がない（`name` と同じ）。窓はこのキーを書かない。
 //! 窓は、新しいターミナルを作るたびに設定を読み直し、そのマシンの `kisui serve` に渡す（app/src/features/sessions/termDefaults.ts）。
 //! `[server]` を確かめるのは kisui（`config/config.go`。間違いがあれば `kisui serve` が起動せず、理由を出す）なので、ここでは
 //! 文字列でない値・形の違う値を、書いていないのと同じに扱う（間違いにしない）。
@@ -57,6 +61,10 @@ pub struct ConfigMachine {
     /// このマシンの新しいターミナルが始まるフォルダとシェル（`start_dir`・`shell`）
     #[serde(flatten)]
     pub terminal: TermDefaults,
+    /// このマシンのペインが `kisui pane --machine` で指してよいマシンの名前（`allow_pane_to`。`local` は手元の PC）。
+    /// 省くと空で、このマシンからは別のマシンのペインに届かない。その名前のマシンがあるかは画面が見る
+    #[serde(rename = "allowPaneTo")]
+    pub allow_pane_to: Vec<String>,
 }
 
 /// マシン 1 台の、新しいターミナルが始まるフォルダとシェル（#485）。書いていない項目は None（そのマシンの設定のまま）。
@@ -75,6 +83,7 @@ struct ParsedMachine {
     ssh: String,
     name: Option<String>,
     terminal: TermDefaults,
+    allow_pane_to: Vec<String>,
     /// 一覧の中の番号（0 始まり）
     index: usize,
     /// 名前（無ければ ssh の行き先）を書いた行
@@ -185,6 +194,7 @@ struct Entry {
     name: Option<Spanned<String>>,
     start_dir: Option<Spanned<String>>,
     shell: Option<Spanned<String>>,
+    allow_pane_to: Option<Vec<Spanned<String>>>,
 }
 
 /// 制御文字が無く、長すぎないか（パスの形の確かめの共通の部分）。
@@ -354,6 +364,7 @@ fn overlay_machines(
             name: m.name.clone(),
             local,
             terminal: m.terminal.clone(),
+            allow_pane_to: m.allow_pane_to.clone(),
         };
         match base.iter_mut().find(|b| b.ssh == m.ssh) {
             Some(b) => *b = machine,
@@ -591,6 +602,7 @@ fn parse_file(text: &str) -> Result<Option<Vec<ConfigMachine>>, (Option<usize>, 
                 name: m.name,
                 local: false,
                 terminal: m.terminal,
+                allow_pane_to: m.allow_pane_to,
             })
             .collect()
     };
@@ -799,10 +811,25 @@ fn check_machines(
             )?,
         };
         let line = line_of(text, e.name.as_ref().unwrap_or(&e.ssh).span().start);
+        // 前後の空白を除き、重なりは 1 つにまとめる
+        let mut allow_pane_to: Vec<String> = Vec::new();
+        for (j, m) in e.allow_pane_to.iter().flatten().enumerate() {
+            let t = m.get_ref().trim();
+            if t.is_empty() {
+                return Err((
+                    at(m),
+                    format!("gui.machines[{i}].allow_pane_to[{j}]: 名前が空です"),
+                ));
+            }
+            if !allow_pane_to.iter().any(|x| x == t) {
+                allow_pane_to.push(t.to_string());
+            }
+        }
         out.push(ParsedMachine {
             ssh,
             name,
             terminal,
+            allow_pane_to,
             index: i,
             line,
         });
@@ -843,12 +870,14 @@ mod tests {
                     name: Some("dev".into()),
                     local: false,
                     terminal: TermDefaults::default(),
+                    allow_pane_to: vec![],
                 },
                 ConfigMachine {
                     ssh: "build".into(),
                     name: None,
                     local: false,
                     terminal: TermDefaults::default(),
+                    allow_pane_to: vec![],
                 },
             ]
         );
@@ -968,6 +997,7 @@ mod tests {
             name: None,
             local: false,
             terminal: TermDefaults::default(),
+            allow_pane_to: vec![],
         }
     }
 
@@ -978,6 +1008,7 @@ mod tests {
             name: name.map(str::to_string),
             local: true,
             terminal: TermDefaults::default(),
+            allow_pane_to: vec![],
         }
     }
 
@@ -1498,6 +1529,50 @@ mod tests {
         }
     }
 
+    // allow_pane_to は、前後の空白を除いて重なりをまとめる。省くと空。名前のマシンがあるかは、ここでは見ない
+    #[test]
+    fn reads_allow_pane_to() {
+        let got = parse(
+            "[[gui.machines]]\nssh = \"dev-vm\"\nname = \"dev\"\nallow_pane_to = [\"local\", \" build \", \"build\", \"nope\"]\n\n[[gui.machines]]\nssh = \"build\"\n",
+        )
+        .unwrap();
+        assert_eq!(got[0].allow_pane_to, vec!["local", "build", "nope"]);
+        assert_eq!(got[1].allow_pane_to, Vec::<String>::new());
+        let (line, why) = err("[[gui.machines]]\nssh = \"a\"\nallow_pane_to = [\"b\", \" \"]\n");
+        assert_eq!(line, Some(3));
+        assert!(why.contains("allow_pane_to[1]"), "{why}");
+        let (line, _) = err("[[gui.machines]]\nssh = \"a\"\nallow_pane_to = \"b\"\n");
+        assert_eq!(line, Some(3));
+    }
+
+    // 画面には allowPaneTo の名前で渡す（app/src/features/sessions/machines.ts の ConfigMachine）
+    #[test]
+    fn allow_pane_to_reaches_the_window_as_camel_case() {
+        let got = parse("[[gui.machines]]\nssh = \"a\"\nallow_pane_to = [\"local\"]\n").unwrap();
+        let v = serde_json::to_value(&got).unwrap();
+        assert_eq!(v[0]["allowPaneTo"], serde_json::json!(["local"]));
+    }
+
+    // 項目は丸ごと代わる：config.local.toml に同じ ssh の行き先の項目があれば、config.toml の allow_pane_to は引き継がない
+    #[test]
+    fn local_entry_does_not_inherit_allow_pane_to() {
+        let d = temp_dir("allow-pane-to-overlay");
+        fs::write(
+            d.join("config.toml"),
+            "[[gui.machines]]\nssh = \"a\"\nallow_pane_to = [\"local\"]\n\n[[gui.machines]]\nssh = \"b\"\nallow_pane_to = [\"a\"]\n",
+        )
+        .unwrap();
+        fs::write(
+            d.join("config.local.toml"),
+            "[[gui.machines]]\nssh = \"a\"\nname = \"dev\"\n",
+        )
+        .unwrap();
+        let got = load_dir(&d).unwrap();
+        assert_eq!(got[0].allow_pane_to, Vec::<String>::new());
+        assert_eq!(got[1].allow_pane_to, vec!["a"]);
+        let _ = fs::remove_dir_all(&d);
+    }
+
     // マシンごとの start_dir と shell。そのマシンでのパスなので、形だけを確かめる
     #[test]
     fn machine_start_dir_and_shell() {
@@ -1522,7 +1597,7 @@ mod tests {
         // 画面へは startDir・shell の名前で、マシンの項目に並べて渡す
         assert_eq!(
             serde_json::to_string(&got[0]).unwrap(),
-            r#"{"ssh":"a","name":null,"local":false,"startDir":"~/work","shell":"/usr/bin/fish"}"#
+            r#"{"ssh":"a","name":null,"local":false,"startDir":"~/work","shell":"/usr/bin/fish","allowPaneTo":[]}"#
         );
         for (text, key, line) in [
             ("start_dir = \"work\"", "start_dir", 3),

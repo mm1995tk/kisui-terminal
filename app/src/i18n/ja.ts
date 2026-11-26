@@ -271,6 +271,10 @@ export const ja: Record<Key, string> = {
   "notice.localMachine.title": "マシンの名前 local は予約語です",
   "notice.localMachine.text":
     "kisui pane の --machine では、local は常に手元の PC を指すので、{machines} を --machine で選べません。別の名前を付けてください。config.toml で決めたマシンは config.toml の [[gui.machines]] で、ほかのマシンはマシンのダイアログ（{leader} m）の n で変えます。",
+  "notice.allowPaneTo.title":
+    "allow_pane_to に、どのマシンの名前でもない項目があります",
+  "notice.allowPaneTo.text":
+    "この名前のマシンが無いので、何も許しません。マシンの名前（[[gui.machines]] の name、無ければ ssh の行き先）か、手元の PC を指す local を書いてください。",
   "notice.passkeySites.title": "passkey_sites に使えない項目があります",
   "notice.passkeySites.text":
     "次の項目は公開サフィックス（.com・.github.io のように、誰でもその下にサブドメインを持てる名前）で、他人のサイトの Cookie まで写す対象になるため使いません。ほかの項目は使います。",
@@ -723,6 +727,8 @@ export const ja: Record<Key, string> = {
     "{machine} の kisui serve が古く、この操作に対応していません。そのマシンの kisui-terminal を新しくしてください",
   "paneRelay.err.noMachine":
     "「{machine}」という名前のマシンがありません（マシン: {machines}）",
+  "paneRelay.err.notAllowed":
+    '{from} のペインは、--machine でマシン「{machine}」に届けません。許すには、ウィンドウの動く PC の設定ファイルで、{from} の [[gui.machines]] に allow_pane_to = ["{machine}"] と書き、kisui-terminal を起動し直してください。',
   "paneOpen.err.noWorkspace":
     "「{name}」という名前のワークスペースがありません（--new を付けると作ります）",
   "paneOpen.err.ambiguous":

@@ -9,6 +9,8 @@ package server
 // pane.run {request} を送り（open-tab は、kisui pane open と同じく GUI がそのマシンにタブを作る）、その返事を reply にして答える。
 // 頼んだペインの秘密は、頼まれた serve が確かめる（paneCmd）。相手のマシンの serve は、owner の GUI の pane.run を
 // ほかの GUI の頼み（term.input など）と同じく受ける。kisui-terminal は確認を出さない（何をするかはコマンドの引数に出ている）。
+// 中継してよいかは GUI が決める：手元の PC の serve の頼みはどのマシンにも、ssh 先の serve の頼みは、手元の設定
+// （そのマシンの [[gui.machines]] の allow_pane_to）で許した先にだけ中継する。許していなければ、理由を reply の error で返す。
 
 import (
 	"encoding/json"

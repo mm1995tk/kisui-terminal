@@ -270,6 +270,9 @@ export const en = {
   "notice.localMachine.title": "The machine name local is reserved",
   "notice.localMachine.text":
     "In kisui pane --machine, local always means this computer, so --machine cannot choose {machines}. Give it another name: in [[gui.machines]] of config.toml for a machine set there, or with n in the machine dialog ({leader} m) for the others.",
+  "notice.allowPaneTo.title": "Some allow_pane_to entries name no machine",
+  "notice.allowPaneTo.text":
+    "No machine has these names, so they allow nothing. Write the name of a machine ([[gui.machines]] name, or the ssh destination when it has no name), or local for this computer.",
   "notice.passkeySites.title": "Some passkey_sites entries are not used",
   "notice.passkeySites.text":
     "These entries are public suffixes (names under which anyone can have a subdomain, such as .com or .github.io), so they would copy the cookies of other people's sites too. kisui-terminal does not use them; the other entries work.",
@@ -725,6 +728,8 @@ export const en = {
     "The kisui serve of {machine} is too old for this. Update kisui-terminal there.",
   "paneRelay.err.noMachine":
     'No machine is named "{machine}" (machines: {machines})',
+  "paneRelay.err.notAllowed":
+    'The panes of {from} may not reach the machine "{machine}" with --machine. To allow it, write allow_pane_to = ["{machine}"] in the [[gui.machines]] entry of {from}, in the config file of the computer the window runs on, and start kisui-terminal again.',
   "paneOpen.err.noWorkspace":
     'No workspace is named "{name}" (add --new to make one)',
   "paneOpen.err.ambiguous":

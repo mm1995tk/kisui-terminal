@@ -3,6 +3,9 @@
 // 頼まれた serve の pane.relay を受け、名前（[[gui.machines]] の名前。local は手元の PC）のマシンの serve に pane.run で送る。
 // open-tab（kisui pane open）は、pane.open と同じく GUI がそのマシンにタブを作る（openTab）。
 // 答え（pane.relayed）は呼ぶ側が送る。確認は出さない（何をするかはコマンドの引数に出ている）。画面にも Tauri にも触らない。
+//
+// pane.relay は頼んだマシンの serve が作る通知なので、ssh 先のマシンのものは、手元の設定で許した先にだけ中継する
+// （そのマシンの `allow_pane_to`。machines.ts の paneRelayAllowed）。手元の PC の serve のものは、どのマシンにも中継する。
 import { untrack } from "solid-js";
 
 import { T } from "../../i18n/index.ts";
@@ -13,7 +16,8 @@ import type {
   PaneRunRequest,
 } from "../../infrastructure/rpc/protocol.ts";
 import type { Sessions } from "./controller.ts";
-import { machineNames, machineTarget } from "./machines.ts";
+import { machineNames, machineTarget, paneRelayAllowed } from "./machines.ts";
+import { LOCAL } from "./shell.ts";
 
 /** pane.relay を受けて、頼みをそのマシンで行う関数を作る。 */
 export function createPaneRelay(deps: {
@@ -22,14 +26,29 @@ export function createPaneRelay(deps: {
   openTab(target: string, rq: PaneOpenRequest): Promise<PaneOpenReport>;
 }) {
   const { sessions, states, machines, labelOf } = deps.sessions;
-  /** マシン machine で rq を行い、答えを返す（投げない。できなければ error に理由）。 */
+  /**
+   * マシン from（pane.relay を送ってきた serve のマシン）の頼み rq を、マシン machine で行い、答えを返す
+   * （投げない。できなければ error に理由）。
+   */
   return async function relay(
+    from: string,
     machine: string,
     rq: PaneRunRequest,
   ): Promise<PaneRunReply> {
     const list = untrack(machines);
     const name = machine.trim();
     const target = machineTarget(list, name);
+    // ssh 先のマシンには、許していない先のことを何も教えない（その名前のマシンがあるかも、マシンの名前の一覧も）
+    if (
+      from !== LOCAL &&
+      (target === undefined || !paneRelayAllowed(list, from, target))
+    )
+      return {
+        error: T("paneRelay.err.notAllowed", {
+          from: labelOf(from),
+          machine: name,
+        }),
+      };
     if (target === undefined)
       return {
         error: T("paneRelay.err.noMachine", {

@@ -29,8 +29,15 @@ export interface PaneEventTargets {
   checkNow(): Promise<UpdateOutcome>;
   /** マシン target に、ワークスペースのターミナルのタブを開く（`kisui pane open`。投げずに、開けなければ理由を返す） */
   openTab(target: string, rq: PaneOpenRequest): Promise<PaneOpenReport>;
-  /** 別のマシン machine のペインへの頼みを中継する（`kisui pane … --machine`。投げずに、できなければ理由を返す） */
-  relay(machine: string, rq: PaneRunRequest): Promise<PaneRunReply>;
+  /**
+   * マシン from のペインが頼んだ、別のマシン machine のペインへの頼みを中継する（`kisui pane … --machine`。投げずに、できなければ理由を返す）。
+   * from は頼みの通知を送ってきた serve のマシン（中継してよいかを、これで決める）
+   */
+  relay(
+    from: string,
+    machine: string,
+    rq: PaneRunRequest,
+  ): Promise<PaneRunReply>;
   /** マシン target の接続の DB のタブの入力欄に、SQL を書く（`kisui db propose`。投げずに、書けなければ理由を返す） */
   dbPropose(target: string, rq: DbProposeRequest): Promise<DbProposeReport>;
   /** マシン target の `kisui db propose` の取り下げ（人に聞いている途中なら、聞くのをやめる） */
@@ -67,7 +74,7 @@ export function routePaneEvent(
     void to.openTab(target, ev).then((r) => s.reportPaneOpened(ev.id, r));
   else if (ev.kind === "relay")
     void to
-      .relay(ev.machine, ev.request)
+      .relay(target, ev.machine, ev.request)
       .then((r) => s.reportPaneRelayed(ev.id, r));
   else if (ev.kind === "db-propose")
     void to.dbPropose(target, ev).then((r) => s.reportDbProposed(ev.id, r));

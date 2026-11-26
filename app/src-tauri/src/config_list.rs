@@ -1042,6 +1042,51 @@ mod tests {
         let _ = fs::remove_dir_all(&d);
     }
 
+    // 窓は allow_pane_to を書かない。手で書いた allow_pane_to は、窓が名前やターミナルの始め方を変えても残る
+    #[test]
+    fn edit_machine_keeps_allow_pane_to() {
+        let d = temp_dir("allow-pane-to");
+        let local = d.join("config.local.toml");
+        fs::write(
+            &local,
+            "[[gui.machines]]\nssh = \"a\"\nallow_pane_to = [\"local\"]\n",
+        )
+        .unwrap();
+        let got = edit_machine(
+            &d,
+            MachineEdit::Rename {
+                ssh: "a".into(),
+                name: Some("dev".into()),
+            },
+        )
+        .unwrap();
+        assert_eq!(got[0].allow_pane_to, ["local"]);
+        let got = edit_machine(
+            &d,
+            MachineEdit::Terminal {
+                ssh: "a".into(),
+                start_dir: Some("~/work".into()),
+                shell: None,
+            },
+        )
+        .unwrap();
+        assert_eq!(got[0].allow_pane_to, ["local"]);
+        assert!(fs::read_to_string(&local)
+            .unwrap()
+            .contains("allow_pane_to = [\"local\"]"));
+        // 足したばかりのマシンは、どこにも届かない
+        let got = edit_machine(
+            &d,
+            MachineEdit::Add {
+                ssh: "b".into(),
+                name: None,
+            },
+        )
+        .unwrap();
+        assert_eq!(got[1].allow_pane_to, Vec::<String>::new());
+        let _ = fs::remove_dir_all(&d);
+    }
+
     // 窓のマシンの書き込み：足す・名前を変える・外すを config.local.toml に書き、重ねたあとの一覧を返す
     #[test]
     fn edit_machine_from_the_window() {
@@ -1053,6 +1098,7 @@ mod tests {
             name: name.map(Into::into),
             local,
             terminal: TermDefaults::default(),
+            allow_pane_to: vec![],
         };
         let got = edit_machine(
             &d,
