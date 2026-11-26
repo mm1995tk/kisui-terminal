@@ -21,7 +21,7 @@ export const ja: Record<Key, string> = {
   "leader.ws.close": "Close workspace",
   "leader.ws.rename": "Rename",
   "leader.tab.switch":
-    "Open the workspace window on the tabs of this workspace",
+    "Open the Workspace switcher on the tabs of this workspace",
   "leader.tab.create": "New tab",
   "leader.tab.new": "New terminal tab (same machine and folder)",
   "leader.tab.newPick": "New terminal tab on another machine",
@@ -146,7 +146,7 @@ export const ja: Record<Key, string> = {
   "place.machines.terminal":
     "Terminal settings: the start folder and the shell of new terminals (a machine from the config file cannot be changed)",
   "place.machines.newTab":
-    "Start a terminal tab on the selected machine in the current workspace (opens the workspace window; the tab is created when you confirm its name)",
+    "Start a terminal tab on the selected machine in the current workspace (opens the Workspace switcher; the tab is created when you confirm its name)",
   "place.row.close": "Close",
   "place.list.title": "Candidate / history list",
   "place.list.lead": "候補・履歴の一覧の中だけで効くキーです。",
@@ -167,12 +167,12 @@ export const ja: Record<Key, string> = {
   "bookmarks.foot.selected": "選んでいるブックマーク",
   "history.keys.paste": "paste",
   "history.keys.copy": "copy",
-  "place.picker.title": "Selection window",
+  "place.picker.title": "Selection dialog",
   "place.picker.lead":
     "一覧から 1 つ選ぶ窓（マシン・ワークスペース・種類・キャラクター）の中で効くキーです。",
   "place.picker.choose": "Choose the selected row",
   "place.picker.cancel": "Cancel without choosing",
-  "place.dbPicker.title": "DB connection window",
+  "place.dbPicker.title": "DB connection dialog",
   "place.dbPicker.lead":
     "つないでいる全部のマシンの DB の接続を並べる窓のキー。足す・直す・消すは、この PC の config.local.toml に書きます。",
   "place.dbPicker.open": "Open a DB tab on the selected connection",
@@ -184,7 +184,7 @@ export const ja: Record<Key, string> = {
     "左のワークスペースの列にキーがある間に効くキーです。行の左端のつかむ所をドラッグしても並べ替えられます。",
   "place.switcher.nextPrev": "Select the next / previous workspace",
   "place.switcher.toTabs": "Move to the tab column (when there are tabs)",
-  "place.switcher.go": "Switch to the selected workspace and close the window",
+  "place.switcher.go": "Switch to the selected workspace and close the dialog",
   "place.switcher.new": "Create a workspace",
   "place.switcher.newTab":
     "Create a tab in the selected workspace (shows the list of kinds to choose from)",
@@ -196,7 +196,7 @@ export const ja: Record<Key, string> = {
     "右のタブの列にキーがある間に効くキーです。タブの行のつかむ所をドラッグして、左のワークスペースの上へ運んでも移せます。",
   "place.switcherTabs.nextPrev": "Select the next / previous tab",
   "place.switcherTabs.toWorkspaces": "Move to the workspace column",
-  "place.switcherTabs.show": "Show the selected tab and close the window",
+  "place.switcherTabs.show": "Show the selected tab and close the dialog",
   "place.switcherTabs.new":
     "Create a tab (shows the list of kinds to choose from)",
   "place.switcherTabs.close": "Close the selected tab",
@@ -598,17 +598,17 @@ export const ja: Record<Key, string> = {
   "termWindow.note.primary": "プライマリのペインは閉じられません。",
   "termWindow.note.zoom":
     "ペインを隠せるのは、プライマリのペインで shijimi-editor が動いている間だけです。",
-  "place.termWindow.title": "Terminal tab window",
+  "place.termWindow.title": "Terminal tab dialog",
   "place.termWindow.lead":
     "ターミナルのタブを出しているときに、リーダーの a で開きます。地図でペインを選んでから操作します。",
   "place.termWindow.select": "Select the neighbor pane",
-  "place.termWindow.focus": "Focus the selected pane and close the window",
+  "place.termWindow.focus": "Focus the selected pane and close the dialog",
   "place.termWindow.split":
     "Split the selected pane (then h j k l for the direction)",
   "place.termWindow.swap": "Swap the selected pane with its neighbor",
   "place.termWindow.close": "Close the selected pane",
   "place.termWindow.zoom": "Show only the primary pane / restore",
-  "place.termWindow.resize": "Close the window and enter resize mode",
+  "place.termWindow.resize": "Close the dialog and enter resize mode",
   "dbWindow.label": "この DB のタブの結果のタブ",
   "dbWindow.list": "結果のタブ",
   "dbWindow.keys.close": "close",
@@ -643,11 +643,11 @@ export const ja: Record<Key, string> = {
   "dbWindow.state.none": "まだ結果がありません",
   "dbWindow.note.noResult": "結果のタブがありません。",
   "dbWindow.note.notRunning": "実行している SQL はありません。",
-  "place.dbWindow.title": "Database tab window",
+  "place.dbWindow.title": "Database tab dialog",
   "place.dbWindow.lead":
     "DB のタブを出しているときに、リーダーの a で開きます。結果のタブを選んでから操作するか、タブ全体に操作します。",
   "place.dbWindow.select": "Select the next or previous result tab",
-  "place.dbWindow.show": "Show the selected result tab and close the window",
+  "place.dbWindow.show": "Show the selected result tab and close the dialog",
   "place.dbWindow.close":
     "Close the selected result tab (cancels its SQL if it is running)",
   "place.dbWindow.view":
@@ -687,7 +687,7 @@ export const ja: Record<Key, string> = {
   "browserWindow.why.noBack": "戻る先がありません",
   "browserWindow.why.noForward": "進む先がありません",
   "browserWindow.why.notLoading": "読み込み中ではありません",
-  "place.browserWindow.title": "Browser tab window",
+  "place.browserWindow.title": "Browser tab dialog",
   "place.browserWindow.lead":
     "ブラウザのタブを出しているときに、リーダーの a で開きます。ページの状態を見て、操作を選んで Enter を押すか、その字を押します。",
   "place.browserWindow.select":
