@@ -14,9 +14,9 @@
 //!   ただし、手で書いてある上書き（`config.local.toml` の、`config.toml` と同じ名前の項目）は `config.local.toml` の項目なので、窓で直す・消すことができる
 //!   （断らない。[`DbEntry::overrides`] で印を付け、画面は消す確かめで「`config.toml` の接続に戻る」と言う）。
 //! - **確かめ**：[`check_entry`] は kisui の `config/db.go` の `dbConnection`（変種の無い項目）と同じ間違いを、同じキーとコード（`config.err.*`）で返す。
-//!   同じ結果になることは、両方のテストが同じ例（`config_db_cases.json`）で確かめる。ほかに窓だけの確かめが 2 つある：変種・権限のキー
-//!   （`gui.db.fileonly`。窓では確かめられない）と、`host` に URL・`@`・接続の文字列を書くこと（`gui.db.hosturl`）と、ほかの欄に URL を書くこと（`gui.db.url`）。`user:password@host` のように資格情報を
-//!   書いてしまうのを防ぐ）。間違いは書かずに返し、画面が自分の言葉で出す。
+//!   同じ結果になることは、両方のテストが同じ例（`config_db_cases.json`）で確かめる。ほかに窓だけの確かめが 3 つある：変種・権限のキー
+//!   （`gui.db.fileonly`。窓では確かめられない）、`host` に URL・`@`・接続の文字列を書くこと（`gui.db.hosturl`）、ほかの欄に URL を書くこと
+//!   （`gui.db.url`）。後の 2 つは、`user:password@host` のように資格情報を書いてしまうのを防ぐ。間違いは書かずに返し、画面が自分の言葉で出す。
 //!
 //! 返す値・間違いには、入れた値（名前とキーのほか）を入れない。パスワードはもともと通らない。
 
