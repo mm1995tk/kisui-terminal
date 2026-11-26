@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
+import type { PaneLayout } from "../../infrastructure/rpc/protocol.ts";
 import {
   applyMove,
+  changesMax,
   clampBorder,
   loadSidebarOpen,
   loadSizes,
@@ -10,7 +12,11 @@ import {
   resizeKeyName,
   saveSidebarOpen,
   saveSizes,
+  rightMinWidth,
+  sidebarMax,
   sizeOf,
+  termMinWidth,
+  TREE_RESERVE_HEIGHT,
   withoutSize,
   withSize,
 } from "./panes.ts";
@@ -78,7 +84,8 @@ describe("覚えておく大きさ", () => {
 
   it("範囲に収め、元の大きさに戻せる", () => {
     assert.equal(clampBorder("sidebar", 10), 200);
-    assert.equal(clampBorder("sidebar", 9999), 640);
+    assert.equal(clampBorder("sidebar", 9999), 9999);
+    assert.equal(clampBorder("sidebar", 9999, 700), 700);
     const s = withSize({}, "sidebar", 250.4);
     assert.equal(sizeOf(s, "sidebar"), 250);
     assert.equal(sizeOf({}, "sidebar"), 300);
@@ -196,10 +203,10 @@ describe("サイドバーの開け閉め", () => {
 });
 
 describe("ファイルツリーと CHANGES の境目（#152）", () => {
-  it("CHANGES の高さは 44〜640px に収め、決めていなければ 143px", () => {
+  it("CHANGES の高さは 44px 以上（上限は窓の高さで決まる）で、決めていなければ 143px", () => {
     assert.equal(sizeOf({}, "changes"), 143);
     assert.equal(clampBorder("changes", 10), 44);
-    assert.equal(clampBorder("changes", 9999), 640);
+    assert.equal(clampBorder("changes", 9999), 9999);
     assert.equal(clampBorder("changes", 9999, 300), 300);
   });
 
@@ -251,5 +258,89 @@ describe("タブの段とファイルツリーの境目（#284）", () => {
       loadSizes(memory({ "shijimi.paneSizes": '{"tabs":95}' })),
       {},
     );
+  });
+});
+
+describe("窓の大きさで決まる上限（#501）", () => {
+  it("サイドバーの幅は、右のターミナルが 20 列残るところまで広げられる（640px で止まらない）", () => {
+    // 字の幅 7px：20 列は 140px に、余白とスクロールバーの 12px を足した 152px
+    assert.equal(termMinWidth(7), 152);
+    assert.equal(sidebarMax(2000, 7), 2000 - 152);
+    assert.ok(sidebarMax(2000, 7) > 640);
+    // 字が広ければ、残す幅も広がる
+    assert.equal(sidebarMax(2000, 8), 2000 - termMinWidth(8));
+    // 窓の幅の半分の制限は無い
+    assert.ok(sidebarMax(1000, 7) > 500);
+  });
+
+  it("プロキシのパネルを開いている間は、パネルを引いたあとのターミナルが 20 列残る", () => {
+    // 20 列 152px。パネルは右の欄の 45%（いちばん狭くて 280px）
+    assert.equal(rightMinWidth(7, false), 152);
+    assert.equal(rightMinWidth(7, true), 432);
+    assert.equal(sidebarMax(2000, 7, true), 2000 - 432);
+    // 広い欄では 45% のほうが効き、残る 55% が 20 列以上になる
+    assert.ok(rightMinWidth(30, true) * 0.55 >= termMinWidth(30));
+    assert.equal(sidebarMax(300, 7, true), 200);
+  });
+
+  it("右の欄を左右に分けているときは、どのペインにも 20 列残す", () => {
+    const pane = (id: string): PaneLayout => ({ pane: id });
+    const split = (ratio: number): PaneLayout => ({
+      dir: "right",
+      ratio,
+      a: pane("a"),
+      b: pane("b"),
+    });
+    // 1 ペインは 152px。均等な 2 ペインは 152 × 2 に、ペインの間の隙間（6px）を足す
+    assert.equal(termMinWidth(7), 152);
+    assert.equal(termMinWidth(7, split(0.5)), 152 * 2 + 6);
+    assert.equal(sidebarMax(2000, 7, false, split(0.5)), 2000 - (152 * 2 + 6));
+    // 0.7 : 0.3 は、狭い 0.3 の側で決まる
+    assert.equal(termMinWidth(7, split(0.7)), Math.ceil((152 + 3) / 0.3));
+    assert.ok(termMinWidth(7, split(0.7)) > termMinWidth(7, split(0.5)));
+    assert.ok(sidebarMax(2000, 7, false, split(0.7)) < 2000 - 152 * 2 - 6);
+    // 上下に分けるだけなら、幅は 1 ペインぶん
+    assert.equal(
+      termMinWidth(7, { dir: "down", ratio: 0.5, a: pane("a"), b: pane("b") }),
+      152,
+    );
+    // プロキシのパネルの分は、今の決まりのまま足す（パネルは 280px 以上で、残るのは右の欄の 55% 以下）
+    assert.equal(rightMinWidth(7, true, split(0.5)), 152 * 2 + 6 + 280);
+    assert.equal(rightMinWidth(7, true), 432);
+    assert.equal(
+      rightMinWidth(7, true, split(0.3)),
+      Math.ceil(termMinWidth(7, split(0.3)) / 0.55),
+    );
+  });
+
+  it("窓が狭くても、下限（200px）より狭くならない", () => {
+    assert.equal(sidebarMax(300, 7), 200);
+    assert.equal(sidebarMax(0, 7), 200);
+  });
+
+  it("CHANGES の高さは、ファイルツリーなどに最低の高さが残るところまで（窓の高さの半分で止まらない）", () => {
+    assert.equal(changesMax(1000), 1000 - TREE_RESERVE_HEIGHT);
+    assert.ok(changesMax(1000) > 500);
+    assert.equal(changesMax(100), 44);
+  });
+
+  it("窓を小さくしたとき、覚えた幅・高さはその窓の上限に収まる", () => {
+    const wide = withSize({}, "sidebar", 1200, sidebarMax(2000, 7));
+    assert.equal(sizeOf(wide, "sidebar"), 1200);
+    // 窓が狭くなった後に動かすと、その窓の上限から動く
+    const max = sidebarMax(800, 7);
+    assert.equal(sizeOf(applyMove(wide, "sidebar", 20, max), "sidebar"), max);
+    const tall = withSize({}, "changes", 700, changesMax(1000));
+    assert.equal(
+      sizeOf(applyMove(tall, "changes", 22, changesMax(600)), "changes"),
+      changesMax(600),
+    );
+  });
+
+  it("覚えておいた大きな値は捨てない", () => {
+    const s = memory({
+      "shijimi.paneSizes": JSON.stringify({ sidebar: 1200, changes: 700 }),
+    });
+    assert.deepEqual(loadSizes(s), { sidebar: 1200, changes: 700 });
   });
 });

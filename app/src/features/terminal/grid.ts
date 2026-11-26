@@ -247,6 +247,30 @@ function extent(
   return b === undefined ? undefined : a + b;
 }
 
+/**
+ * 木が占める幅が何 px あれば、どの欄も paneWidth（px）以上になるか。割合どおりに分けたとき、いちばん狭い欄が paneWidth になる幅
+ * （欄の間の隙間 GAP を引いた後の幅。左右の割合が均等でなければ、小さい割合の側で決まる）。木が無ければ（分けていなければ）paneWidth。
+ */
+export function widthForPanes(
+  n: PaneLayout | undefined,
+  paneWidth: number,
+  left = 0,
+  right = 0,
+): number {
+  if (!n || "pane" in n) return paneWidth + left + right;
+  if (n.dir === "down") {
+    return Math.max(
+      widthForPanes(n.a, paneWidth, left, right),
+      widthForPanes(n.b, paneWidth, left, right),
+    );
+  }
+  const r = Math.min(Math.max(n.ratio, 0.001), 0.999);
+  return Math.max(
+    widthForPanes(n.a, paneWidth, left, GAP / 2) / r,
+    widthForPanes(n.b, paneWidth, GAP / 2, right) / (1 - r),
+  );
+}
+
 function minExtent(n: PaneLayout, horiz: boolean): number {
   if ("pane" in n) return horiz ? MIN_COLS : MIN_ROWS;
   const a = minExtent(n.a, horiz);

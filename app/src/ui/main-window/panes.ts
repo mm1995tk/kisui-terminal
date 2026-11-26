@@ -7,6 +7,8 @@
 // - 右の欄の中の、欄どうしの境界（#18）：割合は kisui serve が分割の木に持つ（features/terminal/grid.ts）。ここは動かすキーだけを決める。
 // キー：Tab / Shift+Tab で動かす境界を替え、←→（h l）か↑↓（k j）で動かす。縦の境界は左右、横の境界は上下だけ効く。
 
+import { widthForPanes } from "../../features/terminal/grid.ts";
+import type { PaneLayout } from "../../infrastructure/rpc/protocol.ts";
 import type { KeyValueStore } from "../../features/keyValueStore.ts";
 import { shortcutCommand } from "../../features/commands/commands.ts";
 import type { KeyLike } from "../../features/commands/guiKeys.ts";
@@ -25,10 +27,13 @@ export const DEFAULT_SIZES: Readonly<Record<Border, number>> = {
   tabs: 40, // サイドバーの高さの %（設定の [gui.sidebar] tabs-height で変えられる）
 };
 
-/** 境界ごとの下限と上限。 */
+/**
+ * 境界ごとの下限と上限。サイドバーの幅と CHANGES の高さの上限は固定の値を持たず（無限）、
+ * 窓の大きさで決まる上限（sidebarMax・changesMax）だけが効く（#501）。
+ */
 export const LIMITS: Readonly<Record<Border, readonly [number, number]>> = {
-  sidebar: [200, 640],
-  changes: [44, 640], // 下限は 2 行
+  sidebar: [200, Number.POSITIVE_INFINITY],
+  changes: [44, Number.POSITIVE_INFINITY], // 下限は 2 行
   tabs: [10, 90], // %。src-tauri/src/config.rs の TABS_HEIGHT_RANGE と同じ
 };
 
@@ -38,6 +43,73 @@ export const KEY_STEP: Readonly<Record<Border, number>> = {
   changes: 22, // 1 行（行の高さ）
   tabs: 5, // %
 };
+
+/** 右のターミナルに最低限残す列の数（ペインを分けるときの最小の幅。features/terminal/grid.ts の MIN_COLS・server/layout.go の minSplitCols と同じ）。 */
+export const MIN_TERM_COLS = 20;
+/** 右のターミナルの、字の列の外側の幅（左右の余白 4px ずつと、スクロールバーの 4px。terminal.css・TerminalView.tsx）。 */
+export const TERM_CHROME_WIDTH = 12;
+/** サイドバーの中で、CHANGES の一覧のほかに残す高さ（px）。タブの段・見出し・ファイルツリーの数行ぶん（ファイルツリーが最低限見える高さ）。 */
+export const TREE_RESERVE_HEIGHT = 240;
+
+/**
+ * 右のターミナルの、どのペインも MIN_TERM_COLS 列以上になる幅（px）。cellWidth は字 1 つの幅、tree は欄の配置（分けていなければ undefined）。
+ * 左右の割合が均等でなければ、いちばん狭いペインで決まる（features/terminal/grid.ts の widthForPanes。ペインの間の隙間も引く）。
+ */
+export function termMinWidth(cellWidth: number, tree?: PaneLayout): number {
+  return Math.ceil(
+    widthForPanes(
+      tree,
+      Math.ceil(MIN_TERM_COLS * cellWidth) + TERM_CHROME_WIDTH,
+    ),
+  );
+}
+
+/** プロキシのパネルを開いている間、パネルが右の欄から取る幅（content/proxy/ProxyPanel.module.css・layout.css の --proxy-panel-w: clamp(280px, 45%, 70%)）の、いちばん狭い幅（px）。 */
+export const PROXY_PANEL_MIN_WIDTH = 280;
+/** 同じく、パネルが右の欄の幅に対して取る割合（ターミナルに残る割合は 1 から引く）。 */
+export const PROXY_PANEL_RATIO = 0.45;
+
+/**
+ * 右の欄の、残したい幅（px）。ペイン 1 つずつが 20 列残る幅（termMinWidth）。
+ * プロキシのパネルを開いている間は、パネルが右の欄の右を取るので、パネルを引いたあとのターミナルが 20 列残る幅にする。
+ */
+export function rightMinWidth(
+  cellWidth: number,
+  proxyPanel: boolean,
+  tree?: PaneLayout,
+): number {
+  const term = termMinWidth(cellWidth, tree);
+  return proxyPanel
+    ? Math.max(
+        term + PROXY_PANEL_MIN_WIDTH,
+        Math.ceil(term / (1 - PROXY_PANEL_RATIO)),
+      )
+    : term;
+}
+
+/**
+ * 窓の幅 windowWidth で、サイドバーの幅の上限。右のターミナルが MIN_TERM_COLS 列残る幅まで（下限より狭くはならない）。
+ * proxyPanel は、プロキシのパネルを開いているか。tree は、欄の配置（どのペインも 20 列残す）。
+ */
+export function sidebarMax(
+  windowWidth: number,
+  cellWidth: number,
+  proxyPanel = false,
+  tree?: PaneLayout,
+): number {
+  return Math.max(
+    LIMITS.sidebar[0],
+    Math.floor(windowWidth - rightMinWidth(cellWidth, proxyPanel, tree)),
+  );
+}
+
+/** 窓の高さ windowHeight で、CHANGES の一覧の高さの上限。ファイルツリーなどに TREE_RESERVE_HEIGHT 残る高さまで（下限より低くはならない）。 */
+export function changesMax(windowHeight: number): number {
+  return Math.max(
+    LIMITS.changes[0],
+    Math.floor(windowHeight - TREE_RESERVE_HEIGHT),
+  );
+}
 
 const STORAGE_KEY = "shijimi.paneSizes";
 

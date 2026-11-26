@@ -13,9 +13,12 @@
 }
 
 /* 6 行半（--changes-h の元の値）。これより多いときは中でスクロールする（ツリーの場所を食いつぶさない）。
-   高さはツリーとの境目のドラッグ・リサイズモードで変えられる（#152。ui/main-window/layout.tsx が --changes-h に入れる）。窓の高さの半分までにする */
+   高さはツリーとの境目のドラッグ・リサイズモードで変えられる（#152。ui/main-window/layout.tsx が --changes-h に入れる）。ファイルツリーなどに --tree-reserve-h（layout.tsx。panes.ts の TREE_RESERVE_HEIGHT）残る高さまでにする */
 .changes-list {
-  max-height: min(var(--changes-h, 143px), 50vh);
+  max-height: min(
+    var(--changes-h, 143px),
+    calc(100vh - var(--tree-reserve-h, 240px))
+  );
   overflow-y: auto;
 }
 .changes-list::-webkit-scrollbar {

@@ -5,6 +5,7 @@ import type { PaneLayout } from "../../infrastructure/rpc/protocol.ts";
 import {
   clampRatio,
   firstPane,
+  GAP,
   layoutBars,
   layoutPanes,
   layoutRects,
@@ -12,6 +13,7 @@ import {
   neighbor,
   ratioLimits,
   reconcileLayout,
+  widthForPanes,
   withRatio,
 } from "./grid.ts";
 
@@ -177,5 +179,44 @@ describe("欄どうしの境界（#18）", () => {
     assert.equal(clampRatio(0.12345, 0.1, 0.9), 0.123);
     assert.equal(clampRatio(0, 0.1234, 0.9), 0.124);
     assert.equal(clampRatio(1, 0.1, 0.8765), 0.876);
+  });
+});
+
+describe("widthForPanes", () => {
+  const w = 100;
+  const rt = (ratio: number, a: PaneLayout, b: PaneLayout): PaneLayout => ({
+    dir: "right",
+    ratio,
+    a,
+    b,
+  });
+  it("分けていなければ、欄 1 つぶん", () => {
+    assert.equal(widthForPanes(undefined, w), w);
+    assert.equal(widthForPanes(leaf("a"), w), w);
+    assert.equal(widthForPanes(down(leaf("a"), leaf("b")), w), w);
+  });
+
+  it("均等に分けていれば、欄の数ぶんに隙間（GAP）を足した幅", () => {
+    assert.equal(widthForPanes(right(leaf("a"), leaf("b")), w), 2 * w + GAP);
+  });
+
+  it("割合が均等でなければ、いちばん狭い欄が paneWidth になる幅", () => {
+    // 0.7 : 0.3 は、狭い 0.3 の側で決まる（右の欄の左の隙間 GAP / 2 を足してから 0.3 で割る）
+    const near = (x: number, y: number) => assert.ok(Math.abs(x - y) < 1e-6);
+    near(widthForPanes(rt(0.7, leaf("a"), leaf("b")), w), (w + GAP / 2) / 0.3);
+    near(widthForPanes(rt(0.2, leaf("a"), leaf("b")), w), (w + GAP / 2) / 0.2);
+  });
+
+  it("入れ子の割合も、どの欄も paneWidth 以上になるように求める", () => {
+    // 左 0.5 の欄 a、右 0.5 の中を 0.5 : 0.5 に分ける：右の中の狭い欄は全体の 0.25
+    const t = rt(0.5, leaf("a"), rt(0.5, leaf("b"), leaf("c")));
+    const need = widthForPanes(t, w);
+    const rects = layoutRects(t);
+    for (const id of ["a", "b", "c"]) {
+      const r = rects.get(id)!;
+      // 隣と接している辺の隙間の半分ずつを引いた幅
+      const gaps = id === "a" ? GAP / 2 : id === "b" ? GAP : GAP / 2;
+      assert.ok(r.w * need - gaps >= w - 1e-6, id);
+    }
   });
 });

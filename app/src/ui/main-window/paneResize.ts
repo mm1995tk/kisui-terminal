@@ -20,10 +20,15 @@ import {
   type Row,
   type WorkspaceFocus,
 } from "../../features/workspaces/rows.ts";
-import type { WorkspaceId } from "../../infrastructure/rpc/protocol.ts";
+import type {
+  PaneLayout,
+  WorkspaceId,
+} from "../../infrastructure/rpc/protocol.ts";
 import type { WindowEls } from "./els.ts";
+import { termCellWidth } from "./termCell.ts";
 import {
   applyMove,
+  changesMax,
   CHANGES_BORDER,
   KEY_STEP,
   LIMITS,
@@ -32,6 +37,7 @@ import {
   resizeAction,
   saveSidebarOpen,
   saveSizes,
+  sidebarMax,
   SPLIT_KEY_STEP,
   sizeOf,
   TABS_BORDER,
@@ -57,6 +63,8 @@ export function createPaneResize(deps: {
   dbShown: () => boolean;
   /** フォーカスしているワークスペースのターミナル */
   termGroup: () => TermGroup | undefined;
+  /** 右の欄の配置（分けていなければ、隠している間も undefined）。サイドバーの幅の上限で、どのペインにも 20 列残すのに使う */
+  termLayout: () => PaneLayout | undefined;
   /** ペインどうしの境界（隠している間は無い） */
   termBars: () => readonly Bar[];
   /** ワークスペースの CHANGES の一覧（出していなければ undefined） */
@@ -159,12 +167,18 @@ export function createPaneResize(deps: {
     }),
   );
 
-  /** 今の窓で効く境界の上限（app.css の clamp・changes.css の max-height と同じ）。 */
+  /** 今の窓で効く境界の上限（layout.css の clamp・changes.css の max-height と同じ決まり。panes.ts の sidebarMax・changesMax）。 */
   function maxOf(b: Border = "sidebar"): number {
     if (b === "tabs") return LIMITS.tabs[1];
     return b === "changes"
-      ? Math.min(640, window.innerHeight / 2)
-      : Math.min(640, window.innerWidth / 2);
+      ? changesMax(window.innerHeight)
+      : sidebarMax(
+          window.innerWidth,
+          termCellWidth(),
+          // プロキシのパネルを開いている間は、パネルの分も右の欄に残す（layout.css の --right-min-w）
+          !!els.app?.querySelector(".main[data-proxy-panel]"),
+          deps.termLayout(),
+        );
   }
 
   /** タブの段の高さの上限の今の値（%）。決めていなければ設定の [gui.sidebar] tabs-height、それも無ければ 40。 */

@@ -239,6 +239,9 @@ function MainWindow(props: {
 
   // ---- この画面の表示用の状態（境界の大きさ・キーの行き先・知らせ・キーの入力）----
   const focusTerminal = () => focusUi.focusTerminal();
+  // 右の欄の配置（隠している間は 1 つだけ出るので、分けていないものとする）
+  const termLayout = () =>
+    terminals.zoomed() ? undefined : terminals.termLayout();
   const resize = createPaneResize({
     store: ports.store,
     tabsHeight: props.tabsHeight,
@@ -246,6 +249,7 @@ function MainWindow(props: {
     focus: workspaces.focus,
     rows: workspaces.rows,
     termGroup: terminals.termGroup,
+    termLayout,
     termBars: terminals.termBars,
     changesOf: changes.changesOf,
     walking: workspaces.walking,
@@ -297,6 +301,7 @@ function MainWindow(props: {
       sidebarOpen={resize.sidebarOpen()}
       sidebarWidth={sizeOf(resize.sizes(), "sidebar")}
       changesHeight={sizeOf(resize.sizes(), "changes")}
+      termLayout={termLayout()}
       tabsPct={resize.tabsPct()}
       litSidebar={resize.lit("sidebar")}
       litChanges={resize.lit("changes")}
