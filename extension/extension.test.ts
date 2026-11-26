@@ -1187,3 +1187,25 @@ test("build は firefox/ と zip を作り、manifest の指すファイルが�
     rmSync(out, { recursive: true, force: true });
   }
 });
+
+// AMO に出すとき、CI（.github/workflows/amo.yml）が release-notes.json から manifest の版のリリースノートを送る。
+// 版を上げたのにノートが無いと公開のジョブが落ちるので、ここで先に止める
+test("release-notes.json に manifest の版のリリースノートが英語と日本語である", () => {
+  const notes = JSON.parse(read("release-notes.json"));
+  const v = JSON.parse(read("manifest.json")).version;
+  for (const locale of ["en-US", "ja"]) {
+    const text = notes[v]?.[locale];
+    assert.equal(typeof text, "string", `${v} の ${locale}`);
+    assert.ok(text.trim().length > 0, `${v} の ${locale}`);
+  }
+});
+
+test("release-notes.json は拡張機能の zip に入らない", () => {
+  const out = mkdtempSync(join(tmpdir(), "kisui-ext-"));
+  try {
+    const files = unzip(readFileSync(build(out)));
+    assert.ok(!files.has("release-notes.json"));
+  } finally {
+    rmSync(out, { recursive: true, force: true });
+  }
+});

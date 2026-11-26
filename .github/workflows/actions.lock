@@ -3,6 +3,10 @@
 # Docs: https://gh.io/actions-lockfile
 version: 'v0.0.3'
 workflows:
+    '.github/workflows/amo.yml':
+        - '1password/load-secrets-action@5.0.1'
+        - 'actions/checkout@v7.0.1'
+        - 'cachix/install-nix-action@v31.11.5'
     '.github/workflows/build.yml':
         - '1password/load-secrets-action@5.0.1'
         - 'actions/checkout@v7.0.1'

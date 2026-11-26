@@ -1,0 +1,133 @@
+name: Firefox の拡張機能を AMO に出す
+
+# extension/（パスキーのログインを内蔵ブラウザに戻す Firefox の拡張機能）を addons.mozilla.org（AMO）に出す。
+# 手順と前提は docs/browser-extension.md の「addons.mozilla.org（AMO）」。
+#
+# - きっかけ：main への push（extension/ か packaging/nix/extension.nix かこのファイルが変わったとき）と、手での起動
+#   （gh workflow run amo.yml --ref main）。どちらも、extension/manifest.json の version が AMO で公開中の版と
+#   違うときだけ出す。同じなら何もしない。main 以外のブランチでは動かさない（レビューを通っていないコードを出さないため）。
+#   PR では動かない（pull_request のきっかけを持たない）。
+# - 2 つのジョブに分ける。check は秘密を持たず、AMO の公開の API（認証の要らないもの）で今の版を聞く。
+#   publish は版が違うときだけ動き、API キーを 1Password から読む。版が同じ push では API キーに触れないので、
+#   キーがまだ無い間も main の CI は落ちない。
+# - zip の中身は nix build .#kisui-terminal-extension の firefox/（extension/ のファイルそのもの。縮めも難読化もしない）。
+#   web-ext sign がそのフォルダを zip にして上げる。web-ext は flake.lock の nixpkgs のもの。
+# - 送るのは版（拡張機能そのもの）とリリースノート（extension/release-notes.json の、その版のもの）だけ。
+#   AMO の説明文とプライバシーの欄は送らない（AMO の画面で手で直す）。
+# - 審査は待たない（--approval-timeout 0）。結果は AMO からメールで届く。
+#
+# API キー（AMO の JWT の issuer と secret）は 1Password の vault shijimi-editor-release の item
+# kisui-terminal-amo-api-key（フィールド jwt-issuer と jwt-secret）にあり、サービスアカウント（GitHub の Secret
+# OP_SERVICE_ACCOUNT_TOKEN_RELEASE）で、上げる step の直前に読む。値はその step の環境変数にだけ渡す。
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - extension/**
+      - packaging/nix/extension.nix
+      - .github/workflows/amo.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# 上げている途中で止めない（AMO に半端なアップロードを残さない）
+concurrency:
+  group: amo
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      publish: ${{ steps.ver.outputs.publish }}
+      version: ${{ steps.ver.outputs.version }}
+    steps:
+      - name: main 以外では実行しない
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::main ブランチで実行してください（現在: $GITHUB_REF）"
+          exit 1
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - name: manifest の版と AMO で公開中の版を比べる
+        id: ver
+        run: |
+          version=$(jq -r .version extension/manifest.json)
+          id=$(jq -r .browser_specific_settings.gecko.id extension/manifest.json)
+          # 公開の API（認証は要らない）。審査待ちの版は current_version に出ない
+          current=$(curl -fsS --retry 3 "https://addons.mozilla.org/api/v5/addons/addon/$id/" | jq -r .current_version.version)
+          echo "manifest: $version / AMO: $current"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [ "$version" = "$current" ]; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "AMO と同じ版なので出さない" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  publish:
+    needs: check
+    if: needs.check.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v31.11.5
+      - name: 拡張機能を作る
+        env:
+          VERSION: ${{ needs.check.outputs.version }}
+        run: |
+          nix build .#kisui-terminal-extension --print-build-logs
+          # web-ext sign は source-dir に .amo-upload-uuid を書くので、書ける場所に写す
+          cp -r result/firefox "$RUNNER_TEMP/firefox"
+          chmod -R u+w "$RUNNER_TEMP/firefox"
+          test "$(jq -r .version "$RUNNER_TEMP/firefox/manifest.json")" = "$VERSION"
+          # web-ext も flake.lock の nixpkgs のものを、秘密を読む前に取ってくる
+          nix build --inputs-from . nixpkgs#web-ext --out-link "$RUNNER_TEMP/web-ext"
+      - name: リリースノートを用意する
+        env:
+          VERSION: ${{ needs.check.outputs.version }}
+        run: |
+          # 送るのは version の release_notes だけ（説明文などのアドオンの欄は入れない）
+          jq -e --arg v "$VERSION" '.[$v] | select(type == "object") | {version: {release_notes: .}}' \
+            extension/release-notes.json > "$RUNNER_TEMP/amo-metadata.json" || {
+            echo "::error::extension/release-notes.json に $VERSION のリリースノートがありません"
+            exit 1
+          }
+          cat "$RUNNER_TEMP/amo-metadata.json"
+
+      # API キーはこの step の出力にだけ置き（export-env: false）、次の step の環境変数にだけ渡す
+      - name: AMO の API キーを 1Password から読む
+        id: op
+        uses: 1password/load-secrets-action@5.0.1
+        with:
+          export-env: false
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN_RELEASE }}
+          AMO_JWT_ISSUER: op://shijimi-editor-release/kisui-terminal-amo-api-key/jwt-issuer
+          AMO_JWT_SECRET: op://shijimi-editor-release/kisui-terminal-amo-api-key/jwt-secret
+      - name: API キーが読めないときの案内
+        if: failure() && steps.op.outcome == 'failure'
+        run: |
+          echo "::error::1Password の vault shijimi-editor-release に item kisui-terminal-amo-api-key（フィールド jwt-issuer と jwt-secret）が無いか、読めません。作り方は docs/browser-extension.md の「CI が使う API キー」"
+          exit 1
+
+      - name: AMO に上げる
+        env:
+          WEB_EXT_API_KEY: ${{ steps.op.outputs.AMO_JWT_ISSUER }}
+          WEB_EXT_API_SECRET: ${{ steps.op.outputs.AMO_JWT_SECRET }}
+          VERSION: ${{ needs.check.outputs.version }}
+        run: |
+          # --verbose は付けない（要求の中身を細かくログに出さない）
+          "$RUNNER_TEMP/web-ext/bin/web-ext" sign \
+            --no-config-discovery \
+            --source-dir "$RUNNER_TEMP/firefox" \
+            --artifacts-dir "$RUNNER_TEMP/web-ext-artifacts" \
+            --channel listed \
+            --approval-timeout 0 \
+            --amo-metadata "$RUNNER_TEMP/amo-metadata.json"
+          echo "AMO に $VERSION を出した（審査の結果はメールで届く）" >> "$GITHUB_STEP_SUMMARY"
