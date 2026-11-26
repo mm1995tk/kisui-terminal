@@ -17,14 +17,21 @@
 //! 「窓の最初の webview」でしか受けないので、隠した窓に子の webview として作って返し、そのあとメイン窓に移して（reparent）
 //! 窓を壊す。新しいタブは、開いた元のタブと同じデータ（ログイン）を使う（シークレットのタブから開いたものはシークレット）。
 //! ページが自分で閉じたら（`window.close()`）、画面に知らせ、画面はタブを閉じて元のタブに戻る。
-//! Linux は WebKitGTK の close を直接受け、macOS はページに入れたスクリプト（browser_close.js）が `kisui-close:` の URL で知らせる。
+//! Linux は WebKitGTK の close を直接受け、macOS はページに入れたスクリプト（browser_close.js・browser_close_tell.js）が
+//! `kisui-close:` の URL で知らせる。
 //! ダウンロードは download.rs。
 //!
 //! ページにキーがある間も、リーダーと近道を効かせる。キーは IPC では受けない。ページに入れるスクリプト（browser_keys.js）が、
 //! 当たるキーを `kisui-key:` の URL にして window.open で開こうとし、ここの on_new_window が受けて画面に渡す（開かずに断る）。
 //! URL には webview を作るたびに決める nonce を入れ、合わないものは捨てる（ページのスクリプトが真似できないように）。
-//! 設定にパスキーのサイト（`[gui.browser] passkey_sites`）があれば、パスキーを捕まえるスクリプト（browser_passkey.js）も入れ、
-//! 同じ形（`kisui-passkey:` の URL と同じ nonce）で知らせを受けて、外のブラウザに移る（passkey.rs。#206）。
+//! nonce を持つスクリプトは、ページの外の世界（isolated world。Linux は WebKitGTK の world、macOS は WKContentWorld）で動かす
+//! （`add_world_scripts`）。ページの世界では、ページのスクリプトが組み込みの関数を差し替えた後に、差し込んだスクリプトが
+//! もう一度動くことがあり、nonce を守れないため。ページの世界で動かす必要があるスクリプト（ページが呼ぶ関数を
+//! 差し替えるもの）は nonce を持たず、外の世界のスクリプトにイベントで知らせる。
+//! nonce が合っても、受けるのは登録してあるキー（リーダーと近道）と、リーダーに入った直後の続きのキーだけ（`accept_key`）。
+//! 設定にパスキーのサイト（`[gui.browser] passkey_sites`）があれば、パスキーを捕まえるスクリプト（browser_passkey.js・
+//! browser_passkey_tell.js）も入れ、同じ形（`kisui-passkey:` の URL と同じ nonce）で知らせを受けて、外のブラウザに移る
+//! （passkey.rs。#206）。
 //!
 //! ログイン（Cookie などのページのデータ）は、すべてのタブで 1 つを共有し、ディスクに残す。Linux はデータのフォルダの
 //! `browser/` に置く。macOS は WKWebView の既定の置き場（`~/Library/WebKit/<アプリの id>/` など。場所は OS が決める）を使う。
@@ -43,7 +50,7 @@ use std::fs;
 use std::io::{ErrorKind, Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
 use tauri::webview::{NewWindowFeatures, NewWindowResponse, PageLoadEvent};
@@ -60,8 +67,14 @@ use crate::passkey::{self, Passkey};
 const LABEL_PREFIX: &str = "browser-";
 /// キーを殻に知らせる URL の scheme。
 const KEY_SCHEME: &str = "kisui-key";
-/// ページに入れるスクリプト。
+/// ページに入れるスクリプト（ページの外の世界で動かす）。
 const KEY_SCRIPT: &str = include_str!("browser_keys.js");
+/// nonce を持つスクリプトを動かす、ページの外の世界の名前（ページの世界とも、favicon.rs の世界とも別）。
+#[cfg_attr(not(any(target_os = "linux", target_os = "macos")), allow(dead_code))]
+const WORLD: &str = "kisui-page";
+/// リーダーに入るキーのあと、登録していないキーも続きのキーとして受ける長さ。browser_keys.js が続きのキーを送る長さ
+/// （1.5 秒）に、知らせが届くまでの遅れの分を足す（短いと、ページが止めて送ったキーを、ここで捨ててしまう）。
+const FOLLOW: Duration = Duration::from_millis(2000);
 /// 開いていたタブを覚えるファイル（データのフォルダの中）。
 const TABS_FILE: &str = "browser-tabs.json";
 /// ページのデータ（Cookie など）を置くフォルダ（データのフォルダの中。Linux だけ使う）。
@@ -76,13 +89,16 @@ const MAX_KEYS: usize = 64;
 /// 1 つのタブが新しい窓を開ける数の上限（POPUP_WINDOW の間に）。ページが window.open を繰り返しても、タブを増やし続けない
 /// （macOS の WKWebView は、ユーザーの操作の無い window.open も既定で通す）。
 const MAX_POPUPS: usize = 5;
-const POPUP_WINDOW: std::time::Duration = std::time::Duration::from_secs(10);
+const POPUP_WINDOW: Duration = Duration::from_secs(10);
 
-/// ページが自分を閉じたことを殻に知らせる URL の scheme（macOS だけ。browser_close.js）。
+/// ページが自分を閉じたことを殻に知らせる URL の scheme（macOS だけ。browser_close_tell.js）。
 const CLOSE_SCHEME: &str = "kisui-close";
-/// ページが自分を閉じたら知らせるスクリプト（macOS だけ入れる）。
+/// ページの window.close を差し替えるスクリプト（macOS だけ入れる。ページの世界で動かす。nonce は持たない）。
 #[cfg(target_os = "macos")]
 const CLOSE_SCRIPT: &str = include_str!("browser_close.js");
+/// ページが自分を閉じたら殻に知らせるスクリプト（macOS だけ入れる。ページの外の世界で動かす）。
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+const CLOSE_TELL_SCRIPT: &str = include_str!("browser_close_tell.js");
 
 /// 画面に知らせるイベント。
 const EVENT_KEY: &str = "browser-key";
@@ -168,6 +184,8 @@ pub struct Tabs {
     tabs: Mutex<HashMap<String, TabInfo>>,
     /// 元のタブ（TabInfo の root）→ その下のタブが新しい窓を開いた時刻（POPUP_WINDOW より前のものは捨てる）
     popups: Mutex<HashMap<String, Vec<Instant>>>,
+    /// タブ → 登録していないキーも、リーダーの続きのキーとして受ける期限（`accept_key`）
+    follow: Mutex<HashMap<String, Instant>>,
 }
 
 impl Tabs {
@@ -213,6 +231,25 @@ impl Tabs {
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .remove(tab);
+        self.follow
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(tab);
+    }
+
+    /// タブ tab のページのスクリプトが知らせたキー ev を、今 (now) 受けてよいか（`accept_key`）。知らないタブのキーは受けない。
+    fn accept_key(&self, tab: &str, ev: &KeyEvent, now: Instant) -> bool {
+        let Some(info) = self.get(tab) else {
+            return false;
+        };
+        let mut m = self.follow.lock().unwrap_or_else(|e| e.into_inner());
+        let mut until = m.get(tab).copied();
+        let ok = accept_key(&info.keys, &mut until, ev, now);
+        match until {
+            Some(t) => m.insert(tab.to_string(), t),
+            None => m.remove(tab),
+        };
+        ok
     }
 }
 
@@ -348,7 +385,7 @@ fn valid_keys(keys: &[KeySpec]) -> bool {
             .all(|k| !k.key.is_empty() && k.key.len() <= 16 && !k.key.chars().any(char::is_control))
 }
 
-/// ページに入れるスクリプト（nonce と受けるキーを埋めたもの）。
+/// ページに入れるスクリプト（nonce と受けるキーを埋めたもの。ページの外の世界で動かす）。
 fn key_script(nonce: &str, keys: &[KeySpec]) -> String {
     let n = serde_json::to_string(nonce).unwrap_or_else(|_| "\"\"".into());
     let k = serde_json::to_string(keys).unwrap_or_else(|_| "[]".into());
@@ -357,7 +394,17 @@ fn key_script(nonce: &str, keys: &[KeySpec]) -> String {
         .replace("__KISUI_KEYS__", &k)
 }
 
+/// ページが自分を閉じたら殻に知らせるスクリプト（nonce を埋めたもの。macOS だけ入れる。ページの外の世界で動かす）。
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+fn close_tell_script(nonce: &str) -> String {
+    CLOSE_TELL_SCRIPT.replace(
+        "__KISUI_NONCE__",
+        &serde_json::to_string(nonce).unwrap_or_else(|_| "\"\"".into()),
+    )
+}
+
 /// ページのスクリプトが知らせたキーの URL を読む。nonce が合わない・形が違うものは None。
+/// 読めたキーを画面に渡してよいかは、`accept_key` が決める。
 pub fn parse_key(u: &Url, nonce: &str, tab: &str) -> Option<KeyEvent> {
     if u.scheme() != KEY_SCHEME {
         return None;
@@ -397,6 +444,81 @@ pub fn parse_key(u: &Url, nonce: &str, tab: &str) -> Option<KeyEvent> {
     })
 }
 
+/// 押されたキー（key と code）が、キーの名前 k（KeySpec の key）のキーか。browser_keys.js の isKey・
+/// app/src/features/commands/keyspec.ts の isKey と同じ決まり。
+fn is_key(key: &str, code: &str, k: &str) -> bool {
+    match k {
+        "+" | "=" => key == "+" || key == "=" || code == "Equal" || code == "NumpadAdd",
+        "-" => key == "-" || code == "Minus" || code == "NumpadSubtract",
+        "Enter" | "Tab" | "Escape" | "Backspace" => key == k,
+        "Space" => key == " " || code == "Space",
+        _ => {
+            let mut cs = k.chars();
+            match (cs.next(), cs.next()) {
+                (Some(c), None) if c.is_ascii_digit() => {
+                    key == k || code == format!("Digit{c}") || code == format!("Numpad{c}")
+                }
+                (Some(c), None) if c.is_ascii_lowercase() => {
+                    key.to_lowercase() == k || code == format!("Key{}", c.to_ascii_uppercase())
+                }
+                _ => key == k,
+            }
+        }
+    }
+}
+
+/// ページで押されたキー ev が、登録してあるキー s に当たるか。browser_keys.js の match・keyspec.ts の matchSpec と同じ決まり
+/// （`+` と `=` は Shift を見ない）。
+fn key_matches(ev: &KeyEvent, s: &KeySpec) -> bool {
+    if ev.ctrl_key != s.ctrl || ev.alt_key != s.alt || ev.meta_key != s.meta {
+        return false;
+    }
+    let plus = s.key == "+" || s.key == "=";
+    if !plus && ev.shift_key != s.shift {
+        return false;
+    }
+    is_key(&ev.key, &ev.code, &s.key)
+}
+
+/// 修飾キーだけのキーか（browser_keys.js の modifierOnly と同じ。続きのキーとして受けない）。
+fn modifier_only(key: &str) -> bool {
+    matches!(
+        key,
+        "Shift" | "Control" | "Alt" | "Meta" | "AltGraph" | "CapsLock" | "OS"
+    )
+}
+
+/// ページのスクリプトが知らせたキー ev（nonce は合っている）を、今 (now) 画面に渡してよいか。
+/// 渡すのは、登録してあるキー keys（リーダーと近道）に当たるものと、リーダーに入るキー（`enter`）のあと `FOLLOW` の間の
+/// 続きのキーだけ（browser_keys.js が送るものと同じ。続きのキーは、キーが画面に移る前にページに届いた分）。ほかは捨てる。
+/// nonce がページのスクリプトに知られても、登録していないキーをいきなり画面に渡させないため。ただし、リーダーに入るキーの
+/// あとの続きのキーは選べないので、nonce を知ったページは、リーダーの木の操作を動かせる（nonce を読ませないことで防ぐ）。
+/// follow_until は、続きのキーを受ける期限（タブごとに覚える）。
+fn accept_key(
+    keys: &[KeySpec],
+    follow_until: &mut Option<Instant>,
+    ev: &KeyEvent,
+    now: Instant,
+) -> bool {
+    let following = follow_until.is_some_and(|t| now <= t);
+    if !following {
+        *follow_until = None;
+    }
+    match keys.iter().find(|k| key_matches(ev, k)) {
+        Some(k) => {
+            if k.enter {
+                *follow_until = Some(now + FOLLOW);
+            }
+            true
+        }
+        None if following && !modifier_only(&ev.key) => {
+            *follow_until = Some(now + FOLLOW);
+            true
+        }
+        None => false,
+    }
+}
+
 /// ページのスクリプトが知らせた「Esc が押された」（`kisui-key://esc`。nonce が合うもの）か（browser_keys.js）。
 fn is_escape_notice(u: &Url, nonce: &str) -> bool {
     u.scheme() == KEY_SCHEME
@@ -431,7 +553,7 @@ fn opens_in_new_tab(u: &Url) -> bool {
     matches!(u.scheme(), "http" | "https") || u.as_str() == "about:blank"
 }
 
-/// ページのスクリプトが知らせた「ページが自分を閉じた」（`kisui-close:`。nonce が合うもの）か（macOS。browser_close.js）。
+/// ページのスクリプトが知らせた「ページが自分を閉じた」（`kisui-close:`。nonce が合うもの）か（macOS。browser_close_tell.js）。
 fn is_close_request(u: &Url, nonce: &str) -> bool {
     u.scheme() == CLOSE_SCHEME
         && !nonce.is_empty()
@@ -449,7 +571,8 @@ fn tell_closed(app: &AppHandle, tab: &str) {
 }
 
 /// 子の webview が新しい窓を開こうとした（`target=_blank`・`window.open`）。
-/// ページのスクリプトが知らせたキー（`kisui-key:`。nonce が合うもの）なら、画面に知らせてからキーをメインの webview に移す。
+/// ページのスクリプトが知らせたキー（`kisui-key:`。nonce が合うもの）なら、画面に知らせてからキーをメインの webview に移す
+/// （登録してあるキーと、リーダーの続きのキーだけ。`accept_key`。ほかは捨てる）。
 /// ページのスクリプトが知らせたパスキーの求め（`kisui-passkey:`。nonce が合うもの）なら、外のブラウザに移る（passkey.rs）。
 /// ページのスクリプトが知らせた「閉じた」（`kisui-close:`。macOS）なら、画面に知らせる。どれも開かずに断る。
 /// http・https・about:blank なら、新しいタブにする（`open_popup`）。作れなければ、http・https は同じタブで開く。
@@ -463,11 +586,17 @@ fn on_new_window(
 ) -> NewWindowResponse<tauri::Wry> {
     let app = app.clone();
     if let Some(ev) = parse_key(&u, nonce, tab) {
-        std::thread::spawn(move || {
-            // 先に知らせてからキーを移す（移したあとに画面に届くキーより前に、このキーを届ける）
-            let _ = app.emit(EVENT_KEY, ev);
-            focus_main(&app);
-        });
+        // 登録していないキーは、画面に渡さず、キーも移さない
+        let ok = app
+            .try_state::<Tabs>()
+            .is_some_and(|t| t.accept_key(tab, &ev, Instant::now()));
+        if ok {
+            std::thread::spawn(move || {
+                // 先に知らせてからキーを移す（移したあとに画面に届くキーより前に、このキーを届ける）
+                let _ = app.emit(EVENT_KEY, ev);
+                focus_main(&app);
+            });
+        }
     } else if is_escape_notice(&u, nonce) {
         // ページで Esc が押された（browser_keys.js）。止めるかは画面が決める。キーは移さない（ページも Esc を受ける）
         let tab = tab.to_string();
@@ -478,7 +607,7 @@ fn on_new_window(
             );
         });
     } else if passkey::is_request(&u, nonce) {
-        // ページがパスキーを求めた（browser_passkey.js）。今の URL が許可サイトなら、外のブラウザで開く（passkey.rs）
+        // ページがパスキーを求めた（browser_passkey_tell.js）。今の URL が許可サイトなら、外のブラウザで開く（passkey.rs）
         let lbl = label(tab);
         let tab = tab.to_string();
         std::thread::spawn(move || {
@@ -539,7 +668,7 @@ fn open_popup(
         .skip_taskbar(true)
         .build()
         .map_err(|e| e.to_string())?;
-    let builder = tab_builder(
+    let (builder, world_scripts) = tab_builder(
         app,
         &id,
         Url::parse("about:blank").map_err(|e| e.to_string())?,
@@ -561,6 +690,8 @@ fn open_popup(
             return Err(e.to_string());
         }
     };
+    // WebKit に返す前（ページが読み込まれる前）に足す
+    add_world_scripts(&v, world_scripts);
     let Some(window) = app.get_webview_window(&lbl) else {
         let _ = v.close();
         let _ = holder.destroy();
@@ -632,11 +763,20 @@ fn watch_native(_: &AppHandle, _: &Webview, _: &str, _: bool) {}
 struct PageScript {
     /// すべてのフレームに入れるか（false なら上のフレームだけ）
     all_frames: bool,
+    /// ページの外の世界（`WORLD`）で動かすか（false ならページの世界）。nonce を持つスクリプトは、必ず外の世界で動かす
+    /// （ページのスクリプトは、ページの世界で動くスクリプトの中身を読める）
+    isolated: bool,
     source: String,
 }
 
 /// タブのページに入れるスクリプト（キー・パスキー・macOS の `window.close`）。
-fn page_scripts(app: &AppHandle, nonce: &str, keys: &[KeySpec], data: &Data) -> Vec<PageScript> {
+/// `passkey_sites` は、パスキーのサイト（設定に書いたときだけ。passkey.rs）。
+fn page_scripts(
+    nonce: &str,
+    keys: &[KeySpec],
+    passkey_sites: Option<&[String]>,
+    data: &Data,
+) -> Vec<PageScript> {
     // macOS で、ページが開いた新しい窓は、WebKit が渡す設定（開いた元の設定の写し）で作る。スクリプトの入れ物
     // （WKUserContentController）は開いた元と同じ 1 つなので、ここで足すと開いた元のタブにも入り、重なる。
     // 足さずに、開いた元のタブのスクリプト（同じ nonce）をそのまま使う
@@ -645,27 +785,139 @@ fn page_scripts(app: &AppHandle, nonce: &str, keys: &[KeySpec], data: &Data) -> 
     }
     let mut out = vec![PageScript {
         all_frames: true,
+        isolated: true,
         source: key_script(nonce, keys),
     }];
     // パスキーのサイトを設定に書いたときだけ、パスキーを捕まえるスクリプトも入れる（passkey.rs）。
-    // シークレットのタブには入れない（外のブラウザから写した Cookie は外のブラウザに残り、「残さない」と食い違うため）
-    if !data.incognito() {
-        if let Some(p) = app.try_state::<Arc<Passkey>>() {
-            out.push(PageScript {
-                all_frames: true,
-                source: passkey::script(nonce, p.sites()),
-            });
+    // シークレットのタブには入れない（外のブラウザから写した Cookie は外のブラウザに残り、「残さない」と食い違うため）。
+    // 捕まえるスクリプトはページの世界で動かし（ページが呼ぶ navigator.credentials を差し替える）、殻に知らせるスクリプト
+    // （nonce を持つ）は外の世界で動かす
+    if let Some(sites) = passkey_sites.filter(|_| !data.incognito()) {
+        out.push(PageScript {
+            all_frames: true,
+            isolated: false,
+            source: passkey::page_script(sites),
+        });
+        out.push(PageScript {
+            all_frames: true,
+            isolated: true,
+            source: passkey::tell_script(nonce, sites),
+        });
+    }
+    // macOS：ページの window.close を差し替えるスクリプトはページの世界で、殻に知らせるスクリプト（nonce を持つ）は外の世界で動かす
+    #[cfg(target_os = "macos")]
+    {
+        out.push(PageScript {
+            all_frames: false,
+            isolated: false,
+            source: CLOSE_SCRIPT.to_string(),
+        });
+        out.push(PageScript {
+            all_frames: false,
+            isolated: true,
+            source: close_tell_script(nonce),
+        });
+    }
+    out
+}
+
+/// ページの外の世界で動かすスクリプトを、タブの webview に足す。webview を作ったのと同じメインスレッドの処理の中で呼ぶ
+/// （wry はページの世界にしか入れられないので、作った後で OS の WebView に直接足す。同じ処理の中で足せば、最初のページの
+/// 読み込みが進む前に WebView に伝わる。メインスレッドの外から呼ぶと、足す前に最初のページが出て、そのページでは
+/// キーが効かないことがある）。足せなければ、そのタブでは、ページにキーがある間のリーダーと近道・パスキー・macOS の
+/// `window.close` が効かない（nonce をページの世界に置くより、効かない方を選ぶ）。
+fn add_world_scripts(v: &Webview, scripts: Vec<PageScript>) {
+    if scripts.is_empty() {
+        return;
+    }
+    let r = v.with_webview(move |pv| {
+        if !add_to_world(&pv, &scripts) {
+            eprintln!(
+                "kisui-terminal: cannot add the page scripts to an isolated world; keys do not work while the page has focus"
+            );
+        }
+    });
+    if let Err(e) = r {
+        eprintln!("kisui-terminal: cannot add the page scripts: {e}");
+    }
+}
+
+/// Linux：WebKitGTK の world に、文書の始まりで動くスクリプトとして足す。
+#[cfg(target_os = "linux")]
+fn add_to_world(pv: &tauri::webview::PlatformWebview, scripts: &[PageScript]) -> bool {
+    use webkit2gtk::{
+        UserContentInjectedFrames, UserContentManagerExt, UserScript, UserScriptInjectionTime,
+        WebViewExt,
+    };
+    let Some(m) = pv.inner().user_content_manager() else {
+        return false;
+    };
+    for s in scripts {
+        let frames = if s.all_frames {
+            UserContentInjectedFrames::AllFrames
+        } else {
+            UserContentInjectedFrames::TopFrame
+        };
+        m.add_script(&UserScript::for_world(
+            &s.source,
+            frames,
+            UserScriptInjectionTime::Start,
+            WORLD,
+            &[],
+            &[],
+        ));
+    }
+    true
+}
+
+/// macOS：WKContentWorld に、文書の始まりで動くスクリプトとして足す（macOS 11 から。それより前は足せない）。
+#[cfg(target_os = "macos")]
+fn add_to_world(pv: &tauri::webview::PlatformWebview, scripts: &[PageScript]) -> bool {
+    use objc2::MainThreadOnly;
+    use objc2_foundation::NSString;
+    use objc2_web_kit::{WKContentWorld, WKUserScript, WKUserScriptInjectionTime};
+
+    if objc2::runtime::AnyClass::get(c"WKContentWorld").is_none() {
+        return false;
+    }
+    let Some((w, mtm)) = wk_webview(pv) else {
+        return false;
+    };
+    // SAFETY: メインスレッドで呼ぶ（mtm）。w は、with_webview の閉包の間は生きている WKWebView。
+    // configuration は設定の写しを返すが、スクリプトの入れ物（userContentController）は webview が使っているものと同じ
+    unsafe {
+        let world = WKContentWorld::worldWithName(&NSString::from_str(WORLD), mtm);
+        let controller = w.configuration().userContentController();
+        for s in scripts {
+            let script = WKUserScript::initWithSource_injectionTime_forMainFrameOnly_inContentWorld(
+                WKUserScript::alloc(mtm),
+                &NSString::from_str(&s.source),
+                WKUserScriptInjectionTime::AtDocumentStart,
+                !s.all_frames,
+                &world,
+            );
+            controller.addUserScript(&script);
         }
     }
-    #[cfg(target_os = "macos")]
-    out.push(PageScript {
-        all_frames: false,
-        source: CLOSE_SCRIPT.replace(
-            "__KISUI_NONCE__",
-            &serde_json::to_string(nonce).unwrap_or_else(|_| "\"\"".into()),
-        ),
-    });
-    out
+    true
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "macos")))]
+fn add_to_world(_: &tauri::webview::PlatformWebview, _: &[PageScript]) -> bool {
+    false
+}
+
+/// メインスレッドで f を動かし、答えを待つ。
+fn on_main_thread<R: Send + 'static>(
+    app: &AppHandle,
+    f: impl FnOnce() -> R + Send + 'static,
+) -> Result<R, String> {
+    let (tx, rx) = std::sync::mpsc::channel();
+    app.run_on_main_thread(move || {
+        let _ = tx.send(f());
+    })
+    .map_err(|e| e.to_string())?;
+    rx.recv().map_err(|e| e.to_string())
 }
 
 /// 遷移・新しい窓・読み込み・題の変化・ダウンロード（macOS）の受け口を足す。
@@ -772,6 +1024,8 @@ fn with_data(
 }
 
 /// タブの子の webview を組む。ページにスクリプトを入れ、受け口を足し、データの置き場を当てる。
+/// ページの外の世界で動かすスクリプトは、ここでは入れられないので返す。webview を作ったら、同じメインスレッドの処理の中で
+/// `add_world_scripts` に渡す。
 fn tab_builder(
     app: &AppHandle,
     tab: &str,
@@ -779,12 +1033,17 @@ fn tab_builder(
     nonce: String,
     keys: &[KeySpec],
     data: Data,
-) -> WebviewBuilder<tauri::Wry> {
+) -> (WebviewBuilder<tauri::Wry>, Vec<PageScript>) {
     // DevTools（ブラウザのタブの窓の `i`。#205）はタブのページで使う（メインの webview は、release では main.rs で切る）
     let mut builder = WebviewBuilder::new(label(tab), WebviewUrl::External(first))
         .focused(false)
         .devtools(true);
-    for s in page_scripts(app, &nonce, keys, &data) {
+    let passkey = app.try_state::<Arc<Passkey>>();
+    let sites = passkey.as_deref().map(|p| p.sites());
+    let (world, page): (Vec<_>, Vec<_>) = page_scripts(&nonce, keys, sites, &data)
+        .into_iter()
+        .partition(|s| s.isolated);
+    for s in page {
         builder = if s.all_frames {
             builder.initialization_script_for_all_frames(s.source)
         } else {
@@ -792,7 +1051,7 @@ fn tab_builder(
         };
     }
     let builder = with_handlers(builder, app, tab, nonce);
-    with_data(builder, app, data)
+    (with_data(builder, app, data), world)
 }
 
 /// タブを作る（子の webview）。`x`・`y`・`w`・`h` は画面が測ったページの四角、`vw`・`vh` はそのときの viewport の大きさ
@@ -860,14 +1119,19 @@ pub async fn browser_open(
         return Err("the tab is already open".into());
     }
     let nonce = new_nonce()?;
-    let builder = tab_builder(&app, &tab, first, nonce.clone(), &keys, data);
-    let v = win
-        .add_child(
-            builder,
-            LogicalPosition::new(at.x, at.y),
-            LogicalSize::new(at.w, at.h),
-        )
-        .map_err(|e| e.to_string())?;
+    let (builder, world_scripts) = tab_builder(&app, &tab, first, nonce.clone(), &keys, data);
+    // webview を作るのと、ページの外の世界のスクリプトを足すのを、メインスレッドの 1 つの処理で行う（`add_world_scripts`）
+    let (pos, size) = (
+        LogicalPosition::new(at.x, at.y),
+        LogicalSize::new(at.w, at.h),
+    );
+    let v = on_main_thread(&app, move || {
+        let v = win
+            .add_child(builder, pos, size)
+            .map_err(|e| e.to_string())?;
+        add_world_scripts(&v, world_scripts);
+        Ok::<_, String>(v)
+    })??;
     // 作るときの場所は wry の数え方で仮に置かれるので、すぐに置き直す（macOS。browser_frame.rs）。置き直せなくても、
     // タブは作れているので続ける（画面は、場所が変わったら browser_bounds で置き直す）
     if let Err(e) = crate::browser_frame::place(&app, &v, &tab, at) {
@@ -1579,8 +1843,7 @@ mod tests {
         assert!(!KEY_SCRIPT.contains("location"));
     }
 
-    // キーの中身は、先に取っておいた getter だけで読む（ページが KeyboardEvent.prototype を差し替えても見せかけられない）。
-    // 受けたイベント（ev）から直接読むのは、差し替えられない isTrusted だけ
+    // キーの中身は、先に取っておいた getter だけで読む。受けたイベント（ev）から直接読むのは、差し替えられない isTrusted だけ
     #[test]
     fn script_reads_keys_through_saved_getters() {
         assert_eq!(KEY_SCRIPT.matches("ev.").count(), 1);
@@ -1726,12 +1989,184 @@ mod tests {
         assert!(s.contains("if (false && s"), "{s}");
     }
 
-    // 閉じた知らせのスクリプトは、殻の受ける URL の形で知らせ、nonce の印を持つ
+    // 閉じた知らせのスクリプト（ページの外の世界で動かす）は、殻の受ける URL の形で知らせ、nonce を埋めて使う
     #[test]
     fn close_script_sends_the_url_this_shell_reads() {
-        let s = include_str!("browser_close.js");
-        assert!(s.contains("\"kisui-close://close?n=\""));
-        assert!(s.contains("__KISUI_NONCE__"));
-        assert!(!s.contains("location"));
+        assert!(CLOSE_TELL_SCRIPT.contains("\"kisui-close://close?n=\""));
+        assert!(!CLOSE_TELL_SCRIPT.contains("location"));
+        let s = close_tell_script("abc\"</script>");
+        assert!(!s.contains("__KISUI_"), "{s}");
+        assert!(s.contains(r#"const nonce = "abc\"</script>";"#), "{s}");
+        // ページの世界で動かすスクリプト（window.close を差し替える）は、nonce を持たず、殻にも直接は知らせない。
+        // 外の世界のスクリプトが受けるのと同じ名前のイベントで知らせる
+        let page = include_str!("browser_close.js");
+        assert!(!page.contains("__KISUI_NONCE__"));
+        assert!(!page.contains("kisui-close://"));
+        assert!(!page.contains("window.open"));
+        assert!(page.contains(r#"new Ev("kisui-close")"#));
+        assert!(CLOSE_TELL_SCRIPT.contains(r#""kisui-close","#));
+    }
+
+    fn spec(ctrl: bool, shift: bool, alt: bool, meta: bool, key: &str, enter: bool) -> KeySpec {
+        KeySpec {
+            ctrl,
+            shift,
+            alt,
+            meta,
+            key: key.into(),
+            enter,
+        }
+    }
+
+    /// ページのスクリプトが知らせるキー（mods は URL の m と同じ。1 が Ctrl、2 が Shift、4 が Alt、8 が Meta）。
+    fn pressed(key: &str, code: &str, mods: u8) -> KeyEvent {
+        KeyEvent {
+            tab: "t1".into(),
+            key: key.into(),
+            code: code.into(),
+            ctrl_key: mods & 1 != 0,
+            shift_key: mods & 2 != 0,
+            alt_key: mods & 4 != 0,
+            meta_key: mods & 8 != 0,
+            repeat: false,
+        }
+    }
+
+    // nonce を持つスクリプトは、ページの外の世界で動かす。ページの世界で動かすスクリプトには、nonce を入れない
+    // （ページのスクリプトは、ページの世界で動くスクリプトに渡した値を読める）
+    #[test]
+    fn scripts_with_the_nonce_run_outside_the_page_world() {
+        let nonce = "0123456789abcdef0123456789abcdef";
+        let keys = vec![spec(true, true, false, false, "k", true)];
+        let sites = vec!["github.com".to_string()];
+        for data in [Data::Shared, Data::Incognito] {
+            let scripts = page_scripts(nonce, &keys, Some(&sites), &data);
+            assert!(scripts.iter().any(|s| s.isolated));
+            for s in &scripts {
+                assert_eq!(s.source.contains(nonce), s.isolated, "{}", s.source);
+                assert!(!s.source.contains("__KISUI_"), "{}", s.source);
+            }
+            // パスキーのスクリプトは、シークレットのタブには入れない
+            let passkey = scripts
+                .iter()
+                .filter(|s| s.source.contains("kisui-passkey"))
+                .count();
+            assert_eq!(passkey, if data.incognito() { 0 } else { 2 });
+        }
+        // パスキーのサイトが無ければ、パスキーのスクリプトは入れない
+        let scripts = page_scripts(nonce, &keys, None, &Data::Shared);
+        assert!(!scripts.iter().any(|s| s.source.contains("kisui-passkey")));
+    }
+
+    // 殻の照らし方は、ページのスクリプト（browser_keys.js の match）・画面（keyspec.ts の matchSpec）と同じ
+    #[test]
+    fn keys_match_like_the_page_script() {
+        let leader = spec(true, true, false, false, "k", true);
+        // Shift を押すと key は大文字になる。かな入力などで key が別の字でも、code で当たる
+        assert!(key_matches(&pressed("K", "KeyK", 3), &leader));
+        assert!(key_matches(&pressed("の", "KeyK", 3), &leader));
+        assert!(!key_matches(&pressed("K", "KeyK", 2), &leader));
+        assert!(!key_matches(&pressed("K", "KeyK", 11), &leader));
+        assert!(!key_matches(&pressed("J", "KeyJ", 3), &leader));
+        // `+` と `=` は Shift を見ない。ほかは見る
+        let plus = spec(true, false, false, false, "+", false);
+        assert!(key_matches(&pressed("=", "Equal", 1), &plus));
+        assert!(key_matches(&pressed("+", "Equal", 3), &plus));
+        assert!(key_matches(&pressed("+", "NumpadAdd", 1), &plus));
+        let zero = spec(true, false, false, false, "0", false);
+        assert!(key_matches(&pressed("0", "Digit0", 1), &zero));
+        assert!(key_matches(&pressed("0", "Numpad0", 1), &zero));
+        assert!(!key_matches(&pressed(")", "Digit0", 3), &zero));
+        let minus = spec(false, false, false, true, "-", false);
+        assert!(key_matches(&pressed("-", "Minus", 8), &minus));
+        assert!(key_matches(&pressed("-", "NumpadSubtract", 8), &minus));
+        // 名前のあるキーは key で照らす
+        let enter = spec(false, true, false, true, "Enter", false);
+        assert!(key_matches(&pressed("Enter", "Enter", 10), &enter));
+        assert!(!key_matches(&pressed("Enter", "Enter", 8), &enter));
+        let space = spec(true, false, false, false, "Space", false);
+        assert!(key_matches(&pressed(" ", "Space", 1), &space));
+        let up = spec(false, false, true, false, "ArrowUp", false);
+        assert!(key_matches(&pressed("ArrowUp", "ArrowUp", 4), &up));
+        assert!(!key_matches(&pressed("ArrowDown", "ArrowDown", 4), &up));
+    }
+
+    // nonce が合っても、登録していないキーは受けない（画面に渡さない）。リーダーに入るキーのあとの短い間だけ、続きのキーを受ける
+    #[test]
+    fn unregistered_keys_are_not_accepted() {
+        let keys = vec![
+            spec(true, true, false, false, "k", true),
+            spec(true, false, false, false, "r", false),
+        ];
+        let t0 = Instant::now();
+        let mut until = None;
+        // 登録していないキー（文字・Enter・修飾キー付きのキー）
+        for ev in [
+            pressed("a", "KeyA", 0),
+            pressed("Enter", "Enter", 0),
+            pressed("y", "KeyY", 0),
+            pressed("w", "KeyW", 1),
+            pressed("k", "KeyK", 1),
+            pressed("K", "KeyK", 2),
+            pressed("Escape", "Escape", 0),
+        ] {
+            assert!(!accept_key(&keys, &mut until, &ev, t0), "{ev:?}");
+            assert_eq!(until, None);
+        }
+        // 近道は受けるが、そのあとの登録していないキーは受けない
+        assert!(accept_key(&keys, &mut until, &pressed("r", "KeyR", 1), t0));
+        assert_eq!(until, None);
+        assert!(!accept_key(&keys, &mut until, &pressed("i", "KeyI", 0), t0));
+        // リーダーに入るキーのあとは、続きのキーを受ける（修飾キーだけのキーは受けない）
+        assert!(accept_key(&keys, &mut until, &pressed("K", "KeyK", 3), t0));
+        assert!(!accept_key(
+            &keys,
+            &mut until,
+            &pressed("Shift", "ShiftLeft", 2),
+            t0
+        ));
+        let t1 = t0 + FOLLOW / 2;
+        assert!(accept_key(&keys, &mut until, &pressed("i", "KeyI", 0), t1));
+        // 続きのキーのたびに延びる
+        let t2 = t1 + FOLLOW;
+        assert!(accept_key(&keys, &mut until, &pressed("o", "KeyO", 0), t2));
+        // 期限を過ぎたら、また受けない
+        let t3 = t2 + FOLLOW + Duration::from_millis(1);
+        assert!(!accept_key(&keys, &mut until, &pressed("o", "KeyO", 0), t3));
+        assert_eq!(until, None);
+    }
+
+    // 続きのキーを受ける期限はタブごと。知らないタブ・閉じたタブのキーは受けない
+    #[test]
+    fn keys_are_checked_against_the_keys_of_the_tab() {
+        let tabs = Tabs::default();
+        let info = |keys: Vec<KeySpec>| TabInfo {
+            keys,
+            incognito: false,
+            nonce: "abc".into(),
+            root: "t1".into(),
+            proxied: false,
+        };
+        tabs.set("t1", info(vec![spec(true, true, false, false, "k", true)]));
+        tabs.set(
+            "t2",
+            info(vec![spec(true, false, false, false, "r", false)]),
+        );
+        let t0 = Instant::now();
+        let leader = pressed("K", "KeyK", 3);
+        let plain = pressed("i", "KeyI", 0);
+        assert!(!tabs.accept_key("t1", &plain, t0));
+        assert!(!tabs.accept_key("nope", &leader, t0));
+        // t2 はリーダーのキーを登録していない
+        assert!(!tabs.accept_key("t2", &leader, t0));
+        assert!(tabs.accept_key("t1", &leader, t0));
+        // t1 がリーダーに入っても、t2 の続きのキーは受けない
+        assert!(!tabs.accept_key("t2", &plain, t0));
+        assert!(tabs.accept_key("t1", &plain, t0));
+        // 閉じたタブは、同じ id で作り直しても、前の期限を引き継がない
+        tabs.remove("t1");
+        assert!(!tabs.accept_key("t1", &plain, t0));
+        tabs.set("t1", info(vec![spec(true, true, false, false, "k", true)]));
+        assert!(!tabs.accept_key("t1", &plain, t0));
     }
 }

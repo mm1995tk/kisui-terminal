@@ -185,7 +185,7 @@ func (s *Server) adoptTerms(st *handoverState, ft *fdTable) error {
 		}
 		t := &terminal{
 			mgr: m, id: ht.ID, pid: ht.PID, cwd: ht.Cwd, wsID: ht.Workspace, primary: ht.Primary, keepOnExit: ht.KeepOnExit, token: ht.Token,
-			cols: ht.Cols, rows: ht.Rows, title: ht.Title, name: ht.Name, alive: ht.Alive,
+			cols: ht.Cols, rows: ht.Rows, title: ht.Title, name: ht.Name, ancestors: ht.Ancestors, alive: ht.Alive,
 			ring: make([]byte, ringSize), base: ht.RingStart, total: ht.RingStart,
 			feed: newScreenFeed(s.log, ht.Rows, ht.Cols),
 		}

@@ -498,7 +498,14 @@ export interface Requests {
    * `kisui pane` の --machine（#344）。別のマシンのペインから手元の GUI が中継した頼み（list・send・keys・close・read）を、
    * このマシンで行う。断るときも result の error で答える。hello の capabilities に "pane.run" がある serve だけが受ける
    */
-  "pane.run": { params: PaneRunRequest; result: PaneRunReply };
+  "pane.run": {
+    /**
+     * from は、頼んだペイン（窓が、頼みを送ってきた serve の serverId を付ける）。serve は、from が作ったペインと、
+     * その先にだけ届かせる。無ければ、どのペインにも届かない（そのマシンが [server] pane_reach = "all" なら全部に届く）
+     */
+    params: PaneRunRequest & { from?: PaneOrigin };
+    result: PaneRunReply;
+  };
   "workspace.create": {
     /**
      * dir は、プライマリターミナルのシェルを始めるフォルダ（絶対パス）。無い・フォルダでなければ start_dir。古い kisui serve は無視する。
@@ -516,6 +523,8 @@ export interface Requests {
       argv?: string[];
       env?: string[];
       name?: string;
+      /** `kisui pane open` で作るタブのペインに持たせる系譜（pane.open・pane.relay で serve が渡したもの。そのまま返す） */
+      ancestry?: PaneOrigin[];
     };
     result: { id: WorkspaceId; termId: TermId };
   };
@@ -668,6 +677,26 @@ export interface Requests {
   "db.elevateEnd": {
     params: { connection: string; variant?: string; actor: "human" | "agent" };
     result: { connection: DbConnection };
+  };
+  /**
+   * 窓が覚えている、前に打って通ったパスワードを渡し直す。capabilities に "db-remember" のある kisui serve だけが受ける。
+   * その kisui serve は、窓で打って覚えたパスワードを、窓の接続が切れたとき・別の窓が持ち主になったときに全部忘れるので、
+   * 窓はつなぎ直した直後に送る（コーディングエージェントの kisui db のコマンドが、人の操作を待たずにまた使えるように）。
+   * kind・host・port・user は、パスワードを打ったときの、その接続の行き先（db.connections が返していたもの）。今の設定の
+   * 接続と同じなら覚えて remembered は true。接続が無い・行き先が違えば、覚えずに false（窓は、覚えていたものを捨てる）。
+   * DB にはつながない。password を省くと invalid_params（"" はパスワード無しのログイン）
+   */
+  "db.remember": {
+    params: {
+      connection: string;
+      variant?: string;
+      kind: "postgres" | "mysql";
+      host: string;
+      port: number;
+      user: string;
+      password: string;
+    };
+    result: { remembered: boolean };
   };
   /**
    * 通信をプロキシに通し始める（#409）。capabilities に "proxy" がある kisui serve だけが受ける。workspaceId はターミナルのタブ
@@ -940,6 +969,17 @@ export interface DbProposeRequest {
 export type DbProposeReport =
   { status: "written" | "declined" } | { error: string };
 
+/**
+ * ペイン 1 つを、マシンをまたいで見分ける名前（serve の paneOrigin）。ペインの中のコマンドが届くペインの範囲を、serve が
+ * これで決める（頼んだペインが作ったペインと、その先。server/panereach.go）。
+ */
+export interface PaneOrigin {
+  /** そのペインの serve の serverId。無ければ、受け取った serve 自身 */
+  server?: string;
+  /** その serve でのターミナルの id */
+  pane: string;
+}
+
 /** pane.open の中身（`kisui pane open`。#343）。 */
 export interface PaneOpenRequest {
   id: string;
@@ -955,6 +995,8 @@ export interface PaneOpenRequest {
   argv?: string[];
   /** コマンドの環境変数（"NAME=value"） */
   env?: string[];
+  /** 作るタブのペインに持たせる系譜（頼んだペインと、そのペインを作ったペインたち）。workspace.create にそのまま渡す */
+  ancestry?: PaneOrigin[];
 }
 
 /** pane.open への答え（#343）。 */
@@ -966,6 +1008,10 @@ export interface PaneRelayRequest {
   /** 頼む先のマシンの名前（[[gui.machines]] の名前。local は GUI の動く手元の PC） */
   machine: string;
   request: PaneRunRequest;
+  /** 頼んだペインの id（頼みを送ってきた serve でのもの）。古い serve は付けない */
+  pane?: string;
+  /** open-tab で、作るタブのペインに持たせる系譜（PaneOpenRequest と同じ） */
+  ancestry?: PaneOrigin[];
 }
 
 /** 別のマシンのペインへの頼み（serve の panecmd.Request から、頼んだペインの id・秘密・マシンを除いたもの）。 */

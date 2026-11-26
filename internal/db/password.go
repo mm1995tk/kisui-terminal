@@ -42,7 +42,8 @@ var ErrPasswordRequired = errors.New("a password is required")
 //
 //  1. the password the window sent with this request;
 //  2. a password the window sent with an earlier request and that worked
-//     (remembered in memory only, never written to a file);
+//     (remembered in memory only, never written to a file, and only as long
+//     as that window is connected: ForgetAll);
 //  3. the keychain of the OS (macOS);
 //  4. ~/.pgpass (PostgreSQL) or ~/.my.cnf (MySQL).
 //
@@ -105,8 +106,8 @@ func (p *Passwords) Find(ctx context.Context, c config.DBLogin, typed *string) (
 	return "", "", ErrPasswordRequired
 }
 
-// Remember keeps a typed password that worked, until Forget or the end of
-// the process.
+// Remember keeps a typed password that worked, until Forget, ForgetAll or
+// the end of the process.
 func (p *Passwords) Remember(c config.DBLogin, password string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -121,6 +122,26 @@ func (p *Passwords) Forget(c config.DBLogin) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	delete(p.remembered, identity(c))
+}
+
+// ForgetAll drops every remembered password. "kisui serve" calls it when the
+// window that typed them goes away and when another window takes over, so a
+// typed password is kept no longer than its window is connected. The window
+// keeps what was typed in its own memory and hands it back after it connects
+// again.
+func (p *Passwords) ForgetAll() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	clear(p.remembered)
+}
+
+// SameLogin reports whether a password that was typed for the login was is
+// one Find would use for c: the name, the variant, the kind, the server and
+// the user are the same (identity). "kisui serve" asks it before it takes
+// back a password the window kept, so that a password is never sent to
+// another server after the settings were edited.
+func SameLogin(c, was config.DBLogin) bool {
+	return identity(c) == identity(was)
 }
 
 // identity is what a remembered password belongs to: not the name (and the

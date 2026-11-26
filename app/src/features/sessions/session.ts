@@ -24,6 +24,7 @@ import {
   type PaneOpenRequest,
   type PaneRelayRequest,
   type PaneRunReply,
+  type PaneOrigin,
   type PaneRunRequest,
   type Requests,
   type TermId,
@@ -145,7 +146,8 @@ export type DbMethod =
   | "db.structure"
   | "db.history"
   | "db.elevate"
-  | "db.elevateEnd";
+  | "db.elevateEnd"
+  | "db.remember";
 /**
  * Session.request で送れる要求（プロキシ。#409。capabilities に "proxy" がある kisui serve だけが受ける。proxy.resend（#410）は
  * "proxy.resend"、proxy.hold・proxy.release（#411）は "proxy.hold" がある kisui serve だけ）。
@@ -211,6 +213,10 @@ export class Session {
   private conn?: Connection;
   /** 最後につながった shj の serverId と、その hello の版 */
   private serverId?: string;
+  /** 今つながっている kisui serve の serverId（つながっていなければ無い）。ペインを、マシンをまたいで見分けるのに使う（paneRelay.ts） */
+  get connectedServerId(): string | undefined {
+    return this.conn?.hello.serverId;
+  }
   private rev = 0;
   private _workspaces: HelloResult["workspaces"] = [];
   /** shj がフォーカスしているワークスペース（workspace.list と workspace.focus で知る） */
@@ -322,7 +328,12 @@ export class Session {
    */
   async createWorkspace(
     dir?: string,
-    cmd?: { argv?: string[]; env?: string[]; name: string },
+    cmd?: {
+      argv?: string[];
+      env?: string[];
+      name: string;
+      ancestry?: PaneOrigin[];
+    },
   ): Promise<{ id: WorkspaceId; termId: TermId }> {
     const conn = this.conn;
     if (!conn)
@@ -340,6 +351,7 @@ export class Session {
         ...(cmd.argv?.length ? { argv: cmd.argv } : {}),
         ...(cmd.env?.length ? { env: cmd.env } : {}),
         name: cmd.name,
+        ...(cmd.ancestry?.length ? { ancestry: cmd.ancestry } : {}),
       });
     }
     const start = createParams(await defaults);
@@ -350,6 +362,7 @@ export class Session {
         ...(cmd?.argv?.length ? { argv: cmd.argv } : {}),
         ...(cmd?.env?.length ? { env: cmd.env } : {}),
         ...(cmd ? { name: cmd.name } : {}),
+        ...(cmd?.ancestry?.length ? { ancestry: cmd.ancestry } : {}),
       }),
     );
   }
@@ -428,15 +441,16 @@ export class Session {
 
   /**
    * 別のマシンのペインから中継した頼み（`kisui pane … --machine`。#344）を、このマシンの serve に pane.run で送る。
+   * from は頼んだペイン（serve は、from が作ったペインと、その先にだけ届かせる。無ければどのペインにも届かない）。
    * つながっていない・古い serve（pane.run を知らない）なら投げる。
    */
-  async runPane(rq: PaneRunRequest): Promise<PaneRunReply> {
+  async runPane(rq: PaneRunRequest, from?: PaneOrigin): Promise<PaneRunReply> {
     const conn = this.conn;
     if (!conn)
       throw new Error(T("err.session.notConnected", { machine: this.target }));
     if (!hasCapability(conn.hello, "pane.run"))
       throw new Error(T("err.session.tooOld", { machine: this.target }));
-    return conn.client.request("pane.run", rq);
+    return conn.client.request("pane.run", from ? { ...rq, from } : rq);
   }
 
   /** `kisui pane … --machine` への答え（pane.relayed）を今の接続で送る。つながっていなければ何もしない（serve は時間切れで断る）。 */
@@ -943,6 +957,24 @@ export function parseDbPropose(n: unknown): DbProposeRequest | undefined {
   };
 }
 
+/**
+ * pane.open・pane.relay の ancestry（作るタブのペインに持たせる系譜）を読む。形の合う項目だけを残す。
+ * 無い・1 つも残らなければ、何も付けない（そのタブは、どのペインからも届かない）。
+ */
+function ancestryOf(v: unknown): { ancestry?: PaneOrigin[] } {
+  if (!Array.isArray(v)) return {};
+  const list: PaneOrigin[] = [];
+  for (const x of v) {
+    if (typeof x !== "object" || x === null) continue;
+    const { server, pane } = x as { server?: unknown; pane?: unknown };
+    if (typeof pane !== "string" || pane === "") continue;
+    list.push(
+      typeof server === "string" && server !== "" ? { server, pane } : { pane },
+    );
+  }
+  return list.length > 0 ? { ancestry: list } : {};
+}
+
 /** pane.open の中身を確かめる。形が違えば undefined（答えようがないので捨てる。serve は時間切れで断る）。 */
 export function parsePaneOpen(n: unknown): PaneOpenRequest | undefined {
   if (typeof n !== "object" || n === null) return undefined;
@@ -967,6 +999,7 @@ export function parsePaneOpen(n: unknown): PaneOpenRequest | undefined {
     ...(p.new === true ? { new: true } : {}),
     ...(p.argv !== undefined ? { argv: p.argv as string[] } : {}),
     ...(p.env !== undefined ? { env: p.env as string[] } : {}),
+    ...ancestryOf(p.ancestry),
   };
 }
 
@@ -1008,6 +1041,8 @@ export function parsePaneRelay(n: unknown): PaneRelayRequest | undefined {
     id: p.id,
     machine: p.machine,
     request: request as unknown as PaneRunRequest,
+    ...(typeof p.pane === "string" && p.pane !== "" ? { pane: p.pane } : {}),
+    ...ancestryOf(p.ancestry),
   };
 }
 

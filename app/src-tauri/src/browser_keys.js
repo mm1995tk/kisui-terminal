@@ -1,14 +1,16 @@
 // 内蔵ブラウザのタブ（browser.rs）のページに入れるスクリプト。ページにキーがある間も、kisui-terminal のリーダーと近道を効かせる。
 // ページ（外のサイト）には Tauri の命令を使わせないので、キーは IPC ではなく、`kisui-key:` の URL を window.open で開こうとして
 // 殻に知らせる（殻の on_new_window が受けて、開かずに断る）。ページの遷移（URL の書き換え）は使わない（beforeunload を起こさないため）。
-// nonce と受けるキーの一覧は、殻が下の 2 つの印に埋める。nonce はこの関数の中にだけ置き、ページのスクリプトからは読めない。
-// ページが後から組み込みの関数を差し替えても、nonce を渡さず、キーを見せかけられないよう、使う関数と getter は先に取っておく。
+// nonce と受けるキーの一覧は、殻が下の 2 つの印に埋める。
+// このスクリプトは、ページの外の世界（isolated world）で動かす（browser.rs の add_world_scripts）。ページのスクリプトは、この世界の
+// 変数も関数も見られず、差し替えられないので、nonce を読めない。ページの世界で動かしてはいけない：ページの世界では、
+// ページのスクリプトが組み込みの関数を差し替えた後に、このスクリプトがもう一度動くことがあり、nonce を守れない。
+// そのうえで、使う関数と getter は先に取っておく（下）。外の世界では要らない守りだが、形は変えずに残す。
 (() => {
   const nonce = __KISUI_NONCE__;
   // [{ ctrl, shift, alt, meta, key, enter }]。enter は、リーダーとグループの入口（押したあとのキーも続けて殻に送る）
   const keys = __KISUI_KEYS__;
-  // 組み込みの関数と、キーの中身を読む getter は、ページのスクリプトが差し替える前（ここ）で取っておき、それだけを使う。
-  // ページが KeyboardEvent.prototype の key などを差し替えても、本物のキーを別のキーに見せかけて送れないようにするため
+  // 組み込みの関数と、キーの中身を読む getter は、ここで取っておき、それだけを使う
   const uncurry = Function.prototype.call.bind.bind(Function.prototype.call);
   const getter = (proto, name) =>
     uncurry(Object.getOwnPropertyDescriptor(proto, name).get);
@@ -37,7 +39,7 @@
   // リーダーに入ったあと、キーが kisui-terminal の画面に移るまでのキーも送る（速く打つと、移る前に次のキーがページに届く）
   let followUntil = 0;
 
-  /** キーの中身を、取っておいた getter で読む（読んだあとは、ページの差し替えに触れない）。 */
+  /** キーの中身を、取っておいた getter で読む。 */
   const read = (e) => ({
     key: "" + keyOf(e),
     code: "" + (codeOf(e) || ""),
@@ -114,12 +116,11 @@
     window,
     "keydown",
     (ev) => {
-      // ページのスクリプトが作ったキーは送らない（isTrusted はページが差し替えられない）
+      // ページのスクリプトが作ったキー（dispatchEvent で送ったもの）は送らない（isTrusted はページが差し替えられない）
       if (!ev.isTrusted) return;
       const e = read(ev);
       if (e.composing) return;
       let hit = null;
-      // 配列の反復（Symbol.iterator）はページが差し替えられるので、番号で回す
       for (let i = 0; i < keys.length; i++) {
         if (match(e, keys[i])) {
           hit = keys[i];

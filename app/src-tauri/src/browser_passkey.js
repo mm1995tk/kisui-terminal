@@ -2,16 +2,16 @@
 // OS の WebView では iCloud キーチェーンや 1Password のパスキーを使えないので、設定の `[gui.browser] passkey_sites` に書いた
 // サイトのページが navigator.credentials.get / create でパスキー（publicKey）を求めたら、それを捕まえて殻に知らせる。
 // 殻は同じ URL を外のブラウザ（Firefox）で開き、ログインした後の Cookie を受け取って戻る（passkey.rs）。
-// 知らせ方は browser_keys.js と同じ。`kisui-passkey:` の URL を window.open で開こうとし、殻の on_new_window が受けて断る。
-// nonce とサイトの一覧は、殻が下の 2 つの印に埋める。nonce はこの関数の中にだけ置き、ページのスクリプトからは読めない。
-// 書いていないサイトでは何も変えない。
+// このスクリプトは、ページの世界で動く（ページが呼ぶ navigator.credentials を差し替えるため）。ページの世界では、ページの
+// スクリプトが組み込みの関数を差し替えた後に、このスクリプトがもう一度動くことがあるので、殻に知らせるための nonce は持たない。
+// 捕まえたら、自分のフレームの window に `kisui-passkey` のイベントを送るだけ。受けて殻に知らせるのは、ページの外の世界で動く
+// browser_passkey_tell.js（nonce を持つ）。ページのスクリプトが同じイベントを自分で送っても、起きるのは、パスキーを求めたときと
+// 同じこと（許可サイトのフレームからだけ、間隔を空けて、外のブラウザに移る）。
+// サイトの一覧は、殻が下の印に埋める。書いていないサイトでは何も変えない。
 (() => {
-  const nonce = __KISUI_NONCE__;
   // ["github.com", ".google.com", ...]。`github.com` はページの host と完全に同じものだけ、`.google.com` は google.com と
   // そのすべてのサブドメインに当たる（殻の passkey.rs の site_matches と同じ決まり）
   const sites = __KISUI_PASSKEY_SITES__;
-  // 続けて知らせない間隔（ミリ秒。殻の MIN_INTERVAL と同じ値を殻が埋める）
-  const interval = __KISUI_PASSKEY_INTERVAL__;
   const host = location.hostname;
   let allowed = false;
   for (let i = 0; i < sites.length; i++) {
@@ -22,28 +22,23 @@
   }
   if (!allowed) return;
 
-  // 組み込みの関数は、ページのスクリプトが差し替える前（ここ）で取っておく
+  // 組み込みの関数は、ページのスクリプトが差し替える前（ここ）で取っておく（差し替えられても、パスキーを捕まえ続けるため）
   const uncurry = Function.prototype.call.bind.bind(Function.prototype.call);
-  const open = uncurry(window.open);
+  const dispatch = uncurry(EventTarget.prototype.dispatchEvent);
+  const Ev = Event;
   const apply = Reflect.apply;
   const defineProperty = Object.defineProperty;
   const addListener = uncurry(EventTarget.prototype.addEventListener);
   const P = Promise;
   const reject = (e) => P.reject(e);
   const DOMEx = DOMException;
-  const now = Date.now;
-  // 続けて呼ばれても、外のブラウザを何度も開かない（殻も同じ間隔で断る）
-  let last = 0;
 
-  /** 殻に知らせる。殻は今のタブの URL（一番上のフレームのもの）を外のブラウザで開く。 */
+  /** ページの外の世界のスクリプトに知らせる。そこから殻に伝わり、殻は今のタブの URL（一番上のフレームのもの）を外のブラウザで開く。 */
   const handOff = () => {
-    const t = now();
-    if (t - last < interval) return;
-    last = t;
     try {
-      open(window, "kisui-passkey://passkey?n=" + nonce, "_blank");
+      dispatch(window, new Ev("kisui-passkey"));
     } catch (_) {
-      // 開けなくても、ページには「断られた」と返す
+      // 知らせられなくても、ページには「断られた」と返す
     }
   };
 

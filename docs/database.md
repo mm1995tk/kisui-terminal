@@ -138,7 +138,7 @@ agent-permission = "reader"
 - `[db.permissions]` in `config.local.toml` replaces the one of `config.toml` as a whole, apart from the list of connections: a file with only connections uses the permissions of the other file.
 - A connection that names a permission nobody wrote, or one with a mistake, is left out of the list and reported, so that it never runs with other rights than its settings show. A key of a permission that is not in the table above is a mistake too.
 - Like `read-only`, a permission is there to prevent accidents. It is checked by `kisui serve`, for requests that say who they are from. A program that runs as you on that machine can read your password files as well as you can, so for a database an agent must not write to, the rights of its database user are what holds.
-- **What the permissions do not hold against.** They are not a wall against a program that runs as you on that machine (a program in a pane, or a coding agent that does not keep to the `kisui db` commands). Such a program can talk to `kisui serve` the way the window does, so it can run SQL with your permission instead of the agent's, elevate a permission, and use a password you typed in the window, which `kisui serve` keeps in memory while it runs. kisui-terminal cannot tell that program from the window: both run as you.
+- **What the permissions do not hold against.** They are not a wall against a program that runs as you on that machine (a program in a pane, or a coding agent that does not keep to the `kisui db` commands). Such a program can talk to `kisui serve` the way the window does, so it can run SQL with your permission instead of the agent's, and elevate a permission. kisui-terminal cannot tell that program from the window: both run as you. One thing it does not get this way is a password you typed in the window: `kisui serve` keeps a typed password only while the window that typed it is connected, and forgets it when another program takes that window's place (see [Passwords](#passwords)). A password in the keychain or in a file is still found for any request.
 - **What `"read"` and `read-only` do not hold against.** They rely on the read-only transaction of the database, which refuses writes to tables. A database user with strong rights can still do other things in it, or leave it: write a file on the database server (`COPY … TO PROGRAM` for a PostgreSQL superuser, `SELECT … INTO OUTFILE` with the MySQL `FILE` right), change server settings, or call a procedure that commits and starts a transaction that writes. kisui-terminal does not read statements to refuse these one by one. So give the agent a database user of its own (`agent-user`) that has only the rights it needs, and no superuser, `FILE` or similar rights.
 
 ### Elevating a permission for a time
@@ -200,7 +200,7 @@ kisui db propose --variant prod shop "UPDATE orders SET status = 'cancelled' WHE
 
 - **The connection** is pointed at by its `name`, and a variant with `--variant`. The connections are the ones of the machine the pane is on; the commands take no `--machine`.
 - **`--json`** prints what `kisui serve` answers (the results of `db.connections`, `db.schema` and `db.query` in [design/gui-protocol.md](design/gui-protocol.md)): every value of a row as text, or `null`. In the table, NULL is `NULL`, and a line break or a tab in a value is written `\n` or `\t`.
-- **No password is asked for.** An agent should not write a password on a command line, so the commands take none. The password must be where `kisui serve` finds it (below): the keychain or the file, or, when the agent logs in as the `user` of the connection, the password you typed in a database tab, which `kisui serve` remembers until it stops. Otherwise the command fails and says so.
+- **No password is asked for.** An agent should not write a password on a command line, so the commands take none. The password must be where `kisui serve` finds it (below): the keychain or the file, or, when the agent logs in as the `user` of the connection, the password you typed in a database tab, which `kisui serve` remembers as long as that window stays open (see [Passwords](#passwords)). Otherwise the command fails and says so.
 - **`kisui db query` waits as long as the statement runs.** Stopping the command (Ctrl+C, or the agent's own time limit) makes the database stop the statement.
 - **Where `kisui db propose` writes.** Into a database tab of that machine, connection and variant in the workspace you are in; when it has several, the one that is shown, else the first; when it has none, a tab is opened at the end of the workspace. The focus does not move, and a short notice says what was written where.
   - When the input is empty (or already holds the same SQL), it is written at once.
@@ -213,7 +213,7 @@ kisui db propose --variant prod shop "UPDATE orders SET status = 'cancelled' WHE
 
 A password is never written in `config.toml`; a `password` key is reported as a mistake. `kisui serve` looks for the password of a connection in this order, on the machine where it runs:
 
-1. **A password you typed in the window that worked.** `kisui serve` keeps it in memory until it stops; it is not written to any file or to the keychain. Each variant is asked for by itself: a password typed for one variant is not sent to another.
+1. **A password you typed in the window that worked.** It is kept in memory until you close the window (how, below); it is not written to any file or to the keychain. Each variant is asked for by itself: a password typed for one variant is not sent to another.
 
 2. **The keychain (macOS).** A generic password with the service `kisui-terminal-db` and the name of the connection as the account. Add one with:
 
@@ -229,7 +229,15 @@ A password is never written in `config.toml`; a `password` key is reported as a 
    - `~/.pgpass` (or the file `PGPASSFILE` names): lines of `host:port:database:user:password`, where `*` matches anything. A connection over a Unix socket matches the host `localhost`.
    - `~/.my.cnf`: the `password` of the `[client]` group. When `[client]` also has `user`, `host` or `port`, the password is used only for a connection with the same ones.
 
-The window asks for a password when none of these has one, and when the database refuses the one found in the keychain or in a file (the window says where it was found). The password you type then is tried, and once it works it is used before the one found, so you are asked once until `kisui serve` stops. This is how a connection works when `~/.my.cnf` has a `password` written for another server. When the database refuses a password you typed, `kisui serve` forgets it and the window asks again. A connection whose password is found and works never asks.
+The window asks for a password when none of these has one, and when the database refuses the one found in the keychain or in a file (the window says where it was found). The password you type then is tried, and once it works it is used before the one found, so you are asked once until you close the window. This is how a connection works when `~/.my.cnf` has a `password` written for another server. When the database refuses a password you typed, it is forgotten and the window asks again. A connection whose password is found and works never asks.
+
+**How long a typed password is kept.** Until you close the window, and only in memory:
+
+- `kisui serve` keeps a typed password only while the window that typed it is connected. It forgets every typed password when that window goes away (you close it, or the connection to the machine drops), and when another window takes over that `kisui serve`.
+- The window keeps what you typed in its own memory, never on disk, and hands it back to `kisui serve` each time it connects again. So when an ssh connection drops and comes back, neither you nor an agent's `kisui db` commands have to wait for the password again.
+- While no window is connected, the `kisui db` commands find only the passwords of the keychain and of the files.
+- A typed password belongs to the server and the user it was typed for: the machine, the name of the connection, the variant, the kind, the host, the port and the user. When you edit the settings so that the connection points somewhere else, the password is not used there, and you are asked again.
+- A machine whose `kisui serve` is older (from before this rule) keeps a typed password until that `kisui serve` stops, and the window keeps nothing for it.
 
 **The password of an agent's user** (`agent-user` of a permission) is looked for in the same places, for that user, and the password of the connection's `user` is never tried for it:
 

@@ -116,6 +116,32 @@ func TestIdleStopDays(t *testing.T) {
 	}
 }
 
+// [server] pane_reach is "own" (the default) or "all"; anything else is a mistake.
+func TestPaneReach(t *testing.T) {
+	dir := userDir(t)
+	write := func(s string) (*Settings, error) {
+		os.WriteFile(filepath.Join(dir, "config.toml"), []byte(s), 0o644)
+		return Load("")
+	}
+	if s, err := write(""); err != nil || s.PaneReach != PaneReachOwn {
+		t.Fatalf("default: %q, %v", s.PaneReach, err)
+	}
+	if s, err := write("[server]\npane_reach = \"all\"\n"); err != nil || s.PaneReach != PaneReachAll {
+		t.Fatalf("all: %q, %v", s.PaneReach, err)
+	}
+	if s, err := write("[server]\npane_reach = \"own\"\n"); err != nil || s.PaneReach != PaneReachOwn {
+		t.Fatalf("own: %q, %v", s.PaneReach, err)
+	}
+	for name, c := range map[string]string{
+		"unknown": "[server]\npane_reach = \"everything\"\n",
+		"bool":    "[server]\npane_reach = true\n",
+	} {
+		if _, err := write(c); err == nil {
+			t.Errorf("%s: no error", name)
+		}
+	}
+}
+
 // Keys that are not kisui's are left alone: kisui does not check them.
 func TestOtherKeysAreIgnored(t *testing.T) {
 	dir := userDir(t)

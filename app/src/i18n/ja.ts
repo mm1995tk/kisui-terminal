@@ -1086,7 +1086,7 @@ export const ja: Record<Key, string> = {
   "db.password.rejectedFile":
     "{machine} の {connection} の、~/.pgpass か ~/.my.cnf にあったパスワードを DB が断りました。代わりに使うパスワードを入れてください。",
   "db.password.note":
-    "窓はパスワードを保存しません。ログインが通ると、そのマシンの kisui serve が、止まるまでメモリに覚えます。",
+    "パスワードはファイルに書きません。ログインが通ると、この窓と、そのマシンの kisui serve が、窓を閉じるまでメモリに覚えます。",
   "db.password.reveal": "表示する",
   "db.password.ok": "Run",
   // ---- コーディングエージェントが入力欄に SQL を書く頼み（kisui db propose。#382）----

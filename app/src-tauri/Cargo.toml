@@ -77,6 +77,9 @@ objc2-web-kit = { version = "=0.3.2", default-features = false, features = [
   "WKWebView",
   "WKContentWorld",
   "WKFrameInfo",
+  # 内蔵ブラウザのページに入れるスクリプト（browser.rs の add_world_scripts）：ページの外の世界で動かすスクリプトを足す
+  "WKUserScript",
+  "WKUserContentController",
   # 内蔵ブラウザのプロキシ（browser_proxy.rs。#294）：データストアに中継の設定を当て、シークレットのタブの設定を作る
   "WKWebsiteDataStore",
   "WKWebViewConfiguration",

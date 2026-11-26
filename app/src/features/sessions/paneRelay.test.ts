@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 
 import type {
   PaneOpenRequest,
+  PaneOrigin,
   PaneRunRequest,
 } from "../../infrastructure/rpc/protocol.ts";
 import {
@@ -16,7 +17,7 @@ import {
   unknownAllowPaneTo,
   type Machine,
 } from "./machines.ts";
-import { createPaneRelay } from "./paneRelay.ts";
+import { callerOrigin, createPaneRelay } from "./paneRelay.ts";
 import { parsePaneRelay } from "./session.ts";
 import { LOCAL } from "./shell.ts";
 
@@ -128,13 +129,19 @@ function setup(opts: {
   connected?: boolean;
   old?: boolean;
   machines?: Machine[];
+  /** マシンごとの serverId（書かなければ "sid-" と行き先） */
+  serverIds?: Record<string, string>;
 }) {
   const runs: { target: string; rq: PaneRunRequest }[] = [];
   const opens: { target: string; rq: PaneOpenRequest }[] = [];
+  // pane.run に付けた、頼んだペインの名乗り（runs と同じ順）
+  const froms: (PaneOrigin | undefined)[] = [];
   const session = (target: string) => ({
-    runPane: async (rq: PaneRunRequest) => {
+    connectedServerId: opts.serverIds?.[target] ?? `sid-${target}`,
+    runPane: async (rq: PaneRunRequest, from?: PaneOrigin) => {
       if (opts.old) throw new Error("too old");
       runs.push({ target, rq });
+      froms.push(from);
       return { ok: true, id: "t3" };
     },
   });
@@ -164,7 +171,7 @@ function setup(opts: {
         : { termId: "t8" };
     },
   });
-  return { relay, runs, opens };
+  return { relay, runs, opens, froms };
 }
 
 describe("--machine の頼みの中継", () => {
@@ -382,5 +389,120 @@ describe("ssh 先のマシンからの --machine の頼み", () => {
       id: "t3",
     });
     assert.deepEqual(t.runs, [{ target: "dev-vm", rq: { cmd: "list" } }]);
+  });
+});
+
+describe("頼んだペインの名乗り（届くペインの範囲を、相手の serve が決めるためのもの）", () => {
+  const ids = { [LOCAL]: "sid-local", "dev-vm": "sid-dev", build: "sid-build" };
+
+  it("頼みを送ってきた接続の serverId と、頼んだペインの id で名乗る", () => {
+    assert.deepEqual(callerOrigin(ids, LOCAL, "t1"), {
+      server: "sid-local",
+      pane: "t1",
+    });
+    assert.deepEqual(callerOrigin(ids, "dev-vm", "t4"), {
+      server: "sid-dev",
+      pane: "t4",
+    });
+  });
+
+  it("ペインの id が無い（古い serve）・つながっていないマシンは名乗らない", () => {
+    assert.equal(callerOrigin(ids, "dev-vm", undefined), undefined);
+    assert.equal(callerOrigin(ids, "dev-vm", ""), undefined);
+    assert.equal(callerOrigin(ids, "gone", "t1"), undefined);
+    assert.equal(
+      callerOrigin({ ...ids, build: undefined }, "build", "t1"),
+      undefined,
+    );
+  });
+
+  it("ssh 先の serve が、ほかのマシンと同じ serverId を言うなら名乗らない。手元の PC は名乗る", () => {
+    const forged = { ...ids, "dev-vm": "sid-local" };
+    assert.equal(callerOrigin(forged, "dev-vm", "t1"), undefined);
+    assert.deepEqual(callerOrigin(forged, LOCAL, "t1"), {
+      server: "sid-local",
+      pane: "t1",
+    });
+    const same = { ...ids, build: "sid-dev" };
+    assert.equal(callerOrigin(same, "dev-vm", "t1"), undefined);
+    assert.equal(callerOrigin(same, "build", "t1"), undefined);
+  });
+
+  it("pane.run に名乗りを付け、open-tab には系譜をそのまま渡す", async () => {
+    const t = setup({});
+    await t.relay(LOCAL, "dev", { cmd: "read", to: "foo" }, { pane: "t2" });
+    assert.deepEqual(t.froms, [{ server: "sid-@local", pane: "t2" }]);
+    const ancestry = [
+      { server: "sid-@local", pane: "t1" },
+      { server: "sid-@local", pane: "t2" },
+    ];
+    await t.relay(
+      LOCAL,
+      "dev",
+      { cmd: "open-tab", workspace: "w", name: "a" },
+      { pane: "t2", ancestry },
+    );
+    assert.deepEqual(t.opens[0].rq.ancestry, ancestry);
+  });
+
+  it("名乗れない送り元の頼みは、名乗りも系譜も付けずに送る（相手の serve が、どこにも届かせない）", async () => {
+    const allow: Machine[] = [
+      { target: "dev-vm", name: "dev", fixed: true, allowPaneTo: ["local"] },
+      { target: "build" },
+    ];
+    // dev の serve が、手元の PC の serve と同じ serverId を言っている
+    const t = setup({
+      machines: allow,
+      serverIds: { [LOCAL]: "same", "dev-vm": "same" },
+    });
+    await t.relay(
+      "dev-vm",
+      "local",
+      { cmd: "read", to: "foo" },
+      { pane: "t1" },
+    );
+    assert.deepEqual(t.froms, [undefined]);
+    await t.relay(
+      "dev-vm",
+      "local",
+      { cmd: "open-tab", workspace: "w", name: "a" },
+      { pane: "t1", ancestry: [{ server: "same", pane: "t1" }] },
+    );
+    assert.equal(t.opens[0].rq.ancestry, undefined);
+    // 古い serve（ペインの id を付けない）も同じ
+    const old = setup({ machines: allow });
+    await old.relay("dev-vm", "local", { cmd: "list" });
+    assert.deepEqual(old.froms, [undefined]);
+  });
+});
+
+describe("pane.relay・pane.open の、頼んだペインと系譜", () => {
+  it("頼んだペインの id と、形の合う系譜だけを取り出す", () => {
+    const got = parsePaneRelay({
+      id: "r1",
+      machine: "dev",
+      pane: "t4",
+      ancestry: [
+        { server: "sid", pane: "t1" },
+        { pane: "t4" },
+        { server: 1, pane: "t5" },
+        { server: "sid" },
+        "x",
+      ],
+      request: { cmd: "open-tab", workspace: "w", name: "n" },
+    });
+    assert.equal(got?.pane, "t4");
+    assert.deepEqual(got?.ancestry, [
+      { server: "sid", pane: "t1" },
+      { pane: "t4" },
+      { pane: "t5" },
+    ]);
+    const old = parsePaneRelay({
+      id: "r2",
+      machine: "dev",
+      request: { cmd: "list" },
+    });
+    assert.equal(old?.pane, undefined);
+    assert.equal(old?.ancestry, undefined);
   });
 });

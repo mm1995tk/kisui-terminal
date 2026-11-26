@@ -1093,7 +1093,7 @@ export const en = {
   "db.password.rejectedFile":
     "The database refused the password found in ~/.pgpass or ~/.my.cnf for {connection} on {machine}. Type the password to use instead.",
   "db.password.note":
-    "The window does not save it. After the login works, kisui serve on that machine keeps it in memory until it stops.",
+    "It is not written to any file. After the login works, this window and kisui serve on that machine keep it in memory until you close the window.",
   "db.password.reveal": "Show the password",
   "db.password.ok": "Run",
   // ---- コーディングエージェントが入力欄に SQL を書く頼み（kisui db propose。#382）----

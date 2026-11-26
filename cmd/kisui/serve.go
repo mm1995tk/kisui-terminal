@@ -102,6 +102,11 @@ func runServe(args []string) int {
 			c, err := config.Load(buildinfo.Suffix())
 			return c.StartDir, c.Shell, err == nil
 		},
+		// [server] pane_reach も、使うたびに読み直す。読めない・間違いがある間は、狭いほう（自分が作ったペインだけ）
+		PaneReachAll: func() bool {
+			c, err := config.Load(buildinfo.Suffix())
+			return err == nil && c.PaneReach == config.PaneReachAll
+		},
 	}
 	var srv *server.Server
 	if handover != nil {

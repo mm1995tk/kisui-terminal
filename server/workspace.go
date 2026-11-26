@@ -213,7 +213,7 @@ func (w *wsManager) create(dir, startDir string, cmd tabCommand) (id, termID str
 	if dir == "" {
 		dir = w.startDir()
 	}
-	return w.createLocked(newWorkspaceID(), dir, "", tabCommand{argv: cmd.argv, env: env, name: name, shell: cmd.shell})
+	return w.createLocked(newWorkspaceID(), dir, "", tabCommand{argv: cmd.argv, env: env, name: name, shell: cmd.shell, ancestors: cmd.ancestors})
 }
 
 // tabCommand は、新しいワークスペースのプライマリターミナルで動かすコマンド（空ならシェル）と、その環境変数（"NAME=value"）・名前、
@@ -222,6 +222,8 @@ type tabCommand struct {
 	argv, env []string
 	name      string
 	shell     string
+	// ancestors は、このタブを作らせたペインの系譜（kisui pane open。panereach.go）。窓の操作で作ったタブは空
+	ancestors []paneOrigin
 }
 
 // createLocked は recomputeMu を持って呼ぶ（cmd.name があれば nameMu も。名前は確かめておく）。wsID のワークスペースを作り、
@@ -234,7 +236,7 @@ func (w *wsManager) createLocked(wsID, dir, label string, cmd tabCommand) (id, t
 		st.root, st.kind = root, kind
 	}
 	w.mu.Unlock()
-	t, err := w.srv.terms.start(termStart{cols: 80, rows: 24, dir: dir, shell: w.usableShell(cmd.shell), env: cmd.env, wsID: st.id, primary: true, argv: cmd.argv, name: cmd.name})
+	t, err := w.srv.terms.start(termStart{cols: 80, rows: 24, dir: dir, shell: w.usableShell(cmd.shell), env: cmd.env, wsID: st.id, primary: true, argv: cmd.argv, name: cmd.name, ancestors: cmd.ancestors})
 	if err != nil {
 		return "", "", err
 	}
@@ -670,11 +672,13 @@ func (ss *session) workspaceRequest(req *rpc.Message) (res any, err error, handl
 			Argv []string `json:"argv"`
 			Env  []string `json:"env"`
 			Name string   `json:"name"`
+			// Ancestry は、kisui pane open を打ったペインの系譜（pane.open・pane.relay で serve が窓に渡したものを、窓がそのまま返す）
+			Ancestry []paneOrigin `json:"ancestry"`
 		}
 		if len(req.Params) > 0 {
 			_ = json.Unmarshal(req.Params, &cp) // 形が違えば dir 無し（start_dir）
 		}
-		id, termID, err := w.create(cp.Dir, cp.StartDir, tabCommand{argv: cp.Argv, env: cp.Env, name: cp.Name, shell: cp.Shell})
+		id, termID, err := w.create(cp.Dir, cp.StartDir, tabCommand{argv: cp.Argv, env: cp.Env, name: cp.Name, shell: cp.Shell, ancestors: w.srv.adoptLineage(cp.Ancestry)})
 		if err != nil {
 			return nil, err, true
 		}

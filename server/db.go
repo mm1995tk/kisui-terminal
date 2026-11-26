@@ -31,6 +31,11 @@ const CapDBSchema = "db-schema"
 // kisui serve のタブでは、テーブルの構造を頼まずに理由を出す。
 const CapDBStructure = "db-structure"
 
+// CapDBRemember は capabilities に入れる、db.remember（窓が覚えているパスワードを渡し直す）を受けられる印。この印のある
+// kisui serve は、窓で打って覚えたパスワードを、その窓の接続が切れたとき・別の窓が持ち主になったときに全部忘れる。
+// 窓は、この印の無い kisui serve には db.remember を送らず、パスワードを自分では覚えない。
+const CapDBRemember = "db-remember"
+
 // dbMaxRunning は同時に動かせる db.query の数。超えたら busy。
 const dbMaxRunning = 8
 
@@ -39,6 +44,8 @@ const dbMaxRunning = 8
 //
 // DB のログインは持ち続けない。db.query の 1 回ごとにログインし、終わったら切る（理由は internal/db の説明）。
 // 覚えるのは、窓から渡されて通ったパスワードだけ（passwords の中。メモリだけで、ファイルにも引き継ぎにも渡さない）。
+// 覚えているのは、渡した窓（持ち主の接続）がつながっている間だけ：その接続が切れたとき・別の接続が持ち主になったときに
+// 全部忘れる（Server.forgetDBPasswords）。窓は自分のメモリにも覚えていて、つなぎ直したら db.remember で渡し直す。
 type dbManager struct {
 	// load は設定の [[db.connections]] を読む。db.* の要求のたびに呼ぶ（serve を止めずに接続を足せるように）。
 	load      func() ([]config.DBConnection, []config.Problem)
@@ -126,8 +133,8 @@ func (m *dbManager) cancel(id string) bool {
 }
 
 // run は c に password でログインして、そのログインで f を呼ぶ（終われば切る）。src は password の出どころで、
-// 窓から渡されて通ったものは覚え、覚えていて断られたものは忘れる。
-func (m *dbManager) run(ctx context.Context, c config.DBLogin, password string, src db.Source, f func(db.Session) error) error {
+// 窓から渡されて通ったものは覚え（remember を呼ぶ）、覚えていて断られたものは忘れる。
+func (m *dbManager) run(ctx context.Context, c config.DBLogin, password string, src db.Source, remember func(), f func(db.Session) error) error {
 	sess, err := db.Open(ctx, c, password)
 	if err != nil {
 		if e, ok := errors.AsType[*db.Error](err); ok && e.Kind == db.KindAuth && src.Typed() {
@@ -137,9 +144,28 @@ func (m *dbManager) run(ctx context.Context, c config.DBLogin, password string, 
 	}
 	defer sess.Close()
 	if src == db.SourceRequest {
-		m.passwords.Remember(c, password)
+		remember()
 	}
 	return f(sess)
+}
+
+// rememberDBPassword は、窓の接続 from が渡したパスワードを覚える。from が今の持ち主でなければ覚えない：
+// 切れた接続・持ち主でなくなった接続の、返事を待っていた要求が後から通っても、忘れたあとに覚え直さない。
+// 持ち主が替わるのと同じロック（mu）の中で確かめるので、forgetDBPasswords と前後しない。覚えたら true。
+func (s *Server) rememberDBPassword(from *session, c config.DBLogin, password string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if from == nil || s.owner != from {
+		return false
+	}
+	s.db.passwords.Remember(c, password)
+	return true
+}
+
+// forgetDBPasswords は、窓で打って覚えたパスワードを全部忘れる。持ち主の接続が切れたときと、別の接続が持ち主に
+// なったときに、mu を持ったまま呼ぶ（持ち主が替わるのと同時に忘れる）。キーチェーンとファイルのパスワードには触らない。
+func (s *Server) forgetDBPasswords() {
+	s.db.passwords.ForgetAll()
 }
 
 // dbLogin は db.query と db.schema の共通の引数。
@@ -153,6 +179,9 @@ type dbLogin struct {
 	// Actor は、誰の要求か：省く（""）か "human" は人（窓）、"agent" はコーディングエージェント（kisui db のコマンド）。
 	// 権限はこれで決まる（config.DBConnection.Access）。
 	Actor string `json:"actor"`
+	// from は、この要求を送った窓の接続（ペインの中のコマンド kisui db の頼みでは nil）。渡されて通ったパスワードは、
+	// from が持ち主の間だけ覚える（Server.rememberDBPassword）。
+	from *session
 }
 
 // dbActor は要求の actor を読む。知らない値は、人として通さずに断る（invalid_params）。
@@ -214,7 +243,8 @@ func (s *Server) dbWith(ctx context.Context, p dbLogin, what string, run bool, f
 		}
 		return errPasswordRequired("missing", "", "a password is required for the connection "+conf.Label())
 	}
-	err = m.run(ctx, c, password, src, func(sess db.Session) error { return f(ctx, conf, sess) })
+	remember := func() { s.rememberDBPassword(p.from, c, password) }
+	err = m.run(ctx, c, password, src, remember, func(sess db.Session) error { return f(ctx, conf, sess) })
 	if err != nil {
 		// SQL とパスワードはログに書かない。
 		s.log.Info(what+" failed", "connection", c.Name, "variant", c.Variant, "actor", actor)
@@ -259,6 +289,8 @@ func (ss *session) dbRequest(ctx context.Context, req *rpc.Message) (any, error)
 		return ss.dbElevateReq(req)
 	case "db.elevateEnd":
 		return ss.dbElevateEndReq(req)
+	case "db.remember":
+		return ss.dbRememberReq(req)
 	}
 	return nil, rpc.Errorf(rpc.CodeMethodNotFound, "method not found: %s", req.Method)
 }
@@ -364,6 +396,7 @@ func (ss *session) dbQueryReq(ctx context.Context, req *rpc.Message) (any, error
 	if err := json.Unmarshal(req.Params, &p); err != nil {
 		return nil, invalidParams(err)
 	}
+	p.from = ss
 	return ss.srv.dbQuery(ctx, p)
 }
 
@@ -416,6 +449,7 @@ func (ss *session) dbSchemaReq(ctx context.Context, req *rpc.Message) (any, erro
 	if err := json.Unmarshal(req.Params, &p); err != nil {
 		return nil, invalidParams(err)
 	}
+	p.from = ss
 	return ss.srv.dbSchema(ctx, p)
 }
 
@@ -447,6 +481,7 @@ func (ss *session) dbStructureReq(ctx context.Context, req *rpc.Message) (any, e
 	if err := json.Unmarshal(req.Params, &p); err != nil {
 		return nil, invalidParams(err)
 	}
+	p.from = ss
 	return ss.srv.dbStructure(ctx, p)
 }
 
@@ -498,6 +533,57 @@ func (ss *session) dbHistoryReq(req *rpc.Message) (any, error) {
 		return nil, rpc.Errorf(rpc.CodeInternalError, "the history could not be read: %v", err)
 	}
 	return DBHistoryResult{Entries: list}, nil
+}
+
+// dbRememberParams は db.remember の引数：窓が覚えているパスワードと、それを打ったときの接続の行き先。
+type dbRememberParams struct {
+	Connection string `json:"connection"`
+	Variant    string `json:"variant"`
+	// Kind・Host・Port・User は、パスワードを打ったときに db.connections が返していた、その接続の種類・サーバー・ユーザー。
+	Kind string `json:"kind"`
+	Host string `json:"host"`
+	Port int    `json:"port"`
+	User string `json:"user"`
+	// Password は覚えているパスワード。空文字もパスワード（パスワード無しでログインする）。省くと invalid_params。
+	Password *string `json:"password"`
+}
+
+// DBRememberResult は db.remember の結果。
+type DBRememberResult struct {
+	// Remembered は、覚えたか。接続が設定に無い・種類かサーバーかユーザーが変わっていたら false（窓は、覚えていたものを捨てる）。
+	Remembered bool `json:"remembered"`
+}
+
+// dbRememberReq は db.remember：窓が、前に打って通ったパスワードを、つなぎ直したあとに渡し直す。kisui serve は、持ち主の
+// 接続が切れると覚えたパスワードを忘れるので、窓がつなぎ直したら、人が打ち直さなくても kisui db のコマンドがまた通るように。
+// DB にはつながない（通るかは、次に使うときに分かる。断られたら、ほかの覚えたパスワードと同じに忘れる）。
+//
+// 覚えるのは、今の設定の接続が、パスワードを打ったときと同じ行き先（db.SameLogin）のときだけ：設定を書き換えたあとに、
+// 前の行き先のパスワードを別のサーバーに送らない。覚える先は、人のログイン（接続の user）。
+func (ss *session) dbRememberReq(req *rpc.Message) (any, error) {
+	var p dbRememberParams
+	if err := json.Unmarshal(req.Params, &p); err != nil {
+		return nil, invalidParams(err)
+	}
+	if p.Password == nil {
+		return nil, rpc.Errorf(rpc.CodeInvalidParams, "password is missing")
+	}
+	s := ss.srv
+	conns, _ := s.db.load()
+	conf, ok := config.FindDB(conns, p.Connection, p.Variant)
+	if !ok {
+		return DBRememberResult{}, nil
+	}
+	c := conf.Login(s.db.access(conf, config.DBHuman))
+	was := config.DBLogin{Name: p.Connection, Variant: p.Variant, Kind: p.Kind, Host: p.Host, Port: p.Port, User: p.User}
+	if !db.SameLogin(c, was) {
+		return DBRememberResult{}, nil
+	}
+	if !s.rememberDBPassword(ss, c, *p.Password) {
+		// この要求を受けてから、持ち主でなくなった。窓が覚えているものは、捨てさせない（remembered: false にしない）。
+		return nil, errNotOwner()
+	}
+	return DBRememberResult{Remembered: true}, nil
 }
 
 // errPasswordRequired は password_required を作る。reason は "missing"（どこにも無い）か "rejected"（DB が断った）。

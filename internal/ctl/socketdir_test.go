@@ -52,7 +52,7 @@ func perm(t *testing.T, path string) fs.FileMode {
 func TestSocketDirMakesAndReuses(t *testing.T) {
 	for _, xdg := range []bool{true, false} {
 		want := socketDirIn(t, t.TempDir(), xdg)
-		for i := 0; i < 2; i++ {
+		for i := range 2 {
 			dir, err := SocketDir("", true)
 			if err != nil {
 				t.Fatalf("xdg=%v, call %d: %v", xdg, i, err)
