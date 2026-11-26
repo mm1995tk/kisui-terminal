@@ -85,8 +85,8 @@ export function createDbConnections(deps: {
       );
       setLocal(after);
       setLocalError(undefined);
-      if (untrack(form) === null) return;
-      setForm(null);
+      // 書いている間に窓を閉じていても、ファイルは変わったので一覧は聞き直す
+      if (untrack(form) !== null) setForm(null);
       deps.refresh();
     } catch (e) {
       const now = untrack(form);

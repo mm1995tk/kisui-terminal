@@ -182,6 +182,16 @@ describe("createDbConnections（足す・直す・消すの流れ）", () => {
     assert.equal(refreshed(), 1);
   });
 
+  it("書いている間に窓を閉じても、書けたら一覧を聞き直す", async () => {
+    const { c, refreshed } = setup(async () => local);
+    c.openConnAdd();
+    c.submitConnForm({ ...emptyFields(), name: "x", user: "u" });
+    c.closeConnForm();
+    await new Promise((r) => setTimeout(r, 0));
+    assert.equal(c.connForm(), null);
+    assert.equal(refreshed(), 1);
+  });
+
   it("書けなければ窓を開けたまま、入れた値と理由を残す", async () => {
     const { c, refreshed } = setup(async () => {
       throw { kind: "fixed", detail: "prod" };
