@@ -279,37 +279,7 @@ pub fn list(dir: &Path) -> Result<DbConnections, EditError> {
 pub fn edit(dir: &Path, e: DbEdit) -> Result<DbConnections, EditError> {
     let (base_text, fixed) = base(dir)?;
     let is_fixed = |n: &str| fixed.iter().any(|f| f == n.trim());
-    // 書いたあとに確かめる項目の名前（消すときは無し）と、共通の処理への書き込み
-    let (target, edit) = match e {
-        DbEdit::Add { connection } => {
-            let (entry, _) = connection.to_entry().map_err(one)?;
-            pre_check(&entry)?;
-            let name = name_of(&entry).unwrap_or_default();
-            if is_fixed(&name) {
-                return Err(EditError::Fixed(name));
-            }
-            (Some(name), Edit::Add(entry))
-        }
-        DbEdit::Update { name, connection } => {
-            let (set, unset) = connection.to_entry().map_err(one)?;
-            pre_check(&set)?;
-            let new = name_of(&set).unwrap_or_default();
-            // 名前を config.toml の接続の名前に変えるのも、その接続を変えることになる
-            if is_fixed(&new) && new != name.trim() {
-                return Err(EditError::Fixed(new));
-            }
-            let unset = unset.into_iter().filter(|k| k != "name").collect();
-            (
-                Some(new),
-                Edit::Update {
-                    key: name,
-                    set,
-                    unset,
-                },
-            )
-        }
-        DbEdit::Remove { name } => (None, Edit::Remove { key: name }),
-    };
+    let (target, edit) = list_edit(e, &is_fixed)?;
     let edit_key = match &edit {
         Edit::Update { key, .. } | Edit::Remove { key } => Some(key.clone()),
         Edit::Add(_) => None,
@@ -341,6 +311,44 @@ pub fn edit(dir: &Path, e: DbEdit) -> Result<DbConnections, EditError> {
         Err(EditError::Rejected(_)) if !found.is_empty() => Err(EditError::Invalid(found)),
         Err(e) => Err(e),
     }
+}
+
+/// 窓の書き込みを、共通の処理（config_list.rs）の書き込みにする。あわせて、書いたあとに確かめる項目の名前（消すときは無し）を返す。
+/// 入れた値は書く前に確かめ、`config.toml` の接続を足す（かぶせる）・その名前に変えるのは断る（`is_fixed` は `config.toml` の名前か）。
+fn list_edit(
+    e: DbEdit,
+    is_fixed: &dyn Fn(&str) -> bool,
+) -> Result<(Option<String>, Edit), EditError> {
+    Ok(match e {
+        DbEdit::Add { connection } => {
+            let (entry, _) = connection.to_entry().map_err(one)?;
+            pre_check(&entry)?;
+            let name = name_of(&entry).unwrap_or_default();
+            if is_fixed(&name) {
+                return Err(EditError::Fixed(name));
+            }
+            (Some(name), Edit::Add(entry))
+        }
+        DbEdit::Update { name, connection } => {
+            let (set, unset) = connection.to_entry().map_err(one)?;
+            pre_check(&set)?;
+            let new = name_of(&set).unwrap_or_default();
+            // 名前を config.toml の接続の名前に変えるのも、その接続を変えることになる
+            if is_fixed(&new) && new != name.trim() {
+                return Err(EditError::Fixed(new));
+            }
+            let unset = unset.into_iter().filter(|k| k != "name").collect();
+            (
+                Some(new),
+                Edit::Update {
+                    key: name,
+                    set,
+                    unset,
+                },
+            )
+        }
+        DbEdit::Remove { name } => (None, Edit::Remove { key: name }),
+    })
 }
 
 fn one(p: Problem) -> EditError {
@@ -473,57 +481,86 @@ pub fn check_entry(e: &toml::Table) -> Vec<Problem> {
         }
     }
     // 権限（窓では書かない。権限の一覧を持たないので、ここでは読まない）
-    let host = d.str("host", false).filter(|s| !s.is_empty());
-    if let Some(v) = e.get("port") {
-        match integer(v) {
-            None => d.bad("port", "config.err.int", &[]),
-            Some(n) if !(1..=65535).contains(&n) => d.bad("port", "config.err.port", &[]),
-            Some(_) => {}
-        }
-    }
-    let user = if e.contains_key("user") {
-        d.str("user", true)
-    } else {
-        None
-    };
-    d.str("database", false);
-    if let Some(v) = e.get("read-only") {
-        if !v.is_bool() {
-            d.bad("read-only", "config.err.bool", &[]);
-        }
-    }
-    let modes = TLS_MODES.join(", ");
-    let mut tls = None;
-    if let Some(s) = d.str("tls", false) {
-        if TLS_MODES.contains(&s.as_str()) {
-            tls = Some(s);
-        } else {
-            d.bad("tls", "config.err.oneof", &[&modes]);
-        }
-    }
-    let tls_wrong = e.contains_key("tls") && tls.is_none();
-    let mut tls_ca = false;
-    if let Some(s) = d.str("tls-ca", false) {
-        if home_or_abs(&s) {
-            tls_ca = true;
-        } else {
-            d.bad("tls-ca", "config.err.abspath", &[]);
-        }
-    }
+    let w = d.where_keys();
     // fill：user だけは既定が無い
-    if user.is_none() && !e.contains_key("user") {
+    if w.user.is_none() && !e.contains_key("user") {
         d.bad("user", "config.err.required", &[]);
     }
-    // checkTLS
-    let host = host.unwrap_or_else(|| "localhost".into());
-    let tls = tls.unwrap_or_else(|| "prefer".into());
-    if host.starts_with('/') && (tls == "require" || tls == "verify") {
-        d.bad("tls", "config.err.tlssocket", &["prefer, disable"]);
-    }
-    if tls_ca && !tls_wrong && tls != "verify" {
-        d.bad("tls-ca", "config.err.tlsca", &["verify"]);
-    }
+    d.check_tls(&w);
     d.probs
+}
+
+/// kisui の `dbWhere`（の、窓が書くキーの分）。書いていない・間違っているキーは None。
+struct Where {
+    host: Option<String>,
+    user: Option<String>,
+    tls: Option<String>,
+    /// `tls` を書いたが間違っている（報告した）
+    tls_wrong: bool,
+    /// 使える `tls-ca` を書いた
+    tls_ca: bool,
+}
+
+impl Reader<'_> {
+    /// kisui の `where`：どこの DB に誰がつなぐかのキーを読む。
+    fn where_keys(&mut self) -> Where {
+        let e = self.e;
+        let host = self.str("host", false).filter(|s| !s.is_empty());
+        if let Some(v) = e.get("port") {
+            match integer(v) {
+                None => self.bad("port", "config.err.int", &[]),
+                Some(n) if !(1..=65535).contains(&n) => self.bad("port", "config.err.port", &[]),
+                Some(_) => {}
+            }
+        }
+        let user = if e.contains_key("user") {
+            self.str("user", true)
+        } else {
+            None
+        };
+        self.str("database", false);
+        if let Some(v) = e.get("read-only") {
+            if !v.is_bool() {
+                self.bad("read-only", "config.err.bool", &[]);
+            }
+        }
+        let mut tls = None;
+        if let Some(s) = self.str("tls", false) {
+            if TLS_MODES.contains(&s.as_str()) {
+                tls = Some(s);
+            } else {
+                self.bad("tls", "config.err.oneof", &[&TLS_MODES.join(", ")]);
+            }
+        }
+        let tls_wrong = e.contains_key("tls") && tls.is_none();
+        let mut tls_ca = false;
+        if let Some(s) = self.str("tls-ca", false) {
+            if home_or_abs(&s) {
+                tls_ca = true;
+            } else {
+                self.bad("tls-ca", "config.err.abspath", &[]);
+            }
+        }
+        Where {
+            host,
+            user,
+            tls,
+            tls_wrong,
+            tls_ca,
+        }
+    }
+
+    /// kisui の `checkTLS`：TLS の組み合わせで成り立たないもの（既定を入れたあとの値で見る）。
+    fn check_tls(&mut self, w: &Where) {
+        let host = w.host.as_deref().unwrap_or("localhost");
+        let tls = w.tls.as_deref().unwrap_or("prefer");
+        if host.starts_with('/') && (tls == "require" || tls == "verify") {
+            self.bad("tls", "config.err.tlssocket", &["prefer, disable"]);
+        }
+        if w.tls_ca && !w.tls_wrong && tls != "verify" {
+            self.bad("tls-ca", "config.err.tlsca", &["verify"]);
+        }
+    }
 }
 
 #[cfg(test)]
