@@ -91,6 +91,13 @@ function MachineRowItem(props: {
           )}
         </Show>
       </span>
+      <Show when={r().grant}>
+        {(time) => (
+          <span class="card-row-state machine-row-grant" role="status">
+            {T("machineDialog.granted", { time: time() })}
+          </span>
+        )}
+      </Show>
       <span class="card-row-state machine-row-count">
         {T("machineDialog.terminalTabs", { n: r().terminalTabs })}
       </span>

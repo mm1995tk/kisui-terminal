@@ -8,7 +8,9 @@ package server
 // GUI の pane.relayed {id, reply} を待つ。GUI は machine（[[gui.machines]] の名前。local は GUI の動く手元の PC）の serve に
 // pane.run {request} を送り（open-tab は、kisui pane open と同じく GUI がそのマシンにタブを作る）、その返事を reply にして答える。
 // 頼んだペインの秘密は、頼まれた serve が確かめる（paneCmd）。相手のマシンの serve は、owner の GUI の pane.run を
-// ほかの GUI の頼み（term.input など）と同じく受ける。kisui-terminal は確認を出さない（何をするかはコマンドの引数に出ている）。
+// ほかの GUI の頼み（term.input など）と同じく受ける。serve は確認を出さない（何をするかはコマンドの引数に出ている）。
+// ssh 先のマシンから手元の PC への頼みは、GUI が、窓の前の人が時間を決めて許している間だけ通し、ペインを作る頼みを人に聞く。
+// だから、頼んだ serve は答えを長く待ち（paneRelayWait）、待つのをやめたら pane.relayCancel で取り下げを知らせる。
 // 中継してよいかは GUI が決める：手元の PC の serve の頼みはどのマシンにも、ssh 先の serve の頼みは、手元の設定
 // （そのマシンの [[gui.machines]] の allow_pane_to）で許した先にだけ中継する。許していなければ、理由を reply の error で返す。
 
@@ -18,10 +20,22 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/mm1995tk/kisui-terminal/internal/panecmd"
 	"github.com/mm1995tk/kisui-terminal/rpc"
 )
+
+// CapPaneRelayWait は capabilities に入れる、pane.relay の答えを人が決めるまで（paneRelayWait）待ち、待つのをやめたら
+// pane.relayCancel {id} を通知する印。GUI は、この印のある serve の頼みにだけ、人に聞く窓を出す（古い serve は 8 秒で
+// あきらめ、やめたことも知らせないので、聞いている間に時間切れになる）。
+const CapPaneRelayWait = "pane.relay.wait"
+
+// paneRelayWait は、kisui pane の --machine が GUI の答えを待つ時間。手元の PC への頼みは、窓の前の人が許すかを答えるまで
+// 待つことがある。コーディングエージェントがコマンドを待つ時間（2 分のものが多い）より短くして、時間切れを理由と一緒に
+// 返せるようにする（kisui db propose の dbProposeWait と同じ考え）。人に聞かない頼みは、GUI が 8 秒であきらめて答える。
+// 変数なのは、テストで短くするため。
+var paneRelayWait = 90 * time.Second
 
 // CapPaneRun は session.hello の capabilities に入れる、pane.run（別のマシンから中継した kisui pane の頼み）を受けられる印。
 // GUI はこれを見てから送る（古い serve には送らずに断る）。
@@ -83,7 +97,9 @@ func (s *Server) paneRelayStart(t *terminal, rq panecmd.Request) (panecmd.Reply,
 	if rq.Cmd == "open-tab" {
 		params["ancestry"] = s.lineage(t)
 	}
-	return askWindow(s, &s.relays, "pane.relay", params, errRelayTimeout, func(r paneRelayResult) (panecmd.Reply, error) {
+	// 待つのをやめたら（時間切れ・頼んだコマンドが切れた）、GUI に取り下げを知らせる（人に聞いている窓を閉じさせる）
+	withdraw := func(id string) { s.notifyOwner("pane.relayCancel", map[string]any{"id": id}) }
+	return askWindowWithin(s, &s.relays, "pane.relay", params, paneRelayWait, errRelayTimeout, withdraw, func(r paneRelayResult) (panecmd.Reply, error) {
 		if r.Reply.Error != "" {
 			return panecmd.Reply{}, errors.New(r.Reply.Error)
 		}

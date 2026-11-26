@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/mm1995tk/kisui-terminal/internal/panecmd"
 )
@@ -171,5 +172,81 @@ func TestPaneRun(t *testing.T) {
 	}
 	if !slices.Contains(hello.Capabilities, CapPaneRun) {
 		t.Fatalf("capabilities: %v", hello.Capabilities)
+	}
+}
+
+// 別のマシンへの頼みは、窓の前の人が答えるまで待てる。待つのをやめたら（時間切れ・コマンドが切れた）、GUI に取り下げを知らせる。
+func TestPaneRelayWaitsAndWithdraws(t *testing.T) {
+	t.Setenv("HOME", normalizePath(t.TempDir()))
+	old := paneRelayWait
+	paneRelayWait = 300 * time.Millisecond
+	t.Cleanup(func() { paneRelayWait = old })
+	srv, sock := startFast(t)
+	c, nt := termClient(t, sock)
+	_, primary := createWS(t, c)
+	token := termToken(t, srv, primary)
+	var hello HelloResult
+	if err := c.Call(context.Background(), "session.hello", map[string]any{"protocol": Protocol, "client": map[string]any{"name": "t"}}, &hello); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(hello.Capabilities, CapPaneRelayWait) {
+		t.Fatalf("capabilities: %v", hello.Capabilities)
+	}
+	start := time.Now()
+	r := paneCmdDo(t, sock, panecmd.Request{Cmd: "open-tab", Machine: "local", Workspace: "w", Name: "x", Pane: primary, Token: token})
+	if r.OK || !strings.Contains(r.Error, "did not answer in time") {
+		t.Fatalf("no answer: %+v", r)
+	}
+	if d := time.Since(start); d < 250*time.Millisecond {
+		t.Fatalf("gave up after %v, before the wait", d)
+	}
+	var relay, cancel struct {
+		ID       string       `json:"id"`
+		Pane     string       `json:"pane"`
+		Ancestry []paneOrigin `json:"ancestry"`
+	}
+	waitFor(t, "pane.relayCancel", func() bool {
+		rs, cs := nt.all("pane.relay"), nt.all("pane.relayCancel")
+		if len(rs) != 1 || len(cs) != 1 {
+			return false
+		}
+		_ = json.Unmarshal(*rs[0], &relay)
+		_ = json.Unmarshal(*cs[0], &cancel)
+		return true
+	})
+	if relay.ID == "" || cancel.ID != relay.ID {
+		t.Fatalf("withdraws another request: %+v %+v", relay, cancel)
+	}
+	// 頼んだペインの id と、作るタブに持たせる系譜（自分の serverId 付き）も渡している
+	want := []paneOrigin{{Server: srv.ServerID(), Pane: primary}}
+	if relay.Pane != primary || !slices.Equal(relay.Ancestry, want) {
+		t.Fatalf("pane.relay: %+v, want pane %s and ancestry %+v", relay, primary, want)
+	}
+}
+
+// kisui pane list は、このマシンのペインのうち、そのペインを作った側（openedFrom）も返す。
+func TestPaneListOpenedFrom(t *testing.T) {
+	t.Setenv("HOME", normalizePath(t.TempDir()))
+	srv, sock := startFast(t)
+	c, _ := termClient(t, sock)
+	_, p1 := createWS(t, c)
+	do := func(pane string, rq panecmd.Request) panecmd.Reply {
+		rq.Pane, rq.Token = pane, termToken(t, srv, pane)
+		return paneCmdDo(t, sock, rq)
+	}
+	a := do(p1, panecmd.Request{Cmd: "split", Dir: "right", Name: "a", Argv: []string{"/bin/sh"}})
+	if !a.OK {
+		t.Fatalf("split a: %+v", a)
+	}
+	b := do(a.ID, panecmd.Request{Cmd: "split", Dir: "down", Name: "b", Argv: []string{"/bin/sh"}})
+	if !b.OK {
+		t.Fatalf("split b: %+v", b)
+	}
+	got := map[string][]string{}
+	for _, p := range do(p1, panecmd.Request{Cmd: "list"}).Panes {
+		got[p.ID] = p.OpenedFrom
+	}
+	if len(got[p1]) != 0 || !slices.Equal(got[a.ID], []string{p1}) || !slices.Equal(got[b.ID], []string{p1, a.ID}) {
+		t.Fatalf("openedFrom: %v", got)
 	}
 }

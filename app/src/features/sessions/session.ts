@@ -182,6 +182,8 @@ export type PaneEvent =
   | ({ kind: "open-tab" } & PaneOpenRequest)
   /** `kisui pane … --machine`（#344）。別のマシンのペインへの頼みを中継して答える（reportPaneRelayed）。同じく欄の中のコマンドの知らせ */
   | ({ kind: "relay" } & PaneRelayRequest)
+  /** 頼んだ serve が、pane.relay の頼み id を取り下げた（コマンドが止められた・時間切れ）。人に聞いている窓を閉じる */
+  | { kind: "relay-cancel"; id: string }
   /** `kisui db propose`（#382）。DB のタブの入力欄に SQL を書いて答える（reportDbProposed）。同じくペインの中のコマンドの知らせ */
   | ({ kind: "db-propose" } & DbProposeRequest)
   /** db.propose の取り下げ（serve が答えを待つのをやめた）。人に聞いている途中なら、聞くのをやめる */
@@ -217,6 +219,13 @@ export class Session {
   /** 今つながっている kisui serve の serverId（つながっていなければ無い）。ペインを、マシンをまたいで見分けるのに使う（paneRelay.ts） */
   get connectedServerId(): string | undefined {
     return this.conn?.hello.serverId;
+  }
+  /**
+   * 今つながっている kisui serve が、pane.relay の答えを人が決めるまで待ち、待つのをやめたら pane.relayCancel を知らせるか
+   * （capabilities の pane.relay.wait）。無い serve の頼みには、人に聞く窓を出さない（paneRelay.ts）。
+   */
+  get canWaitRelay(): boolean {
+    return !!this.conn && hasCapability(this.conn.hello, "pane.relay.wait");
   }
   private rev = 0;
   private _workspaces: HelloResult["workspaces"] = [];
@@ -844,6 +853,12 @@ export class Session {
         const ev = parsePaneRelay(n);
         if (!ev) return;
         for (const h of [...this.paneHandlers]) h({ kind: "relay", ...ev });
+      }),
+      conn.client.on("pane.relayCancel", (n) => {
+        if (gen !== this.generation || this.conn !== conn) return;
+        if (typeof n?.id !== "string") return;
+        for (const h of [...this.paneHandlers])
+          h({ kind: "relay-cancel", id: n.id });
       }),
       conn.client.on("db.propose", (n) => {
         if (gen !== this.generation || this.conn !== conn) return;

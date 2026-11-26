@@ -24,6 +24,16 @@ import type { Problem } from "./problem.ts";
 import { createScale } from "./scale/controller.ts";
 import type { ApplyScale } from "./scale/scale.ts";
 import { createSessions } from "./sessions/controller.ts";
+import {
+  anyAskEach,
+  askPaneOp,
+  askPaneOpen,
+  cancelPaneApproval,
+  cancelPaneApprovalsFrom,
+  markAskEach,
+  mustAskEach,
+} from "./sessions/paneApproval.ts";
+import { onPaneGrantEnd, paneGrantActive } from "./sessions/paneGrant.ts";
 import { createPaneRelay } from "./sessions/paneRelay.ts";
 import type { ConfigMachine } from "./sessions/machines.ts";
 import type { TermDefaults } from "./sessions/termDefaults.ts";
@@ -144,6 +154,7 @@ export function createFeatures(deps: {
             checkNow: updates.checkNow,
             openTab: (t, rq) => openTab(t, rq),
             relay: (from, m, rq, by) => relay(from, m, rq, by),
+            relayCancel: cancelPaneApproval,
             dbPropose: (t, rq) => db.propose(t, rq),
             dbProposeCancel: (t, id) => db.cancelPropose(t, id),
             zoomWs: terminals.zoomWs,
@@ -194,7 +205,21 @@ export function createFeatures(deps: {
     setGws: workspaces.setGws,
     justCreated: workspaces.justCreated,
   });
-  const relay = createPaneRelay({ sessions, openTab });
+  // ssh 先のマシンから手元の PC への頼みは、人が時間を決めて許している間だけ通し、ペインを作る頼みは人に聞く
+  const relay = createPaneRelay({
+    sessions,
+    openTab,
+    local: {
+      granted: paneGrantActive,
+      askOpen: askPaneOpen,
+      askOp: askPaneOp,
+      anyAskEach,
+      mustAskEach,
+      markAskEach,
+    },
+  });
+  // 許可が終わったら（時間が来た・途中で終えた）、そのマシンの、聞いている途中の頼みを断る
+  onPaneGrantEnd(cancelPaneApprovalsFrom);
   const askPrimaryShj = createPrimaryShj({
     sessions: sessions.sessions,
     workspaces: sessions.workspaces,

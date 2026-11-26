@@ -12,12 +12,13 @@ import {
   machineNames,
   machineTarget,
   fromConfig,
+  localInAllowPaneTo,
   paneRelayAllowed,
   renameMachine,
   unknownAllowPaneTo,
   type Machine,
 } from "./machines.ts";
-import { callerOrigin, createPaneRelay } from "./paneRelay.ts";
+import { callerOrigin, createPaneRelay, type LocalGate } from "./paneRelay.ts";
 import { parsePaneRelay } from "./session.ts";
 import { LOCAL } from "./shell.ts";
 
@@ -131,6 +132,15 @@ function setup(opts: {
   machines?: Machine[];
   /** マシンごとの serverId（書かなければ "sid-" と行き先） */
   serverIds?: Record<string, string>;
+  /** ssh 先のマシンから手元の PC への頼みを通すかを決めるもの */
+  gate?: LocalGate;
+  /** 人の答えを待てない（pane.relay.wait の無い）古い serve のマシン */
+  cannotWait?: string;
+  /** list の答えのペイン */
+  panes?: unknown[];
+  /** 答えない相手（runPane が終わらない）と、待つ時間 */
+  hang?: boolean;
+  waitMs?: number;
 }) {
   const runs: { target: string; rq: PaneRunRequest }[] = [];
   const opens: { target: string; rq: PaneOpenRequest }[] = [];
@@ -138,10 +148,14 @@ function setup(opts: {
   const froms: (PaneOrigin | undefined)[] = [];
   const session = (target: string) => ({
     connectedServerId: opts.serverIds?.[target] ?? `sid-${target}`,
+    canWaitRelay: opts.cannotWait !== target,
     runPane: async (rq: PaneRunRequest, from?: PaneOrigin) => {
       if (opts.old) throw new Error("too old");
       runs.push({ target, rq });
       froms.push(from);
+      if (opts.hang) return new Promise<never>(() => {});
+      if (rq.cmd === "list" && opts.panes)
+        return { ok: true, panes: opts.panes };
       return { ok: true, id: "t3" };
     },
   });
@@ -164,6 +178,8 @@ function setup(opts: {
       machines: () => opts.machines ?? machines,
       labelOf: (t: string) => (t === "dev-vm" ? "dev" : t),
     },
+    ...(opts.gate ? { local: opts.gate } : {}),
+    ...(opts.waitMs !== undefined ? { waitMs: opts.waitMs } : {}),
     openTab: async (target, rq) => {
       opens.push({ target, rq });
       return rq.workspace === "bad"
@@ -275,7 +291,13 @@ describe("ssh 先のマシンからの --machine の頼み", () => {
     assert.ok(!paneRelayAllowed(machines, "unknown", LOCAL));
     assert.ok(paneRelayAllowed(allowBuild, "dev-vm", "build"));
     assert.ok(!paneRelayAllowed(allowBuild, "dev-vm", LOCAL));
-    assert.ok(paneRelayAllowed(allowLocal, "dev-vm", LOCAL));
+    // 手元の PC は、設定に local と書いてあっても中継しない。人が時間を決めて許している間（granted）だけ
+    assert.ok(!paneRelayAllowed(allowLocal, "dev-vm", LOCAL));
+    assert.ok(paneRelayAllowed(allowLocal, "dev-vm", LOCAL, true));
+    assert.ok(paneRelayAllowed(machines, "dev-vm", LOCAL, true));
+    assert.ok(!paneRelayAllowed(machines, "dev-vm", "build", true));
+    assert.deepEqual(localInAllowPaneTo(allowLocal), ["dev"]);
+    assert.deepEqual(localInAllowPaneTo(allowBuild), []);
     assert.ok(!paneRelayAllowed(allowLocal, "dev-vm", "build"));
     // 許しは片方向（build から dev へは別に書く）
     assert.ok(!paneRelayAllowed(allowBuild, "build", "dev-vm"));
@@ -331,7 +353,11 @@ describe("ssh 先のマシンからの --machine の頼み", () => {
     ]) {
       for (const to of ["local", "build"]) {
         const r = await t.relay("dev-vm", to, rq);
-        assert.match(r.error ?? "", /allow_pane_to/, `${rq.cmd} ${to}`);
+        assert.match(
+          r.error ?? "",
+          to === "local" ? /machine dialog/ : /allow_pane_to/,
+          `${rq.cmd} ${to}`,
+        );
         assert.equal(r.ok, undefined);
       }
     }
@@ -361,24 +387,27 @@ describe("ssh 先のマシンからの --machine の頼み", () => {
     });
     assert.match(
       (await t.relay("dev-vm", "local", rq)).error ?? "",
-      /allow_pane_to/,
+      /machine dialog/,
     );
     assert.deepEqual(t.runs, [{ target: "build", rq }]);
 
+    // 設定に local と書いてあっても、手元の PC には中継しない
     const l = setup({ machines: allowLocal });
-    assert.deepEqual(
-      await l.relay("dev-vm", "local", {
-        cmd: "open-tab",
-        workspace: "w",
-        name: "a",
-      }),
-      { ok: true, id: "t8" },
+    assert.match(
+      (
+        await l.relay("dev-vm", "local", {
+          cmd: "open-tab",
+          workspace: "w",
+          name: "a",
+        })
+      ).error ?? "",
+      /machine dialog/,
     );
-    assert.equal(l.opens[0].target, LOCAL);
     assert.match(
       (await l.relay("dev-vm", "build", { cmd: "list" })).error ?? "",
       /allow_pane_to/,
     );
+    assert.equal(l.opens.length, 0);
     assert.equal(l.runs.length, 0);
   });
 
@@ -447,31 +476,31 @@ describe("頼んだペインの名乗り（届くペインの範囲を、相手�
 
   it("名乗れない送り元の頼みは、名乗りも系譜も付けずに送る（相手の serve が、どこにも届かせない）", async () => {
     const allow: Machine[] = [
-      { target: "dev-vm", name: "dev", fixed: true, allowPaneTo: ["local"] },
+      { target: "dev-vm", name: "dev", fixed: true, allowPaneTo: ["build"] },
       { target: "build" },
     ];
-    // dev の serve が、手元の PC の serve と同じ serverId を言っている
+    // dev の serve が、build の serve と同じ serverId を言っている
     const t = setup({
       machines: allow,
-      serverIds: { [LOCAL]: "same", "dev-vm": "same" },
+      serverIds: { build: "same", "dev-vm": "same" },
     });
     await t.relay(
       "dev-vm",
-      "local",
+      "build",
       { cmd: "read", to: "foo" },
       { pane: "t1" },
     );
     assert.deepEqual(t.froms, [undefined]);
     await t.relay(
       "dev-vm",
-      "local",
+      "build",
       { cmd: "open-tab", workspace: "w", name: "a" },
       { pane: "t1", ancestry: [{ server: "same", pane: "t1" }] },
     );
     assert.equal(t.opens[0].rq.ancestry, undefined);
     // 古い serve（ペインの id を付けない）も同じ
     const old = setup({ machines: allow });
-    await old.relay("dev-vm", "local", { cmd: "list" });
+    await old.relay("dev-vm", "build", { cmd: "list" });
     assert.deepEqual(old.froms, [undefined]);
   });
 });
@@ -504,5 +533,192 @@ describe("pane.relay・pane.open の、頼んだペインと系譜", () => {
     });
     assert.equal(old?.pane, undefined);
     assert.equal(old?.ancestry, undefined);
+  });
+});
+
+describe("ssh 先のマシンから手元の PC への頼み（時間を決めた許可と、人への問い）", () => {
+  type OpenAsk = Parameters<LocalGate["askOpen"]>[0];
+  type OpAsk = Parameters<LocalGate["askOp"]>[0];
+  /** 問いに answers の順で答える門。聞かれた中身と、「毎回聞く」にしたペインを覚える。 */
+  function gateOf(o: {
+    granted?: () => boolean;
+    open?: ("allow" | "allow-ask" | "deny")[];
+    op?: boolean[];
+    each?: string[];
+  }) {
+    const asked: (OpenAsk | OpAsk)[] = [];
+    const each = new Set(o.each ?? []);
+    const gate: LocalGate = {
+      granted: () => (o.granted ? o.granted() : true),
+      askOpen: async (a) => {
+        asked.push(a);
+        return o.open?.shift() ?? "deny";
+      },
+      askOp: async (a) => {
+        asked.push(a);
+        return o.op?.shift() ?? false;
+      },
+      anyAskEach: () => each.size > 0,
+      mustAskEach: (server, pane, from) =>
+        [pane, ...from].some((p) => each.has(`${server}/${p}`)),
+      markAskEach: (server, pane) => void each.add(`${server}/${pane}`),
+    };
+    return { gate, asked, each };
+  }
+  const open = {
+    cmd: "open-tab",
+    workspace: "w",
+    new: true,
+    name: "a",
+    cwd: "/src",
+    argv: ["/bin/sh", "-c", "echo hi"],
+  };
+  const by = { id: "r7", pane: "t4" };
+
+  it("許していなければ、人に聞かずに断り、許し方を返す", async () => {
+    const g = gateOf({ granted: () => false, open: ["allow"] });
+    const t = setup({ gate: g.gate });
+    for (const rq of [
+      open,
+      { cmd: "send", to: "a", text: "x" },
+      { cmd: "list" },
+    ]) {
+      const r = await t.relay("dev-vm", "local", rq, by);
+      assert.match(r.error ?? "", /machine dialog/, rq.cmd);
+    }
+    assert.equal(g.asked.length, 0);
+    assert.equal(t.opens.length, 0);
+    assert.equal(t.runs.length, 0);
+  });
+
+  it("ペインを作る頼みは、中身を全部見せて聞く。断ったら作らない", async () => {
+    const g = gateOf({ open: ["deny"] });
+    const t = setup({ gate: g.gate });
+    const r = await t.relay("dev-vm", "local", open, by);
+    assert.match(r.error ?? "", /did not allow/);
+    assert.deepEqual(g.asked, [
+      {
+        kind: "open",
+        id: "r7",
+        from: "dev-vm",
+        workspace: "w",
+        isNew: true,
+        name: "a",
+        cwd: "/src",
+        argv: ["/bin/sh", "-c", "echo hi"],
+      },
+    ]);
+    assert.equal(t.opens.length, 0);
+  });
+
+  it("許したら手元の PC に作る。「毎回聞く」を選んだら、作ったペインを覚える", async () => {
+    const g = gateOf({ open: ["allow", "allow-ask"] });
+    const t = setup({ gate: g.gate });
+    const ancestry = [{ server: "sid-dev-vm", pane: "t4" }];
+    assert.deepEqual(
+      await t.relay("dev-vm", "local", open, { ...by, ancestry }),
+      { ok: true, id: "t8" },
+    );
+    assert.equal(t.opens[0].target, LOCAL);
+    assert.deepEqual(t.opens[0].rq.ancestry, ancestry);
+    assert.equal(g.each.size, 0);
+    await t.relay("dev-vm", "local", open, { ...by, ancestry });
+    assert.deepEqual([...g.each], ["sid-@local/t8"]);
+  });
+
+  it("「毎回聞く」ペインが無ければ、操作は聞かずに送る（名乗りを付ける）", async () => {
+    const g = gateOf({});
+    const t = setup({ gate: g.gate });
+    const rq = { cmd: "send", to: "a", text: "echo hi" };
+    assert.deepEqual(await t.relay("dev-vm", "local", rq, by), {
+      ok: true,
+      id: "t3",
+    });
+    assert.equal(g.asked.length, 0);
+    assert.deepEqual(t.runs, [{ target: LOCAL, rq }]);
+    assert.deepEqual(t.froms, [{ server: "sid-dev-vm", pane: "t4" }]);
+  });
+
+  it("「毎回聞く」ペインと、そこから作られたペインへの操作は、中身を見せて聞く。聞いたペインを id で指して送る", async () => {
+    const panes = [
+      { id: "t8", name: "a", openedFrom: [] },
+      { id: "t9", name: "child", openedFrom: ["t8"] },
+      { id: "t5", name: "other", openedFrom: [] },
+    ];
+    const g = gateOf({ each: ["sid-@local/t8"], op: [true, false, true] });
+    const t = setup({ gate: g.gate, panes });
+    // 「毎回聞く」ペイン：許す
+    assert.deepEqual(
+      await t.relay(
+        "dev-vm",
+        "local",
+        { cmd: "send", to: "a", text: "ls" },
+        by,
+      ),
+      { ok: true, id: "t3" },
+    );
+    // そこから作られたペイン：断る
+    const no = await t.relay(
+      "dev-vm",
+      "local",
+      { cmd: "keys", to: "child", keys: ["ctrl+c"] },
+      by,
+    );
+    assert.match(no.error ?? "", /did not allow/);
+    // 聞かないペイン：聞かずに送る
+    await t.relay("dev-vm", "local", { cmd: "read", to: "other" }, by);
+    assert.deepEqual(
+      g.asked.map((a) =>
+        a.kind === "op" ? [a.cmd, a.pane, a.text, a.keys] : a,
+      ),
+      [
+        ["send", "a", "ls", undefined],
+        ["keys", "child", undefined, ["ctrl+c"]],
+      ],
+    );
+    assert.deepEqual(
+      t.runs.filter((r) => r.rq.cmd !== "list").map((r) => r.rq),
+      [
+        { cmd: "send", to: "t8", text: "ls" },
+        { cmd: "read", to: "other" },
+      ],
+    );
+    // list は聞かない
+    await t.relay("dev-vm", "local", { cmd: "list" }, by);
+    assert.equal(g.asked.length, 2);
+  });
+
+  it("聞いている間に許可が終わったら、許すと答えても断る", async () => {
+    let granted = true;
+    const g = gateOf({ granted: () => granted });
+    g.gate.askOpen = async () => {
+      granted = false;
+      return "allow";
+    };
+    const t = setup({ gate: g.gate });
+    const r = await t.relay("dev-vm", "local", open, by);
+    assert.match(r.error ?? "", /did not allow/);
+    assert.equal(t.opens.length, 0);
+  });
+
+  it("人の答えを待てない古い serve・名乗れない頼みは、聞かずに断る", async () => {
+    const g = gateOf({ open: ["allow"] });
+    const old = setup({ gate: g.gate, cannotWait: "dev-vm" });
+    assert.match(
+      (await old.relay("dev-vm", "local", open, by)).error ?? "",
+      /too old/,
+    );
+    const t = setup({ gate: g.gate });
+    assert.match(
+      (await t.relay("dev-vm", "local", open, { id: "r1" })).error ?? "",
+      /too old/,
+    );
+    assert.equal(g.asked.length, 0);
+  });
+
+  it("相手のマシンが答えなければ、時間で断る", async () => {
+    const t = setup({ hang: true, waitMs: 5 });
+    const r = await t.relay(LOCAL, "dev", { cmd: "read", to: "x" }, by);
+    assert.match(r.error ?? "", /did not answer in time/);
   });
 });

@@ -727,6 +727,60 @@ export const ja: Record<Key, string> = {
     "{machine} の kisui serve が古く、この操作に対応していません。そのマシンの kisui-terminal を新しくしてください",
   "paneRelay.err.noMachine":
     "「{machine}」という名前のマシンがありません（マシン: {machines}）",
+  "paneRelay.err.timeout":
+    "{machine} が時間内に答えませんでした（頼みは、そのマシンで行われるかもしれません）",
+  "paneRelay.err.localNotGranted":
+    "{from} のペインは、今は手元の PC（local）に届けません。許せるのはウィンドウの前の人だけで、時間を決めて許します。マシンのダイアログで {from} を選び、p を押します。ユーザーに頼んでください。",
+  "paneRelay.err.refused": "ウィンドウの前の人が許しませんでした。",
+  "paneGrant.err.format": "時間は 30m・1h・1h30m のように書いてください。",
+  "paneGrant.err.max": "8 時間（8h）までです。",
+  "paneGrant.title": "Allow panes on this computer",
+  "paneGrant.lead":
+    "下の時間の間、{machine} のペインの中のコマンド（kisui pane … --machine local）が、手元の PC のペインを操作できます。手元の PC にペインを作る頼みは、そのたびに聞きます。時間が来ると自分で終わり、マシンのダイアログの P で途中で終えられます。覚えているのは、このウィンドウを開いている間だけです。",
+  "paneGrant.time": "時間（30m・1h・1h30m。8h まで）",
+  "paneGrant.allow": "Allow",
+  "paneGrant.end": "End now",
+  "machineDialog.granted": "手元の PC のペインの操作を許可中：残り {time}",
+  "machineDialog.keys.grant": "allow panes here",
+  "machineDialog.keys.grantEnd": "end allowing",
+  "place.machines.grant":
+    "Allow the panes of the machine to work on panes of this computer, for a time",
+  "place.machines.grantEnd": "End that before the time",
+  "machine.cant.grant.local":
+    "{label} は手元の PC です。許す相手には、リモートのマシンを選んでください。",
+  "machine.cant.grantEnd.none":
+    "{label} には、今は手元の PC のペインの操作を許していません。",
+  "paneApproval.label": "別のマシンからの頼み",
+  "paneApproval.title.open": "Open a pane on this computer?",
+  "paneApproval.title.op": "Let this through to a pane of this computer?",
+  "paneApproval.lead.open":
+    "{machine} のペインの中のコマンドが、手元の PC にターミナルのタブを開こうとしています。そこで動くコマンドと、あとから送られる字は、手元の PC で、あなたとして動きます。",
+  "paneApproval.lead.op":
+    "{machine} のペインの中のコマンドが、手元の PC のペイン {pane} に、次のことをしようとしています。",
+  "paneApproval.field.workspace": "ワークスペース",
+  "paneApproval.field.workspaceNew": "ワークスペース（新しく作る）",
+  "paneApproval.field.name": "ペインの名前",
+  "paneApproval.field.cwd": "フォルダ",
+  "paneApproval.field.command": "コマンド",
+  "paneApproval.shell": "（シェル）",
+  "paneApproval.startDir": "（手元の PC の始めのフォルダ）",
+  "paneApproval.op.send": "次の字を打って Enter を押す",
+  "paneApproval.op.keys": "次のキーを押す",
+  "paneApproval.op.read": "画面に出ている字を読む",
+  "paneApproval.op.close": "閉じる（中で動いているものは終わります）",
+  "paneApproval.note":
+    "コマンド・名前・字は、そのマシンが決めたものです。上のマシンの名前は、このウィンドウが知っている名前です。",
+  "paneApproval.deny": "Deny",
+  "paneApproval.allow": "Allow",
+  "paneApproval.allowQuiet": "Allow, do not ask for this pane",
+  "paneApproval.allowAsk": "Allow, ask each time",
+  "notice.paneGrant.title":
+    "{machine} に、手元の PC のペインの操作を {until} まで許しています",
+  "notice.paneGrant.text":
+    "手元の PC にペインを作る頼みは、そのたびに聞きます。その時刻になると自分で終わります。",
+  "notice.allowPaneToLocal.title": "allow_pane_to の local は効きません",
+  "notice.allowPaneToLocal.text":
+    "手元の PC のペインの操作は、設定ファイルでは許せません。代わりに、時間を決めて許します。マシンのダイアログ（{leader} m）でマシンを選び、p を押します。",
   "paneRelay.err.notAllowed":
     '{from} のペインは、--machine でマシン「{machine}」に届けません。許すには、ウィンドウの動く PC の設定ファイルで、{from} の [[gui.machines]] に allow_pane_to = ["{machine}"] と書き、kisui-terminal を起動し直してください。',
   "paneOpen.err.noWorkspace":

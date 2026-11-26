@@ -23,7 +23,7 @@ const key = (k: string, mods: Partial<KeyLike> = {}): KeyLike => ({
   ...mods,
 });
 
-/** 全部の操作ができるマシン（つながっていて、config.local.toml のマシンで、接続がある） */
+/** 全部の操作ができるマシン（つながっていて、config.local.toml のマシンで、接続があり、手元の PC のペインの操作を許している） */
 const remote: MachineRow = {
   target: "dev",
   label: "dev",
@@ -35,6 +35,7 @@ const remote: MachineRow = {
   fixed: false,
   hasSession: true,
   retry: "now",
+  grant: "30m",
 };
 
 const shown = (rows: FooterRow[]) =>
@@ -43,7 +44,7 @@ const shown = (rows: FooterRow[]) =>
 describe("machineDialogFooter（マシンのダイアログの下の段の今効く操作。#489）", () => {
   afterEach(() => setLang("en"));
 
-  it("全部効くマシンでは、選んでいるマシンの行に Enter n d x r t を、マシンの一覧の行に a を出す", () => {
+  it("全部効くマシンでは、選んでいるマシンの行に Enter n d x r t p P を、マシンの一覧の行に a を出す", () => {
     assert.deepEqual(
       shown(
         machineDialogFooter({
@@ -53,9 +54,23 @@ describe("machineDialogFooter（マシンのダイアログの下の段の今効
         }),
       ),
       [
-        ["Selected machine", ["Enter", "n", "d", "x", "r", "t"]],
+        ["Selected machine", ["Enter", "n", "d", "x", "r", "t", "p", "P"]],
         ["Machine list", ["a"]],
       ],
+    );
+  });
+
+  it("許していないマシンには P（途中で終える）を出さない。手元の PC には p も出さない", () => {
+    const notGranted: MachineRow = { ...remote, grant: undefined };
+    assert.deepEqual(
+      shown(
+        machineDialogFooter({
+          renaming: false,
+          selected: notGranted,
+          hasWorkspace: true,
+        }),
+      )[0],
+      ["Selected machine", ["Enter", "n", "d", "x", "r", "t", "p"]],
     );
   });
 
@@ -69,7 +84,7 @@ describe("machineDialogFooter（マシンのダイアログの下の段の今効
           hasWorkspace: true,
         }),
       )[0],
-      ["Selected machine", ["Enter", "x", "r"]],
+      ["Selected machine", ["Enter", "x", "r", "p", "P"]],
     );
     const down: MachineRow = { ...remote, health: "down", hasSession: false };
     assert.deepEqual(
@@ -80,9 +95,14 @@ describe("machineDialogFooter（マシンのダイアログの下の段の今効
           hasWorkspace: false,
         }),
       )[0],
-      ["Selected machine", ["n", "d", "r", "t"]],
+      ["Selected machine", ["n", "d", "r", "t", "p", "P"]],
     );
-    const local: MachineRow = { ...remote, removable: false, retry: undefined };
+    const local: MachineRow = {
+      ...remote,
+      removable: false,
+      retry: undefined,
+      grant: undefined,
+    };
     assert.deepEqual(
       shown(
         machineDialogFooter({

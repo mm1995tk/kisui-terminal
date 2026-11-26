@@ -92,8 +92,14 @@ describe("machineKey", () => {
       ["x", "disconnect"],
       ["r", "reconnect"],
       ["t", "terminal"],
+      ["p", "grant"],
     ] as const)
       assert.deepEqual(machineKey(ev(k)), { kind: "action", action });
+    // P（Shift+p）は、時間の前に終える
+    assert.deepEqual(machineKey(ev("P", { shiftKey: true })), {
+      kind: "action",
+      action: "grantEnd",
+    });
   });
 
   it("移るキー（j k / 矢印 / Ctrl+J Ctrl+K / g G）", () => {
@@ -174,6 +180,35 @@ describe("canDo", () => {
     assert.match(
       canDo(row({ fixed: true }), "terminal", true) ?? "",
       /config\.toml/,
+    );
+  });
+
+  it("手元の PC のペインの操作を許す相手は、ssh 先のマシン。途中で終えられるのは、許している間だけ", () => {
+    assert.equal(canDo(row(), "grant", true), null);
+    assert.equal(canDo(row({ fixed: true }), "grant", true), null);
+    assert.equal(canDo(row({ health: "down" }), "grant", false), null);
+    assert.notEqual(canDo(row({ removable: false }), "grant", true), null);
+    // もう許していても、許し直せる（時間を数え直す）
+    assert.equal(canDo(row({ grant: "5m" }), "grant", true), null);
+    assert.equal(canDo(row({ grant: "5m" }), "grantEnd", true), null);
+    assert.notEqual(canDo(row(), "grantEnd", true), null);
+  });
+
+  it("許している間は、行に残りの時間が入る", () => {
+    const rows = machineRows(
+      [group({})],
+      () => ({ text: "", title: "" }),
+      () => true,
+      (t) => (t === group({}).target ? "12m" : undefined),
+    );
+    assert.equal(rows[0].grant, "12m");
+    assert.equal(
+      machineRows(
+        [group({})],
+        () => ({ text: "", title: "" }),
+        () => true,
+      )[0].grant,
+      undefined,
     );
   });
 

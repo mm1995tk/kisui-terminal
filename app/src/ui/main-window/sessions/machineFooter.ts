@@ -28,6 +28,8 @@ const SELECTED: readonly [
   ["disconnect", "x", "machineDialog.keys.disconnect"],
   ["reconnect", "r", "machineDialog.keys.reconnect"],
   ["terminal", "t", "machineDialog.keys.terminal"],
+  ["grant", "p", "machineDialog.keys.grant"],
+  ["grantEnd", "P", "machineDialog.keys.grantEnd"],
 ];
 
 /**

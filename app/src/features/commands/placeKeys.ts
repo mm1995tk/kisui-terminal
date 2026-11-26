@@ -176,6 +176,8 @@ const buildPlaceKeys = (): Record<Place, PlaceKeys> => ({
       row("x", T("place.machines.disconnect"), ["x"]),
       row("r", T("place.machines.reconnect"), ["r"]),
       row("t", T("place.machines.terminal"), ["t"]),
+      row("p", T("place.machines.grant"), ["p"]),
+      row("P", T("place.machines.grantEnd"), ["P"]),
       row("Esc", T("place.row.close"), []),
       row("?", T("place.row.keyList"), ["?"]),
     ],

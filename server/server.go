@@ -538,7 +538,7 @@ func (ss *session) helloReq(req *rpc.Message) (any, error) {
 		ServerID:     s.serverID,
 		StartedAt:    s.startedAt,
 		Supersedes:   sup,
-		Capabilities: []string{CapHandover, CapDB, CapDBPermissions, CapDBSchema, CapDBStructure, CapDBElevate, CapDBRemember, CapCreateCommand, CapCreateShell, CapPaneRun, CapGwsSet, CapProxy, CapProxyResend, CapProxyHold},
+		Capabilities: []string{CapHandover, CapDB, CapDBPermissions, CapDBSchema, CapDBStructure, CapDBElevate, CapDBRemember, CapCreateCommand, CapCreateShell, CapPaneRun, CapPaneRelayWait, CapGwsSet, CapProxy, CapProxyResend, CapProxyHold},
 		Workspaces:   wsl,
 		Rev:          s.currentRev(),
 	}, nil

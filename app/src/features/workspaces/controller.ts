@@ -27,6 +27,7 @@ import type { ReportProblem } from "../problem.ts";
 import { MACHINE_COLORS } from "../sessions/colors.ts";
 import type { Sessions } from "../sessions/controller.ts";
 import { creatableRows, machineRows } from "../sessions/machineList.ts";
+import { grantRemainingText, paneGrants } from "../sessions/paneGrant.ts";
 import { LOCAL } from "../sessions/shell.ts";
 import { focusWorkspaceAndTerminal } from "./focusWorkspaceAndTerminal.ts";
 import {
@@ -654,8 +655,20 @@ export function createWorkspaces(deps: {
     showGws(gid);
   }
 
-  const machineList = () =>
-    machineRows(groups(), statusOf, (t) => !!sessions()[t]);
+  const machineList = () => {
+    // 手元の PC のペインの操作を、時間を決めて許しているマシンには、残りの時間を出す（毎秒の now で更新する）
+    const granted = paneGrants();
+    const now = deps.sessions.now();
+    return machineRows(
+      groups(),
+      statusOf,
+      (t) => !!sessions()[t],
+      (t) =>
+        granted[t] !== undefined && granted[t] > now
+          ? grantRemainingText(granted[t], now)
+          : undefined,
+    );
+  };
 
   /** できないことを、右下の知らせで伝える（リーダーの葉は、できないときでも押せてしまうため）。 */
   function cannot(title: string, error: string) {

@@ -9,9 +9,15 @@ import { leaderKeyName } from "../../../features/commands/commands.ts";
 import { IS_MAC } from "../../../features/commands/guiKeys.ts";
 import type { Problem, ReportProblem } from "../../../features/problem.ts";
 import {
+  localInAllowPaneTo,
   localNamed,
   unknownAllowPaneTo,
 } from "../../../features/sessions/machines.ts";
+import {
+  endPaneGrant,
+  grantUntilText,
+  paneGrants,
+} from "../../../features/sessions/paneGrant.ts";
 import type { Sessions } from "../../../features/sessions/controller.ts";
 import type { SessionState } from "../../../features/sessions/session.ts";
 import {
@@ -141,6 +147,54 @@ export function createNotices(deps: {
     }
     return allowPaneToCache.notice;
   }
+  // allow_pane_to に書いた local（効かない。手元の PC のペインの操作は、時間を決めて許す）。閉じたら、同じ並びの間は出さない
+  const [allowLocalDismissed, setAllowLocalDismissed] = createSignal("");
+  let allowLocalCache: { key: string; notice: Notice } | undefined;
+  function allowLocalNotice(): Notice | undefined {
+    const key = localInAllowPaneTo(deps.sessions.machines()).join(", ");
+    if (key === "" || allowLocalDismissed() === key) return undefined;
+    if (allowLocalCache?.key !== key) {
+      const close = () => setAllowLocalDismissed(key);
+      allowLocalCache = {
+        key,
+        notice: {
+          title: T("notice.allowPaneToLocal.title"),
+          text: T("notice.allowPaneToLocal.text", {
+            leader: leaderKeyName(IS_MAC),
+          }),
+          error: key,
+          primary: { label: T("button.close"), run: close },
+          dismiss: close,
+        },
+      };
+    }
+    return allowLocalCache.notice;
+  }
+  // 手元の PC のペインの操作を、時間を決めて許している間の知らせ（マシンごと。許している間は出したままにし、閉じさせない。
+  // 毎秒描き直さないよう、残りの時間ではなく終わる時刻を出し、終わる時刻が同じ間は同じオブジェクトを返す）
+  const grantNotices = new Map<string, { until: number; notice: Notice }>();
+  function grantNoticeList(): Notice[] {
+    const granted = paneGrants();
+    for (const t of [...grantNotices.keys()])
+      if (granted[t] === undefined) grantNotices.delete(t);
+    return Object.entries(granted).map(([target, until]) => {
+      const had = grantNotices.get(target);
+      if (had?.until === until) return had.notice;
+      const notice: Notice = {
+        title: T("notice.paneGrant.title", {
+          machine: labelOf(target),
+          until: grantUntilText(until),
+        }),
+        text: T("notice.paneGrant.text"),
+        primary: {
+          label: T("paneGrant.end"),
+          run: () => endPaneGrant(target),
+        },
+      };
+      grantNotices.set(target, { until, notice });
+      return notice;
+    });
+  }
   const [passkeyDismissed, setPasskeyDismissed] = createSignal(false);
   const passkeyNotice: Notice | undefined = deps.passkeyRejected?.length
     ? {
@@ -165,6 +219,9 @@ export function createNotices(deps: {
     if (local) out.push(local);
     const allowPaneTo = allowPaneToNotice();
     if (allowPaneTo) out.push(allowPaneTo);
+    const allowLocal = allowLocalNotice();
+    if (allowLocal) out.push(allowLocal);
+    out.push(...grantNoticeList());
     if (passkeyNotice && !passkeyDismissed()) out.push(passkeyNotice);
     const err = focusError();
     if (err) {
