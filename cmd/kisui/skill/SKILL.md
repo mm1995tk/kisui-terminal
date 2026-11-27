@@ -1,6 +1,6 @@
 ---
 name: kisui-terminal
-description: Use the kisui commands from inside a pane of kisui-terminal - show a file or a web page in another pane (kisui open), split the pane (kisui pane split), name the pane (kisui pane title), list the panes of the machine (kisui pane list), open a terminal tab in a workspace and run an agent there (kisui pane open), send text or keys to a pane and close it (kisui pane send, kisui pane keys, kisui pane close), read the screen of a pane (kisui pane read), do all of these on the panes of another machine of the window (--machine), list, rename, close, move and show the tabs of the window (kisui tab list, rename, close, move, show), list, make, rename, close, move and show the workspaces of the window (kisui workspace list, new, rename, close, move, show), read and query the databases the user set up, as far as they allow (kisui db connections, schema, query, propose), send a desktop notification when long work ends (kisui notify), and use the clipboard of the user's computer (kisui clipboard copy). Use it when you run in a kisui-terminal pane and the user wants to see a result, be told when something finishes, or get text onto their clipboard, or when the work needs a MySQL or PostgreSQL database.
+description: Use the kisui commands from inside a pane of kisui-terminal - show a file or a web page in another pane (kisui open), split the pane (kisui pane split), name the pane (kisui pane title), list the panes of the machine (kisui pane list), open a terminal tab in a workspace and run an agent there (kisui pane open), send text or keys to a pane and close it (kisui pane send, kisui pane keys, kisui pane close), move the focus to a pane, swap, zoom and resize panes (kisui pane focus, swap, zoom, resize), read the screen of a pane (kisui pane read), do all of these on the panes of another machine of the window (--machine), list, rename, close, move and show the tabs of the window (kisui tab list, rename, close, move, show), list, make, rename, close, move and show the workspaces of the window (kisui workspace list, new, rename, close, move, show), read and query the databases the user set up, as far as they allow (kisui db connections, schema, query, propose), send a desktop notification when long work ends (kisui notify), and use the clipboard of the user's computer (kisui clipboard copy). Use it when you run in a kisui-terminal pane and the user wants to see a result, be told when something finishes, or get text onto their clipboard, or when the work needs a MySQL or PostgreSQL database.
 ---
 
 # kisui-terminal
@@ -126,13 +126,51 @@ Close a pane of this machine, pointed at by its name or id. What runs in it ends
 kisui pane close worker
 ```
 
+### kisui pane focus [--machine <machine>] <name|id>|--last
+
+Show the tab of a pane and turn the keys of the window to that pane (pointed at by its name or id, among the panes you can reach). It takes the focus of the user, so use it only when the user asks to see that pane. Without `--machine` it is a pane of this machine. It is the key `Go to the pane ...`, but you point at the pane instead of a direction.
+
+`kisui pane focus --last` turns the keys back to the pane that had them before, in the tab of the pane you run in (the key `Go to the previous pane`), and shows that tab. It takes no pane and no `--machine`, and prints a note, and exits with 0, when the tab has no previous pane.
+
+```sh
+kisui pane focus reviewer
+kisui pane focus --last
+```
+
+### kisui pane swap [--machine <machine>] <name|id> --right|--down|--left|--up
+
+Swap the pane with its neighbor in that direction (the neighbor is the one the key `Go to the pane ...` goes to). The keys stay in the pane they were in. It prints a note, and exits with 0, when the pane has no neighbor that way. It is refused while the tab shows only its primary pane (see `kisui pane zoom`).
+
+```sh
+kisui pane swap worker --left
+```
+
+### kisui pane zoom [--machine <machine>] <name|id>
+
+Toggle: show only the primary pane of the tab of the pane, or show all its panes again. Only a tab whose primary pane runs `shj` can do it. The other panes keep running while they are hidden. It does not move the keys to another tab.
+
+```sh
+kisui pane zoom worker
+```
+
+### kisui pane resize [--machine <machine>] <name|id> --right|--down|--left|--up <n>
+
+Move the border of the pane that faces that direction n steps that way (`n` is 1 to 50). A step is what one key of the resize mode moves: 2 percent of the split that holds the border. `--right` on a pane that has a neighbor on its right makes it wider; on a pane with no border on its right, the border on its left moves right instead (it gets narrower). It stops at the smallest size of the panes. It prints a note, and exits with 0, when the border cannot move at all, and it is refused while the tab shows only its primary pane.
+
+```sh
+kisui pane resize worker --right 5
+kisui pane resize worker --up 10
+```
+
 ### Which panes you can reach
 
-`kisui pane send`, `keys`, `read`, `close` and `list` reach this pane, the panes you opened from it (with `kisui pane split` or `kisui pane open`), and the panes opened from those. They do not reach a pane the user opened in the window, nor a pane that another pane opened: those are not in `kisui pane list`, and pointing at one fails as a name that no pane has does. With `--machine` it is the same on the other machine: you reach the panes you opened there with `kisui pane open --machine`. So to work with another pane, open it yourself. When the user asks you to work with a pane you cannot reach, do not work around it: tell the user, who can let the commands reach every pane of that machine with `pane_reach = "all"` in `[server]` of its config file.
+`kisui pane send`, `keys`, `read`, `close`, `list`, `focus`, `swap`, `zoom` and `resize` reach this pane, the panes you opened from it (with `kisui pane split` or `kisui pane open`), and the panes opened from those. They do not reach a pane the user opened in the window, nor a pane that another pane opened: those are not in `kisui pane list`, and pointing at one fails as a name that no pane has does. With `--machine` it is the same on the other machine: you reach the panes you opened there with `kisui pane open --machine`. So to work with another pane, open it yourself. When the user asks you to work with a pane you cannot reach, do not work around it: tell the user, who can let the commands reach every pane of that machine with `pane_reach = "all"` in `[server]` of its config file.
+
+`kisui pane focus` turns the keys the user is typing to a pane. From a pane on a remote machine the user does not allow with `p` (machine dialog), it works only while the keys are on a terminal tab of your machine and the pane is in a terminal tab of your machine; otherwise it is refused, and you should ask the user to go to the pane. `swap`, `zoom` and `resize` do not move the keys.
 
 ### --machine <machine>: the panes of another machine
 
-`kisui pane list`, `open`, `send`, `keys`, `close` and `read` take `--machine <machine>` to work on the panes of another machine of the window instead of this one. The machine is a name from `[[gui.machines]]` of the user's config (the ssh destination when it has no name), or `local`, which always means the user's own computer, where the window runs. From a pane on the user's computer you can reach every machine. From a pane on a remote machine you can reach another remote machine only when the user allowed that (`allow_pane_to` in the `[[gui.machines]]` entry of your machine, in the config file of the user's computer). The user's own computer (`local`) is allowed only by the user at the window, for a time (`p` in the machine dialog), and while it is allowed, each `kisui pane open --machine local` asks the user, who sees the whole command; the user may also choose to be asked for every later `send`, `keys`, `read` and `close` on that pane. Such a command waits for the answer for up to 90 seconds, so give it that long. A machine that is not allowed, or a request the user denied, fails with the reason. Do not work around that: tell the user, who decides whether to allow it. Without `--machine`, a command works on this machine. From the user's computer, a wrong name fails with the names of the machines. The window passes the request on, so it fails when the window is closed or that machine is not connected. With `kisui pane open --machine`, the tab is a terminal of that machine: `--cwd` must be an absolute path there (without it, the tab starts in the start folder of that machine), and a command must be an absolute path there, because your `PATH` is not the one of that machine; usually open a shell (no command) and start the agent with `kisui pane send`, which finds it in the `PATH` of that shell. The names of panes are unique per machine, so the same name can be on two machines: keep `--machine` on every command for a pane you opened with it. Apart from the requests to the user's own computer from a remote machine, kisui-terminal asks the user for no confirmation, so use `--machine` only for what the user asked.
+`kisui pane list`, `open`, `send`, `keys`, `close`, `read`, `focus`, `swap`, `zoom` and `resize` take `--machine <machine>` to work on the panes of another machine of the window instead of this one. The machine is a name from `[[gui.machines]]` of the user's config (the ssh destination when it has no name), or `local`, which always means the user's own computer, where the window runs. From a pane on the user's computer you can reach every machine. From a pane on a remote machine you can reach another remote machine only when the user allowed that (`allow_pane_to` in the `[[gui.machines]]` entry of your machine, in the config file of the user's computer). The user's own computer (`local`) is allowed only by the user at the window, for a time (`p` in the machine dialog), and while it is allowed, each `kisui pane open --machine local` asks the user, who sees the whole command; the user may also choose to be asked for every later `send`, `keys`, `read` and `close` on that pane. Such a command waits for the answer for up to 90 seconds, so give it that long. A machine that is not allowed, or a request the user denied, fails with the reason. Do not work around that: tell the user, who decides whether to allow it. Without `--machine`, a command works on this machine. From the user's computer, a wrong name fails with the names of the machines. The window passes the request on, so it fails when the window is closed or that machine is not connected. With `kisui pane open --machine`, the tab is a terminal of that machine: `--cwd` must be an absolute path there (without it, the tab starts in the start folder of that machine), and a command must be an absolute path there, because your `PATH` is not the one of that machine; usually open a shell (no command) and start the agent with `kisui pane send`, which finds it in the `PATH` of that shell. The names of panes are unique per machine, so the same name can be on two machines: keep `--machine` on every command for a pane you opened with it. Apart from the requests to the user's own computer from a remote machine, kisui-terminal asks the user for no confirmation, so use `--machine` only for what the user asked.
 
 ```sh
 kisui pane list --machine dev

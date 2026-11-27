@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 
 import type { PaneLayout } from "../../infrastructure/rpc/protocol.ts";
 import {
+  borderToward,
   clampRatio,
   firstPane,
   GAP,
@@ -218,5 +219,42 @@ describe("widthForPanes", () => {
       const gaps = id === "a" ? GAP / 2 : id === "b" ? GAP : GAP / 2;
       assert.ok(r.w * need - gaps >= w - 1e-6, id);
     }
+  });
+});
+
+describe("borderToward", () => {
+  // 左（上 a1・下 a2）と右 b
+  const tree = right(down(leaf("a1"), leaf("a2")), leaf("b"));
+
+  it("欄の、その向きに面した境界を、その向きへ動かす", () => {
+    assert.deepEqual(borderToward(tree, "a1", "right"), { key: "b", sign: 1 });
+    assert.deepEqual(borderToward(tree, "a1", "down"), { key: "a2", sign: 1 });
+    assert.deepEqual(borderToward(tree, "b", "left"), { key: "b", sign: -1 });
+    assert.deepEqual(borderToward(tree, "a2", "up"), { key: "a2", sign: -1 });
+  });
+
+  it("その向きの端にいる欄は、反対側の境界をその向きへ動かす", () => {
+    assert.deepEqual(borderToward(tree, "b", "right"), { key: "b", sign: 1 });
+    assert.deepEqual(borderToward(tree, "a1", "left"), { key: "b", sign: -1 });
+    assert.deepEqual(borderToward(tree, "a1", "up"), { key: "a2", sign: -1 });
+    assert.deepEqual(borderToward(tree, "a2", "down"), { key: "a2", sign: 1 });
+  });
+
+  it("入れ子の中では、欄にいちばん近い境界を選ぶ", () => {
+    const t = right(leaf("p"), right(leaf("q"), leaf("r")));
+    assert.deepEqual(borderToward(t, "p", "right"), { key: "q", sign: 1 });
+    assert.deepEqual(borderToward(t, "q", "right"), { key: "r", sign: 1 });
+    assert.deepEqual(borderToward(t, "q", "left"), { key: "q", sign: -1 });
+    assert.deepEqual(borderToward(t, "r", "left"), { key: "r", sign: -1 });
+  });
+
+  it("その軸の分割が無い・欄が木に無い・木が無いときは undefined", () => {
+    assert.equal(
+      borderToward(right(leaf("a"), leaf("b")), "a", "down"),
+      undefined,
+    );
+    assert.equal(borderToward(tree, "zzz", "right"), undefined);
+    assert.equal(borderToward(leaf("a"), "a", "right"), undefined);
+    assert.equal(borderToward(undefined, "a", "right"), undefined);
   });
 });

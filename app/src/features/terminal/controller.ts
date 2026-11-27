@@ -92,6 +92,9 @@ export function createTerminals(deps: {
     if (f && f.target === target && f.id === id) focusTerminal();
     return want;
   }
+  /** ワークスペース（target, id）が、プライマリ以外の欄を隠しているか（隠せるのはプライマリで shj が動いているときだけ） */
+  const isZoomed = (target: string, id: WorkspaceId) =>
+    zoomedWs().has(wsKey(target, id)) && primaryShjOn(target, id);
   /** フォーカスしているワークスペースで zoomWs する（Ctrl+Shift+M）。 */
   function setZoom(on: boolean | "toggle" = "toggle"): boolean {
     const f = focus();
@@ -202,6 +205,8 @@ export function createTerminals(deps: {
     termActiveExtra,
     termBars,
     zoomed,
+    isZoomed,
+    canZoomWs: primaryShjOn,
     zoomWs,
     setZoom,
     paneShow,
