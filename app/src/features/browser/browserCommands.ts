@@ -173,8 +173,9 @@ export function createBrowserCommands(deps: {
     args: Record<string, unknown>,
     c: WindowCaller,
   ): { e: TabEntry; t: BrowserTab } {
-    // 手元の PC の Pane には、先に断る。リモートの Machine の Pane には、届く Tab を探してから断る
-    if (c.from === LOCAL) needEnabled();
+    // 手元の PC の Pane と、許している Machine の Pane には、先に断る。許していない Machine の Pane には、届く Tab を探して、
+    // Browser tab でないと断ってから断る（自分の Terminal tab を指されても、内蔵ブラウザを使っているかを教えない）
+    if (c.from === LOCAL || deps.granted(c.from)) needEnabled();
     const tab = argString(args, "tab").trim();
     const reach = reachableTabs(
       untrack(machines),
@@ -184,9 +185,9 @@ export function createBrowserCommands(deps: {
       deps.granted(c.from),
     );
     const e = pickTab(reach, tab, c.from, labelOf);
-    needEnabled();
     if (e.ref.kind !== "browser")
       throw new WindowCommandError(T("browserCli.err.notBrowser", { tab }));
+    needEnabled();
     const t = untrack(deps.browserTabs.tabs).tabs.find((x) => x.id === e.id);
     if (!t) throw new WindowCommandError(T("tabCli.err.noTab", { tab }));
     return { e, t };

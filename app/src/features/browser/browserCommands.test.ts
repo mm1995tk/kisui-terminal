@@ -190,6 +190,14 @@ describe("kisui browser の受け持ち", () => {
       const e = await refusal(() => run(name, args, "dev-vm", "wdev"));
       assert.doesNotMatch(e.message, /built-in browser is off/, name);
     }
+    // 許していない Pane が、自分の Terminal tab を指しても、有効か無効かは分からない（どちらも「Browser tab でない」）
+    for (const browser of [true, false]) {
+      const s = setup({ browser });
+      const e = await refusal(() =>
+        s.run("browser.reload", { tab: "wdev" }, "dev-vm", "wdev"),
+      );
+      assert.match(e.message, /not a browser tab/, String(browser));
+    }
     const g = setup({ browser: false, granted: true });
     const e = await refusal(() =>
       g.run("browser.reload", { tab: "tpage" }, "dev-vm", "wdev"),
