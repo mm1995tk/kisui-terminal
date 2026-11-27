@@ -37,6 +37,11 @@ export function InstallCard(props: {
           {T("installCard.title", { target: props.target })}
         </CardTitle>
       }
+      status={
+        <Show when={props.state.error}>
+          <CardError role="alert">{props.state.error}</CardError>
+        </Show>
+      }
       footer={
         <CardActions>
           <Button onClick={props.onNo}>{T("installCard.no")}</Button>
@@ -56,9 +61,6 @@ export function InstallCard(props: {
           })}
         </CardText>
         <CardText>{T("installCard.verify")}</CardText>
-        <Show when={props.state.error}>
-          <CardError role="alert">{props.state.error}</CardError>
-        </Show>
       </CardBody>
     </ModalCard>
   );

@@ -48,6 +48,11 @@ export function DeleteDialog(props: {
       header={
         <CardTitle>{T("deleteDialog.title", { path: props.path })}</CardTitle>
       }
+      status={
+        <Show when={error()}>
+          {(e) => <CardError role="alert">{e()}</CardError>}
+        </Show>
+      }
       footer={
         <CardActions>
           <Button onClick={props.onCancel}>{T("button.cancelAlt")}</Button>
@@ -61,9 +66,6 @@ export function DeleteDialog(props: {
         <CardText>
           {props.dir ? T("deleteDialog.dir") : T("deleteDialog.file")}
         </CardText>
-        <Show when={error()}>
-          {(e) => <CardError role="alert">{e()}</CardError>}
-        </Show>
       </CardBody>
     </ModalCard>
   );

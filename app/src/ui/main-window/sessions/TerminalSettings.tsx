@@ -52,6 +52,11 @@ export function TerminalSettings(props: {
       label={T("termSettings.title")}
       onCancel={props.onCancel}
       header={<CardTitle>{T("termSettings.title")}</CardTitle>}
+      status={
+        <Show when={props.error}>
+          {(e) => <CardError role="alert">{e()}</CardError>}
+        </Show>
+      }
       footer={
         <CardActions>
           <Button onClick={props.onCancel}>{T("button.cancel")}</Button>
@@ -88,9 +93,6 @@ export function TerminalSettings(props: {
             onKeyDown={onKeyDown}
           />
         </Field>
-        <Show when={props.error}>
-          {(e) => <CardError role="alert">{e()}</CardError>}
-        </Show>
       </CardBody>
     </ModalCard>
   );

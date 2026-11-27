@@ -65,6 +65,22 @@ export function AddMachine(props: {
       label={T("addMachine.title")}
       onCancel={props.onCancel}
       header={<CardTitle>{T("addMachine.title")}</CardTitle>}
+      status={
+        props.busy || props.error ? (
+          <>
+            <Show when={props.busy}>
+              <CardText role="status">
+                {T("addMachine.busy", {
+                  state: stateLabel(props.state) || T("addMachine.connecting"),
+                })}
+              </CardText>
+            </Show>
+            <Show when={props.error}>
+              {(e) => <CardError role="alert">{e()}</CardError>}
+            </Show>
+          </>
+        ) : undefined
+      }
       footer={
         <CardActions>
           <Button onClick={props.onCancel}>{T("button.cancel")}</Button>
@@ -166,16 +182,6 @@ export function AddMachine(props: {
             }}
           />
         </Field>
-        <Show when={props.busy}>
-          <CardText role="status">
-            {T("addMachine.busy", {
-              state: stateLabel(props.state) || T("addMachine.connecting"),
-            })}
-          </CardText>
-        </Show>
-        <Show when={props.error}>
-          {(e) => <CardError role="alert">{e()}</CardError>}
-        </Show>
       </CardBody>
     </ModalCard>
   );
