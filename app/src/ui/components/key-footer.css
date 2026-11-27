@@ -12,6 +12,8 @@
   align-items: baseline;
 }
 .key-footer-title {
+  /* 短い見出しだけの行でも列を 8em より狭くしない（行が替わっても操作の列が動かない） */
+  min-width: 8em;
   color: var(--color-text-dim);
   font-size: var(--text-label);
 }
