@@ -130,7 +130,7 @@ var commands = []command{
 		{name: "update", help: "help.notice.update", run: runNoticeUpdate},
 		{name: "dismiss", help: "help.notice.dismiss", run: runNoticeDismiss},
 		{name: "focus-notified", help: "help.notice.focusNotified", run: runNoticeFocusNotified},
-		{name: "open-download", help: "help.notice.openDownload", run: runNoticeOpenDownload},
+		{name: "open-download", args: "<name>", help: "help.notice.openDownload", run: runNoticeOpenDownload},
 		{name: "reveal-download", help: "help.notice.revealDownload", run: runNoticeRevealDownload},
 	}},
 	{name: "mascot", sub: []command{

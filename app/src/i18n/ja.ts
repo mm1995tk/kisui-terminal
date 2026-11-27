@@ -802,6 +802,8 @@ export const ja: Record<Key, string> = {
     "{command} は、Window の動く PC の Pane からだけ頼めます。リモートの Machine の Pane からは頼めません。",
   "globalCli.err.noNotified":
     "まだ通知を出した Pane がありません（または、その Pane はもうありません）",
+  "globalCli.err.otherDownload":
+    "最後にダウンロードしたファイルは「{last}」で、「{name}」ではないので、開きませんでした。名前を確かめて、もう一度指してください。",
   "clipboardCli.err.denied":
     "kisui-terminal で許されなかったので、クリップボードの履歴を読みませんでした",
   "proxyCli.err.kind":

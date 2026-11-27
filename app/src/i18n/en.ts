@@ -802,6 +802,8 @@ export const en = {
     "{command} can be asked only from a pane of the computer the window runs on, not from a pane of a remote machine.",
   "globalCli.err.noNotified":
     "No pane has shown a notification yet (or that pane is gone)",
+  "globalCli.err.otherDownload":
+    'The last downloaded file is "{last}", not "{name}", so nothing was opened. Check the name and give it again.',
   "clipboardCli.err.denied":
     "The clipboard history was not read, because it was not allowed in kisui-terminal",
   "proxyCli.err.kind":

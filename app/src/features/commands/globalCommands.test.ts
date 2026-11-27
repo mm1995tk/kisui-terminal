@@ -22,6 +22,8 @@ function setup(
   opts: {
     update?: boolean;
     download?: boolean;
+    /** 開く・フォルダを出すのに失敗する */
+    useFails?: boolean;
     notified?: boolean;
     fail?: boolean;
   } = {},
@@ -33,7 +35,14 @@ function setup(
     runCommand: (c) => ran.push(c),
     updates: { info: () => (opts.update ? ({} as never) : null) },
     downloads: {
-      lastDownload: () => (opts.download ? ({} as never) : undefined),
+      lastDownload: () =>
+        opts.download
+          ? { id: 7, name: "report.pdf", dir: "/d", ok: true }
+          : undefined,
+      useDownload: async (d, how) => {
+        calls.push([how, d.name]);
+        return !opts.useFails;
+      },
     },
     mascot: {
       choose: async (name) => {
@@ -85,20 +94,48 @@ describe("Window 全体の Command の CLI（#517）", () => {
     assert.deepEqual(ran, []);
   });
 
-  it("notice.update・notice.openDownload・notice.revealDownload は、相手が無ければ Command を動かさずに断る", async () => {
+  it("notice.update・notice.openDownload・notice.revealDownload は、相手が無ければ何もせずに断る", async () => {
     const none = setup();
     await assert.rejects(none.run("notice.update"));
-    await assert.rejects(none.run("notice.openDownload"));
+    await assert.rejects(
+      none.run("notice.openDownload", { name: "report.pdf" }),
+    );
     await assert.rejects(none.run("notice.revealDownload"));
     assert.deepEqual(none.ran, []);
+    assert.deepEqual(none.calls, []);
     const some = setup({ update: true, download: true });
     await some.run("notice.update");
-    await some.run("notice.openDownload");
-    await some.run("notice.revealDownload");
     assert.deepEqual(
       some.ran.map((c) => c.id),
-      ["notice.update", "notice.openDownload", "notice.revealDownload"],
+      ["notice.update"],
     );
+  });
+
+  it("notice.openDownload は、名前が最後のダウンロードと同じときだけ開き、開いた名前を返す", async () => {
+    const s = setup({ download: true });
+    await assert.rejects(
+      s.run("notice.openDownload", { name: "evil.command" }),
+      /report\.pdf/,
+    );
+    await assert.rejects(s.run("notice.openDownload", {}));
+    assert.deepEqual(s.calls, []);
+    assert.deepEqual(
+      await s.run("notice.openDownload", { name: "report.pdf" }),
+      { name: "report.pdf" },
+    );
+    assert.deepEqual(await s.run("notice.revealDownload"), {
+      name: "report.pdf",
+    });
+    assert.deepEqual(s.calls, [
+      ["open", "report.pdf"],
+      ["reveal", "report.pdf"],
+    ]);
+  });
+
+  it("notice.openDownload・notice.revealDownload は、開けなかったら失敗を返す", async () => {
+    const s = setup({ download: true, useFails: true });
+    await assert.rejects(s.run("notice.openDownload", { name: "report.pdf" }));
+    await assert.rejects(s.run("notice.revealDownload"));
   });
 
   it("notice.focusNotified は、通知を出した Pane が無ければ断る", async () => {

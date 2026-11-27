@@ -52,16 +52,42 @@ func runNoticeFocusNotified(args []string) int {
 	return runWindowNoArgs(args, "notice.focusNotified.usage", "notice focus-notified", "notice.focusNotified")
 }
 
-// runNoticeOpenDownload is "kisui notice open-download": open the file the
-// built-in browser downloaded last.
+// runNoticeOpenDownload is "kisui notice open-download <name>": open the file
+// the built-in browser downloaded last, only when its name is name (a page
+// can make any file the last download), and print its name.
 func runNoticeOpenDownload(args []string) int {
-	return runWindowNoArgs(args, "notice.openDownload.usage", "notice open-download", "notice.openDownload")
+	if isHelp(args) {
+		fmt.Println(i18n.T("notice.openDownload.usage"))
+		return 0
+	}
+	f, ok := parseFlags(args, nil, nil)
+	if !ok || len(f.rest) != 1 || strings.TrimSpace(f.rest[0]) == "" {
+		fmt.Fprintln(os.Stderr, i18n.T("notice.openDownload.usage"))
+		return 2
+	}
+	return printDownload("notice open-download", "notice.openDownload", map[string]any{"name": f.rest[0]})
 }
 
 // runNoticeRevealDownload is "kisui notice reveal-download": show the folder
-// of the file the built-in browser downloaded last.
+// of the file the built-in browser downloaded last, and print its name.
 func runNoticeRevealDownload(args []string) int {
-	return runWindowNoArgs(args, "notice.revealDownload.usage", "notice reveal-download", "notice.revealDownload")
+	if code, done := noArgs(args, "notice.revealDownload.usage"); done {
+		return code
+	}
+	return printDownload("notice reveal-download", "notice.revealDownload", nil)
+}
+
+// printDownload asks the window to do command on the last download and
+// prints the name of the file it answers.
+func printDownload(name, command string, args any) int {
+	var out struct {
+		Name string `json:"name"`
+	}
+	if code := windowRun(name, command, args, &out); code != 0 {
+		return code
+	}
+	fmt.Println(tableCell(out.Name))
+	return 0
 }
 
 // mascotList is the answer to "mascot.list". "kisui mascot list --json"

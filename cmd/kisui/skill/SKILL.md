@@ -501,13 +501,17 @@ Dismiss the newest notice of the window (the bottom right).
 
 Go to the pane that showed the last notification (the keys move there). It is refused when no pane has shown one.
 
-### kisui notice open-download
+### kisui notice open-download <name>
 
-Open the file the built-in browser downloaded last, with the program the computer uses for it. It is refused when there is none. Open a file only when the user asks.
+Open the file the built-in browser downloaded last, with the program the computer uses for it, and print its name. `<name>` is the name of that file (the one in the notice): when the last download has another name, nothing is opened, because a page can make any file the last download (one that runs when opened, too). It is refused when there is none, and fails when the file could not be opened. Open a file only when the user asks, and only one you know.
+
+```sh
+kisui notice open-download report.pdf
+```
 
 ### kisui notice reveal-download
 
-Show the folder of the file the built-in browser downloaded last, in the file manager of the computer.
+Show the folder of the file the built-in browser downloaded last, in the file manager of the computer, and print the name of the file.
 
 ### kisui mascot list [--json]
 

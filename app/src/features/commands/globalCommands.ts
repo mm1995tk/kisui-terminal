@@ -37,7 +37,7 @@ export function createGlobalCommands(deps: {
   /** キー操作と同じ動き（commands/run.ts の runCommand） */
   runCommand(c: Command): void;
   updates: Pick<Updates, "info">;
-  downloads: Pick<Downloads, "lastDownload">;
+  downloads: Pick<Downloads, "lastDownload" | "useDownload">;
   mascot: Pick<MascotStore, "choose" | "reloadCurrent" | "list">;
   /** 最後に OS の通知を出した Pane を前に出す（無ければ false。terminal/lastNotified.ts） */
   focusLastNotified?: () => boolean;
@@ -89,19 +89,35 @@ export function createGlobalCommands(deps: {
       },
     },
 
+    // 開くファイルの名前を引数で受け、最後のダウンロードの名前と同じときだけ開く。内蔵ブラウザのページは、開けば動くファイル
+    // （.command など）を、聞かれずにいつでも「最後のダウンロード」にできる。キー操作なら人が Notice の名前を見てから開くが、
+    // CLI では、頼んだ側が思っているのと違うファイルが開くことがあるので
     "notice.openDownload": {
-      run: () => {
-        if (!deps.downloads.lastDownload())
-          throw new WindowCommandError(T("cannot.download.text"));
-        deps.runCommand({ id: "notice.openDownload" });
+      run: async (args) => {
+        const name = argString(args, "name");
+        const d = deps.downloads.lastDownload();
+        if (!d) throw new WindowCommandError(T("cannot.download.text"));
+        if (d.name !== name)
+          throw new WindowCommandError(
+            T("globalCli.err.otherDownload", { name, last: d.name }),
+          );
+        if (!(await deps.downloads.useDownload(d, "open")))
+          throw new WindowCommandError(
+            T("err.download.open", { name: d.name }),
+          );
+        return { name: d.name };
       },
     },
 
     "notice.revealDownload": {
-      run: () => {
-        if (!deps.downloads.lastDownload())
-          throw new WindowCommandError(T("cannot.download.text"));
-        deps.runCommand({ id: "notice.revealDownload" });
+      run: async () => {
+        const d = deps.downloads.lastDownload();
+        if (!d) throw new WindowCommandError(T("cannot.download.text"));
+        if (!(await deps.downloads.useDownload(d, "reveal")))
+          throw new WindowCommandError(
+            T("err.download.reveal", { name: d.name }),
+          );
+        return { name: d.name };
       },
     },
 
