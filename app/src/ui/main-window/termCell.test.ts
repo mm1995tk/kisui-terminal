@@ -15,7 +15,11 @@ import {
   TERM_CHROME_WIDTH,
   termMinWidth,
 } from "./panes.ts";
-import { cellWidthFromAdvances } from "./termCell.ts";
+import {
+  cellWidthFromAdvances,
+  reportTermCellWidth,
+  termCellWidth,
+} from "./termCell.ts";
 
 const pane = (id: string): PaneLayout => ({ pane: id });
 const split = (
@@ -136,4 +140,21 @@ describe("サイドバーの幅の上限と、ターミナルの列の数（#501
       }
     });
   }
+});
+
+describe("開いているターミナルの実際の字の幅（#501）", () => {
+  it("知らせた字の幅を、式で測った値より優先して返す。数でない値・0 は無視する", () => {
+    // node には canvas が無いので、知らせる前は測れない場合の見積もり
+    const before = termCellWidth();
+    assert.notEqual(before, 7.5);
+    reportTermCellWidth(7.5);
+    assert.equal(termCellWidth(), 7.5);
+    reportTermCellWidth(Number.NaN);
+    reportTermCellWidth(0);
+    reportTermCellWidth(-3);
+    assert.equal(termCellWidth(), 7.5);
+    // 字体や dpr が変わって測り直した値が知らされたら、それに替わる
+    reportTermCellWidth(8);
+    assert.equal(termCellWidth(), 8);
+  });
 });
