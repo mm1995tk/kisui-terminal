@@ -10,6 +10,10 @@
   grid-column: 1 / -1;
   grid-template-columns: subgrid;
   align-items: baseline;
+  /* 行の高さは、中の操作があっても無くても、押せるヒント（key-hints.css の .key-hint-button）の 1 行と同じにする。
+     操作の無い行（見出しだけ）が低いと、状態が変わって操作が移るたびに Key footer の高さが変わる。
+     .kbd の高さ（字 × 行の高さ + 上下の線 2px）に、ボタンの上下の線 2px を足したもの */
+  min-height: calc(var(--text-label) * var(--leading-text) + 4px);
 }
 .key-footer-title {
   /* 見出しがどれも短いときは、列を本文の字の 8 字分にそろえる（見出しは本文より小さい字なので、em ではなく本文の字の大きさで書く） */

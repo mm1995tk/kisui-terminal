@@ -126,10 +126,11 @@ export interface TerminalWindowState {
  * 表の操作がどれも、どこかの状態で Key footer に出ることを確かめる。
  */
 export function terminalWindowFooter(s: TerminalWindowState): FooterRow[] {
+  // 行の組はどの状態でも同じ（行の数が変わると Key footer の高さが変わる）。分ける向きを選ぶ間は、選んでいるペインの行に出す
   if (!s.empty && s.splitting)
     return [
       {
-        title: T("termWindow.foot.split"),
+        title: T("termWindow.foot.pane"),
         items: [
           {
             keys: ["h", "j", "k", "l"],
@@ -143,6 +144,7 @@ export function terminalWindowFooter(s: TerminalWindowState): FooterRow[] {
           },
         ],
       },
+      { title: T("termWindow.foot.tab"), items: [] },
     ];
   const item = (keys: string, label: Parameters<typeof T>[0]) =>
     placeItem("termWindow", keys, T(label));

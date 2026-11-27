@@ -481,7 +481,6 @@ export const ja: Record<Key, string> = {
   "machineDialog.keys.add": "add",
   "machineDialog.foot.selected": "選んでいるマシン",
   "machineDialog.foot.list": "マシンの一覧",
-  "machineDialog.foot.typing": "名前を入力中",
   "machine.local": "ローカル",
   "machine.fixedReason":
     "config.toml の [[gui.machines]] で決めたマシンです。ウィンドウは config.toml に書かないので、変えるには config.toml を直してください",
@@ -583,9 +582,6 @@ export const ja: Record<Key, string> = {
   "switcher.foot.ws": "ワークスペース",
   "switcher.foot.tab": "タブ",
   "switcher.foot.window": "このダイアログ",
-  "switcher.foot.hold": "タブを移す",
-  "switcher.foot.kinds": "作るタブ",
-  "switcher.foot.typing": "名前を入力中",
   "switcher.holding": "{title} を移しています",
   "switcher.dropHere": "ここの一番後ろに入る →",
   "termWindow.label": "このターミナルのタブのペイン",
@@ -608,7 +604,6 @@ export const ja: Record<Key, string> = {
   "termWindow.keys.splitCancel": "cancel",
   "termWindow.foot.pane": "選んでいるペイン",
   "termWindow.foot.tab": "このターミナルのタブ",
-  "termWindow.foot.split": "分ける向き",
   "termWindow.note.split": "分ける向きを h j k l で選びます。",
   "termWindow.note.primary": "プライマリのペインは閉じられません。",
   "termWindow.note.zoom":

@@ -131,7 +131,7 @@ describe("machineDialogFooter（マシンのダイアログの Key footer の今
     );
   });
 
-  it("名前を打っている間は、見出しだけ", () => {
+  it("名前を打っている間は、どの行も見出しだけ（行の組は変えない）", () => {
     assert.deepEqual(
       shown(
         machineDialogFooter({
@@ -140,7 +140,10 @@ describe("machineDialogFooter（マシンのダイアログの Key footer の今
           hasWorkspace: true,
         }),
       ),
-      [["Typing a name", []]],
+      [
+        ["Selected machine", []],
+        ["Machine list", []],
+      ],
     );
   });
 

@@ -142,9 +142,10 @@ describe("terminalWindowFooter（Dialog の Key footer の今効く操作。#488
     );
   });
 
-  it("分ける向きを待つ間は、向きと、やめる Esc だけ", () => {
+  it("分ける向きを待つ間は、選んでいるペインの行に向きと、やめる Esc だけ（行の組は変えない）", () => {
     assert.deepEqual(shown(terminalWindowFooter({ ...all, splitting: true })), [
-      ["Split direction", ["h j k l", "Esc"]],
+      ["Selected pane", ["h j k l", "Esc"]],
+      ["This terminal tab", []],
     ]);
   });
 

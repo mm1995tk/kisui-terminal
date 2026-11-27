@@ -479,7 +479,6 @@ export const en = {
   "machineDialog.keys.add": "add",
   "machineDialog.foot.selected": "Selected machine",
   "machineDialog.foot.list": "Machine list",
-  "machineDialog.foot.typing": "Typing a name",
   "machine.local": "Local",
   "machine.fixedReason":
     "This machine is set in [[gui.machines]] of config.toml, which the window does not write. To change it, edit config.toml.",
@@ -582,9 +581,6 @@ export const en = {
   "switcher.foot.ws": "Workspace",
   "switcher.foot.tab": "Tab",
   "switcher.foot.window": "Dialog",
-  "switcher.foot.hold": "Moving a tab",
-  "switcher.foot.kinds": "New tab",
-  "switcher.foot.typing": "Typing a name",
   "switcher.holding": "Moving {title}",
   "switcher.dropHere": "goes to the end →",
   "termWindow.label": "Panes of this terminal tab",
@@ -607,7 +603,6 @@ export const en = {
   "termWindow.keys.splitCancel": "cancel",
   "termWindow.foot.pane": "Selected pane",
   "termWindow.foot.tab": "This terminal tab",
-  "termWindow.foot.split": "Split direction",
   "termWindow.note.split": "Choose the direction to split with h j k l.",
   "termWindow.note.primary": "The primary pane cannot be closed.",
   "termWindow.note.zoom":

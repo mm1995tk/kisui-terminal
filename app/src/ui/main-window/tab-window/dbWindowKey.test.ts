@@ -109,8 +109,9 @@ describe("dbWindowFooter（Dialog の Key footer の今効く操作。#487）", 
     ]);
   });
 
-  it("結果のタブが無く、何も実行しておらず、権限も強めていなければ、選んでいるタブの行は出さず、効く操作だけを出す（#526）", () => {
+  it("結果のタブが無く、何も実行しておらず、権限も強めていなければ、選んでいるタブの行は見出しだけにし、効く操作だけを出す（#526）", () => {
     assert.deepEqual(shown(dbWindowFooter(none)), [
+      ["Selected", []],
       ["This DB tab", ["t", "r", "h", "p"]],
     ]);
   });
@@ -120,11 +121,11 @@ describe("dbWindowFooter（Dialog の Key footer の今効く操作。#487）", 
       shown(dbWindowFooter({ ...none, selected: true, done: true }))[0],
       ["Selected", ["x", "f b"]],
     );
-    // 選んでいなければ、ほかの印があっても、行ごと出さない
-    assert.deepEqual(
-      shown(dbWindowFooter({ ...all, selected: false })).map(([t]) => t),
-      ["This DB tab"],
-    );
+    // 選んでいなければ、ほかの印があっても、選んでいるタブの行は見出しだけ（行の数は変えない。Key footer の高さが変わるため）
+    assert.deepEqual(shown(dbWindowFooter({ ...all, selected: false }))[0], [
+      "Selected",
+      [],
+    ]);
   });
 
   it("Key footer に出す操作は、どれも判定が受ける（案内と受けるキーがずれない）", () => {
