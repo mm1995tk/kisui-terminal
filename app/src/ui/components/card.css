@@ -273,7 +273,7 @@
   font-size: var(--text-body);
 }
 
-/* 設定ファイルの間違いの画面（ConfigError.tsx）。Dialog いっぱいに 1 枚のカードだけを出す */
+/* 設定ファイルの間違いの画面（ConfigError.tsx）。Window いっぱいに 1 枚のカードだけを出す */
 .config-error {
   box-sizing: border-box;
   display: flex;

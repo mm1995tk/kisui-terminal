@@ -1,5 +1,5 @@
 // 表示の大きさ（#594）の持ち物。覚えておいた大きさで始め、変えたら覚える（scale.ts）。
-// 画面にも Tauri にも触らない。Dialog の zoom を変えるのは ApplyScale、変えた大きさを少しの間見せるのは showScale に頼む。
+// 画面にも Tauri にも触らない。Window の zoom を変えるのは ApplyScale、変えた大きさを少しの間見せるのは showScale に頼む。
 import type { KeyValueStore } from "../keyValueStore.ts";
 import {
   loadScale,
