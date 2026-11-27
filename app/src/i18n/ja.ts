@@ -815,6 +815,8 @@ export const ja: Record<Key, string> = {
     "この接続でのコーディングエージェントの権限は SQL の実行を許していない（kisui db connections の RUN が none）ので、このタブの結果と履歴は渡しません。結果と履歴は、人が人の権限で実行したものです。",
   "dbCli.err.agentUser":
     "この接続では、コーディングエージェントは別の DB のユーザー（agent-user）でログインするので、このタブの結果と履歴は渡しません。人は接続の user で実行したので、エージェントのユーザーが読めない行を読んでいることがあります。",
+  "dbCli.err.noOwnWorkspace":
+    "この Pane の Workspace が見つかりません。--workspace で Workspace を指してください。",
   "dbCli.err.running":
     "この Database tab は文を実行している間です。終わってからもう一度実行してください。",
   "dbCli.err.noResult":

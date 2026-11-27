@@ -212,10 +212,7 @@ export function createDbCommands(deps: {
           ws !== undefined
             ? workspaceOf(ws, c)
             : gwsOfTerm(untrack(deps.gws), c.from, c.tab);
-        if (!to)
-          throw new WindowCommandError(
-            T("tabCli.err.noWorkspace", { name: "" }),
-          );
+        if (!to) throw new WindowCommandError(T("dbCli.err.noOwnWorkspace"));
         try {
           const ref = await deps.db.openConnection(
             to.id,
