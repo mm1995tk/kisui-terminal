@@ -202,7 +202,7 @@ type Story = StoryObj<typeof meta>;
 /** ローカルと別のマシン（つながっていない）のワークスペースが並ぶ。j / k で選ぶと、右に選んだ行のタブが出る。r で名前を変え（長すぎる名前は断られる）、x で閉じる確認を出す。 */
 export const Default: Story = {};
 
-/** 右の列（タブ）にキーを置いたとき。Key footer の行の組（Workspace・Tab・Dialog）は Default と同じで、操作だけがタブの行に移る（Key footer の高さが変わらない）。 */
+/** 右の列（タブ）にキーを置いたとき。Key footer はタブの行だけになり Default より低くなるが、一覧の欄の上端と高さは Default と同じ（動くのは Dialog の下端だけ）。 */
 export const TabColumn: Story = {
   args: { initialCol: "tab" },
 };
