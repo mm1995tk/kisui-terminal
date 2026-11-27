@@ -30,7 +30,7 @@ import styles from "./BrowserWindow.module.css";
 
 const rowId = (op: BrowserOp) => `browser-window-op-${op}`;
 
-/** 行ったあと、窓を開いたままにする操作（戻る・進む。続けて押せる。どこへ移ったかは上の題と URL に出る）。 */
+/** 行ったあと、Dialog を開いたままにする操作（戻る・進む。続けて押せる。どこへ移ったかは上の題と URL に出る）。 */
 const STAYS: ReadonlySet<BrowserOp> = new Set<BrowserOp>(["back", "forward"]);
 /** キーをページ以外へ向ける操作（URL バー・検索の欄・ブックマークの一覧）。閉じたあと、ページにキーを戻さない。 */
 const MOVES_FOCUS: ReadonlySet<BrowserOp> = new Set<BrowserOp>([
@@ -40,12 +40,12 @@ const MOVES_FOCUS: ReadonlySet<BrowserOp> = new Set<BrowserOp>([
 ]);
 
 /**
- * ブラウザのタブの窓（リーダーの `a`。#459）。開いたときに出していたブラウザのタブ 1 つ（とそのページ）の状態
+ * ブラウザのタブの Dialog（リーダーの `a`。#459）。開いたときに出していたブラウザのタブ 1 つ（とそのページ）の状態
  * （題・URL・シークレット・読み込み中・読み込めなかった・通信を記録中・表示の大きさ）と、そのページへの操作を 1 行ずつ出す。
- * 今できない操作は、行にその理由を出して薄くする（選ぶときは飛ばす。字を押すと、窓の下に理由を出す）。
- * 行を選んで Enter か、行の字で行う。戻る・進むは窓を開いたまま（続けて押せる）、ほかは窓を閉じてから行う。
- * タブを作る・閉じる・名前を変える・移すは、ここには置かない（ワークスペースの窓。リーダーの `n` `t`）。
- * 操作はいつも、開いたときのタブに行う。出しているタブがそれでなくなったら（閉じた・ほかのタブに替わった）、窓を閉じる。
+ * 今できない操作は、行にその理由を出して薄くする（選ぶときは飛ばす。字を押すと、Dialog の下に理由を出す）。
+ * 行を選んで Enter か、行の字で行う。戻る・進むは Dialog を開いたまま（続けて押せる）、ほかは Dialog を閉じてから行う。
+ * タブを作る・閉じる・名前を変える・移すは、ここには置かない（Workspace switcher。リーダーの `n` `t`）。
+ * 操作はいつも、開いたときのタブに行う。出しているタブがそれでなくなったら（閉じた・ほかのタブに替わった）、Dialog を閉じる。
  * キーは browserWindowKey.ts、行と理由は features/browser/window.ts、決まりは docs/key-design.md。
  * 行を 1 回押すと選ぶだけで、ダブルクリックでその操作を行う（Enter と同じ）。
  */
@@ -60,9 +60,9 @@ export function BrowserWindow(props: {
    */
   onClose: (refocus: boolean) => void;
 }): JSX.Element {
-  // 窓の相手のタブ（開いたときに出していたもの）。操作はいつもこれに行う
+  // Dialog の相手のタブ（開いたときに出していたもの）。操作はいつもこれに行う
   const id = untrack(() => props.shown()?.id);
-  // 出しているブラウザのタブが替わった（閉じた・ほかのタブを出した）ら閉じる。別のタブのページに、開いていた窓の操作をしない
+  // 出しているブラウザのタブが替わった（閉じた・ほかのタブを出した）ら閉じる。別のタブのページに、開いていた Dialog の操作をしない
   createEffect(() => {
     if (props.shown()?.id !== id) props.onClose(true);
   });
@@ -86,7 +86,7 @@ export function BrowserWindow(props: {
   const [note, setNote] = createSignal<string>();
   let acted = false;
 
-  /** 操作 op を行う。今できなければ、窓の下に理由を出す */
+  /** 操作 op を行う。今できなければ、Dialog の下に理由を出す */
   function run(op: BrowserOp) {
     if (id === undefined) return;
     const why = rows().find((r) => r.op === op)?.why;

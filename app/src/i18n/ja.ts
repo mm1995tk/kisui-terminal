@@ -35,7 +35,7 @@ export const ja: Record<Key, string> = {
   "leader.tab.moveTo": "Move this tab to another workspace",
   "leader.tab.window": "Actions for this tab",
   "leader.direct.group": "Shortcuts only",
-  "cannot.tabWindow.title": "このタブの窓はありません",
+  "cannot.tabWindow.title": "このタブのダイアログはありません",
   "cannot.tabWindow.noTab":
     "タブを出していません。タブは、リーダーの n で作れます。",
   "cannot.pane.none.title": "ここにはペインがありません",
@@ -169,12 +169,12 @@ export const ja: Record<Key, string> = {
   "history.keys.copy": "copy",
   "place.picker.title": "Selection dialog",
   "place.picker.lead":
-    "一覧から 1 つ選ぶ窓（マシン・ワークスペース・種類・キャラクター）の中で効くキーです。",
+    "一覧から 1 つ選ぶダイアログ（マシン・ワークスペース・種類・キャラクター）の中で効くキーです。",
   "place.picker.choose": "Choose the selected row",
   "place.picker.cancel": "Cancel without choosing",
   "place.dbPicker.title": "DB connection dialog",
   "place.dbPicker.lead":
-    "つないでいる全部のマシンの DB の接続を並べる窓のキー。足す・直す・消すは、この PC の config.local.toml に書きます。",
+    "つないでいる全部のマシンの DB の接続を並べるダイアログのキー。足す・直す・消すは、この PC の config.local.toml に書きます。",
   "place.dbPicker.open": "Open a DB tab on the selected connection",
   "place.dbPicker.add": "Add a connection to this PC",
   "place.dbPicker.edit": "Edit the selected connection",
@@ -205,7 +205,7 @@ export const ja: Record<Key, string> = {
     "Pick up the selected tab (choose where with j k and h l, drop with Enter, cancel with Esc)",
   "place.history.title": "Clipboard history",
   "place.history.lead":
-    "クリップボードの履歴の窓の中で効くキーです。字を打つと絞り込みます。",
+    "クリップボードの履歴のダイアログの中で効くキーです。字を打つと絞り込みます。",
   "place.history.paste":
     "Paste the selected entry (or put it back on the clipboard when there is nowhere to paste)",
   "place.history.putBack": "Put the selected entry back on the clipboard",
@@ -253,7 +253,7 @@ export const ja: Record<Key, string> = {
   "cannot.tabMove.title": "タブを移せません",
   "cannot.tabMove.noTab": "このワークスペースには、移すタブがありません。",
   "cannot.tabMove.noWorkspace":
-    "移す先のワークスペースがありません。ワークスペースの窓（リーダーの w）の n で作れます。",
+    "移す先のワークスペースがありません。Workspace switcher（リーダーの w）の n で作れます。",
   "cannot.tab.disconnected":
     "{machine} につながっていません。マシンのダイアログ（リーダーの m）で、つなぎ直してください。",
   "cannot.workspace.text":
@@ -262,12 +262,13 @@ export const ja: Record<Key, string> = {
   "cannot.update.text": "更新できる新しい版は、今ありません。",
   "cannot.download.title": "ダウンロードしたファイルはありません",
   "cannot.download.text":
-    "内蔵ブラウザでダウンロードすると、右下のお知らせに出ます。",
+    "内蔵ブラウザでダウンロードすると、右下の Notice に出ます。",
   "err.machine.connect": "{machine} につなげませんでした\n{message}",
   "err.machine.usedByOther": "{machine} は別の kisui-terminal が使っています",
   "err.machine.notConnected": "{machine} につながっていません",
-  "notice.shortcuts.title": "近道の設定に間違いがあります",
-  "notice.shortcuts.text": "間違いのある近道だけを使いません。ほかは効きます。",
+  "notice.shortcuts.title": "ショートカットの設定に間違いがあります",
+  "notice.shortcuts.text":
+    "間違いのあるショートカットだけを使いません。ほかは効きます。",
   "notice.localMachine.title": "マシンの名前 local は予約語です",
   "notice.localMachine.text":
     "kisui pane の --machine では、local は常に手元の PC を指すので、{machines} を --machine で選べません。別の名前を付けてください。config.toml で決めたマシンは config.toml の [[gui.machines]] で、ほかのマシンはマシンのダイアログ（{leader} m）の n で変えます。",
@@ -378,12 +379,12 @@ export const ja: Record<Key, string> = {
   "transfer.allow": "Allow",
   "keys.label": "Key list",
   "keys.lead":
-    "{leader} を押してから、左のキーを順に押します（Esc で出る、Backspace で一段戻る）。右の近道は、{leader} を通さずに 1 回で押せます。",
+    "{leader} を押してから、左のキーを順に押します（Esc で出る、Backspace で一段戻る）。右のショートカットは、{leader} を通さずに 1 回で押せます。",
   "keys.col.after": "After {leader}",
   "keys.col.action": "Action",
   "keys.col.shortcut": "Shortcut",
   "keys.outside":
-    "{key} は、kisui-terminal の外から、クリップボードの履歴の小さな窓を出します。",
+    "{key} は、kisui-terminal の外から、クリップボードの履歴の小さなウィンドウを出します。",
   "mascot.unusable": "{name} は使えません。{error}",
   "mascot.label": "キャラクター",
   "mascot.title": "Choose a character",
@@ -469,7 +470,7 @@ export const ja: Record<Key, string> = {
   "machine.cant.newTab.pending":
     "{label} は今つないでいる最中なので、まだタブを作れません。つながってから Enter を押してください",
   "machine.cant.newTab.noWorkspace":
-    "タブを作るワークスペースがありません。ワークスペースの窓（リーダーの w）の n で作れます。",
+    "タブを作るワークスペースがありません。Workspace switcher（リーダーの w）の n で作れます。",
   "machineDialog.keys.newTab": "new tab",
   "machineDialog.keys.rename": "rename",
   "machineDialog.keys.remove": "remove",
@@ -567,7 +568,7 @@ export const ja: Record<Key, string> = {
   "switcher.keys.confirmNo": "keep",
   "switcher.foot.ws": "ワークスペース",
   "switcher.foot.tab": "タブ",
-  "switcher.foot.window": "この窓",
+  "switcher.foot.window": "このダイアログ",
   "switcher.foot.hold": "タブを移す",
   "switcher.foot.kinds": "作るタブ",
   "switcher.foot.typing": "名前を入力中",
@@ -849,7 +850,7 @@ export const ja: Record<Key, string> = {
   "browser.failed":
     "{url} を開けませんでした。リーダーの a u で URL を書き換えられます",
   "browser.hidden":
-    "ダイアログ・お知らせ・案内を出している間は、ページを隠しています",
+    "ダイアログ・Notice・案内を出している間は、ページを隠しています",
   "browser.loadFailed.title": "このページを開けませんでした",
   "browser.loadFailed.retry": "Try again",
   "browser.loadFailed.certNote":
@@ -1050,11 +1051,11 @@ export const ja: Record<Key, string> = {
   "dbConn.tls.require": "require：いつも TLS。証明書は確かめない",
   "dbConn.tls.verify": "verify：いつも TLS。証明書を確かめる",
   "dbConn.note.fileOnly":
-    "この接続には、窓で直さないキーか値（環境の変種・権限・パスワード・窓の知らないキー・型の違う値）があります。config.local.toml で直してください（消すことはここでできます）。",
+    "この接続には、ダイアログで直さないキーか値（環境の変種・権限・パスワード・ダイアログの知らないキー・型の違う値）があります。config.local.toml で直してください（消すことはここでできます）。",
   "dbConn.note.fixed":
-    "この接続は config.toml に書いてあり、窓からは変えません。config.toml で直してください。",
+    "この接続は config.toml に書いてあり、ダイアログからは変えません。config.toml で直してください。",
   "dbConn.note.remote":
-    "この接続は、そのマシンの設定にあります。窓が書くのはこの PC の設定だけです。そのマシンの config.local.toml で直してください。",
+    "この接続は、そのマシンの設定にあります。ダイアログが書くのはこの PC の設定だけです。そのマシンの config.local.toml で直してください。",
   "dbConn.note.unknown":
     "この PC の設定を読めなかったので、この接続はここでは変えられません。",
   "dbConn.note.listFailed": "この PC の設定を読めませんでした：{error}",
@@ -1077,7 +1078,7 @@ export const ja: Record<Key, string> = {
     "パスワードは設定に書きません。config.local.toml でこのキーを消し、パスワードは聞かれたときに入力してください",
   "dbConn.err.unknown": "接続のキーではありません。使えるキー: {arg}",
   "dbConn.err.fileonly":
-    "窓では直さないキーです。この接続は config.local.toml で直してください",
+    "ダイアログでは直さないキーです。この接続は config.local.toml で直してください",
   "dbConn.err.hosturl":
     "ホスト名・アドレス・ソケットだけを書きます。URL・user@host・接続の文字列は書けません（中のパスワードがファイルに書かれるため）",
   "dbConn.err.url":
@@ -1085,7 +1086,7 @@ export const ja: Record<Key, string> = {
   "dbConn.err.exists": "{name} は config.local.toml にもうあります",
   "dbConn.err.missing": "{name} は config.local.toml にありません",
   "dbConn.err.fixed":
-    "{name} は config.toml の接続で、窓からは変えません。ほかの名前にするか、config.toml で直してください",
+    "{name} は config.toml の接続で、ダイアログからは変えません。ほかの名前にするか、config.toml で直してください",
   "dbConn.err.failed": "config.local.toml に書けませんでした：{error}",
   "db.err.noConnection": "この接続は、そのマシンの設定にもうありません。",
   "db.err.busy":
@@ -1163,7 +1164,7 @@ export const ja: Record<Key, string> = {
   "db.password.rejectedFile":
     "{machine} の {connection} の、~/.pgpass か ~/.my.cnf にあったパスワードを DB が断りました。代わりに使うパスワードを入れてください。",
   "db.password.note":
-    "パスワードはファイルに書きません。ログインが通ると、この窓と、そのマシンの kisui serve が、窓を閉じるまでメモリに覚えます。",
+    "パスワードはファイルに書きません。ログインが通ると、このダイアログと、そのマシンの kisui serve が、ダイアログを閉じるまでメモリに覚えます。",
   "db.password.reveal": "表示する",
   "db.password.ok": "Run",
   // ---- コーディングエージェントが入力欄に SQL を書く頼み（kisui db propose。#382）----
@@ -1177,7 +1178,7 @@ export const ja: Record<Key, string> = {
   "db.propose.written":
     "コーディングエージェントが {connection}（{machine}）の入力欄に SQL を書きました",
   "db.propose.err.noWorkspace":
-    "窓に、DB のタブを開くワークスペースがありません",
+    "ウィンドウに、DB のタブを開くワークスペースがありません",
   "db.propose.err.closed": "SQL を書く前に、DB のタブが閉じられました",
   "db.propose.err.withdrawn": "頼みは取り下げられました",
   // ---- DB のタブの、結果の書き出しとクエリの履歴（#349）----
@@ -1241,7 +1242,7 @@ export const ja: Record<Key, string> = {
   "db.export.truncatedCells": "長い値は切れたまま書き出します。",
   "place.dbHistory.title": "SQL history of a database tab",
   "place.dbHistory.lead":
-    "履歴の窓のキー。字を打つと絞り込めます。この接続の履歴だけを出します。",
+    "履歴のダイアログのキー。字を打つと絞り込めます。この接続の履歴だけを出します。",
   "place.dbHistory.choose": "Put the selected SQL in the input (it is not run)",
   "db.history.label": "SQL の履歴",
   "db.history.title": "SQL history of {connection}",

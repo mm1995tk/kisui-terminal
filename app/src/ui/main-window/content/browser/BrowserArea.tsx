@@ -2,7 +2,7 @@
 // ページそのものは、この場所に Tauri の子の webview を重ねて出す（browser.rs。外のサイトの多くは iframe に出せないため）。
 // 子の webview は画面（DOM）より上に重なるので、ダイアログを出している間は隠し、ほかの重なるものは、それぞれが自分に付けた印
 // （data-overlay・data-overlay-top。overlay.ts の OVERLAY_SELECTORS）のとおりに避ける。
-// macOS は、浮かべるもの（お知らせ・リーダーの案内・メニュー・ページ内検索の欄・トースト。data-overlay）をページを縮めずに重ねる
+// macOS は、浮かべるもの（Notice・リーダーの案内・メニュー・ページ内検索の欄・トースト。data-overlay）をページを縮めずに重ねる
 // （画面をページより前に出し、ページはすりガラス越しに見える。操作はできない。殻の browser_layer）。
 // 子の webview はタブごとに 1 つで、初めて出すときに作る。ほかのワークスペースに移る・グリッドに戻るときは隠すだけで、
 // ページはそのまま残す（戻ったときに、読んでいた所から続けられる）。タブを閉じたら壊す。
@@ -78,7 +78,7 @@ export function BrowserArea(props: {
   shown: BrowserTab | undefined;
   /** 画面全体の大きさ（webview の zoom。CSS ピクセルを論理ピクセルにする） */
   zoom: () => number;
-  /** ページにキーがあっても受けるキー（リーダーと近道） */
+  /** ページにキーがあっても受けるキー（リーダーと Shortcut） */
   keys: () => InterceptKey[];
   /**
    * タブの URL（元の URL）から、ページに実際に開かせる URL を得る（リモートのマシンの localhost 系は `kisui relay` の中継の URL。#203）
@@ -271,7 +271,7 @@ export function BrowserArea(props: {
     await create(tab, b, true);
   }
 
-  // 閉じたタブの webview を壊す。殻がもう作ってあるタブ（ページが開いた新しい窓。#204）は、作らずにそのまま使う
+  // 閉じたタブの webview を壊す。殻がもう作ってあるタブ（ページが開いた新しい Window。#204）は、作らずにそのまま使う
   // （殻は隠して渡すので、出すタブなら見回り（tick）が置いて見せる）
   createEffect(() => {
     for (const t of props.tabs)
@@ -294,7 +294,7 @@ export function BrowserArea(props: {
 
   // タブのプロキシ（#409）が替わった（通し始めた・やめた・kisui serve が止まった）ら、すぐに作り直す（ページを読み直す）。
   // 出していないタブも作り直す（作ったあと隠す）。見回り（tick）に任せると、作り直すのは今出しているタブだけで、しかも
-  // 窓が隠れている間は WebView が requestAnimationFrame を止めて、見回りが動かない
+  // Dialog が隠れている間は WebView が requestAnimationFrame を止めて、見回りが動かない
   createEffect(() => {
     for (const t of props.tabs) {
       const v = views.get(t.id);
@@ -333,8 +333,8 @@ export function BrowserArea(props: {
     } else wantFocus = id; // 重ねている間とリーダーの間は、重なりが消える・リーダーを出るのを待ち、見回りが向けられるようになってから向ける
   });
 
-  // 位置が変わるのは、大きさの変化のほかに、サイドバーの幅の変更・お知らせの出し入れなどもある。
-  // 出している間は毎フレーム見て、変わったときだけ殻に送る。窓の形だけが変わったとき（測った場所は同じ）は、
+  // 位置が変わるのは、大きさの変化のほかに、サイドバーの幅の変更・Notice の出し入れなどもある。
+  // 出している間は毎フレーム見て、変わったときだけ殻に送る。Window の形だけが変わったとき（測った場所は同じ）は、
   // 殻（macOS）が自分でページを追従させるので、送り直さない（#442。src-tauri/src/browser_frame.rs）
   onMount(() => {
     let raf = 0;

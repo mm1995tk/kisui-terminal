@@ -119,7 +119,7 @@ export function createTerminals(deps: {
     if (!f || f.target !== target || f.id !== id) return;
     focusTerminal();
   }
-  // 隠している間（zoomed）はつまみが出ないので、境界も無いものとする
+  // 隠している間（zoomed）はつまみが出ないので、Pane border も無いものとする
   const termBars = () => (zoomed() ? [] : (termGroup()?.bars ?? []));
 
   /** フォーカスしているワークスペースの、ターミナルでない欄（動画）の中身を取る関数。 */
@@ -156,12 +156,12 @@ export function createTerminals(deps: {
     void splitPane(dir);
   }
 
-  // ---- ターミナルのタブの窓（リーダーの a。#457）。窓で選んだ欄（id）に操作する ----
+  // ---- ターミナルのタブの Dialog（リーダーの a。#457）。Dialog で選んだ欄（id）に操作する ----
 
-  /** 窓に出す、今のターミナルのタブのペインの地図（paneMap.ts）。 */
+  /** Dialog に出す、今のターミナルのタブのペインの地図（paneMap.ts）。 */
   const panes = () => paneCells(termGroup(), zoomed());
 
-  /** 欄 id から dir の向きの隣の欄の id（窓で選ぶ欄を動かす）。隣が無ければ undefined。 */
+  /** 欄 id から dir の向きの隣の欄の id（Dialog で選ぶ欄を動かす）。隣が無ければ undefined。 */
   const paneNeighbor = (id: string, dir: Direction): string | undefined =>
     termGroup()?.neighborOf(dir, id)?.to;
 

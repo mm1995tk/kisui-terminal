@@ -1,6 +1,6 @@
 /* 画面全体の割り付け。左に一覧（sidebar.css）、右に残り。
    右は全部ターミナル（F1。ui/main-window/content/terminal/terminal.css）。編集はプライマリの欄の中の shj が受け持つ。
-   接続の窓は sessions/、知らせは notifications/（カードの決まりは ui/components/card.css）。 */
+   接続の Dialog は sessions/、知らせは notifications/（カードの決まりは ui/components/card.css）。 */
 html,
 body,
 #root {
@@ -8,7 +8,7 @@ body,
   margin: 0;
 }
 
-/* ページ全体はスクロールさせない。スクロールはターミナル・ファイルツリー・CHANGES・窓など、中の要素だけで起こす。
+/* ページ全体はスクロールさせない。スクロールはターミナル・ファイルツリー・CHANGES・Dialog など、中の要素だけで起こす。
    overscroll-behavior は macOS の WebView の弾むスクロール（ラバーバンド）でページ全体が動くのも止める */
 html,
 body {
@@ -44,7 +44,7 @@ a {
   height: 100%;
   /* サイドバーの幅。ドラッグ・リサイズモード（panes.ts）で変えた値は --sidebar-w に入る。
      上限は、右のターミナルが 20 列残る幅まで（--term-min-w は layout.tsx が字の幅から入れる。panes.ts の sidebarMax と同じ決まり）。
-     窓を小さくしたときは、覚えた幅がその窓の上限に収まる */
+     Window を小さくしたときは、覚えた幅がその Window の上限に収まる */
   --right-min-w: var(--term-min-w, 144px);
   --sidebar-w-eff: clamp(
     200px,
@@ -77,9 +77,9 @@ a {
   border-top: none;
 }
 
-/* ブロックの境界（#526。panes.ts）。当たりは --resizer-w で、見える線は引かない（ブロックの縁の線のまま）。
-   ドラッグ中とリサイズモードで動かす境界は、マシンの色（--machine-color。layout.tsx が .app に入れる）で光らせる。
-   サイドバーとの境界は .app の左から数えて置く */
+/* ブロックの Pane border（#526。panes.ts）。当たりは --resizer-w で、見える線は引かない（ブロックの縁の線のまま）。
+   ドラッグ中とリサイズモードで動かす Pane border は、マシンの色（--machine-color。layout.tsx が .app に入れる）で光らせる。
+   サイドバーとの境目は .app の左から数えて置く */
 .resizer {
   position: absolute;
   z-index: 5;
@@ -95,7 +95,7 @@ a {
   cursor: col-resize;
 }
 
-/* サイドバーを閉じている間（リーダーの b）は、サイドバーと境界のつまみを出さず、右の欄を左端まで広げる。
+/* サイドバーを閉じている間（リーダーの b）は、サイドバーと境目のつまみを出さず、右の欄を左端まで広げる。
    display: none でも DOM には残るので、ツリーの開閉はそのまま（スクロールの位置は 0 に戻るので、paneResize.ts が開くときに戻す） */
 .app[data-sidebar="closed"] .sidebar-column,
 .app[data-sidebar="closed"] .resizer[data-border="sidebar"] {

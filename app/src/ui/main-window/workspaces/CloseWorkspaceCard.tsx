@@ -1,4 +1,4 @@
-// ワークスペースを閉じるとき、プログラムが動いているターミナルがあれば出す確認の窓（Card.tsx の ModalCard）。
+// ワークスペースを閉じるとき、プログラムが動いているターミナルがあれば出す確認の Dialog（Card.tsx の ModalCard）。
 // 「終わらせて閉じる」と押されるまで何もしない。Esc は「やめる」。
 import { T } from "../../../i18n/index.ts";
 import type { JSX } from "solid-js";
@@ -13,9 +13,9 @@ import {
 } from "../../components/Card.tsx";
 
 /**
- * 動いているプログラムを終わらせて、ワークスペースを閉じてよいかを聞く窓。
+ * 動いているプログラムを終わらせて、ワークスペースを閉じてよいかを聞く Dialog。
  * 「終わらせて閉じる」で onYes、「やめる」と Esc で onNo を呼ぶ。ユーザーの操作で開くが、誤って
- * 打っていた Enter が押さないよう、フォーカスはボタンではなく窓そのものに置く。
+ * 打っていた Enter が押さないよう、フォーカスはボタンではなく Dialog そのものに置く。
  */
 export function CloseWorkspaceCard(props: {
   /** ワークスペース（tab なら、ターミナルのタブ）の表示名 */

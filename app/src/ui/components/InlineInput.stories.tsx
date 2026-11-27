@@ -1,5 +1,5 @@
 // その場の入力欄（InlineInput.tsx）を、アプリと同じ CSS・字・翻訳で出す。
-// アプリでは一覧の行の中に置く（ワークスペースの帯・切り替える窓の行・タブの行・マシンのダイアログの行・ファイルツリーの行）。
+// アプリでは一覧の行の中に置く（Workspace band・Workspace switcher の行・タブの行・マシンのダイアログの行・ファイルツリーの行）。
 // ここでは行の幅（サイドバーと同じ 280px）の箱の中に出す。決めた・やめたは Storybook の Actions に出る。
 import type { ComponentProps } from "solid-js";
 import type { Meta, StoryObj } from "storybook-solidjs-vite";

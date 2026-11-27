@@ -1,4 +1,4 @@
-// クリップボードの履歴の窓（ClipboardHistoryDialog）の、DOM に触らない部分。
+// クリップボードの履歴の Dialog（ClipboardHistoryDialog）の、DOM に触らない部分。
 // 履歴を持つのは Tauri の側（clipboard_history.rs）。ここは一覧の見せ方を決める。
 
 import type { KeyLike } from "../commands/guiKeys.ts";
@@ -6,7 +6,7 @@ import { isComposingKey } from "../commands/ime.ts";
 import { listStep } from "../commands/placeKeys.ts";
 import { T } from "../../i18n/index.ts";
 
-/** kisui-terminal の外から開く履歴の窓のラベル（clipboard_popup.rs の LABEL と同じ）。 */
+/** kisui-terminal の外から開く履歴の Dialog のラベル（clipboard_popup.rs の LABEL と同じ）。 */
 export const POPUP_LABEL = "clipboard-history";
 
 /** 履歴の 1 件（clipboard_history.rs の Entry）。 */
@@ -20,15 +20,15 @@ export interface HistoryEntry {
 export type ListClipboardHistory = () => Promise<HistoryEntry[]>;
 
 /**
- * kisui-terminal の外から開く履歴の窓（ui/utilities/clipboard）が、外（Tauri の殻。clipboard_popup.rs）に頼むこと。
+ * kisui-terminal の外から開く履歴の Dialog（ui/utilities/clipboard）が、外（Tauri の殻。clipboard_popup.rs）に頼むこと。
  * 本物は infrastructure/tauri/clipboardHistory.ts。
  */
 export interface ClipboardPopupOs {
-  /** 窓が出し直された。返す関数で聞くのをやめる */
+  /** Dialog が出し直された。返す関数で聞くのをやめる */
   onShown(h: () => void): Promise<() => void>;
-  /** 窓を隠して、前のアプリに戻る */
+  /** Dialog を隠して、前のアプリに戻る */
   dismiss(): Promise<void>;
-  /** クリップボードに書くだけ（窓は隠さない） */
+  /** クリップボードに書くだけ（Dialog は隠さない） */
   copy(text: string): Promise<void>;
 }
 
@@ -71,7 +71,7 @@ export function moveSelection(cur: number, step: number, len: number): number {
   return Math.min(len - 1, Math.max(0, cur + step));
 }
 
-/** 履歴の窓で押したキーの動き。 */
+/** 履歴の Dialog で押したキーの動き。 */
 export type HistoryKey =
   | { kind: "step"; step: 1 | -1 }
   /** 貼る（貼る先が無ければ、クリップボードに戻す） */
@@ -81,10 +81,10 @@ export type HistoryKey =
   | { kind: "help" };
 
 /**
- * 履歴の窓（絞り込みの入力欄にキーがある）のキー。当たらなければ null（入力欄に字を打つ）。
+ * 履歴の Dialog（絞り込みの入力欄にキーがある）のキー。当たらなければ null（入力欄に字を打つ）。
  * ↓ ↑・Ctrl+J / Ctrl+K で選ぶ行を動かし（入力欄に字を打つので、j k は使えない）、Enter で貼り、Shift+Enter でクリップボードに戻す。
- * `?` は、helpOn（キーの一覧を出せる窓で、絞り込みが空）のときだけキーの一覧を出す（打っている途中の `?` は、探す字として入力欄に入れる。ブックマークの一覧と同じ）。
- * Esc は窓が受ける。
+ * `?` は、helpOn（キーの一覧を出せる Dialog で、絞り込みが空）のときだけキーの一覧を出す（打っている途中の `?` は、探す字として入力欄に入れる。ブックマークの一覧と同じ）。
+ * Esc は Dialog が受ける。
  */
 export function historyKey(e: KeyLike, helpOn: boolean): HistoryKey | null {
   if (isComposingKey(e)) return null;

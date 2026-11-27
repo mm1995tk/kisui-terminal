@@ -1,6 +1,6 @@
 // `kisui db propose`（#382）：コーディングエージェントが、DB のタブの入力欄に SQL を書く頼み。実行はしない（人が読んで実行する）。
 // serve の db.propose を受け、今のワークスペースの、頼んだマシン・同じ接続（と変種）の DB のタブを探し（無ければ開き）、
-// 入力欄が空ならそのまま書く。SQL があれば、上書きの前に窓で人に聞く。答え（db.proposed）は呼ぶ側が送る。
+// 入力欄が空ならそのまま書く。SQL があれば、上書きの前に Dialog で人に聞く。答え（db.proposed）は呼ぶ側が送る。
 // フォーカスは移さない（今出しているタブも変えない）：人は別の作業をしていることがあるので、書いたことは短い知らせで伝える。
 // エージェントの権限が許すかは、頼んだ serve が先に確かめている。画面にも Tauri にも触らない。
 import { T } from "../../i18n/index.ts";
@@ -20,7 +20,7 @@ import {
 } from "../workspaces/model.ts";
 import { proposeTab, replaceable } from "./propose.ts";
 
-/** 上書きしてよいかを聞いている窓に出すもの。 */
+/** 上書きしてよいかを聞いている Dialog に出すもの。 */
 export interface DbProposeAsk {
   /** 書く先のタブ */
   tab: string;
@@ -63,7 +63,7 @@ export function createDbPropose(deps: {
   const pending = new Set<string>();
   /** 順番を待つ間に取り下げられた頼み。 */
   const withdrawn = new Set<string>();
-  /** 頼みは 1 つずつ順に扱う（聞く窓は 1 つ。前の頼みが書いた SQL を、次の頼みが見てから決める）。 */
+  /** 頼みは 1 つずつ順に扱う（聞く Dialog は 1 つ。前の頼みが書いた SQL を、次の頼みが見てから決める）。 */
   let queue: Promise<unknown> = Promise.resolve();
   const keyOf = (target: string, id: string) => `${target}\n${id}`;
 
@@ -78,9 +78,11 @@ export function createDbPropose(deps: {
     pending.add(key);
     const done = queue
       .then(() => handle(target, rq, key))
-      .catch((e: unknown): DbProposeReport => ({
-        error: e instanceof Error ? e.message : String(e),
-      }));
+      .catch(
+        (e: unknown): DbProposeReport => ({
+          error: e instanceof Error ? e.message : String(e),
+        }),
+      );
     queue = done.then(() => {
       pending.delete(key);
       withdrawn.delete(key);
@@ -135,7 +137,7 @@ export function createDbPropose(deps: {
     return { status: "written" };
   }
 
-  /** 聞いている窓を閉じて、答えを渡す。 */
+  /** 聞いている Dialog を閉じて、答えを渡す。 */
   function settle(a: "yes" | "no" | "withdrawn") {
     const cur = asking;
     asking = undefined;
@@ -143,7 +145,7 @@ export function createDbPropose(deps: {
     cur?.answer(a);
   }
 
-  /** 上書きしてよいかの窓の答え（false はやめた）。キーを今のペインに戻す。 */
+  /** 上書きしてよいかの Dialog の答え（false はやめた）。キーを今のペインに戻す。 */
   function replyPropose(yes: boolean) {
     if (!asking) return;
     settle(yes ? "yes" : "no");
@@ -151,7 +153,7 @@ export function createDbPropose(deps: {
   }
 
   /**
-   * マシン target の頼み id の取り下げ（serve が答えを待つのをやめた）。聞いている途中なら窓を閉じて書かない。
+   * マシン target の頼み id の取り下げ（serve が答えを待つのをやめた）。聞いている途中なら Dialog を閉じて書かない。
    * 順番を待っている頼みなら、順番が来ても何もしない。もう済んだ頼みなら何もしない。
    */
   function cancelPropose(target: string, id: string) {
@@ -165,7 +167,7 @@ export function createDbPropose(deps: {
 
   /**
    * gone が true を返すマシンの、まだ済んでいない頼みを、全部取り下げとして扱う。マシンとの接続が切れたときに呼ぶ：
-   * 切れている間は serve の取り下げ（db.proposeCancel）が届かないので、聞く窓が残って、serve が待つのをやめたあとで
+   * 切れている間は serve の取り下げ（db.proposeCancel）が届かないので、聞く Dialog が残って、serve が待つのをやめたあとで
    * 上書きされてしまう。答えも届かないので、待たせておく意味が無い。
    */
   function withdrawProposesWhere(gone: (target: string) => boolean) {
@@ -177,7 +179,7 @@ export function createDbPropose(deps: {
   }
 
   return {
-    /** 上書きしてよいかを聞いている窓（無ければ null） */
+    /** 上書きしてよいかを聞いている Dialog（無ければ null） */
     proposeAsk: ask,
     propose,
     replyPropose,

@@ -56,7 +56,7 @@ func createWith(t *testing.T, c *rpc.Conn, params map[string]any) (id, primary s
 	return r.ID, r.TermID, err
 }
 
-// session.hello の capabilities に、窓がシェルと始めるフォルダを渡せる印がある。
+// session.hello の capabilities に、Window がシェルと始めるフォルダを渡せる印がある。
 func TestHelloHasCreateShell(t *testing.T) {
 	_, sock := start(t)
 	c := dial(t, sock)
@@ -108,7 +108,7 @@ func TestWorkspaceCreateStartDir(t *testing.T) {
 	}
 }
 
-// workspace.create の shell でプライマリターミナルが始まり、そのワークスペースで窓を通さずに始まるシェルと、
+// workspace.create の shell でプライマリターミナルが始まり、そのワークスペースで Window を通さずに始まるシェルと、
 // shell を付けない term.create も同じシェルになる。shell を付けた term.create・term.restart は、そのシェルで始めて覚え直し、
 // 空の shell はこのマシンの既定（[server] shell）に戻す。
 func TestShellOfWorkspace(t *testing.T) {
@@ -152,7 +152,7 @@ func TestShellOfWorkspace(t *testing.T) {
 	}
 	is("workspace.create", primary, one)
 	is("split without a shell", split(map[string]any{"workspaceId": id}), one)
-	// kisui pane split と同じ道（窓を通さない）
+	// kisui pane split と同じ道（Window を通さない）
 	tm, err := srv.terms.start(termStart{cols: 80, rows: 24, dir: home, wsID: id})
 	if err != nil {
 		t.Fatal(err)
@@ -268,7 +268,7 @@ func TestShellRestoredAfterShutdown(t *testing.T) {
 }
 
 // このマシンの既定（[server] の start_dir と shell）は、使うたびに設定を読み直す。設定から消せば、serve を止めずに、
-// 次のターミナルから $SHELL とホームに戻る（窓は、書いていない項目を空で渡す）。読めない間は、最後に読めた値。
+// 次のターミナルから $SHELL とホームに戻る（Window は、書いていない項目を空で渡す）。読めない間は、最後に読めた値。
 func TestMachineDefaultsAreReadAgain(t *testing.T) {
 	home := normalizePath(t.TempDir())
 	t.Setenv("HOME", home)
@@ -293,7 +293,7 @@ func TestMachineDefaultsAreReadAgain(t *testing.T) {
 		}
 	})
 	c, _ := termClient(t, sock)
-	// 窓が空を渡したときの、始まるフォルダとシェル
+	// Window が空を渡したときの、始まるフォルダとシェル
 	started := func() (folder, shell string) {
 		t.Helper()
 		id, primary, err := createWith(t, c, map[string]any{"startDir": "", "shell": ""})
@@ -324,7 +324,7 @@ func TestMachineDefaultsAreReadAgain(t *testing.T) {
 }
 
 // [server] shell が無いファイル・実行できないファイルでも、serve は断らずに、警告を出して $SHELL で始める。
-// 起動のときの値でも、読み直した値でも、窓がその値をそのまま渡したとき（手元のマシン）でも同じ。
+// 起動のときの値でも、読み直した値でも、Window がその値をそのまま渡したとき（手元のマシン）でも同じ。
 func TestServerShellThatCannotRun(t *testing.T) {
 	home := normalizePath(t.TempDir())
 	t.Setenv("HOME", home)
@@ -373,7 +373,7 @@ func TestServerShellThatCannotRun(t *testing.T) {
 	if n := warnings(none); n != 1 { // 同じ間違いは 1 度だけ
 		t.Errorf("%d warnings of %s: %s", n, none, logs.String())
 	}
-	// 窓が [server] shell をそのまま渡した（手元のマシン）：断らない
+	// Window が [server] shell をそのまま渡した（手元のマシン）：断らない
 	if s := started(none); s != "/bin/sh" {
 		t.Errorf("the window passed [server] shell: started %q", s)
 	}
@@ -388,7 +388,7 @@ func TestServerShellThatCannotRun(t *testing.T) {
 	if n := warnings(plain); n != 1 {
 		t.Errorf("%d warnings of %s: %s", n, plain, logs.String())
 	}
-	// [server] shell と別の、使えないシェルを窓が渡したら、今までどおり断る
+	// [server] shell と別の、使えないシェルを Window が渡したら、今までどおり断る
 	if _, _, err := createWith(t, c, map[string]any{"shell": none}); err == nil {
 		t.Error("a shell that is not [server] shell and cannot be run was started")
 	}

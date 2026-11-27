@@ -46,22 +46,22 @@ const rowId = (i: number) => `switcher-row-${i}`;
 const tabId = (key: string) => `switcher-tab-${key}`;
 
 /**
- * ワークスペースを切り替える窓（リーダーの `w`。#282・#296）。ワークスペースの操作（移る・作る・名前を変える・閉じる・並べ替える）は、すべてここでする。
- * 窓の大きさはメインのウィンドウの 60%（幅も高さも。switcher.css）に固定し、中身の数では伸び縮みしない。
+ * Workspace switcher（リーダーの `w`。#282・#296）。ワークスペースの操作（移る・作る・名前を変える・閉じる・並べ替える）は、すべてここでする。
+ * Dialog の大きさはメインのウィンドウの 60%（幅も高さも。switcher.css）に固定し、中身の数では伸び縮みしない。
  * 左に全ワークスペース（サイドバーと同じ並び）、右に左で選んでいる行のタブの一覧だけを出す（左右は半分ずつ。選んでいる行と右の列は 1 枚につなげて見せる）。
  * キーは 1 つの列にだけ効く（col。左がワークスペース、右がタブ）。h l で列を移り、j k でその列の選ぶ行を動かし、Enter で開く。
  * キーは switcherKey.ts、決まりは docs/key-design.md。行を 1 回押すと選ぶだけで、選んでいる行をもう 1 回押すと開く（Enter と同じ）。
  * 行の左端のつかむ所からのドラッグで並べ替える（サイドバーの帯と同じ drag.ts。並びを覚えるのは呼んだ側）。
- * 右のタブの行を開くと、そのワークスペースのそのタブへ移る。移ったあとに窓を閉じるのは、呼んだ側（出すのをやめる）。
+ * 右のタブの行を開くと、そのワークスペースのそのタブへ移る。移ったあとに Dialog を閉じるのは、呼んだ側（出すのをやめる）。
  * 右のタブの行のつかむ所からのドラッグで、タブを並べ替える・別のワークスペースへ移す（#308。tabMoveDrag.ts）。ドラッグ中に左の行の上へ来ると、
  * 右の列がそのワークスペースのタブに替わり、落とした位置に入る（左の行の上で落とすと、一番後ろに入る。空のワークスペースにも落とせる）。
- * 右の列の上の「＋」か、タブの列の n か、N（どちらの列でも）で、作るタブの種類を選ぶ（#456。種類は窓の下の段にボタンで出し、字か、ボタンで決める。#487。リーダーの n は、種類を選ぶ間にして窓を開く）。
+ * 右の列の上の「＋」か、タブの列の n か、N（どちらの列でも）で、作るタブの種類を選ぶ（#456。種類は Dialog の Key footer にボタンで出し、字か、ボタンで決める。#487。リーダーの n は、種類を選ぶ間にして Dialog を開く）。
  * ターミナルに決めると、同じ所に、名前の入力欄とマシンを 1 行で出し、Enter でそのワークスペースのそのマシンにターミナルのタブを作る（#331。SwitcherNewTab.tsx）。
- * マシンのダイアログ（リーダーの m）の Enter は、種類を選ぶのを飛ばして、この行を、そこで選んだマシンを選んでおいて出した状態で窓を開く（#461。initialTerminal）。
- * ブラウザ・シークレットに決めると、そのワークスペースに新しいタブのページのブラウザのタブを開く（内蔵ブラウザが有効なときだけ選べる）。どちらも窓は閉じず、作ったタブを右の列で選ぶ。
- * DB に決めると、窓を閉じて、接続を選ぶ窓を出す（呼んだ側）。種類を選んでいる間は、種類の字と Esc だけを受ける（Esc は種類を選ぶのだけをやめる）。
- * タブの列の m で、選んでいるタブをキーでつかみ、別のワークスペースへ移す（#332。switcherHold.ts）。つかむとキーは左の列へ移り、j k で移す先を選ぶと、右の列がそのワークスペースのタブに替わって、つかんだタブが一番後ろに出る。
- * 右の列で j k を押すと入る位置を 1 つずつ動かし、Enter か m で、見えている位置に落とす（onTabMove。ドラッグと同じ）。Esc で、つかんだときのワークスペースと位置に戻す（窓は閉じない）。つかんでいる間は、ほかのキーは効かない。
+ * マシンのダイアログ（リーダーの m）の Enter は、種類を選ぶのを飛ばして、この行を、そこで選んだマシンを選んでおいて出した状態で Dialog を開く（#461。initialTerminal）。
+ * ブラウザ・シークレットに決めると、そのワークスペースに新しいタブのページのブラウザのタブを開く（内蔵ブラウザが有効なときだけ選べる）。どちらも Dialog は閉じず、作ったタブを右の列で選ぶ。
+ * DB に決めると、Dialog を閉じて、接続を選ぶ Dialog を出す（呼んだ側）。種類を選んでいる間は、種類の字と Esc だけを受ける（Esc は種類を選ぶのだけをやめる）。
+ * タブの列の m で、選んでいるタブをキーでつかみ、別のワークスペースへ移す（#332。switcherHold.ts）。つかむとキーは左側の列へ移り、j k で移す先を選ぶと、右の列がそのワークスペースのタブに替わって、つかんだタブが一番後ろに出る。
+ * 右の列で j k を押すと入る位置を 1 つずつ動かし、Enter か m で、見えている位置に落とす（onTabMove。ドラッグと同じ）。Esc で、つかんだときのワークスペースと位置に戻す（Dialog は閉じない）。つかんでいる間は、ほかのキーは効かない。
  * 名前を変えるのは、行の中の入力欄（サイドバーの帯と同じ。変換を確定する Enter では決めない）。閉じるのは、y / n で確かめてから。
  */
 export function WorkspaceSwitcher(props: {
@@ -86,7 +86,7 @@ export function WorkspaceSwitcher(props: {
   onDrop: (gws: string, before: string | null) => void;
   /** 右のタブの行をつかんで落とした（タブ key を、ワークスペース gws の before のタブの前へ。一番後ろなら null。別のワークスペースへも移せる） */
   onTabMove: (key: string, gws: string, before: string | null) => void;
-  /** 名前の入力欄で名前を決めた（空なら番号の名前）。タブの無い空のワークスペースを作って id を返す。名前が断られたら、その理由を返す（入力欄は開けたまま。窓は閉じない） */
+  /** 名前の入力欄で名前を決めた（空なら番号の名前）。タブの無い空のワークスペースを作って id を返す。名前が断られたら、その理由を返す（入力欄は開けたまま。Dialog は閉じない） */
   onCreate: (name: string) => { id: string } | { error: string };
   /** 作る入力欄を開くときの、空にしたときの番号の名前 */
   createInit: () => string;
@@ -94,7 +94,7 @@ export function WorkspaceSwitcher(props: {
   renameInit: (gws: string) => { current: string; auto: string } | undefined;
   /** 入力欄で名前を決めた。断られたら、その理由を返す（入力欄は開けたまま） */
   onRename: (gws: string, name: string) => string | undefined;
-  /** 閉じることを確かめた（窓は開けたまま。閉じられなければ、呼んだ側が理由を出す） */
+  /** 閉じることを確かめた（Dialog は開けたまま。閉じられなければ、呼んだ側が理由を出す） */
   onClose: (gws: string) => void;
   /** タブの名前を変える入力欄を開くときの、今の名前と、空にしたときの名前（タブが無ければ undefined） */
   tabRenameInit: (
@@ -103,21 +103,21 @@ export function WorkspaceSwitcher(props: {
   ) => { current: string; auto: string } | undefined;
   /** タブの入力欄で名前を決めた。断られたら、その理由を返す（入力欄は開けたまま） */
   onTabRename: (gws: string, key: string, name: string) => string | undefined;
-  /** タブを閉じる（x・✕。確かめずに閉じ、プログラムが動いているターミナルのタブだけ、呼んだ側が確認を出す。窓は開けたまま） */
+  /** タブを閉じる（x・✕。確かめずに閉じ、プログラムが動いているターミナルのタブだけ、呼んだ側が確認を出す。Dialog は開けたまま） */
   onTabClose: (gws: string, key: string) => void;
   /** タブを 1 つ下・上へ並べ替える（タブの列の J K） */
   onTabReorder: (gws: string, key: string, dir: "up" | "down") => void;
-  /** タブを作る入力欄に出すマシン（つながっているマシン。マシンを選ぶ窓と同じ） */
+  /** タブを作る入力欄に出すマシン（つながっているマシン。マシンを選ぶ Dialog と同じ） */
   machines: readonly MachineChoice[];
-  /** 名前とマシンを決めた。名前が断られたら、その理由を返す（入力欄は開けたまま）。作れたら、作ったタブの key を待てる形で返す（作れなければ undefined。理由は呼んだ側が出す）。窓は閉じない */
+  /** 名前とマシンを決めた。名前が断られたら、その理由を返す（入力欄は開けたまま）。作れたら、作ったタブの key を待てる形で返す（作れなければ undefined。理由は呼んだ側が出す）。Dialog は閉じない */
   onCreateTab: (
     gws: string,
     machine: string,
     name: string,
   ) => { error: string } | { key: Promise<string | undefined> };
-  /** ブラウザのタブ（incognito ならシークレットのタブ）を開く。開いたタブの key を返す。窓は閉じない */
+  /** ブラウザのタブ（incognito ならシークレットのタブ）を開く。開いたタブの key を返す。Dialog は閉じない */
   onNewBrowserTab: (gws: string, incognito: boolean) => string | undefined;
-  /** DB のタブを作る（窓を閉じて、接続を選ぶ窓を出すのは、呼んだ側） */
+  /** DB のタブを作る（Dialog を閉じて、接続を選ぶ Dialog を出すのは、呼んだ側） */
   onNewDbTab: (gws: string) => void;
   /** 内蔵ブラウザが有効か（無効なら、作るタブの種類にブラウザとシークレットが無い） */
   browser: boolean;
@@ -140,7 +140,7 @@ export function WorkspaceSwitcher(props: {
     (RowEdit & { gws: string }) | undefined
   >();
   const [confirming, setConfirming] = createSignal<string | undefined>();
-  // 左の列の一番下に、新しいワークスペースの名前の入力欄を出している間（auto は空にしたときの番号の名前、error は断られた理由）
+  // 左側の列の一番下に、新しいワークスペースの名前の入力欄を出している間（auto は空にしたときの番号の名前、error は断られた理由）
   const [creating, setCreating] = createSignal<
     { auto: string; error?: string } | undefined
   >();
@@ -149,7 +149,7 @@ export function WorkspaceSwitcher(props: {
     createSwitcherColumns(selected, props.initialCol);
   // キーでつかんでいるタブ（m）と、入る位置（switcherHold.ts）
   const hold = createSwitcherHold();
-  // つかんでいるタブが、窓の外の理由（閉じた・移したなど）でつかんだときのワークスペースから消えたら、やめる
+  // つかんでいるタブが、Window の外の理由（閉じた・移したなど）でつかんだときのワークスペースから消えたら、やめる
   createEffect(() => {
     const h = hold.held();
     if (!h) return;
@@ -187,7 +187,7 @@ export function WorkspaceSwitcher(props: {
       ?.scrollIntoView?.({ block: "nearest" });
   });
 
-  // 確認や入力欄を出している行が、窓の外の理由（マシンが切れて記録から外れたなど）で消えたら、やめる（確認が見えないまま、キーが効かなくならないように）
+  // 確認や入力欄を出している行が、Window の外の理由（マシンが切れて記録から外れたなど）で消えたら、やめる（確認が見えないまま、キーが効かなくならないように）
   createEffect(() => {
     const has = (g: string) => props.rows.some((r) => r.gws === g);
     const c = confirming();
@@ -215,7 +215,7 @@ export function WorkspaceSwitcher(props: {
     newTab.stop();
     tabActions.stop();
   }
-  /** 窓のキーが届く所（2 つの列を囲む入れ物）にフォーカスを戻す（ボタンや入力欄を使ったあと） */
+  /** Dialog のキーが届く所（2 つの列を囲む入れ物）にフォーカスを戻す（ボタンや入力欄を使ったあと） */
   const focusList = () => root.focus();
   // 右の列のタブの操作（switcherTabActions.ts）。選ぶワークスペースを変えたら、名前を変えているタブはやめる
   const tabActions = createSwitcherTabActions({
@@ -250,7 +250,7 @@ export function WorkspaceSwitcher(props: {
   else if (props.initialTerminal !== undefined)
     newTab.startTerminalOn(props.initialTerminal);
 
-  /** ワークスペースの行を押した：選んでいる行（キーが左の列で効いているとき）をもう 1 回押すと開く。それ以外は選ぶだけ。 */
+  /** ワークスペースの行を押した：選んでいる行（キーが左側の列で効いているとき）をもう 1 回押すと開く。それ以外は選ぶだけ。 */
   function pressRow(r: Row) {
     // つかんでいる間は、キーで決める（押しても何もしない）
     if (hold.held()) return;
@@ -295,13 +295,13 @@ export function WorkspaceSwitcher(props: {
     setConfirming(r.gws);
     focusList();
   }
-  /** 左の列の一番下に、名前の入力欄を出す（n・「ワークスペースを作る」）。ほかの入力欄・確認はやめる */
+  /** 左側の列の一番下に、名前の入力欄を出す（n・「ワークスペースを作る」）。ほかの入力欄・確認はやめる */
   function startCreate() {
     toWs();
     resetInputs();
     setCreating({ auto: props.createInit() });
   }
-  /** 入力欄で名前を決めた。作れたら、作ったワークスペースを選ぶ（窓は閉じない）。断られたら、理由を出して入力欄は開けたまま */
+  /** 入力欄で名前を決めた。作れたら、作ったワークスペースを選ぶ（Dialog は閉じない）。断られたら、理由を出して入力欄は開けたまま */
   function submitCreate(name: string) {
     const c = creating();
     if (!c) return;
@@ -326,7 +326,7 @@ export function WorkspaceSwitcher(props: {
     }
   }
 
-  /** 選んでいるタブをつかむ（タブの列の m）。つかむと、キーは左の列（移す先を選ぶ列）へ移る */
+  /** 選んでいるタブをつかむ（タブの列の m）。つかむと、キーは左側の列（移す先を選ぶ列）へ移る */
   function startHold() {
     const r = selected();
     const t = selectedTab();
@@ -346,17 +346,17 @@ export function WorkspaceSwitcher(props: {
     // 落としたタブを選んだまま、タブの列へ（移した結果が見える。今いるワークスペースは変えない）
     pickTab(h.tab.key);
   }
-  /** やめて、つかんだときのワークスペースとタブに戻す（窓は閉じない） */
+  /** やめて、つかんだときのワークスペースとタブに戻す（Dialog は閉じない） */
   function cancelHold(h: Hold) {
     hold.stop();
     select(h.from);
     pickTab(h.tab.key);
   }
-  /** つかんでいる間のキー。動かすのは、移す先のワークスペース（左の列）と入る位置（右の列）だけ */
+  /** つかんでいる間のキー。動かすのは、移す先のワークスペース（左側の列）と入る位置（右の列）だけ */
   function onHoldKey(e: KeyboardEvent, h: Hold) {
     const k = holdKey(e);
     if (!k) {
-      // ほかのキーは何もしない（窓も閉じない）。Tab と、修飾キー付きのキーは、そのまま通す
+      // ほかのキーは何もしない（Dialog も閉じない）。Tab と、修飾キー付きのキーは、そのまま通す
       if (e.key !== "Tab" && !e.metaKey && !e.ctrlKey && !e.altKey)
         e.preventDefault();
       return;
@@ -394,7 +394,7 @@ export function WorkspaceSwitcher(props: {
     }
   }
 
-  /** 作るタブの種類を選んでいる間のキー。種類の字と Esc だけを受け、ほかのキーは何もしない（窓も閉じない） */
+  /** 作るタブの種類を選んでいる間のキー。種類の字と Esc だけを受け、ほかのキーは何もしない（Dialog も閉じない） */
   function onNewTabKindKey(e: KeyboardEvent) {
     const k = newTabKindKey(e, newTab.kinds());
     if (!k) {
@@ -428,7 +428,7 @@ export function WorkspaceSwitcher(props: {
     }
     const c = confirming();
     if (c !== undefined) {
-      // 閉じる確認の間は y / n / Esc だけ（Esc は、窓ではなく確認をやめる）
+      // 閉じる確認の間は y / n / Esc だけ（Esc は、Dialog ではなく確認をやめる）
       const k = confirmKey(e);
       if (k) {
         e.preventDefault();
@@ -544,7 +544,7 @@ export function WorkspaceSwitcher(props: {
     });
   }
 
-  /** 下の段を決める、窓の今の状態（キーを受ける判定の順と同じ。つかんでいる → 種類を選んでいる → 名前を打っている → 確かめている → 列） */
+  /** Key footer を決める、Dialog の今の状態（キーを受ける判定の順と同じ。つかんでいる → 種類を選んでいる → 名前を打っている → 確かめている → 列） */
   const footerState = (): SwitcherState => {
     if (hold.held()) return { mode: "hold" };
     if (newTab.choosing()) return { mode: "kinds", kinds: newTab.kinds() };

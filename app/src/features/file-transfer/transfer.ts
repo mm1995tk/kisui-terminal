@@ -31,7 +31,7 @@ export interface ListEntry {
   data: string | null;
 }
 
-/** Rust 側（transfer_read_list）が並べた結果。許可の窓に見せ、許されたら相手に返す。 */
+/** Rust 側（transfer_read_list）が並べた結果。許可の Dialog に見せ、許されたら相手に返す。 */
 export interface Listing {
   entries: ListEntry[];
   errors: { requestId: string; code: string; message: string }[];
@@ -91,7 +91,7 @@ export interface TransferReplies {
   ): void;
 }
 
-/** 許可の窓を出して答えを待つ関数（transferPrompt.ts の askTransfer）。cancel で取り下げる。 */
+/** 許可の Dialog を出して答えを待つ関数（transferPrompt.ts の askTransfer）。cancel で取り下げる。 */
 export type AskTransfer = (info: TransferInfo) => {
   allowed: Promise<boolean>;
   cancel: () => void;

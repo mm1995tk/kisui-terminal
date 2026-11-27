@@ -175,7 +175,7 @@ func TestPaneRun(t *testing.T) {
 	}
 }
 
-// 別のマシンへの頼みは、窓の前の人が答えるまで待てる。待つのをやめたら（時間切れ・コマンドが切れた）、GUI に取り下げを知らせる。
+// 別のマシンへの頼みは、Window の前の人が答えるまで待てる。待つのをやめたら（時間切れ・コマンドが切れた）、GUI に取り下げを知らせる。
 func TestPaneRelayWaitsAndWithdraws(t *testing.T) {
 	t.Setenv("HOME", normalizePath(t.TempDir()))
 	old := paneRelayWait

@@ -22,7 +22,7 @@
   font-family: "IBM Plex Sans JP", system-ui, sans-serif;
   font-size: 13px;
   pointer-events: none;
-  /* お知らせのカード（ui/components/card.css の .card-notices、z-index 10）も右下にあるので、案内のほうを手前に重ねる。
+  /* Notice のカード（ui/components/card.css の .card-notices、z-index 10）も右下にあるので、案内のほうを手前に重ねる。
      案内は押せないので（pointer-events: none）、重なった部分のカードのボタンは、案内を出している間は押せない */
   z-index: 900;
 }

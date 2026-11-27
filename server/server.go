@@ -275,7 +275,7 @@ func (s *Server) accept(c net.Conn) {
 		ownerGone := s.owner == ss
 		if ownerGone {
 			s.owner = nil
-			// 窓で打って覚えた DB のパスワードは、その窓がつながっている間だけのもの（db.go）
+			// Window で打って覚えた DB のパスワードは、その Window がつながっている間だけのもの（db.go）
 			s.forgetDBPasswords()
 		}
 		s.lastClient = s.now()
@@ -520,7 +520,7 @@ func (ss *session) helloReq(req *rpc.Message) (any, error) {
 	if prev != nil {
 		sup = &Peer{Client: prev.client, ConnectedAt: prev.connectedAt}
 		prev.superseded = true
-		// 前の持ち主の窓で打って覚えた DB のパスワードを、新しい持ち主に使わせない（db.go）。この接続が要求を出せるように
+		// 前の持ち主の Window で打って覚えた DB のパスワードを、新しい持ち主に使わせない（db.go）。この接続が要求を出せるように
 		// なる（下の ss.hello）より前に忘れる。
 		s.forgetDBPasswords()
 	}

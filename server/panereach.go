@@ -3,7 +3,7 @@ package server
 // ペインの中のコマンドが届くペインの範囲（kisui pane send・keys・read・close・list）。設計は docs/design/gui-protocol.md の
 // 「ペインの中のコマンド」。
 //
-// 既定では、ペインは「自分」と「自分が作ったペイン、そのペインが作ったペイン…」にだけ届く。人が窓で開いたペインや、
+// 既定では、ペインは「自分」と「自分が作ったペイン、そのペインが作ったペイン…」にだけ届く。人が Window で開いたペインや、
 // ほかのペインが作ったペインには届かない。ペインの中のプログラムは、そのマシンの利用者として動くが、ほかのペインは
 // それより強い立場のこと（root のシェル、別のマシンへの ssh）をしていることがある。そこへ字を打てる・その画面を読める道を、
 // 作った側のペインにだけ残す。[server] pane_reach = "all" で、そのマシンの全部のペインに届くように戻せる。
@@ -26,7 +26,7 @@ type paneOrigin struct {
 	Pane string `json:"pane"`
 }
 
-// maxLineage は、受け取る系譜の長さの上限（窓から届く workspace.create の ancestry）。超えた分は古いほうから捨てる。
+// maxLineage は、受け取る系譜の長さの上限（Window から届く workspace.create の ancestry）。超えた分は古いほうから捨てる。
 const maxLineage = 64
 
 // localOrigin は o を、この serve から見た形にする（この serve の serverId は空にする）。

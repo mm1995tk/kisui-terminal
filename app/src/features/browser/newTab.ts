@@ -1,7 +1,7 @@
 // 内蔵ブラウザの「新しいタブのページ」（#238）の、キーと選びかた。DOM も Tauri も使わない（node --test で確かめられる）。
-// ワークスペースの窓の、作るタブの種類（リーダーの n）の「ブラウザ」「シークレット」と、サイドバーの「+」のメニューの「ブラウザ」は、URL を聞かずにこのページのタブを開く。
-// このページのタブは URL が空（NEW_TAB_URL）で、webview は作らず、画面（NewTabPage.tsx）が検索窓とブックマークを描く。
-// 検索窓に打ったものを開くと、そのタブの URL がそのページになる（そこで初めて webview を作る）。
+// Workspace switcher の、作るタブの種類（リーダーの n）の「ブラウザ」「シークレット」と、サイドバーの「+」のメニューの「ブラウザ」は、URL を聞かずにこのページのタブを開く。
+// このページのタブは URL が空（NEW_TAB_URL）で、webview は作らず、画面（NewTabPage.tsx）が検索欄とブックマークを描く。
+// 検索欄に打ったものを開くと、そのタブの URL がそのページになる（そこで初めて webview を作る）。
 
 import { isComposingKey } from "../commands/ime.ts";
 import type { KeyLike } from "../commands/guiKeys.ts";
@@ -18,10 +18,12 @@ export function isNewTab(t: Pick<BrowserTab, "url">): boolean {
 
 /** 新しいタブのページの入力欄が受けるキー。 */
 export type NewTabKey =
-  { kind: "step"; step: 1 | -1 } | { kind: "enter" } | { kind: "cancel" };
+  | { kind: "step"; step: 1 | -1 }
+  | { kind: "enter" }
+  | { kind: "cancel" };
 
 /**
- * 入力欄のキーの意味。`↓` `↑`・Ctrl+J / Ctrl+K はブックマークを選ぶ（検索窓から出入りする）、`Enter` は選んでいるブックマークか
+ * 入力欄のキーの意味。`↓` `↑`・Ctrl+J / Ctrl+K はブックマークを選ぶ（検索欄から出入りする）、`Enter` は選んでいるブックマークか
  * 打ったものを開く、`Esc` は打ったものを消す。かな漢字変換中は何も受けない。
  */
 export function newTabKey(e: KeyLike): NewTabKey | null {
@@ -37,8 +39,8 @@ export function newTabKey(e: KeyLike): NewTabKey | null {
 }
 
 /**
- * 選んでいる所を動かす。-1 は検索窓（ブックマークは選んでいない）、0 以上はブックマークの番号。
- * 検索窓より上へは行かず、最後のブックマークより下へも行かない（端で回らない）。ブックマークが無ければいつも検索窓。
+ * 選んでいる所を動かす。-1 は検索欄（ブックマークは選んでいない）、0 以上はブックマークの番号。
+ * 検索欄より上へは行かず、最後のブックマークより下へも行かない（端で回らない）。ブックマークが無ければいつも検索欄。
  */
 export function moveSelection(
   sel: number,

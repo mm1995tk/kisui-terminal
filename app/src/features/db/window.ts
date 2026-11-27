@@ -1,5 +1,5 @@
-// DB のタブの窓（リーダーの `a`。#458）に並べる結果のタブの行。窓の画面は ui/main-window/tab-window/DbWindow.tsx。
-// 窓は、DB のタブ 1 つの結果のタブ（#404）を左から順に 1 行ずつ並べ、1 つを選んで操作する（出す・閉じる・データと Structure・ページ・書き出す）。
+// DB のタブの Dialog（リーダーの `a`。#458）に並べる結果のタブの行。Window の画面は ui/main-window/tab-window/DbWindow.tsx。
+// Dialog は、DB のタブ 1 つの結果のタブ（#404）を左から順に 1 行ずつ並べ、1 つを選んで操作する（出す・閉じる・データと Structure・ページ・書き出す）。
 // 画面にも Solid にも依存しない（node --test で確かめられる）。
 
 import { resultSummary } from "./model.ts";
@@ -14,7 +14,7 @@ export type DbWindowRowState =
   | { kind: "done"; summary: string }
   | { kind: "none" };
 
-/** 窓の 1 行（結果のタブ 1 つ）。 */
+/** Dialog の 1 行（結果のタブ 1 つ）。 */
 export interface DbWindowRow {
   /** 結果のタブの id */
   id: string;
@@ -31,7 +31,7 @@ export interface DbWindowRow {
   structure: boolean;
 }
 
-/** run の結果のタブを、窓の行にする（左から順）。structureOf は、結果のタブ id の構造（テーブルに結び付いていなければ undefined）。 */
+/** run の結果のタブを、Dialog の行にする（左から順）。structureOf は、結果のタブ id の構造（テーブルに結び付いていなければ undefined）。 */
 export function dbWindowRows(
   run: DbRun,
   structureOf: (tab: string) => DbStructureState | undefined,
@@ -64,7 +64,7 @@ export function dbWindowRows(
 }
 
 /**
- * 選んでいる行。want（窓で選んだ結果のタブ）がまだあればそれ、無くなっていれば（閉じた・上限で閉じた）出しているタブ、
+ * 選んでいる行。want（Dialog で選んだ結果のタブ）がまだあればそれ、無くなっていれば（閉じた・上限で閉じた）出しているタブ、
  * それも無ければ先頭。行が無ければ undefined。
  */
 export function selectedResult(

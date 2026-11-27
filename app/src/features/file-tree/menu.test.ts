@@ -76,7 +76,7 @@ describe("shouldRestoreFocus（キーで開いたメニューを閉じたあと�
     assert.equal(shouldRestoreFocus(row(), null, body), true);
   });
 
-  it("項目で窓が出た・外を押してほかにフォーカスが移ったときは戻さない", () => {
+  it("項目で Dialog が出た・外を押してほかにフォーカスが移ったときは戻さない", () => {
     assert.equal(shouldRestoreFocus(row(), {}, body), false);
   });
 

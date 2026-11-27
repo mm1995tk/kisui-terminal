@@ -545,7 +545,7 @@ function ResultTable(props: {
   }
   function enter(e: PointerEvent, pos: CellPos) {
     if (!dragging) return;
-    // 窓の外で離して pointerup が届かなかったときの備え：今ボタンが押されていなければ、ドラッグは終わっている
+    // Window の外で離して pointerup が届かなかったときの備え：今ボタンが押されていなければ、ドラッグは終わっている
     if ((e.buttons & 1) === 0) {
       dragging = false;
       return;
@@ -656,7 +656,7 @@ function Head(props: {
 
 /**
  * 結果の場所の上の切り替え（#379）：「データ」（SQL を実行した結果）と「Structure」（木で選んだテーブルの構造）。
- * 左右のキーでも移れる。DB のタブの窓（リーダーの a）の s でも切り替えられる。
+ * 左右のキーでも移れる。DB のタブの Dialog（リーダーの a）の s でも切り替えられる。
  */
 function ViewSwitch(props: {
   view: DbResultView;

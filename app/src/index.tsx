@@ -1,5 +1,5 @@
 // 起動と、外への頼みの本物の組み立て。
-// 機能（features/）と画面（ui/）は、外（Tauri の殻・webview の記録）への頼みを窓口の形（インターフェース）でしか知らない。
+// 機能（features/）と画面（ui/）は、外（Tauri の殻・webview の記録）への頼みを受け口の形（インターフェース）でしか知らない。
 // 本物（infrastructure/）を選んで渡すのは、ここだけ。配置と依存の向きの決まりは docs/design/frontend-structure.md。
 import { init } from "coneko-term";
 import { render } from "solid-js/web";
@@ -54,9 +54,9 @@ try {
 // 文書の言語も合わせる（スクリーンリーダーの読み方・字形の選び方が変わる）
 document.documentElement.lang = lang();
 
-// この画面が、kisui-terminal の外から開くクリップボードの履歴の窓（clipboard_popup.rs）か
+// この画面が、kisui-terminal の外から開くクリップボードの履歴の Dialog（clipboard_popup.rs）か
 if (windowLabel() === POPUP_LABEL) {
-  // 履歴の一覧だけを出す（ターミナルは使わない）。窓は透明で、カードの丸い角の外は地を塗らない
+  // 履歴の一覧だけを出す（ターミナルは使わない）。Dialog は透明で、カードの丸い角の外は地を塗らない
   document.documentElement.style.background = "transparent";
   document.body.style.background = "transparent";
   const { ClipboardUtilityPage } =
@@ -87,7 +87,7 @@ if (windowLabel() === POPUP_LABEL) {
     exportFile: tauriExportFile,
     dbConfig: tauriDbConfig,
   };
-  // ターミナル（coneko-term）は wasm を読み終えてから作る。読み込めないと窓が真っ白になるので、理由を出す
+  // ターミナル（coneko-term）は wasm を読み終えてから作る。読み込めないと Dialog が真っ白になるので、理由を出す
   try {
     await init();
     const { MainWindowPage } = await import("./ui/main-window/page.tsx");

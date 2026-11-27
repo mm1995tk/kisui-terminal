@@ -1,5 +1,5 @@
-// 組み合わせの例：確かめる窓（CloseWorkspaceCard.tsx）を、アプリと同じ部品・CSS・字・翻訳で出す（#315）。
-// 窓の枠（ModalCard、focusSelf）・見出しと本文（.card-body）・やめるボタンと主ボタン（Button）の組み合わせ。
+// 組み合わせの例：確かめる Dialog（CloseWorkspaceCard.tsx）を、アプリと同じ部品・CSS・字・翻訳で出す（#315）。
+// Dialog の枠（ModalCard、focusSelf）・見出しと本文（.card-body）・やめるボタンと主ボタン（Button）の組み合わせ。
 // 確かめる手順そのもの（いつ出すか、何回聞くか）は変えていない（docs/design/design-system.md の「#306 との対応」）。
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
 import { fn } from "storybook/test";
@@ -15,7 +15,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** ワークスペースを閉じるとき。フォーカスは窓そのもの（Tab でボタンへ移る）。Esc は「やめる」。 */
+/** ワークスペースを閉じるとき。フォーカスは Dialog そのもの（Tab でボタンへ移る）。Esc は「やめる」。 */
 export const Workspace: Story = {};
 
 /** ターミナルのタブ 1 つを閉じるとき（文だけが変わる）。 */

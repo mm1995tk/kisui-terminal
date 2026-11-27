@@ -39,7 +39,7 @@ export interface TreeKey extends ComposingKeyLike {
  * - y で相対パス、Y で絶対パス、c で名前をコピー。m で「ここへ移動」（フォルダの行だけ）。
  * - . か Menu キーで、右クリックのメニューをこの行で開く。? でこの場所のキーの一覧。
  *
- * Ctrl・Cmd・Alt を押しながらのキーは使わない（窓全体のショートカットに残す）。
+ * Ctrl・Cmd・Alt を押しながらのキーは使わない（Window 全体のショートカットに残す）。
  */
 export function treeKey(
   row: Pick<TreeRow, "dir" | "expanded" | "truncated">,

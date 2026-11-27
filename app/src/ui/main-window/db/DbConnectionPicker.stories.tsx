@@ -1,4 +1,4 @@
-// DB の接続を選ぶ窓（DbConnectionPicker.tsx。リーダーの n → d）を、アプリと同じ部品・CSS・字・翻訳で出す。
+// DB の接続を選ぶ Dialog（DbConnectionPicker.tsx。リーダーの n → d）を、アプリと同じ部品・CSS・字・翻訳で出す。
 // 行は見本のデータ（アプリでは features/db/controller.ts の openPicker が、つないでいるマシンの kisui serve から集める）。
 // 操作は Storybook の Actions に出る。
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
@@ -122,7 +122,7 @@ type Story = StoryObj<typeof meta>;
 
 /**
  * すべてのマシンの接続。この PC の config.local.toml で登録している行（shop-dev と、config.toml の接続の上書きの shop）に印が付く。
- * j で config.toml の接続（analytics）・リモートの接続（warehouse）に移ると、下の段に直せない理由が出て、edit・remove が消える。
+ * j で config.toml の接続（analytics）・リモートの接続（warehouse）に移ると、Key footer に直せない理由が出て、edit・remove が消える。
  */
 export const Default: Story = {};
 

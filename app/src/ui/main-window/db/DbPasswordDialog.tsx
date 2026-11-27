@@ -1,5 +1,5 @@
-// DB のパスワードを聞く窓（#347）。kisui serve が password_required を返したときに出す。
-// 打ったパスワードは、送り直す 1 回の要求に付けるだけで、窓は保存しない（features/db/controller.ts）。見た目は ssh の質問の窓と同じ。
+// DB のパスワードを聞く Dialog（#347）。kisui serve が password_required を返したときに出す。
+// 打ったパスワードは、送り直す 1 回の要求に付けるだけで、Dialog は保存しない（features/db/controller.ts）。見た目は ssh の質問の Dialog と同じ。
 import { T } from "../../../i18n/index.ts";
 import { createSignal, type JSX } from "solid-js";
 
@@ -13,10 +13,10 @@ import {
 } from "../../components/Card.tsx";
 import { Field, Input } from "../../components/Field.tsx";
 
-/** 入力欄の form。下の段の実行（form の外）が、この id で送る */
+/** 入力欄の form。Key footer の実行（form の外）が、この id で送る */
 const FORM_ID = "db-password-form";
 
-/** パスワードを聞く窓。答えは onReply に渡す（null はやめた。Esc もやめる）。 */
+/** パスワードを聞く Dialog。答えは onReply に渡す（null はやめた。Esc もやめる）。 */
 export function DbPasswordDialog(props: {
   ask: DbPasswordAsk;
   onReply: (password: string | null) => void;

@@ -1,6 +1,6 @@
-# Storybook（窓の画面の部品を 1 つずつ見る）
+# Storybook（Window の画面の部品を 1 つずつ見る）
 
-窓の画面（`app/src/`）の Solid の部品を、Tauri も kisui serve も無しに、ふつうのブラウザで 1 つずつ出す。#314 で入れた（親は #312）。
+Window の画面（`app/src/`）の Solid の部品を、Tauri も kisui serve も無しに、ふつうのブラウザで 1 つずつ出す。#314 で入れた（親は #312）。
 見本だけの作り直しは作らない。アプリと同じ部品・CSS・字・翻訳の表を読み、外への頼み（Tauri の殻・kisui serve・記録）と見本のデータだけを差し替える。
 
 ## 動かす
@@ -37,7 +37,7 @@ Vite の設定は、根の `vite.config.ts` をそのまま読む（Solid の変
 - 書き方は CSF 3（`Meta`・`StoryObj` は `storybook-solidjs-vite` から）。押した・閉じたなどの呼び出しは `storybook/test` の `fn()` で受け、Actions に出す。
 - 画面の文は、ほかのコードと同じく表のキーで引く（`T("…")`）。言語を切り替えたあとに引き直すよう、`T` は `args` に直に書かず、`render` の中で呼ぶ（`InlineInput.stories.tsx` の `WithError`）。
 - 見本のデータを複数の stories で使うときは、stories の隣に普通のファイルで置く（例：`ui/modules/clipboard-history/historyFixtures.ts`）。`*.stories.tsx` から名前付きで書き出したものは、Storybook が story として読んでしまう。
-- 窓の部品（`ModalCard` を使うもの）は、アプリで入れている組み合わせのまま出す（`HistoryPanel.stories.tsx` は、メインウィンドウと同じく `ModalCard` に入れる）。
+- Dialog の部品（`ModalCard` を使うもの）は、アプリで入れている組み合わせのまま出す（`HistoryPanel.stories.tsx` は、メインウィンドウと同じく `ModalCard` に入れる）。
 - 字（children）や `label` のように、翻訳の表から引く必須の引数がある部品は、`Meta<typeof 部品>` ではなく、その引数を外した型（`Omit<ComponentProps<typeof 部品>, "children">`）で `Meta` を書き、`render` の中で `T` を呼んで渡す（`Button.stories.tsx`）。
 - デザインシステムの部品（`ui/components/`）と共通の値（`ui/styles/`）の stories は、[design-system.md](design-system.md) の使い方の決まりと同じ状態・組み合わせを出す。決まりを変えたら stories も変える。
 
@@ -47,17 +47,17 @@ Vite の設定は、根の `vite.config.ts` をそのまま読む（Solid の変
 | ----------------------------------------------------------- | -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
 | `ui/styles/Tokens.stories.tsx`                              | 共通の値（色・状態・余白・字・角）。名前・値・説明は `tokens.css` から読む | —                                                                                                    |
 | `ui/components/Button.stories.tsx`                          | ボタン（普通・主・無効・処理中・フォーカス・やめると主の並び）             | 押した（`fn()`）                                                                                     |
-| `ui/components/Card.stories.tsx`                            | 窓の枠 `ModalCard`（既定・`focusSelf`・幅と `closeOnOutside`）             | 閉じる（`fn()`）                                                                                     |
+| `ui/components/Card.stories.tsx`                            | Dialog の枠 `ModalCard`（既定・`focusSelf`・幅と `closeOnOutside`）             | 閉じる（`fn()`）                                                                                     |
 | `ui/components/InlineInput.stories.tsx` | その場の入力欄（名前あり・空・理由を出したとき） | 決めた・やめた（`fn()`） |
-| `ui/main-window/workspaces/CloseWorkspaceCard.stories.tsx`  | ワークスペース・タブを閉じる確認の窓                                       | 決めた・やめた（`fn()`）                                                                             |
-| `ui/main-window/workspaces/WorkspaceSwitcher.stories.tsx`   | ワークスペースを切り替える窓（並び・タブの無いワークスペース・空）         | 行は見本のデータ（アプリでは `gwsRows` が作る）。操作は `fn()`、名前の確かめは本物の `nameErrorText` |
-| `ui/main-window/workspaces/WorkspaceKindPicker.stories.tsx` | ワークスペースの種類（ターミナル・ブラウザ）を選ぶ窓                       | 選んだ・やめた（`fn()`）                                                                             |
-| `ui/main-window/sessions/InstallCard.stories.tsx`           | kisui を入れるかの確認の窓（初めて・失敗のあと）                           | 入れる・入れない（`fn()`）                                                                           |
+| `ui/main-window/workspaces/CloseWorkspaceCard.stories.tsx`  | ワークスペース・タブを閉じる確認の Dialog                                       | 決めた・やめた（`fn()`）                                                                             |
+| `ui/main-window/workspaces/WorkspaceSwitcher.stories.tsx`   | Workspace switcher（並び・タブの無いワークスペース・空）         | 行は見本のデータ（アプリでは `gwsRows` が作る）。操作は `fn()`、名前の確かめは本物の `nameErrorText` |
+| `ui/main-window/workspaces/WorkspaceKindPicker.stories.tsx` | ワークスペースの種類（ターミナル・ブラウザ）を選ぶ Dialog                       | 選んだ・やめた（`fn()`）                                                                             |
+| `ui/main-window/sessions/InstallCard.stories.tsx`           | kisui を入れるかの確認の Dialog（初めて・失敗のあと）                           | 入れる・入れない（`fn()`）                                                                           |
 | `ui/main-window/sessions/MachineDialog.stories.tsx` | マシンのダイアログ（並び・名前をその場で変えている・断られたとき） | 行は見本のデータ（アプリでは `machineList.ts` が作る）。操作は `fn()` |
-| `ui/main-window/file-transfer/TransferDialog.stories.tsx` | ファイルの転送を許すかを聞く窓（手元のファイルを読む頼み：少ない・多い・ディレクトリと長いパス。手元に書く頼み） | 聞く中身は見本のデータ（聞く仕組みは本物の `askTransfer`） |
+| `ui/main-window/file-transfer/TransferDialog.stories.tsx` | ファイルの転送を許すかを聞く Dialog（手元のファイルを読む頼み：少ない・多い・ディレクトリと長いパス。手元に書く頼み） | 聞く中身は見本のデータ（聞く仕組みは本物の `askTransfer`） |
 | `ui/main-window/notifications/UpdateBar.stories.tsx`        | 新しい版の知らせ（ある・入れ替え中・失敗）                                 | 殻への頼み `UpdatesOs`（持ち物は本物の `createUpdates`）                                             |
 | `ui/modules/clipboard-history/HistoryPanel.stories.tsx`     | 履歴の一覧（一覧・貼る欄あり・空・読み込み中・読めない）                   | 履歴を読む頼み `ListClipboardHistory`                                                                |
-| `ui/utilities/clipboard/page.stories.tsx`                   | kisui-terminal の外から開く履歴の窓                                        | 殻への頼み `ClipboardPopupOs`、`ListClipboardHistory`                                                |
+| `ui/utilities/clipboard/page.stories.tsx`                   | kisui-terminal の外から開く履歴の Dialog                                        | 殻への頼み `ClipboardPopupOs`、`ListClipboardHistory`                                                |
 | `ui/main-window/sidebar/PaneBorder.stories.tsx` | サイドバーの段の境目（変える前・変えた後・並べて）。アプリと同じ CSS | — |
 | `ui/main-window/sidebar/db-tree/DbTree.stories.tsx` | DB のタブの木（既定のスキーマのテーブル・既定のスキーマが無い接続の 2 段・既定のスキーマを選ぶ一覧） | 一覧（`db.schema` の答え）は見本のデータ。操作は `fn()`、選んだスキーマは story の中で持つ |
 | `ui/main-window/content/proxy/ProxyPanel.stories.tsx` | プロキシのパネル（要求・応答・書き換える・止めている要求・狭い幅）。`…Narrowest` の stories は、パネルのいちばん狭い幅（280px）で英語と日本語（`…Ja`）を出し、出したあとに並び（`PanelBar.tsx`）がはみ出さない・ボタンの字が折れない・説明が細かく折り返さないことを確かめる（`play`。崩れていれば Storybook の Interactions とコンソールに失敗が出る） | 通信の一覧と中身は見本のデータ。操作は何もしない関数 |
@@ -82,7 +82,7 @@ Vite の設定は、根の `vite.config.ts` をそのまま読む（Solid の変
 | `storybook`              | 10.6.7 | 本体。Vite 8 に対応（`@storybook/builder-vite` 10.6.7 の peer は Vite 5〜8）        |
 | `storybook-solidjs-vite` | 10.7.4 | Solid の連携（コミュニティの保守）。peer は Solid 1.8 以上、Vite 5〜8、Storybook 10 |
 
-- `npm run storybook` で起動し、headless の Chromium で story を開いて、部品が出ること、上の道具で言語を切り替えると窓の文が英語と日本語で入れ替わることを確かめた。
+- `npm run storybook` で起動し、headless の Chromium で story を開いて、部品が出ること、上の道具で言語を切り替えると Dialog の文が英語と日本語で入れ替わることを確かめた。
 - `npm run build-storybook` が通り、`storybook-static/` を HTTP で出して、3 つの stories を英語・日本語で開き、アプリと同じ色・IBM Plex Sans JP・JetBrains Mono で出ることを画像で確かめた。
 - `tsc --noEmit`（`npm run build` の型の検査）は、stories と `.storybook/` も見る。
 - `storybook-solidjs-vite` は TypeScript 6（`@typescript/typescript6` が入れる `@typescript/old`）に頼る。これも `tsc` という名前のコマンドを持ち、`node_modules/.bin/tsc` が TypeScript 6 を指すことがある。そこで `package.json` の型の検査（`build`・`test`・`typecheck:extension`）は、`node node_modules/typescript/bin/tsc` と書いて、リポジトリの TypeScript 7 を使う。`npx tsc` は TypeScript 6 になることがあるので使わない。

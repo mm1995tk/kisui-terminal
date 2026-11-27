@@ -524,7 +524,7 @@ export function addBrowserWorkspace(
 }
 
 /**
- * タブの無い空のワークスペースを、並びの一番下に足す（切り替える窓の `n`。#330）。name は付ける名前（空なら番号の名前）。
+ * タブの無い空のワークスペースを、並びの一番下に足す（Workspace switcher の `n`。#330）。name は付ける名前（空なら番号の名前）。
  * 名前の決まりの検査は呼んだ側（nameErrorText）。
  */
 export function addEmptyWorkspace(

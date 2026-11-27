@@ -10,7 +10,7 @@ const machines: Machine[] = [
 ];
 const colors = { "user@web1.example": "#8fb4ff", build: "#e5b567" };
 
-describe("ssh の質問の窓に出すマシン（askpass.ts）", () => {
+describe("ssh の質問の Dialog に出すマシン（askpass.ts）", () => {
   it("名前を付けたマシンは、サイドバーに出る名前と ssh の行き先の両方を出す", () => {
     assert.deepEqual(askpassMachine(machines, colors, "user@web1.example"), {
       label: "本番",

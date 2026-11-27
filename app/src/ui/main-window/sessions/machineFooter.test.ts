@@ -41,7 +41,7 @@ const remote: MachineRow = {
 const shown = (rows: FooterRow[]) =>
   rows.map((r) => [r.title, r.items.map((i) => i.keys.join(" "))]);
 
-describe("machineDialogFooter（マシンのダイアログの下の段の今効く操作。#489）", () => {
+describe("machineDialogFooter（マシンのダイアログの Key footer の今効く操作。#489）", () => {
   afterEach(() => setLang("en"));
 
   it("全部効くマシンでは、選んでいるマシンの行に Enter n d x r t p P を、マシンの一覧の行に a を出す", () => {
@@ -173,7 +173,7 @@ describe("machineDialogFooter（マシンのダイアログの下の段の今効
     );
   });
 
-  it("下の段に出す操作は、どれも machineKey が受ける（案内と受けるキーがずれない）", () => {
+  it("Key footer に出す操作は、どれも machineKey が受ける（案内と受けるキーがずれない）", () => {
     for (const r of machineDialogFooter({
       renaming: false,
       selected: remote,
@@ -188,7 +188,7 @@ describe("machineDialogFooter（マシンのダイアログの下の段の今効
           );
   });
 
-  it("`?` の一覧の表の操作は、どこでも同じキーと g G（同じ操作の別のキー）を除き、どれも下の段に出る。Enter のほか、どこでも同じキーは出さない", () => {
+  it("`?` の一覧の表の操作は、どこでも同じキーと g G（同じ操作の別のキー）を除き、どれも Key footer に出る。Enter のほか、どこでも同じキーは出さない", () => {
     const probes = machineDialogFooter({
       renaming: false,
       selected: remote,
@@ -199,7 +199,7 @@ describe("machineDialogFooter（マシンのダイアログの下の段の今効
       for (const p of r.probes)
         if (!COMMON_KEYS.has(p) && !alt.has(p))
           assert.ok(probes.includes(p), `${r.keys}: ${p}`);
-    // Enter は、この窓ではタブを作る操作（選ぶ窓の「決める」ではない）なので出す
+    // Enter は、この Dialog ではタブを作る操作（選ぶ Dialog の「決める」ではない）なので出す
     for (const p of probes) assert.ok(p === "Enter" || !COMMON_KEYS.has(p), p);
   });
 });

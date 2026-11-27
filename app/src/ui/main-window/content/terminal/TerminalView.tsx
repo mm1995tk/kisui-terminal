@@ -135,7 +135,7 @@ export function TerminalView(props: {
           (kind) => {
             notifyCancels.delete(cancel);
             if (kind === "activated") {
-              // 欄を前に出す（窓は Rust 側が前に出す）。a=focus が無い通知は、欄を動かさない
+              // 欄を前に出す（Dialog は Rust 側が前に出す）。a=focus が無い通知は、欄を動かさない
               if (n.actions.focus) {
                 props.onFocus?.();
                 term.focus();

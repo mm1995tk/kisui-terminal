@@ -1,4 +1,4 @@
-// ワークスペースを切り替える窓（WorkspaceSwitcher.tsx）の右の列の、タブを作る操作：種類を選んでいる間の状態と、種類ごとの作る操作（ターミナルのタブを作る行・ブラウザのタブ・DB のタブ）。
+// Workspace switcher（WorkspaceSwitcher.tsx）の右の列の、タブを作る操作：種類を選んでいる間の状態と、種類ごとの作る操作（ターミナルのタブを作る行・ブラウザのタブ・DB のタブ）。
 import { createEffect, createSignal } from "solid-js";
 
 import type { Row } from "../../../features/workspaces/rows.ts";
@@ -6,15 +6,15 @@ import { newTabKinds, type NewTabChoice } from "./newTabKey.ts";
 
 /**
  * タブを作る操作（n・N・「＋」・リーダーの n）の状態と、決めたあとの操作を持つ（#456）。
- * まず種類を選ばせ（choosing。種類は窓の下の段のボタンと字で選ぶ。#487）、決めた種類ごとに、今ある作る操作へつなぐ：
- * ターミナルは名前とマシンの行（creating）、ブラウザ・シークレットはすぐ開く、DB は接続を選ぶ窓（呼んだ側が出す）。
+ * まず種類を選ばせ（choosing。種類は Dialog の Key footer のボタンと字で選ぶ。#487）、決めた種類ごとに、今ある作る操作へつなぐ：
+ * ターミナルは名前とマシンの行（creating）、ブラウザ・シークレットはすぐ開く、DB は接続を選ぶ Dialog（呼んだ側が出す）。
  * clearOthers は、ほかの入力欄・確認をやめる（この操作を始めるとき、ほかのものは残さない）。
  */
 export function createSwitcherNewTab(args: {
   selected: () => Row | undefined;
   /** 選んでいるワークスペースの id */
   sel: () => string | undefined;
-  /** その id のワークスペースがあるか（窓の外の理由で消えたら、種類を選ぶのも行もやめる） */
+  /** その id のワークスペースがあるか（Window の外の理由で消えたら、種類を選ぶのも行もやめる） */
   has: (gws: string) => boolean;
   /** タブを作れるマシン（つながっているマシン）の数 */
   machineCount: () => number;
@@ -27,7 +27,7 @@ export function createSwitcherNewTab(args: {
   ) => { error: string } | { key: Promise<string | undefined> };
   /** ブラウザのタブ（incognito ならシークレットのタブ）を開いて、その key を返す */
   openBrowser: (gws: string, incognito: boolean) => string | undefined;
-  /** DB のタブを作る（接続を選ぶ窓を出すのは、呼んだ側） */
+  /** DB のタブを作る（接続を選ぶ Dialog を出すのは、呼んだ側） */
   openDb: (gws: string) => void;
   /** マシンが 1 つも無い（できないことを、呼んだ側が伝える） */
   noMachine: () => void;
@@ -36,7 +36,7 @@ export function createSwitcherNewTab(args: {
   focusList: () => void;
   clearOthers: () => void;
 }) {
-  // 作るタブの種類を選んでいる間（gws はそのワークスペースの id。種類は窓の下の段のボタンと字で選ぶ）
+  // 作るタブの種類を選んでいる間（gws はそのワークスペースの id。種類は Dialog の Key footer のボタンと字で選ぶ）
   const [choosing, setChoosing] = createSignal<{ gws: string } | undefined>();
   // ターミナルのタブを作る行を出している間（gws はそのワークスペースの id、machine は初めに選んでおくマシン（無ければワークスペースのマシン）、error は断られた理由）
   const [creating, setCreating] = createSignal<
@@ -77,7 +77,7 @@ export function createSwitcherNewTab(args: {
       args.openDb(c.gws);
       return;
     }
-    // ブラウザのタブはすぐ開き、できたタブを右の列で選ぶ（窓は閉じない）
+    // ブラウザのタブはすぐ開き、できたタブを右の列で選ぶ（Dialog は閉じない）
     const key = args.openBrowser(c.gws, what === "incognito");
     if (key !== undefined && args.sel() === c.gws) args.pickTab(key);
     args.focusList();
@@ -106,12 +106,12 @@ export function createSwitcherNewTab(args: {
       startTerminal(r.gws, machine);
     },
     pick,
-    /** 種類を選ぶのだけをやめる（Esc。窓は閉じない） */
+    /** 種類を選ぶのだけをやめる（Esc。Dialog は閉じない） */
     cancel() {
       setChoosing(undefined);
       args.focusList();
     },
-    /** 名前とマシンを決めた。作れそうなら行を閉じ、できたタブを右の列で選ぶ（窓は閉じない）。断られたら、理由を出して行は開けたまま */
+    /** 名前とマシンを決めた。作れそうなら行を閉じ、できたタブを右の列で選ぶ（Dialog は閉じない）。断られたら、理由を出して行は開けたまま */
     submit(name: string, machine: string) {
       const c = creating();
       if (!c) return;

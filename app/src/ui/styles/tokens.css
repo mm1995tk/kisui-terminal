@@ -5,7 +5,7 @@
 :root {
   /* == 色：地と字と縁 == */
 
-  /* 窓の地。ターミナルとエディタの地と同じ */
+  /* Dialog の地。ターミナルとエディタの地と同じ */
   --color-bg: var(--gh-bg);
   /* 地から浮かせるもの（カード・知らせ）の地 */
   --color-surface: var(--gh-bg-raised);
@@ -15,7 +15,7 @@
   --color-border: var(--gh-border);
   /* 押せるもの・入力欄の縁 */
   --color-border-strong: var(--gh-border-strong);
-  /* 窓の地の上の本文 */
+  /* Dialog の地の上の本文 */
   --color-text: var(--gh-text);
   /* カードの中の字と見出し */
   --color-text-strong: var(--gh-text-strong);
@@ -29,7 +29,7 @@
   --color-accent-hover: var(--gh-accent-hover);
   /* accent の地の上の字 */
   --color-on-accent: var(--gh-on-accent);
-  /* 真ん中の窓の後ろを暗くする幕 */
+  /* 真ん中の Dialog の後ろを暗くする幕 */
   --color-backdrop: rgba(11, 12, 15, 0.6);
   /* 後ろを触れたまま重ねるもの（右下の知らせ）の影 */
   --shadow-raised: 0 8px 24px rgba(0, 0, 0, 0.5);
@@ -63,15 +63,15 @@
   --state-focus-ring-width: 2px;
   /* その枠と部品の間 */
   --state-focus-ring-offset: 2px;
-  /* 選択：窓の一覧で選んでいる行の地 */
+  /* 選択：Dialog の一覧で選んでいる行の地 */
   --state-selected-bg: var(--gh-bg-hover);
-  /* 選択：窓の一覧で選んでいる行の枠 */
+  /* 選択：Dialog の一覧で選んでいる行の枠 */
   --state-selected-outline: var(--gh-accent);
   /* 無効・処理中：押せないものの濃さ */
   --state-disabled-opacity: 0.5;
   /* 成功：済んだ・できた（意味だけを先に決めた。まだ使う部品は無い） */
   --state-success: var(--gh-green);
-  /* 警告：続けられるが気をつける。今は窓のエラーの字もこの色（未確定。design-system.md） */
+  /* 警告：続けられるが気をつける。今は Dialog のエラーの字もこの色（未確定。design-system.md） */
   --state-warning: var(--gh-yellow);
   /* 失敗：できなかった・壊す操作（意味だけを先に決めた。まだ使う部品は無い） */
   --state-danger: var(--gh-red);
@@ -116,7 +116,7 @@
   --text-body: 13px;
   /* 入力欄に打つ字 */
   --text-input: 14px;
-  /* 窓の見出し */
+  /* Dialog の見出し */
   --text-title: 16px;
   /* 本文の太さ */
   --weight-regular: 400;

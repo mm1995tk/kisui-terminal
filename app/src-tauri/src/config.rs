@@ -5,7 +5,7 @@
 //! `[[gui.machines]]` の一覧は、項目（マシン）ごとに重ねる。ssh の行き先（`ssh`）が同じ項目が両方にあれば、`config.local.toml` の項目が
 //! `config.toml` の項目に丸ごと代わる（項目の中のキーごとには重ねない。`config.toml` にだけ書いた `name` は引き継がない）。
 //! 片方にしかない項目は、どちらも残る。並びは `config.toml` の順で、そのあとに `config.local.toml` にだけある項目が続く。
-//! 窓が `config.local.toml` に 1 件足しても、`config.toml` の一覧が隠れないようにするため（kisui の `config/db.go` の `[[db.connections]]` も、
+//! Window が `config.local.toml` に 1 件足しても、`config.toml` の一覧が隠れないようにするため（kisui の `config/db.go` の `[[db.connections]]` も、
 //! 名前（`name`）ごとに同じように重ねる）。
 //! `config.local.toml` の空の一覧（`[gui] machines = []`）は、何も足さず、何も消さない。`config.toml` の項目を `config.local.toml` から消す書き方は無い。
 //! 重ねたあとの一覧で名前が重なったら、間違いにする（`config.local.toml` の行を指す）。どちらのファイルも無くてよい。
@@ -15,19 +15,19 @@
 //! `enabled` と同じく、書いてあるファイルのものを使い、両方にあれば `config.local.toml` が勝つ。
 //! 前の版の `passkey_browser`（移る先のブラウザを選んだ。#433 で Firefox だけにして外した）は、ほかの知らない項目と同じく読み飛ばす。
 //! `passkey_sites` に `.google.com`（先頭に `.`）の書き方で公開サフィックス（`.com`・`.github.io`）を書いた項目は、間違いにせず使わない
-//! （`passkey_rejected` に入れ、画面がお知らせに出す。ほかの項目は使う）。
+//! （`passkey_rejected` に入れ、画面が Notice に出す。ほかの項目は使う）。
 //! `[gui.sidebar] tabs-height`（タブの段の高さの上限。サイドバーの高さに対する %。10〜90 の整数。#284）も、書いてあるファイルのものを使い、両方にあれば `config.local.toml` が勝つ。
-//! `[gui.shortcuts]`（近道。`"Ctrl+Shift+N" = "workspace.new"` のように、キー = コマンドの名前）は、キーごとに重ね、同じキーは `config.local.toml` が勝つ。
-//! キーの書き方とコマンドの名前が使えるかは、画面側が確かめる（間違いはお知らせに出し、起動は止めない）。
-//! 窓が設定を書くときは `config.local.toml` に書く（`config.toml` は home-manager が読み取り専用で置くことがある）。
+//! `[gui.shortcuts]`（Shortcut。`"Ctrl+Shift+N" = "workspace.new"` のように、キー = コマンドの名前）は、キーごとに重ね、同じキーは `config.local.toml` が勝つ。
+//! キーの書き方とコマンドの名前が使えるかは、画面側が確かめる（間違いは Notice に出し、起動は止めない）。
+//! Window が設定を書くときは `config.local.toml` に書く（`config.toml` は home-manager が読み取り専用で置くことがある）。
 //! `[[gui.machines]]` の項目の `start_dir` と `shell`（そのマシンの新しいターミナルが始まるフォルダとシェル。#485）は、そのマシンでのパスで、
 //! 手元では有るかを確かめられないので、形だけを確かめる（`start_dir` は絶対パスか `~`・`~/…`、`shell` は絶対パスか `~/…`。制御文字は書けない）。
 //! 手元のマシンの分は `[server] start_dir` と `[server] shell`（kisui と同じ項目。`[server]` はキーごとに重ね、`config.local.toml` が勝つ）。
 //! `[[gui.machines]]` の項目の `allow_pane_to`（そのマシンのペインが `kisui pane --machine` で指してよいマシンの名前。`local` は手元の PC）は、
 //! 名前の一覧で、省くと空（そのマシンからは、ほかのどのマシンにも届かない）。ここでは空の名前だけを断り、その名前のマシンがあるかは画面が見る
 //! （app/src/features/sessions/machines.ts の `paneRelayAllowed`・`unknownAllowPaneTo`）。項目は丸ごと代わるので、`config.toml` にだけ書いた
-//! `allow_pane_to` は、`config.local.toml` に同じ ssh の行き先の項目があれば引き継がない（`name` と同じ）。窓はこのキーを書かない。
-//! 窓は、新しいターミナルを作るたびに設定を読み直し、そのマシンの `kisui serve` に渡す（app/src/features/sessions/termDefaults.ts）。
+//! `allow_pane_to` は、`config.local.toml` に同じ ssh の行き先の項目があれば引き継がない（`name` と同じ）。Window はこのキーを書かない。
+//! Window は、新しいターミナルを作るたびに設定を読み直し、そのマシンの `kisui serve` に渡す（app/src/features/sessions/termDefaults.ts）。
 //! `[server]` を確かめるのは kisui（`config/config.go`。間違いがあれば `kisui serve` が起動せず、理由を出す）なので、ここでは
 //! 文字列でない値・形の違う値を、書いていないのと同じに扱う（間違いにしない）。
 //! GUI が読むのはこの節と `[gui] mascot`（リーダーの案内を運ぶキャラクターの名前。mascot.rs）、`[server]` の上の 2 つだけ。ほかの節と `[server]` のほかの項目は kisui が読む。
@@ -56,7 +56,7 @@ pub struct ConfigMachine {
     /// サイドバーに出す名前。省くと ssh の行き先
     pub name: Option<String>,
     /// `config.local.toml` の項目か（両方のファイルにあれば true。`config.local.toml` の項目が代わっている）。
-    /// 窓が書き換えられるのは、これが true のマシンだけ（`config.toml` には書かない）
+    /// Window が書き換えられるのは、これが true のマシンだけ（`config.toml` には書かない）
     pub local: bool,
     /// このマシンの新しいターミナルが始まるフォルダとシェル（`start_dir`・`shell`）
     #[serde(flatten)]
@@ -109,7 +109,7 @@ struct Gui {
     machines: Option<Vec<Entry>>,
     /// 内蔵ブラウザ（#202）
     browser: Option<Browser>,
-    /// 近道（キー = コマンドの名前）
+    /// Shortcut（キー = コマンドの名前）
     shortcuts: Option<BTreeMap<String, String>>,
     /// サイドバー（#284）
     sidebar: Option<Sidebar>,
@@ -144,10 +144,10 @@ pub struct GuiConfig {
     /// パスキーのときに外のブラウザへ移ってよいサイト（`[gui.browser] passkey_sites`。殻だけが使う）
     #[serde(skip)]
     pub passkey_sites: Vec<String>,
-    /// `passkey_sites` に書いたが、公開サフィックスなので使わない項目（`.com` など。書いた形のまま。画面がお知らせに出す）
+    /// `passkey_sites` に書いたが、公開サフィックスなので使わない項目（`.com` など。書いた形のまま。画面が Notice に出す）
     #[serde(rename = "passkeyRejected")]
     pub passkey_rejected: Vec<String>,
-    /// 設定で足した近道（`[gui.shortcuts]`。キーの順）
+    /// 設定で足した Shortcut（`[gui.shortcuts]`。キーの順）
     pub shortcuts: Vec<ConfigShortcut>,
     /// タブの段の高さの上限の元の値（`[gui.sidebar] tabs-height`。サイドバーの高さに対する %）。書いていなければ None（画面が 40 にする）
     #[serde(rename = "sidebarTabsHeight")]
@@ -157,12 +157,12 @@ pub struct GuiConfig {
     pub local_terminal: TermDefaults,
 }
 
-/// 設定ファイルに書いた近道 1 つ。
+/// 設定ファイルに書いた Shortcut 1 つ。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ConfigShortcut {
     /// キー（`Ctrl+Shift+N` など。書き方は画面側が読む）
     pub key: String,
-    /// コマンドの名前（`workspace.new`、引数があれば `pane.focus:right`、既定の近道を消すなら `none`）
+    /// コマンドの名前（`workspace.new`、引数があれば `pane.focus:right`、既定の Shortcut を消すなら `none`）
     pub command: String,
     /// どのファイルに書いたか（0 が `config.toml`、1 が `config.local.toml`）。同じキーを別の書き方（大文字小文字など）で両方に書いたとき、画面が後のものを勝たせる
     pub source: u8,
@@ -279,7 +279,7 @@ pub fn load_gui(dir: &Path) -> Result<GuiConfig, String> {
 }
 
 /// `config.local.toml` の中身を `local_text` にしたときの、重ねたあとの設定。`config.toml` は今あるものを読む。
-/// 窓が `config.local.toml` を書く前に、これで確かめる（間違いのある設定を書くと、次の起動で窓が出ない）。
+/// Window が `config.local.toml` を書く前に、これで確かめる（間違いのある設定を書くと、次の起動で Window が出ない）。
 pub(crate) fn load_with_local(dir: &Path, local_text: &str) -> Result<GuiConfig, String> {
     let [base, local] = FILES;
     overlay(
@@ -326,7 +326,7 @@ fn overlay(dir: &Path, files: [Result<Parsed, String>; 2]) -> Result<GuiConfig, 
                 if t.shell.is_some() {
                     out.local_terminal.shell = t.shell;
                 }
-                // 近道はキーごとに重ねる（同じキーは後のファイルが勝つ）
+                // Shortcut はキーごとに重ねる（同じキーは後のファイルが勝つ）
                 if let Some(m) = p.shortcuts {
                     shortcuts.extend(m.into_iter().map(|(k, c)| (k, (c, source as u8))));
                 }
@@ -506,11 +506,11 @@ pub fn write_mascot_name(dir: &Path, name: &str) -> Result<(), String> {
     })
 }
 
-/// `config.local.toml` を読み、`edit` で書き換えて、書き戻す（窓が設定を書く処理は、どれもここを通す）。
+/// `config.local.toml` を読み、`edit` で書き換えて、書き戻す（Window が設定を書く処理は、どれもここを通す）。
 /// `edit` には、読んだ中身（コメント・並びを持ったまま）と、ファイルのパス（間違いの文に使う）を渡す。
 /// ファイルが無ければ空の中身から始め、設定のフォルダごと作る。読めない・TOML として壊れているファイルは、上書きせずに Err を返す。
 /// `edit` が Err を返したら、何も書かない。
-/// 読んでから書くまでの間に、この窓のほかの書き込みが挟まらないよう、1 つずつ行う。
+/// 読んでから書くまでの間に、この Window のほかの書き込みが挟まらないよう、1 つずつ行う。
 pub(crate) fn edit_local<E: From<String>>(
     dir: &Path,
     edit: impl FnOnce(&mut toml_edit::DocumentMut, &Path) -> Result<(), E>,

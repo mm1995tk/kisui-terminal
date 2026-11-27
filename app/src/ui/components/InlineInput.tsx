@@ -1,4 +1,4 @@
-// その場の入力欄。一覧の行の名前を、窓を出さずにその行の中で入力欄にして変える（ワークスペース・タブ・マシンの名前、ファイルツリーの名前）。
+// その場の入力欄。一覧の行の名前を、Dialog を出さずにその行の中で入力欄にして変える（ワークスペース・タブ・マシンの名前、ファイルツリーの名前）。
 // Enter で onSubmit、Esc で onCancel(true)、フォーカスが外れたら onCancel(false)。断られたら、呼んだ側が error を渡し、入力欄は開けたままにする。
 // キーは入力欄の外に伝えない（一覧のキー j・k などが、打った字で動かないように）。リーダーのキーは window で先に受けるので、そのまま効く。
 import { Show, type JSX } from "solid-js";
@@ -48,7 +48,7 @@ export function InlineInput(props: {
           else props.onCancel(true);
         }}
         onBlur={() => {
-          // ほかのアプリに切り替えただけ（窓が外れた）では、打ちかけの名前を消さない
+          // ほかのアプリに切り替えただけ（Dialog が外れた）では、打ちかけの名前を消さない
           if (document.hasFocus()) props.onCancel(false);
         }}
         ref={(el) =>

@@ -13,7 +13,7 @@ export type TransferInfo =
       direction: "read";
       /**
        * 許すと相手に渡る項目の全部（ディレクトリは、中のファイルとディレクトリも 1 つずつ入っている）。
-       * 窓は省かずに全部並べる。ここに無いものは読まれない
+       * Dialog は省かずに全部並べる。ここに無いものは読まれない
        */
       items: ReadItem[];
       /** 普通のファイルの数と大きさの合計 */
@@ -21,7 +21,7 @@ export type TransferInfo =
       totalSize: number;
     };
 
-/** 許可の窓に並べる、読んで送る項目 1 つ（transfer.ts の readInfo が作る）。 */
+/** 許可の Dialog に並べる、読んで送る項目 1 つ（transfer.ts の readInfo が作る）。 */
 export interface ReadItem {
   /** 手元の絶対パス */
   path: string;

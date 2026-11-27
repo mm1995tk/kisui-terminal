@@ -24,7 +24,7 @@ const tab = (over: Partial<BrowserTab> = {}): BrowserTab => ({
 const why = (t: BrowserTab) =>
   Object.fromEntries(browserWindowRows(t).map((r) => [r.key, r.why ?? ""]));
 
-describe("ブラウザのタブの窓の行（#459）", () => {
+describe("ブラウザのタブの Dialog の行（#459）", () => {
   it("行は o のグループの字を引き継ぎ、上から 戻る・進む・読み込み直す・止める・URL・コピー・外部・ログイン・検索・足す・一覧・開発者ツール", () => {
     assert.deepEqual(
       browserWindowRows(tab()).map((r) => r.key),
@@ -53,7 +53,7 @@ describe("ブラウザのタブの窓の行（#459）", () => {
     assert.equal(w.c, "");
   });
 
-  it("新しいタブのページ：URL（検索窓へ）とブックマークの一覧のほかは、まだページが無い", () => {
+  it("新しいタブのページ：URL（検索欄へ）とブックマークの一覧のほかは、まだページが無い", () => {
     const w = why(tab({ url: "", title: "" }));
     assert.equal(w.u, "");
     assert.equal(w.B, "");
@@ -100,7 +100,7 @@ describe("選ぶ行", () => {
   });
 });
 
-describe("窓の上の印と見出し", () => {
+describe("Dialog の上の印と見出し", () => {
   it("シークレット・読み込み中・読み込めなかった・通信を記録中・表示の大きさ", () => {
     assert.deepEqual(browserWindowMarks(tab()), []);
     assert.deepEqual(

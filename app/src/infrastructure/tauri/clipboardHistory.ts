@@ -1,4 +1,4 @@
-// クリップボードの履歴（#54）と、kisui-terminal の外から開く履歴の窓（#95）の、Tauri の殻の命令と知らせ。
+// クリップボードの履歴（#54）と、kisui-terminal の外から開く履歴の Dialog（#95）の、Tauri の殻の命令と知らせ。
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 

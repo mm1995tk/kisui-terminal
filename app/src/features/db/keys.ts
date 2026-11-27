@@ -17,7 +17,7 @@ export type DbEditorAction = "run" | "runNew" | "cancel";
  * SQL の入力欄で押したキー e の動き（無ければ null。入力欄にそのまま字が入る）。
  * - Cmd+Enter（macOS）・Ctrl+Enter（ほか）：実行する（ほかのクライアントと同じ。Enter だけは改行）
  * - Cmd+Option+Enter（macOS）・Ctrl+Shift+Enter（ほか）：実行して、新しい結果のタブに出す（#404）。macOS で Shift でないのは、
- *   Cmd+Shift+Enter が、プライマリ以外のペインを隠す近道で、入力欄に届く前に窓が受けるため
+ *   Cmd+Shift+Enter が、プライマリ以外のペインを隠す Shortcut で、入力欄に届く前に Dialog が受けるため
  * - Esc：実行している SQL を取り消す（実行していなければ何もしない。呼ぶ側が決める）
  * かな漢字変換の確定・取り消しのキーは受けない。
  */
@@ -137,14 +137,16 @@ export function dbTreeFilterKey(e: KeyLike): "tree" | null {
   return null;
 }
 
-/** 履歴の窓（#349）のキーの動き。 */
+/** 履歴の Dialog（#349）のキーの動き。 */
 export type DbHistoryKey =
-  { kind: "step"; step: 1 | -1 } | { kind: "choose" } | { kind: "help" };
+  | { kind: "step"; step: 1 | -1 }
+  | { kind: "choose" }
+  | { kind: "help" };
 
 /**
- * 履歴の窓（絞り込みの入力欄にキーがある）で押したキー e の動き（当たらなければ null。入力欄に字を打つ）。
+ * 履歴の Dialog（絞り込みの入力欄にキーがある）で押したキー e の動き（当たらなければ null。入力欄に字を打つ）。
  * ↓ ↑・Ctrl+J / Ctrl+K で選ぶ行を動かし（入力欄に字を打つので、j k は使えない）、Enter で選んだ SQL を入力欄に入れる。
- * `?` は、helpOn（絞り込みが空）のときだけキーの一覧を出す（打っている途中の `?` は、探す字として入力欄に入れる）。Esc は窓が受ける。
+ * `?` は、helpOn（絞り込みが空）のときだけキーの一覧を出す（打っている途中の `?` は、探す字として入力欄に入れる）。Esc は Dialog が受ける。
  */
 export function dbHistoryKey(e: KeyLike, helpOn: boolean): DbHistoryKey | null {
   if (isComposingKey(e)) return null;
@@ -159,9 +161,9 @@ export function dbHistoryKey(e: KeyLike, helpOn: boolean): DbHistoryKey | null {
 }
 
 /**
- * 権限を強める窓（#383。時間の入力欄にキーがある）で押したキー e の動き（当たらなければ null。入力欄に字を打つ）。
- * ↓ ↑・Ctrl+J / Ctrl+K で強める権限を選び（入力欄に字を打つので、j k は使えない）、Enter で強める。Esc は窓が受ける。
- * 入力欄にはいつも時間が入っているので、`?` の一覧は無い（キーは窓の下の段に全部出ている）。
+ * 権限を強める Dialog（#383。時間の入力欄にキーがある）で押したキー e の動き（当たらなければ null。入力欄に字を打つ）。
+ * ↓ ↑・Ctrl+J / Ctrl+K で強める権限を選び（入力欄に字を打つので、j k は使えない）、Enter で強める。Esc は Dialog が受ける。
+ * 入力欄にはいつも時間が入っているので、`?` の一覧は無い（キーは Dialog の Key footer に全部出ている）。
  */
 export function dbElevateKey(
   e: KeyLike,

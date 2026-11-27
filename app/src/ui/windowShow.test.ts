@@ -1,13 +1,13 @@
-// 窓（ユーザーの答えを待つダイアログ）とメニューの <Show> は keyed にそろえる（#272）。
-// keyed でない <Show> の子が受け取るのはアクセサで、窓を閉じた（when を偽にした）あとに読むと
-// Solid が「Stale read from <Show>.」を投げる。窓を閉じてから値を使う操作（選ぶ・閉じる・名前を変える）で
-// この順番を窓ごとに手で守る作りは、#162 と #272 で 2 回壊れた。
+// Dialog（ユーザーの答えを待つダイアログ）とメニューの <Show> は keyed にそろえる（#272）。
+// keyed でない <Show> の子が受け取るのはアクセサで、Dialog を閉じた（when を偽にした）あとに読むと
+// Solid が「Stale read from <Show>.」を投げる。Dialog を閉じてから値を使う操作（選ぶ・閉じる・名前を変える）で
+// この順番を Dialog ごとに手で守る作りは、#162 と #272 で 2 回壊れた。
 // keyed なら子が受け取るのは値そのもので、閉じたあとでも読める。
 //
 // このテストは、app/src の .tsx の <Show when={x()}> のうち、子が関数で、setX(null)
 // （その signal を空にして閉じる操作）があるものが、すべて keyed であることを確かめる。
 // 閉じる操作は、同じファイルにあるものと、機能の持ち物（features/ の .ts）にあるものの両方を見る
-// （窓を出しているかは features/ の controller が持ち、画面はその名前のまま取り出して使う。例：
+// （Dialog を出しているかは features/ の controller が持ち、画面はその名前のまま取り出して使う。例：
 // features/workspaces/controller.ts の confirmClose を、ui/main-window/workspaces/WorkspaceDialogs.tsx が出す）。
 // 画面で別の名前に付け替えると見つけられないので、付け替えない。
 // 出している間に値が変わる表示（リーダーのメニューの道筋、マスコットの絵など）は、閉じる操作を
@@ -55,7 +55,7 @@ function whenOf(tag: string): string {
 }
 
 /**
- * 窓の形に当たるが、窓ではないもの（ファイル → when の式 → 理由）。
+ * Window の形に当たるが、Dialog ではないもの（ファイル → when の式 → 理由）。
  * 出している間に値が変わり続ける表示で、keyed にすると変わるたびに作り直してしまう。
  */
 const NOT_WINDOWS: Record<string, Record<string, string>> = {
@@ -65,7 +65,7 @@ const NOT_WINDOWS: Record<string, Record<string, string>> = {
 };
 
 /**
- * src の中の、窓の形（when={x()} で、setX(null) で閉じる）なのに keyed でない <Show> の開きタグ。
+ * src の中の、Window の形（when={x()} で、setX(null) で閉じる）なのに keyed でない <Show> の開きタグ。
  * 閉じる操作は src と、closers（機能の持ち物のソース）の中から探す。
  */
 function unkeyedWindows(
@@ -84,7 +84,7 @@ function unkeyedWindows(
   });
 }
 
-describe("窓の <Show>", () => {
+describe("Dialog の <Show>", () => {
   it("開きタグを、when の中の > に惑わされずに切り出す", () => {
     const tags = functionChildShows(
       `<Show when={a() > 0} keyed>{(v) => v}</Show><Show when={b()}><p /></Show>`,
@@ -116,7 +116,7 @@ describe("窓の <Show>", () => {
   const root = new URL("../", import.meta.url);
   const all = readdirSync(root, { recursive: true, encoding: "utf8" });
   const files = all.filter((f) => f.endsWith(".tsx")).sort();
-  // 窓を出しているかを持つ、機能の持ち物（features/ の .ts。テストは除く）
+  // Dialog を出しているかを持つ、機能の持ち物（features/ の .ts。テストは除く）
   const featureFiles = all
     .filter((f) => /^features\/.*\.ts$/.test(f) && !/\.test\.ts$/.test(f))
     .sort();
@@ -132,7 +132,7 @@ describe("窓の <Show>", () => {
   });
 
   for (const file of files) {
-    it(`${file} の、窓の <Show> は keyed`, () => {
+    it(`${file} の、Dialog の <Show> は keyed`, () => {
       const src = readFileSync(new URL(file, root), "utf8");
       assert.deepEqual(unkeyedWindows(src, NOT_WINDOWS[file], closers), []);
     });

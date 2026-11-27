@@ -1,4 +1,4 @@
-// DB のタブの窓（リーダーの `a`。DbWindow.tsx。#458）の中のキー。
+// DB のタブの Dialog（リーダーの `a`。DbWindow.tsx。#458）の中のキー。
 // 画面の仕組み（Solid）に依らないので、node --test で確かめる。決まりは docs/key-design.md。
 
 import { isComposingKey } from "../../../features/commands/ime.ts";
@@ -9,11 +9,11 @@ import {
 } from "../../../features/commands/placeKeys.ts";
 import { T } from "../../../i18n/index.ts";
 
-/** 窓の中のキーが表す動き。select・show・close・view・page・export は、一覧で選んでいる結果のタブに行う。ほかは DB のタブ全体に行う。 */
+/** Dialog の中のキーが表す動き。select・show・close・view・page・export は、一覧で選んでいる結果のタブに行う。ほかは DB のタブ全体に行う。 */
 export type DbWindowKey =
   /** 選ぶ結果のタブを、1 つ下（1）・上（-1）へ動かす */
   | { kind: "select"; step: 1 | -1 }
-  /** 選んでいる結果のタブを出して、窓を閉じる */
+  /** 選んでいる結果のタブを出して、Dialog を閉じる */
   | { kind: "show" }
   /** 選んでいる結果のタブを閉じる */
   | { kind: "close" }
@@ -23,24 +23,24 @@ export type DbWindowKey =
   | { kind: "page"; step: "next" | "prev" }
   /** 実行している SQL を取り消す */
   | { kind: "cancel" }
-  /** 選んでいる結果のタブを出し、書き出しの窓を開く */
+  /** 選んでいる結果のタブを出し、書き出しの Dialog を開く */
   | { kind: "export" }
   /** サイドバーのスキーマの木にキーを向ける */
   | { kind: "tree" }
   /** スキーマの木とテーブルの構造を読み直す */
   | { kind: "refresh" }
-  /** この接続の SQL の履歴の窓を開く */
+  /** この接続の SQL の履歴の Dialog を開く */
   | { kind: "history" }
-  /** 権限を時間を決めて強める窓を開く */
+  /** 権限を時間を決めて強める Dialog を開く */
   | { kind: "elevate" }
   /** 強めている権限を全部元に戻す */
   | { kind: "elevateEnd" }
-  /** この窓のキーの一覧を出す（`?`） */
+  /** この Dialog のキーの一覧を出す（`?`） */
   | { kind: "help" };
 
 /**
- * 窓の中のキー（字を打つ入力欄は無いので、字をそのまま使える。Esc は ModalCard が閉じるのに使う）。
- * 選ぶのは、ほかの窓と同じ j k（矢印も）。ほかの字は、#458 までのリーダーの `d` のグループの字を引き継ぐ（t r e h s x p P）。
+ * Dialog の中のキー（字を打つ入力欄は無いので、字をそのまま使える。Esc は ModalCard が閉じるのに使う）。
+ * 選ぶのは、ほかの Dialog と同じ j k（矢印も）。ほかの字は、#458 までのリーダーの `d` のグループの字を引き継ぐ（t r e h s x p P）。
  * ページは、j k が選ぶになったので f b（forward・back。less・vim のページ送りの字）。
  * Alt・Cmd・Ctrl を重ねたものと、変換中のキーは受けない。Shift は、字で見分ける（P と ?）。
  */
@@ -84,7 +84,7 @@ export function dbWindowKey(e: KeyLike): DbWindowKey | null {
   return null;
 }
 
-/** 窓の下の段を決める、窓の今の状態。 */
+/** Dialog の Key footer を決める、Dialog の今の状態。 */
 export interface DbWindowState {
   /** 結果のタブを選んでいるか（結果のタブが 1 つも無ければ false） */
   selected: boolean;
@@ -101,10 +101,10 @@ export interface DbWindowState {
 }
 
 /**
- * 窓の下の段（共通フッタ）に出す、今効く操作。「選んでいるタブ」と「この DB のタブ」の 2 行。
- * 効かない操作は出さない。どの窓でも同じ意味のキー（j k・Enter・Esc・`?`）は出さない（h は、この窓では履歴なので出す）。
+ * Dialog の Key footer（共通フッタ）に出す、今効く操作。「選んでいるタブ」と「この DB のタブ」の 2 行。
+ * 効かない操作は出さない。どの Dialog でも同じ意味のキー（j k・Enter・Esc・`?`）は出さない（h は、この Dialog では履歴なので出す）。
  * キーと probes は `?` の一覧の表（placeKeys.ts の dbWindow）から引く（placeItem）。dbWindowKey.test.ts が、出す操作を判定が受けることと、
- * 表の操作がどれも、どこかの状態で下の段に出ることを確かめる。
+ * 表の操作がどれも、どこかの状態で Key footer に出ることを確かめる。
  */
 export function dbWindowFooter(s: DbWindowState): FooterRow[] {
   const item = (keys: string, label: Parameters<typeof T>[0]) =>

@@ -1,6 +1,6 @@
-// ssh の質問（パスワード・認証コード・ホスト鍵の確認）を出す窓。見た目は窓のカード（ui/components/Card.tsx）。
+// ssh の質問（パスワード・認証コード・ホスト鍵の確認）を出す Dialog。見た目は Dialog のカード（ui/components/Card.tsx）。
 // 質問の文は、つなぎ先のサーバーが決められる。別のマシンの質問と取り違えないよう、どのマシンへの接続の質問かを
-// 見出しの段に出し（窓が知っている名前と色。サーバーは変えられない）、質問の文は中身の段の枠の中に等幅で出す。
+// 見出しの段に出し（Dialog が知っている名前と色。サーバーは変えられない）、質問の文は中身の段の枠の中に等幅で出す。
 import { T } from "../../../i18n/index.ts";
 import { createSignal, Show, type JSX } from "solid-js";
 
@@ -16,7 +16,7 @@ import type { AskpassRequest } from "../../../features/sessions/shell.ts";
 import { Field, Input } from "../../components/Field.tsx";
 import styles from "./AskpassDialog.module.css";
 
-/** 入力欄の form。下の段の OK（form の外）が、この id で送る */
+/** 入力欄の form。Key footer の OK（form の外）が、この id で送る */
 const FORM_ID = "askpass-form";
 
 /**

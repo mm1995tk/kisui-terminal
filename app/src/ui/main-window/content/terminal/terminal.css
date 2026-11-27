@@ -1,12 +1,12 @@
 /* ターミナルのカード（F1・F4）。親 #271 のモック（案：フラットな一覧）の余白に合わせる（色は theme.css の GitHub Dark）。
    欄は分割の木（grid.ts）の通りに、カードの中に絶対位置で置く（位置は TerminalGrid が決める）。
-   欄の間は GAP（grid.ts。6px）の隙間で、真ん中に 1px の線を引く。境界のつまみ（.terminal-bar）はこの隙間にだけ置き、端末の字の上には重ねない。並べたときは、今使っている欄（フォーカス）だけに
+   欄の間は GAP（grid.ts。6px）の隙間で、真ん中に 1px の線を引く。Pane border のつまみ（.terminal-bar）はこの隙間にだけ置き、端末の字の上には重ねない。並べたときは、今使っている欄（フォーカス）だけに
    マシンの色（D4）の枠の線を引き、プライマリの欄は角の印で示す。タブ（見出しの帯）は作らない。
    置き場所は app.css が決める（右の欄いっぱい）。 */
 .terminal {
   position: relative;
-  /* 自分だけの重なりの順をつくる。境界のつまみ（.terminal-bar、z-index 5）が外の順に混ざると、DB のタブ・ブラウザのページ・
-     空のワークスペースの画面（z-index 4）の上に、分割の線が窓の端まで突き出る（#420） */
+  /* 自分だけの重なりの順をつくる。Pane border のつまみ（.terminal-bar、z-index 5）が外の順に混ざると、DB のタブ・ブラウザのページ・
+     空のワークスペースの画面（z-index 4）の上に、分割の線が Dialog の端まで突き出る（#420） */
   isolation: isolate;
   box-sizing: border-box;
   min-height: 0;
@@ -14,7 +14,7 @@
   border-top: 1px solid var(--gh-border);
 }
 
-/* 欄どうしの境界のつまみ（#18）。当たりは隙間いっぱい。見える線は真ん中の 1px で、ドラッグ中とリサイズモードで選んだ境界は
+/* 欄どうしの Pane border のつまみ（#18）。当たりは隙間いっぱい。見える線は真ん中の 1px で、ドラッグ中とリサイズモードで選んだ Pane border は
    マシンの色（--machine-color。ui/main-window/layout.tsx が .app に入れる）で光らせる */
 .terminal-bar {
   position: absolute;
@@ -109,7 +109,7 @@
 }
 
 /* タブを切り替えた直後、新しいタブのペインが描けるまで残している前のタブのペイン（createHold.ts）。新しいペインの上に重ねる。
-   境界のつまみも、その間は前のタブのものを見せるだけで、押せない（押すと .terminal に当たり、今のペインにキーを向ける） */
+   Pane border のつまみも、その間は前のタブのものを見せるだけで、押せない（押すと .terminal に当たり、今のペインにキーを向ける） */
 .terminal-cell[data-leaving],
 .terminal-bar[data-leaving] {
   pointer-events: none;

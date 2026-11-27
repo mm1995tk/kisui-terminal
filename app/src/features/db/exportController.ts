@@ -14,11 +14,11 @@ import {
   type SaveTextFile,
 } from "./export.ts";
 
-/** 書き出しの窓に出すもの。 */
+/** 書き出しの Dialog に出すもの。 */
 export interface DbExportAsk {
   /** 書き出すタブ */
   tab: string;
-  /** 結果の行数（窓の見出しに出す） */
+  /** 結果の行数（Dialog の見出しに出す） */
   rows: number;
   /** 結果が上限で切れている（rows に入っていない行がある） */
   truncated: boolean;
@@ -26,7 +26,7 @@ export interface DbExportAsk {
   truncatedCells: boolean;
 }
 
-/** 書き出しの持ち物を作る。窓（どの形・どこへ）を開ける・決める・やめるを受け持つ。 */
+/** 書き出しの持ち物を作る。Dialog（どの形・どこへ）を開ける・決める・やめるを受け持つ。 */
 export function createDbExport(deps: {
   refOf: (id: string) => DbRef | undefined;
   /** タブ id の最後の結果（無ければ undefined） */
@@ -44,7 +44,7 @@ export function createDbExport(deps: {
 }) {
   const [ask, setAsk] = createSignal<DbExportAsk | null>(null);
 
-  /** タブ id の結果を書き出す窓を出す。書き出せる結果が無ければ出さず false。 */
+  /** タブ id の結果を書き出す Dialog を出す。書き出せる結果が無ければ出さず false。 */
   function openExport(id: string): boolean {
     const r = deps.resultOf(id);
     if (!deps.refOf(id) || !isExportable(r)) return false;
@@ -57,13 +57,13 @@ export function createDbExport(deps: {
     return true;
   }
 
-  /** 窓をやめる（キーを今のペインに戻す）。 */
+  /** Dialog をやめる（キーを今のペインに戻す）。 */
   function closeExport() {
     setAsk(null);
     deps.focusTerminal();
   }
 
-  /** 窓で決めた：窓を閉じて、その形でその書き出し先へ書き出す。 */
+  /** Dialog で決めた：Dialog を閉じて、その形でその書き出し先へ書き出す。 */
   async function chooseExport(c: ExportChoice) {
     const a = untrack(ask);
     setAsk(null);

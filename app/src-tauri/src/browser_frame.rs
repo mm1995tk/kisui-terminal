@@ -1,25 +1,25 @@
-//! 内蔵ブラウザのタブのページ（子の webview）を、窓のどこに置くか。座標の扱いは、すべてここで決める（#442）。
+//! 内蔵ブラウザのタブのページ（子の webview）を、Window のどこに置くか。座標の扱いは、すべてここで決める（#442）。
 //!
 //! 画面（メインの webview の DOM）は、ページを出す四角を「viewport の左上からの論理ピクセル」で測り、測ったときの
-//! viewport の大きさと一緒に渡す（`Placement`。`browser_open`・`browser_bounds`）。ここは、それを窓の中の場所に直して置く。
+//! viewport の大きさと一緒に渡す（`Placement`。`browser_open`・`browser_bounds`）。ここは、それを Window の中の場所に直して置く。
 //!
 //! macOS の決まり（`mac`）:
-//! - **数える座標**は、窓の座標（原点は窓の左下、y は上向き。点）。画面の view の枠も、ページの view の枠も、いったん窓の座標に
+//! - **数える座標**は、Window の座標（原点は Window の左下、y は上向き。点）。画面の view の枠も、ページの view の枠も、いったん Window の座標に
 //!   直してから比べる。view の親がどれか・親の高さがいくつか・親の向き（flipped か）には頼らない
 //!   （wry の `set_position`・`set_size` は「親の view の高さ」から数えるので、macOS では使わない）。
-//! - **DOM の原点**（viewport が窓のどこにあるか）は、画面の view の枠と、画面が測った viewport の大きさから決める。
+//! - **DOM の原点**（viewport が Window のどこにあるか）は、画面の view の枠と、画面が測った viewport の大きさから決める。
 //!   viewport は view の左下に付いていて、view の方が大きい分（`Excess`）は、上と右の余白と見る（WebKit が中身を下げるのは
 //!   上からだけ。タイトルバーの下に入った分など）。大きさが同じなら、viewport は view の枠そのもの。
 //!   view の安全な領域（`safeAreaInsets`）は、WebKit が中身を下げるとは限らないので、決めるのには使わない（ログに出すだけ）。
-//! - **ページの四角**は、viewport の 4 辺からの余白で持つ（`page_in_window`）。窓の形が変わって画面の view の枠が変わると、
+//! - **ページの四角**は、viewport の 4 辺からの余白で持つ（`page_in_window`）。Window の形が変わって画面の view の枠が変わると、
 //!   viewport も同じだけ変わるものとして、余白を保ったまま置き直す。置き直すのは、画面の view の枠が変わったという AppKit の
 //!   知らせ（`NSViewFrameDidChangeNotification`）を受けたとき。画面からの送り直しも、待ち時間も要らない。
 //!   画面が測り直した場所は、そのあとで届いて、同じ決まりで置き直される。
-//!   窓の端をドラッグしている間に届いた場所では、余白を決め直さない（測ってから届くまでに view が大きくなった分を、
+//!   Window の端をドラッグしている間に届いた場所では、余白を決め直さない（測ってから届くまでに view が大きくなった分を、
 //!   余白と取り違えないように）。
 //! - ページの view は、AppKit に動かさせない（自動リサイズを切る）。ページを動かすのは、ここだけ。
 //!
-//! ほかの OS は、wry の数え方（窓の中身の左上から）がそのまま画面の測り方と合うので、wry に渡すだけ。
+//! ほかの OS は、wry の数え方（Window の中身の左上から）がそのまま画面の測り方と合うので、wry に渡すだけ。
 
 use tauri::{AppHandle, Webview};
 
@@ -53,7 +53,7 @@ impl Placement {
     }
 }
 
-/// 窓の座標（原点は窓の左下、y は上向き。点）での枠。`x`・`y` は枠の左下。
+/// Window の座標（原点は Window の左下、y は上向き。点）での枠。`x`・`y` は枠の左下。
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct WindowRect {
@@ -94,7 +94,7 @@ fn excess(view_w: f64, view_h: f64, p: &Placement) -> Excess {
     }
 }
 
-/// ページの枠（窓の座標）。`view` は画面の view の、今の枠（窓の座標）。`e` は、画面が場所を測ったときの余白。
+/// ページの枠（Window の座標）。`view` は画面の view の、今の枠（Window の座標）。`e` は、画面が場所を測ったときの余白。
 ///
 /// viewport は、`view` から余白（上・右）を除いた所。ページは、viewport の 4 辺から、画面が測った余白だけ内側。
 /// 画面が測ったあとで `view` の大きさが変わっていれば、ページは同じだけ伸び縮みする（4 辺の余白を保つ）。
@@ -111,7 +111,7 @@ fn page_in_window(view: WindowRect, e: Excess, p: &Placement) -> WindowRect {
     }
 }
 
-/// タブのページ `v` を、画面が測った場所 `p` に置く。macOS では、窓の形が変わったら自分で置き直すように覚える。
+/// タブのページ `v` を、画面が測った場所 `p` に置く。macOS では、Window の形が変わったら自分で置き直すように覚える。
 #[cfg(target_os = "macos")]
 pub fn place(app: &AppHandle, v: &Webview, tab: &str, p: Placement) -> Result<(), String> {
     use tauri::Manager;
@@ -133,7 +133,7 @@ pub fn place(app: &AppHandle, v: &Webview, tab: &str, p: Placement) -> Result<()
     .map_err(|e| e.to_string())
 }
 
-/// タブのページ `v` を、画面が測った場所 `p` に置く。wry の数え方（窓の中身の左上から）が、画面の測り方と合う。
+/// タブのページ `v` を、画面が測った場所 `p` に置く。wry の数え方（Window の中身の左上から）が、画面の測り方と合う。
 #[cfg(not(target_os = "macos"))]
 pub fn place(_: &AppHandle, v: &Webview, _: &str, p: Placement) -> Result<(), String> {
     use tauri::{LogicalPosition, LogicalSize};
@@ -144,7 +144,7 @@ pub fn place(_: &AppHandle, v: &Webview, _: &str, p: Placement) -> Result<(), St
         .map_err(|e| e.to_string())
 }
 
-/// 閉じたタブを忘れる（macOS。窓の形が変わっても、もう置き直さない）。
+/// 閉じたタブを忘れる（macOS。Window の形が変わっても、もう置き直さない）。
 pub fn forget(app: &AppHandle, tab: &str) {
     #[cfg(target_os = "macos")]
     {
@@ -242,7 +242,7 @@ mod mac {
             log_skipped("the screen's view has no parent");
             return;
         };
-        // 窓の端をドラッグしている間は、余白を決め直さない。画面が測った viewport の大きさは、殻に届くまでに古くなるので、
+        // Window の端をドラッグしている間は、余白を決め直さない。画面が測った viewport の大きさは、殻に届くまでに古くなるので、
         // その間に view が大きくなった分を、上の余白と取り違える（ページと URL バーの間にすき間が空く）。
         // ドラッグでは余白（タイトルバーの分など）は変わらないので、覚えている余白を使う
         let kept = if screen.inLiveResize() {
@@ -287,7 +287,7 @@ mod mac {
         });
     }
 
-    /// view の枠を、窓の座標で。親が無ければ（窓に載っていなければ）None。
+    /// view の枠を、Window の座標で。親が無ければ（Window に載っていなければ）None。
     fn frame_in_window(view: &NSView) -> Option<WindowRect> {
         // SAFETY: メインスレッドで、生きている view の親を読むだけ
         let parent = unsafe { view.superview() }?;
@@ -300,7 +300,7 @@ mod mac {
         })
     }
 
-    /// ページの view の枠を決めて当てる。窓に載っていない view（閉じたあとなど）には何もしない。
+    /// ページの view の枠を決めて当てる。Window に載っていない view（閉じたあとなど）には何もしない。
     fn apply(view: &NSView, area: WindowRect, e: Excess, p: &Placement) {
         // SAFETY: メインスレッドで、生きている view の親を読むだけ
         let Some(parent) = (unsafe { view.superview() }) else {
@@ -402,13 +402,13 @@ mod tests {
 
     #[test]
     fn the_page_is_counted_down_from_the_top_of_the_view() {
-        // 画面の view は窓の中身いっぱい（1200×800、左下が原点）。ページは左から 300、上から 40
+        // 画面の view は Window の中身いっぱい（1200×800、左下が原点）。ページは左から 300、上から 40
         let p = at(300.0, 40.0, 900.0, 760.0, 1200.0, 800.0);
         assert_eq!(
             page_in_window(rect(0.0, 0.0, 1200.0, 800.0), Excess::default(), &p),
             rect(300.0, 0.0, 900.0, 760.0)
         );
-        // 画面の view が窓の中でずれていれば、その分だけずれる
+        // 画面の view が Window の中でずれていれば、その分だけずれる
         assert_eq!(
             page_in_window(rect(10.0, 20.0, 1200.0, 800.0), Excess::default(), &p),
             rect(310.0, 20.0, 900.0, 760.0)
@@ -429,7 +429,7 @@ mod tests {
 
     #[test]
     fn the_page_follows_the_view_when_the_window_changes() {
-        // 画面が測ったあとで、窓が横に 100、縦に 50 大きくなった（画面はまだ測り直していない）。
+        // 画面が測ったあとで、Window が横に 100、縦に 50 大きくなった（画面はまだ測り直していない）。
         // 4 辺の余白（左 300・上 40・右 0・下 60）を保って、ページが伸びる
         let p = at(300.0, 40.0, 900.0, 700.0, 1200.0, 800.0);
         let e = excess(1200.0, 800.0, &p);
@@ -437,7 +437,7 @@ mod tests {
             page_in_window(rect(0.0, 0.0, 1300.0, 850.0), e, &p),
             rect(300.0, 60.0, 1000.0, 750.0)
         );
-        // 余白がある窓（タイトルバーの下まで広がった view）でも同じ。上の端は、余白と上からの距離を保つ
+        // 余白がある Window（タイトルバーの下まで広がった view）でも同じ。上の端は、余白と上からの距離を保つ
         let e = excess(1200.0, 828.0, &p);
         let r = page_in_window(rect(0.0, 0.0, 1300.0, 878.0), e, &p);
         assert_eq!(r, rect(300.0, 60.0, 1000.0, 750.0));
@@ -446,7 +446,7 @@ mod tests {
 
     #[test]
     fn the_page_never_gets_an_empty_frame() {
-        // 窓が、測ったときの余白より小さくなっても、大きさは 1 以上
+        // Window が、測ったときの余白より小さくなっても、大きさは 1 以上
         let p = at(300.0, 40.0, 900.0, 700.0, 1200.0, 800.0);
         let r = page_in_window(rect(0.0, 0.0, 200.0, 50.0), Excess::default(), &p);
         assert_eq!((r.w, r.h), (1.0, 1.0));

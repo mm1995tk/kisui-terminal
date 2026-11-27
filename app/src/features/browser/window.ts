@@ -1,7 +1,7 @@
-// ブラウザのタブの窓（リーダーの `a`。#459）に並べる、ページへの操作の行。窓の画面は ui/main-window/tab-window/BrowserWindow.tsx。
-// 窓は、ブラウザのタブ 1 つ（とそのページ）を対象にし、今の状態（題・URL・読み込み・シークレット・履歴の有無）を見せて、
+// ブラウザのタブの Dialog（リーダーの `a`。#459）に並べる、ページへの操作の行。Window の画面は ui/main-window/tab-window/BrowserWindow.tsx。
+// Dialog は、ブラウザのタブ 1 つ（とそのページ）を対象にし、今の状態（題・URL・読み込み・シークレット・履歴の有無）を見せて、
 // そのページへの操作を 1 行ずつ並べる。今できない操作は、行にその理由を出す（押してから知るのでなく、先に見せる）。
-// 操作そのものは features/commands/run.ts の runBrowserOn が行う（リーダーの近道・設定の近道の browser.* と同じ処理）。
+// 操作そのものは features/commands/run.ts の runBrowserOn が行う（リーダーの Shortcut・設定の Shortcut の browser.* と同じ処理）。
 // 画面にも Solid にも依存しない（node --test で確かめられる）。
 
 import { T, type Key } from "../../i18n/index.ts";
@@ -36,10 +36,10 @@ export const NEEDS_PAGE: ReadonlySet<BrowserOp> = new Set<BrowserOp>([
   "devtools",
 ]);
 
-/** 窓の 1 行。 */
+/** Dialog の 1 行。 */
 export interface BrowserWindowRow {
   op: BrowserOp;
-  /** 押す字（窓の中のキー。ui/main-window/tab-window/browserWindowKey.ts と同じ） */
+  /** 押す字（Dialog の中のキー。ui/main-window/tab-window/browserWindowKey.ts と同じ） */
   key: string;
   label: string;
   /** 今できないなら、その理由。できるなら undefined */
@@ -47,8 +47,8 @@ export interface BrowserWindowRow {
 }
 
 /**
- * 窓に並べる順と、押す字。字は、#459 までのリーダーの `o` のグループの字を引き継ぐ。
- * 窓の中のキーの判定（ui/main-window/tab-window/browserWindowKey.ts）も、この字から作る（字を書くのはここだけ）。
+ * Dialog に並べる順と、押す字。字は、#459 までのリーダーの `o` のグループの字を引き継ぐ。
+ * Dialog の中のキーの判定（ui/main-window/tab-window/browserWindowKey.ts）も、この字から作る（字を書くのはここだけ）。
  */
 export const BROWSER_WINDOW_ORDER: readonly {
   op: BrowserOp;
@@ -86,7 +86,7 @@ export function whyNot(t: BrowserTab, op: BrowserOp): string | undefined {
   }
 }
 
-/** タブ t の窓に並べる行（上から順）。 */
+/** タブ t の Dialog に並べる行（上から順）。 */
 export function browserWindowRows(t: BrowserTab): BrowserWindowRow[] {
   return BROWSER_WINDOW_ORDER.map(({ op, key, label }) => {
     const why = whyNot(t, op);
@@ -115,7 +115,7 @@ export function stepRow(
   return current;
 }
 
-/** 窓の上に出す、タブの状態の印。 */
+/** Dialog の上に出す、タブの状態の印。 */
 export interface BrowserWindowMark {
   text: string;
   /** 知らせの色で出す（読み込めなかった） */
@@ -142,7 +142,7 @@ export function browserWindowMarks(t: BrowserTab): BrowserWindowMark[] {
   return out;
 }
 
-/** 窓の見出し：ページの題。無ければ URL。新しいタブのページなら「新しいタブ」。 */
+/** Dialog の見出し：ページの題。無ければ URL。新しいタブのページなら「新しいタブ」。 */
 export function browserWindowTitle(t: BrowserTab): string {
   if (isNewTab(t)) return T("browserWindow.newTabTitle");
   return t.title || t.url;

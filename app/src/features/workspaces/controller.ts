@@ -92,7 +92,7 @@ export function createWorkspaces(deps: {
   setFocusError: ReportProblem;
   /** 今使っているペイン（ブラウザのタブを出していればそのページ）にキーを向ける */
   focusTerminal: () => void;
-  /** ページから押したときに覚えた「キーを戻す先」を捨てる（新しいタブのページの検索窓にキーを向けるのを、ページに戻させない） */
+  /** ページから押したときに覚えた「キーを戻す先」を捨てる（新しいタブのページの検索欄にキーを向けるのを、ページに戻させない） */
   forgetPageReturn: () => void;
   /** 閉じているサイドバーを開ける（帯の中の入力欄は、閉じたままでは見えず、フォーカスも取れない） */
   revealSidebar: () => void;
@@ -254,7 +254,7 @@ export function createWorkspaces(deps: {
   /**
    * マシンにワークスペース（ターミナルのタブ）を 1 つ作り、place で GUI の記録に入れ、フォーカスして、ターミナルにキーを向ける。
    * 記録には、マシンの一覧の知らせより先に入れてよい（二重には入らない）。作れなければ errKey の題で理由を伝える。
-   * ワークスペースを作る（リーダーの w の窓の n）・ターミナルのタブを足す（「+」・t n）の共通の部分。dir があれば、そのフォルダでシェルを始める。name があれば、その名前にする。作ったワークスペースの id を返す（作れなければ undefined）。
+   * ワークスペースを作る（リーダーの w の Dialog の n）・ターミナルのタブを足す（「+」・t n）の共通の部分。dir があれば、そのフォルダでシェルを始める。name があれば、その名前にする。作ったワークスペースの id を返す（作れなければ undefined）。
    */
   async function createMachineWorkspace(
     target: string,
@@ -336,7 +336,7 @@ export function createWorkspaces(deps: {
 
   /**
    * 帯の [×]。GUI のワークスペースを閉じる：中のターミナルのタブ（マシンのワークスペース）のターミナルを全部終わらせ、ブラウザのタブも閉じる。
-   * プログラムが動いていれば断られるので、確認の窓を出す（force は窓で「終わらせて閉じる」を押したとき。残りのタブは窓の後に続ける）。
+   * プログラムが動いていれば断られるので、確認の Dialog を出す（force は Dialog で「終わらせて閉じる」を押したとき。残りのタブは Dialog の後に続ける）。
    * マシンにつながっていないタブは、閉じられないので記録から外すだけ（マシンのワークスペースは残り、つながったらまた新しいワークスペースになる）。
    * 中のタブを全部閉じたら、ワークスペースを並びから外す（タブを閉じるだけではワークスペースは残るので。空のワークスペースもこれで閉じる。#307）。
    * 今いるワークスペースを閉じたら、サイドバーの 1 列で隣のワークスペース（マシンが違ってもよい）に移る。
@@ -374,7 +374,7 @@ export function createWorkspaces(deps: {
         if (wasCurrent) focusTerminal();
       },
     );
-    // 閉じ終えた・断られた・確認の窓を出した（窓で続けるときは、また閉じ始める）
+    // 閉じ終えた・断られた・確認の Dialog を出した（Dialog で続けるときは、また閉じ始める）
     setClosing((c) => {
       const n = new Set(c);
       n.delete(gid);
@@ -403,7 +403,7 @@ export function createWorkspaces(deps: {
     ),
   );
 
-  /** 前の並び順の記録（窓の J・K）。初めてワークスペースを作るときの並びに使う */
+  /** 前の並び順の記録（Dialog の J・K）。初めてワークスペースを作るときの並びに使う */
   const legacyOrder = loadOrder(store);
   /**
    * いま居るのが、タブが 1 つも無い空のワークスペース（#307）か。右のペインに、タブが無いことを伝える画面を出す。
@@ -558,7 +558,7 @@ export function createWorkspaces(deps: {
     focus()?.target ?? groups()[0]?.target;
 
   /**
-   * キーでワークスペースを移る（設定の近道の workspace.step）。移ったら、そのワークスペースの欄にキーを向ける
+   * キーでワークスペースを移る（設定の Shortcut の workspace.step）。移ったら、そのワークスペースの欄にキーを向ける
    * （shj が動いているワークスペースなら、shj にキーが届く）。
    */
   async function goWorkspace(target: string, id: WorkspaceId) {
@@ -574,7 +574,7 @@ export function createWorkspaces(deps: {
   /** キーで移っている途中の、向かっている先（返事が返るまで focus() に反映されない）。無ければ null */
   let heading: WorkspaceFocus | null = null;
 
-  /** 設定の近道の workspace.step。サイドバーの次・前のワークスペースへ（1 列の並びで。端では反対の端へ回る）。 */
+  /** 設定の Shortcut の workspace.step。サイドバーの次・前のワークスペースへ（1 列の並びで。端では反対の端へ回る）。 */
   function stepWs(step: Step) {
     // つながっていないマシンのタブは移れない（そこで止まらないよう、飛ばす）
     const list = rows().filter((r) => r.health === "up" || r.band.focused);
@@ -592,7 +592,7 @@ export function createWorkspaces(deps: {
   }
 
   /**
-   * 設定の近道の workspace.move。今のワークスペースを 1 つ下・上へ動かし、順を覚える（再起動しても残る）。端では動かさない。
+   * 設定の Shortcut の workspace.move。今のワークスペースを 1 つ下・上へ動かし、順を覚える（再起動しても残る）。端では動かさない。
    * 続けて押せる（押すたびに、今の並びから動かす）。
    */
   function moveWs(dir: "up" | "down") {
@@ -602,13 +602,13 @@ export function createWorkspaces(deps: {
     if (next) setGws(next);
   }
 
-  // ワークスペースを作るマシンを選んでいる窓（リーダーの w の窓の n）
+  // ワークスペースを作るマシンを選んでいる Dialog（リーダーの w の Dialog の n）
   const [pickingMachine, setPickingMachine] = createSignal(false);
-  // ワークスペースの種類（ターミナルかブラウザか）を選んでいる窓（リーダーの w の窓の n。内蔵ブラウザを有効にしているとき）
+  // ワークスペースの種類（ターミナルかブラウザか）を選んでいる Dialog（リーダーの w の Dialog の n。内蔵ブラウザを有効にしているとき）
   const [pickingKind, setPickingKind] = createSignal(false);
 
   /**
-   * リーダーの w の窓の n。内蔵ブラウザを有効にしていれば、先にターミナルかブラウザかを選ぶ（#257）。無効なら、ターミナルのワークスペースを作る。
+   * リーダーの w の Dialog の n。内蔵ブラウザを有効にしていれば、先にターミナルかブラウザかを選ぶ（#257）。無効なら、ターミナルのワークスペースを作る。
    */
   function newWorkspace() {
     if (deps.browser) setPickingKind(true);
@@ -617,7 +617,7 @@ export function createWorkspaces(deps: {
 
   /**
    * ターミナルのタブ 1 つのワークスペースを作る。どのマシンに作るかを選んでから作る。
-   * つながっているマシンが 1 つしか無ければ選ぶ余地が無いので、窓を出さずにそこへ作る。1 つも無ければ、できないことを伝える。
+   * つながっているマシンが 1 つしか無ければ選ぶ余地が無いので、Dialog を出さずにそこへ作る。1 つも無ければ、できないことを伝える。
    */
   function newTerminalWorkspace() {
     const up = creatableRows(machineList());
@@ -683,7 +683,7 @@ export function createWorkspaces(deps: {
   } | null>(null);
   const [wsRenameError, setWsRenameError] = createSignal<string | undefined>();
 
-  /** 帯の名前をその場で変える入力欄を開く（帯の鉛筆・メニュー、リーダーの w の窓の r は行の中で変える。workspace.rename）。gid は GUI のワークスペースの id。 */
+  /** 帯の名前をその場で変える入力欄を開く（帯の鉛筆・メニュー、リーダーの w の Dialog の r は行の中で変える。workspace.rename）。gid は GUI のワークスペースの id。 */
   function openWorkspaceRename(gid: string) {
     const g = gws().list.find((x) => x.id === gid);
     if (!g) return;
@@ -693,7 +693,7 @@ export function createWorkspaces(deps: {
     setRenamingWs({ gws: g.id, current: g.name, auto: autoName(g.num) });
   }
 
-  /** ワークスペースの名前を決める（空なら、つけた名前を外して番号の名前に戻る）。名前の決まりに合わなければ、断る理由を返す（サイドバーの帯と切り替える窓の共通の部分）。 */
+  /** ワークスペースの名前を決める（空なら、つけた名前を外して番号の名前に戻る）。名前の決まりに合わなければ、断る理由を返す（サイドバーの帯と Workspace switcher の共通の部分）。 */
   function renameWorkspace(gid: string, name: string): string | undefined {
     const bad = gwsNameErrorText(name);
     if (bad) return bad;
@@ -702,8 +702,8 @@ export function createWorkspaces(deps: {
   }
 
   /**
-   * 切り替える窓の `n`：名前を付けて、タブの無い空のワークスペースを並びの一番下に作る（#330。種類もマシンも選ばない。タブは作ったあとに足す）。
-   * 名前が空なら番号の名前になる。名前の決まりに合わなければ、断る理由を返す。今いるワークスペースは変えない（窓で選ぶだけ）。
+   * Workspace switcher の `n`：名前を付けて、タブの無い空のワークスペースを並びの一番下に作る（#330。種類もマシンも選ばない。タブは作ったあとに足す）。
+   * 名前が空なら番号の名前になる。名前の決まりに合わなければ、断る理由を返す。今いるワークスペースは変えない（Dialog で選ぶだけ）。
    */
   function createEmptyWorkspace(
     name: string,
@@ -807,7 +807,7 @@ export function createWorkspaces(deps: {
       const r = rows().find((x) => x.gws === lastWorkspace);
       if (r) goRow(r);
     },
-    /** ワークスペース gid を 1 つ下・上へ動かす（切り替える窓の J・K）。端では動かさない */
+    /** ワークスペース gid を 1 つ下・上へ動かす（Workspace switcher の J・K）。端では動かさない */
     reorder(gid: string, dir: "up" | "down") {
       const next = moveGws(untrack(gws), gid, dir);
       if (next) setGws(next);
@@ -817,7 +817,7 @@ export function createWorkspaces(deps: {
       const next = moveBefore(untrack(gws), gid, before);
       if (next) setGws(next);
     },
-    /** ワークスペースを作るマシンを選んでいる途中か（リーダーの w の窓の n） */
+    /** ワークスペースを作るマシンを選んでいる途中か（リーダーの w の Dialog の n） */
     pickingMachine,
     closeMachinePicker: () => setPickingMachine(false),
     /** ワークスペースの種類（ターミナルかブラウザか）を選んでいる途中か */
@@ -836,9 +836,9 @@ export function createWorkspaces(deps: {
     openWorkspaceRename,
     renameWorkspace,
     createEmptyWorkspace,
-    /** 切り替える窓で名前を入れてワークスペースを作るときの、空にしたときの番号の名前 */
+    /** Workspace switcher で名前を入れてワークスペースを作るときの、空にしたときの番号の名前 */
     newWorkspaceAuto: () => autoName(freeNum(untrack(gws).list)),
-    /** 切り替える窓の行で名前を変え始めるときの、今の名前と、空にしたときの名前 */
+    /** Workspace switcher の行で名前を変え始めるときの、今の名前と、空にしたときの名前 */
     renameInit(gid: string) {
       const g = untrack(gws).list.find((x) => x.id === gid);
       return g ? { current: g.name, auto: autoName(g.num) } : undefined;

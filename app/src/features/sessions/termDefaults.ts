@@ -1,7 +1,7 @@
 // マシンごとの、新しいターミナルが始まるフォルダとシェル（#485）。
 //
 // 決めるのは手元の設定ファイルだけ（リモートのマシンの設定ファイルは書き換えない）。リモートのマシンは [[gui.machines]] の項目の
-// start_dir と shell、手元のマシン（「ローカル」）は [server] の start_dir と shell。窓は、ターミナルを始める要求
+// start_dir と shell、手元のマシン（「ローカル」）は [server] の start_dir と shell。Window は、ターミナルを始める要求
 // （workspace.create・term.create・term.restart）に、そのマシンの分を付けて kisui serve に渡す（session.ts）。
 // 設定は、要求のたびに読み直す（controller.ts）。kisui serve を止めずに、設定を変えた次のターミナルから効くようにするため。
 //

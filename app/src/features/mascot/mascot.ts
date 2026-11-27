@@ -236,7 +236,7 @@ export interface MascotListing {
   entries: MascotEntry[];
 }
 
-/** リーダーの閉じ方。`escape` は Esc。`other` はそれ以外（リーダーのキー・操作の実行・一覧に無いキー・窓のフォーカスが外れた、など） */
+/** リーダーの閉じ方。`escape` は Esc。`other` はそれ以外（リーダーのキー・操作の実行・一覧に無いキー・Dialog のフォーカスが外れた、など） */
 export type CloseReason = "escape" | "other";
 
 /**

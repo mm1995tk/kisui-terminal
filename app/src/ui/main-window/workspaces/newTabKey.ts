@@ -1,4 +1,4 @@
-// 切り替える窓の「タブを作る」操作のキー：作るタブの種類を選ぶ間と、ターミナルのタブを作る行（SwitcherNewTab.tsx）。画面の仕組み（Solid）に依らないので、node --test で確かめる。決まりは docs/key-design.md。
+// Workspace switcher の「タブを作る」操作のキー：作るタブの種類を選ぶ間と、ターミナルのタブを作る行（SwitcherNewTab.tsx）。画面の仕組み（Solid）に依らないので、node --test で確かめる。決まりは docs/key-design.md。
 import { isComposingKey } from "../../../features/commands/ime.ts";
 import type { KeyLike } from "../../../features/commands/guiKeys.ts";
 import { inlineKeyAction } from "../../components/inlineInputKeys.ts";
@@ -58,10 +58,10 @@ export function newTabListKey(e: KeyLike): NewTabListKey | null {
   return null;
 }
 
-/** 切り替える窓から作れるタブの種類（下の段のボタン。#456）。incognito は、シークレットのブラウザのタブ */
+/** Workspace switcher から作れるタブの種類（Key footer のボタン。#456）。incognito は、シークレットのブラウザのタブ */
 export type NewTabChoice = "terminal" | "browser" | "incognito" | "db";
 
-/** 作るタブの種類に決める字（窓の下の段のボタンに出す）。 */
+/** 作るタブの種類に決める字（Dialog の Key footer のボタンに出す）。 */
 export const NEW_TAB_KIND_KEYS: Readonly<Record<NewTabChoice, string>> = {
   terminal: "t",
   browser: "b",
@@ -69,7 +69,7 @@ export const NEW_TAB_KIND_KEYS: Readonly<Record<NewTabChoice, string>> = {
   db: "d",
 };
 
-/** 種類の名前（サイドバーの「+」のメニューと同じ言葉。操作の名前なので、日本語の窓でも英語）。 */
+/** 種類の名前（サイドバーの「+」のメニューと同じ言葉。操作の名前なので、日本語の Dialog でも英語）。 */
 export function kindLabel(kind: NewTabChoice): string {
   switch (kind) {
     case "terminal":
@@ -94,11 +94,11 @@ export function newTabKinds(browser: boolean): NewTabChoice[] {
 export type NewTabKindKey =
   /** その種類に決める（種類の字） */
   | { kind: "pick"; what: NewTabChoice }
-  /** 種類を選ぶのだけをやめる（窓は閉じない） */
+  /** 種類を選ぶのだけをやめる（Dialog は閉じない） */
   | { kind: "cancel" };
 
 /**
- * 作るタブの種類を選んでいる間のキー（種類の字と Esc。種類は窓の下の段にボタンで出す。#487）。kinds は、いま選べる種類（選べない種類の字は受けない）。
+ * 作るタブの種類を選んでいる間のキー（種類の字と Esc。種類は Dialog の Key footer にボタンで出す。#487）。kinds は、いま選べる種類（選べない種類の字は受けない）。
  * 選ぶ行を出さないので、j k・Enter では選ばない。変換中のキーと、Ctrl・Cmd・Alt を重ねたものは受けない。
  */
 export function newTabKindKey(

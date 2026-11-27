@@ -189,7 +189,7 @@ export function createTabs(deps: {
   /**
    * ターミナルのタブ 1 つを閉じる（サイドバーのタブの行の ✕。コマンド tab.close もこれを使う）。ワークスペースの最後のターミナルのタブも閉じられる
    * （ワークスペースの最後のタブでも、ワークスペースは空になって残る。#307）。
-   * プログラムが動いていれば断られるので、確認の窓を出す（force は窓で「終わらせて閉じる」を押したとき）。
+   * プログラムが動いていれば断られるので、確認の Dialog を出す（force は Dialog で「終わらせて閉じる」を押したとき）。
    * マシンにつながっていないタブは、閉じられないので記録から外すだけ。
    * 出しているタブを閉じたら、同じワークスペースの隣のターミナルのタブに移る。
    * ターミナルのタブがもう無ければ、同じワークスペースのブラウザのタブ、それも無ければ、空になったそのワークスペースに留まる。
@@ -277,7 +277,7 @@ export function createTabs(deps: {
 
   /**
    * タブの名前の入力欄の初めの値（current）と、空にしたときの名前（auto）。タブが無ければ undefined。
-   * サイドバーの入力欄（renameTabRow）も、切り替える窓の入力欄も、これで開く。
+   * サイドバーの入力欄（renameTabRow）も、Workspace switcher の入力欄も、これで開く。
    */
   function tabRenameInit(
     gid: string,
@@ -304,7 +304,7 @@ export function createTabs(deps: {
   /**
    * タブ key の名前を name にする（ブラウザのタブもターミナルのタブも）。付けられない名前なら、その理由を返して何も変えない。
    * 返ったあとの、ターミナルのタブのマシンへの知らせは待たない（失敗したら、フォーカスのあるペインにエラーを出す）。
-   * 切り替える窓の入力欄が使う。サイドバーを開かずに変えられる。
+   * Workspace switcher の入力欄が使う。サイドバーを開かずに変えられる。
    */
   function renameTab(
     gid: string,
@@ -377,7 +377,7 @@ export function createTabs(deps: {
     if (byKey) focusTerminal();
   }
 
-  // タブを足すマシンを選んでいる窓（「+」のメニューの「ターミナル（マシンを選ぶ）」）。足すワークスペースの id
+  // タブを足すマシンを選んでいる Dialog（「+」のメニューの「ターミナル（マシンを選ぶ）」）。足すワークスペースの id
   const [pickingFor, setPickingFor] = createSignal<string | null>(null);
 
   /**
@@ -408,9 +408,9 @@ export function createTabs(deps: {
   }
 
   /**
-   * ワークスペース gid にターミナルのタブを足す。target があればそのマシンに、無ければマシンを選ぶ窓を出して、選んだマシンに。
+   * ワークスペース gid にターミナルのタブを足す。target があればそのマシンに、無ければマシンを選ぶ Dialog を出して、選んだマシンに。
    * dir があれば、そのフォルダで始める。無ければ、マシンの start_dir で始まる（マシンを選ぶときは、別のマシンのフォルダは使えない）。
-   * name があれば（切り替える窓の入力欄）、その名前にする。作ったタブの key を返す（作れなければ undefined）。
+   * name があれば（Workspace switcher の入力欄）、その名前にする。作ったタブの key を返す（作れなければ undefined）。
    */
   async function newTerminalTab(
     gid: string,
@@ -446,7 +446,7 @@ export function createTabs(deps: {
   }
 
   /**
-   * 切り替える窓の「タブを作る」入力欄で決めた：ワークスペース gid の machine に、name の名前のターミナルのタブを作る（空ならマシンの自動の名前）。
+   * Workspace switcher の「タブを作る」入力欄で決めた：ワークスペース gid の machine に、name の名前のターミナルのタブを作る（空ならマシンの自動の名前）。
    * 名前の決まりに合わなければ、何も作らず理由を返す。作れたら、作ったタブの key（作れなければ undefined）を、待てる形で返す。
    */
   function createNamedTerminalTab(
@@ -460,7 +460,7 @@ export function createTabs(deps: {
   }
 
   /**
-   * 切り替える窓の、作るタブの種類の「ブラウザ」「シークレット」：ワークスペース gid に、新しいタブのページのブラウザのタブ（incognito ならシークレットのタブ）を開く（今いるワークスペースは変えない）。
+   * Workspace switcher の、作るタブの種類の「ブラウザ」「シークレット」：ワークスペース gid に、新しいタブのページのブラウザのタブ（incognito ならシークレットのタブ）を開く（今いるワークスペースは変えない）。
    * 開いたタブの key を返す（ワークスペースが無ければ undefined）。
    */
   function openNewBrowserTabIn(
@@ -610,13 +610,13 @@ export function createTabs(deps: {
     return true;
   }
 
-  // 別のワークスペースへ移すタブ（移動先を選ぶ窓を出している。コマンド tab.moveTo）。key は refKey、from は今のワークスペースの id
+  // 別のワークスペースへ移すタブ（移動先を選ぶ Dialog を出している。コマンド tab.moveTo）。key は refKey、from は今のワークスペースの id
   const [movingTab, setMovingTab] = createSignal<{
     key: string;
     from: string;
   } | null>(null);
 
-  /** tab.moveTo：今出しているタブを移す先のワークスペースを選ぶ窓を出す。タブが無い・ほかのワークスペースが無いときは、できないことを伝える。 */
+  /** tab.moveTo：今出しているタブを移す先のワークスペースを選ぶ Dialog を出す。タブが無い・ほかのワークスペースが無いときは、できないことを伝える。 */
   function openTabMove() {
     const g = currentGws();
     const key = currentTabKey();
@@ -632,7 +632,7 @@ export function createTabs(deps: {
   }
 
   /**
-   * ワークスペース gid のタブ key を 1 つ下・上へ動かす（コマンド tab.move・切り替える窓の J K）。端では動かさない。数えるのはサイドバーに出ているタブだけ。
+   * ワークスペース gid のタブ key を 1 つ下・上へ動かす（コマンド tab.move・Workspace switcher の J K）。端では動かさない。数えるのはサイドバーに出ているタブだけ。
    * 動かしたら true。
    */
   function moveTabByStep(
@@ -679,7 +679,7 @@ export function createTabs(deps: {
     newTerminalTab,
     createNamedTerminalTab,
     openNewBrowserTabIn,
-    /** 切り替える窓の、作るタブの種類の「DB」：接続を選ぶ窓を出す。選んだ接続のタブは、ワークスペース gid に入る（今いるワークスペースは、選ぶまで変えない） */
+    /** Workspace switcher の、作るタブの種類の「DB」：接続を選ぶ Dialog を出す。選んだ接続のタブは、ワークスペース gid に入る（今いるワークスペースは、選ぶまで変えない） */
     openDbPickerIn: (gid: string) => deps.db.openPicker(gid),
     newBrowserTab,
     openBrowserTab,
@@ -690,10 +690,10 @@ export function createTabs(deps: {
     moveTabBefore(gid: string, key: string, before: string | null) {
       moveTab(key, gid, before, "stay");
     },
-    /** 別のワークスペースへ移すタブ（移動先を選ぶ窓を出している。無ければ null） */
+    /** 別のワークスペースへ移すタブ（移動先を選ぶ Dialog を出している。無ければ null） */
     movingTab,
     openTabMove,
-    /** 移動先を選ぶ窓をやめる（キーをターミナルに戻す） */
+    /** 移動先を選ぶ Dialog をやめる（キーをターミナルに戻す） */
     cancelTabMove() {
       setMovingTab(null);
       focusTerminal();
@@ -704,7 +704,7 @@ export function createTabs(deps: {
      */
     moveTabToWorkspace: (key: string, gid: string) =>
       moveTab(key, gid, null, "go"),
-    /** 移動先を選ぶ窓で決めた。タブ key を、ワークスペース gid の一番後ろへ移し、そこへ移って、そのタブを出す */
+    /** 移動先を選ぶ Dialog で決めた。タブ key を、ワークスペース gid の一番後ろへ移し、そこへ移って、そのタブを出す */
     submitTabMove(key: string, gid: string) {
       setMovingTab(null);
       if (!moveTab(key, gid, null, "go")) focusTerminal();

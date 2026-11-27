@@ -103,7 +103,7 @@ func TestHelloAdvertisesProxy(t *testing.T) {
 	}
 }
 
-// 窓が決めた scope（内蔵ブラウザのタブ）を通すと、通信が一覧と知らせに出て、中身を読める。やめると待ち受け口が閉じる。
+// Window が決めた scope（内蔵ブラウザのタブ）を通すと、通信が一覧と知らせに出て、中身を読める。やめると待ち受け口が閉じる。
 func TestProxyRecordsAScope(t *testing.T) {
 	up, roots := proxyUpstream(t)
 	_, sock, dir := startProxyServe(t, roots)
@@ -401,7 +401,7 @@ func TestProxyResend(t *testing.T) {
 }
 
 // 止めるのを入れた scope の要求は、行き先に届く前に止まり（一覧に held で出る）、書き換えて流すと、書き換えた要求が届く。
-// 窓がいなくなると、止めるのをやめて、止めていた要求をそのまま流す。
+// Window がいなくなると、止めるのをやめて、止めていた要求をそのまま流す。
 func TestProxyHoldAndRelease(t *testing.T) {
 	up, roots := proxyUpstream(t)
 	srv, sock, dir := startProxyServe(t, roots)
@@ -494,7 +494,7 @@ func TestProxyHoldAndRelease(t *testing.T) {
 		t.Errorf("the client of a dropped request got %q", a)
 	}
 
-	// 窓がいなくなったら、止めていた要求はそのまま流れる
+	// Window がいなくなったら、止めていた要求はそのまま流れる
 	ch = get("/left")
 	waitHeld(3)
 	c.Close()

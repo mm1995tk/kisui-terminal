@@ -6,7 +6,8 @@ import type { ClipboardItem, ClipboardLocation } from "coneko-term";
  * 両方あるときはテキストを選ぶ（どのアプリにも貼れる）。
  */
 export type WritePlan =
-  { kind: "text"; text: string } | { kind: "image"; bytes: Uint8Array };
+  | { kind: "text"; text: string }
+  | { kind: "image"; bytes: Uint8Array };
 
 /** パラメータ（`;charset=...`）を落として小文字にした MIME の種類。 */
 export function baseMime(mime: string): string {
@@ -60,7 +61,7 @@ export function supportsLocation(location: ClipboardLocation): boolean {
 }
 
 /**
- * 許可の窓に出す、頼まれた種類の説明。プログラムが送ってきた文字列は見せない
+ * 許可の Dialog に出す、頼まれた種類の説明。プログラムが送ってきた文字列は見せない
  * （MIME の欄に文を書いて許可を促せてしまうため）。渡せる種類（テキスト・画像）だけを名前で言い、残りは「ほかの種類」。
  */
 export function describeMimes(wanted: string[]): string {

@@ -1,4 +1,4 @@
-// かな漢字変換（IME）のキーの判定。窓（app/src）のキーを見る場所は、すべてこの isComposingKey で変換のキーを除く。
+// かな漢字変換（IME）のキーの判定。Dialog（app/src）のキーを見る場所は、すべてこの isComposingKey で変換のキーを除く。
 //
 // e.isComposing だけでは足りない。macOS の WKWebView は、変換を確定する Enter の keydown が compositionend の後に来て、
 // isComposing が false・keyCode が 229（key が Process）になることがある。isComposing だけを見ると、この Enter で
@@ -17,7 +17,7 @@ export interface ComposingKeyLike {
 
 /**
  * キー e が、かな漢字変換のためのキー（変換中のキーと、変換を確定する Enter・取り消す Esc）か。
- * 当たるなら、入力欄の確定・取り消しや、窓のキーの割り当てに使わない。
+ * 当たるなら、入力欄の確定・取り消しや、Dialog のキーの割り当てに使わない。
  */
 export function isComposingKey(e: ComposingKeyLike): boolean {
   return !!e.isComposing || e.key === "Process" || e.keyCode === 229;

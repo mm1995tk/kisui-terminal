@@ -4,7 +4,7 @@ import { describe, it } from "node:test";
 import type { ReadItem } from "../../../features/file-transfer/transferPrompt.ts";
 import { readRows } from "./transferRows.ts";
 
-describe("ファイルの送り出しの確認の窓の一覧", () => {
+describe("ファイルの送り出しの確認の Dialog の一覧", () => {
   it("13 件以上でも、項目 1 つに 1 行で、全部のパスが行に入る", () => {
     for (const n of [1, 12, 13, 500]) {
       const items: ReadItem[] = Array.from({ length: n }, (_, i) => ({

@@ -1,6 +1,6 @@
-// ssh 先のマシンのペインに、手元の PC のペインの操作（kisui pane … --machine local）を、時間を決めて許す窓
+// ssh 先のマシンのペインに、手元の PC のペインの操作（kisui pane … --machine local）を、時間を決めて許す Dialog
 // （マシンのダイアログ（リーダーの m）の p で、その上に出す）。決まりは features/sessions/paneGrant.ts。
-// 入れるのは時間だけ（"30m"・"1h"・"1h30m"。DB の権限の引き上げと同じ書き方）。「Allow」と Enter で、呼んだ側が許して窓を閉じる。
+// 入れるのは時間だけ（"30m"・"1h"・"1h30m"。DB の権限の引き上げと同じ書き方）。「Allow」と Enter で、呼んだ側が許して Dialog を閉じる。
 // 読めない時間・長すぎる時間は、理由を出して直せるようにする。
 import { isComposingKey } from "../../../features/commands/ime.ts";
 import { T } from "../../../i18n/index.ts";
@@ -22,7 +22,7 @@ import {
 import { Field, Input } from "../../components/Field.tsx";
 
 /**
- * 時間を決めて許す窓。machine はマシンの名前（出すだけ）。onSubmit は「Allow」と Enter で、読めた時間（秒）を渡して呼ぶ。
+ * 時間を決めて許す Dialog。machine はマシンの名前（出すだけ）。onSubmit は「Allow」と Enter で、読めた時間（秒）を渡して呼ぶ。
  * onCancel は「Cancel」と Esc で呼ぶ。
  */
 export function PaneGrantDialog(props: {

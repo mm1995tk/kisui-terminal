@@ -33,7 +33,7 @@ describe("内蔵ブラウザのページを置く場所", () => {
       w: 900,
       h: 764,
     });
-    // 下の端のお知らせとも合わせて縮む
+    // 下の端の Notice とも合わせて縮む
     const notice = { x: 784, y: 600, w: 400, h: 184 };
     assert.deepEqual(pageBounds(area, [notice], false, 36), {
       x: 300,
@@ -49,7 +49,7 @@ describe("内蔵ブラウザのページを置く場所", () => {
     assert.equal(pageBounds(area, [], true), null);
   });
 
-  it("右下のお知らせ・リーダーの案内が重なれば、下の端をその上まで上げる（横は縮めない）", () => {
+  it("右下の Notice・リーダーの案内が重なれば、下の端をその上まで上げる（横は縮めない）", () => {
     const menu = { x: 824, y: 400, w: 360, h: 384 };
     const notice = { x: 784, y: 600, w: 400, h: 184 };
     assert.deepEqual(pageBounds(area, [notice, menu], false), {
@@ -65,7 +65,7 @@ describe("内蔵ブラウザのページを置く場所", () => {
     assert.equal(pageBounds(area, [tall], false), null);
   });
 
-  it("窓の論理ピクセルにする（表示の大きさを掛けて丸める）", () => {
+  it("Window の論理ピクセルにする（表示の大きさを掛けて丸める）", () => {
     assert.deepEqual(toLogical({ x: 10.2, y: 0, w: 100.5, h: 50 }, 1), {
       x: 10,
       y: 0,
@@ -132,7 +132,7 @@ describe("重なるものの印（#439）", () => {
       assert.match(s, /^\[data-overlay(-[a-z]+)?\]$/);
   });
 
-  it("お知らせ・右クリックのメニュー・リーダーの案内・ページ内検索の欄・トーストは、浮かべるもの（data-overlay）の印を付ける", () => {
+  it("Notice・右クリックのメニュー・リーダーの案内・ページ内検索の欄・トーストは、浮かべるもの（data-overlay）の印を付ける", () => {
     for (const rel of [
       "../../notifications/Notices.tsx",
       "../../sidebar/PopupMenu.tsx",

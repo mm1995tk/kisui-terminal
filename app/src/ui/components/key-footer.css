@@ -1,4 +1,4 @@
-/* 窓の下の段の、今効く操作の行（KeyFooter.tsx）。行ごとに、頭に何に効くかの見出しを置き、操作は右に流す */
+/* Dialog の Key footer の、今効く操作の行（KeyFooter.tsx）。行ごとに、頭に何に効くかの見出しを置き、操作は右に流す */
 .key-footer-rows {
   display: flex;
   flex-direction: column;

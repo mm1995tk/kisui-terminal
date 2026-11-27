@@ -65,9 +65,9 @@ export class TermGroup {
     tree?: PaneLayout;
   };
   private ratioRev = 0;
-  /** 動かしている境界の、serve にまだ反映されていない割合（key は境界の B 側の左上の欄 id。grid.ts）。描くときは木に重ねる */
+  /** 動かしている Pane border の、serve にまだ反映されていない割合（key は Pane border の B 側の左上の欄 id。grid.ts）。描くときは木に重ねる */
   private readonly ratios = new Map<string, number>();
-  /** layout.resize を送っている境界、送る順番を待っている最新の割合 */
+  /** layout.resize を送っている Pane border、送る順番を待っている最新の割合 */
   private readonly resizing = new Set<string>();
   private readonly resizeQueued = new Map<string, number>();
   /** ターミナルでない欄（動画。#555）。並べるのはターミナルの後ろ */
@@ -153,7 +153,7 @@ export class TermGroup {
       this.cache.src !== this.serverLayout ||
       this.cache.rev !== this.ratioRev
     ) {
-      // 動かしている境界の割合を重ねる
+      // 動かしている Pane border の割合を重ねる
       let tree = reconcileLayout(this.serverLayout, ids);
       for (const [k, r] of this.ratios) tree = withRatio(tree, k, r);
       this.cache = {
@@ -247,7 +247,7 @@ export class TermGroup {
 
   /**
    * 欄 target（省くと今使っている欄）を dir（右・下・左・上）に分けて、新しいターミナルを足して active にする（Cmd+D・Cmd+Shift+D
-   * ・Ctrl+Shift+D・Ctrl+Shift+E、ターミナルのタブの窓の s）。フォルダは shj が決める（ワークスペースのフォルダ。未定なら start_dir）。
+   * ・Ctrl+Shift+D・Ctrl+Shift+E、ターミナルのタブの Dialog の s）。フォルダは shj が決める（ワークスペースのフォルダ。未定なら start_dir）。
    * 小さすぎて分けられなければ、serve が断った理由を onError に出して false。足したら true。
    */
   async add(
@@ -317,13 +317,13 @@ export class TermGroup {
     return true;
   }
 
-  /** id の欄（ターミナルでも、ターミナルでない欄でも）を active にする（ターミナルのタブの窓の Enter）。無ければ false。 */
+  /** id の欄（ターミナルでも、ターミナルでない欄でも）を active にする（ターミナルのタブの Dialog の Enter）。無ければ false。 */
   activatePane(id: string): boolean {
     return this.activate(id) || this.activateExtra(id);
   }
 
   /**
-   * 欄 from（省くと active の欄）と、dir の向きの隣の欄（移る・入れ替える・ターミナルのタブの窓で選ぶときの「隣」の決め方はここだけ）。
+   * 欄 from（省くと active の欄）と、dir の向きの隣の欄（移る・入れ替える・ターミナルのタブの Dialog で選ぶときの「隣」の決め方はここだけ）。
    * 隣が無ければ undefined。
    */
   neighborOf(
@@ -350,7 +350,7 @@ export class TermGroup {
   }
 
   /**
-   * 欄 pane（省くと active の欄）と、dir の向きの隣の欄の場所を入れ替える（ターミナルのタブの窓の H J K L、設定の近道の pane.swap）。入れ替えるのは場所だけで、
+   * 欄 pane（省くと active の欄）と、dir の向きの隣の欄の場所を入れ替える（ターミナルのタブの Dialog の H J K L、設定の Shortcut の pane.swap）。入れ替えるのは場所だけで、
    * フォーカスは今の欄についていく（キーを向けている欄の id は変わらない）。隣が無ければ何もせず false。
    * 隣は move と同じ規則で決め、serve に layout.swap を送る。木は serve が持つので、画面は workspace.changed で入れ替わる。
    */
@@ -369,16 +369,16 @@ export class TermGroup {
     return true;
   }
 
-  /** 動かせる欄どうしの境界（#18）。 */
+  /** 動かせる欄どうしの Pane border（#18）。 */
   get bars(): Bar[] {
     return layoutBars(this.layout);
   }
 
   /**
-   * key の境界（grid.ts。B 側の左上の欄 id）を割合 ratio に動かす（ドラッグ・リサイズモードのキー）。
+   * key の Pane border（grid.ts。B 側の左上の欄 id）を割合 ratio に動かす（ドラッグ・リサイズモードのキー）。
    * 両側が最小の大きさを下回らないように収め、すぐ画面に出して、serve に layout.resize を送る
-   * （送るのは 1 境界につき 1 つずつで、待つ間に動かした分は最新の 1 つだけ送る）。serve の木が追いつくまでの間は、
-   * 動かした割合を木に重ねて描く。動かせなければ（境界が無い・すでに小さすぎる）false。
+   * （送るのは 1 Pane border につき 1 つずつで、待つ間に動かした分は最新の 1 つだけ送る）。serve の木が追いつくまでの間は、
+   * 動かした割合を木に重ねて描く。動かせなければ（Pane border が無い・すでに小さすぎる）false。
    */
   setBorder(key: string, ratio: number): boolean {
     const r = limitedRatio(this.layout, key, ratio, (id) => this.sizeOf(id));
@@ -426,7 +426,7 @@ export class TermGroup {
     return id !== undefined && this.closePane(id);
   }
 
-  /** id の欄（分割したターミナルか、ターミナルでない欄）を閉じる（ターミナルのタブの窓の x）。プライマリターミナルは閉じず false。閉じたら true。 */
+  /** id の欄（分割したターミナルか、ターミナルでない欄）を閉じる（ターミナルのタブの Dialog の x）。プライマリターミナルは閉じず false。閉じたら true。 */
   closePane(id: string): boolean {
     if (this.extraList.some((x) => x.id === id)) {
       this.closeExtra(id);

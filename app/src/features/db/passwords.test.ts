@@ -49,7 +49,7 @@ const need = (
   });
 
 /**
- * kisui serve の役。設定の接続は config（書き換えられる）。覚えたパスワードは kept で、forgetAll が、窓の接続が切れたときの
+ * kisui serve の役。設定の接続は config（書き換えられる）。覚えたパスワードは kept で、forgetAll が、Window の接続が切れたときの
  * 「全部忘れる」。query はパスワードを付けない・付けた要求で、DB が通すのは right だけ。
  */
 function fakeServe(right = "right") {
@@ -89,7 +89,7 @@ function fakeServe(right = "right") {
   return serve;
 }
 
-/** 窓の役：fakeServe に、タブ（@local の shop）の要求を送る。asked は、利用者に聞いた理由。answers は、その答え。 */
+/** Dialog の役：fakeServe に、タブ（@local の shop）の要求を送る。asked は、利用者に聞いた理由。answers は、その答え。 */
 function fakeWindow(
   serve: ReturnType<typeof fakeServe>,
   answers: (string | null)[] = [],
@@ -183,7 +183,7 @@ describe("handBack（覚えているパスワードを kisui serve に渡し直�
     );
   });
 
-  it("kisui serve が覚えなかったら（行き先が変わった）、窓も捨てる", async () => {
+  it("kisui serve が覚えなかったら（行き先が変わった）、Window も捨てる", async () => {
     const m = new PasswordMemory();
     m.remember(owner(), "pw");
     const e = m.find({ target: "@local", connection: "shop" })!;
@@ -247,7 +247,7 @@ describe("newlyConnected（session.hello が通ったマシンを見つける）
   });
 });
 
-describe("窓が覚えたパスワードで、聞かずに続ける", () => {
+describe("Window が覚えたパスワードで、聞かずに続ける", () => {
   it("打って通ったパスワードを覚える。通らなかったものは覚えない", async () => {
     const serve = fakeServe();
     const w = fakeWindow(serve, ["wrong", "right"]);
@@ -262,7 +262,7 @@ describe("窓が覚えたパスワードで、聞かずに続ける", () => {
     const serve = fakeServe();
     const w = fakeWindow(serve, ["right"]);
     await w.request();
-    serve.forgetAll(); // 窓の接続が切れた
+    serve.forgetAll(); // Window の接続が切れた
     assert.equal(serve.kept, undefined);
     await w.reconnect();
     assert.equal(serve.kept, "right");
@@ -365,7 +365,7 @@ describe("窓が覚えたパスワードで、聞かずに続ける", () => {
     assert.equal(w.memory.find(w.place)?.password, "changed");
   });
 
-  it("渡し直したものが断られ、聞く窓もやめたら、覚えたものは残らない", async () => {
+  it("渡し直したものが断られ、聞く Dialog もやめたら、覚えたものは残らない", async () => {
     const serve = fakeServe("changed");
     const w = fakeWindow(serve, [null]);
     w.memory.remember(owner(), "old");
@@ -373,7 +373,7 @@ describe("窓が覚えたパスワードで、聞かずに続ける", () => {
     assert.equal(w.memory.find(w.place), undefined);
   });
 
-  it("kisui serve が覚えていたものを DB が断ったら、窓も捨てる", async () => {
+  it("kisui serve が覚えていたものを DB が断ったら、Window も捨てる", async () => {
     const serve = fakeServe("changed");
     const w = fakeWindow(serve, ["changed"]);
     w.memory.remember(owner(), "old");
@@ -400,7 +400,7 @@ describe("窓が覚えたパスワードで、聞かずに続ける", () => {
       w.asked.length = 0;
       await w.reconnect();
       assert.equal(serve.kept, undefined); // 渡し直しても、kisui serve は覚えない
-      assert.equal(w.memory.find(w.place), undefined); // 窓も捨てた
+      assert.equal(w.memory.find(w.place), undefined); // Window も捨てた
 
       w.memory.remember(owner(), "right"); // つなぎ直しより先に要求が出たとき
       await assert.rejects(w.request());

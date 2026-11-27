@@ -29,7 +29,7 @@ describe("プロキシのパネルのキー", () => {
     assert.equal(proxyPanelKey(key("d")), "drop");
   });
 
-  it("修飾キーつき・ほかのキーは受けない（リーダーや近道に残す）", () => {
+  it("修飾キーつき・ほかのキーは受けない（リーダーや Shortcut に残す）", () => {
     assert.equal(proxyPanelKey(key("j", { ctrlKey: true })), null);
     assert.equal(proxyPanelKey(key("k", { metaKey: true })), null);
     assert.equal(proxyPanelKey(key("x")), null);

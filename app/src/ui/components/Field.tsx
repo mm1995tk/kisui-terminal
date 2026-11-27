@@ -1,4 +1,4 @@
-// 入力欄（ラベル付き）。窓の本文（CardBody）の中に置く。見た目は card.css の .card-field・.card-input。
+// 入力欄（ラベル付き）。Dialog の本文（CardBody）の中に置く。見た目は card.css の .card-field・.card-input。
 // 入力に失敗したときの伝え方は未確定（docs/design/design-system.md の「後に回したもの」）なので、今の見た目のまま形だけを部品にした。
 // 失敗の理由は、入力欄の下に CardError（Card.tsx）で出す。
 import { splitProps, type JSX } from "solid-js";

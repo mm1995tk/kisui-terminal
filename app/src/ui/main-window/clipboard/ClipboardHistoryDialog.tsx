@@ -1,6 +1,6 @@
 // クリップボードの履歴の一覧（#54）。キーで開き、選んだ文字を今の欄に貼るか、OS のクリップボードに戻す。
 // 履歴を持つのは Tauri の側（clipboard_history.rs）。ここは開くたびに読み、選ばせる。
-// 一覧の中身（ui/modules/clipboard-history/HistoryPanel.tsx）は、kisui-terminal の外から開く小さな窓（ui/utilities/clipboard/page.tsx）でも使う。
+// 一覧の中身（ui/modules/clipboard-history/HistoryPanel.tsx）は、kisui-terminal の外から開く小さな Dialog（ui/utilities/clipboard/page.tsx）でも使う。
 import { T } from "../../../i18n/index.ts";
 import { createSignal, Show, type JSX } from "solid-js";
 
@@ -17,13 +17,13 @@ interface Opened {
 
 const [opened, setOpened] = createSignal<Opened | undefined>();
 
-/** 履歴の窓を出す（近道の Cmd+Shift+H / Ctrl+Shift+H と、リーダーの `y`）。出ている間は何もしない。 */
+/** 履歴の Dialog を出す（Shortcut の Cmd+Shift+H / Ctrl+Shift+H と、リーダーの `y`）。出ている間は何もしない。 */
 export function openClipboardHistory(): void {
-  // 窓を出すと欄からフォーカスが外れるので、宛先は先に決める
+  // Dialog を出すと欄からフォーカスが外れるので、宛先は先に決める
   if (!opened()) setOpened({ paste: focusedPasteTarget() });
 }
 
-/** 履歴の窓。開いていなければ何も出さない。 */
+/** 履歴の Dialog。開いていなければ何も出さない。 */
 export function ClipboardHistoryDialog(): JSX.Element {
   return (
     <Show when={opened()} keyed>

@@ -1,7 +1,7 @@
 /* 左の一覧（D1）。親 #271 のモック「案：フラットな一覧」の寸法に合わせる（色は theme.css の GitHub Dark）。
    マシンごとの色（D4）は --machine-color。Sidebar.tsx が帯（.band-item）の style に入れる（決め方は colors.ts）。
    上下の固定（D3）は Sidebar.tsx の説明のとおり、sticky と要素の組み方で決める。
-   一覧（.sidebar）はスクロールし、フォーカスしているワークスペースの帯だけを出す（#283）。
+   一覧（.sidebar）はスクロールし、フォーカスしている Workspace band だけを出す（#283）。
    shj が動いているとき（.sidebar[data-sections]）は、帯の中を「タブ（.tab-rows）」「ファイルツリー（.tree-section）」「CHANGES（.changes）」の 3 段に分け、
    一覧はスクロールせず、タブとファイルツリーの段がそれぞれの中でスクロールする（#284）。
    接続の状態の丸は親 #271 のモック Main.dc.html に合わせる
@@ -97,7 +97,7 @@
   outline-offset: -1px;
 }
 
-/* ワークスペースの帯（li.band-item。#234）。平らな帯（枠・角の丸み・周りの余白は無い。#297）で、ヘッダー（.band-slot > .band）とコンテンツ（.tab-rows）に分ける。ヘッダーは字下げしない。タブの一覧は、角の丸みが見えるよう少し内側に入る。
+/* Workspace band（li.band-item。#234）。平らな帯（枠・角の丸み・周りの余白は無い。#297）で、ヘッダー（.band-slot > .band）とコンテンツ（.tab-rows）に分ける。ヘッダーは字下げしない。タブの一覧は、角の丸みが見えるよう少し内側に入る。
    フォーカスしている帯は見出しの色が明るい。
    --region-bg は不透明な色にする（上下に固定した帯・フォルダの行の後ろが透けないように） */
 .band-item {
@@ -285,7 +285,7 @@
   opacity: 1;
 }
 
-/* ドラッグ中の動き（drag.ts。タブの行と、ワークスペースの窓の行）。つかんだ行は、drag.ts が掛ける transform でマウスについて動く（ついて動くあいだは transition を付けない）。
+/* ドラッグ中の動き（drag.ts。タブの行と、Workspace switcher の行）。つかんだ行は、drag.ts が掛ける transform でマウスについて動く（ついて動くあいだは transition を付けない）。
    つかんだ行は不透明にして、下の行の字が透けないようにし、持ち上げたことは影で示す（#311）。
    ほかの行（data-shift）は、入る場所を空けるように、transform の変化をなめらかにしてよける。
    手を離したとき（data-dropping）は、つかんだ行も、落ちる先まで同じ速さでなめらかに動く（DROP_MS と合わせる）。
@@ -309,7 +309,7 @@
 /* 落ちる先（よけてできた隙間）の薄い枠。drag.ts が body に足す（画面に固定。ポインタは通す） */
 .drag-drop-slot {
   position: fixed;
-  z-index: 800; /* ワークスペースの窓（モーダル）の上でも見えるように */
+  z-index: 800; /* Workspace switcher（モーダル）の上でも見えるように */
   box-sizing: border-box;
   border: 1px dashed var(--color-border-strong);
   border-radius: var(--radius-4);

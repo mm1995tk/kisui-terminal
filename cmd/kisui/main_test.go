@@ -120,7 +120,7 @@ func TestWritePaneList(t *testing.T) {
 	if len(lines) != 3 {
 		t.Fatalf("a header and a line for each pane:\n%s", b.String())
 	}
-	// ワークスペース（窓が知らせた id と名前）はタブの前の列。知らされていなければ "-"
+	// ワークスペース（Window が知らせた id と名前）はタブの前の列。知らされていなければ "-"
 	if !strings.Contains(lines[1], "gabcdefghij 作業用  w1 repo") || !strings.Contains(lines[2], "reviewer  -") {
 		t.Errorf("the workspace column:\n%s", b.String())
 	}

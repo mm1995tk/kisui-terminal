@@ -110,7 +110,7 @@ export const RenameRejected: Story = {
   args: { renamingTarget: "dev@build.example.com", rejected: true },
 };
 
-/** config.toml にだけあって、つながっていないマシンを選んでいる。下の段には、今できる操作（r だけ）が出る。 */
+/** config.toml にだけあって、つながっていないマシンを選んでいる。Key footer には、今できる操作（r だけ）が出る。 */
 export const FixedDisconnected: Story = {
   args: { initial: "devbox" },
 };

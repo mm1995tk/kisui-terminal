@@ -1,22 +1,22 @@
 package server
 
-// 窓が決める、ターミナルのシェルと始めるフォルダ（#485）。
+// Window が決める、ターミナルのシェルと始めるフォルダ（#485）。
 //
-// 窓は、手元の設定（[[gui.machines]] の start_dir と shell、手元のマシンは [server] の start_dir と shell）をマシンごとに持ち、
+// Window は、手元の設定（[[gui.machines]] の start_dir と shell、手元のマシンは [server] の start_dir と shell）をマシンごとに持ち、
 // ターミナルを始める要求に付けて渡す。リモートのマシンの設定ファイルは、だれも書き換えない。
 //
 //   - workspace.create の startDir：dir が無い・使えないときに始めるフォルダ（そのマシンでのパス。~ と ~/x は、そのマシンのホーム）。
 //     これも使えなければ、今までどおり [server] start_dir（無ければ ~）。
 //   - workspace.create・term.create・term.restart の shell：始めるシェル（実行できるファイルのパス。~/x も書ける。引数は書けない）。
-//     使えなければ、別のシェルに替えずに invalid_params で断る（data.reason は "shell"）。窓で選んだ値なので、窓に理由を出せる。
-//   - serve は、窓が最後に渡した shell をワークスペースごとに覚える（wsState.shell）。窓を通さずに始まるシェル（止まった serve が
+//     使えなければ、別のシェルに替えずに invalid_params で断る（data.reason は "shell"）。Window で選んだ値なので、Window に理由を出せる。
+//   - serve は、Window が最後に渡した shell をワークスペースごとに覚える（wsState.shell）。Window を通さずに始まるシェル（止まった serve が
 //     作り直すワークスペース、kisui pane split と shj が足す欄）にも、同じシェルを使うため。shell を付けない要求は、覚えているものを
 //     使う。空の shell（""）は「このマシンの既定に戻す」で、覚えていたものを忘れる。
 //   - 覚えていたシェルが使えなくなっていたら（消された、など）、断らずにこのマシンの既定で始める（ワークスペースを失わないため）。
 //
 // このマシンの既定は、[server] shell（このマシンの設定ファイル）、無ければ・実行できなければ $SHELL、それも無ければ /bin/sh。
-// [server] の start_dir と shell は、使うたびに読み直す（machineDefaults）。手元のマシンでは、窓の設定と同じファイルなので、
-// 窓が空（「このマシンの既定」）を渡したときに、起動のときの値でなく、今の設定で決まるようにするため。
+// [server] の start_dir と shell は、使うたびに読み直す（machineDefaults）。手元のマシンでは、Window の設定と同じファイルなので、
+// Window が空（「このマシンの既定」）を渡したときに、起動のときの値でなく、今の設定で決まるようにするため。
 
 import (
 	"encoding/json"
@@ -32,7 +32,7 @@ import (
 
 // CapCreateShell は session.hello の capabilities に入れる、workspace.create の startDir・shell と、term.create・term.restart の
 // shell（上の決まり）を受けられる印。古い serve は workspace.create と term.restart の shell を知らずに無視するので、
-// 窓はこれを見てから送る。
+// Window はこれを見てから送る。
 const CapCreateShell = "workspace.create.shell"
 
 // defaults は、最後に読めた [server] の start_dir と shell（machineDefaults が持つ）。
@@ -84,16 +84,16 @@ func (s *Server) defaultShell() string {
 	return term.DefaultShell()
 }
 
-// shellError は、窓が渡したシェルが使えないときの返事。path は確かめたパス。
+// shellError は、Window が渡したシェルが使えないときの返事。path は確かめたパス。
 func shellError(path string) *rpc.Error {
 	e := rpc.Errorf(rpc.CodeInvalidParams, "the shell is not a file that can be run: %s", path)
 	e.Data, _ = json.Marshal(map[string]any{"reason": "shell", "shell": path})
 	return e
 }
 
-// checkShell は、窓が渡した shell（空でない）を確かめる。使えなければ shellError。
+// checkShell は、Window が渡した shell（空でない）を確かめる。使えなければ shellError。
 // ただし、このマシンの [server] shell と同じファイルなら、断らずにこのマシンの既定（defaultShell：警告を出して $SHELL）。
-// 手元のマシンでは、窓が [server] shell をそのまま渡すので、ここで断ると「[server] shell が使えなくても始める」にならない。
+// 手元のマシンでは、Window が [server] shell をそのまま渡すので、ここで断ると「[server] shell が使えなくても始める」にならない。
 func (w *wsManager) checkShell(asked string) (string, *rpc.Error) {
 	path, code := config.ShellPath(asked)
 	if code == "" {
@@ -120,7 +120,7 @@ func (w *wsManager) usableShell(remembered string) string {
 	return path
 }
 
-// rememberedShell は、ワークスペース wsID で、窓を通さずに始めるシェル。
+// rememberedShell は、ワークスペース wsID で、Window を通さずに始めるシェル。
 func (w *wsManager) rememberedShell(wsID string) string {
 	w.mu.Lock()
 	var sh string
@@ -161,7 +161,7 @@ func (w *wsManager) rememberShell(wsID string, asked *string) {
 	}
 }
 
-// usableDir は、窓が渡した startDir（~ と ~/x は、このマシンのホーム）のフォルダ。絶対パスのフォルダでなければ ""。
+// usableDir は、Window が渡した startDir（~ と ~/x は、このマシンのホーム）のフォルダ。絶対パスのフォルダでなければ ""。
 func usableDir(v string) string {
 	if v == "" {
 		return ""
