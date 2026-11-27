@@ -813,6 +813,8 @@ export const ja: Record<Key, string> = {
     "この PC の Pane に「操作のたびに聞く」が設定されているので、リモートの Machine は、この PC の Database tab の結果と履歴を読めません。ユーザーに Window で行ってもらってください。",
   "dbCli.err.agentNone":
     "この接続でのコーディングエージェントの権限は SQL の実行を許していない（kisui db connections の RUN が none）ので、このタブの結果と履歴は渡しません。結果と履歴は、人が人の権限で実行したものです。",
+  "dbCli.err.agentUser":
+    "この接続では、コーディングエージェントは別の DB のユーザー（agent-user）でログインするので、このタブの結果と履歴は渡しません。人は接続の user で実行したので、エージェントのユーザーが読めない行を読んでいることがあります。",
   "dbCli.err.running":
     "この Database tab は文を実行している間です。終わってからもう一度実行してください。",
   "dbCli.err.noResult":

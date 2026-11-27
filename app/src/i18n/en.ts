@@ -812,6 +812,8 @@ export const en = {
     "A pane of this computer is set to ask the person every time, so a remote machine may not read the result or the history of a database tab of this computer. Ask the user to do it in the window.",
   "dbCli.err.agentNone":
     "The permission of a coding agent on this connection does not allow running SQL (RUN is none in kisui db connections), so the result and the history of this tab are not given. The result and the history are what the person ran with the permission of the person.",
+  "dbCli.err.agentUser":
+    "The coding agent logs in to this connection as another database user (agent-user), so the result and the history of this tab are not given: the person ran them as the user of the connection, and may have read rows that the agent's user may not.",
   "dbCli.err.running":
     "A statement is running in this database tab. Run the command again when it ends.",
   "dbCli.err.noResult": "This database tab has no result tab to close.",

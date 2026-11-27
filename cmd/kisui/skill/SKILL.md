@@ -362,7 +362,7 @@ Ask again for the tables of the connection (and the structure of the table that 
 
 ### kisui db export <tab> --format csv|tsv|json [--out <file>]
 
-Print the result that the tab shows as text (`--out` writes a new file instead; it does not replace a file that exists). It gives the rows the tab holds (a note says when they are cut at the limit). It works only for a connection where `RUN` of `kisui db connections` is `read` or `free`: the result is what the user ran with their own permission, so with `none` it is refused. It is refused while the tab runs a statement; run it again when it ends. A pane of a remote machine is refused while the user has a pane of this computer set to ask every time.
+Print the result that the tab shows as text (`--out` writes a new file instead; it does not replace a file that exists). It gives the rows the tab holds (a note says when they are cut at the limit). It works only for a connection where `RUN` of `kisui db connections` is `read` or `free` and you log in as the same database user as the user does (no `agent-user`, or the same one): the result is what the user ran with their own permission, so with `none`, or with another database user, it is refused. It is refused while the tab runs a statement; run it again when it ends. A pane of a remote machine is refused while the user has a pane of this computer set to ask every time.
 
 ```sh
 kisui db export 'shop console' --format csv --out /tmp/orders.csv
@@ -370,7 +370,7 @@ kisui db export 'shop console' --format csv --out /tmp/orders.csv
 
 ### kisui db history [--json] <tab>
 
-List the statements run on the connection of the tab, newest first (`AT`, `OK`, `BY` for who ran it, `SQL`). The same rules as `kisui db export` apply (`RUN` is not `none`; the remote machine and "ask every time").
+List the statements run on the connection of the tab, newest first (`AT`, `OK`, `BY` for who ran it, `SQL`). The same rules as `kisui db export` apply (`RUN` is not `none`, and no other `agent-user`; the remote machine and "ask every time").
 
 ### kisui db page <tab> --next|--prev
 

@@ -16,8 +16,9 @@
 //     許していなければ、一覧にも出さず、指されたら「無い」ときと同じ文で断る。`open` も、同じ許しが要る。
 //   - 許している間でも、手元の PC に「操作のたびに聞く」と決めた Pane があるうちは、結果や DB の情報を Pane に返す頼み（export・history）は
 //     リモートの Machine には通さない（needNoAskEach に理由を書いた）。
-//   - export と history は、手元の PC の Pane にも、エージェントの権限が none の接続では通さない（結果と履歴は、人が人の権限で実行した
-//     SQL のもの。`kisui db query` が none で断られるのに、エージェントが同じ中身を受け取れてはいけない）。
+//   - export と history は、手元の PC の Pane にも、エージェントの権限が none の接続と、エージェントの DB のユーザー（agent-user）が接続の
+//     user と違う接続では通さない（結果と履歴は、人が接続の user で実行した SQL のもの。`kisui db query` が断られる、または agent-user の
+//     GRANT で読めない行を、エージェントが受け取れてはいけない）。
 //   - 人のキーの行き先が変わるのは、`open` が足した Tab を表示するときだけ。行き先は手元の PC なので、keysMayMove を通す。
 import { untrack, type Accessor } from "solid-js";
 
@@ -79,7 +80,7 @@ export function createDbCommands(deps: {
     | "closeResult"
     | "exportData"
     | "historyOf"
-    | "agentRunOf"
+    | "agentAccessOf"
     | "endNow"
     | "runOf"
   >;
@@ -143,17 +144,20 @@ export function createDbCommands(deps: {
   }
 
   /**
-   * タブ id の接続で、エージェントが SQL を実行してよいときだけ通す（export・history）。none（権限を書いていない接続も）は断る。
-   * 聞けなかったときは、その理由で断る（通さない側に倒す）。
+   * タブ id の接続で、エージェントが SQL を実行してよく（RUN が none でない）、エージェントの DB のユーザーが接続の user と同じときだけ
+   * 通す（export・history）。none（権限を書いていない接続も）と、agent-user が違う接続は断る。聞けなかったときは、その理由で断る
+   * （通さない側に倒す）。
    */
-  async function needAgentRun(id: string) {
-    let run: string;
+  async function needAgentAccess(id: string) {
+    let a;
     try {
-      run = await deps.db.agentRunOf(id);
+      a = await deps.db.agentAccessOf(id);
     } catch (e) {
       throw new WindowCommandError(e instanceof Error ? e.message : String(e));
     }
-    if (run === "none") throw new WindowCommandError(T("dbCli.err.agentNone"));
+    if (a.run === "none")
+      throw new WindowCommandError(T("dbCli.err.agentNone"));
+    if (!a.sameUser) throw new WindowCommandError(T("dbCli.err.agentUser"));
   }
 
   /** 実行している間は、出している結果が変わるので、結果を返す頼みは断る。 */
@@ -249,7 +253,7 @@ export function createDbCommands(deps: {
           throw new WindowCommandError(
             T("windowRun.err.arg", { name: "format" }),
           );
-        await needAgentRun(id);
+        await needAgentAccess(id);
         needIdle(id);
         const out = deps.db.exportData(id, format as ExportFormat);
         if (!out) throw new WindowCommandError(T("cannot.dbExport.text"));
@@ -269,7 +273,7 @@ export function createDbCommands(deps: {
       run: async (args, c): Promise<{ id: string; entries: HistoryInfo[] }> => {
         const { id } = resolve(args, c);
         needNoAskEach(c);
-        await needAgentRun(id);
+        await needAgentAccess(id);
         let entries;
         try {
           entries = await deps.db.historyOf(id);

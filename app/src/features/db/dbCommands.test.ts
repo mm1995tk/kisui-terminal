@@ -54,6 +54,7 @@ function setup(
     granted?: boolean;
     askEach?: boolean;
     run?: "none" | "read" | "free";
+    otherUser?: boolean;
     running?: boolean;
     keysOn?: string;
   } = {},
@@ -105,7 +106,10 @@ function setup(
         calls.push(["history", id]);
         return [{ sql: "SELECT 1", at: "2026-01-01T00:00:00.000Z", ok: true }];
       },
-      agentRunOf: async () => opts.run ?? "read",
+      agentAccessOf: async () => ({
+        run: opts.run ?? "read",
+        sameUser: opts.otherUser !== true,
+      }),
       endNow: async (id) => {
         calls.push(["end", id]);
         return { who: "you" };
@@ -205,6 +209,19 @@ describe("kisui db: from a pane of this computer", () => {
       /RUN is none/,
     );
     await refused(() => run("db.history", { tab: "main" }), /RUN is none/);
+    assert.deepEqual(calls, []);
+  });
+
+  it("refuses export and history when the agent logs in as another database user", async () => {
+    const { calls, run } = setup({ otherUser: true });
+    await refused(
+      () => run("db.export", { tab: "main", format: "csv" }),
+      /another database user/,
+    );
+    await refused(
+      () => run("db.history", { tab: "main" }),
+      /another database user/,
+    );
     assert.deepEqual(calls, []);
   });
 

@@ -906,17 +906,24 @@ export function createDbTabs(deps: {
   }
 
   /**
-   * タブ id の接続で、コーディングエージェントが SQL を実行してよい段階（`kisui db connections` の RUN。強めている間は強めた先）。
+   * タブ id の接続で、コーディングエージェントに許していること（`kisui db connections` の RUN と、ログインする DB のユーザー）。
+   * run は、SQL を実行してよい段階（強めている間は強めた先）。sameUser は、エージェントのユーザー（権限の agent-user）が接続の user と
+   * 同じか：違えば、エージェントが読めない行を人が接続の user で出していることがある。
    * 結果や履歴を Pane に返す `kisui db export`・`kisui db history` が、エージェントに許していない中身を返さないために聞く。
-   * 聞けなかった・接続が設定に無ければ投げる。
+   * 聞けなかった・接続が設定に無ければ投げる。権限を知らない古い kisui serve は、何も許さない（none）。
    */
-  async function agentRunOf(id: string): Promise<DbPermissionRun> {
+  async function agentAccessOf(
+    id: string,
+  ): Promise<{ run: DbPermissionRun; sameUser: boolean }> {
     const ref = refOf(id);
     if (!ref) throw new Error(T("db.err.noConnection"));
     const { connections } = await sessionFor(ref).request("db.connections", {});
     const c = connectionOf(connections, ref);
     if (!c) throw new Error(T("db.err.noConnection"));
-    return c.agent?.run ?? "none"; // 権限を知らない古い kisui serve は、エージェントに何も許さない
+    return {
+      run: c.agent?.run ?? "none",
+      sameUser: c.agent?.user === c.user,
+    };
   }
 
   /** 接続を選ぶ Dialog をやめる（キーを今のペインに戻す）。 */
@@ -1009,7 +1016,7 @@ export function createDbTabs(deps: {
     choose,
     closePicker,
     openConnection,
-    agentRunOf,
+    agentAccessOf,
     // 接続を選ぶ Dialog から、手元の PC の接続を足す・直す・消す（#486）
     ...connections,
   };
