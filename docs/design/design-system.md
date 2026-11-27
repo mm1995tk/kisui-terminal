@@ -176,7 +176,7 @@ Dialog と知らせの下のボタンは `Button` を使う（`button` に CSS �
   - `items`：まだ行の形にしていない Dialog（クリップボードの履歴・DB の履歴・DB の権限を強める Dialog）の基本操作のヒント（`basicHints`）。使う Dialog が無くなったら消す。
   - `note`：行の上に出す知らせ（操作できない理由など。`role` を付けた `CardText`）。
 - **`?` の一覧**：Dialog のキーの全部の表（今効かない操作・どの Dialog でも同じキー・別のキーを含む）。`placeKeys.ts` の表（`placeKeys()`。使うときに今の言語で作る）に書き、Dialog のキーの判定が `?` を受けて `openKeyList(場所)` を呼ぶ。Dialog の場所（`isWindowPlace`）は、その Dialog のキーだけを出す。閉じると、下の Dialog の、`?` を押す前にフォーカスがあった所へ戻る（`ModalCard` が戻す）。
-- **Dialog の枠を自分で持つ中身**（履歴の一覧 `HistoryPanel`。外から開く小さな Dialog にも出る）は、`CardFooter` の中に `KeyHints` を自分で置く（「コピーしました」の知らせの入れ物と一緒に）。
+- **Dialog の枠を自分で持つ中身**（履歴の一覧 `HistoryPanel`。外から開く小さな Window にも出る）は、`CardFooter` の中に `KeyHints` を自分で置く（「コピーしました」の知らせの入れ物と一緒に）。
 - **組み合わせの例**：`main-window/workspaces/WorkspaceSwitcher`（行。列と状態で替わる。作るタブの種類はボタン）、`main-window/tab-window/DbWindow`・`BrowserWindow`・`TerminalWindow`（知らせと 2 行。ターミナルのタブの Dialog は、分ける向きを待つ間だけ別の 1 行）、`main-window/sessions/MachineDialog`（知らせと 2 行。名前を打つ間は見出しだけ）、`main-window/content/browser/BookmarkDialog`（1 行）、選ぶだけの小さな Dialog（`MachinePicker`・`TabMovePicker`・`WorkspaceKindPicker`・`MascotDialog`・`DbConnectionPicker`・`DbExportDialog`。見出しだけの 1 行）。
 
 ## 組み合わせの例
