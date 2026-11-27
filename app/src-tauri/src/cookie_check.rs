@@ -64,12 +64,7 @@ pub fn check(sent: &[Cookie<'_>], stored: &[Cookie<'_>]) -> Vec<Mismatch> {
         // 値は比べるだけで、ログと Notice には出さない
         let candidates: Vec<&Cookie<'_>> = stored
             .iter()
-            .filter(|s| {
-                s.name() == want.name()
-                    && s.value() == want.value()
-                    && s.path().unwrap_or("/") == path
-                    && bare(s.domain().unwrap_or_default()) == bare(domain)
-            })
+            .filter(|s| matches_read_back(want, s) && s.value() == want.value())
             .collect();
         let problems = if candidates.is_empty() {
             vec!["not stored".to_string()]
@@ -106,7 +101,7 @@ pub fn check(sent: &[Cookie<'_>], stored: &[Cookie<'_>]) -> Vec<Mismatch> {
 pub fn to_delete(sent: &Cookie<'_>, stored: &[Cookie<'_>]) -> Vec<Cookie<'static>> {
     stored
         .iter()
-        .filter(|s| same_target(sent, s))
+        .filter(|s| matches_read_back(sent, s))
         .map(|s| {
             // 名前・domain・path は `sent` のまま（domain は `accept_cookie` が作った書き方）、ほかを入っているものにする
             let mut d = sent.clone().into_owned();
@@ -129,7 +124,7 @@ pub fn to_delete(sent: &Cookie<'_>, stored: &[Cookie<'_>]) -> Vec<Cookie<'static
 pub fn still_stored(deleted: &[Cookie<'_>], now: &[Cookie<'_>]) -> bool {
     deleted.iter().any(|d| {
         now.iter().any(|s| {
-            same_target(d, s)
+            matches_read_back(d, s)
                 && s.value() == d.value()
                 && s.secure().unwrap_or(false) == d.secure().unwrap_or(false)
                 && s.http_only().unwrap_or(false) == d.http_only().unwrap_or(false)
@@ -147,7 +142,7 @@ pub fn remember_set(stored: &mut Vec<Cookie<'static>>, sent: &Cookie<'static>) {
 
 /// 読み戻した `stored` が、`sent` と同じ名前・domain・path の Cookie に見えるか。読み戻しの domain は先頭の `.` が
 /// 取れているので、host だけの `google.com` と `.google.com` は見分けられない（どちらにも当たる）。
-pub fn same_target(sent: &Cookie<'_>, stored: &Cookie<'_>) -> bool {
+pub fn matches_read_back(sent: &Cookie<'_>, stored: &Cookie<'_>) -> bool {
     stored.name() == sent.name()
         && stored.path().unwrap_or("/") == sent.path().unwrap_or("/")
         && bare(stored.domain().unwrap_or_default()) == bare(sent.domain().unwrap_or_default())
