@@ -41,6 +41,7 @@ import { askClipboardHistory } from "./clipboard/clipboardPrompt.ts";
 import type { ListClipboardHistory } from "./clipboard/history.ts";
 import { createClipboardCommands } from "./clipboard/historyCommand.ts";
 import { createProxyCommands } from "./proxy/proxyCommands.ts";
+import { createMachineCommands } from "./sessions/machineCommands.ts";
 import type { ConfigMachine } from "./sessions/machines.ts";
 import type { TermDefaults } from "./sessions/termDefaults.ts";
 import type { ShellApi } from "./sessions/shell.ts";
@@ -372,6 +373,11 @@ export function createFeatures(deps: {
       terminals,
       relay,
       granted: paneGrantActive,
+    }),
+    // 手元の PC の Pane の頼みだけを受ける（Machine の設定を変え、接続を切れるので。machineCommands.ts）
+    createMachineCommands({
+      sessions,
+      machineList: () => workspaces.machineList(),
     }),
     createGlobalCommands({
       runCommand: (c) => commands.runCommand(c),

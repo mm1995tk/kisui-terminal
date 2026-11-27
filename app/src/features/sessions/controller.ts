@@ -22,10 +22,12 @@ import { WorkspaceTrees } from "../file-tree/trees.ts";
 import type { KeyValueStore } from "../keyValueStore.ts";
 import type { ReportProblem } from "../problem.ts";
 import { TermGroups } from "../terminal/group.ts";
+import { addAfterConnect } from "./addAfterConnect.ts";
 import { askpassMachine, type AskpassMachine } from "./askpass.ts";
 import { machineColors } from "./colors.ts";
 import {
   addMachine,
+  fixedReason,
   fromConfig,
   labelOf as machineLabelOf,
   machineEditError,
@@ -273,6 +275,12 @@ export function createSessions(deps: {
       return;
     }
     const m = r.machines[r.machines.length - 1];
+    // `kisui machine add`（addNow）が同じ行き先につないでいる最中なら、触らない（addNow と同じ決まり。
+    // 両方が書くと、断られた側が切って、もう片方が書いたばかりのマシンが切れる）
+    if (sessions()[m.target]) {
+      setAddError(T("machine.err.connecting", { label: m.target }));
+      return;
+    }
     setAddError(undefined);
     setAddPending(m);
     connect(m.target);
@@ -330,19 +338,29 @@ export function createSessions(deps: {
     if (p) void disconnect(p.target);
   }
 
-  /** 名前を変える。確かめてから config.local.toml に書き、書けたら入力欄を閉じる（書けなければ理由を入力欄に出す）。 */
+  /** マシン target の名前を変える。確かめてから config.local.toml に書く。変えられなければ理由を返す（名前の入力欄と `kisui machine rename`）。 */
+  async function renameNow(
+    target: string,
+    name: string,
+  ): Promise<string | undefined> {
+    const r = renameMachine(machines(), target, name);
+    if ("error" in r) return r.error;
+    const next = r.machines.find((m) => m.target === target);
+    return writeMachine({
+      kind: "rename",
+      ssh: target,
+      name: next?.name ?? null,
+    });
+  }
+
+  /** 名前の入力欄の Enter。書けたら入力欄を閉じる（書けなければ理由を入力欄に出す）。 */
   function submitRename(target: string, name: string) {
     const r = renameMachine(machines(), target, name);
     if ("error" in r) {
       setRenameError(r.error);
       return;
     }
-    const next = r.machines.find((m) => m.target === target);
-    void writeMachine({
-      kind: "rename",
-      ssh: target,
-      name: next?.name ?? null,
-    }).then((err) => {
+    void renameNow(target, name).then((err) => {
       if (renaming() !== target) return;
       if (err === undefined) setRenaming(null);
       else setRenameError(err);
@@ -364,41 +382,63 @@ export function createSessions(deps: {
   function submitTermEdit(startDirText: string, shellText: string) {
     const editing = termEditing();
     if (!editing || termEditBusy()) return;
-    const { target } = editing;
-    const [startDir, shell] = [startDirText.trim(), shellText.trim()];
-    const problem = startDirProblem(startDir) ?? shellProblem(shell);
+    const problem = termProblem(startDirText, shellText);
     if (problem) {
       setTermEditError(problem);
       return;
     }
-    const edit = { startDir: startDir || null, shell: shell || null };
     setTermEditBusy(true);
-    const written =
-      target === LOCAL
-        ? api
-            .editLocalTerminal(edit)
-            .then((d) => setTermDefaults((m) => ({ ...m, [LOCAL]: d })))
-        : api
-            .editMachine({ kind: "terminal", ssh: target, ...edit })
-            .then((list) => {
-              setMachines(fromConfig(list));
-              setTermDefaults((m) => ({
-                ...termDefaultsByTarget({ machines: list }),
-                [LOCAL]: m[LOCAL] ?? {},
-              }));
-            });
-    void written
-      .then(
-        () => undefined,
-        (e: unknown) => machineEditError(e),
-      )
-      .then((err) => {
+    void writeTermDefaults(editing.target, startDirText, shellText).then(
+      (err) => {
         setTermEditBusy(false);
         // 書いている間にやめた（Esc）なら、Dialog は閉じてある
         if (termEditing() !== editing) return;
         if (err === undefined) setTermEditing(null);
         else setTermEditError(err);
-      });
+      },
+    );
+  }
+
+  /** ターミナルの始め方の、書けない形の理由（前後の空白は除いて見る）。よければ undefined。 */
+  function termProblem(startDirText: string, shellText: string) {
+    return (
+      startDirProblem(startDirText.trim()) ?? shellProblem(shellText.trim())
+    );
+  }
+
+  /**
+   * マシン target のターミナルの始め方を config.local.toml に書く（Dialog の「保存」と `kisui machine terminal`）。前後の空白は除き、
+   * 空の値は、その項目を消す。リモートのマシンは [[gui.machines]] の項目に、「ローカル」は [server] に書く。書けなければ理由を返す。
+   */
+  async function writeTermDefaults(
+    target: string,
+    startDirText: string,
+    shellText: string,
+  ): Promise<string | undefined> {
+    const problem = termProblem(startDirText, shellText);
+    if (problem) return problem;
+    const [startDir, shell] = [startDirText.trim(), shellText.trim()];
+    const edit = { startDir: startDir || null, shell: shell || null };
+    try {
+      if (target === LOCAL) {
+        const d = await api.editLocalTerminal(edit);
+        setTermDefaults((m) => ({ ...m, [LOCAL]: d }));
+      } else {
+        const list = await api.editMachine({
+          kind: "terminal",
+          ssh: target,
+          ...edit,
+        });
+        setMachines(fromConfig(list));
+        setTermDefaults((m) => ({
+          ...termDefaultsByTarget({ machines: list }),
+          [LOCAL]: m[LOCAL] ?? {},
+        }));
+      }
+      return undefined;
+    } catch (e) {
+      return machineEditError(e);
+    }
   }
 
   /**
@@ -407,18 +447,55 @@ export function createSessions(deps: {
    * 書けなければ、知らせに理由を出す。config.toml にだけあるマシン（fixed）は外さない（呼ぶ側が先に断る）。
    */
   function removeFromSidebar(target: string) {
-    if (fixedOf(target)) return;
     const label = labelOf(target);
-    void writeMachine({ kind: "remove", ssh: target }).then((err) => {
-      if (err !== undefined) {
+    void removeNow(target).then((err) => {
+      if (err !== undefined)
         deps.report?.({
           title: T("machine.remove.failed", { label }),
           error: err,
         });
-        return;
-      }
-      if (!targets().includes(target)) void disconnect(target);
     });
+  }
+
+  /**
+   * マシン target を外す（removeFromSidebar と `kisui machine remove`）。外せなければ理由を返す。
+   * config.toml にだけあるマシンは外さない（理由を返す）。
+   */
+  async function removeNow(target: string): Promise<string | undefined> {
+    if (fixedOf(target)) return fixedReason();
+    const err = await writeMachine({ kind: "remove", ssh: target });
+    if (err !== undefined) return err;
+    if (!targets().includes(target)) await disconnect(target);
+    return undefined;
+  }
+
+  /**
+   * マシンを足す（`kisui machine add`。足す Dialog の submitAdd と同じ決まり）。ssh でつなぎ（kisui が無ければ、Window で人に聞いて送り、
+   * ssh の質問も Window で聞く）、つながったら config.local.toml に書く。つなげない・書けない・signal で取り下げられたときは、書かずに切り、
+   * 理由を返す。足したら、足したマシンの ssh の行き先を返す。
+   */
+  async function addNow(
+    target: string,
+    name: string,
+    signal: AbortSignal,
+  ): Promise<{ target: string } | { error: string }> {
+    const r = addMachine(machines(), target, name);
+    if ("error" in r) return r;
+    const m = r.machines[r.machines.length - 1];
+    const err = await addAfterConnect({
+      hasSession: () => !!sessions()[m.target],
+      connect: () => {
+        connect(m.target);
+        return sessions()[m.target];
+      },
+      current: () => sessions()[m.target],
+      write: () =>
+        writeMachine({ kind: "add", ssh: m.target, name: m.name ?? null }),
+      disconnect: () => void disconnect(m.target),
+      label: labelOf(m.target),
+      signal,
+    });
+    return err === undefined ? { target: m.target } : { error: err };
   }
 
   /** 見出しのそばのボタン。待ち時間中なら今すぐ、使い切った・引き継がれたあとならつなぎ直す。 */
@@ -505,6 +582,11 @@ export function createSessions(deps: {
     renameError,
     submitRename,
     removeFromSidebar,
+    renameNow,
+    removeNow,
+    addNow,
+    readTermDefaults,
+    writeTermDefaults,
     /** ターミナルの始め方（始めるフォルダとシェル）を変えているマシンと、今の設定の値 */
     termEditing,
     openTermEdit,
