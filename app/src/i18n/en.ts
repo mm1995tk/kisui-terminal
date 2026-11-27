@@ -492,6 +492,14 @@ export const en = {
   "machine.err.nameTaken": "The name {name} is used by another machine",
   "machine.err.localName":
     "The name local is reserved for this computer (kisui pane --machine local). Give the machine another name",
+  "machine.err.connecting":
+    "{label} is being connected right now (by the add dialog or by kisui machine add), so it was not added again",
+  "machine.err.addCancelled":
+    "Adding the machine was stopped before it connected, so it was not added",
+  "machineCli.err.noMachine":
+    'No machine has the name or the ssh destination "{machine}" (the machines: {names}; kisui machine list prints them)',
+  "machineCli.err.setAndUnset":
+    "Give a value or its --unset flag, not both, for the start folder and for the shell",
   "machine.edit.exists": "{ssh} is already in config.local.toml",
   "machine.edit.missing":
     "{ssh} is not in config.local.toml (a machine only in config.toml cannot be changed from the window)",

@@ -36,6 +36,7 @@ import {
 import { onPaneGrantEnd, paneGrantActive } from "./sessions/paneGrant.ts";
 import { createPaneRelay } from "./sessions/paneRelay.ts";
 import { createWindowRun } from "./commands/windowRun.ts";
+import { createMachineCommands } from "./sessions/machineCommands.ts";
 import type { ConfigMachine } from "./sessions/machines.ts";
 import type { TermDefaults } from "./sessions/termDefaults.ts";
 import type { ShellApi } from "./sessions/shell.ts";
@@ -329,6 +330,11 @@ export function createFeatures(deps: {
       terminals,
       relay,
       granted: paneGrantActive,
+    }),
+    // 手元の PC の Pane の頼みだけを受ける（Machine の設定を変え、接続を切れるので。machineCommands.ts）
+    createMachineCommands({
+      sessions,
+      machineList: () => workspaces.machineList(),
     }),
   ]);
   const proxy = createProxy({

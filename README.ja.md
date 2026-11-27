@@ -121,6 +121,17 @@ kisui workspace close --force "review 2"
 
 **これらのコマンドが届く Workspace。** Workspace は複数の Machine の Tab を持てるので、届くかどうかは Tab で決まります。決まりは上の `kisui tab` と同じです。Pane から届く Tab を 1 つでも持つ Workspace と、Tab が 1 つも無い Workspace に届きます。`kisui workspace list` の Tab の数も、届く Tab だけを数えます。`kisui workspace close` は Workspace の Tab を全部閉じるので、全部の Tab に届くときだけ行います。また、手元の PC に「操作のたびに聞く」と決めた Pane がある間は、リモートの Machine から、手元の PC の Terminal tab を持つ Workspace を閉じられません。Window が今いる Workspace を閉じると、あなたが打っているキーが隣の Workspace へ移ります。だから、`p` で許していないリモートの Machine からは、キーが今その Machine の Terminal tab に向いているときだけ閉じられます。`kisui workspace show` は、Window のキーを、その Workspace が表示している Tab に向けます。だから、`p` で許していないリモートの Machine からは、キーが今その Machine の Terminal tab に向いていて、その Workspace もその Machine の Terminal tab を表示しているときだけ使えます。リモートの Machine が、手元の PC やほかの Machine であなたが打っているキーを、自分に向けることはできません。届かない Workspace は `kisui workspace list` に出ず、指すと、その名前の Workspace が無いときと同じに失敗します。これらのコマンドは Window が行うので、Window が閉じているときは、理由を出して失敗します。kisui-terminal は確認を出しません。どの Workspace に何をするかは、全部コマンドの引数に出ています。
 
+`kisui machine` は、Pane の中から、Machine の Dialog（`m`）でできることを行います。Window がつなぐ Machine を、エージェントからも管理できます。`kisui machine list` は、Dialog の順に Machine を出します。名前（`--machine` で選ぶ名前。手元の PC は `local`）、ssh の行き先、つながっているか、Terminal tab の数、`config.toml` にだけある Machine には `config.toml`、Dialog の行のつながりの 1 行です（`--json` で `{"machines": [...]}`）。ほかのコマンドは、Machine を名前か ssh の行き先で指します（`<machine>`）。`kisui machine add [--name <名前>] <ssh>` は、足す Dialog と同じく、行き先につなぎ、つながったら足します（Window が、そこに `kisui` を入れるかや、ssh のパスワードを聞くことがあります。つなげなければ、足しません）。`kisui machine rename <machine> <名前>` は名前を変え（空の名前 `""` で、ssh の行き先に戻す）、`remove` は外して接続を切り、`disconnect` は接続を切り、`reconnect` はつなぎ直します（待っている最中なら、今すぐつなぐ）。`kisui machine terminal <machine>` は、その Machine の新しいターミナルが始まるフォルダとシェルを出します（Dialog の `t`）。`--start-dir <パス>`・`--shell <パス>` は、付けた項目だけを変えてほかは今のままにし、`--unset-start-dir`・`--unset-shell` はその項目を消します。Window は、どれも Dialog と同じく `config.local.toml` に書きます（`local` のターミナルの始め方は `[server]`）。`config.toml` にだけある Machine は変えられず、コマンドが理由を出します。Local は、名前を変える・外す・切ることができません。
+
+```sh
+kisui machine list
+kisui machine add --name dev dev-vm
+kisui machine terminal dev --start-dir ~/work
+kisui machine disconnect dev
+```
+
+**手元の PC の Pane からだけ。** これらのコマンドは、Window のつなぎ先と設定を変え、接続を切れるので、Window は、Window の動く PC の Pane の頼みだけを受けます。リモートの Machine の Pane からは、その Machine に `allow_pane_to` があっても、Machine の Dialog の `p` で許している間でも断ります。そうしないと、リモートの Machine が、Window のつなぎ先や手元の PC の設定を変えられてしまうためです。その許可（Dialog の `p` と `P`）そのものには、コマンドがありません。これらは Window が行うので、Window が閉じていると、理由を出して失敗します。kisui-terminal は確認を求めません。
+
 `kisui db` は、ペインの中のコーディングエージェントが、設定の DB の接続（`[[db.connections]]`。下）を使うためのコマンドです。`kisui db connections` は接続の一覧と、それぞれでエージェントがしてよいことを出します。`kisui db schema <接続> [<テーブル>]` はテーブルの一覧か、テーブル 1 つの列を出します。`kisui db query <接続> <SQL>` は文を 1 つ実行して行を出します。`kisui db propose <接続> <SQL>` は、DB のタブの入力欄に SQL を書きます（読んで実行するのはあなたです）。`--variant <変種>` で変種のある接続の環境を選び、`--json` でプログラム向けの結果を出します。DB につないでログインするのは、ペインのマシンの `kisui serve` なので、エージェントはクライアントを要らず、パスワードも見ません。どの頼みもエージェントのものとして扱い、エージェントに付けた権限（`agent-permission`）に従います：権限を書いていなければ、`kisui db query` は断られ、`kisui db propose` は許されます。`run = "read"` なら、書き込みは DB が断ります。`kisui db propose` は何も実行しません。タブの入力欄に SQL があるときは、上書きの前に Dialog が聞きます（`Enter` で上書き、`Esc` でやめる。やめるとコマンドは失敗します）。コマンドはパスワードを聞きません：キーチェーンか `~/.pgpass`・`~/.my.cnf` に置きます（DB のタブで入力済みなら、その Dialog を開いている間は、それも使われます）。エージェントが実行した文は、その接続の SQL の履歴に「エージェント」の札を付けて残ります。詳しくは [docs/database.md](docs/database.md#for-a-coding-agent-the-kisui-db-commands)。
 
 ```sh
@@ -132,7 +143,7 @@ kisui db propose --variant prod shop "UPDATE orders SET status = 'cancelled' WHE
 
 `kisui update` は、アプリに新しい版を今すぐ調べ直させます。アプリを閉じて開き直さなくてすみます（何もしなければ、調べるのは起動したときの 1 回だけです）。新しい版があれば、起動したときと同じ「新しい版があります」の知らせを出します（「あとで」で閉じていても、出し直します）。「更新して再起動」の動きは、その知らせと同じで、ペインのシェルは残ります（serve が引き継ぎます）。`kisui update` は、アプリが見つけたことを出します。新しい版がある、最新である、この版は自動更新を持たない（Nix で入れた版と、AppImage でない Linux。`nix flake update` で更新するか、新しい版を入れ直す）のどれかです。ssh 先のマシンのペインでも使えます。調べて知らせを出すのは手元のアプリです。使い方は `kisui update --help` で出ます。
 
-`kisui skill install [フォルダ]` は、Claude Code などのコーディングエージェントに、ペインの中での `kisui open`・`kisui notify`・`kisui clipboard`・`kisui pane`・`kisui tab`・`kisui db` の使い方を教える skill（`SKILL.md`）を書き出します。フォルダを省くと `~/.claude/skills/kisui-terminal/` に書きます。skill は `kisui` のバイナリに入っているので、入れた版に合った内容になります。`kisui clipboard paste` は勝手に呼ばないよう、skill に書いてあります。
+`kisui skill install [フォルダ]` は、Claude Code などのコーディングエージェントに、ペインの中での `kisui open`・`kisui notify`・`kisui clipboard`・`kisui pane`・`kisui tab`・`kisui workspace`・`kisui machine`・`kisui db` の使い方を教える skill（`SKILL.md`）を書き出します。フォルダを省くと `~/.claude/skills/kisui-terminal/` に書きます。skill は `kisui` のバイナリに入っているので、入れた版に合った内容になります。`kisui clipboard paste` は勝手に呼ばないよう、skill に書いてあります。
 
 ```sh
 kisui skill install

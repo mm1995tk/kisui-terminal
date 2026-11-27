@@ -61,7 +61,7 @@ app/src/
     components/             # 機能の知識を持たない部品（ボタン、ダイアログの枠と中の部分、入力欄、その場の入力欄）。決まりは design-system.md
     styles/                 # 共通の色・余白・字（theme.css はパレット、tokens.css は役割の名前、字の定義）
   features/
-    sessions/               # 接続（Session）、マシンの記録、接続の状態の文
+    sessions/               # 接続（Session）、マシンの記録、接続の状態の文、CLI の `kisui machine` の受け持ち（`machineCommands.ts`）
     workspaces/             # GUI のワークスペース、フォーカス、サイドバーの行の組み立て、CLI の `kisui workspace` の受け持ち（`workspaceCommands.ts`）、CLI の `kisui pane focus` などの受け持ち（`paneCommands.ts`）
       tabs/                 # 中のタブ（ターミナル・ブラウザ・DB）の追加・削除・並び順・選択、CLI の `kisui tab` の受け持ち（`tabCommands.ts`）
     browser/                # ブラウザのタブ 1 つずつのページの操作、ブックマーク、ダウンロード
@@ -148,7 +148,7 @@ index.tsx ──▶ ui ──▶ features ◀── infrastructure
 | `features/terminal/controller.ts`                 | フォーカスしているワークスペースのペイン、隠す・分ける                       |
 | `features/file-tree/controller.ts`・`features/changes/controller.ts` | ツリーと CHANGES の中身と操作                              |
 | `features/commands/run.ts`                        | コマンドの表のコマンドを動かす（リーダーの葉と Shortcut）                         |
-| `features/commands/windowRun.ts`                  | Window に頼む CLI（`kisui tab`・`kisui workspace`・`kisui pane focus` など）を、名前ごとの受け持ちに渡す（#511）    |
+| `features/commands/windowRun.ts`                  | Window に頼む CLI（`kisui tab`・`kisui workspace`・`kisui pane focus`・`kisui machine` など）を、名前ごとの受け持ちに渡す（#511）    |
 
 持ち物どうしは互いを呼ぶ（接続の知らせでフォーカスを直す、など）。先に作る側には、後で作る側を呼ぶ関数を渡す（`compose.ts` の `hooks` や `() => …`）。機能が画面の側に頼むこと（キーを向ける・スクロールを戻す・Dialog を出す）は、`FeatureUi`・`CommandUi` の形で `page.tsx` が渡す。
 

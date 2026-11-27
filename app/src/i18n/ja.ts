@@ -493,6 +493,14 @@ export const ja: Record<Key, string> = {
   "machine.err.nameTaken": "名前 {name} はほかのマシンで使っています",
   "machine.err.localName":
     "名前 local は手元の PC を指す予約語です（kisui pane --machine local）。別の名前を付けてください",
+  "machine.err.connecting":
+    "{label} には、今つないでいる最中です（足す Dialog か kisui machine add から）。もう一度は足しませんでした",
+  "machine.err.addCancelled":
+    "つながる前に足すのをやめたので、足しませんでした",
+  "machineCli.err.noMachine":
+    "「{machine}」という名前か ssh の行き先の Machine がありません（Machine は {names}。kisui machine list に出ます）",
+  "machineCli.err.setAndUnset":
+    "始めるフォルダとシェルは、それぞれ、値か --unset のどちらか 1 つだけを付けてください",
   "machine.edit.exists": "{ssh} は config.local.toml にもうあります",
   "machine.edit.missing":
     "{ssh} は config.local.toml にありません（config.toml にだけあるマシンは、ウィンドウからは変えられません）",
