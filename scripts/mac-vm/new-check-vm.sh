@@ -11,13 +11,20 @@
 # - TAG は GitHub の Release のタグ（既定 nightly）。その Release の .dmg を入れる。
 # - 拡張は、指定が無ければ extension/dist の一番新しい zip を入れる（npm run build:extension で作る）。
 # - 設定は、指定が無ければ同じフォルダの config.local.toml を、VM の config.local.toml として入れる。
+# - 環境変数 GOLDEN・VM で、元イメージと確認用 VM の名前を変えられる。MAC で MAC アドレスを決められる。
+#   MAC を固定するのは、VM が既定の kisui-vm のときか、MAC を指定したときだけ（同じ MAC アドレスの VM が
+#   2 つ並ぶと、DHCP が同じ IP アドレスを両方に貸す）。
 set -euo pipefail
 
 REPO=mm1995tk/kisui-terminal
 GOLDEN=${GOLDEN:-kisui-vm-golden}
 VM=${VM:-kisui-vm}
-# 確認用 VM の MAC アドレス。ホストの DHCP は、前にこの MAC アドレスに貸した IP アドレスを、また貸す
-MAC=${MAC:-a6:91:68:b7:6a:5c}
+# 確認用 VM の MAC アドレス。ホストの DHCP は、前にこの MAC アドレスに貸した IP アドレスを、また貸す。
+# 既定の VM でなければ、指定が無い限り固定しない（元イメージを複製したときの MAC アドレスのまま）
+if [ -z "${MAC:-}" ] && [ "$VM" = kisui-vm ]; then
+  MAC=a6:91:68:b7:6a:5c
+fi
+MAC=${MAC:-}
 EXT_ID=kisui-terminal@mm1995tk.github.io
 
 tag=nightly
@@ -32,7 +39,7 @@ while [ $# -gt 0 ]; do
   --extension) ext=$2; shift ;;
   --no-extension) no_ext=1 ;;
   --config) cfg=$2; shift ;;
-  -h | --help) sed -n '2,13p' "$0"; exit 0 ;;
+  -h | --help) sed -n '2,16p' "$0"; exit 0 ;;
   *) echo "知らない引数: $1" >&2; exit 2 ;;
   esac
   shift
@@ -76,7 +83,7 @@ if [ "$(vm_status "$VM")" != missing ]; then
   lume delete "$VM" --force
 fi
 lume clone "$GOLDEN" "$VM"
-lume set "$VM" --mac-address "$MAC"
+[ -z "$MAC" ] || lume set "$VM" --mac-address "$MAC"
 lume run "$VM" --detach --display none
 
 echo "== $VM の起動を待ちます"

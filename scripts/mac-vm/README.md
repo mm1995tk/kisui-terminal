@@ -14,6 +14,8 @@ lume attach kisui-vm                  # 画面を見る
 - 別の Release を入れるときは `--tag v0.2.0`。
 - 設定を変えるときは `--config <ファイル>`（既定はこのフォルダの `config.local.toml`）。
 - `kisui-vm` は毎回消して作り直す。中に残した設定や作業は消える。
+- 環境変数 `VM` で確認用 VM の名前を変えられる。名前を変えたときは、`MAC` を指定しない限り MAC アドレスを
+  固定しない（同じ MAC アドレスの VM が 2 つ並ぶと、同じ IP アドレスが貸される）。
 - `kisui-vm` の MAC アドレスを固定しているので、同じホストでは IP アドレスが毎回同じになる（ホストの DHCP が
   MAC アドレスごとに貸し出しを `/var/db/dhcpd_leases` に覚えているため）。何になるかはスクリプトの最後に出る。
   cua-driver の MCP（`ssh lume@<IP アドレス> /Users/lume/.local/bin/cua-driver mcp`）の接続先は、1 度合わせれば
