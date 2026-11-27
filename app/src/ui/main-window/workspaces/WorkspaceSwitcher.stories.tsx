@@ -202,6 +202,11 @@ type Story = StoryObj<typeof meta>;
 /** ローカルと別のマシン（つながっていない）のワークスペースが並ぶ。j / k で選ぶと、右に選んだ行のタブが出る。r で名前を変え（長すぎる名前は断られる）、x で閉じる確認を出す。 */
 export const Default: Story = {};
 
+/** 右の列（タブ）にキーを置いたとき。Key footer はタブの行だけになり Default より低くなるが、一覧の欄の上端と高さは Default と同じ（動くのは Dialog の下端だけ）。 */
+export const TabColumn: Story = {
+  args: { initialCol: "tab" },
+};
+
 /** タブが 1 つも無いワークスペースを選んでいるとき。 */
 export const NoTabs: Story = {
   args: { rows: [row("g1", "scratch", MACHINES.local, [], { focused: true })] },

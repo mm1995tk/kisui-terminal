@@ -1,17 +1,32 @@
 /* Workspace switcher（WorkspaceSwitcher.tsx。リーダーの w）。カードは card.css。
    左に全ワークスペース、右に選んでいる行のタブの一覧（サイドバーのタブの行 .tab-row を、sidebar.css のまま使う）。 */
 
-/* Dialog の大きさは、メインのウィンドウの幅と高さの 60% に固定する（中身の数では伸び縮みしない）。
-   小さすぎ・大きすぎにならないよう、上限と下限を付ける（画面が小さければ、画面に収まる大きさまで縮む） */
+/* Dialog の大きさは、メインのウィンドウの幅と高さの 60% にする（中身の数では伸び縮みしない）。
+   小さすぎ・大きすぎにならないよう、上限と下限を付ける（画面が小さければ、画面に収まる大きさまで縮む）。
+   高さを固定するのは中身の段（.card-content）で、Dialog 全体ではない。Key footer は状態で行の数が変わる（ワークスペースの列は 2 行、
+   タブの列は 1 行など）。Dialog 全体の高さを固定すると、Key footer が伸び縮みするたびに中身の段が縮み伸びし、列を移るだけで一覧が動く。
+   上端も、真ん中に寄せず決まった位置に置く（真ん中に寄せると、Key footer が伸びた分の半分だけ Dialog が上へずれ、中身が動く）。
+   Key footer が 2 行のとき、Dialog の高さがウィンドウのおよそ 60% になり、上下の真ん中に来る */
 .card-modal:has(.switcher) {
+  /* Key footer が 2 行のときの Dialog の高さ */
+  --switcher-height: clamp(420px, 60vh, 900px);
+  /* 中身の段の外の高さ（Key footer が 2 行のとき）：見出し（およそ 50px）と Key footer（およそ 71px）。
+     card.css の見出しや Key footer の余白・字の大きさを変えたら、ここも測り直す（ずれても一覧は動かず、Dialog の大きさが少し変わるだけ） */
+  --switcher-chrome-height: calc(50px + 71px);
+  --switcher-top: max(
+    var(--space-16),
+    calc((100vh - var(--switcher-height)) / 2)
+  );
   box-sizing: border-box;
   width: clamp(640px, 60vw, 1200px);
-  height: clamp(420px, 60vh, 900px);
-  max-height: calc(100vh - 2 * var(--space-16));
-  margin: auto;
+  max-height: calc(100vh - var(--switcher-top) - var(--space-16));
+  margin: var(--switcher-top) auto auto;
 }
-/* 中身の高さは Dialog が決める。一覧のスクロールは、列の中でする */
+/* 中身の段の高さ。Dialog の高さから、中身の段の外の高さ（見出しと 2 行の Key footer）を引いたもの。
+   画面が小さくて Dialog が max-height に当たるときだけ、ここが縮む。一覧のスクロールは、列の中でする */
 .card-modal:has(.switcher) .card-content {
+  flex: 0 1 auto;
+  height: calc(var(--switcher-height) - var(--switcher-chrome-height));
   overflow: hidden;
 }
 /* 高さを決めた Dialog（上）に収め、左右の列の中でスクロールする。.card-content の子は縮まない決まり（card.css）なので、ここで縮めてよいと書く */

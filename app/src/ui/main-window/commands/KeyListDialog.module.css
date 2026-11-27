@@ -91,7 +91,15 @@
 .first {
   order: -1;
 }
-/* 本文の上の余白。padding にすると、固定した見出しの上をスクロールする行が透けるので、先頭の要素の margin にする */
+/* 本文の上の余白。.body の padding にすると、固定した見出しの上をスクロールする行が透けるので、先頭の要素の margin にする */
 .body > :first-child {
   margin-top: 20px;
+}
+/* 先頭がリーダーの一覧のときは、余白を貼り付く塊（.stick）の内側（背景あり）に持つ。外側の margin だと、スクロールした途端に
+   塊が余白の分だけ上へ跳ねる（貼り付く位置は top: 0 なので） */
+.body > .part:first-child:has(> .stick) {
+  margin-top: 0;
+}
+.part:first-child > .stick {
+  padding-top: 20px;
 }
