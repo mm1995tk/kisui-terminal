@@ -19,7 +19,7 @@ export const en = {
   "leader.ws.close": "Close workspace",
   "leader.ws.rename": "Rename",
   "leader.tab.switch":
-    "Open the workspace window on the tabs of this workspace",
+    "Open the Workspace switcher on the tabs of this workspace",
   "leader.tab.create": "New tab",
   "leader.tab.new": "New terminal tab (same machine and folder)",
   "leader.tab.newPick": "New terminal tab on another machine",
@@ -33,7 +33,7 @@ export const en = {
   "leader.tab.moveTo": "Move this tab to another workspace",
   "leader.tab.window": "Actions for this tab",
   "leader.direct.group": "Shortcuts only",
-  "cannot.tabWindow.title": "This tab has no window",
+  "cannot.tabWindow.title": "This tab has no dialog",
   "cannot.tabWindow.noTab":
     "No tab is shown. Press n after the leader to create one.",
   "cannot.pane.none.title": "No panes here",
@@ -145,14 +145,14 @@ export const en = {
   "place.machines.terminal":
     "Terminal settings: the start folder and the shell of new terminals (a machine from the config file cannot be changed)",
   "place.machines.newTab":
-    "Start a terminal tab on the selected machine in the current workspace (opens the workspace window; the tab is created when you confirm its name)",
+    "Start a terminal tab on the selected machine in the current workspace (opens the Workspace switcher; the tab is created when you confirm its name)",
   "place.row.close": "Close",
   "place.list.title": "Candidate / history list",
   "place.list.lead": "Keys that work only inside a candidate or history list.",
   "place.list.step": "Select the next / previous row",
   "place.bookmarks.title": "Bookmarks",
   "place.bookmarks.lead":
-    "Keys in the bookmark list (B in the window of a in the leader, on a browser tab). Type to filter by title or URL.",
+    "Keys in the bookmark list (B in the dialog of a in the leader, on a browser tab). Type to filter by title or URL.",
   "place.bookmarks.open":
     "Open the bookmark in a new tab of this workspace, or open / close the folder",
   "place.bookmarks.delete": "Delete the selected bookmark",
@@ -166,14 +166,14 @@ export const en = {
   "bookmarks.foot.selected": "Selected bookmark",
   "history.keys.paste": "paste",
   "history.keys.copy": "copy",
-  "place.picker.title": "Selection window",
+  "place.picker.title": "Selection dialog",
   "place.picker.lead":
-    "Keys in a window that asks you to choose one row (a machine, a workspace, a kind, a character).",
+    "Keys in a dialog that asks you to choose one row (a machine, a workspace, a kind, a character).",
   "place.picker.choose": "Choose the selected row",
   "place.picker.cancel": "Cancel without choosing",
-  "place.dbPicker.title": "DB connection window",
+  "place.dbPicker.title": "DB connection dialog",
   "place.dbPicker.lead":
-    "Keys in the window that lists the DB connections of every connected machine. Adding, editing and removing write config.local.toml of this PC.",
+    "Keys in the dialog that lists the DB connections of every connected machine. Adding, editing and removing write config.local.toml of this PC.",
   "place.dbPicker.open": "Open a DB tab on the selected connection",
   "place.dbPicker.add": "Add a connection to this PC",
   "place.dbPicker.edit": "Edit the selected connection",
@@ -183,7 +183,7 @@ export const en = {
     "Keys that work while the left (workspace) column has the keys. You can also reorder by dragging the grip at the left of a row.",
   "place.switcher.nextPrev": "Select the next / previous workspace",
   "place.switcher.toTabs": "Move to the tab column (when there are tabs)",
-  "place.switcher.go": "Switch to the selected workspace and close the window",
+  "place.switcher.go": "Switch to the selected workspace and close the dialog",
   "place.switcher.new": "Create a workspace",
   "place.switcher.newTab":
     "Create a tab in the selected workspace (shows the list of kinds to choose from)",
@@ -195,7 +195,7 @@ export const en = {
     "Keys that work while the right (tab) column has the keys. You can also drag a tab row by its grip over a workspace on the left to move it there.",
   "place.switcherTabs.nextPrev": "Select the next / previous tab",
   "place.switcherTabs.toWorkspaces": "Move to the workspace column",
-  "place.switcherTabs.show": "Show the selected tab and close the window",
+  "place.switcherTabs.show": "Show the selected tab and close the dialog",
   "place.switcherTabs.new":
     "Create a tab (shows the list of kinds to choose from)",
   "place.switcherTabs.close": "Close the selected tab",
@@ -203,7 +203,7 @@ export const en = {
   "place.switcherTabs.hold":
     "Pick up the selected tab (choose where with j k and h l, drop with Enter, cancel with Esc)",
   "place.history.title": "Clipboard history",
-  "place.history.lead": "Keys in the clipboard history window. Type to filter.",
+  "place.history.lead": "Keys in the clipboard history dialog. Type to filter.",
   "place.history.paste":
     "Paste the selected entry (or put it back on the clipboard when there is nowhere to paste)",
   "place.history.putBack": "Put the selected entry back on the clipboard",
@@ -251,7 +251,7 @@ export const en = {
   "cannot.tabMove.title": "Cannot move the tab",
   "cannot.tabMove.noTab": "This workspace has no tab to move.",
   "cannot.tabMove.noWorkspace":
-    "There is no other workspace to move it to. Create one with n in the workspace window (leader w).",
+    "There is no other workspace to move it to. Create one with n in the Workspace switcher (leader w).",
   "cannot.tab.disconnected":
     "Not connected to {machine}. Reconnect it in the machine dialog (m in the leader).",
   "cannot.workspace.text":
@@ -468,7 +468,7 @@ export const en = {
   "machine.cant.newTab.pending":
     "{label} is connecting right now, so a tab cannot be created on it yet. Press Enter once it is connected",
   "machine.cant.newTab.noWorkspace":
-    "There is no workspace to create the tab in. Create one with n in the workspace window (leader w).",
+    "There is no workspace to create the tab in. Create one with n in the Workspace switcher (leader w).",
   "machineDialog.keys.newTab": "new tab",
   "machineDialog.keys.rename": "rename",
   "machineDialog.keys.remove": "remove",
@@ -567,7 +567,7 @@ export const en = {
   "switcher.keys.confirmNo": "keep",
   "switcher.foot.ws": "Workspace",
   "switcher.foot.tab": "Tab",
-  "switcher.foot.window": "Window",
+  "switcher.foot.window": "Dialog",
   "switcher.foot.hold": "Moving a tab",
   "switcher.foot.kinds": "New tab",
   "switcher.foot.typing": "Typing a name",
@@ -598,17 +598,17 @@ export const en = {
   "termWindow.note.primary": "The primary pane cannot be closed.",
   "termWindow.note.zoom":
     "Panes can be hidden only while shijimi-editor runs in the primary pane.",
-  "place.termWindow.title": "Terminal tab window",
+  "place.termWindow.title": "Terminal tab dialog",
   "place.termWindow.lead":
     "Opened with a in the leader while a terminal tab is shown. Select a pane on the map, then act on it.",
   "place.termWindow.select": "Select the neighbor pane",
-  "place.termWindow.focus": "Focus the selected pane and close the window",
+  "place.termWindow.focus": "Focus the selected pane and close the dialog",
   "place.termWindow.split":
     "Split the selected pane (then h j k l for the direction)",
   "place.termWindow.swap": "Swap the selected pane with its neighbor",
   "place.termWindow.close": "Close the selected pane",
   "place.termWindow.zoom": "Show only the primary pane / restore",
-  "place.termWindow.resize": "Close the window and enter resize mode",
+  "place.termWindow.resize": "Close the dialog and enter resize mode",
   "dbWindow.label": "Result tabs of this database tab",
   "dbWindow.list": "Result tabs",
   "dbWindow.keys.close": "close",
@@ -643,11 +643,11 @@ export const en = {
   "dbWindow.state.none": "No result yet",
   "dbWindow.note.noResult": "There is no result tab.",
   "dbWindow.note.notRunning": "No SQL is running.",
-  "place.dbWindow.title": "Database tab window",
+  "place.dbWindow.title": "Database tab dialog",
   "place.dbWindow.lead":
     "Opened with a in the leader while a database tab is shown. Select a result tab, then act on it, or act on the whole tab.",
   "place.dbWindow.select": "Select the next or previous result tab",
-  "place.dbWindow.show": "Show the selected result tab and close the window",
+  "place.dbWindow.show": "Show the selected result tab and close the dialog",
   "place.dbWindow.close":
     "Close the selected result tab (cancels its SQL if it is running)",
   "place.dbWindow.view":
@@ -687,7 +687,7 @@ export const en = {
   "browserWindow.why.noBack": "Nothing to go back to",
   "browserWindow.why.noForward": "Nothing to go forward to",
   "browserWindow.why.notLoading": "The page is not loading",
-  "place.browserWindow.title": "Browser tab window",
+  "place.browserWindow.title": "Browser tab dialog",
   "place.browserWindow.lead":
     "Opened with a in the leader while a browser tab is shown. Shows the state of the page; select an action and press Enter, or press its key.",
   "place.browserWindow.select":
@@ -1229,7 +1229,7 @@ export const en = {
   "db.export.truncatedCells": "Some long values are cut in the export.",
   "place.dbHistory.title": "SQL history of a database tab",
   "place.dbHistory.lead":
-    "Keys in the history window. Type to filter. Only this connection's history is shown.",
+    "Keys in the history dialog. Type to filter. Only this connection's history is shown.",
   "place.dbHistory.choose": "Put the selected SQL in the input (it is not run)",
   "db.history.label": "SQL history",
   "db.history.title": "SQL history of {connection}",

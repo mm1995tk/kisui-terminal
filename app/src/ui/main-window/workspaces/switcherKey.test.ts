@@ -189,11 +189,11 @@ describe("窓の下の段（共通フッタ）の今効く操作（#487）", () 
   it("ワークスペースの列：ワークスペースへの操作と、この窓の操作（ワークスペースを作る）の 2 行。ワークスペースが無ければ、1 行目は見出しだけ", () => {
     assert.deepEqual(shown(switcherFooter({ mode: "ws", hasWs: true })), [
       ["Workspace", ["N", "r", "x", "J K"]],
-      ["Window", ["n"]],
+      ["Dialog", ["n"]],
     ]);
     assert.deepEqual(shown(switcherFooter({ mode: "ws", hasWs: false })), [
       ["Workspace", []],
-      ["Window", ["n"]],
+      ["Dialog", ["n"]],
     ]);
   });
 
