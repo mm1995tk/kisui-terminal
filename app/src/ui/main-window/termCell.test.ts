@@ -9,6 +9,8 @@ import type { PaneLayout } from "../../infrastructure/rpc/protocol.ts";
 import { TERM_PADDING_X, TERM_SCROLLBAR_WIDTH } from "../styles/monoFont.ts";
 import {
   MIN_TERM_COLS,
+  PROXY_PANEL_MIN_WIDTH,
+  PROXY_PANEL_RATIO,
   sidebarMax,
   TERM_CHROME_WIDTH,
   termMinWidth,
@@ -93,9 +95,23 @@ describe("サイドバーの幅の上限と、ターミナルの列の数（#501
       for (const dpr of [1, 2, 3]) {
         for (let adv = 5; adv <= 14; adv += 0.35) {
           const cell = cellWidthFromAdvances(() => adv * dpr, dpr)!;
-          for (const windowWidth of [800, 1024, 1440]) {
-            const right =
-              windowWidth - sidebarMax(windowWidth, cell, false, tree);
+          for (const [windowWidth, proxyPanel] of [800, 1024, 1440].flatMap(
+            (w) =>
+              [
+                [w, false],
+                [w, true],
+              ] as const,
+          )) {
+            const rightPane =
+              windowWidth - sidebarMax(windowWidth, cell, proxyPanel, tree);
+            // プロキシのパネルは右の欄の右を取る（layout.css の clamp(280px, 45%, 70%)）。残りがターミナル
+            const right = proxyPanel
+              ? rightPane -
+                Math.max(
+                  PROXY_PANEL_MIN_WIDTH,
+                  Math.min(PROXY_PANEL_RATIO * rightPane, 0.7 * rightPane),
+                )
+              : rightPane;
             // 上限は下限（200px）で止まるので、右の欄が足りるときだけ確かめる
             if (right < termMinWidth(cell, tree)) continue;
             for (const [id, r] of layoutRects(tree ?? pane("p"))) {
@@ -112,7 +128,7 @@ describe("サイドバーの幅の上限と、ターミナルの列の数（#501
               });
               assert.ok(
                 dims && dims.cols >= MIN_TERM_COLS,
-                `${name} ${id} dpr=${dpr} 字=${cell} Window=${windowWidth}：${dims?.cols} 列`,
+                `${name} ${id} dpr=${dpr} 字=${cell} Window=${windowWidth} パネル=${proxyPanel}：${dims?.cols} 列`,
               );
             }
           }
