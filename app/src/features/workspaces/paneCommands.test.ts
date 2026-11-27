@@ -432,6 +432,57 @@ describe("kisui pane zoom", () => {
     assert.ok(!calls.some((c) => c[0] === "show"));
   });
 
+  it("キーが向いている Terminal tab を Primary pane だけの表示にするときは、キーの行き先を変える頼みと同じ確認をする", async () => {
+    const keysOnBuild = [
+      row("gaaaaaaaaaa", termKey(LOCAL, "wlocal"), [
+        [termKey(LOCAL, "wlocal"), "repo"],
+      ]),
+      row(
+        "gbbbbbbbbbb",
+        termKey("build", "wbuild"),
+        [[termKey("build", "wbuild"), "ci"]],
+        true,
+      ),
+    ];
+    const zoomCi = (o: Parameters<typeof setup>[0], from = "dev-vm") => {
+      const f = setup(o);
+      return {
+        f,
+        r: () =>
+          f.run("pane.zoom", { pane: "ci", machine: "build" }, from, "wdev"),
+      };
+    };
+    // キーが build の Terminal tab にあるとき、dev の Pane からの build の Pane の zoom は断られ、zoomWs は呼ばれない
+    const a = zoomCi({ rows: keysOnBuild });
+    const e = await refusal(a.r);
+    assert.ok(e.message.includes("dev-vm"));
+    assert.ok(!a.f.calls.some((c) => c[0] === "zoomWs"));
+    // 表示を戻すときは、キーを動かさないので通る
+    assert.deepEqual(await zoomCi({ rows: keysOnBuild, zoomed: true }).r(), {
+      id: "t9",
+      zoomed: false,
+    });
+    // キーが向いていない Terminal tab（キーは手元の PC の Tab にある）は通る
+    assert.deepEqual(await zoomCi({}).r(), { id: "t9", zoomed: true });
+    // 許している間は通る
+    assert.deepEqual(await zoomCi({ rows: keysOnBuild, granted: true }).r(), {
+      id: "t9",
+      zoomed: true,
+    });
+    // 手元の PC の Pane は、いつでも通る
+    const local = setup({ rows: keysOnBuild });
+    assert.deepEqual(
+      await local.run("pane.zoom", { pane: "ci", machine: "build" }),
+      { id: "t9", zoomed: true },
+    );
+    // キーがその Pane の Machine の Terminal tab にあれば、その Machine の Pane の zoom は通る
+    const own = setup({ rows: rowsOn(termKey("dev-vm", "wdev")) });
+    assert.deepEqual(
+      await own.run("pane.zoom", { pane: "worker" }, "dev-vm", "wdev"),
+      { id: "t7", zoomed: true },
+    );
+  });
+
   it("許していない Machine の Pane は断る", async () => {
     await refusal(() =>
       setup().run(

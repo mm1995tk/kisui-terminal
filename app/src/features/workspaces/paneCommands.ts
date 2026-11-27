@@ -8,7 +8,7 @@
 //
 // キーの行き先：pane.focus と pane.last は、人のキーをその Pane へ向ける。リモートの Machine の Pane からは、Window の前の人が
 // 時間を決めて許している間（paneGrant.ts）か、キーが今その Machine の Terminal tab に向いていて、行き先の Pane もその Machine の
-// Terminal tab にあるときだけ通す（`kisui workspace show` と同じ。tabs/tabCommands.ts の keysOnMachine）。swap・zoom・resize は、キーを動かさない。
+// Terminal tab にあるときだけ通す（`kisui workspace show` と同じ。tabs/tabCommands.ts の keysOnMachine）。swap・resize は、キーを動かさない。zoom は、Primary pane だけの表示にするとき、その Terminal tab にキーが向いていれば、キーが Primary pane へ移るので、そのときだけ同じ確認をする。
 import { untrack, type Accessor } from "solid-js";
 
 import { T } from "../../i18n/index.ts";
@@ -227,6 +227,20 @@ export function createPaneCommands(deps: {
           throw new WindowCommandError(
             T("paneCli.err.noZoom", { pane: p.name }),
           );
+        // Primary pane だけの表示にすると、その Terminal tab にキーが向いていれば、キーが Primary pane へ移る。
+        // 人が打っているキーを別の Pane へ動かすので、キーの行き先を変える頼みと同じ確認をする
+        // （表示を戻すときと、キーが向いていない Terminal tab は、キーを動かさない）
+        if (
+          !deps.terminals.isZoomed(p.target, p.ws) &&
+          tabEntries(untrack(deps.gws), untrack(deps.rows)).some(
+            (e) =>
+              e.focused &&
+              e.ref.kind === "term" &&
+              e.target === p.target &&
+              e.id === p.ws,
+          )
+        )
+          needKeysOn(c, p.target);
         return {
           id: p.id,
           zoomed: deps.terminals.zoomWs(p.target, p.ws, "toggle"),
