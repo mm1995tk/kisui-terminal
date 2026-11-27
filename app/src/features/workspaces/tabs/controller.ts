@@ -473,21 +473,27 @@ export function createTabs(deps: {
   }
 
   /** ワークスペース g にブラウザのタブを足す（新しいタブのページを出す。incognito ならシークレットのタブ。browser.new・browser.incognito と同じ）。 */
-  function newBrowserTab(g: Gws, incognito = false): string {
-    const o = browserOrigin(g);
+  function newBrowserTab(
+    g: Gws,
+    incognito = false,
+    origin?: { target: string; ws: WorkspaceId },
+  ): string {
+    const o = origin ?? browserOrigin(g);
     return openNewTab(o.target, o.ws, incognito, g.id);
   }
 
   /**
    * ワークスペース g に、ページ url のブラウザのタブ（incognito ならシークレットのタブ）を足して出す（`kisui browser new <url>`。#515）。
-   * 開いたところは browserOrigin。作れなければ（リモートのマシンの localhost 系の中継を用意できない）理由で断る。作ったタブの id を返す。
+   * 開いたところ（localhost 系の URL を、どの Machine の中継で開くか）は origin（`kisui browser new` は、頼んだ Pane の Machine と Terminal tab）。
+   * 省けば browserOrigin。作れなければ（リモートのマシンの localhost 系の中継を用意できない）理由で断る。作ったタブの id を返す。
    */
   function newBrowserTabAt(
     g: Gws,
     url: string,
     incognito = false,
+    origin?: { target: string; ws: WorkspaceId },
   ): Promise<string> {
-    const o = browserOrigin(g);
+    const o = origin ?? browserOrigin(g);
     return deps.pages.openUrlTab(o.target, o.ws, url, incognito, g.id);
   }
 

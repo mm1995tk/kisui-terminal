@@ -239,10 +239,13 @@ export function createBrowserCommands(deps: {
         // 作るのは、頼んだ Pane の Terminal tab がある Workspace（キー操作の browser.new は今いる Workspace）
         const g = gwsOfTerm(untrack(deps.gws), c.from, c.tab);
         if (!g) throw new WindowCommandError(T("browserCli.err.noWorkspace"));
-        if (raw === undefined) return { id: deps.tabs.newBrowserTab(g, priv) };
+        // 開いたところは、頼んだ Pane の Machine と Terminal tab（localhost 系の URL は、その Machine の中継で開く。`kisui open` と同じ）
+        const origin = { target: c.from, ws: c.tab };
+        if (raw === undefined)
+          return { id: deps.tabs.newBrowserTab(g, priv, origin) };
         const url = checkUrl(raw);
         needNoAskEach(c);
-        return { id: await deps.tabs.newBrowserTabAt(g, url, priv) };
+        return { id: await deps.tabs.newBrowserTabAt(g, url, priv, origin) };
       },
     },
 

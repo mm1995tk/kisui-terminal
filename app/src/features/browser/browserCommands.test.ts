@@ -81,12 +81,12 @@ function setup(
       setTabName: async (gid, key, name) => {
         calls.push(["rename", gid, key, name]);
       },
-      newBrowserTab: (g, priv) => {
-        calls.push(["new", g.id, priv]);
+      newBrowserTab: (g, priv, origin) => {
+        calls.push(["new", g.id, priv, origin]);
         return "tcreated";
       },
-      newBrowserTabAt: async (g, url, priv) => {
-        calls.push(["newAt", g.id, url, priv]);
+      newBrowserTabAt: async (g, url, priv, origin) => {
+        calls.push(["newAt", g.id, url, priv, origin]);
         return "tcreated2";
       },
     },
@@ -249,8 +249,14 @@ describe("kisui browser の受け持ち", () => {
     await refusal(() => run("browser.new", { url: "gopher://x" }));
     await refusal(() => run("browser.new", {}, LOCAL, "wnone"));
     assert.deepEqual(calls, [
-      ["new", "gaaaaaaaaaa", true],
-      ["newAt", "gaaaaaaaaaa", "https://c.example/", false],
+      ["new", "gaaaaaaaaaa", true, { target: LOCAL, ws: "wlocal" }],
+      [
+        "newAt",
+        "gaaaaaaaaaa",
+        "https://c.example/",
+        false,
+        { target: LOCAL, ws: "wlocal" },
+      ],
     ]);
   });
 
@@ -321,7 +327,7 @@ describe("kisui browser の届く範囲", () => {
     });
     assert.deepEqual(calls, [
       ["nav", "tpage", "reload"],
-      ["new", "gaaaaaaaaaa", false],
+      ["new", "gaaaaaaaaaa", false, { target: "dev-vm", ws: "wdev" }],
     ]);
   });
 
