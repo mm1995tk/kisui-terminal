@@ -12,7 +12,7 @@
   align-items: baseline;
 }
 .key-footer-title {
-  /* 見出しがどれも短い窓では、列を本文の字の 8 字分にそろえる（見出しは本文より小さい字なので、em ではなく本文の字の大きさで書く） */
+  /* 見出しがどれも短いときは、列を本文の字の 8 字分にそろえる（見出しは本文より小さい字なので、em ではなく本文の字の大きさで書く） */
   min-width: calc(var(--text-body) * 8);
   color: var(--color-text-dim);
   font-size: var(--text-label);
