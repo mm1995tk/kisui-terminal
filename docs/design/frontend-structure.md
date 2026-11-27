@@ -72,7 +72,7 @@ app/src/
     changes/
     clipboard/              # クリップボードの読み取りの許可、履歴、CLI の `kisui clipboard history` の受け持ち（`historyCommand.ts`）
     file-transfer/
-    mascot/
+    mascot/                 # キャラクター、CLI の `kisui mascot` の受け持ち（`mascotCommands.ts`）
     updates/
     scale/                  # 表示の大きさ
     commands/               # コマンドの表（リーダーと Shortcut）、キーの書き方、コマンドを動かす、Window に頼む CLI の受け口（`windowRun.ts`。#511）、Window 全体に効く Command の CLI の受け持ち（`globalCommands.ts`・`noticeCommands.ts`）
