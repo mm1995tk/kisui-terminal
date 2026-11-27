@@ -126,7 +126,8 @@ func writeMascotList(w io.Writer, l mascotList) error {
 		if e.Error != nil {
 			line += "  (" + tableCell(*e.Error) + ")"
 		}
-		b.WriteString(line + "\n")
+		b.WriteString(line)
+		b.WriteString("\n")
 	}
 	_, err := io.WriteString(w, b.String())
 	return err
