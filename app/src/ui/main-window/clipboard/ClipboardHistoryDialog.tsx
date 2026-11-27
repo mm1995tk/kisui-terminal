@@ -1,6 +1,6 @@
 // クリップボードの履歴の一覧（#54）。キーで開き、選んだ文字を今の欄に貼るか、OS のクリップボードに戻す。
 // 履歴を持つのは Tauri の側（clipboard_history.rs）。ここは開くたびに読み、選ばせる。
-// 一覧の中身（ui/modules/clipboard-history/HistoryPanel.tsx）は、kisui-terminal の外から開く小さな Dialog（ui/utilities/clipboard/page.tsx）でも使う。
+// 一覧の中身（ui/modules/clipboard-history/HistoryPanel.tsx）は、kisui-terminal の外から開く小さな Window（ui/utilities/clipboard/page.tsx）でも使う。
 import { T } from "../../../i18n/index.ts";
 import { createSignal, Show, type JSX } from "solid-js";
 

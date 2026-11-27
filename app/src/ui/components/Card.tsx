@@ -127,7 +127,7 @@ const withClass = (base: string, extra: string | undefined): string =>
 
 /**
  * 下に固定する段（上に 1px の線）。ModalCard は footer をこれに入れる。
- * 自分で使うのは、Dialog の枠を自分で持つ中身（履歴の一覧 HistoryPanel。真ん中の Dialog と、外から開く小さな Dialog の両方に出る）だけ。
+ * 自分で使うのは、Dialog の枠を自分で持つ中身（履歴の一覧 HistoryPanel。真ん中の Dialog と、外から開く小さな Window の両方に出る）だけ。
  */
 export function CardFooter(props: { children: JSX.Element }): JSX.Element {
   return <footer class="card-footer">{props.children}</footer>;

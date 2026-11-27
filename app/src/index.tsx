@@ -54,7 +54,7 @@ try {
 // 文書の言語も合わせる（スクリーンリーダーの読み方・字形の選び方が変わる）
 document.documentElement.lang = lang();
 
-// この画面が、kisui-terminal の外から開くクリップボードの履歴の Dialog（clipboard_popup.rs）か
+// この画面が、kisui-terminal の外から開くクリップボードの履歴の Window（clipboard_popup.rs）か
 if (windowLabel() === POPUP_LABEL) {
   // 履歴の一覧だけを出す（ターミナルは使わない）。Dialog は透明で、カードの丸い角の外は地を塗らない
   document.documentElement.style.background = "transparent";

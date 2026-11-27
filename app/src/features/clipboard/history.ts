@@ -6,7 +6,7 @@ import { isComposingKey } from "../commands/ime.ts";
 import { listStep } from "../commands/placeKeys.ts";
 import { T } from "../../i18n/index.ts";
 
-/** kisui-terminal の外から開く履歴の Dialog のラベル（clipboard_popup.rs の LABEL と同じ）。 */
+/** kisui-terminal の外から開く履歴の Window のラベル（clipboard_popup.rs の LABEL と同じ）。 */
 export const POPUP_LABEL = "clipboard-history";
 
 /** 履歴の 1 件（clipboard_history.rs の Entry）。 */
@@ -20,7 +20,7 @@ export interface HistoryEntry {
 export type ListClipboardHistory = () => Promise<HistoryEntry[]>;
 
 /**
- * kisui-terminal の外から開く履歴の Dialog（ui/utilities/clipboard）が、外（Tauri の殻。clipboard_popup.rs）に頼むこと。
+ * kisui-terminal の外から開く履歴の Window（ui/utilities/clipboard）が、外（Tauri の殻。clipboard_popup.rs）に頼むこと。
  * 本物は infrastructure/tauri/clipboardHistory.ts。
  */
 export interface ClipboardPopupOs {

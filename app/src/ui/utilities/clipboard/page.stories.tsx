@@ -1,5 +1,5 @@
-// kisui-terminal の外から開くクリップボードの履歴の Dialog（page.tsx）を出す（#314）。
-// Dialog の出し入れとクリップボードへの書き込み（ClipboardPopupOs。本物は Tauri の殻）と履歴を読む頼みを、偽物に差し替える。
+// kisui-terminal の外から開くクリップボードの履歴の Window（page.tsx）を出す（#314）。
+// Window の出し入れとクリップボードへの書き込み（ClipboardPopupOs。本物は Tauri の殻）と履歴を読む頼みを、偽物に差し替える。
 // 選んで戻した・Dialog を隠したは Storybook の Actions に出る。
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
 import { fn } from "storybook/test";
@@ -11,7 +11,7 @@ import {
 } from "../../modules/clipboard-history/historyFixtures.ts";
 import { ClipboardUtilityPage } from "./page.tsx";
 
-/** 殻の偽物。Dialog は出し直されず、書き込みはいつもできる。 */
+/** 殻の偽物。Window は出し直されず、書き込みはいつもできる。 */
 const fakeOs = (): ClipboardPopupOs => ({
   onShown: () => Promise.resolve(() => {}),
   dismiss: fn(async () => {}),

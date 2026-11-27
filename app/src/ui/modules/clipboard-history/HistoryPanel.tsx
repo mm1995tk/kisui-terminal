@@ -1,5 +1,5 @@
 // クリップボードの履歴の一覧の中身（#54）。メインウィンドウの履歴の Dialog（ui/main-window/clipboard/ClipboardHistoryDialog.tsx）と、
-// kisui-terminal の外から開く小さな Dialog（ui/utilities/clipboard/page.tsx。#95）の両方が使う。
+// kisui-terminal の外から開く小さな Window（ui/utilities/clipboard/page.tsx。#95）の両方が使う。
 // 履歴を持つのは Tauri の側（clipboard_history.rs）。ここは出すたびに読み（props.list）、選ばせる。
 import { T } from "../../../i18n/index.ts";
 import {

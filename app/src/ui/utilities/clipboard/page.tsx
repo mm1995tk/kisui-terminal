@@ -1,6 +1,6 @@
-// kisui-terminal の外から開くクリップボードの履歴の Dialog（#95）。Dialog を出し入れするのは Tauri の側（clipboard_popup.rs）。
+// kisui-terminal の外から開くクリップボードの履歴の Window（#95）。Window を出し入れするのは Tauri の側（clipboard_popup.rs）。
 // 全体のキー（Mac は Option+Space、Linux は Alt+Space）で出る小さな Dialog に、履歴の一覧（HistoryPanel）だけを出す。
-// 選ぶとクリップボードに戻し、「コピーしました」を少し見せてから Dialog を隠し、前のアプリに戻る（貼るのはユーザー）。Esc は何もせずに隠す。
+// 選ぶとクリップボードに戻し、「コピーしました」を少し見せてから Window を隠し、前のアプリに戻る（貼るのはユーザー）。Esc は何もせずに隠す。
 // ほかのアプリを使っている間でもデスクトップから呼び出す常駐ツールの画面なので、メインウィンドウ（ui/main-window/）とは別に置く。
 import { isComposingKey } from "../../../features/commands/ime.ts";
 import type {
@@ -13,9 +13,9 @@ import { createSignal, onCleanup, Show, type JSX } from "solid-js";
 import "../../components/card.css";
 import { HistoryPanel } from "../../modules/clipboard-history/HistoryPanel.tsx";
 
-/** kisui-terminal の外から開く履歴の Dialog の中身。出し直されるたびに一覧を作り直し、Esc で Dialog を隠す。 */
+/** kisui-terminal の外から開く履歴の Window の中身。出し直されるたびに一覧を作り直し、Esc で Window を隠す。 */
 export function ClipboardUtilityPage(props: {
-  /** Dialog の出し入れとクリップボードへの書き込み（殻への頼み） */
+  /** Window の出し入れとクリップボードへの書き込み（殻への頼み） */
   os: ClipboardPopupOs;
   /** 履歴を読む */
   list: ListClipboardHistory;

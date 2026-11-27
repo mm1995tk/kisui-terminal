@@ -305,7 +305,7 @@
   padding: var(--space-10) var(--space-16) var(--space-12);
 }
 
-/* kisui-terminal の外から開く履歴の Dialog（ui/utilities/clipboard/page.tsx）。Dialog いっぱいに出し、一覧が残りの高さを使う */
+/* kisui-terminal の外から開く履歴の Window（ui/utilities/clipboard/page.tsx）。Window いっぱいに出し、一覧が残りの高さを使う */
 .history-popup {
   position: fixed;
   inset: 0;
