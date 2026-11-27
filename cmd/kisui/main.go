@@ -3,7 +3,7 @@
 // relays the GUI's connections to the localhost ports of a remote machine.
 // "kisui proxy" runs the recording proxy by itself. The
 // other commands run in a pane: "kisui open" asks the "kisui serve" of the pane for
-// something (internal/panecmd), "kisui tab" asks the window through it
+// something (internal/panecmd), "kisui tab" and "kisui workspace" ask the window through it
 // (window.go), and "kisui notify" and "kisui clipboard" talk to the terminal
 // of the pane (internal/kittyterm).
 package main
@@ -60,6 +60,14 @@ var commands = []command{
 		{name: "close", args: "[--force] <tab>", help: "help.tab.close", run: runTabClose},
 		{name: "move", args: "<tab> --up|--down|--workspace <name|id>", help: "help.tab.move", run: runTabMove},
 		{name: "show", args: "<tab>", help: "help.tab.show", run: runTabShow},
+	}},
+	{name: "workspace", sub: []command{
+		{name: "list", args: "[--json]", help: "help.workspace.list", run: runWorkspaceList},
+		{name: "new", args: "<name>", help: "help.workspace.new", run: runWorkspaceNew},
+		{name: "rename", args: "<workspace> <name>", help: "help.workspace.rename", run: runWorkspaceRename},
+		{name: "close", args: "[--force] <workspace>", help: "help.workspace.close", run: runWorkspaceClose},
+		{name: "move", args: "<workspace> --up|--down", help: "help.workspace.move", run: runWorkspaceMove},
+		{name: "show", args: "<workspace>", help: "help.workspace.show", run: runWorkspaceShow},
 	}},
 	{name: "db", sub: []command{
 		{name: "connections", args: "[--json]", help: "help.db.connections", run: runDBConnections},

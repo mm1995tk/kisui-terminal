@@ -805,6 +805,20 @@ export const ja: Record<Key, string> = {
     "{from} の Pane が Tab を表示する・別の Workspace へ移すのは、Window のキーが今 {from} の Terminal tab に向いているときか、Window の前の人が {from} に許している間（Machine の Dialog で {from} を選び、p を押す）だけです。そうでないと、人が打っているキーの行き先が変わってしまいます。Tab を表示するよう、ユーザーに頼んでください。",
   "tabCli.err.sameWorkspace":
     "Tab「{tab}」は、もう Workspace「{workspace}」にあります",
+  "wsCli.err.noWorkspace":
+    "「{name}」という id か名前の Workspace がありません（Workspace は kisui workspace list に出ます）",
+  "wsCli.err.noWorkspaceReach":
+    "{from} の Pane から届く Workspace の中に、「{name}」という id か名前の Workspace がありません（届く Workspace は kisui workspace list に出ます）。Workspace に届くのは、{from} の Pane から届く Tab を 1 つでも持つときと、Tab が 1 つも無いときです。届くのは、{from} の Tab と、{from} の [[gui.machines]] の allow_pane_to に書いた Machine の Tab です。Window の動く PC の Tab（その Terminal tab と、Browser tab・Database tab の全部）には、Window の前の人が許している間だけ届きます。Machine の Dialog で {from} を選び、p を押します。",
+  "wsCli.err.ambiguous":
+    "「{name}」という名前か id の Workspace が {count} つあります。id で指してください（{ids}。kisui workspace list に出ます）",
+  "wsCli.err.closeReach":
+    "Workspace「{name}」には、{from} の Pane から届かない Tab があるので、閉じませんでした。Workspace を閉じると、中の Tab が全部閉じます。Window で閉じるよう、ユーザーに頼んでください。",
+  "wsCli.err.running":
+    "Workspace「{name}」の Terminal tab でプログラムが動いているので、閉じませんでした。kisui workspace close --force で、プログラムを終わらせて、Workspace と中の Tab を閉じます。",
+  "wsCli.err.closeFocus":
+    "{from} の Pane が、Window が今いる Workspace を閉じるのは、Window のキーが今 {from} の Terminal tab に向いているときか、Window の前の人が {from} に許している間（Machine の Dialog で {from} を選び、p を押す）だけです。そうでないと、人が打っているキーが隣の Workspace へ移り、{from} の Tab に向いてしまうことがあります。Workspace を閉じるよう、ユーザーに頼んでください。",
+  "wsCli.err.focus":
+    "{from} の Pane が Workspace を表示するのは、Window のキーが今 {from} の Terminal tab に向いていて、その Workspace が {from} の Terminal tab を表示しているときか、Window の前の人が {from} に許している間（Machine の Dialog で {from} を選び、p を押す）だけです。そうでないと、人が打っているキーの行き先が変わってしまいます。Workspace を表示するよう、ユーザーに頼んでください。",
   "paneOpen.err.noWorkspace":
     "「{name}」という名前か id のワークスペースがありません（--new を付けると、その名前で作ります）",
   "paneOpen.err.ambiguous":

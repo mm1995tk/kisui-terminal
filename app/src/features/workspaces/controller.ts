@@ -295,39 +295,6 @@ export function createWorkspaces(deps: {
     }
   }
 
-  /**
-   * 閉じる処理 close を動かす。プログラムが動いていて断られたら（force でないとき）onRunning を呼び、ほかの失敗は name を添えて伝える。
-   * 閉じられたら onClosed を呼ぶ。今いるワークスペースは、タブを閉じても変わらない（閉じたタブの隣が出る。model.ts の passActiveTerm）。
-   * ワークスペースを閉じる（✕）・ターミナルのタブを閉じる（✕）の共通の部分。
-   */
-  async function runClose(
-    name: string,
-    force: boolean,
-    close: () => Promise<void>,
-    onRunning: () => void,
-    onClosed?: () => void,
-  ) {
-    setFocusError(null);
-    try {
-      await close();
-    } catch (e) {
-      const d =
-        e instanceof RpcError && e.code === ErrorCode.Busy
-          ? (e.data as { reason?: string } | undefined)
-          : undefined;
-      if (d?.reason === "running" && !force) {
-        onRunning();
-        return;
-      }
-      setFocusError({
-        title: T("err.workspace.close", { name }),
-        error: e instanceof Error ? e.message : String(e),
-      });
-      return;
-    }
-    onClosed?.();
-  }
-
   // 閉じる前に確認している（プログラムが動いている）ワークスペース
   const [confirmClose, setConfirmClose] = createSignal<{
     gws: string;
@@ -344,13 +311,34 @@ export function createWorkspaces(deps: {
   async function closeWorkspace(gid: string, force = false) {
     const g = untrack(gws).list.find((x) => x.id === gid);
     if (!g) return;
+    setFocusError(null);
+    try {
+      if ((await closeWorkspaceNow(gid, force)) === "running")
+        setConfirmClose({ gws: gid, name: displayName(g) });
+    } catch (e) {
+      setFocusError({
+        title: T("err.workspace.close", { name: displayName(g) }),
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+  }
+
+  /**
+   * ワークスペース gid を、確認の Dialog を出さずに閉じる。閉じる手順の本体で、closeWorkspace（帯の ✕・Command workspace.close）と
+   * CLI の `kisui workspace close`（#512）が使う。プログラムが動いていて force でなければ、閉じずに "running" を返す（Dialog を出すかは
+   * 呼ぶ側が決める）。ほかの失敗は投げる。ワークスペースがもう無ければ "gone"。
+   */
+  async function closeWorkspaceNow(
+    gid: string,
+    force: boolean,
+  ): Promise<"closed" | "running" | "gone"> {
+    const g = untrack(gws).list.find((x) => x.id === gid);
+    if (!g) return "gone";
     const wasCurrent = untrack(currentId) === gid;
     // 中のタブを閉じている間は、タブが無くなっても「タブがありません」の画面を出さない（閉じ終えたら隣へ移るので）
     setClosing((c) => new Set(c).add(gid));
-    await runClose(
-      displayName(g),
-      force,
-      async () => {
+    try {
+      try {
         for (const r of termsOf(g)) {
           const s = sessions()[r.target];
           if (!s || states()[r.target]?.kind !== "connected") {
@@ -368,18 +356,24 @@ export function createWorkspaces(deps: {
           setGws((x) => removeGws(x, gid));
           if (untrack(currentId) === gid) setCurrentId(next?.gws ?? null);
         });
-      },
-      () => setConfirmClose({ gws: gid, name: displayName(g) }),
-      () => {
-        if (wasCurrent) focusTerminal();
-      },
-    );
-    // 閉じ終えた・断られた・確認の Dialog を出した（Dialog で続けるときは、また閉じ始める）
-    setClosing((c) => {
-      const n = new Set(c);
-      n.delete(gid);
-      return n;
-    });
+      } catch (e) {
+        const d =
+          e instanceof RpcError && e.code === ErrorCode.Busy
+            ? (e.data as { reason?: string } | undefined)
+            : undefined;
+        if (d?.reason === "running" && !force) return "running";
+        throw e;
+      }
+    } finally {
+      // 閉じ終えた・断られた・失敗した（Dialog で続けるときは、また閉じ始める）
+      setClosing((c) => {
+        const n = new Set(c);
+        n.delete(gid);
+        return n;
+      });
+    }
+    if (wasCurrent) focusTerminal();
+    return "closed";
   }
   /** 中のタブを閉じている途中のワークスペースの id（空の画面を出さない。currentEmpty） */
   const [closing, setClosing] = createSignal<ReadonlySet<string>>(new Set());
@@ -602,6 +596,14 @@ export function createWorkspaces(deps: {
     if (next) setGws(next);
   }
 
+  /** ワークスペース gid を 1 つ下・上へ動かし、順を覚える（CLI の `kisui workspace move`。#512）。端では動かさず false。 */
+  function moveWorkspace(gid: string, dir: "up" | "down"): boolean {
+    const next = moveGws(untrack(gws), gid, dir);
+    if (!next) return false;
+    setGws(next);
+    return true;
+  }
+
   // ワークスペースを作るマシンを選んでいる Dialog（リーダーの w の Dialog の n）
   const [pickingMachine, setPickingMachine] = createSignal(false);
   // ワークスペースの種類（ターミナルかブラウザか）を選んでいる Dialog（リーダーの w の Dialog の n。内蔵ブラウザを有効にしているとき）
@@ -770,11 +772,12 @@ export function createWorkspaces(deps: {
     switchWorkspace,
     createWorkspace,
     createMachineWorkspace,
-    runClose,
     /** 閉じる前に確認している（プログラムが動いている）ワークスペース */
     confirmClose,
     cancelClose: () => setConfirmClose(null),
     closeWorkspace,
+    closeWorkspaceNow,
+    moveWorkspace,
     dropBrowserTab,
     groups,
     gws,

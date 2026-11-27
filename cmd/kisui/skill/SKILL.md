@@ -1,6 +1,6 @@
 ---
 name: kisui-terminal
-description: Use the kisui commands from inside a pane of kisui-terminal - show a file or a web page in another pane (kisui open), split the pane (kisui pane split), name the pane (kisui pane title), list the panes of the machine (kisui pane list), open a terminal tab in a workspace and run an agent there (kisui pane open), send text or keys to a pane and close it (kisui pane send, kisui pane keys, kisui pane close), read the screen of a pane (kisui pane read), do all of these on the panes of another machine of the window (--machine), list, rename, close, move and show the tabs of the window (kisui tab list, rename, close, move, show), read and query the databases the user set up, as far as they allow (kisui db connections, schema, query, propose), send a desktop notification when long work ends (kisui notify), and use the clipboard of the user's computer (kisui clipboard copy). Use it when you run in a kisui-terminal pane and the user wants to see a result, be told when something finishes, or get text onto their clipboard, or when the work needs a MySQL or PostgreSQL database.
+description: Use the kisui commands from inside a pane of kisui-terminal - show a file or a web page in another pane (kisui open), split the pane (kisui pane split), name the pane (kisui pane title), list the panes of the machine (kisui pane list), open a terminal tab in a workspace and run an agent there (kisui pane open), send text or keys to a pane and close it (kisui pane send, kisui pane keys, kisui pane close), read the screen of a pane (kisui pane read), do all of these on the panes of another machine of the window (--machine), list, rename, close, move and show the tabs of the window (kisui tab list, rename, close, move, show), list, make, rename, close, move and show the workspaces of the window (kisui workspace list, new, rename, close, move, show), read and query the databases the user set up, as far as they allow (kisui db connections, schema, query, propose), send a desktop notification when long work ends (kisui notify), and use the clipboard of the user's computer (kisui clipboard copy). Use it when you run in a kisui-terminal pane and the user wants to see a result, be told when something finishes, or get text onto their clipboard, or when the work needs a MySQL or PostgreSQL database.
 ---
 
 # kisui-terminal
@@ -201,6 +201,65 @@ kisui tab show 'api server'
 ### Which tabs you can reach
 
 `kisui tab` reaches the tabs of every workspace (`pane_reach` does not matter here), and takes no `--machine`. From a pane on the user's computer it reaches every tab. From a pane on a remote machine it reaches the terminal tabs of that machine, and of the machines the user allowed for it (`allow_pane_to`). The tabs of the user's own computer (its terminal tabs, and every browser tab and database tab) are reached from a remote machine only while the user allows it at the window, for a time (`p` in the machine dialog). While a pane of the user's computer is set to ask the user every time, `kisui tab close` from a remote machine is refused for the terminal tabs of the user's computer: ask the user to close the tab. From a remote machine the user does not allow with `p`, `kisui tab show` and `kisui tab move --workspace` (which turn the keys of the window) work only while the keys are on a terminal tab of your machine; otherwise they are refused, and you should ask the user to show the tab. A tab you cannot reach is not in `kisui tab list`, and pointing at one fails as a name that no tab has does. Do not work around that: tell the user, who decides whether to allow it.
+
+### kisui workspace: the workspaces of the window
+
+`kisui workspace` works on the workspaces of the window. A workspace groups tabs and may have none. `<workspace>` is the id of a workspace (the first column of `kisui workspace list`) or its name. A name that two or more workspaces have is refused, with their ids: use an id then. Prefer the id when a program or you will use it again, because the user can rename a workspace. The window does these commands, so they fail, with the reason, when the window is closed. kisui-terminal asks the user for no confirmation, and `rename`, `close`, `move` and `show` change what the user sees: use them on the workspaces you made, or when the user asks. To put a tab in a workspace, use `kisui tab move <tab> --workspace <name|id>`.
+
+### kisui workspace list [--json]
+
+List the workspaces of the window in the order of the sidebar, also those with no tab. Each line has the id, the name and the number of tabs; `*` marks the workspace of the pane you run in, and `current` the one the window is in now. `--json` prints `{"workspaces": [{"id", "name", "tabs", "current", "self"}, ...]}` (`current` and `self` are left out when false); read that one when a program or you will use the result. The workspace of a tab is in `kisui tab list`.
+
+```sh
+kisui workspace list
+kisui workspace list --json
+```
+
+### kisui workspace new <name>
+
+Make a workspace with no tab at the end of the sidebar, and print its id. An empty name (`""`) gives it a numbered name (`ws3`). The window stays where it is. Write `--` before a name that starts with `-`.
+
+```sh
+id=$(kisui workspace new 'review')
+```
+
+### kisui workspace rename <workspace> <name>
+
+Give the workspace the name. An empty name (`""`) gives back the numbered name. A name that looks like the id of a workspace (`g` and ten letters or digits) is refused.
+
+```sh
+kisui workspace rename review 'review 2'
+kisui workspace rename gk3n8q1x0ab ""
+```
+
+### kisui workspace close [--force] <workspace>
+
+Close the workspace and all its tabs. What runs in its terminal tabs ends with them. A workspace with a terminal tab that has a running program is refused, and the window does not ask the user; `--force` ends the programs and closes it. Use `--force` only when you started those programs, or the user asked. If the pane you run in is in it, you end with it.
+
+```sh
+kisui workspace close review
+kisui workspace close --force gk3n8q1x0ab
+```
+
+### kisui workspace move <workspace> --up|--down
+
+Move the workspace one place up or down in the sidebar; at the end of the list nothing moves (the command says so and still succeeds).
+
+```sh
+kisui workspace move review --up
+```
+
+### kisui workspace show <workspace>
+
+Show the workspace: the window goes to it and turns the keys to the tab it shows. It takes the focus of the user, so use it only when the user asks to see that workspace.
+
+```sh
+kisui workspace show review
+```
+
+### Which workspaces you can reach
+
+A workspace can hold tabs of several machines, so what you reach follows the tabs, by the rules of `kisui tab` (above, "Which tabs you can reach"). You reach a workspace that has a tab you reach, and one with no tab; the number of tabs in `kisui workspace list` counts only the tabs you reach. `kisui workspace close` closes all its tabs, so it works only when you reach all of them; otherwise it is refused, and you should ask the user to close the workspace. While a pane of the user's computer is set to ask the user every time, it is refused from a remote machine for a workspace with a terminal tab of the user's computer. From a remote machine the user does not allow with `p`, closing the workspace the window is in (which moves the keys of the window to the next workspace) works only while the keys are on a terminal tab of your machine; otherwise it is refused, and you should ask the user to close it. From a remote machine the user does not allow with `p`, `kisui workspace show` (which turns the keys of the window) works only while the keys are on a terminal tab of your machine and the workspace shows a terminal tab of your machine; otherwise it is refused, and you should ask the user to show the workspace. A workspace you cannot reach is not in `kisui workspace list`, and pointing at one fails as a name that no workspace has does. Do not work around that: tell the user, who decides whether to allow it.
 
 ### kisui db: the databases of the user
 

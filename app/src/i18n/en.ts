@@ -804,6 +804,20 @@ export const en = {
     "A pane of {from} may show a tab, or move one to another workspace, only while the keys of the window are on a terminal tab of {from}, or while the person at the window allows {from} (in the machine dialog, choose {from} and press p). Otherwise the keys the person is typing would go to another place. Ask the user to show the tab.",
   "tabCli.err.sameWorkspace":
     'The tab "{tab}" is already in the workspace "{workspace}"',
+  "wsCli.err.noWorkspace":
+    'No workspace has the id or the name "{name}" (kisui workspace list prints the workspaces)',
+  "wsCli.err.noWorkspaceReach":
+    'No workspace has the id or the name "{name}" among the workspaces the panes of {from} may reach (kisui workspace list prints them). A workspace is reached when it has a tab the panes of {from} may reach, or no tab. They reach the tabs of {from}, and the tabs of the machines in allow_pane_to of the [[gui.machines]] entry of {from}. The tabs of the computer the window runs on (its terminal tabs, and every browser and database tab) are reached only while the person at the window allows it: in the machine dialog, choose {from} and press p.',
+  "wsCli.err.ambiguous":
+    '{count} workspaces have the name or id "{name}"; point at one of them by its id ({ids}; kisui workspace list prints them)',
+  "wsCli.err.closeReach":
+    'The workspace "{name}" has tabs that the panes of {from} may not reach, so it was not closed. Closing a workspace closes all its tabs. Ask the user to close it in the window.',
+  "wsCli.err.running":
+    'A program is running in a terminal tab of the workspace "{name}", so it was not closed. kisui workspace close --force ends the programs and closes the workspace and its tabs.',
+  "wsCli.err.closeFocus":
+    "A pane of {from} may close the workspace the window is in only while the keys of the window are on a terminal tab of {from}, or while the person at the window allows {from} (in the machine dialog, choose {from} and press p). Otherwise the keys the person is typing would move to another workspace, and could end up on a tab of {from}. Ask the user to close the workspace.",
+  "wsCli.err.focus":
+    "A pane of {from} may show a workspace only while the keys of the window are on a terminal tab of {from} and the workspace shows a terminal tab of {from}, or while the person at the window allows {from} (in the machine dialog, choose {from} and press p). Otherwise the keys the person is typing would go to another place. Ask the user to show the workspace.",
   "paneOpen.err.noWorkspace":
     'No workspace has the name or id "{name}" (add --new to make one of that name)',
   "paneOpen.err.ambiguous":
