@@ -533,8 +533,8 @@ export function createCommandRunner(deps: {
         break;
       }
       case "notice.update":
-        // 「新しい版があります」の「更新して再起動」。「あとで」で知らせを閉じていても、見つけた版を入れる。
-        // 見つけていなければその場で調べ直し、新しい版が無いときだけ断る
+        // 「新しい版があります」の「更新して再起動」。`kisui update` と同じく調べ直してから入れるので、「あとで」で
+        // 知らせを閉じていても効く。新しい版が無いときだけ断る
         void updates.updateNow().then((r) => {
           if (r?.status === "failed")
             cannot(
