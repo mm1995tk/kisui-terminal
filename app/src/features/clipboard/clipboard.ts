@@ -6,7 +6,8 @@ import type { ClipboardItem, ClipboardLocation } from "coneko-term";
  * 両方あるときはテキストを選ぶ（どのアプリにも貼れる）。
  */
 export type WritePlan =
-  { kind: "text"; text: string } | { kind: "image"; bytes: Uint8Array };
+  | { kind: "text"; text: string }
+  | { kind: "image"; bytes: Uint8Array };
 
 /** パラメータ（`;charset=...`）を落として小文字にした MIME の種類。 */
 export function baseMime(mime: string): string {

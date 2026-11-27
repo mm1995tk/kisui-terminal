@@ -528,7 +528,9 @@ export const ja: Record<Key, string> = {
   "clipboardAsk.allow": "Allow reading",
   "clipboardAsk.history.title": "Allow reading the clipboard history?",
   "clipboardAsk.history.text":
-    "この PC の Pane の中のコマンド（kisui clipboard history）が、クリップボードの履歴（前にコピーした文字。パスワードが入っていることもあります）を読もうとしています。頼んだ覚えがなければ許さないでください。",
+    "この PC の Tab「{tab}」の Pane の中のコマンド（kisui clipboard history）が、クリップボードの履歴（前にコピーした文字。パスワードが入っていることもあります）を読もうとしています。頼んだ覚えがなければ許さないでください。",
+  "clipboardAsk.history.range":
+    "履歴に残っている文（新しいものから最大 20 件）を、それぞれ全部渡します。",
   "changes.status.added": "追加",
   "changes.status.deleted": "削除",
   "changes.status.renamed": "名前変更",

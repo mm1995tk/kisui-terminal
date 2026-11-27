@@ -44,7 +44,7 @@ import { createProxyCommands } from "./proxy/proxyCommands.ts";
 import { createMachineCommands } from "./sessions/machineCommands.ts";
 import type { ConfigMachine } from "./sessions/machines.ts";
 import type { TermDefaults } from "./sessions/termDefaults.ts";
-import type { ShellApi } from "./sessions/shell.ts";
+import { LOCAL, type ShellApi } from "./sessions/shell.ts";
 import { createTerminals } from "./terminal/controller.ts";
 import type { OpenUrlExternally } from "./terminal/urlOpen.ts";
 import { createUpdates, type UpdatesOs } from "./updates/store.ts";
@@ -54,7 +54,10 @@ import { createPrimaryShj } from "./workspaces/primaryShj.ts";
 import { createProxy, type Proxy } from "./proxy/controller.ts";
 import { createTabs } from "./workspaces/tabs/controller.ts";
 import { createPaneOpen } from "./workspaces/tabs/paneOpen.ts";
-import { createTabCommands } from "./workspaces/tabs/tabCommands.ts";
+import {
+  createTabCommands,
+  tabEntries,
+} from "./workspaces/tabs/tabCommands.ts";
 import { createDbCommands } from "./db/dbCommands.ts";
 import { createBrowserCommands } from "./browser/browserCommands.ts";
 import { createPaneCommands } from "./workspaces/paneCommands.ts";
@@ -413,6 +416,12 @@ export function createFeatures(deps: {
     createClipboardCommands({
       list: ports.clipboardHistory,
       ask: askClipboardHistory,
+      // 頼むのは手元の PC の Pane だけ（remote を書かない）なので、手元の PC の Terminal tab から探す
+      tabName: (c) =>
+        tabEntries(workspaces.gws(), workspaces.rows()).find(
+          (e) =>
+            e.ref.kind === "term" && e.target === LOCAL && e.ref.ws === c.tab,
+        )?.name,
     }),
     createProxyCommands({
       proxy,

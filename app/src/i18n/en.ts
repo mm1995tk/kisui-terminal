@@ -527,7 +527,9 @@ export const en = {
   "clipboardAsk.allow": "Allow reading",
   "clipboardAsk.history.title": "Allow reading the clipboard history?",
   "clipboardAsk.history.text":
-    "A command in a pane of this machine (kisui clipboard history) is trying to read the clipboard history: the text copied before, which can include passwords. If you did not ask for it, do not allow it.",
+    'A command in a pane of the tab "{tab}" on this machine (kisui clipboard history) is trying to read the clipboard history: the text copied before, which can include passwords. If you did not ask for it, do not allow it.',
+  "clipboardAsk.history.range":
+    "It gets every text kept in the history (up to the last 20), each in full.",
   "changes.status.added": "added",
   "changes.status.deleted": "deleted",
   "changes.status.renamed": "renamed",

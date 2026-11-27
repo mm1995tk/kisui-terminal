@@ -20,11 +20,15 @@ const rq = (id = "x1") => ({
 
 /** 答えを、テストが決める聞き手。 */
 function asker() {
-  const asked: { answer: (ok: boolean) => void; cancelled: boolean }[] = [];
-  const ask = () => {
+  const asked: {
+    tab: string;
+    answer: (ok: boolean) => void;
+    cancelled: boolean;
+  }[] = [];
+  const ask = (tab: string) => {
     let answer!: (ok: boolean) => void;
     const allowed = new Promise<boolean>((r) => (answer = r));
-    const q = { answer, cancelled: false };
+    const q = { tab, answer, cancelled: false };
     asked.push(q);
     return {
       allowed,
@@ -55,11 +59,13 @@ describe("kisui clipboard history（#517）", () => {
           return entries;
         },
         ask,
+        tabName: (c) => (c.tab === "w1" ? "repo" : undefined),
       }),
     ]);
     const first = w.run(LOCAL, rq("a"));
     await tick();
     assert.equal(asked.length, 1);
+    assert.equal(asked[0]!.tab, "repo", "頼んだ Pane の Tab の名前を見せる");
     assert.equal(listed, 0);
     asked[0]!.answer(true);
     assert.deepEqual(await first, { result: { entries } });
@@ -75,7 +81,11 @@ describe("kisui clipboard history（#517）", () => {
   it("serve が待つのをやめたら、聞くのをやめる", async () => {
     const { asked, ask } = asker();
     const w = createWindowRun([
-      createClipboardCommands({ list: async () => entries, ask }),
+      createClipboardCommands({
+        list: async () => entries,
+        ask,
+        tabName: () => undefined,
+      }),
     ]);
     const p = w.run(LOCAL, rq("a"));
     await tick();
@@ -87,7 +97,11 @@ describe("kisui clipboard history（#517）", () => {
   it("リモートの Machine の Pane の頼みは、聞かずに断る", async () => {
     const { asked, ask } = asker();
     const w = createWindowRun([
-      createClipboardCommands({ list: async () => entries, ask }),
+      createClipboardCommands({
+        list: async () => entries,
+        ask,
+        tabName: () => undefined,
+      }),
     ]);
     assert.ok(errorOf(await w.run("dev-vm", rq())));
     assert.equal(asked.length, 0);

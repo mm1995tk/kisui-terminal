@@ -27,7 +27,12 @@ const title = (a: ReadAsk) =>
 /** 頼みの種類ごとの本文。 */
 function body(a: ReadAsk): JSX.Element {
   if (a.kind === "history")
-    return <CardText>{T("clipboardAsk.history.text")}</CardText>;
+    return (
+      <>
+        <CardText>{T("clipboardAsk.history.text", { tab: a.tab })}</CardText>
+        <CardText>{T("clipboardAsk.history.range")}</CardText>
+      </>
+    );
   return (
     <>
       <CardText>{T("clipboardAsk.text")}</CardText>

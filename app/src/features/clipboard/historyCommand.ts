@@ -8,12 +8,13 @@
 import { T } from "../../i18n/index.ts";
 import {
   WindowCommandError,
+  type WindowCaller,
   type WindowCommandTable,
 } from "../commands/windowRun.ts";
 import type { HistoryEntry, ListClipboardHistory } from "./history.ts";
 
-/** 読むたびに、読ませてよいかを人に聞く（本物は clipboardPrompt.ts の askClipboardHistory）。 */
-export type AskClipboardHistory = () => {
+/** 読むたびに、読ませてよいかを人に聞く（本物は clipboardPrompt.ts の askClipboardHistory）。tab は頼んだ Pane の Terminal tab の名前。 */
+export type AskClipboardHistory = (tab: string) => {
   allowed: Promise<boolean>;
   cancel: () => void;
 };
@@ -22,11 +23,14 @@ export type AskClipboardHistory = () => {
 export function createClipboardCommands(deps: {
   list: ListClipboardHistory;
   ask: AskClipboardHistory;
+  /** 頼んだ Pane の Terminal tab の、Sidebar の名前（見つからなければ undefined） */
+  tabName(c: WindowCaller): string | undefined;
 }): WindowCommandTable {
   return {
     "clipboard.history": {
       run: async (_args, c): Promise<{ entries: HistoryEntry[] }> => {
-        const q = deps.ask();
+        // どの Tab の Pane が頼んだかを見せる（エージェントを何人か動かしていても、頼んだ覚えがあるかを確かめられるように）
+        const q = deps.ask(deps.tabName(c) ?? c.tab);
         // serve が待つのをやめたら、聞くのをやめる（断りとして取り下げる）
         const stop = () => q.cancel();
         c.signal.addEventListener("abort", stop);
