@@ -671,19 +671,7 @@ fn apply_cookies(
     let Some(v) = any else {
         return Err("no browser tab is open".into());
     };
-    // 入れる前に、同じ名前・domain・path の Cookie を消す。macOS の WebView（`WKHTTPCookieStore`）は、同じ値の Cookie が
-    // 既にあると、入れ直しても Secure・HttpOnly を変えない。#276 を直す前の版が誤って Secure・HttpOnly で入れた
-    // Google の `SAPISID` などは、ログインを写し直しても残り、ページのスクリプトが読めないままになる（#476）。
-    // 消すのは手当てなので、失敗してもログに出して入れるほうへ進む（入った後の属性は下の読み戻しで確かめる）
-    for c in &cookies {
-        if let Err(e) = v.delete_cookie(c.clone()) {
-            eprintln!(
-                "kisui-terminal: passkey: could not delete cookie {} before setting it: {e}",
-                c.name()
-            );
-        }
-        v.set_cookie(c.clone()).map_err(|e| e.to_string())?;
-    }
+    replace_cookies(&v, &cookies)?;
     // 渡したとおりの属性で入ったかを、読み戻して確かめる（cookie_check.rs）。食い違っても入れたものはそのままにし、
     // ログと Notice に出す（ログインは続ける。直すには wry の写し方を見直す）
     let problems = match v.cookies() {
@@ -706,6 +694,88 @@ fn apply_cookies(
         let _ = win.set_focus();
     }
     Ok(())
+}
+
+/// 外のブラウザから写した `cookies` を、同じ名前・domain・path の Cookie を消してから WebView に入れる。
+fn replace_cookies(v: &tauri::Webview, cookies: &[Cookie<'static>]) -> Result<(), String> {
+    // 入れる前に、同じ名前・domain・path の Cookie を消す。macOS の実機では、HttpOnly の Cookie が既にあると、HttpOnly で
+    // ない Cookie を入れても置き換わらなかった（HttpOnly が同じ `HSID` は置き換わった）。#276 を直す前の版が誤って
+    // Secure・HttpOnly で入れた Google の `SAPISID` などは、ログインを写し直しても残り、ページのスクリプトが読めない
+    // ままになる（#476）。
+    // 消すときは、入れる Cookie でなく、いま入っている Cookie を読み戻して、その属性で渡す（入れる Cookie の属性では
+    // 消えなかった。cookie_check.rs の `to_delete`）。wry の `delete_cookie`・`set_cookie`・`cookies` は、WebView が
+    // 終わったと知らせるまで待って返るので、ふつうは消し終わってから入れる。ただし macOS の wry は約 1 秒で待つのを
+    // やめて時間切れの Err を返し、WebKit は消す処理を別のスレッドで続ける。そのまま入れると、入れた後に消す処理が
+    // 走り、入れたばかりの Cookie が消えうる。なので、消すのが Err なら、消えたのを読み戻して確かめてから入れる
+    // （`wait_until_deleted`）。
+    // 消すのは手当てなので、読めない・消せないときもログに出して入れるほうへ進む（入った後の属性は、呼ぶ側の `apply_cookies` が読み戻して確かめる）
+    let mut stored = match v.cookies() {
+        Ok(s) => Some(s),
+        Err(e) => {
+            eprintln!(
+                "kisui-terminal: passkey: could not read the cookies before setting them: {e}"
+            );
+            None
+        }
+    };
+    for c in cookies {
+        let old = match &stored {
+            Some(s) => crate::cookie_check::to_delete(c, s),
+            // 読めなければ、入れる Cookie そのもので消してみる（入っている Cookie と属性が同じなら消える）
+            None => vec![c.clone()],
+        };
+        let mut failed = false;
+        for o in &old {
+            if let Err(e) = v.delete_cookie(o.clone()) {
+                eprintln!(
+                    "kisui-terminal: passkey: could not delete cookie {} before setting it: {e}",
+                    c.name()
+                );
+                failed = true;
+            }
+        }
+        if failed {
+            wait_until_deleted(v, &old);
+        }
+        v.set_cookie(c.clone()).map_err(|e| e.to_string())?;
+        if let Some(s) = &mut stored {
+            crate::cookie_check::remember_set(s, c);
+        }
+    }
+    Ok(())
+}
+
+/// 消すのが Err を返したとき、消した Cookie が読み戻しから無くなるのを待つ上限。
+const DELETE_WAIT: Duration = Duration::from_secs(3);
+/// 消えたかを読み直す間。
+const DELETE_POLL: Duration = Duration::from_millis(100);
+
+/// `deleted`（`delete_cookie` に渡した Cookie）が WebView から無くなるまで、読み戻して待つ（上限 `DELETE_WAIT`）。
+/// 上限を過ぎたら、ログに出して戻る（入れるほうへ進む。入った後の属性は読み戻しで確かめる）。
+///
+/// 写す Cookie の中に、同じ名前・path で `.google.com` のものと host だけの `google.com` のものの両方があると、
+/// `deleted` には、もう一方の書き方の Cookie を写す Cookie の domain で作り直したものも入る。それは WebView では
+/// 消えないが、読み戻しでは domain の書き方を見分けられないので、上限まで待つ。消えたものだけを見分けて早く抜ける
+/// 手は無く、待ちを短くすると、消す処理が入れた後に走る（この関数で防ぎたいこと）ので、上限までの待ちを取る。
+fn wait_until_deleted(v: &tauri::Webview, deleted: &[Cookie<'static>]) {
+    let deadline = Instant::now() + DELETE_WAIT;
+    loop {
+        // network process が遅くて時間切れになったときに来るので、読み直しを詰めて送らず、間を空ける
+        std::thread::sleep(DELETE_POLL);
+        // `cookies` は WebView の答えを待つあいだ、イベントループを回す
+        if let Ok(now) = v.cookies() {
+            if !crate::cookie_check::still_stored(deleted, &now) {
+                return;
+            }
+        }
+        if Instant::now() >= deadline {
+            eprintln!(
+                "kisui-terminal: passkey: cookies were still stored {}s after deleting them; setting the new ones anyway",
+                DELETE_WAIT.as_secs()
+            );
+            return;
+        }
+    }
 }
 
 // ---- ブラウザが起動する受け口（native messaging のホスト） ----

@@ -15,6 +15,8 @@
 //! - domain が host だけか、サブドメインにも送られるか（先頭の `.`）は分からない。wry は読み戻した domain を
 //!   `CookieBuilder::domain` に入れ、`cookie::Cookie::domain` は先頭の `.` を取って返すため。これは、wry の版を
 //!   確かめた版に留めるテスト（`wry_is_the_checked_version`）と、passkey.rs の、wry に渡す domain のテストで見る。
+//!
+//! 入れる前に消す、同じ名前・domain・path の Cookie（`to_delete`）も、ここで読み戻しから選ぶ。
 
 use serde::Serialize;
 use tauri::webview::cookie::{Cookie, SameSite};
@@ -62,12 +64,7 @@ pub fn check(sent: &[Cookie<'_>], stored: &[Cookie<'_>]) -> Vec<Mismatch> {
         // 値は比べるだけで、ログと Notice には出さない
         let candidates: Vec<&Cookie<'_>> = stored
             .iter()
-            .filter(|s| {
-                s.name() == want.name()
-                    && s.value() == want.value()
-                    && s.path().unwrap_or("/") == path
-                    && bare(s.domain().unwrap_or_default()) == bare(domain)
-            })
+            .filter(|s| matches_read_back(want, s) && s.value() == want.value())
             .collect();
         let problems = if candidates.is_empty() {
             vec!["not stored".to_string()]
@@ -84,6 +81,71 @@ pub fn check(sent: &[Cookie<'_>], stored: &[Cookie<'_>]) -> Vec<Mismatch> {
         });
     }
     out
+}
+
+/// `sent`（これから入れる Cookie）と同じ名前・domain・path の Cookie を、`stored`（入れる前に WebView から読み戻した
+/// すべての Cookie）から選び、wry の `delete_cookie` に渡す形にして返す（無ければ空）。ほかの Cookie は選ばない。
+///
+/// 消すときに渡す Cookie は、WebView に入っている Cookie の属性（値・Secure・HttpOnly・SameSite・期限）にする。
+/// これから入れる `sent` の属性で消すと、WebView に入っているものと属性が違うときに消えない（#476）:
+/// - macOS：WebKit は渡された Cookie から `NSHTTPCookie` を作り直し、`NSHTTPCookieStorage` の `deleteCookie:` に渡す
+///   （WebKit の `NetworkStorageSessionCocoa.mm`）。どの属性まで同じものを消すかは CFNetwork の中にあり、文書に無い。
+///   実機では、HttpOnly で残った Cookie は、HttpOnly でない Cookie を入れても置き換わらなかった（HttpOnly が同じ
+///   `HSID` は置き換わった）。入れる Cookie で消しても消えなかったが、これは HttpOnly のほか、期限や WebKit が付ける
+///   `Created` も違いえて、どの属性の違いによるかは確かめていない。いま入っている属性をすべて渡せば、どれでも当たる。
+/// - Linux：libsoup の `soup_cookie_jar_delete_cookie` は、domain（文字列が同じ）・名前・値・path が同じものを消す。
+///
+/// 名前・domain・path は `sent` のままにする。読み戻しの domain は先頭の `.` が取れていて（モジュールの説明）、そのまま
+/// 渡すと `.google.com` の Cookie が host だけの `google.com` になり、消す相手が変わる。Secure・HttpOnly は true のとき
+/// だけ付ける（passkey.rs の `accept_cookie` と同じ。macOS の wry は `Some(false)` でも Secure・HttpOnly にする）。
+pub fn to_delete(sent: &Cookie<'_>, stored: &[Cookie<'_>]) -> Vec<Cookie<'static>> {
+    stored
+        .iter()
+        .filter(|s| matches_read_back(sent, s))
+        .map(|s| {
+            // 名前・domain・path は `sent` のまま（domain は `accept_cookie` が作った書き方）、ほかを入っているものにする
+            let mut d = sent.clone().into_owned();
+            d.set_value(s.value().to_string());
+            d.set_secure(s.secure().filter(|b| *b));
+            d.set_http_only(s.http_only().filter(|b| *b));
+            d.set_same_site(s.same_site());
+            d.set_max_age(None);
+            match s.expires() {
+                Some(e) => d.set_expires(e),
+                None => d.unset_expires(),
+            }
+            d
+        })
+        .collect()
+}
+
+/// `deleted`（`delete_cookie` に渡した Cookie）のどれかが、`now`（読み戻したすべての Cookie）にまだあるか。
+/// 名前・domain・path・値・Secure・HttpOnly で比べる。
+pub fn still_stored(deleted: &[Cookie<'_>], now: &[Cookie<'_>]) -> bool {
+    deleted.iter().any(|d| {
+        now.iter().any(|s| {
+            matches_read_back(d, s)
+                && s.value() == d.value()
+                && s.secure().unwrap_or(false) == d.secure().unwrap_or(false)
+                && s.http_only().unwrap_or(false) == d.http_only().unwrap_or(false)
+        })
+    })
+}
+
+/// `sent` を入れた後の `stored`（入れる前に読み戻した Cookie）。写す Cookie の中に同じ名前・domain・path の Cookie が
+/// 後にもあれば、今入れたものも消す。前から入っていたものは外さない。読み戻しでは host だけの `google.com` と
+/// `.google.com` を見分けられず、外すと、もう一方の書き方の古い Cookie を、それ自身の属性で消せなくなるため
+/// （消し済みのものをもう一度消すだけなら害はない）。
+pub fn remember_set(stored: &mut Vec<Cookie<'static>>, sent: &Cookie<'static>) {
+    stored.push(sent.clone());
+}
+
+/// 読み戻した `stored` が、`sent` と同じ名前・domain・path の Cookie に見えるか。読み戻しの domain は先頭の `.` が
+/// 取れているので、host だけの `google.com` と `.google.com` は見分けられない（どちらにも当たる）。
+pub fn matches_read_back(sent: &Cookie<'_>, stored: &Cookie<'_>) -> bool {
+    stored.name() == sent.name()
+        && stored.path().unwrap_or("/") == sent.path().unwrap_or("/")
+        && bare(stored.domain().unwrap_or_default()) == bare(sent.domain().unwrap_or_default())
 }
 
 /// 先頭の `.` を取った domain（大文字・小文字は区別しない）。
@@ -308,6 +370,134 @@ mod tests {
         let b = sent("x", "google.com");
         let stored = vec![read_back(&b), read_back(&a)];
         assert_eq!(check(&[a, b], &stored), vec![]);
+    }
+
+    // #476：前の版が Secure・HttpOnly で入れた `SAPISID` が残っている。消すときは、残っている Cookie の属性で渡す
+    #[test]
+    fn deletes_the_stored_cookie_with_its_own_attributes() {
+        let mut want = Cookie::build(("SAPISID", "new"))
+            .domain("..google.com")
+            .path("/")
+            .secure(true)
+            .build();
+        want.set_expires(OffsetDateTime::from_unix_timestamp(2_000_000_000).unwrap());
+        let mut stale = read_back(&want);
+        stale.set_value("old");
+        stale.set_http_only(true);
+        stale.set_same_site(SameSite::Lax);
+        stale.set_expires(OffsetDateTime::from_unix_timestamp(1_900_000_000).unwrap());
+        // 読み戻しの domain は先頭の `.` が取れている
+        assert_eq!(stale.domain(), Some("google.com"));
+        let d = to_delete(&want, &[stale]);
+        assert_eq!(d.len(), 1);
+        assert_eq!(d[0].name(), "SAPISID");
+        assert_eq!(d[0].value(), "old");
+        // wry に渡す domain は、入れる Cookie と同じ（サブドメインにも送られる `.google.com`）
+        assert_eq!(d[0].domain(), Some(".google.com"));
+        assert_eq!(d[0].path(), Some("/"));
+        assert_eq!(d[0].secure(), Some(true));
+        assert_eq!(d[0].http_only(), Some(true));
+        assert_eq!(d[0].same_site(), Some(SameSite::Lax));
+        assert_eq!(
+            d[0].expires_datetime().map(|t| t.unix_timestamp()),
+            Some(1_900_000_000)
+        );
+    }
+
+    // false の Secure・HttpOnly は付けない（macOS の wry は `Some(false)` でも Secure・HttpOnly にする）。
+    // host だけの Cookie の domain は、そのまま
+    #[test]
+    fn delete_leaves_false_flags_unset() {
+        let want = Cookie::build(("user_session", "v"))
+            .domain("github.com")
+            .path("/")
+            .build();
+        let stored = read_back(&want);
+        assert_eq!(stored.secure(), Some(false));
+        let d = to_delete(&want, &[stored]);
+        assert_eq!(d.len(), 1);
+        assert_eq!(d[0].domain(), Some("github.com"));
+        assert_eq!(d[0].secure(), None);
+        assert_eq!(d[0].http_only(), None);
+        let mut session = read_back(&want);
+        session.set_expires(Expiration::Session);
+        assert_eq!(to_delete(&want, &[session])[0].expires_datetime(), None);
+    }
+
+    // 名前・domain・path のどれかが違う Cookie は消さない
+    #[test]
+    fn delete_picks_only_the_same_cookie() {
+        let want = sent("SID", "..google.com");
+        let same = read_back(&want);
+        let mut other_path = read_back(&want);
+        other_path.set_path("/accounts");
+        let others = vec![
+            read_back(&sent("HSID", "..google.com")),
+            read_back(&sent("SID", "accounts.google.com")),
+            read_back(&sent("SID", "..google.co.jp")),
+            read_back(&sent("SID", "..example.com")),
+            other_path,
+        ];
+        assert!(to_delete(&want, &others).is_empty());
+        let mut all = others.clone();
+        all.push(same);
+        let d = to_delete(&want, &all);
+        assert_eq!(d.len(), 1);
+        assert_eq!(d[0].name(), "SID");
+        assert_eq!(d[0].domain(), Some(".google.com"));
+        // 入っていなければ、消すものは無い
+        assert!(to_delete(&want, &[]).is_empty());
+    }
+
+    // 写す Cookie の中に同じ名前・domain・path のものが 2 つあれば、後のものを入れる前に、先に入れたものを消す
+    #[test]
+    fn delete_the_cookie_set_just_before() {
+        let mut first = sent("CF", "dash.cloudflare.com");
+        first.set_http_only(false);
+        let second = sent("CF", "dash.cloudflare.com");
+        let mut stale = read_back(&first);
+        stale.set_value("old");
+        let mut stored = vec![stale];
+        assert_eq!(to_delete(&first, &stored)[0].value(), "old");
+        remember_set(&mut stored, &first);
+        let d = to_delete(&second, &stored);
+        assert_eq!(d.len(), 2);
+        assert_eq!(d[1].value(), "v");
+        assert_eq!(d[1].http_only(), None);
+    }
+
+    // `.google.com` と host だけの `google.com` の両方を写すとき、先に `.google.com` を入れても、host だけの古い
+    // Cookie は、それ自身の属性で消す
+    #[test]
+    fn keeps_the_other_stale_cookie_after_setting() {
+        let mut domain = sent("x", "..google.com");
+        domain.set_http_only(false);
+        let mut host = sent("x", "google.com");
+        host.set_http_only(false);
+        let mut stale = read_back(&host);
+        stale.set_value("old");
+        stale.set_http_only(true);
+        let mut stored = vec![stale];
+        remember_set(&mut stored, &domain);
+        let d = to_delete(&host, &stored);
+        assert!(d.iter().any(|c| c.value() == "old"
+            && c.http_only() == Some(true)
+            && c.domain() == Some("google.com")));
+    }
+
+    #[test]
+    fn still_stored_until_the_deleted_cookie_is_gone() {
+        let want = sent("SAPISID", "..google.com");
+        let mut stale = read_back(&want);
+        stale.set_value("old");
+        let deleted = to_delete(&want, std::slice::from_ref(&stale));
+        assert!(still_stored(&deleted, &[stale.clone()]));
+        // 消えた後（ほかの Cookie と、属性の違う同じ名前の Cookie は残っている）
+        let other = read_back(&sent("HSID", "..google.com"));
+        let mut flags = stale.clone();
+        flags.set_http_only(false);
+        assert!(!still_stored(&deleted, &[other, flags]));
+        assert!(!still_stored(&deleted, &[]));
     }
 
     /// 読み戻しでは、domain が host だけかサブドメインにも送られるかが分からない（上の説明）。wry が `cookie::Cookie` を
