@@ -64,8 +64,8 @@ app/src/
     sessions/               # 接続（Session）、マシンの記録、接続の状態の文、CLI の `kisui machine` の受け持ち（`machineCommands.ts`）
     workspaces/             # GUI のワークスペース、フォーカス、サイドバーの行の組み立て、CLI の `kisui workspace` の受け持ち（`workspaceCommands.ts`）、CLI の `kisui pane focus` などの受け持ち（`paneCommands.ts`）
       tabs/                 # 中のタブ（ターミナル・ブラウザ・DB）の追加・削除・並び順・選択、CLI の `kisui tab` の受け持ち（`tabCommands.ts`）
+    db/                     # DB のタブ（#347）の中身：書きかけの SQL、SQL の実行と結果、接続の一覧、パスワードを聞く、CLI の `kisui db open` などの受け持ち（`dbCommands.ts`）
     browser/                # ブラウザのタブ 1 つずつのページの操作、ブックマーク、ダウンロード、CLI の `kisui browser` の受け持ち（`browserCommands.ts`）
-    db/                     # DB のタブ（#347）の中身：書きかけの SQL、SQL の実行と結果、接続の一覧、パスワードを聞く
     proxy/                  # プロキシのパネル（#409）：タブの通信を kisui serve のプロキシに通す、一覧と中身
     terminal/               # ターミナルのペイン（分割の木、ペインの中身のつなぎ）
     file-tree/

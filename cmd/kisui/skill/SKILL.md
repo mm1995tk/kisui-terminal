@@ -496,6 +496,48 @@ Write the SQL into the input of a database tab of the window, and do not run it:
 kisui db propose --variant prod shop "UPDATE orders SET status = 'cancelled' WHERE id = 42"
 ```
 
+### kisui db open [--variant <variant>] [--workspace <name|id>] <connection>
+
+Open a database tab of a connection of this machine in the window, and print the id of the tab. It goes into the workspace of your pane (or `--workspace`), and the window shows it, as the key does. Use that id as `<tab>` below (`kisui tab list` prints the database tabs too). From a pane of a remote machine it works only while the user allows that machine in the machine dialog (`p`).
+
+```sh
+kisui db open --variant prod shop
+```
+
+The commands below act on a database tab by its id or its name (`<tab>`), and do what the keys of the tab do. They need the window. They do not run SQL: the user types and runs it in the tab (or you use `kisui db query`). There is no command to elevate a permission: only the user elevates it in the window, so do not ask for a way to do it.
+
+### kisui db refresh <tab>
+
+Ask again for the tables of the connection (and the structure of the table that is chosen). It does not wait for the answer.
+
+### kisui db export <tab> --format csv|tsv|json [--out <file>]
+
+Print the result that the tab shows as text (`--out` writes a new file instead; it does not replace a file that exists). It gives the rows the tab holds (a note says when they are cut at the limit). It works only for a connection where `RUN` of `kisui db connections` is `read` or `free` and you log in as the same database user as the user does (no `agent-user`, or the same one): the result is what the user ran with their own permission, so with `none`, or with another database user, it is refused. It is refused while the tab runs a statement; run it again when it ends. A pane of a remote machine is refused while the user has a pane of this computer set to ask every time.
+
+```sh
+kisui db export 'shop console' --format csv --out /tmp/orders.csv
+```
+
+### kisui db history [--json] <tab>
+
+List the statements run on the connection of the tab, newest first (`AT`, `OK`, `BY` for who ran it, `SQL`). The same rules as `kisui db export` apply (`RUN` is not `none`, and no other `agent-user`; the remote machine and "ask every time").
+
+### kisui db page <tab> --next|--prev
+
+Show the next or the previous page of the result of the tab (only a SELECT that gives more rows than one page is paged). It does not wait for the page: run `kisui db export` after the tab has finished (it refuses while the page is loading).
+
+### kisui db view <tab> data|structure
+
+Switch the result area between the data and the structure of the table, for a result of a table that the user chose in the schema tree.
+
+### kisui db result <tab> --next|--prev|--close
+
+Show the next or the previous result tab of the database tab, or close the one it shows (a running statement of that tab is cancelled).
+
+### kisui db elevate-end <tab>
+
+End the elevated permissions of the connection of the tab at once (the user's and the agent's, as the key does). It only lowers a permission.
+
 ### kisui update
 
 Make the window look for a newer version of kisui-terminal now and, when there is one, show its "a new version is available" notice. It prints that the version is the newest, that there is a newer one, or that this build has no auto update. **Do not run this on your own.** It is for the user, who decides when to update; run it only when the user asks you to check for an update. The update itself (replace and restart) is done by the user in the notice.

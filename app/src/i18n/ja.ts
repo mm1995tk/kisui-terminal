@@ -813,6 +813,22 @@ export const ja: Record<Key, string> = {
     "{from} の Pane が Tab を表示する・別の Workspace へ移すのは、Window のキーが今 {from} の Terminal tab に向いているときか、Window の前の人が {from} に許している間（Machine の Dialog で {from} を選び、p を押す）だけです。そうでないと、人が打っているキーの行き先が変わってしまいます。Tab を表示するよう、ユーザーに頼んでください。",
   "tabCli.err.sameWorkspace":
     "Tab「{tab}」は、もう Workspace「{workspace}」にあります",
+  "dbCli.err.notDb":
+    'タブ "{tab}" は Database tab ではありません（kisui tab list で各タブの種類が分かります）',
+  "dbCli.err.reach":
+    "{from} の Pane が Database tab を開けるのは、Window の前の人が {from} を許している間だけです（Machine の Dialog で {from} を選び p を押す）。ユーザーに開いてもらってください。",
+  "dbCli.err.askEach":
+    "この PC の Pane に「操作のたびに聞く」が設定されているので、リモートの Machine は、この PC の Database tab の結果と履歴を読めません。ユーザーに Window で行ってもらってください。",
+  "dbCli.err.agentNone":
+    "この接続でのコーディングエージェントの権限は SQL の実行を許していない（kisui db connections の RUN が none）ので、このタブの結果と履歴は渡しません。結果と履歴は、人が人の権限で実行したものです。",
+  "dbCli.err.agentUser":
+    "この接続では、コーディングエージェントは別の DB のユーザー（agent-user）でログインするので、このタブの結果と履歴は渡しません。人は接続の user で実行したので、エージェントのユーザーが読めない行を読んでいることがあります。",
+  "dbCli.err.noOwnWorkspace":
+    "この Pane の Workspace が見つかりません。--workspace で Workspace を指してください。",
+  "dbCli.err.running":
+    "この Database tab は文を実行している間です。終わってからもう一度実行してください。",
+  "dbCli.err.noResult":
+    "この Database tab には、閉じる結果のタブがありません。",
   "browserCli.err.disabled":
     "内蔵ブラウザが無効なので、Browser tab はありません。使うには、Window が動いている PC の設定ファイルの [gui.browser] に enabled = true を書き、kisui-terminal を起動し直します（人に頼みます）。",
   "browserCli.err.reach":
