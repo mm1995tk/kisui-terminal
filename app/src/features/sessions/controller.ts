@@ -26,6 +26,7 @@ import { askpassMachine, type AskpassMachine } from "./askpass.ts";
 import { machineColors } from "./colors.ts";
 import {
   addMachine,
+  fixedReason,
   fromConfig,
   labelOf as machineLabelOf,
   machineEditError,
@@ -330,19 +331,29 @@ export function createSessions(deps: {
     if (p) void disconnect(p.target);
   }
 
-  /** 名前を変える。確かめてから config.local.toml に書き、書けたら入力欄を閉じる（書けなければ理由を入力欄に出す）。 */
+  /** マシン target の名前を変える。確かめてから config.local.toml に書く。変えられなければ理由を返す（名前の入力欄と `kisui machine rename`）。 */
+  async function renameNow(
+    target: string,
+    name: string,
+  ): Promise<string | undefined> {
+    const r = renameMachine(machines(), target, name);
+    if ("error" in r) return r.error;
+    const next = r.machines.find((m) => m.target === target);
+    return writeMachine({
+      kind: "rename",
+      ssh: target,
+      name: next?.name ?? null,
+    });
+  }
+
+  /** 名前の入力欄の Enter。書けたら入力欄を閉じる（書けなければ理由を入力欄に出す）。 */
   function submitRename(target: string, name: string) {
     const r = renameMachine(machines(), target, name);
     if ("error" in r) {
       setRenameError(r.error);
       return;
     }
-    const next = r.machines.find((m) => m.target === target);
-    void writeMachine({
-      kind: "rename",
-      ssh: target,
-      name: next?.name ?? null,
-    }).then((err) => {
+    void renameNow(target, name).then((err) => {
       if (renaming() !== target) return;
       if (err === undefined) setRenaming(null);
       else setRenameError(err);
@@ -364,41 +375,63 @@ export function createSessions(deps: {
   function submitTermEdit(startDirText: string, shellText: string) {
     const editing = termEditing();
     if (!editing || termEditBusy()) return;
-    const { target } = editing;
-    const [startDir, shell] = [startDirText.trim(), shellText.trim()];
-    const problem = startDirProblem(startDir) ?? shellProblem(shell);
+    const problem = termProblem(startDirText, shellText);
     if (problem) {
       setTermEditError(problem);
       return;
     }
-    const edit = { startDir: startDir || null, shell: shell || null };
     setTermEditBusy(true);
-    const written =
-      target === LOCAL
-        ? api
-            .editLocalTerminal(edit)
-            .then((d) => setTermDefaults((m) => ({ ...m, [LOCAL]: d })))
-        : api
-            .editMachine({ kind: "terminal", ssh: target, ...edit })
-            .then((list) => {
-              setMachines(fromConfig(list));
-              setTermDefaults((m) => ({
-                ...termDefaultsByTarget({ machines: list }),
-                [LOCAL]: m[LOCAL] ?? {},
-              }));
-            });
-    void written
-      .then(
-        () => undefined,
-        (e: unknown) => machineEditError(e),
-      )
-      .then((err) => {
+    void writeTermDefaults(editing.target, startDirText, shellText).then(
+      (err) => {
         setTermEditBusy(false);
         // 書いている間にやめた（Esc）なら、Dialog は閉じてある
         if (termEditing() !== editing) return;
         if (err === undefined) setTermEditing(null);
         else setTermEditError(err);
-      });
+      },
+    );
+  }
+
+  /** ターミナルの始め方の、書けない形の理由（前後の空白は除いて見る）。よければ undefined。 */
+  function termProblem(startDirText: string, shellText: string) {
+    return (
+      startDirProblem(startDirText.trim()) ?? shellProblem(shellText.trim())
+    );
+  }
+
+  /**
+   * マシン target のターミナルの始め方を config.local.toml に書く（Dialog の「保存」と `kisui machine terminal`）。前後の空白は除き、
+   * 空の値は、その項目を消す。リモートのマシンは [[gui.machines]] の項目に、「ローカル」は [server] に書く。書けなければ理由を返す。
+   */
+  async function writeTermDefaults(
+    target: string,
+    startDirText: string,
+    shellText: string,
+  ): Promise<string | undefined> {
+    const problem = termProblem(startDirText, shellText);
+    if (problem) return problem;
+    const [startDir, shell] = [startDirText.trim(), shellText.trim()];
+    const edit = { startDir: startDir || null, shell: shell || null };
+    try {
+      if (target === LOCAL) {
+        const d = await api.editLocalTerminal(edit);
+        setTermDefaults((m) => ({ ...m, [LOCAL]: d }));
+      } else {
+        const list = await api.editMachine({
+          kind: "terminal",
+          ssh: target,
+          ...edit,
+        });
+        setMachines(fromConfig(list));
+        setTermDefaults((m) => ({
+          ...termDefaultsByTarget({ machines: list }),
+          [LOCAL]: m[LOCAL] ?? {},
+        }));
+      }
+      return undefined;
+    } catch (e) {
+      return machineEditError(e);
+    }
   }
 
   /**
@@ -407,18 +440,91 @@ export function createSessions(deps: {
    * 書けなければ、知らせに理由を出す。config.toml にだけあるマシン（fixed）は外さない（呼ぶ側が先に断る）。
    */
   function removeFromSidebar(target: string) {
-    if (fixedOf(target)) return;
     const label = labelOf(target);
-    void writeMachine({ kind: "remove", ssh: target }).then((err) => {
-      if (err !== undefined) {
+    void removeNow(target).then((err) => {
+      if (err !== undefined)
         deps.report?.({
           title: T("machine.remove.failed", { label }),
           error: err,
         });
-        return;
-      }
-      if (!targets().includes(target)) void disconnect(target);
     });
+  }
+
+  /**
+   * マシン target を外す（removeFromSidebar と `kisui machine remove`）。外せなければ理由を返す。
+   * config.toml にだけあるマシンは外さない（理由を返す）。
+   */
+  async function removeNow(target: string): Promise<string | undefined> {
+    if (fixedOf(target)) return fixedReason();
+    const err = await writeMachine({ kind: "remove", ssh: target });
+    if (err !== undefined) return err;
+    if (!targets().includes(target)) await disconnect(target);
+    return undefined;
+  }
+
+  /**
+   * マシンを足す（`kisui machine add`。足す Dialog の submitAdd と同じ決まり）。ssh でつなぎ（kisui が無ければ、Window で人に聞いて送り、
+   * ssh の質問も Window で聞く）、つながったら config.local.toml に書く。つなげない・書けない・signal で取り下げられたときは、書かずに切り、
+   * 理由を返す。足したら、足したマシンの ssh の行き先を返す。
+   */
+  async function addNow(
+    target: string,
+    name: string,
+    signal: AbortSignal,
+  ): Promise<{ target: string } | { error: string }> {
+    const r = addMachine(machines(), target, name);
+    if ("error" in r) return r;
+    const m = r.machines[r.machines.length - 1];
+    // 足す Dialog が同じ行き先につないでいる最中など、もう接続があるなら、触らない
+    if (sessions()[m.target])
+      return { error: T("machine.err.connecting", { label: m.target }) };
+    connect(m.target);
+    const s = sessions()[m.target];
+    const st = await new Promise<SessionState | "aborted">((resolve) => {
+      const done = (v: SessionState | "aborted") => {
+        off();
+        signal.removeEventListener("abort", onAbort);
+        resolve(v);
+      };
+      const check = (x: SessionState) => {
+        if (
+          x.kind === "connected" ||
+          x.kind === "failed" ||
+          x.kind === "superseded" ||
+          x.kind === "closed"
+        )
+          done(x);
+      };
+      const onAbort = () => done("aborted");
+      const off = s.onState(check);
+      signal.addEventListener("abort", onAbort);
+      if (signal.aborted) onAbort();
+      else check(s.state);
+    });
+    if (st !== "aborted" && st.kind === "connected") {
+      const err = await writeMachine({
+        kind: "add",
+        ssh: m.target,
+        name: m.name ?? null,
+      });
+      if (err === undefined) return { target: m.target };
+      void disconnect(m.target);
+      return { error: err };
+    }
+    // 取り下げられた・つなげなかった。足す Dialog と同じく、書かずに切る（足す前に切れていれば、切らない）
+    if (sessions()[m.target] === s) void disconnect(m.target);
+    if (st === "aborted") return { error: T("machine.err.addCancelled") };
+    return {
+      error:
+        st.kind === "failed"
+          ? T("err.machine.connect", {
+              machine: labelOf(m.target),
+              message: st.message,
+            })
+          : st.kind === "superseded"
+            ? T("err.machine.usedByOther", { machine: labelOf(m.target) })
+            : T("machine.err.addCancelled"),
+    };
   }
 
   /** 見出しのそばのボタン。待ち時間中なら今すぐ、使い切った・引き継がれたあとならつなぎ直す。 */
@@ -505,6 +611,11 @@ export function createSessions(deps: {
     renameError,
     submitRename,
     removeFromSidebar,
+    renameNow,
+    removeNow,
+    addNow,
+    readTermDefaults,
+    writeTermDefaults,
     /** ターミナルの始め方（始めるフォルダとシェル）を変えているマシンと、今の設定の値 */
     termEditing,
     openTermEdit,
