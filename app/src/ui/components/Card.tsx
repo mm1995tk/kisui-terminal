@@ -4,6 +4,7 @@
 // 寸法と色は card.css（値は ui/styles/tokens.css）、下に並べるボタンは Button.tsx。使い方の決まりは docs/design/design-system.md の「Dialog の枠」。
 import {
   children,
+  createMemo,
   onCleanup,
   onMount,
   Show,
@@ -25,8 +26,9 @@ import "./card.css";
  * focusSelf なら、中のボタンや入力欄ではなく Dialog そのものにフォーカスを置く
  * （ユーザーの操作と関係なく開く Dialog で、打っていた Enter がボタンを押さないように）。
  *
- * 中は 3 つに分ける：上の header（見出し）と下の footer（ボタンの並び・キーの案内）は動かず、
- * 間の children（中身）だけがスクロールする。footer は省ける。header は、中身が自分で見出しを描く Dialog だけが省く。
+ * 中は 4 つに分ける：上の header（見出し）と下の footer（ボタンの並び・キーの案内）は動かず、
+ * 間の children（中身）だけがスクロールする。中身と footer の間の status（できなかった理由・今の状態の文）も動かない
+ * （中身が長くてスクロールしても、理由が見えたままになる）。footer・status は省ける。header は、中身が自分で見出しを描く Dialog だけが省く。
  */
 export function ModalCard(props: {
   label: string;
@@ -40,12 +42,19 @@ export function ModalCard(props: {
   header?: JSX.Element;
   /** 下に固定するもの（ふつうは CardActions）。省くと出さない */
   footer?: JSX.Element;
+  /** 中身の下・footer の上に固定する、できなかった理由と今の状態の文（CardError・role="status" の CardText）。無ければ段ごと出さない */
+  status?: JSX.Element;
   /** 中身。Dialog の高さに収まらなければ、ここだけがスクロールする */
   children: JSX.Element;
 }): JSX.Element {
   // header・footer は JSX の getter。読むたびに作り直さないよう、1 回だけ解く
   const header = children(() => props.header);
   const footer = children(() => props.footer);
+  const status = children(() => props.status);
+  // 中に Show を 2 つ並べると [undefined, undefined] に解ける（配列は真）ので、中身があるかを見て、空の段（線だけ）を出さない
+  const hasStatus = createMemo(() =>
+    status.toArray().some((n) => n != null && n !== false),
+  );
   let el!: HTMLDialogElement;
   const before =
     document.activeElement instanceof HTMLElement
@@ -110,6 +119,9 @@ export function ModalCard(props: {
         <header class="card-header">{header()}</header>
       </Show>
       <div class="card-content">{props.children}</div>
+      <Show when={hasStatus()}>
+        <div class="card-status">{status()}</div>
+      </Show>
       <Show when={footer()}>
         <CardFooter>{footer()}</CardFooter>
       </Show>

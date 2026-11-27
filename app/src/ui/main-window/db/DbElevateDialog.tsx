@@ -17,7 +17,6 @@ import "../../components/card.css";
 import {
   CardBody,
   CardError,
-  CardFooter,
   CardText,
   CardTitle,
   ModalCard,
@@ -61,11 +60,31 @@ export function DbElevateDialog(props: {
   }
 
   return (
-    <ModalCard label={T("db.elevate.label")} onCancel={props.onCancel}>
-      <CardBody>
+    <ModalCard
+      label={T("db.elevate.label")}
+      onCancel={props.onCancel}
+      header={
         <CardTitle>
           {T("db.elevate.title", { connection: props.ask.connection })}
         </CardTitle>
+      }
+      status={
+        <Show when={props.ask.error}>
+          {(error) => <CardError role="alert">{error()}</CardError>}
+        </Show>
+      }
+      footer={
+        <KeyHints
+          items={basicHints({
+            select: ["↓", "↑", "Ctrl+J", "Ctrl+K"],
+            decide: T("db.elevate.do"),
+            help: false,
+            end: "cancel",
+          })}
+        />
+      }
+    >
+      <CardBody>
         <CardText>{T("db.elevate.text")}</CardText>
       </CardBody>
       <Show
@@ -128,21 +147,8 @@ export function DbElevateDialog(props: {
               }
             />
           </Field>
-          <Show when={props.ask.error}>
-            {(error) => <CardError role="alert">{error()}</CardError>}
-          </Show>
         </CardBody>
       </Show>
-      <CardFooter>
-        <KeyHints
-          items={basicHints({
-            select: ["↓", "↑", "Ctrl+J", "Ctrl+K"],
-            decide: T("db.elevate.do"),
-            help: false,
-            end: "cancel",
-          })}
-        />
-      </CardFooter>
     </ModalCard>
   );
 }

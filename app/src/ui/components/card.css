@@ -72,7 +72,7 @@
   box-shadow: var(--shadow-raised);
 }
 
-/* Dialog（ModalCard）の 3 つの段。見出しと Key footer は動かず、中身だけがスクロールする。
+/* Dialog（ModalCard）の 4 つの段（見出し・中身・status・Key footer）。中身以外は動かず、中身だけがスクロールする。
    段の境目には、カードの縁と同じ色の 1px の線を引く（GitHub の Dialog と同じ）。
    中身の flex-basis は auto（中身の高さ）にする。flex: 1（flex-basis 0%）だと、Dialog の高さが中身で決まるのに、0% をどう解くかが
    WebView に任される。0 と解かれると中身の高さが 0 になり、Dialog が見出しと Key footer だけの高さになる（macOS で起きた #524 の推定の原因） */
@@ -93,10 +93,33 @@
 :where(.card-content > *) {
   flex: none;
 }
+/* 中身の直下の一覧（.card-rows）だけは縮める。一覧が Dialog の高さを使い切るときは、一覧の中だけがスクロールして、
+   一覧の下の入力欄が見えたままになる（中身の段が二重にスクロールしない）。縮めるのは収まらないときだけで、収まるなら中身の高さのまま */
+.card-content > .card-rows {
+  flex: 0 1 auto;
+}
+/* 縮むときも、行が見える高さは残す（画面が低くても一覧が 0 行にならない。それより短ければ中身の段がスクロールする）。
+   行が 1 つなら 1 行ぶん、3 つ以上なら 3 行ぶん弱。2 行までは、中身の高さが下限を超えるので余白は増えない */
+.card-content > .card-rows:has(> li) {
+  min-height: 56px;
+}
+.card-content > .card-rows:has(> li:nth-child(3)) {
+  min-height: 120px;
+}
 /* 中に押せるものが無いと、ブラウザがスクロールの段そのものにフォーカスを置く（キーでスクロールできるように）。
    段の全体を囲む枠は出さない（Dialog を開いただけで枠が見えてしまう） */
 .card-content:focus {
   outline: none;
+}
+/* 中身と Key footer の間の段（ModalCard の status）。できなかった理由と今の状態の文は、中身がスクロールしても見えたままにする。
+   中身の下の端に付くので、上に線を引く。理由（.card-error）は長ければ自分でスクロールする（max-height） */
+.card-status {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: var(--space-8);
+  padding: var(--space-12) var(--space-16);
+  border-top: 1px solid var(--card-divider);
 }
 .card-footer {
   display: flex;

@@ -90,6 +90,13 @@ export function DbConnectionEditor(props: {
       label={title()}
       onCancel={props.onCancel}
       header={<CardTitle>{title()}</CardTitle>}
+      status={
+        <Show when={props.form.errors.length > 0}>
+          <CardError role="alert">
+            <For each={props.form.errors}>{(line) => <div>{line}</div>}</For>
+          </CardError>
+        </Show>
+      }
       footer={
         <CardActions>
           <Button onClick={props.onCancel}>{T("button.cancel")}</Button>
@@ -164,11 +171,6 @@ export function DbConnectionEditor(props: {
             />
             {T("dbConn.field.readOnly")}
           </label>
-        </Show>
-        <Show when={props.form.errors.length > 0}>
-          <CardError role="alert">
-            <For each={props.form.errors}>{(line) => <div>{line}</div>}</For>
-          </CardError>
         </Show>
       </CardBody>
     </ModalCard>

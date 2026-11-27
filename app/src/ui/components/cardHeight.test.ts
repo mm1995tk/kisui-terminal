@@ -36,6 +36,35 @@ function declarations(css: string, selector: string): Map<string, string> {
   return out;
 }
 
+/** app/src/ui の下の tsx（ui からの相対の名前 → 中身）。 */
+function tsxFiles(dir: URL, base = ""): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    const name = base + e.name;
+    if (e.isDirectory())
+      Object.assign(out, tsxFiles(new URL(`${e.name}/`, dir), `${name}/`));
+    else if (e.name.endsWith(".tsx") && !e.name.endsWith(".stories.tsx"))
+      out[name] = readFileSync(new URL(e.name, dir), "utf8");
+  }
+  return out;
+}
+
+/** text の中の `status={ … }`（波括弧の釣り合う所まで）を取り除く。 */
+function withoutStatus(text: string): string {
+  let out = text;
+  for (;;) {
+    const i = out.indexOf("status={");
+    if (i < 0) return out;
+    let depth = 0;
+    let j = i + "status=".length;
+    for (; j < out.length; j++) {
+      if (out[j] === "{") depth++;
+      else if (out[j] === "}" && --depth === 0) break;
+    }
+    out = out.slice(0, i) + out.slice(j + 1);
+  }
+}
+
 const files = cssFiles(ui);
 const card = files["components/card.css"]!;
 
@@ -65,5 +94,51 @@ describe("Dialog の高さの決め方", () => {
       .filter(([, css]) => /\.card-(modal|content)\b/.test(css))
       .map(([name]) => name);
     assert.deepEqual(owners, ["main-window/workspaces/switcher.css"]);
+  });
+
+  it("中身の直下の一覧だけは縮む（一覧が Dialog の高さを使い切るとき、一覧の中だけがスクロールする。#524）", () => {
+    assert.equal(
+      declarations(card, ".card-content > .card-rows").get("flex"),
+      "0 1 auto",
+    );
+  });
+
+  it("縮む一覧にも、行が見える下限の高さがある（画面が低くても 0 行にならない）", () => {
+    assert.equal(
+      declarations(card, ".card-content > .card-rows:has(> li)").get(
+        "min-height",
+      ),
+      "56px",
+    );
+    assert.equal(
+      declarations(
+        card,
+        ".card-content > .card-rows:has(> li:nth-child(3))",
+      ).get("min-height"),
+      "120px",
+    );
+  });
+});
+
+describe("Dialog の status の段（できなかった理由・今の状態の文。#524）", () => {
+  it("status の段は動かず、上に線を引く（中身がスクロールしても見えたまま）", () => {
+    const d = declarations(card, ".card-status");
+    assert.equal(d.get("flex"), "none");
+    assert.ok(d.has("border-top"));
+  });
+
+  it("ModalCard は status を中身と footer の間に出す", () => {
+    const tsx = readFileSync(new URL("components/Card.tsx", ui), "utf8");
+    const at = (s: string) => tsx.indexOf(s);
+    assert.ok(at('class="card-content"') < at('class="card-status"'));
+    assert.ok(at('class="card-status"') < at("<CardFooter>{footer()}"));
+  });
+
+  it("ModalCard の Dialog は、できなかった理由（CardError）を中身に置かず status に渡す", () => {
+    const bad = Object.entries(tsxFiles(ui))
+      .filter(([, text]) => text.includes("<ModalCard"))
+      .filter(([, text]) => withoutStatus(text).includes("<CardError"))
+      .map(([name]) => name);
+    assert.deepEqual(bad, []);
   });
 });

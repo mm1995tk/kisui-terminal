@@ -51,6 +51,11 @@ export function PaneGrantDialog(props: {
       label={T("paneGrant.title")}
       onCancel={props.onCancel}
       header={<CardTitle>{T("paneGrant.title")}</CardTitle>}
+      status={
+        <Show when={error()}>
+          {(e) => <CardError role="alert">{e()}</CardError>}
+        </Show>
+      }
       footer={
         <CardActions>
           <Button onClick={props.onCancel}>{T("button.cancel")}</Button>
@@ -75,9 +80,6 @@ export function PaneGrantDialog(props: {
             autofocus
           />
         </Field>
-        <Show when={error()}>
-          {(e) => <CardError role="alert">{e()}</CardError>}
-        </Show>
       </CardBody>
     </ModalCard>
   );
