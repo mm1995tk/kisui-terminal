@@ -2,10 +2,11 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import type { WindowRunReport } from "../../infrastructure/rpc/protocol.ts";
-
 import { LOCAL } from "../sessions/shell.ts";
 import type { Command } from "./commands.ts";
+import { createMascotCommands } from "../mascot/mascotCommands.ts";
 import { createGlobalCommands } from "./globalCommands.ts";
+import { createNoticeCommands } from "./noticeCommands.ts";
 import { createWindowRun, type WindowCaller } from "./windowRun.ts";
 
 /** 答えの、断りの理由（行えたなら undefined）。 */
@@ -31,42 +32,49 @@ function setup(
   const ran: Command[] = [];
   const calls: unknown[][] = [];
   const failure = opts.fail ? { title: "Cannot", error: "broken" } : undefined;
-  const table = createGlobalCommands({
-    runCommand: (c) => ran.push(c),
-    updates: { info: () => (opts.update ? ({} as never) : null) },
-    downloads: {
-      lastDownload: () =>
-        opts.download
-          ? { id: 7, name: "report.pdf", dir: "/d", ok: true }
-          : undefined,
-      useDownload: async (d, how) => {
-        calls.push([how, d.name]);
-        return !opts.useFails;
+  const runCommand = (c: Command) => void ran.push(c);
+  // Window 全体に効く 3 つの表（見た目・Notice・キャラクター）をまとめて確かめる
+  const table = {
+    ...createGlobalCommands({ runCommand }),
+    ...createNoticeCommands({
+      runCommand,
+      updates: { info: () => (opts.update ? ({} as never) : null) },
+      downloads: {
+        lastDownload: () =>
+          opts.download
+            ? { id: 7, name: "report.pdf", dir: "/d", ok: true }
+            : undefined,
+        useDownload: async (d, how) => {
+          calls.push([how, d.name]);
+          return !opts.useFails;
+        },
       },
-    },
-    mascot: {
-      choose: async (name) => {
-        calls.push(["choose", name]);
-        return failure;
+      focusLastNotified: () => {
+        calls.push(["focusNotified"]);
+        return opts.notified === true;
       },
-      reloadCurrent: async () => {
-        calls.push(["reload"]);
-        return failure;
+    }),
+    ...createMascotCommands({
+      mascot: {
+        choose: async (name) => {
+          calls.push(["choose", name]);
+          return failure;
+        },
+        reloadCurrent: async () => {
+          calls.push(["reload"]);
+          return failure;
+        },
+        list: async () => ({
+          root: "/home/u/.config/kisui-terminal/mascot",
+          current: "cat",
+          entries: [
+            { name: "cat", error: null },
+            { name: "dog", error: "no mascot.toml" },
+          ],
+        }),
       },
-      list: async () => ({
-        root: "/home/u/.config/kisui-terminal/mascot",
-        current: "cat",
-        entries: [
-          { name: "cat", error: null },
-          { name: "dog", error: "no mascot.toml" },
-        ],
-      }),
-    },
-    focusLastNotified: () => {
-      calls.push(["focusNotified"]);
-      return opts.notified === true;
-    },
-  });
+    }),
+  };
   const run = async (name: string, args: Record<string, unknown> = {}) =>
     table[name]!.run(args, caller);
   return { table, ran, calls, run };

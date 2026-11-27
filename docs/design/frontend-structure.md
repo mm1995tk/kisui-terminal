@@ -75,7 +75,7 @@ app/src/
     mascot/
     updates/
     scale/                  # 表示の大きさ
-    commands/               # コマンドの表（リーダーと Shortcut）、キーの書き方、コマンドを動かす、Window に頼む CLI の受け口（`windowRun.ts`。#511）、Window 全体に効く Command の CLI の受け持ち（`globalCommands.ts`）
+    commands/               # コマンドの表（リーダーと Shortcut）、キーの書き方、コマンドを動かす、Window に頼む CLI の受け口（`windowRun.ts`。#511）、Window 全体に効く Command の CLI の受け持ち（`globalCommands.ts`・`noticeCommands.ts`）
     compose.ts              # 機能の持ち物（各 controller）を作って、互いをつなぐ
     keyValueStore.ts        # 小さな記録の読み書きの受け口（機能をまたいで使う）
     problem.ts              # 「できなかったこと」の知らせの形（機能をまたいで使う）
@@ -149,7 +149,7 @@ index.tsx ──▶ ui ──▶ features ◀── infrastructure
 | `features/file-tree/controller.ts`・`features/changes/controller.ts` | ツリーと CHANGES の中身と操作                              |
 | `features/commands/run.ts`                        | コマンドの表のコマンドを動かす（リーダーの葉と Shortcut）                         |
 | `features/commands/windowRun.ts`                  | Window に頼む CLI（`kisui tab`・`kisui workspace`・`kisui browser`・`kisui machine`・`kisui pane focus` など）を、名前ごとの受け持ちに渡す（#511）    |
-| `features/commands/globalCommands.ts`             | Window 全体に効く Command の CLI（`kisui sidebar`・`kisui scale`・`kisui notice`・`kisui mascot`。#517）の受け持ち |
+| `features/commands/globalCommands.ts`・`noticeCommands.ts`・`features/mascot/mascotCommands.ts` | Window 全体に効く Command の CLI（`kisui sidebar`・`kisui scale`、`kisui notice`、`kisui mascot`。#517）の受け持ち |
 
 持ち物どうしは互いを呼ぶ（接続の知らせでフォーカスを直す、など）。先に作る側には、後で作る側を呼ぶ関数を渡す（`compose.ts` の `hooks` や `() => …`）。機能が画面の側に頼むこと（キーを向ける・スクロールを戻す・Dialog を出す）は、`FeatureUi`・`CommandUi` の形で `page.tsx` が渡す。
 

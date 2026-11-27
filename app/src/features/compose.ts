@@ -37,6 +37,8 @@ import { onPaneGrantEnd, paneGrantActive } from "./sessions/paneGrant.ts";
 import { createPaneRelay } from "./sessions/paneRelay.ts";
 import { createWindowRun } from "./commands/windowRun.ts";
 import { createGlobalCommands } from "./commands/globalCommands.ts";
+import { createNoticeCommands } from "./commands/noticeCommands.ts";
+import { createMascotCommands } from "./mascot/mascotCommands.ts";
 import { askClipboardHistory } from "./clipboard/clipboardPrompt.ts";
 import type { ListClipboardHistory } from "./clipboard/history.ts";
 import { createClipboardCommands } from "./clipboard/historyCommand.ts";
@@ -409,10 +411,13 @@ export function createFeatures(deps: {
     }),
     createGlobalCommands({
       runCommand: (c) => commands.runCommand(c),
+    }),
+    createNoticeCommands({
+      runCommand: (c) => commands.runCommand(c),
       updates,
       downloads,
-      mascot,
     }),
+    createMascotCommands({ mascot }),
     createClipboardCommands({
       list: ports.clipboardHistory,
       ask: askClipboardHistory,
