@@ -98,6 +98,14 @@
 .card-content > .card-rows {
   flex: 0 1 auto;
 }
+/* 縮むときも、行が見える高さは残す（短い窓で一覧が 0 行にならない。それより短ければ中身の段がスクロールする）。
+   行が 1 つなら 1 行ぶん、3 つ以上なら 3 行ぶん弱。2 行までは、中身の高さが下限を超えるので余白は増えない */
+.card-content > .card-rows:has(> li) {
+  min-height: 56px;
+}
+.card-content > .card-rows:has(> li:nth-child(3)) {
+  min-height: 120px;
+}
 /* 中に押せるものが無いと、ブラウザがスクロールの段そのものにフォーカスを置く（キーでスクロールできるように）。
    段の全体を囲む枠は出さない（Dialog を開いただけで枠が見えてしまう） */
 .card-content:focus {
