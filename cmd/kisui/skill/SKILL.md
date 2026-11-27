@@ -305,7 +305,7 @@ A workspace can hold tabs of several machines, so what you reach follows the tab
 
 ### kisui browser new [--private] [<url>]
 
-Add a browser tab to the workspace of your pane, and print its id. With an `http` or `https` URL the tab opens that page; without one it shows the new tab page. `--private` makes a private tab (its own logins, kept only in memory). The window shows the tab. A `localhost` URL from a remote machine opens through the relay, as `kisui open` does.
+Add a browser tab to the workspace of your pane, and print its id. With an `http` or `https` URL the tab opens that page; without one it shows the new tab page. `--private` makes a private tab (its own logins, kept only in memory). The window shows the tab when it is in the workspace the window is in; it does not wait for the page to load. A `localhost` URL from a remote machine opens through the relay of your machine, as `kisui open` does.
 
 ```sh
 id=$(kisui browser new https://example.com/docs)
@@ -321,7 +321,7 @@ kisui browser url "$id" https://example.com/changelog
 
 ### kisui browser back <tab>
 
-Go back, as `h` of the dialog does. It is refused, with the reason, when there is nothing to go back to. `kisui browser forward <tab>` goes forward the same way, `kisui browser reload <tab>` loads the page again, and `kisui browser stop <tab>` stops loading (refused when the page is not loading). `back`, `forward` and `reload` are refused for a tab that shows the new tab page.
+Go back, as `h` of the dialog does. It is refused, with the reason, when there is nothing to go back to. `kisui browser forward <tab>` goes forward the same way, `kisui browser reload <tab>` loads the page again, and `kisui browser stop <tab>` stops loading (refused when the page is not loading). `back`, `forward` and `reload` are refused for a tab that shows the new tab page. `reload`, `find`, `devtools` and `login` need the page of the tab, which the window makes the first time it shows the tab (after kisui-terminal starts, and for a tab in another workspace, not before): for a tab it has not shown they are refused, and you should ask the user to show it (`kisui tab show`), or wait until the page is there.
 
 ### kisui browser forward <tab>
 
@@ -368,7 +368,7 @@ List the bookmarks of the built-in browser, newest first (the bookmarks of the u
 Look for the text in the page. The first match becomes the selection of the page (the user sees it when the tab is shown). It prints `found` or `not found`, and exits with 0 for both; it does not count the matches or return the text of the page. Write `--` before a text that starts with `-`.
 
 ```sh
-kisui browser find "$id" 'breaking changes'
+kisui browser find "$id" 'breaking changes'   # the tab must have been shown by the window
 ```
 
 ### kisui browser devtools <tab>

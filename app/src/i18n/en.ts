@@ -812,6 +812,8 @@ export const en = {
     "A pane of this computer is set to ask the person every time, so a remote machine may not open a URL, or open the external browser, DevTools or a login, in the browser of this computer. Ask the user to do it in the window.",
   "browserCli.err.notBrowser":
     'The tab "{tab}" is not a browser tab (kisui tab list prints the kind of each tab)',
+  "browserCli.err.noView":
+    'The tab "{tab}" has no page yet: the window has not shown it since it started (a page is made when the tab is first shown), or it is still opening. Ask the user to show the tab (kisui tab show), then try again.',
   "browserCli.err.noWorkspace":
     "The workspace of this pane is not in the window, so a browser tab cannot be added to it.",
   "browserCli.err.url":

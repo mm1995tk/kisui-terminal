@@ -94,6 +94,22 @@ export function createPages(deps: {
     );
     return id === undefined ? undefined : tabs().tabs.find((t) => t.id === id);
   });
+  /**
+   * 画面に出したことのあるタブの id。ページ（子の webview）は、タブを初めて出すときに作られる（BrowserArea）ので、まだ出していない
+   * タブ（今いない Workspace のタブ・起動し直してからまだ出していないタブ）には、ページが無い。閉じたタブは忘れる。
+   */
+  const viewed = new Set<string>();
+  createEffect(() => {
+    const t = shownBrowserTab();
+    if (t && !isNewTab(t)) viewed.add(t.id);
+  });
+  createEffect(() => {
+    const alive = new Set(tabs().tabs.map((t) => t.id));
+    for (const id of [...viewed]) if (!alive.has(id)) viewed.delete(id);
+  });
+  /** タブ t に、ページ（子の webview）が今あるか（`kisui browser` が、ページに頼む前に確かめる。#515）。 */
+  const hasPage = (t: Pick<BrowserTab, "id" | "made">): boolean =>
+    t.made === true || viewed.has(t.id);
   /** 出しているタブのうち、ページを開いているもの（URL バーを出す）と、新しいタブのページ（#238。NewTabPage を出す）の id */
   const pageTabId = createMemo(() => {
     const t = shownBrowserTab();
@@ -487,6 +503,7 @@ export function createPages(deps: {
     pageTabId,
     /** 出しているタブのうち、新しいタブのページ（#238）の id */
     newTabPageId,
+    hasPage,
     resolveFor,
     openInNewTab,
     openUrlTab,

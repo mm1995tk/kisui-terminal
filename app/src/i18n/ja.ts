@@ -813,6 +813,8 @@ export const ja: Record<Key, string> = {
     "この PC に、操作のたびに人に聞くと決めた Pane があるので、リモートの Machine は、この PC のブラウザで URL を開く・外のブラウザ・DevTools・ログインを開くことができません。Window で人に頼んでください。",
   "browserCli.err.notBrowser":
     "Tab「{tab}」は Browser tab ではありません（kisui tab list に Tab の種類が出ます）",
+  "browserCli.err.noView":
+    "Tab「{tab}」には、まだページがありません。起動してから Window がその Tab を表示していない（ページは、Tab を初めて表示するときに作られる）か、まだ開いている途中です。人に Tab を表示してもらい（kisui tab show）、もう一度試してください。",
   "browserCli.err.noWorkspace":
     "この Pane の Workspace が Window に無いので、Browser tab を足せません。",
   "browserCli.err.url":

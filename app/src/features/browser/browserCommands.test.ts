@@ -63,6 +63,7 @@ function setup(
     granted?: boolean;
     askEach?: boolean;
     browser?: boolean;
+    noView?: boolean;
     login?: PasskeyLogin;
     tab?: Partial<BrowserTab>;
   } = {},
@@ -93,6 +94,7 @@ function setup(
     pages: {
       navPage: (id, a) => calls.push(["nav", id, a]),
       stopPage: (id) => calls.push(["stop", id]),
+      hasPage: (t) => !opts.noView && t.id === "tpage",
       goToChecked: async (id, url) => {
         calls.push(["go", id, url]);
       },
@@ -206,6 +208,23 @@ describe("kisui browser の受け持ち", () => {
     await refusal(() => run("browser.reload", { tab: "tnew" }));
     await refusal(() => run("browser.find", { tab: "tnew", text: "a" }));
     assert.deepEqual(calls, []);
+  });
+
+  it("まだページ（webview）が無い Tab への reload・find・devtools・login は、理由で断る", async () => {
+    const { run, calls } = setup({ noView: true });
+    for (const [name, args] of [
+      ["browser.reload", { tab: "tpage" }],
+      ["browser.find", { tab: "tpage", text: "a" }],
+      ["browser.devtools", { tab: "tpage" }],
+      ["browser.login", { tab: "tpage" }],
+    ] as const) {
+      const e = await refusal(() => run(name, args));
+      assert.match(e.message, /has no page yet/, name);
+    }
+    // 保存した URL に頼む操作は、ページが無くても行う
+    await run("browser.copyUrl", { tab: "tpage" });
+    await run("browser.url", { tab: "tpage", url: "https://b.example" });
+    assert.deepEqual(calls, [["go", "tpage", "https://b.example/"]]);
   });
 
   it("copy-url は URL を返す", async () => {

@@ -57,6 +57,14 @@ export interface BookmarkInfo {
   title: string;
 }
 
+/** ページ（子の webview）がなければできない操作。 */
+const NEEDS_VIEW: ReadonlySet<BrowserOp> = new Set<BrowserOp>([
+  "reload",
+  "find",
+  "devtools",
+  "login",
+]);
+
 /** 開いてよい URL の長さの上限（バイト。server/media.go の maxOpenURL と同じ）。 */
 const MAX_URL = 4096;
 
@@ -93,7 +101,7 @@ export function createBrowserCommands(deps: {
     Tabs,
     "closeTabRow" | "setTabName" | "newBrowserTab" | "newBrowserTabAt"
   >;
-  pages: Pick<Pages, "navPage" | "stopPage" | "goToChecked">;
+  pages: Pick<Pages, "navPage" | "stopPage" | "goToChecked" | "hasPage">;
   bookmarks: Pick<Bookmarks, "bookmarkPageChecked" | "readBookmarks">;
   os: Pick<BrowserOs, "findInTab" | "openTabDevtools" | "startPasskeyLogin">;
   /** URL を手元の外部ブラウザで開く */
@@ -206,6 +214,11 @@ export function createBrowserCommands(deps: {
         if (opens) needNoAskEach(c);
         const why = whyNot(t, op);
         if (why) throw new WindowCommandError(why);
+        // ページ（webview）はタブを初めて出すときに作られる。まだ出していないタブでは、これらは何もできない（殻が生の文で断る・黙って捨てる）
+        if (NEEDS_VIEW.has(op) && !deps.pages.hasPage(t))
+          throw new WindowCommandError(
+            T("browserCli.err.noView", { tab: e.name }),
+          );
         return (await act(t, args)) ?? { id: e.id };
       },
     };
