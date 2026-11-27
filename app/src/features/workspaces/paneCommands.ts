@@ -27,12 +27,11 @@ import {
 } from "../commands/windowRun.ts";
 import type { Sessions } from "../sessions/controller.ts";
 import { machineCliName, machineTarget } from "../sessions/machines.ts";
-import { LOCAL } from "../sessions/shell.ts";
 import type { Direction } from "../terminal/grid.ts";
 import type { TermGroup, TermGroups } from "../terminal/group.ts";
 import type { GwsState } from "./model.ts";
 import type { Row } from "./rows.ts";
-import { keysOnMachine, tabEntries } from "./tabs/tabCommands.ts";
+import { keysMayMove, tabEntries } from "./tabs/tabCommands.ts";
 import type { Tabs } from "./tabs/controller.ts";
 
 /** 1 回の `kisui pane resize` が動かす回数の上限（1 回分は分割の 2%。50 回で分割の全体） */
@@ -157,10 +156,13 @@ export function createPaneCommands(deps: {
 
   /** 人のキーを、Machine dest の Terminal tab へ向けてよいか。向けてはいけなければ断る。 */
   function needKeysOn(c: WindowCaller, dest: string) {
-    if (c.from === LOCAL || deps.granted(c.from)) return;
     if (
-      dest === c.from &&
-      keysOnMachine(tabEntries(untrack(deps.gws), untrack(deps.rows)), c.from)
+      keysMayMove(
+        tabEntries(untrack(deps.gws), untrack(deps.rows)),
+        c.from,
+        deps.granted(c.from),
+        dest,
+      )
     )
       return;
     throw new WindowCommandError(
