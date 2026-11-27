@@ -533,9 +533,16 @@ export function createCommandRunner(deps: {
         break;
       }
       case "notice.update":
-        // 「新しい版があります」の「更新して再起動」。知らせが出ていないときは何もしない
-        if (updates.info()) void updates.install();
-        else cannot(T("cannot.update.title"), T("cannot.update.text"));
+        // 「新しい版があります」の「更新して再起動」。`kisui update` と同じく調べ直してから入れるので、「あとで」で
+        // 知らせを閉じていても効く。新しい版が無いときだけ断る
+        void updates.updateNow().then((r) => {
+          if (r?.status === "failed")
+            cannot(
+              T("cannot.update.title"),
+              T("cannot.update.checkFailed", { error: r.error }),
+            );
+          else if (r) cannot(T("cannot.update.title"), T("cannot.update.text"));
+        });
         break;
       case "notice.dismiss":
         if (updates.info()) updates.dismiss();

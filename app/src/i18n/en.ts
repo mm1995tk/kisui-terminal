@@ -258,6 +258,7 @@ export const en = {
     "No machine is connected. Reconnect one in the machine dialog (m in the leader).",
   "cannot.update.title": "No new version",
   "cannot.update.text": "There is no new version to update to right now.",
+  "cannot.update.checkFailed": "Could not look for a new version: {error}",
   "cannot.download.title": "No downloaded file",
   "cannot.download.text":
     "Files downloaded in the built-in browser appear in the notice at the bottom right.",

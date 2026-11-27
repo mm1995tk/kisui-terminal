@@ -19,7 +19,7 @@ import {
 export function createNoticeCommands(deps: {
   /** キー操作と同じ動き（commands/run.ts の runCommand） */
   runCommand(c: Command): void;
-  updates: Pick<Updates, "info">;
+  updates: Pick<Updates, "checkNow" | "install">;
   downloads: Pick<Downloads, "lastDownload" | "useDownload">;
   /** 最後に OS の通知を出した Pane を前に出す（無ければ false。terminal/lastNotified.ts） */
   focusLastNotified?: () => boolean;
@@ -28,10 +28,17 @@ export function createNoticeCommands(deps: {
 
   return {
     "notice.update": {
-      run: () => {
-        if (!deps.updates.info())
+      // `kisui update` と同じく調べ直してから入れる（キー操作の `i u` と同じ。store.ts の updateNow）。新しい版が無いことは
+      // コマンドに返す。入れ替えは待たない（うまくいけば起動し直して戻らない）
+      run: async () => {
+        const r = await deps.updates.checkNow();
+        if (r.status === "failed")
+          throw new WindowCommandError(
+            T("cannot.update.checkFailed", { error: r.error }),
+          );
+        if (r.status !== "available")
           throw new WindowCommandError(T("cannot.update.text"));
-        deps.runCommand({ id: "notice.update" });
+        void deps.updates.install();
       },
     },
 

@@ -47,6 +47,11 @@ export interface Updates {
    * 知らせのボタン（UpdateBar.tsx）と、リーダーの `i u`（features/commands/run.ts）が同じものを呼ぶ。
    */
   install(): Promise<void>;
+  /**
+   * リーダーの `i u` と `kisui notice update`。`kisui update` と同じ調べ直し（checkNow）をして、新しい版があれば知らせを出して入れる。
+   * 「あとで」で知らせを閉じていても、起動時に調べられなかったときも効く。入れなかったときは調べた答えを返す（入れに進んだときは null）。
+   */
+  updateNow(): Promise<UpdateOutcome | null>;
   /** 「あとで」。知らせを閉じる（入れ替えている最中は閉じない）。 */
   dismiss(): void;
 }
@@ -106,9 +111,25 @@ export function createUpdates(os: UpdatesOs): Updates {
     }
   }
 
+  async function updateNow(): Promise<UpdateOutcome | null> {
+    const r = await checkNow();
+    if (r.status !== "available") return r;
+    await install();
+    return null;
+  }
+
   function dismiss(): void {
     if (!busy()) setInfo(null);
   }
 
-  return { info, busy, error, checkOnStart, checkNow, install, dismiss };
+  return {
+    info,
+    busy,
+    error,
+    checkOnStart,
+    checkNow,
+    install,
+    updateNow,
+    dismiss,
+  };
 }
