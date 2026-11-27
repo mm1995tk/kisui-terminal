@@ -120,7 +120,7 @@ type handoverTerm struct {
 	Rows       int    `json:"rows"`
 	Title      string `json:"title"`
 	Name       string `json:"name,omitempty"` // 欄の名前（kisui pane title）
-	// Ancestors は、このペインを作ったペインの系譜（panereach.go）。無ければ、人が窓で開いたペインと同じ扱い
+	// Ancestors は、このペインを作ったペインの系譜（panereach.go）。無ければ、人が Window で開いたペインと同じ扱い
 	Ancestors []paneOrigin `json:"ancestors,omitempty"`
 	Alive     bool         `json:"alive"`
 	RingStart int64        `json:"ringStart"` // Ring の先頭の seq
@@ -136,8 +136,8 @@ type handoverWS struct {
 	Root    string       `json:"root,omitempty"`
 	Kind    string       `json:"kind,omitempty"`
 	Label   string       `json:"label,omitempty"` // ユーザーがつけた名前（wsState.label）。古い serve は送らない
-	Shell   string       `json:"shell,omitempty"` // 窓が最後に渡したシェル（wsState.shell）。古い serve は送らない
-	Gws     gwsRef       `json:"gws,omitzero"`    // 窓が最後に知らせた窓のワークスペース（wsState.gws）。古い serve は送らない
+	Shell   string       `json:"shell,omitempty"` // Window が最後に渡したシェル（wsState.shell）。古い serve は送らない
+	Gws     gwsRef       `json:"gws,omitzero"`    // Window が最後に知らせた Window のワークスペース（wsState.gws）。古い serve は送らない
 	Primary string       `json:"primary"`
 	Shj     *handoverShj `json:"shj,omitempty"`
 	Extras  []extraPane  `json:"extras,omitempty"` // 欄の中から開いた、ターミナルでない欄（wsState.extras）

@@ -56,7 +56,7 @@ describe("画面の文の表", () => {
     }
   });
 
-  it("操作の名前でないキーの文（ヒント・お知らせ・エラーなど）は、日本語の表では日本語", () => {
+  it("操作の名前でないキーの文（ヒント・Notice・エラーなど）は、日本語の表では日本語", () => {
     const en = tableOf("en");
     const ja = tableOf("ja");
     const sentences = Object.keys(en).filter(

@@ -1,34 +1,34 @@
 //! 内蔵ブラウザのタブ（#202）。設計書 docs/design/browser-and-proxy.md の「GUI の内蔵ブラウザ（入れ直し）」。
 //!
-//! タブ 1 つにつき、メイン窓の上に重ねる子の webview を 1 つ持つ（OS の WebView。macOS は WKWebView、Linux は WebKitGTK）。
+//! タブ 1 つにつき、メイン Window の上に重ねる子の webview を 1 つ持つ（OS の WebView。macOS は WKWebView、Linux は WebKitGTK）。
 //! 外のサイトの多くは `iframe` に出せない（X-Frame-Options・CSP の frame-ancestors）ので、`<iframe>` は使わない。
 //! どこに重ねるか・見せるか隠すかは画面（`app/src/ui/main-window/content/browser/BrowserArea.tsx`）が決め、ここはその通りに置く。
 //!
 //! 外のページに Tauri の API を渡さない:
 //! - 子の webview は `WebviewUrl::External` で作る。外の URL からの IPC は、`remote` を持つ capability が無い限り tauri が断る。
 //!   capability はメインの webview（`main`）にだけ与える（capabilities/default.json は `webviews: ["main"]`。
-//!   `windows: ["main"]` にすると、同じ窓に置く子の webview にも当たるため）。
+//!   `windows: ["main"]` にすると、同じ Window に置く子の webview にも当たるため）。
 //! - そのうえで、ここの命令は呼んだ webview が `main` かも確かめる（`from_main`）。
 //! - 子の webview の遷移は http・https・about だけ許す。
 //!
-//! ページが開く新しい窓（`target=_blank` のリンク・`window.open`。#204）は、同じワークスペースの新しいタブにする（`open_popup`）。
+//! ページが開く新しい Window（`target=_blank` のリンク・`window.open`。#204）は、同じワークスペースの新しいタブにする（`open_popup`）。
 //! 開いた元のページとの連絡（`window.opener`）を保つには、WebKit が求める形（Linux は元の webview に関係付けた webview、
 //! macOS は WebKit が渡す設定で作った webview）で作り、`NewWindowResponse::Create` で返す必要がある。tauri はそれを
-//! 「窓の最初の webview」でしか受けないので、隠した窓に子の webview として作って返し、そのあとメイン窓に移して（reparent）
-//! 窓を壊す。新しいタブは、開いた元のタブと同じデータ（ログイン）を使う（シークレットのタブから開いたものはシークレット）。
+//! 「Window の最初の webview」でしか受けないので、隠した Window に子の webview として作って返し、そのあとメイン Window に移して（reparent）
+//! Window を壊す。新しいタブは、開いた元のタブと同じデータ（ログイン）を使う（シークレットのタブから開いたものはシークレット）。
 //! ページが自分で閉じたら（`window.close()`）、画面に知らせ、画面はタブを閉じて元のタブに戻る。
 //! Linux は WebKitGTK の close を直接受け、macOS はページに入れたスクリプト（browser_close.js・browser_close_tell.js）が
 //! `kisui-close:` の URL で知らせる。
 //! ダウンロードは download.rs。
 //!
-//! ページにキーがある間も、リーダーと近道を効かせる。キーは IPC では受けない。ページに入れるスクリプト（browser_keys.js）が、
+//! ページにキーがある間も、リーダーと Shortcut を効かせる。キーは IPC では受けない。ページに入れるスクリプト（browser_keys.js）が、
 //! 当たるキーを `kisui-key:` の URL にして window.open で開こうとし、ここの on_new_window が受けて画面に渡す（開かずに断る）。
 //! URL には webview を作るたびに決める nonce を入れ、合わないものは捨てる（ページのスクリプトが真似できないように）。
 //! nonce を持つスクリプトは、ページの外の世界（isolated world。Linux は WebKitGTK の world、macOS は WKContentWorld）で動かす
 //! （`add_world_scripts`）。ページの世界では、ページのスクリプトが組み込みの関数を差し替えた後に、差し込んだスクリプトが
 //! もう一度動くことがあり、nonce を守れないため。ページの世界で動かす必要があるスクリプト（ページが呼ぶ関数を
 //! 差し替えるもの）は nonce を持たず、外の世界のスクリプトにイベントで知らせる。
-//! nonce が合っても、受けるのは登録してあるキー（リーダーと近道）と、リーダーに入った直後の続きのキーだけ（`accept_key`）。
+//! nonce が合っても、受けるのは登録してあるキー（リーダーと Shortcut）と、リーダーに入った直後の続きのキーだけ（`accept_key`）。
 //! 設定にパスキーのサイト（`[gui.browser] passkey_sites`）があれば、パスキーを捕まえるスクリプト（browser_passkey.js・
 //! browser_passkey_tell.js）も入れ、同じ形（`kisui-passkey:` の URL と同じ nonce）で知らせを受けて、外のブラウザに移る
 //! （passkey.rs。#206）。
@@ -37,7 +37,7 @@
 //! `browser/` に置く。macOS は WKWebView の既定の置き場（`~/Library/WebKit/<アプリの id>/` など。場所は OS が決める）を使う。
 //! シークレットのタブ（#204）は、タブごとに別の、ディスクに残さないデータを使う（tauri の `incognito`）。パスキーのスクリプトは入れない。
 //! 開いていたタブ（ワークスペースと URL）は、データのフォルダの `browser-tabs.json` に覚える（画面が書く。シークレットのタブは書かない）。
-//! macOS では、全部のタブ（シークレットのタブ・新しい窓のタブも）を、手元で動かす中継型のプロキシに通す（browser_proxy.rs。#294）。
+//! macOS では、全部のタブ（シークレットのタブ・新しい Window のタブも）を、手元で動かす中継型のプロキシに通す（browser_proxy.rs。#294）。
 //! 初めてのタブを開く前に用意し（`browser_open`。証明書の信頼を聞くことがある）、データストアに当てる。
 //!
 //! #205：ページの表示の大きさ（`browser_zoom`。タブごとに、覚えるタブと一緒に覚える）、ページ内検索（`browser_find`）、
@@ -84,9 +84,9 @@ const DATA_DIR: &str = "browser";
 const FORMAT_VERSION: u32 = 1;
 /// 覚えるタブの数の上限。
 const MAX_TABS: usize = 500;
-/// 送ってよいキーの数の上限（リーダーと近道の数より十分多く）。
+/// 送ってよいキーの数の上限（リーダーと Shortcut の数より十分多く）。
 const MAX_KEYS: usize = 64;
-/// 1 つのタブが新しい窓を開ける数の上限（POPUP_WINDOW の間に）。ページが window.open を繰り返しても、タブを増やし続けない
+/// 1 つのタブが新しい Window を開ける数の上限（POPUP_WINDOW の間に）。ページが window.open を繰り返しても、タブを増やし続けない
 /// （macOS の WKWebView は、ユーザーの操作の無い window.open も既定で通す）。
 const MAX_POPUPS: usize = 5;
 const POPUP_WINDOW: Duration = Duration::from_secs(10);
@@ -104,7 +104,7 @@ const CLOSE_TELL_SCRIPT: &str = include_str!("browser_close_tell.js");
 const EVENT_KEY: &str = "browser-key";
 const EVENT_PAGE: &str = "browser-page";
 const EVENT_TITLE: &str = "browser-title";
-/// ページが新しい窓を開いた（新しいタブにした）。
+/// ページが新しい Window を開いた（新しいタブにした）。
 const EVENT_POPUP: &str = "browser-popup";
 /// ページが自分を閉じた。
 const EVENT_CLOSED: &str = "browser-closed";
@@ -162,18 +162,18 @@ struct ClosedEvent {
     tab: String,
 }
 
-/// タブ 1 つについて、殻が覚えること（ページが開いた新しい窓のタブに引き継ぐ）。
+/// タブ 1 つについて、殻が覚えること（ページが開いた新しい Window のタブに引き継ぐ）。
 #[derive(Debug, Clone)]
 struct TabInfo {
     keys: Vec<KeySpec>,
     incognito: bool,
-    /// ページのスクリプトが殻に知らせる URL の nonce。ページが開いた新しい窓のタブは、開いた元のタブと同じものを使う
+    /// ページのスクリプトが殻に知らせる URL の nonce。ページが開いた新しい Window のタブは、開いた元のタブと同じものを使う
     /// （macOS は、ページに入れるスクリプトの入れ物を開いた元と共有するため。`tab_builder`）
     nonce: String,
-    /// 新しい窓の数を数える元のタブ（ふつうのタブは自分。ページが開いた新しい窓のタブは、開いた元の root を引き継ぐ。
-    /// 新しいタブがそれぞれ自分の上限を持つと、開いた窓がまた開く、を繰り返して増え続けるため）
+    /// 新しい Window の数を数える元のタブ（ふつうのタブは自分。ページが開いた新しい Window のタブは、開いた元の root を引き継ぐ。
+    /// 新しいタブがそれぞれ自分の上限を持つと、開いた Window がまた開く、を繰り返して増え続けるため）
     root: String,
-    /// 通信を記録するプロキシ（#409）に通したタブか。ページが開いた新しい窓のタブは、開いた元と同じデータを使うので、
+    /// 通信を記録するプロキシ（#409）に通したタブか。ページが開いた新しい Window のタブは、開いた元と同じデータを使うので、
     /// 開いた元のものを引き継ぐ（browser_load.rs が、プロキシの失敗の応答を、読み込みの失敗として扱う）
     proxied: bool,
 }
@@ -182,7 +182,7 @@ struct TabInfo {
 #[derive(Default)]
 pub struct Tabs {
     tabs: Mutex<HashMap<String, TabInfo>>,
-    /// 元のタブ（TabInfo の root）→ その下のタブが新しい窓を開いた時刻（POPUP_WINDOW より前のものは捨てる）
+    /// 元のタブ（TabInfo の root）→ その下のタブが新しい Window を開いた時刻（POPUP_WINDOW より前のものは捨てる）
     popups: Mutex<HashMap<String, Vec<Instant>>>,
     /// タブ → 登録していないキーも、リーダーの続きのキーとして受ける期限（`accept_key`）
     follow: Mutex<HashMap<String, Instant>>,
@@ -204,7 +204,7 @@ impl Tabs {
             .insert(tab.to_string(), info);
     }
 
-    /// 元のタブ root の下のタブが、今 (now) 新しい窓を開いてよいか。よければ数える。
+    /// 元のタブ root の下のタブが、今 (now) 新しい Window を開いてよいか。よければ数える。
     fn allow_popup(&self, root: &str, now: Instant) -> bool {
         let mut m = self.popups.lock().unwrap_or_else(|e| e.into_inner());
         let ok = allow_popup(m.entry(root.to_string()).or_default(), now);
@@ -253,7 +253,7 @@ impl Tabs {
     }
 }
 
-/// 新しい窓を開いた時刻の並び times に、今 (now) を足してよいか（POPUP_WINDOW の間に MAX_POPUPS まで）。よければ足す。
+/// 新しい Window を開いた時刻の並び times に、今 (now) を足してよいか（POPUP_WINDOW の間に MAX_POPUPS まで）。よければ足す。
 fn allow_popup(times: &mut Vec<Instant>, now: Instant) -> bool {
     times.retain(|t| now.saturating_duration_since(*t) < POPUP_WINDOW);
     if times.len() >= MAX_POPUPS {
@@ -279,7 +279,7 @@ enum Data {
     Captured(Url),
     #[cfg(target_os = "macos")]
     Captured(crate::browser_capture::Configuration),
-    /// ページが開いた新しい窓。開いた元の webview と同じデータ（WebKit が決める）。
+    /// ページが開いた新しい Window。開いた元の webview と同じデータ（WebKit が決める）。
     /// incognito は元のタブがシークレットか（パスキーのスクリプトを入れるかを決める）
     Opener {
         features: NewWindowFeatures,
@@ -288,7 +288,7 @@ enum Data {
 }
 
 impl Data {
-    /// シークレットのデータか（ページが開いた新しい窓は、開いた元のタブがシークレットか）。
+    /// シークレットのデータか（ページが開いた新しい Window は、開いた元のタブがシークレットか）。
     fn incognito(&self) -> bool {
         match self {
             Data::Shared => false,
@@ -489,7 +489,7 @@ fn modifier_only(key: &str) -> bool {
 }
 
 /// ページのスクリプトが知らせたキー ev（nonce は合っている）を、今 (now) 画面に渡してよいか。
-/// 渡すのは、登録してあるキー keys（リーダーと近道）に当たるものと、リーダーに入るキー（`enter`）のあと `FOLLOW` の間の
+/// 渡すのは、登録してあるキー keys（リーダーと Shortcut）に当たるものと、リーダーに入るキー（`enter`）のあと `FOLLOW` の間の
 /// 続きのキーだけ（browser_keys.js が送るものと同じ。続きのキーは、キーが画面に移る前にページに届いた分）。ほかは捨てる。
 /// nonce がページのスクリプトに知られても、登録していないキーをいきなり画面に渡させないため。ただし、リーダーに入るキーの
 /// あとの続きのキーは選べないので、nonce を知ったページは、リーダーの木の操作を動かせる（nonce を読ませないことで防ぐ）。
@@ -547,8 +547,8 @@ fn may_navigate(u: &Url) -> bool {
     matches!(u.scheme(), "http" | "https" | "about")
 }
 
-/// ページが新しい窓として開こうとした URL を、新しいタブで開くか（http・https と about:blank。
-/// OAuth の小窓などは、about:blank で開いてから行き先に移ることがある）。
+/// ページが新しい Window として開こうとした URL を、新しいタブで開くか（http・https と about:blank。
+/// OAuth の小 Window などは、about:blank で開いてから行き先に移ることがある）。
 fn opens_in_new_tab(u: &Url) -> bool {
     matches!(u.scheme(), "http" | "https") || u.as_str() == "about:blank"
 }
@@ -570,7 +570,7 @@ fn tell_closed(app: &AppHandle, tab: &str) {
     );
 }
 
-/// 子の webview が新しい窓を開こうとした（`target=_blank`・`window.open`）。
+/// 子の webview が新しい Window を開こうとした（`target=_blank`・`window.open`）。
 /// ページのスクリプトが知らせたキー（`kisui-key:`。nonce が合うもの）なら、画面に知らせてからキーをメインの webview に移す
 /// （登録してあるキーと、リーダーの続きのキーだけ。`accept_key`。ほかは捨てる）。
 /// ページのスクリプトが知らせたパスキーの求め（`kisui-passkey:`。nonce が合うもの）なら、外のブラウザに移る（passkey.rs）。
@@ -642,9 +642,9 @@ fn on_new_window(
     NewWindowResponse::Deny
 }
 
-/// ページが開こうとした新しい窓を、新しいタブ（子の webview）として作り、WebKit に返す（`window.opener` を保つ）。
-/// tauri の `Create` は窓の最初の webview しか受けないので、隠した窓（ラベルはタブと同じ）に作って返し、
-/// 返したあと（別のスレッドで）メイン窓に移して窓を壊し、画面に知らせる（画面は、開いた元のタブのワークスペースに足す）。
+/// ページが開こうとした新しい Window を、新しいタブ（子の webview）として作り、WebKit に返す（`window.opener` を保つ）。
+/// tauri の `Create` は Window の最初の webview しか受けないので、隠した Window（ラベルはタブと同じ）に作って返し、
+/// 返したあと（別のスレッドで）メイン Window に移して Window を壊し、画面に知らせる（画面は、開いた元のタブのワークスペースに足す）。
 /// webview の処理の最中（メインスレッド）に呼ぶ。
 fn open_popup(
     app: &AppHandle,
@@ -777,7 +777,7 @@ fn page_scripts(
     passkey_sites: Option<&[String]>,
     data: &Data,
 ) -> Vec<PageScript> {
-    // macOS で、ページが開いた新しい窓は、WebKit が渡す設定（開いた元の設定の写し）で作る。スクリプトの入れ物
+    // macOS で、ページが開いた新しい Window は、WebKit が渡す設定（開いた元の設定の写し）で作る。スクリプトの入れ物
     // （WKUserContentController）は開いた元と同じ 1 つなので、ここで足すと開いた元のタブにも入り、重なる。
     // 足さずに、開いた元のタブのスクリプト（同じ nonce）をそのまま使う
     if cfg!(target_os = "macos") && matches!(data, Data::Opener { .. }) {
@@ -824,7 +824,7 @@ fn page_scripts(
 /// ページの外の世界で動かすスクリプトを、タブの webview に足す。webview を作ったのと同じメインスレッドの処理の中で呼ぶ
 /// （wry はページの世界にしか入れられないので、作った後で OS の WebView に直接足す。同じ処理の中で足せば、最初のページの
 /// 読み込みが進む前に WebView に伝わる。メインスレッドの外から呼ぶと、足す前に最初のページが出て、そのページでは
-/// キーが効かないことがある）。足せなければ、そのタブでは、ページにキーがある間のリーダーと近道・パスキー・macOS の
+/// キーが効かないことがある）。足せなければ、そのタブでは、ページにキーがある間のリーダーと Shortcut・パスキー・macOS の
 /// `window.close` が効かない（nonce をページの世界に置くより、効かない方を選ぶ）。
 fn add_world_scripts(v: &Webview, scripts: Vec<PageScript>) {
     if scripts.is_empty() {
@@ -920,7 +920,7 @@ fn on_main_thread<R: Send + 'static>(
     rx.recv().map_err(|e| e.to_string())
 }
 
-/// 遷移・新しい窓・読み込み・題の変化・ダウンロード（macOS）の受け口を足す。
+/// 遷移・新しい Window・読み込み・題の変化・ダウンロード（macOS）の受け口を足す。
 fn with_handlers(
     builder: WebviewBuilder<tauri::Wry>,
     app: &AppHandle,
@@ -1034,7 +1034,7 @@ fn tab_builder(
     keys: &[KeySpec],
     data: Data,
 ) -> (WebviewBuilder<tauri::Wry>, Vec<PageScript>) {
-    // DevTools（ブラウザのタブの窓の `i`。#205）はタブのページで使う（メインの webview は、release では main.rs で切る）
+    // DevTools（ブラウザのタブの Dialog の `i`。#205）はタブのページで使う（メインの webview は、release では main.rs で切る）
     let mut builder = WebviewBuilder::new(label(tab), WebviewUrl::External(first))
         .focused(false)
         .devtools(true);
@@ -1056,7 +1056,7 @@ fn tab_builder(
 
 /// タブを作る（子の webview）。`x`・`y`・`w`・`h` は画面が測ったページの四角、`vw`・`vh` はそのときの viewport の大きさ
 /// （論理ピクセル。browser_frame.rs の `Placement`）。作るだけで、キーは向けない（`browser_focus`）。
-/// `keys` はページにキーがある間も受けるキー（リーダーと近道）。`incognito` はシークレットのタブ（#204）。
+/// `keys` はページにキーがある間も受けるキー（リーダーと Shortcut）。`incognito` はシークレットのタブ（#204）。
 /// macOS では、初めてのタブの前に内蔵ブラウザのプロキシを用意する（browser_proxy.rs。#294。証明書の信頼を聞くことがあり、
 /// 答えを待つ）。
 /// `proxy` があれば、通信を記録するプロキシ（127.0.0.1 のそのポート。#409）に通すタブにする（browser_capture.rs）。
@@ -1090,7 +1090,7 @@ pub async fn browser_open(
     let first = parse_url(&url)?;
     // macOS：通していたタブを、通さずに作り直す（通すのをやめた・kisui serve が止まった）なら、そのタブを元にした
     // データストアを忘れる（browser_capture.rs）。閉じたときに忘れるのは下のタブが全部閉じたときだけなので、そこから
-    // 開いた新しい窓のタブが残っていると、通しているタブがあることになったまま残る
+    // 開いた新しい Window のタブが残っていると、通しているタブがあることになったまま残る
     #[cfg(target_os = "macos")]
     if proxy.is_none() {
         crate::browser_capture::forget(&app, &tab);
@@ -1174,7 +1174,7 @@ async fn captured_data(_: &AppHandle, _: &str, _: u16) -> Result<Data, String> {
     Err("the proxy is not supported on this OS".into())
 }
 
-/// 新しいタブ（ページが開いた新しい窓でないもの）のデータの置き場。
+/// 新しいタブ（ページが開いた新しい Window でないもの）のデータの置き場。
 /// macOS では、内蔵ブラウザのプロキシを用意する（共有のデータストアには、用意したときに当ててある）。
 /// シークレットのタブは、プロキシを当てたディスクに残さないデータストアを作る。プロキシが使えなければ、今までどおり。
 #[cfg(target_os = "macos")]
@@ -1243,7 +1243,7 @@ pub fn browser_visible(
     }
 }
 
-/// 重なりもの（お知らせ・リーダーの案内・キャラクター・メニュー）を、ページを縮めずにページの上に重ねられるか（macOS だけ）。
+/// 重なりもの（Notice・リーダーの案内・キャラクター・メニュー）を、ページを縮めずにページの上に重ねられるか（macOS だけ）。
 /// 重ねられるなら、メインの webview の背景を透明にして true を返す（画面は、ページの場所の背景を塗らないようにする）。
 /// 重ね方は `browser_layer`。macOS 以外は何もせず false（画面は、これまでどおりページを縮めて避ける）。
 #[tauri::command]
@@ -1268,7 +1268,7 @@ pub fn browser_overlay_enable(app: AppHandle, webview: Webview) -> Result<bool, 
 /// 前に出すものを決める（macOS だけ。`browser_overlay_enable` が true のとき）。
 /// overlay なら、メインの webview（画面）をページより前に出し、キーも画面に向ける（ページは操作できなくなる。動き続ける）。
 /// そうでなければ、タブのページを前に出す（キーを向け直すのは画面）。
-/// 前に出すのは、同じ窓への `reparent`（macOS の wry では `addSubview` し直しで、兄弟の view のいちばん前に移る）。
+/// 前に出すのは、同じ Window への `reparent`（macOS の wry では `addSubview` し直しで、兄弟の view のいちばん前に移る）。
 #[tauri::command]
 pub fn browser_layer(
     app: AppHandle,
@@ -1309,7 +1309,7 @@ pub fn browser_focus(app: AppHandle, webview: Webview, tab: String) -> Result<()
     child(&app, &tab)?.set_focus().map_err(|e| e.to_string())
 }
 
-/// タブで URL を開く（URL バー。ブラウザのタブの窓の `u` でキーが向く）。
+/// タブで URL を開く（URL バー。ブラウザのタブの Dialog の `u` でキーが向く）。
 #[tauri::command]
 pub fn browser_go(
     app: AppHandle,
@@ -1326,7 +1326,7 @@ pub fn browser_go(
     v.navigate(u).map_err(|e| e.to_string())
 }
 
-/// 読み込みを止める（URL バーの「×」・読み込み中の Esc・ブラウザのタブの窓の `c`）。ページは前のまま残る。
+/// 読み込みを止める（URL バーの「×」・読み込み中の Esc・ブラウザのタブの Dialog の `c`）。ページは前のまま残る。
 #[tauri::command]
 pub fn browser_stop(app: AppHandle, webview: Webview, tab: String) -> Result<(), String> {
     from_main(&webview)?;
@@ -1437,7 +1437,7 @@ fn find_script(text: &str, again: bool, back: bool) -> String {
     )
 }
 
-/// ページ内を探す（#205。ブラウザのタブの窓の `/`・Cmd+F / Ctrl+F）。mode は `first`（探す字を変えた）・`next`・`prev`。見つかったかを返す。
+/// ページ内を探す（#205。ブラウザのタブの Dialog の `/`・Cmd+F / Ctrl+F）。mode は `first`（探す字を変えた）・`next`・`prev`。見つかったかを返す。
 /// 見つけた所はページの選択になり、そこまでスクロールする。
 #[tauri::command(async)]
 pub fn browser_find(
@@ -1469,7 +1469,7 @@ pub fn browser_find(
     Ok(r.trim() == "true")
 }
 
-/// パスキーを待たずに、今のタブのサイトを外のブラウザで開き、そのサイトのログインを待つ（#276。ブラウザのタブの窓の `s`）。
+/// パスキーを待たずに、今のタブのサイトを外のブラウザで開き、そのサイトのログインを待つ（#276。ブラウザのタブの Dialog の `s`）。
 /// 答えは `opened`（開いた。同じタブから続けて押したときは開き直さない）・`no-sites`（`passkey_sites` が無い）・
 /// `incognito`（シークレットのタブ）・`not-allowed`（今のページが許可サイトのものでない）。決めるのは passkey.rs の `start`。
 #[tauri::command]
@@ -1495,8 +1495,8 @@ pub fn browser_passkey_login(
     Ok(r.code().to_string())
 }
 
-/// タブのページの DevTools（Web Inspector）を開く（#205。ブラウザのタブの窓の `i`）。
-/// Linux（WebKitGTK）は、ページの webview の中にくっつく（ページの領域の外には出ない）。macOS は別の窓で開く（`open_devtools`）。
+/// タブのページの DevTools（Web Inspector）を開く（#205。ブラウザのタブの Dialog の `i`）。
+/// Linux（WebKitGTK）は、ページの webview の中にくっつく（ページの領域の外には出ない）。macOS は別の Window で開く（`open_devtools`）。
 #[tauri::command]
 pub fn browser_devtools(app: AppHandle, webview: Webview, tab: String) -> Result<(), String> {
     from_main(&webview)?;
@@ -1526,15 +1526,15 @@ pub(crate) fn wk_webview(
     Some((unsafe { &*ptr }, mtm))
 }
 
-/// macOS：DevTools を別の窓で開き、窓にくっつけさせない。
+/// macOS：DevTools を別の Window で開き、Window にくっつけさせない。
 ///
 /// WKWebView の Web Inspector は、くっつける先の view（`_inspectorAttachmentView`。既定はページの WKWebView 自身）の
 /// 「親の view」の大きさを基準に、くっつける先の枠を組み替える（WebKit の WebInspectorUIProxyMac.mm の
 /// `inspectedViewFrameDidChange`。下にくっつけるときは、横は親の幅いっぱい、縦は親の下から Inspector の高さを除いた所）。
-/// タブのページの WKWebView は、kisui-terminal の画面（メインの webview）と同じく窓の content view の子なので（wry の子の
-/// webview）、ページの枠が窓の幅いっぱいに広がってサイドバーにかぶさり、Inspector は窓の下に置かれる。
-/// そこで、くっつける先を、窓に置かない隠した view に替える。隠した view にはくっつけられない（`platformCanAttach` が断る）
-/// ので、Inspector は必ず別の窓で開き、Inspector の「くっつける」ボタンでもくっつかない。ページの枠には触らない。
+/// タブのページの WKWebView は、kisui-terminal の画面（メインの webview）と同じく Window の content view の子なので（wry の子の
+/// webview）、ページの枠が Window の幅いっぱいに広がってサイドバーにかぶさり、Inspector は Window の下に置かれる。
+/// そこで、くっつける先を、Window に置かない隠した view に替える。隠した view にはくっつけられない（`platformCanAttach` が断る）
+/// ので、Inspector は必ず別の Window で開き、Inspector の「くっつける」ボタンでもくっつかない。ページの枠には触らない。
 #[cfg(target_os = "macos")]
 fn open_devtools(v: &Webview) {
     let r = v.with_webview(|pv| {
@@ -1544,7 +1544,7 @@ fn open_devtools(v: &Webview) {
         use objc2_app_kit::NSView;
 
         thread_local! {
-            /// くっつける先にする、窓に置かない隠した view（すべてのタブで 1 つ。アプリが終わるまで持つ）
+            /// くっつける先にする、Window に置かない隠した view（すべてのタブで 1 つ。アプリが終わるまで持つ）
             static NOWHERE: std::cell::OnceCell<Retained<NSView>> = const { std::cell::OnceCell::new() };
         }
 
@@ -1865,7 +1865,7 @@ mod tests {
         }
     }
 
-    // 遷移は http・https・about だけ。新しい窓を新しいタブで開くのは http・https と about:blank だけ
+    // 遷移は http・https・about だけ。新しい Window を新しいタブで開くのは http・https と about:blank だけ
     #[test]
     fn where_a_tab_may_go() {
         let u = |s: &str| Url::parse(s).unwrap();
@@ -1892,7 +1892,7 @@ mod tests {
         assert!(!opens_in_new_tab(&u("kisui-close://close?n=x")));
     }
 
-    // 1 つのタブが新しい窓を開けるのは、POPUP_WINDOW の間に MAX_POPUPS まで
+    // 1 つのタブが新しい Window を開けるのは、POPUP_WINDOW の間に MAX_POPUPS まで
     #[test]
     fn popups_are_limited() {
         let t0 = Instant::now();
@@ -2113,7 +2113,7 @@ mod tests {
             assert!(!accept_key(&keys, &mut until, &ev, t0), "{ev:?}");
             assert_eq!(until, None);
         }
-        // 近道は受けるが、そのあとの登録していないキーは受けない
+        // Shortcut は受けるが、そのあとの登録していないキーは受けない
         assert!(accept_key(&keys, &mut until, &pressed("r", "KeyR", 1), t0));
         assert_eq!(until, None);
         assert!(!accept_key(&keys, &mut until, &pressed("i", "KeyI", 0), t0));

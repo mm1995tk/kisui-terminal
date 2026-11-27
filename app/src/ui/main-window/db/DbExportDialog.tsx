@@ -1,5 +1,5 @@
-// DB のタブの結果の書き出しの窓（DB のタブの窓（リーダーの `a`）の `e`。#349・#458）。形（CSV・TSV・JSON）と書き出し先（クリップボード・ファイル）の組を、
-// 1 つの一覧から選ぶ。窓のキーは、ほかの一覧から選ぶ窓と同じ（machineList.ts の pickerKey）。決まりは docs/key-design.md。
+// DB のタブの結果の書き出しの Dialog（DB のタブの Dialog（リーダーの `a`）の `e`。#349・#458）。形（CSV・TSV・JSON）と書き出し先（クリップボード・ファイル）の組を、
+// 1 つの一覧から選ぶ。Dialog のキーは、ほかの一覧から選ぶ Dialog と同じ（machineList.ts の pickerKey）。決まりは docs/key-design.md。
 import { T } from "../../../i18n/index.ts";
 import { createSignal, For, type JSX } from "solid-js";
 
@@ -17,7 +17,7 @@ import { openKeyList } from "../commands/KeyListDialog.tsx";
 
 const rowId = (i: number) => `db-export-row-${i}`;
 
-/** 書き出しの窓。j / k で選び、Enter かダブルクリックで onChoose、Esc かボタンで onCancel を呼ぶ。 */
+/** 書き出しの Dialog。j / k で選び、Enter かダブルクリックで onChoose、Esc かボタンで onCancel を呼ぶ。 */
 export function DbExportDialog(props: {
   ask: DbExportAsk;
   onChoose: (c: ExportChoice) => void;

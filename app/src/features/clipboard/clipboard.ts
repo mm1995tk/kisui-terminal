@@ -60,7 +60,7 @@ export function supportsLocation(location: ClipboardLocation): boolean {
 }
 
 /**
- * 許可の窓に出す、頼まれた種類の説明。プログラムが送ってきた文字列は見せない
+ * 許可の Dialog に出す、頼まれた種類の説明。プログラムが送ってきた文字列は見せない
  * （MIME の欄に文を書いて許可を促せてしまうため）。渡せる種類（テキスト・画像）だけを名前で言い、残りは「ほかの種類」。
  */
 export function describeMimes(wanted: string[]): string {

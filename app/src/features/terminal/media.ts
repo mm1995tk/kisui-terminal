@@ -98,7 +98,7 @@ function extension(path: string): string {
  * kind のペインに出す、path のファイルの Blob の type。出せなければ undefined（中身を取らず、ペインに理由を出す）。
  *
  * Blob の type は、WebView が中身を何として扱うかを決める。だから、kisui serve（ssh の向こうのマシンでも動く）が
- * 返した型をそのまま使わず、窓の側で決める。返る型はいつも FILE_MIME のその種類のもの：まず拡張子で決める。拡張子が
+ * 返した型をそのまま使わず、Dialog の側で決める。返る型はいつも FILE_MIME のその種類のもの：まず拡張子で決める。拡張子が
  * その種類のものでないとき（kisui open が中身から種類を決めたファイル）だけ served（serve の言う型）を見て、
  * その種類の型のどれかならそれにする。
  */

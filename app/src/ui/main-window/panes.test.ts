@@ -39,7 +39,7 @@ const key = (k: string, o: Record<string, unknown> = {}) => ({
 });
 
 describe("覚えておく大きさ", () => {
-  it("保存したものを読み戻す。壊れた値と範囲外と前の版の境界は捨てる", () => {
+  it("保存したものを読み戻す。壊れた値と範囲外と前の版の Pane border は捨てる", () => {
     const s = memory();
     saveSizes(s, { sidebar: 280 });
     assert.deepEqual(loadSizes(s), { sidebar: 280 });
@@ -95,7 +95,7 @@ describe("覚えておく大きさ", () => {
 });
 
 describe("リサイズモードのキー", () => {
-  it("←→↑↓（h l k j）は選んでいる境界を動かす", () => {
+  it("←→↑↓（h l k j）は選んでいる Pane border を動かす", () => {
     assert.deepEqual(resizeAction("right"), {
       kind: "nudge",
       axis: "x",
@@ -111,12 +111,12 @@ describe("リサイズモードのキー", () => {
     assert.deepEqual(resizeAction(">"), { kind: "none" });
   });
 
-  it("Tab・Shift+Tab は動かす境界を替える", () => {
+  it("Tab・Shift+Tab は動かす Pane border を替える", () => {
     assert.deepEqual(resizeAction("tab"), { kind: "select", step: 1 });
     assert.deepEqual(resizeAction("shift+tab"), { kind: "select", step: -1 });
   });
 
-  it("= は選んでいる境界を戻し、Esc Enter q Cmd+R は出る", () => {
+  it("= は選んでいる Pane border を戻し、Esc Enter q Cmd+R は出る", () => {
     assert.deepEqual(resizeAction("="), { kind: "reset" });
     for (const k of ["esc", "enter", "q", "mod+r"])
       assert.deepEqual(resizeAction(k), { kind: "exit" });
@@ -203,7 +203,7 @@ describe("サイドバーの開け閉め", () => {
 });
 
 describe("ファイルツリーと CHANGES の境目（#152）", () => {
-  it("CHANGES の高さは 44px 以上（上限は窓の高さで決まる）で、決めていなければ 143px", () => {
+  it("CHANGES の高さは 44px 以上（上限は Dialog の高さで決まる）で、決めていなければ 143px", () => {
     assert.equal(sizeOf({}, "changes"), 143);
     assert.equal(clampBorder("changes", 10), 44);
     assert.equal(clampBorder("changes", 9999), 9999);
@@ -261,7 +261,7 @@ describe("タブの段とファイルツリーの境目（#284）", () => {
   });
 });
 
-describe("窓の大きさで決まる上限（#501）", () => {
+describe("Dialog の大きさで決まる上限（#501）", () => {
   it("サイドバーの幅は、右のターミナルが 20 列残るところまで広げられる（640px で止まらない）", () => {
     // 字の幅 7px：20 列は 140px に、余白とスクロールバーの 12px を足した 152px
     assert.equal(termMinWidth(7), 152);
@@ -269,7 +269,7 @@ describe("窓の大きさで決まる上限（#501）", () => {
     assert.ok(sidebarMax(2000, 7) > 640);
     // 字が広ければ、残す幅も広がる
     assert.equal(sidebarMax(2000, 8), 2000 - termMinWidth(8));
-    // 窓の幅の半分の制限は無い
+    // Window の幅の半分の制限は無い
     assert.ok(sidebarMax(1000, 7) > 500);
   });
 
@@ -313,21 +313,21 @@ describe("窓の大きさで決まる上限（#501）", () => {
     );
   });
 
-  it("窓が狭くても、下限（200px）より狭くならない", () => {
+  it("Dialog が狭くても、下限（200px）より狭くならない", () => {
     assert.equal(sidebarMax(300, 7), 200);
     assert.equal(sidebarMax(0, 7), 200);
   });
 
-  it("CHANGES の高さは、ファイルツリーなどに最低の高さが残るところまで（窓の高さの半分で止まらない）", () => {
+  it("CHANGES の高さは、ファイルツリーなどに最低の高さが残るところまで（Dialog の高さの半分で止まらない）", () => {
     assert.equal(changesMax(1000), 1000 - TREE_RESERVE_HEIGHT);
     assert.ok(changesMax(1000) > 500);
     assert.equal(changesMax(100), 44);
   });
 
-  it("窓を小さくしたとき、覚えた幅・高さはその窓の上限に収まる", () => {
+  it("Window を小さくしたとき、覚えた幅・高さはその Window の上限に収まる", () => {
     const wide = withSize({}, "sidebar", 1200, sidebarMax(2000, 7));
     assert.equal(sizeOf(wide, "sidebar"), 1200);
-    // 窓が狭くなった後に動かすと、その窓の上限から動く
+    // Dialog が狭くなった後に動かすと、その Dialog の上限から動く
     const max = sidebarMax(800, 7);
     assert.equal(sizeOf(applyMove(wide, "sidebar", 20, max), "sidebar"), max);
     const tall = withSize({}, "changes", 700, changesMax(1000));

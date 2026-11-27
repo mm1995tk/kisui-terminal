@@ -1,4 +1,4 @@
-// メインウィンドウが受けるキー（入力）。リーダー（Cmd+K / Ctrl+Shift+K）と近道、リサイズモードのキー、ファイルツリーから端末へ戻るキー。
+// メインウィンドウが受けるキー（入力）。リーダー（Cmd+K / Ctrl+Shift+K）と Shortcut、リサイズモードのキー、ファイルツリーから端末へ戻るキー。
 // 何を受けるかは、コマンドの表（features/commands/commands.ts）が決める。受けたコマンドを動かすのは runCommand（features/commands/run.ts）。
 // リーダーに入っている間は、次に押せるキーの一覧を出す（commands/LeaderMenu.tsx）。
 import { onCleanup, onMount, untrack, type Accessor } from "solid-js";
@@ -76,7 +76,7 @@ export function createGuiKeys(deps: {
       dialogOpen: !!document.querySelector("dialog[open]"),
       resizeMode: resizeMode(),
       // Cmd+W（Mac）は、キーがターミナルの欄（画像・動画・PDF の欄を含む）に向いているときか、どこにも向いていないときに、
-      // 今の欄だけを閉じる。どちらでも、アプリの窓は閉じない（#83）
+      // 今の欄だけを閉じる。どちらでも、アプリの Window は閉じない（#83）
       // ページのタブ（ブラウザのタブ・DB のタブ）を出している間は、見えないペインを閉じない
       inPane:
         !shownBrowserTab() &&
@@ -92,7 +92,7 @@ export function createGuiKeys(deps: {
       if (routed.run && (!e.repeat || routed.repeat)) runCommand(routed.run);
       return;
     }
-    // リサイズモード（#526）：キーは境界を動かすのに使い、ターミナルには送らない。入るのは Cmd+R / Ctrl+Shift+R（Alt+R は端末に渡す）
+    // リサイズモード（#526）：キーは Pane border を動かすのに使い、ターミナルには送らない。入るのは Cmd+R / Ctrl+Shift+R（Alt+R は端末に渡す）
     const rname = resizeKeyName(e, IS_MAC);
     if (rname && resizeMode()) {
       e.preventDefault();
@@ -100,7 +100,7 @@ export function createGuiKeys(deps: {
       if (!e.repeat || resizeAction(rname).kind !== "exit") resizeKey(rname);
       return;
     }
-    // ファイルツリーから端末へ戻る（Esc・Ctrl+E）。メニューや窓の中の Esc には触らない
+    // ファイルツリーから端末へ戻る（Esc・Ctrl+E）。メニューや Dialog の中の Esc には触らない
     if (
       isLeaveExplorerKey(e) &&
       e.target instanceof Element &&
@@ -113,7 +113,7 @@ export function createGuiKeys(deps: {
     }
   };
   const onGuiKeyUp = () => setRouter(afterKeyUp(router));
-  // 窓を離れたり、画面を押したりしたら、リーダーを出る（キーが向く先が変わるため）
+  // Dialog を離れたり、画面を押したりしたら、リーダーを出る（キーが向く先が変わるため）
   const leaveLeader = () => {
     if (router.leader) setRouter(IDLE);
   };
@@ -131,7 +131,7 @@ export function createGuiKeys(deps: {
     offs.forEach((f) => f());
   });
 
-  /** ページにキーがあったときに押されたキー（リーダー・近道と、リーダーに入ったあと画面に移るまでのキー）。 */
+  /** ページにキーがあったときに押されたキー（リーダー・Shortcut と、リーダーに入ったあと画面に移るまでのキー）。 */
   function onPageKey(e: KeyLike) {
     deps.focusUi.markPageReturn();
     const routed = route(router, e, {
@@ -154,7 +154,7 @@ export function createGuiKeys(deps: {
     if (api.onCloseRequest) {
       offs.push(
         await api.onCloseRequest(() => {
-          // ページのタブ（内蔵ブラウザのタブ・DB のタブ）を出している間は、見えないペインも窓も閉じない
+          // ページのタブ（内蔵ブラウザのタブ・DB のタブ）を出している間は、見えないペインも Dialog も閉じない
           if (untrack(shownBrowserTab) || untrack(deps.shownDbTab)) return;
           const card = els.main?.querySelector(":scope > .terminal");
           if (

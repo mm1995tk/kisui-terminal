@@ -12,7 +12,7 @@ import {
 const rows = (...keys: string[]): InsertItem[] =>
   keys.map((key, i) => ({ key, top: 100 + i * 40, bottom: 140 + i * 40 }));
 
-describe("insertBefore（ワークスペースの窓の、タブの行のドラッグの入る位置。#308）", () => {
+describe("insertBefore（Workspace switcher の、タブの行のドラッグの入る位置。#308）", () => {
   it("行の真ん中より上なら、その行の前。線はその行の上端", () => {
     assert.deepEqual(insertBefore(rows("a", "b", "c"), "x", 110, 0), {
       before: "a",

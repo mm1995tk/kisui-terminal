@@ -7,7 +7,7 @@ export function uiLanguage(): Promise<string> {
   return invoke<string>("ui_language");
 }
 
-/** この画面の窓のラベル（Tauri の外では undefined）。 */
+/** この画面の Window のラベル（Tauri の外では undefined）。 */
 export function windowLabel(): string | undefined {
   try {
     return getCurrentWindow().label;

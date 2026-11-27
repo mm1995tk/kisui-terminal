@@ -1,7 +1,7 @@
-/* ワークスペースを切り替える窓（WorkspaceSwitcher.tsx。リーダーの w）。カードは card.css。
+/* Workspace switcher（WorkspaceSwitcher.tsx。リーダーの w）。カードは card.css。
    左に全ワークスペース、右に選んでいる行のタブの一覧（サイドバーのタブの行 .tab-row を、sidebar.css のまま使う）。 */
 
-/* 窓の大きさは、メインのウィンドウの幅と高さの 60% に固定する（中身の数では伸び縮みしない）。
+/* Dialog の大きさは、メインのウィンドウの幅と高さの 60% に固定する（中身の数では伸び縮みしない）。
    小さすぎ・大きすぎにならないよう、上限と下限を付ける（画面が小さければ、画面に収まる大きさまで縮む） */
 .card-modal:has(.switcher) {
   box-sizing: border-box;
@@ -10,17 +10,17 @@
   max-height: calc(100vh - 2 * var(--space-16));
   margin: auto;
 }
-/* 中身の高さは窓が決める。一覧のスクロールは、列の中でする */
+/* 中身の高さは Dialog が決める。一覧のスクロールは、列の中でする */
 .card-modal:has(.switcher) .card-content {
   overflow: hidden;
 }
-/* 高さを決めた窓（上）に収め、左右の列の中でスクロールする。.machine-dialog は縮まない形（card.css）なので、ここで縮めてよいと書く */
+/* 高さを決めた Dialog（上）に収め、左右の列の中でスクロールする。.machine-dialog は縮まない形（card.css）なので、ここで縮めてよいと書く */
 .switcher {
   flex: 1;
   min-height: 0;
 }
 
-/* 左右の 2 列を半分ずつにする。右の列は、余白を取らず、窓の右端・見出しの線・下の段の線までいっぱいに使い、左の線だけを残す。
+/* 左右の 2 列を半分ずつにする。右の列は、余白を取らず、Dialog の右端・見出しの線・Key footer の線までいっぱいに使い、左の線だけを残す。
    左で選んでいる行は、右の列と同じ地の色・同じ枠の線にし、その所だけ右の列の左の線を消して、1 枚につながって見せる */
 .switcher-cols {
   display: grid;
@@ -40,7 +40,7 @@
   position: relative;
   z-index: 1;
 }
-/* 一覧だけがスクロールし、「ワークスペースを作る」は左の列の下端に固定する */
+/* 一覧だけがスクロールし、「ワークスペースを作る」は左側の列の下端に固定する */
 .switcher-left .card-rows {
   flex: 1;
   padding: 8px 0 4px 8px;
@@ -196,7 +196,7 @@
 }
 
 /* 右のタブの行のドラッグ（tabMoveDrag.ts。#308）。つかんだ行の写しがポインタについて動き、入る位置に線を出す。
-   写しと線は窓（dialog）の中に置き、画面に固定する。ポインタは通す（下の行を調べるため） */
+   写しと線は Dialog（dialog）の中に置き、画面に固定する。ポインタは通す（下の行を調べるため） */
 .tab-drag-ghost {
   position: fixed;
   z-index: 3;
@@ -237,7 +237,7 @@
   box-shadow: inset 3px 0 0 var(--card-accent);
 }
 
-/* 左の列の一番下の、新しいワークスペースの名前の入力欄（n・「ワークスペースを作る」）。行と同じ枠の中で、入力欄が幅いっぱいを使う */
+/* 左側の列の一番下の、新しいワークスペースの名前の入力欄（n・「ワークスペースを作る」）。行と同じ枠の中で、入力欄が幅いっぱいを使う */
 .switch-create {
   cursor: default;
 }

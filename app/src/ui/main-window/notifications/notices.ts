@@ -1,4 +1,4 @@
-// 右下に積む知らせを組み立てる（文とボタン）。つながらない・別の GUI に移った・できなかったこと・近道の間違い・使わない passkey_sites の項目・ダウンロード。
+// 右下に積む知らせを組み立てる（文とボタン）。つながらない・別の GUI に移った・できなかったこと・Shortcut の間違い・使わない passkey_sites の項目・ダウンロード。
 // 描くのは Notices.tsx。
 import { T } from "../../../i18n/index.ts";
 import { createMemo, createSignal, type Accessor } from "solid-js";
@@ -28,9 +28,9 @@ import type { Notice } from "./Notices.tsx";
 
 /** 右下に積む知らせの並びを作る（古い順）。元の状態が同じ間は、同じ知らせのオブジェクトを返す（描き直さないため）。 */
 export function createNotices(deps: {
-  /** 設定の [gui.shortcuts] の間違い（あればお知らせに出す） */
+  /** 設定の [gui.shortcuts] の間違い（あれば Notice に出す） */
   shortcutProblems: string[] | undefined;
-  /** 設定の [gui.browser] passkey_sites の、公開サフィックスなので使わない項目（あればお知らせに出す） */
+  /** 設定の [gui.browser] passkey_sites の、公開サフィックスなので使わない項目（あれば Notice に出す） */
   passkeyRejected: string[] | undefined;
   /** できなかったこと（無ければ null） */
   focusError: Accessor<Problem | null>;
@@ -242,7 +242,7 @@ export function createNotices(deps: {
       out.push(focusNotice.notice);
     }
     for (const [t, st] of Object.entries(states())) {
-      // 足している最中のマシンの失敗は、窓に出す
+      // 足している最中のマシンの失敗は、Dialog に出す
       if (!targets().includes(t)) continue;
       if (dismissed().has(st)) continue;
       if (!noticeOf.has(st)) noticeOf.set(st, makeNotice(t, st));

@@ -1,6 +1,6 @@
 // 内蔵ブラウザのタブ（#202。設定の [gui.browser] enabled で有効にしたときだけ）の、ページの操作。
-// タブは GUI のワークスペースに属し、サイドバーのワークスペースの帯の下に、ターミナルのタブと一緒に並ぶ（#231）。タブを選ぶと、グリッドの場所すべてがそのページになる。
-// 今出しているタブ、URL を開く（新しいタブ・URL バー）、リモートの localhost の中継、ページが開いた・閉じた窓、ページ内検索、ページの表示の大きさを受け持つ。
+// タブは GUI のワークスペースに属し、サイドバーの Workspace band の下に、ターミナルのタブと一緒に並ぶ（#231）。タブを選ぶと、グリッドの場所すべてがそのページになる。
+// 今出しているタブ、URL を開く（新しいタブ・URL バー）、リモートの localhost の中継、ページが開いた・閉じた Dialog、ページ内検索、ページの表示の大きさを受け持つ。
 // タブの追加・削除・並び順・選択は features/workspaces/tabs/controller.ts。
 // 画面にも Tauri にも触らない。殻への頼みは BrowserOs（os.ts）で受け取る。
 import { T } from "../../i18n/index.ts";
@@ -159,8 +159,8 @@ export function createPages(deps: {
     );
   }
   /**
-   * 新しいタブのページのタブを開く（ワークスペースの窓の、作るタブの種類（リーダーの n）の「ブラウザ」「シークレット」と、「+」のメニューの「ブラウザ」。#238）。URL は聞かず、URL が空のタブ（newTab.ts）を
-   * 足して出す。検索窓とブックマークの中身は NewTabPage が描く（出たら検索窓にキーがある）。今のタブの URL の書き換えは、ページの上の URL バー（#232）
+   * 新しいタブのページのタブを開く（Workspace switcher の、作るタブの種類（リーダーの n）の「ブラウザ」「シークレット」と、「+」のメニューの「ブラウザ」。#238）。URL は聞かず、URL が空のタブ（newTab.ts）を
+   * 足して出す。検索欄とブックマークの中身は NewTabPage が描く（出たら検索欄にキーがある）。今のタブの URL の書き換えは、ページの上の URL バー（#232）
    */
   function openNewTab(
     target: string,
@@ -170,7 +170,7 @@ export function createPages(deps: {
   ): string {
     const id = newTabId();
     const gid = owner ?? gwsOfTerm(untrack(gws), target, ws)?.id;
-    // ページから押したときに覚えた「戻す先」を捨てる（検索窓にキーを向けるのを、ページに戻させない。openFind と同じ）
+    // ページから押したときに覚えた「戻す先」を捨てる（検索欄にキーを向けるのを、ページに戻させない。openFind と同じ）
     deps.forgetPageReturn();
     // batch で囲む。囲まないと、setTabs の直後に整理（reconcile）の effect が走り、まだどのワークスペースにも入っていないタブを
     // 「持ち主の無いタブ」として新しいワークスペースに入れてしまう（ターミナルのタブが無いワークスペースでは workspace が空。#416）
@@ -194,7 +194,7 @@ export function createPages(deps: {
     return id;
   }
   /**
-   * ページが新しい窓（`target=_blank` のリンク・`window.open`）を開いた（#204）。殻はもう webview を作ってある。
+   * ページが新しい Window（`target=_blank` のリンク・`window.open`）を開いた（#204）。殻はもう webview を作ってある。
    * 開いた元のタブと同じワークスペースの新しいタブにして出す（元がシークレットならシークレット。データは元と同じ）。
    * 元のタブがもう無ければ、webview を壊す。
    */
@@ -228,7 +228,7 @@ export function createPages(deps: {
     if (gid && untrack(currentGws)?.id === gid) focusTerminal();
   }
   /**
-   * まだ足していないタブの「閉じた」（ページが開いた新しい窓が、画面に知らせが届く前に閉じた）。あとで届く「新しいタブ」を足さない。
+   * まだ足していないタブの「閉じた」（ページが開いた新しい Window が、画面に知らせが届く前に閉じた）。あとで届く「新しいタブ」を足さない。
    * 知らないタブの知らせが積もらないよう、新しい 32 個だけ覚える
    */
   const closedEarly = new Set<string>();
@@ -266,7 +266,7 @@ export function createPages(deps: {
     focusTerminal();
   }
   /**
-   * 戻る・進む・読み込み直す（ブラウザのタブの窓の h・l・r と Cmd+R、URL バーのボタン、失敗の表示の「もう一度開く」）。
+   * 戻る・進む・読み込み直す（ブラウザのタブの Dialog の h・l・r と Cmd+R、URL バーのボタン、失敗の表示の「もう一度開く」）。
    * 読み込みが失敗したままのタブ（#432）の「読み込み直す」は、WebView の読み込み直しでなく、失敗の表示に出している URL を
    * URL バーと同じ道（goTo）で開き直す。WebView は失敗した読み込みを覚えない（履歴にも今の URL にも入らない）ので、
    * 読み込み直すと失敗の前のページを読み直してしまう。開き直す URL は、利用者が見ている失敗の表示のもの（タブの loadError）
@@ -280,7 +280,7 @@ export function createPages(deps: {
     if (failed && isOpenableUrl(failed)) goTo(tab, failed);
     else void navTab(tab, action).catch(() => {});
   }
-  /** 読み込みを止める（URL バーの「×」・読み込み中の Esc・ブラウザのタブの窓の c）。読み込み中でなければ何もしない。 */
+  /** 読み込みを止める（URL バーの「×」・読み込み中の Esc・ブラウザのタブの Dialog の c）。読み込み中でなければ何もしない。 */
   function stopPage(tab: string) {
     if (!untrack(tabs).tabs.find((x) => x.id === tab)?.loading) return;
     // 殻の知らせを待たずに印を消す（読み込みが終われば、殻が「読み込み中でない」を知らせる）

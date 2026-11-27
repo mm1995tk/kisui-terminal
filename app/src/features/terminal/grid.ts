@@ -163,9 +163,9 @@ export function neighbor(
   return best?.id;
 }
 
-// ---- 欄どうしの境界（#18）----
+// ---- 欄どうしの Pane border（#18）----
 //
-// 境界は、割合を持つ節（server/layout.go の layoutNode）。B 側の左上の葉の欄 id で指す（serve と同じ。
+// Pane border は、割合を持つ節（server/layout.go の layoutNode）。B 側の左上の葉の欄 id で指す（serve と同じ。
 // 木のどの葉も、ちょうど 1 つの節の「B 側の左上」になるので一意で、ほかの欄を分けても変わらない）。
 
 /** 欄を分けるときの、分けた後の欄の最小の大きさ（端末の列と行）。server/layout.go の minSplitCols・minSplitRows と同じ。 */
@@ -174,10 +174,10 @@ const MIN_ROWS = 5;
 /** 欄の大きさが分からないときの、割合の下限と上限（serve の fallbackRatioMin・fallbackRatioMax と同じ）。 */
 const FALLBACK: readonly [number, number] = [0.05, 0.95];
 
-/** 欄の間の隙間の幅（px）。境界のつまみはここにだけ置き、端末の字の上には重ねない。 */
+/** 欄の間の隙間の幅（px）。Pane border のつまみはここにだけ置き、端末の字の上には重ねない。 */
 export const GAP = 6;
 
-/** 動かせる境界 1 つ。 */
+/** 動かせる Pane border 1 つ。 */
 export interface Bar {
   /** B 側の左上の葉の欄 id */
   key: string;
@@ -194,7 +194,7 @@ export function firstPane(n: PaneLayout): string {
   return n.pane;
 }
 
-/** 木の境界（節）を、根から順に（節、A の中、B の中の順）。 */
+/** 木の Pane border（節）を、根から順に（節、A の中、B の中の順）。 */
 export function layoutBars(
   n: PaneLayout | undefined,
   at: Rect = { x: 0, y: 0, w: 1, h: 1 },
@@ -213,7 +213,7 @@ export function layoutBars(
   return out;
 }
 
-/** key の境界の割合を ratio にした木（無ければ同じ木）。 */
+/** key の Pane border の割合を ratio にした木（無ければ同じ木）。 */
 export function withRatio(
   n: PaneLayout | undefined,
   key: string,
@@ -279,7 +279,7 @@ function minExtent(n: PaneLayout, horiz: boolean): number {
 }
 
 /**
- * key の境界の割合の下限と上限。両側が最小の大きさ（MIN_COLS 列・MIN_ROWS 行）以上に残る範囲
+ * key の Pane border の割合の下限と上限。両側が最小の大きさ（MIN_COLS 列・MIN_ROWS 行）以上に残る範囲
  * （serve の ratioBounds と同じ計算）。大きさが分からなければ固定の範囲、すでに両側を満たせないほど小さければ undefined。
  */
 export function ratioLimits(
@@ -317,7 +317,7 @@ export function clampRatio(ratio: number, lo: number, hi: number): number {
 }
 
 /**
- * key の境界を ratio にしたときの割合（範囲に収めたもの）。動かせない（境界が無い・すでに小さすぎる）なら undefined。
+ * key の Pane border を ratio にしたときの割合（範囲に収めたもの）。動かせない（Pane border が無い・すでに小さすぎる）なら undefined。
  */
 export function limitedRatio(
   tree: PaneLayout | undefined,

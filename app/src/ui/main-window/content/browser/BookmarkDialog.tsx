@@ -1,4 +1,4 @@
-// 内蔵ブラウザのブックマークの一覧（#205。ブラウザのタブの窓の B）。字を打って題か URL で絞り込み、Enter で今のワークスペースの新しいタブに開く。
+// 内蔵ブラウザのブックマークの一覧（#205。ブラウザのタブの Dialog の B）。字を打って題か URL で絞り込み、Enter で今のワークスペースの新しいタブに開く。
 // Ctrl+D で選んでいるものを消す。キーの判定は bookmarks.ts の bookmarkKey、`?` の一覧の表は placeKeys.ts の bookmarks。
 // 見た目はクリップボードの履歴（ClipboardHistoryDialog.tsx）と同じカードの一覧。
 import { T } from "../../../../i18n/index.ts";

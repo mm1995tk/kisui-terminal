@@ -114,5 +114,5 @@ frames = ["bye-wave-1.png", "bye-wave-2.png", "bye-wave-1.png", "bye-wave-2.png"
 mascot = "<名前>"
 ```
 
-- 窓を開いたときに読む。置いたら、リーダーの `c` → `r`（新しいキャラクターなら `c` → `s` で選ぶ）で読み直す。窓を開き直さなくてよい。
+- Dialog を開いたときに読む。置いたら、リーダーの `c` → `r`（新しいキャラクターなら `c` → `s` で選ぶ）で読み直す。Dialog を開き直さなくてよい。
 - 画像が足りない・形式が違うときは、kisui-terminal を端末から起動したときの標準エラー出力に `kisui-terminal: mascot: ...` が出る。

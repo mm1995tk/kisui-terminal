@@ -1,5 +1,5 @@
-// DB の接続を選ぶ窓（ui/main-window/db/DbConnectionPicker.tsx）のキーと、窓の下の段（#486）。
-// 動かす・決める・`?` は、ほかの一覧から選ぶ窓と同じ（machineList.ts の pickerKey）。足す・直す・消すは、この窓だけの字（a e d）。
+// DB の接続を選ぶ Dialog（ui/main-window/db/DbConnectionPicker.tsx）のキーと、Dialog の Key footer（#486）。
+// 動かす・決める・`?` は、ほかの一覧から選ぶ Dialog と同じ（machineList.ts の pickerKey）。足す・直す・消すは、この Dialog だけの字（a e d）。
 // 画面の仕組み（Solid）に依らないので、node --test で確かめる。決まりは docs/key-design.md。
 import type { KeyLike } from "../commands/guiKeys.ts";
 import { isComposingKey } from "../commands/ime.ts";
@@ -7,11 +7,11 @@ import { placeItem, type FooterRow } from "../commands/placeKeys.ts";
 import { pickerKey, type PickerKey } from "../sessions/machineList.ts";
 import { T } from "../../i18n/index.ts";
 
-/** 窓の中のキーが表す動き。add は手元の PC に接続を足す、edit・remove は選んでいる接続を直す・消す。 */
+/** Dialog の中のキーが表す動き。add は手元の PC に接続を足す、edit・remove は選んでいる接続を直す・消す。 */
 export type DbPickerKey =
   PickerKey | { kind: "add" } | { kind: "edit" } | { kind: "remove" };
 
-/** 窓の中のキー。入力欄は無いので字をそのまま使う。変換中のキーと、Alt・Cmd・Ctrl・Shift を重ねた字は受けない（動かす・決めるキーは pickerKey の決まり）。 */
+/** Dialog の中のキー。入力欄は無いので字をそのまま使う。変換中のキーと、Alt・Cmd・Ctrl・Shift を重ねた字は受けない（動かす・決めるキーは pickerKey の決まり）。 */
 export function dbPickerKey(e: KeyLike): DbPickerKey | null {
   if (isComposingKey(e)) return null;
   const k = pickerKey(e);
@@ -29,7 +29,7 @@ export function dbPickerKey(e: KeyLike): DbPickerKey | null {
 }
 
 /**
- * 窓の下の段：選んでいる接続に効く操作（直せるなら edit、消せるなら remove）と、この PC の接続の一覧に効く操作（add）。
+ * Dialog の Key footer：選んでいる接続に効く操作（直せるなら edit、消せるなら remove）と、この PC の接続の一覧に効く操作（add）。
  * 効かない操作は出さない（行の見出しは出す）。
  */
 export function dbPickerFooter(o: {

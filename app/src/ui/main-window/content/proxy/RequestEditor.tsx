@@ -1,4 +1,4 @@
-// プロキシのパネル（#409）の下の段で、選んだ通信の要求を書き換えて送り直す欄（#410）。止めている要求（#411）なら、書き換えて流す。メソッド・URL・ヘッダー・本文を書き換え、
+// プロキシのパネル（#409）の下の部分で、選んだ通信の要求を書き換えて送り直す欄（#410）。止めている要求（#411）なら、書き換えて流す。メソッド・URL・ヘッダー・本文を書き換え、
 // Cmd+Enter（macOS）・Ctrl+Enter（ほか）で送る。何を送るか・送ったあとのことは features/proxy/controller.ts。
 // 欄の中のキーは場所のキー（features/proxy/keys.ts の proxyEditKey。`?` の一覧は placeKeys.ts の proxyEdit）。
 import { onCleanup, Show, type JSX } from "solid-js";

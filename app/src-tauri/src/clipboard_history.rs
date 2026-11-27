@@ -14,7 +14,7 @@
 //!
 //! 画面には、変わったことを `clipboard-history-changed`（中身なし）で知らせ、中身は `clipboard_history_list` で渡す。
 //! 中身をイベントに載せないのは、ブラウザの欄（外のページの子の webview）に届かないようにするため。命令は
-//! 呼んだ webview が `main` か、kisui-terminal の外から開く履歴の窓（clipboard_popup.rs）かも確かめる。
+//! 呼んだ webview が `main` か、kisui-terminal の外から開く履歴の Window（clipboard_popup.rs）かも確かめる。
 
 use std::fs;
 use std::io::Write;
@@ -227,7 +227,7 @@ impl ClipboardHistory {
     }
 }
 
-/// 履歴（新しいものが先頭）。メイン窓と、kisui-terminal の外から開く履歴の窓（clipboard_popup.rs）の画面からだけ呼べる。
+/// 履歴（新しいものが先頭）。メイン Window と、kisui-terminal の外から開く履歴の Window（clipboard_popup.rs）の画面からだけ呼べる。
 #[tauri::command]
 pub fn clipboard_history_list(
     webview: Webview,
@@ -533,7 +533,7 @@ mod platform {
         }
     }
 
-    /// X11 の CLIPBOARD の TARGETS を聞くための接続と窓。
+    /// X11 の CLIPBOARD の TARGETS を聞くための接続と Window。
     struct X11 {
         conn: RustConnection,
         win: Window,

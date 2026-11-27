@@ -1,4 +1,4 @@
-// Tauri の殻（src-tauri）とのやりとり。テストで差し替えられるよう、窓口は ShellApi にまとめる。
+// Tauri の殻（src-tauri）とのやりとり。テストで差し替えられるよう、受け口は ShellApi にまとめる。
 
 import type { ConfigMachine } from "./machines.ts";
 import type { TermDefaults } from "./termDefaults.ts";
@@ -9,10 +9,10 @@ export interface AskpassRequest {
   conn: string;
   /**
    * 質問を出した接続の ssh の行き先。殻が ssh を起こすときに決めた値で、つなぎ先のサーバーは変えられない。
-   * 窓は、これでどのマシンへの接続の質問かを出す（askpass.ts）。殻は、行き先の無い質問を窓に渡さない。
+   * Window は、これでどのマシンへの接続の質問かを出す（askpass.ts）。殻は、行き先の無い質問を Window に渡さない。
    */
   target: string;
-  /** ssh が出した質問の文。つなぎ先のサーバーが決められるので、窓が出す文（マシンの名前など）とは分けて出す */
+  /** ssh が出した質問の文。つなぎ先のサーバーが決められるので、Dialog が出す文（マシンの名前など）とは分けて出す */
   prompt: string;
 }
 
@@ -52,9 +52,9 @@ export interface GuiConfig {
   machines: ConfigMachine[];
   /** 内蔵ブラウザのタブを使うか（[gui.browser] enabled。初めは使わない） */
   browser: boolean;
-  /** 設定で足した近道（[gui.shortcuts]。キーの順。書き方と使えるコマンドかは commands.ts の setUserShortcuts が確かめる） */
+  /** 設定で足した Shortcut（[gui.shortcuts]。キーの順。書き方と使えるコマンドかは commands.ts の setUserShortcuts が確かめる） */
   shortcuts: { key: string; command: string; source: number }[];
-  /** [gui.browser] passkey_sites に書いたが、公開サフィックス（.com・.github.io）なので使わない項目（書いた形のまま。お知らせに出す） */
+  /** [gui.browser] passkey_sites に書いたが、公開サフィックス（.com・.github.io）なので使わない項目（書いた形のまま。Notice に出す） */
   passkeyRejected: string[];
   /** タブの段の高さの上限の元の値（[gui.sidebar] tabs-height。サイドバーの高さに対する %）。書いていなければ無い */
   sidebarTabsHeight?: number | null;
@@ -63,7 +63,7 @@ export interface GuiConfig {
 }
 
 /**
- * 窓のマシンの書き込み 1 つ（殻の config_list.rs の MachineEdit）。name は付けた名前で、null・空なら名前を付けない。
+ * Dialog のマシンの書き込み 1 つ（殻の config_list.rs の MachineEdit）。name は付けた名前で、null・空なら名前を付けない。
  * 書く先は config.local.toml の [[gui.machines]]（config.toml には書かない）。
  */
 export type MachineEdit =
@@ -86,12 +86,12 @@ export interface ShellApi {
    */
   configGui(): Promise<GuiConfig>;
   /**
-   * 窓でマシンを足す・名前を変える・外す。config.local.toml に書き、書いたあとのマシンの一覧（configGui の machines と同じ形）を返す。
+   * Dialog でマシンを足す・名前を変える・外す。config.local.toml に書き、書いたあとのマシンの一覧（configGui の machines と同じ形）を返す。
    * 書けなければ MachineEditError（machines.ts）で reject する。
    */
   editMachine(edit: MachineEdit): Promise<ConfigMachine[]>;
   /**
-   * 窓で、手元のマシンの新しいターミナルが始まるフォルダとシェルを変える。config.local.toml の [server] に書き（null・空の項目は消す）、
+   * Dialog で、手元のマシンの新しいターミナルが始まるフォルダとシェルを変える。config.local.toml の [server] に書き（null・空の項目は消す）、
    * 書いたあとの手元のマシンの分（configGui の localTerminal と同じ形）を返す。書く前に、使えない値
    * （無いフォルダ・実行できないシェル）でないことを殻が確かめる。書けなければ MachineEditError（machines.ts）で reject する。
    */
@@ -121,7 +121,7 @@ export interface ShellApi {
   onAskpassDone(h: (requestId: number) => void): Promise<Unlisten>;
   /** Mac のメニューの「閉じる」（Cmd+W）が選ばれた。PDF の欄の中を押した後は、キーが画面に届かず、これで知る（#111） */
   onCloseRequest?(h: () => void): Promise<Unlisten>;
-  /** アプリの窓を閉じる */
+  /** アプリの Window を閉じる */
   windowClose?(): Promise<void>;
 }
 

@@ -29,7 +29,7 @@ export interface ExportChoice {
   target: ExportTarget;
 }
 
-/** 書き出しの窓に並べる選び方（形の順に、クリップボード・ファイル）。 */
+/** 書き出しの Dialog に並べる選び方（形の順に、クリップボード・ファイル）。 */
 export const EXPORT_CHOICES: readonly ExportChoice[] = (
   ["csv", "tsv", "json"] as const
 ).flatMap((format) =>

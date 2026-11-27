@@ -1,5 +1,5 @@
 // ブックマークの一覧（BookmarkDialog.tsx）を、アプリと同じ部品・CSS・字・翻訳で出す。
-// 下の段は「選んでいるブックマーク」の行に、消す（Ctrl+D）だけ。フォルダを選んでいる間は見出しだけ（#489）。
+// Key footer は「選んでいるブックマーク」の行に、消す（Ctrl+D）だけ。フォルダを選んでいる間は見出しだけ（#489）。
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
 import { fn } from "storybook/test";
 
@@ -39,5 +39,5 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** 開いたところ（最初の行は自分のブックマークなので、下の段に delete を出す）。Chrome のブックマークやフォルダへ移すと、見出しだけになる。 */
+/** 開いたところ（最初の行は自分のブックマークなので、Key footer に delete を出す）。Chrome のブックマークやフォルダへ移すと、見出しだけになる。 */
 export const Default: Story = {};

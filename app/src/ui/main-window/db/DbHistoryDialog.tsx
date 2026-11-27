@@ -1,6 +1,6 @@
-// DB のタブの、接続ごとのクエリの履歴の窓（DB のタブの窓（リーダーの `a`）の `h`。#349・#458）。その接続で実行した SQL を新しい順に出し、
-// 字を打って絞り込み、選んだものを入力欄に入れる（実行はしない）。履歴は kisui serve が持ち、窓を開けるたびに聞く。
-// 一覧の見た目（.history-*）は、クリップボードの履歴の窓と同じ（ui/components/card.css）。
+// DB のタブの、接続ごとのクエリの履歴の Dialog（DB のタブの Dialog（リーダーの `a`）の `h`。#349・#458）。その接続で実行した SQL を新しい順に出し、
+// 字を打って絞り込み、選んだものを入力欄に入れる（実行はしない）。履歴は kisui serve が持ち、Dialog を開けるたびに聞く。
+// 一覧の見た目（.history-*）は、クリップボードの履歴の Dialog と同じ（ui/components/card.css）。
 import { T } from "../../../i18n/index.ts";
 import {
   createEffect,
@@ -32,7 +32,7 @@ import { Input } from "../../components/Field.tsx";
 import { KeyHints } from "../../components/KeyHints.tsx";
 import { openKeyList } from "../commands/KeyListDialog.tsx";
 
-/** 履歴の窓。↓ ↑ で選び、Enter かダブルクリックで onChoose（その SQL を入力欄へ）、Esc で onCancel を呼ぶ。 */
+/** 履歴の Dialog。↓ ↑ で選び、Enter かダブルクリックで onChoose（その SQL を入力欄へ）、Esc で onCancel を呼ぶ。 */
 export function DbHistoryDialog(props: {
   ask: DbHistoryAsk;
   onChoose: (sql: string) => void;

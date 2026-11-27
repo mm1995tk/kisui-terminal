@@ -1,13 +1,13 @@
 //! macOS のメニューバー。Tauri 2.12.4 の `Menu::default` を写し、「閉じる」（Cmd+W）を差し替える（#111）。tauri を上げたときは、見比べる。
 //! 既定との違いは 3 つ。
-//! - 「閉じる」を、窓を閉じるものから、画面に任せるものに替えた（File に置く）。
-//! - 既定の Window メニューの separator と「Close Window」は抜いた。残すと Cmd+W を持つ項目が 2 つになり、既定の「閉じる」が窓を閉じてしまう。
+//! - 「閉じる」を、Window を閉じるものから、画面に任せるものに替えた（File に置く）。
+//! - 既定の Window メニューの separator と「Close Window」は抜いた。残すと Cmd+W を持つ項目が 2 つになり、既定の「閉じる」が Window を閉じてしまう。
 //! - About に copyright と authors を渡していない（kisui-terminal は設定していない）。
 //!
 //! PDF の欄は iframe で、欄の中を押すとキーが PDF の表示に取られ、親の画面の `keydown` に届かない。
-//! そのまま Cmd+W を押すと、既定メニューの「閉じる」が動いて、アプリの窓が閉じてしまう。
-//! 差し替えた「閉じる」は窓を閉じず、画面（`close-request` のイベント）に任せる。
-//! 今の欄を閉じるか、窓を閉じるかは画面が決める（`app/src/features/commands/guiKeys.ts` の `closeTarget`）。
+//! そのまま Cmd+W を押すと、既定メニューの「閉じる」が動いて、アプリの Window が閉じてしまう。
+//! 差し替えた「閉じる」は Window を閉じず、画面（`close-request` のイベント）に任せる。
+//! 今の欄を閉じるか、Window を閉じるかは画面が決める（`app/src/features/commands/guiKeys.ts` の `closeTarget`）。
 
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 
@@ -87,7 +87,7 @@ pub fn install<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     Ok(())
 }
 
-/// 差し替えた「閉じる」が選ばれたとき。メイン窓には画面へ任せ、ほかの窓（クリップボードの履歴の窓）は、今までどおりその窓を閉じる。
+/// 差し替えた「閉じる」が選ばれたとき。メイン Window には画面へ任せ、ほかの Window（クリップボードの履歴の Window）は、今までどおりその Window を閉じる。
 pub fn on_close<R: Runtime>(app: &AppHandle<R>) {
     let focused = app
         .webview_windows()
@@ -103,7 +103,7 @@ pub fn on_close<R: Runtime>(app: &AppHandle<R>) {
     }
 }
 
-/// 窓を閉じる（画面が、欄ではなく窓を閉じると決めたとき）。
+/// Window を閉じる（画面が、欄ではなく Window を閉じると決めたとき）。
 #[tauri::command]
 pub fn window_close(window: tauri::WebviewWindow) {
     let _ = window.close();

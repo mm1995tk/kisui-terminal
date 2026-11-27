@@ -1,5 +1,5 @@
 // コマンドの表（docs/key-design.md の 2 章の方針 7）。リーダー（Mac は Cmd+K、Linux は Ctrl+Shift+K）の木と、リーダーを通さず
-// 1 回で押せる近道を、ここ 1 か所に書く。リーダーを押すと出る案内（LeaderMenu.tsx）、`?` の一覧（KeyListDialog.tsx）、
+// 1 回で押せる Shortcut を、ここ 1 か所に書く。リーダーを押すと出る案内（LeaderMenu.tsx）、`?` の一覧（KeyListDialog.tsx）、
 // 実際にキーを受ける判定（route）は、どれもこの表から作る。だから案内と受けるキーはずれない。
 //
 // キーを足す・変えるときは LEADER を直す（足すだけなら、グループの children に leaf() を 1 つ足す）。
@@ -92,7 +92,7 @@ export interface Command {
   arg?: string | number;
 }
 
-/** 近道。OS ごとに 1 つ（無ければその OS には近道が無い）。書き方は keyspec.ts の parseSpec。 */
+/** Shortcut。OS ごとに 1 つ（無ければその OS には Shortcut が無い）。書き方は keyspec.ts の parseSpec。 */
 export interface Shortcut {
   mac?: string;
   other?: string;
@@ -110,7 +110,7 @@ export interface Leaf extends Common {
   /** 押すキー（どれでも同じ。`+` と `=` のように並べる） */
   keys: string[];
   run: Command;
-  /** リーダーを通さず 1 回で押せる近道（既定のもの） */
+  /** リーダーを通さず 1 回で押せる Shortcut（既定のもの） */
   shortcut?: Shortcut;
   /** 行ったあともリーダーを出ず、同じ一覧のまま次のキーを待つ（ペインを `j` `j` `l` と続けて移れる） */
   repeat?: boolean;
@@ -118,10 +118,10 @@ export interface Leaf extends Common {
    * 案内（menuRows）と `?` の一覧（helpRows）では、同じ range.keys が続く葉を 1 行にまとめて出す（`h|j|k|l  ペインを移動`、`j|k  結果の次・前のページ`）。キーを押したときの動きは葉ごと。
    */
   range?: { keys: string; label: string };
-  /** 近道は、キーがペインに向いているときか、どこにも向いていないときだけ受ける（Cmd+W が、窓を閉じるのを防ぐため） */
+  /** Shortcut は、キーがペインに向いているときか、どこにも向いていないときだけ受ける（Cmd+W が、Dialog を閉じるのを防ぐため） */
   shortcutInPane?: boolean;
   /**
-   * 近道は、内蔵ブラウザのタブを出しているときだけ受け、そのときは同じキーのほかの近道より先に受ける
+   * Shortcut は、内蔵ブラウザのタブを出しているときだけ受け、そのときは同じキーのほかの Shortcut より先に受ける
    * （Cmd+R / Ctrl+Shift+R は、ブラウザを出している間だけ読み込み直しにし、ほかのときはリサイズモードのまま）
    */
   shortcutInBrowser?: boolean;
@@ -199,10 +199,10 @@ const paneMoves = (): Leaf[] =>
 
 /**
  * リーダーの木に載せず、設定の `[gui.shortcuts]` からだけ使えるコマンド（#296）。
- * ワークスペースの操作は、リーダーの `w` で開く窓（WorkspaceSwitcher.tsx）に集めた。ここのコマンドは、窓を開かずに 1 回で動かしたい人が、自分で近道を足すために残す。
- * ペインの操作（分ける・入れ替える・閉じる・隠す・リサイズモード）は、リーダーの `a` で開くターミナルのタブの窓（TerminalWindow.tsx）に集めた（#457）。
- * そのうち、よく使う直接の操作は、既定の近道を持ったままここに残す（Cmd+D など。shortcut）。
- * 木の外なので、リーダーの案内には出ない。`?` の一覧には、近道（既定か、設定で足したもの）があるものだけを、木のあとに並べる（helpRows）。
+ * ワークスペースの操作は、リーダーの `w` で開く Dialog（WorkspaceSwitcher.tsx）に集めた。ここのコマンドは、Dialog を開かずに 1 回で動かしたい人が、自分で Shortcut を足すために残す。
+ * ペインの操作（分ける・入れ替える・閉じる・隠す・リサイズモード）は、リーダーの `a` で開くターミナルのタブの Dialog（TerminalWindow.tsx）に集めた（#457）。
+ * そのうち、よく使う直接の操作は、既定の Shortcut を持ったままここに残す（Cmd+D など。shortcut）。
+ * 木の外なので、リーダーの案内には出ない。`?` の一覧には、Shortcut（既定か、設定で足したもの）があるものだけを、木のあとに並べる（helpRows）。
  */
 const SHORTCUT_ONLY: Leaf[] = [
   leaf("", T("leader.ws.next"), { id: "workspace.step", arg: "next" }),
@@ -216,8 +216,8 @@ const SHORTCUT_ONLY: Leaf[] = [
   leaf("", T("leader.ws.new"), { id: "workspace.new" }),
   leaf("", T("leader.ws.close"), { id: "workspace.close" }),
   leaf("", T("leader.ws.rename"), { id: "workspace.rename" }),
-  // ペインの操作。ターミナルのタブの窓（リーダーの `a`）の中のキーでするので、木には載せない（#457）。
-  // 分ける（右・下）・閉じる・隠す・リサイズモードは、ターミナルの習慣に合わせた既定の近道を残す
+  // ペインの操作。ターミナルのタブの Dialog（リーダーの `a`）の中のキーでするので、木には載せない（#457）。
+  // 分ける（右・下）・閉じる・隠す・リサイズモードは、ターミナルの習慣に合わせた既定の Shortcut を残す
   leaf(
     "",
     T("leader.pane.split.right"),
@@ -253,7 +253,7 @@ const SHORTCUT_ONLY: Leaf[] = [
     { id: "pane.resize" },
     { shortcut: { mac: "Cmd+R", other: "Ctrl+Shift+R" } },
   ),
-  // タブの操作。ワークスペースの窓（リーダーの `t`）の中のキーでするので、木には載せない（#454）
+  // タブの操作。Workspace switcher（リーダーの `t`）の中のキーでするので、木には載せない（#454）
   leaf("", T("leader.tab.new"), { id: "tab.new" }),
   leaf("", T("leader.tab.newPick"), { id: "tab.newPick" }),
   leaf("", T("leader.tab.close"), { id: "tab.close" }),
@@ -286,10 +286,10 @@ const SHORTCUT_ONLY: Leaf[] = [
   ),
   leaf("", T("leader.tab.rename"), { id: "tab.rename" }),
   leaf("", T("leader.tab.moveTo"), { id: "tab.moveTo" }),
-  // DB のタブを作る。リーダーの `n` で開くワークスペースの窓の、作るタブの種類からするので、木には載せない（#456）
+  // DB のタブを作る。リーダーの `n` で開く Workspace switcher の、作るタブの種類からするので、木には載せない（#456）
   leaf("", T("leader.db.open"), { id: "db.open" }),
-  // DB のタブの操作。リーダーの `a` で開く DB のタブの窓（DbWindow.tsx）の中のキーでするので、木には載せない（#458）。
-  // 設定の近道に書いている人の設定を壊さないよう、また窓を開かずに 1 回で動かしたい人のために残す。DB のタブを出していなければ動かない（run.ts）
+  // DB のタブの操作。リーダーの `a` で開く DB のタブの Dialog（DbWindow.tsx）の中のキーでするので、木には載せない（#458）。
+  // 設定の Shortcut に書いている人の設定を壊さないよう、また Dialog を開かずに 1 回で動かしたい人のために残す。DB のタブを出していなければ動かない（run.ts）
   leaf("", T("leader.db.tree"), { id: "db.tree" }),
   leaf("", T("leader.db.refresh"), { id: "db.refresh" }),
   leaf("", T("leader.db.export"), { id: "db.export" }),
@@ -306,10 +306,10 @@ const SHORTCUT_ONLY: Leaf[] = [
 
 /**
  * SHORTCUT_ONLY と同じ扱いで、内蔵ブラウザを有効にしたときだけ使えるコマンド（設定の [gui.browser] enabled。setBrowserEnabled）。
- * ブラウザのタブを作るのは、ワークスペースの窓の、作るタブの種類からする（#456）。
- * ページへの操作は、リーダーの `a` で開くブラウザのタブの窓（BrowserWindow.tsx）の中のキーでするので、木には載せない（#459。#459 までは `o` のグループ）。
- * 閉じる・名前を変えるは、ワークスペースの窓（リーダーの `t`）のタブ共通の操作。browser.close・browser.rename は、設定の近道に書いた人の設定を壊さないよう残す。
- * 読み込み直す・ページ内検索は、ブラウザを出している間だけ効く既定の近道を持ったまま残す（ターミナルにキーが無い間だけなので、シェル・shj とぶつからない）。
+ * ブラウザのタブを作るのは、Workspace switcher の、作るタブの種類からする（#456）。
+ * ページへの操作は、リーダーの `a` で開くブラウザのタブの Dialog（BrowserWindow.tsx）の中のキーでするので、木には載せない（#459。#459 までは `o` のグループ）。
+ * 閉じる・名前を変えるは、Workspace switcher（リーダーの `t`）のタブ共通の操作。browser.close・browser.rename は、設定の Shortcut に書いた人の設定を壊さないよう残す。
+ * 読み込み直す・ページ内検索は、ブラウザを出している間だけ効く既定の Shortcut を持ったまま残す（ターミナルにキーが無い間だけなので、シェル・shj とぶつからない）。
  */
 const SHORTCUT_ONLY_BROWSER: Leaf[] = [
   leaf("", T("leader.browser.new"), { id: "browser.new" }),
@@ -370,23 +370,23 @@ export const LEADER: Node[] = [
       repeat: true,
     },
   ),
-  // ワークスペースを切り替える窓を開く。ワークスペースの操作（移る・作る・名前を変える・閉じる・並べ替える）は、この窓の中のキーでする（#296）
+  // Workspace switcher を開く。ワークスペースの操作（移る・作る・名前を変える・閉じる・並べ替える）は、この Dialog の中のキーでする（#296）
   leaf(
     "w",
     T("leader.ws.switch"),
     { id: "workspace.switch" },
     { shortcut: { mac: "Cmd+Shift+W", other: "Ctrl+Shift+W" } },
   ),
-  // ワークスペースの窓を、右のタブの列にキーを置いて開く。タブの操作（移る・作る・閉じる・並べ替える・名前を変える・別のワークスペースへ移す）は、この窓の中のキーでする（#454）
+  // Workspace switcher を、右のタブの列にキーを置いて開く。タブの操作（移る・作る・閉じる・並べ替える・名前を変える・別のワークスペースへ移す）は、この Dialog の中のキーでする（#454）
   leaf("t", T("leader.tab.switch"), { id: "workspace.switch", arg: "tab" }),
-  // ワークスペースの窓を、作るタブの種類を選ぶ間にして開く。ターミナル・ブラウザ・DB のどのタブを作るのも、ここから（#456）
+  // Workspace switcher を、作るタブの種類を選ぶ間にして開く。ターミナル・ブラウザ・DB のどのタブを作るのも、ここから（#456）
   leaf("n", T("leader.tab.create"), {
     id: "workspace.switch",
     arg: "newTab",
   }),
   leaf("m", T("leader.machine"), { id: "machine.dialog" }),
-  // 今出しているタブの種類ごとの窓を開く（#457。ターミナルのタブなら、ペインを選んで操作する窓。DB のタブなら、結果のタブを選んで操作する窓（#458）。
-  // ブラウザのタブなら、ページの状態を見て、ページへの操作を選ぶ窓（#459））。どの種類の窓を開くかは、押したときに出しているタブで決まる（tabWindow.ts の shownTabKind）
+  // 今出しているタブの種類ごとの Dialog を開く（#457。ターミナルのタブなら、ペインを選んで操作する Dialog。DB のタブなら、結果のタブを選んで操作する Dialog（#458）。
+  // ブラウザのタブなら、ページの状態を見て、ページへの操作を選ぶ Dialog（#459））。どの種類の Dialog を開くかは、押したときに出しているタブで決まる（tabWindow.ts の shownTabKind）
   leaf("a", T("leader.tab.window"), { id: "tab.window" }),
   // プロキシ（#409。今のタブの HTTP・HTTPS の通信を記録して見る。pro**x**y の x。p は #457 までペインのグループだった字）。パネルの中だけで使う操作は、場所のキー（placeKeys.ts の proxy）
   group("x", T("leader.proxy.group"), [
@@ -403,7 +403,7 @@ export const LEADER: Node[] = [
     { id: "clipboard.history" },
     { shortcut: { mac: "Cmd+Shift+H", other: "Ctrl+Shift+H" } },
   ),
-  // Mac は Cmd+= / Cmd+- / Cmd+0 が共通の操作なので、案内には出さない。Linux は Ctrl+- が端末の Ctrl+_ と同じ信号で近道が無く、
+  // Mac は Cmd+= / Cmd+- / Cmd+0 が共通の操作なので、案内には出さない。Linux は Ctrl+- が端末の Ctrl+_ と同じ信号で Shortcut が無く、
   // `v -` しか小さくするキーが無いので出す。`?` の一覧には、どの OS でも出す
   group(
     "v",
@@ -415,7 +415,7 @@ export const LEADER: Node[] = [
         { id: "scale", arg: "in" },
         { repeat: true, shortcut: { mac: "Cmd+=", other: "Ctrl+=" } },
       ),
-      // Linux の Ctrl+- は端末の C-_（shj のコメントの切り替え、シェルの undo）と同じ符号なので、近道にしない
+      // Linux の Ctrl+- は端末の C-_（shj のコメントの切り替え、シェルの undo）と同じ符号なので、Shortcut にしない
       leaf(
         "-",
         T("leader.scale.out"),
@@ -431,7 +431,7 @@ export const LEADER: Node[] = [
     ],
     "mac",
   ),
-  // お知らせ（info の `i`）
+  // Notice（info の `i`）
   group("i", T("leader.notice.group"), [
     leaf("u", T("leader.notice.update"), { id: "notice.update" }),
     leaf("d", T("leader.notice.dismiss"), { id: "notice.dismiss" }),
@@ -453,14 +453,14 @@ export const LEADER: Node[] = [
 /** 内蔵ブラウザのコマンド（SHORTCUT_ONLY_BROWSER）を使えるか。設定で有効にしたときだけ、画面（ui/main-window/page.tsx）が true にする。 */
 let browserEnabled = false;
 
-/** 内蔵ブラウザのコマンド（SHORTCUT_ONLY_BROWSER）を、近道・設定の近道・`?` の一覧で使えるようにするか（設定の [gui.browser] enabled）。 */
+/** 内蔵ブラウザのコマンド（SHORTCUT_ONLY_BROWSER）を、Shortcut・設定の Shortcut・`?` の一覧で使えるようにするか（設定の [gui.browser] enabled）。 */
 export function setBrowserEnabled(on: boolean): void {
   if (on === browserEnabled) return;
   browserEnabled = on;
   shortcutCache.clear();
 }
 
-/** 木の外の葉（設定の近道から使えるコマンド。既定の近道を持つものもある）。内蔵ブラウザのものは、有効にしたときだけ。 */
+/** 木の外の葉（設定の Shortcut から使えるコマンド。既定の Shortcut を持つものもある）。内蔵ブラウザのものは、有効にしたときだけ。 */
 export function outsideLeaves(): Leaf[] {
   return browserEnabled
     ? [...SHORTCUT_ONLY, ...SHORTCUT_ONLY_BROWSER]
@@ -563,7 +563,7 @@ export function nodeKeys(n: Node): string {
   return n.type === "group" ? n.key : n.keys.join(" ");
 }
 
-/** shortcut の、今の OS の書き方。この OS に近道が無ければ undefined。 */
+/** shortcut の、今の OS の書き方。この OS に Shortcut が無ければ undefined。 */
 export function shortcutOf(
   s: Shortcut | undefined,
   mac: boolean,
@@ -571,7 +571,7 @@ export function shortcutOf(
   return mac ? s?.mac : s?.other;
 }
 
-// ---- 近道（リーダーを通さず 1 回で押せるキー）----
+// ---- Shortcut（リーダーを通さず 1 回で押せるキー）----
 
 interface ShortcutEntry {
   spec: string;
@@ -583,7 +583,7 @@ interface ShortcutEntry {
   repeat: boolean;
 }
 
-/** 葉の既定の近道（この OS のもの）を集める。 */
+/** 葉の既定の Shortcut（この OS のもの）を集める。 */
 function collect(
   list: Node[],
   mac: boolean,
@@ -612,11 +612,11 @@ const shortcutCache = new Map<
   { spec: ReturnType<typeof parseSpec>; entry: ShortcutEntry }[]
 >();
 
-/** この OS の近道。ブラウザを出しているときだけのもの（inBrowser）を先に並べる（同じキーのほかの近道より先に受けるため）。 */
+/** この OS の Shortcut。ブラウザを出しているときだけのもの（inBrowser）を先に並べる（同じキーのほかの Shortcut より先に受けるため）。 */
 function shortcuts(mac: boolean) {
   let v = shortcutCache.get(mac);
   if (!v) {
-    // 同じキーは、設定で足した近道が既定のものに勝つ
+    // 同じキーは、設定で足した Shortcut が既定のものに勝つ
     // 木の葉と、木の外の葉（ペインの直接の操作など）の両方
     const all = collect([...LEADER, ...outsideLeaves()], mac, [])
       .map((entry) => ({ spec: parseSpec(entry.spec), entry }))
@@ -653,7 +653,7 @@ export interface InterceptKey extends KeySpec {
   enter: boolean;
 }
 
-/** ページにキーがある間も受けるキー：リーダーと、すべての近道。 */
+/** ページにキーがある間も受けるキー：リーダーと、すべての Shortcut。 */
 export function interceptKeys(mac: boolean): InterceptKey[] {
   const leader = shortcutOf(LEADER_SHORTCUT, mac);
   return [
@@ -669,8 +669,8 @@ export function isLeaderKey(e: KeyLike, mac: boolean): boolean {
 }
 
 /**
- * e が当たる、リーダーを通さない近道のコマンド。無ければ null。
- * ブラウザを出しているときだけの近道（shortcutInBrowser）は見ない（route が受ける）。
+ * e が当たる、リーダーを通さない Shortcut のコマンド。無ければ null。
+ * ブラウザを出しているときだけの Shortcut（shortcutInBrowser）は見ない（route が受ける）。
  */
 export function shortcutCommand(e: KeyLike, mac: boolean): Command | null {
   for (const { spec, entry } of shortcuts(mac))
@@ -678,9 +678,9 @@ export function shortcutCommand(e: KeyLike, mac: boolean): Command | null {
   return null;
 }
 
-// ---- ユーザーが設定ファイルで足す近道（[gui.shortcuts]。docs/key-design.md の 4.3）----
+// ---- ユーザーが設定ファイルで足す Shortcut（[gui.shortcuts]。docs/key-design.md の 4.3）----
 
-/** 設定ファイルに書いた近道 1 つ（殻の ConfigShortcut）。command は「コマンドの名前」か「名前:引数」、既定の近道を消すなら none。 */
+/** 設定ファイルに書いた Shortcut 1 つ（殻の ConfigShortcut）。command は「コマンドの名前」か「名前:引数」、既定の Shortcut を消すなら none。 */
 export interface UserShortcut {
   key: string;
   command: string;
@@ -692,7 +692,7 @@ interface UserEntry {
   /** 書いたとおりのキー（`?` の一覧に出す） */
   text: string;
   spec: KeySpec;
-  /** 動かすコマンド。無ければ（none）、同じキーの既定の近道を消すだけ */
+  /** 動かすコマンド。無ければ（none）、同じキーの既定の Shortcut を消すだけ */
   command?: Command;
   repeat: boolean;
   /** 一覧で行を決める鍵（`id` か `id:引数`） */
@@ -784,8 +784,8 @@ function sameSpec(a: KeySpec, b: KeySpec): boolean {
 }
 
 /**
- * 設定ファイルの近道を受け入れる。読めたものだけを使い、読めなかったものの理由を返す（呼んだ側がお知らせに出す。起動は止めない）。
- * 同じキーの既定の近道は、設定のほうが勝つ（既定の近道を消すだけなら command に none）。
+ * 設定ファイルの Shortcut を受け入れる。読めたものだけを使い、読めなかったものの理由を返す（呼んだ側が Notice に出す。起動は止めない）。
+ * 同じキーの既定の Shortcut は、設定のほうが勝つ（既定の Shortcut を消すだけなら command に none）。
  * setBrowserEnabled のあとに呼ぶ（内蔵ブラウザを使わないときの browser.* は、使えるコマンドに入らない）。
  */
 export function setUserShortcuts(list: UserShortcut[], mac: boolean): string[] {
@@ -859,9 +859,9 @@ export interface Env {
   dialogOpen: boolean;
   /** リサイズモードの中（リーダーに入らない） */
   resizeMode: boolean;
-  /** キーがペインに向いているか、どこにも向いていない（shortcutInPane の近道を受ける条件） */
+  /** キーがペインに向いているか、どこにも向いていない（shortcutInPane の Shortcut を受ける条件） */
   inPane: boolean;
-  /** 内蔵ブラウザのタブを出している（shortcutInBrowser の近道を受ける条件。リサイズモードの中は受けない） */
+  /** 内蔵ブラウザのタブを出している（shortcutInBrowser の Shortcut を受ける条件。リサイズモードの中は受けない） */
   browser?: boolean;
 }
 
@@ -871,7 +871,7 @@ export type Routed =
   | { consume: true; state: RouterState; run?: Command; repeat?: boolean };
 
 /**
- * キー 1 つをどう受けるか。リーダーに入っていないときは、リーダーのキー・近道に当たるものだけを受け、ほかは一切受けない
+ * キー 1 つをどう受けるか。リーダーに入っていないときは、リーダーのキー・Shortcut に当たるものだけを受け、ほかは一切受けない
  * （shj やシェルにそのまま届く）。リーダーに入っている間は、すべてのキーを受ける（一覧に無いキーは捨てて出る）。
  */
 export function route(state: RouterState, e: KeyLike, env: Env): Routed {
@@ -951,20 +951,20 @@ export function afterKeyUp(state: RouterState): RouterState {
 
 /** 一覧の 1 行。 */
 export interface HelpRow {
-  /** リーダーを押してから押すキー（"v" "+ ="）。木の外の操作（近道だけの操作）の行は [] */
+  /** リーダーを押してから押すキー（"v" "+ ="）。木の外の操作（Shortcut だけの操作）の行は [] */
   path: string[];
   label: string;
   group: boolean;
-  /** この OS の近道（Cmd+D など）。無ければ undefined */
+  /** この OS の Shortcut（Cmd+D など）。無ければ undefined */
   shortcut?: string;
   depth: number;
 }
 
 /**
- * 木を上から順に平らにした一覧。設定で足した近道は、そのコマンドの最初の行に添える。
+ * 木を上から順に平らにした一覧。設定で足した Shortcut は、そのコマンドの最初の行に添える。
  * 案内（menuRows）と同じく、range が同じ葉の並び（`h` `j` `k` `l` など）は 1 行にまとめる（キーは `h|j|k|l`）。
- * まとめた行の近道は、葉ごとの近道に、どのキーのものかを添えて並べる。
- * 木のあとに、木の外の操作のうち近道（既定か、設定で足したもの）があるものを、見出しの行を付けて並べる
+ * まとめた行の Shortcut は、葉ごとの Shortcut に、どのキーのものかを添えて並べる。
+ * 木のあとに、木の外の操作のうち Shortcut（既定か、設定で足したもの）があるものを、見出しの行を付けて並べる
  * （ペインを分ける Cmd+D など。リーダーのあとに押すキーは無いので、path は []）。
  */
 export function helpRows(mac: boolean): HelpRow[] {
@@ -985,9 +985,9 @@ export function helpRows(mac: boolean): HelpRow[] {
 }
 
 /**
- * 1 つのノードの近道（この OS のもの）の並び。
- * 設定で同じキーを別のコマンドに割り当てた既定の近道は、もう効かないので出さない。
- * 設定で足した近道は、そのコマンドの最初の 1 回（used に無いとき）だけ、既定の近道のあとに添える。
+ * 1 つのノードの Shortcut（この OS のもの）の並び。
+ * 設定で同じキーを別のコマンドに割り当てた既定の Shortcut は、もう効かないので出さない。
+ * 設定で足した Shortcut は、そのコマンドの最初の 1 回（used に無いとき）だけ、既定の Shortcut のあとに添える。
  */
 function shortcutsFor(n: Node, mac: boolean, used: Set<string>): string[] {
   const out: string[] = [];
@@ -1013,7 +1013,7 @@ function rowsOf(
   used: Set<string>,
 ): HelpRow[] {
   const out: HelpRow[] = [];
-  /** いま 1 行にまとめている range（連続する葉だけをまとめる）。近道は 1 つずつ、どのキーのものかを添える */
+  /** いま 1 行にまとめている range（連続する葉だけをまとめる）。Shortcut は 1 つずつ、どのキーのものかを添える */
   let merging: { keys: string; row: HelpRow; shortcuts: string[] } | undefined;
   const flush = () => {
     if (merging)

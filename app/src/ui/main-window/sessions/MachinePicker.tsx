@@ -14,9 +14,9 @@ import { createRowSelection } from "./rowSelection.ts";
 const rowId = (i: number) => `machine-picker-row-${i}`;
 
 /**
- * ワークスペースを作るマシンを選ぶ窓（リーダーの `w n`）。rows のマシンを並べ、j / k で選び、Enter かダブルクリックで
+ * ワークスペースを作るマシンを選ぶ Dialog（リーダーの `w n`）。rows のマシンを並べ、j / k で選び、Enter かダブルクリックで
  * onChoose、Esc かボタンで onCancel を呼ぶ。並べるのはつながっているマシンだけで、それを選ぶのは呼んだ側。
- * マシンが 1 つしか無ければ、呼んだ側がこの窓を出さずに作る。窓のキーは machineList.ts の pickerKey、決まりは docs/key-design.md。
+ * マシンが 1 つしか無ければ、呼んだ側がこの Dialog を出さずに作る。Dialog のキーは machineList.ts の pickerKey、決まりは docs/key-design.md。
  */
 export function MachinePicker(props: {
   rows: MachineRow[];

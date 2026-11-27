@@ -1,6 +1,6 @@
-// この PC の DB の接続を足す・直す・消す窓（接続を選ぶ窓の a・e・d で、その上に出す。#486）。
+// この PC の DB の接続を足す・直す・消す Dialog（接続を選ぶ Dialog の a・e・d で、その上に出す。#486）。
 // 足す・直すは入力欄（名前・種類・ホスト・ポート・ユーザー・データベース・TLS・認証局・読み取り専用）。パスワードの欄は無い（つなぐときに聞く）。
-// 空の欄は書かない（kisui の既定になる）。「Save」「Remove」で呼んだ側が config.local.toml に書き、書けたら窓を閉じる。
+// 空の欄は書かない（kisui の既定になる）。「Save」「Remove」で呼んだ側が config.local.toml に書き、書けたら Dialog を閉じる。
 // 書けなければ理由（kisui の確かめと同じキーと理由）を出して、直して保存し直せるようにする。決まりは features/db/connectionForm.ts。
 import { isComposingKey } from "../../../features/commands/ime.ts";
 import { T } from "../../../i18n/index.ts";
@@ -31,7 +31,7 @@ const TLS_LABEL = {
 type TextKey = "name" | "host" | "port" | "user" | "database" | "tlsCa";
 
 /**
- * 足す・直す・消す窓。onSubmit は「Save」「Remove」と Enter で呼ぶ（入れた字をそのまま渡す。確かめるのは殻）。
+ * 足す・直す・消す Dialog。onSubmit は「Save」「Remove」と Enter で呼ぶ（入れた字をそのまま渡す。確かめるのは殻）。
  * busy の間（書いている最中）は入力とボタンを止める。onCancel は「Cancel」と Esc で呼ぶ。
  */
 export function DbConnectionEditor(props: {
@@ -39,7 +39,7 @@ export function DbConnectionEditor(props: {
   onSubmit: (fields: DbConnectionFields) => void;
   onCancel: () => void;
 }): JSX.Element {
-  // 窓は開くたびに作り直すので、初めの値は 1 回だけ読む
+  // Dialog は開くたびに作り直すので、初めの値は 1 回だけ読む
   const [fields, setFields] = createSignal<DbConnectionFields>({
     ...props.form.fields,
   });

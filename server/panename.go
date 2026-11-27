@@ -92,8 +92,8 @@ func (m *termManager) find(target string) (*terminal, error) {
 
 // paneList は kisui pane list。この serve のターミナル（どのワークスペースのものでも）のうち、caller のペインから届くもの
 // （panereach.go。自分と、自分が作ったペインの先。設定で広げていれば全部）を、ワークスペースを作った順に、
-// それぞれのプライマリターミナルを先にして返す。self は頼んだターミナル。窓のワークスペース（Workspace・WorkspaceName）は、
-// 窓が最後に知らせたもの（gws.go。窓が閉じていても出す。知らされていなければ空）。
+// それぞれのプライマリターミナルを先にして返す。self は頼んだターミナル。Window のワークスペース（Workspace・WorkspaceName）は、
+// Window が最後に知らせたもの（gws.go。Window が閉じていても出す。知らされていなければ空）。
 func (s *Server) paneList(caller paneOrigin, self string) []panecmd.PaneInfo {
 	type tab struct {
 		seq  int

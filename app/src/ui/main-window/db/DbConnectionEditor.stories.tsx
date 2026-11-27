@@ -1,4 +1,4 @@
-// この PC の DB の接続を足す・直す・消す窓（DbConnectionEditor.tsx。接続を選ぶ窓の a・e・d）を、アプリと同じ部品・CSS・字・翻訳で出す。
+// この PC の DB の接続を足す・直す・消す Dialog（DbConnectionEditor.tsx。接続を選ぶ Dialog の a・e・d）を、アプリと同じ部品・CSS・字・翻訳で出す。
 // 操作は Storybook の Actions に出る。
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
 import { fn } from "storybook/test";

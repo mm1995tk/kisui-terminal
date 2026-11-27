@@ -46,7 +46,7 @@ describe("場所のキーの表は、使うときの言語で出る", () => {
         placeKeys().machines.lead,
         "リーダーの m で開くマシンのダイアログの中だけで効くキーです。",
       );
-      // 操作の名前は、日本語の窓でも英語のまま
+      // 操作の名前は、日本語の Dialog でも英語のまま
       assert.equal(placeKeys().machines.title, "Machine dialog");
     } finally {
       setLang("en");
@@ -63,7 +63,7 @@ describe("場所のキーの表は、その場所の判定と合っている", (
         assert.notEqual(treeKey(closedDir, ev(p)), null, `${r.keys}: ${p}`);
   });
 
-  it("変更一覧：表のキーは、どれも判定が受ける", () => {
+  it("CHANGES：表のキーは、どれも判定が受ける", () => {
     const dir = { kind: "dir", expanded: false } as const;
     for (const r of placeKeys().changes.rows)
       for (const p of r.probes)
@@ -88,13 +88,13 @@ describe("場所のキーの表は、その場所の判定と合っている", (
         assert.notEqual(machineKey(ev(p)), null, `${r.keys}: ${p}`);
   });
 
-  it("一覧から選ぶ窓：表のキーは、どれも判定が受ける", () => {
+  it("一覧から選ぶ Dialog：表のキーは、どれも判定が受ける", () => {
     for (const r of placeKeys().picker.rows)
       for (const p of r.probes)
         assert.notEqual(pickerKey(ev(p)), null, `${r.keys}: ${p}`);
   });
 
-  it("DB の接続を選ぶ窓：表のキーは、どれも判定が受ける", () => {
+  it("DB の接続を選ぶ Dialog：表のキーは、どれも判定が受ける", () => {
     for (const r of placeKeys().dbPicker.rows)
       for (const p of r.probes)
         assert.notEqual(dbPickerKey(ev(p)), null, `${r.keys}: ${p}`);
@@ -158,13 +158,13 @@ describe("場所のキーの表は、その場所の判定と合っている", (
           assert.notEqual(proxyEditKey(ev(p), mac), null, `${r.keys}: ${p}`);
   });
 
-  it("DB のタブの履歴の窓（#349）：表のキーは、絞り込みが空のとき、どれも判定が受ける", () => {
+  it("DB のタブの履歴の Dialog（#349）：表のキーは、絞り込みが空のとき、どれも判定が受ける", () => {
     for (const r of placeKeys().dbHistory.rows)
       for (const p of r.probes)
         assert.notEqual(dbHistoryKey(ev(p), true), null, `${r.keys}: ${p}`);
   });
 
-  it("窓の表には、`?`（キーの一覧）と Esc の行がある", () => {
+  it("Dialog の表には、`?`（キーの一覧）と Esc の行がある", () => {
     for (const [place, t] of Object.entries(placeKeys()))
       if (isWindowPlace(place as Place)) {
         assert.ok(
@@ -178,7 +178,7 @@ describe("場所のキーの表は、その場所の判定と合っている", (
       }
   });
 
-  it("`?` は、ファイルツリー・変更一覧・動画・画像のどれでも一覧を出す", () => {
+  it("`?` は、ファイルツリー・CHANGES・動画・画像のどれでも一覧を出す", () => {
     const f = ev("?", { shiftKey: true });
     assert.deepEqual(treeKey({ dir: false, expanded: false }, f), {
       kind: "help",
@@ -262,8 +262,8 @@ describe("listStep（ダイアログの一覧の Ctrl+J / Ctrl+K）", () => {
   });
 });
 
-describe("isWindowPlace（`?` の一覧に、その窓のキーだけを出す場所）", () => {
-  it("真ん中に出す窓は窓の場所、ペインの場所（リーダーが効く）は違う", () => {
+describe("isWindowPlace（`?` の一覧に、その Dialog のキーだけを出す場所）", () => {
+  it("真ん中に出す Dialog は Dialog の場所、ペインの場所（リーダーが効く）は違う", () => {
     for (const p of [
       "machines",
       "bookmarks",
@@ -281,7 +281,7 @@ describe("isWindowPlace（`?` の一覧に、その窓のキーだけを出す�
   });
 });
 
-describe("basicHints（窓の下の段の基本操作）", () => {
+describe("basicHints（Dialog の Key footer の基本操作）", () => {
   const keys = (o: Parameters<typeof basicHints>[0]) =>
     basicHints(o).map((h) => h.keys.join(" "));
 
@@ -296,7 +296,7 @@ describe("basicHints（窓の下の段の基本操作）", () => {
     );
   });
 
-  it("決めるものが無い窓は Enter を出さず、`?` が効かない間は `?` を出さない", () => {
+  it("決めるものが無い Dialog は Enter を出さず、`?` が効かない間は `?` を出さない", () => {
     assert.deepEqual(keys({ end: "close" }), ["j k", "?", "Esc"]);
     assert.deepEqual(keys({ decide: "開く", help: false, end: "close" }), [
       "j k",
@@ -305,7 +305,7 @@ describe("basicHints（窓の下の段の基本操作）", () => {
     ]);
   });
 
-  it("入力欄に字を打つ窓は、選ぶキーに ↓ ↑ を渡す", () => {
+  it("入力欄に字を打つ Dialog は、選ぶキーに ↓ ↑ を渡す", () => {
     assert.deepEqual(keys({ select: ["↓", "↑"], end: "close" })[0], "↓ ↑");
   });
 
@@ -359,12 +359,12 @@ describe("placeOf", () => {
   });
 });
 
-describe("pickOnlyRows（選ぶだけの小さな窓の下の段。#489）", () => {
-  it("見出しだけの 1 行を返す（下の段はいつも出す）", () => {
+describe("pickOnlyRows（選ぶだけの小さな Dialog の Key footer。#489）", () => {
+  it("見出しだけの 1 行を返す（Key footer はいつも出す）", () => {
     assert.deepEqual(pickOnlyRows("Mascot"), [{ title: "Mascot", items: [] }]);
   });
 
-  it("選ぶ窓の表（picker）のキーは、どの窓でも同じキーか、その別のキー（g G Home End・Ctrl+J / Ctrl+K）だけ。だから下の段には操作が無い", () => {
+  it("選ぶ Dialog の表（picker）のキーは、どの Dialog でも同じキーか、その別のキー（g G Home End・Ctrl+J / Ctrl+K）だけ。だから Key footer には操作が無い", () => {
     // probes が空の行（Ctrl+J / Ctrl+K・Esc）も見るので、行の書き方（keys）で比べる
     const same = new Set([
       "j k / ↓ ↑",

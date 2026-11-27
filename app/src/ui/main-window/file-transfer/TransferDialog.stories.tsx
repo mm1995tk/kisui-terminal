@@ -1,5 +1,5 @@
-// 組み合わせの例：ファイルの転送を許すかを聞く窓（TransferDialog.tsx）を、アプリと同じ部品・CSS・字・翻訳で出す。
-// 窓の枠（ModalCard、focusSelf）・本文・一覧（.transfer-list）・許さないと主ボタン（Button）の組み合わせ。
+// 組み合わせの例：ファイルの転送を許すかを聞く Dialog（TransferDialog.tsx）を、アプリと同じ部品・CSS・字・翻訳で出す。
+// Dialog の枠（ModalCard、focusSelf）・本文・一覧（.transfer-list）・許さないと主ボタン（Button）の組み合わせ。
 // 聞く仕組みは本物（features/file-transfer/transferPrompt.ts の askTransfer）で、聞く中身だけが見本のデータ。
 import { onCleanup } from "solid-js";
 import type { Meta, StoryObj } from "storybook-solidjs-vite";

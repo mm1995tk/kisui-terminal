@@ -1,5 +1,5 @@
-// クリップボードの履歴の一覧の中身（#54）。メインウィンドウの履歴の窓（ui/main-window/clipboard/ClipboardHistoryDialog.tsx）と、
-// kisui-terminal の外から開く小さな窓（ui/utilities/clipboard/page.tsx。#95）の両方が使う。
+// クリップボードの履歴の一覧の中身（#54）。メインウィンドウの履歴の Dialog（ui/main-window/clipboard/ClipboardHistoryDialog.tsx）と、
+// kisui-terminal の外から開く小さな Window（ui/utilities/clipboard/page.tsx。#95）の両方が使う。
 // 履歴を持つのは Tauri の側（clipboard_history.rs）。ここは出すたびに読み（props.list）、選ばせる。
 import { T } from "../../../i18n/index.ts";
 import {
@@ -38,11 +38,11 @@ import { KeyHints } from "../../components/KeyHints.tsx";
 const COPIED_MS = 600;
 
 /**
- * 履歴の一覧の中身（見出し・絞り込み・一覧・下の段の基本操作のヒント）。出すたびに履歴を読む。
- * onPaste が無ければ貼れない（Enter はクリップボードに戻す）。窓を閉じるのは、onPaste・onClose を渡した側。
+ * 履歴の一覧の中身（見出し・絞り込み・一覧・Key footer の基本操作のヒント）。出すたびに履歴を読む。
+ * onPaste が無ければ貼れない（Enter はクリップボードに戻す）。Dialog を閉じるのは、onPaste・onClose を渡した側。
  * onPutBack はクリップボードに書くだけで、書けたかを返す。書けたら「コピーしました」を COPIED_MS だけ出してから onClose を呼ぶ。
- * outside は kisui-terminal の外から開いた窓（貼る操作は無い）。
- * onHelp を渡すと、絞り込みが空のときの `?` で呼ぶ（キーの一覧を出すのは渡した側）。渡さなければ `?` は入力欄に入る字で、下の段にも出さない。
+ * outside は kisui-terminal の外から開いた Dialog（貼る操作は無い）。
+ * onHelp を渡すと、絞り込みが空のときの `?` で呼ぶ（キーの一覧を出すのは渡した側）。渡さなければ `?` は入力欄に入る字で、Key footer にも出さない。
  */
 export function HistoryPanel(props: {
   /** 履歴を読む（出すたびに 1 回） */
@@ -102,7 +102,7 @@ export function HistoryPanel(props: {
     else void putBack();
   }
 
-  /** `?` が今効くか（キーの一覧を出せる窓で、絞り込みが空の間だけ） */
+  /** `?` が今効くか（キーの一覧を出せる Dialog で、絞り込みが空の間だけ） */
   const helpOn = () => !!props.onHelp && query() === "";
 
   function onKeyDown(e: KeyboardEvent) {
@@ -160,10 +160,10 @@ export function HistoryPanel(props: {
           listRef={(el) => (list = el)}
         />
       </Show>
-      {/* 下の段（共通フッタ）。クリップボードに戻したら、ヒントの代わりに「コピーしました」を出す。
+      {/* Key footer（共通フッタ）。クリップボードに戻したら、ヒントの代わりに「コピーしました」を出す。
           知らせ（role="status"）にするのは「コピーしました」だけ（ヒントは、字を打つたびに `?` が出入りするので、読み上げさせない）。
           知らせの入れ物はいつも置いておき、コピーしたときに中の文だけを入れる（入れ物ごと後から足すと、読み上げのソフトが読まないことがある）。
-          空の間は高さが無い。下の段の並びの間（gap）が空の入れ物の分だけ空かないよう、ヒントと 1 つの塊にする */}
+          空の間は高さが無い。Key footer の並びの間（gap）が空の入れ物の分だけ空かないよう、ヒントと 1 つの塊にする */}
       <CardFooter>
         <div>
           <CardText class="history-copied" role="status">

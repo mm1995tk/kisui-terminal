@@ -184,7 +184,7 @@ fn walk_chrome(node: &serde_json::Value, depth: usize, count: &mut usize) -> Opt
     }
 }
 
-/// Chrome のブックマークを読めなかった理由（#265）。ファイルが無いのは理由にしない（Chrome が入っていない環境で、お知らせを出さない）。
+/// Chrome のブックマークを読めなかった理由（#265）。ファイルが無いのは理由にしない（Chrome が入っていない環境で、Notice を出さない）。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ChromeProblem {

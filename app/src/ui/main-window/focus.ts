@@ -1,7 +1,7 @@
 // メインウィンドウの中で、キーの行き先を移す（表示用の状態）。
 // - 今使っているペイン（ターミナル。内蔵ブラウザのタブを出していればそのページ、DB のタブなら SQL の入力欄）へ。
 // - サイドバーのファイルツリー・CHANGES へ（shj の Space e・Space E。閉じているサイドバーは先に開く）。
-// - 内蔵ブラウザのページにキーがあるときに押したリーダー・近道のあと、ページへ戻す。
+// - 内蔵ブラウザのページにキーがあるときに押したリーダー・Shortcut のあと、ページへ戻す。
 // 向ける先の要素は、描いた部品（TerminalGrid・BrowserArea・UrlBar・FindBar）が渡す関数で受け取る。
 import { createEffect, on, onCleanup, untrack, type Accessor } from "solid-js";
 
@@ -171,7 +171,7 @@ export function createFocus(deps: {
   }
 
   /**
-   * ページにキーがあるときにリーダーか近道を押した（殻がキーをこの画面に移してから届く）。そのときの画面のキーの行き先。
+   * ページにキーがあるときにリーダーか Shortcut を押した（殻がキーをこの画面に移してから届く）。そのときの画面のキーの行き先。
    * 押した操作が終わって（リーダーなら出て）も、キーの行き先がそのままなら、ページにキーを戻す
    */
   let pageReturn: Element | null | undefined;
@@ -255,7 +255,7 @@ export function createFocus(deps: {
       focusInSidebar(() =>
         els.nav?.querySelector<HTMLElement>('[data-place="dbTree"]'),
       ),
-    /** URL バー（新しいタブのページなら検索窓）にキーを向ける関数を受け取る（UrlBar・NewTabPage） */
+    /** URL バー（新しいタブのページなら検索欄）にキーを向ける関数を受け取る（UrlBar・NewTabPage） */
     setUrlBarFocus(f: () => void) {
       focusUrlBar = f;
     },

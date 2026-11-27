@@ -1031,7 +1031,7 @@ describe("hiddenGws（行に出ないワークスペース）", () => {
   });
 });
 
-describe("addEmptyWorkspace（切り替える窓の n。#330）", () => {
+describe("addEmptyWorkspace（Workspace switcher の n。#330）", () => {
   it("タブの無いワークスペースを、並びの一番下に足す", () => {
     let s = addWorkspace(EMPTY_GWS, "local", "w1", "", "g1");
     s = addEmptyWorkspace(s, "", "g2");

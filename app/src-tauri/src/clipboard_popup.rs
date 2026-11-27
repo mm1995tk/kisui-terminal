@@ -1,16 +1,16 @@
-//! クリップボードの履歴を、kisui-terminal の外から開く小さな窓（#95）。
+//! クリップボードの履歴を、kisui-terminal の外から開く小さな Window（#95）。
 //!
-//! どのアプリを使っていても、全体のキー（Mac は Option+Space、Linux は Alt+Space）でこの窓を前に出す。1 件を選ぶと
-//! その文字を OS のクリップボードに戻し、「コピーしました」を少し見せてから窓を隠す（前に使っていたアプリに戻る）。貼るのはユーザー（Cmd+V・Ctrl+V）で、
+//! どのアプリを使っていても、全体のキー（Mac は Option+Space、Linux は Alt+Space）でこの Window を前に出す。1 件を選ぶと
+//! その文字を OS のクリップボードに戻し、「コピーしました」を少し見せてから Window を隠す（前に使っていたアプリに戻る）。貼るのはユーザー（Cmd+V・Ctrl+V）で、
 //! ここからは貼る操作を送らない（macOS のアクセシビリティの許可を要らないようにするため）。Esc は何もせずに隠す。
 //!
-//! - 窓はメイン窓とは別の窓（ラベル `LABEL`）。中身はメイン窓と同じ画面（index.html）で、画面側は窓のラベルを見て
+//! - Window はメイン Window とは別の Window（ラベル `LABEL`）。中身はメイン Window と同じ画面（index.html）で、画面側は Window のラベルを見て
 //!   履歴だけを出す（app/src/ui/utilities/clipboard/page.tsx）。初めて開くときに作り、閉じても隠すだけで、次はそれを出し直す。
-//! - macOS では、窓を NSPanel（NonactivatingPanel）にする（#196）。アプリを前に出さずにキーの窓になれるので、
+//! - macOS では、Window を NSPanel（NonactivatingPanel）にする（#196）。アプリを前に出さずにキーの Window になれるので、
 //!   全画面のアプリの Space から離れずにその上に出て（collectionBehavior の FullScreenAuxiliary と、高い window level）、
-//!   メイン窓も前に出ない。前のアプリは前にいたまま（こちらはアプリを前に出していない）なので、隠すだけで戻る。
-//!   Linux も窓を隠すだけ（ウィンドウマネージャーが前の窓にフォーカスを戻す）。
-//! - 窓からフォーカスが外れたら（ほかのアプリを押したなど）、隠す。
+//!   メイン Window も前に出ない。前のアプリは前にいたまま（こちらはアプリを前に出していない）なので、隠すだけで戻る。
+//!   Linux も Window を隠すだけ（ウィンドウマネージャーが前の Window にフォーカスを戻す）。
+//! - Window からフォーカスが外れたら（ほかのアプリを押したなど）、隠す。
 //! - 全体のキーを取れなくても、kisui-terminal はそのまま動く。ウィンドウマネージャーが先に取っているときは標準エラーに
 //!   書く。X11 につながらないとき（X の無い Wayland など）は何も出ない（global-hotkey は X11 につなげないと黙って
 //!   何もせず、登録は成功を返す）。
@@ -26,15 +26,15 @@ use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut,
 
 use crate::clipboard_history::ClipboardHistory;
 
-/// 窓のラベル（画面側の app/src/features/clipboard/history.ts の POPUP_LABEL・capabilities/clipboard-history.json と同じ）。
+/// Window のラベル（画面側の app/src/features/clipboard/history.ts の POPUP_LABEL・capabilities/clipboard-history.json と同じ）。
 pub const LABEL: &str = "clipboard-history";
-/// 窓を出し直したことを、窓の画面に知らせるイベント（画面は一覧を読み直し、絞り込みを空にする）。
+/// Window を出し直したことを、Window の画面に知らせるイベント（画面は一覧を読み直し、絞り込みを空にする）。
 const EVENT_SHOWN: &str = "clipboard-history-shown";
-/// 窓の大きさ（論理ピクセル）。
+/// Window の大きさ（論理ピクセル）。
 const WIDTH: f64 = 560.0;
 const HEIGHT: f64 = 440.0;
 
-/// 窓の状態。
+/// Window の状態。
 #[derive(Default)]
 pub struct Popup {
     inner: Mutex<Inner>,
@@ -42,7 +42,7 @@ pub struct Popup {
 
 #[derive(Default)]
 struct Inner {
-    /// 出してから、窓にフォーカスが来たか（来る前のフォーカスの外れでは隠さない）
+    /// 出してから、Window にフォーカスが来たか（来る前のフォーカスの外れでは隠さない）
     focused: bool,
 }
 
@@ -51,22 +51,22 @@ impl Popup {
         self.inner.lock().unwrap_or_else(|e| e.into_inner())
     }
 
-    /// 窓を出した。まだフォーカスは来ていないことにする。
+    /// Window を出した。まだフォーカスは来ていないことにする。
     fn opened(&self) {
         self.lock().focused = false;
     }
 
-    /// 窓にフォーカスが来た。
+    /// Window にフォーカスが来た。
     fn focused(&self) {
         self.lock().focused = true;
     }
 
-    /// 出してから、窓にフォーカスが来たか。
+    /// 出してから、Window にフォーカスが来たか。
     fn was_focused(&self) -> bool {
         self.lock().focused
     }
 
-    /// 窓を隠した。
+    /// Window を隠した。
     fn closed(&self) {
         self.lock().focused = false;
     }
@@ -77,7 +77,7 @@ fn shortcut() -> Shortcut {
     Shortcut::new(Some(Modifiers::ALT), Code::Space)
 }
 
-/// 窓の状態を `app` に持たせ、全体のキーを取る。登録が失敗したとき（ウィンドウマネージャーが先に
+/// Window の状態を `app` に持たせ、全体のキーを取る。登録が失敗したとき（ウィンドウマネージャーが先に
 /// 取っているなど）は標準エラーに書くだけ。
 pub fn start(app: &AppHandle) {
     app.manage(Popup::default());
@@ -94,7 +94,7 @@ pub fn start(app: &AppHandle) {
     }
 }
 
-/// 窓を出す（無ければ作る）。メインスレッドで呼ぶ。
+/// Window を出す（無ければ作る）。メインスレッドで呼ぶ。
 fn show(app: &AppHandle) {
     let w = match app.get_webview_window(LABEL) {
         Some(w) => w,
@@ -116,18 +116,18 @@ fn show(app: &AppHandle) {
     platform::focus(&w);
 }
 
-/// 窓を作る（隠したまま）。
+/// Window を作る（隠したまま）。
 fn create(app: &AppHandle) -> tauri::Result<WebviewWindow> {
     let w = WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App("index.html".into()))
         .title("クリップボードの履歴")
         .inner_size(WIDTH, HEIGHT)
         .resizable(false)
         .decorations(false)
-        // 角を丸く見せるため、窓は透明にして、画面側のカードが角を丸める（macOS は macOSPrivateApi が要る）
+        // 角を丸く見せるため、Window は透明にして、画面側のカードが角を丸める（macOS は macOSPrivateApi が要る）
         .transparent(true)
         .always_on_top(true)
         .skip_taskbar(true)
-        // macOS：今いるデスクトップ（Space）に出す（メイン窓のあるデスクトップに移らない）
+        // macOS：今いるデスクトップ（Space）に出す（メイン Window のあるデスクトップに移らない）
         .visible_on_all_workspaces(true)
         // 内蔵ブラウザのために tauri の feature `devtools` を入れている（#205）。kisui-terminal の画面では、release では使わせない
         .devtools(cfg!(debug_assertions))
@@ -156,7 +156,7 @@ fn create(app: &AppHandle) -> tauri::Result<WebviewWindow> {
     Ok(w)
 }
 
-/// 窓を隠す。前に使っていたアプリへは、隠すだけで戻る（理由は `platform` の各 mod を参照）。
+/// Window を隠す。前に使っていたアプリへは、隠すだけで戻る（理由は `platform` の各 mod を参照）。
 fn hide(app: &AppHandle) {
     app.state::<Popup>().closed();
     let Some(w) = app.get_webview_window(LABEL) else {
@@ -167,7 +167,7 @@ fn hide(app: &AppHandle) {
     });
 }
 
-/// 窓を、マウスのある画面の、真ん中より少し上に置く。画面が分からなければ、今の画面の真ん中。
+/// Window を、マウスのある画面の、真ん中より少し上に置く。画面が分からなければ、今の画面の真ん中。
 fn place(w: &WebviewWindow) {
     let monitor = w
         .cursor_position()
@@ -185,8 +185,8 @@ fn place(w: &WebviewWindow) {
     let _ = w.set_position(Position::Physical(pos));
 }
 
-/// 画面（左上 `origin`・大きさ `screen`）の中で、`win` の大きさの窓を横は真ん中、縦は上から 1/3 の所に置く位置。
-/// 窓が画面より大きければ、画面の左上に合わせる。
+/// 画面（左上 `origin`・大きさ `screen`）の中で、`win` の大きさの Window を横は真ん中、縦は上から 1/3 の所に置く位置。
+/// Window が画面より大きければ、画面の左上に合わせる。
 fn upper_center(
     origin: PhysicalPosition<i32>,
     screen: PhysicalSize<u32>,
@@ -204,7 +204,7 @@ fn upper_center(
     )
 }
 
-/// 呼んだ webview が、この窓か。
+/// 呼んだ webview が、この Window か。
 fn from_popup(w: &Webview) -> Result<(), String> {
     if w.label() == LABEL {
         Ok(())
@@ -213,8 +213,8 @@ fn from_popup(w: &Webview) -> Result<(), String> {
     }
 }
 
-/// 選んだ文字をクリップボードに戻す。窓は隠さない（画面が「コピーしました」を見せてから `clipboard_popup_dismiss` で隠す）。
-/// この窓の画面からだけ呼べる。戻せるのは履歴にある文字だけ。
+/// 選んだ文字をクリップボードに戻す。Window は隠さない（画面が「コピーしました」を見せてから `clipboard_popup_dismiss` で隠す）。
+/// この Window の画面からだけ呼べる。戻せるのは履歴にある文字だけ。
 #[tauri::command]
 pub fn clipboard_popup_copy(
     webview: Webview,
@@ -229,7 +229,7 @@ pub fn clipboard_popup_copy(
     app.clipboard().write_text(text).map_err(|e| e.to_string())
 }
 
-/// 窓を隠す（Esc・✕・戻したあと）。この窓の画面からだけ呼べる。
+/// Window を隠す（Esc・✕・戻したあと）。この Window の画面からだけ呼べる。
 #[tauri::command]
 pub fn clipboard_popup_dismiss(webview: Webview, app: AppHandle) -> Result<(), String> {
     from_popup(&webview)?;
@@ -237,14 +237,14 @@ pub fn clipboard_popup_dismiss(webview: Webview, app: AppHandle) -> Result<(), S
     Ok(())
 }
 
-/// メイン窓が閉じたら、この窓も閉じる（隠れたこの窓が残って、アプリが終わらなくなるのを避ける）。
+/// メイン Window が閉じたら、この Window も閉じる（隠れたこの Window が残って、アプリが終わらなくなるのを避ける）。
 pub fn close(app: &AppHandle) {
     if let Some(w) = app.get_webview_window(LABEL) {
         let _ = w.destroy();
     }
 }
 
-/// macOS：窓を NSPanel（NonactivatingPanel）にして、アプリを前に出さずにキーの窓にする。
+/// macOS：Window を NSPanel（NonactivatingPanel）にして、アプリを前に出さずにキーの Window にする。
 #[cfg(target_os = "macos")]
 mod platform {
     use std::sync::OnceLock;
@@ -260,7 +260,7 @@ mod platform {
         Bool::YES
     }
 
-    /// NSPanel の子クラス。NonactivatingPanel の窓は、アプリが前にいなくてもキーの窓になれるように
+    /// NSPanel の子クラス。NonactivatingPanel の Window は、アプリが前にいなくてもキーの Window になれるように
     /// `canBecomeKeyWindow` を真にする。
     fn panel_class() -> &'static AnyClass {
         static CLASS: OnceLock<&'static AnyClass> = OnceLock::new();
@@ -278,18 +278,18 @@ mod platform {
         })
     }
 
-    /// 窓を NSPanel（NonactivatingPanel）に替え、全画面のアプリの上にも出せるようにする（#196）。
+    /// Window を NSPanel（NonactivatingPanel）に替え、全画面のアプリの上にも出せるようにする（#196）。
     /// tauri（tao）が作るのは NSWindow なので、実行時に NSPanel の子クラスへ替える。メインスレッドで呼ぶ。
     ///
-    /// - `NonactivatingPanel`：キーの窓になってもアプリを前に出さない（Space が切り替わらず、メイン窓も出ない）。
+    /// - `NonactivatingPanel`：キーの Window になってもアプリを前に出さない（Space が切り替わらず、メイン Window も出ない）。
     /// - `FullScreenAuxiliary`・`CanJoinAllSpaces`：全画面のアプリの Space に同席できる。
-    /// - level を全画面のアプリの窓より上（NSStatusWindowLevel）に、`hidesOnDeactivate` は切る（パネルは既定で、
+    /// - level を全画面のアプリの Window より上（NSStatusWindowLevel）に、`hidesOnDeactivate` は切る（パネルは既定で、
     ///   アプリが前にいないと隠れる）。
     pub fn make_panel(w: &WebviewWindow) {
         let Ok(ptr) = w.ns_window() else { return };
-        // SAFETY: ns_window は、この窓の生きている NSWindow を指す。メインスレッドで使う。tao が作る窓のクラスは
+        // SAFETY: ns_window は、この Window の生きている NSWindow を指す。メインスレッドで使う。tao が作る Window のクラスは
         // NSWindow の子クラス `TaoWindow` で、替えると `TaoWindow` の ivar `focusable` と `sendEvent:` の上書きを失う。
-        // この窓には tao の `set_focusable` を呼ばないこと（ivar が無く panic する）。NSPanel は NSWindow に ivar を足さない
+        // この Window には tao の `set_focusable` を呼ばないこと（ivar が無く panic する）。NSPanel は NSWindow に ivar を足さない
         // ので、替えたあとの大きさは確保済みの大きさを超えない（下の debug_assert で確かめる）
         unsafe {
             debug_assert!(
@@ -310,18 +310,18 @@ mod platform {
         }
     }
 
-    /// 窓をキーの窓にする。アプリは前に出さない（前に出すと、全画面のアプリの Space から窓のある Space へ
+    /// Window をキーの Window にする。アプリは前に出さない（前に出すと、全画面のアプリの Space から Window のある Space へ
     /// 切り替わる）。メインスレッドで呼ぶ。
     pub fn focus(w: &WebviewWindow) {
         if let Ok(ptr) = w.ns_window() {
-            // SAFETY: ns_window は、この窓の生きている NSWindow を指す。メインスレッドで使う
+            // SAFETY: ns_window は、この Window の生きている NSWindow を指す。メインスレッドで使う
             let win: &NSWindow = unsafe { &*ptr.cast::<NSWindow>() };
             win.makeKeyAndOrderFront(None);
         }
     }
 }
 
-/// Linux など：窓を隠すと、ウィンドウマネージャーが前の窓にフォーカスを戻す。
+/// Linux など：Window を隠すと、ウィンドウマネージャーが前の Window にフォーカスを戻す。
 #[cfg(not(target_os = "macos"))]
 mod platform {
     use tauri::WebviewWindow;

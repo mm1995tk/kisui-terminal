@@ -1,5 +1,5 @@
-// タブを移す先のワークスペースを選ぶ窓（TabMovePicker.tsx）を、アプリと同じ部品・CSS・字・翻訳で出す。
-// 下の段は、窓だけの操作が無いので、何を選ぶかの見出しだけ（#489）。行（Row）は見本のデータ。
+// タブを移す先のワークスペースを選ぶ Dialog（TabMovePicker.tsx）を、アプリと同じ部品・CSS・字・翻訳で出す。
+// Key footer は、Dialog だけの操作が無いので、何を選ぶかの見出しだけ（#489）。行（Row）は見本のデータ。
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
 import { fn } from "storybook/test";
 
@@ -66,5 +66,5 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** 開いたところ。移す先を j / k で選び、Enter で移す。下の段は「Workspace to move the tab to」の見出しだけ。 */
+/** 開いたところ。移す先を j / k で選び、Enter で移す。Key footer は「Workspace to move the tab to」の見出しだけ。 */
 export const Default: Story = {};

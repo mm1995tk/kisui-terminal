@@ -1,4 +1,4 @@
-// ワークスペースを切り替える窓（WorkspaceSwitcher.tsx）の右の列のタブの操作：名前を変える入力欄の状態と、閉じるときの選び直し。
+// Workspace switcher（WorkspaceSwitcher.tsx）の右の列のタブの操作：名前を変える入力欄の状態と、閉じるときの選び直し。
 import { createEffect, createSignal } from "solid-js";
 
 import type { Row, TabItem } from "../../../features/workspaces/rows.ts";
@@ -40,7 +40,7 @@ export function createSwitcherTabActions(args: {
   >();
   const stop = () => setEditing(undefined);
 
-  // 名前を変えているタブが、窓の外の理由（閉じた・移したなど）で右の列から消えたら、やめる
+  // 名前を変えているタブが、Workspace switcher の外の理由（閉じた・移したなど）で右の列から消えたら、やめる
   createEffect(() => {
     const e = editing();
     if (e && !args.tabs().some((t) => t.key === e.key)) stop();

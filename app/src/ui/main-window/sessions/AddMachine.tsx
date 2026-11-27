@@ -1,6 +1,6 @@
-// リモートを足す窓（左の一覧の一番下の「+ リモートを足す」と、マシンのダイアログ（リーダーの m）の a で出す）。
+// リモートを足す Dialog（左の一覧の一番下の「+ リモートを足す」と、マシンのダイアログ（リーダーの m）の a で出す）。
 // ssh の行き先は、~/.ssh/config のホストの候補から選ぶか、打って入れる（打った文字で候補を絞る）。
-// 名前は空なら ssh の行き先を使う。「足す」で ssh につなぎ、つながったら呼んだ側がマシンを保存して窓を閉じる。
+// 名前は空なら ssh の行き先を使う。「足す」で ssh につなぎ、つながったら呼んだ側がマシンを保存して Dialog を閉じる。
 // つないでいる最中は入力を止めて状態を出し、つなげなければ理由を出して、直して足し直せるようにする。
 import { isComposingKey } from "../../../features/commands/ime.ts";
 import { T } from "../../../i18n/index.ts";
@@ -25,7 +25,7 @@ import { Field, Input } from "../../components/Field.tsx";
 const optionId = (i: number) => `add-machine-option-${i}`;
 
 /**
- * リモートを足す窓。candidates は ~/.ssh/config のホストのうち、まだ足していないもの。
+ * リモートを足す Dialog。candidates は ~/.ssh/config のホストのうち、まだ足していないもの。
  * onSubmit は「足す」で呼ぶ（入れた行き先と名前をそのまま渡す。確かめるのは呼んだ側）。
  * busy の間（つないでいる最中）は入力と「足す」を止める。state はそのときの接続の状態。
  * error は直前に足せなかった理由。onCancel は「キャンセル」と Esc で呼ぶ。

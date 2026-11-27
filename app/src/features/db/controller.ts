@@ -11,7 +11,7 @@
 // - 選んだ既定のスキーマは、接続ごとに同じ KeyValueStore に覚える（#398。treeController.ts）。
 // - 結果のタブ（#404。結果・実行中の印・間違い）は、メモリだけに持つ（アプリを開き直したら残らない。もう一度実行する）。
 // - パスワードは、kisui serve が password_required を返したら画面で聞き、その要求に付けて送る。ログインが通ったものは、
-//   kisui serve が覚え（窓がつながっている間だけ）、窓も、閉じるまでメモリにだけ覚える（passwords.ts。localStorage などには
+//   kisui serve が覚え（Window がつながっている間だけ）、Window も、閉じるまでメモリにだけ覚える（passwords.ts。localStorage などには
 //   書かない）。つなぎ直したら、覚えているものを kisui serve に渡し直す（db.remember）。
 import { T } from "../../i18n/index.ts";
 import { createEffect, createMemo, createSignal, on, untrack } from "solid-js";
@@ -110,7 +110,7 @@ export type DbTabs = ReturnType<typeof createDbTabs>;
 
 export type { DbResultTab, DbRun, RunInto } from "./results.ts";
 
-/** 接続を選ぶ窓（ワークスペースの窓の、作るタブの種類の「DB」）に出すもの。 */
+/** 接続を選ぶ Dialog（Workspace switcher の、作るタブの種類の「DB」）に出すもの。 */
 export interface DbPicker {
   /** 開いたタブを足すワークスペース */
   gws: string;
@@ -121,7 +121,7 @@ export interface DbPicker {
   notes: string[];
 }
 
-/** パスワードを聞いている窓に出すもの。reason と passwordSource は kisui serve の password_required の data のまま。 */
+/** パスワードを聞いている Dialog に出すもの。reason と passwordSource は kisui serve の password_required の data のまま。 */
 export type DbPasswordAsk = {
   tab: string;
   connection: string;
@@ -188,7 +188,7 @@ export function createDbTabs(deps: {
   const runOf = (id: string): DbRun => runs()[id] ?? EMPTY_RUN;
   /** タブ id の結果の場所に出している結果のタブ（まだ実行していなければ undefined） */
   const shownOf = (id: string) => activeTab(untrack(runs)[id] ?? EMPTY_RUN);
-  /** 結果のタブの名前（窓の中で重ならない。テーブルの構造（structureController.ts）も、この名前ごとに持つ） */
+  /** 結果のタブの名前（Dialog の中で重ならない。テーブルの構造（structureController.ts）も、この名前ごとに持つ） */
   let resultTabs = 0;
   const newResultTabId = () => `r${++resultTabs}`;
   /** 結果のタブ tab を持つ DB のタブの id（無ければ undefined）。 */
@@ -244,7 +244,7 @@ export function createDbTabs(deps: {
     null,
   );
   let answer: ((p: string | null) => void) | undefined;
-  /** パスワードを聞く窓を出し、答え（やめたら null）を待つ。前に聞いていたものは、やめたことにする。 */
+  /** パスワードを聞く Dialog を出し、答え（やめたら null）を待つ。前に聞いていたものは、やめたことにする。 */
   function askPassword(
     ref: DbRef,
     reason: DbPasswordAsk["reason"],
@@ -262,7 +262,7 @@ export function createDbTabs(deps: {
       });
     });
   }
-  /** パスワードを聞く窓の答え（null はやめた）。refocus なら、キーを今のタブ（SQL の入力欄）に戻す。 */
+  /** パスワードを聞く Dialog の答え（null はやめた）。refocus なら、キーを今のタブ（SQL の入力欄）に戻す。 */
   function replyPassword(password: string | null, refocus = true) {
     const a = answer;
     answer = undefined;
@@ -285,7 +285,7 @@ export function createDbTabs(deps: {
   }
 
   // ---- 打って通ったパスワードを覚える（passwords.ts） ----
-  // 窓を閉じるまで、メモリにだけ持つ。kisui serve は、窓の接続が切れると覚えたものを忘れるので、つなぎ直したら渡し直す
+  // Window を閉じるまで、メモリにだけ持つ。kisui serve は、Window の接続が切れると覚えたものを忘れるので、つなぎ直したら渡し直す
   const passwords = new PasswordMemory();
   /** マシン target の kisui serve に db.remember を送る。 */
   const sendRemember =
@@ -324,7 +324,7 @@ export function createDbTabs(deps: {
 
   /**
    * タブ ref の接続に、DB の要求を送る。kisui serve が password_required を返したら、パスワードを聞いて、
-   * それを付けて送り直す（DB が断ったら、また聞く）。聞く窓をやめたら PasswordCancelled を投げる。
+   * それを付けて送り直す（DB が断ったら、また聞く）。聞く Dialog をやめたら PasswordCancelled を投げる。
    * 前に打って通ったパスワードを覚えていれば、聞かずに 1 度だけ、kisui serve に渡し直して送り直す（model.ts の withPassword）。
    * SQL の実行（run）が使う。スキーマの一覧（#348）のような、ほかの db.* の要求も、これで送れば同じ流れになる。
    */
@@ -471,7 +471,7 @@ export function createDbTabs(deps: {
 
   /**
    * 実行している間に押したページ送りの向き（タブ id → 押した順）。結果が来たら、1 つずつその向きに送る
-   * （DB のタブの窓の f f f が、読み込みの速さによらず 3 ページ進むように）。実行が失敗した・取り消した・端に着いたら捨てる。
+   * （DB のタブの Dialog の f f f が、読み込みの速さによらず 3 ページ進むように）。実行が失敗した・取り消した・端に着いたら捨てる。
    */
   const queuedSteps = new Map<string, readonly PageStep[]>();
 
@@ -777,20 +777,20 @@ export function createDbTabs(deps: {
     focusTerminal,
   });
 
-  // マシンとの接続が切れたら、そのマシンの頼みは取り下げとして扱う（聞く窓を残さない）
+  // マシンとの接続が切れたら、そのマシンの頼みは取り下げとして扱う（聞く Dialog を残さない）
   createEffect(
     on(states, (st) =>
       proposer.withdrawProposesWhere((t) => st[t]?.kind !== "connected"),
     ),
   );
 
-  // ---- 接続を選ぶ窓 ----
+  // ---- 接続を選ぶ Dialog ----
   const [picker, setPicker] = createSignal<DbPicker | null>(null);
   let pickerGen = 0;
 
   /**
-   * 接続を選ぶ窓を出す（ワークスペースの窓の、作るタブの種類（リーダーの n）の「DB」・サイドバーの「+」のメニューの「DB」）。選んだ接続のタブを、ワークスペース gid
-   * （省くと今のワークスペース）に足す。窓がつないでいる全部のマシンの kisui serve に一覧を聞き、答えた順に足していく。
+   * 接続を選ぶ Dialog を出す（Workspace switcher の、作るタブの種類（リーダーの n）の「DB」・サイドバーの「+」のメニューの「DB」）。選んだ接続のタブを、ワークスペース gid
+   * （省くと今のワークスペース）に足す。Window がつないでいる全部のマシンの kisui serve に一覧を聞き、答えた順に足していく。
    */
   function openPicker(gid?: string) {
     const g = gid ?? untrack(currentGws)?.id;
@@ -798,7 +798,7 @@ export function createDbTabs(deps: {
       cannot(T("cannot.db.title"), T("cannot.db.noWorkspace"));
       return;
     }
-    // 手元の PC の接続を、窓から直せるか（#486）。kisui serve の一覧と並べて読む
+    // 手元の PC の接続を、Dialog から直せるか（#486）。kisui serve の一覧と並べて読む
     void connections.loadLocal();
     const gen = ++pickerGen;
     const list: MachineConnections[] = [];
@@ -845,7 +845,7 @@ export function createDbTabs(deps: {
     show();
   }
 
-  // 接続を選ぶ窓から、手元の PC の接続を足す・直す・消す（#486。connectionController.ts）。書けたら一覧を聞き直す
+  // 接続を選ぶ Dialog から、手元の PC の接続を足す・直す・消す（#486。connectionController.ts）。書けたら一覧を聞き直す
   const connections = createDbConnections({
     config: deps.configDb,
     refresh: () => {
@@ -854,7 +854,7 @@ export function createDbTabs(deps: {
     },
   });
 
-  /** 接続を選ぶ窓で決めた：その接続の DB のタブを開いて出し、入力欄にキーを向ける。 */
+  /** 接続を選ぶ Dialog で決めた：その接続の DB のタブを開いて出し、入力欄にキーを向ける。 */
   function choose(c: DbChoice) {
     const p = untrack(picker);
     pickerGen++;
@@ -871,7 +871,7 @@ export function createDbTabs(deps: {
     deps.activateTab(p.gws, ref);
   }
 
-  /** 接続を選ぶ窓をやめる（キーを今のペインに戻す）。 */
+  /** 接続を選ぶ Dialog をやめる（キーを今のペインに戻す）。 */
   function closePicker() {
     pickerGen++;
     setPicker(null);
@@ -938,7 +938,7 @@ export function createDbTabs(deps: {
     ...tree,
     // テーブルの構造と、結果の場所の切り替え（#379。structureController.ts）。出している結果のタブのもの
     structureOf,
-    /** 結果のタブ tab の構造（テーブルに結び付いていなければ undefined）。出していない結果のタブのものも読める（DB のタブの窓。#458） */
+    /** 結果のタブ tab の構造（テーブルに結び付いていなければ undefined）。出していない結果のタブのものも読める（DB のタブの Dialog。#458） */
     resultStructureOf: (tab: string): DbStructureState | undefined =>
       structures.structureOf(tab),
     showView,
@@ -952,15 +952,15 @@ export function createDbTabs(deps: {
     ...proposer,
     /** 結果の表で選んだセルの文字をクリップボードに入れる（#372） */
     copyCells: (text: string) => void deps.copyToClipboard(text),
-    /** パスワードを聞いている窓（無ければ null） */
+    /** パスワードを聞いている Dialog（無ければ null） */
     passwordAsk,
     replyPassword: (password: string | null) => replyPassword(password),
-    /** 接続を選ぶ窓（出していなければ null） */
+    /** 接続を選ぶ Dialog（出していなければ null） */
     picker,
     openPicker,
     choose,
     closePicker,
-    // 接続を選ぶ窓から、手元の PC の接続を足す・直す・消す（#486）
+    // 接続を選ぶ Dialog から、手元の PC の接続を足す・直す・消す（#486）
     ...connections,
   };
 }

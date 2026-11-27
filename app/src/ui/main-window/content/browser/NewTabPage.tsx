@@ -1,6 +1,6 @@
-// 内蔵ブラウザの「新しいタブのページ」（#238）。ワークスペースの窓の、作るタブの種類（リーダーの n）の「ブラウザ」「シークレット」と、「+」のメニューの「ブラウザ」で開いたタブの、まだ何も開いていない間の中身。
-// 検索窓（打ったものは URL バーと同じ決まりで、URL なら開き、そうでなければ Google で探す。tabs.ts の urlOrSearch）と、ブックマークの一覧を出す。
-// webview は作らず、画面（DOM）が描く。出たら検索窓にキーがある。キーだけで使える：打つとブックマークを絞り込み、`↓` `↑`（Ctrl+J / Ctrl+K）で選び、
+// 内蔵ブラウザの「新しいタブのページ」（#238）。Workspace switcher の、作るタブの種類（リーダーの n）の「ブラウザ」「シークレット」と、「+」のメニューの「ブラウザ」で開いたタブの、まだ何も開いていない間の中身。
+// 検索欄（打ったものは URL バーと同じ決まりで、URL なら開き、そうでなければ Google で探す。tabs.ts の urlOrSearch）と、ブックマークの一覧を出す。
+// webview は作らず、画面（DOM）が描く。出たら検索欄にキーがある。キーだけで使える：打つとブックマークを絞り込み、`↓` `↑`（Ctrl+J / Ctrl+K）で選び、
 // `Enter` で選んだブックマークか打ったものを開く。ブックマークはマウスで押して開いてもよい。
 // 開くと、そのタブがそのページになる（features/browser/pages.ts の submitUrlBar）。
 import { T } from "../../../../i18n/index.ts";
@@ -77,7 +77,7 @@ function BookmarkTiles(props: {
                 aria-current={i() === props.selected}
                 aria-expanded={r.open}
                 style={{ "margin-left": `${r.depth * 16}px` }}
-                // 検索窓からキーを奪わない
+                // 検索欄からキーを奪わない
                 onMouseDown={(ev) => ev.preventDefault()}
                 onClick={() => props.onToggle(r.key)}
               >
@@ -92,7 +92,7 @@ function BookmarkTiles(props: {
                 class="newtab-tile"
                 aria-current={i() === props.selected}
                 title={r.bookmark.url}
-                // 検索窓からキーを奪わない（押すと開くので、すぐ別のページに替わる）
+                // 検索欄からキーを奪わない（押すと開くので、すぐ別のページに替わる）
                 onMouseDown={(ev) => ev.preventDefault()}
                 onClick={() => props.onOpen(r.bookmark.url)}
               >
@@ -125,15 +125,15 @@ export function NewTabPage(props: {
   /** Chrome のブックマークの木（#275。undefined は読み込み中） */
   chrome: readonly ChromeNode[] | undefined;
   failed: boolean;
-  /** 開く URL を渡す（検索窓に打ったものを直した URL か、ブックマークの URL） */
+  /** 開く URL を渡す（検索欄に打ったものを直した URL か、ブックマークの URL） */
   onOpen: (url: string) => void;
-  /** 検索窓にキーを向ける関数を受け取る（ブラウザのタブの窓の u） */
+  /** 検索欄にキーを向ける関数を受け取る（ブラウザのタブの Dialog の u） */
   focusRef: (focus: () => void) => void;
 }): JSX.Element {
   let input!: HTMLInputElement;
   const [query, setQuery] = createSignal("");
   const [invalid, setInvalid] = createSignal(false);
-  /** -1 は検索窓、0 以上は絞り込んだ一覧の番号 */
+  /** -1 は検索欄、0 以上は絞り込んだ一覧の番号 */
   const [sel, setSel] = createSignal(-1);
   /** 開け閉めを逆にしたフォルダ（根は最初から開き、その下は閉じている。bookmarkRows） */
   const [flipped, setFlipped] = createSignal<ReadonlySet<string>>(new Set());
@@ -148,7 +148,7 @@ export function NewTabPage(props: {
     setSel(-1);
   };
   props.focusRef(focus);
-  // 出たら検索窓にキーを向ける。リーダーが閉じるのと前後しても取られないよう、描いた後にもう一度向ける
+  // 出たら検索欄にキーを向ける。リーダーが閉じるのと前後しても取られないよう、描いた後にもう一度向ける
   queueMicrotask(() => input.focus());
   requestAnimationFrame(() => {
     if (
@@ -158,7 +158,7 @@ export function NewTabPage(props: {
       input.focus();
   });
 
-  /** 検索窓のキー。選びの移動・開く・打ったものを消す（Esc。キーは検索窓に残す。ページがまだ無いので、戻す先が無い）。 */
+  /** 検索欄のキー。選びの移動・開く・打ったものを消す（Esc。キーは検索欄に残す。ページがまだ無いので、戻す先が無い）。 */
   function onSearchKey(k: NewTabKey) {
     if (k.kind === "step")
       setSel(() => moveSelection(selected(), k.step, shown().length));

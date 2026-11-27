@@ -139,7 +139,7 @@ func TestHandoverKeepsShellsRunning(t *testing.T) {
 	if err := c.Call(ctx, "workspace.rename", map[string]any{"id": wsID, "name": "引き継ぎの名前"}, nil); err != nil {
 		t.Fatal(err)
 	}
-	if err := c.Call(ctx, "gws.set", map[string]any{"tabs": []map[string]any{{"workspaceId": wsID, "id": "gaaaaaaaaaa", "name": "窓の名前"}}}, nil); err != nil {
+	if err := c.Call(ctx, "gws.set", map[string]any{"tabs": []map[string]any{{"workspaceId": wsID, "id": "gaaaaaaaaaa", "name": "Window の名前"}}}, nil); err != nil {
 		t.Fatal(err)
 	}
 	wantLayout := listWS(t, c).Workspaces[0].Layout
@@ -176,7 +176,7 @@ func TestHandoverKeepsShellsRunning(t *testing.T) {
 	if err := c2.Call(ctx, "pane.run", map[string]any{"cmd": "list", "from": map[string]any{"pane": primary}}, &listed); err != nil {
 		t.Fatal(err)
 	}
-	if len(listed.Panes) == 0 || listed.Panes[0].Workspace != "gaaaaaaaaaa" || listed.Panes[0].WorkspaceName != "窓の名前" {
+	if len(listed.Panes) == 0 || listed.Panes[0].Workspace != "gaaaaaaaaaa" || listed.Panes[0].WorkspaceName != "Window の名前" {
 		t.Errorf("the workspace of the window after handover: %+v", listed.Panes)
 	}
 	if got := listWS(t, c2).Workspaces[0].Layout; !layoutEqual(got, wantLayout) {

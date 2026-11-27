@@ -1,15 +1,15 @@
-//! `SSH_ASKPASS` を GUI の窓で受ける。
+//! `SSH_ASKPASS` を GUI の Window で受ける。
 //!
 //! ssh は、パスワード・2 段階認証・ホスト鍵の確認が要るとき、環境変数 `SSH_ASKPASS` の指す実行ファイルを
 //! 質問の文を第 1 引数にして起動し、その標準出力を答えとして読む。ここではその実行ファイルを GUI 自身にする
-//! （`SHIJIMI_ASKPASS_SOCK` が付いて起動されたら、窓は開かず質問を GUI 本体へ中継して終わる）。
+//! （`SHIJIMI_ASKPASS_SOCK` が付いて起動されたら、Window は開かず質問を GUI 本体へ中継して終わる）。
 //!
 //! 中継は Unix ソケット（自分のユーザーだけが入れるフォルダの中）で、1 回ごとに 1 行の JSON を往復する。
 //! 質問の持ち主を確かめるため、接続ごとの使い捨ての合言葉（token）を付ける。
 //!
-//! 質問の文は、つなぎ先のサーバーが決められる（keyboard-interactive）。どのマシンへの接続の質問かを窓が
-//! 質問の文とは別に出せるよう、ssh を起こすときに決めた行き先（`SHIJIMI_ASKPASS_TARGET`）を質問に添えて窓へ渡す。
-//! 行き先の無い質問は、窓に出さずに断る。
+//! 質問の文は、つなぎ先のサーバーが決められる（keyboard-interactive）。どのマシンへの接続の質問かを Window が
+//! 質問の文とは別に出せるよう、ssh を起こすときに決めた行き先（`SHIJIMI_ASKPASS_TARGET`）を質問に添えて Window へ渡す。
+//! 行き先の無い質問は、Window に出さずに断る。
 
 use std::io::{BufRead, BufReader, Write};
 use std::os::unix::fs::DirBuilderExt;
@@ -28,7 +28,7 @@ pub const ENV_SOCK: &str = "SHIJIMI_ASKPASS_SOCK";
 pub const ENV_TOKEN: &str = "SHIJIMI_ASKPASS_TOKEN";
 /// どの接続の質問か（接続を閉じたとき待ちを取り消すため）。
 pub const ENV_CONN: &str = "SHIJIMI_ASKPASS_CONN";
-/// どのマシンへの接続の質問か（ssh の行き先。ssh を起こす側が付ける。窓が質問の文とは別に出す）。
+/// どのマシンへの接続の質問か（ssh の行き先。ssh を起こす側が付ける。Window が質問の文とは別に出す）。
 pub const ENV_TARGET: &str = "SHIJIMI_ASKPASS_TARGET";
 
 /// ユーザーが答えないまま待つ上限。過ぎたら取り消し扱いにする。
@@ -67,14 +67,14 @@ struct Pending {
     tx: Sender<Option<String>>,
 }
 
-/// GUI 本体の askpass の受け口。ssh の質問を窓に出し、答えを待つ。
+/// GUI 本体の askpass の受け口。ssh の質問を Window に出し、答えを待つ。
 pub struct AskpassServer {
     /// 待ち受けるソケット
     pub sock: PathBuf,
     /// 起動ごとの合言葉
     pub token: String,
     pending: Arc<Mutex<Vec<(u64, Pending)>>>,
-    /// 取り消された conn（「切る」）。この conn からの新しい質問は、窓に出さずにすぐ断る
+    /// 取り消された conn（「切る」）。この conn からの新しい質問は、Window に出さずにすぐ断る
     aborted: Mutex<std::collections::HashSet<String>>,
 }
 
@@ -192,13 +192,13 @@ impl AskpassServer {
         }
     }
 
-    /// 窓に出してよい質問か。合言葉が合い、取り消されていない接続の、行き先のある質問だけを出す
-    /// （行き先が無いと、どのマシンへの接続の質問かを窓が出せない）。
+    /// Window に出してよい質問か。合言葉が合い、取り消されていない接続の、行き先のある質問だけを出す
+    /// （行き先が無いと、どのマシンへの接続の質問かを Window が出せない）。
     fn accepts(&self, ask: &Ask) -> bool {
         ask.token == self.token && !ask.target.is_empty() && !self.is_aborted(&ask.conn)
     }
 
-    /// 窓で答えた（`None` は取り消し）。
+    /// Window で答えた（`None` は取り消し）。
     pub fn reply(&self, request_id: u64, value: Option<String>) {
         let mut p = self.pending.lock().unwrap();
         if let Some(pos) = p.iter().position(|(i, _)| *i == request_id) {
@@ -309,7 +309,7 @@ mod tests {
         let s = AskpassServer::for_test("secret");
         assert!(s.accepts(&ask("secret", "c1", "web1")));
         assert!(!s.accepts(&ask("other", "c1", "web1")));
-        // 行き先の無い質問は、どのマシンへの接続のものかを窓が出せないので断る
+        // 行き先の無い質問は、どのマシンへの接続のものかを Window が出せないので断る
         assert!(!s.accepts(&ask("secret", "c1", "")));
         s.abort_conn("c1");
         assert!(!s.accepts(&ask("secret", "c1", "web1")));
@@ -325,7 +325,7 @@ mod tests {
         assert!(!AskpassServer::for_test("secret").accepts(&a));
     }
 
-    /// 窓へ渡す知らせに、行き先が質問の文とは別の項目で入る。
+    /// Window へ渡す知らせに、行き先が質問の文とは別の項目で入る。
     #[test]
     fn the_event_carries_the_target_apart_from_the_prompt() {
         let v = serde_json::to_value(AskEvent {

@@ -43,7 +43,7 @@ func dbServer(t *testing.T, pw *db.Passwords, conns ...config.DBConnection) *rpc
 	return c
 }
 
-// dbResult は db.query の結果を、窓が読む形（JSON）のまま受けたもの。
+// dbResult は db.query の結果を、Window が読む形（JSON）のまま受けたもの。
 type dbResult struct {
 	Columns []struct {
 		Name string `json:"name"`
@@ -186,7 +186,7 @@ func TestDBFromConfigFile(t *testing.T) {
 	})
 }
 
-// パスワードがどこにも無ければ password_required。窓が渡したものが通れば覚え、次からは聞かない。
+// パスワードがどこにも無ければ password_required。Window が渡したものが通れば覚え、次からは聞かない。
 func TestDBPasswordFromWindow(t *testing.T) {
 	bothDB(t, func(t *testing.T, conn config.DBConnection) {
 		c := dbServer(t, nil, conn)
@@ -216,7 +216,7 @@ func TestDBPasswordFromWindow(t *testing.T) {
 }
 
 // キーチェーン・ファイルで見つけたパスワードが通れば、何も聞かない。それを DB が断ったら password_required（rejected）で、
-// 見つけた場所を返す。窓が聞いて渡したものが通れば覚え、次からは見つけたものより先に使う。
+// 見つけた場所を返す。Window が聞いて渡したものが通れば覚え、次からは見つけたものより先に使う。
 func TestDBPasswordFromMachine(t *testing.T) {
 	bothDB(t, func(t *testing.T, conn config.DBConnection) {
 		ctx := context.Background()
@@ -511,7 +511,7 @@ func TestDBSchema(t *testing.T) {
 			} `json:"schemas"`
 			Truncated *bool `json:"truncated"`
 		}
-		// 窓から渡されて通ったパスワードは覚えているので、password 無しで通る。
+		// Window から渡されて通ったパスワードは覚えているので、password 無しで通る。
 		if err := c.Call(ctx, "db.schema", map[string]any{"connection": conn.Name}, &res); err != nil {
 			t.Fatal(err)
 		}
@@ -588,7 +588,7 @@ func TestDBStructure(t *testing.T) {
 			} `json:"foreignKeys"`
 			Truncated *bool `json:"truncated"`
 		}
-		// 窓から渡されて通ったパスワードは覚えているので、password 無しで通る。
+		// Window から渡されて通ったパスワードは覚えているので、password 無しで通る。
 		if err := c.Call(ctx, "db.structure", params, &res); err != nil {
 			t.Fatal(err)
 		}
@@ -789,7 +789,7 @@ func TestDBVariants(t *testing.T) {
 	})
 }
 
-// 窓で入力して通ったパスワードは、変種ごとに覚える：ある変種で通ったものを、別の変種に送らない。
+// Window で入力して通ったパスワードは、変種ごとに覚える：ある変種で通ったものを、別の変種に送らない。
 func TestDBPasswordPerVariant(t *testing.T) {
 	bothDB(t, func(t *testing.T, conn config.DBConnection) {
 		ctx := context.Background()

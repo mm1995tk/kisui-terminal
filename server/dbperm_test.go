@@ -122,7 +122,7 @@ func TestDBAgentPermission(t *testing.T) {
 			return res, c.Call(ctx, method, p, nil)
 		}
 		table := "t_server_agent_perm"
-		// 窓（actor 無し）は人。
+		// Window（actor 無し）は人。
 		for _, sql := range []string{"DROP TABLE IF EXISTS " + table, "CREATE TABLE " + table + " (id INT)", "INSERT INTO " + table + " VALUES (1)"} {
 			if _, err := call("db.query", "", "plain", sql); err != nil {
 				t.Fatalf("%s: %v", sql, err)

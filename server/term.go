@@ -5,7 +5,7 @@ package server
 // PTY の出力は Screen に変換せず、そのまま term.output で流す（ui/tui/vt は使わない）。
 // 出力は 1 ターミナルにつき最大 1 MiB のリングバッファに溜め、seq はそのバイト数の累計。
 // GUI が term.ack で返した seq から 256 KiB より先は送らない。止まっても PTY は読み続け、
-// 溢れた分は捨てる。リングバッファは、この送り出し（ack の窓）のためだけに持つ。
+// 溢れた分は捨てる。リングバッファは、この送り出し（ack の範囲）のためだけに持つ。
 //
 // GUI が取り直す（つなぎ直し・溢れて欠けた）ときは、過去のバイト列は流さず、欄ごとの画面の状態
 // （screen.go の coneko-term）の書き出しを term.attach で返す。過去の出力に入っている端末への問い合わせ
@@ -131,7 +131,7 @@ type terminal struct {
 	title      string
 	name       string // 欄の名前（kisui pane title。空なら無い）。OSC のタイトル（title）とは別
 	// ancestors は、このペインを作ったペインの系譜（古いほうから。panereach.go）。作るときに決まり、変わらない。
-	// この serve のペインは Server が空。人が窓で開いたペインは空
+	// この serve のペインは Server が空。人が Window で開いたペインは空
 	ancestors []paneOrigin
 	alive     bool
 	ring      []byte // 循環バッファ。直近 ringSize バイトが入っている
@@ -237,7 +237,7 @@ type termStart struct {
 	primary    bool
 	argv       []string // 空でなければ、シェルの代わりに動かすコマンド（kisui pane split・kisui pane open のコマンド）。分割した欄は終わると閉じ、プライマリは残る（keepOnExit）
 	name       string   // 欄の名前（kisui pane split --name）。呼ぶ側が nameMu を持って、重ならないことを確かめておく
-	// ancestors は、このペインを作ったペインの系譜（panereach.go。人が窓で開いたペインは空）
+	// ancestors は、このペインを作ったペインの系譜（panereach.go。人が Window で開いたペインは空）
 	ancestors []paneOrigin
 }
 
@@ -383,7 +383,7 @@ func (m *termManager) closeWorkspace(wsID string) {
 }
 
 // restart は終わったプライマリターミナルに新しいシェルを始める（termId はそのまま）。
-// shell は窓が渡したシェル（nil なら渡していない。shell.go）。
+// shell は Window が渡したシェル（nil なら渡していない。shell.go）。
 func (m *termManager) restart(t *terminal, shell *string) (any, error) {
 	t.mu.Lock()
 	primary, alive, wsID, cols, rows := t.primary, t.alive, t.wsID, t.cols, t.rows
@@ -596,7 +596,7 @@ func (t *terminal) flush() {
 	defer t.sendMu.Unlock()
 	for {
 		t.mu.Lock()
-		// 窓は ack 済みか、リングに残っている先頭のどちらか進んだ方から数える。溢れて捨てられた分は
+		// 範囲は ack 済みか、リングに残っている先頭のどちらか進んだ方から数える。溢れて捨てられた分は
 		// GUI が受け取れず ack も進められないので、ack だけを基準にすると永久に止まる。
 		// 捨てられた分は seq が飛んで届くので、GUI は欠けを知って term.attach で取り直せる。
 		base := max(t.acked, t.oldest())

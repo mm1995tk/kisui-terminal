@@ -1,4 +1,4 @@
-// 切り替える窓の「タブを作る」行（SwitcherNewTab.tsx）の、マシンの一覧。
+// Workspace switcher の「タブを作る」行（SwitcherNewTab.tsx）の、マシンの一覧。
 import { T } from "../../../i18n/index.ts";
 import { createSignal, For, untrack, type JSX } from "solid-js";
 
@@ -8,7 +8,7 @@ import { newTabListKey } from "./newTabKey.ts";
 
 /**
  * マシンの一覧（行の下に開く）。開くと自分にフォーカスを取り、j k（↓ ↑）で選び、Enter か行を押して onChoose、Esc で onClose を呼ぶ。
- * 選んでいる位置は target で持つ（決めるまでは呼んだ側の選びを変えない）。キーは窓のキーに伝えない。
+ * 選んでいる位置は target で持つ（決めるまでは呼んだ側の選びを変えない）。キーは Dialog のキーに伝えない。
  */
 export function MachineListbox(props: {
   machines: readonly MachineChoice[];

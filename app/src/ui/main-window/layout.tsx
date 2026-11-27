@@ -1,6 +1,6 @@
-// メインウィンドウの割り付け。左にサイドバー、その右の境界のつまみ、右にペイン（ターミナルのグリッドとブラウザのページ）。
-// 窓・知らせ・リーダーの案内など、上に重ねて出すものは children に並べる。
-// 境界の大きさ・光らせる境界・マシンの色は、main.app の属性と CSS の変数で伝える（決まりは layout.css）。
+// メインウィンドウの割り付け。左にサイドバー、その右の境目のつまみ、右にペイン（ターミナルのグリッドとブラウザのページ）。
+// Dialog・知らせ・リーダーの案内など、上に重ねて出すものは children に並べる。
+// Pane border の大きさ・光らせる Pane border・マシンの色は、main.app の属性と CSS の変数で伝える（決まりは layout.css）。
 // 何を出すかは決めない（決めるのは page.tsx）。
 import type { JSX } from "solid-js";
 
@@ -16,9 +16,9 @@ import {
 import { termCellWidth } from "./termCell.ts";
 import "./layout.css";
 
-/** メインウィンドウの割り付け。サイドバー・境界のつまみ・右のペインを並べ、上に重ねるもの（children）をその後ろに置く。 */
+/** メインウィンドウの割り付け。サイドバー・境目のつまみ・右のペインを並べ、上に重ねるもの（children）をその後ろに置く。 */
 export function MainWindowLayout(props: {
-  /** 窓全体の要素を受け取る */
+  /** Window 全体の要素を受け取る */
   ref: (el: HTMLElement) => void;
   /** リサイズモードか */
   resizing: boolean;
@@ -32,7 +32,7 @@ export function MainWindowLayout(props: {
   termLayout: PaneLayout | undefined;
   /** タブの段の高さの上限（サイドバーの高さに対する %） */
   tabsPct: number;
-  /** サイドバーの境界を光らせるか */
+  /** サイドバーの境目を光らせるか */
   litSidebar: boolean;
   /** ファイルツリーと CHANGES の境目を光らせるか */
   litChanges: boolean;
@@ -40,13 +40,13 @@ export function MainWindowLayout(props: {
   litTabs: boolean;
   /** フォーカスしているワークスペースのマシンの色（無ければ付けない） */
   machineColor: string | undefined;
-  /** サイドバーの境界のつまみをつかんだ */
+  /** サイドバーの境目のつまみをつかんだ */
   onSidebarResize: (e: PointerEvent) => void;
-  /** サイドバーの境界のつまみをダブルクリックした（幅を元に戻す） */
+  /** サイドバーの境目のつまみをダブルクリックした（幅を元に戻す） */
   onSidebarResizeReset: () => void;
   sidebar: JSX.Element;
   content: JSX.Element;
-  /** 上に重ねて出すもの（窓・知らせ・リーダーの案内） */
+  /** 上に重ねて出すもの（Dialog・知らせ・リーダーの案内） */
   children: JSX.Element;
 }): JSX.Element {
   return (

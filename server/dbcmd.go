@@ -4,12 +4,12 @@ package server
 // SQL を実行し、DB のタブの入力欄に SQL を書く。設計は docs/design/gui-protocol.md の「DB」の「ペインの中のコマンド」。
 //
 // どの頼みも、コーディングエージェントのもの（actor は "agent"）として扱う。人のものとして通す道は無い：
-// 窓の要求（db.*）と同じ dbWith を通り、権限の判定（dbManager.access）も同じ 1 か所。
+// Window の要求（db.*）と同じ dbWith を通り、権限の判定（dbManager.access）も同じ 1 か所。
 // パスワードは受け取らない（コマンドの引数に書かせない）。どこにも無ければ、聞かずに断る。
 //
 // 接続は、頼んだペインのマシンの kisui serve の設定のもの（--machine は無い）。
 //
-// 入力欄に書く（db-propose）は、DB のタブを持つ窓に頼む：確かめられること（接続があるか・権限が許すか）を確かめてから
+// 入力欄に書く（db-propose）は、DB のタブを持つ Window に頼む：確かめられること（接続があるか・権限が許すか）を確かめてから
 // db.propose {id, connection, variant?, sql} を GUI（owner）に通知し、GUI の db.proposed {id, status?, error?} を待つ。
 // GUI は、今のワークスペースの、同じマシン・同じ接続（と変種）の DB のタブを探し（無ければ開き）、入力欄が空ならそのまま書く。
 // SQL があれば人に聞く。人の答えを待つので、ほかの頼み（windowWait）より長く待つ。待つのをやめたら

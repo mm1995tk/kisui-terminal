@@ -2,7 +2,7 @@
 //!
 //! 公式の通知プラグインはデスクトップで押された・閉じられたを返さないので、`notify-rust` を直接使う。
 //! 通知を出したら専用のスレッドで利用者の操作を待ち、結果を `notify-response` のイベントで画面に返す。
-//! 押されたときは窓も前に出す（欄を前に出すのは画面側）。
+//! 押されたときは Window も前に出す（欄を前に出すのは画面側）。
 //!
 //! OS ごとの違い（調べた結果。macOS と Windows は実機で確かめていない）:
 //! - Linux: 押されたは、通知サーバーが `default` アクションに対応するときだけ来る。閉じられたはどのサーバーでも来る。
@@ -31,7 +31,7 @@ struct Response {
 }
 
 /// 通知を出し、押された・閉じられたを待って `notify-response` で返す。
-/// `key` は画面が欄との対応を引くための番号。`focus` が真のときだけ、押されたら窓を前に出す（kitty の `a=focus`）。
+/// `key` は画面が欄との対応を引くための番号。`focus` が真のときだけ、押されたら Window を前に出す（kitty の `a=focus`）。
 /// 出せなかったときはエラー。ただし macOS は通知を出すのが待つ側（`wait_for_response`）なので、出せなかったことはログに出るだけでエラーにならない。
 #[tauri::command]
 pub fn notify_show(
@@ -86,7 +86,7 @@ pub fn notify_show(
     Ok(())
 }
 
-/// 窓を前に出す（最小化を戻し、フォーカスを移す）。
+/// Window を前に出す（最小化を戻し、フォーカスを移す）。
 fn front(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.unminimize();

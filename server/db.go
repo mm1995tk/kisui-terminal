@@ -24,16 +24,16 @@ const CapDB = "db"
 const CapDBPermissions = "db-permissions"
 
 // CapDBSchema は capabilities に入れる、db.query の schema（タブの既定のスキーマ。#378）を読む印。この印の無い kisui serve は
-// schema を黙って無視し、DB の既定のスキーマで実行する（書き込む文も）ので、窓は印を確かめてから既定のスキーマを選ばせる。
+// schema を黙って無視し、DB の既定のスキーマで実行する（書き込む文も）ので、Window は印を確かめてから既定のスキーマを選ばせる。
 const CapDBSchema = "db-schema"
 
-// CapDBStructure は capabilities に入れる、db.structure（1 つのテーブルの構造。#379）を受けられる印。窓は、この印の無い
+// CapDBStructure は capabilities に入れる、db.structure（1 つのテーブルの構造。#379）を受けられる印。Window は、この印の無い
 // kisui serve のタブでは、テーブルの構造を頼まずに理由を出す。
 const CapDBStructure = "db-structure"
 
-// CapDBRemember は capabilities に入れる、db.remember（窓が覚えているパスワードを渡し直す）を受けられる印。この印のある
-// kisui serve は、窓で打って覚えたパスワードを、その窓の接続が切れたとき・別の窓が持ち主になったときに全部忘れる。
-// 窓は、この印の無い kisui serve には db.remember を送らず、パスワードを自分では覚えない。
+// CapDBRemember は capabilities に入れる、db.remember（Window が覚えているパスワードを渡し直す）を受けられる印。この印のある
+// kisui serve は、Window で打って覚えたパスワードを、その Window の接続が切れたとき・別の Window が持ち主になったときに全部忘れる。
+// Window は、この印の無い kisui serve には db.remember を送らず、パスワードを自分では覚えない。
 const CapDBRemember = "db-remember"
 
 // dbMaxRunning は同時に動かせる db.query の数。超えたら busy。
@@ -43,9 +43,9 @@ const dbMaxRunning = 8
 // 「どの接続か」「パスワードはどれか」「動いている SQL はどれか」「どの SQL を実行したか（履歴）」だけを持つ。
 //
 // DB のログインは持ち続けない。db.query の 1 回ごとにログインし、終わったら切る（理由は internal/db の説明）。
-// 覚えるのは、窓から渡されて通ったパスワードだけ（passwords の中。メモリだけで、ファイルにも引き継ぎにも渡さない）。
-// 覚えているのは、渡した窓（持ち主の接続）がつながっている間だけ：その接続が切れたとき・別の接続が持ち主になったときに
-// 全部忘れる（Server.forgetDBPasswords）。窓は自分のメモリにも覚えていて、つなぎ直したら db.remember で渡し直す。
+// 覚えるのは、Window から渡されて通ったパスワードだけ（passwords の中。メモリだけで、ファイルにも引き継ぎにも渡さない）。
+// 覚えているのは、渡した Window（持ち主の接続）がつながっている間だけ：その接続が切れたとき・別の接続が持ち主になったときに
+// 全部忘れる（Server.forgetDBPasswords）。Window は自分のメモリにも覚えていて、つなぎ直したら db.remember で渡し直す。
 type dbManager struct {
 	// load は設定の [[db.connections]] を読む。db.* の要求のたびに呼ぶ（serve を止めずに接続を足せるように）。
 	load      func() ([]config.DBConnection, []config.Problem)
@@ -64,7 +64,7 @@ type dbManager struct {
 
 // dbRun は動いている db.query の 1 つ。
 type dbRun struct {
-	id     string // 窓が付けた queryId。付けていなければ ""
+	id     string // Window が付けた queryId。付けていなければ ""
 	cancel context.CancelFunc
 }
 
@@ -133,7 +133,7 @@ func (m *dbManager) cancel(id string) bool {
 }
 
 // run は c に password でログインして、そのログインで f を呼ぶ（終われば切る）。src は password の出どころで、
-// 窓から渡されて通ったものは覚え（remember を呼ぶ）、覚えていて断られたものは忘れる。
+// Window から渡されて通ったものは覚え（remember を呼ぶ）、覚えていて断られたものは忘れる。
 func (m *dbManager) run(ctx context.Context, c config.DBLogin, password string, src db.Source, remember func(), f func(db.Session) error) error {
 	sess, err := db.Open(ctx, c, password)
 	if err != nil {
@@ -149,7 +149,7 @@ func (m *dbManager) run(ctx context.Context, c config.DBLogin, password string, 
 	return f(sess)
 }
 
-// rememberDBPassword は、窓の接続 from が渡したパスワードを覚える。from が今の持ち主でなければ覚えない：
+// rememberDBPassword は、Window の接続 from が渡したパスワードを覚える。from が今の持ち主でなければ覚えない：
 // 切れた接続・持ち主でなくなった接続の、返事を待っていた要求が後から通っても、忘れたあとに覚え直さない。
 // 持ち主が替わるのと同じロック（mu）の中で確かめるので、forgetDBPasswords と前後しない。覚えたら true。
 func (s *Server) rememberDBPassword(from *session, c config.DBLogin, password string) bool {
@@ -162,7 +162,7 @@ func (s *Server) rememberDBPassword(from *session, c config.DBLogin, password st
 	return true
 }
 
-// forgetDBPasswords は、窓で打って覚えたパスワードを全部忘れる。持ち主の接続が切れたときと、別の接続が持ち主に
+// forgetDBPasswords は、Window で打って覚えたパスワードを全部忘れる。持ち主の接続が切れたときと、別の接続が持ち主に
 // なったときに、mu を持ったまま呼ぶ（持ち主が替わるのと同時に忘れる）。キーチェーンとファイルのパスワードには触らない。
 func (s *Server) forgetDBPasswords() {
 	s.db.passwords.ForgetAll()
@@ -173,13 +173,13 @@ type dbLogin struct {
 	Connection string `json:"connection"`
 	// Variant は環境の変種の名前。変種の無い接続では省く（""）。
 	Variant string `json:"variant"`
-	// Password は窓で入力されたパスワード。省いたとき（nil）と空文字（パスワード無しでログインする）は違う。
+	// Password は Window で入力されたパスワード。省いたとき（nil）と空文字（パスワード無しでログインする）は違う。
 	Password *string `json:"password"`
 	QueryID  string  `json:"queryId"`
-	// Actor は、誰の要求か：省く（""）か "human" は人（窓）、"agent" はコーディングエージェント（kisui db のコマンド）。
+	// Actor は、誰の要求か：省く（""）か "human" は人（Window）、"agent" はコーディングエージェント（kisui db のコマンド）。
 	// 権限はこれで決まる（config.DBConnection.Access）。
 	Actor string `json:"actor"`
-	// from は、この要求を送った窓の接続（ペインの中のコマンド kisui db の頼みでは nil）。渡されて通ったパスワードは、
+	// from は、この要求を送った Window の接続（ペインの中のコマンド kisui db の頼みでは nil）。渡されて通ったパスワードは、
 	// from が持ち主の間だけ覚える（Server.rememberDBPassword）。
 	from *session
 }
@@ -211,7 +211,7 @@ func errDBDenied(c config.DBConnection, a config.DBAccess) *rpc.Error {
 
 // dbWith は p の接続にログインして f を呼ぶ。接続を探す・権限を確かめる・動いているものに足す（db.cancel で止められる）・
 // パスワードを探す・間違いを返事（*rpc.Error）にする、は db.query と db.schema で同じ。what はログに書く要求の名前。
-// 窓の要求（dbRequest）も、ペインの中のコマンド kisui db（dbcmd.go）も、ここを通る。
+// Window の要求（dbRequest）も、ペインの中のコマンド kisui db（dbcmd.go）も、ここを通る。
 //
 // run は、SQL を実行する要求か（db.query）。実行の段階が「しない」なら、DB につながずに denied で断る。
 // スキーマの一覧（run が false）は段階に関わらず通す（データの行ではなく、テーブルと列の名前と型だけなので）。
@@ -306,7 +306,7 @@ type DBConnectionInfo struct {
 	Port     int    `json:"port"`
 	User     string `json:"user"`
 	Database string `json:"database"` // 書いていなければ ""
-	// ReadOnly は、人（窓）の実行が「読むだけ」か（Human.Run が "read"）。権限を書いていない接続では、設定の read-only。
+	// ReadOnly は、人（Window）の実行が「読むだけ」か（Human.Run が "read"）。権限を書いていない接続では、設定の read-only。
 	ReadOnly bool `json:"readOnly"`
 	// Human と Agent は、人とコーディングエージェントがこの接続にしてよいこと（設定の権限と read-only を合わせた結果）。
 	Human DBHumanAccess `json:"human"`
@@ -417,7 +417,7 @@ func (s *Server) dbQuery(ctx context.Context, p dbQueryParams) (*db.Result, erro
 	var res *db.Result
 	err := s.dbWith(ctx, p.dbLogin, "db.query", true, func(ctx context.Context, c config.DBConnection, sess db.Session) error {
 		// 履歴に足すのは、ログインが通って SQL を DB に送ったものだけ。ログインできなかった SQL は実行していないうえ、
-		// password_required のあとに窓が送り直すと同じ SQL が 2 つ残ってしまう。ページを切り替えるための実行（offset あり）と並べ替えるための実行（orderBy あり）も
+		// password_required のあとに Window が送り直すと同じ SQL が 2 つ残ってしまう。ページを切り替えるための実行（offset あり）と並べ替えるための実行（orderBy あり）も
 		// 残さない：同じ SQL の続きを読むだけで、ページを送るたびに同じ SQL が並んでしまう。
 		at := s.now()
 		var err error
@@ -535,7 +535,7 @@ func (ss *session) dbHistoryReq(req *rpc.Message) (any, error) {
 	return DBHistoryResult{Entries: list}, nil
 }
 
-// dbRememberParams は db.remember の引数：窓が覚えているパスワードと、それを打ったときの接続の行き先。
+// dbRememberParams は db.remember の引数：Window が覚えているパスワードと、それを打ったときの接続の行き先。
 type dbRememberParams struct {
 	Connection string `json:"connection"`
 	Variant    string `json:"variant"`
@@ -550,12 +550,12 @@ type dbRememberParams struct {
 
 // DBRememberResult は db.remember の結果。
 type DBRememberResult struct {
-	// Remembered は、覚えたか。接続が設定に無い・種類かサーバーかユーザーが変わっていたら false（窓は、覚えていたものを捨てる）。
+	// Remembered は、覚えたか。接続が設定に無い・種類かサーバーかユーザーが変わっていたら false（Window は、覚えていたものを捨てる）。
 	Remembered bool `json:"remembered"`
 }
 
-// dbRememberReq は db.remember：窓が、前に打って通ったパスワードを、つなぎ直したあとに渡し直す。kisui serve は、持ち主の
-// 接続が切れると覚えたパスワードを忘れるので、窓がつなぎ直したら、人が打ち直さなくても kisui db のコマンドがまた通るように。
+// dbRememberReq は db.remember：Window が、前に打って通ったパスワードを、つなぎ直したあとに渡し直す。kisui serve は、持ち主の
+// 接続が切れると覚えたパスワードを忘れるので、Window がつなぎ直したら、人が打ち直さなくても kisui db のコマンドがまた通るように。
 // DB にはつながない（通るかは、次に使うときに分かる。断られたら、ほかの覚えたパスワードと同じに忘れる）。
 //
 // 覚えるのは、今の設定の接続が、パスワードを打ったときと同じ行き先（db.SameLogin）のときだけ：設定を書き換えたあとに、
@@ -580,7 +580,7 @@ func (ss *session) dbRememberReq(req *rpc.Message) (any, error) {
 		return DBRememberResult{}, nil
 	}
 	if !s.rememberDBPassword(ss, c, *p.Password) {
-		// この要求を受けてから、持ち主でなくなった。窓が覚えているものは、捨てさせない（remembered: false にしない）。
+		// この要求を受けてから、持ち主でなくなった。Window が覚えているものは、捨てさせない（remembered: false にしない）。
 		return nil, errNotOwner()
 	}
 	return DBRememberResult{Remembered: true}, nil
@@ -599,10 +599,10 @@ func errPasswordRequired(reason string, source db.Source, message string) *rpc.E
 	return e
 }
 
-// dbQueryError は db.Open・Session.Query の間違いを、窓への返事にする。
-//   - パスワードを DB が断った：password_required（reason は "rejected"）。窓は聞き直す。入力されたものは、次から
+// dbQueryError は db.Open・Session.Query の間違いを、Window への返事にする。
+//   - パスワードを DB が断った：password_required（reason は "rejected"）。Window は聞き直す。入力されたものは、次から
 //     キーチェーン・ファイルで見つけたものより先に使う（db.Passwords）。見つけたものが断られたなら、data の
-//     passwordSource にその場所（"keychain" か "file"）を付け、窓は聞く画面に出す。
+//     passwordSource にその場所（"keychain" か "file"）を付け、Window は聞く画面に出す。
 //   - それ以外：db_error。data は {kind, sqlState?}。kind は db.ErrorKind。
 func dbQueryError(ctx context.Context, err error, src db.Source) *rpc.Error {
 	e, ok := errors.AsType[*db.Error](err)

@@ -24,7 +24,7 @@
   border-color: var(--button-border-hover);
 }
 
-/* 主の操作。窓に 1 つ、並びの右端 */
+/* 主の操作。Dialog に 1 つ、並びの右端 */
 .button[data-variant="primary"] {
   background: var(--button-primary-bg);
   color: var(--button-primary-text);

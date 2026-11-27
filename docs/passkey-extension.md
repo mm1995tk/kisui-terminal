@@ -18,7 +18,7 @@ iCloud キーチェーンや 1Password のパスキーを使えない（macOS �
    移るのは、URL の host が設定のサイトの項目に当たるときだけ（下の「設定」）。待つ単位は、当たった項目（`.google.com` で当たれば `.google.com`）。
 4. ユーザーが外のブラウザでパスキーでログインする。
 5. 拡張機能が、そのタブの今のページに送られる Cookie を native messaging で kisui-terminal に送る（kisui-terminal が開いたタブでパスキーが通るか、そのタブが開いた URL からログインを終えて着いたらしいページに移り、ページの移動と Cookie の書き換えが落ち着いたとき。または、拡張機能のボタンを押したとき。`docs/browser-extension.md`）。
-6. kisui-terminal は、待っているサイトの Cookie だけを内蔵ブラウザの共有のデータに入れ、移る前のタブを開き直し、窓を前に出す。
+6. kisui-terminal は、待っているサイトの Cookie だけを内蔵ブラウザの共有のデータに入れ、移る前のタブを開き直し、Window を前に出す。
    開くのは、外のブラウザのタブがログインを終えた URL（`cookies` の `url`。待っているサイトのものだけ）。無ければ移る前の URL。
    1 回受けたら待ちを終える。
 
@@ -27,16 +27,16 @@ iCloud キーチェーンや 1Password のパスキーを使えない（macOS �
 ## 手で始める（パスキーを使わないサイト）
 
 パスワードでログインするサイトや、パスキーを求める前に WebView を止めるサイトでは、「流れ」の 2 が起きない。
-そこで、内蔵ブラウザのタブでリーダーの `a` → `s`（ブラウザのタブの窓の `s`。#276・#459。`docs/key-design.md`）を押すと、パスキーを待たずに「流れ」の 3 から始める
+そこで、内蔵ブラウザのタブでリーダーの `a` → `s`（ブラウザのタブの Dialog の `s`。#276・#459。`docs/key-design.md`）を押すと、パスキーを待たずに「流れ」の 3 から始める
 （`passkey.rs` の `start`）。
 
 - 使えるのは、タブの今の URL が、ページがパスキーを求めたときと同じ決まりで許可サイトに当たるときだけ（Cookie を受け取ってよいサイトを広げない）。
-  当たらなければ外のブラウザに移らず、理由を右下のお知らせに出す（`passkey_sites` が無いときも）。
+  当たらなければ外のブラウザに移らず、理由を右下の Notice に出す（`passkey_sites` が無いときも）。
 - 待ちは、ページがパスキーを求めたときと同じもの（同じサイトを、同じ長さだけ、1 回だけ待つ）。取り決めのメッセージは変わらない。
 - 外のブラウザでパスワードでログインしても、タブが開いた URL からログインを終えて着いたらしいページ（ログインの途中らしくない、そのサイトのページ）に
   移れば、拡張機能が自動で送る（#438）。開いたページのままのとき（ログイン済みで、開いたページがログインのページでないなど）は、
   拡張機能のボタン（手で戻るボタン）を押して Cookie を送る。手で戻るボタンは、kisui-terminal がそのサイトを待っていれば、パスキーが通ったかを問わずに送る。
-- シークレットのタブでは使えない（「流れ」の終わりと同じ理由）。理由をお知らせに出す。
+- シークレットのタブでは使えない（「流れ」の終わりと同じ理由）。理由を Notice に出す。
 
 ## 設定
 
@@ -56,7 +56,7 @@ passkey_sites = ["github.com", "dash.cloudflare.com", ".google.com"]
     ログインの後に別のサブドメインへ移るサイト（Google は `accounts.google.com` でログインすると `myaccount.google.com` に移る）に使う。
     公開サフィックス（[Public Suffix List](https://publicsuffix.org/) にある、`.com`・`.co.jp`・`.github.io` のように誰でもその下に
     サブドメインを持てる名前。一覧に無い最上位のドメインと、`.kobe.jp` のようにすぐ下の名前がどれも公開サフィックスになる名前も含む）は書けない。他人のサイトの Cookie まで写す対象になるため。
-    そう書いた項目は使わず、理由を右下のお知らせに出す（ほかの項目と設定は使う）。kisui-terminal は一覧を同梱して埋め込み、自前のコードで読む（`app/src-tauri/assets/public_suffix_list.dat` と `app/src-tauri/src/public_suffix.rs`。更新の手順は CONTRIBUTING.md）。
+    そう書いた項目は使わず、理由を右下の Notice に出す（ほかの項目と設定は使う）。kisui-terminal は一覧を同梱して埋め込み、自前のコードで読む（`app/src-tauri/assets/public_suffix_list.dat` と `app/src-tauri/src/public_suffix.rs`。更新の手順は CONTRIBUTING.md）。
   - 1 つの host に 2 つ以上の項目が当たれば、host と完全に同じもの、次に `.` の後ろの長いもの（細かいもの）を使う。
     kisui-terminal（外のブラウザに移るか・待っているサイトか）と拡張機能（スクリプトを入れるサイト・手で戻るボタン・自動で送るときのサイトの比べ方）は同じ決まりで当てる。
   外のブラウザに移るのも、Cookie を受け取るのも、ここに書いたサイトだけ。
@@ -84,7 +84,7 @@ passkey_sites = ["github.com", "dash.cloudflare.com", ".google.com"]
   Linux は `~/.config/google-chrome/NativeMessagingHosts/`・`~/.config/chromium/NativeMessagingHosts/` の `<名前>.json`）。今の版はそれを消さないので、要らなければ手で消す。
   残っていると、前の版の拡張機能の id に受け口へつなぐ許可を与え続ける。
 - つないでよい拡張機能：`kisui-terminal@mm1995tk.github.io`（拡張機能の `browser_specific_settings.gecko.id`。`passkey.rs` の `FIREFOX_EXTENSION_ID`）。
-- 受け口は、受けたメッセージを、動いている kisui-terminal の窓に渡し、窓の答えをそのまま返す。窓が動いていなければ `not-running` を返す。
+- 受け口は、受けたメッセージを、動いている kisui-terminal の Window に渡し、Dialog の答えをそのまま返す。Dialog が動いていなければ `not-running` を返す。
 
 ## メッセージ
 
@@ -165,7 +165,7 @@ native messaging の決まりどおり、1 つのメッセージは JSON 1 つ�
     Secure・HttpOnly にするので、false のときは渡さない。HttpOnly になると、Google のページのスクリプトが `SAPISID` などを読めず、
     ログインした状態にならない。#276）。
   - 入れた後に内蔵ブラウザの Cookie を読み戻し、Secure・HttpOnly・SameSite・期限・path が渡したとおりかを確かめる（#476）。
-    食い違えば、入れたものはそのままにして、ログに出し、窓の右下の「できなかったこと」で知らせる（Cookie の値は出さない）。
+    食い違えば、入れたものはそのままにして、ログに出し、Dialog の右下の「できなかったこと」で知らせる（Cookie の値は出さない）。
     答え（`done`）は変わらない。domain が host だけかサブドメインにも送られるかは、読み戻しでは分からない
     （wry が読み戻した domain の先頭の `.` を落とすため）。
 
@@ -175,7 +175,7 @@ native messaging の決まりどおり、1 つのメッセージは JSON 1 つ�
 { "type": "done", "accepted": 12, "dropped": 3 }
 ```
 
-`accepted` は入れた数、`dropped` は捨てた数。入れたあと、kisui-terminal は移る前のタブを開き直し（開く URL は上の `url`）、窓を前に出す。
+`accepted` は入れた数、`dropped` は捨てた数。入れたあと、kisui-terminal は移る前のタブを開き直し（開く URL は上の `url`）、Window を前に出す。
 
 ### 断るとき
 
@@ -187,19 +187,19 @@ native messaging の決まりどおり、1 つのメッセージは JSON 1 つ�
 | ------------- | ------------------------------------------------------------------------------------------------------------- |
 | `bad-request` | メッセージの形が違う（JSON でない・`type` を知らない・項目の型が違う・Cookie が多すぎる）                     |
 | `not-allowed` | `site` が設定の `passkey_sites` に無い                                                                        |
-| `not-waiting` | そのサイトに移っていない（パスキーを求められていない・ブラウザのタブの窓の `s` で始めていない・10 分を過ぎた・もう 1 回受けた） |
+| `not-waiting` | そのサイトに移っていない（パスキーを求められていない・ブラウザのタブの Dialog の `s` で始めていない・10 分を過ぎた・もう 1 回受けた） |
 | `no-cookies`  | 入れられる Cookie が 1 つも無い（待ちは続く）                                                                 |
 | `failed`      | 入れられなかった（内蔵ブラウザのタブが 1 つも開いていない、など）。待ちは終わる                               |
-| `not-running` | kisui-terminal の窓が動いていない（受け口が返す）                                                             |
+| `not-running` | kisui-terminal の Dialog が動いていない（受け口が返す）                                                             |
 
 ## 安全のための作り
 
 Cookie をほかのプログラムに持ち出す動きは、ログイン情報を盗むマルウェアと同じ形になる。次のようにして、広げないようにする。
 
-- 受け口から窓への経路は Unix ソケット。データのフォルダの `passkey/`（自分だけが入れる 0700 のフォルダ）に置き、ソケットも 0600 にする。
-  窓は、つないだ相手のユーザー（Linux は `SO_PEERCRED`、macOS は `getpeereid`）が自分と同じでなければ、何も読まずに切る。
+- 受け口から Dialog への経路は Unix ソケット。データのフォルダの `passkey/`（自分だけが入れる 0700 のフォルダ）に置き、ソケットも 0600 にする。
+  Dialog は、つないだ相手のユーザー（Linux は `SO_PEERCRED`、macOS は `getpeereid`）が自分と同じでなければ、何も読まずに切る。
   ほかのユーザーは、Cookie を差し込むことも、サイトの一覧を読むこともできない。
-- 窓は、自分が外のブラウザに移ったサイトの Cookie だけを、移ってから 10 分の間に 1 回だけ受ける。
+- Dialog は、自分が外のブラウザに移ったサイトの Cookie だけを、移ってから 10 分の間に 1 回だけ受ける。
   入れる Cookie は、そのサイトの host だけ（`.google.com` の書き方なら、そのドメインの中だけ）のものにする。公開サフィックスは書けない。
 - 同じユーザーのほかのプログラムは、受け口を真似れば、その間に限って Cookie を差し込める。ただし、同じユーザーのプログラムは、
   もともと内蔵ブラウザの Cookie の置き場（同じユーザーのファイル）や設定ファイルを直接読み書きできるので、この経路で広がる害は無い。

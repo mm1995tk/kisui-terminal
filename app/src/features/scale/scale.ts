@@ -1,11 +1,11 @@
-// 画面全体の大きさ（#594）。キーは commands.ts の表：近道は Mac が Cmd = / Cmd - / Cmd 0、Linux が Ctrl = / Ctrl 0、リーダーは v + - 0。
-// Tauri の webview の zoom で変える。CSS の px はそのままで窓の幅が狭く（広く）見えるので、
+// 画面全体の大きさ（#594）。キーは commands.ts の表：Shortcut は Mac が Cmd = / Cmd - / Cmd 0、Linux が Ctrl = / Ctrl 0、リーダーは v + - 0。
+// Tauri の webview の zoom で変える。CSS の px はそのままで Window の幅が狭く（広く）見えるので、
 // サイドバー・ツリー・ターミナルが同じ割合で変わり、ターミナルは欄の大きさの変化（ResizeObserver）で合わせ直す。
 // DOM にも Tauri にも触らない（テストできるように）。
 
 import type { KeyValueStore } from "../keyValueStore.ts";
 
-/** 窓の中の画面全体の大きさを変える（1 が元の大きさ）。本物は infrastructure/tauri/scale.ts。 */
+/** Window の中の画面全体の大きさを変える（1 が元の大きさ）。本物は infrastructure/tauri/scale.ts。 */
 export type ApplyScale = (v: number) => Promise<void>;
 
 /** 選べる大きさ。1 が元の大きさ。 */

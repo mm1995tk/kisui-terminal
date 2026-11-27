@@ -2,7 +2,7 @@
 //
 // タブ（ターミナルのタブか、内蔵ブラウザのタブ）の HTTP・HTTPS の通信を、そのマシンの kisui serve のプロキシに通して記録する。
 // 通す単位（scope）は kisui serve との取り決め（infrastructure/rpc/protocol.ts の proxy.*）：ターミナルのタブは
-// "ws:<ワークスペースの id>"、ブラウザのタブは窓が決める "browser:<タブの id>"。
+// "ws:<ワークスペースの id>"、ブラウザのタブは Window が決める "browser:<タブの id>"。
 import type {
   ProxyFlow,
   ProxyFlowDetail,

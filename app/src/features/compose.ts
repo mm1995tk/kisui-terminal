@@ -63,7 +63,7 @@ export interface FeaturePorts {
   browser: BrowserOs;
   /** 外部ブラウザ */
   openUrl: OpenUrlExternally;
-  /** 窓の中の画面全体の大きさ */
+  /** Window の中の画面全体の大きさ */
   applyScale: ApplyScale;
   /** キャラクター */
   mascot: MascotOs;
@@ -113,7 +113,7 @@ export function createFeatures(deps: {
   config: ConfigMachine[];
   /** 手元のマシンの、新しいターミナルが始まるフォルダとシェル（設定の [server] start_dir・shell。#485） */
   localTerminal?: TermDefaults | null;
-  /** 起動のときから出しておく、できなかったこと（前の版の、窓で足したマシンの記録を移せなかった、など） */
+  /** 起動のときから出しておく、できなかったこと（前の版の、Window で足したマシンの記録を移せなかった、など） */
   startupProblem?: Problem;
   /** 内蔵ブラウザのタブを使うか（設定の [gui.browser] enabled。#202） */
   browser: boolean;

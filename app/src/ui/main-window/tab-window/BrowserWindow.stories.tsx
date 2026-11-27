@@ -1,4 +1,4 @@
-// 組み合わせの例：ブラウザのタブの窓（BrowserWindow.tsx。リーダーの a。#459）を、アプリと同じ部品・CSS・字・翻訳で出す。
+// 組み合わせの例：ブラウザのタブの Dialog（BrowserWindow.tsx。リーダーの a。#459）を、アプリと同じ部品・CSS・字・翻訳で出す。
 // タブは見本のデータ（下の page）で、操作は Actions に出るだけ（タブは変わらない）。
 // 選ぶ（j k・クリック）・今できない操作の理由の表示（字を押す）・`?` は、そのまま動く。
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
@@ -26,7 +26,7 @@ const meta = {
     run: fn(),
     onClose: fn(),
   },
-  // `?` の一覧は、アプリと同じく、窓の上に重ねて出す
+  // `?` の一覧は、アプリと同じく、Dialog の上に重ねて出す
   render: (args) => (
     <>
       <BrowserWindow {...args} />
@@ -60,7 +60,7 @@ export const Incognito: Story = {
   },
 };
 
-/** 新しいタブのページ（まだページが無い）。URL（検索窓へ）とブックマークの一覧だけが使える。 */
+/** 新しいタブのページ（まだページが無い）。URL（検索欄へ）とブックマークの一覧だけが使える。 */
 export const NewTab: Story = {
   args: { shown: () => ({ ...page, url: "", title: "", history: undefined }) },
 };

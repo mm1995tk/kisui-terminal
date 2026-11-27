@@ -305,7 +305,7 @@ describe("ssh 先のマシンからの --machine の頼み", () => {
     assert.ok(!paneRelayAllowed(allowBuild, "build", "dev-vm"));
   });
 
-  it("allow_pane_to は設定ファイルの一覧から付く（書いていなければ付かない。窓で足したばかりのマシンにも付かない）", () => {
+  it("allow_pane_to は設定ファイルの一覧から付く（書いていなければ付かない。Dialog で足したばかりのマシンにも付かない）", () => {
     const list = fromConfig([
       { ssh: "dev-vm", name: "dev", allowPaneTo: ["build"] },
       { ssh: "ci", allowPaneTo: [] },

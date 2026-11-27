@@ -11,7 +11,7 @@ import type { DbPage } from "./paging.ts";
 
 /** 結果のタブ 1 つ：実行した文 1 つと、その結果。 */
 export interface DbResultTab {
-  /** タブの名前（開いている間は変わらない。上書きで実行し直しても同じ。窓の中で重ならない） */
+  /** タブの名前（開いている間は変わらない。上書きで実行し直しても同じ。Dialog の中で重ならない） */
   id: string;
   /** 実行した文（タブの見出しと、ツールチップ） */
   sql: string;

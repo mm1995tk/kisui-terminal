@@ -1,4 +1,4 @@
-/* DB のタブの窓（DbWindow.tsx。リーダーの a。#458）。カードと一覧の行（.card-rows・.card-row）は card.css。
+/* DB のタブの Dialog（DbWindow.tsx。リーダーの a。#458）。カードと一覧の行（.card-rows・.card-row）は card.css。
    上にそのタブの状態の印、中に結果のタブの一覧を出す。 */
 
 /* 見出しと、その下の状態の印 */

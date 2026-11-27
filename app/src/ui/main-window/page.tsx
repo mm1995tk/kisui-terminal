@@ -1,12 +1,12 @@
 // メインウィンドウの入口。機能の持ち物（features/）とこの画面の表示用の状態を作り、割り付け（layout.tsx）に部品を並べる。
 // ここには動きを書かない。接続・ワークスペース・タブ・ブラウザーなどの状態と操作は features/ の各 controller にあり（つなぐのは features/compose.ts）、
-// キーの入力（keys.ts）・キーの行き先（focus.ts）・境界の大きさ（paneResize.ts）は、この画面の表示用の状態として隣に置く。
+// キーの入力（keys.ts）・キーの行き先（focus.ts）・Pane border の大きさ（paneResize.ts）は、この画面の表示用の状態として隣に置く。
 // 配置と依存の向きの決まりは docs/design/frontend-structure.md。
 //
 // 画面の中身：
-// - 左のサイドバーに、ワークスペースの帯と中のタブ、フォーカスしているワークスペースのファイルツリーと CHANGES を出す（sidebar/）。
+// - 左のサイドバーに、Workspace band と中のタブ、フォーカスしているワークスペースのファイルツリーと CHANGES を出す（sidebar/）。
 // - 右のペインに、フォーカスしているワークスペースのターミナル（内蔵ブラウザのタブを出していればそのページ、DB のタブならその画面）を出す（content/）。
-// - 窓（接続・ワークスペース・ツリー・ブックマークなど）と、右下の知らせ・リーダーの案内を、上に重ねて出す。
+// - Dialog（接続・ワークスペース・ツリー・ブックマークなど）と、右下の知らせ・リーダーの案内を、上に重ねて出す。
 import { createSignal, onMount, Show, untrack, type JSX } from "solid-js";
 
 import { OsClipboard } from "../../features/clipboard/osClipboard.ts";
@@ -24,7 +24,7 @@ import type { TermDefaults } from "../../features/sessions/termDefaults.ts";
 import { moveMachineRecords } from "../../features/sessions/moveRecords.ts";
 import { PortsContext, type Ports } from "../ports.ts";
 // ここから下の、CSS を持つ部品の import は、順を変えない。CSS の規則は import の順に並び、同じ強さの規則は後のものが勝つ。
-// 順は、キーの一覧 → トースト → サイドバー → 切り替える窓 → 割り付け → ブラウザ → リーダーの案内 → ターミナル → 空のワークスペース → DB のタブ（cssOrder.test.ts が見張る）。
+// 順は、キーの一覧 → トースト → サイドバー → Workspace switcher → 割り付け → ブラウザ → リーダーの案内 → ターミナル → 空のワークスペース → DB のタブ（cssOrder.test.ts が見張る）。
 import { KeyListDialog, openKeyList } from "./commands/KeyListDialog.tsx";
 import {
   CopiedToast,
@@ -66,7 +66,7 @@ import { TabWindows } from "./tab-window/TabWindows.tsx";
 
 /**
  * 起動したら、先に手元の設定ファイルの [[gui.machines]] を読む。間違いがあれば、場所・行・理由だけを出して、ほかは何もしない
- * （どこにもつながない）。読めたら、前の版が localStorage に記録した「窓で足したマシン」を config.local.toml に移し（初めの 1 度だけ）、
+ * （どこにもつながない）。読めたら、前の版が localStorage に記録した「Window で足したマシン」を config.local.toml に移し（初めの 1 度だけ）、
  * 本体（MainWindow）を出す。
  * ports は外（Tauri の殻・記録）への頼みの本物で、index.tsx が組み立てて渡す。
  */
@@ -94,9 +94,9 @@ export function MainWindowPage(props: { ports: Ports }): JSX.Element {
           store: props.ports.store,
           config: g.machines,
         });
-        // 内蔵ブラウザ（#202）は、設定で有効にしたときだけ、ブラウザの操作（ブラウザのタブの窓と、設定の近道の browser.*）を使えるようにする
+        // 内蔵ブラウザ（#202）は、設定で有効にしたときだけ、ブラウザの操作（ブラウザのタブの Dialog と、設定の Shortcut の browser.*）を使えるようにする
         setBrowserEnabled(g.browser);
-        // 近道の間違い（読めないキー・知らないコマンド）では止めず、お知らせで知らせる
+        // Shortcut の間違い（読めないキー・知らないコマンド）では止めず、Notice で知らせる
         const shortcutProblems = setUserShortcuts(g.shortcuts, IS_MAC);
         setLoaded({
           config: moved.machines,
@@ -145,9 +145,9 @@ function MainWindow(props: {
   localTerminal?: TermDefaults | null;
   /** 内蔵ブラウザのタブを使うか（設定の [gui.browser] enabled。#202） */
   browser: boolean;
-  /** 設定の [gui.shortcuts] の間違い（あればお知らせに出す） */
+  /** 設定の [gui.shortcuts] の間違い（あれば Notice に出す） */
   shortcutProblems: string[];
-  /** 設定の [gui.browser] passkey_sites の、公開サフィックスなので使わない項目（あればお知らせに出す） */
+  /** 設定の [gui.browser] passkey_sites の、公開サフィックスなので使わない項目（あれば Notice に出す） */
   passkeyRejected: string[];
   /** タブの段の高さの上限の元の値（設定の [gui.sidebar] tabs-height。サイドバーの高さに対する %）。無ければ 40 */
   tabsHeight?: number;
@@ -170,11 +170,11 @@ function MainWindow(props: {
   }
   // マシンのダイアログ（リーダーの m）を出しているか
   const [machinesOpen, setMachinesOpen] = createSignal(false);
-  // キャラクターを選ぶ窓（リーダーの c s）を出しているか
+  // キャラクターを選ぶ Dialog（リーダーの c s）を出しているか
   const [mascotPicking, setMascotPicking] = createSignal(false);
-  // ワークスペースを切り替える窓（リーダーの w・t・n）を出しているか（出していれば、開いたときの初めの状態。サイドバーの見出しからも、マシンのダイアログの Enter からも開く）
+  // Workspace switcher（リーダーの w・t・n）を出しているか（出していれば、開いたときの初めの状態。サイドバーの見出しからも、マシンのダイアログの Enter からも開く）
   const [wsSwitcher, setWsSwitcher] = createSignal<SwitcherOpen | undefined>();
-  // 今出しているタブの種類ごとの窓（リーダーの a）を出しているか（出していれば、その種類）
+  // 今出しているタブの種類ごとの Dialog（リーダーの a）を出しているか（出していれば、その種類）
   const [tabWindow, setTabWindow] = createSignal<TabKind | undefined>();
 
   // ---- 機能の持ち物（features/）。画面の側ですること（下で作る resize・focusUi・notices）は、呼ばれたときに引く ----
@@ -237,7 +237,7 @@ function MainWindow(props: {
     },
   });
 
-  // ---- この画面の表示用の状態（境界の大きさ・キーの行き先・知らせ・キーの入力）----
+  // ---- この画面の表示用の状態（Pane border の大きさ・キーの行き先・知らせ・キーの入力）----
   const focusTerminal = () => focusUi.focusTerminal();
   // 右の欄の配置（隠している間は 1 つだけ出るので、分けていないものとする）
   const termLayout = () =>
@@ -412,7 +412,7 @@ function MainWindow(props: {
         onCloseMachines={() => setMachinesOpen(false)}
         hasWorkspace={() => !!workspaces.currentGws()}
         onNewTab={(target) => {
-          // 先にマシンのダイアログを閉じる（閉じたときにフォーカスを戻す先が、ワークスペースの窓を閉じたときの戻り先になる）
+          // 先にマシンのダイアログを閉じる（閉じたときにフォーカスを戻す先が、Workspace switcher を閉じたときの戻り先になる）
           setMachinesOpen(false);
           setWsSwitcher({ terminalOn: target });
         }}

@@ -1,5 +1,5 @@
 // コーディングエージェントが DB のタブの入力欄に SQL を書こうとしたとき（`kisui db propose`。#382）、入力欄に SQL があれば、
-// 上書きしてよいかを聞く窓。Enter と「上書きする」で上書き、Esc と「やめる」でやめる。どちらでも SQL は実行しない。
+// 上書きしてよいかを聞く Dialog。Enter と「上書きする」で上書き、Esc と「やめる」でやめる。どちらでも SQL は実行しない。
 // 聞く・答えを返すのは features/db/proposeController.ts。
 import { T } from "../../../i18n/index.ts";
 import { onCleanup, onMount, type JSX } from "solid-js";
@@ -16,14 +16,14 @@ import {
 } from "../../components/Card.tsx";
 import styles from "./DbProposeDialog.module.css";
 
-/** 上書きしてよいかを聞く窓。答えは onReply に渡す（false はやめた。Esc もやめる）。 */
+/** 上書きしてよいかを聞く Dialog。答えは onReply に渡す（false はやめた。Esc もやめる）。 */
 export function DbProposeDialog(props: {
   ask: DbProposeAsk;
   onReply: (yes: boolean) => void;
 }): JSX.Element {
   let body!: HTMLDivElement;
   const opened = performance.now();
-  // フォーカスは窓そのものにある（focusSelf）ので、Enter は窓（dialog）で受ける
+  // フォーカスは Dialog そのものにある（focusSelf）ので、Enter は Dialog（dialog）で受ける
   const onKeyDown = (e: KeyboardEvent) => {
     const onButton = e.target instanceof HTMLButtonElement;
     if (!isProposeEnter(e, performance.now() - opened, onButton)) return;

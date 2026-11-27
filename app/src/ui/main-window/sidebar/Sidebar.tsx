@@ -5,8 +5,8 @@
 // フォーカスしている帯の下にはツリーを出す（プライマリで shj が動いているときだけ。動いていなければ帯だけ）（D2、描くのは ui/main-window/sidebar/file-tree/TreeView.tsx）。
 // スクロールしても、上にフォーカスしている帯と親フォルダを固定する（D3）。
 // マシンごとの色（D4）は帯の --machine-color に入れ、タブの行のマシンの札とフォーカスの輪郭に使う。
-// ヘッダーの [×] は、押すと onClose を呼ぶ（ワークスペースを閉じる。中のターミナルのタブも閉じる。確認の窓は ui/main-window/workspaces/WorkspaceDialogs.tsx が出す）。
-// フォーカスしているワークスペースが無いとき（1 つも無いときなど）は、切り替えのポップアップを開くボタンと「+ ワークスペースを作る」（onNew。どのマシンに作るかは features/workspaces/controller.ts が決め、窓で選ばせる）だけを出す。
+// ヘッダーの [×] は、押すと onClose を呼ぶ（ワークスペースを閉じる。中のターミナルのタブも閉じる。確認の Dialog は ui/main-window/workspaces/WorkspaceDialogs.tsx が出す）。
+// フォーカスしているワークスペースが無いとき（1 つも無いときなど）は、切り替えのポップアップを開くボタンと「+ ワークスペースを作る」（onNew。どのマシンに作るかは features/workspaces/controller.ts が決め、Dialog で選ばせる）だけを出す。
 // マシンの操作（足す・名前を変える・外す・切る・つなぎ直す）は、サイドバーではなくマシンのダイアログ（リーダーの m）にある。
 // ワークスペースのヘッダーの右クリックのメニューの「名前を変える」と、ヘッダーの鉛筆のボタンは、onRenameWorkspace を呼ぶ。
 // 呼ぶ側（ui/main-window/page.tsx）が renaming を渡すと、ヘッダーの名前がその場で入力欄になる（Enter で onRenameSubmit、Esc・フォーカスが外れたら onRenameCancel）。
@@ -45,7 +45,7 @@ import "./sidebar.css";
 export type { NewTabKind };
 
 /**
- * 左の一覧。フォーカスしているワークスペースの帯だけを出し、帯の名前を押すと onSwitch を呼ぶ。
+ * 左の一覧。フォーカスしている Workspace band だけを出し、帯の名前を押すと onSwitch を呼ぶ。
  * 帯の下に treeOf のツリーを出し、フォルダを押すと onToggle、ファイルを押すと onOpen を呼ぶ。
  *
  * 上への固定（D3）は CSS の sticky で、要素の組み方で止まるところを決める:
@@ -78,7 +78,7 @@ export function Sidebar(
   const openAddMenu = props.onAddTab
     ? (gws: string, x: number, y: number) => setAddMenu({ gws, x, y })
     : undefined;
-  // ツリーの行の右クリックのメニュー。出している間は、押す・Esc・スクロール・窓の切り替えで閉じる
+  // ツリーの行の右クリックのメニュー。出している間は、押す・Esc・スクロール・Dialog の切り替えで閉じる
   const [treeMenu, setTreeMenu] = createSignal<{
     target: string;
     id: WorkspaceId;

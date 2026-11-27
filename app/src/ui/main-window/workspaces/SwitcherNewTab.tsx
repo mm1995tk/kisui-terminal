@@ -13,7 +13,7 @@ export interface MachineChoice {
 }
 
 /**
- * 切り替える窓の右の列の一番下に出す、ターミナルのタブを作る行（n・「＋」）。名前の入力欄と、その右にマシンを 1 行で出す。
+ * Workspace switcher の右の列の一番下に出す、ターミナルのタブを作る行（n・「＋」）。名前の入力欄と、その右にマシンを 1 行で出す。
  * Tab / Shift+Tab で次・前のマシンに替え、↓ かマシンを押すとマシンの一覧（MachineListbox）を開く。一覧では j / k（↓ / ↑）で選び、Enter で決めて入力欄に戻る。Esc は一覧を閉じるだけ。
  * 入力欄で Enter なら onSubmit、Esc か行の外へフォーカスが出たら onCancel。キーは newTabKey.ts。
  * 選んでいるマシンの状態は chosenMachine.ts（行を開いている間に候補が縮んでも、選んでいたマシンのまま）。
@@ -28,7 +28,7 @@ export function SwitcherNewTab(props: {
   /** 断られた理由（あれば入力欄の下に出す。行は開けたまま） */
   error?: string;
   onSubmit: (name: string, machine: string) => void;
-  /** byKey は Esc でやめたとき（キーを窓に戻すかを、呼んだ側が決める） */
+  /** byKey は Esc でやめたとき（キーを Dialog に戻すかを、呼んだ側が決める） */
   onCancel: (byKey: boolean) => void;
 }): JSX.Element {
   const {
@@ -49,7 +49,7 @@ export function SwitcherNewTab(props: {
   }
 
   function onInputKey(e: KeyboardEvent) {
-    // 窓のキー（j・n など）に届かせない
+    // Dialog のキー（j・n など）に届かせない
     e.stopPropagation();
     const k = newTabInputKey(e);
     if (!k) return;
@@ -84,7 +84,7 @@ export function SwitcherNewTab(props: {
         // 移った先は、フォーカスが落ち着いてから見る（WebKit では focusout の relatedTarget が空のことがあり、頼れない）
         setTimeout(() => {
           if (!box.isConnected || box.contains(document.activeElement)) return;
-          // ほかのアプリに切り替えただけ（窓が外れた）では、打ちかけの名前を消さない
+          // ほかのアプリに切り替えただけ（Dialog が外れた）では、打ちかけの名前を消さない
           if (document.hasFocus()) props.onCancel(false);
         });
       }}

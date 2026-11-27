@@ -165,7 +165,7 @@ export function createProxy(deps: {
       return {
         kind: "browser",
         target: LOCAL,
-        // ページが開いた新しい窓のタブは、開いた元のタブと同じ単位
+        // ページが開いた新しい Window のタブは、開いた元のタブと同じ単位
         scope: b.proxy?.scope ?? browserScope(b.id),
         tab: browserKey(b.id),
         browserTab: b.id,
@@ -702,9 +702,9 @@ export function createProxy(deps: {
 
   /**
    * マシン target の kisui serve が通している単位に、画面の持ち物を合わせる（つないだ・つなぎ直したとき）。
-   * - 通しているワークスペース：画面が知らなければ、記録を読んで持つ（窓を開き直しても、通したまま戻る）
+   * - 通しているワークスペース：画面が知らなければ、記録を読んで持つ（Dialog を開き直しても、通したまま戻る）
    * - 画面が持つのに kisui serve に無い単位（kisui serve が作り直された）：外す
-   * - どのタブも使っていないブラウザのタブの単位（前の窓の残り）：止める
+   * - どのタブも使っていないブラウザのタブの単位（前の Dialog の残り）：止める
    */
   async function sync(target: string) {
     const session = sessionFor(target, true);

@@ -2,8 +2,8 @@ package server
 
 // ワークスペースの一覧の保存と復元（#450。設計は docs/design/gui-protocol.md の「ワークスペース」9）。
 //
-// 保存するのは、ワークスペースの id・フォルダ（未定なら無し）・つけた名前（あれば）・窓が渡したシェル（あれば）・
-// 窓が知らせた窓のワークスペース（あれば。gws.go）・並び順だけ。分割したターミナルと
+// 保存するのは、ワークスペースの id・フォルダ（未定なら無し）・つけた名前（あれば）・Window が渡したシェル（あれば）・
+// Window が知らせた Window のワークスペース（あれば。gws.go）・並び順だけ。分割したターミナルと
 // 開いていたファイルは保存しない。ワークスペースが変わるたび（recompute のたび）に、前に書いた内容と
 // 違えば書く。起動のときに読み、同じ id でワークスペースを作り直す。
 
@@ -32,9 +32,9 @@ type savedWS struct {
 	// Label はユーザーがつけた名前（workspace.rename）。つけていなければ省く。
 	// 足した項目で、版は上げない（名前をつけていない保存は、前の形と同じ内容）
 	Label string `json:"label,omitempty"`
-	// Shell は窓が最後に渡したシェル（wsState.shell。shell.go）。渡していなければ省く。これも足した項目で、版は上げない
+	// Shell は Window が最後に渡したシェル（wsState.shell。shell.go）。渡していなければ省く。これも足した項目で、版は上げない
 	Shell string `json:"shell,omitempty"`
-	// Gws・GwsName は、このタブが入っている窓のワークスペースの id と名前（窓が最後に知らせたもの。gws.go）。
+	// Gws・GwsName は、このタブが入っている Window のワークスペースの id と名前（Window が最後に知らせたもの。gws.go）。
 	// 知らされていなければ省く。これも足した項目で、版は上げない
 	Gws     string `json:"gws,omitempty"`
 	GwsName string `json:"gwsName,omitempty"`
@@ -182,7 +182,7 @@ func (w *wsManager) restore() {
 			w.srv.log.Warn("restore workspace", "workspace", x.ID, "err", err)
 			continue
 		}
-		// 窓のワークスペースは、窓がつなぎ直して知らせ直すまで、保存していたものを出す（形が違えば捨てる）
+		// Window のワークスペースは、Window がつなぎ直して知らせ直すまで、保存していたものを出す（形が違えば捨てる）
 		if g, err := cleanGwsRef(gwsRef{ID: x.Gws, Name: x.GwsName}); err == nil {
 			w.mu.Lock()
 			if st := w.reg[x.ID]; st != nil {

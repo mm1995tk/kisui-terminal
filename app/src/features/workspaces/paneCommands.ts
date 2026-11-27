@@ -178,7 +178,7 @@ export function createPaneCommands(deps: {
     if (!entry)
       throw new WindowCommandError(T("paneCli.err.noPane", { pane: p.name }));
     if (paneId !== undefined) {
-      // 隠している間は、隠れている Pane は動けないので、戻す（ターミナルのタブの窓で Pane を選ぶときと同じ）
+      // 隠している間は、隠れている Pane は動けないので、戻す（Tab の Dialog で Pane を選ぶときと同じ）
       if (g.list[0]?.id !== paneId)
         deps.terminals.zoomWs(p.target, p.ws, false);
       if (!g.activatePane(paneId))
