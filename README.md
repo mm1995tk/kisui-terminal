@@ -220,7 +220,7 @@ kisui proxy
 kisui proxy -v --listen 127.0.0.1:8080
 ```
 
-`kisui proxy panel <tab>`, `close <tab>`, `stop <tab>` and `hold [--off] <tab>` do from a pane what `x` `p`, `x` `c`, `x` `s` and `x` `i` after the leader do, on the terminal tab or browser tab you point at, by its id or name as for `kisui tab` (`hold` turns holding on, and `--off` turns it off). The keys move to the panel, or back to the terminal, only when that tab is the one shown. They work only in the panes of your computer: sending a tab through the proxy records its traffic and can hold and change its requests, so a pane on a remote machine is refused. The window does these commands, so they fail, with the reason, when the window is closed.
+`kisui proxy panel <tab>`, `close <tab>`, `stop <tab>` and `hold [--off] <tab>` do from a pane what `x` `p`, `x` `c`, `x` `s` and `x` `i` after the leader do, on the terminal tab or browser tab you point at, by its id or name as for `kisui tab` (`hold` turns holding on, and `--off` turns it off). `close` and `hold --off` are refused while held requests wait in the panel, since they would send them on as they are: you forward or drop them there. The keys move to the panel, or back to the terminal, only when that tab is the one shown. They work only in the panes of your computer: sending a tab through the proxy records its traffic and can hold and change its requests, so a pane on a remote machine is refused. The window does these commands, so they fail, with the reason, when the window is closed.
 
 ```sh
 kisui proxy panel "api server"

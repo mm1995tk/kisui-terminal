@@ -51,7 +51,7 @@ const rows = [
   },
 ] as unknown as Row[];
 
-function setup(opts: { fail?: string } = {}) {
+function setup(opts: { fail?: string; held?: number } = {}) {
   const calls: unknown[][] = [];
   const on = new Set<string>();
   const subjectOf = (ref: TabRef): ProxySubject | undefined =>
@@ -91,7 +91,9 @@ function setup(opts: { fail?: string } = {}) {
       stopOf: act("stop", (s) => on.delete(s.scope)),
       holdOf: act("hold", () => {}),
       stateOf: (s) =>
-        on.has(s.scope) ? { port: 40000, holding: false } : undefined,
+        on.has(s.scope)
+          ? { port: 40000, holding: false, held: opts.held ?? 0 }
+          : undefined,
     },
     gws: () => state,
     rows: () => rows,
@@ -146,6 +148,18 @@ describe("kisui proxy panel・close・stop・hold（#517）", () => {
       errorOf(await run("proxy.stop", { tab: "w1" })),
       "This tab is not sent through the proxy.",
     );
+  });
+
+  it("止めた要求が残っている間の close と hold --off は、流さずに断る（hold を入れるのは通す）", async () => {
+    const { calls, run } = setup({ held: 2 });
+    await run("proxy.panel", { tab: "w1" });
+    assert.match(errorOf(await run("proxy.close", { tab: "w1" })) ?? "", /2/);
+    assert.ok(errorOf(await run("proxy.hold", { tab: "w1", off: true })));
+    assert.equal(errorOf(await run("proxy.hold", { tab: "w1" })), undefined);
+    assert.deepEqual(calls, [
+      ["panel", "ws:w1"],
+      ["hold", "ws:w1", true],
+    ]);
   });
 
   it("リモートの Machine の Pane の頼みは断る", async () => {

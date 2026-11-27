@@ -276,9 +276,9 @@ var en = map[string]string{
 	"help.proxy.panel":            "Open the proxy panel of a tab of the window, and send the tab through the proxy (by its id or name)",
 	"proxy.panel.usage":           "usage: kisui proxy panel <tab>  (<tab> is a terminal tab or a browser tab, by the id kisui tab list prints or its name; a tab that is not yet on the proxy starts; the keys go to the panel only when the tab is shown)",
 	"help.proxy.close":            "Close the proxy panel of a tab of the window (the tab stays on the proxy)",
-	"proxy.close.usage":           "usage: kisui proxy close <tab>",
+	"proxy.close.usage":           "usage: kisui proxy close <tab>  (the tab stays on the proxy; refused while held requests wait in the panel)",
 	"help.proxy.stop":             "Stop sending a tab of the window through the proxy",
 	"proxy.stop.usage":            "usage: kisui proxy stop <tab>",
 	"help.proxy.hold":             "Hold the requests of a tab of the window before they go out (--off: stop holding)",
-	"proxy.hold.usage":            "usage: kisui proxy hold [--off] <tab>  (the tab must be on the proxy; the panel opens to forward or drop the held requests; --off stops holding, and the held requests go out)",
+	"proxy.hold.usage":            "usage: kisui proxy hold [--off] <tab>  (the tab must be on the proxy; the panel opens to forward or drop the held requests; --off stops holding, and is refused while held requests wait in the panel)",
 }

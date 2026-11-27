@@ -808,6 +808,8 @@ export const ja: Record<Key, string> = {
     "kisui-terminal で許されなかったので、クリップボードの履歴を読みませんでした",
   "proxyCli.err.kind":
     "Tab「{tab}」は Database tab です。プロキシに通せるのは Terminal tab と Browser tab だけです。",
+  "proxyCli.err.held":
+    "Tab「{tab}」に、止めている要求が {count} 件あります。パネルを閉じる・止めるのをやめると、そのまま行き先に送られるので、断りました。プロキシのパネルで流すか捨てるよう、ユーザーに頼んでください。",
   "proxyCli.err.busy":
     "その Tab は今、プロキシに通し始めているところです。少し待ってから、もう一度試してください。",
   "tabCli.err.noTab":

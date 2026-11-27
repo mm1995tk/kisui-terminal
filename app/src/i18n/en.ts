@@ -808,6 +808,8 @@ export const en = {
     "The clipboard history was not read, because it was not allowed in kisui-terminal",
   "proxyCli.err.kind":
     'Tab "{tab}" is a database tab. Only terminal tabs and browser tabs go through the proxy.',
+  "proxyCli.err.held":
+    'Tab "{tab}" has {count} held requests. Closing the panel or turning holding off would send them on as they are, so it was refused: ask the user to forward or drop them in the proxy panel.',
   "proxyCli.err.busy":
     "The proxy is starting for that tab now. Try again in a moment.",
   "tabCli.err.noTab":

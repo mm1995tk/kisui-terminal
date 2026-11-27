@@ -1224,7 +1224,11 @@ describe("機能の持ち物のつなぎ（compose.ts）", () => {
     ui.length = 0;
     assert.equal(await f.proxy.openPanelOf(s, fail), true);
     assert.deepEqual([...serve(LOCAL).proxy.keys()], ["ws:b"]);
-    assert.deepEqual(f.proxy.stateOf(s), { port: 40000, holding: false });
+    assert.deepEqual(f.proxy.stateOf(s), {
+      port: 40000,
+      holding: false,
+      held: 0,
+    });
     // 出しているのは a なので、パネルは出ず、キーも動かない
     assert.equal(f.proxy.panel(), undefined);
     assert.equal(await f.proxy.holdOf(s, true, fail), true);

@@ -467,7 +467,7 @@ kisui proxy panel 'api server'
 
 ### kisui proxy close <tab>
 
-Close the proxy panel of the tab. The tab stays on the proxy, and the recording goes on. When requests were being held, holding stops and they go out.
+Close the proxy panel of the tab. The tab stays on the proxy, and the recording goes on. Holding stops. While held requests wait in the panel, it is refused, because they would go out as they are: the user forwards, changes or drops them there. Use it only when the user asks.
 
 ### kisui proxy stop <tab>
 
@@ -475,7 +475,7 @@ Stop sending the tab through the proxy (its panel closes too). A tab that is not
 
 ### kisui proxy hold [--off] <tab>
 
-Hold the requests of the tab before they go out, so that the user can forward, change or drop each in the panel (it opens). `--off` stops holding, and the held requests go out. The tab must be on the proxy (`kisui proxy panel` first). Holding stops every request of that tab until the user acts on it, so use it only when the user asks.
+Hold the requests of the tab before they go out, so that the user can forward, change or drop each in the panel (it opens). `--off` stops holding; while held requests wait in the panel, it is refused (the user forwards, changes or drops them there). The tab must be on the proxy (`kisui proxy panel` first). Holding stops every request of that tab until the user acts on it, so use it only when the user asks.
 
 ### The window itself: sidebar, display size, notices, character
 

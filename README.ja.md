@@ -220,7 +220,7 @@ kisui proxy
 kisui proxy -v --listen 127.0.0.1:8080
 ```
 
-`kisui proxy panel <tab>`・`close <tab>`・`stop <tab>`・`hold [--off] <tab>` は、リーダーの `x` → `p`・`x` → `c`・`x` → `s`・`x` → `i` と同じことを、Pane の中から、指した Terminal tab か Browser tab にします。Tab は `kisui tab` と同じく id か名前で指します（`hold` は止めるのを入れ、`--off` でやめます）。キーをパネルに向ける（ターミナルに戻す）のは、その Tab を出しているときだけです。手元の PC の Pane からだけ使えます。プロキシに通すと、その Tab の通信を記録し、要求を止めて書き換えられるので、リモートの Machine の Pane からは断ります。これらのコマンドは Window が行うので、Window が閉じているときは、理由を出して失敗します。
+`kisui proxy panel <tab>`・`close <tab>`・`stop <tab>`・`hold [--off] <tab>` は、リーダーの `x` → `p`・`x` → `c`・`x` → `s`・`x` → `i` と同じことを、Pane の中から、指した Terminal tab か Browser tab にします。Tab は `kisui tab` と同じく id か名前で指します（`hold` は止めるのを入れ、`--off` でやめます）。止めた要求がパネルに残っている間は、`close` と `hold --off` は断ります。そのまま行き先に送られてしまうためで、止めた要求はパネルで流すか捨ててください。キーをパネルに向ける（ターミナルに戻す）のは、その Tab を出しているときだけです。手元の PC の Pane からだけ使えます。プロキシに通すと、その Tab の通信を記録し、要求を止めて書き換えられるので、リモートの Machine の Pane からは断ります。これらのコマンドは Window が行うので、Window が閉じているときは、理由を出して失敗します。
 
 ```sh
 kisui proxy panel "api server"

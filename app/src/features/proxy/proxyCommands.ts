@@ -95,6 +95,18 @@ export function createProxyCommands(deps: {
     );
   }
 
+  /**
+   * 止めた要求が残っていれば断る（`close` と `hold --off` は、止めていた要求をそのまま行き先に流す。人がパネルで書き換え・捨てる
+   * つもりで止めていた要求を、CLI が流さないように。止めた要求は、人がパネルで流す・捨てる）。
+   */
+  function needNoHeld(e: TabEntry, s: ProxySubject) {
+    const held = deps.proxy.stateOf(s)?.held ?? 0;
+    if (held > 0)
+      throw new WindowCommandError(
+        T("proxyCli.err.held", { tab: e.name, count: held }),
+      );
+  }
+
   /** 指した Tab の今の状態（答え）。 */
   function stateOf(e: TabEntry, s: ProxySubject): ProxyStateInfo {
     const st = deps.proxy.stateOf(s);
@@ -113,6 +125,7 @@ export function createProxyCommands(deps: {
     "proxy.close": {
       run: (args) => {
         const { e, s } = resolve(args);
+        needNoHeld(e, s);
         // 開いていなければ何もしない（キー操作と同じ）
         deps.proxy.closePanelOf(s);
         return stateOf(e, s);
@@ -131,6 +144,7 @@ export function createProxyCommands(deps: {
       run: async (args) => {
         const { e, s } = resolve(args);
         const off = argFlag(args, "off");
+        if (off) needNoHeld(e, s);
         await attempt((fail) => deps.proxy.holdOf(s, !off, fail));
         return stateOf(e, s);
       },

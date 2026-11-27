@@ -923,10 +923,21 @@ export function createProxy(deps: {
     closePanelOf,
     stopOf,
     holdOf,
-    /** 単位を通しているか、と要求を止めているか（CLI の答え）。通していなければ undefined */
-    stateOf(s: ProxySubject): { port: number; holding: boolean } | undefined {
+    /**
+     * 単位を通しているか、要求を止めているか、止めたまま流す・捨てるを待っている要求の数（CLI の答えと、CLI が止めた要求を
+     * 流さないための確かめ）。通していなければ undefined
+     */
+    stateOf(
+      s: ProxySubject,
+    ): { port: number; holding: boolean; held: number } | undefined {
       const st = untrack(scopes)[scopeKey(s.target, s.scope)];
-      return st && { port: st.port, holding: st.holding };
+      return (
+        st && {
+          port: st.port,
+          holding: st.holding,
+          held: st.flows.filter((f) => f.state === "held").length,
+        }
+      );
     },
     select,
     step,

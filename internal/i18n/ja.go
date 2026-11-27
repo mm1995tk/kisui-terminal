@@ -276,9 +276,9 @@ var ja = map[string]string{
 	"help.proxy.panel":            "ウィンドウの Tab のプロキシのパネルを開き、その Tab をプロキシに通す（id か名前で指す）",
 	"proxy.panel.usage":           "usage: kisui proxy panel <tab>（<tab> は Terminal tab か Browser tab。kisui tab list に出る id か名前で指す。まだ通していなければ通し始める。キーをパネルに向けるのは、その Tab を出しているときだけ）",
 	"help.proxy.close":            "ウィンドウの Tab のプロキシのパネルを閉じる（Tab はプロキシに通したまま）",
-	"proxy.close.usage":           "usage: kisui proxy close <tab>",
+	"proxy.close.usage":           "usage: kisui proxy close <tab>（Tab はプロキシに通したまま。止めた要求がパネルに残っている間は断る）",
 	"help.proxy.stop":             "ウィンドウの Tab をプロキシに通すのをやめる",
 	"proxy.stop.usage":            "usage: kisui proxy stop <tab>",
 	"help.proxy.hold":             "ウィンドウの Tab の要求を、行き先に送る前に止める（--off で止めるのをやめる）",
-	"proxy.hold.usage":            "usage: kisui proxy hold [--off] <tab>（プロキシに通している Tab だけ。止めた要求を流す・捨てるために、パネルが開く。--off で止めるのをやめ、止めていた要求は流れる）",
+	"proxy.hold.usage":            "usage: kisui proxy hold [--off] <tab>（プロキシに通している Tab だけ。止めた要求を流す・捨てるために、パネルが開く。--off で止めるのをやめる。止めた要求がパネルに残っている間は断る）",
 }
