@@ -12,7 +12,7 @@
   align-items: baseline;
 }
 .key-footer-title {
-  /* 短い見出しだけの窓では、列を今までと同じ 8rem にそろえる（見出しの字の大きさに左右されないよう rem で書く） */
+  /* 見出しがどれも短いときは、列を今までと同じ 8rem にそろえる（見出しの字の大きさに左右されないよう rem で書く） */
   min-width: 8rem;
   color: var(--color-text-dim);
   font-size: var(--text-label);
