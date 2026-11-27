@@ -721,7 +721,7 @@ fn replace_cookies(v: &tauri::Webview, cookies: &[Cookie<'static>]) -> Result<()
     for c in cookies {
         let old = match &stored {
             Some(s) => crate::cookie_check::to_delete(c, s),
-            // 読めなければ、前と同じく入れる Cookie で消してみる
+            // 読めなければ、入れる Cookie そのもので消してみる（入っている Cookie と属性が同じなら消える）
             None => vec![c.clone()],
         };
         let mut failed = false;
