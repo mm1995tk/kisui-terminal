@@ -708,7 +708,7 @@ fn replace_cookies(v: &tauri::Webview, cookies: &[Cookie<'static>]) -> Result<()
     // やめて時間切れの Err を返し、WebKit は消す処理を別のスレッドで続ける。そのまま入れると、入れた後に消す処理が
     // 走り、入れたばかりの Cookie が消えうる。なので、消すのが Err なら、消えたのを読み戻して確かめてから入れる
     // （`wait_until_deleted`）。
-    // 消すのは手当てなので、読めない・消せないときもログに出して入れるほうへ進む（入った後の属性は下の読み戻しで確かめる）
+    // 消すのは手当てなので、読めない・消せないときもログに出して入れるほうへ進む（入った後の属性は、呼ぶ側の `apply_cookies` が読み戻して確かめる）
     let mut stored = match v.cookies() {
         Ok(s) => Some(s),
         Err(e) => {
