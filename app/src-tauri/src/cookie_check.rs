@@ -143,9 +143,10 @@ pub fn still_stored(deleted: &[Cookie<'_>], now: &[Cookie<'_>]) -> bool {
 }
 
 /// `sent` を入れた後の `stored`（入れる前に読み戻した Cookie）。写す Cookie の中に同じ名前・domain・path の Cookie が
-/// 後にもあれば、次に消すのは今入れたもの。
+/// 後にもあれば、今入れたものも消す。前から入っていたものは外さない。読み戻しでは host だけの `google.com` と
+/// `.google.com` を見分けられず、外すと、もう一方の書き方の古い Cookie を、それ自身の属性で消せなくなるため
+/// （消し済みのものをもう一度消すだけなら害はない）。
 pub fn remember_set(stored: &mut Vec<Cookie<'static>>, sent: &Cookie<'static>) {
-    stored.retain(|x| !same_target(sent, x));
     stored.push(sent.clone());
 }
 
@@ -470,9 +471,28 @@ mod tests {
         assert_eq!(to_delete(&first, &stored)[0].value(), "old");
         remember_set(&mut stored, &first);
         let d = to_delete(&second, &stored);
-        assert_eq!(d.len(), 1);
-        assert_eq!(d[0].value(), "v");
-        assert_eq!(d[0].http_only(), None);
+        assert_eq!(d.len(), 2);
+        assert_eq!(d[1].value(), "v");
+        assert_eq!(d[1].http_only(), None);
+    }
+
+    // `.google.com` と host だけの `google.com` の両方を写すとき、先に `.google.com` を入れても、host だけの古い
+    // Cookie は、それ自身の属性で消す
+    #[test]
+    fn keeps_the_other_stale_cookie_after_setting() {
+        let mut domain = sent("x", "..google.com");
+        domain.set_http_only(false);
+        let mut host = sent("x", "google.com");
+        host.set_http_only(false);
+        let mut stale = read_back(&host);
+        stale.set_value("old");
+        stale.set_http_only(true);
+        let mut stored = vec![stale];
+        remember_set(&mut stored, &domain);
+        let d = to_delete(&host, &stored);
+        assert!(d.iter().any(|c| c.value() == "old"
+            && c.http_only() == Some(true)
+            && c.domain() == Some("google.com")));
     }
 
     #[test]
