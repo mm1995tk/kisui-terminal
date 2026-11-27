@@ -97,7 +97,7 @@ function setup() {
 
 describe("kisui machine", () => {
   it("only a pane of the computer of the window may ask", async () => {
-    const { table } = setup();
+    const { table, calls } = setup();
     for (const [name, h] of Object.entries(table))
       assert.equal(h.remote, undefined, name);
     // p・P（許す）は CLI にしない
@@ -110,7 +110,6 @@ describe("kisui machine", () => {
       "machine.rename",
       "machine.terminal",
     ]);
-    const { calls } = setup();
     const wr = createWindowRun([table]);
     const r = await wr.run("dev-vm", {
       id: "1",
@@ -121,6 +120,15 @@ describe("kisui machine", () => {
     });
     assert.ok("error" in r);
     assert.deepEqual(calls, []);
+    // 手元の PC の Pane からの同じ頼みは行う（calls が、この table の呼び出しを数えている）
+    await wr.run(LOCAL, {
+      id: "2",
+      pane: "p",
+      tab: "w",
+      command: "machine.remove",
+      args: { machine: "dev" },
+    });
+    assert.deepEqual(calls, [["remove", "dev-vm"]]);
   });
 
   it("lists the machines as the dialog does", async () => {
