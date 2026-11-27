@@ -24,7 +24,7 @@ lume attach kisui-vm                  # 画面を見る
 | VM | 中身 | 作り方 |
 | --- | --- | --- |
 | `kisui-vm-base` | 素の macOS。ユーザー `lume` への ssh の鍵と、`~/.local/bin/cua-driver`（画面の操作の権限を許したもの） | 手で作る |
-| `kisui-vm-golden` | base に、Firefox（Developer Edition を `Firefox.app` の名前で）、署名の無い拡張を許す設定、`Mozilla/NativeMessagingHosts` を足したもの | `make-golden.sh` |
+| `kisui-vm-golden` | base に、Firefox（Developer Edition を `Firefox.app` の名前で）、署名の無い拡張を許す設定、Firefox のプロファイルを足したもの | `make-golden.sh` |
 | `kisui-vm` | golden の複製に、確かめる版と拡張と設定を入れたもの | `new-check-vm.sh` |
 
 複製は APFS の複製なので、すぐ終わり、ディスクもほとんど使わない。

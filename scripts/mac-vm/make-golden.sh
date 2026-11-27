@@ -9,8 +9,8 @@
 #   `open -a Firefox` で開くので、この名前でないと開けない。手元で作った拡張には署名が無い。
 #   普通の Firefox は署名の無い拡張を再起動までしか入れておけないが、Developer Edition は設定で入れたままにできる。
 # - Firefox の設定（署名の無い拡張を許す・初回の案内を出さない）。
-# - ~/Library/Application Support/Mozilla/NativeMessagingHosts（kisui-terminal は、ここがあるときだけ
-#   拡張の受け口の登録を置く）。
+# - Firefox のプロファイル（~/Library/Application Support/Firefox）。kisui-terminal は、このフォルダがあるとき
+#   だけ拡張の受け口の登録を置く（Mozilla/NativeMessagingHosts は kisui-terminal が作る）。
 set -euo pipefail
 
 BASE=${BASE:-kisui-vm-base}
@@ -56,8 +56,6 @@ lockPref("browser.startup.homepage_override.mstone", "ignore");
 lockPref("datareporting.policy.dataSubmissionPolicyBypassNotification", true);
 lockPref("app.update.auto", false);
 EOF
-
-mkdir -p ~/Library/Application\ Support/Mozilla/NativeMessagingHosts
 
 # 一度開いて閉じ、プロファイルを作っておく
 rm -rf ~/Library/Application\ Support/Firefox
