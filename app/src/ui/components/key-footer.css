@@ -1,19 +1,17 @@
 /* 窓の下の段の、今効く操作の行（KeyFooter.tsx）。行ごとに、頭に何に効くかの見出しを置き、操作は右に流す */
 .key-footer-rows {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-6);
+  display: grid;
+  /* 見出しの列は、いちばん長い見出しに合わせる。長すぎる見出しは切らずに折り返す */
+  grid-template-columns: fit-content(16em) 1fr;
+  gap: var(--space-6) var(--space-12);
 }
 .key-footer-row {
   display: grid;
-  grid-template-columns: 8em 1fr;
-  gap: var(--space-12);
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
   align-items: baseline;
 }
 .key-footer-title {
-  overflow: hidden;
   color: var(--color-text-dim);
   font-size: var(--text-label);
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
