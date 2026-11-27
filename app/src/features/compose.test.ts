@@ -480,6 +480,7 @@ function start(opts: {
       frameUrl: (id) => id,
     },
     exportFile: async () => null,
+    clipboardHistory: async () => [],
     dbConfig: {
       list: async () => ({ local: [], fixed: [] }),
       edit: async () => ({ local: [], fixed: [] }),
@@ -1193,6 +1194,59 @@ describe("機能の持ち物のつなぎ（compose.ts）", () => {
     respSize: 2,
     durationMs: 1,
     ...over,
+  });
+
+  it("プロキシ：CLI（kisui proxy。#517）が指した、出していないタブは、通し始め・止め・やめても、キーを動かさない", async () => {
+    const { f, ui, serve } = start({
+      serves: {
+        [LOCAL]: {
+          ids: ["a", "b"],
+          focus: "a",
+          capabilities: ["proxy", "proxy.hold"],
+        },
+      },
+    });
+    await settle();
+    const s = f.proxy.subjectOf({
+      kind: "term",
+      target: LOCAL,
+      ws: "b",
+      title: "",
+    });
+    assert.ok(s);
+    const fails: unknown[] = [];
+    const fail = (p: unknown) => void fails.push(p);
+    // 通していないタブを止める・やめるのは、理由を返してできない
+    assert.equal(await f.proxy.holdOf(s, true, fail), false);
+    assert.equal(await f.proxy.stopOf(s, fail), false);
+    assert.equal(fails.length, 2);
+    assert.equal(f.focusError(), null, "Notice には出さない");
+    ui.length = 0;
+    assert.equal(await f.proxy.openPanelOf(s, fail), true);
+    assert.deepEqual([...serve(LOCAL).proxy.keys()], ["ws:b"]);
+    assert.deepEqual(f.proxy.stateOf(s), { port: 40000, holding: false });
+    // 出しているのは a なので、パネルは出ず、キーも動かない
+    assert.equal(f.proxy.panel(), undefined);
+    assert.equal(await f.proxy.holdOf(s, true, fail), true);
+    assert.equal(f.proxy.stateOf(s)?.holding, true);
+    assert.equal(f.proxy.closePanelOf(s), true);
+    await settle();
+    assert.equal(f.proxy.stateOf(s)?.holding, false);
+    assert.equal(await f.proxy.stopOf(s, fail), true);
+    assert.equal(f.proxy.stateOf(s), undefined);
+    assert.ok(!ui.includes("focusProxyPanel"));
+    assert.ok(!ui.includes("focusTerminal"));
+    assert.equal(fails.length, 2);
+    // Database tab は通せない
+    assert.equal(
+      f.proxy.subjectOf({
+        kind: "db",
+        id: "d1",
+        target: LOCAL,
+        connection: "main",
+      }),
+      undefined,
+    );
   });
 
   it("プロキシ：ターミナルのタブでパネルを開くと、そのワークスペースを通し始め、通信が一覧に出る。閉じても通したまま、やめると外れる", async () => {

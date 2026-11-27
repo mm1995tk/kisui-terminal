@@ -5,7 +5,6 @@ import { createContext, useContext } from "solid-js";
 
 import type { FeaturePorts } from "../features/compose.ts";
 import type { ClipboardOs } from "../features/clipboard/clipboardBridge.ts";
-import type { ListClipboardHistory } from "../features/clipboard/history.ts";
 import type { TransferOs } from "../features/file-transfer/transfer.ts";
 import type { ShowOsNotification } from "../features/terminal/notify.ts";
 
@@ -13,8 +12,6 @@ import type { ShowOsNotification } from "../features/terminal/notify.ts";
 export interface Ports extends FeaturePorts {
   /** OS のクリップボード */
   clipboard: ClipboardOs;
-  /** クリップボードの履歴 */
-  clipboardHistory: ListClipboardHistory;
   /** ターミナルのファイル転送 */
   transfer: TransferOs;
   /** OS の通知 */

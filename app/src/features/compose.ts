@@ -36,6 +36,11 @@ import {
 import { onPaneGrantEnd, paneGrantActive } from "./sessions/paneGrant.ts";
 import { createPaneRelay } from "./sessions/paneRelay.ts";
 import { createWindowRun } from "./commands/windowRun.ts";
+import { createGlobalCommands } from "./commands/globalCommands.ts";
+import { askClipboardHistory } from "./clipboard/clipboardPrompt.ts";
+import type { ListClipboardHistory } from "./clipboard/history.ts";
+import { createClipboardCommands } from "./clipboard/historyCommand.ts";
+import { createProxyCommands } from "./proxy/proxyCommands.ts";
 import type { ConfigMachine } from "./sessions/machines.ts";
 import type { TermDefaults } from "./sessions/termDefaults.ts";
 import type { ShellApi } from "./sessions/shell.ts";
@@ -73,6 +78,8 @@ export interface FeaturePorts {
   exportFile: SaveTextFile;
   /** 手元の PC の config.local.toml の DB の接続を読む・書く（#486） */
   dbConfig: DbConfigFiles;
+  /** クリップボードの履歴（Dialog と `kisui clipboard history`。#517） */
+  clipboardHistory: ListClipboardHistory;
 }
 
 /** 機能が、画面の側に頼むこと（キーを向ける・スクロールを戻す・短い知らせを出す）。 */
@@ -299,38 +306,6 @@ export function createFeatures(deps: {
     focusTerminal,
     revealSidebar: () => ui.revealSidebar(),
   });
-  // Window に頼む、Pane の中のコマンド（`kisui tab` など。#511）。CLI を足すときは、受け持ちの表をここに足す
-  const windowRun = createWindowRun([
-    createTabCommands({
-      sessions,
-      gws: workspaces.gws,
-      rows: workspaces.rows,
-      tabs,
-      browser,
-      granted: paneGrantActive,
-      anyAskEach,
-    }),
-    createWorkspaceCommands({
-      sessions,
-      gws: workspaces.gws,
-      rows: workspaces.rows,
-      workspaces,
-      tabs,
-      browser,
-      granted: paneGrantActive,
-      anyAskEach,
-    }),
-    createPaneCommands({
-      sessions,
-      termGroups: sessions.termGroups,
-      gws: workspaces.gws,
-      rows: workspaces.rows,
-      tabs,
-      terminals,
-      relay,
-      granted: paneGrantActive,
-    }),
-  ]);
   const proxy = createProxy({
     sessions,
     workspaces,
@@ -367,6 +342,53 @@ export function createFeatures(deps: {
     focusTerminal,
     ui: deps.commandUi,
   });
+  // Window に頼む、Pane の中のコマンド（`kisui tab` など。#511）。CLI を足すときは、受け持ちの表をここに足す
+  const windowRun = createWindowRun([
+    createTabCommands({
+      sessions,
+      gws: workspaces.gws,
+      rows: workspaces.rows,
+      tabs,
+      browser,
+      granted: paneGrantActive,
+      anyAskEach,
+    }),
+    createWorkspaceCommands({
+      sessions,
+      gws: workspaces.gws,
+      rows: workspaces.rows,
+      workspaces,
+      tabs,
+      browser,
+      granted: paneGrantActive,
+      anyAskEach,
+    }),
+    createPaneCommands({
+      sessions,
+      termGroups: sessions.termGroups,
+      gws: workspaces.gws,
+      rows: workspaces.rows,
+      tabs,
+      terminals,
+      relay,
+      granted: paneGrantActive,
+    }),
+    createGlobalCommands({
+      runCommand: (c) => commands.runCommand(c),
+      updates,
+      downloads,
+      mascot,
+    }),
+    createClipboardCommands({
+      list: ports.clipboardHistory,
+      ask: askClipboardHistory,
+    }),
+    createProxyCommands({
+      proxy,
+      gws: workspaces.gws,
+      rows: workspaces.rows,
+    }),
+  ]);
 
   return {
     /** できなかったことの知らせ（無ければ null） */

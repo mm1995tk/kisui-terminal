@@ -1,4 +1,5 @@
-// ターミナルのプログラムが OS のクリップボードを読もうとしたとき、許すかをユーザーに聞く Dialog（kitty の OSC 5522）。
+// ターミナルのプログラムが OS のクリップボードを読もうとしたとき（kitty の OSC 5522）と、`kisui clipboard history` が
+// クリップボードの履歴を読もうとしたとき（#517）に、許すかをユーザーに聞く Dialog。
 // ssh 先のプログラムが手元のクリップボード（パスワードなど）を読めてしまうので、そのたびに聞く。
 import { T } from "../../../i18n/index.ts";
 import { Show, type JSX } from "solid-js";
@@ -23,7 +24,13 @@ export function ClipboardDialog(): JSX.Element {
           label={T("clipboardAsk.label")}
           focusSelf
           onCancel={() => ask.resolve(false)}
-          header={<CardTitle>{T("clipboardAsk.title")}</CardTitle>}
+          header={
+            <CardTitle>
+              {ask.history
+                ? T("clipboardAsk.history.title")
+                : T("clipboardAsk.title")}
+            </CardTitle>
+          }
           footer={
             <CardActions>
               <Button onClick={() => ask.resolve(false)}>
@@ -36,10 +43,15 @@ export function ClipboardDialog(): JSX.Element {
           }
         >
           <CardBody>
-            <CardText>{T("clipboardAsk.text")}</CardText>
-            <CardText>
-              {T("clipboardAsk.kinds", { kinds: describeMimes(ask.mimes) })}
-            </CardText>
+            <Show
+              when={!ask.history}
+              fallback={<CardText>{T("clipboardAsk.history.text")}</CardText>}
+            >
+              <CardText>{T("clipboardAsk.text")}</CardText>
+              <CardText>
+                {T("clipboardAsk.kinds", { kinds: describeMimes(ask.mimes) })}
+              </CardText>
+            </Show>
           </CardBody>
         </ModalCard>
       )}

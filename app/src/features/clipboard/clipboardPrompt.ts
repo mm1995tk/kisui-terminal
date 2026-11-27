@@ -4,6 +4,8 @@ import { createSignal } from "solid-js";
 export interface ReadPrompt {
   /** 頼まれた MIME の種類（そのまま見せる） */
   mimes: string[];
+  /** クリップボードの履歴を読む頼み（`kisui clipboard history`。#517）。無ければ、今のクリップボードを読む頼み（OSC 5522） */
+  history?: true;
   /** 許す（true）か断る（false）か */
   resolve: (allowed: boolean) => void;
 }
@@ -22,10 +24,28 @@ export function askClipboardRead(mimes: string[]): {
   allowed: Promise<boolean>;
   cancel: () => void;
 } {
+  return ask(mimes, false);
+}
+
+/**
+ * クリップボードの履歴を読む許可をユーザーに求める（`kisui clipboard history`。#517）。askClipboardRead と同じく、そのたびに聞き、覚えない。
+ */
+export function askClipboardHistory(): {
+  allowed: Promise<boolean>;
+  cancel: () => void;
+} {
+  return ask([], true);
+}
+
+function ask(
+  mimes: string[],
+  history: boolean,
+): { allowed: Promise<boolean>; cancel: () => void } {
   let entry!: ReadPrompt;
   const allowed = new Promise<boolean>((resolve) => {
     entry = {
       mimes,
+      ...(history ? { history: true as const } : {}),
       resolve: (ok) => {
         setQueue((q) => q.filter((e) => e !== entry));
         resolve(ok);

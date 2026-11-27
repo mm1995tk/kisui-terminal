@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/mm1995tk/kisui-terminal/internal/i18n"
 	"github.com/mm1995tk/kisui-terminal/internal/kittyterm"
+	"github.com/mm1995tk/kisui-terminal/internal/panecmd"
 )
 
 // How long the clipboard commands wait for the terminal. A write is answered
@@ -118,4 +120,77 @@ func ttyError(name string, err error) int {
 		fmt.Fprintf(os.Stderr, i18n.T("tty.failed")+"\n", name, err)
 	}
 	return 1
+}
+
+// historyEntry is one entry of the clipboard history in the answer to
+// "clipboard.history". "kisui clipboard history --json" prints these as they
+// are.
+type historyEntry struct {
+	Text string `json:"text"`
+	// CopiedAt is when it was copied, in milliseconds since the Unix epoch.
+	CopiedAt int64 `json:"copiedAt"`
+}
+
+// historyPreview is the most characters of an entry that "kisui clipboard
+// history" prints on its line (--json prints all of it).
+const historyPreview = 100
+
+// runClipboardHistory is "kisui clipboard history [--json]": the clipboard
+// history of the window (the text copied before), newest first. It asks the
+// window, which asks the user every time whether to let it read the history,
+// and takes it only from a pane of the computer it runs on.
+func runClipboardHistory(args []string) int {
+	if isHelp(args) {
+		fmt.Println(i18n.T("clipboard.history.usage"))
+		return 0
+	}
+	f, ok := parseFlags(args, nil, []string{"--json"})
+	if !ok || len(f.rest) != 0 {
+		fmt.Fprintln(os.Stderr, i18n.T("clipboard.history.usage"))
+		return 2
+	}
+	var out struct {
+		Entries []historyEntry `json:"entries"`
+	}
+	// the window asks a person, so "kisui serve" waits longer
+	if code := windowRunWith("clipboard history", panecmd.Request{Command: "clipboard.history", Long: true}, nil, &out); code != 0 {
+		return code
+	}
+	var err error
+	if f.on["--json"] {
+		if out.Entries == nil {
+			out.Entries = []historyEntry{}
+		}
+		e := json.NewEncoder(os.Stdout)
+		e.SetIndent("", "  ")
+		err = e.Encode(out)
+	} else {
+		err = writeHistory(os.Stdout, out.Entries)
+	}
+	if err != nil {
+		fmt.Fprintln(os.Stderr, windowError("clipboard history", err))
+		return 1
+	}
+	return 0
+}
+
+// writeHistory writes the entries for a person: one line each, its number
+// (1 is the newest), when it was copied, and the text on one line, cut after
+// historyPreview characters.
+func writeHistory(w io.Writer, entries []historyEntry) error {
+	rows := [][]string{}
+	for i, e := range entries {
+		text := []rune(strings.Join(strings.Fields(e.Text), " "))
+		line := string(text)
+		if len(text) > historyPreview {
+			line = string(text[:historyPreview]) + "…"
+		}
+		at := time.UnixMilli(e.CopiedAt).Local().Format("2006-01-02 15:04")
+		rows = append(rows, []string{fmt.Sprint(i + 1), at, tableCell(line)})
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	_, err := io.WriteString(w, alignColumns(rows))
+	return err
 }

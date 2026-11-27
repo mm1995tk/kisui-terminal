@@ -11,11 +11,10 @@ import (
 func walkCommands(cmds []command, prefix string, f func(path string, c command)) {
 	for _, c := range cmds {
 		path := strings.TrimSpace(prefix + " " + c.name)
-		if c.run == nil {
-			walkCommands(c.sub, path, f)
-			continue
+		if c.run != nil {
+			f(path, c)
 		}
-		f(path, c)
+		walkCommands(c.sub, path, f)
 	}
 }
 
