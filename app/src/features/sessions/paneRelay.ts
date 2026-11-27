@@ -197,11 +197,11 @@ export function createPaneRelay(deps: {
             error: T("err.session.notConnected", { machine: labelOf(target) }),
           };
         const listed = await within(
-          s.runPane({ cmd: "list" }, caller).catch(
-            (e: unknown): PaneRunReply => ({
+          s
+            .runPane({ cmd: "list" }, caller)
+            .catch((e: unknown): PaneRunReply => ({
               error: e instanceof Error ? e.message : String(e),
-            }),
-          ),
+            })),
           labelOf(target),
         );
         if (listed.error !== undefined) return { error: listed.error };
@@ -251,11 +251,9 @@ export function createPaneRelay(deps: {
         error: T("err.session.notConnected", { machine: labelOf(target) }),
       };
     return within(
-      s.runPane(run, caller).catch(
-        (e: unknown): PaneRunReply => ({
-          error: e instanceof Error ? e.message : String(e),
-        }),
-      ),
+      s.runPane(run, caller).catch((e: unknown): PaneRunReply => ({
+        error: e instanceof Error ? e.message : String(e),
+      })),
       labelOf(target),
     );
   };

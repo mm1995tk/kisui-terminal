@@ -78,11 +78,9 @@ export function createDbPropose(deps: {
     pending.add(key);
     const done = queue
       .then(() => handle(target, rq, key))
-      .catch(
-        (e: unknown): DbProposeReport => ({
-          error: e instanceof Error ? e.message : String(e),
-        }),
-      );
+      .catch((e: unknown): DbProposeReport => ({
+        error: e instanceof Error ? e.message : String(e),
+      }));
     queue = done.then(() => {
       pending.delete(key);
       withdrawn.delete(key);

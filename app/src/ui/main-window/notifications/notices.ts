@@ -209,8 +209,7 @@ export function createNotices(deps: {
       }
     : undefined;
   let focusNotice:
-    | { err: { title: string; error: string }; notice: Notice }
-    | undefined;
+    { err: { title: string; error: string }; notice: Notice } | undefined;
 
   /** 右下に積む知らせ。つながらない・別の GUI に移った・ワークスペースに移れなかった・ファイルを開けなかった。 */
   const notices = createMemo<Notice[]>(() => {

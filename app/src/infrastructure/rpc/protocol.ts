@@ -1005,8 +1005,7 @@ export interface WindowRunRequest {
  * 見分ける断り（serve の panecmd.Reply.Code。"busy" など）。
  */
 export type WindowRunReport =
-  | { result: unknown }
-  | { error: string; code?: string };
+  { result: unknown } | { error: string; code?: string };
 
 /** db.propose の中身（`kisui db propose`。#382）。 */
 export interface DbProposeRequest {
@@ -1024,8 +1023,7 @@ export interface DbProposeRequest {
  * error：書けなかった理由（そのまま kisui db propose が出す）。
  */
 export type DbProposeReport =
-  | { status: "written" | "declined" }
-  | { error: string };
+  { status: "written" | "declined" } | { error: string };
 
 /** gws.set の 1 つ：ターミナルのタブ workspaceId が入っている、Window のワークスペースの id と、サイドバーに出ている名前。 */
 export interface GwsTab {

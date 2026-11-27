@@ -139,9 +139,7 @@ export function dbTreeFilterKey(e: KeyLike): "tree" | null {
 
 /** 履歴の Dialog（#349）のキーの動き。 */
 export type DbHistoryKey =
-  | { kind: "step"; step: 1 | -1 }
-  | { kind: "choose" }
-  | { kind: "help" };
+  { kind: "step"; step: 1 | -1 } | { kind: "choose" } | { kind: "help" };
 
 /**
  * 履歴の Dialog（絞り込みの入力欄にキーがある）で押したキー e の動き（当たらなければ null。入力欄に字を打つ）。

@@ -18,9 +18,7 @@ export function isNewTab(t: Pick<BrowserTab, "url">): boolean {
 
 /** 新しいタブのページの入力欄が受けるキー。 */
 export type NewTabKey =
-  | { kind: "step"; step: 1 | -1 }
-  | { kind: "enter" }
-  | { kind: "cancel" };
+  { kind: "step"; step: 1 | -1 } | { kind: "enter" } | { kind: "cancel" };
 
 /**
  * 入力欄のキーの意味。`↓` `↑`・Ctrl+J / Ctrl+K はブックマークを選ぶ（検索欄から出入りする）、`Enter` は選んでいるブックマークか

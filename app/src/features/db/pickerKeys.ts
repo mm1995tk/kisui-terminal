@@ -9,10 +9,7 @@ import { T } from "../../i18n/index.ts";
 
 /** Dialog の中のキーが表す動き。add は手元の PC に接続を足す、edit・remove は選んでいる接続を直す・消す。 */
 export type DbPickerKey =
-  | PickerKey
-  | { kind: "add" }
-  | { kind: "edit" }
-  | { kind: "remove" };
+  PickerKey | { kind: "add" } | { kind: "edit" } | { kind: "remove" };
 
 /** Dialog の中のキー。入力欄は無いので字をそのまま使う。変換中のキーと、Alt・Cmd・Ctrl・Shift を重ねた字は受けない（動かす・決めるキーは pickerKey の決まり）。 */
 export function dbPickerKey(e: KeyLike): DbPickerKey | null {

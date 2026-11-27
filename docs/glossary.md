@@ -4,7 +4,7 @@ The names of the parts of the screen and of the operations. Use these words in c
 
 - Do not invent a name that is not in this table. When you add a new part, add it here first.
 - The "Avoid" column lists other names for the same thing. Do not use them.
-- Katakana names that only transliterate a term (ダイアログ, サイドバー, ワークスペース, タブ, ペイン, and so on) may stay in Japanese text. The test `app/src/glossary/avoid.test.ts` checks the other Avoid entries (the ones with kanji or hiragana, such as 窓, 近道, 下の段). It skips an entry that has a note in parentheses, such as "(when it means this guide)"; check those by eye. It skips this file and the test itself.
+- Katakana names that only transliterate a term (ダイアログ, サイドバー, ワークスペース, タブ, ペイン, and so on) may stay in Japanese text. The test `internal/glossary/avoid_test.go` (`go test ./...`) checks the other Avoid entries (the ones with kanji or hiragana, such as 窓, 近道, 下の段). It skips an entry that has a note in parentheses, such as "(when it means this guide)"; check those by eye. It skips this file and the test itself.
 - Some code names differ from the names here. Aligning the code names is separate work.
 - Where the English UI has no word for a part (for example `PaneGrid`), the component name is listed.
 
