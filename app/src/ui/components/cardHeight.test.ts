@@ -103,7 +103,7 @@ describe("Dialog の高さの決め方", () => {
     );
   });
 
-  it("縮む一覧にも、行が見える下限の高さがある（短い窓で 0 行にならない）", () => {
+  it("縮む一覧にも、行が見える下限の高さがある（画面が低くても 0 行にならない）", () => {
     assert.equal(
       declarations(card, ".card-content > .card-rows:has(> li)").get(
         "min-height",
