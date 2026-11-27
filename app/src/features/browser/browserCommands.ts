@@ -51,7 +51,7 @@ import type { BrowserOs } from "./os.ts";
 import type { Pages } from "./pages.ts";
 import type { BrowserTab } from "./tabs.ts";
 import type { BrowserTabs } from "./tabsStore.ts";
-import { whyNot, type BrowserOp } from "./window.ts";
+import { loginRefusal, whyNot, type BrowserOp } from "./window.ts";
 
 /** `kisui browser bookmark list --json` の 1 つ（cmd/kisui/browser.go の bookmarkInfo と同じ形）。 */
 export interface BookmarkInfo {
@@ -221,22 +221,6 @@ export function createBrowserCommands(deps: {
     };
   }
 
-  /** `kisui browser login` が断られた理由（殻の答え）。 */
-  const loginWhy = (
-    r: "incognito" | "no-sites" | "not-allowed",
-    url: string,
-  ): string => {
-    if (r === "incognito") return T("cannot.browser.login.incognito");
-    if (r === "no-sites") return T("cannot.browser.login.noSites");
-    let host = url;
-    try {
-      host = new URL(url).hostname;
-    } catch {
-      // URL の形でなければそのまま出す
-    }
-    return T("cannot.browser.login.notAllowed", { host });
-  };
-
   return {
     "browser.new": {
       remote: true,
@@ -356,7 +340,7 @@ export function createBrowserCommands(deps: {
 
     "browser.login": pageCommand("login", true, async (t) => {
       const r = await deps.os.startPasskeyLogin(t.id);
-      if (r !== "opened") throw new WindowCommandError(loginWhy(r, t.url));
+      if (r !== "opened") throw new WindowCommandError(loginRefusal(r, t.url));
       return undefined;
     }),
   };
