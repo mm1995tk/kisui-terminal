@@ -122,12 +122,21 @@ export function createPaneCommands(deps: {
     );
     if (r.error !== undefined) throw new WindowCommandError(r.error);
     const target = machineTarget(untrack(machines), machine);
-    const found = (r.panes ?? [])
-      .map(paneOf)
-      .find((p) => p !== undefined && (p.id === name || p.name === name));
-    if (!found || target === undefined)
+    // 先に id で探し、無ければ名前で探す。2 つ以上に当たれば断る（serve の `kisui pane send` と同じ）
+    const panes = (r.panes ?? []).flatMap((x) => paneOf(x) ?? []);
+    const byId = panes.filter((p) => p.id === name);
+    const found = byId.length > 0 ? byId : panes.filter((p) => p.name === name);
+    if (found.length > 1)
+      throw new WindowCommandError(
+        T("paneCli.err.ambiguous", {
+          pane: name,
+          count: found.length,
+          ids: found.map((p) => p.id).join(", "),
+        }),
+      );
+    if (found.length === 0 || target === undefined)
       throw new WindowCommandError(T("paneCli.err.noPane", { pane: name }));
-    return { target, ws: found.tab, id: found.id, name };
+    return { target, ws: found[0].tab, id: found[0].id, name };
   }
 
   /** Pane の Terminal tab の Pane の並び。無ければ（Machine が切れた・Tab が閉じた）断る。 */

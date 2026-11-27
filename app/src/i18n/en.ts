@@ -820,6 +820,8 @@ export const en = {
     "A pane of {from} may show a workspace only while the keys of the window are on a terminal tab of {from} and the workspace shows a terminal tab of {from}, or while the person at the window allows {from} (in the machine dialog, choose {from} and press p). Otherwise the keys the person is typing would go to another place. Ask the user to show the workspace.",
   "paneCli.err.noPane":
     'No pane has the id or the name "{pane}" among the panes this pane may reach (kisui pane list prints them)',
+  "paneCli.err.ambiguous":
+    '{count} panes have the name or id "{pane}"; point at one of them by its id ({ids}; kisui pane list prints them)',
   "paneCli.err.focus":
     "A pane of {from} may move the keys to a pane only while the keys of the window are on a terminal tab of {from} and the pane is in a terminal tab of {from}, or while the person at the window allows {from} (in the machine dialog, choose {from} and press p). Otherwise the keys the person is typing would go to another place. Ask the user to go to the pane.",
   "paneCli.err.zoomed":

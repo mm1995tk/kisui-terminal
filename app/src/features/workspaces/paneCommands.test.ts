@@ -254,6 +254,18 @@ describe("kisui pane focus", () => {
     assert.equal(b.message.replace("t99", "nobody"), a.message);
   });
 
+  it("名前が 2 つの Pane に当たれば、id を並べて断る。id は先に探す", async () => {
+    const { run } = setup();
+    panesOf[LOCAL].push({ id: "t2", name: "main", tab: "wlocal" });
+    try {
+      const e = await refusal(() => run("pane.focus", { pane: "main" }));
+      assert.ok(e.message.includes("t1, t2"));
+      await run("pane.focus", { pane: "t2" });
+    } finally {
+      panesOf[LOCAL].pop();
+    }
+  });
+
   it("中継が断った Machine（許していない・名前が違う）は、中継の理由で断る", async () => {
     const { run } = setup();
     const e = await refusal(() =>
