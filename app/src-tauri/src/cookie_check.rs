@@ -100,33 +100,26 @@ pub fn check(sent: &[Cookie<'_>], stored: &[Cookie<'_>]) -> Vec<Mismatch> {
 ///   `Created` も違いえて、どの属性の違いによるかは確かめていない。いま入っている属性をすべて渡せば、どれでも当たる。
 /// - Linux：libsoup の `soup_cookie_jar_delete_cookie` は、domain（文字列が同じ）・名前・値・path が同じものを消す。
 ///
-/// domain は `sent` の書き方にする。読み戻しの domain は先頭の `.` が取れていて（モジュールの説明）、そのまま渡すと
-/// `.google.com` の Cookie が host だけの `google.com` になり、消す相手が変わる。Secure・HttpOnly は true のときだけ
-/// 付ける（passkey.rs の `accept_cookie` と同じ。macOS の wry は `Some(false)` でも Secure・HttpOnly にする）。
+/// 名前・domain・path は `sent` のままにする。読み戻しの domain は先頭の `.` が取れていて（モジュールの説明）、そのまま
+/// 渡すと `.google.com` の Cookie が host だけの `google.com` になり、消す相手が変わる。Secure・HttpOnly は true のとき
+/// だけ付ける（passkey.rs の `accept_cookie` と同じ。macOS の wry は `Some(false)` でも Secure・HttpOnly にする）。
 pub fn to_delete(sent: &Cookie<'_>, stored: &[Cookie<'_>]) -> Vec<Cookie<'static>> {
-    let domain = sent.domain().unwrap_or_default();
-    let path = sent.path().unwrap_or("/");
     stored
         .iter()
         .filter(|s| same_target(sent, s))
         .map(|s| {
-            // `domain()` は先頭の `.` を 1 つ取って返すので、`.` を 1 つ足して入れると `sent` と同じ `domain()` になる
-            let mut b = Cookie::build((s.name().to_string(), s.value().to_string()))
-                .domain(format!(".{domain}"))
-                .path(path.to_string());
-            if s.secure() == Some(true) {
-                b = b.secure(true);
+            // 名前・domain・path は `sent` のまま（domain は `accept_cookie` が作った書き方）、ほかを入っているものにする
+            let mut d = sent.clone().into_owned();
+            d.set_value(s.value().to_string());
+            d.set_secure(s.secure().filter(|b| *b));
+            d.set_http_only(s.http_only().filter(|b| *b));
+            d.set_same_site(s.same_site());
+            d.set_max_age(None);
+            match s.expires() {
+                Some(e) => d.set_expires(e),
+                None => d.unset_expires(),
             }
-            if s.http_only() == Some(true) {
-                b = b.http_only(true);
-            }
-            if let Some(ss) = s.same_site() {
-                b = b.same_site(ss);
-            }
-            if let Some(e) = s.expires() {
-                b = b.expires(e);
-            }
-            b.build()
+            d
         })
         .collect()
 }
