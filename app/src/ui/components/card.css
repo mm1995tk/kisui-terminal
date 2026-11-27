@@ -384,6 +384,12 @@
   margin-bottom: 0;
 }
 
+/* Add a remote（AddMachine.tsx）の ~/.ssh/config からの候補。多くても一覧の中でスクロールし、
+   下の状態の文と誤りの理由（CardError）を Dialog の中に見えたままにする（.history-rows・.bookmark-rows と同じ） */
+.add-machine-rows {
+  max-height: 40vh;
+}
+
 /* マシンのダイアログ（MachineDialog.tsx）と、同じ形で一覧を出す Dialog。行は card-row を使い、キーはダイアログ全体で受ける。
    一覧は縮めず、Dialog に収まらない分は .card-content がスクロールする（.card-modal の決まり） */
 .machine-dialog {
