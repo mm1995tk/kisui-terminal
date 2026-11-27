@@ -125,7 +125,7 @@ export function AddMachine(props: {
         </div>
         <ul
           id="add-machine-options"
-          class="card-rows"
+          class="card-rows add-machine-rows"
           role="listbox"
           aria-labelledby="add-machine-list"
         >

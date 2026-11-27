@@ -101,7 +101,7 @@ export interface DbWindowState {
 }
 
 /**
- * Dialog の Key footer（共通フッタ）に出す、今効く操作。「選んでいるタブ」と「この DB のタブ」の 2 行。
+ * Dialog の Key footer（共通フッタ）に出す、今効く操作。「選んでいるタブ」（結果のタブがあるときだけ。無ければ操作の無い見出しだけになるので出さない。#526）と「この DB のタブ」の行。
  * 効かない操作は出さない。どの Dialog でも同じ意味のキー（j k・Enter・Esc・`?`）は出さない（h は、この Dialog では履歴なので出す）。
  * キーと probes は `?` の一覧の表（placeKeys.ts の dbWindow）から引く（placeItem）。dbWindowKey.test.ts が、出す操作を判定が受けることと、
  * 表の操作がどれも、どこかの状態で Key footer に出ることを確かめる。
@@ -110,16 +110,17 @@ export function dbWindowFooter(s: DbWindowState): FooterRow[] {
   const item = (keys: string, label: Parameters<typeof T>[0]) =>
     placeItem("dbWindow", keys, T(label));
   const on = <V>(cond: boolean, v: V): V[] => (cond ? [v] : []);
+  const selected: FooterRow = {
+    title: T("dbWindow.foot.selected"),
+    items: [
+      item("x", "dbWindow.keys.close"),
+      ...on(s.table, item("s", "dbWindow.keys.view")),
+      ...on(s.done, item("f b", "dbWindow.keys.page")),
+      ...on(s.exportable, item("e", "dbWindow.keys.export")),
+    ],
+  };
   return [
-    {
-      title: T("dbWindow.foot.selected"),
-      items: [
-        ...on(s.selected, item("x", "dbWindow.keys.close")),
-        ...on(s.selected && s.table, item("s", "dbWindow.keys.view")),
-        ...on(s.selected && s.done, item("f b", "dbWindow.keys.page")),
-        ...on(s.selected && s.exportable, item("e", "dbWindow.keys.export")),
-      ],
-    },
+    ...on(s.selected, selected),
     {
       title: T("dbWindow.foot.tab"),
       items: [
