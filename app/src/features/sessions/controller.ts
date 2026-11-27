@@ -22,6 +22,7 @@ import { WorkspaceTrees } from "../file-tree/trees.ts";
 import type { KeyValueStore } from "../keyValueStore.ts";
 import type { ReportProblem } from "../problem.ts";
 import { TermGroups } from "../terminal/group.ts";
+import { addAfterConnect } from "./addAfterConnect.ts";
 import { askpassMachine, type AskpassMachine } from "./askpass.ts";
 import { machineColors } from "./colors.ts";
 import {
@@ -481,56 +482,20 @@ export function createSessions(deps: {
     const r = addMachine(machines(), target, name);
     if ("error" in r) return r;
     const m = r.machines[r.machines.length - 1];
-    // 足す Dialog が同じ行き先につないでいる最中など、もう接続があるなら、触らない
-    if (sessions()[m.target])
-      return { error: T("machine.err.connecting", { label: m.target }) };
-    connect(m.target);
-    const s = sessions()[m.target];
-    const st = await new Promise<SessionState | "aborted">((resolve) => {
-      const done = (v: SessionState | "aborted") => {
-        off();
-        signal.removeEventListener("abort", onAbort);
-        resolve(v);
-      };
-      const check = (x: SessionState) => {
-        if (
-          x.kind === "connected" ||
-          x.kind === "failed" ||
-          x.kind === "superseded" ||
-          x.kind === "closed"
-        )
-          done(x);
-      };
-      const onAbort = () => done("aborted");
-      const off = s.onState(check);
-      signal.addEventListener("abort", onAbort);
-      if (signal.aborted) onAbort();
-      else check(s.state);
+    const err = await addAfterConnect({
+      hasSession: () => !!sessions()[m.target],
+      connect: () => {
+        connect(m.target);
+        return sessions()[m.target];
+      },
+      current: () => sessions()[m.target],
+      write: () =>
+        writeMachine({ kind: "add", ssh: m.target, name: m.name ?? null }),
+      disconnect: () => void disconnect(m.target),
+      label: labelOf(m.target),
+      signal,
     });
-    if (st !== "aborted" && st.kind === "connected") {
-      const err = await writeMachine({
-        kind: "add",
-        ssh: m.target,
-        name: m.name ?? null,
-      });
-      if (err === undefined) return { target: m.target };
-      void disconnect(m.target);
-      return { error: err };
-    }
-    // 取り下げられた・つなげなかった。足す Dialog と同じく、書かずに切る（足す前に切れていれば、切らない）
-    if (sessions()[m.target] === s) void disconnect(m.target);
-    if (st === "aborted") return { error: T("machine.err.addCancelled") };
-    return {
-      error:
-        st.kind === "failed"
-          ? T("err.machine.connect", {
-              machine: labelOf(m.target),
-              message: st.message,
-            })
-          : st.kind === "superseded"
-            ? T("err.machine.usedByOther", { machine: labelOf(m.target) })
-            : T("machine.err.addCancelled"),
-    };
+    return err === undefined ? { target: m.target } : { error: err };
   }
 
   /** 見出しのそばのボタン。待ち時間中なら今すぐ、使い切った・引き継がれたあとならつなぎ直す。 */
