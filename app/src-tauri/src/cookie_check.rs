@@ -129,6 +129,19 @@ pub fn to_delete(sent: &Cookie<'_>, stored: &[Cookie<'_>]) -> Vec<Cookie<'static
         .collect()
 }
 
+/// `deleted`（`delete_cookie` に渡した Cookie）のどれかが、`now`（読み戻したすべての Cookie）にまだあるか。
+/// 名前・domain・path・値・Secure・HttpOnly で比べる。
+pub fn still_stored(deleted: &[Cookie<'_>], now: &[Cookie<'_>]) -> bool {
+    deleted.iter().any(|d| {
+        now.iter().any(|s| {
+            same_target(d, s)
+                && s.value() == d.value()
+                && s.secure().unwrap_or(false) == d.secure().unwrap_or(false)
+                && s.http_only().unwrap_or(false) == d.http_only().unwrap_or(false)
+        })
+    })
+}
+
 /// `sent` を入れた後の `stored`（入れる前に読み戻した Cookie）。写す Cookie の中に同じ名前・domain・path の Cookie が
 /// 後にもあれば、次に消すのは今入れたもの。
 pub fn remember_set(stored: &mut Vec<Cookie<'static>>, sent: &Cookie<'static>) {
@@ -460,6 +473,21 @@ mod tests {
         assert_eq!(d.len(), 1);
         assert_eq!(d[0].value(), "v");
         assert_eq!(d[0].http_only(), None);
+    }
+
+    #[test]
+    fn still_stored_until_the_deleted_cookie_is_gone() {
+        let want = sent("SAPISID", "..google.com");
+        let mut stale = read_back(&want);
+        stale.set_value("old");
+        let deleted = to_delete(&want, std::slice::from_ref(&stale));
+        assert!(still_stored(&deleted, &[stale.clone()]));
+        // 消えた後（ほかの Cookie と、属性の違う同じ名前の Cookie は残っている）
+        let other = read_back(&sent("HSID", "..google.com"));
+        let mut flags = stale.clone();
+        flags.set_http_only(false);
+        assert!(!still_stored(&deleted, &[other, flags]));
+        assert!(!still_stored(&deleted, &[]));
     }
 
     /// 読み戻しでは、domain が host だけかサブドメインにも送られるかが分からない（上の説明）。wry が `cookie::Cookie` を

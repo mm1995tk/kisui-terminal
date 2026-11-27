@@ -704,7 +704,10 @@ fn replace_cookies(v: &tauri::Webview, cookies: &[Cookie<'static>]) -> Result<()
     // ままになる（#476）。
     // 消すときは、入れる Cookie でなく、いま入っている Cookie を読み戻して、その属性で渡す（入れる Cookie の属性では
     // 消えなかった。cookie_check.rs の `to_delete`）。wry の `delete_cookie`・`set_cookie`・`cookies` は、WebView が
-    // 終わったと知らせるまで待って返るので、消し終わってから入れる。
+    // 終わったと知らせるまで待って返るので、ふつうは消し終わってから入れる。ただし macOS の wry は約 1 秒で待つのを
+    // やめて時間切れの Err を返し、WebKit は消す処理を別のスレッドで続ける。そのまま入れると、入れた後に消す処理が
+    // 走り、入れたばかりの Cookie が消えうる。なので、消すのが Err なら、消えたのを読み戻して確かめてから入れる
+    // （`wait_until_deleted`）。
     // 消すのは手当てなので、読めない・消せないときもログに出して入れるほうへ進む（入った後の属性は下の読み戻しで確かめる）
     let mut stored = match v.cookies() {
         Ok(s) => Some(s),
@@ -721,13 +724,18 @@ fn replace_cookies(v: &tauri::Webview, cookies: &[Cookie<'static>]) -> Result<()
             // 読めなければ、前と同じく入れる Cookie で消してみる
             None => vec![c.clone()],
         };
-        for o in old {
-            if let Err(e) = v.delete_cookie(o) {
+        let mut failed = false;
+        for o in &old {
+            if let Err(e) = v.delete_cookie(o.clone()) {
                 eprintln!(
                     "kisui-terminal: passkey: could not delete cookie {} before setting it: {e}",
                     c.name()
                 );
+                failed = true;
             }
+        }
+        if failed {
+            wait_until_deleted(v, &old);
         }
         v.set_cookie(c.clone()).map_err(|e| e.to_string())?;
         if let Some(s) = &mut stored {
@@ -735,6 +743,30 @@ fn replace_cookies(v: &tauri::Webview, cookies: &[Cookie<'static>]) -> Result<()
         }
     }
     Ok(())
+}
+
+/// 消すのが Err を返したとき、消した Cookie が読み戻しから無くなるのを待つ上限。
+const DELETE_WAIT: Duration = Duration::from_secs(3);
+
+/// `deleted`（`delete_cookie` に渡した Cookie）が WebView から無くなるまで、読み戻して待つ（上限 `DELETE_WAIT`）。
+/// 上限を過ぎたら、ログに出して戻る（入れるほうへ進む。入った後の属性は読み戻しで確かめる）。
+fn wait_until_deleted(v: &tauri::Webview, deleted: &[Cookie<'static>]) {
+    let deadline = Instant::now() + DELETE_WAIT;
+    loop {
+        // `cookies` は WebView の答えを待つあいだ、イベントループを回す
+        if let Ok(now) = v.cookies() {
+            if !crate::cookie_check::still_stored(deleted, &now) {
+                return;
+            }
+        }
+        if Instant::now() >= deadline {
+            eprintln!(
+                "kisui-terminal: passkey: cookies were still stored {}s after deleting them; setting the new ones anyway",
+                DELETE_WAIT.as_secs()
+            );
+            return;
+        }
+    }
 }
 
 // ---- ブラウザが起動する受け口（native messaging のホスト） ----
