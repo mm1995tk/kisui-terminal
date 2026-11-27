@@ -86,7 +86,7 @@ func avoidWords(t *testing.T, dir string) []string {
 		t.Fatal(err)
 	}
 	var words []string
-	for _, line := range strings.Split(string(b), "\n") {
+	for line := range strings.SplitSeq(string(b), "\n") {
 		if !strings.HasPrefix(line, "|") {
 			continue
 		}
