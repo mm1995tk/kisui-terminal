@@ -152,6 +152,7 @@ Dialog と知らせの下のボタンは `Button` を使う（`button` に CSS �
   - `closeOnOutside`：打ちかけの入力を失わない Dialog だけ、外のクリックで閉じる。
   - `header`・`footer`：上と下に固定する段（下の「3 つの段」）。JSX をそのまま渡す。
 - **3 つの段**：`header`（見出し。ふつうは `CardTitle`）・中身（`children`）・`footer`（ふつうは `CardActions`。キーの案内も置ける）。見出しと `footer` は動かず、Dialog の高さに収まらないときは中身だけがスクロールする。段の境目には、カードの縁と同じ色（`--color-border`）の 1px の線を、いつも引く。`footer` は省ける。`header` を省けるのは、中身が自分で見出しを描く Dialog（履歴の一覧 `HistoryPanel`）だけ。
+- **高さ**：Dialog の高さは `card.css` の `.card-modal` と `.card-content` だけで決める。Dialog は中身の高さ（`fit-content`）で、画面に収まらない（`max-height` を超える）ときは中身の段だけが縮んでスクロールする。中身の段の子（一覧・本文の塊）は縮まない。Dialog ごとの CSS に、高さの決め方（`flex`・`min-height: 0` での縮め方）を書かない。高さを固定するのは Workspace switcher（`switcher.css`）だけ（#524）。
 - **段の中身**：中身は `CardBody`（本文 `CardText`・入力欄 `Field`・理由 `CardError`）や一覧。`CardActions` は `Button` を右寄せにし、主ボタンが右端。狭いとボタンは折り返す。Dialog の中で `.card-body` などの class を手で書かない。右下の知らせも同じ部分を使う（見出しは `CardTitle level={2}`）。
 - **送るボタン**：form の送るボタンは `footer`（form の外）に置くので、`Button` の `form` に form の id を渡す（`AskpassDialog`）。
 - **閉じ方**：Esc で閉じる Dialog には、閉じるだけの「閉じる」「やめる」ボタンも右上の ✕ も置かない（閉じ方は、どの Dialog でも `Esc`。Key footer には出さない。まだ前の決まりの Dialog（クリップボードの履歴・DB の履歴・DB の権限を強める Dialog）は、Key footer に `Esc` を出す）。ボタンを置くのは、決める・許す・送る操作と、それとやめるを選ぶ確認の Dialog（`CardActions`）だけ。キーで一覧を動かす Dialog は、`footer` に `KeyFooter` を置く（下の「共通フッタ」）。
@@ -211,5 +212,6 @@ Dialog と知らせの下のボタンは `Button` を使う（`button` に CSS �
 | テスト                              | 見張ること                                                                                                     |
 | ----------------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | `app/src/ui/styles/tokens.test.ts`  | `tokens.css` のどの値にも説明と見出しがあり、名前が重ならず、読む名前がある。`card.css`・`button.css` が色を直に書かず、パレットを直に読まず、無い名前を読まない |
+| `app/src/ui/components/cardHeight.test.ts` | Dialog の高さの決め方（上の「Dialog の枠」の「高さ」）。中身の段の `flex-basis` が `auto` で、Dialog の高さを書き替える CSS が Workspace switcher のほかに無い |
 | `app/src/ui/main-window/cssOrder.test.ts` | メインウィンドウの CSS の並び（`button.css` を足した）                                                  |
 | `app/src/features/commands/placeKeys.test.ts`・`app/src/ui/main-window/workspaces/switcherKey.test.ts`・`app/src/ui/main-window/tab-window/dbWindowKey.test.ts`・`app/src/features/db/connectionForm.test.ts` | 共通フッタの中身（`switcherFooter`・`dbWindowFooter`・`dbPickerFooter`。前の決まりの Dialog は `basicHints`）。Key footer に出す項目と `?` の一覧の表のキーを、その状態の Dialog のキーの判定が受けること。表の操作が、どこかの状態で Key footer に出ること |
