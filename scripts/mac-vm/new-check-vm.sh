@@ -39,7 +39,7 @@ while [ $# -gt 0 ]; do
   --extension) ext=$2; shift ;;
   --no-extension) no_ext=1 ;;
   --config) cfg=$2; shift ;;
-  -h | --help) sed -n '2,16p' "$0"; exit 0 ;;
+  -h | --help) awk 'NR > 1 && !/^#/ { exit } NR > 1' "$0"; exit 0 ;;
   *) echo "知らない引数: $1" >&2; exit 2 ;;
   esac
   shift
