@@ -110,20 +110,17 @@ export function dbWindowFooter(s: DbWindowState): FooterRow[] {
   const item = (keys: string, label: Parameters<typeof T>[0]) =>
     placeItem("dbWindow", keys, T(label));
   const on = <V>(cond: boolean, v: V): V[] => (cond ? [v] : []);
-  // 選んでいるタブが無くても行の見出しは出す（行の数が変わると Key footer の高さが変わる）
   const selected: FooterRow = {
     title: T("dbWindow.foot.selected"),
-    items: s.selected
-      ? [
-          item("x", "dbWindow.keys.close"),
-          ...on(s.table, item("s", "dbWindow.keys.view")),
-          ...on(s.done, item("f b", "dbWindow.keys.page")),
-          ...on(s.exportable, item("e", "dbWindow.keys.export")),
-        ]
-      : [],
+    items: [
+      item("x", "dbWindow.keys.close"),
+      ...on(s.table, item("s", "dbWindow.keys.view")),
+      ...on(s.done, item("f b", "dbWindow.keys.page")),
+      ...on(s.exportable, item("e", "dbWindow.keys.export")),
+    ],
   };
   return [
-    selected,
+    ...on(s.selected, selected),
     {
       title: T("dbWindow.foot.tab"),
       items: [

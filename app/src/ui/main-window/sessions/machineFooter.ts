@@ -43,8 +43,8 @@ export function machineDialogFooter(s: {
   selected: MachineRow | undefined;
   hasWorkspace: boolean;
 }): FooterRow[] {
-  // 名前を打っている間は、どの行の操作も効かない。行の見出しは出す（行の数が変わると Key footer の高さが変わる）
-  const row = s.renaming ? undefined : s.selected;
+  if (s.renaming) return [{ title: T("machineDialog.foot.typing"), items: [] }];
+  const row = s.selected;
   const items: FooterItem[] = row
     ? SELECTED.filter(([a]) => canDo(row, a, s.hasWorkspace) === null).map(
         ([, keys, label]) => placeItem("machines", keys, T(label)),
@@ -54,9 +54,7 @@ export function machineDialogFooter(s: {
     { title: T("machineDialog.foot.selected"), items },
     {
       title: T("machineDialog.foot.list"),
-      items: s.renaming
-        ? []
-        : [placeItem("machines", "a", T("machineDialog.keys.add"))],
+      items: [placeItem("machines", "a", T("machineDialog.keys.add"))],
     },
   ];
 }

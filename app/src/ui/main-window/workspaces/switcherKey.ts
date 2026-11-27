@@ -156,116 +156,132 @@ export type SwitcherState =
   | { mode: "ws"; hasWs: boolean };
 
 /**
- * Dialog の Key footer（共通フッタ）に出す、今効く操作。何に効くか（ワークスペース・タブ・この Dialog）で 3 行に分ける。
- * 行の組はどの状態でも同じ（見出しは動かず、効かない行は見出しだけ）。行の数が変わると Key footer の高さが変わり、一覧の欄が伸び縮みするため。
- * 一時の状態（タブをつかんでいる・作るタブの種類を選んでいる・名前を打っている・確かめている）の操作は、それが効くものの行に出す。
+ * Dialog の Key footer（共通フッタ）に出す、今効く操作。何に効くか（ワークスペース・タブ・この Dialog など）で行を分ける。
  * どの Dialog でも同じ意味のキー（j k h l・矢印・Enter・Esc・`?`）は出さない。意味が変わる間（タブをつかんでいる間・作るタブの種類を選ぶ間の Esc）だけ出す。
  * ふだんの操作のキーと probes は `?` の一覧の表（placeKeys.ts の switcher・switcherTabs）から引く（placeItem）。
  * 作るタブの種類の項目は、押せるボタンにする（act に種類を入れる。Dialog が、押したら決めるように結ぶ）。
- * switcherKey.test.ts が、出す操作をその状態の判定が受けることと、表の操作がどれも、どこかの状態で Key footer に出ることと、
- * 行の見出しがどの状態でも同じことを確かめる。
+ * switcherKey.test.ts が、出す操作をその状態の判定が受けることと、表の操作がどれも、どこかの状態で Key footer に出ることを確かめる。
  */
 export function switcherFooter(s: SwitcherState): FooterRow<NewTabChoice>[] {
   switch (s.mode) {
     case "hold":
-      return rows({ tab: holdItems() });
+      return holdRows();
     case "kinds":
-      return rows({ tab: kindItems(s.kinds) });
+      return kindRows(s.kinds);
     case "typing":
-      return rows({ tab: s.newTab ? newTabTypingItems() : [] });
+      return typingRows(s.newTab);
     case "confirm":
-      return rows({ ws: confirmItems() });
+      return confirmRows();
     case "tab":
-      return rows({ tab: tabItems() });
+      return tabRows();
     case "ws":
-      return rows(wsItems(s.hasWs));
+      return wsRows(s.hasWs);
   }
 }
 
 type Label = Parameters<typeof T>[0];
-type Items = FooterRow<NewTabChoice>["items"];
-
-/** いつも同じ 3 行（ワークスペース・タブ・この Dialog）。渡さなかった行は見出しだけ。 */
-function rows(r: {
-  ws?: Items;
-  tab?: Items;
-  window?: Items;
-}): FooterRow<NewTabChoice>[] {
-  return [
-    { title: T("switcher.foot.ws"), items: r.ws ?? [] },
-    { title: T("switcher.foot.tab"), items: r.tab ?? [] },
-    { title: T("switcher.foot.window"), items: r.window ?? [] },
-  ];
-}
 
 /** タブをつかんでいる間（意味が変わるので、j k・h l・Enter・Esc も出す）。 */
-function holdItems(): FooterItem[] {
+function holdRows(): FooterRow[] {
   return [
-    item(["j", "k"], "switcher.keys.holdMove", ["j", "k"]),
-    item(["h", "l"], "switcher.keys.holdCols", ["h", "l"]),
-    item(["Enter"], "switcher.keys.holdDrop", ["Enter"]),
-    item(["Esc"], "switcher.keys.holdCancel", ["Escape"]),
+    {
+      title: T("switcher.foot.hold"),
+      items: [
+        item(["j", "k"], "switcher.keys.holdMove", ["j", "k"]),
+        item(["h", "l"], "switcher.keys.holdCols", ["h", "l"]),
+        item(["Enter"], "switcher.keys.holdDrop", ["Enter"]),
+        item(["Esc"], "switcher.keys.holdCancel", ["Escape"]),
+      ],
+    },
   ];
 }
 
 /** 作るタブの種類を選ぶ間。種類は押せるボタン（act に種類）。 */
-function kindItems(kinds: readonly NewTabChoice[]): Items {
+function kindRows(kinds: readonly NewTabChoice[]): FooterRow<NewTabChoice>[] {
   return [
-    ...kinds.map((k) => ({
-      keys: [NEW_TAB_KIND_KEYS[k]],
-      label: kindLabel(k),
-      probes: [NEW_TAB_KIND_KEYS[k]],
-      act: k,
-    })),
-    // Dialog ではなく、種類を選ぶのだけをやめる（意味が変わるので出す）
-    item(["Esc"], "basic.cancel", ["Escape"]),
+    {
+      title: T("switcher.foot.kinds"),
+      items: [
+        ...kinds.map((k) => ({
+          keys: [NEW_TAB_KIND_KEYS[k]],
+          label: kindLabel(k),
+          probes: [NEW_TAB_KIND_KEYS[k]],
+          act: k,
+        })),
+        // Dialog ではなく、種類を選ぶのだけをやめる（意味が変わるので出す）
+        item(["Esc"], "basic.cancel", ["Escape"]),
+      ],
+    },
   ];
 }
 
-/** ターミナルのタブを作る欄で名前を打っている間は、マシンを替えられる。決める Enter・やめる Esc は、どの Dialog の入力欄でも同じなので出さない。 */
-function newTabTypingItems(): FooterItem[] {
+/** 名前を打っている間。決める Enter・やめる Esc は、どの Dialog の入力欄でも同じなので出さない。ターミナルのタブを作る欄だけ、マシンを替えられる。 */
+function typingRows(newTab: boolean): FooterRow[] {
   return [
-    item(["Tab"], "switcher.keys.machine", ["Tab"]),
-    item(["↓"], "switcher.keys.machineList", ["ArrowDown"]),
+    {
+      title: T("switcher.foot.typing"),
+      items: newTab
+        ? [
+            item(["Tab"], "switcher.keys.machine", ["Tab"]),
+            item(["↓"], "switcher.keys.machineList", ["ArrowDown"]),
+          ]
+        : [],
+    },
   ];
 }
 
 /** ワークスペースを閉じるか確かめている間（y / n）。 */
-function confirmItems(): FooterItem[] {
+function confirmRows(): FooterRow[] {
   return [
-    item(["y"], "switcher.keys.confirmYes", ["y"]),
-    item(["n"], "switcher.keys.confirmNo", ["n"]),
+    {
+      title: T("switcher.foot.ws"),
+      items: [
+        item(["y"], "switcher.keys.confirmYes", ["y"]),
+        item(["n"], "switcher.keys.confirmNo", ["n"]),
+      ],
+    },
   ];
 }
 
 /** タブの列（選んでいるタブへの操作）。項目は `?` の一覧の表 switcherTabs から引く。 */
-function tabItems(): FooterItem[] {
+function tabRows(): FooterRow[] {
   const tab = (keys: string, label: Label) =>
     placeItem("switcherTabs", keys, T(label));
   return [
-    tab("r", "switcher.keys.rename"),
-    tab("x", "switcher.keys.close"),
-    tab("J K", "switcher.keys.reorder"),
-    tab("m", "switcher.keys.hold"),
-    tab("n", "switcher.keys.newTab"),
+    {
+      title: T("switcher.foot.tab"),
+      items: [
+        tab("r", "switcher.keys.rename"),
+        tab("x", "switcher.keys.close"),
+        tab("J K", "switcher.keys.reorder"),
+        tab("m", "switcher.keys.hold"),
+        tab("n", "switcher.keys.newTab"),
+      ],
+    },
   ];
 }
 
 /** ワークスペースの列（選んでいるワークスペースへの操作と、この Dialog の操作）。項目は `?` の一覧の表 switcher から引く。 */
-function wsItems(hasWs: boolean): { ws: FooterItem[]; window: FooterItem[] } {
+function wsRows(hasWs: boolean): FooterRow[] {
   const ws = (keys: string, label: Label) =>
     placeItem("switcher", keys, T(label));
-  return {
-    ws: hasWs
-      ? [
-          ws("N", "switcher.keys.newTab"),
-          ws("r", "switcher.keys.rename"),
-          ws("x", "switcher.keys.close"),
-          ws("J K", "switcher.keys.reorder"),
-        ]
-      : [],
-    window: [ws("n", "switcher.keys.new")],
-  };
+  return [
+    {
+      title: T("switcher.foot.ws"),
+      items: hasWs
+        ? [
+            ws("N", "switcher.keys.newTab"),
+            ws("r", "switcher.keys.rename"),
+            ws("x", "switcher.keys.close"),
+            ws("J K", "switcher.keys.reorder"),
+          ]
+        : [],
+    },
+    {
+      title: T("switcher.foot.window"),
+      items: [ws("n", "switcher.keys.new")],
+    },
+  ];
 }
 
 /** `?` の一覧の表に無い状態（つかんでいる間・確かめている間・入力欄）の項目。probes はその状態の判定が受けるはずのキー */

@@ -186,43 +186,34 @@ describe("Dialog の Key footer（共通フッタ）の今効く操作（#487）
             assert.ok(!COMMON_KEYS.has(p), `${s.mode}: ${p}`);
   });
 
-  it("ワークスペースの列：ワークスペースへの操作と、この Dialog の操作（ワークスペースを作る）。ワークスペースが無ければ、ワークスペースの行は見出しだけ", () => {
+  it("ワークスペースの列：ワークスペースへの操作と、この Dialog の操作（ワークスペースを作る）の 2 行。ワークスペースが無ければ、1 行目は見出しだけ", () => {
     assert.deepEqual(shown(switcherFooter({ mode: "ws", hasWs: true })), [
       ["Workspace", ["N", "r", "x", "J K"]],
-      ["Tab", []],
       ["Dialog", ["n"]],
     ]);
     assert.deepEqual(shown(switcherFooter({ mode: "ws", hasWs: false })), [
       ["Workspace", []],
-      ["Tab", []],
       ["Dialog", ["n"]],
     ]);
   });
 
-  it("タブの列：選んでいるタブへの操作をタブの行に出す", () => {
+  it("タブの列：選んでいるタブへの操作の 1 行", () => {
     assert.deepEqual(shown(switcherFooter({ mode: "tab" })), [
-      ["Workspace", []],
       ["Tab", ["r", "x", "J K", "m", "n"]],
-      ["Dialog", []],
     ]);
   });
 
-  it("つかんでいる間は、意味が変わるので j k・h l・Enter・Esc をタブの行に出す（`?` は出さない）", () => {
+  it("つかんでいる間は、意味が変わるので j k・h l・Enter・Esc を出す（`?` は出さない）", () => {
     assert.deepEqual(shown(switcherFooter({ mode: "hold" })), [
-      ["Workspace", []],
-      ["Tab", ["j k", "h l", "Enter", "Esc"]],
-      ["Dialog", []],
+      ["Moving a tab", ["j k", "h l", "Enter", "Esc"]],
     ]);
     assert.equal(holdKey(key("?", { shiftKey: true })), null);
   });
 
-  it("作るタブの種類を選ぶ間は、選べる種類を押せるボタン（act に種類）にしてタブの行に出し、選ぶのをやめる Esc を出す", () => {
-    const tabRow = (s: SwitcherState) => switcherFooter(s)[1]!;
+  it("作るタブの種類を選ぶ間は、選べる種類を押せるボタン（act に種類）にし、選ぶのをやめる Esc を出す", () => {
+    const [r] = switcherFooter({ mode: "kinds", kinds: all });
     assert.deepEqual(
-      tabRow({ mode: "kinds", kinds: all }).items.map((i) => [
-        i.keys.join(" "),
-        i.act,
-      ]),
+      r.items.map((i) => [i.keys.join(" "), i.act]),
       [
         ["t", "terminal"],
         ["b", "browser"],
@@ -231,39 +222,24 @@ describe("Dialog の Key footer（共通フッタ）の今効く操作（#487）
         ["Esc", undefined],
       ],
     );
+    const [off] = switcherFooter({ mode: "kinds", kinds: newTabKinds(false) });
     assert.deepEqual(
-      tabRow({ mode: "kinds", kinds: newTabKinds(false) }).items.map((i) =>
-        i.keys.join(" "),
-      ),
+      off.items.map((i) => i.keys.join(" ")),
       ["t", "d", "Esc"],
     );
   });
 
-  it("名前を打っている間は見出しだけ。ターミナルのタブを作る欄では、マシンを替える Tab・↓ をタブの行に出す", () => {
+  it("名前を打っている間は見出しだけ。ターミナルのタブを作る欄では、マシンを替える Tab・↓ を出す", () => {
     assert.deepEqual(shown(switcherFooter({ mode: "typing", newTab: false })), [
-      ["Workspace", []],
-      ["Tab", []],
-      ["Dialog", []],
+      ["Typing a name", []],
     ]);
     assert.deepEqual(shown(switcherFooter({ mode: "typing", newTab: true })), [
-      ["Workspace", []],
-      ["Tab", ["Tab", "↓"]],
-      ["Dialog", []],
+      ["Typing a name", ["Tab", "↓"]],
     ]);
   });
 
-  it("確かめている間は、ワークスペースの行に y / n を出す", () => {
-    assert.deepEqual(shown(switcherFooter({ mode: "confirm" })), [
-      ["Workspace", ["y", "n"]],
-      ["Tab", []],
-      ["Dialog", []],
-    ]);
-  });
-
-  it("行の見出しは、どの状態でも同じ（行の数が変わると Key footer の高さが変わり、一覧の欄が伸び縮みする）", () => {
-    const titles = (s: SwitcherState) => switcherFooter(s).map((r) => r.title);
-    for (const s of states)
-      assert.deepEqual(titles(s), ["Workspace", "Tab", "Dialog"], s.mode);
+  it("どの状態でも、少なくとも 1 行を出す（Key footer は出たり消えたりしない）", () => {
+    for (const s of states) assert.ok(switcherFooter(s).length > 0, s.mode);
   });
 });
 
