@@ -11,8 +11,8 @@
 //   - URL を開く頼み（new に URL を付けた・url・external）と、人が続きを行う画面を開く頼み（devtools・login）は、許している間でも、
 //     手元の PC に「操作のたびに聞く」と決めた Pane があるうちは、リモートの Machine には通さない（人が聞くと決めたことを、
 //     リモートの Machine が聞かずに済ませない。`kisui tab close` と同じ）。
-//   - どれも人のキーの行き先は、手元の PC の Tab（Browser tab）へしか変わらない。リモートの Machine の Pane は許している間しか届かず、
-//     その間は、その Machine はもう手元の PC の Pane にキーを送れるので、キーの行き先の確認（keysMayMove）は要らない。
+//   - 人のキーの行き先が変わるのは、手元の PC の Tab（Browser tab）へだけ。リモートの Machine の Pane は許している間しか届かず、
+//     その間は、その Machine はもう手元の PC の Pane にキーを送れる。`new`（足した Tab を表示する）は、念のため keysMayMove を通す。
 // 内蔵ブラウザを使わない設定のときは、どれも理由を出して断る。
 import { untrack, type Accessor } from "solid-js";
 
@@ -40,6 +40,7 @@ import type { Row } from "../workspaces/rows.ts";
 import type { Tabs } from "../workspaces/tabs/controller.ts";
 import {
   findTabs,
+  keysMayMove,
   tabEntries,
   type TabEntry,
 } from "../workspaces/tabs/tabCommands.ts";
@@ -134,6 +135,19 @@ export function createBrowserCommands(deps: {
       throw new WindowCommandError(T("browserCli.err.askEach"));
   }
 
+  /**
+   * Machine from の Pane が、人のキーの行き先を、手元の PC の Browser tab へ変えてよいか確かめる（`new` は、足した Tab を表示する）。
+   * 決まりは tabCommands.ts の keysMayMove：行き先は手元の PC なので、手元の PC の Pane と、許している Machine の Pane だけ通る
+   * （needReach を通ったあとは、どちらかなので、いつも通る。決まりを 1 か所に保つために通す）。
+   */
+  function needKeysMayMove(c: WindowCaller) {
+    const entries = tabEntries(untrack(deps.gws), untrack(deps.rows));
+    if (!keysMayMove(entries, c.from, deps.granted(c.from), LOCAL))
+      throw new WindowCommandError(
+        T("browserCli.err.reach", { from: labelOf(c.from) }),
+      );
+  }
+
   /** Machine from の Pane から届く Tab（Sidebar の並びの順）。 */
   function reachable(from: string): TabEntry[] {
     const list = untrack(machines);
@@ -219,6 +233,7 @@ export function createBrowserCommands(deps: {
       run: async (args, c) => {
         needEnabled();
         needReach(c);
+        needKeysMayMove(c);
         const raw = argOptionalString(args, "url");
         const priv = argFlag(args, "private");
         // 作るのは、頼んだ Pane の Terminal tab がある Workspace（キー操作の browser.new は今いる Workspace）

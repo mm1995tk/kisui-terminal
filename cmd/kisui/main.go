@@ -53,6 +53,10 @@ var commands = []command{
 		{name: "send", args: "[--machine <machine>] <name|id> <text>", help: "help.pane.send", run: runPaneSend},
 		{name: "keys", args: "[--machine <machine>] <name|id> <key>...", help: "help.pane.keys", run: runPaneKeys},
 		{name: "close", args: "[--machine <machine>] <name|id>", help: "help.pane.close", run: runPaneClose},
+		{name: "focus", args: "[--machine <machine>] <name|id>|--last", help: "help.pane.focus", run: runPaneFocus},
+		{name: "swap", args: "[--machine <machine>] <name|id> --right|--down|--left|--up", help: "help.pane.swap", run: runPaneSwap},
+		{name: "zoom", args: "[--machine <machine>] <name|id>", help: "help.pane.zoom", run: runPaneZoom},
+		{name: "resize", args: "[--machine <machine>] <name|id> --right|--down|--left|--up <n>", help: "help.pane.resize", run: runPaneResize},
 	}},
 	{name: "tab", sub: []command{
 		{name: "list", args: "[--json] [--workspace <name|id>]", help: "help.tab.list", run: runTabList},

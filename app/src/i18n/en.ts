@@ -830,6 +830,16 @@ export const en = {
     "A pane of {from} may close the workspace the window is in only while the keys of the window are on a terminal tab of {from}, or while the person at the window allows {from} (in the machine dialog, choose {from} and press p). Otherwise the keys the person is typing would move to another workspace, and could end up on a tab of {from}. Ask the user to close the workspace.",
   "wsCli.err.focus":
     "A pane of {from} may show a workspace only while the keys of the window are on a terminal tab of {from} and the workspace shows a terminal tab of {from}, or while the person at the window allows {from} (in the machine dialog, choose {from} and press p). Otherwise the keys the person is typing would go to another place. Ask the user to show the workspace.",
+  "paneCli.err.noPane":
+    'No pane has the id or the name "{pane}" among the panes this pane may reach (kisui pane list prints them)',
+  "paneCli.err.ambiguous":
+    '{count} panes have the name or id "{pane}"; point at one of them by its id ({ids}; kisui pane list prints them)',
+  "paneCli.err.focus":
+    "A pane of {from} may move the keys to a pane only while the keys of the window are on a terminal tab of {from} and the pane is in a terminal tab of {from}, or while the person at the window allows {from} (in the machine dialog, choose {from} and press p). Otherwise the keys the person is typing would go to another place. Ask the user to go to the pane.",
+  "paneCli.err.zoomed":
+    'The tab of the pane "{pane}" shows only its primary pane, so nothing was done. kisui pane zoom shows all its panes again.',
+  "paneCli.err.noZoom":
+    'The primary pane of the tab of the pane "{pane}" does not run shj, so the tab cannot show only its primary pane',
   "paneOpen.err.noWorkspace":
     'No workspace has the name or id "{name}" (add --new to make one of that name)',
   "paneOpen.err.ambiguous":

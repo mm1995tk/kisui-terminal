@@ -261,8 +261,8 @@ export const CHANGES_BORDER = "@changes";
 /** リサイズモードで、タブの段とファイルツリーの境目の名前（CHANGES_BORDER と同じく、ペインどうしの Pane border のキーとは別の名前）。 */
 export const TABS_BORDER = "@tabs";
 
-/** リサイズモードで、欄どうしの Pane border を 1 回のキーで動かす割合（動かす節の幅か高さに対する割合）。 */
-export const SPLIT_KEY_STEP = 0.02;
+/** リサイズモードで、欄どうしの Pane border を 1 回のキーで動かす割合（動かす節の幅か高さに対する割合。`kisui pane resize` と同じ値）。 */
+export { SPLIT_KEY_STEP } from "../../features/terminal/grid.ts";
 
 const SIDEBAR_OPEN_KEY = "kisui.sidebarOpen";
 
