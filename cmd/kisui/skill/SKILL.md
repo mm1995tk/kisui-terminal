@@ -495,7 +495,7 @@ Update to the new version that the notice of the window offers, and restart kisu
 
 ### kisui notice dismiss
 
-Dismiss the newest notice of the window (the bottom right).
+Dismiss the newest notice of the window (the bottom right). With no notice, it does nothing and succeeds.
 
 ### kisui notice focus-notified
 
