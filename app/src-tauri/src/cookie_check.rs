@@ -95,7 +95,9 @@ pub fn check(sent: &[Cookie<'_>], stored: &[Cookie<'_>]) -> Vec<Mismatch> {
 /// これから入れる `sent` の属性で消すと、WebView に入っているものと属性が違うときに消えない（#476）:
 /// - macOS：WebKit は渡された Cookie から `NSHTTPCookie` を作り直し、`NSHTTPCookieStorage` の `deleteCookie:` に渡す
 ///   （WebKit の `NetworkStorageSessionCocoa.mm`）。どの属性まで同じものを消すかは CFNetwork の中にあり、文書に無い。
-///   実機では、HttpOnly で残った Cookie を、HttpOnly でない Cookie では消すことも上書きすることもできなかった。
+///   実機では、HttpOnly で残った Cookie は、HttpOnly でない Cookie を入れても置き換わらなかった（HttpOnly が同じ
+///   `HSID` は置き換わった）。入れる Cookie で消しても消えなかったが、これは HttpOnly のほか、期限や WebKit が付ける
+///   `Created` も違いえて、どの属性の違いによるかは確かめていない。いま入っている属性をすべて渡せば、どれでも当たる。
 /// - Linux：libsoup の `soup_cookie_jar_delete_cookie` は、domain（文字列が同じ）・名前・値・path が同じものを消す。
 ///
 /// domain は `sent` の書き方にする。読み戻しの domain は先頭の `.` が取れていて（モジュールの説明）、そのまま渡すと
