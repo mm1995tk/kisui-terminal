@@ -6,7 +6,7 @@
    高さを固定するのは中身の段（.card-content）で、Dialog 全体ではない。Key footer は状態で行の数が変わる（ワークスペースの列は 2 行、
    タブの列は 1 行など）。Dialog 全体の高さを固定すると、Key footer が伸び縮みするたびに中身の段が縮み伸びし、列を移るだけで一覧が動く。
    上端も、真ん中に寄せず決まった位置に置く（真ん中に寄せると、Key footer が伸びた分の半分だけ Dialog が上へずれ、中身が動く）。
-   どちらも、Key footer がおよそ 2 行のときに、これまでの「高さ 60% を真ん中に」とほぼ同じ所に来るようにしてある */
+   Key footer が 2 行のとき、Dialog の高さがウィンドウのおよそ 60% になり、上下の真ん中に来る */
 .card-modal:has(.switcher) {
   /* Key footer が 2 行のときの Dialog の高さ */
   --switcher-height: clamp(420px, 60vh, 900px);
