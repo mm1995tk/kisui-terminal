@@ -107,6 +107,7 @@ type Server struct {
 	opens      windowWaits[paneOpenResult]       // kisui pane open が GUI の答えを待っている（paneopen.go）
 	relays     windowWaits[paneRelayResult]      // kisui pane の --machine が GUI の答えを待っている（panerelay.go）
 	proposes   windowWaits[dbProposeResult]      // kisui db propose が GUI の答えを待っている（dbcmd.go）
+	windowRuns windowWaits[windowRunResult]      // Window に頼むコマンド（kisui tab など）が Window の答えを待っている（windowrun.go）
 	db         *dbManager                        // db.* の要求が使うもの（db.go）
 	proxy      *proxyManager                     // proxy.* の要求が使うもの（proxy.go）
 
@@ -156,14 +157,15 @@ func newServer(opts Options, ln *net.UnixListener) *Server {
 		log = slog.New(slog.DiscardHandler)
 	}
 	srv := &Server{
-		opts:     opts,
-		log:      log,
-		ln:       ln,
-		sessions: map[*session]struct{}{},
-		updates:  windowWaits[panecmd.UpdateResult]{prefix: "u"},
-		opens:    windowWaits[paneOpenResult]{prefix: "o"},
-		relays:   windowWaits[paneRelayResult]{prefix: "r"},
-		proposes: windowWaits[dbProposeResult]{prefix: "d"},
+		opts:       opts,
+		log:        log,
+		ln:         ln,
+		sessions:   map[*session]struct{}{},
+		updates:    windowWaits[panecmd.UpdateResult]{prefix: "u"},
+		opens:      windowWaits[paneOpenResult]{prefix: "o"},
+		relays:     windowWaits[paneRelayResult]{prefix: "r"},
+		proposes:   windowWaits[dbProposeResult]{prefix: "d"},
+		windowRuns: windowWaits[windowRunResult]{prefix: "x"},
 	}
 	srv.terms = newTermManager(srv)
 	srv.ws = newWSManager(srv)
@@ -316,6 +318,8 @@ type session struct {
 	client      ClientInfo // session.hello で名乗ったもの
 	connectedAt time.Time  // session.hello が通った時刻
 	superseded  bool       // 後からつないだ GUI に引き継がれた。以後の要求は not_owner
+	// session.hello で知らせた、この Window が受けられること（CapWindowRun など）
+	capabilities []string
 }
 
 // ClientInfo は GUI が session.hello で名乗る内容。
@@ -340,6 +344,9 @@ type HelloParams struct {
 		ServerID string `json:"serverId"`
 		Rev      int64  `json:"rev"`
 	} `json:"resume,omitempty"`
+	// Capabilities は、この Window が受けられる通知の印（CapWindowRun）。古い Window は送らない。
+	// serve は、印の無い Window には、その通知を送らない
+	Capabilities []string `json:"capabilities,omitempty"`
 }
 
 // HelloResult は session.hello の結果。workspaces は後の Issue で埋まる（今は空）。
@@ -402,6 +409,8 @@ func (ss *session) handle(ctx context.Context, req *rpc.Message) (any, error) {
 			ss.paneRelayedNotify(req.Params)
 		case "db.proposed":
 			ss.dbProposedNotify(req.Params)
+		case "window.ran":
+			ss.windowRanNotify(req.Params)
 		}
 		return nil, nil // 知らない通知は無視する
 	}
@@ -516,6 +525,7 @@ func (ss *session) helloReq(req *rpc.Message) (any, error) {
 		s.forgetDBPasswords()
 	}
 	ss.client, ss.connectedAt = p.Client, now
+	ss.capabilities = cleanCapabilities(p.Capabilities)
 	s.owner = ss
 	s.mu.Unlock()
 	ss.mu.Lock()
@@ -542,6 +552,18 @@ func (ss *session) helloReq(req *rpc.Message) (any, error) {
 		Workspaces:   wsl,
 		Rev:          s.currentRev(),
 	}, nil
+}
+
+// cleanCapabilities は、Window が session.hello で知らせた capabilities を覚えられる形にする（多すぎる・長すぎるものは捨てる）。
+func cleanCapabilities(in []string) []string {
+	var out []string
+	for _, c := range in {
+		if c == "" || len(c) > 64 || len(out) >= 64 {
+			continue
+		}
+		out = append(out, c)
+	}
+	return out
 }
 
 // bumpRev はサーバー全体の版を 1 つ進める。

@@ -101,6 +101,10 @@ describe("connectShj", () => {
     assert.equal(f.connects[0].target, "myhost");
     assert.equal(c.hello.serverId, "s");
     assert.equal(JSON.parse(f.sent[0].text).method, "session.hello");
+    // 受けられる通知の印を名乗る（serve は、印の無い Window には window.run を送らない）
+    assert.deepEqual(JSON.parse(f.sent[0].text).params.capabilities, [
+      "window.run",
+    ]);
     // 他の接続の行は無視する
     f.h.line.forEach((fn) => fn({ id: "other", line: "{garbage" }));
     await c.close();

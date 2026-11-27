@@ -295,6 +295,30 @@ export function paneRelayAllowed(
 }
 
 /**
+ * Window に頼むコマンド（`kisui tab` など。#511）が、Machine from（ssh の行き先。手元の PC は LOCAL）の Pane から、Machine to の
+ * Tab に届いてよいか。決まりは `--machine` と同じ（paneRelayAllowed）：手元の PC の Pane からは、どの Machine の Tab にも届く。
+ * リモートの Machine の Pane からは、その Machine の Tab と、その Machine の `allow_pane_to` に名前のある Machine の Tab にだけ届く。
+ * 手元の PC の Tab（Browser tab と Database tab は、どれも手元の PC の Tab として扱う）には、Window の前の人が時間を決めて
+ * 許している間（grantedLocal。paneGrant.ts）だけ届く（`allow_pane_to` の `local` は数えない）。`[server] pane_reach` は関係しない
+ * （Tab は Window のもので、どの Workspace の Tab にも届く）。
+ */
+export function windowReachAllowed(
+  list: Machine[],
+  from: string,
+  to: string,
+  grantedLocal: boolean,
+): boolean {
+  return paneRelayAllowed(list, from, to, grantedLocal);
+}
+
+/** Machine target（ssh の行き先。手元の PC は LOCAL）の、CLI での名前（`--machine` で選ぶ名前。手元の PC は local）。 */
+export function machineCliName(list: Machine[], target: string): string {
+  if (target === LOCAL) return LOCAL_MACHINE;
+  const m = list.find((x) => x.target === target);
+  return m ? nameOf(m) : target;
+}
+
+/**
  * `allow_pane_to` に `local` を書いているマシンの名前（効かないので、お知らせに出す）。
  */
 export function localInAllowPaneTo(list: Machine[]): string[] {

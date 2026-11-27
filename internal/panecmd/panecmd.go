@@ -102,6 +102,17 @@ const (
 //     and waits for its answer: when the input already holds SQL, the window asks
 //     the person first, and their "no" is CodeDeclined.
 //
+//   - "window": ask the window to do Command (a name written like the id of a
+//     Command of the window, such as "tab.rename") with Args (a JSON object),
+//     and give back what it answers (Reply.Result, JSON). The window owns its
+//     workspaces, tabs, focus and what is shown, so "kisui serve" does not look
+//     at Command or Args: it passes them to the window with the id of the
+//     terminal that asks and of its tab, and waits for the answer. The window
+//     decides what it does, and whether the terminal of that machine may ask
+//     for it. Long makes "kisui serve" wait longer (for a request the window
+//     asks a person about). Refused when no window is connected (CodeNoWindow)
+//     or when the window is too old to take it. "kisui tab" uses it.
+//
 // The four "db-" requests are always the coding agent's (the actor "agent" of
 // docs/design/gui-protocol.md), never the person's, and never carry a
 // password: one that is found nowhere, or that the database refuses, is
@@ -144,6 +155,10 @@ type Request struct {
 	MaxRows    int    `json:"maxRows,omitempty"`
 	// Machine is the machine to do the request on (empty: this one).
 	Machine string `json:"machine,omitempty"`
+	// Command, Args and Long are for "window".
+	Command string          `json:"command,omitempty"`
+	Args    json.RawMessage `json:"args,omitempty"`
+	Long    bool            `json:"long,omitempty"`
 }
 
 // Reply answers a Request. ID is the pane that "open" (a file), "split" or "open-tab" made, or
@@ -168,6 +183,9 @@ type Reply struct {
 	// result of the request db.connections, db.schema or db.query, in the JSON
 	// of docs/design/gui-protocol.md. "kisui db ... --json" prints it as it is.
 	DB json.RawMessage `json:"db,omitempty"`
+	// Result is the answer to "window": what the window answered, as JSON
+	// (its shape is the one of the Command).
+	Result json.RawMessage `json:"result,omitempty"`
 }
 
 // PaneInfo is one terminal in the answer to "list". "kisui pane list --json"
@@ -242,6 +260,11 @@ const (
 	CodePasswordRequired = "password-required"
 	// CodeNotFound: the settings have no such connection (or variant).
 	CodeNotFound = "not-found"
+	// CodeNoWindow: no window is connected to "kisui serve" ("window").
+	CodeNoWindow = "no-window"
+	// CodeBusy: a program is running in what the request would close ("window";
+	// the command has a --force for it).
+	CodeBusy = "busy"
 )
 
 // ErrNotInPane is returned by FromEnv when the variables are not set, and by
@@ -285,12 +308,12 @@ const Timeout = 10 * time.Second
 const RelayTimeout = 100 * time.Second
 
 // Do sends rq (with the pane's id and secret) and reads the reply, waiting up
-// to Timeout (RelayTimeout for a request for another machine). A reply that is not OK is returned as an error with its text
+// to Timeout (RelayTimeout for a request for another machine, and for a Long one). A reply that is not OK is returned as an error with its text
 // (ErrNotInPane for CodeNotInPane), beside the reply (for its Code). Nothing
 // is sent when the directory of the socket is not a private one of this user
 // (ctl.CheckSocketDir): the error is then a *ctl.SocketDirError.
 func (p Pane) Do(rq Request) (Reply, error) {
-	if rq.Machine != "" {
+	if rq.Machine != "" || rq.Long {
 		return p.DoWithin(rq, RelayTimeout)
 	}
 	return p.DoWithin(rq, Timeout)

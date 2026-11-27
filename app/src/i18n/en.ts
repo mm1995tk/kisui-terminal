@@ -784,6 +784,26 @@ export const en = {
     "Working on panes of this computer cannot be allowed in the config file. Allow it for a time instead: choose the machine in the machine dialog ({leader} m) and press p.",
   "paneRelay.err.notAllowed":
     'The panes of {from} may not reach the machine "{machine}" with --machine. To allow it, write allow_pane_to = ["{machine}"] in the [[gui.machines]] entry of {from}, in the config file of the computer the window runs on, and start kisui-terminal again.',
+  "windowRun.err.unknown":
+    "This version of the window cannot do {command}. Update kisui-terminal.",
+  "windowRun.err.arg": "The request has no usable argument {name}.",
+  "windowRun.err.localOnly":
+    "{command} can be asked only from a pane of the computer the window runs on, not from a pane of a remote machine.",
+  "tabCli.err.noTab":
+    'No tab has the id or the name "{tab}" (kisui tab list prints the tabs)',
+  "tabCli.err.noTabReach":
+    'No tab has the id or the name "{tab}" among the tabs the panes of {from} may reach (kisui tab list prints them). They reach the tabs of {from}, and the tabs of the machines in allow_pane_to of the [[gui.machines]] entry of {from}. The tabs of the computer the window runs on (its terminal tabs, and every browser and database tab) are reached only while the person at the window allows it: in the machine dialog, choose {from} and press p.',
+  "tabCli.err.ambiguous":
+    '{count} tabs have the name or id "{tab}"; point at one of them by its id ({ids}; kisui tab list prints them)',
+  "tabCli.err.noWorkspace": 'No workspace has the name or id "{name}"',
+  "tabCli.err.running":
+    'A program is running in the tab "{tab}", so it was not closed. kisui tab close --force ends the program and closes the tab.',
+  "tabCli.err.askEach":
+    "A pane of this computer is set to ask the person every time, so a remote machine may not close terminal tabs of this computer. Ask the user to close the tab in the window.",
+  "tabCli.err.focus":
+    "A pane of {from} may show a tab, or move one to another workspace, only while the keys of the window are on a terminal tab of {from}, or while the person at the window allows {from} (in the machine dialog, choose {from} and press p). Otherwise the keys the person is typing would go to another place. Ask the user to show the tab.",
+  "tabCli.err.sameWorkspace":
+    'The tab "{tab}" is already in the workspace "{workspace}"',
   "paneOpen.err.noWorkspace":
     'No workspace has the name or id "{name}" (add --new to make one of that name)',
   "paneOpen.err.ambiguous":

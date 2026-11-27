@@ -96,7 +96,7 @@ func (s *Server) paneCmdConn(c net.Conn, line []byte) {
 	}
 	r, err := s.paneCmd(rq)
 	if l, ok := errors.AsType[*paneCmdLater](err); ok {
-		// kisui update・kisui pane open は GUI の答えを待ち、kisui db は DB につなぐ。どちらも長くかかることがあるので、
+		// kisui update・kisui pane open・kisui tab は GUI の答えを待ち、kisui db は DB につなぐ。どちらも長くかかることがあるので、
 		// その間は読みロックを手放す（引き継ぎの書きロックが待っていても詰まらないように。GUI の答え update.result・
 		// pane.opened も読みロックを取る）
 		s.opMu.RUnlock()
@@ -201,6 +201,8 @@ func (s *Server) paneCmd(rq panecmd.Request) (panecmd.Reply, error) {
 		return panecmd.Reply{ID: id}, err
 	case "update":
 		return s.updateStart()
+	case "window":
+		return s.windowRunStart(t, wsID, rq)
 	case "title":
 		name, err := cleanPaneName(rq.Title)
 		if err != nil {

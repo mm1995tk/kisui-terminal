@@ -2,9 +2,10 @@
 // session.hello を通す。
 
 import { Client, type Transport } from "../../infrastructure/rpc/client.ts";
-import type {
-  AttachInfo,
-  HelloResult,
+import {
+  WINDOW_CAPABILITIES,
+  type AttachInfo,
+  type HelloResult,
 } from "../../infrastructure/rpc/protocol.ts";
 import {
   EXIT_KISUI_MISSING,
@@ -125,6 +126,7 @@ export async function connectShj(
       protocol: { major: 4, minor: 0 },
       client: { name: GUI_NAME, version: GUI_VERSION, kind: "web" },
       encoding: ["json"],
+      capabilities: [...WINDOW_CAPABILITIES],
       ...(opts.resume ? { resume: opts.resume } : {}),
     });
     offAttach();

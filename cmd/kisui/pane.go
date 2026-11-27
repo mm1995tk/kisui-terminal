@@ -219,19 +219,7 @@ func writePaneListJSON(w io.Writer, panes []panecmd.PaneInfo) error {
 // writePaneList writes the panes as a table for a person: one line each, with
 // a "*" in front of the pane it runs in. Empty columns are "-".
 func writePaneList(w io.Writer, panes []panecmd.PaneInfo) error {
-	// cell is the text of one column: control characters become spaces, and empty is "-".
-	cell := func(s string) string {
-		s = strings.TrimSpace(strings.Map(func(r rune) rune {
-			if unicode.IsControl(r) {
-				return ' '
-			}
-			return r
-		}, s))
-		if s == "" {
-			return "-"
-		}
-		return s
-	}
+	cell := tableCell
 	rows := [][]string{append([]string{" "}, strings.Split(i18n.T("pane.list.header"), "\t")...)}
 	for _, p := range panes {
 		mark := " "
@@ -250,6 +238,21 @@ func writePaneList(w io.Writer, panes []panecmd.PaneInfo) error {
 	// the mark and the id are one space apart, the other columns two
 	_, err := io.WriteString(w, alignColumns(rows, 1))
 	return err
+}
+
+// tableCell is the text of one column of a table: control characters become
+// spaces, and empty is "-".
+func tableCell(s string) string {
+	s = strings.TrimSpace(strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) {
+			return ' '
+		}
+		return r
+	}, s))
+	if s == "" {
+		return "-"
+	}
+	return s
 }
 
 // alignColumns writes rows as lines whose columns line up by the width on the

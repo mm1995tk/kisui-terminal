@@ -27,7 +27,18 @@ export interface HelloParams {
   client: ClientInfo;
   encoding: Encoding[];
   resume?: { serverId: string; rev: number };
+  /**
+   * この Window が受けられる通知の印（WINDOW_CAPABILITIES）。serve は、印の無い Window には、その通知を送らない
+   * （古い serve は知らずに無視する）
+   */
+  capabilities?: string[];
 }
+
+/**
+ * Window が session.hello の capabilities で知らせる印。
+ * "window.run"：window.run（Window に頼む、Pane の中のコマンド。`kisui tab` など）を受けて、window.ran で答えられる。
+ */
+export const WINDOW_CAPABILITIES: readonly string[] = ["window.run"];
 
 export interface HelloResult {
   protocol: ProtocolVersion;
@@ -904,6 +915,17 @@ export interface Notifications {
   "db.propose": DbProposeRequest;
   /** db.propose の取り下げ（serve が答えを待つのをやめた：時間切れ・コマンドが止められた）。人に聞いている途中なら、聞くのをやめて書かない */
   "db.proposeCancel": { id: string };
+  /**
+   * Window に頼む、Pane の中のコマンド（`kisui tab` など。#511）。Workspace・Tab・フォーカス・表示は Window が持つので、serve は
+   * 中身を見ずに取り次ぐ。Window は command を args で行い、window.ran で答える。session.hello の capabilities に
+   * "window.run" を入れた Window にだけ届く
+   */
+  "window.run": WindowRunRequest;
+  /**
+   * serve が、window.run の頼み id の答えを待つのをやめた（頼んだコマンドが止められた・時間切れ）。その頼みを人に聞いている
+   * 途中なら、聞くのをやめる
+   */
+  "window.runCancel": { id: string };
   /** プライマリの shj（`ctl.PaneRequest` の `kind: "browser"`）・`kisui open <URL>` が、URL を手元のブラウザで開くよう頼んだ（#96）。欄は作らない。内蔵ブラウザを有効にしていればそのワークスペースの新しいタブ、無効なら外部ブラウザで開く（#203）。リモートのマシンの localhost 系は、GUI が `kisui relay` の中継越しに開く */
   "browser.open": { workspaceId: WorkspaceId; url: string };
   /** プライマリの shj が、そのワークスペースのファイルエクスプローラにキーを向けるよう頼んだ（Space e）。Esc で端末に戻る。start は、shj が引数なしで起動した直後（ツリーが整うのを待つ）。 */
@@ -961,7 +983,29 @@ export interface GuiNotifications {
   "pane.relayed": { id: string; reply: PaneRunReply };
   /** db.propose への答え（`kisui db propose` に渡る） */
   "db.proposed": { id: string } & DbProposeReport;
+  /** window.run への答え（`kisui tab` などに渡る）。行えたら result（そのままコマンドに渡る）、行えなければ error（そのままコマンドが出す） */
+  "window.ran": { id: string } & WindowRunReport;
 }
+
+/** window.run の中身（#511）。 */
+export interface WindowRunRequest {
+  id: string;
+  /** 頼んだ Pane の id（頼みを送ってきた serve でのもの） */
+  pane: string;
+  /** 頼んだ Pane の Terminal tab（頼みを送ってきた serve のワークスペースの id） */
+  tab: string;
+  /** 行うことの名前。Command の id と同じ形（"tab.rename"）。Command の無いもの（"tab.list"）も同じ形の名前 */
+  command: string;
+  /** その引数（中身は command ごと） */
+  args: Record<string, unknown>;
+}
+
+/**
+ * window.run への答え（#511）。result は、行った結果（中身は command ごと）。error は、行えなかった理由で、code は、コマンドが
+ * 見分ける断り（serve の panecmd.Reply.Code。"busy" など）。
+ */
+export type WindowRunReport =
+  { result: unknown } | { error: string; code?: string };
 
 /** db.propose の中身（`kisui db propose`。#382）。 */
 export interface DbProposeRequest {
