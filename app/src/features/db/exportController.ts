@@ -11,6 +11,7 @@ import {
   exportText,
   isExportable,
   type ExportChoice,
+  type ExportFormat,
   type SaveTextFile,
 } from "./export.ts";
 
@@ -57,6 +58,25 @@ export function createDbExport(deps: {
     return true;
   }
 
+  /**
+   * タブ id の出している結果を、形 format の文字にして返す（`kisui db export`。Dialog も書き出し先も使わない）。
+   * 書き出せる結果が無ければ undefined。欠けているもの（行が上限で切れている・長い値が切られている）も返す。
+   */
+  function exportData(
+    id: string,
+    format: ExportFormat,
+  ): (DbExportAsk & { text: string }) | undefined {
+    const r = deps.resultOf(id);
+    if (!deps.refOf(id) || !isExportable(r)) return undefined;
+    return {
+      tab: id,
+      rows: r.rowCount,
+      truncated: r.truncated,
+      truncatedCells: r.truncatedCells === true,
+      text: exportText(r, format),
+    };
+  }
+
   /** Dialog をやめる（キーを今のペインに戻す）。 */
   function closeExport() {
     setAsk(null);
@@ -95,5 +115,5 @@ export function createDbExport(deps: {
     }
   }
 
-  return { exportAsk: ask, openExport, closeExport, chooseExport };
+  return { exportAsk: ask, openExport, closeExport, chooseExport, exportData };
 }

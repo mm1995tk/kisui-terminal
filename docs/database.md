@@ -209,6 +209,24 @@ kisui db propose --variant prod shop "UPDATE orders SET status = 'cancelled' WHE
 - **The statements the agent runs are kept in the history** of the connection, marked as the agent's (below). SQL written with `kisui db propose` is not: it gets there when you run it.
 - `kisui skill install` writes a skill that teaches a coding agent these commands (see the README).
 
+### Working on a database tab: `open`, `refresh`, `export`, `history`, `page`, `view`, `result`, `elevate-end`
+
+These go to the window, not to `kisui serve` (the window owns the tabs), and do what the keys of a database tab do. `<tab>` is the id or the name of a database tab (`kisui tab list` prints them; a name that two tabs have is refused, with the ids).
+
+| Command                                                                                                                      | What it does                                                                                                                       |
+| ---------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `kisui db open [--variant <variant>] [--workspace <name\|id>] <connection>`                                                  | Opens a database tab of a connection of this machine in the workspace of the pane (or `--workspace`), shows it, and prints its id. |
+| `kisui db refresh <tab>`                                                                                                     | Asks again for the tables, and for the structure of the chosen table. It does not wait.                                            |
+| `kisui db export <tab> --format csv\|tsv\|json [--out <file>]`                                                               | The result the tab shows, as in the export of the window (to stdout, or to a new file; a file that exists is not replaced).        |
+| `kisui db history [--json] <tab>`                                                                                            | The history of the connection of the tab, newest first.                                                                            |
+| `kisui db page <tab> --next\|--prev`, `kisui db result <tab> --next\|--prev\|--close`, `kisui db view <tab> data\|structure` | The page, the result tab, and data or structure, as the keys do. They do not wait for the page.                                    |
+| `kisui db elevate-end <tab>`                                                                                                 | Ends the elevated permissions of the connection at once (yours and the agent's).                                                   |
+
+- **No command elevates.** `db.elevate` has no command, so the rule "only you elevate" holds for these commands too. `elevate-end` only lowers a permission, so it is allowed. The key that moves the keys to the schema tree (`db.tree`) has no command either: it only moves the focus.
+- **`export` and `history` give out what you ran with your permission.** So they are refused when the agent's `run` on the connection is `none` (the same line as `kisui db query`), when the agent logs in as another database user (`agent-user` differs from the `user` of the connection: you may have read rows that the agent's user is not granted), and while the tab runs a statement (the result would change). `--out` never replaces a file.
+- **Where they reach.** A database tab is a tab of your computer. A pane of your computer reaches it. A pane of a remote machine reaches it, and can `open` one, only while you allow that machine for a time in the machine dialog (`p`); otherwise the tab is not listed, and the command says there is no such tab. While a pane of your computer is set to ask you every time, a remote machine may not use `export` and `history` (they return data) even in that time. `open` is the only one that moves your keys (it shows the tab), as `kisui tab show` does.
+- They need the window: with the window closed, they fail.
+
 ## Passwords
 
 A password is never written in `config.toml`; a `password` key is reported as a mistake. `kisui serve` looks for the password of a connection in this order, on the machine where it runs:
