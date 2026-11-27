@@ -7,7 +7,10 @@ import { describe, it } from "node:test";
 
 const ui = new URL("../", import.meta.url);
 
-/** app/src/ui の下の CSS（ui からの相対の名前 → 中身）。 */
+const withoutComments = (css: string): string =>
+  css.replace(/\/\*[\s\S]*?\*\//g, "");
+
+/** app/src/ui の下の CSS（ui からの相対の名前 → コメントを除いた中身）。 */
 function cssFiles(dir: URL, base = ""): Record<string, string> {
   const out: Record<string, string> = {};
   for (const e of readdirSync(dir, { withFileTypes: true })) {
@@ -15,16 +18,15 @@ function cssFiles(dir: URL, base = ""): Record<string, string> {
     if (e.isDirectory())
       Object.assign(out, cssFiles(new URL(`${e.name}/`, dir), `${name}/`));
     else if (e.name.endsWith(".css"))
-      out[name] = readFileSync(new URL(e.name, dir), "utf8");
+      out[name] = withoutComments(readFileSync(new URL(e.name, dir), "utf8"));
   }
   return out;
 }
 
-/** 前置き（セレクタ）がちょうど selector の規則の、宣言（名前 → 値）。コメントは見ない。 */
+/** 前置き（セレクタ）がちょうど selector の規則の、宣言（名前 → 値）。css はコメントを除いたもの。 */
 function declarations(css: string, selector: string): Map<string, string> {
-  const text = css.replace(/\/\*[\s\S]*?\*\//g, "");
   const out = new Map<string, string>();
-  for (const m of text.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+  for (const m of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
     if (m[1]!.trim() !== selector) continue;
     for (const d of m[2]!.split(";")) {
       const i = d.indexOf(":");
@@ -60,9 +62,7 @@ describe("Dialog の高さの決め方", () => {
   it("Dialog の高さを書き替えるのは、高さを固定する Workspace switcher だけ", () => {
     const owners = Object.entries(files)
       .filter(([name]) => name !== "components/card.css")
-      .filter(([, css]) =>
-        /\.card-(modal|content)\b/.test(css.replace(/\/\*[\s\S]*?\*\//g, "")),
-      )
+      .filter(([, css]) => /\.card-(modal|content)\b/.test(css))
       .map(([name]) => name);
     assert.deepEqual(owners, ["main-window/workspaces/switcher.css"]);
   });
