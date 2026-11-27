@@ -40,8 +40,9 @@ import {
 import type { Row } from "../workspaces/rows.ts";
 import type { Tabs } from "../workspaces/tabs/controller.ts";
 import {
-  findTabs,
   keysMayMove,
+  pickTab,
+  reachableTabs,
   tabEntries,
   type TabEntry,
 } from "../workspaces/tabs/tabCommands.ts";
@@ -167,15 +168,6 @@ export function createBrowserCommands(deps: {
       );
   }
 
-  /** Machine from の Pane から届く Tab（Sidebar の並びの順）。 */
-  function reachable(from: string): TabEntry[] {
-    const list = untrack(machines);
-    const granted = deps.granted(from);
-    return tabEntries(untrack(deps.gws), untrack(deps.rows)).filter((e) =>
-      windowReachAllowed(list, from, e.target, granted),
-    );
-  }
-
   /** 引数 tab が指す、届く Browser tab 1 つ。無い・届かない・2 つ以上に当たる・Browser tab でないときは断る。 */
   function resolve(
     args: Record<string, unknown>,
@@ -184,23 +176,15 @@ export function createBrowserCommands(deps: {
     // 手元の PC の Pane には、先に断る。リモートの Machine の Pane には、届く Tab を探してから断る
     if (c.from === LOCAL) needEnabled();
     const tab = argString(args, "tab").trim();
-    const found = findTabs(reachable(c.from), tab);
-    if (found.length > 1)
-      throw new WindowCommandError(
-        T("tabCli.err.ambiguous", {
-          tab,
-          count: found.length,
-          ids: found.map((e) => e.id).join(", "),
-        }),
-      );
-    if (found.length === 0)
-      throw new WindowCommandError(
-        c.from === LOCAL
-          ? T("tabCli.err.noTab", { tab })
-          : T("tabCli.err.noTabReach", { tab, from: labelOf(c.from) }),
-      );
+    const reach = reachableTabs(
+      untrack(machines),
+      untrack(deps.gws),
+      untrack(deps.rows),
+      c.from,
+      deps.granted(c.from),
+    );
+    const e = pickTab(reach, tab, c.from, labelOf);
     needEnabled();
-    const e = found[0];
     if (e.ref.kind !== "browser")
       throw new WindowCommandError(T("browserCli.err.notBrowser", { tab }));
     const t = untrack(deps.browserTabs.tabs).tabs.find((x) => x.id === e.id);
