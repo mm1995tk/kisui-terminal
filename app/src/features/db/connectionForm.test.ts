@@ -50,13 +50,13 @@ const local: LocalDbConnections = {
   fixed: ["prod"],
 };
 
-describe("rowEditState（接続を選ぶ窓の行を、窓から変えられるか）", () => {
+describe("rowEditState（接続を選ぶ Dialog の行を、Dialog から変えられるか）", () => {
   it("この PC の config.local.toml の接続は直せる・消せる", () => {
     assert.equal(rowEditState(choice("dev"), local).kind, "edit");
     assert.equal(rowEditNote(rowEditState(choice("dev"), local)), undefined);
   });
 
-  it("窓で入れないキーを書いた接続・変種の行は、消せるだけ", () => {
+  it("Dialog で入れないキーを書いた接続・変種の行は、消せるだけ", () => {
     assert.equal(rowEditState(choice("hand"), local).kind, "removeOnly");
     assert.equal(
       rowEditState(choice("dev", LOCAL, "prod"), local).kind,
@@ -131,11 +131,11 @@ describe("editErrorLines（殻が書けなかった理由）", () => {
   });
 });
 
-describe("dbPickerKey・dbPickerFooter（接続を選ぶ窓のキーと下の段）", () => {
+describe("dbPickerKey・dbPickerFooter（接続を選ぶ Dialog のキーと Key footer）", () => {
   const ev = (key: string, mods: Partial<KeyboardEvent> = {}) =>
     ({ key, ...mods }) as KeyboardEvent;
 
-  it("a e d は足す・直す・消す。修飾キー付きは受けない。動かす・決めるは一覧から選ぶ窓と同じ", () => {
+  it("a e d は足す・直す・消す。修飾キー付きは受けない。動かす・決めるは一覧から選ぶ Dialog と同じ", () => {
     assert.deepEqual(dbPickerKey(ev("a")), { kind: "add" });
     assert.deepEqual(dbPickerKey(ev("e")), { kind: "edit" });
     assert.deepEqual(dbPickerKey(ev("d")), { kind: "remove" });
@@ -183,7 +183,7 @@ describe("createDbConnections（足す・直す・消すの流れ）", () => {
     return { c, sent, refreshed: () => refreshed };
   }
 
-  it("書けたら窓を閉じて一覧を聞き直す。直すときは元の名前を渡す", async () => {
+  it("書けたら Dialog を閉じて一覧を聞き直す。直すときは元の名前を渡す", async () => {
     const { c, sent, refreshed } = setup(async () => local);
     await c.loadLocal();
     c.openConnFor("edit", choice("dev"));
@@ -198,7 +198,7 @@ describe("createDbConnections（足す・直す・消すの流れ）", () => {
     assert.equal(refreshed(), 1);
   });
 
-  it("書いている間に窓を閉じても、書けたら一覧を聞き直す", async () => {
+  it("書いている間に Dialog を閉じても、書けたら一覧を聞き直す", async () => {
     const { c, refreshed } = setup(async () => local);
     c.openConnAdd();
     c.submitConnForm({ ...emptyFields(), name: "x", user: "u" });
@@ -208,7 +208,7 @@ describe("createDbConnections（足す・直す・消すの流れ）", () => {
     assert.equal(refreshed(), 1);
   });
 
-  it("書けなければ窓を開けたまま、入れた値と理由を残す", async () => {
+  it("書けなければ Dialog を開けたまま、入れた値と理由を残す", async () => {
     const { c, refreshed } = setup(async () => {
       throw { kind: "fixed", detail: "prod" };
     });
@@ -224,7 +224,7 @@ describe("createDbConnections（足す・直す・消すの流れ）", () => {
     assert.equal(refreshed(), 0);
   });
 
-  it("変えられない行では窓を開かない。消せるだけの行は消す窓だけ開く", async () => {
+  it("変えられない行では Dialog を開かない。消せるだけの行は消す Dialog だけ開く", async () => {
     const { c } = setup(async () => local);
     await c.loadLocal();
     c.openConnFor("edit", choice("prod"));
@@ -236,7 +236,7 @@ describe("createDbConnections（足す・直す・消すの流れ）", () => {
     assert.equal(c.connForm()?.overrides, false);
   });
 
-  it("上書きは断らずに直す・消す窓を開き、上書きであることを窓に渡す", async () => {
+  it("上書きは断らずに直す・消す Dialog を開き、上書きであることを Window に渡す", async () => {
     const { c } = setup(async () => local);
     await c.loadLocal();
     c.openConnFor("remove", choice("shop"));

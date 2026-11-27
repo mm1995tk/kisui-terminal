@@ -1,4 +1,4 @@
-// ブラウザのタブの窓（リーダーの `a`。BrowserWindow.tsx。#459）の中のキー。
+// ブラウザのタブの Dialog（リーダーの `a`。BrowserWindow.tsx。#459）の中のキー。
 // 画面の仕組み（Solid）に依らないので、node --test で確かめる。決まりは docs/key-design.md。
 
 import {
@@ -14,7 +14,7 @@ import {
 } from "../../../features/commands/placeKeys.ts";
 import { T } from "../../../i18n/index.ts";
 
-/** 窓の中のキーが表す動き。 */
+/** Dialog の中のキーが表す動き。 */
 export type BrowserWindowKey =
   /** 選ぶ行を、1 つ下（1）・上（-1）へ動かす（今できない行は飛ばす） */
   | { kind: "select"; step: 1 | -1 }
@@ -22,10 +22,10 @@ export type BrowserWindowKey =
   | { kind: "run" }
   /** 字で、その操作を行う */
   | { kind: "op"; op: BrowserOp }
-  /** この窓のキーの一覧を出す（`?`） */
+  /** この Dialog のキーの一覧を出す（`?`） */
   | { kind: "help" };
 
-/** 字 → 操作。字は窓の行の字（features/browser/window.ts の BROWSER_WINDOW_ORDER）から作り、戻る・進むに矢印を足す（URL バーのボタンと同じ向き）。 */
+/** 字 → 操作。字は Dialog の行の字（features/browser/window.ts の BROWSER_WINDOW_ORDER）から作り、戻る・進むに矢印を足す（URL バーのボタンと同じ向き）。 */
 const OPS: Readonly<Record<string, BrowserOp>> = {
   ...Object.fromEntries(BROWSER_WINDOW_ORDER.map((r) => [r.key, r.op])),
   ArrowLeft: "back",
@@ -33,8 +33,8 @@ const OPS: Readonly<Record<string, BrowserOp>> = {
 };
 
 /**
- * 窓の中のキー（字を打つ入力欄は無いので、字をそのまま使える。Esc は ModalCard が閉じるのに使う）。
- * 選ぶのは、ほかの窓と同じ j k（矢印も）。戻る・進むは h l（← → も。URL バーのボタンと同じ向き）。
+ * Dialog の中のキー（字を打つ入力欄は無いので、字をそのまま使える。Esc は ModalCard が閉じるのに使う）。
+ * 選ぶのは、ほかの Dialog と同じ j k（矢印も）。戻る・進むは h l（← → も。URL バーのボタンと同じ向き）。
  * Alt・Cmd・Ctrl を重ねたものと、変換中のキーは受けない。Shift は、字で見分ける（B と ?）。
  */
 export function browserWindowKey(e: KeyLike): BrowserWindowKey | null {
@@ -60,11 +60,11 @@ export function browserWindowKey(e: KeyLike): BrowserWindowKey | null {
 }
 
 /**
- * 窓の下の段（共通フッタ）に出す、今効く操作。「移動」と「このページ」の 2 行（ほかの窓の「選んでいるタブ」「この DB のタブ」と同じ形）。
- * 今できない行（窓の行で薄くなっているもの。why がある）は出さない。どの窓でも同じ意味のキー（j k・Enter・Esc・`?`）は出さない
- * （h l は、この窓では戻る・進むなので出す）。キーと probes は `?` の一覧の表（placeKeys.ts の browserWindow）から引く（placeItem）。
- * 操作の名前は短い英語（`browserWindow.keys.<op>`。窓の行の名前はリーダーの browser.* と同じで長い）。browserWindowKey.test.ts が、出す操作を判定が受けることと、
- * 表の操作がどれも、どこかの状態で下の段に出ることを確かめる。
+ * Dialog の Key footer（共通フッタ）に出す、今効く操作。「移動」と「このページ」の 2 行（ほかの Dialog の「選んでいるタブ」「この DB のタブ」と同じ形）。
+ * 今できない行（Dialog の行で薄くなっているもの。why がある）は出さない。どの Dialog でも同じ意味のキー（j k・Enter・Esc・`?`）は出さない
+ * （h l は、この Dialog では戻る・進むなので出す）。キーと probes は `?` の一覧の表（placeKeys.ts の browserWindow）から引く（placeItem）。
+ * 操作の名前は短い英語（`browserWindow.keys.<op>`。Dialog の行の名前はリーダーの browser.* と同じで長い）。browserWindowKey.test.ts が、出す操作を判定が受けることと、
+ * 表の操作がどれも、どこかの状態で Key footer に出ることを確かめる。
  */
 export function browserWindowFooter(
   rows: readonly BrowserWindowRow[],

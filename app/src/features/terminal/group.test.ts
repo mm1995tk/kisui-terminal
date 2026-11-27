@@ -402,7 +402,7 @@ describe("TermGroup", () => {
     assert.ok(!f.calls.some((c) => c.method === "term.close"));
   });
 
-  // ターミナルのタブの窓（リーダーの a。#457）は、今使っている欄ではなく、窓で選んだ欄に操作する
+  // ターミナルのタブの Dialog（リーダーの a。#457）は、今使っている欄ではなく、Dialog で選んだ欄に操作する
   it("欄を id で指して操作する：隣を調べる・active にする・分ける・入れ替える・閉じる。今使っている欄は、指した操作のほかでは動かない", async () => {
     const f = fakePort();
     const video = {
@@ -554,7 +554,7 @@ describe("TermGroups", () => {
   });
 });
 
-describe("欄どうしの境界を動かす（#18）", () => {
+describe("欄どうしの Pane border を動かす（#18）", () => {
   const split = (terms: string[]): TermLayout => ({
     ...layout(terms),
     layout: {
@@ -612,7 +612,7 @@ describe("欄どうしの境界を動かす（#18）", () => {
     await tick();
   });
 
-  it("最小の大きさを下回る位置には動かさない。境界が無ければ false", async () => {
+  it("最小の大きさを下回る位置には動かさない。Pane border が無ければ false", async () => {
     const f = fakePort();
     f.handlers["layout.resize"] = (p) => ({ ratio: p.ratio });
     const g = new TermGroup(f.port, split(["t2"]), () => {});

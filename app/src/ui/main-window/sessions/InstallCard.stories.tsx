@@ -1,5 +1,5 @@
-// 組み合わせの例：kisui を入れてよいかを聞く窓（InstallCard.tsx）を、アプリと同じ部品・CSS・字・翻訳で出す（#315）。
-// 窓の枠（ModalCard、focusSelf）・本文・前に失敗した理由（.card-error）・ボタン（Button）の組み合わせ。
+// 組み合わせの例：kisui を入れてよいかを聞く Dialog（InstallCard.tsx）を、アプリと同じ部品・CSS・字・翻訳で出す（#315）。
+// Dialog の枠（ModalCard、focusSelf）・本文・前に失敗した理由（.card-error）・ボタン（Button）の組み合わせ。
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
 import { fn } from "storybook/test";
 

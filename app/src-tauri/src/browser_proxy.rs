@@ -9,7 +9,7 @@
 //!   ポートは起動のたびに空いているものを取る。
 //! - WKWebView には、データストアの `proxyConfigurations`（macOS 14 から）に、Network.framework の中継の設定
 //!   （`nw_proxy_config_create_relay`）を入れる。共有のデータストア（`defaultDataStore`）には 1 度、シークレットのタブには
-//!   タブごとに作るデータストアに入れる（`private_configuration`）。ページが開いた新しい窓のタブは、開いた元のタブと同じ
+//!   タブごとに作るデータストアに入れる（`private_configuration`）。ページが開いた新しい Window のタブは、開いた元のタブと同じ
 //!   データストアを使うので、元と同じになる。
 //! - WKWebView は、中継のプロキシの TLS で、OS に信頼された証明書しか通さない（#290）。そこで Mac ごとに鍵と証明書を作り、
 //!   ログインのキーチェーンで、用途を SSL、名前を `localhost` に限って信頼させる（macOS がパスワードを聞く）。

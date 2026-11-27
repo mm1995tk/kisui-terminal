@@ -1,4 +1,4 @@
-/* ブラウザのタブの窓（BrowserWindow.tsx。リーダーの a。#459）。カードと一覧の行（.card-rows・.card-row）は card.css。
+/* ブラウザのタブの Dialog（BrowserWindow.tsx。リーダーの a。#459）。カードと一覧の行（.card-rows・.card-row）は card.css。
    上にそのタブのページの題・URL・状態の印、中にページへの操作の行を出す。 */
 
 /* 見出し（題）と、その下の URL・状態の印 */

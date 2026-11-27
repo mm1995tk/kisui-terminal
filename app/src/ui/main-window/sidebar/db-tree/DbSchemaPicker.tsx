@@ -1,6 +1,6 @@
 // DB のタブの木の上で、接続の既定のスキーマを選ぶ所（#398）。木の `s` か、既定のスキーマの欄を押すと、その欄の場所で開く
-// （窓は出さない）。欄が絞り込みの入力欄になり、その下にスキーマの一覧が出る。
-// キーはクエリの履歴の窓（ui/main-window/db/DbHistoryDialog.tsx）と同じ：字を打って絞り込み、↓ ↑・Ctrl+J / Ctrl+K で選び、
+// （Dialog は出さない）。欄が絞り込みの入力欄になり、その下にスキーマの一覧が出る。
+// キーはクエリの履歴の Dialog（ui/main-window/db/DbHistoryDialog.tsx）と同じ：字を打って絞り込み、↓ ↑・Ctrl+J / Ctrl+K で選び、
 // Enter かクリックで決め、Esc で閉じる。ほかの所を押してフォーカスが外れても閉じる。
 import { T } from "../../../../i18n/index.ts";
 import {
@@ -63,7 +63,7 @@ export function DbSchemaPicker(props: {
       props.onCancel();
       return;
     }
-    // キーは履歴の窓と同じ（? は使わない）
+    // キーは履歴の Dialog と同じ（? は使わない）
     const k = dbHistoryKey(e, false);
     if (!k) return;
     e.preventDefault();

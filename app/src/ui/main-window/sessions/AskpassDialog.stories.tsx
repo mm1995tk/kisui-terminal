@@ -1,5 +1,5 @@
-// ssh の質問の窓（AskpassDialog.tsx）を、アプリと同じ部品・CSS・字・翻訳で出す。
-// 見出しの段のマシン（窓が出す。色の丸・名前・ssh の行き先）と、枠の中の質問の文（ssh が出した文）の見分けを確かめる。
+// ssh の質問の Dialog（AskpassDialog.tsx）を、アプリと同じ部品・CSS・字・翻訳で出す。
+// 見出しの段のマシン（Dialog が出す。色の丸・名前・ssh の行き先）と、枠の中の質問の文（ssh が出した文）の見分けを確かめる。
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
 import { fn } from "storybook/test";
 

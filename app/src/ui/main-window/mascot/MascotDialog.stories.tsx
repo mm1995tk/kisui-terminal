@@ -1,5 +1,5 @@
-// キャラクターを選ぶ窓（MascotDialog.tsx）を、アプリと同じ部品・CSS・字・翻訳で出す。
-// 下の段は、窓だけの操作が無いので、何を選ぶかの見出しだけ（#489）。使えないキャラクターを選んで決めたときの知らせは、下の段の上に出る。
+// キャラクターを選ぶ Dialog（MascotDialog.tsx）を、アプリと同じ部品・CSS・字・翻訳で出す。
+// Key footer は、Dialog だけの操作が無いので、何を選ぶかの見出しだけ（#489）。使えないキャラクターを選んで決めたときの知らせは、Key footer の上に出る。
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
 import { fn } from "storybook/test";
 

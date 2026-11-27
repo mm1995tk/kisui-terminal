@@ -1,8 +1,8 @@
-// 窓のマシンの一覧と、その決まり。サイドバーに出るのは「ローカル」と、設定ファイルの [[gui.machines]] のマシンだけ。
-// 一覧を持つのは設定ファイル（config.toml に config.local.toml を重ねたもの）で、窓で足す・名前を変える・外すと、
+// Dialog のマシンの一覧と、その決まり。サイドバーに出るのは「ローカル」と、設定ファイルの [[gui.machines]] のマシンだけ。
+// 一覧を持つのは設定ファイル（config.toml に config.local.toml を重ねたもの）で、Dialog で足す・名前を変える・外すと、
 // 殻が config.local.toml を書き換える（config_list.rs。config.toml には書かない）。ここは、書く前の確かめと、一覧の組み立てを持つ。
 //
-// 前の版は、窓で足したマシンを webview の localStorage（キー shijimi-editor.machines。その前は shijimi-editor.lastTargets）に
+// 前の版は、Window で足したマシンを webview の localStorage（キー shijimi-editor.machines。その前は shijimi-editor.lastTargets）に
 // 記録していた。その記録は、この版で最初に起動したときに config.local.toml に移す（moveRecords.ts）。ここの loadMachines は、そのときだけ読む。
 
 import type { KeyValueStore } from "../keyValueStore.ts";
@@ -18,22 +18,22 @@ export const localLabel = (): string => T("machine.local");
 /** 「ローカル」の名前（どの言語のものも。言語を切り替えたあとで、名前が重ならないようにする）。 */
 const localLabels = (): string[] => inAllLangs("machine.local");
 
-/** 窓のマシン 1 台。 */
+/** Dialog のマシン 1 台。 */
 export interface Machine {
   /** ssh の行き先（~/.ssh/config のホスト名など） */
   target: string;
   /** 付けた名前。無ければ target を出す */
   name?: string;
-  /** config.toml にだけ書いたマシン。窓からは外せず、名前も変えられない（窓は config.toml に書かない） */
+  /** config.toml にだけ書いたマシン。Dialog からは外せず、名前も変えられない（Dialog は config.toml に書かない） */
   fixed?: boolean;
   /**
    * このマシンのペインが `kisui pane … --machine` で指してよいマシンの名前（設定ファイルの `allow_pane_to`）。
-   * 設定ファイルの一覧（fromConfig）だけが付ける。窓からは書かない。
+   * 設定ファイルの一覧（fromConfig）だけが付ける。Dialog からは書かない。
    */
   allowPaneTo?: string[];
 }
 
-/** 前の版の、窓で足したマシンの記録（localStorage のキー。値は Machine の JSON 配列）。config.local.toml に移すときだけ読む。 */
+/** 前の版の、Window で足したマシンの記録（localStorage のキー。値は Machine の JSON 配列）。config.local.toml に移すときだけ読む。 */
 export const MACHINES_KEY = "shijimi-editor.machines";
 /** もっと前の版の記録のキー（つなぎ先の JSON 配列）。MACHINES_KEY が無いときだけ、移すために読む。 */
 export const LEGACY_KEY = "shijimi-editor.lastTargets";
@@ -178,7 +178,7 @@ export function filterCandidates(
 export interface ConfigMachine {
   ssh: string;
   name?: string | null;
-  /** config.local.toml の項目か（両方のファイルにあれば true）。窓が書き換えられるのは true のマシンだけ */
+  /** config.local.toml の項目か（両方のファイルにあれば true）。Window が書き換えられるのは true のマシンだけ */
   local?: boolean;
   /** このマシンの新しいターミナルが始まるフォルダ（start_dir。termDefaults.ts）。書いていなければ無い */
   startDir?: string | null;
@@ -188,7 +188,7 @@ export interface ConfigMachine {
   allowPaneTo?: string[] | null;
 }
 
-/** サイドバーに出すマシンの一覧（設定ファイルの順）。config.toml にだけ書いたマシンは fixed（窓から変えない）。 */
+/** サイドバーに出すマシンの一覧（設定ファイルの順）。config.toml にだけ書いたマシンは fixed（Dialog から変えない）。 */
 export function fromConfig(config: ConfigMachine[]): Machine[] {
   return config.map((c) => {
     const m: Machine = c.name
@@ -245,7 +245,7 @@ const nameOf = (m: { target: string; name?: string }): string =>
 
 /**
  * `kisui pane … --machine name` のマシンの行き先。local は手元の PC（LOCAL）。ほかは、名前（付けた名前、無ければ ssh の行き先）が
- * name のマシン。無ければ undefined。名前が local のマシンは、手元の PC と区別できないので選ばない（設定ファイルならお知らせを出す）。
+ * name のマシン。無ければ undefined。名前が local のマシンは、手元の PC と区別できないので選ばない（設定ファイルなら Notice を出す）。
  */
 export function machineTarget(
   list: Machine[],
@@ -264,8 +264,8 @@ export function machineNames(list: Machine[]): string[] {
 }
 
 /**
- * 名前（付けた名前、無ければ ssh の行き先）が local のマシンの ssh の行き先（`--machine` で選べない。お知らせに出す）。
- * 窓で足したマシンも、設定ファイルに手で書いたマシンも。
+ * 名前（付けた名前、無ければ ssh の行き先）が local のマシンの ssh の行き先（`--machine` で選べない。Notice に出す）。
+ * Window で足したマシンも、設定ファイルに手で書いたマシンも。
  */
 export function localNamed(list: Machine[]): string[] {
   return list.filter((m) => nameOf(m) === LOCAL_MACHINE).map((m) => m.target);
@@ -273,9 +273,9 @@ export function localNamed(list: Machine[]): string[] {
 
 /**
  * マシン from（ssh の行き先。手元の PC は LOCAL）のペインの `kisui pane … --machine` を、マシン to に中継してよいか。
- * 手元の PC からは、どのマシンにも中継する（そのマシンには、窓がもう ssh でつないでいる）。自分のマシンを指したものも通す。
+ * 手元の PC からは、どのマシンにも中継する（そのマシンには、Window がもう ssh でつないでいる）。自分のマシンを指したものも通す。
  * ssh 先のマシンからは、そのマシンの `allow_pane_to`（設定ファイル）に名前のある先にだけ中継する。書いていなければ、どこにも中継しない。
- * 手元の PC（local）は、設定ファイルでは許せない（書いてあっても数えない）。窓の前の人が時間を決めて許している間（granted。
+ * 手元の PC（local）は、設定ファイルでは許せない（書いてあっても数えない）。Window の前の人が時間を決めて許している間（granted。
  * paneGrant.ts）だけ中継する：手元の PC にペインを作らせると、そのマシンは手元の PC でコマンドを動かせるので、
  * 書いたまま忘れられる設定には任せない。
  * 中継を頼む通知は ssh 先の serve が作るので、頼んだ serve の言うことではなく、手元の設定で決める。
@@ -319,14 +319,14 @@ export function machineCliName(list: Machine[], target: string): string {
 }
 
 /**
- * `allow_pane_to` に `local` を書いているマシンの名前（効かないので、お知らせに出す）。
+ * `allow_pane_to` に `local` を書いているマシンの名前（効かないので、Notice に出す）。
  */
 export function localInAllowPaneTo(list: Machine[]): string[] {
   return list.filter((m) => m.allowPaneTo?.includes(LOCAL_MACHINE)).map(nameOf);
 }
 
 /**
- * `allow_pane_to` に書いてあるが、その名前のマシンが無いもの（書き間違い。お知らせに出す）。
+ * `allow_pane_to` に書いてあるが、その名前のマシンが無いもの（書き間違い。Notice に出す）。
  * マシンごとに、そのマシンの名前と、無い名前の一覧。
  */
 export function unknownAllowPaneTo(

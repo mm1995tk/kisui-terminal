@@ -1,4 +1,4 @@
-//! `kisui relay` の窓の側（#127。取り決めは docs/design/relay.md）。
+//! `kisui relay` の Window の側（#127。取り決めは docs/design/relay.md）。
 //!
 //! リモートのマシンで `ssh <マシン> -- <kisui> relay` を起こし、その標準入出力の上の枠（フレーム）で、手元のブラウザの
 //! TCP 接続をリモートのマシンの loopback のポートへ中継する。ssh のポート転送（`ssh -L`）を使わないので、ポート転送を
@@ -7,9 +7,9 @@
 //! 1 本の [`Relay`] の上に、ブラウザの接続を何本でも通す。接続ごとに、ブラウザから読む糸（[`Relay::pipe`] を呼んだ糸）と
 //! ブラウザへ書く糸を持ち、`kisui relay` から読む糸（[`Relay::start`] が起こす 1 本）が枠を振り分ける。
 //!
-//! 流量の制御は取り決めのとおり、接続ごと・向きごとに 256 KiB の窓。ブラウザ → relay の向きは、ACK されていない分が
-//! 窓を超えるならブラウザを読むのを待つ。relay → ブラウザの向きは、ブラウザに書き終えた分を ACK で返すので、
-//! ブラウザが遅ければ relay が TCP を読むのを止める（溜まるのは接続ごとに窓の大きさまで）。
+//! 流量の制御は取り決めのとおり、接続ごと・向きごとに 256 KiB の範囲（取り決めの Window）。ブラウザ → relay の向きは、ACK されていない分が
+//! Window を超えるならブラウザを読むのを待つ。relay → ブラウザの向きは、ブラウザに書き終えた分を ACK で返すので、
+//! ブラウザが遅ければ relay が TCP を読むのを止める（溜まるのは接続ごとに Window の大きさまで）。
 
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read, Write};
@@ -18,7 +18,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc, Condvar, Mutex};
 use std::time::Duration;
 
-/// 窓が話せる取り決めの版（`@@kisui-relay <版>@@`）。
+/// Window が話せる取り決めの版（`@@kisui-relay <版>@@`）。
 pub const VERSION: &str = "1";
 const MARKER_HEAD: &[u8] = b"@@kisui-relay ";
 /// 目印より前に捨ててよい量（motd など）。これを超えたら、目印は来ないものとみなす。
@@ -79,7 +79,7 @@ struct Stream {
 }
 
 impl Stream {
-    /// もう送らない（窓を待っている糸を起こす）。
+    /// もう送らない（Window を待っている糸を起こす）。
     fn close_send(&self) {
         self.win.lock().unwrap().closed = true;
         self.cv.notify_all();
@@ -395,7 +395,7 @@ impl Relay {
         let _ = sock.shutdown(Shutdown::Both);
     }
 
-    /// ブラウザから読んで DATA で送る。ACK されていない分が窓を超えるなら、読むのを待つ。
+    /// ブラウザから読んで DATA で送る。ACK されていない分が Window を超えるなら、読むのを待つ。
     fn from_browser(&self, id: u32, s: &Stream, mut sock: TcpStream) {
         let mut buf = vec![0u8; CHUNK];
         loop {
@@ -451,7 +451,7 @@ pub mod fake {
     }
 
     impl Handle {
-        /// ssh が切れたのと同じにする（窓へ書く向きを閉じる）。
+        /// ssh が切れたのと同じにする（Window へ書く向きを閉じる）。
         pub fn die(&self) {
             self.out.lock().unwrap().take();
         }
@@ -712,7 +712,7 @@ mod tests {
         assert!(got.is_empty());
     }
 
-    /// relay が ACK を返さなければ、窓（256 KiB）より多くは送らない（ブラウザを読むのを止める）。
+    /// relay が ACK を返さなければ、Window（256 KiB）より多くは送らない（ブラウザを読むのを止める）。
     #[test]
     fn stops_reading_the_browser_at_the_window() {
         let port = fake::echo_server();

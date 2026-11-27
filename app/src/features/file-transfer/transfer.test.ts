@@ -246,7 +246,7 @@ describe("write (プログラム → 手元)", () => {
     assert.ok(log.includes("open d dir 2147483648"));
   });
 
-  it("聞いている最中の取り消しは、窓を取り下げて CANCELED で答える", async () => {
+  it("聞いている最中の取り消しは、Dialog を取り下げて CANCELED で答える", async () => {
     const { term, calls } = fakeTerm();
     const { os, log } = fakeOs();
     const a = fakeAsk("wait");

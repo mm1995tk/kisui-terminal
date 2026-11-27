@@ -1,28 +1,28 @@
-//! `config.local.toml` の一覧（`[[gui.machines]]`・`[[db.connections]]`）の項目を、窓から 1 件ずつ足す・変える・消す。
+//! `config.local.toml` の一覧（`[[gui.machines]]`・`[[db.connections]]`）の項目を、Window から 1 件ずつ足す・変える・消す。
 //!
 //! 一覧は、読むときに項目ごとに重なる（マシンは ssh の行き先、DB の接続は名前。config.rs と kisui の `config/db.go`）。
-//! そこで窓は、自分が持つ項目だけを `config.local.toml` に書けばよく、`config.toml`（home-manager が読み取り専用で置くことがある）は
+//! そこで Window は、自分が持つ項目だけを `config.local.toml` に書けばよく、`config.toml`（home-manager が読み取り専用で置くことがある）は
 //! 読むだけで、書かない。ここは、その「1 件を書く」処理を、一覧の種類によらない形で持つ。
 //!
 //! - **項目を見分けるキー**：一覧ごとに 1 つ（[`List::key`]。マシンは `ssh`、DB の接続は `name`）。前後の空白を除いて比べる。
 //! - **足す**（[`Edit::Add`]）：同じキーの項目が `config.local.toml` にあれば断る。`config.toml` にだけある項目と同じキーなら、
 //!   その項目に代わる項目を足すことになる（読むときに `config.local.toml` の項目が勝つ）。
 //! - **変える**（[`Edit::Update`]）：渡したキーだけを書き換え、`unset` のキーを消す。渡していないキーは残す
-//!   （窓が知らないキー、たとえば新しい版や手で書いたキーを、窓の書き込みで消さないため）。見分けるキー自身も変えられる。
+//!   （Window が知らないキー、たとえば新しい版や手で書いたキーを、Window の書き込みで消さないため）。見分けるキー自身も変えられる。
 //! - **消す**（[`Edit::Remove`]）：`config.local.toml` の項目を消す。`config.toml` の項目は消せない（`config.local.toml` に無いので [`EditError::Missing`]）。
 //! - **残すもの**：ほかの表・ほかの項目・コメント・並び。`[[gui.machines]]` の書き方にも、`machines = [{ ssh = "a" }]` の書き方（空の `machines = []` も）にも、
 //!   書いてある形のまま書く。一覧が無ければ `[[gui.machines]]` の形で作る。
 //!   項目を消すと、見出しのすぐ上に続けて書いたコメントは項目と一緒に消える。空の行で離したコメントは残す。
-//! - **書く前の確かめ**：書き換えたあとの中身を `check` に渡し、Err なら書かない。マシンは [`edit_machines`] が、窓の読み込み（config.rs）と
-//!   同じ確かめを通す（間違いのある設定を書くと、次の起動で窓が出ないため）。DB の接続の中身を確かめるのは kisui（`config/db.go`）なので、
-//!   窓から DB の接続を書く側（config_db.rs）が、同じ結果になる確かめを `check` に渡す。
+//! - **書く前の確かめ**：書き換えたあとの中身を `check` に渡し、Err なら書かない。マシンは [`edit_machines`] が、Window の読み込み（config.rs）と
+//!   同じ確かめを通す（間違いのある設定を書くと、次の起動で Window が出ないため）。DB の接続の中身を確かめるのは kisui（`config/db.go`）なので、
+//!   Window から DB の接続を書く側（config_db.rs）が、同じ結果になる確かめを `check` に渡す。
 //!
-//! 呼ぶのは、窓でマシンを足す・名前を変える・外す・ターミナルの始め方（`start_dir`・`shell`。#485）を変える処理（[`edit_machine`]。Tauri のコマンド `config_machine_edit`）と、
+//! 呼ぶのは、Window でマシンを足す・名前を変える・外す・ターミナルの始め方（`start_dir`・`shell`。#485）を変える処理（[`edit_machine`]。Tauri のコマンド `config_machine_edit`）と、
 //! DB の接続を足す・直す・消す処理（config_db.rs の [`crate::config_db::edit`]。Tauri のコマンド `config_db_connection_edit`）。
 //!
-//! 窓のマシンの一覧は、設定ファイルだけが持つ（webview の localStorage には置かない。前の版が置いた記録は、
-//! 窓が起動したときに 1 度だけ `config.local.toml` に移す。app/src/features/sessions/moveRecords.ts）。
-//! 窓が書き換えられるのは `config.local.toml` の項目だけで、`config.toml` にだけあるマシンは変えない（[`EditError::Missing`]）。
+//! Window のマシンの一覧は、設定ファイルだけが持つ（webview の localStorage には置かない。前の版が置いた記録は、
+//! Window が起動したときに 1 度だけ `config.local.toml` に移す。app/src/features/sessions/moveRecords.ts）。
+//! Window が書き換えられるのは `config.local.toml` の項目だけで、`config.toml` にだけあるマシンは変えない（[`EditError::Missing`]）。
 
 use std::fmt;
 use std::path::Path;
@@ -51,7 +51,7 @@ pub const MACHINES: List = List {
     key: "ssh",
 };
 
-/// `[[db.connections]]`。名前で見分ける（窓から書くのは config_db.rs）。
+/// `[[db.connections]]`。名前で見分ける（Window から書くのは config_db.rs）。
 pub const DB_CONNECTIONS: List = List {
     table: "db",
     name: "connections",
@@ -87,9 +87,9 @@ pub enum EditError {
     File(String),
     /// 書き換えたあとの設定が、確かめを通らない
     Rejected(String),
-    /// その名前の DB の接続は `config.toml` にある（中身は名前）。窓からは変えられない（config_db.rs）
+    /// その名前の DB の接続は `config.toml` にある（中身は名前）。Window からは変えられない（config_db.rs）
     Fixed(String),
-    /// 窓で入れた DB の接続に間違いがある（kisui と同じキーとコード。config_db.rs）
+    /// Window で入れた DB の接続に間違いがある（kisui と同じキーとコード。config_db.rs）
     Invalid(Vec<crate::config_db::Problem>),
     /// 手元のマシンの `start_dir` が、有るフォルダでない（中身は書こうとした値。config_terminal.rs）
     NotDir(String),
@@ -120,7 +120,7 @@ impl fmt::Display for EditError {
     }
 }
 
-/// 窓のマシンの書き込み 1 つ（画面の `MachineEdit`。app/src/features/sessions/shell.ts）。
+/// Window のマシンの書き込み 1 つ（画面の `MachineEdit`。app/src/features/sessions/shell.ts）。
 /// `name` は付けた名前で、空白だけ・無いなら名前を付けない（ssh の行き先を出す）。
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
@@ -194,7 +194,7 @@ impl MachineEdit {
     }
 }
 
-/// 設定のフォルダ `dir` の `config.local.toml` の `[[gui.machines]]` に、窓のマシンの書き込み `e` を行い、
+/// 設定のフォルダ `dir` の `config.local.toml` の `[[gui.machines]]` に、Window のマシンの書き込み `e` を行い、
 /// 書いたあとの（2 つのファイルを重ねた）マシンの一覧を返す。画面はこの一覧で、サイドバーを描き直す。
 pub fn edit_machine(dir: &Path, e: MachineEdit) -> Result<Vec<ConfigMachine>, EditError> {
     edit_machines(dir, e.into_edit())
@@ -218,7 +218,7 @@ pub fn edit(
 }
 
 /// `[[gui.machines]]` に `edit` を行い、書いたあとの（2 つのファイルを重ねた）マシンの一覧を返す。
-/// 書き換えたあとの設定を、窓の読み込みと同じに確かめる（使えない ssh の行き先、`config.toml` のマシンとの名前の重なり、など）。
+/// 書き換えたあとの設定を、Window の読み込みと同じに確かめる（使えない ssh の行き先、`config.toml` のマシンとの名前の重なり、など）。
 /// 返す一覧は、その確かめで書く中身から作る。確かめは書き込みと同じ排他（`config::edit_local`）の中で行うので、
 /// 書き込みが続けて走っても、返す一覧はその書き込みの直後のものになる（書いたあとに読み直すと、次の書き込みと入れ違う）。
 pub fn edit_machines(dir: &Path, e: Edit) -> Result<Vec<ConfigMachine>, EditError> {
@@ -1042,7 +1042,7 @@ mod tests {
         let _ = fs::remove_dir_all(&d);
     }
 
-    // 窓は allow_pane_to を書かない。手で書いた allow_pane_to は、窓が名前やターミナルの始め方を変えても残る
+    // Window は allow_pane_to を書かない。手で書いた allow_pane_to は、Window が名前やターミナルの始め方を変えても残る
     #[test]
     fn edit_machine_keeps_allow_pane_to() {
         let d = temp_dir("allow-pane-to");
@@ -1087,7 +1087,7 @@ mod tests {
         let _ = fs::remove_dir_all(&d);
     }
 
-    // 窓のマシンの書き込み：足す・名前を変える・外すを config.local.toml に書き、重ねたあとの一覧を返す
+    // Window のマシンの書き込み：足す・名前を変える・外すを config.local.toml に書き、重ねたあとの一覧を返す
     #[test]
     fn edit_machine_from_the_window() {
         let d = temp_dir("window");
@@ -1168,7 +1168,7 @@ mod tests {
         let _ = fs::remove_dir_all(&d);
     }
 
-    // ターミナルの始め方（start_dir・shell）だけを書き換える。名前や、窓が知らないキーは残す
+    // ターミナルの始め方（start_dir・shell）だけを書き換える。名前や、Window が知らないキーは残す
     #[test]
     fn edit_machine_terminal() {
         let d = temp_dir("terminal");

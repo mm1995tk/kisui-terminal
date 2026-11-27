@@ -21,7 +21,7 @@ const meta = {
     variant: { control: "inline-radio", options: ["secondary", "primary"] },
     type: { control: "inline-radio", options: ["button", "submit"] },
   },
-  // 窓の下の並び（.card-actions）と同じ地と余白で出す
+  // Dialog の下の並び（.card-actions）と同じ地と余白で出す
   decorators: [
     (Story) => (
       <div class="card">
@@ -41,7 +41,7 @@ type Story = StoryObj<typeof meta>;
 /** 普通のボタン（やめる・閉じる・ほかの操作）。 */
 export const Secondary: Story = {};
 
-/** 主の操作。窓に 1 つ、並びの右端に置く。 */
+/** 主の操作。Dialog に 1 つ、並びの右端に置く。 */
 export const Primary: Story = {
   args: { variant: "primary" },
   render: (args) => <Button {...args}>{T("addMachine.add")}</Button>,
@@ -67,7 +67,7 @@ export const Focused: Story = {
   },
 };
 
-/** 組み合わせ：やめるボタンと主ボタン。主ボタンを右端に置く（窓の下の並び）。 */
+/** 組み合わせ：やめるボタンと主ボタン。主ボタンを右端に置く（Dialog の下の並び）。 */
 export const CancelAndPrimary: Story = {
   render: (args) => (
     <>

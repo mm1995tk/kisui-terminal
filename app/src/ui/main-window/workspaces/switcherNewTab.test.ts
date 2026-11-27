@@ -4,7 +4,7 @@ import { describe, it } from "node:test";
 import type { Row } from "../../../features/workspaces/rows.ts";
 import { createSwitcherNewTab } from "./switcherNewTab.ts";
 
-/** 窓の側の持ち物の代わり。呼ばれたことを log に残す。 */
+/** Dialog の側の持ち物の代わり。呼ばれたことを log に残す。 */
 function setup(o: { row?: Row | null; machines?: number; browser?: boolean }) {
   const log: string[] = [];
   const row =
@@ -32,7 +32,7 @@ function setup(o: { row?: Row | null; machines?: number; browser?: boolean }) {
   return { newTab, log };
 }
 
-describe("ワークスペースの窓の、タブを作る操作（#456）", () => {
+describe("Workspace switcher の、タブを作る操作（#456）", () => {
   it("始めると、ほかの入力欄をやめて、種類を選んでいる間になる", () => {
     const { newTab, log } = setup({});
     newTab.start();
@@ -77,7 +77,7 @@ describe("ワークスペースの窓の、タブを作る操作（#456）", () 
     assert.deepEqual(log, ["clearOthers", "noMachine"]);
   });
 
-  it("ブラウザ・シークレットに決めると、すぐ開いて、できたタブを選び、キーを窓に戻す", () => {
+  it("ブラウザ・シークレットに決めると、すぐ開いて、できたタブを選び、キーを Dialog に戻す", () => {
     for (const [what, incognito] of [
       ["browser", false],
       ["incognito", true],
@@ -126,7 +126,7 @@ describe("ワークスペースの窓の、タブを作る操作（#456）", () 
     assert.deepEqual(down.log, ["clearOthers", "noMachine"]);
   });
 
-  it("やめると、種類を選ぶのだけをやめて、キーを窓に戻す", () => {
+  it("やめると、種類を選ぶのだけをやめて、キーを Dialog に戻す", () => {
     const { newTab, log } = setup({});
     newTab.start();
     newTab.cancel();

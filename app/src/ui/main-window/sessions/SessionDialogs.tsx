@@ -1,5 +1,5 @@
-// 接続にかかわる窓。kisui を入れるかの確認・マシンのダイアログ（リーダーの m。マシンの名前は、この中の行で変える。Enter でワークスペースの窓のタブ作成へ）・リモートを足す窓・
-// マシンのターミナルの始め方（始めるフォルダとシェル）を変える窓・ssh の質問（パスワードなど）。
+// 接続にかかわる Dialog。kisui を入れるかの確認・マシンのダイアログ（リーダーの m。マシンの名前は、この中の行で変える。Enter で Workspace switcher のタブ作成へ）・リモートを足す Dialog・
+// マシンのターミナルの始め方（始めるフォルダとシェル）を変える Dialog・ssh の質問（パスワードなど）。
 // 何を出すかは features/sessions/controller.ts の状態で決まる。
 import { createSignal, Show, type JSX } from "solid-js";
 
@@ -18,7 +18,7 @@ import {
 } from "../../../features/sessions/paneGrant.ts";
 import { TerminalSettings } from "./TerminalSettings.tsx";
 
-/** 接続にかかわる窓をまとめて出す。出していない窓は何も描かない。 */
+/** 接続にかかわる Dialog をまとめて出す。出していない Dialog は何も描かない。 */
 export function SessionDialogs(props: {
   sessions: Sessions;
   /** マシンのダイアログの行 */
@@ -30,7 +30,7 @@ export function SessionDialogs(props: {
   onCloseMachines: () => void;
   /** 今のワークスペースがあるか（マシンのダイアログの Enter で、タブ作成を始められるか） */
   hasWorkspace: () => boolean;
-  /** マシンのダイアログの Enter：マシン target を設定したターミナルのタブ作成を、ワークスペースの窓で始める（マシンのダイアログを閉じるのも呼んだ側） */
+  /** マシンのダイアログの Enter：マシン target を設定したターミナルのタブ作成を、Workspace switcher で始める（マシンのダイアログを閉じるのも呼んだ側） */
   onNewTab: (target: string) => void;
 }): JSX.Element {
   // 部品は作り直さないので、持ち物は 1 回だけ取り出す
@@ -62,7 +62,7 @@ export function SessionDialogs(props: {
     reply,
   } = props.sessions;
   const { machineList, currentTarget } = props;
-  // 手元の PC のペインの操作を、時間を決めて許す窓を出しているマシン（マシンのダイアログの p。無ければ null）
+  // 手元の PC のペインの操作を、時間を決めて許す Dialog を出しているマシン（マシンのダイアログの p。無ければ null）
   const [granting, setGranting] = createSignal<string | null>(null);
   return (
     <>

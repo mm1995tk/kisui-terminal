@@ -62,8 +62,8 @@ type wsState struct {
 	root    string // 正規化済み。未定なら ""
 	kind    string
 	label   string // ユーザーがつけた名前（workspace.rename）。無ければ ""。w.mu で守る
-	shell   string // 窓が最後に渡したシェル（書いた形のまま。shell.go）。無ければ ""。w.mu で守る
-	gws     gwsRef // このタブが入っている、窓のワークスペース（窓が最後に知らせたもの。gws.go）。知らされていなければ空。w.mu で守る
+	shell   string // Window が最後に渡したシェル（書いた形のまま。shell.go）。無ければ ""。w.mu で守る
+	gws     gwsRef // このタブが入っている、Window のワークスペース（Window が最後に知らせたもの。gws.go）。知らされていなければ空。w.mu で守る
 	primary string // プライマリターミナルの id
 	shj     *primaryShj
 	extras  []extraPane // 欄の中から（kisui open で）開いた、ターミナルでない欄。w.mu で守る。閉じるまで残る（shj が終わっても消えない）
@@ -174,9 +174,9 @@ func (w *wsManager) folderOf(id string) (string, bool) {
 }
 
 // create はワークスペースを作り、プライマリターミナルを dir（絶対パスのフォルダ）で始める。
-// dir が無い・フォルダでないときは、窓が渡したマシンの始めのフォルダ startDir（shell.go）、それも使えなければ start_dir。
+// dir が無い・フォルダでないときは、Window が渡したマシンの始めのフォルダ startDir（shell.go）、それも使えなければ start_dir。
 // フォルダは始めたフォルダから決まる（プロジェクトの中ならそのルート、~ なら ~）。
-// cmd は、プライマリターミナルでシェルの代わりに動かすコマンドと、そのペインの名前（kisui pane open。#343）、窓が渡したシェル。
+// cmd は、プライマリターミナルでシェルの代わりに動かすコマンドと、そのペインの名前（kisui pane open。#343）、Window が渡したシェル。
 // 名前はほかのペインと重なれば、ワークスペースを作らずに断る（kisui pane split --name と同じ決まり）。
 // シェルが使えなければ、ワークスペースを作らずに断る。
 func (w *wsManager) create(dir, startDir string, cmd tabCommand) (id, termID string, err error) {
@@ -218,12 +218,12 @@ func (w *wsManager) create(dir, startDir string, cmd tabCommand) (id, termID str
 }
 
 // tabCommand は、新しいワークスペースのプライマリターミナルで動かすコマンド（空ならシェル）と、その環境変数（"NAME=value"）・名前、
-// ワークスペースが覚えるシェル（窓が渡したもの。書いた形のまま。空なら無し）。
+// ワークスペースが覚えるシェル（Window が渡したもの。書いた形のまま。空なら無し）。
 type tabCommand struct {
 	argv, env []string
 	name      string
 	shell     string
-	// ancestors は、このタブを作らせたペインの系譜（kisui pane open。panereach.go）。窓の操作で作ったタブは空
+	// ancestors は、このタブを作らせたペインの系譜（kisui pane open。panereach.go）。Window の操作で作ったタブは空
 	ancestors []paneOrigin
 }
 
@@ -666,14 +666,14 @@ func (ss *session) workspaceRequest(req *rpc.Message) (res any, err error, handl
 	case "workspace.create":
 		var cp struct {
 			Dir string `json:"dir"`
-			// StartDir・Shell は、窓が手元の設定から渡す、マシンの始めのフォルダとシェル（shell.go。#485）
+			// StartDir・Shell は、Window が手元の設定から渡す、マシンの始めのフォルダとシェル（shell.go。#485）
 			StartDir string `json:"startDir"`
 			Shell    string `json:"shell"`
 			// Argv・Env・Name は kisui pane open（#343）：プライマリターミナルで動かすコマンドと、そのペインの名前
 			Argv []string `json:"argv"`
 			Env  []string `json:"env"`
 			Name string   `json:"name"`
-			// Ancestry は、kisui pane open を打ったペインの系譜（pane.open・pane.relay で serve が窓に渡したものを、窓がそのまま返す）
+			// Ancestry は、kisui pane open を打ったペインの系譜（pane.open・pane.relay で serve が Window に渡したものを、Window がそのまま返す）
 			Ancestry []paneOrigin `json:"ancestry"`
 		}
 		if len(req.Params) > 0 {
@@ -747,7 +747,7 @@ func shjEq(a, b *primaryShj) bool {
 	return a.Socket == b.Socket && a.PID == b.PID && a.File == b.File && diffEq(a.Diff, b.Diff) && a.wsID == b.wsID
 }
 
-// layoutResize は layout.resize（境界の割合を変える）。
+// layoutResize は layout.resize（Pane border の割合を変える）。
 func (ss *session) layoutResize(req *rpc.Message) (any, error) {
 	var lp struct {
 		WorkspaceID string   `json:"workspaceId"`

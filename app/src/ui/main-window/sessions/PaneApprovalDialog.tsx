@@ -1,11 +1,11 @@
-// ssh 先のマシンのペインが、手元の PC のペインに頼んだこと（kisui pane … --machine local）を、許すかを聞く窓。
+// ssh 先のマシンのペインが、手元の PC のペインに頼んだこと（kisui pane … --machine local）を、許すかを聞く Dialog。
 // 出るのは、人がそのマシンに時間を決めて許している間（マシンのダイアログの p）だけ。決まりは features/sessions/paneApproval.ts。
 //
 // - ペインを作る頼み：動かすコマンド・フォルダ・名前・入れるワークスペースを、省かずに全部見せる。選ぶのは
 //   「Deny」「Allow, ask each time」（作ったペインへの操作も毎回聞く）「Allow, do not ask for this pane」（以後聞かない）。
 // - 「毎回聞く」ペインへの操作（send・keys・read・close）：送る字・押すキーを全部見せる。選ぶのは「Deny」「Allow」。
 // 「Deny」を最初のボタンにして、開いたときのフォーカスを置く（急いで Enter を押しても、何も許さない）。Esc も断り。
-// どのマシンの頼みか（窓が知っている名前）は、そのマシンが決めた字（コマンド・名前・送る字）とは別の所に出す。
+// どのマシンの頼みか（Dialog が知っている名前）は、そのマシンが決めた字（コマンド・名前・送る字）とは別の所に出す。
 import { T } from "../../../i18n/index.ts";
 import { For, Match, Show, Switch, type JSX } from "solid-js";
 
@@ -95,7 +95,7 @@ function OpBody(props: {
   );
 }
 
-/** 頼みが無ければ何も出さない。machineOf は、頼んだマシン（ssh の行き先）の、窓が知っている名前。 */
+/** 頼みが無ければ何も出さない。machineOf は、頼んだマシン（ssh の行き先）の、Dialog が知っている名前。 */
 export function PaneApprovalDialog(props: {
   machineOf: (target: string) => string;
 }): JSX.Element {

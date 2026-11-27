@@ -32,7 +32,7 @@ export function menuItems(row: Pick<TreeRow, "dir">): TreeMenuAction[] {
 
 /**
  * メニューを閉じたあと、開く前にフォーカスがあった行へフォーカスを戻すか。戻すのは、その行がまだ画面にあり、
- * ツリーの行で、フォーカスがどこにも無い（body）ときだけ。項目の動きで窓が出た（フォーカスが窓へ移った）ときと、
+ * ツリーの行で、フォーカスがどこにも無い（body）ときだけ。項目の動きで Dialog が出た（フォーカスが Dialog へ移った）ときと、
  * メニューの外を押してほかの所にフォーカスが移ったときは戻さない。
  */
 export function shouldRestoreFocus(

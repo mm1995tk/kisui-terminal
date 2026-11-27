@@ -1,4 +1,4 @@
-// ワークスペースの帯 1 つ。ヘッダー（BandHeader.tsx）と、中のタブの行（TabRow.tsx）、その下の段（../Panes.tsx。ファイルツリーと CHANGES）。
+// Workspace band 1 つ。ヘッダー（BandHeader.tsx）と、中のタブの行（TabRow.tsx）、その下の部分（../Panes.tsx。ファイルツリーと CHANGES）。
 import { T } from "../../../../i18n/index.ts";
 import { createEffect, For, on, Show, type JSX } from "solid-js";
 

@@ -66,7 +66,7 @@ func TestLayoutBorderKeyAndRatio(t *testing.T) {
 	if !ok || m.B.Ratio != 0.3 || m.Ratio != 0.5 || n.B.Ratio != 0.5 {
 		t.Errorf("set ratio: %+v (old tree must stay)", m)
 	}
-	// 欄を足しても、既存の境界の指し方は変わらない
+	// 欄を足しても、既存の Pane border の指し方は変わらない
 	m2, _ := layoutSplit(m, "t2", "t3", dirRight)
 	if f := layoutFindBorder(m2, "t2"); f == nil || f.Ratio != 0.3 {
 		t.Errorf("key after split: %+v", f)
@@ -81,7 +81,7 @@ func TestRatioBounds(t *testing.T) {
 	if !ok || lo != 20.0/160 || hi != 1-20.0/160 {
 		t.Errorf("bounds: %v %v %v", lo, hi, ok)
 	}
-	// 下に分ける境界は行（minSplitRows）で見る
+	// 下に分ける Pane border は行（minSplitRows）で見る
 	n = &layoutNode{Dir: dirDown, Ratio: 0.5, A: leaf("a"), B: leaf("b")}
 	lo, hi, _ = ratioBounds(n, size)
 	if lo != 5.0/48 || hi != 1-5.0/48 {
@@ -106,7 +106,7 @@ func TestRatioBounds(t *testing.T) {
 	}
 }
 
-// layout.resize は境界の割合を serve に持たせ、workspace.list に出す。最小の大きさを下回る位置には動かさない。
+// layout.resize は Pane border の割合を serve に持たせ、workspace.list に出す。最小の大きさを下回る位置には動かさない。
 func TestLayoutResizeRPC(t *testing.T) {
 	t.Setenv("HOME", normalizePath(t.TempDir()))
 	_, sock := startFast(t)
@@ -152,7 +152,7 @@ func TestLayoutResizeRPC(t *testing.T) {
 	}
 }
 
-// 入れ子：B が下に分けた節なら、右の境界の B の最小は 20 列のまま（直交する向きは大きいほう）。
+// 入れ子：B が下に分けた節なら、右の Pane border の B の最小は 20 列のまま（直交する向きは大きいほう）。
 func TestLayoutMinExtentNested(t *testing.T) {
 	n := &layoutNode{Dir: dirRight, Ratio: 0.5, A: leaf("a"), B: &layoutNode{Dir: dirDown, Ratio: 0.5, A: leaf("b"), B: leaf("c")}}
 	if got := layoutMinExtent(n.B, true); got != minSplitCols {
@@ -179,7 +179,7 @@ func TestLayoutSplitLeftUp(t *testing.T) {
 	if !validLayout(n) {
 		t.Error("validLayout")
 	}
-	// 境界は B 側の左上の葉で指す。左に分けた境界は、今の欄（B）で指す
+	// Pane border は B 側の左上の葉で指す。左に分けた Pane border は、今の欄（B）で指す
 	if layoutFindBorder(n, "a") == nil || layoutFindBorder(n, "c") == nil || layoutFindBorder(n, "b") != nil {
 		t.Error("border keys")
 	}
@@ -197,7 +197,7 @@ func TestLayoutSplitLeftUp(t *testing.T) {
 	}
 }
 
-// term.create に "left" を渡すと新しい欄が左（A）に入り、境界を動かせる。向きが正しくなければ断る。
+// term.create に "left" を渡すと新しい欄が左（A）に入り、Pane border を動かせる。向きが正しくなければ断る。
 func TestSplitLeftUpRPC(t *testing.T) {
 	t.Setenv("HOME", normalizePath(t.TempDir()))
 	_, sock := startFast(t)
@@ -209,7 +209,7 @@ func TestSplitLeftUpRPC(t *testing.T) {
 	if l.Dir != "right" || l.A.Pane != id || l.B.Pane != primary {
 		t.Fatalf("layout: %+v", l)
 	}
-	// 境界は B 側の左上の葉（今の欄）で指す
+	// Pane border は B 側の左上の葉（今の欄）で指す
 	var res struct{ Ratio float64 }
 	if err := c.Call(ctx, "layout.resize", map[string]any{"workspaceId": wsID, "pane": primary, "ratio": 0.4}, &res); err != nil {
 		t.Fatal(err)

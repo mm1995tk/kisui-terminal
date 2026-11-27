@@ -1,5 +1,5 @@
-// ワークスペースを作るマシンを選ぶ窓（MachinePicker.tsx）を、アプリと同じ部品・CSS・字・翻訳で出す。
-// 下の段は、窓だけの操作が無いので、何を選ぶかの見出しだけ（#489）。
+// ワークスペースを作るマシンを選ぶ Dialog（MachinePicker.tsx）を、アプリと同じ部品・CSS・字・翻訳で出す。
+// Key footer は、Dialog だけの操作が無いので、何を選ぶかの見出しだけ（#489）。
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
 import { fn } from "storybook/test";
 
@@ -32,5 +32,5 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** 開いたところ。下の段は「Machine for the workspace」の見出しだけ。 */
+/** 開いたところ。Key footer は「Machine for the workspace」の見出しだけ。 */
 export const Default: Story = {};

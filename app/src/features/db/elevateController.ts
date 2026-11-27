@@ -1,6 +1,6 @@
-// DB の権限を、時間を決めて一時的に強める（#383）の操作：強める窓を出す（DB のタブの窓の `p`）・強める・時間の前に戻す（`P`）・
+// DB の権限を、時間を決めて一時的に強める（#383）の操作：強める Dialog を出す（DB のタブの Dialog の `p`）・強める・時間の前に戻す（`P`）・
 // 強めていることと残りの時間を DB のタブに出す。強めた状態を持つのは kisui serve（メモリだけ。止まる・引き継がれると元に戻る）で、
-// 窓は db.connections の答えから「誰の権限を、あと何秒強めているか」を覚え、時計で残りを数える。画面にも Tauri にも触らない。
+// Window は db.connections の答えから「誰の権限を、あと何秒強めているか」を覚え、時計で残りを数える。画面にも Tauri にも触らない。
 import { T } from "../../i18n/index.ts";
 import { createSignal, untrack } from "solid-js";
 
@@ -21,7 +21,7 @@ import {
 } from "./elevate.ts";
 import { connectionOf } from "./model.ts";
 
-/** 強める窓に出すもの。rows は聞き終えるまで無い。 */
+/** 強める Dialog に出すもの。rows は聞き終えるまで無い。 */
 export interface DbElevateAsk {
   /** 強める接続の DB のタブ */
   tab: string;
@@ -29,7 +29,7 @@ export interface DbElevateAsk {
   connection: string;
   /** 強められる権限（人・エージェントの順） */
   rows?: ElevateRow[];
-  /** 強められなかった理由（窓は開いたまま、時間を直せる） */
+  /** 強められなかった理由（Dialog は開いたまま、時間を直せる） */
   error?: string;
 }
 
@@ -161,7 +161,7 @@ export function createDbElevate(deps: {
     return h ? elevationTexts(h.list, now()) : [];
   }
 
-  // ---- 強める窓 ----
+  // ---- 強める Dialog ----
   const [elevateAsk, setElevateAsk] = createSignal<DbElevateAsk | null>(null);
   let gen = 0;
 
@@ -173,7 +173,7 @@ export function createDbElevate(deps: {
   }
 
   /**
-   * タブ id の接続の権限を強める窓を出す。その接続の強められる権限を kisui serve に聞き、1 つも無ければ窓を出さずに理由を伝える。
+   * タブ id の接続の権限を強める Dialog を出す。その接続の強められる権限を kisui serve に聞き、1 つも無ければ Dialog を出さずに理由を伝える。
    */
   async function openElevate(id: string): Promise<void> {
     const ref = deps.refOf(id);
@@ -204,7 +204,7 @@ export function createDbElevate(deps: {
     setElevateAsk({ tab: id, connection, rows });
   }
 
-  /** 窓をやめる（キーを今のペインに戻す）。 */
+  /** Dialog をやめる（キーを今のペインに戻す）。 */
   function closeElevate() {
     gen++;
     setElevateAsk(null);
@@ -212,8 +212,8 @@ export function createDbElevate(deps: {
   }
 
   /**
-   * 窓で決めた：actor の権限を、duration（打たれた字のまま。読むのは kisui serve）の間だけ強める。強められたら窓を閉じて知らせ、
-   * 断られたら（上限を超える・書き方が違う）理由を窓に出して、開いたままにする。
+   * Dialog で決めた：actor の権限を、duration（打たれた字のまま。読むのは kisui serve）の間だけ強める。強められたら Dialog を閉じて知らせ、
+   * 断られたら（上限を超える・書き方が違う）理由を Dialog に出して、開いたままにする。
    */
   async function submitElevate(actor: DbActor, duration: string) {
     const a = untrack(elevateAsk);
@@ -283,8 +283,8 @@ export function createDbElevate(deps: {
   }
 
   /**
-   * alive が false を返す接続（DB のタブが 1 つも残っていない）の強めた状態を忘れる（窓が覚えている分だけ。kisui serve の
-   * 強めた状態は変えない）。次にその接続の DB のタブを出したときに、聞き直す。閉じたタブの強める窓も閉じる。
+   * alive が false を返す接続（DB のタブが 1 つも残っていない）の強めた状態を忘れる（Window が覚えている分だけ。kisui serve の
+   * 強めた状態は変えない）。次にその接続の DB のタブを出したときに、聞き直す。閉じたタブの強める Dialog も閉じる。
    */
   function forgetElevations(alive: (ref: Held["ref"]) => boolean) {
     for (const h of Object.values(untrack(held)))

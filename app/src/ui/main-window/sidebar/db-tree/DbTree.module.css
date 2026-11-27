@@ -124,7 +124,7 @@
   font-size: var(--text-caption);
 }
 
-/* サイドバーの入力欄と既定のスキーマの欄。窓の入力欄（card.css の .card-input）の色はカードの中でしか決まらないので、ここで決める。
+/* サイドバーの入力欄と既定のスキーマの欄。Dialog の入力欄（card.css の .card-input）の色はカードの中でしか決まらないので、ここで決める。
    枠と地の色で、押せる部品だと分かるようにする */
 .field {
   box-sizing: border-box;

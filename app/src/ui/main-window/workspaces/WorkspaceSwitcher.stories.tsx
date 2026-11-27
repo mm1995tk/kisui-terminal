@@ -1,4 +1,4 @@
-// ワークスペースを切り替える窓（WorkspaceSwitcher.tsx）を、アプリと同じ部品・CSS・字・翻訳で出す。
+// Workspace switcher（WorkspaceSwitcher.tsx）を、アプリと同じ部品・CSS・字・翻訳で出す。
 // 行（Row）は見本のデータ。アプリでは features/workspaces/rows.ts の gwsRows が、マシンとタブの状態から作る。
 // 右のタブの行はサイドバーの TabRow を使い、その見た目は sidebar.css にあるので、ここで読む（アプリでは page.tsx が先に読む）。
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
@@ -159,7 +159,7 @@ const meta = {
     onReorder: fn(),
     onDrop: fn(),
     onTabMove: fn(),
-    // アプリと同じ決まりで名前を確かめる。作れたら id を返す（この部品の rows は呼んだ側のものなので、窓には足されない）
+    // アプリと同じ決まりで名前を確かめる。作れたら id を返す（この部品の rows は呼んだ側のものなので、Dialog には足されない）
     onCreate: fn((name: string) => {
       const error = nameErrorText(name);
       return error ? { error } : { id: "new" };
@@ -178,12 +178,12 @@ const meta = {
     ),
     onTabClose: fn(),
     onTabReorder: fn(),
-    // つながっているマシン（アプリでは、マシンを選ぶ窓と同じ creatable()）
+    // つながっているマシン（アプリでは、マシンを選ぶ Dialog と同じ creatable()）
     machines: [
       { target: "local", label: "local", color: MACHINES.local.color },
       { target: "devbox", label: "devbox", color: MACHINES.devbox.color },
     ],
-    // n か右の列の「＋」で作るタブの種類を選ぶ間にし、ターミナルに決めて、名前とマシンを入れて Enter。アプリと同じ決まりで名前を確かめ、作れたら新しいタブの key を返す（rows は呼んだ側のものなので、窓には足されない）
+    // n か右の列の「＋」で作るタブの種類を選ぶ間にし、ターミナルに決めて、名前とマシンを入れて Enter。アプリと同じ決まりで名前を確かめ、作れたら新しいタブの key を返す（rows は呼んだ側のものなので、Dialog には足されない）
     onCreateTab: fn((_gws: string, _machine: string, name: string) => {
       const error = nameErrorText(name);
       return error ? { error } : { key: Promise.resolve(undefined) };
@@ -207,12 +207,12 @@ export const NoTabs: Story = {
   args: { rows: [row("g1", "scratch", MACHINES.local, [], { focused: true })] },
 };
 
-/** 内蔵ブラウザが無効のとき。作るタブの種類（n・N・「＋」）の、下の段のボタンに、ブラウザとシークレットが無い（t・d だけ）。 */
+/** 内蔵ブラウザが無効のとき。作るタブの種類（n・N・「＋」）の、Key footer のボタンに、ブラウザとシークレットが無い（t・d だけ）。 */
 export const BrowserDisabled: Story = {
   args: { browser: false, initialNewTab: true },
 };
 
-/** リーダーの n で開いたとき。右の列にキーを置き、作るタブの種類を選ぶ間にしている。種類は下の段の t・b・B・d のボタンで出し、字を押すか、ボタンを押して決める。Esc は種類を選ぶのだけをやめる。 */
+/** リーダーの n で開いたとき。右の列にキーを置き、作るタブの種類を選ぶ間にしている。種類は Key footer の t・b・B・d のボタンで出し、字を押すか、ボタンを押して決める。Esc は種類を選ぶのだけをやめる。 */
 export const NewTab: Story = {
   args: { initialCol: "tab", initialNewTab: true },
 };
@@ -257,7 +257,7 @@ const MANY_ROWS: Row[] = MANY_NAMES.map((name, i) => {
   return row(`g${i}`, name, m, tabs, { focused: i === 0 });
 });
 
-/** ワークスペースもタブも多いとき。窓の大きさは変わらず、左の一覧と右のタブの一覧がそれぞれスクロールし、「ワークスペースを作る」は左の列の下端に残る。h / l で列を移り、j / k でその列の行を選ぶ。 */
+/** ワークスペースもタブも多いとき。Dialog の大きさは変わらず、左の一覧と右のタブの一覧がそれぞれスクロールし、「ワークスペースを作る」は左側の列の下端に残る。h / l で列を移り、j / k でその列の行を選ぶ。 */
 export const Many: Story = {
   args: { rows: MANY_ROWS },
 };

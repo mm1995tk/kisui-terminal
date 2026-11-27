@@ -1,6 +1,6 @@
 // DB のタブ（#347）の、画面にも Solid にも Tauri にも依存しない部分（node --test で確かめられる）。
 // - 書きかけの SQL の記録（KeyValueStore。置き場とその理由は controller.ts の頭）
-// - 窓がつないでいる全部のマシンの接続の一覧を、1 つの一覧にまとめる
+// - Window がつないでいる全部のマシンの接続の一覧を、1 つの一覧にまとめる
 // - kisui serve の断り（password_required・db_error など）を、画面で扱う形にする
 // - 結果の値・件数・かかった時間を、画面に出す文字にする
 // タブそのもの（どのワークスペースの、どのマシンの、どの接続か・並び）は features/workspaces/model.ts の DbRef が持つ。
@@ -224,14 +224,14 @@ export function resultSummary(r: DbQueryResult): string {
   return parts.join(" · ");
 }
 
-/** db.cancel で取り消すための、窓が付ける名前。 */
+/** db.cancel で取り消すための、Dialog が付ける名前。 */
 export function newQueryId(random: () => number = Math.random): string {
   let s = "q";
   for (let i = 0; i < 12; i++) s += Math.floor(random() * 36).toString(36);
   return s;
 }
 
-/** パスワードを聞く窓をやめた（要求は送らずに終える）。 */
+/** パスワードを聞く Dialog をやめた（要求は送らずに終える）。 */
 export class PasswordCancelled extends Error {
   constructor() {
     super("password cancelled");
@@ -245,9 +245,9 @@ export class PasswordCancelled extends Error {
  * ファイルで見つけたパスワードが断られたときの、その場所。ask が null（やめた）なら
  * PasswordCancelled を投げる。ほかの断りは、そのまま投げる。
  *
- * keeper（passwords.ts）は、窓が覚えているパスワードの扱い。渡さなければ、聞いたパスワードはこの中の変数にだけ持つ。渡すと：
+ * keeper（passwords.ts）は、Window が覚えているパスワードの扱い。渡さなければ、聞いたパスワードはこの中の変数にだけ持つ。渡すと：
  * - 聞いたパスワードでログインが通ったら、覚える（ログインのあとで DB が文を断ったときも。ログインは通っている）。
- * - パスワードを付けない要求が、kisui serve が窓で打ったパスワードを持っていないために断られたら（どこにも無い missing・
+ * - パスワードを付けない要求が、kisui serve が Window で打ったパスワードを持っていないために断られたら（どこにも無い missing・
  *   キーチェーンかファイルのものを使って断られた rejected）、覚えているものを kisui serve に渡し直し（db.remember）、
  *   聞かずに送り直す。これは 1 度だけ。渡せなければ（覚えていない・行き先が変わった）、聞く。
  * - 覚えていたものを DB が断ったら（passwordSource の無い rejected）、覚えたものを捨てて、聞く。
@@ -272,7 +272,7 @@ export async function withPassword<R>(
     } catch (e) {
       const f = queryFailure(e);
       if (f.kind !== "password") {
-        // DB が文を断ったのは、ログインが通ったあと：kisui serve は付けたパスワードを覚えたので、窓も覚える
+        // DB が文を断ったのは、ログインが通ったあと：kisui serve は付けたパスワードを覚えたので、Window も覚える
         if (failedAfterLogin(e)) worked?.();
         throw e;
       }

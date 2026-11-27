@@ -13,7 +13,7 @@ export interface Hold<L, V, F> {
   heldOf: (link: L) => V | undefined;
   /** 前のタブのペインを残しているところか */
   holding: Accessor<boolean>;
-  /** ペインのまわり（境界のつまみ・並べているか）。残している間は、残し始めたときの前のタブのもの */
+  /** ペインのまわり（Pane border のつまみ・並べているか）。残している間は、残し始めたときの前のタブのもの */
   frame: Accessor<F>;
   /**
    * ペインが最初の画面を描けた（on）・ペインの要素が消えた（off）。消えたら印を外す

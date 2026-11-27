@@ -106,9 +106,9 @@ const RELAY_SSH_OPTS: &[&str] = &[
     "ServerAliveCountMax=3",
 ];
 
-/// ssh の環境変数を付ける。askpass（質問を GUI の窓に出させる）と PATH。
+/// ssh の環境変数を付ける。askpass（質問を GUI の Window に出させる）と PATH。
 /// PATH は `~/.ssh/config` の `ProxyCommand` や `Match exec` のコマンドを見つけられるよう、ログインシェルのものを足す（`locate::launch_path`）。
-/// `target` は ssh の行き先。askpass の質問に添えて窓へ渡り、窓がどのマシンへの接続の質問かを出すのに使う。
+/// `target` は ssh の行き先。askpass の質問に添えて Window へ渡り、Window がどのマシンへの接続の質問かを出すのに使う。
 fn with_ssh_env(
     c: &mut Command,
     ask: &AskpassServer,
@@ -369,7 +369,7 @@ mod tests {
     }
 
     /// ssh には、askpass の質問の宛先（接続の id）と、その接続の行き先を環境変数で渡す
-    /// （行き先は、窓が質問の文とは別に出す）。
+    /// （行き先は、Window が質問の文とは別に出す）。
     #[test]
     fn ssh_gets_the_connection_and_its_target_for_askpass() {
         let ask = AskpassServer::for_test("secret");

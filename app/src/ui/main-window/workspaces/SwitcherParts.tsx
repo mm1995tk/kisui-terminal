@@ -1,4 +1,4 @@
-// ワークスペースを切り替える窓（WorkspaceSwitcher.tsx）の部品：左の 1 行と、右のタブの一覧。状態は持たない。
+// Workspace switcher（WorkspaceSwitcher.tsx）の部品：左の 1 行と、右のタブの一覧。状態は持たない。
 import { T } from "../../../i18n/index.ts";
 import { For, Show, type JSX } from "solid-js";
 
@@ -183,7 +183,7 @@ export function SwitcherRow(props: {
 /**
  * 右の列：上に選んでいるワークスペースのタブの数、その下にタブの行（サイドバーの TabRow）。行のつかむ所からのドラッグで、タブを移す（tabMoveDrag.ts）。
  * 余白は取らず、列いっぱいに使う（枠と地の色は、列の入れ物 .switcher-right が持つ）。
- * 上の右端に、タブを作る「＋」を置く。押すと、作るタブの種類を選ぶ間になる（種類は窓の下の段のボタン）。ターミナルに決めると、タブの行の一番下に、タブを作る行（newTab）が出る。
+ * 上の右端に、タブを作る「＋」を置く。押すと、作るタブの種類を選ぶ間になる（種類は Dialog の Key footer のボタン）。ターミナルに決めると、タブの行の一番下に、タブを作る行（newTab）が出る。
  */
 export function SwitcherTabs(props: {
   row: Row;
@@ -193,7 +193,7 @@ export function SwitcherTabs(props: {
   holding?: Pick<TabItem, "key" | "title">;
   /** キーで選んでいるタブの key（そのワークスペースに無ければ、どれも選ばない） */
   selectedKey?: string;
-  /** タブの行の id を、key から作る（窓の aria-activedescendant が指す） */
+  /** タブの行の id を、key から作る（Dialog の aria-activedescendant が指す） */
   rowId?: (key: string) => string;
   /** タブの行を押した（選ぶだけか、出すかは、呼んだ側が決める） */
   onTab: (gws: string, key: string) => void;

@@ -30,7 +30,7 @@ const DIRS = [
   ["l", "ArrowRight", "right"],
 ] as const;
 
-describe("ターミナルのタブの窓のキー", () => {
+describe("ターミナルのタブの Dialog のキー", () => {
   it("h j k l と矢印で、選ぶペインを隣へ移す", () => {
     for (const [letter, arrow, dir] of DIRS)
       for (const k of [letter, arrow])
@@ -58,7 +58,7 @@ describe("ターミナルのタブの窓のキー", () => {
     });
   });
 
-  it("タブを作る・閉じる・名前を変える・移すキーは持たない（ワークスペースの窓がする）", () => {
+  it("タブを作る・閉じる・名前を変える・移すキーは持たない（Workspace switcher がする）", () => {
     for (const k of ["n", "N", "R", "m", "Tab", "1"])
       assert.equal(terminalWindowKey(key(k)), null, k);
     assert.equal(terminalWindowKey(key("Enter", { shiftKey: true })), null);
@@ -107,7 +107,7 @@ describe("分ける向きを待つ間のキー（s のあと）", () => {
   });
 });
 
-describe("terminalWindowFooter（窓の下の段の今効く操作。#488）", () => {
+describe("terminalWindowFooter（Dialog の Key footer の今効く操作。#488）", () => {
   const all: TerminalWindowState = {
     splitting: false,
     empty: false,
@@ -159,7 +159,7 @@ describe("terminalWindowFooter（窓の下の段の今効く操作。#488）", (
       );
   });
 
-  it("下の段に出す操作は、どれも判定が受ける（案内と受けるキーがずれない）", () => {
+  it("Key footer に出す操作は、どれも判定が受ける（案内と受けるキーがずれない）", () => {
     for (const r of terminalWindowFooter(all))
       for (const i of r.items)
         for (const p of i.probes)
@@ -174,7 +174,7 @@ describe("terminalWindowFooter（窓の下の段の今効く操作。#488）", (
           assert.notEqual(splitDirKey(key(p)), null, `${i.keys}: ${p}`);
   });
 
-  it("`?` の一覧の表の操作は、どこでも同じキー（h j k l・Enter・Esc・`?`）を除き、どれも下の段に出る。ふだんの下の段には、どこでも同じキーを出さない", () => {
+  it("`?` の一覧の表の操作は、どこでも同じキー（h j k l・Enter・Esc・`?`）を除き、どれも Key footer に出る。ふだんの Key footer には、どこでも同じキーを出さない", () => {
     const probes = terminalWindowFooter(all).flatMap((r) =>
       r.items.flatMap((i) => i.probes),
     );

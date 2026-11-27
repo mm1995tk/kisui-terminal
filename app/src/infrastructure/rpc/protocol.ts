@@ -95,7 +95,7 @@ export interface Workspace {
   titles?: Record<string, string>;
 }
 
-/** 分割の木の節の向き：右（縦の境界。a が左、b が右）か下（横の境界。a が上、b が下） */
+/** 分割の木の節の向き：右（縦の Pane border。a が左、b が右）か下（横の Pane border。a が上、b が下） */
 export type TreeDir = "right" | "down";
 
 /** 欄を分ける向き。左と上は木に出ない（子の順番を逆にして、新しい欄を a にする）ので、木の節の向きは TreeDir。 */
@@ -189,9 +189,9 @@ export interface DbConnection {
   user: string;
   /** 設定に書いていなければ "" */
   database: string;
-  /** true の接続は、窓からの SQL を読み取り専用のトランザクションで実行する（書き込みは DB が断る）。人の実行の段階が "read"（human.run）ということ */
+  /** true の接続は、Dialog からの SQL を読み取り専用のトランザクションで実行する（書き込みは DB が断る）。人の実行の段階が "read"（human.run）ということ */
   readOnly: boolean;
-  /** 人（窓）がこの接続にしてよいこと（#381。権限を知らない古い kisui serve は付けない） */
+  /** 人（Window）がこの接続にしてよいこと（#381。権限を知らない古い kisui serve は付けない） */
   human?: DbHumanAccess;
   /** コーディングエージェント（kisui db のコマンド）がこの接続にしてよいこと（#381。権限を知らない古い kisui serve は付けない） */
   agent?: DbAgentAccess;
@@ -227,7 +227,7 @@ export interface DbElevated {
   from: string;
   /** 元に戻る時刻（kisui serve のマシンの時計。RFC 3339） */
   until: string;
-  /** 答えたときの残りの時間（秒）。窓は、マシンの時計のずれに関わらず、これで残りを数える */
+  /** 答えたときの残りの時間（秒）。Dialog は、マシンの時計のずれに関わらず、これで残りを数える */
   remainingSeconds: number;
 }
 
@@ -370,11 +370,11 @@ export interface DbHistoryEntry {
   at: string;
   /** DB が間違いなく実行した。DB が断った・取り消したものは false */
   ok: boolean;
-  /** コーディングエージェントが実行した文（`kisui db query`。#382）なら "agent"。人が窓で実行した文には無い */
+  /** コーディングエージェントが実行した文（`kisui db query`。#382）なら "agent"。人が Dialog で実行した文には無い */
   actor?: string;
 }
 
-/** password_required（-32006）の data。missing：どこにも無い、rejected：DB が断った。どちらも窓はパスワードを聞く */
+/** password_required（-32006）の data。missing：どこにも無い、rejected：DB が断った。どちらも Dialog はパスワードを聞く */
 export interface DbPasswordRequiredData {
   reason: "missing" | "rejected";
   /**
@@ -445,7 +445,7 @@ export interface Requests {
     params: { workspaceId: WorkspaceId; id: string };
     result: Record<string, never>;
   };
-  /** 欄どうしの境界の割合を変える。pane は境界の B 側の左上の欄（grid.ts の firstPane）。serve が範囲に収めた割合を返す */
+  /** 欄どうしの Pane border の割合を変える。pane は Pane border の B 側の左上の欄（grid.ts の firstPane）。serve が範囲に収めた割合を返す */
   "layout.resize": {
     params: { workspaceId: WorkspaceId; pane: string; ratio: number };
     result: { ratio: number };
@@ -464,7 +464,7 @@ export interface Requests {
       /**
        * 始めるシェル（そのマシンでの、実行できるファイルのパス。~/x も書ける）。serve はワークスペースごとに覚え、無ければ覚えているもの、
        * 空の文字列ならそのマシンの既定で始める。実行できなければ invalid_params（data.reason は "shell"）。
-       * 窓は、hello の capabilities に "workspace.create.shell" がある serve にだけ送る（features/sessions/termDefaults.ts）
+       * Window は、hello の capabilities に "workspace.create.shell" がある serve にだけ送る（features/sessions/termDefaults.ts）
        */
       shell?: string;
       env?: Record<string, string>;
@@ -511,16 +511,16 @@ export interface Requests {
    */
   "pane.run": {
     /**
-     * from は、頼んだペイン（窓が、頼みを送ってきた serve の serverId を付ける）。serve は、from が作ったペインと、
+     * from は、頼んだペイン（Window が、頼みを送ってきた serve の serverId を付ける）。serve は、from が作ったペインと、
      * その先にだけ届かせる。無ければ、どのペインにも届かない（そのマシンが [server] pane_reach = "all" なら全部に届く）
      */
     params: PaneRunRequest & { from?: PaneOrigin };
     result: PaneRunReply;
   };
   /**
-   * このマシンのターミナルのタブ（kisui serve のワークスペース）それぞれが入っている、窓のワークスペースの id と名前を知らせる
+   * このマシンのターミナルのタブ（kisui serve のワークスペース）それぞれが入っている、Window のワークスペースの id と名前を知らせる
    * （#502。`kisui pane list` が出す）。いつもこのマシンの全部のタブの分を送り、serve は覚えていた対応を丸ごと置き換える
-   * （載っていないタブの対応は消える）。serve は覚えた対応を保存し、窓が閉じていても出す。
+   * （載っていないタブの対応は消える）。serve は覚えた対応を保存し、Window が閉じていても出す。
    * hello の capabilities に "gws.set" がある serve だけが受ける（古い serve には送らない）
    */
   "gws.set": { params: { tabs: GwsTab[] }; result: Record<string, never> };
@@ -530,7 +530,7 @@ export interface Requests {
      * argv・env・name は `kisui pane open`（#343）：プライマリターミナルでシェルの代わりに動かすコマンド（最初の語は絶対パス）、
      * その環境変数（"NAME=value"）、そのペインの名前（ほかのペインと重なれば作らずに断る）。hello の capabilities に
      * "workspace.create.command" がある serve だけが受ける（古い serve は無視してシェルを始めるので、送る前に確かめる）
-     * startDir・shell は、窓が手元の設定から渡す、そのマシンの始めのフォルダとシェル（features/sessions/termDefaults.ts）。
+     * startDir・shell は、Dialog が手元の設定から渡す、そのマシンの始めのフォルダとシェル（features/sessions/termDefaults.ts）。
      * startDir は dir が無い・使えないときに使い（~ と ~/x は、そのマシンのホーム）、これも使えなければ start_dir。
      * shell は term.create と同じ。capabilities に "workspace.create.shell" がある serve だけが受ける（古い serve は無視するので、送らない）
      */
@@ -607,9 +607,9 @@ export interface Requests {
   };
   /**
    * 接続に SQL を 1 つ実行する。variant は環境の変種の名前（変種の無い接続では省く。変種のある接続で省くと not_found）。password は画面で入力されたもの（省くのと "" は違う："" はパスワード無しでログインする）。
-   * maxRows は rows の上限（省くと 1000、最大 10000）。queryId は db.cancel で取り消すための、窓が付ける名前。
+   * maxRows は rows の上限（省くと 1000、最大 10000）。queryId は db.cancel で取り消すための、Dialog が付ける名前。
    * 断られ方：not_found（接続が無い）、password_required、db_error、busy（同時に動かせる数を超えた）、denied（権限が実行を許していない。#381）。
-   * actor は誰の要求か（#381）：省くか "human" は人（窓）、"agent" はコーディングエージェント。窓は付けない（人として扱われる）
+   * actor は誰の要求か（#381）：省くか "human" は人（Window）、"agent" はコーディングエージェント。Dialog は付けない（人として扱われる）
    */
   "db.query": {
     params: {
@@ -697,11 +697,11 @@ export interface Requests {
     result: { connection: DbConnection };
   };
   /**
-   * 窓が覚えている、前に打って通ったパスワードを渡し直す。capabilities に "db-remember" のある kisui serve だけが受ける。
-   * その kisui serve は、窓で打って覚えたパスワードを、窓の接続が切れたとき・別の窓が持ち主になったときに全部忘れるので、
-   * 窓はつなぎ直した直後に送る（コーディングエージェントの kisui db のコマンドが、人の操作を待たずにまた使えるように）。
+   * Window が覚えている、前に打って通ったパスワードを渡し直す。capabilities に "db-remember" のある kisui serve だけが受ける。
+   * その kisui serve は、Window で打って覚えたパスワードを、Window の接続が切れたとき・別の Window が持ち主になったときに全部忘れるので、
+   * Window はつなぎ直した直後に送る（コーディングエージェントの kisui db のコマンドが、人の操作を待たずにまた使えるように）。
    * kind・host・port・user は、パスワードを打ったときの、その接続の行き先（db.connections が返していたもの）。今の設定の
-   * 接続と同じなら覚えて remembered は true。接続が無い・行き先が違えば、覚えずに false（窓は、覚えていたものを捨てる）。
+   * 接続と同じなら覚えて remembered は true。接続が無い・行き先が違えば、覚えずに false（Window は、覚えていたものを捨てる）。
    * DB にはつながない。password を省くと invalid_params（"" はパスワード無しのログイン）
    */
   "db.remember": {
@@ -719,7 +719,7 @@ export interface Requests {
   /**
    * 通信をプロキシに通し始める（#409）。capabilities に "proxy" がある kisui serve だけが受ける。workspaceId はターミナルのタブ
    * （そのあとに開いたペインに、プロキシと認証局の環境変数が渡る。scope は "ws:<id>" になる）、scope は内蔵ブラウザのタブ
-   * （窓が決めた名前。英数字と _ . : - で 64 字まで。"ws:" では始めない）。どちらか 1 つを渡す。もう通していれば、
+   * （Dialog が決めた名前。英数字と _ . : - で 64 字まで。"ws:" では始めない）。どちらか 1 つを渡す。もう通していれば、
    * 同じ待ち受け口のまま答える（やめていたワークスペースは、記録を始め直す）。flows は、それまでに記録した通信（古い順）。
    * 断られ方：not_found（ワークスペースが無い）、busy（通している数が上限）、internal_error（認証局・待ち受けを作れない）
    */
@@ -770,7 +770,7 @@ export interface Requests {
    * scope の要求を、行き先に送る前に止めるかを切り替える（#411）。capabilities に "proxy.hold" がある kisui serve だけが受ける。
    * 入れている間、クライアント（ページ・シェルのプログラム）の要求は、state が held の通信として記録に出て（proxy.flow で知らせる）、
    * proxy.release を待つ。止めるのは要求だけ（応答と、proxy.resend の要求は止めない）。on を false にすると、止めていた要求は
-   * そのまま流れる。窓の接続が切れたとき・ワークスペースの scope を通すのをやめたとき（proxy.stop）も、同じように流れて、止めるのをやめる。
+   * そのまま流れる。Window の接続が切れたとき・ワークスペースの scope を通すのをやめたとき（proxy.stop）も、同じように流れて、止めるのをやめる。
    * 待ち受け口を閉じるとき（内蔵ブラウザのタブの scope の proxy.stop・ワークスペースを閉じる・kisui serve の終了と引き継ぎ）は、
    * 流さずに接続ごと切る（その通信は failed）。
    * 断られ方：not_found（scope が無い・やめたあと中継だけしている）
@@ -1025,7 +1025,7 @@ export interface DbProposeRequest {
 export type DbProposeReport =
   { status: "written" | "declined" } | { error: string };
 
-/** gws.set の 1 つ：ターミナルのタブ workspaceId が入っている、窓のワークスペースの id と、サイドバーに出ている名前。 */
+/** gws.set の 1 つ：ターミナルのタブ workspaceId が入っている、Window のワークスペースの id と、サイドバーに出ている名前。 */
 export interface GwsTab {
   workspaceId: WorkspaceId;
   id: string;
@@ -1107,7 +1107,7 @@ export interface PaneRunReply {
   error?: string;
   /** 頼みが指した・作ったペインの id */
   id?: string;
-  /** list の答え（そのマシンの serve が覚えている窓のワークスペースの id と名前も入っている） */
+  /** list の答え（そのマシンの serve が覚えている Window のワークスペースの id と名前も入っている） */
   panes?: unknown[];
   /** read の答え */
   text?: string;

@@ -14,13 +14,13 @@ import (
 	"time"
 )
 
-// frame は試験の窓が受け取った枠。
+// frame は試験の Window が受け取った枠。
 type frame struct {
 	typ     byte
 	payload []byte
 }
 
-// client は試験の中の窓。relay を pipe でつなぎ、受け取った枠を接続ごとに振り分ける。
+// client は試験の中の Window。relay を pipe でつなぎ、受け取った枠を接続ごとに振り分ける。
 type client struct {
 	t    *testing.T
 	in   *io.PipeWriter // relay の標準入力
@@ -293,7 +293,7 @@ func TestUnreachable(t *testing.T) {
 	}
 }
 
-// 窓が ack しないと、relay は Window までしか送らない。ack すると続きを送る。
+// Window が ack しないと、relay は Window までしか送らない。ack すると続きを送る。
 // そのあいだも、ほかの接続は流れる。
 func TestFlowControlToWindow(t *testing.T) {
 	const total = 4 * Window
@@ -334,7 +334,7 @@ func TestFlowControlToWindow(t *testing.T) {
 	}
 }
 
-// fillUntilStalled は、ack の分だけ送る窓として接続 id に送り続け、ack が 300 ミリ秒来なくなったら返す。
+// fillUntilStalled は、ack の分だけ送る Window として接続 id に送り続け、ack が 300 ミリ秒来なくなったら返す。
 // total を送りきっても止まらなければ失敗にする。
 func (c *client) fillUntilStalled(id uint32, total int) (sent, acked int) {
 	c.t.Helper()
@@ -361,7 +361,7 @@ func (c *client) fillUntilStalled(id uint32, total int) (sent, acked int) {
 // stallTotal は、読まない TCP の先に送りきれない量（OS のソケットのバッファより十分大きい）。
 const stallTotal = 64 << 20
 
-// 窓→TCP の向き: TCP の先が読まなければ ack が止まる。読めば、書けた分の ack が来る。
+// Window→TCP の向き: TCP の先が読まなければ ack が止まる。読めば、書けた分の ack が来る。
 func TestFlowControlFromWindow(t *testing.T) {
 	release := make(chan struct{})
 	received := make(chan int, 1)
@@ -390,7 +390,7 @@ func TestFlowControlFromWindow(t *testing.T) {
 	}
 }
 
-// ack を待たずに Window を超えて送る窓は、その接続を閉じられる。
+// ack を待たずに Window を超えて送る Window は、その接続を閉じられる。
 func TestWindowExceeded(t *testing.T) {
 	release := make(chan struct{})
 	t.Cleanup(func() { close(release) })
@@ -416,7 +416,7 @@ func TestWindowExceeded(t *testing.T) {
 	}
 }
 
-// TCP の先が切れたら、窓に EOF と CLOSE が届く。窓の CLOSE で TCP が閉じる。
+// TCP の先が切れたら、Window に EOF と CLOSE が届く。Window の CLOSE で TCP が閉じる。
 func TestConnectionEnds(t *testing.T) {
 	closed := make(chan struct{})
 	port := listen(t, "127.0.0.1:0", func(conn net.Conn) {

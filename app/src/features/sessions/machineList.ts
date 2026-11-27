@@ -23,7 +23,7 @@ export interface MachineRow {
   terminalTabs: number;
   /** 名前を変えたり外したり切ったりできるか（「ローカル」はできない） */
   removable: boolean;
-  /** config.toml にだけ書いたマシンか。窓からは外せず、名前も変えられない */
+  /** config.toml にだけ書いたマシンか。Dialog からは外せず、名前も変えられない */
   fixed: boolean;
   /** 接続（セッション）があるか。切れるのは、あるときだけ */
   hasSession: boolean;
@@ -65,11 +65,11 @@ export function machineRows(
 }
 
 /**
- * ダイアログの中の操作。newTab は、選んだマシンを設定したターミナルのタブ作成を、ワークスペースの窓で始める（Enter。#461）。
- * ここではタブを作らない。名前を打って決めるのは、ワークスペースの窓のタブを作る行（#456 と同じ行）。
- * terminal は、選んだマシンの新しいターミナルが始まるフォルダとシェルを変える窓を出す（t。#485。termDefaults.ts）。
- * grant は、選んだマシンのペインに、手元の PC のペインの操作を、時間を決めて許す窓を出す（p。paneGrant.ts）。
- * grantEnd は、その許可を時間の前に終える（P）。DB の権限の引き上げ（DB のタブの窓の p と P）と同じキー。
+ * ダイアログの中の操作。newTab は、選んだマシンを設定したターミナルのタブ作成を、Workspace switcher で始める（Enter。#461）。
+ * ここではタブを作らない。名前を打って決めるのは、Workspace switcher のタブを作る行（#456 と同じ行）。
+ * terminal は、選んだマシンの新しいターミナルが始まるフォルダとシェルを変える Dialog を出す（t。#485。termDefaults.ts）。
+ * grant は、選んだマシンのペインに、手元の PC のペインの操作を、時間を決めて許す Dialog を出す（p。paneGrant.ts）。
+ * grantEnd は、その許可を時間の前に終える（P）。DB の権限の引き上げ（DB のタブの Dialog の p と P）と同じキー。
  */
 export type MachineAction =
   | "add"
@@ -189,7 +189,7 @@ export function canDo(
       return null;
     }
     case "terminal":
-      // 「ローカル」は [server] に書けるので、変えられる。config.toml にだけあるマシンは、窓からは書けない
+      // 「ローカル」は [server] に書けるので、変えられる。config.toml にだけあるマシンは、Dialog からは書けない
       if (row.fixed)
         return T("machine.cant.terminal.fixed", { label: row.label });
       return null;
@@ -217,14 +217,14 @@ export function canDo(
   }
 }
 
-/** ワークスペースを作るマシンを選ぶ窓（リーダーの `w n`。MachinePicker.tsx）の、行の中のキーが表す動き。 */
+/** ワークスペースを作るマシンを選ぶ Dialog（リーダーの `w n`。MachinePicker.tsx）の、行の中のキーが表す動き。 */
 export type PickerKey =
   | { kind: "move"; to: "next" | "prev" | "first" | "last" }
   | { kind: "choose" }
   | { kind: "help" };
 
 /**
- * 選ぶ窓の中のキー（入力欄が無いので、字をそのまま使える。Esc は ModalCard が取り消しに使う）。
+ * 選ぶ Dialog の中のキー（入力欄が無いので、字をそのまま使える。Esc は ModalCard が取り消しに使う）。
  * マシンのダイアログの動かし方（j k g G・矢印・Ctrl+J / Ctrl+K）と `?`（キーの一覧）に、決める Enter を足したもの。
  * 足す・名前を変えるなどの操作のキー（a n d x r t）は受けない。
  */

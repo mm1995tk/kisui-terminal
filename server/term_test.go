@@ -284,7 +284,7 @@ func TestTermFlowControlAndAttach(t *testing.T) {
 	c.Call(ctx, "term.input", map[string]any{"termId": id, "data": b64("exit\n")}, nil)
 }
 
-// 窓の中なら ack の度に続きが送られる。
+// Window の中なら ack の度に続きが送られる。
 func TestTermAckResumes(t *testing.T) {
 	_, sock := start(t)
 	c, nt := termClient(t, sock)

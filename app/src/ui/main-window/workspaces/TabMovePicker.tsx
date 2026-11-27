@@ -11,9 +11,9 @@ import { openKeyList } from "../commands/KeyListDialog.tsx";
 const rowId = (i: number) => `tab-move-row-${i}`;
 
 /**
- * タブを移す先のワークスペースを選ぶ窓（リーダーの `t m`。#308）。rows のワークスペース（今のワークスペースを除いたもの。
+ * タブを移す先のワークスペースを選ぶ Dialog（リーダーの `t m`。#308）。rows のワークスペース（今のワークスペースを除いたもの。
  * 除くのは呼んだ側）を、サイドバーと同じ並びで出す。空のワークスペースも並ぶ。j / k で選び、Enter かダブルクリックで onChoose、
- * Esc かボタンで onCancel を呼ぶ。窓のキーは、マシンを選ぶ窓（MachinePicker.tsx）と同じ（machineList.ts の pickerKey）。決まりは docs/key-design.md。
+ * Esc かボタンで onCancel を呼ぶ。Dialog のキーは、マシンを選ぶ Dialog（MachinePicker.tsx）と同じ（machineList.ts の pickerKey）。決まりは docs/key-design.md。
  */
 export function TabMovePicker(props: {
   /** 移すタブの名前 */

@@ -1,4 +1,4 @@
-// ワークスペースを切り替える窓（WorkspaceSwitcher.tsx）で、キーでタブをつかんで別のワークスペースへ移す間の状態（m → j k h l → Enter。#332）。
+// Workspace switcher（WorkspaceSwitcher.tsx）で、キーでタブをつかんで別のワークスペースへ移す間の状態（m → j k h l → Enter。#332）。
 // つかんでいる間は、並びを変えない。右の列に「つかんだタブが入る位置」を出して見せるだけで、落とすと初めて、呼んだ側が動かす（ドラッグと同じ onTabMove）。
 // 位置の計算は DOM も Solid も使わない関数（node --test で確かめる）。
 

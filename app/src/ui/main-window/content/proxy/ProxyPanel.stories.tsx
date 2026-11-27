@@ -283,7 +283,7 @@ export const Narrow: Story = {
   decorators: narrow("360px"),
 };
 
-/** いちばん狭い幅で、止めている要求を選んでいる（#422）。頭の止めるボタン・帯のボタンは窓に収まり字は 1 行、頭の待ち受け口は title で読め、説明は細かく折り返さない。 */
+/** いちばん狭い幅で、止めている要求を選んでいる（#422）。頭の止めるボタン・帯のボタンは Dialog に収まり字は 1 行、頭の待ち受け口は title で読め、説明は細かく折り返さない。 */
 export const HoldingNarrowest: Story = { args: Holding.args, ...narrowest };
 export const HoldingNarrowestJa: Story = { ...HoldingNarrowest, ...ja };
 

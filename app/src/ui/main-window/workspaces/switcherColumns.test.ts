@@ -8,7 +8,7 @@ const tab = (key: string): TabItem => ({ key, title: key }) as TabItem;
 const row = (shown: string | undefined, ...keys: string[]): Row =>
   ({ tabs: { items: keys.map(tab), shown } }) as unknown as Row;
 
-describe("ワークスペースの窓の初めの列（#454）", () => {
+describe("Workspace switcher の初めの列（#454）", () => {
   it("指定が無ければ、左のワークスペースの列", () => {
     const c = createSwitcherColumns(() => row("b", "a", "b"));
     assert.equal(c.activeCol(), "ws");
@@ -20,7 +20,7 @@ describe("ワークスペースの窓の初めの列（#454）", () => {
     assert.equal(c.selectedTab()?.key, "b");
   });
 
-  it("tab を指して、タブの無いワークスペースで開いたら、あとでタブのあるワークスペースを選んでも、左の列のまま", () => {
+  it("tab を指して、タブの無いワークスペースで開いたら、あとでタブのあるワークスペースを選んでも、左側の列のまま", () => {
     let cur = row(undefined);
     const c = createSwitcherColumns(() => cur, "tab");
     assert.equal(c.activeCol(), "ws");

@@ -72,7 +72,7 @@ func TestDBCmdPermission(t *testing.T) {
 			return res, r
 		}
 		table := "t_server_dbcmd_perm"
-		// 人（窓）が表を用意する。
+		// 人（Window）が表を用意する。
 		for _, sql := range []string{"DROP TABLE IF EXISTS " + table, "CREATE TABLE " + table + " (id INT)", "INSERT INTO " + table + " VALUES (1)"} {
 			if err := c.Call(context.Background(), "db.query", map[string]any{"connection": conn.Name, "variant": "plain", "sql": sql}, nil); err != nil {
 				t.Fatalf("%s: %v", sql, err)

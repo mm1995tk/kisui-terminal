@@ -84,7 +84,7 @@ test("記録のマシンを config.local.toml に移し、サイドバーの並�
     ["a", "エー"],
     ["b", null],
   ]);
-  // 移したマシンは窓から変えられる（config.local.toml のもの）。config.toml のものは変えられない
+  // 移したマシンは Dialog から変えられる（config.local.toml のもの）。config.toml のものは変えられない
   assert.deepEqual(
     fromConfig(r.machines).map((m) => m.fixed ?? false),
     [true, false, false],

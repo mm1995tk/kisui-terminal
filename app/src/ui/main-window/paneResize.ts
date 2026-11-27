@@ -1,4 +1,4 @@
-// メインウィンドウの境界の大きさと、サイドバーの開閉（表示用の状態）。値の決まりは panes.ts にあり、ここは画面の要素を読んで動かす。
+// メインウィンドウの境目の大きさと、サイドバーの開閉（表示用の状態）。値の決まりは panes.ts にあり、ここは画面の要素を読んで動かす。
 // - サイドバーの幅・タブの段とファイルツリーの境目・ファイルツリーと CHANGES の境目を、ドラッグとリサイズモード（Cmd+R / Ctrl+Shift+R）で動かす。
 // - サイドバーを開ける・閉じる（リーダーの b）。
 // - ファイルツリーのスクロールの位置を、ワークスペースごとに覚えて戻す（覚えるのは features/file-tree/）。
@@ -50,7 +50,7 @@ import {
 /** createPaneResize が返す持ち物。 */
 export type PaneResize = ReturnType<typeof createPaneResize>;
 
-/** 境界の大きさとサイドバーの開閉の持ち物を作る。覚えておいた値で始め、ドラッグとリサイズモードのキーで動かし、変えるたびに覚える。 */
+/** 境目の大きさとサイドバーの開閉の持ち物を作る。覚えておいた値で始め、ドラッグとリサイズモードのキーで動かし、変えるたびに覚える。 */
 export function createPaneResize(deps: {
   store: KeyValueStore | undefined;
   /** タブの段の高さの上限の元の値（設定の [gui.sidebar] tabs-height。サイドバーの高さに対する %）。無ければ 40 */
@@ -65,7 +65,7 @@ export function createPaneResize(deps: {
   termGroup: () => TermGroup | undefined;
   /** 右の欄の配置（分けていなければ、隠している間も undefined）。サイドバーの幅の上限で、どのペインにも 20 列残すのに使う */
   termLayout: () => PaneLayout | undefined;
-  /** ペインどうしの境界（隠している間は無い） */
+  /** ペインどうしの Pane border（隠している間は無い） */
   termBars: () => readonly Bar[];
   /** ワークスペースの CHANGES の一覧（出していなければ undefined） */
   changesOf: (target: string, id: WorkspaceId) => unknown;
@@ -90,7 +90,7 @@ export function createPaneResize(deps: {
     dbShown,
     focusTerminal,
   } = deps;
-  // ブロックの境界の大きさ（panes.ts）。変えたら覚えておき、GUI を起動し直しても残す
+  // ブロックの Pane border の大きさ（panes.ts）。変えたら覚えておき、GUI を起動し直しても残す
   const [sizes, setSizes] = createSignal<PaneSizes>(loadSizes(store));
   function changeSizes(next: PaneSizes) {
     setSizes(next);
@@ -125,18 +125,18 @@ export function createPaneResize(deps: {
       if (el) el.scrollTop = top;
     });
   }
-  // リサイズモード（Cmd+R / Ctrl+Shift+R・パレットの「リサイズ」）か。境界を動かすキーは GUI が受ける
+  // リサイズモード（Cmd+R / Ctrl+Shift+R・パレットの「リサイズ」）か。Pane border を動かすキーは GUI が受ける
   const [resizeMode, setResizeMode] = createSignal(false);
-  // リサイズモードで動かす境界（光らせる）。ドラッグ中の境界も光る
+  // リサイズモードで動かす Pane border（光らせる）。ドラッグ中の Pane border も光る
   const [dragging, setDragging] = createSignal<Border | null>(null);
-  // リサイズモードで動かしている境界：サイドバー（null）か、欄どうしの境界（grid.ts の key）。入るたびにサイドバーから始める
+  // リサイズモードで動かしている境目：サイドバー（null）か、欄どうしの境目（grid.ts の key）。入るたびにサイドバーから始める
   const [resizeSel, setResizeSel] = createSignal<string | null>(null);
   createEffect(
     on(resizeMode, (m) => {
       if (!m) setResizeSel(null);
     }),
   );
-  // リサイズモードで選んでいる境界が無くなったら（欄を閉じた）サイドバーに戻す
+  // リサイズモードで選んでいる境目が無くなったら（欄を閉じた）サイドバーに戻す
   const litSplit = () => {
     const k = resizeSel();
     return resizeMode() && k !== null && termBars().some((b) => b.key === k)
@@ -167,7 +167,7 @@ export function createPaneResize(deps: {
     }),
   );
 
-  /** 今の窓で効く境界の上限（layout.css の clamp・changes.css の max-height と同じ決まり。panes.ts の sidebarMax・changesMax）。 */
+  /** 今の Dialog で効く Pane border の上限（layout.css の clamp・changes.css の max-height と同じ決まり。panes.ts の sidebarMax・changesMax）。 */
   function maxOf(b: Border = "sidebar"): number {
     if (b === "tabs") return LIMITS.tabs[1];
     return b === "changes"
@@ -265,14 +265,14 @@ export function createPaneResize(deps: {
             );
           break;
         }
-        // 縦の境界（右に分けた欄の間）は左右、横の境界は上下だけ動かす
+        // 縦の Pane border（右に分けた欄の間）は左右、横の Pane border は上下だけ動かす
         const bar = termBars().find((b) => b.key === k);
         if (bar && (bar.dir === "right") === (a.axis === "x"))
           termGroup()?.setBorder(k, bar.ratio + a.sign * SPLIT_KEY_STEP);
         break;
       }
       case "select": {
-        // サイドバーの幅、タブの段とファイルツリーの境目（3 段に分けているとき）、ファイルツリーと CHANGES の境目（CHANGES が出ているとき）、ペインどうしの境界（木の順）の順に回す
+        // サイドバーの幅、タブの段とファイルツリーの境目（3 段に分けているとき）、ファイルツリーと CHANGES の境目（CHANGES が出ているとき）、ペインどうしの境目（木の順）の順に回す
         const order: (string | null)[] = [
           null,
           ...(tabsShown() ? [TABS_BORDER] : []),
@@ -309,8 +309,8 @@ export function createPaneResize(deps: {
   }
 
   /**
-   * 境界をつかんで動かす間の、ポインタの受け持ち。つかんだら border を光らせ、動くたびに move を呼び、離したら片付ける。
-   * 境界の値の計算（move の中身）は、動かす境界ごとに渡す。
+   * Pane border をつかんで動かす間の、ポインタの受け持ち。つかんだら border を光らせ、動くたびに move を呼び、離したら片付ける。
+   * Pane border の値の計算（move の中身）は、動かす Pane border ごとに渡す。
    */
   function trackPointer(
     border: Border,
@@ -332,12 +332,12 @@ export function createPaneResize(deps: {
     el.addEventListener("pointercancel", end);
   }
 
-  /** サイドバーの境界のドラッグ。ポインタの位置が境界。 */
+  /** サイドバーの境目のドラッグ。ポインタの位置が境目。 */
   function dragBorder(border: "sidebar", e: PointerEvent) {
     const box = els.app;
     if (e.button !== 0 || !box) return;
-    // つまみは境界の右の隙間にあるので、つかんだ位置と境界の差を覚えて、動かし始めに境界が跳ねないようにする
-    // （境界の位置は、覚えた値ではなく画面に出ているつまみの左端から取る。窓が狭いと CSS が幅を縮めているため）
+    // つまみは Pane border の右の隙間にあるので、つかんだ位置と Pane border の差を覚えて、動かし始めに Pane border が跳ねないようにする
+    // （Pane border の位置は、覚えた値ではなく画面に出ているつまみの左端から取る。Window が狭いと CSS が幅を縮めているため）
     const grab =
       e.clientX - (e.currentTarget as HTMLElement).getBoundingClientRect().left;
     trackPointer(border, e, (ev) => {
@@ -426,9 +426,9 @@ export function createPaneResize(deps: {
   }
 
   return {
-    /** 境界の大きさ（覚えている値） */
+    /** Pane border の大きさ（覚えている値） */
     sizes,
-    /** 境界 b を元の大きさに戻す（つまみのダブルクリック） */
+    /** Pane border b を元の大きさに戻す（つまみのダブルクリック） */
     resetSize: (b: Border) => changeSizes(withoutSize(sizes(), b)),
     tabsPct,
     /** サイドバーを開けているか（リーダーの b） */
@@ -439,9 +439,9 @@ export function createPaneResize(deps: {
     /** リサイズモード（Cmd+R / Ctrl+Shift+R）か */
     resizeMode,
     setResizeMode,
-    /** 境界 b を光らせるか（リサイズモードで選んでいる・ドラッグしている） */
+    /** Pane border b を光らせるか（リサイズモードで選んでいる・ドラッグしている） */
     lit,
-    /** リサイズモードで選んでいる、ペインどうしの境界（無ければ undefined） */
+    /** リサイズモードで選んでいる、ペインどうしの Pane border（無ければ undefined） */
     litSplit,
     resizeKey,
     dragBorder,

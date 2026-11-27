@@ -1,12 +1,12 @@
-// ワークスペースの窓（WorkspaceSwitcher.tsx。リーダーの w）の右の列のタブの行を、つかむ所からのドラッグで動かす（#308）。
+// Workspace switcher（WorkspaceSwitcher.tsx。リーダーの w）の右の列のタブの行を、つかむ所からのドラッグで動かす（#308）。
 // 同じワークスペースの中での並べ替えと、別のワークスペースへの移動を、同じドラッグでする。
 // サイドバーの行の並べ替え（../sidebar/drag.ts）は「1 つの列の中で、行がよけて場所を空ける」作りで、つかんだ行が列の中に居続けることを前提にしている。
 // ここでは、ドラッグ中に右の列が別のワークスペースのタブに替わる（つかんだ行は列から居なくなる）ので、別の作りにした：
 // つかんだ行の写し（ゴースト）がポインタについて動き、入る位置には線を出す。行はよけない。
-// - 左のワークスペースの行の上へ来たら onOver を呼ぶ（窓がその行を選び、右の列がそのワークスペースのタブに替わる）。
+// - 左のワークスペースの行の上へ来たら onOver を呼ぶ（Dialog がその行を選び、右の列がそのワークスペースのタブに替わる）。
 // - 右の列の上で離すと、線の位置（ポインタの高さより下にある最初の行の前。無ければ一番後ろ）に入る。空のワークスペースでは一番後ろ（＝最初）。
 // - 左の行の上で離すと、そのワークスペースの一番後ろに入る。
-// - それ以外の所で離す・Esc・窓からフォーカスが外れたら、やめる（onCancel）。
+// - それ以外の所で離す・Esc・Dialog からフォーカスが外れたら、やめる（onCancel）。
 // 並びそのものは持たない（落とし先を呼ぶ側に返し、features/workspaces/tabs/controller.ts の moveTab が動かして覚える）。
 // 落とし先を決めるのは、DOM を使わない関数（workspaceAt・dropTarget・insertBefore。node --test で確かめられる）。
 // DOM を触るのは、行を測る measure*・結果を画面に出す show*・イベントを受け持つ startTabDrag。
@@ -60,7 +60,7 @@ export interface TabDragSpec {
   onOver: (gws: string) => void;
   /** 落とした（ワークスペース gws の、before のタブの前。一番後ろなら null） */
   onDrop: (gws: string, before: string | null) => void;
-  /** やめた（Esc・落とせない所で離した・窓からフォーカスが外れた） */
+  /** やめた（Esc・落とせない所で離した・Dialog からフォーカスが外れた） */
   onCancel: () => void;
 }
 
@@ -181,8 +181,8 @@ function showLine(line: HTMLElement, right: Box, y: number | null) {
 }
 
 /**
- * 写しと線を置く親。窓（showModal した dialog）は一番上の層に出るので、body に置いたものは窓の下に隠れる。窓の中に置く
- * （position: fixed なので、窓の overflow では切られない）。
+ * 写しと線を置く親。Dialog（showModal した dialog）は一番上の層に出るので、body に置いたものは Dialog の下に隠れる。Dialog の中に置く
+ * （position: fixed なので、Dialog の overflow では切られない）。
  */
 const layerOf = (el: HTMLElement): HTMLElement =>
   el.closest<HTMLElement>("dialog") ?? document.body;

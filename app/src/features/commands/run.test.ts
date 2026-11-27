@@ -144,7 +144,7 @@ describe("db.elevate・db.elevateEnd（権限を時間を決めて強める・�
     ]);
   });
 
-  it("d p は出している DB のタブの接続の強める窓を出し、d P は元に戻す", () => {
+  it("d p は出している DB のタブの接続の強める Dialog を出し、d P は元に戻す", () => {
     const { seen, runCommand } = setup({ id: "t1" });
     runCommand({ id: "db.elevate" });
     runCommand({ id: "db.elevateEnd" });
@@ -152,7 +152,7 @@ describe("db.elevate・db.elevateEnd（権限を時間を決めて強める・�
   });
 });
 
-describe("tab.window（今出しているタブの種類の窓を開く。リーダーの a。#457・#458・#459）", () => {
+describe("tab.window（今出しているタブの種類の Dialog を開く。リーダーの a。#457・#458・#459）", () => {
   /** 出しているタブ（shown）を決めて、コマンドを動かす道具を作る。 */
   function setupTabWindow(shown: {
     browser?: boolean;
@@ -189,13 +189,13 @@ describe("tab.window（今出しているタブの種類の窓を開く。リー
     });
     return { seen, runCommand: run.runCommand };
   }
-  it("ターミナルのタブを出していれば、ターミナルのタブの窓を開く", () => {
+  it("ターミナルのタブを出していれば、ターミナルのタブの Dialog を開く", () => {
     const { seen, runCommand } = setupTabWindow({ terminal: true });
     runCommand({ id: "tab.window" });
     assert.deepEqual(seen, ["open terminal"]);
   });
 
-  it("DB のタブを出している間は、裏にターミナルのタブがあっても、DB のタブの窓を開く（#458）", () => {
+  it("DB のタブを出している間は、裏にターミナルのタブがあっても、DB のタブの Dialog を開く（#458）", () => {
     for (const shown of [{ db: true, terminal: true }, { db: true }]) {
       const { seen, runCommand } = setupTabWindow(shown);
       runCommand({ id: "tab.window" });
@@ -203,7 +203,7 @@ describe("tab.window（今出しているタブの種類の窓を開く。リー
     }
   });
 
-  it("ブラウザのタブを出している間は、裏にターミナル・DB のタブがあっても、ブラウザのタブの窓を開く（#459）", () => {
+  it("ブラウザのタブを出している間は、裏にターミナル・DB のタブがあっても、ブラウザのタブの Dialog を開く（#459）", () => {
     for (const shown of [
       { browser: true, terminal: true },
       { browser: true, db: true },
@@ -215,7 +215,7 @@ describe("tab.window（今出しているタブの種類の窓を開く。リー
     }
   });
 
-  it("タブを出していなければ、窓を開かず、その旨を伝える", () => {
+  it("タブを出していなければ、Dialog を開かず、その旨を伝える", () => {
     const { seen, runCommand } = setupTabWindow({});
     runCommand({ id: "tab.window" });
     assert.deepEqual(seen, [

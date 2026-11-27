@@ -114,11 +114,11 @@ function fakeShell(
     }
     return s;
   };
-  // config.local.toml のマシン（窓で足す・名前を変える・外すと書き換わる）
+  // config.local.toml のマシン（Dialog で足す・名前を変える・外すと書き換わる）
   const machines: ConfigMachine[] = [];
   // config.local.toml に書けない（読み取り専用など）ふりをするか
   const edit = { fail: false };
-  // 設定ファイルの [server] の start_dir と shell（窓で変えると書き換わる。手で書き換えるふりもできる）
+  // 設定ファイルの [server] の start_dir と shell（Dialog で変えると書き換わる。手で書き換えるふりもできる）
   const local: { terminal: TermDefaults } = { terminal: {} };
   const api: ShellApi = {
     listSshHosts: async () => ["host1"],
@@ -333,7 +333,7 @@ function fakeShell(
     },
     onAskpassDone: async () => () => {},
   };
-  /** 殻が ssh の質問を窓へ渡したふりをする。 */
+  /** 殻が ssh の質問を Window へ渡したふりをする。 */
   const ask = (e: AskpassRequest) => askeds.forEach((f) => f(e));
   return { api, serveOf, machines, edit, local, ask };
 }
@@ -661,7 +661,7 @@ describe("機能の持ち物のつなぎ（compose.ts）", () => {
     assert.ok(ui.includes("focusTerminal"));
   });
 
-  it("内蔵ブラウザ：ブラウザのタブの窓の操作（runBrowserOn）は、指したタブに行う。無いタブ・ページの無いタブには何もしない (#459)", async () => {
+  it("内蔵ブラウザ：ブラウザのタブの Dialog の操作（runBrowserOn）は、指したタブに行う。無いタブ・ページの無いタブには何もしない (#459)", async () => {
     const { f, browserCalls } = start({
       serves: { [LOCAL]: { ids: ["a"], focus: "a" } },
       browser: true,
@@ -693,7 +693,7 @@ describe("機能の持ち物のつなぎ（compose.ts）", () => {
     assert.deepEqual(browserCalls, []);
   });
 
-  it("内蔵ブラウザ：browser.rename・browser.close（設定の近道。#459 で木から外した）は、タブ共通の処理で、ブラウザのタブを出しているときだけ動く", async () => {
+  it("内蔵ブラウザ：browser.rename・browser.close（設定の Shortcut。#459 で木から外した）は、タブ共通の処理で、ブラウザのタブを出しているときだけ動く", async () => {
     const { f } = start({
       serves: { [LOCAL]: { ids: ["a"], focus: "a" } },
       browser: true,
@@ -740,7 +740,7 @@ describe("機能の持ち物のつなぎ（compose.ts）", () => {
       h({ tab: tab.id, url: failed, reason: "cert-untrusted", detail: "" });
     await settle();
     assert.equal(f.pages.shownBrowserTab()?.loadError?.url, failed);
-    // ブラウザのタブの窓の r・Cmd+R も、失敗の表示の「もう一度開く」（navPage）も、開けなかった URL を開く
+    // ブラウザのタブの Dialog の r・Cmd+R も、失敗の表示の「もう一度開く」（navPage）も、開けなかった URL を開く
     browserCalls.length = 0;
     f.commands.runCommand({ id: "browser.reload" });
     f.pages.navPage(tab.id, "reload");
@@ -756,7 +756,7 @@ describe("機能の持ち物のつなぎ（compose.ts）", () => {
     assert.deepEqual(browserCalls, [`nav ${tab.id} back`]);
   });
 
-  it("内蔵ブラウザ：読み込み中は、ブラウザのタブの窓の c・URL バーの「×」・ページの Esc のどれでも止まる。読み込み中でなければ何もしない (#449)", async () => {
+  it("内蔵ブラウザ：読み込み中は、ブラウザのタブの Dialog の c・URL バーの「×」・ページの Esc のどれでも止まる。読み込み中でなければ何もしない (#449)", async () => {
     const { f, browserCalls, loading, escape } = start({
       serves: { [LOCAL]: { ids: ["a"], focus: "a" } },
       browser: true,
@@ -933,7 +933,7 @@ describe("機能の持ち物のつなぎ（compose.ts）", () => {
     assert.equal(f.pages.shownBrowserTab()?.url, "https://example.com/x");
   });
 
-  it("リモートを足すと、つながってから config.local.toml に書き、窓を閉じる。外すと config.local.toml から消し、接続を切る", async () => {
+  it("リモートを足すと、つながってから config.local.toml に書き、Dialog を閉じる。外すと config.local.toml から消し、接続を切る", async () => {
     const { f, serve, machines } = start({
       serves: {
         [LOCAL]: { ids: ["a"], focus: "a" },
@@ -969,7 +969,7 @@ describe("機能の持ち物のつなぎ（compose.ts）", () => {
     assert.deepEqual(f.workspaces.focus(), { target: LOCAL, id: "a" });
   });
 
-  it("config.local.toml に書けなければ、足す窓に理由を出して切る。名前を変える・外すも、理由を出して変えない", async () => {
+  it("config.local.toml に書けなければ、足す Dialog に理由を出して切る。名前を変える・外すも、理由を出して変えない", async () => {
     const { f, machines, edit } = start({
       serves: {
         [LOCAL]: { ids: ["a"], focus: "a" },
@@ -977,7 +977,7 @@ describe("機能の持ち物のつなぎ（compose.ts）", () => {
       },
     });
     await settle();
-    // 足す：書けなければ、窓は開いたまま理由を出し、一覧に入れず、接続を切る
+    // 足す：書けなければ、Dialog は開いたまま理由を出し、一覧に入れず、接続を切る
     edit.fail = true;
     f.sessions.openAdd();
     f.sessions.submitAdd("host1", "");
@@ -1026,7 +1026,7 @@ describe("機能の持ち物のつなぎ（compose.ts）", () => {
     assert.equal(machines.length, 1);
   });
 
-  it("ssh の質問の窓に出すマシンは、その質問を出した接続の行き先のマシン（サイドバーの名前・ssh の行き先・色）", async () => {
+  it("ssh の質問の Dialog に出すマシンは、その質問を出した接続の行き先のマシン（サイドバーの名前・ssh の行き先・色）", async () => {
     const { f, ask } = start({
       serves: {
         [LOCAL]: { ids: ["a"], focus: "a" },
@@ -1039,7 +1039,7 @@ describe("機能の持ち物のつなぎ（compose.ts）", () => {
     await settle();
     assert.deepEqual(f.sessions.targets(), [LOCAL, "host1"]);
 
-    // 質問の文は、つなぎ先のサーバーが決められる（別のマシンの名前も書ける）。窓に出すマシンは、殻が渡した行き先で決まる
+    // 質問の文は、つなぎ先のサーバーが決められる（別のマシンの名前も書ける）。Dialog に出すマシンは、殻が渡した行き先で決まる
     ask({
       requestId: 1,
       conn: "c1",
@@ -1116,7 +1116,7 @@ describe("機能の持ち物のつなぎ（compose.ts）", () => {
     assert.equal(f.sessions.termEditing(), null);
     assert.deepEqual([machines[0].startDir, machines[0].shell], [null, null]);
 
-    // ローカル：[server] に書く。殻が断れば（この PC で実行できない）、理由を出して窓を閉じない
+    // ローカル：[server] に書く。殻が断れば（この PC で実行できない）、理由を出して Dialog を閉じない
     await f.sessions.openTermEdit(LOCAL);
     edit.fail = true;
     f.sessions.submitTermEdit("", "~/bin/none");
@@ -1153,7 +1153,7 @@ describe("機能の持ち物のつなぎ（compose.ts）", () => {
     assert.deepEqual(serve("old").created, [{}]);
   });
 
-  it("コマンドは、画面の側ですること（窓を出す・サイドバーの開閉）を CommandUi に頼む", async () => {
+  it("コマンドは、画面の側ですること（Dialog を出す・サイドバーの開閉）を CommandUi に頼む", async () => {
     const { f, ui } = start({
       serves: { [LOCAL]: { ids: ["a"], focus: "a" } },
     });
@@ -1420,7 +1420,7 @@ describe("機能の持ち物のつなぎ（compose.ts）", () => {
     assert.equal(f.proxy.panel(), undefined);
   });
 
-  it("プロキシ：つないだとき、kisui serve が通しているワークスペースは通したまま戻り、前の窓のブラウザのタブの残りは止める", async () => {
+  it("プロキシ：つないだとき、kisui serve が通しているワークスペースは通したまま戻り、前の Window のブラウザのタブの残りは止める", async () => {
     const { f, serve } = start({
       serves: { [LOCAL]: { ids: ["a"], focus: "a", capabilities: ["proxy"] } },
     });

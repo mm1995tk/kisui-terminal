@@ -1,8 +1,8 @@
 // キーの一覧（`?`）。コマンドの表（commands.ts）と場所のキーの表（placeKeys.ts）から作るので、実際に受けるキーとずれない。
 // リーダーの `?` と、ペインの場所（ファイルツリー・CHANGES・動画・画像）の `?` は、全部のキーを出す
-// （左はリーダーを押してから押すキー、右はリーダーを通さずに 1 回で押せる近道（この OS のもの）。場所のキーがあれば先に出す）。
-// 窓（マシンのダイアログ・切り替える窓・選ぶ窓・ブックマーク・履歴）の `?` は、その窓のキーだけを出す
-// （窓が出ている間は、リーダーに入れないため）。閉じると、下の窓の、開く前にフォーカスがあった所へ戻る（ModalCard）。
+// （左はリーダーを押してから押すキー、右はリーダーを通さずに 1 回で押せる Shortcut（この OS のもの）。場所のキーがあれば先に出す）。
+// Dialog（マシンのダイアログ・Workspace switcher・選ぶ Dialog・ブックマーク・履歴）の `?` は、その Dialog のキーだけを出す
+// （Dialog が出ている間は、リーダーに入れないため）。閉じると、下の Dialog の、開く前にフォーカスがあった所へ戻る（ModalCard）。
 import { T } from "../../../i18n/index.ts";
 import { createSignal, For, Show, type JSX } from "solid-js";
 
@@ -25,8 +25,8 @@ const [places, setPlaces] = createSignal<readonly Place[]>([]);
 
 /**
  * 一覧を開く。場所を渡すと、その場所のキーを先に出す（場所のキーの `?`と、リーダーの `?` を押したときにフォーカスがある場所。
- * docs/key-design.md の 3.3）。窓の場所（placeKeys.ts の isWindowPlace）なら、その窓のキーだけを出す。
- * 並びで渡すと、その順に出す（切り替える窓の 2 つの列）。
+ * docs/key-design.md の 3.3）。Dialog の場所（placeKeys.ts の isWindowPlace）なら、その Dialog のキーだけを出す。
+ * 並びで渡すと、その順に出す（Workspace switcher の 2 つの列）。
  */
 export function openKeyList(first?: Place | readonly Place[]): void {
   setPlaces(
@@ -60,11 +60,11 @@ function PlaceSection(props: { place: Place }): JSX.Element {
   );
 }
 
-/** 一覧の窓。開いていなければ何も出さない。Esc で閉じる。 */
+/** 一覧の Dialog。開いていなければ何も出さない。Esc で閉じる。 */
 export function KeyListDialog(): JSX.Element {
   const leader = leaderKeyName(IS_MAC);
   const outside = IS_MAC ? "Option+Space" : "Alt+Space";
-  /** 窓の `?` か（その窓のキーだけを出す） */
+  /** Dialog の `?` か（その Dialog のキーだけを出す） */
   const windowOnly = () => places().some(isWindowPlace);
   return (
     <Show when={opened()}>

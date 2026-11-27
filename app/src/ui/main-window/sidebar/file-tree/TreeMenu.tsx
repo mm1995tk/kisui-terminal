@@ -1,5 +1,5 @@
 // ツリーの行を右クリックしたときのメニュー。見た目は見出しのメニュー（sidebar.css の .machine-menu）と同じ。
-// 開いたら最初の項目にキーを向ける。項目を選ぶ・メニューの外を押す・Esc・スクロール・窓が見えなくなる、のどれかで閉じる。
+// 開いたら最初の項目にキーを向ける。項目を選ぶ・メニューの外を押す・Esc・スクロール・Dialog が見えなくなる、のどれかで閉じる。
 import { isComposingKey } from "../../../../features/commands/ime.ts";
 import { For, onCleanup, onMount, type JSX } from "solid-js";
 

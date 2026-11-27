@@ -22,11 +22,11 @@ describe("closeTarget", () => {
     assert.equal(closeTarget(doc.body, card, true, doc), "pane");
     assert.equal(closeTarget(null, null, true, doc), "pane");
   });
-  it("欄の外（サイドバー・入力欄など）や、欄が無いときは、窓", () => {
+  it("欄の外（サイドバー・入力欄など）や、欄が無いときは、Dialog", () => {
     assert.equal(closeTarget({}, card, true, doc), "window");
     assert.equal(closeTarget({}, null, true, doc), "window");
   });
-  it("欄を持つ画面が無いときは、どこにも向いていなくても窓", () => {
+  it("欄を持つ画面が無いときは、どこにも向いていなくても Dialog", () => {
     assert.equal(closeTarget(doc.body, card, false, doc), "window");
     assert.equal(closeTarget(inside, card, false, doc), "window");
   });

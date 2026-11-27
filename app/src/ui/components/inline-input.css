@@ -24,7 +24,7 @@
 .inline-input[aria-invalid="true"] {
   border-color: var(--state-warning);
 }
-/* 断られた理由。全文を折り返して出す（窓のエラーの字と同じ色） */
+/* 断られた理由。全文を折り返して出す（Dialog のエラーの字と同じ色） */
 .inline-error {
   color: var(--state-warning);
   font-size: var(--text-caption);

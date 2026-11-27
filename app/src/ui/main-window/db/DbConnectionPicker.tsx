@@ -1,8 +1,8 @@
-// DB の接続を選ぶ窓（ワークスペースの窓の、作るタブの種類（リーダーの `n`）の「DB」・サイドバーの「+」のメニューの「DB」。#347）。
-// 窓がつないでいる全部のマシンの kisui serve から集めた接続を 1 つの一覧にし、どのマシンの接続かを右に出す。
+// DB の接続を選ぶ Dialog（Workspace switcher の、作るタブの種類（リーダーの `n`）の「DB」・サイドバーの「+」のメニューの「DB」。#347）。
+// Window がつないでいる全部のマシンの kisui serve から集めた接続を 1 つの一覧にし、どのマシンの接続かを右に出す。
 // 環境の変種のある接続は、変種ごとに 1 行（`接続 (変種)`）：接続と変種を、この一覧で 1 回で選ぶ。
-// 選ぶと、その接続の DB のタブを開く。動かす・決めるキーは、ほかの一覧から選ぶ窓と同じ（machineList.ts の pickerKey）。
-// a・e・d で、この PC の config.local.toml の接続を足す・直す・消す（#486。features/db/pickerKeys.ts）。直せない行では、理由を下の段に出す。
+// 選ぶと、その接続の DB のタブを開く。動かす・決めるキーは、ほかの一覧から選ぶ Dialog と同じ（machineList.ts の pickerKey）。
+// a・e・d で、この PC の config.local.toml の接続を足す・直す・消す（#486。features/db/pickerKeys.ts）。直せない行では、理由を Key footer に出す。
 // config.local.toml で登録している行には印を付ける（上書きを消すと config.toml の接続に戻り、印が外れる）。
 // 決まりは docs/key-design.md。
 import { T } from "../../../i18n/index.ts";
@@ -34,9 +34,9 @@ import { openKeyList } from "../commands/KeyListDialog.tsx";
 const rowId = (i: number) => `db-picker-row-${i}`;
 
 /**
- * 接続を選ぶ窓。j / k で選び、Enter かダブルクリックで onChoose、Esc かボタンで onCancel を呼ぶ。
+ * 接続を選ぶ Dialog。j / k で選び、Enter かダブルクリックで onChoose、Esc かボタンで onCancel を呼ぶ。
  * a は onAdd、e・d は選んでいる行で onEdit・onRemove を呼ぶ（直せない行では呼ばない）。local は手元の PC の設定（読めていなければ undefined）、
- * localError はそれを読めなかった理由。editing の間（足す・直す・消す窓を上に出している間）はキーを受けず、閉じたら一覧にキーを戻す。
+ * localError はそれを読めなかった理由。editing の間（足す・直す・消す Dialog を上に出している間）はキーを受けず、閉じたら一覧にキーを戻す。
  */
 export function DbConnectionPicker(props: {
   picker: DbPicker;

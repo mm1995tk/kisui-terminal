@@ -1,4 +1,4 @@
-// ワークスペースの種類（ターミナルかブラウザか）を選ぶ窓（WorkspaceKindPicker.tsx）を、アプリと同じ部品・CSS・字・翻訳で出す。
+// ワークスペースの種類（ターミナルかブラウザか）を選ぶ Dialog（WorkspaceKindPicker.tsx）を、アプリと同じ部品・CSS・字・翻訳で出す。
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
 import { fn } from "storybook/test";
 

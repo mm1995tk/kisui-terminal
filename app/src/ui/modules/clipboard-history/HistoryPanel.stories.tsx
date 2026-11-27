@@ -1,4 +1,4 @@
-// クリップボードの履歴の一覧（HistoryPanel.tsx）を、メインウィンドウの窓と同じ組み合わせ（ModalCard の中）で出す（#314）。
+// クリップボードの履歴の一覧（HistoryPanel.tsx）を、メインウィンドウの Dialog と同じ組み合わせ（ModalCard の中）で出す（#314）。
 // 履歴を読む頼み（ListClipboardHistory。本物は Tauri の殻）だけを、決まった中身を返す偽物に差し替える。
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
 import { fn } from "storybook/test";
@@ -17,7 +17,7 @@ const meta = {
     onPutBack: fn(async () => true),
     onClose: fn(),
   },
-  // メインウィンドウの履歴の窓（ui/main-window/clipboard/ClipboardHistoryDialog.tsx）と同じく、真ん中のカードに入れる
+  // メインウィンドウの履歴の Dialog（ui/main-window/clipboard/ClipboardHistoryDialog.tsx）と同じく、真ん中のカードに入れる
   render: (args) => (
     <ModalCard label={T("history.label")} onCancel={args.onClose}>
       <HistoryPanel {...args} />

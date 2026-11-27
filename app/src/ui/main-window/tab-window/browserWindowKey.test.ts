@@ -21,7 +21,7 @@ const key = (k: string, mods: Partial<KeyLike> = {}): KeyLike => ({
   ...mods,
 });
 
-describe("ブラウザのタブの窓のキー（#459）", () => {
+describe("ブラウザのタブの Dialog のキー（#459）", () => {
   it("j k と ↓ ↑ で選ぶ行を動かし、Enter で行う", () => {
     for (const k of ["j", "ArrowDown"])
       assert.deepEqual(browserWindowKey(key(k)), { kind: "select", step: 1 });
@@ -40,7 +40,7 @@ describe("ブラウザのタブの窓のキー（#459）", () => {
     assert.equal(browserWindowKey(key("ArrowLeft", { shiftKey: true })), null);
   });
 
-  it("行の字は、その行の操作を行う（窓の行の字と、判定の字がずれない）", () => {
+  it("行の字は、その行の操作を行う（Dialog の行の字と、判定の字がずれない）", () => {
     for (const r of browserWindowRows({
       id: "b1",
       target: "@local",
@@ -55,7 +55,7 @@ describe("ブラウザのタブの窓のキー（#459）", () => {
       );
   });
 
-  it("タブを作る・閉じる・名前を変える・移すキーは持たない（ワークスペースの窓がする）", () => {
+  it("タブを作る・閉じる・名前を変える・移すキーは持たない（Workspace switcher がする）", () => {
     for (const k of ["n", "N", "x", "R", "m", "t", "Tab", "1"])
       assert.equal(browserWindowKey(key(k)), null, k);
   });
@@ -82,7 +82,7 @@ describe("ブラウザのタブの窓のキー（#459）", () => {
   });
 });
 
-describe("browserWindowFooter（窓の下の段の今効く操作。#488）", () => {
+describe("browserWindowFooter（Dialog の Key footer の今効く操作。#488）", () => {
   const tab = (over: Partial<BrowserTab> = {}): BrowserTab => ({
     id: "b1",
     target: "@local",
@@ -106,7 +106,7 @@ describe("browserWindowFooter（窓の下の段の今効く操作。#488）", ()
     ]);
   });
 
-  it("操作の名前は、短い英語（ほかの窓の下の段と同じ。窓の行の長い名前ではない）", () => {
+  it("操作の名前は、短い英語（ほかの Dialog の Key footer と同じ。Dialog の行の長い名前ではない）", () => {
     assert.deepEqual(
       footer(full).flatMap((r) => r.items.map((i) => i.label)),
       [
@@ -140,7 +140,7 @@ describe("browserWindowFooter（窓の下の段の今効く操作。#488）", ()
     ]);
   });
 
-  it("下の段に出す操作は、どれも判定が受ける（案内と受けるキーがずれない）", () => {
+  it("Key footer に出す操作は、どれも判定が受ける（案内と受けるキーがずれない）", () => {
     for (const r of footer(full))
       for (const i of r.items)
         for (const p of i.probes)
@@ -151,7 +151,7 @@ describe("browserWindowFooter（窓の下の段の今効く操作。#488）", ()
           );
   });
 
-  it("`?` の一覧の表の操作は、どこでも同じキー（j k・Enter・Esc・`?`）を除き、どれも下の段に出る。下の段には、どこでも同じキーを出さない", () => {
+  it("`?` の一覧の表の操作は、どこでも同じキー（j k・Enter・Esc・`?`）を除き、どれも Key footer に出る。Key footer には、どこでも同じキーを出さない", () => {
     const probes = footer(full).flatMap((r) =>
       r.items.flatMap((i) => i.probes),
     );
@@ -159,7 +159,7 @@ describe("browserWindowFooter（窓の下の段の今効く操作。#488）", ()
       for (const p of r.probes)
         if (!COMMON_KEYS.has(p) || p === "h" || p === "l")
           assert.ok(probes.includes(p), `${r.keys}: ${p}`);
-    // h l は、この窓では戻る・進む（列を移るのではない）ので出す。ほかのどこでも同じキーは出さない
+    // h l は、この Dialog では戻る・進む（列を移るのではない）ので出す。ほかのどこでも同じキーは出さない
     for (const k of footer(full).flatMap((r) => r.items.flatMap((i) => i.keys)))
       assert.ok(!COMMON_KEYS.has(k) || k === "h" || k === "l", k);
   });

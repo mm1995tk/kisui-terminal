@@ -1,6 +1,6 @@
-// コマンドの表（commands.ts）のコマンドを動かす。リーダーの葉と近道の両方がここに来る。
+// コマンドの表（commands.ts）のコマンドを動かす。リーダーの葉と Shortcut の両方がここに来る。
 // キーの割り当ては表にあり、ここは動きだけを持つ。動きの中身は各機能（features/）の操作で、
-// 窓を出す・キーを向けるなど画面の側ですることは CommandUi で受け取る。
+// Dialog を出す・キーを向けるなど画面の側ですることは CommandUi で受け取る。
 import { T } from "../../i18n/index.ts";
 
 import type { SplitDir } from "../../infrastructure/rpc/protocol.ts";
@@ -29,12 +29,12 @@ import type { Command, CommandId } from "./commands.ts";
 import { shownTabKind, type TabKind } from "./tabWindow.ts";
 
 /**
- * ワークスペースの窓を開いたときの初めの状態。ws は左のワークスペースの列にキーを置く（リーダーの w）。tab は右のタブの列（t）。
+ * Workspace switcher を開いたときの初めの状態。ws は左のワークスペースの列にキーを置く（リーダーの w）。tab は右のタブの列（t）。
  * newTab は、tab と同じ列で、作るタブの種類を選ぶ間にしておく（n。#456）。
  */
 export type SwitcherStart = "ws" | "tab" | "newTab";
 
-/** コマンドが、画面の側に頼むこと（窓を出す・キーを向ける）。 */
+/** コマンドが、画面の側に頼むこと（Dialog を出す・キーを向ける）。 */
 export interface CommandUi {
   /** リサイズモードに入る・出る（Cmd+R / Ctrl+Shift+R） */
   toggleResizeMode(): void;
@@ -42,17 +42,17 @@ export interface CommandUi {
   toggleSidebar(): void;
   /** マシンのダイアログ（リーダーの m）を出す */
   openMachines(): void;
-  /** ワークスペースの窓を出す（リーダーの w は ws、t は tab、n は newTab） */
+  /** Workspace switcher を出す（リーダーの w は ws、t は tab、n は newTab） */
   openWorkspaceSwitcher(start: SwitcherStart): void;
-  /** 今出しているタブの種類 kind の窓を出す（リーダーの a。#457。窓を出し分けるのは ui/main-window/tab-window/TabWindows.tsx） */
+  /** 今出しているタブの種類 kind の Dialog を出す（リーダーの a。#457。Dialog を出し分けるのは ui/main-window/tab-window/TabWindows.tsx） */
   openTabWindow(kind: TabKind): void;
-  /** クリップボードの履歴の窓を出す */
+  /** クリップボードの履歴の Dialog を出す */
   openClipboardHistory(): void;
-  /** キャラクターを選ぶ窓（リーダーの c s）を出す */
+  /** キャラクターを選ぶ Dialog（リーダーの c s）を出す */
   openMascotPicker(): void;
-  /** キーの一覧（`?`）を出す。フォーカスがある場所（ツリー・変更一覧・動画・画像）のキーも出す */
+  /** キーの一覧（`?`）を出す。フォーカスがある場所（ツリー・CHANGES・動画・画像）のキーも出す */
   openKeyList(): void;
-  /** URL バー（新しいタブのページなら検索窓）にキーを向ける */
+  /** URL バー（新しいタブのページなら検索欄）にキーを向ける */
   focusUrlBar(): void;
   /** サイドバーの DB のタブの木にキーを向ける（#374。閉じているサイドバーは開く） */
   focusDbTree(): void;
@@ -68,7 +68,7 @@ export interface CommandUi {
 type BrowserCommandId = Extract<CommandId, `browser.${string}`>;
 
 /**
- * 今出しているブラウザのタブのページに行うコマンドと、その操作（ブラウザのタブの窓の操作と同じ）。
+ * 今出しているブラウザのタブのページに行うコマンドと、その操作（ブラウザのタブの Dialog の操作と同じ）。
  * 作る・閉じる・名前を変える・ブックマークの一覧は、ページに行う操作ではないので、runBrowser が先に受ける。
  * browser.* のコマンドを足したら、ここか runBrowser の先に受ける側に足す（どちらにも無ければ型で分かる）。
  */
@@ -170,8 +170,8 @@ export function createCommandRunner(deps: {
   const { changeScale } = deps.scale;
 
   /**
-   * パスキーを待たずに、タブのサイトを外のブラウザで開き、そのサイトのログインを待つ（#276。ブラウザのタブの窓の `s`・設定の近道の browser.login）。
-   * 許可サイト（passkey_sites）か・シークレットのタブかは殻が決め、使えなければ理由をお知らせに出す。
+   * パスキーを待たずに、タブのサイトを外のブラウザで開き、そのサイトのログインを待つ（#276。ブラウザのタブの Dialog の `s`・設定の Shortcut の browser.login）。
+   * 許可サイト（passkey_sites）か・シークレットのタブかは殻が決め、使えなければ理由を Notice に出す。
    */
   function loginExternally(tab: string, url: string) {
     let host = url;
@@ -200,9 +200,9 @@ export function createCommandRunner(deps: {
   }
 
   /**
-   * ブラウザのタブ t のページに、操作 op を行う。設定の近道（browser.*）と、ブラウザのタブの窓（リーダーの a。#459）の両方がここを通る
-   * （処理を 2 か所に書かない）。t を決めるのは呼ぶ側：近道は今出しているタブ、窓は開いたときのタブ。
-   * ページが要る操作（NEEDS_PAGE）を新しいタブのページに頼まれたら、何もしない（近道は currentPage が先に断り、窓は行に理由を出している）。
+   * ブラウザのタブ t のページに、操作 op を行う。設定の Shortcut（browser.*）と、ブラウザのタブの Dialog（リーダーの a。#459）の両方がここを通る
+   * （処理を 2 か所に書かない）。t を決めるのは呼ぶ側：Shortcut は今出しているタブ、Dialog は開いたときのタブ。
+   * ページが要る操作（NEEDS_PAGE）を新しいタブのページに頼まれたら、何もしない（Shortcut は currentPage が先に断り、Dialog は行に理由を出している）。
    */
   function browserOn(t: BrowserTab, op: BrowserOp) {
     if (NEEDS_PAGE.has(op) && isNewTab(t)) return;
@@ -250,14 +250,14 @@ export function createCommandRunner(deps: {
     }
   }
 
-  /** ブラウザのタブ tab（id）のページに、操作 op を行う（ブラウザのタブの窓。#459）。タブがもう無ければ何もしない。 */
+  /** ブラウザのタブ tab（id）のページに、操作 op を行う（ブラウザのタブの Dialog。#459）。タブがもう無ければ何もしない。 */
   function runBrowserOn(tab: string, op: BrowserOp) {
     const t = deps.browserTabs.tabs().tabs.find((x) => x.id === tab);
     if (t) browserOn(t, op);
   }
 
   /**
-   * 内蔵ブラウザのコマンド（リーダーの木の外の browser.*。既定の近道（読み込み直す・ページ内検索）と設定の近道から来る。
+   * 内蔵ブラウザのコマンド（リーダーの木の外の browser.*。既定の Shortcut（読み込み直す・ページ内検索）と設定の Shortcut から来る。
    * #459 までのリーダーの o のグループと、#456 までの o n・o N）。今出しているブラウザのタブに行う。
    */
   function runBrowser(id: BrowserCommandId) {
@@ -271,7 +271,7 @@ export function createCommandRunner(deps: {
         return;
       }
       // 閉じる・名前を変えるは、タブ共通の処理（tab.close・tab.rename と同じ）。ブラウザのタブを出しているときだけ動かす
-      // （設定の近道に書いた人の設定を壊さないために残したコマンド。#459）
+      // （設定の Shortcut に書いた人の設定を壊さないために残したコマンド。#459）
       case "browser.close":
         // 出していたタブを閉じたら、キーをターミナル（次に出すタブ）に向ける（closeTabRow）
         if (currentTab()) closeCurrentTab();
@@ -290,8 +290,8 @@ export function createCommandRunner(deps: {
   }
 
   /**
-   * 今出しているタブの種類（無ければ undefined）。リーダーの a で開く窓の種類を決めるのも、
-   * 出している窓を閉じるか（タブの種類が変わったか）を画面が決めるのも、これを使う（決め方を 2 か所に書かない）。
+   * 今出しているタブの種類（無ければ undefined）。リーダーの a で開く Dialog の種類を決めるのも、
+   * 出している Dialog を閉じるか（タブの種類が変わったか）を画面が決めるのも、これを使う（決め方を 2 か所に書かない）。
    */
   const shownKind = (): TabKind | undefined =>
     shownTabKind({
@@ -305,13 +305,13 @@ export function createCommandRunner(deps: {
     if (f) cannot(f.title, f.error);
   }
 
-  /** リーダーの `c s` の窓で選んだキャラクターに替える。できなかったときは、その理由を伝える */
+  /** リーダーの `c s` の Dialog で選んだキャラクターに替える。できなかったときは、その理由を伝える */
   function chooseMascot(name: string) {
     void deps.mascot.choose(name).then(failed);
   }
 
   /**
-   * コマンドの表（commands.ts）のコマンドを動かす。リーダーの葉と近道の両方がここに来る。
+   * コマンドの表（commands.ts）のコマンドを動かす。リーダーの葉と Shortcut の両方がここに来る。
    * キーの割り当ては表にあり、ここは動きだけを持つ。
    */
   function runCommand(c: Command) {
@@ -326,7 +326,7 @@ export function createCommandRunner(deps: {
       return;
     }
     // ページのタブ（ブラウザのタブ・DB のタブ）を出している間のペインの操作は、まずグリッドに戻す（見えないペインは動かさない）。
-    // ペインを閉じる（Cmd+W・設定の近道の pane.close）は、戻すだけで閉じない（どのペインが閉じるか見えないまま閉じないため）
+    // ペインを閉じる（Cmd+W・設定の Shortcut の pane.close）は、戻すだけで閉じない（どのペインが閉じるか見えないまま閉じないため）
     if (
       c.id.startsWith("pane.") &&
       c.id !== "pane.resize" &&
@@ -521,7 +521,7 @@ export function createCommandRunner(deps: {
         deps.tabs.openTabMove();
         break;
       case "tab.window": {
-        // 今出しているタブの種類の窓を開く。ターミナルのタブの窓を、DB・ブラウザのタブやタブの無い所で開かない（種類ごとに、その種類の窓だけ）
+        // 今出しているタブの種類の Dialog を開く。ターミナルのタブの Dialog を、DB・ブラウザのタブやタブの無い所で開かない（種類ごとに、その種類の Dialog だけ）
         const kind = shownKind();
         if (!kind)
           cannot(T("cannot.tabWindow.title"), T("cannot.tabWindow.noTab"));

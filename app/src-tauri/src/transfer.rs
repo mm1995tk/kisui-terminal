@@ -428,7 +428,7 @@ pub struct ReadRequest {
     name: String,
 }
 
-/// 並べた項目 1 つ。画面（transfer.ts の ListEntry）が窓に見せ、許されたら相手への一覧にする。
+/// 並べた項目 1 つ。画面（transfer.ts の ListEntry）が Window に見せ、許されたら相手への一覧にする。
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ListEntry {

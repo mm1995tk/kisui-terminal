@@ -2,7 +2,7 @@
 .empty {
   position: absolute;
   inset: 0;
-  /* ターミナルのグリッドより上、境界のつまみ（layout.css の .resizer、z-index 5）より下（ブラウザのページと同じ） */
+  /* ターミナルのグリッドより上、Pane border のつまみ（layout.css の .resizer、z-index 5）より下（ブラウザのページと同じ） */
   z-index: 4;
   display: flex;
   align-items: center;

@@ -1,21 +1,21 @@
-//! 窓から DB の接続（`[[db.connections]]`）を足す・直す・消す（#486。Tauri のコマンド `config_db_connections`・`config_db_connection_edit`）。
+//! Window から DB の接続（`[[db.connections]]`）を足す・直す・消す（#486。Tauri のコマンド `config_db_connections`・`config_db_connection_edit`）。
 //!
 //! 書くのは手元の `config.local.toml` だけ（config_list.rs の共通の処理）。手元の `kisui serve` は、DB の要求のたびに設定を読み直す
 //! （kisui の `config/db.go` の `LoadDB`）ので、書いたら止めずに次の一覧から効く。リモートのマシンの接続は、そのマシンの設定ファイルに書く
-//! （窓の殻が書けるのは、窓の動く PC のファイルだけ）。
+//! （Window の殻が書けるのは、Window の動く PC のファイルだけ）。
 //!
-//! - **窓で入れられる項目**：[`FORM_KEYS`]（名前・種類・ホスト・ポート・ユーザー・データベース・読み取り専用・TLS・TLS の認証局）。
-//!   環境の変種（`variants`）と権限（`human-permission`・`agent-permission`）は、設定ファイルに書く。それらを書いた項目は、窓では直さない
+//! - **Window で入れられる項目**：[`FORM_KEYS`]（名前・種類・ホスト・ポート・ユーザー・データベース・読み取り専用・TLS・TLS の認証局）。
+//!   環境の変種（`variants`）と権限（`human-permission`・`agent-permission`）は、設定ファイルに書く。それらを書いた項目は、Window では直さない
 //!   （[`DbEntry::editable`] が false。消すことはできる）。
 //! - **パスワードは書かない**：渡す形（[`DbFields`]）にパスワードの欄が無い。書き換えたあとの項目に `password` があれば、kisui と同じ理由で断る
 //!   （手で書いた項目を直すとき）。パスワードは今までどおり、つなぐときに聞く（kisui serve のメモリだけ）か、キーチェーン・`~/.pgpass`・`~/.my.cnf`。
 //! - **`config.toml` の接続は変えない**：同じ名前の項目を `config.local.toml` に足すと、読むときに `config.toml` の項目に代わる
-//!   （項目ごとの重ね方。#483）。それは `config.toml` の接続を窓から変えることなので、断る（[`EditError::Fixed`]）。
-//!   ただし、手で書いてある上書き（`config.local.toml` の、`config.toml` と同じ名前の項目）は `config.local.toml` の項目なので、窓で直す・消すことができる
+//!   （項目ごとの重ね方。#483）。それは `config.toml` の接続を Window から変えることなので、断る（[`EditError::Fixed`]）。
+//!   ただし、手で書いてある上書き（`config.local.toml` の、`config.toml` と同じ名前の項目）は `config.local.toml` の項目なので、Window で直す・消すことができる
 //!   （断らない。[`DbEntry::overrides`] で印を付け、画面は消す確かめで「`config.toml` の接続に戻る」と言う）。
 //! - **確かめ**：[`check_entry`] は kisui の `config/db.go` の `dbConnection`（変種の無い項目）と同じ間違いを、同じキーとコード（`config.err.*`）で返す。
-//!   同じ結果になることは、両方のテストが同じ例（`config_db_cases.json`）で確かめる。ほかに窓だけの確かめが 3 つある：変種・権限のキー
-//!   （`gui.db.fileonly`。窓では確かめられない）、`host` に URL・`@`・接続の文字列を書くこと（`gui.db.hosturl`）、ほかの欄に URL を書くこと
+//!   同じ結果になることは、両方のテストが同じ例（`config_db_cases.json`）で確かめる。ほかに Window だけの確かめが 3 つある：変種・権限のキー
+//!   （`gui.db.fileonly`。Window では確かめられない）、`host` に URL・`@`・接続の文字列を書くこと（`gui.db.hosturl`）、ほかの欄に URL を書くこと
 //!   （`gui.db.url`）。後の 2 つは、`user:password@host` のように資格情報を書いてしまうのを防ぐ。間違いは書かずに返し、画面が自分の言葉で出す。
 //!
 //! 返す値・間違いには、入れた値（名前とキーのほか）を入れない。パスワードはもともと通らない。
@@ -27,7 +27,7 @@ use serde::{Deserialize, Serialize};
 use crate::config;
 use crate::config_list::{self, Edit, EditError, DB_CONNECTIONS};
 
-/// 窓で入れられるキー（`[[db.connections]]` の項目の）。これだけを書いた項目を、窓で直せる。
+/// Window で入れられるキー（`[[db.connections]]` の項目の）。これだけを書いた項目を、Window で直せる。
 pub const FORM_KEYS: [&str; 9] = [
     "name",
     "kind",
@@ -40,7 +40,7 @@ pub const FORM_KEYS: [&str; 9] = [
     "tls-ca",
 ];
 
-/// kisui が知っているが、窓では入れないキー（設定ファイルに書く）。
+/// kisui が知っているが、Window では入れないキー（設定ファイルに書く）。
 const FILE_ONLY_KEYS: [&str; 3] = ["variants", "human-permission", "agent-permission"];
 
 /// kisui（`config/db.go` の `dbKeys`）が知っているキー。間違いの文に並べる順。
@@ -65,7 +65,7 @@ const TLS_MODES: [&str; 4] = ["prefer", "disable", "require", "verify"];
 /// 名前の長さの上限（字の数。kisui の `dbNameMax`）。
 const NAME_MAX: usize = 100;
 
-/// 項目の間違い 1 つ。`key` は項目の中のキー、`code` は kisui と同じ `config.err.*`（窓だけの確かめは `gui.db.*`）、`args` は文に入れる値。
+/// 項目の間違い 1 つ。`key` は項目の中のキー、`code` は kisui と同じ `config.err.*`（Window だけの確かめは `gui.db.*`）、`args` は文に入れる値。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Problem {
     pub key: String,
@@ -82,7 +82,7 @@ fn problem(key: &str, code: &str, args: &[&str]) -> Problem {
     }
 }
 
-/// 窓の入力欄の中身（画面の `DbConnectionFields`。app/src/features/db/connectionForm.ts）。どれも入れた字のままで、前後の空白はここで除く。
+/// Window の入力欄の中身（画面の `DbConnectionFields`。app/src/features/db/connectionForm.ts）。どれも入れた字のままで、前後の空白はここで除く。
 /// 空の欄は「書かない」（kisui の既定になる：ホストは localhost、ポートは種類の既定、TLS は prefer）。
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
@@ -137,13 +137,13 @@ impl DbFields {
     }
 }
 
-/// 窓の DB の接続の書き込み 1 つ（画面の `DbConnectionEdit`）。
+/// Window の DB の接続の書き込み 1 つ（画面の `DbConnectionEdit`）。
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum DbEdit {
     /// 足す
     Add { connection: DbFields },
-    /// 名前が `name` の項目を、`connection` にする（名前も変えられる）。窓で入れないキーは残す
+    /// 名前が `name` の項目を、`connection` にする（名前も変えられる）。Window で入れないキーは残す
     Update { name: String, connection: DbFields },
     /// 名前が `name` の項目を消す（変種も一緒に）
     Remove { name: String },
@@ -162,18 +162,18 @@ pub struct DbEntry {
     pub read_only: bool,
     pub tls: String,
     pub tls_ca: String,
-    /// 窓で直せるか（[`FORM_KEYS`] だけを、kisui の読む型で書いた項目）。false でも消すことはできる
+    /// Window で直せるか（[`FORM_KEYS`] だけを、kisui の読む型で書いた項目）。false でも消すことはできる
     pub editable: bool,
     /// `config.toml` の同じ名前の接続に代わっている（上書き）。消すと `config.toml` の接続に戻る
     pub overrides: bool,
 }
 
-/// 窓が知る、手元の DB の接続。画面は、接続を選ぶ窓で手元のマシンの接続が直せるかを、これで決める。
+/// Window が知る、手元の DB の接続。画面は、接続を選ぶ Window で手元のマシンの接続が直せるかを、これで決める。
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 pub struct DbConnections {
     /// `config.local.toml` の項目（書いた順）
     pub local: Vec<DbEntry>,
-    /// `config.toml` の項目の名前（窓では変えられない。`config.local.toml` に同じ名前があれば、そちらが代わっているので入れない）
+    /// `config.toml` の項目の名前（Window では変えられない。`config.local.toml` に同じ名前があれば、そちらが代わっているので入れない）
     pub fixed: Vec<String>,
 }
 
@@ -200,7 +200,7 @@ fn name_of(e: &toml::Table) -> Option<String> {
         .filter(|s| !s.is_empty())
 }
 
-/// `config.local.toml` の項目を、窓の入力欄の形にする。
+/// `config.local.toml` の項目を、Window の入力欄の形にする。
 fn entry_view(e: &toml::Table) -> DbEntry {
     let s = |k: &str| {
         e.get(k)
@@ -236,7 +236,7 @@ fn entry_view(e: &toml::Table) -> DbEntry {
     }
 }
 
-/// 設定のフォルダ `dir` の 2 つのファイルの中身から、窓が知る手元の DB の接続を作る。
+/// 設定のフォルダ `dir` の 2 つのファイルの中身から、Window が知る手元の DB の接続を作る。
 fn view(dir: &Path, base_text: &str, local_text: &str) -> Result<DbConnections, String> {
     let base: Vec<String> = entries_of(&dir.join(config::FILES[0]), base_text)?
         .iter()
@@ -276,15 +276,15 @@ fn base(dir: &Path) -> Result<(String, Vec<String>), EditError> {
     Ok((text, names))
 }
 
-/// 設定のフォルダ `dir` の、窓が知る手元の DB の接続。
+/// 設定のフォルダ `dir` の、Window が知る手元の DB の接続。
 pub fn list(dir: &Path) -> Result<DbConnections, EditError> {
     let (base_text, _) = base(dir)?;
     let local_text = read(dir, config::FILES[1])?;
     view(dir, &base_text, &local_text).map_err(EditError::File)
 }
 
-/// 設定のフォルダ `dir` の `config.local.toml` の `[[db.connections]]` に、窓の書き込み `e` を行い、書いたあとの手元の DB の接続を返す。
-/// 書き換えたあとの項目を確かめ（[`check_entry`] と窓だけの確かめ）、間違いがあれば何も書かない（[`EditError::Invalid`]）。
+/// 設定のフォルダ `dir` の `config.local.toml` の `[[db.connections]]` に、Window の書き込み `e` を行い、書いたあとの手元の DB の接続を返す。
+/// 書き換えたあとの項目を確かめ（[`check_entry`] と Window だけの確かめ）、間違いがあれば何も書かない（[`EditError::Invalid`]）。
 pub fn edit(dir: &Path, e: DbEdit) -> Result<DbConnections, EditError> {
     let (base_text, fixed) = base(dir)?;
     let is_fixed = |n: &str| fixed.iter().any(|f| f == n.trim());
@@ -316,13 +316,13 @@ pub fn edit(dir: &Path, e: DbEdit) -> Result<DbConnections, EditError> {
         Err(EditError::Missing(k)) if edit_key.as_deref().is_some_and(is_fixed) => {
             Err(EditError::Fixed(k.trim().to_string()))
         }
-        // 書き換えたあとの項目の間違い（窓で入れないキーを手で書いた項目を直そうとした、など）
+        // 書き換えたあとの項目の間違い（Window で入れないキーを手で書いた項目を直そうとした、など）
         Err(EditError::Rejected(_)) if !found.is_empty() => Err(EditError::Invalid(found)),
         Err(e) => Err(e),
     }
 }
 
-/// 窓の書き込みを、共通の処理（config_list.rs）の書き込みにする。あわせて、書いたあとに確かめる項目の名前（消すときは無し）を返す。
+/// Window の書き込みを、共通の処理（config_list.rs）の書き込みにする。あわせて、書いたあとに確かめる項目の名前（消すときは無し）を返す。
 /// 入れた値は書く前に確かめ、`config.toml` の接続を足す（かぶせる）・その名前に変えるのは断る（`is_fixed` は `config.toml` の名前か）。
 fn list_edit(
     e: DbEdit,
@@ -364,7 +364,7 @@ fn one(p: Problem) -> EditError {
     EditError::Invalid(vec![p])
 }
 
-/// 書く前に、窓で入れた項目を確かめる。
+/// 書く前に、Window で入れた項目を確かめる。
 fn pre_check(entry: &toml::Table) -> Result<(), EditError> {
     let probs = check_all(entry);
     if probs.is_empty() {
@@ -374,9 +374,9 @@ fn pre_check(entry: &toml::Table) -> Result<(), EditError> {
     }
 }
 
-/// kisui と同じ確かめ（[`check_entry`]）と、窓だけの確かめ。
+/// kisui と同じ確かめ（[`check_entry`]）と、Window だけの確かめ。
 pub fn check_all(e: &toml::Table) -> Vec<Problem> {
-    // 窓で確かめられないキー（権限の名前は [db.permissions] を、変種は変種ごとの値を見る）。設定ファイルで直す。
+    // Window で確かめられないキー（権限の名前は [db.permissions] を、変種は変種ごとの値を見る）。設定ファイルで直す。
     // 変種のある項目は、ユーザーなどを変種に書けるので、ほかのキーの確かめも当てにならない。password だけは添える
     let mut out: Vec<Problem> = FILE_ONLY_KEYS
         .iter()
@@ -390,7 +390,7 @@ pub fn check_all(e: &toml::Table) -> Vec<Problem> {
         return out;
     }
     out.extend(check_entry(e));
-    // 接続の URL や接続の文字列を貼ると、中のパスワードまで平文で書いてしまう（kisui は形を確かめないので、窓で断る）。
+    // 接続の URL や接続の文字列を貼ると、中のパスワードまで平文で書いてしまう（kisui は形を確かめないので、Window で断る）。
     // host は通す形を決める：/ で始まるソケットのパスか、空白・=・@ を含まないホスト名・アドレス（`host=db password=…` の形も止める）
     if let Some(h) = e.get("host").and_then(toml::Value::as_str) {
         if !host_shape(h) {
@@ -409,7 +409,7 @@ pub fn check_all(e: &toml::Table) -> Vec<Problem> {
     out
 }
 
-/// 窓が書いてよい host の形か：`/` で始まるソケットのパス（URL・`@` を含まない）か、空白・`=`・`@`・`/` を含まないホスト名・アドレス。
+/// Window が書いてよい host の形か：`/` で始まるソケットのパス（URL・`@` を含まない）か、空白・`=`・`@`・`/` を含まないホスト名・アドレス。
 fn host_shape(h: &str) -> bool {
     if h.contains("://") || h.contains('@') {
         return false;
@@ -461,7 +461,7 @@ fn home_or_abs(s: &str) -> bool {
 }
 
 /// `[[db.connections]]` の項目 1 つ（変種の無いもの）の間違い。kisui の `config/db.go` の `dbConnection` と同じキー・コード・値を、
-/// 同じ順で返す（権限は無いものとして読む。変種と権限のキーは、kisui の確かめにそのまま任せず [`check_all`] が窓の理由にする）。
+/// 同じ順で返す（権限は無いものとして読む。変種と権限のキーは、kisui の確かめにそのまま任せず [`check_all`] が Window の理由にする）。
 pub fn check_entry(e: &toml::Table) -> Vec<Problem> {
     let mut d = Reader {
         e,
@@ -489,7 +489,7 @@ pub fn check_entry(e: &toml::Table) -> Vec<Problem> {
             d.bad("kind", "config.err.oneof", &["postgres, mysql"]);
         }
     }
-    // 権限（窓では書かない。権限の一覧を持たないので、ここでは読まない）
+    // 権限（Window では書かない。権限の一覧を持たないので、ここでは読まない）
     let w = d.where_keys();
     // fill：user だけは既定が無い
     if w.user.is_none() && !e.contains_key("user") {
@@ -499,7 +499,7 @@ pub fn check_entry(e: &toml::Table) -> Vec<Problem> {
     d.probs
 }
 
-/// kisui の `dbWhere`（の、窓が書くキーの分）。書いていない・間違っているキーは None。
+/// kisui の `dbWhere`（の、Window が書くキーの分）。書いていない・間違っているキーは None。
 struct Where {
     host: Option<String>,
     user: Option<String>,
@@ -679,7 +679,7 @@ mod tests {
         );
     }
 
-    // config.toml の接続は窓から変えられない（足す・直す・消す・名前を変えてかぶせる）
+    // config.toml の接続は Window から変えられない（足す・直す・消す・名前を変えてかぶせる）
     #[test]
     fn fixed_connections() {
         let d = temp_dir("fixed");
@@ -815,7 +815,7 @@ mod tests {
         assert!(!d.join("config.local.toml").exists());
     }
 
-    // 窓で入れないキー（権限・変種・password）を手で書いた項目：直せない印を付け、直そうとしたら断る。消すことはできる
+    // Window で入れないキー（権限・変種・password）を手で書いた項目：直せない印を付け、直そうとしたら断る。消すことはできる
     #[test]
     fn hand_written_entries() {
         let d = temp_dir("hand");

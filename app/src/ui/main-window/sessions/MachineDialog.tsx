@@ -1,7 +1,7 @@
 // マシンのダイアログ（リーダーの `m`）。すべてのマシンを、つながりの状態とワークスペースの数と一緒に並べ、
 // マシンを足す・名前を変える・外す・切る・つなぎ直す（今すぐつなぐ）・ターミナルの始め方を変えるを、キーで行う。
-// Enter は、選んだマシンを設定したターミナルのタブ作成を、ワークスペースの窓で始める（#461。窓を開くのは呼んだ側）。
-// 足す窓と、ターミナルの始め方（始めるフォルダとシェル）を変える窓は、これを出したまま、その上に出す（呼んだ側。SessionDialogs.tsx）。
+// Enter は、選んだマシンを設定したターミナルのタブ作成を、Workspace switcher で始める（#461。Dialog を開くのは呼んだ側）。
+// 足す Dialog と、ターミナルの始め方（始めるフォルダとシェル）を変える Dialog は、これを出したまま、その上に出す（呼んだ側。SessionDialogs.tsx）。
 // 名前は、選んだ行をその場で入力欄にして変える。
 // キーの決まりは machineList.ts と docs/key-design.md。
 import { T } from "../../../i18n/index.ts";
@@ -107,14 +107,14 @@ function MachineRowItem(props: {
 
 /**
  * マシンのダイアログ。rows のマシンを並べ、選んだマシンへの操作のキー（足す・名前を変える・外す・切る・つなぎ直す）を受ける。
- * 操作そのものと、足す窓を出すのは呼んだ側（onAdd・onAct）。名前を変える（onAct の "rename"）と、呼んだ側が renaming を渡し、その行が入力欄になる。
+ * 操作そのものと、足す Dialog を出すのは呼んだ側（onAdd・onAct）。名前を変える（onAct の "rename"）と、呼んだ側が renaming を渡し、その行が入力欄になる。
  * 閉じるのも呼んだ側で、このダイアログは Esc と「閉じる」で onCancel を呼ぶだけ（出すのをやめるのは呼んだ側）。
  */
 export function MachineDialog(props: {
   rows: MachineRow[];
   /** 開いたときに選んでおくマシン（今のマシン） */
   initial?: string;
-  /** 足す（窓は呼んだ側が出す） */
+  /** 足す（Dialog は呼んだ側が出す） */
   onAdd: () => void;
   /** 今のワークスペースがあるか（無ければ Enter のタブ作成は始めず、理由を出す） */
   hasWorkspace: boolean;
@@ -168,7 +168,7 @@ export function MachineDialog(props: {
         setNote(why);
         return;
       }
-      // ワークスペースの窓を開く Enter を、ほかのキーの受け手に届かせない（開いた窓の作成の確定まで伝わらないように）
+      // Workspace switcher を開く Enter を、ほかのキーの受け手に届かせない（開いた Dialog の作成の確定まで伝わらないように）
       if (k.action === "newTab") e.stopPropagation();
       props.onAct(k.action, r);
     }

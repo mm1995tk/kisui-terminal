@@ -184,7 +184,7 @@ export type PaneEvent =
   | ({ kind: "open-tab" } & PaneOpenRequest)
   /** `kisui pane … --machine`（#344）。別のマシンのペインへの頼みを中継して答える（reportPaneRelayed）。同じく欄の中のコマンドの知らせ */
   | ({ kind: "relay" } & PaneRelayRequest)
-  /** 頼んだ serve が、pane.relay の頼み id を取り下げた（コマンドが止められた・時間切れ）。人に聞いている窓を閉じる */
+  /** 頼んだ serve が、pane.relay の頼み id を取り下げた（コマンドが止められた・時間切れ）。人に聞いている Dialog を閉じる */
   | { kind: "relay-cancel"; id: string }
   /** Window に頼む、Pane の中のコマンド（`kisui tab` など。#511）。行って答える（reportWindowRan） */
   | ({ kind: "window-run" } & WindowRunRequest)
@@ -228,7 +228,7 @@ export class Session {
   }
   /**
    * 今つながっている kisui serve が、pane.relay の答えを人が決めるまで待ち、待つのをやめたら pane.relayCancel を知らせるか
-   * （capabilities の pane.relay.wait）。無い serve の頼みには、人に聞く窓を出さない（paneRelay.ts）。
+   * （capabilities の pane.relay.wait）。無い serve の頼みには、人に聞く Dialog を出さない（paneRelay.ts）。
    */
   get canWaitRelay(): boolean {
     return !!this.conn && hasCapability(this.conn.hello, "pane.relay.wait");
@@ -472,7 +472,7 @@ export class Session {
   }
 
   /**
-   * このマシンのターミナルのタブそれぞれが入っている、窓のワークスペースの id と名前を、今の接続の serve に知らせる（gws.set。#502）。
+   * このマシンのターミナルのタブそれぞれが入っている、Window のワークスペースの id と名前を、今の接続の serve に知らせる（gws.set。#502）。
    * つながっていない・古い serve（gws.set を知らない）なら何もしない（`kisui pane list` にワークスペースが出ないだけ）。
    * 同じ接続に、前と同じ中身は送らない（つなぎ直したら送り直す）。
    * 送れなかったら忘れるだけで、ここからは送り直さない。次に呼ばれたとき（ワークスペースの記録・タブの一覧・つながりのどれかが
@@ -606,7 +606,7 @@ export class Session {
     const c = this.conn;
     this.conn = undefined;
     this.setState({ kind: "closed" });
-    // 入れている最中なら取り消す（質問の窓が残ったり、パスワードの聞き直しで入れ続けたりしないように）
+    // 入れている最中なら取り消す（質問の Dialog が残ったり、パスワードの聞き直しで入れ続けたりしないように）
     const installId = this.installId;
     this.installId = undefined;
     if (installId) void this.api.installCancel(installId).catch(() => {});

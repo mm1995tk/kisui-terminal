@@ -170,7 +170,7 @@ func TestDBElevate(t *testing.T) {
 		t.Errorf("after the time: %+v", i.Human)
 	}
 
-	// エージェントの権限を強めるのも、窓の要求。
+	// エージェントの権限を強めるのも、Window の要求。
 	if _, err := e.elevate("db.elevate", map[string]any{"connection": "shop", "variant": "prod", "actor": "agent", "duration": "30m"}); err != nil {
 		t.Fatal(err)
 	}

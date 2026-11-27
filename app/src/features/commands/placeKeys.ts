@@ -1,11 +1,11 @@
-// 場所のキー（docs/key-design.md の 5 章）の定義。ファイルツリー・変更一覧・動画のペイン・画像のペイン・窓（ダイアログ）の
+// 場所のキー（docs/key-design.md の 5 章）の定義。ファイルツリー・CHANGES・動画のペイン・画像のペイン・Dialog（ダイアログ）の
 // キーを、リーダーの木（commands.ts）と同じ流儀で、ここ 1 か所に書く。`?` の一覧（KeyListDialog.tsx）はこの表から作る。
 // 実際にキーを受ける判定は、場所ごとのファイル（features/file-tree/keys.ts・features/changes/keys.ts・features/terminal/media.ts・ui/main-window/content/media/imageView.ts・
 // features/sessions/machineList.ts・features/browser/bookmarks.ts・features/clipboard/history.ts・ui/main-window/workspaces/switcherKey.ts・
 // ui/main-window/tab-window/terminalWindowKey.ts・ui/main-window/tab-window/dbWindowKey.ts・ui/main-window/tab-window/browserWindowKey.ts・features/db/keys.ts）にあり、
-// placeKeys.test.ts（切り替える窓は switcherKey.test.ts、ターミナルのタブの窓は terminalWindowKey.test.ts、DB のタブの窓は dbWindowKey.test.ts、ブラウザのタブの窓は browserWindowKey.test.ts）が「表に書いたキーを、その場所の判定が受ける」ことを確かめる。だから案内と受けるキーはずれない。
-// 窓の下の段（共通フッタ）に出す今効く操作も、ここの表の行から作る（placeItem。決まりは docs/design/ui-ux-review.md の「ヒントとヘルプ」）。
-// まだ新しい形にしていない窓（クリップボードの履歴・DB の履歴・DB の権限を強める窓）は、基本操作の並びを basicHints で出す。
+// placeKeys.test.ts（Workspace switcher は switcherKey.test.ts、ターミナルのタブの Dialog は terminalWindowKey.test.ts、DB のタブの Dialog は dbWindowKey.test.ts、ブラウザのタブの Dialog は browserWindowKey.test.ts）が「表に書いたキーを、その場所の判定が受ける」ことを確かめる。だから案内と受けるキーはずれない。
+// Dialog の Key footer（共通フッタ）に出す今効く操作も、ここの表の行から作る（placeItem。決まりは docs/design/ui-ux-review.md の「ヒントとヘルプ」）。
+// まだ新しい形にしていない Dialog（クリップボードの履歴・DB の履歴・DB の権限を強める Dialog）は、基本操作の並びを basicHints で出す。
 // 場所のキーはリーダーには載せない（その場所の中だけで効く）。キーを足すときは、判定と、ここの表と、docs/key-design.md を直す。
 // DOM には触らない（node --test で確かめられる）。
 
@@ -190,7 +190,7 @@ const buildPlaceKeys = (): Record<Place, PlaceKeys> => ({
       row("↓ ↑", T("place.list.step"), []),
     ],
   },
-  // 内蔵ブラウザのブックマークの一覧（ブラウザのタブの窓の B。#205）。判定は features/browser/bookmarks.ts の bookmarkKey（修飾キー付きのものは probes に書けないので、
+  // 内蔵ブラウザのブックマークの一覧（ブラウザのタブの Dialog の B。#205）。判定は features/browser/bookmarks.ts の bookmarkKey（修飾キー付きのものは probes に書けないので、
   // bookmarks.test.ts で確かめる）
   bookmarks: {
     title: T("place.bookmarks.title"),
@@ -206,7 +206,7 @@ const buildPlaceKeys = (): Record<Place, PlaceKeys> => ({
       row("Esc", T("place.row.close"), []),
     ],
   },
-  // 一覧から 1 つ選ぶ窓（マシン・移す先のワークスペース・ワークスペースの種類・キャラクター）。判定は features/sessions/machineList.ts の pickerKey
+  // 一覧から 1 つ選ぶ Dialog（マシン・移す先のワークスペース・ワークスペースの種類・キャラクター）。判定は features/sessions/machineList.ts の pickerKey
   picker: {
     title: T("place.picker.title"),
     lead: T("place.picker.lead"),
@@ -229,7 +229,7 @@ const buildPlaceKeys = (): Record<Place, PlaceKeys> => ({
       row("Esc", T("place.picker.cancel"), []),
     ],
   },
-  // DB の接続を選ぶ窓（#347。足す・直す・消すは #486）。判定は features/db/pickerKeys.ts の dbPickerKey
+  // DB の接続を選ぶ Dialog（#347。足す・直す・消すは #486）。判定は features/db/pickerKeys.ts の dbPickerKey
   dbPicker: {
     title: T("place.dbPicker.title"),
     lead: T("place.dbPicker.lead"),
@@ -255,7 +255,7 @@ const buildPlaceKeys = (): Record<Place, PlaceKeys> => ({
       row("Esc", T("place.picker.cancel"), []),
     ],
   },
-  // ワークスペースを切り替える窓（リーダーの w）のワークスペースの列。判定は ui/main-window/workspaces/switcherKey.ts の switcherKey
+  // Workspace switcher（リーダーの w）のワークスペースの列。判定は ui/main-window/workspaces/switcherKey.ts の switcherKey
   // （表のキーを判定が受けることは、switcherKey.test.ts が確かめる）
   switcher: {
     title: T("place.switcher.title"),
@@ -278,7 +278,7 @@ const buildPlaceKeys = (): Record<Place, PlaceKeys> => ({
       row("Esc", T("place.row.close"), []),
     ],
   },
-  // 同じ窓のタブの列
+  // 同じ Dialog のタブの列
   switcherTabs: {
     title: T("place.switcherTabs.title"),
     lead: T("place.switcherTabs.lead"),
@@ -300,7 +300,7 @@ const buildPlaceKeys = (): Record<Place, PlaceKeys> => ({
       row("Esc", T("place.row.close"), []),
     ],
   },
-  // ターミナルのタブの窓（リーダーの a。#457）。判定は ui/main-window/tab-window/terminalWindowKey.ts の terminalWindowKey
+  // ターミナルのタブの Dialog（リーダーの a。#457）。判定は ui/main-window/tab-window/terminalWindowKey.ts の terminalWindowKey
   // （表のキーを判定が受けることは、terminalWindowKey.test.ts が確かめる）
   termWindow: {
     title: T("place.termWindow.title"),
@@ -326,7 +326,7 @@ const buildPlaceKeys = (): Record<Place, PlaceKeys> => ({
       row("Esc", T("place.row.close"), []),
     ],
   },
-  // DB のタブの窓（リーダーの a。#458）。判定は ui/main-window/tab-window/dbWindowKey.ts の dbWindowKey
+  // DB のタブの Dialog（リーダーの a。#458）。判定は ui/main-window/tab-window/dbWindowKey.ts の dbWindowKey
   // （表のキーを判定が受けることは、dbWindowKey.test.ts が確かめる）
   dbWindow: {
     title: T("place.dbWindow.title"),
@@ -353,8 +353,8 @@ const buildPlaceKeys = (): Record<Place, PlaceKeys> => ({
       row("Esc", T("place.row.close"), []),
     ],
   },
-  // ブラウザのタブの窓（リーダーの a。#459）。判定は ui/main-window/tab-window/browserWindowKey.ts の browserWindowKey
-  // （表のキーを判定が受けることは、browserWindowKey.test.ts が確かめる）。字ごとの操作の名前は、窓の行と同じ（features/browser/window.ts）
+  // ブラウザのタブの Dialog（リーダーの a。#459）。判定は ui/main-window/tab-window/browserWindowKey.ts の browserWindowKey
+  // （表のキーを判定が受けることは、browserWindowKey.test.ts が確かめる）。字ごとの操作の名前は、Dialog の行と同じ（features/browser/window.ts）
   browserWindow: {
     title: T("place.browserWindow.title"),
     lead: T("place.browserWindow.lead"),
@@ -382,7 +382,7 @@ const buildPlaceKeys = (): Record<Place, PlaceKeys> => ({
       row("Esc", T("place.row.close"), []),
     ],
   },
-  // クリップボードの履歴の窓（リーダーの y）。判定は features/clipboard/history.ts の historyKey（修飾キー付きのものは probes に書けないので、
+  // クリップボードの履歴の Dialog（リーダーの y）。判定は features/clipboard/history.ts の historyKey（修飾キー付きのものは probes に書けないので、
   // history.test.ts で確かめる）
   history: {
     title: T("place.history.title"),
@@ -421,7 +421,7 @@ const buildPlaceKeys = (): Record<Place, PlaceKeys> => ({
       row("[ / ]", T("place.dbResult.step"), ["[", "]"]),
     ],
   },
-  // DB のタブの履歴の窓（DB のタブの窓の h。#349・#458）。判定は features/db/keys.ts の dbHistoryKey（修飾キー付きのものは probes に書けないので、
+  // DB のタブの履歴の Dialog（DB のタブの Dialog の h。#349・#458）。判定は features/db/keys.ts の dbHistoryKey（修飾キー付きのものは probes に書けないので、
   // keys.test.ts で確かめる）
   dbHistory: {
     title: T("place.dbHistory.title"),
@@ -508,7 +508,7 @@ const buildPlaceKeys = (): Record<Place, PlaceKeys> => ({
 let built: { lang: Lang; keys: Record<Place, PlaceKeys> } | undefined;
 
 /**
- * 場所ごとの表を、今の言語で作る（呼ぶたびに引き直す。言語が変わらなければ同じものを返す）。言語を決める前に、この表を読み込む import（index.tsx の履歴の窓の
+ * 場所ごとの表を、今の言語で作る（呼ぶたびに引き直す。言語が変わらなければ同じものを返す）。言語を決める前に、この表を読み込む import（index.tsx の履歴の Dialog の
  * 部品からの import など）が通っても英語に固まらないよう、読み込んだときには作らず、使うときに作る（言語が変われば作り直す）。
  */
 export function placeKeys(): Record<Place, PlaceKeys> {
@@ -518,8 +518,8 @@ export function placeKeys(): Record<Place, PlaceKeys> {
 }
 
 /**
- * 真ん中に出す窓（ModalCard）の場所。窓が出ている間はリーダーに入れないので、
- * `?` の一覧は、リーダーの木を出さずに、その窓のキーだけを出す（KeyListDialog.tsx）。
+ * 真ん中に出す Dialog（ModalCard）の場所。Dialog が出ている間はリーダーに入れないので、
+ * `?` の一覧は、リーダーの木を出さずに、その Dialog のキーだけを出す（KeyListDialog.tsx）。
  */
 const WINDOW_PLACES = new Set<Place>([
   "machines",
@@ -535,14 +535,14 @@ const WINDOW_PLACES = new Set<Place>([
   "dbHistory",
 ]);
 
-/** 窓（ModalCard）の場所か。 */
+/** Dialog（ModalCard）の場所か。 */
 export function isWindowPlace(p: Place): boolean {
   return WINDOW_PLACES.has(p);
 }
 
 /**
- * 窓の下の段（共通フッタ）の 1 項目（今効く操作 1 つ）。keys は出すキー、label は操作の名前（日本語の窓でも英語。
- * i18n のキーは `<窓>.keys.<名前>`）。probes は、その操作で窓の判定が受けるはずのキー（KeyboardEvent.key。テストで使う）。
+ * Dialog の Key footer（共通フッタ）の 1 項目（今効く操作 1 つ）。keys は出すキー、label は操作の名前（日本語の Dialog でも英語。
+ * i18n のキーは `<Dialog>.keys.<名前>`）。probes は、その操作で Dialog の判定が受けるはずのキー（KeyboardEvent.key。テストで使う）。
  * act は、押せるボタンにする項目の印（呼んだ側が、押したときの動きに結ぶ。作るタブの種類など）。A は act の型（押せる項目が無ければ never）。
  */
 export interface FooterItem<A extends string = never> {
@@ -553,8 +553,8 @@ export interface FooterItem<A extends string = never> {
 }
 
 /**
- * 窓の下の段の 1 行。title は、その行の操作が何に効くか（「選んでいるタブ」など。説明の文なので、日本語の窓では日本語）。
- * items が空でも行は出す（見出しだけ。下の段が出たり消えたりしないように）。決まりは docs/design/ui-ux-review.md の「ヒントとヘルプ」。
+ * Dialog の Key footer の 1 行。title は、その行の操作が何に効くか（「選んでいるタブ」など。説明の文なので、日本語の Dialog では日本語）。
+ * items が空でも行は出す（見出しだけ。Key footer が出たり消えたりしないように）。決まりは docs/design/ui-ux-review.md の「ヒントとヘルプ」。
  */
 export interface FooterRow<A extends string = never> {
   title: string;
@@ -562,8 +562,8 @@ export interface FooterRow<A extends string = never> {
 }
 
 /**
- * どの窓でも同じ意味のキー（選ぶ j k・列を移る h l・矢印・決める Enter・やめる／閉じる Esc・`?` の一覧・Ctrl+J / Ctrl+K）。
- * 窓の下の段には出さない（意味が変わる間を除く）。`?` の一覧（placeKeys()）には出す。
+ * どの Dialog でも同じ意味のキー（選ぶ j k・列を移る h l・矢印・決める Enter・やめる／閉じる Esc・`?` の一覧・Ctrl+J / Ctrl+K）。
+ * Dialog の Key footer には出さない（意味が変わる間を除く）。`?` の一覧（placeKeys()）には出す。
  */
 export const COMMON_KEYS: ReadonlySet<string> = new Set([
   "j",
@@ -580,8 +580,8 @@ export const COMMON_KEYS: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * 場所 place の `?` の一覧の表から、keys の行（書き方が同じ行）を引いて、窓の下の段の 1 項目にする。
- * 出すキーと、テストで判定に通すキー（probes）は表の行のものを使うので（行が「h / ←」のように 1 つの操作に複数の書き方を持つときは、show で出すキーを選ぶ）、下の段・`?` の一覧・判定がずれない。表に無ければ投げる（書き間違い）。
+ * 場所 place の `?` の一覧の表から、keys の行（書き方が同じ行）を引いて、Dialog の Key footer の 1 項目にする。
+ * 出すキーと、テストで判定に通すキー（probes）は表の行のものを使うので（行が「h / ←」のように 1 つの操作に複数の書き方を持つときは、show で出すキーを選ぶ）、Key footer・`?` の一覧・判定がずれない。表に無ければ投げる（書き間違い）。
  */
 export function placeItem(
   place: Place,
@@ -595,26 +595,26 @@ export function placeItem(
 }
 
 /**
- * 選ぶだけの小さな窓（一覧から 1 つ選ぶ窓）の下の段。窓だけの操作は無い（選ぶ・決める・やめるは、どの窓でも同じキー）ので、
- * 何を選ぶかの見出しだけの 1 行を出す（下の段はいつも出す。決まりは docs/design/ui-ux-review.md の「ヒントとヘルプ」の 11）。
+ * 選ぶだけの小さな Dialog（一覧から 1 つ選ぶ Dialog）の Key footer。Dialog だけの操作は無い（選ぶ・決める・やめるは、どの Dialog でも同じキー）ので、
+ * 何を選ぶかの見出しだけの 1 行を出す（Key footer はいつも出す。決まりは docs/design/ui-ux-review.md の「ヒントとヘルプ」の 11）。
  */
 export function pickOnlyRows(title: string): FooterRow[] {
   return [{ title, items: [] }];
 }
 
-/** 窓の下の段（共通フッタ）に出すヒントの 1 項目（ui/components/KeyHints.tsx の KeyHint と同じ形）。 */
+/** Dialog の Key footer（共通フッタ）に出すヒントの 1 項目（ui/components/KeyHints.tsx の KeyHint と同じ形）。 */
 export interface BasicHint {
   keys: string[];
   label: string;
 }
 
 /**
- * 窓の下の段（共通フッタ）に出す基本操作（まだ今効く操作の行の形（FooterRow）にしていない窓が使う。使う窓が無くなったら消す）。どの窓でも「選ぶ → 移る → 決める → `?` → やめる・閉じる」の順に並べ、
+ * Dialog の Key footer（共通フッタ）に出す基本操作（まだ今効く操作の行の形（FooterRow）にしていない Dialog が使う。使う Dialog が無くなったら消す）。どの Dialog でも「選ぶ → 移る → 決める → `?` → やめる・閉じる」の順に並べ、
  * 同じ役割には同じ字を使う。これより詳しい操作（作る・名前を変える・並べ替えるなど）は、`?` の一覧（placeKeys()）にだけ出す。
- * - select：選ぶ行を動かすキー。省くと j k（入力欄に字を打つ窓は ↓ ↑ を渡す）
- * - move：選ぶ以外の移るキー（切り替える窓の列を移る h・l）
- * - decide：Enter で決める操作の字。省くと Enter を出さない（Enter で決めるものが無い窓）
- * - help：`?` が今効くか。省くと効く。効かない間（絞り込みに字を打っている間・`?` の一覧を出せない窓）は false を渡し、出さない
+ * - select：選ぶ行を動かすキー。省くと j k（入力欄に字を打つ Dialog は ↓ ↑ を渡す）
+ * - move：選ぶ以外の移るキー（Workspace switcher の列を移る h・l）
+ * - decide：Enter で決める操作の字。省くと Enter を出さない（Enter で決めるものが無い Dialog）
+ * - help：`?` が今効くか。省くと効く。効かない間（絞り込みに字を打っている間・`?` の一覧を出せない Dialog）は false を渡し、出さない
  * - end：Esc が、決めずにやめる（cancel）のか、見終えて閉じる（close）のか
  */
 export function basicHints(o: {
