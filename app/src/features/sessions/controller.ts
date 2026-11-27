@@ -274,6 +274,12 @@ export function createSessions(deps: {
       return;
     }
     const m = r.machines[r.machines.length - 1];
+    // `kisui machine add`（addNow）が同じ行き先につないでいる最中なら、触らない（addNow と同じ決まり。
+    // 両方が書くと、断られた側が切って、もう片方が書いたばかりのマシンが切れる）
+    if (sessions()[m.target]) {
+      setAddError(T("machine.err.connecting", { label: m.target }));
+      return;
+    }
     setAddError(undefined);
     setAddPending(m);
     connect(m.target);

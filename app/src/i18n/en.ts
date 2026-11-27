@@ -493,7 +493,7 @@ export const en = {
   "machine.err.localName":
     "The name local is reserved for this computer (kisui pane --machine local). Give the machine another name",
   "machine.err.connecting":
-    "{label} is being connected right now (perhaps by the add dialog), so it was not added again",
+    "{label} is being connected right now (by the add dialog or by kisui machine add), so it was not added again",
   "machine.err.addCancelled":
     "Adding the machine was stopped before it connected, so it was not added",
   "machineCli.err.noMachine":
