@@ -671,44 +671,7 @@ fn apply_cookies(
     let Some(v) = any else {
         return Err("no browser tab is open".into());
     };
-    // 入れる前に、同じ名前・domain・path の Cookie を消す。macOS の実機では、HttpOnly の Cookie が既にあると、HttpOnly で
-    // ない Cookie を入れても置き換わらなかった（HttpOnly が同じ `HSID` は置き換わった）。#276 を直す前の版が誤って
-    // Secure・HttpOnly で入れた Google の `SAPISID` などは、ログインを写し直しても残り、ページのスクリプトが読めない
-    // ままになる（#476）。
-    // 消すときは、入れる Cookie でなく、いま入っている Cookie を読み戻して、その属性で渡す（入れる Cookie の属性では
-    // 消えなかった。cookie_check.rs の `to_delete`）。wry の `delete_cookie`・`set_cookie`・`cookies` は、WebView が
-    // 終わったと知らせるまで待って返るので、消し終わってから入れる。
-    // 消すのは手当てなので、読めない・消せないときもログに出して入れるほうへ進む（入った後の属性は下の読み戻しで確かめる）
-    let mut stored = match v.cookies() {
-        Ok(s) => Some(s),
-        Err(e) => {
-            eprintln!(
-                "kisui-terminal: passkey: could not read the cookies before setting them: {e}"
-            );
-            None
-        }
-    };
-    for c in &cookies {
-        let old = match &stored {
-            Some(s) => crate::cookie_check::to_delete(c, s),
-            // 読めなければ、前と同じく入れる Cookie で消してみる
-            None => vec![c.clone()],
-        };
-        for o in old {
-            if let Err(e) = v.delete_cookie(o) {
-                eprintln!(
-                    "kisui-terminal: passkey: could not delete cookie {} before setting it: {e}",
-                    c.name()
-                );
-            }
-        }
-        v.set_cookie(c.clone()).map_err(|e| e.to_string())?;
-        // 同じ名前・domain・path の Cookie が後にもあれば、次に消すのは今入れたもの
-        if let Some(s) = &mut stored {
-            s.retain(|x| !crate::cookie_check::same_target(c, x));
-            s.push(c.clone());
-        }
-    }
+    replace_cookies(&v, &cookies)?;
     // 渡したとおりの属性で入ったかを、読み戻して確かめる（cookie_check.rs）。食い違っても入れたものはそのままにし、
     // ログと Notice に出す（ログインは続ける。直すには wry の写し方を見直す）
     let problems = match v.cookies() {
@@ -729,6 +692,47 @@ fn apply_cookies(
     }
     if let Some(win) = app.get_window("main") {
         let _ = win.set_focus();
+    }
+    Ok(())
+}
+
+/// 外のブラウザから写した `cookies` を、同じ名前・domain・path の Cookie を消してから WebView に入れる。
+fn replace_cookies(v: &tauri::Webview, cookies: &[Cookie<'static>]) -> Result<(), String> {
+    // 入れる前に、同じ名前・domain・path の Cookie を消す。macOS の実機では、HttpOnly の Cookie が既にあると、HttpOnly で
+    // ない Cookie を入れても置き換わらなかった（HttpOnly が同じ `HSID` は置き換わった）。#276 を直す前の版が誤って
+    // Secure・HttpOnly で入れた Google の `SAPISID` などは、ログインを写し直しても残り、ページのスクリプトが読めない
+    // ままになる（#476）。
+    // 消すときは、入れる Cookie でなく、いま入っている Cookie を読み戻して、その属性で渡す（入れる Cookie の属性では
+    // 消えなかった。cookie_check.rs の `to_delete`）。wry の `delete_cookie`・`set_cookie`・`cookies` は、WebView が
+    // 終わったと知らせるまで待って返るので、消し終わってから入れる。
+    // 消すのは手当てなので、読めない・消せないときもログに出して入れるほうへ進む（入った後の属性は下の読み戻しで確かめる）
+    let mut stored = match v.cookies() {
+        Ok(s) => Some(s),
+        Err(e) => {
+            eprintln!(
+                "kisui-terminal: passkey: could not read the cookies before setting them: {e}"
+            );
+            None
+        }
+    };
+    for c in cookies {
+        let old = match &stored {
+            Some(s) => crate::cookie_check::to_delete(c, s),
+            // 読めなければ、前と同じく入れる Cookie で消してみる
+            None => vec![c.clone()],
+        };
+        for o in old {
+            if let Err(e) = v.delete_cookie(o) {
+                eprintln!(
+                    "kisui-terminal: passkey: could not delete cookie {} before setting it: {e}",
+                    c.name()
+                );
+            }
+        }
+        v.set_cookie(c.clone()).map_err(|e| e.to_string())?;
+        if let Some(s) = &mut stored {
+            crate::cookie_check::remember_set(s, c);
+        }
     }
     Ok(())
 }

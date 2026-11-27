@@ -129,6 +129,13 @@ pub fn to_delete(sent: &Cookie<'_>, stored: &[Cookie<'_>]) -> Vec<Cookie<'static
         .collect()
 }
 
+/// `sent` を入れた後の `stored`（入れる前に読み戻した Cookie）。写す Cookie の中に同じ名前・domain・path の Cookie が
+/// 後にもあれば、次に消すのは今入れたもの。
+pub fn remember_set(stored: &mut Vec<Cookie<'static>>, sent: &Cookie<'static>) {
+    stored.retain(|x| !same_target(sent, x));
+    stored.push(sent.clone());
+}
+
 /// 読み戻した `stored` が、`sent` と同じ名前・domain・path の Cookie に見えるか。読み戻しの domain は先頭の `.` が
 /// 取れているので、host だけの `google.com` と `.google.com` は見分けられない（どちらにも当たる）。
 pub fn same_target(sent: &Cookie<'_>, stored: &Cookie<'_>) -> bool {
@@ -436,6 +443,23 @@ mod tests {
         assert_eq!(d[0].domain(), Some(".google.com"));
         // 入っていなければ、消すものは無い
         assert!(to_delete(&want, &[]).is_empty());
+    }
+
+    // 写す Cookie の中に同じ名前・domain・path のものが 2 つあれば、後のものを入れる前に、先に入れたものを消す
+    #[test]
+    fn delete_the_cookie_set_just_before() {
+        let mut first = sent("CF", "dash.cloudflare.com");
+        first.set_http_only(false);
+        let second = sent("CF", "dash.cloudflare.com");
+        let mut stale = read_back(&first);
+        stale.set_value("old");
+        let mut stored = vec![stale];
+        assert_eq!(to_delete(&first, &stored)[0].value(), "old");
+        remember_set(&mut stored, &first);
+        let d = to_delete(&second, &stored);
+        assert_eq!(d.len(), 1);
+        assert_eq!(d[0].value(), "v");
+        assert_eq!(d[0].http_only(), None);
     }
 
     /// 読み戻しでは、domain が host だけかサブドメインにも送られるかが分からない（上の説明）。wry が `cookie::Cookie` を
