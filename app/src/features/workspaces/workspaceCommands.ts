@@ -217,13 +217,11 @@ export function createWorkspaceCommands(deps: {
         if (c.from !== LOCAL && !deps.granted(c.from)) {
           // キーの行き先が同じ Machine の中でしか変わらないときだけ（手元の PC やほかの Machine で打っているキーを奪えない）
           const now = entries.find((e) => e.focused);
-          if (
-            !(
-              now?.ref.kind === "term" &&
-              now.target === c.from &&
-              dest === c.from
-            )
-          )
+          if (!(
+            now?.ref.kind === "term" &&
+            now.target === c.from &&
+            dest === c.from
+          ))
             throw new WindowCommandError(
               T("wsCli.err.focus", { from: labelOf(c.from) }),
             );
