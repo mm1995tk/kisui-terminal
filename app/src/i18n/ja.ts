@@ -819,6 +819,16 @@ export const ja: Record<Key, string> = {
     "{from} の Pane が、Window が今いる Workspace を閉じるのは、Window のキーが今 {from} の Terminal tab に向いているときか、Window の前の人が {from} に許している間（Machine の Dialog で {from} を選び、p を押す）だけです。そうでないと、人が打っているキーが隣の Workspace へ移り、{from} の Tab に向いてしまうことがあります。Workspace を閉じるよう、ユーザーに頼んでください。",
   "wsCli.err.focus":
     "{from} の Pane が Workspace を表示するのは、Window のキーが今 {from} の Terminal tab に向いていて、その Workspace が {from} の Terminal tab を表示しているときか、Window の前の人が {from} に許している間（Machine の Dialog で {from} を選び、p を押す）だけです。そうでないと、人が打っているキーの行き先が変わってしまいます。Workspace を表示するよう、ユーザーに頼んでください。",
+  "paneCli.err.noPane":
+    "「{pane}」という id か名前の Pane が、この Pane の届く Pane の中にありません（kisui pane list に出ます）",
+  "paneCli.err.ambiguous":
+    "「{pane}」という名前か id の Pane が {count} つあります。id（{ids}。kisui pane list に出ます）で指してください",
+  "paneCli.err.focus":
+    "{from} の Pane が、キーを Pane へ向けるのは、Window のキーが今 {from} の Terminal tab に向いていて、その Pane が {from} の Terminal tab にあるときか、Window の前の人が {from} に許している間（Machine の Dialog で {from} を選び、p を押す）だけです。そうでないと、人が打っているキーの行き先が変わってしまいます。その Pane へ移るよう、ユーザーに頼んでください。",
+  "paneCli.err.zoomed":
+    "Pane「{pane}」の Tab は Primary の Pane だけを表示しているので、何もしませんでした。kisui pane zoom で、全部の Pane を表示に戻します。",
+  "paneCli.err.noZoom":
+    "Pane「{pane}」の Tab の Primary の Pane では shj が動いていないので、Tab は Primary の Pane だけを表示できません",
   "paneOpen.err.noWorkspace":
     "「{name}」という名前か id のワークスペースがありません（--new を付けると、その名前で作ります）",
   "paneOpen.err.ambiguous":

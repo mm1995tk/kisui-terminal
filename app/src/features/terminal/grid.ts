@@ -328,3 +328,40 @@ export function limitedRatio(
   const lim = ratioLimits(tree, key, size);
   return lim ? clampRatio(ratio, lim[0], lim[1]) : undefined;
 }
+
+/** リサイズモードで、欄どうしの境界を 1 回のキーで動かす割合（動かす節の幅か高さに対する割合。`kisui pane resize` の 1 回分も同じ）。 */
+export const SPLIT_KEY_STEP = 0.02;
+
+/** 木 n の中に、欄 id があるか。 */
+function hasPane(n: PaneLayout, id: string): boolean {
+  return "pane" in n ? n.pane === id : hasPane(n.a, id) || hasPane(n.b, id);
+}
+
+/**
+ * 欄 pane の、dir の向きに面した境界（`kisui pane resize`）と、その境界を動かす向き（割合に足す符号。右・下が正）。
+ * 面した境界は、欄から根へさかのぼって最初に見つかる、その向きの軸の節で、欄が右・下の向きの側にあるもの
+ * （右なら、欄が a の側にある "right" の節）。無ければ（その向きの端にいる）、反対側の境界（欄が b の側にある節）を、その向きへ動かす
+ * （欄は小さくなる）。どちらも無ければ undefined。境界は、B 側の左上の欄 id（layoutBars の key）で返す。
+ */
+export function borderToward(
+  tree: PaneLayout | undefined,
+  pane: string,
+  dir: Direction,
+): { key: string; sign: 1 | -1 } | undefined {
+  if (!tree) return undefined;
+  const axis: TreeDir = dir === "left" || dir === "right" ? "right" : "down";
+  const sign = dir === "right" || dir === "down" ? 1 : -1;
+  // 根から欄までの、その軸の節（根に近い順）と、欄がある側
+  const path: { n: Extract<PaneLayout, { dir: TreeDir }>; inA: boolean }[] = [];
+  for (let n = tree; !("pane" in n);) {
+    const inA = hasPane(n.a, pane);
+    if (!inA && !hasPane(n.b, pane)) return undefined;
+    if (n.dir === axis) path.push({ n, inA });
+    n = inA ? n.a : n.b;
+  }
+  const near = (inA: boolean) => [...path].reverse().find((x) => x.inA === inA);
+  // 右・下に面した境界は、欄が a の側にある節。左・上に面した境界は、欄が b の側にある節
+  const faced = near(sign === 1);
+  const hit = faced ?? near(sign !== 1);
+  return hit ? { key: firstPane(hit.n.b), sign } : undefined;
+}

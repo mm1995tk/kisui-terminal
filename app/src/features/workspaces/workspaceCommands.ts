@@ -24,7 +24,7 @@ import {
 import type { Sessions } from "../sessions/controller.ts";
 import { windowReachAllowed } from "../sessions/machines.ts";
 import { LOCAL } from "../sessions/shell.ts";
-import { keysOnMachine, tabEntries } from "./tabs/tabCommands.ts";
+import { keysMayMove, tabEntries } from "./tabs/tabCommands.ts";
 import {
   displayName,
   gwsByRef,
@@ -189,12 +189,11 @@ export function createWorkspaceCommands(deps: {
         // 人のキーを自分の Tab に向けられないよう、キーの行き先を変える頼みと同じに、キーが今その Machine の Terminal tab に
         // 向いているときだけ通す（今いない Workspace を閉じるときは、キーが動かないので確かめない）
         if (
-          c.from !== LOCAL &&
-          !deps.granted(c.from) &&
           untrack(deps.rows).find((r) => r.gws === g.id)?.band.focused &&
-          !keysOnMachine(
+          !keysMayMove(
             tabEntries(untrack(deps.gws), untrack(deps.rows)),
             c.from,
+            deps.granted(c.from),
           )
         )
           throw new WindowCommandError(
@@ -229,13 +228,11 @@ export function createWorkspaceCommands(deps: {
         // 人のキーが行く先：その Workspace が表示している Tab（無ければ、Tab の無い画面で、手元の PC のもの）
         const shown = entries.find((e) => e.gws.id === g.id && e.shown);
         const dest = shown ? shown.target : LOCAL;
-        if (c.from !== LOCAL && !deps.granted(c.from)) {
-          // キーの行き先が同じ Machine の中でしか変わらないときだけ（手元の PC やほかの Machine で打っているキーを奪えない）
-          if (!(keysOnMachine(entries, c.from) && dest === c.from))
-            throw new WindowCommandError(
-              T("wsCli.err.focus", { from: labelOf(c.from) }),
-            );
-        }
+        // キーの行き先が同じ Machine の中でしか変わらないときだけ（手元の PC やほかの Machine で打っているキーを奪えない）
+        if (!keysMayMove(entries, c.from, deps.granted(c.from), dest))
+          throw new WindowCommandError(
+            T("wsCli.err.focus", { from: labelOf(c.from) }),
+          );
         if (shown?.ref.kind === "term" && !up(shown.target))
           throw new WindowCommandError(
             T("err.session.notConnected", { machine: labelOf(shown.target) }),

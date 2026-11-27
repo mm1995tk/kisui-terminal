@@ -23,11 +23,13 @@ import type {
 } from "../../infrastructure/rpc/protocol.ts";
 import type { TermEvent } from "../sessions/session.ts";
 import {
+  borderToward,
   layoutBars,
   layoutRects,
   limitedRatio,
   neighbor,
   reconcileLayout,
+  SPLIT_KEY_STEP,
   withRatio,
   type Bar,
   type Direction,
@@ -391,6 +393,24 @@ export class TermGroup {
     this.resizeQueued.set(key, r);
     this.sendBorder(key);
     return true;
+  }
+
+  /**
+   * 欄 pane の dir の向きに面した境界を、その向きへ steps 回分動かす（`kisui pane resize`。1 回分はリサイズモードのキーと同じ SPLIT_KEY_STEP）。
+   * 面した境界が無ければ反対側の境界を動かす（borderToward）。動かせなければ（境界が無い・すでに小さすぎる）false。
+   */
+  resizeToward(pane: string, dir: Direction, steps: number): boolean {
+    const b = borderToward(this.layout, pane, dir);
+    const cur = b && this.bars.find((x) => x.key === b.key)?.ratio;
+    if (!b || cur === undefined) return false;
+    const next = limitedRatio(
+      this.layout,
+      b.key,
+      cur + b.sign * steps * SPLIT_KEY_STEP,
+      (id) => this.sizeOf(id),
+    );
+    if (next === undefined || next === cur) return false;
+    return this.setBorder(b.key, next);
   }
 
   private sizeOf(id: string): { cols: number; rows: number } | undefined {

@@ -116,6 +116,23 @@ export function keysOnMachine(
   return now?.ref.kind === "term" && now.target === from;
 }
 
+/**
+ * Machine from の Pane が、人のキーの行き先を変えてよいか（キーの行き先を変える頼み全部の決まり。`kisui tab`・`kisui workspace`・
+ * `kisui pane` が使う）。手元の PC の Pane と、Window の前の人が時間を決めて許している Machine（granted。paneGrant.ts）の Pane は、
+ * いつでもよい。ほかのリモートの Machine の Pane は、キーが今その Machine の Terminal tab に向いているときだけ。
+ * 行き先の Machine dest が決まっているときは、それも from のときだけ（キーの行き先が同じ Machine の中でしか変わらないので、手元の PC や
+ * ほかの Machine で打っているキーを、その Machine に向けさせない）。dest を省くと、行き先は確かめない。
+ */
+export function keysMayMove(
+  entries: readonly TabEntry[],
+  from: string,
+  granted: boolean,
+  dest?: string,
+): boolean {
+  if (from === LOCAL || granted) return true;
+  return keysOnMachine(entries, from) && (dest === undefined || dest === from);
+}
+
 /** `kisui tab` の受け持ちの表を作る。 */
 export function createTabCommands(deps: {
   sessions: Pick<Sessions, "states" | "machines" | "labelOf">;
@@ -194,9 +211,12 @@ export function createTabCommands(deps: {
    * 中でしか変わらないので、手元の PC やほかの Machine で打っているキーを、その Machine に向けられない）。
    */
   function needKeysOn(c: WindowCaller) {
-    if (c.from === LOCAL || deps.granted(c.from)) return;
     if (
-      keysOnMachine(tabEntries(untrack(deps.gws), untrack(deps.rows)), c.from)
+      keysMayMove(
+        tabEntries(untrack(deps.gws), untrack(deps.rows)),
+        c.from,
+        deps.granted(c.from),
+      )
     )
       return;
     throw new WindowCommandError(
