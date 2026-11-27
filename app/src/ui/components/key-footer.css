@@ -12,8 +12,8 @@
   align-items: baseline;
 }
 .key-footer-title {
-  /* 短い見出しだけの行でも列を 8em より狭くしない（行が替わっても操作の列が動かない） */
-  min-width: 8em;
+  /* 短い見出しだけの窓では、列を今までと同じ 8rem にそろえる（見出しの字の大きさに左右されないよう rem で書く） */
+  min-width: 8rem;
   color: var(--color-text-dim);
   font-size: var(--text-label);
 }
