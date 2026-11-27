@@ -55,7 +55,7 @@ function whenOf(tag: string): string {
 }
 
 /**
- * Window の形に当たるが、Dialog ではないもの（ファイル → when の式 → 理由）。
+ * Dialog の形に当たるが、Dialog ではないもの（ファイル → when の式 → 理由）。
  * 出している間に値が変わり続ける表示で、keyed にすると変わるたびに作り直してしまう。
  */
 const NOT_WINDOWS: Record<string, Record<string, string>> = {
@@ -65,7 +65,7 @@ const NOT_WINDOWS: Record<string, Record<string, string>> = {
 };
 
 /**
- * src の中の、Window の形（when={x()} で、setX(null) で閉じる）なのに keyed でない <Show> の開きタグ。
+ * src の中の、Dialog の形（when={x()} で、setX(null) で閉じる）なのに keyed でない <Show> の開きタグ。
  * 閉じる操作は src と、closers（機能の持ち物のソース）の中から探す。
  */
 function unkeyedWindows(

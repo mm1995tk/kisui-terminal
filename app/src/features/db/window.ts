@@ -1,4 +1,4 @@
-// DB のタブの Dialog（リーダーの `a`。#458）に並べる結果のタブの行。Window の画面は ui/main-window/tab-window/DbWindow.tsx。
+// DB のタブの Dialog（リーダーの `a`。#458）に並べる結果のタブの行。Dialog の画面は ui/main-window/tab-window/DbWindow.tsx。
 // Dialog は、DB のタブ 1 つの結果のタブ（#404）を左から順に 1 行ずつ並べ、1 つを選んで操作する（出す・閉じる・データと Structure・ページ・書き出す）。
 // 画面にも Solid にも依存しない（node --test で確かめられる）。
 

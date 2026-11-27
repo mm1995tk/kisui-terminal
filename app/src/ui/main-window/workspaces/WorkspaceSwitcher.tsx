@@ -149,7 +149,7 @@ export function WorkspaceSwitcher(props: {
     createSwitcherColumns(selected, props.initialCol);
   // キーでつかんでいるタブ（m）と、入る位置（switcherHold.ts）
   const hold = createSwitcherHold();
-  // つかんでいるタブが、Window の外の理由（閉じた・移したなど）でつかんだときのワークスペースから消えたら、やめる
+  // つかんでいるタブが、Workspace switcher の外の理由（閉じた・移したなど）でつかんだときのワークスペースから消えたら、やめる
   createEffect(() => {
     const h = hold.held();
     if (!h) return;
@@ -187,7 +187,7 @@ export function WorkspaceSwitcher(props: {
       ?.scrollIntoView?.({ block: "nearest" });
   });
 
-  // 確認や入力欄を出している行が、Window の外の理由（マシンが切れて記録から外れたなど）で消えたら、やめる（確認が見えないまま、キーが効かなくならないように）
+  // 確認や入力欄を出している行が、Workspace switcher の外の理由（マシンが切れて記録から外れたなど）で消えたら、やめる（確認が見えないまま、キーが効かなくならないように）
   createEffect(() => {
     const has = (g: string) => props.rows.some((r) => r.gws === g);
     const c = confirming();

@@ -185,10 +185,10 @@ kisui-terminal の Dialog（`app/src/`）の表示と操作を、画面をまた
 ### 3.9 Dialog の閉じ方（コード上の差）
 
 - `Esc` で閉じる Dialog には、閉じるだけの「閉じる」「やめる」ボタンも ✕ も置かない（`design-system.md`。クリップボードの履歴は、真ん中の Dialog も外から開く小さな Window も同じ）。閉じ方は、どの Dialog でも `Esc`（4.7 の決まり 3 で、Key footer には出さない。まだ前の決まりの Dialog（クリップボードの履歴・DB の履歴・DB の権限を強める Dialog）は、Key footer に `Esc` を出す）。
-- Window の外を押して閉じるのは、Workspace switcher だけ（`closeOnOutside`）。一覧から選ぶ Dialog・マシンのダイアログ・ブックマークの一覧は、打ちかけの入力が無いのに閉じない。
+- Workspace switcher の外を押して閉じるのは、Workspace switcher だけ（`closeOnOutside`）。一覧から選ぶ Dialog・マシンのダイアログ・ブックマークの一覧は、打ちかけの入力が無いのに閉じない。
 - マウスで閉じる手段：Workspace switcher は外を押す。ほかの Dialog は無い（`Esc` だけ。決める・許す・送る Dialog のボタンと、それとやめるを選ぶ確認の Dialog の「やめる」は別）。
 - **案**：5 章の案 F。
-- **優先度**：中（Window の外を押して閉じるかは、案 F の残り）。
+- **優先度**：中（Dialog の外を押して閉じるかは、案 F の残り）。
 
 ### 3.10 選ぶ行を動かすキー（コード上の差）
 
@@ -327,7 +327,7 @@ Dialog でない所（ペイン）：
 
 案 F の選択肢（それぞれ独立に決められる）：
 
-- Window の外を押して閉じる：打ちかけの入力が無い Dialog（一覧から選ぶ Dialog・マシンのダイアログ・ブックマークの一覧）でも閉じるようにするか。
+- Dialog の外を押して閉じる：打ちかけの入力が無い Dialog（一覧から選ぶ Dialog・マシンのダイアログ・ブックマークの一覧）でも閉じるようにするか。
 - マウスで決める手順：ダブルクリックにそろえるか、「選んでいる行をもう 1 回」にそろえるか。
 - Workspace switcher に `g` `G`・`Home` `End` を足す（足すだけ）。
 

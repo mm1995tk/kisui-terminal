@@ -204,7 +204,7 @@ export class TermLink {
     const start = seq - data.length;
     if (start > this.received) {
       // 溢れて捨てられた分がある。画面の状態を取り直す。前に取り直した分を画面が書き終える前なら、
-      // 書き終えてから 1 回だけ取り直す（画面に積まれる量を「書き出し 1 回分 + ack の Dialog」までにする）
+      // 書き終えてから 1 回だけ取り直す（画面に積まれる量を「書き出し 1 回分 + ack の範囲」までにする）
       if (this.restoring) this.gapPending = true;
       else void this.attach(this.op);
       return;

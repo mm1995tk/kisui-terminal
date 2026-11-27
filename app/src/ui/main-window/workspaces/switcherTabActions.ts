@@ -40,7 +40,7 @@ export function createSwitcherTabActions(args: {
   >();
   const stop = () => setEditing(undefined);
 
-  // 名前を変えているタブが、Window の外の理由（閉じた・移したなど）で右の列から消えたら、やめる
+  // 名前を変えているタブが、Workspace switcher の外の理由（閉じた・移したなど）で右の列から消えたら、やめる
   createEffect(() => {
     const e = editing();
     if (e && !args.tabs().some((t) => t.key === e.key)) stop();

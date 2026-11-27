@@ -14,7 +14,7 @@ export function createSwitcherNewTab(args: {
   selected: () => Row | undefined;
   /** 選んでいるワークスペースの id */
   sel: () => string | undefined;
-  /** その id のワークスペースがあるか（Window の外の理由で消えたら、種類を選ぶのも行もやめる） */
+  /** その id のワークスペースがあるか（Workspace switcher の外の理由で消えたら、種類を選ぶのも行もやめる） */
   has: (gws: string) => boolean;
   /** タブを作れるマシン（つながっているマシン）の数 */
   machineCount: () => number;

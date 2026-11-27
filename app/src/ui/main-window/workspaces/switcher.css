@@ -10,7 +10,7 @@
   max-height: calc(100vh - 2 * var(--space-16));
   margin: auto;
 }
-/* 中身の高さは Window が決める。一覧のスクロールは、列の中でする */
+/* 中身の高さは Dialog が決める。一覧のスクロールは、列の中でする */
 .card-modal:has(.switcher) .card-content {
   overflow: hidden;
 }

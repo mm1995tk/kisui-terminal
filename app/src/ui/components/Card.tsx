@@ -34,7 +34,7 @@ export function ModalCard(props: {
   /** 幅（px）。省くとモックの 560px */
   width?: number;
   focusSelf?: boolean;
-  /** Window の外（暗くした背景）を押したら onCancel を呼ぶ。省くと呼ばない（打ちかけの入力を、押し違いで失わないため） */
+  /** Dialog の外（暗くした背景）を押したら onCancel を呼ぶ。省くと呼ばない（打ちかけの入力を、押し違いで失わないため） */
   closeOnOutside?: boolean;
   /** 上に固定する見出し（ふつうは CardTitle）。省けるのは、中身が自分で見出しを描く Dialog だけ（履歴の一覧 HistoryPanel） */
   header?: JSX.Element;

@@ -5,7 +5,7 @@ package server
 // PTY の出力は Screen に変換せず、そのまま term.output で流す（ui/tui/vt は使わない）。
 // 出力は 1 ターミナルにつき最大 1 MiB のリングバッファに溜め、seq はそのバイト数の累計。
 // GUI が term.ack で返した seq から 256 KiB より先は送らない。止まっても PTY は読み続け、
-// 溢れた分は捨てる。リングバッファは、この送り出し（ack の Window）のためだけに持つ。
+// 溢れた分は捨てる。リングバッファは、この送り出し（ack の範囲）のためだけに持つ。
 //
 // GUI が取り直す（つなぎ直し・溢れて欠けた）ときは、過去のバイト列は流さず、欄ごとの画面の状態
 // （screen.go の coneko-term）の書き出しを term.attach で返す。過去の出力に入っている端末への問い合わせ
@@ -596,7 +596,7 @@ func (t *terminal) flush() {
 	defer t.sendMu.Unlock()
 	for {
 		t.mu.Lock()
-		// Window は ack 済みか、リングに残っている先頭のどちらか進んだ方から数える。溢れて捨てられた分は
+		// 範囲は ack 済みか、リングに残っている先頭のどちらか進んだ方から数える。溢れて捨てられた分は
 		// GUI が受け取れず ack も進められないので、ack だけを基準にすると永久に止まる。
 		// 捨てられた分は seq が飛んで届くので、GUI は欠けを知って term.attach で取り直せる。
 		base := max(t.acked, t.oldest())

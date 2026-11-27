@@ -1,4 +1,4 @@
-// ブラウザのタブの Dialog（リーダーの `a`。#459）に並べる、ページへの操作の行。Window の画面は ui/main-window/tab-window/BrowserWindow.tsx。
+// ブラウザのタブの Dialog（リーダーの `a`。#459）に並べる、ページへの操作の行。Dialog の画面は ui/main-window/tab-window/BrowserWindow.tsx。
 // Dialog は、ブラウザのタブ 1 つ（とそのページ）を対象にし、今の状態（題・URL・読み込み・シークレット・履歴の有無）を見せて、
 // そのページへの操作を 1 行ずつ並べる。今できない操作は、行にその理由を出す（押してから知るのでなく、先に見せる）。
 // 操作そのものは features/commands/run.ts の runBrowserOn が行う（リーダーの Shortcut・設定の Shortcut の browser.* と同じ処理）。
