@@ -19,7 +19,11 @@ import {
   type WindowCommandTable,
 } from "../../commands/windowRun.ts";
 import type { Sessions } from "../../sessions/controller.ts";
-import { machineCliName, windowReachAllowed } from "../../sessions/machines.ts";
+import {
+  machineCliName,
+  windowReachAllowed,
+  type Machine,
+} from "../../sessions/machines.ts";
 import { LOCAL } from "../../sessions/shell.ts";
 import {
   displayName,
@@ -133,6 +137,51 @@ export function keysMayMove(
   return keysOnMachine(entries, from) && (dest === undefined || dest === from);
 }
 
+/**
+ * Machine from の Pane から届く Tab（Sidebar の並びの順）。届く範囲の決まり（windowReachAllowed）を 1 か所に保つため、
+ * `kisui tab`・`kisui db` が使う（Browser tab と Database tab は手元の PC の Tab）。granted は、from に手元の PC の Pane の操作を
+ * 今、時間を決めて許しているか。
+ */
+export function reachableTabs(
+  machines: Machine[],
+  gws: GwsState,
+  rows: readonly Row[],
+  from: string,
+  granted: boolean,
+): TabEntry[] {
+  return tabEntries(gws, rows).filter((e) =>
+    windowReachAllowed(machines, from, e.target, granted),
+  );
+}
+
+/**
+ * 引数 tab（id か名前）が指す、届く Tab 1 つ（reach は reachableTabs の答え）。無い・届かない・2 つ以上に当たるときは断る
+ * （届かない Tab は、「無い」ときと同じ文で断る。リモートの Machine に、届かない Tab があるかを教えない）。
+ */
+export function pickTab(
+  reach: readonly TabEntry[],
+  tab: string,
+  from: string,
+  labelOf: (target: string) => string,
+): TabEntry {
+  const t = tab.trim();
+  const found = findTabs(reach, t);
+  if (found.length === 1) return found[0];
+  if (found.length > 1)
+    throw new WindowCommandError(
+      T("tabCli.err.ambiguous", {
+        tab: t,
+        count: found.length,
+        ids: found.map((e) => e.id).join(", "),
+      }),
+    );
+  throw new WindowCommandError(
+    from === LOCAL
+      ? T("tabCli.err.noTab", { tab: t })
+      : T("tabCli.err.noTabReach", { tab: t, from: labelOf(from) }),
+  );
+}
+
 /** `kisui tab` の受け持ちの表を作る。 */
 export function createTabCommands(deps: {
   sessions: Pick<Sessions, "states" | "machines" | "labelOf">;
@@ -160,31 +209,18 @@ export function createTabCommands(deps: {
 
   /** Machine from の Pane から届く Tab（Sidebar の並びの順）。 */
   function reachable(from: string): TabEntry[] {
-    const list = untrack(machines);
-    const granted = deps.granted(from);
-    return tabEntries(untrack(deps.gws), untrack(deps.rows)).filter((e) =>
-      windowReachAllowed(list, from, e.target, granted),
+    return reachableTabs(
+      untrack(machines),
+      untrack(deps.gws),
+      untrack(deps.rows),
+      from,
+      deps.granted(from),
     );
   }
 
   /** 引数 tab が指す、届く Tab 1 つ。無い・届かない・2 つ以上に当たるときは断る。 */
   function resolve(args: Record<string, unknown>, c: WindowCaller): TabEntry {
-    const tab = argString(args, "tab").trim();
-    const found = findTabs(reachable(c.from), tab);
-    if (found.length === 1) return found[0];
-    if (found.length > 1)
-      throw new WindowCommandError(
-        T("tabCli.err.ambiguous", {
-          tab,
-          count: found.length,
-          ids: found.map((e) => e.id).join(", "),
-        }),
-      );
-    throw new WindowCommandError(
-      c.from === LOCAL
-        ? T("tabCli.err.noTab", { tab })
-        : T("tabCli.err.noTabReach", { tab, from: labelOf(c.from) }),
-    );
+    return pickTab(reachable(c.from), argString(args, "tab"), c.from, labelOf);
   }
 
   /** 引数 workspace（名前か id）が指す Workspace 1 つ。無い・2 つ以上に当たるときは断る。 */

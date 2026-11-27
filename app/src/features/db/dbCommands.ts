@@ -42,8 +42,9 @@ import {
 } from "../workspaces/model.ts";
 import type { Row } from "../workspaces/rows.ts";
 import {
-  findTabs,
   keysMayMove,
+  pickTab,
+  reachableTabs,
   tabEntries,
   type TabEntry,
 } from "../workspaces/tabs/tabCommands.ts";
@@ -91,40 +92,24 @@ export function createDbCommands(deps: {
 }): WindowCommandTable {
   const { machines, labelOf } = deps.sessions;
 
-  /** Machine from の Pane から届く Tab（Sidebar の並びの順）。Database tab は手元の PC の Tab。 */
-  function reachable(from: string): TabEntry[] {
-    const list = untrack(machines);
-    const granted = deps.granted(from);
-    return tabEntries(untrack(deps.gws), untrack(deps.rows)).filter((e) =>
-      windowReachAllowed(list, from, e.target, granted),
-    );
-  }
-
-  /**
-   * 引数 tab が指す、届く Database tab 1 つ。無い・届かない・2 つ以上に当たる・Database tab でないときは断る
-   * （届かない Tab は、「無い」ときと同じ文で断る。リモートの Machine に、届かない Tab があるかを教えない）。
-   */
+  /** 引数 tab が指す、届く Database tab 1 つ。Database tab でないときも断る（届く範囲の確かめのあとに。`kisui tab` と同じ決まり）。 */
   function resolve(
     args: Record<string, unknown>,
     c: WindowCaller,
   ): { e: TabEntry; id: string } {
     const tab = argString(args, "tab").trim();
-    const found = findTabs(reachable(c.from), tab);
-    if (found.length > 1)
-      throw new WindowCommandError(
-        T("tabCli.err.ambiguous", {
-          tab,
-          count: found.length,
-          ids: found.map((x) => x.id).join(", "),
-        }),
-      );
-    if (found.length === 0)
-      throw new WindowCommandError(
-        c.from === LOCAL
-          ? T("tabCli.err.noTab", { tab })
-          : T("tabCli.err.noTabReach", { tab, from: labelOf(c.from) }),
-      );
-    const e = found[0];
+    const e = pickTab(
+      reachableTabs(
+        untrack(machines),
+        untrack(deps.gws),
+        untrack(deps.rows),
+        c.from,
+        deps.granted(c.from),
+      ),
+      tab,
+      c.from,
+      labelOf,
+    );
     if (e.ref.kind !== "db")
       throw new WindowCommandError(T("dbCli.err.notDb", { tab }));
     return { e, id: e.ref.id };
