@@ -112,7 +112,7 @@ describe("サイドバーの幅の上限と、ターミナルの列の数（#501
               });
               assert.ok(
                 dims && dims.cols >= MIN_TERM_COLS,
-                `${name} ${id} dpr=${dpr} 字=${cell} 窓=${windowWidth}：${dims?.cols} 列`,
+                `${name} ${id} dpr=${dpr} 字=${cell} Window=${windowWidth}：${dims?.cols} 列`,
               );
             }
           }
