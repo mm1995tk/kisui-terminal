@@ -21,7 +21,10 @@ const caller: WindowCaller = {
 
 function setup(
   opts: {
+    /** 見つけている新しい版がある */
     update?: boolean;
+    /** 見つけている版は無いが、調べ直すと新しい版がある */
+    updateOnCheck?: boolean;
     download?: boolean;
     /** 開く・フォルダを出すのに失敗する */
     useFails?: boolean;
@@ -38,7 +41,15 @@ function setup(
     ...createGlobalCommands({ runCommand }),
     ...createNoticeCommands({
       runCommand,
-      updates: { info: () => (opts.update ? ({} as never) : null) },
+      updates: {
+        available: () => (opts.update ? ({} as never) : null),
+        checkNow: async () => {
+          calls.push(["checkNow"]);
+          return opts.updateOnCheck
+            ? { status: "available", current: "1", version: "2" }
+            : { status: "latest", current: "1" };
+        },
+      },
       downloads: {
         lastDownload: () =>
           opts.download
@@ -110,11 +121,23 @@ describe("Window 全体の Command の CLI（#517）", () => {
     );
     await assert.rejects(none.run("notice.revealDownload"));
     assert.deepEqual(none.ran, []);
-    assert.deepEqual(none.calls, []);
+    // 新しい版は、見つけていなければ調べ直してから断る
+    assert.deepEqual(none.calls, [["checkNow"]]);
     const some = setup({ update: true, download: true });
     await some.run("notice.update");
     assert.deepEqual(
       some.ran.map((c) => c.id),
+      ["notice.update"],
+    );
+    assert.deepEqual(some.calls, []);
+  });
+
+  it("notice.update は、見つけている版が無くても、調べ直して新しい版があれば入れる", async () => {
+    const s = setup({ updateOnCheck: true });
+    await s.run("notice.update");
+    assert.deepEqual(s.calls, [["checkNow"]]);
+    assert.deepEqual(
+      s.ran.map((c) => c.id),
       ["notice.update"],
     );
   });

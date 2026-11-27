@@ -260,6 +260,7 @@ export const ja: Record<Key, string> = {
     "つながっているマシンがありません。マシンのダイアログ（リーダーの m）で、つなぎ直してください。",
   "cannot.update.title": "新しい版はありません",
   "cannot.update.text": "更新できる新しい版は、今ありません。",
+  "cannot.update.checkFailed": "新しい版を調べられませんでした: {error}",
   "cannot.download.title": "ダウンロードしたファイルはありません",
   "cannot.download.text":
     "内蔵ブラウザでダウンロードすると、右下の Notice に出ます。",

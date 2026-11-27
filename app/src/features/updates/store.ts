@@ -26,8 +26,10 @@ export interface UpdatesOs {
 
 /** 新しい版の知らせの持ち物（createUpdates が返す）。 */
 export interface Updates {
-  /** いま知らせている新しい版。無ければ null。 */
+  /** いま知らせている新しい版。無ければ null。「あとで」で知らせを閉じると null になる（見つけた版は available に残る）。 */
   info: Accessor<UpdateInfo | null>;
+  /** 見つけている新しい版。知らせを「あとで」で閉じても残る。無ければ null。 */
+  available: Accessor<UpdateInfo | null>;
   /** 入れ替えている最中か。 */
   busy: Accessor<boolean>;
   /** 入れ替えに失敗した理由（無ければ ""）。 */
@@ -47,18 +49,31 @@ export interface Updates {
    * 知らせのボタン（UpdateBar.tsx）と、リーダーの `i u`（features/commands/run.ts）が同じものを呼ぶ。
    */
   install(): Promise<void>;
-  /** 「あとで」。知らせを閉じる（入れ替えている最中は閉じない）。 */
+  /**
+   * リーダーの `i u` と `kisui notice update`。見つけている版があれば入れ、無ければ（起動時に調べられなかったなど）
+   * その場で調べ直して、新しい版があれば入れる。入れなかったときは調べ直した答えを返す（入れに進んだときは null）。
+   */
+  updateNow(): Promise<UpdateOutcome | null>;
+  /** 「あとで」。知らせを閉じる（入れ替えている最中は閉じない）。見つけた版は忘れない（`i u` で入れられる）。 */
   dismiss(): void;
 }
 
 /** 新しい版の知らせの持ち物を作る。os は殻への頼み（index.tsx が本物を渡す）。 */
 export function createUpdates(os: UpdatesOs): Updates {
-  const [info, setInfo] = createSignal<UpdateInfo | null>(null);
+  const [available, setAvailable] = createSignal<UpdateInfo | null>(null);
+  // 知らせを出しているか。「あとで」は知らせを閉じるだけで、見つけた版（available）は残す
+  const [shown, setShown] = createSignal(false);
+  const info = (): UpdateInfo | null => (shown() ? available() : null);
+
+  function found(u: UpdateInfo): void {
+    setAvailable(u);
+    setShown(true);
+  }
 
   function checkOnStart(): void {
     os.check().then(
       (u) => {
-        if (u) setInfo(u);
+        if (u) found(u);
       },
       () => {},
     );
@@ -77,13 +92,14 @@ export function createUpdates(os: UpdatesOs): Updates {
     try {
       const r = await os.checkNow();
       if (r.status === "available")
-        setInfo({
+        found({
           current: r.current,
           version: r.version,
           notes: r.notes ?? null,
         });
       // 最新（か自動更新を持たない版）なら、前に出した知らせは殻の pending と一緒に無くなっているので消す
-      else if (r.status === "latest" || r.status === "manual") setInfo(null);
+      else if (r.status === "latest" || r.status === "manual")
+        setAvailable(null);
       return r;
     } catch (e) {
       return { status: "failed", error: String(e) };
@@ -97,6 +113,8 @@ export function createUpdates(os: UpdatesOs): Updates {
     if (busy()) return;
     setBusy(true);
     setError("");
+    // 「あとで」で閉じたあとに `i u` で入れるときも、入れ替えている最中と失敗の理由を知らせに出す
+    if (available()) setShown(true);
     try {
       // うまくいけば起動し直すので、ここには戻らない
       await os.install();
@@ -106,9 +124,28 @@ export function createUpdates(os: UpdatesOs): Updates {
     }
   }
 
-  function dismiss(): void {
-    if (!busy()) setInfo(null);
+  async function updateNow(): Promise<UpdateOutcome | null> {
+    if (!available()) {
+      const r = await checkNow();
+      if (r.status !== "available") return r;
+    }
+    await install();
+    return null;
   }
 
-  return { info, busy, error, checkOnStart, checkNow, install, dismiss };
+  function dismiss(): void {
+    if (!busy()) setShown(false);
+  }
+
+  return {
+    info,
+    available,
+    busy,
+    error,
+    checkOnStart,
+    checkNow,
+    install,
+    updateNow,
+    dismiss,
+  };
 }
