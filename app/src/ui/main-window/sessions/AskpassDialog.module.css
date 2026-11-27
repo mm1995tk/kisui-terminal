@@ -1,9 +1,9 @@
-/* ssh の質問の窓（AskpassDialog.tsx）。
-   窓が出すもの（どのマシンへの接続の質問か）は見出しの段に、画面の字とマシンの色の丸で出す。
+/* ssh の質問の Dialog（AskpassDialog.tsx）。
+   Dialog が出すもの（どのマシンへの接続の質問か）は見出しの段に、画面の字とマシンの色の丸で出す。
    ssh が出した文（つなぎ先のサーバーが決められる）は中身の段の枠の中に、等幅で出す。
    枠の中の字は丸も画面の字も出せないので、質問の文がマシンの名前のふりをしても見分けられる。 */
 
-/* 見出しの段：窓の見出しの下に、マシンの行 */
+/* 見出しの段：Dialog の見出しの下に、マシンの行 */
 .header {
   display: flex;
   flex-direction: column;
@@ -20,7 +20,7 @@
   color: var(--card-muted);
   font-size: var(--text-caption);
 }
-/* マシンの色の丸（切り替える窓の丸と同じ形）。色の無いマシン（サイドバーにまだ無い）は枠だけ */
+/* マシンの色の丸（Workspace switcher の丸と同じ形）。色の無いマシン（サイドバーにまだ無い）は枠だけ */
 .dot {
   flex: none;
   box-sizing: border-box;

@@ -1,5 +1,5 @@
-// ツリーの右クリックから開く、削除の確認の窓。名前を入れる操作は窓を出さず、ツリーの中のその場の入力欄で行う（TreeView.tsx）。
-// 窓は ModalCard（ui/components/Card.tsx）。決めたあとの処理は onYes が返す Promise で、断られたら窓を開いたまま理由を出す。
+// ツリーの右クリックから開く、削除の確認の Dialog。名前を入れる操作は Dialog を出さず、ツリーの中のその場の入力欄で行う（TreeView.tsx）。
+// Dialog は ModalCard（ui/components/Card.tsx）。決めたあとの処理は onYes が返す Promise で、断られたら Dialog を開いたまま理由を出す。
 import { T } from "../../../../i18n/index.ts";
 import { createSignal, Show, type JSX } from "solid-js";
 
@@ -13,12 +13,12 @@ import {
   CardText,
 } from "../../../components/Card.tsx";
 
-/** 窓に出す理由（Error の message か文字列）。 */
+/** Dialog に出す理由（Error の message か文字列）。 */
 function reason(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
-/** 削除の確認の窓（TUI の y で削除と同じ）。誤って打っていた Enter が押さないよう、フォーカスは窓そのものに置く。 */
+/** 削除の確認の Dialog（TUI の y で削除と同じ）。誤って打っていた Enter が押さないよう、フォーカスは Dialog そのものに置く。 */
 export function DeleteDialog(props: {
   /** ルートからの相対パス */
   path: string;

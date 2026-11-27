@@ -25,7 +25,7 @@ const key = (k: string, mods: Partial<KeyLike> = {}): KeyLike => ({
   ...mods,
 });
 
-describe("ワークスペースを切り替える窓のキー", () => {
+describe("Workspace switcher のキー", () => {
   it("j k と矢印と Ctrl+J / Ctrl+K で、選ぶ行を動かす", () => {
     for (const k of ["j", "ArrowDown"])
       assert.deepEqual(switcherKey(key(k)), { kind: "move", to: "next" });
@@ -114,7 +114,7 @@ describe("閉じる確認のキー", () => {
   });
 });
 
-describe("窓の下の段（共通フッタ）の今効く操作（#487）", () => {
+describe("Dialog の Key footer（共通フッタ）の今効く操作（#487）", () => {
   const all = newTabKinds(true);
   const states: SwitcherState[] = [
     { mode: "hold" },
@@ -145,7 +145,7 @@ describe("窓の下の段（共通フッタ）の今効く操作（#487）", () 
   const shown = (rows: FooterRow<string>[]) =>
     rows.map((r) => [r.title, r.items.map((i) => i.keys.join(" "))]);
 
-  it("下の段に出す操作は、どの状態でも、その状態の判定が受ける（案内と受けるキーがずれない）", () => {
+  it("Key footer に出す操作は、どの状態でも、その状態の判定が受ける（案内と受けるキーがずれない）", () => {
     for (const s of states)
       for (const r of switcherFooter(s))
         for (const i of r.items) {
@@ -159,7 +159,7 @@ describe("窓の下の段（共通フッタ）の今効く操作（#487）", () 
         }
   });
 
-  it("`?` の一覧の表の操作は、どれも、ワークスペースの列かタブの列の下の段に出る（`?` を開かなくても分かる）。どこでも同じキーは除く", () => {
+  it("`?` の一覧の表の操作は、どれも、ワークスペースの列かタブの列の Key footer に出る（`?` を開かなくても分かる）。どこでも同じキーは除く", () => {
     const onFooter = new Set(
       (
         [{ mode: "tab" }, { mode: "ws", hasWs: true }] as SwitcherState[]
@@ -186,7 +186,7 @@ describe("窓の下の段（共通フッタ）の今効く操作（#487）", () 
             assert.ok(!COMMON_KEYS.has(p), `${s.mode}: ${p}`);
   });
 
-  it("ワークスペースの列：ワークスペースへの操作と、この窓の操作（ワークスペースを作る）の 2 行。ワークスペースが無ければ、1 行目は見出しだけ", () => {
+  it("ワークスペースの列：ワークスペースへの操作と、この Dialog の操作（ワークスペースを作る）の 2 行。ワークスペースが無ければ、1 行目は見出しだけ", () => {
     assert.deepEqual(shown(switcherFooter({ mode: "ws", hasWs: true })), [
       ["Workspace", ["N", "r", "x", "J K"]],
       ["Dialog", ["n"]],
@@ -238,7 +238,7 @@ describe("窓の下の段（共通フッタ）の今効く操作（#487）", () 
     ]);
   });
 
-  it("どの状態でも、少なくとも 1 行を出す（下の段は出たり消えたりしない）", () => {
+  it("どの状態でも、少なくとも 1 行を出す（Key footer は出たり消えたりしない）", () => {
     for (const s of states) assert.ok(switcherFooter(s).length > 0, s.mode);
   });
 });

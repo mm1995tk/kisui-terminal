@@ -10,13 +10,13 @@
 //! 2. 殻は、そのタブの今の URL（一番上のフレーム）の host が設定の項目に当たれば（`site_matches`）、その URL を外のブラウザで開き、
 //!    「その項目のログインを待っている」と覚える（`WAIT` の間）。ページには NotAllowedError を返す。
 //! 3. 外のブラウザの拡張機能（#207）がログインした後の Cookie を native messaging で送る。ブラウザが起動する受け口
-//!    （この実行ファイルを `--native-messaging-host` で起動したもの。`run_host`）が、それを窓の Unix ソケットに渡す。
-//! 4. 窓は、待っているサイトの Cookie だけを、内蔵ブラウザの共有のデータに入れ、移る前のタブを開き直す。開くのは、外のブラウザの
+//!    （この実行ファイルを `--native-messaging-host` で起動したもの。`run_host`）が、それを Window の Unix ソケットに渡す。
+//! 4. Window は、待っているサイトの Cookie だけを、内蔵ブラウザの共有のデータに入れ、移る前のタブを開き直す。開くのは、外のブラウザの
 //!    タブがログインを終えた URL（拡張機能が `url` で送る。待っているサイトのものだけ）。無ければ移る前の URL（`reopen_url`）。
 //!
-//! 受け口から窓への経路（Unix ソケット）は、データのフォルダの `passkey/`（自分だけが入れる 0700 のフォルダ）に置き、
+//! 受け口から Window への経路（Unix ソケット）は、データのフォルダの `passkey/`（自分だけが入れる 0700 のフォルダ）に置き、
 //! つないだ相手のユーザーが自分と同じかも確かめる（ほかのユーザーは Cookie を差し込めず、一覧も読めない）。
-//! さらに、窓が外のブラウザに移ったサイトの Cookie だけを、移ってから `WAIT` の間に 1 回だけ受ける。
+//! さらに、Window が外のブラウザに移ったサイトの Cookie だけを、移ってから `WAIT` の間に 1 回だけ受ける。
 //! 同じユーザーのほかのプログラムは、受け口を真似れば、その間に限って Cookie を差し込める。ただし同じユーザーのプログラムは、
 //! もともと内蔵ブラウザの Cookie の置き場（同じユーザーのファイル）を直接読み書きできるので、この経路で広がる害は無い。
 
@@ -540,7 +540,7 @@ fn command() -> (&'static str, Vec<&'static str>) {
     }
 }
 
-// ---- 窓の受け口（Unix ソケット） ----
+// ---- Window の受け口（Unix ソケット） ----
 
 /// つないだ相手のユーザー。
 #[cfg(target_os = "linux")]
@@ -610,7 +610,7 @@ fn socket_dir(app: &AppHandle) -> Option<PathBuf> {
     Some(app.path().app_data_dir().ok()?.join(DIR))
 }
 
-/// 窓の受け口を作り、受け付けるスレッドを始める。
+/// Window の受け口を作り、受け付けるスレッドを始める。
 fn serve(app: &AppHandle, dir: &Path, passkey: Arc<Passkey>) -> std::io::Result<PathBuf> {
     private_dir(dir)?;
     let sock = dir.join(SOCK);
@@ -653,7 +653,7 @@ fn serve_one(app: &AppHandle, p: &Passkey, stream: UnixStream) {
 /// 内蔵ブラウザに入れた Cookie が、渡したとおりの属性で入らなかった知らせ（中身は食い違いの行の並び。Cookie の値は含まない）。
 const EVENT_COOKIE_MISMATCH: &str = "browser-cookie-mismatch";
 
-/// Cookie を内蔵ブラウザの共有のデータに入れ、移る前のタブで `reopen`（開き直す URL。`reopen_url`）を開き、窓を前に出す。
+/// Cookie を内蔵ブラウザの共有のデータに入れ、移る前のタブで `reopen`（開き直す URL。`reopen_url`）を開き、Window を前に出す。
 fn apply_cookies(
     app: &AppHandle,
     w: &Waiting,
@@ -685,7 +685,7 @@ fn apply_cookies(
         v.set_cookie(c.clone()).map_err(|e| e.to_string())?;
     }
     // 渡したとおりの属性で入ったかを、読み戻して確かめる（cookie_check.rs）。食い違っても入れたものはそのままにし、
-    // ログとお知らせに出す（ログインは続ける。直すには wry の写し方を見直す）
+    // ログと Notice に出す（ログインは続ける。直すには wry の写し方を見直す）
     let problems = match v.cookies() {
         Ok(stored) => crate::cookie_check::check(&cookies, &stored)
             .iter()
@@ -739,7 +739,7 @@ fn write_message(w: &mut impl Write, v: &Value) -> std::io::Result<()> {
     w.flush()
 }
 
-/// 窓に 1 つのメッセージを渡し、答えを受ける。
+/// Window に 1 つのメッセージを渡し、答えを受ける。
 fn forward(sock: &Path, msg: &Value) -> Value {
     let Ok(mut s) = UnixStream::connect(sock) else {
         return error("not-running", "kisui-terminal is not running");
@@ -757,7 +757,7 @@ fn forward(sock: &Path, msg: &Value) -> Value {
     }
 }
 
-/// 受け口の本体。標準入力のメッセージを窓に渡し、答えを標準出力に返す。終了コードを返す。
+/// 受け口の本体。標準入力のメッセージを Window に渡し、答えを標準出力に返す。終了コードを返す。
 pub fn run_host(sock: &Path) -> i32 {
     let mut stdin = std::io::stdin().lock();
     let mut stdout = std::io::stdout().lock();
@@ -890,7 +890,7 @@ fn uninstall(name: &str, home: &Path, config_home: Option<&Path>) {
     }
 }
 
-/// 起動したときに呼ぶ。設定にサイトがあれば、窓の受け口を作り、登録のファイルを置き、状態を `app` に持たせる。
+/// 起動したときに呼ぶ。設定にサイトがあれば、Window の受け口を作り、登録のファイルを置き、状態を `app` に持たせる。
 /// 無ければ、前に置いた登録のファイルを消す。
 pub fn setup(app: &AppHandle, cfg: Option<&GuiConfig>) {
     let home = std::env::var_os("HOME").map(PathBuf::from);
@@ -1313,7 +1313,7 @@ mod tests {
         d
     }
 
-    // 受け口は、ソケットの向こうの窓にメッセージを渡し、答えを返す。窓が無ければ not-running
+    // 受け口は、ソケットの向こうの Window にメッセージを渡し、答えを返す。Window が無ければ not-running
     #[test]
     fn the_host_forwards_to_the_socket() {
         let d = temp_dir("forward");

@@ -77,7 +77,7 @@ func (s *Server) paneOpenStart(t *terminal, rq panecmd.Request) (panecmd.Reply, 
 		dir = t.cwd
 		t.mu.Unlock()
 	}
-	// ancestry は、作るタブのペインに持たせる系譜（打ったペインから届くように。窓が workspace.create にそのまま渡す。panereach.go）
+	// ancestry は、作るタブのペインに持たせる系譜（打ったペインから届くように。Window が workspace.create にそのまま渡す。panereach.go）
 	params := map[string]any{"workspace": ws, "name": name, "dir": dir, "ancestry": s.lineage(t)}
 	if rq.New {
 		params["new"] = true

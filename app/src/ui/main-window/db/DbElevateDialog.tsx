@@ -1,4 +1,4 @@
-// DB の権限を、時間を決めて一時的に強める窓（DB のタブの窓（リーダーの `a`）の `p`。#383・#458）。出している DB のタブの接続（の変種）の、強められる権限
+// DB の権限を、時間を決めて一時的に強める Dialog（DB のタブの Dialog（リーダーの `a`）の `p`。#383・#458）。出している DB のタブの接続（の変種）の、強められる権限
 // （自分のもの・コーディングエージェントのもの）を並べ、選んだものを、打った時間の間だけ強める。強めてよいか・上限の時間は
 // kisui serve のマシンの設定（権限の elevate-to・elevate-max）が決め、時間の字を読むのも kisui serve（features/db/elevateController.ts）。
 import { T } from "../../../i18n/index.ts";
@@ -30,7 +30,7 @@ const who = (actor: DbActor) =>
   T(actor === "human" ? "db.elevate.row.human" : "db.elevate.row.agent");
 
 /**
- * 強める窓。↓ ↑（Ctrl+J / Ctrl+K）で強める権限を選び、時間を打って Enter で onSubmit（誰の権限を、どの時間）、Esc で onCancel を呼ぶ。
+ * 強める Dialog。↓ ↑（Ctrl+J / Ctrl+K）で強める権限を選び、時間を打って Enter で onSubmit（誰の権限を、どの時間）、Esc で onCancel を呼ぶ。
  * 時間の入力欄には、選んだ権限の上限を初めから入れておく（打ち替えるまでは、選ぶ行に合わせて替わる）。
  */
 export function DbElevateDialog(props: {

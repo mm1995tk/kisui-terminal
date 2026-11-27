@@ -344,7 +344,7 @@ describe("withPassword（password_required なら聞いて送り直す）", () =
     assert.deepEqual(asked, [["rejected", "keychain"]]);
   });
 
-  it("聞く窓をやめたら PasswordCancelled を投げ、送り直さない", async () => {
+  it("聞く Dialog をやめたら PasswordCancelled を投げ、送り直さない", async () => {
     let n = 0;
     await assert.rejects(
       withPassword(

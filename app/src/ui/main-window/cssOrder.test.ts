@@ -96,23 +96,23 @@ describe("メインウィンドウの CSS の並び", () => {
 
   it("page.tsx からたどった CSS の順は、決めた並びのとおり", () => {
     assert.deepEqual(cssOrder("ui/main-window/page.tsx"), [
-      // キー操作のヒント（.key-hint・.kbd の規則だけを持ち、置き場の窓の規則と重ならない）。キーの一覧の下の段が先に読む
+      // キー操作のヒント（.key-hint・.kbd の規則だけを持ち、置き場の Dialog の規則と重ならない）。キーの一覧の Key footer が先に読む
       "ui/components/key-hints.css",
-      // カードの決まり（窓・知らせ）。常駐ツールの画面と共に使うので、ビルドでは別のファイルになる
+      // カードの決まり（Dialog・知らせ）。常駐ツールの画面と共に使うので、ビルドでは別のファイルになる
       "ui/components/card.css",
       "ui/main-window/commands/KeyListDialog.module.css",
       "ui/main-window/notifications/CopiedToast.module.css",
       "ui/main-window/notifications/ScaleToast.module.css",
       "ui/main-window/sidebar/changes/changes.css",
-      // その場の入力欄（.inline-* の規則だけを持ち、置き場のツリー・サイドバー・切り替える窓の規則と重ならない）
+      // その場の入力欄（.inline-* の規則だけを持ち、置き場のツリー・サイドバー・Workspace switcher の規則と重ならない）
       "ui/components/inline-input.css",
       "ui/main-window/sidebar/file-tree/tree.css",
       // サイドバーの DB のタブの木（#374。CSS Modules なので、クラス名はほかと重ならない）
       "ui/main-window/sidebar/db-tree/DbTree.module.css",
       "ui/main-window/sidebar/sidebar.css",
-      // 窓の下の段の、今効く操作の行（.key-footer-* の規則だけを持ち、ほかの CSS と規則が重ならない）。窓が読む KeyFooter から
+      // Dialog の Key footer の、今効く操作の行（.key-footer-* の規則だけを持ち、ほかの CSS と規則が重ならない）。Dialog が読む KeyFooter から
       "ui/components/key-footer.css",
-      // ボタン（.button の規則だけを持ち、ほかの CSS と規則が重ならないので、カードとの前後は見た目に関わらない）。サイドバーの次に、窓が読む
+      // ボタン（.button の規則だけを持ち、ほかの CSS と規則が重ならないので、カードとの前後は見た目に関わらない）。サイドバーの次に、Dialog が読む
       "ui/components/button.css",
       "ui/main-window/workspaces/switcher.css",
       "ui/main-window/layout.css",
@@ -127,19 +127,19 @@ describe("メインウィンドウの CSS の並び", () => {
       "ui/main-window/content/db/DbTabView.module.css",
       // プロキシのパネル（#409。CSS Modules なので、クラス名はほかと重ならない）
       "ui/main-window/content/proxy/ProxyPanel.module.css",
-      // エージェントの SQL で上書きしてよいかを聞く窓（#382。CSS Modules なので、クラス名はほかと重ならない）
+      // エージェントの SQL で上書きしてよいかを聞く Dialog（#382。CSS Modules なので、クラス名はほかと重ならない）
       "ui/main-window/db/DbProposeDialog.module.css",
-      // ssh の質問の窓の、マシンの行と質問の文の枠。CSS Modules なので、クラス名はほかと重ならない
+      // ssh の質問の Dialog の、マシンの行と質問の文の枠。CSS Modules なので、クラス名はほかと重ならない
       "ui/main-window/sessions/AskpassDialog.module.css",
-      // ターミナルのタブの窓（#457）と DB のタブの窓（#458）。CSS Modules なので、クラス名はほかと重ならない
+      // ターミナルのタブの Dialog（#457）と DB のタブの Dialog（#458）。CSS Modules なので、クラス名はほかと重ならない
       "ui/main-window/tab-window/TerminalWindow.module.css",
       "ui/main-window/tab-window/DbWindow.module.css",
-      // ブラウザのタブの窓（#459）。CSS Modules なので、クラス名はほかと重ならない
+      // ブラウザのタブの Dialog（#459）。CSS Modules なので、クラス名はほかと重ならない
       "ui/main-window/tab-window/BrowserWindow.module.css",
     ]);
   });
 
-  // #339: 切り替える窓の .newtab が、内蔵ブラウザの新しいタブのページの .newtab（browser.css。position: absolute）と
+  // #339: Workspace switcher の .newtab が、内蔵ブラウザの新しいタブのページの .newtab（browser.css。position: absolute）と
   // 同じ強さで重なり、あとから読む browser.css が勝って、タブを作る行がつぶれた。
   // 同じクラス名を 2 つのファイルが飾ると、読む順で見た目が変わるので、ファイルごとにクラス名を分ける。
   it("同じクラス名を、2 つ以上の CSS ファイルが規則の相手にしていない", () => {

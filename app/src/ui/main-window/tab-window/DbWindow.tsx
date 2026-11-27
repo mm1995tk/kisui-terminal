@@ -52,12 +52,12 @@ function stateText(s: DbWindowRow["state"]): string {
 }
 
 /**
- * DB のタブの窓（リーダーの `a`。#458）。開いたときに出していた DB のタブ 1 つの状態（接続・マシン・つながり・実行中・強めている権限・木）と、
+ * DB のタブの Dialog（リーダーの `a`。#458）。開いたときに出していた DB のタブ 1 つの状態（接続・マシン・つながり・実行中・強めている権限・木）と、
  * そのタブの結果のタブ（#404）の一覧を出し、結果のタブを 1 つ選んで操作する（出す・閉じる・データと Structure・ページ・書き出す）。
  * タブ全体への操作（取り消す・木にキーを向ける・木を読み直す・履歴・権限を強める・戻す）もここから。
- * ターミナルのタブの窓と同じく、選ぶだけでは出している結果のタブは替わらない。閉じる・切り替える・ページ・取り消す・読み直す・戻すは押したときに行い、
- * 窓は開いたまま（結果が一覧に出る）。タブを作る・閉じる・名前を変える・移すは、ここには置かない（ワークスペースの窓。リーダーの `n` `t`）。
- * 操作はいつも、開いたときの DB のタブに行う。出しているタブがそれでなくなったら（閉じた・ほかのタブに替わった）、窓を閉じる。
+ * ターミナルのタブの Dialog と同じく、選ぶだけでは出している結果のタブは替わらない。閉じる・切り替える・ページ・取り消す・読み直す・戻すは押したときに行い、
+ * Dialog は開いたまま（結果が一覧に出る）。タブを作る・閉じる・名前を変える・移すは、ここには置かない（Workspace switcher。リーダーの `n` `t`）。
+ * 操作はいつも、開いたときの DB のタブに行う。出しているタブがそれでなくなったら（閉じた・ほかのタブに替わった）、Dialog を閉じる。
  * キーは dbWindowKey.ts、決まりは docs/key-design.md。行を 1 回押すと選ぶだけで、ダブルクリックでそのタブを出す（Enter と同じ）。
  */
 export function DbWindow(props: {
@@ -87,17 +87,17 @@ export function DbWindow(props: {
   connected: (target: string) => boolean;
   /** macOS か（実行のキーの書き方） */
   mac: boolean;
-  /** サイドバーのスキーマの木にキーを向ける（窓は閉じてから呼ぶ） */
+  /** サイドバーのスキーマの木にキーを向ける（Dialog は閉じてから呼ぶ） */
   onFocusTree: () => void;
   /**
    * 閉じる。refocus なら、閉じたあと、SQL の入力欄にキーを向け直す（Enter・何か操作をしたあと。開く前の所が、閉じた結果のタブのことがあるため）。
-   * refocus でなければ、開く前にキーがあった所に戻る（何もせずに Esc。ほかの窓に替わるときも、その窓が自分でキーを取る）
+   * refocus でなければ、開く前にキーがあった所に戻る（何もせずに Esc。ほかの Dialog に替わるときも、その Dialog が自分でキーを取る）
    */
   onClose: (refocus: boolean) => void;
 }): JSX.Element {
-  // 窓の相手の DB のタブ（開いたときに出していたもの）。操作はいつもこれに行う
+  // Dialog の相手の DB のタブ（開いたときに出していたもの）。操作はいつもこれに行う
   const id = untrack(() => props.db.shownDbTab()?.id);
-  // 出している DB のタブが替わった（閉じた・ほかのタブを出した）ら閉じる。別のタブの DB に、開いていた窓の操作をしない
+  // 出している DB のタブが替わった（閉じた・ほかのタブを出した）ら閉じる。別のタブの DB に、開いていた Dialog の操作をしない
   createEffect(() => {
     if (props.db.shownDbTab()?.id !== id) props.onClose(true);
   });
@@ -113,7 +113,7 @@ export function DbWindow(props: {
     untrack(() => run().active),
   );
   const selected = () => selectedResult(rows(), want());
-  // 選んでいる行を見える所へ（結果のタブは 20 個まで増え、窓に収まらないと中身がスクロールする）。開いたときも、出しているタブが見えるように
+  // 選んでいる行を見える所へ（結果のタブは 20 個まで増え、Dialog に収まらないと中身がスクロールする）。開いたときも、出しているタブが見えるように
   createEffect(() => {
     const tab = selected();
     if (tab === undefined) return;
@@ -127,14 +127,14 @@ export function DbWindow(props: {
   const [note, setNote] = createSignal<string>();
   let acted = false;
 
-  /** 選んでいる結果のタブ。無ければ（結果のタブが 1 つも無い）、その旨を窓の下に出して undefined */
+  /** 選んでいる結果のタブ。無ければ（結果のタブが 1 つも無い）、その旨を Dialog の下に出して undefined */
   function pick(): string | undefined {
     const tab = selected();
     if (tab === undefined) setNote(T("dbWindow.note.noResult"));
     return tab;
   }
 
-  /** 結果のタブ tab を出して、窓を閉じる（Enter・ダブルクリック。キーは SQL の入力欄へ） */
+  /** 結果のタブ tab を出して、Dialog を閉じる（Enter・ダブルクリック。キーは SQL の入力欄へ） */
   function showAndClose(tab: string) {
     if (id === undefined) return;
     props.db.showResult(id, tab);
@@ -150,7 +150,7 @@ export function DbWindow(props: {
     f(id);
   }
 
-  /** 窓を閉じてから f を行う（ほかの窓を開く・木にキーを向ける。閉じるとキーが開く前の所に戻るので、そのあとで動かす） */
+  /** Dialog を閉じてから f を行う（ほかの Dialog を開く・木にキーを向ける。閉じるとキーが開く前の所に戻るので、そのあとで動かす） */
   function closeThen(f: (dbTab: string) => void) {
     if (id === undefined) return;
     props.onClose(false);
@@ -203,7 +203,7 @@ export function DbWindow(props: {
         }
         break;
       case "export": {
-        // 書き出せるか（行を返した結果があるか）を先に見る。書き出せなければ、窓を開いたまま理由を出す
+        // 書き出せるか（行を返した結果があるか）を先に見る。書き出せなければ、Dialog を開いたまま理由を出す
         const tab = pick();
         if (tab === undefined) break;
         const t = run().tabs.find((x) => x.id === tab);
@@ -238,7 +238,7 @@ export function DbWindow(props: {
     }
   }
 
-  /** 下の段に出す、今効く操作（選んでいる結果のタブと、このタブの状態に合わせて変わる。dbWindowKey.ts の dbWindowFooter） */
+  /** Key footer に出す、今効く操作（選んでいる結果のタブと、このタブの状態に合わせて変わる。dbWindowKey.ts の dbWindowFooter） */
   const footer = createMemo(() => {
     const r = rows().find((x) => x.id === selected());
     const t = run().tabs.find((x) => x.id === r?.id);

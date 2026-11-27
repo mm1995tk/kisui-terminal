@@ -1,13 +1,13 @@
 package server
 
-// プロキシ（proxy.*。#409）。窓が選んだタブの HTTP・HTTPS の通信を、このマシンで動かすプロキシ（proxy パッケージ）に通して
+// プロキシ（proxy.*。#409）。Window が選んだタブの HTTP・HTTPS の通信を、このマシンで動かすプロキシ（proxy パッケージ）に通して
 // 記録する。取り決めは docs/design/gui-protocol.md の「プロキシ」。
 //
 // 通す単位（scope）ごとに、待ち受け口（127.0.0.1 の空いているポート）と記録を 1 つずつ持つ。
 //   - ターミナルのタブ（このサーバーのワークスペース）：scope は "ws:<ワークスペースの id>"。通している間に開いたペインに、
 //     プロキシと認証局の環境変数を渡す（term.go の start）。動いているシェルの環境変数は変えられないので、
 //     先に開いていたペインは通らない。
-//   - 内蔵ブラウザのタブ：scope は窓が決めた名前。窓が、その待ち受け口をプロキシにした webview を作る。
+//   - 内蔵ブラウザのタブ：scope は Window が決めた名前。Window が、その待ち受け口をプロキシにした webview を作る。
 //
 // ワークスペースの scope は、通すのをやめても待ち受け口を閉じない（中身を見ず・記録もせずに中継だけする）。
 // 環境変数を渡したペインのプログラムが、やめたあとも通信できるように。閉じるのは、ワークスペースを閉じたとき。
@@ -39,7 +39,7 @@ const CapProxyHold = "proxy.hold"
 // maxProxyScopes は同時に通せる単位の数。
 const maxProxyScopes = 64
 
-// wsScopePrefix はワークスペースの scope の頭。窓が決める scope には使えない。
+// wsScopePrefix はワークスペースの scope の頭。Window が決める scope には使えない。
 const wsScopePrefix = "ws:"
 
 var proxyScopeName = regexp.MustCompile(`^[A-Za-z0-9_.:-]{1,64}$`)
@@ -197,7 +197,7 @@ func (m *proxyManager) shutdown() {
 	}
 }
 
-// releaseHolds は、全部の scope で、要求を止めるのをやめる（止めている要求は、そのまま流れる）。窓がいなくなったときに呼ぶ：
+// releaseHolds は、全部の scope で、要求を止めるのをやめる（止めている要求は、そのまま流れる）。Window がいなくなったときに呼ぶ：
 // 流す・捨てるを決める相手がいないまま、ページやコマンドを待たせ続けないように。
 func (m *proxyManager) releaseHolds() {
 	m.mu.Lock()

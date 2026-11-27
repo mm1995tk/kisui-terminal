@@ -26,8 +26,8 @@ func TestPaneReachOwn(t *testing.T) {
 	t.Setenv("HOME", normalizePath(t.TempDir()))
 	srv, sock := startFast(t)
 	c, _ := termClient(t, sock)
-	_, p1 := createWS(t, c) // 人が窓で開いたペイン
-	_, p2 := createWS(t, c) // 人が窓で開いた、別のペイン
+	_, p1 := createWS(t, c) // 人が Window で開いたペイン
+	_, p2 := createWS(t, c) // 人が Window で開いた、別のペイン
 	do := func(pane string) func(panecmd.Request) panecmd.Reply {
 		tok := termToken(t, srv, pane)
 		return func(rq panecmd.Request) panecmd.Reply {
@@ -150,7 +150,7 @@ func TestPaneReachAll(t *testing.T) {
 	}
 }
 
-// 別のマシンのペインから中継された頼み（pane.run）と、窓が作るタブ（workspace.create の ancestry）。
+// 別のマシンのペインから中継された頼み（pane.run）と、Window が作るタブ（workspace.create の ancestry）。
 func TestPaneReachAcrossMachines(t *testing.T) {
 	t.Setenv("HOME", normalizePath(t.TempDir()))
 	srv, sock := startFast(t)
@@ -189,7 +189,7 @@ func TestPaneReachAcrossMachines(t *testing.T) {
 			t.Errorf("%s lists: %+v", pane, r)
 		}
 	}
-	// 人が開いたペインには届かない。別のペイン・別のマシン・名乗らない頼み（古い窓）は、どこにも届かない
+	// 人が開いたペインには届かない。別のペイン・別のマシン・名乗らない頼み（古い Window）は、どこにも届かない
 	if r := run(other("t7"), map[string]any{"cmd": "send", "to": human, "text": "echo no"}); !outOfReach(r) {
 		t.Errorf("t7 sends to the human pane: %+v", r)
 	}

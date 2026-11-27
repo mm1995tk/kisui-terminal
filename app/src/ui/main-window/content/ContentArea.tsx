@@ -49,7 +49,7 @@ export function ContentArea(props: {
   labelOf: (target: string) => string;
   bookmarks: Bookmarks;
   focusUi: FocusUi;
-  /** リサイズモードで選んでいる、ペインどうしの境界 */
+  /** リサイズモードで選んでいる、ペインどうしの Pane border */
   litSplit: string | undefined;
   /** フォーカスしているワークスペースのマシンの色 */
   accent: string | undefined;

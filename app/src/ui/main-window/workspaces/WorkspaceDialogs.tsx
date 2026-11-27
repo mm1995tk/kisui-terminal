@@ -1,5 +1,5 @@
-// ワークスペースとタブにかかわる窓。閉じる前の確認・ワークスペースを切り替える窓（リーダーの w）・種類を選ぶ窓・マシンを選ぶ窓・タブを移す先を選ぶ窓。
-// タブの名前は、サイドバーのタブの行か、切り替える窓の右の列の行の中で変える（sidebar/workspaces/TabRow.tsx）。
+// ワークスペースとタブにかかわる Dialog。閉じる前の確認・Workspace switcher（リーダーの w）・種類を選ぶ Dialog・マシンを選ぶ Dialog・タブを移す先を選ぶ Dialog。
+// タブの名前は、サイドバーのタブの行か、Workspace switcher の右の列の行の中で変える（sidebar/workspaces/TabRow.tsx）。
 // 何を出すかは features/workspaces/controller.ts と features/workspaces/tabs/controller.ts の状態で決まる。
 import { Show, type JSX } from "solid-js";
 
@@ -14,7 +14,7 @@ import { WorkspaceSwitcher } from "./WorkspaceSwitcher.tsx";
 import { TabMovePicker } from "./TabMovePicker.tsx";
 
 /**
- * ワークスペースの窓を開いたときの初めの状態。リーダーの w・t・n（SwitcherStart）と、
+ * Workspace switcher を開いたときの初めの状態。リーダーの w・t・n（SwitcherStart）と、
  * マシンのダイアログの Enter（terminalOn。今のワークスペースで、そのマシンを設定したターミナルのタブを作る行を出しておく。#461）。
  */
 export type SwitcherOpen = SwitcherStart | { terminalOn: string };
@@ -22,16 +22,16 @@ export type SwitcherOpen = SwitcherStart | { terminalOn: string };
 const terminalOn = (o: SwitcherOpen | undefined): string | undefined =>
   typeof o === "object" ? o.terminalOn : undefined;
 
-/** ワークスペースとタブにかかわる窓をまとめて出す。出していない窓は何も描かない。 */
+/** ワークスペースとタブにかかわる Dialog をまとめて出す。出していない Dialog は何も描かない。 */
 export function WorkspaceDialogs(props: {
   workspaces: Workspaces;
   tabs: Tabs;
-  /** ワークスペースの窓を出しているか（出していれば、開いたときの初めの状態。リーダーの w は ws、t は tab、n は newTab。マシンのダイアログの Enter は terminalOn） */
+  /** Workspace switcher を出しているか（出していれば、開いたときの初めの状態。リーダーの w は ws、t は tab、n は newTab。マシンのダイアログの Enter は terminalOn） */
   switcherOpen: SwitcherOpen | undefined;
   onCloseSwitcher: () => void;
   /** マシンの色（マシンの名前 → 色。タブを作る行のマシンに付ける） */
   colors: Record<string, string>;
-  /** 内蔵ブラウザが有効か（無効なら、切り替える窓の、作るタブの種類に、ブラウザとシークレットが無い） */
+  /** 内蔵ブラウザが有効か（無効なら、Workspace switcher の、作るタブの種類に、ブラウザとシークレットが無い） */
   browser: boolean;
 }): JSX.Element {
   // 部品は作り直さないので、持ち物は 1 回だけ取り出す
@@ -87,7 +87,7 @@ export function WorkspaceDialogs(props: {
           <CloseWorkspaceCard
             name={c.name}
             onYes={() => {
-              // <Show keyed> の c は値そのものなので、窓を閉じたあとに読んでよい（#162・#272）
+              // <Show keyed> の c は値そのものなので、Dialog を閉じたあとに読んでよい（#162・#272）
               cancelClose();
               void closeWorkspace(c.gws, true);
             }}
@@ -129,7 +129,7 @@ export function WorkspaceDialogs(props: {
           onCreateTab={createNamedTerminalTab}
           onNewBrowserTab={openNewBrowserTabIn}
           onNewDbTab={(gid) => {
-            // 接続を選ぶ窓は別の窓なので、切り替える窓は閉じる（選んだ接続のタブは、選んでいたワークスペースに入る）
+            // 接続を選ぶ Dialog は別の Dialog なので、Workspace switcher は閉じる（選んだ接続のタブは、選んでいたワークスペースに入る）
             closeSwitcher();
             openDbPickerIn(gid);
           }}

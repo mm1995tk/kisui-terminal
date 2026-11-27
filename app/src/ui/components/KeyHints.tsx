@@ -1,4 +1,4 @@
-// キー操作のヒント。窓の下の段・空のワークスペースの画面などで、「どのキーで何をするか」を同じ形で並べる。
+// キー操作のヒント。Dialog の Key footer・空のワークスペースの画面などで、「どのキーで何をするか」を同じ形で並べる。
 // 1 つの項目は、キー（Kbd）を並べたあとに、何をするかの字。項目は横に流し、入りきらなければ次の行へ折り返す。
 // onPress を渡した項目は、押せるボタンにする（押すとキーを押したのと同じ）。
 // 行の中に 1 つのキーだけを出すとき（閉じる確認の y・n など）は、Kbd だけを使う。
@@ -40,7 +40,7 @@ export function KeyHints(props: { items: KeyHint[] }): JSX.Element {
                   <button
                     type="button"
                     class="key-hint-button"
-                    // 押しても、フォーカスは窓に置いたまま（キーを窓が受け続ける）
+                    // 押しても、フォーカスは Dialog に置いたまま（キーを Dialog が受け続ける）
                     onPointerDown={(e) => e.preventDefault()}
                     onClick={() => press()()}
                   >

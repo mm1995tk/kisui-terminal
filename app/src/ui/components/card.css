@@ -1,4 +1,4 @@
-/* 窓のカード（Card.tsx）。モック Connect.dc.html の寸法（色は theme.css の GitHub Dark）:
+/* Dialog のカード（Card.tsx）。モック Connect.dc.html の寸法（色は theme.css の GitHub Dark）:
    幅 560px・角丸 12px、見出し 16px 太さ 600、
    入力欄 高さ 40px・角丸 8px、行 padding 10px 8px・角丸 8px。
    ボタンは Button.tsx（button.css）。値は ui/styles/tokens.css の役割から選ぶ（使い分けは docs/design/design-system.md）。 */
@@ -33,8 +33,12 @@
   font: inherit;
 }
 
-/* 真ん中に出すもの。上から 120px（モック）、狭い画面では左右 16px あける */
+/* 真ん中に出すもの。上から 120px（モック）、狭い画面では左右 16px あける。
+   Dialog の高さは、ここと下の .card-content だけで決める（#524）：Dialog は中身の高さ（fit-content）で、max-height を超える分は
+   .card-content だけが縮んでスクロールする。中の部品は高さの決め方を持たない（.card-content の子は縮まない）。
+   高さを固定する Dialog（Workspace switcher。switcher.css）だけが、height を書き替える */
 .card-modal {
+  height: fit-content;
   width: 560px;
   max-width: calc(100vw - 2 * var(--space-16));
   max-height: calc(100vh - 160px);
@@ -68,8 +72,10 @@
   box-shadow: var(--shadow-raised);
 }
 
-/* 窓（ModalCard）の 3 つの段。見出しと下の段は動かず、中身だけがスクロールする。
-   段の境目には、カードの縁と同じ色の 1px の線を引く（GitHub の窓と同じ） */
+/* Dialog（ModalCard）の 3 つの段。見出しと Key footer は動かず、中身だけがスクロールする。
+   段の境目には、カードの縁と同じ色の 1px の線を引く（GitHub の Dialog と同じ）。
+   中身の flex-basis は auto（中身の高さ）にする。flex: 1（flex-basis 0%）だと、Dialog の高さが中身で決まるのに、0% をどう解くかが
+   WebView に任される。0 と解かれると中身の高さが 0 になり、Dialog が見出しと Key footer だけの高さになる（macOS で起きた #524 の推定の原因） */
 .card-header {
   flex: none;
   padding: var(--space-12) var(--space-16);
@@ -77,13 +83,18 @@
 }
 .card-content {
   display: flex;
-  flex: 1;
+  flex: 1 1 auto;
   flex-direction: column;
   min-height: 0;
   overflow-y: auto;
 }
+/* 中身の中の部品は縮めない。Dialog に収まらない分は .card-content がスクロールする。
+   :where で強さを 0 にしてあるので、高さを固定した Dialog の中で縮める部品（.switcher）は、ふつうの class の規則で書き替えられる */
+:where(.card-content > *) {
+  flex: none;
+}
 /* 中に押せるものが無いと、ブラウザがスクロールの段そのものにフォーカスを置く（キーでスクロールできるように）。
-   段の全体を囲む枠は出さない（窓を開いただけで枠が見えてしまう） */
+   段の全体を囲む枠は出さない（Dialog を開いただけで枠が見えてしまう） */
 .card-content:focus {
   outline: none;
 }
@@ -92,7 +103,7 @@
   flex: none;
   flex-direction: column;
   gap: var(--space-12);
-  /* 間は下の段が持つ（見出しと同じ上下 12px・左右 16px）。中の部品は間を持たない */
+  /* 間は Key footer が持つ（見出しと同じ上下 12px・左右 16px）。中の部品は間を持たない */
   padding: var(--space-12) var(--space-16);
   border-top: 1px solid var(--card-divider);
 }
@@ -106,7 +117,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-12);
-  /* 上下の間は中身が持つ（窓の見出しの線・下の段の線からの間も、これで決まる） */
+  /* 上下の間は中身が持つ（Dialog の見出しの線・Key footer の線からの間も、これで決まる） */
   padding: var(--space-12) var(--space-16);
 }
 .card-title {
@@ -273,7 +284,7 @@
   font-size: var(--text-body);
 }
 
-/* 設定ファイルの間違いの画面（ConfigError.tsx）。窓いっぱいに 1 枚のカードだけを出す */
+/* 設定ファイルの間違いの画面（ConfigError.tsx）。Window いっぱいに 1 枚のカードだけを出す */
 .config-error {
   box-sizing: border-box;
   display: flex;
@@ -289,7 +300,7 @@
   max-width: 100%;
 }
 
-/* クリップボードの履歴の窓（ClipboardHistoryDialog.tsx） */
+/* クリップボードの履歴の Dialog（ClipboardHistoryDialog.tsx） */
 .history-copied {
   color: var(--card-accent);
   font-weight: var(--weight-strong);
@@ -305,7 +316,7 @@
   padding: var(--space-10) var(--space-16) var(--space-12);
 }
 
-/* kisui-terminal の外から開く履歴の窓（ui/utilities/clipboard/page.tsx）。窓いっぱいに出し、一覧が残りの高さを使う */
+/* kisui-terminal の外から開く履歴の Window（ui/utilities/clipboard/page.tsx）。Window いっぱいに出し、一覧が残りの高さを使う */
 .history-popup {
   position: fixed;
   inset: 0;
@@ -314,16 +325,14 @@
   flex: 1;
   max-height: none;
 }
-/* 一覧が空でも、下の段（基本操作のヒント）は窓の下の端に置く */
+/* 一覧が空でも、Key footer（基本操作のヒント）は Dialog の下の端に置く */
 .history-popup .card-footer {
   margin-top: auto;
 }
 
-/* ファイルの送り出しの確認の窓（TransferDialog.tsx）の、許すと読まれるものの一覧。項目は省かずに全部並べ、
-   多いときはこの一覧の中でスクロールする（見出し・合計・ボタンは見えたまま）。パスは等幅で、長くても切らずに折り返す。
-   .card-body の中で縮めない（flex: none）。縮めてよいと、WebView によっては高さが 0 と計算される（下の .machine-dialog と同じ） */
+/* ファイルの送り出しの確認の Dialog（TransferDialog.tsx）の、許すと読まれるものの一覧。項目は省かずに全部並べ、
+   多いときはこの一覧の中でスクロールする（見出し・合計・ボタンは見えたまま）。パスは等幅で、長くても切らずに折り返す */
 .transfer-list {
-  flex: none;
   max-height: 40vh;
   margin: 0;
   padding: var(--space-8) var(--space-10);
@@ -349,10 +358,9 @@
   outline-offset: var(--state-focus-ring-offset);
 }
 
-/* 別のマシンからの頼みを許すかを聞く窓（PaneApprovalDialog.tsx）の、頼みの中身。中身は、そのマシンが決めた字なので、
+/* 別のマシンからの頼みを許すかを聞く Dialog（PaneApprovalDialog.tsx）の、頼みの中身。中身は、そのマシンが決めた字なので、
    画面の字（見出し）と見分けられるよう、等幅で枠の中に出す。長くても切らずに折り返し、多ければこの中でスクロールする */
 .approval-items {
-  flex: none;
   max-height: 40vh;
   margin: 0;
   padding: var(--space-8) var(--space-10);
@@ -376,16 +384,17 @@
   margin-bottom: 0;
 }
 
-/* マシンのダイアログ（MachineDialog.tsx）と、同じ形で一覧を出す窓。行は card-row を使い、キーはダイアログ全体で受ける。
-   窓は高さを決めず max-height だけなので、一覧を縮めてよい（min-height: 0）にすると、WebView によっては一覧の高さが 0 と
-   計算されて行が 1 つも見えなくなる。一覧は縮めず、窓に収まらない分は .card-content がスクロールする */
+/* Add a remote（AddMachine.tsx）の ~/.ssh/config からの候補。多くても一覧の中でスクロールし、
+   下の状態の文と誤りの理由（CardError）を Dialog の中に見えたままにする（.history-rows・.bookmark-rows と同じ） */
+.add-machine-rows {
+  max-height: 40vh;
+}
+
+/* マシンのダイアログ（MachineDialog.tsx）と、同じ形で一覧を出す Dialog。行は card-row を使い、キーはダイアログ全体で受ける。
+   一覧は縮めず、Dialog に収まらない分は .card-content がスクロールする（.card-modal の決まり） */
 .machine-dialog {
   display: flex;
-  flex: none;
   flex-direction: column;
-}
-.machine-dialog .card-rows {
-  flex: none;
 }
 /* スクロールするのは .card-content なので、選んだ行の枠を切らない間（.card-rows の scroll-padding と同じ）をここにも付ける */
 .card-content:has(> .machine-dialog) {

@@ -1,6 +1,6 @@
 /* プロキシのパネル（#409。ProxyPanel.tsx）。グリッドの場所の右側に出し、タブの画面（ターミナル・ページ）は左に縮む
    （縮める規則は layout.css と browser.css の .main[data-proxy-panel]）。上に通信の一覧、下に選んだ通信の中身。
-   見た目（#425）は、窓のカード（card.css）とボタン（button.css）の決まりに寄せる。パネルを地から浮かせた面（surface）にし、
+   見た目（#425）は、Dialog のカード（card.css）とボタン（button.css）の決まりに寄せる。パネルを地から浮かせた面（surface）にし、
    見出しはカードの見出しの大きさ、一覧と中身は角の丸い枠に入れる。値は ui/styles/tokens.css の役割だけを使う。 */
 .root {
   position: absolute;
@@ -8,7 +8,7 @@
   right: 0;
   bottom: 0;
   width: var(--proxy-panel-w);
-  /* ターミナルのグリッドより上、境界のつまみ（layout.css の .resizer、z-index 5）より下 */
+  /* ターミナルのグリッドより上、Pane border のつまみ（layout.css の .resizer、z-index 5）より下 */
   z-index: 4;
   display: flex;
   flex-direction: column;
@@ -163,7 +163,7 @@
 .row:hover {
   background: var(--state-hover-bg);
 }
-/* 選んだ行は、窓の一覧（.card-row）と同じ印 */
+/* 選んだ行は、Dialog の一覧（.card-row）と同じ印 */
 .row[aria-selected="true"] {
   background: var(--state-selected-bg);
   outline: 1px solid var(--state-selected-outline);
@@ -278,7 +278,7 @@
   overflow-wrap: anywhere;
 }
 
-/* 段の見出し：窓の一覧の見出し（.card-section）と同じ */
+/* 段の見出し：Dialog の一覧の見出し（.card-section）と同じ */
 .section {
   display: block;
   margin: var(--space-12) 0 var(--space-6);
@@ -333,7 +333,7 @@
   overflow-wrap: anywhere;
 }
 
-/* 足もと：カードの下の段（.card-footer）と同じ */
+/* 足もと：カードの Key footer（.card-footer）と同じ */
 .foot {
   flex: none;
   padding: var(--space-10) var(--space-16);
@@ -386,7 +386,7 @@
   color: var(--color-text-dim);
 }
 
-/* 要求を書き換える欄（#410。RequestEditor.tsx）。中身の代わりに、下の段に出す */
+/* 要求を書き換える欄（#410。RequestEditor.tsx）。中身の代わりに、下の部分に出す */
 .editor {
   flex: 1;
   min-height: 0;
@@ -415,7 +415,7 @@
   margin-bottom: var(--space-4);
 }
 
-/* 入力欄は窓の入力欄（.card-input）の地と縁 */
+/* 入力欄は Dialog の入力欄（.card-input）の地と縁 */
 .input {
   box-sizing: border-box;
   min-width: 0;

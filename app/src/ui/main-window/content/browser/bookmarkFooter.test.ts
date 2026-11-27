@@ -16,7 +16,7 @@ const ev = (key: string, ctrlKey = false) => ({
   metaKey: false,
 });
 
-describe("bookmarkDialogFooter（ブックマークの一覧の下の段の今効く操作。#489）", () => {
+describe("bookmarkDialogFooter（ブックマークの一覧の Key footer の今効く操作。#489）", () => {
   it("選んでいる行がブックマークなら、消す（Ctrl+D）を出す", () => {
     const rows = bookmarkDialogFooter(true);
     assert.deepEqual(
@@ -57,7 +57,7 @@ describe("bookmarkDialogFooter（ブックマークの一覧の下の段の今�
     );
   });
 
-  it("`?` の一覧の表の操作は、どこでも同じキー（↓ ↑・Enter・Esc・`?`）を除き、下の段に出る。どこでも同じキーは出さない", () => {
+  it("`?` の一覧の表の操作は、どこでも同じキー（↓ ↑・Enter・Esc・`?`）を除き、Key footer に出る。どこでも同じキーは出さない", () => {
     const keys = bookmarkDialogFooter(true).flatMap((r) =>
       r.items.flatMap((i) => i.keys),
     );

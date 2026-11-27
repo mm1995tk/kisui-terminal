@@ -43,9 +43,9 @@ export function TerminalGrid(props: {
   layout?: PaneLayout;
   /** 欄の名前（kisui pane title。欄の id -> 名前）。欄の上の細い帯に出す */
   titles?: Readonly<Record<string, string>>;
-  /** 欄どうしの境界を key の割合 ratio に動かす（ドラッグ。#18）。割合の範囲は呼ぶ側が収める */
+  /** 欄どうしの Pane border を key の割合 ratio に動かす（ドラッグ。#18）。割合の範囲は呼ぶ側が収める */
   onBorder?: (key: string, ratio: number) => void;
-  /** リサイズモードで選んでいる境界（key）。光らせる */
+  /** リサイズモードで選んでいる Pane border（key）。光らせる */
   litBorder?: string;
   /** 今使っているターミナル */
   active: TermLink | undefined;
@@ -99,7 +99,7 @@ export function TerminalGrid(props: {
     ]);
   const rects = () => layoutRects(tree());
   const bars = () => (props.zoomed ? [] : layoutBars(tree()));
-  // ドラッグしている境界（光らせる）
+  // ドラッグしている Pane border（光らせる）
   const [dragKey, setDragKey] = createSignal<string>();
   const template = () =>
     props.accent ? { "--term-accent": props.accent } : {};
@@ -109,7 +109,7 @@ export function TerminalGrid(props: {
     const r = rects().get(id);
     if (!r) return { display: "none" };
     const pct = (v: number) => `${v * 100}%`;
-    // 欄どうしの間は GAP の隙間（境界のつまみの場所）。カードの縁には隙間を空けない
+    // 欄どうしの間は GAP の隙間（Pane border のつまみの場所）。カードの縁には隙間を空けない
     const gap = (v: number, edge: number) =>
       Math.abs(v - edge) < 1e-9 ? 0 : GAP / 2;
     const l = gap(r.x, 0);
@@ -124,7 +124,7 @@ export function TerminalGrid(props: {
     };
   };
 
-  // 境界のつまみ（欄の間の隙間）をつかんだ。つかんだ位置からの動きを割合にして、境界を動かす
+  // Pane border のつまみ（欄の間の隙間）をつかんだ。つかんだ位置からの動きを割合にして、Pane border を動かす
   function dragBar(bar: Bar, e: PointerEvent) {
     if (e.button !== 0 || !props.onBorder) return;
     const h = e.currentTarget as HTMLElement;

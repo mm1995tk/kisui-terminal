@@ -1,4 +1,4 @@
-// 前の版が webview の localStorage に記録した「窓で足したマシン」を、この版で最初に起動したときに config.local.toml に移す。
+// 前の版が webview の localStorage に記録した「Window で足したマシン」を、この版で最初に起動したときに config.local.toml に移す。
 // 移したあとは記録を読まない（MOVED_KEY に印を付ける）。記録そのものは消さずに残す（前の版に戻したときに、そのまま使えるように）。
 //
 // 移すマシンは、前の版のサイドバーに出ていたものだけ（mergeMachines と同じ決まり）：
@@ -8,7 +8,7 @@
 //
 // config.local.toml に書けない（読み取り専用・壊れている、など）ときは、そこで止め、印を付けない（次の起動でまた移す）。
 // そのときは、移せなかったマシンを知らせに出す。殻の確かめで断られた 1 台（使えない名前など）は飛ばして続け、知らせに出す。
-// 起動のとき、窓を出す前に 1 度だけ呼ぶ（ui/main-window/page.tsx）。
+// 起動のとき、Dialog を出す前に 1 度だけ呼ぶ（ui/main-window/page.tsx）。
 
 import { T } from "../../i18n/index.ts";
 import type { KeyValueStore } from "../keyValueStore.ts";

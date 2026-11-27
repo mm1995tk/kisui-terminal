@@ -81,7 +81,7 @@ export function createSessions(deps: {
   const { api, store, hooks } = deps;
   // ~/.ssh/config のホスト（マシンを足すときの候補）
   const [hosts, setHosts] = createSignal<string[]>([]);
-  // 設定ファイルのマシン（サイドバーには、これと「ローカル」だけを出す）。窓で書き換えるたびに、殻が返す一覧に置き換える
+  // 設定ファイルのマシン（サイドバーには、これと「ローカル」だけを出す）。Dialog で書き換えるたびに、殻が返す一覧に置き換える
   const [machines, setMachines] = createSignal<Machine[]>(
     fromConfig(deps.config),
   );
@@ -132,14 +132,14 @@ export function createSessions(deps: {
   // マシンごと・ワークスペースごとのターミナル（F1・F4）。並びが変わったら hooks.termChanged で描き直させる（TermGroup は signal ではない）
   const termGroups = new Map<string, TermGroups>();
   const [asks, setAsks] = createSignal<AskpassRequest[]>([]);
-  // リモートを足す窓を出しているか。足すためにつないでいる最中のマシン、足せなかった理由
+  // リモートを足す Dialog を出しているか。足すためにつないでいる最中のマシン、足せなかった理由
   const [adding, setAdding] = createSignal(false);
   const [addPending, setAddPending] = createSignal<Machine | null>(null);
   const [addError, setAddError] = createSignal<string | undefined>();
   // 名前を変えているマシン（マシンのダイアログの行が入力欄になる）、変えられなかった理由
   const [renaming, setRenaming] = createSignal<string | null>(null);
   const [renameError, setRenameError] = createSignal<string | undefined>();
-  // ターミナルの始め方を変えているマシンと、窓に初めに入れる値（今の設定）、変えられなかった理由
+  // ターミナルの始め方を変えているマシンと、Dialog に初めに入れる値（今の設定）、変えられなかった理由
   const [termEditing, setTermEditing] = createSignal<{
     target: string;
     values: TermDefaults;
@@ -167,7 +167,7 @@ export function createSessions(deps: {
         setAsks((a) => a.filter((x) => x.requestId !== id)),
       ),
     );
-    // 質問の窓口を用意してから、「ローカル」と設定ファイルのマシンにつなぐ
+    // 質問の受け口を用意してから、「ローカル」と設定ファイルのマシンにつなぐ
     for (const t of targets()) connect(t);
   });
 
@@ -280,8 +280,8 @@ export function createSessions(deps: {
 
   // config.local.toml に書いている最中の、足すマシン（書き終わるまで、つながりの知らせで書き直さない）
   let addWriting: Machine | null = null;
-  // 足すためにつないだマシンの結果を待つ。つながったら config.local.toml に書いて窓を閉じ、
-  // つなげない・書けなければ理由を窓に出して、書かずに切る
+  // 足すためにつないだマシンの結果を待つ。つながったら config.local.toml に書いて Dialog を閉じ、
+  // つなげない・書けなければ理由を Dialog に出して、書かずに切る
   createEffect(() => {
     const p = addPending();
     if (!p) return;
@@ -297,7 +297,7 @@ export function createSessions(deps: {
           name: p.name ?? null,
         }).then((err) => {
           addWriting = null;
-          // 書いている間にやめた（キャンセル・Esc）なら、窓は閉じてある
+          // 書いている間にやめた（キャンセル・Esc）なら、Dialog は閉じてある
           if (addPending() !== p) return;
           setAddPending(null);
           if (err === undefined) {
@@ -349,7 +349,7 @@ export function createSessions(deps: {
     });
   }
 
-  /** マシン target のターミナルの始め方を変える窓を出す（今の設定を読み直して、入力欄に入れる）。 */
+  /** マシン target のターミナルの始め方を変える Dialog を出す（今の設定を読み直して、入力欄に入れる）。 */
   async function openTermEdit(target: string) {
     setTermEditError(undefined);
     const values = await readTermDefaults(target);
@@ -357,7 +357,7 @@ export function createSessions(deps: {
   }
 
   /**
-   * ターミナルの始め方を変える窓の「保存」。形を確かめてから config.local.toml に書き、書けたら窓を閉じる（書けなければ理由を窓に出す）。
+   * ターミナルの始め方を変える Dialog の「保存」。形を確かめてから config.local.toml に書き、書けたら Dialog を閉じる（書けなければ理由を Dialog に出す）。
    * 空の欄は、その項目を消す（そのマシンの設定のままになる）。リモートのマシンは [[gui.machines]] の項目に、
    * 「ローカル」は [server] に書く。次に作るターミナルから効く（kisui serve は止めない）。
    */
@@ -394,7 +394,7 @@ export function createSessions(deps: {
       )
       .then((err) => {
         setTermEditBusy(false);
-        // 書いている間にやめた（Esc）なら、窓は閉じてある
+        // 書いている間にやめた（Esc）なら、Dialog は閉じてある
         if (termEditing() !== editing) return;
         if (err === undefined) setTermEditing(null);
         else setTermEditError(err);
@@ -478,13 +478,13 @@ export function createSessions(deps: {
     retry,
     /** 答えを待っている ssh の質問（先頭から順に聞く） */
     asks,
-    /** ssh の質問の窓に出す、質問を出した接続の行き先（target）のマシン（名前・ssh の行き先・色） */
+    /** ssh の質問の Dialog に出す、質問を出した接続の行き先（target）のマシン（名前・ssh の行き先・色） */
     askMachine: (target: string): AskpassMachine =>
       askpassMachine(machines(), colors(), target),
     reply,
-    /** リモートを足す窓を出しているか */
+    /** リモートを足す Dialog を出しているか */
     adding,
-    /** リモートを足す窓を出す */
+    /** リモートを足す Dialog を出す */
     openAdd() {
       setAddError(undefined);
       setAdding(true);

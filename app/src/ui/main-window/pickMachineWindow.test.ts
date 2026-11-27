@@ -1,5 +1,5 @@
-// タブを足すマシンを選ぶ窓（#272）を、本物の Solid の <Show> で確かめる。
-// 窓（workspaces/WorkspaceDialogs.tsx）は JSX なので node --test では描けない。ここでは同じ形（when={pickingFor()}、
+// タブを足すマシンを選ぶ Dialog（#272）を、本物の Solid の <Show> で確かめる。
+// Dialog（workspaces/WorkspaceDialogs.tsx）は JSX なので node --test では描けない。ここでは同じ形（when={pickingFor()}、
 // onChoose で setPickingFor(null) のあとに newTerminalTab(gid, t)）を JSX を使わずに作る。
 // WorkspaceDialogs.tsx の <Show> が keyed であることは ui/windowShow.test.ts が確かめる。
 import assert from "node:assert/strict";
@@ -12,7 +12,7 @@ const solid: typeof import("solid-js") = await import(
 );
 
 /**
- * 窓を描いて、MachinePicker が受け取る onChoose を返す。
+ * Dialog を描いて、MachinePicker が受け取る onChoose を返す。
  * keyed なら今の作り（子が受け取るのは値）、keyed でなければ直す前の作り（子が受け取るのはアクセサ）。
  */
 function openPicker(
@@ -39,20 +39,20 @@ function openPicker(
       typeof solid.Show
     >[0]) as unknown as () => unknown;
     view();
-    assert.ok(onChoose, "窓が描かれていない");
+    assert.ok(onChoose, "Dialog が描かれていない");
     return onChoose;
   });
 }
 
-describe("タブを足すマシンを選ぶ窓", () => {
-  it("<Show keyed> の窓でマシンを選ぶと、そのワークスペースで newTerminalTab が呼ばれる", () => {
+describe("タブを足すマシンを選ぶ Dialog", () => {
+  it("<Show keyed> の Dialog でマシンを選ぶと、そのワークスペースで newTerminalTab が呼ばれる", () => {
     const calls: string[] = [];
     const choose = openPicker(true, (gid, t) => calls.push(`${gid}/${t}`));
     choose("m1");
     assert.deepEqual(calls, ["g1/m1"]);
   });
 
-  it("keyed でない <Show> で、窓を閉じたあとにアクセサを読むと例外になる（直す前の形）", () => {
+  it("keyed でない <Show> で、Dialog を閉じたあとにアクセサを読むと例外になる（直す前の形）", () => {
     const calls: string[] = [];
     const choose = openPicker(false, (gid, t) => calls.push(`${gid}/${t}`));
     assert.throws(() => choose("m1"), /Stale read from <Show>/);

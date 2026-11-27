@@ -97,7 +97,7 @@ export function createDbStructure(deps: {
     }
   }
 
-  // Structure を出していて、まだ聞いていなければ聞く（失敗しても繰り返さない。聞き直しは DB のタブの窓の r で）
+  // Structure を出していて、まだ聞いていなければ聞く（失敗しても繰り返さない。聞き直しは DB のタブの Dialog の r で）
   createEffect(() => {
     const all = states();
     for (const id of Object.keys(all))

@@ -1,4 +1,4 @@
-// ワークスペースの中のタブの行（ターミナルのタブ・ブラウザのタブ・DB のタブ）。サイドバーの帯と、ワークスペースを切り替える窓（ui/main-window/workspaces/SwitcherParts.tsx）が使う。
+// ワークスペースの中のタブの行（ターミナルのタブ・ブラウザのタブ・DB のタブ）。サイドバーの帯と、Workspace switcher（ui/main-window/workspaces/SwitcherParts.tsx）が使う。
 import { T } from "../../../../i18n/index.ts";
 import { Show, type JSX } from "solid-js";
 
@@ -178,13 +178,13 @@ export function TabRow(props: {
   /** 出しているタブで、そのワークスペースにフォーカスしているか（強く光らせる） */
   current: boolean;
   onTab: () => void;
-  /** 切り替えの窓で、キーで選んでいる行か（印は switcher.css） */
+  /** 切り替えの Dialog で、キーで選んでいる行か（印は switcher.css） */
   selected?: boolean;
-  /** 切り替えの窓で、キーでつかんで移しているタブか（印は switcher.css） */
+  /** 切り替えの Dialog で、キーでつかんで移しているタブか（印は switcher.css） */
   held?: boolean;
-  /** li の id（窓の aria-activedescendant が指す） */
+  /** li の id（Dialog の aria-activedescendant が指す） */
   id?: string;
-  /** 省くと ✕ を出さない（切り替えの窓の右のタブの一覧） */
+  /** 省くと ✕ を出さない（切り替えの Dialog の右のタブの一覧） */
   onClose?: () => void;
   onRename?: () => void;
   /** つかむ所を押した（ドラッグで並べ替える）。省くと動かせない */

@@ -194,7 +194,7 @@ fn open_inside(dir: &Path, rel: &Path, max: u64) -> Option<fs::File> {
     Some(file)
 }
 
-/// 画像が使えるか（開けて、PNG の先頭で、大きさが上限まで）だけを確かめる。中身の全部は読まない（窓を開くときに重くしない）。
+/// 画像が使えるか（開けて、PNG の先頭で、大きさが上限まで）だけを確かめる。中身の全部は読まない（Window を開くときに重くしない）。
 fn check_png(dir: &Path, rel: &Path) -> bool {
     let Some(file) = open_inside(dir, rel, MAX_BYTES) else {
         return false;
@@ -357,7 +357,7 @@ fn register_as(dir: PathBuf, c: Character<PathBuf>, commit: bool) -> Character<S
     out
 }
 
-/// すぐ使うものとして覚える（窓を開いたときの読み込み）。
+/// すぐ使うものとして覚える（Window を開いたときの読み込み）。
 fn register(dir: PathBuf, c: Character<PathBuf>) -> Character<String> {
     register_as(dir, c, true)
 }
@@ -390,7 +390,7 @@ fn lookup(path: &str) -> Option<Vec<u8>> {
     read_png(&dir, &rel)
 }
 
-/// スキーム `mascot:` の応答。メイン窓の画面にだけ返す。
+/// スキーム `mascot:` の応答。メイン Window の画面にだけ返す。
 pub fn respond(webview: &str, path: &str) -> tauri::http::Response<Cow<'static, [u8]>> {
     use tauri::http::{header, Response, StatusCode};
     let data = if webview == "main" {
@@ -441,7 +441,7 @@ fn load_selected(commit: bool) -> Result<Option<Character<String>>, String> {
     Ok(Some(register_as(dir, c, commit)))
 }
 
-/// 設定で選んだキャラクター。選んでいない・使えないときは None（案内だけが出る。窓を開いたときの 1 回。理由は標準エラーに書く）。
+/// 設定で選んだキャラクター。選んでいない・使えないときは None（案内だけが出る。Window を開いたときの 1 回。理由は標準エラーに書く）。
 /// ファイルを読むので、メインスレッドの外で動かす。
 #[tauri::command(async)]
 pub fn mascot_load() -> Option<Character<String>> {
@@ -452,7 +452,7 @@ pub fn mascot_load() -> Option<Character<String>> {
 }
 
 /// 今選んでいるキャラクターを読み直す（リーダーの `c r`）。`mascot_load` と同じ読み方で、使えないときは理由を返す
-/// （画面がお知らせに出す。前のキャラクターはそのまま使う）。選んでいなければ Ok(None)。
+/// （画面が Notice に出す。前のキャラクターはそのまま使う）。選んでいなければ Ok(None)。
 /// 返した画像は、画面がデコードし終えて `mascot_commit` を呼ぶまで、使っているキャラクターの画像を置き換えない。
 #[tauri::command(async)]
 pub fn mascot_reload() -> Result<Option<Character<String>>, String> {
@@ -834,7 +834,7 @@ unknown = 1
         let url = s.carry.frames[1].clone();
         assert_eq!(lookup(&format!("/{url}")).unwrap(), png(b"b.png"));
         assert_eq!(respond("main", &format!("/{url}")).status(), 200);
-        // メイン窓のほかの画面には返さない
+        // メイン Window のほかの画面には返さない
         assert_eq!(
             respond("clipboard-history", &format!("/{url}")).status(),
             404

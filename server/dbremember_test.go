@@ -73,7 +73,7 @@ func TestDBRememberCapability(t *testing.T) {
 	}
 }
 
-// 持ち主の窓の接続が切れたら、覚えたパスワードを全部忘れる。
+// 持ち主の Window の接続が切れたら、覚えたパスワードを全部忘れる。
 func TestDBPasswordsForgottenWhenTheOwnerGoes(t *testing.T) {
 	other := rememberConn
 	other.Name = "logs"
@@ -95,7 +95,7 @@ func TestDBPasswordsForgottenWhenTheOwnerGoes(t *testing.T) {
 }
 
 // 別の接続が session.hello で持ち主になったら、その返事より前に、覚えたパスワードを全部忘れる。
-// 新しい持ち主の要求は、前の持ち主の窓で打ったパスワードを使えない。
+// 新しい持ち主の要求は、前の持ち主の Window で打ったパスワードを使えない。
 func TestDBPasswordsForgottenWhenAnotherTakesOver(t *testing.T) {
 	_, sock, remembered := rememberServer(t, rememberConn)
 	first := helloed(t, sock)
@@ -141,7 +141,7 @@ func TestDBPasswordNotRememberedForAFormerOwner(t *testing.T) {
 	if srv.rememberDBPassword(first, login, "typed") || remembered(rememberConn) {
 		t.Error("remembered for a connection that is no longer the owner")
 	}
-	// ペインの中のコマンド（kisui db）の頼みは、窓の接続を持たない。
+	// ペインの中のコマンド（kisui db）の頼みは、Window の接続を持たない。
 	if srv.rememberDBPassword(nil, login, "typed") || remembered(rememberConn) {
 		t.Error("remembered without a window")
 	}
@@ -210,8 +210,8 @@ func TestDBRememberOnlyFromTheOwner(t *testing.T) {
 	}
 }
 
-// 窓で打って通ったパスワードで、エージェントの kisui db のコマンドが通る。窓の接続が切れると通らなくなり、
-// 窓がつなぎ直して db.remember で渡し直すと、人が打ち直さなくてもまた通る。渡し直したものを DB が断ったら忘れる。
+// Window で打って通ったパスワードで、エージェントの kisui db のコマンドが通る。Window の接続が切れると通らなくなり、
+// Window がつなぎ直して db.remember で渡し直すと、人が打ち直さなくてもまた通る。渡し直したものを DB が断ったら忘れる。
 func TestDBCmdUsesTheWindowPasswordWhileItIsConnected(t *testing.T) {
 	conn := dbtest.Postgres(t)
 	conn.Agent = config.DBPermission{Name: "r", Run: config.DBRunRead, Propose: true}

@@ -1,4 +1,4 @@
-// 組み合わせの例：ターミナルのタブの窓（TerminalWindow.tsx。リーダーの a。#457）を、アプリと同じ部品・CSS・字・翻訳で出す。
+// 組み合わせの例：ターミナルのタブの Dialog（TerminalWindow.tsx。リーダーの a。#457）を、アプリと同じ部品・CSS・字・翻訳で出す。
 // ペインの並びは見本のデータ（下の panes）で、分ける・入れ替える・閉じるなどの操作は Actions に出るだけ（地図は変わらない）。
 // 選ぶ（h j k l・クリック）・分ける向きを待つ（s）・理由の表示（プライマリを x）・`?` は、そのまま動く。
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
@@ -68,7 +68,7 @@ const meta = {
     onResize: fn(),
     onCancel: fn(),
   },
-  // `?` の一覧は、アプリと同じく、窓の上に重ねて出す
+  // `?` の一覧は、アプリと同じく、Dialog の上に重ねて出す
   render: (args) => (
     <>
       <TerminalWindow {...args} />
@@ -93,7 +93,7 @@ export const CannotHide: Story = {
   args: { terminals: terminals(false, false) },
 };
 
-/** 分ける向きを待つ間（s を押したあと）。下の段は、向きと、やめる Esc だけになる。 */
+/** 分ける向きを待つ間（s を押したあと）。Key footer は、向きと、やめる Esc だけになる。 */
 export const Splitting: Story = {
   play: async ({ canvasElement }) => {
     const map = canvasElement.querySelector<HTMLElement>("[role=listbox]");
@@ -105,7 +105,7 @@ export const Splitting: Story = {
   },
 };
 
-/** 下の段の確かめ：プライマリを選んでいる間は、閉じる x を出さない（効かないので）。 */
+/** Key footer の確かめ：プライマリを選んでいる間は、閉じる x を出さない（効かないので）。 */
 export const PrimarySelected: Story = {
   args: {
     terminals: {

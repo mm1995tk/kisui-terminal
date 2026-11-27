@@ -41,7 +41,7 @@ describe("新しいタブのページ（#238）", () => {
     });
   });
 
-  it("選ぶ所は検索窓（-1）から始まり、端で回らない", () => {
+  it("選ぶ所は検索欄（-1）から始まり、端で回らない", () => {
     assert.equal(moveSelection(-1, 1, 3), 0);
     assert.equal(moveSelection(0, 1, 3), 1);
     assert.equal(moveSelection(2, 1, 3), 2);

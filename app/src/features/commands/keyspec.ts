@@ -1,12 +1,12 @@
 // キーの書き方（"Cmd+Shift+D" のような文字列）と、KeyboardEvent がそれに当たるかの判定。
-// コマンドの表（commands.ts）が、近道を文字列で持ち、案内の表示と実際の判定の両方にこれを使う。
+// コマンドの表（commands.ts）が、Shortcut を文字列で持ち、案内の表示と実際の判定の両方にこれを使う。
 // DOM には触らない（node --test で確かめられる）。
 
 import { isComposingKey } from "./ime.ts";
 import { T } from "../../i18n/index.ts";
 import type { KeyLike } from "./guiKeys.ts";
 
-/** 近道 1 つを分けたもの。key は小文字の字か、Enter・Tab・Space・Escape・Backspace・=・-・数字。 */
+/** Shortcut 1 つを分けたもの。key は小文字の字か、Enter・Tab・Space・Escape・Backspace・=・-・数字。 */
 export interface KeySpec {
   ctrl: boolean;
   shift: boolean;
@@ -64,7 +64,7 @@ export function isKey(e: KeyLike, k: string): boolean {
 
 /**
  * e が spec に当たるか。修飾キーは spec のとおり（多くても少なくても外れる）。
- * 例外：キーが + か = の近道は、Shift を押していても押していなくても当たる（US 配列の + は Shift を伴うため）。
+ * 例外：キーが + か = の Shortcut は、Shift を押していても押していなくても当たる（US 配列の + は Shift を伴うため）。
  * かな漢字変換中は当たらない。
  */
 export function matchSpec(e: KeyLike, spec: KeySpec): boolean {

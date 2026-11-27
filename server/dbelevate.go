@@ -11,7 +11,7 @@ package server
 //   - 権限の判定は今までどおり 1 か所（dbManager.access → config.DBConnection.Access）。強めている間は、その前に
 //     接続の権限を強めた先に差し替える（config.DBConnection.Elevated）だけなので、read-only = true の接続は、
 //     強めても「読むだけ」を超えない。
-//   - 強める・戻すを頼めるのは、窓（GUI の接続）の db.elevate と db.elevateEnd だけ。ペインの中のコマンド
+//   - 強める・戻すを頼めるのは、Window（GUI の接続）の db.elevate と db.elevateEnd だけ。ペインの中のコマンド
 //     （kisui db。dbcmd.go）には無いので、コーディングエージェントは自分では強められない。
 //   - 時間が過ぎたときに動いている SQL は、取り消さずに終わるまで待つ：権限は文を始めるときに確かめ、1 つの文は
 //     1 つのログインで、途中で止めても文は丸ごと取り消されるだけなので。時間が過ぎた後に始める文から、元の権限になる。
@@ -60,7 +60,7 @@ type DBElevated struct {
 	From string `json:"from"`
 	// Until は元に戻る時刻（kisui serve のマシンの時計）。
 	Until time.Time `json:"until"`
-	// RemainingSeconds は、答えたときの残りの時間（秒。切り上げ）。窓は、マシンの時計のずれに関わらず、これで残りを数える。
+	// RemainingSeconds は、答えたときの残りの時間（秒。切り上げ）。Window は、マシンの時計のずれに関わらず、これで残りを数える。
 	RemainingSeconds int64 `json:"remainingSeconds"`
 }
 
@@ -116,7 +116,7 @@ func (m *dbManager) elevateInfo(c config.DBConnection, actor config.DBActor) (ca
 type dbElevateParams struct {
 	Connection string `json:"connection"`
 	Variant    string `json:"variant"`
-	// Actor は、誰の権限を強めるか（"human" か "agent"）。頼んでいるのは、どちらでも人（窓）。省けない。
+	// Actor は、誰の権限を強めるか（"human" か "agent"）。頼んでいるのは、どちらでも人（Window）。省けない。
 	Actor string `json:"actor"`
 	// Duration は強める時間（"30m"・"1h"・"1h30m"。config.ParseDBDuration の書き方）。db.elevateEnd では読まない。
 	Duration string `json:"duration"`
@@ -155,7 +155,7 @@ func (s *Server) dbElevateTarget(req *rpc.Message) (p dbElevateParams, c config.
 }
 
 // dbElevateReq は db.elevate：接続（の変種）の、人かコーディングエージェントの権限を、duration の間だけ強める。
-// もう強めていれば、今から duration の間に決め直す（延ばす・縮める）。窓（GUI の接続）の要求だけがここに来る。
+// もう強めていれば、今から duration の間に決め直す（延ばす・縮める）。Window（GUI の接続）の要求だけがここに来る。
 func (ss *session) dbElevateReq(req *rpc.Message) (any, error) {
 	s := ss.srv
 	p, c, actor, err := s.dbElevateTarget(req)

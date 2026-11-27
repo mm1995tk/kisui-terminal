@@ -1,4 +1,4 @@
-// kisui が無いマシンに入れてよいかを聞く窓（C6）。何を・どこから・どこへ入れるかを見せ、
+// kisui が無いマシンに入れてよいかを聞く Dialog（C6）。何を・どこから・どこへ入れるかを見せ、
 // 「入れる」と押されるまで何もしない。Esc は「入れない」。
 import { T } from "../../../i18n/index.ts";
 import { Show, type JSX } from "solid-js";
@@ -15,10 +15,10 @@ import {
 } from "../../components/Card.tsx";
 
 /**
- * kisui が無いマシン（target）に、GUI と同じ版の kisui を入れてよいかを聞く窓。
+ * kisui が無いマシン（target）に、GUI と同じ版の kisui を入れてよいかを聞く Dialog。
  * 入れる版・取ってくる所・入れる先（state.plan）と、前に失敗した理由（state.error）を見せる。
  * 「入れる」で onYes、「入れない」と Esc で onNo を呼ぶ。起動時の自動接続でも開くので、
- * フォーカスはボタンではなく窓そのものに置く（打っていた Enter で入れ始めないように）。
+ * フォーカスはボタンではなく Dialog そのものに置く（打っていた Enter で入れ始めないように）。
  */
 export function InstallCard(props: {
   /** マシンの表示名 */

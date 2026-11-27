@@ -1,6 +1,6 @@
 // Package relay は「kisui relay」の中身。ssh の先（リモートのマシン）で動き、標準入出力の上の
 // 枠（フレーム）で、そのマシンの loopback のポートへの TCP 接続を何本でも中継する。
-// 窓（Rust の側）が `ssh <マシン> -- <kisui> relay` で起こし、手元のブラウザの接続を運ぶ。
+// Window（Rust の側）が `ssh <マシン> -- <kisui> relay` で起こし、手元のブラウザの接続を運ぶ。
 // ssh のポート転送（-L）が使えない環境でも、ターミナルが使えれば URL を開けるようにするため。
 // 取り決めは docs/design/relay.md。
 package relay
@@ -18,8 +18,8 @@ import (
 	"time"
 )
 
-// Marker は始まりの目印。ログインシェルが motd などを標準出力に出しても、窓はこの行より前を捨てる。
-// 数字は取り決めの版（Version）。枠の形や意味を変えて、前の版の窓と話せなくなったら上げる。
+// Marker は始まりの目印。ログインシェルが motd などを標準出力に出しても、Window はこの行より前を捨てる。
+// 数字は取り決めの版（Version）。枠の形や意味を変えて、前の版の Window と話せなくなったら上げる。
 const Marker = "@@kisui-relay " + versionText + "@@\n"
 
 // Version は取り決めの版。
@@ -29,8 +29,8 @@ const versionText = "1"
 
 // 枠の種類（枠の先頭の 1 バイト）。
 const (
-	FrameOpen   byte = 1 // 窓→relay。中身はポート（2 バイト）と host。
-	FrameOpened byte = 2 // relay→窓。つながった。中身なし。
+	FrameOpen   byte = 1 // Window→relay。中身はポート（2 バイト）と host。
+	FrameOpened byte = 2 // relay→Window。つながった。中身なし。
 	FrameData   byte = 3 // 両向き。中身はバイト列。
 	FrameAck    byte = 4 // 両向き。中身は書き終えたバイト数（4 バイト）。
 	FrameEOF    byte = 5 // 両向き。もう送らない（TCP の半分の閉じ）。中身なし。
@@ -50,7 +50,7 @@ const (
 	chunk = 32 << 10
 )
 
-// CLOSE の理由。窓はこれで、ブラウザにどう見せるかを決められる。後ろに ": 詳しいこと" が付くことがある。
+// CLOSE の理由。Window はこれで、ブラウザにどう見せるかを決められる。後ろに ": 詳しいこと" が付くことがある。
 const (
 	ReasonDenied      = "denied"      // loopback 以外の host
 	ReasonLimit       = "limit"       // 接続の数が MaxStreams を超えた
@@ -202,7 +202,7 @@ func (r *relay) remove(id uint32) {
 	delete(r.streams, id)
 }
 
-// open は OPEN の枠を受ける。番号が増えていないのは窓の誤りで、続けると別の接続の枠と
+// open は OPEN の枠を受ける。番号が増えていないのは Window の誤りで、続けると別の接続の枠と
 // 取り違えるので、中継ごと止める。
 func (r *relay) open(id uint32, payload []byte) error {
 	r.mu.Lock()
@@ -276,9 +276,9 @@ func loopbackAddrs(host string) ([]string, bool) {
 
 // stream は中継している 1 本の TCP 接続。
 //
-// 流量の制御: 窓→TCP の向きは、窓が ack を待たずに送れるのが Window までなので、queue に溜まるのも
+// 流量の制御: Window→TCP の向きは、Window が ack を待たずに送れるのが Window までなので、queue に溜まるのも
 // Window まで（超えたら取り決めの違反として閉じる）。TCP に書けた分だけ ack を返すので、TCP の先が
-// 読まなければ窓が送るのを止める。TCP→窓の向きは、credit（窓が ack していない残り）が 0 なら TCP を
+// 読まなければ Window が送るのを止める。TCP→Window の向きは、credit（Window が ack していない残り）が 0 なら TCP を
 // 読まない。どちらも 1 本の接続の中で止まり、ほかの接続と標準入力の読みは止めない。
 type stream struct {
 	id     uint32
@@ -288,12 +288,12 @@ type stream struct {
 	mu      sync.Mutex
 	cond    *sync.Cond
 	conn    net.Conn // つながるまでは nil
-	queue   [][]byte // 窓から来て、まだ TCP に書いていないもの
+	queue   [][]byte // Window から来て、まだ TCP に書いていないもの
 	queued  int      // queue のバイト数
-	inEOF   bool     // 窓が EOF を送った
-	credit  int      // 窓へまだ送ってよいバイト数
-	readEnd bool     // TCP→窓の向きが終わった（EOF を送った）
-	wrEnd   bool     // 窓→TCP の向きが終わった（CloseWrite した）
+	inEOF   bool     // Window が EOF を送った
+	credit  int      // Window へまだ送ってよいバイト数
+	readEnd bool     // TCP→Window の向きが終わった（EOF を送った）
+	wrEnd   bool     // Window→TCP の向きが終わった（CloseWrite した）
 	closed  bool
 }
 
@@ -333,7 +333,7 @@ func dial(ctx context.Context, addrs []string, port uint16) (net.Conn, error) {
 	return nil, err
 }
 
-// readTCP は TCP から読んで DATA にする。credit が尽きたら窓の ack を待つ。
+// readTCP は TCP から読んで DATA にする。credit が尽きたら Window の ack を待つ。
 func (s *stream) readTCP(conn net.Conn) {
 	buf := make([]byte, chunk)
 	for {
@@ -374,7 +374,7 @@ func (s *stream) readTCP(conn net.Conn) {
 	}
 }
 
-// writeTCP は窓から来たものを TCP に書き、書けた分を ack する。窓の EOF で書く向きを閉じる。
+// writeTCP は Window から来たものを TCP に書き、書けた分を ack する。Window の EOF で書く向きを閉じる。
 func (s *stream) writeTCP(conn net.Conn) {
 	for {
 		s.mu.Lock()
@@ -414,7 +414,7 @@ func (s *stream) writeTCP(conn net.Conn) {
 	}
 }
 
-// data は窓からの DATA。つながる前に来てもよい（つながったら書く）。
+// data は Window からの DATA。つながる前に来てもよい（つながったら書く）。
 func (s *stream) data(b []byte) {
 	if len(b) == 0 {
 		return
@@ -439,7 +439,7 @@ func (s *stream) data(b []byte) {
 	s.mu.Unlock()
 }
 
-// ack は窓からの ACK。窓が受け取って書き終えた分だけ、また送ってよい。
+// ack は Window からの ACK。Window が受け取って書き終えた分だけ、また送ってよい。
 func (s *stream) ack(n int) {
 	s.mu.Lock()
 	if s.closed {
@@ -473,7 +473,7 @@ func (s *stream) maybeDone() {
 	}
 }
 
-// finish は接続を捨てる。notify なら窓に CLOSE を送る（窓が CLOSE を送ってきたときは返さない）。
+// finish は接続を捨てる。notify なら Window に CLOSE を送る（Window が CLOSE を送ってきたときは返さない）。
 // 2 度目からは何もしない。
 func (s *stream) finish(reason string, notify bool) {
 	s.mu.Lock()

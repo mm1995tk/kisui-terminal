@@ -1,5 +1,5 @@
 // stories が使う、クリップボードの履歴の見本と偽の頼み（#314）。アプリは読まない。
-// 履歴の一覧（HistoryPanel.stories.tsx）と、常駐ツールの窓（ui/utilities/clipboard/page.stories.tsx）が同じ見本を使う。
+// 履歴の一覧（HistoryPanel.stories.tsx）と、常駐ツールの Dialog（ui/utilities/clipboard/page.stories.tsx）が同じ見本を使う。
 import type {
   HistoryEntry,
   ListClipboardHistory,

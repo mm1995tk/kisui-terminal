@@ -1,9 +1,9 @@
-// マシンのダイアログ（MachineDialog.tsx）の下の段（共通フッタ）に出す、今効く操作。
+// マシンのダイアログ（MachineDialog.tsx）の Key footer（共通フッタ）に出す、今効く操作。
 // 「選んでいるマシン」の行（Enter・n d x r t のうち、選んでいるマシンにできるもの）と、「マシンの一覧」の行（a）。
-// 効かない操作（canDo が理由を返すもの）は出さない。選ぶ・移る・Esc・`?` は、どの窓でも同じキーなので出さない。
-// Enter だけは、選ぶ窓の「決める」ではなく、選んだマシンでターミナルのタブを作り始める操作（このダイアログだけの意味）なので出す。
+// 効かない操作（canDo が理由を返すもの）は出さない。選ぶ・移る・Esc・`?` は、どの Dialog でも同じキーなので出さない。
+// Enter だけは、選ぶ Dialog の「決める」ではなく、選んだマシンでターミナルのタブを作り始める操作（このダイアログだけの意味）なので出す。
 // キーと probes は `?` の一覧の表（placeKeys.ts の machines）から引く（placeItem）。machineFooter.test.ts が、出す操作を machineKey が受けることと、
-// 表の操作がどれも（どの窓でも同じキーと、同じ操作の別のキーを除き）どこかの状態で下の段に出ることを確かめる。
+// 表の操作がどれも（どの Dialog でも同じキーと、同じ操作の別のキーを除き）どこかの状態で Key footer に出ることを確かめる。
 import {
   placeItem,
   type FooterItem,
@@ -33,7 +33,7 @@ const SELECTED: readonly [
 ];
 
 /**
- * 窓の下の段。
+ * Dialog の Key footer。
  * - renaming：名前を打っている間。キーは入力欄が受けるので、見出しだけ
  * - selected：選んでいるマシン（無ければ undefined。「選んでいるマシン」の行は見出しだけ）
  * - hasWorkspace：今のワークスペースがあるか（Enter のタブ作成が使う。canDo と同じ）

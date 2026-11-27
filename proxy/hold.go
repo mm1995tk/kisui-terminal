@@ -1,7 +1,7 @@
 package proxy
 
 // 通信を途中で止める（#411）。止めるのを入れている間は、クライアントの要求を行き先に送る前に止め、記録に「止めている」
-// （StateHeld）通信として出す。窓のパネルが、そのまま流す・書き換えて流す・捨てる、を決める（Release）。
+// （StateHeld）通信として出す。Window のパネルが、そのまま流す・書き換えて流す・捨てる、を決める（Release）。
 // 止めるのは要求だけ（応答は止めない）。プロキシから送り直す要求（Resend）は止めない。
 
 import (
@@ -218,7 +218,7 @@ func readHeldBody(w http.ResponseWriter, r *http.Request) (*heldRequest, bool) {
 	return hr, true
 }
 
-// beginHeld は、要求 r を記録に足し、止めている要求 hr として覚える。この 2 つを同時にする（知らせを受けた窓が、
+// beginHeld は、要求 r を記録に足し、止めている要求 hr として覚える。この 2 つを同時にする（知らせを受けた Window が、
 // すぐに Release できるように）。off は、止め始めたときの holder.off。もう止めるのをやめていたら、覚えずに、
 // ふつうの通信として足して false。
 func (p *Proxy) beginHeld(r *http.Request, ex *exchange, hr *heldRequest, off chan struct{}) (*flow, bool) {

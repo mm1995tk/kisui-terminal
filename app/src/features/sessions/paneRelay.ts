@@ -7,7 +7,7 @@
 // pane.relay は頼んだマシンの serve が作る通知なので、ssh 先のマシンのものは、手元の設定で許した先にだけ中継する
 // （そのマシンの `allow_pane_to`。machines.ts の paneRelayAllowed）。手元の PC の serve のものは、どのマシンにも中継する。
 //
-// ssh 先のマシンから手元の PC（local）への頼みは、設定では許せない。窓の前の人が、そのマシンに時間を決めて許している間
+// ssh 先のマシンから手元の PC（local）への頼みは、設定では許せない。Window の前の人が、そのマシンに時間を決めて許している間
 // （paneGrant.ts）だけ中継し、ペインを作る頼みは、そのたびに人に聞く（paneApproval.ts）。人が「毎回聞く」と決めたペインと、
 // そこから作られたペインへの send・keys・read・close も、そのたびに聞く。
 import { untrack } from "solid-js";
@@ -57,7 +57,7 @@ export interface LocalGate {
 
 /**
  * マシン from のペイン pane を、相手の serve に名乗る名前。serve は、この名前のペインが作ったペインと、その先にだけ届かせる
- * （server/panereach.go）。どの serve のペインかは、窓が from の接続から決める（頼みの通知に書いてあっても使わない）。
+ * （server/panereach.go）。どの serve のペインかは、Window が from の接続から決める（頼みの通知に書いてあっても使わない）。
  * serverId は serve が自分で言う値なので、ssh 先の serve は、ほかのマシンの serverId を言える。だから、ssh 先のマシン from の
  * serverId が、つないでいるほかのマシンのものと同じなら、名乗らない（ほかのマシンのペインになりすませないように、どこにも
  * 届かせない）。手元の PC の serve は信頼するので、いつも名乗る。from がつながっていない・pane が無い（古い serve）ときも名乗らない。

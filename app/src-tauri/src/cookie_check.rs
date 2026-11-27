@@ -6,7 +6,7 @@
 //! 読むまで気づかなかった（PR #280 の domain、#276 の Secure・HttpOnly）。
 //!
 //! そこで、入れた後に WebView の Cookie をすべて読み戻し（wry の `cookies`）、ここで渡したものと比べる。食い違えば、
-//! 呼ぶ側（passkey.rs の `apply_cookies`）がログとお知らせに出す。
+//! 呼ぶ側（passkey.rs の `apply_cookies`）がログと Notice に出す。
 //!
 //! 読み戻しで分かること・分からないこと:
 //! - Secure・HttpOnly・SameSite・期限・path は分かる。macOS の wry は、読み戻しでは `NSHTTPCookie` の
@@ -19,7 +19,7 @@
 use serde::Serialize;
 use tauri::webview::cookie::{Cookie, SameSite};
 
-/// 渡したとおりに入らなかった Cookie 1 つ。値は持たない（ログとお知らせに Cookie の値を出さない）。
+/// 渡したとおりに入らなかった Cookie 1 つ。値は持たない（ログと Notice に Cookie の値を出さない）。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Mismatch {
     pub name: String,
@@ -31,7 +31,7 @@ pub struct Mismatch {
 }
 
 impl Mismatch {
-    /// ログとお知らせに出す 1 行。
+    /// ログと Notice に出す 1 行。
     pub fn line(&self) -> String {
         format!(
             "{} (domain {}, path {}): {}",
@@ -59,7 +59,7 @@ pub fn check(sent: &[Cookie<'_>], stored: &[Cookie<'_>]) -> Vec<Mismatch> {
         // 読み戻しの domain は先頭の `.` が取れている（上の説明）。host だけのものとサブドメインにも送られるものは
         // 見分けられないので、どちらかが渡したとおりなら良しとする。値も比べる（前のログインで入った同じ名前の
         // Cookie が残っていると、今回のものが入らなくても、名前・domain・path だけでは入ったように見えるため）。
-        // 値は比べるだけで、ログとお知らせには出さない
+        // 値は比べるだけで、ログと Notice には出さない
         let candidates: Vec<&Cookie<'_>> = stored
             .iter()
             .filter(|s| {

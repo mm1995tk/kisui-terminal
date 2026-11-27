@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 
 import type { PaneLayout } from "../../infrastructure/rpc/protocol.ts";
 import {
+  borderToward,
   clampRatio,
   firstPane,
   GAP,
@@ -112,11 +113,11 @@ describe("neighbor", () => {
   });
 });
 
-describe("欄どうしの境界（#18）", () => {
+describe("欄どうしの Pane border（#18）", () => {
   // a | (b / c)
   const tree = right(leaf("a"), down(leaf("b"), leaf("c")));
 
-  it("境界は B 側の左上の欄で指し、根から順に並ぶ", () => {
+  it("Pane border は B 側の左上の欄で指し、根から順に並ぶ", () => {
     assert.equal(firstPane(tree), "a");
     const bars = layoutBars(tree);
     assert.deepEqual(
@@ -126,12 +127,12 @@ describe("欄どうしの境界（#18）", () => {
         ["c", "down"],
       ],
     );
-    // 内側の境界の範囲は、右半分
+    // 内側の Pane border の範囲は、右半分
     assert.deepEqual(bars[1]!.node, { x: 0.5, y: 0, w: 0.5, h: 1 });
     assert.deepEqual(layoutBars(leaf("a")), []);
   });
 
-  it("割合を変えた木を返し、元の木は変えない。無い境界は同じ木", () => {
+  it("割合を変えた木を返し、元の木は変えない。無い Pane border は同じ木", () => {
     const t = withRatio(tree, "c", 0.25) as Extract<
       PaneLayout,
       { dir: string }
@@ -154,13 +155,13 @@ describe("欄どうしの境界（#18）", () => {
     assert.equal(limitedRatio(t, "b", 0.01, size(80, 24)), 0.125);
     assert.equal(limitedRatio(t, "b", 0.99, size(80, 24)), 0.875);
     assert.equal(limitedRatio(t, "b", 0.3333, size(80, 24)), 0.333);
-    // 下に分ける境界は行で見る
+    // 下に分ける Pane border は行で見る
     const d = down(leaf("a"), leaf("b"));
     assert.equal(limitedRatio(d, "b", 0.01, size(80, 24)), 0.105); // 5 / 48 = 0.1041…。切り上げて範囲の中に残す
   });
 
   it("入れ子の側は、中の欄の最小の大きさの分だけ残す", () => {
-    // (a | b) | c の外側の境界：A 側は 2 枚が横に並ぶので 40 列は要る
+    // (a | b) | c の外側の Pane border：A 側は 2 枚が横に並ぶので 40 列は要る
     const t = right(right(leaf("a"), leaf("b")), leaf("c"));
     const [lo] = ratioLimits(t, "c", size(80, 24))!;
     assert.equal(lo, 40 / 240);
@@ -218,5 +219,42 @@ describe("widthForPanes", () => {
       const gaps = id === "a" ? GAP / 2 : id === "b" ? GAP : GAP / 2;
       assert.ok(r.w * need - gaps >= w - 1e-6, id);
     }
+  });
+});
+
+describe("borderToward", () => {
+  // 左（上 a1・下 a2）と右 b
+  const tree = right(down(leaf("a1"), leaf("a2")), leaf("b"));
+
+  it("欄の、その向きに面した境界を、その向きへ動かす", () => {
+    assert.deepEqual(borderToward(tree, "a1", "right"), { key: "b", sign: 1 });
+    assert.deepEqual(borderToward(tree, "a1", "down"), { key: "a2", sign: 1 });
+    assert.deepEqual(borderToward(tree, "b", "left"), { key: "b", sign: -1 });
+    assert.deepEqual(borderToward(tree, "a2", "up"), { key: "a2", sign: -1 });
+  });
+
+  it("その向きの端にいる欄は、反対側の境界をその向きへ動かす", () => {
+    assert.deepEqual(borderToward(tree, "b", "right"), { key: "b", sign: 1 });
+    assert.deepEqual(borderToward(tree, "a1", "left"), { key: "b", sign: -1 });
+    assert.deepEqual(borderToward(tree, "a1", "up"), { key: "a2", sign: -1 });
+    assert.deepEqual(borderToward(tree, "a2", "down"), { key: "a2", sign: 1 });
+  });
+
+  it("入れ子の中では、欄にいちばん近い境界を選ぶ", () => {
+    const t = right(leaf("p"), right(leaf("q"), leaf("r")));
+    assert.deepEqual(borderToward(t, "p", "right"), { key: "q", sign: 1 });
+    assert.deepEqual(borderToward(t, "q", "right"), { key: "r", sign: 1 });
+    assert.deepEqual(borderToward(t, "q", "left"), { key: "q", sign: -1 });
+    assert.deepEqual(borderToward(t, "r", "left"), { key: "r", sign: -1 });
+  });
+
+  it("その軸の分割が無い・欄が木に無い・木が無いときは undefined", () => {
+    assert.equal(
+      borderToward(right(leaf("a"), leaf("b")), "a", "down"),
+      undefined,
+    );
+    assert.equal(borderToward(tree, "zzz", "right"), undefined);
+    assert.equal(borderToward(leaf("a"), "a", "right"), undefined);
+    assert.equal(borderToward(undefined, "a", "right"), undefined);
   });
 });

@@ -1,12 +1,12 @@
-// DB のタブで打って通ったパスワードを、窓を閉じるまで覚える（メモリだけ。localStorage などには書かない）。
+// DB のタブで打って通ったパスワードを、Window を閉じるまで覚える（メモリだけ。localStorage などには書かない）。
 // 画面にも Solid にも Tauri にも依存しない（node --test で確かめられる）。
 //
-// なぜ窓が覚えるか：kisui serve は、窓で打って覚えたパスワードを、その窓の接続が切れたとき・別の窓が持ち主になったときに
-// 全部忘れる（server/db.go）。窓が覚えていれば、つなぎ直したあとに db.remember で渡し直せるので、人が打ち直さなくても、
-// 窓の要求も、コーディングエージェントの kisui db のコマンドも続けられる。
+// なぜ Window が覚えるか：kisui serve は、Window で打って覚えたパスワードを、その Window の接続が切れたとき・別の Window が持ち主になったときに
+// 全部忘れる（server/db.go）。Window が覚えていれば、つなぎ直したあとに db.remember で渡し直せるので、人が打ち直さなくても、
+// Dialog の要求も、コーディングエージェントの kisui db のコマンドも続けられる。
 //
 // 覚えたパスワードは、接続の名前だけでなく、打ったときの行き先（種類・ホスト・ポート・ユーザー）と一緒に持つ。渡し直すときは
-// 行き先も送り、kisui serve が今の設定と比べる。違えば覚えず、窓も捨てる：設定を書き換えたあとに、前の行き先のパスワードを
+// 行き先も送り、kisui serve が今の設定と比べる。違えば覚えず、Window も捨てる：設定を書き換えたあとに、前の行き先のパスワードを
 // 別のサーバーに送らない。印 db-remember の無い古い kisui serve には、覚えも渡し直しもしない（controller.ts）。
 
 import {
@@ -66,7 +66,7 @@ const placeKey = (p: PasswordPlace) =>
   JSON.stringify([p.target, p.connection, p.variant ?? ""]);
 
 /**
- * 覚えたパスワードの置き場。窓の 1 回の起動の間だけ、メモリに持つ（どこにも書かない）。
+ * 覚えたパスワードの置き場。Dialog の 1 回の起動の間だけ、メモリに持つ（どこにも書かない）。
  * 1 つの接続（マシン・名前・変種）に覚えるのは 1 つ：行き先の違うものを覚えたら、前のものは捨てる。
  */
 export class PasswordMemory {
@@ -174,7 +174,7 @@ export function newlyConnected(
  */
 export interface PasswordKeeper {
   /**
-   * kisui serve が「窓で打ったパスワードを持っていない」と断ったときに呼ぶ：その接続に覚えているものを渡し直す。
+   * kisui serve が「Window で打ったパスワードを持っていない」と断ったときに呼ぶ：その接続に覚えているものを渡し直す。
    * 渡せたら true（呼ぶ側は、パスワードを付けずに送り直す）。覚えていない・渡せなかったら false（利用者に聞く）。
    */
   handBack: () => Promise<boolean>;

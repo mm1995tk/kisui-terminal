@@ -29,7 +29,7 @@ const source = (over: Partial<PaneSource> = {}): PaneSource => ({
   ...over,
 });
 
-describe("paneCells（ターミナルのタブの窓に出すペインの地図）", () => {
+describe("paneCells（ターミナルのタブの Dialog に出すペインの地図）", () => {
   it("ターミナル、ターミナルでないペインの順に、画面と同じ位置で並べる", () => {
     const cells = paneCells(source(), false);
     assert.deepEqual(
@@ -75,7 +75,7 @@ describe("paneCells（ターミナルのタブの窓に出すペインの地図�
   });
 });
 
-describe("selectedPane（窓で選んでいるペイン）", () => {
+describe("selectedPane（Dialog で選んでいるペイン）", () => {
   const cells = paneCells(source(), false);
 
   it("選んでいたペインがあれば、そのまま", () => {

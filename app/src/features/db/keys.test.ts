@@ -42,7 +42,7 @@ describe("dbEditorKey（DB のタブの SQL の入力欄のキー）", () => {
     assert.equal(dbEditorKey(ev("Enter"), true), null);
     assert.equal(dbEditorKey(ev("Enter", { shiftKey: true }), false), null);
     assert.equal(dbEditorKey(ev("Enter", { altKey: true }), true), null);
-    // macOS の Cmd+Shift+Enter は、ペインを隠す近道（窓が先に受ける）
+    // macOS の Cmd+Shift+Enter は、ペインを隠す Shortcut（Dialog が先に受ける）
     assert.equal(
       dbEditorKey(ev("Enter", { metaKey: true, shiftKey: true }), true),
       null,
@@ -140,7 +140,7 @@ describe("dbTreeFilterKey（木の絞り込みの入力欄のキー）", () => {
   });
 });
 
-describe("dbHistoryKey（履歴の窓のキー）", () => {
+describe("dbHistoryKey（履歴の Dialog のキー）", () => {
   it("↓ ↑・Ctrl+J / Ctrl+K で動き、Enter で選ぶ", () => {
     assert.deepEqual(dbHistoryKey(ev("ArrowDown"), true), {
       kind: "step",

@@ -1,4 +1,4 @@
-// 画面が外（Tauri の殻・webview の記録）に頼むことの束。形は機能ごとの窓口（features/ の各インターフェース）で、
+// 画面が外（Tauri の殻・webview の記録）に頼むことの束。形は機能ごとの受け口（features/ の各インターフェース）で、
 // 本物（infrastructure/）を組み立てて渡すのは index.tsx。画面は本物を直に読まず、ここから受け取る
 // （Tauri の無い所でも、偽物を渡せば部品を出せる）。
 import { createContext, useContext } from "solid-js";

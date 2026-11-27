@@ -41,10 +41,10 @@ function kindLabel(kind: PaneCell["kind"]): string {
 }
 
 /**
- * ターミナルのタブの窓（リーダーの `a`。#457）。今のターミナルのタブのペインを、画面と同じ配置の地図として並べ、
+ * ターミナルのタブの Dialog（リーダーの `a`。#457）。今のターミナルのタブのペインを、画面と同じ配置の地図として並べ、
  * 1 つを選んで操作する（フォーカスを移す・分ける・隣と入れ替える・閉じる・プライマリ以外を隠す・リサイズモードに入る）。
- * ワークスペースの窓と同じく、選ぶだけでは実際のフォーカスは動かない。分ける・入れ替える・閉じる・隠すは押したときに行い、窓は開いたまま（結果が地図に出る）。
- * タブを作る・閉じる・名前を変える・移すは、ここには置かない（ワークスペースの窓。リーダーの `t` `n`）。
+ * Workspace switcher と同じく、選ぶだけでは実際のフォーカスは動かない。分ける・入れ替える・閉じる・隠すは押したときに行い、Dialog は開いたまま（結果が地図に出る）。
+ * タブを作る・閉じる・名前を変える・移すは、ここには置かない（Workspace switcher。リーダーの `t` `n`）。
  * キーは terminalWindowKey.ts、決まりは docs/key-design.md。ペインを 1 回押すと選ぶだけで、ダブルクリックでフォーカスを移す（Enter と同じ）。
  */
 export function TerminalWindow(props: {
@@ -62,10 +62,10 @@ export function TerminalWindow(props: {
   accent?: string;
   /** 選んだペインにフォーカスを移して閉じる（Enter・ダブルクリック） */
   onFocusPane: (id: string) => void;
-  /** 窓を閉じて、リサイズモードに入る（r） */
+  /** Dialog を閉じて、リサイズモードに入る（r） */
   onResize: () => void;
   /**
-   * 閉じる（Esc・窓の外を押した）。acted は、窓の中で操作（分ける・入れ替える・閉じる・隠す）をしたか。
+   * 閉じる（Esc・Dialog の外を押した）。acted は、Dialog の中で操作（分ける・入れ替える・閉じる・隠す）をしたか。
    * していれば、開く前にフォーカスがあった所が、閉じた・隠したペインのことがあるので、呼んだ側が今のペインにキーを向け直す。
    */
   onCancel: (acted: boolean) => void;
@@ -80,7 +80,7 @@ export function TerminalWindow(props: {
   const [note, setNote] = createSignal<string>();
   let acted = false;
 
-  /** 下の段に出す、今効く操作（terminalWindowKey.ts の terminalWindowFooter） */
+  /** Key footer に出す、今効く操作（terminalWindowKey.ts の terminalWindowFooter） */
   const footer = createMemo(() => {
     const id = selected();
     const c = cells().find((x) => x.id === id);
@@ -114,13 +114,13 @@ export function TerminalWindow(props: {
     if (splitting()) {
       const k = splitDirKey(e);
       if (!k) return;
-      // Esc は、分けるのをやめるだけ（窓は閉じない。ModalCard に渡さない）
+      // Esc は、分けるのをやめるだけ（Dialog は閉じない。ModalCard に渡さない）
       e.preventDefault();
       setSplitting(false);
       setNote(undefined);
       if (k.kind === "dir") {
         acted = true;
-        // 足したペインを選ぶ（足せなかった理由は、右下のお知らせに出る）
+        // 足したペインを選ぶ（足せなかった理由は、右下の Notice に出る）
         void props.terminals.splitPane(k.dir, id).then((added) => {
           if (added !== undefined) setWant(added);
         });
@@ -192,7 +192,7 @@ export function TerminalWindow(props: {
       <Show
         when={cells().length > 0}
         fallback={
-          // ペインを出せない（そのタブのマシンにつながっていない）。フォーカスは窓そのものにあり、Esc は ModalCard が受ける
+          // ペインを出せない（そのタブのマシンにつながっていない）。フォーカスは Dialog そのものにあり、Esc は ModalCard が受ける
           <CardBody>
             <CardText role="status">{T("termWindow.empty")}</CardText>
           </CardBody>

@@ -1,4 +1,4 @@
-// ワークスペースを切り替える窓（リーダーの `w`。WorkspaceSwitcher.tsx）の中のキー。
+// Workspace switcher（リーダーの `w`。WorkspaceSwitcher.tsx）の中のキー。
 // 画面の仕組み（Solid）に依らないので、node --test で確かめる。決まりは docs/key-design.md。
 
 import { isComposingKey } from "../../../features/commands/ime.ts";
@@ -16,7 +16,7 @@ import {
   type NewTabChoice,
 } from "./newTabKey.ts";
 
-/** 窓の中のキーが表す動き。 */
+/** Dialog の中のキーが表す動き。 */
 export type SwitcherKey =
   /** キーが効く列の中で、選ぶ行を動かす（端では止まる） */
   | { kind: "move"; to: "next" | "prev" }
@@ -36,12 +36,12 @@ export type SwitcherKey =
   | { kind: "close" }
   /** 選んでいるタブをつかむ（タブの列だけ。別のワークスペースへ移すために、つかんでいる間のキーに替わる。switcherHold.ts） */
   | { kind: "hold" }
-  /** この窓のキーの一覧を出す（`?`） */
+  /** この Dialog のキーの一覧を出す（`?`） */
   | { kind: "help" };
 
 /**
- * 窓の中のキー（打った文字で絞り込む入力欄は無いので、字をそのまま使える。Esc は ModalCard が取り消しに使う）。
- * マシンを選ぶ窓と同じ動かし方（j k・矢印・Ctrl+J / Ctrl+K・Enter）に、列を移る（h l・矢印の左右）と、並べ替え（J K）と、ワークスペースを作る・名前を変える・閉じる（n r x）と、タブを作る（N）を足した。
+ * Dialog の中のキー（打った文字で絞り込む入力欄は無いので、字をそのまま使える。Esc は ModalCard が取り消しに使う）。
+ * マシンを選ぶ Dialog と同じ動かし方（j k・矢印・Ctrl+J / Ctrl+K・Enter）に、列を移る（h l・矢印の左右）と、並べ替え（J K）と、ワークスペースを作る・名前を変える・閉じる（n r x）と、タブを作る（N）を足した。
  * 並べ替え・名前を変える・閉じる・作る（n）は、効いている列の選んでいる行（ワークスペースかタブ）に効く（n は、ワークスペースの列ならワークスペース、タブの列ならタブを作る）。N は、どちらの列でも、選んでいるワークスペースにタブを作る。タブを作るときは、作るタブの種類を選ぶ間にする（キーは newTabKey.ts）。ワークスペースを閉じるときだけ y / n で確かめる（タブは確かめずに閉じる）。
  * Alt・Cmd・Ctrl を重ねたものは受けない（Ctrl+J・Ctrl+K を除く）。変換中のキーも受けない。
  */
@@ -93,7 +93,7 @@ export type HoldKey =
   | { kind: "col"; to: "ws" | "tab" }
   /** 落とす（Enter・m） */
   | { kind: "drop" }
-  /** やめて、つかんだときの所に戻す（窓は閉じない） */
+  /** やめて、つかんだときの所に戻す（Dialog は閉じない） */
   | { kind: "cancel" };
 
 /**
@@ -129,7 +129,7 @@ export function holdKey(e: KeyLike): HoldKey | null {
 }
 
 /**
- * 閉じる確認（`x`・✕ のあと）の間のキー。`y` で閉じ、`n` でやめる（Esc でやめるのは窓側）。
+ * 閉じる確認（`x`・✕ のあと）の間のキー。`y` で閉じ、`n` でやめる（Esc でやめるのは Dialog 側）。
  * 確認の間は、ほかのキーは何もしない（null）。
  */
 export function confirmKey(e: KeyLike): "yes" | "no" | null {
@@ -140,7 +140,7 @@ export function confirmKey(e: KeyLike): "yes" | "no" | null {
   return null;
 }
 
-/** 窓の下の段を決める、窓の今の状態（上ほど先に見る）。 */
+/** Dialog の Key footer を決める、Dialog の今の状態（上ほど先に見る）。 */
 export type SwitcherState =
   /** タブをつかんでいる（m のあと） */
   | { mode: "hold" }
@@ -156,11 +156,11 @@ export type SwitcherState =
   | { mode: "ws"; hasWs: boolean };
 
 /**
- * 窓の下の段（共通フッタ）に出す、今効く操作。何に効くか（ワークスペース・タブ・この窓など）で行を分ける。
- * どの窓でも同じ意味のキー（j k h l・矢印・Enter・Esc・`?`）は出さない。意味が変わる間（タブをつかんでいる間・作るタブの種類を選ぶ間の Esc）だけ出す。
+ * Dialog の Key footer（共通フッタ）に出す、今効く操作。何に効くか（ワークスペース・タブ・この Dialog など）で行を分ける。
+ * どの Dialog でも同じ意味のキー（j k h l・矢印・Enter・Esc・`?`）は出さない。意味が変わる間（タブをつかんでいる間・作るタブの種類を選ぶ間の Esc）だけ出す。
  * ふだんの操作のキーと probes は `?` の一覧の表（placeKeys.ts の switcher・switcherTabs）から引く（placeItem）。
- * 作るタブの種類の項目は、押せるボタンにする（act に種類を入れる。窓が、押したら決めるように結ぶ）。
- * switcherKey.test.ts が、出す操作をその状態の判定が受けることと、表の操作がどれも、どこかの状態で下の段に出ることを確かめる。
+ * 作るタブの種類の項目は、押せるボタンにする（act に種類を入れる。Dialog が、押したら決めるように結ぶ）。
+ * switcherKey.test.ts が、出す操作をその状態の判定が受けることと、表の操作がどれも、どこかの状態で Key footer に出ることを確かめる。
  */
 export function switcherFooter(s: SwitcherState): FooterRow<NewTabChoice>[] {
   switch (s.mode) {
@@ -208,14 +208,14 @@ function kindRows(kinds: readonly NewTabChoice[]): FooterRow<NewTabChoice>[] {
           probes: [NEW_TAB_KIND_KEYS[k]],
           act: k,
         })),
-        // 窓ではなく、種類を選ぶのだけをやめる（意味が変わるので出す）
+        // Dialog ではなく、種類を選ぶのだけをやめる（意味が変わるので出す）
         item(["Esc"], "basic.cancel", ["Escape"]),
       ],
     },
   ];
 }
 
-/** 名前を打っている間。決める Enter・やめる Esc は、どの窓の入力欄でも同じなので出さない。ターミナルのタブを作る欄だけ、マシンを替えられる。 */
+/** 名前を打っている間。決める Enter・やめる Esc は、どの Dialog の入力欄でも同じなので出さない。ターミナルのタブを作る欄だけ、マシンを替えられる。 */
 function typingRows(newTab: boolean): FooterRow[] {
   return [
     {
@@ -261,7 +261,7 @@ function tabRows(): FooterRow[] {
   ];
 }
 
-/** ワークスペースの列（選んでいるワークスペースへの操作と、この窓の操作）。項目は `?` の一覧の表 switcher から引く。 */
+/** ワークスペースの列（選んでいるワークスペースへの操作と、この Dialog の操作）。項目は `?` の一覧の表 switcher から引く。 */
 function wsRows(hasWs: boolean): FooterRow[] {
   const ws = (keys: string, label: Label) =>
     placeItem("switcher", keys, T(label));

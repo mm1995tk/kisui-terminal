@@ -74,7 +74,7 @@ describe("入力欄の SQL を聞かずに替えてよいか", () => {
   });
 });
 
-describe("上書きを聞く窓の Enter", () => {
+describe("上書きを聞く Dialog の Enter", () => {
   const ev = (key: string, extra: object = {}) => ({
     key,
     ctrlKey: false,
@@ -169,7 +169,7 @@ describe("kisui db propose の頼み", () => {
       },
     };
   }
-  /** 約束が進むのを待つ（聞く窓が出るまで）。 */
+  /** 約束が進むのを待つ（聞く Dialog が出るまで）。 */
   const tick = () => new Promise((r) => setTimeout(r, 0));
   const tabsOf = (s: GwsState, gid: string) =>
     s.list
@@ -264,7 +264,7 @@ describe("kisui db propose の頼み", () => {
     assert.equal(t.drafts.d1, "SELECT 2");
   });
 
-  it("聞いている途中で取り下げられたら、窓を閉じて書かない。次の頼みは続ける", async () => {
+  it("聞いている途中で取り下げられたら、Dialog を閉じて書かない。次の頼みは続ける", async () => {
     const t = setup();
     t.drafts.d1 = "SELECT old";
     const first = t.p.propose("a", rq("x1", "SELECT 1"));
@@ -291,7 +291,7 @@ describe("kisui db propose の頼み", () => {
     assert.equal(t.drafts.d1, "SELECT 3");
   });
 
-  it("マシンとの接続が切れたら、そのマシンの頼みだけを取り下げる（聞く窓を残さない）", async () => {
+  it("マシンとの接続が切れたら、そのマシンの頼みだけを取り下げる（聞く Dialog を残さない）", async () => {
     const t = setup();
     t.drafts.d1 = "SELECT old";
     const first = t.p.propose("a", rq("x1", "SELECT 1"));

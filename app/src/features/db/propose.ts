@@ -31,13 +31,13 @@ export function replaceable(current: string, sql: string): boolean {
 }
 
 /**
- * 上書きを聞く窓を開いてから、この時間（ms）がたつまでの Enter は受けない。この窓は人の操作と関係なく開くので、
+ * 上書きを聞く Dialog を開いてから、この時間（ms）がたつまでの Enter は受けない。この Dialog は人の操作と関係なく開くので、
  * ターミナルなどに打っていた Enter が、読む前に上書きを決めてしまわないようにする。
  */
 export const PROPOSE_ENTER_GUARD_MS = 500;
 
 /**
- * 上書きを聞く窓で押したキー e を「上書きする」として受けるか。受けるのは、修飾キーの無い Enter だけ。
+ * 上書きを聞く Dialog で押したキー e を「上書きする」として受けるか。受けるのは、修飾キーの無い Enter だけ。
  * 変換を確定する Enter・押しっぱなしの繰り返し・開いた直後（sinceOpen が PROPOSE_ENTER_GUARD_MS より短い）・
  * ボタンの上（onButton。ボタンが自分で受ける）は受けない。
  */

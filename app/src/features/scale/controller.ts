@@ -1,5 +1,5 @@
 // 表示の大きさ（#594）の持ち物。覚えておいた大きさで始め、変えたら覚える（scale.ts）。
-// 画面にも Tauri にも触らない。窓の zoom を変えるのは ApplyScale、変えた大きさを少しの間見せるのは showScale に頼む。
+// 画面にも Tauri にも触らない。Window の zoom を変えるのは ApplyScale、変えた大きさを少しの間見せるのは showScale に頼む。
 import type { KeyValueStore } from "../keyValueStore.ts";
 import {
   loadScale,
@@ -12,7 +12,7 @@ import {
 /** createScale が返す持ち物。 */
 export type Scale = ReturnType<typeof createScale>;
 
-/** 表示の大きさの持ち物を作る。覚えておいた大きさを窓に当て、変えるたびに覚える。 */
+/** 表示の大きさの持ち物を作る。覚えておいた大きさを Window に当て、変えるたびに覚える。 */
 export function createScale(deps: {
   store: KeyValueStore | undefined;
   applyScale: ApplyScale;
@@ -24,7 +24,7 @@ export function createScale(deps: {
   let scale = loadScale(store);
   if (scale !== 1) void applyScale(scale);
 
-  /** 表示の大きさを変える（#594）。窓全体の zoom を変える。ターミナルは欄の変化で合わせ直す。 */
+  /** 表示の大きさを変える（#594）。Window 全体の zoom を変える。ターミナルは欄の変化で合わせ直す。 */
   function changeScale(a: ScaleAction) {
     scale = nextScale(scale, a);
     saveScale(store, scale);

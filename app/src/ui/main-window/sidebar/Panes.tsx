@@ -1,4 +1,4 @@
-// サイドバーの、タブの段の下の段（ファイルツリーと CHANGES）。描くのは file-tree/TreeView.tsx と changes/ChangesView.tsx。
+// サイドバーの、タブの段の下の部分（ファイルツリーと CHANGES）。描くのは file-tree/TreeView.tsx と changes/ChangesView.tsx。
 // DB のタブを出している間（#374）は、ファイルツリーの場所にそのタブの接続の木（db-tree/DbTree.tsx）を出し、ファイルツリーと CHANGES は外さずに見えなくする（状態を保つ）。
 import { T } from "../../../i18n/index.ts";
 import { Show, type JSX } from "solid-js";

@@ -15,9 +15,9 @@ const KINDS: readonly WorkspaceKind[] = ["terminal", "browser"];
 const rowId = (i: number) => `kind-picker-row-${i}`;
 
 /**
- * ワークスペースの種類（ターミナルかブラウザか）を選ぶ窓（リーダーの `w n`。内蔵ブラウザを有効にしているとき。#257）。
+ * ワークスペースの種類（ターミナルかブラウザか）を選ぶ Dialog（リーダーの `w n`。内蔵ブラウザを有効にしているとき。#257）。
  * j / k で選び、Enter かダブルクリックで onChoose、Esc かボタンで onCancel を呼ぶ。
- * 窓のキーは、マシンを選ぶ窓（MachinePicker.tsx）と同じ（machineList.ts の pickerKey）。決まりは docs/key-design.md。
+ * Dialog のキーは、マシンを選ぶ Dialog（MachinePicker.tsx）と同じ（machineList.ts の pickerKey）。決まりは docs/key-design.md。
  */
 export function WorkspaceKindPicker(props: {
   onChoose: (kind: WorkspaceKind) => void;

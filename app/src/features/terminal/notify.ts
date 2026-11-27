@@ -2,7 +2,7 @@ import type { NotificationSupport, TerminalNotification } from "coneko-term";
 
 /**
  * OS の通知を出す。`onResponse` は押された・閉じられたのとき 1 回だけ呼ばれる。出せなければ例外。
- * `focus` が真なら、押されたとき殻が窓を前に出す。返す関数は、欄が無くなるときに呼ぶ（以後の返事を捨てる）。
+ * `focus` が真なら、押されたとき殻が Window を前に出す。返す関数は、欄が無くなるときに呼ぶ（以後の返事を捨てる）。
  * 本物は infrastructure/tauri/notify.ts。
  */
 export type ShowOsNotification = (
@@ -28,7 +28,7 @@ export function notificationSupportFor(userAgent: string): NotificationSupport {
   };
 }
 
-/** 通知を出すかどうか（`o`）。always は常に、unfocused は窓が前に無いとき、invisible は欄が見えていないとき。 */
+/** 通知を出すかどうか（`o`）。always は常に、unfocused は Window が前に無いとき、invisible は欄が見えていないとき。 */
 export function shouldNotify(
   when: TerminalNotification["when"],
   state: { windowFocused: boolean; cellVisible: boolean; pageVisible: boolean },

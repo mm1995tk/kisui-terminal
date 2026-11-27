@@ -1,4 +1,4 @@
-// ターミナルのタブの窓（リーダーの `a`。TerminalWindow.tsx。#457）の中のキー。
+// ターミナルのタブの Dialog（リーダーの `a`。TerminalWindow.tsx。#457）の中のキー。
 // 画面の仕組み（Solid）に依らないので、node --test で確かめる。決まりは docs/key-design.md。
 
 import { isComposingKey } from "../../../features/commands/ime.ts";
@@ -10,11 +10,11 @@ import {
 import type { Direction } from "../../../features/terminal/grid.ts";
 import { T } from "../../../i18n/index.ts";
 
-/** 窓の中のキーが表す動き。どれも、地図で選んでいるペインに行う。 */
+/** Dialog の中のキーが表す動き。どれも、地図で選んでいるペインに行う。 */
 export type TerminalWindowKey =
   /** 選ぶペインを、その向きの隣へ移す（隣が無ければ動かない） */
   | { kind: "select"; dir: Direction }
-  /** 選んでいるペインにフォーカスを移して、窓を閉じる */
+  /** 選んでいるペインにフォーカスを移して、Dialog を閉じる */
   | { kind: "focus" }
   /** 選んでいるペインを分ける（向きを待つ間のキーに替わる。splitDirKey） */
   | { kind: "split" }
@@ -24,9 +24,9 @@ export type TerminalWindowKey =
   | { kind: "close" }
   /** プライマリ以外のペインを隠す・戻す */
   | { kind: "zoom" }
-  /** 窓を閉じて、リサイズモードに入る */
+  /** Dialog を閉じて、リサイズモードに入る */
   | { kind: "resize" }
-  /** この窓のキーの一覧を出す（`?`） */
+  /** この Dialog のキーの一覧を出す（`?`） */
   | { kind: "help" };
 
 /** 向きのキー（h j k l と矢印）。向きでなければ undefined。 */
@@ -56,8 +56,8 @@ const SWAP: Readonly<Record<string, Direction>> = {
 };
 
 /**
- * 窓の中のキー（字を打つ入力欄は無いので、字をそのまま使える。Esc は ModalCard が閉じるのに使う）。
- * 選ぶ向きは、リーダーの 1 段目・ワークスペースの窓と同じ h j k l（矢印も）。入れ替えは、ワークスペースの窓の並べ替え（J K）と同じく Shift を足した H J K L。
+ * Dialog の中のキー（字を打つ入力欄は無いので、字をそのまま使える。Esc は ModalCard が閉じるのに使う）。
+ * 選ぶ向きは、リーダーの 1 段目・Workspace switcher と同じ h j k l（矢印も）。入れ替えは、Workspace switcher の並べ替え（J K）と同じく Shift を足した H J K L。
  * Alt・Cmd・Ctrl を重ねたものと、変換中のキーは受けない。
  */
 export function terminalWindowKey(e: KeyLike): TerminalWindowKey | null {
@@ -88,7 +88,7 @@ export function terminalWindowKey(e: KeyLike): TerminalWindowKey | null {
 export type SplitDirKey =
   /** その向きに分ける */
   | { kind: "dir"; dir: Direction }
-  /** 分けるのをやめる（窓は閉じない） */
+  /** 分けるのをやめる（Dialog は閉じない） */
   | { kind: "cancel" };
 
 /**
@@ -103,7 +103,7 @@ export function splitDirKey(e: KeyLike): SplitDirKey | null {
   return dir ? { kind: "dir", dir } : null;
 }
 
-/** 窓の下の段を決める、窓の今の状態。 */
+/** Dialog の Key footer を決める、Dialog の今の状態。 */
 export interface TerminalWindowState {
   /** 分ける向きを待っているか（`s` のあと） */
   splitting: boolean;
@@ -118,12 +118,12 @@ export interface TerminalWindowState {
 }
 
 /**
- * 窓の下の段（共通フッタ）に出す、今効く操作。「選んでいるペイン」と「このタブ」の 2 行。
- * 効かない操作は出さない。どの窓でも同じ意味のキー（h j k l・Enter・Esc・`?`）は出さない（意味が変わる、分ける向きを待つ間を除く）。
+ * Dialog の Key footer（共通フッタ）に出す、今効く操作。「選んでいるペイン」と「このタブ」の 2 行。
+ * 効かない操作は出さない。どの Dialog でも同じ意味のキー（h j k l・Enter・Esc・`?`）は出さない（意味が変わる、分ける向きを待つ間を除く）。
  * - splitting：分ける向きを待っている間。向きと、やめる Esc だけ（`?` は効かないので出さない）
  * - empty：ペインを出せない間。効く操作は無いので、見出しだけ
  * ふだんの操作のキーと probes は `?` の一覧の表（placeKeys.ts の termWindow）から引く（placeItem）。terminalWindowKey.test.ts が、出す操作を判定が受けることと、
- * 表の操作がどれも、どこかの状態で下の段に出ることを確かめる。
+ * 表の操作がどれも、どこかの状態で Key footer に出ることを確かめる。
  */
 export function terminalWindowFooter(s: TerminalWindowState): FooterRow[] {
   if (!s.empty && s.splitting)

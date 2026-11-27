@@ -76,15 +76,15 @@ function treeLeaves(
   ]);
 }
 
-/** 今使う木の葉とグループと、木の外の葉（近道だけの操作。path は ["(近道だけ)"]）。 */
+/** 今使う木の葉とグループと、木の外の葉（Shortcut だけの操作。path は ["(Shortcut だけ)"]）。 */
 function leaves(): { path: string[]; node: Node }[] {
   return [
     ...treeLeaves(LEADER),
-    ...outsideLeaves().map((node) => ({ path: ["(近道だけ)"], node })),
+    ...outsideLeaves().map((node) => ({ path: ["(Shortcut だけ)"], node })),
   ];
 }
 
-/** ノードの既定の近道（この OS のもの）。近道を持つのは葉だけ。 */
+/** ノードの既定の Shortcut（この OS のもの）。Shortcut を持つのは葉だけ。 */
 const shortcutOn = (node: Node, mac: boolean): string | undefined =>
   node.type === "leaf"
     ? mac
@@ -110,7 +110,7 @@ describe("コマンドの表", () => {
     check(LEADER, "1 段目");
   });
 
-  it("近道は OS ごとに重ならず、リーダーのキーとも重ならない", () => {
+  it("Shortcut は OS ごとに重ならず、リーダーのキーとも重ならない", () => {
     for (const mac of [MAC, LINUX]) {
       const seen = new Map<string, string>();
       seen.set(leaderKeyName(mac), "リーダー");
@@ -127,7 +127,7 @@ describe("コマンドの表", () => {
     }
   });
 
-  it("Linux の近道は Ctrl+Shift+字か、何も奪わない Ctrl+= と Ctrl+0 だけ（Super・Ctrl 単独・Alt は使わない）", () => {
+  it("Linux の Shortcut は Ctrl+Shift+字か、何も奪わない Ctrl+= と Ctrl+0 だけ（Super・Ctrl 単独・Alt は使わない）", () => {
     for (const { node } of leaves()) {
       const s = shortcutOn(node, LINUX);
       if (!s) continue;
@@ -171,7 +171,7 @@ describe("コマンドの表", () => {
       "c s",
       "c r",
       "?",
-      // 木の外の、近道だけの操作（見出しの行と、Mac で既定の近道がある 5 つ）。リーダーのあとに押すキーは無い
+      // 木の外の、Shortcut だけの操作（見出しの行と、Mac で既定の Shortcut がある 5 つ）。リーダーのあとに押すキーは無い
       "",
       "",
       "",
@@ -181,7 +181,7 @@ describe("コマンドの表", () => {
     ]);
   });
 
-  it("旧 d のグループ（DB のタブの操作）は木に無い（#458）。d は何も動かさずリーダーを出る。DB のタブの操作のコマンドは木の外に残り、設定の近道で使える", () => {
+  it("旧 d のグループ（DB のタブの操作）は木に無い（#458）。d は何も動かさずリーダーを出る。DB のタブの操作のコマンドは木の外に残り、設定の Shortcut で使える", () => {
     for (const mac of [MAC, LINUX]) {
       for (const k of ["t", "r", "e", "h", "s", "j", "]", "x", "p"]) {
         const r = press(mac, [LEADER_KEY(mac), key("d"), key(k)]);
@@ -208,14 +208,14 @@ describe("コマンドの表", () => {
       assert.equal(tree.includes(id), false, id);
       assert.equal(outside.includes(id), true, id);
     }
-    // 既定の近道は無いので、`?` の一覧にも出ない
+    // 既定の Shortcut は無いので、`?` の一覧にも出ない
     assert.equal(
       helpRows(MAC).some((r) => r.label === T("leader.db.history")),
       false,
     );
   });
 
-  it("a は、今出しているタブの種類の窓を開く 1 つの葉（#457）。既定の近道は無く、その下にほかの操作は無い", () => {
+  it("a は、今出しているタブの種類の Dialog を開く 1 つの葉（#457）。既定の Shortcut は無く、その下にほかの操作は無い", () => {
     const a = LEADER.find((n) => n.type === "leaf" && n.keys.includes("a"));
     assert.ok(a && a.type === "leaf");
     assert.deepEqual(a.run, { id: "tab.window" });
@@ -228,13 +228,13 @@ describe("コマンドの表", () => {
     }
   });
 
-  it("ペインの操作のグループ（旧 p）は木に無い（#457。ターミナルのタブの窓がする）。ペインを移る h j k l と Tab は 1 段目に残る", () => {
+  it("ペインの操作のグループ（旧 p）は木に無い（#457。ターミナルのタブの Dialog がする）。ペインを移る h j k l と Tab は 1 段目に残る", () => {
     assert.equal(childrenAt(["p"]), undefined);
     for (const mac of [MAC, LINUX]) {
       const r = press(mac, [LEADER_KEY(mac), key("p"), key("x")]);
       assert.deepEqual(r.runs, []);
       assert.equal(r.state.leader, null);
-      // 旧い入口の近道（Cmd+Shift+P / Ctrl+Shift+P）も無く、ターミナルに届く
+      // 旧い入口の Shortcut（Cmd+Shift+P / Ctrl+Shift+P）も無く、ターミナルに届く
       const P = mac ? key("P", "ms", "KeyP") : key("P", "cs", "KeyP");
       assert.equal(press(mac, [P]).passed.length, 1);
     }
@@ -252,7 +252,7 @@ describe("コマンドの表", () => {
     assert.ok(inTree.has("pane.focus") && inTree.has("pane.last"));
   });
 
-  it("木の外の操作のうち近道があるものは、`?` の一覧の最後に、見出しの行を付けて並ぶ", () => {
+  it("木の外の操作のうち Shortcut があるものは、`?` の一覧の最後に、見出しの行を付けて並ぶ", () => {
     const tail = (mac: boolean) => {
       const rows = helpRows(mac);
       const at = rows.findIndex((r) => r.path.length === 0);
@@ -266,7 +266,7 @@ describe("コマンドの表", () => {
       [T("leader.pane.zoom"), "Cmd+Shift+Enter", false],
       [T("leader.pane.resize"), "Cmd+R", false],
     ]);
-    // Linux には、ペインを閉じる近道が無い（行も出ない）
+    // Linux には、ペインを閉じる Shortcut が無い（行も出ない）
     assert.deepEqual(tail(LINUX), [
       [T("leader.direct.group"), "", true],
       [T("leader.pane.split.right"), "Ctrl+Shift+D", false],
@@ -276,7 +276,7 @@ describe("コマンドの表", () => {
     ]);
   });
 
-  it("w はグループではなく、ワークスペースの窓を開く 1 つの葉（#296）。その下にほかの操作は無く、Cmd+1〜9 も無い", () => {
+  it("w はグループではなく、Workspace switcher を開く 1 つの葉（#296）。その下にほかの操作は無く、Cmd+1〜9 も無い", () => {
     const w = LEADER.find((n) => n.type === "leaf" && n.keys.includes("w"));
     assert.ok(w && w.type === "leaf");
     assert.deepEqual(w.run, { id: "workspace.switch" });
@@ -305,7 +305,7 @@ describe("リーダー", () => {
     it(`${os}：グループに入ると、案内の位置が一段下がる`, () => {
       assert.deepEqual(press(mac, [L]).state.leader, []);
       assert.deepEqual(press(mac, [L, key("x")]).state.leader, ["x"]);
-      // w と t はグループではなく、窓を開く葉（入った先は無く、リーダーを出る）。t は右のタブの列にキーを置いて開く（#454）
+      // w と t はグループではなく、Dialog を開く葉（入った先は無く、リーダーを出る）。t は右のタブの列にキーを置いて開く（#454）
       const w = press(mac, [L, key("w")]);
       assert.deepEqual(w.runs, [{ id: "workspace.switch" }]);
       assert.equal(w.state.leader, null);
@@ -391,13 +391,13 @@ describe("リーダー", () => {
     });
   }
 
-  it("Cmd+Shift+W / Ctrl+Shift+W は、リーダーを通さずにワークスペースの窓を開く。グループに 1 回で入る近道は無い（#457）", () => {
+  it("Cmd+Shift+W / Ctrl+Shift+W は、リーダーを通さずに Workspace switcher を開く。グループに 1 回で入る Shortcut は無い（#457）", () => {
     assert.deepEqual(press(MAC, [key("W", "ms", "KeyW")]).runs, [
       { id: "workspace.switch" },
     ]);
     const r = press(LINUX, [key("W", "cs", "KeyW")]);
     assert.deepEqual(r.runs, [{ id: "workspace.switch" }]);
-    // 近道では、リーダーに入らない
+    // Shortcut では、リーダーに入らない
     assert.equal(r.state.leader, null);
   });
 
@@ -501,7 +501,7 @@ describe("リーダーを押したとき以外は、キーがターミナル（s
   });
 });
 
-describe("近道（リーダーを通さずに 1 回で押せるキー）", () => {
+describe("Shortcut（リーダーを通さずに 1 回で押せるキー）", () => {
   const cmd = (mac: boolean, k: KeyLike) => shortcutCommand(k, mac);
 
   it("Mac は Cmd のキー", () => {
@@ -519,7 +519,7 @@ describe("近道（リーダーを通さずに 1 回で押せるキー）", () =
       id: "clipboard.history",
     });
     assert.deepEqual(cmd(MAC, key("w", "m", "KeyW")), { id: "pane.close" });
-    // Cmd+1〜9 は無い（ワークスペースは、リーダーの w の窓で選ぶ。#296）
+    // Cmd+1〜9 は無い（ワークスペースは、リーダーの w の Dialog で選ぶ。#296）
     assert.equal(cmd(MAC, key("1", "m", "Digit1")), null);
     assert.equal(cmd(MAC, key("9", "m", "Digit9")), null);
     assert.equal(cmd(MAC, key("0", "m", "Digit0")) !== null, true);
@@ -588,7 +588,7 @@ describe("近道（リーダーを通さずに 1 回で押せるキー）", () =
     assert.equal(cmd(LINUX, key("1", "a", "Digit1")), null);
   });
 
-  it("route：近道は受けて、コマンドを返す。押しっぱなしの繰り返しは、表示の大きさの + と - だけ", () => {
+  it("route：Shortcut は受けて、コマンドを返す。押しっぱなしの繰り返しは、表示の大きさの + と - だけ", () => {
     const s = IDLE;
     const k = { ...key("d", "m", "KeyD"), repeat: true };
     const r = route(s, k, env(MAC));
@@ -620,13 +620,13 @@ describe("近道（リーダーを通さずに 1 回で押せるキー）", () =
 });
 
 describe("案内の一覧（`?`）", () => {
-  it("近道は、この OS のものだけを出す", () => {
+  it("Shortcut は、この OS のものだけを出す", () => {
     const mac = helpRows(MAC);
     const lin = helpRows(LINUX);
     const split = T("leader.pane.split.down");
     assert.equal(mac.find((r) => r.label === split)?.shortcut, "Cmd+Shift+D");
     assert.equal(lin.find((r) => r.label === split)?.shortcut, "Ctrl+Shift+E");
-    // ペインを閉じる近道は Mac だけ（Linux には行も無い）
+    // ペインを閉じる Shortcut は Mac だけ（Linux には行も無い）
     const close = T("leader.pane.close");
     assert.equal(mac.find((r) => r.label === close)?.shortcut, "Cmd+W");
     assert.equal(
@@ -663,7 +663,7 @@ describe("案内の一覧（`?`）", () => {
 });
 
 describe("keyspec", () => {
-  it("近道の書き方を読み、修飾キーが多くても少なくても当たらない", () => {
+  it("Shortcut の書き方を読み、修飾キーが多くても少なくても当たらない", () => {
     const s = parseSpec("Cmd+Shift+D");
     assert.equal(matchSpec(key("D", "ms", "KeyD"), s), true);
     assert.equal(matchSpec(key("d", "m", "KeyD"), s), false);
@@ -734,11 +734,11 @@ describe("リーダーの案内（menuRows）", () => {
     );
   });
 
-  it("お知らせは i のグループ（#456）。a は無く、新しい版に更新する u がある。n の下には無い", () => {
+  it("Notice は i のグループ（#456）。a は無く、新しい版に更新する u がある。n の下には無い", () => {
     assert.deepEqual(keysOf(["i"], MAC), ["u", "d", "g", "o", "f"]);
     assert.equal(childrenAt(["n"]), undefined);
     for (const mac of [MAC, LINUX]) {
-      // 旧 n u は、お知らせの操作を動かさない（n で窓を開いてリーダーを出るので、u はリーダーでは受けない）
+      // 旧 n u は、Notice の操作を動かさない（n で Dialog を開いてリーダーを出るので、u はリーダーでは受けない）
       assert.deepEqual(press(mac, [LEADER_KEY(mac), key("n"), key("u")]).runs, [
         { id: "workspace.switch", arg: "newTab" },
       ]);
@@ -748,7 +748,7 @@ describe("リーダーの案内（menuRows）", () => {
     }
   });
 
-  it("n は、ワークスペースの窓を、作るタブの種類を選ぶ間にして開く葉（#456）。種類ごとの作るキー（旧 o n・o N・d n）は木に無い", () => {
+  it("n は、Workspace switcher を、作るタブの種類を選ぶ間にして開く葉（#456）。種類ごとの作るキー（旧 o n・o N・d n）は木に無い", () => {
     for (const mac of [MAC, LINUX]) {
       const r = press(mac, [LEADER_KEY(mac), key("n")]);
       assert.deepEqual(r.runs, [{ id: "workspace.switch", arg: "newTab" }]);
@@ -776,7 +776,7 @@ describe("リーダーの案内（menuRows）", () => {
     assert.deepEqual(rows(["p"]), []);
   });
 
-  it("`?` の一覧でも、向きと番号の同種の操作は 1 行にまとまり、近道はどのキーのものかを添えて残る。押したときの動きは葉ごとで変わらない", () => {
+  it("`?` の一覧でも、向きと番号の同種の操作は 1 行にまとまり、Shortcut はどのキーのものかを添えて残る。押したときの動きは葉ごとで変わらない", () => {
     const rows = helpRows(MAC);
     const paths = rows.map((r) => r.path.join(" "));
     assert.ok(paths.includes("h|j|k|l"));
@@ -795,11 +795,11 @@ describe("リーダーの案内（menuRows）", () => {
     ]);
   });
 
-  it("t は、ワークスペースの窓を、右のタブの列にキーを置いて開く葉（#454）。後に押したキーは、リーダーでは受けない", () => {
+  it("t は、Workspace switcher を、右のタブの列にキーを置いて開く葉（#454）。後に押したキーは、リーダーでは受けない", () => {
     const r = press(LINUX, [LEADER_KEY(LINUX), key("t")]);
     assert.deepEqual(r.runs, [{ id: "workspace.switch", arg: "tab" }]);
     assert.equal(r.state.leader, null);
-    // リーダーを出たあとの n は、リーダーの葉には当たらない（窓の中のキーとして扱われる）
+    // リーダーを出たあとの n は、リーダーの葉には当たらない（Dialog の中のキーとして扱われる）
     assert.deepEqual(
       press(LINUX, [LEADER_KEY(LINUX), key("t"), key("n")]).runs,
       [{ id: "workspace.switch", arg: "tab" }],
@@ -843,7 +843,7 @@ describe("内蔵ブラウザ（#202。設定で有効にしたときだけ）", 
       .filter((n) => n.run.id.startsWith("browser."))
       .map((n) => n.run.id);
 
-  it("有効にしていなければ、ブラウザのコマンドは近道にも `?` の一覧にも無く、設定の近道にも書けない", () => {
+  it("有効にしていなければ、ブラウザのコマンドは Shortcut にも `?` の一覧にも無く、設定の Shortcut にも書けない", () => {
     setBrowserEnabled(false);
     assert.deepEqual(browserIds(), []);
     assert.ok(
@@ -863,7 +863,7 @@ describe("内蔵ブラウザ（#202。設定で有効にしたときだけ）", 
     setUserShortcuts([], MAC);
   });
 
-  it("リーダーの o のグループは無い（#459。ページへの操作は、リーダーの a で開くブラウザのタブの窓の中のキー）", () => {
+  it("リーダーの o のグループは無い（#459。ページへの操作は、リーダーの a で開くブラウザのタブの Dialog の中のキー）", () => {
     for (const on of [false, true]) {
       setBrowserEnabled(on);
       assert.equal(childrenAt(["o"]), undefined);
@@ -886,7 +886,7 @@ describe("内蔵ブラウザ（#202。設定で有効にしたときだけ）", 
     before(() => setBrowserEnabled(true));
     after(() => setBrowserEnabled(false));
 
-    it("ブラウザのコマンドは、全部木の外（設定の近道だけ）にある。#459 までのリーダーの o の葉と、#456 までの o n・o N", () => {
+    it("ブラウザのコマンドは、全部木の外（設定の Shortcut だけ）にある。#459 までのリーダーの o の葉と、#456 までの o n・o N", () => {
       assert.deepEqual(browserIds(), [
         "browser.new",
         "browser.incognito",
@@ -910,7 +910,7 @@ describe("内蔵ブラウザ（#202。設定で有効にしたときだけ）", 
         .filter((n) => n.run.id.startsWith("browser.") && n.repeat)
         .map((n) => n.run.id);
       assert.deepEqual(repeat, ["browser.back", "browser.forward"]);
-      // `?` の一覧では、既定の近道を持つ読み込み直す・ページ内検索だけが、木のあとの「近道だけ」の行に出る
+      // `?` の一覧では、既定の Shortcut を持つ読み込み直す・ページ内検索だけが、木のあとの「Shortcut だけ」の行に出る
       const outside = helpRows(MAC).filter((r) => r.path.length === 0);
       for (const [label, shortcut] of [
         [T("leader.browser.reload"), "Cmd+R"],
@@ -924,7 +924,7 @@ describe("内蔵ブラウザ（#202。設定で有効にしたときだけ）", 
       assert.ok(!outside.some((r) => r.label === T("leader.browser.back")));
     });
 
-    it("設定の近道に、ブラウザのコマンド（閉じる・名前を変えるも）を書ける（#459 で木から外しても、書いた設定は壊れない）", () => {
+    it("設定の Shortcut に、ブラウザのコマンド（閉じる・名前を変えるも）を書ける（#459 で木から外しても、書いた設定は壊れない）", () => {
       assert.deepEqual(
         setUserShortcuts(
           [
@@ -968,7 +968,7 @@ describe("内蔵ブラウザ（#202。設定で有効にしたときだけ）", 
           press(mac, [R], { browser: true, resizeMode: true }).runs,
           [{ id: "pane.resize" }],
         );
-        // リサイズモードを出るキーの判定（panes.ts）は、ブラウザの近道に取られない
+        // リサイズモードを出るキーの判定（panes.ts）は、ブラウザの Shortcut に取られない
         assert.equal(shortcutCommand(R, mac)?.id, "pane.resize");
       });
 
@@ -995,7 +995,7 @@ describe("内蔵ブラウザ（#202。設定で有効にしたときだけ）", 
       });
     }
 
-    it("近道は、ブラウザを出しているときだけのものを除いて OS ごとに重ならない（ブラウザだけのものどうしも重ならない）", () => {
+    it("Shortcut は、ブラウザを出しているときだけのものを除いて OS ごとに重ならない（ブラウザだけのものどうしも重ならない）", () => {
       for (const mac of [MAC, LINUX]) {
         for (const inBrowser of [false, true]) {
           const seen = new Map<string, string>();
@@ -1012,7 +1012,7 @@ describe("内蔵ブラウザ（#202。設定で有効にしたときだけ）", 
       }
     });
 
-    it("Linux で Ctrl 単独を使う近道は、ブラウザを出している間だけの Ctrl+F（ページ内検索）だけ", () => {
+    it("Linux で Ctrl 単独を使う Shortcut は、ブラウザを出している間だけの Ctrl+F（ページ内検索）だけ", () => {
       for (const { node } of leaves()) {
         const s = shortcutOn(node, LINUX);
         if (
@@ -1027,7 +1027,7 @@ describe("内蔵ブラウザ（#202。設定で有効にしたときだけ）", 
       }
     });
 
-    it("ページに渡すキーは、リーダーとすべての近道（木の外の、ペインの近道も）。リーダーだけが、続くキーも受ける", () => {
+    it("ページに渡すキーは、リーダーとすべての Shortcut（木の外の、ペインの Shortcut も）。リーダーだけが、続くキーも受ける", () => {
       for (const mac of [MAC, LINUX]) {
         const keys = interceptKeys(mac);
         const has = (s: string, enter: boolean) =>
@@ -1037,7 +1037,7 @@ describe("内蔵ブラウザ（#202。設定で有効にしたときだけ）", 
           );
         assert.ok(has(mac ? "Cmd+K" : "Ctrl+Shift+K", true));
         assert.ok(has(mac ? "Cmd+Shift+W" : "Ctrl+Shift+W", false));
-        // 旧い入口の近道（#457 で無くした）は渡さない
+        // 旧い入口の Shortcut（#457 で無くした）は渡さない
         assert.ok(!has(mac ? "Cmd+Shift+P" : "Ctrl+Shift+P", true));
         assert.ok(!has(mac ? "Cmd+Shift+P" : "Ctrl+Shift+P", false));
         assert.ok(has(mac ? "Cmd+R" : "Ctrl+Shift+R", false));
@@ -1050,10 +1050,10 @@ describe("内蔵ブラウザ（#202。設定で有効にしたときだけ）", 
   });
 });
 
-describe("設定で足す近道（[gui.shortcuts]）", () => {
+describe("設定で足す Shortcut（[gui.shortcuts]）", () => {
   after(() => setUserShortcuts([], LINUX));
 
-  it("まとめた行（h|j|k|l）に設定の近道を足すと、近道 1 つずつに、どのキーのものかが付く", () => {
+  it("まとめた行（h|j|k|l）に設定の Shortcut を足すと、Shortcut 1 つずつに、どのキーのものかが付く", () => {
     assert.deepEqual(
       setUserShortcuts(
         [
@@ -1068,7 +1068,7 @@ describe("設定で足す近道（[gui.shortcuts]）", () => {
     assert.equal(row?.shortcut, "Ctrl+Alt+H (h), Ctrl+Alt+J (j)");
   });
 
-  it("木の外のペインの操作（#457）は、設定の近道に足せる。既定の近道のある行には並べて出し、無いものは行が増える", () => {
+  it("木の外のペインの操作（#457）は、設定の Shortcut に足せる。既定の Shortcut のある行には並べて出し、無いものは行が増える", () => {
     assert.deepEqual(
       setUserShortcuts(
         [
@@ -1095,7 +1095,7 @@ describe("設定で足す近道（[gui.shortcuts]）", () => {
     assert.equal(of(T("leader.pane.split.left")), "Ctrl+Alt+H");
     assert.equal(of(T("leader.pane.swap.right")), "Ctrl+Alt+S");
     assert.equal(of(T("leader.pane.swap.left")), undefined);
-    // 木の葉（a）に足した近道は、その行に出る
+    // 木の葉（a）に足した Shortcut は、その行に出る
     assert.equal(
       rows.find((r) => r.path.join(" ") === "a")?.shortcut,
       "Ctrl+Alt+A",
@@ -1123,7 +1123,7 @@ describe("設定で足す近道（[gui.shortcuts]）", () => {
     assert.equal(press(LINUX, [key("j", "")]).passed.length, 1);
   });
 
-  it("リーダーの木に無いワークスペースのコマンド（#296）も、近道に足せる（引数つきも）。`?` の一覧では、w の下ではなく、最後の近道だけの操作に並ぶ", () => {
+  it("リーダーの木に無いワークスペースのコマンド（#296）も、Shortcut に足せる（引数つきも）。`?` の一覧では、w の下ではなく、最後の Shortcut だけの操作に並ぶ", () => {
     const problems = setUserShortcuts(
       [
         { key: "Ctrl+Alt+1", command: "workspace.nth:0" },
@@ -1160,7 +1160,7 @@ describe("設定で足す近道（[gui.shortcuts]）", () => {
     );
   });
 
-  it("同じキーの既定の近道に勝ち、none なら既定の近道を消すだけ", () => {
+  it("同じキーの既定の Shortcut に勝ち、none なら既定の Shortcut を消すだけ", () => {
     assert.deepEqual(
       setUserShortcuts(
         [
@@ -1175,7 +1175,7 @@ describe("設定で足す近道（[gui.shortcuts]）", () => {
       { id: "pane.close" },
     ]);
     assert.equal(press(LINUX, [key("E", "cs")]).passed.length, 1);
-    // `?` の一覧：消した・奪われた既定の近道は出ず、足した近道は最初の行に出る
+    // `?` の一覧：消した・奪われた既定の Shortcut は出ず、足した Shortcut は最初の行に出る
     const rows = helpRows(LINUX);
     const of = (label: string) => rows.find((r) => r.label === label);
     assert.equal(of(T("leader.pane.split.right")), undefined);
@@ -1183,7 +1183,7 @@ describe("設定で足す近道（[gui.shortcuts]）", () => {
     assert.equal(of(T("leader.pane.close"))?.shortcut, "Ctrl+Shift+D");
   });
 
-  it("間違いは理由を返し、ほかの近道は使う", () => {
+  it("間違いは理由を返し、ほかの Shortcut は使う", () => {
     const problems = setUserShortcuts(
       [
         { key: "Ctrl+Alt+X", command: "nothing.here" },
@@ -1243,7 +1243,7 @@ describe("設定で足す近道（[gui.shortcuts]）", () => {
     ]);
   });
 
-  it("木から外したタブを作るコマンド（#456。旧 o n・o N・d n）も、近道に足せる。browser.* は、内蔵ブラウザが有効なときだけ", () => {
+  it("木から外したタブを作るコマンド（#456。旧 o n・o N・d n）も、Shortcut に足せる。browser.* は、内蔵ブラウザが有効なときだけ", () => {
     const list = [
       { key: "Ctrl+Alt+D", command: "db.open" },
       { key: "Ctrl+Alt+B", command: "browser.new" },

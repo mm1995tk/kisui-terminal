@@ -1,4 +1,4 @@
-// DB のタブ（#347）の窓：接続を選ぶ窓・この PC の接続を足す・直す・消す窓（#486）・パスワードを聞く窓・結果の書き出しの窓・履歴の窓（#349）・権限を時間を決めて強める窓（#383）・エージェントの SQL で上書きしてよいかを聞く窓（#382）。どれも features/db/controller.ts の状態を出すだけ。
+// DB のタブ（#347）の Dialog：接続を選ぶ Dialog・この PC の接続を足す・直す・消す Dialog（#486）・パスワードを聞く Dialog・結果の書き出しの Dialog・履歴の Dialog（#349）・権限を時間を決めて強める Dialog（#383）・エージェントの SQL で上書きしてよいかを聞く Dialog（#382）。どれも features/db/controller.ts の状態を出すだけ。
 import { Show, type JSX } from "solid-js";
 
 import type { DbTabs } from "../../../features/db/controller.ts";
@@ -10,7 +10,7 @@ import { DbHistoryDialog } from "./DbHistoryDialog.tsx";
 import { DbPasswordDialog } from "./DbPasswordDialog.tsx";
 import { DbProposeDialog } from "./DbProposeDialog.tsx";
 
-/** DB のタブの窓を、出しているときだけ出す。 */
+/** DB のタブの Dialog を、出しているときだけ出す。 */
 export function DbDialogs(props: { db: DbTabs }): JSX.Element {
   const db = props.db;
   return (

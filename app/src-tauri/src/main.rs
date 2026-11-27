@@ -1,4 +1,4 @@
-// Windows の release で黒い窓を出さない（対応 OS ではないが、害は無い）。
+// Windows の release で黒い Window を出さない（対応 OS ではないが、害は無い）。
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod askpass;
@@ -64,14 +64,14 @@ fn config_gui() -> Result<config::GuiConfig, String> {
     config::load_default()
 }
 
-/// 窓が設定を書く・読むコマンドの、設定のフォルダ。決まらなければ（`$HOME` が無い）、画面に返す理由。
+/// Window が設定を書く・読むコマンドの、設定のフォルダ。決まらなければ（`$HOME` が無い）、画面に返す理由。
 fn config_dir_or_err() -> Result<std::path::PathBuf, config_list::EditError> {
     config::default_dir().ok_or_else(|| {
         config_list::EditError::File("設定のフォルダが分かりません（$HOME がありません）".into())
     })
 }
 
-/// 窓でマシンを足す・名前を変える・外す。`config.local.toml` の `[[gui.machines]]` に書き（`config.toml` には書かない）、
+/// Window でマシンを足す・名前を変える・外す。`config.local.toml` の `[[gui.machines]]` に書き（`config.toml` には書かない）、
 /// 書いたあとのマシンの一覧（`config_gui` の `machines` と同じ形）を返す。書けなければ `{ kind, detail }`（config_list.rs の EditError）。
 #[tauri::command(async)]
 fn config_machine_edit(
@@ -81,14 +81,14 @@ fn config_machine_edit(
     config_list::edit_machine(&dir, edit)
 }
 
-/// 窓が知る、手元の DB の接続（`config.local.toml` の `[[db.connections]]` と、`config.toml` の接続の名前）。config_db.rs。
+/// Window が知る、手元の DB の接続（`config.local.toml` の `[[db.connections]]` と、`config.toml` の接続の名前）。config_db.rs。
 #[tauri::command(async)]
 fn config_db_connections() -> Result<config_db::DbConnections, config_list::EditError> {
     let dir = config_dir_or_err()?;
     config_db::list(&dir)
 }
 
-/// 窓で手元の DB の接続を足す・直す・消す。`config.local.toml` の `[[db.connections]]` に書き（`config.toml` には書かない。パスワードは書かない）、
+/// Window で手元の DB の接続を足す・直す・消す。`config.local.toml` の `[[db.connections]]` に書き（`config.toml` には書かない。パスワードは書かない）、
 /// 書いたあとの `config_db_connections` と同じ形を返す。書けなければ `{ kind, detail }`（config_list.rs の EditError）。
 #[tauri::command(async)]
 fn config_db_connection_edit(
@@ -98,7 +98,7 @@ fn config_db_connection_edit(
     config_db::edit(&dir, edit)
 }
 
-/// 窓で、手元のマシンの新しいターミナルが始まるフォルダとシェルを変える。`config.local.toml` の `[server]` に書き（無い項目は消す）、
+/// Window で、手元のマシンの新しいターミナルが始まるフォルダとシェルを変える。`config.local.toml` の `[server]` に書き（無い項目は消す）、
 /// 書いたあとの手元のマシンの分（`config_gui` の `localTerminal` と同じ形）を返す。書けなければ `{ kind, detail }`（config_list.rs の EditError）。
 #[tauri::command(async)]
 fn config_local_terminal_edit(
@@ -177,8 +177,8 @@ fn askpass_reply(state: State<AppState>, request_id: u64, value: Option<String>)
     state.askpass.reply(request_id, value);
 }
 
-/// tauri の設定（tauri.conf.json）。内蔵ブラウザの DevTools（ブラウザのタブの窓の `i`。#205）のために tauri の feature `devtools` を入れて
-/// いるので、release では、メイン窓（kisui-terminal の画面）の DevTools を切る（タブのページだけで使う。browser.rs の tab_builder）。
+/// tauri の設定（tauri.conf.json）。内蔵ブラウザの DevTools（ブラウザのタブの Dialog の `i`。#205）のために tauri の feature `devtools` を入れて
+/// いるので、release では、メイン Window（kisui-terminal の画面）の DevTools を切る（タブのページだけで使う。browser.rs の tab_builder）。
 fn context() -> tauri::Context<tauri::Wry> {
     #[allow(unused_mut)]
     let mut ctx = tauri::generate_context!();
@@ -190,13 +190,13 @@ fn context() -> tauri::Context<tauri::Wry> {
 }
 
 fn main() {
-    // ssh が SSH_ASKPASS としてこの実行ファイルを起動したときは、窓を出さず質問を本体に中継する。
+    // ssh が SSH_ASKPASS としてこの実行ファイルを起動したときは、Window を出さず質問を本体に中継する。
     if std::env::var_os(askpass::ENV_SOCK).is_some() {
         let prompt = std::env::args().nth(1).unwrap_or_default();
         std::process::exit(askpass::run_helper(&prompt));
     }
-    // 外のブラウザが native messaging の受け口として（登録のファイルの指すスクリプトから）起動したときは、窓を出さず、
-    // 拡張機能のメッセージを動いている窓に中継する（passkey.rs）。
+    // 外のブラウザが native messaging の受け口として（登録のファイルの指すスクリプトから）起動したときは、Window を出さず、
+    // 拡張機能のメッセージを動いている Window に中継する（passkey.rs）。
     let args: Vec<_> = std::env::args_os().collect();
     if args.len() >= 3 && args[1] == passkey::HOST_FLAG {
         std::process::exit(passkey::run_host(std::path::Path::new(&args[2])));
@@ -204,7 +204,7 @@ fn main() {
 
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_clipboard_manager::init())
-        // 結果の書き出しの保存のダイアログ（export.rs）。窓には許可を渡さない（capabilities に足さない）
+        // 結果の書き出しの保存のダイアログ（export.rs）。Window には許可を渡さない（capabilities に足さない）
         .plugin(tauri_plugin_dialog::init())
         // クリップボードの履歴を kisui-terminal の外から開く全体のキー（clipboard_popup.rs）
         .plugin(tauri_plugin_global_shortcut::Builder::new().build());
@@ -234,7 +234,7 @@ fn main() {
             locate::warm_up();
             // クリップボードの履歴を読み込み、OS のクリップボードの見張りを始める（clipboard_history.rs）
             clipboard_history::start(app.handle());
-            // 全体のキー（Option+Space・Alt+Space）で、履歴の小さな窓を出す（clipboard_popup.rs）
+            // 全体のキー（Option+Space・Alt+Space）で、履歴の小さな Window を出す（clipboard_popup.rs）
             clipboard_popup::start(app.handle());
             // Mac の「閉じる」（Cmd+W）を、今の欄を閉じる動きに差し替える（menu.rs）
             #[cfg(target_os = "macos")]
@@ -317,7 +317,7 @@ fn main() {
         .build(context())
         .expect("failed to build kisui-terminal")
         .run(|app, event| {
-            // メイン窓が閉じたら、隠れている履歴の窓も閉じる（残るとアプリが終わらない）
+            // メイン Window が閉じたら、隠れている履歴の Window も閉じる（残るとアプリが終わらない）
             if let RunEvent::WindowEvent {
                 label,
                 event: WindowEvent::Destroyed,

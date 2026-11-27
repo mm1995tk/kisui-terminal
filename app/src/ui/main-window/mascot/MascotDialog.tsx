@@ -1,6 +1,6 @@
-// キャラクターを選ぶ窓（リーダーの `c s`）。`mascot/` の中のキャラクターを名前の順に並べ、j / k（矢印）で選び、
+// キャラクターを選ぶ Dialog（リーダーの `c s`）。`mascot/` の中のキャラクターを名前の順に並べ、j / k（矢印）で選び、
 // Enter かダブルクリックで決め、Esc かボタンでやめる。使えないキャラクター（`mascot.toml` が読めない）は、
-// 理由を付けて並べ、選べない。窓のキーはマシンを選ぶ窓と同じ（features/sessions/machineList.ts の pickerKey）。決まりは docs/key-design.md。
+// 理由を付けて並べ、選べない。Dialog のキーはマシンを選ぶ Dialog と同じ（features/sessions/machineList.ts の pickerKey）。決まりは docs/key-design.md。
 import { T } from "../../../i18n/index.ts";
 import {
   createEffect,
@@ -35,14 +35,14 @@ export function initialIndex(l: MascotListing): number {
   );
 }
 
-/** キャラクターを選ぶ窓。選べたら onChoose（窓を閉じて書くのは呼んだ側）、Esc・ボタンで onCancel を呼ぶ */
+/** キャラクターを選ぶ Dialog。選べたら onChoose（Dialog を閉じて書くのは呼んだ側）、Esc・ボタンで onCancel を呼ぶ */
 export function MascotDialog(props: {
   /** `mascot/` の中のキャラクターの一覧を読む */
   list: () => Promise<MascotListing>;
   onChoose: (name: string) => void;
   onCancel: () => void;
 }): JSX.Element {
-  // 一覧を読めなかったときは、読めなかった理由を窓に出す
+  // 一覧を読めなかったときは、読めなかった理由を Dialog に出す
   const [loaded] = createResource<{ l?: MascotListing; failure?: string }>(
     async () => {
       try {

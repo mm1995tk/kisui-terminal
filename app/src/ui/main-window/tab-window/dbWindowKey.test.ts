@@ -22,7 +22,7 @@ const key = (k: string, mods: Partial<KeyLike> = {}): KeyLike => ({
   ...mods,
 });
 
-describe("DB のタブの窓のキー", () => {
+describe("DB のタブの Dialog のキー", () => {
   it("j k と矢印で、選ぶ結果のタブを動かす", () => {
     for (const k of ["j", "ArrowDown"])
       assert.deepEqual(dbWindowKey(key(k)), { kind: "select", step: 1 });
@@ -54,7 +54,7 @@ describe("DB のタブの窓のキー", () => {
     });
   });
 
-  it("タブを作る・閉じる・名前を変える・移すキーは持たない（ワークスペースの窓がする）", () => {
+  it("タブを作る・閉じる・名前を変える・移すキーは持たない（Workspace switcher がする）", () => {
     for (const k of ["n", "N", "R", "m", "Tab", "1", "]", "["])
       assert.equal(dbWindowKey(key(k)), null, k);
     assert.equal(dbWindowKey(key("Enter", { shiftKey: true })), null);
@@ -82,7 +82,7 @@ describe("DB のタブの窓のキー", () => {
   });
 });
 
-describe("dbWindowFooter（窓の下の段の今効く操作。#487）", () => {
+describe("dbWindowFooter（Dialog の Key footer の今効く操作。#487）", () => {
   const all: DbWindowState = {
     selected: true,
     table: true,
@@ -128,7 +128,7 @@ describe("dbWindowFooter（窓の下の段の今効く操作。#487）", () => {
     ]);
   });
 
-  it("下の段に出す操作は、どれも判定が受ける（案内と受けるキーがずれない）", () => {
+  it("Key footer に出す操作は、どれも判定が受ける（案内と受けるキーがずれない）", () => {
     for (const r of dbWindowFooter(all))
       for (const i of r.items)
         for (const p of i.probes)
@@ -139,7 +139,7 @@ describe("dbWindowFooter（窓の下の段の今効く操作。#487）", () => {
           );
   });
 
-  it("`?` の一覧の表の操作は、どこでも同じキー（j k・Enter・Esc・`?`）を除き、どれも下の段に出る。下の段には、どこでも同じキーを出さない", () => {
+  it("`?` の一覧の表の操作は、どこでも同じキー（j k・Enter・Esc・`?`）を除き、どれも Key footer に出る。Key footer には、どこでも同じキーを出さない", () => {
     const probes = dbWindowFooter(all).flatMap((r) =>
       r.items.flatMap((i) => i.probes),
     );
@@ -147,7 +147,7 @@ describe("dbWindowFooter（窓の下の段の今効く操作。#487）", () => {
       for (const p of r.probes)
         if (!COMMON_KEYS.has(p) || p === "h")
           assert.ok(probes.includes(p), `${r.keys}: ${p}`);
-    // h は、この窓では履歴（列を移るのではない）なので出す。ほかのどこでも同じキーは出さない
+    // h は、この Dialog では履歴（列を移るのではない）なので出す。ほかのどこでも同じキーは出さない
     for (const p of probes) assert.ok(!COMMON_KEYS.has(p) || p === "h", p);
   });
 });

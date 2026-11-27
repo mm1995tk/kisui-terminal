@@ -1,11 +1,11 @@
-// サイドバーとターミナルの境界の大きさ（#526）。マウスのドラッグとリサイズモード（Cmd+R / Ctrl+Shift+R）が動かす境界の値と、その決まり。
+// サイドバーとターミナルの境目の大きさ（#526）。マウスのドラッグとリサイズモード（Cmd+R / Ctrl+Shift+R）が動かす境目の値と、その決まり。
 // DOM には触らない（テストできるように）。キーは TUI の ui/tui/resize.go と同じ。
 //
-// - sidebar：サイドバーとその右の境界（サイドバーの幅 px）。値は覚えておき、GUI を起動し直しても残す。
+// - sidebar：サイドバーとその右の境目（サイドバーの幅 px）。値は覚えておき、GUI を起動し直しても残す。
 // - changes：サイドバーの中の、ファイルツリーと CHANGES の境目（#152）。決めるのは CHANGES の一覧の高さ（px）で、上へ動かすと高くなる。値は覚えておく。
 // - tabs：サイドバーの中の、タブの段とファイルツリーの境目（#284）。決めるのはタブの段の高さの上限（サイドバーの高さに対する %）で、下へ動かすと高くなる。値は覚えておく。元の大きさは設定の [gui.sidebar] tabs-height（無ければ 40）。
-// - 右の欄の中の、欄どうしの境界（#18）：割合は kisui serve が分割の木に持つ（features/terminal/grid.ts）。ここは動かすキーだけを決める。
-// キー：Tab / Shift+Tab で動かす境界を替え、←→（h l）か↑↓（k j）で動かす。縦の境界は左右、横の境界は上下だけ効く。
+// - 右の欄の中の、欄どうしの Pane border（#18）：割合は kisui serve が分割の木に持つ（features/terminal/grid.ts）。ここは動かすキーだけを決める。
+// キー：Tab / Shift+Tab で動かす Pane border を替え、←→（h l）か↑↓（k j）で動かす。縦の Pane border は左右、横の Pane border は上下だけ効く。
 
 import { widthForPanes } from "../../features/terminal/grid.ts";
 import type { PaneLayout } from "../../infrastructure/rpc/protocol.ts";
@@ -14,10 +14,10 @@ import { shortcutCommand } from "../../features/commands/commands.ts";
 import type { KeyLike } from "../../features/commands/guiKeys.ts";
 import { isComposingKey } from "../../features/commands/ime.ts";
 
-/** 動かせる境界。サイドバーの右（sidebar）と、サイドバーの中の、タブの段とファイルツリーの境目（tabs）・ファイルツリーと CHANGES の境目（changes）。 */
+/** 動かせる境目。サイドバーの右（sidebar）と、サイドバーの中の、タブの段とファイルツリーの境目（tabs）・ファイルツリーと CHANGES の境目（changes）。 */
 export type Border = "sidebar" | "changes" | "tabs";
 
-/** 境界の、決めた値。無いものは元の大きさ。 */
+/** Pane border の、決めた値。無いものは元の大きさ。 */
 export type PaneSizes = Partial<Record<Border, number>>;
 
 /** 元の大きさ。 */
@@ -28,8 +28,8 @@ export const DEFAULT_SIZES: Readonly<Record<Border, number>> = {
 };
 
 /**
- * 境界ごとの下限と上限。サイドバーの幅と CHANGES の高さの上限は固定の値を持たず（無限）、
- * 窓の大きさで決まる上限（sidebarMax・changesMax）だけが効く（#501）。
+ * 境目ごとの下限と上限。サイドバーの幅と CHANGES の高さの上限は固定の値を持たず（無限）、
+ * Dialog の大きさで決まる上限（sidebarMax・changesMax）だけが効く（#501）。
  */
 export const LIMITS: Readonly<Record<Border, readonly [number, number]>> = {
   sidebar: [200, Number.POSITIVE_INFINITY],
@@ -37,7 +37,7 @@ export const LIMITS: Readonly<Record<Border, readonly [number, number]>> = {
   tabs: [10, 90], // %。src-tauri/src/config.rs の TABS_HEIGHT_RANGE と同じ
 };
 
-/** キーを 1 回押したときに境界が動く量（px）。 */
+/** キーを 1 回押したときに Pane border が動く量（px）。 */
 export const KEY_STEP: Readonly<Record<Border, number>> = {
   sidebar: 20,
   changes: 22, // 1 行（行の高さ）
@@ -88,7 +88,7 @@ export function rightMinWidth(
 }
 
 /**
- * 窓の幅 windowWidth で、サイドバーの幅の上限。右のターミナルが MIN_TERM_COLS 列残る幅まで（下限より狭くはならない）。
+ * Window の幅 windowWidth で、サイドバーの幅の上限。右のターミナルが MIN_TERM_COLS 列残る幅まで（下限より狭くはならない）。
  * proxyPanel は、プロキシのパネルを開いているか。tree は、欄の配置（どのペインも 20 列残す）。
  */
 export function sidebarMax(
@@ -103,7 +103,7 @@ export function sidebarMax(
   );
 }
 
-/** 窓の高さ windowHeight で、CHANGES の一覧の高さの上限。ファイルツリーなどに TREE_RESERVE_HEIGHT 残る高さまで（下限より低くはならない）。 */
+/** Dialog の高さ windowHeight で、CHANGES の一覧の高さの上限。ファイルツリーなどに TREE_RESERVE_HEIGHT 残る高さまで（下限より低くはならない）。 */
 export function changesMax(windowHeight: number): number {
   return Math.max(
     LIMITS.changes[0],
@@ -114,7 +114,7 @@ export function changesMax(windowHeight: number): number {
 const STORAGE_KEY = "shijimi.paneSizes";
 
 /**
- * v を境界 b の範囲に収め、整数に丸める。max は今の画面で効く上限（窓の大きさで決まる。LIMITS より小さいときだけ効く）。
+ * v を Pane border b の範囲に収め、整数に丸める。max は今の画面で効く上限（Dialog の大きさで決まる。LIMITS より小さいときだけ効く）。
  */
 export function clampBorder(b: Border, v: number, max?: number): number {
   const [lo, hi] = LIMITS[b];
@@ -154,7 +154,7 @@ export function saveSizes(
   }
 }
 
-/** 境界 b の今の値（決めていなければ fallback、それも無ければ元の大きさ。fallback は設定ファイルで決めた元の大きさ）。 */
+/** Pane border b の今の値（決めていなければ fallback、それも無ければ元の大きさ。fallback は設定ファイルで決めた元の大きさ）。 */
 export function sizeOf(sizes: PaneSizes, b: Border, fallback?: number): number {
   return sizes[b] ?? fallback ?? DEFAULT_SIZES[b];
 }
@@ -169,7 +169,7 @@ export function withSize(
   return { ...sizes, [b]: clampBorder(b, v, max) };
 }
 
-/** 境界 b を元の大きさに戻したもの。 */
+/** Pane border b を元の大きさに戻したもの。 */
 export function withoutSize(sizes: PaneSizes, b?: Border): PaneSizes {
   if (!b) return {};
   const { [b]: _, ...rest } = sizes;
@@ -178,8 +178,8 @@ export function withoutSize(sizes: PaneSizes, b?: Border): PaneSizes {
 
 /** リサイズモードのキーの動き。 */
 export type ResizeAction =
-  | { kind: "nudge"; axis: "x" | "y"; sign: 1 | -1 } // 選んでいる境界を動かす。x は右・y は下が正
-  | { kind: "select"; step: 1 | -1 } // 動かす境界を次・前へ替える（Tab・Shift+Tab）
+  | { kind: "nudge"; axis: "x" | "y"; sign: 1 | -1 } // 選んでいる Pane border を動かす。x は右・y は下が正
+  | { kind: "select"; step: 1 | -1 } // 動かす Pane border を次・前へ替える（Tab・Shift+Tab）
   | { kind: "reset" }
   | { kind: "exit" }
   | { kind: "none" };
@@ -188,7 +188,7 @@ export type ResizeAction =
 export function resizeKeyName(e: KeyLike, mac = false): string | null {
   // かな漢字変換のキーは受けない（変換のための Enter・Esc で、リサイズモードを決めたり出たりしない）
   if (isComposingKey(e)) return null;
-  // 入る・出るキー：コマンドの表の pane.resize の近道（Mac は Cmd+R、それ以外は Ctrl+Shift+R）。Alt+R は端末（shj）に渡すので取らない
+  // 入る・出るキー：コマンドの表の pane.resize の Shortcut（Mac は Cmd+R、それ以外は Ctrl+Shift+R）。Alt+R は端末（shj）に渡すので取らない
   if (shortcutCommand(e, mac)?.id === "pane.resize") return "mod+r";
   if (e.ctrlKey || e.metaKey || e.altKey) return null;
   switch (e.key) {
@@ -242,7 +242,7 @@ export function resizeAction(key: string): ResizeAction {
 
 /**
  * sizes の動きを当てる。max は今の画面で効く上限。
- * 値が上限を超えていたら（窓を狭めたあとなど）上限から動かす（見えない分を動かして反応が無くならないように）。
+ * 値が上限を超えていたら（Dialog を狭めたあとなど）上限から動かす（見えない分を動かして反応が無くならないように）。
  */
 export function applyMove(
   sizes: PaneSizes,
@@ -255,14 +255,14 @@ export function applyMove(
   return withSize(sizes, border, cur + step, max);
 }
 
-/** リサイズモードで、ファイルツリーと CHANGES の境目の名前（動かす境界を替える Tab の順に入る。ペインどうしの境界のキーとは別の名前）。 */
+/** リサイズモードで、ファイルツリーと CHANGES の境目の名前（動かす Pane border を替える Tab の順に入る。ペインどうしの Pane border のキーとは別の名前）。 */
 export const CHANGES_BORDER = "@changes";
 
-/** リサイズモードで、タブの段とファイルツリーの境目の名前（CHANGES_BORDER と同じく、ペインどうしの境界のキーとは別の名前）。 */
+/** リサイズモードで、タブの段とファイルツリーの境目の名前（CHANGES_BORDER と同じく、ペインどうしの Pane border のキーとは別の名前）。 */
 export const TABS_BORDER = "@tabs";
 
-/** リサイズモードで、欄どうしの境界を 1 回のキーで動かす割合（動かす節の幅か高さに対する割合）。 */
-export const SPLIT_KEY_STEP = 0.02;
+/** リサイズモードで、欄どうしの Pane border を 1 回のキーで動かす割合（動かす節の幅か高さに対する割合。`kisui pane resize` と同じ値）。 */
+export { SPLIT_KEY_STEP } from "../../features/terminal/grid.ts";
 
 const SIDEBAR_OPEN_KEY = "kisui.sidebarOpen";
 

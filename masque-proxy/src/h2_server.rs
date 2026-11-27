@@ -208,7 +208,7 @@ async fn udp(
     }
 }
 
-/// HTTP/2 の送り先の窓（flow control）が空くのを待ちながら、全部を送る。
+/// HTTP/2 の送り先の Window（flow control）が空くのを待ちながら、全部を送る。
 async fn send_all(send: &mut SendStream<Bytes>, mut data: Bytes) -> Result<(), BoxError> {
     while !data.is_empty() {
         send.reserve_capacity(data.len());

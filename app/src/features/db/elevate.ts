@@ -1,6 +1,6 @@
 // DB の権限を、時間を決めて一時的に強める（#383）の、画面にも Solid にも Tauri にも依存しない部分（node --test で確かめられる）。
-// 強めてよいか・いつまでかを決めて覚えるのは kisui serve（server/dbelevate.go）。窓は、強める・戻すを頼み、
-// 強めていることと残りの時間を出すだけ。時間の書き方（"30m"・"1h30m"）を読むのも kisui serve で、窓は打たれた字をそのまま送る。
+// 強めてよいか・いつまでかを決めて覚えるのは kisui serve（server/dbelevate.go）。Window は、強める・戻すを頼み、
+// 強めていることと残りの時間を出すだけ。時間の書き方（"30m"・"1h30m"）を読むのも kisui serve で、Window は打たれた字をそのまま送る。
 import { T } from "../../i18n/index.ts";
 import { ErrorCode, RpcError } from "../../infrastructure/rpc/message.ts";
 import type {
@@ -9,13 +9,13 @@ import type {
   DbRun,
 } from "../../infrastructure/rpc/protocol.ts";
 
-/** 誰の権限か：人（窓）か、コーディングエージェント（kisui db のコマンド）。 */
+/** 誰の権限か：人（Window）か、コーディングエージェント（kisui db のコマンド）。 */
 export type DbActor = "human" | "agent";
 
-/** 権限を持つ相手の全部（窓に並べる順：人・エージェント）。 */
+/** 権限を持つ相手の全部（Dialog に並べる順：人・エージェント）。 */
 export const ACTORS: readonly DbActor[] = ["human", "agent"];
 
-/** 強める窓の 1 行：強められる権限 1 つ。 */
+/** 強める Dialog の 1 行：強められる権限 1 つ。 */
 export interface ElevateRow {
   actor: DbActor;
   /** 元の権限の名前（強めている間も、元の名前） */
@@ -47,16 +47,16 @@ export function elevateRows(c: DbConnection): ElevateRow[] {
   return rows;
 }
 
-/** 今強めている権限 1 つ（窓が覚える形）。 */
+/** 今強めている権限 1 つ（Window が覚える形）。 */
 export interface Elevation {
   actor: DbActor;
   /** 強めた間に使っている権限の名前 */
   permission: string;
-  /** 元に戻る時刻（窓の時計のミリ秒。答えを受けた時刻に、残りの時間を足したもの） */
+  /** 元に戻る時刻（Window の時計のミリ秒。答えを受けた時刻に、残りの時間を足したもの） */
   deadline: number;
 }
 
-/** 接続 c の、今強めている権限。now は答えを受けた時刻（窓の時計のミリ秒）。 */
+/** 接続 c の、今強めている権限。now は答えを受けた時刻（Window の時計のミリ秒）。 */
 export function elevationsOf(c: DbConnection, now: number): Elevation[] {
   const out: Elevation[] = [];
   for (const actor of ACTORS) {
@@ -78,7 +78,7 @@ export function remainingSeconds(deadline: number, now: number): number {
 
 /**
  * 秒 seconds を、kisui serve が読む時間の書き方にする（"30m"・"1h30m"・"1m30s"。0 の単位は書かない）。
- * 強める窓の入力欄に、上限の時間を初めから入れておくのに使う。
+ * 強める Dialog の入力欄に、上限の時間を初めから入れておくのに使う。
  */
 export function durationText(seconds: number): string {
   const s = Math.max(0, Math.floor(seconds));
@@ -120,7 +120,7 @@ export function elevationTexts(
   );
 }
 
-/** db.elevate・db.elevateEnd が投げたものを、窓に出す文にする。 */
+/** db.elevate・db.elevateEnd が投げたものを、Dialog に出す文にする。 */
 export function elevateFailure(e: unknown): string {
   if (e instanceof RpcError) {
     if (e.code === ErrorCode.Denied) {

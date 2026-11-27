@@ -3,8 +3,8 @@
 //
 // 手元の PC にペインを作らせると、そのマシンは手元の PC でコマンドを動かせる。だから、設定ファイルでは許せない
 // （[[gui.machines]] の allow_pane_to に local を書いても効かない。書いた許可は、書いたことを忘れても効き続けるため）。
-// 許すのは、窓の前の人が、マシンのダイアログ（リーダーの m）の p で、時間を決めて始めたときだけ。時間が来ると戻り、
-// P で途中で終えられる。許可は窓のメモリにだけ持つ（窓を閉じると消える。どこにも書かない）。
+// 許すのは、Window の前の人が、マシンのダイアログ（リーダーの m）の p で、時間を決めて始めたときだけ。時間が来ると戻り、
+// P で途中で終えられる。許可は Dialog のメモリにだけ持つ（Dialog を閉じると消える。どこにも書かない）。
 // 許している間も、手元の PC にペインを作る頼みは、そのたびに人に聞く（paneApproval.ts）。
 import { createSignal } from "solid-js";
 
@@ -44,14 +44,14 @@ export function grantRemainingText(deadline: number, now: number): string {
   return h === 0 ? `${m}m` : m === 0 ? `${h}h` : `${h}h${m}m`;
 }
 
-/** 終わる時刻の字（"23:45"。窓の時計）。お知らせに出す（毎秒変わらない字にするため、残りではなく時刻）。 */
+/** 終わる時刻の字（"23:45"。Window の時計）。Notice に出す（毎秒変わらない字にするため、残りではなく時刻）。 */
 export function grantUntilText(deadline: number): string {
   const d = new Date(deadline);
   const two = (n: number) => String(n).padStart(2, "0");
   return `${two(d.getHours())}:${two(d.getMinutes())}`;
 }
 
-// 許しているマシン（ssh の行き先）と、終わる時刻（窓の時計のミリ秒）
+// 許しているマシン（ssh の行き先）と、終わる時刻（Window の時計のミリ秒）
 const [grants, setGrants] = createSignal<Record<string, number>>({});
 const timers = new Map<string, ReturnType<typeof setTimeout>>();
 const enders = new Set<(target: string) => void>();

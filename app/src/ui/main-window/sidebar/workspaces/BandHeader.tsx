@@ -1,4 +1,4 @@
-// ワークスペースの帯のヘッダー（名前と切り替え・「+」・鉛筆・✕）。名前をその場で変える入力欄と、フォーカスしているワークスペースが無いときのヘッダーも持つ。
+// Workspace band のヘッダー（名前と切り替え・「+」・鉛筆・✕）。名前をその場で変える入力欄と、フォーカスしているワークスペースが無いときのヘッダーも持つ。
 import { T } from "../../../../i18n/index.ts";
 import { Show, type JSX } from "solid-js";
 
@@ -77,7 +77,7 @@ export function EmptyHeader(props: {
   );
 }
 
-/** 切り替えのボタンのツールチップ：「Switch workspace」と、窓を開くキー（リーダーの後の w。#296） */
+/** 切り替えのボタンのツールチップ：「Switch workspace」と、Dialog を開くキー（リーダーの後の w。#296） */
 function switchTip(): string {
   return T("sidebar.switchWorkspace", { leader: leaderKeyName(IS_MAC) });
 }

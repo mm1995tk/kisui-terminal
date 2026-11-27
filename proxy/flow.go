@@ -72,7 +72,7 @@ type flow struct {
 	bodyUnread bool
 }
 
-// Summary は一覧の 1 行（JSON は窓との取り決め。docs/design/gui-protocol.md の「プロキシ」）。
+// Summary は一覧の 1 行（JSON は Window との取り決め。docs/design/gui-protocol.md の「プロキシ」）。
 type Summary struct {
 	ID         int64  `json:"id"`
 	Time       int64  `json:"time"` // 始まった時刻（Unix のミリ秒）

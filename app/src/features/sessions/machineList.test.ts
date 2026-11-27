@@ -268,7 +268,7 @@ describe("canDo", () => {
   });
 });
 
-describe("pickerKey / creatableRows（ワークスペースを作るマシンを選ぶ窓）", () => {
+describe("pickerKey / creatableRows（ワークスペースを作るマシンを選ぶ Dialog）", () => {
   it("Enter で決め、j k g G・矢印で動かす。修飾キーを重ねた Enter と変換中は受けない", () => {
     assert.deepEqual(pickerKey(ev("Enter")), { kind: "choose" });
     assert.deepEqual(pickerKey(ev("j")), { kind: "move", to: "next" });
@@ -276,7 +276,7 @@ describe("pickerKey / creatableRows（ワークスペースを作るマシンを
     assert.equal(pickerKey(ev("Enter", { shiftKey: true })), null);
     assert.equal(pickerKey(ev("Enter", { ctrlKey: true })), null);
     assert.equal(pickerKey(ev("Enter", { isComposing: true })), null);
-    // マシンのダイアログの操作（足す・外すなど）は、この窓では受けない
+    // マシンのダイアログの操作（足す・外すなど）は、この Dialog では受けない
     assert.equal(pickerKey(ev("a")), null);
     assert.equal(pickerKey(ev("d")), null);
   });

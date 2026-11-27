@@ -1,7 +1,7 @@
 // 左の一覧（D1）に出すものを、接続の状態とワークスペースの一覧から組み立てる。
 // 画面の仕組み（Solid）には依存しない。描くのは Sidebar.tsx。
 //
-// 見た目は親 #271 のモックを元に、マシンの見出しをやめてワークスペースの帯だけを 1 列に並べる（#201）。
+// 見た目は親 #271 のモックを元に、マシンの見出しをやめて Workspace band だけを 1 列に並べる（#201）。
 // 帯は GUI のワークスペース（features/workspaces/model.ts。#231）1 つが 1 つ。中のターミナルのタブがマシンの kisui serve のワークスペース（Workspace）1 つに当たる。
 // 各帯の隅にマシンの名前と状態を出す。ツリー（D2）は ui/main-window/sidebar/file-tree/、上への固定（D3）は Sidebar.tsx、
 // マシンごとの色（D4）の決め方と保存は colors.ts。
@@ -44,7 +44,7 @@ export interface WorkspaceFocus {
 /** 見出しの横の丸。つながっている・つなぎ直している・それ以外。 */
 export type Health = "up" | "pending" | "down";
 
-/** フォルダが決まっていないワークスペースの帯の名前。 */
+/** フォルダが決まっていない Workspace band の名前。 */
 export const unsetTitle = (): string => T("sidebar.noFolder");
 
 /** ワークスペース 1 つ分の帯に出すもの。 */
@@ -86,7 +86,7 @@ export interface MachineGroup {
   label: string;
   /** 名前を変えたり外したり切ったりできるか（「ローカル」はできない） */
   removable: boolean;
-  /** config.toml にだけ書いたマシンか（窓は config.toml に書かない）。外せず、名前も変えられない */
+  /** config.toml にだけ書いたマシンか（Dialog は config.toml に書かない）。外せず、名前も変えられない */
   fixed: boolean;
   /** マシンの色（D4）。見出しと帯の左端の線などに使う */
   color: string;
@@ -404,7 +404,7 @@ export function gwsRows(state: GwsState, ctx: RowContext): Row[] {
   });
 }
 
-/** ターミナルのタブが無いワークスペースの帯（ワークスペースの名前だけ。フォルダ・ブランチ・ツリーは無い）。id は GUI のワークスペースの id。 */
+/** ターミナルのタブが無い Workspace band（ワークスペースの名前だけ。フォルダ・ブランチ・ツリーは無い）。id は GUI のワークスペースの id。 */
 function bandOfTermless(g: Gws, focused: boolean): Band {
   return {
     id: g.id,
@@ -429,7 +429,7 @@ function bandOfTermless(g: Gws, focused: boolean): Band {
 export const isTermless = (r: Pick<Row, "target">): boolean => r.target === "";
 
 /**
- * ワークスペースの帯。rep（今出しているターミナルのタブ）の一覧があればフォルダ・ブランチを出し、
+ * Workspace band。rep（今出しているターミナルのタブ）の一覧があればフォルダ・ブランチを出し、
  * 無ければ（つながっていない）最後に分かった名前を 2 行目に出す。帯の名前はワークスペースの名前。
  */
 function bandOf(g: Gws, rep: TermRef, focused: boolean, ctx: RowContext): Band {

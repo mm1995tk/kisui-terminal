@@ -1,4 +1,4 @@
-// 内蔵ブラウザのダウンロード（#204）の持ち物。~/Downloads に保存し、右下のお知らせで知らせる（知らせの文は ui/main-window/notifications/）。
+// 内蔵ブラウザのダウンロード（#204）の持ち物。~/Downloads に保存し、右下の Notice で知らせる（知らせの文は ui/main-window/notifications/）。
 // 画面にも Tauri にも触らない。殻への頼みは BrowserOs（os.ts）で受け取る。
 import { T } from "../../i18n/index.ts";
 import { createSignal, onCleanup, onMount } from "solid-js";

@@ -1,4 +1,4 @@
-// 組み合わせの例：DB のタブの窓（DbWindow.tsx。リーダーの a。#458）を、アプリと同じ部品・CSS・字・翻訳で出す。
+// 組み合わせの例：DB のタブの Dialog（DbWindow.tsx。リーダーの a。#458）を、アプリと同じ部品・CSS・字・翻訳で出す。
 // 結果のタブは見本のデータ（下の run）で、閉じる・切り替える・ページなどの操作は Actions に出るだけ（一覧は変わらない）。
 // 選ぶ（j k・クリック）・理由の表示（Structure の無いタブで s など）・`?` は、そのまま動く。
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
@@ -97,7 +97,7 @@ const meta = {
     onFocusTree: fn(),
     onClose: fn(),
   },
-  // `?` の一覧は、アプリと同じく、窓の上に重ねて出す
+  // `?` の一覧は、アプリと同じく、Dialog の上に重ねて出す
   render: (args) => (
     <>
       <DbWindow {...args} />

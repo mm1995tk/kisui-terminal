@@ -1,5 +1,5 @@
 // 接続の状態を言葉にする。左の一覧の見出しの下の 1 行（statusLine）と、新しい版への切り替えの失敗（handoverFailure）と、
-// リモートを足す窓に出す状態（stateLabel）と、引き継いだ GUI の説明（describeClient）。
+// リモートを足す Dialog に出す状態（stateLabel）と、引き継いだ GUI の説明（describeClient）。
 // 画面の仕組み（Solid）には依存しない。
 
 import { T } from "../../i18n/index.ts";
@@ -106,7 +106,7 @@ function switchingLine(
   };
 }
 
-/** リモートを足す窓で、つないでいる最中に出す短い状態。まだつないでいなければ ""。 */
+/** リモートを足す Dialog で、つないでいる最中に出す短い状態。まだつないでいなければ ""。 */
 export function stateLabel(s: SessionState | undefined): string {
   switch (s?.kind) {
     case undefined:
@@ -129,7 +129,7 @@ export function stateLabel(s: SessionState | undefined): string {
   }
 }
 
-/** もう一度つなぐ意味がある（窓の「つなぐ」を押せる）状態か。 */
+/** もう一度つなぐ意味がある（Dialog の「つなぐ」を押せる）状態か。 */
 export function canConnect(s: SessionState | undefined): boolean {
   return (
     s === undefined ||

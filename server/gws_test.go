@@ -13,8 +13,8 @@ import (
 	"github.com/mm1995tk/kisui-terminal/rpc"
 )
 
-// gws.set で窓が知らせた窓のワークスペース（id と名前）は、kisui pane list（このマシンの list と、中継の pane.run）に出る。
-// 知らせは丸ごとの置き換えで、載っていないタブの対応は消える。保存して、止めたあとの次の起動でも出る（窓がつながる前でも）。
+// gws.set で Window が知らせた Window のワークスペース（id と名前）は、kisui pane list（このマシンの list と、中継の pane.run）に出る。
+// 知らせは丸ごとの置き換えで、載っていないタブの対応は消える。保存して、止めたあとの次の起動でも出る（Window がつながる前でも）。
 func TestGwsSetShownInPaneListAndRestored(t *testing.T) {
 	t.Setenv("HOME", normalizePath(t.TempDir()))
 	state := filepath.Join(t.TempDir(), "workspaces.json")
@@ -81,7 +81,7 @@ func TestGwsSetShownInPaneListAndRestored(t *testing.T) {
 		t.Errorf("after refused gws.set: %+v", p)
 	}
 	// id が使えないタブは、その 1 つだけ対応を空にして、残りは受ける。長すぎる名前は切り、制御文字は空白に替える
-	// （名前の決まりは窓が持つ。丸ごと断ると、1 つのために、このマシンのほかのタブのワークスペースも出なくなる）
+	// （名前の決まりは Window が持つ。丸ごと断ると、1 つのために、このマシンのほかのタブのワークスペースも出なくなる）
 	for _, badID := range []string{"", "g\naaaaaaaaa", strings.Repeat("g", maxPaneName+1)} {
 		if err := set(c1,
 			map[string]any{"workspaceId": a, "id": badID, "name": "x"},
@@ -123,7 +123,7 @@ func TestGwsSetShownInPaneListAndRestored(t *testing.T) {
 	}
 	waitFor(t, "stopped", func() bool { _, err := os.Stat(sock1); return err != nil })
 
-	// 起動し直すと、窓がつながる前（gws.set の前）でも、最後に知らされたものが出る
+	// 起動し直すと、Window がつながる前（gws.set の前）でも、最後に知らされたものが出る
 	srv2, _ := startFastWith(t, withState)
 	waitFor(t, "restored", func() bool {
 		for _, p := range srv2.paneList(paneOrigin{}, "") {

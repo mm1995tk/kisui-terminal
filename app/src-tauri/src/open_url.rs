@@ -10,7 +10,7 @@
 //!
 //! 内蔵ブラウザ（browser.rs）のタブで開くときも、同じ中継を使う。タブに開かせる URL を返すのが `browser_resolve_url`（#203）。
 //!
-//! 命令はメイン窓の画面からだけ呼べる（`from_main`）。開いてよい URL は http と https だけ（`parse_url`）。
+//! 命令はメイン Window の画面からだけ呼べる（`from_main`）。開いてよい URL は http と https だけ（`parse_url`）。
 
 use std::collections::HashMap;
 use std::net::{Ipv4Addr, TcpListener, TcpStream};
@@ -125,7 +125,7 @@ pub struct Forwards {
     probe_timeout: Duration,
 }
 
-/// 命令を呼んだのがメイン窓の画面か（子の webview ではないか）。
+/// 命令を呼んだのがメイン Window の画面か（子の webview ではないか）。
 pub(crate) fn from_main(w: &Webview) -> Result<(), String> {
     if w.label() == "main" {
         Ok(())
@@ -623,8 +623,8 @@ mod tests {
                 v.get("remote").is_none(),
                 "a capability must not have remote"
             );
-            // 権限を持つのは、メイン窓の画面（webview の main）と、kisui-terminal の外から開く履歴の窓（clipboard_popup.rs）だけ。
-            // メイン窓は窓（windows）で指さない。窓で指すと、同じ窓に重ねる内蔵ブラウザのタブ（子の webview。browser.rs）にも当たる。
+            // 権限を持つのは、メイン Window の画面（webview の main）と、kisui-terminal の外から開く履歴の Window（clipboard_popup.rs）だけ。
+            // メイン Window は Window（windows）で指さない。Window で指すと、同じ Window に重ねる内蔵ブラウザのタブ（子の webview。browser.rs）にも当たる。
             // ワイルドカードは書かない
             let none = serde_json::json!([]);
             let windows = v.get("windows").unwrap_or(&none);

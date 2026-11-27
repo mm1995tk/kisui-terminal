@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 
 import { isCancelKey } from "./cancelKey.ts";
 
-describe("窓を閉じるキー", () => {
+describe("Dialog を閉じるキー", () => {
   it("Esc で閉じる", () => {
     assert.equal(isCancelKey({ key: "Escape", isComposing: false }), true);
   });

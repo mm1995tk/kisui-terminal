@@ -123,7 +123,7 @@ describe("強められる権限と、強めている権限", () => {
     ]);
   });
 
-  it("elevationsOf は、残りの時間を窓の時計の時刻にする", () => {
+  it("elevationsOf は、残りの時間を Window の時計の時刻にする", () => {
     assert.deepEqual(elevationsOf(conn(), 1000), []);
     assert.deepEqual(elevationsOf(elevatedConn(100), 1000), [
       { actor: "human", permission: "free", deadline: 101_000 },
@@ -175,7 +175,7 @@ describe("db.elevate の断りの文", () => {
   });
 });
 
-describe("強める窓のキー", () => {
+describe("強める Dialog のキー", () => {
   const key = (key: string, mod: Partial<KeyboardEvent> = {}) =>
     ({ key, ...mod }) as KeyboardEvent;
 
@@ -276,7 +276,7 @@ describe("強める操作（elevateController）", () => {
   /** 約束が進むのを待つ。 */
   const settle = () => new Promise((r) => setTimeout(r, 0));
 
-  it("窓を出し、強める：打った時間をそのまま送り、窓を閉じて知らせ、残りの時間を出す", async () => {
+  it("Dialog を出し、強める：打った時間をそのまま送り、Dialog を閉じて知らせ、残りの時間を出す", async () => {
     const s = setup();
     await s.e.openElevate("d1");
     assert.deepEqual(
@@ -334,7 +334,7 @@ describe("強める操作（elevateController）", () => {
     assert.equal(s.clockRunning(), false);
   });
 
-  it("断られたら、理由を窓に出して開いたままにする", async () => {
+  it("断られたら、理由を Dialog に出して開いたままにする", async () => {
     const s = setup();
     await s.e.openElevate("d1");
     s.failElevate(
@@ -354,7 +354,7 @@ describe("強める操作（elevateController）", () => {
     assert.deepEqual(s.e.elevatedOf("d1"), []);
   });
 
-  it("強められる権限が無ければ、窓を出さずに理由を伝える", async () => {
+  it("強められる権限が無ければ、Dialog を出さずに理由を伝える", async () => {
     const s = setup({
       current: conn({ human: { permission: "reader", run: "read" } }),
     });

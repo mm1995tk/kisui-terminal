@@ -36,7 +36,7 @@ export interface ChangesKey extends ComposingKeyLike {
 }
 
 /**
- * 行でキーを押したときの操作。割り当ての無いキーは null（ブラウザの既定の動きや窓のショートカットをじゃましない）。
+ * 行でキーを押したときの操作。割り当ての無いキーは null（ブラウザの既定の動きや Dialog のショートカットをじゃましない）。
  * Ctrl・Cmd・Alt を押しながらのキーは使わない。Tab は Shift なしだけ（Shift+Tab は既定の動き）。
  *
  * TUI の割り当て（表は Issue #45）：

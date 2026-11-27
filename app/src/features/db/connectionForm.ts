@@ -1,6 +1,6 @@
-// 窓から DB の接続を足す・直す・消す（#486）。書くのは殻（app/src-tauri/src/config_db.rs）で、手元の config.local.toml の
-// [[db.connections]] だけ。手元の kisui serve は要求のたびに設定を読み直すので、書いたら接続を選ぶ窓の一覧を聞き直せば出る。
-// リモートのマシンの接続と config.toml の接続は、窓からは変えない（理由を出す。rowEditState）。
+// Dialog から DB の接続を足す・直す・消す（#486）。書くのは殻（app/src-tauri/src/config_db.rs）で、手元の config.local.toml の
+// [[db.connections]] だけ。手元の kisui serve は要求のたびに設定を読み直すので、書いたら接続を選ぶ Dialog の一覧を聞き直せば出る。
+// リモートのマシンの接続と config.toml の接続は、Dialog からは変えない（理由を出す。rowEditState）。
 // パスワードは扱わない：入力欄も、書く形（DbConnectionFields）にも無い。つなぐときに聞く（controller.ts の askPassword）。
 // 画面にも Tauri にも触らない。
 import { T, type Key } from "../../i18n/index.ts";
@@ -26,21 +26,21 @@ export interface DbConnectionFields {
 
 /** config.local.toml の接続 1 つ（殻の DbEntry。書いてある形のまま）。 */
 export interface LocalDbEntry extends DbConnectionFields {
-  /** 窓で直せるか（変種・権限など、窓で入れないキーを書いた項目は false。消すことはできる） */
+  /** Dialog で直せるか（変種・権限など、Dialog で入れないキーを書いた項目は false。消すことはできる） */
   editable: boolean;
   /** config.toml の同じ名前の接続に代わっている（上書き）。消すと config.toml の接続に戻る */
   overrides: boolean;
 }
 
-/** 窓が知る、手元の DB の接続（殻の DbConnections）。 */
+/** Window が知る、手元の DB の接続（殻の DbConnections）。 */
 export interface LocalDbConnections {
   /** config.local.toml の項目 */
   local: LocalDbEntry[];
-  /** config.toml の項目の名前（窓では変えられない） */
+  /** config.toml の項目の名前（Dialog では変えられない） */
   fixed: string[];
 }
 
-/** 窓の書き込み 1 つ（殻の DbEdit）。 */
+/** Dialog の書き込み 1 つ（殻の DbEdit）。 */
 export type DbConnectionEdit =
   | { kind: "add"; connection: DbConnectionFields }
   | { kind: "update"; name: string; connection: DbConnectionFields }
@@ -83,8 +83,8 @@ export function fieldsOf(e: LocalDbEntry): DbConnectionFields {
 }
 
 /**
- * 接続を選ぶ窓の 1 行を、窓から変えられるか。
- * edit：直せる・消せる。removeOnly：消せるが、窓で入れないキーを書いた項目なので直すのは設定ファイルで。
+ * 接続を選ぶ Dialog の 1 行を、Dialog から変えられるか。
+ * edit：直せる・消せる。removeOnly：消せるが、Dialog で入れないキーを書いた項目なので直すのは設定ファイルで。
  * fixed：config.toml の接続。remote：リモートのマシンの接続。unknown：手元の設定を読めていない。
  */
 export type RowEditState =
@@ -95,10 +95,10 @@ export type RowEditState =
   | { kind: "unknown" };
 
 /**
- * 接続を選ぶ窓の行 c を、窓から変えられるかを、次の順で決める。行が無ければ unknown。
- * 1. 行のマシンが手元（LOCAL）でなければ remote（窓が書けるのは手元の設定だけ）。
+ * 接続を選ぶ Dialog の行 c を、Dialog から変えられるかを、次の順で決める。行が無ければ unknown。
+ * 1. 行のマシンが手元（LOCAL）でなければ remote（Window が書けるのは手元の設定だけ）。
  * 2. 手元の設定 local がまだ読めていない・読めなかった（undefined）なら unknown。
- * 3. config.local.toml に同じ名前の項目があれば、窓で直せる項目（editable）で変種の行でもなければ edit、そうでなければ removeOnly。
+ * 3. config.local.toml に同じ名前の項目があれば、Dialog で直せる項目（editable）で変種の行でもなければ edit、そうでなければ removeOnly。
  * 4. config.toml の接続の名前なら fixed。どれでもなければ unknown。
  */
 export function rowEditState(
@@ -147,7 +147,7 @@ export function rowEditNote(s: RowEditState): string | undefined {
   }
 }
 
-/** 殻が返す、項目の間違い 1 つ（kisui の config/db.go と同じキーとコード。窓だけの確かめは gui.db.*）。 */
+/** 殻が返す、項目の間違い 1 つ（kisui の config/db.go と同じキーとコード。Dialog だけの確かめは gui.db.*）。 */
 interface DbProblem {
   key: string;
   code: string;

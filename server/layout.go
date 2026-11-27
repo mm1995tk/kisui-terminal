@@ -3,8 +3,8 @@ package server
 // 欄の配置（分割の木）。設計は docs/design/gui-protocol.md の「ペインの配置」。
 //
 // ワークスペースの欄（プライマリ・分割したターミナル・ターミナルでない欄）は 1 本の木に入る。葉が欄で、
-// 内側の節は「右に分ける（Dir == "right"。A が左、B が右。境界は縦）」か「下に分ける（Dir == "down"。
-// A が上、B が下。境界は横）」。Ratio は A の割合（0〜1。分けた直後は 0.5。layout.resize で変わる）。
+// 内側の節は「右に分ける（Dir == "right"。A が左、B が右。Pane border は縦）」か「下に分ける（Dir == "down"。
+// A が上、B が下。Pane border は横）」。Ratio は A の割合（0〜1。分けた直後は 0.5。layout.resize で変わる）。
 // 木は serve が持ち（wsState.layout）、workspace.list・workspace.changed の Workspace.layout で GUI に渡す。
 // GUI を開き直しても別の GUI からつないでも同じ配置になり、serve の入れ替え（handover）でも引き継ぐ。
 //
@@ -295,13 +295,13 @@ func (w *wsManager) placePane(wsID, target, dir, id string) {
 	}
 }
 
-// ---- 境界を動かす（layout.resize）----
+// ---- Pane border を動かす（layout.resize）----
 //
-// 境界（割合を持つ節）は、B 側の左上の葉の欄 id（layoutFirstPane(n.B)）で指す。木のどの葉も、ちょうど 1 つの節の
+// Pane border（割合を持つ節）は、B 側の左上の葉の欄 id（layoutFirstPane(n.B)）で指す。木のどの葉も、ちょうど 1 つの節の
 // 「B 側の左上」になる（根の左上の葉は除く）ので、節の指し方として一意で、ほかの欄を分けても変わらない。
 
 const (
-	// 欄の大きさが分からないとき（ターミナルでない欄だけの境界など）の、割合の下限と上限
+	// 欄の大きさが分からないとき（ターミナルでない欄だけの Pane border など）の、割合の下限と上限
 	fallbackRatioMin = 0.05
 	fallbackRatioMax = 0.95
 	// 割合を保存する細かさ（0.1%）
@@ -442,7 +442,7 @@ func (w *wsManager) paneSize(id string) (cols, rows int, ok bool) {
 	return t.cols, t.rows, true
 }
 
-// resizeBorder は layout.resize：wsID のワークスペースで、B 側の左上の欄が key の境界の割合を ratio にする。
+// resizeBorder は layout.resize：wsID のワークスペースで、B 側の左上の欄が key の Pane border の割合を ratio にする。
 // 両側が最小の大きさ（minSplitCols 列・minSplitRows 行）を下回る分は収める。実際に使った割合を返す。
 func (w *wsManager) resizeBorder(wsID, key string, ratio float64) (float64, error) {
 	if math.IsNaN(ratio) || ratio <= 0 || ratio >= 1 {

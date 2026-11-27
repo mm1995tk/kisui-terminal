@@ -126,7 +126,7 @@ export function createFileTree(deps: {
       openErrorText,
     );
 
-  // ツリーの右クリックのメニューから開いた削除の確認の窓
+  // ツリーの右クリックのメニューから開いた削除の確認の Dialog
   const [treeDialog, setTreeDialog] = createSignal<{
     kind: "delete";
     target: string;
@@ -140,7 +140,7 @@ export function createFileTree(deps: {
   const [treeEditError, setTreeEditError] = createSignal<string>();
   const [treeEditBusy, setTreeEditBusy] = createSignal(false);
 
-  /** ツリーの行のメニューで項目を選んだ。コピーと cd はすぐ、新規・名前の変更はツリーの中のその場の入力欄、削除は確認の窓を出す。 */
+  /** ツリーの行のメニューで項目を選んだ。コピーと cd はすぐ、新規・名前の変更はツリーの中のその場の入力欄、削除は確認の Dialog を出す。 */
   function treeAction(
     target: string,
     id: WorkspaceId,
@@ -300,7 +300,7 @@ export function createFileTree(deps: {
     toggle: (target: string, id: WorkspaceId, path: string) =>
       trees.get(target)?.toggle(id, path),
     openFile,
-    /** ツリーの右クリックのメニューから開いた削除の確認の窓。無ければ null */
+    /** ツリーの右クリックのメニューから開いた削除の確認の Dialog。無ければ null */
     treeDialog,
     closeTreeDialog: () => setTreeDialog(null),
     treeAction,

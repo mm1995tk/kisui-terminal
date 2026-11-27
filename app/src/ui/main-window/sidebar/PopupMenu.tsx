@@ -1,10 +1,10 @@
-// サイドバーの右クリックのメニュー（ワークスペースの帯・「+」のメニュー）。
+// サイドバーの右クリックのメニュー（Workspace band・「+」のメニュー）。
 import { isComposingKey } from "../../../features/commands/ime.ts";
 import { For, onCleanup, onMount, Show, type JSX } from "solid-js";
 
 /**
- * 右クリックのメニュー（マシンの見出し・ワークスペースの帯）。開いたら最初の項目にキーを向ける。
- * 項目を選ぶ・メニューの外を押す・Esc・スクロール・窓が見えなくなる、のどれかで閉じる。
+ * 右クリックのメニュー（マシンの見出し・Workspace band）。開いたら最初の項目にキーを向ける。
+ * 項目を選ぶ・メニューの外を押す・Esc・スクロール・Dialog が見えなくなる、のどれかで閉じる。
  * note があれば、項目の下に理由などを出す。
  */
 export function PopupMenu(props: {

@@ -15,14 +15,14 @@ describe("shouldNotify", () => {
   it("always は常に出す", () => {
     assert.equal(shouldNotify("always", base), true);
   });
-  it("unfocused は窓が前に無いときだけ", () => {
+  it("unfocused は Window が前に無いときだけ", () => {
     assert.equal(shouldNotify("unfocused", base), false);
     assert.equal(
       shouldNotify("unfocused", { ...base, windowFocused: false }),
       true,
     );
   });
-  it("invisible は欄か窓が見えていないときだけ", () => {
+  it("invisible は欄か Dialog が見えていないときだけ", () => {
     assert.equal(shouldNotify("invisible", base), false);
     assert.equal(
       shouldNotify("invisible", { ...base, cellVisible: false }),

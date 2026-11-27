@@ -16,7 +16,7 @@ export interface Bounds {
 
 /**
  * タブのページを置く場所。殻に渡す形（論理ピクセル。画面の viewport の左上が原点）。
- * `vw`・`vh` は、四角を測ったときの viewport の大きさ。殻（macOS）は、これと画面の view の枠から、viewport が窓の
+ * `vw`・`vh` は、四角を測ったときの viewport の大きさ。殻（macOS）は、これと画面の view の枠から、viewport が Window の
  * どこにあるかを決める（src-tauri/src/browser_frame.rs。#442）。
  */
 export interface Placement extends Bounds {
@@ -24,7 +24,7 @@ export interface Placement extends Bounds {
   vh: number;
 }
 
-/** ページが新しい窓を開いた知らせ（#204）。tab は殻が付けた新しいタブの id、opener は開いた元のタブ。 */
+/** ページが新しい Window を開いた知らせ（#204）。tab は殻が付けた新しいタブの id、opener は開いた元のタブ。 */
 export interface TabPopup {
   opener: string;
   tab: string;
@@ -51,7 +51,7 @@ export type PasskeyLogin = "opened" | "no-sites" | "incognito" | "not-allowed";
 /** 内蔵ブラウザのタブについて、外（Tauri の殻）に頼むこと。タブのページ（子の webview）の操作、覚えているタブとブックマークの読み書き、ページからの知らせ、ダウンロード。 */
 export interface BrowserOs {
   /**
-   * タブ（子の webview）を作る。作るだけで、キーは向けない。keys は、ページにキーがあっても受けるキー（リーダーと近道）。
+   * タブ（子の webview）を作る。作るだけで、キーは向けない。keys は、ページにキーがあっても受けるキー（リーダーと Shortcut）。
    * incognito はシークレットのタブ（#204。タブだけの、ディスクに残さないデータを使う）。
    * proxy は、通信を記録するプロキシ（#409）の待ち受け口（手元のマシンの 127.0.0.1 のポート）。あれば、そのタブだけの、
    * ディスクに残さないデータを使い、そのプロキシに通す webview を作る（通せなければ失敗する。macOS は 14 以降）。
@@ -71,7 +71,7 @@ export interface BrowserOs {
    */
   resolveTabUrl(target: string, url: string): Promise<string>;
   /**
-   * タブの位置と大きさを合わせる。窓の形が変わったときは、殻（macOS）が、次にこれを呼ぶまで、自分でページを追従させる
+   * タブの位置と大きさを合わせる。Window の形が変わったときは、殻（macOS）が、次にこれを呼ぶまで、自分でページを追従させる
    * （同じ場所を送り直さなくてよい。#442）。
    */
   moveTab(tab: string, b: Placement): Promise<void>;
@@ -155,10 +155,10 @@ export interface BrowserOs {
    * ページの読み込みが始まったら、画面は前の favicon を消す（殻は前のページの答えを捨てる）。
    */
   onTabFavicon(h: (e: { tab: string; icon: string }) => void): Promise<Off>;
-  /** ページにキーがあるときに、リーダーか近道が押された（殻がキーを kisui-terminal の画面に移してから届く）。 */
+  /** ページにキーがあるときに、リーダーか Shortcut が押された（殻がキーを kisui-terminal の画面に移してから届く）。 */
   onTabKey(h: (e: KeyLike & { tab: string }) => void): Promise<Off>;
   /**
-   * ページが新しい窓（`target=_blank` のリンク・`window.open`）を開いた（#204）。殻はもう webview を作ってある。
+   * ページが新しい Window（`target=_blank` のリンク・`window.open`）を開いた（#204）。殻はもう webview を作ってある。
    * 画面は、開いた元のタブと同じワークスペースに、新しいタブとして足す。
    */
   onTabPopup(h: (e: TabPopup) => void): Promise<Off>;
@@ -176,7 +176,7 @@ export interface BrowserOs {
   /** ダウンロードしたファイルのフォルダを表示する。 */
   revealDownload(id: number): Promise<void>;
   /**
-   * 重なりもの（お知らせ・リーダーの案内・キャラクター・メニュー）を、ページを縮めずにページの上に重ねられるかを殻に聞く（macOS だけ true）。
+   * 重なりもの（Notice・リーダーの案内・キャラクター・メニュー）を、ページを縮めずにページの上に重ねられるかを殻に聞く（macOS だけ true）。
    * true のとき、殻は画面（メインの webview）の背景を透明にする。
    */
   enableOverlay(): Promise<boolean>;

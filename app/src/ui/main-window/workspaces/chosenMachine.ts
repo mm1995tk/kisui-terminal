@@ -1,4 +1,4 @@
-// 切り替える窓の「タブを作る」行（SwitcherNewTab.tsx）で、選んでいるマシンの状態。部品から切り出し、node --test で確かめる。
+// Workspace switcher の「タブを作る」行（SwitcherNewTab.tsx）で、選んでいるマシンの状態。部品から切り出し、node --test で確かめる。
 import { createSignal, untrack } from "solid-js";
 
 import type { MachineChoice } from "./SwitcherNewTab.tsx";

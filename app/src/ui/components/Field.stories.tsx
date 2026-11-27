@@ -1,5 +1,5 @@
 // 入力欄（Field.tsx の Field・Input）を、アプリと同じ CSS・字・翻訳で出す。
-// 窓の本文（CardBody）の中に置く決まりなので、窓の枠の中に並べて出す。失敗の理由は CardError（伝え方は未確定。docs/design/design-system.md）。
+// Dialog の本文（CardBody）の中に置く決まりなので、Dialog の枠の中に並べて出す。失敗の理由は CardError（伝え方は未確定。docs/design/design-system.md）。
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
 import { fn } from "storybook/test";
 

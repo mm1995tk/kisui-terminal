@@ -103,7 +103,7 @@ describe("ブックマークの一覧のキー（bookmarkKey）", () => {
     assert.deepEqual(bookmarkKey(ev("Enter"), false), { kind: "open" });
     assert.deepEqual(bookmarkKey(ev("d", "c"), false), { kind: "delete" });
     assert.deepEqual(bookmarkKey(ev("D", "c"), false), { kind: "delete" });
-    // 修飾キーの違うものは受けない（Ctrl+Shift+D は右に分ける近道）
+    // 修飾キーの違うものは受けない（Ctrl+Shift+D は右に分ける Shortcut）
     assert.equal(bookmarkKey(ev("D", "cs"), false), null);
     assert.equal(bookmarkKey(ev("d", "m"), false), null);
     assert.equal(bookmarkKey(ev("Enter", "m"), false), null);
