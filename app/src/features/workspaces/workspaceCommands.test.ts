@@ -353,6 +353,51 @@ describe("kisui workspace close", () => {
   });
 });
 
+describe("kisui workspace close（今いる Workspace）", () => {
+  // 今いるのは、Tab の無い empty
+  const onEmpty = (): Row[] =>
+    rowsOn(termKey(LOCAL, "wlocal")).map((r) => ({
+      ...r,
+      band: { focused: r.gws === "gcccccccccc" },
+      tabs: { ...r.tabs, focused: false },
+    })) as Row[];
+
+  it("許していないリモートの Machine は、キーがその Machine の Terminal tab に向いていなければ、今いる Workspace を閉じられない", async () => {
+    const { run, calls } = setup({ rows: onEmpty() });
+    await refusal(() =>
+      run("workspace.close", { workspace: "empty" }, "dev-vm"),
+    );
+    assert.deepEqual(calls, []);
+  });
+
+  it("今いない Workspace は閉じられる。許している間・手元の PC の Pane からは、今いる Workspace も閉じられる", async () => {
+    const a = setup();
+    await a.run("workspace.close", { workspace: "empty" }, "dev-vm");
+    const b = setup({ rows: onEmpty(), granted: true });
+    await b.run("workspace.close", { workspace: "empty" }, "dev-vm");
+    const c = setup({ rows: onEmpty() });
+    await c.run("workspace.close", { workspace: "empty" }, LOCAL);
+    assert.equal(a.calls.length + b.calls.length + c.calls.length, 3);
+  });
+
+  it("キーがその Machine の Terminal tab に向いていれば、今いる Workspace を閉じられる", async () => {
+    const rows = rowsOn(termKey("dev-vm", "wdev"));
+    rows[0] = { ...rows[0], band: { focused: false } } as Row;
+    rows[3] = {
+      ...rows[3],
+      band: { focused: true },
+      tabs: {
+        ...rows[3].tabs,
+        focused: true,
+        shown: termKey("dev-vm", "wdev2"),
+      },
+    } as Row;
+    const { run, calls } = setup({ rows });
+    await run("workspace.close", { workspace: "devonly" }, "dev-vm");
+    assert.deepEqual(calls, [["close", "gdddddddddd", false]]);
+  });
+});
+
 describe("kisui workspace move", () => {
   it("上下に動かし、動いたかを返す", async () => {
     const { run, calls } = setup();

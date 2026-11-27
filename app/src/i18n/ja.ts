@@ -814,6 +814,8 @@ export const ja: Record<Key, string> = {
     "Workspace「{name}」には、{from} の Pane から届かない Tab があるので、閉じませんでした。Workspace を閉じると、中の Tab が全部閉じます。Window で閉じるよう、ユーザーに頼んでください。",
   "wsCli.err.running":
     "Workspace「{name}」の Terminal tab でプログラムが動いているので、閉じませんでした。kisui workspace close --force で、プログラムを終わらせて、Workspace と中の Tab を閉じます。",
+  "wsCli.err.closeFocus":
+    "{from} の Pane が、Window が今いる Workspace を閉じるのは、Window のキーが今 {from} の Terminal tab に向いているときか、Window の前の人が {from} に許している間（Machine の Dialog で {from} を選び、p を押す）だけです。そうでないと、人が打っているキーが隣の Workspace へ移り、{from} の Tab に向いてしまうことがあります。Workspace を閉じるよう、ユーザーに頼んでください。",
   "wsCli.err.focus":
     "{from} の Pane が Workspace を表示するのは、Window のキーが今 {from} の Terminal tab に向いていて、その Workspace が {from} の Terminal tab を表示しているときか、Window の前の人が {from} に許している間（Machine の Dialog で {from} を選び、p を押す）だけです。そうでないと、人が打っているキーの行き先が変わってしまいます。Workspace を表示するよう、ユーザーに頼んでください。",
   "paneOpen.err.noWorkspace":

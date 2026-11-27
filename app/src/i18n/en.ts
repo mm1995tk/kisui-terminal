@@ -814,6 +814,8 @@ export const en = {
     'The workspace "{name}" has tabs that the panes of {from} may not reach, so it was not closed. Closing a workspace closes all its tabs. Ask the user to close it in the window.',
   "wsCli.err.running":
     'A program is running in a terminal tab of the workspace "{name}", so it was not closed. kisui workspace close --force ends the programs and closes the workspace and its tabs.',
+  "wsCli.err.closeFocus":
+    "A pane of {from} may close the workspace the window is in only while the keys of the window are on a terminal tab of {from}, or while the person at the window allows {from} (in the machine dialog, choose {from} and press p). Otherwise the keys the person is typing would move to another workspace, and could end up on a tab of {from}. Ask the user to close the workspace.",
   "wsCli.err.focus":
     "A pane of {from} may show a workspace only while the keys of the window are on a terminal tab of {from} and the workspace shows a terminal tab of {from}, or while the person at the window allows {from} (in the machine dialog, choose {from} and press p). Otherwise the keys the person is typing would go to another place. Ask the user to show the workspace.",
   "paneOpen.err.noWorkspace":
