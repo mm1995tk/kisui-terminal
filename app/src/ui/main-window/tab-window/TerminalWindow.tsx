@@ -65,7 +65,7 @@ export function TerminalWindow(props: {
   /** Dialog を閉じて、リサイズモードに入る（r） */
   onResize: () => void;
   /**
-   * 閉じる（Esc・Window の外を押した）。acted は、Dialog の中で操作（分ける・入れ替える・閉じる・隠す）をしたか。
+   * 閉じる（Esc・Dialog の外を押した）。acted は、Dialog の中で操作（分ける・入れ替える・閉じる・隠す）をしたか。
    * していれば、開く前にフォーカスがあった所が、閉じた・隠したペインのことがあるので、呼んだ側が今のペインにキーを向け直す。
    */
   onCancel: (acted: boolean) => void;
