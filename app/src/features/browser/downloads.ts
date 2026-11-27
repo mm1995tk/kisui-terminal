@@ -25,18 +25,29 @@ export function createDownloads(deps: {
   }
   const dropDownload = (d: DownloadDone) =>
     setDownloads((l) => l.filter((x) => x !== d));
-  /** ダウンロードしたファイルを開く・フォルダを表示する。開けなければ知らせる。 */
-  function useDownload(d: DownloadDone, how: "open" | "reveal") {
-    (how === "open" ? openDownload(d.id) : revealDownload(d.id)).then(
-      () => dropDownload(d),
-      (e: unknown) =>
+  /**
+   * ダウンロードしたファイルを開く・フォルダを表示する。開けなければ知らせる。
+   * 開けた・表示できたら true になる（CLI の `kisui notice open-download` が、できなかったことを返すため）。
+   */
+  function useDownload(
+    d: DownloadDone,
+    how: "open" | "reveal",
+  ): Promise<boolean> {
+    return (how === "open" ? openDownload(d.id) : revealDownload(d.id)).then(
+      () => {
+        dropDownload(d);
+        return true;
+      },
+      (e: unknown) => {
         setFocusError({
           title:
             how === "open"
               ? T("err.download.open", { name: d.name })
               : T("err.download.reveal", { name: d.name }),
           error: e instanceof Error ? e.message : String(e),
-        }),
+        });
+        return false;
+      },
     );
   }
   /** いちばん新しい、保存できたダウンロード（リーダーの i o・i f が使う）。 */

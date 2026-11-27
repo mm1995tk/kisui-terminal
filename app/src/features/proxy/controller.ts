@@ -28,11 +28,11 @@ import type { Pages } from "../browser/pages.ts";
 import { updateTab } from "../browser/tabs.ts";
 import type { BrowserTabs } from "../browser/tabsStore.ts";
 import type { DbTabs } from "../db/controller.ts";
-import type { ReportProblem } from "../problem.ts";
+import type { Problem, ReportProblem } from "../problem.ts";
 import type { Sessions } from "../sessions/controller.ts";
 import { LOCAL } from "../sessions/shell.ts";
 import type { Workspaces } from "../workspaces/controller.ts";
-import { browserKey, termKey } from "../workspaces/model.ts";
+import { browserKey, termKey, type TabRef } from "../workspaces/model.ts";
 import {
   applyFlow,
   browserScope,
@@ -93,6 +93,12 @@ export interface ProxyEditState {
   error?: string;
 }
 
+/**
+ * できなかったことの伝え先。キー操作は画面の右下の知らせ（setFocusError）に出し、CLI（`kisui proxy`。proxyCommands.ts）は
+ * 頼んだコマンドに返す。
+ */
+export type ProxyFail = (p: Problem) => void;
+
 /** パネルに出すもの。 */
 export interface ProxyPanelState {
   subject: ProxySubject;
@@ -126,6 +132,8 @@ export function createProxy(deps: {
   focusPanel: () => void;
 }) {
   const { cannot } = deps.workspaces;
+  /** キー操作のときの伝え先（画面の右下の知らせ） */
+  const notice: ProxyFail = (p) => deps.setFocusError(p);
   const { tabs, setTabs } = deps.browserTabs;
   // 通している単位（scopeKey → 画面が持つ分）
   const [scopes, setScopes] = createSignal<Record<string, ProxyScopeState>>({});
@@ -158,30 +166,50 @@ export function createProxy(deps: {
     }, flows);
   }
 
+  /** ブラウザのタブ b を通す相手。 */
+  const browserSubject = (b: {
+    id: string;
+    proxy?: { scope: string };
+  }): ProxySubject => ({
+    kind: "browser",
+    target: LOCAL,
+    // ページが開いた新しい Window のタブは、開いた元のタブと同じ単位
+    scope: b.proxy?.scope ?? browserScope(b.id),
+    tab: browserKey(b.id),
+    browserTab: b.id,
+  });
+  /** ターミナルのタブ（マシン target のワークスペース ws）を通す相手。 */
+  const termSubject = (target: string, ws: WorkspaceId): ProxySubject => ({
+    kind: "term",
+    target,
+    scope: wsScope(ws),
+    tab: termKey(target, ws),
+    ws,
+  });
+
   /** 今出しているタブ。通せるタブ（ターミナルのタブ・ブラウザのタブ）を出していなければ undefined。 */
   const subject = createMemo<ProxySubject | undefined>(() => {
     const b = deps.pages.shownBrowserTab();
-    if (b)
-      return {
-        kind: "browser",
-        target: LOCAL,
-        // ページが開いた新しい Window のタブは、開いた元のタブと同じ単位
-        scope: b.proxy?.scope ?? browserScope(b.id),
-        tab: browserKey(b.id),
-        browserTab: b.id,
-      };
+    if (b) return browserSubject(b);
     if (deps.db.shownDbTab() || deps.workspaces.currentEmpty())
       return undefined;
     const f = deps.workspaces.focus();
     if (!f) return undefined;
-    return {
-      kind: "term",
-      target: f.target,
-      scope: wsScope(f.id),
-      tab: termKey(f.target, f.id),
-      ws: f.id,
-    };
+    return termSubject(f.target, f.id);
   });
+
+  /**
+   * Sidebar のタブ ref を通す相手（CLI がタブを指したとき）。通せないタブ（Database tab）と、もう無いブラウザのタブは undefined。
+   */
+  function subjectOf(ref: TabRef): ProxySubject | undefined {
+    if (ref.kind === "term") return termSubject(ref.target, ref.ws);
+    if (ref.kind !== "browser") return undefined;
+    const b = untrack(tabs).tabs.find((t) => t.id === ref.id);
+    return b && browserSubject(b);
+  }
+
+  /** s が今出しているタブか（キーを動かすのは、出しているタブのときだけ）。 */
+  const isShown = (s: ProxySubject) => untrack(subject)?.tab === s.tab;
 
   /** 今出しているタブのパネル。開いていなければ undefined。 */
   const panel = createMemo<ProxyPanelState | undefined>(() => {
@@ -228,32 +256,39 @@ export function createProxy(deps: {
     });
   }
 
-  /** マシン target につながっていて、kisui serve がプロキシを持つなら、その接続。無ければ理由を知らせて undefined。 */
-  function sessionFor(target: string, quiet = false, cap = "proxy") {
+  /** できなかった理由 error を fail に伝える（見出しは「プロキシを使えない」）。 */
+  const cannotTo = (fail: ProxyFail, error: string) =>
+    fail({ title: T("cannot.proxy.title"), error });
+
+  /**
+   * マシン target につながっていて、kisui serve がプロキシを持つなら、その接続。無ければ理由を fail に伝えて undefined
+   * （quiet なら伝えない）。
+   */
+  function sessionFor(
+    target: string,
+    quiet = false,
+    cap = "proxy",
+    fail: ProxyFail = notice,
+  ) {
     const session = untrack(deps.sessions.sessions)[target];
     const st = untrack(deps.sessions.states)[target];
     const machine = deps.sessions.labelOf(target);
     if (!session || st?.kind !== "connected") {
-      if (!quiet)
-        cannot(
-          T("cannot.proxy.title"),
-          T("cannot.proxy.disconnected", { machine }),
-        );
+      if (!quiet) cannotTo(fail, T("cannot.proxy.disconnected", { machine }));
       return undefined;
     }
     if (!hasCapability(st.hello, cap)) {
-      if (!quiet)
-        cannot(T("cannot.proxy.title"), T("cannot.proxy.old", { machine }));
+      if (!quiet) cannotTo(fail, T("cannot.proxy.old", { machine }));
       return undefined;
     }
     return session;
   }
 
   /** タブ s を通し始める。始められたら true。 */
-  async function start(s: ProxySubject): Promise<boolean> {
+  async function start(s: ProxySubject, fail: ProxyFail): Promise<boolean> {
     const key = scopeKey(s.target, s.scope);
     if (starting.has(key)) return false;
-    const session = sessionFor(s.target);
+    const session = sessionFor(s.target, false, "proxy", fail);
     if (!session) return false;
     starting.add(key);
     arriving.set(key, []);
@@ -282,7 +317,7 @@ export function createProxy(deps: {
       });
       return true;
     } catch (e) {
-      deps.setFocusError({ title: T("err.proxy.start"), error: message(e) });
+      fail({ title: T("err.proxy.start"), error: message(e) });
       return false;
     } finally {
       starting.delete(key);
@@ -296,16 +331,28 @@ export function createProxy(deps: {
   async function openPanel() {
     const s = untrack(subject);
     if (!s) {
-      cannot(T("cannot.proxy.title"), T("cannot.proxy.noTab"));
+      cannotTo(notice, T("cannot.proxy.noTab"));
       return;
     }
-    if (!untrack(scopes)[scopeKey(s.target, s.scope)] && !(await start(s)))
-      return;
+    await openPanelOf(s, notice);
+  }
+
+  /**
+   * タブ s のパネルを開く（openPanel と、CLI の `kisui proxy panel`）。まだ通していなければ、通し始める。開けたら true。
+   * キーをパネルに向けるのは、s が今出しているタブのときだけ。
+   */
+  async function openPanelOf(s: ProxySubject, fail: ProxyFail) {
+    if (
+      !untrack(scopes)[scopeKey(s.target, s.scope)] &&
+      !(await start(s, fail))
+    )
+      return false;
     setOpen((o) => ({ ...o, [s.tab]: true }));
     // 始めている間にほかのタブへ移っていたら、キーは動かさない（戻ったときにパネルは出ている）
-    if (untrack(subject)?.tab !== s.tab) return;
+    if (!isShown(s)) return true;
     deps.forgetPageReturn();
     deps.focusPanel();
+    return true;
   }
 
   /**
@@ -314,33 +361,55 @@ export function createProxy(deps: {
    */
   function closePanel() {
     const s = untrack(subject);
-    if (!s || !untrack(open)[s.tab]) return;
+    if (s) closePanelOf(s);
+  }
+
+  /**
+   * タブ s のパネルを閉じる（closePanel と、CLI の `kisui proxy close`）。開いていなければ何もせず false。
+   * キーをターミナルに戻すのは、s が今出しているタブのときだけ。
+   */
+  function closePanelOf(s: ProxySubject) {
+    if (!untrack(open)[s.tab]) return false;
     setOpen((o) => without(o, s.tab));
     const key = scopeKey(s.target, s.scope);
     if (untrack(scopes)[key]?.holding) void setHold(key, false, true);
-    deps.focusTerminal();
+    if (isShown(s)) deps.focusTerminal();
+    return true;
   }
 
   /** 今出しているタブを通すのをやめる（リーダーの `x s`）。パネルも閉じる。 */
   async function stopCurrent() {
     const s = untrack(subject);
-    if (!s || !untrack(scopes)[scopeKey(s.target, s.scope)]) {
-      cannot(T("cannot.proxy.title"), T("cannot.proxy.notOn"));
+    if (!s) {
+      cannotTo(notice, T("cannot.proxy.notOn"));
       return;
     }
-    const session = sessionFor(s.target);
-    if (!session) return;
+    await stopOf(s, notice);
+  }
+
+  /**
+   * タブ s を通すのをやめる（stopCurrent と、CLI の `kisui proxy stop`）。パネルも閉じる。やめられたら true。
+   * キーをターミナルに戻すのは、s が今出しているタブのときだけ。
+   */
+  async function stopOf(s: ProxySubject, fail: ProxyFail) {
+    if (!untrack(scopes)[scopeKey(s.target, s.scope)]) {
+      cannotTo(fail, T("cannot.proxy.notOn"));
+      return false;
+    }
+    const session = sessionFor(s.target, false, "proxy", fail);
+    if (!session) return false;
     try {
       await session.request("proxy.stop", { scope: s.scope });
     } catch (e) {
-      deps.setFocusError({ title: T("err.proxy.stop"), error: message(e) });
-      return;
+      fail({ title: T("err.proxy.stop"), error: message(e) });
+      return false;
     }
     batch(() => {
       dropScope(s.target, s.scope);
       setOpen((o) => without(o, s.tab));
     });
-    deps.focusTerminal();
+    if (isShown(s)) deps.focusTerminal();
+    return true;
   }
 
   /** 単位 key で選んでいる通信の中身を読む（読み直す）。 */
@@ -569,9 +638,14 @@ export function createProxy(deps: {
    * 単位 key の、要求を止めるのを入れる・やめる。quiet なら、できなくても知らせない（パネルを閉じたときの後始末）。
    * 入れられた・やめられたら true。
    */
-  async function setHold(key: string, on: boolean, quiet = false) {
+  async function setHold(
+    key: string,
+    on: boolean,
+    quiet = false,
+    fail: ProxyFail = notice,
+  ) {
     const st = untrack(scopes)[key];
-    const session = st && sessionFor(st.target, quiet, "proxy.hold");
+    const session = st && sessionFor(st.target, quiet, "proxy.hold", fail);
     if (!st || !session) return false;
     let holding: boolean;
     try {
@@ -580,8 +654,7 @@ export function createProxy(deps: {
         on,
       }));
     } catch (e) {
-      if (!quiet)
-        deps.setFocusError({ title: T("err.proxy.hold"), error: message(e) });
+      if (!quiet) fail({ title: T("err.proxy.hold"), error: message(e) });
       return false;
     }
     setScopes((s) => (s[key] ? { ...s, [key]: { ...s[key]!, holding } } : s));
@@ -594,18 +667,36 @@ export function createProxy(deps: {
    */
   async function toggleHold() {
     const s = untrack(subject);
-    const key = s && scopeKey(s.target, s.scope);
-    const st = key === undefined ? undefined : untrack(scopes)[key];
-    if (!s || key === undefined || !st) {
-      cannot(T("cannot.proxy.title"), T("cannot.proxy.notOn"));
+    if (!s) {
+      cannotTo(notice, T("cannot.proxy.notOn"));
       return;
     }
-    if (!(await setHold(key, !st.holding))) return;
-    if (!untrack(scopes)[key]?.holding || untrack(open)[s.tab]) return;
+    await holdOf(s, undefined, notice);
+  }
+
+  /**
+   * タブ s の、要求を止めるのを入れる（on が true）・やめる（false）・切り替える（undefined）。toggleHold と、CLI の
+   * `kisui proxy hold`。通していないタブでは、できないと fail に伝えて false。入れたとき、パネルが閉じていれば開く
+   * （キーをパネルに向けるのは、s が今出しているタブのときだけ）。
+   */
+  async function holdOf(
+    s: ProxySubject,
+    on: boolean | undefined,
+    fail: ProxyFail,
+  ) {
+    const key = scopeKey(s.target, s.scope);
+    const st = untrack(scopes)[key];
+    if (!st) {
+      cannotTo(fail, T("cannot.proxy.notOn"));
+      return false;
+    }
+    if (!(await setHold(key, on ?? !st.holding, false, fail))) return false;
+    if (!untrack(scopes)[key]?.holding || untrack(open)[s.tab]) return true;
     setOpen((o) => ({ ...o, [s.tab]: true }));
-    if (untrack(subject)?.tab !== s.tab) return;
+    if (!isShown(s)) return true;
     deps.forgetPageReturn();
     deps.focusPanel();
+    return true;
   }
 
   /**
@@ -827,6 +918,27 @@ export function createProxy(deps: {
     openPanel,
     closePanel,
     stopCurrent,
+    subjectOf,
+    openPanelOf,
+    closePanelOf,
+    stopOf,
+    holdOf,
+    /**
+     * 単位を通しているか、要求を止めているか、止めたまま流す・捨てるを待っている要求の数（CLI の答えと、CLI が止めた要求を
+     * 流さないための確かめ）。通していなければ undefined
+     */
+    stateOf(
+      s: ProxySubject,
+    ): { port: number; holding: boolean; held: number } | undefined {
+      const st = untrack(scopes)[scopeKey(s.target, s.scope)];
+      return (
+        st && {
+          port: st.port,
+          holding: st.holding,
+          held: st.flows.filter((f) => f.state === "held").length,
+        }
+      );
+    },
     select,
     step,
     startEdit,

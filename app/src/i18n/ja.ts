@@ -526,6 +526,11 @@ export const ja: Record<Key, string> = {
     "ターミナルの中のプログラムが、手元のクリップボードの中身を読もうとしています。ssh 先のプログラムでも同じ頼みができます。心当たりがなければ許さないでください。",
   "clipboardAsk.kinds": "頼まれた種類：{kinds}",
   "clipboardAsk.allow": "Allow reading",
+  "clipboardAsk.history.title": "Allow reading the clipboard history?",
+  "clipboardAsk.history.text":
+    "この PC の Tab「{tab}」の Pane の中のコマンド（kisui clipboard history）が、クリップボードの履歴（前にコピーした文字。パスワードが入っていることもあります）を読もうとしています。頼んだ覚えがなければ許さないでください。",
+  "clipboardAsk.history.range":
+    "履歴に残っている文（新しいものから最大 20 件）を、それぞれ全部渡します。",
   "changes.status.added": "追加",
   "changes.status.deleted": "削除",
   "changes.status.renamed": "名前変更",
@@ -797,6 +802,18 @@ export const ja: Record<Key, string> = {
   "windowRun.err.arg": "頼みに、使える引数 {name} がありません。",
   "windowRun.err.localOnly":
     "{command} は、Window の動く PC の Pane からだけ頼めます。リモートの Machine の Pane からは頼めません。",
+  "globalCli.err.noNotified":
+    "まだ通知を出した Pane がありません（または、その Pane はもうありません）",
+  "globalCli.err.otherDownload":
+    "最後にダウンロードしたファイルは「{last}」で、「{name}」ではないので、開きませんでした。名前を確かめて、もう一度指してください。",
+  "clipboardCli.err.denied":
+    "kisui-terminal で許されなかったので、クリップボードの履歴を読みませんでした",
+  "proxyCli.err.kind":
+    "Tab「{tab}」は Database tab です。プロキシに通せるのは Terminal tab と Browser tab だけです。",
+  "proxyCli.err.held":
+    "Tab「{tab}」に、止めている要求が {count} 件あります。パネルを閉じる・止めるのをやめると、そのまま行き先に送られるので、断りました。プロキシのパネルで流すか捨てるよう、ユーザーに頼んでください。",
+  "proxyCli.err.busy":
+    "その Tab は今、プロキシに通し始めているところです。少し待ってから、もう一度試してください。",
   "tabCli.err.noTab":
     "「{tab}」という id か名前の Tab がありません（Tab は kisui tab list に出ます）",
   "tabCli.err.noTabReach":

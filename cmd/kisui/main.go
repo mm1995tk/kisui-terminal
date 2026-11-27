@@ -21,9 +21,10 @@ import (
 )
 
 // command is a subcommand of kisui. A command has run, or sub: the commands
-// under it ("kisui <group> <command>", such as "kisui pane split"). To add one,
-// add it to commands (or to the sub of its group) and its line of the help to
-// internal/i18n.
+// under it ("kisui <group> <command>", such as "kisui pane split"), or both
+// (run takes the arguments that do not start with the name of one of sub, as
+// "kisui proxy" does). To add one, add it to commands (or to the sub of its
+// group) and its line of the help to internal/i18n.
 type command struct {
 	name string
 	args string // the arguments in the help, such as "<file|url>"
@@ -36,13 +37,19 @@ var commands = []command{
 	{name: "serve", help: "help.serve", run: runServe},
 	{name: "attach", help: "help.attach", run: runAttach},
 	{name: "relay", help: "help.relay", run: runRelay},
-	{name: "proxy", args: "[--listen <addr>] [-v]", help: "help.proxy", run: runProxy},
+	{name: "proxy", args: "[--listen <addr>] [-v]", help: "help.proxy", run: runProxy, sub: []command{
+		{name: "panel", args: "<tab>", help: "help.proxy.panel", run: runProxyPanel},
+		{name: "close", args: "<tab>", help: "help.proxy.close", run: runProxyClose},
+		{name: "stop", args: "<tab>", help: "help.proxy.stop", run: runProxyStop},
+		{name: "hold", args: "[--off] <tab>", help: "help.proxy.hold", run: runProxyHold},
+	}},
 	{name: "open", args: "<file|url>", help: "help.open", run: runOpen},
 	{name: "update", help: "help.update", run: runUpdate},
 	{name: "notify", args: "<text>", help: "help.notify", run: runNotify},
 	{name: "clipboard", sub: []command{
 		{name: "copy", help: "help.clipboard.copy", run: runClipboardCopy},
 		{name: "paste", help: "help.clipboard.paste", run: runClipboardPaste},
+		{name: "history", args: "[--json]", help: "help.clipboard.history", run: runClipboardHistory},
 	}},
 	{name: "pane", sub: []command{
 		{name: "split", args: "--right|--down|--left|--up [--name <name>] [command ...]", help: "help.pane.split", run: runPaneSplit},
@@ -115,6 +122,22 @@ var commands = []command{
 		{name: "result", args: "<tab> --next|--prev|--close", help: "help.db.result", run: runDBResult},
 		{name: "elevate-end", args: "<tab>", help: "help.db.elevateEnd", run: runDBElevateEnd},
 	}},
+	{name: "sidebar", sub: []command{
+		{name: "toggle", help: "help.sidebar.toggle", run: runSidebarToggle},
+	}},
+	{name: "scale", args: "in|out|reset", help: "help.scale", run: runScale},
+	{name: "notice", sub: []command{
+		{name: "update", help: "help.notice.update", run: runNoticeUpdate},
+		{name: "dismiss", help: "help.notice.dismiss", run: runNoticeDismiss},
+		{name: "focus-notified", help: "help.notice.focusNotified", run: runNoticeFocusNotified},
+		{name: "open-download", args: "<name>", help: "help.notice.openDownload", run: runNoticeOpenDownload},
+		{name: "reveal-download", help: "help.notice.revealDownload", run: runNoticeRevealDownload},
+	}},
+	{name: "mascot", sub: []command{
+		{name: "list", args: "[--json]", help: "help.mascot.list", run: runMascotList},
+		{name: "select", args: "<name>", help: "help.mascot.select", run: runMascotSelect},
+		{name: "reload", help: "help.mascot.reload", run: runMascotReload},
+	}},
 	{name: "skill", sub: []command{
 		{name: "install", args: "[dir]", help: "help.skill.install", run: runSkillInstall},
 	}},
@@ -139,7 +162,7 @@ func dispatch(cmds []command, prefix string, args []string, stdout, stderr io.Wr
 			if c.name != args[0] {
 				continue
 			}
-			if c.run != nil {
+			if c.run != nil && (len(args) < 2 || !hasCommand(c.sub, args[1])) {
 				return c.run(args[1:])
 			}
 			return dispatch(c.sub, prefix+" "+c.name, args[1:], stdout, stderr)
@@ -153,6 +176,16 @@ func dispatch(cmds []command, prefix string, args []string, stdout, stderr io.Wr
 	return 2
 }
 
+// hasCommand reports whether one of cmds is name.
+func hasCommand(cmds []command, name string) bool {
+	for _, c := range cmds {
+		if c.name == name {
+			return true
+		}
+	}
+	return false
+}
+
 // usage writes the list of the commands under prefix, one line each.
 func usage(w io.Writer, cmds []command, prefix string) {
 	type line struct{ synopsis, help string }
@@ -160,15 +193,14 @@ func usage(w io.Writer, cmds []command, prefix string) {
 	var walk func(cmds []command, prefix string)
 	walk = func(cmds []command, prefix string) {
 		for _, c := range cmds {
-			if c.run == nil {
-				walk(c.sub, prefix+" "+c.name)
-				continue
+			if c.run != nil {
+				s := prefix + " " + c.name
+				if c.args != "" {
+					s += " " + c.args
+				}
+				lines = append(lines, line{s, i18n.T(c.help)})
 			}
-			s := prefix + " " + c.name
-			if c.args != "" {
-				s += " " + c.args
-			}
-			lines = append(lines, line{s, i18n.T(c.help)})
+			walk(c.sub, prefix+" "+c.name)
 		}
 	}
 	walk(cmds, prefix)

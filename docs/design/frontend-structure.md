@@ -66,16 +66,16 @@ app/src/
       tabs/                 # 中のタブ（ターミナル・ブラウザ・DB）の追加・削除・並び順・選択、CLI の `kisui tab` の受け持ち（`tabCommands.ts`）
     db/                     # DB のタブ（#347）の中身：書きかけの SQL、SQL の実行と結果、接続の一覧、パスワードを聞く、CLI の `kisui db open` などの受け持ち（`dbCommands.ts`）
     browser/                # ブラウザのタブ 1 つずつのページの操作、ブックマーク、ダウンロード、CLI の `kisui browser` の受け持ち（`browserCommands.ts`）
-    proxy/                  # プロキシのパネル（#409）：タブの通信を kisui serve のプロキシに通す、一覧と中身
+    proxy/                  # プロキシのパネル（#409）：タブの通信を kisui serve のプロキシに通す、一覧と中身、CLI の `kisui proxy panel` などの受け持ち（`proxyCommands.ts`）
     terminal/               # ターミナルのペイン（分割の木、ペインの中身のつなぎ）
     file-tree/
     changes/
-    clipboard/
+    clipboard/              # クリップボードの読み取りの許可、履歴、CLI の `kisui clipboard history` の受け持ち（`historyCommand.ts`）
     file-transfer/
-    mascot/
+    mascot/                 # キャラクター、CLI の `kisui mascot` の受け持ち（`mascotCommands.ts`）
     updates/
     scale/                  # 表示の大きさ
-    commands/               # コマンドの表（リーダーと Shortcut）、キーの書き方、コマンドを動かす、Window に頼む CLI の受け口（`windowRun.ts`。#511）
+    commands/               # コマンドの表（リーダーと Shortcut）、キーの書き方、コマンドを動かす、Window に頼む CLI の受け口（`windowRun.ts`。#511）、Window 全体に効く Command の CLI の受け持ち（`globalCommands.ts`・`noticeCommands.ts`）
     compose.ts              # 機能の持ち物（各 controller）を作って、互いをつなぐ
     keyValueStore.ts        # 小さな記録の読み書きの受け口（機能をまたいで使う）
     problem.ts              # 「できなかったこと」の知らせの形（機能をまたいで使う）
@@ -149,6 +149,7 @@ index.tsx ──▶ ui ──▶ features ◀── infrastructure
 | `features/file-tree/controller.ts`・`features/changes/controller.ts` | ツリーと CHANGES の中身と操作                              |
 | `features/commands/run.ts`                        | コマンドの表のコマンドを動かす（リーダーの葉と Shortcut）                         |
 | `features/commands/windowRun.ts`                  | Window に頼む CLI（`kisui tab`・`kisui workspace`・`kisui browser`・`kisui machine`・`kisui pane focus` など）を、名前ごとの受け持ちに渡す（#511）    |
+| `features/commands/globalCommands.ts`・`noticeCommands.ts`・`features/mascot/mascotCommands.ts` | Window 全体に効く Command の CLI（`kisui sidebar`・`kisui scale`、`kisui notice`、`kisui mascot`。#517）の受け持ち |
 
 持ち物どうしは互いを呼ぶ（接続の知らせでフォーカスを直す、など）。先に作る側には、後で作る側を呼ぶ関数を渡す（`compose.ts` の `hooks` や `() => …`）。機能が画面の側に頼むこと（キーを向ける・スクロールを戻す・Dialog を出す）は、`FeatureUi`・`CommandUi` の形で `page.tsx` が渡す。
 

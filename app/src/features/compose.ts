@@ -36,10 +36,17 @@ import {
 import { onPaneGrantEnd, paneGrantActive } from "./sessions/paneGrant.ts";
 import { createPaneRelay } from "./sessions/paneRelay.ts";
 import { createWindowRun } from "./commands/windowRun.ts";
+import { createGlobalCommands } from "./commands/globalCommands.ts";
+import { createNoticeCommands } from "./commands/noticeCommands.ts";
+import { createMascotCommands } from "./mascot/mascotCommands.ts";
+import { askClipboardHistory } from "./clipboard/clipboardPrompt.ts";
+import type { ListClipboardHistory } from "./clipboard/history.ts";
+import { createClipboardCommands } from "./clipboard/historyCommand.ts";
+import { createProxyCommands } from "./proxy/proxyCommands.ts";
 import { createMachineCommands } from "./sessions/machineCommands.ts";
 import type { ConfigMachine } from "./sessions/machines.ts";
 import type { TermDefaults } from "./sessions/termDefaults.ts";
-import type { ShellApi } from "./sessions/shell.ts";
+import { LOCAL, type ShellApi } from "./sessions/shell.ts";
 import { createTerminals } from "./terminal/controller.ts";
 import type { OpenUrlExternally } from "./terminal/urlOpen.ts";
 import { createUpdates, type UpdatesOs } from "./updates/store.ts";
@@ -49,7 +56,10 @@ import { createPrimaryShj } from "./workspaces/primaryShj.ts";
 import { createProxy, type Proxy } from "./proxy/controller.ts";
 import { createTabs } from "./workspaces/tabs/controller.ts";
 import { createPaneOpen } from "./workspaces/tabs/paneOpen.ts";
-import { createTabCommands } from "./workspaces/tabs/tabCommands.ts";
+import {
+  createTabCommands,
+  tabEntries,
+} from "./workspaces/tabs/tabCommands.ts";
 import { createDbCommands } from "./db/dbCommands.ts";
 import { createBrowserCommands } from "./browser/browserCommands.ts";
 import { createPaneCommands } from "./workspaces/paneCommands.ts";
@@ -76,6 +86,8 @@ export interface FeaturePorts {
   exportFile: SaveTextFile;
   /** 手元の PC の config.local.toml の DB の接続を読む・書く（#486） */
   dbConfig: DbConfigFiles;
+  /** クリップボードの履歴（Dialog と `kisui clipboard history`。#517） */
+  clipboardHistory: ListClipboardHistory;
 }
 
 /** 機能が、画面の側に頼むこと（キーを向ける・スクロールを戻す・短い知らせを出す）。 */
@@ -302,6 +314,42 @@ export function createFeatures(deps: {
     focusTerminal,
     revealSidebar: () => ui.revealSidebar(),
   });
+  const proxy = createProxy({
+    sessions,
+    workspaces,
+    pages,
+    db,
+    browserTabs,
+    setFocusError,
+    focusTerminal,
+    forgetPageReturn,
+    focusPanel: () => ui.focusProxyPanel(),
+  });
+  setProxyMade(proxy);
+  const scale = createScale({
+    store,
+    applyScale: ports.applyScale,
+    showScale: (v) => ui.showScale(v),
+  });
+  const commands = createCommandRunner({
+    workspaces,
+    tabs,
+    terminals,
+    browserTabs,
+    pages,
+    db,
+    bookmarks,
+    downloads,
+    updates,
+    mascot,
+    scale,
+    proxy,
+    os: ports.browser,
+    setFocusError,
+    showToast: (text) => ui.showToast(text),
+    focusTerminal,
+    ui: deps.commandUi,
+  });
   // Window に頼む、Pane の中のコマンド（`kisui tab` など。#511）。CLI を足すときは、受け持ちの表をここに足す
   const windowRun = createWindowRun([
     createTabCommands({
@@ -361,43 +409,31 @@ export function createFeatures(deps: {
       sessions,
       machineList: () => workspaces.machineList(),
     }),
+    createGlobalCommands({
+      runCommand: (c) => commands.runCommand(c),
+    }),
+    createNoticeCommands({
+      runCommand: (c) => commands.runCommand(c),
+      updates,
+      downloads,
+    }),
+    createMascotCommands({ mascot }),
+    createClipboardCommands({
+      list: ports.clipboardHistory,
+      ask: askClipboardHistory,
+      // 頼むのは手元の PC の Pane だけ（remote を書かない）なので、手元の PC の Terminal tab から探す
+      tabName: (c) =>
+        tabEntries(workspaces.gws(), workspaces.rows()).find(
+          (e) =>
+            e.ref.kind === "term" && e.target === LOCAL && e.ref.ws === c.tab,
+        )?.name,
+    }),
+    createProxyCommands({
+      proxy,
+      gws: workspaces.gws,
+      rows: workspaces.rows,
+    }),
   ]);
-  const proxy = createProxy({
-    sessions,
-    workspaces,
-    pages,
-    db,
-    browserTabs,
-    setFocusError,
-    focusTerminal,
-    forgetPageReturn,
-    focusPanel: () => ui.focusProxyPanel(),
-  });
-  setProxyMade(proxy);
-  const scale = createScale({
-    store,
-    applyScale: ports.applyScale,
-    showScale: (v) => ui.showScale(v),
-  });
-  const commands = createCommandRunner({
-    workspaces,
-    tabs,
-    terminals,
-    browserTabs,
-    pages,
-    db,
-    bookmarks,
-    downloads,
-    updates,
-    mascot,
-    scale,
-    proxy,
-    os: ports.browser,
-    setFocusError,
-    showToast: (text) => ui.showToast(text),
-    focusTerminal,
-    ui: deps.commandUi,
-  });
 
   return {
     /** できなかったことの知らせ（無ければ null） */

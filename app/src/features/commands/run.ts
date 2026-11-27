@@ -545,7 +545,10 @@ export function createCommandRunner(deps: {
       case "notice.revealDownload": {
         const d = lastDownload();
         if (d)
-          useDownload(d, c.id === "notice.openDownload" ? "open" : "reveal");
+          void useDownload(
+            d,
+            c.id === "notice.openDownload" ? "open" : "reveal",
+          );
         else cannot(T("cannot.download.title"), T("cannot.download.text"));
         break;
       }

@@ -525,6 +525,11 @@ export const en = {
     "A program in the terminal is trying to read what is on the clipboard of this machine. A program on an ssh host can make the same request. If you do not recognize it, do not allow it.",
   "clipboardAsk.kinds": "Requested types: {kinds}",
   "clipboardAsk.allow": "Allow reading",
+  "clipboardAsk.history.title": "Allow reading the clipboard history?",
+  "clipboardAsk.history.text":
+    'A command in a pane of the tab "{tab}" on this machine (kisui clipboard history) is trying to read the clipboard history: the text copied before, which can include passwords. If you did not ask for it, do not allow it.',
+  "clipboardAsk.history.range":
+    "It gets every text kept in the history (up to the last 20), each in full.",
   "changes.status.added": "added",
   "changes.status.deleted": "deleted",
   "changes.status.renamed": "renamed",
@@ -797,6 +802,18 @@ export const en = {
   "windowRun.err.arg": "The request has no usable argument {name}.",
   "windowRun.err.localOnly":
     "{command} can be asked only from a pane of the computer the window runs on, not from a pane of a remote machine.",
+  "globalCli.err.noNotified":
+    "No pane has shown a notification yet (or that pane is gone)",
+  "globalCli.err.otherDownload":
+    'The last downloaded file is "{last}", not "{name}", so nothing was opened. Check the name and give it again.',
+  "clipboardCli.err.denied":
+    "The clipboard history was not read, because it was not allowed in kisui-terminal",
+  "proxyCli.err.kind":
+    'Tab "{tab}" is a database tab. Only terminal tabs and browser tabs go through the proxy.',
+  "proxyCli.err.held":
+    'Tab "{tab}" has {count} held requests. Closing the panel or turning holding off would send them on as they are, so it was refused: ask the user to forward or drop them in the proxy panel.',
+  "proxyCli.err.busy":
+    "The proxy is starting for that tab now. Try again in a moment.",
   "tabCli.err.noTab":
     'No tab has the id or the name "{tab}" (kisui tab list prints the tabs)',
   "tabCli.err.noTabReach":

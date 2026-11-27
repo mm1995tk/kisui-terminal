@@ -49,6 +49,8 @@ kisui clipboard paste > note.txt
 
 kisui-terminal は、手元のクリップボードにコピーした文の履歴を持ちます。kisui-terminal の中のコピーも、ほかのアプリ（ブラウザなど）でのコピーも入ります。新しい 20 件を 12 時間残し、データのディレクトリ（macOS は `~/Library/Application Support/dev.mm1995tk.kisui-terminal`、Linux は `~/.local/share/dev.mm1995tk.kisui-terminal`）の `clipboard-history.json`（自分だけが読めるファイル）に保存するので、閉じても消えません。パスワード管理アプリが「秘密」の印を付けたコピーと、画像は入れません。
 
+`kisui clipboard history` は、その履歴を新しい順に出します。1 件 1 行で、コピーした時刻と、1 行にまとめて切った文が出ます（`--json` でプログラム向けに、全部の文を出します）。履歴にはパスワードが入っていることもあるので、`paste` と同じく毎回 Window で聞き、許したときだけ出します。手元の PC の Pane からだけ使えます。履歴には `paste` が読む 1 つの文よりずっと多くのものが入っているので、リモートの Machine の Pane からは、許すかを聞かずに断ります。
+
 `Cmd+Shift+H`（macOS）か `Ctrl+Shift+H`（Linux）で、履歴を新しい順の一覧で開きます。文字を打つと絞り込め、上下キー（か `Ctrl+J` / `Ctrl+K`）で選び、`Enter` で打っていたペインに貼り、`Shift+Enter` でクリップボードに戻します。`Esc` は何もせずに閉じます。
 
 kisui-terminal の外（ほかのアプリを使っているとき）でも、`Option+Space`（macOS）か `Alt+Space`（Linux）で、履歴の小さな Window が前に出ます。kisui-terminal のメインの Dialog は前に出ません。上下キー（か `Ctrl+J` / `Ctrl+K`）で選んで `Enter` を押すと、その文をクリップボードに戻し、「コピーしました」を少し出してから Dialog を閉じて前に使っていたアプリに戻るので、`Cmd+V`（Linux は `Ctrl+V`）で貼ります。kisui-terminal からは貼る操作を送らないので、macOS のアクセシビリティの許可は要りません。`Esc` は何もせずに閉じて前のアプリに戻ります。使えるのは kisui-terminal が起動している間だけです。Linux では、`Alt+Space` をウィンドウマネージャー（GNOME や KDE の Dialog のメニューなど）が先に取っていると届きません。そのときは、ウィンドウマネージャーの側でそのキーを外してください。Wayland のセッションでは全体のキーを取れないことがあります（X11 のアプリを使っている間だけ届くことがあります）。
@@ -142,6 +144,14 @@ kisui machine disconnect dev
 
 **手元の PC の Pane からだけ。** これらのコマンドは、Window のつなぎ先と設定を変え、接続を切れるので、Window は、Window の動く PC の Pane の頼みだけを受けます。リモートの Machine の Pane からは、その Machine に `allow_pane_to` があっても、Machine の Dialog の `p` で許している間でも断ります。そうしないと、リモートの Machine が、Window のつなぎ先や手元の PC の設定を変えられてしまうためです。その許可（Dialog の `p` と `P`）そのものには、コマンドがありません。これらは Window が行うので、Window が閉じていると、理由を出して失敗します。kisui-terminal は確認を求めません。
 
+`kisui sidebar toggle`・`kisui scale in|out|reset`・`kisui notice ...`・`kisui mascot ...` は、Window 全体のキー操作でできることを、Pane の中からします。`kisui sidebar toggle` は Sidebar を出す・隠す。`kisui scale in` / `out` / `reset` は、表示を大きく・小さく・元の大きさにします（Browser tab を出している間は、そのページ）。`kisui notice update` は Notice が知らせている新しい版に更新して起動し直し、`kisui notice dismiss` はいちばん新しい Notice を閉じ、`kisui notice focus-notified` は最後に通知を出した Pane へ移り、`kisui notice open-download <name>` は内蔵ブラウザが最後にダウンロードしたファイルを、名前が `<name>` のときだけ開き（ページはどんなファイルでも最後のダウンロードにできるので、開くものを名前で指します）、`kisui notice reveal-download` はそのフォルダを出します。どちらも、そのファイルの名前を出します。`update`・`focus-notified`・`open-download`・`reveal-download` は、行う相手が無いときは、理由を出して断ります。`dismiss` は、Notice が無ければ何もせずに成功します。`kisui mascot list` はキャラクターの一覧を出し、`kisui mascot select <名前>` はキャラクターを選び（`c` → `s` と同じく `config.local.toml` に書きます。Dialog は開きません）、`kisui mascot reload` は使っているキャラクターを読み直します。手元の PC の Pane からだけ使えます。Machine の Tab ではなく Window 全体に効き、あなたが打っているキーの行き先を変えるもの・手元の PC のファイルを開くもの・アプリを起動し直すもの・設定に書くものがあるので、リモートの Machine の Pane からは断ります。これらのコマンドは Window が行うので、Window が閉じているときは、理由を出して失敗します。Key list（`?`）は Dialog を開くだけなので、コマンドはありません。
+
+```sh
+kisui scale in
+kisui notice dismiss
+kisui mascot select cat
+```
+
 `kisui db` は、ペインの中のコーディングエージェントが、設定の DB の接続（`[[db.connections]]`。下）を使うためのコマンドです。`kisui db connections` は接続の一覧と、それぞれでエージェントがしてよいことを出します。`kisui db schema <接続> [<テーブル>]` はテーブルの一覧か、テーブル 1 つの列を出します。`kisui db query <接続> <SQL>` は文を 1 つ実行して行を出します。`kisui db propose <接続> <SQL>` は、DB のタブの入力欄に SQL を書きます（読んで実行するのはあなたです）。`--variant <変種>` で変種のある接続の環境を選び、`--json` でプログラム向けの結果を出します。DB につないでログインするのは、ペインのマシンの `kisui serve` なので、エージェントはクライアントを要らず、パスワードも見ません。どの頼みもエージェントのものとして扱い、エージェントに付けた権限（`agent-permission`）に従います：権限を書いていなければ、`kisui db query` は断られ、`kisui db propose` は許されます。`run = "read"` なら、書き込みは DB が断ります。`kisui db propose` は何も実行しません。タブの入力欄に SQL があるときは、上書きの前に Dialog が聞きます（`Enter` で上書き、`Esc` でやめる。やめるとコマンドは失敗します）。コマンドはパスワードを聞きません：キーチェーンか `~/.pgpass`・`~/.my.cnf` に置きます（DB のタブで入力済みなら、その Dialog を開いている間は、それも使われます）。エージェントが実行した文は、その接続の SQL の履歴に「エージェント」の札を付けて残ります。詳しくは [docs/database.md](docs/database.md#for-a-coding-agent-the-kisui-db-commands)。
 
 ```sh
@@ -155,7 +165,7 @@ kisui db propose --variant prod shop "UPDATE orders SET status = 'cancelled' WHE
 
 `kisui update` は、アプリに新しい版を今すぐ調べ直させます。アプリを閉じて開き直さなくてすみます（何もしなければ、調べるのは起動したときの 1 回だけです）。新しい版があれば、起動したときと同じ「新しい版があります」の知らせを出します（「あとで」で閉じていても、出し直します）。「更新して再起動」の動きは、その知らせと同じで、ペインのシェルは残ります（serve が引き継ぎます）。`kisui update` は、アプリが見つけたことを出します。新しい版がある、最新である、この版は自動更新を持たない（Nix で入れた版と、AppImage でない Linux。`nix flake update` で更新するか、新しい版を入れ直す）のどれかです。ssh 先のマシンのペインでも使えます。調べて知らせを出すのは手元のアプリです。使い方は `kisui update --help` で出ます。
 
-`kisui skill install [フォルダ]` は、Claude Code などのコーディングエージェントに、ペインの中での `kisui open`・`kisui notify`・`kisui clipboard`・`kisui pane`・`kisui tab`・`kisui workspace`・`kisui machine`・`kisui db` の使い方を教える skill（`SKILL.md`）を書き出します。フォルダを省くと `~/.claude/skills/kisui-terminal/` に書きます。skill は `kisui` のバイナリに入っているので、入れた版に合った内容になります。`kisui clipboard paste` は勝手に呼ばないよう、skill に書いてあります。
+`kisui skill install [フォルダ]` は、Claude Code などのコーディングエージェントに、ペインの中での `kisui open`・`kisui notify`・`kisui clipboard`・`kisui pane`・`kisui tab`・`kisui workspace`・`kisui browser`・`kisui machine`・`kisui db` と、Window のほかのコマンドの使い方を教える skill（`SKILL.md`）を書き出します。フォルダを省くと `~/.claude/skills/kisui-terminal/` に書きます。skill は `kisui` のバイナリに入っているので、入れた版に合った内容になります。`kisui clipboard paste` と `kisui clipboard history` は勝手に呼ばないよう、skill に書いてあります。
 
 ```sh
 kisui skill install
@@ -208,6 +218,14 @@ kisui-terminal の設定は、kisui-terminal 自身の設定のフォルダの `
 ```sh
 kisui proxy
 kisui proxy -v --listen 127.0.0.1:8080
+```
+
+`kisui proxy panel <tab>`・`close <tab>`・`stop <tab>`・`hold [--off] <tab>` は、リーダーの `x` → `p`・`x` → `c`・`x` → `s`・`x` → `i` と同じことを、Pane の中から、指した Terminal tab か Browser tab にします。Tab は `kisui tab` と同じく id か名前で指します（`hold` は止めるのを入れ、`--off` でやめます）。止めた要求がパネルに残っている間は、`close` と `hold --off` は断ります。そのまま行き先に送られてしまうためで、止めた要求はパネルで流すか捨ててください。キーをパネルに向ける（ターミナルに戻す）のは、その Tab を出しているときだけです。手元の PC の Pane からだけ使えます。プロキシに通すと、その Tab の通信を記録し、要求を止めて書き換えられるので、リモートの Machine の Pane からは断ります。これらのコマンドは Window が行うので、Window が閉じているときは、理由を出して失敗します。
+
+```sh
+kisui proxy panel "api server"
+kisui proxy hold "api server"
+kisui proxy stop "api server"
 ```
 
 **キャラクター（実験的）**。リーダーの案内を、キャラクターがターミナルの左端から右下の位置まで押して運んでくるようにできます。キャラクターは kisui-terminal に入っていません。画面を動かすマシンの、`config.toml` と同じフォルダの `mascot/<名前>/`（`~/.config/kisui-terminal/mascot/<名前>/`。nightly 版は、あれば `kisui-terminal-nightly/mascot/`。`$XDG_CONFIG_HOME` が絶対パスならそちらを使います）に、キャラクターごとに `mascot.toml` と画像（背景が透明な右向きの PNG）を置き、リーダーの `c` → `s` で選びます（`mascot/` の中のキャラクターを並べた Dialog が出て、選ぶと `config.local.toml` に書きます。`config.toml` には書きません。home-manager が置く読み取り専用のファイルのことがあるためです）。`c` → `r` で、今選んでいるキャラクターを、Dialog を開き直さずに読み直します（次にリーダーを開いたときから新しい絵になります）。設定ファイルの `[gui]` に `mascot = "<名前>"` と自分で書いて選ぶこともできます。書いていなければキャラクターは出ません。キャラクターを配る人は、zip を落として `mascot/<名前>/` に広げるスクリプトを配ってください。使う人はそれを kisui-terminal のターミナルで実行し、`c` → `r`（新しいキャラクターなら `c` → `s`）を押します。kisui-terminal はスクリプトを実行しません。`mascot.toml` には、場面ごとに、コマの画像のファイル（名前もコマの数も自由）・1 コマの時間（既定 200 ミリ秒）・くり返すか・動く速さ（既定 1 秒に 90px）を書きます。キャラクターは案内を運び、運び終えると一息つき、しばらく（既定 3 秒）経つと休憩の動き（コーヒーを飲む・椅子に座る、など）をランダムに選んで見せ、案内を Esc で閉じると、案内を右へ押して画面の外まで持っていきます（`[push]` の場面でコマと速さを決めます。書かなければ運ぶ場面のコマを、既定の 1 秒に 90px の速さで使います）。Esc 以外（リーダーのキーをもう 1 度押す・操作を実行する・一覧に無いキーを押す・Dialog のフォーカスが外れる）で閉じると、その場でさようならを 1 回再生して消えます（案内からダイアログを開いたときや、さようならの場面が無いときは、すぐ消えます）。形式・全部の場面・既定の値・キャラクターの配り方は [docs/mascot.md](docs/mascot.md) にあります。以前の版の決まった名前（`walk-1.png`〜`walk-4.png`・`stop.png`）は読みません。Dialog を開いたときと、リーダーの `c` → `s`・`c` → `r` を押したときに読みます。OS の「視差効果を減らす」が入っているときは、右下に止まって出て、閉じると（Esc でも）その場で消えます。運んでいる途中に Esc で閉じたときも、押していかず、キャラクターと案内はその場ですぐ消えます。リーダーの後のキーは、アニメーションを待たずにすぐ効きます。

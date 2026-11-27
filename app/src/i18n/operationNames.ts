@@ -55,6 +55,7 @@ const OPERATION_NAME_KEYS: readonly Key[] = [
   "paneApproval.allowQuiet",
   "paneApproval.allowAsk",
   "clipboardAsk.title",
+  "clipboardAsk.history.title",
   "mascot.title",
   "transfer.write.title",
   "transfer.read.title",

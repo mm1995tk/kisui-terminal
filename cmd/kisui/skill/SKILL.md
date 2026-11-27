@@ -55,6 +55,10 @@ echo hello | kisui clipboard copy
 
 Print the text on the clipboard of the computer the window runs on. **Do not run this on your own.** Every call makes kisui-terminal ask the user whether to allow it, and the clipboard can hold something private. Run it only when the user asks you to read their clipboard. `pbpaste` asks in the same way, so the same rule applies.
 
+### kisui clipboard history [--json]
+
+Print the clipboard history of the window: the text the user copied before, newest first, one line each (its number, when it was copied, and the text on one line, cut when long). `--json` prints `{"entries": [{"text", "copiedAt"}, ...]}` with all of each text (`copiedAt` is in milliseconds since the Unix epoch). **Do not run this on your own.** Every call makes kisui-terminal ask the user whether to allow it, and the history can hold passwords and other private text. Run it only when the user asks you to read their clipboard history. It works only in a pane of the user's computer (a pane on a remote machine is refused) and needs the window: it fails when the window is closed, or when the user does not allow it (do not ask again; tell the user).
+
 ### kisui pane split --right|--down|--left|--up [--name <name>] [command ...]
 
 Split the pane you run in to the right, down, left or up and move the focus to the new pane. With a command, the new pane runs it instead of a shell, and closes when the command ends; to keep the output of a short command, end with a shell (`sh -c "ls; exec sh"`). `--name` gives the new pane a name (the rules of `kisui pane title`; when the name is taken, no pane is made). It is refused when `--right` or `--left` would leave a pane narrower than 20 columns, or `--down` or `--up` shorter than 5 rows. The focus moves to the new pane, so what the user is typing goes there too: split only when the user asks or the work needs it. Use it to start a dev server or a watcher beside your work.
@@ -448,6 +452,78 @@ kisui machine terminal dev
 kisui machine terminal dev --start-dir ~/work --shell /usr/bin/fish
 kisui machine terminal local --unset-shell
 ```
+
+### kisui proxy: send a tab through the proxy of the window
+
+The window can send a terminal tab or a browser tab through its proxy, which records the HTTP and HTTPS exchanges of that tab in the proxy panel, and can hold its requests before they go out. These commands do what the proxy keys do, on the tab you point at. `<tab>` is the id or the name of a terminal tab or a browser tab, as for `kisui tab` (a database tab is refused). For a terminal tab, the panes opened after the proxy started use it (the environment variables are set in them); a browser tab reloads its page through the proxy. They work only in a pane of the user's computer (a pane on a remote machine is refused) and need the window. The keys of the window move to the panel (or back to the terminal) only when the tab is the one shown. kisui-terminal asks the user for no confirmation: use them when the user asks, or on the tabs you opened for the work. `kisui proxy` without one of these words is another thing: it runs a proxy by itself in your terminal.
+
+### kisui proxy panel <tab>
+
+Open the proxy panel of the tab, and send the tab through the proxy if it is not yet.
+
+```sh
+kisui proxy panel 'api server'
+```
+
+### kisui proxy close <tab>
+
+Close the proxy panel of the tab. The tab stays on the proxy, and the recording goes on. Holding stops. While held requests wait in the panel, it is refused, because they would go out as they are: the user forwards, changes or drops them there. Use it only when the user asks.
+
+### kisui proxy stop <tab>
+
+Stop sending the tab through the proxy (its panel closes too). A tab that is not on the proxy is refused.
+
+### kisui proxy hold [--off] <tab>
+
+Hold the requests of the tab before they go out, so that the user can forward, change or drop each in the panel (it opens). `--off` stops holding; while held requests wait in the panel, it is refused (the user forwards, changes or drops them there). The tab must be on the proxy (`kisui proxy panel` first). Holding stops every request of that tab until the user acts on it, so use it only when the user asks.
+
+### The window itself: sidebar, display size, notices, character
+
+These commands act on the whole window, as their keys do. They work only in a pane of the user's computer (a pane on a remote machine is refused) and need the window: they fail when the window is closed. They change what the user sees and take no confirmation: use them when the user asks.
+
+### kisui sidebar toggle
+
+Show the sidebar when it is hidden, and hide it when it is shown. When the keys are in the sidebar, hiding it turns them back to the terminal.
+
+### kisui scale in|out|reset
+
+Make the display of the window larger (`in`), smaller (`out`), or the original size (`reset`). While a browser tab is shown, it changes the size of that page instead, as the key does.
+
+### kisui notice update
+
+Update to the new version that the notice of the window offers, and restart kisui-terminal. **Do not run this on your own.** Everything in the window restarts; run it only when the user asks you to update. It is refused when no notice offers a new version (`kisui update` makes the window look for one).
+
+### kisui notice dismiss
+
+Dismiss the newest notice of the window (the bottom right). With no notice, it does nothing and succeeds.
+
+### kisui notice focus-notified
+
+Go to the pane that showed the last notification (the keys move there). It is refused when no pane has shown one.
+
+### kisui notice open-download <name>
+
+Open the file the built-in browser downloaded last, with the program the computer uses for it, and print its name. `<name>` is the name of that file (the one in the notice): when the last download has another name, nothing is opened, because a page can make any file the last download (one that runs when opened, too). It is refused when there is none, and fails when the file could not be opened. Open a file only when the user asks, and only one you know.
+
+```sh
+kisui notice open-download report.pdf
+```
+
+### kisui notice reveal-download
+
+Show the folder of the file the built-in browser downloaded last, in the file manager of the computer, and print the name of the file.
+
+### kisui mascot list [--json]
+
+List the characters the user can choose (`*` marks the one in use; a character that cannot be used shows why). `--json` prints `{"current", "entries": [{"name", "error"}, ...]}`.
+
+### kisui mascot select <name>
+
+Use the character `<name>` (a name `kisui mascot list` prints). It is written to the settings (`config.local.toml`) as the key writes it; no dialog opens.
+
+### kisui mascot reload
+
+Read the character in use again, after its files changed (for example while you make one).
 
 ### kisui db: the databases of the user
 

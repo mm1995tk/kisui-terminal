@@ -204,7 +204,7 @@ export function ContentArea(props: {
             onStep={props.proxy.step}
             onSide={props.proxy.toggleSide}
             onBack={() => focusTerminal()}
-            onClose={props.proxy.closePanel}
+            onClose={() => props.proxy.closePanel()}
             onHelp={() => openKeyList("proxy")}
             mac={IS_MAC}
             onEdit={() => void props.proxy.startEdit()}
