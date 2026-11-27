@@ -72,7 +72,7 @@
   box-shadow: var(--shadow-raised);
 }
 
-/* Dialog（ModalCard）の 3 つの段。見出しと Key footer は動かず、中身だけがスクロールする。
+/* Dialog（ModalCard）の 4 つの段（見出し・中身・status・Key footer）。中身以外は動かず、中身だけがスクロールする。
    段の境目には、カードの縁と同じ色の 1px の線を引く（GitHub の Dialog と同じ）。
    中身の flex-basis は auto（中身の高さ）にする。flex: 1（flex-basis 0%）だと、Dialog の高さが中身で決まるのに、0% をどう解くかが
    WebView に任される。0 と解かれると中身の高さが 0 になり、Dialog が見出しと Key footer だけの高さになる（macOS で起きた #524 の推定の原因） */

@@ -102,6 +102,22 @@ describe("Dialog の高さの決め方", () => {
       "0 1 auto",
     );
   });
+
+  it("縮む一覧にも、行が見える下限の高さがある（短い窓で 0 行にならない）", () => {
+    assert.equal(
+      declarations(card, ".card-content > .card-rows:has(> li)").get(
+        "min-height",
+      ),
+      "56px",
+    );
+    assert.equal(
+      declarations(
+        card,
+        ".card-content > .card-rows:has(> li:nth-child(3))",
+      ).get("min-height"),
+      "120px",
+    );
+  });
 });
 
 describe("Dialog の status の段（できなかった理由・今の状態の文。#524）", () => {
