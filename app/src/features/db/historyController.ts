@@ -49,6 +49,16 @@ export function createDbHistory(deps: {
     }
   }
 
+  /** タブ id の接続の履歴を新しい順に返す（`kisui db history`。Dialog は出さない）。タブが無ければ undefined。聞けなければ投げる。 */
+  async function historyOf(id: string): Promise<DbHistoryEntry[] | undefined> {
+    const ref = deps.refOf(id);
+    if (!ref) return undefined;
+    const { entries } = await deps
+      .sessionFor(ref)
+      .request("db.history", dbRefParams(ref));
+    return entries;
+  }
+
   /** Dialog をやめる（キーを今のペインに戻す）。 */
   function closeHistory() {
     gen++;
@@ -65,5 +75,11 @@ export function createDbHistory(deps: {
     deps.focusTerminal();
   }
 
-  return { historyAsk: ask, openHistory, closeHistory, chooseHistory };
+  return {
+    historyAsk: ask,
+    openHistory,
+    closeHistory,
+    chooseHistory,
+    historyOf,
+  };
 }

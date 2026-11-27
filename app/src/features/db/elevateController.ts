@@ -246,21 +246,32 @@ export function createDbElevate(deps: {
 
   /**
    * タブ id の接続の、強めている権限を全部、時間の前に元に戻す（人のものもエージェントのものも。戻すのは弱める向きなので、聞かない）。
-   * 強めているものが無ければ、その旨を伝える。
+   * 戻した権限の持ち主の字（`人 と エージェント` など）か、戻せなかった理由（題と文）を返す。強めているものが無いときも理由。
+   * Toast も知らせも出さない（`kisui db elevate-end` と、キーの endElevation が使う）。
    */
-  async function endElevation(id: string): Promise<void> {
+  async function endNow(
+    id: string,
+  ): Promise<{ who: string } | { title: string; text: string }> {
     const ref = deps.refOf(id);
-    if (!ref || oldServe(ref)) return;
+    if (!ref)
+      return {
+        title: T("cannot.dbElevateEnd.title"),
+        text: T("db.err.noConnection"),
+      };
+    if (deps.supported(ref) === "no")
+      return {
+        title: T("cannot.dbElevate.title"),
+        text: T("cannot.dbElevate.old"),
+      };
     try {
       let c = await ask(ref);
       const actors = ACTORS.filter((actor) => c?.[actor]?.elevated);
       if (actors.length === 0) {
         note(ref, c);
-        deps.fail(
-          T("cannot.dbElevateEnd.title"),
-          T("cannot.dbElevateEnd.none"),
-        );
-        return;
+        return {
+          title: T("cannot.dbElevateEnd.title"),
+          text: T("cannot.dbElevateEnd.none"),
+        };
       }
       const session = deps.sessionFor(ref);
       for (const actor of actors)
@@ -271,15 +282,22 @@ export function createDbElevate(deps: {
           })
         ).connection;
       note(ref, c);
-      deps.showToast(
-        T("db.elevate.ended", {
-          who: actors.map(actorText).join(T("db.elevate.and")),
-        }),
-      );
+      return { who: actors.map(actorText).join(T("db.elevate.and")) };
     } catch (e) {
-      deps.fail(T("cannot.dbElevateEnd.title"), elevateFailure(e));
       void refresh(ref);
+      return {
+        title: T("cannot.dbElevateEnd.title"),
+        text: elevateFailure(e),
+      };
     }
+  }
+
+  /** タブ id の接続の、強めている権限を全部、時間の前に元に戻す（キー）。戻したら Toast で、戻せなければ知らせで伝える。 */
+  async function endElevation(id: string): Promise<void> {
+    if (!deps.refOf(id)) return;
+    const r = await endNow(id);
+    if ("who" in r) deps.showToast(T("db.elevate.ended", { who: r.who }));
+    else deps.fail(r.title, r.text);
   }
 
   /**
@@ -305,5 +323,6 @@ export function createDbElevate(deps: {
     closeElevate,
     submitElevate,
     endElevation,
+    endNow,
   };
 }

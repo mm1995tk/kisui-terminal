@@ -804,6 +804,17 @@ export const en = {
     "A pane of {from} may show a tab, or move one to another workspace, only while the keys of the window are on a terminal tab of {from}, or while the person at the window allows {from} (in the machine dialog, choose {from} and press p). Otherwise the keys the person is typing would go to another place. Ask the user to show the tab.",
   "tabCli.err.sameWorkspace":
     'The tab "{tab}" is already in the workspace "{workspace}"',
+  "dbCli.err.notDb":
+    'The tab "{tab}" is not a database tab (kisui tab list prints the kind of each tab)',
+  "dbCli.err.reach":
+    "A pane of {from} may open a database tab only while the person at the window allows {from} (in the machine dialog, choose {from} and press p). Ask the user to open it.",
+  "dbCli.err.askEach":
+    "A pane of this computer is set to ask the person every time, so a remote machine may not read the result or the history of a database tab of this computer. Ask the user to do it in the window.",
+  "dbCli.err.agentNone":
+    "The permission of a coding agent on this connection does not allow running SQL (RUN is none in kisui db connections), so the result and the history of this tab are not given. The result and the history are what the person ran with the permission of the person.",
+  "dbCli.err.running":
+    "A statement is running in this database tab. Run the command again when it ends.",
+  "dbCli.err.noResult": "This database tab has no result tab to close.",
   "wsCli.err.noWorkspace":
     'No workspace has the id or the name "{name}" (kisui workspace list prints the workspaces)',
   "wsCli.err.noWorkspaceReach":

@@ -49,6 +49,7 @@ import { createProxy, type Proxy } from "./proxy/controller.ts";
 import { createTabs } from "./workspaces/tabs/controller.ts";
 import { createPaneOpen } from "./workspaces/tabs/paneOpen.ts";
 import { createTabCommands } from "./workspaces/tabs/tabCommands.ts";
+import { createDbCommands } from "./db/dbCommands.ts";
 import { createPaneCommands } from "./workspaces/paneCommands.ts";
 import { createWorkspaceCommands } from "./workspaces/workspaceCommands.ts";
 import type { WorkspaceId } from "../infrastructure/rpc/protocol.ts";
@@ -329,6 +330,15 @@ export function createFeatures(deps: {
       terminals,
       relay,
       granted: paneGrantActive,
+    }),
+    createDbCommands({
+      sessions,
+      gws: workspaces.gws,
+      rows: workspaces.rows,
+      browser,
+      db,
+      granted: paneGrantActive,
+      anyAskEach,
     }),
   ]);
   const proxy = createProxy({

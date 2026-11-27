@@ -19,6 +19,7 @@ import { createEffect, createMemo, createSignal, on, untrack } from "solid-js";
 import {
   hasCapability,
   type DbPasswordRequiredData,
+  type DbRun as DbPermissionRun,
   type HelloResult,
   type Requests,
 } from "../../infrastructure/rpc/protocol.ts";
@@ -215,10 +216,13 @@ export function createDbTabs(deps: {
     if (untrack(runs)[id]?.preview !== tab) return;
     setRun(id, (cur) => keepTab(cur, tab));
   }
-  /** 結果のタブを step（1 は次、-1 は前）だけ動かす。端では動かない。 */
-  function stepResultTab(id: string, step: 1 | -1) {
-    const to = stepTab(untrack(runs)[id] ?? EMPTY_RUN, step);
-    if (to !== undefined) showResult(id, to);
+  /** 結果のタブを step（1 は次、-1 は前）だけ動かす。端では動かない（動かなければ false。`kisui db result` が伝える）。 */
+  function stepResultTab(id: string, step: 1 | -1): boolean {
+    const r = untrack(runs)[id] ?? EMPTY_RUN;
+    const to = stepTab(r, step);
+    if (to === undefined || to === r.active) return false;
+    showResult(id, to);
+    return true;
   }
   /**
    * タブ id の結果のタブ tab（省くと、出しているタブ）を閉じる。その文を実行している最中なら取り消し、順に実行している
@@ -854,21 +858,65 @@ export function createDbTabs(deps: {
     },
   });
 
+  /** マシン target の接続 name（variant）の DB のタブをワークスペース gid の最後に足して出す（キーは入力欄に向く）。 */
+  function addTab(
+    gid: string,
+    target: string,
+    name: string,
+    variant?: string,
+  ): DbRef {
+    const ref: DbRef = {
+      kind: "db",
+      id: newDbTabId(),
+      target,
+      connection: name,
+      ...(variant ? { variant } : {}),
+    };
+    setGws((s) => addDb(s, gid, ref));
+    deps.activateTab(gid, ref);
+    return ref;
+  }
+
   /** 接続を選ぶ Dialog で決めた：その接続の DB のタブを開いて出し、入力欄にキーを向ける。 */
   function choose(c: DbChoice) {
     const p = untrack(picker);
     pickerGen++;
     setPicker(null);
     if (!p) return;
-    const ref: DbRef = {
-      kind: "db",
-      id: newDbTabId(),
-      target: c.target,
-      connection: c.connection.name,
-      ...(c.connection.variant ? { variant: c.connection.variant } : {}),
-    };
-    setGws((s) => addDb(s, p.gws, ref));
-    deps.activateTab(p.gws, ref);
+    addTab(p.gws, c.target, c.connection.name, c.connection.variant);
+  }
+
+  /**
+   * `kisui db open`：マシン target の設定にある接続 name（variant）の DB のタブを、ワークスペース gid に足して出す（db.open のキー
+   * と同じ）。そのマシンの kisui serve に接続の一覧を聞き、無ければ投げる。足したタブを返す。
+   */
+  async function openConnection(
+    gid: string,
+    target: string,
+    name: string,
+    variant?: string,
+  ): Promise<DbRef> {
+    const { connections } = await sessionFor({ target }).request(
+      "db.connections",
+      {},
+    );
+    if (!connectionOf(connections, { connection: name, variant }))
+      throw new Error(T("db.err.noConnection"));
+    return addTab(gid, target, name, variant);
+  }
+
+  /**
+   * タブ id の接続で、コーディングエージェントが SQL を実行してよい段階（`kisui db connections` の RUN。強めている間は強めた先）。
+   * 結果や履歴を Pane に返す `kisui db export`・`kisui db history` が、エージェントに許していない中身を返さないために聞く。
+   * 聞けなかった・接続が設定に無ければ投げる。
+   */
+  async function agentRunOf(id: string): Promise<DbPermissionRun> {
+    const ref = refOf(id);
+    if (!ref) throw new Error(T("db.err.noConnection"));
+    const { connections } = await sessionFor(ref).request("db.connections", {});
+    const c = connectionOf(connections, ref);
+    if (!c) throw new Error(T("db.err.noConnection"));
+    return c.agent?.run ?? "none"; // 権限を知らない古い kisui serve は、エージェントに何も許さない
   }
 
   /** 接続を選ぶ Dialog をやめる（キーを今のペインに戻す）。 */
@@ -960,6 +1008,8 @@ export function createDbTabs(deps: {
     openPicker,
     choose,
     closePicker,
+    openConnection,
+    agentRunOf,
     // 接続を選ぶ Dialog から、手元の PC の接続を足す・直す・消す（#486）
     ...connections,
   };
