@@ -9,3 +9,8 @@ export const MONO_FONT_FAMILY =
 
 /** ターミナルの字の大きさ（px）。TerminalView.tsx の xterm と、サイドバーの幅の上限の計算（main-window/termCell.ts）が同じ値を使う。 */
 export const TERM_FONT_SIZE = 11;
+
+/** ターミナルのスクロールバーの幅（px）。TerminalView.tsx の coneko-term の設定と、サイドバーの幅の上限の計算（main-window/panes.ts の TERM_CHROME_WIDTH）が同じ値を使う。 */
+export const TERM_SCROLLBAR_WIDTH = 4;
+/** ターミナルの欄の左右の内側の余白（px。片側）。content/terminal/terminal.css の .terminal-cell の padding と同じ（termCell.test.ts が確かめる）。 */
+export const TERM_PADDING_X = 4;
