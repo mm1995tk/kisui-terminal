@@ -112,7 +112,7 @@ jobs:
         run: npm ci
 
       # kisui を作る Go。macOS の runner には Go が入っていないので、go.mod の版をここで入れる
-      - uses: actions/setup-go@v7.0.0
+      - uses: actions/setup-go@v7.1.0
         with:
           go-version-file: go.mod
           cache: false
