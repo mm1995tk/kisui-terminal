@@ -4,6 +4,7 @@
 // 寸法と色は card.css（値は ui/styles/tokens.css）、下に並べるボタンは Button.tsx。使い方の決まりは docs/design/design-system.md の「Dialog の枠」。
 import {
   children,
+  createMemo,
   onCleanup,
   onMount,
   Show,
@@ -50,6 +51,10 @@ export function ModalCard(props: {
   const header = children(() => props.header);
   const footer = children(() => props.footer);
   const status = children(() => props.status);
+  // 中に Show を 2 つ並べると [undefined, undefined] に解ける（配列は真）ので、中身があるかを見て、空の段（線だけ）を出さない
+  const hasStatus = createMemo(() =>
+    status.toArray().some((n) => n != null && n !== false),
+  );
   let el!: HTMLDialogElement;
   const before =
     document.activeElement instanceof HTMLElement
@@ -114,7 +119,7 @@ export function ModalCard(props: {
         <header class="card-header">{header()}</header>
       </Show>
       <div class="card-content">{props.children}</div>
-      <Show when={status()}>
+      <Show when={hasStatus()}>
         <div class="card-status">{status()}</div>
       </Show>
       <Show when={footer()}>

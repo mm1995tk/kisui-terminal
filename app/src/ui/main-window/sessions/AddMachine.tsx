@@ -66,20 +66,18 @@ export function AddMachine(props: {
       onCancel={props.onCancel}
       header={<CardTitle>{T("addMachine.title")}</CardTitle>}
       status={
-        props.busy || props.error ? (
-          <>
-            <Show when={props.busy}>
-              <CardText role="status">
-                {T("addMachine.busy", {
-                  state: stateLabel(props.state) || T("addMachine.connecting"),
-                })}
-              </CardText>
-            </Show>
-            <Show when={props.error}>
-              {(e) => <CardError role="alert">{e()}</CardError>}
-            </Show>
-          </>
-        ) : undefined
+        <>
+          <Show when={props.busy}>
+            <CardText role="status">
+              {T("addMachine.busy", {
+                state: stateLabel(props.state) || T("addMachine.connecting"),
+              })}
+            </CardText>
+          </Show>
+          <Show when={props.error}>
+            {(e) => <CardError role="alert">{e()}</CardError>}
+          </Show>
+        </>
       }
       footer={
         <CardActions>
