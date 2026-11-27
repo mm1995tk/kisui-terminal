@@ -107,6 +107,15 @@ export function findTabs(list: readonly TabEntry[], tab: string): TabEntry[] {
   return byId.length > 0 ? byId : list.filter((e) => e.name === t);
 }
 
+/** 人のキーが今、Machine from の Terminal tab に向いているか（リモートの Machine の Pane が、キーの行き先を変えてよいかの決まり。`kisui workspace` も使う）。 */
+export function keysOnMachine(
+  entries: readonly TabEntry[],
+  from: string,
+): boolean {
+  const now = entries.find((e) => e.focused);
+  return now?.ref.kind === "term" && now.target === from;
+}
+
 /** `kisui tab` の受け持ちの表を作る。 */
 export function createTabCommands(deps: {
   sessions: Pick<Sessions, "states" | "machines" | "labelOf">;
@@ -186,10 +195,10 @@ export function createTabCommands(deps: {
    */
   function needKeysOn(c: WindowCaller) {
     if (c.from === LOCAL || deps.granted(c.from)) return;
-    const now = tabEntries(untrack(deps.gws), untrack(deps.rows)).find(
-      (e) => e.focused,
-    );
-    if (now?.ref.kind === "term" && now.target === c.from) return;
+    if (
+      keysOnMachine(tabEntries(untrack(deps.gws), untrack(deps.rows)), c.from)
+    )
+      return;
     throw new WindowCommandError(
       T("tabCli.err.focus", { from: labelOf(c.from) }),
     );

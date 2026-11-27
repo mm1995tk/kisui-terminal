@@ -49,6 +49,7 @@ import { createProxy, type Proxy } from "./proxy/controller.ts";
 import { createTabs } from "./workspaces/tabs/controller.ts";
 import { createPaneOpen } from "./workspaces/tabs/paneOpen.ts";
 import { createTabCommands } from "./workspaces/tabs/tabCommands.ts";
+import { createWorkspaceCommands } from "./workspaces/workspaceCommands.ts";
 import type { WorkspaceId } from "../infrastructure/rpc/protocol.ts";
 
 /** 機能が外に頼むこと（本物は infrastructure/。index.tsx が組み立てる）。 */
@@ -303,6 +304,16 @@ export function createFeatures(deps: {
       sessions,
       gws: workspaces.gws,
       rows: workspaces.rows,
+      tabs,
+      browser,
+      granted: paneGrantActive,
+      anyAskEach,
+    }),
+    createWorkspaceCommands({
+      sessions,
+      gws: workspaces.gws,
+      rows: workspaces.rows,
+      workspaces,
       tabs,
       browser,
       granted: paneGrantActive,
