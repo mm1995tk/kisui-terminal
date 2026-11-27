@@ -813,6 +813,20 @@ export const ja: Record<Key, string> = {
     "{from} の Pane が Tab を表示する・別の Workspace へ移すのは、Window のキーが今 {from} の Terminal tab に向いているときか、Window の前の人が {from} に許している間（Machine の Dialog で {from} を選び、p を押す）だけです。そうでないと、人が打っているキーの行き先が変わってしまいます。Tab を表示するよう、ユーザーに頼んでください。",
   "tabCli.err.sameWorkspace":
     "Tab「{tab}」は、もう Workspace「{workspace}」にあります",
+  "browserCli.err.disabled":
+    "内蔵ブラウザが無効なので、Browser tab はありません。使うには、Window が動いている PC の設定ファイルの [gui.browser] に enabled = true を書き、kisui-terminal を起動し直します（人に頼みます）。",
+  "browserCli.err.reach":
+    "{from} の Pane が、Window が動いている PC の Browser tab を使えるのは、Window の前の人が {from} を許している間だけです（Machine の Dialog で {from} を選び、p を押す）。人に頼んでください。",
+  "browserCli.err.askEach":
+    "この PC に、操作のたびに人に聞くと決めた Pane があるので、リモートの Machine は、この PC のブラウザで URL を開く・外のブラウザ・DevTools・ログインを開くことも、ページの URL・ページ内検索・ブックマークを受け取ることもできません。Window で人に頼んでください。",
+  "browserCli.err.notBrowser":
+    "Tab「{tab}」は Browser tab ではありません（kisui tab list に Tab の種類が出ます）",
+  "browserCli.err.noView":
+    "Tab「{tab}」には、まだページがありません。起動してから Window がその Tab を表示していない（ページは、Tab を初めて表示するときに作られる）か、まだ開いている途中です。人に Tab を表示してもらい（kisui tab show）、もう一度試してください。",
+  "browserCli.err.noWorkspace":
+    "この Pane の Workspace が Window に無いので、Browser tab を足せません。",
+  "browserCli.err.url":
+    "開けるのは、ホストのある http か https の URL だけです（ユーザー名とパスワードは含めない。4096 バイトまで）：「{url}」",
   "wsCli.err.noWorkspace":
     "「{name}」という id か名前の Workspace がありません（Workspace は kisui workspace list に出ます）",
   "wsCli.err.noWorkspaceReach":
