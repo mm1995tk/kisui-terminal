@@ -159,6 +159,34 @@ export function createPages(deps: {
     );
   }
   /**
+   * ワークスペース owner に、ページ url のブラウザのタブ（incognito ならシークレットのタブ）を足して出す（`kisui browser new <url>`。#515）。
+   * openInNewTab と同じに、リモートのマシンの localhost 系は先に中継を用意する。用意できなければ、タブを作らずに理由で断る。
+   * 作ったタブの id を返す。
+   */
+  async function openUrlTab(
+    target: string,
+    ws: WorkspaceId,
+    url: string,
+    incognito: boolean,
+    owner: string,
+  ): Promise<string> {
+    const tab: BrowserTab = {
+      id: newTabId(),
+      target,
+      workspace: ws,
+      url,
+      title: "",
+      ...(incognito ? { incognito: true } : {}),
+    };
+    await resolveFor(tab, url);
+    deps.forgetPageReturn();
+    batch(() => {
+      setTabs((s) => addTab(s, tab, owner));
+      setGws((g) => addBrowser(g, owner, tab.id));
+    });
+    return tab.id;
+  }
+  /**
    * 新しいタブのページのタブを開く（Workspace switcher の、作るタブの種類（リーダーの n）の「ブラウザ」「シークレット」と、「+」のメニューの「ブラウザ」。#238）。URL は聞かず、URL が空のタブ（newTab.ts）を
    * 足して出す。検索欄とブックマークの中身は NewTabPage が描く（出たら検索欄にキーがある）。今のタブの URL の書き換えは、ページの上の URL バー（#232）
    */
@@ -287,23 +315,30 @@ export function createPages(deps: {
     setTabs((s) => updateTab(s, tab, { loading: undefined }));
     void stopTab(tab).catch(() => {});
   }
-  /** タブ tab で url を開く（URL バー・「もう一度開く」）。 */
+  /**
+   * タブ tab で url を開く（URL バー・「もう一度開く」）。開けなければ（リモートのマシンの localhost 系で、中継を用意できない）、
+   * ページも URL も前のままにして、理由を画面に出す。
+   */
   function goTo(tab: string, url: string) {
+    goToChecked(tab, url).catch((e: unknown) =>
+      setFocusError({
+        title: T("err.page.open"),
+        error: e instanceof Error ? e.message : String(e),
+      }),
+    );
+  }
+  /**
+   * goTo と同じに開く。開けなければ、画面に出さず、理由で断る（`kisui browser url`。#515）。タブがもう無ければ何もしない。
+   * 開くのを頼むところまでで、読み込みは待たない。
+   */
+  async function goToChecked(tab: string, url: string): Promise<void> {
     // 中継を用意できてから（リモートのマシンの localhost 系）タブの URL を書き換える。用意できなければ、ページも URL も前のまま。
     // まだ作っていない・開けなかったタブは、BrowserArea が書き換えた URL で作る（goTab は失敗する）
     const t = untrack(tabs).tabs.find((x) => x.id === tab);
-    if (t)
-      resolveFor(t, url).then(
-        (opened) => {
-          setTabs((s) => updateTab(s, tab, { url }));
-          void goTab(tab, opened).catch(() => {});
-        },
-        (e: unknown) =>
-          setFocusError({
-            title: T("err.page.open"),
-            error: e instanceof Error ? e.message : String(e),
-          }),
-      );
+    if (!t) return;
+    const opened = await resolveFor(t, url);
+    setTabs((s) => updateTab(s, tab, { url }));
+    void goTab(tab, opened).catch(() => {});
   }
 
   /** 検索の欄を閉じ、キーをページに戻す。 */
@@ -454,12 +489,14 @@ export function createPages(deps: {
     newTabPageId,
     resolveFor,
     openInNewTab,
+    openUrlTab,
     openNewTab,
     /** 検索の欄を出しているタブ。無ければ null */
     findTab,
     openFind,
     closeFind,
     submitUrlBar,
+    goToChecked,
     navPage,
     stopPage,
     changePageZoom,

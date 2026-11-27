@@ -111,6 +111,17 @@ kisui workspace close --force "review 2"
 
 **これらのコマンドが届く Workspace。** Workspace は複数の Machine の Tab を持てるので、届くかどうかは Tab で決まります。決まりは上の `kisui tab` と同じです。Pane から届く Tab を 1 つでも持つ Workspace と、Tab が 1 つも無い Workspace に届きます。`kisui workspace list` の Tab の数も、届く Tab だけを数えます。`kisui workspace close` は Workspace の Tab を全部閉じるので、全部の Tab に届くときだけ行います。また、手元の PC に「操作のたびに聞く」と決めた Pane がある間は、リモートの Machine から、手元の PC の Terminal tab を持つ Workspace を閉じられません。Window が今いる Workspace を閉じると、あなたが打っているキーが隣の Workspace へ移ります。だから、`p` で許していないリモートの Machine からは、キーが今その Machine の Terminal tab に向いているときだけ閉じられます。`kisui workspace show` は、Window のキーを、その Workspace が表示している Tab に向けます。だから、`p` で許していないリモートの Machine からは、キーが今その Machine の Terminal tab に向いていて、その Workspace もその Machine の Terminal tab を表示しているときだけ使えます。リモートの Machine が、手元の PC やほかの Machine であなたが打っているキーを、自分に向けることはできません。届かない Workspace は `kisui workspace list` に出ず、指すと、その名前の Workspace が無いときと同じに失敗します。これらのコマンドは Window が行うので、Window が閉じているときは、理由を出して失敗します。kisui-terminal は確認を出しません。どの Workspace に何をするかは、全部コマンドの引数に出ています。
 
+`kisui browser` は、Pane の中から Window の Browser tab（内蔵ブラウザ。下の `[gui.browser]`）を操作して、Browser tab の Dialog のキーと同じことをエージェントができるようにします。`<tab>` は Tab の id（`kisui tab list` に出ます）か名前です。`kisui browser new [--private] [<url>]` は、Pane の Workspace に Browser tab（`--private` ならシークレットのタブ）を足し、新しいタブのページか URL を開いて、その id を出します。`kisui browser url <tab> <url>` は URL（`http` と `https` だけ）を開き、`back`・`forward`・`reload`・`stop` は同じ名前のキーと同じ動きです（戻る先が無いときなどは、Dialog が行を暗くするのと同じ理由で断ります）。`close` と `rename` は、Browser tab への `kisui tab close`・`kisui tab rename` と同じ、`external` はページを既定のブラウザで開き、`copy-url` は URL を出します（クリップボードには書きません）。`bookmark add <tab>` と `bookmark list [--json]` は、ページをブックマークに足し、一覧にします（Chrome のものは出しません）。`find <tab> <text>` は、ページの中の最初に見つかった所を選択し、`found` か `not found` を出します。`devtools` と `login` は、人が続きを行う画面を開くだけです：ページの DevTools と、ログインのための外のブラウザ（Dialog の `s` と同じ。`passkey_sites` にあるサイトだけで、シークレットのタブでは使えません）。ページの中身を読む・ページを操作することはしません。内蔵ブラウザが無効のときは、そう言って断ります。
+
+```sh
+id=$(kisui browser new https://example.com/docs)
+kisui browser find "$id" 'breaking changes'
+kisui browser copy-url "$id"
+kisui browser close "$id"
+```
+
+**これらのコマンドが届く Browser tab。** Browser tab は手元の PC の Tab なので、上の `kisui tab` と同じ決まりです：手元の PC の Pane からは全部に届きます。リモートの Machine の Pane からは、Machine の Dialog の `p` で時間を決めて許している間だけ届きます（`new` と `bookmark list` もその間だけ）。届かない Browser tab は `kisui tab list` に出ません。許している間でも、URL を開く操作（URL 付きの `new`・`url`・`external`）と、人のための画面を開く操作（`devtools`・`login`）は、手元の PC に「操作のたびに聞く」と決めた Pane があるうちは、リモートの Machine からは断ります。
+
 `kisui db` は、ペインの中のコーディングエージェントが、設定の DB の接続（`[[db.connections]]`。下）を使うためのコマンドです。`kisui db connections` は接続の一覧と、それぞれでエージェントがしてよいことを出します。`kisui db schema <接続> [<テーブル>]` はテーブルの一覧か、テーブル 1 つの列を出します。`kisui db query <接続> <SQL>` は文を 1 つ実行して行を出します。`kisui db propose <接続> <SQL>` は、DB のタブの入力欄に SQL を書きます（読んで実行するのはあなたです）。`--variant <変種>` で変種のある接続の環境を選び、`--json` でプログラム向けの結果を出します。DB につないでログインするのは、ペインのマシンの `kisui serve` なので、エージェントはクライアントを要らず、パスワードも見ません。どの頼みもエージェントのものとして扱い、エージェントに付けた権限（`agent-permission`）に従います：権限を書いていなければ、`kisui db query` は断られ、`kisui db propose` は許されます。`run = "read"` なら、書き込みは DB が断ります。`kisui db propose` は何も実行しません。タブの入力欄に SQL があるときは、上書きの前に Dialog が聞きます（`Enter` で上書き、`Esc` でやめる。やめるとコマンドは失敗します）。コマンドはパスワードを聞きません：キーチェーンか `~/.pgpass`・`~/.my.cnf` に置きます（DB のタブで入力済みなら、その Dialog を開いている間は、それも使われます）。エージェントが実行した文は、その接続の SQL の履歴に「エージェント」の札を付けて残ります。詳しくは [docs/database.md](docs/database.md#for-a-coding-agent-the-kisui-db-commands)。
 
 ```sh

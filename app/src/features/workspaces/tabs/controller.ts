@@ -67,7 +67,7 @@ export function createTabs(deps: {
   sessions: Sessions;
   workspaces: Workspaces;
   browserTabs: BrowserTabs;
-  pages: Pick<Pages, "shownBrowserTab" | "openNewTab">;
+  pages: Pick<Pages, "shownBrowserTab" | "openNewTab" | "openUrlTab">;
   /** DB のタブ（#347） */
   db: Pick<DbTabs, "shownDbTab" | "openPicker">;
   setFocusError: ReportProblem;
@@ -478,6 +478,19 @@ export function createTabs(deps: {
     return openNewTab(o.target, o.ws, incognito, g.id);
   }
 
+  /**
+   * ワークスペース g に、ページ url のブラウザのタブ（incognito ならシークレットのタブ）を足して出す（`kisui browser new <url>`。#515）。
+   * 開いたところは browserOrigin。作れなければ（リモートのマシンの localhost 系の中継を用意できない）理由で断る。作ったタブの id を返す。
+   */
+  function newBrowserTabAt(
+    g: Gws,
+    url: string,
+    incognito = false,
+  ): Promise<string> {
+    const o = browserOrigin(g);
+    return deps.pages.openUrlTab(o.target, o.ws, url, incognito, g.id);
+  }
+
   /** ワークスペース g に足すブラウザのタブの「開いたところ」（model.ts の browserOriginOf）。 */
   function browserOrigin(g: Gws): { target: string; ws: WorkspaceId } {
     return browserOriginOf(
@@ -682,6 +695,7 @@ export function createTabs(deps: {
     /** Workspace switcher の、作るタブの種類の「DB」：接続を選ぶ Dialog を出す。選んだ接続のタブは、ワークスペース gid に入る（今いるワークスペースは、選ぶまで変えない） */
     openDbPickerIn: (gid: string) => deps.db.openPicker(gid),
     newBrowserTab,
+    newBrowserTabAt,
     openBrowserTab,
     currentTabKey,
     stepTab,

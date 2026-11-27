@@ -127,10 +127,18 @@ export function createBookmarks(deps: {
     );
   }
   /**
-   * ブックマークを書き換えて覚える。書けたら onSaved を呼ぶ。書けなければ前の一覧に戻して知らせる
+   * ブックマークを書き換えて覚える。書けたら onSaved を呼ぶ。書けなければ前の一覧に戻して onFailed を呼ぶ（既定は画面に出す）
    * （書けないものを一覧に残すと、画面とファイルが食い違い、その後の保存もすべて失敗するため）。
    */
-  function changeBookmarks(next: Bookmark[], onSaved?: () => void) {
+  function changeBookmarks(
+    next: Bookmark[],
+    onSaved?: () => void,
+    onFailed: (e: unknown) => void = (e) =>
+      setFocusError({
+        title: T("err.bookmarks.save"),
+        error: e instanceof Error ? e.message : String(e),
+      }),
+  ) {
     const prev = untrack(bookmarks);
     setBookmarks(next);
     saveBookmarks(next).then(
@@ -138,28 +146,32 @@ export function createBookmarks(deps: {
       (e: unknown) => {
         // 書いている間に、ほかの操作がまた書き換えていれば、そちらを残す
         if (untrack(bookmarks) === next) setBookmarks(prev);
-        setFocusError({
-          title: T("err.bookmarks.save"),
-          error: e instanceof Error ? e.message : String(e),
-        });
+        onFailed(e);
       },
     );
   }
   /** 今のページをブックマークに足す（ブラウザのタブの Dialog の b）。読む前なら、先に読んでから足す（覚えていたものを消さないため）。 */
   function bookmarkPage(t: BrowserTab) {
-    const add = (list: Bookmark[]) =>
-      changeBookmarks(addBookmark(list, { url: t.url, title: t.title }), () =>
-        showToast(T("toast.bookmarked")),
-      );
-    const had = bookmarks();
-    if (had) add(had);
-    else
-      readBookmarks().then(add, (e: unknown) =>
-        setFocusError({
-          title: T("err.bookmarks.save"),
-          error: e instanceof Error ? e.message : String(e),
-        }),
-      );
+    const fail = (e: unknown) =>
+      setFocusError({
+        title: T("err.bookmarks.save"),
+        error: e instanceof Error ? e.message : String(e),
+      });
+    bookmarkPageChecked(t).catch(fail);
+  }
+  /** bookmarkPage と同じに足す。足せなければ、画面に出さず、理由で断る（`kisui browser bookmark add`。#515）。足し終えたら解く。 */
+  async function bookmarkPageChecked(t: BrowserTab): Promise<void> {
+    const list = untrack(bookmarks) ?? (await readBookmarks());
+    await new Promise<void>((done, fail) =>
+      changeBookmarks(
+        addBookmark(list, { url: t.url, title: t.title }),
+        () => {
+          showToast(T("toast.bookmarked"));
+          done();
+        },
+        fail,
+      ),
+    );
   }
   /** ブックマークを今のワークスペースの新しいタブで開く（一覧の Enter）。 */
   function openBookmark(b: Bookmark) {
@@ -203,6 +215,9 @@ export function createBookmarks(deps: {
       focusTerminal();
     },
     bookmarkPage,
+    bookmarkPageChecked,
+    /** 覚えているブックマークを読み直して返す（Chrome のものは含めない。`kisui browser bookmark list`。#515）。読めなければ断る */
+    readBookmarks,
     openBookmark,
     /** 一覧で消す。Chrome のブックマークは消せない（読むだけ。#239） */
     deleteBookmark(b: Bookmark) {
