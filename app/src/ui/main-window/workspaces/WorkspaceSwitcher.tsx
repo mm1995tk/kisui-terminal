@@ -565,8 +565,6 @@ export function WorkspaceSwitcher(props: {
       footer={
         <KeyFooter
           rows={switcherFooter(footerState())}
-          // 状態で行の数が変わる（一番多いときは 2 行）。高さは 2 行ぶんで保ち、操作の無い行は出さない
-          lines={2}
           // 作るタブの種類のボタン（字を押したのと同じ）
           onPress={newTab.pick}
         />

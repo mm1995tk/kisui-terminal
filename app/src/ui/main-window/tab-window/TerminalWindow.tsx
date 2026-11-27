@@ -186,8 +186,6 @@ export function TerminalWindow(props: {
             </Show>
           }
           rows={footer()}
-          // 状態で中身が変わる。一番多いのは、ふだんの 2 行と、分ける向きを選ぶ間の知らせ（1 行）と 1 行。高さは 3 行ぶんで保ち、操作の無い行は出さない
-          lines={3}
         />
       }
     >

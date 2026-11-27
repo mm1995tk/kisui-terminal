@@ -307,8 +307,6 @@ export function DbWindow(props: {
             </Show>
           }
           rows={footer()}
-          // 状態で行の数が変わる。一番多いときは 2 行で、この DB のタブの行は Dialog の幅（640px）で 2 段に折り返す。高さは 3 行ぶんで保ち、操作の無い行は出さない
-          lines={3}
         />
       }
     >

@@ -1,14 +1,4 @@
 /* Dialog の Key footer の、今効く操作の行（KeyFooter.tsx）。行ごとに、頭に何に効くかの見出しを置き、操作は右に流す */
-/* 1 行の高さ。操作のある行の、押せるヒント（key-hints.css の .key-hint-button）の 1 行と同じ。
-   .kbd の高さ（字 × 行の高さ + 上下の線 2px）に、ボタンの上下の線 2px を足したもの */
-.key-footer {
-  --key-footer-row-height: calc(var(--text-label) * var(--leading-text) + 4px);
-  /* 空けておく行の数（KeyFooter の lines。渡さなければ 0 で、高さは中身で決まる）。知らせ（note）も、この高さの中に出す */
-  min-height: calc(
-    var(--key-footer-lines, 0) * var(--key-footer-row-height) +
-      max(var(--key-footer-lines, 0) - 1, 0) * var(--space-6)
-  );
-}
 .key-footer-rows {
   display: grid;
   /* 見出しの列は、いちばん長い見出しに合わせる。長すぎる見出しは切らずに折り返す */
@@ -20,8 +10,6 @@
   grid-column: 1 / -1;
   grid-template-columns: subgrid;
   align-items: baseline;
-  /* 行の高さは、中の操作がふつうのヒントでも押せるヒントでも同じにする（空けておく高さの計算が合うように） */
-  min-height: var(--key-footer-row-height);
 }
 .key-footer-title {
   /* 見出しがどれも短いときは、列を本文の字の 8 字分にそろえる（見出しは本文より小さい字なので、em ではなく本文の字の大きさで書く） */
