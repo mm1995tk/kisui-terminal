@@ -6,12 +6,12 @@ import { T } from "../../i18n/index.ts";
 import type { SplitDir } from "../../infrastructure/rpc/protocol.ts";
 import type { Bookmarks } from "../browser/bookmarksStore.ts";
 import type { Downloads } from "../browser/downloads.ts";
-import type { BrowserOs, PasskeyLogin } from "../browser/os.ts";
+import type { BrowserOs } from "../browser/os.ts";
 import type { Pages } from "../browser/pages.ts";
 import { isNewTab } from "../browser/newTab.ts";
 import { showTab, type BrowserTab } from "../browser/tabs.ts";
 import type { BrowserTabs } from "../browser/tabsStore.ts";
-import { NEEDS_PAGE, type BrowserOp } from "../browser/window.ts";
+import { loginRefusal, NEEDS_PAGE, type BrowserOp } from "../browser/window.ts";
 import type { DbTabs } from "../db/controller.ts";
 import type { Failure, MascotStore } from "../mascot/mascotStore.ts";
 import type { ReportProblem } from "../problem.ts";
@@ -174,22 +174,10 @@ export function createCommandRunner(deps: {
    * 許可サイト（passkey_sites）か・シークレットのタブかは殻が決め、使えなければ理由を Notice に出す。
    */
   function loginExternally(tab: string, url: string) {
-    let host = url;
-    try {
-      host = new URL(url).hostname;
-    } catch {
-      // URL の形でなければそのまま出す
-    }
-    // 使えないときの理由（答えを足したら、ここに足し忘れると型で分かる）
-    const reasons: Record<Exclude<PasskeyLogin, "opened">, () => string> = {
-      incognito: () => T("cannot.browser.login.incognito"),
-      "no-sites": () => T("cannot.browser.login.noSites"),
-      "not-allowed": () => T("cannot.browser.login.notAllowed", { host }),
-    };
     startPasskeyLogin(tab).then(
       (r) => {
         if (r === "opened") deps.showToast(T("toast.browser.login"));
-        else cannot(T("cannot.browser.login.title"), reasons[r]());
+        else cannot(T("cannot.browser.login.title"), loginRefusal(r, url));
       },
       (e: unknown) =>
         setFocusError({

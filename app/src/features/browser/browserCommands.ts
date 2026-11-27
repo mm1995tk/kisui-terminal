@@ -1,0 +1,348 @@
+// `kisui browser`（#515）：Pane の中のコマンドが Window に頼む、Browser tab の操作（new・url・back・forward・reload・stop・close・rename・
+// external・copy-url・bookmark・find・devtools・login）。commands/windowRun.ts の受け持ちの表を作る。行うことは、キー操作の Command
+// （browser.*）と同じ（ページへの操作は、ブラウザのタブの Dialog と同じ whyNot の決まりで、今できないときは理由で断る）で、違いは、
+// 相手の Tab を引数（id か名前）で指すことと、Dialog を出さないことと、結果を返すこと（足したブックマークの Toast と、読めなかったときの Toast は、
+// キー操作と同じに出る）。画面にも Tauri にも触らない。
+// ページの中身を読む・ページを操作する頼みは作らない。
+//
+// 届く範囲：Browser tab は手元の PC の Tab として扱う（`kisui tab` と同じ。sessions/machines.ts の windowReachAllowed）。
+//   - 手元の PC の Pane からは、いつでも届く。
+//   - リモートの Machine の Pane からは、Window の前の人が時間を決めて許している間（paneGrant.ts。Machine の Dialog の `p`）だけ届く。
+//     許していなければ、一覧にも出さず、指されたら「無い」ときと同じ文で断る。ブックマークの一覧と `new` も、同じ許しが要る。
+//   - 許している間でも、手元の PC に「操作のたびに聞く」と決めた Pane があるうちは、URL を開く・人が続きを行う画面を開く・人の手元の
+//     情報を返す頼み（new に URL・url・external・devtools・login・copy-url・find・bookmark list）は、リモートの Machine には通さない
+//     （needNoAskEach に理由を書いた）。
+//   - 人のキーの行き先が変わるのは、手元の PC の Tab（Browser tab）へだけ。リモートの Machine の Pane は許している間しか届かず、
+//     その間は、その Machine はもう手元の PC の Pane にキーを送れる。`new`（足した Tab を表示する）は、念のため keysMayMove を通す。
+// 内蔵ブラウザを使わない設定のときは、どれも理由を出して断る。
+import { untrack, type Accessor } from "solid-js";
+
+import { T } from "../../i18n/index.ts";
+import {
+  argFlag,
+  argOptionalString,
+  argString,
+  WindowCommandError,
+  type WindowCaller,
+  type WindowCommand,
+  type WindowCommandTable,
+} from "../commands/windowRun.ts";
+import type { Sessions } from "../sessions/controller.ts";
+import { windowReachAllowed } from "../sessions/machines.ts";
+import { LOCAL } from "../sessions/shell.ts";
+import { isOpenableUrl, type OpenUrlExternally } from "../terminal/urlOpen.ts";
+import {
+  gwsOfTerm,
+  nameErrorText,
+  refKey,
+  type GwsState,
+} from "../workspaces/model.ts";
+import type { Row } from "../workspaces/rows.ts";
+import type { Tabs } from "../workspaces/tabs/controller.ts";
+import {
+  keysMayMove,
+  pickTab,
+  reachableTabs,
+  tabEntries,
+  type TabEntry,
+} from "../workspaces/tabs/tabCommands.ts";
+import type { Bookmarks } from "./bookmarksStore.ts";
+import type { BrowserOs } from "./os.ts";
+import type { Pages } from "./pages.ts";
+import type { BrowserTab } from "./tabs.ts";
+import type { BrowserTabs } from "./tabsStore.ts";
+import { loginRefusal, whyNot, type BrowserOp } from "./window.ts";
+
+/** `kisui browser bookmark list --json` の 1 つ（cmd/kisui/browser.go の bookmarkInfo と同じ形）。 */
+export interface BookmarkInfo {
+  url: string;
+  title: string;
+}
+
+/** ページ（子の webview）がなければできない操作。 */
+const NEEDS_VIEW: ReadonlySet<BrowserOp> = new Set<BrowserOp>([
+  "reload",
+  "find",
+  "devtools",
+  "login",
+]);
+
+/** 開いてよい URL の長さの上限（バイト。server/media.go の maxOpenURL と同じ）。 */
+const MAX_URL = 4096;
+
+/**
+ * 引数の URL を確かめて、整えた形を返す。http か https の、ホストのある URL だけ（ユーザー名とパスワードを含まない。制御文字を含まない。
+ * serve の `kisui open` が通す URL と同じ）。ほかは断る。
+ */
+export function checkUrl(raw: string): string {
+  const s = raw.trim();
+  if (
+    s === "" ||
+    new TextEncoder().encode(s).length > MAX_URL ||
+    // eslint-disable-next-line no-control-regex
+    /[\u0000-\u001f\u007f-\u009f]/.test(s) ||
+    !isOpenableUrl(s)
+  )
+    throw new WindowCommandError(T("browserCli.err.url", { url: s }));
+  const u = new URL(s);
+  if (u.username !== "" || u.password !== "")
+    throw new WindowCommandError(T("browserCli.err.url", { url: s }));
+  return u.href;
+}
+
+/** `kisui browser` の受け持ちの表を作る。 */
+export function createBrowserCommands(deps: {
+  sessions: Pick<Sessions, "machines" | "labelOf">;
+  gws: Accessor<GwsState>;
+  /** Sidebar の行（workspaces/controller.ts の rows） */
+  rows: Accessor<readonly Row[]>;
+  /** 内蔵ブラウザを使うか（使わなければ、どれも断る） */
+  browser: boolean;
+  browserTabs: Pick<BrowserTabs, "tabs">;
+  tabs: Pick<
+    Tabs,
+    "closeTabRow" | "setTabName" | "newBrowserTab" | "newBrowserTabAt"
+  >;
+  pages: Pick<Pages, "navPage" | "stopPage" | "goToChecked" | "hasPage">;
+  bookmarks: Pick<Bookmarks, "bookmarkPageChecked" | "readBookmarks">;
+  os: Pick<BrowserOs, "findInTab" | "openTabDevtools" | "startPasskeyLogin">;
+  /** URL を手元の外部ブラウザで開く */
+  openUrlExternally: OpenUrlExternally;
+  /** Machine from に、手元の PC の Pane の操作を、今、時間を決めて許しているか（paneGrant.ts） */
+  granted(from: string): boolean;
+  /** 手元の PC に、操作のたびに人に聞くと決めた Pane が 1 つでもあるか（paneApproval.ts） */
+  anyAskEach(): boolean;
+}): WindowCommandTable {
+  const { machines, labelOf } = deps.sessions;
+
+  /**
+   * 内蔵ブラウザを使っていなければ断る。リモートの Machine の Pane には、届く範囲の確かめ（needReach・届く Tab を探す）のあとに
+   * 掛ける：許していない Pane に、手元の PC の設定（内蔵ブラウザを使っているか）を教えない。
+   */
+  function needEnabled() {
+    if (!deps.browser)
+      throw new WindowCommandError(T("browserCli.err.disabled"));
+  }
+
+  /** Machine from の Pane が、手元の PC の Browser tab に届かなければ断る。 */
+  function needReach(c: WindowCaller) {
+    if (
+      !windowReachAllowed(
+        untrack(machines),
+        c.from,
+        LOCAL,
+        deps.granted(c.from),
+      )
+    )
+      throw new WindowCommandError(
+        T("browserCli.err.reach", { from: labelOf(c.from) }),
+      );
+  }
+
+  /**
+   * 手元の PC に「操作のたびに聞く」と決めた Pane があるうちは、次の頼みを、リモートの Machine の Pane には通さない（許している間でも）。
+   * 人が「リモートの Machine の操作は、1 つずつ確かめる」と決めたことを、`kisui browser` で聞かずに済ませないため（`kisui tab close` と同じ）。
+   *   - 通さない：安全な側に倒して、人の画面や人のデータに「出す・開く・返す」頼みを全部入れる。
+   *     URL を開く（`new` に URL を付けた・`url`・`external`）、人が続きを行う画面を開く（`devtools`・`login`）、
+   *     人の手元の情報を Pane に返す（`copy-url` の URL・`bookmark list` の一覧・`find` の見つかったか）。
+   *     `find` は、字を変えて繰り返せばページの中身を少しずつ確かめられるので、Pane の `read`（これも「毎回聞く」の対象）に近い。
+   *   - 通す：ページの状態を変えるだけで、何も出さず、開かない頼み。`back`・`forward`・`reload`・`stop`・`close`・`rename`・`bookmark add`・
+   *     URL の無い `new`。人が Window で見て、同じことを元に戻せる。
+   * 手元の PC の Pane は、いつも通す（人が自分の Pane に決めたことは、人が見ている）。
+   */
+  function needNoAskEach(c: WindowCaller) {
+    if (c.from !== LOCAL && deps.anyAskEach())
+      throw new WindowCommandError(T("browserCli.err.askEach"));
+  }
+
+  /**
+   * Machine from の Pane が、人のキーの行き先を、手元の PC の Browser tab へ変えてよいか確かめる（`new` は、足した Tab を表示する）。
+   * 決まりは tabCommands.ts の keysMayMove：行き先は手元の PC なので、手元の PC の Pane と、許している Machine の Pane だけ通る
+   * （needReach を通ったあとは、どちらかなので、いつも通る。決まりを 1 か所に保つために通す）。
+   */
+  function needKeysMayMove(c: WindowCaller) {
+    const entries = tabEntries(untrack(deps.gws), untrack(deps.rows));
+    if (!keysMayMove(entries, c.from, deps.granted(c.from), LOCAL))
+      throw new WindowCommandError(
+        T("browserCli.err.reach", { from: labelOf(c.from) }),
+      );
+  }
+
+  /** 引数 tab が指す、届く Browser tab 1 つ。無い・届かない・2 つ以上に当たる・Browser tab でないときは断る。 */
+  function resolve(
+    args: Record<string, unknown>,
+    c: WindowCaller,
+  ): { e: TabEntry; t: BrowserTab } {
+    // 手元の PC の Pane と、許している Machine の Pane には、先に断る。許していない Machine の Pane には、届く Tab を探して、
+    // Browser tab でないと断ってから断る（自分の Terminal tab を指されても、内蔵ブラウザを使っているかを教えない）
+    if (c.from === LOCAL || deps.granted(c.from)) needEnabled();
+    const tab = argString(args, "tab").trim();
+    const reach = reachableTabs(
+      untrack(machines),
+      untrack(deps.gws),
+      untrack(deps.rows),
+      c.from,
+      deps.granted(c.from),
+    );
+    const e = pickTab(reach, tab, c.from, labelOf);
+    if (e.ref.kind !== "browser")
+      throw new WindowCommandError(T("browserCli.err.notBrowser", { tab }));
+    needEnabled();
+    const t = untrack(deps.browserTabs.tabs).tabs.find((x) => x.id === e.id);
+    if (!t) throw new WindowCommandError(T("tabCli.err.noTab", { tab }));
+    return { e, t };
+  }
+
+  /**
+   * ページへの操作 op の受け持ち。act が行い、返した値が結果になる（無ければ { id }）。
+   * 今できない操作は、ブラウザのタブの Dialog が行に出す理由と同じ理由で断る。guarded が true の操作は、needNoAskEach の確かめも掛ける。
+   */
+  function pageCommand(
+    op: BrowserOp,
+    guarded: boolean,
+    act: (
+      t: BrowserTab,
+      args: Record<string, unknown>,
+    ) => unknown | Promise<unknown>,
+  ): WindowCommand {
+    return {
+      remote: true,
+      run: async (args, c) => {
+        const { e, t } = resolve(args, c);
+        if (guarded) needNoAskEach(c);
+        const why = whyNot(t, op);
+        if (why) throw new WindowCommandError(why);
+        // ページ（webview）はタブを初めて出すときに作られる。まだ出していないタブでは、これらは何もできない（殻が生の文で断る・黙って捨てる）
+        if (NEEDS_VIEW.has(op) && !deps.pages.hasPage(t))
+          throw new WindowCommandError(
+            T("browserCli.err.noView", { tab: e.name }),
+          );
+        return (await act(t, args)) ?? { id: e.id };
+      },
+    };
+  }
+
+  return {
+    "browser.new": {
+      remote: true,
+      run: async (args, c) => {
+        needReach(c);
+        needEnabled();
+        needKeysMayMove(c);
+        const raw = argOptionalString(args, "url");
+        const priv = argFlag(args, "private");
+        // 作るのは、頼んだ Pane の Terminal tab がある Workspace（キー操作の browser.new は今いる Workspace）
+        const g = gwsOfTerm(untrack(deps.gws), c.from, c.tab);
+        if (!g) throw new WindowCommandError(T("browserCli.err.noWorkspace"));
+        // 開いたところは、頼んだ Pane の Machine と Terminal tab（localhost 系の URL は、その Machine の中継で開く。`kisui open` と同じ）
+        const origin = { target: c.from, ws: c.tab };
+        if (raw === undefined)
+          return { id: deps.tabs.newBrowserTab(g, priv, origin) };
+        const url = checkUrl(raw);
+        needNoAskEach(c);
+        return { id: await deps.tabs.newBrowserTabAt(g, url, priv, origin) };
+      },
+    },
+
+    "browser.url": pageCommand("url", true, async (t, args) => {
+      const url = checkUrl(argString(args, "url"));
+      await deps.pages.goToChecked(t.id, url);
+      return undefined;
+    }),
+
+    "browser.back": pageCommand("back", false, (t) => {
+      deps.pages.navPage(t.id, "back");
+      return undefined;
+    }),
+    "browser.forward": pageCommand("forward", false, (t) => {
+      deps.pages.navPage(t.id, "forward");
+      return undefined;
+    }),
+    "browser.reload": pageCommand("reload", false, (t) => {
+      deps.pages.navPage(t.id, "reload");
+      return undefined;
+    }),
+    "browser.stop": pageCommand("stop", false, (t) => {
+      deps.pages.stopPage(t.id);
+      return undefined;
+    }),
+
+    "browser.close": {
+      remote: true,
+      run: (args, c) => {
+        const { e } = resolve(args, c);
+        deps.tabs.closeTabRow(e.gws.id, refKey(e.ref));
+        return { id: e.id };
+      },
+    },
+
+    "browser.rename": {
+      remote: true,
+      run: async (args, c) => {
+        const { e } = resolve(args, c);
+        const name = argString(args, "name");
+        const bad = nameErrorText(name);
+        if (bad) throw new WindowCommandError(bad);
+        await deps.tabs.setTabName(e.gws.id, refKey(e.ref), name);
+        return { id: e.id };
+      },
+    },
+
+    "browser.external": pageCommand("external", true, async (t) => {
+      if (!isOpenableUrl(t.url))
+        throw new WindowCommandError(T("browserCli.err.url", { url: t.url }));
+      await deps.openUrlExternally(t.target, t.url);
+      return undefined;
+    }),
+
+    // クリップボードには書かない（URL を結果として返す）
+    "browser.copyUrl": pageCommand("copyUrl", true, (t) => ({
+      id: t.id,
+      url: t.url,
+    })),
+
+    "browser.bookmark": pageCommand("bookmark", false, async (t) => {
+      await deps.bookmarks.bookmarkPageChecked(t);
+      return undefined;
+    }),
+
+    "browser.bookmarks": {
+      remote: true,
+      run: async (_args, c): Promise<{ bookmarks: BookmarkInfo[] }> => {
+        needReach(c);
+        needEnabled();
+        needNoAskEach(c);
+        const list = await deps.bookmarks
+          .readBookmarks()
+          .catch((e: unknown) => {
+            throw new WindowCommandError(
+              e instanceof Error ? e.message : String(e),
+            );
+          });
+        // Chrome のブックマークは、読むだけの別のもので、一覧に含めない
+        return { bookmarks: list.map((b) => ({ url: b.url, title: b.title })) };
+      },
+    },
+
+    "browser.find": pageCommand("find", true, async (t, args) => {
+      const text = argString(args, "text");
+      if (text === "")
+        throw new WindowCommandError(T("windowRun.err.arg", { name: "text" }));
+      return {
+        id: t.id,
+        found: await deps.os.findInTab(t.id, text, "first"),
+      };
+    }),
+
+    "browser.devtools": pageCommand("devtools", true, async (t) => {
+      await deps.os.openTabDevtools(t.id);
+      return undefined;
+    }),
+
+    "browser.login": pageCommand("login", true, async (t) => {
+      const r = await deps.os.startPasskeyLogin(t.id);
+      if (r !== "opened") throw new WindowCommandError(loginRefusal(r, t.url));
+      return undefined;
+    }),
+  };
+}

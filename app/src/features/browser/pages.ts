@@ -94,6 +94,22 @@ export function createPages(deps: {
     );
     return id === undefined ? undefined : tabs().tabs.find((t) => t.id === id);
   });
+  /**
+   * 画面に出したことのあるタブの id。ページ（子の webview）は、タブを初めて出すときに作られる（BrowserArea）ので、まだ出していない
+   * タブ（今いない Workspace のタブ・起動し直してからまだ出していないタブ）には、ページが無い。閉じたタブは忘れる。
+   */
+  const viewed = new Set<string>();
+  createEffect(() => {
+    const t = shownBrowserTab();
+    if (t && !isNewTab(t)) viewed.add(t.id);
+  });
+  createEffect(() => {
+    const alive = new Set(tabs().tabs.map((t) => t.id));
+    for (const id of [...viewed]) if (!alive.has(id)) viewed.delete(id);
+  });
+  /** タブ t に、ページ（子の webview）が今あるか（`kisui browser` が、ページに頼む前に確かめる。#515）。 */
+  const hasPage = (t: Pick<BrowserTab, "id" | "made">): boolean =>
+    t.made === true || viewed.has(t.id);
   /** 出しているタブのうち、ページを開いているもの（URL バーを出す）と、新しいタブのページ（#238。NewTabPage を出す）の id */
   const pageTabId = createMemo(() => {
     const t = shownBrowserTab();
@@ -157,6 +173,34 @@ export function createPages(deps: {
           error: e instanceof Error ? e.message : String(e),
         }),
     );
+  }
+  /**
+   * ワークスペース owner に、ページ url のブラウザのタブ（incognito ならシークレットのタブ）を足して出す（`kisui browser new <url>`。#515）。
+   * openInNewTab と同じに、リモートのマシンの localhost 系は先に中継を用意する。用意できなければ、タブを作らずに理由で断る。
+   * 作ったタブの id を返す。
+   */
+  async function openUrlTab(
+    target: string,
+    ws: WorkspaceId,
+    url: string,
+    incognito: boolean,
+    owner: string,
+  ): Promise<string> {
+    const tab: BrowserTab = {
+      id: newTabId(),
+      target,
+      workspace: ws,
+      url,
+      title: "",
+      ...(incognito ? { incognito: true } : {}),
+    };
+    await resolveFor(tab, url);
+    deps.forgetPageReturn();
+    batch(() => {
+      setTabs((s) => addTab(s, tab, owner));
+      setGws((g) => addBrowser(g, owner, tab.id));
+    });
+    return tab.id;
   }
   /**
    * 新しいタブのページのタブを開く（Workspace switcher の、作るタブの種類（リーダーの n）の「ブラウザ」「シークレット」と、「+」のメニューの「ブラウザ」。#238）。URL は聞かず、URL が空のタブ（newTab.ts）を
@@ -287,23 +331,30 @@ export function createPages(deps: {
     setTabs((s) => updateTab(s, tab, { loading: undefined }));
     void stopTab(tab).catch(() => {});
   }
-  /** タブ tab で url を開く（URL バー・「もう一度開く」）。 */
+  /**
+   * タブ tab で url を開く（URL バー・「もう一度開く」）。開けなければ（リモートのマシンの localhost 系で、中継を用意できない）、
+   * ページも URL も前のままにして、理由を画面に出す。
+   */
   function goTo(tab: string, url: string) {
+    goToChecked(tab, url).catch((e: unknown) =>
+      setFocusError({
+        title: T("err.page.open"),
+        error: e instanceof Error ? e.message : String(e),
+      }),
+    );
+  }
+  /**
+   * goTo と同じに開く。開けなければ、画面に出さず、理由で断る（`kisui browser url`。#515）。タブがもう無ければ何もしない。
+   * 開くのを頼むところまでで、読み込みは待たない。
+   */
+  async function goToChecked(tab: string, url: string): Promise<void> {
     // 中継を用意できてから（リモートのマシンの localhost 系）タブの URL を書き換える。用意できなければ、ページも URL も前のまま。
     // まだ作っていない・開けなかったタブは、BrowserArea が書き換えた URL で作る（goTab は失敗する）
     const t = untrack(tabs).tabs.find((x) => x.id === tab);
-    if (t)
-      resolveFor(t, url).then(
-        (opened) => {
-          setTabs((s) => updateTab(s, tab, { url }));
-          void goTab(tab, opened).catch(() => {});
-        },
-        (e: unknown) =>
-          setFocusError({
-            title: T("err.page.open"),
-            error: e instanceof Error ? e.message : String(e),
-          }),
-      );
+    if (!t) return;
+    const opened = await resolveFor(t, url);
+    setTabs((s) => updateTab(s, tab, { url }));
+    void goTab(tab, opened).catch(() => {});
   }
 
   /** 検索の欄を閉じ、キーをページに戻す。 */
@@ -452,14 +503,17 @@ export function createPages(deps: {
     pageTabId,
     /** 出しているタブのうち、新しいタブのページ（#238）の id */
     newTabPageId,
+    hasPage,
     resolveFor,
     openInNewTab,
+    openUrlTab,
     openNewTab,
     /** 検索の欄を出しているタブ。無ければ null */
     findTab,
     openFind,
     closeFind,
     submitUrlBar,
+    goToChecked,
     navPage,
     stopPage,
     changePageZoom,
