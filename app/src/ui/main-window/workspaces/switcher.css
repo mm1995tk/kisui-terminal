@@ -8,7 +8,11 @@
    上端も、真ん中に寄せず決まった位置に置く（真ん中に寄せると、Key footer が伸びた分の半分だけ Dialog が上へずれ、中身が動く）。
    どちらも、Key footer がおよそ 2 行のときに、これまでの「高さ 60% を真ん中に」とほぼ同じ所に来るようにしてある */
 .card-modal:has(.switcher) {
+  /* Key footer が 2 行のときの Dialog の高さ */
   --switcher-height: clamp(420px, 60vh, 900px);
+  /* 中身の段の外の高さ（Key footer が 2 行のとき）：見出し（およそ 50px）と Key footer（およそ 71px）。
+     card.css の見出しや Key footer の余白・字の大きさを変えたら、ここも測り直す（ずれても一覧は動かず、Dialog の大きさが少し変わるだけ） */
+  --switcher-chrome-height: calc(50px + 71px);
   --switcher-top: max(
     var(--space-16),
     calc((100vh - var(--switcher-height)) / 2)
@@ -18,11 +22,11 @@
   max-height: calc(100vh - var(--switcher-top) - var(--space-16));
   margin: var(--switcher-top) auto auto;
 }
-/* 中身の段の高さ。Dialog の高さから、見出し（およそ 50px）と 2 行の Key footer（およそ 71px）を引いたもの。
+/* 中身の段の高さ。Dialog の高さから、中身の段の外の高さ（見出しと 2 行の Key footer）を引いたもの。
    画面が小さくて Dialog が max-height に当たるときだけ、ここが縮む。一覧のスクロールは、列の中でする */
 .card-modal:has(.switcher) .card-content {
   flex: 0 1 auto;
-  height: calc(var(--switcher-height) - 121px);
+  height: calc(var(--switcher-height) - var(--switcher-chrome-height));
   overflow: hidden;
 }
 /* 高さを決めた Dialog（上）に収め、左右の列の中でスクロールする。.card-content の子は縮まない決まり（card.css）なので、ここで縮めてよいと書く */
