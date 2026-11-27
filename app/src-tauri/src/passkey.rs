@@ -747,12 +747,21 @@ fn replace_cookies(v: &tauri::Webview, cookies: &[Cookie<'static>]) -> Result<()
 
 /// 消すのが Err を返したとき、消した Cookie が読み戻しから無くなるのを待つ上限。
 const DELETE_WAIT: Duration = Duration::from_secs(3);
+/// 消えたかを読み直す間。
+const DELETE_POLL: Duration = Duration::from_millis(100);
 
 /// `deleted`（`delete_cookie` に渡した Cookie）が WebView から無くなるまで、読み戻して待つ（上限 `DELETE_WAIT`）。
 /// 上限を過ぎたら、ログに出して戻る（入れるほうへ進む。入った後の属性は読み戻しで確かめる）。
+///
+/// 写す Cookie の中に、同じ名前・path で `.google.com` のものと host だけの `google.com` のものの両方があると、
+/// `deleted` には、もう一方の書き方の Cookie を写す Cookie の domain で作り直したものも入る。それは WebView では
+/// 消えないが、読み戻しでは domain の書き方を見分けられないので、上限まで待つ。消えたものだけを見分けて早く抜ける
+/// 手は無く、待ちを短くすると、消す処理が入れた後に走る（この関数で防ぎたいこと）ので、上限までの待ちを取る。
 fn wait_until_deleted(v: &tauri::Webview, deleted: &[Cookie<'static>]) {
     let deadline = Instant::now() + DELETE_WAIT;
     loop {
+        // network process が遅くて時間切れになったときに来るので、読み直しを詰めて送らず、間を空ける
+        std::thread::sleep(DELETE_POLL);
         // `cookies` は WebView の答えを待つあいだ、イベントループを回す
         if let Ok(now) = v.cookies() {
             if !crate::cookie_check::still_stored(deleted, &now) {
