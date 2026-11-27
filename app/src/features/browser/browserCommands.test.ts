@@ -367,7 +367,7 @@ describe("kisui browser の届く範囲", () => {
     ]);
   });
 
-  it("許していても、操作のたびに聞く Pane があるうちは、URL を開く・外のブラウザ・DevTools・ログインを、リモートの Machine には通さない", async () => {
+  it("許していても、操作のたびに聞く Pane があるうちは、URL を開く・人の画面を開く・情報を返す頼みを、リモートの Machine には通さない", async () => {
     const { run, calls } = setup({ granted: true, askEach: true });
     for (const [name, args] of [
       ["browser.new", { url: "https://c.example" }],
@@ -375,17 +375,22 @@ describe("kisui browser の届く範囲", () => {
       ["browser.external", { tab: "tpage" }],
       ["browser.devtools", { tab: "tpage" }],
       ["browser.login", { tab: "tpage" }],
+      ["browser.copyUrl", { tab: "tpage" }],
+      ["browser.find", { tab: "tpage", text: "a" }],
+      ["browser.bookmarks", {}],
     ] as const) {
       const e = await refusal(() => run(name, args, "dev-vm", "wdev"));
       assert.match(e.message, /ask the person every time/, name);
     }
     assert.deepEqual(calls, []);
-    // 人が聞くと決めていても、手元の PC の Pane は通す。URL を開かない操作も通す
+    // 人が聞くと決めていても、手元の PC の Pane は通す。何も出さない・開かない操作も通す
     await run("browser.devtools", { tab: "tpage" });
     await run("browser.reload", { tab: "tpage" }, "dev-vm", "wdev");
+    await run("browser.bookmark", { tab: "tpage" }, "dev-vm", "wdev");
     assert.deepEqual(calls, [
       ["devtools", "tpage"],
       ["nav", "tpage", "reload"],
+      ["bookmark", "tpage"],
     ]);
   });
 });

@@ -809,7 +809,7 @@ export const en = {
   "browserCli.err.reach":
     "A pane of {from} may use the browser tabs of the computer the window runs on only while the person at the window allows {from}: in the machine dialog, choose {from} and press p. Ask the user.",
   "browserCli.err.askEach":
-    "A pane of this computer is set to ask the person every time, so a remote machine may not open a URL, or open the external browser, DevTools or a login, in the browser of this computer. Ask the user to do it in the window.",
+    "A pane of this computer is set to ask the person every time, so a remote machine may not open a URL, the external browser, DevTools or a login in the browser of this computer, or read from it (the URL of a page, a find, the bookmarks). Ask the user to do it in the window.",
   "browserCli.err.notBrowser":
     'The tab "{tab}" is not a browser tab (kisui tab list prints the kind of each tab)',
   "browserCli.err.noView":

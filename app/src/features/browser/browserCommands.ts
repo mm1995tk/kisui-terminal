@@ -1,16 +1,17 @@
 // `kisui browser`（#515）：Pane の中のコマンドが Window に頼む、Browser tab の操作（new・url・back・forward・reload・stop・close・rename・
 // external・copy-url・bookmark・find・devtools・login）。commands/windowRun.ts の受け持ちの表を作る。行うことは、キー操作の Command
 // （browser.*）と同じ（ページへの操作は、ブラウザのタブの Dialog と同じ whyNot の決まりで、今できないときは理由で断る）で、違いは、
-// 相手の Tab を引数（id か名前）で指すことと、Dialog も Toast も出さないことと、結果を返すこと。画面にも Tauri にも触らない。
+// 相手の Tab を引数（id か名前）で指すことと、Dialog を出さないことと、結果を返すこと（足したブックマークの Toast と、読めなかったときの Toast は、
+// キー操作と同じに出る）。画面にも Tauri にも触らない。
 // ページの中身を読む・ページを操作する頼みは作らない。
 //
 // 届く範囲：Browser tab は手元の PC の Tab として扱う（`kisui tab` と同じ。sessions/machines.ts の windowReachAllowed）。
 //   - 手元の PC の Pane からは、いつでも届く。
 //   - リモートの Machine の Pane からは、Window の前の人が時間を決めて許している間（paneGrant.ts。Machine の Dialog の `p`）だけ届く。
 //     許していなければ、一覧にも出さず、指されたら「無い」ときと同じ文で断る。ブックマークの一覧と `new` も、同じ許しが要る。
-//   - URL を開く頼み（new に URL を付けた・url・external）と、人が続きを行う画面を開く頼み（devtools・login）は、許している間でも、
-//     手元の PC に「操作のたびに聞く」と決めた Pane があるうちは、リモートの Machine には通さない（人が聞くと決めたことを、
-//     リモートの Machine が聞かずに済ませない。`kisui tab close` と同じ）。
+//   - 許している間でも、手元の PC に「操作のたびに聞く」と決めた Pane があるうちは、URL を開く・人が続きを行う画面を開く・人の手元の
+//     情報を返す頼み（new に URL・url・external・devtools・login・copy-url・find・bookmark list）は、リモートの Machine には通さない
+//     （needNoAskEach に理由を書いた）。
 //   - 人のキーの行き先が変わるのは、手元の PC の Tab（Browser tab）へだけ。リモートの Machine の Pane は許している間しか届かず、
 //     その間は、その Machine はもう手元の PC の Pane にキーを送れる。`new`（足した Tab を表示する）は、念のため keysMayMove を通す。
 // 内蔵ブラウザを使わない設定のときは、どれも理由を出して断る。
@@ -138,8 +139,15 @@ export function createBrowserCommands(deps: {
   }
 
   /**
-   * URL を開く頼みと、人が続きを行う画面を開く頼みを、リモートの Machine の Pane から通してよいか確かめる。
-   * 手元の PC に「操作のたびに聞く」と決めた Pane があるうちは、リモートの Machine には通さない。
+   * 手元の PC に「操作のたびに聞く」と決めた Pane があるうちは、次の頼みを、リモートの Machine の Pane には通さない（許している間でも）。
+   * 人が「リモートの Machine の操作は、1 つずつ確かめる」と決めたことを、`kisui browser` で聞かずに済ませないため（`kisui tab close` と同じ）。
+   *   - 通さない：安全な側に倒して、人の画面や人のデータに「出す・開く・返す」頼みを全部入れる。
+   *     URL を開く（`new` に URL を付けた・`url`・`external`）、人が続きを行う画面を開く（`devtools`・`login`）、
+   *     人の手元の情報を Pane に返す（`copy-url` の URL・`bookmark list` の一覧・`find` の見つかったか）。
+   *     `find` は、字を変えて繰り返せばページの中身を少しずつ確かめられるので、Pane の `read`（これも「毎回聞く」の対象）に近い。
+   *   - 通す：ページの状態を変えるだけで、何も出さず、開かない頼み。`back`・`forward`・`reload`・`stop`・`close`・`rename`・`bookmark add`・
+   *     URL の無い `new`。人が Window で見て、同じことを元に戻せる。
+   * 手元の PC の Pane は、いつも通す（人が自分の Pane に決めたことは、人が見ている）。
    */
   function needNoAskEach(c: WindowCaller) {
     if (c.from !== LOCAL && deps.anyAskEach())
@@ -202,11 +210,11 @@ export function createBrowserCommands(deps: {
 
   /**
    * ページへの操作 op の受け持ち。act が行い、返した値が結果になる（無ければ { id }）。
-   * 今できない操作は、ブラウザのタブの Dialog が行に出す理由と同じ理由で断る。opens が true の操作は、needNoAskEach の確かめも掛ける。
+   * 今できない操作は、ブラウザのタブの Dialog が行に出す理由と同じ理由で断る。guarded が true の操作は、needNoAskEach の確かめも掛ける。
    */
   function pageCommand(
     op: BrowserOp,
-    opens: boolean,
+    guarded: boolean,
     act: (
       t: BrowserTab,
       args: Record<string, unknown>,
@@ -216,7 +224,7 @@ export function createBrowserCommands(deps: {
       remote: true,
       run: async (args, c) => {
         const { e, t } = resolve(args, c);
-        if (opens) needNoAskEach(c);
+        if (guarded) needNoAskEach(c);
         const why = whyNot(t, op);
         if (why) throw new WindowCommandError(why);
         // ページ（webview）はタブを初めて出すときに作られる。まだ出していないタブでは、これらは何もできない（殻が生の文で断る・黙って捨てる）
@@ -319,7 +327,7 @@ export function createBrowserCommands(deps: {
     }),
 
     // クリップボードには書かない（URL を結果として返す）
-    "browser.copyUrl": pageCommand("copyUrl", false, (t) => ({
+    "browser.copyUrl": pageCommand("copyUrl", true, (t) => ({
       id: t.id,
       url: t.url,
     })),
@@ -334,6 +342,7 @@ export function createBrowserCommands(deps: {
       run: async (_args, c): Promise<{ bookmarks: BookmarkInfo[] }> => {
         needReach(c);
         needEnabled();
+        needNoAskEach(c);
         const list = await deps.bookmarks
           .readBookmarks()
           .catch((e: unknown) => {
@@ -346,7 +355,7 @@ export function createBrowserCommands(deps: {
       },
     },
 
-    "browser.find": pageCommand("find", false, async (t, args) => {
+    "browser.find": pageCommand("find", true, async (t, args) => {
       const text = argString(args, "text");
       if (text === "")
         throw new WindowCommandError(T("windowRun.err.arg", { name: "text" }));

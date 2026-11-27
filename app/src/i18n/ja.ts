@@ -810,7 +810,7 @@ export const ja: Record<Key, string> = {
   "browserCli.err.reach":
     "{from} の Pane が、Window が動いている PC の Browser tab を使えるのは、Window の前の人が {from} を許している間だけです（Machine の Dialog で {from} を選び、p を押す）。人に頼んでください。",
   "browserCli.err.askEach":
-    "この PC に、操作のたびに人に聞くと決めた Pane があるので、リモートの Machine は、この PC のブラウザで URL を開く・外のブラウザ・DevTools・ログインを開くことができません。Window で人に頼んでください。",
+    "この PC に、操作のたびに人に聞くと決めた Pane があるので、リモートの Machine は、この PC のブラウザで URL を開く・外のブラウザ・DevTools・ログインを開くことも、ページの URL・ページ内検索・ブックマークを受け取ることもできません。Window で人に頼んでください。",
   "browserCli.err.notBrowser":
     "Tab「{tab}」は Browser tab ではありません（kisui tab list に Tab の種類が出ます）",
   "browserCli.err.noView":
