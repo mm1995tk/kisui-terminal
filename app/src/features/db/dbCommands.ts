@@ -133,7 +133,7 @@ export function createDbCommands(deps: {
   /**
    * 手元の PC に「操作のたびに聞く」と決めた Pane があるうちは、結果や DB の情報を Pane に返す頼み（export・history）を、リモートの Machine の
    * Pane には通さない（許している間でも）。人が「リモートの Machine の操作は、1 つずつ確かめる」と決めたことを、`kisui db` で聞かずに済ませない
-   * ため（`kisui browser` の copy-url・find、`kisui tab close` と同じ）。結果と履歴は、人が人の権限で実行した SQL のもので、Pane の `read`
+   * ため（`kisui tab close` と同じ）。結果と履歴は、人が人の権限で実行した SQL のもので、Pane の `read`
    * （これも「毎回聞く」の対象）と同じく、人の手元のデータそのもの。
    * 通す：何も返さず、人が Window で見て元に戻せる頼み（refresh・page・view・result・open）と、権限を弱める向きの elevate-end。
    * 手元の PC の Pane は、いつも通す（人が自分の Pane に決めたことは、人が見ている）。
