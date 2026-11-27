@@ -113,7 +113,10 @@ export function createBrowserCommands(deps: {
 }): WindowCommandTable {
   const { machines, labelOf } = deps.sessions;
 
-  /** 内蔵ブラウザを使っていなければ断る。 */
+  /**
+   * 内蔵ブラウザを使っていなければ断る。リモートの Machine の Pane には、届く範囲の確かめ（needReach・届く Tab を探す）のあとに
+   * 掛ける：許していない Pane に、手元の PC の設定（内蔵ブラウザを使っているか）を教えない。
+   */
   function needEnabled() {
     if (!deps.browser)
       throw new WindowCommandError(T("browserCli.err.disabled"));
@@ -170,7 +173,8 @@ export function createBrowserCommands(deps: {
     args: Record<string, unknown>,
     c: WindowCaller,
   ): { e: TabEntry; t: BrowserTab } {
-    needEnabled();
+    // 手元の PC の Pane には、先に断る。リモートの Machine の Pane には、届く Tab を探してから断る
+    if (c.from === LOCAL) needEnabled();
     const tab = argString(args, "tab").trim();
     const found = findTabs(reachable(c.from), tab);
     if (found.length > 1)
@@ -187,6 +191,7 @@ export function createBrowserCommands(deps: {
           ? T("tabCli.err.noTab", { tab })
           : T("tabCli.err.noTabReach", { tab, from: labelOf(c.from) }),
       );
+    needEnabled();
     const e = found[0];
     if (e.ref.kind !== "browser")
       throw new WindowCommandError(T("browserCli.err.notBrowser", { tab }));
@@ -244,8 +249,8 @@ export function createBrowserCommands(deps: {
     "browser.new": {
       remote: true,
       run: async (args, c) => {
-        needEnabled();
         needReach(c);
+        needEnabled();
         needKeysMayMove(c);
         const raw = argOptionalString(args, "url");
         const priv = argFlag(args, "private");
@@ -327,8 +332,8 @@ export function createBrowserCommands(deps: {
     "browser.bookmarks": {
       remote: true,
       run: async (_args, c): Promise<{ bookmarks: BookmarkInfo[] }> => {
-        needEnabled();
         needReach(c);
+        needEnabled();
         const list = await deps.bookmarks
           .readBookmarks()
           .catch((e: unknown) => {

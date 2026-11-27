@@ -180,6 +180,23 @@ describe("kisui browser の受け持ち", () => {
     }
   });
 
+  it("内蔵ブラウザが無効でも、許していないリモートの Machine の Pane には、無効とは言わず、届かないときの文で断る", async () => {
+    const { run } = setup({ browser: false });
+    for (const [name, args] of [
+      ["browser.new", {}],
+      ["browser.bookmarks", {}],
+      ["browser.reload", { tab: "tpage" }],
+    ] as const) {
+      const e = await refusal(() => run(name, args, "dev-vm", "wdev"));
+      assert.doesNotMatch(e.message, /built-in browser is off/, name);
+    }
+    const g = setup({ browser: false, granted: true });
+    const e = await refusal(() =>
+      g.run("browser.reload", { tab: "tpage" }, "dev-vm", "wdev"),
+    );
+    assert.match(e.message, /built-in browser is off/);
+  });
+
   it("手元の PC の Pane からは、Tab を id でも名前でも指して、キーと同じ操作を行う", async () => {
     const { run, calls } = setup();
     await run("browser.reload", { tab: "tpage" });
