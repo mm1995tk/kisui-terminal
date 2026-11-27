@@ -353,7 +353,7 @@ export function borderToward(
   const sign = dir === "right" || dir === "down" ? 1 : -1;
   // 根から欄までの、その軸の節（根に近い順）と、欄がある側
   const path: { n: Extract<PaneLayout, { dir: TreeDir }>; inA: boolean }[] = [];
-  for (let n = tree; !("pane" in n); ) {
+  for (let n = tree; !("pane" in n);) {
     const inA = hasPane(n.a, pane);
     if (!inA && !hasPane(n.b, pane)) return undefined;
     if (n.dir === axis) path.push({ n, inA });
