@@ -6,6 +6,7 @@
 
 import { T, type Key } from "../../i18n/index.ts";
 import { isNewTab } from "./newTab.ts";
+import type { PasskeyLogin } from "./os.ts";
 import type { BrowserTab } from "./tabs.ts";
 
 /** ブラウザのタブのページへの操作（コマンドの browser.<op> と同じ名前）。 */
@@ -146,4 +147,26 @@ export function browserWindowMarks(t: BrowserTab): BrowserWindowMark[] {
 export function browserWindowTitle(t: BrowserTab): string {
   if (isNewTab(t)) return T("browserWindow.newTabTitle");
   return t.title || t.url;
+}
+
+/**
+ * 外のブラウザでのログイン（`s`・browser.login・`kisui browser login`）が使えなかった理由の文。r は殻の答え（opened 以外）、url はタブの URL。
+ * 答えの種類を足したら、ここに足し忘れると型で分かる。
+ */
+export function loginRefusal(
+  r: Exclude<PasskeyLogin, "opened">,
+  url: string,
+): string {
+  let host = url;
+  try {
+    host = new URL(url).hostname;
+  } catch {
+    // URL の形でなければそのまま出す
+  }
+  const reasons: Record<Exclude<PasskeyLogin, "opened">, () => string> = {
+    incognito: () => T("cannot.browser.login.incognito"),
+    "no-sites": () => T("cannot.browser.login.noSites"),
+    "not-allowed": () => T("cannot.browser.login.notAllowed", { host }),
+  };
+  return reasons[r]();
 }

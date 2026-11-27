@@ -3,7 +3,7 @@
 // relays the GUI's connections to the localhost ports of a remote machine.
 // "kisui proxy" runs the recording proxy by itself. The
 // other commands run in a pane: "kisui open" asks the "kisui serve" of the pane for
-// something (internal/panecmd), "kisui tab" and "kisui workspace" ask the window through it
+// something (internal/panecmd), "kisui tab", "kisui workspace", "kisui machine" and "kisui browser" ask the window through it
 // (window.go), and "kisui notify" and "kisui clipboard" talk to the terminal
 // of the pane (internal/kittyterm).
 package main
@@ -72,6 +72,34 @@ var commands = []command{
 		{name: "close", args: "[--force] <workspace>", help: "help.workspace.close", run: runWorkspaceClose},
 		{name: "move", args: "<workspace> --up|--down", help: "help.workspace.move", run: runWorkspaceMove},
 		{name: "show", args: "<workspace>", help: "help.workspace.show", run: runWorkspaceShow},
+	}},
+	{name: "browser", sub: []command{
+		{name: "new", args: "[--private] [<url>]", help: "help.browser.new", run: runBrowserNew},
+		{name: "url", args: "<tab> <url>", help: "help.browser.url", run: runBrowserURL},
+		{name: "back", args: "<tab>", help: "help.browser.back", run: runBrowserSimple("back")},
+		{name: "forward", args: "<tab>", help: "help.browser.forward", run: runBrowserSimple("forward")},
+		{name: "reload", args: "<tab>", help: "help.browser.reload", run: runBrowserSimple("reload")},
+		{name: "stop", args: "<tab>", help: "help.browser.stop", run: runBrowserSimple("stop")},
+		{name: "close", args: "<tab>", help: "help.browser.close", run: runBrowserSimple("close")},
+		{name: "rename", args: "<tab> <name>", help: "help.browser.rename", run: runBrowserRename},
+		{name: "external", args: "<tab>", help: "help.browser.external", run: runBrowserSimple("external")},
+		{name: "copy-url", args: "<tab>", help: "help.browser.copy-url", run: runBrowserCopyURL},
+		{name: "bookmark", sub: []command{
+			{name: "add", args: "<tab>", help: "help.browser.bookmark-add", run: runBrowserBookmarkAdd},
+			{name: "list", args: "[--json]", help: "help.browser.bookmark-list", run: runBrowserBookmarkList},
+		}},
+		{name: "find", args: "<tab> <text>", help: "help.browser.find", run: runBrowserFind},
+		{name: "devtools", args: "<tab>", help: "help.browser.devtools", run: runBrowserSimple("devtools")},
+		{name: "login", args: "<tab>", help: "help.browser.login", run: runBrowserSimple("login")},
+	}},
+	{name: "machine", sub: []command{
+		{name: "list", args: "[--json]", help: "help.machine.list", run: runMachineList},
+		{name: "add", args: "[--name <name>] <ssh>", help: "help.machine.add", run: runMachineAdd},
+		{name: "rename", args: "<machine> <name>", help: "help.machine.rename", run: runMachineRename},
+		{name: "remove", args: "<machine>", help: "help.machine.remove", run: runMachineRemove},
+		{name: "disconnect", args: "<machine>", help: "help.machine.disconnect", run: runMachineDisconnect},
+		{name: "reconnect", args: "<machine>", help: "help.machine.reconnect", run: runMachineReconnect},
+		{name: "terminal", args: "<machine> [--start-dir <path>] [--shell <path>] [--unset-start-dir] [--unset-shell]", help: "help.machine.terminal", run: runMachineTerminal},
 	}},
 	{name: "db", sub: []command{
 		{name: "connections", args: "[--json]", help: "help.db.connections", run: runDBConnections},

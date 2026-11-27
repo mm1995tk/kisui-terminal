@@ -1,6 +1,6 @@
 ---
 name: kisui-terminal
-description: Use the kisui commands from inside a pane of kisui-terminal - show a file or a web page in another pane (kisui open), split the pane (kisui pane split), name the pane (kisui pane title), list the panes of the machine (kisui pane list), open a terminal tab in a workspace and run an agent there (kisui pane open), send text or keys to a pane and close it (kisui pane send, kisui pane keys, kisui pane close), move the focus to a pane, swap, zoom and resize panes (kisui pane focus, swap, zoom, resize), read the screen of a pane (kisui pane read), do all of these on the panes of another machine of the window (--machine), list, rename, close, move and show the tabs of the window (kisui tab list, rename, close, move, show), list, make, rename, close, move and show the workspaces of the window (kisui workspace list, new, rename, close, move, show), read and query the databases the user set up, as far as they allow (kisui db connections, schema, query, propose), send a desktop notification when long work ends (kisui notify), and use the clipboard of the user's computer (kisui clipboard copy). Use it when you run in a kisui-terminal pane and the user wants to see a result, be told when something finishes, or get text onto their clipboard, or when the work needs a MySQL or PostgreSQL database.
+description: Use the kisui commands from inside a pane of kisui-terminal - show a file or a web page in another pane (kisui open), split the pane (kisui pane split), name the pane (kisui pane title), list the panes of the machine (kisui pane list), open a terminal tab in a workspace and run an agent there (kisui pane open), send text or keys to a pane and close it (kisui pane send, kisui pane keys, kisui pane close), move the focus to a pane, swap, zoom and resize panes (kisui pane focus, swap, zoom, resize), read the screen of a pane (kisui pane read), do all of these on the panes of another machine of the window (--machine), list, rename, close, move and show the tabs of the window (kisui tab list, rename, close, move, show), list, make, rename, close, move and show the workspaces of the window (kisui workspace list, new, rename, close, move, show), list and change the machines the window connects to (kisui machine list, add, rename, remove, disconnect, reconnect, terminal), read and query the databases the user set up, as far as they allow (kisui db connections, schema, query, propose), send a desktop notification when long work ends (kisui notify), and use the clipboard of the user's computer (kisui clipboard copy). Use it when you run in a kisui-terminal pane and the user wants to see a result, be told when something finishes, or get text onto their clipboard, or when the work needs a MySQL or PostgreSQL database.
 ---
 
 # kisui-terminal
@@ -298,6 +298,156 @@ kisui workspace show review
 ### Which workspaces you can reach
 
 A workspace can hold tabs of several machines, so what you reach follows the tabs, by the rules of `kisui tab` (above, "Which tabs you can reach"). You reach a workspace that has a tab you reach, and one with no tab; the number of tabs in `kisui workspace list` counts only the tabs you reach. `kisui workspace close` closes all its tabs, so it works only when you reach all of them; otherwise it is refused, and you should ask the user to close the workspace. While a pane of the user's computer is set to ask the user every time, it is refused from a remote machine for a workspace with a terminal tab of the user's computer. From a remote machine the user does not allow with `p`, closing the workspace the window is in (which moves the keys of the window to the next workspace) works only while the keys are on a terminal tab of your machine; otherwise it is refused, and you should ask the user to close it. From a remote machine the user does not allow with `p`, `kisui workspace show` (which turns the keys of the window) works only while the keys are on a terminal tab of your machine and the workspace shows a terminal tab of your machine; otherwise it is refused, and you should ask the user to show the workspace. A workspace you cannot reach is not in `kisui workspace list`, and pointing at one fails as a name that no workspace has does. Do not work around that: tell the user, who decides whether to allow it.
+
+### kisui browser: the browser tabs of the window
+
+`kisui browser` works on the browser tabs of the window (the built-in browser of kisui-terminal). `<tab>` is the id of a tab (the first column of `kisui tab list`) or its name, as in `kisui tab`; a tab that is not a browser tab is refused. Prefer the id. The window does these commands, so they fail, with the reason, when the window is closed, and when the built-in browser is off (the user turns it on with `enabled = true` under `[gui.browser]`; do not try to work around it). They do what the keys of the dialog of a browser tab do, and they do not read or drive the content of a page. The browser is the user's own, with their logins: use these commands on pages you opened, or when the user asks.
+
+### kisui browser new [--private] [<url>]
+
+Add a browser tab to the workspace of your pane, and print its id. With an `http` or `https` URL the tab opens that page; without one it shows the new tab page. `--private` makes a private tab (its own logins, kept only in memory). The window shows the tab when it is in the workspace the window is in; it does not wait for the page to load. A `localhost` URL from a remote machine opens through the relay of your machine, as `kisui open` does.
+
+```sh
+id=$(kisui browser new https://example.com/docs)
+```
+
+### kisui browser url <tab> <url>
+
+Open the `http` or `https` URL in the tab. It does not wait for the page to load.
+
+```sh
+kisui browser url "$id" https://example.com/changelog
+```
+
+### kisui browser back <tab>
+
+Go back, as `h` of the dialog does. It is refused, with the reason, when there is nothing to go back to. `kisui browser forward <tab>` goes forward the same way, `kisui browser reload <tab>` loads the page again, and `kisui browser stop <tab>` stops loading (refused when the page is not loading). `back`, `forward` and `reload` are refused for a tab that shows the new tab page. `reload`, `find`, `devtools` and `login` need the page of the tab, which the window makes the first time it shows the tab (after kisui-terminal starts, and for a tab in another workspace, not before): for a tab it has not shown they are refused, and you should ask the user to show it (`kisui tab show`), or wait until the page is there.
+
+### kisui browser forward <tab>
+
+Go forward. See `kisui browser back <tab>`.
+
+### kisui browser reload <tab>
+
+Load the page again. See `kisui browser back <tab>`.
+
+### kisui browser stop <tab>
+
+Stop loading the page. See `kisui browser back <tab>`.
+
+### kisui browser close <tab>
+
+Close the browser tab, as `kisui tab close` does.
+
+### kisui browser rename <tab> <name>
+
+Give the tab the name, as `kisui tab rename` does (an empty name gives back the title of the page). Write `--` before a name that starts with `-`.
+
+### kisui browser external <tab>
+
+Open the URL of the page in the default browser of the user's computer. It opens a window outside kisui-terminal, so use it only when the user asks.
+
+### kisui browser copy-url <tab>
+
+Print the URL of the page. It does not write the clipboard.
+
+```sh
+kisui browser copy-url "$id"
+```
+
+### kisui browser bookmark add <tab>
+
+Add the page of the tab to the bookmarks of the built-in browser.
+
+### kisui browser bookmark list [--json]
+
+List the bookmarks of the built-in browser, newest first (the bookmarks of the user's Chrome are not listed). `--json` prints `{"bookmarks": [{"url", "title"}, ...]}`. The bookmarks are the user's own; do not copy them anywhere the user did not ask.
+
+### kisui browser find <tab> <text>
+
+Look for the text in the page. The first match becomes the selection of the page (the user sees it when the tab is shown). It prints `found` or `not found`, and exits with 0 for both; it does not count the matches or return the text of the page. Write `--` before a text that starts with `-`.
+
+```sh
+kisui browser find "$id" 'breaking changes'   # the tab must have been shown by the window
+```
+
+### kisui browser devtools <tab>
+
+Open DevTools of the page, for the user to continue; the user works in it, and you cannot read it. Use it only when the user asks.
+
+### kisui browser login <tab>
+
+Open the page in the external browser of the user, and wait for the user to log in there, as `s` of the dialog of a browser tab does (the user logs in; the login comes back to the built-in browser by itself). It works only for a site in `passkey_sites`, and not in a private tab; otherwise it is refused with the reason. Use it only when the user asks.
+
+### Which browser tabs you can reach
+
+Browser tabs belong to the user's own computer, so the rules of `kisui tab` apply as for the tabs of that computer (above, "Which tabs you can reach"). From a pane on the user's computer you reach every browser tab. From a pane on a remote machine you reach them, and `kisui browser new` and `kisui browser bookmark list` work, only while the user allows it at the window, for a time (`p` in the machine dialog); otherwise a browser tab is not in `kisui tab list`, and pointing at one fails as a name that no tab has does. Even while the user allows it, a command that opens a URL (`new` with a URL, `url`, `external`) or a screen for the user (`devtools`, `login`), or gives something of the user back to you (`copy-url`, `find`, `bookmark list`), is refused from a remote machine while a pane of the user's computer is set to ask the user every time: ask the user to do it in the window. Do not work around any of this: tell the user, who decides.
+### kisui machine: the machines of the window
+
+`kisui machine` does what the machine dialog of the window does (leader `m`): the machines the window connects to over ssh, and the computer the window runs on (`local`). `<machine>` is the name of a machine (the one `--machine` takes, the first column of `kisui machine list`) or its ssh destination. The window writes the changes to `config.local.toml`, as the dialog does; a machine set only in `config.toml` cannot be changed, and the command says why.
+
+**Only from a pane of the user's computer.** These commands change where the window connects and its settings, so the window takes them only from a pane of the computer it runs on. From a pane of a remote machine they are refused, whatever that machine is allowed (`allow_pane_to`, or `p` in the machine dialog). Do not try to get around it, for example by sending the command to a pane of the user's computer. There is no command to allow a machine (`p` of the dialog): only the user does that, in the window.
+
+These commands change the user's settings and connections: use them when the user asks for it. The window asks for no confirmation.
+
+### kisui machine list [--json]
+
+List the machines in the order of the machine dialog. Each line has the name, the ssh destination (`-` for `local`), whether it is connected, the number of its terminal tabs, `config.toml` for a machine set only in `config.toml`, and the status line of the dialog. `--json` prints `{"machines": [{"name", "ssh", "connected", "status", "terminalTabs", "fixed"}]}`.
+
+```sh
+kisui machine list
+kisui machine list --json
+```
+
+### kisui machine add [--name <name>] <ssh>
+
+Connect to the ssh destination (a host of `~/.ssh/config`, or `user@host`) and, once it is connected, add it to the machines (to `config.local.toml`), as the add dialog does; `--name` gives it a name. The window may ask the user to install `kisui` there or for a password of ssh, so the command can wait for up to about a minute and a half. If it cannot connect, nothing is added. It prints the name of the machine.
+
+```sh
+kisui machine add --name dev dev-vm
+```
+
+### kisui machine rename <machine> <name>
+
+Give the machine a name. An empty name (`""`) gives back the ssh destination as its name. `local` is reserved for the user's computer, and two machines cannot have the same name. The name is also what `--machine` and `allow_pane_to` use, so renaming can change what those point at.
+
+```sh
+kisui machine rename dev-vm dev
+```
+
+### kisui machine remove <machine>
+
+Take the machine out of `config.local.toml` and disconnect it; its terminal tabs go away from the window. `kisui serve` there and its terminals keep running. `local` cannot be removed.
+
+```sh
+kisui machine remove dev
+```
+
+### kisui machine disconnect <machine>
+
+Disconnect the window from the machine (it stays in the list). `kisui serve` there and its terminals keep running. `local` cannot be disconnected.
+
+```sh
+kisui machine disconnect dev
+```
+
+### kisui machine reconnect <machine>
+
+Connect again to a machine that is not connected, or connect now to one that is waiting to. It is refused while the machine is connected or connecting.
+
+```sh
+kisui machine reconnect dev
+```
+
+### kisui machine terminal <machine> [--start-dir <path>] [--shell <path>] [--unset-start-dir] [--unset-shell]
+
+The folder a new terminal of the machine starts in and its shell (`t` of the machine dialog). With no flag, it prints them (`-` for one that is not set). `--start-dir` (an absolute path or one that starts with `~`) and `--shell` (the absolute path of the file, or one that starts with `~/`; no arguments) change that one and keep the other; `--unset-start-dir` and `--unset-shell` take it out, so that the setting of that machine itself is used. They are paths on that machine. For `local` they go to `[server]`. The change works from the next terminal; it prints the settings as they are then.
+
+```sh
+kisui machine terminal dev
+kisui machine terminal dev --start-dir ~/work --shell /usr/bin/fish
+kisui machine terminal local --unset-shell
+```
 
 ### kisui db: the databases of the user
 

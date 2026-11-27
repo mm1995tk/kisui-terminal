@@ -67,7 +67,7 @@ export function createTabs(deps: {
   sessions: Sessions;
   workspaces: Workspaces;
   browserTabs: BrowserTabs;
-  pages: Pick<Pages, "shownBrowserTab" | "openNewTab">;
+  pages: Pick<Pages, "shownBrowserTab" | "openNewTab" | "openUrlTab">;
   /** DB のタブ（#347） */
   db: Pick<DbTabs, "shownDbTab" | "openPicker">;
   setFocusError: ReportProblem;
@@ -473,9 +473,28 @@ export function createTabs(deps: {
   }
 
   /** ワークスペース g にブラウザのタブを足す（新しいタブのページを出す。incognito ならシークレットのタブ。browser.new・browser.incognito と同じ）。 */
-  function newBrowserTab(g: Gws, incognito = false): string {
-    const o = browserOrigin(g);
+  function newBrowserTab(
+    g: Gws,
+    incognito = false,
+    origin?: { target: string; ws: WorkspaceId },
+  ): string {
+    const o = origin ?? browserOrigin(g);
     return openNewTab(o.target, o.ws, incognito, g.id);
+  }
+
+  /**
+   * ワークスペース g に、ページ url のブラウザのタブ（incognito ならシークレットのタブ）を足して出す（`kisui browser new <url>`。#515）。
+   * 開いたところ（localhost 系の URL を、どの Machine の中継で開くか）は origin（`kisui browser new` は、頼んだ Pane の Machine と Terminal tab）。
+   * 省けば browserOrigin。作れなければ（リモートのマシンの localhost 系の中継を用意できない）理由で断る。作ったタブの id を返す。
+   */
+  function newBrowserTabAt(
+    g: Gws,
+    url: string,
+    incognito = false,
+    origin?: { target: string; ws: WorkspaceId },
+  ): Promise<string> {
+    const o = origin ?? browserOrigin(g);
+    return deps.pages.openUrlTab(o.target, o.ws, url, incognito, g.id);
   }
 
   /** ワークスペース g に足すブラウザのタブの「開いたところ」（model.ts の browserOriginOf）。 */
@@ -682,6 +701,7 @@ export function createTabs(deps: {
     /** Workspace switcher の、作るタブの種類の「DB」：接続を選ぶ Dialog を出す。選んだ接続のタブは、ワークスペース gid に入る（今いるワークスペースは、選ぶまで変えない） */
     openDbPickerIn: (gid: string) => deps.db.openPicker(gid),
     newBrowserTab,
+    newBrowserTabAt,
     openBrowserTab,
     currentTabKey,
     stepTab,

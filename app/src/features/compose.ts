@@ -36,6 +36,7 @@ import {
 import { onPaneGrantEnd, paneGrantActive } from "./sessions/paneGrant.ts";
 import { createPaneRelay } from "./sessions/paneRelay.ts";
 import { createWindowRun } from "./commands/windowRun.ts";
+import { createMachineCommands } from "./sessions/machineCommands.ts";
 import type { ConfigMachine } from "./sessions/machines.ts";
 import type { TermDefaults } from "./sessions/termDefaults.ts";
 import type { ShellApi } from "./sessions/shell.ts";
@@ -50,6 +51,7 @@ import { createTabs } from "./workspaces/tabs/controller.ts";
 import { createPaneOpen } from "./workspaces/tabs/paneOpen.ts";
 import { createTabCommands } from "./workspaces/tabs/tabCommands.ts";
 import { createDbCommands } from "./db/dbCommands.ts";
+import { createBrowserCommands } from "./browser/browserCommands.ts";
 import { createPaneCommands } from "./workspaces/paneCommands.ts";
 import { createWorkspaceCommands } from "./workspaces/workspaceCommands.ts";
 import type { WorkspaceId } from "../infrastructure/rpc/protocol.ts";
@@ -321,6 +323,20 @@ export function createFeatures(deps: {
       granted: paneGrantActive,
       anyAskEach,
     }),
+    createBrowserCommands({
+      sessions,
+      gws: workspaces.gws,
+      rows: workspaces.rows,
+      browser,
+      browserTabs,
+      tabs,
+      pages,
+      bookmarks,
+      os: ports.browser,
+      openUrlExternally: ports.openUrl,
+      granted: paneGrantActive,
+      anyAskEach,
+    }),
     createPaneCommands({
       sessions,
       termGroups: sessions.termGroups,
@@ -339,6 +355,11 @@ export function createFeatures(deps: {
       db,
       granted: paneGrantActive,
       anyAskEach,
+    }),
+    // 手元の PC の Pane の頼みだけを受ける（Machine の設定を変え、接続を切れるので。machineCommands.ts）
+    createMachineCommands({
+      sessions,
+      machineList: () => workspaces.machineList(),
     }),
   ]);
   const proxy = createProxy({

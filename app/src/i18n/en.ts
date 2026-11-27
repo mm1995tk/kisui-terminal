@@ -492,6 +492,14 @@ export const en = {
   "machine.err.nameTaken": "The name {name} is used by another machine",
   "machine.err.localName":
     "The name local is reserved for this computer (kisui pane --machine local). Give the machine another name",
+  "machine.err.connecting":
+    "{label} is being connected right now (by the add dialog or by kisui machine add), so it was not added again",
+  "machine.err.addCancelled":
+    "Adding the machine was stopped before it connected, so it was not added",
+  "machineCli.err.noMachine":
+    'No machine has the name or the ssh destination "{machine}" (the machines: {names}; kisui machine list prints them)',
+  "machineCli.err.setAndUnset":
+    "Give a value or its --unset flag, not both, for the start folder and for the shell",
   "machine.edit.exists": "{ssh} is already in config.local.toml",
   "machine.edit.missing":
     "{ssh} is not in config.local.toml (a machine only in config.toml cannot be changed from the window)",
@@ -819,6 +827,20 @@ export const en = {
   "dbCli.err.running":
     "A statement is running in this database tab. Run the command again when it ends.",
   "dbCli.err.noResult": "This database tab has no result tab to close.",
+  "browserCli.err.disabled":
+    "The built-in browser is off, so there are no browser tabs. The user turns it on with enabled = true under [gui.browser] in the config file of the computer the window runs on, and starts kisui-terminal again.",
+  "browserCli.err.reach":
+    "A pane of {from} may use the browser tabs of the computer the window runs on only while the person at the window allows {from}: in the machine dialog, choose {from} and press p. Ask the user.",
+  "browserCli.err.askEach":
+    "A pane of this computer is set to ask the person every time, so a remote machine may not open a URL, the external browser, DevTools or a login in the browser of this computer, or read from it (the URL of a page, a find, the bookmarks). Ask the user to do it in the window.",
+  "browserCli.err.notBrowser":
+    'The tab "{tab}" is not a browser tab (kisui tab list prints the kind of each tab)',
+  "browserCli.err.noView":
+    'The tab "{tab}" has no page yet: the window has not shown it since it started (a page is made when the tab is first shown), or it is still opening. Ask the user to show the tab (kisui tab show), then try again.',
+  "browserCli.err.noWorkspace":
+    "The workspace of this pane is not in the window, so a browser tab cannot be added to it.",
+  "browserCli.err.url":
+    'Only an http or https URL with a host (no user name or password, at most 4096 bytes) can be opened: "{url}"',
   "wsCli.err.noWorkspace":
     'No workspace has the id or the name "{name}" (kisui workspace list prints the workspaces)',
   "wsCli.err.noWorkspaceReach":
