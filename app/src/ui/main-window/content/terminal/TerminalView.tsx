@@ -11,7 +11,11 @@ import {
 import { copiedNotice } from "../../notifications/CopiedToast.tsx";
 import { copyAndNotify } from "../../notifications/copiedNotice.ts";
 import { monoFontsReady } from "../../../styles/fonts.ts";
-import { MONO_FONT_FAMILY, TERM_FONT_SIZE } from "../../../styles/monoFont.ts";
+import {
+  MONO_FONT_FAMILY,
+  TERM_FONT_SIZE,
+  TERM_SCROLLBAR_WIDTH,
+} from "../../../styles/monoFont.ts";
 import type { TermLink, TermSink } from "../../../../features/terminal/link.ts";
 import { connectClipboard } from "../../../../features/clipboard/clipboardBridge.ts";
 import { askClipboardRead } from "../../../../features/clipboard/clipboardPrompt.ts";
@@ -36,6 +40,7 @@ import { rememberNotified } from "../../../../features/terminal/lastNotified.ts"
 import "./terminal.css";
 import { terminalTheme } from "./theme.ts";
 import { throttle } from "./throttle.ts";
+import { reportTermCellWidth } from "../../termCell.ts";
 
 /** 欄の大きさが変わり続けるとき、列の数を測り直す間隔（ms）。 */
 const REFIT_INTERVAL_MS = 80;
@@ -79,7 +84,7 @@ export function TerminalView(props: {
     cursorBlink: true,
     scrollback: 5000,
     // ファイルエクスプローラ（sidebar.css の .sidebar::-webkit-scrollbar）と同じ細さ
-    scrollbarWidth: 4,
+    scrollbarWidth: TERM_SCROLLBAR_WIDTH,
     theme: terminalTheme,
   });
 
@@ -280,6 +285,7 @@ export function TerminalView(props: {
     // coneko-term は open のときに字の幅を測るので、JetBrains Mono を読み終えてから開く
     // （先に開くと代わりの字で測ってしまい、字の間が合わない）
     let disposed = false;
+    let cellSub: { dispose: () => void } | undefined;
     props.focusRef?.(() => term.focus());
     onCleanup(registerPasteTarget(host, (text) => term.paste(text)));
     host.addEventListener("mousedown", onPress, true);
@@ -301,12 +307,20 @@ export function TerminalView(props: {
       host.removeEventListener("dragleave", onDragLeave);
       host.removeEventListener("drop", onDrop);
       disposed = true;
+      cellSub?.dispose();
       ro.disconnect();
       refitThrottled.cancel();
     });
     void monoFontsReady.then(() => {
       if (disposed) return;
       term.open(host);
+      // サイドバーの幅の上限（panes.ts）が、この字の幅で 20 列を残す
+      const reportCell = () => {
+        const c = term.cellSize;
+        if (c) reportTermCellWidth(c.width);
+      };
+      reportCell();
+      cellSub = term.onCellSizeChange(reportCell);
       refit();
       ro.observe(host);
       setOpened(true);

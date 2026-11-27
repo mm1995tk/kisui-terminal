@@ -7,6 +7,7 @@
 // - 右の欄の中の、欄どうしの Pane border（#18）：割合は kisui serve が分割の木に持つ（features/terminal/grid.ts）。ここは動かすキーだけを決める。
 // キー：Tab / Shift+Tab で動かす Pane border を替え、←→（h l）か↑↓（k j）で動かす。縦の Pane border は左右、横の Pane border は上下だけ効く。
 
+import { TERM_PADDING_X, TERM_SCROLLBAR_WIDTH } from "../styles/monoFont.ts";
 import { widthForPanes } from "../../features/terminal/grid.ts";
 import type { PaneLayout } from "../../infrastructure/rpc/protocol.ts";
 import type { KeyValueStore } from "../../features/keyValueStore.ts";
@@ -46,8 +47,8 @@ export const KEY_STEP: Readonly<Record<Border, number>> = {
 
 /** 右のターミナルに最低限残す列の数（ペインを分けるときの最小の幅。features/terminal/grid.ts の MIN_COLS・server/layout.go の minSplitCols と同じ）。 */
 export const MIN_TERM_COLS = 20;
-/** 右のターミナルの、字の列の外側の幅（左右の余白 4px ずつと、スクロールバーの 4px。terminal.css・TerminalView.tsx）。 */
-export const TERM_CHROME_WIDTH = 12;
+/** 右のターミナルの、字の列の外側の幅（左右の余白と、スクロールバー。coneko-term の fit が幅から引くものと同じ。styles/monoFont.ts）。 */
+export const TERM_CHROME_WIDTH = TERM_PADDING_X * 2 + TERM_SCROLLBAR_WIDTH;
 /** サイドバーの中で、CHANGES の一覧のほかに残す高さ（px）。タブの段・見出し・ファイルツリーの数行ぶん（ファイルツリーが最低限見える高さ）。 */
 export const TREE_RESERVE_HEIGHT = 240;
 
