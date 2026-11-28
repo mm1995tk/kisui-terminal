@@ -30,8 +30,8 @@ const TCP_CONNECT_TIMEOUT: Duration = Duration::from_secs(3);
 /// TCP で、前の試みがつながらないまま、次のアドレスを試し始めるまでの長さ（RFC 8305 の Connection Attempt Delay の
 /// 勧める値）。
 const CONNECTION_ATTEMPT_DELAY: Duration = Duration::from_millis(250);
-/// 行き先の名前ごとに、IPv6 が届かなかったことを覚える長さ。回線が変わって IPv6 が届くようになっても、
-/// TCP は IPv6 も試すので、IPv6 が先につながれば、この長さを待たずに忘れる。
+/// 行き先の名前ごとに、IPv6 が届かなかったことを覚える長さ。覚えている間は IPv4 から試し、その接続では覚え直さない
+/// （覚えた時刻を延ばさない）。切れたら IPv6 から試し直し、また IPv4 に負けたら覚え直す。
 const IPV6_UNREACHABLE_TTL: Duration = Duration::from_secs(10 * 60);
 /// 覚える行き先の数の上限（覚えるだけ増えないように）。超えそうなら、切れたものを捨て、それでも多ければ全部忘れる。
 const MAX_IPV6_UNREACHABLE: usize = 4096;
@@ -81,15 +81,25 @@ impl Ipv6Unreachable {
             .is_some_and(|t| now.saturating_duration_since(*t) < self.ttl)
     }
 
-    /// TCP でつながった結果を覚える。`tried` は試したアドレス、`winner` は先につながったアドレス。
-    fn record(&self, host: &str, tried: &[SocketAddr], winner: SocketAddr, now: Instant) {
+    /// TCP でつながった結果を覚える。`ipv6_first` はその接続を IPv6 から試したか、`tried` は並べたアドレス、
+    /// `winner` は先につながったアドレス。
+    fn record(
+        &self,
+        host: &str,
+        ipv6_first: bool,
+        tried: &[SocketAddr],
+        winner: SocketAddr,
+        now: Instant,
+    ) {
         let host = host.to_ascii_lowercase();
         let mut hosts = self.hosts.lock().unwrap_or_else(|e| e.into_inner());
         if winner.is_ipv6() {
             hosts.remove(&host);
             return;
         }
-        if !tried.iter().any(|a| a.is_ipv6()) {
+        // IPv4 から試した接続は、IPv6 を試す前につながっただけなので、IPv6 が届かない証しにならない。覚え直すと、
+        // よく開く行き先はいつまでも IPv6 から試し直さなくなる
+        if !ipv6_first || !tried.iter().any(|a| a.is_ipv6()) {
             return;
         }
         if hosts.len() >= self.max && !hosts.contains_key(&host) {
@@ -248,7 +258,7 @@ impl Ctx {
         )
         .await?;
         self.ipv6_unreachable
-            .record(host, &addrs, addr, Instant::now());
+            .record(host, ipv6_first, &addrs, addr, Instant::now());
         self.trace(format_args!("tcp {host}:{port} -> {addr}"));
         let _ = stream.set_nodelay(true);
         Ok(stream)
@@ -611,19 +621,33 @@ mod tests {
         assert!(!m.contains("example.com", t0));
 
         // IPv6 も試したのに IPv4 が先につながったら覚える（名前の大文字小文字は区別しない）
-        m.record("Example.com", &both, v4, t0);
+        m.record("Example.com", true, &both, v4, t0);
         assert!(m.contains("example.com", t0 + Duration::from_secs(1)));
         assert!(!m.contains("other.example", t0));
         // 覚える長さを過ぎたら忘れる
         assert!(!m.contains("example.com", t0 + Duration::from_secs(600)));
 
         // IPv6 が先につながったら忘れる
-        m.record("example.com", &both, v4, t0);
-        m.record("example.com", &both, v6, t0);
+        m.record("example.com", true, &both, v4, t0);
+        m.record("example.com", true, &both, v6, t0);
         assert!(!m.contains("example.com", t0));
 
+        // IPv4 から試して IPv4 がつながっても、覚えた時刻は延びない（切れたら IPv6 から試し直す）
+        m.record("example.com", true, &both, v4, t0);
+        m.record(
+            "example.com",
+            false,
+            &both,
+            v4,
+            t0 + Duration::from_secs(300),
+        );
+        assert!(!m.contains("example.com", t0 + Duration::from_secs(600)));
+        // 忘れたあとに IPv4 から試しても、覚えない
+        m.record("fresh.example", false, &both, v4, t0);
+        assert!(!m.contains("fresh.example", t0));
+
         // IPv6 のアドレスが無かった（IPv4 しか試していない）なら覚えない
-        m.record("v4only.example", &addrs(&["192.0.2.1:443"]), v4, t0);
+        m.record("v4only.example", true, &addrs(&["192.0.2.1:443"]), v4, t0);
         assert!(!m.contains("v4only.example", t0));
     }
 
@@ -633,15 +657,15 @@ mod tests {
         let t0 = Instant::now();
         let both = addrs(&["[2001:db8::1]:443", "192.0.2.1:443"]);
         let v4 = "192.0.2.1:443".parse().unwrap();
-        m.record("a.example", &both, v4, t0);
-        m.record("b.example", &both, v4, t0 + Duration::from_secs(1));
+        m.record("a.example", true, &both, v4, t0);
+        m.record("b.example", true, &both, v4, t0 + Duration::from_secs(1));
         // いっぱいで、切れたものも無ければ全部忘れてから覚える
-        m.record("c.example", &both, v4, t0 + Duration::from_secs(2));
+        m.record("c.example", true, &both, v4, t0 + Duration::from_secs(2));
         assert!(!m.contains("a.example", t0 + Duration::from_secs(2)));
         assert!(m.contains("c.example", t0 + Duration::from_secs(2)));
         // 切れたものがあれば、それだけ捨てる
-        m.record("d.example", &both, v4, t0 + Duration::from_secs(3));
-        m.record("e.example", &both, v4, t0 + Duration::from_secs(602));
+        m.record("d.example", true, &both, v4, t0 + Duration::from_secs(3));
+        m.record("e.example", true, &both, v4, t0 + Duration::from_secs(602));
         assert!(m.contains("d.example", t0 + Duration::from_secs(602)));
         assert!(m.contains("e.example", t0 + Duration::from_secs(602)));
         assert!(!m.contains("c.example", t0 + Duration::from_secs(602)));
