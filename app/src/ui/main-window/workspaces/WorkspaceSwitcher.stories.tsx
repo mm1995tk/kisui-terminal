@@ -2,7 +2,7 @@
 // 行（Row）は見本のデータ。アプリでは features/workspaces/rows.ts の gwsRows が、マシンとタブの状態から作る。
 // 右のタブの行はサイドバーの TabRow を使い、その見た目は sidebar.css にあるので、ここで読む（アプリでは page.tsx が先に読む）。
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
-import { fn } from "storybook/test";
+import { fn, userEvent } from "storybook/test";
 
 import type {
   Band,
@@ -199,7 +199,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** ローカルと別のマシン（つながっていない）のワークスペースが並ぶ。j / k で選ぶと、右に選んだ行のタブが出る。r で名前を変え（長すぎる名前は断られる）、x で閉じる確認を出す。 */
+/** 開いた直後（#547）：カーソル（青い塗り）は今いるワークスペースの行にあり、その行は今いるタブを持つので緑の帯も出る。右の列の今いるタブは緑の帯だけ（塗らない）。 ローカルと別のマシン（つながっていない）のワークスペースが並ぶ。j / k で選ぶと、右に選んだ行のタブが出る。r で名前を変え（長すぎる名前は断られる）、x で閉じる確認を出す。 */
 export const Default: Story = {};
 
 /** 右の列（タブ）にキーを置いたとき。Key footer はタブの行だけになり Default より低くなるが、一覧の欄の上端と高さは Default と同じ（動くのは Dialog の下端だけ）。 */
@@ -265,4 +265,19 @@ const MANY_ROWS: Row[] = MANY_NAMES.map((name, i) => {
 /** ワークスペースもタブも多いとき。Dialog の大きさは変わらず、左の一覧と右のタブの一覧がそれぞれスクロールし、「ワークスペースを作る」は左側の列の下端に残る。h / l で列を移り、j / k でその列の行を選ぶ。 */
 export const Many: Story = {
   args: { rows: MANY_ROWS },
+};
+
+/** タブの列で、今いるタブとは別のタブにカーソルを移したとき（#547）。カーソルのタブは青い塗り。今いるタブと、それを持つワークスペースの行は、緑の帯だけ。 */
+export const CursorOnOtherTab: Story = {
+  args: { initialCol: "tab" },
+  play: async () => {
+    await userEvent.keyboard("j");
+  },
+};
+
+/** 別のワークスペースにカーソルを移したとき（#547）。カーソルの行は青い塗り。今いるタブを持つワークスペースの行は緑の帯だけ。右の列には、カーソルのワークスペースのタブが出る。 */
+export const CursorOnOtherWorkspace: Story = {
+  play: async () => {
+    await userEvent.keyboard("j");
+  },
 };
