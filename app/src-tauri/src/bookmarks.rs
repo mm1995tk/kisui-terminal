@@ -107,6 +107,9 @@ pub fn browser_bookmarks_save(
 const MAX_FIREFOX_FILES: u64 = 256 * 1024 * 1024;
 /// フォルダの入れ子をたどる深さの上限。
 const MAX_DEPTH: usize = 32;
+/// `moz_bookmarks.type` の値（Firefox の `nsINavBookmarksService` と同じ名前）。区切り線の `TYPE_SEPARATOR`（3）は読まない。
+const TYPE_BOOKMARK: i64 = 1;
+const TYPE_FOLDER: i64 = 2;
 /// 根のフォルダの guid と、画面に渡す名前（画面が言葉にする）。この順に出す。
 const FIREFOX_ROOTS: [(&str, &str); 4] = [
     ("toolbar_____", "toolbar"),
@@ -314,8 +317,7 @@ fn walk_firefox(
             break;
         }
         match row.kind {
-            // ブックマーク
-            1 => {
+            TYPE_BOOKMARK => {
                 let b = Bookmark {
                     url: row.url.clone().unwrap_or_default(),
                     title: clip_title(row.title.clone()),
@@ -328,8 +330,7 @@ fn walk_firefox(
                     });
                 }
             }
-            // フォルダ
-            2 => out.push(FirefoxNode::Folder {
+            TYPE_FOLDER => out.push(FirefoxNode::Folder {
                 name: row.title.clone(),
                 root: None,
                 children: walk_firefox(children, row.id, depth + 1, count),
@@ -350,8 +351,8 @@ fn read_places_copy(db: &Path) -> rusqlite::Result<Vec<FirefoxNode>> {
     let mut root_ids = Vec::new();
     for (guid, key) in FIREFOX_ROOTS {
         let found = conn.query_row(
-            "SELECT id, title FROM moz_bookmarks WHERE guid = ?1 AND type = 2",
-            [guid],
+            "SELECT id, title FROM moz_bookmarks WHERE guid = ?1 AND type = ?2",
+            rusqlite::params![guid, TYPE_FOLDER],
             |r| Ok((r.get::<_, i64>(0)?, r.get::<_, Option<String>>(1)?)),
         );
         match found {
@@ -360,15 +361,15 @@ fn read_places_copy(db: &Path) -> rusqlite::Result<Vec<FirefoxNode>> {
             Err(e) => return Err(e),
         }
     }
-    // 区切り線（type = 3）は読まない。並びはフォルダごとに position の順
+    // ブックマークとフォルダだけを読む（区切り線は読まない）。並びはフォルダごとに position の順
     let mut stmt = conn.prepare(
         "SELECT b.id, b.parent, b.type, b.title, p.url
          FROM moz_bookmarks b LEFT JOIN moz_places p ON p.id = b.fk
-         WHERE b.type IN (1, 2)
+         WHERE b.type IN (?1, ?2)
          ORDER BY b.parent, b.position, b.id",
     )?;
     let mut children: std::collections::HashMap<i64, Vec<PlacesRow>> = Default::default();
-    let rows = stmt.query_map([], |r| {
+    let rows = stmt.query_map([TYPE_BOOKMARK, TYPE_FOLDER], |r| {
         Ok((
             r.get::<_, i64>(1)?,
             PlacesRow {
