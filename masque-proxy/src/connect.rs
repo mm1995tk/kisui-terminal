@@ -427,16 +427,32 @@ mod tests {
 
     #[tokio::test]
     async fn ipv6_wins_when_it_answers_in_time() {
+        // IPv6 が `delay` より短い時間でつながれば、すぐにつながる IPv4 も試し始めない
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::Arc;
         let list = interleave(addrs(&["192.0.2.1:443", "[2001:db8::1]:443"]));
+        let ipv4_tried = Arc::new(AtomicUsize::new(0));
+        let counter = ipv4_tried.clone();
         let (_, addr) = race(
             &list,
+            Duration::from_millis(200),
             Duration::from_secs(30),
-            Duration::from_secs(30),
-            |a: SocketAddr| -> Attempt { Box::pin(async move { Ok(a) }) },
+            move |a: SocketAddr| -> Attempt {
+                let counter = counter.clone();
+                Box::pin(async move {
+                    if a.is_ipv6() {
+                        tokio::time::sleep(Duration::from_millis(20)).await;
+                    } else {
+                        counter.fetch_add(1, Ordering::SeqCst);
+                    }
+                    Ok(a)
+                })
+            },
         )
         .await
         .unwrap();
         assert_eq!(addr, "[2001:db8::1]:443".parse().unwrap());
+        assert_eq!(ipv4_tried.load(Ordering::SeqCst), 0);
     }
 
     #[tokio::test]
