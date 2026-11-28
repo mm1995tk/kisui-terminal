@@ -81,7 +81,7 @@ export function ContentArea(props: {
     closeFind,
     openUrl,
   } = props.pages;
-  const { bookmarks, chromeBookmarks } = props.bookmarks;
+  const { bookmarks, firefoxBookmarks } = props.bookmarks;
   const { focusTerminal } = props.focusUi;
   return (
     <div
@@ -146,7 +146,7 @@ export function ContentArea(props: {
               <NewTabPage
                 incognito={!!shownBrowserTab()?.incognito}
                 own={bookmarks()}
-                chrome={chromeBookmarks()}
+                firefox={firefoxBookmarks()}
                 failed={props.bookmarks.failed()}
                 onOpen={(url) => submitUrlBar(id, url)}
                 focusRef={(f) => props.focusUi.setUrlBarFocus(f)}

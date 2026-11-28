@@ -104,7 +104,12 @@ pkgs.rustPlatform.buildRustPackage {
     pkgs.pkg-config
   ]
   ++ lib.optionals stdenv.hostPlatform.isLinux [ pkgs.wrapGAppsHook3 ];
-  buildInputs = lib.optionals stdenv.hostPlatform.isLinux [
+  # Firefox のブックマーク（bookmarks.rs の rusqlite）。buildRustPackage は LIBSQLITE3_SYS_USE_PKG_CONFIG を立て、
+  # crate に入れた SQLite（bundled）でなく、pkg-config で見つけた SQLite を使わせるので、Nix の sqlite を渡す
+  buildInputs = [
+    pkgs.sqlite
+  ]
+  ++ lib.optionals stdenv.hostPlatform.isLinux [
     pkgs.webkitgtk_4_1
     pkgs.gtk3
     pkgs.libsoup_3

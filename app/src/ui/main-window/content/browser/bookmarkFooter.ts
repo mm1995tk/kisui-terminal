@@ -9,9 +9,9 @@ import {
 import type { BookmarkRow } from "../../../../features/browser/bookmarkTree.ts";
 import { T } from "../../../../i18n/index.ts";
 
-/** 選んでいる行を消せるか。消せるのは kisui-terminal 自身のブックマークだけ（Chrome のブックマーク・フォルダ・行が無いときは消せない） */
+/** 選んでいる行を消せるか。消せるのは kisui-terminal 自身のブックマークだけ（Firefox のブックマーク・フォルダ・行が無いときは消せない） */
 export function canDeleteRow(row: BookmarkRow | undefined): boolean {
-  return row?.kind === "bookmark" && row.bookmark.source !== "chrome";
+  return row?.kind === "bookmark" && row.bookmark.source !== "firefox";
 }
 
 /** Dialog の Key footer。deletable は、選んでいる行を消せるか（canDeleteRow）。消せなければ見出しだけ */

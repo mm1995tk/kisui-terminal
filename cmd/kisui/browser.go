@@ -138,7 +138,7 @@ func runBrowserBookmarkAdd(args []string) int {
 }
 
 // runBrowserBookmarkList is "kisui browser bookmark list [--json]": the
-// bookmarks of the built-in browser, newest first (not those of Chrome).
+// bookmarks of the built-in browser, newest first (not those of Firefox).
 func runBrowserBookmarkList(args []string) int {
 	usage := i18n.T("browser.bookmark-list.usage")
 	if isHelp(args) {

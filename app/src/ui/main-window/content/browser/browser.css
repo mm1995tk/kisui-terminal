@@ -55,7 +55,7 @@
 .bookmark-rows {
   max-height: 50vh;
 }
-/* Chrome から読んだブックマークの札（#239） */
+/* Firefox から読んだブックマークの札（#543） */
 .bookmark-source {
   flex: none;
   margin-left: 0.5em;

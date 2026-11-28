@@ -364,7 +364,7 @@ function fakeBrowser(
     openTabDevtools: async () => {},
     startPasskeyLogin: async () => "opened",
     loadBookmarks: async () => [],
-    loadChromeBookmarks: async () => ({}),
+    loadFirefoxBookmarks: async () => ({}),
     saveBookmarks: async () => {},
     closeTabView: async (tab) => void calls.push(`close ${tab}`),
     loadTabs: async () => stored,

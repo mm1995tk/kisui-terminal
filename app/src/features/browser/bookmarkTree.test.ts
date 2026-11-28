@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
+import { T } from "../../i18n/index.ts";
 import type { Bookmark } from "./bookmarks.ts";
 import {
   bookmarkRows,
-  chromeTreeFromLoaded,
-  countChrome,
+  firefoxTreeFromLoaded,
+  countFirefox,
   toggleFolder,
   type BookmarkRow,
 } from "./bookmarkTree.ts";
@@ -17,7 +18,7 @@ const folder = (name: string, children: unknown[]) => ({
   children,
 });
 
-// Chrome のファイルと同じ形（フォルダとブックマークが混ざった並び）
+// Firefox のファイルと同じ形（フォルダとブックマークが混ざった並び）
 const loaded = {
   roots: [
     folder("Bookmarks bar", [
@@ -42,15 +43,15 @@ const rows = (
   flipped: string[] = [],
   query = "",
 ) =>
-  bookmarkRows(own, chromeTreeFromLoaded(loaded), new Set(flipped), query).map(
+  bookmarkRows(own, firefoxTreeFromLoaded(loaded), new Set(flipped), query).map(
     label,
   );
 
-describe("Chrome のブックマークの木（#275）", () => {
+describe("Firefox のブックマークの木（#275・#543）", () => {
   it("殻が返した木を、入れ子と並びのまま読み、形の違うものは捨てる", () => {
-    const t = chromeTreeFromLoaded(loaded);
+    const t = firefoxTreeFromLoaded(loaded);
     assert.equal(t.length, 3);
-    assert.equal(countChrome(t), 5);
+    assert.equal(countFirefox(t), 5);
     const bar = t[0];
     assert.equal(bar.kind, "folder");
     assert.deepEqual(bar.kind === "folder" && bar.children.map((c) => c.kind), [
@@ -58,19 +59,49 @@ describe("Chrome のブックマークの木（#275）", () => {
       "folder",
       "bookmark",
     ]);
-    assert.deepEqual(chromeTreeFromLoaded("x"), []);
+    assert.deepEqual(firefoxTreeFromLoaded("x"), []);
     assert.deepEqual(
-      chromeTreeFromLoaded({ roots: [null, 1, { type: "url" }] }),
+      firefoxTreeFromLoaded({ roots: [null, 1, { type: "url" }] }),
       [],
     );
-    const b = chromeTreeFromLoaded({
+    const b = firefoxTreeFromLoaded({
       roots: [url("https://x.example/", "X")],
     })[0];
     assert.deepEqual(b.kind === "bookmark" && b.bookmark, {
       url: "https://x.example/",
       title: "X",
-      source: "chrome",
+      source: "firefox",
     });
+  });
+
+  it("根のフォルダは、殻が渡す root（Firefox の内部名）から名前を引く（#543）", () => {
+    const names = firefoxTreeFromLoaded({
+      roots: ["toolbar", "menu", "unfiled", "mobile", "tags", "toString"].map(
+        (root) => ({
+          type: "folder",
+          name: root,
+          root,
+          children: [
+            { type: "folder", name: "Sub", root: "menu", children: [] },
+          ],
+        }),
+      ),
+    }).map((n) => [
+      n.kind === "folder" && n.name,
+      n.kind === "folder" &&
+        n.children[0].kind === "folder" &&
+        n.children[0].name,
+    ]);
+    // 分からない root は殻の名前のまま。根でないフォルダは root を見ない
+    assert.deepEqual(names, [
+      [T("bookmarks.root.toolbar"), "Sub"],
+      [T("bookmarks.root.menu"), "Sub"],
+      [T("bookmarks.root.unfiled"), "Sub"],
+      [T("bookmarks.root.mobile"), "Sub"],
+      ["tags", "Sub"],
+      ["toString", "Sub"],
+    ]);
+    assert.equal(T("bookmarks.root.toolbar"), "Bookmarks Toolbar");
   });
 
   it("根は開き、その下のフォルダは閉じている。空の根は出さない", () => {
@@ -104,7 +135,7 @@ describe("Chrome のブックマークの木（#275）", () => {
     assert.deepEqual([...toggleFolder(s, "0/1")], []);
   });
 
-  it("自身のブックマークが先に平らに並び、同じ URL の Chrome のものは出さない", () => {
+  it("自身のブックマークが先に平らに並び、同じ URL の Firefox のものは出さない", () => {
     const own: Bookmark[] = [
       { url: "https://a.example/", title: "Mine" },
       { url: "https://z.example/", title: "Zed" },

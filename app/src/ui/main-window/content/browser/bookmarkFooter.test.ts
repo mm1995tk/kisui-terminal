@@ -26,15 +26,15 @@ describe("bookmarkDialogFooter（ブックマークの一覧の Key footer の�
     assert.deepEqual(bookmarkKey(ev("d", true), false), { kind: "delete" });
   });
 
-  it("消せるのは kisui-terminal 自身のブックマークだけ（Chrome のブックマーク・フォルダ・行なしは見出しだけ）", () => {
+  it("消せるのは kisui-terminal 自身のブックマークだけ（Firefox のブックマーク・フォルダ・行なしは見出しだけ）", () => {
     const own = { url: "https://a.example/", title: "A" };
-    const chrome = { ...own, source: "chrome" as const };
+    const firefox = { ...own, source: "firefox" as const };
     assert.equal(
       canDeleteRow({ kind: "bookmark", bookmark: own, depth: 0 }),
       true,
     );
     assert.equal(
-      canDeleteRow({ kind: "bookmark", bookmark: chrome, depth: 0 }),
+      canDeleteRow({ kind: "bookmark", bookmark: firefox, depth: 0 }),
       false,
     );
     assert.equal(

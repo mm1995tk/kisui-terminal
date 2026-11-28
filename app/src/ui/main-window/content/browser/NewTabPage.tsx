@@ -20,7 +20,7 @@ import {
   bookmarkRows,
   toggleFolder,
   type BookmarkRow,
-  type ChromeNode,
+  type FirefoxNode,
 } from "../../../../features/browser/bookmarkTree.ts";
 import {
   moveSelection,
@@ -100,8 +100,10 @@ function BookmarkTiles(props: {
                   <span class="newtab-tile-name">
                     {r.bookmark.title || r.bookmark.url}
                   </span>
-                  <Show when={r.bookmark.source === "chrome"}>
-                    <span class="bookmark-source">{T("bookmarks.chrome")}</span>
+                  <Show when={r.bookmark.source === "firefox"}>
+                    <span class="bookmark-source">
+                      {T("bookmarks.firefox")}
+                    </span>
                   </Show>
                 </span>
                 <span class="newtab-tile-url">{r.bookmark.url}</span>
@@ -122,8 +124,8 @@ export function NewTabPage(props: {
   incognito: boolean;
   /** kisui-terminal 自身のブックマーク（undefined は読み込み中） */
   own: readonly Bookmark[] | undefined;
-  /** Chrome のブックマークの木（#275。undefined は読み込み中） */
-  chrome: readonly ChromeNode[] | undefined;
+  /** Firefox のブックマークの木（#275。undefined は読み込み中） */
+  firefox: readonly FirefoxNode[] | undefined;
   failed: boolean;
   /** 開く URL を渡す（検索欄に打ったものを直した URL か、ブックマークの URL） */
   onOpen: (url: string) => void;
@@ -138,7 +140,7 @@ export function NewTabPage(props: {
   /** 開け閉めを逆にしたフォルダ（根は最初から開き、その下は閉じている。bookmarkRows） */
   const [flipped, setFlipped] = createSignal<ReadonlySet<string>>(new Set());
   const shown = createMemo(() =>
-    bookmarkRows(props.own, props.chrome, flipped(), query()),
+    bookmarkRows(props.own, props.firefox, flipped(), query()),
   );
   const toggle = (key: string) => setFlipped((s) => toggleFolder(s, key));
   const selected = () => Math.min(sel(), shown().length - 1);
@@ -230,7 +232,7 @@ export function NewTabPage(props: {
           fallback={
             <p class="newtab-empty">
               {emptyMessage(
-                props.own === undefined && props.chrome === undefined,
+                props.own === undefined && props.firefox === undefined,
                 props.failed,
                 query().trim() !== "",
               )}

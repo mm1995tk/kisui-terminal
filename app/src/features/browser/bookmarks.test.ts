@@ -2,12 +2,12 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { placeKeys } from "../commands/placeKeys.ts";
-import { chromeTreeFromLoaded } from "./bookmarkTree.ts";
+import { firefoxTreeFromLoaded } from "./bookmarkTree.ts";
 import {
   addBookmark,
   bookmarkKey,
-  chromeProblemFromLoaded,
-  chromeProblemKey,
+  firefoxProblemFromLoaded,
+  firefoxProblemKey,
   filterBookmarks,
   fromLoaded,
   MAX_BOOKMARKS,
@@ -131,7 +131,7 @@ describe("ブックマークの一覧のキー（bookmarkKey）", () => {
   });
 });
 
-it("Chrome のブックマークの読み込みから、ブックマークと読めなかった理由を取り出す（#265）", () => {
+it("Firefox のブックマークの読み込みから、ブックマークと読めなかった理由を取り出す（#265）", () => {
   const ok = {
     roots: [
       {
@@ -142,9 +142,9 @@ it("Chrome のブックマークの読み込みから、ブックマークと読
     ],
     problem: null,
   };
-  assert.equal(chromeTreeFromLoaded(ok).length, 1);
-  assert.equal(chromeProblemFromLoaded(ok), undefined);
-  assert.equal(chromeProblemFromLoaded([]), undefined);
+  assert.equal(firefoxTreeFromLoaded(ok).length, 1);
+  assert.equal(firefoxProblemFromLoaded(ok), undefined);
+  assert.equal(firefoxProblemFromLoaded([]), undefined);
   const denied = {
     roots: [],
     problem: {
@@ -153,13 +153,13 @@ it("Chrome のブックマークの読み込みから、ブックマークと読
       needsPermission: true,
     },
   };
-  assert.equal(chromeTreeFromLoaded(denied).length, 0);
-  const p = chromeProblemFromLoaded(denied);
+  assert.equal(firefoxTreeFromLoaded(denied).length, 0);
+  const p = firefoxProblemFromLoaded(denied);
   assert.deepEqual(p, denied.problem);
-  assert.equal(chromeProblemKey(p!), chromeProblemKey({ ...denied.problem }));
+  assert.equal(firefoxProblemKey(p!), firefoxProblemKey({ ...denied.problem }));
   assert.notEqual(
-    chromeProblemKey(p!),
-    chromeProblemKey({ ...denied.problem, reason: "invalid JSON" }),
+    firefoxProblemKey(p!),
+    firefoxProblemKey({ ...denied.problem, reason: "invalid JSON" }),
   );
-  assert.equal(chromeProblemFromLoaded({ problem: { path: 1 } }), undefined);
+  assert.equal(firefoxProblemFromLoaded({ problem: { path: 1 } }), undefined);
 });

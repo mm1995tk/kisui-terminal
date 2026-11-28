@@ -458,7 +458,7 @@ function MainWindow(props: {
       <Show when={bookmarks.bookmarkDialog()}>
         <BookmarkDialog
           own={bookmarks.bookmarks()}
-          chrome={bookmarks.chromeBookmarks()}
+          firefox={bookmarks.firefoxBookmarks()}
           failed={bookmarks.failed()}
           onOpen={bookmarks.openBookmark}
           onDelete={bookmarks.deleteBookmark}

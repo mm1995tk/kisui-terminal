@@ -97,7 +97,7 @@ var ja = map[string]string{
 	"help.browser.bookmark-add":    "Browser tab のページをブックマークに足す",
 	"browser.bookmark-add.usage":   "usage: kisui browser bookmark add <tab>",
 	"help.browser.bookmark-list":   "内蔵ブラウザのブックマークを一覧にする",
-	"browser.bookmark-list.usage":  "usage: kisui browser bookmark list [--json]（内蔵ブラウザのブックマークを、新しい順に出す。Chrome のブックマークは出さない）",
+	"browser.bookmark-list.usage":  "usage: kisui browser bookmark list [--json]（内蔵ブラウザのブックマークを、新しい順に出す。Firefox のブックマークは出さない）",
 	"browser.bookmark-list.header": "URL\t題",
 	"help.browser.find":            "Browser tab のページの中で字を探す",
 	"browser.find.usage":           "usage: kisui browser find <tab> <字>（ページの中の最初に見つかった所を選択し、found か not found を出す。- で始まる字は、前に -- を書く）",

@@ -1,5 +1,5 @@
 // 内蔵ブラウザのブックマーク（#205）の持ち物。すべてのワークスペースで共有し、殻がデータのフォルダに覚える（bookmarks.ts）。
-// Chrome のブックマーク（#239）は読むだけ。
+// Firefox のブックマーク（#543）は読むだけ。
 // 画面にも Tauri にも触らない。殻への頼みは BrowserOs（os.ts）で受け取り、短い知らせは showToast に頼む。
 import { T } from "../../i18n/index.ts";
 import {
@@ -14,17 +14,17 @@ import {
 import type { ReportProblem } from "../problem.ts";
 import {
   addBookmark,
-  chromeProblemFromLoaded,
-  chromeProblemKey,
+  firefoxProblemFromLoaded,
+  firefoxProblemKey,
   fromLoaded as bookmarksFromLoaded,
   removeBookmark,
   type Bookmark,
-  type ChromeProblem,
+  type FirefoxProblem,
 } from "./bookmarks.ts";
 import {
-  chromeTreeFromLoaded,
-  countChrome,
-  type ChromeNode,
+  firefoxTreeFromLoaded,
+  countFirefox,
+  type FirefoxNode,
 } from "./bookmarkTree.ts";
 import type { BrowserOs } from "./os.ts";
 import type { BrowserTab } from "./tabs.ts";
@@ -32,11 +32,11 @@ import type { BrowserTab } from "./tabs.ts";
 /** createBookmarks が返す持ち物。 */
 export type Bookmarks = ReturnType<typeof createBookmarks>;
 
-/** ブックマークの持ち物を作る。自分のブックマークと Chrome のブックマークを読み、足す・消す・開く・一覧の Dialog の開け閉めを受け持つ。 */
+/** ブックマークの持ち物を作る。自分のブックマークと Firefox のブックマークを読み、足す・消す・開く・一覧の Dialog の開け閉めを受け持つ。 */
 export function createBookmarks(deps: {
   os: Pick<
     BrowserOs,
-    "loadBookmarks" | "loadChromeBookmarks" | "saveBookmarks"
+    "loadBookmarks" | "loadFirefoxBookmarks" | "saveBookmarks"
   >;
   /** 今いる GUI のワークスペースに、ページ url の新しいブラウザのタブを開いて出す。今いるワークスペースが無ければ開かずに false（features/workspaces/tabs/controller.ts の openBrowserTab） */
   openTab: (url: string, title: string) => boolean;
@@ -57,54 +57,54 @@ export function createBookmarks(deps: {
     cannot,
     focusTerminal,
   } = deps;
-  const { loadBookmarks, loadChromeBookmarks, saveBookmarks } = deps.os;
+  const { loadBookmarks, loadFirefoxBookmarks, saveBookmarks } = deps.os;
   /** ブックマーク（新しく足したものが先）。読み終えるまでは undefined */
   const [bookmarks, setBookmarks] = createSignal<Bookmark[] | undefined>();
   const [bookmarksFailed, setBookmarksFailed] = createSignal(false);
-  /** Chrome のブックマークの木（#239。#275 でフォルダの入れ子のまま持つ。読むだけ。無い・読めないときは空） */
-  const [chromeBookmarks, setChromeBookmarks] = createSignal<
-    ChromeNode[] | undefined
+  /** Firefox のブックマークの木（#239。#275 でフォルダの入れ子のまま持つ。読むだけ。無い・読めないときは空） */
+  const [firefoxBookmarks, setFirefoxBookmarks] = createSignal<
+    FirefoxNode[] | undefined
   >();
-  /** Chrome のブックマークの数（自身のものが読めなかったときの案内に使う） */
-  const chromeCount = createMemo(() => countChrome(chromeBookmarks() ?? []));
+  /** Firefox のブックマークの数（自身のものが読めなかったときの案内に使う） */
+  const firefoxCount = createMemo(() => countFirefox(firefoxBookmarks() ?? []));
   /** ブックマークの一覧のダイアログ（ブラウザのタブの Dialog の B）を出しているか */
   const [bookmarkDialog, setBookmarkDialog] = createSignal(false);
-  /** 最後に知らせた、Chrome のブックマークを読めなかった理由（#265。同じ理由を開くたびに知らせない。読めたら忘れる） */
-  let lastChromeProblem: string | undefined;
-  /** Chrome のブックマークを読めなかった理由を、前に知らせたものと違うときだけ Notice に出す（#265。開くたびに読み直すので、続けては知らせない）。読めたら忘れる。 */
-  function notifyChromeProblem(problem: ChromeProblem | undefined) {
+  /** 最後に知らせた、Firefox のブックマークを読めなかった理由（#265。同じ理由を開くたびに知らせない。読めたら忘れる） */
+  let lastFirefoxProblem: string | undefined;
+  /** Firefox のブックマークを読めなかった理由を、前に知らせたものと違うときだけ Notice に出す（#265。開くたびに読み直すので、続けては知らせない）。読めたら忘れる。 */
+  function notifyFirefoxProblem(problem: FirefoxProblem | undefined) {
     if (!problem) {
-      lastChromeProblem = undefined;
+      lastFirefoxProblem = undefined;
       return;
     }
-    const key = chromeProblemKey(problem);
-    if (key === lastChromeProblem) return;
-    lastChromeProblem = key;
+    const key = firefoxProblemKey(problem);
+    if (key === lastFirefoxProblem) return;
+    lastFirefoxProblem = key;
     showToast(
       T(
         problem.needsPermission
-          ? "err.bookmarks.chromePermission"
-          : "err.bookmarks.chrome",
+          ? "err.bookmarks.firefoxPermission"
+          : "err.bookmarks.firefox",
         { reason: problem.reason, path: problem.path },
       ),
     );
   }
-  /** Chrome のブックマークを読み直す（#239。Chrome で足し・消しした分が反映される）。命令が失敗したときと、読めなかったとき（#265）は前のまま（無ければ空）。 */
-  function readChromeBookmarks() {
-    loadChromeBookmarks().then(
+  /** Firefox のブックマークを読み直す（#239。Firefox で足し・消しした分が反映される。Firefox が動いていても読める）。命令が失敗したときと、読めなかったとき（#265）は前のまま（無ければ空）。 */
+  function readFirefoxBookmarks() {
+    loadFirefoxBookmarks().then(
       (v) => {
-        const first = untrack(chromeBookmarks) === undefined;
-        const problem = chromeProblemFromLoaded(v);
-        notifyChromeProblem(problem);
-        const list = chromeTreeFromLoaded(v);
-        if (!problem || first) setChromeBookmarks(list);
-        // 自分のものの読み込みが先に失敗していたら、Chrome のものが届いたここで知らせる（読み終わる順に依らないように）
-        if (first && countChrome(list) > 0 && untrack(bookmarksFailed))
+        const first = untrack(firefoxBookmarks) === undefined;
+        const problem = firefoxProblemFromLoaded(v);
+        notifyFirefoxProblem(problem);
+        const list = firefoxTreeFromLoaded(v);
+        if (!problem || first) setFirefoxBookmarks(list);
+        // 自分のものの読み込みが先に失敗していたら、Firefox のものが届いたここで知らせる（読み終わる順に依らないように）
+        if (first && countFirefox(list) > 0 && untrack(bookmarksFailed))
           showToast(T("err.bookmarks.read"));
       },
       (e: unknown) => {
-        console.warn("chrome bookmarks:", e);
-        if (untrack(chromeBookmarks) === undefined) setChromeBookmarks([]);
+        console.warn("firefox bookmarks:", e);
+        if (untrack(firefoxBookmarks) === undefined) setFirefoxBookmarks([]);
       },
     );
   }
@@ -120,8 +120,8 @@ export function createBookmarks(deps: {
       (e: unknown) => {
         console.warn("bookmarks:", e);
         if (untrack(bookmarks) === undefined) setBookmarksFailed(true);
-        // 一覧には Chrome のものが出るので、自分のものが読めなかったことは別に知らせる（#239）
-        if (untrack(chromeCount) > 0) showToast(T("err.bookmarks.read"));
+        // 一覧には Firefox のものが出るので、自分のものが読めなかったことは別に知らせる（#239）
+        if (untrack(firefoxCount) > 0) showToast(T("err.bookmarks.read"));
         throw e;
       },
     );
@@ -188,7 +188,7 @@ export function createBookmarks(deps: {
   createEffect(
     on(newTabPageId, (id) => {
       if (id !== undefined) {
-        readChromeBookmarks();
+        readFirefoxBookmarks();
         readBookmarks().catch(() => {});
       }
     }),
@@ -197,16 +197,16 @@ export function createBookmarks(deps: {
   return {
     /** ブックマーク（新しく足したものが先）。読み終えるまでは undefined */
     bookmarks,
-    /** Chrome のブックマークの木（読み終えるまでは undefined） */
-    chromeBookmarks,
-    /** 自分のブックマークも Chrome のものも出せないか（読めなかったと出す） */
-    failed: () => bookmarksFailed() && chromeCount() === 0,
+    /** Firefox のブックマークの木（読み終えるまでは undefined） */
+    firefoxBookmarks,
+    /** 自分のブックマークも Firefox のものも出せないか（読めなかったと出す） */
+    failed: () => bookmarksFailed() && firefoxCount() === 0,
     /** ブックマークの一覧のダイアログ（ブラウザのタブの Dialog の B）を出しているか */
     bookmarkDialog,
     /** 一覧のダイアログを出す。開くたびに読み直す（読めなければ、前に読んだものを出す） */
     openDialog() {
       setBookmarkDialog(true);
-      readChromeBookmarks();
+      readFirefoxBookmarks();
       readBookmarks().catch(() => {});
     },
     /** 一覧のダイアログを閉じ、キーをページ（ターミナル）に戻す */
@@ -216,12 +216,12 @@ export function createBookmarks(deps: {
     },
     bookmarkPage,
     bookmarkPageChecked,
-    /** 覚えているブックマークを読み直して返す（Chrome のものは含めない。`kisui browser bookmark list`。#515）。読めなければ断る */
+    /** 覚えているブックマークを読み直して返す（Firefox のものは含めない。`kisui browser bookmark list`。#515）。読めなければ断る */
     readBookmarks,
     openBookmark,
-    /** 一覧で消す。Chrome のブックマークは消せない（読むだけ。#239） */
+    /** 一覧で消す。Firefox のブックマークは消せない（読むだけ。#543） */
     deleteBookmark(b: Bookmark) {
-      if (b.source === "chrome") showToast(T("toast.bookmarks.chromeKept"));
+      if (b.source === "firefox") showToast(T("toast.bookmarks.firefoxKept"));
       else changeBookmarks(removeBookmark(bookmarks() ?? [], b.url));
     },
   };

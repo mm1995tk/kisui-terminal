@@ -986,23 +986,27 @@ export const ja: Record<Key, string> = {
   "toast.bookmarked": "ブックマークに足しました",
   "toast.browser.login":
     "外のブラウザで開きました。ログインしたら、kisui-terminal の拡張機能のボタンを押してください",
-  "toast.bookmarks.chromeKept":
-    "Chrome のブックマークはここでは消せません（Chrome で消してください）",
+  "toast.bookmarks.firefoxKept":
+    "Firefox のブックマークはここでは消せません（Firefox で消してください）",
   "bookmarks.title": "Bookmarks",
   "bookmarks.filter": "ブックマークを絞り込む",
   "bookmarks.filterPlaceholder": "題か URL で絞り込む",
   "bookmarks.list": "ブックマーク",
-  "bookmarks.chrome": "Chrome",
+  "bookmarks.firefox": "Firefox",
+  "bookmarks.root.toolbar": "ブックマークツールバー",
+  "bookmarks.root.menu": "ブックマークメニュー",
+  "bookmarks.root.unfiled": "他のブックマーク",
+  "bookmarks.root.mobile": "モバイルのブックマーク",
   "bookmarks.empty.loading": "読み込んでいます…",
   "bookmarks.empty.failed": "ブックマークを読めませんでした",
   "bookmarks.empty.none":
     "ブックマークはまだありません。見ているページを {leader} a b で足せます。",
   "bookmarks.empty.noMatch": "当てはまるものがありません",
   "err.bookmarks.read": "kisui-terminal のブックマークを読めませんでした",
-  "err.bookmarks.chrome":
-    "Chrome のブックマークを読めませんでした: {reason}（{path}）",
-  "err.bookmarks.chromePermission":
-    "Chrome のブックマークを読めませんでした: {reason}（{path}）。「システム設定」→「プライバシーとセキュリティ」→「フルディスクアクセス」に kisui-terminal を足してください。",
+  "err.bookmarks.firefox":
+    "Firefox のブックマークを読めませんでした: {reason}（{path}）",
+  "err.bookmarks.firefoxPermission":
+    "Firefox のブックマークを読めませんでした: {reason}（{path}）。「システム設定」→「プライバシーとセキュリティ」→「フルディスクアクセス」に kisui-terminal を足してください。",
   "err.bookmarks.save": "ブックマークを保存できませんでした",
   "err.devtools": "DevTools を開けませんでした",
   "find.label": "ページ内を検索",
