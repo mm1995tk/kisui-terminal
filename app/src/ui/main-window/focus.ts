@@ -144,6 +144,14 @@ export function createFocus(deps: {
     focusInSidebar(() => changesRow(els.nav));
   }
 
+  /** 描かれるのを待って向ける。まず microtask で向け、キーが届かなかった（reached が false）ら、2 フレーム後にもう一度向ける。 */
+  function focusWhenDrawn(go: () => void, reached: () => boolean) {
+    queueMicrotask(() => {
+      go();
+      if (!reached()) requestAnimationFrame(() => requestAnimationFrame(go));
+    });
+  }
+
   /**
    * 今使っているターミナルの欄にキーを向ける。今のワークスペースで内蔵ブラウザのタブを出していれば、そのページに向ける。
    */
@@ -152,12 +160,13 @@ export function createFocus(deps: {
       // 新しいタブのページには、キーを向けるページ（webview）がまだ無い。検索欄に向ける
       // （Workspace switcher などの Dialog が閉じる・画面が描かれるのを待つ）
       if (untrack(deps.newTabShown)) {
-        const urlBar = () => focusUrlBar?.();
-        queueMicrotask(() => {
-          urlBar();
-          if (!els.main?.contains(document.activeElement))
-            requestAnimationFrame(() => requestAnimationFrame(urlBar));
-        });
+        focusWhenDrawn(
+          () => focusUrlBar?.(),
+          () => {
+            const a = document.activeElement;
+            return a instanceof HTMLInputElement && !a.closest("dialog");
+          },
+        );
         return;
       }
       focusBrowserPage?.();
@@ -175,12 +184,10 @@ export function createFocus(deps: {
       return;
     }
     // 足した欄のターミナルが開くのを待つ（作ったばかりのワークスペースは、欄が描かれるまでもう少しかかる）
-    const focus = () => focusActiveTerminal?.();
-    queueMicrotask(() => {
-      focus();
-      if (!els.main?.contains(document.activeElement))
-        requestAnimationFrame(() => requestAnimationFrame(focus));
-    });
+    focusWhenDrawn(
+      () => focusActiveTerminal?.(),
+      () => !!els.main?.contains(document.activeElement),
+    );
   }
 
   /**
