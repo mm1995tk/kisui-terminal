@@ -7,7 +7,15 @@
 // - 左のサイドバーに、Workspace band と中のタブ、フォーカスしているワークスペースのファイルツリーと CHANGES を出す（sidebar/）。
 // - 右のペインに、フォーカスしているワークスペースのターミナル（内蔵ブラウザのタブを出していればそのページ、DB のタブならその画面）を出す（content/）。
 // - Dialog（接続・ワークスペース・ツリー・ブックマークなど）と、右下の知らせ・リーダーの案内を、上に重ねて出す。
-import { createSignal, onMount, Show, untrack, type JSX } from "solid-js";
+import {
+  createEffect,
+  createSignal,
+  on,
+  onMount,
+  Show,
+  untrack,
+  type JSX,
+} from "solid-js";
 
 import { OsClipboard } from "../../features/clipboard/osClipboard.ts";
 import {
@@ -277,20 +285,21 @@ function MainWindow(props: {
    * 新しいタブのページを出しているなら、検索欄にキーを向ける（#545）。Workspace switcher・「+」のメニューを閉じたあとは、
    * Dialog が戻す先の要素より後にしたいので、描いたあとに向ける。
    */
-  const focusNewTabPage = (onlyIfLost = false) =>
+  const focusNewTabPage = (onlyIfChanged = false) =>
     requestAnimationFrame(() => {
-      if (pages.newTabPageId() === undefined) return;
-      // Workspace switcher を閉じたとき、キーが見えている要素（ファイルツリーなど）に戻っているなら、そこに残す
-      const a = document.activeElement;
-      if (
-        onlyIfLost &&
-        a instanceof HTMLElement &&
-        a !== document.body &&
-        a.offsetParent !== null
-      )
-        return;
+      const now = pages.newTabPageId();
+      if (now === undefined) return;
+      // Workspace switcher を閉じたとき、開いている間に新しいタブのページを出したのでなければ、Dialog が戻した先（ファイルツリーなど）に残す
+      if (onlyIfChanged && now === newTabAtSwitcherOpen) return;
       focusUi.focusTerminal();
     });
+  // Workspace switcher を開いたときに出していた新しいタブのページ
+  let newTabAtSwitcherOpen: string | undefined;
+  createEffect(
+    on(wsSwitcher, (open, prev) => {
+      if (open && !prev) newTabAtSwitcherOpen = untrack(pages.newTabPageId);
+    }),
+  );
   const notices = createNotices({
     shortcutProblems: props.shortcutProblems,
     passkeyRejected: props.passkeyRejected,
