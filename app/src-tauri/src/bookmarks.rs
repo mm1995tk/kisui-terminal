@@ -265,6 +265,13 @@ impl TempCopy {
     }
 }
 
+impl TempCopy {
+    /// 写した places.sqlite
+    fn db(&self) -> PathBuf {
+        self.0.join("places.sqlite")
+    }
+}
+
 impl Drop for TempCopy {
     fn drop(&mut self) {
         let _ = fs::remove_dir_all(&self.0);
@@ -405,21 +412,32 @@ fn read_places_copy(db: &Path) -> rusqlite::Result<Vec<FirefoxNode>> {
 /// 2 つのファイルは別々に写すので、その間に Firefox が書き戻し（checkpoint）て WAL を書き直すと、写しの組が食い違って
 /// 読めないことがある。写しを読めなかったときは、1 度だけ写し直して読む。
 fn load_places(places: &Path) -> FirefoxLoad {
-    match copy_and_read_places(places) {
-        Ok(load) => load,
-        Err(_) => copy_and_read_places(places).unwrap_or_else(|load| load),
+    // 読み終えると tmp が落ち、写しを消す（写し直す前にも消える）
+    let read_once = || copy_places(places).map(|tmp| read_places_copy(&tmp.db()));
+    let mut read = read_once();
+    if matches!(read, Ok(Err(_))) {
+        read = read_once();
+    }
+    match read {
+        Err(load) => load,
+        Ok(Ok(roots)) => FirefoxLoad {
+            roots,
+            problem: None,
+        },
+        Ok(Err(e)) => fail(places, e.to_string(), false),
     }
 }
 
-/// places.sqlite を 1 度写して読む。写しを SQLite で読めなかったときだけ Err（写し直せば読めるかもしれない）。
-fn copy_and_read_places(places: &Path) -> Result<FirefoxLoad, FirefoxLoad> {
+/// places.sqlite と（あれば）places.sqlite-wal を一時フォルダに写す。写せなかったとき（ファイルが無いときも）は、
+/// 読まずにそのまま返す結果を Err に入れる。
+fn copy_places(places: &Path) -> Result<TempCopy, FirefoxLoad> {
     let meta = match fs::metadata(places) {
         Ok(m) => m,
-        Err(e) if e.kind() == ErrorKind::NotFound => return Ok(FirefoxLoad::default()),
-        Err(e) => return Ok(io_fail(places, &e)),
+        Err(e) if e.kind() == ErrorKind::NotFound => return Err(FirefoxLoad::default()),
+        Err(e) => return Err(io_fail(places, &e)),
     };
     if !meta.is_file() {
-        return Ok(fail(places, "not a regular file".into(), false));
+        return Err(fail(places, "not a regular file".into(), false));
     }
     let mut wal = places.as_os_str().to_owned();
     wal.push("-wal");
@@ -428,30 +446,29 @@ fn copy_and_read_places(places: &Path) -> Result<FirefoxLoad, FirefoxLoad> {
         Ok(m) if m.is_file() => Some(m.len()),
         Ok(_) => None,
         Err(e) if e.kind() == ErrorKind::NotFound => None,
-        Err(e) => return Ok(io_fail(&wal, &e)),
+        Err(e) => return Err(io_fail(&wal, &e)),
     };
     let total = meta.len() + wal_len.unwrap_or(0);
     if total > MAX_FIREFOX_FILES {
         // 理由に大きさを入れない（Firefox が動いている間は -wal が開くたびに大きくなり、同じ理由として続けて知らせないことが効かなくなる）
-        return Ok(fail(places, "file too large".into(), false));
+        return Err(fail(places, "file too large".into(), false));
     }
     let tmp = match TempCopy::new() {
         Ok(t) => t,
         Err(e) => {
-            return Ok(fail(
+            return Err(fail(
                 places,
                 format!("cannot make a temporary folder: {e}"),
                 false,
             ))
         }
     };
-    let db = tmp.0.join("places.sqlite");
-    let copied = match copy_limited(places, &db, MAX_FIREFOX_FILES) {
+    let copied = match copy_limited(places, &tmp.db(), MAX_FIREFOX_FILES) {
         Ok(Some(n)) => n,
-        Ok(None) => return Ok(fail(places, "file too large".into(), false)),
+        Ok(None) => return Err(fail(places, "file too large".into(), false)),
         // 調べた後に消えた
-        Err(e) if e.kind() == ErrorKind::NotFound => return Ok(FirefoxLoad::default()),
-        Err(e) => return Ok(io_fail(places, &e)),
+        Err(e) if e.kind() == ErrorKind::NotFound => return Err(FirefoxLoad::default()),
+        Err(e) => return Err(io_fail(places, &e)),
     };
     if wal_len.is_some() {
         match copy_limited(
@@ -460,19 +477,13 @@ fn copy_and_read_places(places: &Path) -> Result<FirefoxLoad, FirefoxLoad> {
             MAX_FIREFOX_FILES - copied,
         ) {
             Ok(Some(_)) => {}
-            Ok(None) => return Ok(fail(places, "file too large".into(), false)),
+            Ok(None) => return Err(fail(places, "file too large".into(), false)),
             // Firefox が書き戻して消した（places.sqlite の写しだけで読める）
             Err(e) if e.kind() == ErrorKind::NotFound => {}
-            Err(e) => return Ok(io_fail(&wal, &e)),
+            Err(e) => return Err(io_fail(&wal, &e)),
         }
     }
-    match read_places_copy(&db) {
-        Ok(roots) => Ok(FirefoxLoad {
-            roots,
-            problem: None,
-        }),
-        Err(e) => Err(fail(places, e.to_string(), false)),
-    }
+    Ok(tmp)
 }
 
 /// Firefox のブックマークを読む。`dirs` の最初の `profiles.ini` があるフォルダで、Firefox が普段開くプロファイルの
