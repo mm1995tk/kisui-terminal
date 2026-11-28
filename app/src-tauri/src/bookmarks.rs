@@ -431,7 +431,8 @@ fn copy_and_read_places(places: &Path) -> Result<FirefoxLoad, FirefoxLoad> {
     };
     let total = meta.len() + wal_len.unwrap_or(0);
     if total > MAX_FIREFOX_FILES {
-        return Ok(fail(places, format!("file too large ({total} bytes)")));
+        // 理由に大きさを入れない（Firefox が動いている間は -wal が開くたびに大きくなり、同じ理由として続けて知らせないことが効かなくなる）
+        return Ok(fail(places, "file too large".into()));
     }
     let tmp = match TempCopy::new() {
         Ok(t) => t,
@@ -661,7 +662,7 @@ mod tests {
             .set_len(MAX_FIREFOX_FILES + 1)
             .unwrap();
         let problem = load_firefox(&[d.join("a")]).problem.unwrap();
-        assert!(problem.reason.starts_with("file too large"));
+        assert_eq!(problem.reason, "file too large");
         assert_eq!(
             problem.path,
             d.join("a/p/places.sqlite").display().to_string()
