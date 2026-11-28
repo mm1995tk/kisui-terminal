@@ -39,7 +39,8 @@ libc = "=0.2.191"
 # Linux は X11 の XGrabKey で取る（macOS のアクセシビリティの許可は要らない）
 tauri-plugin-global-shortcut = "=2.4.1"
 # 内蔵ブラウザの、手元の Firefox のブックマーク（bookmarks.rs。#543）。places.sqlite の写しを読む。
-# SQLite は crate に入れたもの（bundled）を使い、OS の libsqlite3 に頼らない（macOS・Linux・Nix で同じに作れるように）
+# SQLite は crate に入れたもの（bundled）を使い、OS の libsqlite3 に頼らない（AppImage・.dmg で同じに作れるように）。
+# Nix で作る版は、buildRustPackage が pkg-config で Nix の sqlite を使わせる（packaging/nix/kisui-terminal.nix）
 rusqlite = { version = "=0.41.1", default-features = false, features = [
   "bundled",
 ] }
