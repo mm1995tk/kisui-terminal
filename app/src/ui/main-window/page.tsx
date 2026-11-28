@@ -273,6 +273,14 @@ function MainWindow(props: {
     resizeMode: resize.resizeMode,
     inLeader: () => keys.inLeader(),
   });
+  /**
+   * 新しいタブのページを出しているなら、検索欄にキーを向ける（#545）。Workspace switcher・「+」のメニューを閉じたあとは、
+   * Dialog が戻す先の要素より後にしたいので、描いたあとに向ける。
+   */
+  const focusNewTabPage = () =>
+    requestAnimationFrame(() => {
+      if (pages.newTabPageId() !== undefined) focusUi.focusTerminal();
+    });
   const notices = createNotices({
     shortcutProblems: props.shortcutProblems,
     passkeyRejected: props.passkeyRejected,
@@ -326,7 +334,9 @@ function MainWindow(props: {
           }
           onTabRenameSubmit={(name) => void tabs.submitTabRename(name)}
           onTabRenameCancel={tabs.cancelTabRename}
-          onAddTab={(gid, what) => void tabs.addWorkspaceTab(gid, what)}
+          onAddTab={(gid, what) =>
+            void tabs.addWorkspaceTab(gid, what).then(focusNewTabPage)
+          }
           browser={browser}
           onTabMove={tabs.moveTabBefore}
           treeOf={fileTree.treeOf}
@@ -422,7 +432,10 @@ function MainWindow(props: {
         workspaces={workspaces}
         tabs={tabs}
         switcherOpen={wsSwitcher()}
-        onCloseSwitcher={() => setWsSwitcher(undefined)}
+        onCloseSwitcher={() => {
+          setWsSwitcher(undefined);
+          focusNewTabPage();
+        }}
         colors={sessions.colors()}
         browser={props.browser}
       />
