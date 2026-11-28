@@ -374,3 +374,14 @@
   outline: 1px dashed var(--card-field-border);
   outline-offset: -2px;
 }
+/* 帯は box-shadow で描くので、同じ行の別の box-shadow（落とす先の枠・つかんだ行の影）は、帯と並べて書き直す */
+.switch-row[data-current][data-drop-target] {
+  box-shadow:
+    inset 5px 0 0 var(--gh-green),
+    inset 0 0 0 1px var(--card-accent);
+}
+.switch-row[data-current][data-dragging] {
+  box-shadow:
+    inset 5px 0 0 var(--gh-green),
+    var(--shadow-raised);
+}
