@@ -1,4 +1,4 @@
-// 手元の Firefox のブックマーク（#543。それまでは Chrome のもの。#239・#275）を、Firefox と同じフォルダの入れ子で出すための木と行。
+// 手元の Firefox のブックマーク（#543・#275）を、Firefox と同じフォルダの入れ子で出すための木と行。
 // DOM も Tauri も使わない（node --test で確かめられる）。
 // 殻（src-tauri/src/bookmarks.rs の FirefoxNode）が、根のフォルダ（ブックマークツールバー・ブックマークメニュー・他のブックマーク・
 // モバイルのブックマーク）を、Firefox と同じ入れ子と並びのまま返す。一覧のダイアログ（BookmarkDialog.tsx）と新しいタブのページ（NewTabPage.tsx）は、

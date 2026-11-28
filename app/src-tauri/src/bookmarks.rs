@@ -100,10 +100,10 @@ pub fn browser_bookmarks_save(
     save(&path(&app)?, &bookmarks).map_err(|e| e.to_string())
 }
 
-// ---- Firefox のブックマーク（#543。#239 の Chrome のものを置き換えた）。読むだけで、Firefox のファイルには書かない ----
+// ---- Firefox のブックマーク（#543）。読むだけで、Firefox のファイルには書かない ----
 
 /// Firefox のブックマークの写し（places.sqlite と places.sqlite-wal を合わせたもの）の大きさの上限（バイト。これより大きければ読まない）。
-/// places.sqlite には履歴も入るので、Chrome の Bookmarks（64 MiB）より大きくとる。
+/// places.sqlite には履歴も入るので、大きめにとる。
 const MAX_FIREFOX_FILES: u64 = 256 * 1024 * 1024;
 /// フォルダの入れ子をたどる深さの上限。
 const MAX_DEPTH: usize = 32;

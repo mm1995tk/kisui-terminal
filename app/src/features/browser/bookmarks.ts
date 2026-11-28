@@ -12,7 +12,7 @@ export interface Bookmark {
   url: string;
   /** ページの題（分からなければ空） */
   title: string;
-  /** Firefox から読んだものなら "firefox"（#543。#239 から #543 までは Chrome。kisui-terminal 自身のものは付けない。覚えるファイルには入らない） */
+  /** Firefox から読んだものなら "firefox"（#543。kisui-terminal 自身のものは付けない。覚えるファイルには入らない） */
   source?: "firefox";
 }
 
