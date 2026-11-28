@@ -401,14 +401,24 @@ fn read_places_copy(db: &Path) -> rusqlite::Result<Vec<FirefoxNode>> {
 /// プロファイルの places.sqlite を読む。Firefox が動いている間は排他で開かれているので、places.sqlite と（あれば）
 /// places.sqlite-wal を自分だけが読める一時フォルダに写し、写しを読み取り専用で開いて読み、読み終えたら消す。
 /// ファイルが無いときは空で理由も無し。大きすぎる・読めない・壊れているときは、空と理由。
+/// 2 つのファイルは別々に写すので、その間に Firefox が書き戻し（checkpoint）て WAL を書き直すと、写しの組が食い違って
+/// 読めないことがある。写しを読めなかったときは、1 度だけ写し直して読む。
 fn load_places(places: &Path) -> FirefoxLoad {
+    match copy_and_read_places(places) {
+        Ok(load) => load,
+        Err(_) => copy_and_read_places(places).unwrap_or_else(|load| load),
+    }
+}
+
+/// places.sqlite を 1 度写して読む。写しを SQLite で読めなかったときだけ Err（写し直せば読めるかもしれない）。
+fn copy_and_read_places(places: &Path) -> Result<FirefoxLoad, FirefoxLoad> {
     let meta = match fs::metadata(places) {
         Ok(m) => m,
-        Err(e) if e.kind() == ErrorKind::NotFound => return FirefoxLoad::default(),
-        Err(e) => return io_fail(places, &e),
+        Err(e) if e.kind() == ErrorKind::NotFound => return Ok(FirefoxLoad::default()),
+        Err(e) => return Ok(io_fail(places, &e)),
     };
     if !meta.is_file() {
-        return fail(places, "not a regular file".into());
+        return Ok(fail(places, "not a regular file".into()));
     }
     let mut wal = places.as_os_str().to_owned();
     wal.push("-wal");
@@ -417,23 +427,23 @@ fn load_places(places: &Path) -> FirefoxLoad {
         Ok(m) if m.is_file() => Some(m.len()),
         Ok(_) => None,
         Err(e) if e.kind() == ErrorKind::NotFound => None,
-        Err(e) => return io_fail(&wal, &e),
+        Err(e) => return Ok(io_fail(&wal, &e)),
     };
     let total = meta.len() + wal_len.unwrap_or(0);
     if total > MAX_FIREFOX_FILES {
-        return fail(places, format!("file too large ({total} bytes)"));
+        return Ok(fail(places, format!("file too large ({total} bytes)")));
     }
     let tmp = match TempCopy::new() {
         Ok(t) => t,
-        Err(e) => return fail(places, format!("cannot make a temporary folder: {e}")),
+        Err(e) => return Ok(fail(places, format!("cannot make a temporary folder: {e}"))),
     };
     let db = tmp.0.join("places.sqlite");
     let copied = match copy_limited(places, &db, MAX_FIREFOX_FILES) {
         Ok(Some(n)) => n,
-        Ok(None) => return fail(places, "file too large".into()),
+        Ok(None) => return Ok(fail(places, "file too large".into())),
         // 調べた後に消えた
-        Err(e) if e.kind() == ErrorKind::NotFound => return FirefoxLoad::default(),
-        Err(e) => return io_fail(places, &e),
+        Err(e) if e.kind() == ErrorKind::NotFound => return Ok(FirefoxLoad::default()),
+        Err(e) => return Ok(io_fail(places, &e)),
     };
     if wal_len.is_some() {
         match copy_limited(
@@ -442,18 +452,18 @@ fn load_places(places: &Path) -> FirefoxLoad {
             MAX_FIREFOX_FILES - copied,
         ) {
             Ok(Some(_)) => {}
-            Ok(None) => return fail(places, "file too large".into()),
+            Ok(None) => return Ok(fail(places, "file too large".into())),
             // Firefox が書き戻して消した（places.sqlite の写しだけで読める）
             Err(e) if e.kind() == ErrorKind::NotFound => {}
-            Err(e) => return io_fail(&wal, &e),
+            Err(e) => return Ok(io_fail(&wal, &e)),
         }
     }
     match read_places_copy(&db) {
-        Ok(roots) => FirefoxLoad {
+        Ok(roots) => Ok(FirefoxLoad {
             roots,
             problem: None,
-        },
-        Err(e) => fail(places, e.to_string()),
+        }),
+        Err(e) => Err(fail(places, e.to_string())),
     }
 }
 
