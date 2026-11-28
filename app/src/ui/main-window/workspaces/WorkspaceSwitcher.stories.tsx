@@ -199,7 +199,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** ローカルと別のマシン（つながっていない）のワークスペースが並ぶ。j / k で選ぶと、右に選んだ行のタブが出る。r で名前を変え（長すぎる名前は断られる）、x で閉じる確認を出す。 */
+/** 開いた直後（#547）：カーソル（青い塗り）は今いるワークスペースの行にあり、その行は今いるタブを持つので緑の帯も出る。右の列の今いるタブは緑の帯だけ（塗らない）。 ローカルと別のマシン（つながっていない）のワークスペースが並ぶ。j / k で選ぶと、右に選んだ行のタブが出る。r で名前を変え（長すぎる名前は断られる）、x で閉じる確認を出す。 */
 export const Default: Story = {};
 
 /** 右の列（タブ）にキーを置いたとき。Key footer はタブの行だけになり Default より低くなるが、一覧の欄の上端と高さは Default と同じ（動くのは Dialog の下端だけ）。 */
@@ -266,9 +266,6 @@ const MANY_ROWS: Row[] = MANY_NAMES.map((name, i) => {
 export const Many: Story = {
   args: { rows: MANY_ROWS },
 };
-
-/** 開いた直後（#547）。カーソル（青い塗り）は今いるワークスペースの行にあり、その行は今いるタブを持つので緑の帯も出る。右の列の今いるタブは緑の帯だけ（塗らない）。 */
-export const CursorAndCurrent: Story = {};
 
 /** タブの列で、今いるタブとは別のタブにカーソルを移したとき（#547）。カーソルのタブは青い塗り。今いるタブと、それを持つワークスペースの行は、緑の帯だけ。 */
 export const CursorOnOtherTab: Story = {
