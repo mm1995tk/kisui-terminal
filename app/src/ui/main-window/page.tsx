@@ -277,9 +277,19 @@ function MainWindow(props: {
    * 新しいタブのページを出しているなら、検索欄にキーを向ける（#545）。Workspace switcher・「+」のメニューを閉じたあとは、
    * Dialog が戻す先の要素より後にしたいので、描いたあとに向ける。
    */
-  const focusNewTabPage = () =>
+  const focusNewTabPage = (onlyIfLost = false) =>
     requestAnimationFrame(() => {
-      if (pages.newTabPageId() !== undefined) focusUi.focusTerminal();
+      if (pages.newTabPageId() === undefined) return;
+      // Workspace switcher を閉じたとき、キーが見えている要素（ファイルツリーなど）に戻っているなら、そこに残す
+      const a = document.activeElement;
+      if (
+        onlyIfLost &&
+        a instanceof HTMLElement &&
+        a !== document.body &&
+        a.offsetParent !== null
+      )
+        return;
+      focusUi.focusTerminal();
     });
   const notices = createNotices({
     shortcutProblems: props.shortcutProblems,
@@ -335,7 +345,7 @@ function MainWindow(props: {
           onTabRenameSubmit={(name) => void tabs.submitTabRename(name)}
           onTabRenameCancel={tabs.cancelTabRename}
           onAddTab={(gid, what) =>
-            void tabs.addWorkspaceTab(gid, what).then(focusNewTabPage)
+            void tabs.addWorkspaceTab(gid, what).then(() => focusNewTabPage())
           }
           browser={browser}
           onTabMove={tabs.moveTabBefore}
@@ -434,7 +444,7 @@ function MainWindow(props: {
         switcherOpen={wsSwitcher()}
         onCloseSwitcher={() => {
           setWsSwitcher(undefined);
-          focusNewTabPage();
+          focusNewTabPage(true);
         }}
         colors={sessions.colors()}
         browser={props.browser}
