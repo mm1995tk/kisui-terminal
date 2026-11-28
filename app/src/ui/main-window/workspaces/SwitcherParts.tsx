@@ -119,6 +119,7 @@ export function SwitcherRow(props: {
       class="card-row switch-row"
       role="option"
       data-gws={r().gws}
+      data-current={r().band.focused ? "" : undefined}
       data-held-from={props.heldFrom ? "" : undefined}
       aria-selected={props.selected ? "true" : "false"}
       onPointerDown={(e) => {
