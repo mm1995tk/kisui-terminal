@@ -696,7 +696,7 @@ mod tests {
     }
 
     #[test]
-    fn firefox_bookmarks_are_read_while_firefox_holds_the_file_and_never_written() {
+    fn firefox_bookmarks_are_read_while_firefox_runs_and_after_it_closes() {
         let d = temp_dir("firefox");
         let profile = d.join("Profiles/abc.default-release");
         fs::create_dir_all(&profile).unwrap();
@@ -793,7 +793,16 @@ mod tests {
         );
         assert!(!profile.join("places.sqlite-shm").exists());
         assert_eq!(leftover_copies(), Vec::<PathBuf>::new());
+        // Firefox を閉じたあと（最後の接続を閉じると書き戻して -wal を消す。ファイルの頭は WAL の形のまま）も、同じ木を読める
         drop(firefox);
+        assert!(!wal.exists());
+        let header = fs::read(&places).unwrap();
+        assert_eq!((header[18], header[19]), (2, 2));
+        let closed = load_firefox(&[d.clone()]);
+        assert_eq!(closed.problem, None);
+        assert_eq!(closed.roots, loaded.roots);
+        assert!(!wal.exists() && !profile.join("places.sqlite-shm").exists());
+        assert_eq!(leftover_copies(), Vec::<PathBuf>::new());
 
         // 壊れている
         fs::remove_file(&wal).ok();
