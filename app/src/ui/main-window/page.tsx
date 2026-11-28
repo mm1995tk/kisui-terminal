@@ -7,7 +7,15 @@
 // - 左のサイドバーに、Workspace band と中のタブ、フォーカスしているワークスペースのファイルツリーと CHANGES を出す（sidebar/）。
 // - 右のペインに、フォーカスしているワークスペースのターミナル（内蔵ブラウザのタブを出していればそのページ、DB のタブならその画面）を出す（content/）。
 // - Dialog（接続・ワークスペース・ツリー・ブックマークなど）と、右下の知らせ・リーダーの案内を、上に重ねて出す。
-import { createSignal, onMount, Show, untrack, type JSX } from "solid-js";
+import {
+  createEffect,
+  createSignal,
+  on,
+  onMount,
+  Show,
+  untrack,
+  type JSX,
+} from "solid-js";
 
 import { OsClipboard } from "../../features/clipboard/osClipboard.ts";
 import {
@@ -265,6 +273,7 @@ function MainWindow(props: {
     workspaces: sessions.workspaces,
     treeVersion: fileTree.treeVersion,
     shownBrowserTab: pages.shownBrowserTab,
+    newTabShown: () => pages.newTabPageId() !== undefined,
     shownDbTab: db.shownDbTab,
     emptyShown: workspaces.currentEmpty,
     sidebarOpen: resize.sidebarOpen,
@@ -272,6 +281,25 @@ function MainWindow(props: {
     resizeMode: resize.resizeMode,
     inLeader: () => keys.inLeader(),
   });
+  /**
+   * 新しいタブのページを出しているなら、検索欄にキーを向ける（#545）。Workspace switcher・「+」のメニューを閉じたあとは、
+   * Dialog が戻す先の要素より後にしたいので、描いたあとに向ける。
+   */
+  const focusNewTabPage = (onlyIfChanged = false) =>
+    requestAnimationFrame(() => {
+      const now = pages.newTabPageId();
+      if (now === undefined) return;
+      // Workspace switcher を閉じたとき、開いている間に新しいタブのページを出したのでなければ、Dialog が戻した先（ファイルツリーなど）に残す
+      if (onlyIfChanged && now === newTabAtSwitcherOpen) return;
+      focusUi.focusTerminal();
+    });
+  // Workspace switcher を開いたときに出していた新しいタブのページ
+  let newTabAtSwitcherOpen: string | undefined;
+  createEffect(
+    on(wsSwitcher, (open, prev) => {
+      if (open && !prev) newTabAtSwitcherOpen = untrack(pages.newTabPageId);
+    }),
+  );
   const notices = createNotices({
     shortcutProblems: props.shortcutProblems,
     passkeyRejected: props.passkeyRejected,
@@ -325,7 +353,9 @@ function MainWindow(props: {
           }
           onTabRenameSubmit={(name) => void tabs.submitTabRename(name)}
           onTabRenameCancel={tabs.cancelTabRename}
-          onAddTab={(gid, what) => void tabs.addWorkspaceTab(gid, what)}
+          onAddTab={(gid, what) =>
+            void tabs.addWorkspaceTab(gid, what).then(() => focusNewTabPage())
+          }
           browser={browser}
           onTabMove={tabs.moveTabBefore}
           treeOf={fileTree.treeOf}
@@ -421,7 +451,10 @@ function MainWindow(props: {
         workspaces={workspaces}
         tabs={tabs}
         switcherOpen={wsSwitcher()}
-        onCloseSwitcher={() => setWsSwitcher(undefined)}
+        onCloseSwitcher={() => {
+          setWsSwitcher(undefined);
+          focusNewTabPage(true);
+        }}
         colors={sessions.colors()}
         browser={props.browser}
       />
