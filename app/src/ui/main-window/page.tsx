@@ -265,6 +265,7 @@ function MainWindow(props: {
     workspaces: sessions.workspaces,
     treeVersion: fileTree.treeVersion,
     shownBrowserTab: pages.shownBrowserTab,
+    newTabShown: () => pages.newTabPageId() !== undefined,
     shownDbTab: db.shownDbTab,
     emptyShown: workspaces.currentEmpty,
     sidebarOpen: resize.sidebarOpen,

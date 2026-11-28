@@ -31,6 +31,8 @@ export function createFocus(deps: {
   treeVersion: Accessor<number>;
   /** 今のワークスペースで出しているブラウザのタブ（ターミナルのタブを出していれば undefined） */
   shownBrowserTab: Accessor<unknown>;
+  /** 出しているブラウザのタブが、新しいタブのページ（#238。子の webview は無く、検索欄を画面が描く）か */
+  newTabShown: Accessor<boolean>;
   /** 今のワークスペースで出している DB のタブ（#347。出していなければ undefined） */
   shownDbTab: Accessor<unknown>;
   /** 空のワークスペース（#307）を選んでいて、タブが無いことを伝える画面を出しているか */
@@ -147,6 +149,17 @@ export function createFocus(deps: {
    */
   function focusTerminal() {
     if (untrack(shownBrowserTab)) {
+      // 新しいタブのページには、キーを向けるページ（webview）がまだ無い。検索欄に向ける
+      // （Workspace switcher などの Dialog が閉じる・画面が描かれるのを待つ）
+      if (untrack(deps.newTabShown)) {
+        const urlBar = () => focusUrlBar?.();
+        queueMicrotask(() => {
+          urlBar();
+          if (!els.main?.contains(document.activeElement))
+            requestAnimationFrame(() => requestAnimationFrame(urlBar));
+        });
+        return;
+      }
       focusBrowserPage?.();
       return;
     }
