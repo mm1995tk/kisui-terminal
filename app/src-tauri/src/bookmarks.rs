@@ -214,24 +214,24 @@ pub struct FirefoxLoad {
     pub problem: Option<FirefoxProblem>,
 }
 
-fn fail(file: &Path, reason: String) -> FirefoxLoad {
+fn fail(file: &Path, reason: String, needs_permission: bool) -> FirefoxLoad {
     FirefoxLoad {
         roots: Vec::new(),
         problem: Some(FirefoxProblem {
             path: file.display().to_string(),
             reason,
-            needs_permission: false,
+            needs_permission,
         }),
     }
 }
 
 /// ファイルを読めなかった（OS のエラー）。macOS で権限が無いときは、画面が許可の案内を添える。
 fn io_fail(file: &Path, e: &std::io::Error) -> FirefoxLoad {
-    let mut load = fail(file, e.to_string());
-    if let Some(p) = &mut load.problem {
-        p.needs_permission = cfg!(target_os = "macos") && e.kind() == ErrorKind::PermissionDenied;
-    }
-    load
+    fail(
+        file,
+        e.to_string(),
+        cfg!(target_os = "macos") && e.kind() == ErrorKind::PermissionDenied,
+    )
 }
 
 /// 写しを置く、自分だけが読める一時フォルダ。落とすと中身ごと消す。
@@ -418,7 +418,7 @@ fn copy_and_read_places(places: &Path) -> Result<FirefoxLoad, FirefoxLoad> {
         Err(e) => return Ok(io_fail(places, &e)),
     };
     if !meta.is_file() {
-        return Ok(fail(places, "not a regular file".into()));
+        return Ok(fail(places, "not a regular file".into(), false));
     }
     let mut wal = places.as_os_str().to_owned();
     wal.push("-wal");
@@ -432,16 +432,22 @@ fn copy_and_read_places(places: &Path) -> Result<FirefoxLoad, FirefoxLoad> {
     let total = meta.len() + wal_len.unwrap_or(0);
     if total > MAX_FIREFOX_FILES {
         // 理由に大きさを入れない（Firefox が動いている間は -wal が開くたびに大きくなり、同じ理由として続けて知らせないことが効かなくなる）
-        return Ok(fail(places, "file too large".into()));
+        return Ok(fail(places, "file too large".into(), false));
     }
     let tmp = match TempCopy::new() {
         Ok(t) => t,
-        Err(e) => return Ok(fail(places, format!("cannot make a temporary folder: {e}"))),
+        Err(e) => {
+            return Ok(fail(
+                places,
+                format!("cannot make a temporary folder: {e}"),
+                false,
+            ))
+        }
     };
     let db = tmp.0.join("places.sqlite");
     let copied = match copy_limited(places, &db, MAX_FIREFOX_FILES) {
         Ok(Some(n)) => n,
-        Ok(None) => return Ok(fail(places, "file too large".into())),
+        Ok(None) => return Ok(fail(places, "file too large".into(), false)),
         // 調べた後に消えた
         Err(e) if e.kind() == ErrorKind::NotFound => return Ok(FirefoxLoad::default()),
         Err(e) => return Ok(io_fail(places, &e)),
@@ -453,7 +459,7 @@ fn copy_and_read_places(places: &Path) -> Result<FirefoxLoad, FirefoxLoad> {
             MAX_FIREFOX_FILES - copied,
         ) {
             Ok(Some(_)) => {}
-            Ok(None) => return Ok(fail(places, "file too large".into())),
+            Ok(None) => return Ok(fail(places, "file too large".into(), false)),
             // Firefox が書き戻して消した（places.sqlite の写しだけで読める）
             Err(e) if e.kind() == ErrorKind::NotFound => {}
             Err(e) => return Ok(io_fail(&wal, &e)),
@@ -464,7 +470,7 @@ fn copy_and_read_places(places: &Path) -> Result<FirefoxLoad, FirefoxLoad> {
             roots,
             problem: None,
         }),
-        Err(e) => Err(fail(places, e.to_string())),
+        Err(e) => Err(fail(places, e.to_string(), false)),
     }
 }
 
