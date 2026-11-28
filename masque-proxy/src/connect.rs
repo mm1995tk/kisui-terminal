@@ -5,7 +5,14 @@
 //! 前の試みが `CONNECTION_ATTEMPT_DELAY` のうちにつながらなければ（失敗したらすぐに）次のアドレスも並べて試し、
 //! 先につながった方を使う。IPv6 が届く回線では IPv6 が先につながる。IPv6 の接続が返事も無く消える回線
 //! （IPv6 のアドレスはあるが行き先まで届かない）でも、IPv6 のアドレスの数だけ待たずに IPv4 でつながる。
+//!
+//! UDP（CONNECT-UDP）には接続の確立が無く、経路さえあれば IPv6 への `connect` が成功するので、同じ回線では
+//! 送ったものが全部消える。そこで、行き先の名前ごとに「TCP で IPv6 のアドレスも試したのに、IPv4 が先につながった」
+//! ことを `IPV6_UNREACHABLE_TTL` の間だけ覚え（`Ipv6Unreachable`）、覚えている行き先には、UDP は IPv4 を先にし、
+//! TCP も IPv4 から試す（RFC 8305 の 4 節の、前の結果を使う並べ方）。TCP で IPv6 が先につながったら忘れる。
+//! ブラウザは HTTP/3 を、先に TCP で受けた応答（Alt-Svc）で知ってから使うので、UDP の前に同じ行き先の TCP がある。
 
+use std::collections::HashMap;
 use std::io;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::sync::Mutex;
@@ -23,6 +30,11 @@ const TCP_CONNECT_TIMEOUT: Duration = Duration::from_secs(3);
 /// TCP で、前の試みがつながらないまま、次のアドレスを試し始めるまでの長さ（RFC 8305 の Connection Attempt Delay の
 /// 勧める値）。
 const CONNECTION_ATTEMPT_DELAY: Duration = Duration::from_millis(250);
+/// 行き先の名前ごとに、IPv6 が届かなかったことを覚える長さ。回線が変わって IPv6 が届くようになっても、
+/// TCP は IPv6 も試すので、IPv6 が先につながれば、この長さを待たずに忘れる。
+const IPV6_UNREACHABLE_TTL: Duration = Duration::from_secs(10 * 60);
+/// 覚える行き先の数の上限（覚えるだけ増えないように）。超えそうなら、切れたものを捨て、それでも多ければ全部忘れる。
+const MAX_IPV6_UNREACHABLE: usize = 4096;
 /// `Dns::System` で、OS に設定された DNS のサーバーを読み直す間隔。回線が変わる（Wi-Fi を移る・WARP を入れ切りする）と
 /// サーバーも変わるので、起動のときに 1 度読むだけにはしない。
 const SYSTEM_DNS_RECHECK: Duration = Duration::from_secs(5);
@@ -41,7 +53,54 @@ pub enum Dns {
 
 pub(crate) struct Ctx {
     resolver: Resolvers,
+    ipv6_unreachable: Ipv6Unreachable,
     pub(crate) log: bool,
+}
+
+/// 行き先の名前ごとに、IPv6 が届かなかった（TCP で IPv6 のアドレスも試したのに、IPv4 が先につながった）時刻。
+struct Ipv6Unreachable {
+    ttl: Duration,
+    max: usize,
+    hosts: Mutex<HashMap<String, Instant>>,
+}
+
+impl Ipv6Unreachable {
+    fn new(ttl: Duration, max: usize) -> Ipv6Unreachable {
+        Ipv6Unreachable {
+            ttl,
+            max,
+            hosts: Mutex::new(HashMap::new()),
+        }
+    }
+
+    /// `host` には、今 IPv6 が届かないと覚えているか。
+    fn contains(&self, host: &str, now: Instant) -> bool {
+        let hosts = self.hosts.lock().unwrap_or_else(|e| e.into_inner());
+        hosts
+            .get(&host.to_ascii_lowercase())
+            .is_some_and(|t| now.saturating_duration_since(*t) < self.ttl)
+    }
+
+    /// TCP でつながった結果を覚える。`tried` は試したアドレス、`winner` は先につながったアドレス。
+    fn record(&self, host: &str, tried: &[SocketAddr], winner: SocketAddr, now: Instant) {
+        let host = host.to_ascii_lowercase();
+        let mut hosts = self.hosts.lock().unwrap_or_else(|e| e.into_inner());
+        if winner.is_ipv6() {
+            hosts.remove(&host);
+            return;
+        }
+        if !tried.iter().any(|a| a.is_ipv6()) {
+            return;
+        }
+        if hosts.len() >= self.max && !hosts.contains_key(&host) {
+            let ttl = self.ttl;
+            hosts.retain(|_, t| now.saturating_duration_since(*t) < ttl);
+            if hosts.len() >= self.max {
+                hosts.clear();
+            }
+        }
+        hosts.insert(host, now);
+    }
 }
 
 enum Resolvers {
@@ -141,7 +200,11 @@ impl Ctx {
                 )?)
             }
         };
-        Ok(Ctx { resolver, log })
+        Ok(Ctx {
+            resolver,
+            ipv6_unreachable: Ipv6Unreachable::new(IPV6_UNREACHABLE_TTL, MAX_IPV6_UNREACHABLE),
+            log,
+        })
     }
 
     fn resolver(&self) -> io::Result<TokioResolver> {
@@ -175,7 +238,8 @@ impl Ctx {
 
     /// 行き先に TCP でつなぐ（Happy Eyeballs。モジュールの説明を見る）。
     pub(crate) async fn connect_tcp(&self, host: &str, port: u16) -> io::Result<TcpStream> {
-        let addrs = interleave(self.resolve(host, port).await?);
+        let ipv6_first = !self.ipv6_unreachable.contains(host, Instant::now());
+        let addrs = interleave(self.resolve(host, port).await?, ipv6_first);
         let (stream, addr) = race(
             &addrs,
             CONNECTION_ATTEMPT_DELAY,
@@ -183,15 +247,22 @@ impl Ctx {
             TcpStream::connect,
         )
         .await?;
+        self.ipv6_unreachable
+            .record(host, &addrs, addr, Instant::now());
         self.trace(format_args!("tcp {host}:{port} -> {addr}"));
         let _ = stream.set_nodelay(true);
         Ok(stream)
     }
 
     /// 行き先に UDP のソケットを向ける（`connect` する）。経路の無いアドレスは飛ばす。
+    /// IPv6 が届かないと覚えている行き先（モジュールの説明を見る）には、IPv4 を先にする。
     pub(crate) async fn connect_udp(&self, host: &str, port: u16) -> io::Result<UdpSocket> {
+        let mut addrs = self.resolve(host, port).await?;
+        if self.ipv6_unreachable.contains(host, Instant::now()) {
+            prefer_ipv4(&mut addrs);
+        }
         let mut last = None;
-        for addr in self.resolve(host, port).await? {
+        for addr in addrs {
             let local: SocketAddr = match addr {
                 SocketAddr::V6(_) => (Ipv6Addr::UNSPECIFIED, 0).into(),
                 SocketAddr::V4(_) => (Ipv4Addr::UNSPECIFIED, 0).into(),
@@ -226,14 +297,20 @@ fn prefer_ipv6(addrs: &mut [SocketAddr]) {
     addrs.sort_by_key(|a| a.is_ipv4());
 }
 
-/// IPv6 と IPv4 のアドレスを、IPv6 から交互に並べる（RFC 8305 の 4 節）。片方を使い切ったら、残りをそのまま並べる。
-/// 同じ種類の中の順は、渡された順のまま。
-fn interleave(addrs: Vec<SocketAddr>) -> Vec<SocketAddr> {
+/// IPv4 のアドレスを先に並べる。同じ種類の中の順は、渡された順のまま（安定な並べ替え）。
+fn prefer_ipv4(addrs: &mut [SocketAddr]) {
+    addrs.sort_by_key(|a| a.is_ipv6());
+}
+
+/// IPv6 と IPv4 のアドレスを交互に並べる（RFC 8305 の 4 節）。`ipv6_first` なら IPv6 から、でなければ IPv4 から。
+/// 片方を使い切ったら、残りをそのまま並べる。同じ種類の中の順は、渡された順のまま。
+fn interleave(addrs: Vec<SocketAddr>, ipv6_first: bool) -> Vec<SocketAddr> {
     let (v6, v4): (Vec<SocketAddr>, Vec<SocketAddr>) = addrs.into_iter().partition(|a| a.is_ipv6());
-    let mut out = Vec::with_capacity(v6.len() + v4.len());
-    let (mut v6, mut v4) = (v6.into_iter(), v4.into_iter());
+    let (first, second) = if ipv6_first { (v6, v4) } else { (v4, v6) };
+    let mut out = Vec::with_capacity(first.len() + second.len());
+    let (mut first, mut second) = (first.into_iter(), second.into_iter());
     loop {
-        match (v6.next(), v4.next()) {
+        match (first.next(), second.next()) {
             (None, None) => return out,
             (a, b) => out.extend(a.into_iter().chain(b)),
         }
@@ -364,13 +441,16 @@ mod tests {
 
     #[test]
     fn interleaves_starting_with_ipv6() {
-        let got = interleave(addrs(&[
-            "192.0.2.1:443",
-            "[2001:db8::1]:443",
-            "[2001:db8::2]:443",
-            "[2001:db8::3]:443",
-            "192.0.2.2:443",
-        ]));
+        let got = interleave(
+            addrs(&[
+                "192.0.2.1:443",
+                "[2001:db8::1]:443",
+                "[2001:db8::2]:443",
+                "[2001:db8::3]:443",
+                "192.0.2.2:443",
+            ]),
+            true,
+        );
         assert_eq!(
             got,
             addrs(&[
@@ -382,10 +462,18 @@ mod tests {
             ])
         );
         assert_eq!(
-            interleave(addrs(&["192.0.2.1:443", "192.0.2.2:443"])),
+            interleave(addrs(&["192.0.2.1:443", "192.0.2.2:443"]), true),
             addrs(&["192.0.2.1:443", "192.0.2.2:443"])
         );
-        assert!(interleave(vec![]).is_empty());
+        assert!(interleave(vec![], true).is_empty());
+        // IPv6 が届かないと覚えている行き先は、IPv4 から
+        assert_eq!(
+            interleave(
+                addrs(&["[2001:db8::1]:443", "[2001:db8::2]:443", "192.0.2.1:443"]),
+                false
+            ),
+            addrs(&["192.0.2.1:443", "[2001:db8::1]:443", "[2001:db8::2]:443"])
+        );
     }
 
     type Attempt =
@@ -404,13 +492,16 @@ mod tests {
     #[tokio::test]
     async fn ipv4_wins_when_ipv6_never_answers() {
         // IPv6 のアドレスがいくつあっても、1 つ目の IPv6 の次に IPv4 を試す。各試みの待ちの長さまでは待たない
-        let list = interleave(addrs(&[
-            "[2001:db8::1]:443",
-            "[2001:db8::2]:443",
-            "[2001:db8::3]:443",
-            "[2001:db8::4]:443",
-            "192.0.2.1:443",
-        ]));
+        let list = interleave(
+            addrs(&[
+                "[2001:db8::1]:443",
+                "[2001:db8::2]:443",
+                "[2001:db8::3]:443",
+                "[2001:db8::4]:443",
+                "192.0.2.1:443",
+            ]),
+            true,
+        );
         let t0 = Instant::now();
         let (got, addr) = race(
             &list,
@@ -430,7 +521,7 @@ mod tests {
         // IPv6 が `delay` より短い時間でつながれば、すぐにつながる IPv4 も試し始めない
         use std::sync::atomic::{AtomicUsize, Ordering};
         use std::sync::Arc;
-        let list = interleave(addrs(&["192.0.2.1:443", "[2001:db8::1]:443"]));
+        let list = interleave(addrs(&["192.0.2.1:443", "[2001:db8::1]:443"]), true);
         let ipv4_tried = Arc::new(AtomicUsize::new(0));
         let counter = ipv4_tried.clone();
         let (_, addr) = race(
@@ -508,5 +599,71 @@ mod tests {
         )
         .await
         .is_err());
+    }
+
+    #[test]
+    fn remembers_hosts_whose_ipv6_did_not_answer() {
+        let m = Ipv6Unreachable::new(Duration::from_secs(600), 4096);
+        let t0 = Instant::now();
+        let both = addrs(&["[2001:db8::1]:443", "192.0.2.1:443"]);
+        let v4 = "192.0.2.1:443".parse().unwrap();
+        let v6 = "[2001:db8::1]:443".parse().unwrap();
+        assert!(!m.contains("example.com", t0));
+
+        // IPv6 も試したのに IPv4 が先につながったら覚える（名前の大文字小文字は区別しない）
+        m.record("Example.com", &both, v4, t0);
+        assert!(m.contains("example.com", t0 + Duration::from_secs(1)));
+        assert!(!m.contains("other.example", t0));
+        // 覚える長さを過ぎたら忘れる
+        assert!(!m.contains("example.com", t0 + Duration::from_secs(600)));
+
+        // IPv6 が先につながったら忘れる
+        m.record("example.com", &both, v4, t0);
+        m.record("example.com", &both, v6, t0);
+        assert!(!m.contains("example.com", t0));
+
+        // IPv6 のアドレスが無かった（IPv4 しか試していない）なら覚えない
+        m.record("v4only.example", &addrs(&["192.0.2.1:443"]), v4, t0);
+        assert!(!m.contains("v4only.example", t0));
+    }
+
+    #[test]
+    fn remembered_hosts_are_bounded() {
+        let m = Ipv6Unreachable::new(Duration::from_secs(600), 2);
+        let t0 = Instant::now();
+        let both = addrs(&["[2001:db8::1]:443", "192.0.2.1:443"]);
+        let v4 = "192.0.2.1:443".parse().unwrap();
+        m.record("a.example", &both, v4, t0);
+        m.record("b.example", &both, v4, t0 + Duration::from_secs(1));
+        // いっぱいで、切れたものも無ければ全部忘れてから覚える
+        m.record("c.example", &both, v4, t0 + Duration::from_secs(2));
+        assert!(!m.contains("a.example", t0 + Duration::from_secs(2)));
+        assert!(m.contains("c.example", t0 + Duration::from_secs(2)));
+        // 切れたものがあれば、それだけ捨てる
+        m.record("d.example", &both, v4, t0 + Duration::from_secs(3));
+        m.record("e.example", &both, v4, t0 + Duration::from_secs(602));
+        assert!(m.contains("d.example", t0 + Duration::from_secs(602)));
+        assert!(m.contains("e.example", t0 + Duration::from_secs(602)));
+        assert!(!m.contains("c.example", t0 + Duration::from_secs(602)));
+    }
+
+    #[test]
+    fn ipv4_first_keeps_the_order_within_a_family() {
+        let mut list = addrs(&[
+            "[2001:db8::1]:443",
+            "192.0.2.1:443",
+            "[2001:db8::2]:443",
+            "192.0.2.2:443",
+        ]);
+        prefer_ipv4(&mut list);
+        assert_eq!(
+            list,
+            addrs(&[
+                "192.0.2.1:443",
+                "192.0.2.2:443",
+                "[2001:db8::1]:443",
+                "[2001:db8::2]:443",
+            ])
+        );
     }
 }
