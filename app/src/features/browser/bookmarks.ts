@@ -12,8 +12,8 @@ export interface Bookmark {
   url: string;
   /** ページの題（分からなければ空） */
   title: string;
-  /** Chrome から読んだものなら "chrome"（#239。kisui-terminal 自身のものは付けない。覚えるファイルには入らない） */
-  source?: "chrome";
+  /** Firefox から読んだものなら "firefox"（#543。#239 から #543 までは Chrome。kisui-terminal 自身のものは付けない。覚えるファイルには入らない） */
+  source?: "firefox";
 }
 
 /** 覚えるブックマークの数の上限（bookmarks.rs の MAX_BOOKMARKS と同じ）。 */
@@ -107,15 +107,17 @@ export function bookmarkKey(
   return null;
 }
 
-/** Chrome のブックマークを読めなかった理由（#265）。殻の `ChromeProblem`。 */
-export type ChromeProblem = {
+/** Firefox のブックマークを読めなかった理由（#265）。殻の `FirefoxProblem`。 */
+export type FirefoxProblem = {
   path: string;
   reason: string;
   needsPermission: boolean;
 };
 
-/** 殻が返した Chrome のブックマークの読み込みから、読めなかった理由を取り出す。無い・形が違うときは undefined。 */
-export function chromeProblemFromLoaded(v: unknown): ChromeProblem | undefined {
+/** 殻が返した Firefox のブックマークの読み込みから、読めなかった理由を取り出す。無い・形が違うときは undefined。 */
+export function firefoxProblemFromLoaded(
+  v: unknown,
+): FirefoxProblem | undefined {
   if (typeof v !== "object" || v === null || !("problem" in v)) return;
   const p = (v as { problem: unknown }).problem;
   if (typeof p !== "object" || p === null) return;
@@ -125,6 +127,6 @@ export function chromeProblemFromLoaded(v: unknown): ChromeProblem | undefined {
 }
 
 /** 同じ理由を何度も知らせないための印（読もうとしたファイルと理由が同じなら同じ）。 */
-export function chromeProblemKey(p: ChromeProblem): string {
+export function firefoxProblemKey(p: FirefoxProblem): string {
   return `${p.path}\n${p.reason}\n${p.needsPermission}`;
 }

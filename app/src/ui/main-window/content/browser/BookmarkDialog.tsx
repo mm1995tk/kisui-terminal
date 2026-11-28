@@ -26,7 +26,7 @@ import {
   bookmarkRows,
   toggleFolder,
   type BookmarkRow,
-  type ChromeNode,
+  type FirefoxNode,
 } from "../../../../features/browser/bookmarkTree.ts";
 import "./browser.css";
 import { Input } from "../../../components/Field.tsx";
@@ -65,8 +65,8 @@ function BookmarkDialogRow(props: {
             <span class="card-row-name">
               {r.bookmark.title || r.bookmark.url}
             </span>
-            <Show when={r.bookmark.source === "chrome"}>
-              <span class="bookmark-source">{T("bookmarks.chrome")}</span>
+            <Show when={r.bookmark.source === "firefox"}>
+              <span class="bookmark-source">{T("bookmarks.firefox")}</span>
             </Show>
             <span class="card-row-state bookmark-url">{r.bookmark.url}</span>
           </>
@@ -80,8 +80,8 @@ function BookmarkDialogRow(props: {
 export function BookmarkDialog(props: {
   /** kisui-terminal 自身のブックマーク（undefined は読み込み中） */
   own: readonly Bookmark[] | undefined;
-  /** Chrome のブックマークの木（#275。undefined は読み込み中） */
-  chrome: readonly ChromeNode[] | undefined;
+  /** Firefox のブックマークの木（#275。undefined は読み込み中） */
+  firefox: readonly FirefoxNode[] | undefined;
   failed: boolean;
   onOpen: (b: Bookmark) => void;
   onDelete: (b: Bookmark) => void;
@@ -93,7 +93,7 @@ export function BookmarkDialog(props: {
   /** 開け閉めを逆にしたフォルダ（根は最初から開き、その下は閉じている。bookmarkRows） */
   const [flipped, setFlipped] = createSignal<ReadonlySet<string>>(new Set());
   const shown = createMemo(() =>
-    bookmarkRows(props.own, props.chrome, flipped(), query()),
+    bookmarkRows(props.own, props.firefox, flipped(), query()),
   );
   const selectedIndex = () => Math.max(0, Math.min(sel(), shown().length - 1));
   const selected = () => shown()[selectedIndex()];
@@ -137,7 +137,7 @@ export function BookmarkDialog(props: {
   const emptyText = () =>
     props.failed
       ? T("bookmarks.empty.failed")
-      : props.own === undefined && props.chrome === undefined
+      : props.own === undefined && props.firefox === undefined
         ? T("bookmarks.empty.loading")
         : query().trim() === ""
           ? T("bookmarks.empty.none", { leader: leaderKeyName(IS_MAC) })

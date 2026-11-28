@@ -1,4 +1,4 @@
-Ctrl+D で選んだものを消す（Chrome のブックマークは消せない）。Chrome のブックマーク（#239。`Default` プロファイルのファイルを読むだけで、書かない）も、札を付けて後ろに並ぶ。絞り込みが空のときの `?` で、ダイアログのキーの一覧（5 章） | | #205・#239 |# kisui-terminal のキー操作
+# kisui-terminal のキー操作
 
 kisui-terminal のキー操作の表。今のキーとマウスの操作の一覧は [`keys.md`](keys.md)。この表は #91 で決めたもの。リーダー・案内（`?`）・Shortcut の入れ替えは #92 で実装した（コマンドの表は `app/src/features/commands/commands.ts`）。場所のキー（5 章）は #115 で入れた（定義は `app/src/features/commands/placeKeys.ts`。判定は場所ごとに `features/file-tree/keys.ts`・`features/changes/keys.ts`・`features/terminal/media.ts`・`ui/main-window/content/media/imageView.ts`）。キーを足す・変えるときは、この表も直す。
 
@@ -213,7 +213,7 @@ Shortcut が無く、リーダーだけにあるもの：マシンのダイア�
 | `s` | 今のタブのサイトに、外のブラウザでログインする（sign in の `s`）。パスキーを待たずに、今のページの URL を外のブラウザ（Firefox）で開き、そのサイトのログインを 10 分待つ。外のブラウザでログインし、拡張機能のボタンを押すと、Cookie が戻り、このタブがログインした状態で開き直す（`docs/passkey-extension.md` の「手で始める」）。URL の host が `[gui.browser] passkey_sites` に当たるときだけ使え、当たらなければ理由を右下の Notice に出す | 閉じる | まだページが無い・シークレットのタブ | #276 |
 | `/` | ページ内を検索する（vim・less の検索の `/`）。ページの下の端に検索の欄が出る。字を打つたびに探し、`Enter` で次、`Shift+Enter` で前（端では折り返す）。`Esc` で閉じてページにキーを戻す | 閉じる | まだページが無い | Cmd+F / Ctrl+F（ブラウザを出している間だけ。4.2）。#205 |
 | `b` | 今のページをブックマークに足す（bookmark の `b`）。ブックマークはすべてのワークスペースで共有し、データのフォルダの `browser-bookmarks.json` に覚える（再起動しても残る）。同じ URL は 1 つにまとめ、題を新しくして先頭へ | 閉じる | まだページが無い | #205 |
-| `B` | ブックマークの一覧のダイアログを開く（Shift+b）。字を打つと題か URL で絞り込み、`↓` `↑`・Ctrl+J / Ctrl+K で選び、`Enter` で今のワークスペースの新しいタブに開く。Ctrl+D で選んだものを消す。Chrome のブックマーク（#239）も、札を付けて後ろに並ぶ | 一覧の Dialog に替わる | — | 新しいタブのページ（リーダーの `n` → `b`）にもブックマークの一覧がある。設定の Shortcut の `browser.bookmarks`。#205・#239 |
+| `B` | ブックマークの一覧のダイアログを開く（Shift+b）。字を打つと題か URL で絞り込み、`↓` `↑`・Ctrl+J / Ctrl+K で選び、`Enter` で今のワークスペースの新しいタブに開く。Ctrl+D で選んだものを消す（Firefox のブックマークは消せない）。手元の Firefox のブックマーク（#543。Firefox が普段開くプロファイルの `places.sqlite` の写しを読むだけで、書かない。#239 から #543 までは Chrome のもの）も、札を付けて後ろに並ぶ | 一覧の Dialog に替わる | — | 新しいタブのページ（リーダーの `n` → `b`）にもブックマークの一覧がある。設定の Shortcut の `browser.bookmarks`。#205・#239・#543 |
 | `i` | 今のページの DevTools（Web Inspector）を開く（inspect の `i`） | 閉じる | まだページが無い | #205 |
 
 閉じる・名前を変える（#459 までの `o x` `o R`）は、この Dialog に置かない。Workspace switcher（リーダーの `t` → `x` `r`）か、サイドバーのタブの行の ✕・鉛筆でする（#454）。

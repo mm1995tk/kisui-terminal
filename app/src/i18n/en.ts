@@ -988,23 +988,27 @@ export const en = {
   "toast.bookmarked": "Bookmarked",
   "toast.browser.login":
     "Opened in the external browser. After you log in, press the button of the kisui-terminal extension",
-  "toast.bookmarks.chromeKept":
-    "Bookmarks from Chrome cannot be deleted here (delete them in Chrome)",
+  "toast.bookmarks.firefoxKept":
+    "Bookmarks from Firefox cannot be deleted here (delete them in Firefox)",
   "bookmarks.title": "Bookmarks",
   "bookmarks.filter": "Filter bookmarks",
   "bookmarks.filterPlaceholder": "Type to filter by title or URL",
   "bookmarks.list": "Bookmarks",
-  "bookmarks.chrome": "Chrome",
+  "bookmarks.firefox": "Firefox",
+  "bookmarks.root.toolbar": "Bookmarks Toolbar",
+  "bookmarks.root.menu": "Bookmarks Menu",
+  "bookmarks.root.unfiled": "Other Bookmarks",
+  "bookmarks.root.mobile": "Mobile Bookmarks",
   "bookmarks.empty.loading": "Loading…",
   "bookmarks.empty.failed": "Could not read the bookmarks",
   "bookmarks.empty.none":
     "No bookmarks yet. Add the page you are viewing with {leader} a b.",
   "bookmarks.empty.noMatch": "Nothing matches",
   "err.bookmarks.read": "Could not read your own bookmarks",
-  "err.bookmarks.chrome":
-    "Could not read the Chrome bookmarks: {reason} ({path})",
-  "err.bookmarks.chromePermission":
-    "Could not read the Chrome bookmarks: {reason} ({path}). Add kisui-terminal in System Settings > Privacy & Security > Full Disk Access.",
+  "err.bookmarks.firefox":
+    "Could not read the Firefox bookmarks: {reason} ({path})",
+  "err.bookmarks.firefoxPermission":
+    "Could not read the Firefox bookmarks: {reason} ({path}). Add kisui-terminal in System Settings > Privacy & Security > Full Disk Access.",
   "err.bookmarks.save": "Could not save the bookmarks",
   "err.devtools": "Could not open DevTools",
   "find.label": "Find in page",

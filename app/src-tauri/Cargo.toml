@@ -38,6 +38,11 @@ libc = "=0.2.191"
 # kisui-terminal の外からクリップボードの履歴を開く全体のキー（clipboard_popup.rs）。macOS は Carbon の RegisterEventHotKey、
 # Linux は X11 の XGrabKey で取る（macOS のアクセシビリティの許可は要らない）
 tauri-plugin-global-shortcut = "=2.4.1"
+# 内蔵ブラウザの、手元の Firefox のブックマーク（bookmarks.rs。#543）。places.sqlite の写しを読む。
+# SQLite は crate に入れたもの（bundled）を使い、OS の libsqlite3 に頼らない（macOS・Linux・Nix で同じに作れるように）
+rusqlite = { version = "=0.41.1", default-features = false, features = [
+  "bundled",
+] }
 # 結果の書き出しの「保存」のダイアログ（export.rs。DB のタブ。#349）。窓には権限を渡さず、Rust の側でだけ使う
 tauri-plugin-dialog = "=2.8.4"
 

@@ -319,7 +319,7 @@ export function createBrowserCommands(deps: {
               e instanceof Error ? e.message : String(e),
             );
           });
-        // Chrome のブックマークは、読むだけの別のもので、一覧に含めない
+        // Firefox のブックマークは、読むだけの別のもので、一覧に含めない
         return { bookmarks: list.map((b) => ({ url: b.url, title: b.title })) };
       },
     },

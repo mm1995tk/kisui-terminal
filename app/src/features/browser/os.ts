@@ -102,8 +102,8 @@ export interface BrowserOs {
   startPasskeyLogin(tab: string): Promise<PasskeyLogin>;
   /** 覚えたブックマーク（#205。すべてのワークスペースで共有）。 */
   loadBookmarks(): Promise<Bookmark[]>;
-  /** Chrome のブックマーク（#239。読むだけ。Chrome が無ければ空）。 */
-  loadChromeBookmarks(): Promise<unknown>;
+  /** Firefox のブックマーク（#543。読むだけ。Firefox が無ければ空）。 */
+  loadFirefoxBookmarks(): Promise<unknown>;
   /** ブックマークを覚える（丸ごと置き換える）。 */
   saveBookmarks(bookmarks: readonly Bookmark[]): Promise<void>;
   /** タブを閉じる（子の webview を壊す）。 */

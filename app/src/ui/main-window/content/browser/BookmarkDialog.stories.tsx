@@ -13,7 +13,7 @@ const meta = {
       { url: "https://example.com/", title: "Example" },
       { url: "https://example.com/docs", title: "Docs" },
     ],
-    chrome: [
+    firefox: [
       {
         kind: "folder",
         name: "Bookmarks bar",
@@ -23,7 +23,7 @@ const meta = {
             bookmark: {
               url: "https://example.org/",
               title: "Org",
-              source: "chrome",
+              source: "firefox",
             },
           },
         ],
@@ -39,5 +39,5 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** 開いたところ（最初の行は自分のブックマークなので、Key footer に delete を出す）。Chrome のブックマークやフォルダへ移すと、見出しだけになる。 */
+/** 開いたところ（最初の行は自分のブックマークなので、Key footer に delete を出す）。Firefox のブックマークやフォルダへ移すと、見出しだけになる。 */
 export const Default: Story = {};

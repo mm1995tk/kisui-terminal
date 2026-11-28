@@ -365,7 +365,7 @@ Add the page of the tab to the bookmarks of the built-in browser.
 
 ### kisui browser bookmark list [--json]
 
-List the bookmarks of the built-in browser, newest first (the bookmarks of the user's Chrome are not listed). `--json` prints `{"bookmarks": [{"url", "title"}, ...]}`. The bookmarks are the user's own; do not copy them anywhere the user did not ask.
+List the bookmarks of the built-in browser, newest first (the bookmarks of the user's Firefox are not listed). `--json` prints `{"bookmarks": [{"url", "title"}, ...]}`. The bookmarks are the user's own; do not copy them anywhere the user did not ask.
 
 ### kisui browser find <tab> <text>
 

@@ -97,7 +97,7 @@ var en = map[string]string{
 	"help.browser.bookmark-add":    "Add the page of a browser tab to the bookmarks",
 	"browser.bookmark-add.usage":   "usage: kisui browser bookmark add <tab>",
 	"help.browser.bookmark-list":   "List the bookmarks of the built-in browser",
-	"browser.bookmark-list.usage":  "usage: kisui browser bookmark list [--json]  (the bookmarks of the built-in browser, newest first; the bookmarks of Chrome are not listed)",
+	"browser.bookmark-list.usage":  "usage: kisui browser bookmark list [--json]  (the bookmarks of the built-in browser, newest first; the bookmarks of Firefox are not listed)",
 	"browser.bookmark-list.header": "URL\tTITLE",
 	"help.browser.find":            "Find text in the page of a browser tab",
 	"browser.find.usage":           "usage: kisui browser find <tab> <text>  (selects the first match in the page and prints found or not found; write -- before a text that starts with -)",

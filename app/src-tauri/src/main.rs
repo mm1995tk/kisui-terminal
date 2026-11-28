@@ -291,7 +291,7 @@ fn main() {
             browser::browser_passkey_login,
             bookmarks::browser_bookmarks_load,
             bookmarks::browser_bookmarks_save,
-            bookmarks::browser_chrome_bookmarks_load,
+            bookmarks::browser_firefox_bookmarks_load,
             download::download_open,
             download::download_reveal,
             export::export_save_text,
